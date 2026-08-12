@@ -145,7 +145,7 @@ open "http://127.0.0.1:8766/signals?run_id=$MVP_RUN_ID"
 2. 选择人工标签，填写原因和备注并保存复核。
 3. 编辑不超过 180 字的个性化草稿并保存。
 4. 操作人在平台或明确公开的商务入口逐条发送；工作台不代发。
-5. 回到详情页，填写实际文本、时间、主体键和来源 URL，确认已打开来源后登记 `SENT_VERIFIED`。
+5. 回到详情页，填写实际文本、时间和来源 URL，核对服务端从 Signal 生成的只读主体键，确认已打开来源后登记 `SENT_VERIFIED`；浏览器不能提交或覆盖主体键。
 6. 在“跟进”页只登记真实发生且已人工核验的回复、访谈和报价机会。
 
 复核和人工草稿的活动时间由工作台自动记录：首次聚焦表单启动或恢复 session，页面隐藏或 60 秒无操作时暂停，提交时完成。起止时间和有效秒数仅由服务端事件重放产生，不接受浏览器手填时长。草稿、fixture、模拟回复或仅打开链接都不能登记为已联系。
@@ -183,7 +183,7 @@ CSV 不含登录态或模型密钥，但含公开作者标识和原文，只用�
 | `COLLECTION_NETWORK_FAILED` | 人工核对网络后显式发起新 attempt，不自动重试。 |
 | `PLATFORM_RESPONSE_CHANGED` / `COLLECTION_PARSE_FAILED` | 停止对应批次；修复并通过代码门禁前不重试。 |
 | `COLLECTION_CANCELLED` | 保留取消事实；需要继续时显式创建新 attempt。 |
-| `COLLECTION_DAILY_LIMIT_REACHED` | 当日不再发起被限平台查询，或在全 run 达到 300 条新 Signal 时停止两平台；下一上海自然日再手工发起。 |
+| `COLLECTION_DAILY_LIMIT_REACHED` | 当日不再发起达到 8 次的平台查询；同一 run、同一上海自然日两平台合计新增达到 300 条 Signal 时停止两平台，下一上海自然日再手工发起。 |
 | `MODEL_NOT_CONFIGURED` / `MODEL_UNAVAILABLE` | 保留 `FAILED` score fact，不用规则或 fixture 伪造分数；修复真实模型输入后创建新 score run。 |
 
 所有重试都是新的只追加 attempt，不覆盖旧事实。自动门禁、空库页面、fixture 和单平台证据都不得升级为 `REAL_COLLECTION_*` 或 14 天结论。
