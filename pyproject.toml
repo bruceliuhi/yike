@@ -1,0 +1,26 @@
+[project]
+name = "yike-discovery-mvp"
+version = "0.1.0"
+description = "Local-only authorized dual-platform discovery MVP"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "fastapi==0.115.12",
+    "httpx==0.28.1",
+    "jinja2==3.1.6",
+    "pydantic==2.11.7",
+    "uvicorn==0.34.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==8.3.5"]
+
+[project.scripts]
+yike-web = "app.cli:web"
+yike-collector = "app.cli:collector"
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]

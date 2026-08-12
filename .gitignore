@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+.runtime/
+data/
+exports/
+profiles/
+cookies/
+__pycache__/
+*.py[cod]
+.pytest_cache/
