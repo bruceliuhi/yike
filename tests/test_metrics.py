@@ -49,7 +49,8 @@ def test_empty_run_metrics_are_sql_derived_and_running(tmp_path):
 def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
     connection = connect(tmp_path / "facts.sqlite3")
     migrate(connection)
-    repository = Repository(connection)
+    clock = lambda: datetime(2026, 8, 12, 8, tzinfo=UTC)
+    repository = Repository(connection, now=clock)
     run_id = repository.create_run(["bili", "dy"])
     signal_id = repository.import_signal(
         run_id,
@@ -101,7 +102,7 @@ def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
         decision=decision,
         token_usage={"total_tokens": 99},
     )
-    workflow = Workflow(repository)
+    workflow = Workflow(repository, now=clock)
     workflow.present_score(run_id, signal_id, "metric-score")
     review_session = workflow.start_activity(run_id, signal_id, "REVIEW")
     workflow.record_activity(review_session, "COMPLETE")

@@ -1,4 +1,5 @@
 import csv
+from datetime import UTC, datetime
 import io
 
 from fastapi.testclient import TestClient
@@ -19,7 +20,8 @@ def settings_for(tmp_path):
 def facts(settings):
     connection = connect(settings.data_dir / "discovery.sqlite3")
     migrate(connection)
-    repository = Repository(connection)
+    clock = lambda: datetime(2026, 8, 12, 8, tzinfo=UTC)
+    repository = Repository(connection, now=clock)
     run_id = repository.create_run(["bili", "dy"])
     first = repository.import_signal(
         run_id,
@@ -88,7 +90,7 @@ def facts(settings):
         decision=decision,
         token_usage={"total_tokens": 10},
     )
-    return connection, repository, Workflow(repository), run_id, first, second
+    return connection, repository, Workflow(repository, now=clock), run_id, first, second
 
 
 def completed_session(workflow, run_id, signal_id, kind):
@@ -310,10 +312,12 @@ def test_signal_filters_use_persisted_score_review_query_and_outreach(tmp_path):
     assert "人工筛选效率低" not in mismatch.text
 
 
-def test_detail_posts_review_draft_and_manual_outreach_then_redirects(tmp_path):
+def test_detail_posts_review_draft_and_manual_outreach_then_redirects(tmp_path, monkeypatch):
     settings = settings_for(tmp_path)
     connection, _, _, run_id, signal_id, _ = facts(settings)
-    workflow = Workflow(Repository(connection))
+    clock = lambda: datetime(2026, 8, 12, 8, tzinfo=UTC)
+    monkeypatch.setattr("app.workflow._system_now", clock)
+    workflow = Workflow(Repository(connection, now=clock), now=clock)
     review_session = completed_session(workflow, run_id, signal_id, "REVIEW")
     draft_session = completed_session(workflow, run_id, signal_id, "DRAFT")
     connection.close()

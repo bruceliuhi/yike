@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 import sqlite3
 
 import pytest
@@ -21,7 +22,8 @@ class SuccessfulClient:
 def facts(tmp_path):
     connection = connect(tmp_path / "workflow.sqlite3")
     migrate(connection)
-    repository = Repository(connection)
+    clock = lambda: datetime(2026, 8, 12, 8, tzinfo=UTC)
+    repository = Repository(connection, now=clock)
     run_id = repository.create_run(["bili", "dy"])
     signal_id = repository.import_signal(
         run_id,
@@ -38,7 +40,7 @@ def facts(tmp_path):
             body="团队正在筛选销售线索，人工筛选效率低",
         ),
     ).signal_id
-    yield connection, repository, Workflow(repository), run_id, signal_id
+    yield connection, repository, Workflow(repository, now=clock), run_id, signal_id
     connection.close()
 
 

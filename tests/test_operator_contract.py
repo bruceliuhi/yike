@@ -30,10 +30,12 @@ class SuccessfulClient:
 
 
 @pytest.fixture
-def operator_facts(tmp_path):
+def operator_facts(tmp_path, monkeypatch):
     connection = connect(tmp_path / "operator.sqlite3")
     migrate(connection)
-    repository = Repository(connection)
+    clock = Clock("2026-08-12T08:00:00Z")
+    repository = Repository(connection, now=clock)
+    monkeypatch.setattr("app.workflow._system_now", clock)
     run_id = repository.create_run(["bili", "dy"])
     signal_id = repository.import_signal(
         run_id,

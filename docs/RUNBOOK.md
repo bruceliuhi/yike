@@ -88,7 +88,7 @@ uv run --frozen yike-collector collect --platform dy --mvp-run-id "$MVP_RUN_ID" 
 uv run --frozen python -c 'import os; from app.config import Settings; from app.repository import Repository; r=Repository.from_settings(Settings.from_env()); run_id=os.environ["MVP_RUN_ID"]; print({"signals":r.count_signals(run_id),"observations":r.count_observations(run_id)}); r.connection.close()'
 ```
 
-缺少账号、扫码、浏览器或平台响应时，按平台分别记录精确 `BLOCKED_INPUT`；fixture 和另一平台的结果不能替代。
+缺少账号、扫码或可见浏览器等运行输入时，按平台分别记录精确 `BLOCKED_INPUT`；平台响应异常或网络失败保留 `FAILED` 终态及稳定 `error_code`。fixture 和另一平台的结果不能替代。
 
 ## 6. 严格 AI 评分
 
