@@ -5,7 +5,7 @@ from typing import Mapping, Protocol
 
 import httpx
 
-from app.model_contract import ScoreDecision
+from app.model_contract import DraftDecision, ScoreDecision
 
 
 class ModelClient(Protocol):
@@ -13,6 +13,10 @@ class ModelClient(Protocol):
     model: str
 
     def complete(
+        self, *, source_text: str
+    ) -> tuple[dict[str, object], dict[str, object] | None]: ...
+
+    def generate_draft(
         self, *, source_text: str
     ) -> tuple[dict[str, object], dict[str, object] | None]: ...
 
@@ -29,21 +33,50 @@ class OpenAICompatibleModelClient:
     def complete(
         self, *, source_text: str
     ) -> tuple[dict[str, object], dict[str, object] | None]:
+        return self._request(
+            source_text=source_text,
+            system="Return only the strict discovery scoring JSON object.",
+            schema_name="discovery_score",
+            schema=ScoreDecision.model_json_schema(),
+        )
+
+    def generate_draft(
+        self, *, source_text: str
+    ) -> tuple[dict[str, object], dict[str, object] | None]:
+        return self._request(
+            source_text=source_text,
+            system=(
+                "Return only strict discovery draft JSON. Keep body within 180 "
+                "characters, quote one source snippet verbatim, state the research "
+                "purpose, and ask exactly one diagnostic question."
+            ),
+            schema_name="discovery_draft",
+            schema=DraftDecision.model_json_schema(),
+        )
+
+    def _request(
+        self,
+        *,
+        source_text: str,
+        system: str,
+        schema_name: str,
+        schema: dict[str, object],
+    ) -> tuple[dict[str, object], dict[str, object] | None]:
         request = {
             "model": self.model,
             "messages": [
                 {
                     "role": "system",
-                    "content": "Return only the strict discovery scoring JSON object.",
+                    "content": system,
                 },
                 {"role": "user", "content": source_text},
             ],
             "response_format": {
                 "type": "json_schema",
                 "json_schema": {
-                    "name": "discovery_score",
+                    "name": schema_name,
                     "strict": True,
-                    "schema": ScoreDecision.model_json_schema(),
+                    "schema": schema,
                 },
             },
         }

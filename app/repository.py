@@ -1,20 +1,52 @@
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 import hashlib
 import json
 import sqlite3
-from typing import TYPE_CHECKING
+from typing import Callable, TYPE_CHECKING
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 if TYPE_CHECKING:
     from app.config import Settings
-    from app.model_contract import ScoreDecision
+    from app.model_contract import DraftDecision, ScoreDecision
 
 
 _PLATFORMS = frozenset(("bili", "dy"))
 _FINAL_DECISIONS = frozenset(
     ("STOP_DISCOVERY", "BLOCKED_INPUT", "PROCEED_TO_V03_REVIEW", "REVISE_MVP")
 )
+_QUERY_SET = [
+    ["B2B 获客困难", ["B2B获客", "企业获客", "销售线索", "怎么找企业客户"]],
+    ["销售跟进低效", ["客户跟进", "销售跟进", "CRM自动化", "销售漏斗"]],
+    ["AI 销售意图", ["AI销售Agent", "销售智能体", "AI获客", "智能销售助手"]],
+    ["Agent 落地需求", ["AI Agent定制", "智能体开发", "Agent企业落地", "企业AI应用"]],
+    ["明确业务摩擦", ["线索筛选", "客户不回复", "销售团队效率", "销售自动化"]],
+]
+_THRESHOLDS = {
+    "success": {
+        "signals": 300, "reviewed": 100, "reviewed_ab": 40,
+        "precision": 0.5, "outreach": 30, "responses": 5,
+        "interviews": 2, "quotes": 1, "daily_seconds": 5400,
+        "day8_12_signal_median_seconds": 240, "incidents": 0,
+    },
+    "loss_stop": {
+        "reviewed_200_high_intent_lt": 10,
+        "outreach_30_valid_responses_lt": 3,
+        "outreach_40_interviews": 0,
+        "high_intent_20_personalized": 0,
+        "consecutive_over_90_minute_days": 3,
+        "unsolvable_interview": True,
+    },
+}
+_EMPTY_QUERY_SET_SHA256 = hashlib.sha256(
+    json.dumps(_QUERY_SET, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+).hexdigest()
+_THRESHOLDS_SHA256 = hashlib.sha256(
+    json.dumps(_THRESHOLDS, sort_keys=True, separators=(",", ":")).encode("utf-8")
+).hexdigest()
+_RUN_PROMPT_VERSION = "DISCOVERY_SCORE_V1+DISCOVERY_DRAFT_V1"
+_RUN_SCHEMA_VERSION = "DISCOVERY_SCHEMA_V7+DISCOVERY_SCORE_SCHEMA_V1"
 
 
 class ActiveRunError(RuntimeError):
@@ -76,8 +108,11 @@ def _sha256(value: str) -> str:
 
 
 class Repository:
-    def __init__(self, connection: sqlite3.Connection):
+    def __init__(
+        self, connection: sqlite3.Connection, *, now: Callable[[], datetime] | None = None
+    ):
         self.connection = connection
+        self._now = now or (lambda: datetime.now(UTC))
 
     @classmethod
     def from_settings(cls, settings: "Settings") -> "Repository":
@@ -113,8 +148,18 @@ class Repository:
                 raise RunRevisionError("a base run permits only one revision")
 
         run_id = str(uuid4())
-        started_at = _utc_now()
-        due_at = (datetime.now(UTC) + timedelta(days=14)).isoformat(timespec="seconds").replace(
+        started = self._now()
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=UTC)
+        started = started.astimezone(UTC)
+        started_at = started.isoformat(timespec="seconds").replace("+00:00", "Z")
+        shanghai = ZoneInfo("Asia/Shanghai")
+        due_local = datetime.combine(
+            started.astimezone(shanghai).date() + timedelta(days=14),
+            time(23, 59, 59),
+            tzinfo=shanghai,
+        )
+        due_at = due_local.astimezone(UTC).isoformat(timespec="seconds").replace(
             "+00:00", "Z"
         )
         try:
@@ -123,14 +168,19 @@ class Repository:
                     """
                     INSERT INTO mvp_runs (
                         mvp_run_id, revision_of_run_id, state, authorization_basis,
-                        platform_scope_json, started_at, day14_due_at
-                    ) VALUES (?, ?, 'ACTIVE', ?, ?, ?, ?)
+                        platform_scope_json, query_set_sha256, prompt_version,
+                        schema_version, thresholds_sha256, started_at, day14_due_at
+                    ) VALUES (?, ?, 'ACTIVE', ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         run_id,
                         revision_of_run_id,
                         "USER_ATTESTED_PLATFORM_AUTHORIZATION",
                         json.dumps(platforms, separators=(",", ":")),
+                        _EMPTY_QUERY_SET_SHA256,
+                        _RUN_PROMPT_VERSION,
+                        _RUN_SCHEMA_VERSION,
+                        _THRESHOLDS_SHA256,
                         started_at,
                         due_at,
                     ),
@@ -349,20 +399,62 @@ class Repository:
         )
         return ImportResult(signal_id=signal_id, created=created, observation_id=observation_id)
 
-    def finalize_run(self, run_id: str, decision: str, facts: dict[str, object]) -> None:
+    def finalize_run(
+        self,
+        run_id: str,
+        decision: str,
+        facts: dict[str, object],
+        *,
+        final_report_sha256: str | None = None,
+    ) -> None:
         if decision not in _FINAL_DECISIONS:
             raise ValueError("decision is not a final discovery conclusion")
         facts_json = json.dumps(facts, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        with self.connection:
-            result = self.connection.execute(
+        report_json = json.dumps(
+            {"conclusion": decision, "facts": json.loads(facts_json)},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+        def update() -> sqlite3.Cursor:
+            return self.connection.execute(
                 """
                 UPDATE mvp_runs
                 SET state = 'FINALIZED', finalized_at = ?, conclusion = ?,
-                    conclusion_facts_json = ?, conclusion_facts_sha256 = ?
-                WHERE mvp_run_id = ? AND state = 'ACTIVE'
+                    conclusion_facts_json = ?, conclusion_facts_sha256 = ?,
+                    final_report_sha256 = ?
+                WHERE mvp_run_id = ? AND state IN ('ACTIVE', 'CANCELLED')
                 """,
-                (_utc_now(), decision, facts_json, _sha256(facts_json), run_id),
+                (
+                    _utc_now(),
+                    decision,
+                    facts_json,
+                    _sha256(facts_json),
+                    final_report_sha256 or _sha256(report_json + "\n"),
+                    run_id,
+                ),
             )
+        if self.connection.in_transaction:
+            result = update()
+        else:
+            with self.connection:
+                result = update()
+        if result.rowcount != 1:
+            raise FinalizedRunError("mvp run is already finalized or not active")
+
+    def cancel_run(self, run_id: str) -> None:
+        def update() -> sqlite3.Cursor:
+            return self.connection.execute(
+                "UPDATE mvp_runs SET state = 'CANCELLED' "
+                "WHERE mvp_run_id = ? AND state = 'ACTIVE'",
+                (run_id,),
+            )
+        if self.connection.in_transaction:
+            result = update()
+        else:
+            with self.connection:
+                result = update()
         if result.rowcount != 1:
             raise FinalizedRunError("mvp run is already finalized or not active")
 
@@ -472,6 +564,79 @@ class Repository:
                     json.dumps(token_usage, sort_keys=True, separators=(",", ":"))
                     if token_usage is not None
                     else None,
+                ),
+            )
+
+    def append_draft_failure(
+        self,
+        *,
+        draft_run_id: str,
+        run_id: str,
+        signal_id: str,
+        provider: str | None,
+        model: str | None,
+        prompt_version: str,
+        error_code: str,
+    ) -> None:
+        with self.connection:
+            self.connection.execute(
+                """
+                INSERT INTO draft_runs (
+                    draft_run_id, mvp_run_id, signal_id, provider, model,
+                    prompt_version, draft_kind, body, status, error_code, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, 'GENERATED', NULL, 'FAILED', ?, ?)
+                """,
+                (
+                    draft_run_id,
+                    run_id,
+                    signal_id,
+                    provider,
+                    model,
+                    prompt_version,
+                    error_code,
+                    _utc_now(),
+                ),
+            )
+
+    def append_draft_success(
+        self,
+        *,
+        draft_run_id: str,
+        run_id: str,
+        signal_id: str,
+        provider: str,
+        model: str,
+        prompt_version: str,
+        decision: "DraftDecision",
+        token_usage: dict[str, object] | None,
+    ) -> None:
+        with self.connection:
+            self.connection.execute(
+                """
+                INSERT INTO draft_runs (
+                    draft_run_id, mvp_run_id, signal_id, provider, model,
+                    prompt_version, draft_kind, body, status, contract_json,
+                    token_usage_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, 'GENERATED', ?, 'SUCCEEDED', ?, ?, ?)
+                """,
+                (
+                    draft_run_id,
+                    run_id,
+                    signal_id,
+                    provider,
+                    model,
+                    prompt_version,
+                    decision.body,
+                    json.dumps(
+                        decision.model_dump(),
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                    json.dumps(token_usage, sort_keys=True, separators=(",", ":"))
+                    if token_usage is not None
+                    else None,
+                    _utc_now(),
                 ),
             )
 

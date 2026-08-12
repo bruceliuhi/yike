@@ -25,6 +25,40 @@
     <div><dt>已核验报价主体 <small>目标 1</small></dt><dd>{{ metrics.verified_quotes }}</dd></div>
   </dl>
 </section>
+<section class="ledger-section">
+  <div class="section-head"><div><p class="eyebrow">人工时间</p><h2>服务端事件重放</h2></div><span>{{ '完整' if metrics.time_complete else '不完整' }}</span></div>
+  <dl class="metric-ledger">
+    <div><dt>时间事实完整</dt><dd>{{ '是' if metrics.time_complete else '否' }}</dd></div>
+    <div><dt>每日 ≤ 90 分钟</dt><dd>{{ '是' if metrics.daily_time_within_limit else '否' }}</dd></div>
+    <div><dt>Day 8–12 单线索中位秒数</dt><dd>{{ metrics.day8_12_median_seconds if metrics.day8_12_median_seconds is not none else '—' }}</dd></div>
+    <div><dt>止损原因</dt><dd>{{ metrics.loss_stop_reasons|join(', ') if metrics.loss_stop_reasons else '无' }}</dd></div>
+  </dl>
+</section>
+<section class="ledger-section">
+  <div class="section-head"><div><p class="eyebrow">分解口径</p><h2>平台、行业与采集技术事实</h2></div></div>
+  <div class="history-list">
+    {% for name, values in metrics.platform_breakdown.items() %}<article class="history-row"><strong>平台 {{ name }}</strong><span>Signal {{ values.signals }} / 复核 {{ values.reviewed }} / 首联 {{ values.first_outreach }} / 有效回复 {{ values.valid_responses }} / 访谈 {{ values.interviews }} / 报价 {{ values.quotes }}</span></article>{% endfor %}
+    {% for name, values in metrics.industry_breakdown.items() %}<article class="history-row"><strong>行业 {{ name }}</strong><span>展示 {{ values.presented }} / 复核 {{ values.reviewed }} / 高意向 {{ values.high_intent }} / 首联 {{ values.first_outreach }} / 有效回复 {{ values.valid_responses }}</span></article>{% endfor %}
+    {% for name, values in metrics.collection_breakdown.items() %}<article class="history-row"><strong>采集 {{ name }}</strong><span>运行 {{ values.runs }} / Raw {{ values.raw }} / Unique {{ values.unique }}</span></article>{% endfor %}
+  </div>
+</section>
+{% if not finalized and metrics.decision != 'RUNNING' %}
+<form method="post" action="/runs/{{ run_id }}/finalize"><button type="submit">按服务端快照冻结结论</button></form>
+{% elif not finalized and metrics.terminal_eligible == false %}
+<form method="post" action="/runs/{{ run_id }}/cancel"><button type="submit">提前终止实验</button></form>
+{% endif %}
+{% if not finalized %}
+<section class="ledger-section">
+  <div class="section-head"><div><p class="eyebrow">事故事实</p><h2>登记已人工核验事故</h2></div><span>登记后 STOP</span></div>
+  <form class="operator-form" method="post" action="/runs/{{ run_id }}/incidents">
+    <label>类型<select name="event_type" required><option>PLATFORM_PENALTY</option><option>UNAUTHORIZED_COLLECTION</option><option>MIS_SEND</option><option>DUPLICATE_HARASSMENT</option><option>SENSITIVE_LEAK</option><option>UNAUTHORIZED_DATA</option><option>BYPASS</option></select></label>
+    <label>平台<select name="platform"><option value="">无/跨平台</option><option value="bili">Bilibili</option><option value="dy">Douyin</option></select></label>
+    <label class="span-2">核验摘要<textarea name="summary" required></textarea></label>
+    <label class="check span-2"><input type="checkbox" name="confirmed" value="yes" required><span>我确认这是已核验事故，时间由服务端记录。</span></label>
+    <button type="submit">登记事故</button>
+  </form>
+</section>
+{% endif %}
 <section class="truth-order"><p class="eyebrow">结论真值顺序</p><p><strong>事故 → STOP</strong><span>止损 → STOP</span><span>输入阻塞 → BLOCKED</span><span>成功 → PROCEED</span><span>终结 → REVISE</span><span>否则 RUNNING</span></p><small>人工时间和个性化上下文缺少受治理事实时，成功门槛会 fail closed，不伪造结论。</small></section>
 {% else %}<section class="empty-state"><p class="eyebrow">无可计算范围</p><h2>尚未创建实验</h2><p>指标只从当前 run 的持久事实计算。</p></section>{% endif %}
 {% endblock %}

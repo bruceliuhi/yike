@@ -1,5 +1,6 @@
 import sqlite3
 from dataclasses import replace
+from datetime import datetime
 
 import pytest
 
@@ -24,6 +25,8 @@ FACT_TABLES = {
     "signal_observations",
     "score_runs",
     "score_presentations",
+    "activity_sessions",
+    "activity_events",
     "human_reviews",
     "draft_runs",
     "outreach_actions",
@@ -69,6 +72,52 @@ def signal(
     )
 
 
+def insert_completed_activity(
+    connection,
+    *,
+    activity_id: str,
+    run_id: str,
+    signal_id: str,
+    kind: str,
+    started_at: str,
+    completed_at: str,
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO activity_sessions (
+            activity_session_id, mvp_run_id, signal_id, activity_kind,
+            state, started_at
+        ) VALUES (?, ?, ?, ?, 'OPEN', ?)
+        """,
+        (activity_id, run_id, signal_id, kind, started_at),
+    )
+    for sequence, event_kind, received_at in (
+        (1, "START", started_at),
+        (2, "COMPLETE", completed_at),
+    ):
+        connection.execute(
+            """
+            INSERT INTO activity_events (
+                activity_event_id, activity_session_id, mvp_run_id, signal_id,
+                activity_kind, sequence_no, event_kind, received_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                f"{activity_id}-event-{sequence}", activity_id, run_id, signal_id,
+                kind, sequence, event_kind, received_at,
+            ),
+        )
+    seconds = int(
+        (datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+         - datetime.fromisoformat(started_at.replace("Z", "+00:00"))).total_seconds()
+    )
+    connection.execute(
+        "UPDATE activity_sessions SET state = 'COMPLETED', completed_at = ?, "
+        "active_seconds = ? WHERE activity_session_id = ?",
+        (completed_at, seconds, activity_id),
+    )
+
+
 def insert_run(
     connection,
     run_id: str,
@@ -80,12 +129,14 @@ def insert_run(
         """
         INSERT INTO mvp_runs (
             mvp_run_id, revision_of_run_id, state, authorization_basis,
-            platform_scope_json, started_at, day14_due_at
+            platform_scope_json, query_set_sha256, prompt_version,
+            schema_version, thresholds_sha256, started_at, day14_due_at
         ) VALUES (?, ?, ?, 'USER_ATTESTED_PLATFORM_AUTHORIZATION',
-                  '["bili","dy"]', '2026-08-12T00:00:00Z',
+                  '["bili","dy"]', ?, 'run-prompt-v1', 'run-schema-v1', ?,
+                  '2026-08-12T00:00:00Z',
                   '2026-08-26T00:00:00Z')
         """,
-        (run_id, revision_of_run_id, state),
+        (run_id, revision_of_run_id, state, "a" * 64, "b" * 64),
     )
 
 
@@ -144,21 +195,35 @@ def seed_fact_graph(connection, repository):
         """,
         (run_id, signal_id),
     )
+    for activity_id, kind in (
+        ("review-activity-1", "REVIEW"),
+        ("draft-activity-1", "DRAFT"),
+    ):
+        insert_completed_activity(
+            connection, activity_id=activity_id, run_id=run_id,
+            signal_id=signal_id, kind=kind,
+            started_at="2026-08-12T00:00:00Z",
+            completed_at="2026-08-12T00:01:00Z",
+        )
     connection.execute(
         """
         INSERT INTO human_reviews (
             review_id, mvp_run_id, signal_id, presented_score_run_id, label,
-            reason, completed_at
+            reason, activity_session_id, started_at, completed_at, active_seconds
         ) VALUES ('review-1', ?, ?, 'score-1', 'HIGH_INTENT',
-                  '有明确采购信号', '2026-08-12T00:00:00Z')
+                  '有明确采购信号', 'review-activity-1',
+                  '2026-08-12T00:00:00Z', '2026-08-12T00:01:00Z', 60)
         """,
         (run_id, signal_id),
     )
     connection.execute(
         """
         INSERT INTO draft_runs (
-            draft_run_id, mvp_run_id, signal_id, body, status, created_at
-        ) VALUES ('draft-1', ?, ?, '请问您目前如何筛选线索？', 'SUCCEEDED',
+            draft_run_id, mvp_run_id, signal_id, provider, prompt_version,
+            draft_kind, body, status, activity_session_id, created_at
+        ) VALUES ('draft-1', ?, ?, 'human', 'HUMAN_DRAFT_V1',
+                  'HUMAN_EDITED', '需要线索筛选，请问您目前如何筛选线索？', 'SUCCEEDED',
+                  'draft-activity-1',
                   '2026-08-12T00:00:00Z')
         """,
         (run_id, signal_id),
@@ -168,12 +233,14 @@ def seed_fact_graph(connection, repository):
         INSERT INTO outreach_actions (
             outreach_action_id, mvp_run_id, signal_id, review_id, score_run_id,
             draft_run_id, platform, subject_key, approved_text, sent_at,
-            source_url, source_link_opened, status, created_at
+            source_url, context_evidence, evidence_summary,
+            source_link_opened, status, created_at
         ) VALUES ('outreach-1', ?, ?, 'review-1', 'score-1', 'draft-1',
-                  'bili', 'subject-1', '人工批准文本',
-                  '2026-08-12T00:00:00Z',
-                  'https://www.bilibili.com/video/BV1', 1,
-                  'SENT_VERIFIED', '2026-08-12T00:00:00Z')
+                  'bili', 'bili:author-1', '需要线索筛选，人工批准文本',
+                  '2026-08-12T00:02:00Z',
+                  'https://www.bilibili.com/video/BV1', '需要线索筛选',
+                  '需要线索筛选', 1,
+                  'SENT_VERIFIED', '2026-08-12T00:02:00Z')
         """,
         (run_id, signal_id),
     )
@@ -181,23 +248,35 @@ def seed_fact_graph(connection, repository):
         """
         INSERT INTO response_events (
             response_event_id, mvp_run_id, outreach_action_id,
-            responder_subject_key, response_type
-        ) VALUES ('response-1', ?, 'outreach-1', 'subject-1', 'VALID')
+            responder_subject_key, response_type, summary, occurred_at,
+            verified_at, evidence_summary
+        ) VALUES ('response-1', ?, 'outreach-1', 'bili:author-1', 'VALID',
+                  '愿意沟通', '2026-08-12T00:03:00Z',
+                  '2026-08-12T00:04:00Z', '回复说明当前流程')
         """,
         (run_id,),
     )
     connection.execute(
         """
-        INSERT INTO interviews (interview_id, mvp_run_id, response_event_id)
-        VALUES ('interview-1', ?, 'response-1')
+        INSERT INTO interviews (
+            interview_id, mvp_run_id, response_event_id, scheduled_at, completed_at,
+            summary_json, solution_fit, next_step
+        ) VALUES (
+            'interview-1', ?, 'response-1', '2026-08-12T00:05:00Z',
+            '2026-08-12T00:06:00Z',
+            '{"customer_source_and_sales_process":"内容营销","weekly_lead_volume_and_loss_point":"每周二百条","most_manual_step":"人工判断","current_tools":"CRM","minimum_agent_scenario_and_decision_process":"先试排序"}',
+            'SOLVABLE', '试点'
+        )
         """,
         (run_id,),
     )
     connection.execute(
         """
         INSERT INTO quote_opportunities (
-            quote_opportunity_id, mvp_run_id, response_event_id, scope_summary
-        ) VALUES ('quote-1', ?, 'response-1', '销售线索筛选')
+            quote_opportunity_id, mvp_run_id, response_event_id, scope_summary,
+            agreed_to_receive_pricing_at, verified_at
+        ) VALUES ('quote-1', ?, 'response-1', '销售线索筛选',
+                  '2026-08-12T00:07:00Z', '2026-08-12T00:08:00Z')
         """,
         (run_id,),
     )
@@ -267,8 +346,8 @@ def test_current_schema_migration_is_idempotent(connection):
         "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
     ).fetchone()
     assert tuple(marker) == (
-        "DISCOVERY_FACT_STORE_V5",
-        "9b4f4bfbebd4de4938d230514a2a3e5455241f377e937b02e2313a9b537c3eb5",
+        "DISCOVERY_FACT_STORE_V7",
+        "d63f82a35ac8b1fdfb9eba94f129615a127a08901d483a9e35fc0939bea7863c",
     )
 
 
@@ -377,11 +456,14 @@ def test_database_rejects_noncanonical_platform_scope(connection):
             """
             INSERT INTO mvp_runs (
                 mvp_run_id, state, authorization_basis, platform_scope_json,
-                started_at, day14_due_at
+                query_set_sha256, prompt_version, schema_version,
+                thresholds_sha256, started_at, day14_due_at
             ) VALUES ('bad-scope', 'DRAFT', 'USER_ATTESTED_PLATFORM_AUTHORIZATION',
-                      '["dy","bili"]', '2026-08-12T00:00:00Z',
+                      '["dy","bili"]', ?, 'prompt-v1', 'schema-v1', ?,
+                      '2026-08-12T00:00:00Z',
                       '2026-08-26T00:00:00Z')
-            """
+            """,
+            ("a" * 64, "b" * 64),
         )
 
 
@@ -649,11 +731,20 @@ def test_superseding_review_must_match_run_and_signal(connection, repository):
         """,
         (first_run, first_signal.signal_id),
     )
+    insert_completed_activity(
+        connection, activity_id="first-review-activity", run_id=first_run,
+        signal_id=first_signal.signal_id, kind="REVIEW",
+        started_at="2026-08-12T00:00:00Z",
+        completed_at="2026-08-12T00:01:00Z",
+    )
     connection.execute(
         """
         INSERT INTO human_reviews (
-            review_id, mvp_run_id, signal_id, presented_score_run_id, label
-        ) VALUES ('first-review', ?, ?, 'first-score', 'HIGH_INTENT')
+            review_id, mvp_run_id, signal_id, presented_score_run_id, label,
+            activity_session_id, started_at, completed_at, active_seconds
+        ) VALUES ('first-review', ?, ?, 'first-score', 'HIGH_INTENT',
+                  'first-review-activity', '2026-08-12T00:00:00Z',
+                  '2026-08-12T00:01:00Z', 60)
         """,
         (first_run, first_signal.signal_id),
     )
@@ -729,13 +820,21 @@ def test_review_history_has_one_root_and_cannot_branch(connection, repository):
             (facts["run_id"], facts["signal_id"]),
         )
 
+    insert_completed_activity(
+        connection, activity_id="review-activity-2", run_id=facts["run_id"],
+        signal_id=facts["signal_id"], kind="REVIEW",
+        started_at="2026-08-12T01:00:00Z",
+        completed_at="2026-08-12T01:01:00Z",
+    )
     connection.execute(
         """
         INSERT INTO human_reviews (
             review_id, mvp_run_id, signal_id, presented_score_run_id,
-            label, reason, completed_at, supersedes_review_id
+            label, reason, activity_session_id, started_at, completed_at,
+            active_seconds, supersedes_review_id
         ) VALUES ('review-2', ?, ?, 'score-1', 'POSSIBLE',
-                  '有效修订', '2026-08-12T01:00:00Z', 'review-1')
+                  '有效修订', 'review-activity-2', '2026-08-12T01:00:00Z',
+                  '2026-08-12T01:01:00Z', 60, 'review-1')
         """,
         (facts["run_id"], facts["signal_id"]),
     )
@@ -772,7 +871,7 @@ def test_follow_up_parent_must_match_signal_platform_and_subject(
     values = {
         "signal_id": facts["signal_id"],
         "platform": "bili",
-        "subject_key": "subject-1",
+        "subject_key": "bili:author-1",
     }
     values[override_column] = override_value
 
@@ -806,7 +905,7 @@ def test_follow_up_parent_cannot_cross_runs(connection, repository):
             INSERT INTO outreach_actions (
                 outreach_action_id, mvp_run_id, signal_id, platform,
                 subject_key, status, parent_outreach_action_id, created_at
-            ) VALUES ('cross-run-follow-up', ?, ?, 'bili', 'subject-1',
+            ) VALUES ('cross-run-follow-up', ?, ?, 'bili', 'bili:author-1',
                       'SENT_VERIFIED', 'outreach-1', '2026-08-12T00:00:00Z')
             """,
             (second_run, facts["signal_id"]),
@@ -820,11 +919,14 @@ def test_follow_up_parent_must_be_the_root_first_contact(connection, repository)
         INSERT INTO outreach_actions (
             outreach_action_id, mvp_run_id, signal_id, review_id, score_run_id,
             draft_run_id, platform, subject_key, approved_text, sent_at,
-            source_url, source_link_opened, status, parent_outreach_action_id,
+            source_url, context_evidence, evidence_summary, source_link_opened,
+            status, parent_outreach_action_id,
             created_at
         ) VALUES ('follow-up-1', ?, ?, 'review-1', 'score-1', 'draft-1',
-                  'bili', 'subject-1', '人工跟进', '2026-08-13T00:00:00Z',
-                  'https://www.bilibili.com/video/BV1', 1, 'SENT_VERIFIED',
+                  'bili', 'bili:author-1', '需要线索筛选，人工跟进',
+                  '2026-08-13T00:00:00Z',
+                  'https://www.bilibili.com/video/BV1', '需要线索筛选',
+                  '需要线索筛选', 1, 'SENT_VERIFIED',
                   'outreach-1', '2026-08-13T00:00:00Z')
         """,
         (facts["run_id"], facts["signal_id"]),
@@ -835,13 +937,15 @@ def test_follow_up_parent_must_be_the_root_first_contact(connection, repository)
             """
             INSERT INTO outreach_actions (
                 outreach_action_id, mvp_run_id, signal_id, review_id,
-                score_run_id, draft_run_id, platform, subject_key,
-                approved_text, sent_at, source_url, source_link_opened, status,
-                parent_outreach_action_id, created_at
-            ) VALUES ('follow-up-2', ?, ?, 'review-1', 'score-1', 'draft-1',
-                      'bili', 'subject-1', '再次人工跟进',
-                      '2026-08-14T00:00:00Z',
-                      'https://www.bilibili.com/video/BV1', 1,
+                    score_run_id, draft_run_id, platform, subject_key,
+                    approved_text, sent_at, source_url, context_evidence,
+                    evidence_summary, source_link_opened, status,
+                    parent_outreach_action_id, created_at
+                ) VALUES ('follow-up-2', ?, ?, 'review-1', 'score-1', 'draft-1',
+                          'bili', 'bili:author-1', '需要线索筛选，再次人工跟进',
+                          '2026-08-14T00:00:00Z',
+                          'https://www.bilibili.com/video/BV1', '需要线索筛选',
+                          '需要线索筛选', 1,
                       'SENT_VERIFIED', 'follow-up-1',
                       '2026-08-14T00:00:00Z')
             """,
@@ -863,7 +967,7 @@ def test_sent_outreach_requires_complete_manual_confirmation(
 ):
     facts = seed_fact_graph(connection, repository)
     values = {
-        "approved_text": "人工批准文本",
+        "approved_text": "需要线索筛选，人工批准文本",
         "sent_at": "2026-08-13T00:00:00Z",
         "source_url": "https://www.bilibili.com/video/BV1",
         "source_link_opened": 1,
@@ -875,11 +979,13 @@ def test_sent_outreach_requires_complete_manual_confirmation(
             """
             INSERT INTO outreach_actions (
                 outreach_action_id, mvp_run_id, signal_id, review_id,
-                score_run_id, draft_run_id, platform, subject_key,
-                approved_text, sent_at, source_url, source_link_opened,
-                status, created_at
+                    score_run_id, draft_run_id, platform, subject_key,
+                    approved_text, sent_at, source_url, context_evidence,
+                    evidence_summary, source_link_opened,
+                    status, created_at
             ) VALUES ('invalid-manual-outreach', ?, ?, 'review-1', 'score-1',
-                      'draft-1', 'bili', 'subject-2', ?, ?, ?, ?,
+                      'draft-1', 'bili', 'subject-2', ?, ?, ?,
+                      '需要线索筛选', '需要线索筛选', ?,
                       'SENT_VERIFIED', '2026-08-13T00:00:00Z')
             """,
             (
@@ -1063,36 +1169,36 @@ def test_outreach_requires_completed_successful_fact_bindings(
         """,
         (facts["run_id"], facts["signal_id"]),
     )
-    connection.execute(
-        """
-        INSERT INTO human_reviews (
-            review_id, mvp_run_id, signal_id, presented_score_run_id, label,
-            supersedes_review_id
-        ) VALUES ('incomplete-review', ?, ?, 'score-1', 'POSSIBLE', 'review-1')
-        """,
-        (facts["run_id"], facts["signal_id"]),
-    )
+    # Reuse the completed current review; the deliberately failed score and
+    # draft below are enough to exercise the outreach binding failure.
     connection.execute(
         """
         INSERT INTO draft_runs (
-            draft_run_id, mvp_run_id, signal_id, body, status, created_at
-        ) VALUES ('failed-draft', ?, ?, 'draft', 'FAILED',
+            draft_run_id, mvp_run_id, signal_id, prompt_version, draft_kind,
+            body, status, error_code, created_at
+        ) VALUES ('failed-draft', ?, ?, 'p1', 'GENERATED', NULL, 'FAILED',
+                  'MODEL_UNAVAILABLE',
                   '2026-08-12T00:00:00Z')
         """,
         (facts["run_id"], facts["signal_id"]),
     )
-    with pytest.raises(sqlite3.IntegrityError, match="OUTREACH_BINDING_NOT_READY"):
+    with pytest.raises(
+        sqlite3.IntegrityError,
+        match="OUTREACH_(BINDING_NOT_READY|SCORE_REVIEW_MISMATCH)",
+    ):
         connection.execute(
             """
             INSERT INTO outreach_actions (
                 outreach_action_id, mvp_run_id, signal_id, review_id,
                 score_run_id, draft_run_id, platform, subject_key,
-                approved_text, sent_at, source_url, source_link_opened,
+                approved_text, sent_at, source_url, context_evidence,
+                evidence_summary, source_link_opened,
                 status, created_at
-            ) VALUES ('incomplete-outreach', ?, ?, 'incomplete-review',
-                      'pending-score', 'failed-draft', 'bili', 'subject-2',
-                      '人工批准文本', '2026-08-12T00:00:00Z',
-                      'https://www.bilibili.com/video/BV1', 1,
+            ) VALUES ('incomplete-outreach', ?, ?, 'review-1',
+                          'pending-score', 'failed-draft', 'bili', 'bili:author-1',
+                      '需要线索筛选，人工批准文本', '2026-08-12T00:00:00Z',
+                      'https://www.bilibili.com/video/BV1', '需要线索筛选',
+                      '需要线索筛选', 1,
                       'SENT_VERIFIED', '2026-08-12T00:00:00Z')
             """,
             (facts["run_id"], facts["signal_id"]),
@@ -1187,8 +1293,8 @@ def test_risk_events_are_run_scoped_append_only_and_frozen(connection, repositor
         INSERT INTO risk_events (
             risk_event_id, mvp_run_id, event_type, severity, summary,
             verified_at, forces_stop
-        ) VALUES ('risk-1', ?, 'RATE_LIMIT', 'LOW', '平台提示降低频率',
-                  '2026-08-12T00:00:00Z', 0)
+        ) VALUES ('risk-1', ?, 'PLATFORM_PENALTY', 'CONFIRMED', '平台处罚',
+                  '2026-08-12T00:00:00Z', 1)
         """,
         (run_id,),
     )
@@ -1206,8 +1312,8 @@ def test_risk_events_are_run_scoped_append_only_and_frozen(connection, repositor
             INSERT INTO risk_events (
                 risk_event_id, mvp_run_id, event_type, severity, summary,
                 verified_at, forces_stop
-            ) VALUES ('risk-2', ?, 'RATE_LIMIT', 'LOW', 'late',
-                      '2026-08-12T00:00:00Z', 0)
+            ) VALUES ('risk-2', ?, 'PLATFORM_PENALTY', 'CONFIRMED', 'late',
+                      '2026-08-12T00:00:00Z', 1)
             """,
             (run_id,),
         )

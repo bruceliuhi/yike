@@ -56,14 +56,14 @@ def export_signals_csv(connection: sqlite3.Connection, run_id: str) -> str:
             (SELECT so.observed_at FROM signal_observations so
              WHERE so.mvp_run_id = m.mvp_run_id AND so.signal_id = s.signal_id
              ORDER BY so.observed_at DESC, so.observation_id DESC LIMIT 1) AS observed_at,
-            (SELECT sr.grade FROM score_runs sr
-             WHERE sr.mvp_run_id = m.mvp_run_id AND sr.signal_id = s.signal_id
-               AND sr.status = 'SUCCEEDED'
-             ORDER BY sr.created_at DESC, sr.score_run_id DESC LIMIT 1) AS grade,
-            (SELECT sr.total_score FROM score_runs sr
-             WHERE sr.mvp_run_id = m.mvp_run_id AND sr.signal_id = s.signal_id
-               AND sr.status = 'SUCCEEDED'
-             ORDER BY sr.created_at DESC, sr.score_run_id DESC LIMIT 1) AS total_score,
+            (SELECT sr.grade FROM score_presentations sp
+             JOIN score_runs sr ON sr.score_run_id = sp.score_run_id
+             WHERE sp.mvp_run_id = m.mvp_run_id AND sp.signal_id = s.signal_id
+             LIMIT 1) AS grade,
+            (SELECT sr.total_score FROM score_presentations sp
+             JOIN score_runs sr ON sr.score_run_id = sp.score_run_id
+             WHERE sp.mvp_run_id = m.mvp_run_id AND sp.signal_id = s.signal_id
+             LIMIT 1) AS total_score,
             (SELECT hr.label FROM human_reviews hr
              WHERE hr.mvp_run_id = m.mvp_run_id AND hr.signal_id = s.signal_id
                AND NOT EXISTS (
@@ -93,11 +93,10 @@ def export_signals_csv(connection: sqlite3.Connection, run_id: str) -> str:
         LEFT JOIN sources src ON src.source_id = s.source_id
         WHERE m.mvp_run_id = ?
         ORDER BY
-          CASE COALESCE((SELECT sr.grade FROM score_runs sr
-                         WHERE sr.mvp_run_id = m.mvp_run_id
-                           AND sr.signal_id = s.signal_id
-                           AND sr.status = 'SUCCEEDED'
-                         ORDER BY sr.created_at DESC, sr.score_run_id DESC LIMIT 1), '')
+          CASE COALESCE((SELECT sr.grade FROM score_presentations sp
+                         JOIN score_runs sr ON sr.score_run_id = sp.score_run_id
+                         WHERE sp.mvp_run_id = m.mvp_run_id
+                           AND sp.signal_id = s.signal_id LIMIT 1), '')
             WHEN 'A' THEN 0 WHEN 'B' THEN 1 WHEN 'C' THEN 2 WHEN 'D' THEN 3 ELSE 4
           END,
           m.added_at,

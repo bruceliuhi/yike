@@ -27,6 +27,10 @@
 
     <section class="ledger-section">
       <div class="section-head"><div><p class="eyebrow">AI 评分版本</p><h2>模型结论仅供人工参考</h2></div><span>{{ scores|length }} 版</span></div>
+      {% if editable %}<form class="inline-action" method="post" action="/signals/{{ signal.signal_id }}/scores">
+        <input type="hidden" name="run_id" value="{{ run_id }}">
+        <button type="submit">用已配置模型评分</button>
+      </form>{% endif %}
       {% if scores %}
       <div class="history-list">
         {% for score in scores %}
@@ -43,17 +47,16 @@
     <section class="ledger-section">
       <div class="section-head"><div><p class="eyebrow">人工复核</p><h2>人工结论与理由</h2></div><span>{{ reviews|length }} 次</span></div>
       {% if reviews %}<div class="history-list">{% for review in reviews %}<article class="history-row"><div><strong>{{ review.label }}</strong></div><div><p>{{ review.reason }}</p>{% if review.note %}<small>{{ review.note }}</small>{% endif %}</div><div><span>{{ review.active_seconds }}s</span><small>{{ review.completed_at }}</small></div></article>{% endfor %}</div>{% endif %}
-      {% if successful_scores %}
-      <form class="operator-form" method="post" action="/signals/{{ signal.signal_id }}/reviews">
+      {% if editable and successful_scores %}
+      <form class="operator-form" method="post" action="/signals/{{ signal.signal_id }}/reviews" data-activity-form="REVIEW" data-run-id="{{ run_id }}" data-signal-id="{{ signal.signal_id }}">
         <input type="hidden" name="run_id" value="{{ run_id }}">
-        {% if reviews %}<input type="hidden" name="supersedes_review_id" value="{{ reviews[0].review_id }}">{% endif %}
-        <label>评分版本<select name="score_run_id" required>{% for score in successful_scores %}<option value="{{ score.score_run_id }}">{{ score.grade }} · {{ score.score_run_id }}</option>{% endfor %}</select></label>
+        <input type="hidden" name="activity_session_id" value="">
+        {% if current_reviews %}<input type="hidden" name="supersedes_review_id" value="{{ current_reviews[0].review_id }}">{% endif %}
+        <label>已冻结展示评分<input value="{% for score in successful_scores if score.presented %}{{ score.grade }} · {{ score.score_run_id }}{% endfor %}" readonly></label>
         <label>人工结论<select name="label" required><option value="HIGH_INTENT">高意向</option><option value="POSSIBLE">可能线索</option><option value="NOT_LEAD">非线索</option><option value="UNVERIFIABLE">无法核验</option></select></label>
         <label class="span-2">判断理由<textarea name="reason" rows="3" required></textarea></label>
         <label class="span-2">备注<textarea name="note" rows="2"></textarea></label>
-        <label>开始时间<input type="datetime-local" name="started_at" required></label>
-        <label>完成时间<input type="datetime-local" name="completed_at" required></label>
-        <label>有效秒数<input type="number" name="active_seconds" min="0" required></label>
+        <p class="span-2 quiet" data-activity-status>打开表单后由服务端自动记录复核活动时间。</p>
         <div class="form-action"><button type="submit">{{ '修订人工复核' if reviews else '记录人工复核' }}</button></div>
       </form>
       {% endif %}
@@ -62,30 +65,37 @@
     <section class="ledger-section">
       <div class="section-head"><div><p class="eyebrow">回复草稿</p><h2>人工编辑，不自动发送</h2></div><span>{{ drafts|length }} 版</span></div>
       {% if drafts %}<div class="history-list">{% for draft in drafts %}<article class="history-row"><div><strong>v{{ loop.revindex }}</strong></div><div><p>{{ draft.body }}</p><small class="mono">{{ draft.draft_run_id }}</small></div><div><span>{{ draft.status }}</span><small>{{ draft.created_at }}</small></div></article>{% endfor %}</div>{% endif %}
-      <form class="operator-form compact" method="post" action="/signals/{{ signal.signal_id }}/drafts">
+      {% if editable %}<form class="inline-action" method="post" action="/signals/{{ signal.signal_id }}/drafts/generate">
         <input type="hidden" name="run_id" value="{{ run_id }}">
+        <button type="submit">生成严格个性化草稿</button>
+      </form>
+      <form class="operator-form compact" method="post" action="/signals/{{ signal.signal_id }}/drafts" data-activity-form="DRAFT" data-run-id="{{ run_id }}" data-signal-id="{{ signal.signal_id }}">
+        <input type="hidden" name="run_id" value="{{ run_id }}">
+        <input type="hidden" name="activity_session_id" value="">
         <label class="span-2">草稿（最多 180 字）<textarea name="body" rows="4" maxlength="180" required></textarea></label>
         <div class="form-action"><button type="submit">保存草稿版本</button></div>
       </form>
+      {% endif %}
     </section>
 
     <section class="ledger-section">
       <div class="section-head"><div><p class="eyebrow">联系登记</p><h2>仅登记已由人工执行的事实</h2></div><span>{{ outreach|length }} 条</span></div>
-      {% if outreach %}<div class="history-list">{% for action in outreach %}<article class="history-row"><div><strong>{{ action.platform }}</strong></div><div><p>{{ action.approved_text }}</p><small class="mono">{{ action.subject_key }}</small></div><div><span>{{ action.status }}</span><small>{{ action.sent_at }}</small></div></article>{% endfor %}</div>{% endif %}
-      {% if reviews and drafts %}
+      {% if outreach %}<div class="history-list">{% for action in outreach %}<article class="history-row"><div><strong>{{ action.platform }}</strong></div><div><p>{{ action.approved_text }}</p><small>个性化证据：{{ action.context_evidence }}</small><a href="{{ action.source_url }}" target="_blank" rel="noreferrer">来源链接</a><small class="mono">{{ action.subject_key }}</small></div><div><span>{{ action.status }}</span><small>{{ action.sent_at }}</small></div></article>{% endfor %}</div>{% endif %}
+      {% if editable and current_reviews and human_drafts %}
       <form class="operator-form" method="post" action="/signals/{{ signal.signal_id }}/outreach">
         <input type="hidden" name="run_id" value="{{ run_id }}">
         <input type="hidden" name="platform" value="{{ signal.platform }}">
-        <label>人工复核<select name="review_id" required>{% for review in reviews %}<option value="{{ review.review_id }}">{{ review.label }} · {{ review.completed_at }}</option>{% endfor %}</select></label>
-        <label>草稿版本<select name="draft_run_id" required>{% for draft in drafts %}<option value="{{ draft.draft_run_id }}">{{ draft.body|truncate(38) }}</option>{% endfor %}</select></label>
-        <label>联系主体键<input name="subject_key" value="{{ signal.platform }}:{{ signal.author_public_id }}" required></label>
+        <label>人工复核<select name="review_id" required>{% for review in current_reviews %}<option value="{{ review.review_id }}">{{ review.label }} · {{ review.completed_at }}</option>{% endfor %}</select></label>
+        <label>草稿版本<select name="draft_run_id" required>{% for draft in human_drafts %}<option value="{{ draft.draft_run_id }}">{{ draft.body|truncate(38) }}</option>{% endfor %}</select></label>
+        <label>联系主体键<input value="{{ signal.platform }}:{{ signal.author_public_id }}" readonly></label>
         <label>人工发送时间<input type="datetime-local" name="sent_at" required></label>
-        <label class="span-2">实际批准并发送的文本<textarea name="approved_text" rows="4" maxlength="180" required>{{ drafts[0].body }}</textarea></label>
+        <label class="span-2">实际批准并发送的文本<textarea name="approved_text" rows="4" maxlength="180" required>{{ human_drafts[0].body }}</textarea></label>
+        <label class="span-2">个性化证据原文片段<input name="context_evidence" placeholder="从标题、父评论或原评论逐字复制" required></label>
         <label class="span-2">证据链接<input type="url" name="source_url" value="{{ signal.normalized_comment_url }}" required></label>
         <label class="check span-2"><input type="checkbox" name="source_link_opened" value="yes" required><span>我已打开并核对上方来源链接；本系统未代我发送。</span></label>
         <div class="form-action"><button type="submit">登记已发送事实</button></div>
       </form>
-      {% else %}<p class="quiet">完成人工复核并保存草稿后，才可登记联系。</p>{% endif %}
+      {% elif editable %}<p class="quiet">完成人工复核并保存草稿后，才可登记联系。</p>{% else %}<p class="quiet">该运行已终结，只读展示冻结事实。</p>{% endif %}
     </section>
   </section>
 </div>

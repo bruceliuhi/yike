@@ -91,6 +91,12 @@ def facts(settings):
     return connection, repository, Workflow(repository), run_id, first, second
 
 
+def completed_session(workflow, run_id, signal_id, kind):
+    session_id = workflow.start_activity(run_id, signal_id, kind)
+    workflow.record_activity(session_id, "COMPLETE")
+    return session_id
+
+
 def test_empty_database_renders_exact_five_operator_surfaces(tmp_path):
     settings = settings_for(tmp_path)
     with TestClient(create_app(settings)) as client:
@@ -132,11 +138,13 @@ def test_signal_filters_use_persisted_score_review_query_and_outreach(tmp_path):
         label="HIGH_INTENT",
         reason="企业场景明确",
         note=None,
-        started_at="2026-08-12T01:00:00Z",
-        completed_at="2026-08-12T01:01:00Z",
-        active_seconds=60,
+        activity_session_id=completed_session(workflow, run_id, first, "REVIEW"),
     )
-    draft_id = workflow.create_draft(run_id=run_id, signal_id=first, body="想了解每周线索量。")
+    draft_id = workflow.create_draft(
+        run_id=run_id, signal_id=first,
+        body="人工筛选效率低，想了解每周线索量。",
+        activity_session_id=completed_session(workflow, run_id, first, "DRAFT"),
+    )
     workflow.register_outreach(
         run_id=run_id,
         signal_id=first,
@@ -144,8 +152,9 @@ def test_signal_filters_use_persisted_score_review_query_and_outreach(tmp_path):
         draft_run_id=draft_id,
         platform="bili",
         subject_key="bili:lead-web",
-        approved_text="想了解每周线索量。",
-        sent_at="2026-08-12T01:02:00Z",
+        approved_text="人工筛选效率低，想了解每周线索量。",
+        context_evidence="人工筛选效率低",
+        sent_at="2026-08-12T09:00:00Z",
         source_url="https://www.bilibili.com/video/av-web#reply-web",
         source_link_opened=True,
     )
@@ -174,6 +183,9 @@ def test_signal_filters_use_persisted_score_review_query_and_outreach(tmp_path):
 def test_detail_posts_review_draft_and_manual_outreach_then_redirects(tmp_path):
     settings = settings_for(tmp_path)
     connection, _, _, run_id, signal_id, _ = facts(settings)
+    workflow = Workflow(Repository(connection))
+    review_session = completed_session(workflow, run_id, signal_id, "REVIEW")
+    draft_session = completed_session(workflow, run_id, signal_id, "DRAFT")
     connection.close()
     with TestClient(create_app(settings)) as client:
         detail = client.get(f"/signals/{signal_id}", params={"run_id": run_id})
@@ -185,15 +197,14 @@ def test_detail_posts_review_draft_and_manual_outreach_then_redirects(tmp_path):
                 "label": "HIGH_INTENT",
                 "reason": "企业需求明确",
                 "note": "人工确认",
-                "started_at": "2026-08-12T01:00:00Z",
-                "completed_at": "2026-08-12T01:01:00Z",
-                "active_seconds": "60",
+                "activity_session_id": review_session,
             },
             follow_redirects=False,
         )
         drafted = client.post(
             f"/signals/{signal_id}/drafts",
-            data={"run_id": run_id, "body": "想了解一下每周线索筛选量。"},
+            data={"run_id": run_id, "body": "人工筛选效率低，想了解每周线索筛选量。",
+                  "activity_session_id": draft_session},
             follow_redirects=False,
         )
 
@@ -210,8 +221,9 @@ def test_detail_posts_review_draft_and_manual_outreach_then_redirects(tmp_path):
                 "draft_run_id": draft_id,
                 "platform": "bili",
                 "subject_key": "bili:lead-web",
-                "approved_text": "想了解一下每周线索筛选量。",
-                "sent_at": "2026-08-12T01:02:00Z",
+                "approved_text": "人工筛选效率低，想了解一下每周线索筛选量。",
+                "context_evidence": "人工筛选效率低",
+                "sent_at": "2026-08-12T09:00:00Z",
                 "source_url": "https://www.bilibili.com/video/av-web#reply-web",
                 "source_link_opened": "yes",
             },
@@ -233,14 +245,18 @@ def test_followup_posts_response_interview_and_quote_facts(tmp_path):
     workflow.present_score(run_id, signal_id, "web-score")
     review_id = workflow.complete_review(
         run_id=run_id, signal_id=signal_id, label="HIGH_INTENT", reason="明确",
-        note=None, started_at="2026-08-12T01:00:00Z",
-        completed_at="2026-08-12T01:01:00Z", active_seconds=60,
+        note=None,
+        activity_session_id=completed_session(workflow, run_id, signal_id, "REVIEW"),
     )
-    draft_id = workflow.create_draft(run_id=run_id, signal_id=signal_id, body="想进一步沟通。")
+    draft_id = workflow.create_draft(
+        run_id=run_id, signal_id=signal_id, body="人工筛选效率低，想进一步沟通。",
+        activity_session_id=completed_session(workflow, run_id, signal_id, "DRAFT"),
+    )
     outreach_id = workflow.register_outreach(
         run_id=run_id, signal_id=signal_id, review_id=review_id,
         draft_run_id=draft_id, platform="bili", subject_key="bili:lead-web",
-        approved_text="想进一步沟通。", sent_at="2026-08-12T01:02:00Z",
+        approved_text="人工筛选效率低，想进一步沟通。",
+        context_evidence="人工筛选效率低", sent_at="2026-08-12T09:00:00Z",
         source_url="https://www.bilibili.com/video/av-web#reply-web", source_link_opened=True,
     )
     connection.close()
@@ -249,8 +265,9 @@ def test_followup_posts_response_interview_and_quote_facts(tmp_path):
             "/followups/responses",
             data={"run_id": run_id, "outreach_action_id": outreach_id,
                   "responder_subject_key": "bili:lead-web", "response_type": "VALID",
-                  "summary": "愿意沟通", "occurred_at": "2026-08-12T02:00:00Z",
-                  "verified_at": "2026-08-12T02:01:00Z"}, follow_redirects=False,
+                  "summary": "愿意沟通", "occurred_at": "2026-08-12T10:00:00Z",
+                  "verified_at": "2026-08-12T10:01:00Z",
+                  "evidence_summary": "愿意进一步沟通"}, follow_redirects=False,
         )
     connection = connect(settings.data_dir / "discovery.sqlite3")
     response_id = connection.execute("SELECT response_event_id FROM response_events").fetchone()[0]
@@ -261,7 +278,12 @@ def test_followup_posts_response_interview_and_quote_facts(tmp_path):
             data={"run_id": run_id, "response_event_id": response_id,
                   "scheduled_at": "2026-08-13T01:00:00Z",
                   "completed_at": "2026-08-13T01:30:00Z",
-                  "summary": "人工筛选慢", "next_step": "报价"}, follow_redirects=False,
+                  "customer_source_and_sales_process": "内容营销进入销售",
+                  "weekly_lead_volume_and_loss_point": "每周二百条",
+                  "most_manual_step": "人工判断",
+                  "current_tools": "CRM",
+                  "minimum_agent_scenario_and_decision_process": "先试排序",
+                  "solution_fit": "SOLVABLE", "next_step": "报价"}, follow_redirects=False,
         )
     connection = connect(settings.data_dir / "discovery.sqlite3")
     interview_id = connection.execute("SELECT interview_id FROM interviews").fetchone()[0]
@@ -271,15 +293,16 @@ def test_followup_posts_response_interview_and_quote_facts(tmp_path):
             "/followups/quotes",
             data={"run_id": run_id, "response_event_id": response_id,
                   "interview_id": interview_id, "scope_summary": "筛选试点",
-                  "agreed_to_receive_pricing_at": "2026-08-13T01:25:00Z",
-                  "verified_at": "2026-08-13T01:30:00Z"}, follow_redirects=False,
+                  "agreed_to_receive_pricing_at": "2026-08-13T01:31:00Z",
+                  "verified_at": "2026-08-13T01:32:00Z"}, follow_redirects=False,
         )
     assert (response.status_code, interview.status_code, quote.status_code) == (303, 303, 303)
 
 
 def test_csv_export_has_visible_facts_and_no_model_or_secret_columns(tmp_path):
     settings = settings_for(tmp_path)
-    connection, _, _, run_id, _, _ = facts(settings)
+    connection, _, workflow, run_id, signal_id, _ = facts(settings)
+    workflow.present_score(run_id, signal_id, "web-score")
     connection.close()
     with TestClient(create_app(settings)) as client:
         response = client.get("/export.csv", params={"run_id": run_id})

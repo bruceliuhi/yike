@@ -96,3 +96,39 @@ class ScoreDecision(BaseModel):
         if self.grade != expected_grade:
             raise ValueError("grade does not match score threshold or exclusions")
         return self
+
+
+class DraftDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    body: str = Field(min_length=1, max_length=180)
+    source_snippet: str = Field(min_length=1)
+    research_purpose_sentence: str = Field(min_length=1)
+    diagnostic_question: str = Field(min_length=1)
+
+    @field_validator(
+        "body", "source_snippet", "research_purpose_sentence", "diagnostic_question"
+    )
+    @classmethod
+    def require_visible_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("draft text must not be blank")
+        return value
+
+    @model_validator(mode="after")
+    def validate_draft_contract(self, info: ValidationInfo) -> "DraftDecision":
+        source_text = (info.context or {}).get("source_text")
+        if not isinstance(source_text, str):
+            raise ValueError("draft source_text context is required")
+        if self.source_snippet not in source_text or self.source_snippet not in self.body:
+            raise ValueError("draft source snippet must occur verbatim")
+        if self.research_purpose_sentence not in self.body or "研究" not in self.research_purpose_sentence:
+            raise ValueError("draft must contain a research-purpose sentence")
+        if self.diagnostic_question not in self.body or not self.diagnostic_question.endswith(
+            ("?", "？")
+        ):
+            raise ValueError("draft must contain a diagnostic question")
+        question_marks = self.body.count("?") + self.body.count("？")
+        if question_marks != 1:
+            raise ValueError("draft must contain exactly one question")
+        return self

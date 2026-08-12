@@ -46,6 +46,12 @@ def score(repository, run_id, signal_id):
     return Scorer(repository, SuccessfulClient()).score(run_id, signal_id)
 
 
+def completed_session(workflow, run_id, signal_id, kind):
+    session_id = workflow.start_activity(run_id, signal_id, kind)
+    workflow.record_activity(session_id, "COMPLETE")
+    return session_id
+
+
 def prepare_reviewed_draft(facts):
     connection, repository, workflow, run_id, signal_id = facts
     scored = score(repository, run_id, signal_id)
@@ -56,15 +62,13 @@ def prepare_reviewed_draft(facts):
         label="HIGH_INTENT",
         reason="企业场景和行动意图明确",
         note=None,
-        started_at="2026-08-12T09:00:00Z",
-        completed_at="2026-08-12T09:01:00Z",
-        active_seconds=60,
+        activity_session_id=completed_session(workflow, run_id, signal_id, "REVIEW"),
     )
     draft_id = workflow.create_draft(
         run_id=run_id,
         signal_id=signal_id,
         body="想了解一下，你们目前每周需要筛选多少条线索？",
-        created_at="2026-08-12T09:02:00Z",
+        activity_session_id=completed_session(workflow, run_id, signal_id, "DRAFT"),
     )
     return review_id, draft_id, scored.score_run_id
 
@@ -82,9 +86,7 @@ def test_review_binds_first_presented_successful_score(facts):
         label="POSSIBLE",
         reason="需进一步确认采购信号",
         note="后续有重评但不换分母",
-        started_at="2026-08-12T09:00:00Z",
-        completed_at="2026-08-12T09:01:00Z",
-        active_seconds=60,
+        activity_session_id=completed_session(workflow, run_id, signal_id, "REVIEW"),
     )
 
     row = connection.execute(
@@ -104,9 +106,7 @@ def test_review_revisions_must_supersede_the_current_leaf(facts):
         label="POSSIBLE",
         reason="初次复核",
         note=None,
-        started_at="2026-08-12T09:00:00Z",
-        completed_at="2026-08-12T09:01:00Z",
-        active_seconds=60,
+        activity_session_id=completed_session(workflow, run_id, signal_id, "REVIEW"),
     )
 
     with pytest.raises(ValueError, match="current review"):
@@ -116,9 +116,7 @@ def test_review_revisions_must_supersede_the_current_leaf(facts):
             label="NOT_LEAD",
             reason="断根改标",
             note=None,
-            started_at="2026-08-12T09:02:00Z",
-            completed_at="2026-08-12T09:03:00Z",
-            active_seconds=60,
+            activity_session_id=completed_session(workflow, run_id, signal_id, "REVIEW"),
         )
 
     second_review = workflow.complete_review(
@@ -127,9 +125,7 @@ def test_review_revisions_must_supersede_the_current_leaf(facts):
         label="HIGH_INTENT",
         reason="补充证据后改标",
         note=None,
-        started_at="2026-08-12T09:02:00Z",
-        completed_at="2026-08-12T09:03:00Z",
-        active_seconds=60,
+        activity_session_id=completed_session(workflow, run_id, signal_id, "REVIEW"),
         supersedes_review_id=first_review,
     )
     assert second_review != first_review
@@ -141,9 +137,7 @@ def test_review_revisions_must_supersede_the_current_leaf(facts):
             label="UNVERIFIABLE",
             reason="不允许从旧节点分叉",
             note=None,
-            started_at="2026-08-12T09:04:00Z",
-            completed_at="2026-08-12T09:05:00Z",
-            active_seconds=60,
+            activity_session_id=completed_session(workflow, run_id, signal_id, "REVIEW"),
             supersedes_review_id=first_review,
         )
 
@@ -168,7 +162,8 @@ def test_draft_and_outreach_are_manual_facts_with_link_confirmation(facts):
             draft_run_id=draft_id,
             platform="bili",
             subject_key="bili:comment-author",
-            approved_text="人工编辑后的文本",
+            approved_text="人工筛选效率低，人工编辑后的文本",
+            context_evidence="人工筛选效率低",
             sent_at="2026-08-12T09:05:00Z",
             source_url="https://www.bilibili.com/video/av1#reply1",
             source_link_opened=False,
@@ -181,7 +176,8 @@ def test_draft_and_outreach_are_manual_facts_with_link_confirmation(facts):
         draft_run_id=draft_id,
         platform="bili",
         subject_key="bili:comment-author",
-        approved_text="人工编辑后的文本",
+        approved_text="人工筛选效率低，人工编辑后的文本",
+        context_evidence="人工筛选效率低",
         sent_at="2026-08-12T09:05:00Z",
         source_url="https://www.bilibili.com/video/av1#reply1",
         source_link_opened=True,
@@ -193,7 +189,7 @@ def test_draft_and_outreach_are_manual_facts_with_link_confirmation(facts):
         (outreach_id,),
     ).fetchone()
     assert tuple(row) == (
-        "人工编辑后的文本",
+        "人工筛选效率低，人工编辑后的文本",
         "2026-08-12T09:05:00Z",
         1,
         "SENT_VERIFIED",
@@ -210,7 +206,8 @@ def test_follow_up_must_reference_the_root_first_contact(facts):
         draft_run_id=draft_id,
         platform="bili",
         subject_key="bili:comment-author",
-        approved_text="人工确认的跟进文本",
+        approved_text="人工筛选效率低，人工确认的跟进文本",
+        context_evidence="人工筛选效率低",
         source_url="https://www.bilibili.com/video/av1#reply1",
         source_link_opened=True,
     )
@@ -241,7 +238,8 @@ def test_response_interview_and_quote_preserve_fact_causality(facts):
         draft_run_id=draft_id,
         platform="bili",
         subject_key="bili:comment-author",
-        approved_text="想了解你们的线索筛选流程",
+        approved_text="人工筛选效率低，想了解你们的线索筛选流程",
+        context_evidence="人工筛选效率低",
         sent_at="2026-08-12T09:05:00Z",
         source_url="https://www.bilibili.com/video/av1#reply1",
         source_link_opened=True,
@@ -254,13 +252,21 @@ def test_response_interview_and_quote_preserve_fact_causality(facts):
         summary="愿意进一步沟通",
         occurred_at="2026-08-12T10:00:00Z",
         verified_at="2026-08-12T10:01:00Z",
+        evidence_summary="愿意进一步沟通",
     )
     interview_id = workflow.register_interview(
         run_id=run_id,
         response_event_id=response_id,
         scheduled_at="2026-08-13T02:00:00Z",
         completed_at="2026-08-13T02:30:00Z",
-        summary={"pain": "线索太多，人工筛选慢"},
+        summary={
+            "customer_source_and_sales_process": "内容营销进入销售跟进",
+            "weekly_lead_volume_and_loss_point": "每周二百条，筛选环节损失",
+            "most_manual_step": "销售逐条判断",
+            "current_tools": "CRM 和表格",
+            "minimum_agent_scenario_and_decision_process": "先试排序，由负责人决策",
+        },
+        solution_fit="SOLVABLE",
         next_step="准备报价范围",
     )
     quote_id = workflow.register_quote(
@@ -268,8 +274,8 @@ def test_response_interview_and_quote_preserve_fact_causality(facts):
         response_event_id=response_id,
         interview_id=interview_id,
         scope_summary="线索识别与人工复核试点",
-        agreed_to_receive_pricing_at="2026-08-13T02:25:00Z",
-        verified_at="2026-08-13T02:30:00Z",
+        agreed_to_receive_pricing_at="2026-08-13T02:31:00Z",
+        verified_at="2026-08-13T02:32:00Z",
     )
 
     row = connection.execute(

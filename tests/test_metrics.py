@@ -103,17 +103,23 @@ def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
     )
     workflow = Workflow(repository)
     workflow.present_score(run_id, signal_id, "metric-score")
+    review_session = workflow.start_activity(run_id, signal_id, "REVIEW")
+    workflow.record_activity(review_session, "COMPLETE")
     review_id = workflow.complete_review(
         run_id=run_id,
         signal_id=signal_id,
         label="HIGH_INTENT",
         reason="企业意图明确",
         note=None,
-        started_at="2026-08-12T01:00:00Z",
-        completed_at="2026-08-12T01:01:00Z",
-        active_seconds=60,
+        activity_session_id=review_session,
     )
-    draft_id = workflow.create_draft(run_id=run_id, signal_id=signal_id, body="想了解每周线索量。")
+    draft_session = workflow.start_activity(run_id, signal_id, "DRAFT")
+    workflow.record_activity(draft_session, "COMPLETE")
+    draft_id = workflow.create_draft(
+        run_id=run_id, signal_id=signal_id,
+        body="团队需要更快筛选销售线索，想了解每周线索量。",
+        activity_session_id=draft_session,
+    )
     outreach_id = workflow.register_outreach(
         run_id=run_id,
         signal_id=signal_id,
@@ -121,8 +127,9 @@ def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
         draft_run_id=draft_id,
         platform="bili",
         subject_key="bili:lead-metric",
-        approved_text="想了解每周线索量。",
-        sent_at="2026-08-12T01:02:00Z",
+        approved_text="团队需要更快筛选销售线索，想了解每周线索量。",
+        context_evidence="团队需要更快筛选销售线索",
+        sent_at="2026-08-12T09:00:00Z",
         source_url="https://www.bilibili.com/video/av-metric#reply-metric",
         source_link_opened=True,
     )
@@ -132,15 +139,23 @@ def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
         responder_subject_key="bili:lead-metric",
         response_type="VALID",
         summary="愿意沟通",
-        occurred_at="2026-08-12T02:00:00Z",
-        verified_at="2026-08-12T02:01:00Z",
+        occurred_at="2026-08-12T10:00:00Z",
+        verified_at="2026-08-12T10:01:00Z",
+        evidence_summary="愿意沟通",
     )
     interview_id = workflow.register_interview(
         run_id=run_id,
         response_event_id=response_id,
         scheduled_at="2026-08-13T01:00:00Z",
         completed_at="2026-08-13T01:30:00Z",
-        summary={"pain": "人工筛选慢"},
+        summary={
+            "customer_source_and_sales_process": "内容营销进入销售",
+            "weekly_lead_volume_and_loss_point": "每周二百条",
+            "most_manual_step": "人工判断",
+            "current_tools": "CRM",
+            "minimum_agent_scenario_and_decision_process": "先试排序",
+        },
+        solution_fit="SOLVABLE",
         next_step="报价",
     )
     workflow.register_quote(
@@ -148,8 +163,8 @@ def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
         response_event_id=response_id,
         interview_id=interview_id,
         scope_summary="线索筛选试点",
-        agreed_to_receive_pricing_at="2026-08-13T01:25:00Z",
-        verified_at="2026-08-13T01:30:00Z",
+        agreed_to_receive_pricing_at="2026-08-13T01:31:00Z",
+        verified_at="2026-08-13T01:32:00Z",
     )
 
     snapshot = MetricsEngine(connection).calculate(
@@ -169,15 +184,15 @@ def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
     assert snapshot.precision == 1.0
     assert snapshot.all_success_thresholds is False
 
+    revision_session = workflow.start_activity(run_id, signal_id, "REVIEW")
+    workflow.record_activity(revision_session, "COMPLETE")
     workflow.complete_review(
         run_id=run_id,
         signal_id=signal_id,
         label="NOT_LEAD",
         reason="复核后确认无采购意图",
         note=None,
-        started_at="2026-08-13T02:02:00Z",
-        completed_at="2026-08-13T02:03:00Z",
-        active_seconds=60,
+        activity_session_id=revision_session,
         supersedes_review_id=review_id,
     )
     workflow.register_quote(

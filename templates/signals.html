@@ -14,6 +14,15 @@
 </form>
 <div class="toolbar"><p>显示持久化事实；AI 评分不代替人工复核。</p>{% if run_id %}<a href="/export.csv?run_id={{ run_id }}">导出可见事实 CSV</a>{% endif %}</div>
 {% if signals %}
-<div class="work-table signal-table"><div class="table-row table-head"><span>证据</span><span>平台</span><span>AI / 人工</span><span>行业 / 查询</span><span>联系</span></div>{% for item in signals %}<a class="table-row" data-selectable-row href="/signals/{{ item.signal_id }}?run_id={{ run_id }}"><span><strong>{{ item.body }}</strong><small>{{ item.source_title or '未命名来源' }} · {{ item.author_public_id }}</small></span><span>{{ 'Bilibili' if item.platform == 'bili' else 'Douyin' }}</span><span><b class="grade grade-{{ (item.grade or 'none')|lower }}">{{ item.grade or '—' }}</b><small>{{ item.review_label or '待复核' }}</small></span><span>{{ item.industry or '未识别' }}<small>{{ item.query_cluster or '未分组' }}</small></span><span>{{ '已人工发送' if item.outreach_state == 'SENT_VERIFIED' else '未联系' }}</span></a>{% endfor %}</div>
+{% if editable %}
+<form method="post" action="/signals/score-batch">
+  <input type="hidden" name="run_id" value="{{ run_id }}">
+  <p class="quiet">最多勾选 10 条，使用已配置模型批量评分。</p>
+  <div class="work-table signal-table"><div class="table-row table-head"><span>证据</span><span>平台</span><span>AI / 人工</span><span>行业 / 查询</span><span>联系</span></div>{% for item in signals %}<div class="table-row"><span><label><input type="checkbox" name="signal_ids" value="{{ item.signal_id }}"> <a href="/signals/{{ item.signal_id }}?run_id={{ run_id }}"><strong>{{ item.body }}</strong></a></label><small>{{ item.source_title or '未命名来源' }} · {{ item.author_public_id }}</small></span><span>{{ 'Bilibili' if item.platform == 'bili' else 'Douyin' }}</span><span><b class="grade grade-{{ (item.grade or 'none')|lower }}">{{ item.grade or '—' }}</b><small>{{ item.review_label or '待复核' }}</small></span><span>{{ item.industry or '未识别' }}<small>{{ item.query_cluster or '未分组' }}</small></span><span>{{ '已人工发送' if item.outreach_state == 'SENT_VERIFIED' else '未联系' }}</span></div>{% endfor %}</div>
+  <button type="submit">批量评分选中线索</button>
+</form>
+{% else %}
+<div class="work-table signal-table"><div class="table-row table-head"><span>证据</span><span>平台</span><span>AI / 人工</span><span>行业 / 查询</span><span>联系</span></div>{% for item in signals %}<div class="table-row"><span><a href="/signals/{{ item.signal_id }}?run_id={{ run_id }}"><strong>{{ item.body }}</strong></a><small>{{ item.source_title or '未命名来源' }} · {{ item.author_public_id }}</small></span><span>{{ 'Bilibili' if item.platform == 'bili' else 'Douyin' }}</span><span><b class="grade grade-{{ (item.grade or 'none')|lower }}">{{ item.grade or '—' }}</b><small>{{ item.review_label or '待复核' }}</small></span><span>{{ item.industry or '未识别' }}<small>{{ item.query_cluster or '未分组' }}</small></span><span>{{ '已人工发送' if item.outreach_state == 'SENT_VERIFIED' else '未联系' }}</span></div>{% endfor %}</div>
+{% endif %}
 {% else %}<section class="empty-state"><p class="eyebrow">等待采集事实</p><h2>当前范围无线索</h2><p>Signal 会在完成授权采集后出现；fixture 不计入业务证据。</p></section>{% endif %}
 {% endblock %}

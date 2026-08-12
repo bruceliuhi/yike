@@ -11,10 +11,10 @@ CREATE TABLE IF NOT EXISTS mvp_runs (
     timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai',
     authorization_basis TEXT NOT NULL,
     platform_scope_json TEXT NOT NULL,
-    query_set_sha256 TEXT,
-    prompt_version TEXT,
-    schema_version TEXT,
-    thresholds_sha256 TEXT,
+    query_set_sha256 TEXT NOT NULL CHECK (length(query_set_sha256) = 64),
+    prompt_version TEXT NOT NULL CHECK (length(trim(prompt_version)) > 0),
+    schema_version TEXT NOT NULL CHECK (length(trim(schema_version)) > 0),
+    thresholds_sha256 TEXT NOT NULL CHECK (length(thresholds_sha256) = 64),
     started_at TEXT NOT NULL,
     day14_due_at TEXT NOT NULL,
     finalized_at TEXT,
@@ -202,6 +202,127 @@ CREATE TABLE IF NOT EXISTS score_presentations (
     UNIQUE (mvp_run_id, signal_id, score_run_id)
 );
 
+CREATE TABLE IF NOT EXISTS activity_sessions (
+    activity_session_id TEXT PRIMARY KEY,
+    mvp_run_id TEXT NOT NULL,
+    signal_id TEXT NOT NULL,
+    activity_kind TEXT NOT NULL CHECK (activity_kind IN ('REVIEW', 'DRAFT')),
+    state TEXT NOT NULL CHECK (state IN ('OPEN', 'PAUSED', 'COMPLETED', 'CANCELLED')),
+    started_at TEXT NOT NULL,
+    completed_at TEXT,
+    active_seconds INTEGER,
+    FOREIGN KEY (mvp_run_id, signal_id)
+        REFERENCES mvp_run_signals(mvp_run_id, signal_id),
+    CHECK (strftime('%Y-%m-%dT%H:%M:%SZ', started_at) IS started_at),
+    CHECK (
+        (state IN ('OPEN', 'PAUSED') AND completed_at IS NULL AND active_seconds IS NULL)
+        OR
+        (state IN ('COMPLETED', 'CANCELLED')
+         AND completed_at IS NOT NULL
+         AND typeof(active_seconds) = 'integer'
+         AND active_seconds >= 0)
+    ),
+    UNIQUE (activity_session_id, mvp_run_id, signal_id),
+    UNIQUE (activity_session_id, mvp_run_id, signal_id, activity_kind)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS one_open_activity_per_subject
+    ON activity_sessions(mvp_run_id, signal_id, activity_kind)
+    WHERE state IN ('OPEN', 'PAUSED');
+
+CREATE TRIGGER IF NOT EXISTS activity_sessions_must_start_open
+BEFORE INSERT ON activity_sessions
+WHEN NEW.state <> 'OPEN'
+     OR NEW.completed_at IS NOT NULL
+     OR NEW.active_seconds IS NOT NULL
+BEGIN SELECT RAISE(ABORT, 'ACTIVITY_MUST_START_OPEN'); END;
+
+CREATE TABLE IF NOT EXISTS activity_events (
+    activity_event_id TEXT PRIMARY KEY,
+    activity_session_id TEXT NOT NULL,
+    mvp_run_id TEXT NOT NULL,
+    signal_id TEXT NOT NULL,
+    activity_kind TEXT NOT NULL CHECK (activity_kind IN ('REVIEW', 'DRAFT')),
+    sequence_no INTEGER NOT NULL CHECK (typeof(sequence_no) = 'integer' AND sequence_no > 0),
+    event_kind TEXT NOT NULL CHECK (
+        event_kind IN (
+            'START', 'PAUSE_HIDDEN', 'PAUSE_IDLE', 'RESUME', 'COMPLETE', 'CANCEL'
+        )
+    ),
+    received_at TEXT NOT NULL CHECK (
+        strftime('%Y-%m-%dT%H:%M:%SZ', received_at) IS received_at
+    ),
+    FOREIGN KEY (activity_session_id, mvp_run_id, signal_id, activity_kind)
+        REFERENCES activity_sessions(
+            activity_session_id, mvp_run_id, signal_id, activity_kind
+        ),
+    UNIQUE (activity_session_id, sequence_no)
+);
+
+CREATE TRIGGER IF NOT EXISTS activity_event_sequence_guard
+BEFORE INSERT ON activity_events
+WHEN strftime('%Y-%m-%dT%H:%M:%SZ', NEW.received_at) IS NOT NEW.received_at
+  OR (
+      NEW.event_kind = 'START'
+      AND (
+          NEW.sequence_no <> 1
+          OR EXISTS (
+              SELECT 1 FROM activity_events event
+              WHERE event.activity_session_id = NEW.activity_session_id
+          )
+          OR NOT EXISTS (
+              SELECT 1 FROM activity_sessions session
+              WHERE session.activity_session_id = NEW.activity_session_id
+                AND session.state = 'OPEN'
+                AND session.started_at = NEW.received_at
+          )
+      )
+  )
+  OR (
+      NEW.event_kind <> 'START'
+      AND (
+          NEW.sequence_no <> coalesce((
+              SELECT max(event.sequence_no) + 1
+              FROM activity_events event
+              WHERE event.activity_session_id = NEW.activity_session_id
+          ), 0)
+          OR julianday(NEW.received_at) < julianday((
+              SELECT event.received_at
+              FROM activity_events event
+              WHERE event.activity_session_id = NEW.activity_session_id
+              ORDER BY event.sequence_no DESC LIMIT 1
+          ))
+          OR NOT EXISTS (
+              SELECT 1
+              FROM activity_events prior
+              JOIN activity_sessions session
+                ON session.activity_session_id = prior.activity_session_id
+              WHERE prior.activity_session_id = NEW.activity_session_id
+                AND prior.sequence_no = NEW.sequence_no - 1
+                AND (
+                    (session.state = 'OPEN'
+                     AND prior.event_kind IN ('START', 'RESUME')
+                     AND NEW.event_kind IN (
+                         'PAUSE_HIDDEN', 'PAUSE_IDLE', 'COMPLETE', 'CANCEL'
+                     ))
+                    OR
+                    (session.state = 'PAUSED'
+                     AND prior.event_kind IN ('PAUSE_HIDDEN', 'PAUSE_IDLE')
+                     AND NEW.event_kind IN ('RESUME', 'CANCEL'))
+                )
+          )
+      )
+  )
+  OR (
+      NEW.event_kind = 'START'
+      AND NOT EXISTS (
+          SELECT 1 FROM activity_sessions session
+          WHERE session.activity_session_id = NEW.activity_session_id
+            AND session.state = 'OPEN'
+      )
+  )
+BEGIN SELECT RAISE(ABORT, 'ACTIVITY_EVENT_INVALID_TRANSITION'); END;
+
 CREATE TABLE IF NOT EXISTS human_reviews (
     review_id TEXT PRIMARY KEY,
     mvp_run_id TEXT NOT NULL,
@@ -210,9 +331,12 @@ CREATE TABLE IF NOT EXISTS human_reviews (
     label TEXT NOT NULL CHECK (label IN ('HIGH_INTENT', 'POSSIBLE', 'NOT_LEAD', 'UNVERIFIABLE')),
     reason TEXT,
     note TEXT,
-    started_at TEXT,
-    completed_at TEXT,
-    active_seconds INTEGER,
+    activity_session_id TEXT NOT NULL UNIQUE,
+    started_at TEXT NOT NULL,
+    completed_at TEXT NOT NULL,
+    active_seconds INTEGER NOT NULL CHECK (
+        typeof(active_seconds) = 'integer' AND active_seconds >= 0
+    ),
     supersedes_review_id TEXT UNIQUE,
     FOREIGN KEY (mvp_run_id, signal_id)
         REFERENCES mvp_run_signals(mvp_run_id, signal_id),
@@ -222,6 +346,8 @@ CREATE TABLE IF NOT EXISTS human_reviews (
         REFERENCES score_presentations(mvp_run_id, signal_id, score_run_id),
     FOREIGN KEY (supersedes_review_id, mvp_run_id, signal_id)
         REFERENCES human_reviews(review_id, mvp_run_id, signal_id),
+    FOREIGN KEY (activity_session_id, mvp_run_id, signal_id)
+        REFERENCES activity_sessions(activity_session_id, mvp_run_id, signal_id),
     CHECK (supersedes_review_id IS NULL OR supersedes_review_id <> review_id),
     UNIQUE (review_id, mvp_run_id, signal_id)
 );
@@ -236,12 +362,58 @@ CREATE TABLE IF NOT EXISTS draft_runs (
     signal_id TEXT NOT NULL,
     provider TEXT,
     model TEXT,
-    prompt_version TEXT,
-    body TEXT NOT NULL,
-    status TEXT NOT NULL,
+    prompt_version TEXT NOT NULL,
+    draft_kind TEXT NOT NULL CHECK (draft_kind IN ('GENERATED', 'HUMAN_EDITED')),
+    body TEXT,
+    status TEXT NOT NULL CHECK (status IN ('SUCCEEDED', 'FAILED')),
+    activity_session_id TEXT UNIQUE,
+    contract_json TEXT,
+    token_usage_json TEXT,
+    error_code TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY (mvp_run_id, signal_id)
         REFERENCES mvp_run_signals(mvp_run_id, signal_id),
+    FOREIGN KEY (activity_session_id, mvp_run_id, signal_id)
+        REFERENCES activity_sessions(activity_session_id, mvp_run_id, signal_id),
+    CHECK (
+        (
+            draft_kind = 'GENERATED'
+            AND activity_session_id IS NULL
+            AND (
+                (
+                    status = 'SUCCEEDED'
+                    AND provider IS NOT NULL AND length(trim(provider)) > 0
+                    AND model IS NOT NULL AND length(trim(model)) > 0
+                    AND body IS NOT NULL AND length(trim(body)) > 0 AND length(body) <= 180
+                    AND contract_json IS NOT NULL AND json_valid(contract_json)
+                    AND error_code IS NULL
+                    AND (token_usage_json IS NULL OR json_valid(token_usage_json))
+                )
+                OR
+                (
+                    status = 'FAILED'
+                    AND body IS NULL
+                    AND contract_json IS NULL
+                    AND token_usage_json IS NULL
+                    AND error_code IN (
+                        'MODEL_NOT_CONFIGURED', 'MODEL_UNAVAILABLE', 'MODEL_OUTPUT_INVALID'
+                    )
+                )
+            )
+        )
+        OR
+        (
+            draft_kind = 'HUMAN_EDITED'
+            AND status = 'SUCCEEDED'
+            AND provider = 'human'
+            AND model IS NULL
+            AND activity_session_id IS NOT NULL
+            AND body IS NOT NULL AND length(trim(body)) > 0 AND length(body) <= 180
+            AND contract_json IS NULL
+            AND token_usage_json IS NULL
+            AND error_code IS NULL
+        )
+    ),
     UNIQUE (draft_run_id, mvp_run_id, signal_id)
 );
 
@@ -257,6 +429,7 @@ CREATE TABLE IF NOT EXISTS outreach_actions (
     approved_text TEXT,
     sent_at TEXT,
     source_url TEXT,
+    context_evidence TEXT,
     evidence_summary TEXT,
     source_link_opened INTEGER NOT NULL DEFAULT 0
         CHECK (source_link_opened IN (0, 1)),
@@ -281,6 +454,9 @@ CREATE TABLE IF NOT EXISTS outreach_actions (
         OR parent_outreach_action_id <> outreach_action_id
     ),
     CHECK (
+        sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%SZ', sent_at) IS sent_at
+    ),
+    CHECK (
         status <> 'SENT_VERIFIED'
         OR (
             source_link_opened = 1
@@ -290,6 +466,9 @@ CREATE TABLE IF NOT EXISTS outreach_actions (
             AND length(trim(sent_at, char(9) || char(10) || char(13) || ' ')) > 0
             AND source_url IS NOT NULL
             AND length(trim(source_url, char(9) || char(10) || char(13) || ' ')) > 0
+            AND context_evidence IS NOT NULL
+            AND length(trim(context_evidence, char(9) || char(10) || char(13) || ' ')) > 0
+            AND evidence_summary = context_evidence
         )
     ),
     UNIQUE (outreach_action_id, mvp_run_id),
@@ -305,13 +484,31 @@ CREATE TABLE IF NOT EXISTS response_events (
     mvp_run_id TEXT NOT NULL,
     outreach_action_id TEXT NOT NULL,
     responder_subject_key TEXT NOT NULL,
-    response_type TEXT NOT NULL,
+    response_type TEXT NOT NULL CHECK (response_type IN ('VALID', 'INVALID')),
     summary TEXT,
     occurred_at TEXT,
     verified_at TEXT,
     evidence_summary TEXT,
     FOREIGN KEY (outreach_action_id, mvp_run_id)
         REFERENCES outreach_actions(outreach_action_id, mvp_run_id),
+    CHECK (
+        occurred_at IS NULL
+        OR strftime('%Y-%m-%dT%H:%M:%SZ', occurred_at) IS occurred_at
+    ),
+    CHECK (
+        verified_at IS NULL
+        OR strftime('%Y-%m-%dT%H:%M:%SZ', verified_at) IS verified_at
+    ),
+    CHECK (
+        response_type <> 'VALID'
+        OR (
+            occurred_at IS NOT NULL AND length(trim(occurred_at)) > 0
+            AND
+            verified_at IS NOT NULL AND length(trim(verified_at)) > 0
+            AND evidence_summary IS NOT NULL AND length(trim(evidence_summary)) > 0
+            AND occurred_at <= verified_at
+        )
+    ),
     UNIQUE (response_event_id, mvp_run_id)
 );
 
@@ -322,9 +519,38 @@ CREATE TABLE IF NOT EXISTS interviews (
     scheduled_at TEXT,
     completed_at TEXT,
     summary_json TEXT,
+    solution_fit TEXT NOT NULL CHECK (
+        solution_fit IN ('SOLVABLE', 'UNSOLVABLE', 'UNKNOWN')
+    ),
     next_step TEXT,
     FOREIGN KEY (response_event_id, mvp_run_id)
         REFERENCES response_events(response_event_id, mvp_run_id),
+    CHECK (
+        scheduled_at IS NULL
+        OR strftime('%Y-%m-%dT%H:%M:%SZ', scheduled_at) IS scheduled_at
+    ),
+    CHECK (
+        completed_at IS NULL
+        OR strftime('%Y-%m-%dT%H:%M:%SZ', completed_at) IS completed_at
+    ),
+    CHECK (
+        completed_at IS NULL
+        OR (
+            summary_json IS NOT NULL
+            AND json_valid(summary_json)
+            AND json_type(summary_json) = 'object'
+            AND json_type(summary_json, '$.customer_source_and_sales_process') = 'text'
+            AND length(trim(json_extract(summary_json, '$.customer_source_and_sales_process'))) > 0
+            AND json_type(summary_json, '$.weekly_lead_volume_and_loss_point') = 'text'
+            AND length(trim(json_extract(summary_json, '$.weekly_lead_volume_and_loss_point'))) > 0
+            AND json_type(summary_json, '$.most_manual_step') = 'text'
+            AND length(trim(json_extract(summary_json, '$.most_manual_step'))) > 0
+            AND json_type(summary_json, '$.current_tools') = 'text'
+            AND length(trim(json_extract(summary_json, '$.current_tools'))) > 0
+            AND json_type(summary_json, '$.minimum_agent_scenario_and_decision_process') = 'text'
+            AND length(trim(json_extract(summary_json, '$.minimum_agent_scenario_and_decision_process'))) > 0
+        )
+    ),
     UNIQUE (interview_id, mvp_run_id)
 );
 
@@ -333,10 +559,16 @@ CREATE TABLE IF NOT EXISTS quote_opportunities (
     mvp_run_id TEXT NOT NULL,
     response_event_id TEXT,
     interview_id TEXT,
-    scope_summary TEXT,
-    agreed_to_receive_pricing_at TEXT,
-    verified_at TEXT,
+    scope_summary TEXT NOT NULL CHECK (length(trim(scope_summary)) > 0),
+    agreed_to_receive_pricing_at TEXT NOT NULL CHECK (
+        strftime('%Y-%m-%dT%H:%M:%SZ', agreed_to_receive_pricing_at)
+            IS agreed_to_receive_pricing_at
+    ),
+    verified_at TEXT NOT NULL CHECK (
+        strftime('%Y-%m-%dT%H:%M:%SZ', verified_at) IS verified_at
+    ),
     CHECK (response_event_id IS NOT NULL OR interview_id IS NOT NULL),
+    CHECK (agreed_to_receive_pricing_at <= verified_at),
     FOREIGN KEY (response_event_id, mvp_run_id)
         REFERENCES response_events(response_event_id, mvp_run_id),
     FOREIGN KEY (interview_id, mvp_run_id)
@@ -357,12 +589,17 @@ CREATE TABLE IF NOT EXISTS daily_snapshots (
 CREATE TABLE IF NOT EXISTS risk_events (
     risk_event_id TEXT PRIMARY KEY,
     mvp_run_id TEXT NOT NULL REFERENCES mvp_runs(mvp_run_id),
-    event_type TEXT NOT NULL,
-    severity TEXT NOT NULL,
+    event_type TEXT NOT NULL CHECK (event_type IN (
+        'PLATFORM_PENALTY', 'UNAUTHORIZED_COLLECTION', 'MIS_SEND',
+        'DUPLICATE_HARASSMENT', 'SENSITIVE_LEAK', 'UNAUTHORIZED_DATA', 'BYPASS'
+    )),
+    severity TEXT NOT NULL CHECK (severity = 'CONFIRMED'),
     platform TEXT CHECK (platform IS NULL OR platform IN ('bili', 'dy')),
-    summary TEXT NOT NULL,
-    verified_at TEXT NOT NULL,
-    forces_stop INTEGER NOT NULL DEFAULT 0 CHECK (forces_stop IN (0, 1))
+    summary TEXT NOT NULL CHECK (length(trim(summary)) > 0),
+    verified_at TEXT NOT NULL CHECK (
+        strftime('%Y-%m-%dT%H:%M:%SZ', verified_at) IS verified_at
+    ),
+    forces_stop INTEGER NOT NULL DEFAULT 1 CHECK (forces_stop = 1)
 );
 
 CREATE TRIGGER IF NOT EXISTS mvp_runs_finalized_immutable
@@ -371,6 +608,59 @@ WHEN OLD.state = 'FINALIZED'
 BEGIN
     SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE');
 END;
+
+CREATE TRIGGER IF NOT EXISTS mvp_runs_day0_config_immutable
+BEFORE UPDATE ON mvp_runs
+WHEN NEW.revision_of_run_id IS NOT OLD.revision_of_run_id
+  OR NEW.timezone IS NOT OLD.timezone
+  OR NEW.authorization_basis IS NOT OLD.authorization_basis
+  OR NEW.platform_scope_json IS NOT OLD.platform_scope_json
+  OR NEW.query_set_sha256 IS NOT OLD.query_set_sha256
+  OR NEW.prompt_version IS NOT OLD.prompt_version
+  OR NEW.schema_version IS NOT OLD.schema_version
+  OR NEW.thresholds_sha256 IS NOT OLD.thresholds_sha256
+  OR NEW.started_at IS NOT OLD.started_at
+  OR NEW.day14_due_at IS NOT OLD.day14_due_at
+BEGIN SELECT RAISE(ABORT, 'DAY0_CONFIG_IMMUTABLE'); END;
+
+CREATE TRIGGER IF NOT EXISTS mvp_runs_state_transition_guard
+BEFORE UPDATE OF state ON mvp_runs
+WHEN NOT (
+    (OLD.state = 'DRAFT' AND NEW.state = 'ACTIVE')
+    OR (OLD.state = 'ACTIVE' AND NEW.state IN ('CANCELLED', 'FINALIZED'))
+    OR (OLD.state = 'CANCELLED' AND NEW.state = 'FINALIZED')
+)
+BEGIN SELECT RAISE(ABORT, 'RUN_STATE_INVALID_TRANSITION'); END;
+
+CREATE TRIGGER IF NOT EXISTS mvp_runs_conclusion_only_when_finalized
+BEFORE UPDATE ON mvp_runs
+WHEN NEW.state <> 'FINALIZED'
+     AND (
+         NEW.finalized_at IS NOT NULL
+         OR NEW.conclusion IS NOT NULL
+         OR NEW.conclusion_facts_json IS NOT NULL
+         OR NEW.conclusion_facts_sha256 IS NOT NULL
+         OR NEW.final_report_sha256 IS NOT NULL
+     )
+BEGIN SELECT RAISE(ABORT, 'RUN_CONCLUSION_BEFORE_FINALIZATION'); END;
+
+CREATE TRIGGER IF NOT EXISTS mvp_runs_finalization_requires_snapshot
+BEFORE UPDATE OF state ON mvp_runs
+WHEN NEW.state = 'FINALIZED'
+     AND (
+         NEW.finalized_at IS NULL
+         OR NEW.conclusion NOT IN (
+             'STOP_DISCOVERY', 'BLOCKED_INPUT',
+             'PROCEED_TO_V03_REVIEW', 'REVISE_MVP'
+         )
+         OR NEW.conclusion_facts_json IS NULL
+         OR json_valid(NEW.conclusion_facts_json) = 0
+         OR NEW.conclusion_facts_sha256 IS NULL
+         OR length(NEW.conclusion_facts_sha256) <> 64
+         OR NEW.final_report_sha256 IS NULL
+         OR length(NEW.final_report_sha256) <> 64
+     )
+BEGIN SELECT RAISE(ABORT, 'FINALIZATION_SNAPSHOT_REQUIRED'); END;
 
 CREATE TRIGGER IF NOT EXISTS mvp_runs_finalized_not_deleted
 BEFORE DELETE ON mvp_runs
@@ -491,6 +781,32 @@ WHEN EXISTS (SELECT 1 FROM mvp_runs WHERE mvp_run_id = OLD.mvp_run_id AND state 
 BEGIN SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE'); END;
 CREATE TRIGGER IF NOT EXISTS finalized_score_presentations_delete
 BEFORE DELETE ON score_presentations
+WHEN EXISTS (SELECT 1 FROM mvp_runs WHERE mvp_run_id = OLD.mvp_run_id AND state = 'FINALIZED')
+BEGIN SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE'); END;
+
+CREATE TRIGGER IF NOT EXISTS finalized_activity_sessions_insert
+BEFORE INSERT ON activity_sessions
+WHEN EXISTS (SELECT 1 FROM mvp_runs WHERE mvp_run_id = NEW.mvp_run_id AND state = 'FINALIZED')
+BEGIN SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE'); END;
+CREATE TRIGGER IF NOT EXISTS finalized_activity_sessions_update
+BEFORE UPDATE ON activity_sessions
+WHEN EXISTS (SELECT 1 FROM mvp_runs WHERE mvp_run_id = OLD.mvp_run_id AND state = 'FINALIZED')
+BEGIN SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE'); END;
+CREATE TRIGGER IF NOT EXISTS finalized_activity_sessions_delete
+BEFORE DELETE ON activity_sessions
+WHEN EXISTS (SELECT 1 FROM mvp_runs WHERE mvp_run_id = OLD.mvp_run_id AND state = 'FINALIZED')
+BEGIN SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE'); END;
+
+CREATE TRIGGER IF NOT EXISTS finalized_activity_events_insert
+BEFORE INSERT ON activity_events
+WHEN EXISTS (SELECT 1 FROM mvp_runs WHERE mvp_run_id = NEW.mvp_run_id AND state = 'FINALIZED')
+BEGIN SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE'); END;
+CREATE TRIGGER IF NOT EXISTS finalized_activity_events_update
+BEFORE UPDATE ON activity_events
+WHEN EXISTS (SELECT 1 FROM mvp_runs WHERE mvp_run_id = OLD.mvp_run_id AND state = 'FINALIZED')
+BEGIN SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE'); END;
+CREATE TRIGGER IF NOT EXISTS finalized_activity_events_delete
+BEFORE DELETE ON activity_events
 WHEN EXISTS (SELECT 1 FROM mvp_runs WHERE mvp_run_id = OLD.mvp_run_id AND state = 'FINALIZED')
 BEGIN SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE'); END;
 
@@ -726,6 +1042,118 @@ WHEN NOT EXISTS (
 )
 BEGIN SELECT RAISE(ABORT, 'PRESENTED_SCORE_NOT_SUCCEEDED'); END;
 
+CREATE TRIGGER IF NOT EXISTS activity_session_transition_guard
+BEFORE UPDATE ON activity_sessions
+BEGIN
+    SELECT CASE
+        WHEN NEW.activity_session_id IS NOT OLD.activity_session_id
+          OR NEW.mvp_run_id IS NOT OLD.mvp_run_id
+          OR NEW.signal_id IS NOT OLD.signal_id
+          OR NEW.activity_kind IS NOT OLD.activity_kind
+          OR NEW.started_at IS NOT OLD.started_at
+            THEN RAISE(ABORT, 'ACTIVITY_IDENTITY_IMMUTABLE')
+        WHEN OLD.state = 'OPEN' AND NEW.state NOT IN ('PAUSED', 'COMPLETED', 'CANCELLED')
+            THEN RAISE(ABORT, 'ACTIVITY_INVALID_TRANSITION')
+        WHEN OLD.state = 'PAUSED' AND NEW.state NOT IN ('OPEN', 'CANCELLED')
+            THEN RAISE(ABORT, 'ACTIVITY_INVALID_TRANSITION')
+        WHEN OLD.state IN ('COMPLETED', 'CANCELLED')
+            THEN RAISE(ABORT, 'APPEND_ONLY_FACT')
+        WHEN NEW.state = 'PAUSED'
+          AND NOT EXISTS (
+              SELECT 1 FROM activity_events event
+              WHERE event.activity_session_id = OLD.activity_session_id
+                AND event.sequence_no = (
+                    SELECT max(last.sequence_no) FROM activity_events last
+                    WHERE last.activity_session_id = OLD.activity_session_id
+                )
+                AND event.event_kind IN ('PAUSE_HIDDEN', 'PAUSE_IDLE')
+                AND NEW.completed_at IS NULL
+                AND NEW.active_seconds IS NULL
+          )
+            THEN RAISE(ABORT, 'ACTIVITY_STATE_EVENT_REQUIRED')
+        WHEN OLD.state = 'PAUSED' AND NEW.state = 'OPEN'
+          AND NOT EXISTS (
+              SELECT 1 FROM activity_events event
+              WHERE event.activity_session_id = OLD.activity_session_id
+                AND event.sequence_no = (
+                    SELECT max(last.sequence_no) FROM activity_events last
+                    WHERE last.activity_session_id = OLD.activity_session_id
+                )
+                AND event.event_kind = 'RESUME'
+                AND NEW.completed_at IS NULL
+                AND NEW.active_seconds IS NULL
+          )
+            THEN RAISE(ABORT, 'ACTIVITY_STATE_EVENT_REQUIRED')
+        WHEN NEW.state IN ('COMPLETED', 'CANCELLED')
+          AND NOT EXISTS (
+              SELECT 1 FROM activity_events event
+              WHERE event.activity_session_id = OLD.activity_session_id
+                AND event.sequence_no = (
+                    SELECT max(last.sequence_no) FROM activity_events last
+                    WHERE last.activity_session_id = OLD.activity_session_id
+                )
+                AND event.event_kind = CASE NEW.state
+                    WHEN 'COMPLETED' THEN 'COMPLETE' ELSE 'CANCEL' END
+                AND event.received_at = NEW.completed_at
+          )
+            THEN RAISE(ABORT, 'ACTIVITY_TERMINAL_EVENT_REQUIRED')
+    END;
+END;
+CREATE TRIGGER IF NOT EXISTS activity_summary_matches_events
+BEFORE UPDATE ON activity_sessions
+WHEN NEW.state IN ('COMPLETED', 'CANCELLED')
+     AND NEW.active_seconds <> (
+         SELECT coalesce(sum(
+             CASE
+               WHEN terminal.event_kind = 'PAUSE_IDLE' THEN max(
+                   0,
+                   cast(strftime('%s', terminal.received_at) as integer)
+                   - cast(strftime('%s', prior.received_at) as integer)
+                   - 60
+               )
+               ELSE max(
+                   0,
+                   cast(strftime('%s', terminal.received_at) as integer)
+                   - cast(strftime('%s', prior.received_at) as integer)
+               )
+             END
+         ), 0)
+         FROM activity_events terminal
+         JOIN activity_events prior
+           ON prior.activity_session_id = terminal.activity_session_id
+          AND prior.sequence_no = terminal.sequence_no - 1
+          AND prior.event_kind IN ('START', 'RESUME')
+         WHERE terminal.activity_session_id = OLD.activity_session_id
+           AND terminal.event_kind IN (
+               'PAUSE_HIDDEN', 'PAUSE_IDLE', 'COMPLETE', 'CANCEL'
+           )
+     )
+BEGIN SELECT RAISE(ABORT, 'ACTIVITY_SUMMARY_MISMATCH'); END;
+CREATE TRIGGER IF NOT EXISTS activity_sessions_append_only_delete
+BEFORE DELETE ON activity_sessions
+BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
+CREATE TRIGGER IF NOT EXISTS activity_events_append_only_update
+BEFORE UPDATE ON activity_events
+BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
+CREATE TRIGGER IF NOT EXISTS activity_events_append_only_delete
+BEFORE DELETE ON activity_events
+BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
+
+CREATE TRIGGER IF NOT EXISTS review_requires_completed_activity
+BEFORE INSERT ON human_reviews
+WHEN NOT EXISTS (
+    SELECT 1 FROM activity_sessions session
+    WHERE session.activity_session_id = NEW.activity_session_id
+      AND session.mvp_run_id = NEW.mvp_run_id
+      AND session.signal_id = NEW.signal_id
+      AND session.activity_kind = 'REVIEW'
+      AND session.state = 'COMPLETED'
+      AND session.started_at = NEW.started_at
+      AND session.completed_at = NEW.completed_at
+      AND session.active_seconds = NEW.active_seconds
+)
+BEGIN SELECT RAISE(ABORT, 'REVIEW_ACTIVITY_NOT_COMPLETED'); END;
+
 CREATE TRIGGER IF NOT EXISTS human_reviews_append_only_update
 BEFORE UPDATE ON human_reviews
 BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
@@ -764,6 +1192,19 @@ WHEN EXISTS (
     )
 BEGIN SELECT RAISE(ABORT, 'REVIEW_SUPERSEDES_NOT_CURRENT'); END;
 
+CREATE TRIGGER IF NOT EXISTS draft_requires_governed_activity
+BEFORE INSERT ON draft_runs
+WHEN NEW.draft_kind = 'HUMAN_EDITED'
+     AND NOT EXISTS (
+         SELECT 1 FROM activity_sessions session
+         WHERE session.activity_session_id = NEW.activity_session_id
+           AND session.mvp_run_id = NEW.mvp_run_id
+           AND session.signal_id = NEW.signal_id
+           AND session.activity_kind = 'DRAFT'
+           AND session.state = 'COMPLETED'
+     )
+BEGIN SELECT RAISE(ABORT, 'DRAFT_ACTIVITY_NOT_COMPLETED'); END;
+
 CREATE TRIGGER IF NOT EXISTS follow_up_parent_must_be_root
 BEFORE INSERT ON outreach_actions
 WHEN NEW.parent_outreach_action_id IS NOT NULL
@@ -786,6 +1227,11 @@ WHEN NOT EXISTS (
           AND mvp_run_id = NEW.mvp_run_id
           AND signal_id = NEW.signal_id
           AND completed_at IS NOT NULL
+          AND presented_score_run_id = NEW.score_run_id
+          AND NOT EXISTS (
+              SELECT 1 FROM human_reviews child
+              WHERE child.supersedes_review_id = human_reviews.review_id
+          )
     )
     OR NOT EXISTS (
         SELECT 1 FROM score_runs
@@ -800,8 +1246,64 @@ WHEN NOT EXISTS (
           AND mvp_run_id = NEW.mvp_run_id
           AND signal_id = NEW.signal_id
           AND status = 'SUCCEEDED'
+          AND draft_kind = 'HUMAN_EDITED'
     )
 BEGIN SELECT RAISE(ABORT, 'OUTREACH_BINDING_NOT_READY'); END;
+
+CREATE TRIGGER IF NOT EXISTS outreach_time_follows_review_and_draft
+BEFORE INSERT ON outreach_actions
+WHEN NEW.status = 'SENT_VERIFIED'
+     AND NOT EXISTS (
+         SELECT 1 FROM human_reviews review
+         JOIN draft_runs draft
+           ON draft.draft_run_id = NEW.draft_run_id
+          AND draft.mvp_run_id = NEW.mvp_run_id
+          AND draft.signal_id = NEW.signal_id
+         WHERE review.review_id = NEW.review_id
+           AND review.mvp_run_id = NEW.mvp_run_id
+           AND review.signal_id = NEW.signal_id
+           AND NEW.sent_at >= review.completed_at
+           AND NEW.sent_at >= draft.created_at
+     )
+BEGIN SELECT RAISE(ABORT, 'OUTREACH_TIME_CAUSALITY'); END;
+
+CREATE TRIGGER IF NOT EXISTS outreach_score_matches_review
+BEFORE INSERT ON outreach_actions
+WHEN EXISTS (
+    SELECT 1 FROM human_reviews
+    WHERE review_id = NEW.review_id
+      AND presented_score_run_id <> NEW.score_run_id
+)
+BEGIN SELECT RAISE(ABORT, 'OUTREACH_SCORE_REVIEW_MISMATCH'); END;
+
+CREATE TRIGGER IF NOT EXISTS outreach_context_is_verbatim
+BEFORE INSERT ON outreach_actions
+WHEN NEW.status = 'SENT_VERIFIED'
+     AND (
+         instr(NEW.approved_text, NEW.context_evidence) = 0
+         OR NOT EXISTS (
+             SELECT 1 FROM signals signal
+             LEFT JOIN sources source ON source.source_id = signal.source_id
+             WHERE signal.signal_id = NEW.signal_id
+               AND instr(
+                   coalesce(source.title, '') || '\n'
+                   || coalesce(signal.parent_body, '') || '\n'
+                   || signal.body,
+                   NEW.context_evidence
+               ) > 0
+         )
+     )
+BEGIN SELECT RAISE(ABORT, 'OUTREACH_CONTEXT_NOT_VERBATIM'); END;
+
+CREATE TRIGGER IF NOT EXISTS outreach_subject_is_signal_author
+BEFORE INSERT ON outreach_actions
+WHEN NOT EXISTS (
+    SELECT 1 FROM signals signal
+    WHERE signal.signal_id = NEW.signal_id
+      AND signal.platform = NEW.platform
+      AND NEW.subject_key = signal.platform || ':' || signal.author_public_id
+)
+BEGIN SELECT RAISE(ABORT, 'OUTREACH_SUBJECT_NOT_SIGNAL_AUTHOR'); END;
 
 CREATE TRIGGER IF NOT EXISTS draft_runs_append_only_update
 BEFORE UPDATE ON draft_runs
@@ -824,6 +1326,39 @@ CREATE TRIGGER IF NOT EXISTS response_events_append_only_delete
 BEFORE DELETE ON response_events
 BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
 
+CREATE TRIGGER IF NOT EXISTS response_subject_matches_outreach
+BEFORE INSERT ON response_events
+WHEN NOT EXISTS (
+    SELECT 1 FROM outreach_actions outreach
+    WHERE outreach.outreach_action_id = NEW.outreach_action_id
+      AND outreach.mvp_run_id = NEW.mvp_run_id
+      AND outreach.subject_key = NEW.responder_subject_key
+)
+BEGIN SELECT RAISE(ABORT, 'RESPONSE_SUBJECT_MISMATCH'); END;
+
+CREATE TRIGGER IF NOT EXISTS valid_response_requires_verified_outreach
+BEFORE INSERT ON response_events
+WHEN NEW.response_type = 'VALID'
+     AND NOT EXISTS (
+         SELECT 1 FROM outreach_actions outreach
+         WHERE outreach.outreach_action_id = NEW.outreach_action_id
+           AND outreach.mvp_run_id = NEW.mvp_run_id
+           AND outreach.status = 'SENT_VERIFIED'
+           AND outreach.sent_at IS NOT NULL
+     )
+BEGIN SELECT RAISE(ABORT, 'VALID_RESPONSE_OUTREACH_NOT_SENT'); END;
+
+CREATE TRIGGER IF NOT EXISTS response_time_follows_outreach
+BEFORE INSERT ON response_events
+WHEN NOT EXISTS (
+    SELECT 1 FROM outreach_actions outreach
+    WHERE outreach.outreach_action_id = NEW.outreach_action_id
+      AND outreach.mvp_run_id = NEW.mvp_run_id
+      AND NEW.occurred_at >= outreach.sent_at
+      AND NEW.verified_at >= NEW.occurred_at
+)
+BEGIN SELECT RAISE(ABORT, 'RESPONSE_TIME_CAUSALITY'); END;
+
 CREATE TRIGGER IF NOT EXISTS interviews_append_only_update
 BEFORE UPDATE ON interviews
 BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
@@ -831,12 +1366,92 @@ CREATE TRIGGER IF NOT EXISTS interviews_append_only_delete
 BEFORE DELETE ON interviews
 BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
 
+CREATE TRIGGER IF NOT EXISTS interview_requires_valid_response
+BEFORE INSERT ON interviews
+WHEN NOT EXISTS (
+    SELECT 1 FROM response_events response
+    WHERE response.response_event_id = NEW.response_event_id
+      AND response.mvp_run_id = NEW.mvp_run_id
+      AND response.response_type = 'VALID'
+)
+BEGIN SELECT RAISE(ABORT, 'INTERVIEW_RESPONSE_NOT_VALID'); END;
+
+CREATE TRIGGER IF NOT EXISTS interview_time_follows_response
+BEFORE INSERT ON interviews
+WHEN NEW.completed_at IS NOT NULL
+     AND NOT EXISTS (
+         SELECT 1 FROM response_events response
+         WHERE response.response_event_id = NEW.response_event_id
+           AND response.mvp_run_id = NEW.mvp_run_id
+           AND NEW.scheduled_at <= NEW.completed_at
+           AND NEW.completed_at >= response.verified_at
+     )
+BEGIN SELECT RAISE(ABORT, 'INTERVIEW_TIME_CAUSALITY'); END;
+
+CREATE TRIGGER IF NOT EXISTS interview_summary_exactly_five
+BEFORE INSERT ON interviews
+WHEN NEW.completed_at IS NOT NULL
+     AND (
+         (SELECT COUNT(*) FROM json_each(NEW.summary_json)) <> 5
+         OR EXISTS (
+             SELECT 1 FROM json_each(NEW.summary_json)
+             WHERE key NOT IN (
+                 'customer_source_and_sales_process',
+                 'weekly_lead_volume_and_loss_point',
+                 'most_manual_step',
+                 'current_tools',
+                 'minimum_agent_scenario_and_decision_process'
+             )
+         )
+     )
+BEGIN SELECT RAISE(ABORT, 'INTERVIEW_SUMMARY_NOT_EXACT'); END;
+
 CREATE TRIGGER IF NOT EXISTS quote_opportunities_append_only_update
 BEFORE UPDATE ON quote_opportunities
 BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
 CREATE TRIGGER IF NOT EXISTS quote_opportunities_append_only_delete
 BEFORE DELETE ON quote_opportunities
 BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
+
+CREATE TRIGGER IF NOT EXISTS quote_requires_valid_response
+BEFORE INSERT ON quote_opportunities
+WHEN NOT EXISTS (
+    SELECT 1 FROM response_events response
+    LEFT JOIN interviews interview
+      ON interview.interview_id = NEW.interview_id
+     AND interview.mvp_run_id = NEW.mvp_run_id
+    WHERE response.mvp_run_id = NEW.mvp_run_id
+      AND response.response_event_id = coalesce(
+          NEW.response_event_id, interview.response_event_id
+      )
+      AND response.response_type = 'VALID'
+      AND (
+          NEW.response_event_id IS NULL
+          OR NEW.interview_id IS NULL
+          OR interview.response_event_id = NEW.response_event_id
+      )
+)
+BEGIN SELECT RAISE(ABORT, 'QUOTE_RESPONSE_NOT_VALID'); END;
+
+CREATE TRIGGER IF NOT EXISTS quote_time_follows_business_chain
+BEFORE INSERT ON quote_opportunities
+WHEN NOT EXISTS (
+    SELECT 1 FROM response_events response
+    LEFT JOIN interviews interview
+      ON interview.interview_id = NEW.interview_id
+     AND interview.mvp_run_id = NEW.mvp_run_id
+    WHERE response.mvp_run_id = NEW.mvp_run_id
+      AND response.response_event_id = coalesce(
+          NEW.response_event_id, interview.response_event_id
+      )
+      AND NEW.agreed_to_receive_pricing_at >= response.verified_at
+      AND (
+          NEW.interview_id IS NULL
+          OR NEW.agreed_to_receive_pricing_at >= interview.completed_at
+      )
+      AND NEW.verified_at >= NEW.agreed_to_receive_pricing_at
+)
+BEGIN SELECT RAISE(ABORT, 'QUOTE_TIME_CAUSALITY'); END;
 
 CREATE TRIGGER IF NOT EXISTS daily_snapshots_append_only_update
 BEFORE UPDATE ON daily_snapshots
