@@ -18,5 +18,9 @@ def connect(database_path: Path) -> sqlite3.Connection:
 
 def migrate(connection: sqlite3.Connection) -> None:
     """Apply the idempotent discovery schema to an empty or existing database."""
+    if connection.in_transaction:
+        raise RuntimeError("cannot migrate while connection has an active transaction")
     connection.execute("PRAGMA foreign_keys = ON")
+    if connection.execute("PRAGMA foreign_keys").fetchone()[0] != 1:
+        raise RuntimeError("SQLite foreign key enforcement could not be enabled")
     connection.executescript(_MIGRATION.read_text(encoding="utf-8"))

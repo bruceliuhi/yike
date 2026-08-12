@@ -28,6 +28,10 @@ class SignalIdentityConflict(ValueError):
     pass
 
 
+class RunRevisionError(ValueError):
+    pass
+
+
 @dataclass(frozen=True)
 class NormalizedSignal:
     platform: str
@@ -79,9 +83,30 @@ class Repository:
         migrate(connection)
         return cls(connection)
 
-    def create_run(self, platforms: list[str]) -> str:
+    def create_run(
+        self, platforms: list[str], revision_of_run_id: str | None = None
+    ) -> str:
         if len(platforms) != 2 or set(platforms) != _PLATFORMS or platforms != ["bili", "dy"]:
             raise ValueError("platform scope must be exactly ['bili', 'dy']")
+        if revision_of_run_id is not None:
+            parent = self.connection.execute(
+                """
+                SELECT state, revision_of_run_id
+                FROM mvp_runs WHERE mvp_run_id = ?
+                """,
+                (revision_of_run_id,),
+            ).fetchone()
+            if parent is None:
+                raise RunRevisionError("revision base run does not exist")
+            if parent["state"] != "FINALIZED":
+                raise RunRevisionError("revision base run must be FINALIZED")
+            if parent["revision_of_run_id"] is not None:
+                raise RunRevisionError("a revision cannot be revised")
+            if self.connection.execute(
+                "SELECT 1 FROM mvp_runs WHERE revision_of_run_id = ?",
+                (revision_of_run_id,),
+            ).fetchone():
+                raise RunRevisionError("a base run permits only one revision")
 
         run_id = str(uuid4())
         started_at = _utc_now()
@@ -93,12 +118,13 @@ class Repository:
                 self.connection.execute(
                     """
                     INSERT INTO mvp_runs (
-                        mvp_run_id, state, authorization_basis, platform_scope_json,
-                        started_at, day14_due_at
-                    ) VALUES (?, 'ACTIVE', ?, ?, ?, ?)
+                        mvp_run_id, revision_of_run_id, state, authorization_basis,
+                        platform_scope_json, started_at, day14_due_at
+                    ) VALUES (?, ?, 'ACTIVE', ?, ?, ?, ?)
                     """,
                     (
                         run_id,
+                        revision_of_run_id,
                         "USER_ATTESTED_PLATFORM_AUTHORIZATION",
                         json.dumps(platforms, separators=(",", ":")),
                         started_at,
@@ -108,19 +134,30 @@ class Repository:
         except sqlite3.IntegrityError as error:
             if "mvp_runs.state" in str(error):
                 raise ActiveRunError("an ACTIVE mvp run already exists") from error
+            if "mvp_runs.revision_of_run_id" in str(error):
+                raise RunRevisionError("a base run permits only one revision") from error
+            if "RUN_REVISION" in str(error):
+                raise RunRevisionError(str(error)) from error
             raise
         return run_id
 
     def import_signal(self, run_id: str, item: NormalizedSignal) -> ImportResult:
         if item.platform not in _PLATFORMS:
             raise ValueError("platform must be one of: bili, dy")
-        if not item.body:
+        if not item.body or not item.body.strip():
             raise ValueError("signal body is required")
         comment_url = item.normalized_comment_url or item.comment_url
-        if not comment_url:
+        if not comment_url or not comment_url.strip():
             raise ValueError("normalized comment URL is required")
-        if not item.author_public_id:
+        comment_url = comment_url.strip()
+        if not item.author_public_id or not item.author_public_id.strip():
             raise ValueError("author public ID is required")
+        author_public_id = item.author_public_id.strip()
+        external_comment_id = item.external_comment_id
+        if external_comment_id is not None:
+            external_comment_id = external_comment_id.strip()
+            if not external_comment_id:
+                raise ValueError("external comment ID must not be blank")
 
         run = self.connection.execute(
             "SELECT state, platform_scope_json FROM mvp_runs WHERE mvp_run_id = ?", (run_id,)
@@ -141,9 +178,14 @@ class Repository:
 
         try:
             with self.connection:
-                source_id = self._resolve_source(item)
+                source_id = self._resolve_source(item, author_public_id)
                 signal_id, created = self._resolve_signal(
-                    item, source_id, comment_url, body_sha256
+                    item,
+                    source_id,
+                    external_comment_id,
+                    comment_url,
+                    author_public_id,
+                    body_sha256,
                 )
                 self.connection.execute(
                     """
@@ -204,7 +246,9 @@ class Repository:
             "SELECT COUNT(*) FROM signal_observations WHERE mvp_run_id = ?", (run_id,)
         ).fetchone()[0]
 
-    def _resolve_source(self, item: NormalizedSignal) -> str | None:
+    def _resolve_source(
+        self, item: NormalizedSignal, author_public_id: str
+    ) -> str | None:
         if not item.external_source_id:
             return None
         existing = self.connection.execute(
@@ -227,7 +271,7 @@ class Repository:
                 item.external_source_id,
                 item.source_title,
                 item.source_url,
-                item.author_public_id,
+                author_public_id,
                 item.published_at,
             ),
         )
@@ -237,16 +281,18 @@ class Repository:
         self,
         item: NormalizedSignal,
         source_id: str | None,
+        external_comment_id: str | None,
         comment_url: str,
+        author_public_id: str,
         body_sha256: str,
     ) -> tuple[str, bool]:
-        if item.external_comment_id:
+        if external_comment_id is not None:
             existing = self.connection.execute(
                 """
                 SELECT signal_id, body_sha256 FROM signals
                 WHERE platform = ? AND external_comment_id = ?
                 """,
-                (item.platform, item.external_comment_id),
+                (item.platform, external_comment_id),
             ).fetchone()
             if existing is not None:
                 if existing["body_sha256"] != body_sha256:
@@ -259,7 +305,7 @@ class Repository:
                 WHERE platform = ? AND normalized_comment_url = ?
                   AND author_public_id = ? AND body_sha256 = ?
                 """,
-                (item.platform, comment_url, item.author_public_id, body_sha256),
+                (item.platform, comment_url, author_public_id, body_sha256),
             ).fetchone()
             if existing is not None:
                 return str(existing["signal_id"]), False
@@ -277,11 +323,11 @@ class Repository:
                 signal_id,
                 source_id,
                 item.platform,
-                item.external_comment_id,
+                external_comment_id,
                 item.parent_comment_id,
                 item.parent_body,
                 comment_url,
-                item.author_public_id,
+                author_public_id,
                 item.body,
                 body_sha256,
                 item.published_at,
