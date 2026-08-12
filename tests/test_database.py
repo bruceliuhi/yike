@@ -364,7 +364,7 @@ def test_current_schema_migration_is_idempotent(connection):
     ).fetchone()
     assert tuple(marker) == (
         "DISCOVERY_FACT_STORE_V9",
-        "df24666e8b9bb890731ef2519c74cb24d272882d2abbebc9ba623233967b9daf",
+        "aa9ef78e94f4d28a19117a50ed443b67fee5b75de580fcb3117eca85d2feeaa3",
     )
 
 
@@ -1495,6 +1495,34 @@ def test_verifiable_signal_cannot_reuse_a_source_without_a_canonical_url(reposit
                 envelope_sha256="b" * 64,
                 normalizer_version="test-normalizer-v1",
             ),
+        )
+
+
+def test_sql_rejects_verifiable_signal_with_incomplete_source_provenance(
+    connection, repository
+):
+    repository.create_run(["bili", "dy"])
+    connection.execute(
+        """
+        INSERT INTO sources (source_id, platform, external_source_id)
+        VALUES ('incomplete-source', 'bili', 'external-source')
+        """
+    )
+
+    with pytest.raises(sqlite3.IntegrityError, match="VERIFIABLE_PROVENANCE_REQUIRED"):
+        connection.execute(
+            """
+            INSERT INTO signals (
+                signal_id, source_id, platform, external_comment_id,
+                normalized_comment_url, author_public_id, body, body_sha256,
+                verifiable, normalizer_version
+            ) VALUES (
+                'invalid-verifiable-signal', 'incomplete-source', 'bili',
+                'external-comment', 'https://www.bilibili.com/reply',
+                'author', 'body', ?, 1, 'test-normalizer-v1'
+            )
+            """,
+            ("a" * 64,),
         )
 
 

@@ -58,6 +58,7 @@ class FactBuilder:
             raw_count=320,
             unique_count=300,
             error_code=None,
+            output_manifest_sha256="d" * 64,
         )
         self.clock.set(datetime(2026, 8, 20, tzinfo=UTC))
         self.workflow = Workflow(self.repository, now=self.clock)

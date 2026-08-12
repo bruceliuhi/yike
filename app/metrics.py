@@ -81,8 +81,13 @@ class MetricsEngine:
             """
             SELECT COUNT(*) FROM mvp_run_signals member
             JOIN signals signal ON signal.signal_id = member.signal_id
+            JOIN sources source ON source.source_id = signal.source_id
+                               AND source.platform = signal.platform
             WHERE member.mvp_run_id = ? AND signal.verifiable = 1
               AND member.added_at <= ?
+              AND length(trim(source.external_source_id)) > 0
+              AND source.canonical_url IS NOT NULL
+              AND length(trim(source.canonical_url)) > 0
               AND EXISTS (
                   SELECT 1
                   FROM signal_observations observation
@@ -102,6 +107,9 @@ class MetricsEngine:
                     AND observation.envelope_sha256 NOT GLOB '*[^0-9a-f]*'
                     AND collection.platform = signal.platform
                     AND collection.state = 'SUCCEEDED'
+                    AND collection.output_manifest_sha256 IS NOT NULL
+                    AND length(collection.output_manifest_sha256) = 64
+                    AND collection.output_manifest_sha256 NOT GLOB '*[^0-9a-f]*'
                     AND length(collection.runtime_lock_sha256) = 64
                     AND collection.runtime_lock_sha256 NOT GLOB '*[^0-9a-f]*'
               )

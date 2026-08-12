@@ -92,7 +92,16 @@ def test_verifiable_metric_requires_a_complete_observation_chain(tmp_path):
     connection.close()
 
 
-def test_verifiable_metric_requires_a_successful_collection_attempt(tmp_path):
+@pytest.mark.parametrize(
+    ("collection_state", "manifest_sha256", "error_code"),
+    [
+        ("FAILED", "d" * 64, "COLLECTION_PROCESS_FAILED"),
+        ("SUCCEEDED", None, None),
+    ],
+)
+def test_verifiable_metric_requires_a_successful_collection_with_manifest(
+    tmp_path, collection_state, manifest_sha256, error_code
+):
     connection = connect(tmp_path / "facts.sqlite3")
     migrate(connection)
     repository = Repository(
@@ -131,10 +140,11 @@ def test_verifiable_metric_requires_a_successful_collection_attempt(tmp_path):
     )
     repository.finish_collection(
         "failed-provenance",
-        state="FAILED",
+        state=collection_state,
         raw_count=1,
         unique_count=1,
-        error_code="COLLECTION_PROCESS_FAILED",
+        error_code=error_code,
+        output_manifest_sha256=manifest_sha256,
     )
 
     snapshot = MetricsEngine(connection).calculate(
@@ -168,6 +178,7 @@ def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
         raw_count=1,
         unique_count=1,
         error_code=None,
+        output_manifest_sha256="d" * 64,
     )
     signal_id = repository.import_signal(
         run_id,

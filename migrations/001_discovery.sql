@@ -143,6 +143,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS fallback_signal_identity
     ON signals(platform, normalized_comment_url, author_public_id, body_sha256)
     WHERE external_comment_id IS NULL;
 
+CREATE TRIGGER IF NOT EXISTS verifiable_signal_requires_source_provenance
+BEFORE INSERT ON signals
+WHEN NEW.verifiable = 1
+    AND NOT EXISTS (
+        SELECT 1
+        FROM sources source
+        WHERE source.source_id = NEW.source_id
+          AND source.platform = NEW.platform
+          AND length(trim(source.external_source_id)) > 0
+          AND source.canonical_url IS NOT NULL
+          AND length(trim(source.canonical_url)) > 0
+    )
+BEGIN SELECT RAISE(ABORT, 'VERIFIABLE_PROVENANCE_REQUIRED'); END;
+
 CREATE TABLE IF NOT EXISTS mvp_run_signals (
     mvp_run_id TEXT NOT NULL REFERENCES mvp_runs(mvp_run_id),
     signal_id TEXT NOT NULL REFERENCES signals(signal_id),
