@@ -842,7 +842,7 @@ def test_ninth_platform_query_in_shanghai_day_is_rejected_without_db_or_spawn(
     connection.close()
 
 
-def test_platform_daily_signal_cap_is_independent_and_resets_next_shanghai_day(
+def test_run_daily_signal_cap_is_cross_platform_and_resets_next_shanghai_day(
     tmp_path, monkeypatch
 ):
     now = [datetime(2026, 8, 12, 4, 0, tzinfo=UTC)]
@@ -852,14 +852,16 @@ def test_platform_daily_signal_cap_is_independent_and_resets_next_shanghai_day(
     run_id = repository.create_run(["bili", "dy"])
     observed_at = now[0].isoformat(timespec="seconds").replace("+00:00", "Z")
     for index in range(300):
+        platform = "bili" if index % 2 == 0 else "dy"
+        host = "www.bilibili.com" if platform == "bili" else "www.douyin.com"
         repository.import_signal(
             run_id,
             NormalizedSignal(
-                platform="bili",
+                platform=platform,
                 external_source_id=f"source-{index}",
-                source_url=f"https://www.bilibili.com/video/BV{index}",
+                source_url=f"https://{host}/video/{index}",
                 external_comment_id=f"comment-{index}",
-                comment_url=f"https://www.bilibili.com/video/BV{index}#reply-{index}",
+                comment_url=f"https://{host}/video/{index}#reply-{index}",
                 author_public_id=f"author-{index}",
                 body=f"body-{index}",
                 collected_at=observed_at,
@@ -882,7 +884,7 @@ def test_platform_daily_signal_cap_is_independent_and_resets_next_shanghai_day(
     monkeypatch.setattr("app.collector.run_supervised_process", recording_supervisor)
 
     bili_rejected = collector.collect(request(run_id))
-    dy_allowed = collector.collect(request(run_id, platform="dy"))
+    dy_rejected = collector.collect(request(run_id, platform="dy"))
     now[0] += timedelta(days=1)
     bili_next_day = collector.collect(request(run_id))
 
@@ -890,8 +892,12 @@ def test_platform_daily_signal_cap_is_independent_and_resets_next_shanghai_day(
         "BLOCKED_INPUT",
         "COLLECTION_DAILY_LIMIT_REACHED",
     )
-    assert dy_allowed.status == bili_next_day.status == "SUCCEEDED"
-    assert calls == 2
+    assert (dy_rejected.status, dy_rejected.error_code) == (
+        "BLOCKED_INPUT",
+        "COLLECTION_DAILY_LIMIT_REACHED",
+    )
+    assert bili_next_day.status == "SUCCEEDED"
+    assert calls == 1
     assert repository.connection.execute(
         "SELECT count(*) FROM campaigns WHERE platform = 'bili'"
     ).fetchone()[0] == 1

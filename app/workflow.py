@@ -93,12 +93,14 @@ class Workflow:
 
     def _require_active_run(self, run_id: str) -> None:
         row = self.connection.execute(
-            "SELECT state FROM mvp_runs WHERE mvp_run_id = ?", (run_id,)
+            "SELECT state, day14_due_at FROM mvp_runs WHERE mvp_run_id = ?", (run_id,)
         ).fetchone()
         if row is None:
             raise KeyError(f"unknown mvp run: {run_id}")
         if row["state"] != "ACTIVE":
             raise ValueError("operator facts require an ACTIVE mvp run")
+        if _parse(self._timestamp()) > _parse(str(row["day14_due_at"])):
+            raise ValueError("operator facts are closed after the Day 14 cutoff")
 
     def start_activity(self, run_id: str, signal_id: str, activity_kind: str) -> str:
         self._require_active_run(run_id)
@@ -160,6 +162,7 @@ class Workflow:
         ).fetchone()
         if session is None:
             raise KeyError(f"unknown activity session: {session_id}")
+        self._require_active_run(str(session["mvp_run_id"]))
         state = str(session["state"])
         allowed = {
             "OPEN": {"PAUSE_HIDDEN", "PAUSE_IDLE", "COMPLETE", "CANCEL"},
@@ -426,17 +429,25 @@ class Workflow:
         if _required(subject_key, "subject_key") != expected_subject:
             raise ValueError("outreach subject must match the signal author")
         subject_key = expected_subject
-        if parent_outreach_action_id is not None and not self.connection.execute(
-            """
-            SELECT 1 FROM outreach_actions
-            WHERE outreach_action_id = ? AND mvp_run_id = ? AND signal_id = ?
-              AND platform = ? AND subject_key = ?
-              AND parent_outreach_action_id IS NULL
-            """,
-            (parent_outreach_action_id, run_id, signal_id, platform, subject_key),
-        ).fetchone():
-            raise ValueError("follow-up parent must be the matching first contact")
+        parent = None
+        if parent_outreach_action_id is not None:
+            parent = self.connection.execute(
+                """
+                SELECT sent_at FROM outreach_actions
+                WHERE outreach_action_id = ? AND mvp_run_id = ? AND signal_id = ?
+                  AND platform = ? AND subject_key = ?
+                  AND parent_outreach_action_id IS NULL
+                """,
+                (
+                    parent_outreach_action_id, run_id, signal_id,
+                    platform, subject_key,
+                ),
+            ).fetchone()
+            if parent is None:
+                raise ValueError("follow-up parent must be the matching first contact")
         sent_timestamp = _operator_timestamp(sent_at, "sent_at")
+        if parent is not None and sent_timestamp < str(parent["sent_at"]):
+            raise ValueError("follow-up sent_at must follow the first contact")
         ready_at = self.connection.execute(
             """
             SELECT review.completed_at, draft.created_at
@@ -518,14 +529,15 @@ class Workflow:
                 INSERT INTO response_events (
                     response_event_id, mvp_run_id, outreach_action_id,
                     responder_subject_key, response_type, summary, occurred_at,
-                    verified_at, evidence_summary
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    verified_at, evidence_summary, recorded_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     response_id, run_id, outreach_action_id,
                     outreach["subject_key"],
                     response_type, _required(summary, "response summary"),
                     occurred_timestamp, verified_timestamp, evidence_summary,
+                    self._timestamp(),
                 ),
             )
         return response_id
@@ -569,14 +581,14 @@ class Workflow:
                 """
                 INSERT INTO interviews (
                     interview_id, mvp_run_id, response_event_id, scheduled_at,
-                    completed_at, summary_json, solution_fit, next_step
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    completed_at, summary_json, solution_fit, next_step, recorded_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     interview_id, run_id, response_event_id,
                     scheduled_timestamp, completed_timestamp,
                     json.dumps(summary, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
-                    solution_fit, _required(next_step, "next_step"),
+                    solution_fit, _required(next_step, "next_step"), self._timestamp(),
                 ),
             )
         return interview_id
@@ -634,13 +646,13 @@ class Workflow:
                 INSERT INTO quote_opportunities (
                     quote_opportunity_id, mvp_run_id, response_event_id,
                     interview_id, scope_summary, agreed_to_receive_pricing_at,
-                    verified_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    verified_at, recorded_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     quote_id, run_id, response_event_id, interview_id,
                     _required(scope_summary, "scope_summary"),
-                    agreement_timestamp, verified_timestamp,
+                    agreement_timestamp, verified_timestamp, self._timestamp(),
                 ),
             )
         return quote_id

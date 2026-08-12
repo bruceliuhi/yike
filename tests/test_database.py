@@ -1,6 +1,6 @@
 import sqlite3
 from dataclasses import replace
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -35,6 +35,7 @@ FACT_TABLES = {
     "quote_opportunities",
     "daily_snapshots",
     "risk_events",
+    "model_availability_events",
 }
 
 
@@ -125,6 +126,7 @@ def insert_run(
     state: str = "FINALIZED",
     revision_of_run_id: str | None = None,
 ) -> None:
+    initial_state = "ACTIVE" if state == "FINALIZED" else state
     connection.execute(
         """
         INSERT INTO mvp_runs (
@@ -136,8 +138,19 @@ def insert_run(
                   '2026-08-12T00:00:00Z',
                   '2026-08-26T00:00:00Z')
         """,
-        (run_id, revision_of_run_id, state, "a" * 64, "b" * 64),
+        (run_id, revision_of_run_id, initial_state, "a" * 64, "b" * 64),
     )
+    if state == "FINALIZED":
+        connection.execute(
+            """
+            UPDATE mvp_runs
+            SET state = 'FINALIZED', finalized_at = '2026-08-26T00:00:00Z',
+                conclusion = 'REVISE_MVP', conclusion_facts_json = '{}',
+                conclusion_facts_sha256 = ?, final_report_sha256 = ?
+            WHERE mvp_run_id = ?
+            """,
+            ("c" * 64, "d" * 64, run_id),
+        )
 
 
 def seed_fact_graph(connection, repository):
@@ -249,10 +262,11 @@ def seed_fact_graph(connection, repository):
         INSERT INTO response_events (
             response_event_id, mvp_run_id, outreach_action_id,
             responder_subject_key, response_type, summary, occurred_at,
-            verified_at, evidence_summary
+            verified_at, evidence_summary, recorded_at
         ) VALUES ('response-1', ?, 'outreach-1', 'bili:author-1', 'VALID',
                   '愿意沟通', '2026-08-12T00:03:00Z',
-                  '2026-08-12T00:04:00Z', '回复说明当前流程')
+                  '2026-08-12T00:04:00Z', '回复说明当前流程',
+                  '2026-08-12T00:04:00Z')
         """,
         (run_id,),
     )
@@ -260,12 +274,12 @@ def seed_fact_graph(connection, repository):
         """
         INSERT INTO interviews (
             interview_id, mvp_run_id, response_event_id, scheduled_at, completed_at,
-            summary_json, solution_fit, next_step
+            summary_json, solution_fit, next_step, recorded_at
         ) VALUES (
             'interview-1', ?, 'response-1', '2026-08-12T00:05:00Z',
             '2026-08-12T00:06:00Z',
             '{"customer_source_and_sales_process":"内容营销","weekly_lead_volume_and_loss_point":"每周二百条","most_manual_step":"人工判断","current_tools":"CRM","minimum_agent_scenario_and_decision_process":"先试排序"}',
-            'SOLVABLE', '试点'
+            'SOLVABLE', '试点', '2026-08-12T00:06:00Z'
         )
         """,
         (run_id,),
@@ -274,9 +288,10 @@ def seed_fact_graph(connection, repository):
         """
         INSERT INTO quote_opportunities (
             quote_opportunity_id, mvp_run_id, response_event_id, scope_summary,
-            agreed_to_receive_pricing_at, verified_at
+            agreed_to_receive_pricing_at, verified_at, recorded_at
         ) VALUES ('quote-1', ?, 'response-1', '销售线索筛选',
-                  '2026-08-12T00:07:00Z', '2026-08-12T00:08:00Z')
+                  '2026-08-12T00:07:00Z', '2026-08-12T00:08:00Z',
+                  '2026-08-12T00:08:00Z')
         """,
         (run_id,),
     )
@@ -346,8 +361,8 @@ def test_current_schema_migration_is_idempotent(connection):
         "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
     ).fetchone()
     assert tuple(marker) == (
-        "DISCOVERY_FACT_STORE_V7",
-        "d63f82a35ac8b1fdfb9eba94f129615a127a08901d483a9e35fc0939bea7863c",
+        "DISCOVERY_FACT_STORE_V8",
+        "4566905c5580cf1e3f15bbb282164c51b325d31262051cdc5819310dcee19f24",
     )
 
 
@@ -465,6 +480,71 @@ def test_database_rejects_noncanonical_platform_scope(connection):
             """,
             ("a" * 64, "b" * 64),
         )
+
+
+def test_database_rejects_an_initial_finalized_run_without_a_snapshot(connection):
+    with pytest.raises(sqlite3.IntegrityError, match="RUN_INITIAL_STATE_INVALID"):
+        connection.execute(
+            """
+            INSERT INTO mvp_runs (
+                mvp_run_id, state, authorization_basis, platform_scope_json,
+                query_set_sha256, prompt_version, schema_version,
+                thresholds_sha256, started_at, day14_due_at
+            ) VALUES ('forged-finalized', 'FINALIZED',
+                      'USER_ATTESTED_PLATFORM_AUTHORIZATION', '["bili","dy"]',
+                      ?, 'prompt-v1', 'schema-v1', ?,
+                      '2026-08-12T00:00:00Z', '2026-08-26T15:59:59Z')
+            """,
+            ("a" * 64, "b" * 64),
+        )
+
+
+def test_repository_rejects_backdated_import_and_collection_after_day14(connection):
+    now = [datetime(2026, 8, 12, tzinfo=UTC)]
+    repository = Repository(connection, now=lambda: now[0])
+    run_id = repository.create_run(["bili", "dy"])
+    now[0] += timedelta(days=8)
+    imported = repository.import_signal(
+        run_id,
+        replace(signal(), collected_at="2026-08-13T00:00:00Z"),
+    )
+    membership_time = connection.execute(
+        "SELECT added_at FROM mvp_run_signals WHERE mvp_run_id = ? AND signal_id = ?",
+        (run_id, imported.signal_id),
+    ).fetchone()[0]
+    observation_time = connection.execute(
+        "SELECT observed_at FROM signal_observations WHERE observation_id = ?",
+        (imported.observation_id,),
+    ).fetchone()[0]
+    assert (membership_time, observation_time) == (
+        "2026-08-20T00:00:00Z", "2026-08-13T00:00:00Z"
+    )
+    now[0] += timedelta(days=7)
+
+    with pytest.raises(ValueError, match="Day 14"):
+        repository.import_signal(
+            run_id,
+            signal(
+                external_comment_id="late-comment",
+                comment_url="https://www.bilibili.com/read/late-comment",
+                author_public_id="late-author",
+            ),
+        )
+    with pytest.raises(ValueError, match="Day 14"):
+        repository.begin_collection(
+            run_id=run_id,
+            collection_run_id="late-collection",
+            platform="bili",
+            query_cluster="sales",
+            query_text="线索",
+            max_contents=1,
+            max_comments_per_content=1,
+        )
+
+    assert repository.count_signals(run_id) == 1
+    assert connection.execute(
+        "SELECT count(*) FROM collection_runs WHERE mvp_run_id = ?", (run_id,)
+    ).fetchone()[0] == 0
 
 
 def test_migration_rejects_an_existing_transaction_without_committing_it(tmp_path):

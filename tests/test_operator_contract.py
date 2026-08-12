@@ -285,6 +285,146 @@ def test_outreach_requires_current_leaf_equal_score_and_verbatim_context(operato
         )
 
 
+def test_follow_up_cannot_predate_its_root_contact(operator_facts):
+    connection, repository, run_id, signal_id, _ = operator_facts
+    workflow = Workflow(repository)
+    review_session = _completed_session(workflow, run_id, signal_id, "REVIEW")
+    review_id = workflow.complete_review(
+        run_id=run_id, signal_id=signal_id, label="HIGH_INTENT", reason="明确",
+        note=None, activity_session_id=review_session,
+    )
+    draft_session = _completed_session(workflow, run_id, signal_id, "DRAFT")
+    approved = "你提到人工筛选效率低。我们在研究销售 Agent，你们每周筛选多少条线索？"
+    draft_id = workflow.create_draft(
+        run_id=run_id, signal_id=signal_id, body=approved,
+        activity_session_id=draft_session,
+    )
+    root = workflow.register_outreach(
+        run_id=run_id, signal_id=signal_id, review_id=review_id,
+        draft_run_id=draft_id, platform="bili",
+        subject_key="bili:lead-operator", approved_text=approved,
+        context_evidence="人工筛选效率低",
+        sent_at="2026-08-13T12:00:00Z",
+        source_url="https://www.bilibili.com/video/av-operator#reply",
+        source_link_opened=True,
+    )
+
+    values = (
+        run_id, signal_id, review_id, draft_id, root,
+    )
+    with pytest.raises(ValueError, match="first contact"):
+        workflow.register_outreach(
+            run_id=run_id, signal_id=signal_id, review_id=review_id,
+            draft_run_id=draft_id, platform="bili",
+            subject_key="bili:lead-operator", approved_text=approved,
+            context_evidence="人工筛选效率低",
+            sent_at="2026-08-13T11:00:00Z",
+            source_url="https://www.bilibili.com/video/av-operator#reply",
+            source_link_opened=True, parent_outreach_action_id=root,
+        )
+    with pytest.raises(sqlite3.IntegrityError, match="OUTREACH_TIME_CAUSALITY"):
+        connection.execute(
+            """
+            INSERT INTO outreach_actions (
+                outreach_action_id, mvp_run_id, signal_id, review_id,
+                score_run_id, draft_run_id, platform, subject_key,
+                approved_text, sent_at, source_url, context_evidence,
+                evidence_summary, source_link_opened, status,
+                parent_outreach_action_id, created_at
+            ) VALUES ('backdated-follow-up', ?, ?, ?,
+                      (SELECT presented_score_run_id FROM human_reviews WHERE review_id = ?),
+                      ?, 'bili', 'bili:lead-operator', ?,
+                      '2026-08-13T11:00:00Z',
+                      'https://www.bilibili.com/video/av-operator#reply',
+                      '人工筛选效率低', '人工筛选效率低', 1,
+                      'SENT_VERIFIED', ?, '2026-08-13T13:00:00Z')
+            """,
+            (values[0], values[1], values[2], values[2], values[3], approved, values[4]),
+        )
+
+
+def test_workflow_rejects_post_day14_backfill_and_open_activity_events(tmp_path):
+    connection = connect(tmp_path / "late-operator.sqlite3")
+    migrate(connection)
+    clock = Clock("2026-08-12T00:00:00Z")
+    repository = Repository(connection, now=clock)
+    run_id = repository.create_run(["bili", "dy"])
+    signal_id = repository.import_signal(
+        run_id,
+        NormalizedSignal(
+            platform="bili", external_source_id="late-source",
+            source_url="https://www.bilibili.com/video/late-source",
+            external_comment_id="late-comment",
+            comment_url="https://www.bilibili.com/video/late-source#reply",
+            author_public_id="late-lead",
+            body="团队正在筛选销售线索，人工筛选效率低",
+        ),
+    ).signal_id
+    score = Scorer(repository, SuccessfulClient()).score(run_id, signal_id)
+    workflow = Workflow(repository, now=clock)
+    workflow.present_score(run_id, signal_id, score.score_run_id)
+    review_session = _completed_session(workflow, run_id, signal_id, "REVIEW")
+    review_id = workflow.complete_review(
+        run_id=run_id, signal_id=signal_id, label="HIGH_INTENT",
+        reason="明确", note=None, activity_session_id=review_session,
+    )
+    draft_session = _completed_session(workflow, run_id, signal_id, "DRAFT")
+    approved = "你提到人工筛选效率低。我们在研究销售 Agent，你们每周筛选多少条线索？"
+    draft_id = workflow.create_draft(
+        run_id=run_id, signal_id=signal_id, body=approved,
+        activity_session_id=draft_session,
+    )
+    root = workflow.register_outreach(
+        run_id=run_id, signal_id=signal_id, review_id=review_id,
+        draft_run_id=draft_id, platform="bili", subject_key="bili:late-lead",
+        approved_text=approved, context_evidence="人工筛选效率低",
+        sent_at="2026-08-12T01:00:00Z",
+        source_url="https://www.bilibili.com/video/late-source#reply",
+        source_link_opened=True,
+    )
+    dangling = workflow.start_activity(run_id, signal_id, "REVIEW")
+    clock.set("2026-08-27T00:00:00Z")
+
+    with pytest.raises(ValueError, match="Day 14"):
+        workflow.record_activity(dangling, "COMPLETE")
+    with pytest.raises(ValueError, match="Day 14"):
+        workflow.start_activity(run_id, signal_id, "DRAFT")
+    with pytest.raises(ValueError, match="Day 14"):
+        workflow.present_score(run_id, signal_id, score.score_run_id)
+    with pytest.raises(ValueError, match="Day 14"):
+        workflow.register_outreach(
+            run_id=run_id, signal_id=signal_id, review_id=review_id,
+            draft_run_id=draft_id, platform="bili", subject_key="bili:late-lead",
+            approved_text=approved, context_evidence="人工筛选效率低",
+            sent_at="2026-08-13T01:00:00Z",
+            source_url="https://www.bilibili.com/video/late-source#reply",
+            source_link_opened=True, parent_outreach_action_id=root,
+        )
+    with pytest.raises(ValueError, match="Day 14"):
+        workflow.register_response(
+            run_id=run_id, outreach_action_id=root,
+            responder_subject_key="bili:late-lead", response_type="VALID",
+            summary="愿意沟通", occurred_at="2026-08-13T02:00:00Z",
+            verified_at="2026-08-13T02:01:00Z", evidence_summary="愿意继续",
+        )
+
+    assert connection.execute(
+        "SELECT state FROM activity_sessions WHERE activity_session_id = ?",
+        (dangling,),
+    ).fetchone()[0] == "OPEN"
+    assert connection.execute(
+        "SELECT count(*) FROM activity_events WHERE activity_session_id = ?",
+        (dangling,),
+    ).fetchone()[0] == 1
+    assert connection.execute(
+        "SELECT count(*) FROM outreach_actions WHERE mvp_run_id = ?", (run_id,)
+    ).fetchone()[0] == 1
+    assert connection.execute(
+        "SELECT count(*) FROM response_events WHERE mvp_run_id = ?", (run_id,)
+    ).fetchone()[0] == 0
+    connection.close()
+
+
 def test_valid_response_interview_and_quote_require_governed_evidence_chain(operator_facts):
     _, repository, run_id, signal_id, _ = operator_facts
     workflow = Workflow(repository)

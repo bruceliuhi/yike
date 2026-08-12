@@ -23,7 +23,26 @@ CREATE TABLE IF NOT EXISTS mvp_runs (
     conclusion_facts_sha256 TEXT,
     final_report_sha256 TEXT,
     CHECK (revision_of_run_id IS NULL OR revision_of_run_id <> mvp_run_id),
-    CHECK (platform_scope_json = '["bili","dy"]')
+    CHECK (platform_scope_json = '["bili","dy"]'),
+    CHECK (
+        (
+            state = 'FINALIZED'
+            AND finalized_at IS NOT NULL
+            AND conclusion IS NOT NULL
+            AND conclusion_facts_json IS NOT NULL
+            AND conclusion_facts_sha256 IS NOT NULL
+            AND final_report_sha256 IS NOT NULL
+        )
+        OR
+        (
+            state <> 'FINALIZED'
+            AND finalized_at IS NULL
+            AND conclusion IS NULL
+            AND conclusion_facts_json IS NULL
+            AND conclusion_facts_sha256 IS NULL
+            AND final_report_sha256 IS NULL
+        )
+    )
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS one_active_mvp_run
@@ -149,9 +168,10 @@ CREATE TABLE IF NOT EXISTS score_runs (
     status TEXT NOT NULL CHECK (status IN ('SUCCEEDED', 'FAILED')),
     error_code TEXT,
     token_usage_json TEXT,
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (mvp_run_id, signal_id)
         REFERENCES mvp_run_signals(mvp_run_id, signal_id),
+    CHECK (strftime('%Y-%m-%dT%H:%M:%SZ', created_at) IS created_at),
     CHECK (prompt_version IS NOT NULL AND length(trim(prompt_version)) > 0),
     CHECK (schema_version IS NOT NULL AND length(trim(schema_version)) > 0),
     CHECK (
@@ -375,6 +395,7 @@ CREATE TABLE IF NOT EXISTS draft_runs (
         REFERENCES mvp_run_signals(mvp_run_id, signal_id),
     FOREIGN KEY (activity_session_id, mvp_run_id, signal_id)
         REFERENCES activity_sessions(activity_session_id, mvp_run_id, signal_id),
+    CHECK (strftime('%Y-%m-%dT%H:%M:%SZ', created_at) IS created_at),
     CHECK (
         (
             draft_kind = 'GENERATED'
@@ -456,6 +477,7 @@ CREATE TABLE IF NOT EXISTS outreach_actions (
     CHECK (
         sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%SZ', sent_at) IS sent_at
     ),
+    CHECK (strftime('%Y-%m-%dT%H:%M:%SZ', created_at) IS created_at),
     CHECK (
         status <> 'SENT_VERIFIED'
         OR (
@@ -489,6 +511,9 @@ CREATE TABLE IF NOT EXISTS response_events (
     occurred_at TEXT,
     verified_at TEXT,
     evidence_summary TEXT,
+    recorded_at TEXT NOT NULL CHECK (
+        strftime('%Y-%m-%dT%H:%M:%SZ', recorded_at) IS recorded_at
+    ),
     FOREIGN KEY (outreach_action_id, mvp_run_id)
         REFERENCES outreach_actions(outreach_action_id, mvp_run_id),
     CHECK (
@@ -523,6 +548,9 @@ CREATE TABLE IF NOT EXISTS interviews (
         solution_fit IN ('SOLVABLE', 'UNSOLVABLE', 'UNKNOWN')
     ),
     next_step TEXT,
+    recorded_at TEXT NOT NULL CHECK (
+        strftime('%Y-%m-%dT%H:%M:%SZ', recorded_at) IS recorded_at
+    ),
     FOREIGN KEY (response_event_id, mvp_run_id)
         REFERENCES response_events(response_event_id, mvp_run_id),
     CHECK (
@@ -567,6 +595,9 @@ CREATE TABLE IF NOT EXISTS quote_opportunities (
     verified_at TEXT NOT NULL CHECK (
         strftime('%Y-%m-%dT%H:%M:%SZ', verified_at) IS verified_at
     ),
+    recorded_at TEXT NOT NULL CHECK (
+        strftime('%Y-%m-%dT%H:%M:%SZ', recorded_at) IS recorded_at
+    ),
     CHECK (response_event_id IS NOT NULL OR interview_id IS NOT NULL),
     CHECK (agreed_to_receive_pricing_at <= verified_at),
     FOREIGN KEY (response_event_id, mvp_run_id)
@@ -602,12 +633,107 @@ CREATE TABLE IF NOT EXISTS risk_events (
     forces_stop INTEGER NOT NULL DEFAULT 1 CHECK (forces_stop = 1)
 );
 
+CREATE TABLE IF NOT EXISTS model_availability_events (
+    event_sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+    mvp_run_id TEXT NOT NULL REFERENCES mvp_runs(mvp_run_id),
+    fact_kind TEXT NOT NULL CHECK (fact_kind IN ('SCORE', 'DRAFT')),
+    fact_id TEXT NOT NULL,
+    availability_state TEXT NOT NULL CHECK (
+        availability_state IN ('AVAILABLE', 'BLOCKED')
+    ),
+    recorded_at TEXT NOT NULL CHECK (
+        strftime('%Y-%m-%dT%H:%M:%SZ', recorded_at) IS recorded_at
+    ),
+    UNIQUE (fact_kind, fact_id)
+);
+
+CREATE TRIGGER IF NOT EXISTS model_availability_event_fact_guard
+BEFORE INSERT ON model_availability_events
+WHEN NOT EXISTS (
+    SELECT 1 FROM score_runs score
+    WHERE NEW.fact_kind = 'SCORE'
+      AND score.score_run_id = NEW.fact_id
+      AND score.mvp_run_id = NEW.mvp_run_id
+      AND (
+          (NEW.availability_state = 'AVAILABLE' AND score.status = 'SUCCEEDED')
+          OR
+          (NEW.availability_state = 'BLOCKED' AND score.status = 'FAILED'
+           AND score.error_code IN ('MODEL_NOT_CONFIGURED', 'MODEL_UNAVAILABLE'))
+      )
+)
+AND NOT EXISTS (
+    SELECT 1 FROM draft_runs draft
+    WHERE NEW.fact_kind = 'DRAFT'
+      AND draft.draft_run_id = NEW.fact_id
+      AND draft.mvp_run_id = NEW.mvp_run_id
+      AND draft.draft_kind = 'GENERATED'
+      AND (
+          (NEW.availability_state = 'AVAILABLE' AND draft.status = 'SUCCEEDED')
+          OR
+          (NEW.availability_state = 'BLOCKED' AND draft.status = 'FAILED'
+           AND draft.error_code IN ('MODEL_NOT_CONFIGURED', 'MODEL_UNAVAILABLE'))
+      )
+)
+BEGIN SELECT RAISE(ABORT, 'MODEL_AVAILABILITY_FACT_INVALID'); END;
+
+CREATE TRIGGER IF NOT EXISTS finalized_model_availability_events_insert
+BEFORE INSERT ON model_availability_events
+WHEN EXISTS (
+    SELECT 1 FROM mvp_runs
+    WHERE mvp_run_id = NEW.mvp_run_id AND state = 'FINALIZED'
+)
+BEGIN SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE'); END;
+
+CREATE TRIGGER IF NOT EXISTS score_model_availability_event
+AFTER INSERT ON score_runs
+WHEN NEW.status = 'SUCCEEDED'
+  OR NEW.error_code IN ('MODEL_NOT_CONFIGURED', 'MODEL_UNAVAILABLE')
+BEGIN
+    INSERT INTO model_availability_events (
+        mvp_run_id, fact_kind, fact_id, availability_state, recorded_at
+    ) VALUES (
+        NEW.mvp_run_id, 'SCORE', NEW.score_run_id,
+        CASE WHEN NEW.status = 'SUCCEEDED' THEN 'AVAILABLE' ELSE 'BLOCKED' END,
+        NEW.created_at
+    );
+END;
+
+CREATE TRIGGER IF NOT EXISTS draft_model_availability_event
+AFTER INSERT ON draft_runs
+WHEN NEW.draft_kind = 'GENERATED'
+ AND (
+    NEW.status = 'SUCCEEDED'
+    OR NEW.error_code IN ('MODEL_NOT_CONFIGURED', 'MODEL_UNAVAILABLE')
+ )
+BEGIN
+    INSERT INTO model_availability_events (
+        mvp_run_id, fact_kind, fact_id, availability_state, recorded_at
+    ) VALUES (
+        NEW.mvp_run_id, 'DRAFT', NEW.draft_run_id,
+        CASE WHEN NEW.status = 'SUCCEEDED' THEN 'AVAILABLE' ELSE 'BLOCKED' END,
+        NEW.created_at
+    );
+END;
+
+CREATE TRIGGER IF NOT EXISTS model_availability_events_append_only_update
+BEFORE UPDATE ON model_availability_events
+BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
+
+CREATE TRIGGER IF NOT EXISTS model_availability_events_append_only_delete
+BEFORE DELETE ON model_availability_events
+BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
+
 CREATE TRIGGER IF NOT EXISTS mvp_runs_finalized_immutable
 BEFORE UPDATE ON mvp_runs
 WHEN OLD.state = 'FINALIZED'
 BEGIN
     SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE');
 END;
+
+CREATE TRIGGER IF NOT EXISTS mvp_runs_initial_state_guard
+BEFORE INSERT ON mvp_runs
+WHEN NEW.state NOT IN ('DRAFT', 'ACTIVE')
+BEGIN SELECT RAISE(ABORT, 'RUN_INITIAL_STATE_INVALID'); END;
 
 CREATE TRIGGER IF NOT EXISTS mvp_runs_day0_config_immutable
 BEFORE UPDATE ON mvp_runs
@@ -1259,11 +1385,18 @@ WHEN NEW.status = 'SENT_VERIFIED'
            ON draft.draft_run_id = NEW.draft_run_id
           AND draft.mvp_run_id = NEW.mvp_run_id
           AND draft.signal_id = NEW.signal_id
+         LEFT JOIN outreach_actions parent
+           ON parent.outreach_action_id = NEW.parent_outreach_action_id
+          AND parent.mvp_run_id = NEW.mvp_run_id
          WHERE review.review_id = NEW.review_id
            AND review.mvp_run_id = NEW.mvp_run_id
            AND review.signal_id = NEW.signal_id
            AND NEW.sent_at >= review.completed_at
            AND NEW.sent_at >= draft.created_at
+           AND (
+               NEW.parent_outreach_action_id IS NULL
+               OR NEW.sent_at >= parent.sent_at
+           )
      )
 BEGIN SELECT RAISE(ABORT, 'OUTREACH_TIME_CAUSALITY'); END;
 

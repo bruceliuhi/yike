@@ -1,6 +1,8 @@
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import pytest
+
 from app.db import connect, migrate
 from app.metrics import MetricsEngine
 from app.model_contract import ScoreDecision
@@ -304,18 +306,8 @@ def test_current_leaf_and_valid_evidence_are_the_only_quality_and_business_facts
         supersedes_review_id=first_review,
     )
     facts.clock.set(datetime(2026, 8, 27, tzinfo=UTC))
-    late_session = facts.workflow.start_activity(facts.run_id, signal_id, "REVIEW")
-    facts.clock.move(1)
-    facts.workflow.record_activity(late_session, "COMPLETE")
-    facts.workflow.complete_review(
-        run_id=facts.run_id,
-        signal_id=signal_id,
-        label="HIGH_INTENT",
-        reason="截止后重标不得上调冻结口径",
-        note=None,
-        activity_session_id=late_session,
-        supersedes_review_id=current_review,
-    )
+    with pytest.raises(ValueError, match="Day 14"):
+        facts.workflow.start_activity(facts.run_id, signal_id, "REVIEW")
 
     snapshot = MetricsEngine(facts.connection).calculate(
         facts.run_id, now=datetime(2026, 8, 28, tzinfo=UTC)
@@ -366,4 +358,36 @@ def test_open_activity_fails_time_gate_and_later_collection_success_resolves_blo
 
     assert snapshot.time_complete is False
     assert snapshot.blocked_input is False
+    facts.close()
+
+
+def test_model_availability_recovery_uses_one_cross_table_sequence(tmp_path):
+    facts = FactBuilder(tmp_path / "model-order.sqlite3")
+    signal_id = facts.signal(1)
+    facts.repository.append_draft_failure(
+        draft_run_id="draft-blocked", run_id=facts.run_id,
+        signal_id=signal_id, provider=None, model=None,
+        prompt_version="draft-v1", error_code="MODEL_NOT_CONFIGURED",
+    )
+    facts.repository.append_score_success(
+        score_run_id="score-recovered", run_id=facts.run_id,
+        signal_id=signal_id, provider="provider", model="model",
+        prompt_version="score-v1", schema_version="schema-v1",
+        decision=facts.decision, token_usage=None,
+    )
+
+    recovered = MetricsEngine(facts.connection).calculate(
+        facts.run_id, now=facts.clock()
+    )
+    assert recovered.blocked_input is False
+
+    facts.repository.append_draft_failure(
+        draft_run_id="draft-blocked-again", run_id=facts.run_id,
+        signal_id=signal_id, provider=None, model=None,
+        prompt_version="draft-v1", error_code="MODEL_UNAVAILABLE",
+    )
+    blocked_again = MetricsEngine(facts.connection).calculate(
+        facts.run_id, now=facts.clock()
+    )
+    assert blocked_again.blocked_input is True
     facts.close()

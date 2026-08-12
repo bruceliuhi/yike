@@ -1,7 +1,10 @@
+from datetime import UTC, datetime, timedelta
+
 from fastapi.testclient import TestClient
 
-from app.db import connect
+from app.db import connect, migrate
 from app.metrics import MetricsEngine
+from app.repository import NormalizedSignal, Repository
 from app.web import create_app
 from tests.test_scoring import valid_decision
 from tests.test_web import facts, settings_for
@@ -25,6 +28,52 @@ class WebModelClient:
 
     def generate_draft(self, *, source_text):
         return valid_draft(), {"total_tokens": 11}
+
+
+def test_web_hides_and_rejects_model_and_activity_actions_after_day14(tmp_path):
+    settings = settings_for(tmp_path)
+    connection = connect(settings.data_dir / "discovery.sqlite3")
+    migrate(connection)
+    past = datetime.now(UTC) - timedelta(days=16)
+    repository = Repository(connection, now=lambda: past)
+    run_id = repository.create_run(["bili", "dy"])
+    signal_id = repository.import_signal(
+        run_id,
+        NormalizedSignal(
+            platform="bili", external_source_id="expired-source",
+            source_url="https://www.bilibili.com/video/expired-source",
+            external_comment_id="expired-comment",
+            comment_url="https://www.bilibili.com/video/expired-source#reply",
+            author_public_id="expired-lead", body="人工筛选效率低",
+        ),
+    ).signal_id
+    connection.close()
+
+    with TestClient(create_app(settings)) as client:
+        listing = client.get("/signals", params={"run_id": run_id})
+        scoring = client.post(
+            f"/signals/{signal_id}/scores", data={"run_id": run_id}
+        )
+        drafting = client.post(
+            f"/signals/{signal_id}/drafts/generate", data={"run_id": run_id}
+        )
+        activity = client.post(
+            "/activity/start",
+            data={
+                "run_id": run_id, "signal_id": signal_id,
+                "activity_kind": "REVIEW",
+            },
+        )
+
+    connection = connect(settings.data_dir / "discovery.sqlite3")
+    assert 'action="/signals/score-batch"' not in listing.text
+    assert (scoring.status_code, drafting.status_code, activity.status_code) == (
+        409, 409, 400,
+    )
+    assert connection.execute("SELECT count(*) FROM score_runs").fetchone()[0] == 0
+    assert connection.execute("SELECT count(*) FROM draft_runs").fetchone()[0] == 0
+    assert connection.execute("SELECT count(*) FROM activity_sessions").fetchone()[0] == 0
+    connection.close()
 
 
 def test_web_uses_configured_model_for_single_score_bounded_batch_and_generated_draft(

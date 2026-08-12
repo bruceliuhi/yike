@@ -1,6 +1,8 @@
+from datetime import UTC, datetime
 import json
 import os
 from pathlib import Path
+from typing import Mapping
 from urllib.parse import parse_qs, urlencode
 from uuid import uuid4
 
@@ -46,7 +48,7 @@ def create_app(settings: Settings) -> FastAPI:
             collections = repository.connection.execute(
                 "SELECT * FROM collection_runs ORDER BY started_at DESC"
             ).fetchall()
-            active_run = next((row for row in run_rows if row["state"] == "ACTIVE"), None)
+            active_run = next((row for row in run_rows if _run_is_editable(row)), None)
         finally:
             repository.connection.close()
         return templates.TemplateResponse(
@@ -146,9 +148,9 @@ def create_app(settings: Settings) -> FastAPI:
         try:
             selected_run = run_id or _latest_run_id(repository)
             state = repository.connection.execute(
-                "SELECT state FROM mvp_runs WHERE mvp_run_id = ?", (selected_run,)
+                "SELECT state, day14_due_at FROM mvp_runs WHERE mvp_run_id = ?", (selected_run,)
             ).fetchone() if selected_run else None
-            editable = bool(state and state["state"] == "ACTIVE")
+            editable = _run_is_editable(state)
             rows = _filtered_signals(
                 repository,
                 run_id=selected_run,
@@ -297,9 +299,9 @@ def create_app(settings: Settings) -> FastAPI:
             selected_run = run_id or _latest_run_id(repository)
             timeline = _followup_timeline(repository, selected_run)
             state = repository.connection.execute(
-                "SELECT state FROM mvp_runs WHERE mvp_run_id = ?", (selected_run,)
+                "SELECT state, day14_due_at FROM mvp_runs WHERE mvp_run_id = ?", (selected_run,)
             ).fetchone() if selected_run else None
-            editable = bool(state and state["state"] == "ACTIVE")
+            editable = _run_is_editable(state)
         finally:
             repository.connection.close()
         return templates.TemplateResponse(
@@ -670,12 +672,21 @@ def _truthy(value: str | None) -> bool:
 
 def _require_active_run(repository: Repository, run_id: str) -> None:
     row = repository.connection.execute(
-        "SELECT state FROM mvp_runs WHERE mvp_run_id = ?", (run_id,)
+        "SELECT state, day14_due_at FROM mvp_runs WHERE mvp_run_id = ?", (run_id,)
     ).fetchone()
     if row is None:
         raise HTTPException(404, "unknown mvp run")
     if row["state"] != "ACTIVE":
         raise HTTPException(409, "operator actions require an ACTIVE mvp run")
+    if not _run_is_editable(row):
+        raise HTTPException(409, "operator actions are closed after the Day 14 cutoff")
+
+
+def _run_is_editable(row: Mapping[str, object] | None) -> bool:
+    if row is None or row["state"] != "ACTIVE":
+        return False
+    due_at = datetime.fromisoformat(str(row["day14_due_at"]).replace("Z", "+00:00"))
+    return datetime.now(UTC) <= due_at
 
 
 def _sha256_text(value: str) -> str:
@@ -831,9 +842,9 @@ def _signal_detail(
             "outreach": [],
         }
     run = repository.connection.execute(
-        "SELECT state FROM mvp_runs WHERE mvp_run_id = ?", (run_id,)
+        "SELECT state, day14_due_at FROM mvp_runs WHERE mvp_run_id = ?", (run_id,)
     ).fetchone()
-    editable = bool(run and run["state"] == "ACTIVE")
+    editable = _run_is_editable(run)
     signal = repository.connection.execute(
         """
         SELECT s.*, src.title AS source_title, src.canonical_url AS source_url,

@@ -46,7 +46,7 @@ _THRESHOLDS_SHA256 = hashlib.sha256(
     json.dumps(_THRESHOLDS, sort_keys=True, separators=(",", ":")).encode("utf-8")
 ).hexdigest()
 _RUN_PROMPT_VERSION = "DISCOVERY_SCORE_V1+DISCOVERY_DRAFT_V1"
-_RUN_SCHEMA_VERSION = "DISCOVERY_SCHEMA_V7+DISCOVERY_SCORE_SCHEMA_V1"
+_RUN_SCHEMA_VERSION = "DISCOVERY_SCHEMA_V8+DISCOVERY_SCORE_SCHEMA_V1"
 
 
 class ActiveRunError(RuntimeError):
@@ -199,18 +199,47 @@ class Repository:
             raise
         return run_id
 
+    def _server_timestamp(self) -> str:
+        current = self._now()
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=UTC)
+        return current.astimezone(UTC).isoformat(timespec="seconds").replace(
+            "+00:00", "Z"
+        )
+
+    def _require_open_day14(self, run_id: str) -> str:
+        run = self.connection.execute(
+            "SELECT state, day14_due_at FROM mvp_runs WHERE mvp_run_id = ?",
+            (run_id,),
+        ).fetchone()
+        if run is None:
+            raise KeyError(f"unknown mvp run: {run_id}")
+        if run["state"] == "FINALIZED":
+            raise FinalizedRunError("FINALIZED_RUN_IMMUTABLE")
+        if run["state"] != "ACTIVE":
+            raise ValueError(f"mvp run is not active: {run['state']}")
+        received_at = self._server_timestamp()
+        if received_at > str(run["day14_due_at"]):
+            raise ValueError("mvp run is closed after the Day 14 cutoff")
+        return received_at
+
     def import_signal(self, run_id: str, item: NormalizedSignal) -> ImportResult:
         return self.import_signals(run_id, [item])[0]
 
     def import_signals(
         self, run_id: str, items: list[NormalizedSignal]
     ) -> list[ImportResult]:
-        prepared = [self._prepare_signal(run_id, item) for item in items]
+        received_at = self._require_open_day14(run_id)
+        prepared = [self._prepare_signal(run_id, item, received_at) for item in items]
         results: list[ImportResult] = []
         try:
             with self.connection:
                 for item, values in zip(items, prepared, strict=True):
-                    results.append(self._import_prepared_signal(run_id, item, *values))
+                    results.append(
+                        self._import_prepared_signal(
+                            run_id, item, received_at, *values
+                        )
+                    )
         except sqlite3.IntegrityError as error:
             if "FINALIZED_RUN_IMMUTABLE" in str(error):
                 raise FinalizedRunError("FINALIZED_RUN_IMMUTABLE") from error
@@ -237,7 +266,7 @@ class Repository:
         self.connection.execute("BEGIN IMMEDIATE")
         try:
             run = self.connection.execute(
-                "SELECT state, platform_scope_json FROM mvp_runs WHERE mvp_run_id = ?",
+                "SELECT state, platform_scope_json, day14_due_at FROM mvp_runs WHERE mvp_run_id = ?",
                 (run_id,),
             ).fetchone()
             if run is None or run["state"] != "ACTIVE":
@@ -249,6 +278,8 @@ class Repository:
                 current = current.replace(tzinfo=UTC)
             current = current.astimezone(UTC)
             now = current.isoformat(timespec="seconds").replace("+00:00", "Z")
+            if now > str(run["day14_due_at"]):
+                raise ValueError("collection is closed after the Day 14 cutoff")
             shanghai = ZoneInfo("Asia/Shanghai")
             local_day = current.astimezone(shanghai).date()
             day_start_local = datetime.combine(local_day, time.min, tzinfo=shanghai)
@@ -271,11 +302,10 @@ class Repository:
                 """
                 SELECT count(*)
                 FROM mvp_run_signals membership
-                JOIN signals signal ON signal.signal_id = membership.signal_id
-                WHERE membership.mvp_run_id = ? AND signal.platform = ?
+                WHERE membership.mvp_run_id = ?
                   AND membership.added_at >= ? AND membership.added_at < ?
                 """,
-                (run_id, platform, day_start, day_end),
+                (run_id, day_start, day_end),
             ).fetchone()[0]
             if query_count >= 8 or new_signal_count >= 300:
                 raise CollectionDailyLimitError(CollectionDailyLimitError.code)
@@ -346,7 +376,7 @@ class Repository:
             raise KeyError(f"unknown collection run: {collection_run_id}")
 
     def _prepare_signal(
-        self, run_id: str, item: NormalizedSignal
+        self, run_id: str, item: NormalizedSignal, received_at: str
     ) -> tuple[str | None, str, str, str, str, str]:
         if item.platform not in _PLATFORMS:
             raise ValueError("platform must be one of: bili, dy")
@@ -381,7 +411,7 @@ class Repository:
         if item.body_sha256 is not None and item.body_sha256 != body_sha256:
             raise ValueError("signal body SHA-256 does not match body")
         raw_sha256 = item.raw_sha256 or _sha256(item.body)
-        observed_at = item.collected_at or _utc_now()
+        observed_at = item.collected_at or received_at
         return (
             external_comment_id,
             comment_url,
@@ -395,6 +425,7 @@ class Repository:
         self,
         run_id: str,
         item: NormalizedSignal,
+        received_at: str,
         external_comment_id: str | None,
         comment_url: str,
         author_public_id: str,
@@ -422,7 +453,7 @@ class Repository:
             INSERT OR IGNORE INTO mvp_run_signals (mvp_run_id, signal_id, added_at)
             VALUES (?, ?, ?)
             """,
-            (run_id, signal_id, observed_at),
+            (run_id, signal_id, received_at),
         )
         self.connection.execute(
             """
@@ -541,13 +572,14 @@ class Repository:
         schema_version: str,
         error_code: str,
     ) -> None:
+        self._require_open_day14(run_id)
         with self.connection:
             self.connection.execute(
                 """
                 INSERT INTO score_runs (
                     score_run_id, mvp_run_id, signal_id, provider, model,
-                    prompt_version, schema_version, status, error_code
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'FAILED', ?)
+                    prompt_version, schema_version, status, error_code, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'FAILED', ?, ?)
                 """,
                 (
                     score_run_id,
@@ -558,6 +590,7 @@ class Repository:
                     prompt_version,
                     schema_version,
                     error_code,
+                    self._server_timestamp(),
                 ),
             )
 
@@ -574,6 +607,7 @@ class Repository:
         decision: "ScoreDecision",
         token_usage: dict[str, object] | None,
     ) -> None:
+        self._require_open_day14(run_id)
         with self.connection:
             self.connection.execute(
                 """
@@ -581,8 +615,8 @@ class Repository:
                     score_run_id, mvp_run_id, signal_id, provider, model,
                     prompt_version, schema_version, dimension_scores_json,
                     total_score, grade, confidence, reason_json, status,
-                    token_usage_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SUCCEEDED', ?)
+                    token_usage_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SUCCEEDED', ?, ?)
                 """,
                 (
                     score_run_id,
@@ -610,6 +644,7 @@ class Repository:
                     json.dumps(token_usage, sort_keys=True, separators=(",", ":"))
                     if token_usage is not None
                     else None,
+                    self._server_timestamp(),
                 ),
             )
 
@@ -624,6 +659,7 @@ class Repository:
         prompt_version: str,
         error_code: str,
     ) -> None:
+        self._require_open_day14(run_id)
         with self.connection:
             self.connection.execute(
                 """
@@ -640,7 +676,7 @@ class Repository:
                     model,
                     prompt_version,
                     error_code,
-                    _utc_now(),
+                    self._server_timestamp(),
                 ),
             )
 
@@ -656,6 +692,7 @@ class Repository:
         decision: "DraftDecision",
         token_usage: dict[str, object] | None,
     ) -> None:
+        self._require_open_day14(run_id)
         with self.connection:
             self.connection.execute(
                 """
@@ -682,7 +719,7 @@ class Repository:
                     json.dumps(token_usage, sort_keys=True, separators=(",", ":"))
                     if token_usage is not None
                     else None,
-                    _utc_now(),
+                    self._server_timestamp(),
                 ),
             )
 

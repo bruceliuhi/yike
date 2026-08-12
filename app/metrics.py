@@ -95,10 +95,10 @@ class MetricsEngine:
             WHERE mvp_run_id = ? AND parent_outreach_action_id IS NULL
               AND status = 'SENT_VERIFIED'
               AND context_evidence IS NOT NULL AND length(trim(context_evidence)) > 0
-              AND sent_at <= ?
+              AND sent_at <= ? AND created_at <= ?
             """,
             run_id,
-            extra=(cutoff,),
+            extra=(cutoff, cutoff),
         )
         valid_responses = self._scalar(
             """
@@ -114,10 +114,11 @@ class MetricsEngine:
               AND response.evidence_summary IS NOT NULL
               AND length(trim(response.evidence_summary)) > 0
               AND response.occurred_at <= ? AND response.verified_at <= ?
-              AND outreach.sent_at <= ?
+              AND response.recorded_at <= ?
+              AND outreach.sent_at <= ? AND outreach.created_at <= ?
             """,
             run_id,
-            extra=(cutoff, cutoff, cutoff),
+            extra=(cutoff, cutoff, cutoff, cutoff, cutoff),
         )
         interviews = self._scalar(
             """
@@ -133,10 +134,11 @@ class MetricsEngine:
               AND response.response_type = 'VALID'
               AND outreach.status = 'SENT_VERIFIED'
               AND interview.completed_at <= ? AND response.verified_at <= ?
-              AND outreach.sent_at <= ?
+              AND interview.recorded_at <= ? AND response.recorded_at <= ?
+              AND outreach.sent_at <= ? AND outreach.created_at <= ?
             """,
             run_id,
-            extra=(cutoff, cutoff, cutoff),
+            extra=(cutoff, cutoff, cutoff, cutoff, cutoff, cutoff),
         )
         quotes = self._scalar(
             """
@@ -159,10 +161,12 @@ class MetricsEngine:
               AND quote.agreed_to_receive_pricing_at IS NOT NULL
               AND quote.agreed_to_receive_pricing_at <= ?
               AND quote.verified_at <= ? AND response.verified_at <= ?
-              AND outreach.sent_at <= ?
+              AND quote.recorded_at <= ? AND response.recorded_at <= ?
+              AND (quote.interview_id IS NULL OR interview.recorded_at <= ?)
+              AND outreach.sent_at <= ? AND outreach.created_at <= ?
             """,
             run_id,
-            extra=(cutoff, cutoff, cutoff, cutoff),
+            extra=(cutoff, cutoff, cutoff, cutoff, cutoff, cutoff, cutoff, cutoff),
         )
         reviewed_ab, high_intent_ab = self.connection.execute(
             """
@@ -228,51 +232,15 @@ class MetricsEngine:
             )
             or self._scalar(
                 """
-                SELECT COUNT(*) FROM score_runs failed
-                WHERE failed.mvp_run_id = ? AND failed.status = 'FAILED'
-                  AND failed.error_code IN ('MODEL_NOT_CONFIGURED', 'MODEL_UNAVAILABLE')
+                SELECT COUNT(*) FROM model_availability_events event
+                WHERE event.mvp_run_id = ? AND event.availability_state = 'BLOCKED'
+                  AND event.recorded_at <= ?
                   AND NOT EXISTS (
-                    SELECT 1 FROM score_runs success
-                    WHERE success.mvp_run_id = failed.mvp_run_id
-                      AND success.status = 'SUCCEEDED'
-                      AND (
-                        success.created_at > failed.created_at
-                        OR (success.created_at = failed.created_at
-                            AND success.rowid > failed.rowid)
-                      )
-                      AND success.created_at <= ?
+                    SELECT 1 FROM model_availability_events later
+                    WHERE later.mvp_run_id = event.mvp_run_id
+                      AND later.recorded_at <= ?
+                      AND later.event_sequence > event.event_sequence
                   )
-                  AND failed.created_at <= ?
-                """,
-                run_id,
-                extra=(cutoff, cutoff),
-            )
-            or self._scalar(
-                """
-                SELECT COUNT(*) FROM draft_runs failed
-                WHERE failed.mvp_run_id = ? AND failed.status = 'FAILED'
-                  AND failed.error_code IN ('MODEL_NOT_CONFIGURED', 'MODEL_UNAVAILABLE')
-                  AND NOT EXISTS (
-                    SELECT 1 FROM (
-                      SELECT score.created_at, score.rowid AS fact_rowid
-                      FROM score_runs score
-                      WHERE score.mvp_run_id = failed.mvp_run_id
-                        AND score.status = 'SUCCEEDED'
-                      UNION ALL
-                      SELECT draft.created_at, draft.rowid AS fact_rowid
-                      FROM draft_runs draft
-                      WHERE draft.mvp_run_id = failed.mvp_run_id
-                        AND draft.draft_kind = 'GENERATED'
-                        AND draft.status = 'SUCCEEDED'
-                    ) success
-                    WHERE success.created_at <= ?
-                      AND (
-                        success.created_at > failed.created_at
-                        OR (success.created_at = failed.created_at
-                            AND success.fact_rowid > failed.rowid)
-                      )
-                  )
-                  AND failed.created_at <= ?
                 """,
                 run_id,
                 extra=(cutoff, cutoff),
@@ -304,7 +272,7 @@ class MetricsEngine:
               AND review.label = 'HIGH_INTENT'
               AND outreach.context_evidence IS NOT NULL
               AND length(trim(outreach.context_evidence)) > 0
-              AND outreach.sent_at <= ?
+              AND outreach.sent_at <= ? AND outreach.created_at <= ?
               AND NOT EXISTS (
                 SELECT 1 FROM human_reviews child
                 WHERE child.supersedes_review_id = review.review_id
@@ -313,7 +281,7 @@ class MetricsEngine:
               AND review.completed_at <= ?
             """,
             run_id,
-            extra=(cutoff, cutoff, cutoff),
+            extra=(cutoff, cutoff, cutoff, cutoff),
         )
 
         sessions = self.connection.execute(
@@ -432,10 +400,10 @@ class MetricsEngine:
                   AND status = 'SENT_VERIFIED'
                   AND context_evidence IS NOT NULL AND length(trim(context_evidence)) > 0
                   AND date(sent_at, '+8 hours') = ?
-                  AND sent_at <= ?
+                  AND sent_at <= ? AND created_at <= ?
                 """,
                 run_id,
-                extra=(local_day, cutoff),
+                extra=(local_day, cutoff, cutoff),
             )
             if seconds > 90 * 60 and personalized_that_day < 3:
                 overworked_dates.append(datetime.fromisoformat(local_day).date())
@@ -448,9 +416,9 @@ class MetricsEngine:
             self._scalar(
                 "SELECT COUNT(*) FROM interviews WHERE mvp_run_id = ? "
                 "AND completed_at IS NOT NULL AND solution_fit = 'UNSOLVABLE' "
-                "AND completed_at <= ?",
+                "AND completed_at <= ? AND recorded_at <= ?",
                 run_id,
-                extra=(cutoff,),
+                extra=(cutoff, cutoff),
             )
         )
         loss_reasons = []
@@ -575,10 +543,13 @@ class MetricsEngine:
                   COUNT(DISTINCT outreach.subject_key),
                   COUNT(DISTINCT response.responder_subject_key),
                   COUNT(DISTINCT CASE WHEN interview.completed_at <= ?
+                                            AND interview.recorded_at <= ?
                                       THEN response.responder_subject_key END),
                   COUNT(DISTINCT CASE
                     WHEN quote.verified_at <= ?
                      AND quote.agreed_to_receive_pricing_at <= ?
+                     AND quote.recorded_at <= ?
+                     AND (quote.interview_id IS NULL OR interview.recorded_at <= ?)
                     THEN response.responder_subject_key END)
                 FROM outreach_actions outreach
                 LEFT JOIN response_events response
@@ -586,6 +557,7 @@ class MetricsEngine:
                  AND response.mvp_run_id = outreach.mvp_run_id
                  AND response.response_type = 'VALID'
                  AND response.occurred_at <= ? AND response.verified_at <= ?
+                 AND response.recorded_at <= ?
                  AND response.evidence_summary IS NOT NULL
                  AND length(trim(response.evidence_summary)) > 0
                 LEFT JOIN interviews interview
@@ -601,8 +573,13 @@ class MetricsEngine:
                 WHERE outreach.mvp_run_id = ? AND outreach.platform = ?
                   AND outreach.parent_outreach_action_id IS NULL
                   AND outreach.status = 'SENT_VERIFIED' AND outreach.sent_at <= ?
+                  AND outreach.created_at <= ?
                 """,
-                (cutoff, cutoff, cutoff, cutoff, cutoff, run_id, platform, cutoff),
+                (
+                    cutoff, cutoff, cutoff, cutoff, cutoff, cutoff,
+                    cutoff, cutoff, cutoff,
+                    run_id, platform, cutoff, cutoff,
+                ),
             ).fetchone()
             result[platform] = {
                 "signals": int(signals),
@@ -662,20 +639,22 @@ class MetricsEngine:
                 FROM scoped
                 LEFT JOIN leaf ON leaf.signal_id = scoped.signal_id
                 LEFT JOIN outreach_actions outreach
-                  ON outreach.mvp_run_id = ? AND outreach.signal_id = scoped.signal_id
+                 ON outreach.mvp_run_id = ? AND outreach.signal_id = scoped.signal_id
                  AND outreach.parent_outreach_action_id IS NULL
                  AND outreach.status = 'SENT_VERIFIED' AND outreach.sent_at <= ?
+                 AND outreach.created_at <= ?
                 LEFT JOIN response_events response
                   ON response.mvp_run_id = outreach.mvp_run_id
                  AND response.outreach_action_id = outreach.outreach_action_id
                  AND response.response_type = 'VALID'
                  AND response.occurred_at <= ? AND response.verified_at <= ?
+                 AND response.recorded_at <= ?
                  AND response.evidence_summary IS NOT NULL
                  AND length(trim(response.evidence_summary)) > 0
                 """,
                 (
                     run_id, cutoff, industry, run_id, cutoff, cutoff,
-                    run_id, cutoff, cutoff, cutoff,
+                    run_id, cutoff, cutoff, cutoff, cutoff, cutoff,
                 ),
             ).fetchone()
             result[industry] = {
