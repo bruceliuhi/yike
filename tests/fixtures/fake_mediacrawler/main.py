@@ -4,16 +4,18 @@ from pathlib import Path
 import sys
 
 
-EXIT_BY_KEYWORD = {
-    "__auth__": 40,
-    "__permission__": 41,
-    "__verification__": 42,
-    "__rate_limit__": 43,
-    "__response_changed__": 44,
-    "__network__": 45,
-    "__parse__": 46,
-    "__cancelled__": 47,
+RESULT_BY_KEYWORD = {
+    "__auth__": (40, "BLOCKED_INPUT", "PLATFORM_AUTH_REQUIRED"),
+    "__permission__": (41, "BLOCKED_INPUT", "PLATFORM_PERMISSION_DENIED"),
+    "__verification__": (42, "BLOCKED_INPUT", "PLATFORM_VERIFICATION_REQUIRED"),
+    "__rate_limit__": (43, "BLOCKED_INPUT", "PLATFORM_RATE_LIMITED"),
+    "__response_changed__": (44, "FAILED", "PLATFORM_RESPONSE_CHANGED"),
+    "__network__": (45, "FAILED", "COLLECTION_NETWORK_FAILED"),
+    "__parse__": (46, "FAILED", "COLLECTION_PARSE_FAILED"),
+    "__cancelled__": (47, "CANCELLED", "COLLECTION_CANCELLED"),
 }
+
+STATUS_SCHEMA = "YIKE_MEDIACRAWLER_STATUS_V1"
 
 
 def parse_args():
@@ -41,6 +43,24 @@ def write_jsonl(path, records):
             target.write("\n")
 
 
+def write_status(output, platform, status, error_code):
+    target = output / ".yike-collection-status.json"
+    temporary = target.with_suffix(".tmp")
+    temporary.write_text(
+        json.dumps(
+            {
+                "schema_version": STATUS_SCHEMA,
+                "platform": platform,
+                "status": status,
+                "error_code": error_code,
+            },
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+    temporary.replace(target)
+
+
 def main():
     args = parse_args()
     output = Path(args.save_data_path)
@@ -49,9 +69,14 @@ def main():
         json.dumps({"count": 1, "argv": sys.argv[1:]}, ensure_ascii=False),
         encoding="utf-8",
     )
-    if args.keywords in EXIT_BY_KEYWORD:
-        return EXIT_BY_KEYWORD[args.keywords]
+    if args.keywords == "__exit_only_verification__":
+        return 42
+    if args.keywords in RESULT_BY_KEYWORD:
+        exit_code, status, error_code = RESULT_BY_KEYWORD[args.keywords]
+        write_status(output, args.platform, status, error_code)
+        return exit_code
     if args.keywords == "__empty__":
+        write_status(output, args.platform, "SUCCEEDED_NO_DATA", None)
         return 0
 
     fixture_path = Path(__file__).resolve().parent.parent / args.platform / "comments.json"
@@ -66,6 +91,8 @@ def main():
     data_dir.mkdir(parents=True, exist_ok=True)
     write_jsonl(data_dir / "search_contents_fixture.jsonl", fixture["contents"])
     write_jsonl(data_dir / "search_comments_fixture.jsonl", comments)
+    if args.keywords != "__missing_status__":
+        write_status(output, args.platform, "SUCCEEDED", None)
     return 0
 
 

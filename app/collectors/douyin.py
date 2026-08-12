@@ -44,6 +44,9 @@ def normalize_douyin(record: Mapping[str, Any]) -> NormalizedSignal:
         ),
         body=body,
         body_sha256=sha256_text(body),
+        source_published_at=normalize_time(
+            content.get("create_time") or content.get("published_at")
+        ),
         published_at=normalize_time(comment.get("create_time") or comment.get("published_at")),
         collected_at=normalize_time(comment.get("collected_at")),
         raw_sha256=raw_sha256(comment),

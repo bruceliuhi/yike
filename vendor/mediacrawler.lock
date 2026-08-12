@@ -1,7 +1,41 @@
 {
+  "schema_version": "YIKE_MEDIACRAWLER_LOCK_V2",
   "repository": "https://github.com/NanmiCoder/MediaCrawler.git",
   "commit": "439509782cc2991c8ef7648e178d5847b0545798",
   "login_type": "qrcode",
   "browser_visibility": "visible",
-  "output_format": "jsonl"
+  "output_format": "jsonl",
+  "status_contract": "YIKE_MEDIACRAWLER_STATUS_V1",
+  "patches": [
+    {
+      "path": "vendor/patches/mediacrawler/0001-yike-controlled-runtime.patch",
+      "sha256": "3ae99598ee0a4559e2070fa48af83c254f2b2398ce47efd7c172fb738e2aeef1"
+    }
+  ],
+  "patchset_sha256": "7707b1396f0f82115a0345a3296f316541e5aa550b55e38c4b5084200b544ea2",
+  "patched_files": {
+    "config/base_config.py": "8f9b500d790cf661c4c8ecc1ff7eb33e9617e52750352d3af665f6c9185eebca",
+    "main.py": "850e0a5b3e9e7ceaaf4bb1be875258f9b47a3820360ba14332d6235e1ae798d9",
+    "media_platform/bilibili/client.py": "e4b9da3ed1cf31634a3f3cc4b376ed9c94c82131675c020d335370d5023b83f9",
+    "media_platform/bilibili/core.py": "20038544de5987cff8af21ecd85c135632ea6fa1ab013f2c1b638a04a0b47c59",
+    "media_platform/bilibili/login.py": "41fe0c78db4e72faaf95d6cf4284349e77d1639c75d4ce90439d60b4c007f2c1",
+    "media_platform/douyin/client.py": "ce7a74ff3d6ab2c3c140515c65ad34cb68fed360e58111f30d0a2e54db71422f",
+    "media_platform/douyin/core.py": "77c933331cbbe2050b2e9b1234e1bca077b2cd4698a9258508e4b5821087b5be",
+    "media_platform/douyin/login.py": "4bc70ad7e252a00437c8058855709f5ec925ebc4e0e6bf904ce475fb914bb8af"
+  },
+  "patched_tree_sha256": "c0474eb4545ddd598c185134c6818bb3ab8d62e15d1c804e5e720a10a423bbc0",
+  "runtime_environment": {
+    "uv_version": "0.11.6",
+    "lock_path": "uv.lock",
+    "lock_sha256": "16034a88f3981a63f9667b202e348372b4f1571cbd5aeb03530c7027622d22d6",
+    "manifest_path": "pyproject.toml",
+    "manifest_sha256": "d9dca06609bbc55d649d10bc243bf8c304042584e2b9bb168c8dd1d301b4b549",
+    "python_path": ".venv/bin/python",
+    "playwright_path": ".venv/bin/playwright",
+    "browser_path": ".venv/playwright-browsers"
+  },
+  "test_fixture": {
+    "path": "tests/fixtures/fake_mediacrawler",
+    "tree_sha256": "f8a5248ce6bb6326dc48d9957ad5ba1c6c21cfbe8f8be8f527a4b441ee21d894"
+  }
 }

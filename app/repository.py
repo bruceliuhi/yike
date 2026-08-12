@@ -47,6 +47,7 @@ class NormalizedSignal:
     comment_url: str | None = None
     normalized_comment_url: str | None = None
     author_public_id: str | None = None
+    source_published_at: str | None = None
     published_at: str | None = None
     collected_at: str | None = None
     raw_sha256: str | None = None
@@ -516,7 +517,7 @@ class Repository:
                 item.source_title,
                 item.source_url,
                 author_public_id,
-                item.published_at,
+                item.source_published_at,
             ),
         )
         return source_id

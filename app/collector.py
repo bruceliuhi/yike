@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 from typing import Literal
@@ -15,6 +16,10 @@ from app.repository import Repository, SignalIdentityConflict
 MEDIACRAWLER_COMMIT = "439509782cc2991c8ef7648e178d5847b0545798"
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _LOCK_PATH = _PROJECT_ROOT / "vendor" / "mediacrawler.lock"
+_PATCH_ROOT = _PROJECT_ROOT / "vendor" / "patches" / "mediacrawler"
+_STATUS_SCHEMA = "YIKE_MEDIACRAWLER_STATUS_V1"
+_RUNTIME_SCHEMA = "YIKE_MEDIACRAWLER_RUNTIME_V1"
+_SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 
 @dataclass(frozen=True)
@@ -50,6 +55,7 @@ _EXIT_RESULTS: dict[int, tuple[str, str]] = {
     45: ("FAILED", "COLLECTION_NETWORK_FAILED"),
     46: ("FAILED", "COLLECTION_PARSE_FAILED"),
     47: ("CANCELLED", "COLLECTION_CANCELLED"),
+    48: ("FAILED", "COLLECTION_PROCESS_FAILED"),
 }
 
 
@@ -60,13 +66,18 @@ class Collector:
         repository: Repository,
         runtime_path: Path,
         work_root: Path,
-        python_executable: str = sys.executable,
+        python_executable: str | None = None,
         timeout_seconds: int = 900,
     ):
         self.repository = repository
         self.runtime_path = runtime_path.resolve()
         self.work_root = work_root.resolve()
-        self.python_executable = python_executable
+        fixture_runtime = (_PROJECT_ROOT / "tests/fixtures/fake_mediacrawler").resolve()
+        self.python_executable = python_executable or (
+            sys.executable
+            if self.runtime_path == fixture_runtime
+            else str(self.runtime_path / ".venv" / "bin" / "python")
+        )
         self.timeout_seconds = timeout_seconds
 
     def command_for(self, request: CollectionRequest, output_dir: Path) -> list[str]:
@@ -103,7 +114,13 @@ class Collector:
 
     def collect(self, request: CollectionRequest) -> CollectionResult:
         self._validate_request(request)
-        output_dir = self.work_root / request.mvp_run_id / request.collection_run_id
+        run_dir = self.work_root / request.mvp_run_id
+        output_path = run_dir / request.collection_run_id
+        if run_dir.is_symlink() or output_path.is_symlink():
+            raise ValueError("collection output has a symlinked ancestor")
+        output_dir = output_path.resolve()
+        if not output_dir.is_relative_to(self.work_root):
+            raise ValueError("collection identifiers escape the output root")
         if output_dir.exists():
             raise ValueError("collection output directory already exists")
 
@@ -116,7 +133,12 @@ class Collector:
             max_contents=request.max_contents,
             max_comments_per_content=request.max_comments_per_content,
         )
-        output_dir.mkdir(parents=True)
+        try:
+            output_dir.mkdir(parents=True)
+        except OSError:
+            return self._finish(
+                request, "FAILED", 0, 0, "COLLECTION_OUTPUT_FAILED"
+            )
 
         runtime_error = self._runtime_error()
         if runtime_error:
@@ -131,7 +153,12 @@ class Collector:
                 text=True,
                 timeout=self.timeout_seconds,
                 shell=False,
-                env=os.environ.copy(),
+                env={
+                    **os.environ,
+                    "PLAYWRIGHT_BROWSERS_PATH": str(
+                        self.runtime_path / ".venv" / "playwright-browsers"
+                    ),
+                },
             )
         except subprocess.TimeoutExpired:
             return self._finish(
@@ -141,19 +168,23 @@ class Collector:
             return self._finish(request, "CANCELLED", 0, 0, "COLLECTION_CANCELLED")
         except OSError:
             return self._finish(
-                request, "BLOCKED_INPUT", 0, 0, "COLLECTION_RUNTIME_MISSING"
+                request, "FAILED", 0, 0, "COLLECTION_PROCESS_FAILED"
             )
 
-        if process.returncode != 0:
-            status, error_code = _EXIT_RESULTS.get(
-                process.returncode, ("FAILED", "COLLECTION_PROCESS_FAILED")
+        terminal = self._runtime_terminal(output_dir, request, process.returncode)
+        if terminal is None:
+            return self._finish(
+                request, "FAILED", 0, 0, "COLLECTION_PROCESS_FAILED"
             )
+        status, error_code = terminal
+        if process.returncode != 0:
             return self._finish(request, status, 0, 0, error_code)
 
         try:
             data_dir = self._data_dir(request, output_dir)
             contents = self._read_jsonl(data_dir, "search_contents_*.jsonl")
             comments = self._read_jsonl(data_dir, "search_comments_*.jsonl")
+            self._verify_output_limits(request, contents, comments)
         except (OSError, json.JSONDecodeError, ValueError):
             return self._finish(request, "FAILED", 0, 0, "COLLECTION_PARSE_FAILED")
 
@@ -269,17 +300,271 @@ class Collector:
 
     def _runtime_error(self) -> str | None:
         main = self.runtime_path / "main.py"
-        marker = self.runtime_path / ".mediacrawler-commit"
-        if not main.is_file() or not marker.is_file() or not _LOCK_PATH.is_file():
+        if not main.is_file() or not _LOCK_PATH.is_file():
             return "COLLECTION_RUNTIME_MISSING"
         try:
             lock = json.loads(_LOCK_PATH.read_text(encoding="utf-8"))
-            runtime_commit = marker.read_text(encoding="utf-8").strip()
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError, TypeError):
             return "COLLECTION_RUNTIME_MISMATCH"
-        if lock.get("commit") != MEDIACRAWLER_COMMIT or runtime_commit != MEDIACRAWLER_COMMIT:
+        if (
+            lock.get("schema_version") != "YIKE_MEDIACRAWLER_LOCK_V2"
+            or lock.get("commit") != MEDIACRAWLER_COMMIT
+            or lock.get("status_contract") != _STATUS_SCHEMA
+        ):
+            return "COLLECTION_RUNTIME_MISMATCH"
+        fixture = lock.get("test_fixture")
+        if not isinstance(fixture, dict):
+            return "COLLECTION_RUNTIME_MISMATCH"
+        expected_fixture = (_PROJECT_ROOT / str(fixture.get("path", ""))).resolve()
+        if self.runtime_path == expected_fixture:
+            if self._tree_sha256(self.runtime_path) != fixture.get("tree_sha256"):
+                return "COLLECTION_RUNTIME_MISMATCH"
+            return None
+        if not self._verified_patched_checkout(lock):
             return "COLLECTION_RUNTIME_MISMATCH"
         return None
+
+    def _verified_patched_checkout(self, lock: dict[str, object]) -> bool:
+        marker = self.runtime_path / ".yike-runtime.json"
+        if not marker.is_file() or marker.is_symlink():
+            return False
+        try:
+            root = self._git("rev-parse", "--show-toplevel")
+            head = self._git("rev-parse", "HEAD")
+            changed = set(self._git("diff", "HEAD", "--name-only", "--").splitlines())
+            untracked = set(
+                self._git("ls-files", "--others", "--exclude-standard").splitlines()
+            )
+            patched_files = lock["patched_files"]
+            if not isinstance(patched_files, dict):
+                return False
+            expected_paths = set(patched_files)
+            if (
+                Path(root).resolve() != self.runtime_path
+                or head != MEDIACRAWLER_COMMIT
+                or changed != expected_paths
+                or untracked != {".yike-runtime.json"}
+            ):
+                return False
+            actual_files = []
+            for relative, expected_sha in sorted(patched_files.items()):
+                unresolved_path = self.runtime_path / relative
+                path = unresolved_path.resolve()
+                if (
+                    unresolved_path.is_symlink()
+                    or not path.is_relative_to(self.runtime_path)
+                    or not path.is_file()
+                ):
+                    return False
+                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                if digest != expected_sha:
+                    return False
+                actual_files.append((relative, digest))
+            patched_tree_sha256 = self._signature(actual_files)
+            if patched_tree_sha256 != lock.get("patched_tree_sha256"):
+                return False
+            patches = lock["patches"]
+            if not isinstance(patches, list):
+                return False
+            patch_entries = []
+            for patch in patches:
+                if not isinstance(patch, dict):
+                    return False
+                relative = str(patch.get("path", ""))
+                unresolved_patch_path = _PROJECT_ROOT / relative
+                patch_path = unresolved_patch_path.resolve()
+                if (
+                    unresolved_patch_path.is_symlink()
+                    or not patch_path.is_relative_to(_PATCH_ROOT)
+                    or not patch_path.is_file()
+                ):
+                    return False
+                digest = hashlib.sha256(patch_path.read_bytes()).hexdigest()
+                if digest != patch.get("sha256"):
+                    return False
+                patch_entries.append((relative, digest))
+            patchset_sha256 = self._signature(patch_entries)
+            if patchset_sha256 != lock.get("patchset_sha256"):
+                return False
+            runtime_environment = lock["runtime_environment"]
+            if not isinstance(runtime_environment, dict) or not self._verified_environment(
+                runtime_environment
+            ):
+                return False
+            runtime_marker = json.loads(marker.read_text(encoding="utf-8"))
+        except (OSError, KeyError, TypeError, json.JSONDecodeError, subprocess.SubprocessError):
+            return False
+        return runtime_marker == {
+            "schema_version": _RUNTIME_SCHEMA,
+            "commit": MEDIACRAWLER_COMMIT,
+            "patchset_sha256": lock.get("patchset_sha256"),
+            "patched_tree_sha256": patched_tree_sha256,
+            "runtime_environment": runtime_environment,
+        }
+
+    def _verified_environment(self, expected: dict[str, object]) -> bool:
+        required = {
+            "uv_version",
+            "lock_path",
+            "lock_sha256",
+            "manifest_path",
+            "manifest_sha256",
+            "python_path",
+            "playwright_path",
+            "browser_path",
+        }
+        if set(expected) != required:
+            return False
+        try:
+            for path_key, sha_key in (
+                ("lock_path", "lock_sha256"),
+                ("manifest_path", "manifest_sha256"),
+            ):
+                unresolved = self.runtime_path / str(expected[path_key])
+                resolved = unresolved.resolve()
+                if (
+                    unresolved.is_symlink()
+                    or not resolved.is_relative_to(self.runtime_path)
+                    or not resolved.is_file()
+                    or hashlib.sha256(resolved.read_bytes()).hexdigest()
+                    != expected[sha_key]
+                ):
+                    return False
+            environment_root = self.runtime_path / ".venv"
+            python_path = self.runtime_path / str(expected["python_path"])
+            playwright_path = self.runtime_path / str(expected["playwright_path"])
+            browser_path = self.runtime_path / str(expected["browser_path"])
+            if (
+                environment_root.is_symlink()
+                or not python_path.is_file()
+                or not os.access(python_path, os.X_OK)
+                or not playwright_path.is_file()
+                or not os.access(playwright_path, os.X_OK)
+                or browser_path.is_symlink()
+                or not browser_path.is_dir()
+            ):
+                return False
+            uv_version = subprocess.run(
+                ["uv", "--version"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            ).stdout.split()[1]
+            if uv_version != expected["uv_version"]:
+                return False
+            subprocess.run(
+                [
+                    "uv",
+                    "sync",
+                    "--frozen",
+                    "--no-dev",
+                    "--no-install-project",
+                    "--check",
+                    "--project",
+                    str(self.runtime_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            probe = subprocess.run(
+                [
+                    str(python_path),
+                    "-c",
+                    (
+                        "from pathlib import Path; "
+                        "from playwright.sync_api import sync_playwright; "
+                        "p=sync_playwright().start(); "
+                        "assert Path(p.chromium.executable_path).is_file(); "
+                        "p.stop(); print('YIKE_RUNTIME_OK')"
+                    ),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env={
+                    **os.environ,
+                    "PLAYWRIGHT_BROWSERS_PATH": str(browser_path),
+                },
+            )
+        except (OSError, KeyError, IndexError, subprocess.SubprocessError):
+            return False
+        return probe.stdout.strip() == "YIKE_RUNTIME_OK"
+
+    def _git(self, *arguments: str) -> str:
+        process = subprocess.run(
+            ["git", "-C", str(self.runtime_path), *arguments],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return process.stdout.strip()
+
+    @staticmethod
+    def _signature(entries: list[tuple[str, str]]) -> str:
+        payload = json.dumps(entries, separators=(",", ":"))
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    @classmethod
+    def _tree_sha256(cls, root: Path) -> str:
+        entries = []
+        for path in sorted(root.rglob("*")):
+            if (
+                not path.is_file()
+                or "__pycache__" in path.parts
+                or path.suffix == ".pyc"
+                or path.name == ".DS_Store"
+            ):
+                continue
+            entries.append(
+                (
+                    str(path.relative_to(root)),
+                    hashlib.sha256(path.read_bytes()).hexdigest(),
+                )
+            )
+        return cls._signature(entries)
+
+    @staticmethod
+    def _runtime_terminal(
+        output_dir: Path, request: CollectionRequest, returncode: int
+    ) -> tuple[str, str | None] | None:
+        marker = output_dir / ".yike-collection-status.json"
+        try:
+            if marker.is_symlink() or not marker.is_file() or marker.stat().st_size > 4096:
+                return None
+            payload = json.loads(marker.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        if set(payload) != {"schema_version", "platform", "status", "error_code"}:
+            return None
+        terminal = (payload["status"], payload["error_code"])
+        if payload["schema_version"] != _STATUS_SCHEMA or payload["platform"] != request.platform:
+            return None
+        if returncode == 0:
+            return terminal if terminal in {("SUCCEEDED", None), ("SUCCEEDED_NO_DATA", None)} else None
+        return terminal if _EXIT_RESULTS.get(returncode) == terminal else None
+
+    @staticmethod
+    def _verify_output_limits(
+        request: CollectionRequest,
+        contents: list[dict[str, object]],
+        comments: list[dict[str, object]],
+    ) -> None:
+        if len(contents) > request.max_contents:
+            raise ValueError("runtime exceeded the content limit")
+        source_key = "video_id" if request.platform == "bili" else "aweme_id"
+        counts: dict[str, int] = {}
+        for comment in comments:
+            source_id = str(comment.get(source_key, ""))
+            counts[source_id] = counts.get(source_id, 0) + 1
+        if any(
+            count > request.max_comments_per_content for count in counts.values()
+        ):
+            raise ValueError("runtime exceeded the comment limit")
 
     def _manifest_sha256(self, output_dir: Path) -> str:
         manifest = []
@@ -333,6 +618,10 @@ class Collector:
 
     @staticmethod
     def _validate_request(request: CollectionRequest) -> None:
+        if not _SAFE_IDENTIFIER.fullmatch(request.mvp_run_id) or not _SAFE_IDENTIFIER.fullmatch(
+            request.collection_run_id
+        ):
+            raise ValueError("collection identifier is not a safe token")
         if request.platform not in ("bili", "dy"):
             raise ValueError("platform must be bili or dy")
         if not request.query_cluster.strip() or not request.query_text.strip():

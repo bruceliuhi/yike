@@ -47,6 +47,9 @@ def normalize_bilibili(record: Mapping[str, Any]) -> NormalizedSignal:
         author_public_id=require_text(comment, "creator_hash", "user_id", "mid"),
         body=body,
         body_sha256=sha256_text(body),
+        source_published_at=normalize_time(
+            content.get("create_time") or content.get("published_at")
+        ),
         published_at=normalize_time(comment.get("create_time") or comment.get("published_at")),
         collected_at=normalize_time(comment.get("collected_at")),
         raw_sha256=raw_sha256(comment),

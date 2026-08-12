@@ -73,6 +73,9 @@ CREATE TABLE IF NOT EXISTS collection_runs (
         REFERENCES campaigns(campaign_id, mvp_run_id, platform)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS one_running_collection
+    ON collection_runs(state) WHERE state = 'RUNNING';
+
 CREATE TABLE IF NOT EXISTS sources (
     source_id TEXT PRIMARY KEY,
     platform TEXT NOT NULL CHECK (platform IN ('bili', 'dy')),
@@ -159,6 +162,7 @@ CREATE TABLE IF NOT EXISTS score_runs (
             AND dimension_scores_json IS NOT NULL
             AND json_valid(dimension_scores_json)
             AND total_score IS NOT NULL AND total_score BETWEEN 0 AND 12
+            AND typeof(total_score) = 'integer'
             AND grade IS NOT NULL AND grade IN ('A', 'B', 'C', 'D')
             AND confidence IS NOT NULL AND confidence BETWEEN 0.0 AND 1.0
             AND reason_json IS NOT NULL AND json_valid(reason_json)

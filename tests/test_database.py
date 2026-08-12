@@ -267,8 +267,8 @@ def test_current_schema_migration_is_idempotent(connection):
         "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
     ).fetchone()
     assert tuple(marker) == (
-        "DISCOVERY_FACT_STORE_V4",
-        "0f1520bcf9faeb697843c911112b8f9d3a914e65115e02de53ccdf33f1aca2f5",
+        "DISCOVERY_FACT_STORE_V5",
+        "9b4f4bfbebd4de4938d230514a2a3e5455241f377e937b02e2313a9b537c3eb5",
     )
 
 
@@ -324,6 +324,7 @@ def test_failed_score_rows_require_a_stable_model_error(connection, repository):
         {"dimension_scores_json": None},
         {"total_score": None},
         {"total_score": 13},
+        {"total_score": 8.5},
         {"grade": None},
         {"grade": "E"},
         {"confidence": None},
@@ -400,6 +401,33 @@ def test_only_one_active_run_is_allowed(repository):
     repository.create_run(["bili", "dy"])
     with pytest.raises(ActiveRunError):
         repository.create_run(["bili", "dy"])
+
+
+def test_only_one_collection_can_be_running(repository):
+    run_id = repository.create_run(["bili", "dy"])
+    parameters = {
+        "run_id": run_id,
+        "platform": "bili",
+        "query_cluster": "sales",
+        "query_text": "线索",
+        "max_contents": 5,
+        "max_comments_per_content": 20,
+    }
+    repository.begin_collection(collection_run_id="collection-running-1", **parameters)
+
+    with pytest.raises(sqlite3.IntegrityError):
+        repository.begin_collection(
+            collection_run_id="collection-running-2", **parameters
+        )
+
+    repository.finish_collection(
+        "collection-running-1",
+        state="FAILED",
+        raw_count=0,
+        unique_count=0,
+        error_code="COLLECTION_PROCESS_FAILED",
+    )
+    repository.begin_collection(collection_run_id="collection-running-2", **parameters)
 
 
 @pytest.mark.parametrize("platforms", [[], ["bili"], ["dy"], ["dy", "bili"], ["bili", "bili"], ["bili", "other"]])
