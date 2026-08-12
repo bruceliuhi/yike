@@ -12,7 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 HISTORICAL_SOURCE_SHA256 = (
     "8c39db17a65aa4ca96f3583a720969e88a4253356db059ca285ca559f3395200"
 )
-CURRENT_AUTHORITY_SHA = "17a80e7f5ba663d84807a210a11e786a89a2b491"
+CURRENT_AUTHORITY_SHA = "14df9ad42569fa53aa603370d99ed2747f61bfd5"
 
 
 def test_empty_product_starts_on_loopback(tmp_path):
