@@ -155,6 +155,89 @@ def test_verifiable_metric_requires_a_successful_collection_with_manifest(
     connection.close()
 
 
+def test_verifiable_metric_rechecks_campaign_query_binding(tmp_path):
+    connection = connect(tmp_path / "facts.sqlite3")
+    migrate(connection)
+    repository = Repository(
+        connection, now=lambda: datetime(2026, 8, 12, tzinfo=UTC)
+    )
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="metric-query-collection",
+        platform="bili",
+        query_cluster="campaign-cluster",
+        query_text="campaign-query",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    connection.execute(
+        """
+        INSERT INTO sources (
+            source_id, platform, external_source_id, canonical_url
+        ) VALUES (
+            'metric-query-source', 'bili', 'metric-query-external',
+            'https://www.bilibili.com/video/BV-metric-query'
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO signals (
+            signal_id, source_id, platform, external_comment_id,
+            normalized_comment_url, author_public_id, body, body_sha256,
+            verifiable, normalizer_version
+        ) VALUES (
+            'metric-query-signal', 'metric-query-source', 'bili',
+            'metric-query-comment',
+            'https://www.bilibili.com/video/BV-metric-query#reply',
+            'metric-query-author', 'metric query body', ?, 1,
+            'test-normalizer-v1'
+        )
+        """,
+        ("b" * 64,),
+    )
+    connection.execute(
+        """
+        INSERT INTO mvp_run_signals (mvp_run_id, signal_id, added_at)
+        VALUES (?, 'metric-query-signal', '2026-08-12T00:00:00Z')
+        """,
+        (run_id,),
+    )
+    connection.execute("DROP TRIGGER verifiable_observation_requires_provenance")
+    connection.execute(
+        """
+        INSERT INTO signal_observations (
+            observation_id, mvp_run_id, collection_run_id, signal_id,
+            query_cluster, query_text, observed_at, raw_sha256,
+            envelope_sha256
+        ) VALUES (
+            'metric-query-observation', ?, 'metric-query-collection',
+            'metric-query-signal', 'fabricated-cluster', 'fabricated-query',
+            '2026-08-12T00:00:00Z', ?, ?
+        )
+        """,
+        (run_id, "c" * 64, "d" * 64),
+    )
+    repository.finish_collection(
+        "metric-query-collection",
+        state="SUCCEEDED",
+        raw_count=1,
+        unique_count=1,
+        error_code=None,
+        output_manifest_sha256="e" * 64,
+    )
+
+    snapshot = MetricsEngine(connection).calculate(
+        run_id, now=datetime(2026, 8, 12, 1, tzinfo=UTC)
+    )
+
+    assert snapshot.unique_verifiable_signals == 0
+    connection.close()
+
+
 def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
     connection = connect(tmp_path / "facts.sqlite3")
     migrate(connection)

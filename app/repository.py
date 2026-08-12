@@ -424,13 +424,20 @@ class Repository:
             ):
                 raise ValueError("VERIFIABLE_PROVENANCE_REQUIRED")
             collection = self.connection.execute(
-                "SELECT platform, runtime_lock_sha256 FROM collection_runs "
-                "WHERE collection_run_id = ? AND mvp_run_id = ?",
+                "SELECT collection.platform, collection.runtime_lock_sha256, "
+                "campaign.query_cluster, campaign.query_text "
+                "FROM collection_runs collection "
+                "JOIN campaigns campaign ON campaign.campaign_id = collection.campaign_id "
+                "AND campaign.mvp_run_id = collection.mvp_run_id "
+                "AND campaign.platform = collection.platform "
+                "WHERE collection.collection_run_id = ? AND collection.mvp_run_id = ?",
                 (item.collection_run_id, run_id),
             ).fetchone()
             if (
                 collection is None
                 or collection["platform"] != item.platform
+                or collection["query_cluster"] != item.query_cluster
+                or collection["query_text"] != item.query_text
                 or not _is_sha256(collection["runtime_lock_sha256"])
             ):
                 raise ValueError("VERIFIABLE_PROVENANCE_REQUIRED")

@@ -364,7 +364,7 @@ def test_current_schema_migration_is_idempotent(connection):
     ).fetchone()
     assert tuple(marker) == (
         "DISCOVERY_FACT_STORE_V9",
-        "aa9ef78e94f4d28a19117a50ed443b67fee5b75de580fcb3117eca85d2feeaa3",
+        "bf951b803baf4d798b5e213a18fad5a0d190b130e78e25f079e194f9042413d9",
     )
 
 
@@ -1523,6 +1523,100 @@ def test_sql_rejects_verifiable_signal_with_incomplete_source_provenance(
             )
             """,
             ("a" * 64,),
+        )
+
+
+def test_verifiable_observation_query_must_match_its_collection_campaign(repository):
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="campaign-bound-collection",
+        platform="bili",
+        query_cluster="campaign-cluster",
+        query_text="campaign-query",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+
+    with pytest.raises(ValueError, match="VERIFIABLE_PROVENANCE_REQUIRED"):
+        repository.import_signal(
+            run_id,
+            replace(
+                signal(verifiable=True),
+                collection_run_id="campaign-bound-collection",
+                query_cluster="fabricated-cluster",
+                query_text="fabricated-query",
+                envelope_sha256="b" * 64,
+                normalizer_version="test-normalizer-v1",
+            ),
+        )
+
+    assert repository.count_signals(run_id) == 0
+
+
+def test_sql_rejects_observation_query_that_differs_from_collection_campaign(
+    connection, repository
+):
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="sql-campaign-bound-collection",
+        platform="bili",
+        query_cluster="campaign-cluster",
+        query_text="campaign-query",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    connection.execute(
+        """
+        INSERT INTO sources (
+            source_id, platform, external_source_id, canonical_url
+        ) VALUES (
+            'sql-source', 'bili', 'sql-external-source',
+            'https://www.bilibili.com/video/BV-sql'
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO signals (
+            signal_id, source_id, platform, external_comment_id,
+            normalized_comment_url, author_public_id, body, body_sha256,
+            verifiable, normalizer_version
+        ) VALUES (
+            'sql-signal', 'sql-source', 'bili', 'sql-comment',
+            'https://www.bilibili.com/video/BV-sql#reply',
+            'sql-author', 'sql body', ?, 1, 'test-normalizer-v1'
+        )
+        """,
+        ("b" * 64,),
+    )
+    connection.execute(
+        """
+        INSERT INTO mvp_run_signals (mvp_run_id, signal_id, added_at)
+        VALUES (?, 'sql-signal', '2026-08-12T00:00:00Z')
+        """,
+        (run_id,),
+    )
+
+    with pytest.raises(sqlite3.IntegrityError, match="VERIFIABLE_PROVENANCE_REQUIRED"):
+        connection.execute(
+            """
+            INSERT INTO signal_observations (
+                observation_id, mvp_run_id, collection_run_id, signal_id,
+                query_cluster, query_text, observed_at, raw_sha256,
+                envelope_sha256
+            ) VALUES (
+                'sql-observation', ?, 'sql-campaign-bound-collection',
+                'sql-signal', 'fabricated-cluster', 'fabricated-query',
+                '2026-08-12T00:00:00Z', ?, ?
+            )
+            """,
+            (run_id, "c" * 64, "d" * 64),
         )
 
 

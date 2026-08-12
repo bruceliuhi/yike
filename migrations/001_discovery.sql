@@ -197,10 +197,16 @@ WHEN EXISTS (
         OR NOT EXISTS (
             SELECT 1
             FROM collection_runs collection
+            JOIN campaigns campaign
+              ON campaign.campaign_id = collection.campaign_id
+             AND campaign.mvp_run_id = collection.mvp_run_id
+             AND campaign.platform = collection.platform
             JOIN signals signal ON signal.signal_id = NEW.signal_id
             WHERE collection.collection_run_id = NEW.collection_run_id
               AND collection.mvp_run_id = NEW.mvp_run_id
               AND collection.platform = signal.platform
+              AND campaign.query_cluster = NEW.query_cluster
+              AND campaign.query_text = NEW.query_text
               AND length(collection.runtime_lock_sha256) = 64
               AND collection.runtime_lock_sha256 NOT GLOB '*[^0-9a-f]*'
         )

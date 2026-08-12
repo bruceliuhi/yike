@@ -94,12 +94,18 @@ class MetricsEngine:
                   JOIN collection_runs collection
                     ON collection.collection_run_id = observation.collection_run_id
                    AND collection.mvp_run_id = observation.mvp_run_id
+                  JOIN campaigns campaign
+                    ON campaign.campaign_id = collection.campaign_id
+                   AND campaign.mvp_run_id = collection.mvp_run_id
+                   AND campaign.platform = collection.platform
                   WHERE observation.mvp_run_id = member.mvp_run_id
                     AND observation.signal_id = member.signal_id
                     AND observation.query_cluster IS NOT NULL
                     AND length(trim(observation.query_cluster)) > 0
                     AND observation.query_text IS NOT NULL
                     AND length(trim(observation.query_text)) > 0
+                    AND campaign.query_cluster = observation.query_cluster
+                    AND campaign.query_text = observation.query_text
                     AND length(observation.raw_sha256) = 64
                     AND observation.raw_sha256 NOT GLOB '*[^0-9a-f]*'
                     AND observation.envelope_sha256 IS NOT NULL
