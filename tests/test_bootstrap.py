@@ -12,6 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 HISTORICAL_SOURCE_SHA256 = (
     "8c39db17a65aa4ca96f3583a720969e88a4253356db059ca285ca559f3395200"
 )
+CURRENT_AUTHORITY_SHA = "17a80e7f5ba663d84807a210a11e786a89a2b491"
 
 
 def test_empty_product_starts_on_loopback(tmp_path):
@@ -56,3 +57,9 @@ def test_historical_draft_preserves_source_bytes_and_is_documented():
     assert HISTORICAL_SOURCE_SHA256 in authority
     assert "历史草案当前状态：`HISTORICAL_SUPERSEDED_DRAFT`" in authority
     assert "历史草案唯一允许变化：状态行" in authority
+
+
+def test_implementation_is_bound_to_the_reviewed_discovery_authority():
+    authority = (PROJECT_ROOT / "AUTHORITY.md").read_text()
+
+    assert f"权威提交：`{CURRENT_AUTHORITY_SHA}`" in authority
