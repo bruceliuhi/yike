@@ -2,7 +2,7 @@
 name = "yike-discovery-mvp"
 version = "0.1.0"
 description = "Local-only authorized dual-platform discovery MVP"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.11,<3.13"
 dependencies = [
     "fastapi==0.115.12",
     "httpx==0.28.1",
