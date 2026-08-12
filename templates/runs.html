@@ -17,6 +17,17 @@
     <section class="empty-state"><p class="eyebrow">本地事实库为空</p><h2>创建第一个 14 天实验</h2><p>创建后固定 Bilibili（B 站）与 Douyin（抖音）范围；采集需要可见浏览器与人工扫码。</p><form method="post" action="/runs"><button type="submit">创建双平台实验</button></form></section>
   {% endif %}
 
+  {% if eligible_revision_run %}
+  <section class="ledger-section">
+    <div class="section-head"><div><p class="eyebrow">唯一修订机会</p><h2>第二轮 14 天实验</h2></div><span>基于已冻结结论</span></div>
+    <p class="section-note">修订轮独立保留采集、评分、人工复核和 Day 14 结论，不覆盖首轮事实。</p>
+    <form method="post" action="/runs">
+      <input type="hidden" name="revision_of_run_id" value="{{ eligible_revision_run.mvp_run_id }}">
+      <button type="submit">创建第二轮修订实验</button>
+    </form>
+  </section>
+  {% endif %}
+
   {% if active_run %}
   <section class="ledger-section collection-workbench">
     <div class="section-head"><div><p class="eyebrow">单一主操作</p><h2>发起授权采集</h2></div><span>可见二维码 · 并发 1</span></div>

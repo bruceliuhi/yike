@@ -17,7 +17,7 @@ from app.drafter import DraftGenerator
 from app.exporter import export_signals_csv
 from app.metrics import MetricsEngine, MetricsSnapshot
 from app.model_client import model_client_from_env
-from app.repository import ActiveRunError, Repository
+from app.repository import ActiveRunError, Repository, RunRevisionError
 from app.scorer import Scorer
 from app.workflow import Workflow
 
@@ -49,6 +49,23 @@ def create_app(settings: Settings) -> FastAPI:
                 "SELECT * FROM collection_runs ORDER BY started_at DESC"
             ).fetchall()
             active_run = next((row for row in run_rows if _run_is_editable(row)), None)
+            has_active_run = any(row["state"] == "ACTIVE" for row in run_rows)
+            revision_parent_ids = {
+                str(row["revision_of_run_id"])
+                for row in run_rows
+                if row["revision_of_run_id"] is not None
+            }
+            eligible_revision_run = next(
+                (
+                    row
+                    for row in run_rows
+                    if not has_active_run
+                    and row["state"] == "FINALIZED"
+                    and row["revision_of_run_id"] is None
+                    and str(row["mvp_run_id"]) not in revision_parent_ids
+                ),
+                None,
+            )
         finally:
             repository.connection.close()
         return templates.TemplateResponse(
@@ -59,11 +76,14 @@ def create_app(settings: Settings) -> FastAPI:
                 "runs": run_rows,
                 "collections": collections,
                 "active_run": active_run,
+                "eligible_revision_run": eligible_revision_run,
             },
         )
 
     @app.post("/runs")
-    def create_run() -> RedirectResponse:
+    async def create_run(request: Request) -> RedirectResponse:
+        form = await _optional_form(request)
+        revision_of_run_id = form.get("revision_of_run_id", "").strip() or None
         repository = Repository.from_settings(settings)
         try:
             active = repository.connection.execute(
@@ -71,7 +91,9 @@ def create_app(settings: Settings) -> FastAPI:
             ).fetchone()
             if active is None:
                 try:
-                    run_id = repository.create_run(["bili", "dy"])
+                    run_id = repository.create_run(
+                        ["bili", "dy"], revision_of_run_id=revision_of_run_id
+                    )
                     status = "created"
                 except ActiveRunError:
                     active = repository.connection.execute(
@@ -81,6 +103,8 @@ def create_app(settings: Settings) -> FastAPI:
                         raise
                     run_id = str(active[0])
                     status = "existing"
+                except RunRevisionError as error:
+                    raise HTTPException(400, str(error)) from error
             else:
                 run_id = str(active[0])
                 status = "existing"
@@ -639,6 +663,12 @@ def create_app(settings: Settings) -> FastAPI:
 async def _form(request: Request) -> dict[str, str]:
     parsed = await _form_values(request)
     return {key: values[-1] for key, values in parsed.items()}
+
+
+async def _optional_form(request: Request) -> dict[str, str]:
+    if not await request.body():
+        return {}
+    return await _form(request)
 
 
 async def _form_values(request: Request) -> dict[str, list[str]]:

@@ -62,7 +62,7 @@ printf 'ACTIVE mvp_run_id=%s\n' "$MVP_RUN_ID"
 
 ## 5. 双平台三关键词采集
 
-每条命令创建一个新 attempt；进度只写 stderr，stdout 只写一行终态 JSON。
+每条命令创建一个新 attempt；进度只写 stderr，stdout 只写一行终态 JSON。每个 run 每个上海自然日最多发起 B 站 8 个查询、抖音 8 个查询；同一 run 当日两平台合计新增 300 条唯一 Signal 后，两平台都停止新采集。日限额在创建 campaign、collection attempt 和启动子进程之前检查；被拒绝的请求返回 `COLLECTION_DAILY_LIMIT_REACHED`，不写入一次虚假 attempt。
 
 B 站：
 
@@ -104,8 +104,6 @@ from app.repository import Repository
 from app.scorer import Scorer
 
 client = model_client_from_env()
-if client is None:
-    raise SystemExit("BLOCKED_INPUT: MODEL_NOT_CONFIGURED")
 repository = Repository.from_settings(Settings.from_env())
 try:
     run_id = os.environ["MVP_RUN_ID"]
@@ -133,7 +131,7 @@ finally:
 PY
 ```
 
-模型输出不满足严格 Schema 时记录失败事实，不降级生成 A/B。
+未配置模型时不在执行前退出；每个被尝试的 Signal 都写入独立 `FAILED / MODEL_NOT_CONFIGURED` score fact。模型输出不满足严格 Schema 时同样记录失败事实，不降级生成 A/B；修复配置后以新 score run 重试，不覆盖失败记录。
 
 ## 7. 人工复核、草稿和联系登记
 
@@ -144,15 +142,15 @@ open "http://127.0.0.1:8766/signals?run_id=$MVP_RUN_ID"
 对每条候选依次操作：
 
 1. 打开详情页和原评论链接，人工核对正文、父评论与来源。
-2. 选择人工标签，填写原因、备注与有效处理时间并保存复核。
+2. 选择人工标签，填写原因和备注并保存复核。
 3. 编辑不超过 180 字的个性化草稿并保存。
 4. 操作人在平台或明确公开的商务入口逐条发送；工作台不代发。
 5. 回到详情页，填写实际文本、时间、主体键和来源 URL，确认已打开来源后登记 `SENT_VERIFIED`。
 6. 在“跟进”页只登记真实发生且已人工核验的回复、访谈和报价机会。
 
-草稿、fixture、模拟回复或仅打开链接都不能登记为已联系。
+复核和人工草稿的活动时间由工作台自动记录：首次聚焦表单启动或恢复 session，页面隐藏或 60 秒无操作时暂停，提交时完成。起止时间和有效秒数仅由服务端事件重放产生，不接受浏览器手填时长。草稿、fixture、模拟回复或仅打开链接都不能登记为已联系。
 
-## 8. 指标与导出
+## 8. Day 14 结论、指标与导出
 
 ```bash
 open "http://127.0.0.1:8766/metrics?run_id=$MVP_RUN_ID"
@@ -163,7 +161,13 @@ curl --fail --silent --show-error \
 shasum -a 256 "$YIKE_RUNTIME_ROOT/exports/$MVP_RUN_ID-signals.csv"
 ```
 
-指标只从 SQLite 事实计算。CSV 不含登录态或模型密钥，但含公开作者标识和原文，只用于本轮授权实验。
+指标只从 SQLite 事实计算。run 的 Day 14 截止时间在创建时按上海时区固定；截止后不再接收采集、评分或人工事实。当指标页出现终结结论时，点击“按服务端快照冻结结论”；尚在 `RUNNING` 但需要提前终止时，点击“提前终止实验”。两者都由服务端重算并原子冻结结论，不接受页面传入的计数或决策。
+
+如真实发生已人工核验的平台、误发或数据事故，在冻结前使用指标页“登记已人工核验事故”；核验时间由服务端写入，该事实使结论进入 `STOP_DISCOVERY`，再由操作人冻结。不得为测试页面而登记虚假事故。
+
+首轮 run 进入 `FINALIZED` 后，且当前没有 ACTIVE run 时，“运行”页仅对该首轮显示一次“创建第二轮修订实验”。修订轮获得新的 run ID 和独立 Day 14 窗口；已有修订子 run 的首轮、修订轮自身或存在 ACTIVE run 时都不显示该操作。
+
+CSV 不含登录态或模型密钥，但含公开作者标识和原文，只用于本轮授权实验。
 
 ## 9. 暂停与重试
 
@@ -179,6 +183,7 @@ shasum -a 256 "$YIKE_RUNTIME_ROOT/exports/$MVP_RUN_ID-signals.csv"
 | `COLLECTION_NETWORK_FAILED` | 人工核对网络后显式发起新 attempt，不自动重试。 |
 | `PLATFORM_RESPONSE_CHANGED` / `COLLECTION_PARSE_FAILED` | 停止对应批次；修复并通过代码门禁前不重试。 |
 | `COLLECTION_CANCELLED` | 保留取消事实；需要继续时显式创建新 attempt。 |
-| `MODEL_NOT_CONFIGURED` / `MODEL_UNAVAILABLE` | 单独记录模型 `BLOCKED_INPUT`，不用规则或 fixture 伪造分数。 |
+| `COLLECTION_DAILY_LIMIT_REACHED` | 当日不再发起被限平台查询，或在全 run 达到 300 条新 Signal 时停止两平台；下一上海自然日再手工发起。 |
+| `MODEL_NOT_CONFIGURED` / `MODEL_UNAVAILABLE` | 保留 `FAILED` score fact，不用规则或 fixture 伪造分数；修复真实模型输入后创建新 score run。 |
 
 所有重试都是新的只追加 attempt，不覆盖旧事实。自动门禁、空库页面、fixture 和单平台证据都不得升级为 `REAL_COLLECTION_*` 或 14 天结论。

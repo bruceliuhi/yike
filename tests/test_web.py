@@ -128,6 +128,136 @@ def test_runs_post_creates_one_active_run_and_redirects(tmp_path):
     connection.close()
 
 
+def test_runs_page_creates_one_revision_from_eligible_finalized_base(tmp_path):
+    settings = settings_for(tmp_path)
+    with TestClient(create_app(settings)) as client:
+        client.post("/runs", follow_redirects=False)
+        connection = connect(settings.data_dir / "discovery.sqlite3")
+        base_run_id = connection.execute(
+            "SELECT mvp_run_id FROM mvp_runs WHERE state = 'ACTIVE'"
+        ).fetchone()[0]
+        connection.close()
+
+        client.post(f"/runs/{base_run_id}/cancel", follow_redirects=False)
+        eligible = client.get("/runs")
+        created = client.post(
+            "/runs",
+            data={"revision_of_run_id": base_run_id},
+            follow_redirects=False,
+        )
+        active = client.get("/runs")
+
+    connection = connect(settings.data_dir / "discovery.sqlite3")
+    base = connection.execute(
+        "SELECT revision_of_run_id, state FROM mvp_runs WHERE mvp_run_id = ?",
+        (base_run_id,),
+    ).fetchone()
+    revision = connection.execute(
+        "SELECT revision_of_run_id, state FROM mvp_runs "
+        "WHERE revision_of_run_id = ?",
+        (base_run_id,),
+    ).fetchone()
+    connection.close()
+    assert eligible.text.count("创建第二轮修订实验") == 1
+    assert f'name="revision_of_run_id" value="{base_run_id}"' in eligible.text
+    assert created.status_code == 303
+    assert (base["revision_of_run_id"], base["state"]) == (None, "FINALIZED")
+    assert (revision["revision_of_run_id"], revision["state"]) == (
+        base_run_id,
+        "ACTIVE",
+    )
+    assert "创建第二轮修订实验" not in active.text
+
+
+def test_runs_post_returns_existing_active_without_creating_requested_revision(tmp_path):
+    settings = settings_for(tmp_path)
+    with TestClient(create_app(settings)) as client:
+        client.post("/runs", follow_redirects=False)
+        connection = connect(settings.data_dir / "discovery.sqlite3")
+        active_run_id = connection.execute(
+            "SELECT mvp_run_id FROM mvp_runs WHERE state = 'ACTIVE'"
+        ).fetchone()[0]
+        connection.close()
+        repeated = client.post(
+            "/runs",
+            data={"revision_of_run_id": "must-not-be-created"},
+            follow_redirects=False,
+        )
+
+    connection = connect(settings.data_dir / "discovery.sqlite3")
+    assert repeated.status_code == 303
+    assert f"run_id={active_run_id}" in repeated.headers["location"]
+    assert "status=existing" in repeated.headers["location"]
+    assert connection.execute("SELECT COUNT(*) FROM mvp_runs").fetchone()[0] == 1
+    connection.close()
+
+
+def test_runs_revision_post_rejects_unknown_or_nonfinalized_base(tmp_path):
+    settings = settings_for(tmp_path)
+    connection = connect(settings.data_dir / "discovery.sqlite3")
+    migrate(connection)
+    repository = Repository(connection)
+    cancelled_run_id = repository.create_run(["bili", "dy"])
+    repository.cancel_run(cancelled_run_id)
+    connection.close()
+
+    with TestClient(create_app(settings)) as client:
+        unknown = client.post(
+            "/runs",
+            data={"revision_of_run_id": "missing-base"},
+            follow_redirects=False,
+        )
+        nonfinalized = client.post(
+            "/runs",
+            data={"revision_of_run_id": cancelled_run_id},
+            follow_redirects=False,
+        )
+
+    assert (unknown.status_code, nonfinalized.status_code) == (400, 400)
+
+
+def test_runs_never_offers_or_creates_revision_chain_or_second_child(tmp_path):
+    settings = settings_for(tmp_path)
+    with TestClient(create_app(settings)) as client:
+        client.post("/runs", follow_redirects=False)
+        connection = connect(settings.data_dir / "discovery.sqlite3")
+        base_run_id = connection.execute(
+            "SELECT mvp_run_id FROM mvp_runs WHERE state = 'ACTIVE'"
+        ).fetchone()[0]
+        connection.close()
+        client.post(f"/runs/{base_run_id}/cancel", follow_redirects=False)
+        client.post(
+            "/runs",
+            data={"revision_of_run_id": base_run_id},
+            follow_redirects=False,
+        )
+        connection = connect(settings.data_dir / "discovery.sqlite3")
+        revision_run_id = connection.execute(
+            "SELECT mvp_run_id FROM mvp_runs WHERE revision_of_run_id = ?",
+            (base_run_id,),
+        ).fetchone()[0]
+        connection.close()
+        client.post(f"/runs/{revision_run_id}/cancel", follow_redirects=False)
+
+        page = client.get("/runs")
+        second_child = client.post(
+            "/runs",
+            data={"revision_of_run_id": base_run_id},
+            follow_redirects=False,
+        )
+        revision_chain = client.post(
+            "/runs",
+            data={"revision_of_run_id": revision_run_id},
+            follow_redirects=False,
+        )
+
+    connection = connect(settings.data_dir / "discovery.sqlite3")
+    assert "创建第二轮修订实验" not in page.text
+    assert (second_child.status_code, revision_chain.status_code) == (400, 400)
+    assert connection.execute("SELECT COUNT(*) FROM mvp_runs").fetchone()[0] == 2
+    connection.close()
+
+
 def test_signal_filters_use_persisted_score_review_query_and_outreach(tmp_path):
     settings = settings_for(tmp_path)
     connection, repository, workflow, run_id, first, _ = facts(settings)
