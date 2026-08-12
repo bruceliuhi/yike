@@ -94,6 +94,60 @@ def test_review_binds_first_presented_successful_score(facts):
     assert row["presented_score_run_id"] == first.score_run_id
 
 
+def test_review_revisions_must_supersede_the_current_leaf(facts):
+    _, repository, workflow, run_id, signal_id = facts
+    scored = score(repository, run_id, signal_id)
+    workflow.present_score(run_id, signal_id, scored.score_run_id)
+    first_review = workflow.complete_review(
+        run_id=run_id,
+        signal_id=signal_id,
+        label="POSSIBLE",
+        reason="初次复核",
+        note=None,
+        started_at="2026-08-12T09:00:00Z",
+        completed_at="2026-08-12T09:01:00Z",
+        active_seconds=60,
+    )
+
+    with pytest.raises(ValueError, match="current review"):
+        workflow.complete_review(
+            run_id=run_id,
+            signal_id=signal_id,
+            label="NOT_LEAD",
+            reason="断根改标",
+            note=None,
+            started_at="2026-08-12T09:02:00Z",
+            completed_at="2026-08-12T09:03:00Z",
+            active_seconds=60,
+        )
+
+    second_review = workflow.complete_review(
+        run_id=run_id,
+        signal_id=signal_id,
+        label="HIGH_INTENT",
+        reason="补充证据后改标",
+        note=None,
+        started_at="2026-08-12T09:02:00Z",
+        completed_at="2026-08-12T09:03:00Z",
+        active_seconds=60,
+        supersedes_review_id=first_review,
+    )
+    assert second_review != first_review
+
+    with pytest.raises(ValueError, match="current review"):
+        workflow.complete_review(
+            run_id=run_id,
+            signal_id=signal_id,
+            label="UNVERIFIABLE",
+            reason="不允许从旧节点分叉",
+            note=None,
+            started_at="2026-08-12T09:04:00Z",
+            completed_at="2026-08-12T09:05:00Z",
+            active_seconds=60,
+            supersedes_review_id=first_review,
+        )
+
+
 def test_failed_score_cannot_be_presented(facts):
     _, repository, workflow, run_id, signal_id = facts
     failed = Scorer(repository, client=None).score(run_id, signal_id)
@@ -144,6 +198,37 @@ def test_draft_and_outreach_are_manual_facts_with_link_confirmation(facts):
         1,
         "SENT_VERIFIED",
     )
+
+
+def test_follow_up_must_reference_the_root_first_contact(facts):
+    _, _, workflow, run_id, signal_id = facts
+    review_id, draft_id, _ = prepare_reviewed_draft(facts)
+    values = dict(
+        run_id=run_id,
+        signal_id=signal_id,
+        review_id=review_id,
+        draft_run_id=draft_id,
+        platform="bili",
+        subject_key="bili:comment-author",
+        approved_text="人工确认的跟进文本",
+        source_url="https://www.bilibili.com/video/av1#reply1",
+        source_link_opened=True,
+    )
+    first = workflow.register_outreach(
+        **values, sent_at="2026-08-12T09:05:00Z"
+    )
+    follow_up = workflow.register_outreach(
+        **values,
+        sent_at="2026-08-13T09:05:00Z",
+        parent_outreach_action_id=first,
+    )
+
+    with pytest.raises(ValueError, match="first contact"):
+        workflow.register_outreach(
+            **values,
+            sent_at="2026-08-14T09:05:00Z",
+            parent_outreach_action_id=follow_up,
+        )
 
 
 def test_response_interview_and_quote_preserve_fact_causality(facts):

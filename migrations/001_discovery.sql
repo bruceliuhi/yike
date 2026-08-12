@@ -143,12 +143,44 @@ CREATE TABLE IF NOT EXISTS score_runs (
     grade TEXT,
     confidence REAL,
     reason_json TEXT,
-    status TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('SUCCEEDED', 'FAILED')),
     error_code TEXT,
     token_usage_json TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     FOREIGN KEY (mvp_run_id, signal_id)
         REFERENCES mvp_run_signals(mvp_run_id, signal_id),
+    CHECK (prompt_version IS NOT NULL AND length(trim(prompt_version)) > 0),
+    CHECK (schema_version IS NOT NULL AND length(trim(schema_version)) > 0),
+    CHECK (
+        (
+            status = 'SUCCEEDED'
+            AND provider IS NOT NULL AND length(trim(provider)) > 0
+            AND model IS NOT NULL AND length(trim(model)) > 0
+            AND dimension_scores_json IS NOT NULL
+            AND json_valid(dimension_scores_json)
+            AND total_score IS NOT NULL AND total_score BETWEEN 0 AND 12
+            AND grade IS NOT NULL AND grade IN ('A', 'B', 'C', 'D')
+            AND confidence IS NOT NULL AND confidence BETWEEN 0.0 AND 1.0
+            AND reason_json IS NOT NULL AND json_valid(reason_json)
+            AND error_code IS NULL
+            AND (token_usage_json IS NULL OR json_valid(token_usage_json))
+        )
+        OR (
+            status = 'FAILED'
+            AND dimension_scores_json IS NULL
+            AND total_score IS NULL
+            AND grade IS NULL
+            AND confidence IS NULL
+            AND reason_json IS NULL
+            AND token_usage_json IS NULL
+            AND error_code IS NOT NULL
+            AND error_code IN (
+                'MODEL_NOT_CONFIGURED',
+                'MODEL_UNAVAILABLE',
+                'MODEL_OUTPUT_INVALID'
+            )
+        )
+    ),
     UNIQUE (score_run_id, mvp_run_id, signal_id)
 );
 
@@ -177,7 +209,7 @@ CREATE TABLE IF NOT EXISTS human_reviews (
     started_at TEXT,
     completed_at TEXT,
     active_seconds INTEGER,
-    supersedes_review_id TEXT,
+    supersedes_review_id TEXT UNIQUE,
     FOREIGN KEY (mvp_run_id, signal_id)
         REFERENCES mvp_run_signals(mvp_run_id, signal_id),
     FOREIGN KEY (presented_score_run_id, mvp_run_id, signal_id)
@@ -189,6 +221,10 @@ CREATE TABLE IF NOT EXISTS human_reviews (
     CHECK (supersedes_review_id IS NULL OR supersedes_review_id <> review_id),
     UNIQUE (review_id, mvp_run_id, signal_id)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS one_root_review_per_signal
+    ON human_reviews(mvp_run_id, signal_id)
+    WHERE supersedes_review_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS draft_runs (
     draft_run_id TEXT PRIMARY KEY,
@@ -239,6 +275,18 @@ CREATE TABLE IF NOT EXISTS outreach_actions (
     CHECK (
         parent_outreach_action_id IS NULL
         OR parent_outreach_action_id <> outreach_action_id
+    ),
+    CHECK (
+        status <> 'SENT_VERIFIED'
+        OR (
+            source_link_opened = 1
+            AND approved_text IS NOT NULL
+            AND length(trim(approved_text, char(9) || char(10) || char(13) || ' ')) > 0
+            AND sent_at IS NOT NULL
+            AND length(trim(sent_at, char(9) || char(10) || char(13) || ' ')) > 0
+            AND source_url IS NOT NULL
+            AND length(trim(source_url, char(9) || char(10) || char(13) || ' ')) > 0
+        )
     ),
     UNIQUE (outreach_action_id, mvp_run_id),
     UNIQUE (outreach_action_id, mvp_run_id, signal_id, platform, subject_key)
@@ -690,6 +738,41 @@ WHEN NOT EXISTS (
       AND signal_id = NEW.signal_id
 )
 BEGIN SELECT RAISE(ABORT, 'PRESENTED_SCORE_NOT_SUCCEEDED'); END;
+
+CREATE TRIGGER IF NOT EXISTS review_revision_must_follow_current_leaf
+BEFORE INSERT ON human_reviews
+WHEN EXISTS (
+        SELECT 1 FROM human_reviews
+        WHERE mvp_run_id = NEW.mvp_run_id AND signal_id = NEW.signal_id
+    )
+    AND (
+        NEW.supersedes_review_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1 FROM human_reviews AS parent
+            WHERE parent.review_id = NEW.supersedes_review_id
+              AND parent.mvp_run_id = NEW.mvp_run_id
+              AND parent.signal_id = NEW.signal_id
+              AND NOT EXISTS (
+                  SELECT 1 FROM human_reviews AS child
+                  WHERE child.supersedes_review_id = parent.review_id
+              )
+        )
+    )
+BEGIN SELECT RAISE(ABORT, 'REVIEW_SUPERSEDES_NOT_CURRENT'); END;
+
+CREATE TRIGGER IF NOT EXISTS follow_up_parent_must_be_root
+BEFORE INSERT ON outreach_actions
+WHEN NEW.parent_outreach_action_id IS NOT NULL
+    AND NOT EXISTS (
+        SELECT 1 FROM outreach_actions AS parent
+        WHERE parent.outreach_action_id = NEW.parent_outreach_action_id
+          AND parent.mvp_run_id = NEW.mvp_run_id
+          AND parent.signal_id = NEW.signal_id
+          AND parent.platform = NEW.platform
+          AND parent.subject_key = NEW.subject_key
+          AND parent.parent_outreach_action_id IS NULL
+    )
+BEGIN SELECT RAISE(ABORT, 'FOLLOW_UP_PARENT_NOT_ROOT'); END;
 
 CREATE TRIGGER IF NOT EXISTS outreach_bindings_must_be_ready
 BEFORE INSERT ON outreach_actions

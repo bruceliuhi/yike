@@ -76,6 +76,23 @@ class Workflow:
         ).fetchone()
         if presentation is None:
             raise ValueError("a successful score must be presented before review")
+        current_review = self.connection.execute(
+            """
+            SELECT review.review_id
+            FROM human_reviews AS review
+            WHERE review.mvp_run_id = ? AND review.signal_id = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM human_reviews AS child
+                  WHERE child.supersedes_review_id = review.review_id
+              )
+            """,
+            (run_id, signal_id),
+        ).fetchone()
+        if current_review is None:
+            if supersedes_review_id is not None:
+                raise ValueError("first review cannot supersede another review")
+        elif supersedes_review_id != current_review["review_id"]:
+            raise ValueError("revision must supersede the current review")
         review_id = str(uuid4())
         with self.connection:
             self.connection.execute(
@@ -179,6 +196,26 @@ class Workflow:
             raise ValueError("a successful draft is required before outreach")
         if signal is None or signal["platform"] != platform:
             raise ValueError("outreach platform must match signal platform")
+        if parent_outreach_action_id is not None:
+            parent = self.connection.execute(
+                """
+                SELECT 1 FROM outreach_actions
+                WHERE outreach_action_id = ? AND mvp_run_id = ?
+                  AND signal_id = ? AND platform = ? AND subject_key = ?
+                  AND parent_outreach_action_id IS NULL
+                """,
+                (
+                    parent_outreach_action_id,
+                    run_id,
+                    signal_id,
+                    platform,
+                    subject_key,
+                ),
+            ).fetchone()
+            if parent is None:
+                raise ValueError(
+                    "follow-up parent must be the matching first contact"
+                )
         outreach_id = str(uuid4())
         with self.connection:
             self.connection.execute(

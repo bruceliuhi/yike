@@ -233,3 +233,19 @@ def test_openai_compatible_client_rejects_non_json_content():
 
     with pytest.raises(json.JSONDecodeError):
         client.complete(source_text="source")
+
+
+def test_model_client_secret_is_excluded_from_repr_and_comparison():
+    first = OpenAICompatibleModelClient(
+        base_url="https://models.example/v1",
+        api_key="first-secret",
+        model="strict-model",
+    )
+    second = OpenAICompatibleModelClient(
+        base_url="https://models.example/v1",
+        api_key="second-secret",
+        model="strict-model",
+    )
+
+    assert "first-secret" not in repr(first)
+    assert first == second

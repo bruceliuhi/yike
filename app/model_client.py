@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import os
 from typing import Mapping, Protocol
@@ -20,7 +20,7 @@ class ModelClient(Protocol):
 @dataclass(frozen=True)
 class OpenAICompatibleModelClient:
     base_url: str
-    api_key: str
+    api_key: str = field(repr=False, compare=False)
     model: str
     provider: str = "openai-compatible"
     timeout_seconds: float = 30.0
