@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}证据详情 | 意客 AI{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div><p class="eyebrow">证据优先 · AI 与人工结论分离</p><h1>证据详情</h1></div>
+  <span class="status">{% if signal %}{{ signal.platform }} / {{ signal.query_cluster or '未分组' }}{% else %}未找到{% endif %}</span>
+</header>
+{% if signal %}
+<div class="detail-grid" data-detail-reveal>
+  <section class="detail-primary">
+    <article class="evidence">
+      <p class="eyebrow">原始来源</p>
+      <h2>{{ signal.source_title or '未命名来源' }}</h2>
+      {% if signal.parent_body %}<p class="context-label">父评论上下文</p><p class="parent-context">{{ signal.parent_body }}</p>{% endif %}
+      <p class="context-label">原评论</p>
+      <blockquote>{{ signal.body }}</blockquote>
+      <dl class="fact-list">
+        <div><dt>作者公开 ID</dt><dd class="mono">{{ signal.author_public_id }}</dd></div>
+        <div><dt>查询</dt><dd>{{ signal.query_text or '未记录' }}</dd></div>
+        <div><dt>发布时间</dt><dd>{{ signal.published_at or '未记录' }}</dd></div>
+      </dl>
+      <div class="source-actions">
+        <a href="{{ signal.normalized_comment_url }}" target="_blank" rel="noreferrer">打开原评论链接</a>
+        {% if signal.source_url %}<a href="{{ signal.source_url }}" target="_blank" rel="noreferrer">打开来源内容</a>{% endif %}
+      </div>
+    </article>
+
+    <section class="ledger-section">
+      <div class="section-head"><div><p class="eyebrow">AI 评分版本</p><h2>模型结论仅供人工参考</h2></div><span>{{ scores|length }} 版</span></div>
+      {% if scores %}
+      <div class="history-list">
+        {% for score in scores %}
+        <article class="history-row">
+          <div><span class="grade grade-{{ score.grade|lower }}">{{ score.grade or '失败' }}</span><strong>{{ score.total_score if score.total_score is not none else '—' }} 分</strong></div>
+          <div><p class="mono">{{ score.score_run_id }}</p><p>{{ score.reason.pain_summary if score.reason else score.error_code or '无理由' }}</p></div>
+          <div><span>{{ score.status }}</span>{% if score.presented %}<small>已向人工展示</small>{% endif %}</div>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}<p class="quiet">暂无评分事实。</p>{% endif %}
+    </section>
+
+    <section class="ledger-section">
+      <div class="section-head"><div><p class="eyebrow">人工复核</p><h2>人工结论与理由</h2></div><span>{{ reviews|length }} 次</span></div>
+      {% if reviews %}<div class="history-list">{% for review in reviews %}<article class="history-row"><div><strong>{{ review.label }}</strong></div><div><p>{{ review.reason }}</p>{% if review.note %}<small>{{ review.note }}</small>{% endif %}</div><div><span>{{ review.active_seconds }}s</span><small>{{ review.completed_at }}</small></div></article>{% endfor %}</div>{% endif %}
+      {% if successful_scores %}
+      <form class="operator-form" method="post" action="/signals/{{ signal.signal_id }}/reviews">
+        <input type="hidden" name="run_id" value="{{ run_id }}">
+        {% if reviews %}<input type="hidden" name="supersedes_review_id" value="{{ reviews[0].review_id }}">{% endif %}
+        <label>评分版本<select name="score_run_id" required>{% for score in successful_scores %}<option value="{{ score.score_run_id }}">{{ score.grade }} · {{ score.score_run_id }}</option>{% endfor %}</select></label>
+        <label>人工结论<select name="label" required><option value="HIGH_INTENT">高意向</option><option value="POSSIBLE">可能线索</option><option value="NOT_LEAD">非线索</option><option value="UNVERIFIABLE">无法核验</option></select></label>
+        <label class="span-2">判断理由<textarea name="reason" rows="3" required></textarea></label>
+        <label class="span-2">备注<textarea name="note" rows="2"></textarea></label>
+        <label>开始时间<input type="datetime-local" name="started_at" required></label>
+        <label>完成时间<input type="datetime-local" name="completed_at" required></label>
+        <label>有效秒数<input type="number" name="active_seconds" min="0" required></label>
+        <div class="form-action"><button type="submit">{{ '修订人工复核' if reviews else '记录人工复核' }}</button></div>
+      </form>
+      {% endif %}
+    </section>
+
+    <section class="ledger-section">
+      <div class="section-head"><div><p class="eyebrow">回复草稿</p><h2>人工编辑，不自动发送</h2></div><span>{{ drafts|length }} 版</span></div>
+      {% if drafts %}<div class="history-list">{% for draft in drafts %}<article class="history-row"><div><strong>v{{ loop.revindex }}</strong></div><div><p>{{ draft.body }}</p><small class="mono">{{ draft.draft_run_id }}</small></div><div><span>{{ draft.status }}</span><small>{{ draft.created_at }}</small></div></article>{% endfor %}</div>{% endif %}
+      <form class="operator-form compact" method="post" action="/signals/{{ signal.signal_id }}/drafts">
+        <input type="hidden" name="run_id" value="{{ run_id }}">
+        <label class="span-2">草稿（最多 180 字）<textarea name="body" rows="4" maxlength="180" required></textarea></label>
+        <div class="form-action"><button type="submit">保存草稿版本</button></div>
+      </form>
+    </section>
+
+    <section class="ledger-section">
+      <div class="section-head"><div><p class="eyebrow">联系登记</p><h2>仅登记已由人工执行的事实</h2></div><span>{{ outreach|length }} 条</span></div>
+      {% if outreach %}<div class="history-list">{% for action in outreach %}<article class="history-row"><div><strong>{{ action.platform }}</strong></div><div><p>{{ action.approved_text }}</p><small class="mono">{{ action.subject_key }}</small></div><div><span>{{ action.status }}</span><small>{{ action.sent_at }}</small></div></article>{% endfor %}</div>{% endif %}
+      {% if reviews and drafts %}
+      <form class="operator-form" method="post" action="/signals/{{ signal.signal_id }}/outreach">
+        <input type="hidden" name="run_id" value="{{ run_id }}">
+        <input type="hidden" name="platform" value="{{ signal.platform }}">
+        <label>人工复核<select name="review_id" required>{% for review in reviews %}<option value="{{ review.review_id }}">{{ review.label }} · {{ review.completed_at }}</option>{% endfor %}</select></label>
+        <label>草稿版本<select name="draft_run_id" required>{% for draft in drafts %}<option value="{{ draft.draft_run_id }}">{{ draft.body|truncate(38) }}</option>{% endfor %}</select></label>
+        <label>联系主体键<input name="subject_key" value="{{ signal.platform }}:{{ signal.author_public_id }}" required></label>
+        <label>人工发送时间<input type="datetime-local" name="sent_at" required></label>
+        <label class="span-2">实际批准并发送的文本<textarea name="approved_text" rows="4" maxlength="180" required>{{ drafts[0].body }}</textarea></label>
+        <label class="span-2">证据链接<input type="url" name="source_url" value="{{ signal.normalized_comment_url }}" required></label>
+        <label class="check span-2"><input type="checkbox" name="source_link_opened" value="yes" required><span>我已打开并核对上方来源链接；本系统未代我发送。</span></label>
+        <div class="form-action"><button type="submit">登记已发送事实</button></div>
+      </form>
+      {% else %}<p class="quiet">完成人工复核并保存草稿后，才可登记联系。</p>{% endif %}
+    </section>
+  </section>
+</div>
+{% else %}
+<section class="empty-state"><p class="eyebrow mono">{{ signal_id }}</p><h2>未找到该证据</h2><p>返回线索页选择一条已入库 Signal。</p><a class="button" href="/signals">查看线索</a></section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}跟进 | 意客 AI{% endblock %}
+{% block content %}
+<header class="page-head"><div><p class="eyebrow">人工事实链 · 不执行外部请求</p><h1>跟进</h1></div><span class="status">手工登记，不自动发送</span></header>
+{% if timeline %}
+<div class="timeline">
+  {% for item in timeline %}
+  <article class="timeline-item">
+    <header><div><p class="eyebrow">{{ 'Bilibili' if item.fact.platform == 'bili' else 'Douyin' }} · {{ item.fact.status }}</p><h2>{{ item.fact.subject_key }}</h2></div><time>{{ item.fact.sent_at }}</time></header>
+    <p class="sent-copy">{{ item.fact.approved_text }}</p>
+    <a class="source-link" href="{{ item.fact.source_url }}" target="_blank" rel="noreferrer">核对联系来源</a>
+    <div class="timeline-facts">
+      {% for response in item.responses %}
+      <section class="response-fact">
+        <p><strong>{{ response.fact.response_type }}</strong> · {{ response.fact.summary }}</p><small>{{ response.fact.occurred_at }} · 已人工核验</small>
+        {% for interview in response.interviews %}<p class="nested-fact">访谈完成 · {{ interview.completed_at }} · {{ interview.next_step }}</p>{% endfor %}
+        {% for quote in response.quotes %}<p class="nested-fact">报价机会 · {{ quote.scope_summary }} · {{ quote.verified_at }}</p>{% endfor %}
+      </section>
+      {% endfor %}
+    </div>
+
+    <details class="fact-entry" {% if not item.responses %}open{% endif %}>
+      <summary>登记回复</summary>
+      <form class="operator-form" method="post" action="/followups/responses">
+        <input type="hidden" name="run_id" value="{{ run_id }}"><input type="hidden" name="outreach_action_id" value="{{ item.fact.outreach_action_id }}">
+        <label>响应主体键<input name="responder_subject_key" value="{{ item.fact.subject_key }}" required></label>
+        <label>回复类型<select name="response_type" required><option value="VALID">有效回复</option><option value="INVALID">无效回复</option></select></label>
+        <label class="span-2">回复摘要<textarea name="summary" rows="3" required></textarea></label>
+        <label>发生时间<input type="datetime-local" name="occurred_at" required></label><label>核验时间<input type="datetime-local" name="verified_at" required></label>
+        <div class="form-action"><button type="submit">登记回复事实</button></div>
+      </form>
+    </details>
+
+    {% for response in item.responses %}
+    <details class="fact-entry">
+      <summary>基于回复登记访谈 / 报价</summary>
+      <div class="split-forms">
+        <form class="operator-form" method="post" action="/followups/interviews">
+          <input type="hidden" name="run_id" value="{{ run_id }}"><input type="hidden" name="response_event_id" value="{{ response.fact.response_event_id }}">
+          <p class="form-title">访谈事实</p><label>排期时间<input type="datetime-local" name="scheduled_at" required></label><label>完成时间<input type="datetime-local" name="completed_at" required></label><label class="span-2">摘要<textarea name="summary" rows="3" required></textarea></label><label class="span-2">下一步<input name="next_step" required></label><div class="form-action"><button type="submit">登记访谈</button></div>
+        </form>
+        <form class="operator-form" method="post" action="/followups/quotes">
+          <input type="hidden" name="run_id" value="{{ run_id }}"><input type="hidden" name="response_event_id" value="{{ response.fact.response_event_id }}">
+          <p class="form-title">报价机会事实</p><label class="span-2">范围摘要<textarea name="scope_summary" rows="3" required></textarea></label><label>同意接收报价时间<input type="datetime-local" name="agreed_to_receive_pricing_at" required></label><label>核验时间<input type="datetime-local" name="verified_at" required></label><div class="form-action"><button type="submit">登记报价机会</button></div>
+        </form>
+      </div>
+    </details>
+    {% endfor %}
+  </article>
+  {% endfor %}
+</div>
+{% else %}<section class="empty-state"><p class="eyebrow">没有已核验联系</p><h2>等待人工发送后登记</h2><p>系统不代发评论、私信、邮件或企业微信消息。</p></section>{% endif %}
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}指标 | 意客 AI{% endblock %}
+{% block content %}
+<header class="page-head"><div><p class="eyebrow">SQLite 事实 · 浏览器不可提交计数</p><h1>指标</h1></div><span class="status">{% if metrics %}{{ metrics.decision }}{% else %}无运行{% endif %}</span></header>
+{% if metrics %}
+<section class="decision-band decision-{{ metrics.decision|lower }}">
+  <div><p class="eyebrow">当前唯一结论</p><h2>{{ metrics.decision }}</h2></div>
+  <p>{% if metrics.incident %}已核验平台/数据事故，按最高优先级停止。{% elif metrics.loss_stop %}量化止损条件已命中。{% elif metrics.blocked_input %}存在真实采集或模型输入阻塞，不用 fixture 清除。{% elif metrics.all_success_thresholds %}全部成功门槛已由事实满足。{% elif metrics.terminal_eligible %}实验已达终结边界，但未满足全部成功门槛。{% else %}实验进行中；未命中停止、阻塞或成功条件。{% endif %}</p>
+</section>
+<section class="ledger-section">
+  <div class="section-head"><div><p class="eyebrow">发现与识别</p><h2>业务事实门槛</h2></div><span>不接受浏览器计数</span></div>
+  <dl class="metric-ledger">
+    <div><dt>可核验 Signal <small>目标 300</small></dt><dd>{{ metrics.unique_verifiable_signals }}</dd></div>
+    <div><dt>人工复核 <small>目标 100</small></dt><dd>{{ metrics.reviewed_signals }}</dd></div>
+    <div><dt>已复核 A/B <small>目标 40</small></dt><dd>{{ metrics.reviewed_ab }}</dd></div>
+    <div><dt>A/B 精确率 <small>目标 ≥50%</small></dt><dd>{% if metrics.precision is not none %}{{ '%.0f'|format(metrics.precision * 100) }}%{% else %}—{% endif %}</dd></div>
+  </dl>
+</section>
+<section class="ledger-section">
+  <div class="section-head"><div><p class="eyebrow">联系与商业验证</p><h2>唯一主体因果链</h2></div><span>人工核验</span></div>
+  <dl class="metric-ledger">
+    <div><dt>首次联系主体 <small>目标 30</small></dt><dd>{{ metrics.first_outreach_subjects }}</dd></div>
+    <div><dt>有效回复主体 <small>目标 5</small></dt><dd>{{ metrics.valid_response_subjects }}</dd></div>
+    <div><dt>完成访谈主体 <small>目标 2</small></dt><dd>{{ metrics.completed_interviews }}</dd></div>
+    <div><dt>已核验报价主体 <small>目标 1</small></dt><dd>{{ metrics.verified_quotes }}</dd></div>
+  </dl>
+</section>
+<section class="truth-order"><p class="eyebrow">结论真值顺序</p><p><strong>事故 → STOP</strong><span>止损 → STOP</span><span>输入阻塞 → BLOCKED</span><span>成功 → PROCEED</span><span>终结 → REVISE</span><span>否则 RUNNING</span></p><small>人工时间和个性化上下文缺少受治理事实时，成功门槛会 fail closed，不伪造结论。</small></section>
+{% else %}<section class="empty-state"><p class="eyebrow">无可计算范围</p><h2>尚未创建实验</h2><p>指标只从当前 run 的持久事实计算。</p></section>{% endif %}
+{% endblock %}

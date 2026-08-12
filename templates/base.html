@@ -7,7 +7,25 @@
     <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
   </head>
   <body>
-    <main>{% block content %}{% endblock %}</main>
+    <a class="skip-link" href="#workspace">跳到主工作区</a>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="/runs"><span>意客 AI</span><small>DISCOVERY / 本地</small></a>
+        <nav aria-label="工作区导航">
+          <a href="/runs" {% if request.url.path == '/runs' %}aria-current="page"{% endif %}>运行</a>
+          <a href="/signals" {% if request.url.path == '/signals' %}aria-current="page"{% endif %}>线索</a>
+          <a href="/signals" {% if request.url.path.startswith('/signals/') %}aria-current="page"{% endif %}>证据详情</a>
+          <a href="/followups" {% if request.url.path == '/followups' %}aria-current="page"{% endif %}>跟进</a>
+          <a href="/metrics" {% if request.url.path == '/metrics' %}aria-current="page"{% endif %}>指标</a>
+        </nav>
+        <p class="scope-note">Bilibili · Douyin<br>事实只追加</p>
+      </aside>
+      <main id="workspace">
+        {% if request.query_params.get('saved') %}<div class="status-strip" role="status" data-status-strip>事实已追加保存 · {{ request.query_params.get('saved') }}</div>{% endif %}
+        {% if request.query_params.get('status') %}<div class="status-strip" role="status" data-status-strip>运行状态 · {{ request.query_params.get('status') }}{% if request.query_params.get('error_code') %} · {{ request.query_params.get('error_code') }}{% endif %}</div>{% endif %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
     <script src="{{ url_for('static', path='/app.js') }}"></script>
   </body>
 </html>

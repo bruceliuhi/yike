@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}线索 | 意客 AI{% endblock %}
+{% block content %}
+<header class="page-head"><div><p class="eyebrow">范围 · 全部事实 Signal</p><h1>线索</h1></div><span class="status">{{ signals|length }} 条</span></header>
+<form class="filter-bar" method="get" action="/signals" data-auto-submit>
+  {% if run_id %}<input type="hidden" name="run_id" value="{{ run_id }}">{% endif %}
+  <label>平台<select name="platform"><option value="">全部</option><option value="bili" {% if filters.platform == 'bili' %}selected{% endif %}>Bilibili / B 站</option><option value="dy" {% if filters.platform == 'dy' %}selected{% endif %}>Douyin / 抖音</option></select></label>
+  <label>AI 等级<select name="grade"><option value="">全部</option>{% for value in ['A','B','C','D'] %}<option value="{{ value }}" {% if filters.grade == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></label>
+  <label>人工结论<select name="review"><option value="">全部</option><option value="HIGH_INTENT" {% if filters.review == 'HIGH_INTENT' %}selected{% endif %}>高意向</option><option value="POSSIBLE" {% if filters.review == 'POSSIBLE' %}selected{% endif %}>可能</option><option value="NOT_LEAD" {% if filters.review == 'NOT_LEAD' %}selected{% endif %}>非线索</option><option value="UNVERIFIABLE" {% if filters.review == 'UNVERIFIABLE' %}selected{% endif %}>无法核验</option></select></label>
+  <label>行业<select name="industry"><option value="">全部</option>{% for value in industries %}<option value="{{ value }}" {% if filters.industry == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></label>
+  <label>查询簇<input name="query_cluster" value="{{ filters.query_cluster }}" placeholder="全部"></label>
+  <label>联系状态<select name="outreach"><option value="">全部</option><option value="NONE" {% if filters.outreach == 'NONE' %}selected{% endif %}>未联系</option><option value="SENT_VERIFIED" {% if filters.outreach == 'SENT_VERIFIED' %}selected{% endif %}>已人工发送</option></select></label>
+  <button type="submit">筛选</button>
+</form>
+<div class="toolbar"><p>显示持久化事实；AI 评分不代替人工复核。</p>{% if run_id %}<a href="/export.csv?run_id={{ run_id }}">导出可见事实 CSV</a>{% endif %}</div>
+{% if signals %}
+<div class="work-table signal-table"><div class="table-row table-head"><span>证据</span><span>平台</span><span>AI / 人工</span><span>行业 / 查询</span><span>联系</span></div>{% for item in signals %}<a class="table-row" data-selectable-row href="/signals/{{ item.signal_id }}?run_id={{ run_id }}"><span><strong>{{ item.body }}</strong><small>{{ item.source_title or '未命名来源' }} · {{ item.author_public_id }}</small></span><span>{{ 'Bilibili' if item.platform == 'bili' else 'Douyin' }}</span><span><b class="grade grade-{{ (item.grade or 'none')|lower }}">{{ item.grade or '—' }}</b><small>{{ item.review_label or '待复核' }}</small></span><span>{{ item.industry or '未识别' }}<small>{{ item.query_cluster or '未分组' }}</small></span><span>{{ '已人工发送' if item.outreach_state == 'SENT_VERIFIED' else '未联系' }}</span></a>{% endfor %}</div>
+{% else %}<section class="empty-state"><p class="eyebrow">等待采集事实</p><h2>当前范围无线索</h2><p>Signal 会在完成授权采集后出现；fixture 不计入业务证据。</p></section>{% endif %}
+{% endblock %}

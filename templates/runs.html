@@ -3,6 +3,40 @@
 {% block title %}运行 | 意客 AI DISCOVERY MVP{% endblock %}
 
 {% block content %}
-  <h1>运行</h1>
-  <p>本地 DISCOVERY MVP 已启动，尚无运行记录。</p>
+  <header class="page-head">
+    <div><p class="eyebrow">实验范围 · Bilibili + Douyin</p><h1>运行</h1></div>
+    <span class="status">{% if active_run %}ACTIVE{% elif runs %}{{ runs[0].state }}{% else %}未创建{% endif %}</span>
+  </header>
+  {% if runs %}
+    <section class="ledger-section">
+      <div class="section-head"><div><p class="eyebrow">事实范围</p><h2>14 天实验运行</h2></div><span>{{ runs|length }} 个 run</span></div>
+      <div class="work-table"><div class="table-row table-head"><span>Run</span><span>状态</span><span>开始 / 截止</span></div>
+      {% for run in runs %}<div class="table-row"><span class="mono">{{ run.mvp_run_id }}</span><span>{{ run.state }}</span><span>{{ run.started_at }}<small>{{ run.day14_due_at }}</small></span></div>{% endfor %}</div>
+    </section>
+  {% else %}
+    <section class="empty-state"><p class="eyebrow">本地事实库为空</p><h2>创建第一个 14 天实验</h2><p>创建后固定 Bilibili（B 站）与 Douyin（抖音）范围；采集需要可见浏览器与人工扫码。</p><form method="post" action="/runs"><button type="submit">创建双平台实验</button></form></section>
+  {% endif %}
+
+  {% if active_run %}
+  <section class="ledger-section collection-workbench">
+    <div class="section-head"><div><p class="eyebrow">单一主操作</p><h2>发起授权采集</h2></div><span>可见二维码 · 并发 1</span></div>
+    <p class="section-note">只运行搜索与 JSONL 导入；不使用代理、Cookie 注入或风控绕过。缺少真实 runtime / 扫码时会以 BLOCKED_INPUT 事实返回。</p>
+    <form class="operator-form" method="post" action="/runs/collect">
+      <input type="hidden" name="run_id" value="{{ active_run.mvp_run_id }}">
+      <label>平台<select name="platform" required><option value="bili">Bilibili / B 站</option><option value="dy">Douyin / 抖音</option></select></label>
+      <label>查询簇<input name="query_cluster" placeholder="sales-agent" required></label>
+      <label class="span-2">搜索词<input name="query_text" placeholder="B2B 销售线索筛选" required></label>
+      <label>最多内容数<input type="number" name="max_contents" value="5" min="1" max="10" required></label>
+      <label>每内容最多评论<input type="number" name="max_comments_per_content" value="20" min="1" max="50" required></label>
+      <div class="form-action"><button type="submit">发起本次采集</button></div>
+    </form>
+  </section>
+  {% endif %}
+
+  {% if collections %}
+  <section class="ledger-section">
+    <div class="section-head"><div><p class="eyebrow">采集事实</p><h2>历史尝试</h2></div><span>{{ collections|length }} 次</span></div>
+    <div class="work-table collection-table"><div class="table-row table-head"><span>平台 / Collection</span><span>状态</span><span>计数 / 错误</span></div>{% for item in collections %}<div class="table-row"><span><strong>{{ 'Bilibili' if item.platform == 'bili' else 'Douyin' }}</strong><small class="mono">{{ item.collection_run_id }}</small></span><span>{{ item.state }}</span><span>{{ item.raw_count }} raw / {{ item.unique_count }} unique<small>{{ item.error_code or '无错误' }}</small></span></div>{% endfor %}</div>
+  </section>
+  {% endif %}
 {% endblock %}
