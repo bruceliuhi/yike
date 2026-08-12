@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/NanmiCoder/MediaCrawler.git",
+  "commit": "439509782cc2991c8ef7648e178d5847b0545798",
+  "login_type": "qrcode",
+  "browser_visibility": "visible",
+  "output_format": "jsonl"
+}

@@ -39,6 +39,7 @@ class NormalizedSignal:
     external_source_id: str | None = None
     source_title: str | None = None
     source_url: str | None = None
+    source_author_public_id: str | None = None
     external_comment_id: str | None = None
     parent_comment_id: str | None = None
     parent_body: str | None = None
@@ -48,6 +49,7 @@ class NormalizedSignal:
     published_at: str | None = None
     collected_at: str | None = None
     raw_sha256: str | None = None
+    body_sha256: str | None = None
     envelope_sha256: str | None = None
     query_cluster: str | None = None
     query_text: str | None = None
@@ -142,6 +144,112 @@ class Repository:
         return run_id
 
     def import_signal(self, run_id: str, item: NormalizedSignal) -> ImportResult:
+        return self.import_signals(run_id, [item])[0]
+
+    def import_signals(
+        self, run_id: str, items: list[NormalizedSignal]
+    ) -> list[ImportResult]:
+        prepared = [self._prepare_signal(run_id, item) for item in items]
+        results: list[ImportResult] = []
+        try:
+            with self.connection:
+                for item, values in zip(items, prepared, strict=True):
+                    results.append(self._import_prepared_signal(run_id, item, *values))
+        except sqlite3.IntegrityError as error:
+            if "FINALIZED_RUN_IMMUTABLE" in str(error):
+                raise FinalizedRunError("FINALIZED_RUN_IMMUTABLE") from error
+            raise
+        return results
+
+    def begin_collection(
+        self,
+        *,
+        run_id: str,
+        collection_run_id: str,
+        platform: str,
+        query_cluster: str,
+        query_text: str,
+        max_contents: int,
+        max_comments_per_content: int,
+    ) -> str:
+        if platform not in _PLATFORMS:
+            raise ValueError("platform must be one of: bili, dy")
+        if not 1 <= max_contents <= 10 or not 1 <= max_comments_per_content <= 50:
+            raise ValueError("collection limit is outside the allowed range")
+        run = self.connection.execute(
+            "SELECT state, platform_scope_json FROM mvp_runs WHERE mvp_run_id = ?",
+            (run_id,),
+        ).fetchone()
+        if run is None or run["state"] != "ACTIVE":
+            raise ValueError("collection requires an ACTIVE mvp run")
+        if platform not in json.loads(run["platform_scope_json"]):
+            raise ValueError("collection platform is outside the run scope")
+        campaign_id = str(uuid4())
+        now = _utc_now()
+        with self.connection:
+            self.connection.execute(
+                """
+                INSERT INTO campaigns (
+                    campaign_id, mvp_run_id, platform, query_cluster, query_text,
+                    max_contents, max_comments_per_content, state, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?)
+                """,
+                (
+                    campaign_id,
+                    run_id,
+                    platform,
+                    query_cluster,
+                    query_text,
+                    max_contents,
+                    max_comments_per_content,
+                    now,
+                ),
+            )
+            self.connection.execute(
+                """
+                INSERT INTO collection_runs (
+                    collection_run_id, mvp_run_id, campaign_id, platform,
+                    attempt, backend, state, started_at
+                ) VALUES (?, ?, ?, ?, 1, 'MEDIACRAWLER_AUTHORIZED', 'RUNNING', ?)
+                """,
+                (collection_run_id, run_id, campaign_id, platform, now),
+            )
+        return campaign_id
+
+    def finish_collection(
+        self,
+        collection_run_id: str,
+        *,
+        state: str,
+        raw_count: int,
+        unique_count: int,
+        error_code: str | None,
+        output_manifest_sha256: str | None = None,
+    ) -> None:
+        with self.connection:
+            result = self.connection.execute(
+                """
+                UPDATE collection_runs
+                SET state = ?, finished_at = ?, raw_count = ?, unique_count = ?,
+                    error_code = ?, output_manifest_sha256 = ?
+                WHERE collection_run_id = ?
+                """,
+                (
+                    state,
+                    _utc_now(),
+                    raw_count,
+                    unique_count,
+                    error_code,
+                    output_manifest_sha256,
+                    collection_run_id,
+                ),
+            )
+        if result.rowcount != 1:
+            raise KeyError(f"unknown collection run: {collection_run_id}")
+
+    def _prepare_signal(
+        self, run_id: str, item: NormalizedSignal
+    ) -> tuple[str | None, str, str, str, str, str]:
         if item.platform not in _PLATFORMS:
             raise ValueError("platform must be one of: bili, dy")
         if not item.body or not item.body.strip():
@@ -172,51 +280,71 @@ class Repository:
             raise ValueError("signal platform is outside the run scope")
 
         body_sha256 = _sha256(item.body)
+        if item.body_sha256 is not None and item.body_sha256 != body_sha256:
+            raise ValueError("signal body SHA-256 does not match body")
         raw_sha256 = item.raw_sha256 or _sha256(item.body)
         observed_at = item.collected_at or _utc_now()
-        observation_id = str(uuid4())
+        return (
+            external_comment_id,
+            comment_url,
+            author_public_id,
+            body_sha256,
+            raw_sha256,
+            observed_at,
+        )
 
-        try:
-            with self.connection:
-                source_id = self._resolve_source(item, author_public_id)
-                signal_id, created = self._resolve_signal(
-                    item,
-                    source_id,
-                    external_comment_id,
-                    comment_url,
-                    author_public_id,
-                    body_sha256,
-                )
-                self.connection.execute(
-                    """
-                    INSERT OR IGNORE INTO mvp_run_signals (mvp_run_id, signal_id, added_at)
-                    VALUES (?, ?, ?)
-                    """,
-                    (run_id, signal_id, observed_at),
-                )
-                self.connection.execute(
-                    """
-                    INSERT INTO signal_observations (
-                        observation_id, mvp_run_id, collection_run_id, signal_id,
-                        query_cluster, query_text, observed_at, raw_sha256, envelope_sha256
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        observation_id,
-                        run_id,
-                        item.collection_run_id,
-                        signal_id,
-                        item.query_cluster,
-                        item.query_text,
-                        observed_at,
-                        raw_sha256,
-                        item.envelope_sha256,
-                    ),
-                )
-        except sqlite3.IntegrityError as error:
-            if "FINALIZED_RUN_IMMUTABLE" in str(error):
-                raise FinalizedRunError("FINALIZED_RUN_IMMUTABLE") from error
-            raise
+    def _import_prepared_signal(
+        self,
+        run_id: str,
+        item: NormalizedSignal,
+        external_comment_id: str | None,
+        comment_url: str,
+        author_public_id: str,
+        body_sha256: str,
+        raw_sha256: str,
+        observed_at: str,
+    ) -> ImportResult:
+        observation_id = str(uuid4())
+        source_author_public_id = (
+            item.source_author_public_id.strip()
+            if item.source_author_public_id and item.source_author_public_id.strip()
+            else author_public_id
+        )
+        source_id = self._resolve_source(item, source_author_public_id)
+        signal_id, created = self._resolve_signal(
+            item,
+            source_id,
+            external_comment_id,
+            comment_url,
+            author_public_id,
+            body_sha256,
+        )
+        self.connection.execute(
+            """
+            INSERT OR IGNORE INTO mvp_run_signals (mvp_run_id, signal_id, added_at)
+            VALUES (?, ?, ?)
+            """,
+            (run_id, signal_id, observed_at),
+        )
+        self.connection.execute(
+            """
+            INSERT INTO signal_observations (
+                observation_id, mvp_run_id, collection_run_id, signal_id,
+                query_cluster, query_text, observed_at, raw_sha256, envelope_sha256
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                observation_id,
+                run_id,
+                item.collection_run_id,
+                signal_id,
+                item.query_cluster,
+                item.query_text,
+                observed_at,
+                raw_sha256,
+                item.envelope_sha256,
+            ),
+        )
         return ImportResult(signal_id=signal_id, created=created, observation_id=observation_id)
 
     def finalize_run(self, run_id: str, decision: str, facts: dict[str, object]) -> None:
@@ -252,10 +380,26 @@ class Repository:
         if not item.external_source_id:
             return None
         existing = self.connection.execute(
-            "SELECT source_id FROM sources WHERE platform = ? AND external_source_id = ?",
+            """
+            SELECT source_id, canonical_url, author_public_id
+            FROM sources
+            WHERE platform = ? AND external_source_id = ?
+            """,
             (item.platform, item.external_source_id),
         ).fetchone()
         if existing is not None:
+            source_url = item.source_url.strip() if item.source_url else None
+            existing_url = existing["canonical_url"]
+            existing_author = existing["author_public_id"]
+            if (
+                source_url
+                and existing_url
+                and source_url != existing_url
+                or author_public_id
+                and existing_author
+                and author_public_id != existing_author
+            ):
+                raise SignalIdentityConflict("SIGNAL_IDENTITY_CONFLICT")
             return str(existing["source_id"])
         source_id = str(uuid4())
         self.connection.execute(
@@ -289,13 +433,20 @@ class Repository:
         if external_comment_id is not None:
             existing = self.connection.execute(
                 """
-                SELECT signal_id, body_sha256 FROM signals
+                SELECT signal_id, source_id, normalized_comment_url,
+                       author_public_id, body_sha256
+                FROM signals
                 WHERE platform = ? AND external_comment_id = ?
                 """,
                 (item.platform, external_comment_id),
             ).fetchone()
             if existing is not None:
-                if existing["body_sha256"] != body_sha256:
+                if (
+                    existing["source_id"] != source_id
+                    or existing["normalized_comment_url"] != comment_url
+                    or existing["author_public_id"] != author_public_id
+                    or existing["body_sha256"] != body_sha256
+                ):
                     raise SignalIdentityConflict("SIGNAL_IDENTITY_CONFLICT")
                 return str(existing["signal_id"]), False
         else:

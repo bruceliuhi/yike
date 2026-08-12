@@ -1,0 +1,23 @@
+{
+  "contents": [
+    {
+      "aweme_id": "7123456789",
+      "title": "企业销售线索跟进",
+      "creator_hash": "creator-dy",
+      "nickname": "抖音创作者"
+    }
+  ],
+  "comments": [
+    {
+      "comment_id": "dy-comment-1",
+      "aweme_id": "7123456789",
+      "parent_comment_id": "dy-parent-1",
+      "parent_content": "我们团队获客成本越来越高",
+      "content": "想找能自动筛出高意向客户的工具",
+      "creator_hash": "lead-dy",
+      "comment_url": "https://www.douyin.com/video/7123456789?comment_id=dy-comment-1",
+      "create_time": 1786464000,
+      "collected_at": "2026-08-12T01:00:00Z"
+    }
+  ]
+}
