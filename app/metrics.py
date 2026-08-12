@@ -83,6 +83,27 @@ class MetricsEngine:
             JOIN signals signal ON signal.signal_id = member.signal_id
             WHERE member.mvp_run_id = ? AND signal.verifiable = 1
               AND member.added_at <= ?
+              AND EXISTS (
+                  SELECT 1
+                  FROM signal_observations observation
+                  JOIN collection_runs collection
+                    ON collection.collection_run_id = observation.collection_run_id
+                   AND collection.mvp_run_id = observation.mvp_run_id
+                  WHERE observation.mvp_run_id = member.mvp_run_id
+                    AND observation.signal_id = member.signal_id
+                    AND observation.query_cluster IS NOT NULL
+                    AND length(trim(observation.query_cluster)) > 0
+                    AND observation.query_text IS NOT NULL
+                    AND length(trim(observation.query_text)) > 0
+                    AND length(observation.raw_sha256) = 64
+                    AND observation.raw_sha256 NOT GLOB '*[^0-9a-f]*'
+                    AND observation.envelope_sha256 IS NOT NULL
+                    AND length(observation.envelope_sha256) = 64
+                    AND observation.envelope_sha256 NOT GLOB '*[^0-9a-f]*'
+                    AND collection.platform = signal.platform
+                    AND length(collection.runtime_lock_sha256) = 64
+                    AND collection.runtime_lock_sha256 NOT GLOB '*[^0-9a-f]*'
+              )
             """,
             run_id,
             extra=(cutoff,),

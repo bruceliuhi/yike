@@ -46,12 +46,74 @@ def test_empty_run_metrics_are_sql_derived_and_running(tmp_path):
     connection.close()
 
 
+def test_verifiable_metric_requires_a_complete_observation_chain(tmp_path):
+    connection = connect(tmp_path / "facts.sqlite3")
+    migrate(connection)
+    repository = Repository(connection)
+    run_id = repository.create_run(["bili", "dy"])
+    connection.execute(
+        """
+        INSERT INTO sources (
+            source_id, platform, external_source_id, canonical_url
+        ) VALUES ('source-without-observation', 'bili', 'external-source',
+                  'https://www.bilibili.com/video/BV-no-observation')
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO signals (
+            signal_id, source_id, platform, external_comment_id,
+            normalized_comment_url, author_public_id, body, body_sha256,
+            verifiable, normalizer_version
+        ) VALUES (
+            'signal-without-observation', 'source-without-observation', 'bili',
+            'comment-without-observation',
+            'https://www.bilibili.com/video/BV-no-observation#reply',
+            'author', '没有采集 observation', ?, 1, 'test-normalizer-v1'
+        )
+        """,
+        ("a" * 64,),
+    )
+    connection.execute(
+        """
+        INSERT INTO mvp_run_signals (mvp_run_id, signal_id, added_at)
+        VALUES (?, 'signal-without-observation', '2026-08-12T00:00:00Z')
+        """,
+        (run_id,),
+    )
+
+    snapshot = MetricsEngine(connection).calculate(
+        run_id, now=datetime(2026, 8, 12, 1, tzinfo=UTC)
+    )
+
+    assert snapshot.unique_verifiable_signals == 0
+    connection.close()
+
+
 def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
     connection = connect(tmp_path / "facts.sqlite3")
     migrate(connection)
     clock = lambda: datetime(2026, 8, 12, 8, tzinfo=UTC)
     repository = Repository(connection, now=clock)
     run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="metric-provenance",
+        platform="bili",
+        query_cluster="sales-agent",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    repository.finish_collection(
+        "metric-provenance",
+        state="SUCCEEDED_NO_DATA",
+        raw_count=0,
+        unique_count=0,
+        error_code=None,
+    )
     signal_id = repository.import_signal(
         run_id,
         NormalizedSignal(
@@ -64,8 +126,13 @@ def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
             comment_url="https://www.bilibili.com/video/av-metric#reply-metric",
             author_public_id="lead-metric",
             body="团队需要更快筛选销售线索",
+            raw_sha256="b" * 64,
+            envelope_sha256="c" * 64,
             query_cluster="sales-agent",
             query_text="销售线索",
+            collection_run_id="metric-provenance",
+            normalizer_version="test-normalizer-v1",
+            verifiable=True,
         ),
     ).signal_id
     decision = ScoreDecision.model_validate(

@@ -54,6 +54,7 @@ def request(run_id, *, platform="bili", query_text="销售获客", **changes):
         "platform": platform,
         "query_cluster": "sales-agent",
         "query_text": query_text,
+        "started_by": "test-operator",
         "max_contents": 5,
         "max_comments_per_content": 20,
     }
@@ -100,6 +101,11 @@ def test_command_is_exact_visible_bounded_jsonl_and_secret_free(
     assert not any("cookie" in argument.lower() for argument in command)
 
 
+def test_collection_request_requires_operator_identity(run_id):
+    with pytest.raises(ValueError, match="started by"):
+        Collector._validate_request(request(run_id, started_by=None))
+
+
 @pytest.mark.parametrize(
     ("platform", "expected_source_url", "source_author", "comment_author"),
     [
@@ -140,6 +146,40 @@ def test_dual_platform_jsonl_rerun_reuses_signal_and_adds_observation(
         comment_author,
         "我们团队获客成本越来越高",
     )
+
+
+def test_successful_collection_persists_operator_runtime_and_envelope_provenance(
+    collector, repository, run_id
+):
+    collection_request = request(run_id, started_by="audit-operator")
+
+    result = collector.collect(collection_request)
+
+    assert result.status == "SUCCEEDED"
+    columns = {
+        row[1]
+        for row in repository.connection.execute("PRAGMA table_info(collection_runs)")
+    }
+    assert {"started_by", "runtime_lock_sha256"} <= columns
+    collection = repository.connection.execute(
+        "SELECT started_by, runtime_lock_sha256 FROM collection_runs "
+        "WHERE collection_run_id = ?",
+        (collection_request.collection_run_id,),
+    ).fetchone()
+    observation = repository.connection.execute(
+        "SELECT collection_run_id, query_cluster, query_text, raw_sha256, "
+        "envelope_sha256 FROM signal_observations WHERE collection_run_id = ?",
+        (collection_request.collection_run_id,),
+    ).fetchone()
+    assert collection["started_by"] == "audit-operator"
+    assert len(collection["runtime_lock_sha256"]) == 64
+    assert tuple(observation[:3]) == (
+        collection_request.collection_run_id,
+        collection_request.query_cluster,
+        collection_request.query_text,
+    )
+    assert len(observation["raw_sha256"]) == 64
+    assert len(observation["envelope_sha256"]) == 64
 
 
 @pytest.mark.parametrize(
@@ -381,6 +421,8 @@ def test_cli_setup_error_emits_one_terminal_json(tmp_path):
             "sales",
             "--query-text",
             "query",
+            "--started-by",
+            "test-cli-operator",
         ],
         cwd=PROJECT_ROOT,
         env={**dict(os.environ), "YIKE_MVP_ROOT": str(invalid_root)},

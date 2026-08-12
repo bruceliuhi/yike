@@ -41,6 +41,24 @@ class FactBuilder:
         self.clock = Clock(datetime(2026, 8, 12, tzinfo=UTC))
         self.repository = Repository(self.connection, now=self.clock)
         self.run_id = self.repository.create_run(["bili", "dy"])
+        self.repository.begin_collection(
+            run_id=self.run_id,
+            collection_run_id="metrics-provenance",
+            platform="bili",
+            query_cluster="sales-agent",
+            query_text="销售线索",
+            max_contents=1,
+            max_comments_per_content=1,
+            started_by="test-operator",
+            runtime_lock_sha256="a" * 64,
+        )
+        self.repository.finish_collection(
+            "metrics-provenance",
+            state="SUCCEEDED_NO_DATA",
+            raw_count=0,
+            unique_count=0,
+            error_code=None,
+        )
         self.clock.set(datetime(2026, 8, 20, tzinfo=UTC))
         self.workflow = Workflow(self.repository, now=self.clock)
         self.decision = ScoreDecision.model_validate(
@@ -63,8 +81,13 @@ class FactBuilder:
                 comment_url=f"https://{host}/video/source-{index}#reply-{index}",
                 author_public_id=f"lead-{platform}-{index}",
                 body="团队正在筛选销售线索，人工筛选效率低",
+                raw_sha256="b" * 64,
+                envelope_sha256="c" * 64,
                 query_cluster="sales-agent",
                 query_text="销售线索",
+                collection_run_id="metrics-provenance",
+                normalizer_version="test-normalizer-v1",
+                verifiable=True,
             ),
         ).signal_id
 
@@ -187,6 +210,8 @@ def test_full_persisted_success_thresholds_and_breakdowns_can_reach_proceed(tmp_
         query_text="销售线索",
         max_contents=5,
         max_comments_per_content=20,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
     )
     facts.repository.finish_collection(
         "metrics-collection", state="SUCCEEDED", raw_count=320,
@@ -333,6 +358,8 @@ def test_open_activity_fails_time_gate_and_later_collection_success_resolves_blo
         query_text="销售线索",
         max_contents=1,
         max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
     )
     facts.repository.finish_collection(
         "blocked-attempt", state="BLOCKED_INPUT", raw_count=0,
@@ -346,6 +373,8 @@ def test_open_activity_fails_time_gate_and_later_collection_success_resolves_blo
         query_text="销售线索",
         max_contents=1,
         max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
     )
     facts.repository.finish_collection(
         "recovered-attempt", state="SUCCEEDED", raw_count=1,

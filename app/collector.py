@@ -40,9 +40,9 @@ class CollectionRequest:
     platform: Literal["bili", "dy"]
     query_cluster: str
     query_text: str
+    started_by: str
     max_contents: int = 5
     max_comments_per_content: int = 20
-    started_by: str | None = None
 
 
 @dataclass(frozen=True)
@@ -248,6 +248,8 @@ class Collector:
                 query_text=request.query_text,
                 max_contents=request.max_contents,
                 max_comments_per_content=request.max_comments_per_content,
+                started_by=request.started_by,
+                runtime_lock_sha256=hashlib.sha256(_LOCK_PATH.read_bytes()).hexdigest(),
             )
         except CollectionDailyLimitError as error:
             return CollectionResult(
@@ -434,6 +436,15 @@ class Collector:
                     collection_run_id=request.collection_run_id,
                     query_cluster=request.query_cluster,
                     query_text=request.query_text,
+                    envelope_sha256=hashlib.sha256(
+                        json.dumps(
+                            {"content": by_source[str(comment_source)], "comment": comment},
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        ).encode("utf-8")
+                    ).hexdigest(),
+                    verifiable=True,
                 )
             )
         return normalized
@@ -814,6 +825,8 @@ class Collector:
             raise ValueError("platform must be bili or dy")
         if not request.query_cluster.strip() or not request.query_text.strip():
             raise ValueError("query cluster and text are required")
+        if not isinstance(request.started_by, str) or not request.started_by.strip():
+            raise ValueError("collection started by is required")
         if not 1 <= request.max_contents <= 10:
             raise ValueError("max contents limit must be between 1 and 10")
         if not 1 <= request.max_comments_per_content <= 50:

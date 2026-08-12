@@ -50,6 +50,8 @@ def test_collect_cli_returns_exactly_one_terminal_json(tmp_path):
             "acquisition",
             "--query-text",
             "__empty__",
+            "--started-by",
+            "test-cli-operator",
             "--max-contents",
             "1",
             "--max-comments-per-content",
@@ -99,6 +101,8 @@ def test_daily_limit_cli_returns_one_stable_terminal_without_new_db_rows(tmp_pat
             query_text=f"query-{index}",
             max_contents=1,
             max_comments_per_content=1,
+            started_by="test-operator",
+            runtime_lock_sha256="a" * 64,
         )
         collection_run_id = repository.connection.execute(
             "SELECT collection_run_id FROM collection_runs WHERE state = 'RUNNING'"
@@ -129,6 +133,8 @@ def test_daily_limit_cli_returns_one_stable_terminal_without_new_db_rows(tmp_pat
             "acquisition",
             "--query-text",
             "rejected-query",
+            "--started-by",
+            "test-cli-operator",
             "--max-contents",
             "1",
             "--max-comments-per-content",

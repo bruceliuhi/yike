@@ -80,6 +80,11 @@ CREATE TABLE IF NOT EXISTS collection_runs (
     platform TEXT NOT NULL CHECK (platform IN ('bili', 'dy')),
     attempt INTEGER NOT NULL,
     backend TEXT NOT NULL,
+    started_by TEXT NOT NULL CHECK (length(trim(started_by)) > 0),
+    runtime_lock_sha256 TEXT NOT NULL CHECK (
+        length(runtime_lock_sha256) = 64
+        AND runtime_lock_sha256 NOT GLOB '*[^0-9a-f]*'
+    ),
     state TEXT NOT NULL,
     started_at TEXT,
     finished_at TEXT,
@@ -119,8 +124,17 @@ CREATE TABLE IF NOT EXISTS signals (
     body TEXT NOT NULL,
     body_sha256 TEXT NOT NULL,
     published_at TEXT,
-    verifiable INTEGER NOT NULL DEFAULT 1 CHECK (verifiable IN (0, 1)),
+    verifiable INTEGER NOT NULL DEFAULT 0 CHECK (verifiable IN (0, 1)),
     normalizer_version TEXT,
+    CHECK (
+        verifiable = 0 OR (
+            source_id IS NOT NULL
+            AND external_comment_id IS NOT NULL
+            AND length(trim(external_comment_id)) > 0
+            AND normalizer_version IS NOT NULL
+            AND length(trim(normalizer_version)) > 0
+        )
+    ),
     UNIQUE (platform, external_comment_id),
     FOREIGN KEY (source_id, platform) REFERENCES sources(source_id, platform)
 );
@@ -151,6 +165,33 @@ CREATE TABLE IF NOT EXISTS signal_observations (
     FOREIGN KEY (collection_run_id, mvp_run_id)
         REFERENCES collection_runs(collection_run_id, mvp_run_id)
 );
+
+CREATE TRIGGER IF NOT EXISTS verifiable_observation_requires_provenance
+BEFORE INSERT ON signal_observations
+WHEN EXISTS (
+        SELECT 1 FROM signals
+        WHERE signal_id = NEW.signal_id AND verifiable = 1
+    )
+    AND (
+        NEW.collection_run_id IS NULL
+        OR NEW.query_cluster IS NULL OR length(trim(NEW.query_cluster)) = 0
+        OR NEW.query_text IS NULL OR length(trim(NEW.query_text)) = 0
+        OR length(NEW.raw_sha256) <> 64
+        OR NEW.raw_sha256 GLOB '*[^0-9a-f]*'
+        OR NEW.envelope_sha256 IS NULL OR length(NEW.envelope_sha256) <> 64
+        OR NEW.envelope_sha256 GLOB '*[^0-9a-f]*'
+        OR NOT EXISTS (
+            SELECT 1
+            FROM collection_runs collection
+            JOIN signals signal ON signal.signal_id = NEW.signal_id
+            WHERE collection.collection_run_id = NEW.collection_run_id
+              AND collection.mvp_run_id = NEW.mvp_run_id
+              AND collection.platform = signal.platform
+              AND length(collection.runtime_lock_sha256) = 64
+              AND collection.runtime_lock_sha256 NOT GLOB '*[^0-9a-f]*'
+        )
+    )
+BEGIN SELECT RAISE(ABORT, 'VERIFIABLE_PROVENANCE_REQUIRED'); END;
 
 CREATE TABLE IF NOT EXISTS score_runs (
     score_run_id TEXT PRIMARY KEY,
@@ -1099,6 +1140,8 @@ BEGIN
           OR NEW.platform IS NOT OLD.platform
           OR NEW.attempt IS NOT OLD.attempt
           OR NEW.backend IS NOT OLD.backend
+          OR NEW.started_by IS NOT OLD.started_by
+          OR NEW.runtime_lock_sha256 IS NOT OLD.runtime_lock_sha256
             THEN RAISE(ABORT, 'FACT_IDENTITY_IMMUTABLE')
         WHEN EXISTS (
             SELECT 1 FROM mvp_runs

@@ -59,6 +59,7 @@ def signal(
     body: str = "需要线索筛选",
     comment_url: str = "https://www.bilibili.com/read/comment-1",
     author_public_id: str = "author-1",
+    verifiable: bool = False,
 ) -> NormalizedSignal:
     return NormalizedSignal(
         platform=platform,
@@ -70,6 +71,7 @@ def signal(
         author_public_id=author_public_id,
         body=body,
         raw_sha256="a" * 64,
+        verifiable=verifiable,
     )
 
 
@@ -183,11 +185,11 @@ def seed_fact_graph(connection, repository):
         """
         INSERT INTO collection_runs (
             collection_run_id, mvp_run_id, campaign_id, platform,
-            attempt, backend, state
+            attempt, backend, started_by, runtime_lock_sha256, state
         ) VALUES ('collection-1', ?, 'campaign-1', 'bili', 1,
-                  'MEDIACRAWLER_AUTHORIZED', 'QUEUED')
+                  'MEDIACRAWLER_AUTHORIZED', 'test-operator', ?, 'QUEUED')
         """,
-        (run_id,),
+        (run_id, "a" * 64),
     )
     connection.execute(
         """
@@ -361,8 +363,8 @@ def test_current_schema_migration_is_idempotent(connection):
         "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
     ).fetchone()
     assert tuple(marker) == (
-        "DISCOVERY_FACT_STORE_V8",
-        "4566905c5580cf1e3f15bbb282164c51b325d31262051cdc5819310dcee19f24",
+        "DISCOVERY_FACT_STORE_V9",
+        "df24666e8b9bb890731ef2519c74cb24d272882d2abbebc9ba623233967b9daf",
     )
 
 
@@ -539,6 +541,8 @@ def test_repository_rejects_backdated_import_and_collection_after_day14(connecti
             query_text="线索",
             max_contents=1,
             max_comments_per_content=1,
+            started_by="test-operator",
+            runtime_lock_sha256="a" * 64,
         )
 
     assert repository.count_signals(run_id) == 1
@@ -574,6 +578,8 @@ def test_only_one_collection_can_be_running(repository):
         "query_text": "线索",
         "max_contents": 5,
         "max_comments_per_content": 20,
+        "started_by": "test-operator",
+        "runtime_lock_sha256": "a" * 64,
     }
     repository.begin_collection(collection_run_id="collection-running-1", **parameters)
 
@@ -1198,11 +1204,11 @@ def test_collection_and_signal_platforms_must_match_their_parents(
             """
             INSERT INTO collection_runs (
                 collection_run_id, mvp_run_id, campaign_id, platform,
-                attempt, backend, state
+                attempt, backend, started_by, runtime_lock_sha256, state
             ) VALUES ('wrong-platform-collection', ?, 'campaign-1', 'dy', 2,
-                      'MEDIACRAWLER_AUTHORIZED', 'QUEUED')
+                      'MEDIACRAWLER_AUTHORIZED', 'test-operator', ?, 'QUEUED')
             """,
-            (facts["run_id"],),
+            (facts["run_id"], "a" * 64),
         )
     with pytest.raises(sqlite3.IntegrityError):
         connection.execute(
@@ -1317,11 +1323,11 @@ def test_mutable_collection_records_cannot_move_into_a_finalized_run(
             """
             INSERT INTO collection_runs (
                 collection_run_id, mvp_run_id, campaign_id, platform,
-                attempt, backend, state
+                attempt, backend, started_by, runtime_lock_sha256, state
             ) VALUES ('active-collection', ?, 'active-campaign', 'bili', 1,
-                      'MEDIACRAWLER_AUTHORIZED', 'QUEUED')
+                      'MEDIACRAWLER_AUTHORIZED', 'test-operator', ?, 'QUEUED')
             """,
-            (active_run,),
+            (active_run, "a" * 64),
         )
 
     with pytest.raises(sqlite3.IntegrityError, match="RUN_SCOPE_IMMUTABLE"):
@@ -1405,6 +1411,55 @@ def test_finalized_run_rejects_new_fact(repository):
 
     with pytest.raises(FinalizedRunError):
         repository.import_signal(run_id, signal())
+
+
+def test_verifiable_signal_requires_complete_collection_provenance(repository):
+    run_id = repository.create_run(["bili", "dy"])
+
+    with pytest.raises(ValueError, match="VERIFIABLE_PROVENANCE_REQUIRED"):
+        repository.import_signal(run_id, signal(verifiable=True))
+
+
+def test_collection_and_signal_provenance_hashes_must_be_sha256(repository):
+    run_id = repository.create_run(["bili", "dy"])
+    with pytest.raises(ValueError, match="runtime lock SHA-256"):
+        repository.begin_collection(
+            run_id=run_id,
+            collection_run_id="invalid-runtime-hash",
+            platform="bili",
+            query_cluster="sales",
+            query_text="销售线索",
+            max_contents=1,
+            max_comments_per_content=1,
+            started_by="test-operator",
+            runtime_lock_sha256="z" * 64,
+        )
+
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="valid-runtime-hash",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    with pytest.raises(ValueError, match="VERIFIABLE_PROVENANCE_REQUIRED"):
+        repository.import_signal(
+            run_id,
+            replace(
+                signal(verifiable=True),
+                collection_run_id="valid-runtime-hash",
+                query_cluster="sales",
+                query_text="销售线索",
+                envelope_sha256="z" * 64,
+                normalizer_version="test-normalizer-v1",
+            ),
+        )
+
+    assert repository.count_signals(run_id) == 0
 
 
 def test_finalized_run_rejects_fact_insert_update_and_delete(connection, repository):

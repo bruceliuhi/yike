@@ -56,7 +56,7 @@ def collector() -> None:
         type=int,
         default=20,
     )
-    parser.add_argument("--started-by", default=None)
+    parser.add_argument("--started-by", required=True)
     try:
         arguments = parser.parse_args()
         collection_run_id = arguments.collection_run_id or collection_run_id

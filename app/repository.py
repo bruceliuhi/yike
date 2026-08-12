@@ -93,7 +93,7 @@ class NormalizedSignal:
     query_text: str | None = None
     collection_run_id: str | None = None
     normalizer_version: str | None = None
-    verifiable: bool = True
+    verifiable: bool = False
 
 
 @dataclass(frozen=True)
@@ -109,6 +109,14 @@ def _utc_now() -> str:
 
 def _sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _is_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
 
 
 class Repository:
@@ -256,11 +264,17 @@ class Repository:
         query_text: str,
         max_contents: int,
         max_comments_per_content: int,
+        started_by: str,
+        runtime_lock_sha256: str,
     ) -> str:
         if platform not in _PLATFORMS:
             raise ValueError("platform must be one of: bili, dy")
         if not 1 <= max_contents <= 10 or not 1 <= max_comments_per_content <= 50:
             raise ValueError("collection limit is outside the allowed range")
+        if not started_by.strip():
+            raise ValueError("collection started_by is required")
+        if not _is_sha256(runtime_lock_sha256):
+            raise ValueError("collection runtime lock SHA-256 is required")
         if self.connection.in_transaction:
             raise RuntimeError("cannot begin collection inside a transaction")
         self.connection.execute("BEGIN IMMEDIATE")
@@ -332,10 +346,18 @@ class Repository:
                 """
                 INSERT INTO collection_runs (
                     collection_run_id, mvp_run_id, campaign_id, platform,
-                    attempt, backend, state, started_at
-                ) VALUES (?, ?, ?, ?, 1, 'MEDIACRAWLER_AUTHORIZED', 'RUNNING', ?)
+                    attempt, backend, started_by, runtime_lock_sha256, state, started_at
+                ) VALUES (?, ?, ?, ?, 1, 'MEDIACRAWLER_AUTHORIZED', ?, ?, 'RUNNING', ?)
                 """,
-                (collection_run_id, run_id, campaign_id, platform, now),
+                (
+                    collection_run_id,
+                    run_id,
+                    campaign_id,
+                    platform,
+                    started_by,
+                    runtime_lock_sha256,
+                    now,
+                ),
             )
         except BaseException:
             self.connection.rollback()
@@ -380,6 +402,38 @@ class Repository:
     ) -> tuple[str | None, str, str, str, str, str]:
         if item.platform not in _PLATFORMS:
             raise ValueError("platform must be one of: bili, dy")
+        if item.verifiable:
+            required_provenance = (
+                item.external_source_id,
+                item.source_url,
+                item.external_comment_id,
+                item.collection_run_id,
+                item.query_cluster,
+                item.query_text,
+                item.raw_sha256,
+                item.envelope_sha256,
+                item.normalizer_version,
+            )
+            if any(
+                not isinstance(value, str) or not value.strip()
+                for value in required_provenance
+            ):
+                raise ValueError("VERIFIABLE_PROVENANCE_REQUIRED")
+            if not _is_sha256(item.raw_sha256) or not _is_sha256(
+                item.envelope_sha256
+            ):
+                raise ValueError("VERIFIABLE_PROVENANCE_REQUIRED")
+            collection = self.connection.execute(
+                "SELECT platform, runtime_lock_sha256 FROM collection_runs "
+                "WHERE collection_run_id = ? AND mvp_run_id = ?",
+                (item.collection_run_id, run_id),
+            ).fetchone()
+            if (
+                collection is None
+                or collection["platform"] != item.platform
+                or not _is_sha256(collection["runtime_lock_sha256"])
+            ):
+                raise ValueError("VERIFIABLE_PROVENANCE_REQUIRED")
         if not item.body or not item.body.strip():
             raise ValueError("signal body is required")
         comment_url = item.normalized_comment_url or item.comment_url
