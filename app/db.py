@@ -5,8 +5,8 @@ import sqlite3
 
 
 _MIGRATION = Path(__file__).resolve().parents[1] / "migrations" / "001_discovery.sql"
-_SCHEMA_VERSION = "DISCOVERY_FACT_STORE_V2"
-_SCHEMA_SIGNATURE = "84c0507baba8accaf8ea0c898dfa5ea5e93571e76695bce622914b7fd9bf218f"
+_SCHEMA_VERSION = "DISCOVERY_FACT_STORE_V3"
+_SCHEMA_SIGNATURE = "79996b697f6117b70656e517fd533c6993318ee6206e2bba767cea63dba11019"
 
 
 class UnsupportedSchemaError(RuntimeError):

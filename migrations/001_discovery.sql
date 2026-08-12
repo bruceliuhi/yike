@@ -152,6 +152,20 @@ CREATE TABLE IF NOT EXISTS score_runs (
     UNIQUE (score_run_id, mvp_run_id, signal_id)
 );
 
+CREATE TABLE IF NOT EXISTS score_presentations (
+    presentation_id TEXT PRIMARY KEY,
+    mvp_run_id TEXT NOT NULL,
+    signal_id TEXT NOT NULL,
+    score_run_id TEXT NOT NULL,
+    presented_at TEXT NOT NULL,
+    FOREIGN KEY (mvp_run_id, signal_id)
+        REFERENCES mvp_run_signals(mvp_run_id, signal_id),
+    FOREIGN KEY (score_run_id, mvp_run_id, signal_id)
+        REFERENCES score_runs(score_run_id, mvp_run_id, signal_id),
+    UNIQUE (mvp_run_id, signal_id),
+    UNIQUE (mvp_run_id, signal_id, score_run_id)
+);
+
 CREATE TABLE IF NOT EXISTS human_reviews (
     review_id TEXT PRIMARY KEY,
     mvp_run_id TEXT NOT NULL,
@@ -168,6 +182,8 @@ CREATE TABLE IF NOT EXISTS human_reviews (
         REFERENCES mvp_run_signals(mvp_run_id, signal_id),
     FOREIGN KEY (presented_score_run_id, mvp_run_id, signal_id)
         REFERENCES score_runs(score_run_id, mvp_run_id, signal_id),
+    FOREIGN KEY (mvp_run_id, signal_id, presented_score_run_id)
+        REFERENCES score_presentations(mvp_run_id, signal_id, score_run_id),
     FOREIGN KEY (supersedes_review_id, mvp_run_id, signal_id)
         REFERENCES human_reviews(review_id, mvp_run_id, signal_id),
     CHECK (supersedes_review_id IS NULL OR supersedes_review_id <> review_id),
@@ -202,6 +218,8 @@ CREATE TABLE IF NOT EXISTS outreach_actions (
     sent_at TEXT,
     source_url TEXT,
     evidence_summary TEXT,
+    source_link_opened INTEGER NOT NULL DEFAULT 0
+        CHECK (source_link_opened IN (0, 1)),
     status TEXT NOT NULL,
     parent_outreach_action_id TEXT,
     created_at TEXT NOT NULL,
@@ -408,6 +426,19 @@ WHEN EXISTS (SELECT 1 FROM mvp_runs WHERE mvp_run_id = OLD.mvp_run_id AND state 
 BEGIN SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE'); END;
 CREATE TRIGGER IF NOT EXISTS finalized_score_runs_delete
 BEFORE DELETE ON score_runs
+WHEN EXISTS (SELECT 1 FROM mvp_runs WHERE mvp_run_id = OLD.mvp_run_id AND state = 'FINALIZED')
+BEGIN SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE'); END;
+
+CREATE TRIGGER IF NOT EXISTS finalized_score_presentations_insert
+BEFORE INSERT ON score_presentations
+WHEN EXISTS (SELECT 1 FROM mvp_runs WHERE mvp_run_id = NEW.mvp_run_id AND state = 'FINALIZED')
+BEGIN SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE'); END;
+CREATE TRIGGER IF NOT EXISTS finalized_score_presentations_update
+BEFORE UPDATE ON score_presentations
+WHEN EXISTS (SELECT 1 FROM mvp_runs WHERE mvp_run_id = OLD.mvp_run_id AND state = 'FINALIZED')
+BEGIN SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE'); END;
+CREATE TRIGGER IF NOT EXISTS finalized_score_presentations_delete
+BEFORE DELETE ON score_presentations
 WHEN EXISTS (SELECT 1 FROM mvp_runs WHERE mvp_run_id = OLD.mvp_run_id AND state = 'FINALIZED')
 BEGIN SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE'); END;
 
@@ -625,6 +656,24 @@ CREATE TRIGGER IF NOT EXISTS score_runs_append_only_delete
 BEFORE DELETE ON score_runs
 BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
 
+CREATE TRIGGER IF NOT EXISTS score_presentations_append_only_update
+BEFORE UPDATE ON score_presentations
+BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
+CREATE TRIGGER IF NOT EXISTS score_presentations_append_only_delete
+BEFORE DELETE ON score_presentations
+BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
+
+CREATE TRIGGER IF NOT EXISTS successful_score_required_for_presentation
+BEFORE INSERT ON score_presentations
+WHEN NOT EXISTS (
+    SELECT 1 FROM score_runs
+    WHERE score_run_id = NEW.score_run_id
+      AND mvp_run_id = NEW.mvp_run_id
+      AND signal_id = NEW.signal_id
+      AND status = 'SUCCEEDED'
+)
+BEGIN SELECT RAISE(ABORT, 'PRESENTED_SCORE_NOT_SUCCEEDED'); END;
+
 CREATE TRIGGER IF NOT EXISTS human_reviews_append_only_update
 BEFORE UPDATE ON human_reviews
 BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
@@ -635,11 +684,10 @@ BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
 CREATE TRIGGER IF NOT EXISTS successful_presented_score_required
 BEFORE INSERT ON human_reviews
 WHEN NOT EXISTS (
-    SELECT 1 FROM score_runs
+    SELECT 1 FROM score_presentations
     WHERE score_run_id = NEW.presented_score_run_id
       AND mvp_run_id = NEW.mvp_run_id
       AND signal_id = NEW.signal_id
-      AND status = 'SUCCEEDED'
 )
 BEGIN SELECT RAISE(ABORT, 'PRESENTED_SCORE_NOT_SUCCEEDED'); END;
 

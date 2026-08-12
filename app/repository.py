@@ -8,6 +8,7 @@ from uuid import uuid4
 
 if TYPE_CHECKING:
     from app.config import Settings
+    from app.model_contract import ScoreDecision
 
 
 _PLATFORMS = frozenset(("bili", "dy"))
@@ -373,6 +374,105 @@ class Repository:
         return self.connection.execute(
             "SELECT COUNT(*) FROM signal_observations WHERE mvp_run_id = ?", (run_id,)
         ).fetchone()[0]
+
+    def get_signal_source_text(self, run_id: str, signal_id: str) -> str:
+        row = self.connection.execute(
+            """
+            SELECT sources.title, signals.parent_body, signals.body
+            FROM mvp_run_signals
+            JOIN signals ON signals.signal_id = mvp_run_signals.signal_id
+            LEFT JOIN sources ON sources.source_id = signals.source_id
+            WHERE mvp_run_signals.mvp_run_id = ? AND mvp_run_signals.signal_id = ?
+            """,
+            (run_id, signal_id),
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"unknown signal in mvp run: {signal_id}")
+        return "\n".join(value for value in row if value)
+
+    def append_score_failure(
+        self,
+        *,
+        score_run_id: str,
+        run_id: str,
+        signal_id: str,
+        provider: str | None,
+        model: str | None,
+        prompt_version: str,
+        schema_version: str,
+        error_code: str,
+    ) -> None:
+        with self.connection:
+            self.connection.execute(
+                """
+                INSERT INTO score_runs (
+                    score_run_id, mvp_run_id, signal_id, provider, model,
+                    prompt_version, schema_version, status, error_code
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'FAILED', ?)
+                """,
+                (
+                    score_run_id,
+                    run_id,
+                    signal_id,
+                    provider,
+                    model,
+                    prompt_version,
+                    schema_version,
+                    error_code,
+                ),
+            )
+
+    def append_score_success(
+        self,
+        *,
+        score_run_id: str,
+        run_id: str,
+        signal_id: str,
+        provider: str,
+        model: str,
+        prompt_version: str,
+        schema_version: str,
+        decision: "ScoreDecision",
+        token_usage: dict[str, object] | None,
+    ) -> None:
+        with self.connection:
+            self.connection.execute(
+                """
+                INSERT INTO score_runs (
+                    score_run_id, mvp_run_id, signal_id, provider, model,
+                    prompt_version, schema_version, dimension_scores_json,
+                    total_score, grade, confidence, reason_json, status,
+                    token_usage_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SUCCEEDED', ?)
+                """,
+                (
+                    score_run_id,
+                    run_id,
+                    signal_id,
+                    provider,
+                    model,
+                    prompt_version,
+                    schema_version,
+                    json.dumps(
+                        decision.dimension_scores.model_dump(),
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                    decision.score,
+                    decision.grade,
+                    decision.confidence,
+                    json.dumps(
+                        decision.model_dump(exclude={"dimension_scores"}),
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                    json.dumps(token_usage, sort_keys=True, separators=(",", ":"))
+                    if token_usage is not None
+                    else None,
+                ),
+            )
 
     def _resolve_source(
         self, item: NormalizedSignal, author_public_id: str

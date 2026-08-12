@@ -23,6 +23,7 @@ FACT_TABLES = {
     "mvp_run_signals",
     "signal_observations",
     "score_runs",
+    "score_presentations",
     "human_reviews",
     "draft_runs",
     "outreach_actions",
@@ -128,6 +129,14 @@ def seed_fact_graph(connection, repository):
         """
         INSERT INTO score_runs (score_run_id, mvp_run_id, signal_id, status)
         VALUES ('score-1', ?, ?, 'SUCCEEDED')
+        """,
+        (run_id, signal_id),
+    )
+    connection.execute(
+        """
+        INSERT INTO score_presentations (
+            presentation_id, mvp_run_id, signal_id, score_run_id, presented_at
+        ) VALUES ('presentation-1', ?, ?, 'score-1', '2026-08-12T00:00:00Z')
         """,
         (run_id, signal_id),
     )
@@ -482,6 +491,14 @@ def test_superseding_review_must_match_run_and_signal(connection, repository):
     )
     connection.execute(
         """
+        INSERT INTO score_presentations (
+            presentation_id, mvp_run_id, signal_id, score_run_id, presented_at
+        ) VALUES ('first-presentation', ?, ?, 'first-score', '2026-08-12T00:00:00Z')
+        """,
+        (first_run, first_signal.signal_id),
+    )
+    connection.execute(
+        """
         INSERT INTO human_reviews (
             review_id, mvp_run_id, signal_id, presented_score_run_id, label
         ) VALUES ('first-review', ?, ?, 'first-score', 'HIGH_INTENT')
@@ -612,6 +629,13 @@ def test_follow_up_parent_cannot_cross_runs(connection, repository):
             "changed",
         ),
         ("score_runs", "score_run_id", None, "error_code", "changed"),
+        (
+            "score_presentations",
+            "presentation_id",
+            None,
+            "presented_at",
+            "changed",
+        ),
         ("human_reviews", "review_id", None, "note", "changed"),
         ("draft_runs", "draft_run_id", None, "body", "changed"),
         ("outreach_actions", "outreach_action_id", None, "status", "changed"),
@@ -640,6 +664,7 @@ def test_historical_facts_are_append_only_while_run_is_active(
     key_value = facts[key_name] if key_name else {
         "keyword_versions": "keyword-1",
         "score_runs": "score-1",
+        "score_presentations": "presentation-1",
         "human_reviews": "review-1",
         "draft_runs": "draft-1",
         "outreach_actions": "outreach-1",
