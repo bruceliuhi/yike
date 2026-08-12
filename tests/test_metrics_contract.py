@@ -54,9 +54,9 @@ class FactBuilder:
         )
         self.repository.finish_collection(
             "metrics-provenance",
-            state="SUCCEEDED_NO_DATA",
-            raw_count=0,
-            unique_count=0,
+            state="SUCCEEDED",
+            raw_count=320,
+            unique_count=300,
             error_code=None,
         )
         self.clock.set(datetime(2026, 8, 20, tzinfo=UTC))
@@ -202,22 +202,6 @@ def test_full_persisted_success_thresholds_and_breakdowns_can_reach_proceed(tmp_
         agreed_to_receive_pricing_at=now,
         verified_at=now,
     )
-    facts.repository.begin_collection(
-        run_id=facts.run_id,
-        collection_run_id="metrics-collection",
-        platform="bili",
-        query_cluster="sales-agent",
-        query_text="销售线索",
-        max_contents=5,
-        max_comments_per_content=20,
-        started_by="test-operator",
-        runtime_lock_sha256="a" * 64,
-    )
-    facts.repository.finish_collection(
-        "metrics-collection", state="SUCCEEDED", raw_count=320,
-        unique_count=300, error_code=None,
-    )
-
     snapshot = MetricsEngine(facts.connection).calculate(
         facts.run_id, now=datetime(2026, 8, 27, tzinfo=UTC)
     )

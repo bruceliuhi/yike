@@ -31,7 +31,9 @@ def test_conclusion_truth_table_is_ordered_and_exhaustive(flags, expected):
 def test_empty_run_metrics_are_sql_derived_and_running(tmp_path):
     connection = connect(tmp_path / "facts.sqlite3")
     migrate(connection)
-    repository = Repository(connection)
+    repository = Repository(
+        connection, now=lambda: datetime(2026, 8, 12, tzinfo=UTC)
+    )
     run_id = repository.create_run(["bili", "dy"])
 
     snapshot = MetricsEngine(connection).calculate(
@@ -90,6 +92,59 @@ def test_verifiable_metric_requires_a_complete_observation_chain(tmp_path):
     connection.close()
 
 
+def test_verifiable_metric_requires_a_successful_collection_attempt(tmp_path):
+    connection = connect(tmp_path / "facts.sqlite3")
+    migrate(connection)
+    repository = Repository(
+        connection, now=lambda: datetime(2026, 8, 12, tzinfo=UTC)
+    )
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="failed-provenance",
+        platform="bili",
+        query_cluster="sales-agent",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    repository.import_signal(
+        run_id,
+        NormalizedSignal(
+            platform="bili",
+            external_source_id="failed-source",
+            source_url="https://www.bilibili.com/video/BV-failed",
+            external_comment_id="failed-comment",
+            comment_url="https://www.bilibili.com/video/BV-failed#reply",
+            author_public_id="failed-author",
+            body="采集失败前的临时数据",
+            raw_sha256="b" * 64,
+            envelope_sha256="c" * 64,
+            query_cluster="sales-agent",
+            query_text="销售线索",
+            collection_run_id="failed-provenance",
+            normalizer_version="test-normalizer-v1",
+            verifiable=True,
+        ),
+    )
+    repository.finish_collection(
+        "failed-provenance",
+        state="FAILED",
+        raw_count=1,
+        unique_count=1,
+        error_code="COLLECTION_PROCESS_FAILED",
+    )
+
+    snapshot = MetricsEngine(connection).calculate(
+        run_id, now=datetime(2026, 8, 12, 1, tzinfo=UTC)
+    )
+
+    assert snapshot.unique_verifiable_signals == 0
+    connection.close()
+
+
 def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
     connection = connect(tmp_path / "facts.sqlite3")
     migrate(connection)
@@ -109,9 +164,9 @@ def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
     )
     repository.finish_collection(
         "metric-provenance",
-        state="SUCCEEDED_NO_DATA",
-        raw_count=0,
-        unique_count=0,
+        state="SUCCEEDED",
+        raw_count=1,
+        unique_count=1,
         error_code=None,
     )
     signal_id = repository.import_signal(

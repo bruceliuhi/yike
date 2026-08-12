@@ -794,6 +794,12 @@ class Repository:
             source_url = item.source_url.strip() if item.source_url else None
             existing_url = existing["canonical_url"]
             existing_author = existing["author_public_id"]
+            if item.verifiable and (
+                not isinstance(existing_url, str)
+                or not existing_url.strip()
+                or source_url != existing_url
+            ):
+                raise ValueError("VERIFIABLE_PROVENANCE_REQUIRED")
             if (
                 source_url
                 and existing_url

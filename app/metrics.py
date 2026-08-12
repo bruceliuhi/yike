@@ -101,6 +101,7 @@ class MetricsEngine:
                     AND length(observation.envelope_sha256) = 64
                     AND observation.envelope_sha256 NOT GLOB '*[^0-9a-f]*'
                     AND collection.platform = signal.platform
+                    AND collection.state = 'SUCCEEDED'
                     AND length(collection.runtime_lock_sha256) = 64
                     AND collection.runtime_lock_sha256 NOT GLOB '*[^0-9a-f]*'
               )

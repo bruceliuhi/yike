@@ -1462,6 +1462,42 @@ def test_collection_and_signal_provenance_hashes_must_be_sha256(repository):
     assert repository.count_signals(run_id) == 0
 
 
+def test_verifiable_signal_cannot_reuse_a_source_without_a_canonical_url(repository):
+    run_id = repository.create_run(["bili", "dy"])
+    repository.import_signal(
+        run_id,
+        replace(signal(), source_url=None),
+    )
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="complete-collection",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+
+    with pytest.raises(ValueError, match="VERIFIABLE_PROVENANCE_REQUIRED"):
+        repository.import_signal(
+            run_id,
+            replace(
+                signal(
+                    external_comment_id="comment-2",
+                    comment_url="https://www.bilibili.com/read/comment-2",
+                    verifiable=True,
+                ),
+                collection_run_id="complete-collection",
+                query_cluster="sales",
+                query_text="销售线索",
+                envelope_sha256="b" * 64,
+                normalizer_version="test-normalizer-v1",
+            ),
+        )
+
+
 def test_finalized_run_rejects_fact_insert_update_and_delete(connection, repository):
     run_id = repository.create_run(["bili", "dy"])
     imported = repository.import_signal(run_id, signal())
