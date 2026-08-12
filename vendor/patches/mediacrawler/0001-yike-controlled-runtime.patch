@@ -1,19 +1,3 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: YK Patch Generator <yk@example.invalid>
-Date: Wed, 12 Aug 2026 15:06:31 +0800
-Subject: [PATCH] yike controlled runtime
-
----
- config/base_config.py             | 11 ++--
- main.py                           | 94 +++++++++++++++++++++++++------
- media_platform/bilibili/client.py | 51 ++++++++---------
- media_platform/bilibili/core.py   | 14 ++---
- media_platform/bilibili/login.py  |  9 ++-
- media_platform/douyin/client.py   | 15 +++--
- media_platform/douyin/core.py     | 24 ++++----
- media_platform/douyin/login.py    | 19 +++----
- 8 files changed, 144 insertions(+), 93 deletions(-)
-
 diff --git a/config/base_config.py b/config/base_config.py
 index 28a852e..dc0ba69 100644
 --- a/config/base_config.py
@@ -203,31 +187,66 @@ index 6d46e42..bd0bf73 100644
 @@ -402,0 +397 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 +        return collected
 diff --git a/media_platform/bilibili/core.py b/media_platform/bilibili/core.py
-index 14b5099..940e7ff 100644
+index 14b5099..5a55985 100644
 --- a/media_platform/bilibili/core.py
 +++ b/media_platform/bilibili/core.py
-@@ -92,3 +91,0 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -66 +66 @@ class BilibiliCrawler(AbstractCrawler):
+-        self.user_agent = utils.get_user_agent()
++        self.user_agent: Optional[str] = None
+@@ -78,17 +78,4 @@ class BilibiliCrawler(AbstractCrawler):
+-            # Choose launch mode based on configuration
+-            if config.ENABLE_CDP_MODE:
+-                utils.logger.info("[BilibiliCrawler] Launching browser using CDP mode")
+-                self.browser_context = await self.launch_browser_with_cdp(
+-                    playwright,
+-                    playwright_proxy_format,
+-                    self.user_agent,
+-                    headless=config.CDP_HEADLESS,
+-                )
+-            else:
+-                utils.logger.info("[BilibiliCrawler] Launching browser using standard mode")
+-                # Launch a browser context.
+-                chromium = playwright.chromium
+-                self.browser_context = await self.launch_browser(chromium, None, self.user_agent, headless=config.HEADLESS)
 -                # stealth.min.js is a js script to prevent the website from detecting the crawler.
 -                await self.browser_context.add_init_script(path="libs/stealth.min.js")
 -
-@@ -190,2 +186,0 @@ class BilibiliCrawler(AbstractCrawler):
++            utils.logger.info("[BilibiliCrawler] Launching bundled Playwright Chromium")
++            self.browser_context = await self.launch_browser(
++                playwright.chromium, None, headless=config.HEADLESS
++            )
+@@ -95,0 +83 @@ class BilibiliCrawler(AbstractCrawler):
++            self.user_agent = await self.context_page.evaluate("navigator.userAgent")
+@@ -190,2 +177,0 @@ class BilibiliCrawler(AbstractCrawler):
 -        if config.CRAWLER_MAX_NOTES_COUNT < bili_limit_count:
 -            config.CRAWLER_MAX_NOTES_COUNT = bili_limit_count
-@@ -192,0 +188 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -192,0 +179 @@ class BilibiliCrawler(AbstractCrawler):
 +        remaining_content_count = config.CRAWLER_MAX_NOTES_COUNT
-@@ -193,0 +190,2 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -193,0 +181,2 @@ class BilibiliCrawler(AbstractCrawler):
 +            if remaining_content_count <= 0:
 +                break
-@@ -197 +195 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -197 +186 @@ class BilibiliCrawler(AbstractCrawler):
 -            while (page - start_page + 1) * bili_limit_count <= config.CRAWLER_MAX_NOTES_COUNT:
 +            while remaining_content_count > 0:
-@@ -213 +211 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -213 +202 @@ class BilibiliCrawler(AbstractCrawler):
 -                video_list: List[Dict] = videos_res.get("result")
 +                video_list: List[Dict] = (videos_res.get("result") or [])[:remaining_content_count]
-@@ -231,0 +230 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -231,0 +221 @@ class BilibiliCrawler(AbstractCrawler):
 +                        remaining_content_count -= 1
-@@ -364,0 +364 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -364,0 +355 @@ class BilibiliCrawler(AbstractCrawler):
 +                raise
+@@ -492 +482,0 @@ class BilibiliCrawler(AbstractCrawler):
+-        user_agent: Optional[str],
+@@ -499 +488,0 @@ class BilibiliCrawler(AbstractCrawler):
+-        :param user_agent: user agent
+@@ -517,2 +505,0 @@ class BilibiliCrawler(AbstractCrawler):
+-                user_agent=user_agent,
+-                channel="chrome",  # Use system's stable Chrome version
+@@ -523,2 +510,2 @@ class BilibiliCrawler(AbstractCrawler):
+-            browser = await chromium.launch(headless=headless, proxy=playwright_proxy, channel="chrome")
+-            browser_context = await browser.new_context(viewport={"width": 1920, "height": 1080}, user_agent=user_agent)
++            browser = await chromium.launch(headless=headless, proxy=playwright_proxy)
++            browser_context = await browser.new_context(viewport={"width": 1920, "height": 1080})
 diff --git a/media_platform/bilibili/login.py b/media_platform/bilibili/login.py
 index bd50fe2..4a45bca 100644
 --- a/media_platform/bilibili/login.py

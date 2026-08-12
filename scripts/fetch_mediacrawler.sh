@@ -32,6 +32,13 @@ lock_path, project_root, runtime = map(Path, sys.argv[1:])
 lock = json.loads(lock_path.read_text(encoding="utf-8"))
 if lock.get("schema_version") != "YIKE_MEDIACRAWLER_LOCK_V2":
     raise SystemExit("unsupported MediaCrawler lock schema")
+browser_contract = lock.get("browser_contract")
+if browser_contract != {
+    "engine": "playwright-bundled-chromium",
+    "launch_channel": None,
+    "user_agent_mode": "playwright-default",
+}:
+    raise SystemExit("unsupported browser runtime contract")
 if subprocess.check_output(
     ["git", "-C", str(runtime), "rev-parse", "HEAD"], text=True
 ).strip() != lock["commit"]:
@@ -127,6 +134,33 @@ subprocess.run(
     env=browser_environment,
     timeout=600,
 )
+browser_probe = subprocess.run(
+    [
+        str(python_path),
+        "-c",
+        (
+            "import os; from pathlib import Path; "
+            "from playwright.sync_api import sync_playwright; "
+            "browser_path=Path(os.environ['YIKE_BROWSER_PATH']).resolve(); "
+            "p=sync_playwright().start(); "
+            "executable=Path(p.chromium.executable_path).resolve(); "
+            "assert executable.is_file() and executable.is_relative_to(browser_path.resolve()); "
+            "browser=p.chromium.launch(headless=True); "
+            "assert browser.browser_type.name == 'chromium'; "
+            "context=browser.new_context(); page=context.new_page(); "
+            "assert page.evaluate('navigator.userAgent'); "
+            "browser.close(); p.stop(); print('YIKE_BUNDLED_CHROMIUM_OK')"
+        ),
+    ],
+    check=True,
+    capture_output=True,
+    text=True,
+    cwd=runtime,
+    env={**browser_environment, "YIKE_BROWSER_PATH": str(browser_path)},
+    timeout=60,
+)
+if browser_probe.stdout.strip() != "YIKE_BUNDLED_CHROMIUM_OK":
+    raise SystemExit("bundled Chromium probe failed")
 subprocess.run(
     [str(python_path), str(runtime / "main.py"), "--help"],
     check=True,
@@ -146,6 +180,7 @@ temporary.write_text(
             "commit": lock["commit"],
             "patchset_sha256": lock["patchset_sha256"],
             "patched_tree_sha256": lock["patched_tree_sha256"],
+            "browser_contract": browser_contract,
             "runtime_environment": runtime_environment,
         },
         sort_keys=True,

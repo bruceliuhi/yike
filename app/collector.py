@@ -4,13 +4,19 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
 import subprocess
 import sys
-from typing import Literal
+import time
+from typing import Callable, Literal
 
 from app.collectors import normalize_bilibili, normalize_douyin
 from app.normalizer import PlatformResponseChanged
-from app.repository import Repository, SignalIdentityConflict
+from app.repository import (
+    CollectionDailyLimitError,
+    Repository,
+    SignalIdentityConflict,
+)
 
 
 MEDIACRAWLER_COMMIT = "439509782cc2991c8ef7648e178d5847b0545798"
@@ -19,6 +25,11 @@ _LOCK_PATH = _PROJECT_ROOT / "vendor" / "mediacrawler.lock"
 _PATCH_ROOT = _PROJECT_ROOT / "vendor" / "patches" / "mediacrawler"
 _STATUS_SCHEMA = "YIKE_MEDIACRAWLER_STATUS_V1"
 _RUNTIME_SCHEMA = "YIKE_MEDIACRAWLER_RUNTIME_V1"
+_BROWSER_CONTRACT = {
+    "engine": "playwright-bundled-chromium",
+    "launch_channel": None,
+    "user_agent_mode": "playwright-default",
+}
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 
@@ -46,6 +57,24 @@ class CollectionResult:
     output_dir: str
 
 
+@dataclass(frozen=True)
+class SupervisedProcessResult:
+    returncode: int
+    stdout: str
+    stderr: str
+    cancelled: bool = False
+    timed_out: bool = False
+
+
+@dataclass(frozen=True)
+class _CollectionOutcome:
+    status: str
+    raw_count: int
+    unique_count: int
+    error_code: str | None
+    manifest_sha256: str | None = None
+
+
 _EXIT_RESULTS: dict[int, tuple[str, str]] = {
     40: ("BLOCKED_INPUT", "PLATFORM_AUTH_REQUIRED"),
     41: ("BLOCKED_INPUT", "PLATFORM_PERMISSION_DENIED"),
@@ -57,6 +86,89 @@ _EXIT_RESULTS: dict[int, tuple[str, str]] = {
     47: ("CANCELLED", "COLLECTION_CANCELLED"),
     48: ("FAILED", "COLLECTION_PROCESS_FAILED"),
 }
+
+
+def _stop_process_group(
+    process: subprocess.Popen[str], *, terminate_grace_seconds: float
+) -> tuple[str, str]:
+    process_group_id = process.pid
+    deadline = time.monotonic() + terminate_grace_seconds
+    try:
+        os.killpg(process_group_id, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        stdout, stderr = process.communicate(timeout=terminate_grace_seconds)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process_group_id, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        return process.communicate()
+    while time.monotonic() < deadline:
+        try:
+            os.killpg(process_group_id, 0)
+        except ProcessLookupError:
+            return stdout, stderr
+        time.sleep(min(0.01, max(0, deadline - time.monotonic())))
+    try:
+        os.killpg(process_group_id, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    return stdout, stderr
+
+
+def run_supervised_process(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    timeout_seconds: float,
+    cancel_requested: Callable[[], bool] | None = None,
+    poll_interval_seconds: float = 0.1,
+    terminate_grace_seconds: float = 2.0,
+) -> SupervisedProcessResult:
+    """Run one command in an isolated session and own its full process group."""
+    process = subprocess.Popen(
+        command,
+        cwd=cwd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        shell=False,
+        start_new_session=True,
+    )
+    deadline = time.monotonic() + timeout_seconds
+    try:
+        while True:
+            if cancel_requested is not None and cancel_requested():
+                stdout, stderr = _stop_process_group(
+                    process, terminate_grace_seconds=terminate_grace_seconds
+                )
+                return SupervisedProcessResult(
+                    process.returncode, stdout, stderr, cancelled=True
+                )
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                stdout, stderr = _stop_process_group(
+                    process, terminate_grace_seconds=terminate_grace_seconds
+                )
+                return SupervisedProcessResult(
+                    process.returncode, stdout, stderr, timed_out=True
+                )
+            try:
+                stdout, stderr = process.communicate(
+                    timeout=min(poll_interval_seconds, remaining)
+                )
+            except subprocess.TimeoutExpired:
+                continue
+            return SupervisedProcessResult(process.returncode, stdout, stderr)
+    except BaseException:
+        _stop_process_group(
+            process, terminate_grace_seconds=terminate_grace_seconds
+        )
+        raise
 
 
 class Collector:
@@ -71,7 +183,7 @@ class Collector:
     ):
         self.repository = repository
         self.runtime_path = runtime_path.resolve()
-        self.work_root = work_root.resolve()
+        self.work_root = work_root.absolute()
         fixture_runtime = (_PROJECT_ROOT / "tests/fixtures/fake_mediacrawler").resolve()
         self.python_executable = python_executable or (
             sys.executable
@@ -101,7 +213,7 @@ class Collector:
             "--save_data_option",
             "jsonl",
             "--save_data_path",
-            str(output_dir.resolve()),
+            str(output_dir.absolute()),
             "--crawler_max_notes_count",
             str(request.max_contents),
             "--max_comments_count_singlenotes",
@@ -112,120 +224,168 @@ class Collector:
             "no",
         ]
 
-    def collect(self, request: CollectionRequest) -> CollectionResult:
+    def collect(
+        self,
+        request: CollectionRequest,
+        *,
+        cancel_event: object | None = None,
+    ) -> CollectionResult:
         self._validate_request(request)
         run_dir = self.work_root / request.mvp_run_id
         output_path = run_dir / request.collection_run_id
-        if run_dir.is_symlink() or output_path.is_symlink():
-            raise ValueError("collection output has a symlinked ancestor")
-        output_dir = output_path.resolve()
-        if not output_dir.is_relative_to(self.work_root):
-            raise ValueError("collection identifiers escape the output root")
+        self._require_contained_without_symlinks(run_dir, self.work_root)
+        self._require_contained_without_symlinks(output_path, self.work_root)
+        output_dir = output_path.absolute()
         if output_dir.exists():
             raise ValueError("collection output directory already exists")
 
-        self.repository.begin_collection(
-            run_id=request.mvp_run_id,
-            collection_run_id=request.collection_run_id,
-            platform=request.platform,
-            query_cluster=request.query_cluster,
-            query_text=request.query_text,
-            max_contents=request.max_contents,
-            max_comments_per_content=request.max_comments_per_content,
+        try:
+            self.repository.begin_collection(
+                run_id=request.mvp_run_id,
+                collection_run_id=request.collection_run_id,
+                platform=request.platform,
+                query_cluster=request.query_cluster,
+                query_text=request.query_text,
+                max_contents=request.max_contents,
+                max_comments_per_content=request.max_comments_per_content,
+            )
+        except CollectionDailyLimitError as error:
+            return CollectionResult(
+                mvp_run_id=request.mvp_run_id,
+                collection_run_id=request.collection_run_id,
+                platform=request.platform,
+                status="BLOCKED_INPUT",
+                raw_count=0,
+                unique_count=0,
+                error_code=error.code,
+                output_dir=str(output_dir),
+            )
+        try:
+            outcome = self._collect_started(
+                request,
+                output_dir,
+                cancel_requested=(
+                    getattr(cancel_event, "is_set")
+                    if cancel_event is not None
+                    else None
+                ),
+            )
+        except KeyboardInterrupt:
+            outcome = _CollectionOutcome(
+                "CANCELLED", 0, 0, "COLLECTION_CANCELLED"
+            )
+        except Exception:
+            outcome = _CollectionOutcome(
+                "FAILED", 0, 0, "COLLECTION_PROCESS_FAILED"
+            )
+        return self._finish(
+            request,
+            outcome.status,
+            outcome.raw_count,
+            outcome.unique_count,
+            outcome.error_code,
+            outcome.manifest_sha256,
         )
+
+    def _collect_started(
+        self,
+        request: CollectionRequest,
+        output_dir: Path,
+        *,
+        cancel_requested: Callable[[], bool] | None,
+    ) -> _CollectionOutcome:
         try:
             output_dir.mkdir(parents=True)
+            self._require_contained_without_symlinks(output_dir, self.work_root)
         except OSError:
-            return self._finish(
-                request, "FAILED", 0, 0, "COLLECTION_OUTPUT_FAILED"
+            return _CollectionOutcome(
+                "FAILED", 0, 0, "COLLECTION_OUTPUT_FAILED"
             )
 
         runtime_error = self._runtime_error()
         if runtime_error:
-            return self._finish(request, "BLOCKED_INPUT", 0, 0, runtime_error)
+            return _CollectionOutcome("BLOCKED_INPUT", 0, 0, runtime_error)
 
         try:
-            process = subprocess.run(
+            self._require_contained_without_symlinks(output_dir, self.work_root)
+            process = run_supervised_process(
                 self.command_for(request, output_dir),
                 cwd=self.runtime_path,
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=self.timeout_seconds,
-                shell=False,
                 env={
                     **os.environ,
                     "PLAYWRIGHT_BROWSERS_PATH": str(
                         self.runtime_path / ".venv" / "playwright-browsers"
                     ),
                 },
+                timeout_seconds=self.timeout_seconds,
+                cancel_requested=cancel_requested,
             )
-        except subprocess.TimeoutExpired:
-            return self._finish(
-                request, "FAILED", 0, 0, "COLLECTION_PROCESS_FAILED"
-            )
-        except KeyboardInterrupt:
-            return self._finish(request, "CANCELLED", 0, 0, "COLLECTION_CANCELLED")
         except OSError:
-            return self._finish(
-                request, "FAILED", 0, 0, "COLLECTION_PROCESS_FAILED"
+            return _CollectionOutcome(
+                "FAILED", 0, 0, "COLLECTION_PROCESS_FAILED"
+            )
+        if process.cancelled:
+            return _CollectionOutcome(
+                "CANCELLED", 0, 0, "COLLECTION_CANCELLED"
+            )
+        if process.timed_out:
+            return _CollectionOutcome(
+                "FAILED", 0, 0, "COLLECTION_PROCESS_FAILED"
             )
 
+        self._require_contained_without_symlinks(output_dir, self.work_root)
         terminal = self._runtime_terminal(output_dir, request, process.returncode)
         if terminal is None:
-            return self._finish(
-                request, "FAILED", 0, 0, "COLLECTION_PROCESS_FAILED"
+            return _CollectionOutcome(
+                "FAILED", 0, 0, "COLLECTION_PROCESS_FAILED"
             )
         status, error_code = terminal
         if process.returncode != 0:
-            return self._finish(request, status, 0, 0, error_code)
+            return _CollectionOutcome(status, 0, 0, error_code)
 
         try:
             data_dir = self._data_dir(request, output_dir)
-            contents = self._read_jsonl(data_dir, "search_contents_*.jsonl")
-            comments = self._read_jsonl(data_dir, "search_comments_*.jsonl")
+            manifest_sha256 = self._manifest_sha256(output_dir)
+            contents = self._read_jsonl(
+                data_dir, "search_contents_*.jsonl", output_dir
+            )
+            comments = self._read_jsonl(
+                data_dir, "search_comments_*.jsonl", output_dir
+            )
             self._verify_output_limits(request, contents, comments)
+            if self._manifest_sha256(output_dir) != manifest_sha256:
+                raise ValueError("collector output changed while being verified")
         except (OSError, json.JSONDecodeError, ValueError):
-            return self._finish(request, "FAILED", 0, 0, "COLLECTION_PARSE_FAILED")
+            return _CollectionOutcome(
+                "FAILED", 0, 0, "COLLECTION_PARSE_FAILED"
+            )
 
         raw_count = len(comments)
         if not comments:
-            return self._finish(
-                request,
-                "SUCCEEDED_NO_DATA",
-                0,
-                0,
-                None,
-                self._manifest_sha256(output_dir),
+            return _CollectionOutcome(
+                "SUCCEEDED_NO_DATA", 0, 0, None, manifest_sha256
             )
 
         try:
             normalized = self._normalize_batch(request, contents, comments)
-            before_count = self.repository.count_signals(request.mvp_run_id)
-            self.repository.import_signals(request.mvp_run_id, normalized)
-            unique_count = (
-                self.repository.count_signals(request.mvp_run_id) - before_count
+            import_results = self.repository.import_signals(
+                request.mvp_run_id, normalized
             )
+            unique_count = sum(result.created for result in import_results)
         except PlatformResponseChanged:
-            return self._finish(
-                request, "FAILED", raw_count, 0, "PLATFORM_RESPONSE_CHANGED"
+            return _CollectionOutcome(
+                "FAILED", raw_count, 0, "PLATFORM_RESPONSE_CHANGED"
             )
         except SignalIdentityConflict:
-            return self._finish(
-                request, "FAILED", raw_count, 0, "SIGNAL_IDENTITY_CONFLICT"
+            return _CollectionOutcome(
+                "FAILED", raw_count, 0, "SIGNAL_IDENTITY_CONFLICT"
             )
         except (ValueError, KeyError):
-            return self._finish(
-                request, "FAILED", raw_count, 0, "PLATFORM_RESPONSE_CHANGED"
+            return _CollectionOutcome(
+                "FAILED", raw_count, 0, "PLATFORM_RESPONSE_CHANGED"
             )
-
-        return self._finish(
-            request,
-            "SUCCEEDED",
-            raw_count,
-            unique_count,
-            None,
-            self._manifest_sha256(output_dir),
+        return _CollectionOutcome(
+            "SUCCEEDED", raw_count, unique_count, None, manifest_sha256
         )
 
     def _normalize_batch(
@@ -278,13 +438,15 @@ class Collector:
             )
         return normalized
 
-    def _read_jsonl(self, data_dir: Path, pattern: str) -> list[dict[str, object]]:
-        root = data_dir.resolve()
+    def _read_jsonl(
+        self, data_dir: Path, pattern: str, output_dir: Path
+    ) -> list[dict[str, object]]:
+        self._require_contained_without_symlinks(data_dir, output_dir)
         records: list[dict[str, object]] = []
         for path in sorted(data_dir.glob(pattern)):
-            resolved = path.resolve()
-            if path.is_symlink() or not resolved.is_relative_to(root) or not path.is_file():
-                raise ValueError("collector output escaped its run directory")
+            self._require_contained_without_symlinks(path, output_dir)
+            if not path.is_file():
+                raise ValueError("collector output is not a regular file")
             with path.open(encoding="utf-8") as source:
                 for line in source:
                     if not line.strip():
@@ -310,6 +472,7 @@ class Collector:
             lock.get("schema_version") != "YIKE_MEDIACRAWLER_LOCK_V2"
             or lock.get("commit") != MEDIACRAWLER_COMMIT
             or lock.get("status_contract") != _STATUS_SCHEMA
+            or lock.get("browser_contract") != _BROWSER_CONTRACT
         ):
             return "COLLECTION_RUNTIME_MISMATCH"
         fixture = lock.get("test_fixture")
@@ -399,6 +562,7 @@ class Collector:
             "commit": MEDIACRAWLER_COMMIT,
             "patchset_sha256": lock.get("patchset_sha256"),
             "patched_tree_sha256": patched_tree_sha256,
+            "browser_contract": _BROWSER_CONTRACT,
             "runtime_environment": runtime_environment,
         }
 
@@ -474,11 +638,17 @@ class Collector:
                     str(python_path),
                     "-c",
                     (
-                        "from pathlib import Path; "
+                        "import os; from pathlib import Path; "
                         "from playwright.sync_api import sync_playwright; "
                         "p=sync_playwright().start(); "
-                        "assert Path(p.chromium.executable_path).is_file(); "
-                        "p.stop(); print('YIKE_RUNTIME_OK')"
+                        "browser_path=Path(os.environ['YIKE_BROWSER_PATH']).resolve(); "
+                        "executable=Path(p.chromium.executable_path).resolve(); "
+                        "assert executable.is_file() and executable.is_relative_to(browser_path.resolve()); "
+                        "browser=p.chromium.launch(headless=True); "
+                        "assert browser.browser_type.name == 'chromium'; "
+                        "context=browser.new_context(); page=context.new_page(); "
+                        "assert page.evaluate('navigator.userAgent'); "
+                        "browser.close(); p.stop(); print('YIKE_RUNTIME_OK')"
                     ),
                 ],
                 check=True,
@@ -488,6 +658,7 @@ class Collector:
                 env={
                     **os.environ,
                     "PLAYWRIGHT_BROWSERS_PATH": str(browser_path),
+                    "YIKE_BROWSER_PATH": str(browser_path),
                 },
             )
         except (OSError, KeyError, IndexError, subprocess.SubprocessError):
@@ -567,10 +738,10 @@ class Collector:
             raise ValueError("runtime exceeded the comment limit")
 
     def _manifest_sha256(self, output_dir: Path) -> str:
+        self._require_contained_without_symlinks(output_dir, self.work_root)
         manifest = []
         for path in sorted(output_dir.glob("*/jsonl/search_*.jsonl")):
-            if path.is_symlink() or not path.resolve().is_relative_to(output_dir.resolve()):
-                raise ValueError("collector output escaped its run directory")
+            self._require_contained_without_symlinks(path, output_dir)
             if path.name.startswith(("search_contents_", "search_comments_")):
                 manifest.append(
                     (
@@ -607,14 +778,31 @@ class Collector:
             unique_count=unique_count,
             error_code=error_code,
             output_dir=str(
-                (self.work_root / request.mvp_run_id / request.collection_run_id).resolve()
+                (self.work_root / request.mvp_run_id / request.collection_run_id).absolute()
             ),
         )
 
-    @staticmethod
-    def _data_dir(request: CollectionRequest, output_dir: Path) -> Path:
+    def _data_dir(self, request: CollectionRequest, output_dir: Path) -> Path:
         platform_dir = "bili" if request.platform == "bili" else "douyin"
-        return output_dir / platform_dir / "jsonl"
+        data_dir = output_dir / platform_dir / "jsonl"
+        self._require_contained_without_symlinks(data_dir, output_dir)
+        return data_dir
+
+    @staticmethod
+    def _require_contained_without_symlinks(path: Path, boundary: Path) -> None:
+        candidate = path.absolute()
+        root = boundary.absolute()
+        if not candidate.is_relative_to(root):
+            raise ValueError("collector output escaped its run directory")
+        current = Path(candidate.anchor)
+        for part in candidate.parts[1:]:
+            current /= part
+            if current.is_symlink():
+                raise ValueError("collection output has a symlinked ancestor")
+        if not candidate.resolve(strict=False).is_relative_to(
+            root.resolve(strict=False)
+        ):
+            raise ValueError("collector output escaped its run directory")
 
     @staticmethod
     def _validate_request(request: CollectionRequest) -> None:

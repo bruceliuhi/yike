@@ -65,6 +65,10 @@ class RunRevisionError(ValueError):
     pass
 
 
+class CollectionDailyLimitError(RuntimeError):
+    code = "COLLECTION_DAILY_LIMIT_REACHED"
+
+
 @dataclass(frozen=True)
 class NormalizedSignal:
     platform: str
@@ -228,17 +232,54 @@ class Repository:
             raise ValueError("platform must be one of: bili, dy")
         if not 1 <= max_contents <= 10 or not 1 <= max_comments_per_content <= 50:
             raise ValueError("collection limit is outside the allowed range")
-        run = self.connection.execute(
-            "SELECT state, platform_scope_json FROM mvp_runs WHERE mvp_run_id = ?",
-            (run_id,),
-        ).fetchone()
-        if run is None or run["state"] != "ACTIVE":
-            raise ValueError("collection requires an ACTIVE mvp run")
-        if platform not in json.loads(run["platform_scope_json"]):
-            raise ValueError("collection platform is outside the run scope")
-        campaign_id = str(uuid4())
-        now = _utc_now()
-        with self.connection:
+        if self.connection.in_transaction:
+            raise RuntimeError("cannot begin collection inside a transaction")
+        self.connection.execute("BEGIN IMMEDIATE")
+        try:
+            run = self.connection.execute(
+                "SELECT state, platform_scope_json FROM mvp_runs WHERE mvp_run_id = ?",
+                (run_id,),
+            ).fetchone()
+            if run is None or run["state"] != "ACTIVE":
+                raise ValueError("collection requires an ACTIVE mvp run")
+            if platform not in json.loads(run["platform_scope_json"]):
+                raise ValueError("collection platform is outside the run scope")
+            current = self._now()
+            if current.tzinfo is None:
+                current = current.replace(tzinfo=UTC)
+            current = current.astimezone(UTC)
+            now = current.isoformat(timespec="seconds").replace("+00:00", "Z")
+            shanghai = ZoneInfo("Asia/Shanghai")
+            local_day = current.astimezone(shanghai).date()
+            day_start_local = datetime.combine(local_day, time.min, tzinfo=shanghai)
+            day_end_local = day_start_local + timedelta(days=1)
+            day_start = day_start_local.astimezone(UTC).isoformat(
+                timespec="seconds"
+            ).replace("+00:00", "Z")
+            day_end = day_end_local.astimezone(UTC).isoformat(
+                timespec="seconds"
+            ).replace("+00:00", "Z")
+            query_count = self.connection.execute(
+                """
+                SELECT count(*) FROM collection_runs
+                WHERE mvp_run_id = ? AND platform = ?
+                  AND started_at >= ? AND started_at < ?
+                """,
+                (run_id, platform, day_start, day_end),
+            ).fetchone()[0]
+            new_signal_count = self.connection.execute(
+                """
+                SELECT count(*)
+                FROM mvp_run_signals membership
+                JOIN signals signal ON signal.signal_id = membership.signal_id
+                WHERE membership.mvp_run_id = ? AND signal.platform = ?
+                  AND membership.added_at >= ? AND membership.added_at < ?
+                """,
+                (run_id, platform, day_start, day_end),
+            ).fetchone()[0]
+            if query_count >= 8 or new_signal_count >= 300:
+                raise CollectionDailyLimitError(CollectionDailyLimitError.code)
+            campaign_id = str(uuid4())
             self.connection.execute(
                 """
                 INSERT INTO campaigns (
@@ -266,6 +307,11 @@ class Repository:
                 """,
                 (collection_run_id, run_id, campaign_id, platform, now),
             )
+        except BaseException:
+            self.connection.rollback()
+            raise
+        else:
+            self.connection.commit()
         return campaign_id
 
     def finish_collection(

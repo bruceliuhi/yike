@@ -6,6 +6,9 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import threading
+import time
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -429,6 +432,32 @@ def test_lock_and_fetch_script_define_a_frozen_playwright_runtime():
     assert 'runtime / "main.py"), "--help"' in script
 
 
+def test_bilibili_runtime_uses_only_playwright_bundled_chromium_and_default_ua():
+    lock = json.loads((PROJECT_ROOT / "vendor" / "mediacrawler.lock").read_text())
+    patch = (
+        PROJECT_ROOT
+        / "vendor/patches/mediacrawler/0001-yike-controlled-runtime.patch"
+    ).read_text()
+    fetch = (PROJECT_ROOT / "scripts/fetch_mediacrawler.sh").read_text()
+    additions = "\n".join(
+        line[1:] for line in patch.splitlines() if line.startswith("+")
+    )
+
+    assert lock["browser_contract"] == {
+        "engine": "playwright-bundled-chromium",
+        "launch_channel": None,
+        "user_agent_mode": "playwright-default",
+    }
+    assert "-        self.user_agent = utils.get_user_agent()" in patch
+    assert "+        self.user_agent: Optional[str] = None" in patch
+    assert "navigator.userAgent" in additions
+    assert '-            browser = await chromium.launch(headless=headless, proxy=playwright_proxy, channel="chrome")' in patch
+    assert "channel=\"chrome\"" not in additions
+    assert "get_user_agent()" not in additions
+    assert "browser.browser_type.name" in fetch
+    assert "is_relative_to(browser_path.resolve())" in fetch
+
+
 def test_production_runtime_defaults_to_its_frozen_python(repository, tmp_path):
     runtime = tmp_path / "production-runtime"
     runtime.mkdir()
@@ -489,6 +518,384 @@ def test_batch_import_is_atomic_when_one_record_is_invalid(
         (result.collection_run_id,),
     ).fetchone()[0]
     assert state == "FAILED"
+
+
+@pytest.mark.parametrize("symlink_level", ["platform", "jsonl"])
+def test_output_data_ancestors_cannot_redirect_reads_or_imports(
+    repository, run_id, tmp_path, monkeypatch, symlink_level
+):
+    runtime = tmp_path / "malicious-runtime"
+    runtime.mkdir()
+    outside = tmp_path / "outside"
+    monkeypatch.setenv("YIKE_TEST_OUTSIDE", str(outside))
+    (runtime / "main.py").write_text(
+        """
+import argparse
+import json
+import os
+from pathlib import Path
+
+parser = argparse.ArgumentParser()
+for name in ("platform", "save_data_path"):
+    parser.add_argument(f"--{name}", required=True)
+args, _ = parser.parse_known_args()
+output = Path(args.save_data_path)
+output.mkdir(parents=True, exist_ok=True)
+outside = Path(os.environ["YIKE_TEST_OUTSIDE"])
+outside.mkdir(parents=True, exist_ok=True)
+fixture = json.loads((Path(os.environ["YIKE_PROJECT_ROOT"]) / "tests/fixtures/bili/comments.json").read_text())
+if os.environ["YIKE_SYMLINK_LEVEL"] == "platform":
+    data = outside / "jsonl"
+    data.mkdir()
+    (output / "bili").symlink_to(outside, target_is_directory=True)
+else:
+    (output / "bili").mkdir()
+    data = outside
+    (output / "bili" / "jsonl").symlink_to(outside, target_is_directory=True)
+for kind in ("contents", "comments"):
+    target = data / f"search_{kind}_fixture.jsonl"
+    target.write_text("".join(json.dumps(row, ensure_ascii=False) + "\\n" for row in fixture[kind]))
+(output / ".yike-collection-status.json").write_text(json.dumps({
+    "schema_version": "YIKE_MEDIACRAWLER_STATUS_V1",
+    "platform": args.platform,
+    "status": "SUCCEEDED",
+    "error_code": None,
+}))
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("YIKE_PROJECT_ROOT", str(PROJECT_ROOT))
+    monkeypatch.setenv("YIKE_SYMLINK_LEVEL", symlink_level)
+    collector = Collector(
+        repository=repository,
+        runtime_path=runtime,
+        work_root=tmp_path / "work",
+        python_executable=sys.executable,
+    )
+    monkeypatch.setattr(collector, "_runtime_error", lambda: None)
+
+    result = collector.collect(request(run_id))
+
+    assert (result.status, result.error_code) == (
+        "FAILED",
+        "COLLECTION_PARSE_FAILED",
+    )
+    assert repository.count_signals(run_id) == 0
+    assert repository.count_observations(run_id) == 0
+    assert repository.connection.execute(
+        "SELECT state FROM collection_runs WHERE collection_run_id = ?",
+        (result.collection_run_id,),
+    ).fetchone()[0] == "FAILED"
+
+
+def test_manifest_failure_happens_before_atomic_import_and_finishes_collection(
+    collector, repository, run_id, monkeypatch
+):
+    monkeypatch.setattr(
+        collector,
+        "_manifest_sha256",
+        lambda output_dir: (_ for _ in ()).throw(OSError("manifest read failed")),
+    )
+
+    result = collector.collect(request(run_id))
+
+    assert (result.status, result.error_code) == (
+        "FAILED",
+        "COLLECTION_PARSE_FAILED",
+    )
+    assert repository.count_signals(run_id) == 0
+    assert repository.count_observations(run_id) == 0
+    assert repository.connection.execute(
+        "SELECT state FROM collection_runs WHERE collection_run_id = ?",
+        (result.collection_run_id,),
+    ).fetchone()[0] == "FAILED"
+
+
+def test_unexpected_exception_after_begin_is_terminal_and_has_no_partial_import(
+    collector, repository, run_id, monkeypatch
+):
+    monkeypatch.setattr(
+        collector,
+        "_normalize_batch",
+        lambda *args: (_ for _ in ()).throw(RuntimeError("unexpected")),
+    )
+
+    result = collector.collect(request(run_id))
+
+    assert (result.status, result.error_code) == (
+        "FAILED",
+        "COLLECTION_PROCESS_FAILED",
+    )
+    assert repository.count_signals(run_id) == 0
+    assert repository.count_observations(run_id) == 0
+    assert repository.connection.execute(
+        "SELECT state FROM collection_runs WHERE collection_run_id = ?",
+        (result.collection_run_id,),
+    ).fetchone()[0] == "FAILED"
+
+
+def test_supervisor_uses_new_process_session_without_shell(tmp_path, monkeypatch):
+    from app.collector import run_supervised_process
+
+    observed = {}
+    real_popen = subprocess.Popen
+
+    def recording_popen(*args, **kwargs):
+        observed.update(kwargs)
+        return real_popen(*args, **kwargs)
+
+    monkeypatch.setattr("app.collector.subprocess.Popen", recording_popen)
+
+    result = run_supervised_process(
+        [sys.executable, "-c", "print('ready')"],
+        cwd=tmp_path,
+        env=dict(os.environ),
+        timeout_seconds=5,
+    )
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "ready"
+    assert observed["start_new_session"] is True
+    assert observed["shell"] is False
+
+
+def test_supervisor_cancel_terminates_then_kills_the_whole_process_group(tmp_path):
+    from app.collector import run_supervised_process
+
+    started = tmp_path / "started"
+    heartbeat = tmp_path / "heartbeat"
+    script = tmp_path / "parent.py"
+    script.write_text(
+        """
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+started, heartbeat = map(Path, sys.argv[1:])
+child = '''
+import signal
+import sys
+import time
+from pathlib import Path
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+heartbeat = Path(sys.argv[1])
+counter = 0
+while True:
+    counter += 1
+    heartbeat.write_text(str(counter))
+    time.sleep(0.01)
+'''
+subprocess.Popen(
+    [sys.executable, "-c", child, str(heartbeat)],
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.DEVNULL,
+)
+started.write_text("ready")
+while True:
+    time.sleep(1)
+""",
+        encoding="utf-8",
+    )
+
+    result = run_supervised_process(
+        [sys.executable, str(script), str(started), str(heartbeat)],
+        cwd=tmp_path,
+        env=dict(os.environ),
+        timeout_seconds=5,
+        cancel_requested=lambda: started.exists() and heartbeat.exists(),
+        poll_interval_seconds=0.01,
+        terminate_grace_seconds=0.05,
+    )
+
+    assert result.cancelled is True
+    assert result.timed_out is False
+    value_after_return = heartbeat.read_text()
+    time.sleep(0.15)
+    assert heartbeat.read_text() == value_after_return
+
+
+def test_supervisor_timeout_kills_descendants(tmp_path):
+    from app.collector import run_supervised_process
+
+    heartbeat = tmp_path / "heartbeat"
+    script = tmp_path / "parent.py"
+    script.write_text(
+        """
+import signal
+import subprocess
+import sys
+import time
+
+child = '''
+import signal
+import sys
+import time
+from pathlib import Path
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+heartbeat = Path(sys.argv[1])
+counter = 0
+while True:
+    counter += 1
+    heartbeat.write_text(str(counter))
+    time.sleep(0.01)
+'''
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+subprocess.Popen([sys.executable, "-c", child, sys.argv[1]])
+while True:
+    time.sleep(1)
+""",
+        encoding="utf-8",
+    )
+
+    result = run_supervised_process(
+        [sys.executable, str(script), str(heartbeat)],
+        cwd=tmp_path,
+        env=dict(os.environ),
+        timeout_seconds=0.15,
+        poll_interval_seconds=0.01,
+        terminate_grace_seconds=0.05,
+    )
+
+    assert result.timed_out is True
+    assert result.cancelled is False
+    value_after_return = heartbeat.read_text()
+    time.sleep(0.15)
+    assert heartbeat.read_text() == value_after_return
+
+
+def test_collect_exposes_cancellation_and_records_cancelled(
+    repository, run_id, tmp_path, monkeypatch
+):
+    runtime = tmp_path / "slow-runtime"
+    runtime.mkdir()
+    (runtime / "main.py").write_text(
+        "import time\ntime.sleep(60)\n",
+        encoding="utf-8",
+    )
+    collector = Collector(
+        repository=repository,
+        runtime_path=runtime,
+        work_root=tmp_path / "work",
+        python_executable=sys.executable,
+    )
+    monkeypatch.setattr(collector, "_runtime_error", lambda: None)
+    cancel = threading.Event()
+    timer = threading.Timer(0.05, cancel.set)
+    timer.start()
+    try:
+        result = collector.collect(request(run_id), cancel_event=cancel)
+    finally:
+        timer.cancel()
+
+    assert (result.status, result.error_code) == (
+        "CANCELLED",
+        "COLLECTION_CANCELLED",
+    )
+    assert repository.connection.execute(
+        "SELECT state FROM collection_runs WHERE collection_run_id = ?",
+        (result.collection_run_id,),
+    ).fetchone()[0] == "CANCELLED"
+
+
+def test_ninth_platform_query_in_shanghai_day_is_rejected_without_db_or_spawn(
+    tmp_path, monkeypatch
+):
+    now = [datetime(2026, 8, 12, 15, 59, tzinfo=UTC)]
+    connection = connect(tmp_path / "facts.sqlite3")
+    migrate(connection)
+    repository = Repository(connection, now=lambda: now[0])
+    run_id = repository.create_run(["bili", "dy"])
+    collector = Collector(
+        repository=repository,
+        runtime_path=FAKE_RUNTIME,
+        work_root=tmp_path / "collector",
+        python_executable=sys.executable,
+    )
+    for _ in range(8):
+        assert collector.collect(request(run_id)).status == "SUCCEEDED"
+    monkeypatch.setattr(
+        "app.collector.run_supervised_process",
+        lambda *args, **kwargs: pytest.fail("daily admission must not spawn"),
+    )
+
+    rejected = collector.collect(request(run_id))
+
+    assert (rejected.status, rejected.error_code) == (
+        "BLOCKED_INPUT",
+        "COLLECTION_DAILY_LIMIT_REACHED",
+    )
+    assert repository.connection.execute(
+        "SELECT count(*) FROM campaigns WHERE platform = 'bili'"
+    ).fetchone()[0] == 8
+    assert repository.connection.execute(
+        "SELECT count(*) FROM collection_runs WHERE platform = 'bili'"
+    ).fetchone()[0] == 8
+
+    repository.finalize_run(run_id, "STOP_DISCOVERY", {})
+    revision_id = repository.create_run(
+        ["bili", "dy"], revision_of_run_id=run_id
+    )
+    monkeypatch.undo()
+    assert collector.collect(request(revision_id)).status == "SUCCEEDED"
+    connection.close()
+
+
+def test_platform_daily_signal_cap_is_independent_and_resets_next_shanghai_day(
+    tmp_path, monkeypatch
+):
+    now = [datetime(2026, 8, 12, 4, 0, tzinfo=UTC)]
+    connection = connect(tmp_path / "facts.sqlite3")
+    migrate(connection)
+    repository = Repository(connection, now=lambda: now[0])
+    run_id = repository.create_run(["bili", "dy"])
+    observed_at = now[0].isoformat(timespec="seconds").replace("+00:00", "Z")
+    for index in range(300):
+        repository.import_signal(
+            run_id,
+            NormalizedSignal(
+                platform="bili",
+                external_source_id=f"source-{index}",
+                source_url=f"https://www.bilibili.com/video/BV{index}",
+                external_comment_id=f"comment-{index}",
+                comment_url=f"https://www.bilibili.com/video/BV{index}#reply-{index}",
+                author_public_id=f"author-{index}",
+                body=f"body-{index}",
+                collected_at=observed_at,
+            ),
+        )
+    collector = Collector(
+        repository=repository,
+        runtime_path=FAKE_RUNTIME,
+        work_root=tmp_path / "collector",
+        python_executable=sys.executable,
+    )
+    real_supervisor = __import__("app.collector", fromlist=["run_supervised_process"]).run_supervised_process
+    calls = 0
+
+    def recording_supervisor(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return real_supervisor(*args, **kwargs)
+
+    monkeypatch.setattr("app.collector.run_supervised_process", recording_supervisor)
+
+    bili_rejected = collector.collect(request(run_id))
+    dy_allowed = collector.collect(request(run_id, platform="dy"))
+    now[0] += timedelta(days=1)
+    bili_next_day = collector.collect(request(run_id))
+
+    assert (bili_rejected.status, bili_rejected.error_code) == (
+        "BLOCKED_INPUT",
+        "COLLECTION_DAILY_LIMIT_REACHED",
+    )
+    assert dy_allowed.status == bili_next_day.status == "SUCCEEDED"
+    assert calls == 2
+    assert repository.connection.execute(
+        "SELECT count(*) FROM campaigns WHERE platform = 'bili'"
+    ).fetchone()[0] == 1
+    connection.close()
 
 
 @pytest.mark.parametrize(
