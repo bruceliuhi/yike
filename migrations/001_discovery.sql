@@ -85,13 +85,63 @@ CREATE TABLE IF NOT EXISTS collection_runs (
         length(runtime_lock_sha256) = 64
         AND runtime_lock_sha256 NOT GLOB '*[^0-9a-f]*'
     ),
-    state TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (
+        state IN (
+            'QUEUED', 'RUNNING', 'IMPORTING', 'SUCCEEDED',
+            'SUCCEEDED_NO_DATA', 'FAILED', 'CANCELLED', 'BLOCKED_INPUT'
+        )
+    ),
     started_at TEXT,
     finished_at TEXT,
     raw_count INTEGER NOT NULL DEFAULT 0,
     unique_count INTEGER NOT NULL DEFAULT 0,
     error_code TEXT,
     output_manifest_sha256 TEXT,
+    CHECK (attempt >= 1),
+    CHECK (raw_count >= 0 AND unique_count >= 0 AND unique_count <= raw_count),
+    CHECK (
+        output_manifest_sha256 IS NULL OR (
+            length(output_manifest_sha256) = 64
+            AND output_manifest_sha256 NOT GLOB '*[^0-9a-f]*'
+        )
+    ),
+    CHECK (
+        (state = 'QUEUED'
+            AND started_at IS NULL AND finished_at IS NULL
+            AND raw_count = 0 AND unique_count = 0
+            AND error_code IS NULL AND output_manifest_sha256 IS NULL)
+        OR
+        (state IN ('RUNNING', 'IMPORTING')
+            AND started_at IS NOT NULL
+            AND strftime('%Y-%m-%dT%H:%M:%SZ', started_at) IS started_at
+            AND finished_at IS NULL
+            AND raw_count = 0 AND unique_count = 0
+            AND error_code IS NULL AND output_manifest_sha256 IS NULL)
+        OR
+        (state = 'SUCCEEDED'
+            AND started_at IS NOT NULL AND finished_at IS NOT NULL
+            AND strftime('%Y-%m-%dT%H:%M:%SZ', started_at) IS started_at
+            AND strftime('%Y-%m-%dT%H:%M:%SZ', finished_at) IS finished_at
+            AND started_at <= finished_at AND raw_count > 0
+            AND error_code IS NULL AND output_manifest_sha256 IS NOT NULL)
+        OR
+        (state = 'SUCCEEDED_NO_DATA'
+            AND started_at IS NOT NULL AND finished_at IS NOT NULL
+            AND strftime('%Y-%m-%dT%H:%M:%SZ', started_at) IS started_at
+            AND strftime('%Y-%m-%dT%H:%M:%SZ', finished_at) IS finished_at
+            AND started_at <= finished_at
+            AND raw_count = 0 AND unique_count = 0
+            AND error_code IS NULL AND output_manifest_sha256 IS NOT NULL)
+        OR
+        (state IN ('FAILED', 'CANCELLED', 'BLOCKED_INPUT')
+            AND finished_at IS NOT NULL
+            AND strftime('%Y-%m-%dT%H:%M:%SZ', finished_at) IS finished_at
+            AND (started_at IS NULL OR (
+                strftime('%Y-%m-%dT%H:%M:%SZ', started_at) IS started_at
+                AND started_at <= finished_at
+            ))
+            AND error_code IS NOT NULL AND length(trim(error_code)) > 0)
+    ),
     UNIQUE (collection_run_id, mvp_run_id),
     FOREIGN KEY (campaign_id, mvp_run_id, platform)
         REFERENCES campaigns(campaign_id, mvp_run_id, platform)
@@ -131,6 +181,12 @@ CREATE TABLE IF NOT EXISTS signals (
             source_id IS NOT NULL
             AND external_comment_id IS NOT NULL
             AND length(trim(external_comment_id)) > 0
+            AND length(trim(normalized_comment_url)) > 0
+            AND length(trim(author_public_id)) > 0
+            AND length(trim(body)) > 0
+            AND length(body_sha256) = 64
+            AND body_sha256 NOT GLOB '*[^0-9a-f]*'
+            AND body_sha256 = yike_sha256_text(body)
             AND normalizer_version IS NOT NULL
             AND length(trim(normalizer_version)) > 0
         )
@@ -157,6 +213,18 @@ WHEN NEW.verifiable = 1
     )
 BEGIN SELECT RAISE(ABORT, 'VERIFIABLE_PROVENANCE_REQUIRED'); END;
 
+CREATE TRIGGER IF NOT EXISTS verifiable_signal_core_evidence
+BEFORE INSERT ON signals
+WHEN NEW.verifiable = 1 AND (
+    length(trim(NEW.normalized_comment_url)) = 0
+    OR length(trim(NEW.author_public_id)) = 0
+    OR length(trim(NEW.body)) = 0
+    OR length(NEW.body_sha256) <> 64
+    OR NEW.body_sha256 GLOB '*[^0-9a-f]*'
+    OR NEW.body_sha256 IS NOT yike_sha256_text(NEW.body)
+)
+BEGIN SELECT RAISE(ABORT, 'VERIFIABLE_SIGNAL_INVALID'); END;
+
 CREATE TABLE IF NOT EXISTS mvp_run_signals (
     mvp_run_id TEXT NOT NULL REFERENCES mvp_runs(mvp_run_id),
     signal_id TEXT NOT NULL REFERENCES signals(signal_id),
@@ -174,6 +242,7 @@ CREATE TABLE IF NOT EXISTS signal_observations (
     observed_at TEXT NOT NULL,
     raw_sha256 TEXT NOT NULL,
     envelope_sha256 TEXT,
+    CHECK (strftime('%Y-%m-%dT%H:%M:%SZ', observed_at) IS observed_at),
     FOREIGN KEY (mvp_run_id, signal_id)
         REFERENCES mvp_run_signals(mvp_run_id, signal_id),
     FOREIGN KEY (collection_run_id, mvp_run_id)
@@ -201,10 +270,16 @@ WHEN EXISTS (
               ON campaign.campaign_id = collection.campaign_id
              AND campaign.mvp_run_id = collection.mvp_run_id
              AND campaign.platform = collection.platform
+            JOIN mvp_runs run ON run.mvp_run_id = collection.mvp_run_id
             JOIN signals signal ON signal.signal_id = NEW.signal_id
             WHERE collection.collection_run_id = NEW.collection_run_id
               AND collection.mvp_run_id = NEW.mvp_run_id
               AND collection.platform = signal.platform
+              AND collection.state IN ('RUNNING', 'IMPORTING')
+              AND collection.finished_at IS NULL
+              AND collection.started_at IS NOT NULL
+              AND NEW.observed_at >= collection.started_at
+              AND NEW.observed_at <= run.day14_due_at
               AND campaign.query_cluster = NEW.query_cluster
               AND campaign.query_text = NEW.query_text
               AND length(collection.runtime_lock_sha256) = 64
@@ -1163,6 +1238,86 @@ BEGIN
           OR NEW.started_by IS NOT OLD.started_by
           OR NEW.runtime_lock_sha256 IS NOT OLD.runtime_lock_sha256
             THEN RAISE(ABORT, 'FACT_IDENTITY_IMMUTABLE')
+        WHEN OLD.started_at IS NOT NULL AND NEW.started_at IS NOT OLD.started_at
+            THEN RAISE(ABORT, 'FACT_IDENTITY_IMMUTABLE')
+        WHEN NEW.state NOT IN (
+            'QUEUED', 'RUNNING', 'IMPORTING', 'SUCCEEDED',
+            'SUCCEEDED_NO_DATA', 'FAILED', 'CANCELLED', 'BLOCKED_INPUT'
+        ) THEN RAISE(ABORT, 'COLLECTION_STATE_INVALID')
+        WHEN OLD.state IN (
+            'SUCCEEDED', 'SUCCEEDED_NO_DATA', 'FAILED', 'CANCELLED', 'BLOCKED_INPUT'
+        ) THEN RAISE(ABORT, 'COLLECTION_TERMINAL_IMMUTABLE')
+        WHEN OLD.state <> NEW.state AND NOT (
+            (OLD.state = 'QUEUED' AND NEW.state IN ('RUNNING', 'CANCELLED'))
+            OR (OLD.state = 'RUNNING' AND NEW.state IN (
+                'IMPORTING', 'SUCCEEDED', 'SUCCEEDED_NO_DATA',
+                'FAILED', 'CANCELLED', 'BLOCKED_INPUT'
+            ))
+            OR (OLD.state = 'IMPORTING' AND NEW.state IN (
+                'SUCCEEDED', 'SUCCEEDED_NO_DATA',
+                'FAILED', 'CANCELLED', 'BLOCKED_INPUT'
+            ))
+        ) THEN RAISE(ABORT, 'COLLECTION_STATE_TRANSITION_INVALID')
+        WHEN NEW.raw_count < 0 OR NEW.unique_count < 0
+          OR NEW.unique_count > NEW.raw_count
+          OR (
+            NEW.output_manifest_sha256 IS NOT NULL AND (
+                length(NEW.output_manifest_sha256) <> 64
+                OR NEW.output_manifest_sha256 GLOB '*[^0-9a-f]*'
+            )
+          )
+          OR (
+            NEW.state = 'QUEUED' AND NOT (
+                NEW.started_at IS NULL AND NEW.finished_at IS NULL
+                AND NEW.raw_count = 0 AND NEW.unique_count = 0
+                AND NEW.error_code IS NULL
+                AND NEW.output_manifest_sha256 IS NULL
+            )
+          )
+          OR (
+            NEW.state IN ('RUNNING', 'IMPORTING') AND NOT (
+                NEW.started_at IS NOT NULL
+                AND strftime('%Y-%m-%dT%H:%M:%SZ', NEW.started_at) IS NEW.started_at
+                AND NEW.finished_at IS NULL
+                AND NEW.raw_count = 0 AND NEW.unique_count = 0
+                AND NEW.error_code IS NULL
+                AND NEW.output_manifest_sha256 IS NULL
+            )
+          )
+          OR (
+            NEW.state = 'SUCCEEDED' AND NOT (
+                NEW.started_at IS NOT NULL AND NEW.finished_at IS NOT NULL
+                AND strftime('%Y-%m-%dT%H:%M:%SZ', NEW.started_at) IS NEW.started_at
+                AND strftime('%Y-%m-%dT%H:%M:%SZ', NEW.finished_at) IS NEW.finished_at
+                AND NEW.started_at <= NEW.finished_at
+                AND NEW.raw_count > 0 AND NEW.error_code IS NULL
+                AND NEW.output_manifest_sha256 IS NOT NULL
+            )
+          )
+          OR (
+            NEW.state = 'SUCCEEDED_NO_DATA' AND NOT (
+                NEW.started_at IS NOT NULL AND NEW.finished_at IS NOT NULL
+                AND strftime('%Y-%m-%dT%H:%M:%SZ', NEW.started_at) IS NEW.started_at
+                AND strftime('%Y-%m-%dT%H:%M:%SZ', NEW.finished_at) IS NEW.finished_at
+                AND NEW.started_at <= NEW.finished_at
+                AND NEW.raw_count = 0 AND NEW.unique_count = 0
+                AND NEW.error_code IS NULL
+                AND NEW.output_manifest_sha256 IS NOT NULL
+            )
+          )
+          OR (
+            NEW.state IN ('FAILED', 'CANCELLED', 'BLOCKED_INPUT') AND NOT (
+                NEW.finished_at IS NOT NULL
+                AND strftime('%Y-%m-%dT%H:%M:%SZ', NEW.finished_at) IS NEW.finished_at
+                AND (NEW.started_at IS NULL OR (
+                    strftime('%Y-%m-%dT%H:%M:%SZ', NEW.started_at) IS NEW.started_at
+                    AND NEW.started_at <= NEW.finished_at
+                ))
+                AND NEW.error_code IS NOT NULL
+                AND length(trim(NEW.error_code)) > 0
+            )
+          )
+            THEN RAISE(ABORT, 'COLLECTION_TERMINAL_INVALID')
         WHEN EXISTS (
             SELECT 1 FROM mvp_runs
             WHERE mvp_run_id IN (OLD.mvp_run_id, NEW.mvp_run_id)

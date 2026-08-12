@@ -113,6 +113,7 @@ def test_daily_limit_cli_returns_one_stable_terminal_without_new_db_rows(tmp_pat
             raw_count=0,
             unique_count=0,
             error_code=None,
+            output_manifest_sha256="d" * 64,
         )
     repository.connection.close()
     rejected_collection_run_id = str(uuid4())

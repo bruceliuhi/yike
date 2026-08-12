@@ -119,6 +119,16 @@ def _is_sha256(value: object) -> bool:
     )
 
 
+def _parse_canonical_timestamp(value: object) -> datetime:
+    if not isinstance(value, str):
+        raise ValueError("timestamp must be canonical RFC3339 UTC")
+    try:
+        parsed = datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError as error:
+        raise ValueError("timestamp must be canonical RFC3339 UTC") from error
+    return parsed.replace(tzinfo=UTC)
+
+
 class Repository:
     def __init__(
         self, connection: sqlite3.Connection, *, now: Callable[[], datetime] | None = None
@@ -376,6 +386,40 @@ class Repository:
         error_code: str | None,
         output_manifest_sha256: str | None = None,
     ) -> None:
+        terminal_states = frozenset(
+            ("SUCCEEDED", "SUCCEEDED_NO_DATA", "FAILED", "CANCELLED", "BLOCKED_INPUT")
+        )
+        if state not in terminal_states:
+            raise ValueError("collection terminal state is invalid")
+        if (
+            not isinstance(raw_count, int)
+            or not isinstance(unique_count, int)
+            or raw_count < 0
+            or unique_count < 0
+            or unique_count > raw_count
+        ):
+            raise ValueError("collection terminal counts are invalid")
+        if output_manifest_sha256 is not None and not _is_sha256(
+            output_manifest_sha256
+        ):
+            raise ValueError("collection output manifest SHA-256 is invalid")
+        if state == "SUCCEEDED":
+            valid = (
+                raw_count > 0
+                and error_code is None
+                and output_manifest_sha256 is not None
+            )
+        elif state == "SUCCEEDED_NO_DATA":
+            valid = (
+                raw_count == 0
+                and unique_count == 0
+                and error_code is None
+                and output_manifest_sha256 is not None
+            )
+        else:
+            valid = isinstance(error_code, str) and bool(error_code.strip())
+        if not valid:
+            raise ValueError("collection terminal evidence is invalid")
         with self.connection:
             result = self.connection.execute(
                 """
@@ -383,10 +427,12 @@ class Repository:
                 SET state = ?, finished_at = ?, raw_count = ?, unique_count = ?,
                     error_code = ?, output_manifest_sha256 = ?
                 WHERE collection_run_id = ?
+                  AND state IN ('RUNNING', 'IMPORTING')
+                  AND finished_at IS NULL
                 """,
                 (
                     state,
-                    _utc_now(),
+                    self._server_timestamp(),
                     raw_count,
                     unique_count,
                     error_code,
@@ -395,13 +441,20 @@ class Repository:
                 ),
             )
         if result.rowcount != 1:
-            raise KeyError(f"unknown collection run: {collection_run_id}")
+            raise KeyError(f"unknown running collection: {collection_run_id}")
 
     def _prepare_signal(
         self, run_id: str, item: NormalizedSignal, received_at: str
     ) -> tuple[str | None, str, str, str, str, str]:
         if item.platform not in _PLATFORMS:
             raise ValueError("platform must be one of: bili, dy")
+        observed_at = item.collected_at or received_at
+        try:
+            observed_instant = _parse_canonical_timestamp(observed_at)
+        except ValueError as error:
+            if item.verifiable:
+                raise ValueError("VERIFIABLE_PROVENANCE_REQUIRED") from error
+            raise
         if item.verifiable:
             required_provenance = (
                 item.external_source_id,
@@ -425,6 +478,7 @@ class Repository:
                 raise ValueError("VERIFIABLE_PROVENANCE_REQUIRED")
             collection = self.connection.execute(
                 "SELECT collection.platform, collection.runtime_lock_sha256, "
+                "collection.state, collection.started_at, collection.finished_at, "
                 "campaign.query_cluster, campaign.query_text "
                 "FROM collection_runs collection "
                 "JOIN campaigns campaign ON campaign.campaign_id = collection.campaign_id "
@@ -436,10 +490,21 @@ class Repository:
             if (
                 collection is None
                 or collection["platform"] != item.platform
+                or collection["state"] not in ("RUNNING", "IMPORTING")
+                or collection["finished_at"] is not None
                 or collection["query_cluster"] != item.query_cluster
                 or collection["query_text"] != item.query_text
                 or not _is_sha256(collection["runtime_lock_sha256"])
             ):
+                raise ValueError("VERIFIABLE_PROVENANCE_REQUIRED")
+            try:
+                collection_started = _parse_canonical_timestamp(
+                    collection["started_at"]
+                )
+                received_instant = _parse_canonical_timestamp(received_at)
+            except ValueError as error:
+                raise ValueError("VERIFIABLE_PROVENANCE_REQUIRED") from error
+            if not collection_started <= observed_instant <= received_instant:
                 raise ValueError("VERIFIABLE_PROVENANCE_REQUIRED")
         if not item.body or not item.body.strip():
             raise ValueError("signal body is required")
@@ -472,7 +537,6 @@ class Repository:
         if item.body_sha256 is not None and item.body_sha256 != body_sha256:
             raise ValueError("signal body SHA-256 does not match body")
         raw_sha256 = item.raw_sha256 or _sha256(item.body)
-        observed_at = item.collected_at or received_at
         return (
             external_comment_id,
             comment_url,

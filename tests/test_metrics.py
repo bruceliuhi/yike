@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+import hashlib
 
 import pytest
 
@@ -74,7 +75,7 @@ def test_verifiable_metric_requires_a_complete_observation_chain(tmp_path):
             'author', '没有采集 observation', ?, 1, 'test-normalizer-v1'
         )
         """,
-        ("a" * 64,),
+        (hashlib.sha256("没有采集 observation".encode()).hexdigest(),),
     )
     connection.execute(
         """
@@ -138,14 +139,26 @@ def test_verifiable_metric_requires_a_successful_collection_with_manifest(
             verifiable=True,
         ),
     )
-    repository.finish_collection(
-        "failed-provenance",
-        state=collection_state,
-        raw_count=1,
-        unique_count=1,
-        error_code=error_code,
-        output_manifest_sha256=manifest_sha256,
-    )
+    if collection_state == "SUCCEEDED" and manifest_sha256 is None:
+        connection.execute("DROP TRIGGER collection_runs_update_guard")
+        connection.execute("PRAGMA ignore_check_constraints = ON")
+        connection.execute(
+            """
+            UPDATE collection_runs
+            SET state = 'SUCCEEDED', finished_at = '2026-08-12T00:00:00Z',
+                raw_count = 1, unique_count = 1, output_manifest_sha256 = NULL
+            WHERE collection_run_id = 'failed-provenance'
+            """
+        )
+    else:
+        repository.finish_collection(
+            "failed-provenance",
+            state=collection_state,
+            raw_count=1,
+            unique_count=1,
+            error_code=error_code,
+            output_manifest_sha256=manifest_sha256,
+        )
 
     snapshot = MetricsEngine(connection).calculate(
         run_id, now=datetime(2026, 8, 12, 1, tzinfo=UTC)
@@ -197,7 +210,7 @@ def test_verifiable_metric_rechecks_campaign_query_binding(tmp_path):
             'test-normalizer-v1'
         )
         """,
-        ("b" * 64,),
+        (hashlib.sha256(b"metric query body").hexdigest(),),
     )
     connection.execute(
         """
@@ -238,6 +251,216 @@ def test_verifiable_metric_rechecks_campaign_query_binding(tmp_path):
     connection.close()
 
 
+def test_verifiable_metric_rejects_observation_after_cutoff(tmp_path):
+    connection = connect(tmp_path / "facts.sqlite3")
+    migrate(connection)
+    repository = Repository(
+        connection, now=lambda: datetime(2026, 8, 12, 8, tzinfo=UTC)
+    )
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="metric-future-collection",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    body = "future metric body"
+    connection.execute(
+        "INSERT INTO sources (source_id, platform, external_source_id, canonical_url) "
+        "VALUES ('metric-future-source', 'bili', 'metric-future-external', "
+        "'https://www.bilibili.com/video/BV-metric-future')"
+    )
+    connection.execute(
+        """
+        INSERT INTO signals (
+            signal_id, source_id, platform, external_comment_id,
+            normalized_comment_url, author_public_id, body, body_sha256,
+            verifiable, normalizer_version
+        ) VALUES (
+            'metric-future-signal', 'metric-future-source', 'bili',
+            'metric-future-comment',
+            'https://www.bilibili.com/video/BV-metric-future#reply',
+            'metric-future-author', ?, ?, 1, 'test-normalizer-v1'
+        )
+        """,
+        (body, hashlib.sha256(body.encode()).hexdigest()),
+    )
+    connection.execute(
+        "INSERT INTO mvp_run_signals (mvp_run_id, signal_id, added_at) "
+        "VALUES (?, 'metric-future-signal', '2026-08-12T08:00:00Z')",
+        (run_id,),
+    )
+    connection.execute("DROP TRIGGER verifiable_observation_requires_provenance")
+    connection.execute(
+        """
+        INSERT INTO signal_observations (
+            observation_id, mvp_run_id, collection_run_id, signal_id,
+            query_cluster, query_text, observed_at, raw_sha256,
+            envelope_sha256
+        ) VALUES (
+            'metric-future-observation', ?, 'metric-future-collection',
+            'metric-future-signal', 'sales', '销售线索',
+            '2099-01-01T00:00:00Z', ?, ?
+        )
+        """,
+        (run_id, "b" * 64, "c" * 64),
+    )
+    repository.finish_collection(
+        "metric-future-collection",
+        state="SUCCEEDED",
+        raw_count=1,
+        unique_count=1,
+        error_code=None,
+        output_manifest_sha256="d" * 64,
+    )
+
+    snapshot = MetricsEngine(connection).calculate(
+        run_id, now=datetime(2026, 8, 12, 9, tzinfo=UTC)
+    )
+
+    assert snapshot.unique_verifiable_signals == 0
+    connection.close()
+
+
+def test_verifiable_metric_rejects_invalid_signal_core_evidence(tmp_path):
+    connection = connect(tmp_path / "facts.sqlite3")
+    migrate(connection)
+    repository = Repository(
+        connection, now=lambda: datetime(2026, 8, 12, 8, tzinfo=UTC)
+    )
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="metric-invalid-core-collection",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    connection.execute(
+        "INSERT INTO sources (source_id, platform, external_source_id, canonical_url) "
+        "VALUES ('metric-invalid-core-source', 'bili', 'metric-invalid-core-external', "
+        "'https://www.bilibili.com/video/BV-metric-invalid-core')"
+    )
+    connection.execute("DROP TRIGGER IF EXISTS verifiable_signal_core_evidence")
+    connection.execute("PRAGMA ignore_check_constraints = ON")
+    connection.execute(
+        """
+        INSERT INTO signals (
+            signal_id, source_id, platform, external_comment_id,
+            normalized_comment_url, author_public_id, body, body_sha256,
+            verifiable, normalizer_version
+        ) VALUES (
+            'metric-invalid-core-signal', 'metric-invalid-core-source', 'bili',
+            'metric-invalid-core-comment',
+            'https://www.bilibili.com/video/BV-metric-invalid-core#reply',
+            'metric-invalid-core-author', 'mismatched body', ?,
+            1, 'test-normalizer-v1'
+        )
+        """,
+        ("a" * 64,),
+    )
+    connection.execute(
+        "INSERT INTO mvp_run_signals (mvp_run_id, signal_id, added_at) "
+        "VALUES (?, 'metric-invalid-core-signal', '2026-08-12T08:00:00Z')",
+        (run_id,),
+    )
+    connection.execute(
+        """
+        INSERT INTO signal_observations (
+            observation_id, mvp_run_id, collection_run_id, signal_id,
+            query_cluster, query_text, observed_at, raw_sha256,
+            envelope_sha256
+        ) VALUES (
+            'metric-invalid-core-observation', ?, 'metric-invalid-core-collection',
+            'metric-invalid-core-signal', 'sales', '销售线索',
+            '2026-08-12T08:00:00Z', ?, ?
+        )
+        """,
+        (run_id, "b" * 64, "c" * 64),
+    )
+    repository.finish_collection(
+        "metric-invalid-core-collection",
+        state="SUCCEEDED",
+        raw_count=1,
+        unique_count=1,
+        error_code=None,
+        output_manifest_sha256="d" * 64,
+    )
+
+    snapshot = MetricsEngine(connection).calculate(
+        run_id, now=datetime(2026, 8, 12, 9, tzinfo=UTC)
+    )
+
+    assert snapshot.unique_verifiable_signals == 0
+    connection.close()
+
+
+def test_verifiable_metric_rejects_incomplete_collection_terminal(tmp_path):
+    connection = connect(tmp_path / "facts.sqlite3")
+    migrate(connection)
+    repository = Repository(
+        connection, now=lambda: datetime(2026, 8, 12, 8, tzinfo=UTC)
+    )
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="metric-incomplete-terminal",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    repository.import_signal(
+        run_id,
+        NormalizedSignal(
+            platform="bili",
+            external_source_id="metric-terminal-source",
+            source_url="https://www.bilibili.com/video/BV-metric-terminal",
+            external_comment_id="metric-terminal-comment",
+            comment_url="https://www.bilibili.com/video/BV-metric-terminal#reply",
+            author_public_id="metric-terminal-author",
+            body="metric terminal body",
+            raw_sha256="b" * 64,
+            envelope_sha256="c" * 64,
+            query_cluster="sales",
+            query_text="销售线索",
+            collection_run_id="metric-incomplete-terminal",
+            normalizer_version="test-normalizer-v1",
+            verifiable=True,
+        ),
+    )
+    connection.execute("DROP TRIGGER collection_runs_update_guard")
+    connection.execute("PRAGMA ignore_check_constraints = ON")
+    connection.execute(
+        """
+        UPDATE collection_runs
+        SET state = 'SUCCEEDED', raw_count = 1, unique_count = 1,
+            output_manifest_sha256 = ?
+        WHERE collection_run_id = 'metric-incomplete-terminal'
+        """,
+        ("d" * 64,),
+    )
+
+    snapshot = MetricsEngine(connection).calculate(
+        run_id, now=datetime(2026, 8, 12, 9, tzinfo=UTC)
+    )
+
+    assert snapshot.unique_verifiable_signals == 0
+    connection.close()
+
+
 def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
     connection = connect(tmp_path / "facts.sqlite3")
     migrate(connection)
@@ -254,14 +477,6 @@ def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
         max_comments_per_content=1,
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
-    )
-    repository.finish_collection(
-        "metric-provenance",
-        state="SUCCEEDED",
-        raw_count=1,
-        unique_count=1,
-        error_code=None,
-        output_manifest_sha256="d" * 64,
     )
     signal_id = repository.import_signal(
         run_id,
@@ -284,6 +499,14 @@ def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
             verifiable=True,
         ),
     ).signal_id
+    repository.finish_collection(
+        "metric-provenance",
+        state="SUCCEEDED",
+        raw_count=1,
+        unique_count=1,
+        error_code=None,
+        output_manifest_sha256="d" * 64,
+    )
     decision = ScoreDecision.model_validate(
         {
             "grade": "A",

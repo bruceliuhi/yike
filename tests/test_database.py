@@ -1,3 +1,4 @@
+import hashlib
 import sqlite3
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -363,8 +364,8 @@ def test_current_schema_migration_is_idempotent(connection):
         "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
     ).fetchone()
     assert tuple(marker) == (
-        "DISCOVERY_FACT_STORE_V9",
-        "bf951b803baf4d798b5e213a18fad5a0d190b130e78e25f079e194f9042413d9",
+        "DISCOVERY_FACT_STORE_V10",
+        "60087c82972b23c075d7a83b25ac268ed22c14b42b7b6a8ce73891e7d05b6ea6",
     )
 
 
@@ -1162,8 +1163,13 @@ def test_mutable_collection_records_allow_state_changes_but_not_delete(
     key_column = "campaign_id" if table == "campaigns" else "collection_run_id"
     key_value = "campaign-1" if table == "campaigns" else "collection-1"
 
+    assignment = (
+        "state = 'RUNNING', started_at = '2026-08-12T00:00:00Z'"
+        if table == "collection_runs"
+        else "state = 'RUNNING'"
+    )
     connection.execute(
-        f"UPDATE {table} SET state = 'RUNNING' WHERE {key_column} = ?", (key_value,)
+        f"UPDATE {table} SET {assignment} WHERE {key_column} = ?", (key_value,)
     )
     assert (
         connection.execute(
@@ -1522,7 +1528,7 @@ def test_sql_rejects_verifiable_signal_with_incomplete_source_provenance(
                 'author', 'body', ?, 1, 'test-normalizer-v1'
             )
             """,
-            ("a" * 64,),
+            (hashlib.sha256(b"body").hexdigest(),),
         )
 
 
@@ -1554,6 +1560,127 @@ def test_verifiable_observation_query_must_match_its_collection_campaign(reposit
         )
 
     assert repository.count_signals(run_id) == 0
+
+
+@pytest.mark.parametrize(
+    "collected_at",
+    ["2099-01-01T00:00:00Z", "2026-08-12T08:00:00+00:00"],
+)
+def test_verifiable_observation_cannot_be_recorded_in_the_future(
+    connection, collected_at
+):
+    now = datetime(2026, 8, 12, 8, tzinfo=UTC)
+    repository = Repository(connection, now=lambda: now)
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="future-observation-collection",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+
+    with pytest.raises(ValueError, match="VERIFIABLE_PROVENANCE_REQUIRED"):
+        repository.import_signal(
+            run_id,
+            replace(
+                signal(verifiable=True),
+                collection_run_id="future-observation-collection",
+                query_cluster="sales",
+                query_text="销售线索",
+                collected_at=collected_at,
+                envelope_sha256="b" * 64,
+                normalizer_version="test-normalizer-v1",
+            ),
+        )
+
+    assert repository.count_signals(run_id) == 0
+
+
+def test_sql_rejects_noncanonical_observation_timestamp(connection, repository):
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="sql-invalid-time-collection",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    imported = repository.import_signal(
+        run_id,
+        replace(
+            signal(verifiable=True),
+            collection_run_id="sql-invalid-time-collection",
+            query_cluster="sales",
+            query_text="销售线索",
+            envelope_sha256="b" * 64,
+            normalizer_version="test-normalizer-v1",
+        ),
+    )
+
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute(
+            """
+            INSERT INTO signal_observations (
+                observation_id, mvp_run_id, collection_run_id, signal_id,
+                query_cluster, query_text, observed_at, raw_sha256,
+                envelope_sha256
+            ) VALUES (
+                'sql-invalid-time-observation', ?, 'sql-invalid-time-collection', ?,
+                'sales', '销售线索', 'not-a-timestamp', ?, ?
+            )
+            """,
+            (run_id, imported.signal_id, "c" * 64, "d" * 64),
+        )
+
+
+def test_sql_rejects_future_verifiable_observation(connection, repository):
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="sql-future-collection",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    imported = repository.import_signal(
+        run_id,
+        replace(
+            signal(verifiable=True),
+            collection_run_id="sql-future-collection",
+            query_cluster="sales",
+            query_text="销售线索",
+            envelope_sha256="b" * 64,
+            normalizer_version="test-normalizer-v1",
+        ),
+    )
+
+    with pytest.raises(sqlite3.IntegrityError, match="VERIFIABLE_PROVENANCE_REQUIRED"):
+        connection.execute(
+            """
+            INSERT INTO signal_observations (
+                observation_id, mvp_run_id, collection_run_id, signal_id,
+                query_cluster, query_text, observed_at, raw_sha256,
+                envelope_sha256
+            ) VALUES (
+                'sql-future-observation', ?, 'sql-future-collection', ?,
+                'sales', '销售线索', '2099-01-01T00:00:00Z', ?, ?
+            )
+            """,
+            (run_id, imported.signal_id, "c" * 64, "d" * 64),
+        )
 
 
 def test_sql_rejects_observation_query_that_differs_from_collection_campaign(
@@ -1593,7 +1720,7 @@ def test_sql_rejects_observation_query_that_differs_from_collection_campaign(
             'sql-author', 'sql body', ?, 1, 'test-normalizer-v1'
         )
         """,
-        ("b" * 64,),
+        (hashlib.sha256(b"sql body").hexdigest(),),
     )
     connection.execute(
         """
@@ -1618,6 +1745,135 @@ def test_sql_rejects_observation_query_that_differs_from_collection_campaign(
             """,
             (run_id, "c" * 64, "d" * 64),
         )
+
+
+@pytest.mark.parametrize(
+    ("comment_url", "author_public_id", "body", "body_sha256"),
+    [
+        ("", "", "", "not-a-sha256"),
+        (
+            "https://www.bilibili.com/video/BV-invalid-core#reply",
+            "invalid-core-author",
+            "mismatched body",
+            "a" * 64,
+        ),
+    ],
+)
+def test_sql_rejects_verifiable_signal_with_invalid_core_evidence(
+    connection, repository, comment_url, author_public_id, body, body_sha256
+):
+    repository.create_run(["bili", "dy"])
+    connection.execute(
+        """
+        INSERT INTO sources (
+            source_id, platform, external_source_id, canonical_url
+        ) VALUES (
+            'invalid-core-source', 'bili', 'invalid-core-external',
+            'https://www.bilibili.com/video/BV-invalid-core'
+        )
+        """
+    )
+
+    with pytest.raises(sqlite3.IntegrityError, match="VERIFIABLE_SIGNAL_INVALID"):
+        connection.execute(
+            """
+            INSERT INTO signals (
+                signal_id, source_id, platform, external_comment_id,
+                normalized_comment_url, author_public_id, body, body_sha256,
+                verifiable, normalizer_version
+            ) VALUES (
+                'invalid-core-signal', 'invalid-core-source', 'bili',
+                'invalid-core-comment', ?, ?, ?, ?, 1,
+                'test-normalizer-v1'
+            )
+            """,
+            (comment_url, author_public_id, body, body_sha256),
+        )
+
+
+def test_collection_success_requires_complete_terminal_evidence(repository):
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="incomplete-terminal",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+
+    with pytest.raises(sqlite3.IntegrityError, match="COLLECTION_TERMINAL_INVALID"):
+        repository.connection.execute(
+            """
+            UPDATE collection_runs
+            SET state = 'SUCCEEDED', raw_count = 1, unique_count = 1,
+                output_manifest_sha256 = ?
+            WHERE collection_run_id = 'incomplete-terminal'
+            """,
+            ("b" * 64,),
+        )
+
+
+def test_collection_state_must_be_known(repository):
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="invalid-state",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+
+    with pytest.raises(sqlite3.IntegrityError, match="COLLECTION_STATE_INVALID"):
+        repository.connection.execute(
+            "UPDATE collection_runs SET state = 'UNKNOWN' "
+            "WHERE collection_run_id = 'invalid-state'"
+        )
+
+
+def test_collection_terminal_evidence_cannot_be_rewritten(repository):
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="immutable-terminal",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    repository.finish_collection(
+        "immutable-terminal",
+        state="SUCCEEDED",
+        raw_count=1,
+        unique_count=1,
+        error_code=None,
+        output_manifest_sha256="b" * 64,
+    )
+
+    with pytest.raises(KeyError, match="unknown running collection"):
+        repository.finish_collection(
+            "immutable-terminal",
+            state="FAILED",
+            raw_count=0,
+            unique_count=0,
+            error_code="COLLECTION_PROCESS_FAILED",
+        )
+
+    row = repository.connection.execute(
+        "SELECT state, raw_count, unique_count, output_manifest_sha256 "
+        "FROM collection_runs WHERE collection_run_id = 'immutable-terminal'"
+    ).fetchone()
+    assert tuple(row) == ("SUCCEEDED", 1, 1, "b" * 64)
 
 
 def test_finalized_run_rejects_fact_insert_update_and_delete(connection, repository):

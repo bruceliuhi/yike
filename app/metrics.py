@@ -88,6 +88,16 @@ class MetricsEngine:
               AND length(trim(source.external_source_id)) > 0
               AND source.canonical_url IS NOT NULL
               AND length(trim(source.canonical_url)) > 0
+              AND signal.external_comment_id IS NOT NULL
+              AND length(trim(signal.external_comment_id)) > 0
+              AND length(trim(signal.normalized_comment_url)) > 0
+              AND length(trim(signal.author_public_id)) > 0
+              AND length(trim(signal.body)) > 0
+              AND length(signal.body_sha256) = 64
+              AND signal.body_sha256 NOT GLOB '*[^0-9a-f]*'
+              AND signal.body_sha256 = yike_sha256_text(signal.body)
+              AND signal.normalizer_version IS NOT NULL
+              AND length(trim(signal.normalizer_version)) > 0
               AND EXISTS (
                   SELECT 1
                   FROM signal_observations observation
@@ -106,6 +116,10 @@ class MetricsEngine:
                     AND length(trim(observation.query_text)) > 0
                     AND campaign.query_cluster = observation.query_cluster
                     AND campaign.query_text = observation.query_text
+                    AND strftime(
+                        '%Y-%m-%dT%H:%M:%SZ', observation.observed_at
+                    ) = observation.observed_at
+                    AND observation.observed_at <= ?
                     AND length(observation.raw_sha256) = 64
                     AND observation.raw_sha256 NOT GLOB '*[^0-9a-f]*'
                     AND observation.envelope_sha256 IS NOT NULL
@@ -113,6 +127,21 @@ class MetricsEngine:
                     AND observation.envelope_sha256 NOT GLOB '*[^0-9a-f]*'
                     AND collection.platform = signal.platform
                     AND collection.state = 'SUCCEEDED'
+                    AND collection.started_at IS NOT NULL
+                    AND collection.finished_at IS NOT NULL
+                    AND strftime(
+                        '%Y-%m-%dT%H:%M:%SZ', collection.started_at
+                    ) = collection.started_at
+                    AND strftime(
+                        '%Y-%m-%dT%H:%M:%SZ', collection.finished_at
+                    ) = collection.finished_at
+                    AND collection.started_at <= observation.observed_at
+                    AND observation.observed_at <= collection.finished_at
+                    AND collection.finished_at <= ?
+                    AND collection.raw_count > 0
+                    AND collection.unique_count >= 0
+                    AND collection.unique_count <= collection.raw_count
+                    AND collection.error_code IS NULL
                     AND collection.output_manifest_sha256 IS NOT NULL
                     AND length(collection.output_manifest_sha256) = 64
                     AND collection.output_manifest_sha256 NOT GLOB '*[^0-9a-f]*'
@@ -121,7 +150,7 @@ class MetricsEngine:
               )
             """,
             run_id,
-            extra=(cutoff,),
+            extra=(cutoff, cutoff, cutoff),
         )
         reviewed = self._scalar(self._leaf_review_count(), run_id, extra=(cutoff, cutoff))
         first_outreach = self._scalar(

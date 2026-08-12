@@ -5,12 +5,24 @@ import sqlite3
 
 
 _MIGRATION = Path(__file__).resolve().parents[1] / "migrations" / "001_discovery.sql"
-_SCHEMA_VERSION = "DISCOVERY_FACT_STORE_V9"
-_SCHEMA_SIGNATURE = "bf951b803baf4d798b5e213a18fad5a0d190b130e78e25f079e194f9042413d9"
+_SCHEMA_VERSION = "DISCOVERY_FACT_STORE_V10"
+_SCHEMA_SIGNATURE = "60087c82972b23c075d7a83b25ac268ed22c14b42b7b6a8ce73891e7d05b6ea6"
 
 
 class UnsupportedSchemaError(RuntimeError):
     pass
+
+
+def _sha256_text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _register_functions(connection: sqlite3.Connection) -> None:
+    connection.create_function(
+        "yike_sha256_text", 1, _sha256_text, deterministic=True
+    )
 
 
 def _schema_signature(connection: sqlite3.Connection) -> str:
@@ -55,6 +67,7 @@ def connect(database_path: Path) -> sqlite3.Connection:
     """Open the local fact store with the required SQLite safety settings."""
     database_path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(database_path)
+    _register_functions(connection)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA journal_mode = WAL")
@@ -66,6 +79,7 @@ def migrate(connection: sqlite3.Connection) -> None:
     """Apply the idempotent discovery schema to an empty or existing database."""
     if connection.in_transaction:
         raise RuntimeError("cannot migrate while connection has an active transaction")
+    _register_functions(connection)
     connection.execute("PRAGMA foreign_keys = ON")
     if connection.execute("PRAGMA foreign_keys").fetchone()[0] != 1:
         raise RuntimeError("SQLite foreign key enforcement could not be enabled")

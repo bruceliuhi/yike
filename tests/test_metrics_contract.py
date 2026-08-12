@@ -52,15 +52,6 @@ class FactBuilder:
             started_by="test-operator",
             runtime_lock_sha256="a" * 64,
         )
-        self.repository.finish_collection(
-            "metrics-provenance",
-            state="SUCCEEDED",
-            raw_count=320,
-            unique_count=300,
-            error_code=None,
-            output_manifest_sha256="d" * 64,
-        )
-        self.clock.set(datetime(2026, 8, 20, tzinfo=UTC))
         self.workflow = Workflow(self.repository, now=self.clock)
         self.decision = ScoreDecision.model_validate(
             valid_decision(),
@@ -171,6 +162,28 @@ class FactBuilder:
     def close(self):
         self.connection.close()
 
+    def finish_collection(self):
+        state = self.connection.execute(
+            "SELECT state FROM collection_runs "
+            "WHERE collection_run_id = 'metrics-provenance'"
+        ).fetchone()[0]
+        if state == "RUNNING":
+            current = self.clock.value
+            self.clock.set(datetime(2026, 8, 20, 0, 0, 1, tzinfo=UTC))
+            self.repository.finish_collection(
+                "metrics-provenance",
+                state="SUCCEEDED",
+                raw_count=320,
+                unique_count=300,
+                error_code=None,
+                output_manifest_sha256="d" * 64,
+            )
+            self.clock.set(current)
+
+    def snapshot(self, now: datetime):
+        self.finish_collection()
+        return MetricsEngine(self.connection).calculate(self.run_id, now=now)
+
 
 def test_full_persisted_success_thresholds_and_breakdowns_can_reach_proceed(tmp_path):
     facts = FactBuilder(tmp_path / "success.sqlite3")
@@ -203,9 +216,7 @@ def test_full_persisted_success_thresholds_and_breakdowns_can_reach_proceed(tmp_
         agreed_to_receive_pricing_at=now,
         verified_at=now,
     )
-    snapshot = MetricsEngine(facts.connection).calculate(
-        facts.run_id, now=datetime(2026, 8, 27, tzinfo=UTC)
-    )
+    snapshot = facts.snapshot(datetime(2026, 8, 27, tzinfo=UTC))
 
     assert snapshot.all_success_thresholds is True
     assert snapshot.decision == "PROCEED_TO_V03_REVIEW"
@@ -270,9 +281,7 @@ def test_all_six_loss_stop_rules_are_derived_from_persisted_facts(tmp_path):
             response_id = facts.response(outreach[0], 0)
             facts.interview(response_id, solution_fit="UNSOLVABLE")
 
-        snapshot = MetricsEngine(facts.connection).calculate(
-            facts.run_id, now=datetime(2026, 8, 25, tzinfo=UTC)
-        )
+        snapshot = facts.snapshot(datetime(2026, 8, 25, tzinfo=UTC))
         assert snapshot.loss_stop is True
         assert snapshot.decision == "STOP_DISCOVERY"
         reasons_seen.update(snapshot.loss_stop_reasons)
@@ -292,9 +301,7 @@ def test_all_six_loss_stop_rules_are_derived_from_persisted_facts(tmp_path):
         signal_id = spaced.signal(index)
         spaced.clock.set(datetime(2026, 8, day, 1, tzinfo=UTC))
         spaced.review(signal_id, index, seconds=5401)
-    spaced_snapshot = MetricsEngine(spaced.connection).calculate(
-        spaced.run_id, now=datetime(2026, 8, 25, tzinfo=UTC)
-    )
+    spaced_snapshot = spaced.snapshot(datetime(2026, 8, 25, tzinfo=UTC))
     assert "THREE_OVER_90_MINUTE_DAYS" not in spaced_snapshot.loss_stop_reasons
     spaced.close()
 
@@ -319,9 +326,7 @@ def test_current_leaf_and_valid_evidence_are_the_only_quality_and_business_facts
     with pytest.raises(ValueError, match="Day 14"):
         facts.workflow.start_activity(facts.run_id, signal_id, "REVIEW")
 
-    snapshot = MetricsEngine(facts.connection).calculate(
-        facts.run_id, now=datetime(2026, 8, 28, tzinfo=UTC)
-    )
+    snapshot = facts.snapshot(datetime(2026, 8, 28, tzinfo=UTC))
 
     assert snapshot.reviewed_signals == 1
     assert snapshot.reviewed_ab == 1
@@ -334,6 +339,7 @@ def test_current_leaf_and_valid_evidence_are_the_only_quality_and_business_facts
 def test_open_activity_fails_time_gate_and_later_collection_success_resolves_block(tmp_path):
     facts = FactBuilder(tmp_path / "recovery.sqlite3")
     signal_id = facts.signal(1)
+    facts.finish_collection()
     facts.workflow.start_activity(facts.run_id, signal_id, "REVIEW")
     facts.repository.begin_collection(
         run_id=facts.run_id,
@@ -363,12 +369,10 @@ def test_open_activity_fails_time_gate_and_later_collection_success_resolves_blo
     )
     facts.repository.finish_collection(
         "recovered-attempt", state="SUCCEEDED", raw_count=1,
-        unique_count=1, error_code=None,
+        unique_count=1, error_code=None, output_manifest_sha256="d" * 64,
     )
 
-    snapshot = MetricsEngine(facts.connection).calculate(
-        facts.run_id, now=datetime(2026, 8, 25, tzinfo=UTC)
-    )
+    snapshot = facts.snapshot(datetime(2026, 8, 25, tzinfo=UTC))
 
     assert snapshot.time_complete is False
     assert snapshot.blocked_input is False
@@ -390,9 +394,7 @@ def test_model_availability_recovery_uses_one_cross_table_sequence(tmp_path):
         decision=facts.decision, token_usage=None,
     )
 
-    recovered = MetricsEngine(facts.connection).calculate(
-        facts.run_id, now=facts.clock()
-    )
+    recovered = facts.snapshot(facts.clock())
     assert recovered.blocked_input is False
 
     facts.repository.append_draft_failure(
@@ -400,8 +402,6 @@ def test_model_availability_recovery_uses_one_cross_table_sequence(tmp_path):
         signal_id=signal_id, provider=None, model=None,
         prompt_version="draft-v1", error_code="MODEL_UNAVAILABLE",
     )
-    blocked_again = MetricsEngine(facts.connection).calculate(
-        facts.run_id, now=facts.clock()
-    )
+    blocked_again = facts.snapshot(facts.clock())
     assert blocked_again.blocked_input is True
     facts.close()

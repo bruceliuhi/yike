@@ -436,6 +436,7 @@ class Collector:
                     collection_run_id=request.collection_run_id,
                     query_cluster=request.query_cluster,
                     query_text=request.query_text,
+                    collected_at=None,
                     envelope_sha256=hashlib.sha256(
                         json.dumps(
                             {"content": by_source[str(comment_source)], "comment": comment},
