@@ -1,3 +1,9 @@
+CREATE TABLE IF NOT EXISTS schema_meta (
+    schema_key TEXT PRIMARY KEY CHECK (schema_key = 'discovery'),
+    version TEXT NOT NULL,
+    signature TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS mvp_runs (
     mvp_run_id TEXT PRIMARY KEY,
     revision_of_run_id TEXT UNIQUE REFERENCES mvp_runs(mvp_run_id),
@@ -16,7 +22,8 @@ CREATE TABLE IF NOT EXISTS mvp_runs (
     conclusion_facts_json TEXT,
     conclusion_facts_sha256 TEXT,
     final_report_sha256 TEXT,
-    CHECK (revision_of_run_id IS NULL OR revision_of_run_id <> mvp_run_id)
+    CHECK (revision_of_run_id IS NULL OR revision_of_run_id <> mvp_run_id),
+    CHECK (platform_scope_json = '["bili","dy"]')
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS one_active_mvp_run
@@ -43,7 +50,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
     max_comments_per_content INTEGER,
     state TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    UNIQUE (campaign_id, mvp_run_id)
+    UNIQUE (campaign_id, mvp_run_id),
+    UNIQUE (campaign_id, mvp_run_id, platform)
 );
 
 CREATE TABLE IF NOT EXISTS collection_runs (
@@ -61,8 +69,8 @@ CREATE TABLE IF NOT EXISTS collection_runs (
     error_code TEXT,
     output_manifest_sha256 TEXT,
     UNIQUE (collection_run_id, mvp_run_id),
-    FOREIGN KEY (campaign_id, mvp_run_id)
-        REFERENCES campaigns(campaign_id, mvp_run_id)
+    FOREIGN KEY (campaign_id, mvp_run_id, platform)
+        REFERENCES campaigns(campaign_id, mvp_run_id, platform)
 );
 
 CREATE TABLE IF NOT EXISTS sources (
@@ -73,12 +81,13 @@ CREATE TABLE IF NOT EXISTS sources (
     canonical_url TEXT,
     author_public_id TEXT,
     published_at TEXT,
-    UNIQUE (platform, external_source_id)
+    UNIQUE (platform, external_source_id),
+    UNIQUE (source_id, platform)
 );
 
 CREATE TABLE IF NOT EXISTS signals (
     signal_id TEXT PRIMARY KEY,
-    source_id TEXT REFERENCES sources(source_id),
+    source_id TEXT,
     platform TEXT NOT NULL CHECK (platform IN ('bili', 'dy')),
     external_comment_id TEXT,
     parent_comment_id TEXT,
@@ -90,7 +99,8 @@ CREATE TABLE IF NOT EXISTS signals (
     published_at TEXT,
     verifiable INTEGER NOT NULL DEFAULT 1 CHECK (verifiable IN (0, 1)),
     normalizer_version TEXT,
-    UNIQUE (platform, external_comment_id)
+    UNIQUE (platform, external_comment_id),
+    FOREIGN KEY (source_id, platform) REFERENCES sources(source_id, platform)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS fallback_signal_identity
@@ -183,9 +193,9 @@ CREATE TABLE IF NOT EXISTS outreach_actions (
     outreach_action_id TEXT PRIMARY KEY,
     mvp_run_id TEXT NOT NULL,
     signal_id TEXT NOT NULL,
-    review_id TEXT,
-    score_run_id TEXT,
-    draft_run_id TEXT,
+    review_id TEXT NOT NULL,
+    score_run_id TEXT NOT NULL,
+    draft_run_id TEXT NOT NULL,
     platform TEXT NOT NULL CHECK (platform IN ('bili', 'dy')),
     subject_key TEXT NOT NULL,
     approved_text TEXT,
@@ -531,8 +541,16 @@ CREATE TRIGGER IF NOT EXISTS campaigns_update_guard
 BEFORE UPDATE ON campaigns
 BEGIN
     SELECT CASE
-        WHEN NEW.mvp_run_id <> OLD.mvp_run_id
+        WHEN NEW.mvp_run_id IS NOT OLD.mvp_run_id
             THEN RAISE(ABORT, 'RUN_SCOPE_IMMUTABLE')
+        WHEN NEW.campaign_id IS NOT OLD.campaign_id
+          OR NEW.platform IS NOT OLD.platform
+          OR NEW.query_cluster IS NOT OLD.query_cluster
+          OR NEW.query_text IS NOT OLD.query_text
+          OR NEW.max_contents IS NOT OLD.max_contents
+          OR NEW.max_comments_per_content IS NOT OLD.max_comments_per_content
+          OR NEW.created_at IS NOT OLD.created_at
+            THEN RAISE(ABORT, 'FACT_IDENTITY_IMMUTABLE')
         WHEN EXISTS (
             SELECT 1 FROM mvp_runs
             WHERE mvp_run_id IN (OLD.mvp_run_id, NEW.mvp_run_id)
@@ -549,8 +567,14 @@ CREATE TRIGGER IF NOT EXISTS collection_runs_update_guard
 BEFORE UPDATE ON collection_runs
 BEGIN
     SELECT CASE
-        WHEN NEW.mvp_run_id <> OLD.mvp_run_id
+        WHEN NEW.mvp_run_id IS NOT OLD.mvp_run_id
             THEN RAISE(ABORT, 'RUN_SCOPE_IMMUTABLE')
+        WHEN NEW.collection_run_id IS NOT OLD.collection_run_id
+          OR NEW.campaign_id IS NOT OLD.campaign_id
+          OR NEW.platform IS NOT OLD.platform
+          OR NEW.attempt IS NOT OLD.attempt
+          OR NEW.backend IS NOT OLD.backend
+            THEN RAISE(ABORT, 'FACT_IDENTITY_IMMUTABLE')
         WHEN EXISTS (
             SELECT 1 FROM mvp_runs
             WHERE mvp_run_id IN (OLD.mvp_run_id, NEW.mvp_run_id)
@@ -618,6 +642,31 @@ WHEN NOT EXISTS (
       AND status = 'SUCCEEDED'
 )
 BEGIN SELECT RAISE(ABORT, 'PRESENTED_SCORE_NOT_SUCCEEDED'); END;
+
+CREATE TRIGGER IF NOT EXISTS outreach_bindings_must_be_ready
+BEFORE INSERT ON outreach_actions
+WHEN NOT EXISTS (
+        SELECT 1 FROM human_reviews
+        WHERE review_id = NEW.review_id
+          AND mvp_run_id = NEW.mvp_run_id
+          AND signal_id = NEW.signal_id
+          AND completed_at IS NOT NULL
+    )
+    OR NOT EXISTS (
+        SELECT 1 FROM score_runs
+        WHERE score_run_id = NEW.score_run_id
+          AND mvp_run_id = NEW.mvp_run_id
+          AND signal_id = NEW.signal_id
+          AND status = 'SUCCEEDED'
+    )
+    OR NOT EXISTS (
+        SELECT 1 FROM draft_runs
+        WHERE draft_run_id = NEW.draft_run_id
+          AND mvp_run_id = NEW.mvp_run_id
+          AND signal_id = NEW.signal_id
+          AND status = 'SUCCEEDED'
+    )
+BEGIN SELECT RAISE(ABORT, 'OUTREACH_BINDING_NOT_READY'); END;
 
 CREATE TRIGGER IF NOT EXISTS draft_runs_append_only_update
 BEFORE UPDATE ON draft_runs

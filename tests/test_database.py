@@ -3,7 +3,7 @@ from dataclasses import replace
 
 import pytest
 
-from app.db import connect, migrate
+from app.db import UnsupportedSchemaError, connect, migrate
 from app.repository import (
     ActiveRunError,
     FinalizedRunError,
@@ -134,8 +134,10 @@ def seed_fact_graph(connection, repository):
     connection.execute(
         """
         INSERT INTO human_reviews (
-            review_id, mvp_run_id, signal_id, presented_score_run_id, label
-        ) VALUES ('review-1', ?, ?, 'score-1', 'HIGH_INTENT')
+            review_id, mvp_run_id, signal_id, presented_score_run_id, label,
+            completed_at
+        ) VALUES ('review-1', ?, ?, 'score-1', 'HIGH_INTENT',
+                  '2026-08-12T00:00:00Z')
         """,
         (run_id, signal_id),
     )
@@ -224,6 +226,40 @@ def test_migration_enables_foreign_keys_for_a_bare_sqlite_connection(tmp_path):
         assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
     finally:
         connection.close()
+
+
+def test_migration_rejects_unversioned_legacy_schema_without_modifying_it(tmp_path):
+    connection = sqlite3.connect(tmp_path / "legacy.sqlite3")
+    connection.execute("CREATE TABLE mvp_runs (mvp_run_id TEXT PRIMARY KEY)")
+    connection.commit()
+
+    with pytest.raises(UnsupportedSchemaError, match="UNSUPPORTED_SCHEMA"):
+        migrate(connection)
+
+    assert connection.execute(
+        "SELECT name FROM sqlite_master WHERE name = 'schema_meta'"
+    ).fetchone() is None
+    assert connection.in_transaction is False
+    connection.close()
+
+
+def test_current_schema_migration_is_idempotent(connection):
+    migrate(connection)
+    assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+
+
+def test_database_rejects_noncanonical_platform_scope(connection):
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute(
+            """
+            INSERT INTO mvp_runs (
+                mvp_run_id, state, authorization_basis, platform_scope_json,
+                started_at, day14_due_at
+            ) VALUES ('bad-scope', 'DRAFT', 'USER_ATTESTED_PLATFORM_AUTHORIZATION',
+                      '["dy","bili"]', '2026-08-12T00:00:00Z',
+                      '2026-08-26T00:00:00Z')
+            """
+        )
 
 
 def test_migration_rejects_an_existing_transaction_without_committing_it(tmp_path):
@@ -641,6 +677,115 @@ def test_mutable_collection_records_allow_state_changes_but_not_delete(
     )
     with pytest.raises(sqlite3.IntegrityError, match="APPEND_ONLY_FACT"):
         connection.execute(f"DELETE FROM {table} WHERE {key_column} = ?", (key_value,))
+
+
+@pytest.mark.parametrize(
+    ("table", "assignment"),
+    [
+        ("campaigns", "query_text = 'rewritten'"),
+        ("collection_runs", "backend = 'rewritten'"),
+    ],
+)
+def test_collection_lifecycle_update_cannot_rewrite_identity_or_config(
+    connection, repository, table, assignment
+):
+    seed_fact_graph(connection, repository)
+    key_column = "campaign_id" if table == "campaigns" else "collection_run_id"
+    key_value = "campaign-1" if table == "campaigns" else "collection-1"
+
+    with pytest.raises(sqlite3.IntegrityError, match="FACT_IDENTITY_IMMUTABLE"):
+        connection.execute(
+            f"UPDATE {table} SET {assignment} WHERE {key_column} = ?", (key_value,)
+        )
+
+
+def test_collection_and_signal_platforms_must_match_their_parents(
+    connection, repository
+):
+    facts = seed_fact_graph(connection, repository)
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute(
+            """
+            INSERT INTO collection_runs (
+                collection_run_id, mvp_run_id, campaign_id, platform,
+                attempt, backend, state
+            ) VALUES ('wrong-platform-collection', ?, 'campaign-1', 'dy', 2,
+                      'MEDIACRAWLER_AUTHORIZED', 'QUEUED')
+            """,
+            (facts["run_id"],),
+        )
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute(
+            """
+            INSERT INTO signals (
+                signal_id, source_id, platform, external_comment_id,
+                normalized_comment_url, author_public_id, body, body_sha256
+            ) VALUES ('wrong-platform-signal', ?, 'dy', 'dy-comment',
+                      'https://douyin.com/comment/dy-comment', 'author', 'body', ?)
+            """,
+            (facts["source_id"], "c" * 64),
+        )
+
+
+@pytest.mark.parametrize(
+    "invalid_binding",
+    ["missing", "incomplete"],
+)
+def test_outreach_requires_completed_successful_fact_bindings(
+    connection, repository, invalid_binding
+):
+    facts = seed_fact_graph(connection, repository)
+    if invalid_binding == "missing":
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                """
+                INSERT INTO outreach_actions (
+                    outreach_action_id, mvp_run_id, signal_id, platform,
+                    subject_key, status, created_at
+                ) VALUES ('unbound-outreach', ?, ?, 'bili', 'subject-2',
+                          'SENT_VERIFIED', '2026-08-12T00:00:00Z')
+                """,
+                (facts["run_id"], facts["signal_id"]),
+            )
+        return
+
+    connection.execute(
+        """
+        INSERT INTO score_runs (score_run_id, mvp_run_id, signal_id, status)
+        VALUES ('pending-score', ?, ?, 'PENDING')
+        """,
+        (facts["run_id"], facts["signal_id"]),
+    )
+    connection.execute(
+        """
+        INSERT INTO human_reviews (
+            review_id, mvp_run_id, signal_id, presented_score_run_id, label
+        ) VALUES ('incomplete-review', ?, ?, 'score-1', 'POSSIBLE')
+        """,
+        (facts["run_id"], facts["signal_id"]),
+    )
+    connection.execute(
+        """
+        INSERT INTO draft_runs (
+            draft_run_id, mvp_run_id, signal_id, body, status, created_at
+        ) VALUES ('failed-draft', ?, ?, 'draft', 'FAILED',
+                  '2026-08-12T00:00:00Z')
+        """,
+        (facts["run_id"], facts["signal_id"]),
+    )
+    with pytest.raises(sqlite3.IntegrityError, match="OUTREACH_BINDING_NOT_READY"):
+        connection.execute(
+            """
+            INSERT INTO outreach_actions (
+                outreach_action_id, mvp_run_id, signal_id, review_id,
+                score_run_id, draft_run_id, platform, subject_key, status,
+                created_at
+            ) VALUES ('incomplete-outreach', ?, ?, 'incomplete-review',
+                      'pending-score', 'failed-draft', 'bili', 'subject-2',
+                      'SENT_VERIFIED', '2026-08-12T00:00:00Z')
+            """,
+            (facts["run_id"], facts["signal_id"]),
+        )
 
 
 @pytest.mark.parametrize("table", ["campaigns", "collection_runs"])

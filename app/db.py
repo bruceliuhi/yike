@@ -1,8 +1,54 @@
 from pathlib import Path
+import hashlib
+import json
 import sqlite3
 
 
 _MIGRATION = Path(__file__).resolve().parents[1] / "migrations" / "001_discovery.sql"
+_SCHEMA_VERSION = "DISCOVERY_FACT_STORE_V2"
+_SCHEMA_SIGNATURE = "84c0507baba8accaf8ea0c898dfa5ea5e93571e76695bce622914b7fd9bf218f"
+
+
+class UnsupportedSchemaError(RuntimeError):
+    pass
+
+
+def _schema_signature(connection: sqlite3.Connection) -> str:
+    objects = [
+        tuple(row)
+        for row in connection.execute(
+            """
+            SELECT type, name, tbl_name, sql
+            FROM sqlite_master
+            WHERE name NOT LIKE 'sqlite_%' AND sql IS NOT NULL
+            ORDER BY type, name
+            """
+        )
+    ]
+    encoded = json.dumps(objects, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _validate_current_schema(connection: sqlite3.Connection) -> None:
+    try:
+        marker = connection.execute(
+            """
+            SELECT version, signature FROM schema_meta
+            WHERE schema_key = 'discovery'
+            """
+        ).fetchone()
+    except sqlite3.Error as error:
+        raise UnsupportedSchemaError(
+            "UNSUPPORTED_SCHEMA: database has no current schema marker"
+        ) from error
+    if marker is None or tuple(marker) != (_SCHEMA_VERSION, _SCHEMA_SIGNATURE):
+        raise UnsupportedSchemaError(
+            "UNSUPPORTED_SCHEMA: database schema marker is not current"
+        )
+    if _schema_signature(connection) != _SCHEMA_SIGNATURE:
+        raise UnsupportedSchemaError(
+            "UNSUPPORTED_SCHEMA: database schema signature does not match"
+        )
 
 
 def connect(database_path: Path) -> sqlite3.Connection:
@@ -23,4 +69,28 @@ def migrate(connection: sqlite3.Connection) -> None:
     connection.execute("PRAGMA foreign_keys = ON")
     if connection.execute("PRAGMA foreign_keys").fetchone()[0] != 1:
         raise RuntimeError("SQLite foreign key enforcement could not be enabled")
+    has_schema = connection.execute(
+        """
+        SELECT 1 FROM sqlite_master
+        WHERE name NOT LIKE 'sqlite_%'
+        LIMIT 1
+        """
+    ).fetchone()
+    if has_schema:
+        _validate_current_schema(connection)
+        return
+
     connection.executescript(_MIGRATION.read_text(encoding="utf-8"))
+    signature = _schema_signature(connection)
+    if signature != _SCHEMA_SIGNATURE:
+        raise UnsupportedSchemaError(
+            "UNSUPPORTED_SCHEMA: installed schema signature does not match"
+        )
+    with connection:
+        connection.execute(
+            """
+            INSERT INTO schema_meta (schema_key, version, signature)
+            VALUES ('discovery', ?, ?)
+            """,
+            (_SCHEMA_VERSION, _SCHEMA_SIGNATURE),
+        )
