@@ -11,6 +11,7 @@ from app.model_contract import ScoreDecision
 from app.repository import NormalizedSignal, Repository
 from app.web import create_app
 from app.workflow import Workflow
+from tests.support import collect_verified_signal
 
 
 def settings_for(tmp_path):
@@ -23,7 +24,8 @@ def facts(settings):
     clock = lambda: datetime(2026, 8, 12, 8, tzinfo=UTC)
     repository = Repository(connection, now=clock)
     run_id = repository.create_run(["bili", "dy"])
-    first = repository.import_signal(
+    first = collect_verified_signal(
+        repository,
         run_id,
         NormalizedSignal(
             platform="bili",
@@ -39,7 +41,7 @@ def facts(settings):
             query_cluster="sales-agent",
             query_text="销售线索筛选",
         ),
-    ).signal_id
+    )
     second = repository.import_signal(
         run_id,
         NormalizedSignal(
@@ -286,7 +288,7 @@ def test_signal_filters_use_persisted_score_review_query_and_outreach(tmp_path):
         subject_key="bili:lead-web",
         approved_text="人工筛选效率低，想了解每周线索量。",
         context_evidence="人工筛选效率低",
-        sent_at="2026-08-12T09:00:00Z",
+        sent_at="2026-08-12T08:00:00Z",
         source_url="https://www.bilibili.com/video/av-web#reply-web",
         source_link_opened=True,
     )
@@ -323,6 +325,10 @@ def test_detail_posts_review_draft_and_manual_outreach_then_redirects(tmp_path, 
     connection.close()
     with TestClient(create_app(settings)) as client:
         detail = client.get(f"/signals/{signal_id}", params={"run_id": run_id})
+        acknowledged = client.post(
+            f"/signals/{signal_id}/score-presentations",
+            data={"run_id": run_id, "score_run_id": "web-score"},
+        )
         reviewed = client.post(
             f"/signals/{signal_id}/reviews",
             data={
@@ -357,7 +363,7 @@ def test_detail_posts_review_draft_and_manual_outreach_then_redirects(tmp_path, 
                 "subject_key": "bili:lead-web",
                 "approved_text": "人工筛选效率低，想了解一下每周线索筛选量。",
                 "context_evidence": "人工筛选效率低",
-                "sent_at": "2026-08-12T09:00:00Z",
+                "sent_at": "2026-08-12T08:00:00Z",
                 "source_url": "https://www.bilibili.com/video/av-web#reply-web",
                 "source_link_opened": "yes",
             },
@@ -366,6 +372,7 @@ def test_detail_posts_review_draft_and_manual_outreach_then_redirects(tmp_path, 
 
     connection = connect(settings.data_dir / "discovery.sqlite3")
     assert "web-score" in detail.text
+    assert acknowledged.status_code == 200
     assert (reviewed.status_code, drafted.status_code, outreach.status_code) == (303, 303, 303)
     assert connection.execute("SELECT COUNT(*) FROM human_reviews").fetchone()[0] == 1
     assert connection.execute("SELECT COUNT(*) FROM draft_runs").fetchone()[0] == 1
@@ -390,7 +397,7 @@ def test_followup_posts_response_interview_and_quote_facts(tmp_path):
         run_id=run_id, signal_id=signal_id, review_id=review_id,
         draft_run_id=draft_id, platform="bili", subject_key="bili:lead-web",
         approved_text="人工筛选效率低，想进一步沟通。",
-        context_evidence="人工筛选效率低", sent_at="2026-08-12T09:00:00Z",
+        context_evidence="人工筛选效率低", sent_at="2026-08-12T08:00:00Z",
         source_url="https://www.bilibili.com/video/av-web#reply-web", source_link_opened=True,
     )
     connection.close()

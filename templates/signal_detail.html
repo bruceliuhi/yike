@@ -34,10 +34,10 @@
       {% if scores %}
       <div class="history-list">
         {% for score in scores %}
-        <article class="history-row">
+        <article class="history-row"{% if score.presentation_candidate %} data-score-presentation data-run-id="{{ run_id }}" data-signal-id="{{ signal.signal_id }}" data-score-run-id="{{ score.score_run_id }}"{% endif %}>
           <div><span class="grade grade-{{ score.grade|lower }}">{{ score.grade or '失败' }}</span><strong>{{ score.total_score if score.total_score is not none else '—' }} 分</strong></div>
           <div><p class="mono">{{ score.score_run_id }}</p><p>{{ score.reason.pain_summary if score.reason else score.error_code or '无理由' }}</p></div>
-          <div><span>{{ score.status }}</span>{% if score.presented %}<small>已向人工展示</small>{% endif %}</div>
+          <div><span>{{ score.status }}</span>{% if score.presented %}<small>已向人工展示</small>{% elif score.presentation_candidate %}<small data-score-presentation-status>页面展示确认中</small>{% endif %}</div>
         </article>
         {% endfor %}
       </div>

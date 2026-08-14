@@ -881,6 +881,7 @@ WHEN NOT EXISTS (
           (NEW.availability_state = 'BLOCKED' AND score.status = 'FAILED'
            AND score.error_code IN ('MODEL_NOT_CONFIGURED', 'MODEL_UNAVAILABLE'))
       )
+      AND NEW.recorded_at = score.created_at
 )
 AND NOT EXISTS (
     SELECT 1 FROM draft_runs draft
@@ -894,6 +895,7 @@ AND NOT EXISTS (
           (NEW.availability_state = 'BLOCKED' AND draft.status = 'FAILED'
            AND draft.error_code IN ('MODEL_NOT_CONFIGURED', 'MODEL_UNAVAILABLE'))
       )
+      AND NEW.recorded_at = draft.created_at
 )
 BEGIN SELECT RAISE(ABORT, 'MODEL_AVAILABILITY_FACT_INVALID'); END;
 
@@ -1876,13 +1878,23 @@ BEGIN SELECT RAISE(ABORT, 'INTERVIEW_RESPONSE_NOT_VALID'); END;
 
 CREATE TRIGGER IF NOT EXISTS interview_time_follows_response
 BEFORE INSERT ON interviews
-WHEN NEW.completed_at IS NOT NULL
+WHEN (NEW.scheduled_at IS NOT NULL OR NEW.completed_at IS NOT NULL)
      AND NOT EXISTS (
          SELECT 1 FROM response_events response
          WHERE response.response_event_id = NEW.response_event_id
            AND response.mvp_run_id = NEW.mvp_run_id
-           AND NEW.scheduled_at <= NEW.completed_at
-           AND NEW.completed_at >= response.verified_at
+           AND (
+               NEW.scheduled_at IS NULL
+               OR NEW.scheduled_at >= response.verified_at
+           )
+           AND (
+               NEW.completed_at IS NULL
+               OR (
+                   NEW.scheduled_at IS NOT NULL
+                   AND NEW.scheduled_at <= NEW.completed_at
+                   AND NEW.completed_at >= response.verified_at
+               )
+           )
      )
 BEGIN SELECT RAISE(ABORT, 'INTERVIEW_TIME_CAUSALITY'); END;
 
@@ -1972,3 +1984,473 @@ BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
 CREATE TRIGGER IF NOT EXISTS risk_events_append_only_delete
 BEFORE DELETE ON risk_events
 BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
+
+-- V18: D04 model/operator facts are admitted only as exact, causal facts.
+CREATE TRIGGER IF NOT EXISTS score_success_semantics_guard
+BEFORE INSERT ON score_runs
+WHEN NEW.status = 'SUCCEEDED'
+ AND yike_valid_score_fact(
+     NEW.dimension_scores_json,
+     NEW.total_score,
+     NEW.grade,
+     NEW.confidence,
+     NEW.reason_json,
+     (
+         SELECT trim(
+             coalesce(source.title || char(10), '')
+             || coalesce(signal.parent_body || char(10), '')
+             || signal.body,
+             char(10)
+         )
+         FROM signals signal
+         LEFT JOIN sources source ON source.source_id = signal.source_id
+         WHERE signal.signal_id = NEW.signal_id
+     ),
+     (
+         SELECT signal.verifiable FROM signals signal
+         WHERE signal.signal_id = NEW.signal_id
+     )
+ ) <> 1
+BEGIN SELECT RAISE(ABORT, 'SCORE_SEMANTICS_INVALID'); END;
+
+CREATE TRIGGER IF NOT EXISTS generated_draft_success_semantics_guard
+BEFORE INSERT ON draft_runs
+WHEN NEW.draft_kind = 'GENERATED'
+ AND NEW.status = 'SUCCEEDED'
+ AND yike_valid_draft_fact(
+     NEW.body,
+     NEW.contract_json,
+     (
+         SELECT trim(
+             coalesce(source.title || char(10), '')
+             || coalesce(signal.parent_body || char(10), '')
+             || signal.body,
+             char(10)
+         )
+         FROM signals signal
+         LEFT JOIN sources source ON source.source_id = signal.source_id
+         WHERE signal.signal_id = NEW.signal_id
+     )
+ ) <> 1
+BEGIN SELECT RAISE(ABORT, 'DRAFT_SEMANTICS_INVALID'); END;
+
+CREATE TRIGGER IF NOT EXISTS model_availability_event_duplicate_guard_v18
+BEFORE INSERT ON model_availability_events
+WHEN EXISTS (
+    SELECT 1 FROM model_availability_events event
+    WHERE event.fact_kind = NEW.fact_kind AND event.fact_id = NEW.fact_id
+)
+BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY_FACT'); END;
+
+CREATE TRIGGER IF NOT EXISTS model_availability_events_d04_guard
+BEFORE INSERT ON model_availability_events
+WHEN NOT EXISTS (
+    SELECT 1 FROM model_availability_events event
+    WHERE event.fact_kind = NEW.fact_kind AND event.fact_id = NEW.fact_id
+)
+AND NOT EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id
+      AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
+      AND yike_is_canonical_utc(NEW.recorded_at) = 1
+      AND NEW.recorded_at BETWEEN run.started_at AND run.day14_due_at
+)
+BEGIN SELECT RAISE(ABORT, 'MODEL_AVAILABILITY_RUN_OR_TIME_INVALID'); END;
+
+CREATE TRIGGER IF NOT EXISTS score_runs_d04_window_guard
+BEFORE INSERT ON score_runs
+WHEN EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id AND run.state = 'ACTIVE'
+)
+AND NOT EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
+      AND yike_is_canonical_utc(NEW.created_at) = 1
+      AND NEW.created_at BETWEEN run.started_at AND run.day14_due_at
+)
+BEGIN SELECT RAISE(ABORT, 'D04_FACT_OUTSIDE_RUN_WINDOW'); END;
+
+CREATE TRIGGER IF NOT EXISTS score_runs_d04_active_guard
+BEFORE INSERT ON score_runs
+WHEN NOT EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id AND run.state = 'ACTIVE'
+)
+BEGIN SELECT RAISE(ABORT, 'D04_FACT_REQUIRES_ACTIVE_RUN'); END;
+
+CREATE TRIGGER IF NOT EXISTS score_runs_signal_time_guard
+BEFORE INSERT ON score_runs
+WHEN NOT EXISTS (
+    SELECT 1 FROM mvp_run_signals member
+    WHERE member.mvp_run_id = NEW.mvp_run_id
+      AND member.signal_id = NEW.signal_id
+      AND NEW.created_at >= member.added_at
+)
+BEGIN SELECT RAISE(ABORT, 'SCORE_SIGNAL_TIME_CAUSALITY'); END;
+
+CREATE TRIGGER IF NOT EXISTS score_presentations_d04_active_guard
+BEFORE INSERT ON score_presentations
+WHEN NOT EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id AND run.state = 'ACTIVE'
+)
+BEGIN SELECT RAISE(ABORT, 'D04_FACT_REQUIRES_ACTIVE_RUN'); END;
+
+CREATE TRIGGER IF NOT EXISTS score_presentation_time_guard_v18
+BEFORE INSERT ON score_presentations
+WHEN EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id AND run.state = 'ACTIVE'
+)
+AND NOT EXISTS (
+    SELECT 1
+    FROM mvp_runs run
+    JOIN score_runs score
+      ON score.score_run_id = NEW.score_run_id
+     AND score.mvp_run_id = NEW.mvp_run_id
+     AND score.signal_id = NEW.signal_id
+    WHERE run.mvp_run_id = NEW.mvp_run_id
+      AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
+      AND yike_is_canonical_utc(NEW.presented_at) = 1
+      AND NEW.presented_at BETWEEN run.started_at AND run.day14_due_at
+      AND NEW.presented_at >= score.created_at
+)
+BEGIN SELECT RAISE(ABORT, 'PRESENTATION_TIME_CAUSALITY'); END;
+
+CREATE TRIGGER IF NOT EXISTS activity_sessions_d04_window_guard
+BEFORE INSERT ON activity_sessions
+WHEN EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id AND run.state = 'ACTIVE'
+)
+AND NOT EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
+      AND yike_is_canonical_utc(NEW.started_at) = 1
+      AND NEW.started_at BETWEEN run.started_at AND run.day14_due_at
+)
+BEGIN SELECT RAISE(ABORT, 'D04_FACT_OUTSIDE_RUN_WINDOW'); END;
+
+CREATE TRIGGER IF NOT EXISTS activity_sessions_d04_active_guard
+BEFORE INSERT ON activity_sessions
+WHEN NOT EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id AND run.state = 'ACTIVE'
+)
+BEGIN SELECT RAISE(ABORT, 'D04_FACT_REQUIRES_ACTIVE_RUN'); END;
+
+CREATE TRIGGER IF NOT EXISTS activity_sessions_signal_time_guard
+BEFORE INSERT ON activity_sessions
+WHEN NOT EXISTS (
+    SELECT 1 FROM mvp_run_signals membership
+    WHERE membership.mvp_run_id = NEW.mvp_run_id
+      AND membership.signal_id = NEW.signal_id
+      AND NEW.started_at >= membership.added_at
+)
+BEGIN SELECT RAISE(ABORT, 'ACTIVITY_SIGNAL_TIME_CAUSALITY'); END;
+
+CREATE TRIGGER IF NOT EXISTS activity_session_completion_d04_guard
+BEFORE UPDATE OF state, completed_at, active_seconds ON activity_sessions
+WHEN NEW.state IN ('COMPLETED', 'CANCELLED')
+AND NOT EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id
+      AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
+      AND yike_is_canonical_utc(NEW.completed_at) = 1
+      AND NEW.completed_at BETWEEN NEW.started_at AND run.day14_due_at
+)
+BEGIN SELECT RAISE(ABORT, 'D04_FACT_OUTSIDE_RUN_WINDOW'); END;
+
+CREATE TRIGGER IF NOT EXISTS activity_events_d04_guard
+BEFORE INSERT ON activity_events
+WHEN NOT EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id
+      AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
+      AND yike_is_canonical_utc(NEW.received_at) = 1
+      AND NEW.received_at BETWEEN run.started_at AND run.day14_due_at
+)
+BEGIN SELECT RAISE(ABORT, 'D04_FACT_REQUIRES_ACTIVE_RUN_OR_WINDOW'); END;
+
+CREATE TRIGGER IF NOT EXISTS human_reviews_d04_guard
+BEFORE INSERT ON human_reviews
+WHEN NOT EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id
+      AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
+      AND yike_is_canonical_utc(NEW.started_at) = 1
+      AND yike_is_canonical_utc(NEW.completed_at) = 1
+      AND NEW.completed_at >= NEW.started_at
+      AND NEW.started_at >= run.started_at
+      AND NEW.completed_at <= run.day14_due_at
+)
+BEGIN SELECT RAISE(ABORT, 'REVIEW_TIME_OR_RUN_INVALID'); END;
+
+CREATE TRIGGER IF NOT EXISTS human_reviews_reason_guard
+BEFORE INSERT ON human_reviews
+WHEN yike_nonblank_text(NEW.reason) = 0
+BEGIN SELECT RAISE(ABORT, 'REVIEW_REASON_REQUIRED'); END;
+
+CREATE TRIGGER IF NOT EXISTS human_reviews_presentation_time_guard
+BEFORE INSERT ON human_reviews
+WHEN EXISTS (
+    SELECT 1 FROM score_presentations presentation
+    WHERE presentation.mvp_run_id = NEW.mvp_run_id
+      AND presentation.signal_id = NEW.signal_id
+      AND presentation.score_run_id = NEW.presented_score_run_id
+)
+AND NOT EXISTS (
+    SELECT 1 FROM score_presentations presentation
+    WHERE presentation.mvp_run_id = NEW.mvp_run_id
+      AND presentation.signal_id = NEW.signal_id
+      AND presentation.score_run_id = NEW.presented_score_run_id
+      AND NEW.started_at >= presentation.presented_at
+)
+BEGIN SELECT RAISE(ABORT, 'REVIEW_PRESENTATION_TIME_CAUSALITY'); END;
+
+CREATE TRIGGER IF NOT EXISTS human_review_revision_time_guard
+BEFORE INSERT ON human_reviews
+WHEN NEW.supersedes_review_id IS NOT NULL
+AND EXISTS (
+    SELECT 1 FROM human_reviews parent
+    WHERE parent.review_id = NEW.supersedes_review_id
+      AND parent.mvp_run_id = NEW.mvp_run_id
+      AND parent.signal_id = NEW.signal_id
+)
+AND NOT EXISTS (
+    SELECT 1 FROM human_reviews parent
+    WHERE parent.review_id = NEW.supersedes_review_id
+      AND parent.mvp_run_id = NEW.mvp_run_id
+      AND parent.signal_id = NEW.signal_id
+      AND NEW.started_at >= parent.completed_at
+)
+BEGIN SELECT RAISE(ABORT, 'REVIEW_REVISION_TIME_CAUSALITY'); END;
+
+CREATE TRIGGER IF NOT EXISTS draft_runs_d04_window_guard
+BEFORE INSERT ON draft_runs
+WHEN EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id AND run.state = 'ACTIVE'
+)
+AND NOT EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
+      AND yike_is_canonical_utc(NEW.created_at) = 1
+      AND NEW.created_at BETWEEN run.started_at AND run.day14_due_at
+)
+BEGIN SELECT RAISE(ABORT, 'D04_FACT_OUTSIDE_RUN_WINDOW'); END;
+
+CREATE TRIGGER IF NOT EXISTS draft_runs_d04_active_guard
+BEFORE INSERT ON draft_runs
+WHEN NOT EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id AND run.state = 'ACTIVE'
+)
+BEGIN SELECT RAISE(ABORT, 'D04_FACT_REQUIRES_ACTIVE_RUN'); END;
+
+CREATE TRIGGER IF NOT EXISTS draft_runs_signal_time_guard
+BEFORE INSERT ON draft_runs
+WHEN NOT EXISTS (
+    SELECT 1 FROM mvp_run_signals membership
+    WHERE membership.mvp_run_id = NEW.mvp_run_id
+      AND membership.signal_id = NEW.signal_id
+      AND NEW.created_at >= membership.added_at
+)
+BEGIN SELECT RAISE(ABORT, 'DRAFT_TIME_CAUSALITY'); END;
+
+CREATE TRIGGER IF NOT EXISTS human_draft_activity_time_guard
+BEFORE INSERT ON draft_runs
+WHEN NEW.draft_kind = 'HUMAN_EDITED'
+AND NOT EXISTS (
+    SELECT 1 FROM activity_sessions session
+    WHERE session.activity_session_id = NEW.activity_session_id
+      AND session.mvp_run_id = NEW.mvp_run_id
+      AND session.signal_id = NEW.signal_id
+      AND session.activity_kind = 'DRAFT'
+      AND session.state = 'COMPLETED'
+      AND NEW.created_at >= session.completed_at
+)
+BEGIN SELECT RAISE(ABORT, 'DRAFT_TIME_CAUSALITY'); END;
+
+CREATE TRIGGER IF NOT EXISTS human_draft_body_guard
+BEFORE INSERT ON draft_runs
+WHEN NEW.draft_kind = 'HUMAN_EDITED'
+ AND NEW.status = 'SUCCEEDED'
+ AND yike_nonblank_text(NEW.body) = 0
+BEGIN SELECT RAISE(ABORT, 'DRAFT_BODY_REQUIRED'); END;
+
+CREATE TRIGGER IF NOT EXISTS outreach_actions_d04_guard
+BEFORE INSERT ON outreach_actions
+WHEN NOT EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id
+      AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
+      AND yike_is_canonical_utc(NEW.created_at) = 1
+      AND NEW.created_at BETWEEN run.started_at AND run.day14_due_at
+      AND yike_is_canonical_utc(NEW.sent_at) = 1
+      AND NEW.sent_at BETWEEN run.started_at AND NEW.created_at
+)
+BEGIN SELECT RAISE(ABORT, 'OUTREACH_TIME_OR_RUN_INVALID'); END;
+
+CREATE TRIGGER IF NOT EXISTS outreach_status_guard
+BEFORE INSERT ON outreach_actions
+WHEN NEW.status <> 'SENT_VERIFIED'
+BEGIN SELECT RAISE(ABORT, 'OUTREACH_STATUS_INVALID'); END;
+
+CREATE TRIGGER IF NOT EXISTS outreach_visible_text_guard
+BEFORE INSERT ON outreach_actions
+WHEN yike_nonblank_text(NEW.approved_text) = 0
+  OR yike_nonblank_text(NEW.context_evidence) = 0
+  OR yike_nonblank_text(NEW.evidence_summary) = 0
+BEGIN SELECT RAISE(ABORT, 'OUTREACH_VISIBLE_TEXT_REQUIRED'); END;
+
+CREATE TRIGGER IF NOT EXISTS outreach_verifiable_signal_guard
+BEFORE INSERT ON outreach_actions
+WHEN NOT EXISTS (
+    SELECT 1 FROM signals signal
+    WHERE signal.signal_id = NEW.signal_id AND signal.verifiable = 1
+)
+BEGIN SELECT RAISE(ABORT, 'OUTREACH_SIGNAL_NOT_VERIFIABLE'); END;
+
+CREATE TRIGGER IF NOT EXISTS outreach_source_url_guard
+BEFORE INSERT ON outreach_actions
+WHEN EXISTS (
+    SELECT 1 FROM signals signal
+    WHERE signal.signal_id = NEW.signal_id AND signal.verifiable = 1
+)
+AND NOT EXISTS (
+    SELECT 1 FROM signals signal
+    WHERE signal.signal_id = NEW.signal_id
+      AND signal.normalized_comment_url = NEW.source_url
+)
+BEGIN SELECT RAISE(ABORT, 'OUTREACH_SOURCE_URL_MISMATCH'); END;
+
+CREATE TRIGGER IF NOT EXISTS outreach_followup_verified_root_guard
+BEFORE INSERT ON outreach_actions
+WHEN NEW.parent_outreach_action_id IS NOT NULL
+AND NOT EXISTS (
+    SELECT 1 FROM outreach_actions root
+    WHERE root.outreach_action_id = NEW.parent_outreach_action_id
+      AND root.parent_outreach_action_id IS NULL
+      AND root.status = 'SENT_VERIFIED'
+)
+BEGIN SELECT RAISE(ABORT, 'FOLLOW_UP_PARENT_NOT_ROOT'); END;
+
+CREATE TRIGGER IF NOT EXISTS response_events_d04_guard
+BEFORE INSERT ON response_events
+WHEN NOT EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id
+      AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
+      AND yike_is_canonical_utc(NEW.recorded_at) = 1
+      AND NEW.recorded_at BETWEEN run.started_at AND run.day14_due_at
+      AND (NEW.occurred_at IS NULL OR (
+          yike_is_canonical_utc(NEW.occurred_at) = 1
+          AND NEW.occurred_at BETWEEN run.started_at AND NEW.recorded_at
+      ))
+      AND (NEW.verified_at IS NULL OR (
+          yike_is_canonical_utc(NEW.verified_at) = 1
+          AND NEW.verified_at BETWEEN run.started_at AND NEW.recorded_at
+      ))
+)
+BEGIN SELECT RAISE(ABORT, 'RESPONSE_TIME_OR_RUN_INVALID'); END;
+
+CREATE TRIGGER IF NOT EXISTS valid_response_summary_guard
+BEFORE INSERT ON response_events
+WHEN yike_nonblank_text(NEW.summary) = 0
+BEGIN SELECT RAISE(ABORT, 'RESPONSE_SUMMARY_REQUIRED'); END;
+
+CREATE TRIGGER IF NOT EXISTS valid_response_evidence_guard
+BEFORE INSERT ON response_events
+WHEN NEW.response_type = 'VALID'
+ AND yike_nonblank_text(NEW.evidence_summary) = 0
+BEGIN SELECT RAISE(ABORT, 'RESPONSE_EVIDENCE_REQUIRED'); END;
+
+CREATE TRIGGER IF NOT EXISTS interviews_d04_guard
+BEFORE INSERT ON interviews
+WHEN NOT EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id
+      AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
+      AND yike_is_canonical_utc(NEW.recorded_at) = 1
+      AND NEW.recorded_at BETWEEN run.started_at AND run.day14_due_at
+      AND (NEW.scheduled_at IS NULL OR (
+          yike_is_canonical_utc(NEW.scheduled_at) = 1
+          AND NEW.scheduled_at BETWEEN run.started_at AND NEW.recorded_at
+      ))
+      AND (NEW.completed_at IS NULL OR (
+          yike_is_canonical_utc(NEW.completed_at) = 1
+          AND NEW.completed_at BETWEEN run.started_at AND NEW.recorded_at
+      ))
+)
+BEGIN SELECT RAISE(ABORT, 'INTERVIEW_TIME_OR_RUN_INVALID'); END;
+
+CREATE TRIGGER IF NOT EXISTS completed_interview_next_step_guard
+BEFORE INSERT ON interviews
+WHEN NEW.completed_at IS NOT NULL AND yike_nonblank_text(NEW.next_step) = 0
+BEGIN SELECT RAISE(ABORT, 'INTERVIEW_NEXT_STEP_REQUIRED'); END;
+
+CREATE TRIGGER IF NOT EXISTS completed_interview_visible_answers_guard
+BEFORE INSERT ON interviews
+WHEN NEW.completed_at IS NOT NULL
+AND (
+    json_valid(NEW.summary_json) = 0
+    OR json_type(NEW.summary_json) <> 'object'
+    OR (SELECT count(*) FROM json_each(NEW.summary_json)) <> 5
+    OR EXISTS (
+        SELECT 1 FROM json_each(NEW.summary_json)
+        WHERE key NOT IN (
+            'customer_source_and_sales_process',
+            'weekly_lead_volume_and_loss_point',
+            'most_manual_step',
+            'current_tools',
+            'minimum_agent_scenario_and_decision_process'
+        ) OR yike_nonblank_text(value) = 0
+    )
+)
+BEGIN SELECT RAISE(ABORT, 'INTERVIEW_SUMMARY_NOT_EXACT'); END;
+
+CREATE TRIGGER IF NOT EXISTS quote_opportunities_d04_guard
+BEFORE INSERT ON quote_opportunities
+WHEN NOT EXISTS (
+    SELECT 1 FROM mvp_runs run
+    WHERE run.mvp_run_id = NEW.mvp_run_id
+      AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
+      AND yike_is_canonical_utc(NEW.recorded_at) = 1
+      AND NEW.recorded_at BETWEEN run.started_at AND run.day14_due_at
+      AND yike_is_canonical_utc(NEW.agreed_to_receive_pricing_at) = 1
+      AND NEW.agreed_to_receive_pricing_at BETWEEN run.started_at AND NEW.recorded_at
+      AND yike_is_canonical_utc(NEW.verified_at) = 1
+      AND NEW.verified_at BETWEEN NEW.agreed_to_receive_pricing_at AND NEW.recorded_at
+)
+BEGIN SELECT RAISE(ABORT, 'QUOTE_TIME_OR_RUN_INVALID'); END;
+
+CREATE TRIGGER IF NOT EXISTS quote_scope_guard
+BEFORE INSERT ON quote_opportunities
+WHEN yike_nonblank_text(NEW.scope_summary) = 0
+BEGIN SELECT RAISE(ABORT, 'QUOTE_SCOPE_REQUIRED'); END;

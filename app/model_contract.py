@@ -1,4 +1,6 @@
+import json
 from typing import Literal
+import unicodedata
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
@@ -12,6 +14,46 @@ ExclusionReason = Literal[
     "ILLEGAL_AUTOMATION_REQUEST",
     "SOURCE_UNVERIFIABLE",
 ]
+
+
+def has_visible_text(value: object) -> bool:
+    """Require lexical content, not only whitespace, controls, or punctuation."""
+    return isinstance(value, str) and any(
+        _is_visible_lexical_character(character) for character in value
+    )
+
+
+def _is_visible_lexical_character(character: str) -> bool:
+    return (
+        character.isalnum()
+        and "FILLER" not in unicodedata.name(character, "")
+    )
+
+
+def _has_content_beyond_marker(value: str, marker: str) -> bool:
+    remainder = value.replace(marker, "")
+    return sum(_is_visible_lexical_character(character) for character in remainder) >= 2
+
+
+def strict_json_object(value: str) -> dict[str, object]:
+    def object_from_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, item in pairs:
+            if key in result:
+                raise ValueError("duplicate JSON object key")
+            result[key] = item
+        return result
+
+    parsed = json.loads(
+        value,
+        object_pairs_hook=object_from_pairs,
+        parse_constant=lambda constant: (_ for _ in ()).throw(
+            ValueError(f"invalid JSON number: {constant}")
+        ),
+    )
+    if not isinstance(parsed, dict):
+        raise ValueError("JSON value must be an object")
+    return parsed
 
 
 class DimensionScores(BaseModel):
@@ -51,14 +93,14 @@ class ScoreDecision(BaseModel):
     )
     @classmethod
     def require_nonblank_text(cls, value: str) -> str:
-        if not value.strip():
+        if not has_visible_text(value):
             raise ValueError("text must not be blank")
         return value
 
     @field_validator("explicit_industry")
     @classmethod
     def normalize_optional_text(cls, value: str | None) -> str | None:
-        if value is not None and not value.strip():
+        if value is not None and not has_visible_text(value):
             raise ValueError("explicit_industry must be null or nonblank")
         return value
 
@@ -70,12 +112,23 @@ class ScoreDecision(BaseModel):
         source_text = (info.context or {}).get("source_text")
         if not isinstance(source_text, str):
             raise ValueError("evidence source_text context is required")
-        if any(not snippet.strip() or snippet not in source_text for snippet in snippets):
+        if any(
+            not has_visible_text(snippet) or snippet not in source_text
+            for snippet in snippets
+        ):
             raise ValueError("every evidence snippet must occur verbatim in source text")
         return snippets
 
     @model_validator(mode="after")
-    def validate_score_semantics(self) -> "ScoreDecision":
+    def validate_score_semantics(self, info: ValidationInfo) -> "ScoreDecision":
+        source_verifiable = (info.context or {}).get("source_verifiable")
+        if source_verifiable is False:
+            if self.exclusion_reasons != ["SOURCE_UNVERIFIABLE"]:
+                raise ValueError(
+                    "unverifiable source requires SOURCE_UNVERIFIABLE exclusion"
+                )
+        elif source_verifiable is True and "SOURCE_UNVERIFIABLE" in self.exclusion_reasons:
+            raise ValueError("verifiable source cannot be excluded as unverifiable")
         if self.dimension_scores.total() != self.score:
             raise ValueError("dimension score sum must equal total score")
         if self.exclusion_reasons:
@@ -111,7 +164,7 @@ class DraftDecision(BaseModel):
     )
     @classmethod
     def require_visible_text(cls, value: str) -> str:
-        if not value.strip():
+        if not has_visible_text(value):
             raise ValueError("draft text must not be blank")
         return value
 
@@ -122,13 +175,80 @@ class DraftDecision(BaseModel):
             raise ValueError("draft source_text context is required")
         if self.source_snippet not in source_text or self.source_snippet not in self.body:
             raise ValueError("draft source snippet must occur verbatim")
-        if self.research_purpose_sentence not in self.body or "研究" not in self.research_purpose_sentence:
+        if (
+            self.research_purpose_sentence not in self.body
+            or "研究" not in self.research_purpose_sentence
+            or not _has_content_beyond_marker(
+                self.research_purpose_sentence, "研究"
+            )
+        ):
             raise ValueError("draft must contain a research-purpose sentence")
-        if self.diagnostic_question not in self.body or not self.diagnostic_question.endswith(
-            ("?", "？")
+        if (
+            self.diagnostic_question not in self.body
+            or not self.diagnostic_question.endswith(("?", "？"))
+            or sum(
+                _is_visible_lexical_character(character)
+                for character in self.diagnostic_question[:-1]
+            ) < 2
         ):
             raise ValueError("draft must contain a diagnostic question")
         question_marks = self.body.count("?") + self.body.count("？")
         if question_marks != 1:
             raise ValueError("draft must contain exactly one question")
         return self
+
+
+def valid_persisted_score_fact(
+    dimension_scores_json: object,
+    total_score: object,
+    grade: object,
+    confidence: object,
+    reason_json: object,
+    source_text: object,
+    source_verifiable: object,
+) -> int:
+    """SQLite UDF boundary for a persisted successful score fact."""
+    if not all(
+        isinstance(value, str)
+        for value in (dimension_scores_json, grade, reason_json, source_text)
+    ):
+        return 0
+    try:
+        dimensions = strict_json_object(dimension_scores_json)
+        reason = strict_json_object(reason_json)
+        if "dimension_scores" in reason or source_verifiable not in (0, 1):
+            return 0
+        if (
+            reason.get("score") != total_score
+            or reason.get("grade") != grade
+            or reason.get("confidence") != confidence
+        ):
+            return 0
+        ScoreDecision.model_validate(
+            reason | {"dimension_scores": dimensions},
+            context={
+                "source_text": source_text,
+                "source_verifiable": bool(source_verifiable),
+            },
+        )
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return 0
+    return 1
+
+
+def valid_persisted_draft_fact(
+    body: object,
+    contract_json: object,
+    source_text: object,
+) -> int:
+    """SQLite UDF boundary for a persisted generated draft fact."""
+    if not all(isinstance(value, str) for value in (body, contract_json, source_text)):
+        return 0
+    try:
+        contract = strict_json_object(contract_json)
+        if contract.get("body") != body:
+            return 0
+        DraftDecision.model_validate(contract, context={"source_text": source_text})
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return 0
+    return 1

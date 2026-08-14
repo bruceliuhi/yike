@@ -9,6 +9,7 @@ from app.model_client import OpenAICompatibleModelClient
 from app.model_contract import ScoreDecision
 from app.repository import NormalizedSignal, Repository
 from app.scorer import Scorer
+from tests.support import collect_verified_signal
 
 
 def valid_decision() -> dict[str, object]:
@@ -116,7 +117,8 @@ def scoring_facts(tmp_path):
     migrate(connection)
     repository = Repository(connection)
     run_id = repository.create_run(["bili", "dy"])
-    signal_id = repository.import_signal(
+    signal_id = collect_verified_signal(
+        repository,
         run_id,
         NormalizedSignal(
             platform="bili",
@@ -130,7 +132,7 @@ def scoring_facts(tmp_path):
             author_public_id="comment-author",
             body="团队正在筛选销售线索，人工筛选效率低",
         ),
-    ).signal_id
+    )
     return connection, repository, run_id, signal_id
 
 

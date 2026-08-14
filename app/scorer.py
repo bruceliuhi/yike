@@ -10,8 +10,8 @@ from app.model_contract import ScoreDecision
 from app.repository import Repository
 
 
-PROMPT_VERSION = "DISCOVERY_SCORE_V1"
-SCHEMA_VERSION = "DISCOVERY_SCORE_SCHEMA_V1"
+PROMPT_VERSION = "DISCOVERY_SCORE_V2"
+SCHEMA_VERSION = "DISCOVERY_SCORE_SCHEMA_V2"
 
 
 @dataclass(frozen=True)
@@ -44,17 +44,21 @@ class Scorer:
             )
             return ScoreResult(score_run_id, "FAILED", "MODEL_NOT_CONFIGURED")
 
-        source_text = self.repository.get_signal_source_text(run_id, signal_id)
+        source = self.repository.get_signal_model_context(run_id, signal_id)
         try:
-            payload, token_usage = self.client.complete(source_text=source_text)
-        except httpx.HTTPError:
+            payload, token_usage = self.client.complete(source_text=source.model_input)
+        except (httpx.HTTPError, TimeoutError, OSError):
             error_code = "MODEL_UNAVAILABLE"
         except Exception:
             error_code = "MODEL_OUTPUT_INVALID"
         else:
             try:
                 decision = ScoreDecision.model_validate(
-                    payload, context={"source_text": source_text}
+                    payload,
+                    context={
+                        "source_text": source.source_text,
+                        "source_verifiable": source.verifiable,
+                    },
                 )
             except (ValidationError, TypeError, ValueError, json.JSONDecodeError):
                 error_code = "MODEL_OUTPUT_INVALID"

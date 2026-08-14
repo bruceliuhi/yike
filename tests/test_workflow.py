@@ -1,13 +1,13 @@
 from datetime import UTC, datetime
-import sqlite3
 
 import pytest
 
 from app.db import connect, migrate
 from app.repository import NormalizedSignal, Repository
 from app.scorer import Scorer
-from app.workflow import Workflow
+from app.workflow import Workflow, WorkflowConflictError
 from tests.test_scoring import valid_decision
+from tests.support import collect_verified_signal
 
 
 class SuccessfulClient:
@@ -25,7 +25,8 @@ def facts(tmp_path):
     clock = lambda: datetime(2026, 8, 12, 8, tzinfo=UTC)
     repository = Repository(connection, now=clock)
     run_id = repository.create_run(["bili", "dy"])
-    signal_id = repository.import_signal(
+    signal_id = collect_verified_signal(
+        repository,
         run_id,
         NormalizedSignal(
             platform="bili",
@@ -39,7 +40,7 @@ def facts(tmp_path):
             author_public_id="comment-author",
             body="团队正在筛选销售线索，人工筛选效率低",
         ),
-    ).signal_id
+    )
     yield connection, repository, Workflow(repository, now=clock), run_id, signal_id
     connection.close()
 
@@ -148,13 +149,14 @@ def test_failed_score_cannot_be_presented(facts):
     _, repository, workflow, run_id, signal_id = facts
     failed = Scorer(repository, client=None).score(run_id, signal_id)
 
-    with pytest.raises(sqlite3.IntegrityError, match="PRESENTED_SCORE_NOT_SUCCEEDED"):
+    with pytest.raises(WorkflowConflictError, match="SCORE_PRESENTATION_CONFLICT"):
         workflow.present_score(run_id, signal_id, failed.score_run_id)
 
 
 def test_draft_and_outreach_are_manual_facts_with_link_confirmation(facts):
     connection, _, workflow, run_id, signal_id = facts
     review_id, draft_id, _ = prepare_reviewed_draft(facts)
+    sent_at = workflow._timestamp()
 
     with pytest.raises(ValueError, match="source link"):
         workflow.register_outreach(
@@ -166,7 +168,7 @@ def test_draft_and_outreach_are_manual_facts_with_link_confirmation(facts):
             subject_key="bili:comment-author",
             approved_text="人工筛选效率低，人工编辑后的文本",
             context_evidence="人工筛选效率低",
-            sent_at="2026-08-12T09:05:00Z",
+            sent_at=sent_at,
             source_url="https://www.bilibili.com/video/av1#reply1",
             source_link_opened=False,
         )
@@ -180,7 +182,7 @@ def test_draft_and_outreach_are_manual_facts_with_link_confirmation(facts):
         subject_key="bili:comment-author",
         approved_text="人工筛选效率低，人工编辑后的文本",
         context_evidence="人工筛选效率低",
-        sent_at="2026-08-12T09:05:00Z",
+        sent_at=sent_at,
         source_url="https://www.bilibili.com/video/av1#reply1",
         source_link_opened=True,
     )
@@ -192,7 +194,7 @@ def test_draft_and_outreach_are_manual_facts_with_link_confirmation(facts):
     ).fetchone()
     assert tuple(row) == (
         "人工筛选效率低，人工编辑后的文本",
-        "2026-08-12T09:05:00Z",
+        sent_at,
         1,
         "SENT_VERIFIED",
     )
@@ -213,19 +215,18 @@ def test_follow_up_must_reference_the_root_first_contact(facts):
         source_url="https://www.bilibili.com/video/av1#reply1",
         source_link_opened=True,
     )
-    first = workflow.register_outreach(
-        **values, sent_at="2026-08-12T09:05:00Z"
-    )
+    sent_at = workflow._timestamp()
+    first = workflow.register_outreach(**values, sent_at=sent_at)
     follow_up = workflow.register_outreach(
         **values,
-        sent_at="2026-08-13T09:05:00Z",
+        sent_at=sent_at,
         parent_outreach_action_id=first,
     )
 
     with pytest.raises(ValueError, match="first contact"):
         workflow.register_outreach(
             **values,
-            sent_at="2026-08-14T09:05:00Z",
+            sent_at=sent_at,
             parent_outreach_action_id=follow_up,
         )
 
@@ -233,6 +234,7 @@ def test_follow_up_must_reference_the_root_first_contact(facts):
 def test_response_interview_and_quote_preserve_fact_causality(facts):
     connection, _, workflow, run_id, signal_id = facts
     review_id, draft_id, _ = prepare_reviewed_draft(facts)
+    now = workflow._timestamp()
     outreach_id = workflow.register_outreach(
         run_id=run_id,
         signal_id=signal_id,
@@ -242,7 +244,7 @@ def test_response_interview_and_quote_preserve_fact_causality(facts):
         subject_key="bili:comment-author",
         approved_text="人工筛选效率低，想了解你们的线索筛选流程",
         context_evidence="人工筛选效率低",
-        sent_at="2026-08-12T09:05:00Z",
+        sent_at=now,
         source_url="https://www.bilibili.com/video/av1#reply1",
         source_link_opened=True,
     )
@@ -252,15 +254,15 @@ def test_response_interview_and_quote_preserve_fact_causality(facts):
         responder_subject_key="bili:comment-author",
         response_type="VALID",
         summary="愿意进一步沟通",
-        occurred_at="2026-08-12T10:00:00Z",
-        verified_at="2026-08-12T10:01:00Z",
+        occurred_at=now,
+        verified_at=now,
         evidence_summary="愿意进一步沟通",
     )
     interview_id = workflow.register_interview(
         run_id=run_id,
         response_event_id=response_id,
-        scheduled_at="2026-08-13T02:00:00Z",
-        completed_at="2026-08-13T02:30:00Z",
+        scheduled_at=now,
+        completed_at=now,
         summary={
             "customer_source_and_sales_process": "内容营销进入销售跟进",
             "weekly_lead_volume_and_loss_point": "每周二百条，筛选环节损失",
@@ -276,8 +278,8 @@ def test_response_interview_and_quote_preserve_fact_causality(facts):
         response_event_id=response_id,
         interview_id=interview_id,
         scope_summary="线索识别与人工复核试点",
-        agreed_to_receive_pricing_at="2026-08-13T02:31:00Z",
-        verified_at="2026-08-13T02:32:00Z",
+        agreed_to_receive_pricing_at=now,
+        verified_at=now,
     )
 
     row = connection.execute(

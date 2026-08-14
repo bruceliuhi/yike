@@ -35,10 +35,12 @@ class DraftGenerator:
                 draft_run_id, run_id, signal_id, provider, model,
                 "MODEL_NOT_CONFIGURED",
             )
-        source_text = self.repository.get_signal_source_text(run_id, signal_id)
+        source = self.repository.get_signal_model_context(run_id, signal_id)
         try:
-            payload, token_usage = self.client.generate_draft(source_text=source_text)
-        except httpx.HTTPError:
+            payload, token_usage = self.client.generate_draft(
+                source_text=source.model_input
+            )
+        except (httpx.HTTPError, TimeoutError, OSError):
             return self._failure(
                 draft_run_id, run_id, signal_id, provider, model,
                 "MODEL_UNAVAILABLE",
@@ -50,7 +52,7 @@ class DraftGenerator:
             )
         try:
             decision = DraftDecision.model_validate(
-                payload, context={"source_text": source_text}
+                payload, context={"source_text": source.source_text}
             )
         except (ValidationError, TypeError, ValueError, json.JSONDecodeError):
             return self._failure(

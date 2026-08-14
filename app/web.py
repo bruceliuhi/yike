@@ -19,7 +19,7 @@ from app.metrics import MetricsEngine, MetricsSnapshot
 from app.model_client import model_client_from_env
 from app.repository import ActiveRunError, Repository, RunRevisionError
 from app.scorer import Scorer
-from app.workflow import Workflow
+from app.workflow import Workflow, WorkflowConflictError
 
 
 _FORM_LIMIT = 64 * 1024
@@ -146,6 +146,8 @@ def create_app(settings: Settings) -> FastAPI:
                     started_by="local-web-operator",
                 )
             )
+        except WorkflowConflictError as error:
+            raise HTTPException(409, str(error)) from error
         except (KeyError, ValueError) as error:
             raise HTTPException(400, str(error)) from error
         finally:
@@ -255,6 +257,8 @@ def create_app(settings: Settings) -> FastAPI:
                 activity_session_id=_required(form, "activity_session_id"),
                 supersedes_review_id=form.get("supersedes_review_id") or None,
             )
+        except WorkflowConflictError as error:
+            raise HTTPException(409, str(error)) from error
         except (KeyError, ValueError) as error:
             raise HTTPException(400, str(error)) from error
         finally:
@@ -273,6 +277,8 @@ def create_app(settings: Settings) -> FastAPI:
                 body=_required(form, "body"),
                 activity_session_id=_required(form, "activity_session_id"),
             )
+        except WorkflowConflictError as error:
+            raise HTTPException(409, str(error)) from error
         except (KeyError, ValueError) as error:
             raise HTTPException(400, str(error)) from error
         finally:
@@ -310,6 +316,8 @@ def create_app(settings: Settings) -> FastAPI:
                 source_link_opened=_truthy(form.get("source_link_opened")),
                 parent_outreach_action_id=form.get("parent_outreach_action_id") or None,
             )
+        except WorkflowConflictError as error:
+            raise HTTPException(409, str(error)) from error
         except (KeyError, ValueError) as error:
             raise HTTPException(400, str(error)) from error
         finally:
@@ -363,6 +371,8 @@ def create_app(settings: Settings) -> FastAPI:
                 verified_at=_required(form, "verified_at"),
                 evidence_summary=form.get("evidence_summary") or None,
             )
+        except WorkflowConflictError as error:
+            raise HTTPException(409, str(error)) from error
         except (KeyError, ValueError) as error:
             raise HTTPException(400, str(error)) from error
         finally:
@@ -461,14 +471,31 @@ def create_app(settings: Settings) -> FastAPI:
         try:
             _require_active_run(repository, run_id)
             client = model_client_from_env()
-            workflow = Workflow(repository)
             for signal_id in signal_ids:
-                result = Scorer(repository, client).score(run_id, signal_id)
-                if result.status == "SUCCEEDED":
-                    workflow.present_score(run_id, signal_id, result.score_run_id)
+                Scorer(repository, client).score(run_id, signal_id)
         finally:
             repository.connection.close()
         return _redirect("/signals", run_id=run_id, saved="score-batch")
+
+    @app.post("/signals/{signal_id}/score-presentations")
+    async def acknowledge_score_presentation(
+        request: Request, signal_id: str
+    ) -> JSONResponse:
+        form = await _form(request)
+        repository = Repository.from_settings(settings)
+        try:
+            run_id = _required(form, "run_id")
+            score_run_id = _required(form, "score_run_id")
+            frozen_score_run_id = Workflow(repository).present_score(
+                run_id, signal_id, score_run_id
+            )
+        except WorkflowConflictError as error:
+            raise HTTPException(409, str(error)) from error
+        except (KeyError, ValueError) as error:
+            raise HTTPException(400, str(error)) from error
+        finally:
+            repository.connection.close()
+        return JSONResponse({"score_run_id": frozen_score_run_id})
 
     @app.post("/signals/{signal_id}/drafts/generate")
     async def generate_draft(request: Request, signal_id: str) -> RedirectResponse:
@@ -504,6 +531,8 @@ def create_app(settings: Settings) -> FastAPI:
                 _required(form, "activity_kind"),
             )
             state = workflow.activity_session(session_id).state
+        except WorkflowConflictError as error:
+            raise HTTPException(409, str(error)) from error
         except (KeyError, ValueError) as error:
             raise HTTPException(400, str(error)) from error
         finally:
@@ -520,6 +549,8 @@ def create_app(settings: Settings) -> FastAPI:
             )
         except KeyError as error:
             raise HTTPException(404, str(error)) from error
+        except WorkflowConflictError as error:
+            raise HTTPException(409, str(error)) from error
         except ValueError as error:
             raise HTTPException(400, str(error)) from error
         finally:
@@ -904,22 +935,6 @@ def _signal_detail(
             "human_drafts": [],
             "outreach": [],
         }
-    presented = repository.connection.execute(
-        "SELECT score_run_id FROM score_presentations "
-        "WHERE mvp_run_id = ? AND signal_id = ?",
-        (run_id, signal_id),
-    ).fetchone()
-    if editable and presented is None:
-        first_visible = repository.connection.execute(
-            """
-            SELECT score_run_id FROM score_runs
-            WHERE mvp_run_id = ? AND signal_id = ? AND status = 'SUCCEEDED'
-            ORDER BY created_at DESC, score_run_id DESC LIMIT 1
-            """,
-            (run_id, signal_id),
-        ).fetchone()
-        if first_visible is not None:
-            Workflow(repository).present_score(run_id, signal_id, str(first_visible[0]))
     score_rows = repository.connection.execute(
         """
         SELECT sr.*, CASE WHEN sp.score_run_id IS NULL THEN 0 ELSE 1 END AS presented
@@ -934,12 +949,23 @@ def _signal_detail(
         (run_id, signal_id),
     ).fetchall()
     scores = []
+    candidate_assigned = False
+    presentation_frozen = any(bool(row["presented"]) for row in score_rows)
     for row in score_rows:
         item = dict(row)
         try:
             item["reason"] = json.loads(item["reason_json"]) if item["reason_json"] else None
         except json.JSONDecodeError:
             item["reason"] = None
+        item["presentation_candidate"] = bool(
+            editable
+            and not presentation_frozen
+            and not candidate_assigned
+            and item["status"] == "SUCCEEDED"
+            and not item["presented"]
+        )
+        if item["presentation_candidate"]:
+            candidate_assigned = True
         scores.append(item)
     reviews = repository.connection.execute(
         "SELECT * FROM human_reviews WHERE mvp_run_id = ? AND signal_id = ? ORDER BY completed_at DESC",

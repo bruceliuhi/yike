@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 import json
@@ -6,6 +7,7 @@ from typing import Callable
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
+from app.model_contract import has_visible_text
 from app.repository import Repository
 
 
@@ -49,7 +51,7 @@ def _parse(value: str) -> datetime:
 
 
 def _required(value: str, name: str) -> str:
-    if not value or not value.strip():
+    if not has_visible_text(value):
         raise ValueError(f"{name} is required")
     return value.strip()
 
@@ -78,6 +80,24 @@ class ActivitySession:
     state: str
 
 
+class WorkflowConflictError(ValueError):
+    """A stable public conflict instead of raw SQLite concurrency text."""
+
+
+@contextmanager
+def _immediate_transaction(connection: sqlite3.Connection):
+    if connection.in_transaction:
+        raise WorkflowConflictError("WORKFLOW_TRANSACTION_ALREADY_ACTIVE")
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        yield
+    except BaseException:
+        connection.rollback()
+        raise
+    else:
+        connection.commit()
+
+
 class Workflow:
     """Append-only operator facts. It never performs outbound platform I/O."""
 
@@ -91,35 +111,46 @@ class Workflow:
     def _timestamp(self) -> str:
         return _timestamp(self._now())
 
-    def _require_active_run(self, run_id: str) -> None:
+    def _require_active_run(self, run_id: str) -> str:
         row = self.connection.execute(
-            "SELECT state, day14_due_at FROM mvp_runs WHERE mvp_run_id = ?", (run_id,)
+            "SELECT state, started_at, day14_due_at FROM mvp_runs "
+            "WHERE mvp_run_id = ?",
+            (run_id,),
         ).fetchone()
         if row is None:
             raise KeyError(f"unknown mvp run: {run_id}")
         if row["state"] != "ACTIVE":
             raise ValueError("operator facts require an ACTIVE mvp run")
-        if _parse(self._timestamp()) > _parse(str(row["day14_due_at"])):
+        now = self._timestamp()
+        if _parse(now) < _parse(str(row["started_at"])):
+            raise ValueError("operator facts cannot precede the mvp run")
+        if _parse(now) > _parse(str(row["day14_due_at"])):
             raise ValueError("operator facts are closed after the Day 14 cutoff")
+        return now
+
+    def _fact_timestamp(self, value: str, name: str, recorded_at: str) -> str:
+        timestamp = _operator_timestamp(value, name)
+        if timestamp > recorded_at:
+            raise ValueError(f"{name} cannot be in the future")
+        return timestamp
 
     def start_activity(self, run_id: str, signal_id: str, activity_kind: str) -> str:
-        self._require_active_run(run_id)
         if activity_kind not in _ACTIVITY_KINDS:
             raise ValueError("activity kind must be REVIEW or DRAFT")
-        existing = self.connection.execute(
-            """
-            SELECT activity_session_id FROM activity_sessions
-            WHERE mvp_run_id = ? AND signal_id = ? AND activity_kind = ?
-              AND state IN ('OPEN', 'PAUSED')
-            """,
-            (run_id, signal_id, activity_kind),
-        ).fetchone()
-        if existing is not None:
-            return str(existing["activity_session_id"])
         session_id = str(uuid4())
-        now = self._timestamp()
         try:
-            with self.connection:
+            with _immediate_transaction(self.connection):
+                now = self._require_active_run(run_id)
+                existing = self.connection.execute(
+                    """
+                    SELECT activity_session_id FROM activity_sessions
+                    WHERE mvp_run_id = ? AND signal_id = ? AND activity_kind = ?
+                      AND state IN ('OPEN', 'PAUSED')
+                    """,
+                    (run_id, signal_id, activity_kind),
+                ).fetchone()
+                if existing is not None:
+                    return str(existing["activity_session_id"])
                 self.connection.execute(
                     """
                     INSERT INTO activity_sessions (
@@ -139,9 +170,17 @@ class Workflow:
                     (str(uuid4()), session_id, run_id, signal_id, activity_kind, now),
                 )
         except sqlite3.IntegrityError as error:
-            if "one_open_activity_per_subject" in str(error):
-                raise ValueError("an open activity session already exists") from error
-            raise
+            existing = self.connection.execute(
+                "SELECT activity_session_id FROM activity_sessions "
+                "WHERE mvp_run_id = ? AND signal_id = ? AND activity_kind = ? "
+                "AND state IN ('OPEN', 'PAUSED')",
+                (run_id, signal_id, activity_kind),
+            ).fetchone()
+            if existing is not None:
+                return str(existing["activity_session_id"])
+            raise WorkflowConflictError("ACTIVITY_START_CONFLICT") from error
+        except sqlite3.OperationalError as error:
+            raise WorkflowConflictError("WORKFLOW_BUSY") from error
         return session_id
 
     def activity_session(self, session_id: str) -> ActivitySession:
@@ -162,7 +201,7 @@ class Workflow:
         ).fetchone()
         if session is None:
             raise KeyError(f"unknown activity session: {session_id}")
-        self._require_active_run(str(session["mvp_run_id"]))
+        now = self._require_active_run(str(session["mvp_run_id"]))
         state = str(session["state"])
         allowed = {
             "OPEN": {"PAUSE_HIDDEN", "PAUSE_IDLE", "COMPLETE", "CANCEL"},
@@ -170,7 +209,6 @@ class Workflow:
         }
         if event_kind not in allowed.get(state, set()):
             raise ValueError("invalid activity transition")
-        now = self._timestamp()
         latest = self.connection.execute(
             """
             SELECT sequence_no, received_at FROM activity_events
@@ -188,33 +226,63 @@ class Workflow:
             "CANCEL": "CANCELLED",
         }[event_kind]
         sequence = int(latest["sequence_no"]) + 1
-        with self.connection:
-            self.connection.execute(
+        try:
+            with self.connection:
+                self.connection.execute(
+                    """
+                    INSERT INTO activity_events (
+                        activity_event_id, activity_session_id, mvp_run_id,
+                        signal_id, activity_kind, sequence_no, event_kind, received_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        str(uuid4()), session_id, session["mvp_run_id"],
+                        session["signal_id"], session["activity_kind"], sequence,
+                        event_kind, now,
+                    ),
+                )
+                active_seconds = None
+                completed_at = None
+                if next_state in ("COMPLETED", "CANCELLED"):
+                    completed_at = now
+                    active_seconds = self._active_seconds(session_id)
+                self.connection.execute(
+                    """
+                    UPDATE activity_sessions
+                    SET state = ?, completed_at = ?, active_seconds = ?
+                    WHERE activity_session_id = ?
+                    """,
+                    (next_state, completed_at, active_seconds, session_id),
+                )
+        except sqlite3.IntegrityError as error:
+            current = self.connection.execute(
                 """
-                INSERT INTO activity_events (
-                    activity_event_id, activity_session_id, mvp_run_id,
-                    signal_id, activity_kind, sequence_no, event_kind, received_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                SELECT session.state, session.active_seconds,
+                       event.sequence_no, event.event_kind
+                FROM activity_sessions session
+                JOIN activity_events event
+                  ON event.activity_session_id = session.activity_session_id
+                WHERE session.activity_session_id = ?
+                ORDER BY event.sequence_no DESC LIMIT 1
                 """,
-                (
-                    str(uuid4()), session_id, session["mvp_run_id"],
-                    session["signal_id"], session["activity_kind"], sequence,
-                    event_kind, now,
-                ),
-            )
-            active_seconds = None
-            completed_at = None
-            if next_state in ("COMPLETED", "CANCELLED"):
-                completed_at = now
-                active_seconds = self._active_seconds(session_id)
-            self.connection.execute(
-                """
-                UPDATE activity_sessions
-                SET state = ?, completed_at = ?, active_seconds = ?
-                WHERE activity_session_id = ?
-                """,
-                (next_state, completed_at, active_seconds, session_id),
-            )
+                (session_id,),
+            ).fetchone()
+            if (
+                current is not None
+                and current["state"] == next_state
+                and current["sequence_no"] == sequence
+                and current["event_kind"] == event_kind
+            ):
+                return ActivityResult(
+                    session_id,
+                    next_state,
+                    int(current["active_seconds"])
+                    if current["active_seconds"] is not None
+                    else None,
+                )
+            raise WorkflowConflictError("ACTIVITY_TRANSITION_CONFLICT") from error
+        except sqlite3.OperationalError as error:
+            raise WorkflowConflictError("WORKFLOW_BUSY") from error
         return ActivityResult(session_id, next_state, active_seconds)
 
     def _active_seconds(self, session_id: str) -> int:
@@ -242,24 +310,38 @@ class Workflow:
         return max(0, int(active.total_seconds()))
 
     def present_score(self, run_id: str, signal_id: str, score_run_id: str) -> str:
-        self._require_active_run(run_id)
-        existing = self.connection.execute(
-            "SELECT score_run_id FROM score_presentations "
-            "WHERE mvp_run_id = ? AND signal_id = ?",
-            (run_id, signal_id),
-        ).fetchone()
-        if existing is not None:
-            return str(existing["score_run_id"])
-        with self.connection:
-            self.connection.execute(
-                """
-                INSERT INTO score_presentations (
-                    presentation_id, mvp_run_id, signal_id, score_run_id, presented_at
-                ) VALUES (?, ?, ?, ?, ?)
-                """,
-                (str(uuid4()), run_id, signal_id, score_run_id, self._timestamp()),
-            )
-        return score_run_id
+        try:
+            with _immediate_transaction(self.connection):
+                now = self._require_active_run(run_id)
+                existing = self.connection.execute(
+                    "SELECT score_run_id FROM score_presentations "
+                    "WHERE mvp_run_id = ? AND signal_id = ?",
+                    (run_id, signal_id),
+                ).fetchone()
+                if existing is not None:
+                    return str(existing["score_run_id"])
+                self.connection.execute(
+                    """
+                    INSERT INTO score_presentations (
+                        presentation_id, mvp_run_id, signal_id,
+                        score_run_id, presented_at
+                    ) VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(mvp_run_id, signal_id) DO NOTHING
+                    """,
+                    (str(uuid4()), run_id, signal_id, score_run_id, now),
+                )
+                frozen = self.connection.execute(
+                    "SELECT score_run_id FROM score_presentations "
+                    "WHERE mvp_run_id = ? AND signal_id = ?",
+                    (run_id, signal_id),
+                ).fetchone()
+        except sqlite3.IntegrityError as error:
+            raise WorkflowConflictError("SCORE_PRESENTATION_CONFLICT") from error
+        except sqlite3.OperationalError as error:
+            raise WorkflowConflictError("WORKFLOW_BUSY") from error
+        if frozen is None:
+            raise ValueError("score presentation could not be recorded")
+        return str(frozen["score_run_id"])
 
     def complete_review(
         self,
@@ -309,22 +391,44 @@ class Workflow:
         if current is not None and supersedes_review_id != current["review_id"]:
             raise ValueError("revision must supersede the current review")
         review_id = str(uuid4())
-        with self.connection:
-            self.connection.execute(
-                """
-                INSERT INTO human_reviews (
-                    review_id, mvp_run_id, signal_id, presented_score_run_id,
-                    label, reason, note, activity_session_id, started_at,
-                    completed_at, active_seconds, supersedes_review_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    review_id, run_id, signal_id, presentation["score_run_id"],
-                    label, reason, note, activity_session_id, session["started_at"],
-                    session["completed_at"], session["active_seconds"],
-                    supersedes_review_id,
-                ),
-            )
+        try:
+            with self.connection:
+                self.connection.execute(
+                    """
+                    INSERT INTO human_reviews (
+                        review_id, mvp_run_id, signal_id, presented_score_run_id,
+                        label, reason, note, activity_session_id, started_at,
+                        completed_at, active_seconds, supersedes_review_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        review_id, run_id, signal_id, presentation["score_run_id"],
+                        label, reason, note, activity_session_id,
+                        session["started_at"], session["completed_at"],
+                        session["active_seconds"], supersedes_review_id,
+                    ),
+                )
+        except sqlite3.IntegrityError as error:
+            existing = self.connection.execute(
+                "SELECT * FROM human_reviews WHERE activity_session_id = ?",
+                (activity_session_id,),
+            ).fetchone()
+            if existing is not None and all(
+                existing[key] == expected
+                for key, expected in {
+                    "mvp_run_id": run_id,
+                    "signal_id": signal_id,
+                    "presented_score_run_id": presentation["score_run_id"],
+                    "label": label,
+                    "reason": reason,
+                    "note": note,
+                    "supersedes_review_id": supersedes_review_id,
+                }.items()
+            ):
+                return str(existing["review_id"])
+            raise WorkflowConflictError("REVIEW_CONFLICT") from error
+        except sqlite3.OperationalError as error:
+            raise WorkflowConflictError("WORKFLOW_BUSY") from error
         return review_id
 
     def create_draft(
@@ -335,7 +439,7 @@ class Workflow:
         body: str,
         activity_session_id: str,
     ) -> str:
-        self._require_active_run(run_id)
+        now = self._require_active_run(run_id)
         body = _required(body, "draft body")
         if len(body) > 180:
             raise ValueError("draft body must not exceed 180 characters")
@@ -360,7 +464,7 @@ class Workflow:
                 ) VALUES (?, ?, ?, 'human', NULL, 'HUMAN_DRAFT_V1',
                           'HUMAN_EDITED', ?, 'SUCCEEDED', ?, ?)
                 """,
-                (draft_id, run_id, signal_id, body, activity_session_id, self._timestamp()),
+                (draft_id, run_id, signal_id, body, activity_session_id, now),
             )
         return draft_id
 
@@ -380,7 +484,7 @@ class Workflow:
         source_link_opened: bool,
         parent_outreach_action_id: str | None = None,
     ) -> str:
-        self._require_active_run(run_id)
+        recorded_at = self._require_active_run(run_id)
         if source_link_opened is not True:
             raise ValueError("source link must be opened and confirmed")
         if platform not in ("bili", "dy"):
@@ -415,7 +519,9 @@ class Workflow:
         ).fetchone()
         signal = self.connection.execute(
             """
-            SELECT signals.platform, signals.author_public_id FROM mvp_run_signals
+            SELECT signals.platform, signals.author_public_id,
+                   signals.normalized_comment_url, signals.verifiable
+            FROM mvp_run_signals
             JOIN signals ON signals.signal_id = mvp_run_signals.signal_id
             WHERE mvp_run_signals.mvp_run_id = ? AND mvp_run_signals.signal_id = ?
             """,
@@ -425,6 +531,11 @@ class Workflow:
             raise ValueError("a human-edited completed draft is required before outreach")
         if signal is None or signal["platform"] != platform:
             raise ValueError("outreach platform must match signal platform")
+        if not bool(signal["verifiable"]):
+            raise ValueError("outreach requires a verifiable signal")
+        source_url = _required(source_url, "source_url")
+        if source_url != str(signal["normalized_comment_url"]):
+            raise ValueError("source URL must match the signal comment URL")
         expected_subject = f"{signal['platform']}:{signal['author_public_id']}"
         if _required(subject_key, "subject_key") != expected_subject:
             raise ValueError("outreach subject must match the signal author")
@@ -437,6 +548,7 @@ class Workflow:
                 WHERE outreach_action_id = ? AND mvp_run_id = ? AND signal_id = ?
                   AND platform = ? AND subject_key = ?
                   AND parent_outreach_action_id IS NULL
+                  AND status = 'SENT_VERIFIED'
                 """,
                 (
                     parent_outreach_action_id, run_id, signal_id,
@@ -445,7 +557,7 @@ class Workflow:
             ).fetchone()
             if parent is None:
                 raise ValueError("follow-up parent must be the matching first contact")
-        sent_timestamp = _operator_timestamp(sent_at, "sent_at")
+        sent_timestamp = self._fact_timestamp(sent_at, "sent_at", recorded_at)
         if parent is not None and sent_timestamp < str(parent["sent_at"]):
             raise ValueError("follow-up sent_at must follow the first contact")
         ready_at = self.connection.execute(
@@ -460,26 +572,56 @@ class Workflow:
         if ready_at is None or sent_timestamp < max(str(ready_at[0]), str(ready_at[1])):
             raise ValueError("outreach sent_at must follow review and draft completion")
         outreach_id = str(uuid4())
-        with self.connection:
-            self.connection.execute(
-                """
-                INSERT INTO outreach_actions (
-                    outreach_action_id, mvp_run_id, signal_id, review_id,
-                    score_run_id, draft_run_id, platform, subject_key,
-                    approved_text, sent_at, source_url, context_evidence,
-                    evidence_summary, source_link_opened, status,
-                    parent_outreach_action_id, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1,
-                          'SENT_VERIFIED', ?, ?)
-                """,
-                (
-                    outreach_id, run_id, signal_id, review_id,
-                    review["presented_score_run_id"], draft_run_id, platform,
-                    subject_key, approved_text, sent_timestamp,
-                    _required(source_url, "source_url"), context_evidence,
-                    context_evidence, parent_outreach_action_id, self._timestamp(),
-                ),
-            )
+        try:
+            with self.connection:
+                self.connection.execute(
+                    """
+                    INSERT INTO outreach_actions (
+                        outreach_action_id, mvp_run_id, signal_id, review_id,
+                        score_run_id, draft_run_id, platform, subject_key,
+                        approved_text, sent_at, source_url, context_evidence,
+                        evidence_summary, source_link_opened, status,
+                        parent_outreach_action_id, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1,
+                              'SENT_VERIFIED', ?, ?)
+                    """,
+                    (
+                        outreach_id, run_id, signal_id, review_id,
+                        review["presented_score_run_id"], draft_run_id, platform,
+                        subject_key, approved_text, sent_timestamp,
+                        source_url, context_evidence, context_evidence,
+                        parent_outreach_action_id, recorded_at,
+                    ),
+                )
+        except sqlite3.IntegrityError as error:
+            existing = None
+            if parent_outreach_action_id is None:
+                existing = self.connection.execute(
+                    """
+                    SELECT * FROM outreach_actions
+                    WHERE mvp_run_id = ? AND platform = ? AND subject_key = ?
+                      AND parent_outreach_action_id IS NULL
+                    """,
+                    (run_id, platform, subject_key),
+                ).fetchone()
+            if existing is not None and all(
+                existing[key] == expected
+                for key, expected in {
+                    "signal_id": signal_id,
+                    "review_id": review_id,
+                    "score_run_id": review["presented_score_run_id"],
+                    "draft_run_id": draft_run_id,
+                    "approved_text": approved_text,
+                    "sent_at": sent_timestamp,
+                    "source_url": source_url,
+                    "context_evidence": context_evidence,
+                    "status": "SENT_VERIFIED",
+                }.items()
+            ):
+                return str(existing["outreach_action_id"])
+            raise WorkflowConflictError("FIRST_OUTREACH_ALREADY_EXISTS") from error
+        except sqlite3.OperationalError as error:
+            raise WorkflowConflictError("WORKFLOW_BUSY") from error
         return outreach_id
 
     def register_response(
@@ -494,7 +636,7 @@ class Workflow:
         verified_at: str,
         evidence_summary: str | None,
     ) -> str:
-        self._require_active_run(run_id)
+        recorded_at = self._require_active_run(run_id)
         if response_type not in ("VALID", "INVALID"):
             raise ValueError("response_type must be VALID or INVALID")
         outreach = self.connection.execute(
@@ -514,8 +656,12 @@ class Workflow:
             evidence_summary = _required(evidence_summary or "", "response evidence")
         elif evidence_summary is not None:
             evidence_summary = evidence_summary.strip() or None
-        occurred_timestamp = _operator_timestamp(occurred_at, "occurred_at")
-        verified_timestamp = _operator_timestamp(verified_at, "verified_at")
+        occurred_timestamp = self._fact_timestamp(
+            occurred_at, "occurred_at", recorded_at
+        )
+        verified_timestamp = self._fact_timestamp(
+            verified_at, "verified_at", recorded_at
+        )
         sent_at = self.connection.execute(
             "SELECT sent_at FROM outreach_actions WHERE outreach_action_id = ?",
             (outreach_action_id,),
@@ -537,7 +683,7 @@ class Workflow:
                     outreach["subject_key"],
                     response_type, _required(summary, "response summary"),
                     occurred_timestamp, verified_timestamp, evidence_summary,
-                    self._timestamp(),
+                    recorded_at,
                 ),
             )
         return response_id
@@ -553,9 +699,9 @@ class Workflow:
         solution_fit: str,
         next_step: str,
     ) -> str:
-        self._require_active_run(run_id)
+        recorded_at = self._require_active_run(run_id)
         if set(summary) != _INTERVIEW_KEYS or any(
-            not isinstance(summary[key], str) or not str(summary[key]).strip()
+            not has_visible_text(summary[key])
             for key in _INTERVIEW_KEYS
         ):
             raise ValueError("interview summary requires exactly five nonblank answers")
@@ -567,8 +713,12 @@ class Workflow:
             (response_event_id, run_id),
         ).fetchone():
             raise ValueError("interview requires a verified VALID response")
-        scheduled_timestamp = _operator_timestamp(scheduled_at, "scheduled_at")
-        completed_timestamp = _operator_timestamp(completed_at, "completed_at")
+        scheduled_timestamp = self._fact_timestamp(
+            scheduled_at, "scheduled_at", recorded_at
+        )
+        completed_timestamp = self._fact_timestamp(
+            completed_at, "completed_at", recorded_at
+        )
         response_verified_at = self.connection.execute(
             "SELECT verified_at FROM response_events WHERE response_event_id = ?",
             (response_event_id,),
@@ -588,7 +738,7 @@ class Workflow:
                     interview_id, run_id, response_event_id,
                     scheduled_timestamp, completed_timestamp,
                     json.dumps(summary, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
-                    solution_fit, _required(next_step, "next_step"), self._timestamp(),
+                    solution_fit, _required(next_step, "next_step"), recorded_at,
                 ),
             )
         return interview_id
@@ -603,7 +753,7 @@ class Workflow:
         agreed_to_receive_pricing_at: str,
         verified_at: str,
     ) -> str:
-        self._require_active_run(run_id)
+        recorded_at = self._require_active_run(run_id)
         if response_event_id is None and interview_id is None:
             raise ValueError("quote requires a response or interview")
         linked = self.connection.execute(
@@ -624,10 +774,12 @@ class Workflow:
         ).fetchone()
         if linked is None:
             raise ValueError("quote requires a verified VALID response chain")
-        agreement_timestamp = _operator_timestamp(
-            agreed_to_receive_pricing_at, "pricing agreement time"
+        agreement_timestamp = self._fact_timestamp(
+            agreed_to_receive_pricing_at, "pricing agreement time", recorded_at
         )
-        verified_timestamp = _operator_timestamp(verified_at, "verified_at")
+        verified_timestamp = self._fact_timestamp(
+            verified_at, "verified_at", recorded_at
+        )
         parent_time = self.connection.execute(
             """
             SELECT max(response.verified_at, coalesce(interview.completed_at, response.verified_at))
@@ -652,7 +804,7 @@ class Workflow:
                 (
                     quote_id, run_id, response_event_id, interview_id,
                     _required(scope_summary, "scope_summary"),
-                    agreement_timestamp, verified_timestamp, self._timestamp(),
+                    agreement_timestamp, verified_timestamp, recorded_at,
                 ),
             )
         return quote_id

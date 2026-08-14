@@ -4,10 +4,16 @@ import hashlib
 import json
 import sqlite3
 
+from app.model_contract import (
+    has_visible_text,
+    valid_persisted_draft_fact,
+    valid_persisted_score_fact,
+)
+
 
 _MIGRATION = Path(__file__).resolve().parents[1] / "migrations" / "001_discovery.sql"
-_SCHEMA_VERSION = "DISCOVERY_FACT_STORE_V17"
-_SCHEMA_SIGNATURE = "4718fab17ca455dc396444a63203c7a0ec5a35eb7cca0a7d50bc2ab5327df387"
+_SCHEMA_VERSION = "DISCOVERY_FACT_STORE_V18"
+_SCHEMA_SIGNATURE = "1c2cb57139ec6e14741bb65ee39f9bc64767fd4eb7d8ff56de5f8f481d4666c1"
 
 
 class UnsupportedSchemaError(RuntimeError):
@@ -21,7 +27,7 @@ def _sha256_text(value: object) -> str | None:
 
 
 def _nonblank_text(value: object) -> int:
-    return int(isinstance(value, str) and bool(value.strip()))
+    return int(has_visible_text(value))
 
 
 def _is_canonical_utc(value: object) -> int:
@@ -43,6 +49,12 @@ def _register_functions(connection: sqlite3.Connection) -> None:
     )
     connection.create_function(
         "yike_is_canonical_utc", 1, _is_canonical_utc, deterministic=True
+    )
+    connection.create_function(
+        "yike_valid_score_fact", 7, valid_persisted_score_fact, deterministic=True
+    )
+    connection.create_function(
+        "yike_valid_draft_fact", 3, valid_persisted_draft_fact, deterministic=True
     )
 
 
@@ -91,6 +103,7 @@ def connect(database_path: Path) -> sqlite3.Connection:
     _register_functions(connection)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA recursive_triggers = ON")
     connection.execute("PRAGMA journal_mode = WAL")
     connection.execute("PRAGMA busy_timeout = 5000")
     return connection
@@ -102,8 +115,11 @@ def migrate(connection: sqlite3.Connection) -> None:
         raise RuntimeError("cannot migrate while connection has an active transaction")
     _register_functions(connection)
     connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA recursive_triggers = ON")
     if connection.execute("PRAGMA foreign_keys").fetchone()[0] != 1:
         raise RuntimeError("SQLite foreign key enforcement could not be enabled")
+    if connection.execute("PRAGMA recursive_triggers").fetchone()[0] != 1:
+        raise RuntimeError("SQLite recursive trigger enforcement could not be enabled")
     has_schema = connection.execute(
         """
         SELECT 1 FROM sqlite_master

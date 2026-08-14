@@ -87,8 +87,8 @@ def canonical_single_keyword(value: object) -> str:
 _THRESHOLDS_SHA256 = hashlib.sha256(
     json.dumps(_THRESHOLDS, sort_keys=True, separators=(",", ":")).encode("utf-8")
 ).hexdigest()
-_RUN_PROMPT_VERSION = "DISCOVERY_SCORE_V1+DISCOVERY_DRAFT_V1"
-_RUN_SCHEMA_VERSION = "DISCOVERY_SCHEMA_V8+DISCOVERY_SCORE_SCHEMA_V1"
+_RUN_PROMPT_VERSION = "DISCOVERY_SCORE_V2+DISCOVERY_DRAFT_V1"
+_RUN_SCHEMA_VERSION = "DISCOVERY_SCHEMA_V8+DISCOVERY_SCORE_SCHEMA_V2"
 
 
 class ActiveRunError(RuntimeError):
@@ -147,6 +147,13 @@ class ImportResult:
     signal_id: str
     created: bool
     observation_id: str
+
+
+@dataclass(frozen=True)
+class SignalModelContext:
+    source_text: str
+    model_input: str
+    verifiable: bool
 
 
 def _utc_now() -> str:
@@ -975,9 +982,20 @@ class Repository:
         ).fetchone()[0]
 
     def get_signal_source_text(self, run_id: str, signal_id: str) -> str:
+        return self.get_signal_model_context(run_id, signal_id).source_text
+
+    def get_signal_model_context(
+        self, run_id: str, signal_id: str
+    ) -> SignalModelContext:
         row = self.connection.execute(
             """
-            SELECT sources.title, signals.parent_body, signals.body
+            SELECT signals.platform, signals.external_comment_id,
+                   signals.parent_comment_id, signals.normalized_comment_url,
+                   signals.author_public_id, signals.parent_body, signals.body,
+                   signals.published_at, signals.verifiable,
+                   sources.external_source_id, sources.title,
+                   sources.canonical_url, sources.author_public_id AS source_author_public_id,
+                   sources.published_at AS source_published_at
             FROM mvp_run_signals
             JOIN signals ON signals.signal_id = mvp_run_signals.signal_id
             LEFT JOIN sources ON sources.source_id = signals.source_id
@@ -987,7 +1005,34 @@ class Repository:
         ).fetchone()
         if row is None:
             raise KeyError(f"unknown signal in mvp run: {signal_id}")
-        return "\n".join(value for value in row if value)
+        source_text = "\n".join(
+            value for value in (row["title"], row["parent_body"], row["body"])
+            if isinstance(value, str) and value
+        )
+        envelope = {
+            "platform": row["platform"],
+            "external_source_id": row["external_source_id"],
+            "external_comment_id": row["external_comment_id"],
+            "parent_comment_id": row["parent_comment_id"],
+            "source_url": row["canonical_url"],
+            "comment_url": row["normalized_comment_url"],
+            "source_author_public_id": row["source_author_public_id"],
+            "author_public_id": row["author_public_id"],
+            "source_published_at": row["source_published_at"],
+            "published_at": row["published_at"],
+            "verifiable": bool(row["verifiable"]),
+            "title": row["title"],
+            "parent_body": row["parent_body"],
+            "comment_body": row["body"],
+            "source_text": source_text,
+        }
+        return SignalModelContext(
+            source_text=source_text,
+            model_input=json.dumps(
+                envelope, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ),
+            verifiable=bool(row["verifiable"]),
+        )
 
     def append_score_failure(
         self,
@@ -1001,7 +1046,7 @@ class Repository:
         schema_version: str,
         error_code: str,
     ) -> None:
-        self._require_open_day14(run_id)
+        created_at = self._require_open_day14(run_id)
         with self.connection:
             self.connection.execute(
                 """
@@ -1019,7 +1064,7 @@ class Repository:
                     prompt_version,
                     schema_version,
                     error_code,
-                    self._server_timestamp(),
+                    created_at,
                 ),
             )
 
@@ -1036,7 +1081,7 @@ class Repository:
         decision: "ScoreDecision",
         token_usage: dict[str, object] | None,
     ) -> None:
-        self._require_open_day14(run_id)
+        created_at = self._require_open_day14(run_id)
         with self.connection:
             self.connection.execute(
                 """
@@ -1073,7 +1118,7 @@ class Repository:
                     json.dumps(token_usage, sort_keys=True, separators=(",", ":"))
                     if token_usage is not None
                     else None,
-                    self._server_timestamp(),
+                    created_at,
                 ),
             )
 
@@ -1088,7 +1133,7 @@ class Repository:
         prompt_version: str,
         error_code: str,
     ) -> None:
-        self._require_open_day14(run_id)
+        created_at = self._require_open_day14(run_id)
         with self.connection:
             self.connection.execute(
                 """
@@ -1105,7 +1150,7 @@ class Repository:
                     model,
                     prompt_version,
                     error_code,
-                    self._server_timestamp(),
+                    created_at,
                 ),
             )
 
@@ -1121,7 +1166,7 @@ class Repository:
         decision: "DraftDecision",
         token_usage: dict[str, object] | None,
     ) -> None:
-        self._require_open_day14(run_id)
+        created_at = self._require_open_day14(run_id)
         with self.connection:
             self.connection.execute(
                 """
@@ -1148,7 +1193,7 @@ class Repository:
                     json.dumps(token_usage, sort_keys=True, separators=(",", ":"))
                     if token_usage is not None
                     else None,
-                    self._server_timestamp(),
+                    created_at,
                 ),
             )
 

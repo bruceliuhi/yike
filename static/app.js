@@ -52,6 +52,34 @@ document.querySelectorAll("input[type='datetime-local']").forEach((control) => {
 
 const encodeForm = (values) => new URLSearchParams(values).toString();
 
+const scorePresentation = document.querySelector("[data-score-presentation]");
+if (scorePresentation) {
+  window.requestAnimationFrame(() => window.requestAnimationFrame(async () => {
+    const status = scorePresentation.querySelector("[data-score-presentation-status]");
+    try {
+      const response = await fetch(
+        `/signals/${encodeURIComponent(scorePresentation.dataset.signalId)}/score-presentations`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: encodeForm({
+            run_id: scorePresentation.dataset.runId,
+            score_run_id: scorePresentation.dataset.scoreRunId,
+          }),
+        },
+      );
+      if (!response.ok) throw new Error(`presentation request failed: ${response.status}`);
+      const result = await response.json();
+      if (result.score_run_id !== scorePresentation.dataset.scoreRunId) {
+        throw new Error("a different score is already frozen for review");
+      }
+      if (status) status.textContent = "已向人工展示";
+    } catch (error) {
+      if (status) status.textContent = "展示事实未登记，请刷新重试";
+    }
+  }));
+}
+
 document.querySelectorAll("[data-activity-form]").forEach((form) => {
   const sessionInput = form.elements.namedItem("activity_session_id");
   const status = form.querySelector("[data-activity-status]");

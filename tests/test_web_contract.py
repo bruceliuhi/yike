@@ -113,6 +113,7 @@ def test_web_uses_configured_model_for_single_score_bounded_batch_and_generated_
     assert connection.execute(
         "SELECT COUNT(*) FROM score_runs WHERE model = 'web-contract-model'"
     ).fetchone()[0] == 3
+    assert connection.execute("SELECT COUNT(*) FROM score_presentations").fetchone()[0] == 0
     draft = connection.execute(
         "SELECT draft_kind, status, model FROM draft_runs"
     ).fetchone()
@@ -127,6 +128,10 @@ def test_web_activity_and_operator_forms_never_accept_client_elapsed_time(tmp_pa
 
     with TestClient(create_app(settings)) as client:
         detail = client.get(f"/signals/{signal_id}", params={"run_id": run_id})
+        acknowledged = client.post(
+            f"/signals/{signal_id}/score-presentations",
+            data={"run_id": run_id, "score_run_id": "web-score"},
+        )
         started = client.post(
             "/activity/start",
             data={
@@ -175,6 +180,7 @@ def test_web_activity_and_operator_forms_never_accept_client_elapsed_time(tmp_pa
     assert 'name="started_at"' not in detail.text
     assert 'name="completed_at"' not in detail.text
     assert resumed.json() == {"activity_session_id": session_id, "state": "OPEN"}
+    assert acknowledged.status_code == 200
     assert (started.status_code, completed.status_code, reviewed.status_code) == (200, 200, 303)
     assert review["active_seconds"] != 999999
     assert review["started_at"] != "1900-01-01T00:00:00Z"

@@ -8,6 +8,7 @@ from app.repository import NormalizedSignal, Repository
 from app.scorer import Scorer
 from app.workflow import Workflow
 from tests.test_scoring import valid_decision
+from tests.support import collect_verified_signal
 
 
 class Clock:
@@ -37,7 +38,8 @@ def operator_facts(tmp_path, monkeypatch):
     repository = Repository(connection, now=clock)
     monkeypatch.setattr("app.workflow._system_now", clock)
     run_id = repository.create_run(["bili", "dy"])
-    signal_id = repository.import_signal(
+    signal_id = collect_verified_signal(
+        repository,
         run_id,
         NormalizedSignal(
             platform="bili",
@@ -50,10 +52,11 @@ def operator_facts(tmp_path, monkeypatch):
             author_public_id="lead-operator",
             body="团队正在筛选销售线索，人工筛选效率低",
         ),
-    ).signal_id
+    )
     scored = Scorer(repository, SuccessfulClient()).score(run_id, signal_id)
     workflow = Workflow(repository)
     workflow.present_score(run_id, signal_id, scored.score_run_id)
+    clock.set("2026-08-12T12:00:00Z")
     yield connection, repository, run_id, signal_id, scored.score_run_id
     connection.close()
 
@@ -66,15 +69,15 @@ def _completed_session(workflow, run_id, signal_id, kind):
 
 def test_activity_replays_server_received_events_and_excludes_idle_tail(operator_facts):
     connection, repository, run_id, signal_id, _ = operator_facts
-    clock = Clock("2026-08-12T01:00:00Z")
+    clock = Clock("2026-08-12T09:00:00Z")
     workflow = Workflow(repository, now=clock)
 
     session_id = workflow.start_activity(run_id, signal_id, "REVIEW")
-    clock.set("2026-08-12T01:02:00Z")
+    clock.set("2026-08-12T09:02:00Z")
     workflow.record_activity(session_id, "PAUSE_IDLE")
-    clock.set("2026-08-12T01:03:00Z")
+    clock.set("2026-08-12T09:03:00Z")
     workflow.record_activity(session_id, "RESUME")
-    clock.set("2026-08-12T01:03:30Z")
+    clock.set("2026-08-12T09:03:30Z")
     completed = workflow.record_activity(session_id, "COMPLETE")
     review_id = workflow.complete_review(
         run_id=run_id,
@@ -92,10 +95,10 @@ def test_activity_replays_server_received_events_and_excludes_idle_tail(operator
         (session_id,),
     ).fetchall()
     assert [tuple(row) for row in events] == [
-        ("START", "2026-08-12T01:00:00Z"),
-        ("PAUSE_IDLE", "2026-08-12T01:02:00Z"),
-        ("RESUME", "2026-08-12T01:03:00Z"),
-        ("COMPLETE", "2026-08-12T01:03:30Z"),
+        ("START", "2026-08-12T09:00:00Z"),
+        ("PAUSE_IDLE", "2026-08-12T09:02:00Z"),
+        ("RESUME", "2026-08-12T09:03:00Z"),
+        ("COMPLETE", "2026-08-12T09:03:30Z"),
     ]
     review = connection.execute(
         "SELECT activity_session_id, started_at, completed_at, active_seconds "
@@ -104,8 +107,8 @@ def test_activity_replays_server_received_events_and_excludes_idle_tail(operator
     ).fetchone()
     assert tuple(review) == (
         session_id,
-        "2026-08-12T01:00:00Z",
-        "2026-08-12T01:03:30Z",
+        "2026-08-12T09:00:00Z",
+        "2026-08-12T09:03:30Z",
         90,
     )
 
@@ -123,7 +126,7 @@ def test_activity_invalid_transition_and_second_open_session_fail_closed(operato
                 activity_session_id, mvp_run_id, signal_id, activity_kind,
                 state, started_at, completed_at, active_seconds
             ) VALUES ('forged-terminal', ?, ?, 'REVIEW', 'COMPLETED',
-                      '2026-08-12T00:00:00Z', '2026-08-12T00:01:00Z', 60)
+                      '2026-08-12T08:00:00Z', '2026-08-12T08:01:00Z', 60)
             """,
             (run_id, signal_id),
         )
@@ -134,7 +137,7 @@ def test_activity_invalid_transition_and_second_open_session_fail_closed(operato
                 activity_event_id, activity_session_id, mvp_run_id, signal_id,
                 activity_kind, sequence_no, event_kind, received_at
             ) VALUES ('forged-resume', ?, ?, ?, 'DRAFT', 2, 'RESUME',
-                      '2026-08-12T00:01:00Z')
+                      '2026-08-12T12:00:00Z')
             """,
             (session_id, run_id, signal_id),
         )
@@ -224,6 +227,7 @@ def test_outreach_requires_current_leaf_equal_score_and_verbatim_context(operato
         body=approved,
         activity_session_id=draft_session,
     )
+    now = workflow._timestamp()
 
     with pytest.raises(ValueError, match="verbatim"):
         workflow.register_outreach(
@@ -235,7 +239,7 @@ def test_outreach_requires_current_leaf_equal_score_and_verbatim_context(operato
             subject_key="bili:lead-operator",
             approved_text=approved,
             context_evidence="不存在的原文",
-            sent_at="2026-08-12T09:00:00Z",
+            sent_at=now,
             source_url="https://www.bilibili.com/video/av-operator#reply",
             source_link_opened=True,
         )
@@ -249,7 +253,7 @@ def test_outreach_requires_current_leaf_equal_score_and_verbatim_context(operato
         subject_key="bili:lead-operator",
         approved_text=approved,
         context_evidence="人工筛选效率低",
-        sent_at="2026-08-12T09:00:00Z",
+        sent_at=now,
         source_url="https://www.bilibili.com/video/av-operator#reply",
         source_link_opened=True,
     )
@@ -280,7 +284,7 @@ def test_outreach_requires_current_leaf_equal_score_and_verbatim_context(operato
             subject_key="bili:lead-operator",
             approved_text=approved,
             context_evidence="人工筛选效率低",
-            sent_at="2026-08-13T02:00:00Z",
+            sent_at=now,
             source_url="https://www.bilibili.com/video/av-operator#reply",
             source_link_opened=True,
             parent_outreach_action_id=outreach_id,
@@ -306,7 +310,7 @@ def test_follow_up_cannot_predate_its_root_contact(operator_facts):
         draft_run_id=draft_id, platform="bili",
         subject_key="bili:lead-operator", approved_text=approved,
         context_evidence="人工筛选效率低",
-        sent_at="2026-08-13T12:00:00Z",
+        sent_at="2026-08-12T12:00:00Z",
         source_url="https://www.bilibili.com/video/av-operator#reply",
         source_link_opened=True,
     )
@@ -320,7 +324,7 @@ def test_follow_up_cannot_predate_its_root_contact(operator_facts):
             draft_run_id=draft_id, platform="bili",
             subject_key="bili:lead-operator", approved_text=approved,
             context_evidence="人工筛选效率低",
-            sent_at="2026-08-13T11:00:00Z",
+            sent_at="2026-08-12T11:00:00Z",
             source_url="https://www.bilibili.com/video/av-operator#reply",
             source_link_opened=True, parent_outreach_action_id=root,
         )
@@ -336,10 +340,10 @@ def test_follow_up_cannot_predate_its_root_contact(operator_facts):
             ) VALUES ('backdated-follow-up', ?, ?, ?,
                       (SELECT presented_score_run_id FROM human_reviews WHERE review_id = ?),
                       ?, 'bili', 'bili:lead-operator', ?,
-                      '2026-08-13T11:00:00Z',
+                      '2026-08-12T11:00:00Z',
                       'https://www.bilibili.com/video/av-operator#reply',
                       '人工筛选效率低', '人工筛选效率低', 1,
-                      'SENT_VERIFIED', ?, '2026-08-13T13:00:00Z')
+                      'SENT_VERIFIED', ?, '2026-08-12T13:00:00Z')
             """,
             (values[0], values[1], values[2], values[2], values[3], approved, values[4]),
         )
@@ -351,7 +355,8 @@ def test_workflow_rejects_post_day14_backfill_and_open_activity_events(tmp_path)
     clock = Clock("2026-08-12T00:00:00Z")
     repository = Repository(connection, now=clock)
     run_id = repository.create_run(["bili", "dy"])
-    signal_id = repository.import_signal(
+    signal_id = collect_verified_signal(
+        repository,
         run_id,
         NormalizedSignal(
             platform="bili", external_source_id="late-source",
@@ -361,7 +366,7 @@ def test_workflow_rejects_post_day14_backfill_and_open_activity_events(tmp_path)
             author_public_id="late-lead",
             body="团队正在筛选销售线索，人工筛选效率低",
         ),
-    ).signal_id
+    )
     score = Scorer(repository, SuccessfulClient()).score(run_id, signal_id)
     workflow = Workflow(repository, now=clock)
     workflow.present_score(run_id, signal_id, score.score_run_id)
@@ -376,6 +381,7 @@ def test_workflow_rejects_post_day14_backfill_and_open_activity_events(tmp_path)
         run_id=run_id, signal_id=signal_id, body=approved,
         activity_session_id=draft_session,
     )
+    clock.set("2026-08-12T01:00:00Z")
     root = workflow.register_outreach(
         run_id=run_id, signal_id=signal_id, review_id=review_id,
         draft_run_id=draft_id, platform="bili", subject_key="bili:late-lead",
@@ -441,11 +447,12 @@ def test_valid_response_interview_and_quote_require_governed_evidence_chain(oper
         run_id=run_id, signal_id=signal_id, body=approved,
         activity_session_id=draft_session,
     )
+    now = workflow._timestamp()
     outreach_id = workflow.register_outreach(
         run_id=run_id, signal_id=signal_id, review_id=review_id,
         draft_run_id=draft_id, platform="bili", subject_key="bili:lead-operator",
         approved_text=approved, context_evidence="人工筛选效率低",
-        sent_at="2026-08-12T09:00:00Z",
+        sent_at=now,
         source_url="https://www.bilibili.com/video/av-operator#reply",
         source_link_opened=True,
     )
@@ -454,27 +461,27 @@ def test_valid_response_interview_and_quote_require_governed_evidence_chain(oper
         workflow.register_response(
             run_id=run_id, outreach_action_id=outreach_id,
             responder_subject_key="bili:lead-operator", response_type="VALID",
-            summary="愿意沟通", occurred_at="2026-08-12T10:00:00Z",
-            verified_at="2026-08-12T10:01:00Z", evidence_summary="",
+            summary="愿意沟通", occurred_at=now,
+            verified_at=now, evidence_summary="",
         )
     invalid_id = workflow.register_response(
         run_id=run_id, outreach_action_id=outreach_id,
         responder_subject_key="bili:lead-operator", response_type="INVALID",
-        summary="只有表情", occurred_at="2026-08-12T10:00:00Z",
-        verified_at="2026-08-12T10:01:00Z", evidence_summary=None,
+        summary="只有表情", occurred_at=now,
+        verified_at=now, evidence_summary=None,
     )
     with pytest.raises(ValueError, match="VALID"):
         workflow.register_quote(
             run_id=run_id, response_event_id=invalid_id, interview_id=None,
-            scope_summary="试点", agreed_to_receive_pricing_at="2026-08-12T10:10:00Z",
-            verified_at="2026-08-12T10:11:00Z",
+            scope_summary="试点", agreed_to_receive_pricing_at=now,
+            verified_at=now,
         )
 
     response_id = workflow.register_response(
         run_id=run_id, outreach_action_id=outreach_id,
         responder_subject_key="bili:lead-operator", response_type="VALID",
-        summary="说明了现有流程并愿意继续", occurred_at="2026-08-12T10:00:00Z",
-        verified_at="2026-08-12T10:01:00Z", evidence_summary="我们每周约有 200 条线索",
+        summary="说明了现有流程并愿意继续", occurred_at=now,
+        verified_at=now, evidence_summary="我们每周约有 200 条线索",
     )
     answers = {
         "customer_source_and_sales_process": "内容营销进入销售跟进",
@@ -486,19 +493,19 @@ def test_valid_response_interview_and_quote_require_governed_evidence_chain(oper
     with pytest.raises(ValueError, match="exactly five"):
         workflow.register_interview(
             run_id=run_id, response_event_id=response_id,
-            scheduled_at="2026-08-13T01:00:00Z", completed_at="2026-08-13T01:30:00Z",
+            scheduled_at=now, completed_at=now,
             summary={"customer_source_and_sales_process": "内容营销"},
             solution_fit="SOLVABLE", next_step="试点",
         )
     interview_id = workflow.register_interview(
         run_id=run_id, response_event_id=response_id,
-        scheduled_at="2026-08-13T01:00:00Z", completed_at="2026-08-13T01:30:00Z",
+        scheduled_at=now, completed_at=now,
         summary=answers, solution_fit="SOLVABLE", next_step="试点",
     )
     quote_id = workflow.register_quote(
         run_id=run_id, response_event_id=response_id, interview_id=interview_id,
-        scope_summary="线索识别试点", agreed_to_receive_pricing_at="2026-08-13T01:31:00Z",
-        verified_at="2026-08-13T01:32:00Z",
+        scope_summary="线索识别试点", agreed_to_receive_pricing_at=now,
+        verified_at=now,
     )
     assert quote_id
 
@@ -529,10 +536,10 @@ def test_sql_rejects_outreach_score_mismatch_even_outside_workflow(operator_fact
               sent_at, source_url, evidence_summary, source_link_opened, status, created_at
             ) VALUES ('sql-mismatch', ?, ?, ?, ?, ?, 'bili', 'bili:lead-operator',
                       '人工筛选效率低。请问每周多少条？', '人工筛选效率低',
-                      '2026-08-12T05:00:00Z',
+                      '2026-08-12T12:00:00Z',
                       'https://www.bilibili.com/video/av-operator#reply',
                       '人工筛选效率低', 1, 'SENT_VERIFIED',
-                      '2026-08-12T05:00:00Z')
+                      '2026-08-12T12:00:00Z')
             """,
             (run_id, signal_id, review_id, other_score, draft_id),
         )

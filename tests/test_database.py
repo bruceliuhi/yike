@@ -13,6 +13,20 @@ from app.repository import (
     Repository,
     SignalIdentityConflict,
 )
+from tests.support import collect_verified_signal
+
+
+VALID_DIMENSIONS_JSON = (
+    '{"action_intent":2,"business_team_context":2,"buying_signal":1,'
+    '"contact_context":0,"evidence_completeness":1,"offer_fit":2}'
+)
+VALID_REASON_JSON = (
+    '{"business_context":"中小企业团队","confidence":0.8,'
+    '"evidence_snippets":["销售获客讨论"],"exclusion_reasons":[],'
+    '"explicit_industry":"B2B销售","grade":"B",'
+    '"intent_summary":"希望改善筛选","pain_summary":"人工筛选效率低",'
+    '"recommended_question":"每周筛选多少条？","score":8}'
+)
 
 
 FACT_TABLES = {
@@ -50,7 +64,9 @@ def connection(tmp_path):
 
 @pytest.fixture
 def repository(connection):
-    return Repository(connection)
+    return Repository(
+        connection, now=lambda: datetime(2026, 8, 12, tzinfo=UTC)
+    )
 
 
 def signal(
@@ -58,7 +74,7 @@ def signal(
     platform: str = "bili",
     external_comment_id: str | None = "comment-1",
     body: str = "需要线索筛选",
-    comment_url: str = "https://www.bilibili.com/read/comment-1",
+    comment_url: str = "https://www.bilibili.com/video/BV1",
     author_public_id: str = "author-1",
     verifiable: bool = False,
 ) -> NormalizedSignal:
@@ -67,6 +83,7 @@ def signal(
         external_source_id="source-1",
         source_title="销售获客讨论",
         source_url="https://www.bilibili.com/video/BV1",
+        source_author_public_id="source-author-1",
         external_comment_id=external_comment_id,
         comment_url=comment_url,
         author_public_id=author_public_id,
@@ -158,8 +175,12 @@ def insert_run(
 
 def seed_fact_graph(connection, repository):
     run_id = repository.create_run(["bili", "dy"])
-    imported = repository.import_signal(run_id, signal())
-    signal_id = imported.signal_id
+    signal_id = collect_verified_signal(repository, run_id, signal(verifiable=True))
+    observation_id = connection.execute(
+        "SELECT observation_id FROM signal_observations "
+        "WHERE mvp_run_id = ? AND signal_id = ? ORDER BY observed_at DESC LIMIT 1",
+        (run_id, signal_id),
+    ).fetchone()[0]
     source_id = connection.execute(
         "SELECT source_id FROM signals WHERE signal_id = ?", (signal_id,)
     ).fetchone()[0]
@@ -197,11 +218,11 @@ def seed_fact_graph(connection, repository):
         INSERT INTO score_runs (
             score_run_id, mvp_run_id, signal_id, provider, model,
             prompt_version, schema_version, dimension_scores_json,
-            total_score, grade, confidence, reason_json, status
+            total_score, grade, confidence, reason_json, status, created_at
         ) VALUES ('score-1', ?, ?, 'test-provider', 'test-model', 'p1', 's1',
-                  '{}', 8, 'B', 0.8, '{}', 'SUCCEEDED')
+                  ?, 8, 'B', 0.8, ?, 'SUCCEEDED', '2026-08-12T00:00:00Z')
         """,
-        (run_id, signal_id),
+        (run_id, signal_id, VALID_DIMENSIONS_JSON, VALID_REASON_JSON),
     )
     connection.execute(
         """
@@ -240,7 +261,7 @@ def seed_fact_graph(connection, repository):
         ) VALUES ('draft-1', ?, ?, 'human', 'HUMAN_DRAFT_V1',
                   'HUMAN_EDITED', '需要线索筛选，请问您目前如何筛选线索？', 'SUCCEEDED',
                   'draft-activity-1',
-                  '2026-08-12T00:00:00Z')
+                  '2026-08-12T00:01:00Z')
         """,
         (run_id, signal_id),
     )
@@ -310,7 +331,7 @@ def seed_fact_graph(connection, repository):
         "run_id": run_id,
         "signal_id": signal_id,
         "source_id": source_id,
-        "observation_id": imported.observation_id,
+        "observation_id": observation_id,
     }
 
 
@@ -400,6 +421,7 @@ def test_migration_from_empty_file_creates_all_fact_tables_and_enables_pragmas(t
         }
         assert FACT_TABLES <= tables
         assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+        assert connection.execute("PRAGMA recursive_triggers").fetchone()[0] == 1
         assert connection.execute("PRAGMA journal_mode").fetchone()[0].lower() == "wal"
     finally:
         connection.close()
@@ -410,6 +432,7 @@ def test_migration_enables_foreign_keys_for_a_bare_sqlite_connection(tmp_path):
     try:
         migrate(connection)
         assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+        assert connection.execute("PRAGMA recursive_triggers").fetchone()[0] == 1
     finally:
         connection.close()
 
@@ -449,7 +472,7 @@ def test_migration_rejects_unknown_schema_version_without_modifying_marker(tmp_p
         ).fetchone()
     ) == (
         "DISCOVERY_FACT_STORE_V999",
-        "4718fab17ca455dc396444a63203c7a0ec5a35eb7cca0a7d50bc2ab5327df387",
+        "1c2cb57139ec6e14741bb65ee39f9bc64767fd4eb7d8ff56de5f8f481d4666c1",
     )
     connection.close()
 
@@ -472,7 +495,7 @@ def test_migration_rejects_wrong_current_marker_signature_without_repair(tmp_pat
         connection.execute(
             "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
         ).fetchone()
-    ) == ("DISCOVERY_FACT_STORE_V17", "0" * 64)
+    ) == ("DISCOVERY_FACT_STORE_V18", "0" * 64)
     connection.close()
 
 
@@ -507,12 +530,13 @@ def test_migration_rejects_current_marker_with_physical_schema_tampering(tmp_pat
 def test_current_schema_migration_is_idempotent(connection):
     migrate(connection)
     assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+    assert connection.execute("PRAGMA recursive_triggers").fetchone()[0] == 1
     marker = connection.execute(
         "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
     ).fetchone()
     assert tuple(marker) == (
-        "DISCOVERY_FACT_STORE_V17",
-        "4718fab17ca455dc396444a63203c7a0ec5a35eb7cca0a7d50bc2ab5327df387",
+        "DISCOVERY_FACT_STORE_V18",
+        "1c2cb57139ec6e14741bb65ee39f9bc64767fd4eb7d8ff56de5f8f481d4666c1",
     )
 
 
@@ -583,11 +607,11 @@ def test_successful_score_rows_require_valid_core_and_no_error(
     run_id = repository.create_run(["bili", "dy"])
     signal_id = repository.import_signal(run_id, signal()).signal_id
     values = {
-        "dimension_scores_json": "{}",
+        "dimension_scores_json": VALID_DIMENSIONS_JSON,
         "total_score": 8,
         "grade": "B",
         "confidence": 0.8,
-        "reason_json": "{}",
+        "reason_json": VALID_REASON_JSON,
         "error_code": None,
     }
     values.update(invalid_override)
@@ -926,7 +950,7 @@ def test_repository_rejects_run_cancellation_with_active_collection(
             "SELECT run.state, collection.state FROM mvp_runs run "
             "JOIN collection_runs collection "
             "ON collection.mvp_run_id = run.mvp_run_id "
-            "WHERE run.mvp_run_id = ?",
+            "WHERE run.mvp_run_id = ? AND collection.collection_run_id = 'collection-1'",
             (facts["run_id"],),
         ).fetchone()
     )
@@ -939,7 +963,7 @@ def test_repository_rejects_run_cancellation_with_active_collection(
             "SELECT run.state, collection.state FROM mvp_runs run "
             "JOIN collection_runs collection "
             "ON collection.mvp_run_id = run.mvp_run_id "
-            "WHERE run.mvp_run_id = ?",
+            "WHERE run.mvp_run_id = ? AND collection.collection_run_id = 'collection-1'",
             (facts["run_id"],),
         ).fetchone()
     )
@@ -968,7 +992,7 @@ def test_sql_rejects_run_cancellation_with_active_collection(
             "SELECT run.state, collection.state FROM mvp_runs run "
             "JOIN collection_runs collection "
             "ON collection.mvp_run_id = run.mvp_run_id "
-            "WHERE run.mvp_run_id = ?",
+            "WHERE run.mvp_run_id = ? AND collection.collection_run_id = 'collection-1'",
             (facts["run_id"],),
         ).fetchone()
     ) == ("ACTIVE", active_state)
@@ -1400,7 +1424,11 @@ def test_membership_is_isolated_by_mvp_run(repository):
 
 def test_score_and_review_composite_foreign_keys_cannot_cross_runs(connection, repository):
     first_run = repository.create_run(["bili", "dy"])
-    first_signal = repository.import_signal(first_run, signal(external_comment_id="first"))
+    first_signal_id = collect_verified_signal(
+        repository,
+        first_run,
+        signal(external_comment_id="first", verifiable=True),
+    )
     connection.execute(
         """
         INSERT INTO score_runs (
@@ -1408,9 +1436,14 @@ def test_score_and_review_composite_foreign_keys_cannot_cross_runs(connection, r
             prompt_version, schema_version, dimension_scores_json,
             total_score, grade, confidence, reason_json, status
         ) VALUES ('score-1', ?, ?, 'test-provider', 'test-model', 'p1', 's1',
-                  '{}', 8, 'B', 0.8, '{}', 'SUCCEEDED')
+                  ?, 8, 'B', 0.8, ?, 'SUCCEEDED')
         """,
-        (first_run, first_signal.signal_id),
+        (
+            first_run,
+            first_signal_id,
+            VALID_DIMENSIONS_JSON,
+            VALID_REASON_JSON,
+        ),
     )
     repository.finalize_run(first_run, "REVISE_MVP", {})
     second_run = repository.create_run(["bili", "dy"])
@@ -1439,15 +1472,30 @@ def test_review_requires_a_successful_presented_score(connection, repository):
         """,
         (run_id, imported.signal_id),
     )
+    insert_completed_activity(
+        connection,
+        activity_id="failed-score-review-activity",
+        run_id=run_id,
+        signal_id=imported.signal_id,
+        kind="REVIEW",
+        started_at="2026-08-12T00:00:00Z",
+        completed_at="2026-08-12T00:00:00Z",
+    )
 
     with pytest.raises(
         sqlite3.IntegrityError, match="PRESENTED_SCORE_NOT_SUCCEEDED"
     ):
         connection.execute(
             """
-            INSERT INTO human_reviews (
-                review_id, mvp_run_id, signal_id, presented_score_run_id, label
-            ) VALUES ('invalid-review', ?, ?, 'failed-score', 'HIGH_INTENT')
+                INSERT INTO human_reviews (
+                    review_id, mvp_run_id, signal_id, presented_score_run_id,
+                    label, reason, activity_session_id, started_at,
+                    completed_at, active_seconds
+                ) VALUES (
+                    'invalid-review', ?, ?, 'failed-score', 'UNVERIFIABLE',
+                    '失败评分不能复核', 'failed-score-review-activity',
+                    '2026-08-12T00:00:00Z', '2026-08-12T00:00:00Z', 0
+                )
             """,
             (run_id, imported.signal_id),
         )
@@ -1455,17 +1503,24 @@ def test_review_requires_a_successful_presented_score(connection, repository):
 
 def test_superseding_review_must_match_run_and_signal(connection, repository):
     first_run = repository.create_run(["bili", "dy"])
-    first_signal = repository.import_signal(first_run, signal())
+    first_signal_id = collect_verified_signal(
+        repository, first_run, signal(verifiable=True)
+    )
     connection.execute(
         """
         INSERT INTO score_runs (
             score_run_id, mvp_run_id, signal_id, provider, model,
             prompt_version, schema_version, dimension_scores_json,
-            total_score, grade, confidence, reason_json, status
+            total_score, grade, confidence, reason_json, status, created_at
         ) VALUES ('first-score', ?, ?, 'test-provider', 'test-model', 'p1', 's1',
-                  '{}', 8, 'B', 0.8, '{}', 'SUCCEEDED')
+                  ?, 8, 'B', 0.8, ?, 'SUCCEEDED', '2026-08-12T00:00:00Z')
         """,
-        (first_run, first_signal.signal_id),
+        (
+            first_run,
+            first_signal_id,
+            VALID_DIMENSIONS_JSON,
+            VALID_REASON_JSON,
+        ),
     )
     connection.execute(
         """
@@ -1473,11 +1528,11 @@ def test_superseding_review_must_match_run_and_signal(connection, repository):
             presentation_id, mvp_run_id, signal_id, score_run_id, presented_at
         ) VALUES ('first-presentation', ?, ?, 'first-score', '2026-08-12T00:00:00Z')
         """,
-        (first_run, first_signal.signal_id),
+        (first_run, first_signal_id),
     )
     insert_completed_activity(
         connection, activity_id="first-review-activity", run_id=first_run,
-        signal_id=first_signal.signal_id, kind="REVIEW",
+        signal_id=first_signal_id, kind="REVIEW",
         started_at="2026-08-12T00:00:00Z",
         completed_at="2026-08-12T00:01:00Z",
     )
@@ -1485,18 +1540,21 @@ def test_superseding_review_must_match_run_and_signal(connection, repository):
         """
         INSERT INTO human_reviews (
             review_id, mvp_run_id, signal_id, presented_score_run_id, label,
-            activity_session_id, started_at, completed_at, active_seconds
+            reason, activity_session_id, started_at, completed_at, active_seconds
         ) VALUES ('first-review', ?, ?, 'first-score', 'HIGH_INTENT',
-                  'first-review-activity', '2026-08-12T00:00:00Z',
+                  '企业场景明确', 'first-review-activity', '2026-08-12T00:00:00Z',
                   '2026-08-12T00:01:00Z', 60)
         """,
-        (first_run, first_signal.signal_id),
+        (first_run, first_signal_id),
     )
-    second_signal = repository.import_signal(
+    connection.commit()
+    second_signal_id = collect_verified_signal(
+        repository,
         first_run,
         signal(
             external_comment_id="comment-2",
             comment_url="https://www.bilibili.com/read/comment-2",
+            verifiable=True,
         ),
     )
     connection.execute(
@@ -1504,11 +1562,16 @@ def test_superseding_review_must_match_run_and_signal(connection, repository):
         INSERT INTO score_runs (
             score_run_id, mvp_run_id, signal_id, provider, model,
             prompt_version, schema_version, dimension_scores_json,
-            total_score, grade, confidence, reason_json, status
+            total_score, grade, confidence, reason_json, status, created_at
         ) VALUES ('second-score', ?, ?, 'test-provider', 'test-model', 'p1', 's1',
-                  '{}', 8, 'B', 0.8, '{}', 'SUCCEEDED')
+                  ?, 8, 'B', 0.8, ?, 'SUCCEEDED', '2026-08-12T00:00:00Z')
         """,
-        (first_run, second_signal.signal_id),
+        (
+            first_run,
+            second_signal_id,
+            VALID_DIMENSIONS_JSON,
+            VALID_REASON_JSON,
+        ),
     )
     with pytest.raises(sqlite3.IntegrityError):
         connection.execute(
@@ -1519,22 +1582,30 @@ def test_superseding_review_must_match_run_and_signal(connection, repository):
             ) VALUES ('wrong-signal-review', ?, ?, 'second-score',
                       'POSSIBLE', 'first-review')
             """,
-            (first_run, second_signal.signal_id),
+            (first_run, second_signal_id),
         )
 
     repository.finalize_run(first_run, "REVISE_MVP", {})
     second_run = repository.create_run(["bili", "dy"])
-    repository.import_signal(second_run, signal())
+    second_run_signal_id = collect_verified_signal(
+        repository, second_run, signal(verifiable=True)
+    )
     connection.execute(
         """
         INSERT INTO score_runs (
             score_run_id, mvp_run_id, signal_id, provider, model,
             prompt_version, schema_version, dimension_scores_json,
-            total_score, grade, confidence, reason_json, status
+            total_score, grade, confidence, reason_json, status, created_at
         ) VALUES ('other-run-score', ?, ?, 'test-provider', 'test-model',
-                  'p1', 's1', '{}', 8, 'B', 0.8, '{}', 'SUCCEEDED')
+                  'p1', 's1', ?, 8, 'B', 0.8, ?, 'SUCCEEDED',
+                  '2026-08-12T00:00:00Z')
         """,
-        (second_run, first_signal.signal_id),
+        (
+            second_run,
+            second_run_signal_id,
+            VALID_DIMENSIONS_JSON,
+            VALID_REASON_JSON,
+        ),
     )
     with pytest.raises(sqlite3.IntegrityError):
         connection.execute(
@@ -1545,7 +1616,7 @@ def test_superseding_review_must_match_run_and_signal(connection, repository):
             ) VALUES ('wrong-run-review', ?, ?, 'other-run-score',
                       'POSSIBLE', 'first-review')
             """,
-            (second_run, first_signal.signal_id),
+            (second_run, second_run_signal_id),
         )
 
 
@@ -1641,7 +1712,7 @@ def test_follow_up_parent_cannot_cross_runs(connection, repository):
     facts = seed_fact_graph(connection, repository)
     repository.finalize_run(facts["run_id"], "REVISE_MVP", {})
     second_run = repository.create_run(["bili", "dy"])
-    repository.import_signal(second_run, signal())
+    collect_verified_signal(repository, second_run, signal(verifiable=True))
 
     with pytest.raises(sqlite3.IntegrityError):
         connection.execute(
