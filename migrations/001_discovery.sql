@@ -1342,6 +1342,17 @@ BEGIN
             THEN RAISE(ABORT, 'FACT_IDENTITY_IMMUTABLE')
         WHEN OLD.started_at IS NOT NULL AND NEW.started_at IS NOT OLD.started_at
             THEN RAISE(ABORT, 'FACT_IDENTITY_IMMUTABLE')
+        WHEN NEW.state IN ('WAITING_LOGIN', 'RUNNING', 'IMPORTING')
+          AND NOT EXISTS (
+            SELECT 1
+            FROM mvp_runs run
+            JOIN campaigns campaign
+              ON campaign.mvp_run_id = run.mvp_run_id
+             AND campaign.campaign_id = NEW.campaign_id
+             AND campaign.platform = NEW.platform
+            WHERE run.mvp_run_id = NEW.mvp_run_id
+              AND run.state = 'ACTIVE'
+          ) THEN RAISE(ABORT, 'COLLECTION_REQUIRES_ACTIVE_RUN')
         WHEN NEW.state NOT IN (
             'QUEUED', 'WAITING_LOGIN', 'RUNNING', 'IMPORTING', 'SUCCEEDED',
             'SUCCEEDED_NO_DATA', 'FAILED', 'CANCELLED', 'BLOCKED_INPUT'

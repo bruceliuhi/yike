@@ -405,8 +405,8 @@ def test_current_schema_migration_is_idempotent(connection):
         "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
     ).fetchone()
     assert tuple(marker) == (
-        "DISCOVERY_FACT_STORE_V15",
-        "b53b01c2acc2f0b0818a5b60a390c7d26c13042c807a3f8eb31277bf85f43ec0",
+        "DISCOVERY_FACT_STORE_V16",
+        "d448df7461d21d729a0ab105e60d6b82152cdbcaa2aad1a00c69934e6bf09f9f",
     )
 
 
@@ -870,6 +870,81 @@ def test_sql_rejects_run_cancellation_with_active_collection(
         ).fetchone()
     ) == ("ACTIVE", active_state)
     assert_active_collection_slot_can_be_released(repository, facts["run_id"])
+
+
+@pytest.mark.parametrize("reactivated_state", ["WAITING_LOGIN", "RUNNING"])
+def test_sql_rejects_queued_collection_reactivation_after_run_cancellation(
+    connection, repository, reactivated_state
+):
+    run_id = repository.create_run(["bili", "dy"])
+    connection.execute(
+        """
+        INSERT INTO campaigns (
+            campaign_id, mvp_run_id, platform, query_cluster, query_text,
+            max_contents, max_comments_per_content, state, created_at
+        ) VALUES (
+            'queued-reactivation-campaign', ?, 'bili', 'sales', '线索',
+            1, 1, 'ACTIVE', '2026-08-12T00:00:00Z'
+        )
+        """,
+        (run_id,),
+    )
+    connection.execute(
+        """
+        INSERT INTO collection_runs (
+            collection_run_id, mvp_run_id, campaign_id, platform,
+            attempt, backend, started_by, runtime_lock_sha256, state
+        ) VALUES (
+            'queued-reactivation', ?, 'queued-reactivation-campaign', 'bili', 1,
+            'MEDIACRAWLER_AUTHORIZED', 'test-operator', ?, 'QUEUED'
+        )
+        """,
+        (run_id, "a" * 64),
+    )
+    assert tuple(
+        connection.execute(
+            "SELECT run.state, collection.state, collection.started_at "
+            "FROM mvp_runs run JOIN collection_runs collection "
+            "ON collection.mvp_run_id = run.mvp_run_id "
+            "WHERE collection.collection_run_id = 'queued-reactivation'"
+        ).fetchone()
+    ) == ("ACTIVE", "QUEUED", None)
+    connection.commit()
+
+    repository.cancel_run(run_id)
+    assert connection.execute(
+        "SELECT state FROM mvp_runs WHERE mvp_run_id = ?", (run_id,)
+    ).fetchone()[0] == "CANCELLED"
+
+    with pytest.raises(sqlite3.IntegrityError, match="COLLECTION_REQUIRES_ACTIVE_RUN"):
+        connection.execute(
+            "UPDATE collection_runs SET state = ?, started_at = ? "
+            "WHERE collection_run_id = 'queued-reactivation'",
+            (reactivated_state, "2026-08-12T00:00:00Z"),
+        )
+
+    assert tuple(
+        connection.execute(
+            "SELECT state, started_at FROM collection_runs "
+            "WHERE collection_run_id = 'queued-reactivation'"
+        ).fetchone()
+    ) == ("QUEUED", None)
+    next_run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=next_run_id,
+        collection_run_id=f"active-after-rejected-{reactivated_state.lower()}",
+        platform="dy",
+        query_cluster="sales",
+        query_text="新线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    assert repository.connection.execute(
+        "SELECT state FROM collection_runs WHERE collection_run_id = ?",
+        (f"active-after-rejected-{reactivated_state.lower()}",),
+    ).fetchone()[0] == "RUNNING"
 
 
 def test_collection_attempt_is_unique_within_campaign(connection, repository):
