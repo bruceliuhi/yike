@@ -1074,10 +1074,19 @@ BEFORE DELETE ON campaigns
 WHEN EXISTS (SELECT 1 FROM mvp_runs WHERE mvp_run_id = OLD.mvp_run_id AND state = 'FINALIZED')
 BEGIN SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE'); END;
 
-CREATE TRIGGER IF NOT EXISTS finalized_collection_runs_insert
+CREATE TRIGGER IF NOT EXISTS collection_runs_requires_active_run
 BEFORE INSERT ON collection_runs
-WHEN EXISTS (SELECT 1 FROM mvp_runs WHERE mvp_run_id = NEW.mvp_run_id AND state = 'FINALIZED')
-BEGIN SELECT RAISE(ABORT, 'FINALIZED_RUN_IMMUTABLE'); END;
+WHEN NOT EXISTS (
+    SELECT 1
+    FROM mvp_runs run
+    JOIN campaigns campaign
+      ON campaign.mvp_run_id = run.mvp_run_id
+     AND campaign.campaign_id = NEW.campaign_id
+     AND campaign.platform = NEW.platform
+    WHERE run.mvp_run_id = NEW.mvp_run_id
+      AND run.state = 'ACTIVE'
+)
+BEGIN SELECT RAISE(ABORT, 'COLLECTION_REQUIRES_ACTIVE_RUN'); END;
 CREATE TRIGGER IF NOT EXISTS finalized_collection_runs_update
 BEFORE UPDATE ON collection_runs
 WHEN EXISTS (SELECT 1 FROM mvp_runs WHERE mvp_run_id = OLD.mvp_run_id AND state = 'FINALIZED')
@@ -1356,6 +1365,11 @@ BEGIN
                 'FAILED', 'CANCELLED', 'BLOCKED_INPUT'
             ))
         ) THEN RAISE(ABORT, 'COLLECTION_STATE_TRANSITION_INVALID')
+        WHEN NEW.state = 'SUCCEEDED_NO_DATA' AND EXISTS (
+            SELECT 1 FROM signal_observations observation
+            WHERE observation.mvp_run_id = NEW.mvp_run_id
+              AND observation.collection_run_id = NEW.collection_run_id
+        ) THEN RAISE(ABORT, 'SUCCEEDED_NO_DATA_HAS_OBSERVATIONS')
         WHEN NEW.state = 'BLOCKED_INPUT' AND NEW.error_code NOT IN (
             'PLATFORM_AUTH_REQUIRED', 'PLATFORM_PERMISSION_DENIED',
             'PLATFORM_VERIFICATION_REQUIRED', 'PLATFORM_RATE_LIMITED',

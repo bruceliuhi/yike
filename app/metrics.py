@@ -6,15 +6,31 @@ from statistics import median
 from zoneinfo import ZoneInfo
 
 
-_HARD_ELIGIBLE_SIGNALS_CTE = """
+_HARD_FACTS_CTES = """
+metric_context(mvp_run_id, cutoff) AS (
+    VALUES (?, ?)
+),
 hard_eligible_signals AS (
-    SELECT member.mvp_run_id, member.signal_id, signal.platform
-    FROM mvp_run_signals member
+    SELECT member.mvp_run_id, member.signal_id, signal.platform,
+           MIN(collection.finished_at) AS eligible_since
+    FROM metric_context context
+    JOIN mvp_run_signals member
+      ON member.mvp_run_id = context.mvp_run_id
     JOIN signals signal ON signal.signal_id = member.signal_id
     JOIN sources source ON source.source_id = signal.source_id
                        AND source.platform = signal.platform
-    WHERE member.mvp_run_id = ? AND signal.verifiable = 1
-      AND member.added_at <= ?
+    JOIN signal_observations observation
+      ON observation.mvp_run_id = member.mvp_run_id
+     AND observation.signal_id = member.signal_id
+    JOIN collection_runs collection
+      ON collection.collection_run_id = observation.collection_run_id
+     AND collection.mvp_run_id = observation.mvp_run_id
+    JOIN campaigns campaign
+      ON campaign.campaign_id = collection.campaign_id
+     AND campaign.mvp_run_id = collection.mvp_run_id
+     AND campaign.platform = collection.platform
+    WHERE signal.verifiable = 1
+      AND member.added_at <= context.cutoff
       AND yike_nonblank_text(source.external_source_id) = 1
       AND yike_nonblank_text(source.canonical_url) = 1
       AND yike_nonblank_text(signal.external_comment_id) = 1
@@ -25,62 +41,241 @@ hard_eligible_signals AS (
       AND signal.body_sha256 NOT GLOB '*[^0-9a-f]*'
       AND signal.body_sha256 = yike_sha256_text(signal.body)
       AND yike_nonblank_text(signal.normalizer_version) = 1
+      AND yike_nonblank_text(observation.query_cluster) = 1
+      AND yike_nonblank_text(observation.query_text) = 1
+      AND campaign.query_cluster = observation.query_cluster
+      AND campaign.query_text = observation.query_text
+      AND strftime(
+          '%Y-%m-%dT%H:%M:%SZ', observation.observed_at
+      ) = observation.observed_at
+      AND observation.observed_at <= context.cutoff
+      AND length(observation.raw_sha256) = 64
+      AND observation.raw_sha256 NOT GLOB '*[^0-9a-f]*'
+      AND observation.envelope_sha256 IS NOT NULL
+      AND length(observation.envelope_sha256) = 64
+      AND observation.envelope_sha256 NOT GLOB '*[^0-9a-f]*'
+      AND collection.platform = signal.platform
+      AND collection.backend = 'MEDIACRAWLER_AUTHORIZED'
+      AND collection.state = 'SUCCEEDED'
+      AND collection.started_at IS NOT NULL
+      AND collection.finished_at IS NOT NULL
+      AND strftime(
+          '%Y-%m-%dT%H:%M:%SZ', collection.started_at
+      ) = collection.started_at
+      AND strftime(
+          '%Y-%m-%dT%H:%M:%SZ', collection.finished_at
+      ) = collection.finished_at
+      AND collection.started_at <= observation.observed_at
+      AND observation.observed_at <= collection.finished_at
+      AND collection.finished_at <= context.cutoff
+      AND collection.raw_count > 0
+      AND collection.unique_count >= 0
+      AND collection.unique_count <= collection.raw_count
+      AND collection.error_code IS NULL
+      AND collection.output_manifest_sha256 IS NOT NULL
+      AND length(collection.output_manifest_sha256) = 64
+      AND collection.output_manifest_sha256 NOT GLOB '*[^0-9a-f]*'
+      AND length(collection.runtime_lock_sha256) = 64
+      AND collection.runtime_lock_sha256 NOT GLOB '*[^0-9a-f]*'
+    GROUP BY member.mvp_run_id, member.signal_id, signal.platform
+),
+hard_scores AS (
+    SELECT score.*, eligible.eligible_since
+    FROM score_runs score
+    JOIN hard_eligible_signals eligible
+      ON eligible.mvp_run_id = score.mvp_run_id
+     AND eligible.signal_id = score.signal_id
+    JOIN metric_context context ON context.mvp_run_id = score.mvp_run_id
+    WHERE score.created_at BETWEEN eligible.eligible_since AND context.cutoff
+),
+hard_presentations AS (
+    SELECT presentation.*, score.eligible_since
+    FROM score_presentations presentation
+    JOIN hard_scores score
+      ON score.score_run_id = presentation.score_run_id
+     AND score.mvp_run_id = presentation.mvp_run_id
+     AND score.signal_id = presentation.signal_id
+    JOIN metric_context context ON context.mvp_run_id = presentation.mvp_run_id
+    WHERE presentation.presented_at
+          BETWEEN score.eligible_since AND context.cutoff
+),
+hard_activity_sessions AS (
+    SELECT session.*, eligible.eligible_since
+    FROM activity_sessions session
+    JOIN hard_eligible_signals eligible
+      ON eligible.mvp_run_id = session.mvp_run_id
+     AND eligible.signal_id = session.signal_id
+    JOIN metric_context context ON context.mvp_run_id = session.mvp_run_id
+    WHERE session.started_at BETWEEN eligible.eligible_since AND context.cutoff
       AND EXISTS (
-          SELECT 1
-          FROM signal_observations observation
-          JOIN collection_runs collection
-            ON collection.collection_run_id = observation.collection_run_id
-           AND collection.mvp_run_id = observation.mvp_run_id
-          JOIN campaigns campaign
-            ON campaign.campaign_id = collection.campaign_id
-           AND campaign.mvp_run_id = collection.mvp_run_id
-           AND campaign.platform = collection.platform
-          WHERE observation.mvp_run_id = member.mvp_run_id
-            AND observation.signal_id = member.signal_id
-            AND yike_nonblank_text(observation.query_cluster) = 1
-            AND yike_nonblank_text(observation.query_text) = 1
-            AND campaign.query_cluster = observation.query_cluster
-            AND campaign.query_text = observation.query_text
-            AND strftime(
-                '%Y-%m-%dT%H:%M:%SZ', observation.observed_at
-            ) = observation.observed_at
-            AND observation.observed_at <= ?
-            AND length(observation.raw_sha256) = 64
-            AND observation.raw_sha256 NOT GLOB '*[^0-9a-f]*'
-            AND observation.envelope_sha256 IS NOT NULL
-            AND length(observation.envelope_sha256) = 64
-            AND observation.envelope_sha256 NOT GLOB '*[^0-9a-f]*'
-            AND collection.platform = signal.platform
-            AND collection.backend = 'MEDIACRAWLER_AUTHORIZED'
-            AND collection.state IN ('SUCCEEDED', 'SUCCEEDED_NO_DATA')
-            AND collection.started_at IS NOT NULL
-            AND collection.finished_at IS NOT NULL
-            AND strftime(
-                '%Y-%m-%dT%H:%M:%SZ', collection.started_at
-            ) = collection.started_at
-            AND strftime(
-                '%Y-%m-%dT%H:%M:%SZ', collection.finished_at
-            ) = collection.finished_at
-            AND collection.started_at <= observation.observed_at
-            AND observation.observed_at <= collection.finished_at
-            AND collection.finished_at <= ?
-            AND (
-                (collection.state = 'SUCCEEDED'
-                 AND collection.raw_count > 0
-                 AND collection.unique_count >= 0
-                 AND collection.unique_count <= collection.raw_count)
-                OR
-                (collection.state = 'SUCCEEDED_NO_DATA'
-                 AND collection.raw_count = 0
-                 AND collection.unique_count = 0)
-            )
-            AND collection.error_code IS NULL
-            AND collection.output_manifest_sha256 IS NOT NULL
-            AND length(collection.output_manifest_sha256) = 64
-            AND collection.output_manifest_sha256 NOT GLOB '*[^0-9a-f]*'
-            AND length(collection.runtime_lock_sha256) = 64
-            AND collection.runtime_lock_sha256 NOT GLOB '*[^0-9a-f]*'
+          SELECT 1 FROM activity_events event
+          WHERE event.activity_session_id = session.activity_session_id
       )
+      AND NOT EXISTS (
+          SELECT 1 FROM activity_events event
+          WHERE event.activity_session_id = session.activity_session_id
+            AND event.received_at < eligible.eligible_since
+      )
+),
+hard_terminal_activity_sessions AS (
+    SELECT session.*
+    FROM hard_activity_sessions session
+    JOIN metric_context context ON context.mvp_run_id = session.mvp_run_id
+    WHERE session.state IN ('COMPLETED', 'CANCELLED')
+      AND session.completed_at BETWEEN session.eligible_since AND context.cutoff
+      AND NOT EXISTS (
+          SELECT 1 FROM activity_events event
+          WHERE event.activity_session_id = session.activity_session_id
+            AND event.received_at > context.cutoff
+      )
+),
+hard_reviews AS (
+    SELECT review.*, presentation.eligible_since
+    FROM human_reviews review
+    JOIN hard_presentations presentation
+      ON presentation.mvp_run_id = review.mvp_run_id
+     AND presentation.signal_id = review.signal_id
+     AND presentation.score_run_id = review.presented_score_run_id
+    JOIN hard_terminal_activity_sessions session
+      ON session.activity_session_id = review.activity_session_id
+     AND session.mvp_run_id = review.mvp_run_id
+     AND session.signal_id = review.signal_id
+     AND session.activity_kind = 'REVIEW'
+     AND session.state = 'COMPLETED'
+    JOIN metric_context context ON context.mvp_run_id = review.mvp_run_id
+    WHERE review.started_at BETWEEN presentation.eligible_since AND context.cutoff
+      AND review.completed_at BETWEEN presentation.eligible_since AND context.cutoff
+),
+hard_drafts AS (
+    SELECT draft.*, eligible.eligible_since
+    FROM draft_runs draft
+    JOIN hard_eligible_signals eligible
+      ON eligible.mvp_run_id = draft.mvp_run_id
+     AND eligible.signal_id = draft.signal_id
+    LEFT JOIN hard_terminal_activity_sessions session
+      ON session.activity_session_id = draft.activity_session_id
+     AND session.mvp_run_id = draft.mvp_run_id
+     AND session.signal_id = draft.signal_id
+     AND session.activity_kind = 'DRAFT'
+     AND session.state = 'COMPLETED'
+    JOIN metric_context context ON context.mvp_run_id = draft.mvp_run_id
+    WHERE draft.created_at BETWEEN eligible.eligible_since AND context.cutoff
+      AND (
+          draft.draft_kind <> 'HUMAN_EDITED'
+          OR session.activity_session_id IS NOT NULL
+      )
+),
+hard_outreach_candidates AS (
+    SELECT outreach.*, eligible.eligible_since
+    FROM outreach_actions outreach
+    JOIN hard_eligible_signals eligible
+      ON eligible.mvp_run_id = outreach.mvp_run_id
+     AND eligible.signal_id = outreach.signal_id
+     AND eligible.platform = outreach.platform
+    JOIN hard_reviews review
+      ON review.review_id = outreach.review_id
+     AND review.mvp_run_id = outreach.mvp_run_id
+     AND review.signal_id = outreach.signal_id
+     AND review.presented_score_run_id = outreach.score_run_id
+    JOIN hard_scores score
+      ON score.score_run_id = outreach.score_run_id
+     AND score.mvp_run_id = outreach.mvp_run_id
+     AND score.signal_id = outreach.signal_id
+    JOIN hard_drafts draft
+      ON draft.draft_run_id = outreach.draft_run_id
+     AND draft.mvp_run_id = outreach.mvp_run_id
+     AND draft.signal_id = outreach.signal_id
+    JOIN metric_context context ON context.mvp_run_id = outreach.mvp_run_id
+    WHERE outreach.created_at BETWEEN eligible.eligible_since AND context.cutoff
+      AND (
+          outreach.sent_at IS NULL
+          OR outreach.sent_at BETWEEN eligible.eligible_since AND context.cutoff
+      )
+),
+hard_outreach AS (
+    SELECT candidate.*
+    FROM hard_outreach_candidates candidate
+    WHERE candidate.parent_outreach_action_id IS NULL
+    UNION ALL
+    SELECT candidate.*
+    FROM hard_outreach_candidates candidate
+    JOIN hard_outreach parent
+      ON parent.outreach_action_id = candidate.parent_outreach_action_id
+     AND parent.mvp_run_id = candidate.mvp_run_id
+     AND parent.signal_id = candidate.signal_id
+     AND parent.platform = candidate.platform
+     AND parent.subject_key = candidate.subject_key
+),
+hard_responses AS (
+    SELECT response.*, outreach.signal_id, outreach.platform,
+           outreach.eligible_since
+    FROM response_events response
+    JOIN hard_outreach outreach
+      ON outreach.outreach_action_id = response.outreach_action_id
+     AND outreach.mvp_run_id = response.mvp_run_id
+    JOIN metric_context context ON context.mvp_run_id = response.mvp_run_id
+    WHERE response.recorded_at BETWEEN outreach.eligible_since AND context.cutoff
+      AND (
+          response.occurred_at IS NULL
+          OR response.occurred_at BETWEEN outreach.eligible_since AND context.cutoff
+      )
+      AND (
+          response.verified_at IS NULL
+          OR response.verified_at BETWEEN outreach.eligible_since AND context.cutoff
+      )
+),
+hard_interviews AS (
+    SELECT interview.*, response.outreach_action_id, response.signal_id,
+           response.platform, response.eligible_since
+    FROM interviews interview
+    JOIN hard_responses response
+      ON response.response_event_id = interview.response_event_id
+     AND response.mvp_run_id = interview.mvp_run_id
+    JOIN metric_context context ON context.mvp_run_id = interview.mvp_run_id
+    WHERE interview.recorded_at BETWEEN response.eligible_since AND context.cutoff
+      AND (
+          interview.completed_at IS NULL
+          OR interview.completed_at BETWEEN response.eligible_since AND context.cutoff
+      )
+),
+hard_quotes AS (
+    SELECT quote.*, response.response_event_id AS hard_response_event_id,
+           response.outreach_action_id, response.signal_id, response.platform,
+           response.eligible_since
+    FROM quote_opportunities quote
+    LEFT JOIN hard_interviews interview
+      ON interview.interview_id = quote.interview_id
+     AND interview.mvp_run_id = quote.mvp_run_id
+    JOIN hard_responses response
+      ON response.mvp_run_id = quote.mvp_run_id
+     AND response.response_event_id = coalesce(
+           quote.response_event_id, interview.response_event_id
+         )
+    JOIN metric_context context ON context.mvp_run_id = quote.mvp_run_id
+    WHERE quote.recorded_at BETWEEN response.eligible_since AND context.cutoff
+      AND quote.agreed_to_receive_pricing_at
+          BETWEEN response.eligible_since AND context.cutoff
+      AND quote.verified_at BETWEEN response.eligible_since AND context.cutoff
+      AND (quote.interview_id IS NULL OR interview.interview_id IS NOT NULL)
+),
+hard_model_events AS (
+    SELECT event.*, score.signal_id, score.eligible_since
+    FROM model_availability_events event
+    JOIN hard_scores score
+      ON event.fact_kind = 'SCORE'
+     AND score.score_run_id = event.fact_id
+     AND score.mvp_run_id = event.mvp_run_id
+    JOIN metric_context context ON context.mvp_run_id = event.mvp_run_id
+    WHERE event.recorded_at BETWEEN score.eligible_since AND context.cutoff
+    UNION ALL
+    SELECT event.*, draft.signal_id, draft.eligible_since
+    FROM model_availability_events event
+    JOIN hard_drafts draft
+      ON event.fact_kind = 'DRAFT'
+     AND draft.draft_run_id = event.fact_id
+     AND draft.mvp_run_id = event.mvp_run_id
+    JOIN metric_context context ON context.mvp_run_id = event.mvp_run_id
+    WHERE event.recorded_at BETWEEN draft.eligible_since AND context.cutoff
 )
 """
 
@@ -163,10 +358,7 @@ class MetricsEngine:
         first_outreach = self._hard_scalar(
             """
             SELECT COUNT(DISTINCT outreach.platform || ':' || outreach.subject_key)
-            FROM outreach_actions outreach
-            JOIN hard_eligible_signals eligible
-              ON eligible.mvp_run_id = outreach.mvp_run_id
-             AND eligible.signal_id = outreach.signal_id
+            FROM hard_outreach outreach
             WHERE outreach.mvp_run_id = ?
               AND outreach.parent_outreach_action_id IS NULL
               AND outreach.status = 'SENT_VERIFIED'
@@ -181,13 +373,10 @@ class MetricsEngine:
         valid_responses = self._hard_scalar(
             """
             SELECT COUNT(DISTINCT response.responder_subject_key)
-            FROM response_events response
-            JOIN outreach_actions outreach
+            FROM hard_responses response
+            JOIN hard_outreach outreach
               ON outreach.outreach_action_id = response.outreach_action_id
              AND outreach.mvp_run_id = response.mvp_run_id
-            JOIN hard_eligible_signals eligible
-              ON eligible.mvp_run_id = outreach.mvp_run_id
-             AND eligible.signal_id = outreach.signal_id
             WHERE response.mvp_run_id = ? AND response.response_type = 'VALID'
               AND outreach.status = 'SENT_VERIFIED'
               AND response.verified_at IS NOT NULL
@@ -205,16 +394,13 @@ class MetricsEngine:
         interviews = self._hard_scalar(
             """
             SELECT COUNT(DISTINCT response.responder_subject_key)
-            FROM interviews interview
-            JOIN response_events response
+            FROM hard_interviews interview
+            JOIN hard_responses response
               ON response.response_event_id = interview.response_event_id
              AND response.mvp_run_id = interview.mvp_run_id
-            JOIN outreach_actions outreach
+            JOIN hard_outreach outreach
               ON outreach.outreach_action_id = response.outreach_action_id
              AND outreach.mvp_run_id = response.mvp_run_id
-            JOIN hard_eligible_signals eligible
-              ON eligible.mvp_run_id = outreach.mvp_run_id
-             AND eligible.signal_id = outreach.signal_id
             WHERE interview.mvp_run_id = ? AND interview.completed_at IS NOT NULL
               AND response.response_type = 'VALID'
               AND outreach.status = 'SENT_VERIFIED'
@@ -229,21 +415,18 @@ class MetricsEngine:
         quotes = self._hard_scalar(
             """
             SELECT COUNT(DISTINCT response.responder_subject_key)
-            FROM quote_opportunities quote
-            LEFT JOIN interviews interview
+            FROM hard_quotes quote
+            LEFT JOIN hard_interviews interview
               ON interview.interview_id = quote.interview_id
              AND interview.mvp_run_id = quote.mvp_run_id
-            JOIN response_events response
+            JOIN hard_responses response
               ON response.mvp_run_id = quote.mvp_run_id
              AND response.response_event_id = coalesce(
                    quote.response_event_id, interview.response_event_id
                  )
-            JOIN outreach_actions outreach
+            JOIN hard_outreach outreach
               ON outreach.outreach_action_id = response.outreach_action_id
              AND outreach.mvp_run_id = response.mvp_run_id
-            JOIN hard_eligible_signals eligible
-              ON eligible.mvp_run_id = outreach.mvp_run_id
-             AND eligible.signal_id = outreach.signal_id
             WHERE quote.mvp_run_id = ? AND response.response_type = 'VALID'
               AND outreach.status = 'SENT_VERIFIED'
               AND quote.verified_at IS NOT NULL
@@ -261,10 +444,10 @@ class MetricsEngine:
         reviewed_ab, high_intent_ab = self._hard_execute(
             """
             , leaf_reviews AS (
-              SELECT review.* FROM human_reviews review
+              SELECT review.* FROM hard_reviews review
               WHERE review.mvp_run_id = ? AND review.completed_at <= ?
                 AND NOT EXISTS (
-                  SELECT 1 FROM human_reviews child
+                  SELECT 1 FROM hard_reviews child
                   WHERE child.supersedes_review_id = review.review_id
                     AND child.completed_at <= ?
                 )
@@ -272,17 +455,14 @@ class MetricsEngine:
             SELECT COUNT(DISTINCT presentation.signal_id),
                    COUNT(DISTINCT CASE WHEN leaf.label = 'HIGH_INTENT'
                                        THEN presentation.signal_id END)
-            FROM score_presentations presentation
-            JOIN score_runs score
+            FROM hard_presentations presentation
+            JOIN hard_scores score
               ON score.score_run_id = presentation.score_run_id
              AND score.mvp_run_id = presentation.mvp_run_id
              AND score.signal_id = presentation.signal_id
             JOIN leaf_reviews leaf
               ON leaf.presented_score_run_id = presentation.score_run_id
              AND leaf.signal_id = presentation.signal_id
-            JOIN hard_eligible_signals eligible
-              ON eligible.mvp_run_id = presentation.mvp_run_id
-             AND eligible.signal_id = presentation.signal_id
             WHERE presentation.mvp_run_id = ? AND score.grade IN ('A', 'B')
               AND presentation.presented_at <= ?
             """,
@@ -329,32 +509,11 @@ class MetricsEngine:
             )
             or self._hard_scalar(
                 """
-                , eligible_model_events AS (
-                  SELECT event.*
-                  FROM model_availability_events event
-                  JOIN score_runs score
-                    ON event.fact_kind = 'SCORE'
-                   AND score.score_run_id = event.fact_id
-                   AND score.mvp_run_id = event.mvp_run_id
-                  JOIN hard_eligible_signals eligible
-                    ON eligible.mvp_run_id = score.mvp_run_id
-                   AND eligible.signal_id = score.signal_id
-                  UNION ALL
-                  SELECT event.*
-                  FROM model_availability_events event
-                  JOIN draft_runs draft
-                    ON event.fact_kind = 'DRAFT'
-                   AND draft.draft_run_id = event.fact_id
-                   AND draft.mvp_run_id = event.mvp_run_id
-                  JOIN hard_eligible_signals eligible
-                    ON eligible.mvp_run_id = draft.mvp_run_id
-                   AND eligible.signal_id = draft.signal_id
-                )
-                SELECT COUNT(*) FROM eligible_model_events event
+                SELECT COUNT(*) FROM hard_model_events event
                 WHERE event.mvp_run_id = ? AND event.availability_state = 'BLOCKED'
                   AND event.recorded_at <= ?
                   AND NOT EXISTS (
-                    SELECT 1 FROM eligible_model_events later
+                    SELECT 1 FROM hard_model_events later
                     WHERE later.mvp_run_id = event.mvp_run_id
                       AND later.recorded_at <= ?
                       AND later.event_sequence > event.event_sequence
@@ -367,14 +526,11 @@ class MetricsEngine:
         )
         high_intent = self._hard_scalar(
             """
-            SELECT COUNT(*) FROM human_reviews review
-            JOIN hard_eligible_signals eligible
-              ON eligible.mvp_run_id = review.mvp_run_id
-             AND eligible.signal_id = review.signal_id
+            SELECT COUNT(*) FROM hard_reviews review
             WHERE review.mvp_run_id = ? AND review.label = 'HIGH_INTENT'
               AND review.completed_at <= ?
               AND NOT EXISTS (
-                SELECT 1 FROM human_reviews child
+                SELECT 1 FROM hard_reviews child
                 WHERE child.supersedes_review_id = review.review_id
                   AND child.completed_at <= ?
               )
@@ -386,13 +542,10 @@ class MetricsEngine:
         personalized_high_intent = self._hard_scalar(
             """
             SELECT COUNT(DISTINCT outreach.signal_id)
-            FROM outreach_actions outreach
-            JOIN human_reviews review
+            FROM hard_outreach outreach
+            JOIN hard_reviews review
               ON review.mvp_run_id = outreach.mvp_run_id
              AND review.signal_id = outreach.signal_id
-            JOIN hard_eligible_signals eligible
-              ON eligible.mvp_run_id = outreach.mvp_run_id
-             AND eligible.signal_id = outreach.signal_id
             WHERE outreach.mvp_run_id = ? AND outreach.parent_outreach_action_id IS NULL
               AND outreach.status = 'SENT_VERIFIED'
               AND review.label = 'HIGH_INTENT'
@@ -400,7 +553,7 @@ class MetricsEngine:
               AND length(trim(outreach.context_evidence)) > 0
               AND outreach.sent_at <= ? AND outreach.created_at <= ?
               AND NOT EXISTS (
-                SELECT 1 FROM human_reviews child
+                SELECT 1 FROM hard_reviews child
                 WHERE child.supersedes_review_id = review.review_id
                   AND child.completed_at <= ?
               )
@@ -414,10 +567,7 @@ class MetricsEngine:
         sessions = self._hard_execute(
             """
             SELECT session.*
-            FROM activity_sessions session
-            JOIN hard_eligible_signals eligible
-              ON eligible.mvp_run_id = session.mvp_run_id
-             AND eligible.signal_id = session.signal_id
+            FROM hard_activity_sessions session
             WHERE session.mvp_run_id = ?
               AND session.started_at <= ?
             """,
@@ -427,10 +577,7 @@ class MetricsEngine:
         ).fetchall()
         required_count = self._hard_scalar(
             """
-            SELECT COUNT(*) FROM human_reviews review
-            JOIN hard_eligible_signals eligible
-              ON eligible.mvp_run_id = review.mvp_run_id
-             AND eligible.signal_id = review.signal_id
+            SELECT COUNT(*) FROM hard_reviews review
             WHERE review.mvp_run_id = ? AND review.completed_at <= ?
             """,
             run_id,
@@ -438,10 +585,7 @@ class MetricsEngine:
             extra=(cutoff,),
         ) + self._hard_scalar(
             """
-            SELECT COUNT(*) FROM draft_runs draft
-            JOIN hard_eligible_signals eligible
-              ON eligible.mvp_run_id = draft.mvp_run_id
-             AND eligible.signal_id = draft.signal_id
+            SELECT COUNT(*) FROM hard_drafts draft
             WHERE draft.mvp_run_id = ? AND draft.draft_kind = 'HUMAN_EDITED'
               AND draft.status = 'SUCCEEDED' AND draft.created_at <= ?
             """,
@@ -453,21 +597,15 @@ class MetricsEngine:
             """
             SELECT COUNT(*) FROM (
               SELECT review.activity_session_id
-              FROM human_reviews review
-              JOIN hard_eligible_signals eligible
-                ON eligible.mvp_run_id = review.mvp_run_id
-               AND eligible.signal_id = review.signal_id
+              FROM hard_reviews review
               WHERE review.mvp_run_id = ? AND review.completed_at <= ?
               UNION ALL
               SELECT draft.activity_session_id
-              FROM draft_runs draft
-              JOIN hard_eligible_signals eligible
-                ON eligible.mvp_run_id = draft.mvp_run_id
-               AND eligible.signal_id = draft.signal_id
+              FROM hard_drafts draft
               WHERE draft.mvp_run_id = ? AND draft.draft_kind = 'HUMAN_EDITED'
                 AND draft.status = 'SUCCEEDED' AND draft.created_at <= ?
             ) required
-            JOIN activity_sessions session
+            JOIN hard_terminal_activity_sessions session
               ON session.activity_session_id = required.activity_session_id
              AND session.state = 'COMPLETED'
             """,
@@ -487,10 +625,14 @@ class MetricsEngine:
         for session in sessions:
             if session["state"] != "CANCELLED" or str(session["completed_at"]) > cutoff:
                 continue
-            fact_table = "human_reviews" if session["activity_kind"] == "REVIEW" else "draft_runs"
-            recovered = self.connection.execute(
+            fact_table = (
+                "hard_reviews"
+                if session["activity_kind"] == "REVIEW"
+                else "hard_drafts"
+            )
+            recovered = self._hard_execute(
                 f"""
-                SELECT 1 FROM activity_sessions replacement
+                SELECT 1 FROM hard_terminal_activity_sessions replacement
                 JOIN {fact_table} fact
                   ON fact.activity_session_id = replacement.activity_session_id
                 WHERE replacement.mvp_run_id = ? AND replacement.signal_id = ?
@@ -498,7 +640,9 @@ class MetricsEngine:
                   AND replacement.started_at >= ? AND replacement.completed_at <= ?
                 LIMIT 1
                 """,
-                (
+                run_id,
+                cutoff,
+                extra=(
                     run_id, session["signal_id"], session["activity_kind"],
                     session["completed_at"], cutoff,
                 ),
@@ -546,10 +690,7 @@ class MetricsEngine:
         for local_day, seconds in day_seconds.items():
             personalized_that_day = self._hard_scalar(
                 """
-                SELECT COUNT(*) FROM outreach_actions outreach
-                JOIN hard_eligible_signals eligible
-                  ON eligible.mvp_run_id = outreach.mvp_run_id
-                 AND eligible.signal_id = outreach.signal_id
+                SELECT COUNT(*) FROM hard_outreach outreach
                 WHERE outreach.mvp_run_id = ?
                   AND outreach.parent_outreach_action_id IS NULL
                   AND outreach.status = 'SENT_VERIFIED'
@@ -572,16 +713,13 @@ class MetricsEngine:
         unsolvable = bool(
             self._hard_scalar(
                 """
-                SELECT COUNT(*) FROM interviews interview
-                JOIN response_events response
+                SELECT COUNT(*) FROM hard_interviews interview
+                JOIN hard_responses response
                   ON response.response_event_id = interview.response_event_id
                  AND response.mvp_run_id = interview.mvp_run_id
-                JOIN outreach_actions outreach
+                JOIN hard_outreach outreach
                   ON outreach.outreach_action_id = response.outreach_action_id
                  AND outreach.mvp_run_id = response.mvp_run_id
-                JOIN hard_eligible_signals eligible
-                  ON eligible.mvp_run_id = outreach.mvp_run_id
-                 AND eligible.signal_id = outreach.signal_id
                 WHERE interview.mvp_run_id = ?
                   AND interview.completed_at IS NOT NULL
                   AND interview.solution_fit = 'UNSOLVABLE'
@@ -672,13 +810,10 @@ class MetricsEngine:
     @staticmethod
     def _leaf_review_count() -> str:
         return """
-            SELECT COUNT(*) FROM human_reviews review
-            JOIN hard_eligible_signals eligible
-              ON eligible.mvp_run_id = review.mvp_run_id
-             AND eligible.signal_id = review.signal_id
+            SELECT COUNT(*) FROM hard_reviews review
             WHERE review.mvp_run_id = ? AND review.completed_at <= ?
               AND NOT EXISTS (
-                SELECT 1 FROM human_reviews child
+                SELECT 1 FROM hard_reviews child
                 WHERE child.supersedes_review_id = review.review_id
                   AND child.completed_at <= ?
               )
@@ -704,14 +839,14 @@ class MetricsEngine:
             reviewed = self._hard_execute(
                 """
                 SELECT COUNT(DISTINCT review.signal_id)
-                FROM human_reviews review
+                FROM hard_reviews review
                 JOIN hard_eligible_signals eligible
                   ON eligible.mvp_run_id = review.mvp_run_id
                  AND eligible.signal_id = review.signal_id
                 WHERE review.mvp_run_id = ? AND eligible.platform = ?
                   AND review.completed_at <= ?
                   AND NOT EXISTS (
-                    SELECT 1 FROM human_reviews child
+                    SELECT 1 FROM hard_reviews child
                     WHERE child.supersedes_review_id = review.review_id
                       AND child.completed_at <= ?
                   )
@@ -734,11 +869,8 @@ class MetricsEngine:
                      AND quote.recorded_at <= ?
                      AND (quote.interview_id IS NULL OR interview.recorded_at <= ?)
                     THEN response.responder_subject_key END)
-                FROM outreach_actions outreach
-                JOIN hard_eligible_signals eligible
-                  ON eligible.mvp_run_id = outreach.mvp_run_id
-                 AND eligible.signal_id = outreach.signal_id
-                LEFT JOIN response_events response
+                FROM hard_outreach outreach
+                LEFT JOIN hard_responses response
                   ON response.outreach_action_id = outreach.outreach_action_id
                  AND response.mvp_run_id = outreach.mvp_run_id
                  AND response.response_type = 'VALID'
@@ -746,16 +878,12 @@ class MetricsEngine:
                  AND response.recorded_at <= ?
                  AND response.evidence_summary IS NOT NULL
                  AND length(trim(response.evidence_summary)) > 0
-                LEFT JOIN interviews interview
+                LEFT JOIN hard_interviews interview
                   ON interview.response_event_id = response.response_event_id
                  AND interview.mvp_run_id = response.mvp_run_id
-                LEFT JOIN quote_opportunities quote
+                LEFT JOIN hard_quotes quote
                   ON quote.mvp_run_id = response.mvp_run_id
-                 AND quote.response_event_id = response.response_event_id
-                    OR (
-                      quote.mvp_run_id = response.mvp_run_id
-                      AND quote.interview_id = interview.interview_id
-                    )
+                 AND quote.hard_response_event_id = response.response_event_id
                 WHERE outreach.mvp_run_id = ? AND outreach.platform = ?
                   AND outreach.parent_outreach_action_id IS NULL
                   AND outreach.status = 'SENT_VERIFIED' AND outreach.sent_at <= ?
@@ -787,11 +915,8 @@ class MetricsEngine:
                 SELECT DISTINCT coalesce(
                     json_extract(score.reason_json, '$.explicit_industry'), '未识别'
                 )
-                FROM score_presentations presentation
-                JOIN score_runs score ON score.score_run_id = presentation.score_run_id
-                JOIN hard_eligible_signals eligible
-                  ON eligible.mvp_run_id = presentation.mvp_run_id
-                 AND eligible.signal_id = presentation.signal_id
+                FROM hard_presentations presentation
+                JOIN hard_scores score ON score.score_run_id = presentation.score_run_id
                 WHERE presentation.mvp_run_id = ? AND presentation.presented_at <= ?
                 ORDER BY 1
                 """,
@@ -806,21 +931,18 @@ class MetricsEngine:
                 """
                 , scoped AS (
                   SELECT presentation.signal_id, score.score_run_id
-                  FROM score_presentations presentation
-                  JOIN score_runs score ON score.score_run_id = presentation.score_run_id
-                  JOIN hard_eligible_signals eligible
-                    ON eligible.mvp_run_id = presentation.mvp_run_id
-                   AND eligible.signal_id = presentation.signal_id
+                  FROM hard_presentations presentation
+                  JOIN hard_scores score ON score.score_run_id = presentation.score_run_id
                   WHERE presentation.mvp_run_id = ? AND presentation.presented_at <= ?
                     AND coalesce(
                       json_extract(score.reason_json, '$.explicit_industry'), '未识别'
                     ) = ?
                 ), leaf AS (
-                  SELECT review.* FROM human_reviews review
+                  SELECT review.* FROM hard_reviews review
                   JOIN scoped ON scoped.signal_id = review.signal_id
                   WHERE review.mvp_run_id = ? AND review.completed_at <= ?
                     AND NOT EXISTS (
-                      SELECT 1 FROM human_reviews child
+                      SELECT 1 FROM hard_reviews child
                       WHERE child.supersedes_review_id = review.review_id
                         AND child.completed_at <= ?
                     )
@@ -834,12 +956,12 @@ class MetricsEngine:
                   COUNT(DISTINCT response.responder_subject_key)
                 FROM scoped
                 LEFT JOIN leaf ON leaf.signal_id = scoped.signal_id
-                LEFT JOIN outreach_actions outreach
+                LEFT JOIN hard_outreach outreach
                  ON outreach.mvp_run_id = ? AND outreach.signal_id = scoped.signal_id
                  AND outreach.parent_outreach_action_id IS NULL
                  AND outreach.status = 'SENT_VERIFIED' AND outreach.sent_at <= ?
                  AND outreach.created_at <= ?
-                LEFT JOIN response_events response
+                LEFT JOIN hard_responses response
                   ON response.mvp_run_id = outreach.mvp_run_id
                  AND response.outreach_action_id = outreach.outreach_action_id
                  AND response.response_type = 'VALID'
@@ -889,8 +1011,8 @@ class MetricsEngine:
         extra: tuple[object, ...] = (),
     ) -> sqlite3.Cursor:
         return self.connection.execute(
-            f"WITH {_HARD_ELIGIBLE_SIGNALS_CTE}\n{statement}",
-            (run_id, cutoff, cutoff, cutoff, *extra),
+            f"WITH RECURSIVE {_HARD_FACTS_CTES}\n{statement}",
+            (run_id, cutoff, *extra),
         )
 
     def _hard_scalar(

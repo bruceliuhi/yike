@@ -459,6 +459,11 @@ class Repository:
             if state in ("FAILED", "CANCELLED", "BLOCKED_INPUT"):
                 raise ValueError("collection terminal error code is invalid")
             raise ValueError("collection terminal evidence is invalid")
+        if state == "SUCCEEDED_NO_DATA" and self.connection.execute(
+            "SELECT 1 FROM signal_observations WHERE collection_run_id = ? LIMIT 1",
+            (collection_run_id,),
+        ).fetchone():
+            raise ValueError("SUCCEEDED_NO_DATA_HAS_OBSERVATIONS")
         finished_at = self._server_timestamp()
         with self.connection:
             collection = self.connection.execute(

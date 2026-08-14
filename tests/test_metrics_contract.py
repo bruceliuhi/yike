@@ -91,6 +91,7 @@ class FactBuilder:
         ).signal_id
 
     def review(self, signal_id: str, index: int, label: str = "HIGH_INTENT", seconds: int = 1):
+        self.finish_collection()
         score_id = f"score-{uuid4()}"
         self.repository.append_score_success(
             score_run_id=score_id,
@@ -175,8 +176,6 @@ class FactBuilder:
             "WHERE collection_run_id = 'metrics-provenance'"
         ).fetchone()[0]
         if state == "RUNNING":
-            current = self.clock.value
-            self.clock.set(datetime(2026, 8, 20, 0, 0, 1, tzinfo=UTC))
             self.repository.finish_collection(
                 "metrics-provenance",
                 state="SUCCEEDED",
@@ -185,7 +184,6 @@ class FactBuilder:
                 error_code=None,
                 output_manifest_sha256="d" * 64,
             )
-            self.clock.set(current)
 
     def snapshot(self, now: datetime):
         self.finish_collection()
@@ -350,6 +348,150 @@ def test_simulation_only_funnel_cannot_complete_authorized_signal_success(
     facts.close()
 
 
+def test_later_authorized_observation_cannot_promote_earlier_simulation_funnel(
+    tmp_path,
+):
+    facts = FactBuilder(
+        tmp_path / "simulation-retroactive.sqlite3", backend="SIMULATION_ONLY"
+    )
+    signals = [facts.signal(index) for index in range(300)]
+    reviews = []
+    for index, signal_id in enumerate(signals[:100]):
+        facts.clock.set(datetime(2026, 8, 19 + index % 5, 1, index // 5, tzinfo=UTC))
+        reviews.append(facts.review(signal_id, index))
+    outreach = [
+        facts.outreach(signals[index], reviews[index], index) for index in range(30)
+    ]
+    for index in range(30, 51):
+        session_id = facts.workflow.start_activity(facts.run_id, signals[index], "DRAFT")
+        facts.clock.move(1)
+        facts.workflow.record_activity(session_id, "COMPLETE")
+        facts.workflow.create_draft(
+            run_id=facts.run_id,
+            signal_id=signals[index],
+            body="人工筛选效率低。我们正在研究销售 Agent，你们每周筛选多少条线索？",
+            activity_session_id=session_id,
+        )
+    responses = [facts.response(outreach[index], index) for index in range(5)]
+    interviews = [facts.interview(responses[index]) for index in range(2)]
+    now = facts.clock().isoformat().replace("+00:00", "Z")
+    facts.workflow.register_quote(
+        run_id=facts.run_id,
+        response_event_id=responses[0],
+        interview_id=interviews[0],
+        scope_summary="线索排序试点",
+        agreed_to_receive_pricing_at=now,
+        verified_at=now,
+    )
+
+    facts.clock.set(datetime(2026, 8, 25, tzinfo=UTC))
+    facts.repository.begin_collection(
+        run_id=facts.run_id,
+        collection_run_id="authorized-reobservation",
+        backend="MEDIACRAWLER_AUTHORIZED",
+        platform="bili",
+        query_cluster="sales-agent",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    reobserved = [
+        facts.signal(index, collection_run_id="authorized-reobservation")
+        for index in range(300)
+    ]
+    facts.repository.finish_collection(
+        "authorized-reobservation",
+        state="SUCCEEDED",
+        raw_count=300,
+        unique_count=0,
+        error_code=None,
+        output_manifest_sha256="e" * 64,
+    )
+
+    snapshot = facts.snapshot(datetime(2026, 8, 25, tzinfo=UTC))
+
+    assert reobserved == signals
+    assert snapshot.unique_verifiable_signals == 300
+    assert snapshot.reviewed_signals == 0
+    assert snapshot.reviewed_ab == 0
+    assert snapshot.first_outreach_subjects == 0
+    assert snapshot.valid_response_subjects == 0
+    assert snapshot.completed_interviews == 0
+    assert snapshot.verified_quotes == 0
+    assert snapshot.all_success_thresholds is False
+    assert snapshot.decision == "RUNNING"
+    assert snapshot.platform_breakdown["bili"] == {
+        "signals": 300,
+        "reviewed": 0,
+        "first_outreach": 0,
+        "valid_responses": 0,
+        "interviews": 0,
+        "quotes": 0,
+    }
+    assert snapshot.industry_breakdown == {}
+    assert snapshot.collection_breakdown["SUCCEEDED"] == {
+        "runs": 1,
+        "raw": 300,
+        "unique": 0,
+    }
+    facts.close()
+
+
+def test_later_authorized_observation_cannot_promote_earlier_model_block(
+    tmp_path,
+):
+    facts = FactBuilder(
+        tmp_path / "simulation-model-retroactive.sqlite3",
+        backend="SIMULATION_ONLY",
+    )
+    signal_id = facts.signal(1)
+    facts.finish_collection()
+    facts.repository.append_score_failure(
+        score_run_id="simulation-model-block",
+        run_id=facts.run_id,
+        signal_id=signal_id,
+        provider=None,
+        model=None,
+        prompt_version="score-v1",
+        schema_version="schema-v1",
+        error_code="MODEL_UNAVAILABLE",
+    )
+
+    facts.clock.set(datetime(2026, 8, 13, tzinfo=UTC))
+    facts.repository.begin_collection(
+        run_id=facts.run_id,
+        collection_run_id="authorized-model-reobservation",
+        backend="MEDIACRAWLER_AUTHORIZED",
+        platform="bili",
+        query_cluster="sales-agent",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    assert (
+        facts.signal(1, collection_run_id="authorized-model-reobservation")
+        == signal_id
+    )
+    facts.repository.finish_collection(
+        "authorized-model-reobservation",
+        state="SUCCEEDED",
+        raw_count=1,
+        unique_count=0,
+        error_code=None,
+        output_manifest_sha256="e" * 64,
+    )
+
+    snapshot = facts.snapshot(datetime(2026, 8, 14, tzinfo=UTC))
+
+    assert snapshot.unique_verifiable_signals == 1
+    assert snapshot.blocked_input is False
+    facts.close()
+
+
 def test_all_six_loss_stop_rules_are_derived_from_persisted_facts(tmp_path):
     reasons_seen = set()
     for scenario in (
@@ -410,10 +552,10 @@ def test_all_six_loss_stop_rules_are_derived_from_persisted_facts(tmp_path):
     }
 
     spaced = FactBuilder(tmp_path / "nonconsecutive.sqlite3")
+    spaced_signals = [spaced.signal(index) for index in range(3)]
     for index, day in enumerate((13, 15, 17)):
-        signal_id = spaced.signal(index)
         spaced.clock.set(datetime(2026, 8, day, 1, tzinfo=UTC))
-        spaced.review(signal_id, index, seconds=5401)
+        spaced.review(spaced_signals[index], index, seconds=5401)
     spaced_snapshot = spaced.snapshot(datetime(2026, 8, 25, tzinfo=UTC))
     assert "THREE_OVER_90_MINUTE_DAYS" not in spaced_snapshot.loss_stop_reasons
     spaced.close()
@@ -497,6 +639,7 @@ def test_open_activity_fails_time_gate_and_later_collection_success_resolves_blo
 def test_model_availability_recovery_uses_one_cross_table_sequence(tmp_path):
     facts = FactBuilder(tmp_path / "model-order.sqlite3")
     signal_id = facts.signal(1)
+    facts.finish_collection()
     facts.repository.append_draft_failure(
         draft_run_id="draft-blocked", run_id=facts.run_id,
         signal_id=signal_id, provider=None, model=None,

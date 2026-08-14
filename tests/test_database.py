@@ -405,8 +405,8 @@ def test_current_schema_migration_is_idempotent(connection):
         "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
     ).fetchone()
     assert tuple(marker) == (
-        "DISCOVERY_FACT_STORE_V14",
-        "1ee8c24510148dc1ee173423f794f667a548d25cbd6693abd7da0c6d548cd396",
+        "DISCOVERY_FACT_STORE_V15",
+        "b53b01c2acc2f0b0818a5b60a390c7d26c13042c807a3f8eb31277bf85f43ec0",
     )
 
 
@@ -2634,6 +2634,180 @@ def test_collection_terminal_evidence_cannot_be_rewritten(repository):
         "FROM collection_runs WHERE collection_run_id = 'immutable-terminal'"
     ).fetchone()
     assert tuple(row) == ("SUCCEEDED", 1, 1, "b" * 64)
+
+
+def test_repository_rejects_no_data_terminal_when_collection_has_observations(
+    repository,
+):
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="repository-no-data-with-observation",
+        backend="MEDIACRAWLER_AUTHORIZED",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    repository.import_signal(
+        run_id,
+        replace(
+            signal(verifiable=True),
+            collection_run_id="repository-no-data-with-observation",
+            query_cluster="sales",
+            query_text="销售线索",
+            envelope_sha256="b" * 64,
+            normalizer_version="test-normalizer-v1",
+        ),
+    )
+    before = tuple(
+        repository.connection.execute(
+            "SELECT state, finished_at, raw_count, unique_count, error_code, "
+            "output_manifest_sha256 FROM collection_runs "
+            "WHERE collection_run_id = 'repository-no-data-with-observation'"
+        ).fetchone()
+    )
+
+    with pytest.raises(ValueError, match="SUCCEEDED_NO_DATA_HAS_OBSERVATIONS"):
+        repository.finish_collection(
+            "repository-no-data-with-observation",
+            state="SUCCEEDED_NO_DATA",
+            raw_count=0,
+            unique_count=0,
+            error_code=None,
+            output_manifest_sha256="c" * 64,
+        )
+
+    assert tuple(
+        repository.connection.execute(
+            "SELECT state, finished_at, raw_count, unique_count, error_code, "
+            "output_manifest_sha256 FROM collection_runs "
+            "WHERE collection_run_id = 'repository-no-data-with-observation'"
+        ).fetchone()
+    ) == before == ("RUNNING", None, 0, 0, None, None)
+
+
+def test_sql_rejects_no_data_terminal_when_collection_has_observations(repository):
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="sql-no-data-with-observation",
+        backend="MEDIACRAWLER_AUTHORIZED",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    repository.import_signal(
+        run_id,
+        replace(
+            signal(verifiable=True),
+            collection_run_id="sql-no-data-with-observation",
+            query_cluster="sales",
+            query_text="销售线索",
+            envelope_sha256="b" * 64,
+            normalizer_version="test-normalizer-v1",
+        ),
+    )
+    before = tuple(
+        repository.connection.execute(
+            "SELECT state, finished_at, raw_count, unique_count, error_code, "
+            "output_manifest_sha256 FROM collection_runs "
+            "WHERE collection_run_id = 'sql-no-data-with-observation'"
+        ).fetchone()
+    )
+
+    with pytest.raises(
+        sqlite3.IntegrityError, match="SUCCEEDED_NO_DATA_HAS_OBSERVATIONS"
+    ):
+        repository.connection.execute(
+            "UPDATE collection_runs SET state = 'SUCCEEDED_NO_DATA', "
+            "finished_at = started_at, raw_count = 0, unique_count = 0, "
+            "error_code = NULL, output_manifest_sha256 = ? "
+            "WHERE collection_run_id = 'sql-no-data-with-observation'",
+            ("c" * 64,),
+        )
+
+    assert tuple(
+        repository.connection.execute(
+            "SELECT state, finished_at, raw_count, unique_count, error_code, "
+            "output_manifest_sha256 FROM collection_runs "
+            "WHERE collection_run_id = 'sql-no-data-with-observation'"
+        ).fetchone()
+    ) == before == ("RUNNING", None, 0, 0, None, None)
+
+
+@pytest.mark.parametrize("terminal_run_state", ["CANCELLED", "FINALIZED"])
+def test_sql_rejects_collection_insert_for_non_active_run_without_taking_slot(
+    repository, terminal_run_state
+):
+    run_id = repository.create_run(["bili", "dy"])
+    campaign_id = repository.begin_collection(
+        run_id=run_id,
+        collection_run_id=f"{terminal_run_state.lower()}-seed-collection",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    repository.finish_collection(
+        f"{terminal_run_state.lower()}-seed-collection",
+        state="SUCCEEDED_NO_DATA",
+        raw_count=0,
+        unique_count=0,
+        error_code=None,
+        output_manifest_sha256="b" * 64,
+    )
+    if terminal_run_state == "CANCELLED":
+        repository.cancel_run(run_id)
+    else:
+        repository.finalize_run(run_id, "REVISE_MVP", {"unique_signals": 0})
+
+    with pytest.raises(sqlite3.IntegrityError, match="COLLECTION_REQUIRES_ACTIVE_RUN"):
+        repository.connection.execute(
+            "INSERT INTO collection_runs ("
+            "collection_run_id, mvp_run_id, campaign_id, platform, attempt, "
+            "backend, started_by, runtime_lock_sha256, state, started_at"
+            ") VALUES (?, ?, ?, 'bili', 2, 'SIMULATION_ONLY', "
+            "'test-operator', ?, 'RUNNING', '2026-08-25T00:00:00Z')",
+            (
+                f"{terminal_run_state.lower()}-illegal-collection",
+                run_id,
+                campaign_id,
+                "a" * 64,
+            ),
+        )
+    repository.connection.rollback()
+
+    assert repository.connection.execute(
+        "SELECT count(*) FROM collection_runs WHERE collection_run_id = ?",
+        (f"{terminal_run_state.lower()}-illegal-collection",),
+    ).fetchone()[0] == 0
+    next_run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=next_run_id,
+        collection_run_id=f"active-after-{terminal_run_state.lower()}",
+        platform="dy",
+        query_cluster="sales",
+        query_text="新线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    assert repository.connection.execute(
+        "SELECT state FROM collection_runs WHERE collection_run_id = ?",
+        (f"active-after-{terminal_run_state.lower()}",),
+    ).fetchone()[0] == "RUNNING"
 
 
 def test_collection_cannot_finish_after_day14_cutoff(connection):
