@@ -80,6 +80,12 @@ CREATE TABLE IF NOT EXISTS campaigns (
     UNIQUE (campaign_id, mvp_run_id, platform)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS stable_campaign_identity
+    ON campaigns(
+        mvp_run_id, platform, query_cluster, query_text,
+        max_contents, max_comments_per_content
+    );
+
 CREATE TABLE IF NOT EXISTS collection_runs (
     collection_run_id TEXT PRIMARY KEY,
     mvp_run_id TEXT NOT NULL REFERENCES mvp_runs(mvp_run_id),
@@ -198,7 +204,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS one_active_collection
 
 CREATE TRIGGER IF NOT EXISTS collection_runs_initial_state
 BEFORE INSERT ON collection_runs
-WHEN NEW.state NOT IN ('QUEUED', 'RUNNING')
+WHEN NEW.state NOT IN ('QUEUED', 'WAITING_LOGIN')
 BEGIN SELECT RAISE(ABORT, 'COLLECTION_INITIAL_STATE_INVALID'); END;
 
 CREATE TABLE IF NOT EXISTS sources (
@@ -208,7 +214,10 @@ CREATE TABLE IF NOT EXISTS sources (
     title TEXT,
     canonical_url TEXT,
     author_public_id TEXT,
-    published_at TEXT,
+    published_at TEXT CHECK (
+        published_at IS NULL
+        OR yike_is_canonical_utc(published_at) = 1
+    ),
     UNIQUE (platform, external_source_id),
     UNIQUE (source_id, platform)
 );
@@ -224,7 +233,10 @@ CREATE TABLE IF NOT EXISTS signals (
     author_public_id TEXT NOT NULL,
     body TEXT NOT NULL,
     body_sha256 TEXT NOT NULL,
-    published_at TEXT,
+    published_at TEXT CHECK (
+        published_at IS NULL
+        OR yike_is_canonical_utc(published_at) = 1
+    ),
     verifiable INTEGER NOT NULL DEFAULT 0 CHECK (verifiable IN (0, 1)),
     normalizer_version TEXT,
     CHECK (
@@ -1368,8 +1380,7 @@ BEGIN
                 'RUNNING', 'FAILED', 'CANCELLED', 'BLOCKED_INPUT'
             ))
             OR (OLD.state = 'RUNNING' AND NEW.state IN (
-                'IMPORTING', 'SUCCEEDED', 'SUCCEEDED_NO_DATA',
-                'FAILED', 'CANCELLED', 'BLOCKED_INPUT'
+                'IMPORTING', 'FAILED', 'CANCELLED', 'BLOCKED_INPUT'
             ))
             OR (OLD.state = 'IMPORTING' AND NEW.state IN (
                 'SUCCEEDED', 'SUCCEEDED_NO_DATA',

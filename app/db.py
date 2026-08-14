@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 import hashlib
 import json
@@ -5,8 +6,8 @@ import sqlite3
 
 
 _MIGRATION = Path(__file__).resolve().parents[1] / "migrations" / "001_discovery.sql"
-_SCHEMA_VERSION = "DISCOVERY_FACT_STORE_V16"
-_SCHEMA_SIGNATURE = "d448df7461d21d729a0ab105e60d6b82152cdbcaa2aad1a00c69934e6bf09f9f"
+_SCHEMA_VERSION = "DISCOVERY_FACT_STORE_V17"
+_SCHEMA_SIGNATURE = "4718fab17ca455dc396444a63203c7a0ec5a35eb7cca0a7d50bc2ab5327df387"
 
 
 class UnsupportedSchemaError(RuntimeError):
@@ -23,12 +24,25 @@ def _nonblank_text(value: object) -> int:
     return int(isinstance(value, str) and bool(value.strip()))
 
 
+def _is_canonical_utc(value: object) -> int:
+    if not isinstance(value, str) or len(value) != 20:
+        return 0
+    try:
+        parsed = datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return 0
+    return int(parsed.strftime("%Y-%m-%dT%H:%M:%SZ") == value)
+
+
 def _register_functions(connection: sqlite3.Connection) -> None:
     connection.create_function(
         "yike_sha256_text", 1, _sha256_text, deterministic=True
     )
     connection.create_function(
         "yike_nonblank_text", 1, _nonblank_text, deterministic=True
+    )
+    connection.create_function(
+        "yike_is_canonical_utc", 1, _is_canonical_utc, deterministic=True
     )
 
 

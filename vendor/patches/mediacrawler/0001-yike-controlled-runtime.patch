@@ -1,10 +1,7 @@
 diff --git a/config/base_config.py b/config/base_config.py
-index 28a852e..dc0ba69 100644
+index 28a852e..3259b77 100644
 --- a/config/base_config.py
 +++ b/config/base_config.py
-@@ -53 +53 @@ HEADLESS = False
--SAVE_LOGIN_STATE = True
-+SAVE_LOGIN_STATE = False
 @@ -56,4 +56,3 @@ SAVE_LOGIN_STATE = True
 -# 是否启用 CDP 模式 - 使用用户本地的 Chrome/Edge 浏览器进行爬取，具有更好的反检测能力
 -# 开启后，会自动检测并启动用户的 Chrome/Edge 浏览器，通过 CDP 协议进行控制
@@ -17,55 +14,17 @@ index 28a852e..dc0ba69 100644
 -CDP_CONNECT_EXISTING = True
 +CDP_CONNECT_EXISTING = False
 diff --git a/main.py b/main.py
-index 2823a5f..72ee630 100644
+index 2823a5f..797f215 100644
 --- a/main.py
 +++ b/main.py
-@@ -21,0 +22,3 @@ import io
-+import json
+@@ -21,0 +22,4 @@ import io
 +import os
 +from pathlib import Path
-@@ -70,0 +74,49 @@ crawler: Optional[AbstractCrawler] = None
-+STATUS_SCHEMA = "YIKE_MEDIACRAWLER_STATUS_V1"
 +
-+
-+def _terminal_for(error: Exception) -> tuple[str, int]:
-+    message = str(error).lower()
-+    if "yike_platform_auth_required" in message:
-+        return "PLATFORM_AUTH_REQUIRED", 40
-+    if "yike_platform_verification_required" in message or "captcha" in message:
-+        return "PLATFORM_VERIFICATION_REQUIRED", 42
-+    if any(token in message for token in ("rate", "429", "风控", "blocked", "频繁")):
-+        return "PLATFORM_RATE_LIMITED", 43
-+    if any(token in message for token in ("permission", "403", "权限", "拒绝")):
-+        return "PLATFORM_PERMISSION_DENIED", 41
-+    if "response" in message or "decode" in message or "json" in message:
-+        return "PLATFORM_RESPONSE_CHANGED", 44
-+    if "network" in message or "timeout" in message or "connect" in message:
-+        return "COLLECTION_NETWORK_FAILED", 45
-+    return "COLLECTION_PROCESS_FAILED", 48
-+
-+
-+def _write_terminal(status: str, error_code: str | None) -> None:
-+    output_dir = Path(config.SAVE_DATA_PATH)
-+    output_dir.mkdir(parents=True, exist_ok=True)
-+    target = output_dir / ".yike-collection-status.json"
-+    temporary = target.with_suffix(".tmp")
-+    temporary.write_text(
-+        json.dumps(
-+            {
-+                "schema_version": STATUS_SCHEMA,
-+                "platform": config.PLATFORM,
-+                "status": status,
-+                "error_code": error_code,
-+            },
-+            ensure_ascii=False,
-+            sort_keys=True,
-+        ),
-+        encoding="utf-8",
-+    )
-+    os.replace(temporary, target)
-+
-+
++os.umask(0o077)
+@@ -46,0 +51 @@ from tools.async_file_writer import AsyncFileWriter
++from tools.yike_runtime import classify_error, write_terminal
+@@ -70,0 +76,8 @@ crawler: Optional[AbstractCrawler] = None
 +def _has_comment_output() -> bool:
 +    platform_dir = "bili" if config.PLATFORM == "bili" else "douyin"
 +    data_dir = Path(config.SAVE_DATA_PATH) / platform_dir / "jsonl"
@@ -74,7 +33,7 @@ index 2823a5f..72ee630 100644
 +            if any(line.strip() for line in source):
 +                return True
 +    return False
-@@ -103,18 +155,24 @@ async def main() -> None:
+@@ -103,18 +116,37 @@ async def main() -> None:
 -    args = await cmd_arg.parse_cmd()
 -    if args.init_db:
 -        await db.init_db(args.init_db)
@@ -107,25 +66,101 @@ index 2823a5f..72ee630 100644
 +        await crawler.start()
 +        _flush_excel_if_needed()
 +        await _generate_wordcloud_if_needed()
-+        _write_terminal(
-+            "SUCCEEDED" if _has_comment_output() else "SUCCEEDED_NO_DATA", None
++        write_terminal(
++            config.SAVE_DATA_PATH,
++            config.PLATFORM,
++            "SUCCEEDED" if _has_comment_output() else "SUCCEEDED_NO_DATA",
++            None,
 +        )
 +    except asyncio.CancelledError:
-+        _write_terminal("CANCELLED", "COLLECTION_CANCELLED")
++        write_terminal(
++            config.SAVE_DATA_PATH,
++            config.PLATFORM,
++            "CANCELLED",
++            "COLLECTION_CANCELLED",
++        )
 +        raise SystemExit(47)
 +    except Exception as error:
-+        error_code, return_code = _terminal_for(error)
-+        _write_terminal("BLOCKED_INPUT" if return_code in {40, 41, 42, 43} else "FAILED", error_code)
++        error_code, return_code = classify_error(error)
++        write_terminal(
++            config.SAVE_DATA_PATH,
++            config.PLATFORM,
++            "BLOCKED_INPUT" if return_code in {40, 41, 42, 43} else "FAILED",
++            error_code,
++        )
 +        raise SystemExit(return_code) from error
 diff --git a/media_platform/bilibili/client.py b/media_platform/bilibili/client.py
-index 6d46e42..bd0bf73 100644
+index 6d46e42..afffb7c 100644
 --- a/media_platform/bilibili/client.py
 +++ b/media_platform/bilibili/client.py
 @@ -26 +25,0 @@ import json
 -import random
-@@ -291 +289,0 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -37,0 +37,9 @@ from tools import utils
++from tools.yike_runtime import (
++    YikeCollectionParseFailed,
++    YikeNetworkFailed,
++    YikePlatformAuthRequired,
++    YikePlatformPermissionDenied,
++    YikePlatformRateLimited,
++    YikePlatformResponseChanged,
++    YikePlatformVerificationRequired,
++)
+@@ -46,0 +55,9 @@ from .help import BilibiliSign
++def _yike_bilibili_platform_code(data: object) -> int:
++    if not isinstance(data, dict):
++        raise YikePlatformResponseChanged()
++    platform_code = data.get("code")
++    if type(platform_code) is not int:
++        raise YikePlatformResponseChanged()
++    return platform_code
++
++
+@@ -83,2 +100,17 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+-        async with make_async_client(proxy=self.proxy) as client:
+-            response = await client.request(method, url, timeout=self.timeout, **kwargs)
++        try:
++            async with make_async_client(proxy=self.proxy) as client:
++                response = await client.request(
++                    method, url, timeout=self.timeout, **kwargs
++                )
++        except httpx.TimeoutException as error:
++            raise YikeNetworkFailed() from error
++        except httpx.NetworkError as error:
++            raise YikeNetworkFailed() from error
++        if response.status_code == 401:
++            raise YikePlatformAuthRequired()
++        if response.status_code == 403:
++            raise YikePlatformPermissionDenied()
++        if response.status_code == 429:
++            raise YikePlatformRateLimited()
++        if not 200 <= response.status_code < 300:
++            raise YikePlatformResponseChanged()
+@@ -87,5 +119,13 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+-        except json.JSONDecodeError:
+-            utils.logger.error(f"[BilibiliClient.request] Failed to decode JSON from response. status_code: {response.status_code}, response_text: {response.text}")
+-            raise DataFetchError(f"Failed to decode JSON, content: {response.text}")
+-        if data.get("code") != 0:
+-            raise DataFetchError(data.get("message", "unkonw error"))
++        except json.JSONDecodeError as error:
++            raise YikeCollectionParseFailed() from error
++        platform_code = _yike_bilibili_platform_code(data)
++        if platform_code == -101:
++            raise YikePlatformAuthRequired()
++        if platform_code == -403:
++            raise YikePlatformPermissionDenied()
++        if platform_code == -352:
++            raise YikePlatformVerificationRequired()
++        if platform_code == -412:
++            raise YikePlatformRateLimited()
++        if platform_code != 0:
++            raise YikePlatformResponseChanged()
+@@ -154,2 +194 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+-        except Exception as e:
+-            utils.logger.error(f"[BilibiliClient.pong] Pong bilibili failed: {e}, and try to login again...")
++        except YikePlatformAuthRequired:
+@@ -291 +329,0 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -        max_retries = 3
-@@ -293,15 +291,5 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -293,15 +331,5 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -        while not is_end and len(result) < max_count:
 -            comments_res = None
 -            for attempt in range(max_retries):
@@ -146,7 +181,7 @@ index 6d46e42..bd0bf73 100644
 +            comments_res = await self.get_video_comments(
 +                video_id, CommentOrderType.DEFAULT, next_page
 +            )
-@@ -350,2 +338,5 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -350,2 +378,5 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -            if len(result) + len(comment_list) > max_count:
 -                comment_list = comment_list[:max_count - len(result)]
 +            comment_list = comment_list[:remaining_comment_count]
@@ -154,46 +189,48 @@ index 6d46e42..bd0bf73 100644
 +                await callback(video_id, comment_list)
 +            result.extend(comment_list)
 +            remaining_comment_count -= len(comment_list)
-@@ -353,0 +345,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -353,0 +385,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 +                    if remaining_comment_count <= 0:
 +                        break
-@@ -356 +349 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -356 +389 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -                        await self.get_video_all_level_two_comments(
 +                        sub_comments = await self.get_video_all_level_two_comments(
-@@ -362,0 +356 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -362,0 +396 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 +                            remaining_comment_count,
-@@ -364,2 +358,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -364,2 +398,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -            if callback:  # If there is a callback function, execute it
 -                await callback(video_id, comment_list)
 +                        result.extend(sub_comments)
 +                        remaining_comment_count -= len(sub_comments)
-@@ -367,3 +360,0 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -367,3 +400,0 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -            # Always accumulate, otherwise the `len(result) < max_count` loop guard
 -            # never advances when sub-comment crawling is enabled.
 -            result.extend(comment_list)
-@@ -380 +371,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -380 +411,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -    ) -> Dict:
 +        max_count: int = 0,
 +    ) -> List[Dict]:
-@@ -393 +385,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -393 +425,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -        while True:
 +        collected: List[Dict] = []
 +        while len(collected) < max_count:
-@@ -395 +388 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -395 +428 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -            comment_list: List[Dict] = result.get("replies", [])
 +            comment_list: List[Dict] = (result.get("replies") or [])[:max_count - len(collected)]
-@@ -397,0 +391 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -397,0 +431 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 +            collected.extend(comment_list)
-@@ -402,0 +397 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -402,0 +437 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 +        return collected
 diff --git a/media_platform/bilibili/core.py b/media_platform/bilibili/core.py
-index 14b5099..5a55985 100644
+index 14b5099..51007e8 100644
 --- a/media_platform/bilibili/core.py
 +++ b/media_platform/bilibili/core.py
-@@ -66 +66 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -47,0 +48 @@ from tools.cdp_browser import CDPBrowserManager
++from tools.yike_runtime import write_progress
+@@ -66 +67 @@ class BilibiliCrawler(AbstractCrawler):
 -        self.user_agent = utils.get_user_agent()
 +        self.user_agent: Optional[str] = None
-@@ -78,17 +78,4 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -78,17 +79,4 @@ class BilibiliCrawler(AbstractCrawler):
 -            # Choose launch mode based on configuration
 -            if config.ENABLE_CDP_MODE:
 -                utils.logger.info("[BilibiliCrawler] Launching browser using CDP mode")
@@ -215,150 +252,386 @@ index 14b5099..5a55985 100644
 +            self.browser_context = await self.launch_browser(
 +                playwright.chromium, None, headless=config.HEADLESS
 +            )
-@@ -95,0 +83 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -95,0 +84 @@ class BilibiliCrawler(AbstractCrawler):
 +            self.user_agent = await self.context_page.evaluate("navigator.userAgent")
-@@ -190,2 +177,0 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -100,0 +90 @@ class BilibiliCrawler(AbstractCrawler):
++                write_progress(config.SAVE_DATA_PATH, config.PLATFORM, "WAITING_LOGIN")
+@@ -112,0 +103 @@ class BilibiliCrawler(AbstractCrawler):
++            write_progress(config.SAVE_DATA_PATH, config.PLATFORM, "RUNNING")
+@@ -190,2 +180,0 @@ class BilibiliCrawler(AbstractCrawler):
 -        if config.CRAWLER_MAX_NOTES_COUNT < bili_limit_count:
 -            config.CRAWLER_MAX_NOTES_COUNT = bili_limit_count
-@@ -192,0 +179 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -192,0 +182 @@ class BilibiliCrawler(AbstractCrawler):
 +        remaining_content_count = config.CRAWLER_MAX_NOTES_COUNT
-@@ -193,0 +181,2 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -193,0 +184,2 @@ class BilibiliCrawler(AbstractCrawler):
 +            if remaining_content_count <= 0:
 +                break
-@@ -197 +186 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -197 +189 @@ class BilibiliCrawler(AbstractCrawler):
 -            while (page - start_page + 1) * bili_limit_count <= config.CRAWLER_MAX_NOTES_COUNT:
 +            while remaining_content_count > 0:
-@@ -213 +202 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -213 +205 @@ class BilibiliCrawler(AbstractCrawler):
 -                video_list: List[Dict] = videos_res.get("result")
 +                video_list: List[Dict] = (videos_res.get("result") or [])[:remaining_content_count]
-@@ -231,0 +221 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -231,0 +224 @@ class BilibiliCrawler(AbstractCrawler):
 +                        remaining_content_count -= 1
-@@ -364,0 +355 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -364,0 +358 @@ class BilibiliCrawler(AbstractCrawler):
 +                raise
-@@ -492 +482,0 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -492 +485,0 @@ class BilibiliCrawler(AbstractCrawler):
 -        user_agent: Optional[str],
-@@ -499 +488,0 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -499 +491,0 @@ class BilibiliCrawler(AbstractCrawler):
 -        :param user_agent: user agent
-@@ -517,2 +505,0 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -504,22 +496,8 @@ class BilibiliCrawler(AbstractCrawler):
+-        if config.SAVE_LOGIN_STATE:
+-            # feat issue #14
+-            # we will save login state to avoid login every time
+-            user_data_dir = os.path.join(os.getcwd(), "browser_data", config.USER_DATA_DIR % config.PLATFORM)  # type: ignore
+-            browser_context = await chromium.launch_persistent_context(
+-                user_data_dir=user_data_dir,
+-                accept_downloads=True,
+-                headless=headless,
+-                proxy=playwright_proxy,  # type: ignore
+-                viewport={
+-                    "width": 1920,
+-                    "height": 1080
+-                },
 -                user_agent=user_agent,
 -                channel="chrome",  # Use system's stable Chrome version
-@@ -523,2 +510,2 @@ class BilibiliCrawler(AbstractCrawler):
+-            )
+-            return browser_context
+-        else:
+-            # type: ignore
 -            browser = await chromium.launch(headless=headless, proxy=playwright_proxy, channel="chrome")
 -            browser_context = await browser.new_context(viewport={"width": 1920, "height": 1080}, user_agent=user_agent)
-+            browser = await chromium.launch(headless=headless, proxy=playwright_proxy)
-+            browser_context = await browser.new_context(viewport={"width": 1920, "height": 1080})
+-            return browser_context
++        profile_path = os.environ["YIKE_PROFILE_PATH"]
++        return await chromium.launch_persistent_context(
++            user_data_dir=profile_path,
++            accept_downloads=True,
++            headless=headless,
++            proxy=playwright_proxy,  # type: ignore
++            viewport={"width": 1920, "height": 1080},
++        )
 diff --git a/media_platform/bilibili/login.py b/media_platform/bilibili/login.py
-index bd50fe2..4a45bca 100644
+index bd50fe2..3b3c8de 100644
 --- a/media_platform/bilibili/login.py
 +++ b/media_platform/bilibili/login.py
-@@ -28 +27,0 @@ import functools
+@@ -27,2 +26,0 @@ import asyncio
+-import functools
 -import sys
-@@ -32 +31 @@ from playwright.async_api import BrowserContext, Page
+@@ -32 +30 @@ from playwright.async_api import BrowserContext, Page
 -from tenacity import (RetryError, retry, retry_if_result, stop_after_attempt,
 +from tenacity import (RetryError, retry, retry_if_result, stop_after_delay,
+@@ -37,0 +36 @@ from tools import utils
++from tools.yike_runtime import YikePlatformAuthRequired
 @@ -67 +66 @@ class BilibiliLogin(AbstractLogin):
 -    @retry(stop=stop_after_attempt(600), wait=wait_fixed(1), retry=retry_if_result(lambda value: value is False))
 +    @retry(stop=stop_after_delay(60), wait=wait_fixed(1), retry=retry_if_result(lambda value: value is False))
-@@ -98 +97 @@ class BilibiliLogin(AbstractLogin):
+@@ -98,5 +97 @@ class BilibiliLogin(AbstractLogin):
 -            sys.exit()
-+            raise RuntimeError("YIKE_PLATFORM_AUTH_REQUIRED")
-@@ -109 +108 @@ class BilibiliLogin(AbstractLogin):
+-
+-        # show login qrcode
+-        partial_show_qrcode = functools.partial(utils.show_qrcode, base64_qrcode_img)
+-        asyncio.get_running_loop().run_in_executor(executor=None, func=partial_show_qrcode)
++            raise YikePlatformAuthRequired()
+@@ -109 +104 @@ class BilibiliLogin(AbstractLogin):
 -            sys.exit()
-+            raise RuntimeError("YIKE_PLATFORM_AUTH_REQUIRED")
++            raise YikePlatformAuthRequired()
 diff --git a/media_platform/douyin/client.py b/media_platform/douyin/client.py
-index 3310cdb..9ecdbd2 100644
+index 3310cdb..321f9a6 100644
 --- a/media_platform/douyin/client.py
 +++ b/media_platform/douyin/client.py
-@@ -273 +273,2 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -32,0 +33,8 @@ from tools.httpx_util import make_async_client
++from tools.yike_runtime import (
++    YikeCollectionParseFailed,
++    YikeNetworkFailed,
++    YikePlatformAuthRequired,
++    YikePlatformPermissionDenied,
++    YikePlatformRateLimited,
++    YikePlatformResponseChanged,
++)
+@@ -127,2 +134,0 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+-        async with make_async_client(proxy=self.proxy) as client:
+-            response = await client.request(method, url, timeout=self.timeout, **kwargs)
+@@ -130,6 +136,28 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+-            if response.text == "" or response.text == "blocked":
+-                utils.logger.error(f"request params incrr, response.text: {response.text}")
+-                raise Exception("account blocked")
+-            return response.json()
+-        except Exception as e:
+-            raise DataFetchError(f"{e}, {response.text}")
++            async with make_async_client(proxy=self.proxy) as client:
++                response = await client.request(
++                    method, url, timeout=self.timeout, **kwargs
++                )
++        except httpx.TimeoutException as error:
++            raise YikeNetworkFailed() from error
++        except httpx.NetworkError as error:
++            raise YikeNetworkFailed() from error
++        if response.status_code == 401:
++            raise YikePlatformAuthRequired()
++        if response.status_code == 403:
++            raise YikePlatformPermissionDenied()
++        if response.status_code == 429:
++            raise YikePlatformRateLimited()
++        if not 200 <= response.status_code < 300:
++            raise YikePlatformResponseChanged()
++        try:
++            data = response.json()
++        except json.JSONDecodeError as error:
++            raise YikeCollectionParseFailed() from error
++        if not isinstance(data, dict):
++            raise YikePlatformResponseChanged()
++        platform_code = data.get("status_code", 0)
++        if type(platform_code) is not int:
++            raise YikePlatformResponseChanged()
++        if platform_code != 0:
++            raise YikePlatformResponseChanged()
++        return data
+@@ -273 +301,2 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
 -        while comments_has_more and len(result) < max_count:
 +        remaining_comment_count = max_count
 +        while comments_has_more and remaining_comment_count > 0:
-@@ -280,2 +281 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -280,2 +309 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
 -            if len(result) + len(comments) > max_count:
 -                comments = comments[:max_count - len(result)]
 +            comments = comments[:remaining_comment_count]
-@@ -282,0 +283 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -282,0 +311 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
 +            remaining_comment_count -= len(comments)
-@@ -291 +292,3 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -291 +320,3 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
 -                reply_comment_total = comment.get("reply_comment_total")
 +                if remaining_comment_count <= 0:
 +                    break
 +                reply_comment_total = comment.get("reply_comment_total") or 0
-@@ -298 +301 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -298 +329 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
 -                    while sub_comments_has_more:
 +                    while sub_comments_has_more and remaining_comment_count > 0:
-@@ -305,0 +309 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -305,0 +337 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
 +                        sub_comments = sub_comments[:remaining_comment_count]
-@@ -306,0 +311 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -306,0 +339 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
 +                        remaining_comment_count -= len(sub_comments)
 diff --git a/media_platform/douyin/core.py b/media_platform/douyin/core.py
-index c0e9372..afe34c8 100644
+index c0e9372..91a08a5 100644
 --- a/media_platform/douyin/core.py
 +++ b/media_platform/douyin/core.py
-@@ -94,3 +93,0 @@ class DouYinCrawler(AbstractCrawler):
+@@ -39,0 +40 @@ from tools.cdp_browser import CDPBrowserManager
++from tools.yike_runtime import YikePlatformResponseChanged, write_progress
+@@ -94,3 +94,0 @@ class DouYinCrawler(AbstractCrawler):
 -                # stealth.min.js is a js script to prevent the website from detecting the crawler.
 -                await self.browser_context.add_init_script(path="libs/stealth.min.js")
 -
-@@ -130,2 +126,0 @@ class DouYinCrawler(AbstractCrawler):
+@@ -101,0 +100 @@ class DouYinCrawler(AbstractCrawler):
++                write_progress(config.SAVE_DATA_PATH, config.PLATFORM, "WAITING_LOGIN")
+@@ -113,0 +113 @@ class DouYinCrawler(AbstractCrawler):
++            write_progress(config.SAVE_DATA_PATH, config.PLATFORM, "RUNNING")
+@@ -130,2 +129,0 @@ class DouYinCrawler(AbstractCrawler):
 -        if config.CRAWLER_MAX_NOTES_COUNT < dy_limit_count:
 -            config.CRAWLER_MAX_NOTES_COUNT = dy_limit_count
-@@ -132,0 +128 @@ class DouYinCrawler(AbstractCrawler):
+@@ -132,0 +131 @@ class DouYinCrawler(AbstractCrawler):
 +        remaining_content_count = config.CRAWLER_MAX_NOTES_COUNT
-@@ -133,0 +130,2 @@ class DouYinCrawler(AbstractCrawler):
+@@ -133,0 +133,2 @@ class DouYinCrawler(AbstractCrawler):
 +            if remaining_content_count <= 0:
 +                break
-@@ -139 +137 @@ class DouYinCrawler(AbstractCrawler):
+@@ -139 +140 @@ class DouYinCrawler(AbstractCrawler):
 -            while (page - start_page + 1) * dy_limit_count <= config.CRAWLER_MAX_NOTES_COUNT:
 +            while remaining_content_count > 0:
-@@ -157 +155 @@ class DouYinCrawler(AbstractCrawler):
+@@ -157 +158 @@ class DouYinCrawler(AbstractCrawler):
 -                    break
 +                    raise
-@@ -161,2 +159 @@ class DouYinCrawler(AbstractCrawler):
+@@ -161,2 +162 @@ class DouYinCrawler(AbstractCrawler):
 -                    utils.logger.error(f"[DouYinCrawler.search] search douyin keyword: {keyword} failed，账号也许被风控了。")
 -                    break
-+                    raise RuntimeError("YIKE_PLATFORM_RESPONSE_CHANGED")
-@@ -165 +162 @@ class DouYinCrawler(AbstractCrawler):
++                    raise YikePlatformResponseChanged()
+@@ -165 +165 @@ class DouYinCrawler(AbstractCrawler):
 -                for post_item in posts_res.get("data"):
 +                for post_item in posts_res.get("data", [])[:remaining_content_count]:
-@@ -173,0 +171 @@ class DouYinCrawler(AbstractCrawler):
+@@ -173,0 +174 @@ class DouYinCrawler(AbstractCrawler):
 +                    remaining_content_count -= 1
-@@ -248 +246 @@ class DouYinCrawler(AbstractCrawler):
+@@ -248 +249 @@ class DouYinCrawler(AbstractCrawler):
 -            await asyncio.wait(task_list)
 +            await asyncio.gather(*task_list)
-@@ -268,0 +267 @@ class DouYinCrawler(AbstractCrawler):
+@@ -268,0 +270 @@ class DouYinCrawler(AbstractCrawler):
 +                raise
-@@ -377,3 +375,0 @@ class DouYinCrawler(AbstractCrawler):
+@@ -339,18 +341,9 @@ class DouYinCrawler(AbstractCrawler):
+-        if config.SAVE_LOGIN_STATE:
+-            user_data_dir = os.path.join(os.getcwd(), "browser_data", config.USER_DATA_DIR % config.PLATFORM)  # type: ignore
+-            browser_context = await chromium.launch_persistent_context(
+-                user_data_dir=user_data_dir,
+-                accept_downloads=True,
+-                headless=headless,
+-                proxy=playwright_proxy,  # type: ignore
+-                viewport={
+-                    "width": 1920,
+-                    "height": 1080
+-                },
+-                user_agent=user_agent,
+-            )  # type: ignore
+-            return browser_context
+-        else:
+-            browser = await chromium.launch(headless=headless, proxy=playwright_proxy)  # type: ignore
+-            browser_context = await browser.new_context(viewport={"width": 1920, "height": 1080}, user_agent=user_agent)
+-            return browser_context
++        profile_path = os.environ["YIKE_PROFILE_PATH"]
++        return await chromium.launch_persistent_context(
++            user_data_dir=profile_path,
++            accept_downloads=True,
++            headless=headless,
++            proxy=playwright_proxy,  # type: ignore
++            viewport={"width": 1920, "height": 1080},
++            user_agent=user_agent,
++        )  # type: ignore
+@@ -377,3 +369,0 @@ class DouYinCrawler(AbstractCrawler):
 -            # Add anti-detection script
 -            await self.cdp_manager.add_stealth_script()
 -
 diff --git a/media_platform/douyin/login.py b/media_platform/douyin/login.py
-index 4b76d11..e3f725a 100644
+index 4b76d11..4dba318 100644
 --- a/media_platform/douyin/login.py
 +++ b/media_platform/douyin/login.py
-@@ -23 +22,0 @@ import functools
+@@ -22,2 +21,0 @@ import asyncio
+-import functools
 -import sys
-@@ -27,2 +26 @@ from playwright.async_api import BrowserContext, Page
+@@ -27,2 +25 @@ from playwright.async_api import BrowserContext, Page
 -from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 -from tenacity import (RetryError, retry, retry_if_result, stop_after_attempt,
 +from tenacity import (RetryError, retry, retry_if_result, stop_after_delay,
-@@ -72 +70 @@ class DouYinLogin(AbstractLogin):
+@@ -34,0 +32,4 @@ from tools import utils
++from tools.yike_runtime import (
++    YikePlatformAuthRequired,
++    YikePlatformVerificationRequired,
++)
+@@ -72 +73 @@ class DouYinLogin(AbstractLogin):
 -        # If the page redirects to the slider verification page, need to slide again
 +        # Verification is always completed manually. Detection pauses the run.
-@@ -76 +74 @@ class DouYinLogin(AbstractLogin):
+@@ -76 +77 @@ class DouYinLogin(AbstractLogin):
 -            await self.check_page_display_slider(move_step=3, slider_level="hard")
-+            raise RuntimeError("YIKE_PLATFORM_VERIFICATION_REQUIRED")
-@@ -84 +82 @@ class DouYinLogin(AbstractLogin):
++            raise YikePlatformVerificationRequired()
+@@ -84 +85 @@ class DouYinLogin(AbstractLogin):
 -            sys.exit()
-+            raise RuntimeError("YIKE_PLATFORM_AUTH_REQUIRED")
-@@ -91 +89 @@ class DouYinLogin(AbstractLogin):
++            raise YikePlatformAuthRequired()
+@@ -91 +92 @@ class DouYinLogin(AbstractLogin):
 -    @retry(stop=stop_after_attempt(600), wait=wait_fixed(1), retry=retry_if_result(lambda value: value is False))
 +    @retry(stop=stop_after_delay(60), wait=wait_fixed(1), retry=retry_if_result(lambda value: value is False))
-@@ -133 +131 @@ class DouYinLogin(AbstractLogin):
+@@ -133,4 +134 @@ class DouYinLogin(AbstractLogin):
 -            sys.exit()
-+            raise RuntimeError("YIKE_PLATFORM_AUTH_REQUIRED")
+-
+-        partial_show_qrcode = functools.partial(utils.show_qrcode, base64_qrcode_img)
+-        asyncio.get_running_loop().run_in_executor(executor=None, func=partial_show_qrcode)
++            raise YikePlatformAuthRequired()
 @@ -150,2 +148,3 @@ class DouYinLogin(AbstractLogin):
 -        # Check if there is slider verification
 -        await self.check_page_display_slider(move_step=10, slider_level="easy")
 +        captcha = self.context_page.locator("#captcha-verify-image")
 +        if await captcha.is_visible():
-+            raise RuntimeError("YIKE_PLATFORM_VERIFICATION_REQUIRED")
++            raise YikePlatformVerificationRequired()
+diff --git a/tools/crawler_util.py b/tools/crawler_util.py
+index c816377..eea800d 100644
+--- a/tools/crawler_util.py
++++ b/tools/crawler_util.py
+@@ -52 +51,0 @@ async def find_login_qrcode(page: Page, selector: str) -> str:
+-                utils.logger.info(f"[find_login_qrcode] get qrcode by url:{login_qrcode_img}")
+diff --git a/tools/yike_runtime.py b/tools/yike_runtime.py
+new file mode 100644
+index 0000000..25089d0
+--- /dev/null
++++ b/tools/yike_runtime.py
+@@ -0,0 +1,100 @@
++import json
++import os
++from pathlib import Path
++
++
++class YikePlatformAuthRequired(Exception):
++    pass
++
++
++class YikePlatformPermissionDenied(Exception):
++    pass
++
++
++class YikePlatformVerificationRequired(Exception):
++    pass
++
++
++class YikePlatformRateLimited(Exception):
++    pass
++
++
++class YikePlatformResponseChanged(Exception):
++    pass
++
++
++class YikeNetworkFailed(Exception):
++    pass
++
++
++class YikeCollectionParseFailed(Exception):
++    pass
++
++
++_EXPLICIT_TERMINALS = (
++    (YikePlatformAuthRequired, ("PLATFORM_AUTH_REQUIRED", 40)),
++    (YikePlatformPermissionDenied, ("PLATFORM_PERMISSION_DENIED", 41)),
++    (YikePlatformVerificationRequired, ("PLATFORM_VERIFICATION_REQUIRED", 42)),
++    (YikePlatformRateLimited, ("PLATFORM_RATE_LIMITED", 43)),
++    (YikePlatformResponseChanged, ("PLATFORM_RESPONSE_CHANGED", 44)),
++    (YikeNetworkFailed, ("COLLECTION_NETWORK_FAILED", 45)),
++    (YikeCollectionParseFailed, ("COLLECTION_PARSE_FAILED", 46)),
++)
++_progress_sequence = 0
++
++
++def classify_error(error: BaseException) -> tuple[str, int]:
++    for error_type, terminal in _EXPLICIT_TERMINALS:
++        if isinstance(error, error_type):
++            return terminal
++    if isinstance(error, TimeoutError):
++        return "COLLECTION_NETWORK_FAILED", 45
++    return "COLLECTION_PROCESS_FAILED", 48
++
++
++def _write_atomic(output_dir: str, name: str, payload: dict[str, object]) -> None:
++    directory = Path(output_dir)
++    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
++    target = directory / name
++    temporary = directory / f"{name}.tmp"
++    temporary.write_text(
++        json.dumps(payload, ensure_ascii=False, sort_keys=True),
++        encoding="utf-8",
++    )
++    temporary.chmod(0o600)
++    os.replace(temporary, target)
++
++
++def write_progress(output_dir: str, platform: str, state: str) -> None:
++    global _progress_sequence
++    if state not in {"WAITING_LOGIN", "RUNNING"}:
++        raise ValueError("invalid governed progress state")
++    _progress_sequence += 1
++    _write_atomic(
++        output_dir,
++        ".yike-collection-progress.json",
++        {
++            "schema_version": "YIKE_MEDIACRAWLER_PROGRESS_V1",
++            "platform": platform,
++            "state": state,
++            "sequence": _progress_sequence,
++        },
++    )
++
++
++def write_terminal(
++    output_dir: str,
++    platform: str,
++    status: str,
++    error_code: str | None,
++) -> None:
++    _write_atomic(
++        output_dir,
++        ".yike-collection-status.json",
++        {
++            "schema_version": "YIKE_MEDIACRAWLER_STATUS_V1",
++            "platform": platform,
++            "status": status,
++            "error_code": error_code,
++        },
++    )

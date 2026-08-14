@@ -95,6 +95,10 @@ class CollectionDailyLimitError(RuntimeError):
     code = "COLLECTION_DAILY_LIMIT_REACHED"
 
 
+class CollectionCompletionError(ValueError):
+    pass
+
+
 @dataclass(frozen=True)
 class NormalizedSignal:
     platform: str
@@ -306,7 +310,11 @@ class Repository:
     ) -> str:
         if platform not in _PLATFORMS:
             raise ValueError("platform must be one of: bili, dy")
-        if not query_cluster.strip() or not query_text.strip():
+        if not isinstance(query_cluster, str) or not isinstance(query_text, str):
+            raise ValueError("collection query identity is required")
+        query_cluster = query_cluster.strip()
+        query_text = query_text.strip()
+        if not query_cluster or not query_text:
             raise ValueError("collection query identity is required")
         if (
             type(max_contents) is not int
@@ -369,43 +377,81 @@ class Repository:
             ).fetchone()[0]
             if query_count >= 8 or new_signal_count >= 300:
                 raise CollectionDailyLimitError(CollectionDailyLimitError.code)
-            campaign_id = str(uuid4())
-            self.connection.execute(
+            campaign = self.connection.execute(
                 """
-                INSERT INTO campaigns (
-                    campaign_id, mvp_run_id, platform, query_cluster, query_text,
-                    max_contents, max_comments_per_content, state, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?)
+                SELECT campaign_id
+                FROM campaigns
+                WHERE mvp_run_id = ? AND platform = ?
+                  AND query_cluster = ? AND query_text = ?
+                  AND max_contents = ? AND max_comments_per_content = ?
                 """,
                 (
-                    campaign_id,
                     run_id,
                     platform,
                     query_cluster,
                     query_text,
                     max_contents,
                     max_comments_per_content,
-                    now,
                 ),
-            )
+            ).fetchone()
+            if campaign is None:
+                campaign_id = str(uuid4())
+                self.connection.execute(
+                    """
+                    INSERT INTO campaigns (
+                        campaign_id, mvp_run_id, platform, query_cluster, query_text,
+                        max_contents, max_comments_per_content, state, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?)
+                    """,
+                    (
+                        campaign_id,
+                        run_id,
+                        platform,
+                        query_cluster,
+                        query_text,
+                        max_contents,
+                        max_comments_per_content,
+                        now,
+                    ),
+                )
+            else:
+                campaign_id = str(campaign["campaign_id"])
+            attempt = self.connection.execute(
+                """
+                SELECT coalesce(max(attempt), 0) + 1
+                FROM collection_runs
+                WHERE campaign_id = ?
+                """,
+                (campaign_id,),
+            ).fetchone()[0]
             self.connection.execute(
                 """
                 INSERT INTO collection_runs (
                     collection_run_id, mvp_run_id, campaign_id, platform,
                     attempt, backend, started_by, runtime_lock_sha256, state, started_at
-                ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, 'RUNNING', ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'QUEUED', NULL)
                 """,
                 (
                     collection_run_id,
                     run_id,
                     campaign_id,
                     platform,
+                    attempt,
                     backend,
                     started_by,
                     runtime_lock_sha256,
-                    now,
                 ),
             )
+            admitted = self.connection.execute(
+                """
+                UPDATE collection_runs
+                SET state = 'WAITING_LOGIN', started_at = ?
+                WHERE collection_run_id = ? AND state = 'QUEUED'
+                """,
+                (now, collection_run_id),
+            )
+            if admitted.rowcount != 1:
+                raise RuntimeError("collection admission state changed concurrently")
         except BaseException:
             self.connection.rollback()
             raise
@@ -423,10 +469,7 @@ class Repository:
         error_code: str | None,
         output_manifest_sha256: str | None = None,
     ) -> None:
-        terminal_states = frozenset(
-            ("SUCCEEDED", "SUCCEEDED_NO_DATA", "FAILED", "CANCELLED", "BLOCKED_INPUT")
-        )
-        if state not in terminal_states:
+        if state not in ("FAILED", "CANCELLED", "BLOCKED_INPUT"):
             raise ValueError("collection terminal state is invalid")
         if (
             not isinstance(raw_count, int)
@@ -440,46 +483,10 @@ class Repository:
             output_manifest_sha256
         ):
             raise ValueError("collection output manifest SHA-256 is invalid")
-        if state == "SUCCEEDED":
-            valid = (
-                raw_count > 0
-                and error_code is None
-                and output_manifest_sha256 is not None
-            )
-        elif state == "SUCCEEDED_NO_DATA":
-            valid = (
-                raw_count == 0
-                and unique_count == 0
-                and error_code is None
-                and output_manifest_sha256 is not None
-            )
-        else:
-            valid = error_code in _COLLECTION_TERMINAL_ERROR_CODES[state]
-        if not valid:
-            if state in ("FAILED", "CANCELLED", "BLOCKED_INPUT"):
-                raise ValueError("collection terminal error code is invalid")
-            raise ValueError("collection terminal evidence is invalid")
-        if state == "SUCCEEDED_NO_DATA" and self.connection.execute(
-            "SELECT 1 FROM signal_observations WHERE collection_run_id = ? LIMIT 1",
-            (collection_run_id,),
-        ).fetchone():
-            raise ValueError("SUCCEEDED_NO_DATA_HAS_OBSERVATIONS")
+        if error_code not in _COLLECTION_TERMINAL_ERROR_CODES[state]:
+            raise ValueError("collection terminal error code is invalid")
         finished_at = self._server_timestamp()
         with self.connection:
-            collection = self.connection.execute(
-                """
-                SELECT run.day14_due_at
-                FROM collection_runs collection
-                JOIN mvp_runs run ON run.mvp_run_id = collection.mvp_run_id
-                WHERE collection.collection_run_id = ?
-                """,
-                (collection_run_id,),
-            ).fetchone()
-            if (
-                collection is not None
-                and finished_at > str(collection["day14_due_at"])
-            ):
-                raise ValueError("collection is closed after the Day 14 cutoff")
             result = self.connection.execute(
                 """
                 UPDATE collection_runs
@@ -501,6 +508,217 @@ class Repository:
             )
         if result.rowcount != 1:
             raise KeyError(f"unknown running collection: {collection_run_id}")
+
+    def advance_collection_state(
+        self, collection_run_id: str, target_state: str
+    ) -> None:
+        predecessors = {
+            "RUNNING": frozenset(("WAITING_LOGIN", "RUNNING")),
+            "IMPORTING": frozenset(("RUNNING", "IMPORTING")),
+        }
+        if target_state not in predecessors:
+            raise ValueError("collection active state is invalid")
+        if self.connection.in_transaction:
+            raise RuntimeError("cannot advance collection inside a transaction")
+        self.connection.execute("BEGIN IMMEDIATE")
+        try:
+            collection = self.connection.execute(
+                """
+                SELECT collection.state, run.state AS run_state, run.day14_due_at
+                FROM collection_runs collection
+                JOIN mvp_runs run ON run.mvp_run_id = collection.mvp_run_id
+                WHERE collection.collection_run_id = ?
+                  AND collection.finished_at IS NULL
+                """,
+                (collection_run_id,),
+            ).fetchone()
+            if collection is None:
+                raise KeyError(f"unknown active collection: {collection_run_id}")
+            if collection["run_state"] != "ACTIVE":
+                raise CollectionCompletionError("collection requires an ACTIVE mvp run")
+            if collection["state"] not in predecessors[target_state]:
+                raise CollectionCompletionError("collection state transition is invalid")
+            if self._server_timestamp() > str(collection["day14_due_at"]):
+                raise CollectionCompletionError(
+                    "collection is closed after the Day 14 cutoff"
+                )
+            if collection["state"] != target_state:
+                result = self.connection.execute(
+                    """
+                    UPDATE collection_runs
+                    SET state = ?
+                    WHERE collection_run_id = ? AND state = ? AND finished_at IS NULL
+                    """,
+                    (target_state, collection_run_id, collection["state"]),
+                )
+                if result.rowcount != 1:
+                    raise RuntimeError("collection state changed concurrently")
+        except BaseException:
+            self.connection.rollback()
+            raise
+        else:
+            self.connection.commit()
+
+    def complete_collection_success(
+        self,
+        *,
+        collection_run_id: str,
+        run_id: str,
+        platform: str,
+        backend: str,
+        query_cluster: str,
+        query_text: str,
+        max_contents: int,
+        max_comments_per_content: int,
+        items: list[NormalizedSignal],
+        raw_count: int,
+        output_manifest_sha256: str,
+    ) -> list[ImportResult]:
+        if platform not in _PLATFORMS or backend not in _COLLECTION_BACKENDS:
+            raise CollectionCompletionError("collection success identity is invalid")
+        if not isinstance(items, list):
+            raise CollectionCompletionError("collection success batch must be a list")
+        if type(raw_count) is not int or raw_count < 0 or raw_count != len(items):
+            raise CollectionCompletionError("collection success raw count is invalid")
+        if not _is_sha256(output_manifest_sha256):
+            raise CollectionCompletionError(
+                "collection output manifest SHA-256 is invalid"
+            )
+        if not isinstance(query_cluster, str) or not query_cluster.strip():
+            raise CollectionCompletionError("collection query identity is required")
+        if not isinstance(query_text, str) or not query_text.strip():
+            raise CollectionCompletionError("collection query identity is required")
+        query_cluster = query_cluster.strip()
+        query_text = query_text.strip()
+        if (
+            type(max_contents) is not int
+            or type(max_comments_per_content) is not int
+            or not 1 <= max_contents <= 10
+            or not 1 <= max_comments_per_content <= 50
+        ):
+            raise CollectionCompletionError("collection success limits are invalid")
+        if self.connection.in_transaction:
+            raise RuntimeError("cannot complete collection inside a transaction")
+
+        results: list[ImportResult] = []
+        self.connection.execute("BEGIN IMMEDIATE")
+        try:
+            finished_at = self._server_timestamp()
+            collection = self.connection.execute(
+                """
+                SELECT collection.mvp_run_id, collection.platform,
+                       collection.backend, collection.state, collection.finished_at,
+                       campaign.query_cluster, campaign.query_text,
+                       campaign.max_contents, campaign.max_comments_per_content,
+                       run.state AS run_state, run.day14_due_at
+                FROM collection_runs collection
+                JOIN campaigns campaign
+                  ON campaign.campaign_id = collection.campaign_id
+                 AND campaign.mvp_run_id = collection.mvp_run_id
+                 AND campaign.platform = collection.platform
+                JOIN mvp_runs run ON run.mvp_run_id = collection.mvp_run_id
+                WHERE collection.collection_run_id = ?
+                """,
+                (collection_run_id,),
+            ).fetchone()
+            if (
+                collection is None
+                or collection["mvp_run_id"] != run_id
+                or collection["platform"] != platform
+                or collection["backend"] != backend
+                or collection["query_cluster"] != query_cluster
+                or collection["query_text"] != query_text
+                or collection["max_contents"] != max_contents
+                or collection["max_comments_per_content"]
+                != max_comments_per_content
+                or collection["state"] != "IMPORTING"
+                or collection["finished_at"] is not None
+                or collection["run_state"] != "ACTIVE"
+            ):
+                raise CollectionCompletionError(
+                    "collection success provenance is invalid"
+                )
+            if finished_at > str(collection["day14_due_at"]):
+                raise CollectionCompletionError(
+                    "collection is closed after the Day 14 cutoff"
+                )
+            source_counts: dict[str, int] = {}
+            for item in items:
+                if not isinstance(item, NormalizedSignal):
+                    raise CollectionCompletionError(
+                        "collection success limit evidence is invalid"
+                    )
+                source_identity = item.external_source_id
+                if (
+                    not isinstance(source_identity, str)
+                    or not source_identity
+                    or source_identity != source_identity.strip()
+                ):
+                    raise CollectionCompletionError(
+                        "collection success limit evidence is invalid"
+                    )
+                source_counts[source_identity] = (
+                    source_counts.get(source_identity, 0) + 1
+                )
+            if len(source_counts) > collection["max_contents"] or any(
+                count > collection["max_comments_per_content"]
+                for count in source_counts.values()
+            ):
+                raise CollectionCompletionError(
+                    "collection success batch exceeds campaign limits"
+                )
+            if self.connection.execute(
+                "SELECT 1 FROM signal_observations "
+                "WHERE collection_run_id = ? LIMIT 1",
+                (collection_run_id,),
+            ).fetchone():
+                raise CollectionCompletionError(
+                    "collection already has imported observations"
+                )
+
+            prepared = [
+                self._prepare_signal(run_id, item, finished_at) for item in items
+            ]
+            for item, values in zip(items, prepared, strict=True):
+                results.append(
+                    self._import_prepared_signal(
+                        run_id, item, finished_at, *values
+                    )
+                )
+            unique_count = sum(result.created for result in results)
+            terminal_state = "SUCCEEDED" if raw_count else "SUCCEEDED_NO_DATA"
+            terminal = self.connection.execute(
+                """
+                UPDATE collection_runs
+                SET state = ?, finished_at = ?, raw_count = ?, unique_count = ?,
+                    error_code = NULL, output_manifest_sha256 = ?
+                WHERE collection_run_id = ?
+                  AND mvp_run_id = ?
+                  AND platform = ?
+                  AND backend = ?
+                  AND state = 'IMPORTING'
+                  AND finished_at IS NULL
+                """,
+                (
+                    terminal_state,
+                    finished_at,
+                    raw_count,
+                    unique_count,
+                    output_manifest_sha256,
+                    collection_run_id,
+                    run_id,
+                    platform,
+                    backend,
+                ),
+            )
+            if terminal.rowcount != 1:
+                raise RuntimeError("collection success state changed concurrently")
+        except BaseException:
+            self.connection.rollback()
+            raise
+        else:
+            self.connection.commit()
+        return results
 
     def _prepare_signal(
         self, run_id: str, item: NormalizedSignal, received_at: str

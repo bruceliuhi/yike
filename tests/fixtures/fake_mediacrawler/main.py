@@ -16,6 +16,7 @@ RESULT_BY_KEYWORD = {
 }
 
 STATUS_SCHEMA = "YIKE_MEDIACRAWLER_STATUS_V1"
+PROGRESS_SCHEMA = "YIKE_MEDIACRAWLER_PROGRESS_V1"
 
 
 def parse_args():
@@ -61,6 +62,24 @@ def write_status(output, platform, status, error_code):
     temporary.replace(target)
 
 
+def write_progress(output, platform, state):
+    target = output / ".yike-collection-progress.json"
+    temporary = target.with_suffix(".tmp")
+    temporary.write_text(
+        json.dumps(
+            {
+                "schema_version": PROGRESS_SCHEMA,
+                "platform": platform,
+                "state": state,
+                "sequence": 1,
+            },
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+    temporary.replace(target)
+
+
 def main():
     args = parse_args()
     output = Path(args.save_data_path)
@@ -69,6 +88,12 @@ def main():
         json.dumps({"count": 1, "argv": sys.argv[1:]}, ensure_ascii=False),
         encoding="utf-8",
     )
+    progress_state = (
+        "WAITING_LOGIN"
+        if args.keywords in {"__auth__", "__verification__", "__exit_only_verification__"}
+        else "RUNNING"
+    )
+    write_progress(output, args.platform, progress_state)
     if args.keywords == "__exit_only_verification__":
         return 42
     if args.keywords in RESULT_BY_KEYWORD:

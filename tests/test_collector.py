@@ -110,7 +110,7 @@ def test_collection_request_requires_operator_identity(run_id):
 @pytest.mark.parametrize(
     ("platform", "expected_source_url", "source_author", "comment_author"),
     [
-        ("bili", "https://www.bilibili.com/video/BV1DISCOVERY", "up-bili", "lead-bili"),
+        ("bili", "https://www.bilibili.com/video/BV1xx411c7mD", "up-bili", "lead-bili"),
         ("dy", "https://www.douyin.com/video/7123456789", "creator-dy", "lead-dy"),
     ],
 )
@@ -176,7 +176,7 @@ def test_fake_runtime_cannot_add_hard_signal_or_recover_real_blocked_input(
             backend, started_by, runtime_lock_sha256, state, started_at
         ) VALUES (
             'real-blocked-collection', ?, 'real-blocked-campaign', 'bili', 1,
-            'MEDIACRAWLER_AUTHORIZED', 'test-operator', ?, 'RUNNING',
+                'MEDIACRAWLER_AUTHORIZED', 'test-operator', ?, 'WAITING_LOGIN',
             '2026-08-12T08:00:00Z'
         )
         """,
@@ -255,14 +255,14 @@ def test_successful_collection_persists_operator_runtime_and_envelope_provenance
         (
             normalize_bilibili,
             {
-                "video_id": "source-time-bili",
-                "bvid": "BV1TIME",
+                "video_id": "987654",
+                "bvid": "BV1xx411c7mD",
                 "title": "source",
                 "creator_hash": "source-author",
                 "create_time": 1000,
             },
             {
-                "comment_id": "comment-time-bili",
+                "comment_id": "123456",
                 "content": "comment",
                 "creator_hash": "comment-author",
                 "create_time": 2000,
@@ -271,13 +271,13 @@ def test_successful_collection_persists_operator_runtime_and_envelope_provenance
         (
             normalize_douyin,
             {
-                "aweme_id": "source-time-dy",
+                "aweme_id": "7123456789",
                 "title": "source",
                 "creator_hash": "source-author",
                 "create_time": 1000,
             },
             {
-                "comment_id": "comment-time-dy",
+                "comment_id": "8234567890",
                 "content": "comment",
                 "creator_hash": "comment-author",
                 "create_time": 2000,
@@ -569,7 +569,7 @@ def test_bilibili_runtime_uses_only_playwright_bundled_chromium_and_default_ua()
 
 def test_production_runtime_defaults_to_its_frozen_python(repository, tmp_path):
     runtime = tmp_path / "production-runtime"
-    runtime.mkdir()
+    runtime.mkdir(mode=0o700)
 
     governed = Collector(
         repository=repository,
@@ -600,8 +600,9 @@ def test_patchset_removes_bypass_and_bounds_real_upstream_behavior():
 
     assert "-                await self.browser_context.add_init_script" in patches
     assert "-            await self.cdp_manager.add_stealth_script()" in patches
-    assert "-SAVE_LOGIN_STATE = True" in patches
-    assert "+SAVE_LOGIN_STATE = False" in patches
+    assert "SAVE_LOGIN_STATE = False" not in patches
+    assert "YIKE_PROFILE_PATH" in patches
+    assert "launch_persistent_context" in patches
     assert "-CDP_CONNECT_EXISTING = True" in patches
     assert "+CDP_CONNECT_EXISTING = False" in patches
     assert "-        await self.check_page_display_slider(move_step=10" in patches
@@ -634,7 +635,7 @@ def test_output_data_ancestors_cannot_redirect_reads_or_imports(
     repository, run_id, tmp_path, monkeypatch, symlink_level
 ):
     runtime = tmp_path / "malicious-runtime"
-    runtime.mkdir()
+    runtime.mkdir(mode=0o700)
     outside = tmp_path / "outside"
     monkeypatch.setenv("YIKE_TEST_OUTSIDE", str(outside))
     (runtime / "main.py").write_text(
@@ -664,6 +665,12 @@ else:
 for kind in ("contents", "comments"):
     target = data / f"search_{kind}_fixture.jsonl"
     target.write_text("".join(json.dumps(row, ensure_ascii=False) + "\\n" for row in fixture[kind]))
+(output / ".yike-collection-progress.json").write_text(json.dumps({
+    "schema_version": "YIKE_MEDIACRAWLER_PROGRESS_V1",
+    "platform": args.platform,
+    "state": "RUNNING",
+    "sequence": 1,
+}))
 (output / ".yike-collection-status.json").write_text(json.dumps({
     "schema_version": "YIKE_MEDIACRAWLER_STATUS_V1",
     "platform": args.platform,
@@ -675,6 +682,10 @@ for kind in ("contents", "comments"):
     )
     monkeypatch.setenv("YIKE_PROJECT_ROOT", str(PROJECT_ROOT))
     monkeypatch.setenv("YIKE_SYMLINK_LEVEL", symlink_level)
+    monkeypatch.setattr(
+        "app.collector._YIKE_ENV_ALLOWLIST",
+        ("YIKE_PROJECT_ROOT", "YIKE_SYMLINK_LEVEL", "YIKE_TEST_OUTSIDE"),
+    )
     collector = Collector(
         repository=repository,
         runtime_path=runtime,
@@ -878,7 +889,7 @@ def test_collect_exposes_cancellation_and_records_cancelled(
     repository, run_id, tmp_path, monkeypatch
 ):
     runtime = tmp_path / "slow-runtime"
-    runtime.mkdir()
+    runtime.mkdir(mode=0o700)
     (runtime / "main.py").write_text(
         "import time\ntime.sleep(60)\n",
         encoding="utf-8",
@@ -937,7 +948,7 @@ def test_ninth_platform_query_in_shanghai_day_is_rejected_without_db_or_spawn(
     )
     assert repository.connection.execute(
         "SELECT count(*) FROM campaigns WHERE platform = 'bili'"
-    ).fetchone()[0] == 8
+    ).fetchone()[0] == 1
     assert repository.connection.execute(
         "SELECT count(*) FROM collection_runs WHERE platform = 'bili'"
     ).fetchone()[0] == 8

@@ -1,5 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
+
+readonly -a YIKE_ENV_ALLOWLIST=(
+  DISPLAY HOME LANG LC_ALL LC_CTYPE LOGNAME PATH SHELL SSL_CERT_DIR
+  SSL_CERT_FILE SYSTEMROOT TERM TMPDIR USER WAYLAND_DISPLAY WINDIR XAUTHORITY
+)
+YIKE_PRIVATE_ENV=()
+for name in "${YIKE_ENV_ALLOWLIST[@]}"; do
+  if [[ -n "${!name:-}" ]]; then
+    YIKE_PRIVATE_ENV+=("${name}=${!name}")
+  fi
+done
+
+run_private() {
+  env -i "${YIKE_PRIVATE_ENV[@]}" "$@"
+}
 
 readonly repository_url="https://github.com/NanmiCoder/MediaCrawler.git"
 readonly pinned_commit="439509782cc2991c8ef7648e178d5847b0545798"
@@ -16,11 +32,12 @@ if [[ -e "${destination}" ]]; then
   exit 2
 fi
 
-git clone --filter=blob:none "${repository_url}" "${destination}"
-git -C "${destination}" checkout --detach "${pinned_commit}"
-test "$(git -C "${destination}" rev-parse HEAD)" = "${pinned_commit}"
+run_private git clone --filter=blob:none "${repository_url}" "${destination}"
+run_private chmod 700 "${destination}"
+run_private git -C "${destination}" checkout --detach "${pinned_commit}"
+test "$(run_private git -C "${destination}" rev-parse HEAD)" = "${pinned_commit}"
 
-python3 - "${lock_path}" "${project_root}" "${destination}" <<'PY'
+run_private python3 - "${lock_path}" "${project_root}" "${destination}" <<'PY'
 import hashlib
 import json
 import os
@@ -29,6 +46,24 @@ import subprocess
 import sys
 
 lock_path, project_root, runtime = map(Path, sys.argv[1:])
+YIKE_ENV_ALLOWLIST = (
+    "DISPLAY", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "LOGNAME", "PATH",
+    "SHELL", "SSL_CERT_DIR", "SSL_CERT_FILE", "SYSTEMROOT", "TERM", "TMPDIR",
+    "USER", "WAYLAND_DISPLAY", "WINDIR", "XAUTHORITY",
+)
+
+
+def child_environment(**runtime_values):
+    environment = {
+        name: os.environ[name]
+        for name in YIKE_ENV_ALLOWLIST
+        if name in os.environ
+    }
+    environment.update(runtime_values)
+    return environment
+
+
+base_environment = child_environment()
 lock = json.loads(lock_path.read_text(encoding="utf-8"))
 if lock.get("schema_version") != "YIKE_MEDIACRAWLER_LOCK_V2":
     raise SystemExit("unsupported MediaCrawler lock schema")
@@ -39,8 +74,23 @@ if browser_contract != {
     "user_agent_mode": "playwright-default",
 }:
     raise SystemExit("unsupported browser runtime contract")
+profile_contract = lock.get("profile_contract")
+if profile_contract != {
+    "root": "browser_data",
+    "platform_paths": {
+        "bili": "browser_data/bili_user_data_dir",
+        "dy": "browser_data/dy_user_data_dir",
+    },
+    "directory_mode": "0700",
+    "file_mode": "0600",
+}:
+    raise SystemExit("unsupported private profile contract")
+if lock.get("progress_contract") != "YIKE_MEDIACRAWLER_PROGRESS_V1":
+    raise SystemExit("unsupported progress contract")
 if subprocess.check_output(
-    ["git", "-C", str(runtime), "rev-parse", "HEAD"], text=True
+    ["git", "-C", str(runtime), "rev-parse", "HEAD"],
+    text=True,
+    env=base_environment,
 ).strip() != lock["commit"]:
     raise SystemExit("MediaCrawler pin mismatch")
 
@@ -63,10 +113,15 @@ for patch in lock["patches"]:
             "--unidiff-zero", "--whitespace=error-all", str(patch_path),
         ],
         check=True,
+        env=base_environment,
     )
     subprocess.run(
-        ["git", "-C", str(runtime), "apply", "--unidiff-zero", str(patch_path)],
+        [
+            "git", "-C", str(runtime), "apply", "--index",
+            "--unidiff-zero", str(patch_path),
+        ],
         check=True,
+        env=base_environment,
     )
 if signature(patch_entries) != lock["patchset_sha256"]:
     raise SystemExit("patchset checksum mismatch")
@@ -75,6 +130,7 @@ changed = set(
     subprocess.check_output(
         ["git", "-C", str(runtime), "diff", "HEAD", "--name-only", "--"],
         text=True,
+        env=base_environment,
     ).splitlines()
 )
 if changed != set(lock["patched_files"]):
@@ -90,7 +146,11 @@ for relative, expected in sorted(lock["patched_files"].items()):
     file_entries.append((relative, digest))
 if signature(file_entries) != lock["patched_tree_sha256"]:
     raise SystemExit("patched tree checksum mismatch")
-subprocess.run(["git", "-C", str(runtime), "diff", "--check"], check=True)
+subprocess.run(
+    ["git", "-C", str(runtime), "diff", "HEAD", "--check"],
+    check=True,
+    env=base_environment,
+)
 
 runtime_environment = lock.get("runtime_environment")
 required_environment_keys = {
@@ -114,7 +174,9 @@ for path_key, sha_key in (
         raise SystemExit(f"runtime dependency file missing: {path_key}")
     if hashlib.sha256(path.read_bytes()).hexdigest() != runtime_environment[sha_key]:
         raise SystemExit(f"runtime dependency checksum mismatch: {path_key}")
-uv_version = subprocess.check_output(["uv", "--version"], text=True).split()[1]
+uv_version = subprocess.check_output(
+    ["uv", "--version"], text=True, env=base_environment
+).split()[1]
 if uv_version != runtime_environment["uv_version"]:
     raise SystemExit("uv version mismatch")
 subprocess.run(
@@ -123,11 +185,14 @@ subprocess.run(
         "--project", str(runtime),
     ],
     check=True,
+    env=base_environment,
 )
 python_path = runtime / runtime_environment["python_path"]
 playwright_path = runtime / runtime_environment["playwright_path"]
 browser_path = runtime / runtime_environment["browser_path"]
-browser_environment = {**os.environ, "PLAYWRIGHT_BROWSERS_PATH": str(browser_path)}
+browser_environment = child_environment(
+    PLAYWRIGHT_BROWSERS_PATH=str(browser_path)
+)
 subprocess.run(
     [str(playwright_path), "install", "chromium"],
     check=True,
@@ -156,7 +221,10 @@ browser_probe = subprocess.run(
     capture_output=True,
     text=True,
     cwd=runtime,
-    env={**browser_environment, "YIKE_BROWSER_PATH": str(browser_path)},
+    env=child_environment(
+        PLAYWRIGHT_BROWSERS_PATH=str(browser_path),
+        YIKE_BROWSER_PATH=str(browser_path),
+    ),
     timeout=60,
 )
 if browser_probe.stdout.strip() != "YIKE_BUNDLED_CHROMIUM_OK":
@@ -173,6 +241,15 @@ subprocess.run(
 
 marker = runtime / ".yike-runtime.json"
 temporary = runtime / ".yike-runtime.json.tmp"
+browser_data = runtime / profile_contract["root"]
+browser_data.mkdir(mode=0o700, exist_ok=True)
+browser_data.chmod(0o700)
+for relative in profile_contract["platform_paths"].values():
+    profile = runtime / relative
+    if not profile.resolve().is_relative_to(browser_data.resolve()):
+        raise SystemExit("profile path escaped private runtime root")
+    profile.mkdir(mode=0o700, exist_ok=True)
+    profile.chmod(0o700)
 temporary.write_text(
     json.dumps(
         {
@@ -180,12 +257,16 @@ temporary.write_text(
             "commit": lock["commit"],
             "patchset_sha256": lock["patchset_sha256"],
             "patched_tree_sha256": lock["patched_tree_sha256"],
+            "progress_contract": lock["progress_contract"],
             "browser_contract": browser_contract,
+            "profile_contract": profile_contract,
             "runtime_environment": runtime_environment,
         },
         sort_keys=True,
     ),
     encoding="utf-8",
 )
+temporary.chmod(0o600)
 temporary.replace(marker)
+marker.chmod(0o600)
 PY

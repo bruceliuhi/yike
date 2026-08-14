@@ -2,21 +2,22 @@
   "contents": [
     {
       "video_id": "987654",
-      "bvid": "BV1DISCOVERY",
+      "bvid": "BV1xx411c7mD",
       "title": "销售团队如何筛选高意向线索",
       "creator_hash": "up-bili",
-      "nickname": "B站创作者"
+      "nickname": "B站创作者",
+      "video_url": "https://www.bilibili.com/video/BV1xx411c7mD"
     }
   ],
   "comments": [
     {
-      "comment_id": "bili-comment-1",
+      "comment_id": "123456",
       "video_id": "987654",
-      "parent_comment_id": "bili-parent-1",
+      "parent_comment_id": "123455",
       "parent_content": "我们团队获客成本越来越高",
       "content": "想找能自动筛出高意向客户的工具",
       "creator_hash": "lead-bili",
-      "comment_url": "https://www.bilibili.com/video/BV1DISCOVERY#reply-bili-comment-1",
+      "comment_url": "https://www.bilibili.com/video/BV1xx411c7mD#reply123456",
       "create_time": 1786464000,
       "collected_at": "2026-08-12T01:00:00Z"
     }

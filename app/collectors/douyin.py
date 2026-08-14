@@ -1,7 +1,10 @@
+import re
 from typing import Any, Mapping
+from urllib.parse import parse_qsl, urlsplit
 
 from app.normalizer import (
     PlatformResponseChanged,
+    first_present,
     normalize_time,
     optional_text,
     raw_sha256,
@@ -9,6 +12,48 @@ from app.normalizer import (
     sha256_text,
 )
 from app.repository import NormalizedSignal
+
+
+_NUMERIC_ID = re.compile(r"^[1-9][0-9]{0,19}$")
+
+
+def _numeric_id(value: str, field: str, *, zero_allowed: bool = False) -> str:
+    if (zero_allowed and value == "0") or _NUMERIC_ID.fullmatch(value):
+        return value
+    raise PlatformResponseChanged(f"PLATFORM_RESPONSE_CHANGED: invalid {field}")
+
+
+def _canonical_url(
+    value: str, *, aweme_id: str, comment_id: str | None = None
+) -> str:
+    if any(ord(character) < 32 or ord(character) == 127 for character in value):
+        raise PlatformResponseChanged("PLATFORM_RESPONSE_CHANGED: invalid Douyin URL")
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+        query = parse_qsl(parsed.query, keep_blank_values=True, strict_parsing=True)
+    except ValueError as error:
+        raise PlatformResponseChanged(
+            "PLATFORM_RESPONSE_CHANGED: invalid Douyin URL"
+        ) from error
+    expected_query = [] if comment_id is None else [("comment_id", comment_id)]
+    expected = f"https://www.douyin.com/video/{aweme_id}"
+    if comment_id is not None:
+        expected = f"{expected}?comment_id={comment_id}"
+    if (
+        value != expected
+        or
+        parsed.scheme != "https"
+        or parsed.hostname != "www.douyin.com"
+        or parsed.username is not None
+        or parsed.password is not None
+        or port is not None
+        or parsed.path != f"/video/{aweme_id}"
+        or query != expected_query
+        or parsed.fragment
+    ):
+        raise PlatformResponseChanged("PLATFORM_RESPONSE_CHANGED: invalid Douyin URL")
+    return value
 
 
 def normalize_douyin(record: Mapping[str, Any]) -> NormalizedSignal:
@@ -19,13 +64,37 @@ def normalize_douyin(record: Mapping[str, Any]) -> NormalizedSignal:
             "PLATFORM_RESPONSE_CHANGED: invalid Douyin envelope"
         )
 
-    aweme_id = require_text(content, "aweme_id")
-    source_url = f"https://www.douyin.com/video/{aweme_id}"
-    comment_id = require_text(comment, "comment_id", "cid")
+    aweme_id = _numeric_id(require_text(content, "aweme_id"), "aweme_id")
+    provided_source_url = optional_text(content, "aweme_url")
+    source_url = (
+        _canonical_url(provided_source_url, aweme_id=aweme_id)
+        if provided_source_url
+        else f"https://www.douyin.com/video/{aweme_id}"
+    )
+    comment_id = _numeric_id(
+        require_text(comment, "comment_id", "cid"), "comment_id"
+    )
+    comment_aweme_id = optional_text(comment, "aweme_id")
+    if comment_aweme_id is not None and _numeric_id(
+        comment_aweme_id, "aweme_id"
+    ) != aweme_id:
+        raise PlatformResponseChanged(
+            "PLATFORM_RESPONSE_CHANGED: comment source mismatch"
+        )
     body = require_text(comment, "content", "text", "body")
     comment_url = optional_text(comment, "comment_url", "url")
-    if not comment_url:
+    if comment_url:
+        comment_url = _canonical_url(
+            comment_url, aweme_id=aweme_id, comment_id=comment_id
+        )
+    else:
         comment_url = source_url
+
+    parent_comment_id = optional_text(comment, "parent_comment_id", "reply_id")
+    if parent_comment_id is not None:
+        parent_comment_id = _numeric_id(
+            parent_comment_id, "parent_comment_id", zero_allowed=True
+        )
 
     return NormalizedSignal(
         platform="dy",
@@ -36,7 +105,7 @@ def normalize_douyin(record: Mapping[str, Any]) -> NormalizedSignal:
             content, "creator_hash", "user_id", "sec_uid", "uid"
         ),
         external_comment_id=comment_id,
-        parent_comment_id=optional_text(comment, "parent_comment_id", "reply_id"),
+        parent_comment_id=parent_comment_id,
         parent_body=optional_text(comment, "parent_content", "parent_body"),
         comment_url=comment_url,
         author_public_id=require_text(
@@ -45,9 +114,11 @@ def normalize_douyin(record: Mapping[str, Any]) -> NormalizedSignal:
         body=body,
         body_sha256=sha256_text(body),
         source_published_at=normalize_time(
-            content.get("create_time") or content.get("published_at")
+            first_present(content, "create_time", "published_at")
         ),
-        published_at=normalize_time(comment.get("create_time") or comment.get("published_at")),
+        published_at=normalize_time(
+            first_present(comment, "create_time", "published_at")
+        ),
         collected_at=normalize_time(comment.get("collected_at")),
         raw_sha256=raw_sha256(comment),
         normalizer_version="dy-v1",

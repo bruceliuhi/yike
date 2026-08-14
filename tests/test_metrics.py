@@ -10,6 +10,47 @@ from app.repository import NormalizedSignal, Repository
 from app.workflow import Workflow
 
 
+def _advance_to_importing(
+    repository: Repository, collection_run_id: str
+) -> None:
+    repository.advance_collection_state(collection_run_id, "RUNNING")
+    repository.advance_collection_state(collection_run_id, "IMPORTING")
+
+
+def _set_collection_success(
+    connection,
+    collection_run_id: str,
+    *,
+    manifest_sha256: str | None = "d" * 64,
+    finished_at: str = "2026-08-12T08:00:00Z",
+) -> None:
+    result = connection.execute(
+        """
+        UPDATE collection_runs
+        SET state = 'SUCCEEDED', finished_at = ?,
+            raw_count = 1, unique_count = 1, error_code = NULL,
+            output_manifest_sha256 = ?
+        WHERE collection_run_id = ?
+        """,
+        (finished_at, manifest_sha256, collection_run_id),
+    )
+    assert result.rowcount == 1
+
+
+def _force_collection_success_without_manifest(
+    connection, collection_run_id: str
+) -> None:
+    """Build a precise corrupt terminal row that the production schema rejects."""
+    connection.execute("DROP TRIGGER collection_runs_update_guard")
+    connection.execute("PRAGMA ignore_check_constraints = ON")
+    _set_collection_success(
+        connection,
+        collection_run_id,
+        manifest_sha256=None,
+        finished_at="2026-08-12T00:00:00Z",
+    )
+
+
 @pytest.mark.parametrize(
     ("flags", "expected"),
     [
@@ -151,6 +192,7 @@ def test_verifiable_metric_requires_a_successful_collection_with_manifest(
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
+    _advance_to_importing(repository, "failed-provenance")
     repository.import_signal(
         run_id,
         NormalizedSignal(
@@ -171,16 +213,7 @@ def test_verifiable_metric_requires_a_successful_collection_with_manifest(
         ),
     )
     if collection_state == "SUCCEEDED" and manifest_sha256 is None:
-        connection.execute("DROP TRIGGER collection_runs_update_guard")
-        connection.execute("PRAGMA ignore_check_constraints = ON")
-        connection.execute(
-            """
-            UPDATE collection_runs
-            SET state = 'SUCCEEDED', finished_at = '2026-08-12T00:00:00Z',
-                raw_count = 1, unique_count = 1, output_manifest_sha256 = NULL
-            WHERE collection_run_id = 'failed-provenance'
-            """
-        )
+        _force_collection_success_without_manifest(connection, "failed-provenance")
     else:
         repository.finish_collection(
             "failed-provenance",
@@ -218,6 +251,7 @@ def test_verifiable_metric_rechecks_campaign_query_binding(tmp_path):
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
+    _advance_to_importing(repository, "metric-query-collection")
     connection.execute(
         """
         INSERT INTO sources (
@@ -266,13 +300,11 @@ def test_verifiable_metric_rechecks_campaign_query_binding(tmp_path):
         """,
         (run_id, "c" * 64, "d" * 64),
     )
-    repository.finish_collection(
+    _set_collection_success(
+        connection,
         "metric-query-collection",
-        state="SUCCEEDED",
-        raw_count=1,
-        unique_count=1,
-        error_code=None,
-        output_manifest_sha256="e" * 64,
+        manifest_sha256="e" * 64,
+        finished_at="2026-08-12T00:00:00Z",
     )
 
     snapshot = MetricsEngine(connection).calculate(
@@ -302,6 +334,7 @@ def test_verifiable_metric_rejects_observation_after_cutoff(tmp_path):
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
+    _advance_to_importing(repository, "metric-future-collection")
     body = "future metric body"
     connection.execute(
         "INSERT INTO sources (source_id, platform, external_source_id, canonical_url) "
@@ -343,14 +376,7 @@ def test_verifiable_metric_rejects_observation_after_cutoff(tmp_path):
         """,
         (run_id, "b" * 64, "c" * 64),
     )
-    repository.finish_collection(
-        "metric-future-collection",
-        state="SUCCEEDED",
-        raw_count=1,
-        unique_count=1,
-        error_code=None,
-        output_manifest_sha256="d" * 64,
-    )
+    _set_collection_success(connection, "metric-future-collection")
 
     snapshot = MetricsEngine(connection).calculate(
         run_id, now=datetime(2026, 8, 12, 9, tzinfo=UTC)
@@ -379,6 +405,7 @@ def test_verifiable_metric_rejects_invalid_signal_core_evidence(tmp_path):
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
+    _advance_to_importing(repository, "metric-invalid-core-collection")
     connection.execute(
         "INSERT INTO sources (source_id, platform, external_source_id, canonical_url) "
         "VALUES ('metric-invalid-core-source', 'bili', 'metric-invalid-core-external', "
@@ -421,14 +448,7 @@ def test_verifiable_metric_rejects_invalid_signal_core_evidence(tmp_path):
         """,
         (run_id, "b" * 64, "c" * 64),
     )
-    repository.finish_collection(
-        "metric-invalid-core-collection",
-        state="SUCCEEDED",
-        raw_count=1,
-        unique_count=1,
-        error_code=None,
-        output_manifest_sha256="d" * 64,
-    )
+    _set_collection_success(connection, "metric-invalid-core-collection")
 
     snapshot = MetricsEngine(connection).calculate(
         run_id, now=datetime(2026, 8, 12, 9, tzinfo=UTC)
@@ -457,6 +477,7 @@ def test_verifiable_metric_rejects_whitespace_only_provenance(tmp_path):
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
+    _advance_to_importing(repository, "metric-whitespace-collection")
     connection.execute("PRAGMA ignore_check_constraints = ON")
     connection.execute("DROP TRIGGER IF EXISTS verifiable_signal_core_evidence")
     connection.execute("DROP TRIGGER verifiable_signal_requires_source_provenance")
@@ -496,14 +517,7 @@ def test_verifiable_metric_rejects_whitespace_only_provenance(tmp_path):
         """,
         (run_id, "b" * 64, "c" * 64),
     )
-    repository.finish_collection(
-        "metric-whitespace-collection",
-        state="SUCCEEDED",
-        raw_count=1,
-        unique_count=1,
-        error_code=None,
-        output_manifest_sha256="d" * 64,
-    )
+    _set_collection_success(connection, "metric-whitespace-collection")
 
     snapshot = MetricsEngine(connection).calculate(
         run_id, now=datetime(2026, 8, 12, 9, tzinfo=UTC)
@@ -532,6 +546,7 @@ def test_verifiable_metric_rejects_incomplete_collection_terminal(tmp_path):
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
+    _advance_to_importing(repository, "metric-incomplete-terminal")
     repository.import_signal(
         run_id,
         NormalizedSignal(
@@ -590,9 +605,8 @@ def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
-    signal_id = repository.import_signal(
-        run_id,
-        NormalizedSignal(
+    _advance_to_importing(repository, "metric-provenance")
+    item = NormalizedSignal(
             platform="bili",
             external_source_id="av-metric",
             source_title="企业获客讨论",
@@ -609,16 +623,20 @@ def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
             collection_run_id="metric-provenance",
             normalizer_version="test-normalizer-v1",
             verifiable=True,
-        ),
-    ).signal_id
-    repository.finish_collection(
-        "metric-provenance",
-        state="SUCCEEDED",
+        )
+    signal_id = repository.complete_collection_success(
+        collection_run_id="metric-provenance",
+        run_id=run_id,
+        platform="bili",
+        backend="MEDIACRAWLER_AUTHORIZED",
+        query_cluster="sales-agent",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        items=[item],
         raw_count=1,
-        unique_count=1,
-        error_code=None,
         output_manifest_sha256="d" * 64,
-    )
+    )[0].signal_id
     current[0] += timedelta(seconds=1)
     decision = ScoreDecision.model_validate(
         {

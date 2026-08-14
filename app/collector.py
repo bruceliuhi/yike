@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import signal
+import sqlite3
 import subprocess
 import sys
 import time
@@ -13,7 +14,9 @@ from typing import Callable, Literal
 from app.collectors import normalize_bilibili, normalize_douyin
 from app.normalizer import PlatformResponseChanged
 from app.repository import (
+    CollectionCompletionError,
     CollectionDailyLimitError,
+    NormalizedSignal,
     Repository,
     SignalIdentityConflict,
 )
@@ -24,13 +27,52 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _LOCK_PATH = _PROJECT_ROOT / "vendor" / "mediacrawler.lock"
 _PATCH_ROOT = _PROJECT_ROOT / "vendor" / "patches" / "mediacrawler"
 _STATUS_SCHEMA = "YIKE_MEDIACRAWLER_STATUS_V1"
+_PROGRESS_SCHEMA = "YIKE_MEDIACRAWLER_PROGRESS_V1"
 _RUNTIME_SCHEMA = "YIKE_MEDIACRAWLER_RUNTIME_V1"
 _BROWSER_CONTRACT = {
     "engine": "playwright-bundled-chromium",
     "launch_channel": None,
     "user_agent_mode": "playwright-default",
 }
+_PROFILE_CONTRACT = {
+    "root": "browser_data",
+    "platform_paths": {
+        "bili": "browser_data/bili_user_data_dir",
+        "dy": "browser_data/dy_user_data_dir",
+    },
+    "directory_mode": "0700",
+    "file_mode": "0600",
+}
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+_YIKE_ENV_ALLOWLIST = (
+    "DISPLAY",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "LOGNAME",
+    "PATH",
+    "SHELL",
+    "SSL_CERT_DIR",
+    "SSL_CERT_FILE",
+    "SYSTEMROOT",
+    "TERM",
+    "TMPDIR",
+    "USER",
+    "WAYLAND_DISPLAY",
+    "WINDIR",
+    "XAUTHORITY",
+)
+
+
+def _minimal_child_environment(**runtime_values: str) -> dict[str, str]:
+    environment = {
+        name: os.environ[name]
+        for name in _YIKE_ENV_ALLOWLIST
+        if name in os.environ
+    }
+    environment.update(runtime_values)
+    return environment
 
 
 @dataclass(frozen=True)
@@ -73,6 +115,7 @@ class _CollectionOutcome:
     unique_count: int
     error_code: str | None
     manifest_sha256: str | None = None
+    items: tuple[NormalizedSignal, ...] = ()
 
 
 _EXIT_RESULTS: dict[int, tuple[str, str]] = {
@@ -125,6 +168,7 @@ def run_supervised_process(
     env: dict[str, str],
     timeout_seconds: float,
     cancel_requested: Callable[[], bool] | None = None,
+    poll_callback: Callable[[], None] | None = None,
     poll_interval_seconds: float = 0.1,
     terminate_grace_seconds: float = 2.0,
 ) -> SupervisedProcessResult:
@@ -138,10 +182,13 @@ def run_supervised_process(
         text=True,
         shell=False,
         start_new_session=True,
+        umask=0o077,
     )
     deadline = time.monotonic() + timeout_seconds
     try:
         while True:
+            if poll_callback is not None:
+                poll_callback()
             if cancel_requested is not None and cancel_requested():
                 stdout, stderr = _stop_process_group(
                     process, terminate_grace_seconds=terminate_grace_seconds
@@ -236,6 +283,12 @@ class Collector:
         cancel_event: object | None = None,
     ) -> CollectionResult:
         self._validate_request(request)
+        request = replace(
+            request,
+            query_cluster=request.query_cluster.strip(),
+            query_text=request.query_text.strip(),
+            started_by=request.started_by.strip(),
+        )
         run_dir = self.work_root / request.mvp_run_id
         output_path = run_dir / request.collection_run_id
         self._require_contained_without_symlinks(run_dir, self.work_root)
@@ -286,6 +339,8 @@ class Collector:
             outcome = _CollectionOutcome(
                 "FAILED", 0, 0, "COLLECTION_PROCESS_FAILED"
             )
+        if outcome.status in ("SUCCEEDED", "SUCCEEDED_NO_DATA"):
+            return self._complete_success(request, outcome)
         return self._finish(
             request,
             outcome.status,
@@ -303,9 +358,8 @@ class Collector:
         cancel_requested: Callable[[], bool] | None,
     ) -> _CollectionOutcome:
         try:
-            output_dir.mkdir(parents=True)
-            self._require_contained_without_symlinks(output_dir, self.work_root)
-        except OSError:
+            self._prepare_private_output(output_dir)
+        except (OSError, ValueError):
             return _CollectionOutcome(
                 "FAILED", 0, 0, "COLLECTION_OUTPUT_FAILED"
             )
@@ -315,20 +369,42 @@ class Collector:
             return _CollectionOutcome("BLOCKED_INPUT", 0, 0, runtime_error)
 
         try:
+            profile_path = self._prepare_private_profile(request.platform)
+        except (OSError, ValueError):
+            return _CollectionOutcome(
+                "BLOCKED_INPUT", 0, 0, "COLLECTION_RUNTIME_MISMATCH"
+            )
+
+        try:
             self._require_contained_without_symlinks(output_dir, self.work_root)
+            progress = {"sequence": 0, "state": None}
+
+            def observe_progress() -> None:
+                self._observe_runtime_progress(
+                    output_dir, request, progress
+                )
+
             process = run_supervised_process(
                 self.command_for(request, output_dir),
                 cwd=self.runtime_path,
-                env={
-                    **os.environ,
-                    "PLAYWRIGHT_BROWSERS_PATH": str(
+                env=_minimal_child_environment(
+                    PLAYWRIGHT_BROWSERS_PATH=str(
                         self.runtime_path / ".venv" / "playwright-browsers"
                     ),
-                },
+                    **(
+                        {"YIKE_PROFILE_PATH": str(profile_path)}
+                        if profile_path is not None
+                        else {}
+                    ),
+                ),
                 timeout_seconds=self.timeout_seconds,
                 cancel_requested=cancel_requested,
+                poll_callback=observe_progress,
             )
-        except OSError:
+            observe_progress()
+            if profile_path is not None:
+                self._verify_private_profile(profile_path)
+        except (OSError, ValueError, json.JSONDecodeError):
             return _CollectionOutcome(
                 "FAILED", 0, 0, "COLLECTION_PROCESS_FAILED"
             )
@@ -348,6 +424,12 @@ class Collector:
                 "FAILED", 0, 0, "COLLECTION_PROCESS_FAILED"
             )
         status, error_code = terminal
+        if progress["state"] is None or (
+            process.returncode == 0 and progress["state"] != "RUNNING"
+        ):
+            return _CollectionOutcome(
+                "FAILED", 0, 0, "COLLECTION_PROCESS_FAILED"
+            )
         if process.returncode != 0:
             return _CollectionOutcome(status, 0, 0, error_code)
 
@@ -376,25 +458,119 @@ class Collector:
 
         try:
             normalized = self._normalize_batch(request, contents, comments)
-            import_results = self.repository.import_signals(
-                request.mvp_run_id, normalized
-            )
-            unique_count = sum(result.created for result in import_results)
         except PlatformResponseChanged:
             return _CollectionOutcome(
                 "FAILED", raw_count, 0, "PLATFORM_RESPONSE_CHANGED"
-            )
-        except SignalIdentityConflict:
-            return _CollectionOutcome(
-                "FAILED", raw_count, 0, "SIGNAL_IDENTITY_CONFLICT"
             )
         except (ValueError, KeyError):
             return _CollectionOutcome(
                 "FAILED", raw_count, 0, "PLATFORM_RESPONSE_CHANGED"
             )
         return _CollectionOutcome(
-            "SUCCEEDED", raw_count, unique_count, None, manifest_sha256
+            "SUCCEEDED", raw_count, 0, None, manifest_sha256, tuple(normalized)
         )
+
+    def _complete_success(
+        self, request: CollectionRequest, outcome: _CollectionOutcome
+    ) -> CollectionResult:
+        try:
+            self.repository.advance_collection_state(
+                request.collection_run_id, "IMPORTING"
+            )
+            results = self.repository.complete_collection_success(
+                collection_run_id=request.collection_run_id,
+                run_id=request.mvp_run_id,
+                platform=request.platform,
+                backend=self.backend,
+                query_cluster=request.query_cluster,
+                query_text=request.query_text,
+                max_contents=request.max_contents,
+                max_comments_per_content=request.max_comments_per_content,
+                items=list(outcome.items),
+                raw_count=outcome.raw_count,
+                output_manifest_sha256=outcome.manifest_sha256 or "",
+            )
+        except SignalIdentityConflict:
+            failure = _CollectionOutcome(
+                "FAILED", outcome.raw_count, 0, "SIGNAL_IDENTITY_CONFLICT"
+            )
+        except PlatformResponseChanged:
+            failure = _CollectionOutcome(
+                "FAILED", outcome.raw_count, 0, "PLATFORM_RESPONSE_CHANGED"
+            )
+        except CollectionCompletionError:
+            failure = _CollectionOutcome(
+                "FAILED", outcome.raw_count, 0, "COLLECTION_PROCESS_FAILED"
+            )
+        except (ValueError, KeyError):
+            failure = _CollectionOutcome(
+                "FAILED", outcome.raw_count, 0, "PLATFORM_RESPONSE_CHANGED"
+            )
+        except (sqlite3.Error, RuntimeError):
+            failure = _CollectionOutcome(
+                "FAILED", outcome.raw_count, 0, "COLLECTION_PROCESS_FAILED"
+            )
+        else:
+            unique_count = sum(result.created for result in results)
+            status = "SUCCEEDED" if outcome.raw_count else "SUCCEEDED_NO_DATA"
+            return self._result(request, status, outcome.raw_count, unique_count, None)
+        return self._finish(
+            request,
+            failure.status,
+            failure.raw_count,
+            failure.unique_count,
+            failure.error_code,
+        )
+
+    def _observe_runtime_progress(
+        self,
+        output_dir: Path,
+        request: CollectionRequest,
+        progress: dict[str, object],
+    ) -> None:
+        marker = output_dir / ".yike-collection-progress.json"
+        self._require_contained_without_symlinks(marker, output_dir)
+        if not marker.exists():
+            return
+        if (
+            marker.is_symlink()
+            or not marker.is_file()
+            or marker.stat().st_size > 4096
+            or marker.stat().st_mode & 0o777 != 0o600
+        ):
+            raise ValueError("runtime progress marker is invalid")
+        payload = json.loads(marker.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict) or set(payload) != {
+            "schema_version",
+            "platform",
+            "state",
+            "sequence",
+        }:
+            raise ValueError("runtime progress marker is invalid")
+        state = payload["state"]
+        sequence = payload["sequence"]
+        if (
+            payload["schema_version"] != _PROGRESS_SCHEMA
+            or payload["platform"] != request.platform
+            or state not in ("WAITING_LOGIN", "RUNNING")
+            or type(sequence) is not int
+            or sequence < 1
+        ):
+            raise ValueError("runtime progress marker is invalid")
+        previous_sequence = int(progress["sequence"])
+        previous_state = progress["state"]
+        if sequence == previous_sequence and state == previous_state:
+            return
+        if sequence <= previous_sequence:
+            raise ValueError("runtime progress sequence is invalid")
+        if previous_state == "RUNNING" and state != "RUNNING":
+            raise ValueError("runtime progress state regressed")
+        progress["sequence"] = sequence
+        progress["state"] = state
+        if state == "RUNNING":
+            self.repository.advance_collection_state(
+                request.collection_run_id, "RUNNING"
+            )
 
     def _normalize_batch(
         self,
@@ -465,6 +641,8 @@ class Collector:
             self._require_contained_without_symlinks(path, output_dir)
             if not path.is_file():
                 raise ValueError("collector output is not a regular file")
+            if path.stat().st_mode & 0o777 != 0o600:
+                raise ValueError("collector output file is not private")
             with path.open(encoding="utf-8") as source:
                 for line in source:
                     if not line.strip():
@@ -490,7 +668,9 @@ class Collector:
             lock.get("schema_version") != "YIKE_MEDIACRAWLER_LOCK_V2"
             or lock.get("commit") != MEDIACRAWLER_COMMIT
             or lock.get("status_contract") != _STATUS_SCHEMA
+            or lock.get("progress_contract") != _PROGRESS_SCHEMA
             or lock.get("browser_contract") != _BROWSER_CONTRACT
+            or lock.get("profile_contract") != _PROFILE_CONTRACT
         ):
             return "COLLECTION_RUNTIME_MISMATCH"
         fixture = lock.get("test_fixture")
@@ -505,9 +685,71 @@ class Collector:
             return "COLLECTION_RUNTIME_MISMATCH"
         return None
 
+    def _prepare_private_output(self, output_dir: Path) -> None:
+        run_dir = output_dir.parent
+        self._create_private_directory(self.work_root, self.work_root)
+        self._create_private_directory(run_dir, self.work_root)
+        self._create_private_directory(output_dir, self.work_root)
+
+    def _prepare_private_profile(self, platform: str) -> Path | None:
+        if self.backend == "SIMULATION_ONLY":
+            return None
+        if (
+            self.runtime_path.is_symlink()
+            or not self.runtime_path.is_dir()
+            or self.runtime_path.stat().st_mode & 0o777 != 0o700
+        ):
+            raise ValueError("runtime root is not private")
+        browser_data = self.runtime_path / str(_PROFILE_CONTRACT["root"])
+        profile = self.runtime_path / str(
+            _PROFILE_CONTRACT["platform_paths"][platform]
+        )
+        self._create_private_directory(browser_data, self.runtime_path)
+        self._create_private_directory(profile, self.runtime_path)
+        self._verify_private_profile(profile)
+        return profile
+
+    @classmethod
+    def _create_private_directory(
+        cls, path: Path, boundary: Path
+    ) -> None:
+        cls._require_contained_without_symlinks(path, boundary)
+        existed = path.exists()
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
+        cls._require_contained_without_symlinks(path, boundary)
+        if path.is_symlink() or not path.is_dir():
+            raise ValueError("private runtime path is invalid")
+        if not existed:
+            path.chmod(0o700)
+        if path.stat().st_mode & 0o777 != 0o700:
+            raise ValueError("private runtime directory has unsafe permissions")
+
+    @classmethod
+    def _verify_private_profile(cls, profile: Path) -> None:
+        cls._require_contained_without_symlinks(profile, profile.parent.parent)
+        if (
+            profile.is_symlink()
+            or not profile.is_dir()
+            or profile.stat().st_mode & 0o777 != 0o700
+        ):
+            raise ValueError("runtime profile is not private")
+        for path in profile.rglob("*"):
+            if path.is_symlink():
+                raise ValueError("runtime profile contains a symlink")
+            mode = path.stat().st_mode & 0o777
+            if (path.is_dir() and mode != 0o700) or (
+                path.is_file() and mode != 0o600
+            ):
+                raise ValueError("runtime profile entry is not private")
+
     def _verified_patched_checkout(self, lock: dict[str, object]) -> bool:
         marker = self.runtime_path / ".yike-runtime.json"
-        if not marker.is_file() or marker.is_symlink():
+        if (
+            not marker.is_file()
+            or marker.is_symlink()
+            or marker.stat().st_mode & 0o777 != 0o600
+            or self.runtime_path.stat().st_mode & 0o777 != 0o700
+        ):
             return False
         try:
             root = self._git("rev-parse", "--show-toplevel")
@@ -572,15 +814,26 @@ class Collector:
                 runtime_environment
             ):
                 return False
+            for relative in _PROFILE_CONTRACT["platform_paths"].values():
+                self._verify_private_profile(self.runtime_path / str(relative))
             runtime_marker = json.loads(marker.read_text(encoding="utf-8"))
-        except (OSError, KeyError, TypeError, json.JSONDecodeError, subprocess.SubprocessError):
+        except (
+            OSError,
+            KeyError,
+            TypeError,
+            ValueError,
+            json.JSONDecodeError,
+            subprocess.SubprocessError,
+        ):
             return False
         return runtime_marker == {
             "schema_version": _RUNTIME_SCHEMA,
             "commit": MEDIACRAWLER_COMMIT,
             "patchset_sha256": lock.get("patchset_sha256"),
             "patched_tree_sha256": patched_tree_sha256,
+            "progress_contract": _PROGRESS_SCHEMA,
             "browser_contract": _BROWSER_CONTRACT,
+            "profile_contract": _PROFILE_CONTRACT,
             "runtime_environment": runtime_environment,
         }
 
@@ -632,6 +885,7 @@ class Collector:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                env=_minimal_child_environment(),
             ).stdout.split()[1]
             if uv_version != expected["uv_version"]:
                 return False
@@ -650,6 +904,7 @@ class Collector:
                 capture_output=True,
                 text=True,
                 timeout=60,
+                env=_minimal_child_environment(),
             )
             probe = subprocess.run(
                 [
@@ -673,11 +928,10 @@ class Collector:
                 capture_output=True,
                 text=True,
                 timeout=30,
-                env={
-                    **os.environ,
-                    "PLAYWRIGHT_BROWSERS_PATH": str(browser_path),
-                    "YIKE_BROWSER_PATH": str(browser_path),
-                },
+                env=_minimal_child_environment(
+                    PLAYWRIGHT_BROWSERS_PATH=str(browser_path),
+                    YIKE_BROWSER_PATH=str(browser_path),
+                ),
             )
         except (OSError, KeyError, IndexError, subprocess.SubprocessError):
             return False
@@ -690,6 +944,7 @@ class Collector:
             capture_output=True,
             text=True,
             timeout=10,
+            env=_minimal_child_environment(),
         )
         return process.stdout.strip()
 
@@ -723,7 +978,12 @@ class Collector:
     ) -> tuple[str, str | None] | None:
         marker = output_dir / ".yike-collection-status.json"
         try:
-            if marker.is_symlink() or not marker.is_file() or marker.stat().st_size > 4096:
+            if (
+                marker.is_symlink()
+                or not marker.is_file()
+                or marker.stat().st_size > 4096
+                or marker.stat().st_mode & 0o777 != 0o600
+            ):
                 return None
             payload = json.loads(marker.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
@@ -787,6 +1047,18 @@ class Collector:
             error_code=error_code,
             output_manifest_sha256=manifest_sha256,
         )
+        return self._result(
+            request, status, raw_count, unique_count, error_code
+        )
+
+    def _result(
+        self,
+        request: CollectionRequest,
+        status: str,
+        raw_count: int,
+        unique_count: int,
+        error_code: str | None,
+    ) -> CollectionResult:
         return CollectionResult(
             mvp_run_id=request.mvp_run_id,
             collection_run_id=request.collection_run_id,
@@ -804,6 +1076,15 @@ class Collector:
         platform_dir = "bili" if request.platform == "bili" else "douyin"
         data_dir = output_dir / platform_dir / "jsonl"
         self._require_contained_without_symlinks(data_dir, output_dir)
+        for directory in (output_dir, data_dir.parent, data_dir):
+            if not directory.exists():
+                continue
+            if (
+                directory.is_symlink()
+                or not directory.is_dir()
+                or directory.stat().st_mode & 0o777 != 0o700
+            ):
+                raise ValueError("collector output directory is not private")
         return data_dir
 
     @staticmethod
@@ -824,17 +1105,28 @@ class Collector:
 
     @staticmethod
     def _validate_request(request: CollectionRequest) -> None:
-        if not _SAFE_IDENTIFIER.fullmatch(request.mvp_run_id) or not _SAFE_IDENTIFIER.fullmatch(
-            request.collection_run_id
+        if (
+            not isinstance(request.mvp_run_id, str)
+            or not isinstance(request.collection_run_id, str)
+            or not _SAFE_IDENTIFIER.fullmatch(request.mvp_run_id)
+            or not _SAFE_IDENTIFIER.fullmatch(request.collection_run_id)
         ):
             raise ValueError("collection identifier is not a safe token")
         if request.platform not in ("bili", "dy"):
             raise ValueError("platform must be bili or dy")
-        if not request.query_cluster.strip() or not request.query_text.strip():
+        if (
+            not isinstance(request.query_cluster, str)
+            or not isinstance(request.query_text, str)
+            or not request.query_cluster.strip()
+            or not request.query_text.strip()
+        ):
             raise ValueError("query cluster and text are required")
         if not isinstance(request.started_by, str) or not request.started_by.strip():
             raise ValueError("collection started by is required")
-        if not 1 <= request.max_contents <= 10:
+        if type(request.max_contents) is not int or not 1 <= request.max_contents <= 10:
             raise ValueError("max contents limit must be between 1 and 10")
-        if not 1 <= request.max_comments_per_content <= 50:
+        if (
+            type(request.max_comments_per_content) is not int
+            or not 1 <= request.max_comments_per_content <= 50
+        ):
             raise ValueError("max comments limit must be between 1 and 50")

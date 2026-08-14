@@ -77,8 +77,8 @@ def collector() -> None:
             started_by=arguments.started_by,
         )
         Collector._validate_request(request)
-    except ValueError as error:
-        print(str(error), file=sys.stderr)
+    except ValueError:
+        print("COLLECTION_REQUEST_INVALID", file=sys.stderr)
         _print_terminal(terminal)
         raise SystemExit(2) from None
 
@@ -96,8 +96,8 @@ def collector() -> None:
             runtime_path=runtime_path,
             work_root=settings.runtime_dir / "runs",
         ).collect(request)
-    except Exception as error:
-        print(str(error), file=sys.stderr)
+    except Exception:
+        print("COLLECTION_SETUP_FAILED", file=sys.stderr)
         terminal["error_code"] = "COLLECTION_SETUP_FAILED"
         _print_terminal(terminal)
         raise SystemExit(1) from None

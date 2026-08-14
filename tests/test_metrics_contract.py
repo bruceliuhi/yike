@@ -48,8 +48,8 @@ class FactBuilder:
             platform="bili",
             query_cluster="sales-agent",
             query_text="销售线索",
-            max_contents=1,
-            max_comments_per_content=1,
+            max_contents=10,
+            max_comments_per_content=50,
             started_by="test-operator",
             runtime_lock_sha256="a" * 64,
         )
@@ -61,38 +61,91 @@ class FactBuilder:
             },
         )
 
-    def signal(
+    def signal_item(
         self,
         index: int,
         *,
         platform: str = "bili",
         collection_run_id: str = "metrics-provenance",
-    ) -> str:
+    ) -> NormalizedSignal:
         host = "www.bilibili.com" if platform == "bili" else "www.douyin.com"
-        return self.repository.import_signal(
-            self.run_id,
-            NormalizedSignal(
+        source_index = index % 10
+        return NormalizedSignal(
+            platform=platform,
+            external_source_id=f"source-{platform}-{source_index}",
+            source_title="销售获客讨论",
+            source_url=f"https://{host}/video/source-{source_index}",
+            source_author_public_id=f"source-author-{platform}-{source_index}",
+            external_comment_id=f"comment-{platform}-{index}",
+            comment_url=f"https://{host}/video/source-{source_index}#reply-{index}",
+            author_public_id=f"lead-{platform}-{index}",
+            body="团队正在筛选销售线索，人工筛选效率低",
+            raw_sha256="b" * 64,
+            envelope_sha256="c" * 64,
+            query_cluster="sales-agent",
+            query_text="销售线索",
+            collection_run_id=collection_run_id,
+            normalizer_version="test-normalizer-v1",
+            verifiable=True,
+        )
+
+    def collect_signals(
+        self,
+        indices,
+        *,
+        collection_run_id: str = "metrics-provenance",
+        platform: str = "bili",
+        duplicate_count: int = 0,
+        manifest_sha256: str = "d" * 64,
+    ) -> list[str]:
+        indices = list(indices)
+        items = [
+            self.signal_item(
+                index,
                 platform=platform,
-                external_source_id=f"source-{platform}-{index}",
-                source_title="销售获客讨论",
-                source_url=f"https://{host}/video/source-{index}",
-                external_comment_id=f"comment-{platform}-{index}",
-                comment_url=f"https://{host}/video/source-{index}#reply-{index}",
-                author_public_id=f"lead-{platform}-{index}",
-                body="团队正在筛选销售线索，人工筛选效率低",
-                raw_sha256="b" * 64,
-                envelope_sha256="c" * 64,
-                query_cluster="sales-agent",
-                query_text="销售线索",
                 collection_run_id=collection_run_id,
-                normalizer_version="test-normalizer-v1",
-                verifiable=True,
-            ),
-        ).signal_id
+            )
+            for index in indices
+        ]
+        if duplicate_count:
+            if duplicate_count > len(items):
+                raise ValueError("fixture duplicate count exceeds batch size")
+            items.extend(items[:duplicate_count])
+        collection = self.connection.execute(
+            """
+            SELECT collection.platform, collection.backend,
+                   campaign.query_cluster, campaign.query_text,
+                   campaign.max_contents, campaign.max_comments_per_content
+            FROM collection_runs collection
+            JOIN campaigns campaign
+              ON campaign.campaign_id = collection.campaign_id
+             AND campaign.mvp_run_id = collection.mvp_run_id
+             AND campaign.platform = collection.platform
+            WHERE collection.collection_run_id = ?
+            """,
+            (collection_run_id,),
+        ).fetchone()
+        if collection is None:
+            raise KeyError(collection_run_id)
+        self.repository.advance_collection_state(collection_run_id, "RUNNING")
+        self.repository.advance_collection_state(collection_run_id, "IMPORTING")
+        results = self.repository.complete_collection_success(
+            collection_run_id=collection_run_id,
+            run_id=self.run_id,
+            platform=collection["platform"],
+            backend=collection["backend"],
+            query_cluster=collection["query_cluster"],
+            query_text=collection["query_text"],
+            max_contents=collection["max_contents"],
+            max_comments_per_content=collection["max_comments_per_content"],
+            items=items,
+            raw_count=len(items),
+            output_manifest_sha256=manifest_sha256,
+        )
+        self.clock.move(1)
+        return [result.signal_id for result in results[: len(indices)]]
 
     def review(self, signal_id: str, index: int, label: str = "HIGH_INTENT", seconds: int = 1):
-        if self.finish_collection():
-            self.clock.move(1)
         score_id = f"score-{uuid4()}"
         self.repository.append_score_success(
             score_run_id=score_id,
@@ -141,7 +194,9 @@ class FactBuilder:
             approved_text=approved,
             context_evidence="人工筛选效率低",
             sent_at=self.clock().isoformat().replace("+00:00", "Z"),
-            source_url=f"https://www.bilibili.com/video/source-{index}#reply-{index}",
+            source_url=(
+                f"https://www.bilibili.com/video/source-{index % 10}#reply-{index}"
+            ),
             source_link_opened=True,
         )
 
@@ -178,26 +233,15 @@ class FactBuilder:
             "SELECT state FROM collection_runs "
             "WHERE collection_run_id = 'metrics-provenance'"
         ).fetchone()[0]
-        if state == "RUNNING":
-            self.repository.finish_collection(
-                "metrics-provenance",
-                state="SUCCEEDED",
-                raw_count=320,
-                unique_count=300,
-                error_code=None,
-                output_manifest_sha256="d" * 64,
-            )
-            return True
-        return False
+        assert state in ("SUCCEEDED", "SUCCEEDED_NO_DATA")
 
     def snapshot(self, now: datetime):
-        self.finish_collection()
         return MetricsEngine(self.connection).calculate(self.run_id, now=now)
 
 
 def test_full_persisted_success_thresholds_and_breakdowns_can_reach_proceed(tmp_path):
     facts = FactBuilder(tmp_path / "success.sqlite3")
-    signals = [facts.signal(index) for index in range(300)]
+    signals = facts.collect_signals(range(300), duplicate_count=20)
     reviews = []
     for index, signal_id in enumerate(signals[:100]):
         facts.clock.set(datetime(2026, 8, 19 + index % 5, 1, index // 5, tzinfo=UTC))
@@ -251,7 +295,7 @@ def test_simulation_only_reviews_cannot_trigger_a_loss_stop(tmp_path):
     facts = FactBuilder(
         tmp_path / "simulation-loss.sqlite3", backend="SIMULATION_ONLY"
     )
-    signals = [facts.signal(index) for index in range(200)]
+    signals = facts.collect_signals(range(200))
     for index, signal_id in enumerate(signals):
         facts.review(signal_id, index, label="NOT_LEAD")
 
@@ -272,7 +316,7 @@ def test_simulation_only_funnel_cannot_complete_authorized_signal_success(
     tmp_path,
 ):
     facts = FactBuilder(tmp_path / "simulation-success.sqlite3")
-    authorized = [facts.signal(index) for index in range(300)]
+    authorized = facts.collect_signals(range(300), duplicate_count=20)
     facts.finish_collection()
     facts.clock.set(datetime(2026, 8, 13, tzinfo=UTC))
     facts.repository.begin_collection(
@@ -282,15 +326,16 @@ def test_simulation_only_funnel_cannot_complete_authorized_signal_success(
         platform="bili",
         query_cluster="sales-agent",
         query_text="销售线索",
-        max_contents=1,
-        max_comments_per_content=1,
+        max_contents=10,
+        max_comments_per_content=50,
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
-    simulated = [
-        facts.signal(index + 1000, collection_run_id="simulation-funnel")
-        for index in range(100)
-    ]
+    simulated = facts.collect_signals(
+        range(1000, 1100),
+        collection_run_id="simulation-funnel",
+        manifest_sha256="e" * 64,
+    )
     reviews = []
     for index, signal_id in enumerate(simulated):
         facts.clock.set(datetime(2026, 8, 19 + index % 5, 1, index // 5, tzinfo=UTC))
@@ -324,15 +369,6 @@ def test_simulation_only_funnel_cannot_complete_authorized_signal_success(
         agreed_to_receive_pricing_at=now,
         verified_at=now,
     )
-    facts.repository.finish_collection(
-        "simulation-funnel",
-        state="SUCCEEDED",
-        raw_count=100,
-        unique_count=100,
-        error_code=None,
-        output_manifest_sha256="e" * 64,
-    )
-
     snapshot = facts.snapshot(datetime(2026, 8, 25, tzinfo=UTC))
 
     assert len(authorized) == snapshot.unique_verifiable_signals == 300
@@ -359,7 +395,7 @@ def test_later_authorized_observation_cannot_promote_earlier_simulation_funnel(
     facts = FactBuilder(
         tmp_path / "simulation-retroactive.sqlite3", backend="SIMULATION_ONLY"
     )
-    signals = [facts.signal(index) for index in range(300)]
+    signals = facts.collect_signals(range(300))
     reviews = []
     for index, signal_id in enumerate(signals[:100]):
         facts.clock.set(datetime(2026, 8, 19 + index % 5, 1, index // 5, tzinfo=UTC))
@@ -397,22 +433,15 @@ def test_later_authorized_observation_cannot_promote_earlier_simulation_funnel(
         platform="bili",
         query_cluster="sales-agent",
         query_text="销售线索",
-        max_contents=1,
-        max_comments_per_content=1,
+        max_contents=10,
+        max_comments_per_content=50,
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
-    reobserved = [
-        facts.signal(index, collection_run_id="authorized-reobservation")
-        for index in range(300)
-    ]
-    facts.repository.finish_collection(
-        "authorized-reobservation",
-        state="SUCCEEDED",
-        raw_count=300,
-        unique_count=0,
-        error_code=None,
-        output_manifest_sha256="e" * 64,
+    reobserved = facts.collect_signals(
+        range(300),
+        collection_run_id="authorized-reobservation",
+        manifest_sha256="e" * 64,
     )
 
     snapshot = facts.snapshot(datetime(2026, 8, 25, tzinfo=UTC))
@@ -451,7 +480,7 @@ def test_later_authorized_observation_cannot_promote_earlier_model_block(
         tmp_path / "simulation-model-retroactive.sqlite3",
         backend="SIMULATION_ONLY",
     )
-    signal_id = facts.signal(1)
+    signal_id = facts.collect_signals([1])[0]
     facts.finish_collection()
     facts.repository.append_score_failure(
         score_run_id="simulation-model-block",
@@ -472,23 +501,16 @@ def test_later_authorized_observation_cannot_promote_earlier_model_block(
         platform="bili",
         query_cluster="sales-agent",
         query_text="销售线索",
-        max_contents=1,
-        max_comments_per_content=1,
+        max_contents=10,
+        max_comments_per_content=50,
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
-    assert (
-        facts.signal(1, collection_run_id="authorized-model-reobservation")
-        == signal_id
-    )
-    facts.repository.finish_collection(
-        "authorized-model-reobservation",
-        state="SUCCEEDED",
-        raw_count=1,
-        unique_count=0,
-        error_code=None,
-        output_manifest_sha256="e" * 64,
-    )
+    assert facts.collect_signals(
+        [1],
+        collection_run_id="authorized-model-reobservation",
+        manifest_sha256="e" * 64,
+    ) == [signal_id]
 
     snapshot = facts.snapshot(datetime(2026, 8, 14, tzinfo=UTC))
 
@@ -504,7 +526,7 @@ def test_same_second_authorization_cannot_promote_prior_simulation_facts(
         tmp_path / "same-second-retroactive.sqlite3",
         backend="SIMULATION_ONLY",
     )
-    signals = [facts.signal(index) for index in range(300)]
+    signals = facts.collect_signals(range(300))
     boundary = datetime(2026, 8, 21, tzinfo=UTC)
     facts.clock.set(boundary)
     facts.finish_collection()
@@ -557,22 +579,15 @@ def test_same_second_authorization_cannot_promote_prior_simulation_facts(
         platform="bili",
         query_cluster="sales-agent",
         query_text="销售线索",
-        max_contents=1,
-        max_comments_per_content=1,
+        max_contents=10,
+        max_comments_per_content=50,
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
-    reobserved = [
-        facts.signal(index, collection_run_id="same-second-authorized")
-        for index in range(300)
-    ]
-    facts.repository.finish_collection(
-        "same-second-authorized",
-        state="SUCCEEDED",
-        raw_count=300,
-        unique_count=0,
-        error_code=None,
-        output_manifest_sha256="e" * 64,
+    reobserved = facts.collect_signals(
+        range(300),
+        collection_run_id="same-second-authorized",
+        manifest_sha256="e" * 64,
     )
 
     snapshot = facts.snapshot(boundary + timedelta(seconds=1))
@@ -636,7 +651,7 @@ def test_all_six_loss_stop_rules_are_derived_from_persisted_facts(tmp_path):
             "THREE_OVER_90_MINUTE_DAYS": 3,
             "UNSOLVABLE_INTERVIEW": 1,
         }[scenario]
-        signals = [facts.signal(index) for index in range(count)]
+        signals = facts.collect_signals(range(count))
         reviews = []
         for index, signal_id in enumerate(signals):
             if scenario == "THREE_OVER_90_MINUTE_DAYS":
@@ -677,7 +692,7 @@ def test_all_six_loss_stop_rules_are_derived_from_persisted_facts(tmp_path):
     }
 
     spaced = FactBuilder(tmp_path / "nonconsecutive.sqlite3")
-    spaced_signals = [spaced.signal(index) for index in range(3)]
+    spaced_signals = spaced.collect_signals(range(3))
     for index, day in enumerate((13, 15, 17)):
         spaced.clock.set(datetime(2026, 8, day, 1, tzinfo=UTC))
         spaced.review(spaced_signals[index], index, seconds=5401)
@@ -688,7 +703,7 @@ def test_all_six_loss_stop_rules_are_derived_from_persisted_facts(tmp_path):
 
 def test_current_leaf_and_valid_evidence_are_the_only_quality_and_business_facts(tmp_path):
     facts = FactBuilder(tmp_path / "leaf.sqlite3")
-    signal_id = facts.signal(1)
+    signal_id = facts.collect_signals([1])[0]
     first_review = facts.review(signal_id, 1, label="HIGH_INTENT")
     revision_session = facts.workflow.start_activity(facts.run_id, signal_id, "REVIEW")
     facts.clock.move(1)
@@ -718,7 +733,7 @@ def test_current_leaf_and_valid_evidence_are_the_only_quality_and_business_facts
 
 def test_open_activity_fails_time_gate_and_later_collection_success_resolves_block(tmp_path):
     facts = FactBuilder(tmp_path / "recovery.sqlite3")
-    signal_id = facts.signal(1)
+    signal_id = facts.collect_signals([1])[0]
     facts.finish_collection()
     facts.clock.move(1)
     facts.workflow.start_activity(facts.run_id, signal_id, "REVIEW")
@@ -729,8 +744,8 @@ def test_open_activity_fails_time_gate_and_later_collection_success_resolves_blo
         platform="bili",
         query_cluster="sales-agent",
         query_text="销售线索",
-        max_contents=1,
-        max_comments_per_content=1,
+        max_contents=10,
+        max_comments_per_content=50,
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
@@ -745,15 +760,14 @@ def test_open_activity_fails_time_gate_and_later_collection_success_resolves_blo
         platform="bili",
         query_cluster="sales-agent",
         query_text="销售线索",
-        max_contents=1,
-        max_comments_per_content=1,
+        max_contents=10,
+        max_comments_per_content=50,
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
-    facts.repository.finish_collection(
-        "recovered-attempt", state="SUCCEEDED", raw_count=1,
-        unique_count=1, error_code=None, output_manifest_sha256="d" * 64,
-    )
+    assert facts.collect_signals(
+        [1], collection_run_id="recovered-attempt"
+    ) == [signal_id]
 
     snapshot = facts.snapshot(datetime(2026, 8, 25, tzinfo=UTC))
 
@@ -764,7 +778,7 @@ def test_open_activity_fails_time_gate_and_later_collection_success_resolves_blo
 
 def test_future_activity_event_is_not_hard_but_keeps_time_gate_closed(tmp_path):
     facts = FactBuilder(tmp_path / "future-activity.sqlite3")
-    signal_id = facts.signal(1)
+    signal_id = facts.collect_signals([1])[0]
     facts.finish_collection()
     facts.clock.move(1)
     session_id = facts.workflow.start_activity(facts.run_id, signal_id, "REVIEW")
@@ -788,7 +802,7 @@ def test_future_activity_event_is_not_hard_but_keeps_time_gate_closed(tmp_path):
 
 def test_model_availability_recovery_uses_one_cross_table_sequence(tmp_path):
     facts = FactBuilder(tmp_path / "model-order.sqlite3")
-    signal_id = facts.signal(1)
+    signal_id = facts.collect_signals([1])[0]
     facts.finish_collection()
     facts.clock.move(1)
     facts.repository.append_draft_failure(

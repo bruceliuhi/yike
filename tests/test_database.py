@@ -328,6 +328,37 @@ def set_seed_collection_active_state(connection, state: str) -> None:
         )
 
 
+def complete_empty_collection(repository: Repository, collection_run_id: str) -> None:
+    row = repository.connection.execute(
+        """
+        SELECT collection.mvp_run_id, collection.platform, collection.backend,
+               collection.state, campaign.query_cluster, campaign.query_text,
+               campaign.max_contents, campaign.max_comments_per_content
+        FROM collection_runs collection
+        JOIN campaigns campaign ON campaign.campaign_id = collection.campaign_id
+        WHERE collection.collection_run_id = ?
+        """,
+        (collection_run_id,),
+    ).fetchone()
+    if row["state"] == "WAITING_LOGIN":
+        repository.advance_collection_state(collection_run_id, "RUNNING")
+    if row["state"] in ("WAITING_LOGIN", "RUNNING"):
+        repository.advance_collection_state(collection_run_id, "IMPORTING")
+    repository.complete_collection_success(
+        collection_run_id=collection_run_id,
+        run_id=row["mvp_run_id"],
+        platform=row["platform"],
+        backend=row["backend"],
+        query_cluster=row["query_cluster"],
+        query_text=row["query_text"],
+        max_contents=row["max_contents"],
+        max_comments_per_content=row["max_comments_per_content"],
+        items=[],
+        raw_count=0,
+        output_manifest_sha256="d" * 64,
+    )
+
+
 def assert_active_collection_slot_can_be_released(repository, run_id: str) -> None:
     repository.finish_collection(
         "collection-1",
@@ -352,7 +383,7 @@ def assert_active_collection_slot_can_be_released(repository, run_id: str) -> No
     assert repository.connection.execute(
         "SELECT state FROM collection_runs WHERE collection_run_id = ?",
         ("collection-after-rejected-run-cancel",),
-    ).fetchone()[0] == "RUNNING"
+    ).fetchone()[0] == "WAITING_LOGIN"
 
 
 def test_migration_from_empty_file_creates_all_fact_tables_and_enables_pragmas(tmp_path):
@@ -398,6 +429,81 @@ def test_migration_rejects_unversioned_legacy_schema_without_modifying_it(tmp_pa
     connection.close()
 
 
+def test_migration_rejects_unknown_schema_version_without_modifying_marker(tmp_path):
+    connection = connect(tmp_path / "unknown-version.sqlite3")
+    migrate(connection)
+    connection.execute(
+        "UPDATE schema_meta SET version = 'DISCOVERY_FACT_STORE_V999' "
+        "WHERE schema_key = 'discovery'"
+    )
+    connection.commit()
+    before = connection.total_changes
+
+    with pytest.raises(UnsupportedSchemaError, match="UNSUPPORTED_SCHEMA"):
+        migrate(connection)
+
+    assert connection.total_changes == before
+    assert tuple(
+        connection.execute(
+            "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
+        ).fetchone()
+    ) == (
+        "DISCOVERY_FACT_STORE_V999",
+        "4718fab17ca455dc396444a63203c7a0ec5a35eb7cca0a7d50bc2ab5327df387",
+    )
+    connection.close()
+
+
+def test_migration_rejects_wrong_current_marker_signature_without_repair(tmp_path):
+    connection = connect(tmp_path / "wrong-marker.sqlite3")
+    migrate(connection)
+    connection.execute(
+        "UPDATE schema_meta SET signature = ? WHERE schema_key = 'discovery'",
+        ("0" * 64,),
+    )
+    connection.commit()
+    before = connection.total_changes
+
+    with pytest.raises(UnsupportedSchemaError, match="UNSUPPORTED_SCHEMA"):
+        migrate(connection)
+
+    assert connection.total_changes == before
+    assert tuple(
+        connection.execute(
+            "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
+        ).fetchone()
+    ) == ("DISCOVERY_FACT_STORE_V17", "0" * 64)
+    connection.close()
+
+
+def test_migration_rejects_current_marker_with_physical_schema_tampering(tmp_path):
+    connection = connect(tmp_path / "physical-mismatch.sqlite3")
+    migrate(connection)
+    marker = tuple(
+        connection.execute(
+            "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
+        ).fetchone()
+    )
+    connection.execute("DROP INDEX stable_campaign_identity")
+    connection.commit()
+    before = connection.total_changes
+
+    with pytest.raises(UnsupportedSchemaError, match="UNSUPPORTED_SCHEMA"):
+        migrate(connection)
+
+    assert connection.total_changes == before
+    assert tuple(
+        connection.execute(
+            "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
+        ).fetchone()
+    ) == marker
+    assert connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'index' "
+        "AND name = 'stable_campaign_identity'"
+    ).fetchone() is None
+    connection.close()
+
+
 def test_current_schema_migration_is_idempotent(connection):
     migrate(connection)
     assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
@@ -405,8 +511,8 @@ def test_current_schema_migration_is_idempotent(connection):
         "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
     ).fetchone()
     assert tuple(marker) == (
-        "DISCOVERY_FACT_STORE_V16",
-        "d448df7461d21d729a0ab105e60d6b82152cdbcaa2aad1a00c69934e6bf09f9f",
+        "DISCOVERY_FACT_STORE_V17",
+        "4718fab17ca455dc396444a63203c7a0ec5a35eb7cca0a7d50bc2ab5327df387",
     )
 
 
@@ -672,11 +778,8 @@ def test_only_one_collection_can_be_active_while_importing(repository):
     repository.begin_collection(
         collection_run_id="collection-importing-1", **parameters
     )
-    repository.connection.execute(
-        "UPDATE collection_runs SET state = 'IMPORTING' "
-        "WHERE collection_run_id = 'collection-importing-1'"
-    )
-    repository.connection.commit()
+    repository.advance_collection_state("collection-importing-1", "RUNNING")
+    repository.advance_collection_state("collection-importing-1", "IMPORTING")
 
     with pytest.raises(sqlite3.IntegrityError):
         repository.begin_collection(
@@ -944,7 +1047,7 @@ def test_sql_rejects_queued_collection_reactivation_after_run_cancellation(
     assert repository.connection.execute(
         "SELECT state FROM collection_runs WHERE collection_run_id = ?",
         (f"active-after-rejected-{reactivated_state.lower()}",),
-    ).fetchone()[0] == "RUNNING"
+    ).fetchone()[0] == "WAITING_LOGIN"
 
 
 def test_collection_attempt_is_unique_within_campaign(connection, repository):
@@ -2234,6 +2337,7 @@ def test_sql_rejects_noncanonical_observation_timestamp(connection, repository):
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
+    repository.advance_collection_state("sql-invalid-time-collection", "RUNNING")
     imported = repository.import_signal(
         run_id,
         replace(
@@ -2275,6 +2379,7 @@ def test_sql_rejects_future_verifiable_observation(connection, repository):
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
+    repository.advance_collection_state("sql-future-collection", "RUNNING")
     imported = repository.import_signal(
         run_id,
         replace(
@@ -2489,6 +2594,8 @@ def test_collection_success_requires_complete_terminal_evidence(repository):
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
+    repository.advance_collection_state("incomplete-terminal", "RUNNING")
+    repository.advance_collection_state("incomplete-terminal", "IMPORTING")
 
     with pytest.raises(sqlite3.IntegrityError, match="COLLECTION_TERMINAL_INVALID"):
         repository.connection.execute(
@@ -2549,7 +2656,7 @@ def test_repository_rejects_unknown_collection_terminal_error_code(repository):
     assert repository.connection.execute(
         "SELECT state FROM collection_runs WHERE collection_run_id = ?",
         ("repository-unknown-error",),
-    ).fetchone()[0] == "RUNNING"
+    ).fetchone()[0] == "WAITING_LOGIN"
 
 
 def test_sql_rejects_unknown_collection_terminal_error_code(repository):
@@ -2623,7 +2730,7 @@ def test_repository_binds_terminal_error_code_to_state(
             "output_manifest_sha256 FROM collection_runs "
             "WHERE collection_run_id = 'repository-state-error-mismatch'"
         ).fetchone()
-    ) == before == ("RUNNING", None, 0, 0, None, None)
+    ) == before == ("WAITING_LOGIN", None, 0, 0, None, None)
 
 
 @pytest.mark.parametrize(
@@ -2670,7 +2777,7 @@ def test_sql_binds_terminal_error_code_to_state(repository, state, error_code):
             "output_manifest_sha256 FROM collection_runs "
             "WHERE collection_run_id = 'sql-state-error-mismatch'"
         ).fetchone()
-    ) == before == ("RUNNING", None, 0, 0, None, None)
+    ) == before == ("WAITING_LOGIN", None, 0, 0, None, None)
 
 
 def test_collection_terminal_evidence_cannot_be_rewritten(repository):
@@ -2686,14 +2793,7 @@ def test_collection_terminal_evidence_cannot_be_rewritten(repository):
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
-    repository.finish_collection(
-        "immutable-terminal",
-        state="SUCCEEDED",
-        raw_count=1,
-        unique_count=1,
-        error_code=None,
-        output_manifest_sha256="b" * 64,
-    )
+    complete_empty_collection(repository, "immutable-terminal")
 
     with pytest.raises(KeyError, match="unknown running collection"):
         repository.finish_collection(
@@ -2708,7 +2808,7 @@ def test_collection_terminal_evidence_cannot_be_rewritten(repository):
         "SELECT state, raw_count, unique_count, output_manifest_sha256 "
         "FROM collection_runs WHERE collection_run_id = 'immutable-terminal'"
     ).fetchone()
-    assert tuple(row) == ("SUCCEEDED", 1, 1, "b" * 64)
+    assert tuple(row) == ("SUCCEEDED_NO_DATA", 0, 0, "d" * 64)
 
 
 def test_repository_rejects_no_data_terminal_when_collection_has_observations(
@@ -2727,6 +2827,9 @@ def test_repository_rejects_no_data_terminal_when_collection_has_observations(
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
+    repository.advance_collection_state(
+        "repository-no-data-with-observation", "RUNNING"
+    )
     repository.import_signal(
         run_id,
         replace(
@@ -2738,6 +2841,9 @@ def test_repository_rejects_no_data_terminal_when_collection_has_observations(
             normalizer_version="test-normalizer-v1",
         ),
     )
+    repository.advance_collection_state(
+        "repository-no-data-with-observation", "IMPORTING"
+    )
     before = tuple(
         repository.connection.execute(
             "SELECT state, finished_at, raw_count, unique_count, error_code, "
@@ -2746,14 +2852,9 @@ def test_repository_rejects_no_data_terminal_when_collection_has_observations(
         ).fetchone()
     )
 
-    with pytest.raises(ValueError, match="SUCCEEDED_NO_DATA_HAS_OBSERVATIONS"):
-        repository.finish_collection(
-            "repository-no-data-with-observation",
-            state="SUCCEEDED_NO_DATA",
-            raw_count=0,
-            unique_count=0,
-            error_code=None,
-            output_manifest_sha256="c" * 64,
+    with pytest.raises(ValueError, match="already has imported observations"):
+        complete_empty_collection(
+            repository, "repository-no-data-with-observation"
         )
 
     assert tuple(
@@ -2762,7 +2863,7 @@ def test_repository_rejects_no_data_terminal_when_collection_has_observations(
             "output_manifest_sha256 FROM collection_runs "
             "WHERE collection_run_id = 'repository-no-data-with-observation'"
         ).fetchone()
-    ) == before == ("RUNNING", None, 0, 0, None, None)
+    ) == before == ("IMPORTING", None, 0, 0, None, None)
 
 
 def test_sql_rejects_no_data_terminal_when_collection_has_observations(repository):
@@ -2779,6 +2880,7 @@ def test_sql_rejects_no_data_terminal_when_collection_has_observations(repositor
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
+    repository.advance_collection_state("sql-no-data-with-observation", "RUNNING")
     repository.import_signal(
         run_id,
         replace(
@@ -2790,6 +2892,7 @@ def test_sql_rejects_no_data_terminal_when_collection_has_observations(repositor
             normalizer_version="test-normalizer-v1",
         ),
     )
+    repository.advance_collection_state("sql-no-data-with-observation", "IMPORTING")
     before = tuple(
         repository.connection.execute(
             "SELECT state, finished_at, raw_count, unique_count, error_code, "
@@ -2815,7 +2918,7 @@ def test_sql_rejects_no_data_terminal_when_collection_has_observations(repositor
             "output_manifest_sha256 FROM collection_runs "
             "WHERE collection_run_id = 'sql-no-data-with-observation'"
         ).fetchone()
-    ) == before == ("RUNNING", None, 0, 0, None, None)
+    ) == before == ("IMPORTING", None, 0, 0, None, None)
 
 
 @pytest.mark.parametrize("terminal_run_state", ["CANCELLED", "FINALIZED"])
@@ -2834,13 +2937,8 @@ def test_sql_rejects_collection_insert_for_non_active_run_without_taking_slot(
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
-    repository.finish_collection(
-        f"{terminal_run_state.lower()}-seed-collection",
-        state="SUCCEEDED_NO_DATA",
-        raw_count=0,
-        unique_count=0,
-        error_code=None,
-        output_manifest_sha256="b" * 64,
+    complete_empty_collection(
+        repository, f"{terminal_run_state.lower()}-seed-collection"
     )
     if terminal_run_state == "CANCELLED":
         repository.cancel_run(run_id)
@@ -2853,7 +2951,7 @@ def test_sql_rejects_collection_insert_for_non_active_run_without_taking_slot(
             "collection_run_id, mvp_run_id, campaign_id, platform, attempt, "
             "backend, started_by, runtime_lock_sha256, state, started_at"
             ") VALUES (?, ?, ?, 'bili', 2, 'SIMULATION_ONLY', "
-            "'test-operator', ?, 'RUNNING', '2026-08-25T00:00:00Z')",
+            "'test-operator', ?, 'WAITING_LOGIN', '2026-08-25T00:00:00Z')",
             (
                 f"{terminal_run_state.lower()}-illegal-collection",
                 run_id,
@@ -2882,7 +2980,7 @@ def test_sql_rejects_collection_insert_for_non_active_run_without_taking_slot(
     assert repository.connection.execute(
         "SELECT state FROM collection_runs WHERE collection_run_id = ?",
         (f"active-after-{terminal_run_state.lower()}",),
-    ).fetchone()[0] == "RUNNING"
+    ).fetchone()[0] == "WAITING_LOGIN"
 
 
 def test_collection_cannot_finish_after_day14_cutoff(connection):
@@ -2900,15 +2998,22 @@ def test_collection_cannot_finish_after_day14_cutoff(connection):
         started_by="test-operator",
         runtime_lock_sha256="a" * 64,
     )
+    repository.advance_collection_state("late-terminal", "RUNNING")
+    repository.advance_collection_state("late-terminal", "IMPORTING")
     now[0] = datetime(2026, 8, 27, 16, tzinfo=UTC)
 
     with pytest.raises(ValueError, match="Day 14"):
-        repository.finish_collection(
-            "late-terminal",
-            state="SUCCEEDED_NO_DATA",
+        repository.complete_collection_success(
+            collection_run_id="late-terminal",
+            run_id=run_id,
+            platform="bili",
+            backend="SIMULATION_ONLY",
+            query_cluster="sales",
+            query_text="销售线索",
+            max_contents=1,
+            max_comments_per_content=1,
+            items=[],
             raw_count=0,
-            unique_count=0,
-            error_code=None,
             output_manifest_sha256="b" * 64,
         )
 
@@ -2916,7 +3021,7 @@ def test_collection_cannot_finish_after_day14_cutoff(connection):
         "SELECT state, finished_at FROM collection_runs "
         "WHERE collection_run_id = 'late-terminal'"
     ).fetchone()
-    assert tuple(row) == ("RUNNING", None)
+    assert tuple(row) == ("IMPORTING", None)
 
 
 def test_finalized_run_rejects_fact_insert_update_and_delete(connection, repository):

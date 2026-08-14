@@ -93,9 +93,10 @@ def test_daily_limit_cli_returns_one_stable_terminal_without_new_db_rows(tmp_pat
     repository = Repository.from_settings(settings)
     run_id = repository.create_run(["bili", "dy"])
     for index in range(8):
+        collection_run_id = str(uuid4())
         repository.begin_collection(
             run_id=run_id,
-            collection_run_id=str(uuid4()),
+            collection_run_id=collection_run_id,
             platform="bili",
             query_cluster="acquisition",
             query_text=f"query-{index}",
@@ -104,16 +105,12 @@ def test_daily_limit_cli_returns_one_stable_terminal_without_new_db_rows(tmp_pat
             started_by="test-operator",
             runtime_lock_sha256="a" * 64,
         )
-        collection_run_id = repository.connection.execute(
-            "SELECT collection_run_id FROM collection_runs WHERE state = 'RUNNING'"
-        ).fetchone()[0]
         repository.finish_collection(
             collection_run_id,
-            state="SUCCEEDED_NO_DATA",
+            state="BLOCKED_INPUT",
             raw_count=0,
             unique_count=0,
-            error_code=None,
-            output_manifest_sha256="d" * 64,
+            error_code="PLATFORM_AUTH_REQUIRED",
         )
     repository.connection.close()
     rejected_collection_run_id = str(uuid4())
