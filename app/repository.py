@@ -13,6 +13,26 @@ if TYPE_CHECKING:
 
 
 _PLATFORMS = frozenset(("bili", "dy"))
+_COLLECTION_BACKENDS = frozenset(
+    ("MEDIACRAWLER_AUTHORIZED", "SIMULATION_ONLY")
+)
+_COLLECTION_ERROR_CODES = frozenset(
+    (
+        "PLATFORM_AUTH_REQUIRED",
+        "PLATFORM_PERMISSION_DENIED",
+        "PLATFORM_VERIFICATION_REQUIRED",
+        "PLATFORM_RATE_LIMITED",
+        "PLATFORM_RESPONSE_CHANGED",
+        "COLLECTION_NETWORK_FAILED",
+        "COLLECTION_PARSE_FAILED",
+        "COLLECTION_CANCELLED",
+        "COLLECTION_PROCESS_FAILED",
+        "COLLECTION_OUTPUT_FAILED",
+        "COLLECTION_RUNTIME_MISSING",
+        "COLLECTION_RUNTIME_MISMATCH",
+        "SIGNAL_IDENTITY_CONFLICT",
+    )
+)
 _FINAL_DECISIONS = frozenset(
     ("STOP_DISCOVERY", "BLOCKED_INPUT", "PROCEED_TO_V03_REVIEW", "REVISE_MVP")
 )
@@ -276,17 +296,25 @@ class Repository:
         max_comments_per_content: int,
         started_by: str,
         runtime_lock_sha256: str,
+        backend: str = "SIMULATION_ONLY",
     ) -> str:
         if platform not in _PLATFORMS:
             raise ValueError("platform must be one of: bili, dy")
         if not query_cluster.strip() or not query_text.strip():
             raise ValueError("collection query identity is required")
-        if not 1 <= max_contents <= 10 or not 1 <= max_comments_per_content <= 50:
+        if (
+            type(max_contents) is not int
+            or type(max_comments_per_content) is not int
+            or not 1 <= max_contents <= 10
+            or not 1 <= max_comments_per_content <= 50
+        ):
             raise ValueError("collection limit is outside the allowed range")
         if not started_by.strip():
             raise ValueError("collection started_by is required")
         if not _is_sha256(runtime_lock_sha256):
             raise ValueError("collection runtime lock SHA-256 is required")
+        if backend not in _COLLECTION_BACKENDS:
+            raise ValueError("collection backend is invalid")
         if self.connection.in_transaction:
             raise RuntimeError("cannot begin collection inside a transaction")
         self.connection.execute("BEGIN IMMEDIATE")
@@ -359,13 +387,14 @@ class Repository:
                 INSERT INTO collection_runs (
                     collection_run_id, mvp_run_id, campaign_id, platform,
                     attempt, backend, started_by, runtime_lock_sha256, state, started_at
-                ) VALUES (?, ?, ?, ?, 1, 'MEDIACRAWLER_AUTHORIZED', ?, ?, 'RUNNING', ?)
+                ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, 'RUNNING', ?)
                 """,
                 (
                     collection_run_id,
                     run_id,
                     campaign_id,
                     platform,
+                    backend,
                     started_by,
                     runtime_lock_sha256,
                     now,
@@ -419,8 +448,10 @@ class Repository:
                 and output_manifest_sha256 is not None
             )
         else:
-            valid = isinstance(error_code, str) and bool(error_code.strip())
+            valid = error_code in _COLLECTION_ERROR_CODES
         if not valid:
+            if state in ("FAILED", "CANCELLED", "BLOCKED_INPUT"):
+                raise ValueError("collection terminal error code is invalid")
             raise ValueError("collection terminal evidence is invalid")
         finished_at = self._server_timestamp()
         with self.connection:
@@ -444,7 +475,7 @@ class Repository:
                 SET state = ?, finished_at = ?, raw_count = ?, unique_count = ?,
                     error_code = ?, output_manifest_sha256 = ?
                 WHERE collection_run_id = ?
-                  AND state IN ('RUNNING', 'IMPORTING')
+                  AND state IN ('WAITING_LOGIN', 'RUNNING', 'IMPORTING')
                   AND finished_at IS NULL
                 """,
                 (

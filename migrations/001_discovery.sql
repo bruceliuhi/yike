@@ -9,7 +9,9 @@ CREATE TABLE IF NOT EXISTS mvp_runs (
     revision_of_run_id TEXT UNIQUE REFERENCES mvp_runs(mvp_run_id),
     state TEXT NOT NULL CHECK (state IN ('DRAFT', 'ACTIVE', 'FINALIZED', 'CANCELLED')),
     timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai',
-    authorization_basis TEXT NOT NULL,
+    authorization_basis TEXT NOT NULL CHECK (
+        authorization_basis = 'USER_ATTESTED_PLATFORM_AUTHORIZATION'
+    ),
     platform_scope_json TEXT NOT NULL,
     query_set_sha256 TEXT NOT NULL CHECK (length(query_set_sha256) = 64),
     prompt_version TEXT NOT NULL CHECK (length(trim(prompt_version)) > 0),
@@ -65,9 +67,12 @@ CREATE TABLE IF NOT EXISTS campaigns (
     platform TEXT NOT NULL CHECK (platform IN ('bili', 'dy')),
     query_cluster TEXT NOT NULL CHECK (yike_nonblank_text(query_cluster) = 1),
     query_text TEXT NOT NULL CHECK (yike_nonblank_text(query_text) = 1),
-    max_contents INTEGER NOT NULL DEFAULT 5 CHECK (max_contents BETWEEN 1 AND 10),
+    max_contents INTEGER NOT NULL DEFAULT 5 CHECK (
+        typeof(max_contents) = 'integer' AND max_contents BETWEEN 1 AND 10
+    ),
     max_comments_per_content INTEGER NOT NULL DEFAULT 20 CHECK (
-        max_comments_per_content BETWEEN 1 AND 50
+        typeof(max_comments_per_content) = 'integer'
+        AND max_comments_per_content BETWEEN 1 AND 50
     ),
     state TEXT NOT NULL,
     created_at TEXT NOT NULL,
@@ -80,8 +85,10 @@ CREATE TABLE IF NOT EXISTS collection_runs (
     mvp_run_id TEXT NOT NULL REFERENCES mvp_runs(mvp_run_id),
     campaign_id TEXT NOT NULL,
     platform TEXT NOT NULL CHECK (platform IN ('bili', 'dy')),
-    attempt INTEGER NOT NULL,
-    backend TEXT NOT NULL,
+    attempt INTEGER NOT NULL CHECK (typeof(attempt) = 'integer' AND attempt >= 1),
+    backend TEXT NOT NULL CHECK (
+        backend IN ('MEDIACRAWLER_AUTHORIZED', 'SIMULATION_ONLY')
+    ),
     started_by TEXT NOT NULL CHECK (yike_nonblank_text(started_by) = 1),
     runtime_lock_sha256 TEXT NOT NULL CHECK (
         length(runtime_lock_sha256) = 64
@@ -89,7 +96,7 @@ CREATE TABLE IF NOT EXISTS collection_runs (
     ),
     state TEXT NOT NULL CHECK (
         state IN (
-            'QUEUED', 'RUNNING', 'IMPORTING', 'SUCCEEDED',
+            'QUEUED', 'WAITING_LOGIN', 'RUNNING', 'IMPORTING', 'SUCCEEDED',
             'SUCCEEDED_NO_DATA', 'FAILED', 'CANCELLED', 'BLOCKED_INPUT'
         )
     ),
@@ -97,9 +104,18 @@ CREATE TABLE IF NOT EXISTS collection_runs (
     finished_at TEXT,
     raw_count INTEGER NOT NULL DEFAULT 0,
     unique_count INTEGER NOT NULL DEFAULT 0,
-    error_code TEXT,
+    error_code TEXT CHECK (
+        error_code IS NULL OR error_code IN (
+            'PLATFORM_AUTH_REQUIRED', 'PLATFORM_PERMISSION_DENIED',
+            'PLATFORM_VERIFICATION_REQUIRED', 'PLATFORM_RATE_LIMITED',
+            'PLATFORM_RESPONSE_CHANGED', 'COLLECTION_NETWORK_FAILED',
+            'COLLECTION_PARSE_FAILED', 'COLLECTION_CANCELLED',
+            'COLLECTION_PROCESS_FAILED', 'COLLECTION_OUTPUT_FAILED',
+            'COLLECTION_RUNTIME_MISSING', 'COLLECTION_RUNTIME_MISMATCH',
+            'SIGNAL_IDENTITY_CONFLICT'
+        )
+    ),
     output_manifest_sha256 TEXT,
-    CHECK (attempt >= 1),
     CHECK (raw_count >= 0 AND unique_count >= 0 AND unique_count <= raw_count),
     CHECK (
         output_manifest_sha256 IS NULL OR (
@@ -113,7 +129,7 @@ CREATE TABLE IF NOT EXISTS collection_runs (
             AND raw_count = 0 AND unique_count = 0
             AND error_code IS NULL AND output_manifest_sha256 IS NULL)
         OR
-        (state IN ('RUNNING', 'IMPORTING')
+        (state IN ('WAITING_LOGIN', 'RUNNING', 'IMPORTING')
             AND started_at IS NOT NULL
             AND strftime('%Y-%m-%dT%H:%M:%SZ', started_at) IS started_at
             AND finished_at IS NULL
@@ -151,7 +167,8 @@ CREATE TABLE IF NOT EXISTS collection_runs (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS one_active_collection
-    ON collection_runs((1)) WHERE state IN ('RUNNING', 'IMPORTING');
+    ON collection_runs((1))
+    WHERE state IN ('WAITING_LOGIN', 'RUNNING', 'IMPORTING');
 
 CREATE TRIGGER IF NOT EXISTS collection_runs_initial_state
 BEFORE INSERT ON collection_runs
@@ -255,6 +272,29 @@ CREATE TABLE IF NOT EXISTS signal_observations (
     FOREIGN KEY (collection_run_id, mvp_run_id)
         REFERENCES collection_runs(collection_run_id, mvp_run_id)
 );
+
+CREATE TRIGGER IF NOT EXISTS linked_observation_requires_collection_provenance
+BEFORE INSERT ON signal_observations
+WHEN NEW.collection_run_id IS NOT NULL
+ AND EXISTS (
+    SELECT 1 FROM signals
+    WHERE signal_id = NEW.signal_id AND verifiable = 0
+ )
+ AND NOT EXISTS (
+    SELECT 1
+    FROM collection_runs collection
+    JOIN campaigns campaign
+      ON campaign.campaign_id = collection.campaign_id
+     AND campaign.mvp_run_id = collection.mvp_run_id
+     AND campaign.platform = collection.platform
+    JOIN signals signal ON signal.signal_id = NEW.signal_id
+    WHERE collection.collection_run_id = NEW.collection_run_id
+      AND collection.mvp_run_id = NEW.mvp_run_id
+      AND collection.platform = signal.platform
+      AND campaign.query_cluster = NEW.query_cluster
+      AND campaign.query_text = NEW.query_text
+ )
+BEGIN SELECT RAISE(ABORT, 'OBSERVATION_COLLECTION_PROVENANCE_INVALID'); END;
 
 CREATE TRIGGER IF NOT EXISTS verifiable_observation_requires_provenance
 BEFORE INSERT ON signal_observations
@@ -931,6 +971,16 @@ WHEN NEW.state = 'FINALIZED'
      )
 BEGIN SELECT RAISE(ABORT, 'FINALIZATION_SNAPSHOT_REQUIRED'); END;
 
+CREATE TRIGGER IF NOT EXISTS mvp_runs_finalization_requires_idle_collections
+BEFORE UPDATE OF state ON mvp_runs
+WHEN NEW.state = 'FINALIZED'
+ AND EXISTS (
+    SELECT 1 FROM collection_runs collection
+    WHERE collection.mvp_run_id = NEW.mvp_run_id
+      AND collection.state IN ('WAITING_LOGIN', 'RUNNING', 'IMPORTING')
+ )
+BEGIN SELECT RAISE(ABORT, 'ACTIVE_COLLECTION_PREVENTS_FINALIZATION'); END;
+
 CREATE TRIGGER IF NOT EXISTS mvp_runs_finalized_not_deleted
 BEFORE DELETE ON mvp_runs
 WHEN OLD.state = 'FINALIZED'
@@ -1248,14 +1298,19 @@ BEGIN
         WHEN OLD.started_at IS NOT NULL AND NEW.started_at IS NOT OLD.started_at
             THEN RAISE(ABORT, 'FACT_IDENTITY_IMMUTABLE')
         WHEN NEW.state NOT IN (
-            'QUEUED', 'RUNNING', 'IMPORTING', 'SUCCEEDED',
+            'QUEUED', 'WAITING_LOGIN', 'RUNNING', 'IMPORTING', 'SUCCEEDED',
             'SUCCEEDED_NO_DATA', 'FAILED', 'CANCELLED', 'BLOCKED_INPUT'
         ) THEN RAISE(ABORT, 'COLLECTION_STATE_INVALID')
         WHEN OLD.state IN (
             'SUCCEEDED', 'SUCCEEDED_NO_DATA', 'FAILED', 'CANCELLED', 'BLOCKED_INPUT'
         ) THEN RAISE(ABORT, 'COLLECTION_TERMINAL_IMMUTABLE')
         WHEN OLD.state <> NEW.state AND NOT (
-            (OLD.state = 'QUEUED' AND NEW.state IN ('RUNNING', 'CANCELLED'))
+            (OLD.state = 'QUEUED' AND NEW.state IN (
+                'WAITING_LOGIN', 'RUNNING', 'CANCELLED'
+            ))
+            OR (OLD.state = 'WAITING_LOGIN' AND NEW.state IN (
+                'RUNNING', 'FAILED', 'CANCELLED', 'BLOCKED_INPUT'
+            ))
             OR (OLD.state = 'RUNNING' AND NEW.state IN (
                 'IMPORTING', 'SUCCEEDED', 'SUCCEEDED_NO_DATA',
                 'FAILED', 'CANCELLED', 'BLOCKED_INPUT'
@@ -1282,7 +1337,7 @@ BEGIN
             )
           )
           OR (
-            NEW.state IN ('RUNNING', 'IMPORTING') AND NOT (
+            NEW.state IN ('WAITING_LOGIN', 'RUNNING', 'IMPORTING') AND NOT (
                 NEW.started_at IS NOT NULL
                 AND strftime('%Y-%m-%dT%H:%M:%SZ', NEW.started_at) IS NEW.started_at
                 AND NEW.finished_at IS NULL

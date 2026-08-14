@@ -185,6 +185,11 @@ class Collector:
         self.runtime_path = runtime_path.resolve()
         self.work_root = work_root.absolute()
         fixture_runtime = (_PROJECT_ROOT / "tests/fixtures/fake_mediacrawler").resolve()
+        self.backend = (
+            "SIMULATION_ONLY"
+            if self.runtime_path == fixture_runtime
+            else "MEDIACRAWLER_AUTHORIZED"
+        )
         self.python_executable = python_executable or (
             sys.executable
             if self.runtime_path == fixture_runtime
@@ -250,6 +255,7 @@ class Collector:
                 max_comments_per_content=request.max_comments_per_content,
                 started_by=request.started_by,
                 runtime_lock_sha256=hashlib.sha256(_LOCK_PATH.read_bytes()).hexdigest(),
+                backend=self.backend,
             )
         except CollectionDailyLimitError as error:
             return CollectionResult(

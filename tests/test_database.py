@@ -364,8 +364,8 @@ def test_current_schema_migration_is_idempotent(connection):
         "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
     ).fetchone()
     assert tuple(marker) == (
-        "DISCOVERY_FACT_STORE_V12",
-        "a99f85290fbfc0c131bed9b03189e27535594d0640ee566b10cff4ef891ebc95",
+        "DISCOVERY_FACT_STORE_V13",
+        "5bf63c726c085699b3cb7b43fb14b023e1998840023b9e2fd27b2b5beed116a6",
     )
 
 
@@ -478,6 +478,23 @@ def test_database_rejects_noncanonical_platform_scope(connection):
                 thresholds_sha256, started_at, day14_due_at
             ) VALUES ('bad-scope', 'DRAFT', 'USER_ATTESTED_PLATFORM_AUTHORIZATION',
                       '["dy","bili"]', ?, 'prompt-v1', 'schema-v1', ?,
+                      '2026-08-12T00:00:00Z',
+                      '2026-08-26T00:00:00Z')
+            """,
+            ("a" * 64, "b" * 64),
+        )
+
+
+def test_database_rejects_noncanonical_authorization_basis(connection):
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute(
+            """
+            INSERT INTO mvp_runs (
+                mvp_run_id, state, authorization_basis, platform_scope_json,
+                query_set_sha256, prompt_version, schema_version,
+                thresholds_sha256, started_at, day14_due_at
+            ) VALUES ('bad-authorization', 'DRAFT', 'SELF_ASSERTED',
+                      '["bili","dy"]', ?, 'prompt-v1', 'schema-v1', ?,
                       '2026-08-12T00:00:00Z',
                       '2026-08-26T00:00:00Z')
             """,
@@ -626,6 +643,134 @@ def test_only_one_collection_can_be_active_while_importing(repository):
         )
 
 
+def test_waiting_login_occupies_global_collection_slot_and_can_run(
+    connection, repository
+):
+    facts = seed_fact_graph(connection, repository)
+    connection.execute(
+        """
+        UPDATE collection_runs
+        SET state = 'WAITING_LOGIN', started_at = '2026-08-12T00:00:00Z'
+        WHERE collection_run_id = 'collection-1'
+        """
+    )
+    connection.commit()
+
+    with pytest.raises(sqlite3.IntegrityError):
+        repository.begin_collection(
+            run_id=facts["run_id"],
+            collection_run_id="waiting-login-contender",
+            platform="dy",
+            query_cluster="sales",
+            query_text="线索",
+            max_contents=1,
+            max_comments_per_content=1,
+            started_by="test-operator",
+            runtime_lock_sha256="a" * 64,
+        )
+
+    connection.execute(
+        "UPDATE collection_runs SET state = 'RUNNING' "
+        "WHERE collection_run_id = 'collection-1'"
+    )
+    assert connection.execute(
+        "SELECT state FROM collection_runs WHERE collection_run_id = 'collection-1'"
+    ).fetchone()[0] == "RUNNING"
+
+
+@pytest.mark.parametrize(
+    ("terminal_state", "error_code"),
+    [
+        ("FAILED", "COLLECTION_PROCESS_FAILED"),
+        ("CANCELLED", "COLLECTION_CANCELLED"),
+        ("BLOCKED_INPUT", "PLATFORM_AUTH_REQUIRED"),
+    ],
+)
+def test_waiting_login_can_finish_in_approved_terminal_states(
+    connection, repository, terminal_state, error_code
+):
+    seed_fact_graph(connection, repository)
+    connection.execute(
+        """
+        UPDATE collection_runs
+        SET state = 'WAITING_LOGIN', started_at = '2026-08-12T00:00:00Z'
+        WHERE collection_run_id = 'collection-1'
+        """
+    )
+
+    repository.finish_collection(
+        "collection-1",
+        state=terminal_state,
+        raw_count=0,
+        unique_count=0,
+        error_code=error_code,
+    )
+
+    assert connection.execute(
+        "SELECT state FROM collection_runs WHERE collection_run_id = 'collection-1'"
+    ).fetchone()[0] == terminal_state
+
+
+def test_waiting_login_rejects_unapproved_transitions(connection, repository):
+    seed_fact_graph(connection, repository)
+    connection.execute(
+        """
+        UPDATE collection_runs
+        SET state = 'WAITING_LOGIN', started_at = '2026-08-12T00:00:00Z'
+        WHERE collection_run_id = 'collection-1'
+        """
+    )
+
+    with pytest.raises(
+        sqlite3.IntegrityError, match="COLLECTION_STATE_TRANSITION_INVALID"
+    ):
+        connection.execute(
+            "UPDATE collection_runs SET state = 'IMPORTING' "
+            "WHERE collection_run_id = 'collection-1'"
+        )
+
+    with pytest.raises(
+        sqlite3.IntegrityError, match="COLLECTION_STATE_TRANSITION_INVALID"
+    ):
+        connection.execute(
+            """
+            UPDATE collection_runs
+            SET state = 'SUCCEEDED', finished_at = '2026-08-12T00:01:00Z',
+                raw_count = 1, unique_count = 1, error_code = NULL,
+                output_manifest_sha256 = ?
+            WHERE collection_run_id = 'collection-1'
+            """,
+            ("b" * 64,),
+        )
+
+
+@pytest.mark.parametrize("active_state", ["WAITING_LOGIN", "RUNNING", "IMPORTING"])
+def test_finalization_rejects_active_collection(
+    connection, repository, active_state
+):
+    facts = seed_fact_graph(connection, repository)
+    connection.execute(
+        "UPDATE collection_runs SET state = ?, started_at = ? "
+        "WHERE collection_run_id = 'collection-1'",
+        (
+            "WAITING_LOGIN" if active_state == "WAITING_LOGIN" else "RUNNING",
+            "2026-08-12T00:00:00Z",
+        ),
+    )
+    if active_state == "IMPORTING":
+        connection.execute(
+            "UPDATE collection_runs SET state = 'IMPORTING' "
+            "WHERE collection_run_id = 'collection-1'"
+        )
+
+    with pytest.raises(sqlite3.IntegrityError, match="ACTIVE_COLLECTION"):
+        repository.finalize_run(facts["run_id"], "REVISE_MVP", {})
+
+    assert connection.execute(
+        "SELECT state FROM mvp_runs WHERE mvp_run_id = ?", (facts["run_id"],)
+    ).fetchone()[0] == "ACTIVE"
+
+
 def test_collection_attempt_is_unique_within_campaign(connection, repository):
     facts = seed_fact_graph(connection, repository)
 
@@ -690,6 +835,110 @@ def test_sql_rejects_invalid_campaign_limits(
             )
             """,
             (run_id, max_contents, max_comments_per_content),
+        )
+
+
+@pytest.mark.parametrize(
+    ("max_contents", "max_comments_per_content"),
+    [(1.5, 20), (5, 1.5)],
+)
+def test_sql_rejects_fractional_campaign_limits(
+    connection, repository, max_contents, max_comments_per_content
+):
+    run_id = repository.create_run(["bili", "dy"])
+
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute(
+            """
+            INSERT INTO campaigns (
+                campaign_id, mvp_run_id, platform, query_cluster, query_text,
+                max_contents, max_comments_per_content, state, created_at
+            ) VALUES (
+                'fractional-limits', ?, 'bili', 'sales', '线索', ?, ?,
+                'ACTIVE', '2026-08-12T00:00:00Z'
+            )
+            """,
+            (run_id, max_contents, max_comments_per_content),
+        )
+
+
+def test_sql_rejects_fractional_collection_attempt(connection, repository):
+    run_id = repository.create_run(["bili", "dy"])
+    connection.execute(
+        """
+        INSERT INTO campaigns (
+            campaign_id, mvp_run_id, platform, query_cluster, query_text,
+            state, created_at
+        ) VALUES (
+            'fractional-attempt-campaign', ?, 'bili', 'sales', '线索',
+            'ACTIVE', '2026-08-12T00:00:00Z'
+        )
+        """,
+        (run_id,),
+    )
+
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute(
+            """
+            INSERT INTO collection_runs (
+                collection_run_id, mvp_run_id, campaign_id, platform,
+                attempt, backend, started_by, runtime_lock_sha256, state
+            ) VALUES (
+                'fractional-attempt', ?, 'fractional-attempt-campaign',
+                'bili', 1.5, 'SIMULATION_ONLY', 'test-operator', ?, 'QUEUED'
+            )
+            """,
+            (run_id, "a" * 64),
+        )
+
+
+def test_repository_collection_backend_defaults_to_simulation_only(repository):
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="safe-default-backend",
+        platform="bili",
+        query_cluster="sales",
+        query_text="线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+
+    backend = repository.connection.execute(
+        "SELECT backend FROM collection_runs WHERE collection_run_id = ?",
+        ("safe-default-backend",),
+    ).fetchone()[0]
+    assert backend == "SIMULATION_ONLY"
+
+
+def test_sql_rejects_unknown_collection_backend(connection, repository):
+    run_id = repository.create_run(["bili", "dy"])
+    campaign_id = repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="known-backend",
+        platform="bili",
+        query_cluster="sales",
+        query_text="线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute(
+            """
+            INSERT INTO collection_runs (
+                collection_run_id, mvp_run_id, campaign_id, platform,
+                attempt, backend, started_by, runtime_lock_sha256, state
+            ) VALUES (
+                'unknown-backend', ?, ?, 'bili', 2, 'FIXTURE_BUT_REAL',
+                'test-operator', ?, 'QUEUED'
+            )
+            """,
+            (run_id, campaign_id, "a" * 64),
         )
 
 
@@ -1943,6 +2192,70 @@ def test_sql_rejects_observation_query_that_differs_from_collection_campaign(
 
 
 @pytest.mark.parametrize(
+    ("signal_platform", "query_cluster", "query_text"),
+    [
+        ("bili", "fabricated-cluster", "fabricated-query"),
+        ("dy", "campaign-cluster", "campaign-query"),
+    ],
+)
+def test_linked_nonverifiable_observation_requires_relational_provenance(
+    connection, repository, signal_platform, query_cluster, query_text
+):
+    run_id = repository.create_run(["bili", "dy"])
+    imported = repository.import_signal(
+        run_id,
+        NormalizedSignal(
+            platform=signal_platform,
+            external_source_id=f"diagnostic-source-{signal_platform}",
+            source_url=f"https://example.test/{signal_platform}/source",
+            external_comment_id=f"diagnostic-comment-{signal_platform}",
+            comment_url=f"https://example.test/{signal_platform}/comment",
+            author_public_id=f"diagnostic-author-{signal_platform}",
+            body="diagnostic observation",
+            verifiable=False,
+        ),
+    )
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="diagnostic-linked-collection",
+        platform="bili",
+        query_cluster="campaign-cluster",
+        query_text="campaign-query",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    observed_at = connection.execute(
+        "SELECT started_at FROM collection_runs WHERE collection_run_id = ?",
+        ("diagnostic-linked-collection",),
+    ).fetchone()[0]
+
+    with pytest.raises(
+        sqlite3.IntegrityError, match="OBSERVATION_COLLECTION_PROVENANCE_INVALID"
+    ):
+        connection.execute(
+            """
+            INSERT INTO signal_observations (
+                observation_id, mvp_run_id, collection_run_id, signal_id,
+                query_cluster, query_text, observed_at, raw_sha256
+            ) VALUES (
+                'invalid-diagnostic-link', ?, 'diagnostic-linked-collection', ?,
+                ?, ?, ?, ?
+            )
+            """,
+            (
+                run_id,
+                imported.signal_id,
+                query_cluster,
+                query_text,
+                observed_at,
+                "c" * 64,
+            ),
+        )
+
+
+@pytest.mark.parametrize(
     ("comment_url", "author_public_id", "body", "body_sha256"),
     [
         ("", "", "", "not-a-sha256"),
@@ -2031,6 +2344,60 @@ def test_collection_state_must_be_known(repository):
         repository.connection.execute(
             "UPDATE collection_runs SET state = 'UNKNOWN' "
             "WHERE collection_run_id = 'invalid-state'"
+        )
+
+
+def test_repository_rejects_unknown_collection_terminal_error_code(repository):
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="repository-unknown-error",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+
+    with pytest.raises(ValueError, match="error code"):
+        repository.finish_collection(
+            "repository-unknown-error",
+            state="FAILED",
+            raw_count=0,
+            unique_count=0,
+            error_code="MADE_UP_FAILURE",
+        )
+
+    assert repository.connection.execute(
+        "SELECT state FROM collection_runs WHERE collection_run_id = ?",
+        ("repository-unknown-error",),
+    ).fetchone()[0] == "RUNNING"
+
+
+def test_sql_rejects_unknown_collection_terminal_error_code(repository):
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="sql-unknown-error",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+
+    with pytest.raises(sqlite3.IntegrityError):
+        repository.connection.execute(
+            """
+            UPDATE collection_runs
+            SET state = 'FAILED', finished_at = '2099-01-01T00:01:00Z',
+                error_code = 'MADE_UP_FAILURE'
+            WHERE collection_run_id = 'sql-unknown-error'
+            """
         )
 
 

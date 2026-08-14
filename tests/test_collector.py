@@ -16,6 +16,7 @@ import pytest
 from app.collector import CollectionRequest, Collector
 from app.collectors import normalize_bilibili, normalize_douyin
 from app.db import connect, migrate
+from app.metrics import MetricsEngine
 from app.repository import NormalizedSignal, Repository, SignalIdentityConflict
 
 
@@ -146,6 +147,72 @@ def test_dual_platform_jsonl_rerun_reuses_signal_and_adds_observation(
         comment_author,
         "我们团队获客成本越来越高",
     )
+
+
+def test_fake_runtime_cannot_add_hard_signal_or_recover_real_blocked_input(
+    tmp_path,
+):
+    now = lambda: datetime(2026, 8, 12, 8, tzinfo=UTC)
+    connection = connect(tmp_path / "facts.sqlite3")
+    migrate(connection)
+    repository = Repository(connection, now=now)
+    run_id = repository.create_run(["bili", "dy"])
+    connection.execute(
+        """
+        INSERT INTO campaigns (
+            campaign_id, mvp_run_id, platform, query_cluster, query_text,
+            max_contents, max_comments_per_content, state, created_at
+        ) VALUES (
+            'real-blocked-campaign', ?, 'bili', 'sales-agent', '销售获客',
+            1, 1, 'ACTIVE', '2026-08-12T08:00:00Z'
+        )
+        """,
+        (run_id,),
+    )
+    connection.execute(
+        """
+        INSERT INTO collection_runs (
+            collection_run_id, mvp_run_id, campaign_id, platform, attempt,
+            backend, started_by, runtime_lock_sha256, state, started_at
+        ) VALUES (
+            'real-blocked-collection', ?, 'real-blocked-campaign', 'bili', 1,
+            'MEDIACRAWLER_AUTHORIZED', 'test-operator', ?, 'RUNNING',
+            '2026-08-12T08:00:00Z'
+        )
+        """,
+        (run_id, "a" * 64),
+    )
+    connection.commit()
+    repository.finish_collection(
+        "real-blocked-collection",
+        state="BLOCKED_INPUT",
+        raw_count=0,
+        unique_count=0,
+        error_code="PLATFORM_AUTH_REQUIRED",
+    )
+    collector = Collector(
+        repository=repository,
+        runtime_path=FAKE_RUNTIME,
+        work_root=tmp_path / "collector",
+        python_executable=sys.executable,
+    )
+
+    simulated = collector.collect(request(run_id))
+    snapshot = MetricsEngine(connection).calculate(
+        run_id, now=datetime(2026, 8, 12, 9, tzinfo=UTC)
+    )
+
+    assert simulated.status == "SUCCEEDED"
+    assert [
+        row[0]
+        for row in connection.execute(
+            "SELECT backend FROM collection_runs ORDER BY rowid"
+        ).fetchall()
+    ] == ["MEDIACRAWLER_AUTHORIZED", "SIMULATION_ONLY"]
+    assert snapshot.unique_verifiable_signals == 0
+    assert snapshot.platform_breakdown["bili"]["signals"] == 0
+    assert snapshot.blocked_input is True
+    connection.close()
 
 
 def test_successful_collection_persists_operator_runtime_and_envelope_provenance(

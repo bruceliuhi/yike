@@ -77,76 +77,7 @@ class MetricsEngine:
         due_at = _dt(str(run["day14_due_at"]))
         cutoff = min(instant, due_at).isoformat(timespec="seconds").replace("+00:00", "Z")
 
-        unique_signals = self._scalar(
-            """
-            SELECT COUNT(*) FROM mvp_run_signals member
-            JOIN signals signal ON signal.signal_id = member.signal_id
-            JOIN sources source ON source.source_id = signal.source_id
-                               AND source.platform = signal.platform
-            WHERE member.mvp_run_id = ? AND signal.verifiable = 1
-              AND member.added_at <= ?
-              AND yike_nonblank_text(source.external_source_id) = 1
-              AND yike_nonblank_text(source.canonical_url) = 1
-              AND yike_nonblank_text(signal.external_comment_id) = 1
-              AND yike_nonblank_text(signal.normalized_comment_url) = 1
-              AND yike_nonblank_text(signal.author_public_id) = 1
-              AND yike_nonblank_text(signal.body) = 1
-              AND length(signal.body_sha256) = 64
-              AND signal.body_sha256 NOT GLOB '*[^0-9a-f]*'
-              AND signal.body_sha256 = yike_sha256_text(signal.body)
-              AND yike_nonblank_text(signal.normalizer_version) = 1
-              AND EXISTS (
-                  SELECT 1
-                  FROM signal_observations observation
-                  JOIN collection_runs collection
-                    ON collection.collection_run_id = observation.collection_run_id
-                   AND collection.mvp_run_id = observation.mvp_run_id
-                  JOIN campaigns campaign
-                    ON campaign.campaign_id = collection.campaign_id
-                   AND campaign.mvp_run_id = collection.mvp_run_id
-                   AND campaign.platform = collection.platform
-                  WHERE observation.mvp_run_id = member.mvp_run_id
-                    AND observation.signal_id = member.signal_id
-                    AND yike_nonblank_text(observation.query_cluster) = 1
-                    AND yike_nonblank_text(observation.query_text) = 1
-                    AND campaign.query_cluster = observation.query_cluster
-                    AND campaign.query_text = observation.query_text
-                    AND strftime(
-                        '%Y-%m-%dT%H:%M:%SZ', observation.observed_at
-                    ) = observation.observed_at
-                    AND observation.observed_at <= ?
-                    AND length(observation.raw_sha256) = 64
-                    AND observation.raw_sha256 NOT GLOB '*[^0-9a-f]*'
-                    AND observation.envelope_sha256 IS NOT NULL
-                    AND length(observation.envelope_sha256) = 64
-                    AND observation.envelope_sha256 NOT GLOB '*[^0-9a-f]*'
-                    AND collection.platform = signal.platform
-                    AND collection.state = 'SUCCEEDED'
-                    AND collection.started_at IS NOT NULL
-                    AND collection.finished_at IS NOT NULL
-                    AND strftime(
-                        '%Y-%m-%dT%H:%M:%SZ', collection.started_at
-                    ) = collection.started_at
-                    AND strftime(
-                        '%Y-%m-%dT%H:%M:%SZ', collection.finished_at
-                    ) = collection.finished_at
-                    AND collection.started_at <= observation.observed_at
-                    AND observation.observed_at <= collection.finished_at
-                    AND collection.finished_at <= ?
-                    AND collection.raw_count > 0
-                    AND collection.unique_count >= 0
-                    AND collection.unique_count <= collection.raw_count
-                    AND collection.error_code IS NULL
-                    AND collection.output_manifest_sha256 IS NOT NULL
-                    AND length(collection.output_manifest_sha256) = 64
-                    AND collection.output_manifest_sha256 NOT GLOB '*[^0-9a-f]*'
-                    AND length(collection.runtime_lock_sha256) = 64
-                    AND collection.runtime_lock_sha256 NOT GLOB '*[^0-9a-f]*'
-              )
-            """,
-            run_id,
-            extra=(cutoff, cutoff, cutoff),
-        )
+        unique_signals = self._hard_signal_count(run_id, cutoff)
         reviewed = self._scalar(self._leaf_review_count(), run_id, extra=(cutoff, cutoff))
         first_outreach = self._scalar(
             """
@@ -269,11 +200,13 @@ class MetricsEngine:
                 """
                 SELECT COUNT(*) FROM collection_runs
                 WHERE mvp_run_id = ? AND state = 'BLOCKED_INPUT'
+                  AND backend = 'MEDIACRAWLER_AUTHORIZED'
                   AND coalesce(finished_at, started_at) <= ?
                   AND NOT EXISTS (
                     SELECT 1 FROM collection_runs recovered
                     WHERE recovered.mvp_run_id = collection_runs.mvp_run_id
                       AND recovered.platform = collection_runs.platform
+                      AND recovered.backend = 'MEDIACRAWLER_AUTHORIZED'
                       AND recovered.state IN ('SUCCEEDED', 'SUCCEEDED_NO_DATA')
                       AND (
                         coalesce(recovered.finished_at, recovered.started_at)
@@ -544,6 +477,82 @@ class MetricsEngine:
             collection_breakdown=self._collection_breakdown(run_id, cutoff),
         )
 
+    def _hard_signal_count(
+        self, run_id: str, cutoff: str, *, platform: str | None = None
+    ) -> int:
+        return self._scalar(
+            """
+            SELECT COUNT(*) FROM mvp_run_signals member
+            JOIN signals signal ON signal.signal_id = member.signal_id
+            JOIN sources source ON source.source_id = signal.source_id
+                               AND source.platform = signal.platform
+            WHERE member.mvp_run_id = ? AND signal.verifiable = 1
+              AND member.added_at <= ?
+              AND (? IS NULL OR signal.platform = ?)
+              AND yike_nonblank_text(source.external_source_id) = 1
+              AND yike_nonblank_text(source.canonical_url) = 1
+              AND yike_nonblank_text(signal.external_comment_id) = 1
+              AND yike_nonblank_text(signal.normalized_comment_url) = 1
+              AND yike_nonblank_text(signal.author_public_id) = 1
+              AND yike_nonblank_text(signal.body) = 1
+              AND length(signal.body_sha256) = 64
+              AND signal.body_sha256 NOT GLOB '*[^0-9a-f]*'
+              AND signal.body_sha256 = yike_sha256_text(signal.body)
+              AND yike_nonblank_text(signal.normalizer_version) = 1
+              AND EXISTS (
+                  SELECT 1
+                  FROM signal_observations observation
+                  JOIN collection_runs collection
+                    ON collection.collection_run_id = observation.collection_run_id
+                   AND collection.mvp_run_id = observation.mvp_run_id
+                  JOIN campaigns campaign
+                    ON campaign.campaign_id = collection.campaign_id
+                   AND campaign.mvp_run_id = collection.mvp_run_id
+                   AND campaign.platform = collection.platform
+                  WHERE observation.mvp_run_id = member.mvp_run_id
+                    AND observation.signal_id = member.signal_id
+                    AND yike_nonblank_text(observation.query_cluster) = 1
+                    AND yike_nonblank_text(observation.query_text) = 1
+                    AND campaign.query_cluster = observation.query_cluster
+                    AND campaign.query_text = observation.query_text
+                    AND strftime(
+                        '%Y-%m-%dT%H:%M:%SZ', observation.observed_at
+                    ) = observation.observed_at
+                    AND observation.observed_at <= ?
+                    AND length(observation.raw_sha256) = 64
+                    AND observation.raw_sha256 NOT GLOB '*[^0-9a-f]*'
+                    AND observation.envelope_sha256 IS NOT NULL
+                    AND length(observation.envelope_sha256) = 64
+                    AND observation.envelope_sha256 NOT GLOB '*[^0-9a-f]*'
+                    AND collection.platform = signal.platform
+                    AND collection.backend = 'MEDIACRAWLER_AUTHORIZED'
+                    AND collection.state = 'SUCCEEDED'
+                    AND collection.started_at IS NOT NULL
+                    AND collection.finished_at IS NOT NULL
+                    AND strftime(
+                        '%Y-%m-%dT%H:%M:%SZ', collection.started_at
+                    ) = collection.started_at
+                    AND strftime(
+                        '%Y-%m-%dT%H:%M:%SZ', collection.finished_at
+                    ) = collection.finished_at
+                    AND collection.started_at <= observation.observed_at
+                    AND observation.observed_at <= collection.finished_at
+                    AND collection.finished_at <= ?
+                    AND collection.raw_count > 0
+                    AND collection.unique_count >= 0
+                    AND collection.unique_count <= collection.raw_count
+                    AND collection.error_code IS NULL
+                    AND collection.output_manifest_sha256 IS NOT NULL
+                    AND length(collection.output_manifest_sha256) = 64
+                    AND collection.output_manifest_sha256 NOT GLOB '*[^0-9a-f]*'
+                    AND length(collection.runtime_lock_sha256) = 64
+                    AND collection.runtime_lock_sha256 NOT GLOB '*[^0-9a-f]*'
+              )
+            """,
+            run_id,
+            extra=(cutoff, platform, platform, cutoff, cutoff),
+        )
+
     @staticmethod
     def _leaf_review_count() -> str:
         return """
@@ -572,16 +581,7 @@ class MetricsEngine:
         ]
         result: dict[str, dict[str, int]] = {}
         for platform in platforms:
-            signals = self.connection.execute(
-                """
-                SELECT COUNT(DISTINCT member.signal_id)
-                FROM mvp_run_signals member
-                JOIN signals signal ON signal.signal_id = member.signal_id
-                WHERE member.mvp_run_id = ? AND signal.platform = ?
-                  AND member.added_at <= ?
-                """,
-                (run_id, platform, cutoff),
-            ).fetchone()[0]
+            signals = self._hard_signal_count(run_id, cutoff, platform=platform)
             reviewed = self.connection.execute(
                 """
                 SELECT COUNT(DISTINCT review.signal_id)

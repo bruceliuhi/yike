@@ -49,6 +49,36 @@ def test_empty_run_metrics_are_sql_derived_and_running(tmp_path):
     connection.close()
 
 
+def test_platform_signal_breakdown_excludes_nonverifiable_membership(tmp_path):
+    connection = connect(tmp_path / "facts.sqlite3")
+    migrate(connection)
+    repository = Repository(
+        connection, now=lambda: datetime(2026, 8, 12, tzinfo=UTC)
+    )
+    run_id = repository.create_run(["bili", "dy"])
+    repository.import_signal(
+        run_id,
+        NormalizedSignal(
+            platform="bili",
+            external_source_id="diagnostic-source",
+            source_url="https://www.bilibili.com/video/BV-diagnostic",
+            external_comment_id="diagnostic-comment",
+            comment_url="https://www.bilibili.com/video/BV-diagnostic#reply",
+            author_public_id="diagnostic-author",
+            body="diagnostic only",
+            verifiable=False,
+        ),
+    )
+
+    snapshot = MetricsEngine(connection).calculate(
+        run_id, now=datetime(2026, 8, 12, 1, tzinfo=UTC)
+    )
+
+    assert snapshot.unique_verifiable_signals == 0
+    assert snapshot.platform_breakdown["bili"]["signals"] == 0
+    connection.close()
+
+
 def test_verifiable_metric_requires_a_complete_observation_chain(tmp_path):
     connection = connect(tmp_path / "facts.sqlite3")
     migrate(connection)
@@ -112,6 +142,7 @@ def test_verifiable_metric_requires_a_successful_collection_with_manifest(
     repository.begin_collection(
         run_id=run_id,
         collection_run_id="failed-provenance",
+        backend="MEDIACRAWLER_AUTHORIZED",
         platform="bili",
         query_cluster="sales-agent",
         query_text="销售线索",
@@ -178,6 +209,7 @@ def test_verifiable_metric_rechecks_campaign_query_binding(tmp_path):
     repository.begin_collection(
         run_id=run_id,
         collection_run_id="metric-query-collection",
+        backend="MEDIACRAWLER_AUTHORIZED",
         platform="bili",
         query_cluster="campaign-cluster",
         query_text="campaign-query",
@@ -261,6 +293,7 @@ def test_verifiable_metric_rejects_observation_after_cutoff(tmp_path):
     repository.begin_collection(
         run_id=run_id,
         collection_run_id="metric-future-collection",
+        backend="MEDIACRAWLER_AUTHORIZED",
         platform="bili",
         query_cluster="sales",
         query_text="销售线索",
@@ -337,6 +370,7 @@ def test_verifiable_metric_rejects_invalid_signal_core_evidence(tmp_path):
     repository.begin_collection(
         run_id=run_id,
         collection_run_id="metric-invalid-core-collection",
+        backend="MEDIACRAWLER_AUTHORIZED",
         platform="bili",
         query_cluster="sales",
         query_text="销售线索",
@@ -414,6 +448,7 @@ def test_verifiable_metric_rejects_whitespace_only_provenance(tmp_path):
     repository.begin_collection(
         run_id=run_id,
         collection_run_id="metric-whitespace-collection",
+        backend="MEDIACRAWLER_AUTHORIZED",
         platform="bili",
         query_cluster="sales",
         query_text="销售线索",
@@ -488,6 +523,7 @@ def test_verifiable_metric_rejects_incomplete_collection_terminal(tmp_path):
     repository.begin_collection(
         run_id=run_id,
         collection_run_id="metric-incomplete-terminal",
+        backend="MEDIACRAWLER_AUTHORIZED",
         platform="bili",
         query_cluster="sales",
         query_text="销售线索",
@@ -544,6 +580,7 @@ def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
     repository.begin_collection(
         run_id=run_id,
         collection_run_id="metric-provenance",
+        backend="MEDIACRAWLER_AUTHORIZED",
         platform="bili",
         query_cluster="sales-agent",
         query_text="销售线索",

@@ -44,6 +44,7 @@ class FactBuilder:
         self.repository.begin_collection(
             run_id=self.run_id,
             collection_run_id="metrics-provenance",
+            backend="MEDIACRAWLER_AUTHORIZED",
             platform="bili",
             query_cluster="sales-agent",
             query_text="销售线索",
@@ -344,6 +345,7 @@ def test_open_activity_fails_time_gate_and_later_collection_success_resolves_blo
     facts.repository.begin_collection(
         run_id=facts.run_id,
         collection_run_id="blocked-attempt",
+        backend="MEDIACRAWLER_AUTHORIZED",
         platform="bili",
         query_cluster="sales-agent",
         query_text="销售线索",
@@ -359,6 +361,7 @@ def test_open_activity_fails_time_gate_and_later_collection_success_resolves_blo
     facts.repository.begin_collection(
         run_id=facts.run_id,
         collection_run_id="recovered-attempt",
+        backend="MEDIACRAWLER_AUTHORIZED",
         platform="bili",
         query_cluster="sales-agent",
         query_text="销售线索",
