@@ -19,6 +19,7 @@ from app.repository import (
     NormalizedSignal,
     Repository,
     SignalIdentityConflict,
+    canonical_single_keyword,
 )
 
 
@@ -424,14 +425,12 @@ class Collector:
                 "FAILED", 0, 0, "COLLECTION_PROCESS_FAILED"
             )
         status, error_code = terminal
-        if progress["state"] is None or (
-            process.returncode == 0 and progress["state"] != "RUNNING"
-        ):
+        if process.returncode != 0:
+            return _CollectionOutcome(status, 0, 0, error_code)
+        if progress["state"] != "RUNNING":
             return _CollectionOutcome(
                 "FAILED", 0, 0, "COLLECTION_PROCESS_FAILED"
             )
-        if process.returncode != 0:
-            return _CollectionOutcome(status, 0, 0, error_code)
 
         try:
             data_dir = self._data_dir(request, output_dir)
@@ -509,6 +508,10 @@ class Collector:
         except (sqlite3.Error, RuntimeError):
             failure = _CollectionOutcome(
                 "FAILED", outcome.raw_count, 0, "COLLECTION_PROCESS_FAILED"
+            )
+        except KeyboardInterrupt:
+            failure = _CollectionOutcome(
+                "CANCELLED", 0, 0, "COLLECTION_CANCELLED"
             )
         else:
             unique_count = sum(result.created for result in results)
@@ -1116,11 +1119,10 @@ class Collector:
             raise ValueError("platform must be bili or dy")
         if (
             not isinstance(request.query_cluster, str)
-            or not isinstance(request.query_text, str)
             or not request.query_cluster.strip()
-            or not request.query_text.strip()
         ):
             raise ValueError("query cluster and text are required")
+        canonical_single_keyword(request.query_text)
         if not isinstance(request.started_by, str) or not request.started_by.strip():
             raise ValueError("collection started by is required")
         if type(request.max_contents) is not int or not 1 <= request.max_contents <= 10:

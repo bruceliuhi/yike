@@ -88,6 +88,29 @@ def _make_runtime(tmp_path: Path) -> Path:
                 payload.update(changes)
                 atomic(".yike-collection-progress.json", payload)
 
+            if args.keywords == "__early_network_terminal__":
+                atomic(
+                    ".yike-collection-status.json",
+                    {
+                        "schema_version": "YIKE_MEDIACRAWLER_STATUS_V1",
+                        "platform": args.platform,
+                        "status": "FAILED",
+                        "error_code": "COLLECTION_NETWORK_FAILED",
+                    },
+                )
+                raise SystemExit(45)
+            if args.keywords == "__early_success_terminal__":
+                atomic(
+                    ".yike-collection-status.json",
+                    {
+                        "schema_version": "YIKE_MEDIACRAWLER_STATUS_V1",
+                        "platform": args.platform,
+                        "status": "SUCCEEDED_NO_DATA",
+                        "error_code": None,
+                    },
+                )
+                raise SystemExit(0)
+
             if args.keywords == "__malformed_progress__":
                 progress("RUNNING", 1, unexpected="field")
                 time.sleep(0.25)
@@ -1268,3 +1291,258 @@ def test_programmatic_noninteger_limits_fail_before_database_or_spawn(
 
     assert repository.connection.execute("SELECT count(*) FROM campaigns").fetchone()[0] == 0
     assert not collector.work_root.exists()
+
+
+def test_keyboard_interrupt_during_atomic_completion_cancels_and_frees_slot(
+    repository, run_id, tmp_path, monkeypatch
+):
+    collector = _controlled_collector(repository, tmp_path, monkeypatch)
+    transaction_states: list[bool] = []
+
+    def interrupt_prepare(*args, **kwargs):
+        transaction_states.append(repository.connection.in_transaction)
+        raise KeyboardInterrupt("operator cancelled during import")
+
+    monkeypatch.setattr(repository, "_prepare_signal", interrupt_prepare)
+    caught = None
+    result = None
+    request = _request(run_id, query_text="__fast_progress__")
+    try:
+        result = collector.collect(request)
+    except BaseException as error:  # RED records the leaked KeyboardInterrupt safely.
+        caught = error
+
+    row = repository.connection.execute(
+        "SELECT state, error_code FROM collection_runs WHERE collection_run_id = ?",
+        (request.collection_run_id,),
+    ).fetchone()
+    active = repository.connection.execute(
+        "SELECT count(*) FROM collection_runs "
+        "WHERE state IN ('WAITING_LOGIN','RUNNING','IMPORTING')"
+    ).fetchone()[0]
+
+    assert transaction_states == [True]
+    assert caught is None
+    assert result is not None
+    assert result.collection_run_id == request.collection_run_id
+    assert (result.status, result.error_code) == (
+        "CANCELLED",
+        "COLLECTION_CANCELLED",
+    )
+    assert tuple(row) == ("CANCELLED", "COLLECTION_CANCELLED")
+    assert repository.count_signals(run_id) == 0
+    assert repository.count_observations(run_id) == 0
+    assert active == 0
+
+
+def test_valid_typed_terminal_before_first_progress_is_preserved(
+    repository, run_id, tmp_path, monkeypatch
+):
+    collector = _controlled_collector(repository, tmp_path, monkeypatch)
+    request = _request(run_id, query_text="__early_network_terminal__")
+
+    result = collector.collect(request)
+
+    assert (result.status, result.error_code) == (
+        "FAILED",
+        "COLLECTION_NETWORK_FAILED",
+    )
+    row = repository.connection.execute(
+        "SELECT state, error_code FROM collection_runs WHERE collection_run_id = ?",
+        (request.collection_run_id,),
+    ).fetchone()
+    assert tuple(row) == ("FAILED", "COLLECTION_NETWORK_FAILED")
+
+
+def test_success_terminal_without_running_progress_still_fails_closed(
+    repository, run_id, tmp_path, monkeypatch
+):
+    collector = _controlled_collector(repository, tmp_path, monkeypatch)
+
+    result = collector.collect(
+        _request(run_id, query_text="__early_success_terminal__")
+    )
+
+    assert (result.status, result.error_code) == (
+        "FAILED",
+        "COLLECTION_PROCESS_FAILED",
+    )
+
+
+def test_exact_patch_requires_endpoint_specific_response_shapes(monkeypatch):
+    patch = PATCH_PATH.read_text(encoding="utf-8")
+    runtime_source = _new_file_added_by_patch(patch, "tools/yike_runtime.py")
+    assert runtime_source is not None
+    from types import ModuleType
+
+    class PlaywrightTimeoutError(Exception):
+        pass
+
+    playwright = ModuleType("playwright")
+    async_api = ModuleType("playwright.async_api")
+    async_api.TimeoutError = PlaywrightTimeoutError
+    playwright.async_api = async_api
+    monkeypatch.setitem(sys.modules, "playwright", playwright)
+    monkeypatch.setitem(sys.modules, "playwright.async_api", async_api)
+    namespace: dict[str, object] = {}
+    exec(compile(runtime_source, "tools/yike_runtime.py", "exec"), namespace)
+    response_changed = namespace["YikePlatformResponseChanged"]
+    require_mapping_field = namespace.get("require_mapping_field")
+    require_list_field = namespace.get("require_list_field")
+    require_mapping_list_field = namespace.get("require_mapping_list_field")
+    require_int_field = namespace.get("require_int_field")
+    require_bool_field = namespace.get("require_bool_field")
+    require_nonempty_string_field = namespace.get("require_nonempty_string_field")
+    require_bilibili_comment_list = namespace.get("require_bilibili_comment_list")
+    require_douyin_comment_list = namespace.get("require_douyin_comment_list")
+    assert callable(require_mapping_field)
+    assert callable(require_list_field)
+    assert callable(require_mapping_list_field)
+    assert callable(require_int_field)
+    assert callable(require_bool_field)
+    assert callable(require_nonempty_string_field)
+    assert callable(require_bilibili_comment_list)
+    assert callable(require_douyin_comment_list)
+
+    assert require_mapping_field({"data": {}}, "data") == {}
+    assert require_list_field({"data": []}, "data") == []
+    assert require_mapping_list_field({"data": []}, "data") == []
+    assert require_int_field({"status_code": 0}, "status_code") == 0
+    assert require_bool_field({"is_end": False}, "is_end") is False
+    assert require_nonempty_string_field({"logid": "search-id"}, "logid") == "search-id"
+    assert require_bilibili_comment_list({"replies": []}, "replies") == []
+    assert require_douyin_comment_list({"comments": []}, "comments") == []
+    for helper, payload, field in (
+        (require_mapping_field, {}, "data"),
+        (require_mapping_field, {"data": None}, "data"),
+        (require_mapping_field, {"data": []}, "data"),
+        (require_list_field, {}, "data"),
+        (require_list_field, {"data": None}, "data"),
+        (require_list_field, {"data": {}}, "data"),
+        (require_int_field, {}, "status_code"),
+        (require_int_field, {"status_code": False}, "status_code"),
+        (require_int_field, {"status_code": "0"}, "status_code"),
+        (require_bool_field, {}, "is_end"),
+        (require_bool_field, {"is_end": 0}, "is_end"),
+    ):
+        with pytest.raises(response_changed):
+            helper(payload, field)
+
+    for payload in ({}, {"data": None}, {"data": {}}, {"data": ["bad"]}):
+        with pytest.raises(response_changed):
+            require_mapping_list_field(payload, "data")
+    for payload in ({}, {"logid": None}, {"logid": 1}, {"logid": ""}):
+        with pytest.raises(response_changed):
+            require_nonempty_string_field(payload, "logid")
+    for payload in ({"replies": [{}]}, {"replies": [{"rpid": "1"}]}):
+        with pytest.raises(response_changed):
+            require_bilibili_comment_list(payload, "replies")
+    for payload in ({"comments": [{}]}, {"comments": [{"cid": 1}]}):
+        with pytest.raises(response_changed):
+            require_douyin_comment_list(payload, "comments")
+
+    assert 'require_mapping_field(data, "data")' in patch
+    assert 'require_mapping_list_field(videos_res, "result")' in patch
+    assert 'require_mapping_field(comments_res, "cursor")' in patch
+    assert 'require_bilibili_comment_list(comments_res, "replies")' in patch
+    assert 'require_int_field(data, "status_code")' in patch
+    assert 'require_mapping_list_field(posts_res, "data")' in patch
+    assert 'require_douyin_comment_list(comments_res, "comments")' in patch
+    assert 'require_mapping_field(posts_res, "extra")' in patch
+    assert 'require_nonempty_string_field(extra, "logid")' in patch
+
+
+def test_exact_patch_maps_transport_and_playwright_network_errors_explicitly(
+    monkeypatch,
+):
+    patch = PATCH_PATH.read_text(encoding="utf-8")
+    runtime_source = _new_file_added_by_patch(patch, "tools/yike_runtime.py")
+    assert runtime_source is not None
+    from types import ModuleType
+
+    class PlaywrightTimeoutError(Exception):
+        pass
+
+    playwright = ModuleType("playwright")
+    async_api = ModuleType("playwright.async_api")
+    async_api.TimeoutError = PlaywrightTimeoutError
+    playwright.async_api = async_api
+    monkeypatch.setitem(sys.modules, "playwright", playwright)
+    monkeypatch.setitem(sys.modules, "playwright.async_api", async_api)
+    namespace: dict[str, object] = {}
+    exec(compile(runtime_source, "tools/yike_runtime.py", "exec"), namespace)
+    classify = namespace["classify_error"]
+
+    assert classify(PlaywrightTimeoutError("navigation timeout")) == (
+        "COLLECTION_NETWORK_FAILED",
+        45,
+    )
+    assert classify(Exception("net::ERR_TIMED_OUT")) == (
+        "COLLECTION_PROCESS_FAILED",
+        48,
+    )
+    assert patch.count("except httpx.RequestError as error:") >= 3
+    assert patch.count("except PlaywrightError as error:") >= 2
+    assert "raise YikeNetworkFailed() from error" in patch
+
+
+@pytest.mark.parametrize(
+    "query_text",
+    [
+        "keyword,second",
+        "keyword\nsecond",
+        "keyword\tsecond",
+        "keyword\x00second",
+        "x" * 201,
+    ],
+)
+def test_invalid_single_keyword_fails_before_database_or_spawn(
+    repository, run_id, tmp_path, monkeypatch, query_text
+):
+    collector = _controlled_collector(repository, tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        repository,
+        "begin_collection",
+        lambda *args, **kwargs: pytest.fail("invalid query reached repository"),
+    )
+    monkeypatch.setattr(
+        "app.collector.run_supervised_process",
+        lambda *args, **kwargs: pytest.fail("invalid query must not spawn"),
+    )
+
+    with pytest.raises(ValueError, match="query"):
+        collector.collect(_request(run_id, query_text=query_text))
+
+    assert repository.connection.execute("SELECT count(*) FROM campaigns").fetchone()[0] == 0
+    assert not collector.work_root.exists()
+
+
+@pytest.mark.parametrize(
+    "query_text",
+    [
+        "keyword,second",
+        "keyword\nsecond",
+        "keyword\tsecond",
+        "keyword\x00second",
+        "x" * 201,
+    ],
+)
+def test_repository_rejects_invalid_single_keyword_identity(
+    repository, run_id, query_text
+):
+    with pytest.raises(ValueError, match="query"):
+        repository.begin_collection(
+            run_id=run_id,
+            collection_run_id=str(uuid4()),
+            platform="bili",
+            query_cluster="sales-agent",
+            query_text=query_text,
+            max_contents=5,
+            max_comments_per_content=20,
+            started_by="d03-remediation-test",
+            runtime_lock_sha256="a" * 64,
+            backend="MEDIACRAWLER_AUTHORIZED",
+        )
+
+    assert repository.connection.execute("SELECT count(*) FROM campaigns").fetchone()[0] == 0
+    assert repository.connection.execute("SELECT count(*) FROM collection_runs").fetchone()[0] == 0

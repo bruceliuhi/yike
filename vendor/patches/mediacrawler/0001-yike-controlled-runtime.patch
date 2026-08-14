@@ -90,12 +90,12 @@ index 2823a5f..797f215 100644
 +        )
 +        raise SystemExit(return_code) from error
 diff --git a/media_platform/bilibili/client.py b/media_platform/bilibili/client.py
-index 6d46e42..afffb7c 100644
+index 6d46e42..4d15c69 100644
 --- a/media_platform/bilibili/client.py
 +++ b/media_platform/bilibili/client.py
 @@ -26 +25,0 @@ import json
 -import random
-@@ -37,0 +37,9 @@ from tools import utils
+@@ -37,0 +37,13 @@ from tools import utils
 +from tools.yike_runtime import (
 +    YikeCollectionParseFailed,
 +    YikeNetworkFailed,
@@ -104,8 +104,12 @@ index 6d46e42..afffb7c 100644
 +    YikePlatformRateLimited,
 +    YikePlatformResponseChanged,
 +    YikePlatformVerificationRequired,
++    require_bilibili_comment_list,
++    require_bool_field,
++    require_int_field,
++    require_mapping_field,
 +)
-@@ -46,0 +55,9 @@ from .help import BilibiliSign
+@@ -46,0 +59,9 @@ from .help import BilibiliSign
 +def _yike_bilibili_platform_code(data: object) -> int:
 +    if not isinstance(data, dict):
 +        raise YikePlatformResponseChanged()
@@ -115,7 +119,7 @@ index 6d46e42..afffb7c 100644
 +    return platform_code
 +
 +
-@@ -83,2 +100,17 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -83,2 +104,15 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -        async with make_async_client(proxy=self.proxy) as client:
 -            response = await client.request(method, url, timeout=self.timeout, **kwargs)
 +        try:
@@ -123,9 +127,7 @@ index 6d46e42..afffb7c 100644
 +                response = await client.request(
 +                    method, url, timeout=self.timeout, **kwargs
 +                )
-+        except httpx.TimeoutException as error:
-+            raise YikeNetworkFailed() from error
-+        except httpx.NetworkError as error:
++        except httpx.RequestError as error:
 +            raise YikeNetworkFailed() from error
 +        if response.status_code == 401:
 +            raise YikePlatformAuthRequired()
@@ -135,12 +137,14 @@ index 6d46e42..afffb7c 100644
 +            raise YikePlatformRateLimited()
 +        if not 200 <= response.status_code < 300:
 +            raise YikePlatformResponseChanged()
-@@ -87,5 +119,13 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -87,7 +121,14 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -        except json.JSONDecodeError:
 -            utils.logger.error(f"[BilibiliClient.request] Failed to decode JSON from response. status_code: {response.status_code}, response_text: {response.text}")
 -            raise DataFetchError(f"Failed to decode JSON, content: {response.text}")
 -        if data.get("code") != 0:
 -            raise DataFetchError(data.get("message", "unkonw error"))
+-        else:
+-            return data.get("data", {})
 +        except json.JSONDecodeError as error:
 +            raise YikeCollectionParseFailed() from error
 +        platform_code = _yike_bilibili_platform_code(data)
@@ -154,13 +158,14 @@ index 6d46e42..afffb7c 100644
 +            raise YikePlatformRateLimited()
 +        if platform_code != 0:
 +            raise YikePlatformResponseChanged()
-@@ -154,2 +194 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
++        return require_mapping_field(data, "data")
+@@ -154,2 +195 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -        except Exception as e:
 -            utils.logger.error(f"[BilibiliClient.pong] Pong bilibili failed: {e}, and try to login again...")
 +        except YikePlatformAuthRequired:
-@@ -291 +329,0 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -291 +330,0 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -        max_retries = 3
-@@ -293,15 +331,5 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -293,24 +332,7 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -        while not is_end and len(result) < max_count:
 -            comments_res = None
 -            for attempt in range(max_retries):
@@ -176,12 +181,37 @@ index 6d46e42..afffb7c 100644
 -                        utils.logger.error(f"[BilibiliClient.get_video_all_comments] Max retries reached for video_id: {video_id}. Skipping comments. Error: {e}")
 -                        is_end = True
 -                        break
+-            if not comments_res:
+-                break
+-
+-            cursor_info: Dict = comments_res.get("cursor")
+-            if not cursor_info:
+-                utils.logger.warning(f"[BilibiliClient.get_video_all_comments] Could not find 'cursor' in response for video_id: {video_id}. Skipping.")
+-                break
+-
+-            comment_list: List[Dict] = comments_res.get("replies") or []
 +        remaining_comment_count = max_count
 +        while not is_end and remaining_comment_count > 0:
 +            comments_res = await self.get_video_comments(
 +                video_id, CommentOrderType.DEFAULT, next_page
 +            )
-@@ -350,2 +378,5 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
++            cursor_info: Dict = require_mapping_field(comments_res, "cursor")
++            comment_list: List[Dict] = require_bilibili_comment_list(comments_res, "replies")
+@@ -337,11 +359,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+-            # Check if is_end and next exist
+-            if "is_end" not in cursor_info or "next" not in cursor_info:
+-                utils.logger.warning(f"[BilibiliClient.get_video_all_comments] 'is_end' or 'next' not in cursor for video_id: {video_id}. Assuming end of comments.")
+-                is_end = True
+-            else:
+-                is_end = cursor_info.get("is_end")
+-                next_page = cursor_info.get("next")
+-
+-            if not isinstance(is_end, bool):
+-                utils.logger.warning(f"[BilibiliClient.get_video_all_comments] 'is_end' is not a boolean for video_id: {video_id}. Assuming end of comments.")
+-                is_end = True
++            is_end = require_bool_field(cursor_info, "is_end")
++            next_page = require_int_field(cursor_info, "next")
+@@ -350,2 +363,5 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -            if len(result) + len(comment_list) > max_count:
 -                comment_list = comment_list[:max_count - len(result)]
 +            comment_list = comment_list[:remaining_comment_count]
@@ -189,48 +219,61 @@ index 6d46e42..afffb7c 100644
 +                await callback(video_id, comment_list)
 +            result.extend(comment_list)
 +            remaining_comment_count -= len(comment_list)
-@@ -353,0 +385,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -353,0 +370,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 +                    if remaining_comment_count <= 0:
 +                        break
-@@ -356 +389 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -356 +374 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -                        await self.get_video_all_level_two_comments(
 +                        sub_comments = await self.get_video_all_level_two_comments(
-@@ -362,0 +396 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -362,0 +381 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 +                            remaining_comment_count,
-@@ -364,2 +398,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -364,2 +383,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -            if callback:  # If there is a callback function, execute it
 -                await callback(video_id, comment_list)
 +                        result.extend(sub_comments)
 +                        remaining_comment_count -= len(sub_comments)
-@@ -367,3 +400,0 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -367,3 +385,0 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -            # Always accumulate, otherwise the `len(result) < max_count` loop guard
 -            # never advances when sub-comment crawling is enabled.
 -            result.extend(comment_list)
-@@ -380 +411,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -380 +396,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -    ) -> Dict:
 +        max_count: int = 0,
 +    ) -> List[Dict]:
-@@ -393 +425,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -393 +410,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -        while True:
 +        collected: List[Dict] = []
 +        while len(collected) < max_count:
-@@ -395 +428 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -395 +413,3 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 -            comment_list: List[Dict] = result.get("replies", [])
-+            comment_list: List[Dict] = (result.get("replies") or [])[:max_count - len(collected)]
-@@ -397,0 +431 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
++            comment_list: List[Dict] = require_bilibili_comment_list(
++                result, "replies"
++            )[:max_count - len(collected)]
+@@ -397,0 +418 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 +            collected.extend(comment_list)
-@@ -402,0 +437 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -399 +420,2 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
+-            if (int(result["page"]["count"]) <= pn * ps):
++            page = require_mapping_field(result, "page")
++            if require_int_field(page, "count") <= pn * ps:
+@@ -402,0 +425 @@ class BilibiliClient(AbstractApiClient, ProxyRefreshMixin):
 +        return collected
 diff --git a/media_platform/bilibili/core.py b/media_platform/bilibili/core.py
-index 14b5099..51007e8 100644
+index 14b5099..7c10308 100644
 --- a/media_platform/bilibili/core.py
 +++ b/media_platform/bilibili/core.py
-@@ -47,0 +48 @@ from tools.cdp_browser import CDPBrowserManager
-+from tools.yike_runtime import write_progress
-@@ -66 +67 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -35,0 +36 @@ from playwright.async_api import (
++    Error as PlaywrightError,
+@@ -47,0 +49,6 @@ from tools.cdp_browser import CDPBrowserManager
++from tools.yike_runtime import (
++    YikeNetworkFailed,
++    YikePlatformResponseChanged,
++    require_mapping_list_field,
++    write_progress,
++)
+@@ -66 +73 @@ class BilibiliCrawler(AbstractCrawler):
 -        self.user_agent = utils.get_user_agent()
 +        self.user_agent: Optional[str] = None
-@@ -78,17 +79,4 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -78,17 +85,4 @@ class BilibiliCrawler(AbstractCrawler):
 -            # Choose launch mode based on configuration
 -            if config.ENABLE_CDP_MODE:
 -                utils.logger.info("[BilibiliCrawler] Launching browser using CDP mode")
@@ -252,35 +295,47 @@ index 14b5099..51007e8 100644
 +            self.browser_context = await self.launch_browser(
 +                playwright.chromium, None, headless=config.HEADLESS
 +            )
-@@ -95,0 +84 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -96 +90,5 @@ class BilibiliCrawler(AbstractCrawler):
+-            await self.context_page.goto(self.index_url)
 +            self.user_agent = await self.context_page.evaluate("navigator.userAgent")
-@@ -100,0 +90 @@ class BilibiliCrawler(AbstractCrawler):
++            try:
++                await self.context_page.goto(self.index_url)
++            except PlaywrightError as error:
++                raise YikeNetworkFailed() from error
+@@ -100,0 +99 @@ class BilibiliCrawler(AbstractCrawler):
 +                write_progress(config.SAVE_DATA_PATH, config.PLATFORM, "WAITING_LOGIN")
-@@ -112,0 +103 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -112,0 +112 @@ class BilibiliCrawler(AbstractCrawler):
 +            write_progress(config.SAVE_DATA_PATH, config.PLATFORM, "RUNNING")
-@@ -190,2 +180,0 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -190,2 +189,0 @@ class BilibiliCrawler(AbstractCrawler):
 -        if config.CRAWLER_MAX_NOTES_COUNT < bili_limit_count:
 -            config.CRAWLER_MAX_NOTES_COUNT = bili_limit_count
-@@ -192,0 +182 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -192,0 +191 @@ class BilibiliCrawler(AbstractCrawler):
 +        remaining_content_count = config.CRAWLER_MAX_NOTES_COUNT
-@@ -193,0 +184,2 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -193,0 +193,2 @@ class BilibiliCrawler(AbstractCrawler):
 +            if remaining_content_count <= 0:
 +                break
-@@ -197 +189 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -197 +198 @@ class BilibiliCrawler(AbstractCrawler):
 -            while (page - start_page + 1) * bili_limit_count <= config.CRAWLER_MAX_NOTES_COUNT:
 +            while remaining_content_count > 0:
-@@ -213 +205 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -213 +214,8 @@ class BilibiliCrawler(AbstractCrawler):
 -                video_list: List[Dict] = videos_res.get("result")
-+                video_list: List[Dict] = (videos_res.get("result") or [])[:remaining_content_count]
-@@ -231,0 +224 @@ class BilibiliCrawler(AbstractCrawler):
++                video_list: List[Dict] = require_mapping_list_field(videos_res, "result")[:remaining_content_count]
++
++                if any(
++                    type(video_item.get("aid")) is not int
++                    or video_item["aid"] <= 0
++                    for video_item in video_list
++                ):
++                    raise YikePlatformResponseChanged()
+@@ -231,0 +240 @@ class BilibiliCrawler(AbstractCrawler):
 +                        remaining_content_count -= 1
-@@ -364,0 +358 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -364,0 +374 @@ class BilibiliCrawler(AbstractCrawler):
 +                raise
-@@ -492 +485,0 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -492 +501,0 @@ class BilibiliCrawler(AbstractCrawler):
 -        user_agent: Optional[str],
-@@ -499 +491,0 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -499 +507,0 @@ class BilibiliCrawler(AbstractCrawler):
 -        :param user_agent: user agent
-@@ -504,22 +496,8 @@ class BilibiliCrawler(AbstractCrawler):
+@@ -504,22 +512,8 @@ class BilibiliCrawler(AbstractCrawler):
 -        if config.SAVE_LOGIN_STATE:
 -            # feat issue #14
 -            # we will save login state to avoid login every time
@@ -337,10 +392,10 @@ index bd50fe2..3b3c8de 100644
 -            sys.exit()
 +            raise YikePlatformAuthRequired()
 diff --git a/media_platform/douyin/client.py b/media_platform/douyin/client.py
-index 3310cdb..321f9a6 100644
+index 3310cdb..33b7be2 100644
 --- a/media_platform/douyin/client.py
 +++ b/media_platform/douyin/client.py
-@@ -32,0 +33,8 @@ from tools.httpx_util import make_async_client
+@@ -32,0 +33,10 @@ from tools.httpx_util import make_async_client
 +from tools.yike_runtime import (
 +    YikeCollectionParseFailed,
 +    YikeNetworkFailed,
@@ -348,11 +403,13 @@ index 3310cdb..321f9a6 100644
 +    YikePlatformPermissionDenied,
 +    YikePlatformRateLimited,
 +    YikePlatformResponseChanged,
++    require_douyin_comment_list,
++    require_int_field,
 +)
-@@ -127,2 +134,0 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -127,2 +136,0 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
 -        async with make_async_client(proxy=self.proxy) as client:
 -            response = await client.request(method, url, timeout=self.timeout, **kwargs)
-@@ -130,6 +136,28 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -130,6 +138,22 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
 -            if response.text == "" or response.text == "blocked":
 -                utils.logger.error(f"request params incrr, response.text: {response.text}")
 -                raise Exception("account blocked")
@@ -363,9 +420,7 @@ index 3310cdb..321f9a6 100644
 +                response = await client.request(
 +                    method, url, timeout=self.timeout, **kwargs
 +                )
-+        except httpx.TimeoutException as error:
-+            raise YikeNetworkFailed() from error
-+        except httpx.NetworkError as error:
++        except httpx.RequestError as error:
 +            raise YikeNetworkFailed() from error
 +        if response.status_code == 401:
 +            raise YikePlatformAuthRequired()
@@ -379,18 +434,26 @@ index 3310cdb..321f9a6 100644
 +            data = response.json()
 +        except json.JSONDecodeError as error:
 +            raise YikeCollectionParseFailed() from error
-+        if not isinstance(data, dict):
-+            raise YikePlatformResponseChanged()
-+        platform_code = data.get("status_code", 0)
-+        if type(platform_code) is not int:
-+            raise YikePlatformResponseChanged()
++        platform_code = require_int_field(data, "status_code")
 +        if platform_code != 0:
 +            raise YikePlatformResponseChanged()
 +        return data
-@@ -273 +301,2 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -273 +297,2 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
 -        while comments_has_more and len(result) < max_count:
 +        remaining_comment_count = max_count
 +        while comments_has_more and remaining_comment_count > 0:
+@@ -275,3 +300,5 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+-            comments_has_more = comments_res.get("has_more", 0)
+-            comments_cursor = comments_res.get("cursor", 0)
+-            comments = comments_res.get("comments", [])
++            comments_has_more = require_int_field(comments_res, "has_more")
++            comments_cursor = require_int_field(comments_res, "cursor")
++            comments = require_douyin_comment_list(comments_res, "comments")
++            if comments_has_more not in (0, 1):
++                raise YikePlatformResponseChanged()
+@@ -278,0 +306,2 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
++                if comments_has_more:
++                    raise YikePlatformResponseChanged()
 @@ -280,2 +309 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
 -            if len(result) + len(comments) > max_count:
 -                comments = comments[:max_count - len(result)]
@@ -405,53 +468,119 @@ index 3310cdb..321f9a6 100644
 @@ -298 +329 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
 -                    while sub_comments_has_more:
 +                    while sub_comments_has_more and remaining_comment_count > 0:
-@@ -305,0 +337 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -300,3 +331,11 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+-                        sub_comments_has_more = sub_comments_res.get("has_more", 0)
+-                        sub_comments_cursor = sub_comments_res.get("cursor", 0)
+-                        sub_comments = sub_comments_res.get("comments", [])
++                        sub_comments_has_more = require_int_field(
++                            sub_comments_res, "has_more"
++                        )
++                        sub_comments_cursor = require_int_field(
++                            sub_comments_res, "cursor"
++                        )
++                        sub_comments = require_douyin_comment_list(
++                            sub_comments_res, "comments"
++                        )
++                        if sub_comments_has_more not in (0, 1):
++                            raise YikePlatformResponseChanged()
+@@ -304,0 +344,2 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
++                            if sub_comments_has_more:
++                                raise YikePlatformResponseChanged()
+@@ -305,0 +347 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
 +                        sub_comments = sub_comments[:remaining_comment_count]
-@@ -306,0 +339 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+@@ -306,0 +349 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
 +                        remaining_comment_count -= len(sub_comments)
 diff --git a/media_platform/douyin/core.py b/media_platform/douyin/core.py
-index c0e9372..91a08a5 100644
+index c0e9372..21a2898 100644
 --- a/media_platform/douyin/core.py
 +++ b/media_platform/douyin/core.py
-@@ -39,0 +40 @@ from tools.cdp_browser import CDPBrowserManager
-+from tools.yike_runtime import YikePlatformResponseChanged, write_progress
-@@ -94,3 +94,0 @@ class DouYinCrawler(AbstractCrawler):
+@@ -28,0 +29 @@ from playwright.async_api import (
++    Error as PlaywrightError,
+@@ -39,0 +41,8 @@ from tools.cdp_browser import CDPBrowserManager
++from tools.yike_runtime import (
++    YikeNetworkFailed,
++    YikePlatformResponseChanged,
++    require_mapping_list_field,
++    require_mapping_field,
++    require_nonempty_string_field,
++    write_progress,
++)
+@@ -94,3 +102,0 @@ class DouYinCrawler(AbstractCrawler):
 -                # stealth.min.js is a js script to prevent the website from detecting the crawler.
 -                await self.browser_context.add_init_script(path="libs/stealth.min.js")
 -
-@@ -101,0 +100 @@ class DouYinCrawler(AbstractCrawler):
+@@ -98 +104,4 @@ class DouYinCrawler(AbstractCrawler):
+-            await self.context_page.goto(self.index_url)
++            try:
++                await self.context_page.goto(self.index_url)
++            except PlaywrightError as error:
++                raise YikeNetworkFailed() from error
+@@ -101,0 +111 @@ class DouYinCrawler(AbstractCrawler):
 +                write_progress(config.SAVE_DATA_PATH, config.PLATFORM, "WAITING_LOGIN")
-@@ -113,0 +113 @@ class DouYinCrawler(AbstractCrawler):
+@@ -113,0 +124 @@ class DouYinCrawler(AbstractCrawler):
 +            write_progress(config.SAVE_DATA_PATH, config.PLATFORM, "RUNNING")
-@@ -130,2 +129,0 @@ class DouYinCrawler(AbstractCrawler):
+@@ -130,2 +140,0 @@ class DouYinCrawler(AbstractCrawler):
 -        if config.CRAWLER_MAX_NOTES_COUNT < dy_limit_count:
 -            config.CRAWLER_MAX_NOTES_COUNT = dy_limit_count
-@@ -132,0 +131 @@ class DouYinCrawler(AbstractCrawler):
+@@ -132,0 +142 @@ class DouYinCrawler(AbstractCrawler):
 +        remaining_content_count = config.CRAWLER_MAX_NOTES_COUNT
-@@ -133,0 +133,2 @@ class DouYinCrawler(AbstractCrawler):
+@@ -133,0 +144,2 @@ class DouYinCrawler(AbstractCrawler):
 +            if remaining_content_count <= 0:
 +                break
-@@ -139 +140 @@ class DouYinCrawler(AbstractCrawler):
+@@ -139 +151 @@ class DouYinCrawler(AbstractCrawler):
 -            while (page - start_page + 1) * dy_limit_count <= config.CRAWLER_MAX_NOTES_COUNT:
 +            while remaining_content_count > 0:
-@@ -157 +158 @@ class DouYinCrawler(AbstractCrawler):
+@@ -152,2 +164,3 @@ class DouYinCrawler(AbstractCrawler):
+-                    if posts_res.get("data") is None or posts_res.get("data") == []:
+-                        utils.logger.info(f"[DouYinCrawler.search] search douyin keyword: {keyword}, page: {page} is empty,{posts_res.get('data')}`")
++                    post_list = require_mapping_list_field(posts_res, "data")
++                    if not post_list:
++                        utils.logger.info(f"[DouYinCrawler.search] search douyin keyword: {keyword}, page: {page} is empty")
+@@ -157 +170 @@ class DouYinCrawler(AbstractCrawler):
 -                    break
 +                    raise
-@@ -161,2 +162 @@ class DouYinCrawler(AbstractCrawler):
+@@ -160,4 +173,2 @@ class DouYinCrawler(AbstractCrawler):
+-                if "data" not in posts_res:
 -                    utils.logger.error(f"[DouYinCrawler.search] search douyin keyword: {keyword} failed，账号也许被风控了。")
 -                    break
-+                    raise YikePlatformResponseChanged()
-@@ -165 +165 @@ class DouYinCrawler(AbstractCrawler):
+-                dy_search_id = posts_res.get("extra", {}).get("logid", "")
++                extra = require_mapping_field(posts_res, "extra")
++                dy_search_id = require_nonempty_string_field(extra, "logid")
+@@ -165,7 +176,19 @@ class DouYinCrawler(AbstractCrawler):
 -                for post_item in posts_res.get("data"):
-+                for post_item in posts_res.get("data", [])[:remaining_content_count]:
-@@ -173,0 +174 @@ class DouYinCrawler(AbstractCrawler):
+-                    try:
+-                        aweme_info: Dict = (post_item.get("aweme_info") or post_item.get("aweme_mix_info", {}).get("mix_items")[0])
+-                    except TypeError:
+-                        continue
+-                    aweme_list.append(aweme_info.get("aweme_id", ""))
+-                    page_aweme_list.append(aweme_info.get("aweme_id", ""))
++                for post_item in post_list[:remaining_content_count]:
++                    if not isinstance(post_item, dict):
++                        raise YikePlatformResponseChanged()
++                    aweme_info = post_item.get("aweme_info")
++                    if aweme_info is None:
++                        mix_info = require_mapping_field(post_item, "aweme_mix_info")
++                        mix_items = require_mapping_list_field(
++                            mix_info, "mix_items"
++                        )
++                        if not mix_items:
++                            raise YikePlatformResponseChanged()
++                        aweme_info = mix_items[0]
++                    elif not isinstance(aweme_info, dict):
++                        raise YikePlatformResponseChanged()
++                    aweme_id = aweme_info.get("aweme_id")
++                    if not isinstance(aweme_id, str) or not aweme_id:
++                        raise YikePlatformResponseChanged()
++                    aweme_list.append(aweme_id)
++                    page_aweme_list.append(aweme_id)
+@@ -173,0 +197 @@ class DouYinCrawler(AbstractCrawler):
 +                    remaining_content_count -= 1
-@@ -248 +249 @@ class DouYinCrawler(AbstractCrawler):
+@@ -248 +272 @@ class DouYinCrawler(AbstractCrawler):
 -            await asyncio.wait(task_list)
 +            await asyncio.gather(*task_list)
-@@ -268,0 +270 @@ class DouYinCrawler(AbstractCrawler):
+@@ -268,0 +293 @@ class DouYinCrawler(AbstractCrawler):
 +                raise
-@@ -339,18 +341,9 @@ class DouYinCrawler(AbstractCrawler):
+@@ -339,18 +364,9 @@ class DouYinCrawler(AbstractCrawler):
 -        if config.SAVE_LOGIN_STATE:
 -            user_data_dir = os.path.join(os.getcwd(), "browser_data", config.USER_DATA_DIR % config.PLATFORM)  # type: ignore
 -            browser_context = await chromium.launch_persistent_context(
@@ -479,7 +608,7 @@ index c0e9372..91a08a5 100644
 +            viewport={"width": 1920, "height": 1080},
 +            user_agent=user_agent,
 +        )  # type: ignore
-@@ -377,3 +369,0 @@ class DouYinCrawler(AbstractCrawler):
+@@ -377,3 +392,0 @@ class DouYinCrawler(AbstractCrawler):
 -            # Add anti-detection script
 -            await self.cdp_manager.add_stealth_script()
 -
@@ -524,21 +653,41 @@ index 4b76d11..4dba318 100644
 +        if await captcha.is_visible():
 +            raise YikePlatformVerificationRequired()
 diff --git a/tools/crawler_util.py b/tools/crawler_util.py
-index c816377..eea800d 100644
+index c816377..49d7547 100644
 --- a/tools/crawler_util.py
 +++ b/tools/crawler_util.py
-@@ -52 +51,0 @@ async def find_login_qrcode(page: Page, selector: str) -> str:
+@@ -37 +37,6 @@ from PIL import Image, ImageDraw, ImageShow
+-from playwright.async_api import BrowserContext, Cookie, Page
++from playwright.async_api import (
++    BrowserContext,
++    Cookie,
++    Page,
++    TimeoutError as PlaywrightTimeoutError,
++)
+@@ -40,0 +46 @@ from .httpx_util import make_async_client
++from .yike_runtime import YikeNetworkFailed
+@@ -52 +57,0 @@ async def find_login_qrcode(page: Page, selector: str) -> str:
 -                utils.logger.info(f"[find_login_qrcode] get qrcode by url:{login_qrcode_img}")
+@@ -58 +63 @@ async def find_login_qrcode(page: Page, selector: str) -> str:
+-                raise Exception(f"fetch login image url failed, response message:{resp.text}")
++                raise YikeNetworkFailed()
+@@ -61,3 +66,4 @@ async def find_login_qrcode(page: Page, selector: str) -> str:
+-    except Exception as e:
+-        print(e)
+-        return ""
++    except httpx.RequestError as error:
++        raise YikeNetworkFailed() from error
++    except PlaywrightTimeoutError as error:
++        raise YikeNetworkFailed() from error
 diff --git a/tools/yike_runtime.py b/tools/yike_runtime.py
 new file mode 100644
-index 0000000..25089d0
+index 0000000..2fdbbaf
 --- /dev/null
 +++ b/tools/yike_runtime.py
-@@ -0,0 +1,100 @@
+@@ -0,0 +1,168 @@
 +import json
 +import os
 +from pathlib import Path
-+
 +
 +class YikePlatformAuthRequired(Exception):
 +    pass
@@ -584,9 +733,78 @@ index 0000000..25089d0
 +    for error_type, terminal in _EXPLICIT_TERMINALS:
 +        if isinstance(error, error_type):
 +            return terminal
-+    if isinstance(error, TimeoutError):
++    try:
++        from playwright.async_api import TimeoutError as PlaywrightTimeoutError
++    except ImportError:
++        is_playwright_timeout = False
++    else:
++        is_playwright_timeout = isinstance(error, PlaywrightTimeoutError)
++    if isinstance(error, TimeoutError) or is_playwright_timeout:
 +        return "COLLECTION_NETWORK_FAILED", 45
 +    return "COLLECTION_PROCESS_FAILED", 48
++
++
++def _required_field(value: object, field: str) -> object:
++    if not isinstance(value, dict) or field not in value:
++        raise YikePlatformResponseChanged()
++    return value[field]
++
++
++def require_mapping_field(value: object, field: str) -> dict:
++    field_value = _required_field(value, field)
++    if type(field_value) is not dict:
++        raise YikePlatformResponseChanged()
++    return field_value
++
++
++def require_list_field(value: object, field: str) -> list:
++    field_value = _required_field(value, field)
++    if type(field_value) is not list:
++        raise YikePlatformResponseChanged()
++    return field_value
++
++
++def require_mapping_list_field(value: object, field: str) -> list[dict]:
++    field_value = require_list_field(value, field)
++    if any(type(item) is not dict for item in field_value):
++        raise YikePlatformResponseChanged()
++    return field_value
++
++
++def require_nonempty_string_field(value: object, field: str) -> str:
++    field_value = _required_field(value, field)
++    if type(field_value) is not str or not field_value:
++        raise YikePlatformResponseChanged()
++    return field_value
++
++
++def require_int_field(value: object, field: str) -> int:
++    field_value = _required_field(value, field)
++    if type(field_value) is not int:
++        raise YikePlatformResponseChanged()
++    return field_value
++
++
++def require_bilibili_comment_list(value: object, field: str) -> list[dict]:
++    comments = require_mapping_list_field(value, field)
++    for comment in comments:
++        if require_int_field(comment, "rpid") <= 0:
++            raise YikePlatformResponseChanged()
++    return comments
++
++
++def require_douyin_comment_list(value: object, field: str) -> list[dict]:
++    comments = require_mapping_list_field(value, field)
++    for comment in comments:
++        require_nonempty_string_field(comment, "cid")
++    return comments
++
++
++def require_bool_field(value: object, field: str) -> bool:
++    field_value = _required_field(value, field)
++    if type(field_value) is not bool:
++        raise YikePlatformResponseChanged()
++    return field_value
 +
 +
 +def _write_atomic(output_dir: str, name: str, payload: dict[str, object]) -> None:

@@ -24,23 +24,23 @@
   "patches": [
     {
       "path": "vendor/patches/mediacrawler/0001-yike-controlled-runtime.patch",
-      "sha256": "da189d5362e30fd7dbfd0393cddcf624e14305ee78f7cdcf911e426bfc3fd91e"
+      "sha256": "86a63d57bdb1ad09a7f3a625164f1b0dd56fcf5ea6bd24d3d429505552fe6c13"
     }
   ],
-  "patchset_sha256": "3bb6a2ad63cb585bd630c95d51fc0092b4b66c17ff1bef77f3ad5f133e1c3cf0",
+  "patchset_sha256": "9ef7c227cf2295a0a35d4c07a12cb5f72735cc15046e96bfe137d49968523997",
   "patched_files": {
     "config/base_config.py": "7c5a9da4b9715fb7f2eec8ab9470a67b3ee47601f4c368168fa8352f3048b46a",
     "main.py": "e91bdea10c043eb805b4dc5d62545875426e31165fab6b86c8fdbcd0e74d1dc4",
-    "media_platform/bilibili/client.py": "3d9999385fb380dcfdb7478304a9d8188e255e372f70611c3e612dc638e62a2f",
-    "media_platform/bilibili/core.py": "6939d4c14d05db9bc669c17d89b178c21de4bd9a914bca8abcea624afdabb647",
+    "media_platform/bilibili/client.py": "f7d9291f0adebd42ee91c2f8dbd4f5a56804da23174a25566e3ebc6b1e419453",
+    "media_platform/bilibili/core.py": "3e4c1d4db9a2fc00adf4fa53e13eda50a2e99be40031bb3a1c49d4ce9db02975",
     "media_platform/bilibili/login.py": "06e2495e1aa04b1b7e12b84bd579e96c86622446e2efc88fe5139573a5b33f94",
-    "media_platform/douyin/client.py": "7584ac0f12a411bd5115731e14780e0cfad3c45394881f3b91b636c6ceb2fa37",
-    "media_platform/douyin/core.py": "3fda8548359bfef469c0f6ccd1771e491c47f8e66037e5788d46b60661853974",
+    "media_platform/douyin/client.py": "f2a7b1707c27a08a1379cc04a18cdb0ad45db3f4ec9d0f2c3867ef7c1d1cdbe2",
+    "media_platform/douyin/core.py": "523c86ef7c8502a8e672c2791fddb381f711de50476e14e1612a448f83bf658a",
     "media_platform/douyin/login.py": "dc3495a2f2e75bda41c8e85106451582c889561950b229006a2aa17c495059e5",
-    "tools/crawler_util.py": "27ad5ba42196f7640bca60d591a0ef212aef545778b106de0b3e5d4a9eb755eb",
-    "tools/yike_runtime.py": "bed702868327f6859a90b117ae9827534112b823ea203d4d9a8b1436e5105906"
+    "tools/crawler_util.py": "1bb27bdd68faf24df13c2bd32db441953c759c84c7dc6adf30659af605381a2d",
+    "tools/yike_runtime.py": "0301e61c219823c6d35d10f4b1f6c0f2c2aabf7b12534b8abebb645ab3ff1832"
   },
-  "patched_tree_sha256": "4ca9d0931f9cee9c5d61371a36a286674a7dda6bfa8be450a46e2563cfdbc63f",
+  "patched_tree_sha256": "9d92cf2e1111c891c3f34d0e252ab7a6a3ec89a7b90395c10a52ca744362963a",
   "runtime_environment": {
     "uv_version": "0.11.6",
     "lock_path": "uv.lock",

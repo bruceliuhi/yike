@@ -16,6 +16,7 @@ _PLATFORMS = frozenset(("bili", "dy"))
 _COLLECTION_BACKENDS = frozenset(
     ("MEDIACRAWLER_AUTHORIZED", "SIMULATION_ONLY")
 )
+_MAX_QUERY_TEXT_LENGTH = 200
 _COLLECTION_TERMINAL_ERROR_CODES = {
     "BLOCKED_INPUT": frozenset(
         (
@@ -68,6 +69,21 @@ _THRESHOLDS = {
 _EMPTY_QUERY_SET_SHA256 = hashlib.sha256(
     json.dumps(_QUERY_SET, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 ).hexdigest()
+
+
+def canonical_single_keyword(value: object) -> str:
+    if not isinstance(value, str) or not value.isprintable():
+        raise ValueError(
+            "collection query text is required and must be one printable keyword"
+        )
+    keyword = value.strip()
+    if not keyword or "," in keyword or len(keyword) > _MAX_QUERY_TEXT_LENGTH:
+        raise ValueError(
+            "collection query text is required and must be one printable keyword"
+        )
+    return keyword
+
+
 _THRESHOLDS_SHA256 = hashlib.sha256(
     json.dumps(_THRESHOLDS, sort_keys=True, separators=(",", ":")).encode("utf-8")
 ).hexdigest()
@@ -310,11 +326,11 @@ class Repository:
     ) -> str:
         if platform not in _PLATFORMS:
             raise ValueError("platform must be one of: bili, dy")
-        if not isinstance(query_cluster, str) or not isinstance(query_text, str):
+        if not isinstance(query_cluster, str):
             raise ValueError("collection query identity is required")
         query_cluster = query_cluster.strip()
-        query_text = query_text.strip()
-        if not query_cluster or not query_text:
+        query_text = canonical_single_keyword(query_text)
+        if not query_cluster:
             raise ValueError("collection query identity is required")
         if (
             type(max_contents) is not int
