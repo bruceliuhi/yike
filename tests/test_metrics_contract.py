@@ -91,7 +91,8 @@ class FactBuilder:
         ).signal_id
 
     def review(self, signal_id: str, index: int, label: str = "HIGH_INTENT", seconds: int = 1):
-        self.finish_collection()
+        if self.finish_collection():
+            self.clock.move(1)
         score_id = f"score-{uuid4()}"
         self.repository.append_score_success(
             score_run_id=score_id,
@@ -117,9 +118,11 @@ class FactBuilder:
             activity_session_id=session_id,
         )
 
-    def outreach(self, signal_id: str, review_id: str, index: int):
+    def outreach(
+        self, signal_id: str, review_id: str, index: int, *, seconds: int = 1
+    ):
         session_id = self.workflow.start_activity(self.run_id, signal_id, "DRAFT")
-        self.clock.move(1)
+        self.clock.move(seconds)
         self.workflow.record_activity(session_id, "COMPLETE")
         approved = "你提到人工筛选效率低。我们正在研究销售 Agent，你们每周筛选多少条线索？"
         draft_id = self.workflow.create_draft(
@@ -184,6 +187,8 @@ class FactBuilder:
                 error_code=None,
                 output_manifest_sha256="d" * 64,
             )
+            return True
+        return False
 
     def snapshot(self, now: datetime):
         self.finish_collection()
@@ -492,6 +497,126 @@ def test_later_authorized_observation_cannot_promote_earlier_model_block(
     facts.close()
 
 
+def test_same_second_authorization_cannot_promote_prior_simulation_facts(
+    tmp_path,
+):
+    facts = FactBuilder(
+        tmp_path / "same-second-retroactive.sqlite3",
+        backend="SIMULATION_ONLY",
+    )
+    signals = [facts.signal(index) for index in range(300)]
+    boundary = datetime(2026, 8, 21, tzinfo=UTC)
+    facts.clock.set(boundary)
+    facts.finish_collection()
+
+    reviews = [
+        facts.review(signal_id, index, seconds=0)
+        for index, signal_id in enumerate(signals[:100])
+    ]
+    outreach = [
+        facts.outreach(signals[index], reviews[index], index, seconds=0)
+        for index in range(30)
+    ]
+    for index in range(30, 51):
+        session_id = facts.workflow.start_activity(
+            facts.run_id, signals[index], "DRAFT"
+        )
+        facts.workflow.record_activity(session_id, "COMPLETE")
+        facts.workflow.create_draft(
+            run_id=facts.run_id,
+            signal_id=signals[index],
+            body="人工筛选效率低。我们正在研究销售 Agent，你们每周筛选多少条线索？",
+            activity_session_id=session_id,
+        )
+    responses = [facts.response(outreach[index], index) for index in range(5)]
+    interviews = [facts.interview(responses[index]) for index in range(2)]
+    canonical_boundary = boundary.isoformat().replace("+00:00", "Z")
+    facts.workflow.register_quote(
+        run_id=facts.run_id,
+        response_event_id=responses[0],
+        interview_id=interviews[0],
+        scope_summary="线索排序试点",
+        agreed_to_receive_pricing_at=canonical_boundary,
+        verified_at=canonical_boundary,
+    )
+    facts.repository.append_score_failure(
+        score_run_id="same-second-model-block",
+        run_id=facts.run_id,
+        signal_id=signals[-1],
+        provider=None,
+        model=None,
+        prompt_version="score-v1",
+        schema_version="schema-v1",
+        error_code="MODEL_UNAVAILABLE",
+    )
+
+    facts.repository.begin_collection(
+        run_id=facts.run_id,
+        collection_run_id="same-second-authorized",
+        backend="MEDIACRAWLER_AUTHORIZED",
+        platform="bili",
+        query_cluster="sales-agent",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    reobserved = [
+        facts.signal(index, collection_run_id="same-second-authorized")
+        for index in range(300)
+    ]
+    facts.repository.finish_collection(
+        "same-second-authorized",
+        state="SUCCEEDED",
+        raw_count=300,
+        unique_count=0,
+        error_code=None,
+        output_manifest_sha256="e" * 64,
+    )
+
+    snapshot = facts.snapshot(boundary + timedelta(seconds=1))
+
+    assert reobserved == signals
+    assert (
+        snapshot.unique_verifiable_signals,
+        snapshot.reviewed_signals,
+        snapshot.reviewed_ab,
+        snapshot.first_outreach_subjects,
+        snapshot.valid_response_subjects,
+        snapshot.completed_interviews,
+        snapshot.verified_quotes,
+        snapshot.blocked_input,
+        snapshot.all_success_thresholds,
+        snapshot.loss_stop,
+        snapshot.decision,
+        snapshot.platform_breakdown["bili"],
+        snapshot.industry_breakdown,
+    ) == (
+        300,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        False,
+        False,
+        False,
+        "RUNNING",
+        {
+            "signals": 300,
+            "reviewed": 0,
+            "first_outreach": 0,
+            "valid_responses": 0,
+            "interviews": 0,
+            "quotes": 0,
+        },
+        {},
+    )
+    facts.close()
+
+
 def test_all_six_loss_stop_rules_are_derived_from_persisted_facts(tmp_path):
     reasons_seen = set()
     for scenario in (
@@ -595,6 +720,7 @@ def test_open_activity_fails_time_gate_and_later_collection_success_resolves_blo
     facts = FactBuilder(tmp_path / "recovery.sqlite3")
     signal_id = facts.signal(1)
     facts.finish_collection()
+    facts.clock.move(1)
     facts.workflow.start_activity(facts.run_id, signal_id, "REVIEW")
     facts.repository.begin_collection(
         run_id=facts.run_id,
@@ -636,10 +762,35 @@ def test_open_activity_fails_time_gate_and_later_collection_success_resolves_blo
     facts.close()
 
 
+def test_future_activity_event_is_not_hard_but_keeps_time_gate_closed(tmp_path):
+    facts = FactBuilder(tmp_path / "future-activity.sqlite3")
+    signal_id = facts.signal(1)
+    facts.finish_collection()
+    facts.clock.move(1)
+    session_id = facts.workflow.start_activity(facts.run_id, signal_id, "REVIEW")
+    cutoff = facts.clock()
+    cutoff_text = cutoff.isoformat().replace("+00:00", "Z")
+    facts.clock.move(1)
+    facts.workflow.record_activity(session_id, "COMPLETE")
+
+    metrics = MetricsEngine(facts.connection)
+    hard_sessions = metrics._hard_execute(
+        "SELECT count(*) FROM hard_activity_sessions WHERE mvp_run_id = ?",
+        facts.run_id,
+        cutoff_text,
+        extra=(facts.run_id,),
+    ).fetchone()[0]
+    snapshot = metrics.calculate(facts.run_id, now=cutoff)
+
+    assert (hard_sessions, snapshot.time_complete) == (0, False)
+    facts.close()
+
+
 def test_model_availability_recovery_uses_one_cross_table_sequence(tmp_path):
     facts = FactBuilder(tmp_path / "model-order.sqlite3")
     signal_id = facts.signal(1)
     facts.finish_collection()
+    facts.clock.move(1)
     facts.repository.append_draft_failure(
         draft_run_id="draft-blocked", run_id=facts.run_id,
         signal_id=signal_id, provider=None, model=None,

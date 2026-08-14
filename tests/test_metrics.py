@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import hashlib
 
 import pytest
@@ -574,7 +574,8 @@ def test_verifiable_metric_rejects_incomplete_collection_terminal(tmp_path):
 def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
     connection = connect(tmp_path / "facts.sqlite3")
     migrate(connection)
-    clock = lambda: datetime(2026, 8, 12, 8, tzinfo=UTC)
+    current = [datetime(2026, 8, 12, 8, tzinfo=UTC)]
+    clock = lambda: current[0]
     repository = Repository(connection, now=clock)
     run_id = repository.create_run(["bili", "dy"])
     repository.begin_collection(
@@ -618,6 +619,7 @@ def test_seeded_metrics_count_unique_verified_fact_chains(tmp_path):
         error_code=None,
         output_manifest_sha256="d" * 64,
     )
+    current[0] += timedelta(seconds=1)
     decision = ScoreDecision.model_validate(
         {
             "grade": "A",

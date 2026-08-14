@@ -86,7 +86,8 @@ hard_scores AS (
       ON eligible.mvp_run_id = score.mvp_run_id
      AND eligible.signal_id = score.signal_id
     JOIN metric_context context ON context.mvp_run_id = score.mvp_run_id
-    WHERE score.created_at BETWEEN eligible.eligible_since AND context.cutoff
+    WHERE score.created_at > eligible.eligible_since
+      AND score.created_at <= context.cutoff
 ),
 hard_presentations AS (
     SELECT presentation.*, score.eligible_since
@@ -96,8 +97,8 @@ hard_presentations AS (
      AND score.mvp_run_id = presentation.mvp_run_id
      AND score.signal_id = presentation.signal_id
     JOIN metric_context context ON context.mvp_run_id = presentation.mvp_run_id
-    WHERE presentation.presented_at
-          BETWEEN score.eligible_since AND context.cutoff
+    WHERE presentation.presented_at > score.eligible_since
+      AND presentation.presented_at <= context.cutoff
 ),
 hard_activity_sessions AS (
     SELECT session.*, eligible.eligible_since
@@ -106,7 +107,8 @@ hard_activity_sessions AS (
       ON eligible.mvp_run_id = session.mvp_run_id
      AND eligible.signal_id = session.signal_id
     JOIN metric_context context ON context.mvp_run_id = session.mvp_run_id
-    WHERE session.started_at BETWEEN eligible.eligible_since AND context.cutoff
+    WHERE session.started_at > eligible.eligible_since
+      AND session.started_at <= context.cutoff
       AND EXISTS (
           SELECT 1 FROM activity_events event
           WHERE event.activity_session_id = session.activity_session_id
@@ -114,7 +116,25 @@ hard_activity_sessions AS (
       AND NOT EXISTS (
           SELECT 1 FROM activity_events event
           WHERE event.activity_session_id = session.activity_session_id
-            AND event.received_at < eligible.eligible_since
+            AND (
+                event.received_at <= eligible.eligible_since
+                OR event.received_at > context.cutoff
+            )
+      )
+),
+future_activity_sessions AS (
+    SELECT session.activity_session_id, session.mvp_run_id
+    FROM activity_sessions session
+    JOIN hard_eligible_signals eligible
+      ON eligible.mvp_run_id = session.mvp_run_id
+     AND eligible.signal_id = session.signal_id
+    JOIN metric_context context ON context.mvp_run_id = session.mvp_run_id
+    WHERE session.started_at > eligible.eligible_since
+      AND session.started_at <= context.cutoff
+      AND EXISTS (
+          SELECT 1 FROM activity_events event
+          WHERE event.activity_session_id = session.activity_session_id
+            AND event.received_at > context.cutoff
       )
 ),
 hard_terminal_activity_sessions AS (
@@ -122,7 +142,8 @@ hard_terminal_activity_sessions AS (
     FROM hard_activity_sessions session
     JOIN metric_context context ON context.mvp_run_id = session.mvp_run_id
     WHERE session.state IN ('COMPLETED', 'CANCELLED')
-      AND session.completed_at BETWEEN session.eligible_since AND context.cutoff
+      AND session.completed_at > session.eligible_since
+      AND session.completed_at <= context.cutoff
       AND NOT EXISTS (
           SELECT 1 FROM activity_events event
           WHERE event.activity_session_id = session.activity_session_id
@@ -143,8 +164,10 @@ hard_reviews AS (
      AND session.activity_kind = 'REVIEW'
      AND session.state = 'COMPLETED'
     JOIN metric_context context ON context.mvp_run_id = review.mvp_run_id
-    WHERE review.started_at BETWEEN presentation.eligible_since AND context.cutoff
-      AND review.completed_at BETWEEN presentation.eligible_since AND context.cutoff
+    WHERE review.started_at > presentation.eligible_since
+      AND review.started_at <= context.cutoff
+      AND review.completed_at > presentation.eligible_since
+      AND review.completed_at <= context.cutoff
 ),
 hard_drafts AS (
     SELECT draft.*, eligible.eligible_since
@@ -159,7 +182,8 @@ hard_drafts AS (
      AND session.activity_kind = 'DRAFT'
      AND session.state = 'COMPLETED'
     JOIN metric_context context ON context.mvp_run_id = draft.mvp_run_id
-    WHERE draft.created_at BETWEEN eligible.eligible_since AND context.cutoff
+    WHERE draft.created_at > eligible.eligible_since
+      AND draft.created_at <= context.cutoff
       AND (
           draft.draft_kind <> 'HUMAN_EDITED'
           OR session.activity_session_id IS NOT NULL
@@ -186,10 +210,14 @@ hard_outreach_candidates AS (
      AND draft.mvp_run_id = outreach.mvp_run_id
      AND draft.signal_id = outreach.signal_id
     JOIN metric_context context ON context.mvp_run_id = outreach.mvp_run_id
-    WHERE outreach.created_at BETWEEN eligible.eligible_since AND context.cutoff
+    WHERE outreach.created_at > eligible.eligible_since
+      AND outreach.created_at <= context.cutoff
       AND (
           outreach.sent_at IS NULL
-          OR outreach.sent_at BETWEEN eligible.eligible_since AND context.cutoff
+          OR (
+              outreach.sent_at > eligible.eligible_since
+              AND outreach.sent_at <= context.cutoff
+          )
       )
 ),
 hard_outreach AS (
@@ -214,14 +242,21 @@ hard_responses AS (
       ON outreach.outreach_action_id = response.outreach_action_id
      AND outreach.mvp_run_id = response.mvp_run_id
     JOIN metric_context context ON context.mvp_run_id = response.mvp_run_id
-    WHERE response.recorded_at BETWEEN outreach.eligible_since AND context.cutoff
+    WHERE response.recorded_at > outreach.eligible_since
+      AND response.recorded_at <= context.cutoff
       AND (
           response.occurred_at IS NULL
-          OR response.occurred_at BETWEEN outreach.eligible_since AND context.cutoff
+          OR (
+              response.occurred_at > outreach.eligible_since
+              AND response.occurred_at <= context.cutoff
+          )
       )
       AND (
           response.verified_at IS NULL
-          OR response.verified_at BETWEEN outreach.eligible_since AND context.cutoff
+          OR (
+              response.verified_at > outreach.eligible_since
+              AND response.verified_at <= context.cutoff
+          )
       )
 ),
 hard_interviews AS (
@@ -232,10 +267,14 @@ hard_interviews AS (
       ON response.response_event_id = interview.response_event_id
      AND response.mvp_run_id = interview.mvp_run_id
     JOIN metric_context context ON context.mvp_run_id = interview.mvp_run_id
-    WHERE interview.recorded_at BETWEEN response.eligible_since AND context.cutoff
+    WHERE interview.recorded_at > response.eligible_since
+      AND interview.recorded_at <= context.cutoff
       AND (
           interview.completed_at IS NULL
-          OR interview.completed_at BETWEEN response.eligible_since AND context.cutoff
+          OR (
+              interview.completed_at > response.eligible_since
+              AND interview.completed_at <= context.cutoff
+          )
       )
 ),
 hard_quotes AS (
@@ -252,10 +291,12 @@ hard_quotes AS (
            quote.response_event_id, interview.response_event_id
          )
     JOIN metric_context context ON context.mvp_run_id = quote.mvp_run_id
-    WHERE quote.recorded_at BETWEEN response.eligible_since AND context.cutoff
-      AND quote.agreed_to_receive_pricing_at
-          BETWEEN response.eligible_since AND context.cutoff
-      AND quote.verified_at BETWEEN response.eligible_since AND context.cutoff
+    WHERE quote.recorded_at > response.eligible_since
+      AND quote.recorded_at <= context.cutoff
+      AND quote.agreed_to_receive_pricing_at > response.eligible_since
+      AND quote.agreed_to_receive_pricing_at <= context.cutoff
+      AND quote.verified_at > response.eligible_since
+      AND quote.verified_at <= context.cutoff
       AND (quote.interview_id IS NULL OR interview.interview_id IS NOT NULL)
 ),
 hard_model_events AS (
@@ -266,7 +307,8 @@ hard_model_events AS (
      AND score.score_run_id = event.fact_id
      AND score.mvp_run_id = event.mvp_run_id
     JOIN metric_context context ON context.mvp_run_id = event.mvp_run_id
-    WHERE event.recorded_at BETWEEN score.eligible_since AND context.cutoff
+    WHERE event.recorded_at > score.eligible_since
+      AND event.recorded_at <= context.cutoff
     UNION ALL
     SELECT event.*, draft.signal_id, draft.eligible_since
     FROM model_availability_events event
@@ -275,7 +317,8 @@ hard_model_events AS (
      AND draft.draft_run_id = event.fact_id
      AND draft.mvp_run_id = event.mvp_run_id
     JOIN metric_context context ON context.mvp_run_id = event.mvp_run_id
-    WHERE event.recorded_at BETWEEN draft.eligible_since AND context.cutoff
+    WHERE event.recorded_at > draft.eligible_since
+      AND event.recorded_at <= context.cutoff
 )
 """
 
@@ -650,10 +693,21 @@ class MetricsEngine:
             if recovered is None:
                 abandoned_cancelled = True
                 break
+        future_activity = bool(
+            self._hard_scalar(
+                """
+                SELECT COUNT(*) FROM future_activity_sessions session
+                WHERE session.mvp_run_id = ?
+                """,
+                run_id,
+                cutoff,
+            )
+        )
         time_complete = (
             required_count == completed_required
             and not open_activity
             and not abandoned_cancelled
+            and not future_activity
         )
         shanghai = ZoneInfo("Asia/Shanghai")
         day_seconds: dict[str, int] = {}
