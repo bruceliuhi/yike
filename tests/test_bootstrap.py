@@ -12,7 +12,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 HISTORICAL_SOURCE_SHA256 = (
     "8c39db17a65aa4ca96f3583a720969e88a4253356db059ca285ca559f3395200"
 )
-CURRENT_AUTHORITY_SHA = "14df9ad42569fa53aa603370d99ed2747f61bfd5"
+CURRENT_AUTHORITY_SHA = "a4f4dea3ad75d898ca4c44ebc290b09af7d3af9d"
+CURRENT_D02_SHA = "2a805c169844ff47b7e5ebbd6c57f4ab5548debb"
 
 
 def test_empty_product_starts_on_loopback(tmp_path):
@@ -63,3 +64,7 @@ def test_implementation_is_bound_to_the_reviewed_discovery_authority():
     authority = (PROJECT_ROOT / "AUTHORITY.md").read_text()
 
     assert f"权威提交：`{CURRENT_AUTHORITY_SHA}`" in authority
+    assert "权威审查：`DISCOVERY_D02_TO_D03_AUTHORITY_PASS`" in authority
+    assert f"D02 实现：`{CURRENT_D02_SHA}` / `YK-D02_PASS`" in authority
+    assert "当前唯一可执行任务：`YK-D03 / READY`" in authority
+    assert "fixture 和自动门禁不代表真实平台或业务结果" in authority
