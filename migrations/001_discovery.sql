@@ -65,8 +65,10 @@ CREATE TABLE IF NOT EXISTS campaigns (
     platform TEXT NOT NULL CHECK (platform IN ('bili', 'dy')),
     query_cluster TEXT NOT NULL CHECK (yike_nonblank_text(query_cluster) = 1),
     query_text TEXT NOT NULL CHECK (yike_nonblank_text(query_text) = 1),
-    max_contents INTEGER,
-    max_comments_per_content INTEGER,
+    max_contents INTEGER NOT NULL DEFAULT 5 CHECK (max_contents BETWEEN 1 AND 10),
+    max_comments_per_content INTEGER NOT NULL DEFAULT 20 CHECK (
+        max_comments_per_content BETWEEN 1 AND 50
+    ),
     state TEXT NOT NULL,
     created_at TEXT NOT NULL,
     UNIQUE (campaign_id, mvp_run_id),
@@ -76,7 +78,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
 CREATE TABLE IF NOT EXISTS collection_runs (
     collection_run_id TEXT PRIMARY KEY,
     mvp_run_id TEXT NOT NULL REFERENCES mvp_runs(mvp_run_id),
-    campaign_id TEXT,
+    campaign_id TEXT NOT NULL,
     platform TEXT NOT NULL CHECK (platform IN ('bili', 'dy')),
     attempt INTEGER NOT NULL,
     backend TEXT NOT NULL,

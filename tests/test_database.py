@@ -364,8 +364,8 @@ def test_current_schema_migration_is_idempotent(connection):
         "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
     ).fetchone()
     assert tuple(marker) == (
-        "DISCOVERY_FACT_STORE_V11",
-        "f80de08dfa5446d790a6e2c723f131be2cc5917d5247e60f35d8a64ed5489238",
+        "DISCOVERY_FACT_STORE_V12",
+        "a99f85290fbfc0c131bed9b03189e27535594d0640ee566b10cff4ef891ebc95",
     )
 
 
@@ -641,6 +641,55 @@ def test_collection_attempt_is_unique_within_campaign(connection, repository):
             )
             """,
             (facts["run_id"], "a" * 64),
+        )
+
+
+def test_collection_requires_campaign(connection, repository):
+    run_id = repository.create_run(["bili", "dy"])
+
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute(
+            """
+            INSERT INTO collection_runs (
+                collection_run_id, mvp_run_id, campaign_id, platform,
+                attempt, backend, started_by, runtime_lock_sha256, state
+            ) VALUES (
+                'missing-campaign', ?, NULL, 'bili', 1,
+                'MEDIACRAWLER_AUTHORIZED', 'test-operator', ?, 'QUEUED'
+            )
+            """,
+            (run_id, "a" * 64),
+        )
+
+
+@pytest.mark.parametrize(
+    ("max_contents", "max_comments_per_content"),
+    [
+        (None, 20),
+        (0, 20),
+        (11, 20),
+        (5, None),
+        (5, 0),
+        (5, 51),
+    ],
+)
+def test_sql_rejects_invalid_campaign_limits(
+    connection, repository, max_contents, max_comments_per_content
+):
+    run_id = repository.create_run(["bili", "dy"])
+
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute(
+            """
+            INSERT INTO campaigns (
+                campaign_id, mvp_run_id, platform, query_cluster, query_text,
+                max_contents, max_comments_per_content, state, created_at
+            ) VALUES (
+                'invalid-limits', ?, 'bili', 'sales', '线索', ?, ?,
+                'ACTIVE', '2026-08-12T00:00:00Z'
+            )
+            """,
+            (run_id, max_contents, max_comments_per_content),
         )
 
 
