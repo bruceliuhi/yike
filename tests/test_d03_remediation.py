@@ -1372,7 +1372,19 @@ def test_success_terminal_without_running_progress_still_fails_closed(
 def test_exact_patch_requires_endpoint_specific_response_shapes(monkeypatch):
     patch = PATCH_PATH.read_text(encoding="utf-8")
     runtime_source = _new_file_added_by_patch(patch, "tools/yike_runtime.py")
+    login_guard_source = _function_added_by_patch(
+        patch,
+        "media_platform/bilibili/client.py",
+        "_yike_bilibili_login_state",
+    )
+    detail_guard_source = _function_added_by_patch(
+        patch,
+        "media_platform/bilibili/client.py",
+        "_yike_bilibili_video_detail",
+    )
     assert runtime_source is not None
+    assert login_guard_source is not None
+    assert detail_guard_source is not None
     from types import ModuleType
 
     class PlaywrightTimeoutError(Exception):
@@ -1386,7 +1398,17 @@ def test_exact_patch_requires_endpoint_specific_response_shapes(monkeypatch):
     monkeypatch.setitem(sys.modules, "playwright.async_api", async_api)
     namespace: dict[str, object] = {}
     exec(compile(runtime_source, "tools/yike_runtime.py", "exec"), namespace)
+    exec(
+        compile(login_guard_source, "media_platform/bilibili/client.py", "exec"),
+        namespace,
+    )
+    exec(
+        compile(detail_guard_source, "media_platform/bilibili/client.py", "exec"),
+        namespace,
+    )
     response_changed = namespace["YikePlatformResponseChanged"]
+    bilibili_login_state = namespace["_yike_bilibili_login_state"]
+    bilibili_video_detail = namespace["_yike_bilibili_video_detail"]
     require_mapping_field = namespace.get("require_mapping_field")
     require_list_field = namespace.get("require_list_field")
     require_mapping_list_field = namespace.get("require_mapping_list_field")
@@ -1412,6 +1434,23 @@ def test_exact_patch_requires_endpoint_specific_response_shapes(monkeypatch):
     assert require_nonempty_string_field({"logid": "search-id"}, "logid") == "search-id"
     assert require_bilibili_comment_list({"replies": []}, "replies") == []
     assert require_douyin_comment_list({"comments": []}, "comments") == []
+    assert bilibili_login_state({"isLogin": True}) is True
+    assert bilibili_login_state({"isLogin": False}) is False
+    assert bilibili_video_detail({"View": {"aid": 123}}) == {
+        "View": {"aid": 123}
+    }
+    for payload in ({}, {"isLogin": "false"}, {"isLogin": 0}):
+        with pytest.raises(response_changed):
+            bilibili_login_state(payload)
+    for payload in (
+        {},
+        {"View": None},
+        {"View": {}},
+        {"View": {"aid": "123"}},
+        {"View": {"aid": 0}},
+    ):
+        with pytest.raises(response_changed):
+            bilibili_video_detail(payload)
     for helper, payload, field in (
         (require_mapping_field, {}, "data"),
         (require_mapping_field, {"data": None}, "data"),
@@ -1434,10 +1473,32 @@ def test_exact_patch_requires_endpoint_specific_response_shapes(monkeypatch):
     for payload in ({}, {"logid": None}, {"logid": 1}, {"logid": ""}):
         with pytest.raises(response_changed):
             require_nonempty_string_field(payload, "logid")
-    for payload in ({"replies": [{}]}, {"replies": [{"rpid": "1"}]}):
+    assert require_bilibili_comment_list(
+        {"replies": [{"rpid": 1}, {"rpid": 2, "rcount": 0}]}, "replies"
+    ) == [{"rpid": 1}, {"rpid": 2, "rcount": 0}]
+    for payload in (
+        {"replies": [{}]},
+        {"replies": [{"rpid": "1"}]},
+        {"replies": [{"rpid": 1, "rcount": "1"}]},
+        {"replies": [{"rpid": 1, "rcount": -1}]},
+    ):
         with pytest.raises(response_changed):
             require_bilibili_comment_list(payload, "replies")
-    for payload in ({"comments": [{}]}, {"comments": [{"cid": 1}]}):
+    assert require_douyin_comment_list(
+        {
+            "comments": [
+                {"cid": "1"},
+                {"cid": "2", "reply_comment_total": 0},
+            ]
+        },
+        "comments",
+    ) == [{"cid": "1"}, {"cid": "2", "reply_comment_total": 0}]
+    for payload in (
+        {"comments": [{}]},
+        {"comments": [{"cid": 1}]},
+        {"comments": [{"cid": "1", "reply_comment_total": "1"}]},
+        {"comments": [{"cid": "1", "reply_comment_total": -1}]},
+    ):
         with pytest.raises(response_changed):
             require_douyin_comment_list(payload, "comments")
 
@@ -1445,11 +1506,53 @@ def test_exact_patch_requires_endpoint_specific_response_shapes(monkeypatch):
     assert 'require_mapping_list_field(videos_res, "result")' in patch
     assert 'require_mapping_field(comments_res, "cursor")' in patch
     assert 'require_bilibili_comment_list(comments_res, "replies")' in patch
+    assert (
+        'require_bilibili_comment_list({"replies": pinned_comments}, "replies")'
+        in patch
+    )
+    assert "_yike_bilibili_login_state(response)" in patch
+    assert "_yike_bilibili_video_detail(" in patch
     assert 'require_int_field(data, "status_code")' in patch
-    assert 'require_mapping_list_field(posts_res, "data")' in patch
+    assert "require_douyin_search_page(posts_res)" in patch
     assert 'require_douyin_comment_list(comments_res, "comments")' in patch
-    assert 'require_mapping_field(posts_res, "extra")' in patch
-    assert 'require_nonempty_string_field(extra, "logid")' in patch
+    assert "def require_douyin_search_page(" in patch
+
+
+def test_douyin_empty_search_validates_required_metadata_before_no_data():
+    patch = PATCH_PATH.read_text(encoding="utf-8")
+    runtime_source = _new_file_added_by_patch(patch, "tools/yike_runtime.py")
+    assert runtime_source is not None
+    namespace: dict[str, object] = {}
+    exec(compile(runtime_source, "tools/yike_runtime.py", "exec"), namespace)
+    response_changed = namespace["YikePlatformResponseChanged"]
+    require_search_page = namespace.get("require_douyin_search_page")
+    assert callable(require_search_page)
+
+    assert require_search_page(
+        {"data": [], "extra": {"logid": "empty-page-id"}}
+    ) == ([], "empty-page-id")
+    for payload in (
+        {"data": []},
+        {"data": [], "extra": None},
+        {"data": [], "extra": {}},
+        {"data": [], "extra": {"logid": ""}},
+    ):
+        with pytest.raises(response_changed):
+            require_search_page(payload)
+
+    section_start = patch.index(
+        "diff --git a/media_platform/douyin/core.py "
+        "b/media_platform/douyin/core.py"
+    )
+    section_end = patch.find("\ndiff --git ", section_start + 1)
+    section = patch[section_start : section_end if section_end >= 0 else None]
+
+    page_check = section.index(
+        "post_list, dy_search_id = require_douyin_search_page(posts_res)"
+    )
+    empty_branch = section.index("if not post_list:")
+
+    assert page_check < empty_branch
 
 
 def test_exact_patch_maps_transport_and_playwright_network_errors_explicitly(
