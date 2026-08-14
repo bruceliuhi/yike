@@ -279,6 +279,8 @@ class Repository:
     ) -> str:
         if platform not in _PLATFORMS:
             raise ValueError("platform must be one of: bili, dy")
+        if not query_cluster.strip() or not query_text.strip():
+            raise ValueError("collection query identity is required")
         if not 1 <= max_contents <= 10 or not 1 <= max_comments_per_content <= 50:
             raise ValueError("collection limit is outside the allowed range")
         if not started_by.strip():
@@ -420,7 +422,22 @@ class Repository:
             valid = isinstance(error_code, str) and bool(error_code.strip())
         if not valid:
             raise ValueError("collection terminal evidence is invalid")
+        finished_at = self._server_timestamp()
         with self.connection:
+            collection = self.connection.execute(
+                """
+                SELECT run.day14_due_at
+                FROM collection_runs collection
+                JOIN mvp_runs run ON run.mvp_run_id = collection.mvp_run_id
+                WHERE collection.collection_run_id = ?
+                """,
+                (collection_run_id,),
+            ).fetchone()
+            if (
+                collection is not None
+                and finished_at > str(collection["day14_due_at"])
+            ):
+                raise ValueError("collection is closed after the Day 14 cutoff")
             result = self.connection.execute(
                 """
                 UPDATE collection_runs
@@ -432,7 +449,7 @@ class Repository:
                 """,
                 (
                     state,
-                    self._server_timestamp(),
+                    finished_at,
                     raw_count,
                     unique_count,
                     error_code,

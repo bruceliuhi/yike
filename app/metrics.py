@@ -85,19 +85,16 @@ class MetricsEngine:
                                AND source.platform = signal.platform
             WHERE member.mvp_run_id = ? AND signal.verifiable = 1
               AND member.added_at <= ?
-              AND length(trim(source.external_source_id)) > 0
-              AND source.canonical_url IS NOT NULL
-              AND length(trim(source.canonical_url)) > 0
-              AND signal.external_comment_id IS NOT NULL
-              AND length(trim(signal.external_comment_id)) > 0
-              AND length(trim(signal.normalized_comment_url)) > 0
-              AND length(trim(signal.author_public_id)) > 0
-              AND length(trim(signal.body)) > 0
+              AND yike_nonblank_text(source.external_source_id) = 1
+              AND yike_nonblank_text(source.canonical_url) = 1
+              AND yike_nonblank_text(signal.external_comment_id) = 1
+              AND yike_nonblank_text(signal.normalized_comment_url) = 1
+              AND yike_nonblank_text(signal.author_public_id) = 1
+              AND yike_nonblank_text(signal.body) = 1
               AND length(signal.body_sha256) = 64
               AND signal.body_sha256 NOT GLOB '*[^0-9a-f]*'
               AND signal.body_sha256 = yike_sha256_text(signal.body)
-              AND signal.normalizer_version IS NOT NULL
-              AND length(trim(signal.normalizer_version)) > 0
+              AND yike_nonblank_text(signal.normalizer_version) = 1
               AND EXISTS (
                   SELECT 1
                   FROM signal_observations observation
@@ -110,10 +107,8 @@ class MetricsEngine:
                    AND campaign.platform = collection.platform
                   WHERE observation.mvp_run_id = member.mvp_run_id
                     AND observation.signal_id = member.signal_id
-                    AND observation.query_cluster IS NOT NULL
-                    AND length(trim(observation.query_cluster)) > 0
-                    AND observation.query_text IS NOT NULL
-                    AND length(trim(observation.query_text)) > 0
+                    AND yike_nonblank_text(observation.query_cluster) = 1
+                    AND yike_nonblank_text(observation.query_text) = 1
                     AND campaign.query_cluster = observation.query_cluster
                     AND campaign.query_text = observation.query_text
                     AND strftime(

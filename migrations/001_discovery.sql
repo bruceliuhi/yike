@@ -52,8 +52,8 @@ CREATE TABLE IF NOT EXISTS keyword_versions (
     keyword_version_id TEXT PRIMARY KEY,
     mvp_run_id TEXT NOT NULL REFERENCES mvp_runs(mvp_run_id),
     version TEXT NOT NULL,
-    query_cluster TEXT NOT NULL,
-    query_text TEXT NOT NULL,
+    query_cluster TEXT NOT NULL CHECK (yike_nonblank_text(query_cluster) = 1),
+    query_text TEXT NOT NULL CHECK (yike_nonblank_text(query_text) = 1),
     rationale TEXT,
     content_sha256 TEXT NOT NULL,
     created_at TEXT NOT NULL
@@ -63,8 +63,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
     campaign_id TEXT PRIMARY KEY,
     mvp_run_id TEXT NOT NULL REFERENCES mvp_runs(mvp_run_id),
     platform TEXT NOT NULL CHECK (platform IN ('bili', 'dy')),
-    query_cluster TEXT NOT NULL,
-    query_text TEXT NOT NULL,
+    query_cluster TEXT NOT NULL CHECK (yike_nonblank_text(query_cluster) = 1),
+    query_text TEXT NOT NULL CHECK (yike_nonblank_text(query_text) = 1),
     max_contents INTEGER,
     max_comments_per_content INTEGER,
     state TEXT NOT NULL,
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS collection_runs (
     platform TEXT NOT NULL CHECK (platform IN ('bili', 'dy')),
     attempt INTEGER NOT NULL,
     backend TEXT NOT NULL,
-    started_by TEXT NOT NULL CHECK (length(trim(started_by)) > 0),
+    started_by TEXT NOT NULL CHECK (yike_nonblank_text(started_by) = 1),
     runtime_lock_sha256 TEXT NOT NULL CHECK (
         length(runtime_lock_sha256) = 64
         AND runtime_lock_sha256 NOT GLOB '*[^0-9a-f]*'
@@ -140,15 +140,21 @@ CREATE TABLE IF NOT EXISTS collection_runs (
                 strftime('%Y-%m-%dT%H:%M:%SZ', started_at) IS started_at
                 AND started_at <= finished_at
             ))
-            AND error_code IS NOT NULL AND length(trim(error_code)) > 0)
+            AND yike_nonblank_text(error_code) = 1)
     ),
     UNIQUE (collection_run_id, mvp_run_id),
+    UNIQUE (campaign_id, attempt),
     FOREIGN KEY (campaign_id, mvp_run_id, platform)
         REFERENCES campaigns(campaign_id, mvp_run_id, platform)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS one_running_collection
-    ON collection_runs(state) WHERE state = 'RUNNING';
+CREATE UNIQUE INDEX IF NOT EXISTS one_active_collection
+    ON collection_runs((1)) WHERE state IN ('RUNNING', 'IMPORTING');
+
+CREATE TRIGGER IF NOT EXISTS collection_runs_initial_state
+BEFORE INSERT ON collection_runs
+WHEN NEW.state NOT IN ('QUEUED', 'RUNNING')
+BEGIN SELECT RAISE(ABORT, 'COLLECTION_INITIAL_STATE_INVALID'); END;
 
 CREATE TABLE IF NOT EXISTS sources (
     source_id TEXT PRIMARY KEY,
@@ -180,15 +186,15 @@ CREATE TABLE IF NOT EXISTS signals (
         verifiable = 0 OR (
             source_id IS NOT NULL
             AND external_comment_id IS NOT NULL
-            AND length(trim(external_comment_id)) > 0
-            AND length(trim(normalized_comment_url)) > 0
-            AND length(trim(author_public_id)) > 0
-            AND length(trim(body)) > 0
+            AND yike_nonblank_text(external_comment_id) = 1
+            AND yike_nonblank_text(normalized_comment_url) = 1
+            AND yike_nonblank_text(author_public_id) = 1
+            AND yike_nonblank_text(body) = 1
             AND length(body_sha256) = 64
             AND body_sha256 NOT GLOB '*[^0-9a-f]*'
             AND body_sha256 = yike_sha256_text(body)
             AND normalizer_version IS NOT NULL
-            AND length(trim(normalizer_version)) > 0
+            AND yike_nonblank_text(normalizer_version) = 1
         )
     ),
     UNIQUE (platform, external_comment_id),
@@ -207,18 +213,17 @@ WHEN NEW.verifiable = 1
         FROM sources source
         WHERE source.source_id = NEW.source_id
           AND source.platform = NEW.platform
-          AND length(trim(source.external_source_id)) > 0
-          AND source.canonical_url IS NOT NULL
-          AND length(trim(source.canonical_url)) > 0
+          AND yike_nonblank_text(source.external_source_id) = 1
+          AND yike_nonblank_text(source.canonical_url) = 1
     )
 BEGIN SELECT RAISE(ABORT, 'VERIFIABLE_PROVENANCE_REQUIRED'); END;
 
 CREATE TRIGGER IF NOT EXISTS verifiable_signal_core_evidence
 BEFORE INSERT ON signals
 WHEN NEW.verifiable = 1 AND (
-    length(trim(NEW.normalized_comment_url)) = 0
-    OR length(trim(NEW.author_public_id)) = 0
-    OR length(trim(NEW.body)) = 0
+    yike_nonblank_text(NEW.normalized_comment_url) = 0
+    OR yike_nonblank_text(NEW.author_public_id) = 0
+    OR yike_nonblank_text(NEW.body) = 0
     OR length(NEW.body_sha256) <> 64
     OR NEW.body_sha256 GLOB '*[^0-9a-f]*'
     OR NEW.body_sha256 IS NOT yike_sha256_text(NEW.body)
@@ -257,8 +262,8 @@ WHEN EXISTS (
     )
     AND (
         NEW.collection_run_id IS NULL
-        OR NEW.query_cluster IS NULL OR length(trim(NEW.query_cluster)) = 0
-        OR NEW.query_text IS NULL OR length(trim(NEW.query_text)) = 0
+        OR yike_nonblank_text(NEW.query_cluster) = 0
+        OR yike_nonblank_text(NEW.query_text) = 0
         OR length(NEW.raw_sha256) <> 64
         OR NEW.raw_sha256 GLOB '*[^0-9a-f]*'
         OR NEW.envelope_sha256 IS NULL OR length(NEW.envelope_sha256) <> 64
@@ -1314,7 +1319,7 @@ BEGIN
                     AND NEW.started_at <= NEW.finished_at
                 ))
                 AND NEW.error_code IS NOT NULL
-                AND length(trim(NEW.error_code)) > 0
+                AND yike_nonblank_text(NEW.error_code) = 1
             )
           )
             THEN RAISE(ABORT, 'COLLECTION_TERMINAL_INVALID')

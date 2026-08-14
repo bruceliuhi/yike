@@ -5,8 +5,8 @@ import sqlite3
 
 
 _MIGRATION = Path(__file__).resolve().parents[1] / "migrations" / "001_discovery.sql"
-_SCHEMA_VERSION = "DISCOVERY_FACT_STORE_V10"
-_SCHEMA_SIGNATURE = "60087c82972b23c075d7a83b25ac268ed22c14b42b7b6a8ce73891e7d05b6ea6"
+_SCHEMA_VERSION = "DISCOVERY_FACT_STORE_V11"
+_SCHEMA_SIGNATURE = "f80de08dfa5446d790a6e2c723f131be2cc5917d5247e60f35d8a64ed5489238"
 
 
 class UnsupportedSchemaError(RuntimeError):
@@ -19,9 +19,16 @@ def _sha256_text(value: object) -> str | None:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _nonblank_text(value: object) -> int:
+    return int(isinstance(value, str) and bool(value.strip()))
+
+
 def _register_functions(connection: sqlite3.Connection) -> None:
     connection.create_function(
         "yike_sha256_text", 1, _sha256_text, deterministic=True
+    )
+    connection.create_function(
+        "yike_nonblank_text", 1, _nonblank_text, deterministic=True
     )
 
 

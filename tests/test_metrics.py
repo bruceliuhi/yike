@@ -404,6 +404,80 @@ def test_verifiable_metric_rejects_invalid_signal_core_evidence(tmp_path):
     connection.close()
 
 
+def test_verifiable_metric_rejects_whitespace_only_provenance(tmp_path):
+    connection = connect(tmp_path / "facts.sqlite3")
+    migrate(connection)
+    repository = Repository(
+        connection, now=lambda: datetime(2026, 8, 12, 8, tzinfo=UTC)
+    )
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="metric-whitespace-collection",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    connection.execute("PRAGMA ignore_check_constraints = ON")
+    connection.execute("DROP TRIGGER IF EXISTS verifiable_signal_core_evidence")
+    connection.execute("DROP TRIGGER verifiable_signal_requires_source_provenance")
+    connection.execute(
+        "INSERT INTO sources (source_id, platform, external_source_id, canonical_url) "
+        "VALUES ('metric-whitespace-source', 'bili', '\n', '\t')"
+    )
+    connection.execute(
+        """
+        INSERT INTO signals (
+            signal_id, source_id, platform, external_comment_id,
+            normalized_comment_url, author_public_id, body, body_sha256,
+            verifiable, normalizer_version
+        ) VALUES (
+            'metric-whitespace-signal', 'metric-whitespace-source', 'bili',
+            '\n', '\t', '\r', '\n', ?, 1, '\t'
+        )
+        """,
+        (hashlib.sha256(b"\n").hexdigest(),),
+    )
+    connection.execute(
+        "INSERT INTO mvp_run_signals (mvp_run_id, signal_id, added_at) "
+        "VALUES (?, 'metric-whitespace-signal', '2026-08-12T08:00:00Z')",
+        (run_id,),
+    )
+    connection.execute(
+        """
+        INSERT INTO signal_observations (
+            observation_id, mvp_run_id, collection_run_id, signal_id,
+            query_cluster, query_text, observed_at, raw_sha256,
+            envelope_sha256
+        ) VALUES (
+            'metric-whitespace-observation', ?, 'metric-whitespace-collection',
+            'metric-whitespace-signal', 'sales', '销售线索',
+            '2026-08-12T08:00:00Z', ?, ?
+        )
+        """,
+        (run_id, "b" * 64, "c" * 64),
+    )
+    repository.finish_collection(
+        "metric-whitespace-collection",
+        state="SUCCEEDED",
+        raw_count=1,
+        unique_count=1,
+        error_code=None,
+        output_manifest_sha256="d" * 64,
+    )
+
+    snapshot = MetricsEngine(connection).calculate(
+        run_id, now=datetime(2026, 8, 12, 9, tzinfo=UTC)
+    )
+
+    assert snapshot.unique_verifiable_signals == 0
+    connection.close()
+
+
 def test_verifiable_metric_rejects_incomplete_collection_terminal(tmp_path):
     connection = connect(tmp_path / "facts.sqlite3")
     migrate(connection)
