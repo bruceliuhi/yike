@@ -16,23 +16,29 @@ _PLATFORMS = frozenset(("bili", "dy"))
 _COLLECTION_BACKENDS = frozenset(
     ("MEDIACRAWLER_AUTHORIZED", "SIMULATION_ONLY")
 )
-_COLLECTION_ERROR_CODES = frozenset(
-    (
-        "PLATFORM_AUTH_REQUIRED",
-        "PLATFORM_PERMISSION_DENIED",
-        "PLATFORM_VERIFICATION_REQUIRED",
-        "PLATFORM_RATE_LIMITED",
-        "PLATFORM_RESPONSE_CHANGED",
-        "COLLECTION_NETWORK_FAILED",
-        "COLLECTION_PARSE_FAILED",
-        "COLLECTION_CANCELLED",
-        "COLLECTION_PROCESS_FAILED",
-        "COLLECTION_OUTPUT_FAILED",
-        "COLLECTION_RUNTIME_MISSING",
-        "COLLECTION_RUNTIME_MISMATCH",
-        "SIGNAL_IDENTITY_CONFLICT",
-    )
-)
+_COLLECTION_TERMINAL_ERROR_CODES = {
+    "BLOCKED_INPUT": frozenset(
+        (
+            "PLATFORM_AUTH_REQUIRED",
+            "PLATFORM_PERMISSION_DENIED",
+            "PLATFORM_VERIFICATION_REQUIRED",
+            "PLATFORM_RATE_LIMITED",
+            "COLLECTION_RUNTIME_MISSING",
+            "COLLECTION_RUNTIME_MISMATCH",
+        )
+    ),
+    "FAILED": frozenset(
+        (
+            "PLATFORM_RESPONSE_CHANGED",
+            "COLLECTION_NETWORK_FAILED",
+            "COLLECTION_PARSE_FAILED",
+            "COLLECTION_PROCESS_FAILED",
+            "COLLECTION_OUTPUT_FAILED",
+            "SIGNAL_IDENTITY_CONFLICT",
+        )
+    ),
+    "CANCELLED": frozenset(("COLLECTION_CANCELLED",)),
+}
 _FINAL_DECISIONS = frozenset(
     ("STOP_DISCOVERY", "BLOCKED_INPUT", "PROCEED_TO_V03_REVIEW", "REVISE_MVP")
 )
@@ -448,7 +454,7 @@ class Repository:
                 and output_manifest_sha256 is not None
             )
         else:
-            valid = error_code in _COLLECTION_ERROR_CODES
+            valid = error_code in _COLLECTION_TERMINAL_ERROR_CODES[state]
         if not valid:
             if state in ("FAILED", "CANCELLED", "BLOCKED_INPUT"):
                 raise ValueError("collection terminal error code is invalid")
@@ -696,8 +702,17 @@ class Repository:
     def cancel_run(self, run_id: str) -> None:
         def update() -> sqlite3.Cursor:
             return self.connection.execute(
-                "UPDATE mvp_runs SET state = 'CANCELLED' "
-                "WHERE mvp_run_id = ? AND state = 'ACTIVE'",
+                """
+                UPDATE mvp_runs SET state = 'CANCELLED'
+                WHERE mvp_run_id = ? AND state = 'ACTIVE'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM collection_runs collection
+                    WHERE collection.mvp_run_id = mvp_runs.mvp_run_id
+                      AND collection.state IN (
+                        'WAITING_LOGIN', 'RUNNING', 'IMPORTING'
+                      )
+                  )
+                """,
                 (run_id,),
             )
         if self.connection.in_transaction:
@@ -706,7 +721,9 @@ class Repository:
             with self.connection:
                 result = update()
         if result.rowcount != 1:
-            raise FinalizedRunError("mvp run is already finalized or not active")
+            raise FinalizedRunError(
+                "mvp run is already finalized, not active, or has an active collection"
+            )
 
     def count_signals(self, run_id: str) -> int:
         return self.connection.execute(

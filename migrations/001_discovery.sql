@@ -151,14 +151,40 @@ CREATE TABLE IF NOT EXISTS collection_runs (
             AND raw_count = 0 AND unique_count = 0
             AND error_code IS NULL AND output_manifest_sha256 IS NOT NULL)
         OR
-        (state IN ('FAILED', 'CANCELLED', 'BLOCKED_INPUT')
+        (state = 'BLOCKED_INPUT'
             AND finished_at IS NOT NULL
             AND strftime('%Y-%m-%dT%H:%M:%SZ', finished_at) IS finished_at
             AND (started_at IS NULL OR (
                 strftime('%Y-%m-%dT%H:%M:%SZ', started_at) IS started_at
                 AND started_at <= finished_at
             ))
-            AND yike_nonblank_text(error_code) = 1)
+            AND error_code IN (
+                'PLATFORM_AUTH_REQUIRED', 'PLATFORM_PERMISSION_DENIED',
+                'PLATFORM_VERIFICATION_REQUIRED', 'PLATFORM_RATE_LIMITED',
+                'COLLECTION_RUNTIME_MISSING', 'COLLECTION_RUNTIME_MISMATCH'
+            ))
+        OR
+        (state = 'FAILED'
+            AND finished_at IS NOT NULL
+            AND strftime('%Y-%m-%dT%H:%M:%SZ', finished_at) IS finished_at
+            AND (started_at IS NULL OR (
+                strftime('%Y-%m-%dT%H:%M:%SZ', started_at) IS started_at
+                AND started_at <= finished_at
+            ))
+            AND error_code IN (
+                'PLATFORM_RESPONSE_CHANGED', 'COLLECTION_NETWORK_FAILED',
+                'COLLECTION_PARSE_FAILED', 'COLLECTION_PROCESS_FAILED',
+                'COLLECTION_OUTPUT_FAILED', 'SIGNAL_IDENTITY_CONFLICT'
+            ))
+        OR
+        (state = 'CANCELLED'
+            AND finished_at IS NOT NULL
+            AND strftime('%Y-%m-%dT%H:%M:%SZ', finished_at) IS finished_at
+            AND (started_at IS NULL OR (
+                strftime('%Y-%m-%dT%H:%M:%SZ', started_at) IS started_at
+                AND started_at <= finished_at
+            ))
+            AND error_code = 'COLLECTION_CANCELLED')
     ),
     UNIQUE (collection_run_id, mvp_run_id),
     UNIQUE (campaign_id, attempt),
@@ -981,6 +1007,16 @@ WHEN NEW.state = 'FINALIZED'
  )
 BEGIN SELECT RAISE(ABORT, 'ACTIVE_COLLECTION_PREVENTS_FINALIZATION'); END;
 
+CREATE TRIGGER IF NOT EXISTS mvp_runs_cancellation_requires_idle_collections
+BEFORE UPDATE OF state ON mvp_runs
+WHEN OLD.state = 'ACTIVE' AND NEW.state = 'CANCELLED'
+ AND EXISTS (
+    SELECT 1 FROM collection_runs collection
+    WHERE collection.mvp_run_id = NEW.mvp_run_id
+      AND collection.state IN ('WAITING_LOGIN', 'RUNNING', 'IMPORTING')
+ )
+BEGIN SELECT RAISE(ABORT, 'ACTIVE_COLLECTION_PREVENTS_CANCELLATION'); END;
+
 CREATE TRIGGER IF NOT EXISTS mvp_runs_finalized_not_deleted
 BEFORE DELETE ON mvp_runs
 WHEN OLD.state = 'FINALIZED'
@@ -1320,6 +1356,19 @@ BEGIN
                 'FAILED', 'CANCELLED', 'BLOCKED_INPUT'
             ))
         ) THEN RAISE(ABORT, 'COLLECTION_STATE_TRANSITION_INVALID')
+        WHEN NEW.state = 'BLOCKED_INPUT' AND NEW.error_code NOT IN (
+            'PLATFORM_AUTH_REQUIRED', 'PLATFORM_PERMISSION_DENIED',
+            'PLATFORM_VERIFICATION_REQUIRED', 'PLATFORM_RATE_LIMITED',
+            'COLLECTION_RUNTIME_MISSING', 'COLLECTION_RUNTIME_MISMATCH'
+        ) THEN RAISE(ABORT, 'COLLECTION_TERMINAL_INVALID')
+        WHEN NEW.state = 'FAILED' AND NEW.error_code NOT IN (
+            'PLATFORM_RESPONSE_CHANGED', 'COLLECTION_NETWORK_FAILED',
+            'COLLECTION_PARSE_FAILED', 'COLLECTION_PROCESS_FAILED',
+            'COLLECTION_OUTPUT_FAILED', 'SIGNAL_IDENTITY_CONFLICT'
+        ) THEN RAISE(ABORT, 'COLLECTION_TERMINAL_INVALID')
+        WHEN NEW.state = 'CANCELLED'
+          AND NEW.error_code IS NOT 'COLLECTION_CANCELLED'
+            THEN RAISE(ABORT, 'COLLECTION_TERMINAL_INVALID')
         WHEN NEW.raw_count < 0 OR NEW.unique_count < 0
           OR NEW.unique_count > NEW.raw_count
           OR (

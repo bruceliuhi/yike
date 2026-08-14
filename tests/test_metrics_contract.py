@@ -35,7 +35,7 @@ class Clock:
 
 
 class FactBuilder:
-    def __init__(self, database):
+    def __init__(self, database, *, backend="MEDIACRAWLER_AUTHORIZED"):
         self.connection = connect(database)
         migrate(self.connection)
         self.clock = Clock(datetime(2026, 8, 12, tzinfo=UTC))
@@ -44,7 +44,7 @@ class FactBuilder:
         self.repository.begin_collection(
             run_id=self.run_id,
             collection_run_id="metrics-provenance",
-            backend="MEDIACRAWLER_AUTHORIZED",
+            backend=backend,
             platform="bili",
             query_cluster="sales-agent",
             query_text="销售线索",
@@ -61,7 +61,13 @@ class FactBuilder:
             },
         )
 
-    def signal(self, index: int, *, platform: str = "bili") -> str:
+    def signal(
+        self,
+        index: int,
+        *,
+        platform: str = "bili",
+        collection_run_id: str = "metrics-provenance",
+    ) -> str:
         host = "www.bilibili.com" if platform == "bili" else "www.douyin.com"
         return self.repository.import_signal(
             self.run_id,
@@ -78,7 +84,7 @@ class FactBuilder:
                 envelope_sha256="c" * 64,
                 query_cluster="sales-agent",
                 query_text="销售线索",
-                collection_run_id="metrics-provenance",
+                collection_run_id=collection_run_id,
                 normalizer_version="test-normalizer-v1",
                 verifiable=True,
             ),
@@ -235,6 +241,112 @@ def test_full_persisted_success_thresholds_and_breakdowns_can_reach_proceed(tmp_
     assert snapshot.industry_breakdown["B2B 销售"]["valid_responses"] == 5
     assert snapshot.collection_breakdown["SUCCEEDED"]["runs"] == 1
     assert snapshot.collection_breakdown["SUCCEEDED"]["raw"] == 320
+    facts.close()
+
+
+def test_simulation_only_reviews_cannot_trigger_a_loss_stop(tmp_path):
+    facts = FactBuilder(
+        tmp_path / "simulation-loss.sqlite3", backend="SIMULATION_ONLY"
+    )
+    signals = [facts.signal(index) for index in range(200)]
+    for index, signal_id in enumerate(signals):
+        facts.review(signal_id, index, label="NOT_LEAD")
+
+    snapshot = facts.snapshot(datetime(2026, 8, 25, tzinfo=UTC))
+
+    assert snapshot.unique_verifiable_signals == 0
+    assert snapshot.reviewed_signals == 0
+    assert snapshot.reviewed_ab == 0
+    assert snapshot.loss_stop is False
+    assert snapshot.decision == "RUNNING"
+    assert snapshot.platform_breakdown["bili"]["reviewed"] == 0
+    assert snapshot.industry_breakdown == {}
+    assert snapshot.collection_breakdown == {}
+    facts.close()
+
+
+def test_simulation_only_funnel_cannot_complete_authorized_signal_success(
+    tmp_path,
+):
+    facts = FactBuilder(tmp_path / "simulation-success.sqlite3")
+    authorized = [facts.signal(index) for index in range(300)]
+    facts.finish_collection()
+    facts.clock.set(datetime(2026, 8, 13, tzinfo=UTC))
+    facts.repository.begin_collection(
+        run_id=facts.run_id,
+        collection_run_id="simulation-funnel",
+        backend="SIMULATION_ONLY",
+        platform="bili",
+        query_cluster="sales-agent",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    simulated = [
+        facts.signal(index + 1000, collection_run_id="simulation-funnel")
+        for index in range(100)
+    ]
+    reviews = []
+    for index, signal_id in enumerate(simulated):
+        facts.clock.set(datetime(2026, 8, 19 + index % 5, 1, index // 5, tzinfo=UTC))
+        reviews.append(facts.review(signal_id, index))
+    outreach = [
+        facts.outreach(simulated[index], reviews[index], index + 1000)
+        for index in range(30)
+    ]
+    for index in range(30, 51):
+        session_id = facts.workflow.start_activity(
+            facts.run_id, simulated[index], "DRAFT"
+        )
+        facts.clock.move(1)
+        facts.workflow.record_activity(session_id, "COMPLETE")
+        facts.workflow.create_draft(
+            run_id=facts.run_id,
+            signal_id=simulated[index],
+            body="人工筛选效率低。我们正在研究销售 Agent，你们每周筛选多少条线索？",
+            activity_session_id=session_id,
+        )
+    responses = [
+        facts.response(outreach[index], index + 1000) for index in range(5)
+    ]
+    interviews = [facts.interview(responses[index]) for index in range(2)]
+    now = facts.clock().isoformat().replace("+00:00", "Z")
+    facts.workflow.register_quote(
+        run_id=facts.run_id,
+        response_event_id=responses[0],
+        interview_id=interviews[0],
+        scope_summary="线索排序试点",
+        agreed_to_receive_pricing_at=now,
+        verified_at=now,
+    )
+    facts.repository.finish_collection(
+        "simulation-funnel",
+        state="SUCCEEDED",
+        raw_count=100,
+        unique_count=100,
+        error_code=None,
+        output_manifest_sha256="e" * 64,
+    )
+
+    snapshot = facts.snapshot(datetime(2026, 8, 25, tzinfo=UTC))
+
+    assert len(authorized) == snapshot.unique_verifiable_signals == 300
+    assert snapshot.reviewed_signals == 0
+    assert snapshot.first_outreach_subjects == 0
+    assert snapshot.valid_response_subjects == 0
+    assert snapshot.completed_interviews == 0
+    assert snapshot.verified_quotes == 0
+    assert snapshot.all_success_thresholds is False
+    assert snapshot.decision == "RUNNING"
+    assert snapshot.platform_breakdown["bili"]["first_outreach"] == 0
+    assert snapshot.industry_breakdown == {}
+    assert snapshot.collection_breakdown["SUCCEEDED"] == {
+        "runs": 1,
+        "raw": 320,
+        "unique": 300,
+    }
     facts.close()
 
 
@@ -397,7 +509,7 @@ def test_model_availability_recovery_uses_one_cross_table_sequence(tmp_path):
         decision=facts.decision, token_usage=None,
     )
 
-    recovered = facts.snapshot(facts.clock())
+    recovered = facts.snapshot(datetime(2026, 8, 21, tzinfo=UTC))
     assert recovered.blocked_input is False
 
     facts.repository.append_draft_failure(
@@ -405,6 +517,6 @@ def test_model_availability_recovery_uses_one_cross_table_sequence(tmp_path):
         signal_id=signal_id, provider=None, model=None,
         prompt_version="draft-v1", error_code="MODEL_UNAVAILABLE",
     )
-    blocked_again = facts.snapshot(facts.clock())
+    blocked_again = facts.snapshot(datetime(2026, 8, 21, tzinfo=UTC))
     assert blocked_again.blocked_input is True
     facts.close()

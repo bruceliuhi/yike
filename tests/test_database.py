@@ -314,6 +314,47 @@ def seed_fact_graph(connection, repository):
     }
 
 
+def set_seed_collection_active_state(connection, state: str) -> None:
+    first_state = "WAITING_LOGIN" if state == "WAITING_LOGIN" else "RUNNING"
+    connection.execute(
+        "UPDATE collection_runs SET state = ?, started_at = ? "
+        "WHERE collection_run_id = 'collection-1'",
+        (first_state, "2026-08-12T00:00:00Z"),
+    )
+    if state == "IMPORTING":
+        connection.execute(
+            "UPDATE collection_runs SET state = 'IMPORTING' "
+            "WHERE collection_run_id = 'collection-1'"
+        )
+
+
+def assert_active_collection_slot_can_be_released(repository, run_id: str) -> None:
+    repository.finish_collection(
+        "collection-1",
+        state="CANCELLED",
+        raw_count=0,
+        unique_count=0,
+        error_code="COLLECTION_CANCELLED",
+    )
+    repository.cancel_run(run_id)
+    next_run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=next_run_id,
+        collection_run_id="collection-after-rejected-run-cancel",
+        platform="dy",
+        query_cluster="sales",
+        query_text="新线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    assert repository.connection.execute(
+        "SELECT state FROM collection_runs WHERE collection_run_id = ?",
+        ("collection-after-rejected-run-cancel",),
+    ).fetchone()[0] == "RUNNING"
+
+
 def test_migration_from_empty_file_creates_all_fact_tables_and_enables_pragmas(tmp_path):
     database = tmp_path / "empty.sqlite3"
     database.touch()
@@ -364,8 +405,8 @@ def test_current_schema_migration_is_idempotent(connection):
         "SELECT version, signature FROM schema_meta WHERE schema_key = 'discovery'"
     ).fetchone()
     assert tuple(marker) == (
-        "DISCOVERY_FACT_STORE_V13",
-        "5bf63c726c085699b3cb7b43fb14b023e1998840023b9e2fd27b2b5beed116a6",
+        "DISCOVERY_FACT_STORE_V14",
+        "1ee8c24510148dc1ee173423f794f667a548d25cbd6693abd7da0c6d548cd396",
     )
 
 
@@ -769,6 +810,66 @@ def test_finalization_rejects_active_collection(
     assert connection.execute(
         "SELECT state FROM mvp_runs WHERE mvp_run_id = ?", (facts["run_id"],)
     ).fetchone()[0] == "ACTIVE"
+
+
+@pytest.mark.parametrize("active_state", ["WAITING_LOGIN", "RUNNING", "IMPORTING"])
+def test_repository_rejects_run_cancellation_with_active_collection(
+    connection, repository, active_state
+):
+    facts = seed_fact_graph(connection, repository)
+    set_seed_collection_active_state(connection, active_state)
+    before = tuple(
+        connection.execute(
+            "SELECT run.state, collection.state FROM mvp_runs run "
+            "JOIN collection_runs collection "
+            "ON collection.mvp_run_id = run.mvp_run_id "
+            "WHERE run.mvp_run_id = ?",
+            (facts["run_id"],),
+        ).fetchone()
+    )
+
+    with pytest.raises(FinalizedRunError, match="active collection"):
+        repository.cancel_run(facts["run_id"])
+
+    after = tuple(
+        connection.execute(
+            "SELECT run.state, collection.state FROM mvp_runs run "
+            "JOIN collection_runs collection "
+            "ON collection.mvp_run_id = run.mvp_run_id "
+            "WHERE run.mvp_run_id = ?",
+            (facts["run_id"],),
+        ).fetchone()
+    )
+    assert after == before == ("ACTIVE", active_state)
+    assert_active_collection_slot_can_be_released(repository, facts["run_id"])
+
+
+@pytest.mark.parametrize("active_state", ["WAITING_LOGIN", "RUNNING", "IMPORTING"])
+def test_sql_rejects_run_cancellation_with_active_collection(
+    connection, repository, active_state
+):
+    facts = seed_fact_graph(connection, repository)
+    set_seed_collection_active_state(connection, active_state)
+
+    with pytest.raises(
+        sqlite3.IntegrityError,
+        match="ACTIVE_COLLECTION_PREVENTS_CANCELLATION",
+    ):
+        connection.execute(
+            "UPDATE mvp_runs SET state = 'CANCELLED' WHERE mvp_run_id = ?",
+            (facts["run_id"],),
+        )
+
+    assert tuple(
+        connection.execute(
+            "SELECT run.state, collection.state FROM mvp_runs run "
+            "JOIN collection_runs collection "
+            "ON collection.mvp_run_id = run.mvp_run_id "
+            "WHERE run.mvp_run_id = ?",
+            (facts["run_id"],),
+        ).fetchone()
+    ) == ("ACTIVE", active_state)
+    assert_active_collection_slot_can_be_released(repository, facts["run_id"])
 
 
 def test_collection_attempt_is_unique_within_campaign(connection, repository):
@@ -2399,6 +2500,102 @@ def test_sql_rejects_unknown_collection_terminal_error_code(repository):
             WHERE collection_run_id = 'sql-unknown-error'
             """
         )
+
+
+@pytest.mark.parametrize(
+    ("state", "error_code"),
+    [
+        ("BLOCKED_INPUT", "COLLECTION_PROCESS_FAILED"),
+        ("FAILED", "PLATFORM_AUTH_REQUIRED"),
+        ("CANCELLED", "COLLECTION_PARSE_FAILED"),
+    ],
+)
+def test_repository_binds_terminal_error_code_to_state(
+    repository, state, error_code
+):
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="repository-state-error-mismatch",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    before = tuple(
+        repository.connection.execute(
+            "SELECT state, finished_at, raw_count, unique_count, error_code, "
+            "output_manifest_sha256 FROM collection_runs "
+            "WHERE collection_run_id = 'repository-state-error-mismatch'"
+        ).fetchone()
+    )
+
+    with pytest.raises(ValueError, match="terminal error code"):
+        repository.finish_collection(
+            "repository-state-error-mismatch",
+            state=state,
+            raw_count=0,
+            unique_count=0,
+            error_code=error_code,
+        )
+
+    assert tuple(
+        repository.connection.execute(
+            "SELECT state, finished_at, raw_count, unique_count, error_code, "
+            "output_manifest_sha256 FROM collection_runs "
+            "WHERE collection_run_id = 'repository-state-error-mismatch'"
+        ).fetchone()
+    ) == before == ("RUNNING", None, 0, 0, None, None)
+
+
+@pytest.mark.parametrize(
+    ("state", "error_code"),
+    [
+        ("BLOCKED_INPUT", "COLLECTION_PROCESS_FAILED"),
+        ("FAILED", "PLATFORM_AUTH_REQUIRED"),
+        ("CANCELLED", "COLLECTION_PARSE_FAILED"),
+    ],
+)
+def test_sql_binds_terminal_error_code_to_state(repository, state, error_code):
+    run_id = repository.create_run(["bili", "dy"])
+    repository.begin_collection(
+        run_id=run_id,
+        collection_run_id="sql-state-error-mismatch",
+        platform="bili",
+        query_cluster="sales",
+        query_text="销售线索",
+        max_contents=1,
+        max_comments_per_content=1,
+        started_by="test-operator",
+        runtime_lock_sha256="a" * 64,
+    )
+    before = tuple(
+        repository.connection.execute(
+            "SELECT state, finished_at, raw_count, unique_count, error_code, "
+            "output_manifest_sha256 FROM collection_runs "
+            "WHERE collection_run_id = 'sql-state-error-mismatch'"
+        ).fetchone()
+    )
+
+    with pytest.raises(
+        sqlite3.IntegrityError, match="COLLECTION_TERMINAL_INVALID"
+    ):
+        repository.connection.execute(
+            "UPDATE collection_runs SET state = ?, finished_at = started_at, "
+            "error_code = ? WHERE collection_run_id = ?",
+            (state, error_code, "sql-state-error-mismatch"),
+        )
+
+    assert tuple(
+        repository.connection.execute(
+            "SELECT state, finished_at, raw_count, unique_count, error_code, "
+            "output_manifest_sha256 FROM collection_runs "
+            "WHERE collection_run_id = 'sql-state-error-mismatch'"
+        ).fetchone()
+    ) == before == ("RUNNING", None, 0, 0, None, None)
 
 
 def test_collection_terminal_evidence_cannot_be_rewritten(repository):
