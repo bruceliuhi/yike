@@ -35,6 +35,8 @@ docker build --progress=plain -f deploy/Dockerfile -t yike-customer-pilot:471d9c
 
 结果：构建停在 `ghcr.io/astral-sh/uv:0.8.15-python3.12-bookworm-slim` 元数据拉取，约 90 秒后人工取消（退出码 130）。因此当前没有可验证的本地镜像 SHA，不能把部署骨架或 Dockerfile 视为已构建/已上线。
 
+2026-09-09 本地备份/恢复演练（非目标环境）：使用两个独立的 PostgreSQL 16 容器，源库先执行 `yike-pilot-migrate`；再用真实 `pg_dump` 与 OpenSSL 生成 `/secrets/pilot.dump.enc`，恢复脚本在另一容器设置 `CONFIRM_RESTORE=YES` 成功恢复，`psql` 查询确认 `pilot_schema_meta` 中存在 `customer-pilot-v1`。演练证明脚本链路可运行，但目标库、独立备份存储、认证完整性和回滚仍未验收。
+
 范围边界：这只证明 CP-01/CP-02 的本地数据层契约，不证明四页浏览器流程、真实平台采集、部署 HTTPS、备份恢复、真实用户试用或收入。
 
-代码备份：Gitee `codex/customer-pilot` 分支；当前实现与测试远端提交 `6e9d99c`（完整回归覆盖至该代码提交；本次追加画像校验、重复内容幂等、确认轮换、并发保护、旧版本导入拒绝、画像变更提示和输入长度限制），证据文档随后提交到同一远端分支；部署骨架已推送至 `2f8c439e5878cbada47b6354db52d0385279b3d6`。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
+代码备份：Gitee `codex/customer-pilot` 分支；当前实现与测试远端提交 `67cfd6e`（完整回归覆盖至前置 Python 代码；本次修正 `pg_dump` 标准输出备份链路并完成本地双容器恢复演练），证据文档随后提交到同一远端分支；部署骨架已推送至 `2f8c439e5878cbada47b6354db52d0385279b3d6`。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
