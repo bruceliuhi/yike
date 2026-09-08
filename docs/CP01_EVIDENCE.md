@@ -25,6 +25,8 @@ git diff --check
 
 另运行 `scripts/secret_scan.sh`，结果为 `secret-scan: clean`；该静态扫描不替代目标环境日志、备份和密钥管理验收。
 
+备份脚本已改为 `.dump.enc` 加密格式，口令只从仓库外 `YIKE_PILOT_BACKUP_PASSPHRASE_FILE` 读取；脚本语法、错误参数和未确认恢复分支已验证。真实目标库的加密备份、隔离恢复和回滚演练仍未完成。
+
 范围边界：这只证明 CP-01/CP-02 的本地数据层契约，不证明四页浏览器流程、真实平台采集、部署 HTTPS、备份恢复、真实用户试用或收入。
 
-代码备份：Gitee `codex/customer-pilot` 分支；当前远端提交 `5791015`（完整回归覆盖至其前置代码提交；本次追加仅更新研究证据），部署骨架已推送至 `2f8c439e5878cbada47b6354db52d0385279b3d6`。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
+代码备份：Gitee `codex/customer-pilot` 分支；当前远端提交 `ddf9224`（完整回归覆盖至其前置代码提交；本次追加加密备份脚本与研究证据），部署骨架已推送至 `2f8c439e5878cbada47b6354db52d0385279b3d6`。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
