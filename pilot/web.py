@@ -7,7 +7,7 @@ from pilot.auth import InvalidPilotToken, verify_token
 
 
 def _page(title: str, body: str) -> HTMLResponse:
-    return HTMLResponse(f"<!doctype html><html lang='zh-CN'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>{escape(title)}</title><body><nav><a href='/profile'>业务画像</a> · <a href='/opportunities'>今日机会</a></nav><main>{body}</main></body></html>")
+    return HTMLResponse(f"<!doctype html><html lang='zh-CN'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>{escape(title)}</title><body><nav><a href='/profile'>业务画像</a> · <a href='/opportunities'>今日机会</a> · <a href='/followups'>跟进反馈</a></nav><main>{body}</main></body></html>")
 
 
 def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
@@ -77,6 +77,19 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
             return _page("今日机会", "<h1>今日暂无经复核机会</h1><p>后台研究完成并人工复核后，机会会出现在这里。</p>")
         items = "".join(f"<li><a href='/opportunities/{escape(str(r['opportunity_id']), quote=True)}'>{escape(str(r['title']))}</a>｜{escape(str(r['buyer']))}｜{escape(str(r['intent_status']))}</li>" for r in rows)
         return _page("今日机会", f"<h1>今日值得联系</h1><ul>{items}</ul>")
+
+    @app.get("/followups", response_class=HTMLResponse)
+    def followups(authorization: str | None = Header(default=None), session: str | None = Cookie(default=None, alias="pilot_session")):
+        user_id = user(authorization, session)
+        rows = store.list_all_followups(user_id)
+        if not rows:
+            return _page("跟进反馈", "<h1>跟进反馈</h1><p>还没有记录。联系后在机会详情页登记真实结果。</p>")
+        items = "".join(
+            f"<li><a href='/opportunities/{escape(str(row['opportunity_id']), quote=True)}'>{escape(str(row['title']))}</a>｜"
+            f"{escape(str(row['status']))}｜{escape(str(row['note']))}</li>"
+            for row in rows
+        )
+        return _page("跟进反馈", f"<h1>跟进反馈</h1><ul>{items}</ul>")
 
     @app.get("/opportunities/{opportunity_id}", response_class=HTMLResponse)
     def opportunity(opportunity_id: str, authorization: str | None = Header(default=None), session: str | None = Cookie(default=None, alias="pilot_session")):

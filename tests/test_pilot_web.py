@@ -22,6 +22,9 @@ class Store:
     def list_followups(self, user_id, opportunity_id):
         return []
 
+    def list_all_followups(self, user_id):
+        return []
+
 
 def test_pilot_token_rejects_tampering_and_expiry():
     token = issue_token("user-1", "secret", ttl_seconds=10, now=100)
@@ -38,6 +41,7 @@ def test_pages_require_authenticated_user_and_render_evidence():
     headers = {"Authorization": "Bearer " + issue_token("user-1", "test-secret")}
     assert "展台搭建" in client.get("/profile", headers=headers).text
     assert "展台搭建" in client.get("/opportunities", headers=headers).text
+    assert "跟进反馈" in client.get("/followups", headers=headers).text
     detail = client.get("/opportunities/opp-1", headers=headers)
     assert "不自动发送" in detail.text
     assert "方便了解城市和面积吗？" in detail.text

@@ -158,6 +158,20 @@ class PilotStore:
                 columns = [d.name for d in cursor.description]
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
+    def list_all_followups(self, user_id: str) -> list[dict]:
+        tenant_id = self._tenant_for_user(user_id)
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute(
+                    "SELECT f.followup_id, f.opportunity_id, o.title, f.status, f.note, f.created_at "
+                    "FROM pilot_followups f JOIN pilot_opportunities o ON o.tenant_id=f.tenant_id AND o.opportunity_id=f.opportunity_id "
+                    "WHERE f.tenant_id=%s ORDER BY f.created_at DESC",
+                    (tenant_id,),
+                )
+                columns = [d.name for d in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
     def claim_task(self, user_id: str, task_key: str, lease_owner: str, lease_seconds: int = 300) -> dict | None:
         """Atomically claim a tenant task, returning None when it is unavailable or done."""
         if not task_key.strip() or not lease_owner.strip():

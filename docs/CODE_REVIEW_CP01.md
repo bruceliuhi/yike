@@ -12,7 +12,9 @@
 
 ## 保留限制
 
-`provision_tenant` 与 `provision_user` 只供受信管理工具使用，后续 Web 路由必须不暴露；本阶段仍未实现来源 content version/observation、四页 UI 和真实平台研究导入。
+`provision_tenant` 与 `provision_user` 只供受信管理工具使用，后续 Web 路由必须不暴露。该初审段落记录的是当时基线；后续提交已实现来源 content version/observation、四页 UI、人工复核研究包导入和任务租约，详见 `docs/CUSTOMER_PILOT_PLAN.md` 与最新质量复核。真实平台研究和生产部署仍未由本报告证明。
+
+复审绑定：代码安全边界与状态闭环已在 `8632b25c274644f50656fb7f7b7e45f2ff6b7701`、`eae701e078f584301b37d6b7b168e778c66fd783` 及后续健康检查提交上复核；本报告不替代目标环境的 RLS/网络 ACL 验收。
 
 ## 第四轮安全修复
 
