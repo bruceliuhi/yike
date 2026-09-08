@@ -101,6 +101,17 @@ class PilotStore:
                 else:
                     cursor.execute("SELECT source_id FROM pilot_sources WHERE tenant_id=%s AND platform=%s AND external_id=%s FOR UPDATE", (tenant_id, data["source_platform"], data["source_external_id"]))
                     source_id = cursor.fetchone()[0]
+                source_text = json.dumps({"title": data["title"], "summary": data["summary"], "excerpt": data.get("public_excerpt", "")}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                source_hash = hashlib.sha256(source_text.encode()).hexdigest()
+                source_version_id = str(uuid4())
+                cursor.execute("INSERT INTO pilot_source_versions(source_version_id, tenant_id, source_id, content_sha256, title, excerpt) VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (tenant_id, source_id, content_sha256) DO NOTHING RETURNING source_version_id", (source_version_id, tenant_id, source_id, source_hash, data["title"], data.get("public_excerpt", "")))
+                version_row = cursor.fetchone()
+                if version_row is not None:
+                    source_version_id = version_row[0]
+                else:
+                    cursor.execute("SELECT source_version_id FROM pilot_source_versions WHERE tenant_id=%s AND source_id=%s AND content_sha256=%s", (tenant_id, source_id, source_hash))
+                    source_version_id = cursor.fetchone()[0]
+                cursor.execute("INSERT INTO pilot_source_observations(observation_id, tenant_id, source_id, source_version_id) VALUES (%s,%s,%s,%s)", (str(uuid4()), tenant_id, source_id, source_version_id))
                 cursor.execute("INSERT INTO pilot_opportunities(opportunity_id, tenant_id, profile_version_id, source_id, import_key, title, buyer, summary, contact_path, public_excerpt, draft_comment, draft_dm) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (tenant_id, import_key) DO NOTHING RETURNING opportunity_id", (opportunity_id, tenant_id, profile_version_id, source_id, import_key, data["title"], data["buyer"], data["summary"], data["contact_path"], data.get("public_excerpt"), data["draft_comment"], data["draft_dm"]))
                 inserted = cursor.fetchone()
                 if inserted is not None:

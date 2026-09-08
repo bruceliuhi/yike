@@ -59,6 +59,29 @@ CREATE TABLE IF NOT EXISTS pilot_sources (
     UNIQUE (tenant_id, source_id)
 );
 
+CREATE TABLE IF NOT EXISTS pilot_source_versions (
+    source_version_id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    content_sha256 TEXT NOT NULL,
+    title TEXT NOT NULL,
+    excerpt TEXT NOT NULL,
+    observed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, source_id, content_sha256),
+    UNIQUE (tenant_id, source_version_id),
+    FOREIGN KEY (tenant_id, source_id) REFERENCES pilot_sources(tenant_id, source_id)
+);
+
+CREATE TABLE IF NOT EXISTS pilot_source_observations (
+    observation_id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    source_version_id TEXT NOT NULL,
+    observed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id, source_id) REFERENCES pilot_sources(tenant_id, source_id),
+    FOREIGN KEY (tenant_id, source_version_id) REFERENCES pilot_source_versions(tenant_id, source_version_id)
+);
+
 CREATE TABLE IF NOT EXISTS pilot_opportunities (
     opportunity_id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL,
@@ -122,7 +145,8 @@ DECLARE table_name TEXT;
 BEGIN
     FOREACH table_name IN ARRAY ARRAY[
         'business_profiles', 'business_profile_versions',
-        'pilot_sources', 'pilot_opportunities', 'pilot_followups', 'pilot_tasks'
+        'pilot_sources', 'pilot_source_versions', 'pilot_source_observations',
+        'pilot_opportunities', 'pilot_followups', 'pilot_tasks'
     ] LOOP
         IF NOT EXISTS (
             SELECT 1 FROM pg_policies

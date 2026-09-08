@@ -16,6 +16,8 @@ def test_migration_declares_tenant_scope_and_profile_history():
         "CREATE TABLE IF NOT EXISTS pilot_tenants",
         "CREATE TABLE IF NOT EXISTS business_profile_versions",
         "CREATE TABLE IF NOT EXISTS pilot_opportunities",
+        "CREATE TABLE IF NOT EXISTS pilot_source_versions",
+        "CREATE TABLE IF NOT EXISTS pilot_source_observations",
         "tenant_id TEXT NOT NULL",
         "ENABLE ROW LEVEL SECURITY",
         "import_key TEXT NOT NULL",
@@ -87,3 +89,7 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
     updated = store.save_profile(first_user, {"service": "展台设计搭建", "region": "上海"})
     assert updated["version"] == 2
     assert store.get_profile_version(first_user, profile["version_id"])["payload"]["region"] == "北京"
+    with database.connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM pilot_source_observations")
+            assert cursor.fetchone()[0] == 2
