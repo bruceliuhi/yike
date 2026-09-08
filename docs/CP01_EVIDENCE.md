@@ -27,6 +27,14 @@ git diff --check
 
 备份脚本已改为 `.dump.enc` 加密格式，口令只从仓库外 `YIKE_PILOT_BACKUP_PASSPHRASE_FILE` 读取；脚本语法、错误参数和未确认恢复分支已验证。真实目标库的加密备份、隔离恢复和回滚演练仍未完成。
 
+2026-09-09 尝试构建部署镜像：
+
+```bash
+docker build --progress=plain -f deploy/Dockerfile -t yike-customer-pilot:471d9c3 .
+```
+
+结果：构建停在 `ghcr.io/astral-sh/uv:0.8.15-python3.12-bookworm-slim` 元数据拉取，约 90 秒后人工取消（退出码 130）。因此当前没有可验证的本地镜像 SHA，不能把部署骨架或 Dockerfile 视为已构建/已上线。
+
 范围边界：这只证明 CP-01/CP-02 的本地数据层契约，不证明四页浏览器流程、真实平台采集、部署 HTTPS、备份恢复、真实用户试用或收入。
 
 代码备份：Gitee `codex/customer-pilot` 分支；当前远端提交 `a843f54`（完整回归覆盖至其前置代码提交；本次追加备份口令边界、失败清理和完整性门禁文档），部署骨架已推送至 `2f8c439e5878cbada47b6354db52d0385279b3d6`。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
