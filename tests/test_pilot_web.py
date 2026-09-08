@@ -55,3 +55,38 @@ def test_dev_session_bridge_is_disabled_by_default_and_sets_http_only_cookie():
     assert response.status_code == 303
     assert "httponly" in response.headers["set-cookie"].lower()
     assert enabled.get("/opportunities").status_code == 200
+
+
+def test_health_and_readiness_are_public_and_readiness_checks_database():
+    class Cursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def execute(self, query):
+            assert query == "SELECT 1"
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def cursor(self):
+            return Cursor()
+
+    class HealthStore(Store):
+        database = type("Database", (), {"connect": lambda self: Connection()})()
+
+    client = TestClient(build_app(HealthStore(), auth_secret="test-secret"))
+    assert client.get("/healthz").json() == {"status": "ok"}
+    assert client.get("/readyz").json() == {"status": "ready"}
+
+    class BrokenStore(Store):
+        database = type("Database", (), {"connect": lambda self: (_ for _ in ()).throw(RuntimeError("db down"))})()
+
+    broken = TestClient(build_app(BrokenStore(), auth_secret="test-secret"))
+    assert broken.get("/readyz").status_code == 503

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from html import escape
 from fastapi import Cookie, FastAPI, Form, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pilot.auth import InvalidPilotToken, verify_token
 
 
@@ -12,6 +12,20 @@ def _page(title: str, body: str) -> HTMLResponse:
 
 def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
     app = FastAPI(title="意客 AI 客户试用")
+
+    @app.get("/healthz")
+    def healthz():
+        return JSONResponse({"status": "ok"})
+
+    @app.get("/readyz")
+    def readyz():
+        try:
+            with store.database.connect() as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT 1")
+        except Exception:
+            return JSONResponse({"status": "not_ready"}, status_code=503)
+        return JSONResponse({"status": "ready"})
 
     def user(authorization: str | None, session: str | None = None) -> str:
         token = authorization[7:].strip() if authorization and authorization.startswith("Bearer ") else session
@@ -35,7 +49,7 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
         except InvalidPilotToken as error:
             raise HTTPException(status_code=401, detail="invalid pilot token") from error
         response = RedirectResponse("/profile", status_code=303)
-        response.set_cookie("pilot_session", token, httponly=True, samesite="strict", max_age=3600)
+        response.set_cookie("pilot_session", token, httponly=True, secure=request.url.scheme == "https", samesite="strict", max_age=3600)
         return response
 
     @app.get("/profile", response_class=HTMLResponse)
