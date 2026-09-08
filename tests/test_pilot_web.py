@@ -75,6 +75,23 @@ def test_dev_session_bridge_is_disabled_by_default_and_sets_http_only_cookie(cap
     assert all("token=" not in record.getMessage() for record in caplog.records)
 
 
+def test_secure_session_exchange_uses_post_and_https_cookie():
+    token = issue_token("user-1", "test-secret")
+    client = TestClient(build_app(Store(), auth_secret="test-secret"), base_url="https://testserver")
+    response = client.post("/session", data={"token": token}, follow_redirects=False)
+    assert response.status_code == 303
+    assert "secure" in response.headers["set-cookie"].lower()
+    assert "token=" not in response.headers["location"]
+    assert client.get("/opportunities").status_code == 200
+
+
+def test_secure_session_exchange_rejects_plain_http_in_production():
+    token = issue_token("user-1", "test-secret")
+    client = TestClient(build_app(Store(), auth_secret="test-secret"))
+    assert client.post("/session", data={"token": token}, follow_redirects=False).status_code == 400
+    assert client.post("/session", data={"token": token}, headers={"x-forwarded-proto": "https"}, follow_redirects=False).status_code == 400
+
+
 def test_health_and_readiness_are_public_and_readiness_checks_database():
     class Cursor:
         def __enter__(self):

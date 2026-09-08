@@ -32,3 +32,41 @@ def test_provision_user_requires_explicit_tenant(monkeypatch, capsys):
     monkeypatch.delenv("YIKE_PILOT_DATABASE_URL", raising=False)
     assert cli.provision(["user", "--tenant-id", "tenant-1", "--email", "a@example.com"]) == 2
     assert "YIKE_PILOT_DATABASE_URL" in capsys.readouterr().err
+
+
+def test_web_start_does_not_run_migrations_as_app_role(monkeypatch):
+    from pilot import cli
+
+    class FakeDatabase:
+        def migrate(self):
+            raise AssertionError("web process must not run privileged migrations")
+
+    class FakeStore:
+        def __init__(self, database):
+            self.database = database
+
+    called = {}
+    monkeypatch.setenv("YIKE_PILOT_DATABASE_URL", "postgresql://example")
+    monkeypatch.setenv("YIKE_PILOT_AUTH_SECRET", "test-secret")
+    monkeypatch.setattr(cli.PilotDatabase, "from_environment", lambda: FakeDatabase())
+    monkeypatch.setattr(cli, "PilotStore", FakeStore)
+    monkeypatch.setattr(cli.uvicorn, "run", lambda app, **kwargs: called.update(kwargs))
+
+    cli.web()
+    assert called["access_log"] is False
+
+
+def test_migrate_command_is_available_for_trusted_admin(monkeypatch):
+    from pilot import cli
+
+    class FakeDatabase:
+        def __init__(self):
+            self.migrated = False
+
+        def migrate(self):
+            self.migrated = True
+
+    database = FakeDatabase()
+    monkeypatch.setattr(cli.PilotDatabase, "from_environment", lambda: database)
+    assert cli.migrate([]) == 0
+    assert database.migrated is True

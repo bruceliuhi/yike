@@ -9,13 +9,16 @@
 ```bash
 export YIKE_PILOT_DATABASE_URL='postgresql://<app-user>:<password>@<private-host>:5432/<database>'
 export YIKE_PILOT_AUTH_SECRET='<random-secret-kept-outside-git>'
+uv run --frozen yike-pilot-migrate   # 仅由受信管理员/发布作业执行一次
 uv sync --frozen --extra dev
 uv run --frozen yike-pilot-web
 ```
 
 反向代理或容器编排可使用 `GET /healthz` 做进程存活检查、`GET /readyz` 做 PostgreSQL 就绪检查；二者不要求用户令牌，数据库不可用时 `/readyz` 返回 503。
 
-缺少数据库 URL 或认证密钥时，启动必须失败；不会静默退回旧 SQLite 数据库。
+缺少数据库 URL 或认证密钥时，启动必须失败；不会静默退回旧 SQLite 数据库。Web 进程本身不执行迁移，生产应用角色无需 CREATE/ALTER 权限；迁移必须由受信管理员或发布作业先执行。
+
+真实用户可通过 HTTPS 打开 `/session`，粘贴管理员经安全渠道提供的短期访问令牌换取 HttpOnly、SameSite=Strict 会话 Cookie。应用不信任客户端伪造的 `X-Forwarded-Proto`；反向代理必须覆盖该头并确保应用端口不公网直连。生产不得使用 `/__dev/session`，也不得把令牌放进 URL。
 
 ## 受信 provisioning
 

@@ -20,6 +20,7 @@ dev = ["pytest==8.3.5"]
 yike-web = "app.cli:web"
 yike-collector = "app.cli:collector"
 yike-pilot-web = "pilot.cli:web"
+yike-pilot-migrate = "pilot.cli:migrate"
 yike-pilot-import = "pilot.cli:import_bundle"
 yike-pilot-provision = "pilot.cli:provision"
 

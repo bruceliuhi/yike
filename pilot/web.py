@@ -63,6 +63,25 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
         response.set_cookie("pilot_session", token, httponly=True, secure=request.url.scheme == "https", samesite="strict", max_age=3600)
         return response
 
+    @app.get("/session", response_class=HTMLResponse)
+    def session_form():
+        return _page("登录意客 AI", "<h1>登录意客 AI</h1><p>请粘贴管理员通过安全渠道提供的短期访问令牌。</p><form method='post' action='/session'><input name='token' type='password' autocomplete='off' required placeholder='短期访问令牌'><button>继续</button></form>")
+
+    @app.post("/session")
+    def session_exchange(request: Request, token: str = Form(...)):
+        # The app does not trust client-supplied forwarding headers. Configure the
+        # reverse proxy/Uvicorn proxy-header boundary before exposing this route.
+        scheme = request.url.scheme
+        if not dev_login and scheme != "https":
+            raise HTTPException(status_code=400, detail="session exchange requires HTTPS")
+        try:
+            verify_token(token, auth_secret)
+        except InvalidPilotToken as error:
+            raise HTTPException(status_code=401, detail="invalid pilot token") from error
+        response = RedirectResponse("/profile", status_code=303)
+        response.set_cookie("pilot_session", token, httponly=True, secure=scheme == "https", samesite="strict", max_age=3600)
+        return response
+
     @app.get("/profile", response_class=HTMLResponse)
     def profile(authorization: str | None = Header(default=None), session: str | None = Cookie(default=None, alias="pilot_session")):
         user(authorization, session)
