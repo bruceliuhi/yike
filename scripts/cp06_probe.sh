@@ -15,8 +15,9 @@ case "$base_url" in
 esac
 base_url="${base_url%/}"
 
-health="$(curl --fail --silent --show-error --location --max-time 10 "$base_url/healthz")"
-ready="$(curl --fail --silent --show-error --location --max-time 10 "$base_url/readyz")"
+curl_https=(curl --fail --silent --show-error --location --max-time 10 --proto '=https' --proto-redir '=https')
+health="$("${curl_https[@]}" "$base_url/healthz")"
+ready="$("${curl_https[@]}" "$base_url/readyz")"
 if [[ "$health" != *'"status":"ok"'* || "$ready" != *'"status":"ready"'* ]]; then
   echo "CP-06 probe returned unexpected health/readiness payload" >&2
   exit 1
