@@ -110,6 +110,7 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
     assert store.complete_task(first_user, "research:2026-09-08", "worker-b") is False
     assert store.complete_task(first_user, "research:2026-09-08", "worker-a") is True
     assert store.complete_task(first_user, "research:2026-09-08", "worker-a") is True
+    assert store.complete_task(first_user, "research:2026-09-08", "worker-b") is False
     assert store.claim_task(first_user, "research:2026-09-08", "worker-b", lease_seconds=60) is None
 
     assert store.claim_task(first_user, "research:lease-expiry", "worker-a", lease_seconds=60) is not None
@@ -124,6 +125,7 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
     assert store.claim_task(first_user, "research:retry", "worker-a", lease_seconds=60) is not None
     assert store.fail_task(first_user, "research:retry", "worker-a") is True
     assert store.fail_task(first_user, "research:retry", "worker-a") is True
+    assert store.fail_task(first_user, "research:retry", "worker-b") is False
     retried = store.claim_task(first_user, "research:retry", "worker-b", lease_seconds=60)
     assert retried is not None
     assert retried["lease_owner"] == "worker-b"

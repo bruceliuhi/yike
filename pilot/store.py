@@ -194,10 +194,10 @@ class PilotStore:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
                 cursor.execute(
-                    "UPDATE pilot_tasks SET status='DONE', lease_owner=NULL, lease_until=NULL "
-                    "WHERE tenant_id=%s AND task_key=%s AND (status='DONE' OR "
+                    "UPDATE pilot_tasks SET status='DONE', lease_until=NULL "
+                    "WHERE tenant_id=%s AND task_key=%s AND ((status='DONE' AND lease_owner=%s) OR "
                     "(status='RUNNING' AND lease_owner=%s AND lease_until > CURRENT_TIMESTAMP))",
-                    (tenant_id, task_key, lease_owner),
+                    (tenant_id, task_key, lease_owner, lease_owner),
                 )
                 return cursor.rowcount == 1
 
@@ -210,10 +210,10 @@ class PilotStore:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
                 cursor.execute(
-                    "UPDATE pilot_tasks SET status='FAILED', lease_owner=NULL, lease_until=NULL "
-                    "WHERE tenant_id=%s AND task_key=%s AND (status='FAILED' OR "
+                    "UPDATE pilot_tasks SET status='FAILED', lease_until=NULL "
+                    "WHERE tenant_id=%s AND task_key=%s AND ((status='FAILED' AND lease_owner=%s) OR "
                     "(status='RUNNING' AND lease_owner=%s AND lease_until > CURRENT_TIMESTAMP))",
-                    (tenant_id, task_key, lease_owner),
+                    (tenant_id, task_key, lease_owner, lease_owner),
                 )
                 return cursor.rowcount == 1
 

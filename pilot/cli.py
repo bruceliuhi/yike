@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import uvicorn
+import psycopg
 
 from pilot.db import MissingDatabaseConfiguration, PilotDatabase
 from pilot.research_import import import_reviewed_bundle
@@ -35,7 +36,7 @@ def import_bundle(argv: list[str] | None = None) -> int:
         database.migrate()
         bundle = json.loads(Path(args.bundle).read_text(encoding="utf-8"))
         results = import_reviewed_bundle(PilotStore(database), args.user_id, args.profile_version_id, bundle)
-    except (MissingDatabaseConfiguration, OSError, json.JSONDecodeError, ValueError, KeyError) as error:
+    except (MissingDatabaseConfiguration, OSError, json.JSONDecodeError, ValueError, KeyError, psycopg.Error, RuntimeError) as error:
         print(f"yike-pilot-import: {error}", file=sys.stderr)
         return 2
     created = sum(1 for item in results if item.get("created"))
