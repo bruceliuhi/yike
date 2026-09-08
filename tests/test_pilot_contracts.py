@@ -80,6 +80,7 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
     with pytest.raises(ValueError, match="confirmed profile"):
         store.import_opportunity(first_user, profile["version_id"], "blocked-import", {"title": "t", "buyer": "b", "summary": "s", "public_url": "https://example.invalid/source/draft", "source_platform": "xiaohongshu", "source_external_id": "draft", "contact_path": "原帖评论", "draft_comment": "c", "draft_dm": "d"})
     store.confirm_profile(first_user, profile["version_id"])
+    assert store.get_task(first_user, f"research:{profile['version_id']}")["status"] == "PENDING"
     opportunity = {
         "title": "寻找展台设计搭建团队",
         "buyer": "匿名企业采购负责人",

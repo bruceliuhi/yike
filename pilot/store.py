@@ -98,6 +98,10 @@ class PilotStore:
                     raise ValueError("profile version is not confirmable")
                 cursor.execute("UPDATE business_profile_versions SET status='REVOKED' WHERE tenant_id=%s AND profile_id=%s AND status='CONFIRMED'", (tenant_id, profile_id))
                 cursor.execute("UPDATE business_profile_versions SET status='CONFIRMED', approved_at=CURRENT_TIMESTAMP WHERE tenant_id=%s AND profile_version_id=%s", (tenant_id, version_id))
+                cursor.execute(
+                    "INSERT INTO pilot_tasks(task_id, tenant_id, task_key) VALUES (%s,%s,%s) ON CONFLICT (tenant_id, task_key) DO NOTHING",
+                    (str(uuid4()), tenant_id, f"research:{version_id}"),
+                )
 
     def get_profile_version(self, user_id: str, version_id: str) -> dict:
         tenant_id = self._tenant_for_user(user_id)
