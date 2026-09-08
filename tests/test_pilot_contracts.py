@@ -95,6 +95,7 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
     assert store.list_opportunities(second_user) == []
     store.record_followup(first_user, created["opportunity_id"], "REPLIED", "对方回复，愿意沟通")
     assert store.list_followups(first_user, created["opportunity_id"])[0]["status"] == "REPLIED"
+    assert store.list_opportunities(first_user)[0]["intent_status"] == "CONTACTED"
     with database.connect() as connection:
         with connection.cursor() as cursor:
             cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (second,))

@@ -135,6 +135,8 @@ class PilotStore:
 
     def record_followup(self, user_id: str, opportunity_id: str, status: str, note: str) -> dict:
         tenant_id = self._tenant_for_user(user_id)
+        if status not in {"CONTACTED", "REPLIED", "MEETING", "QUOTED", "LOST", "WON"}:
+            raise ValueError("unsupported follow-up status")
         followup_id = str(uuid4())
         with self.database.connect() as connection:
             with connection.cursor() as cursor:
@@ -143,6 +145,8 @@ class PilotStore:
                 if cursor.fetchone() is None:
                     raise KeyError("opportunity not found in tenant")
                 cursor.execute("INSERT INTO pilot_followups(followup_id, tenant_id, opportunity_id, status, note) VALUES (%s,%s,%s,%s,%s)", (followup_id, tenant_id, opportunity_id, status, note))
+                intent_status = "CLOSED" if status in {"LOST", "WON"} else "CONTACTED"
+                cursor.execute("UPDATE pilot_opportunities SET intent_status=%s, updated_at=CURRENT_TIMESTAMP WHERE tenant_id=%s AND opportunity_id=%s", (intent_status, tenant_id, opportunity_id))
         return {"followup_id": followup_id}
 
     def list_followups(self, user_id: str, opportunity_id: str) -> list[dict]:
