@@ -43,4 +43,4 @@ docker build --progress=plain -f deploy/Dockerfile -t yike-customer-pilot:471d9c
 
 范围边界：这只证明 CP-01/CP-02 的本地数据层契约，不证明四页浏览器流程、真实平台采集、部署 HTTPS、备份恢复、真实用户试用或收入。
 
-代码备份：Gitee `codex/customer-pilot` 分支；当前部署相关提交为 `eff28d7`（固定 Python 基础层 digest）、`bd27338f108652e9ec43bdb4ea24fdfe4935cc77`（非 root 运行）与 `82ce5c0b284dfab5eeca5ef0999618427855a60f`（备份 HMAC 完整性与本证据更新），均已与远端 SHA 对齐。产品门禁现包含备份篡改拒绝测试。更早的部署验收模板及 HTTPS-only `/healthz`、`/readyz` 探针提交为 `006ac86188e366645b002d84ca274ddde33ed447`；探针对 HTTP、userinfo、query、fragment 输入均 fail-closed。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
+代码备份：Gitee `codex/customer-pilot` 分支；当前 HEAD 为 `f691a3e7ddd62768a0fe6fd1118b887c5a3c7d00`，已与远端 SHA 对齐；相关部署提交包括 `eff28d7`（固定 Python 基础层 digest）、`bd27338f108652e9ec43bdb4ea24fdfe4935cc77`（非 root 运行）与 `82ce5c0b284dfab5eeca5ef0999618427855a60f`（备份 HMAC 完整性）。产品门禁现包含备份篡改拒绝测试。更早的部署验收模板及 HTTPS-only `/healthz`、`/readyz` 探针提交为 `006ac86188e366645b002d84ca274ddde33ed447`；探针对 HTTP、userinfo、query、fragment 输入均 fail-closed。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
