@@ -65,3 +65,15 @@ uv run --frozen yike-pilot-import \
 - 任何来源过期或访问受阻，页面必须提示人工复核；不能当作有效商机继续推进。
 
 当前手册不等于生产部署证明；服务器、域名、HTTPS、备份恢复、回滚和真实手机验收需在目标环境单独记录。
+
+## 备份与恢复演练
+
+目标环境使用独立、受限的备份路径执行：
+
+```bash
+export YIKE_PILOT_DATABASE_URL='postgresql://<non-superuser>:<password>@<private-db>:5432/<database>'
+scripts/backup_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump
+CONFIRM_RESTORE=YES scripts/restore_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump
+```
+
+恢复前必须选定隔离数据库并人工确认；脚本不会自动恢复到当前生产库。演练结果、备份加密方式和回滚镜像 SHA 需写入目标环境验收记录。
