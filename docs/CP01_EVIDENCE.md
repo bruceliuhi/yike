@@ -39,4 +39,4 @@ docker build --progress=plain -f deploy/Dockerfile -t yike-customer-pilot:471d9c
 
 范围边界：这只证明 CP-01/CP-02 的本地数据层契约，不证明四页浏览器流程、真实平台采集、部署 HTTPS、备份恢复、真实用户试用或收入。
 
-代码备份：Gitee `codex/customer-pilot` 分支；当前实现与测试远端提交 `67cfd6e`（完整回归覆盖至前置 Python 代码；本次修正 `pg_dump` 标准输出备份链路并完成本地双容器恢复演练），证据文档随后提交到同一远端分支；部署骨架已推送至 `2f8c439e5878cbada47b6354db52d0385279b3d6`。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
+代码备份：Gitee `codex/customer-pilot` 分支；当前实现与测试远端提交 `67cfd6e`（完整回归覆盖至前置 Python 代码；本次修正 `pg_dump` 标准输出备份链路并完成本地双容器恢复演练），证据文档随后提交到同一远端分支；部署骨架已推送至 `2f8c439e5878cbada47b6354db52d0385279b3d6`。部署验收模板及 HTTPS-only `/healthz`、`/readyz` 探针随后提交，最新工具提交为 `006ac86188e366645b002d84ca274ddde33ed447`；探针对 HTTP、userinfo、query、fragment 输入均 fail-closed。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
