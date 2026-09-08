@@ -1,5 +1,7 @@
+from concurrent.futures import ThreadPoolExecutor
 import os
 from pathlib import Path
+from threading import Barrier
 
 import pytest
 
@@ -165,3 +167,58 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
             cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (first,))
             cursor.execute("SELECT COUNT(*) FROM pilot_source_observations")
             assert cursor.fetchone()[0] == 3
+
+
+@pytest.mark.integration
+def test_concurrent_profile_confirmation_keeps_one_current_version():
+    url = os.environ.get("YIKE_PILOT_DATABASE_URL")
+    if not url:
+        pytest.skip("set YIKE_PILOT_DATABASE_URL for PostgreSQL integration")
+    database = PilotDatabase(url)
+    database.migrate()
+    store = PilotStore(database)
+    tenant_id = store.provision_tenant("concurrent-profile")
+    user_id = store.provision_user(tenant_id, "concurrent@example.invalid")
+    first = store.save_profile(user_id, {"description": "版本一"})
+    second = store.save_profile(user_id, {"description": "版本二"})
+    with database.connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                CREATE OR REPLACE FUNCTION pilot_test_confirm_delay() RETURNS trigger
+                LANGUAGE plpgsql AS $$
+                BEGIN
+                    IF NEW.status = 'CONFIRMED' AND OLD.status = 'DRAFT' THEN
+                        PERFORM pg_sleep(0.2);
+                    END IF;
+                    RETURN NEW;
+                END $$
+            """)
+            cursor.execute("DROP TRIGGER IF EXISTS pilot_test_confirm_delay_trigger ON business_profile_versions")
+            cursor.execute("""
+                CREATE TRIGGER pilot_test_confirm_delay_trigger
+                BEFORE UPDATE ON business_profile_versions
+                FOR EACH ROW EXECUTE FUNCTION pilot_test_confirm_delay()
+            """)
+    start = Barrier(2)
+
+    def confirm(version_id):
+        start.wait(timeout=5)
+        store.confirm_profile(user_id, version_id)
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            list(pool.map(confirm, (first["version_id"], second["version_id"])))
+    finally:
+        with database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("DROP TRIGGER IF EXISTS pilot_test_confirm_delay_trigger ON business_profile_versions")
+                cursor.execute("DROP FUNCTION IF EXISTS pilot_test_confirm_delay()")
+    with database.connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT version, status FROM business_profile_versions WHERE tenant_id=%s ORDER BY version",
+                (tenant_id,),
+            )
+            statuses = cursor.fetchall()
+    assert [status for _, status in statuses].count("CONFIRMED") == 1
+    assert statuses[-1][1] == "CONFIRMED"

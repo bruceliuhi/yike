@@ -81,11 +81,17 @@ class PilotStore:
         with self.database.connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
-                cursor.execute("SELECT profile_id, status FROM business_profile_versions WHERE tenant_id=%s AND profile_version_id=%s FOR UPDATE", (tenant_id, version_id))
+                cursor.execute("SELECT profile_id FROM business_profile_versions WHERE tenant_id=%s AND profile_version_id=%s", (tenant_id, version_id))
+                profile = cursor.fetchone()
+                if profile is None:
+                    raise KeyError("draft profile version not found in tenant")
+                profile_id = profile[0]
+                cursor.execute("SELECT profile_id FROM business_profiles WHERE tenant_id=%s AND profile_id=%s FOR UPDATE", (tenant_id, profile_id))
+                cursor.execute("SELECT status FROM business_profile_versions WHERE tenant_id=%s AND profile_version_id=%s FOR UPDATE", (tenant_id, version_id))
                 current = cursor.fetchone()
                 if current is None:
                     raise KeyError("draft profile version not found in tenant")
-                profile_id, status = current
+                status = current[0]
                 if status == "CONFIRMED":
                     return
                 if status != "DRAFT":
@@ -105,6 +111,11 @@ class PilotStore:
         with self.database.connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute("SELECT profile_id FROM business_profile_versions WHERE tenant_id=%s AND profile_version_id=%s", (tenant_id, profile_version_id))
+                profile_row = cursor.fetchone()
+                if profile_row is None:
+                    raise ValueError("opportunity import requires a confirmed profile version")
+                cursor.execute("SELECT profile_id FROM business_profiles WHERE tenant_id=%s AND profile_id=%s FOR UPDATE", (tenant_id, profile_row[0]))
                 cursor.execute("SELECT 1 FROM business_profile_versions WHERE tenant_id=%s AND profile_version_id=%s AND status='CONFIRMED'", (tenant_id, profile_version_id))
                 if cursor.fetchone() is None:
                     raise ValueError("opportunity import requires a confirmed profile version")
@@ -139,7 +150,12 @@ class PilotStore:
         with self.database.connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
-                cursor.execute("SELECT opportunity_id, title, buyer, intent_status, source_status, summary, updated_at, public_excerpt FROM pilot_opportunities WHERE tenant_id=%s ORDER BY created_at DESC", (tenant_id,))
+                cursor.execute(
+                    "SELECT o.opportunity_id, o.title, o.buyer, o.intent_status, o.source_status, o.summary, o.updated_at, o.public_excerpt, p.status AS profile_status "
+                    "FROM pilot_opportunities o JOIN business_profile_versions p ON p.tenant_id=o.tenant_id AND p.profile_version_id=o.profile_version_id "
+                    "WHERE o.tenant_id=%s ORDER BY o.created_at DESC",
+                    (tenant_id,),
+                )
                 columns = [d.name for d in cursor.description]
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
@@ -147,10 +163,11 @@ class PilotStore:
         tenant_id = self._tenant_for_user(user_id)
         return self._fetchone(
             tenant_id,
-            "SELECT o.opportunity_id, o.title, o.buyer, o.summary, o.contact_path, o.public_excerpt, "
+            "SELECT o.opportunity_id, o.title, o.buyer, o.summary, o.contact_path, o.public_excerpt, o.profile_version_id, p.status AS profile_status, "
             "o.draft_comment, o.draft_dm, o.source_status, s.platform AS source_platform, "
             "s.public_url, s.published_at FROM pilot_opportunities o "
             "JOIN pilot_sources s ON s.tenant_id=o.tenant_id AND s.source_id=o.source_id "
+            "JOIN business_profile_versions p ON p.tenant_id=o.tenant_id AND p.profile_version_id=o.profile_version_id "
             "WHERE o.tenant_id=%s AND o.opportunity_id=%s",
             (tenant_id, opportunity_id),
         )

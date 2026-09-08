@@ -124,10 +124,11 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
         items = "".join(
             f"<li><a href='/opportunities/{escape(str(r['opportunity_id']), quote=True)}'>{escape(str(r['title']))}</a>｜"
             f"{escape(str(r['buyer']))}｜意向 {escape(str(r['intent_status']))}｜来源 {escape(str(r.get('source_status') or 'UNVERIFIED'))}｜"
-            f"更新时间 {escape(str(r.get('updated_at') or '未知'))}｜{escape(str(r.get('summary') or r.get('public_excerpt') or '暂无摘要'))}</li>"
+            f"更新时间 {escape(str(r.get('updated_at') or '未知'))}｜{('[画像已变，需重新复核]｜' if r.get('profile_status') != 'CONFIRMED' else '')}"
+            f"{escape(str(r.get('summary') or r.get('public_excerpt') or '暂无摘要'))}</li>"
             for r in rows
         )
-        return _page("今日机会", f"<h1>今日值得联系</h1>{task_warning}<ul>{items}</ul>")
+        return _page("机会列表", f"<h1>机会列表</h1>{task_warning}<p>画像已变的机会需重新复核后再联系。</p><ul>{items}</ul>")
 
     @app.get("/followups", response_class=HTMLResponse)
     def followups(authorization: str | None = Header(default=None), session: str | None = Cookie(default=None, alias="pilot_session")):
@@ -160,6 +161,8 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
             warning = "<p><strong>来源暂时受阻：暂不建议联系，需人工处理访问问题。</strong></p>"
         elif source_status == "UNVERIFIED":
             warning = "<p><strong>来源尚未核验：先人工打开原文并确认需求仍有效，再联系。</strong></p>"
+        if row.get("profile_status") != "CONFIRMED":
+            warning += "<p><strong>业务画像已更新：此机会基于旧画像，仅保留历史证据；重新确认适配后再联系。</strong></p>"
         source_url = str(row.get("public_url") or "")
         source_link = f"<a href='{escape(source_url, quote=True)}' rel='noreferrer'>打开原文</a>" if source_url else "原文链接缺失"
         published = escape(str(row.get("published_at") or "未知"))
