@@ -89,6 +89,11 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
         "source_external_id": "source-one",
         "source_published_at": "2026-09-01T09:00:00Z",
         "contact_path": "原帖评论",
+        "public_excerpt": "秋季展会寻展台设计搭建团队",
+        "match_reason": "明确寻源且有具体场景",
+        "action_signal": "正在比较服务商",
+        "value_judgment": "项目型服务，具备扩展价值",
+        "risk": "预算未公开",
         "draft_comment": "方便的话想了解一下展会城市和面积，我可以先帮你判断需求范围。",
         "draft_dm": "看到你在找展台团队。若项目还在评估，我可以先按城市、面积和交付时间帮你梳理一下，不急着报价。",
     }
@@ -98,8 +103,11 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
     assert repeated["created"] is False
     assert len(store.list_opportunities(first_user)) == 1
     sibling = store.import_opportunity(first_user, profile["version_id"], "run-2:source-one", opportunity)
-    assert sibling["created"] is True
-    assert len(store.list_opportunities(first_user)) == 2
+    assert sibling["created"] is False
+    assert sibling["opportunity_id"] == created["opportunity_id"]
+    assert len(store.list_opportunities(first_user)) == 1
+    with pytest.raises(ValueError, match="source identity"):
+        store.import_opportunity(first_user, profile["version_id"], "run-3:source-one", {**opportunity, "public_url": "https://example.invalid/source/conflict"})
     assert store.list_opportunities(second_user) == []
     store.record_followup(first_user, created["opportunity_id"], "REPLIED", "对方回复，愿意沟通")
     assert store.list_followups(first_user, created["opportunity_id"])[0]["status"] == "REPLIED"
@@ -166,7 +174,7 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
         with connection.cursor() as cursor:
             cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (first,))
             cursor.execute("SELECT COUNT(*) FROM pilot_source_observations")
-            assert cursor.fetchone()[0] == 3
+            assert cursor.fetchone()[0] == 2
 
 
 @pytest.mark.integration

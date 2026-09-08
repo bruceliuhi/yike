@@ -119,14 +119,30 @@ class PilotStore:
                 cursor.execute("SELECT 1 FROM business_profile_versions WHERE tenant_id=%s AND profile_version_id=%s AND status='CONFIRMED'", (tenant_id, profile_version_id))
                 if cursor.fetchone() is None:
                     raise ValueError("opportunity import requires a confirmed profile version")
+                cursor.execute(
+                    "SELECT o.opportunity_id, o.profile_version_id, s.platform, s.external_id FROM pilot_opportunities o "
+                    "JOIN pilot_sources s ON s.tenant_id=o.tenant_id AND s.source_id=o.source_id "
+                    "WHERE o.tenant_id=%s AND o.import_key=%s FOR UPDATE",
+                    (tenant_id, import_key),
+                )
+                existing_import = cursor.fetchone()
+                if existing_import is not None:
+                    if existing_import[1] != profile_version_id:
+                        raise ValueError("import key conflicts with existing profile")
+                    if (existing_import[2], existing_import[3]) != (data["source_platform"], data["source_external_id"]):
+                        raise ValueError("import key conflicts with existing source")
+                    return {"opportunity_id": existing_import[0], "created": False}
                 cursor.execute("INSERT INTO pilot_sources(source_id, tenant_id, platform, external_id, public_url, published_at) VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (tenant_id, platform, external_id) DO NOTHING RETURNING source_id", (source_id, tenant_id, data["source_platform"], data["source_external_id"], data["public_url"], data.get("source_published_at")))
                 source = cursor.fetchone()
                 if source:
                     source_id = source[0]
                 else:
-                    cursor.execute("SELECT source_id FROM pilot_sources WHERE tenant_id=%s AND platform=%s AND external_id=%s FOR UPDATE", (tenant_id, data["source_platform"], data["source_external_id"]))
-                    source_id = cursor.fetchone()[0]
-                source_text = json.dumps({"title": data["title"], "summary": data["summary"], "excerpt": data.get("public_excerpt", "")}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                    cursor.execute("SELECT source_id, public_url, published_at FROM pilot_sources WHERE tenant_id=%s AND platform=%s AND external_id=%s FOR UPDATE", (tenant_id, data["source_platform"], data["source_external_id"]))
+                    existing_source = cursor.fetchone()
+                    source_id = existing_source[0]
+                    if existing_source[1] != data["public_url"]:
+                        raise ValueError("source identity conflicts with existing public URL")
+                source_text = json.dumps({"title": data["title"], "excerpt": data.get("public_excerpt", "")}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
                 source_hash = hashlib.sha256(source_text.encode()).hexdigest()
                 source_version_id = str(uuid4())
                 cursor.execute("INSERT INTO pilot_source_versions(source_version_id, tenant_id, source_id, content_sha256, title, excerpt) VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (tenant_id, source_id, content_sha256) DO NOTHING RETURNING source_version_id", (source_version_id, tenant_id, source_id, source_hash, data["title"], data.get("public_excerpt", "")))
@@ -137,13 +153,34 @@ class PilotStore:
                     cursor.execute("SELECT source_version_id FROM pilot_source_versions WHERE tenant_id=%s AND source_id=%s AND content_sha256=%s FOR UPDATE", (tenant_id, source_id, source_hash))
                     source_version_id = cursor.fetchone()[0]
                 cursor.execute("INSERT INTO pilot_source_observations(observation_id, tenant_id, source_id, source_version_id) VALUES (%s,%s,%s,%s)", (str(uuid4()), tenant_id, source_id, source_version_id))
-                cursor.execute("INSERT INTO pilot_opportunities(opportunity_id, tenant_id, profile_version_id, source_id, import_key, title, buyer, summary, contact_path, public_excerpt, draft_comment, draft_dm) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (tenant_id, import_key) DO NOTHING RETURNING opportunity_id", (opportunity_id, tenant_id, profile_version_id, source_id, import_key, data["title"], data["buyer"], data["summary"], data["contact_path"], data.get("public_excerpt"), data["draft_comment"], data["draft_dm"]))
+                cursor.execute(
+                    "INSERT INTO pilot_opportunities(opportunity_id, tenant_id, profile_version_id, source_id, import_key, title, buyer, summary, contact_path, public_excerpt, match_reason, action_signal, value_judgment, risk, reviewed_by, reviewed_at, draft_comment, draft_dm) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+                    "ON CONFLICT DO NOTHING RETURNING opportunity_id",
+                    (
+                        opportunity_id, tenant_id, profile_version_id, source_id, import_key,
+                        data["title"], data["buyer"], data["summary"], data["contact_path"],
+                        data.get("public_excerpt"), data.get("match_reason", ""),
+                        data.get("action_signal", ""), data.get("value_judgment", ""),
+                        data.get("risk", ""), data.get("reviewed_by", ""), data.get("reviewed_at") or datetime.now(UTC),
+                        data["draft_comment"], data["draft_dm"],
+                    ),
+                )
                 inserted = cursor.fetchone()
                 if inserted is not None:
                     return {"opportunity_id": inserted[0], "created": True}
                 cursor.execute("SELECT opportunity_id FROM pilot_opportunities WHERE tenant_id=%s AND import_key=%s", (tenant_id, import_key))
                 existing = cursor.fetchone()
-                return {"opportunity_id": existing[0], "created": False}
+                if existing is not None:
+                    return {"opportunity_id": existing[0], "created": False}
+                cursor.execute(
+                    "SELECT opportunity_id FROM pilot_opportunities WHERE tenant_id=%s AND source_id=%s AND profile_version_id=%s",
+                    (tenant_id, source_id, profile_version_id),
+                )
+                existing_source = cursor.fetchone()
+                if existing_source is not None:
+                    return {"opportunity_id": existing_source[0], "created": False}
+                raise RuntimeError("opportunity insert conflict could not be resolved")
 
     def list_opportunities(self, user_id: str) -> list[dict]:
         tenant_id = self._tenant_for_user(user_id)
@@ -151,7 +188,7 @@ class PilotStore:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
                 cursor.execute(
-                    "SELECT o.opportunity_id, o.title, o.buyer, o.intent_status, o.source_status, o.summary, o.updated_at, o.public_excerpt, p.status AS profile_status "
+                    "SELECT o.opportunity_id, o.title, o.buyer, o.intent_status, o.source_status, o.summary, o.updated_at, o.public_excerpt, o.match_reason, o.action_signal, o.value_judgment, o.risk, p.status AS profile_status "
                     "FROM pilot_opportunities o JOIN business_profile_versions p ON p.tenant_id=o.tenant_id AND p.profile_version_id=o.profile_version_id "
                     "WHERE o.tenant_id=%s ORDER BY o.created_at DESC",
                     (tenant_id,),
@@ -163,7 +200,7 @@ class PilotStore:
         tenant_id = self._tenant_for_user(user_id)
         return self._fetchone(
             tenant_id,
-            "SELECT o.opportunity_id, o.title, o.buyer, o.summary, o.contact_path, o.public_excerpt, o.profile_version_id, p.status AS profile_status, "
+            "SELECT o.opportunity_id, o.title, o.buyer, o.summary, o.contact_path, o.public_excerpt, o.match_reason, o.action_signal, o.value_judgment, o.risk, o.reviewed_by, o.reviewed_at, o.profile_version_id, p.status AS profile_status, "
             "o.draft_comment, o.draft_dm, o.source_status, s.platform AS source_platform, "
             "s.public_url, s.published_at FROM pilot_opportunities o "
             "JOIN pilot_sources s ON s.tenant_id=o.tenant_id AND s.source_id=o.source_id "

@@ -22,6 +22,8 @@ uv run --frozen yike-pilot-web
 
 真实用户可通过 HTTPS 打开 `/session`，粘贴管理员经安全渠道提供的短期访问令牌换取 HttpOnly、SameSite=Strict 会话 Cookie。应用不信任客户端伪造的 `X-Forwarded-Proto`；反向代理必须覆盖该头并确保应用端口不公网直连。生产不得使用 `/__dev/session`，也不得把令牌放进 URL。
 
+使用受限 Compose 时，先从与 `YIKE_PILOT_ENV_FILE` 相同的仓库外文件加载环境变量，再运行 preflight，确保校验值与容器实际注入值一致：`set -a; . "$YIKE_PILOT_ENV_FILE"; set +a`。该文件只允许受信管理员读取，不能提交或打印。
+
 ## 受信 provisioning
 
 `PilotStore.provision_tenant` 和 `provision_user` 只允许管理员脚本调用。它们不得暴露为客户 HTTP 路由。管理员生成用户后，用 `pilot.auth.issue_token()` 签发短期令牌；令牌只通过 HTTPS 或本机安全渠道交给用户。

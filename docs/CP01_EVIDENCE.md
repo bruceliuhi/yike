@@ -5,7 +5,7 @@
 命令：
 
 ```bash
-YIKE_PILOT_DATABASE_URL='postgresql://pilot:pilot@127.0.0.1:55531/pilot' \
+YIKE_PILOT_DATABASE_URL='postgresql://<non-superuser>:<password>@127.0.0.1:55531/pilot' \
   uv run --frozen pytest -q \
   tests/test_pilot_contracts.py tests/test_pilot_web.py \
   tests/test_research_import.py tests/test_pilot_import_cli.py \

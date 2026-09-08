@@ -7,7 +7,7 @@
 在仓库根目录执行：
 
 ```bash
-docker build -f deploy/Dockerfile -t yike-customer-pilot:<git-sha> .
+docker build --build-arg VCS_REF="$(git rev-parse HEAD)" -f deploy/Dockerfile -t yike-customer-pilot:<git-sha> .
 docker run --rm -p 127.0.0.1:8787:8787 \
   -e YIKE_PILOT_DATABASE_URL='postgresql://<non-superuser>:<password>@<private-db>:5432/<database>' \
   -e YIKE_PILOT_AUTH_SECRET='<secret-from-secret-manager>' \
@@ -19,6 +19,7 @@ docker run --rm -p 127.0.0.1:8787:8787 \
 ```bash
 export YIKE_PILOT_IMAGE='registry.example.com/yike/customer-pilot@sha256:<64-hex-digest>'
 export YIKE_PILOT_ENV_FILE='/secure/secret-store/yike-pilot.env'
+set -a; . "$YIKE_PILOT_ENV_FILE"; set +a
 scripts/cp06_validate_env.sh
 docker compose -f deploy/compose.pilot.yml up -d
 ```

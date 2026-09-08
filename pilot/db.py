@@ -13,6 +13,10 @@ class MissingDatabaseConfiguration(RuntimeError):
 
 class PilotDatabase:
     migration_path = Path(__file__).resolve().parents[1] / "migrations" / "101_customer_pilot.sql"
+    migration_paths = (
+        ("customer-pilot-v1", migration_path),
+        ("customer-pilot-v2", migration_path.with_name("102_customer_pilot_evidence.sql")),
+    )
 
     def __init__(self, url: str):
         if not url.startswith(("postgresql://", "postgres://")):
@@ -30,15 +34,16 @@ class PilotDatabase:
         return psycopg.connect(self.url, connect_timeout=5, application_name="yike-customer-pilot")
 
     def migrate(self) -> None:
-        sql = self.migration_path.read_text(encoding="utf-8")
-        checksum = hashlib.sha256(sql.encode("utf-8")).hexdigest()
         with self.connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT pg_advisory_xact_lock(hashtext('yike-customer-pilot-schema'))")
-                cursor.execute(sql)
-                cursor.execute("SELECT checksum FROM pilot_schema_meta WHERE version='customer-pilot-v1'")
-                existing = cursor.fetchone()
-                if existing is None:
-                    cursor.execute("INSERT INTO pilot_schema_meta(version, checksum) VALUES (%s, %s)", ("customer-pilot-v1", checksum))
-                elif existing[0] != checksum:
-                    raise RuntimeError("customer-pilot migration checksum mismatch")
+                for version, path in self.migration_paths:
+                    sql = path.read_text(encoding="utf-8")
+                    checksum = hashlib.sha256(sql.encode("utf-8")).hexdigest()
+                    cursor.execute(sql)
+                    cursor.execute("SELECT checksum FROM pilot_schema_meta WHERE version=%s", (version,))
+                    existing = cursor.fetchone()
+                    if existing is None:
+                        cursor.execute("INSERT INTO pilot_schema_meta(version, checksum) VALUES (%s, %s)", (version, checksum))
+                    elif existing[0] != checksum:
+                        raise RuntimeError(f"customer-pilot migration checksum mismatch: {version}")

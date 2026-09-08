@@ -32,7 +32,8 @@ if [[ "${YIKE_PILOT_PROXY_HEADERS:-0}" == "1" ]]; then
   [[ -n "$forwarded_allow_ips" ]] || fail "forwarded IP allowlist is required when proxy headers are enabled"
   IFS=',' read -r -a allowlist <<< "$forwarded_allow_ips"
   for item in "${allowlist[@]}"; do
-    [[ "${item//[[:space:]]/}" != "*" ]] || fail "forwarded IP allowlist must not contain wildcard"
+    normalized="${item//[[:space:]]/}"
+    [[ "$normalized" != "*" && "$normalized" != */0 ]] || fail "forwarded IP allowlist must not contain wildcard or /0 network"
   done
 fi
 
