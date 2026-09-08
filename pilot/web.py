@@ -3,6 +3,8 @@ from __future__ import annotations
 from html import escape
 from fastapi import Cookie, FastAPI, Form, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+import logging
 from pilot.auth import InvalidPilotToken, verify_token
 
 
@@ -12,6 +14,15 @@ def _page(title: str, body: str) -> HTMLResponse:
 
 def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
     app = FastAPI(title="意客 AI 客户试用")
+    access_logger = logging.getLogger("yike.pilot.access")
+
+    class RedactedAccessLogMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):
+            response = await call_next(request)
+            access_logger.info("%s %s %s", request.method, request.url.path, response.status_code)
+            return response
+
+    app.add_middleware(RedactedAccessLogMiddleware)
 
     @app.get("/healthz")
     def healthz():

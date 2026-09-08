@@ -61,15 +61,18 @@ def test_pages_require_authenticated_user_and_render_evidence():
     assert response.status_code == 303
 
 
-def test_dev_session_bridge_is_disabled_by_default_and_sets_http_only_cookie():
+def test_dev_session_bridge_is_disabled_by_default_and_sets_http_only_cookie(caplog):
     token = issue_token("user-1", "test-secret")
     disabled = TestClient(build_app(Store(), auth_secret="test-secret"))
     assert disabled.get("/__dev/session", params={"token": token}).status_code == 404
     enabled = TestClient(build_app(Store(), auth_secret="test-secret", dev_login=True))
-    response = enabled.get("/__dev/session", params={"token": token}, follow_redirects=False)
+    with caplog.at_level("INFO", logger="yike.pilot.access"):
+        response = enabled.get("/__dev/session", params={"token": token}, follow_redirects=False)
+        opportunities_response = enabled.get("/opportunities")
     assert response.status_code == 303
     assert "httponly" in response.headers["set-cookie"].lower()
-    assert enabled.get("/opportunities").status_code == 200
+    assert opportunities_response.status_code == 200
+    assert all("token=" not in record.getMessage() for record in caplog.records)
 
 
 def test_health_and_readiness_are_public_and_readiness_checks_database():
