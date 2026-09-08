@@ -7,11 +7,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_LINK_MODE=copy
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --no-install-project
 
 COPY app ./app
 COPY pilot ./pilot
 COPY migrations ./migrations
+RUN uv sync --frozen --no-dev
 
 ENV YIKE_PILOT_HOST=0.0.0.0 \
     YIKE_PILOT_PORT=8787
