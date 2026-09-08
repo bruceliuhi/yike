@@ -90,7 +90,14 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
     @app.post("/profile", response_class=HTMLResponse)
     def save_profile(payload: str = Form(...), authorization: str | None = Header(default=None), session: str | None = Cookie(default=None, alias="pilot_session")):
         user_id = user(authorization, session)
-        result = store.save_profile(user_id, {"description": payload})
+        if not payload.strip():
+            raise HTTPException(status_code=400, detail="profile description is required")
+        try:
+            result = store.save_profile(user_id, {"description": payload})
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="profile description is required") from error
+        if result.get("status") == "CONFIRMED":
+            return RedirectResponse("/opportunities", status_code=303)
         return _page("画像待确认", f"<h1>画像版本 {result['version']} 已保存</h1><p>这是待确认版本，确认后才会用于导入机会。</p><form method='post' action='/profile/{result['version_id']}/confirm'><button>确认这个版本</button></form>")
 
     @app.post("/profile/{version_id}/confirm")

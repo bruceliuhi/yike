@@ -173,3 +173,13 @@ def test_invalid_form_values_and_missing_opportunity_fail_closed():
     client = TestClient(build_app(Store(), auth_secret="test-secret"))
     assert client.post("/opportunities/opp-1/source-status", headers=headers, data={"status": "INVALID"}).status_code == 400
     assert client.post("/opportunities/opp-1/followups", headers=headers, data={"status": "INVALID", "note": ""}).status_code == 400
+
+
+def test_profile_rejects_blank_description():
+    class ProfileStore(Store):
+        def save_profile(self, user_id, payload):
+            raise AssertionError("blank profile must be rejected before persistence")
+
+    client = TestClient(build_app(ProfileStore(), auth_secret="test-secret"))
+    headers = {"Authorization": "Bearer " + issue_token("user-1", "test-secret")}
+    assert client.post("/profile", headers=headers, data={"payload": "  \n  "}).status_code == 400

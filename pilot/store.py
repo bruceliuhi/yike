@@ -52,6 +52,8 @@ class PilotStore:
                 return row[0]
 
     def save_profile(self, user_id: str, payload: dict) -> dict:
+        if not isinstance(payload, dict) or not any(isinstance(value, str) and value.strip() for value in payload.values()):
+            raise ValueError("profile description is required")
         tenant_id = self._tenant_for_user(user_id)
         profile_id = self._profile_id(tenant_id)
         content = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -61,6 +63,10 @@ class PilotStore:
                 cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
                 cursor.execute("INSERT INTO business_profiles(profile_id, tenant_id) VALUES (%s, %s) ON CONFLICT DO NOTHING", (profile_id, tenant_id))
                 cursor.execute("SELECT profile_id FROM business_profiles WHERE tenant_id=%s AND profile_id=%s FOR UPDATE", (tenant_id, profile_id))
+                cursor.execute("SELECT profile_version_id, version, status FROM business_profile_versions WHERE tenant_id=%s AND profile_id=%s AND content_sha256=%s", (tenant_id, profile_id, digest))
+                existing = cursor.fetchone()
+                if existing is not None:
+                    return {"profile_id": profile_id, "version_id": existing[0], "version": existing[1], "status": existing[2]}
                 cursor.execute("SELECT COALESCE(MAX(version), 0) + 1 FROM business_profile_versions WHERE tenant_id=%s AND profile_id=%s", (tenant_id, profile_id))
                 version = cursor.fetchone()[0]
                 version_id = str(uuid4())
@@ -68,7 +74,7 @@ class PilotStore:
                     "INSERT INTO business_profile_versions(profile_version_id, tenant_id, profile_id, version, payload, content_sha256) VALUES (%s,%s,%s,%s,%s::jsonb,%s)",
                     (version_id, tenant_id, profile_id, version, content, digest),
                 )
-        return {"profile_id": profile_id, "version_id": version_id, "version": version}
+        return {"profile_id": profile_id, "version_id": version_id, "version": version, "status": "DRAFT"}
 
     def confirm_profile(self, user_id: str, version_id: str) -> None:
         tenant_id = self._tenant_for_user(user_id)
