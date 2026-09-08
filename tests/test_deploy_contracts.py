@@ -15,6 +15,7 @@ def test_build_context_excludes_runtime_and_secret_material() -> None:
     assert "cookies" in ignore
     assert "tests" in ignore
     assert "docs" in ignore
+    assert "app" in ignore
 
 
 def test_production_image_does_not_sync_dependencies_at_runtime() -> None:
