@@ -21,4 +21,4 @@ uv run python -m compileall -q pilot
 
 范围边界：这只证明 CP-01/CP-02 的本地数据层契约，不证明四页浏览器流程、真实平台采集、部署 HTTPS、备份恢复、真实用户试用或收入。
 
-代码备份：Gitee `codex/customer-pilot` 分支，最新提交 `518417d5898bd9655dbd42d5d207793d0036f3ec`。该分支尚未部署。
+代码备份：Gitee `codex/customer-pilot` 分支，当前最新提交 `889c6659f9de2f3f98518af2a3bcfefd30d1b319`。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
