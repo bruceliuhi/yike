@@ -82,4 +82,4 @@ scripts/backup_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump.enc
 CONFIRM_RESTORE=YES scripts/restore_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump.enc
 ```
 
-恢复前必须选定隔离数据库并人工确认；脚本不会自动恢复到当前生产库。备份 passphrase 只从仓库外的密钥文件读取，不写入日志；演练结果、备份加密方式和回滚镜像 SHA 需写入目标环境验收记录。
+恢复前必须选定隔离数据库并人工确认；脚本不会自动恢复到当前生产库。备份 passphrase 只从仓库外、非空且仅所有者可读的密钥文件读取，不写入日志。当前脚本的 OpenSSL CBC 仅提供机密性，生产验收还必须证明带认证完整性的 AEAD/age/GPG，或独立 MAC/校验验证；演练结果、备份加密方式和回滚镜像 SHA 需写入目标环境验收记录。

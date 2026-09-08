@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "$script_dir/.." && pwd)"
+
 if [[ "${CONFIRM_RESTORE:-}" != "YES" ]]; then
   echo "set CONFIRM_RESTORE=YES only after selecting an isolated restore target" >&2
   exit 2
@@ -15,8 +18,23 @@ if [[ -z "$backup_path" || ! -f "$backup_path" || "$backup_path" != *.enc ]]; th
   echo "usage: CONFIRM_RESTORE=YES YIKE_PILOT_BACKUP_PASSPHRASE_FILE=/secure/passphrase restore_pilot.sh /explicit/path/pilot.dump.enc" >&2
   exit 2
 fi
-if [[ -z "$passphrase_file" || ! -r "$passphrase_file" ]]; then
-  echo "YIKE_PILOT_BACKUP_PASSPHRASE_FILE must point to a readable secret outside the repository" >&2
+if [[ -z "$passphrase_file" || ! -f "$passphrase_file" || ! -r "$passphrase_file" || ! -s "$passphrase_file" ]]; then
+  echo "YIKE_PILOT_BACKUP_PASSPHRASE_FILE must point to a non-empty readable secret file outside the repository" >&2
+  exit 2
+fi
+passphrase_realpath="$(cd -- "$(dirname -- "$passphrase_file")" && pwd)/$(basename -- "$passphrase_file")"
+if command -v realpath >/dev/null 2>&1; then
+  passphrase_realpath="$(realpath "$passphrase_file")"
+fi
+case "$passphrase_realpath" in
+  "$repo_root"|"$repo_root"/*)
+    echo "YIKE_PILOT_BACKUP_PASSPHRASE_FILE must be outside the repository" >&2
+    exit 2
+    ;;
+esac
+passphrase_mode="$(stat -f '%Lp' "$passphrase_realpath" 2>/dev/null || stat -c '%a' "$passphrase_realpath" 2>/dev/null || true)"
+if [[ ! "$passphrase_mode" =~ ^[0-9]+$ ]] || (( 10#$passphrase_mode % 100 != 0 )); then
+  echo "YIKE_PILOT_BACKUP_PASSPHRASE_FILE must not be readable by group or other users" >&2
   exit 2
 fi
 temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/yike-pilot-restore.XXXXXX")"
