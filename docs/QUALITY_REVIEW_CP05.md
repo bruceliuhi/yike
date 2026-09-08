@@ -14,6 +14,8 @@
 
 独立验收在隔离 PostgreSQL 16 临时容器中执行 customer-pilot 门禁，结果为 `40 passed`；定向套件（部署契约、CP-06 preflight、备份、pilot 数据/Web、研究导入/CLI/provision）为 `48 passed, 2 skipped`。空库迁移、provisioning、短期令牌、Uvicorn 本地启动及四个客户页面探测通过：`/healthz`、`/readyz`、`/profile`、`/opportunities` 均返回预期结果，空机会池显示“今日暂无经复核机会”。`compileall`、Shell 脚本 `bash -n`、`git diff --check` 和敏感信息扫描均通过。
 
+说明：仓库根目录的旧 Discovery 测试仍绑定历史 AUTHORITY SHA，不属于当前 customer-pilot 验收范围；本结论只采用 customer-pilot 专用门禁及定向套件，不将旧 gate 的失败误报为本产品回归。
+
 该结论覆盖远端分支 `codex/customer-pilot` 的当前实现，最近核对提交为 `fca816f0401cc9f4a8d65bde91c7bef17233f810`；后续代码增量已在独立质量复核中重新运行。当前本地 pilot-only 镜像为 `sha256:22cace8671c225893804da0766f76917223dff24fd4169b91da636bb2ffa5a4b`，带对应 OCI revision。所有结果均不替代目标环境验收。
 
 ## 阻断与边界
