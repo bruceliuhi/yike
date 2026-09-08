@@ -7,6 +7,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 import logging
 from pilot.auth import InvalidPilotToken, verify_token
 
+_MAX_PROFILE_DESCRIPTION = 8_000
+
 
 def _page(title: str, body: str) -> HTMLResponse:
     return HTMLResponse(f"<!doctype html><html lang='zh-CN'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>{escape(title)}</title><body><nav><a href='/profile'>业务画像</a> · <a href='/opportunities'>今日机会</a> · <a href='/followups'>跟进反馈</a></nav><main>{body}</main></body></html>")
@@ -85,13 +87,15 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
     @app.get("/profile", response_class=HTMLResponse)
     def profile(authorization: str | None = Header(default=None), session: str | None = Cookie(default=None, alias="pilot_session")):
         user(authorization, session)
-        return _page("业务画像", "<h1>描述你的业务</h1><p>例如：展台设计搭建、服务地域、项目偏好和排除项。</p><p>当前首个验证行业：展台搭建。</p><form method='post'><textarea name='payload' rows='5' placeholder='请输入服务、地域、客单价和不接的项目'></textarea><button>保存为待确认版本</button></form>")
+        return _page("业务画像", "<h1>描述你的业务</h1><p>例如：展台设计搭建、服务地域、项目偏好和排除项。</p><p>当前首个验证行业：展台搭建。</p><form method='post'><textarea name='payload' rows='5' maxlength='8000' placeholder='请输入服务、地域、客单价和不接的项目'></textarea><button>保存为待确认版本</button></form>")
 
     @app.post("/profile", response_class=HTMLResponse)
     def save_profile(payload: str = Form(...), authorization: str | None = Header(default=None), session: str | None = Cookie(default=None, alias="pilot_session")):
         user_id = user(authorization, session)
         if not payload.strip():
             raise HTTPException(status_code=400, detail="profile description is required")
+        if len(payload) > _MAX_PROFILE_DESCRIPTION:
+            raise HTTPException(status_code=413, detail="profile description is too long")
         try:
             result = store.save_profile(user_id, {"description": payload})
         except ValueError as error:
