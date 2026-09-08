@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 
 def test_provision_tenant_is_trusted_cli_only(monkeypatch, capsys):
     from pilot import cli
@@ -72,3 +74,19 @@ def test_migrate_command_is_available_for_trusted_admin(monkeypatch):
     monkeypatch.setattr(cli.PilotDatabase, "from_environment", lambda: database)
     assert cli.migrate([]) == 0
     assert database.migrated is True
+
+
+def test_web_rejects_wildcard_forwarded_proxy_allowlist(monkeypatch):
+    from pilot import cli
+
+    class FakeDatabase:
+        pass
+
+    monkeypatch.setenv("YIKE_PILOT_DATABASE_URL", "postgresql://example")
+    monkeypatch.setenv("YIKE_PILOT_AUTH_SECRET", "test-secret")
+    monkeypatch.setenv("YIKE_PILOT_PROXY_HEADERS", "1")
+    monkeypatch.setenv("YIKE_PILOT_FORWARDED_ALLOW_IPS", "10.0.0.1, *")
+    monkeypatch.setattr(cli.PilotDatabase, "from_environment", lambda: FakeDatabase())
+    monkeypatch.setattr(cli, "PilotStore", lambda database: type("Store", (), {"database": database})())
+    with pytest.raises(RuntimeError, match="must not contain wildcard"):
+        cli.web()

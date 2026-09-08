@@ -125,7 +125,7 @@ class PilotStore:
         with self.database.connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
-                cursor.execute("SELECT opportunity_id, title, buyer, intent_status, source_status, public_excerpt FROM pilot_opportunities WHERE tenant_id=%s ORDER BY created_at DESC", (tenant_id,))
+                cursor.execute("SELECT opportunity_id, title, buyer, intent_status, source_status, summary, updated_at, public_excerpt FROM pilot_opportunities WHERE tenant_id=%s ORDER BY created_at DESC", (tenant_id,))
                 columns = [d.name for d in cursor.description]
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
 

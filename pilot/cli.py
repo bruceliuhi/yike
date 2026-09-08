@@ -26,6 +26,8 @@ def web():
     forwarded_allow_ips = os.environ.get("YIKE_PILOT_FORWARDED_ALLOW_IPS", "").strip()
     if proxy_headers and not forwarded_allow_ips:
         raise RuntimeError("YIKE_PILOT_FORWARDED_ALLOW_IPS is required when proxy headers are enabled")
+    if any(item.strip() == "*" for item in forwarded_allow_ips.split(",")):
+        raise RuntimeError("YIKE_PILOT_FORWARDED_ALLOW_IPS must not contain wildcard")
     uvicorn.run(
         app,
         host=os.environ.get("YIKE_PILOT_HOST", "127.0.0.1"),

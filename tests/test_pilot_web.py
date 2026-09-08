@@ -9,7 +9,7 @@ from pilot.web import build_app
 class Store:
     def list_opportunities(self, user_id):
         assert user_id == "user-1"
-        return [{"opportunity_id": "opp-1", "title": "展台搭建", "buyer": "采购负责人", "intent_status": "NEW", "source_status": "OPEN", "public_excerpt": "秋季展会寻团队"}]
+        return [{"opportunity_id": "opp-1", "title": "展台搭建", "buyer": "采购负责人", "intent_status": "NEW", "source_status": "OPEN", "summary": "秋季展会一体化搭建", "updated_at": "2026-09-08T10:00:00+00:00", "public_excerpt": "秋季展会寻团队"}]
 
     def get_opportunity(self, user_id, opportunity_id):
         assert (user_id, opportunity_id) == ("user-1", "opp-1")
@@ -47,6 +47,10 @@ def test_pages_require_authenticated_user_and_render_evidence():
     headers = {"Authorization": "Bearer " + issue_token("user-1", "test-secret")}
     assert "展台搭建" in client.get("/profile", headers=headers).text
     assert "展台搭建" in client.get("/opportunities", headers=headers).text
+    opportunities_page = client.get("/opportunities", headers=headers).text
+    assert "秋季展会一体化搭建" in opportunities_page
+    assert "OPEN" in opportunities_page
+    assert "2026-09-08T10:00:00+00:00" in opportunities_page
     assert "跟进反馈" in client.get("/followups", headers=headers).text
     detail = client.get("/opportunities/opp-1", headers=headers)
     assert "不自动发送" in detail.text
