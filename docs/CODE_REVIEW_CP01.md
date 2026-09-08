@@ -13,3 +13,7 @@
 ## 保留限制
 
 `provision_tenant` 与 `provision_user` 只供受信管理工具使用，后续 Web 路由必须不暴露；本阶段仍未实现来源 content version/observation、四页 UI 和真实平台研究导入。
+
+## 第四轮安全修复
+
+质量验收发现数据库会话变量可被直连客户端伪造。客户 Web 路径现改用服务端 HMAC 短期令牌（`pilot/auth.py`），不再接受裸 `X-Pilot-User`；数据库连接要求由私网应用角色持有，RLS 仅作为数据库内层防线。直连数据库不属于客户可访问面，生产部署仍需验证网络 ACL、角色权限和密钥轮换。

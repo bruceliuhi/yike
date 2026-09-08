@@ -122,6 +122,18 @@ class PilotStore:
         tenant_id = self._tenant_for_user(user_id)
         return self._fetchone(tenant_id, "SELECT opportunity_id, title, buyer, summary, contact_path, draft_comment, draft_dm, source_status FROM pilot_opportunities WHERE tenant_id=%s AND opportunity_id=%s", (tenant_id, opportunity_id))
 
+    def record_followup(self, user_id: str, opportunity_id: str, status: str, note: str) -> dict:
+        tenant_id = self._tenant_for_user(user_id)
+        followup_id = str(uuid4())
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute("SELECT 1 FROM pilot_opportunities WHERE tenant_id=%s AND opportunity_id=%s", (tenant_id, opportunity_id))
+                if cursor.fetchone() is None:
+                    raise KeyError("opportunity not found in tenant")
+                cursor.execute("INSERT INTO pilot_followups(followup_id, tenant_id, opportunity_id, status, note) VALUES (%s,%s,%s,%s,%s)", (followup_id, tenant_id, opportunity_id, status, note))
+        return {"followup_id": followup_id}
+
     @staticmethod
     def _profile_id(tenant_id: str) -> str:
         return hashlib.sha256((tenant_id + ":default-profile").encode()).hexdigest()[:32]
