@@ -102,6 +102,36 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
             assert cursor.fetchone()[0] == 0
     with pytest.raises(KeyError):
         store.get_opportunity(second_user, created["opportunity_id"])
+
+    claimed = store.claim_task(first_user, "research:2026-09-08", "worker-a", lease_seconds=60)
+    assert claimed is not None
+    assert claimed["status"] == "RUNNING"
+    assert store.claim_task(first_user, "research:2026-09-08", "worker-b", lease_seconds=60) is None
+    assert store.complete_task(first_user, "research:2026-09-08", "worker-b") is False
+    assert store.complete_task(first_user, "research:2026-09-08", "worker-a") is True
+    assert store.complete_task(first_user, "research:2026-09-08", "worker-a") is True
+    assert store.claim_task(first_user, "research:2026-09-08", "worker-b", lease_seconds=60) is None
+
+    assert store.claim_task(first_user, "research:lease-expiry", "worker-a", lease_seconds=60) is not None
+    with admin_database.connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("UPDATE pilot_tasks SET lease_until=CURRENT_TIMESTAMP - INTERVAL '1 second' WHERE task_key=%s", ("research:lease-expiry",))
+    takeover = store.claim_task(first_user, "research:lease-expiry", "worker-b", lease_seconds=60)
+    assert takeover is not None
+    assert takeover["lease_owner"] == "worker-b"
+    assert store.complete_task(first_user, "research:lease-expiry", "worker-a") is False
+
+    assert store.claim_task(first_user, "research:retry", "worker-a", lease_seconds=60) is not None
+    assert store.fail_task(first_user, "research:retry", "worker-a") is True
+    assert store.fail_task(first_user, "research:retry", "worker-a") is True
+    retried = store.claim_task(first_user, "research:retry", "worker-b", lease_seconds=60)
+    assert retried is not None
+    assert retried["lease_owner"] == "worker-b"
+    with pytest.raises(ValueError):
+        store.claim_task(first_user, "", "worker-a")
+    assert store.claim_task(second_user, "research:2026-09-08", "worker-z", lease_seconds=60) is not None
+    assert store.get_task(first_user, "research:2026-09-08")["status"] == "DONE"
+
     updated = store.save_profile(first_user, {"service": "展台设计搭建", "region": "上海"})
     assert updated["version"] == 2
     assert store.get_profile_version(first_user, profile["version_id"])["payload"]["region"] == "北京"

@@ -154,6 +154,77 @@ class PilotStore:
                 columns = [d.name for d in cursor.description]
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
+    def claim_task(self, user_id: str, task_key: str, lease_owner: str, lease_seconds: int = 300) -> dict | None:
+        """Atomically claim a tenant task, returning None when it is unavailable or done."""
+        if not task_key.strip() or not lease_owner.strip():
+            raise ValueError("task_key and lease_owner are required")
+        if not isinstance(lease_seconds, int) or isinstance(lease_seconds, bool) or not 1 <= lease_seconds <= 86_400:
+            raise ValueError("lease_seconds must be an integer from 1 to 86400")
+        tenant_id = self._tenant_for_user(user_id)
+        task_id = str(uuid4())
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute(
+                    "INSERT INTO pilot_tasks(task_id, tenant_id, task_key) VALUES (%s,%s,%s) "
+                    "ON CONFLICT (tenant_id, task_key) DO NOTHING",
+                    (task_id, tenant_id, task_key),
+                )
+                cursor.execute(
+                    "UPDATE pilot_tasks SET status='RUNNING', lease_owner=%s, "
+                    "lease_until=CURRENT_TIMESTAMP + (%s * INTERVAL '1 second') "
+                    "WHERE tenant_id=%s AND task_key=%s AND ("
+                    "status IN ('PENDING','FAILED') OR "
+                    "(status='RUNNING' AND (lease_until <= CURRENT_TIMESTAMP OR lease_owner=%s))"
+                    ") RETURNING task_id, task_key, status, lease_owner, lease_until",
+                    (lease_owner, lease_seconds, tenant_id, task_key, lease_owner),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    return None
+                columns = [d.name for d in cursor.description]
+                return dict(zip(columns, row))
+
+    def complete_task(self, user_id: str, task_key: str, lease_owner: str) -> bool:
+        """Mark a currently-held task done; repeated completion is idempotent."""
+        if not task_key.strip() or not lease_owner.strip():
+            raise ValueError("task_key and lease_owner are required")
+        tenant_id = self._tenant_for_user(user_id)
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute(
+                    "UPDATE pilot_tasks SET status='DONE', lease_owner=NULL, lease_until=NULL "
+                    "WHERE tenant_id=%s AND task_key=%s AND (status='DONE' OR "
+                    "(status='RUNNING' AND lease_owner=%s AND lease_until > CURRENT_TIMESTAMP))",
+                    (tenant_id, task_key, lease_owner),
+                )
+                return cursor.rowcount == 1
+
+    def fail_task(self, user_id: str, task_key: str, lease_owner: str) -> bool:
+        """Mark a currently-held task failed; repeated failure is idempotent."""
+        if not task_key.strip() or not lease_owner.strip():
+            raise ValueError("task_key and lease_owner are required")
+        tenant_id = self._tenant_for_user(user_id)
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute(
+                    "UPDATE pilot_tasks SET status='FAILED', lease_owner=NULL, lease_until=NULL "
+                    "WHERE tenant_id=%s AND task_key=%s AND (status='FAILED' OR "
+                    "(status='RUNNING' AND lease_owner=%s AND lease_until > CURRENT_TIMESTAMP))",
+                    (tenant_id, task_key, lease_owner),
+                )
+                return cursor.rowcount == 1
+
+    def get_task(self, user_id: str, task_key: str) -> dict:
+        tenant_id = self._tenant_for_user(user_id)
+        return self._fetchone(
+            tenant_id,
+            "SELECT task_id, task_key, status, lease_owner, lease_until FROM pilot_tasks WHERE tenant_id=%s AND task_key=%s",
+            (tenant_id, task_key),
+        )
+
     @staticmethod
     def _profile_id(tenant_id: str) -> str:
         return hashlib.sha256((tenant_id + ":default-profile").encode()).hexdigest()[:32]
