@@ -7,6 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_LINK_MODE=copy
 
 RUN python -m pip install --no-cache-dir uv==0.8.15
+RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin yike
 
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
@@ -15,9 +16,13 @@ COPY app ./app
 COPY pilot ./pilot
 COPY migrations ./migrations
 RUN uv sync --frozen --no-dev
+RUN mkdir -p /tmp/uv-cache && chown -R yike:yike /app /tmp/uv-cache
 
 ENV YIKE_PILOT_HOST=0.0.0.0 \
-    YIKE_PILOT_PORT=8787
+    YIKE_PILOT_PORT=8787 \
+    HOME=/home/yike \
+    UV_CACHE_DIR=/tmp/uv-cache
+USER yike
 EXPOSE 8787
 
 CMD ["uv", "run", "--frozen", "yike-pilot-web"]

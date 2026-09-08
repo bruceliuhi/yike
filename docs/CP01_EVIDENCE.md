@@ -37,7 +37,7 @@ docker build --progress=plain -f deploy/Dockerfile -t yike-customer-pilot:471d9c
 
 2026-09-09 复核构建：再次运行同一 Dockerfile，30 秒内仍停在 GHCR 元数据拉取，未生成镜像 SHA；该问题当前可稳定复现为注册表可达性阻塞，未改用未验证基础镜像替代。
 
-随后将 `deploy/Dockerfile` 的基础层切换为固定 digest 的 Docker Hub `python:3.12-slim-bookworm`，并固定安装 `uv==0.8.15`；在容器内独立执行 `uv sync --frozen --no-dev --no-install-project` 成功，依赖安装链路可行。当前 Docker Desktop BuildKit 仍在拉取该基础层元数据阶段阻塞，尚未得到完整镜像 SHA；因此这只是可行性验证，不是构建或上线证据。
+随后将 `deploy/Dockerfile` 的基础层切换为固定 digest 的 Docker Hub `python:3.12-slim-bookworm`，固定安装 `uv==0.8.15`，并以 UID 10001 的非 root 用户运行应用；在容器内独立执行 `uv sync --frozen --no-dev --no-install-project` 成功，依赖安装链路可行。当前 Docker Desktop BuildKit 仍在拉取该基础层元数据阶段阻塞，尚未得到完整镜像 SHA；因此这只是可行性验证，不是构建或上线证据。
 
 2026-09-09 本地备份/恢复演练（非目标环境）：使用两个独立的 PostgreSQL 16 容器，源库先执行 `yike-pilot-migrate`；再用真实 `pg_dump` 与 OpenSSL 生成 `/secrets/pilot.dump.enc`，恢复脚本在另一容器设置 `CONFIRM_RESTORE=YES` 成功恢复，`psql` 查询确认 `pilot_schema_meta` 中存在 `customer-pilot-v1`。演练证明脚本链路可运行，但目标库、独立备份存储、认证完整性和回滚仍未验收。
 
