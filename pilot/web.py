@@ -18,6 +18,10 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
     app = FastAPI(title="意客 AI 客户试用")
     access_logger = logging.getLogger("yike.pilot.access")
 
+    @app.exception_handler(PermissionError)
+    async def permission_error_handler(request: Request, error: PermissionError):
+        return JSONResponse({"detail": "pilot user is not provisioned"}, status_code=403)
+
     class RedactedAccessLogMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request: Request, call_next):
             response = await call_next(request)

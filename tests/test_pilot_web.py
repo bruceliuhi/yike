@@ -65,6 +65,16 @@ def test_pages_require_authenticated_user_and_render_evidence():
     assert response.status_code == 303
 
 
+def test_authenticated_user_without_tenant_is_rejected_without_server_error():
+    class UnknownUserStore(Store):
+        def list_opportunities(self, user_id):
+            raise PermissionError("authenticated pilot user is not mapped to a tenant")
+
+    client = TestClient(build_app(UnknownUserStore(), auth_secret="test-secret"))
+    headers = {"Authorization": "Bearer " + issue_token("unknown-user", "test-secret")}
+    assert client.get("/opportunities", headers=headers).status_code == 403
+
+
 def test_dev_session_bridge_is_disabled_by_default_and_sets_http_only_cookie(caplog):
     token = issue_token("user-1", "test-secret")
     disabled = TestClient(build_app(Store(), auth_secret="test-secret"))
