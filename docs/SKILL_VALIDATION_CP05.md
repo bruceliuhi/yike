@@ -40,7 +40,7 @@
 - 下一批应优先进入平台内近期版块、主帖和需求作者评论，按独立作者计数；搜索引擎只作种子，不作为最终证据。
 - 研究等级与操作状态分离：本轮没有可给 S/A/B+ 的候选；供应商内容不降级成观察项。
 
-CP-05 当前状态：`RULES_PASS_REAL_SAMPLING_INCOMPLETE`。5 次独立离线反例审查见 `docs/SKILL_OFFLINE_REVIEW_CP05.md`，规则层通过；真实采样仍没有平台内主帖/评论的独立作者分母，因此不得宣称已验证持续供给。
+CP-05 当前状态：`RULES_PASS_REAL_SAMPLING_INCOMPLETE`。5 次独立离线反例审查见 `docs/SKILL_OFFLINE_REVIEW_CP05.md`，规则层通过；平台内已完成一轮独立作者抽样，但样本量和跨平台、跨日覆盖仍不足，不得宣称已验证持续供给。
 
 ## 交接边界
 
@@ -50,7 +50,7 @@ CP-05 当前状态：`RULES_PASS_REAL_SAMPLING_INCOMPLETE`。5 次独立离线�
 
 为验证首个展台设计搭建行业的公开供给是否能扩大，本轮继续使用公开 Web 搜索，未登录或绕过平台限制，查询：`找展台搭建团队 2026 9月 求推荐 企业`、`展会 展台设计搭建 预算 求方案 近期`、`site:zhihu.com 展台搭建 公司 推荐 预算`、`site:xiaohongshu.com/explore 展台搭建 找团队 2026`。结果页共打开并核对 12 条摘要/页面：均为供应商报价文章、服务商官网或采购公告，没有作者本人近期寻源且可重开的买方主帖；因此本轮新增合格线索为 0，未生成联系草稿。
 
-代表性排除证据包括供应商发布的预算横评（[搜狐行业文章](https://www.sohu.com/a/1049638325_120912750)）、供应商报价页（[北京展台搭建报价](https://www.hymexpo.com/sys-nd/375.html)）和政府采购公告（[政府采购文件](https://www.ccgp-shaanxi.gov.cn/gpx-bid-file/ZF_JGBM_000003/610101/2024/3/29/8a69c7f78e467b79018e89c2d4385d7d/gpx-template/8a69c9158eae33e8018ed045246f343e.pdf)）；均按乙方广告或政府项目排除。该追加抽样仍不提供平台内独立作者分母，CP-05 状态保持 `RULES_PASS_REAL_SAMPLING_INCOMPLETE`。
+代表性排除证据包括供应商发布的预算横评（[搜狐行业文章](https://www.sohu.com/a/1049638325_120912750)）、供应商报价页（[北京展台搭建报价](https://www.hymexpo.com/sys-nd/375.html)）和政府采购公告（[政府采购文件](https://www.ccgp-shaanxi.gov.cn/gpx-bid-file/ZF_JGBM_000003/610101/2024/3/29/8a69c7f78e467b79018e89c2d4385d7d/gpx-template/8a69c9158eae33e8018ed045246f343e.pdf)）；均按乙方广告或政府项目排除。该追加抽样仅提供公开 Web 的排除样本，平台内独立作者分母留待后续批次，CP-05 状态保持 `RULES_PASS_REAL_SAMPLING_INCOMPLETE`。
 
 ## 2026-09-09 平台内抽样（小红书）
 
