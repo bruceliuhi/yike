@@ -145,6 +145,15 @@ class PilotStore:
                 cursor.execute("INSERT INTO pilot_followups(followup_id, tenant_id, opportunity_id, status, note) VALUES (%s,%s,%s,%s,%s)", (followup_id, tenant_id, opportunity_id, status, note))
         return {"followup_id": followup_id}
 
+    def list_followups(self, user_id: str, opportunity_id: str) -> list[dict]:
+        tenant_id = self._tenant_for_user(user_id)
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute("SELECT followup_id, status, note, created_at FROM pilot_followups WHERE tenant_id=%s AND opportunity_id=%s ORDER BY created_at DESC", (tenant_id, opportunity_id))
+                columns = [d.name for d in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
     @staticmethod
     def _profile_id(tenant_id: str) -> str:
         return hashlib.sha256((tenant_id + ":default-profile").encode()).hexdigest()[:32]

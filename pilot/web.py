@@ -69,13 +69,15 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
         user_id = user(authorization, session)
         row = store.get_opportunity(user_id, opportunity_id)
         opp_id = escape(str(opportunity_id), quote=True)
+        followups = store.list_followups(user_id, opportunity_id)
+        history = "".join(f"<li>{escape(str(item['status']))}：{escape(str(item['note']))}</li>" for item in followups)
         source_status = str(row["source_status"])
         warning = ""
         if source_status == "EXPIRED":
             warning = "<p><strong>来源已过期：先人工重新打开原文，确认仍在寻源后再联系。</strong></p>"
         elif source_status == "BLOCKED":
             warning = "<p><strong>来源暂时受阻：暂不建议联系，需人工处理访问问题。</strong></p>"
-        return _page(str(row["title"]), f"<h1>{escape(str(row['title']))}</h1><p>买方：{escape(str(row['buyer']))}</p><p>{escape(str(row['summary']))}</p><p>联系入口：{escape(str(row['contact_path']))}</p>{warning}<h2>公开评论草稿</h2><p>{escape(str(row['draft_comment']))}</p><h2>私信草稿</h2><p>{escape(str(row['draft_dm']))}</p><p><strong>仅供人工复制，不自动发送。</strong></p><form method='post' action='/opportunities/{opp_id}/followups'><input type='hidden' name='status' value='CONTACTED'><textarea name='note' required placeholder='记录你实际的联系结果'></textarea><button>记录已人工联系</button></form>")
+        return _page(str(row["title"]), f"<h1>{escape(str(row['title']))}</h1><p>买方：{escape(str(row['buyer']))}</p><p>{escape(str(row['summary']))}</p><p>联系入口：{escape(str(row['contact_path']))}</p>{warning}<h2>公开评论草稿</h2><p>{escape(str(row['draft_comment']))}</p><h2>私信草稿</h2><p>{escape(str(row['draft_dm']))}</p><p><strong>仅供人工复制，不自动发送。</strong></p><h2>跟进记录</h2><ul>{history or '<li>暂无记录</li>'}</ul><form method='post' action='/opportunities/{opp_id}/followups'><label>状态<select name='status'><option value='CONTACTED'>已联系</option><option value='REPLIED'>已回复</option><option value='MEETING'>已约会议</option><option value='QUOTED'>已报价</option><option value='LOST'>已失单</option><option value='WON'>已成交</option></select></label><textarea name='note' required placeholder='记录真实发生的联系结果'></textarea><button>保存跟进</button></form>")
 
     @app.post("/opportunities/{opportunity_id}/followups")
     def followup(opportunity_id: str, status: str = Form(...), note: str = Form(...), authorization: str | None = Header(default=None), session: str | None = Cookie(default=None, alias="pilot_session")):

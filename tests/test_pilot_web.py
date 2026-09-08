@@ -16,8 +16,11 @@ class Store:
         return {"opportunity_id": "opp-1", "title": "展台搭建 <script>alert(1)</script>", "buyer": "采购负责人", "summary": "需要方案与搭建", "contact_path": "原帖评论", "draft_comment": "方便了解城市和面积吗？", "draft_dm": "看到你在找团队，项目还在评估吗？", "source_status": "OPEN"}
 
     def record_followup(self, user_id, opportunity_id, status, note):
-        assert (user_id, opportunity_id, status) == ("user-1", "opp-1", "CONTACTED")
+        assert (user_id, opportunity_id, status) == ("user-1", "opp-1", "REPLIED")
         return {"followup_id": "f-1"}
+
+    def list_followups(self, user_id, opportunity_id):
+        return []
 
 
 def test_pilot_token_rejects_tampering_and_expiry():
@@ -39,7 +42,7 @@ def test_pages_require_authenticated_user_and_render_evidence():
     assert "不自动发送" in detail.text
     assert "方便了解城市和面积吗？" in detail.text
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in detail.text
-    response = client.post("/opportunities/opp-1/followups", headers=headers, data={"status": "CONTACTED", "note": "已人工发送"}, follow_redirects=False)
+    response = client.post("/opportunities/opp-1/followups", headers=headers, data={"status": "REPLIED", "note": "对方回复，愿意沟通"}, follow_redirects=False)
     assert response.status_code == 303
 
 
