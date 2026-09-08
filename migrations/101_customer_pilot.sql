@@ -69,7 +69,6 @@ CREATE TABLE IF NOT EXISTS pilot_source_versions (
     observed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, source_id, content_sha256),
     UNIQUE (tenant_id, source_version_id),
-    UNIQUE (tenant_id, source_id, source_version_id),
     FOREIGN KEY (tenant_id, source_id) REFERENCES pilot_sources(tenant_id, source_id)
 );
 
@@ -79,9 +78,22 @@ CREATE TABLE IF NOT EXISTS pilot_source_observations (
     source_id TEXT NOT NULL,
     source_version_id TEXT NOT NULL,
     observed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (tenant_id, source_id) REFERENCES pilot_sources(tenant_id, source_id),
-    FOREIGN KEY (tenant_id, source_id, source_version_id) REFERENCES pilot_source_versions(tenant_id, source_id, source_version_id)
+    FOREIGN KEY (tenant_id, source_id) REFERENCES pilot_sources(tenant_id, source_id)
 );
+
+ALTER TABLE pilot_source_observations DROP CONSTRAINT IF EXISTS pilot_source_observations_tenant_id_source_version_id_fkey;
+ALTER TABLE pilot_source_observations DROP CONSTRAINT IF EXISTS pilot_source_observations_tenant_id_source_id_source_version_id_fkey;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'pilot_source_versions_tenant_source_version_key') THEN
+        ALTER TABLE pilot_source_versions ADD CONSTRAINT pilot_source_versions_tenant_source_version_key UNIQUE (tenant_id, source_id, source_version_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'pilot_source_observations_tenant_source_version_fkey') THEN
+        ALTER TABLE pilot_source_observations ADD CONSTRAINT pilot_source_observations_tenant_source_version_fkey
+            FOREIGN KEY (tenant_id, source_id, source_version_id)
+            REFERENCES pilot_source_versions(tenant_id, source_id, source_version_id);
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS pilot_opportunities (
     opportunity_id TEXT PRIMARY KEY,

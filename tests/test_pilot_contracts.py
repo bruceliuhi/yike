@@ -21,6 +21,8 @@ def test_migration_declares_tenant_scope_and_profile_history():
         "tenant_id TEXT NOT NULL",
         "ENABLE ROW LEVEL SECURITY",
         "import_key TEXT NOT NULL",
+        "pilot_source_versions_tenant_source_version_key",
+        "pilot_source_observations_tenant_source_version_fkey",
     ):
         assert marker in sql
 
@@ -45,6 +47,18 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
     admin_database = PilotDatabase(url)
     admin_database.migrate()
     admin_database.migrate()
+    with admin_database.connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("ALTER TABLE pilot_source_observations DROP CONSTRAINT IF EXISTS pilot_source_observations_tenant_source_version_fkey")
+            cursor.execute("ALTER TABLE pilot_source_versions DROP CONSTRAINT IF EXISTS pilot_source_versions_tenant_source_version_key")
+            cursor.execute("ALTER TABLE pilot_source_observations ADD CONSTRAINT pilot_source_observations_tenant_id_source_version_id_fkey FOREIGN KEY (tenant_id, source_version_id) REFERENCES pilot_source_versions(tenant_id, source_version_id)")
+    admin_database.migrate()
+    with admin_database.connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1 FROM pg_constraint WHERE conname='pilot_source_versions_tenant_source_version_key'")
+            assert cursor.fetchone() is not None
+            cursor.execute("SELECT 1 FROM pg_constraint WHERE conname='pilot_source_observations_tenant_source_version_fkey'")
+            assert cursor.fetchone() is not None
     with admin_database.connect() as connection:
         with connection.cursor() as cursor:
             cursor.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='pilot_app') THEN CREATE ROLE pilot_app LOGIN PASSWORD 'pilot_app'; END IF; END $$;")
