@@ -154,6 +154,12 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
     updated = store.save_profile(first_user, {"service": "展台设计搭建", "region": "上海"})
     assert updated["version"] == 2
     assert store.get_profile_version(first_user, profile["version_id"])["payload"]["region"] == "北京"
+    store.confirm_profile(first_user, updated["version_id"])
+    store.confirm_profile(first_user, updated["version_id"])
+    assert store.get_profile_version(first_user, updated["version_id"])["status"] == "CONFIRMED"
+    assert store.get_profile_version(first_user, profile["version_id"])["status"] == "REVOKED"
+    with pytest.raises(ValueError, match="confirmed profile"):
+        store.import_opportunity(first_user, profile["version_id"], "blocked-old-profile", opportunity)
     with database.connect() as connection:
         with connection.cursor() as cursor:
             cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (first,))

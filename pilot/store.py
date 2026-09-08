@@ -81,9 +81,17 @@ class PilotStore:
         with self.database.connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
-                cursor.execute("UPDATE business_profile_versions SET status='CONFIRMED', approved_at=CURRENT_TIMESTAMP WHERE tenant_id=%s AND profile_version_id=%s AND status='DRAFT'", (tenant_id, version_id))
-                if cursor.rowcount != 1:
+                cursor.execute("SELECT profile_id, status FROM business_profile_versions WHERE tenant_id=%s AND profile_version_id=%s FOR UPDATE", (tenant_id, version_id))
+                current = cursor.fetchone()
+                if current is None:
                     raise KeyError("draft profile version not found in tenant")
+                profile_id, status = current
+                if status == "CONFIRMED":
+                    return
+                if status != "DRAFT":
+                    raise ValueError("profile version is not confirmable")
+                cursor.execute("UPDATE business_profile_versions SET status='REVOKED' WHERE tenant_id=%s AND profile_id=%s AND status='CONFIRMED'", (tenant_id, profile_id))
+                cursor.execute("UPDATE business_profile_versions SET status='CONFIRMED', approved_at=CURRENT_TIMESTAMP WHERE tenant_id=%s AND profile_version_id=%s", (tenant_id, version_id))
 
     def get_profile_version(self, user_id: str, version_id: str) -> dict:
         tenant_id = self._tenant_for_user(user_id)
