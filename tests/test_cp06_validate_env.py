@@ -14,6 +14,9 @@ def _base_env(tmp_path: Path) -> dict[str, str]:
     passphrase = tmp_path / "backup-passphrase"
     passphrase.write_text("pilot-production-passphrase\n", encoding="utf-8")
     passphrase.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    env_file = tmp_path / "pilot.env"
+    env_file.write_text("YIKE_PILOT_DATABASE_URL=postgresql://pilot:password@private-db:5432/pilot\n", encoding="utf-8")
+    env_file.chmod(stat.S_IRUSR | stat.S_IWUSR)
     return {
         **os.environ,
         "YIKE_PILOT_DATABASE_URL": "postgresql://pilot:<password>@private-db:5432/pilot",
@@ -22,6 +25,7 @@ def _base_env(tmp_path: Path) -> dict[str, str]:
         "YIKE_PILOT_PROXY_HEADERS": "0",
         "YIKE_PILOT_DEV_LOGIN": "0",
         "YIKE_PILOT_IMAGE": "registry.example.com/yike/customer-pilot@sha256:" + "a" * 64,
+        "YIKE_PILOT_ENV_FILE": str(env_file),
     }
 
 
@@ -86,6 +90,16 @@ def test_production_preflight_rejects_group_readable_backup_passphrase(tmp_path:
 
     assert result.returncode != 0
     assert "passphrase" in result.stderr.lower()
+
+
+def test_production_preflight_rejects_group_readable_env_file(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
+    Path(env["YIKE_PILOT_ENV_FILE"]).chmod(0o640)
+
+    result = _run(env)
+
+    assert result.returncode != 0
+    assert "env file" in result.stderr.lower()
 
 
 def test_production_preflight_rejects_mutable_image_tag(tmp_path: Path) -> None:

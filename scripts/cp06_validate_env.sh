@@ -18,6 +18,25 @@ esac
 image_ref="${YIKE_PILOT_IMAGE:-}"
 [[ "$image_ref" =~ @sha256:[0-9a-fA-F]{64}$ ]] || fail "image reference must be digest-pinned"
 
+env_file="${YIKE_PILOT_ENV_FILE:-}"
+if [[ -z "$env_file" || ! -f "$env_file" || ! -r "$env_file" ]]; then
+  fail "env file must exist and be readable"
+fi
+env_realpath="$(cd -- "$(dirname -- "$env_file")" && pwd)/$(basename -- "$env_file")"
+if command -v realpath >/dev/null 2>&1; then
+  env_realpath="$(realpath "$env_file")"
+fi
+case "$env_realpath" in
+  "$repo_root"|"$repo_root"/*) fail "env file must be outside the repository" ;;
+esac
+env_mode="$(stat -f '%Lp' "$env_realpath" 2>/dev/null || true)"
+if [[ ! "$env_mode" =~ ^[0-9]+$ ]]; then
+  env_mode="$(stat -c '%a' "$env_realpath" 2>/dev/null || true)"
+fi
+if [[ ! "$env_mode" =~ ^[0-9]+$ ]] || (( 10#$env_mode % 100 != 0 )); then
+  fail "env file must not be readable by group or other users"
+fi
+
 auth_secret="${YIKE_PILOT_AUTH_SECRET:-}"
 if [[ "${#auth_secret}" -lt 32 ]]; then
   fail "auth secret must be at least 32 characters"
