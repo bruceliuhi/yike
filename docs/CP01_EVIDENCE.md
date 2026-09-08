@@ -25,7 +25,7 @@ git diff --check
 
 另运行 `scripts/secret_scan.sh`，结果为 `secret-scan: clean`；该静态扫描不替代目标环境日志、备份和密钥管理验收。
 
-备份脚本已改为 `.dump.enc` 加密格式，口令只从仓库外 `YIKE_PILOT_BACKUP_PASSPHRASE_FILE` 读取；脚本语法、错误参数和未确认恢复分支已验证。真实目标库的加密备份、隔离恢复和回滚演练仍未完成。
+备份脚本已改为 `.dump.enc` 加密格式，并生成同名 `.enc.mac` HMAC-SHA256 侧车文件；恢复在解密前验证 MAC，口令只从仓库外 `YIKE_PILOT_BACKUP_PASSPHRASE_FILE` 读取。脚本语法、错误参数、未确认恢复和篡改拒绝分支已验证。真实目标库的加密备份、隔离恢复和回滚演练仍未完成。
 
 2026-09-09 尝试构建部署镜像：
 
@@ -43,4 +43,4 @@ docker build --progress=plain -f deploy/Dockerfile -t yike-customer-pilot:471d9c
 
 范围边界：这只证明 CP-01/CP-02 的本地数据层契约，不证明四页浏览器流程、真实平台采集、部署 HTTPS、备份恢复、真实用户试用或收入。
 
-代码备份：Gitee `codex/customer-pilot` 分支；实现与测试基线提交 `67cfd6e`，后续新增未 provisioning 用户 fail-closed 测试与修复提交 `c895faa6930376126176c644cafa0658103eec51`；部署骨架已推送至 `2f8c439e5878cbada47b6354db52d0385279b3d6`。部署验收模板及 HTTPS-only `/healthz`、`/readyz` 探针随后提交，最新工具提交为 `006ac86188e366645b002d84ca274ddde33ed447`；探针对 HTTP、userinfo、query、fragment 输入均 fail-closed。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
+代码备份：Gitee `codex/customer-pilot` 分支；当前部署相关提交为 `eff28d7`（固定 Python 基础层 digest）与 `bd27338f108652e9ec43bdb4ea24fdfe4935cc77`（非 root 运行与本证据更新），两者均已与远端 SHA 对齐。更早的部署验收模板及 HTTPS-only `/healthz`、`/readyz` 探针提交为 `006ac86188e366645b002d84ca274ddde33ed447`；探针对 HTTP、userinfo、query、fragment 输入均 fail-closed。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。

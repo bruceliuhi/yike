@@ -41,10 +41,19 @@ if [[ -e "$backup_path" ]]; then
   echo "refusing to overwrite existing backup: $backup_path" >&2
   exit 2
 fi
+mac_path="${backup_path}.mac"
+if [[ -e "$mac_path" ]]; then
+  echo "refusing to overwrite existing backup MAC: $mac_path" >&2
+  exit 2
+fi
 created=1
-trap 'if (( created )); then rm -f -- "$backup_path"; fi' EXIT
+mac_tmp="${mac_path}.tmp.$$"
+trap 'if (( created )); then rm -f -- "$backup_path" "$mac_tmp" "$mac_path"; fi' EXIT
 pg_dump --format=custom --no-owner "$YIKE_PILOT_DATABASE_URL" \
   | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass "file:$passphrase_file" -out "$backup_path"
+openssl dgst -sha256 -mac HMAC -macopt "key:file:$passphrase_file" -binary "$backup_path" > "$mac_tmp"
+mv -- "$mac_tmp" "$mac_path"
+chmod 600 "$mac_path"
 created=0
 trap - EXIT
-echo "encrypted backup created: $backup_path"
+echo "authenticated encrypted backup created: $backup_path (MAC: $mac_path)"

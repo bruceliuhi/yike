@@ -26,7 +26,7 @@
 | 两租户隔离 | `待填写非超级用户验证` | `PENDING` |
 | 日志脱敏 | `待填写访问日志抽查` | `PENDING` |
 | 加密备份 | `待填写 backup_pilot.sh 输出和存储位置` | `PENDING` |
-| 备份完整性 | `待填写 AEAD/age/GPG 或独立 MAC/校验演练证据` | `PENDING` |
+| 备份完整性 | `待填写 .dump.enc.mac HMAC-SHA256 验证及篡改拒绝演练证据` | `PENDING` |
 | 隔离恢复 | `待填写 restore_pilot.sh 输出和恢复库` | `PENDING` |
 | 回滚 | `待填写旧镜像 SHA 与恢复结果` | `PENDING` |
 | 生产关闭开发桥接 | `待填写 YIKE_PILOT_DEV_LOGIN 未启用证据` | `PENDING` |
