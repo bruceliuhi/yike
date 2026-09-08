@@ -18,6 +18,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY pilot ./pilot
 COPY migrations ./migrations
+COPY static ./static
 RUN mkdir -p /tmp/uv-cache && chown -R yike:yike /app /tmp/uv-cache
 
 ENV YIKE_PILOT_HOST=0.0.0.0 \

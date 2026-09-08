@@ -25,6 +25,7 @@ def test_production_image_does_not_sync_dependencies_at_runtime() -> None:
     assert "COPY app ./app" not in dockerfile
     assert "uv sync --frozen --no-dev --no-install-project" in dockerfile
     assert "uv sync --frozen --no-dev\n" not in dockerfile
+    assert "COPY static ./static" in dockerfile
     assert "USER yike" in dockerfile
     assert "ARG VCS_REF=unknown" in dockerfile
     assert 'org.opencontainers.image.revision="$VCS_REF"' in dockerfile

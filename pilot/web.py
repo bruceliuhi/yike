@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from html import escape
+from pathlib import Path
 from fastapi import Cookie, FastAPI, Form, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 import logging
 from pilot.auth import InvalidPilotToken, verify_token
@@ -11,11 +13,22 @@ _MAX_PROFILE_DESCRIPTION = 8_000
 
 
 def _page(title: str, body: str) -> HTMLResponse:
-    return HTMLResponse(f"<!doctype html><html lang='zh-CN'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>{escape(title)}</title><body><nav><a href='/profile'>业务画像</a> · <a href='/opportunities'>今日机会</a> · <a href='/followups'>跟进反馈</a></nav><main>{body}</main></body></html>")
+    return HTMLResponse(
+        "<!doctype html><html lang='zh-CN'><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        f"<title>{escape(title)}</title><link rel='stylesheet' href='/static/styles.css'>"
+        "</head><body class='pilot-page'><div class='pilot-shell'>"
+        "<header class='pilot-header'><a class='pilot-brand' href='/profile'>意客 AI <small>客户试用</small></a>"
+        "<nav aria-label='主导航'><a href='/profile'>业务画像</a><a href='/opportunities'>今日机会</a>"
+        "<a href='/followups'>跟进反馈</a></nav></header><main id='main-content'>"
+        f"{body}</main></div></body></html>"
+    )
 
 
 def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
     app = FastAPI(title="意客 AI 客户试用")
+    static_dir = Path(__file__).resolve().parent.parent / "static"
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
     access_logger = logging.getLogger("yike.pilot.access")
 
     @app.exception_handler(PermissionError)

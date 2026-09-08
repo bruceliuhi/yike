@@ -67,6 +67,21 @@ def test_pages_require_authenticated_user_and_render_evidence():
     assert response.status_code == 303
 
 
+def test_pilot_pages_load_local_styles_and_mobile_viewport():
+    client = TestClient(build_app(Store(), auth_secret="test-secret"))
+    headers = {"Authorization": "Bearer " + issue_token("user-1", "test-secret")}
+
+    page = client.get("/profile", headers=headers)
+    assert page.status_code == 200
+    assert "<meta name='viewport' content='width=device-width,initial-scale=1'>" in page.text
+    assert "<link rel='stylesheet' href='/static/styles.css'>" in page.text
+    assert "<main" in page.text
+
+    stylesheet = client.get("/static/styles.css")
+    assert stylesheet.status_code == 200
+    assert "@media (max-width: 760px)" in stylesheet.text
+
+
 def test_authenticated_user_without_tenant_is_rejected_without_server_error():
     class UnknownUserStore(Store):
         def list_opportunities(self, user_id):

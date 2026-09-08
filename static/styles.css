@@ -180,3 +180,83 @@ blockquote { margin: .6rem 0 2rem; font: 520 clamp(1.3rem, 2.7vw, 2.15rem)/1.48 
   html { scroll-behavior: auto; }
   *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+/* Customer-pilot shell: the legacy application uses the rules above directly;
+   keep this small namespace so pilot pages remain readable on narrow screens. */
+.pilot-page {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pilot-shell {
+  width: min(100%, 72rem);
+  margin: 0 auto;
+  padding: 0 1rem 3rem;
+}
+.pilot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.pilot-brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .45rem;
+  color: var(--ink);
+  font-weight: 750;
+  white-space: nowrap;
+}
+.pilot-brand small {
+  display: inline;
+  font-size: .72rem;
+}
+.pilot-header nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .8rem 1.1rem;
+  margin: 0;
+}
+.pilot-header nav a {
+  padding: .45rem 0;
+  border: 0;
+  color: var(--muted);
+  font-size: .86rem;
+}
+.pilot-header nav a:hover,
+.pilot-header nav a:focus-visible { color: var(--blue); }
+.pilot-page main {
+  width: 100%;
+  max-width: none;
+  padding: 2.2rem 0 0;
+}
+.pilot-page form {
+  display: grid;
+  gap: .8rem;
+  max-width: 48rem;
+  margin-top: 1.2rem;
+}
+.pilot-page textarea,
+.pilot-page input,
+.pilot-page select {
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+  background: #fbf9f4;
+  color: var(--ink);
+  padding: .7rem;
+}
+.pilot-page textarea { resize: vertical; line-height: 1.55; }
+.pilot-page button { min-height: 2.75rem; width: fit-content; }
+.pilot-page blockquote { overflow-wrap: anywhere; }
+
+@media (max-width: 560px) {
+  .pilot-shell { padding-inline: .85rem; }
+  .pilot-header { align-items: flex-start; flex-direction: column; }
+  .pilot-header nav { width: 100%; gap: .35rem .9rem; }
+  .pilot-header nav a { padding: .55rem 0; }
+  .pilot-page main { padding-top: 1.5rem; }
+  .pilot-page button { width: 100%; }
+}
