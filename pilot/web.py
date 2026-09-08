@@ -107,7 +107,12 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
         task_warning = "" if not failed_tasks else "<p><strong>后台研究任务失败：请人工检查任务后再导入新的复核研究包。</strong></p>"
         if not rows:
             return _page("今日机会", f"<h1>今日暂无经复核机会</h1>{task_warning}<p>后台研究完成并人工复核后，机会会出现在这里。</p>")
-        items = "".join(f"<li><a href='/opportunities/{escape(str(r['opportunity_id']), quote=True)}'>{escape(str(r['title']))}</a>｜{escape(str(r['buyer']))}｜{escape(str(r['intent_status']))}</li>" for r in rows)
+        items = "".join(
+            f"<li><a href='/opportunities/{escape(str(r['opportunity_id']), quote=True)}'>{escape(str(r['title']))}</a>｜"
+            f"{escape(str(r['buyer']))}｜意向 {escape(str(r['intent_status']))}｜来源 {escape(str(r.get('source_status') or 'UNVERIFIED'))}｜"
+            f"更新时间 {escape(str(r.get('updated_at') or '未知'))}｜{escape(str(r.get('summary') or r.get('public_excerpt') or '暂无摘要'))}</li>"
+            for r in rows
+        )
         return _page("今日机会", f"<h1>今日值得联系</h1>{task_warning}<ul>{items}</ul>")
 
     @app.get("/followups", response_class=HTMLResponse)
