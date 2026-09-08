@@ -32,6 +32,16 @@
 | 生产关闭开发桥接 | `待填写 YIKE_PILOT_DEV_LOGIN 未启用证据` | `PENDING` |
 | 代理头信任边界 | `待填写 YIKE_PILOT_PROXY_HEADERS/ALLOW_IPS 与防火墙证据` | `PENDING` |
 
+## 可重复探针
+
+目标域名配置完成后，先运行以下探针；它强制要求 HTTPS，只读取公开健康端点，不携带用户令牌：
+
+```bash
+scripts/cp06_probe.sh https://<pilot-domain>
+```
+
+把命令输出、时间和部署 SHA 填入上方 `/healthz`、`/readyz` 两行；探针通过不等于完成其他验收项。
+
 ## 放行条件
 
 所有项目为 `PASS`，且没有公网数据库、明文密钥、未脱敏 query token、跨租户读取或无法回滚项；否则保持 `NOT_STARTED`/`BLOCKED`，不得对外宣称已上线。
