@@ -41,3 +41,14 @@ def test_pages_require_authenticated_user_and_render_evidence():
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in detail.text
     response = client.post("/opportunities/opp-1/followups", headers=headers, data={"status": "CONTACTED", "note": "已人工发送"}, follow_redirects=False)
     assert response.status_code == 303
+
+
+def test_dev_session_bridge_is_disabled_by_default_and_sets_http_only_cookie():
+    token = issue_token("user-1", "test-secret")
+    disabled = TestClient(build_app(Store(), auth_secret="test-secret"))
+    assert disabled.get("/__dev/session", params={"token": token}).status_code == 404
+    enabled = TestClient(build_app(Store(), auth_secret="test-secret", dev_login=True))
+    response = enabled.get("/__dev/session", params={"token": token}, follow_redirects=False)
+    assert response.status_code == 303
+    assert "httponly" in response.headers["set-cookie"].lower()
+    assert enabled.get("/opportunities").status_code == 200

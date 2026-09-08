@@ -15,5 +15,5 @@ def web():
     secret = os.environ.get("YIKE_PILOT_AUTH_SECRET", "").strip()
     if not secret:
         raise RuntimeError("YIKE_PILOT_AUTH_SECRET is required")
-    app = build_app(PilotStore(database), auth_secret=secret)
+    app = build_app(PilotStore(database), auth_secret=secret, dev_login=os.environ.get("YIKE_PILOT_DEV_LOGIN") == "1")
     uvicorn.run(app, host=os.environ.get("YIKE_PILOT_HOST", "127.0.0.1"), port=int(os.environ.get("YIKE_PILOT_PORT", "8787")))
