@@ -8,7 +8,7 @@
 
 ```bash
 docker build -f deploy/Dockerfile -t yike-customer-pilot:<git-sha> .
-docker run --rm -p 8787:8787 \
+docker run --rm -p 127.0.0.1:8787:8787 \
   -e YIKE_PILOT_DATABASE_URL='postgresql://<non-superuser>:<password>@<private-db>:5432/<database>' \
   -e YIKE_PILOT_AUTH_SECRET='<secret-from-secret-manager>' \
   yike-customer-pilot:<git-sha>

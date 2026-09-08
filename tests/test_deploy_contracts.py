@@ -8,6 +8,8 @@ def test_build_context_excludes_runtime_and_secret_material() -> None:
     ignore = (ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines()
 
     assert ".env*" in ignore
+    assert "*.pem" in ignore
+    assert "*.key" in ignore
     assert ".runtime" in ignore
     assert "profiles" in ignore
     assert "cookies" in ignore
