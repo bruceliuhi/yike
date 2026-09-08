@@ -20,6 +20,7 @@ TLS 在反向代理终止时，显式设置 `YIKE_PILOT_PROXY_HEADERS=1` 和反�
 
 ## 生产门禁
 
+- 启动前在目标环境运行 `scripts/cp06_validate_env.sh`；它只输出通过/失败，不打印数据库 URL、认证密钥或备份口令。该门禁会拒绝非 PostgreSQL、弱认证密钥、开发登录桥接、通配反代 allowlist 及不安全备份口令文件。
 - 应用数据库账号必须是非超级用户、非 owner，只授予必要表权限；数据库不对公网开放。
 - `YIKE_PILOT_AUTH_SECRET` 只能来自密钥管理，不写入镜像、仓库或日志。
 - 反向代理必须关闭 query token 的访问日志，生产禁用 `__dev/session`。

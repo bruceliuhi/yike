@@ -78,6 +78,7 @@ uv run --frozen yike-pilot-import \
 ```bash
 export YIKE_PILOT_DATABASE_URL='postgresql://<non-superuser>:<password>@<private-db>:5432/<database>'
 export YIKE_PILOT_BACKUP_PASSPHRASE_FILE='/secure/secret-store/pilot-backup-passphrase'
+scripts/cp06_validate_env.sh
 scripts/backup_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump.enc
 CONFIRM_RESTORE=YES scripts/restore_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump.enc
 ```

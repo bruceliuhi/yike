@@ -31,6 +31,7 @@
 | 回滚 | `待填写旧镜像 SHA 与恢复结果` | `PENDING` |
 | 生产关闭开发桥接 | `待填写 YIKE_PILOT_DEV_LOGIN 未启用证据` | `PENDING` |
 | 代理头信任边界 | `待填写 YIKE_PILOT_PROXY_HEADERS/ALLOW_IPS 与防火墙证据` | `PENDING` |
+| CP-06 配置 preflight | `待填写 scripts/cp06_validate_env.sh 输出` | `PENDING` |
 
 ## 可重复探针
 
