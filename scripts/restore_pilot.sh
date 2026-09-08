@@ -18,7 +18,7 @@ if [[ -z "$backup_path" || ! -f "$backup_path" || "$backup_path" != *.enc ]]; th
   echo "usage: CONFIRM_RESTORE=YES YIKE_PILOT_BACKUP_PASSPHRASE_FILE=/secure/passphrase restore_pilot.sh /explicit/path/pilot.dump.enc" >&2
   exit 2
 fi
-if [[ -z "$passphrase_file" || ! -f "$passphrase_file" || ! -r "$passphrase_file" || ! -s "$passphrase_file" ]]; then
+if [[ -z "$passphrase_file" || ! -f "$passphrase_file" || ! -r "$passphrase_file" || ! -s "$passphrase_file" ]] || ! LC_ALL=C grep -q '[^[:space:]]' "$passphrase_file"; then
   echo "YIKE_PILOT_BACKUP_PASSPHRASE_FILE must point to a non-empty readable secret file outside the repository" >&2
   exit 2
 fi
