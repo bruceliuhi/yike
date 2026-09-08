@@ -1,0 +1,11 @@
+.git
+.venv
+.pytest_cache
+.env
+.runtime
+data
+exports
+profiles
+cookies
+tests
+docs
