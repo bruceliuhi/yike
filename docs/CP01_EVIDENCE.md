@@ -20,6 +20,8 @@ git diff --check
 
 结果：两项命令均退出码 0。
 
+另运行 `scripts/secret_scan.sh`，结果为 `secret-scan: clean`；该静态扫描不替代目标环境日志、备份和密钥管理验收。
+
 范围边界：这只证明 CP-01/CP-02 的本地数据层契约，不证明四页浏览器流程、真实平台采集、部署 HTTPS、备份恢复、真实用户试用或收入。
 
 代码备份：Gitee `codex/customer-pilot` 分支；最近一次完整回归绑定提交 `b24836da0b335048bc7b25f7ebda2af56831a4d1`，后续部署骨架已推送至 `f7fe1dcc22ce9c121e7f0028db997c5c49841d1c`。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
