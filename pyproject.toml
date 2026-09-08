@@ -20,10 +20,11 @@ dev = ["pytest==8.3.5"]
 yike-web = "app.cli:web"
 yike-collector = "app.cli:collector"
 yike-pilot-web = "pilot.cli:web"
+yike-pilot-import = "pilot.cli:import_bundle"
 
 [build-system]
 requires = ["hatchling==1.27.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["app"]
+packages = ["app", "pilot"]

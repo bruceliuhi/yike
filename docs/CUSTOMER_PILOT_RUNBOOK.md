@@ -23,6 +23,18 @@ uv run --frozen yike-pilot-web
 
 后台 Codex＋商机研究 Skill 先输出研究包，人工核对原帖/原评论、时间、业务背景和联系路径，并将 `review_status` 设为 `APPROVED`。通过 `pilot.research_import.import_reviewed_bundle()` 导入；任何一条证据校验失败，整包在写入前拒绝。导入后用户只能看到自己租户的数据。
 
+管理员可用命令行导入已批准的 JSON 研究包（不会开放为客户 HTTP 接口）：
+
+```bash
+export YIKE_PILOT_DATABASE_URL='postgresql://<app-user>:<password>@<private-host>:5432/<database>'
+uv run --frozen yike-pilot-import \
+  --bundle ./approved-bundle.json \
+  --user-id '<provisioned-user-id>' \
+  --profile-version-id '<confirmed-profile-version-id>'
+```
+
+命令会先执行迁移，再校验整包；输出 `created`、`duplicates` 和 `total`。任一条证据不合格时整包不写入。
+
 ## 用户路径
 
 1. 用签名令牌打开 `/profile`，填写服务能力、地域、偏好和排除项。
