@@ -9,11 +9,11 @@ from pilot.web import build_app
 class Store:
     def list_opportunities(self, user_id):
         assert user_id == "user-1"
-        return [{"opportunity_id": "opp-1", "title": "展台搭建", "buyer": "采购负责人", "intent_status": "NEW", "source_status": "OPEN", "summary": "秋季展会一体化搭建", "updated_at": "2026-09-08T10:00:00+00:00", "public_excerpt": "秋季展会寻团队"}]
+        return [{"opportunity_id": "opp-1", "title": "展台搭建", "buyer": "采购负责人", "intent_status": "NEW", "source_status": "OPEN", "profile_status": "CONFIRMED", "summary": "秋季展会一体化搭建", "updated_at": "2026-09-08T10:00:00+00:00", "public_excerpt": "秋季展会寻团队"}]
 
     def get_opportunity(self, user_id, opportunity_id):
         assert (user_id, opportunity_id) == ("user-1", "opp-1")
-        return {"opportunity_id": "opp-1", "title": "展台搭建 <script>alert(1)</script>", "buyer": "采购负责人", "summary": "需要方案与搭建", "contact_path": "原帖评论", "public_excerpt": "秋季展会寻搭建团队", "source_platform": "xiaohongshu", "public_url": "https://example.invalid/source/one", "published_at": "2026-09-01T09:00:00+00:00", "draft_comment": "方便了解城市和面积吗？", "draft_dm": "看到你在找团队，项目还在评估吗？", "source_status": "OPEN"}
+        return {"opportunity_id": "opp-1", "title": "展台搭建 <script>alert(1)</script>", "buyer": "采购负责人", "summary": "需要方案与搭建", "contact_path": "原帖评论", "public_excerpt": "秋季展会寻搭建团队", "source_platform": "xiaohongshu", "public_url": "https://example.invalid/source/one", "published_at": "2026-09-01T09:00:00+00:00", "draft_comment": "方便了解城市和面积吗？", "draft_dm": "看到你在找团队，项目还在评估吗？", "source_status": "OPEN", "profile_status": "CONFIRMED"}
 
     def record_followup(self, user_id, opportunity_id, status, note):
         assert (user_id, opportunity_id, status) == ("user-1", "opp-1", "REPLIED")
@@ -149,6 +149,18 @@ def test_source_status_warning_is_visible(status, warning):
     client = TestClient(build_app(StatusStore(), auth_secret="test-secret"))
     headers = {"Authorization": "Bearer " + issue_token("user-1", "test-secret")}
     assert warning in client.get("/opportunities/opp-1", headers=headers).text
+
+
+def test_changed_profile_warning_is_visible():
+    class StaleStore(Store):
+        def get_opportunity(self, user_id, opportunity_id):
+            row = super().get_opportunity(user_id, opportunity_id)
+            row["profile_status"] = "REVOKED"
+            return row
+
+    client = TestClient(build_app(StaleStore(), auth_secret="test-secret"))
+    headers = {"Authorization": "Bearer " + issue_token("user-1", "test-secret")}
+    assert "业务画像已更新" in client.get("/opportunities/opp-1", headers=headers).text
 
 
 def test_failed_research_task_is_visible_on_opportunities_page():
