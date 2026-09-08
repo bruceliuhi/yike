@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from pilot.research_import import import_reviewed_bundle
@@ -59,3 +61,37 @@ def test_sensitive_url_query_is_rejected_before_any_write():
     with pytest.raises(ValueError, match="会话凭据"):
         import_reviewed_bundle(store, "user-1", "profile-1", bundle)
     assert store.calls == []
+
+
+@pytest.mark.parametrize("url", [
+    "https://user:password@example.invalid/post/1",
+    "https://example.invalid/post/1#session-token",
+    "https://example.invalid/post/1?ref=access-token-value",
+])
+def test_url_credentials_are_rejected_before_any_write(url):
+    store = Store()
+    bundle = {"review_status": "APPROVED", "bundle_id": "run-sensitive-url", "leads": [{
+        "lead_id": "lead-1", "title": "t", "buyer": "b", "summary": "s",
+        "public_url": url, "source_platform": "x", "source_external_id": "1",
+        "source_published_at": "2026-09-07T09:00:00Z", "contact_path": "评论",
+        "draft_comment": "c", "draft_dm": "d",
+    }]}
+    with pytest.raises(ValueError, match="凭据|用户信息|片段"):
+        import_reviewed_bundle(store, "user-1", "profile-1", bundle)
+    assert store.calls == []
+
+
+def test_source_published_at_must_be_recent_and_not_in_future():
+    now = datetime(2026, 9, 8, 12, 0, tzinfo=UTC)
+    base = {
+        "review_status": "APPROVED", "bundle_id": "run-freshness", "leads": [{
+            "lead_id": "lead-1", "title": "t", "buyer": "b", "summary": "s",
+            "public_url": "https://example.invalid/post/1", "source_platform": "x", "source_external_id": "1",
+            "contact_path": "评论", "draft_comment": "c", "draft_dm": "d",
+        }]}
+    old = {**base, "leads": [{**base["leads"][0], "source_published_at": "2026-07-01T09:00:00Z"}]}
+    future = {**base, "leads": [{**base["leads"][0], "source_published_at": "2026-09-08T12:06:00Z"}]}
+    with pytest.raises(ValueError, match="60 天"):
+        import_reviewed_bundle(Store(), "user-1", "profile-1", old, now=now)
+    with pytest.raises(ValueError, match="未来"):
+        import_reviewed_bundle(Store(), "user-1", "profile-1", future, now=now)
