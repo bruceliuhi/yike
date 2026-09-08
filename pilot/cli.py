@@ -22,7 +22,18 @@ def web():
     if not secret:
         raise RuntimeError("YIKE_PILOT_AUTH_SECRET is required")
     app = build_app(PilotStore(database), auth_secret=secret, dev_login=os.environ.get("YIKE_PILOT_DEV_LOGIN") == "1")
-    uvicorn.run(app, host=os.environ.get("YIKE_PILOT_HOST", "127.0.0.1"), port=int(os.environ.get("YIKE_PILOT_PORT", "8787")), access_log=False)
+    proxy_headers = os.environ.get("YIKE_PILOT_PROXY_HEADERS", "0") == "1"
+    forwarded_allow_ips = os.environ.get("YIKE_PILOT_FORWARDED_ALLOW_IPS", "").strip()
+    if proxy_headers and not forwarded_allow_ips:
+        raise RuntimeError("YIKE_PILOT_FORWARDED_ALLOW_IPS is required when proxy headers are enabled")
+    uvicorn.run(
+        app,
+        host=os.environ.get("YIKE_PILOT_HOST", "127.0.0.1"),
+        port=int(os.environ.get("YIKE_PILOT_PORT", "8787")),
+        access_log=False,
+        proxy_headers=proxy_headers,
+        forwarded_allow_ips=forwarded_allow_ips,
+    )
 
 
 def migrate(argv: list[str] | None = None) -> int:
@@ -47,7 +58,6 @@ def import_bundle(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         database = PilotDatabase.from_environment()
-        database.migrate()
         bundle = json.loads(Path(args.bundle).read_text(encoding="utf-8"))
         results = import_reviewed_bundle(PilotStore(database), args.user_id, args.profile_version_id, bundle)
     except (MissingDatabaseConfiguration, OSError, json.JSONDecodeError, ValueError, KeyError, psycopg.Error, RuntimeError) as error:

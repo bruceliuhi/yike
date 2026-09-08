@@ -18,6 +18,8 @@ uv run --frozen yike-pilot-web
 
 缺少数据库 URL 或认证密钥时，启动必须失败；不会静默退回旧 SQLite 数据库。Web 进程本身不执行迁移，生产应用角色无需 CREATE/ALTER 权限；迁移必须由受信管理员或发布作业先执行。
 
+若由 HTTPS 反向代理终止 TLS，设置 `YIKE_PILOT_PROXY_HEADERS=1` 与 `YIKE_PILOT_FORWARDED_ALLOW_IPS=<反代实际来源IP或CIDR>`。后者必须是精确 allowlist，禁止设为 `*`；否则保持默认代理头信任关闭。
+
 真实用户可通过 HTTPS 打开 `/session`，粘贴管理员经安全渠道提供的短期访问令牌换取 HttpOnly、SameSite=Strict 会话 Cookie。应用不信任客户端伪造的 `X-Forwarded-Proto`；反向代理必须覆盖该头并确保应用端口不公网直连。生产不得使用 `/__dev/session`，也不得把令牌放进 URL。
 
 ## 受信 provisioning
@@ -39,7 +41,7 @@ CLI 输出的令牌只应通过安全渠道交给试用用户，不写入仓库�
 
 后台 Codex＋商机研究 Skill 先输出研究包，人工核对原帖/原评论、时间、业务背景和联系路径，并将 `review_status` 设为 `APPROVED`。通过 `pilot.research_import.import_reviewed_bundle()` 导入；任何一条证据校验失败，整包在写入前拒绝。导入后用户只能看到自己租户的数据。
 
-管理员可用命令行导入已批准的 JSON 研究包（不会开放为客户 HTTP 接口）：
+管理员可用命令行导入已批准的 JSON 研究包（不会开放为客户 HTTP 接口；导入命令不执行迁移，须先由受信迁移作业完成 schema）：
 
 ```bash
 export YIKE_PILOT_DATABASE_URL='postgresql://<app-user>:<password>@<private-host>:5432/<database>'

@@ -11,6 +11,7 @@
 - 应用镜像 SHA：`待填写`
 - PostgreSQL 主机（仅私网）：`待填写`
 - 应用数据库角色：`待填写`（确认非超级用户、非 owner）
+- 反代来源 allowlist：`待填写`（`YIKE_PILOT_FORWARDED_ALLOW_IPS`；禁止 `*`）
 - 验收时间/责任人：`待填写`
 
 ## 必验项
@@ -28,6 +29,7 @@
 | 隔离恢复 | `待填写 restore_pilot.sh 输出和恢复库` | `PENDING` |
 | 回滚 | `待填写旧镜像 SHA 与恢复结果` | `PENDING` |
 | 生产关闭开发桥接 | `待填写 YIKE_PILOT_DEV_LOGIN 未启用证据` | `PENDING` |
+| 代理头信任边界 | `待填写 YIKE_PILOT_PROXY_HEADERS/ALLOW_IPS 与防火墙证据` | `PENDING` |
 
 ## 放行条件
 

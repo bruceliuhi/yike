@@ -54,6 +54,8 @@ def test_web_start_does_not_run_migrations_as_app_role(monkeypatch):
 
     cli.web()
     assert called["access_log"] is False
+    assert called["proxy_headers"] is False
+    assert called["forwarded_allow_ips"] == ""
 
 
 def test_migrate_command_is_available_for_trusted_admin(monkeypatch):

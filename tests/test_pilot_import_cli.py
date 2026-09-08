@@ -23,7 +23,7 @@ def test_import_command_prints_created_and_duplicate_counts(monkeypatch, tmp_pat
 
     class FakeDatabase:
         def migrate(self):
-            pass
+            raise AssertionError("import must not run privileged migrations")
 
     class FakeStore:
         def __init__(self, database):
