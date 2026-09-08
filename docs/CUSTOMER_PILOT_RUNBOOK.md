@@ -21,6 +21,17 @@ uv run --frozen yike-pilot-web
 
 `PilotStore.provision_tenant` 和 `provision_user` 只允许管理员脚本调用。它们不得暴露为客户 HTTP 路由。管理员生成用户后，用 `pilot.auth.issue_token()` 签发短期令牌；令牌只通过 HTTPS 或本机安全渠道交给用户。
 
+可使用受信 CLI（仅在管理员终端执行）完成同样流程：
+
+```bash
+uv run --frozen yike-pilot-provision tenant --name '试用团队'
+uv run --frozen yike-pilot-provision user --tenant-id '<tenant-id>' --email 'user@example.com'
+export YIKE_PILOT_AUTH_SECRET='<random-secret-kept-outside-git>'
+uv run --frozen yike-pilot-provision token --user-id '<user-id>' --ttl-seconds 3600
+```
+
+CLI 输出的令牌只应通过安全渠道交给试用用户，不写入仓库、日志或研究包。
+
 ## 研究包导入
 
 后台 Codex＋商机研究 Skill 先输出研究包，人工核对原帖/原评论、时间、业务背景和联系路径，并将 `review_status` 设为 `APPROVED`。通过 `pilot.research_import.import_reviewed_bundle()` 导入；任何一条证据校验失败，整包在写入前拒绝。导入后用户只能看到自己租户的数据。

@@ -21,6 +21,7 @@ yike-web = "app.cli:web"
 yike-collector = "app.cli:collector"
 yike-pilot-web = "pilot.cli:web"
 yike-pilot-import = "pilot.cli:import_bundle"
+yike-pilot-provision = "pilot.cli:provision"
 
 [build-system]
 requires = ["hatchling==1.27.0"]
