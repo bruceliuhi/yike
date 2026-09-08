@@ -12,7 +12,7 @@ YIKE_PILOT_DATABASE_URL='postgresql://pilot:pilot@127.0.0.1:55531/pilot' \
   tests/test_pilot_provision_cli.py
 ```
 
-结果：CP-01/02/03 数据层、任务租约、四页 Web（含来源状态、更新时间和匹配摘要）、失败任务提示、研究导入（含 60 天新鲜度与 URL 凭据净化）、受信 provisioning、日志脱敏、迁移职责、HTTPS 会话入口、代理头信任边界、同源状态同步、画像空值/重复提交/确认轮换、并发确认、画像变更提示、输入长度限制、非法输入和未 provisioning 用户访问 fail-closed 测试通过；最新完整命令为 `37 passed in 2.29s`（含真实 PostgreSQL 集成测试；集成测试创建一次性非超级用户 `pilot_app`，验证 RLS 过滤与旧约束升级）。当前产品专用门禁可运行 `scripts/check_customer_pilot.sh`，要求显式提供隔离 PostgreSQL URL；旧 `scripts/check.sh` 的全仓 Discovery 测试不属于本分支验收。
+结果：CP-01/02/03 数据层、任务租约、四页 Web（含来源状态、更新时间和匹配摘要）、失败任务提示、研究导入（含 60 天新鲜度与 URL 凭据净化）、受信 provisioning、日志脱敏、迁移职责、HTTPS 会话入口、代理头信任边界、同源状态同步、画像空值/重复提交/确认轮换、并发确认、画像变更提示、输入长度限制、非法输入和未 provisioning 用户访问 fail-closed 测试通过；最新完整命令为 `39 passed in 3.11s`（含真实 PostgreSQL 集成测试；集成测试创建一次性非超级用户 `pilot_app`，验证 RLS 过滤与旧约束升级）。当前产品专用门禁可运行 `scripts/check_customer_pilot.sh`，要求显式提供隔离 PostgreSQL URL；旧 `scripts/check.sh` 的全仓 Discovery 测试不属于本分支验收。
 
 另外执行：
 
@@ -41,10 +41,10 @@ docker build --progress=plain -f deploy/Dockerfile -t yike-customer-pilot:471d9c
 
 2026-09-09 再次使用 Docker Desktop `desktop-linux` builder、`--load` 和固定基础层 digest 尝试完整构建；30 秒仍停在 `load metadata for docker.io/library/python:3.12-slim-bookworm@sha256:d50fb...`，随后人工取消（退出码 130）。仍无镜像 SHA，CP-06 镜像构建保持未完成。
 
-随后发现原忽略文件位于 `deploy/.dockerignore`，与仓库根构建上下文不匹配；已改为根 `.dockerignore`，排除 `.env*`、运行目录、登录态、测试和文档。使用隔离 `DOCKER_CONFIG`、本地 Docker socket 和旧版 builder 完整构建成功，构建上下文 1.041MB，本地镜像 ID 为 `sha256:ecf6e84dc046f68d6be0cab3e0bf94d4a7451a7307b66ee01938fe8600f2fa83`。镜像配置显示 `User=yike`、CMD 为 `/app/.venv/bin/yike-pilot-web`；在临时 PostgreSQL、只读根文件系统、`cap_drop=ALL`、`no-new-privileges` 下运行，`/healthz` 和 `/readyz` 均返回预期 JSON。该镜像 ID 是本机临时构建证据，不是已推送到生产仓库的镜像 digest，也不替代目标环境验收。
+随后发现原忽略文件位于 `deploy/.dockerignore`，与仓库根构建上下文不匹配；已改为根 `.dockerignore`，排除 `.env*`、运行目录、登录态、测试和文档。使用隔离 `DOCKER_CONFIG`、本地 Docker socket 和旧版 builder 完整构建成功，构建上下文 1.041MB；随后按 pilot-only 范围移除旧 `app` 包和运行时依赖同步，并加入 OCI 源码/提交标签。以 `VCS_REF=7e1c25282af7c02d3d1289cc2174a3bcf8c5edf2` 构建的本地镜像 ID 为 `sha256:388776777174878418ae068926ec8f597f3d708744b4c93e0561c4dcee6be118`，配置显示 `User=yike`、CMD 为 `/app/.venv/bin/python -c "from pilot.cli import web; web()"`；在临时 PostgreSQL、只读根文件系统、`cap_drop=ALL`、`no-new-privileges` 下迁移空库并运行，`/healthz` 和 `/readyz` 均返回预期 JSON。该镜像 ID 是本机临时构建证据，不是已推送到生产仓库的镜像 digest，也不替代目标环境验收。
 
 2026-09-09 本地备份/恢复演练（非目标环境）：使用两个独立的 PostgreSQL 16 容器，源库先执行 `yike-pilot-migrate`；再用真实 `pg_dump` 与 OpenSSL 生成 `/secrets/pilot.dump.enc`，恢复脚本在另一容器设置 `CONFIRM_RESTORE=YES` 成功恢复，`psql` 查询确认 `pilot_schema_meta` 中存在 `customer-pilot-v1`。演练证明脚本链路可运行，但目标库、独立备份存储、认证完整性和回滚仍未验收。
 
 范围边界：这只证明 CP-01/CP-02 的本地数据层契约，不证明四页浏览器流程、真实平台采集、部署 HTTPS、备份恢复、真实用户试用或收入。
 
-代码备份：Gitee `codex/customer-pilot` 分支；当前 HEAD 为 `e47d474b8e644373280d1e92a4a012d67148c57f`，已与远端 SHA 对齐；相关部署提交包括 `eff28d7`（固定 Python 基础层 digest）、`bd27338f108652e9ec43bdb4ea24fdfe4935cc77`（非 root 运行）、`82ce5c0b284dfab5eeca5ef0999618427855a60f`（备份 HMAC 完整性）、`671964f`（CP-06 生产配置 preflight）、`6f61c98`（受限 Compose 运行文件）、`973d355`（根构建上下文及只读运行修复）与 `e47d474`（扩展敏感文件排除、loopback 示例）。产品门禁现包含备份篡改拒绝测试和 preflight 单元测试。更早的部署验收模板及 HTTPS-only `/healthz`、`/readyz` 探针提交为 `006ac86188e366645b002d84ca274ddde33ed447`；探针对 HTTP、userinfo、query、fragment 输入均 fail-closed。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
+代码备份：Gitee `codex/customer-pilot` 分支；当前 HEAD 为 `7e1c25282af7c02d3d1289cc2174a3bcf8c5edf2`，已与远端 SHA 对齐；该提交收紧 pilot-only 镜像边界、加入 OCI provenance 标签，并要求 CP-06 preflight 使用 digest 固定的镜像引用。相关部署提交包括 `eff28d7`（固定 Python 基础层 digest）、`bd27338f108652e9ec43bdb4ea24fdfe4935cc77`（非 root 运行）、`82ce5c0b284dfab5eeca5ef0999618427855a60f`（备份 HMAC 完整性）、`671964f`（CP-06 生产配置 preflight）、`6f61c98`（受限 Compose 运行文件）、`973d355`（根构建上下文及只读运行修复）与 `e47d474`（扩展敏感文件排除、loopback 示例）。产品门禁现包含备份篡改拒绝测试、digest 镜像 preflight 和部署契约单元测试。更早的部署验收模板及 HTTPS-only `/healthz`、`/readyz` 探针提交为 `006ac86188e366645b002d84ca274ddde33ed447`；探针对 HTTP、userinfo、query、fragment 输入均 fail-closed。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
