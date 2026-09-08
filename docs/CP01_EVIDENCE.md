@@ -5,8 +5,11 @@
 命令：
 
 ```bash
-YIKE_PILOT_DATABASE_URL='postgresql://pilot:pilot@127.0.0.1:55432/pilot' \
-  uv run pytest -q tests/test_pilot_contracts.py
+YIKE_PILOT_DATABASE_URL='postgresql://pilot:pilot@127.0.0.1:55437/pilot' \
+  uv run --frozen pytest -q \
+  tests/test_pilot_contracts.py tests/test_pilot_web.py \
+  tests/test_research_import.py tests/test_pilot_import_cli.py \
+  tests/test_pilot_provision_cli.py
 ```
 
 结果：CP-01/02/03 数据层、任务租约、四页 Web、来源状态、失败任务提示、研究导入、受信 provisioning 和日志脱敏测试通过；最新完整命令为 `19 passed in 2.63s`（含真实 PostgreSQL 集成测试；集成测试创建一次性非超级用户 `pilot_app`，验证 RLS 过滤与旧约束升级）。
