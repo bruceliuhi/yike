@@ -92,18 +92,22 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
     assert created["opportunity_id"] == repeated["opportunity_id"]
     assert repeated["created"] is False
     assert len(store.list_opportunities(first_user)) == 1
+    sibling = store.import_opportunity(first_user, profile["version_id"], "run-2:source-one", opportunity)
+    assert sibling["created"] is True
+    assert len(store.list_opportunities(first_user)) == 2
     assert store.list_opportunities(second_user) == []
     store.record_followup(first_user, created["opportunity_id"], "REPLIED", "对方回复，愿意沟通")
     assert store.list_followups(first_user, created["opportunity_id"])[0]["status"] == "REPLIED"
     assert store.list_all_followups(first_user)[0]["opportunity_id"] == created["opportunity_id"]
     store.set_source_status(first_user, created["opportunity_id"], "BLOCKED")
     assert store.get_opportunity(first_user, created["opportunity_id"])["source_status"] == "BLOCKED"
+    assert {row["source_status"] for row in store.list_opportunities(first_user)} == {"BLOCKED"}
     with database.connect() as connection:
         with connection.cursor() as cursor:
             cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (first,))
             cursor.execute("SELECT health FROM pilot_sources WHERE tenant_id=%s AND external_id=%s", (first, "source-one"))
             assert cursor.fetchone()[0] == "BLOCKED"
-    assert store.list_opportunities(first_user)[0]["intent_status"] == "CONTACTED"
+    assert next(row for row in store.list_opportunities(first_user) if row["opportunity_id"] == created["opportunity_id"])["intent_status"] == "CONTACTED"
     with database.connect() as connection:
         with connection.cursor() as cursor:
             cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (second,))
@@ -151,4 +155,4 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
         with connection.cursor() as cursor:
             cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (first,))
             cursor.execute("SELECT COUNT(*) FROM pilot_source_observations")
-            assert cursor.fetchone()[0] == 2
+            assert cursor.fetchone()[0] == 3

@@ -157,6 +157,11 @@ class PilotStore:
                     raise KeyError("opportunity not found in tenant")
                 source_id = cursor.fetchone()[0]
                 cursor.execute("UPDATE pilot_sources SET health=%s WHERE tenant_id=%s AND source_id=%s", (status, tenant_id, source_id))
+                cursor.execute(
+                    "UPDATE pilot_opportunities SET source_status=%s, updated_at=CURRENT_TIMESTAMP "
+                    "WHERE tenant_id=%s AND source_id=%s",
+                    (status, tenant_id, source_id),
+                )
 
     def record_followup(self, user_id: str, opportunity_id: str, status: str, note: str) -> dict:
         tenant_id = self._tenant_for_user(user_id)
