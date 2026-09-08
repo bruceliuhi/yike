@@ -46,3 +46,16 @@ def test_bundle_validation_is_atomic_and_requires_url_hostname():
     with pytest.raises(ValueError, match="有效主机"):
         import_reviewed_bundle(store, "user-1", "profile-1", bundle)
     assert store.calls == []
+
+
+def test_sensitive_url_query_is_rejected_before_any_write():
+    store = Store()
+    bundle = {"review_status": "APPROVED", "bundle_id": "run-sensitive", "leads": [{
+        "lead_id": "lead-1", "title": "t", "buyer": "b", "summary": "s",
+        "public_url": "https://example.invalid/post/1?xsec_token=secret", "source_platform": "x",
+        "source_external_id": "1", "source_published_at": "2026-09-07T09:00:00Z", "contact_path": "评论",
+        "draft_comment": "c", "draft_dm": "d",
+    }]}
+    with pytest.raises(ValueError, match="会话凭据"):
+        import_reviewed_bundle(store, "user-1", "profile-1", bundle)
+    assert store.calls == []

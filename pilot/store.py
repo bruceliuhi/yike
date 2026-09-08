@@ -131,7 +131,30 @@ class PilotStore:
 
     def get_opportunity(self, user_id: str, opportunity_id: str) -> dict:
         tenant_id = self._tenant_for_user(user_id)
-        return self._fetchone(tenant_id, "SELECT opportunity_id, title, buyer, summary, contact_path, draft_comment, draft_dm, source_status FROM pilot_opportunities WHERE tenant_id=%s AND opportunity_id=%s", (tenant_id, opportunity_id))
+        return self._fetchone(
+            tenant_id,
+            "SELECT o.opportunity_id, o.title, o.buyer, o.summary, o.contact_path, o.public_excerpt, "
+            "o.draft_comment, o.draft_dm, o.source_status, s.platform AS source_platform, "
+            "s.public_url, s.published_at FROM pilot_opportunities o "
+            "JOIN pilot_sources s ON s.tenant_id=o.tenant_id AND s.source_id=o.source_id "
+            "WHERE o.tenant_id=%s AND o.opportunity_id=%s",
+            (tenant_id, opportunity_id),
+        )
+
+    def set_source_status(self, user_id: str, opportunity_id: str, status: str) -> None:
+        if status not in {"OPEN", "EXPIRED", "BLOCKED", "UNVERIFIED"}:
+            raise ValueError("unsupported source status")
+        tenant_id = self._tenant_for_user(user_id)
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute(
+                    "UPDATE pilot_opportunities SET source_status=%s, updated_at=CURRENT_TIMESTAMP "
+                    "WHERE tenant_id=%s AND opportunity_id=%s",
+                    (status, tenant_id, opportunity_id),
+                )
+                if cursor.rowcount != 1:
+                    raise KeyError("opportunity not found in tenant")
 
     def record_followup(self, user_id: str, opportunity_id: str, status: str, note: str) -> dict:
         tenant_id = self._tenant_for_user(user_id)

@@ -13,7 +13,7 @@ class Store:
 
     def get_opportunity(self, user_id, opportunity_id):
         assert (user_id, opportunity_id) == ("user-1", "opp-1")
-        return {"opportunity_id": "opp-1", "title": "展台搭建 <script>alert(1)</script>", "buyer": "采购负责人", "summary": "需要方案与搭建", "contact_path": "原帖评论", "draft_comment": "方便了解城市和面积吗？", "draft_dm": "看到你在找团队，项目还在评估吗？", "source_status": "OPEN"}
+        return {"opportunity_id": "opp-1", "title": "展台搭建 <script>alert(1)</script>", "buyer": "采购负责人", "summary": "需要方案与搭建", "contact_path": "原帖评论", "public_excerpt": "秋季展会寻搭建团队", "source_platform": "xiaohongshu", "public_url": "https://example.invalid/source/one", "published_at": "2026-09-01T09:00:00+00:00", "draft_comment": "方便了解城市和面积吗？", "draft_dm": "看到你在找团队，项目还在评估吗？", "source_status": "OPEN"}
 
     def record_followup(self, user_id, opportunity_id, status, note):
         assert (user_id, opportunity_id, status) == ("user-1", "opp-1", "REPLIED")
@@ -24,6 +24,9 @@ class Store:
 
     def list_all_followups(self, user_id):
         return []
+
+    def set_source_status(self, user_id, opportunity_id, status):
+        assert (user_id, opportunity_id, status) == ("user-1", "opp-1", "BLOCKED")
 
 
 def test_pilot_token_rejects_tampering_and_expiry():
@@ -45,6 +48,11 @@ def test_pages_require_authenticated_user_and_render_evidence():
     detail = client.get("/opportunities/opp-1", headers=headers)
     assert "不自动发送" in detail.text
     assert "方便了解城市和面积吗？" in detail.text
+    assert "原始证据" in detail.text
+    assert "打开原文" in detail.text
+    assert "秋季展会寻搭建团队" in detail.text
+    source_response = client.post("/opportunities/opp-1/source-status", headers=headers, data={"status": "BLOCKED"}, follow_redirects=False)
+    assert source_response.status_code == 303
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in detail.text
     response = client.post("/opportunities/opp-1/followups", headers=headers, data={"status": "REPLIED", "note": "对方回复，愿意沟通"}, follow_redirects=False)
     assert response.status_code == 303

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 
 
 _REQUIRED = (
@@ -25,6 +25,9 @@ def import_reviewed_bundle(store, user_id: str, profile_version_id: str, bundle:
         parsed = urlparse(lead["public_url"])
         if parsed.scheme not in ("https", "http") or not parsed.hostname:
             raise ValueError("来源链接必须包含有效主机")
+        sensitive = {"token", "xsec_token", "cookie", "session", "auth", "authorization", "signature", "sign"}
+        if any(key.lower() in sensitive or any(part in key.lower() for part in ("token", "cookie", "session")) for key, _ in parse_qsl(parsed.query, keep_blank_values=True)):
+            raise ValueError("来源链接不能包含会话凭据或访问令牌")
         try:
             datetime.strptime(lead["source_published_at"], "%Y-%m-%dT%H:%M:%SZ")
         except ValueError as error:
