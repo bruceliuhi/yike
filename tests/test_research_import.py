@@ -35,3 +35,14 @@ def test_reviewed_bundle_requires_reopenable_evidence_and_imports_each_lead():
     result = import_reviewed_bundle(store, "user-1", "profile-1", bundle)
     assert result == [{"opportunity_id": "run-2026-09-08:lead-1", "created": True}]
     assert store.calls[0][2] == "run-2026-09-08:lead-1"
+
+
+def test_bundle_validation_is_atomic_and_requires_url_hostname():
+    store = Store()
+    bundle = {"review_status": "APPROVED", "bundle_id": "run-atomic", "leads": [
+        {"lead_id": "ok", "title": "t", "buyer": "b", "summary": "s", "public_url": "https://example.invalid/1", "source_platform": "x", "source_external_id": "1", "source_published_at": "2026-09-07T09:00:00Z", "contact_path": "评论", "draft_comment": "c", "draft_dm": "d"},
+        {"lead_id": "bad", "title": "t", "buyer": "b", "summary": "s", "public_url": "https://", "source_platform": "x", "source_external_id": "2", "source_published_at": "2026-09-07T09:00:00Z", "contact_path": "评论", "draft_comment": "c", "draft_dm": "d"},
+    ]}
+    with pytest.raises(ValueError, match="有效主机"):
+        import_reviewed_bundle(store, "user-1", "profile-1", bundle)
+    assert store.calls == []
