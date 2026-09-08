@@ -77,8 +77,9 @@ uv run --frozen yike-pilot-import \
 
 ```bash
 export YIKE_PILOT_DATABASE_URL='postgresql://<non-superuser>:<password>@<private-db>:5432/<database>'
-scripts/backup_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump
-CONFIRM_RESTORE=YES scripts/restore_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump
+export YIKE_PILOT_BACKUP_PASSPHRASE_FILE='/secure/secret-store/pilot-backup-passphrase'
+scripts/backup_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump.enc
+CONFIRM_RESTORE=YES scripts/restore_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump.enc
 ```
 
-恢复前必须选定隔离数据库并人工确认；脚本不会自动恢复到当前生产库。演练结果、备份加密方式和回滚镜像 SHA 需写入目标环境验收记录。
+恢复前必须选定隔离数据库并人工确认；脚本不会自动恢复到当前生产库。备份 passphrase 只从仓库外的密钥文件读取，不写入日志；演练结果、备份加密方式和回滚镜像 SHA 需写入目标环境验收记录。

@@ -23,4 +23,4 @@ TLS 在反向代理终止时，显式设置 `YIKE_PILOT_PROXY_HEADERS=1` 和反�
 - 应用数据库账号必须是非超级用户、非 owner，只授予必要表权限；数据库不对公网开放。
 - `YIKE_PILOT_AUTH_SECRET` 只能来自密钥管理，不写入镜像、仓库或日志。
 - 反向代理必须关闭 query token 的访问日志，生产禁用 `__dev/session`。
-- 完成加密 `pg_dump`、隔离恢复和旧镜像回滚演练后，才能记录 CP-06 放行。
+- 使用仓库外 `YIKE_PILOT_BACKUP_PASSPHRASE_FILE` 完成加密 `pg_dump`、隔离恢复和旧镜像回滚演练后，才能记录 CP-06 放行；备份文件应使用 `.dump.enc` 扩展名。
