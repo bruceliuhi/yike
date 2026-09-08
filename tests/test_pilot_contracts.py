@@ -91,5 +91,6 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
     assert store.get_profile_version(first_user, profile["version_id"])["payload"]["region"] == "北京"
     with database.connect() as connection:
         with connection.cursor() as cursor:
+            cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (first,))
             cursor.execute("SELECT COUNT(*) FROM pilot_source_observations")
             assert cursor.fetchone()[0] == 2

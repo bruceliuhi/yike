@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS pilot_source_versions (
     observed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, source_id, content_sha256),
     UNIQUE (tenant_id, source_version_id),
+    UNIQUE (tenant_id, source_id, source_version_id),
     FOREIGN KEY (tenant_id, source_id) REFERENCES pilot_sources(tenant_id, source_id)
 );
 
@@ -79,7 +80,7 @@ CREATE TABLE IF NOT EXISTS pilot_source_observations (
     source_version_id TEXT NOT NULL,
     observed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id, source_id) REFERENCES pilot_sources(tenant_id, source_id),
-    FOREIGN KEY (tenant_id, source_version_id) REFERENCES pilot_source_versions(tenant_id, source_version_id)
+    FOREIGN KEY (tenant_id, source_id, source_version_id) REFERENCES pilot_source_versions(tenant_id, source_id, source_version_id)
 );
 
 CREATE TABLE IF NOT EXISTS pilot_opportunities (
@@ -139,6 +140,10 @@ ALTER TABLE pilot_sources FORCE ROW LEVEL SECURITY;
 ALTER TABLE pilot_opportunities FORCE ROW LEVEL SECURITY;
 ALTER TABLE pilot_followups FORCE ROW LEVEL SECURITY;
 ALTER TABLE pilot_tasks FORCE ROW LEVEL SECURITY;
+ALTER TABLE pilot_source_versions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pilot_source_observations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pilot_source_versions FORCE ROW LEVEL SECURITY;
+ALTER TABLE pilot_source_observations FORCE ROW LEVEL SECURITY;
 
 DO $$
 DECLARE table_name TEXT;
