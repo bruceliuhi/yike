@@ -268,6 +268,15 @@ class PilotStore:
             (tenant_id, task_key),
         )
 
+    def list_failed_tasks(self, user_id: str) -> list[dict]:
+        tenant_id = self._tenant_for_user(user_id)
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute("SELECT task_id, task_key, status FROM pilot_tasks WHERE tenant_id=%s AND status='FAILED' ORDER BY task_id", (tenant_id,))
+                columns = [d.name for d in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
     @staticmethod
     def _profile_id(tenant_id: str) -> str:
         return hashlib.sha256((tenant_id + ":default-profile").encode()).hexdigest()[:32]

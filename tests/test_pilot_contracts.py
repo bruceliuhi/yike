@@ -135,6 +135,7 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
     assert store.fail_task(first_user, "research:retry", "worker-a") is True
     assert store.fail_task(first_user, "research:retry", "worker-a") is True
     assert store.fail_task(first_user, "research:retry", "worker-b") is False
+    assert store.list_failed_tasks(first_user)[0]["status"] == "FAILED"
     retried = store.claim_task(first_user, "research:retry", "worker-b", lease_seconds=60)
     assert retried is not None
     assert retried["lease_owner"] == "worker-b"

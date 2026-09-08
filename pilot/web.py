@@ -73,10 +73,12 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
     def opportunities(authorization: str | None = Header(default=None), session: str | None = Cookie(default=None, alias="pilot_session")):
         user_id = user(authorization, session)
         rows = store.list_opportunities(user_id)
+        failed_tasks = store.list_failed_tasks(user_id)
+        task_warning = "" if not failed_tasks else "<p><strong>后台研究任务失败：请人工检查任务后再导入新的复核研究包。</strong></p>"
         if not rows:
-            return _page("今日机会", "<h1>今日暂无经复核机会</h1><p>后台研究完成并人工复核后，机会会出现在这里。</p>")
+            return _page("今日机会", f"<h1>今日暂无经复核机会</h1>{task_warning}<p>后台研究完成并人工复核后，机会会出现在这里。</p>")
         items = "".join(f"<li><a href='/opportunities/{escape(str(r['opportunity_id']), quote=True)}'>{escape(str(r['title']))}</a>｜{escape(str(r['buyer']))}｜{escape(str(r['intent_status']))}</li>" for r in rows)
-        return _page("今日机会", f"<h1>今日值得联系</h1><ul>{items}</ul>")
+        return _page("今日机会", f"<h1>今日值得联系</h1>{task_warning}<ul>{items}</ul>")
 
     @app.get("/followups", response_class=HTMLResponse)
     def followups(authorization: str | None = Header(default=None), session: str | None = Cookie(default=None, alias="pilot_session")):

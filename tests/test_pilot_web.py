@@ -25,6 +25,9 @@ class Store:
     def list_all_followups(self, user_id):
         return []
 
+    def list_failed_tasks(self, user_id):
+        return []
+
     def set_source_status(self, user_id, opportunity_id, status):
         assert (user_id, opportunity_id, status) == ("user-1", "opp-1", "BLOCKED")
 
@@ -121,3 +124,13 @@ def test_source_status_warning_is_visible(status, warning):
     client = TestClient(build_app(StatusStore(), auth_secret="test-secret"))
     headers = {"Authorization": "Bearer " + issue_token("user-1", "test-secret")}
     assert warning in client.get("/opportunities/opp-1", headers=headers).text
+
+
+def test_failed_research_task_is_visible_on_opportunities_page():
+    class FailedStore(Store):
+        def list_failed_tasks(self, user_id):
+            return [{"task_id": "task-1", "task_key": "research:failed", "status": "FAILED"}]
+
+    client = TestClient(build_app(FailedStore(), auth_secret="test-secret"))
+    headers = {"Authorization": "Bearer " + issue_token("user-1", "test-secret")}
+    assert "后台研究任务失败" in client.get("/opportunities", headers=headers).text
