@@ -13,6 +13,12 @@ case "$base_url" in
     exit 2
     ;;
 esac
+case "$base_url" in
+  *'@'*|*'?'*|*'#'*)
+    echo "CP-06 probe URL must not contain userinfo, query, or fragment" >&2
+    exit 2
+    ;;
+esac
 base_url="${base_url%/}"
 
 curl_https=(curl --fail --silent --show-error --location --max-time 10 --proto '=https' --proto-redir '=https')
