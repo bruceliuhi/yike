@@ -20,8 +20,13 @@ def test_build_context_excludes_runtime_and_secret_material() -> None:
 def test_production_image_does_not_sync_dependencies_at_runtime() -> None:
     dockerfile = (ROOT / "deploy" / "Dockerfile").read_text(encoding="utf-8")
 
-    assert 'CMD ["/app/.venv/bin/yike-pilot-web"]' in dockerfile
+    assert 'CMD ["/app/.venv/bin/python", "-c", "from pilot.cli import web; web()"]' in dockerfile
+    assert "COPY app ./app" not in dockerfile
+    assert "uv sync --frozen --no-dev --no-install-project" in dockerfile
+    assert "uv sync --frozen --no-dev\n" not in dockerfile
     assert "USER yike" in dockerfile
+    assert "ARG VCS_REF=unknown" in dockerfile
+    assert 'org.opencontainers.image.revision="$VCS_REF"' in dockerfile
 
 
 def test_compose_runtime_is_loopback_only_and_hardened() -> None:

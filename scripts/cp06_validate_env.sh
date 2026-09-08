@@ -15,6 +15,9 @@ case "$database_url" in
   *) fail "database URL must use PostgreSQL" ;;
 esac
 
+image_ref="${YIKE_PILOT_IMAGE:-}"
+[[ "$image_ref" =~ @sha256:[0-9a-fA-F]{64}$ ]] || fail "image reference must be digest-pinned"
+
 auth_secret="${YIKE_PILOT_AUTH_SECRET:-}"
 if [[ "${#auth_secret}" -lt 32 ]]; then
   fail "auth secret must be at least 32 characters"

@@ -21,6 +21,7 @@ def _base_env(tmp_path: Path) -> dict[str, str]:
         "YIKE_PILOT_BACKUP_PASSPHRASE_FILE": str(passphrase),
         "YIKE_PILOT_PROXY_HEADERS": "0",
         "YIKE_PILOT_DEV_LOGIN": "0",
+        "YIKE_PILOT_IMAGE": "registry.example.com/yike/customer-pilot@sha256:" + "a" * 64,
     }
 
 
@@ -74,3 +75,13 @@ def test_production_preflight_rejects_group_readable_backup_passphrase(tmp_path:
 
     assert result.returncode != 0
     assert "passphrase" in result.stderr.lower()
+
+
+def test_production_preflight_rejects_mutable_image_tag(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
+    env["YIKE_PILOT_IMAGE"] = "registry.example.com/yike/customer-pilot:latest"
+
+    result = _run(env)
+
+    assert result.returncode != 0
+    assert "digest" in result.stderr.lower()
