@@ -167,6 +167,8 @@ class PilotStore:
         tenant_id = self._tenant_for_user(user_id)
         if status not in {"CONTACTED", "REPLIED", "MEETING", "QUOTED", "LOST", "WON"}:
             raise ValueError("unsupported follow-up status")
+        if not note.strip():
+            raise ValueError("follow-up note is required")
         followup_id = str(uuid4())
         with self.database.connect() as connection:
             with connection.cursor() as cursor:

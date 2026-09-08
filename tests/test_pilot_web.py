@@ -159,3 +159,17 @@ def test_failed_research_task_is_visible_on_opportunities_page():
     client = TestClient(build_app(FailedStore(), auth_secret="test-secret"))
     headers = {"Authorization": "Bearer " + issue_token("user-1", "test-secret")}
     assert "后台研究任务失败" in client.get("/opportunities", headers=headers).text
+
+
+def test_invalid_form_values_and_missing_opportunity_fail_closed():
+    class MissingStore(Store):
+        def get_opportunity(self, user_id, opportunity_id):
+            raise KeyError("missing")
+
+    client = TestClient(build_app(MissingStore(), auth_secret="test-secret"))
+    headers = {"Authorization": "Bearer " + issue_token("user-1", "test-secret")}
+    assert client.get("/opportunities/missing", headers=headers).status_code == 404
+
+    client = TestClient(build_app(Store(), auth_secret="test-secret"))
+    assert client.post("/opportunities/opp-1/source-status", headers=headers, data={"status": "INVALID"}).status_code == 400
+    assert client.post("/opportunities/opp-1/followups", headers=headers, data={"status": "INVALID", "note": ""}).status_code == 400

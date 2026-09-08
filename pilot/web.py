@@ -131,7 +131,10 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
     @app.get("/opportunities/{opportunity_id}", response_class=HTMLResponse)
     def opportunity(opportunity_id: str, authorization: str | None = Header(default=None), session: str | None = Cookie(default=None, alias="pilot_session")):
         user_id = user(authorization, session)
-        row = store.get_opportunity(user_id, opportunity_id)
+        try:
+            row = store.get_opportunity(user_id, opportunity_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="opportunity not found") from error
         opp_id = escape(str(opportunity_id), quote=True)
         followups = store.list_followups(user_id, opportunity_id)
         history = "".join(f"<li>{escape(str(item['status']))}：{escape(str(item['note']))}</li>" for item in followups)
@@ -154,13 +157,27 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
     @app.post("/opportunities/{opportunity_id}/source-status")
     def source_status(opportunity_id: str, status: str = Form(...), authorization: str | None = Header(default=None), session: str | None = Cookie(default=None, alias="pilot_session")):
         user_id = user(authorization, session)
-        store.set_source_status(user_id, opportunity_id, status)
+        if status not in {"OPEN", "EXPIRED", "BLOCKED", "UNVERIFIED"}:
+            raise HTTPException(status_code=400, detail="invalid source status")
+        try:
+            store.set_source_status(user_id, opportunity_id, status)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="opportunity not found") from error
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="invalid source status") from error
         return RedirectResponse(f"/opportunities/{opportunity_id}", status_code=303)
 
     @app.post("/opportunities/{opportunity_id}/followups")
     def followup(opportunity_id: str, status: str = Form(...), note: str = Form(...), authorization: str | None = Header(default=None), session: str | None = Cookie(default=None, alias="pilot_session")):
         user_id = user(authorization, session)
-        store.record_followup(user_id, opportunity_id, status, note)
+        if status not in {"CONTACTED", "REPLIED", "MEETING", "QUOTED", "LOST", "WON"} or not note.strip():
+            raise HTTPException(status_code=400, detail="invalid follow-up")
+        try:
+            store.record_followup(user_id, opportunity_id, status, note)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="opportunity not found") from error
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="invalid follow-up") from error
         return RedirectResponse(f"/opportunities/{opportunity_id}", status_code=303)
 
     return app
