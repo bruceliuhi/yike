@@ -47,6 +47,8 @@ docker build --progress=plain -f deploy/Dockerfile -t yike-customer-pilot:471d9c
 
 2026-09-09 最新代码状态 `7471fd0db627d3b0a295108b82e30f66dc598c4b`：重建 pilot-only 镜像，镜像 ID 为 `sha256:b0916befd750209149bbefb60b9f4ccf9a535a97b996ca9150cd6ff14742252e`，OCI revision 与该提交一致；在一次性 PostgreSQL、只读根文件系统、`cap_drop=ALL`、`no-new-privileges` 下执行 v1/v2 迁移并启动，`/healthz`、`/readyz` 均返回预期 JSON。该镜像仍是本机临时构建，不是生产仓库镜像或上线证明。
 
+2026-09-09 代码提交 `3642587bb284a353ffd4d3b4ba73823a7bcd2689` 补充画像确认到研究任务的关联；重建镜像 ID 为 `sha256:7f3c6a5360410b66c13eb04f2fe642d5ff0931dfa87ac9754fe2c1f829852550`，OCI revision 与该提交一致。完整 PostgreSQL 回归为 `40 passed`，本地空库受限启动验证保持通过。
+
 范围边界：这只证明 CP-01/CP-02 的本地数据层契约，不证明四页浏览器流程、真实平台采集、部署 HTTPS、备份恢复、真实用户试用或收入。
 
 代码备份：Gitee `codex/customer-pilot` 分支；当前 HEAD 为 `587e8d203a1424ac951db20899b23a2ef459d973`，已与远端 SHA 对齐；`7e1c252` 收紧 pilot-only 镜像边界，`25e950e` 刷新部署证据，`587e8d2` 仅更新证据文档；镜像构建使用 `25e950e` 的代码提交并带 OCI provenance 标签，同时要求 CP-06 preflight 使用 digest 固定的镜像引用。相关部署提交包括 `eff28d7`（固定 Python 基础层 digest）、`bd27338f108652e9ec43bdb4ea24fdfe4935cc77`（非 root 运行）、`82ce5c0b284dfab5eeca5ef0999618427855a60f`（备份 HMAC 完整性）、`671964f`（CP-06 生产配置 preflight）、`6f61c98`（受限 Compose 运行文件）、`973d355`（根构建上下文及只读运行修复）与 `e47d474`（扩展敏感文件排除、loopback 示例）。产品门禁现包含备份篡改拒绝测试、digest 镜像 preflight 和部署契约单元测试。更早的部署验收模板及 HTTPS-only `/healthz`、`/readyz` 探针提交为 `006ac86188e366645b002d84ca274ddde33ed447`；探针对 HTTP、userinfo、query、fragment 输入均 fail-closed。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
