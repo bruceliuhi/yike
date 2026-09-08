@@ -12,14 +12,14 @@
 
 ## 复核证据
 
-独立验收在隔离 PostgreSQL 16 临时容器中执行 customer-pilot 门禁，结果为 `37 passed in 2.37s`；另执行新增备份完整性测试 `2 passed`。空库迁移、provisioning、短期令牌、Uvicorn 本地启动及四个客户页面探测通过：`/healthz`、`/readyz`、`/profile`、`/opportunities` 均返回预期结果，空机会池显示“今日暂无经复核机会”。`compileall`、四个 Shell 脚本 `bash -n`、`git diff --check` 和敏感信息扫描均通过。
+独立验收在隔离 PostgreSQL 16 临时容器中执行 customer-pilot 门禁，结果为 `40 passed`；定向套件（部署契约、CP-06 preflight、备份、pilot 数据/Web、研究导入/CLI/provision）为 `48 passed, 2 skipped`。空库迁移、provisioning、短期令牌、Uvicorn 本地启动及四个客户页面探测通过：`/healthz`、`/readyz`、`/profile`、`/opportunities` 均返回预期结果，空机会池显示“今日暂无经复核机会”。`compileall`、Shell 脚本 `bash -n`、`git diff --check` 和敏感信息扫描均通过。
 
-该结论覆盖提交 `82ce5c0b284dfab5eeca5ef0999618427855a60f` 的实现，以及随后在 `25cf4599b233cc693d9dfdb9f3b016a84467b9bf` 中将 `tests/test_backup_scripts.py` 纳入 canonical gate 的修复。修复后无数据库环境的门禁回归为 `37 passed, 2 skipped`，备份测试仍为独立 `2 passed`；两次结果均不替代目标环境验收。
+该结论覆盖远端分支 `codex/customer-pilot` 的当前实现，最近核对提交为 `fca816f0401cc9f4a8d65bde91c7bef17233f810`；后续代码增量已在独立质量复核中重新运行。当前本地 pilot-only 镜像为 `sha256:22cace8671c225893804da0766f76917223dff24fd4169b91da636bb2ffa5a4b`，带对应 OCI revision。所有结果均不替代目标环境验收。
 
 ## 阻断与边界
 
 1. CP-05 真实来源研究仍不足：当前研究规则通过，但缺少足够的当期买方样本与服务商有用/跟进/付款反馈，不能宣称持续供给或商业成立。
 2. CP-06 尚未开始：缺少目标服务器、域名/HTTPS、生产 ACL、可验证镜像 SHA、生产日志抽查、目标库备份恢复、回滚和真实手机验收。
-3. Docker Registry 元数据拉取仍阻塞完整镜像构建；本地依赖安装和 Dockerfile 静态复核不等于镜像已构建。
+3. 目标生产 Registry、HTTPS 和部署验收仍未提供；本地镜像构建与受限 smoke 不等于已部署生产。
 
 未关闭的部署阻断项不得降级为“上线可用”。
