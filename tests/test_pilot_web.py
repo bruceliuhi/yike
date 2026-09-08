@@ -102,3 +102,22 @@ def test_health_and_readiness_are_public_and_readiness_checks_database():
 
     broken = TestClient(build_app(BrokenStore(), auth_secret="test-secret"))
     assert broken.get("/readyz").status_code == 503
+
+
+@pytest.mark.parametrize(
+    ("status", "warning"),
+    [
+        ("EXPIRED", "来源已过期"),
+        ("BLOCKED", "来源暂时受阻"),
+    ],
+)
+def test_source_status_warning_is_visible(status, warning):
+    class StatusStore(Store):
+        def get_opportunity(self, user_id, opportunity_id):
+            row = super().get_opportunity(user_id, opportunity_id)
+            row["source_status"] = status
+            return row
+
+    client = TestClient(build_app(StatusStore(), auth_secret="test-secret"))
+    headers = {"Authorization": "Bearer " + issue_token("user-1", "test-secret")}
+    assert warning in client.get("/opportunities/opp-1", headers=headers).text
