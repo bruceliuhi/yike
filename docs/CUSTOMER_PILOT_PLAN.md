@@ -48,6 +48,7 @@
 - 在明确的目标环境部署，使用 `/healthz` 与 `/readyz` 验证进程/数据库就绪，并验证 HTTPS、日志脱敏、备份恢复和回滚。
 - 应用镜像骨架见 `deploy/Dockerfile`；镜像构建不等于目标环境上线，仍需记录部署 SHA 和运行探针结果。
 - 备份/恢复脚本见 `scripts/backup_pilot.sh` 与 `scripts/restore_pilot.sh`；脚本存在不等于已完成目标库恢复演练。
+- 目标环境验收模板见 `docs/DEPLOYMENT_ACCEPTANCE_CP06_TEMPLATE.md`，未填入实际证据前保持 `NOT_STARTED`。
 - 使用真实手机完成四页流程。
 - 只在部署证据完整后准备基于真实界面的推广素材。
 
