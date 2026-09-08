@@ -12,7 +12,7 @@ YIKE_PILOT_DATABASE_URL='postgresql://pilot:pilot@127.0.0.1:55531/pilot' \
   tests/test_pilot_provision_cli.py
 ```
 
-结果：CP-01/02/03 数据层、任务租约、四页 Web（含来源状态、更新时间和匹配摘要）、失败任务提示、研究导入（含 60 天新鲜度与 URL 凭据净化）、受信 provisioning、日志脱敏、迁移职责、HTTPS 会话入口、代理头信任边界、同源状态同步、画像空值/重复提交/确认轮换、并发确认、画像变更提示、输入长度限制和非法输入 fail-closed 测试通过；最新完整命令为 `36 passed in 2.43s`（含真实 PostgreSQL 集成测试；集成测试创建一次性非超级用户 `pilot_app`，验证 RLS 过滤与旧约束升级）。
+结果：CP-01/02/03 数据层、任务租约、四页 Web（含来源状态、更新时间和匹配摘要）、失败任务提示、研究导入（含 60 天新鲜度与 URL 凭据净化）、受信 provisioning、日志脱敏、迁移职责、HTTPS 会话入口、代理头信任边界、同源状态同步、画像空值/重复提交/确认轮换、并发确认、画像变更提示、输入长度限制、非法输入和未 provisioning 用户访问 fail-closed 测试通过；最新完整命令为 `37 passed in 2.29s`（含真实 PostgreSQL 集成测试；集成测试创建一次性非超级用户 `pilot_app`，验证 RLS 过滤与旧约束升级）。当前产品专用门禁可运行 `scripts/check_customer_pilot.sh`，要求显式提供隔离 PostgreSQL URL；旧 `scripts/check.sh` 的全仓 Discovery 测试不属于本分支验收。
 
 另外执行：
 
@@ -39,4 +39,4 @@ docker build --progress=plain -f deploy/Dockerfile -t yike-customer-pilot:471d9c
 
 范围边界：这只证明 CP-01/CP-02 的本地数据层契约，不证明四页浏览器流程、真实平台采集、部署 HTTPS、备份恢复、真实用户试用或收入。
 
-代码备份：Gitee `codex/customer-pilot` 分支；当前实现与测试远端提交 `67cfd6e`（完整回归覆盖至前置 Python 代码；本次修正 `pg_dump` 标准输出备份链路并完成本地双容器恢复演练），证据文档随后提交到同一远端分支；部署骨架已推送至 `2f8c439e5878cbada47b6354db52d0385279b3d6`。部署验收模板及 HTTPS-only `/healthz`、`/readyz` 探针随后提交，最新工具提交为 `006ac86188e366645b002d84ca274ddde33ed447`；探针对 HTTP、userinfo、query、fragment 输入均 fail-closed。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
+代码备份：Gitee `codex/customer-pilot` 分支；实现与测试基线提交 `67cfd6e`，后续新增未 provisioning 用户 fail-closed 测试与修复提交 `c895faa6930376126176c644cafa0658103eec51`；部署骨架已推送至 `2f8c439e5878cbada47b6354db52d0385279b3d6`。部署验收模板及 HTTPS-only `/healthz`、`/readyz` 探针随后提交，最新工具提交为 `006ac86188e366645b002d84ca274ddde33ed447`；探针对 HTTP、userinfo、query、fragment 输入均 fail-closed。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
