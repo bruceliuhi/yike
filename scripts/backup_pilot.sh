@@ -29,7 +29,10 @@ case "$passphrase_realpath" in
     exit 2
     ;;
 esac
-passphrase_mode="$(stat -f '%Lp' "$passphrase_realpath" 2>/dev/null || stat -c '%a' "$passphrase_realpath" 2>/dev/null || true)"
+passphrase_mode="$(stat -f '%Lp' "$passphrase_realpath" 2>/dev/null || true)"
+if [[ ! "$passphrase_mode" =~ ^[0-9]+$ ]]; then
+  passphrase_mode="$(stat -c '%a' "$passphrase_realpath" 2>/dev/null || true)"
+fi
 if [[ ! "$passphrase_mode" =~ ^[0-9]+$ ]] || (( 10#$passphrase_mode % 100 != 0 )); then
   echo "YIKE_PILOT_BACKUP_PASSPHRASE_FILE must not be readable by group or other users" >&2
   exit 2
@@ -40,7 +43,7 @@ if [[ -e "$backup_path" ]]; then
 fi
 created=1
 trap 'if (( created )); then rm -f -- "$backup_path"; fi' EXIT
-pg_dump --format=custom --no-owner --file=- "$YIKE_PILOT_DATABASE_URL" \
+pg_dump --format=custom --no-owner "$YIKE_PILOT_DATABASE_URL" \
   | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass "file:$passphrase_file" -out "$backup_path"
 created=0
 trap - EXIT
