@@ -13,6 +13,8 @@ uv sync --frozen --extra dev
 uv run --frozen yike-pilot-web
 ```
 
+反向代理或容器编排可使用 `GET /healthz` 做进程存活检查、`GET /readyz` 做 PostgreSQL 就绪检查；二者不要求用户令牌，数据库不可用时 `/readyz` 返回 503。
+
 缺少数据库 URL 或认证密钥时，启动必须失败；不会静默退回旧 SQLite 数据库。
 
 ## 受信 provisioning
