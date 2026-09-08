@@ -39,6 +39,8 @@ docker build --progress=plain -f deploy/Dockerfile -t yike-customer-pilot:471d9c
 
 随后将 `deploy/Dockerfile` 的基础层切换为固定 digest 的 Docker Hub `python:3.12-slim-bookworm`，固定安装 `uv==0.8.15`，并以 UID 10001 的非 root 用户运行应用；在容器内独立执行 `uv sync --frozen --no-dev --no-install-project` 成功，依赖安装链路可行。当前 Docker Desktop BuildKit 仍在拉取该基础层元数据阶段阻塞，尚未得到完整镜像 SHA；因此这只是可行性验证，不是构建或上线证据。
 
+2026-09-09 再次使用 Docker Desktop `desktop-linux` builder、`--load` 和固定基础层 digest 尝试完整构建；30 秒仍停在 `load metadata for docker.io/library/python:3.12-slim-bookworm@sha256:d50fb...`，随后人工取消（退出码 130）。仍无镜像 SHA，CP-06 镜像构建保持未完成。
+
 2026-09-09 本地备份/恢复演练（非目标环境）：使用两个独立的 PostgreSQL 16 容器，源库先执行 `yike-pilot-migrate`；再用真实 `pg_dump` 与 OpenSSL 生成 `/secrets/pilot.dump.enc`，恢复脚本在另一容器设置 `CONFIRM_RESTORE=YES` 成功恢复，`psql` 查询确认 `pilot_schema_meta` 中存在 `customer-pilot-v1`。演练证明脚本链路可运行，但目标库、独立备份存储、认证完整性和回滚仍未验收。
 
 范围边界：这只证明 CP-01/CP-02 的本地数据层契约，不证明四页浏览器流程、真实平台采集、部署 HTTPS、备份恢复、真实用户试用或收入。
