@@ -96,6 +96,8 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
             result = store.save_profile(user_id, {"description": payload})
         except ValueError as error:
             raise HTTPException(status_code=400, detail="profile description is required") from error
+        if result.get("status") == "REVOKED":
+            raise HTTPException(status_code=409, detail="profile version was revoked; change the description")
         if result.get("status") == "CONFIRMED":
             return RedirectResponse("/opportunities", status_code=303)
         return _page("画像待确认", f"<h1>画像版本 {result['version']} 已保存</h1><p>这是待确认版本，确认后才会用于导入机会。</p><form method='post' action='/profile/{result['version_id']}/confirm'><button>确认这个版本</button></form>")
@@ -103,7 +105,12 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
     @app.post("/profile/{version_id}/confirm")
     def confirm_profile(version_id: str, authorization: str | None = Header(default=None), session: str | None = Cookie(default=None, alias="pilot_session")):
         user_id = user(authorization, session)
-        store.confirm_profile(user_id, version_id)
+        try:
+            store.confirm_profile(user_id, version_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="profile version not found") from error
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="invalid profile version") from error
         return RedirectResponse("/opportunities", status_code=303)
 
     @app.get("/opportunities", response_class=HTMLResponse)

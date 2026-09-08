@@ -183,3 +183,24 @@ def test_profile_rejects_blank_description():
     client = TestClient(build_app(ProfileStore(), auth_secret="test-secret"))
     headers = {"Authorization": "Bearer " + issue_token("user-1", "test-secret")}
     assert client.post("/profile", headers=headers, data={"payload": "  \n  "}).status_code == 400
+
+
+def test_profile_confirmation_missing_version_fails_closed():
+    class MissingProfileStore(Store):
+        def confirm_profile(self, user_id, version_id):
+            raise KeyError("missing")
+
+    client = TestClient(build_app(MissingProfileStore(), auth_secret="test-secret"))
+    headers = {"Authorization": "Bearer " + issue_token("user-1", "test-secret")}
+    assert client.post("/profile/missing/confirm", headers=headers, follow_redirects=False).status_code == 404
+
+
+def test_revoked_profile_version_cannot_be_reused():
+    class RevokedProfileStore(Store):
+        def save_profile(self, user_id, payload):
+            return {"profile_id": "profile-1", "version_id": "version-1", "version": 1, "status": "REVOKED"}
+
+    client = TestClient(build_app(RevokedProfileStore(), auth_secret="test-secret"))
+    headers = {"Authorization": "Bearer " + issue_token("user-1", "test-secret")}
+    response = client.post("/profile", headers=headers, data={"payload": "展台设计搭建"})
+    assert response.status_code == 409
