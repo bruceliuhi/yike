@@ -17,7 +17,7 @@ docker run --rm -p 127.0.0.1:8787:8787 \
 目标主机也可使用受限 Compose 编排：`compose.pilot.yml` 只将应用绑定到 `127.0.0.1`，使用外部 env 文件、只读根文件系统、临时缓存、丢弃全部 Linux capabilities 并启用 `no-new-privileges`。镜像在构建阶段安装依赖，生产 CMD 直接执行已安装的 Web 入口，避免只读文件系统下运行时同步依赖。它不创建 PostgreSQL、不配置公网端口；启动前先运行 `scripts/cp06_validate_env.sh`，再由 HTTPS 反向代理转发到本机端口。
 
 ```bash
-export YIKE_PILOT_IMAGE='registry.example.com/yike/customer-pilot:<verified-sha>'
+export YIKE_PILOT_IMAGE='registry.example.com/yike/customer-pilot@sha256:<64-hex-digest>'
 export YIKE_PILOT_ENV_FILE='/secure/secret-store/yike-pilot.env'
 scripts/cp06_validate_env.sh
 docker compose -f deploy/compose.pilot.yml up -d
