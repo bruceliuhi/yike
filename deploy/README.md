@@ -14,6 +14,17 @@ docker run --rm -p 8787:8787 \
   yike-customer-pilot:<git-sha>
 ```
 
+目标主机也可使用受限 Compose 编排：`compose.pilot.yml` 只将应用绑定到 `127.0.0.1`，使用外部 env 文件、只读根文件系统、临时缓存、丢弃全部 Linux capabilities 并启用 `no-new-privileges`。它不创建 PostgreSQL、不配置公网端口；启动前先运行 `scripts/cp06_validate_env.sh`，再由 HTTPS 反向代理转发到本机端口。
+
+```bash
+export YIKE_PILOT_IMAGE='registry.example.com/yike/customer-pilot:<verified-sha>'
+export YIKE_PILOT_ENV_FILE='/secure/secret-store/yike-pilot.env'
+scripts/cp06_validate_env.sh
+docker compose -f deploy/compose.pilot.yml up -d
+```
+
+`YIKE_PILOT_IMAGE` 必须替换为已记录 digest 的实际镜像；`YIKE_PILOT_ENV_FILE` 必须位于 Git 仓库之外，不能提交或打印。
+
 容器不启用 `YIKE_PILOT_DEV_LOGIN`。真实用户通过 HTTPS `/session` 粘贴短期令牌换取 HttpOnly 会话 Cookie；应用不信任客户端自带的 `X-Forwarded-Proto`，反向代理必须在受信边界内覆盖并由 Uvicorn 正确解析 scheme，同时禁止应用端口公网直连。反向代理应将 `/healthz` 用作存活检查、`/readyz` 用作 PostgreSQL 就绪检查，并只通过 HTTPS 暴露用户页面。
 
 TLS 在反向代理终止时，显式设置 `YIKE_PILOT_PROXY_HEADERS=1` 和反代实际来源的精确 `YIKE_PILOT_FORWARDED_ALLOW_IPS`（禁止 `*`）；不满足时保持代理头信任关闭。

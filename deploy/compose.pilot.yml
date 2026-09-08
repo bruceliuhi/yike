@@ -1,0 +1,26 @@
+services:
+  pilot:
+    image: ${YIKE_PILOT_IMAGE:?set YIKE_PILOT_IMAGE to a verified image reference}
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ${YIKE_PILOT_ENV_FILE:?set YIKE_PILOT_ENV_FILE to a secret file outside Git}
+    ports:
+      - "127.0.0.1:${YIKE_PILOT_BIND_PORT:-8787}:8787"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/healthz', timeout=2)
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
