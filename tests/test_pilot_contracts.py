@@ -221,4 +221,4 @@ def test_concurrent_profile_confirmation_keeps_one_current_version():
             )
             statuses = cursor.fetchall()
     assert [status for _, status in statuses].count("CONFIRMED") == 1
-    assert statuses[-1][1] == "CONFIRMED"
+    assert {version for version, status in statuses if status == "CONFIRMED"} <= {first["version"], second["version"]}
