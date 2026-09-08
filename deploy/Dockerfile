@@ -25,4 +25,4 @@ ENV YIKE_PILOT_HOST=0.0.0.0 \
 USER yike
 EXPOSE 8787
 
-CMD ["uv", "run", "--frozen", "yike-pilot-web"]
+CMD ["/app/.venv/bin/yike-pilot-web"]
