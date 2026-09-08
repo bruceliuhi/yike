@@ -115,6 +115,7 @@ def test_health_and_readiness_are_public_and_readiness_checks_database():
     [
         ("EXPIRED", "来源已过期"),
         ("BLOCKED", "来源暂时受阻"),
+        ("UNVERIFIED", "来源尚未核验"),
     ],
 )
 def test_source_status_warning_is_visible(status, warning):

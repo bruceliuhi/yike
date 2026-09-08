@@ -117,6 +117,8 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
             warning = "<p><strong>来源已过期：先人工重新打开原文，确认仍在寻源后再联系。</strong></p>"
         elif source_status == "BLOCKED":
             warning = "<p><strong>来源暂时受阻：暂不建议联系，需人工处理访问问题。</strong></p>"
+        elif source_status == "UNVERIFIED":
+            warning = "<p><strong>来源尚未核验：先人工打开原文并确认需求仍有效，再联系。</strong></p>"
         source_url = str(row.get("public_url") or "")
         source_link = f"<a href='{escape(source_url, quote=True)}' rel='noreferrer'>打开原文</a>" if source_url else "原文链接缺失"
         published = escape(str(row.get("published_at") or "未知"))
