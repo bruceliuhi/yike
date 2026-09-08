@@ -51,7 +51,7 @@ uv run --frozen yike-pilot-import \
   --profile-version-id '<confirmed-profile-version-id>'
 ```
 
-命令会先执行迁移，再校验整包；输出 `created`、`duplicates` 和 `total`。任一条证据不合格时整包不写入。
+命令不会执行迁移，只校验整包并输出 `created`、`duplicates` 和 `total`。任一条证据不合格时整包不写入；schema 必须由受信迁移作业预先完成。
 
 ## 用户路径
 

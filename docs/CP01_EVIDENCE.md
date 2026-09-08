@@ -27,4 +27,4 @@ git diff --check
 
 范围边界：这只证明 CP-01/CP-02 的本地数据层契约，不证明四页浏览器流程、真实平台采集、部署 HTTPS、备份恢复、真实用户试用或收入。
 
-代码备份：Gitee `codex/customer-pilot` 分支；当前远端提交 `a92c7fd`（完整回归覆盖至其前置代码提交），部署骨架已推送至 `2f8c439e5878cbada47b6354db52d0385279b3d6`。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
+代码备份：Gitee `codex/customer-pilot` 分支；当前远端提交 `4759737`（完整回归覆盖至其前置代码提交），部署骨架已推送至 `2f8c439e5878cbada47b6354db52d0385279b3d6`。浏览器主流程记录见 `docs/BROWSER_ACCEPTANCE_CP04.md`；该分支尚未部署。
