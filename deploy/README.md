@@ -6,6 +6,12 @@
 
 V02-01A/104 与 V02-01B/105 升级必须严格按“迁移→显式最小授权→新版应用启动”执行。受信发布作业对既有应用角色运行 [grant_session_revocations.sql](grant_session_revocations.sql)：设备和连接表仅 SELECT/INSERT/UPDATE，事件表仅 SELECT/INSERT，会话撤销表仅 SELECT/INSERT。文件名为兼容既有 105 发布流程保留；脚本可重复执行，不依赖全表或默认授权。执行命令、角色选择和管理员运行环境隔离见[客户试用运行手册](../docs/CUSTOMER_PILOT_RUNBOOK.md)。仅数据库连通不证明新表权限已配置。
 
+正常 Web 入口现装配已确认策略、执行历史、候选入库和复核服务，使用同一个受限应用 DB；部署前还须按已接收迁移分别运行 [执行授权](grant_execution_runtime.sql)、[候选授权](grant_candidate_ingestion.sql)、[复核授权](grant_candidate_review.sql)、[策略授权](grant_research_strategies.sql)和[原文证据授权](grant_opportunity_evidence.sql)。普通启动不自动补权限，非空管理员 DB 环境变量将导致启动拒绝；该检查不验证应用 URL 的实际角色。
+
+如需候选 ASSESS，从仓库外服务器配置同时提供 `YIKE_PILOT_ASSESSMENT_BASE_URL`、`YIKE_PILOT_ASSESSMENT_API_KEY`、`YIKE_PILOT_ASSESSMENT_MODEL`；三项全无仍可启动，部分或非法配置明确失败。启动与只读接口不探测模型。完整配置规则见[正常装配契约](../docs/contracts/V02_NORMAL_RUNTIME_COMPOSITION.md)。真实来源 policy 未接通时 START 仍不可用，短信/建议/平台收发能力仍关闭，不把 Web 存活或数据库可连当作全链就绪。
+
+该镜像不安装项目wheel，因此Dockerfile另将已有两份版本化分析规则显式复制到`pilot/_assessment_rules/`，与wheel约定相同；不能遗漏后依赖开发目录补读。发行布局回归不代表已完成实际Linux镜像运行，目标环境仍按下述生产门禁验收。
+
 ## 构建与运行
 
 V02-01C 连接版本切片新增 migration 107：先运行受信迁移，再显式运行 [grant_connection_operations.sql](grant_connection_operations.sql)，最后启动新应用。它只授予不可变回执 SELECT/INSERT，不给 UPDATE/DELETE、用户 UPDATE 或 schema CREATE，并拒绝缺失/高权限/owner 目标。旧连接初始化版本 1 且状态和 vault 引用不变；注册仍 UNVERIFIED，回执不是当前执行授权。管理员命令见客户试用运行手册；重放和事务边界见[连接版本契约](../docs/contracts/V02_CONNECTION_VERSIONS.md)。107 和授权均可重复执行，不能替代 104–106 授权。

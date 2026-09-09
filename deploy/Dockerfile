@@ -19,6 +19,8 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY pilot ./pilot
 COPY migrations ./migrations
 COPY static ./static
+COPY skills/ai-project-lead-research-v1/SKILL.md ./pilot/_assessment_rules/SKILL.md
+COPY skills/ai-project-lead-research-v1/references/qualification-and-evidence.md ./pilot/_assessment_rules/references/qualification-and-evidence.md
 RUN mkdir -p /tmp/uv-cache && chown -R yike:yike /app /tmp/uv-cache
 
 ENV YIKE_PILOT_HOST=0.0.0.0 \
