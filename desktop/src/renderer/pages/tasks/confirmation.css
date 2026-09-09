@@ -78,3 +78,22 @@
   padding-top: 10px;
   padding-bottom: 10px;
 }
+.strategy-confirmation {
+  margin-block: 1rem;
+  padding-block: 1rem;
+  border-block: 1px solid var(--line);
+  min-width: 0;
+}
+.strategy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.strategy-snapshot summary { cursor: pointer; }
+.strategy-snapshot .detail-list dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.strategy-snapshot .detail-list p { margin: 0; }

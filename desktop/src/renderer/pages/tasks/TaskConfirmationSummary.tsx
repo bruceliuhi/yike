@@ -119,15 +119,22 @@ export function TaskConfirmationSummary({
               <dd>{deviceReady ? "执行服务已就绪" : "本机 · 待绑定或检查"}</dd>
             </div>
             <div>
+              <dt>执行保护上限</dt>
+              <dd>{draft.executionLimits
+                ? `${draft.executionLimits.max_records ?? "待设置"} 条记录 / ${draft.executionLimits.max_runtime_seconds ?? "待设置"} 秒`
+                : "尚未设置；建议100条记录 / 900秒，须返回配置后采用"}（独立于搜贝与研究上限）</dd>
+            </div>
+            <div>
               <dt>搜索关键词</dt>
               <dd>
                 {draft.terms.map((term) => term.value).join("、") || "未填写"}
+                {draft.source !== "search" && "（保留但本次不执行）"}
               </dd>
             </div>
-            {draft.source === "links" && (
+            {(draft.source === "links" || draft.links) && (
               <div>
                 <dt>内容链接</dt>
-                <dd>{draft.links || "未填写"}</dd>
+                <dd>{draft.links || "未填写"}{draft.source !== "links" && "（保留但本次不执行）"}</dd>
               </div>
             )}
           </dl>
