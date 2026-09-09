@@ -6,6 +6,8 @@
 
 ## 1. 当前基线与推进原则
 
+2026-09-10 正常运行增量终审收口：`a9d18db..d100cdf`独立复审**PASS，原容器缺规则P1已关闭，0项未解决发现**；精确范围和原失败见[QA](qa/V02_NORMAL_RUNTIME_COMPOSITION.md)。正常保留Win设备签名模块`ff623ed`为`6b5e7e4`，Mac定向97项及类型检查通过，来件兼容性审核另记；不是客户端执行或平台验收。以下“独立审核待收口”保留为此前时点，不据此重复业务全量测试。首发仍优先真实任务→原文证据→多找类似→短句建联；下一片Mac执行签名字节入口、Win固定原文展示及设备/来源实接，父卡与Goal继续。
+
 2026-09-10 CodexiMac正常Web装配候选：核心`bc6a5b6`，普通CLI真实HTTP验证`2e28526`，正常保留Win签名客户端交接`a9d18db`为`fad2d24`。已接同一应用DB的真实策略、执行历史、原始候选和复核服务，服务器三项模型配置可供现有ASSESS使用；262定向、9实际受限PG/本地HTTP通过（非全仓，不相加）。[契约](contracts/V02_NORMAL_RUNTIME_COMPOSITION.md)/[QA](qa/V02_NORMAL_RUNTIME_COMPOSITION.md)说明默认来源START、短信、搜索建议和收发仍不可用；独立审核待收口，父卡与Goal不关闭。下文“正常CLI未装配”保留其历史时点。Win继续05F设备签名/02D来源→05G/05E，不重写页面；Mac已接收其执行签名payload缺口，下一片在既有runtime/API补最小接线，具体接口与实际PG证据交付后再ACK，不能以认领当完成。
 
 2026-09-10 05A主干合并更新：正常保留远端aac3fe9（含3898c3e画像版本与确认账号修正）形成**4eca41301e599a431e06808d2b717926a094bbb5**，精确独立集成复核PASS。新快照88文件964passed/21skipped、typecheck、Mac构包与严格smoke通过；285受控输入/39构建文件及ZIP内ASAR完成绑定。新包ASAR d7f2d2c0/ZIP c5fdf73d的实际可见冷启动、任务表单与平台连接只读路由已核验，完整草稿退出链仍仅引用旧aec0证据。详见[最新整合验收](qa/ui-reviewed-integration/README.md)。旧944和3ecd29b保留历史；05A与完整Goal继续，未完成原生选择器、全部视觉/状态、真实服务及Windows验收。

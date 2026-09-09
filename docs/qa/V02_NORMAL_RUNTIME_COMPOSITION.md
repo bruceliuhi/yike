@@ -80,3 +80,11 @@ uv run --frozen pytest -q tests/test_pilot_runtime_http_postgres.py tests/test_c
 - 根代理对冻结 `e550f61` 单独执行布局测试：**1 passed / 0.53s**，凭据扫描 clean、增量格式检查通过。没有重跑未改业务的PG或客户端。
 
 这些集合重叠，不相加。证明的是宿主 Python 下的 Docker 声明文件布局和正常模型构造，不是实际 Linux 容器、生产用户权限或外部服务验收。P1是否关闭以随后独立差量复审为准。
+
+## 独立复审收口与并发整合
+
+`normal_runtime_final_review` 完整读取修正差量 `ebd51e1..d100cdfdd2b3761d1f41a50b4515a4160e6bc20a` 后给出整片最终结论：**PASS；原容器资源P1关闭，0 open Critical、0 open Important、0 Minor，可正常集成/推送，不是生产或完整V1验收。** 审核核对实际COPY、忽略规则、固定加载位置、隔离导入与CLI回归；未代替作者复跑测试。上节原REQUEST_CHANGES和RED历史保留，不追改为最初已通过。
+
+收口时收到Win设备持钥/签名模块 `ff623eda1d7c037a279517ca668ecc467af0cecc`，正常合并为 `6b5e7e43d37fb87760489aa482bdde0016c8f340`，无冲突。根代理核对本片4个核心文件与 `bc6a5b6`、Docker/隔离测试与 `e550f61`、desktop/migrations与Win来件逐字一致。来件原Windows原生证据见[Win验收](V02_DEVICE_SIGNING_CLIENT_WIN_REVIEW.md)，不写成Mac本次实测。
+
+Mac对合并快照实际运行Win受影响的6文件 `deviceProof/deviceProofSigner/deviceKeyVault/serviceClient/servicePolicy/windowPolicy`：**97 passed / 567ms / 0 skipped**；`tsc --noEmit` exit0。这是同一集合在另一机器的交叉检查，不与Win的97项相加；未重跑无变化PG、全仓、安装包或原生OS保护。来件代码/架构兼容性独立复核另行记录，设备HTTP/真实平台启动尚未因此接通。
