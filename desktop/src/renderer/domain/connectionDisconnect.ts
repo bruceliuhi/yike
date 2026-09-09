@@ -57,6 +57,8 @@ export function checkedDisconnectConnection(
   value: unknown,
   target: DisconnectTarget,
 ): PlatformConnection {
+  if (value !== null && typeof value === "object" && "registration" in value)
+    throw new Error("返回连接带有设备与版本信息，不能按旧平台操作核对；原请求记录已保留。");
   const connection = connectionSchema.parse(value);
   if (connection.platform !== target.platform)
     throw new Error("返回连接与原平台不匹配，未改变断开记录。");
