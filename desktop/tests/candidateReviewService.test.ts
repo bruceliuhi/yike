@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createCandidateReviewService } from "../src/renderer/services/candidateReview";
 import { ServiceError } from "../src/renderer/services/contracts";
+import { rawEvidenceBinding, rawEvidenceFixture } from "./fixtures/rawCandidateEvidence";
 import {
   candidateReviewRequestSchema,
   type ExpectedCandidateReviewResult,
@@ -17,6 +18,32 @@ import {
 } from "./fixtures/candidateReviewApi";
 
 describe("candidate review service fixed transport boundary", () => {
+  it("reads raw evidence through the fixed candidate route without changing any original text", async () => {
+    const raw = rawEvidenceFixture(), request = vi.fn().mockResolvedValue(raw);
+    const controller = new AbortController();
+    expect(await createCandidateReviewService(request).getRawEvidence(rawEvidenceBinding,controller.signal)).toEqual(raw);
+    expect(request).toHaveBeenCalledExactlyOnceWith("candidates.rawEvidence",`/raw-candidates/${rawEvidenceBinding.candidateId}`,"GET",{candidateId:rawEvidenceBinding.candidateId},controller.signal);
+  });
+  it.each([{}, {...rawEvidenceBinding,candidateId:"../other"}, {...rawEvidenceBinding,tenantId:"secret"}])("rejects invalid raw evidence expectations before requesting", async expected => {
+    const request = vi.fn();
+    await expect(createCandidateReviewService(request).getRawEvidence(expected)).rejects.toMatchObject({code:"INVALID_REQUEST",status:422});
+    expect(request).not.toHaveBeenCalled();
+  });
+  it("rejects raw evidence from another source version", async () => {
+    const raw = rawEvidenceFixture(), request = vi.fn().mockResolvedValue(raw);
+    await expect(createCandidateReviewService(request).getRawEvidence({...rawEvidenceBinding,sourceVersionId:"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"})).rejects.toMatchObject({code:"INVALID_SERVICE_RESPONSE",status:502});
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+  it("honors cancellation before raw evidence dispatch and before adopting it", async () => {
+    const controller = new AbortController(), request = vi.fn();
+    controller.abort();
+    await expect(createCandidateReviewService(request).getRawEvidence(rawEvidenceBinding,controller.signal)).rejects.toMatchObject({name:"AbortError"});
+    expect(request).not.toHaveBeenCalled();
+    const late = new AbortController();
+    request.mockImplementation(async () => {late.abort(); return rawEvidenceFixture();});
+    await expect(createCandidateReviewService(request).getRawEvidence(rawEvidenceBinding,late.signal)).rejects.toMatchObject({name:"AbortError"});
+    expect(request).toHaveBeenCalledTimes(1);
+  });
   it("lists the strict default page using only the fixed GET route", async () => {
     const raw = pageFixture(),
       request = vi.fn().mockResolvedValue(raw);

@@ -37,6 +37,7 @@ export function errorMessage(error: unknown): string {
 }
 export interface YikeService {
   candidateReview?: import("./candidateReview").CandidateReviewService;
+  rawCandidateEvidence?: import("./candidateReview").CandidateReviewService["getRawEvidence"];
   researchStrategies?: import("./researchStrategies").ResearchStrategiesService;
   coveragePlans?: import("./coveragePlan").CoveragePlanService;
   opportunityBrief?: import("./opportunityBrief").OpportunityBriefService;

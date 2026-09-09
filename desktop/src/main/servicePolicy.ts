@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {prepareStrategySchema, confirmStrategySchema, revokeStrategySchema, strategyUuidSchema} from '../shared/researchStrategies';
-import {candidateQuerySchema, candidateReviewRequestSchema, sourceVerificationRequestSchema, candidateRequestIdSchema, type CandidateQueryInput} from '../shared/candidateReviewApi';
+import {candidateBindingSchema, candidateQuerySchema, candidateReviewRequestSchema, sourceVerificationRequestSchema, candidateRequestIdSchema, type CandidateQueryInput} from '../shared/candidateReviewApi';
 
 const empty = z.object({}).strict().optional();
 const identifier = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-][A-Za-z0-9_.:-]*$/);
@@ -26,6 +26,7 @@ const schemas = {
   }).strict(),
   'capabilities.get': empty,
   'candidates.list': candidateQuerySchema,
+  'candidates.rawEvidence': z.object({candidateId:candidateBindingSchema.shape.candidateId}).strict(),
   'candidates.review': candidateReviewRequestSchema,
   'candidates.verifySource': sourceVerificationRequestSchema,
   'candidates.request': z.object({requestId:candidateRequestIdSchema}).strict(),
@@ -61,6 +62,7 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
       return {path:'/api/ui/candidates'+(query?'?'+query:''),method:'GET',logout:false};
     }
     case 'candidates.review': return {path:'/api/ui/candidate-reviews',method:'POST',body:JSON.stringify(data),logout:false};
+    case 'candidates.rawEvidence': return {path:`/api/ui/raw-candidates/${encodeURIComponent(data!.candidateId)}`,method:'GET',logout:false};
     case 'candidates.verifySource': return {path:'/api/ui/candidate-source-verifications',method:'POST',body:JSON.stringify(data),logout:false};
     case 'candidates.request': return {path:`/api/ui/candidate-review-requests/${encodeURIComponent(data!.requestId)}`,method:'GET',logout:false};
     case 'strategies.prepare': return {path: '/api/ui/research-strategies/prepare', method: 'POST', body: JSON.stringify(data), logout: false};
