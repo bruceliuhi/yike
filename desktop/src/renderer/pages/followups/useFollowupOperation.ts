@@ -41,15 +41,17 @@ function changed() {
 export function useFollowupOperation() {
   const { service, session, notify } = useApp();
   const action = useAction();
+  const resolvedDraftKey =
+    "followup-resolved:" +
+    JSON.stringify([
+      session.userId,
+      session.accountScope?.id ?? null,
+      session.accountScope?.version ?? null,
+    ]);
   const [resolvedDrafts, setResolvedDrafts] = useLocalDraft<
     Record<string, string[]>
   >(
-    "followup-resolved:" +
-      JSON.stringify([
-        session.userId,
-        session.accountScope?.id ?? null,
-        session.accountScope?.version ?? null,
-      ]),
+    resolvedDraftKey,
     {},
     (value) =>
       !!value &&
@@ -65,7 +67,16 @@ export function useFollowupOperation() {
       ),
   );
   const acknowledgeDraft = (draft: FollowupDraftReference) => {
-    if (!current()) return;
+    if (!current()) return false;
+    // clear() tolerates storage failure for ordinary form editing. Do not erase
+    // the reliable acknowledgement while that submitted body could reappear
+    // after a reload. Keep it until the source draft is verifiably absent.
+    try {
+      if (sessionStorage.getItem("yike.ui.draft.v1." + draft.key) !== null)
+        return false;
+    } catch {
+      return false;
+    }
     setResolvedDrafts((old) => {
       const next = { ...old };
       const hashes = (next[draft.key] || []).filter(
@@ -75,6 +86,7 @@ export function useFollowupOperation() {
       else delete next[draft.key];
       return next;
     });
+    return true;
   };
   const identity = useMemo(
     () => ({}),
@@ -131,12 +143,33 @@ export function useFollowupOperation() {
       // editable draft and this acknowledgement have the same session lifetime.
       if (receipt.status === "SUCCEEDED" && stored.draft) {
         const draft = stored.draft;
-        setResolvedDrafts((old) => ({
-          ...old,
-          [draft.key]: Array.from(
-            new Set([...(old[draft.key] || []), draft.hash]),
-          ),
-        }));
+        let persisted = false;
+        setResolvedDrafts((old) => {
+          const next = {
+            ...old,
+            [draft.key]: Array.from(
+              new Set([...(old[draft.key] || []), draft.hash]),
+            ),
+          };
+          // useLocalDraft deliberately tolerates quota errors for editable input.
+          // This acknowledgement is different: verify durable session storage
+          // before publishing it to draft memory or deleting the operation lock.
+          const key = "yike.ui.draft.v1." + resolvedDraftKey;
+          const serialized = JSON.stringify(next);
+          try {
+            sessionStorage.setItem(key, serialized);
+            if (sessionStorage.getItem(key) !== serialized)
+              throw new Error("readback mismatch");
+          } catch {
+            throw new Error(
+              "原稿确认记录未能可靠保存，原请求保护与草稿仍保留，请恢复本机存储后核对。",
+            );
+          }
+          persisted = true;
+          return next;
+        });
+        if (!persisted)
+          throw new Error("原稿确认上下文已变化，原请求保护仍保留。");
       }
       finishFollowupOperation(followupOwner(session), binding);
       changed();

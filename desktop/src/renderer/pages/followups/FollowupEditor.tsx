@@ -93,8 +93,13 @@ export function FollowupEditor({
       return;
     recovered.current = true;
     clear();
-    operation.acknowledgeDraft({ key: draftKey, hash });
-    notify("原跟进请求已确认保存，已清理相同提交稿。", "success");
+    const removed = operation.acknowledgeDraft({ key: draftKey, hash });
+    notify(
+      removed
+        ? "原跟进请求已确认保存，已清理相同提交稿。"
+        : "原跟进请求已确认保存；本机旧稿尚未移除，继续保留防重复保护。",
+      removed ? "success" : "info",
+    );
     setExit("saved");
   };
   useEffect(() => {

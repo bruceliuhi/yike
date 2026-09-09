@@ -128,7 +128,8 @@ function removeStoredDraft(key: string) {
 function legacyOperationKey(key: string) {
   return (
     key.startsWith(DRAFT_PREFIX + "send-attempts.") ||
-    key.startsWith(DRAFT_PREFIX + "unknown-task-starts.")
+    key.startsWith(DRAFT_PREFIX + "unknown-task-starts.") ||
+    key.startsWith(DRAFT_PREFIX + "followup-operations.")
   );
 }
 export function readLegacyOperationLock(key: string): unknown {

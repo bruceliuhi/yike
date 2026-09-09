@@ -273,3 +273,126 @@ it.each(["SUCCEEDED", "FAILED", "edited"] as const)(
       ).toBeTruthy();
   },
 );
+it("preserves a never-opened legacy session lock when Settings clears drafts first", async () => {
+  const binding = {
+    opportunityId: opportunity.id,
+    profileVersionId: opportunity.profileVersionId,
+    action: "create" as const,
+    targetId: "",
+    targetRevision: 0,
+    requestId: "TEST-not-read-before-clear",
+  };
+  sessionStorage.setItem(
+    "yike.ui.draft.v1.followup-operations.TEST-user",
+    JSON.stringify({ [followupKey(binding)]: "PENDING" }),
+  );
+  clearLocalDrafts();
+  render(<FollowupsPage />);
+  await fill();
+  expect(screen.getByDisplayValue(binding.requestId)).toBeTruthy();
+  expect(
+    (screen.getByRole("button", { name: "保存记录" }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true);
+  expect(context.service.followup!.mutate).not.toHaveBeenCalled();
+});
+it.each(["throw", "silent"])(
+  "keeps the original durable lock when acknowledgement storage fails: %s",
+  async (failure) => {
+    vi.mocked(context.service.followup!.mutate).mockRejectedValue(
+      new Error("TEST保存结果未知"),
+    );
+    const view = render(<FollowupsPage />);
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: "保存记录" }));
+    await screen.findByText("TEST保存结果未知");
+    const input = vi.mocked(context.service.followup!.mutate).mock.calls[0][0];
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    fireEvent.click(await screen.findByRole("button", { name: "保留并关闭" }));
+    context.route = parseRoute("#/followups");
+    view.rerender(<FollowupsPage />);
+    vi.mocked(context.service.followup!.operation).mockResolvedValue({
+      binding: input.binding,
+      status: "SUCCEEDED",
+      confirmed: true,
+      record: { ...row, ...input.values!, id: "TEST-created" },
+    });
+    const original = Storage.prototype.setItem;
+    const fault = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(function (this: Storage, key: string, value: string) {
+        if (this === sessionStorage && key.includes("followup-resolved:")) {
+          if (failure === "throw") throw new Error("TEST session quota");
+          return;
+        }
+        return original.call(this, key, value);
+      });
+    fireEvent.click(screen.getByRole("button", { name: "核对原跟进操作" }));
+    await waitFor(() =>
+      expect(context.service.followup!.operation).toHaveBeenCalledOnce(),
+    );
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole("button", { name: "核对原跟进操作" })
+          .getAttribute("disabled"),
+      ).toBeNull(),
+    );
+    expect(screen.getByRole("button", { name: "核对原跟进操作" })).toBeTruthy();
+    fault.mockRestore();
+    context.route = parseRoute("#/followups?add=1");
+    view.rerender(<FollowupsPage />);
+    expect(screen.getByDisplayValue("TEST空间A未保存正文")).toBeTruthy();
+    expect(
+      (screen.getByRole("button", { name: "保存记录" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  },
+);
+it("keeps the verified acknowledgement when removing the old submitted draft fails", async () => {
+  vi.mocked(context.service.followup!.mutate).mockRejectedValue(
+    new Error("TEST保存结果未知"),
+  );
+  const view = render(<FollowupsPage />);
+  await fill();
+  fireEvent.click(screen.getByRole("button", { name: "保存记录" }));
+  await screen.findByText("TEST保存结果未知");
+  const input = vi.mocked(context.service.followup!.mutate).mock.calls[0][0];
+  fireEvent.click(screen.getByRole("button", { name: "取消" }));
+  fireEvent.click(await screen.findByRole("button", { name: "保留并关闭" }));
+  context.route = parseRoute("#/followups");
+  view.rerender(<FollowupsPage />);
+  vi.mocked(context.service.followup!.operation).mockResolvedValue({
+    binding: input.binding,
+    status: "SUCCEEDED",
+    confirmed: true,
+    record: { ...row, ...input.values!, id: "TEST-created" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "核对原跟进操作" }));
+  await waitFor(() =>
+    expect(screen.queryByRole("button", { name: "核对原跟进操作" })).toBeNull(),
+  );
+  const keys = Array.from({ length: sessionStorage.length }, (_, i) =>
+    sessionStorage.key(i)!,
+  );
+  const draftKey = keys.find((key) => key.includes("followup:v3:"))!;
+  const ackKey = keys.find((key) => key.includes("followup-resolved:"))!;
+  const oldAcknowledgement = sessionStorage.getItem(ackKey);
+  const original = Storage.prototype.removeItem;
+  const fault = vi
+    .spyOn(Storage.prototype, "removeItem")
+    .mockImplementation(function (this: Storage, key: string) {
+      if (this === sessionStorage && key === draftKey)
+        throw new Error("TEST removal unavailable");
+      return original.call(this, key);
+    });
+  context.route = parseRoute("#/followups?add=1");
+  view.rerender(<FollowupsPage />);
+  await waitFor(() =>
+    expect(screen.queryByDisplayValue("TEST空间A未保存正文")).toBeNull(),
+  );
+  expect(sessionStorage.getItem(draftKey)).toContain("TEST空间A未保存正文");
+  expect(sessionStorage.getItem(ackKey)).toBe(oldAcknowledgement);
+  expect(context.service.followup!.mutate).toHaveBeenCalledOnce();
+  fault.mockRestore();
+});
