@@ -4,7 +4,7 @@
 
 ## 当前状态与原始失败
 
-最小生产接线已提交为`7d8f657`，独立审核及整合待收口；不表示允许生产执行。用户完整Goal保持ACTIVE，Win负责自己的设备/HTTP/原文详情/来源消费，Mac本片不替Win签收。
+最小生产接线`7d8f657`连同集成测试/文档`956ecfe`及两行测试修正`9fc197c`，已通过独立最终审核；推送核验另记，不表示允许生产执行。用户完整Goal保持ACTIVE，Win负责自己的设备/HTTP/原文详情/来源消费，Mac本片不替Win签收。
 
 - 干净`c3f096c`相关基线：`uv run --frozen pytest -q tests/test_execution_api.py tests/test_execution_contract.py --tb=short`，**32 passed /0.58s**。
 - 根代理新增实际HTTP/受限PG回归，真实策略与设备准备成功后请求新入口：**1 failed /1.19s**，预期200得到404 Not Found。不是缺数据库、错误fixture或模型造成的失败。
@@ -50,3 +50,9 @@ uv run --frozen pytest -q tests/test_execution_signing_payload_http_postgres.py 
 新审核者对`eb507bf..7d8f657`完整变更做规格和质量审核：**Spec compliant / Approved，0 Critical / Important / Minor**，未重复套件。已确认最小路由、五字段、完整摘要、原签名域及只读设备校验；未修改apply或另造授权。
 
 两项跨任务待核实已由root现有证据对应：会话/全局错误/no-store由69项传输测试与15项真实HTTP/PG的撤销、等锁过期断言覆盖；历史恢复、撤销策略后的CANCEL及默认START501由同一15项实际链覆盖。不是把未展开的旧代码当审核者已重审，也不以测试替代生产或Win消费验收。整个增量的最终独立代码/架构/质量审核仍待收口。
+
+## 最终审核修正
+
+独立终审对`eb507bf..956ecfe`提出一项Minor：摘要变体测试同时随机生成device_id，三个摘要不同不足以单独证明targets顺序或request_id的影响。root核对后以`9fc197c`固定两个变体的device_id与原始请求一致，仅两行测试修改。随后`uv run --frozen pytest -q tests/test_execution_signing_payload.py --tb=short`实际 **6 passed /0.18s /0 skipped**；未改产品源码，也未重跑不变的PG集合。
+
+独立审核者随后仅复核两行delta，原Minor关闭。完整`eb507bf..9fc197c`最终**Spec / Code / Architecture / Quality PASS，Ready to merge YES，0项未关闭发现**。上文待审核为历史时点，不据此重跑已通过的相同代码。root可按授权正常同步、推送并核对远端SHA；任何新的源码或冲突合并另做影响范围验证。此后仅登记本次实际审核/交付的文档不改变已审代码快照。
