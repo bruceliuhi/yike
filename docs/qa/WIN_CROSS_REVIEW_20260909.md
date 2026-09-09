@@ -142,3 +142,13 @@ uv lock --check --offline
 失败报告 `desktop/out/windows-evidence/2026-09-09T11-31-01-267Z-c0ae1c30/windows-build.json` SHA256 `583f8377901f1ee5af20cd075711b323f8bb9a2bc61eb0a34aaab4c8476f422a`，未覆盖旧make失败报告。其ASAR SHA256 `aee5e624987dd99f4b6b820d92003e2f00a1c5904a5aaac23b01af55a702a52a`，Setup SHA256 `dbea9147ff5aed17b0851b74bd3e079ae7e8ef25c550da3b9439610e12d149b1`；均为**全链失败候选，不提供安装验收或发布批准**。
 
 根代理只读列出该ASAR实际42个条目，并用 `path.normalize` 查询同一未修改归档，读取主入口80406字节、preload502字节、index584字节。原入口确实存在，不归咎于Vite漏打包；应按[校验器修复计划](../superpowers/plans/2026-09-09-win-asar-verification.md)补真实ASAR/CLI反例，不修改归档或跳过检查。npm仍报告17 high及已有弃用/git完整性警告，Vite仍有旧选项弃用警告；不视为随打包路径或运行时修复自动关闭。Goal保持ACTIVE。
+
+## 7. ASAR修复后Windows自动链通过，保留夹具清理缺口
+
+修复提交 `3c16faca1fb243652f70d08327a30ddc771fc1ef` 仅在ASAR读取边界加入 `path.normalize`，新增18项真实归档/实际CLI测试，固定CJS、原始manifest白名单、非空资源和秘密文件拒绝规则不变。作者 `windows_bootstrap_fix` 的完整包正例在旧实现明确RED；修复后与renderer回归共21 passed。独立 `win_contract_readiness` 规格/架构/代码/质量PASS，实际21项/typecheck通过；root再跑21项通过（exec 2e6355），typecheck/secret scan通过。原归档重新校验32项资源，SHA仍为aee5e624…，未修改旧失败JSON或以改包让检查通过。
+
+根代理合跑五个相关文件时曾出现1 failed/84 passed/2 skipped（19:44:29，exec 3c807d）：`windowsBuildRuntime.test.mjs` 的真实dependency-exit测试在afterEach清理临时Node时EPERM。只读确认残留Node非ReadOnly、ACL无deny，未发现从该临时路径运行的进程；AvlVDu夹具与bundled源Node共享同一NTFS File ID，当前夹具优先hardlink，不是独立文件。未捕获故障时句柄，不能认定具体占用者或杀毒软件；历史临时目录保留，不绕过删除限制。按[夹具隔离计划](../superpowers/plans/2026-09-09-win-runtime-fixture-isolation.md)继续，不靠重跑成功抹去此缺口。
+
+随后从干净 **3c16fac** 运行完整脚本（exec session17526）：**53文件/568 passed/2 skipped**，66.37s，计数来自控制台chunk d1943d；所有9个自动阶段PASSED，包含Squirrel制作、ASAR 32资源校验和真实包内Electron冒烟，最终exit0。冒烟覆盖实际main/preload/renderer、沙箱/自定义协议、IPC拒绝、未配置服务、隔离临时文件CSV/备份导出及取消、未保存退出确认；保存/退出对话框在隔离进程被替代，**不构成用户手动安装或可见交互验收**。本轮通过不证明前述间歇夹具清理已修好。
+
+成功报告 `desktop/out/windows-evidence/2026-09-09T11-45-38-367Z-cc8227d5/windows-build.json` SHA256 `0126fed3ba69286e7b82a7aec4934be8956e61cebba0bf4d243e02574dcf2599`；ASAR SHA256 `aee5e624987dd99f4b6b820d92003e2f00a1c5904a5aaac23b01af55a702a52a`；本轮Setup SHA256 `25b6465e7c69228f8f14e233bc84681088b152586353e98621420c986f371220`。Setup因重新制作与上一失败候选不同，不把旧Setup摘要回填为本轮。人工11项仍UNTESTED，17 high仍未消除，正式签名/安装更新/真实业务不在此次通过范围。已正常推送main 3c16fac并用ls-remote核验；Goal继续ACTIVE。

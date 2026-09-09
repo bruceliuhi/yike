@@ -40,7 +40,7 @@ V02-05 的[全页面设计 R3](../design/v02-suite-r3/README.md)已于 2026-09-0
 | V02-06 真实触达通道 / 通道＋后端 | NOT_STARTED | 立即验证能力条件，定义对象映射及发送/回执/回复契约 | 依赖 01 身份；真实采集对象到收件人映射、可联系性、确认后真实发送和关联回复；失败原因准确 | 未提供 |
 | V02-07 草稿、确认与发送队列 / 后端＋前端 | IN_PROGRESS | 前端三队列、独立草稿、确认快照、持久防重及原请求核对已实现；继续接真实队列、生成/发送/回执后台 | 依赖 04/06；对象、内容版本、渠道或连接改变使确认失效；真成功/失败/未知对账；未经确认不发送 | [R3 交互增量](qa/ui-interactions/REVIEW.md)；默认真实通道尚未接入，不等于已发送 |
 | V02-08 回复与跟进工作台 / 后端＋前端 | NOT_STARTED | 先定义事件关联、撤销/修正、未读/到期与统计口径 | 依赖 05/07；真实回复归到正确租户/商机；人工事实与平台事实分开；状态不能随意回退，统计可复算 | 未提供 |
-| V02-09 Windows 发行与许可 / 桌面＋交付 | IN_PROGRESS | Win预检/staging/runtime修复已审核；整合后完整链550项通过/2跳过，Squirrel制作通过，ASAR校验的Windows查询路径问题修复中；继续sidecar/隔离存储和生命周期 | 真实Windows安装/卸载、休眠/取消/恢复、授权、更新/回退；[依赖发行风险](qa/BUILD_DEPENDENCY_AUDIT_20260909.md)仍未关闭 | staging `e9983ed`、runtime `0b79a68`；干净`f4d4a56`[Win实测](qa/WIN_CROSS_REVIEW_20260909.md)全链仍FAILED，包内冒烟未跑、人工UNTESTED；17 high不等于可发行 |
+| V02-09 Windows 发行与许可 / 桌面＋交付 | IN_PROGRESS | Win干净3c16fac完整自动链568项通过/2跳过，含Squirrel/ASAR/包内冒烟；继续测试夹具文件隔离、sidecar/隔离存储和生命周期 | 真实Windows安装/卸载、休眠/取消/恢复、授权、更新/回退；[依赖发行风险](qa/BUILD_DEPENDENCY_AUDIT_20260909.md)仍未关闭 | staging `e9983ed`、runtime `0b79a68`、ASAR `3c16fac`已审核并推main；[Win实测](qa/WIN_CROSS_REVIEW_20260909.md)保留旧失败及一次夹具清理EPERM；人工UNTESTED、17 high未关闭，不等于发行 |
 | V02-10 集成、独立审核与试用 / QA＋交付 | NOT_STARTED | 先明确逐平台样例、客户操作脚本和证据格式 | 02～09 完成；锁定 SHA，三方独立复核；客户自行走通整链；需服务端部署时通过 CP-06 | 未提供 |
 
 ### 在途子卡与接收登记
@@ -141,4 +141,4 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 | 子卡 / 实际负责人 | 状态 / 当前切片 | 路径、基线与执行位置 | 接收、验证及下一动作 |
 |---|---|---|---|
 | V02-02C / CodexWin | IN_PROGRESS；纯解析切片已完成并审核 | 基线 `022b0fb`；实现 `e368b5a`，随 `bea5c7d` 在main；`connectors/`、旧兼容入口、测试和wheel清单；[计划](superpowers/plans/2026-09-09-win-source-parsers.md) | RED/GREEN后76 passed/42 deselected，wheel隔离导入与双独立审核PASS；[Win记录](qa/WIN_CROSS_REVIEW_20260909.md)。CodexiMac限定接收保行为解析切片（e4d1695、Mac877通过）；Win现已ACK02A更正d14594f，下一步从原始字段适配，旧trim/必填作者不满足新契约。不是整卡/真实平台完成 |
-| V02-09A 自动构建验证 / CodexWin | IN_PROGRESS；Squirrel/runtime通过，ASAR校验路径修复中 | 预检 `e01e99a`、staging `e9983ed`、runtime `0b79a68`；干净构建`f4d4a56`；[校验修复计划](superpowers/plans/2026-09-09-win-asar-verification.md) | 全链550 passed/2明确skipped，native/make/artifacts通过，archive-check路径误报失败，packaged-smoke未跑。独立核查入口实际在ASAR中；保留新旧失败JSON。17 high仍是发行缺口，不跳过校验或用Setup存在充成功 |
+| V02-09A 自动构建验证 / CodexWin | IN_PROGRESS；自动链通过，测试夹具独立文件修复继续 | 预检 `e01e99a`、staging `e9983ed`、runtime `0b79a68`、ASAR `3c16fac`；[夹具隔离计划](superpowers/plans/2026-09-09-win-runtime-fixture-isolation.md) | 干净3c16fac全链568 passed/2明确skipped，9阶段全部通过；人工UNTESTED。保留f4d失败报告及相关定向一次EPERM，独立审核ASAR21项通过；17 high未关闭，不将构建通过写成发行或测试清理已稳定 |
