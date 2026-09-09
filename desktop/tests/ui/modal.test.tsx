@@ -83,14 +83,14 @@ describe("共享弹窗键盘与焦点", () => {
     expect(document.querySelectorAll('[aria-modal="true"]')).toHaveLength(1);
     fireEvent.keyDown(document, {key: "Escape"});
     expect(outer.getAttribute("aria-modal")).toBe("true");
-    expect(document.activeElement).toBe(outer);
+    expect(document.activeElement).toBe(within(outer).getByRole("button", {name: "关闭资料抽屉"}));
   });
   it("Escape一次只关闭最上层，逐层恢复原按钮焦点", () => {
     render(<Stack />);
     const outer = openOuter();
     const inner = openInner();
     expect(document.activeElement).toBe(
-      screen.getByRole("dialog", { name: "内层" }),
+      screen.getByRole("button", { name: "关闭内层" }),
     );
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "内层" })).toBeNull();
@@ -104,7 +104,7 @@ describe("共享弹窗键盘与焦点", () => {
     render(<Stack initialChild />);
     openOuter();
     expect(document.activeElement).toBe(
-      screen.getByRole("dialog", { name: "内层" }),
+      screen.getByRole("button", { name: "关闭内层" }),
     );
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "内层" })).toBeNull();

@@ -311,7 +311,9 @@ export function Modal({
     }
     dialogs.set(node, { node, close: () => close.current() });
     syncDialogModality();
-    topDialog()?.node.focus();
+    const activeDialog = topDialog();
+    if (activeDialog)
+      (dialogFocusable(activeDialog.node)[0] ?? activeDialog.node).focus();
     return () => {
       dialogs.delete(node);
       syncDialogModality();
