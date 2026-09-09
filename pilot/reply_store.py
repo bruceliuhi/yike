@@ -129,6 +129,8 @@ class ReplyEventStore:
                     raise ReplyStoreError("event_conflict", 409)
                 revision = existing["revision"] + 1
             record = event_record(event, revision)
+            sql_record = record | {"tenant_id": tenant_id, "owner_user_id": claims.user_id,
+                                   "payload": _json(record["payload"])}
             cursor.execute("""INSERT INTO pilot_reply_events
                 (tenant_id,owner_user_id,event_id,revision,kind,opportunity_id,source_id,profile_version_id,outreach_request_id,
                  platform,channel,external_reply_id,sender_public_id,body,received_at,read_state,read_at,action,note,occurred_at,
@@ -137,7 +139,7 @@ class ReplyEventStore:
                  %(profile_version_id)s,%(outreach_request_id)s,%(platform)s,%(channel)s,%(external_reply_id)s,%(sender_public_id)s,
                  %(body)s,%(received_at)s,%(read_state)s,%(read_at)s,%(action)s,%(note)s,%(occurred_at)s,%(state)s,
                  %(corrects_event_id)s,%(reason)s,%(observed_at)s,%(payload)s::jsonb,%(payload_sha256)s)""",
-                         record | {"tenant_id": tenant_id, "owner_user_id": claims.user_id})
+                         sql_record)
             self._active(cursor, claims)
             return event
 

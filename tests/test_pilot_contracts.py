@@ -72,10 +72,13 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
             assert cursor.fetchone() is not None
     with admin_database.connect() as connection:
         with connection.cursor() as cursor:
-            cursor.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='pilot_app') THEN CREATE ROLE pilot_app LOGIN PASSWORD 'pilot_app'; END IF; END $$;")
+            cursor.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='pilot_app') THEN CREATE ROLE pilot_app LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD 'pilot_app'; ELSE ALTER ROLE pilot_app NOSUPERUSER NOBYPASSRLS; END IF; END $$;")
             cursor.execute("GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO pilot_app")
             cursor.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO pilot_app")
-    database = PilotDatabase(url.replace('pilot:pilot@', 'pilot_app:pilot_app@'))
+    # Use the explicitly supplied restricted application URL when available;
+    # replacing a historical fixture credential can silently leave the test on
+    # the admin/superuser connection and invalidate the RLS assertion.
+    database = PilotDatabase(os.environ.get("YIKE_PILOT_DATABASE_URL") or url.replace('pilot:pilot@', 'pilot_app:pilot_app@'))
     store = PilotStore(database)
     # Tenant and user provisioning is trusted-admin work; the application role
     # is intentionally unable to enumerate or create tenant-directory rows.

@@ -52,7 +52,8 @@ def stores():
         connection.execute(sql.SQL(
             "GRANT SELECT, INSERT, UPDATE ON pilot_users, business_profiles, "
             "business_profile_versions, pilot_tasks, pilot_sources, pilot_source_versions, "
-            "pilot_source_observations, pilot_opportunities, pilot_followups TO {}"
+            "pilot_source_observations, pilot_opportunities, pilot_opportunity_evidence, "
+            "pilot_followups TO {}"
         ).format(sql.Identifier(app_identity[0])))
     return PilotStore(admin_database), PilotStore(app_database)
 
