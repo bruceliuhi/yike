@@ -1,0 +1,36 @@
+{
+  "sourceCommit": "cbc61703347c407413f8a732a6ca9a5637258eba",
+  "integratedCandidate": "14aa73ea32a417a067b558b61f692a56fa8ba06b",
+  "environment": "macOS Codex in-app Chromium",
+  "r4ViewSourceUnchangedInIntegration": true,
+  "checks": {
+    "responsiveCases": 36,
+    "horizontalOverflowCases": 0,
+    "minimumWindowSimilarDrawer": {
+      "viewport": [
+        960,
+        600
+      ],
+      "drawer": [
+        440,
+        540
+      ],
+      "top": 60,
+      "footerButtonsBottom": 584
+    },
+    "normalViewportKeywordDetailsMouseClick": "expanded eight terms",
+    "normalViewportTaskConfigTabMouseClick": "selected task configuration",
+    "shortCoachFlow": "preview → apply → screenshot local unsynced state → save → DOM reports saved",
+    "finalErrorLogs": [],
+    "gallery": {
+      "sections": 6,
+      "loadedImages": 12
+    }
+  },
+  "limits": [
+    "TEST memory adapters only; no actual send or charge",
+    "Long forms use vertical scroll",
+    "Windows display-scale not validated",
+    "Late failure branches covered by component/domain tests, not all visually reviewed"
+  ]
+}

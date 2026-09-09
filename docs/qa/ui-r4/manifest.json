@@ -1,0 +1,154 @@
+{
+  "r4SourceCommit": "cbc61703347c407413f8a732a6ca9a5637258eba",
+  "viewport": [
+    1484,
+    1060
+  ],
+  "note": "P10 reference is 1485x1059. Main screenshots cover stated TEST/sample states, not backend verification.",
+  "pages": [
+    {
+      "page": "P02",
+      "title": "机会简报",
+      "images": [
+        {
+          "path": "design/v02-suite-r4/screens/R4-06-P02.png",
+          "sha256": "964bbb7dd86f7af2c45bcdcdba2fc3dfc2b7547a6830269bab56db515ad2ef28",
+          "size": 1284367,
+          "dimensions": [
+            1484,
+            1060
+          ]
+        },
+        {
+          "path": "docs/qa/ui-r4/screens/P02.png",
+          "sha256": "110623f1ab82c3f421c9e85f68f9f16e8796a5df17b67ffd59f8afb6148aa496",
+          "size": 152834,
+          "dimensions": [
+            1484,
+            1060
+          ]
+        }
+      ]
+    },
+    {
+      "page": "P06",
+      "title": "新建任务与搜贝",
+      "images": [
+        {
+          "path": "design/v02-suite-r4/screens/R4-03-P06.png",
+          "sha256": "e104876b8979931a05c48e7e0722960ec26fec12386974aae740d6fa7f62dced",
+          "size": 1332331,
+          "dimensions": [
+            1484,
+            1060
+          ]
+        },
+        {
+          "path": "docs/qa/ui-r4/screens/P06.png",
+          "sha256": "185d62f2f9b0ac47e7aa7cf95a8bee9e4cb71b09fafc05bb1c0f264d3eb07d89",
+          "size": 197769,
+          "dimensions": [
+            1484,
+            1060
+          ]
+        }
+      ]
+    },
+    {
+      "page": "P09",
+      "title": "搜索覆盖",
+      "images": [
+        {
+          "path": "design/v02-suite-r4/screens/R4-02-P09.png",
+          "sha256": "7c4f73951ed899c4d04fbc25a99acd3c176ec8b7e61255b565751475d77d2913",
+          "size": 1319945,
+          "dimensions": [
+            1484,
+            1060
+          ]
+        },
+        {
+          "path": "docs/qa/ui-r4/screens/P09.png",
+          "sha256": "1ac683c35bacf82a5b7ca37e648283dab2a17555907be5a02a0e208130de2cba",
+          "size": 223156,
+          "dimensions": [
+            1484,
+            1060
+          ]
+        }
+      ]
+    },
+    {
+      "page": "P10",
+      "title": "需求分类",
+      "images": [
+        {
+          "path": "design/v02-suite-r4/screens/R4-04-P10.png",
+          "sha256": "343f028b0fe6cd00339677ddde910071492800de31d3e5a47e5ddb1115ada896",
+          "size": 1274402,
+          "dimensions": [
+            1485,
+            1059
+          ]
+        },
+        {
+          "path": "docs/qa/ui-r4/screens/P10.png",
+          "sha256": "c1157ca4ee6bdc04757048948f041532ac875e6297720f4f90ddca48eff31f09",
+          "size": 144051,
+          "dimensions": [
+            1484,
+            1060
+          ]
+        }
+      ]
+    },
+    {
+      "page": "P11",
+      "title": "证据变化与相似研究",
+      "images": [
+        {
+          "path": "design/v02-suite-r4/screens/R4-05-P11.png",
+          "sha256": "7079400885e6d86b5824939d3b2c25e70efb80af591c5bad548790a9b8e25b22",
+          "size": 1123493,
+          "dimensions": [
+            1484,
+            1060
+          ]
+        },
+        {
+          "path": "docs/qa/ui-r4/screens/P11.png",
+          "sha256": "acd4b222044caf99d7144ad458fe0c04ff970d83d29359a23fded4f935168f9d",
+          "size": 258310,
+          "dimensions": [
+            1484,
+            1060
+          ]
+        }
+      ]
+    },
+    {
+      "page": "P12",
+      "title": "短句教练",
+      "images": [
+        {
+          "path": "design/v02-suite-r4/screens/R4-01-P12.png",
+          "sha256": "b6a5ffd7f300e162bd2aa75de545aa0875a36841ae99ddb7a268847fc1321623",
+          "size": 1337095,
+          "dimensions": [
+            1484,
+            1060
+          ]
+        },
+        {
+          "path": "docs/qa/ui-r4/screens/P12-matched-state.png",
+          "sha256": "3a796aa91f1444edf9bf42fb2aac7933a8cfd2c81c198e5ea85189b04f08d565",
+          "size": 192174,
+          "dimensions": [
+            1484,
+            1060
+          ]
+        }
+      ]
+    }
+  ]
+}
