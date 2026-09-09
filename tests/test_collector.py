@@ -754,6 +754,104 @@ def test_unexpected_exception_after_begin_is_terminal_and_has_no_partial_import(
     ).fetchone()[0] == "FAILED"
 
 
+@pytest.mark.parametrize("parent_needs_kill", [False, True])
+@pytest.mark.parametrize("group_state", [
+    "persistent", "delayed", "permission-then-gone", "permission-persistent",
+])
+def test_stop_process_group_confirms_post_kill_completion(
+    monkeypatch, parent_needs_kill, group_state
+):
+    import signal
+    from app.collector import _stop_process_group
+
+    clock = [0.0]
+    killed_at = []
+    probes_after_kill = []
+
+    class Parent:
+        pid = 123456
+
+        def communicate(self, timeout=None):
+            if parent_needs_kill and not killed_at:
+                raise subprocess.TimeoutExpired("synthetic-parent", timeout)
+            assert timeout is not None, "parent completion must also be bounded"
+            return "output", ""
+
+    def killpg(pgid, sig):
+        assert pgid == Parent.pid
+        if sig == signal.SIGKILL:
+            killed_at.append(clock[0])
+        elif sig == 0 and killed_at:
+            probes_after_kill.append(clock[0])
+            if group_state in {"delayed", "permission-then-gone"} and clock[0] - killed_at[0] >= 0.03:
+                raise ProcessLookupError
+            if group_state.startswith("permission"):
+                raise PermissionError
+
+    monkeypatch.setattr("app.collector.os.killpg", killpg)
+    monkeypatch.setattr("app.collector.time.monotonic", lambda: clock[0])
+    monkeypatch.setattr("app.collector.time.sleep", lambda seconds: clock.__setitem__(0, clock[0] + seconds))
+
+    if group_state in {"delayed", "permission-then-gone"}:
+        assert _stop_process_group(Parent(), terminate_grace_seconds=0.05) == ("output", "")
+        assert clock[0] - killed_at[0] >= 0.03
+    else:
+        with pytest.raises(OSError, match="process group termination unconfirmed"):
+            _stop_process_group(Parent(), terminate_grace_seconds=0.05)
+        assert clock[0] - killed_at[0] == pytest.approx(2.0)
+    assert probes_after_kill
+    assert len(killed_at) == 1
+
+
+def test_stop_process_group_bounds_post_kill_parent_drain(monkeypatch):
+    from app.collector import _stop_process_group
+
+    timeouts = []
+
+    class Parent:
+        pid = 123456
+
+        def communicate(self, timeout=None):
+            timeouts.append(timeout)
+            raise subprocess.TimeoutExpired("synthetic-parent", timeout)
+
+    monkeypatch.setattr("app.collector.os.killpg", lambda pgid, sig: None)
+    with pytest.raises(OSError, match="process group termination unconfirmed"):
+        _stop_process_group(Parent(), terminate_grace_seconds=0.05)
+    assert len(timeouts) == 2
+    assert timeouts[0] == 0.05
+    assert 0 < timeouts[1] <= 2.0
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+def test_supervisor_does_not_repeat_unconfirmed_cleanup(tmp_path, monkeypatch, cancel):
+    from app.collector import run_supervised_process
+
+    stopped = []
+    monkeypatch.setattr("app.collector.subprocess.Popen", lambda *args, **kwargs: object())
+
+    def stop(process, **kwargs):
+        stopped.append(process)
+        raise OSError("process group termination unconfirmed")
+
+    monkeypatch.setattr("app.collector._stop_process_group", stop)
+    with pytest.raises(OSError, match="process group termination unconfirmed"):
+        run_supervised_process(
+            ["synthetic-only"], cwd=tmp_path, env={}, timeout_seconds=0,
+            cancel_requested=lambda: cancel,
+        )
+    assert len(stopped) == 1
+
+
+def test_collector_maps_unconfirmed_termination_to_failure(collector, run_id, monkeypatch):
+    def unconfirmed(*args, **kwargs):
+        raise OSError("process group termination unconfirmed")
+
+    monkeypatch.setattr("app.collector.run_supervised_process", unconfirmed)
+    result = collector.collect(request(run_id))
+    assert (result.status, result.error_code) == ("FAILED", "COLLECTION_PROCESS_FAILED")
+
+
 def test_supervisor_uses_new_process_session_without_shell(tmp_path, monkeypatch):
     from app.collector import run_supervised_process
 
