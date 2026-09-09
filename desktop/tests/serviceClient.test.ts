@@ -1,7 +1,34 @@
 import {describe, expect, it, vi} from 'vitest';
 import {createServiceClient} from '../src/main/serviceClient';
+import {candidateBinding, assessmentRequestFixture, verificationRequestFixture} from './fixtures/candidateReviewApi';
 
 describe('fixed service transport', () => {
+  it('routes candidate operations through the same fixed authenticated origin', async () => {
+    const fetch = vi.fn(async () => Response.json({}));
+    const client = createServiceClient({baseUrl:'https://customer.example',fetch,clearSession:async()=>{}});
+    const query = {ids:[candidateBinding.candidateId],reviewRequestId:'TEST:decision',page:1,pageSize:1};
+    for (const input of [
+      {operation:'candidates.list',payload:query},
+      {operation:'candidates.review',payload:assessmentRequestFixture()},
+      {operation:'candidates.verifySource',payload:verificationRequestFixture()},
+      {operation:'candidates.request',payload:{requestId:'TEST:decision'}},
+    ]) expect(await client.request(input)).toMatchObject({ok:true});
+    const calls = fetch.mock.calls as unknown as [string,RequestInit][];
+    expect(calls.map(([url,init])=>[new URL(url).pathname,init.method])).toEqual([
+      ['/api/ui/candidates','GET'],['/api/ui/candidate-reviews','POST'],['/api/ui/candidate-source-verifications','POST'],['/api/ui/candidate-review-requests/TEST%3Adecision','GET']
+    ]);
+    expect(Object.fromEntries(new URL(calls[0][0]).searchParams)).toEqual({...query,ids:candidateBinding.candidateId,page:'1',pageSize:'1'});
+    expect(calls[1][1].body).toBe(JSON.stringify(assessmentRequestFixture()));
+    for (const [,init] of calls) expect(init).toMatchObject({credentials:'include',redirect:'manual',headers:expect.objectContaining({Origin:'https://customer.example'})});
+    const count = fetch.mock.calls.length;
+    for (const input of [
+      {operation:'candidates.list',payload:{platform:'arbitrary'}},
+      {operation:'candidates.review',payload:{...assessmentRequestFixture(),tenant:'forged'}},
+      {operation:'candidates.verifySource',payload:{...verificationRequestFixture(),checkedBy:'forged'}},
+      {operation:'candidates.request',payload:{requestId:'../wrong'}}
+    ]) expect(await client.request(input)).toMatchObject({ok:false,error:'INVALID_API_REQUEST'});
+    expect(fetch).toHaveBeenCalledTimes(count);
+  });
   it('does not request anything without service config or with an invalid operation', async () => {
     const fetch = vi.fn();
     const client = createServiceClient({baseUrl: null, fetch, clearSession: async () => {}});

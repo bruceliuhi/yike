@@ -1066,7 +1066,7 @@ function CandidateWorkbench() {
       !candidate.sourceId.trim() ||
       !candidate.sourceVersionId.trim() ||
       !candidate.excerpt.trim() ||
-      !/^https?:\/\//i.test(candidate.url)
+      !candidate.url || !/^https?:\/\//i.test(candidate.url)
     )
       reasons.push("原始摘录或来源信息缺失");
     if (action === "INCLUDE" && candidate.sourceStatus !== "OPEN")
@@ -1411,6 +1411,7 @@ function CandidateWorkbench() {
     }
   };
   const openSource = async (candidate: Candidate) => {
+    if (!candidate.url) return;
     try {
       await service.openExternal(candidate.url);
     } catch (e) {

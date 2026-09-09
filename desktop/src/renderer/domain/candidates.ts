@@ -1,14 +1,13 @@
-/** Transport contract for V02 candidates. No candidate HTTP API is wired yet. */
+import type {
+  CandidateAssessmentDto,
+  ReviewedCandidateDto,
+} from "../../shared/candidateReviewApi";
+
+/** Legacy/sample-compatible view types; actual HTTP data is strictly decoded first. */
 export type CandidateStatus =
-  | "PENDING_REVIEW"
-  | "IMPORTED"
-  | "EXCLUDED"
-  | "DUPLICATE";
+  "PENDING_REVIEW" | "IMPORTED" | "EXCLUDED" | "DUPLICATE";
 export type CandidateSourceStatus =
-  | "OPEN"
-  | "UNVERIFIED"
-  | "EXPIRED"
-  | "BLOCKED";
+  "OPEN" | "UNVERIFIED" | "EXPIRED" | "BLOCKED";
 export interface CandidateEvidence {
   matchReason: string;
   actionSignal: string;
@@ -16,7 +15,7 @@ export interface CandidateEvidence {
   risk: string;
   unknowns: string;
 }
-export interface CandidateAssessment {
+export interface CandidateAssessment extends Partial<CandidateAssessmentDto> {
   id: string;
   profileId: string;
   profileVersion: number;
@@ -33,6 +32,7 @@ export interface CandidateReviewSnapshot {
   assessmentId: string;
   evidence: CandidateEvidence;
   reason: string;
+  sourceVerificationId?: string | null;
 }
 export interface CandidateReceipt {
   requestId: string;
@@ -46,7 +46,18 @@ export interface CandidateReceipt {
   /** Required on successful receipts: retain the human-reviewed words and binding. */
   review?: CandidateReviewSnapshot;
 }
-export interface Candidate {
+export interface Candidate extends Partial<
+  Pick<
+    ReviewedCandidateDto,
+    | "profileId"
+    | "profileVersion"
+    | "strategyVersionId"
+    | "historical"
+    | "currentBindingValid"
+    | "assessmentStale"
+    | "sourceVerification"
+  >
+> {
   id: string;
   revision: number;
   sample: boolean;
@@ -58,7 +69,7 @@ export interface Candidate {
   sourceId: string;
   sourceVersionId: string;
   sourceStatus: CandidateSourceStatus;
-  url: string;
+  url: string | null;
   excerpt: string;
   summary: string;
   publishedAt: string;
@@ -95,13 +106,14 @@ interface ReviewBinding {
   requestId: string;
 }
 export type CandidateReview =
-  | (ReviewBinding & { action: "ASSESS" })
+  | (ReviewBinding & { action: "ASSESS"; retryOf?: string | null })
   | (ReviewBinding & {
       action: "INCLUDE" | "EXCLUDE";
       assessmentId: string;
       evidence: CandidateEvidence;
       reason: string;
       humanConfirmed: true;
+      sourceVerificationId?: string | null;
     });
 export type CandidateReviewResult =
   | {
@@ -123,7 +135,7 @@ export type CandidateReviewResult =
       status: "PROCESSING" | "UNKNOWN";
     };
 
-// Future adapters must validate responses and enforce these rules server-side:
+// Real adapters validate responses; these rules remain enforced server-side:
 // - Resolve tenant, reviewer and review time from the authenticated service.
 // - Persist requestId idempotency and its receipt; ASSESS never imports a row.
 // - Recheck profile CONFIRMED, candidate/source revisions, source availability,

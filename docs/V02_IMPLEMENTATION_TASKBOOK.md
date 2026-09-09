@@ -236,6 +236,8 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 
 ### CodexWin Goal 启动与当前认领
 
+2026-09-10 Win05G真实候选读取片基于`d45699b`：四固定传输和严格响应适配已接，产品仅开放候选读取；旧隐式判断仍501，待原请求持久化及显式按钮后启用写服务。独立SPEC/代码/架构/质量PASS，根代理198相关、115策略/原文/确认发送回归分别通过，类型和生产TEST排除通过，见[QA](qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task2-固定传输与实际候选读取)。Win继续独占desktop原始证据详情、评论归属与候选恢复/P07接线；不改Mac后端/回复/设备在途实现。05G和Goal仍IN_PROGRESS，未将只读模块或测试当完整客户体验；通过main同步，未冒称Mac直达消息或实际ACK。
+
 2026-09-10 Win05G合同片基于`2d799bc`：完整候选/四维逐字分析/人工核验/决策与原请求恢复DTO已实现，独立SPEC及代码/架构/质量PASS；4文件80项与类型检查通过，原失败及三个修复见[QA](qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md)。已收到Mac原核验ID修复和设备恢复服务，不再重复等待或实现后端；此处仅纯协议，05G仍IN_PROGRESS。继续固定传输、现P07和新恢复；旧页面换画像隐式ASSESS未启用，不能把模块存在称客户可用。
 
 2026-09-10 CodexWin接续05G，base`c88b64b`：按[计划](superpowers/plans/2026-09-10-win-candidate-review-client.md)接已有P07的真实候选/原文、判断、独立人工来源核验、含核验ID的确认和原请求恢复；独占desktop DTO/固定传输/候选页面及专项tests，不改Mac04C或设备/执行在途文件。实际核查到成功决策回执漏sourceVerificationId、设备登记缺幂等找回，给Mac[最小接口请求](handoffs/V1_WIN_FUNCTION_OWNERSHIP_20260909.md#05g接线及设备恢复的最小服务缺口2026-09-10c88b64b核查)；没有按设备标签冒认或盲重登。当前IN_PROGRESS，不假报该新片或父Goal完成；先推进无此依赖的合同/读取，后接完整核验/入库与设备HTTP。

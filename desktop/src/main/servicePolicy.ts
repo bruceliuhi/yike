@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import {prepareStrategySchema, confirmStrategySchema, revokeStrategySchema, strategyUuidSchema} from '../shared/researchStrategies';
+import {candidateQuerySchema, candidateReviewRequestSchema, sourceVerificationRequestSchema, candidateRequestIdSchema, type CandidateQueryInput} from '../shared/candidateReviewApi';
 
 const empty = z.object({}).strict().optional();
 const identifier = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-][A-Za-z0-9_.:-]*$/);
@@ -24,6 +25,10 @@ const schemas = {
     note: text
   }).strict(),
   'capabilities.get': empty,
+  'candidates.list': candidateQuerySchema,
+  'candidates.review': candidateReviewRequestSchema,
+  'candidates.verifySource': sourceVerificationRequestSchema,
+  'candidates.request': z.object({requestId:candidateRequestIdSchema}).strict(),
   'strategies.prepare': prepareStrategySchema,
   'strategies.confirm': confirmStrategySchema,
   'strategies.revoke': revokeStrategySchema,
@@ -47,6 +52,17 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
   if (operation.startsWith('strategies.') && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 128 * 1024) return null;
   const data = parsed.data as Record<string, string> | undefined;
   switch (operation) {
+    case 'candidates.list': {
+      const params = new URLSearchParams();
+      for (const [key,value] of Object.entries(parsed.data as CandidateQueryInput)) {
+        if (value !== undefined) params.set(key,Array.isArray(value)?value.join(','):String(value));
+      }
+      const query = params.toString();
+      return {path:'/api/ui/candidates'+(query?'?'+query:''),method:'GET',logout:false};
+    }
+    case 'candidates.review': return {path:'/api/ui/candidate-reviews',method:'POST',body:JSON.stringify(data),logout:false};
+    case 'candidates.verifySource': return {path:'/api/ui/candidate-source-verifications',method:'POST',body:JSON.stringify(data),logout:false};
+    case 'candidates.request': return {path:`/api/ui/candidate-review-requests/${encodeURIComponent(data!.requestId)}`,method:'GET',logout:false};
     case 'strategies.prepare': return {path: '/api/ui/research-strategies/prepare', method: 'POST', body: JSON.stringify(data), logout: false};
     case 'strategies.confirm': return {path: '/api/ui/research-strategies/confirm', method: 'POST', body: JSON.stringify(data), logout: false};
     case 'strategies.revoke': return {path: '/api/ui/research-strategies/revoke', method: 'POST', body: JSON.stringify(data), logout: false};
