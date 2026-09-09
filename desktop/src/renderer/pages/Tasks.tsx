@@ -1,13 +1,25 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Plus,
   MagnifyingGlass,
   ArrowRight,
-  Globe,
   ArrowClockwise,
 } from "@phosphor-icons/react";
+import { PlatformLabel } from "../components/Platform";
+import { TaskPlatforms } from "./tasks/TaskPlatforms";
 import { useApp } from "../app/context";
-import { useAction, useResource } from "../app/hooks";
+import { useOperationLedger } from "../app/operationLedger";
+import { useResource } from "../app/hooks";
+import { boundedRequest } from "../app/boundedRequest";
+import { parseTaskRuns, taskActionsFor } from "../domain/taskOperations";
+import { PendingTaskStarts } from "./tasks/PendingTaskStarts";
+import { useTaskActions } from "./tasks/useTaskActions";
+import { inDateRange, pageItems } from "./tasks/listState";
+import { TaskDraftRow } from "./tasks/TaskDraftRow";
+import { useTaskTemplates } from "./tasks/useTaskTemplates";
+import { TaskEvents } from "./tasks/TaskEvents";
+import { TaskPagination } from "./tasks/TaskPagination";
+import "./tasks/tasks.css";
 import { useTaskDraft, useTaskLibrary } from "../app/taskDraft";
 import {
   Badge,
@@ -42,6 +54,8 @@ const statuses: Record<string, string> = {
   OFFLINE: "设备离线",
   RETRYING: "正在重试",
   CANCELLING: "正在取消",
+  PAUSING: "正在暂停",
+  RESUMING: "正在恢复",
 };
 const platformStatuses: Record<string, string> = {
   PENDING: "等待执行",
@@ -103,14 +117,7 @@ function stateTone(
     return "orange";
   return "neutral";
 }
-function taskActions(status: string): TaskAction[] {
-  if (status === "RUNNING" || status === "RETRYING") return ["pause", "cancel"];
-  if (status === "PAUSED") return ["resume", "cancel"];
-  if (status === "FAILED") return ["retry"];
-  if (status === "PARTIAL" || status === "BLOCKED") return ["retry", "cancel"];
-  if (status === "PENDING" || status === "OFFLINE") return ["cancel"];
-  return [];
-}
+const taskActions = taskActionsFor;
 function RunActions({
   run,
   onAction,
@@ -279,8 +286,7 @@ function MonitorDetail({
                                 aria-pressed={id === platform}
                                 onClick={() => setChosen(id)}
                               >
-                                <Globe size={18} aria-hidden />
-                                {platformName(id)}
+                                <PlatformLabel platform={id} size={18} />
                               </button>
                             </td>
                             <td>
@@ -313,8 +319,7 @@ function MonitorDetail({
                 <>
                   <div className="section-heading">
                     <h2 className="platform-label">
-                      <Globe size={24} aria-hidden />
-                      {platformName(platform)}
+                      <PlatformLabel platform={platform} size={24} />
                     </h2>
                     <Badge tone={stateTone(stage?.status || "")}>
                       {stage
@@ -399,67 +404,7 @@ function MonitorDetail({
           </section>
         </>
       )}
-      {tab === "events" && (
-        <section aria-label="执行记录">
-          <div className="section-heading">
-            <h2>执行记录</h2>
-            <span className="muted text-small">
-              最近运行 {formatDate(run.lastRunAt || "")}
-            </span>
-          </div>
-          {run.events?.length ? (
-            <div className="table-scroll">
-              <table className="monitor-events-table">
-                <thead>
-                  <tr>
-                    <th>时间</th>
-                    <th>平台</th>
-                    <th>事件</th>
-                    <th>级别</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {run.events.map((event, index) => (
-                    <tr key={`${event.id}:${index}`}>
-                      <td>{formatDate(event.occurredAt || "")}</td>
-                      <td>
-                        {event.platform ? platformName(event.platform) : "任务"}
-                      </td>
-                      <td>{event.message}</td>
-                      <td>
-                        {event.level ? (
-                          <Badge
-                            tone={
-                              event.level === "error"
-                                ? "red"
-                                : event.level === "warning"
-                                  ? "orange"
-                                  : "neutral"
-                            }
-                          >
-                            {event.level === "error"
-                              ? "错误"
-                              : event.level === "warning"
-                                ? "提醒"
-                                : "信息"}
-                          </Badge>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <Empty
-              title="暂无运行记录"
-              description="执行服务返回阶段和事件后，会在这里展示。"
-            />
-          )}
-        </section>
-      )}
+      {tab === "events" && <TaskEvents run={run} />}
       {tab === "config" && (
         <div className="configuration-summary">
           <section>
@@ -490,7 +435,7 @@ function MonitorDetail({
               <div>
                 <dt>监控平台</dt>
                 <dd>
-                  {run.platforms.map(platformName).join("、") || "待读取"}
+                  <TaskPlatforms platforms={run.platforms} empty="待读取" />
                 </dd>
               </div>
             </dl>
@@ -542,15 +487,45 @@ export function TasksPage() {
   const monitor = route.path.startsWith("/monitors");
   const [tab, setTab] = useState("all");
   const [search, setSearch] = useState("");
+  const [platformFilter, setPlatformFilter] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const invalidDates = !!from && !!to && from > to;
+  useEffect(
+    () => setPage(1),
+    [search, platformFilter, from, to, tab, monitor, session.userId],
+  );
   const [library, setLibrary] = useTaskLibrary(session.userId);
   const [currentDraft, setDraft] = useTaskDraft(session.userId);
-  const tasks = useResource(() => service.tasks(), [service, session.userId]);
-  const action = useAction();
-  const [pending, setPending] = useState<{
-    run: TaskRun;
-    action: TaskAction;
-  } | null>(null);
+  const tasks = useResource(
+    async () =>
+      session.authenticated
+        ? parseTaskRuns(
+            await boundedRequest(() => service.tasks(), {
+              timeoutMessage: "任务列表读取超时，请刷新重试。",
+            }),
+          )
+        : [],
+    [service, session.authenticated, session.userId],
+  );
+  const acceptRun = (run: TaskRun) =>
+    tasks.setData((old) => [
+      ...(old || []).filter((item) => item.id !== run.id),
+      run,
+    ]);
+  const operations = useTaskActions(tasks.data || [], acceptRun);
+  const [unknownStarts] = useOperationLedger(
+    "unknown-task-starts",
+    session.userId,
+  );
+  const templates = useTaskTemplates();
   const [deleting, setDeleting] = useState<TaskDraft | null>(null);
+  const draftHasPending = (draft: TaskDraft) =>
+    [draft.id, ...(draft.templateSourceDraftIds || [])].some(
+      (id) => !!unknownStarts[id],
+    );
   const mode = monitor ? "monitor" : "once";
   const id = route.path.startsWith("/monitors/")
     ? decodeTaskId(route.path.slice("/monitors/".length))
@@ -558,7 +533,10 @@ export function TasksPage() {
   const runs = (tasks.data || []).filter(
     (t) =>
       t.mode === mode &&
-      t.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()) &&
+      t.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()) &&
+      (!platformFilter || t.platforms.includes(platformFilter as PlatformId)) &&
+      !invalidDates &&
+      inDateRange(t.updatedAt, from, to) &&
       (tab === "all" ||
         t.status === tab ||
         (tab === "FAILED" &&
@@ -567,51 +545,43 @@ export function TasksPage() {
   const drafts = library.filter(
     (t) =>
       t.mode === mode &&
-      t.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()) &&
+      t.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()) &&
+      (!platformFilter || t.platforms.includes(platformFilter as PlatformId)) &&
+      !invalidDates &&
+      inDateRange(t.savedAt, from, to) &&
       (tab === "all" || tab === "draft"),
   );
   const create = () => {
     setDraft(newTaskDraft(mode));
     navigate(monitor ? "/tasks/new?mode=monitor" : "/tasks/new");
   };
-  const edit = (draft: TaskDraft) => {
+  const edit = (draft: TaskDraft, confirm = false) => {
     const latest =
       currentDraft.id === draft.id && currentDraft.revision >= draft.revision
         ? currentDraft
         : draft;
     setDraft(structuredClone(latest));
     navigate(
-      latest.mode === "monitor" ? "/tasks/new?mode=monitor" : "/tasks/new",
+      confirm
+        ? "/tasks/new?mode=monitor&step=confirm"
+        : latest.mode === "monitor"
+          ? "/tasks/new?mode=monitor"
+          : "/tasks/new",
     );
   };
-  const requestAction = (run: TaskRun, next: TaskAction) => {
-    action.setError("");
-    setPending({ run, action: next });
-  };
-  const perform = async () => {
-    if (!pending) return;
-    await action.run(async () => {
-      await service.taskAction(pending.run.id, pending.action);
-      setPending(null);
-      await tasks.reload();
-      notify("操作已提交，请以最新任务状态为准。", "success");
-    });
-  };
+  const requestAction = operations.open;
   const selected = tasks.data?.find((t) => t.id === id && t.mode === "monitor");
-  const operationDialog = pending && (
-    <Confirm
-      title={`${actionLabels[pending.action]}任务？`}
-      danger={pending.action === "cancel"}
-      loading={action.busy}
-      onCancel={() => {
-        if (!action.busy) setPending(null);
-      }}
-      onConfirm={() => void perform()}
-    >
-      <p>{pending.run.name}</p>
-      <p className="field-hint">{actionHints[pending.action]}</p>
-      {action.error && <Notice tone="error">{action.error}</Notice>}
-    </Confirm>
+  const operationDialog = operations.dialog;
+  const allItems = [
+    ...runs.map((run) => ({ kind: "run" as const, run })),
+    ...drafts.map((draft) => ({ kind: "draft" as const, draft })),
+  ];
+  const pagination = pageItems(allItems, page, pageSize);
+  const shownRuns = pagination.items.flatMap((item) =>
+    item.kind === "run" ? [item.run] : [],
+  );
+  const shownDrafts = pagination.items.flatMap((item) =>
+    item.kind === "draft" ? [item.draft] : [],
   );
   if (id)
     return (
@@ -622,7 +592,7 @@ export function TasksPage() {
           extra={
             <>
               <Button
-                disabled={tasks.loading || action.busy}
+                disabled={tasks.loading || operations.busy}
                 onClick={tasks.reload}
               >
                 刷新状态
@@ -631,7 +601,12 @@ export function TasksPage() {
                 <RunActions
                   run={selected}
                   onAction={requestAction}
-                  disabled={tasks.loading || !!tasks.error || action.busy}
+                  disabled={
+                    tasks.loading ||
+                    !!tasks.error ||
+                    operations.busy ||
+                    operations.blockedTaskIds.has(selected.id)
+                  }
                   detail
                 />
               )}
@@ -648,7 +623,12 @@ export function TasksPage() {
             key={selected.id}
             run={selected}
             onAction={requestAction}
-            disabled={tasks.loading || !!tasks.error || action.busy}
+            disabled={
+              tasks.loading ||
+              !!tasks.error ||
+              operations.busy ||
+              operations.blockedTaskIds.has(selected.id)
+            }
           />
         ) : (
           !tasks.loading &&
@@ -664,6 +644,7 @@ export function TasksPage() {
             />
           )
         )}{" "}
+        {operations.recovery}
         {operationDialog}
       </>
     );
@@ -708,13 +689,93 @@ export function TasksPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button onClick={tasks.reload}>刷新</Button>
+        <label className="task-filter-field">
+          平台
+          <select
+            aria-label="筛选任务平台"
+            value={platformFilter}
+            onChange={(e) => setPlatformFilter(e.target.value)}
+          >
+            <option value="">全部平台</option>
+            {PLATFORMS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="task-filter-field">
+          最近更新
+          <input
+            aria-label="任务更新开始日期"
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+        </label>
+        <label className="task-filter-field">
+          至
+          <input
+            aria-label="任务更新结束日期"
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
+        </label>
+        <Button loading={tasks.loading} onClick={tasks.reload}>
+          刷新
+        </Button>
+        {(platformFilter || from || to) && (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setPlatformFilter("");
+              setFrom("");
+              setTo("");
+            }}
+          >
+            清除筛选
+          </Button>
+        )}
         {!monitor && (
           <Button variant="ghost" onClick={() => navigate("/candidates")}>
             查看原始线索 <ArrowRight />
           </Button>
         )}
       </div>
+      {invalidDates && <Notice tone="error">开始日期不能晚于结束日期。</Notice>}
+      <PendingTaskStarts
+        mode={mode}
+        onAccepted={acceptRun}
+        onSettled={(status, original) => {
+          if (status === "ACCEPTED")
+            setLibrary((old) =>
+              old.filter((draft) => draft.id !== original.draftId),
+            );
+          else {
+            setLibrary((old) =>
+              old.map((draft) =>
+                draft.id === original.draftId
+                  ? {
+                      ...draft,
+                      revision: Math.max(draft.revision, original.revision) + 1,
+                    }
+                  : draft,
+              ),
+            );
+            setDraft((old) =>
+              old.id === original.draftId
+                ? {
+                    ...old,
+                    revision: Math.max(old.revision, original.revision) + 1,
+                    savedAt: null,
+                  }
+                : old,
+            );
+          }
+        }}
+      />
+      {operations.recovery}
       {tab !== "draft" && (
         <ResourceStatus
           loading={tasks.loading}
@@ -723,12 +784,12 @@ export function TasksPage() {
         />
       )}
       <div className="task-list">
-        {runs.map((run) => (
+        {shownRuns.map((run) => (
           <article className="task-list-row" key={run.id}>
             <div>
               <h3>{run.name}</h3>
               <p>
-                {run.platforms.map(platformName).join("、")} ·{" "}
+                <TaskPlatforms platforms={run.platforms} /> ·{" "}
                 {formatDate(run.updatedAt || "")}
               </p>
             </div>
@@ -749,51 +810,72 @@ export function TasksPage() {
               <RunActions
                 run={run}
                 onAction={requestAction}
-                disabled={tasks.loading || !!tasks.error || action.busy}
+                disabled={
+                  tasks.loading ||
+                  !!tasks.error ||
+                  operations.busy ||
+                  operations.blockedTaskIds.has(run.id)
+                }
               />
             </div>
           </article>
         ))}
-        {drafts.map((draft) => (
-          <article className="task-list-row" key={draft.id}>
-            <div>
-              <h3>{draft.name || "未命名任务"}</h3>
-              <p>
-                {draft.platforms.map(platformName).join("、") || "尚未选择平台"}{" "}
-                · {formatDate(draft.savedAt || "")}
-              </p>
-            </div>
-            <Badge>本机草稿 · 未启动</Badge>
-            <div className="inline-actions">
-              <Button variant="ghost" onClick={() => edit(draft)}>
-                继续编辑
-              </Button>
-              <Button variant="ghost" onClick={() => setDeleting(draft)}>
-                删除
-              </Button>
-            </div>
-          </article>
+        {shownDrafts.map((draft) => (
+          <TaskDraftRow
+            key={draft.id}
+            draft={draft}
+            pending={[draft.id, ...(draft.templateSourceDraftIds || [])].some(
+              (id) => !!unknownStarts[id],
+            )}
+            onEdit={() => edit(draft)}
+            onDelete={() => setDeleting(draft)}
+            onConfirm={() => edit(draft, true)}
+            onTemplate={
+              !monitor ? () => templates.saveTemplate(draft) : undefined
+            }
+          />
         ))}
       </div>
+      <TaskPagination
+        page={pagination.page}
+        pages={pagination.pages}
+        total={allItems.length}
+        pageSize={pageSize}
+        onPage={setPage}
+        onPageSize={(size) => {
+          setPageSize(size);
+          setPage(1);
+        }}
+      />
       {((!tasks.loading && !tasks.error) || tab === "draft") &&
         !runs.length &&
         !drafts.length && (
           <Empty
             title={
-              search
+              search || platformFilter || from || to
                 ? "没有匹配任务"
                 : monitor
                   ? "还没有监控任务"
                   : "还没有采集任务"
             }
             description={
-              search
+              search || platformFilter || from || to
                 ? "试试其他关键词，或清除筛选条件。"
                 : "创建任务，确认画像、范围与执行条件。"
             }
             action={
               search ? (
                 <Button onClick={() => setSearch("")}>清除搜索</Button>
+              ) : platformFilter || from || to ? (
+                <Button
+                  onClick={() => {
+                    setPlatformFilter("");
+                    setFrom("");
+                    setTo("");
+                  }}
+                >
+                  重置筛选
+                </Button>
               ) : (
                 <Button variant="primary" onClick={create}>
                   {monitor ? "创建监控任务" : "创建第一个任务"}
@@ -802,6 +884,8 @@ export function TasksPage() {
             }
           />
         )}
+      {!monitor && templates.section}
+      {templates.dialog}
       {monitor && (
         <section className="sample-section">
           <div className="section-heading">
@@ -811,8 +895,7 @@ export function TasksPage() {
           <div className="platform-choices">
             {PLATFORMS.map((p) => (
               <span className="platform-label" key={p.id}>
-                <Globe size={20} />
-                {p.name}
+                <PlatformLabel platform={p.id} size={20} />
               </span>
             ))}
           </div>
@@ -824,8 +907,10 @@ export function TasksPage() {
           title="删除本机任务草稿？"
           danger
           confirmText="删除草稿"
+          confirmDisabled={draftHasPending(deleting)}
           onCancel={() => setDeleting(null)}
           onConfirm={() => {
+            if (draftHasPending(deleting)) return;
             setLibrary((old) => old.filter((t) => t.id !== deleting.id));
             setDeleting(null);
             notify("本机草稿已删除。");

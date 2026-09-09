@@ -1,0 +1,154 @@
+[
+  {
+    "page": "P06",
+    "size": [
+      1280,
+      720
+    ],
+    "viewport": {
+      "clientHeight": 720,
+      "clientWidth": 1280,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1064,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P08",
+    "size": [
+      1280,
+      720
+    ],
+    "viewport": {
+      "clientHeight": 720,
+      "clientWidth": 1280,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 720,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P16",
+    "size": [
+      1280,
+      720
+    ],
+    "viewport": {
+      "clientHeight": 720,
+      "clientWidth": 1280,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 829,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P19",
+    "size": [
+      1280,
+      720
+    ],
+    "viewport": {
+      "clientHeight": 720,
+      "clientWidth": 1280,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1041,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P06",
+    "size": [
+      960,
+      600
+    ],
+    "viewport": {
+      "clientHeight": 600,
+      "clientWidth": 960,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1413,
+      "width": 960,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P08",
+    "size": [
+      960,
+      600
+    ],
+    "viewport": {
+      "clientHeight": 600,
+      "clientWidth": 960,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 655,
+      "width": 960,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P16",
+    "size": [
+      960,
+      600
+    ],
+    "viewport": {
+      "clientHeight": 600,
+      "clientWidth": 960,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 829,
+      "width": 960,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P19",
+    "size": [
+      960,
+      600
+    ],
+    "viewport": {
+      "clientHeight": 600,
+      "clientWidth": 960,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1173,
+      "width": 960,
+      "x": 0,
+      "y": 0
+    }
+  }
+]

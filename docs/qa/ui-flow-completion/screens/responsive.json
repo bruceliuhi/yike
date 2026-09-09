@@ -1,0 +1,1064 @@
+[
+  {
+    "page": "P04",
+    "target": [
+      1280,
+      720
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P04&state=empty&reference=r3",
+    "viewport": {
+      "clientHeight": 720,
+      "clientWidth": 1280,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 720,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "取消",
+        "width": 57.60000228881836,
+        "x": 1102.800048828125,
+        "y": 668
+      },
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 1170.4000244140625,
+        "y": 668
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P04-1280x720-raw.png"
+  },
+  {
+    "page": "P12",
+    "target": [
+      1280,
+      720
+    ],
+    "url": "http://127.0.0.1:18794/?state=empty#/outreach?opportunity=sample",
+    "viewport": {
+      "clientHeight": 720,
+      "clientWidth": 1280,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1702,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P12-1280x720-raw.png"
+  },
+  {
+    "page": "P15",
+    "target": [
+      1280,
+      720
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P15&state=empty&reference=r3",
+    "viewport": {
+      "clientHeight": 720,
+      "clientWidth": 1280,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 720,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "取消",
+        "width": 57.60000228881836,
+        "x": 1102.800048828125,
+        "y": 668
+      },
+      {
+        "height": 36,
+        "text": "保存记录",
+        "width": 85.5999984741211,
+        "x": 1170.4000244140625,
+        "y": 668
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P15-1280x720-raw.png"
+  },
+  {
+    "page": "P19",
+    "target": [
+      1280,
+      720
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P19&state=populated&reference=r3",
+    "viewport": {
+      "clientHeight": 720,
+      "clientWidth": 1280,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1140,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "返回修改",
+        "width": 85.5999984741211,
+        "x": 961.2000122070312,
+        "y": 668
+      },
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 1058.800048828125,
+        "y": 668
+      },
+      {
+        "height": 36,
+        "text": "确认并启动",
+        "width": 99.5999984741211,
+        "x": 1156.4000244140625,
+        "y": 668
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P19-1280x720-raw.png"
+  },
+  {
+    "page": "P20",
+    "target": [
+      1280,
+      720
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P20&state=populated&reference=r3",
+    "viewport": {
+      "clientHeight": 720,
+      "clientWidth": 1280,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1111,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 1016.7999877929688,
+        "y": 620.7999877929688
+      },
+      {
+        "height": 36,
+        "text": "下一步：连接平台",
+        "width": 141.60000610351562,
+        "x": 1114.4000244140625,
+        "y": 620.7999877929688
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P20-1280x720-raw.png"
+  },
+  {
+    "page": "P04",
+    "target": [
+      1366,
+      768
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P04&state=empty&reference=r3",
+    "viewport": {
+      "clientHeight": 768,
+      "clientWidth": 1366,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 768,
+      "width": 1366,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "取消",
+        "width": 57.60000228881836,
+        "x": 1189.2000732421875,
+        "y": 716
+      },
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 1256.800048828125,
+        "y": 716
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P04-1366x768-raw.png"
+  },
+  {
+    "page": "P12",
+    "target": [
+      1366,
+      768
+    ],
+    "url": "http://127.0.0.1:18794/?state=empty#/outreach?opportunity=sample",
+    "viewport": {
+      "clientHeight": 768,
+      "clientWidth": 1366,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 990,
+      "width": 1366,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P12-1366x768-raw.png"
+  },
+  {
+    "page": "P15",
+    "target": [
+      1366,
+      768
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P15&state=empty&reference=r3",
+    "viewport": {
+      "clientHeight": 768,
+      "clientWidth": 1366,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 768,
+      "width": 1366,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "取消",
+        "width": 57.60000228881836,
+        "x": 1189.2000732421875,
+        "y": 716
+      },
+      {
+        "height": 36,
+        "text": "保存记录",
+        "width": 85.5999984741211,
+        "x": 1256.800048828125,
+        "y": 716
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P15-1366x768-raw.png"
+  },
+  {
+    "page": "P19",
+    "target": [
+      1366,
+      768
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P19&state=populated&reference=r3",
+    "viewport": {
+      "clientHeight": 768,
+      "clientWidth": 1366,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1148,
+      "width": 1366,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "返回修改",
+        "width": 85.5999984741211,
+        "x": 1043.5999755859375,
+        "y": 716
+      },
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 1141.2000732421875,
+        "y": 716
+      },
+      {
+        "height": 36,
+        "text": "确认并启动",
+        "width": 99.5999984741211,
+        "x": 1238.800048828125,
+        "y": 716
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P19-1366x768-raw.png"
+  },
+  {
+    "page": "P20",
+    "target": [
+      1366,
+      768
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P20&state=populated&reference=r3",
+    "viewport": {
+      "clientHeight": 768,
+      "clientWidth": 1366,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1119,
+      "width": 1366,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 1099.1875,
+        "y": 672.7999877929688
+      },
+      {
+        "height": 36,
+        "text": "下一步：连接平台",
+        "width": 141.60000610351562,
+        "x": 1196.7874755859375,
+        "y": 672.7999877929688
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P20-1366x768-raw.png"
+  },
+  {
+    "page": "P04",
+    "target": [
+      1440,
+      1024
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P04&state=empty&reference=r3",
+    "viewport": {
+      "clientHeight": 1024,
+      "clientWidth": 1440,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1024,
+      "width": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "取消",
+        "width": 57.60000228881836,
+        "x": 1262.800048828125,
+        "y": 972
+      },
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 1330.4000244140625,
+        "y": 972
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P04-1440x1024-raw.png"
+  },
+  {
+    "page": "P12",
+    "target": [
+      1440,
+      1024
+    ],
+    "url": "http://127.0.0.1:18794/?state=empty#/outreach?opportunity=sample",
+    "viewport": {
+      "clientHeight": 1024,
+      "clientWidth": 1440,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1024,
+      "width": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P12-1440x1024-raw.png"
+  },
+  {
+    "page": "P15",
+    "target": [
+      1440,
+      1024
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P15&state=empty&reference=r3",
+    "viewport": {
+      "clientHeight": 1024,
+      "clientWidth": 1440,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1024,
+      "width": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "取消",
+        "width": 57.60000228881836,
+        "x": 1262.800048828125,
+        "y": 972
+      },
+      {
+        "height": 36,
+        "text": "保存记录",
+        "width": 85.5999984741211,
+        "x": 1330.4000244140625,
+        "y": 972
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P15-1440x1024-raw.png"
+  },
+  {
+    "page": "P19",
+    "target": [
+      1440,
+      1024
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P19&state=populated&reference=r3",
+    "viewport": {
+      "clientHeight": 1024,
+      "clientWidth": 1440,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1148,
+      "width": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "返回修改",
+        "width": 85.5999984741211,
+        "x": 1117.2000732421875,
+        "y": 972
+      },
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 1214.800048828125,
+        "y": 972
+      },
+      {
+        "height": 36,
+        "text": "确认并启动",
+        "width": 99.5999984741211,
+        "x": 1312.4000244140625,
+        "y": 972
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P19-1440x1024-raw.png"
+  },
+  {
+    "page": "P20",
+    "target": [
+      1440,
+      1024
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P20&state=populated&reference=r3",
+    "viewport": {
+      "clientHeight": 1024,
+      "clientWidth": 1440,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1119,
+      "width": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 1172.7874755859375,
+        "y": 928.7999877929688
+      },
+      {
+        "height": 36,
+        "text": "下一步：连接平台",
+        "width": 141.60000610351562,
+        "x": 1270.3875732421875,
+        "y": 928.7999877929688
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P20-1440x1024-raw.png"
+  },
+  {
+    "page": "P04",
+    "target": [
+      1920,
+      1080
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P04&state=empty&reference=r3",
+    "viewport": {
+      "clientHeight": 1080,
+      "clientWidth": 1920,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1080,
+      "width": 1920,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "取消",
+        "width": 57.60000228881836,
+        "x": 1742.800048828125,
+        "y": 1028
+      },
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 1810.4000244140625,
+        "y": 1028
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P04-1920x1080-raw.png"
+  },
+  {
+    "page": "P12",
+    "target": [
+      1920,
+      1080
+    ],
+    "url": "http://127.0.0.1:18794/?state=empty#/outreach?opportunity=sample",
+    "viewport": {
+      "clientHeight": 1080,
+      "clientWidth": 1920,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1080,
+      "width": 1920,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P12-1920x1080-raw.png"
+  },
+  {
+    "page": "P15",
+    "target": [
+      1920,
+      1080
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P15&state=empty&reference=r3",
+    "viewport": {
+      "clientHeight": 1080,
+      "clientWidth": 1920,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1080,
+      "width": 1920,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "取消",
+        "width": 57.60000228881836,
+        "x": 1742.800048828125,
+        "y": 1028
+      },
+      {
+        "height": 36,
+        "text": "保存记录",
+        "width": 85.5999984741211,
+        "x": 1810.4000244140625,
+        "y": 1028
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P15-1920x1080-raw.png"
+  },
+  {
+    "page": "P19",
+    "target": [
+      1920,
+      1080
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P19&state=populated&reference=r3",
+    "viewport": {
+      "clientHeight": 1080,
+      "clientWidth": 1920,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1153,
+      "width": 1920,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "返回修改",
+        "width": 85.5999984741211,
+        "x": 1585.2000732421875,
+        "y": 1028
+      },
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 1682.800048828125,
+        "y": 1028
+      },
+      {
+        "height": 36,
+        "text": "确认并启动",
+        "width": 99.5999984741211,
+        "x": 1780.4000244140625,
+        "y": 1028
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P19-1920x1080-raw.png"
+  },
+  {
+    "page": "P20",
+    "target": [
+      1920,
+      1080
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P20&state=populated&reference=r3",
+    "viewport": {
+      "clientHeight": 1080,
+      "clientWidth": 1920,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1100,
+      "width": 1920,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 1640.7874755859375,
+        "y": 992.7999877929688
+      },
+      {
+        "height": 36,
+        "text": "下一步：连接平台",
+        "width": 141.60000610351562,
+        "x": 1738.3875732421875,
+        "y": 992.7999877929688
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P20-1920x1080-raw.png"
+  },
+  {
+    "page": "P04",
+    "target": [
+      2560,
+      1440
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P04&state=empty&reference=r3",
+    "viewport": {
+      "clientHeight": 1440,
+      "clientWidth": 2560,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1440,
+      "width": 2560,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "取消",
+        "width": 57.60000228881836,
+        "x": 2382.800048828125,
+        "y": 1388
+      },
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 2450.400146484375,
+        "y": 1388
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P04-2560x1440-raw.png"
+  },
+  {
+    "page": "P12",
+    "target": [
+      2560,
+      1440
+    ],
+    "url": "http://127.0.0.1:18794/?state=empty#/outreach?opportunity=sample",
+    "viewport": {
+      "clientHeight": 1440,
+      "clientWidth": 2560,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1440,
+      "width": 2560,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P12-2560x1440-raw.png"
+  },
+  {
+    "page": "P15",
+    "target": [
+      2560,
+      1440
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P15&state=empty&reference=r3",
+    "viewport": {
+      "clientHeight": 1440,
+      "clientWidth": 2560,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1440,
+      "width": 2560,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "取消",
+        "width": 57.60000228881836,
+        "x": 2382.800048828125,
+        "y": 1388
+      },
+      {
+        "height": 36,
+        "text": "保存记录",
+        "width": 85.5999984741211,
+        "x": 2450.400146484375,
+        "y": 1388
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P15-2560x1440-raw.png"
+  },
+  {
+    "page": "P19",
+    "target": [
+      2560,
+      1440
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P19&state=populated&reference=r3",
+    "viewport": {
+      "clientHeight": 1440,
+      "clientWidth": 2560,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1440,
+      "width": 2560,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "返回修改",
+        "width": 85.5999984741211,
+        "x": 1969.2000732421875,
+        "y": 1050.7000732421875
+      },
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 2066.800048828125,
+        "y": 1050.7000732421875
+      },
+      {
+        "height": 36,
+        "text": "确认并启动",
+        "width": 99.5999984741211,
+        "x": 2164.400146484375,
+        "y": 1050.7000732421875
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P19-2560x1440-raw.png"
+  },
+  {
+    "page": "P20",
+    "target": [
+      2560,
+      1440
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P20&state=populated&reference=r3",
+    "viewport": {
+      "clientHeight": 1440,
+      "clientWidth": 2560,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1449,
+      "width": 2560,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 2024.7874755859375,
+        "y": 1352.800048828125
+      },
+      {
+        "height": 36,
+        "text": "下一步：连接平台",
+        "width": 141.60000610351562,
+        "x": 2122.387451171875,
+        "y": 1352.800048828125
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P20-2560x1440-raw.png"
+  },
+  {
+    "page": "P04",
+    "target": [
+      960,
+      600
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P04&state=empty&reference=r3",
+    "viewport": {
+      "clientHeight": 600,
+      "clientWidth": 960,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 620,
+      "width": 960,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "取消",
+        "width": 57.60000228881836,
+        "x": 782.7999877929688,
+        "y": 548
+      },
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 850.4000244140625,
+        "y": 548
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P04-960x600-raw.png"
+  },
+  {
+    "page": "P12",
+    "target": [
+      960,
+      600
+    ],
+    "url": "http://127.0.0.1:18794/?state=empty#/outreach?opportunity=sample",
+    "viewport": {
+      "clientHeight": 600,
+      "clientWidth": 960,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1702,
+      "width": 960,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P12-960x600-raw.png"
+  },
+  {
+    "page": "P15",
+    "target": [
+      960,
+      600
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P15&state=empty&reference=r3",
+    "viewport": {
+      "clientHeight": 600,
+      "clientWidth": 960,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1097,
+      "width": 960,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "取消",
+        "width": 57.60000228881836,
+        "x": 782.7999877929688,
+        "y": 548
+      },
+      {
+        "height": 36,
+        "text": "保存记录",
+        "width": 85.5999984741211,
+        "x": 850.4000244140625,
+        "y": 548
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P15-960x600-raw.png"
+  },
+  {
+    "page": "P19",
+    "target": [
+      960,
+      600
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P19&state=populated&reference=r3",
+    "viewport": {
+      "clientHeight": 600,
+      "clientWidth": 960,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1296,
+      "width": 960,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "返回修改",
+        "width": 85.5999984741211,
+        "x": 641.2000122070312,
+        "y": 548
+      },
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 738.7999877929688,
+        "y": 548
+      },
+      {
+        "height": 36,
+        "text": "确认并启动",
+        "width": 99.5999984741211,
+        "x": 836.4000244140625,
+        "y": 548
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P19-960x600-raw.png"
+  },
+  {
+    "page": "P20",
+    "target": [
+      960,
+      600
+    ],
+    "url": "http://127.0.0.1:18794/?scenario=P20&state=populated&reference=r3",
+    "viewport": {
+      "clientHeight": 600,
+      "clientWidth": 960,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1501,
+      "width": 960,
+      "x": 0,
+      "y": 0
+    },
+    "controls": [
+      {
+        "height": 36,
+        "text": "保存草稿",
+        "width": 85.5999984741211,
+        "x": 696.7999877929688,
+        "y": 1416.4000244140625
+      },
+      {
+        "height": 36,
+        "text": "下一步：连接平台",
+        "width": 141.60000610351562,
+        "x": 794.4000244140625,
+        "y": 1416.4000244140625
+      }
+    ],
+    "screenshot": "/Users/bruce/Developer/work/yike-ai-product-design/docs/qa/ui-flow-completion/screens/P20-960x600-raw.png"
+  }
+]

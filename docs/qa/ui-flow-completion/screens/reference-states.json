@@ -1,0 +1,206 @@
+[
+  {
+    "page": "P01",
+    "url": "http://127.0.0.1:18794/?scenario=P01&state=empty",
+    "ax": "Browser tab: 8, Title: \"登录 · 意客AI\", URL: \"http://127.0.0.1:18794/?scenario=P01&state=empty#/login\".\n1 AXWebArea 登录 · 意客AI, URL: 127.0.0.1:18794/?scenario=P01&state=empty#/login\n\t2 container root\n\t\t3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入\n\t\t4 button (collapsed) TEST 场景, Secondary Actions: Expand\n\t\t\t5 text TEST 场景\n\t\t6 container\n\t\t\t7 container 意客 AI\n\t\t\t\t8 text 意客AI\n\t\t\t\t9 heading 找到值得联系的新需求, Value: 1\n\t\t\t\t\t10 text 找到值得联系的新需求\n\t\t\t\t11 text 找需求 · 看证据 · 跟进联系\n\t\t\t12 container 欢迎使用意客AI\n\t\t\t\t13 heading 欢迎使用意客AI, Value: 2, ID: login-title\n\t\t\t\t\t14 text 欢迎使用意客AI\n\t\t\t\t15 text 登录后开启商机发现与跟进工作\n\t\t\t\t16 container\n\t\t\t\t\t17 container 手机号码 *\n\t\t\t\t\t\t18 container\n\t\t\t\t\t\t\t19 text 手机号码  *\n\t\t\t\t\t\t20 text field (settable) 手机号码\n\t\t\t\t\t21 container 短信验证码 *\n\t\t\t\t\t\t22 container\n\t\t\t\t\t\t\t23 text 短信验证码  *\n\t\t\t\t\t\t24 text field (settable) 短信验证码\n\t\t\t\t\t\t25 button 获取验证码\n\t\t\t\t\t26 button 登录\n\t\t\t\t\t27 button (collapsed) 首次使用，输入试用码开通, Secondary Actions: Expand\n\t\t\t\t\t\t28 image\n\t\t\t\t\t\t29 text 首次使用，输入试用码开通\n\t\t\t\t30 button (collapsed) 使用已有访问凭证, Secondary Actions: Expand\n\t\t\t\t\t31 text 使用已有访问凭证\n\t\t\t\t\t32 image\n\t\t\t\t33 container\n\t\t\t\t\t34 button 用户协议\n\t\t\t\t\t35 button 隐私政策\n\t\t\t\t\t36 button 联系支持\n\nThe focused UI element is 1 AXWebArea 登录 · 意客AI, URL: 127.0.0.1:18794/?scenario=P01&state=empty#/login",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P02",
+    "url": "http://127.0.0.1:18794/?scenario=P02&state=empty",
+    "ax": "Browser tab: 8, Title: \"商机工作台 · 意客AI\", URL: \"http://127.0.0.1:18794/?scenario=P02&state=empty#/workbench\".\n1 AXWebArea 商机工作台 · 意客AI, URL: 127.0.0.1:18794/?scenario=P02&state=empty#/workbench\n\t2 container root\n\t\t3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入\n\t\t4 button (collapsed) TEST 场景, Secondary Actions: Expand\n\t\t\t5 text TEST 场景\n\t\t6 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?scenario=P02&state=empty#main-content\n\t\t7 container\n\t\t\t8 button 意客AI商机工作台\n\t\t\t\t9 text 意客AI\n\t\t\t\t10 text 商机工作空间\n\t\t\t11 container 主导航\n\t\t\t\t12 button 商机工作台\n\t\t\t\t\t13 image\n\t\t\t\t\t14 text 商机工作台\n\t\t\t\t15 text 发现商机\n\t\t\t\t16 button 业务画像\n\t\t\t\t\t17 image\n\t\t\t\t\t18 text 业务画像\n\t\t\t\t19 button 线索采集\n\t\t\t\t\t20 image\n\t\t\t\t\t21 text 线索采集\n\t\t\t\t22 button 监控任务\n\t\t\t\t\t23 image\n\t\t\t\t\t24 text 监控任务\n\t\t\t\t25 text 推进商机\n\t\t\t\t26 button 商机库\n\t\t\t\t\t27 image\n\t\t\t\t\t28 text 商机库\n\t\t\t\t29 button 触达中心\n\t\t\t\t\t30 image\n\t\t\t\t\t31 text 触达中心\n\t\t\t\t32 button 跟进记录\n\t\t\t\t\t33 image\n\t\t\t\t\t34 text 跟进记录\n\t\t\t35 button 账号与授权\n\t\t\t\t36 image\n\t\t\t\t37 text 账号与授权\n\t\t\t38 button 客户工作空间\n\t\t\t\t39 image\n\t\t\t\t40 text 客户工作空间\n\t\t41 container\n\t\t\t42 button 收起导航\n\t\t\t\t43 image\n\t\t\t44 text 商机工作台 V0.2\n\t\t45 container main-content\n\t\t\t46 container\n\t\t\t\t47 heading 商机工作台, Value: 1\n\t\t\t\t\t48 text 商机工作台\n\t\t\t\t49 text 今天从一个获客任务开始。\n\t\t\t\t50 button 创建获客任务\n\t\t\t51 button 1 完善业务画像 未完成\n\t\t\t\t52 text 1\n\t\t\t\t53 text 完善业务画像\n\t\t\t\t54 text 未完成\n\t\t\t\t55 image\n\t\t\t56 button 2 连接目标平台 待连接\n\t\t\t\t57 text 2\n\t\t\t\t58 text 连接目标平台\n\t\t\t\t59 text 待连接\n\t\t\t\t60 image\n\t\t\t61 button 3 创建获客任务 未开始\n\t\t\t\t62 text 3\n\t\t\t\t63 text 创建获客任务\n\t\t\t\t64 text 未开始\n\t\t\t65 container\n\t\t\t\t66 heading 今日待办, Value: 2\n\t\t\t\t\t67 text 今日待办\n\t\t\t\t68 tab group\n\t\t\t\t\t69 tab (selected, settable, boolean) 待复核, Value: 1\n\t\t\t\t\t70 tab (selectable, settable, boolean) 待联系, Value: 0\n\t\t\t\t\t71 tab (selectable, settable, boolean) 待回复, Value: 0\n\t\t\t\t\t72 tab (selectable, settable, boolean) 待跟进, Value: 0\n\t\t\t\t73 heading 还没有待处理商机, Value: 3\n\t\t\t\t\t74 text 还没有待处理商机\n\t\t\t\t75 text 创建任务后，新增需求会出现在这里。\n\t\t\t76 container\n\t\t\t\t77 heading 使用路径, Value: 2\n\t\t\t\t\t78 text 使用路径\n\t\t\t\t79 content list\n\t\t\t\t\t80 container\n\t\t\t\t\t\t81 text 1 确认业务画像\n\t\t\t\t\t82 container\n\t\t\t\t\t\t83 text 2 发现需求\n\t\t\t\t\t84 container\n\t\t\t\t\t\t85 text 3 核对证据\n\t\t\t\t\t86 container\n\t\t\t\t\t\t87 text 4 确认联系\n\t\t\t\t\t88 container\n\t\t\t\t\t\t89 text 5 记录跟进\n\t\t\t90 container\n\t\t\t\t91 heading 公开研究样例, Value: 2\n\t\t\t\t\t92 text 公开研究样例\n\t\t\t\t93 text 样例仅供预览，不计入客户商机。\n\t\t\t\t94 button 180㎡高交会展区设计搭建预算询价 湖南省商务厅对外贸易发展处 · 2026-09-08 16:54 · 深圳国际会展中心 待人工复核 查看样例\n\t\t\t\t\t95 text 180㎡高交会展区设计搭建预算询价\n\t\t\t\t\t96 text 湖南省商务厅对外贸易发展处 · 2026-09-08 16:54 · 深圳国际会展中心\n\t\t\t\t\t97 text 待人工复核\n\t\t\t\t\t98 text 查看样例\n\t\t\t\t\t99 image\n\nThe focused UI element is 1 AXWebArea 商机工作台 · 意客AI, URL: 127.0.0.1:18794/?scenario=P02&state=empty#/workbench",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P07",
+    "url": "http://127.0.0.1:18794/?state=empty#/candidates?sample=1",
+    "ax": "Browser tab: 8, Title: \"线索采集 / 原始线索 · 意客AI\", URL: \"http://127.0.0.1:18794/?state=empty#/candidates?sample=1\".\n1 AXWebArea 线索采集 / 原始线索 · 意客AI, URL: 127.0.0.1:18794/?state=empty#/candidates?sample=1\n\t2 container root\n\t\t3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入\n\t\t4 button (collapsed) TEST 场景, Secondary Actions: Expand\n\t\t\t5 text TEST 场景\n\t\t6 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?state=empty#main-content\n\t\t7 container\n\t\t\t8 button 意客AI商机工作台\n\t\t\t\t9 text 意客AI\n\t\t\t\t10 text 商机工作空间\n\t\t\t11 container 主导航\n\t\t\t\t12 button 商机工作台\n\t\t\t\t\t13 image\n\t\t\t\t\t14 text 商机工作台\n\t\t\t\t15 text 发现商机\n\t\t\t\t16 button 业务画像\n\t\t\t\t\t17 image\n\t\t\t\t\t18 text 业务画像\n\t\t\t\t19 button 线索采集\n\t\t\t\t\t20 image\n\t\t\t\t\t21 text 线索采集\n\t\t\t\t22 button 监控任务\n\t\t\t\t\t23 image\n\t\t\t\t\t24 text 监控任务\n\t\t\t\t25 text 推进商机\n\t\t\t\t26 button 商机库\n\t\t\t\t\t27 image\n\t\t\t\t\t28 text 商机库\n\t\t\t\t29 button 触达中心\n\t\t\t\t\t30 image\n\t\t\t\t\t31 text 触达中心\n\t\t\t\t32 button 跟进记录\n\t\t\t\t\t33 image\n\t\t\t\t\t34 text 跟进记录\n\t\t\t35 button 账号与授权\n\t\t\t\t36 image\n\t\t\t\t37 text 账号与授权\n\t\t\t38 button 客户工作空间\n\t\t\t\t39 image\n\t\t\t\t40 text 客户工作空间\n\t\t41 container\n\t\t\t42 button 收起导航\n\t\t\t\t43 image\n\t\t\t44 button 返回上级\n\t\t\t\t45 image\n\t\t\t46 text 线索采集 / 原始线索 V0.2\n\t\t47 container main-content\n\t\t\t48 container\n\t\t\t\t49 button 返回\n\t\t\t\t\t50 image\n\t\t\t\t\t51 text 返回\n\t\t\t\t52 heading 原始线索, Value: 1\n\t\t\t\t\t53 text 原始线索\n\t\t\t\t54 text 先核对原文与画像，再确认是否进入客户商机库。\n\t\t\t55 tab group\n\t\t\t\t56 tab (selected, settable, boolean) 待复核线索, Value: 1\n\t\t\t\t57 tab (selectable, settable, boolean) 公开研究样例, Value: 0\n\t\t\t58 container 来源\n\t\t\t\t59 text 来源\n\t\t\t\t60 pop up button (collapsed, settable) Description: 候选来源筛选, Value: 全部, Secondary Actions: Expand\n\t\t\t\t\t61 menu\n\t\t\t\t\t\t62 (selected) 全部\n\t\t\t\t\t\t63 小红书\n\t\t\t\t\t\t64 抖音\n\t\t\t\t\t\t65 B站\n\t\t\t\t\t\t66 知乎\n\t\t\t\t\t\t67 公开网站\n\t\t\t68 container 复核状态\n\t\t\t\t69 text 复核状态\n\t\t\t\t70 pop up button (collapsed, settable) Description: 候选复核状态筛选, Value: 待复核, Secondary Actions: Expand\n\t\t\t\t\t71 menu\n\t\t\t\t\t\t72 全部\n\t\t\t\t\t\t73 (selected) 待复核\n\t\t\t\t\t\t74 已入库\n\t\t\t\t\t\t75 已排除\n\t\t\t\t\t\t76 重复候选\n\t\t\t77 image\n\t\t\t78 text field (settable) 搜索原始线索\n\t\t\t79 container 原始线索列表\n\t\t\t\t80 text 共  0  条 线索\n\t\t\t\t81 button (disabled) 批量确认入库（0）\n\t\t\t\t\t82 text 批量确认入库（ 0 ）\n\t\t\t\t83 container\n\t\t\t\t\t84 checkbox (disabled, settable, integer) Description: 选择本页待复核候选, Value: 0\n\t\t\t\t\t85 text 选择本页待复核候选\n\t\t\t\t86 heading 暂无待复核线索, Value: 3\n\t\t\t\t\t87 text 暂无待复核线索\n\t\t\t\t88 text 完成真实采集后，在这里核对原文与画像。\n\t\t\t\t89 text 共  0  条\n\t\t\t\t90 button (disabled) 上一页\n\t\t\t\t91 text 1  /  1\n\t\t\t\t92 button (disabled) 下一页\n\t\t\t93 container 候选证据与人工复核\n\t\t\t\t94 heading 选择线索查看证据, Value: 3\n\t\t\t\t\t95 text 选择线索查看证据\n\nThe focused UI element is 1 AXWebArea 线索采集 / 原始线索 · 意客AI, URL: 127.0.0.1:18794/?state=empty#/candidates?sample=1",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P10",
+    "url": "http://127.0.0.1:18794/?state=empty#/opportunities?tab=sample",
+    "ax": "Browser tab: 8, Title: \"商机库 · 意客AI\", URL: \"http://127.0.0.1:18794/?state=empty#/opportunities?tab=sample\".\n1 AXWebArea 商机库 · 意客AI, URL: 127.0.0.1:18794/?state=empty#/opportunities?tab=sample\n\t2 container root\n\t\t3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入\n\t\t4 button (collapsed) TEST 场景, Secondary Actions: Expand\n\t\t\t5 text TEST 场景\n\t\t6 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?state=empty#main-content\n\t\t7 container\n\t\t\t8 button 意客AI商机工作台\n\t\t\t\t9 text 意客AI\n\t\t\t\t10 text 商机工作空间\n\t\t\t11 container 主导航\n\t\t\t\t12 button 商机工作台\n\t\t\t\t\t13 image\n\t\t\t\t\t14 text 商机工作台\n\t\t\t\t15 text 发现商机\n\t\t\t\t16 button 业务画像\n\t\t\t\t\t17 image\n\t\t\t\t\t18 text 业务画像\n\t\t\t\t19 button 线索采集\n\t\t\t\t\t20 image\n\t\t\t\t\t21 text 线索采集\n\t\t\t\t22 button 监控任务\n\t\t\t\t\t23 image\n\t\t\t\t\t24 text 监控任务\n\t\t\t\t25 text 推进商机\n\t\t\t\t26 button 商机库\n\t\t\t\t\t27 image\n\t\t\t\t\t28 text 商机库\n\t\t\t\t29 button 触达中心\n\t\t\t\t\t30 image\n\t\t\t\t\t31 text 触达中心\n\t\t\t\t32 button 跟进记录\n\t\t\t\t\t33 image\n\t\t\t\t\t34 text 跟进记录\n\t\t\t35 button 账号与授权\n\t\t\t\t36 image\n\t\t\t\t37 text 账号与授权\n\t\t\t38 button 客户工作空间\n\t\t\t\t39 image\n\t\t\t\t40 text 客户工作空间\n\t\t41 container\n\t\t\t42 button 收起导航\n\t\t\t\t43 image\n\t\t\t44 button 返回上级\n\t\t\t\t45 image\n\t\t\t46 text 商机库 V0.2\n\t\t47 container main-content\n\t\t\t48 container\n\t\t\t\t49 heading 商机库, Value: 1\n\t\t\t\t\t50 text 商机库\n\t\t\t\t51 text 汇集多渠道的商机信息，支持筛选、查看和跟进。\n\t\t\t52 image\n\t\t\t53 text field (settable) 搜索商机\n\t\t\t54 container 平台\n\t\t\t\t55 text 平台\n\t\t\t\t56 pop up button (collapsed, settable) Description: 筛选平台, Value: 全部, Secondary Actions: Expand\n\t\t\t\t\t57 menu\n\t\t\t\t\t\t58 (selected) 全部\n\t\t\t59 container 状态\n\t\t\t\t60 text 状态\n\t\t\t\t61 pop up button (collapsed, settable) Description: 筛选状态, Value: 全部, Secondary Actions: Expand\n\t\t\t\t\t62 menu\n\t\t\t\t\t\t63 (selected) 全部\n\t\t\t64 pop up button (collapsed, settable) Description: 排序方式, Value: 最近更新, Secondary Actions: Expand\n\t\t\t\t65 menu\n\t\t\t\t\t66 (selected) 最近更新\n\t\t\t\t\t67 标题排序\n\t\t\t68 tab group\n\t\t\t\t69 tab (selected, settable, boolean) 客户商机, Value: 1\n\t\t\t\t70 tab (selectable, settable, boolean) 公开研究样例, Value: 0\n\t\t\t71 table\n\t\t\t\t72 row\n\t\t\t\t\t73 cell\n\t\t\t\t\t\t74 checkbox (disabled, settable, integer) Description: 选择本页客户商机, Value: 0\n\t\t\t\t\t75 cell\n\t\t\t\t\t\t76 text 商机标题\n\t\t\t\t\t77 cell\n\t\t\t\t\t\t78 text 来源\n\t\t\t\t\t79 cell\n\t\t\t\t\t\t80 text 阶段 / 状态\n\t\t\t\t\t81 cell\n\t\t\t\t\t\t82 text 更新时间\n\t\t\t\t\t83 cell\n\t\t\t\t\t\t84 text 操作\n\t\t\t85 heading 暂无客户商机, Value: 3\n\t\t\t\t86 text 暂无客户商机\n\t\t\t87 text 完成采集与人工复核后，商机会出现在这里。\n\t\t\t88 text 已选\n\t\t\t89 text 0\n\t\t\t90 text 条\n\t\t\t91 button (disabled) 导出所选客户商机\n\t\t\t\t92 image\n\t\t\t\t93 text 导出所选客户商机\n\t\t\t94 text 共 \n\t\t\t95 text 0\n\t\t\t96 text  条\n\t\t\t97 button (disabled) 上一页\n\t\t\t98 text 1\n\t\t\t99 text  / \n\t\t\t100 text 1\n\t\t\t101 button (disabled) 下一页\n\nThe focused UI element is 1 AXWebArea 商机库 · 意客AI, URL: 127.0.0.1:18794/?state=empty#/opportunities?tab=sample",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P11",
+    "url": "http://127.0.0.1:18794/?state=empty#/opportunities/sample",
+    "ax": "Browser tab: 8, Title: \"商机库 / 机会证据 · 意客AI\", URL: \"http://127.0.0.1:18794/?state=empty#/opportunities/sample\".\n1 AXWebArea 商机库 / 机会证据 · 意客AI, URL: 127.0.0.1:18794/?state=empty#/opportunities/sample\n\t2 container root\n\t\t3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入\n\t\t4 button (collapsed) TEST 场景, Secondary Actions: Expand\n\t\t\t5 text TEST 场景\n\t\t6 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?state=empty#main-content\n\t\t7 container\n\t\t\t8 button 意客AI商机工作台\n\t\t\t\t9 text 意客AI\n\t\t\t\t10 text 商机工作空间\n\t\t\t11 container 主导航\n\t\t\t\t12 button 商机工作台\n\t\t\t\t\t13 image\n\t\t\t\t\t14 text 商机工作台\n\t\t\t\t15 text 发现商机\n\t\t\t\t16 button 业务画像\n\t\t\t\t\t17 image\n\t\t\t\t\t18 text 业务画像\n\t\t\t\t19 button 线索采集\n\t\t\t\t\t20 image\n\t\t\t\t\t21 text 线索采集\n\t\t\t\t22 button 监控任务\n\t\t\t\t\t23 image\n\t\t\t\t\t24 text 监控任务\n\t\t\t\t25 text 推进商机\n\t\t\t\t26 button 商机库\n\t\t\t\t\t27 image\n\t\t\t\t\t28 text 商机库\n\t\t\t\t29 button 触达中心\n\t\t\t\t\t30 image\n\t\t\t\t\t31 text 触达中心\n\t\t\t\t32 button 跟进记录\n\t\t\t\t\t33 image\n\t\t\t\t\t34 text 跟进记录\n\t\t\t35 button 账号与授权\n\t\t\t\t36 image\n\t\t\t\t37 text 账号与授权\n\t\t\t38 button 客户工作空间\n\t\t\t\t39 image\n\t\t\t\t40 text 客户工作空间\n\t\t41 container\n\t\t\t42 button 收起导航\n\t\t\t\t43 image\n\t\t\t44 button 返回上级\n\t\t\t\t45 image\n\t\t\t46 text 商机库 / 机会证据 V0.2\n\t\t47 container main-content\n\t\t\t48 container\n\t\t\t\t49 button 返回\n\t\t\t\t\t50 image\n\t\t\t\t\t51 text 返回\n\t\t\t\t52 heading 180㎡高交会展区设计搭建预算询价, Value: 1\n\t\t\t\t\t53 text 180㎡高交会展区设计搭建预算询价\n\t\t\t\t54 text 湖南省商务厅对外贸易发展处\n\t\t\t55 text 公开研究样例 · 待人工复核 · 未入客户库\n\t\t\t56 text 需求阶段\n\t\t\t57 text 预算编制市场询价\n\t\t\t58 text 项目地点\n\t\t\t59 text 深圳国际会展中心\n\t\t\t60 text 展区面积\n\t\t\t61 text 180㎡\n\t\t\t62 text 资料截止\n\t\t\t63 text 2026-09-15 18:00\n\t\t\t64 container\n\t\t\t\t65 heading 原文证据, Value: 2\n\t\t\t\t\t66 text 原文证据\n\t\t\t\t67 button 查看官方原文\n\t\t\t\t\t68 text 查看\n\t\t\t\t\t69 text 官方\n\t\t\t\t\t70 text 原文\n\t\t\t\t\t71 image\n\t\t\t\t72 text 本次报价仅用于预算测算。 湖南省商务厅官网  · 发布于  2026/9/8 16:54:00\n\t\t\t\t73 heading 需求概述, Value: 3\n\t\t\t\t\t74 text 需求概述\n\t\t\t\t75 text 180㎡展区，涵盖设计、搭建、维护、撤展和组展服务。\n\t\t\t\t76 heading 证据评估, Value: 3\n\t\t\t\t\t77 text 证据评估\n\t\t\t\t78 definition list\n\t\t\t\t\t79 container 匹配依据\n\t\t\t\t\t\t80 text 匹配依据\n\t\t\t\t\t81 text 买方公开征询服务方案与成本；适配需结合地域、施工及组展能力。\n\t\t\t\t\t82 container 行动信号\n\t\t\t\t\t\t83 text 行动信号\n\t\t\t\t\t84 text 9月15日18:00前递交资料，可评估是否参与预算询价。\n\t\t\t\t\t85 container 机会价值\n\t\t\t\t\t\t86 text 机会价值\n\t\t\t\t\t87 text 适合提前了解需求；预算、合同和收入尚未确定。\n\t\t\t\t88 text 预算金额未公开，需进一步核实。本次不确定供应商、不签合同，参与不带来后续招标优先资格。\n\t\t\t\t89 heading 联系渠道, Value: 3\n\t\t\t\t\t90 text 联系渠道\n\t\t\t\t91 text 以官方公告的采购咨询、资料递交要求为准。\n\t\t\t92 container\n\t\t\t\t93 heading 联系准备 待校对 · 尚未发送, Value: 2\n\t\t\t\t\t94 text 联系准备  待校对 · 尚未发送\n\t\t\t\t95 container 询问草稿\n\t\t\t\t\t96 text 询问草稿\n\t\t\t\t\t97 text entry area Description: 询问草稿, Value: 您好，关注到本次高交会展区预算询价。请问展位技术资料及组展服务范围如何获取？我们会先核实自身能力，再按公告要求准备资料。理解此次仅用于预算编制，后续采购以正式公告为准。\n\t\t\t\t98 button 复制草稿\n\t\t\t\t\t99 image\n\t\t\t\t\t100 text 复制草稿\n\t\t\t\t101 text 按公告要求联系采购方\n\t\t\t\t102 heading 样例状态, Value: 3\n\t\t\t\t\t103 text 样例状态\n\t\t\t\t104 text 仅供研究查看，尚未绑定客户画像。\n\t\t\t\t105 button 查看样例联系准备\n\nThe focused UI element is 1 AXWebArea 商机库 / 机会证据 · 意客AI, URL: 127.0.0.1:18794/?state=empty#/opportunities/sample",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P12",
+    "url": "http://127.0.0.1:18794/?state=empty#/outreach?opportunity=sample",
+    "ax": "Browser tab: 8, Title: \"触达中心 · 意客AI\", URL: \"http://127.0.0.1:18794/?state=empty#/outreach?opportunity=sample\".\n1 AXWebArea 触达中心 · 意客AI, URL: 127.0.0.1:18794/?state=empty#/outreach?opportunity=sample\n\t2 container root\n\t\t3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入\n\t\t4 button (collapsed) TEST 场景, Secondary Actions: Expand\n\t\t\t5 text TEST 场景\n\t\t6 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?state=empty#main-content\n\t\t7 container\n\t\t\t8 button 意客AI商机工作台\n\t\t\t\t9 text 意客AI\n\t\t\t\t10 text 商机工作空间\n\t\t\t11 container 主导航\n\t\t\t\t12 button 商机工作台\n\t\t\t\t\t13 image\n\t\t\t\t\t14 text 商机工作台\n\t\t\t\t15 text 发现商机\n\t\t\t\t16 button 业务画像\n\t\t\t\t\t17 image\n\t\t\t\t\t18 text 业务画像\n\t\t\t\t19 button 线索采集\n\t\t\t\t\t20 image\n\t\t\t\t\t21 text 线索采集\n\t\t\t\t22 button 监控任务\n\t\t\t\t\t23 image\n\t\t\t\t\t24 text 监控任务\n\t\t\t\t25 text 推进商机\n\t\t\t\t26 button 商机库\n\t\t\t\t\t27 image\n\t\t\t\t\t28 text 商机库\n\t\t\t\t29 button 触达中心\n\t\t\t\t\t30 image\n\t\t\t\t\t31 text 触达中心\n\t\t\t\t32 button 跟进记录\n\t\t\t\t\t33 image\n\t\t\t\t\t34 text 跟进记录\n\t\t\t35 button 账号与授权\n\t\t\t\t36 image\n\t\t\t\t37 text 账号与授权\n\t\t\t38 button 客户工作空间\n\t\t\t\t39 image\n\t\t\t\t40 text 客户工作空间\n\t\t41 container\n\t\t\t42 button 收起导航\n\t\t\t\t43 image\n\t\t\t44 button 返回上级\n\t\t\t\t45 image\n\t\t\t46 text 触达中心 V0.2\n\t\t47 container main-content\n\t\t\t48 container\n\t\t\t\t49 heading 触达中心, Value: 1\n\t\t\t\t\t50 text 触达中心\n\t\t\t\t51 text 基于公开信息，准备沟通内容，跟进商机进展。\n\t\t\t52 tab group\n\t\t\t\t53 tab (selected, settable, boolean) 草稿箱, Value: 1\n\t\t\t\t54 tab (selectable, settable, boolean) 待确认, Value: 0\n\t\t\t\t55 tab (selectable, settable, boolean) 待回复, Value: 0\n\t\t\t\t56 tab (selectable, settable, boolean) 需处理, Value: 0\n\t\t\t57 container\n\t\t\t\t58 image\n\t\t\t\t59 text field (settable) 搜索联系准备\n\t\t\t\t60 pop up button (collapsed, settable) Description: 联系准备排序, Value: 按更新时间 · 最新优先, Secondary Actions: Expand\n\t\t\t\t\t61 menu\n\t\t\t\t\t\t62 (selected) 按更新时间 · 最新优先\n\t\t\t\t\t\t63 按更新时间 · 最早优先\n\t\t\t\t\t\t64 按商机标题\n\t\t\t\t65 text 暂无可联系的客户商机 公开研究样例\n\t\t\t\t66 button 高交会预算询价 · 联系准备 湖南省商务厅官网 公开样例 · 只读\n\t\t\t\t\t67 text 高交会预算询价 · 联系准备\n\t\t\t\t\t68 text 湖南省商务厅官网\n\t\t\t\t\t69 text 公开样例 · 只读\n\t\t\t70 container\n\t\t\t\t71 heading 联系草稿, Value: 2\n\t\t\t\t\t72 text 联系草稿\n\t\t\t\t73 text 公开研究样例 · 只读\n\t\t\t\t74 tab group\n\t\t\t\t\t75 tab (selected, settable, boolean) 评论草稿, Value: 1\n\t\t\t\t\t76 tab (selectable, settable, boolean) 私信草稿, Value: 0\n\t\t\t\t77 container 收件对象\n\t\t\t\t\t78 text 收件对象\n\t\t\t\t\t79 text field (disabled) 收件对象\n\t\t\t\t\t80 text 对象须经渠道映射核验，手填名称不能作为身份依据。\n\t\t\t\t81 container 选择已连接渠道\n\t\t\t\t\t82 text 选择已连接渠道\n\t\t\t\t\t83 pop up button (disabled, collapsed, settable) Description: 发送账号, Value: 未选择, Secondary Actions: Expand\n\t\t\t\t\t\t84 menu\n\t\t\t\t\t\t\t85 (disabled) 未选择\n\t\t\t\t86 heading 沟通内容, Value: 3\n\t\t\t\t\t87 text 沟通内容\n\t\t\t\t88 button (disabled) 重新生成\n\t\t\t\t89 text entry area Description: 沟通内容, Value: 您好，关注到本次高交会展区预算询价。请问展位技术资料及组展服务范围如何获取？我们会先核实自身能力，再按公告要求准备资料。理解此次仅用于预算编制，后续采购以正式公告为准。\n\t\t\t\t90 text 84  字 公开样例仅供预览和复制，不能保存或发送。\n\t\t\t\t91 button (disabled) 保存草稿\n\t\t\t\t92 button (disabled) 准备发送\n\t\t\t\t\t93 image\n\t\t\t\t\t94 text 准备发送\n\t\t\t\t95 button 复制联系草稿\n\t\t\t\t\t96 image\n\t\t\t\t\t97 text 复制样例文字\n\t\t\t98 container\n\t\t\t\t99 heading 相关商机, Value: 2\n\t\t\t\t\t100 text 相关商机\n\t\t\t\t101 button 查看详情\n\t\t\t\t\t102 text 查看详情\n\t\t\t\t\t103 image\n\t\t\t\t104 heading 180㎡高交会展区设计搭建预算询价, Value: 3\n\t\t\t\t\t105 text 180㎡高交会展区设计搭建预算询价\n\t\t\t\t106 text 公开研究样例 · 待复核 · 未入客户库\n\t\t\t\t107 definition list\n\t\t\t\t\t108 container 发布单位\n\t\t\t\t\t\t109 text 发布单位\n\t\t\t\t\t110 text 湖南省商务厅对外贸易发展处\n\t\t\t\t\t111 container 发布时间\n\t\t\t\t\t\t112 text 发布时间\n\t\t\t\t\t113 text 2026/9/8 16:54:00\n\t\t\t\t\t114 container 项目地点\n\t\t\t\t\t\t115 text 项目地点\n\t\t\t\t\t116 text 深圳国际会展中心\n\t\t\t\t\t117 container 展区面积\n\t\t\t\t\t\t118 text 展区面积\n\t\t\t\t\t119 text 180㎡\n\t\t\t\t\t120 container 资料截止\n\t\t\t\t\t\t121 text 资料截止\n\t\t\t\t\t122 text 09-15 18:00\n\t\t\t\t123 heading 原文证据, Value: 2\n\t\t\t\t\t124 text 原文证据\n\t\t\t\t125 button 查看原文\n\t\t\t\t\t126 text 查看\n\t\t\t\t\t127 text 原文\n\t\t\t\t\t128 image\n\t\t\t\t129 text 本次报价仅用于预算测算。\n\t\t\t\t130 container\n\t\t\t\t\t131 text 湖南省商务厅官网  · 发布于  2026/9/8 16:54:00\n\t\t\t\t132 container 备注\n\t\t\t\t\t133 text 备注\n\t\t\t\t\t134 text entry area 联系准备备注\n\t\t\t\t\t135 text 公开样例只读。\n\t\t\t\t136 container\n\t\t\t\t\t137 text 0 /500\n\nThe focused UI element is 1 AXWebArea 触达中心 · 意客AI, URL: 127.0.0.1:18794/?state=empty#/outreach?opportunity=sample",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P13",
+    "url": "http://127.0.0.1:18794/?state=empty#/outreach?opportunity=sample&channel=comment&confirm=send",
+    "ax": "Browser tab: 8, Title: \"触达中心 / 发送确认 · 意客AI\", URL: \"http://127.0.0.1:18794/?state=empty#/outreach?opportunity=sample&channel=comment&confirm=send\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\n~1 AXWebArea 触达中心 / 发送确认 · 意客AI, URL: 127.0.0.1:18794/?state=empty#/outreach?opportunity=sample&channel=comment&confirm=send\n~\t\t\t46 text 触达中心 / 发送确认 V0.2\n+\t\t\t138 container 确认发送\n+\t\t\t\t139 container\n+\t\t\t\t\t140 heading 确认发送, Value: 2\n+\t\t\t\t\t\t141 text 确认发送\n+\t\t\t\t\t142 button 关闭确认发送\n+\t\t\t\t\t\t143 image\n+\t\t\t\t144 text 核对发送信息。\n+\t\t\t\t145 definition list\n+\t\t\t\t\t146 container 渠道\n+\t\t\t\t\t\t147 text 渠道\n+\t\t\t\t\t148 text 评论\n+\t\t\t\t\t149 container 发送账号\n+\t\t\t\t\t\t150 text 发送账号\n+\t\t\t\t\t151 text 待确认\n+\t\t\t\t\t152 container 收件对象\n+\t\t\t\t\t\t153 text 收件对象\n+\t\t\t\t\t154 text 待核对\n+\t\t\t\t\t155 container 关联来源\n+\t\t\t\t\t\t156 text 关联来源\n+\t\t\t\t\t157 container\n+\t\t\t\t\t\t158 text 180㎡高交会展区设计搭建预算询价 （公开研究样例）\n+\t\t\t\t159 heading 发送内容预览, Value: 3\n+\t\t\t\t\t160 text 发送内容预览\n+\t\t\t\t161 text 您好，关注到本次高交会展区预算询价。请问展位技术资料及组展服务范围如何获取？我们会先核实自身能力，再按公告要求准备资料。理解此次仅用于预算编制，后续采购以正式公告为准。\n+\t\t\t\t162 checkbox (settable, integer) Description: 我已核对联系对象、发送账号和内容, Value: 0\n+\t\t\t\t163 text 公开样例未入客户库，当前不可发送。\n+\t\t\t\t164 container\n+\t\t\t\t\t165 button 返回修改\n+\t\t\t\t\t166 button (disabled) 确认并发送\nThe focused UI element is 138 container 确认发送",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P14",
+    "url": "http://127.0.0.1:18794/?scenario=P14&state=empty",
+    "ax": "Browser tab: 8, Title: \"跟进记录 · 意客AI\", URL: \"http://127.0.0.1:18794/?scenario=P14&state=empty#/followups\".\n1 AXWebArea 跟进记录 · 意客AI, URL: 127.0.0.1:18794/?scenario=P14&state=empty#/followups\n\t2 container root\n\t\t3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入\n\t\t4 button (collapsed) TEST 场景, Secondary Actions: Expand\n\t\t\t5 text TEST 场景\n\t\t6 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?scenario=P14&state=empty#main-content\n\t\t7 container\n\t\t\t8 button 意客AI商机工作台\n\t\t\t\t9 text 意客AI\n\t\t\t\t10 text 商机工作空间\n\t\t\t11 container 主导航\n\t\t\t\t12 button 商机工作台\n\t\t\t\t\t13 image\n\t\t\t\t\t14 text 商机工作台\n\t\t\t\t15 text 发现商机\n\t\t\t\t16 button 业务画像\n\t\t\t\t\t17 image\n\t\t\t\t\t18 text 业务画像\n\t\t\t\t19 button 线索采集\n\t\t\t\t\t20 image\n\t\t\t\t\t21 text 线索采集\n\t\t\t\t22 button 监控任务\n\t\t\t\t\t23 image\n\t\t\t\t\t24 text 监控任务\n\t\t\t\t25 text 推进商机\n\t\t\t\t26 button 商机库\n\t\t\t\t\t27 image\n\t\t\t\t\t28 text 商机库\n\t\t\t\t29 button 触达中心\n\t\t\t\t\t30 image\n\t\t\t\t\t31 text 触达中心\n\t\t\t\t32 button 跟进记录\n\t\t\t\t\t33 image\n\t\t\t\t\t34 text 跟进记录\n\t\t\t35 button 账号与授权\n\t\t\t\t36 image\n\t\t\t\t37 text 账号与授权\n\t\t\t38 button 客户工作空间\n\t\t\t\t39 image\n\t\t\t\t40 text 客户工作空间\n\t\t41 container\n\t\t\t42 button 收起导航\n\t\t\t\t43 image\n\t\t\t44 button 返回上级\n\t\t\t\t45 image\n\t\t\t46 text 跟进记录 V0.2\n\t\t47 container main-content\n\t\t\t48 heading 跟进记录, Value: 1\n\t\t\t\t49 text 跟进记录\n\t\t\t50 tab group\n\t\t\t\t51 tab (selected, settable, boolean) 待跟进, Value: 1\n\t\t\t\t52 tab (selectable, settable, boolean) 回复记录, Value: 0\n\t\t\t\t53 tab (selectable, settable, boolean) 全部, Value: 0\n\t\t\t54 container\n\t\t\t\t55 container 负责人\n\t\t\t\t\t56 text 负责人\n\t\t\t\t\t57 pop up button (collapsed, settable) Description: 筛选负责人, Value: 全部, Secondary Actions: Expand\n\t\t\t\t\t\t58 menu\n\t\t\t\t\t\t\t59 (selected) 全部\n\t\t\t\t60 container 日期\n\t\t\t\t\t61 text 日期\n\t\t\t\t\t62 date field (settable) 筛选记录日期\n\t\t\t\t\t\t63 container\n\t\t\t\t\t\t\t64 stepper\n\t\t\t\t\t\t\t65 stepper\n\t\t\t\t\t\t\t66 stepper\n\t\t\t\t\t\t67 pop up button 显示日期选择器\n\t\t\t\t68 button 刷新\n\t\t\t\t69 button 添加跟进\n\t\t\t\t\t70 image\n\t\t\t\t\t71 text 添加跟进\n\t\t\t\t72 text 结构化计划尚未接通，以下为已登记的人工跟进，不代表到期提醒。\n\t\t\t\t73 table\n\t\t\t\t\t74 row\n\t\t\t\t\t\t75 cell\n\t\t\t\t\t\t\t76 text 商机\n\t\t\t\t\t\t77 cell\n\t\t\t\t\t\t\t78 text 最近联系\n\t\t\t\t\t\t79 cell\n\t\t\t\t\t\t\t80 text 客户回复\n\t\t\t\t\t\t81 cell\n\t\t\t\t\t\t\t82 text 下次跟进\n\t\t\t\t\t\t83 cell\n\t\t\t\t\t\t\t84 text 负责人\n\t\t\t\t85 heading 暂无跟进记录, Value: 3\n\t\t\t\t\t86 text 暂无跟进记录\n\t\t\t\t87 text 联系后记录下一步，避免遗漏。\n\t\t\t88 container\n\t\t\t\t89 heading 关联回复, Value: 2\n\t\t\t\t\t90 text 关联回复\n\t\t\t\t91 button 刷新回复\n\t\t\t\t92 tab group\n\t\t\t\t\t93 tab (selected, settable, boolean) 通道回复, Value: 1\n\t\t\t\t\t94 tab (selectable, settable, boolean) 人工登记, Value: 0\n\t\t\t\t95 heading 回复回流尚未接通, Value: 3\n\t\t\t\t\t96 text 回复回流尚未接通\n\t\t\t\t97 text 接通后展示真实渠道回复。\n\nThe focused UI element is 1 AXWebArea 跟进记录 · 意客AI, URL: 127.0.0.1:18794/?scenario=P14&state=empty#/followups",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P15",
+    "url": "http://127.0.0.1:18794/?scenario=P15&state=empty",
+    "ax": "Browser tab: 8, Title: \"跟进记录 / 添加跟进 · 意客AI\", URL: \"http://127.0.0.1:18794/?scenario=P15&state=empty#/followups?add=1&opportunity=TEST-opportunity\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\n~1 AXWebArea 跟进记录 / 添加跟进 · 意客AI, URL: 127.0.0.1:18794/?scenario=P15&state=empty#/followups?add=1&opportunity=TEST-opportunity\n~\t\t6 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?scenario=P15&state=empty#main-content\n~\t\t\t46 text 跟进记录 / 添加跟进 V0.2\n+\t\t\t98 container 添加跟进\n+\t\t\t\t99 container\n+\t\t\t\t\t100 heading 添加跟进, Value: 2\n+\t\t\t\t\t\t101 text 添加跟进\n+\t\t\t\t\t102 button 关闭添加跟进\n+\t\t\t\t\t\t103 image\n+\t\t\t\t104 container\n+\t\t\t\t\t105 container 关联商机 *\n+\t\t\t\t\t\t106 container\n+\t\t\t\t\t\t\t107 text 关联商机  *\n+\t\t\t\t\t\t108 pop up button (collapsed, settable) Description: 关联商机, Value: 请选择已入库商机, Secondary Actions: Expand\n+\t\t\t\t\t\t\t109 menu\n+\t\t\t\t\t\t\t\t110 (disabled) 请选择已入库商机\n+\t\t\t\t\t111 container 跟进类型\n+\t\t\t\t\t\t112 text 跟进类型\n+\t\t\t\t\t\t113 text field Description: 跟进类型, Value: 人工登记\n+\t\t\t\t\t114 container 事实类型 *\n+\t\t\t\t\t\t115 container\n+\t\t\t\t\t\t\t116 text 事实类型  *\n+\t\t\t\t\t\t117 radio button (settable, integer) Description: 已联系, Value: 0\n+\t\t\t\t\t\t118 radio button (settable, integer) Description: 已回复, Value: 0\n+\t\t\t\t\t\t119 radio button (settable, integer) Description: 已约谈, Value: 0\n+\t\t\t\t\t\t120 radio button (settable, integer) Description: 已报价, Value: 0\n+\t\t\t\t\t121 container 联系时间\n+\t\t\t\t\t\t122 text 联系时间\n+\t\t\t\t\t\t123 date field (settable) 联系时间\n+\t\t\t\t\t\t\t124 container\n+\t\t\t\t\t\t\t\t125 stepper\n+\t\t\t\t\t\t\t\t126 stepper\n+\t\t\t\t\t\t\t\t127 stepper\n+\t\t\t\t\t\t\t\t128 stepper\n+\t\t\t\t\t\t\t\t129 stepper\n+\t\t\t\t\t\t\t130 pop up button 显示当地日期和时间选择器\n+\t\t\t\t\t131 container 备注 *\n+\t\t\t\t\t\t132 container\n+\t\t\t\t\t\t\t133 text 备注  *\n+\t\t\t\t\t\t134 text entry area (settable) 跟进备注\n+\t\t\t\t\t\t135 text 0 /500\n+\t\t\t\t\t136 container 下一步\n+\t\t\t\t\t\t137 text 下一步\n+\t\t\t\t\t\t138 text entry area (settable) 下一步\n+\t\t\t\t\t\t139 text 0 /500\n+\t\t\t\t\t140 container 下次跟进\n+\t\t\t\t\t\t141 text 下次跟进\n+\t\t\t\t\t\t142 date field (settable) 下次跟进\n+\t\t\t\t\t\t\t143 container\n+\t\t\t\t\t\t\t\t144 stepper\n+\t\t\t\t\t\t\t\t145 stepper\n+\t\t\t\t\t\t\t\t146 stepper\n+\t\t\t\t\t\t\t147 pop up button 显示日期选择器\n+\t\t\t\t\t148 container 负责人\n+\t\t\t\t\t\t149 text 负责人\n+\t\t\t\t\t\t150 pop up button (collapsed, settable) Description: 负责人, Value: 当前成员, Secondary Actions: Expand\n+\t\t\t\t\t\t\t151 menu\n+\t\t\t\t\t\t\t\t152 (selected) 当前成员\n+\t\t\t\t153 text 联系时间与下一步将随备注保存；结构化计划和提醒服务尚未接通。\n+\t\t\t\t154 container\n+\t\t\t\t\t155 button 取消\n+\t\t\t\t\t156 button 保存记录\nThe focused UI element is 98 container 添加跟进",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P16",
+    "url": "http://127.0.0.1:18794/?scenario=P16&state=empty",
+    "ax": "Browser tab: 8, Title: \"账号与授权 / 平台连接 · 意客AI\", URL: \"http://127.0.0.1:18794/?scenario=P16&state=empty#/connections\".\n1 AXWebArea 账号与授权 / 平台连接 · 意客AI, URL: 127.0.0.1:18794/?scenario=P16&state=empty#/connections\n\t2 container root\n\t\t3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入\n\t\t4 button (collapsed) TEST 场景, Secondary Actions: Expand\n\t\t\t5 text TEST 场景\n\t\t6 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?scenario=P16&state=empty#main-content\n\t\t7 container\n\t\t\t8 button 意客AI商机工作台\n\t\t\t\t9 text 意客AI\n\t\t\t\t10 text 商机工作空间\n\t\t\t11 container 主导航\n\t\t\t\t12 button 商机工作台\n\t\t\t\t\t13 image\n\t\t\t\t\t14 text 商机工作台\n\t\t\t\t15 text 发现商机\n\t\t\t\t16 button 业务画像\n\t\t\t\t\t17 image\n\t\t\t\t\t18 text 业务画像\n\t\t\t\t19 button 线索采集\n\t\t\t\t\t20 image\n\t\t\t\t\t21 text 线索采集\n\t\t\t\t22 button 监控任务\n\t\t\t\t\t23 image\n\t\t\t\t\t24 text 监控任务\n\t\t\t\t25 text 推进商机\n\t\t\t\t26 button 商机库\n\t\t\t\t\t27 image\n\t\t\t\t\t28 text 商机库\n\t\t\t\t29 button 触达中心\n\t\t\t\t\t30 image\n\t\t\t\t\t31 text 触达中心\n\t\t\t\t32 button 跟进记录\n\t\t\t\t\t33 image\n\t\t\t\t\t34 text 跟进记录\n\t\t\t35 button 账号与授权\n\t\t\t\t36 image\n\t\t\t\t37 text 账号与授权\n\t\t\t38 button 客户工作空间\n\t\t\t\t39 image\n\t\t\t\t40 text 客户工作空间\n\t\t41 container\n\t\t\t42 button 收起导航\n\t\t\t\t43 image\n\t\t\t44 button 返回上级\n\t\t\t\t45 image\n\t\t\t46 text 账号与授权 / 平台连接 V0.2\n\t\t47 container main-content\n\t\t\t48 heading 账号与授权, Value: 1\n\t\t\t\t49 text 账号与授权\n\t\t\t50 tab group\n\t\t\t\t51 tab (selected, settable, boolean) 平台连接, Value: 1\n\t\t\t\t52 tab (selectable, settable, boolean) 设备与使用授权, Value: 0\n\t\t\t53 button 添加平台连接\n\t\t\t\t54 image\n\t\t\t\t55 text 添加平台连接\n\t\t\t56 text 连接用于采集或触达，能力按平台分别显示。\n\t\t\t57 table\n\t\t\t\t58 row\n\t\t\t\t\t59 cell\n\t\t\t\t\t\t60 text 平台\n\t\t\t\t\t61 cell\n\t\t\t\t\t\t62 text 当前账号\n\t\t\t\t\t63 cell\n\t\t\t\t\t\t64 text 连接状态\n\t\t\t\t\t65 cell\n\t\t\t\t\t\t66 text 可用能力\n\t\t\t\t\t67 cell\n\t\t\t\t\t\t68 text 操作\n\t\t\t\t69 row\n\t\t\t\t\t70 cell\n\t\t\t\t\t\t71 text 小红书\n\t\t\t\t\t72 cell\n\t\t\t\t\t\t73 text —\n\t\t\t\t\t74 cell\n\t\t\t\t\t\t75 text 待读取连接状态\n\t\t\t\t\t76 cell\n\t\t\t\t\t\t77 text 待检查平台能力\n\t\t\t\t\t78 cell\n\t\t\t\t\t\t79 button 连接\n\t\t\t\t80 row\n\t\t\t\t\t81 cell\n\t\t\t\t\t\t82 text 抖音\n\t\t\t\t\t83 cell\n\t\t\t\t\t\t84 text —\n\t\t\t\t\t85 cell\n\t\t\t\t\t\t86 text 待读取连接状态\n\t\t\t\t\t87 cell\n\t\t\t\t\t\t88 text 待检查平台能力\n\t\t\t\t\t89 cell\n\t\t\t\t\t\t90 button 连接\n\t\t\t\t91 row\n\t\t\t\t\t92 cell\n\t\t\t\t\t\t93 text B站\n\t\t\t\t\t94 cell\n\t\t\t\t\t\t95 text —\n\t\t\t\t\t96 cell\n\t\t\t\t\t\t97 text 待读取连接状态\n\t\t\t\t\t98 cell\n\t\t\t\t\t\t99 text 待检查平台能力\n\t\t\t\t\t100 cell\n\t\t\t\t\t\t101 button 连接\n\t\t\t\t102 row\n\t\t\t\t\t103 cell\n\t\t\t\t\t\t104 text 知乎\n\t\t\t\t\t105 cell\n\t\t\t\t\t\t106 text —\n\t\t\t\t\t107 cell\n\t\t\t\t\t\t108 text 待读取连接状态\n\t\t\t\t\t109 cell\n\t\t\t\t\t\t110 text 待检查平台能力\n\t\t\t\t\t111 cell\n\t\t\t\t\t\t112 button 连接\n\t\t\t\t113 row\n\t\t\t\t\t114 cell\n\t\t\t\t\t\t115 text 公开网站\n\t\t\t\t\t116 cell\n\t\t\t\t\t\t117 text 无需账号\n\t\t\t\t\t118 cell\n\t\t\t\t\t\t119 text —\n\t\t\t\t\t120 cell\n\t\t\t\t\t\t121 text 公开页面读取（范围待验收）\n\t\t\t122 container\n\t\t\t\t123 heading 说明, Value: 3\n\t\t\t\t\t124 text 说明\n\t\t\t\t125 content list\n\t\t\t\t\t126 container\n\t\t\t\t\t\t127 AXListMarker • \n\t\t\t\t\t\t128 text 连接状态和能力以平台实际检查结果为准。\n\t\t\t\t\t129 container\n\t\t\t\t\t\t130 AXListMarker • \n\t\t\t\t\t\t131 text 断开连接前，请确认对应任务的影响；额外验证在平台页面中完成。\n\nThe focused UI element is 1 AXWebArea 账号与授权 / 平台连接 · 意客AI, URL: 127.0.0.1:18794/?scenario=P16&state=empty#/connections",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P17",
+    "url": "http://127.0.0.1:18794/?scenario=P17&state=empty",
+    "ax": "Browser tab: 8, Title: \"账号与授权 / 连接平台 · 意客AI\", URL: \"http://127.0.0.1:18794/?scenario=P17&state=empty#/connections?connect=xhs\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\n~1 AXWebArea 账号与授权 / 连接平台 · 意客AI, URL: 127.0.0.1:18794/?scenario=P17&state=empty#/connections?connect=xhs\n~\t\t6 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?scenario=P17&state=empty#main-content\n~\t\t\t46 text 账号与授权 / 连接平台 V0.2\n+\t\t\t132 container 连接小红书\n+\t\t\t\t133 container\n+\t\t\t\t\t134 heading 连接小红书, Value: 2\n+\t\t\t\t\t\t135 text 连接小红书\n+\t\t\t\t\t136 button 关闭连接小红书\n+\t\t\t\t\t\t137 image\n+\t\t\t\t138 content list 连接步骤\n+\t\t\t\t\t139 text 选择平台\n+\t\t\t\t\t140 container\n+\t\t\t\t\t\t141 text 2 登录账号\n+\t\t\t\t\t142 container\n+\t\t\t\t\t\t143 text 3 检查连接\n+\t\t\t\t144 heading 本机浏览器登录, Value: 3\n+\t\t\t\t\t145 text 本机浏览器登录\n+\t\t\t\t146 text 账号登录在平台原生页面完成，意客AI不要求输入平台密码。\n+\t\t\t\t147 text 当前状态\n+\t\t\t\t148 text 等待打开登录窗口\n+\t\t\t\t149 text 点击下方按钮打开平台登录窗口。\n+\t\t\t\t150 text 扫码、验证码和额外验证均在平台原生页面处理。\n+\t\t\t\t151 container\n+\t\t\t\t\t152 button 取消\n+\t\t\t\t\t153 button (disabled) 我已完成登录，检查连接\n+\t\t\t\t\t154 button 打开登录窗口\n+\t\t\t\t\t\t155 image\n+\t\t\t\t\t\t156 text 打开登录窗口\nThe focused UI element is 132 container 连接小红书",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "page": "P18",
+    "url": "http://127.0.0.1:18794/?scenario=P18&state=empty",
+    "ax": "Browser tab: 8, Title: \"账号与授权 · 意客AI\", URL: \"http://127.0.0.1:18794/?scenario=P18&state=empty#/settings\".\n1 AXWebArea 账号与授权 · 意客AI, URL: 127.0.0.1:18794/?scenario=P18&state=empty#/settings\n\t2 container root\n\t\t3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入\n\t\t4 button (collapsed) TEST 场景, Secondary Actions: Expand\n\t\t\t5 text TEST 场景\n\t\t6 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?scenario=P18&state=empty#main-content\n\t\t7 container\n\t\t\t8 button 意客AI商机工作台\n\t\t\t\t9 text 意客AI\n\t\t\t\t10 text 商机工作空间\n\t\t\t11 container 主导航\n\t\t\t\t12 button 商机工作台\n\t\t\t\t\t13 image\n\t\t\t\t\t14 text 商机工作台\n\t\t\t\t15 text 发现商机\n\t\t\t\t16 button 业务画像\n\t\t\t\t\t17 image\n\t\t\t\t\t18 text 业务画像\n\t\t\t\t19 button 线索采集\n\t\t\t\t\t20 image\n\t\t\t\t\t21 text 线索采集\n\t\t\t\t22 button 监控任务\n\t\t\t\t\t23 image\n\t\t\t\t\t24 text 监控任务\n\t\t\t\t25 text 推进商机\n\t\t\t\t26 button 商机库\n\t\t\t\t\t27 image\n\t\t\t\t\t28 text 商机库\n\t\t\t\t29 button 触达中心\n\t\t\t\t\t30 image\n\t\t\t\t\t31 text 触达中心\n\t\t\t\t32 button 跟进记录\n\t\t\t\t\t33 image\n\t\t\t\t\t34 text 跟进记录\n\t\t\t35 button 账号与授权\n\t\t\t\t36 image\n\t\t\t\t37 text 账号与授权\n\t\t\t38 button 客户工作空间\n\t\t\t\t39 image\n\t\t\t\t40 text 客户工作空间\n\t\t41 container\n\t\t\t42 button 收起导航\n\t\t\t\t43 image\n\t\t\t44 button 返回上级\n\t\t\t\t45 image\n\t\t\t46 text 账号与授权 V0.2\n\t\t47 container main-content\n\t\t\t48 heading 账号与授权, Value: 1\n\t\t\t\t49 text 账号与授权\n\t\t\t50 tab group\n\t\t\t\t51 tab (selectable, settable, boolean) 平台连接, Value: 0\n\t\t\t\t52 tab (selected, settable, boolean) 设备与使用授权, Value: 1\n\t\t\t53 container\n\t\t\t\t54 heading 使用授权, Value: 2\n\t\t\t\t\t55 text 使用授权\n\t\t\t\t56 text 授权状态 未激活 授权码\n\t\t\t\t57 text field (settable) 授权码\n\t\t\t\t58 button 激活\n\t\t\t\t59 text 有效期 —\n\t\t\t60 container\n\t\t\t\t61 heading 设备管理, Value: 2\n\t\t\t\t\t62 text 设备管理\n\t\t\t\t63 text 运行环境 macOS\n\t\t\t\t64 button 绑定设备\n\t\t\t\t65 text 设备状态 TEST 本机设备 · 尚未绑定 客户服务 尚未配置服务地址\n\t\t\t66 container\n\t\t\t\t67 heading 版本与数据, Value: 2\n\t\t\t\t\t68 text 版本与数据\n\t\t\t\t69 text 当前版本 0.2.0-TEST\n\t\t\t\t70 button 检查更新\n\t\t\t\t71 text 客户数据 按当前客户空间授权范围导出\n\t\t\t\t72 button 导出数据\n\t\t\t\t73 text 备份与恢复 先检查文件、恢复范围与覆盖影响\n\t\t\t\t74 button 备份与恢复\n\t\t\t\t75 text 本机草稿 当前会话的配置与资料草稿\n\t\t\t\t76 button 清除本机草稿\n\t\t\t77 container\n\t\t\t\t78 heading 支持与诊断, Value: 2\n\t\t\t\t\t79 text 支持与诊断\n\t\t\t\t80 text 脱敏诊断 版本、运行环境和服务配置状态\n\t\t\t\t81 button 查看脱敏诊断\n\t\t\t\t82 text 联系支持\n\t\t\t\t83 button 联系支持\n\t\t\t\t84 text 当前会话 已登录\n\t\t\t\t85 button 退出登录\n\nThe focused UI element is 1 AXWebArea 账号与授权 · 意客AI, URL: 127.0.0.1:18794/?scenario=P18&state=empty#/settings",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1079,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    }
+  }
+]
