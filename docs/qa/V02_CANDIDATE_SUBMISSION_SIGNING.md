@@ -37,6 +37,8 @@
 
 ## 审核与接续
 
-本片独立Task/整片终审及最终提交尚待记录；当前不是已验收上线。后续由Win按完整batch冻结、五字段核对、原字节签名、原复合键先查恢复来接worker/05G，取得其实际消费后才记ACK。最新Win新增请求已看到：INCLUDE回执补具体sourceVerificationId优先，设备登记未知结果按原ID恢复随后；本片不冒称已解决二者。
+核心`805aeb0`的独立Task规格/质量**Approved，0 Critical/Important/Minor**。未改helper、middleware、实际PG等跨任务项由root实际28项与`PilotSessionRegistry.require_active`、`ExecutionRuntime._key`、`_UiRoute`及原ingest/fence逐项核对覆盖；没有通过新准备入口弱化原恢复或授权。root实际主链/文档`3d0ce80`，正常保留Win`0eab72a`的3份05G计划/依赖请求为`e47a925`，双方源码/测试/SQL/desktop未变化，未为纯文档合并重跑套件。
+
+整片终审及最终推送尚待记录；当前不是已验收上线。后续由Win按完整batch冻结、五字段核对、原字节签名、原复合键先查恢复来接worker/05G，取得其实际消费后才记ACK。最新Win新增请求已看到：INCLUDE回执补具体sourceVerificationId优先，设备登记未知结果按原ID恢复随后；本片不冒称已解决二者。
 
 真实来源、平台账号、模型效果、确认收发、Windows发行与客户UAT仍须分别验收，父卡与Goal保持进行中。

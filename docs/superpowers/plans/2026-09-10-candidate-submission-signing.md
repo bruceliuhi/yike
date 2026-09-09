@@ -21,6 +21,8 @@
 
 ## Task 1: 最小准备接口（独立实现，root负责提交）
 
+**执行状态：COMPLETE。** 核心`805aeb0`，独立Task规格/质量Approved，0 Critical/Important/Minor；root实际241项与28项跨任务HTTP/PG及未改helper/middleware核对覆盖外部验证项。[QA](../../qa/V02_CANDIDATE_SUBMISSION_SIGNING.md)记录RED、测试假设修正与冻结结果。下面步骤为原执行清单，不扩展本片授权。
+
 **Files:** Modify `pilot/candidate_api.py`, `pilot/candidate_ingestion.py`, `pilot/execution_runtime.py`, `tests/test_candidate_ingestion_api.py`。不要改SQL、DTO、原ingest或Win文件。
 
 **Interfaces:** Consumes `validate_candidate_batch(payload, now=self._now(cursor))`、`_active`、`_key`、`submission_signing_payload`、`batch_fingerprint`。Produces `CandidateIngestionStore.prepare_signing_payload(claims,payload)` → `ExecutionRuntime.prepare_submission_signing_payload(claims,payload)` 与上述POST。root并行负责真实HTTP/PG测试、合同、QA、交接；本任务不得操作PG/Git。
@@ -80,6 +82,8 @@ def prepare_submission_signing_payload(self, claims, payload: dict) -> dict:
 - [ ] Step 5: Run `uv run --frozen pytest -q tests/test_candidate_ingestion_api.py tests/test_candidate_contract.py tests/test_execution_api.py tests/test_execution_contract.py --tb=short`。自审后在指定report写实际RED/GREEN和文件范围，root审核提交；不可用历史通过替代本次结果。
 
 ## Task 2: 真实HTTP/PG主链与交接（root集成）
+
+**执行状态：实现/实际验证已完成，整片终审与推送进行中。** root测试与合同`3d0ce80`，正常合入Win仅3份05G交接文档为`e47a925`，源码/测试/SQL/desktop字节未变；以下最后整合步骤尚未全部完成，不标父卡或Goal结束。
 
 **Files:** Create `tests/test_candidate_submission_signing_http_postgres.py`; modify `tests/test_confirmed_strategy_http_postgres.py`中候选签名helper调用；update `docs/contracts/V02_RAW_CANDIDATE_INBOX.md`, `docs/V02_IMPLEMENTATION_TASKBOOK.md`, `docs/DUAL_AGENT_TASKBOARD.md`; create `docs/qa/V02_CANDIDATE_SUBMISSION_SIGNING.md`。
 
