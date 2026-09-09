@@ -41,6 +41,8 @@
 
 完整增量`bbe2e20..293fd24`经另一位非实现者整片终审：**规格/代码/架构/质量PASS，0 Critical/Important/Minor，可合并此工程片**。终审逐项核对owner/current key、DB时钟身份、原ingest历史优先/首写final fence、公共HTTP边界和可信测试计数；未重复测试、不扩大已验范围。7份变更Markdown的143个本地文件链接目标存在，凭据扫描与差异格式检查通过；不把链接存在当外部来源可用。
 
-主线推送事实随后核对；当前不是已验收上线。后续由Win按完整batch冻结、五字段核对、原字节签名、原复合键先查恢复来接worker/05G，取得其实际消费后才记ACK。最新Win新增请求已看到：INCLUDE回执补具体sourceVerificationId优先，设备登记未知结果按原ID恢复随后；本片不冒称已解决二者。
+`626bbd97f648784611b4dbef2e4f9840890c4c17`已实际正常推送至`yike-ai2026/main`及`codex/mac-device-authorization`；独立ls-remote与本地HEAD精确一致，ahead/behind 0/0，工作树干净。与终审`293fd24`相比产品/测试/desktop/SQL/deploy无差异，收口只改3份事实记录文档；原工作区用户`docs/RUNBOOK.md`保持未动。本次文档回填不重跑无变化套件。
+
+当前不是已验收上线。后续由Win按完整batch冻结、五字段核对、原字节签名、原复合键先查恢复来接worker/05G，取得其实际消费后才记ACK。最新Win新增请求已看到：INCLUDE回执补具体sourceVerificationId优先，设备登记未知结果按原ID恢复随后；本片不冒称已解决二者。
 
 真实来源、平台账号、模型效果、确认收发、Windows发行与客户UAT仍须分别验收，父卡与Goal保持进行中。

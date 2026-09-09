@@ -27,7 +27,7 @@
 
 **Interfaces:** Consumes `validate_candidate_batch(payload, now=self._now(cursor))`、`_active`、`_key`、`submission_signing_payload`、`batch_fingerprint`。Produces `CandidateIngestionStore.prepare_signing_payload(claims,payload)` → `ExecutionRuntime.prepare_submission_signing_payload(claims,payload)` 与上述POST。root并行负责真实HTTP/PG测试、合同、QA、交接；本任务不得操作PG/Git。
 
-- [ ] Step 1: 先为现StoreBoundary增加记录prepare调用方法，在真实ASGI边界新增以下RED。fixture只证明传输不证明授权。
+- [x] Step 1: 先为现StoreBoundary增加记录prepare调用方法，在真实ASGI边界新增以下RED。fixture只证明传输不证明授权。
 
 ```python
 def test_candidate_signing_preparation_preserves_raw_batch():
@@ -40,8 +40,8 @@ def test_candidate_signing_preparation_preserves_raw_batch():
     assert response.headers["cache-control"] == "no-store"
 ```
 
-- [ ] Step 2: Run `uv run --frozen pytest -q tests/test_candidate_ingestion_api.py -k signing_preparation --tb=short`，观察新增route 404；记录预期RED再写生产代码。
-- [ ] Step 3: API仅提取共用有界JSON reader，上传原精确envelope/signature检查保留，新envelope只接受batch dict。认证和服务调用继续threadpool，不阻塞async body reader。接线：
+- [x] Step 2: Run `uv run --frozen pytest -q tests/test_candidate_ingestion_api.py -k signing_preparation --tb=short`，观察新增route 404；记录预期RED再写生产代码。
+- [x] Step 3: API仅提取共用有界JSON reader，上传原精确envelope/signature检查保留，新envelope只接受batch dict。认证和服务调用继续threadpool，不阻塞async body reader。接线：
 
 ```python
 @router.post("/candidate-submission-signing-payload")
@@ -78,18 +78,18 @@ def prepare_submission_signing_payload(self, claims, payload: dict) -> dict:
         return result
 ```
 
-- [ ] Step 4: 扩现路由测试为准备入口覆盖缺service501、无登录/撤销401、HTTP400、跨Origin403、非JSON415、4 MiB实际流超限413（含伪Content-Length）、重复键/NaN/额外权限字段422、深JSON稳定拒绝、固定异常500且正文/错误日志无秘密、无隐式重试。DTO业务校验由root真PG与既有candidate_contract测试覆盖，不在边界fixture伪称验证。
-- [ ] Step 5: Run `uv run --frozen pytest -q tests/test_candidate_ingestion_api.py tests/test_candidate_contract.py tests/test_execution_api.py tests/test_execution_contract.py --tb=short`。自审后在指定report写实际RED/GREEN和文件范围，root审核提交；不可用历史通过替代本次结果。
+- [x] Step 4: 扩现路由测试为准备入口覆盖缺service501、无登录/撤销401、HTTP400、跨Origin403、非JSON415、4 MiB实际流超限413（含伪Content-Length）、重复键/NaN/额外权限字段422、深JSON稳定拒绝、固定异常500且正文/错误日志无秘密、无隐式重试。DTO业务校验由root真PG与既有candidate_contract测试覆盖，不在边界fixture伪称验证。
+- [x] Step 5: Run `uv run --frozen pytest -q tests/test_candidate_ingestion_api.py tests/test_candidate_contract.py tests/test_execution_api.py tests/test_execution_contract.py --tb=short`。自审后在指定report写实际RED/GREEN和文件范围，root审核提交；不可用历史通过替代本次结果。
 
 ## Task 2: 真实HTTP/PG主链与交接（root集成）
 
-**执行状态：实现/实际验证和整片终审已完成，待最终主线推送核对。** root测试与合同`3d0ce80`，正常合入Win仅3份05G交接文档为`e47a925`，源码/测试/SQL/desktop字节未变；完整`bbe2e20..293fd24`另一位非作者终审PASS/0发现。最后主线核对事实另记，不标父卡或Goal结束。
+**执行状态：COMPLETE（本工程片）。** root测试与合同`3d0ce80`，正常合入Win仅3份05G交接文档为`e47a925`，源码/测试/SQL/desktop字节未变；完整`bbe2e20..293fd24`另一位非作者终审PASS/0发现。`626bbd9`已实际推main与现工作分支，ls-remote两端精确一致、ahead/behind为0/0、工作树干净。本记录更新仅文档，不标父卡或Goal结束。
 
 **Files:** Create `tests/test_candidate_submission_signing_http_postgres.py`; modify `tests/test_confirmed_strategy_http_postgres.py`中候选签名helper调用；update `docs/contracts/V02_RAW_CANDIDATE_INBOX.md`, `docs/V02_IMPLEMENTATION_TASKBOOK.md`, `docs/DUAL_AGENT_TASKBOARD.md`; create `docs/qa/V02_CANDIDATE_SUBMISSION_SIGNING.md`。
 
 **Interfaces:** Consumes Task1五字段HTTP、既有执行准备/上传/回执；Produces可复现真实ASGI/PG证据及Win接续合同，不声称socket/TLS或平台证明。
 
-- [ ] Step 1: 复用real_strategy_env、actual CandidateIngestionStore 和执行server字节签名helper。新helper不导入submission_signing_payload，不读env.tenant/claims摘要构造签名：
+- [x] Step 1: 复用real_strategy_env、actual CandidateIngestionStore 和执行server字节签名helper。新helper不导入submission_signing_payload，不读env.tenant/claims摘要构造签名：
 
 ```python
 def signed_candidate(client, key, value):
@@ -100,7 +100,7 @@ def signed_candidate(client, key, value):
         prepared["signing_payload"].encode("utf-8")).signature)}
 ```
 
-- [ ] Step 2: 核对同session稳定、独立canonical摘要/Unicode/null、空批次、签原字节真实上传/复用原键不重复计数。拒绝同租户其他owner/跨租户/撤销/旧credential；真实设备锁等待后session过期401且不泄露原文。用admin受信查询确认候选五表/执行四表/key_requests计数和records_used/lease不变，不以RLS空查询假证无写入。
-- [ ] Step 3: 换session新签名字节不同而fingerprint相同，未入库旧签名拒绝；签后改正文/request_id/execution拒绝。准备不调用strategy/source/connection；准备后取消/策略撤销/预算不足/lease过期仍在上传拒绝且零增量。设备撤销后准备拒绝，但原GET及历史POST仍恢复同回执；未安装runtime501。新增复杂边界先写预期失败，原有护栏不重写。
-- [ ] Step 4: 把现真实策略→签名执行→候选→模型fixture→人工核验→共享原文HTTP链的候选签名替换为上述HTTP原字节，保留全部原断言。
-- [ ] Step 5: Run专用测试DB下 `uv run --frozen pytest -q tests/test_candidate_submission_signing_http_postgres.py tests/test_confirmed_strategy_http_postgres.py tests/test_candidate_ingestion_http_postgres.py --tb=short`；root串行拥有PG，不跑无改动全仓。记录0skip和实际证据边界；独立Task review及整片final review后正常合并/推main，保留Win新提交与原工作区用户文件。更新精确QA/五字段/冻结batch/原键先查恢复与阶段状态；父卡/Goal不关闭。
+- [x] Step 2: 核对同session稳定、独立canonical摘要/Unicode/null、空批次、签原字节真实上传/复用原键不重复计数。拒绝同租户其他owner/跨租户/撤销/旧credential；真实设备锁等待后session过期401且不泄露原文。用admin受信查询确认候选五表/执行四表/key_requests计数和records_used/lease不变，不以RLS空查询假证无写入。
+- [x] Step 3: 换session新签名字节不同而fingerprint相同，未入库旧签名拒绝；签后改正文/request_id/execution拒绝。准备不调用strategy/source/connection；准备后取消/策略撤销/预算不足/lease过期仍在上传拒绝且零增量。设备撤销后准备拒绝，但原GET及历史POST仍恢复同回执；未安装runtime501。新增复杂边界先写预期失败，原有护栏不重写。
+- [x] Step 4: 把现真实策略→签名执行→候选→模型fixture→人工核验→共享原文HTTP链的候选签名替换为上述HTTP原字节，保留全部原断言。
+- [x] Step 5: Run专用测试DB下 `uv run --frozen pytest -q tests/test_candidate_submission_signing_http_postgres.py tests/test_confirmed_strategy_http_postgres.py tests/test_candidate_ingestion_http_postgres.py --tb=short`；root串行拥有PG，不跑无改动全仓。记录0skip和实际证据边界；独立Task review及整片final review后正常合并/推main，保留Win新提交与原工作区用户文件。更新精确QA/五字段/冻结batch/原键先查恢复与阶段状态；父卡/Goal不关闭。

@@ -8,6 +8,8 @@
 
 ## 1. 当前基线与推进原则
 
+2026-09-10 02B最小候选签名接线已交付到主线`626bbd9`，main/工作分支/本地HEAD经ls-remote核对精确一致、0/0且干净。终审后仅记录事实，工程片可供Win接续，[完成计划](superpowers/plans/2026-09-10-candidate-submission-signing.md)/[QA](qa/V02_CANDIDATE_SUBMISSION_SIGNING.md)保留实际证据；不等于02B/05G整卡、真实来源或上线验收。下一步Mac优先INCLUDE核验ID原回执，Win继续P07/设备HTTP/worker；完整Goal保持进行中。
+
 2026-09-10 02B候选签名准备整片收口：`bbe2e20..293fd24`独立规格/代码/架构/质量**PASS，0项未关闭发现**。核心`805aeb0`与真实主链`3d0ce80`已正常保留Win05G认领至`e47a925`；最终root241边界/合同、28实际ASGI/受限PG分别通过，[QA](qa/V02_CANDIDATE_SUBMISSION_SIGNING.md)保留完整过程。Win可按五字段准备/原复合键恢复合同接续，Mac优先补其INCLUDE回执核验ID缺口；不代记Win消费、真实平台/模型/收发/Windows/生产/客户UAT。下段“审核进行中”为此前候选时点，完整父卡与Goal不关闭。
 
 2026-09-10 CodexiMac02B候选签名准备候选`805aeb0`：已新增`POST /api/ui/candidate-submission-signing-payload`，返回现候选域五字段。root实际241边界/合同、28真实ASGI/受限PG分别通过，[QA](qa/V02_CANDIDATE_SUBMISSION_SIGNING.md)保留失败/修正与验证边界；[合同](contracts/V02_RAW_CANDIDATE_INBOX.md#11-普通客户端候选签名准备2026-09-10)要求冻结batch、签响应原字节、原复合键先查历史，不从客户端猜tenant/session。独立Task/整片审核进行中，不替Win设备HTTP/worker/05G记ACK。下一片优先响应Win的INCLUDE原回执sourceVerificationId缺口，再设备登记未知恢复；未在此片实现或接收真实来源/发送/客户UAT，父卡与Goal继续。
