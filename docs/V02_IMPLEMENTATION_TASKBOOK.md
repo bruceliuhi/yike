@@ -8,6 +8,12 @@
 
 ## 1. 当前基线与推进原则
 
+2026-09-10 最新整合候选`cfaf4fd`已保留Mac执行签名准备、回复入口与Win05E固定原文展示；独立合并兼容性**PASS，0项未关闭发现**。Mac实际接收8文件176项/类型检查及产品Node客户端→socket HTTP→受限PG1项通过，各集合单独记于[QA](qa/V02_EXECUTION_SIGNING_PAYLOAD.md)。05F五字段接口已具备工程接入条件；Win接续设备HTTP/05G候选，Mac接真实来源服务协同与原确认收发/回复，不重复已交付原文组件。合成来源不证明真实线索已进产品，父项与Goal继续；以下历史候选不重置这次进度。
+
+2026-09-10 05F服务端接线终审收口：完整`eb507bf..9fc197c`独立规格/代码/架构/质量**PASS，0项未关闭发现**。原摘要测试变量混杂Minor已用两行测试修正关闭，6项纯测试通过，生产源码仍精确等于`7d8f657`；未重复PG或桌面套件。[QA](qa/V02_EXECUTION_SIGNING_PAYLOAD.md)保留原始失败与审核过程。下段候选/待审为此前时点；Win消费及真实来源/发送/客户UAT没有因此完成，父卡与Goal保持进行中。
+
+2026-09-10 CodexiMac已完成05F服务端最小接线候选`7d8f657`：新增POST `/api/ui/execution-signing-payload`，五字段为`signing_payload/request_id/device_id/credential_version/request_sha256`，完整operation摘要含request_id，客户端只签服务端原UTF-8。实际69项HTTP/规范及15项真实HTTP/受限PG分别通过，独立审核待收口；详见[字段与消费边界](contracts/V02_EXECUTION_RUNTIME.md#05f待签名原文接续)、[本片QA](qa/V02_EXECUTION_SIGNING_PAYLOAD.md)。Win可按合同接续设备主进程核对/签名、START/CANCEL及原UUID恢复；候选上传仍是独立域，本片不替Win登记消费ACK。未安装来源时START仍501，下一步仍是真实来源/客户端与确认联系/回复，不把准备接口算成平台成功。
+
 2026-09-10 CodexiMac认领05F执行签名字节接续：按[最小接线计划](superpowers/plans/2026-09-10-execution-signing-payload.md)在现execution_api/runtime提供当前会话/设备绑定的原文字节，真实HTTP客户端只签响应、不猜tenant或读取Cookie。无新迁移、不启来源能力，不改变实际apply/CANCEL/历史回执；Win继续设备HTTP、05E固定原文与worker，不重复其模块。此处仅认领，尚未实现或取得Win客户端ACK，父Goal继续。
 
 2026-09-10 最终合并候选 **`a8f895a`** 正常保留主线`27ed499`的UI状态恢复与测试扫描误报修正，任务书文本冲突保留双方进度。独立集成兼容性复核**PASS、0新增发现**，root受影响12文件223项及类型/凭据扫描通过；两端源码与各自审核快照一致，见[收口QA](qa/V02_NORMAL_RUNTIME_COMPOSITION.md)。这是普通启动与基础体验增量接收，不是已打通真实平台、客户端签名、收发或正式发布。下一实施仍按第2节纵向闭环推进，已知UI P2/发行与客户验收继续保留。

@@ -8,7 +8,6 @@ from fastapi.testclient import TestClient
 from pilot.auth import issue_token, verify_token_claims
 from pilot.candidate_ingestion import CandidateIngestionStore
 from pilot.candidate_review import CandidateReviewStore
-from pilot.execution_runtime import execution_signing_payload
 from pilot.web import build_app
 from tests.test_candidate_assessment_model import CONTENT, assessment
 from tests.test_candidate_ingestion_http_postgres import signed
@@ -30,9 +29,12 @@ from tests.test_execution_runtime_postgres import SECRET, operation, start
 from tests.test_research_strategies_postgres import confirm_body, prepare_body, revoke_body
 
 
-def send_execution(client, env, claims, request):
-    signature = encoded(env.key.sign(execution_signing_payload(
-        tenant_id=env.tenant, claims=claims, operation=request).encode()).signature)
+def send_execution(client, env, request):
+    response = client.post("/api/ui/execution-signing-payload",
+        json={"request": request.model_dump(mode="json")})
+    assert response.status_code == 200, response.text
+    prepared = response.json()
+    signature = encoded(env.key.sign(prepared["signing_payload"].encode("utf-8")).signature)
     return client.post("/api/ui/execution-operations", json={
         "request": request.model_dump(mode="json"), "signature": signature,
     })
@@ -65,11 +67,11 @@ def test_shared_http_actual_strategy_signed_review_and_revocation_chain(real_str
     env.snapshot = env.confirmed["snapshot"]
 
     start_request = start(env)
-    started_response = send_execution(client, env, claims, start_request)
+    started_response = send_execution(client, env, start_request)
     assert started_response.status_code == 200, started_response.text
     begun = started_response.json()
     claim_request = operation(env, "CLAIM", begun)
-    claimed_response = send_execution(client, env, claims, claim_request)
+    claimed_response = send_execution(client, env, claim_request)
     assert claimed_response.status_code == 200, claimed_response.text
     lease = claimed_response.json()
 
