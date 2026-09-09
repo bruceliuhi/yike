@@ -3,6 +3,23 @@ import {validatedOperation, validatedExternalUrl, validClipboardText} from '../s
 import {configuredService} from '../src/main/serviceClient';
 
 describe('desktop service boundary', () => {
+  it('allows only bounded phone proof fields on fixed login routes', () => {
+    expect(validatedOperation({operation: 'session.requestCode', payload: {phone: '19900000001'}})).toEqual({
+      path: '/api/ui/auth/sms-code', method: 'POST', body: JSON.stringify({phone: '19900000001'}), logout: false,
+    });
+    expect(validatedOperation({operation: 'session.loginPhone', payload: {phone: '19900000001', code: '123456', trial_code: 'invite'}})).toMatchObject({
+      path: '/api/ui/auth/sms-session', method: 'POST', logout: false,
+    });
+    for (const payload of [
+      {phone: '19900000001', user_id: 'other'}, {phone: 19900000001},
+      {phone: '19900000001\n'}, {phone: '１９９０００００００１'},
+    ]) expect(validatedOperation({operation: 'session.requestCode', payload})).toBeNull();
+    for (const payload of [
+      {phone: '19900000001', code: '１２３４５６'}, {phone: '19900000001', code: 123456},
+      {phone: '19900000001', code: '123456', tenant_id: 'other'},
+      {phone: '19900000001', code: '123456', trial_code: 'a'.repeat(129)},
+    ]) expect(validatedOperation({operation: 'session.loginPhone', payload})).toBeNull();
+  });
   it('only allows a configured HTTPS origin, with explicit unpackaged loopback HTTP', () => {
     const prod = {packaged: true, allowLoopbackHttp: true};
     expect(configuredService('https://customer.example:8443', prod)).toBe('https://customer.example:8443');

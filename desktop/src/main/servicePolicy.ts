@@ -3,10 +3,13 @@ import {z} from 'zod';
 const empty = z.object({}).strict().optional();
 const identifier = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-][A-Za-z0-9_.:-]*$/);
 const text = z.string().max(8000).refine(value => value.trim().length > 0);
+const phone = z.string().length(11).regex(/^1[0-9]{10}$/);
 const schemas = {
   'session.get': empty,
   'session.login': z.object({token: z.string().min(1).max(8192)}).strict(),
   'session.logout': empty,
+  'session.requestCode': z.object({phone}).strict(),
+  'session.loginPhone': z.object({phone, code: z.string().length(6).regex(/^[0-9]{6}$/), trial_code: z.string().max(128).optional()}).strict(),
   'profiles.list': empty,
   'profiles.save': z.object({description: text}).strict(),
   'profiles.confirm': z.object({version_id: identifier}).strict(),
@@ -39,6 +42,8 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
     case 'session.get': return {path: '/api/ui/session', method: 'GET', logout: false};
     case 'session.login': return {path: '/api/ui/session', method: 'POST', body: JSON.stringify(data), logout: false};
     case 'session.logout': return {path: '/api/ui/session', method: 'DELETE', logout: true};
+    case 'session.requestCode': return {path: '/api/ui/auth/sms-code', method: 'POST', body: JSON.stringify(data), logout: false};
+    case 'session.loginPhone': return {path: '/api/ui/auth/sms-session', method: 'POST', body: JSON.stringify(data), logout: false};
     case 'profiles.list': return {path: '/api/ui/profiles', method: 'GET', logout: false};
     case 'profiles.save': return {path: '/api/ui/profiles', method: 'POST', body: JSON.stringify(data), logout: false};
     case 'profiles.confirm': return {path: `/api/ui/profiles/${encodeURIComponent(data!.version_id)}/confirm`, method: 'POST', logout: false};

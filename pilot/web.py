@@ -45,7 +45,8 @@ def _page(title: str, body: str) -> HTMLResponse:
     return response
 
 
-def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
+def build_app(store, *, auth_secret: str, dev_login: bool = False,
+              phone_auth=None, sms_sender=None) -> FastAPI:
     app = FastAPI(
         title="意客 AI 客户试用",
         docs_url=None,
@@ -285,5 +286,6 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
         return RedirectResponse(f"/opportunities/{opportunity_id}", status_code=303)
 
     from pilot.ui_api import register_ui_api
-    register_ui_api(app, store, auth_secret=auth_secret, dev_login=dev_login)
+    register_ui_api(app, store, auth_secret=auth_secret, dev_login=dev_login,
+                    phone_auth=phone_auth, sms_sender=sms_sender)
     return app
