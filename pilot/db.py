@@ -26,6 +26,7 @@ class PilotDatabase:
         ("v02-candidate-ingestion", migration_path.with_name("112_v02_candidate_ingestion.sql")),
         ("v02-candidate-review", migration_path.with_name("113_v02_candidate_review.sql")),
         ("v02-research-strategies", migration_path.with_name("114_v02_research_strategies.sql")),
+        ("v02-opportunity-evidence", migration_path.with_name("115_v02_opportunity_evidence.sql")),
     )
 
     def __init__(self, url: str):

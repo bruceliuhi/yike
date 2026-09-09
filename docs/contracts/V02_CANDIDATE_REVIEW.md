@@ -73,8 +73,8 @@ PROCESSING/SUCCEEDED/FAILED/UNKNOWN分别表示处理、已保存、明确失败
 
 ## 接收前必须补齐
 
-真实受限PostgreSQL、HTTP整链及并发/撤销/超时工程证据见[验收记录](../qa/V02_CANDIDATE_ASSESSMENT_REVIEW.md)。仍须完成Win对新核验步骤/扩展字段/原请求恢复的实际ACK、已交付真实策略的服务接线及来源样本；不将工程测试当成客户可用。
+真实受限PostgreSQL、HTTP整链及并发/撤销/超时工程证据见[验收记录](../qa/V02_CANDIDATE_ASSESSMENT_REVIEW.md)。实际策略reader和共享router已有[组合验收](../qa/V02_CONFIRMED_STRATEGY_COMPOSITION.md)，但正常CLI启动仍未装配这些可选服务。仍须完成Win对新核验步骤/扩展字段/原请求恢复的实际ACK、正常运行入口及真实来源样本；不将工程测试当成客户可用。
 
-首轮试用的“原文证据”还需要共享商机详情的权限受控、固定来源版本/观察/结构化引用投影，以及Win05G实际展示。当前私有candidate/assessment虽有这些绑定，旧商机详情未提供完整新投影；不能宣称PH-F06端到端已完成。此项属于下一段接入，不改写本片私有原始数据分享边界。
+首轮试用的“原文证据”后端投影已进入`26502ee`工程候选：首次人工INCLUDE时，在同事务固定最小公开来源版本/观察/引用；既有商机详情新增`source_evidence`，合同与Win05G/05E接收清单见[固定原文证据](V02_OPPORTUNITY_SOURCE_EVIDENCE.md)，精确验收见[QA](../qa/V02_OPPORTUNITY_SOURCE_EVIDENCE.md)。这不是把完整私有candidate/assessment共享；重复纳入不替换，旧记录未留存与损坏分别处理。客户端尚未消费新DTO，不能宣称PH-F06端到端已完成。
 
 Win适配不能只把现有P07请求连到端点：还需独立的来源核验操作与回执、INCLUDE携带`sourceVerificationId`、处理新增failure响应、保留原始未知发布时间（当前P07投影为空字符串）而非补造日期，以及把核验ID纳入新版确认快照/本地操作恢复。旧操作账本不得被清空或误按新合同自动重发。当前前端类型与hash尚未完成这些扩展，不在本片冒充已兼容或启用真实操作。

@@ -12,7 +12,7 @@
 
 候选接口只读接收审计发现04C成功回执尚缺原sourceVerificationId，05G完整接入还须版本化确认hash、分析/核验原请求恢复及历史快照隔离。审计交接见上述QA，不抢改04C或Win05G已认领代码；四个本地raw辅助草稿尚未接入，不计入产品完成度。
 
-2026-09-10 CodexiMac接续认领共享商机固定原文证据：基于`aac3fe9`，按[实施计划](superpowers/plans/2026-09-10-opportunity-source-evidence.md)预留**115迁移归Mac**；只在首次人工纳入事务固定最小公开原文/观察/引用，接现有商机详情，重复纳入不替换、旧记录明确未留存。Win继续05C及05G/05E客户端，不并改Mac共享store/db或115；108/110保留Win。当前是认领，不是原文功能端到端完成，不重复已审真实策略接线。
+2026-09-10 CodexiMac共享商机固定原文证据候选：核心`26502ee`、共享HTTP`9c71e3b`；**115迁移归Mac**，首次人工纳入同事务固定最小公开原文/观察/逐字引用，重复纳入不替换、旧记录明确未留存。实际105相关、69共享HTTP/UI、合入Win`4251e75`为`a128044`后的196合同/HTTP、75客户端定向及类型检查通过，各集合不相加；[完整QA](qa/V02_OPPORTUNITY_SOURCE_EVIDENCE.md)保留失败与实际来源/模型合成输入边界。完整自有增量`4251e75..2c216d0`独立代码/架构/质量终审PASS、0项发现，不是原文功能端到端完成。Win继续05C及按[新DTO合同](contracts/V02_OPPORTUNITY_SOURCE_EVIDENCE.md)接05G/05E，不并改Mac共享store/db或115；108/110保留Win。下一主线是正常CLI服务装配＋真实来源/客户端，不再扩一层孤立基础服务；未接能力默认关闭，父卡与Goal继续进行中。
 
 2026-09-10 当前接入候选：Mac实际策略reader`0c14b33`及共享router/114`f4e9b71`已将确认策略→签名上传→分析/人工纳入→正常/历史查询贯通真实受限PG。完整自有增量`a31069f..3898c3e`独立规格/代码/架构/质量终审PASS、0项发现，构成Mac对实际策略后端的限定接收，不是Win客户端ACK。[组合验收](qa/V02_CONFIRMED_STRATEGY_COMPOSITION.md)记录88相关、369纯边界、12实际HTTP及48全新PG，各集合不相加。正常保留前端主线`a31069f`，发现的画像默认v1/确认账号摘要两项问题已由`3898c3e`修复并独立复审PASS，107定向及类型检查通过。下面两段“未提交/未独立审核”是原本地候选的历史，不代表这些源码仍未入主线；其构包、Windows、真实平台和完整UI验收边界保留。下一主线是实际来源/客户端与共享原文证据，不扩高级管理。
 
@@ -197,6 +197,8 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 2026-09-09：V02-05/07/09 继续 IN_PROGRESS。登录、连接、AI 条件等待保护、触达队列、原生导出和 P18 管理交互已补，详见[本轮验收](qa/ui-interactions/REVIEW.md)。真实服务接入、其余页面交互/视觉及 Windows 实机验收继续执行；不新增整项 DONE。
 
 ### CodexWin Goal 启动与当前认领
+
+2026-09-10 CodexWin接续05F前置，base`22bae22`：实际desktop尚无设备持钥/签名入口，Win认领shared/deviceProof、main/deviceKeyVault/deviceProofSigner及专属tests，先消费既有01C BIND/PROVE，再接串行HTTP/账号入口；不重做05C或共享后端。按[分片计划](superpowers/plans/2026-09-10-win-device-signing-client.md)，仅用标准Ed25519/OS保护，无明文回退或任意sign IPC。独立核对同时发现执行签名载荷公开入口缺失，给Mac的[最小接线请求](handoffs/V1_WIN_FUNCTION_OWNERSHIP_20260909.md#05f真实客户端签名字节缺口2026-09-1022bae22核查)保留其execution_api/runtime所有权与115在途证据；尚未ACK、不启执行能力。前置IN_PROGRESS，完整原文证据/来源/收发/Windows Goal不缩减。
 
 2026-09-10 CodexWin 05C Task4，基线`4251e75`：已接现有P06/P20独立执行上限、P19完整快照/主动确认/原请求恢复；相关16文件156通过、最终3文件34通过（重叠不相加），类型/构建、生产TEST排除及实际Edge1440×1000/960×600隔离走查通过，独立SPEC/代码/架构/质量PASS，见[分片验收](qa/V02-05C_STRATEGY_CLIENT_WIN_REVIEW.md#task4-现有确认页接线基线4251e75)。根代理确认页与独立文件分工均已冻结，复用Task3；新策略服务存在时禁用旧启动，签名执行尚缺不伪报运行。**下一片Win 05F签名执行客户端→05G/05E候选与原文证据**，Mac保留115/共享证据投影与收发。05C及整体Goal仍IN_PROGRESS，不以界面确认或TEST走查当真实平台/产品上线。
 

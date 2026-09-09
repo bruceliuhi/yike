@@ -25,14 +25,16 @@ TABLES = ('pilot_candidate_reviews', 'pilot_candidate_source_verifications',
 @pytest.fixture(scope='module')
 def databases(raw_databases):
     admin, db = raw_databases
-    grant = Path(__file__).parents[1] / 'deploy/grant_candidate_review.sql'
-    if grant.exists():
+    grants = [Path(__file__).parents[1] / 'deploy' / name for name in (
+        'grant_candidate_review.sql', 'grant_opportunity_evidence.sql')]
+    if all(grant.exists() for grant in grants):
         with db.connect() as conn:
             role = conn.execute('SELECT current_user').fetchone()[0]
         with admin.connect() as conn:
             conn.execute("SELECT set_config('yike.app_role',%s,true)", (role,))
-            conn.execute(grant.read_text())
-            conn.execute(grant.read_text())
+            for grant in grants:
+                conn.execute(grant.read_text())
+                conn.execute(grant.read_text())
     yield admin, db
 
 @pytest.fixture
