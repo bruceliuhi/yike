@@ -1,9 +1,11 @@
 """Owner-private assessment and human review; no provider call holds a DB transaction."""
 from dataclasses import asdict
 from copy import deepcopy
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 import hashlib
 from uuid import uuid4
+from psycopg.errors import SerializationFailure
 
 from pilot.candidate_ingestion import CandidateIngestionStore, _json, _row, _primitive, _id
 from pilot.candidate_assessment_model import AssessmentModelError, validate_assessment, validate_assessment_input
@@ -317,6 +319,28 @@ class CandidateReviewStore(CandidateIngestionStore):
         if receipt and receipt.get('opportunityId'): result['opportunityId']=receipt['opportunityId']
         return result
 
+    @contextmanager
+    def _listing_snapshot(self, claims):
+        # Keep authentication live and its session fence outside the data snapshot.
+        # Starting RR before waiting for that fence could hide a preceding revoke.
+        with self.database.connect() as auth_connection, auth_connection.cursor() as auth_cursor:
+            tenant = self._active(auth_cursor,claims)
+            try:
+                with self.database.connect() as connection, connection.cursor() as cursor:
+                    cursor.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
+                    cursor.execute("SELECT set_config('yike.user_id',%s,true),set_config('yike.tenant_id',%s,true)",
+                                   (claims.user_id,tenant))
+                    # Resolver may read/lock strategy using this cursor only. It
+                    # must not reacquire the outer session fence or open a connection.
+                    yield cursor,tenant,_now(cursor)
+            except SerializationFailure:
+                # Row-locking resolvers can encounter a newer concurrent version.
+                # Expose one rereadable conflict; never silently retry/mix snapshots.
+                raise CandidateReviewError('candidate_snapshot_changed',409) from None
+            # Original READ COMMITTED connection sees current revocation and clock,
+            # even if credentials expire during a long data/resolver read.
+            self._active(auth_cursor,claims)
+
     def list_candidates(self, claims, *, query=None,platform=None,status=None,ids=None,review_request_id=None,page=1,page_size=20):
         if type(page) is not int or page<1 or type(page_size) is not int or not 1<=page_size<=100:
             raise CandidateReviewError('invalid_request',422)
@@ -332,9 +356,8 @@ class CandidateReviewStore(CandidateIngestionStore):
         if review_request_id is not None:
             _id(review_request_id,opaque=True)
             if ids is None or len(ids)!=1 or page!=1 or page_size!=1: raise CandidateReviewError('invalid_request',422)
-        with self.database.connect() as connection, connection.cursor() as cursor:
-            tenant = self._active(cursor,claims)
-            # One MVCC statement snapshots raw/profile/assessment/review/verification.
+        with self._listing_snapshot(claims) as (cursor,tenant,now):
+            # The whole data transaction, including resolver reads, shares MVCC.
             cursor.execute('''SELECT to_jsonb(q),v.version,v.status,v.payload,
                 COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.created_at DESC,r.request_id DESC)
                     FROM pilot_candidate_review_requests r WHERE r.tenant_id=%s AND r.owner_user_id=%s
@@ -376,11 +399,10 @@ class CandidateReviewStore(CandidateIngestionStore):
                     review = next((r for r in matching if r['action'] in ('INCLUDE','EXCLUDE')),None) if valid else None
                     check = next((r for r in matching if r['action']=='VERIFY_SOURCE'),None) if valid else None
                     verification = check['result'] if check else None
-                    if verification and _now(cursor)-datetime.fromisoformat(verification['checkedAt'])>timedelta(hours=24):
+                    if verification and now-datetime.fromisoformat(verification['checkedAt'])>timedelta(hours=24):
                         verification=verification | {'status':'EXPIRED'}
                     candidate = self._candidate(snapshot,assessed=assessment_request['result']['assessment'] if assessment_request else None,
                         receipt=review['result']['receipt'] if review else None,verification=verification,valid=valid)
                     candidate['assessmentStale'] = bool(any(r['action']=='ASSESS' for r in requests)) and assessment_request is None
                 if status is None or candidate['status']==status: items.append(candidate)
-            self._active(cursor,claims)
             return dict(items=items[(page-1)*page_size:page*page_size],total=len(items),page=page,pageSize=page_size)

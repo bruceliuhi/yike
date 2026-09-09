@@ -419,3 +419,99 @@ def test_unverified_source_caps_send_ready_without_rewriting_model_output(env):
     assert result['assessment']['decision']=='SEND_READY'
     assert result['assessment']['effectiveDecision']=='REVIEW'
     assert result['assessment']['sendingAuthorized'] is False
+
+def test_list_strategy_reads_share_raw_review_snapshot(env):
+    service=store(env)
+    for suffix in ('one','two'):
+        b=seed(env,public_url='https://example.com/synthetic-'+suffix)
+        assessed=service.review(env.claims,review_payload(b))
+        check=service.verify_source(env.claims,verification_payload(b))
+        service.review(env.claims,review_payload(b,'INCLUDE',assessmentId=assessed['assessment']['id'],
+            sourceVerificationId=check['id'],humanConfirmed=True,evidence=assessment()['evidence'],reason=''))
+    assert service.list_candidates(env.claims,status='IMPORTED')['total']==2
+    calls=0
+    changed=env.snapshot | {'max_records':7}
+    def interleaved(cursor,claims,profile_id,strategy_id):
+        nonlocal calls
+        resolved=env.resolver(cursor,claims,profile_id,strategy_id)
+        calls+=1
+        if calls==1:
+            with env.admin.connect() as other:
+                other.execute("SET LOCAL statement_timeout='3s'")
+                other.execute("UPDATE business_profile_versions SET payload=jsonb_set(payload,'{synthetic_strategy}',%s::jsonb) WHERE profile_version_id=%s",
+                              (json.dumps(changed),env.profile))
+        return resolved
+    service.strategy_resolver=interleaved
+    # Both candidates share one strategy. A mixed one-item page is impossible
+    # in a single database snapshot, including its count and filter result.
+    during=service.list_candidates(env.claims,status='IMPORTED')
+    assert during['total']==2 and len(during['items'])==2
+    service.strategy_resolver=env.resolver
+    assert service.list_candidates(env.claims,status='IMPORTED')['total']==0
+
+def test_list_session_revoke_committed_while_waiting_is_not_hidden_by_snapshot(env):
+    from tests.test_device_credentials_postgres import wait_for_lock
+    service=store(env)
+    seed(env)
+    with ThreadPoolExecutor(1) as pool:
+        with env.admin.connect() as blocker:
+            service.sessions.lock_session(blocker.cursor(),env.claims)
+            future=pool.submit(service.list_candidates,env.claims)
+            wait_for_lock(env.admin,'pg_advisory_xact_lock')
+            blocker.execute('INSERT INTO pilot_session_revocations(tenant_id,user_id,revocation_key,expires_at) VALUES(%s,%s,%s,to_timestamp(%s))',
+                            (env.tenant,env.claims.user_id,env.claims.revocation_key,env.claims.expires_at))
+        with pytest.raises(CandidateIngestionError,match='invalid_session'):
+            future.result(timeout=5)
+
+def test_list_session_expiry_during_strategy_read_uses_live_final_clock(env):
+    from dataclasses import replace
+    service,b,assessed,check,decision=prepared(env)
+    with env.admin.connect() as conn:
+        deadline=conn.execute('SELECT extract(epoch FROM clock_timestamp())+1').fetchone()[0]
+    claims=replace(env.claims,expires_at=float(deadline))
+    def after_expiry(cursor,owner,profile_id,strategy_id):
+        resolved=env.resolver(cursor,owner,profile_id,strategy_id)
+        cursor.execute('SELECT pg_sleep(1.1)')
+        return resolved
+    service.strategy_resolver=after_expiry
+    with pytest.raises(CandidateIngestionError,match='invalid_session'):
+        service.list_candidates(claims)
+
+def test_list_final_auth_sees_administrative_revocation_after_data_snapshot(env):
+    service,b,assessed,check,decision=prepared(env)
+    def revoke_after_snapshot(cursor,claims,profile_id,strategy_id):
+        resolved=env.resolver(cursor,claims,profile_id,strategy_id)
+        with env.admin.connect() as conn:
+            conn.execute('INSERT INTO pilot_session_revocations(tenant_id,user_id,revocation_key,expires_at) VALUES(%s,%s,%s,to_timestamp(%s))',
+                         (env.tenant,claims.user_id,claims.revocation_key,claims.expires_at))
+        return resolved
+    service.strategy_resolver=revoke_after_snapshot
+    with pytest.raises(CandidateIngestionError,match='invalid_session'):
+        service.list_candidates(env.claims)
+
+def test_list_allows_strategy_resolver_row_lock_on_supplied_cursor(env):
+    service,b,assessed,check,decision=prepared(env)
+    def locked(cursor,claims,profile_id,strategy_id):
+        cursor.execute('SELECT profile_version_id FROM business_profile_versions WHERE profile_version_id=%s FOR UPDATE',(profile_id,))
+        return env.resolver(cursor,claims,profile_id,strategy_id)
+    service.strategy_resolver=locked
+    assert service.list_candidates(env.claims)['items'][0]['assessment']['id']==assessed['assessment']['id']
+
+def test_list_serialization_conflict_is_explicit_without_automatic_retry(env):
+    service,b,assessed,check,decision=prepared(env)
+    calls=0
+    def concurrent_lock(cursor,claims,profile_id,strategy_id):
+        nonlocal calls
+        calls+=1
+        with env.admin.connect() as conn:
+            conn.execute("UPDATE business_profile_versions SET payload=jsonb_set(payload,'{synthetic_strategy,max_records}','7'::jsonb) WHERE profile_version_id=%s",(profile_id,))
+        cursor.execute('SELECT profile_version_id FROM business_profile_versions WHERE profile_version_id=%s FOR UPDATE',(profile_id,))
+        return env.resolver(cursor,claims,profile_id,strategy_id)
+    service.strategy_resolver=concurrent_lock
+    with pytest.raises(CandidateIngestionError,match='candidate_snapshot_changed'):
+        service.list_candidates(env.claims)
+    assert calls==1
+    # The failed read released both connections and the session fence.
+    service.strategy_resolver=env.resolver
+    assert service.get_request(env.claims,assessed['requestId'])==assessed
+    assert service.list_candidates(env.claims)['items'][0]['assessmentStale']
