@@ -1,5 +1,7 @@
 # 意客 AI 客户试用实现计划
 
+本文件记录当前 CP-01～CP-06 受控试用阶段。用户于 2026-09-09 要求的后续完整获客版，见 [产品与工程计划](V02_COMMERCIAL_RELEASE_PLAN.md)、[多平台 Skill 方案](V02_MULTIPLATFORM_SKILL_PLAN.md) 和 [设计交接](V02_DESIGN_HANDOFF.md)；新规划不改变下列任务的实测状态或替代 CP-06 验收。
+
 ## 阶段与停止条件
 
 ### CP-01 权威与基础设施 — 实现增量完成，部署门禁未完成
