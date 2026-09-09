@@ -21,6 +21,7 @@
 4. 独立架构与任务审核对 `1369566` 判定 **REQUEST_CHANGES**：错误 platform 类型漏出 TypeError；尾点 localhost/非规范数字 IP 被放行；父评论空 URL 跳过校验。另有 IP 异常文本耦合问题。审核者仅针对代码疑点运行合成反例，不重复全套或数据库测试。
 5. 旧分支基线 `8b48dda` 在候选代码完成前的 bootstrap/D04 检查为 **93 failed / 51 passed**，原因是旧 authority 文案及旧时间夹具使用墙钟；已有 V02-10E 修复随后在 main `5d3373d` 合入。本卡不重复修改旧时钟测试，须整合最新 main 后重新运行整体回归。这个旧基线失败不是新候选代码的通过证据。
 6. 主实现协调者补充定向复现：公开入口接受含 U+007F/U+0085/U+009F 的正文，遗漏既有控制字符限制；与上述修复同批补反例，技术文档明确 C0/DEL/C1 及 TAB/LF/CR 例外，不静默改写原文。
+7. 修复 `40a491b7e31b09b808f5af833dba95f2fca44eeb` 的定向回归 **95 passed in 0.13s**；URL/platform/父URL反例 RED 9项，DEL/C1反例 RED 6项，修复后分别通过；compileall/secret scan/diff check 通过。对 `d89779f` 复审确认这些修复，但仍判定 **REQUEST_CHANGES**：hostname 在 IDNA 之前去尾点及缺少百分号策略，允许 Unicode 等价点号/编码后的 localhost/IP。审核者通过4个离线反例确认，要求共用规范化并补回归。
 
 ## 当前结论
 

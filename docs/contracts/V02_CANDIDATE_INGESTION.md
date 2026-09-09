@@ -49,7 +49,7 @@
 - `kind`：POST / COMMENT / PAGE。PAGE 仅 PUBLIC_WEB；PUBLIC_WEB 的 POST/COMMENT 仍允许，用于论坛。
 - `external_source_id`：非空来源公开 ID（1–256 字符）；PUBLIC_WEB 可空，此时按 public_url 作为来源身份，不生成假平台 ID。
 - `external_comment_id`：COMMENT 必填（1–256 字符），其余必须空；无可靠评论 ID 的记录由采集器留作待补证，不猜造正式评论身份。
-- `public_url`：1–2048 字符，http/https 绝对链接；拒绝 userinfo、控制字符、反斜杠、私网/特殊用途 IP、localhost/本地域名和非默认端口。非 PUBLIC_WEB 还须匹配其平台域名或子域，不接受 lookalike 后缀；不请求网络，不宣称通过 DNS/SSRF 验收。
+- `public_url`：1–2048 字符，http/https 绝对链接；拒绝 userinfo、控制字符、反斜杠、私网/特殊用途 IP、localhost/本地域名和非默认端口。hostname 不允许百分号编码，先经 IDNA 转 ASCII 小写再去除单个合法 DNS 尾点；非规范数字 IP 及空标签/多个尾点不作为普通域名放行。非 PUBLIC_WEB 还须匹配其平台域名或子域，不接受 lookalike 后缀；不请求网络，不宣称通过 DNS/SSRF 验收。
 - query/fragment 中拒绝命中 token/cookie/session/authorization/signature/password/secret 的参数名（忽略大小写，解析 URL 编码）；片段只接受 1–128 字符的字母数字、`_ . : -`，供无凭据的评论锚点使用。不静默去掉敏感参数后声称原链接仍可重开。
 - `title`：可空，非空时 1–512 字符；`author_public_id`：可空，非空时 1–256 字符，匿名买方不因此排除。
 - `body`：非纯空白原文，1–20000 字符；保持 JSON 解码后的原 Unicode 文本，不 trim 或改写，不声称等于来源 HTTP 原始字节。拒绝 C0（U+0000–001F）、DEL（U+007F）及 C1（U+0080–009F）控制字符，仅允许制表/换行/回车（U+0009/000A/000D）；不删除字符后冒充原文。
@@ -63,7 +63,7 @@
 
 纯函数采用 UTF-8 的 canonical JSON（sort_keys、ensure_ascii=False、紧凑分隔符）再 SHA-256，禁止依赖 Python hash 或简单冒号拼接：
 
-- `source_identity(record, platform)`：platform、kind、来源 ID（空时 public_url）及评论 ID；PUBLIC_WEB 还必须始终加入规范 origin（scheme 小写、hostname 经 IDNA 转 ASCII 并小写、默认端口省略）。不同网站可以有相同站内 ID，不能因此合并；平台或来源不同不合并，匿名作者不能按昵称跨平台合并。
+- `source_identity(record, platform)`：platform、kind、来源 ID（空时 public_url）及评论 ID；PUBLIC_WEB 还必须始终加入规范 origin（scheme 小写、hostname 复用上述校验规范化、默认端口省略）。不同网站可以有相同站内 ID，不能因此合并；平台或来源不同不合并，匿名作者不能按昵称跨平台合并。
 - `content_version(record)`：公开 URL、title、author、body、published_at、parent 的结构化快照。不包含 observed_at、query、collector/normalizer_version。重复观察不改版本；正文、作者、时间、定位链接或父上下文变化产生新版本。
 - `batch_fingerprint(batch)`：全部校验后的上传字段，去掉 request_id。相同语义字典键顺序不影响指纹；record 顺序、观察时间、执行/画像/策略版本不同必须改变指纹。同 request_id 重试应使用原上传内容；新观察使用新 request_id。
 - 单批内同一 source_identity 重复且 content_version 相同：`DUPLICATE_RECORD`；不同版本：`SOURCE_VERSION_CONFLICT`。两者都整批拒绝，不挑一条留下。跨批内容变化允许形成新版本，由02B持久化，不沿用旧不可变 Signal 的全局拒绝规则。
