@@ -198,6 +198,8 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 
 ### CodexWin Goal 启动与当前认领
 
+2026-09-10 CodexWin 05C原请求恢复片：基线`2a66fc1`，专属opaque账本、主动确认/撤销、同UUID查询后重试、切账号及共享窗口撤销失效已实现，独立规格/代码/架构/质量复审PASS，根代理相关10文件135通过、typecheck通过；三项P2反例与源码摘要见[分片验收](qa/V02-05C_STRATEGY_CLIENT_WIN_REVIEW.md#后续主线整合与task3原请求恢复)。05C仍IN_PROGRESS，**下一步Win接现有P06/P20/P19页面**，再接签名执行/候选/原文证据，不重做已审传输与恢复模块。Mac新115/共享原文证据投影及既有收发所有权保留，不将本片当客户端可试用或整个Goal完成。
+
 2026-09-10 CodexWin 05C接入推进：正常保留Mac `aac3fe9`，共享严格DTO/完整草稿映射、5固定IPC/真实service及新旧日程兼容已实现；实际客户端→共享HTTP→受限PG完成prepare/confirm/历史查询/撤销/注销，整合遮蔽问题已修正，见[限定验收](qa/V02-05C_STRATEGY_CLIENT_WIN_REVIEW.md)。当前可复用的基础传输不是P19已接通，05C继续IN_PROGRESS：Win继续专属原请求恢复与P06/P20/P19，再接05F/G/E；Mac保留共享证据投影与收发主线。原文证据、固定多找类似和短句建联仍为首发必有，账号/隔离/确认防重不后排。通过main交接；不声称已向Mac运行Goal发消息，也不把工程链当真实来源或产品验收。
 
 2026-09-10 CodexWin接续认领05C真实策略客户端，base `36fef5b`，按[已独立审核实施计划](superpowers/plans/2026-09-10-win-strategy-client.md)实现desktop共享DTO/固定IPC/真实service→专属原请求恢复→既有P06/P20/P19接线；根代理串行Git与共享desktop文件，独立新模块分工。保留旧taskFingerprint/启动ledger、R4搜贝与类似/覆盖草稿，P19只读核对完整快照；不把策略确认当05F签名执行。Win可延伸自己的PG测试模块做真实Node→HTTP→PG，**不改Mac pilot/db.py、store.py、ui_api.py、web.py及在途113**。Mac继续04C和按上轮合同接收114，避免重复客户端和策略表。本片IN_PROGRESS，相关旧客户端基线4文件43项通过，不是新增能力完成或Mac ACK。

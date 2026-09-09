@@ -8,6 +8,8 @@
 
 **Tech Stack:** TypeScript/Zod/React/Vitest；现有Electron固定API桥接，真实FastAPI/PostgreSQL后台。
 
+**接续位置（2026-09-10）：** Task1/2已独立审核并提交`62af2ea`，正常保留Mac原文证据认领和运行兼容修正为`2a66fc1`。Task3原请求恢复已实现、规格及代码/架构/质量复审通过；Task4页面接线尚未开始。以下逐步清单保留原实施要求，实际执行/失败/复审见[分片验收](../../qa/V02-05C_STRATEGY_CLIENT_WIN_REVIEW.md)，不从旧未勾选行推断代码不存在或重复开发。
+
 基线`36fef5b`；继承已批准[R4交互](../../../design/v02-suite-r4/INTERACTION_CONTRACT.md)、[R3搜索确认](../../../design/v02-suite-r3/AI_SEARCH_CONDITIONS.md)及[真实策略合同](../../contracts/V02_CONFIRMED_RESEARCH_STRATEGIES.md)，接续原计划Chunk3。不是重新设计R4或缩小完整Goal。当前Mac仍负责04C/113及pilot共享入口，Win负责本片desktop文件；若远端出现重叠先整合，不覆盖。
 
 ## 已选边界

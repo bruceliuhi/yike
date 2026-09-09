@@ -7,6 +7,8 @@ import {
   operationLedgerKey,
   useOperationLedger,
 } from "../../src/renderer/app/operationLedger";
+import { newStrategyRecord, strategyRecordKey } from "../../src/renderer/domain/strategyConfirmation";
+import type { PrepareStrategyRequest } from "../../src/shared/researchStrategies";
 let user: string;
 const pendingKey = JSON.stringify(["opportunity-id", "comment"]);
 const sentKey = JSON.stringify(["opportunity-id", "comment", 1]);
@@ -25,6 +27,39 @@ function stored(scope: "send-attempts" | "unknown-task-starts", id = user) {
 }
 
 describe("持久操作确认记录", () => {
+  it("异步核对用捕获的只读getter同步看到最新锁，存储损坏时不读旧内存代替", () => {
+    const a = renderHook(() => useOperationLedger("send-attempts", user));
+    const b = renderHook(() => useOperationLedger("send-attempts", user));
+    const latest = a.result.current[2];
+    expect(latest).toBeTypeOf("function");
+    const writes = vi.spyOn(Storage.prototype, "setItem");
+    act(() => {
+      b.result.current[1]({ [pendingKey]: "PENDING" });
+      const beforeRead = writes.mock.calls.length;
+      expect(latest!()).toEqual({ [pendingKey]: "PENDING" });
+      expect(writes).toHaveBeenCalledTimes(beforeRead);
+    });
+    localStorage.setItem(operationLedgerKey("send-attempts", user), "{broken");
+    expect(() => latest!()).toThrow("操作确认记录");
+  });
+
+  it("策略原请求先可靠保存，清草稿后仍保留且拒绝正文混入", async () => {
+    const request: PrepareStrategyRequest = { schema_version: "strategy-confirmation-v1", request_id: crypto.randomUUID(),
+      draft_id: crypto.randomUUID(), draft_revision: 1, profile_version_id: crypto.randomUUID(),
+      configuration: { schema_version: "research-strategy-v1", name: "私有业务原文", source: "search", keywords: ["设备采购"],
+        exclusions: [], links: [], mode: "once", schedule: null, research: null },
+      platforms: ["PUBLIC_WEB"], max_records: 10, max_runtime_seconds: 600 };
+    const record = await newStrategyRecord(request, { userId: user, accountScopeId: null, scopeVersion: null, fingerprint: "a".repeat(64) });
+    const scope = "research-strategy-operations" as Parameters<typeof useOperationLedger>[0];
+    const view = renderHook(() => useOperationLedger(scope, user));
+    const key = strategyRecordKey(record);
+    act(() => view.result.current[1]({ [key]: JSON.stringify(record) }));
+    act(() => clearLocalDrafts());
+    expect(view.result.current[0][key]).toBe(JSON.stringify(record));
+    expect(localStorage.getItem(operationLedgerKey(scope, user))).not.toContain(request.configuration.name);
+    expect(() => view.result.current[1]({ [key]: JSON.stringify({ ...record, token: "private" }) })).toThrow();
+    expect(() => view.result.current[1]({ [key]: JSON.stringify({ ...record, context: { ...record.context, userId: crypto.randomUUID() } }) })).toThrow();
+  });
   it("清除编辑草稿不清除未知发送或启动记录", () => {
     const send = renderHook(() => useOperationLedger("send-attempts", user));
     const task = renderHook(() =>

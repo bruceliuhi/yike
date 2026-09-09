@@ -46,3 +46,26 @@ tests/test_research_strategies_postgres.py 5F4C924F034F77E9C3A13BD2D787C296E99BB
 ```
 
 后续：Task3原UUID恢复及显式确认→Task4 P06/P20保护上限和P19只读快照→05F签名执行/05G候选/05E原文证据。原文证据、多找类似、短句建联不后置；Mac继续权限受控证据投影和原收发责任。默认未验收能力不开启，Goal保持ACTIVE。
+
+## 后续主线整合与Task3原请求恢复
+
+Task1/2已提交`62af2ea`，正常合入Mac `1c56fc5`为`2a66fc1`并推送main，远端SHA已实际核对。Mac React单实例/Zod解释执行/CSP与smoke收紧增量经独立规格及代码/架构/质量PASS；根代理整合后5文件45 passed / 3 skipped / 904ms。3项为未提供真实坏包/原生fixture的条件测试，不作为原生通过；类型与renderer构建exit0（4765模块/253ms）。构建时含Task3在途ledger，不是干净发布包，未做Windows安装或真实原生验收。
+
+Task3以`2a66fc1`为提交基线，只增加原请求记录/domain、页面hook及测试，既有ledger增加专属scope和只读即时getter；旧调用者前两项解构、旧启动指纹及账本格式保留。正文/资料/完整回执不进ledger；用户点击才prepare/confirm/revoke，先保存再POST；reload/编辑/切账号不恢复本地勾选。丢失草稿时以调用前保存的原请求SHA核对服务端历史，`historyReceipt`只读，不变成新许可。
+
+TDD与修正：纯domain6项、ledger新增1项、hook首批7项分别先RED后GREEN。hook显示状态的TypeScript联合推断错误由明确State类型修正；新增同用户空间/服务切换测试复现迟到recheck仍返回true，改为检查当前作用域。独立SPEC再发现共享ledger撤销未失活、已核对历史未暴露、retry未先查询三项P2；新用例6失败/17通过后修正为精确activationRecord绑定、返回前读取最新持久记录、独立historyReceipt，以及先查原operation。唯精确request_not_found/404、原摘要仍匹配、持久记录可靠时，用户显式重试才同UUID POST；503/超时不重发。新增getter先1失败后15通过，验证无需等待React重渲染即可看到新锁且损坏不读旧内存冒充。
+
+最终根代理：`node node_modules/vitest/vitest.mjs run tests/strategyConfirmation.test.ts tests/ui/strategy-confirmation-hook.test.tsx tests/ui/operation-ledger.test.tsx tests/ui/task-start-contract.test.tsx tests/ui/task-recovery.test.tsx tests/ui/tasks-draft-resume.test.tsx tests/ui/outreach-reconciliation.test.tsx tests/ui/followup-ledger.test.tsx tests/ui/candidates.test.tsx tests/ui/r4-coverage-plan.test.tsx`（desktop）为**10文件135 passed / 7.31s**，typecheck exit0。独立测试补充作者最后hook23通过/1.74s，不与135相加；其最初fake-timer设置导致一次测试超时，调整为真实初始化后测试30秒等待，不当产品缺陷。以上只证明UI控制器与既有门禁；Task4页面尚未调用该hook。
+
+独立`strategy_client_plan_review`已完成Task3规格及代码/架构/质量复审PASS，三P2关闭，无新增阻断；本轮只读审核未复跑测试或PG，执行证据仍归根代理/测试作者。冻结6文件：
+
+```text
+desktop/src/renderer/domain/strategyConfirmation.ts 55253AA39A19EC71D6DDA3CFF6F8DAF344A1D845699343691805A1CA8581D6FF
+desktop/src/renderer/pages/tasks/useStrategyConfirmation.ts 2F4D1AF0AEC79F0AAF3E126F35F828AC657410C877D986C1026D641CFA492969
+desktop/tests/strategyConfirmation.test.ts 8974BC34A0655099779901681109A60F930C9F32F5AACDF38E4EF37DFA42C11F
+desktop/tests/ui/strategy-confirmation-hook.test.tsx 9085868A7CF8EEE6E7B4561E8E6CDC1F3B954F04644B59FC0170AA1E9D8681DD
+desktop/src/renderer/app/operationLedger.ts 3E83E9AA9ADC5E51E2AF37867E3AF4E5A8EE16518F634C367CF08AC895FC09C8
+desktop/tests/ui/operation-ledger.test.tsx 10C9F2A31304B575B2F7A016C29EF8D1F0ACF1837FCCCAC6E4E901406B91ECA6
+```
+
+下一动作仍是Task4 P06/P20/P19接线和实际视口走查；整个05C、原文证据实接、来源/签名执行、收发与Goal没有提前完成。
