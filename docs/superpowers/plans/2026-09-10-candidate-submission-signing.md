@@ -83,7 +83,7 @@ def prepare_submission_signing_payload(self, claims, payload: dict) -> dict:
 
 ## Task 2: 真实HTTP/PG主链与交接（root集成）
 
-**执行状态：实现/实际验证已完成，整片终审与推送进行中。** root测试与合同`3d0ce80`，正常合入Win仅3份05G交接文档为`e47a925`，源码/测试/SQL/desktop字节未变；以下最后整合步骤尚未全部完成，不标父卡或Goal结束。
+**执行状态：实现/实际验证和整片终审已完成，待最终主线推送核对。** root测试与合同`3d0ce80`，正常合入Win仅3份05G交接文档为`e47a925`，源码/测试/SQL/desktop字节未变；完整`bbe2e20..293fd24`另一位非作者终审PASS/0发现。最后主线核对事实另记，不标父卡或Goal结束。
 
 **Files:** Create `tests/test_candidate_submission_signing_http_postgres.py`; modify `tests/test_confirmed_strategy_http_postgres.py`中候选签名helper调用；update `docs/contracts/V02_RAW_CANDIDATE_INBOX.md`, `docs/V02_IMPLEMENTATION_TASKBOOK.md`, `docs/DUAL_AGENT_TASKBOARD.md`; create `docs/qa/V02_CANDIDATE_SUBMISSION_SIGNING.md`。
 
