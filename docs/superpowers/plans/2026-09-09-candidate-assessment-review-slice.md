@@ -65,6 +65,8 @@ TDD真实最小受限PG：签名raw→ASSESS→核验→INCLUDE→旧机会可�
 
 ## Task 3: 认证 HTTP、交接与独立终审
 
+2026-09-10 Task2独立反例后的最小读一致性修正：列表用外层READ COMMITTED会话护栏和内层REPEATABLE READ数据视图，原文/画像/请求/逐项策略共用快照及数据库时间。resolver仅使用传入cursor，可行锁，不另开连接或重复会话锁；序列化冲突安全409，不自动重跑。保留前后当前撤销/真实到期检查。两个局部连接和owner全量投影是小规模试用已知成本，后续按实际量优化，不为本片新增通用分页框架。
+
 根代理新增 `pilot/candidate_review_api.py`、ui_api/web最小注入注册、纯HTTP及真实HTTP→PG测试、`docs/contracts/V02_CANDIDATE_REVIEW.md`、QA和唯一任务台账。
 
 - GET `/api/ui/candidates`（P07查询、原reviewRequestId核对）；POST `/api/ui/candidate-reviews`；POST `/api/ui/candidate-source-verifications`；GET `/api/ui/candidate-review-requests/{request_id}`。
