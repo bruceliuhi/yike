@@ -92,7 +92,9 @@ uv run --frozen yike-pilot-import \
 
 ## 备份与恢复演练
 
-目标环境使用独立、受限的备份路径执行：
+**2026-09-09安全阻断：以下旧脚本的HMAC错误使用密钥文件路径字面值，未读取文件秘密，已独立复现且尚未修复。禁止将当前侧车作为可信完整性依据或据此放行CP-06。保留既有备份，不自动删除、转换或恢复；修复及历史备份处理规则经独立审核后，再在隔离环境重新演练。证据见[Win复核第12节](qa/WIN_CROSS_REVIEW_20260909.md)。**
+
+以下为历史调用方式，不是当前生产执行或验收批准。目标环境使用独立、受限的备份路径：
 
 ```bash
 export YIKE_PILOT_DATABASE_URL='postgresql://<non-superuser>:<password>@<private-db>:5432/<database>'
@@ -103,4 +105,4 @@ scripts/backup_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump.enc
 CONFIRM_RESTORE=YES scripts/restore_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump.enc
 ```
 
-恢复前必须选定隔离数据库并人工确认；脚本不会自动恢复到当前生产库。备份 passphrase 只从仓库外、非空且仅所有者可读的密钥文件读取，不写入日志。备份同时生成同名 `.enc.mac` HMAC-SHA256 侧车文件，恢复会在解密前验证该 MAC，篡改或缺少侧车文件会失败；演练结果、备份加密方式和回滚镜像 SHA 需写入目标环境验收记录。
+恢复前必须选定隔离数据库并人工确认；数据库目标实际取自`YIKE_PILOT_DATABASE_URL`，`CONFIRM_RESTORE=YES`不是自动识别生产库的保护。加密passphrase通过仓库外、非空且仅所有者可读的文件传入，不写入日志；当前`.enc.mac`的路径密钥缺陷意味着即使比较通过也不能证明可信，不能沿用此前“认证备份”的通过结论。修复后的演练结果、格式/算法及回滚镜像SHA须另写入目标环境验收记录。
