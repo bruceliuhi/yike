@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {createCipheriv, createDecipheriv, createPublicKey, generateKeyPairSync, randomBytes, sign, verify} from 'node:crypto';
+import {createCipheriv, createDecipheriv, createPrivateKey, createPublicKey, generateKeyPairSync, randomBytes, sign, verify} from 'node:crypto';
 import {mkdtemp, readdir, readFile, writeFile, mkdir, rm} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -90,7 +90,7 @@ describe('main-process device key vault', () => {
     const ciphertext = await readFile(await keyFile(fixture.directory));
     expect(ciphertext.includes(Buffer.from(key.privateKey))).toBe(false);
     expect(ciphertext.includes(Buffer.from(scope.userId))).toBe(false);
-    expect(key.privateKey).toMatch(/^-----BEGIN PRIVATE KEY-----/);
+    expect(createPrivateKey(key.privateKey).export({format: 'pem', type: 'pkcs8'})).toBe(key.privateKey);
     expect(key.publicKey).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(createPublicKey(key.privateKey).export({format: 'jwk'}).x).toBe(key.publicKey);
     const message = Buffer.from('device proof 原文字节');
