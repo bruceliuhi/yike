@@ -140,6 +140,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 回复/跟进契约切片：新增 `pilot/reply_contract.py` 与专项测试，平台回复和人工跟进严格分型，绑定租户/用户/商机/来源/画像版本/原发送请求；明确 `UNKNOWN` 不得标已读、纠正/撤销只能追加、平台公开回复 ID 去重冲突拒绝。专项 **12 passed**，compileall/diff check 通过；[契约](contracts/V02_REPLY_FOLLOWUP.md)。当前仅 contract-only，未接 PostgreSQL 事件表、真实平台回流、已读同步或提醒，V02-08继续 `IN_PROGRESS`。
 
+2026-09-10 回复事件持久层候选：新增 118 迁移、`pilot/reply_store.py`、受限授权脚本并注册迁移，支持平台回复去重、同事件已读 revision、人工跟进隔离和不可变 RLS 表。回复/触达合跑 **32 passed**。本轮未执行 PostgreSQL 实例、并发/RLS/回滚或真实平台回流，服务仍需重验业务事实与纠正目标；V02-08继续 `IN_PROGRESS`，不可写成回复已同步或上线。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。

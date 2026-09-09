@@ -94,6 +94,12 @@ def test_mark_read_requires_unread_and_produces_new_observed_fact():
         mark_read(updated, read_at=datetime(2026, 9, 10, 2, 4, tzinfo=timezone.utc))
 
 
+@pytest.mark.parametrize("read_at", ["2026-09-10T01:59:00Z", "2026-09-10T02:02:00Z"])
+def test_read_fact_must_fit_received_and_observed_window(read_at):
+    with pytest.raises(ValidationError, match="read"):
+        platform_event(read_state="READ", read_at=read_at)
+
+
 def test_state_transitions_are_forward_only_and_keep_scope():
     active = manual_event()
     corrected = manual_event(
@@ -152,6 +158,27 @@ def test_registry_rejects_duplicate_observation_with_changed_read_fact():
     changed = first.model_copy(update={"read_state": "UNKNOWN", "read_at": None})
     with pytest.raises(ValueError, match="duplicate"):
         registry.record(changed)
+
+
+def test_registry_keeps_correction_as_append_only_history():
+    registry = ReplyEventRegistry()
+    active = platform_event()
+    registry.record(active)
+    corrected = active.model_copy(update={
+        "event_id": str(uuid4()),
+        "state": "CORRECTED",
+        "corrects_event_id": active.event_id,
+        "reason": "原文版本已重新核对。",
+    })
+    assert registry.record(corrected) == corrected
+
+
+def test_registry_rejects_conflicting_manual_event_id_replay():
+    registry = ReplyEventRegistry()
+    first = manual_event()
+    registry.record(first)
+    with pytest.raises(ValueError, match="duplicate"):
+        registry.record(first.model_copy(update={"note": "同一事件不能改写。"}))
 
 
 @pytest.mark.parametrize(

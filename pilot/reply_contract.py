@@ -126,8 +126,14 @@ class PlatformReplyEvent(_Event):
             raise ValueError("read event requires read_at")
         if self.read_state != "READ" and self.read_at is not None:
             raise ValueError("unread or unknown event cannot carry read_at")
-        if datetime.fromisoformat(self.received_at.replace("Z", "+00:00")) > datetime.fromisoformat(self.observed_at.replace("Z", "+00:00")):
+        received = datetime.fromisoformat(self.received_at.replace("Z", "+00:00"))
+        observed = datetime.fromisoformat(self.observed_at.replace("Z", "+00:00"))
+        if received > observed:
             raise ValueError("reply observed before received")
+        if self.read_at is not None:
+            read_at = datetime.fromisoformat(self.read_at.replace("Z", "+00:00"))
+            if read_at < received or read_at > observed:
+                raise ValueError("read_at outside observation window")
         return self
 
 
@@ -212,6 +218,17 @@ class ReplyEventRegistry:
     def record(self, event: PlatformReplyEvent | ManualFollowupEvent):
         if not isinstance(event, _Event):
             raise ValueError("reply event required")
+        if event.state != "ACTIVE":
+            # Corrections and voids are append-only history, not a second
+            # observation competing with the active platform identity.
+            key = (event.tenant_id, event.source_id, event.outreach_request_id, "HISTORY", event.event_id)
+            existing = self._items.get(key)
+            if existing is not None:
+                if existing.model_dump(mode="json") != event.model_dump(mode="json"):
+                    raise ValueError("event history duplicate conflict")
+                return existing
+            self._items[key] = event
+            return event
         if isinstance(event, PlatformReplyEvent):
             key = (event.tenant_id, event.source_id, event.outreach_request_id, event.platform, event.external_reply_id)
             existing = self._items.get(key)
@@ -226,6 +243,11 @@ class ReplyEventRegistry:
             self._items[key] = event
         else:
             key = (event.tenant_id, event.source_id, event.outreach_request_id, "MANUAL", event.event_id)
+            existing = self._items.get(key)
+            if existing is not None:
+                if existing.model_dump(mode="json") != event.model_dump(mode="json"):
+                    raise ValueError("duplicate manual event conflict")
+                return existing
             self._items[key] = event
         return event
 
