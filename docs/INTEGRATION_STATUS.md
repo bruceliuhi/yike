@@ -164,6 +164,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 设备凭据授权增量：`grant_device_credentials.sql` 现明确授予受限角色读取 `pilot_users`、读写 `pilot_devices`、读取会话撤销表，以满足设备身份解析和历史校验的最小运行依赖。独立套件在一次性 PostgreSQL 上从原先无法初始化推进到 **24 passed / 4 failed**；剩余失败集中在撤销跨模块连接/会话授权和登出失效语义，尚未计为通过，需拆分依赖后继续验证。
 
+2026-09-10 设备凭据授权收口：进一步补充受限角色更新 `pilot_platform_connections`、写入 `pilot_session_revocations` 的最小权限；独立 `tests/test_device_credentials_postgres.py` 在一次性 PostgreSQL 上 **28 passed**。设备挑战、签名、轮换、撤销、并发和 HTTP 安全路径通过；该结果不替代生产部署、真实平台连接或客户 UAT。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
