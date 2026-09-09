@@ -1,0 +1,14 @@
+Edit this existing approved R4 P06 意客AI design to incorporate the user's single change: unify customer-facing research usage into “搜贝”. This updated area is required for development. Currentdate2026-09-09. Keepexact1484x1060,allleftform,logo,nav,brandandthree-stepworkflowunchanged. CleanflatFeishu/Alipaybluewhite professionalstyle,crispChinese.
+Replace only right research panel:
+heading 研究用量, smallsecondary badge 配置示例.
+Row “预计消耗” value “待估算” and short link 估算用量.
+Label “本次最多使用” input value “50” suffix “搜贝”; mark this is configurationexample notactualprice.
+Small helper “达到上限后暂停，追加前需再次确认。”
+Row “已使用” value “尚未启动” (not0).
+Compact tip “搜贝用于衡量研究用量，不代表商机数量。”
+Then collapsible row 高级设置 (closed) with secondaryhint 来源、时长与调用上限. Removeindividual3technicalnumberinputs from firstscreen. Theseinternalhardlimitsstillexistbutareadvanced.
+Keep补证顺序threecompactrows: 原文与发布时间; 需求依据与目标匹配; 联系上下文.
+Replaceoldstopcheckboxsectionwithreadonlyruleline “用量上限始终生效” and “证据不足时保留未完成范围”.
+Bottom quietrow 计量规则 “待服务确认” (don'tfakeexchangeconversion).
+Nearbottom link 查看启动确认内容; line 最终确认预计用量与本次上限.
+Do notincludeRMBprice,recharge,purchase,bank,coinillustration,coinicon,balance,fakeactualdeductionsorcurrencyexchange. “50搜贝” onlysamplecapnotfixedtariff. Actualcostserviceunknownmustshow待估算. KeepoverallprofessionalspacingoneprimaryCTA 下一步：连接平台 withsecondary保存草稿. Useblueflatbuttons, no gradients or giantmetriccards.

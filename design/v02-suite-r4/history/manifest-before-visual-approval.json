@@ -3,7 +3,7 @@
   "createdAt": "2026-09-09",
   "dateAnchor": "2026-09-09",
   "scopeStatus": "CONFIRMED",
-  "visualStatus": "APPROVED_WITH_USER_REQUESTED_SOUBEI_CHANGE",
+  "visualStatus": "PENDING_USER_REVIEW",
   "sourceCommit": "9e27723b4513d184438da44628017c237e895fe0",
   "approvedR3DesignCommit": "5929de671d314748f621a1992c646acee5622f67",
   "generationTool": "built-in image_gen.imagegen",
@@ -26,7 +26,7 @@
         "prompts/coach.txt",
         "prompts/coach_polish.txt"
       ],
-      "status": "APPROVED_FOR_IMPLEMENTATION"
+      "status": "PENDING_USER_REVIEW"
     },
     {
       "group": "R4-02",
@@ -45,7 +45,7 @@
         "prompts/coverage.txt",
         "prompts/coverage_polish.txt"
       ],
-      "status": "APPROVED_FOR_IMPLEMENTATION"
+      "status": "PENDING_USER_REVIEW"
     },
     {
       "group": "R4-03",
@@ -54,19 +54,16 @@
       "image": "screens/R4-03-P06.png",
       "width": 1484,
       "height": 1060,
-      "bytes": 1332331,
-      "sha256": "e104876b8979931a05c48e7e0722960ec26fec12386974aae740d6fa7f62dced",
-      "generatedFile": "exec-4ab6cd78-a184-447f-94e0-3e9ed66d65cd.png",
-      "supersededGeneratedFile": "exec-853c4b40-e7ef-437f-817e-e9f1ca2a575d.png",
+      "bytes": 1120382,
+      "sha256": "c315a8e60c3c7e837a17615445e46aafa501cd85ca2e4d0f328f850d5847423e",
+      "generatedFile": "exec-853c4b40-e7ef-437f-817e-e9f1ca2a575d.png",
+      "supersededGeneratedFile": null,
       "referenceImage": "docs/qa/ui-final-acceptance/screens/P06.png",
       "referenceSha256": "0d9f7256dfa28f7f81925c79dbc791473dc55d4edf742ee3f72050f316afd92c",
       "prompts": [
-        "prompts/budget.txt",
-        "prompts/soubei.txt"
+        "prompts/budget.txt"
       ],
-      "status": "USER_REQUESTED_SOUBEI_REVISION",
-      "approvedLayoutSha256": "c315a8e60c3c7e837a17615445e46aafa501cd85ca2e4d0f328f850d5847423e",
-      "revisionNote": "Generated after the user approved other designs and requested unified soubei usage; no claim of a second explicit image approval."
+      "status": "PENDING_USER_REVIEW"
     },
     {
       "group": "R4-04",
@@ -85,7 +82,7 @@
         "prompts/opportunities.txt",
         "prompts/opportunities_polish.txt"
       ],
-      "status": "APPROVED_FOR_IMPLEMENTATION"
+      "status": "PENDING_USER_REVIEW"
     },
     {
       "group": "R4-05",
@@ -103,7 +100,7 @@
       "prompts": [
         "prompts/detail.txt"
       ],
-      "status": "APPROVED_FOR_IMPLEMENTATION"
+      "status": "PENDING_USER_REVIEW"
     },
     {
       "group": "R4-06",
@@ -122,8 +119,7 @@
         "prompts/brief.txt",
         "prompts/brief_polish.txt"
       ],
-      "status": "APPROVED_FOR_IMPLEMENTATION"
+      "status": "PENDING_USER_REVIEW"
     }
-  ],
-  "approvalRecord": "APPROVAL.md"
+  ]
 }
