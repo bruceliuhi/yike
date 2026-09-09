@@ -1,0 +1,469 @@
+[
+  {
+    "page": "P05",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    },
+    "images": [
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/xiaohongshu.png",
+        "width": 16
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/douyin.ico",
+        "width": 16
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/bilibili.ico",
+        "width": 16
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/zhihu.ico",
+        "width": 16
+      }
+    ]
+  },
+  {
+    "page": "P06",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    },
+    "images": [
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/xiaohongshu.png",
+        "width": 18
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/douyin.ico",
+        "width": 18
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/bilibili.ico",
+        "width": 18
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/zhihu.ico",
+        "width": 18
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/xiaohongshu.png",
+        "width": 21
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/douyin.ico",
+        "width": 21
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/bilibili.ico",
+        "width": 21
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/zhihu.ico",
+        "width": 21
+      }
+    ]
+  },
+  {
+    "page": "P08",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    },
+    "images": [
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/xiaohongshu.png",
+        "width": 16
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/douyin.ico",
+        "width": 16
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/bilibili.ico",
+        "width": 16
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/zhihu.ico",
+        "width": 16
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/xiaohongshu.png",
+        "width": 20
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/douyin.ico",
+        "width": 20
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/bilibili.ico",
+        "width": 20
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/zhihu.ico",
+        "width": 20
+      }
+    ]
+  },
+  {
+    "page": "P09",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1431,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    },
+    "images": [
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/xiaohongshu.png",
+        "width": 18
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/douyin.ico",
+        "width": 18
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/bilibili.ico",
+        "width": 18
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/zhihu.ico",
+        "width": 18
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/xiaohongshu.png",
+        "width": 24
+      }
+    ]
+  },
+  {
+    "page": "P16",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    },
+    "images": [
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/xiaohongshu.png",
+        "width": 22
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/douyin.ico",
+        "width": 22
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/bilibili.ico",
+        "width": 22
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/zhihu.ico",
+        "width": 22
+      }
+    ]
+  },
+  {
+    "page": "P17",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    },
+    "images": [
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/xiaohongshu.png",
+        "width": 22
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/douyin.ico",
+        "width": 22
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/bilibili.ico",
+        "width": 22
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/zhihu.ico",
+        "width": 22
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/xiaohongshu.png",
+        "width": 32
+      }
+    ]
+  },
+  {
+    "page": "P19",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    },
+    "images": [
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/xiaohongshu.png",
+        "width": 20
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/douyin.ico",
+        "width": 20
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/bilibili.ico",
+        "width": 20
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/zhihu.ico",
+        "width": 20
+      }
+    ]
+  },
+  {
+    "page": "P20",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1084,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    },
+    "images": [
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/xiaohongshu.png",
+        "width": 18
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/douyin.ico",
+        "width": 18
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/bilibili.ico",
+        "width": 18
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/zhihu.ico",
+        "width": 18
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/xiaohongshu.png",
+        "width": 21
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/douyin.ico",
+        "width": 21
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/bilibili.ico",
+        "width": 21
+      },
+      {
+        "loaded": true,
+        "src": "/@fs/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/assets/platforms/zhihu.ico",
+        "width": 21
+      }
+    ]
+  },
+  {
+    "page": "P07",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1644,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    },
+    "labels": [
+      "TEST 公开来源",
+      "TEST 公开来源"
+    ],
+    "fixturePlatform": "web; generic icon is expected"
+  },
+  {
+    "page": "P10",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    },
+    "labels": [
+      "公开网站"
+    ],
+    "fixturePlatform": "web; generic icon is expected"
+  },
+  {
+    "page": "P11",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    },
+    "labels": [
+      "公开网站",
+      "公开网站"
+    ],
+    "fixturePlatform": "web; generic icon is expected"
+  },
+  {
+    "page": "P12",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    },
+    "labels": [
+      "公开网站",
+      "湖南省商务厅官网",
+      "公开网站"
+    ],
+    "fixturePlatform": "web; generic icon is expected"
+  },
+  {
+    "page": "P13",
+    "viewport": {
+      "clientHeight": 1060,
+      "clientWidth": 1484,
+      "pageX": 0,
+      "pageY": 0
+    },
+    "content": {
+      "height": 1060,
+      "width": 1484,
+      "x": 0,
+      "y": 0
+    },
+    "labels": [
+      "公开网站",
+      "湖南省商务厅官网",
+      "公开网站"
+    ],
+    "fixturePlatform": "web; generic icon is expected"
+  }
+]
