@@ -31,6 +31,9 @@ function localDay(value: string) {
   const time = new Date(value);
   return `${time.getFullYear()}-${String(time.getMonth() + 1).padStart(2, "0")}-${String(time.getDate()).padStart(2, "0")}`;
 }
+function followupTab(value: string | null) {
+  return value === "replies" || value === "all" ? value : "todo";
+}
 export function FollowupsPage() {
   const { service, session } = useApp();
   const identity = useMemo(
@@ -48,20 +51,38 @@ export function FollowupsPage() {
 }
 function FollowupWorkspace() {
   const { service, session, route, navigate } = useApp();
-  const [tab, setTab] = useState(() =>
-    route.query.get("tab") === "replies" ? "replies" : "todo",
-  );
+  const [tab, setTab] = useState(() => followupTab(route.query.get("tab")));
   const [selected, setSelected] = useState("");
   const [owner, setOwner] = useState("");
   const [date, setDate] = useState("");
   const [correction, setCorrection] = useState<FollowupRecord>();
+  const [resolvedReply, setResolvedReply] = useState<Opportunity>();
   const operation = useFollowupOperation();
   const target =
     route.query.get("add") === "1" ? "" : route.query.get("opportunity") || "";
-  const intent = JSON.stringify([target, route.query.get("tab")]);
+  const routeReplyId = route.query.get("opportunity") || undefined;
+  const intent = JSON.stringify([routeReplyId, route.query.get("tab")]);
+  const [replySelection, setReplySelection] = useState({
+    intent,
+    id: routeReplyId,
+  });
+  // Route changes hide the previous object in the same render, before effects.
+  const replyId = replySelection.intent === intent
+    ? replySelection.id
+    : routeReplyId;
+  const selectReply = (id?: string) => setReplySelection({ intent, id });
+  const replyOpportunity = resolvedReply?.id === replyId ? resolvedReply : undefined;
   const handledIntent = useRef("");
+  useEffect(() => {
+    handledIntent.current = "";
+    setReplySelection({ intent, id: routeReplyId });
+    setTab(followupTab(route.query.get("tab")));
+    setOwner("");
+    setDate("");
+    setSelected("");
+    setFocused("");
+  }, [intent]);
   const [focused, setFocused] = useState("");
-  const [missingTarget, setMissingTarget] = useState(false);
   const resource = useResource(async () => {
     if (!session.authenticated)
       return {
@@ -107,13 +128,24 @@ function FollowupWorkspace() {
   );
   const records: FollowupView[] = resource.data?.records || [];
   const members = resource.data?.members || [];
+  const customerOpportunities = (opportunities.data || []).filter((row) => !isSample(row));
+  const editorOpportunities = replyOpportunity && !customerOpportunities.some((row) => row.id === replyOpportunity.id)
+    ? [...customerOpportunities, replyOpportunity]
+    : customerOpportunities;
+  const followupPath = (add = false) => {
+    const query = new URLSearchParams();
+    if (replyOpportunity) query.set("opportunity", replyOpportunity.id);
+    if (replyOpportunity || tab !== "todo") query.set("tab", tab);
+    if (add) query.set("add", "1");
+    return `/followups${query.size ? `?${query}` : ""}`;
+  };
   useEffect(() => {
     if (resource.loading || resource.error || handledIntent.current === intent)
       return;
     handledIntent.current = intent;
     if (!target) {
       setFocused("");
-      setMissingTarget(false);
+      setSelected("");
       return;
     }
     const latest = records
@@ -121,16 +153,13 @@ function FollowupWorkspace() {
         (r) => r.opportunityId === target && !r.sample && target !== "sample",
       )
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
-    setTab(route.query.get("tab") === "replies" ? "replies" : "todo");
-    setOwner("");
-    setDate("");
     setSelected(latest?.id || "");
     setFocused(latest?.id || "");
-    setMissingTarget(!latest);
   }, [intent, resource.data, resource.loading, resource.error]);
   const localSelection = () => {
+    // A late list must not replace a choice made after entering this route.
+    handledIntent.current = intent;
     setFocused("");
-    setMissingTarget(false);
   };
   const visible = records
     .filter(
@@ -152,13 +181,13 @@ function FollowupWorkspace() {
         Date.parse(b.occurredAt || b.createdAt) -
         Date.parse(a.occurredAt || a.createdAt),
     );
-  const current = visible.find((r) => r.id === selected);
   const reload = () => {
     void resource.reload();
   };
   const saved = () => {
     setCorrection(undefined);
-    navigate("/followups");
+    handledIntent.current = "";
+    navigate(followupPath());
     reload();
   };
   const pending = Object.keys(operation.pending);
@@ -177,11 +206,6 @@ function FollowupWorkspace() {
           { key: "all", label: "全部" },
         ]}
       />
-      {missingTarget && (
-        <Notice tone="warning">
-          未找到目标商机的跟进记录，请核对商机是否已登记或仍可访问。
-        </Notice>
-      )}
       {focused && (
         <p className="muted text-small">已定位目标商机的最新登记。</p>
       )}
@@ -274,7 +298,7 @@ function FollowupWorkspace() {
               </Button>
               <Button
                 variant="primary"
-                onClick={() => navigate("/followups?add=1")}
+                onClick={() => navigate(followupPath(true))}
               >
                 <Plus />
                 添加跟进
@@ -323,6 +347,7 @@ function FollowupWorkspace() {
                                 onClick={() => {
                                   localSelection();
                                   setSelected(row.id);
+                                  selectReply(row.opportunityId);
                                 }}
                               >
                                 {row.title || "查看关联商机"}
@@ -387,9 +412,21 @@ function FollowupWorkspace() {
           )}
         </section>
         <RelatedReplies
-          key={session.userId || "public"}
-          current={current}
+          key={replyId || "unmatched"}
+          opportunityId={replyId}
+          choices={customerOpportunities}
+          choicesLoading={opportunities.loading}
+          choicesError={opportunities.error}
+          onReloadChoices={opportunities.reload}
+          onSelect={(id) => {
+            localSelection();
+            setSelected("");
+            selectReply(id);
+          }}
+          onResolved={setResolvedReply}
           records={records}
+          recordsLoading={resource.loading}
+          recordsError={resource.error}
           onCorrect={setCorrection}
           onChanged={reload}
         />
@@ -397,14 +434,14 @@ function FollowupWorkspace() {
       {(route.query.get("add") === "1" || correction) && (
         <FollowupEditor
           key={`${session.userId}:${correction?.id || route.query.get("opportunity") || "new"}`}
-          rows={(opportunities.data || []).filter((row) => !isSample(row))}
+          rows={editorOpportunities}
           members={members}
           correction={correction}
           loading={
-            opportunities.loading || (!!service.followup && resource.loading)
+            (!replyOpportunity && opportunities.loading) || (!!service.followup && resource.loading)
           }
           error={
-            opportunities.error || (service.followup && resource.error) || ""
+            (!replyOpportunity && opportunities.error) || (service.followup && resource.error) || ""
           }
           onRetry={() => {
             void opportunities.reload();
@@ -412,7 +449,7 @@ function FollowupWorkspace() {
           }}
           onClose={() => {
             setCorrection(undefined);
-            if (route.query.get("add") === "1") navigate("/followups");
+            if (route.query.get("add") === "1") navigate(followupPath());
           }}
           onSaved={saved}
         />

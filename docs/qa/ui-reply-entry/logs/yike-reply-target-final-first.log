@@ -1,0 +1,587 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+ ❯ tests/ui/followup-completion.test.tsx (24 tests | 1 failed) 1956ms
+     × never offers correction or withdrawal for sample or historical records 1025ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/followup-completion.test.tsx > P14 structured followup lists and replies > never offers correction or withdrawal for sample or historical records
+TestingLibraryElementError: Unable to find an element with the text: TEST原沟通. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<header[39m
+      [33mclass[39m=[32m"page-heading"[39m
+    [36m>[39m
+      [36m<div>[39m
+        [36m<h1[39m
+          [33mtabindex[39m=[32m"-1"[39m
+        [36m>[39m
+          [0m跟进记录[0m
+        [36m</h1>[39m
+      [36m</div>[39m
+    [36m</header>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"tabs"[39m
+      [33mrole[39m=[32m"tablist"[39m
+    [36m>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"true"[39m
+        [33mclass[39m=[32m"active"[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"0"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m待跟进[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m回复记录[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m全部[0m
+      [36m</button>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"followup-layout"[39m
+    [36m>[39m
+      [36m<section>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"filter-bar"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33maria-labelledby[39m=[32m"_r_12_"[39m
+            [33mclass[39m=[32m"field "[39m
+            [33mrole[39m=[32m"group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"field-label"[39m
+              [33mid[39m=[32m"_r_12_"[39m
+            [36m>[39m
+              [0m负责人[0m
+            [36m</div>[39m
+            [36m<select[39m
+              [33maria-label[39m=[32m"筛选负责人"[39m
+            [36m>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m""[39m
+              [36m>[39m
+                [0m全部[0m
+              [36m</option>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"TEST-member"[39m
+              [36m>[39m
+                [0mTEST成员[0m
+              [36m</option>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"OTHER"[39m
+              [36m>[39m
+                [0m另一成员[0m
+              [36m</option>[39m
+            [36m</select>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33maria-labelledby[39m=[32m"_r_13_"[39m
+            [33mclass[39m=[32m"field "[39m
+            [33mrole[39m=[32m"group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"field-label"[39m
+              [33mid[39m=[32m"_r_13_"[39m
+            [36m>[39m
+              [0m日期[0m
+            [36m</div>[39m
+            [36m<input[39m
+              [33maria-label[39m=[32m"筛选记录日期"[39m
+              [33mtype[39m=[32m"date"[39m
+              [33mvalue[39m=[32m""[39m
+            [36m/>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"followup-filter-actions"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"button button-secondary "[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [0m刷新[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"button button-primary "[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"currentColor"[39m
+                [33mheight[39m=[32m"1em"[39m
+                [33mviewBox[39m=[32m"0 0 256 256"[39m
+                [33mwidth[39m=[32m"1em"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0m添加跟进[0m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"table-wrap"[39m
+        [36m>[39m
+          [36m<table[39m
+            [33mclass[39m=[32m"data-table"[39m
+          [36m>[39m
+            [36m<thead>[39m
+              [36m<tr>[39m
+                [36m<th>[39m
+                  [0m商机[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0m最近联系[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0m客户回复[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0m下次跟进[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0m负责人[0m
+                [36m</th>[39m
+              [36m</tr>[39m
+            [36m</thead>[39m
+            [36m<tbody />[39m
+          [36m</table>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"empty-state"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"empty-icon"[39m
+              [33mfill[39m=[32m"currentColor"[39m
+              [33mheight[39m=[32m"56"[39m
+              [33mviewBox[39m=[32m"0 0 256 256"[39m
+              [33mwidth[39m=[32m"56"[39m
+              [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M208,88H152V32Z"[39m
+                [33mopacity[39m=[32m"0.2"[39m
+              [36m/>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-45.54-48.85a36.05,36.05,0,1,0-11.31,11.31l11.19,11.2a8,8,0,0,0,11.32-11.32ZM104,148a20,20,0,1,1,20,20A20,20,0,0,1,104,148Z"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [36m<h3>[39m
+              [0m暂无跟进记录[0m
+            [36m</h3>[39m
+            [36m<p>[39m
+              [0m联系后记录下一步，避免遗漏。[0m
+            [36m</p>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"related-replies"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"followup-selection"[39m
+        [36m>[39m
+          [36m<h2>[39m
+            [0m关联回复[0m
+          [36m</h2>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"button button-ghost "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m刷新回复[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33maria-labelledby[39m=[32m"_r_14_"[39m
+          [33mclass[39m=[32m"field "[39m
+          [33mrole[39m=[32m"group"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"field-label"[39m
+            [33mid[39m=[32m"_r_14_"[39m
+          [36m>[39m
+            [0m查看商机回复[0m
+          [36m</div>[39m
+          [36m<select[39m
+            [33maria-label[39m=[32m"查看商机回复"[39m
+          [36m>[39m
+            [36m<option[39m
+              [33mvalue[39m=[32m""[39m
+            [36m>[39m
+              [0m未匹配回复[0m
+            [36m</option>[39m
+            [36m<option[39m
+              [33mvalue[39m=[32m"TEST-opp"[39m
+            [36m>[39m
+              [0mTEST商机[0m
+            [36m</option>[39m
+          [36m</select>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"tabs"[39m
+          [33mrole[39m=[32m"tablist"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-selected[39m=[32m"false"[39m
+            [33mclass[39m=[32m""[39m
+            [33mrole[39m=[32m"tab"[39m
+            [33mtabindex[39m=[32m"-1"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m通道回复[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-selected[39m=[32m"true"[39m
+            [33mclass[39m=[32m"active"[39m
+            [33mrole[39m=[32m"tab"[39m
+            [33mtabindex[39m=[32m"0"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m人工登记[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"empty-state"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"empty-icon"[39m
+            [33mfill[39m=[32m"currentColor"[39m
+            [33mheight[39m=[32m"56"[39m
+            [33mviewBox[39m=[32m"0 0 256 256"[39m
+            [33mwidth[39m=[32m"56"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M208,88H152V32Z"[39m
+              [33mopacity[39m=[32m"0.2"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-45.54-48.85a36.05,36.05,0,1,0-11.31,11.31l11.19,11.2a8,8,0,0,0,11.32-11.32ZM104,148a20,20,0,1,1,20,20A20,20,0,0,1,104,148Z"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<h3>[39m
+            [0m选择商机查看人工登记[0m
+          [36m</h3>[39m
+        [36m</div>[39m
+      [36m</aside>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<header[39m
+      [33mclass[39m=[32m"page-heading"[39m
+    [36m>[39m
+      [36m<div>[39m
+        [36m<h1[39m
+          [33mtabindex[39m=[32m"-1"[39m
+        [36m>[39m
+          [0m跟进记录[0m
+        [36m</h1>[39m
+      [36m</div>[39m
+    [36m</header>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"tabs"[39m
+      [33mrole[39m=[32m"tablist"[39m
+    [36m>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"true"[39m
+        [33mclass[39m=[32m"active"[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"0"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m待跟进[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m回复记录[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m全部[0m
+      [36m</button>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"followup-layout"[39m
+    [36m>[39m
+      [36m<section>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"filter-bar"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33maria-labelledby[39m=[32m"_r_12_"[39m
+            [33mclass[39m=[32m"field "[39m
+            [33mrole[39m=[32m"group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"field-label"[39m
+              [33mid[39m=[32m"_r_12_"[39m
+            [36m>[39m
+              [0m负责人[0m
+            [36m</div>[39m
+            [36m<select[39m
+              [33maria-label[39m=[32m"筛选负责人"[39m
+            [36m>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m""[39m
+              [36m>[39m
+                [0m全部[0m
+              [36m</option>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"TEST-member"[39m
+              [36m>[39m
+                [0mTEST成员[0m
+              [36m</option>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"OTHER"[39m
+              [36m>[39m
+                [0m另一成员[0m
+              [36m</option>[39m
+            [36m</select>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33maria-labelledby[39m=[32m"_r_13_"[39m
+            [33mclass[39m=[32m"field "[39m
+            [33mrole[39m=[32m"group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"field-label"[39m
+              [33mid[39m=[32m"_r_13_"[39m
+            [36m>[39m
+              [0m日期[0m
+            [36m</div>[39m
+            [36m<input[39m
+              [33maria-label[39m=[32m"筛选记录日期"[39m
+              [33mtype[39m=[32m"date"[39m
+              [33mvalue[39m=[32m""[39m
+            [36m/>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"followup-filter-actions"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"button button-secondary "[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [0m刷新[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"button button-primary "[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"currentColor"[39m
+                [33mheight[39m=[32m"1em"[39m
+                [33mviewBox[39m=[32m"0 0 256 256"[39m
+                [33mwidth[39m=[32m"1em"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0m添加跟进[0m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"table-wrap"[39m
+        [36m>[39m
+          [36m<table[39m
+            [33mclass[39m=[32m"data-table"[39m
+          [36m>[39m
+            [36m<thead>[39m
+              [36m<tr>[39m
+                [36m<th>[39m
+                  [0m商机[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0m最近联系[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0m客户回复[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0m下次跟进[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0m负责人[0m
+                [36m</th>[39m
+              [36m</tr>[39m
+            [36m</thead>[39m
+            [36m<tbody />[39m
+          [36m</table>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"empty-state"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"empty-icon"[39m
+              [33mfill[39m=[32m"currentColor"[39m
+              [33mheight[39m=[32m"56"[39m
+              [33mviewBox[39m=[32m"0 0 256 256"[39m
+              [33mwidth[39m=[32m"56"[39m
+              [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M208,88H152V32Z"[39m
+                [33mopacity[39m=[32m"0.2"[39m
+              [36m/>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-45.54-48.85a36.05,36.05,0,1,0-11.31,11.31l11.19,11.2a8,8,0,0,0,11.32-11.32ZM104,148a20,20,0,1,1,20,20A20,20,0,0,1,104,148Z"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [36m<h3>[39m
+              [0m暂无跟进记录[0m
+            [36m</h3>[39m
+            [36m<p>[39m
+              [0m联系后记录下一步，避免遗漏。[0m
+            [36m</p>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"related-replies"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"followup-selection"[39m
+        [36m>[39m
+          [36m<h2>[39m
+            [0m关联回复[0m
+          [36m</h2>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"button button-ghost "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m刷新回复[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33maria-labelledby[39m=[32m"_r_14_"[39m
+          [33mclass[39m=[32m"field "[39m
+          [33mrole[39m=[32m"group"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"field-label"[39m
+            [33mid[39m=[32m"_r_14_"[39m
+          [36m>[39m
+            [0m查看商机回复[0m
+          [36m</div>[39m
+          [36m<select[39m
+            [33maria-label[39m=[32m"查看商机回复"[39m
+          [36m>[39m
+            [36m<option[39m
+              [33mvalue[39m=[32m""[39m
+            [36m>[39m
+              [0m未匹配回复[0m
+            [36m</option>[39m
+            [36m<option[39m
+              [33mvalue[39m=[32m"TEST-opp"[39m
+            [36m>[39m
+              [0mTEST商机[0m
+            [36m</option>[39m
+          [36m</select>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"tabs"[39m
+          [33mrole[39m=[32m"tablist"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-selected[39m=[32m"false"[39m
+            [33mclass[39m=[32m""[39m
+            [33mrole[39m=[32m"tab"[39m
+            [33mtabindex[39m=[32m"-1"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m通道回复[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-selected[39m=[32m"true"[39m
+            [33mclass[39m=[32m"active"[39m
+            [33mrole[39m=[32m"tab"[39m
+            [33mtabindex[39m=[32m"0"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m人工登记[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"empty-state"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"empty-icon"[39m
+            [33mfill[39m=[32m"currentColor"[39m
+            [33mheight[39m=[32m"56"[39m
+            [33mviewBox[39m=[32m"0 0 256 256"[39m
+            [33mwidth[39m=[32m"56"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M208,88H152V32Z"[39m
+              [33mopacity[39m=[32m"0.2"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-45.54-48.85a36.05,36.05,0,1,0-11.31,11.31l11.19,11.2a8,8,0,0,0,11.32-11.32ZM104,148a20,20,0,1,1,20,20A20,20,0,0,1,104,148Z"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<h3>[39m
+            [0m选择商机查看人工登记[0m
+          [36m</h3>[39m
+        [36m</div>[39m
+      [36m</aside>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ waitForWrapper node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ selectManual tests/ui/followup-completion.test.tsx:107:16
+    105|   fireEvent.click(await screen.findByRole("button", { name: "TEST商机" }…
+    106|   fireEvent.click(screen.getByRole("tab", { name: "人工登记" }));
+    107|   await screen.findByText("TEST原沟通");
+       |                ^
+    108| }
+    109| beforeEach(() => {
+ ❯ tests/ui/followup-completion.test.tsx:312:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 6 passed (7)
+      Tests  1 failed | 69 passed (70)
+   Start at  03:20:26
+   Duration  3.25s (transform 863ms, setup 0ms, import 5.96s, tests 4.41s, environment 1.88s)
+

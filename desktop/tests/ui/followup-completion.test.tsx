@@ -7,6 +7,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { FollowupsPage } from "../../src/renderer/pages/Followups";
 import { PUBLIC_SAMPLE } from "../../src/renderer/pages/Opportunities";
@@ -89,7 +90,9 @@ function addRoute() {
   context.route = parseRoute("#/followups?add=1");
 }
 async function fill() {
-  await screen.findByRole("option", { name: "TEST商机" });
+  await within(
+    await screen.findByRole("dialog", { name: "添加跟进" }),
+  ).findByRole("option", { name: "TEST商机" });
   fireEvent.change(screen.getByRole("combobox", { name: "关联商机" }), {
     target: { value: "TEST-opp" },
   });
@@ -101,6 +104,7 @@ async function fill() {
 async function selectManual() {
   fireEvent.click(await screen.findByRole("button", { name: "TEST商机" }));
   fireEvent.click(screen.getByRole("tab", { name: "人工登记" }));
+  await screen.findByText("TEST原沟通");
 }
 beforeEach(() => {
   localStorage.clear();
@@ -108,6 +112,11 @@ beforeEach(() => {
   context = {
     service: {
       opportunities: vi.fn().mockResolvedValue([opportunity, PUBLIC_SAMPLE]),
+      opportunity: vi.fn().mockImplementation(async (id: string) => {
+        if (id === opportunity.id) return opportunity;
+        if (id === "OTHER") return { ...opportunity, id, title: "其他客户" };
+        throw new Error("TEST目标商机不存在");
+      }),
       followups: vi.fn().mockResolvedValue([]),
       addFollowup: vi.fn().mockResolvedValue(undefined),
       followup: {
@@ -168,9 +177,7 @@ describe("P14 structured followup lists and replies", () => {
   it("reports a missing workbench target without selecting another customer", async () => {
     context.route = parseRoute("#/followups?opportunity=missing&tab=todo");
     render(<FollowupsPage />);
-    await screen.findByText(
-      "未找到目标商机的跟进记录，请核对商机是否已登记或仍可访问。",
-    );
+    await screen.findByText("TEST目标商机不存在");
     expect(
       screen.getByRole("button", { name: "TEST商机" }).closest("tr")?.className,
     ).not.toBe("selected");
@@ -480,9 +487,10 @@ describe("P15 structured and legacy persistence", () => {
   );
   it("prevents saving a changed opportunity version", async () => {
     addRoute();
-    vi.mocked(context.service.opportunities)
-      .mockResolvedValueOnce([opportunity])
-      .mockResolvedValue([{ ...opportunity, profileVersionId: "new-profile" }]);
+    vi.mocked(context.service.opportunity).mockResolvedValue({
+      ...opportunity,
+      profileVersionId: "new-profile",
+    });
     render(<FollowupsPage />);
     await fill();
     fireEvent.click(screen.getByRole("button", { name: "保存记录" }));

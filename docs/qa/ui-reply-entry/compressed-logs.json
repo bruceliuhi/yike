@@ -1,0 +1,20 @@
+[
+  {
+    "path": "logs/yike-reply-integration-first.log.gz",
+    "originalName": "yike-reply-integration-first.log",
+    "uncompressedBytes": 1254462,
+    "uncompressedSha256": "79aff9496d55354ea067704ba5a29609db712154996705de71757b00469c4564",
+    "compressedBytes": 39970,
+    "compressedSha256": "72977b80a3e854411b38c42fb05e62b09938c5f882be7f1b08d4d619aa5a1278",
+    "roundTripVerified": true
+  },
+  {
+    "path": "logs/yike-followup-reply-entry-red-27ed499.log.gz",
+    "originalName": "yike-followup-reply-entry-red-27ed499.log",
+    "uncompressedBytes": 158021,
+    "uncompressedSha256": "839693b3a6d21c882e6db9bae8abccc4c95c9e286ff7216cb67ebec2e190f69c",
+    "compressedBytes": 7213,
+    "compressedSha256": "1d89e51860ec3014df1ed488eb8dfc00a53521821033434d3438b22614763d7a",
+    "roundTripVerified": true
+  }
+]

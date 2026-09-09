@@ -1,0 +1,12 @@
+{
+  "candidate": "4eb1bb88b97d5f1d9ff3db569d80f9d9e79855b4",
+  "buildSource": "/tmp/yike-reply-release-4eb1bb8",
+  "trackedDesktopInputs": 330,
+  "allInputsMatchCommit": true,
+  "app": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/reply-entry-4eb1bb8/意客AI.app",
+  "asarSha256": "72b597705c7fde8a1bd80a5b3134c48373a453658dca0c8f87cc0fdf56056c99",
+  "zip": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/reply-entry-4eb1bb8/意客AI-darwin-arm64-0.2.0.zip",
+  "zipSha256": "c203b93e9212d0af93ddff3bdc8ac6fed17cf9cba2a606ed270ee24b357d99d7",
+  "zipAsarSha256": "72b597705c7fde8a1bd80a5b3134c48373a453658dca0c8f87cc0fdf56056c99",
+  "scope": "Built and byte-verified Mac arm64 artifact; current candidate visible native and browser checks not performed because Mac locked. Windows and production services not verified."
+}

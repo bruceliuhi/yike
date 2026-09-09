@@ -1,0 +1,160 @@
+{
+  "candidate": "4eb1bb88b97d5f1d9ff3db569d80f9d9e79855b4",
+  "source": "/tmp/yike-reply-release-4eb1bb8",
+  "servedPath": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/visual-harness",
+  "previousBuildPreservedAt": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/visual-harness-before-reply-4eb1bb8",
+  "url": "http://127.0.0.1:18794/?scenario=P14&state=populated&capabilities=complete&followup=replies-only",
+  "httpStatus": 200,
+  "visibleAcceptance": false,
+  "scope": "Isolated TEST bundle only; HTTP and build verification do not prove visible flows or real services.",
+  "files": [
+    {
+      "path": ".vite/manifest.json",
+      "sha256": "70c560e75d44df096197b616999d5936720b1917a31410839180f7370a3bb368"
+    },
+    {
+      "path": "assets/ArrowRight.es-CGRtbIZc.js",
+      "sha256": "4a83e9f767501805a93e5bfe88f852f3b044eacc89118e0147883f0b6d56feca"
+    },
+    {
+      "path": "assets/ArrowSquareOut.es-xApDTU8q.js",
+      "sha256": "21395880230e260f93e1c69a3c20285d774d3da01437ec33728a3c1343e1b625"
+    },
+    {
+      "path": "assets/Connections-D7KdUH_C.js",
+      "sha256": "35068e36f69b121c10d9c50d319d9f57803e3da10de41154d6cd4225b7d09594"
+    },
+    {
+      "path": "assets/Followups-BEcgu2i8.css",
+      "sha256": "13cff2b01f5ef277c4ed616a8792852d4f9406a4bf84876f8add30b65c06bdd2"
+    },
+    {
+      "path": "assets/Followups-DW_EemgK.js",
+      "sha256": "da533c7eb6f9af88257fd3365e60819edfcb8128586c3b12ca618fe4e2555012"
+    },
+    {
+      "path": "assets/Login-DSZxHTDI.js",
+      "sha256": "788634a0169925408f6f46b272a3eade75930926bb54e770435db2d9f12c84d8"
+    },
+    {
+      "path": "assets/Opportunities-BHN81q4e.js",
+      "sha256": "69fdf7a5b8eab190ca8bb9b4779449ef35fa0507a0ead8f40b62a156e446da51"
+    },
+    {
+      "path": "assets/Opportunities-DcLfveqg.css",
+      "sha256": "67d025e8b82bedb37cbe6a65a368743328f729e2f0c12c162e3691534ec41650"
+    },
+    {
+      "path": "assets/Outreach-BdvfCDuK.css",
+      "sha256": "526139ba52f75c49594bf2cc23f1583bf846b93936df1cbe142864e8c58b317a"
+    },
+    {
+      "path": "assets/Outreach-CQFvXU_C.js",
+      "sha256": "d37fef0376a9c28ac44957b72ae9058e0bbc6d94bfe4e18ae076160febb90c9f"
+    },
+    {
+      "path": "assets/OutreachQueue-DmKKQ8KK.js",
+      "sha256": "60ddc64a7bbb37fc4bb41ec2a300cfb9fd7db774c7ce25c43c67902eaa08d395"
+    },
+    {
+      "path": "assets/PendingTaskStarts-BqiSuAXA.css",
+      "sha256": "5f39cd34d2b924261f06748eb2034c6e93e5b58747fdac1bd21476aa6bcc58ab"
+    },
+    {
+      "path": "assets/PendingTaskStarts-DNyXLPc6.js",
+      "sha256": "300759ce3e49d52eca5ce79df40f163e82fc21423250b67542e0b784a3400cfd"
+    },
+    {
+      "path": "assets/Platform-DHJI-W19.css",
+      "sha256": "799e34322d6d86a2e7c1c266fd00dfd3c2d4df34dbdaea13c21408bce5b8d237"
+    },
+    {
+      "path": "assets/Platform-W94_kc3s.js",
+      "sha256": "45bf1825dfe45802a4600c0040858f97f22e5674018a27a29f2373228cfedad0"
+    },
+    {
+      "path": "assets/Plus.es-CbxTfJsz.js",
+      "sha256": "b27dc041b370832483ccf195c3546483ede23300efaf7aa6ed0a72f8c3af514e"
+    },
+    {
+      "path": "assets/Profile-Dk7JAl4R.js",
+      "sha256": "d983713ed21611080aa12abcc91b919a6503d6d42d560b459c449be0c3e8b294"
+    },
+    {
+      "path": "assets/Profile-DwpBIdIc.css",
+      "sha256": "bbfcd35afdddeb9bfefdfdde3392c4a1ba07621efc8ce03ad87a7fc7ad82ac90"
+    },
+    {
+      "path": "assets/Settings-CArxggUm.js",
+      "sha256": "d661080ce8e5e72a2f891b726e85d3bbf408701896673c5840e9aa7f2ae34b8a"
+    },
+    {
+      "path": "assets/TaskWizard-D7TM1lBJ.css",
+      "sha256": "d03b6b23d487dbef3a915da0e567c836b84ac169593ecc3b2f645c10e327a613"
+    },
+    {
+      "path": "assets/TaskWizard-HUSVyFEw.js",
+      "sha256": "7f7588341f0a57775afa82049930b045228fcb6e0d4cf28b52a7801d66f58662"
+    },
+    {
+      "path": "assets/Tasks-Bnnn0VEo.js",
+      "sha256": "422f04776a17cb437350dd04a8713d92ad0c85a7be2ef6f223fcd7c4b9b0073b"
+    },
+    {
+      "path": "assets/Tasks-D_VHXXEg.css",
+      "sha256": "e25ef659745e2a3ebc0a411f96a8bca9386e4662bf21ad1e6c62d461cf15d388"
+    },
+    {
+      "path": "assets/TermEditor-Dkux-xil.js",
+      "sha256": "69b38dd188220c88b237bfe3b0d073df4fbf12ac5a6be678f44f003cd22b2c3e"
+    },
+    {
+      "path": "assets/Workbench-B7fY4nUq.js",
+      "sha256": "0d8ef496d38bc071b09e6e4d080b573328a721b15698f4f5160a24c310c6d330"
+    },
+    {
+      "path": "assets/Workbench-BBPw0GCx.css",
+      "sha256": "f4d255f7902c11054536d3bc2ecd3c19e767f64915c94d79acfce1a883aef6ba"
+    },
+    {
+      "path": "assets/bilibili-B4f0lnyN.ico",
+      "sha256": "2681561eb24e7435fea1acf26f3af95e4efc9f7d451587b58bef62f030f337e9"
+    },
+    {
+      "path": "assets/context-BC_QppnN.js",
+      "sha256": "ac79efa2104d0690dab7093ebaa7cfc7c04d60c500491396784727a06f32e79c"
+    },
+    {
+      "path": "assets/douyin-FBAm5jUt.ico",
+      "sha256": "e67348e3ab54fa207e1ce4be78e8399d1b73a794d819a17d8656ea2b17a1109d"
+    },
+    {
+      "path": "assets/download-Cz8C2kXL.js",
+      "sha256": "a97188e15e015f6ee616cc3f48876e0a65fc1cb5d4c08e2bd373277767bf5080"
+    },
+    {
+      "path": "assets/index-D3pi6dz_.css",
+      "sha256": "33da09e815c3c29e46108d17a30654185766beeac499ef1e6f8f238a5d9ea622"
+    },
+    {
+      "path": "assets/index-H6vbfmdn.js",
+      "sha256": "52459827de2ecd3ea11056eda4645770e99740ec1b71bcee95f0ee13f7268ef2"
+    },
+    {
+      "path": "assets/logo-B-T1ksKV.png",
+      "sha256": "b4f4bade37c5806f618c243af90747b7596f2b248d739eaa3130378f1a4f7595"
+    },
+    {
+      "path": "assets/operationLedger-qAjnw3dh.js",
+      "sha256": "23d3bdadce81ac9ceccaa6043856b5b1bb906d14367c939bef514038b29f1f69"
+    },
+    {
+      "path": "assets/zhihu-OfkkMzms.ico",
+      "sha256": "ca501e1d6c35f64b94d78bbabad986fe888d6aab08702a0083ba88076ad60f37"
+    },
+    {
+      "path": "index.html",
+      "sha256": "6888bd89534f4d099d04c1647e1e3021b0253fb0e09e2941f9504eda5efa2927"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApp } from "../../app/context";
-import { useAction, useResource } from "../../app/hooks";
+import { useAction } from "../../app/hooks";
 import { boundedRequest } from "../../app/boundedRequest";
 import {
   Badge,
@@ -23,15 +23,33 @@ import {
   type LinkedReply,
 } from "../../domain/followup";
 import { useFollowupOperation } from "./useFollowupOperation";
+import { useRelatedReplies } from "./useRelatedReplies";
+import type { Opportunity } from "../../domain/models";
 import { isSample } from "../Opportunities";
 export function RelatedReplies({
-  current,
+  opportunityId,
+  choices,
+  choicesLoading,
+  choicesError,
+  onReloadChoices,
+  onSelect,
+  onResolved,
   records,
+  recordsLoading,
+  recordsError,
   onCorrect,
   onChanged,
 }: {
-  current?: FollowupView;
+  opportunityId?: string;
+  choices: Opportunity[];
+  choicesLoading: boolean;
+  choicesError: string;
+  onReloadChoices: () => void;
+  onSelect: (id?: string) => void;
+  onResolved: (opportunity?: Opportunity) => void;
   records: FollowupView[];
+  recordsLoading: boolean;
+  recordsError: string;
   onCorrect: (record: FollowupRecord) => void;
   onChanged: () => void;
 }) {
@@ -41,29 +59,17 @@ export function RelatedReplies({
   const [reason, setReason] = useState("");
   const preflight = useAction();
   const operation = useFollowupOperation();
-  const resource = useResource(async () => {
-    if (!session.authenticated || !service.followup) return undefined;
-    return readReplies(
-      await boundedRequest(
-        () => service.followup!.replies(current?.opportunityId),
-        { timeoutMessage: "回复读取超时，请重试。" },
-      ),
-      current?.opportunityId,
-    );
-  }, [
-    service,
-    session.userId,
-    session.authenticated,
-    session.accountScope?.id,
-    session.accountScope?.version,
-    current?.opportunityId,
-  ]);
+  const { target, replies: resource } = useRelatedReplies(opportunityId);
+  useEffect(() => {
+    onResolved(target.data);
+    return () => onResolved(undefined);
+  }, [target.data, onResolved]);
   const manual = records.filter(
     (r) =>
-      current &&
+      opportunityId &&
       !r.sample &&
       r.opportunityId !== "sample" &&
-      r.opportunityId === current.opportunityId,
+      r.opportunityId === opportunityId,
   );
   const blocked = operation.blocked;
   const refresh = () => {
@@ -85,14 +91,14 @@ export function RelatedReplies({
         throw new Error("当前记录不可修改。");
       if (action === "void" && !reason.trim())
         throw new Error("请填写撤销原因，原记录将保留。");
-      const opportunities = await boundedRequest(
-        () => service.opportunities(),
+      const row = await boundedRequest(
+        () => service.opportunity(record.opportunityId!),
         { timeoutMessage: "商机核对超时，尚未修改。" },
       );
       if (!operation.current()) return;
-      const row = opportunities.find((r) => r.id === record.opportunityId);
       if (
         !row ||
+        row.id !== record.opportunityId ||
         isSample(row) ||
         row.profileVersionId !== record.profileVersionId
       )
@@ -154,12 +160,36 @@ export function RelatedReplies({
         <h2>关联回复</h2>
         <Button
           variant="ghost"
-          loading={resource.loading}
-          onClick={() => void resource.reload()}
+          loading={target.loading || resource.loading}
+          onClick={() => void (opportunityId ? target.reload() : resource.reload())}
         >
           刷新回复
         </Button>
       </div>
+      {session.authenticated && (
+        <Field label="查看商机回复">
+          <select
+            aria-label="查看商机回复"
+            value={opportunityId || ""}
+            onChange={(event) => onSelect(event.target.value || undefined)}
+          >
+            <option value="">未匹配回复</option>
+            {opportunityId && !choices.some((row) => row.id === opportunityId) && (
+              <option value={opportunityId}>
+                {target.data?.title || "当前目标商机"}
+              </option>
+            )}
+            {choices.map((row) => <option key={row.id} value={row.id}>{row.title}</option>)}
+          </select>
+          {choicesLoading && <small>正在读取可选商机…</small>}
+          {choicesError && (
+            <Notice tone="error">
+              {choicesError}
+              <Button variant="ghost" onClick={onReloadChoices}>重试商机列表</Button>
+            </Notice>
+          )}
+        </Field>
+      )}
       <Tabs
         active={tab}
         onChange={setTab}
@@ -168,7 +198,9 @@ export function RelatedReplies({
           { key: "manual", label: "人工登记" },
         ]}
       />
-      {tab === "platform" ? (
+      {session.authenticated && opportunityId && (target.loading || target.error) ? (
+        <ResourceStatus loading={target.loading} error={target.error} onRetry={target.reload} />
+      ) : tab === "platform" ? (
         !session.authenticated ? (
           <Empty title="登录后查看回复" />
         ) : !service.followup ? (
@@ -229,16 +261,18 @@ export function RelatedReplies({
                 </div>
               ) : (
                 <Empty
-                  title={current ? "暂无收到的回复" : "暂无未匹配回复"}
+                  title={opportunityId ? "暂无收到的回复" : "暂无未匹配回复"}
                   description={
-                    current ? undefined : "选择跟进记录查看关联回复。"
+                    opportunityId ? undefined : "选择商机查看关联回复。"
                   }
                 />
               ))}
           </>
         )
-      ) : !current ? (
-        <Empty title="选择一条跟进记录" />
+      ) : recordsLoading || recordsError ? (
+        <ResourceStatus loading={recordsLoading} error={recordsError} onRetry={onChanged} />
+      ) : !opportunityId ? (
+        <Empty title="选择商机查看人工登记" />
       ) : manual.length ? (
         <div className="followup-timeline">
           {manual.map((row) => (

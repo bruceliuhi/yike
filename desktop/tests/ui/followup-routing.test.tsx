@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { AppProvider } from "../../src/renderer/app/context";
@@ -35,6 +36,12 @@ function mount() {
       .mockResolvedValue([
         { ...PUBLIC_SAMPLE, id: "TEST-opp", sample: false, title: "TEST商机" },
       ]),
+    opportunity: vi.fn().mockResolvedValue({
+      ...PUBLIC_SAMPLE,
+      id: "TEST-opp",
+      sample: false,
+      title: "TEST商机",
+    }),
     followups: vi.fn().mockResolvedValue([]),
     addFollowup: vi.fn().mockResolvedValue(undefined),
   };
@@ -46,7 +53,16 @@ function mount() {
   return service;
 }
 async function fill() {
-  await screen.findByRole("option", { name: "TEST商机" });
+  // AppProvider replaces the guest workspace after session resolution. Resolve
+  // the current dialog on each retry rather than retaining the detached one.
+  await waitFor(() =>
+    expect(
+      within(screen.getByRole("dialog", { name: "添加跟进" })).getByRole(
+        "option",
+        { name: "TEST商机" },
+      ),
+    ).toBeTruthy(),
+  );
   fireEvent.change(screen.getByRole("combobox", { name: "关联商机" }), {
     target: { value: "TEST-opp" },
   });
