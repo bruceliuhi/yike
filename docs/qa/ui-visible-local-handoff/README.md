@@ -66,3 +66,13 @@ P11主线程已把[当前1484×1060实图](screenshots/p11-captured-collapsed-14
 root在62e实际执行候选/旧页面/客户端四套[80 passed](logs/incoming-83e-desktop-tests.log)、[类型检查](logs/incoming-83e-typecheck.log)及reply两套[20 passed](logs/incoming-83e-reply-tests.log)。这是纯接收集合，无PG，不重复全桌面/构包或用来件受限PG结果代替本轮回复SQL实写。
 
 [最终归档文档独立审核](reviews/yike-visible-final-doc-review.md)有限PASS：51个当时本地引用、五张最终PNG/CSS/SHA及测试归属通过；审核绑定其明确时点，不回填为合并后全源码测试。
+
+## 最后来件改变了运行路径：bd4b86a
+
+普通推送再次因另一端先推进而拒绝，未强推。正常合入9a59288后为 **bd4b86a846a3703b9954a6c81e633a81ec1d11b4**。此次包含Win候选固定传输/真实读取接线60b2523，确实改变desktop生产运行图，与前段83e独立协议不同。当前P07只启用真实读取；旧页面隐式复核保持禁止，完整人工核验/写入恢复归其后续任务，不伪称全链完成。
+
+root在bd4实际[9文件198 passed/2.49s](logs/incoming-9a-desktop-tests.log)，tsc退出0，见[精确验证](incoming-9a-validation.json)。本批Mac包/可见TEST仍绑定8af，不能宣称它们已经验过此后新接线；仓库main与冻结安装产物分开交付。当前新增候选服务的实际HTTP/PG、全P07及后续发行由原负责人接续，本片没有代签。
+
+9a接收另完成[当前生产renderer构建与TEST排除](logs/incoming-9a-renderer-exclusion.log)：4778模块、0个harness manifest引用、failures为空。该命令显式检查的ASAR仍是8af旧包，不把existingAsarChecked=true冒称新接线Mac构包。
+
+最后[候选读取接线独立接收](reviews/yike-visible-incoming-9a59288.md)限定PASS：双方源码完整，P04/P06/P09/P14文件未覆盖，nullable来源与原请求范围保护保留。此后58219d4仅追加执行PG验证文档，正常保留，不借来件测试扩大本片结论。
