@@ -24,6 +24,9 @@ from tests.test_web import facts as web_facts
 from tests.test_web import settings_for
 
 
+pytestmark = pytest.mark.usefixtures("discovery_clock")
+
+
 class Clock:
     def __init__(self, value: datetime):
         self.value = value
@@ -864,6 +867,7 @@ def test_activity_before_signal_membership_cannot_authorize_human_draft(tmp_path
     facts.close()
 
 
+@pytest.mark.native_clock
 def test_sql_rejects_d04_fact_after_run_is_cancelled(tmp_path):
     connection, repository, _, run_id, signal_id = unverified_facts(tmp_path)
     repository.cancel_run(run_id)
@@ -903,6 +907,7 @@ def test_sql_rejects_d04_fact_timestamp_after_day14(tmp_path):
     connection.close()
 
 
+@pytest.mark.native_clock
 def test_sql_rejects_backdated_d04_fact_when_server_is_past_day14(tmp_path):
     connection = connect(tmp_path / "expired-backdated.sqlite3")
     migrate(connection)
@@ -944,6 +949,7 @@ def test_sql_rejects_backdated_d04_fact_when_server_is_past_day14(tmp_path):
 
 @pytest.mark.parametrize("table", D04_FACT_TABLES)
 @pytest.mark.parametrize("run_condition", ("DRAFT", "CANCELLED", "POST_DAY14"))
+@pytest.mark.native_clock
 def test_every_d04_fact_table_fails_closed_outside_active_run_window(
     tmp_path, table, run_condition
 ):
