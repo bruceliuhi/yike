@@ -50,8 +50,8 @@ export const PUBLIC_SAMPLE: Opportunity = {
   },
   intentStatus: "PENDING_REVIEW",
   comment:
-    "您好，关注到本次高交会展区预算询价。请问展位技术资料及组展服务范围如何获取？我们会先核实自身能力，再按公告要求准备资料。理解此次仅用于预算编制，后续采购以正式公告为准。",
-  dm: "",
+    "请问本次展区设计搭建的技术资料与服务范围说明，可以从哪里获取？",
+  dm: "您好，看到本次高交会展区预算询价，想先了解资料要求。请问技术资料与服务范围说明可以从哪里获取？",
 };
 export function isSample(row: Opportunity) {
   return row.sample === true || row.id === "sample";
