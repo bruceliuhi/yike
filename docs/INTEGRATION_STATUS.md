@@ -4,6 +4,8 @@
 
 ## 整合记录
 
+2026-09-10 CodexiMac正常入口候选`bc6a5b6`＋真实HTTP验收`2e28526`，正常合入Win签名客户端交接`a9d18db`为`fad2d24`，无代码冲突。普通`yike-pilot-web`现装配策略/执行历史/原始候选/复核；配置真实兼容模型后可调用已有ASSESS，实际效果另验。262定向、9真实受限PG与本地provider的HTTP检查通过，独立审核待收口；证据类型/失败历史见[本片QA](qa/V02_NORMAL_RUNTIME_COMPOSITION.md)，部署见[契约](contracts/V02_NORMAL_RUNTIME_COMPOSITION.md)。源码之外尚缺真实来源policy/worker、正常短信、建议服务、客户端与收发/客户验收，默认能力保持关闭。下段CLI缺口是旧时点，不再据它重复实现本片；下一步Mac补Win已明确请求的执行签名字节入口，Win继续05F和实际来源，不把本片当产品上线。
+
 2026-09-10 CodexiMac固定原文证据候选：`26502ee`与根HTTP断言`9c71e3b`，正常合入`4251e75`为`a128044`；双方源码完整保留。115仅在首次人工纳入原事务保存公开来源/当前同版本观察/逐字引用，详情按租户共享，私有画像和历史不共享，重复不替换。105相关、69HTTP/UI、合并后196合同/HTTP及75客户端定向/类型通过，结果不相加；见[本片QA](qa/V02_OPPORTUNITY_SOURCE_EVIDENCE.md)和[Win消费合同](contracts/V02_OPPORTUNITY_SOURCE_EVIDENCE.md)。完整自有增量`4251e75..2c216d0`独立代码/架构/质量终审PASS、0项发现；05G展示/真实平台/收发/Windows/客户验收未完成。正常CLI尚未装配新服务，下一步优先真实运行入口和客户端来源链，不能以测试组合代替普通用户启动。115归Mac、108/110归Win，既有迁移不改；下面记录保留原始时点。
 
 2026-09-10 05A主干合并更新：正常保留远端aac3fe9（含3898c3e画像版本与确认账号修正）形成**4eca41301e599a431e06808d2b717926a094bbb5**，精确独立集成复核PASS。新快照88文件964passed/21skipped、typecheck、Mac构包与严格smoke通过；285受控输入/39构建文件及ZIP内ASAR完成绑定。新包ASAR d7f2d2c0/ZIP c5fdf73d的实际可见冷启动、任务表单与平台连接只读路由已核验，完整草稿退出链仍仅引用旧aec0证据。详见[最新整合验收](qa/ui-reviewed-integration/README.md)。旧944和3ecd29b保留历史；05A与完整Goal继续，未完成原生选择器、全部视觉/状态、真实服务及Windows验收。

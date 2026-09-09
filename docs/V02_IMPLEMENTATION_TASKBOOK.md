@@ -6,6 +6,8 @@
 
 ## 1. 当前基线与推进原则
 
+2026-09-10 CodexiMac正常Web装配候选：核心`bc6a5b6`，普通CLI真实HTTP验证`2e28526`，正常保留Win签名客户端交接`a9d18db`为`fad2d24`。已接同一应用DB的真实策略、执行历史、原始候选和复核服务，服务器三项模型配置可供现有ASSESS使用；262定向、9实际受限PG/本地HTTP通过（非全仓，不相加）。[契约](contracts/V02_NORMAL_RUNTIME_COMPOSITION.md)/[QA](qa/V02_NORMAL_RUNTIME_COMPOSITION.md)说明默认来源START、短信、搜索建议和收发仍不可用；独立审核待收口，父卡与Goal不关闭。下文“正常CLI未装配”保留其历史时点。Win继续05F设备签名/02D来源→05G/05E，不重写页面；Mac已接收其执行签名payload缺口，下一片在既有runtime/API补最小接线，具体接口与实际PG证据交付后再ACK，不能以认领当完成。
+
 2026-09-10 05A主干合并更新：正常保留远端aac3fe9（含3898c3e画像版本与确认账号修正）形成**4eca41301e599a431e06808d2b717926a094bbb5**，精确独立集成复核PASS。新快照88文件964passed/21skipped、typecheck、Mac构包与严格smoke通过；285受控输入/39构建文件及ZIP内ASAR完成绑定。新包ASAR d7f2d2c0/ZIP c5fdf73d的实际可见冷启动、任务表单与平台连接只读路由已核验，完整草稿退出链仍仅引用旧aec0证据。详见[最新整合验收](qa/ui-reviewed-integration/README.md)。旧944和3ecd29b保留历史；05A与完整Goal继续，未完成原生选择器、全部视觉/状态、真实服务及Windows验收。
 
 2026-09-10 05A最新交付：冻结候选9999355经三项独立审核，登记连接断开身份遗漏修复e70c3a1后复审通过，已整合推送a31069f。后续实际Mac冷启动发现本地循环依赖链接造成双React、旧smoke误通过；最终修复**8ddafab6cc4cea21c244dcf1f052bf04defe8e87**统一依赖并在严格CSP下启用解释校验，补真实坏包/提前退出/error事件反例。87文件944passed/21skip、typecheck、最终构包和严格smoke通过；实际最终包aec0b946完成草稿/50搜贝/退出取消与同目录重启链。新架构/代码/质量分别限定复审，详见[最新整合验收](qa/ui-reviewed-integration/README.md)。正常保留远端168872a形成3ecd29b，desktop树与8dd完全一致。本文下方未提交/额度审核未完成为历史时点，不再作为当前阻断；05A和完整Goal仍IN_PROGRESS，原生文件选择器、剩余页面状态、真实服务和当前Windows发行继续。
