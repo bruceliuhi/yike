@@ -114,6 +114,27 @@ def test_shared_http_actual_strategy_signed_review_and_revocation_chain(real_str
     included = included_response.json()
     assert included["receipt"]["outcome"] == "IMPORTED"
 
+    detail_path = "/api/ui/opportunities/" + included["receipt"]["opportunityId"]
+    detail_response = client.get(detail_path)
+    assert detail_response.status_code == 200, detail_response.text
+    assert detail_response.headers["cache-control"] == "no-store"
+    evidence = detail_response.json()["opportunity"]["source_evidence"]
+    assert evidence["status"] == "CAPTURED"
+    fixed = evidence["snapshot"]
+    assert fixed["source"]["version_id"] == binding["sourceVersionId"]
+    assert fixed["source"]["body"] == raw["records"][0]["body"]
+    assert fixed["observation"]["id"] == item["observation_id"]
+    assert fixed["observation"]["received_at"] == uploaded["received_at"]
+    assert fixed["assessment"]["id"] == assessed["assessment"]["id"]
+    assert any(c["field"] == "source.body" for c in fixed["assessment"]["citations"])
+    assert not any(c["field"] == "profile.description" for c in fixed["assessment"]["citations"])
+    assert detail_response.json()["opportunity"]["source_status"] == "UNVERIFIED"
+    colleague = {"Authorization": "Bearer " + issue_token(env.users[1], SECRET)}
+    assert client.get(detail_path, headers=colleague).json()["opportunity"]["source_evidence"] == evidence
+    assert client.get("/api/ui/candidates", headers=colleague).json()["total"] == 0
+    stranger = {"Authorization": "Bearer " + issue_token(env.users[2], SECRET)}
+    assert client.get(detail_path, headers=stranger).status_code == 404
+
     current_response = client.get("/api/ui/candidates", params={"status": "IMPORTED"})
     assert current_response.status_code == 200, current_response.text
     current = current_response.json()
@@ -153,6 +174,7 @@ def test_shared_http_actual_strategy_signed_review_and_revocation_chain(real_str
                                   json=signed(env, claims, rejected_raw))
     assert rejected_upload.status_code == 409
     assert rejected_upload.json()["detail"]["code"] == "strategy_conflict"
+    assert client.get(detail_path).json()["opportunity"]["source_evidence"] == evidence
 
     receipt_paths = {
         "/api/ui/research-strategy-operations/" + env.confirmed["request_id"]: env.confirmed,
@@ -170,6 +192,7 @@ def test_shared_http_actual_strategy_signed_review_and_revocation_chain(real_str
     assert client.get("/api/ui/capabilities").json()["capabilities"]["task_execution"] == {"available": False}
     assert client.delete("/api/ui/session").status_code == 200
     assert client.get(next(iter(receipt_paths))).status_code == 401
+    assert client.get(detail_path).status_code == 401
 
 
 def test_registered_migration_is_repeatable_and_strategy_grant_stays_narrow(real_strategy_env):
