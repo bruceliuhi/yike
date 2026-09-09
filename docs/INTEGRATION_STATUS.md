@@ -1,8 +1,10 @@
 # 当前整合状态（供后续 AI 交接）
 
-更新时间：2026-09-09。产品集成目标：`yike-ai2026/main`，不再使用 `codex/customer-pilot` 作为主干。小范围串行改动直接在 `main` 验证、审核和提交，较大或并行工作使用短期分支后合并清理；文档仓库分工见[仓库工作流](REPOSITORY_WORKFLOW.md)。
+更新时间：2026-09-10。产品集成目标：`yike-ai2026/main`，不再使用 `codex/customer-pilot` 作为主干。小范围串行改动直接在 `main` 验证、审核和提交，较大或并行工作使用短期分支后合并清理；文档仓库分工见[仓库工作流](REPOSITORY_WORKFLOW.md)。
 
 ## 整合记录
+
+2026-09-10 05A主干合并更新：正常保留远端aac3fe9（含3898c3e画像版本与确认账号修正）形成**4eca41301e599a431e06808d2b717926a094bbb5**，精确独立集成复核PASS。新快照88文件964passed/21skipped、typecheck、Mac构包与严格smoke通过；285受控输入/39构建文件及ZIP内ASAR完成绑定。新包ASAR d7f2d2c0/ZIP c5fdf73d的实际可见冷启动、任务表单与平台连接只读路由已核验，完整草稿退出链仍仅引用旧aec0证据。详见[最新整合验收](qa/ui-reviewed-integration/README.md)。旧944和3ecd29b保留历史；05A与完整Goal继续，未完成原生选择器、全部视觉/状态、真实服务及Windows验收。
 
 2026-09-10 CodexMac前端05A：已审e70c3a1整合并推送a31069f；实际冷启动暴露本地依赖循环链接及旧smoke漏报，修复8ddafab通过独立代码/架构审查、944项测试和最终aec0包实际退出/重启验收。正常合入远端168872a为3ecd29b，只有既有任务书/Win认领文档新增，desktop树与8dd完全相同。质量与证据边界见[最新整合验收](qa/ui-reviewed-integration/README.md)，旧失败和过渡包单独保留。05A仍推进剩余状态，真实04C/05G接口按原分工接收，不将raw辅助草稿计作功能，不宣称Windows/签名/上线完成。
 

@@ -2,7 +2,22 @@
 
 日期：2026-09-10。归属 V02-05A。R3/R4 的既有授权、搜贝用量边界和当前平台 Logo 继续有效。完整 Goal 保持进行中。
 
-## 最新修复与验证
+## 最新主干合并与验证
+
+正常整合 `500af8d` 与远端 `aac3fe9`，源码快照为 **`4eca41301e599a431e06808d2b717926a094bbb5`**。完整保留 React/CSP/smoke 修复、远端真实策略组合与 `3898c3e` 的画像版本/确认账号修正；只对四份交接文档合成双方记录。[精确集成独立复核](reviews/yike-ui-integration-4eca413.md)通过。
+
+| 验证 | 本合并快照的实际结果 |
+|---|---|
+| 受控桌面测试 | [88 文件 / 964 passed / 21 skipped](merged/tracked-tests.log)，不包含四个未提交 raw 草稿 |
+| 类型 / 构包 / 严格 smoke | [typecheck](merged/typecheck.log)、[Mac 构包](merged/make-mac.log)、[严格 smoke](merged/packaged-smoke.log)通过；smoke 中系统 dialog 为隔离替身 |
+| 生产模块和输入绑定 | [一个 React 且无 TEST/raw](merged/module-graph.log)；[285 个输入、39 个构建文件](merged/source-binding.json)与本快照及 ASAR 一致，属于构建后字节核对 |
+| 本包可见原生增量 | [冷启动工作台、任务表单、平台连接](merged/native-routes.md)及[进程/打开的 ASAR](merged/native-process.json)，只读访问，不代表真实服务或完整生命周期已通过 |
+
+当前 Mac arm64 ZIP 路径为 `desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip`，SHA-256 **`c5fdf73d28ae5a62ac04d3ccf3367db4c3db5ddc11a98ba130c5690d7fcc2d65`**；ASAR SHA-256 **`d7f2d2c0cc4b0cfa3f3034b0074287a66ef00097d827d8f599e52c6f578006af`**，详见[包结构](merged/package.json)。[独立质量复核](reviews/yike-ui-quality-4eca413.md)核对 ZIP 内 ASAR、构建文件、源码和证据边界。未签名/公证，Windows 仍由用户后续实机验收。
+
+以下 944 项及 aec0 包保留为上一修复快照的历史证据，不能与当前包混用。
+
+## 上一修复快照 8ddafab 的验证
 
 修复源码为 `8ddafab6cc4cea21c244dcf1f052bf04defe8e87`。renderer 统一 React 实例，并在加载业务 schema 前配置 Zod 解释执行，避免严格 CSP 下生成代码的探针；没有放宽 CSP 或停用数据校验。smoke 增加真实工作台结构、稳定状态、控制台错误和完成凭据检查；已用原坏包、提前退出及真实 Electron console.error 验证拒绝路径。
 
@@ -15,7 +30,7 @@
 | 源码/产物绑定 | [284 个受控输入、39 个构建文件与 ASAR 核对](fix/source-binding.json)，[包结构](fix/package.json)；构建后核对，不宣称干净构建前后 provenance |
 | 真实原生可见链 | [最终 aec0 包操作记录](fix/native-lifecycle.md)：工作台→草稿名称/50搜贝→离页退出提醒→继续保留→明确放弃 exit 0→同目录重启草稿0；[重启进程与可执行文件](fix/native-process.json) |
 
-最终 Mac arm64 包位于 `desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip`，SHA-256 `c4b179b7e491ff872cdb809f20c555fe4dc5c1d4819ad16a6c09b5e9961f96a2`；ASAR SHA-256 `aec0b946be4ca147e940e3c4ec1f3c0652104585be843ff69ebf95f2869da50d`。包未获得正式签名/公证或 Windows 实机验收。
+该修复快照当时的 Mac arm64 包位于 `desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip`，SHA-256 `c4b179b7e491ff872cdb809f20c555fe4dc5c1d4819ad16a6c09b5e9961f96a2`；ASAR SHA-256 `aec0b946be4ca147e940e3c4ec1f3c0652104585be843ff69ebf95f2869da50d`。包未获得正式签名/公证或 Windows 实机验收。
 
 修复的独立审核见 [架构](reviews/yike-ui-architecture-8ddafab.md)、[代码](reviews/yike-ui-code-8ddafab.md)、[质量](reviews/yike-ui-quality-8ddafab.md)。代码审核者排除本人编写的 smoke，其代码由架构和质量审核者独立覆盖。
 
@@ -49,4 +64,4 @@
 
 P04、P14/P15、P18 等剩余可见状态与全部设计差异仍需按原台账验收；真实平台、模型/计量、触达与回复按对应接口工作推进。当前记录不替代 Windows 实际安装、缩放、退出重启与卸载，不代表签名/公证、生产部署或正式商用完成。
 
-实际任务表单还观察到平台读取失败时，复选框的无障碍名称仍含“读取中”，可见文字则为“读取失败”；这是后续 05A 状态文案一致性修正项，不算当前构包修复已解决。旧审核报告中的文件路径保留原记录时点；本目录现按 initial-a310、react-only、fix 分开存放证据。
+实际任务表单还观察到平台读取失败时，复选框的无障碍名称仍含“读取中”，可见文字则为“读取失败”；这是后续 05A 状态文案一致性修正项，不算当前构包修复已解决。旧审核报告中的文件路径保留原记录时点；本目录现按 initial-a310、react-only、fix、merged 分开存放证据。

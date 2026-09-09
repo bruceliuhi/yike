@@ -6,6 +6,8 @@
 
 ## 1. 当前基线与推进原则
 
+2026-09-10 05A主干合并更新：正常保留远端aac3fe9（含3898c3e画像版本与确认账号修正）形成**4eca41301e599a431e06808d2b717926a094bbb5**，精确独立集成复核PASS。新快照88文件964passed/21skipped、typecheck、Mac构包与严格smoke通过；285受控输入/39构建文件及ZIP内ASAR完成绑定。新包ASAR d7f2d2c0/ZIP c5fdf73d的实际可见冷启动、任务表单与平台连接只读路由已核验，完整草稿退出链仍仅引用旧aec0证据。详见[最新整合验收](qa/ui-reviewed-integration/README.md)。旧944和3ecd29b保留历史；05A与完整Goal继续，未完成原生选择器、全部视觉/状态、真实服务及Windows验收。
+
 2026-09-10 05A最新交付：冻结候选9999355经三项独立审核，登记连接断开身份遗漏修复e70c3a1后复审通过，已整合推送a31069f。后续实际Mac冷启动发现本地循环依赖链接造成双React、旧smoke误通过；最终修复**8ddafab6cc4cea21c244dcf1f052bf04defe8e87**统一依赖并在严格CSP下启用解释校验，补真实坏包/提前退出/error事件反例。87文件944passed/21skip、typecheck、最终构包和严格smoke通过；实际最终包aec0b946完成草稿/50搜贝/退出取消与同目录重启链。新架构/代码/质量分别限定复审，详见[最新整合验收](qa/ui-reviewed-integration/README.md)。正常保留远端168872a形成3ecd29b，desktop树与8dd完全一致。本文下方未提交/额度审核未完成为历史时点，不再作为当前阻断；05A和完整Goal仍IN_PROGRESS，原生文件选择器、剩余页面状态、真实服务和当前Windows发行继续。
 
 候选接口只读接收审计发现04C成功回执尚缺原sourceVerificationId，05G完整接入还须版本化确认hash、分析/核验原请求恢复及历史快照隔离。审计交接见上述QA，不抢改04C或Win05G已认领代码；四个本地raw辅助草稿尚未接入，不计入产品完成度。
