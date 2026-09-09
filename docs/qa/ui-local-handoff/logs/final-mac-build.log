@@ -1,0 +1,60 @@
+
+> yike-ai-desktop@0.2.0 make:mac
+> electron-forge make --platform=darwin --arch=arm64
+
+❯ Checking your system
+❯ Checking package manager version
+✔ Found npm@11.17.0
+✔ Checking your system
+[?25h❯ Loading configuration
+✔ Loading configuration
+❯ Resolving make targets
+› Making for the following targets: 
+✔ Resolving make targets
+❯ Running package command
+❯ Preparing to package application
+✔ Preparing to package application
+❯ Running packaging hooks
+❯ Running generateAssets hook
+✔ Running generateAssets hook
+❯ Running prePackage hook
+❯ [plugin-vite] Building production Vite bundles
+❯ Building main and preload targets...
+❯ Building renderer targets...
+❯ Building src/main/main.ts target
+❯ Building src/preload/index.ts target
+
+ WARN  inlineDynamicImports option is deprecated, please use codeSplitting: false instead.
+
+✔ Building src/preload/index.ts target
+✔ Building src/main/main.ts target
+✔ Building main and preload targets...
+✔ Built target main_window
+✔ Building renderer targets...
+✔ [plugin-vite] Building production Vite bundles
+✔ Running prePackage hook
+✔ Running packaging hooks
+❯ Packaging application
+› Determining targets...
+❯ Packaging for arm64 on darwin
+❯ Copying files
+❯ Preparing native dependencies
+❯ Finalizing package
+✔ Copying files
+✔ Preparing native dependencies
+✔ Finalizing package
+✔ Packaging for arm64 on darwin
+✔ Packaging application
+❯ Running postPackage hook
+✔ Running postPackage hook
+✔ Running package command
+❯ Running preMake hook
+✔ Running preMake hook
+❯ Making distributables
+❯ Making a zip distributable for darwin/arm64
+✔ Making a zip distributable for darwin/arm64
+✔ Making distributables
+❯ Running postMake hook
+› Artifacts available at: /private/tmp/yike-local-handoff-release-fcae33e/desktop/out/make
+✔ Running postMake hook
+[?25h

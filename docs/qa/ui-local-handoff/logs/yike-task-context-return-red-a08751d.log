@@ -1,0 +1,47 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+ ❯ tests/ui/task-context-return.test.tsx (2 tests | 2 failed) 104ms
+   × returns from public-web range inspection to the current task connection step 75ms
+   × returns from device inspection to the same offline monitor 29ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/task-context-return.test.tsx > returns from public-web range inspection to the current task connection step
+AssertionError: expected '/workbench' to be '/tasks/new?step=connect&mode=monitor' // Object.is equality
+
+Expected: "/tasks/new?step=connect&mode=monitor"
+Received: "/workbench"
+
+ ❯ tests/ui/task-context-return.test.tsx:45:54
+     43|   const destination = vi.mocked(context.navigate).mock.calls.at(-1)![0…
+     44|   expect(parseRoute("#" + destination).path).toBe("/connections");
+     45|   expect(parentRoute(parseRoute("#" + destination))).toBe(source);
+       |                                                      ^
+     46|   expect(context.service.startTask).not.toHaveBeenCalled();
+     47| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/ui/task-context-return.test.tsx > returns from device inspection to the same offline monitor
+AssertionError: expected '/connections' to be '/monitors/TEST-offline-monitor' // Object.is equality
+
+Expected: "/monitors/TEST-offline-monitor"
+Received: "/connections"
+
+ ❯ tests/ui/task-context-return.test.tsx:63:54
+     61|   const destination = vi.mocked(context.navigate).mock.calls.at(-1)![0…
+     62|   expect(parseRoute("#" + destination).path).toBe("/settings");
+     63|   expect(parentRoute(parseRoute("#" + destination))).toBe(source);
+       |                                                      ^
+     64|   expect(context.service.taskAction).not.toHaveBeenCalled();
+     65| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  03:44:12
+   Duration  1.23s (transform 181ms, setup 0ms, import 838ms, tests 104ms, environment 219ms)
+
