@@ -134,6 +134,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 触达协议契约切片：CodexiMac 新增 `pilot/outreach_contract.py`、专项测试与 [V02_OUTREACH_CHANNELS](contracts/V02_OUTREACH_CHANNELS.md)，提交 `74e8ff6d997e92f88e01a6003b75a152ee03fdf6`，幂等冲突与内容摘要反例追加于后续提交。独立只读复核为 PASS WITH MINOR；专项测试 **9 passed**，compileall 与 diff check 通过。该切片冻结来源版本、平台公开收件人、连接版本、内容摘要、确认有效窗口、request_id 幂等模型及 UNKNOWN/PENDING/FAILED/SENT 失败关闭语义。`IdempotencyRegistry` 仍为进程内契约模型，尚未接 PostgreSQL；没有真实平台连接器、服务端发送路由、回执对账、回复回流或客户/UAT证据，V02-06/07继续 `IN_PROGRESS`，不得把本提交写成真实发送或产品上线。
 
+2026-09-10 持久确认快照候选：在 `c32ddb6` 基线上新增 `pilot/outreach_store.py`、117 迁移、受限角色授权脚本和纯函数专项，当前待独立复核后再决定是否集成。该候选只提供租户/用户范围内的确认快照持久化与 request_id 幂等骨架，不查询商机/来源/连接的真实归属或撤回状态，也没有 PostgreSQL 并发/RLS/回滚实测；必须由后续服务在同一事务重查并锁定事实，不能视作生产授权。没有真实平台发送、回执对账、回复回流、Windows 或客户 UAT 证据，V02-06/07继续 `IN_PROGRESS`。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
