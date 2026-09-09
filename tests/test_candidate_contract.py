@@ -330,6 +330,60 @@ def test_public_web_origin_identity_normalizes_idna_and_unicode_dot_equivalents(
     assert len({content_version(item) for item in parsed}) == len(urls)
 
 
+def test_public_web_origin_keeps_sharp_s_and_ascii_ss_as_distinct_sites():
+    urls = ["https://faß.example/a", "https://fass.example/a"]
+    records = [record(external_source_id="123", public_url=url) for url in urls]
+    parsed = validate_candidate_batch(batch(platform="PUBLIC_WEB", execution=anonymous_execution(),
+        records=records), now=NOW)
+    assert [item.public_url for item in parsed.records] == urls
+    assert len({source_identity(item, "PUBLIC_WEB") for item in parsed.records}) == 2
+
+
+@pytest.mark.parametrize("urls", [
+    ("https://faß.example/a", "https://xn--fa-hia.example/a"),
+    ("https://FAẞ。example./a", "https://xn--fa-hia.example/a"),
+    ("https://[2606:4700:4700:0:0:0:0:1111]/a", "https://[2606:4700:4700::1111]/a"),
+    ("https://[2606:4700:4700:0000:0000:0000:0000:1111]/a", "https://[2606:4700:4700::1111]/a"),
+])
+def test_public_web_origin_equivalents_share_identity_not_url_snapshot(urls):
+    parsed = [validate_candidate_batch(batch(platform="PUBLIC_WEB", execution=anonymous_execution(),
+        records=[record(external_source_id="123", public_url=url)]), now=NOW).records[0] for url in urls]
+    assert [item.public_url for item in parsed] == list(urls)
+    assert source_identity(parsed[0], "PUBLIC_WEB") == source_identity(parsed[1], "PUBLIC_WEB")
+    assert content_version(parsed[0]) != content_version(parsed[1])
+
+
+@pytest.mark.parametrize("urls", [
+    ("https://faß.example/a", "https://xn--fa-hia.example/a"),
+    ("https://[2606:4700:4700:0:0:0:0:1111]/a", "https://[2606:4700:4700::1111]/a"),
+])
+def test_public_web_origin_equivalents_are_detected_as_batch_version_conflicts(urls):
+    assert_code(batch(platform="PUBLIC_WEB", execution=anonymous_execution(),
+        records=[record(external_source_id="123", public_url=url) for url in urls]),
+        "SOURCE_VERSION_CONFLICT")
+
+
+@pytest.mark.parametrize("host", [
+    "xn--.example", "xn--a.example", "-invalid.example", "invalid-.example",
+    "invalid_host.example", "ab\u200dcd.example", "ab--cd.example",
+    "ｌｏｃａｌｈｏｓｔ。", "１２７。０。０。１", "１２７．１", "router｡local",
+    "[fc00::1]", "[fec0::1]", "[::ffff:127.0.0.1]", "[fe80::1%25eth0]",
+])
+@pytest.mark.parametrize("location", ["record", "parent"])
+def test_public_web_origin_rejects_invalid_idna_and_normalized_private_hosts_without_leaking(host, location):
+    url = f"https://{host}/ORIGIN-PRIVATE-MARKER-421"
+    parent = {"external_comment_id":"reply-0", "public_url":url if location == "parent" else None}
+    child = record(kind="COMMENT", external_comment_id="reply-1", parent=parent,
+        public_url=url if location == "record" else "https://example.org/reply")
+    with pytest.raises(CandidateContractError) as caught:
+        validate_candidate_batch(batch(platform="PUBLIC_WEB", execution=anonymous_execution(),
+            records=[child]), now=NOW)
+    assert caught.value.code == "INVALID_SOURCE_URL"
+    assert str(caught.value) == "INVALID_SOURCE_URL"
+    assert url not in repr(caught.value)
+    assert caught.value.__suppress_context__
+
+
 def test_content_version_inputs_and_platform_scoped_identity():
     parsed=validate_candidate_batch(batch(), now=NOW).records[0]
     assert source_identity(parsed,"BILIBILI") != source_identity(parsed,"DOUYIN")
