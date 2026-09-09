@@ -9,6 +9,7 @@ import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import subprocess
+import socket
 import sys
 import threading
 import time
@@ -380,13 +381,13 @@ def test_invalid_input_never_contacts_provider():
                    "invalid_assessment_input", 400)
 
 
-def test_default_transport_disables_retries(monkeypatch):
+def test_worker_default_transport_disables_retries(monkeypatch):
     options = []
     def transport_factory(**kwargs):
         options.append(kwargs)
         return httpx.MockTransport(lambda request: httpx.Response(200, json=envelope()))
     monkeypatch.setattr(httpx, "AsyncHTTPTransport", transport_factory)
-    assert adapter().assess(description=DESCRIPTION, content=CONTENT)[0].model_dump() == assessment()
+    assert adapter()._assess_in_process(description=DESCRIPTION, content=CONTENT)[0].model_dump() == assessment()
     assert options == [{"retries": 0}]
 
 
@@ -435,6 +436,12 @@ def test_installed_wheel_has_identical_rules_and_missing_rules_fail_closed(tmp_p
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr
     assert tuple(json.loads(result.stdout)) == expected
+    worker_code = "import sys;sys.path.insert(0,sys.argv[1]);from pilot.candidate_assessment_worker import main;main()"
+    worker = subprocess.run([sys.executable, "-I", "-c", worker_code, str(installed)],
+        input=json.dumps(worker_input(rule_sha256="0" * 64)).encode(), cwd=tmp_path,
+        capture_output=True, timeout=5, env={})
+    assert worker.returncode == 0 and worker.stderr == b""
+    assert json.loads(worker.stdout) == {"error": "assessment_rules_unavailable", "status": 503}
     resource = installed / "pilot/_assessment_rules/SKILL.md"
     assert resource.read_bytes() == (root / "skills/ai-project-lead-research-v1/SKILL.md").read_bytes()
     resource.unlink()
@@ -512,10 +519,10 @@ def test_real_slow_drip_is_cancelled_at_total_deadline_and_disconnects():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        model = adapter(base_url=f"http://127.0.0.1:{server.server_port}/v1", timeout_seconds=0.08)
+        model = adapter(base_url=f"http://127.0.0.1:{server.server_port}/v1", timeout_seconds=0.5)
         started = time.monotonic()
         safe_error(lambda: model.assess(description=DESCRIPTION, content=CONTENT), "assessment_result_unknown", 504)
-        assert time.monotonic() - started < 0.3
+        assert time.monotonic() - started < 0.9  # Includes cold child startup and reap.
         assert disconnected.wait(timeout=0.3), "cancel must close the socket, not abandon a worker"
         assert len(requests) == 1
     finally:
@@ -554,7 +561,7 @@ def test_total_timeout_awaits_cancellation_and_closes_owned_transport(monkeypatc
     monkeypatch.setattr(httpx, "AsyncHTTPTransport", factory)
     model = adapter(timeout_seconds=0.03)
     started = time.monotonic()
-    safe_error(lambda: model.assess(description=DESCRIPTION, content=CONTENT), "assessment_result_unknown", 504)
+    safe_error(lambda: model._assess_in_process(description=DESCRIPTION, content=CONTENT), "assessment_result_unknown", 504)
     assert time.monotonic() - started < 0.25
     if phase == "body":
         assert events == ["request", "read", "read_cancelled", "response_closed", "transport_closed"]
@@ -567,3 +574,118 @@ def test_sync_entrypoint_rejects_running_loop_without_abandoned_coroutine():
     async def call():
         safe_error(lambda: model.assess(description=DESCRIPTION, content=CONTENT), "invalid_assessment_configuration", 500)
     asyncio.run(call())
+
+
+def test_owned_child_bounds_native_dns_and_is_killed_reaped_once(monkeypatch):
+    children = []
+    captured = []
+    real_popen = subprocess.Popen
+    delayed_dns = """import socket, time, sys
+def delayed(*args, **kwargs):
+    sys.stdout.write('DNS_STARTED\\n')
+    sys.stdout.flush()
+    time.sleep(2)
+    raise socket.gaierror('synthetic blocked resolver')
+socket.getaddrinfo = delayed
+"""
+    class ObservedPopen(real_popen):
+        def __init__(self, args, **kwargs):
+            assert args[1:3] == ["-I", "-c"]
+            assert "synthetic-test-secret" not in repr(args)
+            assert set(kwargs["env"]) <= {"SystemRoot", "WINDIR"}
+            assert kwargs["stderr"] == subprocess.DEVNULL
+            altered = list(args)
+            altered[3] = delayed_dns + altered[3]
+            super().__init__(altered, **kwargs)
+            children.append(self)
+        def communicate(self, *args, **kwargs):
+            if args and args[0] is not None:
+                assert len(args[0]) <= 256 * 1024
+                assert json.loads(args[0])["api_key"] == "synthetic-test-secret"
+            try:
+                output = super().communicate(*args, **kwargs)
+                captured.append(output[0])
+                return output
+            except subprocess.TimeoutExpired as error:
+                captured.append(error.output or b"")
+                raise
+    monkeypatch.setattr(subprocess, "Popen", ObservedPopen)
+    # This parent-only substitute makes the old in-process implementation
+    # reproduce the same DNS stall without making an external DNS request.
+    def parent_dns(*args, **kwargs):
+        time.sleep(2)
+        raise socket.gaierror("synthetic blocked resolver")
+    monkeypatch.setattr(socket, "getaddrinfo", parent_dns)
+    started = time.monotonic()
+    safe_error(lambda: adapter(timeout_seconds=0.7).assess(description=DESCRIPTION, content=CONTENT),
+               "assessment_result_unknown", 504)
+    elapsed = time.monotonic() - started
+    assert elapsed < 1.3, f"native DNS held the parent for {elapsed:.3f}s"
+    assert len(children) == 1 and children[0].poll() is not None
+    assert children[0].returncode != 0
+    assert any(b"DNS_STARTED" in output for output in captured)
+    assert captured[-1].count(b"DNS_STARTED") == 1
+
+
+def worker_input(**overrides):
+    model = adapter()
+    return {"base_url": model.base_url, "api_key": model.api_key, "model": model.model,
+            "timeout_seconds": model.timeout_seconds, "description": DESCRIPTION, "content": CONTENT,
+            "rule_version": model.rule_version, "rule_sha256": model.rule_sha256, **overrides}
+
+
+def run_worker(raw):
+    root = Path(__file__).resolve().parents[1]
+    code = "import sys;sys.path.insert(0,sys.argv[1]);from pilot.candidate_assessment_worker import main;main()"
+    return subprocess.run([sys.executable, "-I", "-c", code, str(root)], input=raw,
+                          capture_output=True, timeout=5, env={})
+
+
+def test_worker_checks_expected_rules_before_contacting_provider():
+    response = run_worker(json.dumps(worker_input(rule_sha256="0" * 64)).encode())
+    assert response.returncode == 0 and response.stderr == b""
+    assert json.loads(response.stdout) == {"error": "assessment_rules_unavailable", "status": 503}
+
+
+@pytest.mark.parametrize("raw", [b"null", b'{"a":1,"a":2}', pytest.param(b" " * (256 * 1024 + 1), id="oversize")])
+def test_worker_bounds_input_and_never_prints_raw_exception(raw):
+    response = run_worker(raw)
+    assert response.returncode == 0 and response.stderr == b""
+    assert json.loads(response.stdout) == {"error": "invalid_assessment_input", "status": 400}
+
+
+@pytest.mark.parametrize("bad", ["forged_quote", "wrong_rule", "invalid_usage", "extra", "huge", "bad_json", "private_error"])
+def test_parent_revalidates_bounded_worker_stdout(monkeypatch, bad):
+    model = adapter()
+    payload = {"assessment": assessment(), "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+               "rule_version": model.rule_version, "rule_sha256": model.rule_sha256}
+    if bad == "forged_quote":
+        payload["assessment"]["intent"]["citations"][0]["quote"] = "fabricated"
+    elif bad == "wrong_rule":
+        payload["rule_sha256"] = "0" * 64
+    elif bad == "invalid_usage":
+        payload["usage"]["prompt_tokens"] = True
+    elif bad == "extra":
+        payload["author"] = "fabricated"
+    elif bad == "private_error":
+        payload = {"error": "SECRET_PROVIDER_RESPONSE", "status": 200}
+    raw = json.dumps(payload).encode()
+    if bad == "huge":
+        raw = b" " * (256 * 1024 + 1)
+    elif bad == "bad_json":
+        raw = b'{"a":1,"a":2}'
+    real_popen = subprocess.Popen
+    children = []
+    def harness(args, **kwargs):
+        args = list(args)
+        output = "b' '*(256*1024+1)" if bad == "huge" else repr(raw)
+        args[3] = "import sys;sys.stdin.buffer.read();sys.stdout.buffer.write(" + output + ")"
+        child = real_popen(args, **kwargs)
+        children.append(child)
+        return child
+    monkeypatch.setattr(subprocess, "Popen", harness)
+    if bad == "invalid_usage":
+        assert model.assess(description=DESCRIPTION, content=CONTENT)[1] is None
+    else:
+        safe_error(lambda: model.assess(description=DESCRIPTION, content=CONTENT))
+    assert len(children) == 1 and children[0].poll() == 0

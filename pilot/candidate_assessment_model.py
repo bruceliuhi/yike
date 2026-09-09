@@ -15,7 +15,11 @@ import hashlib
 import ipaddress
 import json
 import math
+import os
 import re
+import subprocess
+import sys
+import time
 import unicodedata
 from contextlib import nullcontext
 from dataclasses import dataclass, field
@@ -251,13 +255,20 @@ def _parse_assessment(raw: bytes, *, description: str, content: dict) -> tuple[A
             or message.get("function_call") is not None):
         raise ValueError("complete plain assistant result required")
     result = validate_assessment(_read_json(message["content"]), description=description, content=content)
-    usage = envelope.get("usage")
+    return result, _validated_usage(envelope.get("usage"))
+
+
+def _validated_usage(usage: object) -> dict | None:
     names = ("prompt_tokens", "completion_tokens", "total_tokens")
     if not isinstance(usage, dict) or any(type(usage.get(key)) is not int or not 0 <= usage[key] < 2**31 for key in names):
-        return result, None
+        return None
     if usage["prompt_tokens"] + usage["completion_tokens"] != usage["total_tokens"]:
-        return result, None
-    return result, {key: usage[key] for key in names}
+        return None
+    return {key: usage[key] for key in names}
+
+
+_WORKER_CODE = "import sys;sys.path.insert(0,sys.argv[1]);from pilot.candidate_assessment_worker import main;main()"
+_PIPE_LIMIT = 256 * 1024
 
 
 @dataclass(frozen=True)
@@ -267,10 +278,12 @@ class OpenAICompatibleCandidateAssessmentModel:
 Default transport has no retries, redirects or ambient proxies. Internal test
 clients must not add their own retries/hooks/auth that change this contract.
 Rules are loaded once so advertised provenance matches each request exactly.
-The synchronous entry point runs in a service worker, not an existing event
-loop; asynchronous I/O is cancelled and cleaned up within its total deadline.
-This is not a hard-real-time guarantee over native OS DNS resolution: event
-loop shutdown waits for an in-progress resolver instead of abandoning it.
+The synchronous entry point owns one child process for default provider calls.
+The parent deadline includes child startup, DNS and provider I/O. At expiry it
+kills and reaps the child before returning UNKNOWN (OS kill/reap adds cleanup
+latency, not continued DNS/network work). No adapter thread is detached.
+AsyncClient injection is only for trusted internal transport tests, not a
+production shortcut: that in-process path cannot interrupt native OS DNS.
 """
 
     base_url: str = field(repr=False)
@@ -323,11 +336,6 @@ loop shutdown waits for an in-progress resolver instead of abandoning it.
         # Snapshot the minimal input once: request and evidence validation must
         # not observe later mutations of the caller's nested dict.
         content = json.loads(json.dumps(content, ensure_ascii=False))
-        body = {"model": self.model, "max_tokens": 4096, "messages": [
-            {"role": "system", "content": self._system_prompt},
-            {"role": "user", "content": json.dumps({"description": description, "content": content}, ensure_ascii=False)},
-        ], "response_format": {"type": "json_schema", "json_schema": {
-            "name": "candidate_assessment", "strict": True, "schema": AssessmentContent.model_json_schema()}}}
         try:
             asyncio.get_running_loop()
         except RuntimeError:
@@ -336,6 +344,62 @@ loop shutdown waits for an in-progress resolver instead of abandoning it.
             # Do not create a coroutine or spawn a background worker when a
             # caller violates this synchronous service-worker interface.
             raise AssessmentModelError("invalid_assessment_configuration", 500)
+        if self.http_client is not None:
+            return self._assess_in_process(description=description, content=content)
+        return self._assess_in_child(description=description, content=content)
+
+    def _assess_in_child(self, *, description: str, content: dict) -> tuple[AssessmentContent, dict | None]:
+        deadline = time.monotonic() + self.timeout_seconds
+        payload = json.dumps({"base_url": self.base_url, "api_key": self.api_key, "model": self.model,
+            "timeout_seconds": self.timeout_seconds, "description": description, "content": content,
+            "rule_version": self.rule_version, "rule_sha256": self.rule_sha256},
+            ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        if len(payload) > _PIPE_LIMIT:
+            raise AssessmentModelError("invalid_assessment_input", 400)
+        error = AssessmentModelError("assessment_result_unknown", 504)
+        try:
+            # Isolated Python imports only our fixed package location. No model
+            # credentials/profile enter argv, inherited env, stderr or files.
+            command = [sys.executable, "-I", "-c", _WORKER_CODE, str(Path(__file__).resolve().parents[1])]
+            environment = {key: os.environ[key] for key in ("SystemRoot", "WINDIR") if key in os.environ}
+            with subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL, env=environment, close_fds=True) as child:
+                try:
+                    raw, _ = child.communicate(payload, timeout=max(0, deadline - time.monotonic()))
+                    if child.returncode == 0 and time.monotonic() < deadline:
+                        error = AssessmentModelError("invalid_assessment_result", 502)
+                        if len(raw) <= _PIPE_LIMIT:
+                            reply = _read_json(raw.decode("utf-8"))
+                            if set(reply) == {"error", "status"}:
+                                error = AssessmentModelError(reply["error"], reply["status"])
+                            elif (set(reply) == {"assessment", "usage", "rule_version", "rule_sha256"}
+                                    and reply["rule_version"] == self.rule_version and reply["rule_sha256"] == self.rule_sha256):
+                                result = validate_assessment(reply["assessment"], description=description, content=content)
+                                if time.monotonic() < deadline:
+                                    return result, _validated_usage(reply["usage"])
+                                error = AssessmentModelError("assessment_result_unknown", 504)
+                except subprocess.TimeoutExpired:
+                    pass
+                except (ValueError, TypeError, UnicodeError, RecursionError, AssessmentModelError):
+                    error = AssessmentModelError("invalid_assessment_result", 502)
+                finally:
+                    if child.poll() is None:
+                        child.kill()
+                    # Always reap: native DNS threads die with their process.
+                    # The fixed worker writes at most _PIPE_LIMIT bytes.
+                    child.communicate()
+        except Exception:
+            error = AssessmentModelError("assessment_result_unknown", 504)
+        raise error
+
+    def _assess_in_process(self, *, description: str, content: dict) -> tuple[AssessmentContent, dict | None]:
+        """Private worker/test path. Production callers must use assess()."""
+        validate_assessment_input(description=description, content=content)
+        body = {"model": self.model, "max_tokens": 4096, "messages": [
+            {"role": "system", "content": self._system_prompt},
+            {"role": "user", "content": json.dumps({"description": description, "content": content}, ensure_ascii=False)},
+        ], "response_format": {"type": "json_schema", "json_schema": {
+            "name": "candidate_assessment", "strict": True, "schema": AssessmentContent.model_json_schema()}}}
         return asyncio.run(self._request(body, description=description, content=content))
 
     async def _request(self, body: dict, *, description: str, content: dict) -> tuple[AssessmentContent, dict | None]:
