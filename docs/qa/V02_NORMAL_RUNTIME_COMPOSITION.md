@@ -59,3 +59,9 @@ uv run --frozen pytest -q tests/test_pilot_runtime_http_postgres.py tests/test_c
 已正常合入Win `a9d18db`，合并为 `fad2d24`，新增仅设备签名客户端计划/分工，不改变本片生产代码。root读取完整新增计划与交接，确认Win承担05F持钥/来源链；Mac接收其执行签名payload最小接口请求。不是Win已接收本片运行效果，也不是设备/平台功能已经完成。
 
 `secret_scan.sh` clean；本片与部署文档17个相对链接有效，增量 `git diff --check` 通过。目标环境角色、真实来源/模型、客户安装和生产验收仍未执行。
+
+## 独立任务审核
+
+非作者 `normal_runtime_task_review` 对 `4101379..bc6a5b6` 四文件审查：**规格符合 / 质量批准，Critical、Important、Minor 均0项**。核对同实例接线、配置原值/安全错误以及既有模型调用入口；未复跑实现者262项，不能把该数字称为审核者实跑。
+
+审核要求由根代理补充真实PG/HTTP、只读不调用模型与角色边界：本页根代理9项及最后2项给出相应普通入口证据；真实部署角色/来源/收发仍未验收，明确不纳入本片完成声明。整片代码/架构/质量终审与远端推送尚待另外记录。
