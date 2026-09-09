@@ -68,3 +68,11 @@
 ## 下一步可用性缺口
 
 正常`pilot/cli.py:web`入口尚未构造已注册的策略、执行、候选与复核服务。本片验证的是明确注入真实组件的HTTP组合，不能把它称为客户默认启动已经可用。下一主线是受信正常运行装配与Win来源/客户端接入；缺真实来源policy或模型配置时继续明确不可用，不因实例化成功自动开启能力。Win05G/05E消费本DTO、05F签名执行、实际来源、确认后收发及客户验收继续按原子卡推进，不新增一套页面。
+
+## 并发主干续接：Win确认页
+
+首次推送`eb29b53`时，feature成功而main因并发`22bae22`拒绝；随后正常合并为`91469c5`，未强推。新入站是Win05C现有任务向导的准备/显式确认/原请求恢复页面、可选执行上限与完整快照展示，来源的独立审核及实际页面边界见[Task4记录](V02-05C_STRATEGY_CLIENT_WIN_REVIEW.md#task4-现有确认页接线基线4251e75)。上文“05C页面尚未接线”只指`a128044`时点；新增页面不代表05F签名启动、05G证据显示或完整05C完成。
+
+本片后端/测试/115与`eb29b53`逐字节一致。根代理新增影响面检查：desktop的`ui/strategy-confirmation`、`ui/strategy-execution-limits`、`ui/task-confirmation-summary`、`ui/task-wizard`、`ui/task-start-contract`和`visual/strategy`，**6文件72 passed / 6.70s**，typecheck exit0。未重复已审PG、构包或原生生命周期；本次记录不冒称Win的本机截图已在Mac重现。最终新合并的独立检查另行记录，原`2c216d0`代码审核不自动覆盖新页面源码。
+
+`opportunity_evidence_final_review`已独立复核完整Win新增package及`91469c5`合并：**PASS，可正常推送，新增发现0项**。新服务分支按钮与start处理函数都拦旧执行，确认状态受当前回执/草稿约束；双方代码、旧SQL与任务书完整保留。此次只读审核核对根72项和QA增量的事实边界，没有复跑测试/PG，也没有升级为05F、完整05C或Windows原生验收。
