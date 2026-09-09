@@ -46,7 +46,8 @@ def _page(title: str, body: str) -> HTMLResponse:
 
 
 def build_app(store, *, auth_secret: str, dev_login: bool = False,
-              phone_auth=None, sms_sender=None, execution_runtime=None, candidate_ingestion=None) -> FastAPI:
+              phone_auth=None, sms_sender=None, execution_runtime=None, candidate_ingestion=None,
+              candidate_review=None) -> FastAPI:
     app = FastAPI(
         title="意客 AI 客户试用",
         docs_url=None,
@@ -288,5 +289,5 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False,
     from pilot.ui_api import register_ui_api
     register_ui_api(app, store, auth_secret=auth_secret, dev_login=dev_login,
                     phone_auth=phone_auth, sms_sender=sms_sender, execution_runtime=execution_runtime,
-                    candidate_ingestion=candidate_ingestion)
+                    candidate_ingestion=candidate_ingestion, candidate_review=candidate_review)
     return app

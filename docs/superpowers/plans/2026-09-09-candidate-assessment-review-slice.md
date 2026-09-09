@@ -30,13 +30,17 @@
 
 人工来源核验是独立操作：版本binding、requestId、humanConfirmed=true、status OPEN/BLOCKED/EXPIRED/UNVERIFIED、openingMethod DIRECT/IN_PLATFORM、locator、原文中的excerpt、contactMethod COMMENT/DM/PUBLIC_CONTACT/NONE。开放核验24小时有效；服务端记录人和时间。仍不认证买方身份或今天仍开放，日期未知不得补造。
 
-复核沿用P07 ASSESS/INCLUDE/EXCLUDE binding、五项人工evidence、requestId和原review快照；新增sourceVerificationId明确纳入证据。EXCLUDE要原因，不要求OPEN；INCLUDE要匹配assessment和有效sourceVerification。113仅四表：assessment requests、不可变assessments、source verifications、reviews；112仍为唯一raw仓库。
+复核沿用P07 ASSESS/INCLUDE/EXCLUDE binding、五项人工evidence、requestId和原review快照；新增sourceVerificationId明确纳入证据。EXCLUDE要原因，不要求OPEN；INCLUDE要匹配assessment和有效sourceVerification。113四张私有业务表：requests、不可变assessments、source verifications、reviews；112仍为唯一raw仓库。另用一张仅含tenant/服务端日期/已预约次数的额度计数表，避免为跨owner计数放宽私有请求RLS或引入读取私有正文的SECURITY DEFINER函数；这是同一预算约束的最小实现细化，不是新产品功能。
 
 旧商机导入source_external_id使用带命名空间的canonical source identity，保留platform/kind/post/comment/site边界，不按昵称或仅父帖ID合并。同来源不同owner可各私有审核，租户共享商机按source/profile只一张。当前判断由projection绑定动态计算；原文变化后历史记录不删，但不作为当前判断。
 
+独立预检细化：新建机会默认UNVERIFIED，ALREADY_IMPORTED不重置旧机会后来人工设置的来源状态；来源核验必须是同绑定最新一条，后续BLOCKED等使旧OPEN不可消费。日额度按tenant与服务端Asia/Shanghai预约日期串行计数，UNKNOWN/坏结果不退回为“未调用”。缓存/在途命中仍保存新requestId到原运行的持久关联；retryOf只能同owner、精确快照的最后失败/未知尝试，并发重试仅一次。原运行期限后不能被晚到结果复活。只读查询可计算已超期UNKNOWN，不能偷偷启动/重跑工作。模型适配器还须在配置的总时限真正取消网络I/O，不能仅依赖httpx分阶段超时或拒绝晚到入库；独立审核已用慢速返回实测确认该差别。
+
+P07的profileId沿用现有客户端含义：`business_profile_versions.profile_version_id`，不是画像父ID（`services/client.ts`）。模型content是最小视图 `{title,body,parent:{title,body}|null}`。COMMENT的raw.title实际来自父视频/主帖（mapper第182行），因此必须投影为title=null、parent.title=raw.title，parent.body保留原父评论正文；POST/PAGE才保留本人的title。其他作者/日期/URL/采集元数据留服务端，不发模型。ASSESS复用有权限的已完成采集证据，不要求旧采集任务继续持有活lease；但当前画像与策略仍须真实确认。
+
 ## Task 1: 版本化 Skill 模型和输出校验
 
-文件：新 `pilot/candidate_assessment_model.py`、`tests/test_candidate_assessment_model.py`；必要的 `pyproject.toml` wheel规则文件包含配置。不要改Win search_suggestion_model或旧scorer。
+文件：新 `pilot/candidate_assessment_model.py`、必要的固定私有模型worker、`tests/test_candidate_assessment_model.py`；必要的 `pyproject.toml` wheel规则文件包含配置。不要改Win search_suggestion_model或旧scorer。独立审核实测原生DNS不受async取消控制后，默认真实provider路径采用最小受控子进程，使DNS/启动/网络都能在时限后终止回收；不是另造DNS或通用任务框架。密钥/画像仅走有界stdin，不入参数/环境/文件/日志，worker核对规则摘要，父进程重验结果；内部网络替身路径不是默认生产路径。
 
 接口：
 - `AssessmentModelError(code,status)`固定白名单安全错误，无原始异常context。
@@ -60,6 +64,8 @@ TDD先完整输出及逐字证据，再缺维度/造引用/伪造author/time/APP
 TDD真实最小受限PG：签名raw→ASSESS→核验→INCLUDE→旧机会可读；重复异载荷、两会话并发同版本只一次模型/商机；伪造字段拒绝；网络期间原文/画像/策略/会话变化拒绝提交；歧义/未知日期/过期/坏引用/无核验不纳入；导入失败全回滚；同作者不同评论分开，同来源不同owner不重复机会；服务重启原回执；quota、UNKNOWN显式重试和超时晚结果；新表RLS/FK及重复/升级迁移。用已有fixture及独立最小NOLOGIN角色，不用admin跑服务。PG串行独占，根代理不同时跑PG。
 
 ## Task 3: 认证 HTTP、交接与独立终审
+
+2026-09-10 Task2独立反例后的最小读一致性修正：列表用外层READ COMMITTED会话护栏和内层REPEATABLE READ数据视图，原文/画像/请求/逐项策略共用快照及数据库时间。resolver仅使用传入cursor，可行锁，不另开连接或重复会话锁；序列化冲突安全409，不自动重跑。保留前后当前撤销/真实到期检查。两个局部连接和owner全量投影是小规模试用已知成本，后续按实际量优化，不为本片新增通用分页框架。
 
 根代理新增 `pilot/candidate_review_api.py`、ui_api/web最小注入注册、纯HTTP及真实HTTP→PG测试、`docs/contracts/V02_CANDIDATE_REVIEW.md`、QA和唯一任务台账。
 
