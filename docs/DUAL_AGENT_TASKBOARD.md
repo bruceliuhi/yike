@@ -1,6 +1,8 @@
-# 意客 AI 双 AI 协作任务板（V0.2 完整获客版）
+# 意客 AI 双 AI 协作任务板（V1.0 / V02 工程任务）
 
-> **执行定位（2026-09-09 任务卡细化）：本文件定义可交付小卡、建议分工、依赖和验收，不再维护另一张 READY/DOING/BLOCKED 状态表。实际认领、进度、候选/集成 SHA、接收 ACK 与证据只在 [V0.2 实施任务书](V02_IMPLEMENTATION_TASKBOOK.md)记录。** `6f449e6` 已将旧 DISCOVERY/SQLite 计划校正到 V0.2；当前正式代码入口为 `pilot/` 与 `desktop/`，旧 `app/` 仅作复用来源。现有 Mac 前端 Goal 继续执行，Windows 实机由用户手动运行脚本回传，不能假定已有可远控 Windows。仓库规则见[当前工作流](REPOSITORY_WORKFLOW.md)。
+> **执行定位（2026-09-09 任务卡细化）：本文件定义可交付小卡、建议分工、依赖和验收，不再维护另一张 READY/DOING/BLOCKED 状态表。实际认领、进度、候选/集成 SHA、接收 ACK 与证据只在 [V02 实施任务书](V02_IMPLEMENTATION_TASKBOOK.md)记录。** `6f449e6` 已将旧 DISCOVERY/SQLite 计划校正到 V0.2；当前正式代码入口为 `pilot/` 与 `desktop/`，旧 `app/` 仅作复用来源。现有 Mac 前端 Goal 继续执行，Windows 实机由用户手动运行脚本回传，不能假定已有可远控 Windows。仓库规则见[当前工作流](REPOSITORY_WORKFLOW.md)。
+
+> **版本定位：** V1.0 是首个正式商用版，仍以 `V02-*`/`MP-*` 为工程卡号；V1.1 是上线后增强，仅保留设计、未启动。六组能力与具体子卡映射见 [V1 版本映射](V1_VERSION_MAPPING.md)，不在本板另建状态。
 
 > 主仓：`xinghetech/yike-ai2026`
 > 主分支：`main`
@@ -61,6 +63,7 @@
 | V02-01A / Mac | 设备、连接登记和窄字段报告事件；候选中的 `pilot/identity.py`、迁移104与 `/api/ui` 接口 | 候选已经存在；先核对任务书中锁定 SHA，不重复实现 | 独立复审与接收 ACK；登记只能为 UNVERIFIED，报告事件不能推进商机/游标；专项隔离 PostgreSQL 反例 |
 | V02-01B / Mac | 服务端会话撤销；候选中的 `pilot/sessions.py`、`pilot/auth.py`、迁移105及所有登录入口 | V02-01A 所用身份基线；候选已存在，先复审 | 锁定新 SHA 审核；退出事务失败不报成功、双凭据/双租户/重启撤销均通过；01A PASS 不覆盖本卡 |
 | V02-01C / Mac | 设备认证与执行授权契约/实现；在 `pilot/` 独立模块定义凭据轮换、连接版本、领取/续租/取消、owner/代次、结果提交及统一错误/未知结果查询 | V02-01A/B 的接收版本；契约可先设计 | 服务端授权与客户端遥测明确分离；撤销/换号后旧执行者不能提交结果；隔离库与并发测试，交付可运行契约测试 |
+| V02-01C-CV / Mac | 01C 连接版本 fencing 切片：新增 107 迁移，连接版本/变更回执/会话事务核验，只读锁定当前连接边界 | base `714b323`，同 `codex/mac-device-authorization`；继承01C已审持钥子链；[连接版本计划](superpowers/plans/2026-09-09-connection-version-fencing.md) | 旧连接版本/撤销或换号后的会话不能通过提交核验；不改写既有持钥交付证据，不标整个01C或03A完成，Win ACK仍待实际发生 |
 | V02-01D / Mac | 客户正常登录、激活、试用到期和授权恢复；`pilot/auth.py`、`pilot/ui_api.py`；确认具体登录方式及外部条件 | V02-01B；采用新增收费通道前取得相应授权 | 客户不依赖管理员 CLI/token；登录失败/过期/重试/退出完整测试，客户端接入另在 V02-05D |
 | V02-02A / Mac | 候选与来源能力契约：平台 ID、原文/评论身份、内容版本、画像/策略/run 标识、上传幂等与冲突错误；`pilot/`、`docs/contracts/`（新增文件待本卡确定） | 可立即定义；身份字段复用 V02-01C，不自行另造认证 | 契约样例和失败用例可运行；明确前端小写 ID、候选服务端枚举与依赖内部 ID 的映射；读取/监控/收发分列 |
 | V02-02C / Win | 独立解析器及平台 ID 映射；复用 `app/collectors/douyin.py`、`bilibili.py`、`app/normalizer.py`，解除新适配代码对旧 Repository 的依赖 | 纯解析/回链可先做；正式输出映射须 V02-02A ACK | 真实格式的脱敏 fixture 与坏 ID/时间/URL/重复评论测试；不直连客户库、不把 fixture 当真实采集 |

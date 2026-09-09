@@ -1,6 +1,7 @@
-# 意客AI V0.2 产品与开发权威
+# 意客AI V1.0 产品与开发权威（工程沿用 V02）
 
-状态：`V02_PRODUCT_SCOPE_ACTIVE / APPROVED_FOR_IMPLEMENTATION`
+工程状态：`V02_PRODUCT_SCOPE_ACTIVE / APPROVED_FOR_IMPLEMENTATION`。
+对外版本：`V1_0_PRODUCT_SCOPE_ACTIVE / APPROVED_FOR_IMPLEMENTATION`；`V1_1_APPROVED_DESIGN_PRESERVED_NOT_STARTED`。
 更新：2026-09-09，按用户要求将本轮讨论落实为当前开发目标；新增功能尚未完成。
 
 仓库分工按用户最新要求执行：所有代码和产品功能归入 `yike-ai2026/main`；小范围串行改动可直接在 `main` 完成验证、审核与提交，较大或并行工作才使用短期 `codex/<主题>` 分支，完成后合并清理。`yike-ai` 暂时保留为只读权威文档仓库。本文件及本仓库已有设计、实现台账保留当前执行上下文；正式治理文档迁入 `docs/authority/` 和旧仓归档留待产品稳定后进行，不在本轮提前执行。详见[仓库工作流](docs/REPOSITORY_WORKFLOW.md)。
@@ -19,15 +20,16 @@
 
 “全网顶级”作为内部体验和质量标杆，外部介绍只能使用有版本、样本和适用范围支持的结果；不得无依据声称全网第一、全行业效果保证或平台无限可用。对外定位为“意客AI｜面向各行业企业的 AI 商机工作台”。客户付费价值在于持续发现可行动的新需求及推进联系，不以菜单数量、试用留言或虚构业绩证明需求。
 
-当前产品范围为 [V0.2 完整获客版计划](docs/V02_COMMERCIAL_RELEASE_PLAN.md)。登录、采集、监控、真实触达与回复等缺失能力必须开发并验收，不能因为现有代码缺失而改成交付人工导入与复制草稿。四页研究包试用流程是现有实现基础，不再限定最终产品范围。
+当前产品范围为首个正式商用版 V1.0，工程任务继续沿用 [V02 完整获客版计划](docs/V02_COMMERCIAL_RELEASE_PLAN.md) 编号，不大规模重命名。V1.1 是上线后数据驱动增强，仅保留设计、未启动。具体见 [V1 版本映射](docs/V1_VERSION_MAPPING.md)。登录、采集、监控、真实触达与回复等缺失能力必须开发并验收，不能降级为人工导入与复制草稿。
 
 ## 文档权威与执行入口
 
 1. 用户最新明确要求与本文件：决定目标、边界及冲突处理。
 2. [完整获客版计划](docs/V02_COMMERCIAL_RELEASE_PLAN.md)：功能范围、交付标准与商业验证。
 3. [多平台 Skill 方案](docs/V02_MULTIPLATFORM_SKILL_PLAN.md) 与 [设计入口](design/README.md)：技术和视觉规范，不能改变上层功能范围。
-4. [V0.2 实施任务书](docs/V02_IMPLEMENTATION_TASKBOOK.md)：唯一的当前开发任务状态、优先级、依赖和验收证据台账。
-5. [客户试用计划](docs/CUSTOMER_PILOT_PLAN.md)、现有运行手册与历史审核：说明已有实现及受控运行路径，不覆盖上述新目标。
+4. [V1 版本映射](docs/V1_VERSION_MAPPING.md)：定义 V1.0/V1.1 与既有 V02 任务的对应，不另建状态台账。
+5. [V02 实施任务书](docs/V02_IMPLEMENTATION_TASKBOOK.md)：唯一的当前开发任务状态、优先级、依赖和验收证据台账。
+6. [客户试用计划](docs/CUSTOMER_PILOT_PLAN.md)、现有运行手册与历史审核：说明已有实现及受控运行路径，不覆盖上述新目标。
 
 设计交接、历史评审和旧双平台 MVP 文档保留溯源。旧文档中的“四页即交付”“仅人工导入”“系统永不执行发送”等范围限制，仅描述旧实现，不能用于取消 V0.2 已纳入的功能。运行说明必须与实际代码一致，未实现的功能不能写成可执行命令或已通过验收。
 

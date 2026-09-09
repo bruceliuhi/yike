@@ -1,10 +1,12 @@
-# 意客AI V0.2 实施任务书
+# 意客AI V1.0 实施任务书（V02 工程编号）
 
 更新：2026-09-09。当前目标：首发面向所有行业企业的跨行业完整获客版。产品依据：[AUTHORITY](../AUTHORITY.md)、[产品计划](V02_COMMERCIAL_RELEASE_PLAN.md)、[多平台 Skill 方案](V02_MULTIPLATFORM_SKILL_PLAN.md)。
 
 本文件是唯一主任务及子卡状态台账。[双 AI 任务板](DUAL_AGENT_TASKBOARD.md)只定义小卡、建议分工、依赖与验收，不维护另一套状态；产品计划保留功能与完成标准，MP 清单提供平台技术子项。R3 前端阶段的详细执行证据记录在 [UI 实施记录](UI_R3_IMPLEMENTATION.md)，主任务状态在本表汇总。当前已选择性纳入版本化研究 Skill 和安全 Electron 壳候选，并按用户授权启动 R3 前端实现；新增业务闭环仍未完成，图册浏览器是独立评审工具。详细整合记录见 [当前整合状态](INTEGRATION_STATUS.md)。
 
 ## 1. 当前基线与推进原则
+
+V1.0 是首个正式商用版；为保留任务、提交和验收溯源，本任务书继续使用 `V02-*`/`MP-*` 编号。V1.1 仅保留设计、未启动；不将其映射项标记为 `IN_PROGRESS`。版本范围见 [V1 版本映射](V1_VERSION_MAPPING.md)，本文仍是唯一实施状态台账。
 
 - 起点：`codex/customer-pilot / eac3c4c`，已包含 `f82a9ae` 的客户试用和安全修改，以及规划、设计图和 Logo。
 - 可复用：画像及确认建任务、人工复核包校验、逐条事务和来源版本、商机证据、人工跟进、短期签名会话、PostgreSQL 与 v3 RLS。
@@ -57,6 +59,7 @@ CodexiMac并行主线集成快照（2026-09-09）：正常合并最新 main `f7e
 | V02-01B / CodexiMac，CodexWin接收 | DONE（仅会话撤销/权限升级子卡） | 原 `120b938`、权限修复 `222119e`；接收 `f42ea909`，服务端/迁移/部署对象与222相同；集成 `bea5c7d` | 2026-09-09 CodexWin ACK；独立PG重跑与最小角色升级通过，136定向与647/58全量为不同集合、不相加。独立 `api_contract_gaps` PASS；不覆盖设备认证、正常登录或取消在途任务，下一步仍为01C/D |
 | V02-02A / CodexiMac主实现，CodexWin接收 | DONE（仅候选DTO/来源纯契约） | 原代码 `3f0afad`、整合 `e4d1695`；Win发现IDNA不同站点误合并/等价IPv6漏去重P2，更正 `d14594f042b094885f439477d376399cfd3e5ab5`，集成 `95285dd`；[验收](qa/V02-02A_REVIEW.md)保留Mac877通过及各轮独立审核历史 | 2026-09-09 CodexWin限定ACK `d14594f`；新37反例RED→GREEN，独立reviewer `windows_bootstrap_fix` 及根代理各221项定向通过，锁定依赖节点不变。仅解锁02C原始字段输出映射；01C授权、02B上传/事务和真实平台未完成，见[Win记录](qa/WIN_CROSS_REVIEW_20260909.md) |
 | V02-01C / CodexiMac，Win待接收 | IN_PROGRESS；持钥后端子链已审并纳入main | `codex/mac-device-authorization`，代码 `c3702c0`，最终审 `7e4ab7c`，保留Win主线3c16fac后整合推送 `65d8676`；[验收](qa/V02-01C_DEVICE_KEYS_REVIEW.md)：owner、一次性挑战/双钥轮换/回执、会话事务锁、106及最小授权；独立任务/整分支/合并复核PASS，合并版Mac后端962通过/0跳过，桌面549通过/21条件跳过、类型/renderer构建通过 | 按[交接](handoffs/V02-01C_DEVICE_KEYS_MAC_TO_WIN.md)接收，本卡实际Win ACK未发生；连接版本、执行租约/取消/提交授权继续，02B上传仍未实现。历史成功持钥回执不是执行token；分支/测试通过不表示整卡或产品完成 |
+| V02-01C-CV / CodexiMac | IN_PROGRESS；已实际认领连接版本 fencing 切片 | base `714b323469a465e4291937bb2ab9a23438497826`，分支 `codex/mac-device-authorization`；计划 [2026-09-09-connection-version-fencing.md](superpowers/plans/2026-09-09-connection-version-fencing.md)；拟新增107迁移和连接版本/变更回执/会话事务核验，只读锁定当前连接边界 | 实现与验收证据待后续登记；不改既有01C持钥交付和验收结论，实际Win ACK仍未发生，不标整个01C或03A DONE，02B上传仍未实现 |
 | V02-05A / CodexMac，保留原前端工作及主线交接记录 | IN_PROGRESS | R3及 `8011a30`/`a9f3078` 交互增量已集成；[UI实施记录](UI_R3_IMPLEMENTATION.md)、[交互验收](qa/ui-interactions/REVIEW.md)保留原SHA与环境，含三队列/原请求核对、P18管理UI、原生CSV导出；记录中的362项是其版本测试结果，不是本轮复跑 | 不将整项前端转给Win；保留同状态视觉、P04资料、P14/P15跟进、P19任务查询等未完成边界；后端接入分别归05B～G/07C/08B/09C/E，不重建已交付UI，具体文件须先交接 |
 | V02-10E / CodexiMac 侧 baseline_clock_fix；Windows缺口由Win接续 | IN_PROGRESS；时钟切片已ACK并集成 | 候选 `475166a` / 审查快照 `e577f4b`，随 `f42ea909` 集成到 `bea5c7d`；历史Mac624/7见[原审核](qa/BASELINE_CLOCK_REVIEW.md) | 2026-09-09 CodexWin限定ACK时钟/权威修复；独立Windows566通过/58失败/7跳过、原生时钟34通过、新fixture16通过；修复175个旧失败/错误且无同名原通过变失败。Windows旧POSIX/编码/换行缺口见[Win复核](qa/WIN_CROSS_REVIEW_20260909.md)，不宣称全仓或整链通过 |
 
