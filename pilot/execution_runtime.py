@@ -198,6 +198,22 @@ class ExecutionRuntime:
             'WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s', (tenant, user, request_id))
         return cursor.fetchone()
 
+    def prepare_signing_payload(self, claims, request: ExecutionOperation) -> dict:
+        request = _operation(request)
+        with self.database.connect() as connection, connection.cursor() as cursor:
+            tenant = self._active(cursor, claims)
+            self._key(cursor, claims, tenant, request.device_id, request.credential_version)
+            result = dict(
+                signing_payload=execution_signing_payload(
+                    tenant_id=tenant, claims=claims, operation=request),
+                request_id=request.request_id,
+                device_id=request.device_id,
+                credential_version=request.credential_version,
+                request_sha256=_hash(request.model_dump(mode='json')),
+            )
+            self._active(cursor, claims)
+            return result
+
     def apply(self, claims, request: ExecutionOperation, signature: str) -> dict:
         request = _operation(request)
         fingerprint = _hash(request.model_dump(mode='json', exclude={'request_id'}))
