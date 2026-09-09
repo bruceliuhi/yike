@@ -13,33 +13,34 @@
 ## 当前依赖和范围
 
 - 普通 CLI 已构造真实 candidate review/strategy reader；正常 POST ASSESS 仍需配置模型，不能靠新前端打开未配置能力。
-- 服务端 `receipt.review` 当前未返回 `sourceVerificationId`；完整新版确认必须包含此字段。给 Mac 请求最小同原请求返回补充，不在 Win 私自伪造回执。接口补齐前不启用无法完整核对的新 INCLUDE，读取/协议/核验和实际测试可继续。
-- 设备登记缺少幂等请求与 owner/current credential 的精确找回，这只影响设备 HTTP 登记恢复，不阻止当前已授权 GET 候选或复核接口接线。交接另列，Mac 现有执行签名载荷继续原所有权。
+- 原基线服务端 `receipt.review` 未返回 `sourceVerificationId`；Mac已按main交接以`9d9e965`补齐，新EXCLUDE省略/null返回null、原始payload指纹仍区分省略/null，旧回执不补写。Win现已快进到`2d799bc`并独立核对该单行修复；实际客户端HTTP接收仍需验证，不在Win伪造服务回执。
+- 设备登记的幂等请求及owner/current credential精确找回已由Mac交付服务与三接口合同（`a6f68dd`，当前`2d799bc`）。不再作为无接口阻断，Win候选片后按合同接设备HTTP并独立验证；Mac执行签名载荷继续原所有权。
 - 当前 P07 source projection 不含 COMMENT kind/父上下文；必须补读已存在 `/raw-candidates/{candidate_id}` 明确来源角色，不从 title/buyer 猜身份或把父帖标题当评论本人需求。保留 nullable 时间、观察与版本，快照不混代。
 
 ## Chunk 1: 严格协议和产品传输
 
-### Task 1: 独立共享候选复核合同
+### Task 1: 独立共享候选复核合同（已完成限定工程片）
 
 **Files:** Create `desktop/src/shared/candidateReviewApi.ts`, `desktop/tests/candidateReviewApi.test.ts`, `desktop/tests/fixtures/candidateReviewApi.ts`。
 
-- [ ] 先写可导入 stub 和 RED：合法完整列表/五种回执保留全部字段；未知/缺字段、坏类型、错误 UUID/opaque request、过大/残缺 Unicode、身份/版本失配拒绝。不将不可识别响应映射成空列表或成功。
-- [ ] 导出 `candidateQuerySchema`、`candidateReviewRequestSchema`、`sourceVerificationRequestSchema` 及相应输入类型；`parseCandidatePage(raw, query)`、`parseCandidateReviewResult(raw, expected)` 返回严格类型，固定错误，不把 Zod 原值/cause 返回客户。
-- [ ] Query 为现端点的 query/platform/status/page/pageSize/ids/reviewRequestId；去除 UI 空白查询后严格校验，query至多200个Unicode码点、正式平台枚举、小写规范UUID、page为1..999999999、pageSize为1..100、ids为1..100个唯一UUID。原请求列表必须恰好一个id且page=pageSize=1；opaque ID为`[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}`。创建 URL 用 URLSearchParams，ids按逗号连接传入，不接受客户端路径/查询字符串。
-- [ ] 所有写入包含候选/来源/画像版本及原 requestId。ASSESS 允许显式 nullable retryOf；INCLUDE/EXCLUDE 保存五项依据与 humanConfirmed=true，INCLUDE 必须有 sourceVerificationId，EXCLUDE 有非空理由。VERIFY_SOURCE 保留 status/openingMethod/locator/excerpt/contactMethod，不接收 checkedAt/checkedBy/tenant。发送前完整 JSON UTF-8 上限 64KiB。
-- [ ] 完整 assessment 包括四维(level/reason/citations)、purchaseType/grade/decision/effectiveDecision、summary/draftComment/draftDm、evidence、绑定/策略/规则/模型/assessedAt，sendingAuthorized 固定 false；不把 SEND_READY 解释成发送批准。引用字段五种仅原样校验保存，不转成伪来源。候选保留 profileId/profileVersion/strategyVersionId/historical/currentBindingValid/assessmentStale/sourceVerification；nullable url 和空发布时间不补造。成功 decision 的 candidate 与 receipt 严格一致；历史 response 可读但不解锁当前写入。
-- [ ] `pending`/`failure`/`assessment`/`decision`/`sourceVerification` 分别解析：pending/failure只返回requestId/candidateId，不能伪造完整版本绑定；assessment/decision/sourceVerification按其实际携带字段与原请求核对完整绑定。UNKNOWN pending可有`code:"assessment_unknown"`，FAILED有`code:"assessment_failed"`；缓存别名的invocationRequestId可出现在assessment/pending/failure，保留它但不是第二次调用。复核回执核验 ID 缺失作为旧版本读取，而新 INCLUDE 的确认匹配不放宽。按Python Unicode codepoint长度与UTF-8实际字节校验，不因emoji的UTF-16长度不同而截断或误拒合法正文。
-- [ ] 跑 `node node_modules/vitest/vitest.mjs run tests/candidateReviewApi.test.ts --maxWorkers=4` RED→GREEN、tsc；独立规格再质量复核后进入 Task2。
+- [x] 可导入stub的有效RED→合法完整列表/五种回执；未知/缺字段、坏类型、坏UUID/request、过大/残缺Unicode及身份/版本失配拒绝，不降级空列表或成功。
+- [x] 导出查询/复核/来源核验schema及输入、严格输出类型；两个parse函数返回固定错误、不回显原值/cause。
+- [x] 查询合同为query至多200个Unicode码点、正式平台、小写规范UUID、page1..999999999、pageSize1..100、1..100唯一ids；原请求恰好1id/page1/size1、opaque ID正则与后端一致。URLSearchParams和UI空白归一化由Task2适配执行，纯schema不改原值。
+- [x] 写入完整候选/来源/画像绑定与原requestId；ASSESS保留retryOf省略/null；INCLUDE有核验ID，EXCLUDE有理由；人工核验不接actor/time/tenant；JSON UTF-8最多64KiB。
+- [x] 完整分析维度/逐字引用/独立短句/规则模型、false发送授权和全部候选版本字段保留；nullable URL/未知时间不补造，历史仍核对原绑定而不授权当前写入。
+- [x] 五类结果按实际字段解析；pending/failure无完整绑定不伪造，UNKNOWN代码及调用别名保留；旧缺核验ID回执可读但不匹配新INCLUDE。Python Unicode码点、空白比较和原始文本逐字保留。
+- [x] 43项纯合同及4文件80项相关检查、类型检查通过；独立SPEC与代码/架构/质量PASS，三项反例修复记录见[QA](../../qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task1-协议实现与反例)。仅本工程片完成，继续Task2～5真实接线。
 
 ### Task 2: 现有主进程/renderer 固定服务接线
 
 **Files:** Modify `desktop/src/shared/contracts.ts`, `desktop/src/main/servicePolicy.ts`, `desktop/src/renderer/services/contracts.ts`, `desktop/src/renderer/services/client.ts`, `desktop/src/renderer/domain/candidates.ts`; create `desktop/src/renderer/services/candidateReview.ts`, `desktop/tests/candidateReviewService.test.ts`; extend `desktop/tests/serviceClient.test.ts`, `desktop/tests/ui/client.test.ts`。
 
 - [ ] 先写 RED：固定 `candidates.list/review/verifySource/request` 对应四个已存在 HTTP 入口；写操作仅已验证 payload，无通用 URL/任意方法，无来源核验冒充评估。所有动作复用同 session 队列与 HTTPS/Origin/no-store/响应字节限制。
-- [ ] 独立 `createCandidateReviewService(request)` 做严格边界解析、预期身份核对及错误映射；在现 service 接 candidates/reviewCandidate，并加 source verification 与原请求读取。浏览器透传 AbortSignal，IPC 调用前/采用响应前检查取消；不声称物理取消服务器操作。
+- [ ] 独立 `createCandidateReviewService(request)` 做严格边界解析、预期身份核对及错误映射，提供候选读/复核/来源核验/原请求读取。此片产品组合只接只读candidates，旧reviewCandidate保持明确不可用：当前P07换画像会直接调用它且没有ASSESS原请求持久化，不能提前启用真实模型。Task3/4恢复路径及显式按钮完成后再接产品写入口，无新通用权限框架/配置开关。浏览器透传 AbortSignal，IPC 调用前/采用响应前检查取消；不声称物理取消服务器操作。
 - [ ] P07当前中文平台筛选值显式映射为服务枚举`XIAOHONGSHU/DOUYIN/BILIBILI/ZHIHU/PUBLIC_WEB`，并提供反向显示映射；共享DTO不因此接受任意字符串。
 - [ ] 保留旧 Candidate 类型兼容公开样例/旧 R3 夹具，实际服务 DTO 必须严格；新增服务元数据明确标识，不能让缺新字段旧夹具经真实接口变为已核验。
 - [ ] 定向现策略/原文/连接/发送回归及类型检查；服务接线不自动调用模型或核验/入库。独立审核后进入恢复与 UI。
+- [ ] 组合回归证明此片真实service的旧判断入口仍不发候选POST；页面选择画像亦不能借只读接线触发模型。最终启用另验持久化先于POST。
 
 ## Chunk 2: 来源证据与可靠操作接线
 
