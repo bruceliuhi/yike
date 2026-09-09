@@ -32,7 +32,7 @@ def _reject_constant(_value):
     raise ValueError("non-JSON number")
 
 
-async def _upload_envelope(request):
+async def _bounded_json(request):
     if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
         raise HTTPException(415, detail={"code": "json_required", "message": "请使用 JSON 请求。"})
     # Count actual bytes before decoding. A client-supplied Content-Length is
@@ -44,12 +44,27 @@ async def _upload_envelope(request):
         raw.extend(chunk)
     try:
         body = json.loads(raw, object_pairs_hook=_unique_object, parse_constant=_reject_constant)
+        return body
+    except (ValueError, RecursionError):
+        raise _invalid() from None
+
+
+async def _upload_envelope(request):
+    body = await _bounded_json(request)
+    try:
         if (type(body) is not dict or set(body) != {"batch", "signature"}
                 or type(body["batch"]) is not dict or type(body["signature"]) is not str):
             raise ValueError("invalid envelope")
         decode_canonical(body["signature"], 64)
     except (ValueError, RecursionError, DeviceKeyError):
         raise _invalid() from None
+    return body
+
+
+async def _submission_envelope(request):
+    body = await _bounded_json(request)
+    if type(body) is not dict or set(body) != {"batch"} or type(body["batch"]) is not dict:
+        raise _invalid()
     return body
 
 
@@ -78,6 +93,12 @@ def register_candidate_api(router, service, identity, require_session_https):
         claims = await run_in_threadpool(current, request)
         body = await _upload_envelope(request)
         return await run_in_threadpool(invoke, service.ingest, claims, body["batch"], body["signature"])
+
+    @router.post("/candidate-submission-signing-payload")
+    async def signing_payload(request: Request):
+        claims = await run_in_threadpool(current, request)
+        body = await _submission_envelope(request)
+        return await run_in_threadpool(invoke, service.prepare_signing_payload, claims, body["batch"])
 
     @router.get("/candidate-batches/{platform_run_id}/{request_id}")
     def receipt(platform_run_id: str, request_id: str, request: Request):

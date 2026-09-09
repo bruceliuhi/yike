@@ -5,12 +5,11 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from pilot.auth import issue_token, verify_token_claims
+from pilot.auth import issue_token
 from pilot.candidate_ingestion import CandidateIngestionStore
 from pilot.candidate_review import CandidateReviewStore
 from pilot.web import build_app
 from tests.test_candidate_assessment_model import CONTENT, assessment
-from tests.test_candidate_ingestion_http_postgres import signed
 from tests.test_candidate_ingestion_postgres import payload
 from tests.test_candidate_review_http_postgres import local_provider
 from tests.test_candidate_review_postgres import review_payload, verification_payload
@@ -40,10 +39,17 @@ def send_execution(client, env, request):
     })
 
 
+def send_candidate(client, key, value):
+    response = client.post("/api/ui/candidate-submission-signing-payload", json={"batch": value})
+    assert response.status_code == 200, response.text
+    prepared = response.json()
+    signature = encoded(key.sign(prepared["signing_payload"].encode("utf-8")).signature)
+    return client.post("/api/ui/candidate-batches", json={"batch": value, "signature": signature})
+
+
 def test_shared_http_actual_strategy_signed_review_and_revocation_chain(real_strategy_env, local_provider):
     env = real_strategy_env
     token = issue_token(env.claims.user_id, SECRET)
-    claims = verify_token_claims(token, SECRET)
     review = CandidateReviewStore(BoundedDatabase(env.db), model=local_provider.model,
         strategy_resolver=env.strategies.resolve,
         strategy_snapshot_reader=env.strategies.read_snapshot)
@@ -81,8 +87,7 @@ def test_shared_http_actual_strategy_signed_review_and_revocation_chain(real_str
         published_at=(datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
         observed_at=(datetime.now(UTC) - timedelta(seconds=10)).strftime("%Y-%m-%dT%H:%M:%SZ"),
     )
-    uploaded_response = client.post("/api/ui/candidate-batches",
-                                    json=signed(env, claims, raw))
+    uploaded_response = send_candidate(client, env.key, raw)
     assert uploaded_response.status_code == 200, uploaded_response.text
     uploaded = uploaded_response.json()
     item = uploaded["items"][0]
@@ -172,8 +177,7 @@ def test_shared_http_actual_strategy_signed_review_and_revocation_chain(real_str
     rejected_raw = copy.deepcopy(raw)
     rejected_raw["request_id"] = str(uuid4())
     rejected_raw["records"][0]["body"] += " fresh write after revocation"
-    rejected_upload = client.post("/api/ui/candidate-batches",
-                                  json=signed(env, claims, rejected_raw))
+    rejected_upload = send_candidate(client, env.key, rejected_raw)
     assert rejected_upload.status_code == 409
     assert rejected_upload.json()["detail"]["code"] == "strategy_conflict"
     assert client.get(detail_path).json()["opportunity"]["source_evidence"] == evidence

@@ -304,6 +304,7 @@ class CandidateReviewStore(CandidateIngestionStore):
                 receipt = dict(requestId=request.requestId,action=request.action,status='SUCCEEDED',outcome=outcome,
                     reviewedBy=claims.user_id,reviewedAt=now.isoformat(),review={key:payload[key] for key in (
                         'candidateRevision','sourceVersionId','profileId','profileVersion','assessmentId','evidence','reason')})
+                receipt['review']['sourceVerificationId'] = request.sourceVerificationId
                 if opportunity: receipt['opportunityId']=opportunity['opportunity_id']
                 candidate = self._candidate(snapshot,assessed=assessed,receipt=receipt)
                 result = dict(kind='decision',requestId=request.requestId,candidate=candidate,receipt=receipt)

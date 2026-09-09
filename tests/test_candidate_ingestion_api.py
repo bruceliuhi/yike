@@ -31,6 +31,12 @@ class StoreBoundary:
     def ingest(self, claims, payload, signature):
         return self._result("ingest", claims, payload=payload, signature=signature)
 
+    def prepare_signing_payload(self, claims, payload):
+        self.calls.append(("prepare", claims.user_id, payload))
+        if self.error:
+            raise self.error
+        return {"boundary_operation": "prepare"}
+
     def get_receipt(self, claims, platform_run_id, request_id):
         return self._result("receipt", claims, platform_run_id=platform_run_id, request_id=request_id)
 
@@ -93,6 +99,144 @@ def test_upload_preserves_original_raw_types_and_routes_authenticate_all_reads()
     result = client.get("/api/ui/raw-candidates", params={"task_id": task, "platform": "BILIBILI", "page": 2, "page_size": 100}, headers=headers())
     assert result.status_code == 200
     assert service.calls[-1][2] == {"task_id": task, "platform": "BILIBILI", "page": 2, "page_size": 100}
+
+
+def test_candidate_signing_preparation_preserves_raw_batch():
+    service = StoreBoundary()
+    batch = envelope()["batch"]
+    response = client_for(service).post(
+        "/api/ui/candidate-submission-signing-payload",
+        json={"batch": batch},
+        headers=headers(),
+    )
+    assert response.status_code == 200, response.text
+    assert service.calls == [("prepare", "user-1", batch)]
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_candidate_signing_preparation_without_service_is_explicitly_unavailable():
+    response = client_for().post(
+        "/api/ui/candidate-submission-signing-payload",
+        json={"batch": envelope()["batch"]},
+        headers=headers(),
+    )
+    assert response.status_code == 501
+    assert response.json()["detail"]["code"] == "capability_unavailable"
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_candidate_signing_preparation_auth_https_origin_and_revocation_gates():
+    service = StoreBoundary()
+    path = "/api/ui/candidate-submission-signing-payload"
+    body = {"batch": envelope()["batch"]}
+    client = client_for(service)
+
+    unauthenticated = client.post(path, json=body)
+    assert unauthenticated.status_code == 401
+    assert unauthenticated.headers["cache-control"] == "no-store"
+
+    insecure = client_for(service, "http://pilot.example").post(path, json=body, headers=headers())
+    assert insecure.status_code == 400
+    assert insecure.headers["cache-control"] == "no-store"
+
+    foreign_origin = client.post(
+        path,
+        json=body,
+        headers=headers() | {"Origin": "https://foreign.example"},
+    )
+    assert foreign_origin.status_code == 403
+
+    token_headers = headers()
+    assert client.delete("/api/ui/session", headers=token_headers).status_code == 200
+    revoked = client.post(path, json=body, headers=token_headers)
+    assert revoked.status_code == 401
+    assert revoked.headers["cache-control"] == "no-store"
+    assert not service.calls
+
+
+def test_candidate_signing_preparation_requires_json():
+    service = StoreBoundary()
+    response = client_for(service).post(
+        "/api/ui/candidate-submission-signing-payload",
+        content=json.dumps({"batch": envelope()["batch"]}),
+        headers=headers() | {"Content-Type": "text/plain"},
+    )
+    assert response.status_code == 415
+    assert response.json()["detail"]["code"] == "json_required"
+    assert response.headers["cache-control"] == "no-store"
+    assert not service.calls
+
+
+def test_candidate_signing_preparation_counts_actual_stream_bytes():
+    service = StoreBoundary()
+    client = client_for(service)
+    path = "/api/ui/candidate-submission-signing-payload"
+    for declared in (None, "1", str(LIMIT + 1)):
+        request_headers = headers() | {"Content-Type": "application/json"}
+        if declared is not None:
+            request_headers["Content-Length"] = declared
+        response = client.post(
+            path,
+            content=iter([b" " * (LIMIT // 2)] * 3),
+            headers=request_headers,
+        )
+        assert response.status_code == 413
+        assert response.json()["detail"]["code"] == "request_too_large"
+        assert response.headers["cache-control"] == "no-store"
+    assert not service.calls
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b'{"batch":{},"batch":{}}',
+        b'{"batch":{"value":NaN}}',
+        b'{"batch":{},"tenant_id":"synthetic-private-value"}',
+        b'{"batch":{},"user_id":"synthetic-private-value"}',
+        b'{"batch":{},"session_digest":"synthetic-private-value"}',
+        b'{"batch":{},"signature":"synthetic-private-value"}',
+    ],
+)
+def test_candidate_signing_preparation_rejects_ambiguous_or_authority_fields(body, caplog):
+    service = StoreBoundary()
+    response = client_for(service).post(
+        "/api/ui/candidate-submission-signing-payload",
+        content=body,
+        headers=headers() | {"Content-Type": "application/json"},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_request"
+    assert response.headers["cache-control"] == "no-store"
+    assert "synthetic-private-value" not in response.text + caplog.text
+    assert not service.calls
+
+
+def test_candidate_signing_preparation_rejects_deep_json_stably():
+    service = StoreBoundary()
+    body = b'{"batch":{"value":' + b"[" * 1200
+    response = client_for(service).post(
+        "/api/ui/candidate-submission-signing-payload",
+        content=body,
+        headers=headers() | {"Content-Type": "application/json"},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_request"
+    assert response.headers["cache-control"] == "no-store"
+    assert not service.calls
+
+
+def test_candidate_signing_preparation_unexpected_failure_is_safe_and_not_retried(caplog):
+    service = StoreBoundary(RuntimeError("synthetic-private-value"))
+    response = client_for(service).post(
+        "/api/ui/candidate-submission-signing-payload",
+        json={"batch": envelope()["batch"]},
+        headers=headers(),
+    )
+    assert response.status_code == 500
+    assert response.json()["detail"]["code"] == "internal_error"
+    assert response.headers["cache-control"] == "no-store"
+    assert "synthetic-private-value" not in response.text + caplog.text
+    assert len(service.calls) == 1
 
 
 @pytest.mark.parametrize("change", ["extra", "array", "string", "missing", "signature", "sig_padding", "null"])

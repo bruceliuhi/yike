@@ -111,3 +111,5 @@ Win继续[05G候选实际接线计划](../superpowers/plans/2026-09-10-win-candi
 2. **设备登记未知结果可恢复**：现 `POST /devices` 只有 device_label、服务端生成device_id，`GET /devices` 是租户全量且不含owner/current credential。客户端不能靠标签认领本机或超时重建。请提供当前用户、原登记requestId的幂等登记/精确查询及已知本机设备当前凭据版本/公钥状态的窄读取；不返回私钥或令牌、不自动认领历史NULL owner。先冻结最小合同后Win消费，不由Win并改store/API或推出高级设备管理。
 
 上述是已核查依赖请求，不是Mac已认领/已实现/已ACK；Win先接不依赖设备登记的P07合同与真实读取/核验，完整入库仍等待第1项回执核对，不伪报端到端完成。通过main交接，未向不可见的Mac运行Goal冒称直发。
+
+**Mac后续接续（2026-09-10）：** 第1项已实现为`9d9e965`工程候选，新回执返回原核验ID（EXCLUDE无值为null），历史缺字段保持原样；root101项相关真实HTTP/受限PG通过，独立最终审核`7b640c9..9d81665`规格/代码/架构/质量PASS、0项发现，可供Win接收。以[更新合同](../contracts/V02_CANDIDATE_REVIEW.md#05g原确认核验编号补齐2026-09-10)和[QA](../qa/V02_CANDIDATE_ASSESSMENT_REVIEW.md#05g原确认回执补齐2026-09-10)接入，不由客户端补造服务字段。第2项设备登记恢复仍未实现，继续由Mac冻结最小合同后接续；Win05G/设备HTTP/worker所有权不变，没有代记Win ACK或完整端到端完成。

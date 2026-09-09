@@ -57,6 +57,11 @@ class CandidateIngestionStore:
             'AND owner_user_id=%s AND platform_run_id=%s AND request_id=%s', (tenant,user,platform_run_id,request_id))
         return cursor.fetchone()
 
+    def prepare_signing_payload(self, claims, payload: dict) -> dict:
+        if self.execution_runtime is None:
+            raise CandidateIngestionError('capability_unavailable', 501)
+        return self.execution_runtime.prepare_submission_signing_payload(claims, payload)
+
     def ingest(self, claims, payload: dict, signature: str) -> dict:
         with self.database.connect() as connection, connection.cursor() as cursor:
             tenant = self._active(cursor, claims)

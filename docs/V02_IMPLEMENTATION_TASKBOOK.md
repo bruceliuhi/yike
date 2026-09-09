@@ -4,11 +4,25 @@
 
 2026-09-10 05A 最新增量 **4eb1bb8**：工作台待办按客户空间/版本隔离，模板保留人工搜贝及执行上限，P14 可直接选择商机查看回复且不依赖人工登记，P15 保存/取消保留目标。独立发现的迟到列表覆盖日期 P2 已修，最终限定代码/架构审核通过；桌面 **1253 passed / 22 skipped**、类型、Mac 构包及严格 smoke 通过。正常合入 `eb507bf` 为 `ffd7d80`，保留后台普通运行与签名接续认领。新包 ASAR `72b59770` / ZIP `c203b93e` 单独绑定；Mac 锁屏，新增选择器和当前包的可见验收未执行。见[本批记录](qa/ui-reply-entry/README.md)。旧“无人工记录回复入口 P2”源码缺口已关闭，其可见验收继续；05A/Goal、真实服务与 Windows 不标完成。
 
+2026-09-10 设备登记恢复切片已同步 **a6f68dd7**：新增 owner-scoped 原登记回执、断线后按原 `request_id` 恢复、当前设备公钥状态读取、严格 JSON/会话重验、同请求幂等与冲突、原子设备+回执事务、116 强制 RLS/受限授权；旧 `/devices` 与挑战接口兼容。29 项真实 HTTP/受限 PG、100 项受影响非 PG、38 项纯/密钥测试通过；独立审查 0 Critical/Important，QA 已记录未覆盖 Windows/真实平台/生产/UAT。该切片只解决首次客户端恢复底座，不将设备登记等同于平台连接或发送授权。
+
 更新：2026-09-10。当前目标：首发面向所有行业企业的跨行业完整获客版。产品依据：[AUTHORITY](../AUTHORITY.md)、[产品计划](V02_COMMERCIAL_RELEASE_PLAN.md)、[多平台 Skill 方案](V02_MULTIPLATFORM_SKILL_PLAN.md)。
 
 本文件是唯一主任务及子卡状态台账。[双 AI 任务板](DUAL_AGENT_TASKBOARD.md)只定义小卡、建议分工、依赖与验收，不维护另一套状态；产品计划保留功能与完成标准，MP 清单提供平台技术子项。R3 前端阶段的详细执行证据记录在 [UI 实施记录](UI_R3_IMPLEMENTATION.md)，主任务状态在本表汇总。当前已选择性纳入版本化研究 Skill 和安全 Electron 壳候选，并按用户授权启动 R3 前端实现；新增业务闭环仍未完成，图册浏览器是独立评审工具。详细整合记录见 [当前整合状态](INTEGRATION_STATUS.md)。
 
 ## 1. 当前基线与推进原则
+
+2026-09-10 CodexiMac认领设备登记未知结果恢复，base`5b1d7db`，**116预留本片**，108/110继续Win、101–115不改写。按[最小合同](contracts/V02_DEVICE_REGISTRATION_RECOVERY.md)和[实施计划](superpowers/plans/2026-09-10-device-registration-recovery.md)提供原UUID幂等登记、原回执和owner范围当前公钥状态；旧登记兼容、NULL owner不认领，不增加高级设备管理。当前IN_PROGRESS，独立实现/审核与真实HTTP/受限PG后交接Win设备HTTP；不代记客户端、平台或完整Goal完成。
+
+2026-09-10 CodexiMac接续04C→05G原确认回执：base `7b640c9`，代码`9d9e965`，继续隔离`codex/mac-device-authorization`。新决策补原`sourceVerificationId`，旧回执不补写；root101项相关真实HTTP/受限PG与46项纯边界分别通过，整片`7b640c9..9d81665`独立规格/代码/架构/质量PASS、0项发现，见[本次QA](qa/V02_CANDIDATE_ASSESSMENT_REVIEW.md#05g原确认回执补齐2026-09-10)。工程片可接收，待Win实际消费，不整卡DONE。下一步Mac最小设备登记未知恢复，Win继续05G真实核验/入库与设备HTTP/来源worker，随后贯通确认联系和回复；不重复上一片候选签名准备，不移走首发原文证据/多找类似/短句建联。
+
+2026-09-10 02B最小候选签名接线已交付到主线`626bbd9`，main/工作分支/本地HEAD经ls-remote核对精确一致、0/0且干净。终审后仅记录事实，工程片可供Win接续，[完成计划](superpowers/plans/2026-09-10-candidate-submission-signing.md)/[QA](qa/V02_CANDIDATE_SUBMISSION_SIGNING.md)保留实际证据；不等于02B/05G整卡、真实来源或上线验收。下一步Mac优先INCLUDE核验ID原回执，Win继续P07/设备HTTP/worker；完整Goal保持进行中。
+
+2026-09-10 02B候选签名准备整片收口：`bbe2e20..293fd24`独立规格/代码/架构/质量**PASS，0项未关闭发现**。核心`805aeb0`与真实主链`3d0ce80`已正常保留Win05G认领至`e47a925`；最终root241边界/合同、28实际ASGI/受限PG分别通过，[QA](qa/V02_CANDIDATE_SUBMISSION_SIGNING.md)保留完整过程。Win可按五字段准备/原复合键恢复合同接续，Mac优先补其INCLUDE回执核验ID缺口；不代记Win消费、真实平台/模型/收发/Windows/生产/客户UAT。下段“审核进行中”为此前候选时点，完整父卡与Goal不关闭。
+
+2026-09-10 CodexiMac02B候选签名准备候选`805aeb0`：已新增`POST /api/ui/candidate-submission-signing-payload`，返回现候选域五字段。root实际241边界/合同、28真实ASGI/受限PG分别通过，[QA](qa/V02_CANDIDATE_SUBMISSION_SIGNING.md)保留失败/修正与验证边界；[合同](contracts/V02_RAW_CANDIDATE_INBOX.md#11-普通客户端候选签名准备2026-09-10)要求冻结batch、签响应原字节、原复合键先查历史，不从客户端猜tenant/session。独立Task/整片审核进行中，不替Win设备HTTP/worker/05G记ACK。下一片优先响应Win的INCLUDE原回执sourceVerificationId缺口，再设备登记未知恢复；未在此片实现或接收真实来源/发送/客户UAT，父卡与Goal继续。
+
+2026-09-10 CodexiMac认领02B候选签名字节接续（base `bbe2e20`）：按[最小计划](superpowers/plans/2026-09-10-candidate-submission-signing.md)，补普通客户端当前会话绑定的上传准备入口；复用完整batch、4 MiB有界解析、原候选签名域，不加新表或授权框架，不改变原键恢复和正式上传护栏。Win保留设备HTTP/worker/05G，Mac只接后端与真实HTTP/PG。基线179项通过，新接口真实ASGI/PG已取得404 RED；尚未交付或取得Win消费ACK，整体Goal继续。
 
 2026-09-10 最新整合候选`cfaf4fd`已保留Mac执行签名准备、回复入口与Win05E固定原文展示；独立合并兼容性**PASS，0项未关闭发现**。Mac实际接收8文件176项/类型检查及产品Node客户端→socket HTTP→受限PG1项通过，各集合单独记于[QA](qa/V02_EXECUTION_SIGNING_PAYLOAD.md)。05F五字段接口已具备工程接入条件；Win接续设备HTTP/05G候选，Mac接真实来源服务协同与原确认收发/回复，不重复已交付原文组件。合成来源不证明真实线索已进产品，父项与Goal继续；以下历史候选不重置这次进度。
 
@@ -92,9 +106,9 @@ V02-05 的[全页面设计 R3](../design/v02-suite-r3/README.md)已于 2026-09-0
 | V02-03 持续任务执行器 / 后端＋桌面 | IN_PROGRESS | 单次任务/run/逐平台租约/取消与提交fence已有；02B及真实确认策略已实际消费，接续真实来源、客户端与调度，不继续扩高级授权 | 依赖 01/02/04B 可用子项；每平台多轮含无新增、部分成功、暂停/恢复、过期接管与失效恢复；旧执行者不能回写 | 核心990ebca、HTTP25d393b及[原验收](qa/V02_EXECUTION_RUNTIME_REVIEW.md)保留；07431ca上传、f4e9b71真实策略共享HTTP链通过[工程验证](qa/V02_CONFIRMED_STRATEGY_COMPOSITION.md)。worker/实际来源未接，默认task_execution关闭，不整卡DONE |
 | V02-04 Skill、意向与复核 / AI＋后端 | IN_PROGRESS | 04C已实现版本化Skill模型、逐字依据、人工来源核验/复核与原请求恢复；接续Win04B真实确认策略、共享来源证据投影和05G实际呈现 | 依赖02候选层；真实模型/来源与客户端联调；未复核不入库，人工纳入不授权发送；原文版本/主体可回查 | c372c3f模型、88fafa9 HTTP、最终c2b46ed；[04C验收](qa/V02_CANDIDATE_ASSESSMENT_REVIEW.md)独立整片复审PASS，56项真实PG/HTTP相关通过；Win消费及真实效果未验，不整卡DONE |
 | V02-05 画像与任务界面 / 产品设计＋前端 | IN_PROGRESS | R3 整套及 R4 六组已获实现授权，R4 前端已实现；继续真实接口接入与剩余逐状态验收，保留自动搜索建议/可编辑词/人工修改保护；真实建议服务仍需 V02-04/05 补齐 | 设计实现授权已获得；接 01～04 API；客户从空空间配置、启动、复核、暂停/恢复；同视口截图对照，缺失后台能力不伪报成功 | 最新 R4 候选 `cbc6170` 及分版本证据见 [R4 验收](qa/ui-r4/README.md)与下方05A；设计基准 `5929de6`、历史 `10ab8b6` 的前端216项/Pilot 62项及Mac可见验收保留于 [UI 实施记录](UI_R3_IMPLEMENTATION.md)，不与最新结果相加；全链后台和本候选Windows仍未验收 |
-| V02-06 真实触达通道 / 通道＋后端 | NOT_STARTED | 立即验证能力条件，定义对象映射及发送/回执/回复契约 | 依赖 01 身份；真实采集对象到收件人映射、可联系性、确认后真实发送和关联回复；失败原因准确 | 未提供 |
-| V02-07 草稿、确认与发送队列 / 后端＋前端 | IN_PROGRESS | 前端三队列、独立草稿、确认快照、持久防重及原请求核对已实现；R4补短句教练与联系准备交互，继续接真实队列、生成/发送/回执后台 | 依赖 04/06；对象、内容版本、渠道或连接改变使确认失效；真成功/失败/未知对账；未经确认不发送 | [R3 交互增量](qa/ui-interactions/REVIEW.md)、[R4 验收](qa/ui-r4/README.md)；默认真实通道及短句服务尚未接入，不等于已生成客户草稿或已发送 |
-| V02-08 回复与跟进工作台 / 后端＋前端 | NOT_STARTED | 先定义事件关联、撤销/修正、未读/到期与统计口径 | 依赖 05/07；真实回复归到正确租户/商机；人工事实与平台事实分开；状态不能随意回退，统计可复算 | 未提供 |
+| V02-06 真实触达通道 / 通道＋后端 | IN_PROGRESS | 已冻结来源、收件人映射、渠道能力和回执状态的严格契约；持久确认快照骨架已加入，下一步核对真实平台能力与服务端连接版本 | 依赖 01 身份；真实采集对象到收件人映射、可联系性、确认后真实发送和关联回复；失败原因准确 | 契约候选 `74e8ff6`、持久层候选及[验收](qa/V02_OUTREACH_PERSISTENCE_CONTRACT.md)；专项11项通过；仅骨架/contract-only，不是平台接通或真实发送 |
+| V02-07 草稿、确认与发送队列 / 后端＋前端 | IN_PROGRESS | 前端三队列、独立草稿、确认快照、持久防重及原请求核对已实现；R4补短句教练与联系准备交互；后端契约与持久快照骨架已冻结，继续接真实队列、生成/发送/回执后台 | 依赖 04/06；对象、来源版本、内容版本、渠道或连接改变使确认失效；真成功/失败/未知对账；未经确认不发送 | [R3 交互增量](qa/ui-interactions/REVIEW.md)、[R4 验收](qa/ui-r4/README.md)、契约 `74e8ff6`、持久层[验收](qa/V02_OUTREACH_PERSISTENCE_CONTRACT.md)；未跑PG实测，默认真实通道及短句服务尚未接入，不等于已生成客户草稿或已发送 |
+| V02-08 回复与跟进工作台 / 后端＋前端 | IN_PROGRESS | 已冻结平台回复/人工跟进分型、原发送请求关联、已读与追加纠正规则；下一步接 PostgreSQL 事件表、真实回流和跟进服务 | 依赖 05/07；真实回复归到正确租户/商机；人工事实与平台事实分开；状态不能随意回退，统计可复算 | [V02 回复契约](contracts/V02_REPLY_FOLLOWUP.md)、专项12项通过；仅 contract-only，不是回复同步或提醒上线 |
 | V02-09 Windows 发行与许可 / 桌面＋交付 | IN_PROGRESS | Win干净84c4b6f完整自动链570项通过/2跳过，含Squirrel/ASAR/包内冒烟，夹具独立文件已审核；继续sidecar/隔离存储和生命周期 | 真实Windows安装/卸载、休眠/取消/恢复、授权、更新/回退；[依赖发行风险](qa/BUILD_DEPENDENCY_AUDIT_20260909.md)仍未关闭 | staging `e9983ed`、runtime `0b79a68`、ASAR `3c16fac`、夹具 `84c4b6f`；[Win实测](qa/WIN_CROSS_REVIEW_20260909.md)保留所有历史失败；人工UNTESTED、17 high未关闭，不等于发行 |
 | V02-10 集成、独立审核与试用 / QA＋交付 | NOT_STARTED | 先明确逐平台样例、客户操作脚本和证据格式 | 02～09 完成；锁定 SHA，三方独立复核；客户自行走通整链；需服务端部署时通过 CP-06 | 未提供 |
 

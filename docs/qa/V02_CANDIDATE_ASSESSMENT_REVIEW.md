@@ -48,3 +48,24 @@
 随后正常合入Win真实策略主线`36fef5b`为`4d04cd1d55b3b92de5f20378e9bb777f298db41b`，仅整合状态文档冲突，双方原文均保留。本片源码/共享入口/113及相关测试与c2相同；Win新增8个代码/测试/SQL文件与36相同。Mac在该合并树定向运行Win新合同与HTTP：**233 passed/1.38s/0 skipped**（会话53304退出0）；不是Win PG重跑、114接线或实际消费ACK。110/114仍未注册默认入口，实际接线作为下一片继续。
 
 此前02B、执行器、Windows及客户验收证据保持各自原版本，不用本片测试替代。合并后未重复未改的模型、桌面或完整后台套件。
+
+## 05G原确认回执补齐（2026-09-10）
+
+基线`7b640c9a6b58211ea025d120984bbc27112e2ef4`；CodexiMac代码候选`9d9e965`。响应Win的[最小接口请求](../handoffs/V1_WIN_FUNCTION_OWNERSHIP_20260909.md#05g接线及设备恢复的最小服务缺口2026-09-10c88b64b核查)，不扩展其独立设备恢复请求。
+
+生产改动只有`pilot/candidate_review.py`一行：新决策回执投影已校验的`request.sourceVerificationId`。已存在的来源核验、载荷指纹、不可变保存、原请求恢复、事务及授权机制不改；无新表、迁移、capability或桌面改动。旧回执仍保持缺字段，不向当前核验求值。
+
+TDD与故障记录：
+
+- 写入新增断言后、修复前：7 failed / 3 deselected，9.67s，均为成功响应缺`sourceVerificationId`；这是本缺口的RED。
+- 一行修复后第一次：3 passed / 4 failed / 3 deselected，9.55s。两个测试错误分别是读取错误响应时误用顶层`code`，以及尝试UPDATE不可变历史回执；不视为产品新缺陷。改为既有`detail.code`及仅在专用合成数据中INSERT旧形状记录，没有禁用触发器或放宽生产保护。
+- 最终定向：7 passed / 3 deselected，10.67s。命令：`uv run --frozen pytest -q tests/test_candidate_review_http_postgres.py -k 'human_check_and_review or exclude_receipt or legacy_decision_receipt'`。
+- API/固定原文纯边界：46 passed，0.84s。命令：`uv run --frozen pytest -q tests/test_candidate_review_api.py tests/test_opportunity_evidence.py`。
+
+回归覆盖新INCLUDE原值、EXCLUDE省略/null/有ID三种形态、重复POST不重复入库、同requestId改ID冲突、服务重建后GET恢复、原文变化后的历史决策，以及新核验出现后旧缺字段回执的POST/GET/当前与历史列表仍原样。每个HTTP场景只发生一次本地模型调用；人工纳入不授权发送。
+
+冻结代码`9d9e965`相关批次：`uv run --frozen pytest -q tests/test_candidate_review_http_postgres.py tests/test_candidate_review_postgres.py tests/test_opportunity_evidence_postgres.py tests/test_confirmed_strategy_review_postgres.py`，**101 passed，80.64s，0 skipped**（执行会话65186退出0）。含原文固定入库、实际确认策略消费和原复核保护；与前述7项重叠，不相加，不冒充全仓回归。`git diff --check`与`bash scripts/secret_scan.sh`通过。
+
+独立非实现者`candidate_receipt_final_review`对完整`7b640c9a6b58211ea025d120984bbc27112e2ef4..9d8166590bc692b72818b4ab10e9ad2489dadc8f`给出SPEC/代码/架构/质量**PASS，Critical/Important/Minor均0；本修复可以合入**。该审核员独立运行`PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_candidate_review_api.py tests/test_opportunity_evidence.py`，46 passed/0.85s；这是独立非PG复现，101项仍属于root实际运行，不改称独立PG重跑。审阅了完整diff、请求验证/原回放/列表、113不可变与权限合同；最终收尾只登记审核事实，生产/测试字节不变。
+
+PG测试使用已有专用隔离库与NOLOGIN/NOSUPERUSER/NOBYPASSRLS应用角色；管理连接仅设置和清理合成fixture。ASGI、SQL、核验/决策、恢复为真实代码；普通review测试的来源、策略collaborator及本机HTTP模型响应是合成输入，confirmed-strategy专项实际使用持久策略服务。不是真实平台、付费模型质量、Windows客户端接收、外部发送、部署或客户UAT证据。

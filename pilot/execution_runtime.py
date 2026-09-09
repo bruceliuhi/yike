@@ -214,6 +214,22 @@ class ExecutionRuntime:
             self._active(cursor, claims)
             return result
 
+    def prepare_submission_signing_payload(self, claims, payload: dict) -> dict:
+        with self.database.connect() as connection, connection.cursor() as cursor:
+            tenant = self._active(cursor, claims)
+            batch = validate_candidate_batch(payload, now=self._now(cursor))
+            execution = batch.execution
+            self._key(cursor, claims, tenant, execution.device_id, execution.credential_version)
+            result = dict(
+                signing_payload=submission_signing_payload(tenant_id=tenant, claims=claims, batch=batch),
+                request_id=batch.request_id,
+                device_id=execution.device_id,
+                credential_version=execution.credential_version,
+                batch_fingerprint=batch_fingerprint(batch),
+            )
+            self._active(cursor, claims)
+            return result
+
     def apply(self, claims, request: ExecutionOperation, signature: str) -> dict:
         request = _operation(request)
         fingerprint = _hash(request.model_dump(mode='json', exclude={'request_id'}))

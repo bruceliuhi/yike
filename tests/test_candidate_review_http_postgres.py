@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from pilot.auth import issue_token, verify_token_claims
 from pilot.candidate_assessment_model import OpenAICompatibleCandidateAssessmentModel
 from pilot.candidate_ingestion import CandidateIngestionStore
+from pilot.candidate_review import _hash
 from pilot.web import build_app
 from tests.test_candidate_assessment_model import CONTENT, assessment
 from tests.test_candidate_ingestion_http_postgres import started, signed
@@ -212,6 +213,8 @@ def test_http_human_check_and_review_import_exact_words_with_durable_original_re
     assert receipt["reviewedBy"] == claims.user_id
     assert receipt["review"]["evidence"] == evidence
     assert receipt["review"]["reason"] == value["reason"]
+    assert receipt["review"]["sourceVerificationId"] == check["id"]
+    assert result["candidate"]["lastReview"] == receipt
     oid = receipt["opportunityId"]
     assert result["candidate"]["opportunityId"] == oid
     assert result["candidate"]["status"] == "IMPORTED"
@@ -225,6 +228,13 @@ def test_http_human_check_and_review_import_exact_words_with_durable_original_re
     assert opportunity["reviewed_by"] == claims.user_id
     assert len(client.get("/api/ui/opportunities").json()["items"]) == 1
     assert client.post("/api/ui/candidate-reviews", json=value).json() == result
+    later_check = verify(client, binding)
+    assert later_check["id"] != check["id"]
+    assert client.post("/api/ui/candidate-reviews", json=value).json() == result
+    conflict = client.post("/api/ui/candidate-reviews",
+        json=value | {"sourceVerificationId": later_check["id"]})
+    assert conflict.status_code == 409, conflict.text
+    assert conflict.json()["detail"]["code"] == "request_conflict"
     changed_binding, current = upload(client, env, claims, body="原文已改：暂缓设备采购。",
         observed_at=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"))
     assert changed_binding["candidateId"] == binding["candidateId"]
@@ -246,3 +256,90 @@ def test_http_human_check_and_review_import_exact_words_with_durable_original_re
     assert client.get("/api/ui/candidates", headers=same_tenant).json()["total"] == 0
     assert len(client.get("/api/ui/opportunities", headers=same_tenant).json()["items"]) == 1
     assert client.get("/api/ui/opportunities/" + oid, headers=foreign).status_code == 404
+
+
+@pytest.mark.parametrize("verification_input", ["omitted", "null", "provided"])
+def test_http_exclude_receipt_preserves_optional_verification_and_replays(env, local_provider, verification_input):
+    client, claims = client_for(env, local_provider.model)
+    binding, _ = upload(client, env, claims)
+    assessed = client.post("/api/ui/candidate-reviews", json=request(binding))
+    assert assessed.status_code == 200, assessed.text
+    fields = {}
+    if verification_input == "null":
+        fields["sourceVerificationId"] = None
+    elif verification_input == "provided":
+        fields["sourceVerificationId"] = verify(client, binding)["id"]
+    value = request(binding, "EXCLUDE", assessmentId=assessed.json()["assessment"]["id"],
+        evidence=assessment()["evidence"], reason="人工排除：交付范围不适合。",
+        humanConfirmed=True, **fields)
+    response = client.post("/api/ui/candidate-reviews", json=value)
+    assert response.status_code == 200, response.text
+    result = response.json()
+    receipt = result["receipt"]
+    assert receipt["outcome"] == "EXCLUDED"
+    assert receipt["review"]["sourceVerificationId"] == fields.get("sourceVerificationId")
+    assert result["candidate"]["lastReview"] == receipt
+    assert client.post("/api/ui/candidate-reviews", json=value).json() == result
+    other, _ = client_for(env, None)
+    assert other.get("/api/ui/candidate-review-requests/" + value["requestId"]).json() == result
+    historical = other.get("/api/ui/candidates", params={"ids": binding["candidateId"],
+        "reviewRequestId": value["requestId"], "page": 1, "pageSize": 1})
+    assert historical.status_code == 200, historical.text
+    assert historical.json()["items"][0]["lastReview"] == receipt
+    assert client.get("/api/ui/opportunities").json()["items"] == []
+    assert len(local_provider.requests) == 1
+
+
+@pytest.mark.parametrize("action", ["INCLUDE", "EXCLUDE"])
+def test_http_legacy_decision_receipt_is_not_backfilled_from_latest_verification(env, local_provider, action):
+    client, claims = client_for(env, local_provider.model)
+    binding, _ = upload(client, env, claims)
+    assessed = client.post("/api/ui/candidate-reviews", json=request(binding))
+    assert assessed.status_code == 200, assessed.text
+    check = verify(client, binding)
+    value = request(binding, action, assessmentId=assessed.json()["assessment"]["id"],
+        evidence=assessment()["evidence"], reason="人工确认此范围。",
+        humanConfirmed=True, sourceVerificationId=check["id"])
+    response = client.post("/api/ui/candidate-reviews", json=value)
+    assert response.status_code == 200, response.text
+    legacy = response.json()
+    assert legacy["receipt"]["review"]["sourceVerificationId"] == check["id"]
+    original_request_id = value["requestId"]
+    value = value | {"requestId": str(uuid4())}
+    legacy["requestId"] = value["requestId"]
+    legacy["receipt"]["requestId"] = value["requestId"]
+    legacy["candidate"]["lastReview"]["requestId"] = value["requestId"]
+    del legacy["receipt"]["review"]["sourceVerificationId"]
+    del legacy["candidate"]["lastReview"]["review"]["sourceVerificationId"]
+    # Trusted fixture insertion only: old-shaped evidence under a distinct request.
+    # Preserve DB immutability and the real verification FK; never disable triggers.
+    with env.admin.connect() as connection:
+        inserted = connection.execute("""INSERT INTO pilot_candidate_review_requests
+            (tenant_id,owner_user_id,request_id,candidate_id,fingerprint,action,binding_hash,
+             snapshot_key,invocation_id,attempt,status,payload,snapshot,result)
+            SELECT tenant_id,owner_user_id,%s,candidate_id,%s,action,binding_hash,
+                snapshot_key,invocation_id,attempt,status,%s::jsonb,snapshot,%s::jsonb
+            FROM pilot_candidate_review_requests
+            WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s""",
+            (value["requestId"], _hash(value), json.dumps(value), json.dumps(legacy),
+             env.tenant, claims.user_id, original_request_id))
+        assert inserted.rowcount == 1
+        inserted = connection.execute("""INSERT INTO pilot_candidate_reviews
+            (tenant_id,owner_user_id,request_id,binding_hash,assessment_id,verification_id,opportunity_id,result)
+            SELECT tenant_id,owner_user_id,%s,binding_hash,assessment_id,verification_id,opportunity_id,%s::jsonb
+            FROM pilot_candidate_reviews WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s""",
+            (value["requestId"], json.dumps(legacy), env.tenant, claims.user_id, original_request_id))
+        assert inserted.rowcount == 1
+    later_check = verify(client, binding)
+    assert later_check["id"] != check["id"]
+    other, _ = client_for(env, None)
+    replay = other.post("/api/ui/candidate-reviews", json=value)
+    assert replay.status_code == 200, replay.text
+    assert replay.json() == legacy
+    assert other.get("/api/ui/candidate-review-requests/" + value["requestId"]).json() == legacy
+    for params in ({"ids": binding["candidateId"]}, {"ids": binding["candidateId"],
+            "reviewRequestId": value["requestId"], "page": 1, "pageSize": 1}):
+        page = other.get("/api/ui/candidates", params=params)
+        assert page.status_code == 200, page.text
+        assert page.json()["items"][0]["lastReview"] == legacy["receipt"]
+    assert len(local_provider.requests) == 1
