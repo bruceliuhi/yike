@@ -1,0 +1,17 @@
+[
+  {
+    "sequence": 1,
+    "operation": "opportunities",
+    "detail": "TEST 内存操作；未调用外部服务"
+  },
+  {
+    "sequence": 2,
+    "operation": "opportunity",
+    "detail": "TEST 内存操作；未调用外部服务"
+  },
+  {
+    "sequence": 3,
+    "operation": "saveContact",
+    "detail": "TEST 内存操作；未调用外部服务"
+  }
+]

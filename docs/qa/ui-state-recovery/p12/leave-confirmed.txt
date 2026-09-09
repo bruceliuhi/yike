@@ -1,0 +1,96 @@
+Browser tab: 22, Title: "商机工作台 · 意客AI", URL: "http://127.0.0.1:18794/?scenario=P13&state=populated&recovery=send-unknown#/workbench".
+1 AXWebArea 商机工作台 · 意客AI, URL: 127.0.0.1:18794/?scenario=P13&state=populated&recovery=send-unknown#/workbench
+	2 container root
+		3 container visual-harness-banner
+			4 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入  · 恢复场景 send-unknown
+		5 button (collapsed) TEST 场景, Secondary Actions: Expand
+			6 text TEST 场景
+		7 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?scenario=P13&state=populated&recovery=send-unknown#main-content
+		8 container
+			9 button 意客AI商机工作台
+				10 text 意客AI
+				11 text 商机工作空间
+			12 container 主导航
+				13 button 商机工作台
+					14 image
+					15 text 商机工作台
+				16 text 发现商机
+				17 button 业务画像
+					18 image
+					19 text 业务画像
+				20 button 线索采集
+					21 image
+					22 text 线索采集
+				23 button 监控任务
+					24 image
+					25 text 监控任务
+				26 text 推进商机
+				27 button 商机库
+					28 image
+					29 text 商机库
+				30 button 触达中心
+					31 image
+					32 text 触达中心
+				33 button 跟进记录
+					34 image
+					35 text 跟进记录
+			36 button 账号与授权
+				37 image
+				38 text 账号与授权
+			39 button 客户工作空间
+				40 image
+				41 text 客户工作空间
+		42 container
+			43 button 收起导航
+				44 image
+			47 text 商机工作台 V0.2
+		48 container main-content
+			49 container
+				50 heading 商机工作台, Value: 1
+					51 text 商机工作台
+				52 text 把值得处理的机会，放在今天。
+				53 button 创建获客任务
+			54 container 机会简报
+				55 container
+					56 text 简报尚未更新 · 最近完成检查： 暂无可核验时间 首次检查完成后，按证据与跟进安排生成简报。
+					57 button 查看运行情况
+				58 heading 机会简报, Value: 2
+					59 text 机会简报
+				60 button 刷新简报
+				61 container
+					62 text 机会简报服务尚未接通；原有待办与公开研究样例仍可查看。
+					63 button 重试
+				64 tab group
+					65 tab (selected, settable, boolean) 今日值得联系, Value: 1
+					66 tab (selectable, settable, boolean) 重要变化, Value: 0
+					67 tab (selectable, settable, boolean) 待跟进, Value: 0
+				68 container 平台准备
+					69 heading 平台准备, Value: 2
+						70 text 平台准备
+					71 button 管理平台连接
+					72 content list
+						73 container
+							74 text 小红书 已连接
+						75 container
+							76 text 抖音 待连接
+						77 container
+							78 text B站 待连接
+						79 container
+							80 text 知乎 待连接
+						81 container
+							82 text 公开网站 范围由任务确认
+					83 text 平台连接状态不代表已完成搜索；覆盖结果以运行详情为准。
+			84 button (collapsed) 全部待办与准备步骤, Secondary Actions: Expand
+				85 text 全部待办与准备步骤
+			86 container
+				87 heading 公开研究样例, Value: 2
+					88 text 公开研究样例
+				89 text 样例仅供预览，不计入客户商机。
+				90 button 180㎡高交会展区设计搭建预算询价 湖南省商务厅对外贸易发展处 · 2026-09-08 16:54 · 深圳国际会展中心 待人工复核 查看样例
+					91 text 180㎡高交会展区设计搭建预算询价
+					92 text 湖南省商务厅对外贸易发展处 · 2026-09-08 16:54 · 深圳国际会展中心
+					93 text 待人工复核
+					94 text 查看样例
+					95 image
+
+The focused UI element is 13 button 商机工作台

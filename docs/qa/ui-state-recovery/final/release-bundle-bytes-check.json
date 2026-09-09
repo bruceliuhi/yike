@@ -1,0 +1,24 @@
+{
+  "comparisons": [
+    {
+      "name": ".vite/build/main.cjs",
+      "diskSha256": "580e926ab3a693e1ee9be4cb081abca77556843b445506205dad9c1ab794c33e",
+      "asarSha256": "580e926ab3a693e1ee9be4cb081abca77556843b445506205dad9c1ab794c33e",
+      "equal": true
+    },
+    {
+      "name": ".vite/build/preload.cjs",
+      "diskSha256": "ca7db7b32d21efaea118b173bd8e6f33a8f812cfe4345ded9e7dbd5cf2ff8a9d",
+      "asarSha256": "ca7db7b32d21efaea118b173bd8e6f33a8f812cfe4345ded9e7dbd5cf2ff8a9d",
+      "equal": true
+    },
+    {
+      "name": ".vite/renderer/main_window/.vite/manifest.json",
+      "diskSha256": "454886fcb4aa4504ec45f25ea2a7c2d52a0d91914ace8fa492336804ce25f98e",
+      "asarSha256": "454886fcb4aa4504ec45f25ea2a7c2d52a0d91914ace8fa492336804ce25f98e",
+      "equal": true
+    }
+  ],
+  "forbiddenSourceOrTestPaths": [],
+  "passed": true
+}

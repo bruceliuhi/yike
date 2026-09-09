@@ -1,0 +1,25 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+-----x··
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/followup-scope.test.tsx > handles the resolved original draft: SUCCEEDED
+AssertionError: expected "vi.fn()" to be called once, but got 2 times
+ ❯ tests/ui/followup-scope.test.tsx:97:46
+     95|     if(oldBody) fireEvent.click(screen.getByRole('button',{name:'保存记录'…
+     96|     await waitFor(()=>expect(screen.queryByDisplayValue('TEST空间A未保存正文'…
+     97|     expect(context.service.followup!.mutate).toHaveBeenCalledOnce();
+       |                                              ^
+     98|   } else expect(screen.getByDisplayValue(outcome==='edited'?'TEST后续人工修…
+     99| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed | 5 skipped (8)
+   Start at  02:26:56
+   Duration  1.55s (transform 173ms, setup 0ms, import 857ms, tests 400ms, environment 237ms)
+

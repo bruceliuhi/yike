@@ -1,0 +1,44 @@
+vite v8.2.2 building client environment for production...
+transforming...
+✓ 4795 modules transformed.
+rendering chunks...
+computing gzip size...
+out/visual-harness/index.html                               0.45 kB │ gzip:   0.32 kB
+out/visual-harness/assets/bilibili-B4f0lnyN.ico             4.28 kB
+out/visual-harness/assets/douyin-FBAm5jUt.ico               4.28 kB
+out/visual-harness/assets/zhihu-OfkkMzms.ico                4.28 kB
+out/visual-harness/.vite/manifest.json                      8.09 kB │ gzip:   1.19 kB
+out/visual-harness/assets/logo-B-T1ksKV.png               826.34 kB
+out/visual-harness/assets/Platform-DHJI-W19.css             0.38 kB │ gzip:   0.21 kB
+out/visual-harness/assets/Followups-BEcgu2i8.css            0.63 kB │ gzip:   0.29 kB
+out/visual-harness/assets/Profile-DwpBIdIc.css              0.76 kB │ gzip:   0.38 kB
+out/visual-harness/assets/Outreach-BdvfCDuK.css             1.99 kB │ gzip:   0.69 kB
+out/visual-harness/assets/Workbench-BBPw0GCx.css            2.42 kB │ gzip:   0.79 kB
+out/visual-harness/assets/PendingTaskStarts-BqiSuAXA.css    2.93 kB │ gzip:   0.95 kB
+out/visual-harness/assets/Opportunities-DcLfveqg.css        3.61 kB │ gzip:   1.08 kB
+out/visual-harness/assets/Tasks-D_VHXXEg.css                3.90 kB │ gzip:   1.20 kB
+out/visual-harness/assets/TaskWizard-D7TM1lBJ.css           5.43 kB │ gzip:   1.39 kB
+out/visual-harness/assets/index-D3pi6dz_.css               32.98 kB │ gzip:   7.50 kB
+out/visual-harness/assets/ArrowRight.es-CGRtbIZc.js         1.54 kB │ gzip:   0.61 kB
+out/visual-harness/assets/Plus.es-CbxTfJsz.js               1.54 kB │ gzip:   0.56 kB
+out/visual-harness/assets/download-Bcti2sL_.js              1.61 kB │ gzip:   0.89 kB
+out/visual-harness/assets/ArrowSquareOut.es-xApDTU8q.js     2.35 kB │ gzip:   0.83 kB
+out/visual-harness/assets/TermEditor-kXJuxpkv.js            2.59 kB │ gzip:   1.28 kB
+out/visual-harness/assets/PendingTaskStarts-Bk_O0fDz.js     3.28 kB │ gzip:   1.76 kB
+out/visual-harness/assets/OutreachQueue-DmKKQ8KK.js         4.92 kB │ gzip:   2.33 kB
+out/visual-harness/assets/Login-DoLUdqzE.js                 8.81 kB │ gzip:   3.24 kB
+out/visual-harness/assets/Platform-W94_kc3s.js              9.76 kB │ gzip:   4.61 kB
+out/visual-harness/assets/operationLedger-D37FPUzf.js      15.49 kB │ gzip:   5.41 kB
+out/visual-harness/assets/Connections-7lmWyhjT.js          18.31 kB │ gzip:   6.52 kB
+out/visual-harness/assets/Settings-DLU9DBV4.js             19.83 kB │ gzip:   6.52 kB
+out/visual-harness/assets/Workbench-CZT2uWqY.js            21.37 kB │ gzip:   7.69 kB
+out/visual-harness/assets/Followups-DfwRppyq.js            27.98 kB │ gzip:   9.31 kB
+out/visual-harness/assets/Outreach-duUCtgbv.js             35.35 kB │ gzip:  11.37 kB
+out/visual-harness/assets/Profile-DZsqQWzK.js              40.12 kB │ gzip:  12.36 kB
+out/visual-harness/assets/TaskWizard-DhVMJNoo.js           57.75 kB │ gzip:  16.85 kB
+out/visual-harness/assets/Tasks-CsaWq9s2.js                59.76 kB │ gzip:  17.69 kB
+out/visual-harness/assets/Opportunities-AaXSe7OE.js        73.37 kB │ gzip:  21.93 kB
+out/visual-harness/assets/context-BC_QppnN.js             130.76 kB │ gzip:  39.16 kB
+out/visual-harness/assets/index-CT3XcAWw.js               346.85 kB │ gzip: 109.85 kB
+
+✓ built in 426ms

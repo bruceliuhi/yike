@@ -1,0 +1,530 @@
+{
+  "capturedAtUtc": "2026-09-09T18:44:22.536402+00:00",
+  "buildRoot": "desktop/out/visual-harness",
+  "sourceCommitReportedByOperator": "49545344fd1091a8c019d923c207db00dbc70368",
+  "captureHead": "5d9476fb8a4315ca819deb69223d05020e946d9c",
+  "pages": [
+    "P14",
+    "P15"
+  ],
+  "buildLog": "../final/visual-build.log",
+  "buildLogSha256": "bbb66b4a7cdba37bba4b448679fdb4edf9c3190232edcbd810abf43dea44b778",
+  "bindingLimit": "Post-run preservation of the static TEST build, before future rebuilding. Operator reports build source 4954534. Current uncommitted changes are not inferred into this artifact. This does not reconstruct a missing pre-run file manifest or prove production/native execution.",
+  "fileCount": 37,
+  "files": [
+    {
+      "path": ".vite/manifest.json",
+      "type": "file",
+      "sizeBytes": 8099,
+      "sha256": "e0b189e6fe7c1766faddf2d0f6e4c36311e56087fe8e3b099bd5915e6c18144b"
+    },
+    {
+      "path": "assets/ArrowRight.es-CGRtbIZc.js",
+      "type": "file",
+      "sizeBytes": 1541,
+      "sha256": "4a83e9f767501805a93e5bfe88f852f3b044eacc89118e0147883f0b6d56feca"
+    },
+    {
+      "path": "assets/ArrowSquareOut.es-xApDTU8q.js",
+      "type": "file",
+      "sizeBytes": 2350,
+      "sha256": "21395880230e260f93e1c69a3c20285d774d3da01437ec33728a3c1343e1b625"
+    },
+    {
+      "path": "assets/Connections-7lmWyhjT.js",
+      "type": "file",
+      "sizeBytes": 18315,
+      "sha256": "58225da0e9e78180e0785fe0c8fb16bdd7df504cc9acdfe5ee3269896245aa33"
+    },
+    {
+      "path": "assets/Followups-BEcgu2i8.css",
+      "type": "file",
+      "sizeBytes": 633,
+      "sha256": "13cff2b01f5ef277c4ed616a8792852d4f9406a4bf84876f8add30b65c06bdd2"
+    },
+    {
+      "path": "assets/Followups-DfwRppyq.js",
+      "type": "file",
+      "sizeBytes": 27980,
+      "sha256": "e9a22e88b682f56d7d9289cda704556482b9e073bb6d3962696f638da51a7af2"
+    },
+    {
+      "path": "assets/Login-DoLUdqzE.js",
+      "type": "file",
+      "sizeBytes": 8819,
+      "sha256": "66cec0365843bcf4774d68545fd70e5f875af75251454e6035cde9c0758430ce"
+    },
+    {
+      "path": "assets/Opportunities-AaXSe7OE.js",
+      "type": "file",
+      "sizeBytes": 73377,
+      "sha256": "2659a92062ae1689373795a9c9a17680166c367f1d19bdab21802c05dcd0ddb3"
+    },
+    {
+      "path": "assets/Opportunities-DcLfveqg.css",
+      "type": "file",
+      "sizeBytes": 3611,
+      "sha256": "67d025e8b82bedb37cbe6a65a368743328f729e2f0c12c162e3691534ec41650"
+    },
+    {
+      "path": "assets/Outreach-BdvfCDuK.css",
+      "type": "file",
+      "sizeBytes": 1990,
+      "sha256": "526139ba52f75c49594bf2cc23f1583bf846b93936df1cbe142864e8c58b317a"
+    },
+    {
+      "path": "assets/Outreach-duUCtgbv.js",
+      "type": "file",
+      "sizeBytes": 35350,
+      "sha256": "ef52ede42ac966fff79474da88ff96fdcba0c562f4cbe539704b50e409592222"
+    },
+    {
+      "path": "assets/OutreachQueue-DmKKQ8KK.js",
+      "type": "file",
+      "sizeBytes": 4921,
+      "sha256": "60ddc64a7bbb37fc4bb41ec2a300cfb9fd7db774c7ce25c43c67902eaa08d395"
+    },
+    {
+      "path": "assets/PendingTaskStarts-Bk_O0fDz.js",
+      "type": "file",
+      "sizeBytes": 3282,
+      "sha256": "a3868637431cbde46eaf5b39e926a10a5762c62113e596adf901b6cf7a57b892"
+    },
+    {
+      "path": "assets/PendingTaskStarts-BqiSuAXA.css",
+      "type": "file",
+      "sizeBytes": 2931,
+      "sha256": "5f39cd34d2b924261f06748eb2034c6e93e5b58747fdac1bd21476aa6bcc58ab"
+    },
+    {
+      "path": "assets/Platform-DHJI-W19.css",
+      "type": "file",
+      "sizeBytes": 388,
+      "sha256": "799e34322d6d86a2e7c1c266fd00dfd3c2d4df34dbdaea13c21408bce5b8d237"
+    },
+    {
+      "path": "assets/Platform-W94_kc3s.js",
+      "type": "file",
+      "sizeBytes": 9767,
+      "sha256": "45bf1825dfe45802a4600c0040858f97f22e5674018a27a29f2373228cfedad0"
+    },
+    {
+      "path": "assets/Plus.es-CbxTfJsz.js",
+      "type": "file",
+      "sizeBytes": 1544,
+      "sha256": "b27dc041b370832483ccf195c3546483ede23300efaf7aa6ed0a72f8c3af514e"
+    },
+    {
+      "path": "assets/Profile-DZsqQWzK.js",
+      "type": "file",
+      "sizeBytes": 40125,
+      "sha256": "186dfe6de5f79c2eebef5175c287d77dd20b1524e5460b8095ddeb9f2dae5282"
+    },
+    {
+      "path": "assets/Profile-DwpBIdIc.css",
+      "type": "file",
+      "sizeBytes": 764,
+      "sha256": "bbfcd35afdddeb9bfefdfdde3392c4a1ba07621efc8ce03ad87a7fc7ad82ac90"
+    },
+    {
+      "path": "assets/Settings-DLU9DBV4.js",
+      "type": "file",
+      "sizeBytes": 19838,
+      "sha256": "d52be267d2b957dea349b027c55bde6b82b576be3674642bb972abfc562cff8f"
+    },
+    {
+      "path": "assets/TaskWizard-D7TM1lBJ.css",
+      "type": "file",
+      "sizeBytes": 5438,
+      "sha256": "d03b6b23d487dbef3a915da0e567c836b84ac169593ecc3b2f645c10e327a613"
+    },
+    {
+      "path": "assets/TaskWizard-DhVMJNoo.js",
+      "type": "file",
+      "sizeBytes": 57754,
+      "sha256": "934e85bb6b8ed97d24d2aa9726b27f5e369e45cb9885b4f662ae2a2f4b3d80af"
+    },
+    {
+      "path": "assets/Tasks-CsaWq9s2.js",
+      "type": "file",
+      "sizeBytes": 59768,
+      "sha256": "0d81e17b03829a17135b84ee6d7689d99266e7386bb41e653b90171ce245d4cb"
+    },
+    {
+      "path": "assets/Tasks-D_VHXXEg.css",
+      "type": "file",
+      "sizeBytes": 3909,
+      "sha256": "e25ef659745e2a3ebc0a411f96a8bca9386e4662bf21ad1e6c62d461cf15d388"
+    },
+    {
+      "path": "assets/TermEditor-kXJuxpkv.js",
+      "type": "file",
+      "sizeBytes": 2598,
+      "sha256": "6c00cfa99cc3981084302021327a1c0d7119a0a459d24c637033f3940d67bbf0"
+    },
+    {
+      "path": "assets/Workbench-BBPw0GCx.css",
+      "type": "file",
+      "sizeBytes": 2421,
+      "sha256": "f4d255f7902c11054536d3bc2ecd3c19e767f64915c94d79acfce1a883aef6ba"
+    },
+    {
+      "path": "assets/Workbench-CZT2uWqY.js",
+      "type": "file",
+      "sizeBytes": 21377,
+      "sha256": "6bfc177bc7d1028182e1e0cfeabe42dcde8dfd9cf80b28b37498b96ab7a0263f"
+    },
+    {
+      "path": "assets/bilibili-B4f0lnyN.ico",
+      "type": "file",
+      "sizeBytes": 4286,
+      "sha256": "2681561eb24e7435fea1acf26f3af95e4efc9f7d451587b58bef62f030f337e9"
+    },
+    {
+      "path": "assets/context-BC_QppnN.js",
+      "type": "file",
+      "sizeBytes": 130766,
+      "sha256": "ac79efa2104d0690dab7093ebaa7cfc7c04d60c500491396784727a06f32e79c"
+    },
+    {
+      "path": "assets/douyin-FBAm5jUt.ico",
+      "type": "file",
+      "sizeBytes": 4286,
+      "sha256": "e67348e3ab54fa207e1ce4be78e8399d1b73a794d819a17d8656ea2b17a1109d"
+    },
+    {
+      "path": "assets/download-Bcti2sL_.js",
+      "type": "file",
+      "sizeBytes": 1619,
+      "sha256": "b49513147affdf643202a317b899e8fbf662f61587ecf26de15d32fea187f227"
+    },
+    {
+      "path": "assets/index-CT3XcAWw.js",
+      "type": "file",
+      "sizeBytes": 346857,
+      "sha256": "643b00012ede67e2659006c559b275b4553d69ec8fa1dfa04a1521fa9ab9788b"
+    },
+    {
+      "path": "assets/index-D3pi6dz_.css",
+      "type": "file",
+      "sizeBytes": 32989,
+      "sha256": "33da09e815c3c29e46108d17a30654185766beeac499ef1e6f8f238a5d9ea622"
+    },
+    {
+      "path": "assets/logo-B-T1ksKV.png",
+      "type": "file",
+      "sizeBytes": 826349,
+      "sha256": "b4f4bade37c5806f618c243af90747b7596f2b248d739eaa3130378f1a4f7595"
+    },
+    {
+      "path": "assets/operationLedger-D37FPUzf.js",
+      "type": "file",
+      "sizeBytes": 15491,
+      "sha256": "a373b998fa659a2ed0db8b622d681307be2ed2fc4ec2e131bf00ccaeb7b81895"
+    },
+    {
+      "path": "assets/zhihu-OfkkMzms.ico",
+      "type": "file",
+      "sizeBytes": 4286,
+      "sha256": "ca501e1d6c35f64b94d78bbabad986fe888d6aab08702a0083ba88076ad60f37"
+    },
+    {
+      "path": "index.html",
+      "type": "file",
+      "sizeBytes": 450,
+      "sha256": "d5a7ccea4295dcd7f6bb670ac103bef7ca489abcd084cd2837721449ce7f508f"
+    }
+  ],
+  "viteManifest": {
+    "../../src/renderer/assets/logo.png": {
+      "file": "assets/logo-B-T1ksKV.png",
+      "src": "../../src/renderer/assets/logo.png"
+    },
+    "../../src/renderer/assets/platforms/bilibili.ico": {
+      "file": "assets/bilibili-B4f0lnyN.ico",
+      "src": "../../src/renderer/assets/platforms/bilibili.ico"
+    },
+    "../../src/renderer/assets/platforms/douyin.ico": {
+      "file": "assets/douyin-FBAm5jUt.ico",
+      "src": "../../src/renderer/assets/platforms/douyin.ico"
+    },
+    "../../src/renderer/assets/platforms/zhihu.ico": {
+      "file": "assets/zhihu-OfkkMzms.ico",
+      "src": "../../src/renderer/assets/platforms/zhihu.ico"
+    },
+    "../../src/renderer/pages/Connections.tsx": {
+      "file": "assets/Connections-7lmWyhjT.js",
+      "name": "Connections",
+      "src": "../../src/renderer/pages/Connections.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-BC_QppnN.js",
+        "_ArrowSquareOut.es-xApDTU8q.js",
+        "_Platform-W94_kc3s.js",
+        "_Plus.es-CbxTfJsz.js",
+        "_operationLedger-D37FPUzf.js"
+      ]
+    },
+    "../../src/renderer/pages/Followups.tsx": {
+      "file": "assets/Followups-DfwRppyq.js",
+      "name": "Followups",
+      "src": "../../src/renderer/pages/Followups.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-BC_QppnN.js",
+        "_Platform-W94_kc3s.js",
+        "_Plus.es-CbxTfJsz.js",
+        "index.html",
+        "_operationLedger-D37FPUzf.js",
+        "../../src/renderer/pages/Opportunities.tsx"
+      ],
+      "css": [
+        "assets/Followups-BEcgu2i8.css"
+      ]
+    },
+    "../../src/renderer/pages/Login.tsx": {
+      "file": "assets/Login-DoLUdqzE.js",
+      "name": "Login",
+      "src": "../../src/renderer/pages/Login.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-BC_QppnN.js",
+        "index.html"
+      ]
+    },
+    "../../src/renderer/pages/Opportunities.tsx": {
+      "file": "assets/Opportunities-AaXSe7OE.js",
+      "name": "Opportunities",
+      "src": "../../src/renderer/pages/Opportunities.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-BC_QppnN.js",
+        "_ArrowSquareOut.es-xApDTU8q.js",
+        "_Platform-W94_kc3s.js",
+        "index.html",
+        "_operationLedger-D37FPUzf.js",
+        "_download-Bcti2sL_.js",
+        "_TermEditor-kXJuxpkv.js"
+      ],
+      "css": [
+        "assets/Opportunities-DcLfveqg.css"
+      ]
+    },
+    "../../src/renderer/pages/Outreach.tsx": {
+      "file": "assets/Outreach-duUCtgbv.js",
+      "name": "Outreach",
+      "src": "../../src/renderer/pages/Outreach.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-BC_QppnN.js",
+        "_ArrowSquareOut.es-xApDTU8q.js",
+        "_Platform-W94_kc3s.js",
+        "index.html",
+        "_operationLedger-D37FPUzf.js",
+        "../../src/renderer/pages/Opportunities.tsx",
+        "../../src/renderer/pages/OutreachQueue.tsx"
+      ],
+      "css": [
+        "assets/Outreach-BdvfCDuK.css"
+      ]
+    },
+    "../../src/renderer/pages/OutreachQueue.tsx": {
+      "file": "assets/OutreachQueue-DmKKQ8KK.js",
+      "name": "OutreachQueue",
+      "src": "../../src/renderer/pages/OutreachQueue.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-BC_QppnN.js"
+      ]
+    },
+    "../../src/renderer/pages/Profile.tsx": {
+      "file": "assets/Profile-DZsqQWzK.js",
+      "name": "Profile",
+      "src": "../../src/renderer/pages/Profile.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-BC_QppnN.js",
+        "_Plus.es-CbxTfJsz.js",
+        "index.html"
+      ],
+      "css": [
+        "assets/Profile-DwpBIdIc.css"
+      ]
+    },
+    "../../src/renderer/pages/Settings.tsx": {
+      "file": "assets/Settings-DLU9DBV4.js",
+      "name": "Settings",
+      "src": "../../src/renderer/pages/Settings.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-BC_QppnN.js",
+        "index.html",
+        "_operationLedger-D37FPUzf.js",
+        "_download-Bcti2sL_.js"
+      ]
+    },
+    "../../src/renderer/pages/TaskWizard.tsx": {
+      "file": "assets/TaskWizard-DhVMJNoo.js",
+      "name": "TaskWizard",
+      "src": "../../src/renderer/pages/TaskWizard.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-BC_QppnN.js",
+        "_Platform-W94_kc3s.js",
+        "_Plus.es-CbxTfJsz.js",
+        "index.html",
+        "_operationLedger-D37FPUzf.js",
+        "_TermEditor-kXJuxpkv.js",
+        "_PendingTaskStarts-Bk_O0fDz.js"
+      ],
+      "css": [
+        "assets/TaskWizard-D7TM1lBJ.css"
+      ]
+    },
+    "../../src/renderer/pages/Tasks.tsx": {
+      "file": "assets/Tasks-CsaWq9s2.js",
+      "name": "Tasks",
+      "src": "../../src/renderer/pages/Tasks.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-BC_QppnN.js",
+        "_ArrowRight.es-CGRtbIZc.js",
+        "_Platform-W94_kc3s.js",
+        "_Plus.es-CbxTfJsz.js",
+        "index.html",
+        "_operationLedger-D37FPUzf.js",
+        "_PendingTaskStarts-Bk_O0fDz.js"
+      ],
+      "css": [
+        "assets/Tasks-D_VHXXEg.css"
+      ]
+    },
+    "../../src/renderer/pages/Workbench.tsx": {
+      "file": "assets/Workbench-CZT2uWqY.js",
+      "name": "Workbench",
+      "src": "../../src/renderer/pages/Workbench.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-BC_QppnN.js",
+        "_ArrowRight.es-CGRtbIZc.js",
+        "_Platform-W94_kc3s.js",
+        "../../src/renderer/pages/Opportunities.tsx"
+      ],
+      "css": [
+        "assets/Workbench-BBPw0GCx.css"
+      ]
+    },
+    "_ArrowRight.es-CGRtbIZc.js": {
+      "file": "assets/ArrowRight.es-CGRtbIZc.js",
+      "name": "ArrowRight.es",
+      "imports": [
+        "_context-BC_QppnN.js"
+      ]
+    },
+    "_ArrowSquareOut.es-xApDTU8q.js": {
+      "file": "assets/ArrowSquareOut.es-xApDTU8q.js",
+      "name": "ArrowSquareOut.es",
+      "imports": [
+        "_context-BC_QppnN.js"
+      ]
+    },
+    "_PendingTaskStarts-Bk_O0fDz.js": {
+      "file": "assets/PendingTaskStarts-Bk_O0fDz.js",
+      "name": "PendingTaskStarts",
+      "imports": [
+        "_context-BC_QppnN.js",
+        "index.html",
+        "_operationLedger-D37FPUzf.js"
+      ],
+      "css": [
+        "assets/PendingTaskStarts-BqiSuAXA.css"
+      ]
+    },
+    "_PendingTaskStarts-BqiSuAXA.css": {
+      "file": "assets/PendingTaskStarts-BqiSuAXA.css",
+      "src": "_PendingTaskStarts-BqiSuAXA.css"
+    },
+    "_Platform-DHJI-W19.css": {
+      "file": "assets/Platform-DHJI-W19.css",
+      "src": "_Platform-DHJI-W19.css"
+    },
+    "_Platform-W94_kc3s.js": {
+      "file": "assets/Platform-W94_kc3s.js",
+      "name": "Platform",
+      "imports": [
+        "_context-BC_QppnN.js"
+      ],
+      "css": [
+        "assets/Platform-DHJI-W19.css"
+      ],
+      "assets": [
+        "assets/douyin-FBAm5jUt.ico",
+        "assets/bilibili-B4f0lnyN.ico",
+        "assets/zhihu-OfkkMzms.ico"
+      ]
+    },
+    "_Plus.es-CbxTfJsz.js": {
+      "file": "assets/Plus.es-CbxTfJsz.js",
+      "name": "Plus.es",
+      "imports": [
+        "_context-BC_QppnN.js"
+      ]
+    },
+    "_TermEditor-kXJuxpkv.js": {
+      "file": "assets/TermEditor-kXJuxpkv.js",
+      "name": "TermEditor",
+      "imports": [
+        "_context-BC_QppnN.js",
+        "_Plus.es-CbxTfJsz.js",
+        "index.html"
+      ]
+    },
+    "_context-BC_QppnN.js": {
+      "file": "assets/context-BC_QppnN.js",
+      "name": "context"
+    },
+    "_download-Bcti2sL_.js": {
+      "file": "assets/download-Bcti2sL_.js",
+      "name": "download",
+      "imports": [
+        "index.html"
+      ]
+    },
+    "_operationLedger-D37FPUzf.js": {
+      "file": "assets/operationLedger-D37FPUzf.js",
+      "name": "operationLedger",
+      "imports": [
+        "_context-BC_QppnN.js",
+        "index.html"
+      ]
+    },
+    "index.html": {
+      "file": "assets/index-CT3XcAWw.js",
+      "name": "index",
+      "src": "index.html",
+      "isEntry": true,
+      "imports": [
+        "_context-BC_QppnN.js"
+      ],
+      "dynamicImports": [
+        "../../src/renderer/pages/Connections.tsx",
+        "../../src/renderer/pages/Followups.tsx",
+        "../../src/renderer/pages/Login.tsx",
+        "../../src/renderer/pages/Opportunities.tsx",
+        "../../src/renderer/pages/Outreach.tsx",
+        "../../src/renderer/pages/OutreachQueue.tsx",
+        "../../src/renderer/pages/Profile.tsx",
+        "../../src/renderer/pages/Settings.tsx",
+        "../../src/renderer/pages/TaskWizard.tsx",
+        "../../src/renderer/pages/Tasks.tsx",
+        "../../src/renderer/pages/Workbench.tsx"
+      ],
+      "css": [
+        "assets/index-D3pi6dz_.css"
+      ],
+      "assets": [
+        "assets/logo-B-T1ksKV.png"
+      ]
+    }
+  }
+}

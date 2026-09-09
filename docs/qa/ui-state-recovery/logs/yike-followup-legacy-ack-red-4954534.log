@@ -1,0 +1,26 @@
+
+ RUN  v4.1.11 /private/var/folders/xk/53c7rb5d5g3g0fgftczb8yr40000gn/T/yike-followup-review-4954534-b1o5kr4k/desktop
+
+ ❯ tests/ui/followup-scope.test.tsx (13 tests | 1 failed | 12 skipped) 138ms
+   × retains a verified legacy acknowledgement when submitted draft deletion fails 137ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/followup-scope.test.tsx > retains a verified legacy acknowledgement when submitted draft deletion fails
+AssertionError: A successful legacy write must retain its draft hash before dropping the durable lock: expected undefined to be defined
+ ❯ tests/ui/followup-scope.test.tsx:416:107
+    414|   expect(sessionStorage.getItem(draftKey)).toContain("TEST空间A未保存正文");
+    415|   const ackKey = Array.from({length:sessionStorage.length},(_,i)=>sess…
+    416|   expect(ackKey, "A successful legacy write must retain its draft hash…
+       |                                                                                                           ^
+    417|   const value=JSON.parse(sessionStorage.getItem(ackKey!) || "{}");
+    418|   expect(Object.keys(value).length).toBeGreaterThan(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 12 skipped (13)
+   Start at  02:36:35
+   Duration  1.33s (transform 191ms, setup 0ms, import 890ms, tests 138ms, environment 245ms)
+

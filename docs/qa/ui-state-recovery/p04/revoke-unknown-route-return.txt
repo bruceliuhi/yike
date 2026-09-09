@@ -1,0 +1,93 @@
+Browser tab: 22, Title: "业务画像 / 资料与案例 · 意客AI", URL: "http://127.0.0.1:18794/?scenario=P04&state=populated&materials=recovery#/profile?tab=materials".
+1 AXWebArea 业务画像 / 资料与案例 · 意客AI, URL: 127.0.0.1:18794/?scenario=P04&state=populated&materials=recovery#/profile?tab=materials
+	2 container root
+		3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
+		90 button (collapsed) TEST 场景, Secondary Actions: Expand
+			91 text TEST 场景
+		6 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?scenario=P04&state=populated&materials=recovery#main-content
+		7 container
+			8 button 意客AI商机工作台
+				9 text 意客AI
+				10 text 商机工作空间
+			11 container 主导航
+				12 button 商机工作台
+					13 image
+					14 text 商机工作台
+				15 text 发现商机
+				16 button 业务画像
+					17 image
+					18 text 业务画像
+				19 button 线索采集
+					20 image
+					21 text 线索采集
+				22 button 监控任务
+					23 image
+					24 text 监控任务
+				25 text 推进商机
+				26 button 商机库
+					27 image
+					28 text 商机库
+				29 button 触达中心
+					30 image
+					31 text 触达中心
+				32 button 跟进记录
+					33 image
+					34 text 跟进记录
+			35 button 账号与授权
+				36 image
+				37 text 账号与授权
+			38 button 客户工作空间
+				39 image
+				40 text 客户工作空间
+		41 container
+			42 button 收起导航
+				43 image
+			92 button 返回上级
+				93 image
+			46 text 业务画像 / 资料与案例 V0.2
+		47 container main-content
+			94 container
+				95 heading 业务资料, Value: 1
+					96 text 业务资料
+				97 text 管理产品介绍与真实案例。
+			98 tab group
+				99 tab (selectable, settable, boolean) 业务描述, Value: 0
+				100 tab (selected, settable, boolean) 资料与案例, Value: 1
+			101 text 画像版本 
+			102 text 1
+			103 text  · 客户空间资料
+			104 button (disabled) 添加资料
+				105 image
+				106 text 添加资料
+			107 container
+				108 text 资料操作结果待确认，当前不会重复提交。
+				109 button 核对原资料操作
+			110 table
+				111 row
+					112 cell
+						113 text 资料名称
+					114 cell
+						115 text 用途
+					116 cell
+						117 text 引用范围
+					118 cell
+						119 text 状态
+					120 cell
+						121 text 操作
+				122 row
+					123 cell
+						124 text TEST 产品介绍 · 资料撤销验收
+						125 container
+							126 text 版本  4  ·  2026/9/10 02:16:27
+					127 cell
+						128 text 产品介绍
+					129 cell
+						130 text 已停止引用
+					131 cell
+						132 text 引用已撤销
+					133 cell
+						134 button (disabled) 编辑
+						135 button (disabled) 解析资料
+						136 button (disabled) 移除
+
+The focused UI element is 95 heading 业务资料, Value: 1

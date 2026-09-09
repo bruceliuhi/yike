@@ -1,0 +1,10 @@
+{
+  "recordedAt": "2026-09-09T18:52:05.453153+00:00",
+  "sourceRevision": "c59cf1b68d5446be6a4fbb2ea9d6e9815f1a349e",
+  "process": "15583 ./out/意客AI-darwin-arm64/意客AI.app/Contents/MacOS/YikeAI --user-data-dir=/tmp/yike-native-state-20260910-release",
+  "binary": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/MacOS/YikeAI",
+  "binarySha256": "221d5695ab9eb2263b9107e4a5bb3f5780adc35963530e322673d5535e8eeae5",
+  "asarSha256": "79a52de9d645378e0903fd93c4f49ac4c9ce703592fc1b537875708b372c86fa",
+  "launch": "env -u YIKE_SERVICE_URL -u YIKE_ALLOW_LOOPBACK_HTTP <binary> --user-data-dir=/tmp/yike-native-state-20260910-release",
+  "realServiceConfigured": false
+}

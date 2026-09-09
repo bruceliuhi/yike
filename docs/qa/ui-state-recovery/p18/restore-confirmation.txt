@@ -1,0 +1,79 @@
+Browser tab: 22, Title: "账号与授权 · 意客AI", URL: "http://127.0.0.1:18794/?scenario=P18&state=populated&management=lifecycle#/settings".
+1 AXWebArea 账号与授权 · 意客AI, URL: 127.0.0.1:18794/?scenario=P18&state=populated&management=lifecycle#/settings
+	2 container 备份与恢复
+		3 container
+			4 heading 备份与恢复, Value: 2
+				5 text 备份与恢复
+			6 button 关闭备份与恢复
+				7 image
+		8 container
+			9 text 当前客户空间： TEST 视觉验收空间
+			10 button 保存客户数据备份
+			11 heading 从备份恢复, Value: 3
+				12 text 从备份恢复
+			13 container 客户数据备份
+				14 text 客户数据备份
+				15 button 客户数据备份
+				16 text 选择 .yike-backup.json 文件，最大 2 MB。先检查覆盖范围，再确认恢复。
+			17 text 已选择： TEST-management.yike-backup.json
+			18 definition list
+				19 container 客户空间
+					20 text 客户空间
+				21 text TEST 视觉验收空间
+				22 container 本机设备
+					23 text 本机设备
+				24 text TEST 本机设备
+			25 text TEST 影响预览，仅修改隔离内存，不会恢复客户数据或安装软件。
+			26 table
+				27 row
+					28 cell
+						29 text 影响范围
+					30 cell
+						31 text 新增
+					32 cell
+						33 text 更新
+					34 cell
+						35 text 移除
+				36 row
+					37 cell
+						38 text TEST profiles
+					39 cell
+						40 text 1
+					41 cell
+						42 text 0
+					43 cell
+						44 text 1
+				45 row
+					46 cell
+						47 text TEST tasks
+					48 cell
+						49 text 0
+					50 cell
+						51 text 0
+					52 cell
+						53 text 0
+				54 row
+					55 cell
+						56 text TEST opportunities
+					57 cell
+						58 text 0
+					59 cell
+						60 text 0
+					61 cell
+						62 text 0
+				63 row
+					64 cell
+						65 text TEST followups
+					66 cell
+						67 text 0
+					68 cell
+						69 text 0
+					70 cell
+						71 text 0
+			72 text 确认有效至  2026/9/10 02:08:41
+			73 checkbox (settable, integer) Description: 我已核对客户空间、目标及影响范围，确认恢复客户数据, Value: 0
+			74 button 重新检查影响
+			75 button (disabled) 恢复客户数据
+		76 button 关闭
+
+The focused UI element is 74 button 重新检查影响

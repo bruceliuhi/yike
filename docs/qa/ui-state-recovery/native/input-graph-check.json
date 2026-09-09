@@ -1,0 +1,17 @@
+{
+  "revision": "a25ba7b331e7712c4fba53b173cbbc704ec3e734",
+  "productionGraphModuleCount": 4761,
+  "frozenTrackedGraphFileCount": 129,
+  "rawFilesExcluded": [
+    "desktop/src/renderer/domain/rawCandidates.ts",
+    "desktop/src/renderer/services/rawCandidates.ts",
+    "desktop/src/shared/rawCandidateRead.ts",
+    "desktop/tests/rawCandidateReads.test.ts"
+  ],
+  "forbiddenGraphModules": [],
+  "changedFrozenGraphFiles": [],
+  "comparedGeneratedOutputs": 38,
+  "generatedOutputsDifferingFromActualAsar": [],
+  "rawArchivePaths": [],
+  "passed": true
+}

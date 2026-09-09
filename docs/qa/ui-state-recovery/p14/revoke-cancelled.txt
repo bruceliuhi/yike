@@ -1,0 +1,202 @@
+Browser tab: 22, Title: "跟进记录 · 意客AI", URL: "http://127.0.0.1:18794/?scenario=P15&state=populated&capabilities=complete#/followups".
+1 AXWebArea 跟进记录 · 意客AI, URL: 127.0.0.1:18794/?scenario=P15&state=populated&capabilities=complete#/followups
+	2 container root
+		3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
+		4 button (collapsed) TEST 场景, Secondary Actions: Expand
+			5 text TEST 场景
+		6 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?scenario=P15&state=populated&capabilities=complete#main-content
+		7 container
+			8 button 意客AI商机工作台
+				9 text 意客AI
+				10 text 商机工作空间
+			11 container 主导航
+				12 button 商机工作台
+					13 image
+					14 text 商机工作台
+				15 text 发现商机
+				16 button 业务画像
+					17 image
+					18 text 业务画像
+				19 button 线索采集
+					20 image
+					21 text 线索采集
+				22 button 监控任务
+					23 image
+					24 text 监控任务
+				25 text 推进商机
+				26 button 商机库
+					27 image
+					28 text 商机库
+				29 button 触达中心
+					30 image
+					31 text 触达中心
+				32 button 跟进记录
+					33 image
+					34 text 跟进记录
+			35 button 账号与授权
+				36 image
+				37 text 账号与授权
+			38 button 客户工作空间
+				39 image
+				40 text 客户工作空间
+		41 container
+			42 button 收起导航
+				43 image
+			44 button 返回上级
+				45 image
+			46 text 跟进记录 V0.2
+		47 container main-content
+			48 heading 跟进记录, Value: 1
+				49 text 跟进记录
+			50 tab group
+				51 tab (selectable, settable, boolean) 待跟进, Value: 0
+				52 tab (selectable, settable, boolean) 回复记录, Value: 0
+				53 tab (selected, settable, boolean) 全部, Value: 1
+			54 container
+				55 container 负责人
+					56 text 负责人
+					57 pop up button (collapsed, settable) Description: 筛选负责人, Value: 全部, Secondary Actions: Expand
+						58 menu
+							59 (selected) 全部
+							133 TEST 当前成员
+				61 container 日期
+					62 text 日期
+					63 date field (settable) 筛选记录日期
+						64 container
+							65 stepper
+							66 stepper
+							67 stepper
+						68 pop up button 显示日期选择器
+				69 button 刷新
+				70 button 添加跟进
+					71 image
+					72 text 添加跟进
+				134 table
+					135 row
+						136 cell
+							137 text 商机
+						138 cell
+							139 text 最近联系
+						140 cell
+							141 text 客户回复
+						142 cell
+							143 text 下次跟进
+						144 cell
+							145 text 负责人
+					146 row
+						147 cell
+							148 button TEST 180㎡展区设计搭建预算询价
+							149 text 已联系
+						150 cell
+							151 text 未填写
+							152 container
+								153 text 登记  2026/9/10 02:42:48
+						154 cell
+							155 text 1 条通道回复
+						156 cell
+							157 text 2026/9/11 09:00:00
+						158 cell
+							159 text TEST 当前成员
+					160 row
+						161 cell
+							162 button TEST 180㎡展区设计搭建预算询价
+							163 container
+								164 text 已联系  · 已纠正
+						165 cell
+							166 text 未填写
+							167 container
+								168 text 登记  2026/9/10 02:41:12
+						169 cell
+							170 text 1 条通道回复
+						171 cell
+							172 text —
+						173 cell
+							174 text TEST 当前成员
+					175 row
+						176 cell
+							177 button TEST 180㎡展区设计搭建预算询价
+							178 container
+								179 text 已联系  · 已纠正
+						180 cell
+							181 text 未填写
+							182 container
+								183 text 登记  2026/9/10 02:39:55
+						184 cell
+							185 text 1 条通道回复
+						186 cell
+							187 text —
+						188 cell
+							189 text TEST 当前成员
+					190 row
+						191 cell
+							192 button TEST 180㎡展区设计搭建预算询价
+							193 text 已联系
+						194 cell
+							195 text 2026/9/9 09:00:00
+						196 cell
+							197 text 1 条通道回复
+						198 cell
+							199 text 2026/9/10 09:00:00
+						200 cell
+							201 text TEST 当前成员
+			126 container
+				127 heading 关联回复, Value: 2
+					128 text 关联回复
+				129 button 刷新回复
+				130 tab group
+					131 tab (selectable, settable, boolean) 通道回复, Value: 0
+					132 tab (selected, settable, boolean) 人工登记, Value: 1
+				202 text 人工登记
+				203 heading 已联系, Value: 3
+					204 text 已联系
+				205 text TEST 已补充服务范围，等待核对材料清单。
+				206 container
+					207 text 登记： 2026/9/10 02:42:48
+				208 container
+					209 text 下一步： TEST 核对服务范围后再准备方案。
+				210 container
+					211 text 下次跟进： 2026/9/11 09:00:00
+				212 container
+					213 text 纠正原记录： TEST-followup-created-2
+				214 container
+					215 text 原因： TEST 使用日期选择器明确设置下次跟进
+				216 button 纠正记录
+				217 button 撤销登记
+				218 text 人工登记
+				219 text 已纠正
+				220 heading 已联系, Value: 3
+					221 text 已联系
+				222 text TEST 已补充服务范围，等待核对材料清单。
+				223 container
+					224 text 登记： 2026/9/10 02:41:12
+				225 container
+					226 text 下一步： TEST 核对服务范围后再准备方案。
+				227 container
+					228 text 纠正原记录： TEST-followup-created-1
+				229 container
+					230 text 原因： TEST 补充核对后的记录内容
+				231 text 人工登记
+				232 text 已纠正
+				233 heading 已联系, Value: 3
+					234 text 已联系
+				235 text TEST 已核对资料获取方式，等待对方补充服务范围。
+				236 container
+					237 text 登记： 2026/9/10 02:39:55
+				238 container
+					239 text 下一步： TEST 核对服务范围后再准备方案。
+				240 text 人工登记
+				241 heading 已联系, Value: 3
+					242 text 已联系
+				243 text TEST 人工登记示意：仅用于检查跟进流程，没有进行真实联系。
+				244 container
+					245 text 登记： 2026/9/9 09:00:00
+				246 container
+					247 text 联系： 2026/9/9 09:00:00
+				248 container
+					249 text 下一步： TEST 核对资料要求，仅测试内存内容。
+				250 container
+					251 text 下次跟进： 2026/9/10 09:00:00
+				252 button 纠正记录
+				253 button 撤销登记
+
+The focused UI element is 217 button 撤销登记

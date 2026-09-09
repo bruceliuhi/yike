@@ -1,0 +1,320 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+xxxxx
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/followup-scope.test.tsx > isolates rows and form immediately for same user in TEST-space-B v1
+ FAIL  tests/ui/followup-scope.test.tsx > isolates rows and form immediately for same user in TEST-space-A v2
+AssertionError: expected <textarea …(4)></textarea> to be null
+
+- Expected:
+null
+
++ Received:
+<textarea
+  aria-label="跟进备注"
+  maxlength="500"
+  placeholder="记录实际沟通内容"
+  rows="4"
+>
+  TEST空间A未保存正文
+</textarea>
+
+ ❯ tests/ui/followup-scope.test.tsx:33:54
+     31|   vi.mocked(context.service.followup!.list).mockImplementation(() => n…
+     32|   changeScope(id as string,version as number); view.rerender(<Followup…
+     33|   expect(screen.queryByDisplayValue('TEST空间A未保存正文')).toBeNull();
+       |                                                      ^
+     34|   expect(screen.queryByRole('button',{name:'TEST空间A记录'})).toBeNull();
+     35|   await waitFor(()=>expect(context.service.followup!.list).toHaveBeenC…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/ui/followup-scope.test.tsx > drops old-space preflight before dispatching a write
+AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+
+Received:
+
+  1st vi.fn() call:
+
+    Array [
+      Object {
+        "binding": Object {
+          "action": "create",
+          "opportunityId": "TEST-opp",
+          "profileVersionId": "TEST-profile",
+          "requestId": "e35128b7-7eb0-4dca-8055-eded601643d8",
+          "targetId": "",
+          "targetRevision": 0,
+        },
+        "reason": undefined,
+        "values": Object {
+          "nextFollowupAt": null,
+          "nextStep": "",
+          "note": "TEST空间A未保存正文",
+          "occurredAt": null,
+          "ownerId": "TEST-user",
+          "status": "CONTACTED",
+        },
+      },
+    ]
+
+
+Number of calls: 1
+
+ ❯ tests/ui/followup-scope.test.tsx:47:48
+     45|   changeScope('TEST-space-B');view.rerender(<FollowupsPage/>);
+     46|   await act(async()=>release([opportunity]));
+     47|   expect(context.service.followup!.mutate).not.toHaveBeenCalled();
+       |                                                ^
+     48| });
+     49| it('retains an old-space uncertain write until returning to its exact …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/ui/followup-scope.test.tsx > retains an old-space uncertain write until returning to its exact scope
+AssertionError: expected <button type="button" …(1)></button> to be null
+
+- Expected:
+null
+
++ Received:
+<button
+  class="button button-secondary "
+  type="button"
+>
+  核对原跟进操作
+</button>
+
+ ❯ tests/ui/followup-scope.test.tsx:56:57
+     54|   const input=vi.mocked(context.service.followup!.mutate).mock.calls[0…
+     55|   changeScope('TEST-space-B');view.rerender(<FollowupsPage/>);
+     56|   expect(screen.queryByRole('button',{name:'核对原跟进操作'})).toBeNull();
+       |                                                         ^
+     57|   await act(async()=>release({binding:input.binding,status:'SUCCEEDED'…
+     58|   expect(context.notify).not.toHaveBeenCalled();expect(context.navigat…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/ui/followup-scope.test.tsx > keeps unbound legacy request IDs visible and cannot query or replace them in the current space
+TestingLibraryElementError: Unable to find an element with the display value: TEST-legacy-unbound-request.
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m"overflow: hidden;"[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<header[39m
+      [33mclass[39m=[32m"page-heading"[39m
+    [36m>[39m
+      [36m<div>[39m
+        [36m<h1[39m
+          [33mtabindex[39m=[32m"-1"[39m
+        [36m>[39m
+          [0m跟进记录[0m
+        [36m</h1>[39m
+      [36m</div>[39m
+    [36m</header>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"tabs"[39m
+      [33mrole[39m=[32m"tablist"[39m
+    [36m>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"true"[39m
+        [33mclass[39m=[32m"active"[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"0"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m待跟进[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m回复记录[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m全部[0m
+      [36m</button>[39m
+    [36m</div>[39m
+    [36m<section[39m
+      [33mclass[39m=[32m"followup-pending"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"notice notice-warning"[39m
+        [33mrole[39m=[32m"status"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mfill[39m=[32m"currentColor"[39m
+          [33mheight[39m=[32m"18"[39m
+          [33mviewBox[39m=[32m"0 0 256 256"[39m
+          [33mwidth[39m=[32m"18"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm-8-80V80a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,172Z"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+        [36m<div>[39m
+          [0m有跟进操作结果待确认，请先核对原请求，避免重复登记。[0m
+        [36m</div>[39m
+      [36m</div>[39m
+      [36m<button[39m
+        [33mclass[39m=[32m"button button-secondary "[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m核对原跟进操作[0m
+      [36m</button>[39m
+    [36m</section>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"followup-layout"[39m
+    [36m>[39m
+      [36m<section>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"filter-bar"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33maria-labelledby[39m=[32m"_r_1c_"[39m
+            [33mclass[39m=[32m"field "[39m
+            [33mrole[39m=[32m"group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"field-label"[39m
+              [33mid[39m=[32m"_r_1c_"[39m
+            [36m>[39m
+              [0m负责人[0m
+            [36m</div>[39m
+            [36m<select[39m
+              [33maria-label[39m=[32m"筛选负责人"[39m
+            [36m>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m""[39m
+              [36m>[39m
+                [0m全部[0m
+              [36m</option>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"TEST-user"[39m
+              [36m>[39m
+                [0mTEST成员[0m
+              [36m</option>[39m
+            [36m</select>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33maria-labelledby[39m=[32m"_r_1d_"[39m
+            [33mclass[39m=[32m"field "[39m
+            [33mrole[39m=[32m"group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"field-label"[39m
+              [33mid[39m=[32m"_r_1d_"[39m
+            [36m>[39m
+              [0m日期[0m
+            [36m</div>[39m
+            [36m<input[39m
+              [33maria-label[39m=[32m"筛选记录日期"[39m
+              [33mtype[39m=[32m"date"[39m
+              [33mvalue[39m=[32m""[39m
+            [36m/>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"followup-filter-actions"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"button button-secondary "[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [0m刷新[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"button button-primary "[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"currentColor"[39m
+                [33mheight[39m=[32m"1em"[39m
+                [33mviewBox[39m=[32m"0 0 256 256"[39m
+                [33mwidth[39m=[32m"1em"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0m添加跟进[0m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"table-wrap"[39m
+        [36m>[39m
+          [36m<table[39m
+            [33mclass[39m=[32m"data-table"[39m
+          [36m>[39m
+            [36m<thead>[39m
+              [36m<tr>[39m
+                [36m<th>[39m
+                  [0m商机[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0m最近联系[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0m客户回复[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0m下次跟进[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0m负责人[0m
+                [36m</th>[39m
+              [36m</tr>[39m
+            [36m</thead>[39m
+            [36m<tbody />[39m
+          [36m</table>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"empty-state"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"empty-icon"[39m
+              [33mfill[39m=[32m"currentColor"[39m
+              [33mheight[39m=[32m"56"[39m
+              [33mviewBox[39m=[32m"0 0 256 256"[39m
+              [33mwidth[39m=[32m"56"[39m
+              [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M208,8...
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ tests/ui/followup-scope.test.tsx:71:17
+     69|   localStorage.setItem(key,JSON.stringify({[followupKey(binding)]:'PEN…
+     70|   render(<FollowupsPage/>);await fill();
+     71|   expect(screen.getByDisplayValue(binding.requestId)).toBeTruthy();
+       |                 ^
+     72|   expect(screen.queryByRole('button',{name:'核对原跟进操作'})).toBeNull();
+     73|   expect((screen.getByRole('button',{name:'保存记录'}) as HTMLButtonElemen…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed (5)
+   Start at  02:20:47
+   Duration  1.50s (transform 161ms, setup 0ms, import 842ms, tests 353ms, environment 241ms)
+

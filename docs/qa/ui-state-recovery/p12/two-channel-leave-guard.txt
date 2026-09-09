@@ -1,0 +1,155 @@
+Browser tab: 22, Title: "触达中心 · 意客AI", URL: "http://127.0.0.1:18794/?scenario=P13&state=populated&recovery=send-unknown#/outreach?opportunity=TEST-opportunity&channel=comment".
+1 AXWebArea 触达中心 · 意客AI, URL: 127.0.0.1:18794/?scenario=P13&state=populated&recovery=send-unknown#/outreach?opportunity=TEST-opportunity&channel=comment
+	2 container root
+		3 container visual-harness-banner
+			4 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入  · 恢复场景 send-unknown
+		5 button (collapsed) TEST 场景, Secondary Actions: Expand
+			6 text TEST 场景
+		7 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?scenario=P13&state=populated&recovery=send-unknown#main-content
+		8 container
+			9 button 意客AI商机工作台
+				10 text 意客AI
+				11 text 商机工作空间
+			12 container 主导航
+				13 button 商机工作台
+					14 image
+					15 text 商机工作台
+				16 text 发现商机
+				17 button 业务画像
+					18 image
+					19 text 业务画像
+				20 button 线索采集
+					21 image
+					22 text 线索采集
+				23 button 监控任务
+					24 image
+					25 text 监控任务
+				26 text 推进商机
+				27 button 商机库
+					28 image
+					29 text 商机库
+				30 button 触达中心
+					31 image
+					32 text 触达中心
+				33 button 跟进记录
+					34 image
+					35 text 跟进记录
+			36 button 账号与授权
+				37 image
+				38 text 账号与授权
+			39 button 客户工作空间
+				40 image
+				41 text 客户工作空间
+		42 container
+			43 button 收起导航
+				44 image
+			45 button 返回上级
+				46 image
+			47 text 触达中心 V0.2
+		48 container main-content
+			49 container
+				50 heading 触达中心, Value: 1
+					51 text 触达中心
+				52 text 基于公开信息，准备沟通内容，跟进商机进展。
+			53 tab group
+				54 tab (selected, settable, boolean) 草稿箱, Value: 1
+				55 tab (selectable, settable, boolean) 待确认, Value: 0
+				56 tab (selectable, settable, boolean) 待回复, Value: 0
+				57 tab (selectable, settable, boolean) 需处理, Value: 0
+			58 container
+				59 image
+				60 text field (settable) 搜索联系准备
+				61 pop up button (collapsed, settable) Description: 联系准备排序, Value: 按更新时间 · 最新优先, Secondary Actions: Expand
+					62 menu
+						63 (selected) 按更新时间 · 最新优先
+						64 按更新时间 · 最早优先
+						65 按商机标题
+				66 button TEST 180㎡展区设计搭建预算询价 TEST 需求方（合成测试对象） 公开网站 · 已有联系草稿 更新于 2026/9/9 09:00:00
+					67 text TEST 180㎡展区设计搭建预算询价
+					68 text TEST 需求方（合成测试对象）
+					69 container
+						70 text 公开网站  · 已有联系草稿
+					71 container
+						72 text 更新于  2026/9/9 09:00:00
+				73 text 公开研究样例
+				74 button 高交会预算询价 · 联系准备 湖南省商务厅官网 公开样例 · 只读
+					75 text 高交会预算询价 · 联系准备
+					76 text 湖南省商务厅官网
+					77 text 公开样例 · 只读
+			78 container
+				79 heading 联系草稿, Value: 2
+					80 text 联系草稿
+				81 text 本机修改未同步
+				82 tab group
+					83 tab (selectable, settable, boolean) 评论草稿, Value: 0
+					84 tab (selected, settable, boolean) 私信草稿, Value: 1
+				142 text 评论 草稿仍有未保存修改；切换用途不会保存或放弃内容。
+				85 container 沟通目的
+					86 text 沟通目的
+					87 pop up button (collapsed, settable) Description: 沟通目的, Value: 确认具体需求, Secondary Actions: Expand
+						88 menu
+							89 (selected) 确认具体需求
+							90 询问资料获取方式
+							91 确认服务范围
+				92 heading 沟通内容, Value: 3
+					93 text 沟通内容
+				94 button 重新生成
+				95 text entry area (settable) Description: 沟通内容, Value: TEST 私信未保存：方便确认一下服务范围吗？
+				96 text 23  字
+				97 container 短句教练
+					98 heading 短句教练, Value: 3
+						99 text 短句教练
+					100 button 生成短句建议
+					101 text 短句教练服务尚未接通，可继续编辑或使用原草稿生成。
+				102 button (collapsed) 发送配置对象已填写 · 账号已选择, Secondary Actions: Expand
+					103 text 发送配置
+					104 text 对象已填写
+					105 text  ·
+					106 text 账号已选择
+				107 text 编辑内容按当前账号保存在本机当前会话；同步成功前不会成为客户空间草稿。
+				108 button 保存草稿
+				109 button (disabled) 准备发送
+					110 image
+					111 text 准备发送
+				112 button 复制联系草稿
+					113 image
+			114 container
+				115 heading 原文依据, Value: 2
+					116 text 原文依据
+				117 button 查看详情
+					118 text 查看详情
+					119 image
+				120 heading TEST 180㎡展区设计搭建预算询价, Value: 3
+					121 text TEST 180㎡展区设计搭建预算询价
+				122 text 客户商机
+				123 definition list
+					124 container 发布单位
+						125 text 发布单位
+					126 text TEST 需求方（合成测试对象）
+					127 container 发布时间
+						128 text 发布时间
+					129 text 2026/9/8 16:54:00
+				130 heading 原文摘要, Value: 3
+					131 text 原文摘要
+				132 text TEST 本次报价仅用于预算测算。
+				133 button (collapsed) 查看完整判断, Secondary Actions: Expand
+					134 text 查看完整判断
+				135 text 发送前需完成来源、画像、对象及账号的核验。
+				136 container 备注
+					137 text 备注
+					138 text entry area (settable) 联系准备备注
+					139 text 仅保留在本机会话，不随消息发送。
+				140 container
+					141 text 0 /500
+		143 container 离开当前页面？
+			144 container
+				145 heading 离开当前页面？, Value: 2
+					146 text 离开当前页面？
+				147 button 关闭离开当前页面？
+					148 image
+			149 text 当前更改还没有提交。请确认是否继续离开，或返回页面完成保存。
+			150 container
+				151 button 取消
+				152 button 继续离开
+
+The focused UI element is 143 container 离开当前页面？

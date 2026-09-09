@@ -1,0 +1,92 @@
+Browser tab: 22, Title: "账号与授权 · 意客AI", URL: "http://127.0.0.1:18794/?scenario=P18&state=populated&management=lifecycle#/settings".
+1 AXWebArea 账号与授权 · 意客AI, URL: 127.0.0.1:18794/?scenario=P18&state=populated&management=lifecycle#/settings
+	2 container root
+		3 container visual-harness-banner
+			4 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入  · TEST 模拟保存/取消，不写文件
+		95 button (collapsed) TEST 场景, Secondary Actions: Expand
+			96 text TEST 场景
+		7 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?scenario=P18&state=populated&management=lifecycle#main-content
+		8 container
+			9 button 意客AI商机工作台
+				10 text 意客AI
+				11 text 商机工作空间
+			12 container 主导航
+				13 button 商机工作台
+					14 image
+					15 text 商机工作台
+				16 text 发现商机
+				17 button 业务画像
+					18 image
+					19 text 业务画像
+				20 button 线索采集
+					21 image
+					22 text 线索采集
+				23 button 监控任务
+					24 image
+					25 text 监控任务
+				26 text 推进商机
+				27 button 商机库
+					28 image
+					29 text 商机库
+				30 button 触达中心
+					31 image
+					32 text 触达中心
+				33 button 跟进记录
+					34 image
+					35 text 跟进记录
+			36 button 账号与授权
+				37 image
+				38 text 账号与授权
+			39 button 客户工作空间
+				40 image
+				41 text 客户工作空间
+		42 container
+			43 button 收起导航
+				44 image
+			45 button 返回上级
+				46 image
+			47 text 账号与授权 V0.2
+		48 container main-content
+			49 heading 账号与授权, Value: 1
+				50 text 账号与授权
+			51 tab group
+				52 tab (selectable, settable, boolean) 平台连接, Value: 0
+				53 tab (selected, settable, boolean) 设备与使用授权, Value: 1
+			54 container
+				55 heading 使用授权, Value: 2
+					56 text 使用授权
+				57 text 授权状态 未激活 授权码
+				58 text field (settable) 授权码
+				59 button 激活
+				60 text 有效期 —
+			61 container
+				62 heading 设备管理, Value: 2
+					63 text 设备管理
+				64 text 运行环境 macOS
+				65 button 绑定设备
+				66 text 设备状态 TEST 本机设备 · 尚未绑定 客户服务 尚未配置服务地址
+			67 container
+				68 heading 版本与数据, Value: 2
+					69 text 版本与数据
+				70 text 当前版本 0.2.0-TEST
+				71 button 检查更新
+				72 text 客户数据 按当前客户空间授权范围导出
+				73 button 导出数据
+				74 text 备份与恢复 先检查文件、恢复范围与覆盖影响
+				75 button 备份与恢复
+				76 text 本机草稿 当前会话的配置与资料草稿
+				77 button 清除本机草稿
+			78 container
+				79 heading 支持与诊断, Value: 2
+					80 text 支持与诊断
+				81 text 脱敏诊断 版本、运行环境和服务配置状态
+				82 button 查看脱敏诊断
+				83 text 联系支持
+				84 button 联系支持
+				85 text 当前会话 已登录
+				86 button 退出登录
+		94 container
+			97 text 原操作已取消。
+			98 button 关闭提示
+
+The focused UI element is 1 AXWebArea 账号与授权 · 意客AI, URL: 127.0.0.1:18794/?scenario=P18&state=populated&management=lifecycle#/settings

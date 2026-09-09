@@ -1,0 +1,29 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+ ❯ tests/ui/material-operation-storage.test.ts (10 tests | 2 failed | 8 skipped) 5ms
+     × ignores another legitimate dotted user identity after validating its complete key 4ms
+     × ignores another legitimate dotted profile identity after validating its complete key 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/material-operation-storage.test.ts > space-bound material operation storage > ignores another legitimate dotted user identity after validating its complete key
+ FAIL  tests/ui/material-operation-storage.test.ts > space-bound material operation storage > ignores another legitimate dotted profile identity after validating its complete key
+Error: 资料操作记录身份不匹配。
+ ❯ readMaterialOperations src/renderer/pages/profile/materialOperationStorage.ts:55:13
+     53|     if (entry.owner.userId !== owner.userId || entry.pending.profileVe…
+     54|         materialOperationKey(entry.owner, profileVersionId) !== stored…
+     55|       throw new Error("资料操作记录身份不匹配。");
+       |             ^
+     56|     if (storedKey === key) pending = entry.pending;
+     57|     else if (entry.owner.accountScope?.id === owner.accountScope?.id ||
+ ❯ tests/ui/material-operation-storage.test.ts:55:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 8 skipped (10)
+   Start at  02:04:43
+   Duration  384ms (transform 45ms, setup 0ms, import 78ms, tests 5ms, environment 236ms)
+
