@@ -145,7 +145,7 @@ _CAPABILITIES = {
 
 def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = False,
                     phone_auth=None, sms_sender=None, execution_runtime=None, candidate_ingestion=None,
-                    candidate_review=None) -> None:
+                    candidate_review=None, research_strategies=None) -> None:
     # The enclosing pilot app retains its same-Origin middleware and security
     # headers. This router deliberately does not install a permissive CORS rule.
     router = APIRouter(prefix="/api/ui", route_class=_UiRoute)
@@ -334,6 +334,8 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
     register_candidate_api(router, candidate_ingestion, identity, require_session_https)
     from pilot.candidate_review_api import register_candidate_review_api
     register_candidate_review_api(router, candidate_review, identity, require_session_https)
+    from pilot.research_strategy_api import register_research_strategy_api
+    register_research_strategy_api(router, research_strategies, identity, require_session_https)
     from pilot.phone_api import register_phone_api
     capabilities_state = dict(_CAPABILITIES)
     capabilities_state["sms_login"] = register_phone_api(

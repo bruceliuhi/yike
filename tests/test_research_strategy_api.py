@@ -3,16 +3,15 @@ import asyncio
 import importlib
 import json
 from types import SimpleNamespace
+from unittest.mock import patch
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 import pytest
 from starlette.requests import Request
 
 from pilot.auth import issue_token
-from pilot.sessions import authenticate_session
-from pilot.ui_api import _UiRoute
 from pilot.web import build_app
 from tests.test_ui_api import FakeStore
 
@@ -77,25 +76,21 @@ class TransportStore:
 def client_for(service, *, base_url='https://pilot.example', claims_missing=False):
     module = api()
     auth_store = FakeStore()
-    app = build_app(auth_store, auth_secret=SECRET)
-    router = APIRouter(prefix=PREFIX, route_class=_UiRoute)
     auth_threads = []
+    register = module.register_research_strategy_api
 
-    def identity(request):
-        auth_threads.append(outside_event_loop())
-        if claims_missing:
-            return SimpleNamespace(claims=None)
-        value = request.headers.get('authorization', '')
-        if not value.startswith('Bearer '):
-            raise HTTPException(401, detail={'code': 'authentication_required'})
-        return authenticate_session(auth_store, value[7:], SECRET)
+    def observing_register(router, registered_service, identity, require_session_https):
+        assert registered_service is service
 
-    def https(request):
-        if request.url.scheme != 'https':
-            raise HTTPException(400, detail={'code': 'https_required'})
+        def observed_identity(request):
+            auth_threads.append(outside_event_loop())
+            current = identity(request)
+            return SimpleNamespace(claims=None) if claims_missing else current
 
-    module.register_research_strategy_api(router, service, identity, https)
-    app.include_router(router)
+        register(router, registered_service, observed_identity, require_session_https)
+
+    with patch.object(module, 'register_research_strategy_api', observing_register):
+        app = build_app(auth_store, auth_secret=SECRET, research_strategies=service)
     client = TestClient(app, base_url=base_url)
     client.auth_threads = auth_threads
     return client
