@@ -42,6 +42,62 @@ def schedule():
                 start="00:00", end="23:59", timezone="Etc/UTC")
 
 
+@pytest.mark.parametrize('mode', ['once', 'monitor'])
+def test_schedule_policy_v1_is_preserved_without_rewriting_legacy_bytes(contract, mode):
+    legacy = config() | {'mode': mode, 'schedule': schedule()}
+    old_snapshot = snapshot(contract, legacy)
+    old_bytes = json.dumps(old_snapshot, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+    assert 'policyVersion' not in old_bytes
+    assert contract.configuration_digest(old_snapshot) == hashlib.sha256(old_bytes.encode()).hexdigest()
+    legacy_request = prepare() | {'configuration': legacy}
+    old_request = contract.PrepareStrategyRequest.model_validate(legacy_request).model_dump(mode='json')
+    assert old_request == legacy_request
+    expected_request_bytes = json.dumps(legacy_request, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()
+    assert hashlib.sha256(contract._json(old_request).encode()).hexdigest() == hashlib.sha256(expected_request_bytes).hexdigest()
+    modern = legacy | {'schedule': schedule() | {'policyVersion': 1}}
+    try:
+        request = contract.PrepareStrategyRequest.model_validate(prepare() | {'configuration': modern})
+    except ValidationError:
+        pytest.fail('current client schedule policyVersion=1 must round-trip unchanged')
+    assert request.model_dump(mode='json')['configuration'] == modern
+    assert contract.PrepareStrategyRequest.model_validate(request).model_dump(mode='json') == request.model_dump(mode='json')
+    current = snapshot(contract, request.configuration)
+    assert current['configuration'] == modern
+    assert contract.configuration_digest(current) != contract.configuration_digest(old_snapshot)
+    assert json.dumps(snapshot(contract, legacy), ensure_ascii=False, sort_keys=True, separators=(',', ':')) == old_bytes
+
+
+@pytest.mark.parametrize('policy', [None, True, False, 1.0, 0, 2, '1'])
+def test_schedule_policy_rejects_nonexact_version(contract, policy):
+    with pytest.raises(ValidationError):
+        contract.ResearchStrategyConfiguration.model_validate(config() | {'schedule': schedule() | {'policyVersion': policy}})
+
+
+@pytest.mark.parametrize('mode', ['once', 'monitor'])
+def test_versioned_interval_rejects_equal_bounds_without_changing_legacy(contract, mode):
+    legacy = config() | {'mode': mode, 'schedule': schedule() | {'kind': 'interval', 'start': '08:00', 'end': '08:00'}}
+    assert contract.ResearchStrategyConfiguration.model_validate(legacy).model_dump(mode='json') == legacy
+    modern = legacy | {'schedule': legacy['schedule'] | {'policyVersion': 1}}
+    with pytest.raises(ValidationError):
+        contract.ResearchStrategyConfiguration.model_validate(modern)
+    for changes in ({'end': '07:00'}, {'kind': 'daily'}):
+        valid = modern | {'schedule': modern['schedule'] | changes}
+        assert contract.ResearchStrategyConfiguration.model_validate(valid).model_dump(mode='json') == valid
+
+
+def test_policy_schedule_unknown_fields_and_forged_instances_are_rejected(contract):
+    data = config() | {'schedule': schedule() | {'policyVersion': 1}}
+    with pytest.raises(ValidationError):
+        contract.ResearchStrategyConfiguration.model_validate(data | {'schedule': data['schedule'] | {'authority': True}})
+    try:
+        valid = contract.ResearchStrategyConfiguration.model_validate(data)
+    except ValidationError:
+        pytest.fail('versioned schedule must be available before instance revalidation')
+    forged = valid.model_copy(update={'schedule': valid.schedule.model_copy(update={'policyVersion': True})})
+    with pytest.raises(contract.StrategyStoreError, match='invalid_request'):
+        snapshot(contract, forged)
+
+
 def prepare():
     return dict(schema_version="strategy-confirmation-v1", request_id=REQUEST,
                 draft_id=DRAFT, draft_revision=1, profile_version_id=PROFILE,

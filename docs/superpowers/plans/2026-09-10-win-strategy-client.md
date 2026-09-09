@@ -21,6 +21,12 @@
 
 ## Chunk 1：共享线协议与真实传输
 
+### 新主线兼容补充（168872a → aac3fe9）
+
+主线已纳入a31069f日程契约：新once/monitor草稿均带`Schedule.policyVersion=1`，旧六字段日程不自动换版。05C不能删除此字段来通过旧后台，也不能永久拒绝所有新草稿。Win在自己所有的`pilot/research_strategy_contract.py`与合同专项测试增加旧六字段/带必填严格整数1的新七字段两种形状；新字段原样进入配置及摘要，旧缺字段JSON/快照/摘要保持不变，拒绝null、布尔、未知版本和其他extra。不改Mac在途store/resolver/共享入口或114 SQL，不添加可空默认值污染旧快照。客户端共享schema/mapper随后同步，真实Node/HTTP/PG测试使用实际`newTaskDraft()`映射，验证新旧回执和显式换版的冲突；完整执行门禁和`scheduleContractVersion`要求不变，这仅保存/核对配置，不声明监控或DST执行已实现。顺序为兼容反例RED→最小实现→旧合同/真实往返GREEN→独立审核后提交。
+
+独立审核后补齐仅v1间隔窗口相同起止拒绝，旧未版本化配置不改写。Mac `f4e9b71`已共享注册策略入口；实际Node用例改用`build_app(..., research_strategies=service(env))`，不再手动追加同路径router，避免前面的默认501遮蔽。只有测试loopback监听使用既有`dev_login=True`选项。Task1/2实现与整合证据见[05C限定验收](../../qa/V02-05C_STRATEGY_CLIENT_WIN_REVIEW.md)；Task3/4继续，不将基础传输片当整卡完成。
+
 ### Task 1：严格共享DTO和草稿映射
 
 **Files:** Create `desktop/src/shared/researchStrategies.ts`, `desktop/src/renderer/domain/researchStrategies.ts`, `desktop/tests/researchStrategies.test.ts`。
@@ -42,7 +48,7 @@ domain导出`strategyPrepareRequest(draft, requestId, limits)`，limits为显式
 `ResearchStrategiesService`接口prepare/confirm/revoke/getReceipt/getStrategy；以注入的固定request函数实现一次调用，返回unknown供domain绑定核对。`client.ts`现有导出的`service`常量增加此独立接口，不另造客户端factory，旧TaskOperationsService语义不改。缺服务/401/409/422/501/timeout透传固定ServiceError，不返回假成功/假策略/假能力，不自动retry。
 
 - [ ] RED固定路径和严格body、无payload查询和多余字段拒绝、一次调用及失败/超时；GREEN后在desktop执行 `node node_modules/vitest/vitest.mjs run tests/researchStrategyTransport.test.ts tests/servicePolicy.test.ts tests/serviceClient.test.ts tests/ui/client.test.ts` 及 `node node_modules/typescript/bin/tsc --noEmit`，预期全部通过/退出0。
-- [ ] `tests/test_research_strategies_postgres.py::test_real_node_client_strategy_roundtrip`启动仅loopback的临时Uvicorn，将实际受限PG/真实会话注册到新router，然后通过Node24 Vitest运行`desktop/tests/integration/research-strategy-live.test.ts`。Node使用实际renderer service→requestApi→createServiceClient/validatedOperation→fetch，不替换策略请求/响应。仅本地测试允许现有unpackaged loopback HTTP选择（不当生产HTTPS验收）；测试认证数据走环境/进程输入，错误输出不泄密。测试后关闭精确HTTP句柄。专用Node fixture缺环境明确skip，不将skip当通过。
+- [ ] `tests/test_research_strategies_postgres.py::test_real_node_client_strategy_roundtrip`启动仅loopback的临时Uvicorn，使用共享build_app注入实际受限PG服务和真实会话，然后通过Node24 Vitest运行`desktop/tests/integration/research-strategy-live.test.ts`。Node使用实际renderer service→requestApi→createServiceClient/validatedOperation→fetch，不替换策略请求/响应。仅本地测试允许现有unpackaged loopback HTTP选择（不当生产HTTPS验收）；测试认证数据走环境/进程输入，错误输出不泄密。测试后关闭精确HTTP句柄。专用Node fixture缺环境明确skip，不将skip当通过。
 - [ ] Windows根目录执行 `$env:YIKE_STRATEGY_NODE_BINARY='<已验证Node24绝对路径>'; & ./.runtime/research-strategy-pg.ps1 -Selection real_node_client`；脚本创建并精确清理一次性PG，预期1实际Python桥接用例passed、其Node子测试passed、脚本退出0/清理确认。其他环境可按上轮PG夹具设置专用两个DSN后运行 `python -m pytest -q tests/test_research_strategies_postgres.py -k real_node_client`。验证prepare/confirm/读取/撤销/原键不重复和logout后拒绝；只用测试身份/画像/来源，不访问外部，不只注入返回成功mock。
 - [ ] 独立双阶段审核并提交；Mac共享入口仍按上轮合同串行接收，不改pilot模块。
 
