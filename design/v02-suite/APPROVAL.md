@@ -1,12 +1,12 @@
 # 全页面设计确认记录
 
-版本：`v02-suite-r1`。当前：`PENDING_USER_REVIEW`。
+版本：`v02-suite-r2`。当前：`PENDING_USER_REVIEW`。
 
-- 确认范围：P01–P20、PAGE_STATE_MATRIX.md、DESIGN_SYSTEM.md（含勘误）。
+- 确认范围：P01–P20、PAGE_STATE_MATRIX.md、DESIGN_SYSTEM.md（含勘误）、AI_SEARCH_CONDITIONS.md。
 - 用户确认原话：尚未收到。
 - 确认时间：未确认。
 - 绑定图片摘要：以本次 manifest.json 为准；尚无批准记录。
-- 待处理修改意见：等待用户按页反馈。
+- 本轮修改意见：已按用户要求补自动建议可编辑搜索条件，修订 P06/P19/P20；新画面和整套确认仍待反馈。
 
 用户要求先设计齐再确认，是工作流程要求，不是对本套图片的提前批准。不得以图片生成成功、Agent 审核或开发者自行判断代替用户确认。
 

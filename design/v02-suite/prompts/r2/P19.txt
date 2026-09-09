@@ -1,0 +1,44 @@
+Use case: ui-mockup, precise revision of an existing Chinese desktop application design.
+Create ONE realistic, production-quality high-fidelity screen for 意客AI. Target natural desktop size 1484 x 1060, matching attached image 1 exactly; no browser chrome, device bezel, collage, stretching or presentation frame.
+
+Input image 1 is the current P19 确认启动 screen and is the exact edit target: preserve its application shell, navigation labels, blue-white visual system, logo position, page typography, active navigation, three-step wizard and bottom action placement. Input image 2 is the exact blue Y brand logo and must be retained at the original small header/sidebar size, not enlarged as decoration.
+
+This is the third step of the same task creation flow, now revised to summarize editable AI-suggested search conditions. Change only the necessary summary content and required-condition text. Do not add functionality, operational results or an AI conversation panel. The conditions below are DESIGN EXAMPLES, not actual confirmed customer data, actual model execution or a running task.
+
+Preserve the fixed shell: pale cool sidebar, white page, thin pale blue-gray separators, restrained blue primary color, dark navy text. Logo plus 意客AI and 商机工作空间. Exact sidebar labels: 商机工作台; 发现商机 group with 业务画像, 线索采集 (active pale blue), 监控任务; 推进商机 group with 商机库, 触达中心, 跟进记录; bottom 账号与授权 and 演示工作空间. Header breadcrumb 线索采集 / 新建任务. Top right V0.2 设计预览. No avatar or invented account.
+
+Page title 确认启动 with a restrained small label “AI 建议示例 · 未启动”. Remove the old long subtitle that implies platform connection alone is sufficient to start. The wizard is unchanged: 1 任务条件 / 2 平台连接 / 3 确认启动, with the third step selected blue. Prior two steps have quiet numbered circles, never green success checks.
+
+Below it, section title 配置摘要. Right-aligned blue text link 返回修改. The summary is a clean two-column definition layout separated by whitespace and thin rules, with search keywords on a full-width multiline row. It contains the following exact content, clearly readable:
+
+任务名称：展台需求发现
+业务画像：展台设计搭建（示例画像）
+画像版本：示例 v1
+执行设备：本机（待绑定）
+来源范围：关键词搜索
+运行方式：单次采集
+搜索关键词：找展台搭建、求展台设计、展台搭建报价、展位设计预算、展会布展需求、展台搭建招标、展位施工询价、展台搭建推荐
+排除词：招聘、求职、培训、招生
+条件来源：AI 建议（示例），可返回修改
+
+IMPORTANT: ALL EIGHT search keywords and ALL FOUR exclusions must be present, legible and verbatim. Keywords may wrap into two or three lines or restrained small read-only tags; do not clip, truncate, replace with a count, or hide behind ellipses. This confirmation screen is a read-only final configuration summary: do not show remove-x on keywords, an add keyword button, a generator button, “重新生成”, a sparkles icon, or editable controls. The only route to editing AI suggestions here is 返回修改, which returns to task conditions before re-checking this summary.
+
+Next section 平台与执行账号, clean full-width table with exactly five rows and four columns:
+平台 / 执行账号 / 连接状态 / 范围
+小红书 / — / 未连接 / 关键词搜索
+抖音 / — / 未连接 / 关键词搜索
+B站 / — / 未连接 / 关键词搜索
+知乎 / — / 未连接 / 关键词搜索
+公开网站 / 无需账号 / 无需账号 / 范围待确认
+
+Preserve small existing platform symbols but invent no extra platform, actual account name, connection success, authorization passed, QR code or collected content. The four social platforms have quiet gray 未连接 states. The public website scope remains incomplete.
+
+Under the table, one concise required-condition line with a small blue information icon:
+请确认真实画像、完成平台连接与网站范围，并绑定执行设备后启动。
+The word “真实画像” makes clear that the sample profile shown above has not satisfied actual startup requirements. Show no automatic work or successful state.
+
+Bottom sticky footer with a thin separator, all controls aligned right in this order: 取消 (quiet text), 上一步 (outlined), 确认启动 (disabled gray, fixed main-action position). Start remains disabled. Provide sufficient whitespace above and below the footer and no cropped table rows.
+
+Art direction: refined Feishu/Alipay-like Chinese professional B2B software. Strong baseline alignment, flat surfaces, precise readable typography; body around14–16px in the intended1440-equivalent viewport, title24px, section16px, restrained helper12–13px. Controls34–36px, small6px radii, table rows44–48px as needed. Use a simple divider rather than extra cards, shadows or backgrounds. Avoid decoration, cards inside cards, gradients except the unchanged logo, illustrations, metric tiles, fabricated commercial facts or lengthy explanatory copy. Reflow the summary and compact vertical spacing slightly to fit all information at the natural reference ratio; never shrink text to unreadable sizes.
+
+Date anchor: 2026-09-09. No dates need to be added. Do not show MediaCrawler, Skill, model tokens, API keys or database/admin details in this customer UI. Return one polished complete screenshot, preserving the reference visual language.

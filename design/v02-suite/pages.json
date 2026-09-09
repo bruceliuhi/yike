@@ -33,7 +33,7 @@
     "id": "P06",
     "title": "新建获客任务",
     "active": "线索采集",
-    "brief": "Full page form with breadcrumb 线索采集 / 新建任务; title 新建获客任务; three small progress labels 任务条件 active / 平台连接 / 确认启动. Fields 任务名称=展台需求发现 with 配置示例 label; 业务画像 select 选择已确认画像; 搜索关键词=展台搭建, 展区设计, 预算询价 as editable chips; 排除词=招聘, 培训; 平台 multi-check 小红书 抖音 B站 知乎 公开网站 checked; no unsupported platform connections. 来源范围 controls 关键词搜索, 指定内容链接; bottom 运行方式 单次采集 / 持续监控, single selected. Right small summary 待连接的平台 all four 未连接; 公开网站 无需账号 as discovery source, no live success claim. Sticky footer 保存草稿 secondary, 下一步：连接平台 primary. Clear step, no giant drawer or floating decorative cards."
+    "brief": "R2：选定画像后自动准备可编辑关键词/排除词，支持重新生成并保留人工修改；单次采集。完整提示词 prompts/r2/P06.txt。"
   },
   {
     "id": "P07",
@@ -111,12 +111,12 @@
     "id": "P19",
     "title": "确认启动",
     "active": "线索采集",
-    "brief": "P06 第三步：配置摘要、平台与执行账号、缺项和禁用启动。完整生成提示词见 prompts/P19.txt。"
+    "brief": "R2：启动确认呈现当前最终搜索词、排除词、画像版本、执行设备和平台状态；不能重新生成或恢复初始词。完整提示词 prompts/r2/P19.txt。"
   },
   {
     "id": "P20",
     "title": "持续监控设置",
     "active": "线索采集",
-    "brief": "P06 持续监控模式：每日时刻/间隔、时区、执行窗口、设备离线处理。完整提示词见 prompts/P20.txt。"
+    "brief": "R2：同一AI可编辑搜索条件组件用于持续监控，重新生成保留人工词和日程设置。完整提示词 prompts/r2/P20.txt。"
   }
 ]

@@ -38,7 +38,7 @@ document.addEventListener("keydown",event=>{
 });
 fetch("manifest.json").then(response=>{if(!response.ok)throw new Error("manifest unavailable");return response.json();}).then(data=>{
   state.pages=data.pages;
-  el("summary").textContent="R1 · "+state.pages.length+" 页 · 等待你的确认";
+  el("summary").textContent=data.display_version+" · "+state.pages.length+" 页 · 等待你的确认";
   for(const [index,page]of state.pages.entries()){
     const nav=document.createElement("button");nav.type="button";nav.textContent=page.id+" · "+page.title;nav.addEventListener("click",()=>show(index));el("pages").append(nav);
     const tile=document.createElement("button");tile.type="button";tile.className="thumbnail";tile.addEventListener("click",()=>show(index));

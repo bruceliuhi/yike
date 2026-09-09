@@ -1,0 +1,29 @@
+Use case: precise-object-edit.
+Asset type: one complete high-fidelity Chinese desktop UI, 意客AI P20 R2 持续监控设置.
+Primary request: edit image 1 to show automatically suggested, freely editable search conditions while retaining the complete continuous-monitoring schedule. This is a refinement of the existing screen, not a redesign.
+
+Input images: image 1 is the exact P20 EDIT TARGET; image 2 is the exact blue Y Logo to preserve; image 3 is P06 for shared shell/component style ONLY. Do not copy P06's single-run selection or its long explanatory paragraphs. Preserve image 1's full desktop aspect ratio, blue/white style, wordmark, eight navigation entries, active 线索采集, breadcrumb 线索采集 / 新建任务, title 新建获客任务, V0.2 设计预览 label, step 1 任务条件 active / 2 平台连接 / 3 确认启动, left form and right connection-status column. One complete screen, no collage or cropped controls.
+
+Change the following content precisely:
+1. Task name remains 展台需求监控. Business-profile dropdown is populated with 展台设计搭建（示例画像） and a compact v1 version label. This is only an example, not a confirmed real customer profile. Replace duplicate configuration tags with one quiet identity line AI 建议示例 · 未启动.
+2. The 搜索条件 section heading has a small AI 建议 tag beside it. Right-aligned text-only action 重新生成; no filled secondary primary button and no magic-star decoration.
+3. Under 搜索关键词 show exactly EIGHT individual editable/removable chips, with a small x per chip, exact text:
+找展台搭建
+求展台设计
+展台搭建报价
+展位设计预算
+展会布展需求
+展台搭建招标
+展位施工询价
+展台搭建推荐
+Arrange them in compact, legible wrapped rows inside a unified input field. Include a visible + 添加 inline control. No duplicates, no missing keyword, no substitute phrases.
+4. 排除词 has exactly FOUR individual editable/removable chips 招聘 / 求职 / 培训 / 招生, with x icons and visible + 添加.
+5. Beneath the search-condition group add only one short helper: 根据业务画像建议，可自由修改. Do not put explanatory prose beneath each field.
+6. Keep all five platform checkboxes checked: 小红书 / 抖音 / B站 / 知乎 / 公开网站. Keep 来源范围 with 关键词搜索 selected and 指定内容链接 unselected.
+7. PRESERVE THE ENTIRE SCHEDULE visibly on this same screen: 运行设置; 运行方式 with 单次采集 unselected and 持续监控 selected; 运行频率 每日 selected and 每隔 unselected with compact interval controls; two separate editable time-picker rows 09:00 and 15:00 each with remove icon; + 添加时间 text action; 时区 dropdown Asia/Shanghai（北京时间）; the one-line reminder 本机离线时，恢复在线后按计划继续. The time controls are editable example values, never a hard-coded daily-twice product limitation. Do not omit, hide, collapse, crop or push the schedule below the frame.
+8. Right sidebar retains simple 平台连接状态 table: 小红书 未连接, 抖音 未连接, B站 未连接, 知乎 未连接; 公开网站 无需账号 and a short secondary 范围待确认 label. Under the table one helper 请在下一步完成平台连接. No connected accounts, success badges, fake QR, statistics, runs or outcomes.
+9. Preserve footer secondary 保存草稿 and primary 下一步：连接平台 at bottom right.
+
+Layout constraints: keep natural approximately 1487x1058 desktop canvas. Make room for the eight keyword chips by tightening repeated section gaps and unused vertical whitespace, not by making text tiny or removing schedule controls. Body text approximately 14px at 1440 desktop scale, control height34–36px, radius6px. Basic task/profile fields may share one compact row with persistent labels; profile content must be readable. Search chips can use two or three tight rows. Use consistent gutters, thin dividers, alignment, quiet whitespace and system Chinese sans serif. No decorative cards, shadows, conversation panels, long subtitles, extra explanations or gradients.
+
+Data and behavior boundary: this image shows AI suggestions as an explicit design example only. Do not claim an actual AI service has run, a profile was really confirmed, or any platform is supported/connected/collecting. No revenue, precision, conversions, new-lead counts or actual account identities. No internal engine names, Skill, credentials, database or implementation details. Preserve full-screen visual cohesion and all key controls.
