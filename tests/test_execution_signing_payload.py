@@ -78,10 +78,10 @@ def test_target_order_and_request_id_each_change_complete_request_digest():
     )
     original = ExecutionOperation.model_validate(start_body(targets=(first_target, second_target)))
     reordered = ExecutionOperation.model_validate(start_body(
-        request_id=original.request_id, targets=(second_target, first_target)
+        request_id=original.request_id, device_id=original.device_id, targets=(second_target, first_target)
     ))
     new_request = ExecutionOperation.model_validate(start_body(
-        request_id=str(uuid4()), targets=(first_target, second_target)
+        request_id=str(uuid4()), device_id=original.device_id, targets=(first_target, second_target)
     ))
 
     digests = {
