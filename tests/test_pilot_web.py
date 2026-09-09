@@ -117,6 +117,13 @@ def test_unhandled_errors_keep_baseline_security_headers():
     assert response.headers["permissions-policy"] == "camera=(), microphone=(), geolocation=()"
 
 
+def test_api_documentation_is_not_publicly_exposed():
+    client = TestClient(build_app(Store(), auth_secret="test-secret"))
+
+    for path in ("/docs", "/redoc", "/openapi.json"):
+        assert client.get(path).status_code == 404
+
+
 def test_authenticated_user_without_tenant_is_rejected_without_server_error():
     class UnknownUserStore(Store):
         def list_opportunities(self, user_id):

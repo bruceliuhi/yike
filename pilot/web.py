@@ -44,7 +44,12 @@ def _page(title: str, body: str) -> HTMLResponse:
 
 
 def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
-    app = FastAPI(title="意客 AI 客户试用")
+    app = FastAPI(
+        title="意客 AI 客户试用",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
     static_dir = Path(__file__).resolve().parent.parent / "static"
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
     access_logger = logging.getLogger("yike.pilot.access")
