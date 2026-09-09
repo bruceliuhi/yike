@@ -1,0 +1,2 @@
+(node:6850) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.
+(Use `YikeAI --trace-deprecation ...` to show where the warning was created)

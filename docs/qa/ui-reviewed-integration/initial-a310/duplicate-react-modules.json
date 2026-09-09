@@ -1,0 +1,38 @@
+[
+  {
+    "id": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/node_modules/node_modules/react/index.js",
+    "importers": [
+      "/Users/bruce/Developer/work/yike-ai-product-design/desktop/node_modules/@phosphor-icons/react/dist/csr/Acorn.es.js",
+      "/Users/bruce/Developer/work/yike-ai-product-design/desktop/node_modules/@phosphor-icons/react/dist/csr/AddressBook.es.js",
+      "/Users/bruce/Developer/work/yike-ai-product-design/desktop/node_modules/@phosphor-icons/react/dist/csr/AddressBookTabs.es.js"
+    ],
+    "real": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/node_modules/react/index.js",
+    "importerCount": 4541
+  },
+  {
+    "id": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/node_modules/node_modules/react/cjs/react.production.js",
+    "importers": [
+      "/Users/bruce/Developer/work/yike-ai-product-design/desktop/node_modules/node_modules/react/index.js"
+    ],
+    "real": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/node_modules/react/cjs/react.production.js",
+    "importerCount": 1
+  },
+  {
+    "id": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/node_modules/react/index.js",
+    "importers": [
+      "/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/app/App.tsx",
+      "/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/app/context.tsx",
+      "/Users/bruce/Developer/work/yike-ai-product-design/desktop/src/renderer/app/hooks.ts"
+    ],
+    "real": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/node_modules/react/index.js",
+    "importerCount": 53
+  },
+  {
+    "id": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/node_modules/react/cjs/react.production.js",
+    "importers": [
+      "/Users/bruce/Developer/work/yike-ai-product-design/desktop/node_modules/react/index.js"
+    ],
+    "real": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/node_modules/react/cjs/react.production.js",
+    "importerCount": 1
+  }
+]

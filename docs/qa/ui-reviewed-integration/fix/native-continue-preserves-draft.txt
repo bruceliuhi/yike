@@ -1,0 +1,125 @@
+The following is a diff from the previous accessibility tree for Window: "线索采集 / 新建任务 · 意客AI" with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+~					223 container
++						224 标题 新建获客任务, Value: 1
++							225 文本 新建获客任务
++						226 文本 本机草稿 · 未启动
++					227 container 任务步骤
++						228 container
++							229 text 1 任务条件
++						230 text 2 平台连接 3 确认启动
++					231 container
++						232 标题 基本信息, Value: 2
++							233 文本 基本信息
++						234 container 任务名称 *
++							235 container
++								236 text 任务名称  *
++							237 文本栏 (settable) Description: 任务名称, Value: 最终包验收, Placeholder: 给这个任务起一个便于识别的名称
++						238 container 业务画像
++							239 文本 业务画像
++							240 弹出式按钮 Description: 业务画像, Value: 选择业务画像
++							241 文本 选择真实已确认画像，或先保存本机草稿。
++					242 container
++						243 标题 需求类型, Value: 2
++							244 文本 需求类型
++						245 复选框 明确询价, Value: 1
++						246 复选框 方案比较, Value: 1
++						247 复选框 更换供应商, Value: 1
++						248 复选框 业务变化, Value: 0
++						249 文本 业务变化进入观察池，补充采购依据后再复核。
++					250 container
++						251 标题 搜索条件, Value: 2
++							252 文本 搜索条件
++						253 图像
++						254 文本 AI 建议
++						255 按钮 生成建议
++							256 图像
++							257 文本 生成建议
++						258 container 搜索关键词
++							259 文本 搜索关键词
++							260 container 搜索关键词
++								261 按钮 添加
++									262 图像
++									263 文本 添加
++							264 文本 确认画像后自动建议，也可手工添加。
++						265 container 排除词
++							266 文本 排除词
++							267 container 排除词
++								268 按钮 添加
++									269 图像
++									270 文本 添加
++					271 container
++						272 标题 采集范围, Value: 2
++							273 文本 采集范围
++						274 container 选择平台
++							275 文本 选择平台
++							276 container
++								277 复选框 小红书 读取中, Value: 0
++								278 text 小红书 读取失败
++							279 container
++								280 复选框 抖音 读取中, Value: 0
++								281 text 抖音 读取失败
++							282 container
++								283 复选框 B站 读取中, Value: 0
++								284 text B站 读取失败
++							285 container
++								286 复选框 知乎 读取中, Value: 0
++								287 text 知乎 读取失败
++							288 container
++								289 复选框 公开网站 读取中, Value: 0
++								290 text 公开网站 读取失败
++						291 container 来源范围
++							292 文本 来源范围
++							293 单选按钮 关键词搜索, Value: 1
++							294 单选按钮 指定内容链接, Value: 0
++					295 container
++						296 标题 运行设置, Value: 2
++							297 文本 运行设置
++						298 container 运行方式
++							299 文本 运行方式
++							300 单选按钮 单次采集, Value: 1
++							301 单选按钮 持续监控, Value: 0
++					302 container
++						303 container 研究用量
++							304 标题 研究用量, Value: 2
++								305 文本 研究用量
++							306 text 搜贝 预计消耗
++							307 文本 待估算
++							308 按钮 估算用量
++							309 container 本次最多使用
++								310 文本 本次最多使用
++								311 步进器 (settable, float) Description: 本次最多使用搜贝, Value: 50, Placeholder: 填写上限
++								312 文本 搜贝
++							313 文本 达到上限暂停，扩大范围需再次确认。
++							314 定义列表
++								315 container 已使用
++									316 文本 已使用
++								317 文本 尚未启动
++							318 开合三角标记 高级设置 来源、时长与调用上限
++								319 文本 高级设置
++								320 文本 来源、时长与调用上限
++							321 标题 补证顺序, Value: 3
++								322 图像
++								323 文本 补证顺序
++							324 内容列表
++								325 container
++									326 text 1 原文与发布时间
++								327 container
++									328 text 2 需求依据与目标匹配
++								329 container
++									330 text 3 联系上下文
++							331 标题 停止条件, Value: 3
++								332 文本 停止条件
++							333 图像
++							334 文本 任一用量上限触达即停止继续研究
++							335 文本 证据不足如实显示，搜贝用量不代表商机数量。
++							336 定义列表
++								337 container 计量规则
++									338 文本 计量规则
++								339 文本 待服务确认
++							340 按钮 查看启动确认内容
++						341 文本 客户服务尚未连接；可以先准备本机草稿。
++						342 按钮 保存草稿
++						343 按钮 下一步：连接平台
++					344 container
++						345 text 本机会话草稿保存于  2026/9/10 01:26:23 ；关闭客户端或退出登录会清除。
+The focused UI element is 108 HTML 内容 线索采集 / 新建任务 · 意客AI, URL: yike://app/index.html#/tasks/new

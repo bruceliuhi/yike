@@ -1,0 +1,5 @@
+(node:76517) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.
+(Use `YikeAI --trace-deprecation ...` to show where the warning was created)
+[76517:0910/011204.277554:INFO:CONSOLE:10] " Note that 'script-src' was not explicitly set, so 'default-src' is used as a fallback.", source: yike://app/assets/index-9H26hK5M.js (10)
+[76517:0910/011204.326419:INFO:CONSOLE:9] "TypeError: Cannot read properties of null (reading 'useState')", source: yike://app/assets/index-9H26hK5M.js (9)
+2026-09-10 01:14:46.564 YikeAI[76517:15941177] error messaging the mach port for IMKCFRunLoopWakeUpReliable
