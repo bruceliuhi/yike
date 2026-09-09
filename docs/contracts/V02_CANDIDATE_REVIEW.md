@@ -69,6 +69,14 @@ PROCESSING/SUCCEEDED/FAILED/UNKNOWN分别表示处理、已保存、明确失败
 - 复核：`{kind:"decision",requestId,candidate,receipt}`，receipt保留`action/status/outcome/reviewedBy/reviewedAt/review`及纳入时的`opportunityId`；review为原人工确认字段快照。
 - GET原请求返回保存的原操作响应；当前列表另外提供`historical/currentBindingValid/assessmentStale`。历史核对成功不恢复对新版本的操作权限。
 
+### 05G原确认核验编号补齐（2026-09-10）
+
+从代码`9d9e965`起，**新建**成功决策的`receipt.review.sourceVerificationId`固定返回本次请求经校验的值：INCLUDE为实际使用的核验UUID；EXCLUDE省略或显式传null时返回null，传UUID时保留该值。`candidate.lastReview`内是同一回执。此字段只是原确认快照，不代表当前来源状态或发送授权。
+
+POST同原请求重放、GET原请求、原决策历史列表都保留已持久化结果，不从最新核验重建。旧回执缺此字段仍缺，不迁移、不补写；客户端须按旧版本只读核对，不能把旧字段缺失视为新INCLUDE完整确认已匹配。同requestId改核验ID返回409 `request_conflict`。请求指纹仍使用原载荷，不把EXCLUDE的“省略”与“显式null”改成同一请求。
+
+本次无SQL、授权或默认能力改动；[回归和审核记录](../qa/V02_CANDIDATE_ASSESSMENT_REVIEW.md#05g原确认回执补齐2026-09-10)单独记录，Win实际消费另验。
+
 所有5xx、断线或不可识别响应都不能直接归类为“未执行”或`REVIEW_REJECTED`，先查询原requestId。来源核验和人工复核同样遵守这一规则。
 
 ## 接收前必须补齐
