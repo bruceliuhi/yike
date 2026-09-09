@@ -73,4 +73,12 @@ beaae21fd30e4d679174dc3a4e66723eea736cfde70aa6f51fc4fc51a87cfc96  desktop/src/re
 699b58bfc3cd17b9d4c8bc03a60e0781dda068ad81fdd6a2bc0420dcccd2b41e  desktop/tests/integration/opportunity-evidence-live.test.ts
 ```
 
+## 并发主线整合后的最终验证
+
+本片代码候选 `c7ebb6b` 首次正常推送因 Mac 并发推进 main 被拒绝；没有强推，获取 `a08751d` 后正常合并为 **`52ed3e7a2949f8d4a09c5b685833795b261086ad`**，保留双方任务书及 Mac 回复入口/模板/工作台隔离。已审 05E 生产字节没有变化；非作者限定兼容审核 PASS。新 `FollowupEditor` 读取普通机会详情，与完整证据合同兼容。
+
+集成首跑的真实失败保留：新 `tests/visual/followup.test.ts` 仍将普通详情精确等同省略证据的列表，因详情新增显式 `UNAVAILABLE/NOT_CAPTURED` 失败；另有一次 worker-forks 异常退出，原因为何未证实，整轮 **363 passed / 1 failed / 1 worker error** 不计通过。只把该测试期望改为含显式证据的完整详情，列表等值和 NOT_FOUND 反例不放宽；隔离 **15/15** 通过、非作者适配审核 PASS，测试最终 SHA-256 `ad060b1065adaaf3a5ca5fc61754a24fa8a91b0dc4df9fc27e291ea6e189a033`。没有修改生产代码或忽略异常。
+
+完整重跑上文桌面集合，加 `tests/ui/followup tests/ui/task-template-research.test.tsx tests/ui/workbench-queue-scope.test.tsx --maxWorkers=4`：**30 文件 / 372 passed / 0 skipped / 0 worker errors，21.62s，进程 exit 0**。随后类型检查 exit 0，真实生产入口构建 **4775 transformed / 4774 graph**、TEST/fixture引用0、failures空；凭据扫描通过。此最终集成批次与此前269/150/31重叠，不累加；Mac新回复选择器的实际可见验收仍保持原未完成边界，旧P11截图不冒充新包全页验收。
+
 真实平台来源、P07 原始候选/独立核验及完整 05G、真实模型效果、确认收发、Windows 发行和客户试用仍需接续。Mac 正常 CLI 装配/最小签名载荷接口保持原所有权；Win 接续设备 HTTP 与候选消费。05E/PH-F06 父项和整体 Goal 继续，原文证据、多找类似、短句建联均不后排到 V1.1。

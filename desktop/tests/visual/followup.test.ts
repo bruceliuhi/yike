@@ -97,7 +97,10 @@ it("provides an exact TEST opportunity and separate matched/unmatched replies wi
   service.followup = makeVisualFollowup({ emptyManual: true });
   expect((await service.session()).authenticated).toBe(true);
   expect(await service.opportunities()).toEqual([opportunity]);
-  expect(await service.opportunity(opportunity.id)).toEqual(opportunity);
+  expect(await service.opportunity(opportunity.id)).toEqual({
+    ...opportunity,
+    sourceEvidence: { status: "UNAVAILABLE", reason: "NOT_CAPTURED" },
+  });
   await expect(service.opportunity("TEST-missing")).rejects.toMatchObject({ code: "NOT_FOUND" });
   expect(readSnapshot(await service.followup.list()).records).toEqual([]);
   const matched = readReplies(await service.followup.replies(opportunity.id), opportunity.id);
