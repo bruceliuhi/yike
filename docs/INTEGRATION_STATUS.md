@@ -144,6 +144,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 回复事件持久层候选：新增 118 迁移、`pilot/reply_store.py`、受限授权脚本并注册迁移，支持平台回复先核对原触达确认快照，再做去重、同事件已读 revision、人工跟进隔离和不可变 RLS 表。回复/触达合跑 **32 passed**。本轮未执行 PostgreSQL 实例、并发/RLS/回滚或真实平台回流，服务仍需重验业务事实与纠正目标；V02-08继续 `IN_PROGRESS`，不可写成回复已同步或上线。
 
+2026-09-10 Mac/Win 正常合并同步：Mac 分支先完成 `5c0065d` 合并，随后正常吸收远端 Win 候选审核客户端提交 `c4fdf01`（当前合并提交以本地 HEAD 为准），新增候选审核证据保留与恢复契约、客户端测试和 QA 记录。合并后桌面完整回归 **1337 passed / 26 skipped（113 files，3 skipped）**，Python 触达/回复合同与持久层 **32 passed**，`git diff --check` 通过。该证据仅覆盖本地代码回归，不代表 Windows 实机安装、真实平台采集/发送、生产部署或客户 UAT。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
