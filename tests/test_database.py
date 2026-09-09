@@ -16,6 +16,9 @@ from app.repository import (
 from tests.support import collect_verified_signal
 
 
+pytestmark = pytest.mark.usefixtures("discovery_clock")
+
+
 VALID_DIMENSIONS_JSON = (
     '{"action_intent":2,"business_team_context":2,"buying_signal":1,'
     '"contact_context":0,"evidence_completeness":1,"offer_fit":2}'

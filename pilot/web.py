@@ -8,7 +8,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from urllib.parse import urlsplit
 import logging
-from pilot.auth import InvalidPilotToken, verify_token
+from pilot.auth import InvalidPilotToken
+from pilot.sessions import authenticate_session
 
 _MAX_PROFILE_DESCRIPTION = 8_000
 _SECURITY_HEADERS = {
@@ -118,7 +119,7 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
         if not token:
             raise HTTPException(status_code=401, detail="Bearer pilot token is required")
         try:
-            return verify_token(token, auth_secret)
+            return authenticate_session(store, token, auth_secret).user_id
         except InvalidPilotToken as error:
             raise HTTPException(status_code=401, detail="invalid pilot token") from error
 
@@ -131,7 +132,7 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
         if not dev_login or request.client is None or request.client.host not in ("127.0.0.1", "::1", "testclient"):
             raise HTTPException(status_code=404, detail="not found")
         try:
-            verify_token(token, auth_secret)
+            authenticate_session(store, token, auth_secret)
         except InvalidPilotToken as error:
             raise HTTPException(status_code=401, detail="invalid pilot token") from error
         response = RedirectResponse("/profile", status_code=303)
@@ -150,7 +151,7 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
         if not dev_login and scheme != "https":
             raise HTTPException(status_code=400, detail="session exchange requires HTTPS")
         try:
-            verify_token(token, auth_secret)
+            authenticate_session(store, token, auth_secret)
         except InvalidPilotToken as error:
             raise HTTPException(status_code=401, detail="invalid pilot token") from error
         response = RedirectResponse("/profile", status_code=303)
