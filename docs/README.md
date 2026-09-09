@@ -13,6 +13,7 @@
 | 3 | [多平台 Skill 方案](V02_MULTIPLATFORM_SKILL_PLAN.md) 与 [设计入口](../design/README.md) | 技术与视觉规范，不能改变上层功能范围 |
 | 4 | [V1 版本映射](V1_VERSION_MAPPING.md) | V1.0/V1.1 边界、六组增量与 V02 工程任务映射；不维护进度 |
 | 5 | [V1.0 / V02 实施任务书](V02_IMPLEMENTATION_TASKBOOK.md) | 唯一的当前实施状态台账；记录下一步、依赖、实现提交和验收证据 |
+| 6 | [客户试用计划](CUSTOMER_PILOT_PLAN.md)、现有运行手册与历史审核 | 说明已有实现及受控运行路径，不覆盖上层目标与实施状态 |
 
 产品计划的 V02 编号是任务定义，MP 编号是其多平台子项；[双 AI 任务板](DUAL_AGENT_TASKBOARD.md)定义 V02 小卡、建议主责、具体依赖与验收命令，不单独维护状态。实际认领、候选/集成 SHA、reviewer 与接收 ACK 只更新实施任务书，不维护两套完成状态。
 
