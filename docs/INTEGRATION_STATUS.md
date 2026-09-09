@@ -166,6 +166,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 设备凭据授权收口：进一步补充受限角色更新 `pilot_platform_connections`、写入 `pilot_session_revocations` 的最小权限；独立 `tests/test_device_credentials_postgres.py` 在一次性 PostgreSQL 上 **28 passed**。设备挑战、签名、轮换、撤销、并发和 HTTP 安全路径通过；该结果不替代生产部署、真实平台连接或客户 UAT。
 
+2026-09-10 设备登记恢复独立 PostgreSQL 验证：沿用受限身份角色和登记授权脚本，核心登记套件 **7 passed**，HTTP 登记恢复/严格输入/权限套件 **22 passed**。覆盖原 request_id 恢复、幂等冲突、撤销/过期、owner 隔离、HTTPS/Origin 和 no-store；不代表平台账号已连接或 Windows 实机验收完成。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
