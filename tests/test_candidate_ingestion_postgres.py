@@ -2,6 +2,7 @@
 import copy
 import importlib.util
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
@@ -269,3 +270,71 @@ def test_parent_only_version_change_and_execution_snapshot_survive_reclaim(env):
         assert observation['execution_context'] == value['execution']
         assert observation['profile_version_id'] == value['profile_version_id']
         assert observation['strategy_version_id'] == value['strategy_version_id']
+
+
+class InterposedReadDatabase:
+    """Test-only second-session commit after the first candidate count statement."""
+    def __init__(self, database, after_read):
+        self.database, self.after_read, self.fired = database, after_read, False
+
+    @contextmanager
+    def connect(self):
+        with self.database.connect() as connection:
+            fixture = self
+            class Connection:
+                @contextmanager
+                def cursor(self):
+                    with connection.cursor() as cursor:
+                        class Cursor:
+                            def __getattr__(self, name):
+                                return getattr(cursor, name)
+
+                            def execute(self, query, params=None):
+                                result = cursor.execute(query, params)
+                                if not fixture.fired and 'count(*)' in query and 'pilot_candidate_' in query:
+                                    fixture.fired = True
+                                    fixture.after_read()
+                                return result
+                        yield Cursor()
+            yield Connection()
+
+
+def test_detail_read_snapshot_during_second_session_101st_observation(env):
+    from pilot.candidate_ingestion import CandidateIngestionStore
+    store = service(env)
+    change_strategy(env, max_records=110)
+    begun, lease = claimed(env)
+    for _ in range(100):
+        first = submit(env, store, payload(env, begun, lease))
+    candidate_id = first['items'][0]['candidate_id']
+    new_value = payload(env, begun, lease)
+    new_value['records'][0].update(body='second-session-new-content', observed_at='2026-01-01T00:00:01Z')
+    other = verify_token_claims(issue_token(env.users[0], SECRET), SECRET)
+    assert other.revocation_key != env.claims.revocation_key
+    interposed = InterposedReadDatabase(env.db, lambda: submit(env, store, new_value, other))
+    detail = CandidateIngestionStore(interposed).get_candidate(env.claims, candidate_id)
+    assert interposed.fired
+    observations = detail['observations']
+    newest = observations['items'][0]
+    assert detail['candidate']['current_version']['version_id'] == newest['version_id']
+    # A coherent earlier snapshot has100 old observations; a later one has101 and truncation.
+    assert observations['total'] == (101 if newest['content']['body'] == 'second-session-new-content' else 100)
+    assert observations['truncated'] == (observations['total'] > 100)
+    assert store.get_candidate(env.claims, candidate_id)['observations']['total'] == 101
+
+
+def test_list_read_snapshot_during_second_session_insert_and_empty_page_total(env):
+    from pilot.candidate_ingestion import CandidateIngestionStore
+    store = service(env)
+    begun, lease = claimed(env)
+    submit(env, store, payload(env, begun, lease))
+    new_value = payload(env, begun, lease)
+    new_value['records'][0]['public_url'] = 'https://example.com/second-source'
+    other = verify_token_claims(issue_token(env.users[0], SECRET), SECRET)
+    assert other.revocation_key != env.claims.revocation_key
+    interposed = InterposedReadDatabase(env.db, lambda: submit(env, store, new_value, other))
+    result = CandidateIngestionStore(interposed).list_candidates(env.claims)
+    assert interposed.fired
+    assert result['total'] == len(result['items'])
+    assert store.list_candidates(env.claims, page=2)['total'] == 2
+    assert store.list_candidates(env.claims, page=2)['items'] == []

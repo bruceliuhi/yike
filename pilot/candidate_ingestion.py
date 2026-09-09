@@ -166,11 +166,20 @@ class CandidateIngestionStore:
                     USING(tenant_id,owner_user_id,platform_run_id,request_id) WHERE o.tenant_id=p.tenant_id
                     AND o.owner_user_id=p.owner_user_id AND o.candidate_id=p.candidate_id AND b.task_id=%s)'''
                 params.append(task_id)
-            cursor.execute('SELECT count(*) FROM ('+self._projection_sql+where+') q',params)
-            total = cursor.fetchone()[0]
-            cursor.execute(self._projection_sql+where+' ORDER BY p.latest_observed_at DESC,p.candidate_id LIMIT %s OFFSET %s',(*params,page_size,(page-1)*page_size))
-            items = []
-            while (row := _row(cursor)) is not None: items.append(self._projection(row))
+            # One statement snapshot for count and page, including empty pages.
+            # Materialize IDs only; never load every full content body to count.
+            cursor.execute('''WITH matching AS MATERIALIZED (
+                SELECT p.candidate_id,p.latest_observed_at FROM pilot_candidate_projections p
+                JOIN pilot_candidate_sources s USING(tenant_id,owner_user_id,source_id)'''+where+'''),
+                selected AS (SELECT candidate_id FROM matching ORDER BY latest_observed_at DESC,candidate_id LIMIT %s OFFSET %s),
+                page_values AS ('''+self._projection_sql+''' JOIN selected picked ON picked.candidate_id=p.candidate_id
+                    WHERE p.tenant_id=%s AND p.owner_user_id=%s)
+                SELECT (SELECT count(*) FROM matching),
+                    COALESCE((SELECT jsonb_agg(to_jsonb(page_values) ORDER BY latest_observed_at DESC,candidate_id)
+                        FROM page_values),'[]'::jsonb)''',
+                (*params,page_size,(page-1)*page_size,tenant,claims.user_id))
+            total, rows = cursor.fetchone()
+            items = [self._projection(row) for row in rows]
             self._active(cursor,claims)
             return dict(schema_version='candidate-inbox-v1',items=items,page=page,page_size=page_size,total=total)
 
@@ -178,22 +187,25 @@ class CandidateIngestionStore:
         _id(candidate_id)
         with self.database.connect() as connection, connection.cursor() as cursor:
             tenant = self._active(cursor,claims)
-            cursor.execute(self._projection_sql+' WHERE p.tenant_id=%s AND p.owner_user_id=%s AND p.candidate_id=%s', (tenant,claims.user_id,candidate_id))
-            row = _row(cursor)
-            if row is None: raise CandidateIngestionError('candidate_not_found',404)
-            candidate = self._projection(row)
             params = (tenant,claims.user_id,candidate_id)
-            cursor.execute('SELECT count(*) FROM pilot_candidate_observations WHERE tenant_id=%s AND owner_user_id=%s AND candidate_id=%s',params)
-            total = cursor.fetchone()[0]
-            cursor.execute('''SELECT o.observation_id,o.version_id,o.platform_run_id,o.request_id,o.record_index,
+            # Projection, narrow count and bounded history share one MVCC snapshot.
+            # Session checks stay separate/live; no repeatable-read session snapshot.
+            cursor.execute('WITH candidate AS ('+self._projection_sql+''' WHERE p.tenant_id=%s AND p.owner_user_id=%s AND p.candidate_id=%s),
+                total AS (SELECT count(*) AS count FROM pilot_candidate_observations
+                    WHERE tenant_id=%s AND owner_user_id=%s AND candidate_id=%s),
+                history AS (SELECT o.observation_id,o.version_id,o.platform_run_id,o.request_id,o.record_index,
                 o.observed_at,o.received_at,o.query,o.collector_version,o.normalizer_version,b.task_id,b.run_id,
                 b.execution_context,b.platform,b.profile_version_id,b.strategy_version_id,
                 v.content_version,v.content FROM pilot_candidate_observations o JOIN pilot_candidate_batches b
                 USING(tenant_id,owner_user_id,platform_run_id,request_id) JOIN pilot_candidate_versions v
                 USING(tenant_id,owner_user_id,source_id,version_id) WHERE o.tenant_id=%s AND o.owner_user_id=%s
-                AND o.candidate_id=%s ORDER BY o.observed_at DESC,o.received_at DESC,o.observation_id LIMIT 100''',params)
-            observations = []
-            while (row := _row(cursor)) is not None: observations.append(_primitive(row))
+                AND o.candidate_id=%s ORDER BY o.observed_at DESC,o.received_at DESC,o.observation_id LIMIT 100)
+                SELECT (SELECT to_jsonb(candidate) FROM candidate),(SELECT count FROM total),
+                    COALESCE((SELECT jsonb_agg(to_jsonb(history) ORDER BY observed_at DESC,received_at DESC,observation_id)
+                        FROM history),'[]'::jsonb)''',params*3)
+            row, total, observations = cursor.fetchone()
             self._active(cursor,claims)
+            if row is None: raise CandidateIngestionError('candidate_not_found',404)
+            candidate = self._projection(row)
             return dict(schema_version='candidate-inbox-v1',candidate=candidate,
                 observations=dict(items=observations,total=total,truncated=total>100,page_size=100))
