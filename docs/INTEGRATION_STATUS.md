@@ -146,6 +146,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 Mac/Win 正常合并同步：Mac 分支先完成 `5c0065d` 合并，随后正常吸收远端 Win 候选审核客户端提交 `c4fdf01`（当前合并提交以本地 HEAD 为准），新增候选审核证据保留与恢复契约、客户端测试和 QA 记录。合并后桌面完整回归 **1337 passed / 26 skipped（113 files，3 skipped）**，Python 触达/回复合同与持久层 **32 passed**，`git diff --check` 通过。该证据仅覆盖本地代码回归，不代表 Windows 实机安装、真实平台采集/发送、生产部署或客户 UAT。
 
+2026-09-10 CP-06 环境复核：`scripts/check.sh` 全量 **2108 passed / 485 skipped**，`scripts/secret_scan.sh` clean，MediaCrawler 打包/采集专项 **69 passed**。`scripts/cp06_validate_env.sh` 在当前工作区明确拒绝非 PostgreSQL 数据库 URL（`cp06-preflight: database URL must use PostgreSQL`）；当前没有可用 PostgreSQL 实例证据，因此 RLS、并发、回滚和生产部署门禁仍未完成，不能将本地回归升级为生产就绪。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
