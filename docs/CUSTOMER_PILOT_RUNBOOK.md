@@ -28,7 +28,7 @@ uv run --frozen yike-pilot-web
 
 ## 受信 provisioning
 
-`PilotStore.provision_tenant` 和 `provision_user` 只允许管理员脚本调用。它们不得暴露为客户 HTTP 路由。管理员生成用户后，用 `pilot.auth.issue_token()` 签发短期令牌；令牌只通过 HTTPS 或本机安全渠道交给用户。
+`PilotStore.provision_tenant` 和 `provision_user` 只允许管理员脚本调用。它们不得暴露为客户 HTTP 路由。生产 provisioning/migration 必须使用独立的数据库 owner/管理员连接；Web 应用角色不能读取 `pilot_tenants` 目录，也不能创建租户。管理员生成用户后，用 `pilot.auth.issue_token()` 签发短期令牌；令牌只通过 HTTPS 或本机安全渠道交给用户。
 
 可使用受信 CLI（仅在管理员终端执行）完成同样流程：
 

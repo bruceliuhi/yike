@@ -16,6 +16,7 @@ class PilotDatabase:
     migration_paths = (
         ("customer-pilot-v1", migration_path),
         ("customer-pilot-v2", migration_path.with_name("102_customer_pilot_evidence.sql")),
+        ("customer-pilot-v3", migration_path.with_name("103_customer_pilot_tenant_rls.sql")),
     )
 
     def __init__(self, url: str):

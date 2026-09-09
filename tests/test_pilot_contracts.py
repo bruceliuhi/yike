@@ -9,11 +9,11 @@ from pilot.db import PilotDatabase, MissingDatabaseConfiguration
 from pilot.store import PilotStore
 
 
-MIGRATION = Path(__file__).parents[1] / "migrations" / "101_customer_pilot.sql"
+MIGRATIONS = tuple(Path(__file__).parents[1].glob("migrations/10*_customer_pilot*.sql"))
 
 
 def test_migration_declares_tenant_scope_and_profile_history():
-    sql = MIGRATION.read_text(encoding="utf-8")
+    sql = "\n".join(path.read_text(encoding="utf-8") for path in MIGRATIONS)
     for marker in (
         "CREATE TABLE IF NOT EXISTS pilot_tenants",
         "CREATE TABLE IF NOT EXISTS business_profile_versions",
@@ -22,6 +22,9 @@ def test_migration_declares_tenant_scope_and_profile_history():
         "CREATE TABLE IF NOT EXISTS pilot_source_observations",
         "tenant_id TEXT NOT NULL",
         "ENABLE ROW LEVEL SECURITY",
+        "ALTER TABLE pilot_tenants ENABLE ROW LEVEL SECURITY",
+        "ALTER TABLE pilot_tenants FORCE ROW LEVEL SECURITY",
+        "CREATE POLICY pilot_tenant_identity",
         "import_key TEXT NOT NULL",
         "pilot_source_versions_tenant_source_version_key",
         "pilot_source_observations_tenant_source_version_fkey",
@@ -68,10 +71,13 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
             cursor.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO pilot_app")
     database = PilotDatabase(url.replace('pilot:pilot@', 'pilot_app:pilot_app@'))
     store = PilotStore(database)
-    first = store.provision_tenant("alpha")
-    second = store.provision_tenant("beta")
-    first_user = store.provision_user(first, "alpha@example.invalid")
-    second_user = store.provision_user(second, "beta@example.invalid")
+    # Tenant and user provisioning is trusted-admin work; the application role
+    # is intentionally unable to enumerate or create tenant-directory rows.
+    admin_store = PilotStore(admin_database)
+    first = admin_store.provision_tenant("alpha")
+    second = admin_store.provision_tenant("beta")
+    first_user = admin_store.provision_user(first, "alpha@example.invalid")
+    second_user = admin_store.provision_user(second, "beta@example.invalid")
     profile = store.save_profile(first_user, {"service": "展台设计搭建", "region": "北京"})
     assert store.get_profile_version(first_user, profile["version_id"])["status"] == "DRAFT"
     repeated_profile = store.save_profile(first_user, {"service": "展台设计搭建", "region": "北京"})
