@@ -65,3 +65,18 @@ uv run --frozen pytest -q tests/test_pilot_runtime_http_postgres.py tests/test_c
 非作者 `normal_runtime_task_review` 对 `4101379..bc6a5b6` 四文件审查：**规格符合 / 质量批准，Critical、Important、Minor 均0项**。核对同实例接线、配置原值/安全错误以及既有模型调用入口；未复跑实现者262项，不能把该数字称为审核者实跑。
 
 审核要求由根代理补充真实PG/HTTP、只读不调用模型与角色边界：本页根代理9项及最后2项给出相应普通入口证据；真实部署角色/来源/收发仍未验收，明确不纳入本片完成声明。整片代码/架构/质量终审与远端推送尚待另外记录。
+
+## 整片终审发现：容器缺少规则资源
+
+`normal_runtime_final_review` 对精确 `a9d18db..ebd51e1` 完整增量给出 **REQUEST_CHANGES：0 Critical、1 Important/P1、0 Minor**。根代理补查 Docker 布局提出风险，独立审核者确认：现有镜像 `uv sync --no-install-project`，只复制 pilot/migrations/static；既没有 wheel 带入的 `pilot/_assessment_rules`，也没有源目录规则。新装配配置模型后，构造即读取规则，因此源码链可通过但此镜像启动会失败。
+
+该结论不是重复源代码测试能消除的。按计划补充限定修正：镜像只加入已有两份版本化规则；用隔离的真实 COPY 布局执行普通启动与规则摘要比对。没有修改规则内容、模型行为或扩大来源权限；修复和差量复审前不放行本片。未执行实际 Docker 构建、Linux 镜像运行或生产部署。
+
+修复为 `68bec6c`，测试隔离加固 `e550f6165f39489bc6a2dd9f2e4ff9001d25ab51`。只有两条 Docker COPY 和一份新测试；模型、runtime、SQL、规则内容、依赖和桌面不变。测试按 Docker 的实际字面 COPY 声明复制到临时目录，独立 Python 进程限定并断言从该目录导入 CLI，真实执行 `web()` 构造、捕获交给 Uvicorn 的 FastAPI；版本/摘要必须等于原规则。禁止 socket/数据库连接，仅用合成配置，不能退回开发仓库掩盖缺文件。
+
+- RED：**1 failed / 0.51s**，隔离目录实际普通启动抛出 `invalid_assessment_configuration`。
+- 增加两条 COPY 后：**1 passed / 0.51s**；补进口来源断言/无外连保护后最终 **1 passed / 0.52s**。
+- 最终限定覆盖 `uv run --frozen pytest -q tests/test_pilot_runtime_container_layout.py tests/test_deploy_contracts.py tests/test_pilot_runtime.py`：**18 passed / 0.70s / 0 skipped**。
+- 根代理对冻结 `e550f61` 单独执行布局测试：**1 passed / 0.53s**，凭据扫描 clean、增量格式检查通过。没有重跑未改业务的PG或客户端。
+
+这些集合重叠，不相加。证明的是宿主 Python 下的 Docker 声明文件布局和正常模型构造，不是实际 Linux 容器、生产用户权限或外部服务验收。P1是否关闭以随后独立差量复审为准。

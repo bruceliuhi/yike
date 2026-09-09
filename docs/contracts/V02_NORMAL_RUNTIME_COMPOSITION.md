@@ -26,6 +26,8 @@ Web 使用同一个应用数据库构造 `PilotStore`、`ResearchStrategyStore`�
 
 先由独立受信发布作业运行当前迁移及最小授权，再启动 Web；Web 不迁移、不 grant、不调用管理员连接 factory。沿用 [部署手册](../../deploy/README.md) 和现有身份/连接授权；执行、原始候选、复核、策略、证据分别需要 `grant_execution_runtime.sql`、`grant_candidate_ingestion.sql`、`grant_candidate_review.sql`、`grant_research_strategies.sql`、`grant_opportunity_evidence.sql`。
 
+容器必须带入已有 `SKILL.md` 和 `qualification-and-evidence.md` 两份固定规则，位置与 wheel 的 `pilot/_assessment_rules/` 布局一致；Dockerfile显式复制这两份内容，不依赖完整开发仓库或运行时联网补文件。配置模型的源码启动、发行布局加载、实际Linux镜像与生产部署是不同验收层次。
+
 非空 `YIKE_PILOT_ADMIN_DATABASE_URL` 被普通装配入口拒绝。该检查只阻止误带管理员环境，不验证 `YIKE_PILOT_DATABASE_URL` 实际指向的角色；非超级用户、非 owner、RLS、最小 ACL 及迁移状态仍须在部署环境核验。`/readyz` 只检查数据库连通，不能当作权限、模型或来源就绪证明。
 
 ## 仍未接通的能力
