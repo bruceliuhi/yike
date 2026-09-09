@@ -8,6 +8,8 @@
 
 ## 1. 当前基线与推进原则
 
+2026-09-10 CodexiMac认领02B候选签名字节接续（base `bbe2e20`）：按[最小计划](superpowers/plans/2026-09-10-candidate-submission-signing.md)，补普通客户端当前会话绑定的上传准备入口；复用完整batch、4 MiB有界解析、原候选签名域，不加新表或授权框架，不改变原键恢复和正式上传护栏。Win保留设备HTTP/worker/05G，Mac只接后端与真实HTTP/PG。基线179项通过，新接口真实ASGI/PG已取得404 RED；尚未交付或取得Win消费ACK，整体Goal继续。
+
 2026-09-10 最新整合候选`cfaf4fd`已保留Mac执行签名准备、回复入口与Win05E固定原文展示；独立合并兼容性**PASS，0项未关闭发现**。Mac实际接收8文件176项/类型检查及产品Node客户端→socket HTTP→受限PG1项通过，各集合单独记于[QA](qa/V02_EXECUTION_SIGNING_PAYLOAD.md)。05F五字段接口已具备工程接入条件；Win接续设备HTTP/05G候选，Mac接真实来源服务协同与原确认收发/回复，不重复已交付原文组件。合成来源不证明真实线索已进产品，父项与Goal继续；以下历史候选不重置这次进度。
 
 2026-09-10 05F服务端接线终审收口：完整`eb507bf..9fc197c`独立规格/代码/架构/质量**PASS，0项未关闭发现**。原摘要测试变量混杂Minor已用两行测试修正关闭，6项纯测试通过，生产源码仍精确等于`7d8f657`；未重复PG或桌面套件。[QA](qa/V02_EXECUTION_SIGNING_PAYLOAD.md)保留原始失败与审核过程。下段候选/待审为此前时点；Win消费及真实来源/发送/客户UAT没有因此完成，父卡与Goal保持进行中。
