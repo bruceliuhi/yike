@@ -202,8 +202,20 @@ export const service: YikeService = {
   logout: async () => {
     await request("session.logout", "/session", "DELETE");
   },
-  requestCode: async () => unavailable("短信验证码服务"),
-  login: async () => unavailable("手机号登录服务"),
+  requestCode: async (phone) => {
+    const r = await request("session.requestCode", "/auth/sms-code", "POST", {phone});
+    if (typeof r.retry_after !== "number" || !Number.isInteger(r.retry_after) || r.retry_after < 1 || r.retry_after > 300)
+      throw new ServiceError("INVALID_SERVICE_RESPONSE", "验证码服务响应无效，请稍后重试。");
+    return {retryAfter: r.retry_after};
+  },
+  login: async (phone, code, trial) => {
+    const r = await request("session.loginPhone", "/auth/sms-session", "POST", {
+      phone, code, ...(trial === undefined ? {} : {trial_code: trial}),
+    });
+    if (r.authenticated !== true || typeof r.user_id !== "string" || !r.user_id.trim())
+      throw new ServiceError("INVALID_SERVICE_RESPONSE", "登录状态尚未核实，请稍后重试。");
+    return {authenticated: true, userId: r.user_id};
+  },
   profiles: async () =>
     list((await request("profiles.list", "/profiles")).items).map(mapProfile),
   saveProfile: async (fields) => {
