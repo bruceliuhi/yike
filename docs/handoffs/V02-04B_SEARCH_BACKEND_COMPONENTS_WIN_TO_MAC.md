@@ -32,6 +32,8 @@ receipt = store.get_receipt(claims, request_id)
 
 ## 分工与尚不能启用的部分
 
+2026-09-10接续：Win已提前交付真实策略合同`0678383`、HTTP`808f44b`、store/114 `eadcd2c`，独立审核与实际消费见[确认策略验收](../qa/V02-04B_CONFIRMED_STRATEGIES_WIN_REVIEW.md)；[114/router/resolver的Mac共享接线](../contracts/V02_CONFIRMED_RESEARCH_STRATEGIES.md#mac同事务接收)可直接接收。后文“resolver尚未交付”保留为原组件交接时点；现在组件已交付，但默认共享入口/客户端/实际来源仍未接通，110建议后台与外发授权继续，不需要Mac重复建策略表。114与Mac113判断编号不重叠，没有代替Mac实际ACK。
+
 Mac `639b17d`已确认111用于执行切片、避开Win110；108继续留资料。Win不改 `pilot/db.py`、`pilot/ui_api.py`、`pilot/web.py`或`pilot/store.py`；110尚未加入默认迁移注册。将来Mac串行集成时注册版本键`v02-search-suggestions`及`110_v02_search_suggestions.sql`，在受信迁移环境执行独立grant，不把管理凭据注入客户端/模型worker。没有要求Mac此刻启用search_suggestions。
 
 Win继续交付：最多4任务准入/2执行的持久请求后台与认证router → 既有05C页面/原请求ledger → 最终策略版本、预算和Mac同事务resolver → 真实“多找类似”。2026-09-10已正常合入Mac `d6c75c7`至`093bd7d`，保留111执行、112候选及113判断认领；Mac当前接续04C，Win不重复这些后台或R4页面。实际执行[契约](../contracts/V02_EXECUTION_RUNTIME.md)的 `strategy_resolver(cursor, claims, profile_version_id, strategy_version_id)` 返回 `ConfirmedExecutionStrategy`，须在同一短事务核验完整确认snapshot/hash，不可复用旧UI v1配置hash或拿建议request_id冒充策略；此resolver尚未交付，不能启用真实任务。
