@@ -75,11 +75,11 @@ Cancellation stop_confirmed=true is permitted only when every platform execution
 10. `get_receipt`/`get_task` active session+owner reads, including same-tenant otheruserdenied; absent404, no sensitive output. Receipt distinguishes historical operation result from live task state. Mutation replay cannot perform fresh effects.
 11. Four new tables: `pilot_collection_tasks`, `pilot_collection_runs`, `pilot_collection_platform_runs`, `pilot_execution_operations`. Composite tenant/owner/task/run/platform/device/profile/connectionFKs; uniqueplatformperrun and(tenant,owner,request_id); strictstatus/generation/budgetchecks. Immutable config/receipt enforced; FORCE RLS with tenant+user scope; explicit restrictedappgrants SELECT/INSERT and only neededUPDATE, noDELETE/owner/admin privileges. Schema/grantrepeatable, historicalmigrationsunchanged.
 
-- [ ] Write focused contract and real restrictedPG tests first. Initial RED may be missingnewmodule; subsequent REDs exercise missing behavior. Example aftersyntheticfixture binds realkey/profile/database-onlyteststrategy: `first=runtime.apply(claims,start,signed_start); assert runtime.apply(claims,start,signed_start)==first; assert row_count('pilot_collection_tasks')==1`. Alter same requestbody then assert stableconflict and unchangedrowcount.
-- [ ] Implement minimal modules/schema/grants. Cover strictinput, signaturetampering, sessionexpiry/revoke, tenant/same-tenantowner, missing/unconfirmedstrategy/profile, falsecapability, START/CLAIM/RENEW/CANCEL replays, concurrency on originalrequest, leaseexpiredtakeover, stalegeneration/key/connection, canceledsubmission, budget and sameTXrollback. Bounded barriers for lockwaitexpiry/cancelrace, no longsleep/highcountloops.
-- [ ] Validate real02A batches/Ed25519 proofs against restrictedPG guard. Strategy/capability fixture explicitly synthetic and database-only; never ship it as productionresolver. Include negativeapppermissions and liveDBclockafterwait tests.
-- [ ] Run `uv run --frozen pytest -q tests/test_execution_contract.py tests/test_execution_runtime_postgres.py` using dedicatedidentityPG DSNs, plus affected session/device/connection/candidate tests once. No parallelPGfixtures or repeats fordocsedits.
-- [ ] Commit ownedfiles; report exactRED/GREEN/SHA/limits and unresolvedproductiondependencies. Independent taskreview and finalreview.
+- [x] Write focused contract and real restrictedPG tests first. Initial RED may be missingnewmodule; subsequent REDs exercise missing behavior. Example aftersyntheticfixture binds realkey/profile/database-onlyteststrategy: `first=runtime.apply(claims,start,signed_start); assert runtime.apply(claims,start,signed_start)==first; assert row_count('pilot_collection_tasks')==1`. Alter same requestbody then assert stableconflict and unchangedrowcount.
+- [x] Implement minimal modules/schema/grants. Cover strictinput, signaturetampering, sessionexpiry/revoke, tenant/same-tenantowner, missing/unconfirmedstrategy/profile, falsecapability, START/CLAIM/RENEW/CANCEL replays, concurrency on originalrequest, leaseexpiredtakeover, stalegeneration/key/connection, canceledsubmission, budget and sameTXrollback. Bounded barriers for lockwaitexpiry/cancelrace, no longsleep/highcountloops.
+- [x] Validate real02A batches/Ed25519 proofs against restrictedPG guard. Strategy/capability fixture explicitly synthetic and database-only; never ship it as productionresolver. Include negativeapppermissions and liveDBclockafterwait tests.
+- [x] Run `uv run --frozen pytest -q tests/test_execution_contract.py tests/test_execution_runtime_postgres.py` using dedicatedidentityPG DSNs, plus affected session/device/connection/candidate tests once. No parallelPGfixtures or repeats fordocsedits.
+- [x] Commit ownedfiles; report exactRED/GREEN/SHA/limits and unresolvedproductiondependencies. Independent taskreview and finalreview.
 
 ## Task 2: HTTPS transport and handoff
 
@@ -87,9 +87,9 @@ Cancellation stop_confirmed=true is permitted only when every platform execution
 
 **Interfaces:** consume Task1service; `build_app(..., execution_runtime=None)` optional. FixedPOST `/api/ui/execution-operations` takes `{request: ExecutionOperation, signature: str}`; GET `/api/ui/execution-operations/{request_id}` and `/api/ui/execution-tasks/{task_id}`. No desktopchanges or generic forwarding.
 
-- [ ] RED defaultserviceabsent501; strict422/noinputecho; authentication401; HTTPS400; foreignOrigin403; stableerrors/no-store; validatedsignature and scopedclaims passedto actualservice.
-- [ ] Implement thinroutes using existingidentity/Origin/HTTPS/sanitizedUiRoute. Absentservicenofakefallback; knownruntimeerrorsstable, unknownsafe500. Keep task_execution=false untilactualstrategy/source/desktopintegration.
-- [ ] Test realTask1service+restrictedPG transport START→CLAIM→CANCEL→originalreceipt. Fixtureproves engineeringroundtrip only, notplatformexecution orcustomerUAT.
+- [x] RED defaultserviceabsent501; strict422/noinputecho; authentication401; HTTPS400; foreignOrigin403; stableerrors/no-store; validatedsignature and scopedclaims passedto actualservice.
+- [x] Implement thinroutes using existingidentity/Origin/HTTPS/sanitizedUiRoute. Absentservicenofakefallback; knownruntimeerrorsstable, unknownsafe500. Keep task_execution=false untilactualstrategy/source/desktopintegration.
+- [x] Test realTask1service+restrictedPG transport START→CLAIM→CANCEL→originalreceipt. Fixtureproves engineeringroundtrip only, notplatformexecution orcustomerUAT.
 - [ ] AffectedAPItests; independentlyreview; normalmerge newmain ifany, exacthandoff andverifiedpush. Do not mark01C/03A/02B/M1complete.
 
 ## Next integration
