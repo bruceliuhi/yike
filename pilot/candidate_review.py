@@ -7,7 +7,7 @@ import hashlib
 from uuid import uuid4
 from psycopg.errors import SerializationFailure
 
-from pilot.candidate_ingestion import CandidateIngestionStore, _json, _row, _primitive, _id
+from pilot.candidate_ingestion import CandidateIngestionError, CandidateIngestionStore, _json, _row, _primitive, _id
 from pilot.candidate_assessment_model import AssessmentModelError, validate_assessment, validate_assessment_input
 from pilot.candidate_review_contract import CandidateReviewError, binding, validate_payload
 from pilot.execution_runtime import ConfirmedExecutionStrategy
@@ -63,10 +63,14 @@ class CandidateReviewStore(CandidateIngestionStore):
 
     def _replay(self, cursor, tenant, claims, request, payload):
         _lock(cursor,11301,[tenant,claims.user_id,request.requestId])
+        # Waiting for another attempt must not let an expired session replay data.
+        self._active(cursor,claims)
         previous = self._request(cursor,tenant,claims.user_id,request.requestId)
         if previous:
             if previous['fingerprint'] != _hash(payload): raise CandidateReviewError('request_conflict',409)
-            return self._result(cursor,previous)
+            result = self._result(cursor,previous)
+            self._active(cursor,claims)
+            return result
 
     def _capture(self, cursor, tenant, claims, request, *, require_strategy=True):
         cursor.execute('SELECT profile_id FROM business_profile_versions WHERE tenant_id=%s AND profile_version_id=%s', (tenant,request.profileId))
@@ -165,6 +169,7 @@ class CandidateReviewStore(CandidateIngestionStore):
                     result = self._result(cursor,latest) | dict(requestId=request.requestId,invocationRequestId=latest['request_id'])
                     self._insert_request(cursor,tenant,claims,request,payload,snapshot,result,action='ASSESS',status=state,
                                          snapshot_key=snapshot_key,invocation_id=latest['request_id'])
+                    self._active(cursor,claims)
                     return result
                 if request.retryOf!=latest['request_id']: raise CandidateReviewError('explicit_retry_required',409)
                 attempt = latest['attempt']+1
@@ -216,7 +221,7 @@ class CandidateReviewStore(CandidateIngestionStore):
                                (failure or 'SUCCEEDED',_json(result),tenant,claims.user_id,request.requestId))
                 self._active(cursor,claims)
                 return result
-        except CandidateReviewError:
+        except CandidateIngestionError:
             raise
         except Exception:
             # Commit acknowledgement can be lost: never report a definitive rejection.
@@ -265,6 +270,7 @@ class CandidateReviewStore(CandidateIngestionStore):
                     cursor.execute('SELECT verification_id,checked_at,receipt FROM pilot_candidate_source_verifications WHERE tenant_id=%s AND owner_user_id=%s AND binding_hash=%s ORDER BY checked_at DESC,verification_id DESC LIMIT 1', (tenant,claims.user_id,bound))
                     check = cursor.fetchone()
                     if (not check or str(check[0])!=request.sourceVerificationId or check[2]['status']!='OPEN'
+                            or check[2]['contactMethod'] not in ('COMMENT','DM','PUBLIC_CONTACT')
                             or now-check[1]>timedelta(hours=24) or check[1]>now):
                         raise CandidateReviewError('source_verification_required',409)
                     published = snapshot['raw']['content']['published_at']
@@ -296,7 +302,7 @@ class CandidateReviewStore(CandidateIngestionStore):
                      opportunity['opportunity_id'] if opportunity else None,_json(result)))
                 self._active(cursor,claims)
                 return result
-        except CandidateReviewError:
+        except CandidateIngestionError:
             raise
         except Exception:
             raise CandidateReviewError('review_outcome_unknown',503) from None

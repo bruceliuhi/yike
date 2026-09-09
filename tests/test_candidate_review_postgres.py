@@ -151,6 +151,77 @@ def test_include_source_gates_but_expired_source_can_be_excluded(env,case):
         evidence=assessment()['evidence'],reason='不适合纳入'))
     assert excluded['receipt']['outcome']=='EXCLUDED'
 
+def test_open_without_contact_path_stays_observable_but_cannot_be_included(env):
+    service,b,result,original_check,decision = prepared(env)
+    no_contact = service.verify_source(env.claims,verification_payload(b,contactMethod='NONE'))
+    assert no_contact['status']=='OPEN' and no_contact['contactMethod']=='NONE'
+    assert service.get_request(env.claims,no_contact['requestId'])==no_contact
+    decision['sourceVerificationId']=no_contact['id']
+    with pytest.raises(CandidateIngestionError,match='source_verification_required'):
+        service.review(env.claims,decision)
+    # Neither the non-contactable latest check nor an older contactable check
+    # authorizes inclusion. Failed attempts leave no success receipt or import.
+    with pytest.raises(CandidateIngestionError,match='source_verification_required'):
+        service.review(env.claims,decision | {'requestId':str(uuid4()),'sourceVerificationId':original_check['id']})
+    with env.admin.connect() as conn:
+        for table in ('pilot_opportunities','pilot_candidate_reviews'):
+            assert conn.execute(f'SELECT count(*) FROM {table} WHERE tenant_id=%s',(env.tenant,)).fetchone()[0]==0
+    with pytest.raises(CandidateIngestionError,match='request_not_found'):
+        service.get_request(env.claims,decision['requestId'])
+    contactable = service.verify_source(env.claims,verification_payload(b,contactMethod='DM'))
+    included = service.review(env.claims,decision | {'requestId':str(uuid4()),'sourceVerificationId':contactable['id']})
+    assert included['receipt']['outcome']=='IMPORTED'
+    assert service.get_request(env.claims,no_contact['requestId'])==no_contact
+
+@pytest.mark.parametrize('action',['ASSESS','VERIFY_SOURCE','INCLUDE'])
+def test_replay_rechecks_session_after_waiting_for_request_lock(env,action):
+    from dataclasses import replace
+    from pilot.candidate_review import _lock
+    from tests.test_device_credentials_postgres import wait_for_lock
+    service,b,result,check,decision = prepared(env)
+    if action=='ASSESS':
+        request=review_payload(b,requestId=result['requestId'])
+        method=service.review
+    elif action=='VERIFY_SOURCE':
+        request=verification_payload(b,requestId=check['requestId'])
+        method=service.verify_source
+    else:
+        request,method=decision,service.review
+    original=method(env.claims,request)
+    with ThreadPoolExecutor(1) as pool:
+        with env.admin.connect() as blocker:
+            _lock(blocker.cursor(),11301,[env.tenant,env.claims.user_id,request['requestId']])
+            expires_at=float(blocker.execute('SELECT extract(epoch FROM clock_timestamp())+1').fetchone()[0])
+            future=pool.submit(method,replace(env.claims,expires_at=expires_at),request)
+            wait_for_lock(env.admin,'pg_advisory_xact_lock')
+            blocker.execute('SELECT pg_sleep(GREATEST(0,%s-extract(epoch FROM clock_timestamp())+0.05))',(expires_at,))
+        with pytest.raises(CandidateIngestionError,match='invalid_session'):
+            future.result(timeout=5)
+    assert service.get_request(env.claims,request['requestId'])==original
+    assert service.model.calls==1
+
+def test_assessment_alias_rechecks_session_after_snapshot_lock_wait(env):
+    from dataclasses import replace
+    from pilot.candidate_review import _lock
+    from tests.test_device_credentials_postgres import wait_for_lock
+    service,b,result,check,decision = prepared(env)
+    alias=review_payload(b)
+    with ThreadPoolExecutor(1) as pool:
+        with env.admin.connect() as blocker:
+            snapshot_key=blocker.execute('SELECT snapshot_key FROM pilot_candidate_review_requests WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s',
+                (env.tenant,env.claims.user_id,result['requestId'])).fetchone()[0]
+            _lock(blocker.cursor(),11302,[env.tenant,env.claims.user_id,snapshot_key])
+            expires_at=float(blocker.execute('SELECT extract(epoch FROM clock_timestamp())+1').fetchone()[0])
+            future=pool.submit(service.review,replace(env.claims,expires_at=expires_at),alias)
+            wait_for_lock(env.admin,'pg_advisory_xact_lock')
+            blocker.execute('SELECT pg_sleep(GREATEST(0,%s-extract(epoch FROM clock_timestamp())+0.05))',(expires_at,))
+        with pytest.raises(CandidateIngestionError,match='invalid_session'):
+            future.result(timeout=5)
+    assert service.get_request(env.claims,result['requestId'])==result
+    with pytest.raises(CandidateIngestionError,match='request_not_found'):
+        service.get_request(env.claims,alias['requestId'])
+    assert service.model.calls==1
+
 def test_same_snapshot_concurrent_alias_and_historical_cache(env):
     model = BoundaryModel()
     entered,release=Event(),Event()
@@ -198,7 +269,9 @@ def test_model_network_gap_rechecks_current_authority(env,change):
                 else: conn.execute("UPDATE business_profile_versions SET payload=payload || '{\"description\":\"changed\"}'::jsonb WHERE profile_version_id=%s",(env.profile,))
         return original(**kwargs)
     model.assess=changed
-    with pytest.raises(CandidateIngestionError): service.review(env.claims,review_payload(b))
+    with pytest.raises(CandidateIngestionError) as error: service.review(env.claims,review_payload(b))
+    if change=='session':
+        assert error.value.code=='invalid_session' and error.value.status==401
     with env.admin.connect() as conn:
         assert conn.execute('SELECT count(*) FROM pilot_candidate_assessments WHERE tenant_id=%s',(env.tenant,)).fetchone()[0]==0
 
