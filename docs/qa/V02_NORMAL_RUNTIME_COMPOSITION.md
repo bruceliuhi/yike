@@ -88,3 +88,11 @@ uv run --frozen pytest -q tests/test_pilot_runtime_http_postgres.py tests/test_c
 收口时收到Win设备持钥/签名模块 `ff623eda1d7c037a279517ca668ecc467af0cecc`，正常合并为 `6b5e7e43d37fb87760489aa482bdde0016c8f340`，无冲突。根代理核对本片4个核心文件与 `bc6a5b6`、Docker/隔离测试与 `e550f61`、desktop/migrations与Win来件逐字一致。来件原Windows原生证据见[Win验收](V02_DEVICE_SIGNING_CLIENT_WIN_REVIEW.md)，不写成Mac本次实测。
 
 Mac对合并快照实际运行Win受影响的6文件 `deviceProof/deviceProofSigner/deviceKeyVault/serviceClient/servicePolicy/windowPolicy`：**97 passed / 567ms / 0 skipped**；`tsc --noEmit` exit0。这是同一集合在另一机器的交叉检查，不与Win的97项相加；未重跑无变化PG、全仓、安装包或原生OS保护。来件代码/架构兼容性独立复核另行记录，设备HTTP/真实平台启动尚未因此接通。
+
+`normal_runtime_preflight` 完整静态审查Win `a9d18db..ff623ed` 的13文件，核对既有设备及执行协议和主进程隔离，给出**限定PASS，0项发现**；没有重跑测试或Win原生探针。BIND/PROVE签名器不用于执行签名域，尚未接产品HTTP。报告另复核 `369a049` 的4行测试差量，限定PASS。
+
+推送前再次收到正常主线 `27ed499`，含独立交付的资料/联系草稿/跟进状态恢复及其已有审核证据，见[该片验收](ui-state-recovery/README.md)。正常合并为 **`a8f895a`**；唯一任务书文本冲突保留双方完整进度，无源码冲突。desktop与 `27ed499`、本片后端/迁移/部署/测试/规则与 `d100cdf` 分别逐字相同，不重新构包或将其他作者的全量、可见验收写成本机本次执行。
+
+原 `6b5e7e4` 的凭据扫描实际失败：命中Win测试中PEM头格式断言，不是真实私钥。远端 `369a049` 已改为实际解析后重新导出PKCS8逐字比较，合入后 `secret_scan.sh` **clean**；未放宽扫描规则，也不回填旧树为通过。合并快照 root 实跑 `deviceKeyVault` 及本次UI变动相关11文件：**12文件 / 223 passed / 17.12s / 0 skipped**，`tsc --noEmit` exit0。与先前97项重叠不相加；保留此前普通运行PG证据，不重复无变化PG。此次UI兼容性差量独立审核结论另行追加。
+
+`normal_runtime_final_review` 对精确 **`a8f895a7be267f03f084c18687b19895d56a1817`** 的入站生产UI差量、直接相关测试/合同及已有版本绑定审核记录独立核对，给出**合并兼容性PASS，0新增Critical/Important/Minor**。双方源码逐字保留、现HTTP/可信会话语义兼容，原容器P1仍关闭；已知UI P2与未完成真实平台/Windows/生产/客户验收继续保留。审核未重跑root测试，未重审200余证据文件；允许准确记录同范围QA/状态后正常推送，不批准未来接口或其他源码变化。root核对三份交接文档163个相对链接均有效，未解决冲突为0，文档差量格式检查通过。
