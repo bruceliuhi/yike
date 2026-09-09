@@ -6,6 +6,10 @@ import {
   mapProfile,
   mapOpportunity,
 } from "../../src/renderer/services/client";
+import {
+  compareTaskProfile,
+  parseTaskProfiles,
+} from "../../src/renderer/domain/taskProfile";
 import type { YikeDesktopApi } from "../../src/shared/contracts";
 const host = window as unknown as { yikeDesktop?: YikeDesktopApi };
 afterEach(() => {
@@ -13,6 +17,123 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("real client transport boundaries", () => {
+  function profilesResponse(items: unknown[]) {
+    host.yikeDesktop = {
+      requestApi: vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { items },
+      }),
+    } as unknown as YikeDesktopApi;
+  }
+
+  it.each([
+    ["missing", undefined],
+    ["zero", 0],
+    ["nonnumeric", "invalid"],
+    ["numeric string", "1"],
+    ["negative", -1],
+    ["fractional", 1.5],
+    ["unsafe", Number.MAX_SAFE_INTEGER + 1],
+    ["boolean", true],
+  ])("rejects a raw %s profile version before comparison", async (_case, version) => {
+    profilesResponse([
+      {
+        profile_id: "TEST-business",
+        version_id: "TEST-version",
+        ...(version === undefined ? {} : { version }),
+        status: "CONFIRMED",
+        payload: { description: "TEST profile" },
+      },
+    ]);
+
+    await expect(service.profiles()).rejects.toMatchObject({
+      code: "INVALID_SERVICE_RESPONSE",
+      message: "画像列表响应不完整，请重新读取；未确认任何版本关系。",
+    });
+  });
+
+  it.each([
+    [{ version_id: "", profile_id: "TEST-business", version: 1, status: "CONFIRMED" }],
+    [{ version_id: " TEST-version", profile_id: "TEST-business", version: 1, status: "CONFIRMED" }],
+    [{ version_id: "TEST-version", profile_id: null, version: 1, status: "CONFIRMED" }],
+    [{ version_id: "TEST-version", profile_id: "bad\nlineage", version: 1, status: "CONFIRMED" }],
+    [{ version_id: "TEST-version", profile_id: "TEST-business", version: 1, status: "PUBLISHED" }],
+  ])("rejects invalid raw profile identity, lineage, or status", async (raw) => {
+    profilesResponse([{ ...raw, payload: { description: "TEST profile" } }]);
+
+    await expect(service.profiles()).rejects.toMatchObject({
+      code: "INVALID_SERVICE_RESPONSE",
+      message: "画像列表响应不完整，请重新读取；未确认任何版本关系。",
+    });
+  });
+
+  it("preserves valid raw profile facts and keeps absent lineage unknown", async () => {
+    profilesResponse([
+      {
+        profile_id: "TEST-business",
+        version_id: "TEST-draft",
+        version: 1,
+        status: "DRAFT",
+        payload: { description: "TEST draft" },
+      },
+      {
+        profile_id: "TEST-business",
+        version_id: "TEST-confirmed",
+        version: 2,
+        status: "CONFIRMED",
+        payload: { description: "TEST confirmed" },
+      },
+      {
+        profile_id: "TEST-business",
+        version_id: "TEST-revoked",
+        version: Number.MAX_SAFE_INTEGER,
+        status: "REVOKED",
+        payload: { description: "TEST revoked" },
+      },
+      {
+        version_id: "TEST-legacy",
+        version: 3,
+        status: "CONFIRMED",
+        payload: { description: "TEST legacy" },
+      },
+    ]);
+
+    const profiles = await service.profiles();
+    expect(profiles.map(({ id, profileEntityId, version, status }) => ({
+      id,
+      profileEntityId,
+      version,
+      status,
+    }))).toEqual([
+      { id: "TEST-draft", profileEntityId: "TEST-business", version: 1, status: "DRAFT" },
+      { id: "TEST-confirmed", profileEntityId: "TEST-business", version: 2, status: "CONFIRMED" },
+      { id: "TEST-revoked", profileEntityId: "TEST-business", version: Number.MAX_SAFE_INTEGER, status: "REVOKED" },
+      { id: "TEST-legacy", profileEntityId: undefined, version: 3, status: "CONFIRMED" },
+    ]);
+    expect(
+      compareTaskProfile(
+        { profileId: "TEST-legacy", profileVersion: 3 },
+        parseTaskProfiles(profiles),
+      ),
+    ).toMatchObject({ status: "UNKNOWN" });
+  });
+
+  it("does not echo malformed raw profile facts in the fixed failure", async () => {
+    profilesResponse([
+      {
+        profile_id: "TEST-secret-lineage",
+        version_id: "TEST-secret-version",
+        version: "TEST-secret-value",
+        status: "CONFIRMED",
+      },
+    ]);
+
+    const error = await service.profiles().catch((value: unknown) => value);
+    expect(error).toMatchObject({ code: "INVALID_SERVICE_RESPONSE" });
+    expect(String(error)).not.toContain("TEST-secret");
+  });
+
   it("keeps absent P10 facts optional and malformed facts distinct without deriving dates", () => {
     const missing = mapOpportunity({
       opportunity_id: "TEST-o",

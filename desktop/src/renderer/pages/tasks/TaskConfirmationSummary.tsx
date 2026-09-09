@@ -200,10 +200,22 @@ export function TaskConfirmationSummary({
             </thead>
             <tbody>
               {draft.platforms.map((id) => {
-                const connection = connections.find(
-                  (row) => row.platform === id,
-                );
                 const selected = draft.accounts[id];
+                const readyConnection = connections.find(
+                  (row) =>
+                    row.platform === id &&
+                    !row.registration &&
+                    row.status === "CONNECTED" &&
+                    (id === "web" || row.accountId === selected),
+                );
+                const connection =
+                  readyConnection ||
+                  connections.find(
+                    (row) =>
+                      row.platform === id &&
+                      !row.registration &&
+                      (id === "web" || row.accountId === selected),
+                  );
                 const matches =
                   !!selected && selected === connection?.accountId;
                 const status = connection
@@ -218,8 +230,7 @@ export function TaskConfirmationSummary({
                   : "待核验";
                 const webReady =
                   id === "web" &&
-                  connection?.status === "CONNECTED" &&
-                  connection.capabilities.includes("collect");
+                  readyConnection?.capabilities.includes("collect");
                 return (
                   <tr key={id}>
                     <td>
