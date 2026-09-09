@@ -35,3 +35,5 @@
 独立代码复审针对 `a176dba` 运行 `tests/test_pilot_web.py tests/test_deploy_contracts.py tests/test_pilot_contracts.py`，结果为 `24 passed, 2 skipped`；静态资源路径穿越、`.env` 和目录索引探测均为 404，未发现 P0/P1/P2。静态目录保持仅放 CSS/JS 的约束，不能放入敏感文件。
 
 安全头修复提交 `d961d4b` 经独立复审：定向测试 `23 passed`；正常 200、401、400、404、503 以及 `raise_server_exceptions=False` 的 500 均包含五个基线安全头，`raise_server_exceptions=True` 仍保留原异常语义，未发现 P0/P1。当前分支最新提交以远端实际 SHA 为准。
+
+提交 `eccb449` 关闭公网 `/docs`、`/redoc` 和 `/openapi.json`，并记录当期展台研究结果；定向回归为 `42 passed`，敏感信息扫描通过。独立安全复审对该提交确认文档路由为 404、CSP 含 `object-src/frame-src 'none'`、HTML `Cache-Control: no-store`，未发现 P0/P1。
