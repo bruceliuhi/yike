@@ -8,6 +8,8 @@ V02-01A/104 与 V02-01B/105 升级必须严格按“迁移→显式最小授权�
 
 ## 构建与运行
 
+V02-01C 连接版本切片新增 migration 107：先运行受信迁移，再显式运行 [grant_connection_operations.sql](grant_connection_operations.sql)，最后启动新应用。它只授予不可变回执 SELECT/INSERT，不给 UPDATE/DELETE、用户 UPDATE 或 schema CREATE，并拒绝缺失/高权限/owner 目标。旧连接初始化版本 1 且状态和 vault 引用不变；注册仍 UNVERIFIED，回执不是当前执行授权。管理员命令见客户试用运行手册；重放和事务边界见[连接版本契约](../docs/contracts/V02_CONNECTION_VERSIONS.md)。107 和授权均可重复执行，不能替代 104–106 授权。
+
 V02-01C 持钥切片新增 migration 106：迁移后、启应用前，另运行 [grant_device_credentials.sql](grant_device_credentials.sql)，在同一 psql 会话设置既有受限角色 `yike.app_role`（完整命令见客户试用运行手册）。脚本只授新凭据/挑战表 SELECT/INSERT/UPDATE，可重复，不给 DELETE、pilot_users UPDATE 或 schema CREATE；Web/桌面不携带管理员连接。它不替代 104/105 旧授权，也不代表执行租约或 Windows 验收完成。
 
 在仓库根目录执行：

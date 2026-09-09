@@ -144,22 +144,40 @@ def _stop_process_group(
     try:
         stdout, stderr = process.communicate(timeout=terminate_grace_seconds)
     except subprocess.TimeoutExpired:
-        try:
-            os.killpg(process_group_id, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        return process.communicate()
-    while time.monotonic() < deadline:
-        try:
-            os.killpg(process_group_id, 0)
-        except ProcessLookupError:
-            return stdout, stderr
-        time.sleep(min(0.01, max(0, deadline - time.monotonic())))
+        pass
+    else:
+        while time.monotonic() < deadline:
+            try:
+                os.killpg(process_group_id, 0)
+            except ProcessLookupError:
+                return stdout, stderr
+            time.sleep(min(0.01, max(0, deadline - time.monotonic())))
+    # Sending SIGKILL is not a completion barrier for descendants. Keep both
+    # pipe draining/parent reaping and owned-group disappearance bounded.
+    deadline = time.monotonic() + 2.0
     try:
         os.killpg(process_group_id, signal.SIGKILL)
     except ProcessLookupError:
         pass
-    return stdout, stderr
+    try:
+        stdout, stderr = process.communicate(timeout=max(0, deadline - time.monotonic()))
+    except subprocess.TimeoutExpired as error:
+        raise OSError("process group termination unconfirmed") from error
+    while True:
+        try:
+            os.killpg(process_group_id, 0)
+        except ProcessLookupError:
+            return stdout, stderr
+        except PermissionError:
+            # Observed transiently after SIGKILL on macOS. This is unknown,
+            # not evidence of disappearance; keep the same bounded deadline.
+            pass
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            # A group may contain unreaped zombies; existence is not proof of
+            # running code, but neither is it confirmed cleanup.
+            raise OSError("process group termination unconfirmed")
+        time.sleep(min(0.01, remaining))
 
 
 def run_supervised_process(
@@ -186,11 +204,13 @@ def run_supervised_process(
         umask=0o077,
     )
     deadline = time.monotonic() + timeout_seconds
+    cleanup_started = False
     try:
         while True:
             if poll_callback is not None:
                 poll_callback()
             if cancel_requested is not None and cancel_requested():
+                cleanup_started = True
                 stdout, stderr = _stop_process_group(
                     process, terminate_grace_seconds=terminate_grace_seconds
                 )
@@ -199,6 +219,7 @@ def run_supervised_process(
                 )
             remaining = deadline - time.monotonic()
             if remaining <= 0:
+                cleanup_started = True
                 stdout, stderr = _stop_process_group(
                     process, terminate_grace_seconds=terminate_grace_seconds
                 )
@@ -213,9 +234,10 @@ def run_supervised_process(
                 continue
             return SupervisedProcessResult(process.returncode, stdout, stderr)
     except BaseException:
-        _stop_process_group(
-            process, terminate_grace_seconds=terminate_grace_seconds
-        )
+        if not cleanup_started:
+            _stop_process_group(
+                process, terminate_grace_seconds=terminate_grace_seconds
+            )
         raise
 
 
