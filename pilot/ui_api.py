@@ -15,6 +15,7 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from pilot.auth import InvalidPilotToken, verify_token
+from pilot.identity import IdentityValidationError
 
 
 class _Input(BaseModel):
@@ -47,6 +48,33 @@ class FollowupInput(_Input):
         if not value.strip():
             raise ValueError("value is required")
         return value
+
+
+class DeviceInput(_Input):
+    device_label: str = Field(min_length=1, max_length=128)
+
+    @field_validator("device_label")
+    @classmethod
+    def nonempty_label(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("device_label is required")
+        return value.strip()
+
+
+class ConnectionInput(_Input):
+    platform: str = Field(min_length=1, max_length=32)
+    device_id: str = Field(min_length=1, max_length=256)
+    account_public_id: str = Field(min_length=1, max_length=256)
+    session_ref: str = Field(min_length=1, max_length=512)
+
+
+class ExecutionEventInput(_Input):
+    device_id: str = Field(min_length=1, max_length=256)
+    connection_id: str = Field(min_length=1, max_length=256)
+    execution_generation: int = Field(ge=1)
+    event_type: str = Field(min_length=1, max_length=64)
+    payload: dict = Field(default_factory=dict)
+    task_id: str | None = Field(default=None, max_length=256)
 
 
 def _error(status: int, code: str, message: str) -> HTTPException:
@@ -97,7 +125,7 @@ _CAPABILITIES = {
     "opportunities": True,
     "manual_followups": True,
     "sms_login": False,
-    "platform_connections": False,
+    "platform_connections": True,
     "task_execution": False,
     "search_suggestions": False,
     "outreach": False,
@@ -150,6 +178,62 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
         # clears this browser session, even when its cookie has already expired.
         response.delete_cookie("pilot_session", httponly=True, secure=request.url.scheme == "https", samesite="strict")
         return {"authenticated": False}
+
+    @router.get("/devices")
+    def devices(request: Request):
+        current = identity(request)
+        return {"items": store.list_devices(current.user_id)}
+
+    @router.post("/devices", status_code=201)
+    def register_device(body: DeviceInput, request: Request):
+        current = identity(request)
+        try:
+            return store.register_device(current.user_id, body.device_label)
+        except ValueError as error:
+            raise _error(400, "invalid_device", "设备信息无效。") from error
+
+    @router.post("/devices/{device_id}/revoke")
+    def revoke_device(device_id: str, request: Request):
+        current = identity(request)
+        if not store.revoke_device(current.user_id, device_id):
+            raise _error(404, "device_not_found", "未找到可撤销的设备。")
+        return {"device_id": device_id, "status": "REVOKED"}
+
+    @router.get("/connections")
+    def connections(request: Request):
+        current = identity(request)
+        return {"items": store.list_connections(current.user_id)}
+
+    @router.post("/connections", status_code=201)
+    def connect_platform(body: ConnectionInput, request: Request):
+        current = identity(request)
+        try:
+            return store.connect_platform(current.user_id, body.platform, body.device_id, body.account_public_id, body.session_ref)
+        except IdentityValidationError as error:
+            raise _error(400, "invalid_connection", "平台连接信息无效。") from error
+        except KeyError as error:
+            raise _error(404, "device_not_found", "设备不存在或不属于当前客户空间。") from error
+        except ValueError as error:
+            raise _error(409, "device_unavailable", "设备当前不可用于平台连接。") from error
+
+    @router.post("/connections/{connection_id}/disconnect")
+    def disconnect_platform(connection_id: str, request: Request):
+        current = identity(request)
+        if not store.disconnect_platform(current.user_id, connection_id):
+            raise _error(404, "connection_not_found", "未找到可断开的平台连接。")
+        return {"connection_id": connection_id, "status": "DISCONNECTED"}
+
+    @router.post("/execution-events", status_code=201)
+    def execution_event(body: ExecutionEventInput, request: Request):
+        current = identity(request)
+        try:
+            return store.append_execution_event(current.user_id, body.device_id, body.connection_id, body.execution_generation, body.event_type, body.payload, body.task_id)
+        except IdentityValidationError as error:
+            raise _error(400, "invalid_execution_event", "执行事件无效。") from error
+        except KeyError as error:
+            raise _error(404, "connection_not_found", "设备或平台连接不存在。") from error
+        except ValueError as error:
+            raise _error(409, "connection_unavailable", "设备或平台连接当前不可用。") from error
 
     @router.get("/profiles")
     def profiles(request: Request):

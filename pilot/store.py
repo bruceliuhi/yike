@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from pilot.db import PilotDatabase
+from pilot.identity import IdentityValidationError, validate_connection_input, validate_execution_event
 
 
 class PilotStore:
@@ -374,6 +375,139 @@ class PilotStore:
                 cursor.execute("SELECT task_id, task_key, status FROM pilot_tasks WHERE tenant_id=%s AND status='FAILED' ORDER BY task_id", (tenant_id,))
                 columns = [d.name for d in cursor.description]
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def register_device(self, user_id: str, device_label: str) -> dict:
+        if not isinstance(device_label, str) or not 1 <= len(device_label.strip()) <= 128:
+            raise ValueError("device_label is required")
+        tenant_id = self._tenant_for_user(user_id)
+        device_id = str(uuid4())
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute(
+                    "INSERT INTO pilot_devices(device_id, tenant_id, device_label) VALUES (%s,%s,%s)",
+                    (device_id, tenant_id, device_label.strip()),
+                )
+        return {"device_id": device_id, "device_label": device_label.strip(), "status": "ACTIVE"}
+
+    def list_devices(self, user_id: str) -> list[dict]:
+        tenant_id = self._tenant_for_user(user_id)
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute(
+                    "SELECT device_id, device_label, status, created_at, revoked_at "
+                    "FROM pilot_devices WHERE tenant_id=%s ORDER BY created_at DESC, device_id DESC",
+                    (tenant_id,),
+                )
+                columns = [column.name for column in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def revoke_device(self, user_id: str, device_id: str) -> bool:
+        if not isinstance(device_id, str) or not device_id.strip():
+            raise ValueError("device_id is required")
+        tenant_id = self._tenant_for_user(user_id)
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute(
+                    "UPDATE pilot_devices SET status='REVOKED', revoked_at=COALESCE(revoked_at, CURRENT_TIMESTAMP) "
+                    "WHERE tenant_id=%s AND device_id=%s AND status <> 'REVOKED' RETURNING device_id",
+                    (tenant_id, device_id.strip()),
+                )
+                if cursor.fetchone() is None:
+                    return False
+                cursor.execute(
+                    "UPDATE pilot_platform_connections SET status='DISCONNECTED', disconnected_at=COALESCE(disconnected_at, CURRENT_TIMESTAMP) "
+                    "WHERE tenant_id=%s AND device_id=%s AND status='CONNECTED'",
+                    (tenant_id, device_id.strip()),
+                )
+        return True
+
+    def connect_platform(self, user_id: str, platform: str, device_id: str, account_public_id: str, session_ref: str) -> dict:
+        try:
+            values = validate_connection_input(platform, device_id, account_public_id, session_ref)
+        except IdentityValidationError:
+            raise
+        tenant_id = self._tenant_for_user(user_id)
+        connection_id = str(uuid4())
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute(
+                    "SELECT status FROM pilot_devices WHERE tenant_id=%s AND device_id=%s FOR UPDATE",
+                    (tenant_id, values["device_id"]),
+                )
+                device = cursor.fetchone()
+                if device is None:
+                    raise KeyError("device not found in tenant")
+                if device[0] != "ACTIVE":
+                    raise ValueError("device is revoked")
+                cursor.execute(
+                    "INSERT INTO pilot_platform_connections(connection_id, tenant_id, device_id, platform, account_public_id, session_ref) "
+                    "VALUES (%s,%s,%s,%s,%s,%s) "
+                    "ON CONFLICT (tenant_id, device_id, platform, account_public_id) DO UPDATE SET "
+                    "session_ref=EXCLUDED.session_ref, status='CONNECTED', disconnected_at=NULL "
+                    "RETURNING connection_id, platform, account_public_id, status",
+                    (connection_id, tenant_id, values["device_id"], values["platform"], values["account_public_id"], values["session_ref"]),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    raise RuntimeError("platform connection upsert failed")
+        return {"connection_id": row[0], "platform": row[1], "account_public_id": row[2], "status": row[3]}
+
+    def list_connections(self, user_id: str) -> list[dict]:
+        tenant_id = self._tenant_for_user(user_id)
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute(
+                    "SELECT connection_id, device_id, platform, account_public_id, status, connected_at, disconnected_at "
+                    "FROM pilot_platform_connections WHERE tenant_id=%s ORDER BY connected_at DESC, connection_id DESC",
+                    (tenant_id,),
+                )
+                columns = [column.name for column in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def disconnect_platform(self, user_id: str, connection_id: str) -> bool:
+        if not isinstance(connection_id, str) or not connection_id.strip():
+            raise ValueError("connection_id is required")
+        tenant_id = self._tenant_for_user(user_id)
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute(
+                    "UPDATE pilot_platform_connections SET status='DISCONNECTED', disconnected_at=COALESCE(disconnected_at, CURRENT_TIMESTAMP) "
+                    "WHERE tenant_id=%s AND connection_id=%s AND status='CONNECTED' RETURNING connection_id",
+                    (tenant_id, connection_id.strip()),
+                )
+                return cursor.fetchone() is not None
+
+    def append_execution_event(self, user_id: str, device_id: str, connection_id: str, execution_generation: int, event_type: str, payload: dict, task_id: str | None = None) -> dict:
+        event = validate_execution_event(event_type, execution_generation, payload)
+        tenant_id = self._tenant_for_user(user_id)
+        event_id = str(uuid4())
+        body = json.dumps(event["payload"], ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute(
+                    "SELECT d.status, c.status FROM pilot_devices d "
+                    "JOIN pilot_platform_connections c ON c.tenant_id=d.tenant_id AND c.device_id=d.device_id "
+                    "WHERE d.tenant_id=%s AND d.device_id=%s AND c.connection_id=%s",
+                    (tenant_id, device_id, connection_id),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    raise KeyError("device or connection not found in tenant")
+                if row != ("ACTIVE", "CONNECTED"):
+                    raise ValueError("device or connection is not active")
+                cursor.execute(
+                    "INSERT INTO pilot_execution_events(event_id, tenant_id, device_id, connection_id, task_id, execution_generation, event_type, payload) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s::jsonb)",
+                    (event_id, tenant_id, device_id, connection_id, task_id, event["execution_generation"], event["event_type"], body),
+                )
+        return {"event_id": event_id, "execution_generation": event["execution_generation"], "event_type": event["event_type"]}
 
     @staticmethod
     def _profile_id(tenant_id: str) -> str:
