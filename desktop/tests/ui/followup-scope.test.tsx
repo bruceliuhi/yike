@@ -96,6 +96,7 @@ beforeEach(() => {
   };
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   cleanup();
   clearLocalDrafts();
   vi.useRealTimers();
@@ -396,3 +397,79 @@ it("keeps the verified acknowledgement when removing the old submitted draft fai
   expect(context.service.followup!.mutate).toHaveBeenCalledOnce();
   fault.mockRestore();
 });
+
+it("retains a verified legacy acknowledgement when submitted draft deletion fails", async () => {
+  context.service.followup = undefined;
+  vi.mocked(context.service.addFollowup).mockResolvedValue(undefined);
+  render(<FollowupsPage />);
+  await fill();
+  const draftKey = Array.from({ length: sessionStorage.length }, (_, i) =>
+    sessionStorage.key(i)!,
+  ).find((key) => key.includes("followup:v3:"))!;
+  const original = Storage.prototype.removeItem;
+  const fault = vi
+    .spyOn(Storage.prototype, "removeItem")
+    .mockImplementation(function (this: Storage, key: string) {
+      if (this === sessionStorage && key === draftKey)
+        throw new Error("TEST legacy draft removal unavailable");
+      return original.call(this, key);
+    });
+  fireEvent.click(screen.getByRole("button", { name: "保存记录" }));
+  await waitFor(() =>
+    expect(context.notify).toHaveBeenCalledWith("跟进事实已保存。", "success"),
+  );
+  expect(context.service.addFollowup).toHaveBeenCalledOnce();
+  expect(sessionStorage.getItem(draftKey)).toContain("TEST空间A未保存正文");
+  const ackKey = Array.from({ length: sessionStorage.length }, (_, i) =>
+    sessionStorage.key(i)!,
+  ).find((key) => key.includes("followup-resolved:"));
+  expect(
+    ackKey,
+    "A successful legacy write must retain its draft hash before dropping the durable lock",
+  ).toBeDefined();
+  const value = JSON.parse(sessionStorage.getItem(ackKey!) || "{}");
+  expect(Object.keys(value).length).toBeGreaterThan(0);
+  fault.mockRestore();
+});
+it.each(["throw", "silent"])(
+  "retains the original legacy lock when the success ACK cannot be stored: %s",
+  async (failure) => {
+    context.service.followup = undefined;
+    vi.mocked(context.service.addFollowup).mockResolvedValue(undefined);
+    render(<FollowupsPage />);
+    await fill();
+    const original = Storage.prototype.setItem;
+    const fault = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(function (this: Storage, key: string, value: string) {
+        if (this === sessionStorage && key.includes("followup-resolved:")) {
+          if (failure === "throw")
+            throw new Error("TEST acknowledgement unavailable");
+          return;
+        }
+        return original.call(this, key, value);
+      });
+    fireEvent.click(screen.getByRole("button", { name: "保存记录" }));
+    await waitFor(() =>
+      expect(context.service.addFollowup).toHaveBeenCalledOnce(),
+    );
+    await screen.findByText(
+      /本次人工登记接口已返回成功，但本机确认记录无法可靠更新/,
+    );
+    expect(screen.getByDisplayValue("TEST空间A未保存正文")).toBeTruthy();
+    expect(
+      (screen.getByRole("button", { name: "保存记录" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(context.notify).not.toHaveBeenCalledWith(
+      "跟进事实已保存。",
+      "success",
+    );
+    expect(
+      Array.from({ length: localStorage.length }, (_, i) =>
+        localStorage.key(i)!,
+      ).some((key) => key.startsWith("yike.ui.followup-operation.v2.")),
+    ).toBe(true);
+    fault.mockRestore();
+  },
+);

@@ -129,51 +129,51 @@ export function useFollowupOperation() {
     }
   const blocked =
     !!storageError || historical.length > 0 || Object.keys(pending).length > 0;
+  const finishConfirmed = (binding: FollowupBinding, succeeded: boolean) => {
+    if (!current()) throw new Error("原跟进操作上下文已变化，保护仍保留。");
+    const stored = readFollowupOperations(followupOwner(session));
+    if (!stored.pending || followupKey(stored.pending) !== followupKey(binding))
+      throw new Error("原跟进操作记录已变化，保护仍保留。");
+    // Store only a hash and opaque draft key, never the submitted note. The
+    // editable draft and this acknowledgement have the same session lifetime.
+    if (succeeded && stored.draft) {
+      const draft = stored.draft;
+      let persisted = false;
+      setResolvedDrafts((old) => {
+        const next = {
+          ...old,
+          [draft.key]: Array.from(
+            new Set([...(old[draft.key] || []), draft.hash]),
+          ),
+        };
+        // useLocalDraft deliberately tolerates quota errors for editable input.
+        // This acknowledgement is different: verify durable session storage
+        // before publishing it to draft memory or deleting the operation lock.
+        const key = "yike.ui.draft.v1." + resolvedDraftKey;
+        const serialized = JSON.stringify(next);
+        try {
+          sessionStorage.setItem(key, serialized);
+          if (sessionStorage.getItem(key) !== serialized)
+            throw new Error("readback mismatch");
+        } catch {
+          throw new Error(
+            "原稿确认记录未能可靠保存，原请求保护与草稿仍保留，请恢复本机存储后核对。",
+          );
+        }
+        persisted = true;
+        return next;
+      });
+      if (!persisted)
+        throw new Error("原稿确认上下文已变化，原请求保护仍保留。");
+    }
+    finishFollowupOperation(followupOwner(session), binding);
+    changed();
+  };
   const settle = (value: unknown, binding: FollowupBinding) => {
     if (!current()) return undefined;
     const receipt = readReceipt(value, binding);
-    if (receipt.status === "SUCCEEDED" || receipt.status === "FAILED") {
-      const stored = readFollowupOperations(followupOwner(session));
-      if (
-        !stored.pending ||
-        followupKey(stored.pending) !== followupKey(binding)
-      )
-        throw new Error("原跟进操作记录已变化，保护仍保留。");
-      // Store only a hash and opaque draft key, never the submitted note. The
-      // editable draft and this acknowledgement have the same session lifetime.
-      if (receipt.status === "SUCCEEDED" && stored.draft) {
-        const draft = stored.draft;
-        let persisted = false;
-        setResolvedDrafts((old) => {
-          const next = {
-            ...old,
-            [draft.key]: Array.from(
-              new Set([...(old[draft.key] || []), draft.hash]),
-            ),
-          };
-          // useLocalDraft deliberately tolerates quota errors for editable input.
-          // This acknowledgement is different: verify durable session storage
-          // before publishing it to draft memory or deleting the operation lock.
-          const key = "yike.ui.draft.v1." + resolvedDraftKey;
-          const serialized = JSON.stringify(next);
-          try {
-            sessionStorage.setItem(key, serialized);
-            if (sessionStorage.getItem(key) !== serialized)
-              throw new Error("readback mismatch");
-          } catch {
-            throw new Error(
-              "原稿确认记录未能可靠保存，原请求保护与草稿仍保留，请恢复本机存储后核对。",
-            );
-          }
-          persisted = true;
-          return next;
-        });
-        if (!persisted)
-          throw new Error("原稿确认上下文已变化，原请求保护仍保留。");
-      }
-      finishFollowupOperation(followupOwner(session), binding);
-      changed();
-    }
+    if (receipt.status === "SUCCEEDED" || receipt.status === "FAILED")
+      finishConfirmed(binding, receipt.status === "SUCCEEDED");
     return receipt;
   };
   return {
@@ -201,8 +201,15 @@ export function useFollowupOperation() {
             timeoutMessage: "保存结果未确认，请核对已有登记，不要重复保存。",
           });
           if (!current()) return;
-          finishFollowupOperation(followupOwner(session), mutation.binding);
-          changed();
+          try {
+            // The legacy facade has no operation-query protocol, but its direct
+            // successful return still requires the same reliable draft ACK.
+            finishConfirmed(mutation.binding, true);
+          } catch {
+            throw new Error(
+              "本次人工登记接口已返回成功，但本机确认记录无法可靠更新；原请求保护仍保留。请核对已有登记并由服务管理员确认，不要重复保存。",
+            );
+          }
           return "SUCCEEDED" as const;
         }
         const raw = await boundedRequest(
