@@ -1,0 +1,53 @@
+Window: "业务画像 / 资料与案例 · 意客AI", App: YikeAI.
+0 标准窗口 业务画像 / 资料与案例 · 意客AI, Secondary Actions: Raise
+	1 container 业务画像 / 资料与案例 · 意客AI
+		2 container
+			3 HTML 内容 业务画像 / 资料与案例 · 意客AI, URL: yike://app/index.html#/profile?tab=materials
+				4 container 添加资料
+					5 container
+						6 标题 添加资料, Value: 2
+							7 文本 添加资料
+						8 按钮 关闭添加资料
+							9 图像
+					10 container 资料名称 *
+						11 container
+							12 text 资料名称  *
+						13 文本栏 (settable) Description: 资料名称, Value: TEST-native-material, Placeholder: 请输入资料名称
+					14 container 内容 *
+						15 container
+							16 text 内容  *
+						17 标签组
+							18 标签 (selected) 上传文件, Value: 1
+							19 标签 (settable, integer) 粘贴文字, Value: 0
+						20 文本 选择 TXT 或 Markdown 文件
+						21 按钮 上传资料文件: 未选择任何文件
+						22 文本 最多 200 KB、2000 字；仅在本机读取，不上传。
+						23 container
+							24 text TEST-native-material.txt  ·  76  字
+					25 container 用途 *
+						26 container
+							27 text 用途  *
+						28 弹出式按钮 Description: 资料用途, Value: 产品介绍
+							29 (selected) 产品介绍
+					30 container 引用范围 *
+						31 container
+							32 text 引用范围  *
+						33 container
+							34 单选按钮 仅供内部判断 仅在团队内部使用，不对外展示。, Value: 1
+							35 text 仅供内部判断 仅在团队内部使用，不对外展示。
+						36 container
+							37 单选按钮 允许对外引用 同步并确认后才可用于联系准备。, Value: 0
+							38 text 允许对外引用 同步并确认后才可用于联系准备。
+					39 文本 资料保存为本机草稿，AI 提取和客户空间同步尚未接通。
+					40 container
+						41 按钮 取消
+						42 按钮 保存草稿
+	43 关闭按钮
+	44 全屏幕按钮 Help: 此按钮也可以执行缩放窗口的操作, Secondary Actions: 缩放窗口
+	45 最小化按钮
+46 menu bar
+	47 意客AI
+	48 File
+	49 Edit
+	50 显示
+	51 Window

@@ -3,6 +3,9 @@
 ## 2026-09-10 Win P07 原文证据与人工闭环
 
 Win在既有P07完成原文/父上下文/来源时间版本、四维判断逐字引用、显式判断、人工来源核验、固定核验ID的确认入库及筛选外原请求恢复。产品写入口已安装，不自动模型调用或发送。独立SPEC与代码/质量复审PASS，根20文件612项通过；Windows Edge双视口为TEST隔离界面验证，非真实服务/客户验收。详见[05G QA](qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task4-p07-原文证据与完整人工流程)。Win继续Task5真实Node→HTTP→PG，不重复Mac后端/设备/回复工作；05G和Goal仍IN_PROGRESS。
+2026-09-10 05A 退出保护增量 b8b8236：原生验证确认已保存本机资料在退出时被遗漏，现统一覆盖资料、画像改动、联系备注、评论/私信改动与保留的跟进稿，原任务保护保留。独立审核发现的跟进恢复初始值误报已关闭；82文件1015项UI、类型、构包/严格smoke通过。Mac实际走通仅资料草稿→CmdQ继续编辑→原文保留→切工作台再次提示→明确放弃退出→同包重启空资料；新包ASAR f2cd0342，详见[本轮验收](qa/ui-session-content/README.md)。不把退出提示当持久保存/真实同步，Windows及其余真实服务/页面状态继续分项待验。
+
+2026-09-10 05A 原生资料交互：9d1825b/9b137fc 修复叠层确认的模态声明与初始焦点，最终集成 f20b404 保留 d6d9ff5 来件。1309 项 UI及候选定向、类型、Mac构包与严格smoke通过；新包 ASAR 04c0645e / ZIP f5b15bf9。原生实际完成文件导入、取消保留、保存本机稿、放弃编辑及原文恢复；最上层确认无需Tab即在AX可达，布局未变。中间候选未关闭缺陷的记录完整保留，见[本轮验收](qa/ui-native-files/README.md)。本机草稿不冒充客户同步或原生文件导出；后者、Windows和其余状态仍待验，05A继续IN_PROGRESS。
 
 ## 2026-09-10 Mac 增量复核（执行签名与回复持久层）
 
@@ -14,6 +17,26 @@ Win在既有P07完成原文/父上下文/来源时间版本、四维判断逐字
 本轮未改变产品边界，也未接入真实平台采集、发送或回复回流；V02-06/07/08、Windows 交付、生产部署和客户 UAT 仍保持 `IN_PROGRESS`。
 
 同日全仓 `bash scripts/check.sh` 新鲜结果为 **2108 passed / 485 skipped**；该结果是代码回归门禁，不替代真实平台、生产或客户证据。
+
+同日重新执行 `scripts/secret_scan.sh` 返回 `secret-scan: clean`；使用仓外 0600 临时运行环境、仓外口令文件、PostgreSQL URL、digest 固定镜像和禁用开发登录执行 `scripts/cp06_validate_env.sh`，返回 `cp06-preflight: pass`。默认空环境的预检仍按预期拒绝；两者均不代表已部署或完成备份恢复演练。
+
+桌面端 `npm test` 新鲜回归结果：**118 个测试文件通过、3 个跳过；1701 passed / 26 skipped**。该结果覆盖当前 Win/Mac 共享客户端代码，但不替代 Windows 实机安装、真实平台连接或客户 UAT。
+
+本轮发现并修复迁移注册缺口：`pilot/db.py` 原遗漏已有的 `110_v02_search_suggestions.sql`，导致全量新库未创建搜索建议表；新增 `v02-search-suggestions` 注册并以身份/搜索建议定向回归 **37 passed** 验证。该修复只补齐新库初始化顺序，不代表搜索建议真实模型服务已接通。
+
+修复后的新库初始化复核：管理员迁移重新执行成功，全部 `deploy/grant_*.sql` 在受限应用角色下执行成功（`grants-all-pass`），并确认 `pilot_search_suggestion_requests`、`pilot_outreach_confirmations`、`pilot_reply_events` 三张表均存在。该环境为本地合成库，不代表生产部署或真实平台能力。
+
+随后清理并重建测试专属 `win_search_suggestion` 数据库（不复用预置应用角色），由 `tests/test_search_suggestions_postgres.py` 自行创建受限角色并执行：**63 passed**。这是搜索建议真实 PostgreSQL 事务/RLS/幂等套件证据，不代表模型服务或平台采集已接通。
+
+迁移注册修复后的全仓回归：`bash scripts/check.sh` **2109 passed / 485 skipped**；相比修复前新增 1 项迁移注册回归测试，其余跳过边界不变。
+
+MediaCrawler 受控获取已验证固定 commit 和补丁链；打包门禁规则对无凭据的 `.env.example` 模板已放行、对真实 `.env*` 仍拒绝，专项 `tests/test_vendor_packaging.py` **14 passed**。后续 clean bundle 仍需非浅克隆输入（本轮浅克隆在本地对象传递阶段失败），未计为可发布采集包。
+
+随后使用完整非浅克隆的固定 `439509782cc2991c8ef7648e178d5847b0545798` 生成 `/private/tmp/yike-mediacrawler-full.bundle`，打包 manifest 校验通过；再由该 bundle 安装独立运行目录，commit、补丁/依赖安装及 `git diff --check` 通过。该 bundle 尚未绑定真实平台账号或执行采集，不写成采集成功证据。
+
+从 bundle 安装目录执行 `cd runtime && .venv/bin/python main.py --help` 成功加载 CLI，入口列出 `xhs/dy/bili/zhihu` 等平台；直接在其他 cwd 启动会因上游相对资源路径失败，已核对 `app/collector.py` 将受控子进程 `cwd` 固定为 runtime 目录。该项只证明运行时可启动，不证明账号登录或真实采集。
+
+本轮修复 `fetch_mediacrawler.sh` 的浅克隆问题：bundle 需要完整历史传递固定 commit，脚本改为完整 clone；新增回归与 vendor packaging 合计 **15 passed**。仍不包含真实账号登录或平台采集证据。
 
 2026-09-10 05A 可见验收补齐：`8af8eaf`收紧P04空态，本机资料与带入操作完整进入1280×720首屏；实际走通P06平台/设备往返、P09原标签与平台返回、P14无人工记录的匹配回复/已读/首次人工登记。新Mac包ASAR `98debe8e` / ZIP `f580c225` 已实际冷启动、取消关闭继续编辑、保存75搜贝会话草稿、明确退出并同目录重启；退出清除会话稿符合提示。定向33项/类型/构包/严格smoke通过，先前全量1340/23仍绑定d816，不追认重跑。证据及截图校准过程见[当前可见验收](qa/ui-visible-local-handoff/README.md)。05A仍IN_PROGRESS；原生选择器、剩余状态、真实后台及Windows分项接续。
 

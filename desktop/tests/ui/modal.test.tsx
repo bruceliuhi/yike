@@ -63,12 +63,34 @@ function openInner() {
 }
 
 describe("共享弹窗键盘与焦点", () => {
+  it("只向辅助功能声明最上层为模态，关闭后恢复底层", () => {
+    function Siblings() {
+      const [inner, setInner] = useState(false);
+      return <>
+        <Modal title="资料抽屉" onClose={() => {}} drawer>
+          <button onClick={() => setInner(true)}>取消修改</button>
+        </Modal>
+        {inner && <Confirm title="放弃修改" onCancel={() => setInner(false)} onConfirm={() => setInner(false)}>未保存内容</Confirm>}
+      </>;
+    }
+    render(<Siblings />);
+    const outer = screen.getByRole("dialog", {name: "资料抽屉"});
+    expect(outer.getAttribute("aria-modal")).toBe("true");
+    fireEvent.click(screen.getByRole("button", {name: "取消修改"}));
+    const inner = screen.getByRole("dialog", {name: "放弃修改"});
+    expect(outer.getAttribute("aria-modal")).toBe("false");
+    expect(inner.getAttribute("aria-modal")).toBe("true");
+    expect(document.querySelectorAll('[aria-modal="true"]')).toHaveLength(1);
+    fireEvent.keyDown(document, {key: "Escape"});
+    expect(outer.getAttribute("aria-modal")).toBe("true");
+    expect(document.activeElement).toBe(within(outer).getByRole("button", {name: "关闭资料抽屉"}));
+  });
   it("Escape一次只关闭最上层，逐层恢复原按钮焦点", () => {
     render(<Stack />);
     const outer = openOuter();
     const inner = openInner();
     expect(document.activeElement).toBe(
-      screen.getByRole("dialog", { name: "内层" }),
+      screen.getByRole("button", { name: "关闭内层" }),
     );
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "内层" })).toBeNull();
@@ -82,7 +104,7 @@ describe("共享弹窗键盘与焦点", () => {
     render(<Stack initialChild />);
     openOuter();
     expect(document.activeElement).toBe(
-      screen.getByRole("dialog", { name: "内层" }),
+      screen.getByRole("button", { name: "关闭内层" }),
     );
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "内层" })).toBeNull();

@@ -1,0 +1,30 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+ ❯ tests/ui/modal.test.tsx (9 tests | 1 failed) 139ms
+     × 只向辅助功能声明最上层为模态，关闭后恢复底层 66ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/modal.test.tsx > 共享弹窗键盘与焦点 > 只向辅助功能声明最上层为模态，关闭后恢复底层
+AssertionError: expected 'true' to be 'false' // Object.is equality
+
+Expected: "false"
+Received: "true"
+
+ ❯ tests/ui/modal.test.tsx:81:46
+     79|     fireEvent.click(screen.getByRole("button", {name: "取消修改"}));
+     80|     const inner = screen.getByRole("dialog", {name: "放弃修改"});
+     81|     expect(outer.getAttribute("aria-modal")).toBe("false");
+       |                                              ^
+     82|     expect(inner.getAttribute("aria-modal")).toBe("true");
+     83|     expect(document.querySelectorAll('[aria-modal="true"]')).toHaveLen…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 8 passed (9)
+   Start at  07:08:43
+   Duration  1.63s (transform 29ms, setup 0ms, import 980ms, tests 139ms, environment 432ms)
+

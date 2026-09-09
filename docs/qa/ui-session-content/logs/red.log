@@ -1,0 +1,59 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+ ❯ tests/ui/session-draft-exit.test.tsx (15 tests | 5 failed) 30ms
+     × protects materials.guest after its page unmounts 3ms
+     × protects profile.guest after its page unmounts 1ms
+     × protects contact-note:user:opp:v1 after its page unmounts 1ms
+     × protects contact:user:opp after its page unmounts 1ms
+     × protects restored material and memory-only notes when storage fails 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/session-draft-exit.test.tsx > window exit protects business content outside tasks > protects materials.guest after its page unmounts
+ FAIL  tests/ui/session-draft-exit.test.tsx > window exit protects business content outside tasks > protects profile.guest after its page unmounts
+ FAIL  tests/ui/session-draft-exit.test.tsx > window exit protects business content outside tasks > protects contact-note:user:opp:v1 after its page unmounts
+ FAIL  tests/ui/session-draft-exit.test.tsx > window exit protects business content outside tasks > protects contact:user:opp after its page unmounts
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/ui/session-draft-exit.test.tsx:107:22
+    105|     draft.unmount();
+    106|     expect(hasUnsavedChanges()).toBe(false);
+    107|     expect(unload()).toBe(true);
+       |                      ^
+    108|     act(() => clearLocalDrafts());
+    109|     expect(unload()).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/ui/session-draft-exit.test.tsx > window exit protects business content outside tasks > protects restored material and memory-only notes when storage fails
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/ui/session-draft-exit.test.tsx:123:22
+    121|     sessionStorage.setItem(key("materials.restored"), JSON.stringify([…
+    122|     renderHook(useSessionDraftExitProtection);
+    123|     expect(unload()).toBe(true);
+       |                      ^
+    124|     act(() => clearLocalDrafts());
+    125|     const note = renderHook(() => useLocalDraft("contact-note:memory",…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 10 passed (15)
+   Start at  07:24:25
+   Duration  417ms (transform 33ms, setup 0ms, import 79ms, tests 30ms, environment 239ms)
+

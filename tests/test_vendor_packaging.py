@@ -127,6 +127,14 @@ def test_package_rejects_committed_environment_files(tmp_path, private_path):
     assert not (tmp_path / "bundle").exists()
 
 
+def test_package_allows_committed_env_example_template(tmp_path):
+    source, lock = _git_runtime(tmp_path)
+    (source / ".env.example").write_text("EXAMPLE_SETTING=replace-me\n", encoding="utf-8")
+    _commit_and_pin(source, lock)
+    result = _run(source, tmp_path / "bundle", lock)
+    assert result.returncode == 0, result.stderr
+
+
 def test_package_rejects_environment_file_deleted_from_pinned_tree(tmp_path):
     source, lock = _git_runtime(tmp_path)
     private = source / "config" / ".env.production"
