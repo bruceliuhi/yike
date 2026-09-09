@@ -1,126 +1,59 @@
 #!/usr/bin/env bash
 set -euo pipefail
 umask 077
-
-readonly source_path="${1:?usage: package_mediacrawler.sh ABSOLUTE_SOURCE ABSOLUTE_DESTINATION}"
-readonly destination="${2:?usage: package_mediacrawler.sh ABSOLUTE_SOURCE ABSOLUTE_DESTINATION}"
-readonly project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-readonly lock_path="${project_root}/vendor/mediacrawler.lock"
-
-if [[ "${source_path}" != /* || "${destination}" != /* ]]; then
-  echo "source and destination must be absolute" >&2
-  exit 2
-fi
-if [[ ! -d "${source_path}" || -L "${source_path}" ]]; then
-  echo "source must be a regular directory" >&2
-  exit 2
-fi
-if [[ -e "${destination}" || -L "${destination}" ]]; then
-  echo "destination already exists" >&2
-  exit 2
-fi
-if [[ ! -f "${lock_path}" ]]; then
-  echo "MediaCrawler lock is missing" >&2
-  exit 2
-fi
-
-python3 - "${source_path}" "${destination}" "${lock_path}" <<'PY'
-import hashlib
-import json
-import os
+source_path="${1:?usage: package_mediacrawler.sh SOURCE DEST_BUNDLE [LOCK]}"
+destination="${2:?usage: package_mediacrawler.sh SOURCE DEST_BUNDLE [LOCK]}"
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+lock_path="${3:-${project_root}/vendor/mediacrawler.lock}"
+[[ "$source_path" = /* && "$destination" = /* && "$lock_path" = /* ]] || { echo 'paths must be absolute' >&2; exit 2; }
+[[ -d "$source_path" && ! -L "$source_path" ]] || { echo 'source must be a regular directory' >&2; exit 2; }
+[[ ! -e "$destination" && ! -L "$destination" ]] || { echo 'destination already exists' >&2; exit 2; }
+python3 - "$source_path" "$destination" "$lock_path" <<'PY'
+import hashlib, json, shutil, subprocess, sys
 from pathlib import Path
-import shutil
-import sys
-
-source, destination, lock_path = map(Path, sys.argv[1:])
-source = source.resolve()
-destination = Path(destination)
-lock_path = Path(lock_path).resolve()
-
-def fail(message: str) -> None:
-    raise SystemExit(message)
-
-if destination.resolve().is_relative_to(source):
-    fail("destination must not be inside source runtime")
-
+source, destination, lock_path = (Path(v).resolve() for v in sys.argv[1:])
+def fail(message): raise SystemExit(message)
+if destination == source or destination.is_relative_to(source): fail('destination must not be inside source')
+try: lock = json.loads(lock_path.read_text(encoding='utf-8'))
+except (OSError, json.JSONDecodeError) as exc: fail(f'invalid MediaCrawler lock: {exc}')
+commit = lock.get('commit')
+if lock.get('schema_version') != 'YIKE_MEDIACRAWLER_LOCK_V2' or not isinstance(commit, str) or len(commit) != 40: fail('unsupported or invalid MediaCrawler lock')
 try:
-    lock = json.loads(lock_path.read_text(encoding="utf-8"))
-except (OSError, json.JSONDecodeError) as exc:
-    fail(f"invalid MediaCrawler lock: {exc}")
-
-if lock.get("schema_version") != "YIKE_MEDIACRAWLER_LOCK_V2":
-    fail("unsupported MediaCrawler lock schema")
-commit = lock.get("commit")
-if not isinstance(commit, str) or len(commit) != 40:
-    fail("MediaCrawler lock commit is invalid")
-
-patch_entries = []
-for patch in lock.get("patches", []):
-    if not isinstance(patch, dict) or not isinstance(patch.get("path"), str):
-        fail("MediaCrawler patch entry is invalid")
-    patch_path = (lock_path.parent.parent / patch["path"]).resolve()
-    if not patch_path.is_relative_to(lock_path.parent.parent.resolve()) or not patch_path.is_file():
-        fail(f"MediaCrawler patch is missing: {patch['path']}")
-    digest = hashlib.sha256(patch_path.read_bytes()).hexdigest()
-    if digest != patch.get("sha256"):
-        fail(f"MediaCrawler patch checksum mismatch: {patch['path']}")
-    patch_entries.append((patch["path"], digest))
-
-def signature(entries: list[tuple[str, str]]) -> str:
-    payload = json.dumps(entries, separators=(",", ":"))
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-if signature(patch_entries) != lock.get("patchset_sha256"):
-    fail("MediaCrawler patchset checksum mismatch")
-
-license_path = source / "LICENSE"
-if license_path.is_symlink() or not license_path.is_file():
-    fail("upstream LICENSE is missing")
-marker_path = source / ".yike-runtime.json"
-if marker_path.is_symlink() or not marker_path.is_file():
-    fail("verified runtime marker is missing")
+    head = subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'], text=True).strip()
+    dirty = subprocess.check_output(['git','-C',str(source),'status','--porcelain','--untracked-files=all'], text=True)
+    license_text = subprocess.check_output(['git','-C',str(source),'show',f'{commit}:LICENSE'], text=True)
+    tracked = subprocess.check_output(['git','-C',str(source),'ls-files','-z']) .decode().split('\0')
+except (OSError, subprocess.CalledProcessError): fail('source must be a pinned git checkout containing LICENSE')
+if head != commit: fail('source HEAD does not match MediaCrawler lock commit')
+if dirty.strip(): fail('source checkout must be clean')
+if not license_text.strip(): fail('upstream LICENSE is missing')
+for item in filter(None, tracked):
+    lower = item.lower()
+    name = Path(item).name.lower()
+    if lower in {'.env','.env.local'} or 'browser_data' in lower or name in {'cookies','cookie.json','storage_state.json','token.json'}: fail(f'source contains private-state path: {item}')
+patch_entries=[]
+for entry in lock.get('patches',[]):
+    path=(lock_path.parent.parent/entry['path']).resolve()
+    if not path.is_file() or not path.is_relative_to(lock_path.parent.parent.resolve()): fail(f'MediaCrawler patch is missing: {entry["path"]}')
+    digest=hashlib.sha256(path.read_bytes()).hexdigest()
+    if digest != entry.get('sha256'): fail(f'MediaCrawler patch checksum mismatch: {entry["path"]}')
+    patch_entries.append((entry['path'],digest))
+patchset=hashlib.sha256(json.dumps(patch_entries,separators=(',',':')).encode()).hexdigest()
+if patchset != lock.get('patchset_sha256'): fail('MediaCrawler patchset checksum mismatch')
+bundle=destination
+manifest_path=Path(str(bundle)+'.manifest.json')
 try:
-    marker = json.loads(marker_path.read_text(encoding="utf-8"))
-except (OSError, json.JSONDecodeError) as exc:
-    fail(f"invalid runtime marker: {exc}")
-if marker.get("schema_version") != "YIKE_MEDIACRAWLER_RUNTIME_V1":
-    fail("unsupported runtime marker schema")
-for key in (
-    "commit", "patchset_sha256", "patched_tree_sha256", "progress_contract",
-    "browser_contract", "profile_contract", "runtime_environment",
-):
-    if marker.get(key) != lock.get(key):
-        fail(f"runtime marker {key} mismatch")
-if marker.get("commit") != commit:
-    fail("runtime marker commit mismatch")
-
-excluded = {".git", ".venv", "browser_data"}
-for path in source.rglob("*"):
-    relative = path.relative_to(source)
-    if relative.parts and relative.parts[0] in excluded:
-        continue
-    if path.is_symlink():
-        fail(f"runtime contains an unsupported symlink: {relative}")
-
-destination.mkdir(mode=0o700)
-try:
-    for item in source.iterdir():
-        if item.name in excluded:
-            continue
-        target = destination / item.name
-        if item.is_dir():
-            shutil.copytree(item, target, symlinks=False)
-        else:
-            shutil.copy2(item, target)
-    destination.chmod(0o700)
+    ref = 'refs/yike/package'
+    subprocess.run(['git','-C',str(source),'update-ref',ref,commit],check=True,capture_output=True)
+    try:
+        subprocess.run(['git','-C',str(source),'bundle','create',str(bundle),ref],check=True,capture_output=True)
+    finally:
+        subprocess.run(['git','-C',str(source),'update-ref','-d',ref],check=True,capture_output=True)
+    subprocess.run(['git','bundle','verify',str(bundle)],check=True,capture_output=True)
+    manifest={'schema_version':'YIKE_MEDIACRAWLER_PACKAGE_V2','commit':commit,'bundle_sha256':hashlib.sha256(bundle.read_bytes()).hexdigest(),'lock_sha256':hashlib.sha256(lock_path.read_bytes()).hexdigest(),'patchset_sha256':patchset,'license_sha256':hashlib.sha256(license_text.encode()).hexdigest()}
+    manifest_path.write_text(json.dumps(manifest,sort_keys=True,separators=(',',':')),encoding='utf-8')
+    bundle.chmod(0o600); manifest_path.chmod(0o600)
 except Exception:
-    shutil.rmtree(destination)
-    raise
-
-print(json.dumps({
-    "schema_version": "YIKE_MEDIACRAWLER_PACKAGE_V1",
-    "commit": commit,
-    "patchset_sha256": lock["patchset_sha256"],
-    "destination": str(destination),
-}, sort_keys=True))
+    bundle.unlink(missing_ok=True); manifest_path.unlink(missing_ok=True); raise
+print(json.dumps({'schema_version':manifest['schema_version'],'commit':commit,'bundle':str(bundle)},separators=(',',':')))
 PY

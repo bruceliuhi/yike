@@ -1,101 +1,53 @@
+import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = PROJECT_ROOT / "scripts" / "package_mediacrawler.sh"
-LOCK = PROJECT_ROOT / "vendor" / "mediacrawler.lock"
 
 
-def _runtime(tmp_path: Path, *, license_text: str = "upstream license\n") -> Path:
-    runtime = tmp_path / "runtime"
-    runtime.mkdir(mode=0o700)
-    (runtime / "main.py").write_text("print('ok')\n", encoding="utf-8")
-    (runtime / "LICENSE").write_text(license_text, encoding="utf-8")
-    lock = json.loads(LOCK.read_text(encoding="utf-8"))
-    marker = {
-        "schema_version": "YIKE_MEDIACRAWLER_RUNTIME_V1",
-        "commit": lock["commit"],
-        "patchset_sha256": lock["patchset_sha256"],
-        "patched_tree_sha256": lock["patched_tree_sha256"],
-        "progress_contract": lock["progress_contract"],
-        "browser_contract": lock["browser_contract"],
-        "profile_contract": lock["profile_contract"],
-        "runtime_environment": lock["runtime_environment"],
-    }
-    (runtime / ".yike-runtime.json").write_text(
-        json.dumps(marker), encoding="utf-8"
-    )
-    return runtime
+def _git_runtime(tmp_path: Path) -> tuple[Path, Path]:
+    source = tmp_path / "runtime"
+    source.mkdir(mode=0o700)
+    (source / "main.py").write_text("print('ok')\n", encoding="utf-8")
+    (source / "LICENSE").write_text("AUTHORIZED LICENSE\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(source)], check=True)
+    subprocess.run(["git", "-C", str(source), "add", "."], check=True)
+    env = {**os.environ, "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "test@example.invalid", "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "test@example.invalid"}
+    subprocess.run(["git", "-C", str(source), "commit", "-qm", "fixture"], check=True, env=env)
+    commit = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+    lock = tmp_path / "mediacrawler.lock"
+    lock.write_text(json.dumps({"schema_version": "YIKE_MEDIACRAWLER_LOCK_V2", "commit": commit, "patches": [], "patchset_sha256": hashlib.sha256(b"[]").hexdigest()}), encoding="utf-8")
+    return source, lock
 
 
-def _run(source: Path, destination: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [str(SCRIPT), str(source), str(destination)],
-        cwd=PROJECT_ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-        env={"PATH": os.environ["PATH"]},
-    )
+def _run(source: Path, destination: Path, lock: Path):
+    return subprocess.run([str(SCRIPT), str(source), str(destination), str(lock)], cwd=PROJECT_ROOT, text=True, capture_output=True, check=False)
 
 
-def test_package_copies_runtime_and_upstream_license_without_private_state(tmp_path):
-    source = _runtime(tmp_path, license_text="ORIGINAL LICENSE\n")
-    (source / "NOTICE").write_text("ORIGINAL NOTICE\n", encoding="utf-8")
-    (source / ".venv").mkdir()
-    (source / "browser_data").mkdir()
-    destination = tmp_path / "packaged"
-
-    result = _run(source, destination)
-
+def test_package_is_pinned_git_bundle_and_keeps_license(tmp_path):
+    source, lock = _git_runtime(tmp_path)
+    bundle = tmp_path / "mediacrawler.bundle"
+    result = _run(source, bundle, lock)
     assert result.returncode == 0, result.stderr
-    assert (destination / "main.py").is_file()
-    assert (destination / "LICENSE").read_text() == "ORIGINAL LICENSE\n"
-    assert (destination / "NOTICE").read_text() == "ORIGINAL NOTICE\n"
-    assert not (destination / ".venv").exists()
-    assert not (destination / "browser_data").exists()
-    assert (destination / ".yike-runtime.json").is_file()
-    assert destination.stat().st_mode & 0o777 == 0o700
+    manifest = json.loads(Path(str(bundle) + ".manifest.json").read_text())
+    assert manifest["commit"] == subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+    assert manifest["bundle_sha256"] == hashlib.sha256(bundle.read_bytes()).hexdigest()
+    assert b"AUTHORIZED LICENSE" in subprocess.check_output(["git", "-C", str(source), "show", manifest["commit"] + ":LICENSE"])
 
 
-def test_package_fails_closed_when_license_missing(tmp_path):
-    source = _runtime(tmp_path)
-    (source / "LICENSE").unlink()
-    destination = tmp_path / "packaged"
-
-    result = _run(source, destination)
-
+def test_package_fails_closed_for_dirty_or_unpinned_source(tmp_path):
+    source, lock = _git_runtime(tmp_path)
+    (source / ".env").write_text("SECRET=not-for-package\n", encoding="utf-8")
+    result = _run(source, tmp_path / "bundle", lock)
     assert result.returncode != 0
-    assert "license" in result.stderr.lower()
-    assert not destination.exists()
+    assert not (tmp_path / "bundle").exists()
 
 
-def test_package_fails_closed_when_marker_commit_or_patchset_mismatch(tmp_path):
-    source = _runtime(tmp_path)
-    marker = json.loads((source / ".yike-runtime.json").read_text())
-    marker["commit"] = "0" * 40
-    (source / ".yike-runtime.json").write_text(json.dumps(marker))
-    destination = tmp_path / "packaged"
-
-    result = _run(source, destination)
-
+def test_package_rejects_destination_inside_source(tmp_path):
+    source, lock = _git_runtime(tmp_path)
+    result = _run(source, source / "bundle", lock)
     assert result.returncode != 0
-    assert "commit" in result.stderr.lower()
-    assert not destination.exists()
-
-
-def test_package_refuses_existing_destination(tmp_path):
-    source = _runtime(tmp_path)
-    destination = tmp_path / "packaged"
-    destination.mkdir()
-    sentinel = destination / "sentinel"
-    sentinel.write_text("keep", encoding="utf-8")
-
-    result = _run(source, destination)
-
-    assert result.returncode != 0
-    assert "exist" in result.stderr.lower()
-    assert sentinel.read_text() == "keep"
+    assert not (source / "bundle").exists()

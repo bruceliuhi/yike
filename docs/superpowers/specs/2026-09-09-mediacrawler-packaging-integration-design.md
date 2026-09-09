@@ -12,21 +12,22 @@
 
 ## 2. 方案
 
-- 以固定 commit 的 MediaCrawler 源码作为 vendor subtree，保留上游 LICENSE/NOTICE。
-- 通过 `vendor/mediacrawler.lock` 固定 commit、补丁集、依赖文件和运行时摘要。
-- `app/collector.py` 只通过受控 supervisor 启动 vendor runtime；平台输出先落在仓外私有目录。
+- 以固定 commit 的 MediaCrawler 源码生成 Git bundle，作为产品可分发的源码包，保留上游 LICENSE/NOTICE。
+- 通过 `vendor/mediacrawler.lock` 固定 commit、补丁集、依赖文件和运行时摘要；打包前验证真实 Git HEAD、clean tree 和敏感路径。
+- `scripts/fetch_mediacrawler.sh` 可从本地 bundle 安装到仓外 runtime，再复用现有补丁和依赖安装流程。
+- `app/collector.py` 只通过受控 supervisor 启动安装后的 runtime；平台输出先落在仓外私有目录。
 - 现有 B 站/抖音 normalizer、SQLite 事实链和人工复核流程保持不变。
 - MediaCrawler 修改集中在 `vendor/patches/mediacrawler/`，不把意客业务逻辑塞进上游目录。
 
 ## 3. 数据与安全边界
 
-vendor runtime 不直接写意客 SQLite。采集结果必须经过现有标准化、双层去重和 `mvp_run_id` 事实事务。Profile、Cookie、二维码、模型密钥和授权文件不进入 Git、日志或导出；运行目录继续按 0700/0600 约束。
+源码 bundle 不包含 `.git` 工作目录、`.venv`、`browser_data`、`.env`、Cookie 或 Token 文件；安装后的 runtime 才生成仓外 Git checkout、依赖和 Profile。vendor runtime 不直接写意客 SQLite。采集结果必须经过现有标准化、双层去重和 `mvp_run_id` 事实事务。Profile、Cookie、二维码、模型密钥和授权文件不进入 Git、日志或导出；运行目录继续按 0700/0600 约束。
 
 实际登录、验证码、限流和平台风控仍由操作人在可见浏览器中处理。任何真实采集结论仍需真实账号和可重开来源证据，fixture 只能证明代码契约。
 
 ## 4. 兼容与回滚
 
-启动前校验 vendor commit、patchset 和依赖摘要；不一致时 fail closed。保留仓外 runtime 路径作为开发回滚方式，但产品默认使用仓内 vendor runtime。若上游升级，只允许新 commit＋新锁文件＋新补丁集的独立变更，不覆盖历史事实。
+安装前校验 bundle manifest、vendor commit 和 patchset；不一致时 fail closed。保留远程 clone 作为受控回滚方式，但默认优先使用本地 bundle。若上游升级，只允许新 commit＋新锁文件＋新补丁集的独立变更，不覆盖历史事实。
 
 ## 5. 验收
 

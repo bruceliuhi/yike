@@ -42,6 +42,22 @@ mkdir -p "$YIKE_RUNTIME_ROOT"
 ./scripts/fetch_mediacrawler.sh "$YIKE_MEDIACRAWLER_PATH"
 ```
 
+如需随产品分发，可先对一个干净的、已核验的固定 commit checkout 生成源码 bundle：
+
+```bash
+./scripts/package_mediacrawler.sh /absolute/path/to/pinned-mediacrawler \
+  /absolute/path/to/mediacrawler.bundle
+```
+
+再从 bundle 安装到仓外 runtime：
+
+```bash
+./scripts/fetch_mediacrawler.sh "$YIKE_MEDIACRAWLER_PATH" \
+  /absolute/path/to/mediacrawler.bundle
+```
+
+bundle 只包含固定 commit 的源码和 manifest，不包含 `.venv`、Profile、Cookie、Token 或授权原件；安装步骤会在仓外重新生成运行环境。
+
 不要覆盖或手改已有 runtime；需要重建时使用新的空路径，并更新 `.env.local`。
 
 ## 4. 初始化并启动

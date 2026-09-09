@@ -4,7 +4,7 @@
 
 **Goal:** 将已获授权的固定版本 MediaCrawler 变成意客 AI 可复现的仓内采集依赖，并保持现有证据链与人工在环边界。
 
-**Architecture:** MediaCrawler 作为 vendor runtime，collector supervisor 负责锁定版本、应用补丁和启动隔离进程；意客 adapter 负责 JSONL 标准化、去重和 SQLite 事实写入。账号 Profile 和原始恢复文件继续放在仓外私有目录。
+**Architecture:** MediaCrawler 以固定 commit Git bundle 分发，安装脚本在仓外创建可校验 runtime，collector supervisor 负责应用补丁和启动隔离进程；意客 adapter 负责 JSONL 标准化、去重和 SQLite 事实写入。账号 Profile 和原始恢复文件继续放在仓外私有目录。
 
 **Tech Stack:** Python 3.11/uv、MediaCrawler、Playwright、SQLite、FastAPI、pytest、Bash。
 
@@ -16,21 +16,21 @@
 - fixture 不得计入真实采集、联系、回复或商业结果。
 - MediaCrawler 源码固定 commit；补丁、依赖和许可证必须可追溯。
 
-## Task 1: Vendor runtime manifest and packaging helper
+## Task 1: Vendor source bundle and packaging helper
 
 Files: `vendor/mediacrawler.lock`, `vendor/patches/mediacrawler/*`, `scripts/fetch_mediacrawler.sh`, new `scripts/package_mediacrawler.sh`, tests for lock/packaging.
 
 - [ ] 先写失败测试：固定 commit、许可证文件、补丁摘要和目标目录校验失败时 fail closed。
-- [ ] 实现仓内 vendor 打包/校验脚本，保留上游 LICENSE/NOTICE，禁止覆盖已有 runtime。
+- [ ] 实现仓内 Git bundle 打包/校验脚本，验证真实 pinned checkout，保留上游许可证，不复制运行态。
 - [ ] 运行针对性测试和 shellcheck-equivalent syntax checks。
 - [ ] 提交独立 commit。
 
-## Task 2: Collector runtime resolution
+## Task 2: Local bundle installation
 
-Files: `app/config.py`, `app/collector.py`, `docs/RUNBOOK.md`, `.env.example`。
+Files: `scripts/fetch_mediacrawler.sh`, `docs/RUNBOOK.md`, `.env.example`。
 
-- [ ] 先写失败测试：默认解析仓内 vendor runtime；显式仓外路径仍可用于回滚；校验不通过时返回稳定错误码。
-- [ ] 实现最小路径解析和锁摘要绑定，不改变现有 collection state machine。
+- [ ] 先写失败测试：bundle manifest、commit 或 checksum 不匹配时安装失败，成功安装仍通过 runtime 校验。
+- [ ] 实现本地 bundle 安装和远程回退，不改变现有 collection state machine。
 - [ ] 运行 collector、CLI、secret scan 和 compile 测试。
 - [ ] 提交独立 commit。
 
