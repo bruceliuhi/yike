@@ -36,6 +36,12 @@ import {
   useDeadlineClock,
 } from "./opportunities/LibraryFacts";
 import { useCandidateReviewLedger } from "./opportunities/useCandidateReviewLedger";
+import { useCandidateRequests } from "./opportunities/useCandidateRequests";
+import { CandidateOriginalEvidence } from "./opportunities/CandidateOriginalEvidence";
+import { CandidateAssessmentDetails } from "./opportunities/CandidateAssessmentDetails";
+import { CandidateSourceVerification } from "./opportunities/CandidateSourceVerification";
+import type { CandidateAssessmentDto, CandidateReviewResultDto, SourceVerificationRequest } from "../../shared/candidateReviewApi";
+import { CANDIDATE_PLATFORM_LABELS } from "../services/candidateReview";
 import { PendingCandidateReviews } from "./opportunities/PendingCandidateReviews";
 import { ResearchLibrary } from "./opportunities/ResearchLibrary";
 import { EvidenceTimeline } from "./opportunities/EvidenceTimeline";
@@ -794,6 +800,7 @@ export function CandidatesPage() {
 }
 
 interface CandidateEditor {
+  binding?: string;
   profileId: string;
   assessment?: CandidateAssessment;
   evidence: CandidateEvidence;
@@ -833,12 +840,27 @@ const sampleCandidate: Candidate = {
   stage: "预算编制市场询价",
 };
 const candidateSample = (row: Candidate) => row.sample || row.id === "sample";
+const liveCandidate = (row: Candidate) =>
+  !candidateSample(row) && row.currentBindingValid !== undefined;
+const candidateIdentity = (row: Candidate) =>
+  JSON.stringify([
+    row.id,
+    row.revision,
+    row.sourceVersionId,
+    row.profileId,
+    row.profileVersion,
+    row.strategyVersionId,
+    row.historical,
+    row.currentBindingValid,
+    row.assessmentStale,
+  ]);
 function candidateEditor(row: Candidate): CandidateEditor {
   const evidence = {
     ...(row.assessment?.evidence || EMPTY_CANDIDATE_EVIDENCE),
   };
   return {
-    profileId: row.assessment?.profileId || "",
+    binding: candidateIdentity(row),
+    profileId: row.profileId || row.assessment?.profileId || "",
     assessment: row.assessment,
     evidence,
     baseline: { ...evidence },
@@ -890,6 +912,7 @@ function CandidateWorkbench() {
   const reviewLedger = useCandidateReviewLedger(
     session.authenticated ? session.userId : undefined,
   );
+  const requests = useCandidateRequests("P07");
   const scopeRef = useRef("");
   scopeRef.current = JSON.stringify([
     session.userId,
@@ -920,6 +943,7 @@ function CandidateWorkbench() {
     candidate: Candidate;
     profile: Profile;
   } | null>(null);
+  const [retryKey, setRetryKey] = useState<string | null>(null);
   const profiles = useResource(
     () =>
       session.authenticated && !sample
@@ -928,7 +952,7 @@ function CandidateWorkbench() {
     [service, session.userId, session.authenticated, sample],
   );
   const resource = useResource(
-    () =>
+    (signal) =>
       sample
         ? Promise.resolve<CandidatePage>({
             items: [sampleCandidate],
@@ -938,7 +962,7 @@ function CandidateWorkbench() {
           })
         : session.authenticated
           ? boundedRequest(
-              () =>
+              (requestSignal) =>
                 service.candidates(
                   requestedId
                     ? { ids: [requestedId], page: 1, pageSize: 10 }
@@ -949,8 +973,9 @@ function CandidateWorkbench() {
                         page,
                         pageSize: 10,
                       },
+                  requestSignal,
                 ),
-              { timeoutMessage: "线索读取超时，请重试。" },
+              { signal, timeoutMessage: "线索读取超时，请重试。" },
             ).then((result) => {
               if (
                 requestedId &&
@@ -983,11 +1008,37 @@ function CandidateWorkbench() {
   );
   const unsafeSample = !sample && resource.data?.items.some(candidateSample);
   const rows = unsafeSample ? [] : resource.data?.items || [];
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
   const selected = rows.find((row) => row.id === selectedId) || rows[0];
+  const original = useResource(
+    (signal) =>
+      selected && liveCandidate(selected) && service.rawCandidateEvidence
+        ? service.rawCandidateEvidence(
+            {
+              candidateId: selected.id,
+              candidateRevision: selected.revision,
+              sourceVersionId: selected.sourceVersionId,
+              profileId: selected.profileId,
+              strategyVersionId: selected.strategyVersionId,
+            },
+            signal,
+          )
+        : Promise.resolve(null),
+    [
+      service,
+      session.userId,
+      JSON.stringify(session.accountScope),
+      sample,
+      selected ? candidateIdentity(selected) : "",
+    ],
+  );
   const withPending = (
     row: Candidate,
     draft: CandidateEditor,
   ): CandidateEditor => {
+    if (liveCandidate(row) && draft.binding !== candidateIdentity(row))
+      draft = candidateEditor(row);
     const record = reviewLedger.records.find(
       (record) => record.candidateId === row.id,
     );
@@ -1008,12 +1059,31 @@ function CandidateWorkbench() {
   const selectedProfile = confirmedProfiles.find(
     (p) => p.id === editor?.profileId,
   );
+  const viewKey = JSON.stringify([
+    session.userId,
+    session.authenticated,
+    session.accountScope,
+    sample,
+    requestedId,
+    query,
+    platform,
+    status,
+    page,
+    selectedId,
+  ]);
+  const viewEpoch = useRef({ key: viewKey, version: 0 });
+  if (viewEpoch.current.key !== viewKey)
+    viewEpoch.current = {
+      key: viewKey,
+      version: viewEpoch.current.version + 1,
+    };
+  scopeRef.current = JSON.stringify([viewKey, viewEpoch.current.version]);
   const dirty = Object.values(drafts).some(
     (draft) =>
       JSON.stringify(draft.evidence) !== JSON.stringify(draft.baseline) ||
       !!draft.pending,
   );
-  useUnsavedChanges(dirty || !!busy);
+  useUnsavedChanges(dirty || !!busy || requests.busy);
   useEffect(() => {
     live.current = true;
     return () => {
@@ -1032,12 +1102,24 @@ function CandidateWorkbench() {
   ) =>
     setDrafts((old) => ({
       ...old,
-      [candidate.id]: update(old[candidate.id] || candidateEditor(candidate)),
+      [candidate.id]: update(
+        withPending(candidate, old[candidate.id] || candidateEditor(candidate)),
+      ),
     }));
   const getDraft = (candidate: Candidate) =>
     withPending(
       candidate,
       draftsRef.current[candidate.id] || candidateEditor(candidate),
+    );
+  const unresolvedRequest = (candidate: Candidate) =>
+    liveCandidate(candidate) &&
+    requests.operations.some(
+      (op) =>
+        op.candidateId === candidate.id &&
+        op.state !== "RECORDED" &&
+        !requests.operations.some(
+          (child) => child.retryOf[0] === (op.invocationId ?? op.requestId),
+        ),
     );
   const blockers = (
     candidate: Candidate,
@@ -1048,6 +1130,25 @@ function CandidateWorkbench() {
     const reasons: string[] = [];
     if (candidateSample(candidate)) reasons.push("公开样例不可修改或入库");
     if (candidate.status !== "PENDING_REVIEW") reasons.push("当前候选已处理");
+    if (liveCandidate(candidate)) {
+      if (!requests.available) reasons.push("真实复核服务尚未接通");
+      if (candidate.historical || !candidate.currentBindingValid)
+        reasons.push("历史或失效绑定只读，请读取当前版本");
+      if (candidate.assessmentStale)
+        reasons.push("判断已过期，请按当前版本重新判断");
+      if (
+        draft.assessment &&
+        draft.assessment.strategyVersionId !== candidate.strategyVersionId
+      )
+        reasons.push("判断策略版本不一致，请重新判断");
+      if (unresolvedRequest(candidate)) reasons.push("原请求尚未核对完成");
+      if (
+        profile &&
+        (candidate.profileId !== profile.id ||
+          candidate.profileVersion !== profile.version)
+      )
+        reasons.push("所选画像不是当前来源绑定版本");
+    }
     if (draft.pending) reasons.push("上次复核结果尚未核对");
     if (!profile) reasons.push("请绑定已确认画像");
     else if (
@@ -1066,21 +1167,64 @@ function CandidateWorkbench() {
       !candidate.sourceId.trim() ||
       !candidate.sourceVersionId.trim() ||
       !candidate.excerpt.trim() ||
-      !candidate.url || !/^https?:\/\//i.test(candidate.url)
+      !candidate.url ||
+      !/^https?:\/\//i.test(candidate.url)
     )
       reasons.push("原始摘录或来源信息缺失");
     if (action === "INCLUDE" && candidate.sourceStatus !== "OPEN")
       reasons.push("来源尚未核实可访问");
+    if (action === "INCLUDE" && liveCandidate(candidate)) {
+      if (
+        candidate.id === selected?.id &&
+        (original.loading || original.error || !original.data)
+      )
+        reasons.push("请先成功读取当前版本原文证据");
+      const verification = candidate.sourceVerification;
+      const now = Date.now(),
+        published = Date.parse(candidate.publishedAt);
+      if (
+        !Number.isFinite(published) ||
+        published > now ||
+        now - published > 60 * 86_400_000
+      )
+        reasons.push("本人发布时间未知或已超过60天");
+      if (
+        !verification ||
+        verification.status !== "OPEN" ||
+        verification.contactMethod === "NONE" ||
+        verification.binding.candidateId !== candidate.id ||
+        verification.binding.candidateRevision !== candidate.revision ||
+        verification.binding.sourceVersionId !== candidate.sourceVersionId ||
+        verification.binding.profileId !== profile?.id ||
+        verification.binding.profileVersion !== profile?.version ||
+        Date.parse(verification.checkedAt) > now ||
+        now - Date.parse(verification.checkedAt) > 86_400_000
+      )
+        reasons.push("需要当前版本24小时内的人工来源核验和联系路径");
+    }
     return reasons;
   };
   const assess = async (candidate: Candidate, profile: Profile) => {
     if (
       lock.current ||
+      requests.busy ||
       candidateSample(candidate) ||
       candidate.status !== "PENDING_REVIEW" ||
-      getDraft(candidate).pending
+      getDraft(candidate).pending ||
+      unresolvedRequest(candidate)
     )
       return;
+    if (
+      liveCandidate(candidate) &&
+      (candidate.historical ||
+        !candidate.currentBindingValid ||
+        candidate.profileId !== profile.id ||
+        candidate.profileVersion !== profile.version)
+    ) {
+      setError("请返回当前来源绑定的已确认画像后判断。");
+      return;
+    }
+    const scope = scopeRef.current;
     lock.current = true;
     setBusy(candidate.id);
     setError("");
@@ -1095,13 +1239,30 @@ function CandidateWorkbench() {
       requestId: crypto.randomUUID(),
     };
     try {
-      const result = await candidateTimeout(service.reviewCandidate(request));
-      if (!live.current) return;
+      const result = liveCandidate(candidate)
+        ? await requests.submit(request)
+        : await candidateTimeout(service.reviewCandidate(request));
+      if (!live.current || scopeRef.current !== scope) return;
+      if (
+        liveCandidate(candidate) &&
+        !rowsRef.current.some(
+          (row) => candidateIdentity(row) === candidateIdentity(candidate),
+        )
+      )
+        return;
+      if (!result) return;
+      if (result.kind === "pending" || result.kind === "failure") {
+        setError("判断结果尚未确定，请从原请求记录核对；不会自动重新调用。");
+        return;
+      }
       if (
         result.kind !== "assessment" ||
         result.requestId !== request.requestId ||
         result.candidateId !== candidate.id ||
         !result.assessment.id ||
+        (liveCandidate(candidate) &&
+          result.assessment.strategyVersionId !==
+            candidate.strategyVersionId) ||
         !assessmentMatches(
           candidate,
           result.assessment,
@@ -1121,6 +1282,22 @@ function CandidateWorkbench() {
         evidence: { ...result.assessment.evidence },
         baseline: { ...result.assessment.evidence },
       }));
+      if (liveCandidate(candidate))
+        resource.setData(
+          (old) =>
+            old && {
+              ...old,
+              items: old.items.map((row) =>
+                row.id === candidate.id
+                  ? {
+                      ...row,
+                      assessment: result.assessment,
+                      assessmentStale: false,
+                    }
+                  : row,
+              ),
+            },
+        );
     } catch (e) {
       if (live.current) setError(errorMessage(e));
     } finally {
@@ -1135,6 +1312,7 @@ function CandidateWorkbench() {
     else void assess(candidate, profile);
   };
   const prepare = (candidates: Candidate[], action: "INCLUDE" | "EXCLUDE") => {
+    if (requests.busy) return;
     setError("");
     if (!candidates.length) return;
     const invalid = candidates.find(
@@ -1160,6 +1338,9 @@ function CandidateWorkbench() {
         evidence: { ...draft.evidence },
         reason: "",
         humanConfirmed: true,
+        ...(liveCandidate(candidate)
+          ? { sourceVerificationId: candidate.sourceVerification?.id ?? null }
+          : {}),
       };
     });
     setConfirmation({
@@ -1214,9 +1395,24 @@ function CandidateWorkbench() {
       (snapshot.action === "EXCLUDE" && !snapshot.reason.trim())
     )
       return;
-    const invalid = snapshot.rows.find(
-      (row) => blockers(row, snapshot.action).length,
-    );
+    const invalid = snapshot.rows.find((row, index) => {
+      const latest = rowsRef.current.find((value) => value.id === row.id);
+      if (
+        !latest ||
+        candidateIdentity(latest) !== candidateIdentity(row) ||
+        blockers(latest, snapshot.action).length
+      )
+        return true;
+      const draft = getDraft(latest),
+        request = snapshot.reviews[index];
+      return (
+        liveCandidate(latest) &&
+        (latest.sourceVerification?.id !== row.sourceVerification?.id ||
+          draft.profileId !== request.profileId ||
+          draft.assessment?.id !== request.assessmentId ||
+          JSON.stringify(draft.evidence) !== JSON.stringify(request.evidence))
+      );
+    });
     if (invalid) {
       setError("复核条件已变化，请取消并重新检查。");
       return;
@@ -1241,6 +1437,40 @@ function CandidateWorkbench() {
         };
         let operation: CandidateReviewOperation | undefined;
         try {
+          if (liveCandidate(candidate)) {
+            const result = await requests.submit(request);
+            if (!current()) return;
+            if (!result || result.kind !== "decision") {
+              setError(
+                `本次结果尚未确定，请核对原请求。本批已完成 ${completed} 条，其余未继续提交。`,
+              );
+              break;
+            }
+            if (
+              !rowsRef.current.some(
+                (row) =>
+                  candidateIdentity(row) === candidateIdentity(candidate),
+              )
+            ) {
+              setOutcome({
+                message:
+                  "原请求已记录，候选版本已变化；未覆盖当前线索，请从原请求记录核对。",
+                opportunityId: result.receipt.opportunityId,
+              });
+              break;
+            }
+            applyDecision(
+              {
+                ...result.candidate,
+                platform: CANDIDATE_PLATFORM_LABELS[result.candidate.platform],
+                sourceLabel:
+                  CANDIDATE_PLATFORM_LABELS[result.candidate.platform],
+              },
+              result.receipt,
+            );
+            completed++;
+            continue;
+          }
           operation = await reviewLedger.begin(request, current);
           if (!current()) {
             reviewLedger.release(operation);
@@ -1418,6 +1648,77 @@ function CandidateWorkbench() {
       setError(errorMessage(e));
     }
   };
+  const saveVerification = async (request: SourceVerificationRequest) => {
+    const scope = scopeRef.current;
+    const candidate = rowsRef.current.find(
+      (row) => row.id === request.candidateId,
+    );
+    if (!candidate || candidate.historical || !candidate.currentBindingValid)
+      return;
+    const identity = candidateIdentity(candidate);
+    setConfirmation(null);
+    const result = await requests.submit(request);
+    if (
+      !live.current ||
+      scopeRef.current !== scope ||
+      result?.kind !== "sourceVerification"
+    )
+      return;
+    if (!rowsRef.current.some((row) => candidateIdentity(row) === identity)) {
+      setOutcome({
+        message:
+          "原核验请求已记录，候选版本已变化；未覆盖当前核验，请从原请求记录核对。",
+      });
+      return;
+    }
+    resource.setData(
+      (old) =>
+        old && {
+          ...old,
+          items: old.items.map((row) =>
+            row.id === result.candidateId &&
+            row.revision === result.binding.candidateRevision &&
+            row.sourceVersionId === result.binding.sourceVersionId &&
+            row.profileId === result.binding.profileId &&
+            row.profileVersion === result.binding.profileVersion
+              ? {
+                  ...row,
+                  sourceStatus: result.status,
+                  sourceVerification: result,
+                }
+              : row,
+          ),
+        },
+    );
+  };
+  const showRecovered = (result: CandidateReviewResultDto | null) => {
+    if (!result) return;
+    setError("");
+    setOutcome(null);
+    setConfirmation(null);
+    if (result.kind === "decision") {
+      setOutcome({
+        message:
+          "原请求已核对成功；以下列表重新读取当前版本，原回执不授权新版本操作。",
+        opportunityId: result.receipt.opportunityId,
+      });
+      void resource.reload();
+    } else if (
+      result.kind === "assessment" ||
+      result.kind === "sourceVerification"
+    ) {
+      setOutcome({
+        message:
+          "已找回原请求记录，正在读取当前版本；历史判断与核验不自动应用到新来源。",
+      });
+      void resource.reload();
+    } else
+      setError(
+        result.kind === "failure"
+          ? "原分析请求失败，可明确确认后重新判断。"
+          : `原请求${result.status === "PROCESSING" ? "仍在处理" : "结果未知"}，未重新提交。`,
+      );
+  };
   const currentBlockers = selected ? blockers(selected, "INCLUDE") : [];
   return (
     <>
@@ -1510,6 +1811,47 @@ function CandidateWorkbench() {
               busy={!!busy}
               onReconcile={(operation) => void reconcileOperation(operation)}
             />
+          )}
+          {!sample && requests.available && requests.operations.length > 0 && (
+            <section aria-label="候选原请求记录" className="card">
+              <h3>原请求核对</h3>
+              <p className="muted">
+                记录不受当前筛选影响；只读核对不会重新调用模型或重复入库。
+              </p>
+              {requests.operations.map((operation) => (
+                <div key={operation.key} className="action-row">
+                  <span>
+                    {operation.action} · {operation.state} ·{" "}
+                    {operation.requestId}
+                  </span>
+                  <Button
+                    disabled={requests.busy || !!busy}
+                    onClick={() =>
+                      void requests.reconcile(operation.key).then(showRecovered)
+                    }
+                  >
+                    核对原请求
+                  </Button>
+                  {operation.action === "ASSESS" &&
+                    ["FAILED", "UNKNOWN"].includes(operation.state) &&
+                    !requests.operations.some(
+                      (child) =>
+                        child.retryOf[0] ===
+                        (operation.invocationId ?? operation.requestId),
+                    ) && (
+                      <Button
+                        disabled={requests.busy || !!busy}
+                        onClick={() => setRetryKey(operation.key)}
+                      >
+                        确认后重新判断
+                      </Button>
+                    )}
+                </div>
+              ))}
+            </section>
+          )}
+          {!sample && requests.error && (
+            <Notice tone="error">{requests.error}</Notice>
           )}
           <ResourceStatus
             loading={resource.loading}
@@ -1706,6 +2048,16 @@ function CandidateWorkbench() {
                     </div>
                     <div className="section-heading">
                       <h3>原始内容与证据</h3>
+                      {liveCandidate(selected) && (
+                        <Button
+                          onClick={() => {
+                            setConfirmation(null);
+                            void resource.reload();
+                          }}
+                        >
+                          刷新当前版本
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         disabled={!selected.url}
@@ -1714,9 +2066,39 @@ function CandidateWorkbench() {
                         查看原文 <ArrowSquareOut />
                       </Button>
                     </div>
-                    <blockquote className="evidence-quote">
-                      {selected.excerpt || "原始摘录缺失，需补充证据。"}
-                    </blockquote>
+                    {liveCandidate(selected) ? (
+                      <>
+                        <ResourceStatus
+                          loading={original.loading}
+                          error={original.error}
+                          onRetry={original.reload}
+                        />
+                        {original.data && (
+                          <CandidateOriginalEvidence evidence={original.data} />
+                        )}
+                        {original.error && (
+                          <Notice tone="warning">
+                            原文或绑定可能已变化，请刷新候选；不会用摘要替代缺失原文。
+                            <Button onClick={() => void resource.reload()}>
+                              读取当前候选
+                            </Button>
+                          </Notice>
+                        )}
+                        {selected.historical ||
+                        !selected.currentBindingValid ? (
+                          <Notice tone="warning">
+                            当前是历史或失效绑定，只能查看。
+                            <Button onClick={() => void resource.reload()}>
+                              读取当前版本
+                            </Button>
+                          </Notice>
+                        ) : null}
+                      </>
+                    ) : (
+                      <blockquote className="evidence-quote">
+                        {selected.excerpt || "原始摘录缺失，需补充证据。"}
+                      </blockquote>
+                    )}
                     <p>{selected.summary}</p>
                     {selected.stage && (
                       <p className="muted">采购阶段：{selected.stage}</p>
@@ -1774,6 +2156,8 @@ function CandidateWorkbench() {
                             aria-label="候选目标业务画像"
                             disabled={
                               !!busy ||
+                              requests.busy ||
+                              unresolvedRequest(selected) ||
                               !!editor?.pending ||
                               selected.status !== "PENDING_REVIEW"
                             }
@@ -1782,7 +2166,16 @@ function CandidateWorkbench() {
                               const profile = confirmedProfiles.find(
                                 (p) => p.id === e.target.value,
                               );
-                              if (profile) requestAssessment(selected, profile);
+                              if (profile) {
+                                if (liveCandidate(selected)) {
+                                  setConfirmation(null);
+                                  setReplaceAssessment(null);
+                                  updateDraft(selected, (old) => ({
+                                    ...old,
+                                    profileId: profile.id,
+                                  }));
+                                } else requestAssessment(selected, profile);
+                              }
                             }}
                           >
                             <option value="">选择已确认画像</option>
@@ -1813,7 +2206,14 @@ function CandidateWorkbench() {
                         {selected.status === "PENDING_REVIEW" && (
                           <Button
                             disabled={
-                              !selectedProfile || !!busy || !!editor?.pending
+                              !selectedProfile ||
+                              !!busy ||
+                              requests.busy ||
+                              unresolvedRequest(selected) ||
+                              !!editor?.pending ||
+                              (liveCandidate(selected) &&
+                                (selected.historical ||
+                                  !selected.currentBindingValid))
                             }
                             loading={busy === selected.id}
                             onClick={() =>
@@ -1823,6 +2223,45 @@ function CandidateWorkbench() {
                           >
                             按画像重新判断
                           </Button>
+                        )}
+                        {liveCandidate(selected) && (
+                          <>
+                            <CandidateAssessmentDetails
+                              assessment={
+                                editor?.assessment as
+                                  CandidateAssessmentDto | undefined
+                              }
+                              stale={
+                                selected.assessmentStale ||
+                                !selected.currentBindingValid ||
+                                selected.historical ||
+                                editor?.assessment?.profileId !==
+                                  editor?.profileId
+                              }
+                            />
+                            <CandidateSourceVerification
+                              key={`${candidateIdentity(selected)}:${editor?.profileId}`}
+                              binding={{
+                                candidateId: selected.id,
+                                candidateRevision: selected.revision,
+                                sourceVersionId: selected.sourceVersionId,
+                                profileId: selected.profileId!,
+                                profileVersion: selected.profileVersion!,
+                              }}
+                              verification={selected.sourceVerification}
+                              disabled={
+                                !!busy ||
+                                requests.busy ||
+                                unresolvedRequest(selected) ||
+                                selected.historical ||
+                                !selected.currentBindingValid ||
+                                selected.status !== "PENDING_REVIEW" ||
+                                editor?.profileId !== selected.profileId
+                              }
+                              onChange={() => setConfirmation(null)}
+                              onSubmit={saveVerification}
+                            />
+                          </>
                         )}
                         {editor?.assessment &&
                           selected.status === "PENDING_REVIEW" && (
@@ -1837,7 +2276,14 @@ function CandidateWorkbench() {
                         editor?.assessment ? (
                           <fieldset
                             className="profile-fieldset"
-                            disabled={!!busy || !!editor.pending}
+                            disabled={
+                              !!busy ||
+                              requests.busy ||
+                              !!editor.pending ||
+                              (liveCandidate(selected) &&
+                                (selected.historical ||
+                                  !selected.currentBindingValid))
+                            }
                           >
                             {(
                               Object.keys(
@@ -1854,15 +2300,16 @@ function CandidateWorkbench() {
                                   rows={2}
                                   maxLength={2000}
                                   value={editor.evidence[key]}
-                                  onChange={(e) =>
+                                  onChange={(e) => {
+                                    setConfirmation(null);
                                     updateDraft(selected, (old) => ({
                                       ...old,
                                       evidence: {
                                         ...old.evidence,
                                         [key]: e.target.value,
                                       },
-                                    }))
-                                  }
+                                    }));
+                                  }}
                                 />
                               </Field>
                             ))}
@@ -1926,6 +2373,7 @@ function CandidateWorkbench() {
                               <Button
                                 disabled={
                                   !!busy ||
+                                  requests.busy ||
                                   blockers(selected, "EXCLUDE").length > 0
                                 }
                                 onClick={() => prepare([selected], "EXCLUDE")}
@@ -1934,7 +2382,11 @@ function CandidateWorkbench() {
                               </Button>
                               <Button
                                 variant="primary"
-                                disabled={!!busy || currentBlockers.length > 0}
+                                disabled={
+                                  !!busy ||
+                                  requests.busy ||
+                                  currentBlockers.length > 0
+                                }
                                 onClick={() => prepare([selected], "INCLUDE")}
                               >
                                 确认入库
@@ -1975,6 +2427,25 @@ function CandidateWorkbench() {
             </div>
           )}
         </>
+      )}
+      {retryKey && (
+        <Confirm
+          title="重新发起判断？"
+          confirmText="核对后重新判断"
+          loading={requests.busy}
+          onCancel={() => setRetryKey(null)}
+          onConfirm={() => {
+            const key = retryKey;
+            void requests.retryAssessment(key, true).then((result) => {
+              setRetryKey(null);
+              showRecovered(result);
+            });
+          }}
+        >
+          <p>
+            将先只读核对原请求。仅已失败或结果未知的分析才创建新的重试请求，可能再次消耗模型用量；仍在处理时不重发。
+          </p>
+        </Confirm>
       )}
       {replaceAssessment && (
         <Confirm
@@ -2033,6 +2504,12 @@ function CandidateWorkbench() {
                 画像版本 {confirmation.reviews[index].profileVersion} · 来源版本{" "}
                 {row.sourceVersionId}
               </p>
+              {confirmation.reviews[index].sourceVerificationId && (
+                <p className="muted">
+                  本次来源核验 ID：
+                  {confirmation.reviews[index].sourceVerificationId}
+                </p>
+              )}
               <dl className="detail-list">
                 {(
                   Object.keys(
@@ -2056,7 +2533,9 @@ function CandidateWorkbench() {
                 value={confirmation.reason}
                 onChange={(e) =>
                   setConfirmation((old) =>
-                    old ? { ...old, reason: e.target.value } : old,
+                    old
+                      ? { ...old, reason: e.target.value, acknowledged: false }
+                      : old,
                   )
                 }
               />

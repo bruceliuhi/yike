@@ -196,6 +196,7 @@ describe("原始候选 P07", () => {
     await waitFor(() =>
       expect(load).toHaveBeenLastCalledWith(
         expect.objectContaining({ page: 2, pageSize: 10 }),
+        expect.any(AbortSignal),
       ),
     );
     await screen.findByText("2 / 3");
@@ -205,6 +206,7 @@ describe("原始候选 P07", () => {
     await waitFor(() =>
       expect(load).toHaveBeenLastCalledWith(
         expect.objectContaining({ platform: "抖音", page: 1 }),
+        expect.any(AbortSignal),
       ),
     );
     fireEvent.change(screen.getByRole("textbox", { name: "搜索原始线索" }), {
@@ -213,6 +215,7 @@ describe("原始候选 P07", () => {
     await waitFor(() =>
       expect(load).toHaveBeenLastCalledWith(
         expect.objectContaining({ query: "展区", page: 1 }),
+        expect.any(AbortSignal),
       ),
     );
   });
@@ -551,6 +554,8 @@ describe("原始候选 P07", () => {
       within(dialog).getByRole("textbox", { name: "候选排除原因" }),
       { target: { value: "服务地区不符合已确认能力" } },
     );
+    expect((within(dialog).getByRole("button", { name: "确认排除" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(within(dialog).getByRole("checkbox"));
     fireEvent.click(within(dialog).getByRole("button", { name: "确认排除" }));
     await screen.findByText("候选已排除。");
     expect(exclude).toHaveBeenCalledWith(

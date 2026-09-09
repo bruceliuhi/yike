@@ -1,0 +1,88 @@
+.candidate-evidence,
+.candidate-evidence section,
+.candidate-evidence article,
+.candidate-evidence dl,
+.candidate-evidence dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.candidate-evidence {
+  border-top: 1px solid var(--line);
+  padding-block: 1rem;
+  line-height: 1.6;
+}
+.candidate-evidence h3,
+.candidate-evidence h4 {
+  margin-block: 0.5rem;
+}
+.candidate-evidence-text,
+.candidate-evidence-facts dd {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.candidate-evidence-text {
+  font-size: 1.143rem;
+}
+.candidate-evidence-facts {
+  display: grid;
+  gap: 0.65rem;
+  margin-block: 1rem;
+}
+.candidate-evidence-facts > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.25rem;
+  min-width: 0;
+}
+.candidate-evidence-facts dt {
+  color: var(--muted);
+}
+.candidate-evidence-facts dd {
+  margin: 0;
+}
+.candidate-evidence-context {
+  padding-left: 1rem;
+  border-left: 2px solid var(--line);
+}
+.candidate-evidence-warning {
+  border-left: 3px solid #d48806;
+  background: #fffbe6;
+  padding: 0.75rem;
+  color: #614700;
+}
+.candidate-evidence-details > summary {
+  cursor: pointer;
+  color: var(--link);
+  min-height: 3.143rem;
+  padding-block: 0.75rem;
+}
+.candidate-evidence-details > summary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.candidate-evidence-history,
+.candidate-assessment-dimension,
+.candidate-assessment-draft {
+  padding-block: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+.candidate-assessment-dimensions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+.candidate-assessment-citations {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+.candidate-assessment-citations blockquote {
+  margin: 0.25rem 0 0.75rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--line);
+}
+@media (min-width: 800px) {
+  .candidate-evidence-facts > div {
+    grid-template-columns: minmax(7rem, 0.4fr) minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+}

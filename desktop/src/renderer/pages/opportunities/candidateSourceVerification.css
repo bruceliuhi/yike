@@ -1,0 +1,68 @@
+.candidate-source-verification {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.candidate-source-verification h3,
+.candidate-source-verification h4 {
+  margin: 0;
+}
+.candidate-source-verification fieldset {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.candidate-source-verification legend {
+  margin-bottom: 0.75rem;
+}
+.candidate-verification-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 0.75rem;
+}
+.candidate-source-verification select,
+.candidate-source-verification textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  box-sizing: border-box;
+}
+.candidate-source-verification textarea {
+  resize: vertical;
+}
+.candidate-verification-confirm {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 2.75rem;
+}
+.candidate-verification-confirm input {
+  flex: none;
+}
+.candidate-verification-binding {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+.candidate-verification-binding dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.candidate-verification-receipt {
+  min-width: 0;
+}
+.candidate-verification-verbatim {
+  white-space: pre-wrap;
+}
+.candidate-source-verification summary {
+  cursor: pointer;
+  padding-block: 0.5rem;
+}
+.candidate-source-verification .button {
+  min-height: 2.75rem;
+  justify-self: start;
+}

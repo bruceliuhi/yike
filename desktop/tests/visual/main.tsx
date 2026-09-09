@@ -28,6 +28,7 @@ import { MaterialRecoveryControls } from "./MaterialRecoveryControls";
 import { selectManagementRecovery, configureManagementRecovery } from "./managementRecovery";
 import { ManagementRecoveryControls } from "./ManagementRecoveryControls";
 import { configureStrategyVisual } from "./strategy";
+import { configureCandidateReviewVisual } from "./candidate-review";
 
 const params = new URLSearchParams(location.search);
 const state = (
@@ -107,6 +108,7 @@ const recoveryName = selectRecovery(
 const recovery = recoveryName
   ? configureRecovery(harness, recoveryName)
   : undefined;
+configureCandidateReviewVisual(harness.service, params, harness.record);
 const storage = isolateBrowser(harness.record, { saveExport: managementRecovery?.saveExport });
 const seed = (name: string, value: unknown) =>
   storage.session.setItem("yike.ui.draft.v1." + name, JSON.stringify(value));

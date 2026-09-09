@@ -101,3 +101,34 @@ node node_modules/vitest/vitest.mjs run tests/rawCandidateEvidence.test.ts tests
 独立审核保留非阻断部署提醒：device credentials授权脚本的owner guard尚未包含新增授权的connections/session_revocations表，GRANT本身不授予表所有权；后续独立部署需按既有session授权脚本验证两表非应用角色所有。此处没有执行生产授权、扩展安全工程或冒充新PG接收。Mac本轮截图/包/PG数字各保留其原版本与执行归属，不作为Win或新P07实际验收。
 
 Win根代理对合入版本执行Python `-X utf8 -m pytest -q tests/test_device_keys.py tests/test_device_registration.py --tb=short`：38 passed/0 skipped，0.16s。仅纯设备/登记兼容检查，不证明SQL grants已在Windows PG实际应用；此前单独18项是其子集，不累计。
+
+## Task4 P07 原文证据与完整人工流程
+
+基线`f1a1c33`。沿已有P07接入真实候选服务，不另建产品演示页。当前本人原文与父帖/父评论分开，原始发布时间、观察时间、接收时间和来源版本分别展示；逐字正文保留换行并转义，未知时间不补造。四维判断、引用出处、反证/未知、模型/规则版本和未发送短句独立展示，缺分析不伪造等级或草稿。
+
+绑定画像只选择、不自动调用模型；显式ASSESS、人工来源核验、确认纳入/排除统一走先持久化原请求再POST。来源核验展示完整定位、摘录、核验人/时间/ID/requestId；未核实、过期、无联系路径不能纳入。INCLUDE固定核验ID和全部确认字段，任何编辑需重确。旧样例、批量和旧账本保留；结果未知先GET原请求，不盲重发。核对成功给出现有P11入口，不授权发送。
+
+### 反例与独立审核
+
+- 原文面板stub有效RED9→最终12项；来源核验stub RED19，加回执定位/摘录反例2→最终21项。隔离视觉入口stub RED5，加中文平台显示RED1→6项。
+- P07初始有效RED3（绑定画像、禁止隐式调用、缺人工表单）；随后筛选ABA/原文失败RED2、未知请求锁RED1、策略失配/画像ABA RED2、刷新按钮RED1、晚到核验/决策版本变化RED2均修复。最终15项涵盖用户确认、回执丢失后筛选外GET恢复及不重复写入；不把后补覆盖冒称先失败测试。
+- 独立SPEC、代码/架构/质量审核发现4个P2：核验回执定位/摘录遗漏、ASSESS策略失配、画像往返保留确认、晚到响应跨新版本采用；均修复并复审PASS，0开放项。独立111项、视觉相关21项为不同阶段批次，不累计。
+- Windows浏览器发现恢复成功仍留旧“未知”错误，增加有效RED1→GREEN1；只在已核对非空结果后清理旧提示。独立最终差量PASS，定向1 passed/14未选；当前`Opportunities.tsx` SHA256=`0342E429B6CD90A808FBBE38BBBA9EFA2CCFFD4E0693FA1B8DEF8D15D37531D4`。
+
+### 根代理验证与边界
+
+最终提示修复后，Node24相关回归**20文件612 passed/0 skipped，8.85s**。包含Task3同组加视觉入口隔离、原文/来源/P07和既有弹窗；不与先前546项累计。此前类型检查退出0，生产TEST排除4787 transformed/4786 graph modules、manifestHarnessReferences=0、failures=[]，existingAsarChecked=false；主干合入后另记最终复验。
+
+Windows Edge真实浏览器已在1440×1000和960×600检查原文、完整确认弹窗、取消/重新确认、成功入口、回执丢失及筛选外原请求恢复、原文读取明确失败。数据/平台/模型为TEST隔离，真实浏览器不等于真实后端整链；浏览器不执行外部来源访问或发送。最终合入及提示修复后复验单独记录。
+
+Task4产品写入口现已安装；**Task5实际Node→HTTP→受限PostgreSQL仍未执行**，sourceVerificationId服务回执接收、真实来源/模型/收发、安装发行及客户试用仍不能冒称完成。05G/PH-F06/整体Goal保持IN_PROGRESS。
+
+### Task4 主干整合与最终复验
+
+源码`90c1feb`，正常保留Mac`81adccb`合入`5614d71`。仅整合状态顶部并行记录冲突，保留双方全部文字。Mac弹窗可访问性、迁移110注册、会话内容退出保护均保留；两段来件分别经独立限定兼容审核PASS，不将Mac原生包或PG证据计为Win。
+
+扩大到全部UI与候选合同/服务/视觉隔离后首次93文件：1421 passed/2 failed。失败明确是工作台候选定位两项旧断言未包含新增AbortSignal第二参数；只补`expect.any(AbortSignal)`，精确ID/分页和切换时清除选择/确认的断言未减弱，独立适配审核PASS。最终同批**93文件1423 passed/0 skipped，53.36s**，不是与612项相加。Node24 `tsc --noEmit`退出0；生产排除构建4788 transformed/4787 graph modules、manifestHarnessReferences=0、failures=[]，existingAsarChecked=false。Win Python身份合同**19 passed/0 skipped，0.35s**（含110注册），不是实际PG执行。
+
+最终合入产品字节在Windows Edge以1440×1000/960×600复验原文与确认弹窗，960重新执行取消→重新勾选→提交丢回执→筛选外GET恢复：事件恰好一次ASSESS、VERIFY、INCLUDE、GET_REQUEST，成功后无旧未知提示，scrollWidth=960。原文读取失败场景只LIST/RAW、无摘要替代且不能纳入。截图与页面/事件记录见[candidate-p07-win](candidate-p07-win/README.md)。全部是明确标识的TEST内存传输，未调用实际平台、模型或客户库。
+
+自己的源码/文档diff检查和凭据扫描通过。合入Mac历史验收日志与刻意空白fixture的diff check报告原有尾随空白，原证据按字节保留，未替别人清洗历史记录。
