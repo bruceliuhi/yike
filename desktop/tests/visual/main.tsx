@@ -14,7 +14,7 @@ import { createVisualService, type VisualState } from "./service";
 import { isolateBrowser } from "./isolation";
 import { applyReferenceState } from "./reference";
 import { makeVisualMaterials } from "./materials";
-import { makeVisualFollowup } from "./followup";
+import { makeVisualFollowup, selectRepliesOnlyFollowup } from "./followup";
 import { configureRecovery, selectRecovery } from "./recovery";
 import { RecoveryControls } from "./RecoveryControls";
 import { referenceRoute } from "./routing";
@@ -81,9 +81,13 @@ if (params.get("lineage") === "updated" && page === "P09" && state === "populate
     ];
   };
 }
+const repliesOnly = selectRepliesOnlyFollowup(
+  params.get("followup"), page, state, params.get("capabilities"),
+  page === "P01" || params.get("session") === "guest",
+);
 if (params.get("capabilities") === "complete" && state === "populated") {
   harness.service.materials = makeVisualMaterials();
-  harness.service.followup = makeVisualFollowup();
+  harness.service.followup = makeVisualFollowup({ emptyManual: repliesOnly });
 }
 const materialRecovery = params.get("materials") === "recovery"
   && page === "P04" && state === "populated" && params.get("session") !== "guest"
@@ -171,6 +175,7 @@ createRoot(document.getElementById("root")!).render(
     <>
       <div id="visual-harness-banner" role="note">
         TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
+        {repliesOnly && " · 跟进：无人工记录＋独立回复"}
         {recoveryName && ` · 恢复场景 ${recoveryName}`}
         {managementRecovery && " · TEST 模拟保存/取消，不写文件"}
       </div>

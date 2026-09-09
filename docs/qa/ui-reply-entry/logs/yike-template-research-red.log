@@ -1,0 +1,166 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+ ❯ tests/ui/task-template-research.test.tsx (8 tests | 7 failed) 116ms
+   × round-trips manual demand, soubei, stop and execution limits into a new task 13ms
+   × preserves incomplete but valid local inputs rather than replacing them with defaults 1ms
+   × filters quote, request, authorization and original-run provenance at both template boundaries 1ms
+   × rejects malformed research configuration instead of silently losing it: {"stopAtAnyLimit":false} 1ms
+   × rejects malformed research configuration instead of silently losing it: {"maxSoubei":null} 0ms
+   × rejects malformed research configuration instead of silently losing it: {"demandTypes":["UNSUPPORTED"]} 0ms
+   × keeps the configured limits through the real P05 save-template/create actions without starting 98ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/task-template-research.test.tsx > round-trips manual demand, soubei, stop and execution limits into a new task
+AssertionError: expected undefined to deeply equal { version: 1, …(5) }
+
+- Expected:
+{
+  "demandTypes": [
+    "CHANGE",
+  ],
+  "evidenceOrder": "SOURCE_MATCH_CONTEXT",
+  "limits": {
+    "minutes": 7,
+    "modelCalls": 4,
+    "sources": 17,
+  },
+  "maxSoubei": 23,
+  "stopAtAnyLimit": true,
+  "version": 1,
+}
+
++ Received:
+undefined
+
+ ❯ tests/ui/task-template-research.test.tsx:74:40
+     72|   const template = templateFromDraft(source, source.name);
+     73|   const child = draftFromTemplate(template);
+     74|   expect(template.conditions.research).toEqual(source.research);
+       |                                        ^
+     75|   expect(child.research).toEqual(source.research);
+     76|   expect(child.executionLimits).toEqual(source.executionLimits);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  tests/ui/task-template-research.test.tsx > preserves incomplete but valid local inputs rather than replacing them with defaults
+AssertionError: expected undefined to deeply equal { version: 1, demandTypes: [], …(4) }
+
+- Expected:
+{
+  "demandTypes": [],
+  "evidenceOrder": "SOURCE_MATCH_CONTEXT",
+  "limits": {
+    "minutes": -1,
+    "modelCalls": 1.5,
+    "sources": 0,
+  },
+  "maxSoubei": null,
+  "stopAtAnyLimit": true,
+  "version": 1,
+}
+
++ Received:
+undefined
+
+ ❯ tests/ui/task-template-research.test.tsx:97:26
+     95|   source.executionLimits = { max_records: null, max_runtime_seconds: -…
+     96|   const child = draftFromTemplate(templateFromDraft(source, source.nam…
+     97|   expect(child.research).toEqual(source.research);
+       |                          ^
+     98|   expect(child.executionLimits).toEqual(source.executionLimits);
+     99|   expect(taskDraftSchema.safeParse(child).success).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  tests/ui/task-template-research.test.tsx > filters quote, request, authorization and original-run provenance at both template boundaries
+AssertionError: expected undefined to deeply equal { version: 1, …(5) }
+
+- Expected:
+{
+  "demandTypes": [
+    "CHANGE",
+  ],
+  "evidenceOrder": "SOURCE_MATCH_CONTEXT",
+  "limits": {
+    "minutes": 7,
+    "modelCalls": 4,
+    "sources": 17,
+  },
+  "maxSoubei": 23,
+  "stopAtAnyLimit": true,
+  "version": 1,
+}
+
++ Received:
+undefined
+
+ ❯ tests/ui/task-template-research.test.tsx:121:40
+    119|   const before = structuredClone(tainted);
+    120|   const template = templateFromDraft(tainted, source.name);
+    121|   expect(template.conditions.research).toEqual(source.research);
+       |                                        ^
+    122|   expect(template.conditions.executionLimits).toEqual(source.execution…
+    123|   expect(tainted).toEqual(before);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  tests/ui/task-template-research.test.tsx > rejects malformed research configuration instead of silently losing it: {"stopAtAnyLimit":false}
+ FAIL  tests/ui/task-template-research.test.tsx > rejects malformed research configuration instead of silently losing it: {"maxSoubei":null}
+ FAIL  tests/ui/task-template-research.test.tsx > rejects malformed research configuration instead of silently losing it: {"demandTypes":["UNSUPPORTED"]}
+AssertionError: expected [Function] to throw an error
+ ❯ tests/ui/task-template-research.test.tsx:143:56
+    141|   const source = configuredDraft();
+    142|   source.research = { ...source.research, ...change } as TaskDraft["re…
+    143|   expect(() => templateFromDraft(source, source.name)).toThrow();
+       |                                                        ^
+    144| });
+    145|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  tests/ui/task-template-research.test.tsx > keeps the configured limits through the real P05 save-template/create actions without starting
+AssertionError: expected { version: 1, …(5) } to deeply equal { version: 1, …(5) }
+
+- Expected
++ Received
+
+  {
+    "demandTypes": [
+-     "CHANGE",
++     "INQUIRY",
++     "COMPARISON",
++     "REPLACEMENT",
+    ],
+    "evidenceOrder": "SOURCE_MATCH_CONTEXT",
+    "limits": {
+-     "minutes": 7,
+-     "modelCalls": 4,
+-     "sources": 17,
++     "minutes": 15,
++     "modelCalls": 50,
++     "sources": 100,
+    },
+-   "maxSoubei": 23,
++   "maxSoubei": null,
+    "stopAtAnyLimit": true,
+    "version": 1,
+  }
+
+ ❯ tests/ui/task-template-research.test.tsx:168:28
+    166|   fireEvent.click(await screen.findByRole("button", { name: "从模板新建" })…
+    167|   const created = JSON.parse(sessionStorage.getItem(storedKey("task"))…
+    168|   expect(created.research).toEqual(source.research);
+       |                            ^
+    169|   expect(created.executionLimits).toEqual(source.executionLimits);
+    170|   expect(created.templateSourceDraftIds).toEqual([source.id]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed | 1 passed (8)
+   Start at  03:12:32
+   Duration  1.19s (transform 134ms, setup 0ms, import 793ms, tests 116ms, environment 221ms)
+

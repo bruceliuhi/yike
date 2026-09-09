@@ -1,0 +1,95 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+xxxx
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/workbench-queue-scope.test.tsx > hides old rows immediately after same-service scope changes to 'TEST-space-B' v1
+ FAIL  tests/ui/workbench-queue-scope.test.tsx > hides old rows immediately after same-service scope changes to 'TEST-space-A' v2
+AssertionError: expected <button><span>…(2)</span>
+…(1)</button> to be null
+
+- Expected:
+null
+
++ Received:
+<button>
+  <span>
+    <strong>
+      TEST空间A旧待办
+    </strong>
+    <small>
+      TEST 内存待办，未执行客户操作
+    </small>
+  </span>
+  <svg
+    fill="currentColor"
+    height="1em"
+    viewBox="0 0 256 256"
+    width="1em"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"
+    />
+  </svg>
+</button>
+
+ ❯ tests/ui/workbench-queue-scope.test.tsx:39:60
+     37|   instance.switchScope(scope);
+     38|   await screen.findByText(`${scope.id}@${scope.version}`);
+     39|   expect(screen.queryByRole('button',{name:/TEST空间A旧待办/})).toBeNull();
+       |                                                            ^
+     40|   expect(location.hash).toBe('#/workbench');
+     41|   await waitFor(()=>expect(queue).toHaveBeenCalledTimes(2));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/ui/workbench-queue-scope.test.tsx > ignores a late old response after same-service scope changes to 'TEST-space-B' v1
+ FAIL  tests/ui/workbench-queue-scope.test.tsx > ignores a late old response after same-service scope changes to 'TEST-space-A' v2
+AssertionError: expected <button><span>…(2)</span>
+…(1)</button> to be null
+
+- Expected:
+null
+
++ Received:
+<button>
+  <span>
+    <strong>
+      TEST空间A迟到待办
+    </strong>
+    <small>
+      TEST 内存待办，未执行客户操作
+    </small>
+  </span>
+  <svg
+    fill="currentColor"
+    height="1em"
+    viewBox="0 0 256 256"
+    width="1em"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"
+    />
+  </svg>
+</button>
+
+ ❯ tests/ui/workbench-queue-scope.test.tsx:55:61
+     53|   await screen.findByText(`${scope.id}@${scope.version}`);
+     54|   await act(async()=>release(snapshot('TEST空间A迟到待办','TEST-old-target')…
+     55|   expect(screen.queryByRole('button',{name:/TEST空间A迟到待办/})).toBeNull();
+       |                                                             ^
+     56|   expect(await screen.findByRole('button',{name:/TEST当前空间新待办/})).toBeT…
+     57|   expect(queue).toHaveBeenCalledTimes(2);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed (4)
+   Start at  03:12:02
+   Duration  1.14s (transform 55ms, setup 0ms, import 657ms, tests 202ms, environment 221ms)
+

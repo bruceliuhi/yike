@@ -33,6 +33,8 @@ npx vite --config vite.visual.config.ts
 
 例如 [TEST 跟进操作](http://127.0.0.1:18794/?scenario=P15&state=populated&reference=r3&capabilities=complete) 或 [TEST 资料操作](http://127.0.0.1:18794/?scenario=P04&state=populated&capabilities=complete)。所有输入应使用 TEST 合成内容；切换场景或刷新重建服务后内存记录重置。
 
+新增 [TEST 无人工记录的回复入口](http://127.0.0.1:18794/?scenario=P14&state=populated&capabilities=complete&followup=replies-only)：人工登记列表初始为空，已有授权 TEST 商机及一条符合 `LinkedReply` 合同的合成匹配回复；另有一条独立未匹配回复。可在产品页明确选择该商机，查看/标已读，再切回未匹配状态核对两者不混用；显式添加第一条人工跟进后才出现人工记录。`service.opportunity(id)` 仍精确读取同一内存 TEST 对象，错误 ID 不回落到其他记录。此参数仅接受 P14、populated、complete 和 TEST 登录身份，其他组合报错；默认场景不变。顶部另显示“无人工记录＋独立回复”。未产生真实平台消息、发送回执或客户数据，跟进适配没有额外操作事件计数；单测/编译通过不代表已做 CUA 可见验收。
+
 P07/P10/P11/P12/P13 的 `reference=r3` 还通过 [routing.ts](routing.ts) 进入产品已有的 **公开样例** 路由；P12/P13 固定评论用途，P13 继续不可发送。没有 `reference=r3` 时仍显示独立 TEST 客户。`error` / `loading` 或显式恢复场景不会被换成只读样例，以免错误被成功样例掩盖。
 
 ## 有界恢复场景

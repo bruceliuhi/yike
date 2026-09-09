@@ -187,13 +187,13 @@ export function FollowupEditor({
       )
         throw new Error("商机版本或负责人无效，请刷新后重新选择。");
       const version = JSON.stringify([row.profileVersionId, row.updatedAt]);
-      const latest = await boundedRequest(() => service.opportunities(), {
+      const fresh = await boundedRequest(() => service.opportunity(row.id), {
         timeoutMessage: "商机核对超时，尚未保存。",
       });
       if (!operation.current()) return;
-      const fresh = latest.find((r) => r.id === row.id);
       if (
         !fresh ||
+        fresh.id !== row.id ||
         isSample(fresh) ||
         JSON.stringify([fresh.profileVersionId, fresh.updatedAt]) !== version
       )

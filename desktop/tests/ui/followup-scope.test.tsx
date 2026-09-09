@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { FollowupsPage } from "../../src/renderer/pages/Followups";
@@ -59,7 +60,9 @@ function changeScope(id: string, version = 1) {
   };
 }
 async function fill() {
-  await screen.findByRole("option", { name: "TEST商机" });
+  await within(
+    await screen.findByRole("dialog", { name: "添加跟进" }),
+  ).findByRole("option", { name: "TEST商机" });
   fireEvent.change(screen.getByRole("combobox", { name: "关联商机" }), {
     target: { value: opportunity.id },
   });
@@ -75,6 +78,7 @@ beforeEach(() => {
   context = {
     service: {
       opportunities: vi.fn().mockResolvedValue([opportunity]),
+      opportunity: vi.fn().mockResolvedValue(opportunity),
       followups: vi.fn().mockResolvedValue([]),
       addFollowup: vi.fn(),
       followup: {
@@ -128,8 +132,8 @@ it.each([
 it("drops old-space preflight before dispatching a write", async () => {
   const view = render(<FollowupsPage />);
   await fill();
-  let release!: (value: (typeof opportunity)[]) => void;
-  vi.mocked(context.service.opportunities).mockImplementationOnce(
+  let release!: (value: typeof opportunity) => void;
+  vi.mocked(context.service.opportunity).mockImplementationOnce(
     () =>
       new Promise((resolve) => {
         release = resolve;
@@ -139,7 +143,7 @@ it("drops old-space preflight before dispatching a write", async () => {
   await waitFor(() => expect(release).toBeTypeOf("function"));
   changeScope("TEST-space-B");
   view.rerender(<FollowupsPage />);
-  await act(async () => release([opportunity]));
+  await act(async () => release(opportunity));
   expect(context.service.followup!.mutate).not.toHaveBeenCalled();
 });
 it("retains an old-space uncertain write until returning to its exact scope", async () => {

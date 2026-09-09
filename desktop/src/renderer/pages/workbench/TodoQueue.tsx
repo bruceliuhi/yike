@@ -25,6 +25,8 @@ export function TodoQueue({ queue }: { queue: WorkbenchQueue }) {
     service.workbench,
     session.userId,
     session.authenticated,
+    session.accountScope?.id,
+    session.accountScope?.version,
     queue,
   ]);
   const target = (id?: string) => {

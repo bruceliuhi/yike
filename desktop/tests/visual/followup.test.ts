@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
-import { makeVisualFollowup } from "./followup";
+import { makeVisualFollowup, selectRepliesOnlyFollowup } from "./followup";
+import { createVisualService } from "./service";
 import { opportunity, profile, TEST_TIME, TEST_USER } from "./fixtures";
 import {
   readReceipt,
@@ -89,4 +90,61 @@ it("rejects stale versions and wrong scope without mutating memory, and keeps mi
   await expect(api.mutate({ binding: binding({ opportunityId: "customer-real" }), values })).rejects.toThrow("隔离跟进对象");
   expect((await api.operation(binding({ requestId: "TEST-never-observed" }))).status).toBe("UNKNOWN");
   expect(await api.list()).toEqual(before);
+});
+
+it("provides an exact TEST opportunity and separate matched/unmatched replies with no manual record", async () => {
+  const { service } = createVisualService();
+  service.followup = makeVisualFollowup({ emptyManual: true });
+  expect((await service.session()).authenticated).toBe(true);
+  expect(await service.opportunities()).toEqual([opportunity]);
+  expect(await service.opportunity(opportunity.id)).toEqual(opportunity);
+  await expect(service.opportunity("TEST-missing")).rejects.toMatchObject({ code: "NOT_FOUND" });
+  expect(readSnapshot(await service.followup.list()).records).toEqual([]);
+  const matched = readReplies(await service.followup.replies(opportunity.id), opportunity.id);
+  const unmatched = readReplies(await service.followup.replies());
+  expect(matched).toHaveLength(1);
+  expect(matched[0]).toMatchObject({ opportunityId: opportunity.id, profileVersionId: profile.id, read: false });
+  expect(unmatched).toHaveLength(1);
+  expect(unmatched[0]).toMatchObject({ opportunityId: null, profileVersionId: null, sendRequestId: null });
+  expect(unmatched[0].content).toContain("TEST 独立未匹配回复");
+  expect(unmatched[0].id).not.toBe(matched[0].id);
+  expect(await service.followup.replies("TEST-missing")).toEqual([]);
+  expect(() => readReplies(unmatched, opportunity.id)).toThrow("不匹配");
+});
+
+it("marks matched replies without creating a manual record or changing the independent unmatched reply", async () => {
+  const api = makeVisualFollowup({ emptyManual: true });
+  const reply = (await api.replies(opportunity.id))[0];
+  const unmatched = await api.replies();
+  const markRead = binding({ action: "mark-read", targetId: reply.id, targetRevision: reply.revision });
+  expect(readReceipt(await api.mutate({ binding: markRead }), markRead).reply?.read).toBe(true);
+  expect((await api.list()).records).toEqual([]);
+  expect(await api.replies()).toEqual(unmatched);
+  const invalid = binding({ action: "mark-read", targetId: unmatched[0].id, targetRevision: 1, requestId: "TEST-wrong-target" });
+  expect(readReceipt(await api.mutate({ binding: invalid }), invalid).status).toBe("FAILED");
+  expect(await api.replies()).toEqual(unmatched);
+  expect((await makeVisualFollowup().list()).records).toHaveLength(1);
+});
+
+it("allows the first explicit manual followup in the empty-manual TEST scenario", async () => {
+  const api = makeVisualFollowup({ emptyManual: true });
+  const request = binding();
+  expect(readReceipt(await api.mutate({ binding: request, values }), request).record).toMatchObject(values);
+  expect((await api.list()).records).toHaveLength(1);
+});
+
+it("opts in only the supported populated authenticated P14 case", () => {
+  expect(selectRepliesOnlyFollowup(null, "P14", "populated", "complete", false)).toBe(false);
+  expect(selectRepliesOnlyFollowup("replies-only", "P14", "populated", "complete", false)).toBe(true);
+});
+it.each([
+  ["unknown", "P14", "populated", "complete", false],
+  ["replies-only", "P15", "populated", "complete", false],
+  ["replies-only", "P14", "empty", "complete", false],
+  ["replies-only", "P14", "loading", "complete", false],
+  ["replies-only", "P14", "error", "complete", false],
+  ["replies-only", "P14", "populated", null, false],
+  ["replies-only", "P14", "populated", "complete", true],
+] as const)("rejects invalid replies-only scenario %s/%s/%s/%s/%s", (value, page, state, capabilities, guest) => {
+  expect(() => selectRepliesOnlyFollowup(value, page, state, capabilities, guest)).toThrow("TEST 回复入口");
 });
