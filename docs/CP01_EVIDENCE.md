@@ -1,5 +1,7 @@
 # CP-01 / CP-02 当前运行证据
 
+> 历史快照：本文记录的是 v1/v2 迁移时期的本地证据，不是当前发布验收。v3 已将租户目录隔离并要求管理员连接；当前 PostgreSQL 集成测试必须设置 `YIKE_PILOT_ADMIN_DATABASE_URL`，本文中的 `39 passed` 不覆盖 v3，也不能证明目标环境已上线。
+
 环境：独立临时容器 `yike-cp-final3-pg`，PostgreSQL 16 Alpine，端口 55531；不使用现有其他产品容器。
 
 命令：

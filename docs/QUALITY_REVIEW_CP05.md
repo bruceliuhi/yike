@@ -37,3 +37,9 @@
 安全头修复提交 `d961d4b` 经独立复审：定向测试 `23 passed`；正常 200、401、400、404、503 以及 `raise_server_exceptions=False` 的 500 均包含五个基线安全头，`raise_server_exceptions=True` 仍保留原异常语义，未发现 P0/P1。当前分支最新提交以远端实际 SHA 为准。
 
 提交 `eccb449` 关闭公网 `/docs`、`/redoc` 和 `/openapi.json`，并记录当期展台研究结果；定向回归为 `42 passed`，敏感信息扫描通过。独立安全复审对该提交确认文档路由为 404、CSP 含 `object-src/frame-src 'none'`、HTML `Cache-Control: no-store`，未发现 P0/P1。
+
+## 2026-09-09 最新安全与管理员边界复审
+
+提交 `cfb2f01`（远端分支 `codex/customer-pilot`）新增 v3 租户目录 RLS、显式 `YIKE_PILOT_ADMIN_DATABASE_URL` 管理员连接、provisioning 的新租户 GUC 绑定，以及运行时 env 文件禁止携带管理员数据库 URL。独立安全复审确认当前定向门禁为 `55 passed, 2 skipped`，`secret_scan`、`compileall`、Shell 语法和 `git diff --check` 均通过，未发现新的 P0/P1。
+
+完整 `scripts/check_customer_pilot.sh` 在本机未启动 PostgreSQL 时为 `44 passed, 2 failed`；失败仅为两项真实 PostgreSQL integration（连接 `127.0.0.1:5432` 被拒），因此 v3 的真实空库迁移、RLS 和并发确认仍未验收。该结果不替代 CP-06 目标环境证据，CP-06 继续保持 `NOT_STARTED`。
