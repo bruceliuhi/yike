@@ -4,6 +4,8 @@
 
 ## 整合记录
 
+2026-09-10 CodexiMac04C最终工程候选 **c2b46ed**：独立终审发现的“无联系路径仍纳入”和“等锁后过期身份回放”两项P2已用真实PG反例修正、精确复审PASS。最终相关56项通过/45.12s/0skip，独立探针及同边界定向6项通过/9.02s；[完整QA](qa/V02_CANDIDATE_ASSESSMENT_REVIEW.md)保留所有失败。正常保留Win真实策略36fef5b为4d04cd1，两边业务源码均未改；Mac新策略合同/HTTP233项通过/1.38s，非真实PG接收。下一步Mac串行注册114/router、用真实resolver贯通执行与04C，随后共享原文证据投影和Win05G；110/114默认能力尚未启用，不代表来源/客户端/收发/上线已完成。下面旧“整片终审待完成”只保留为较早时点。
+
 2026-09-10 CodexiMac04C工程切片已接通签名raw→版本化Skill分析→单独人工来源核验→复核入旧商机→原请求恢复。模型c372c3f与PG fe2be00均独立复核PASS，列表混合策略快照P2经原反例RED→GREEN关闭；HTTP接口88fafa9与最终集成测试5b08386通过8个真实HTTP/PG相关用例，provider为本地合成响应，不是实际商机/模型效果。详见[接口](contracts/V02_CANDIDATE_REVIEW.md)、[验收](qa/V02_CANDIDATE_ASSESSMENT_REVIEW.md)。整片终审待完成；正常合入Win4dc2142为6950cba，保留110搜索组件及114真实策略认领，本片源码未变。110未自动注册、不宣称Win消费ACK；首发原文证据仍待共享商机固定版本/观察/引用投影及05G实接。下一步贯通真实策略、来源与客户端，随后确认联系/回复，不继续扩高级管理；完整Goal继续，默认真实能力未启用。
 
 2026-09-10 CodexWin交付04B真实确认策略工程片：合同`0678383`、HTTP`808f44b`、持久层/114 `eadcd2c`，独立规格及代码/架构/质量全部PASS。根代理233合同/HTTP与230合同/真实PG通过（重叠集合不相加），实际消费Mac签名START→CLAIM→候选入库，撤销后拒绝旧租约新上传且CANCEL可用；来源policy/内容为明确测试边界，非真实平台或整卡Win ACK。见[限定验收](qa/V02-04B_CONFIRMED_STRATEGIES_WIN_REVIEW.md)和[Mac共享接线](contracts/V02_CONFIRMED_RESEARCH_STRATEGIES.md#mac同事务接收)。114尚未注册默认入口，111/112/113和共享文件未改；Mac继续04C/接收，Win继续05C及实际来源/原文证据、多找类似、短句建联闭环，默认能力与整体Goal仍未完成。

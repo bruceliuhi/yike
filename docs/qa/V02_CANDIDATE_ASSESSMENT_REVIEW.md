@@ -1,6 +1,6 @@
 # V02-04C 判断与人工复核验收记录
 
-2026-09-10；IN_PROGRESS，当前尚未完成整片终审、Win接收或发布。
+2026-09-10；工程切片独立终审在`c2b46ed`通过，待Win实际接收与真实来源闭环；04C父卡及整个产品未完成。
 
 范围：[04C实施计划](../superpowers/plans/2026-09-09-candidate-assessment-review-slice.md)及[接口合同](../contracts/V02_CANDIDATE_REVIEW.md)。产品仍以完整用户闭环为先，本片不新增高级后台或发送权限。
 
@@ -36,4 +36,15 @@
 - Win搜索组件及其独立证据已随`4dc2142`保留，110尚未注册共享运行入口，114归Win真实确认策略；本次合并不是Mac对Win组件的完整实际消费ACK。
 - 原文证据的共享商机固定版本/观察/结构化引用投影与Win05G呈现仍需接续；当前私有分析绑定不等于PH-F06端到端完成。
 
-整片独立终审结论待补录。此前02B、执行器、Windows及客户验收证据保持各自原版本，不用本片测试替代。
+## 整片终审与最终修正
+
+独立非实现者`candidate_assessment_final_review`完整审阅`4dc2142..916d0d8`，最初发现两项P2并拒绝合入；以下修正后对精确`c2b46ed7d4158e4257644d126c58758a491bb47b`重新审核，规格/代码/架构/质量PASS，剩余Critical/Important/新Minor均0。
+
+1. 原文OPEN但联系路径NONE仍能INCLUDE：独立真实PG反例1 failed/1.35s，公开回归1 failed/1.38s。修正只在消费核验时要求COMMENT/DM/PUBLIC_CONTACT；OPEN/NONE仍可如实记录，旧可联系核验不能覆盖最新NONE，新DM核验可恢复纳入。
+2. 原请求回放等锁后未重新校验当前登录：三个操作反例3 failed/6.30s。修正后还暴露继承的invalid_session被误映射503、缓存别名等锁过期仍提交；分别以1 failed/1.22s、1 failed/2.34s固定。现在等锁后及回放前检查身份，缓存别名提交前同样检查，保留域错误401，非域的提交回执丢失仍按未知结果处理。原回执不变、不新增模型调用。
+
+第一次不完整修正保留为3 passed/1 failed（6.59s）；对应相关集合54 passed/1 failed（43.97s），不是当前通过结果。最终源代码的6个定向反例**6 passed/9.02s**（会话94621），最终相关命令**56 passed/45.12s/0 skipped**（会话6494退出0）：`.venv/bin/python -m pytest tests/test_candidate_review_postgres.py tests/test_candidate_review_http_postgres.py tests/test_candidate_ingestion_http_postgres.py -q --tb=short`。其中48个core＋8个HTTP，不是56个新增测试，不与早期43/8相加。
+
+随后正常合入Win真实策略主线`36fef5b`为`4d04cd1d55b3b92de5f20378e9bb777f298db41b`，仅整合状态文档冲突，双方原文均保留。本片源码/共享入口/113及相关测试与c2相同；Win新增8个代码/测试/SQL文件与36相同。Mac在该合并树定向运行Win新合同与HTTP：**233 passed/1.38s/0 skipped**（会话53304退出0）；不是Win PG重跑、114接线或实际消费ACK。110/114仍未注册默认入口，实际接线作为下一片继续。
+
+此前02B、执行器、Windows及客户验收证据保持各自原版本，不用本片测试替代。合并后未重复未改的模型、桌面或完整后台套件。
