@@ -9,7 +9,7 @@
 1. [产品与开发权威](AUTHORITY.md)：本轮确定的产品目标和必须继承的约束。
 2. [实施任务书](docs/V02_IMPLEMENTATION_TASKBOOK.md)：当前状态、可以先做的工作、依赖与验收。
 3. [完整获客版计划](docs/V02_COMMERCIAL_RELEASE_PLAN.md) 与 [多平台 Skill 方案](docs/V02_MULTIPLATFORM_SKILL_PLAN.md)：功能及技术分工。
-4. [设计入口](design/README.md)与[20 页完整图册](design/v02-suite/README.md)：八入口蓝白设计、关键状态与组件规范，当前待用户确认。
+4. [设计入口](design/README.md)与[20 页完整图册](design/v02-suite-r3/README.md)：八入口蓝白设计、关键状态与组件规范；第一张精修方向已选定，整套待确认。
 5. [文档索引](docs/README.md)：正式文档、运行说明和历史证据的关系。
 
 本轮已完成的选择性整合、提交 SHA、验证命令和未整合旧分支见 [当前整合状态](docs/INTEGRATION_STATUS.md)。后续 AI 先读该文件，避免重复搬运旧自动回复分支或把规则包误认为运行时。

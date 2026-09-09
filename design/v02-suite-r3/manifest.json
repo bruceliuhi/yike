@@ -1,0 +1,218 @@
+{
+  "version": "v02-suite-r3",
+  "date": "2026-09-09",
+  "display_version": "R3",
+  "status": "PENDING_USER_REVIEW",
+  "style_selection": {
+    "status": "DIRECTION_SELECTED",
+    "user_quote": "第一个",
+    "displayed_option": 1,
+    "page_id": "P06",
+    "image": "screens/P06.png",
+    "sha256": "6ef30578f7755e6bb72017e174fba3dee81e7c0bbe464b728c39437da5887efa",
+    "source_generation": "exec-afbc4e60-36a3-4e66-8e2b-f49df92ee50c.png",
+    "scope": "Visual direction only; the full suite remains pending user review."
+  },
+  "pages": [
+    {
+      "id": "P01",
+      "title": "登录与试用",
+      "image": "screens/P01.png?v=374c313e24af",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "374c313e24af7892bb2954046ff8fb8b610c125b075d62d26712bc9662441dd8",
+      "revision": "R3"
+    },
+    {
+      "id": "P02",
+      "title": "商机工作台",
+      "image": "screens/P02.png?v=f116da0e10e8",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "f116da0e10e856dbf3a6e1ae62d1e962e4dd83a2ebc82993a1c42151614f5883",
+      "revision": "R3"
+    },
+    {
+      "id": "P03",
+      "title": "业务画像",
+      "image": "screens/P03.png?v=9d34e3cded8f",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "9d34e3cded8f689fa64e032db74fdfa3781c42a1c21fc3e93ffe5dad128bbfa5",
+      "revision": "R3"
+    },
+    {
+      "id": "P04",
+      "title": "资料与案例",
+      "image": "screens/P04.png?v=a11de19973ab",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "a11de19973ab4e3a8fc469e2340a28520b349117e4c939867bd1c7c0cbd52cd1",
+      "revision": "R3"
+    },
+    {
+      "id": "P05",
+      "title": "线索采集任务",
+      "image": "screens/P05.png?v=620f63136bc6",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1483,
+      "height": 1061,
+      "sha256": "620f63136bc693411443f3b3510bb3501f3adb0738d799a7dd26fd8d2ecce08b",
+      "revision": "R3"
+    },
+    {
+      "id": "P06",
+      "title": "新建获客任务",
+      "image": "screens/P06.png?v=6ef30578f775",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "6ef30578f7755e6bb72017e174fba3dee81e7c0bbe464b728c39437da5887efa",
+      "revision": "R3"
+    },
+    {
+      "id": "P07",
+      "title": "原始线索复核",
+      "image": "screens/P07.png?v=249179091fb7",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1483,
+      "height": 1061,
+      "sha256": "249179091fb7cecab0e0b3b9d3db547408d741c8651c2e4d1dd3a433f82bfe88",
+      "revision": "R3"
+    },
+    {
+      "id": "P08",
+      "title": "监控任务",
+      "image": "screens/P08.png?v=fa7cced94a56",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "fa7cced94a56803a5982a4d11a19f4b180798dc7d252dca9cbc56b95c6e43b0e",
+      "revision": "R3"
+    },
+    {
+      "id": "P09",
+      "title": "监控运行详情",
+      "image": "screens/P09.png?v=e30884b1c656",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "e30884b1c65699ffe57d57cc5e13cffd835a358273e5192766717a6ff8b34e99",
+      "revision": "R3"
+    },
+    {
+      "id": "P10",
+      "title": "商机库",
+      "image": "screens/P10.png?v=216959766ca0",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "216959766ca004447f985efc51f7ce70f8673bde769493b54f51800a4bdae268",
+      "revision": "R3"
+    },
+    {
+      "id": "P11",
+      "title": "机会证据详情",
+      "image": "screens/P11.png?v=ec34c7af0de0",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "ec34c7af0de07a0f5e1d7b695dba4ed2cfffb8bf25f3b5ca8c6384db404bf736",
+      "revision": "R3"
+    },
+    {
+      "id": "P12",
+      "title": "触达中心",
+      "image": "screens/P12.png?v=a71b856a8c90",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "a71b856a8c90327bf959d59d4d8f76d605c10fc7a965867d7b83fa1d29b4a7ac",
+      "revision": "R3"
+    },
+    {
+      "id": "P13",
+      "title": "发送确认",
+      "image": "screens/P13.png?v=90733dd632da",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "90733dd632daf2bcc77e31d340edd67842e4188ae2c2d3ed50ba095b06a8d1ce",
+      "revision": "R3"
+    },
+    {
+      "id": "P14",
+      "title": "回复与跟进",
+      "image": "screens/P14.png?v=b76dae9b5872",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "b76dae9b5872262df9d8286c0463603cd642989461f92e6fd9b1f8efc3946d7d",
+      "revision": "R3"
+    },
+    {
+      "id": "P15",
+      "title": "添加跟进",
+      "image": "screens/P15.png?v=fdaeaed3b89c",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "fdaeaed3b89c9a5d29754924346a25c36acc997d5de9a53b77ebd5a3782e2836",
+      "revision": "R3"
+    },
+    {
+      "id": "P16",
+      "title": "账号与平台连接",
+      "image": "screens/P16.png?v=b3086c044697",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "b3086c044697743bca15b398f9dd824e194f3f7833cfe4bce55c5b58e46d800f",
+      "revision": "R3"
+    },
+    {
+      "id": "P17",
+      "title": "连接平台",
+      "image": "screens/P17.png?v=5a111f2bf9e5",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "5a111f2bf9e5a3097ea560b78f9c2c772b02f935ec6ad5fb21c6bfea378136b1",
+      "revision": "R3"
+    },
+    {
+      "id": "P18",
+      "title": "设备与使用授权",
+      "image": "screens/P18.png?v=726c039393d0",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "726c039393d0578ff5c6687261e6359e9c369bf52cb78a3f1569bd7cefd31445",
+      "revision": "R3"
+    },
+    {
+      "id": "P19",
+      "title": "确认启动",
+      "image": "screens/P19.png?v=423a68b7cee2",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1484,
+      "height": 1060,
+      "sha256": "423a68b7cee2d824a7472b80b69784402465ecf8b1485a454786dd016c4a2da1",
+      "revision": "R3"
+    },
+    {
+      "id": "P20",
+      "title": "持续监控设置",
+      "image": "screens/P20.png?v=a19e4efb297d",
+      "status": "PENDING_USER_REVIEW",
+      "width": 1483,
+      "height": 1061,
+      "sha256": "a19e4efb297d0b679ea855ffb91f95732230d31adce2dcab66eced2ffd393629",
+      "revision": "R3"
+    }
+  ]
+}

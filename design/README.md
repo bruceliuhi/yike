@@ -1,14 +1,16 @@
 # 意客AI 产品设计入口
 
-2026-09-09 · V0.2 全页面设计 R2 · 待用户确认，尚未实现为新版页面。
+2026-09-09 · V0.2 全页面设计 R3 · 第一张精修方向已选定，整套待用户确认，尚未实现为新版页面。
 
 ## 最新设计方向
 
+用户在三张 P06 精修候选中选择“第一个”，以实际首先展示的图片作为 R3 视觉基准；[选择记录](v02-suite-r3/APPROVAL.md)保留原话、来源和确认范围。
+
 沿用用户确定的蓝白科技风、Y 形 Logo 和左侧导航。视觉参考飞书、支付宝的清爽、紧凑与对齐方式；产品保持意客AI自己的标志与业务表达。
 
-**最新入口：[20 页完整设计图册](v02-suite/README.md)。** 覆盖登录、八个一级入口、主要二级页、发送确认和平台连接，配套[页面与状态清单](v02-suite/PAGE_STATE_MATRIX.md)、[组件规范](v02-suite/DESIGN_SYSTEM.md)。整套待用户确认，不能逐页自行定稿。
+**最新入口：[20 页完整设计图册](v02-suite-r3/README.md)。** 覆盖登录、八个一级入口、主要二级页、发送确认和平台连接，配套[页面与状态清单](v02-suite-r3/PAGE_STATE_MATRIX.md)、[组件规范](v02-suite-r3/DESIGN_SYSTEM.md)。整套待用户确认，不能逐页自行定稿。
 
-![P02 商机工作台设计预览](v02-suite/screens/P02.png)
+![P02 商机工作台设计预览](v02-suite-r3/screens/P02.png)
 
 图片使用公开研究样例、填写示例和状态示意，不是多平台运行结果或客户业绩。图册可逐页浏览，但图片里的产品按钮不执行业务操作。用户统一确认整套图与关键状态后，再按 image-to-code 实现并截图对照验收。
 
@@ -17,10 +19,12 @@
 1. [完整获客版计划](../docs/V02_COMMERCIAL_RELEASE_PLAN.md)：当前付费闭环、八个入口、功能与交付标准。
 2. [实施任务书](../docs/V02_IMPLEMENTATION_TASKBOOK.md)：当前任务、设计/代码依赖与验收状态。
 3. [多平台 Skill 监控方案](../docs/V02_MULTIPLATFORM_SKILL_PLAN.md)：通用规则、平台规则、连接器与执行数据边界。
-4. [完整图册与生成记录](v02-suite/README.md)：当前页面、图片摘要、提示词及统一确认流程；[此前工作台生成记录](previews/WORKBENCH_V02_PROMPT.md)是 P11 的复用来源。
+4. [完整图册与生成记录](v02-suite-r3/README.md)：当前页面、图片摘要、提示词及统一确认流程；[此前工作台生成记录](previews/WORKBENCH_V02_PROMPT.md)是 P11 的历史内容来源。
 5. [交接说明](../docs/V02_DESIGN_HANDOFF.md) 与 [范围复核](reviews/2026-09-09-v02-product-scope.md)：迁入快照、演示分支差异及竞品研究背景。
 
 ## 品牌资产与历史
+
+- [完整 R2 图册](v02-suite/README.md)：精修前的 20 页设计，保留供对照。
 
 - [蓝色 Y 标志 PNG](brand/yike-logo-blue-v1.png)：白底 RGB 图片，尚非透明 SVG/矢量母版。
 - [Logo 生成记录](brand/IMAGEGEN_PROMPTS.md)：原始请求、白底修正及合成提示词。

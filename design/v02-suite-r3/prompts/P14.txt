@@ -1,0 +1,20 @@
+Use case: style-transfer. Asset type: one high-fidelity Chinese desktop UI screen. Target 1484×1060 natural proportions, no stretching/cropping/browser frame.
+Input 1: ORIGINAL P14 image controls content, page state and layout. Input 2: SELECTED R3 P06 style ONLY controls exact logo, navigation shell, scale, typography, buttons, light color and visual rhythm. Never copy its new-task title, breadcrumb, search terms, form or platform list into this page.
+# R3 第一张方向：全页面统一精修
+
+用户在三张 P06 精修候选展示后明确选择“第一个”。所选图片是当前 screens/P06.png，缓存来源 exec-afbc4e60-36a3-4e66-8e2b-f49df92ee50c.png。这是视觉方向选择，整套 20 页仍需统一确认；不开展业务界面开发。
+
+生成方式：内置 image_gen；每页单独调用。调用前实际查看所负责的 R2 页面和所选 P06；同时附上这两张图片。第一张来源页面控制内容与布局，第二张 P06 控制统一视觉风格。禁止把新建任务内容搬到其他页面。
+
+目标为原尺寸近似 1484×1060 的完整桌面屏幕。保留每页现有信息、功能、入口、动作条件和显示状态。按 ../v02-suite/PAGE_STATE_MATRIX.md、AI_SEARCH_CONDITIONS.md 及 DESIGN_SYSTEM.md 的勘误修正，不用过时 pages.json 提示词覆盖这些行为。日期锚点 2026-09-09，不引入新日期或业务数据。
+
+视觉：蓝白清爽科技风，白色主体，浅冷灰侧栏，所选蓝色 Y Logo 和意客AI字标；不换品牌。保留第一张的轻量双栏、较小字级和控件、淡分隔线、留白和统一导航。主体内容仍按每页实际任务组织，短弹窗/抽屉保持其形态，不强迫所有页面双栏。标题24/32、区块16/24、正文14/22、辅助12–13/18；导航14px、18–20px同套线图标、40–44px行高；控件36px、圆角6px。品牌 #1677FF，正文 #172B4D，次信息 #52637A，分隔 #E8EDF3，侧栏 #F7F9FC。以参考图视觉比例为准，不将图像拉伸。避免粗大字号、过多辅助文字、大阴影、装饰卡片、卡片套卡片。
+
+八入口固定为：商机工作台；发现商机组下业务画像、线索采集、监控任务；推进商机组下商机库、触达中心、跟进记录；底部账号与授权。选中项按当前页面保留。导航底部演示工作空间。登录页保持无侧栏。清晰中文、整齐基线、同类控件同尺寸，状态不用仅颜色表达。
+
+静态示例与真实客户数据分开：保持一处设计预览/状态示意；样例不能确认入客户库或发送；空态保持空态，不加假数量、收入、客户、回复或已连接账号。公开样例仅使用原图事实；权限、技术实现和底层引擎不放客户界面。关键词建议不是采集成功。恢复/错误状态不得变成绿色成功。
+
+每页保留实际完整提示词到本目录 Pxx.txt。生成后原样复制至 screens/Pxx.png，不用 Python、CSS、SVG 等重绘/拼接图片。检查中文、页面标题、导航选中、主动作和状态约束；确有缺失才重试。生成结果与来源、实际尺寸、核对结果记到各自 GENERATION_*.md。未选择的 P06 第二、三候选不进入 R3。
+
+Specific page instructions:
+P14 跟进记录. Preserve empty list + empty replies split layout, active 跟进记录. Page tabs 待跟进 selected / 回复记录 / 全部. Left toolbar 负责人 dropdown 全部, 日期 dropdown 全部, blue 添加跟进 primary. Left table columns 商机、最近联系、客户回复、下次跟进、负责人, absolutely zero records. Empty state 暂无跟进记录 and short line 联系后记录下一步，避免遗漏。 Right region 关联回复 with tabs 通道回复 selected / 人工登记. Right empty state 暂无收到的回复 and 当收到客户回复后将在此处展示。 No fake replies, contacts, metrics or dates. Remove repeated 空状态设计 pills from each empty pane; one top-right 设计预览 suffices. Use flat clean white empty regions separated by thin rules, no box-in-box borders, smaller restrained text like selected P06. Keep this exact arrangement for use as background of P15 later.

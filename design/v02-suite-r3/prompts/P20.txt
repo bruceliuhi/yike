@@ -1,0 +1,21 @@
+Use case: style-transfer. Produce ONE complete polished Chinese desktop app screen for 意客AI, approximate natural 1484x1060 canvas, no bezel, no collage, no crop.
+Image 1 is the CONTENT AND LAYOUT SOURCE for this specific page. Image 2 is the USER-SELECTED P06 STYLE REFERENCE ONLY: do not copy its new-task title, task form, keywords, breadcrumb or active navigation into other pages. Keep image 1's task, data, layout type, controls, action eligibility and current state; apply image 2's refined visual language.
+Style invariants: exact selected blue Y Logo and 意客AI wordmark, white body, very pale cool-gray sidebar, refined lighter typography, compact controls, fine separators and generous orderly whitespace; no decorative cards, card-in-card, large shadow, oversized bold type or long helper paragraphs. Title24/32, section16/24, body14/22, helper12–13/18, navigation14 with18–20px uniform line icons and40–44px rows, controls36px radius6px. Blue1677FF, body172B4D, secondary52637A, dividersE8EDF3, sidebarF7F9FC. Use selected image's actual proportions rather than mechanically stretching anything. Retain per-page table, drawer or split layout, not all pages must become forms.
+Exact fixed eight-entry navigation: 商机工作台; 发现商机 group with 业务画像、线索采集、监控任务; 推进商机 group with 商机库、触达中心、跟进记录; bottom 账号与授权; bottommost 演示工作空间. Preserve current page active navigation specified below. Keep header breadcrumb appropriate to this page and a small 设计预览 badge top right.
+Data boundary: date anchor2026-09-09. Only source image's existing public inquiry facts, explicit configuration examples or state demonstrations. No new customers, accounts, platform support claims, replies, execution success, totals, revenue, dates or QR. Public research samples do not enter customer data and cannot be sent. Empty states stay empty; error/recovery stays error. No engine, Skill, database, keys, implementation details in customer-facing UI. Keep text crisp and all essential controls in frame. For illustrations, do not add any.
+
+PAGE P20 持续监控设置, same new-task screen after continuous monitoring selected. Active nav 线索采集. Breadcrumb 线索采集 / 新建任务; title 新建获客任务. Keep three-step bar with1任务条件 active,2平台连接,3确认启动. Unlike P06 style source, THIS PAGE MUST KEEP CONTINUOUS MONITORING SELECTED AND ENTIRE SCHEDULE VISIBLE.
+Left form and right platform connection table; task/profile may share compact single row to save height. Task name 展台需求监控. Profile 展台设计搭建（示例画像） with v1. One quiet identity AI 建议示例 · 未启动, not a real confirmed customer.
+Search condition heading 搜索条件 with selected style's small AI 建议 badge and right text action 重新生成. EXACT EIGHT editable/removable keyword chips in compact two-row layout:
+找展台搭建 / 求展台设计 / 展台搭建报价 / 展位设计预算 / 展会布展需求 / 展台搭建招标 / 展位施工询价 / 展台搭建推荐.
+Each chip has small x and there is visible + 添加. EXACT FOUR editable/removable exclusion chips: 招聘 / 求职 / 培训 / 招生, plus + 添加. Match selected P06's pale-blue keyword chips and neutral-gray exclusion chips. Preserve editable condition semantics and use ONE short helper 根据业务画像建议，可自由修改；重新生成保留手动修改. No actual manual edit or model execution claimed. Regeneration is not reset/clear; do not introduce a 清空 or 自动覆盖 action.
+采集范围: all5checkboxes 小红书、抖音、B站、知乎、公开网站 selected. 来源范围 关键词搜索 selected / 指定内容链接 unselected.
+KEEP COMPLETE 运行设置 inside frame:
+运行方式 单次采集 unselected / 持续监控 selected.
+运行频率 每日 selected / 每隔 unselected, compact interval1天 controls.
+执行时间 two separate editable timepicker rows09:00 and15:00 eachwithremove icon; below + 添加时间.
+时区 dropdown Asia/Shanghai（北京时间）.
+One quiet line 本机离线时，恢复在线后按计划继续.
+Daily twice is only editable example configuration, not fixed product limitation. Never hide, crop, collapse or remove the time controls, timezone or offline line to gain space. Compact section gaps and repeated whitespace instead; readable bodytext14px.
+Right 平台连接状态 plain table: 小红书 未连接; 抖音 未连接; B站 未连接; 知乎 未连接; 公开网站 无需账号 · 范围待确认. One short helper 下一步完成平台连接. No live account names or success/metrics.
+Bottom-right secondary 保存草稿 and sole primary 下一步：连接平台. Match selected P06's careful footer divider, buttons and restrained spacing. Preserve all source R2 controls and information, no additional business function.

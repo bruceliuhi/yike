@@ -1,0 +1,22 @@
+Use case: ui-mockup; refine ONE existing Chinese desktop application screenshot. Target approximately 1484 x 1060, preserve natural viewport ratio, no browser/device frame or multi-image collage. Input image 1 controls this page's actual content, structure, actions and states. Input image 2 is the user-selected P06 R3 visual style and controls only brand, typography, navigation and component refinement; NEVER transplant its task form or keywords to other pages.
+Match the exact selected P06 visual system: 意客AI with the existing blue Y logo, #1677FF blue, white main surface, #F7F9FC sidebar, #172B4D primary text, #52637A secondary, #E8EDF3 subtle rules. Body14/22, helper12–13/18, page title24/32, section16/24 at the intended1440-equivalent viewport; avoid the older image's oversized/bold lettering. Unified36px controls,6px radius,18–20px fine line icons,40–44px navigation rows. Use whitespace, baseline alignment and thin dividers; no large cards, nested cards, thick borders, shadows, charts, decorative objects, fake results, revenue, account names or success claims. Do not add features. Respect the page's natural form, table, drawer or modal layout rather than forcing every page into two columns.
+For pages with navigation retain the exact 8 destinations: 商机工作台; 发现商机 group: 业务画像, 线索采集, 监控任务; 推进商机 group: 商机库, 触达中心, 跟进记录; bottom账号与授权; footer演示工作空间. Only the original page's navigation is active. Keep one subdued 设计预览 indication. Login has no sidebar. Date anchor2026-09-09, add no dates. Existing sample data remain explicitly sample; no actual collection, customer approval, sending or connection is implied. No MediaCrawler, Skill, developer/API/admin details. Render sharp correct Chinese and a polished complete screen without clipping.
+PAGE P19 FINAL START CONFIRMATION. Preserve breadcrumb线索采集 / 新建任务, active nav线索采集, title确认启动. Small explicit AI建议示例 and未启动 states. Same task wizard as selected reference2, but step3确认启动 active; steps1任务条件 and2平台连接 quiet numbered circles, not successful login checks. Keep original P19 final-summary structure, not the editable P06 form.
+配置摘要 heading with返回修改 at right. Read-only key/value summary, two light columns with sufficient room for ALL keywords:
+任务名称：展台需求发现
+业务画像：展台设计搭建（示例画像）
+画像版本：示例 v1
+执行设备：本机（待绑定）
+搜索关键词：找展台搭建、求展台设计、展台搭建报价、展位设计预算、展会布展需求、展台搭建招标、展位施工询价、展台搭建推荐
+来源范围：关键词搜索
+运行方式：单次采集
+排除词：招聘、求职、培训、招生
+条件来源：AI建议（示例），可返回修改
+All eight keywords and all four exclusions must be verbatim, legible, fully visible; wrap naturally without clipping or ellipsis. This is the final current saved configuration example, not a fresh generation. DO NOT put add/delete controls, editable fields, AI stars or重新生成 on this page. 返回修改 is the only conditions-edit route.
+Below, 平台与执行账号 table, exact columns平台 / 执行账号 / 连接状态 / 范围 and five rows:
+小红书 / — / 未连接 / 关键词搜索
+抖音 / — / 未连接 / 关键词搜索
+B站 / — / 未连接 / 关键词搜索
+知乎 / — / 未连接 / 关键词搜索
+公开网站 / 无需账号 / 无需账号 / 范围待确认
+No valid customer account or connected platform. Table height and icons should match selected P06 density, not oversized rows. Beneath, concise info请确认真实画像、完成平台连接与网站范围，并绑定执行设备后启动。 This example profile does not satisfy real startup requirements. Bottom divider and right-aligned actions取消 quiet, 上一步 outline, 确认启动 disabled gray at the main-action position. No run is started. Keep all key/value rows and table within the complete screenshot, retain white space, precise baseline and selected P06's polished smaller typography.

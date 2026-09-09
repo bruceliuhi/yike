@@ -1,0 +1,23 @@
+Use case: ui-mockup, precise refinement of existing Chinese desktop product UI.
+Create a polished production-quality P11 机会证据详情 design for 意客AI, with same content and main layout as attachment 1, styled to match user-selected P06 in attachment 2. Target 1484x1060. ONE full desktop screenshot, no chrome, no device, no multiple designs.
+Attachment 1 is the CONTENT source: evidence-detail screen with a real public research sample. Attachment 2 is STYLE MASTER ONLY: compact Y brand/sidebar, calm Feishu/Alipay-inspired blue-white enterprise system, consistent fine rules and controls. Do not put P06's task fields into this page.
+Preserve 8 sidebar entries and their grouping: 商机工作台; 发现商机: 业务画像, 线索采集, 监控任务; 推进商机: 商机库 (active), 触达中心, 跟进记录; bottom 账号与授权, 演示工作空间. Same smaller Y logo and 意客AI wordmark as attachment2. No extra navigation.
+White main surface, #F7F9FC sidebar, #1677FF main accent, #172B4D text, #52637A secondary, #E8EDF3 fine dividers. Moderate 24px title/600, 16px section headings/600,14px body,12–13px secondary; coherent 18–20px outline icons,40–44px sidebar rows. 6px control corners,36px buttons. Make main evidence column approximately 64% and contact-preparation rail 36%, with a single light separator. No cards within cards, no heavy shadows or decorative gradients. Use spacing and typography. Reduce visual shouting compared to attachment1.
+Content that must stay legible and intact:
+Breadcrumb 商机库 / 机会详情. Quiet top right 设计预览.
+Title 180㎡高交会展区设计搭建预算询价. Buyer 湖南省商务厅对外贸易发展处.
+Small state line 公开研究样例 · 待人工复核 · 未入客户库.
+Compact four-column fact strip: 需求阶段 预算编制市场询价; 项目地点 深圳国际会展中心; 展区面积 180㎡; 资料截止 09-15 18:00.
+Left main 原文证据, text link 查看官方原文. Important short quote 本次报价仅用于预算测算。 Blue left rule and very light blue tint are appropriate. Source 湖南省商务厅官网 · 发布于 2026-09-08 16:54. Current date anchor 2026-09-09; preserve source dates.
+需求概述: 180㎡展区，涵盖设计、搭建、维护、撤展和组展服务。
+证据评估 flat compact rows:
+匹配依据: 买方公开征询服务方案与成本；适配需结合地域、施工及组展能力。
+行动信号: 9月15日18:00前递交资料，可评估是否参与预算询价。
+机会价值: 适合提前了解需求；预算、合同和收入尚未确定。
+需要核实: 不确定供应商、不签合同，参与不带来后续招标优先资格。
+联系渠道: 以官方公告的采购咨询电话、资料邮箱及递交要求为准。
+Right rail 联系准备 with small 待校对 · 未发送. Label 询问草稿 and full draft in calm text field:
+您好，关注到本次高交会展区预算询价。请问展位技术资料及组展服务范围如何获取？我们会先核实自身能力，再按公告要求准备资料。理解此次仅用于预算编制，后续采购以正式公告为准。
+Button 复制草稿, not send. Under it 按公告要求联系采购方.
+Short sample status footer 样例状态: 仅供研究查看，尚未绑定客户画像。
+No approve/import/send button for this public sample, no fake metrics/customer/success, no new features. Preserve evidence, qualifiers and full separate draft. Improve clean layout/typography/readability, don't delete important facts to make it minimal. Crisp accurate Chinese, nothing clipped.
