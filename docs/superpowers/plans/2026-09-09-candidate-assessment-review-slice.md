@@ -30,13 +30,17 @@
 
 人工来源核验是独立操作：版本binding、requestId、humanConfirmed=true、status OPEN/BLOCKED/EXPIRED/UNVERIFIED、openingMethod DIRECT/IN_PLATFORM、locator、原文中的excerpt、contactMethod COMMENT/DM/PUBLIC_CONTACT/NONE。开放核验24小时有效；服务端记录人和时间。仍不认证买方身份或今天仍开放，日期未知不得补造。
 
-复核沿用P07 ASSESS/INCLUDE/EXCLUDE binding、五项人工evidence、requestId和原review快照；新增sourceVerificationId明确纳入证据。EXCLUDE要原因，不要求OPEN；INCLUDE要匹配assessment和有效sourceVerification。113仅四表：assessment requests、不可变assessments、source verifications、reviews；112仍为唯一raw仓库。
+复核沿用P07 ASSESS/INCLUDE/EXCLUDE binding、五项人工evidence、requestId和原review快照；新增sourceVerificationId明确纳入证据。EXCLUDE要原因，不要求OPEN；INCLUDE要匹配assessment和有效sourceVerification。113四张私有业务表：requests、不可变assessments、source verifications、reviews；112仍为唯一raw仓库。另用一张仅含tenant/服务端日期/已预约次数的额度计数表，避免为跨owner计数放宽私有请求RLS或引入读取私有正文的SECURITY DEFINER函数；这是同一预算约束的最小实现细化，不是新产品功能。
 
 旧商机导入source_external_id使用带命名空间的canonical source identity，保留platform/kind/post/comment/site边界，不按昵称或仅父帖ID合并。同来源不同owner可各私有审核，租户共享商机按source/profile只一张。当前判断由projection绑定动态计算；原文变化后历史记录不删，但不作为当前判断。
 
+独立预检细化：新建机会默认UNVERIFIED，ALREADY_IMPORTED不重置旧机会后来人工设置的来源状态；来源核验必须是同绑定最新一条，后续BLOCKED等使旧OPEN不可消费。日额度按tenant与服务端Asia/Shanghai预约日期串行计数，UNKNOWN/坏结果不退回为“未调用”。缓存/在途命中仍保存新requestId到原运行的持久关联；retryOf只能同owner、精确快照的最后失败/未知尝试，并发重试仅一次。原运行期限后不能被晚到结果复活。只读查询可计算已超期UNKNOWN，不能偷偷启动/重跑工作。模型适配器还须在配置的总时限真正取消网络I/O，不能仅依赖httpx分阶段超时或拒绝晚到入库；独立审核已用慢速返回实测确认该差别。
+
+P07的profileId沿用现有客户端含义：`business_profile_versions.profile_version_id`，不是画像父ID（`services/client.ts`）。模型content是最小视图 `{title,body,parent:{title,body}|null}`。COMMENT的raw.title实际来自父视频/主帖（mapper第182行），因此必须投影为title=null、parent.title=raw.title，parent.body保留原父评论正文；POST/PAGE才保留本人的title。其他作者/日期/URL/采集元数据留服务端，不发模型。ASSESS复用有权限的已完成采集证据，不要求旧采集任务继续持有活lease；但当前画像与策略仍须真实确认。
+
 ## Task 1: 版本化 Skill 模型和输出校验
 
-文件：新 `pilot/candidate_assessment_model.py`、`tests/test_candidate_assessment_model.py`；必要的 `pyproject.toml` wheel规则文件包含配置。不要改Win search_suggestion_model或旧scorer。
+文件：新 `pilot/candidate_assessment_model.py`、必要的固定私有模型worker、`tests/test_candidate_assessment_model.py`；必要的 `pyproject.toml` wheel规则文件包含配置。不要改Win search_suggestion_model或旧scorer。独立审核实测原生DNS不受async取消控制后，默认真实provider路径采用最小受控子进程，使DNS/启动/网络都能在时限后终止回收；不是另造DNS或通用任务框架。密钥/画像仅走有界stdin，不入参数/环境/文件/日志，worker核对规则摘要，父进程重验结果；内部网络替身路径不是默认生产路径。
 
 接口：
 - `AssessmentModelError(code,status)`固定白名单安全错误，无原始异常context。
