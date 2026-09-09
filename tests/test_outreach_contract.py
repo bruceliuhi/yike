@@ -156,3 +156,25 @@ def test_confirmation_is_not_valid_before_confirmed_at():
         expires_at=confirmed + timedelta(minutes=15), confirmed_at=confirmed,
     )
     assert not snapshot.is_valid_for(item, mapping, confirmed - timedelta(seconds=1))
+
+
+def test_idempotency_rejects_same_request_with_changed_binding():
+    source_obj = source()
+    connection_id = str(uuid4())
+    mapping = map_recipient(source_obj, capability(connection_id), recipient(source_obj, connection_id))
+    item = draft(source_obj, connection_id)
+    now = datetime(2026, 9, 10, 2, tzinfo=timezone.utc)
+    request_id = str(uuid4())
+    first = bind_confirmation(
+        source_obj, item, mapping, request_id=request_id,
+        expires_at=now + timedelta(minutes=15), confirmed_at=now,
+    )
+    changed = item.model_copy(update={"version": 2})
+    second = bind_confirmation(
+        source_obj, changed, mapping, request_id=request_id,
+        expires_at=now + timedelta(minutes=15), confirmed_at=now,
+    )
+    registry = IdempotencyRegistry()
+    registry.bind(first)
+    with pytest.raises(ValueError, match="request_id binding conflict"):
+        registry.bind(second)

@@ -132,7 +132,7 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 - 父仓库的 `output/`、截图、PDF、SQLite 和浏览器运行记录没有批量复制；其中可能包含临时事实或敏感数据。可将脱敏规则、反例和 fixture 逐项提炼到 Skill 评测目录。
 - 旧 `codex/authorized-dual-platform-mvp` 是当前基线的祖先，没有额外本地提交需要合并。
 
-2026-09-10 触达协议契约切片：CodexiMac 新增 `pilot/outreach_contract.py`、专项测试与 [V02_OUTREACH_CHANNELS](contracts/V02_OUTREACH_CHANNELS.md)，提交 `74e8ff6d997e92f88e01a6003b75a152ee03fdf6`。独立只读复核为 PASS WITH MINOR；专项测试 **7 passed**，compileall 与 diff check 通过。该切片冻结来源版本、平台公开收件人、连接版本、内容摘要、确认有效窗口、request_id 幂等模型及 UNKNOWN/PENDING/FAILED/SENT 失败关闭语义。`IdempotencyRegistry` 仍为进程内契约模型，尚未接 PostgreSQL；没有真实平台连接器、服务端发送路由、回执对账、回复回流或客户/UAT证据，V02-06/07继续 `IN_PROGRESS`，不得把本提交写成真实发送或产品上线。
+2026-09-10 触达协议契约切片：CodexiMac 新增 `pilot/outreach_contract.py`、专项测试与 [V02_OUTREACH_CHANNELS](contracts/V02_OUTREACH_CHANNELS.md)，提交 `74e8ff6d997e92f88e01a6003b75a152ee03fdf6`，幂等冲突反例追加于后续提交。独立只读复核为 PASS WITH MINOR；专项测试 **8 passed**，compileall 与 diff check 通过。该切片冻结来源版本、平台公开收件人、连接版本、内容摘要、确认有效窗口、request_id 幂等模型及 UNKNOWN/PENDING/FAILED/SENT 失败关闭语义。`IdempotencyRegistry` 仍为进程内契约模型，尚未接 PostgreSQL；没有真实平台连接器、服务端发送路由、回执对账、回复回流或客户/UAT证据，V02-06/07继续 `IN_PROGRESS`，不得把本提交写成真实发送或产品上线。
 
 ## 后续 AI 必须遵守
 
