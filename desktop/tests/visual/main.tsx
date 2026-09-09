@@ -27,6 +27,7 @@ import { makeMaterialRecovery } from "./materialRecovery";
 import { MaterialRecoveryControls } from "./MaterialRecoveryControls";
 import { selectManagementRecovery, configureManagementRecovery } from "./managementRecovery";
 import { ManagementRecoveryControls } from "./ManagementRecoveryControls";
+import { configureStrategyVisual } from "./strategy";
 
 const params = new URLSearchParams(location.search);
 const state = (
@@ -130,6 +131,12 @@ if (state === "populated") {
   }
 }
 recovery?.seed(storage.session, page);
+if (params.get("strategy") === "confirm" && ["P06", "P19", "P20"].includes(page)
+  && state === "populated" && params.get("session") !== "guest" && !recoveryName) {
+  const draft = configureStrategyVisual(harness.service);
+  if (page === "P20") draft.mode = "monitor";
+  seed(`task.${taskDraftOwner(TEST_USER, r4 ? R4_TEST_SCOPE : undefined)}`, draft);
+}
 history.replaceState(
   null,
   "",

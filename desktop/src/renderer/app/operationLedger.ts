@@ -4,6 +4,7 @@ import { forgetLegacyOperationLock, readLegacyOperationLock } from "./hooks";
 import { parseCandidateOperation } from "../domain/candidateReviewOperation";
 import { usageReservationSchema } from "../domain/researchUsage";
 import { validCoverageAdjustmentEntry } from "../domain/coveragePlan";
+import { validStrategyEntry } from "../domain/strategyConfirmation";
 
 export type OperationScope =
   | "send-attempts"
@@ -14,6 +15,7 @@ export type OperationScope =
   | "candidate-reviews"
   | "contact-draft-saves"
   | "coverage-adjustments"
+  | "research-strategy-operations"
   | "management-operations";
 export type OperationEntries = Record<string, string>;
 const PREFIX = "yike.ui.operation.v1.";
@@ -70,6 +72,7 @@ function validEntries(
     if (scope === "candidate-reviews")
       return status === "PENDING" && parseCandidateOperation(key) !== null;
     if (scope === "coverage-adjustments") return validCoverageAdjustmentEntry(key, status);
+    if (scope === "research-strategy-operations") return validStrategyEntry(key, status);
     if (scope === "contact-draft-saves") {
       if (status !== "PENDING") return false;
       try {
@@ -259,6 +262,12 @@ export function useOperationLedger(scope: OperationScope, userId?: string) {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
   const current = userId ? read(scope, userId) : { entries: {}, blocked: true };
+  const getEntries = () => {
+    if (!userId) throw new ServiceError("UNAUTHORIZED", "请先登录客户空间。");
+    const latest = read(scope, userId);
+    if (latest.blocked) throw ledgerError();
+    return latest.entries;
+  };
   const setEntries = (next: SetStateAction<OperationEntries>) => {
     if (!userId) throw new ServiceError("UNAUTHORIZED", "请先登录客户空间。");
     const latest = read(scope, userId);
@@ -278,5 +287,6 @@ export function useOperationLedger(scope: OperationScope, userId?: string) {
   };
   // Unlike editable drafts, an already-started operation may settle after its
   // page unmounts. Its captured setter updates only that original user's ledger.
-  return [current.entries, setEntries] as const;
+  // A captured reader sees synchronous writes even before React renders again.
+  return [current.entries, setEntries, getEntries] as const;
 }

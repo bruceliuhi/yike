@@ -9,6 +9,7 @@ import {
 import type { YikeDesktopApi, ApiOperation } from "../../shared/contracts";
 import { decodeLibraryFacts } from "../domain/opportunityLibrary";
 import { decodeConnectionRegistry } from "./connectionRegistry";
+import { createResearchStrategiesService } from "./researchStrategies";
 
 type JsonRecord = Record<string, unknown>;
 function bridge(): YikeDesktopApi | undefined {
@@ -215,6 +216,7 @@ function unavailable(name: string): never {
   );
 }
 export const service: YikeService = {
+  researchStrategies: createResearchStrategiesService(request),
   verifyContact: async () => unavailable("收件对象与发送条件核验"),
   candidates: async () => unavailable("原始候选读取"),
   reviewCandidate: async () => unavailable("候选判断与人工复核"),

@@ -26,6 +26,8 @@ prepare精确字段：schema_version=`strategy-confirmation-v1`，request_id/dra
 
 configuration使用`research-strategy-v1`：任务名、source search/links、keywords、exclusions、links、mode once/monitor、schedule及research基础设置。完整字段及限制见计划Chunk1；额外任意字典、凭据字段、未实现证据验证的provenance明确拒绝，不能静默丢弃后启动。R4切换source保留另一侧输入，所有字段参与确认；真正执行只采用选定source，不因隐藏输入有值扩大范围。URL通过结构验证不代表站点已获运行许可。
 
+日程兼容：接受原六字段日程，或带必填严格整数`policyVersion=1`的新七字段日程；两种形状都原样进入快照及请求摘要。旧缺字段不会补null/默认版本，旧历史JSON/SHA不变。新v1间隔窗口相同起止拒绝，跨日窗口允许；未版本化历史不追溯改写。显式换版须提高draft_revision并重新确认，保存规则仍不表示调度器已支持v1或具备执行能力。
+
 confirm精确字段：同schema_version、原request_id、strategy_version_id、完整configuration_sha256及human_confirmed=true。revoke为同schema_version、request_id、strategy_version_id；画像过期/改变不阻止用户撤销自己的策略。
 
 ## 快照、状态及原请求

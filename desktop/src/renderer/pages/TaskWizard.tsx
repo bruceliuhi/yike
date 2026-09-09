@@ -45,6 +45,10 @@ import {
 import { PendingTaskStarts } from "./tasks/PendingTaskStarts";
 import { useTaskScope } from "./tasks/useTaskScope";
 import { TaskConfirmationSummary } from "./tasks/TaskConfirmationSummary";
+import { StrategyConfirmationPanel } from "./tasks/StrategyConfirmationPanel";
+import { StrategyExecutionLimits } from "./tasks/StrategyExecutionLimits";
+import { validStrategyExecutionLimits } from "../domain/strategyExecutionLimits";
+import { useStrategyConfirmation } from "./tasks/useStrategyConfirmation";
 import { DemandSettings, ResearchSettingsPanel } from "./tasks/ResearchSettings";
 import { useUsageQuote } from "./tasks/useUsageQuote";
 import { parseUsageQuote, usageQuoteCurrent, usageQuoteRequest, usageReservation } from "../domain/researchUsage";
@@ -61,6 +65,14 @@ export function TaskWizardPage() {
   );
   const [, setLibrary] = useTaskLibrary(session.userId, session.accountScope);
   const usage = useUsageQuote(draft);
+  const executionLimits = validStrategyExecutionLimits(draft.executionLimits);
+  // Invalid/incomplete values never become suggested authority or leave this client.
+  const strategy = useStrategyConfirmation(draft, executionLimits ?? { max_records: 0, max_runtime_seconds: 0 });
+  const strategyPreparationError = !executionLimits
+    ? "请返回任务条件，明确设置执行记录与执行时长上限；建议值尚未采用。"
+    : draft.research?.provenance || draft.research?.coverageProvenance
+      ? "当前策略服务尚未支持类似研究或补查来源。原草稿与溯源已保留，暂不能确认此策略。"
+      : null;
   const [manualConditionOrigin, setManualConditionOrigin] = useLocalDraft<
     string | null
   >(
@@ -126,7 +138,12 @@ export function TaskWizardPage() {
       }」，你的修改已保留。请按新画像复核，或重新生成后选择应用方式。`
     : "";
   const fingerprint = taskFingerprint(draft);
-  const startScope = useTaskScope(fingerprint);
+  const startScope = useTaskScope(JSON.stringify([fingerprint, draft.executionLimits]));
+  const reviewKey = strategy.available
+    ? strategy.prepared ? JSON.stringify([fingerprint, draft.executionLimits, strategy.prepared.request_id,
+      strategy.prepared.strategy_version_id, strategy.prepared.configuration_sha256, strategy.prepared.profile_sha256]) : null
+    : fingerprint;
+  const reviewed = reviewKey !== null && verified === reviewKey;
   const blockers = startBlockers(
     draft,
     profiles.data || [],
@@ -135,6 +152,13 @@ export function TaskWizardPage() {
   );
   if (!session.authenticated)
     blockers.unshift("请登录客户工作空间后启动任务。");
+  if (strategy.available) {
+    // 05F must carry the confirmed strategy through the signed execution protocol.
+    // An old task request cannot enforce this snapshot or its independent limits.
+    blockers.push("策略可先确认；签名执行接入尚未完成，当前不会启动采集。");
+    if (strategyPreparationError) blockers.push(strategyPreparationError);
+    if (!strategy.confirmed) blockers.push("请准备策略快照、核对后主动确认本次策略。");
+  }
   if (draft.mode === "monitor") {
     const scheduleBlocker = scheduleContractBlocker(draft.schedule, service.taskOperations?.scheduleContractVersion);
     if (scheduleBlocker) blockers.push(scheduleBlocker);
@@ -335,7 +359,8 @@ export function TaskWizardPage() {
       !session.authenticated ||
       starting ||
       resultUnknown ||
-      verified !== taskFingerprint(current.current)
+      !reviewed ||
+      strategy.available
     )
       return;
     const snapshot = structuredClone(current.current);
@@ -952,6 +977,7 @@ export function TaskWizardPage() {
             </section>
           </div>
           <aside className="task-aside">
+            {strategy.available && <StrategyExecutionLimits value={draft.executionLimits} onChange={executionLimits => update({ executionLimits })} />}
             <ResearchSettingsPanel value={draft.research} onChange={research => update({ research })} quote={usage.quote} busy={usage.busy} error={usage.error} onEstimate={() => void usage.estimate()} onCancel={usage.cancel} onPreview={() => changeStep(3)} />
             {!draft.research && <>
             <div className="section-heading">
@@ -1119,6 +1145,8 @@ export function TaskWizardPage() {
             disabled={starting}
             onEdit={() => changeStep(1)}
           />
+          <StrategyConfirmationPanel strategy={strategy} reviewed={reviewed} onReviewedChange={checked => setVerified(checked ? reviewKey : null)}
+            disabled={starting} preparationError={strategyPreparationError} />
           {draft.research && <Notice action={<Button disabled={starting} onClick={usage.busy ? usage.cancel : () => void usage.estimate()}>{usage.busy ? "取消估算" : "重新估算"}</Button>}>
             {usage.error || (usage.quote ? `预计 ${usage.quote.estimatedSoubei} 搜贝，最多 ${usage.quote.maxSoubei} 搜贝；确认后按本次规则执行。` : "请完成用量估算，再核对配置并启动。")}
           </Notice>}
@@ -1134,17 +1162,17 @@ export function TaskWizardPage() {
               </ul>
             </details>
           )}
-          <label className="check-row">
+          {!strategy.available && <label className="check-row">
             <input
               type="checkbox"
-              checked={verified === fingerprint}
-              disabled={starting}
+              checked={reviewed}
+              disabled={starting || strategy.busy || (strategy.available && !strategy.prepared)}
               onChange={(e) =>
-                setVerified(e.target.checked ? fingerprint : null)
+                setVerified(e.target.checked ? reviewKey : null)
               }
             />
             我已核对以上画像版本、搜索条件、账号与运行设置
-          </label>
+          </label>}
           {action.error && <Notice tone="error">{action.error}</Notice>}
           {resultUnknown && (
             <Notice
@@ -1199,7 +1227,7 @@ export function TaskWizardPage() {
               variant="primary"
               loading={starting}
               disabled={
-                blockers.length > 0 || verified !== fingerprint || resultUnknown
+                blockers.length > 0 || !reviewed || resultUnknown || (strategy.available && !strategy.confirmed)
               }
               onClick={() => void start()}
             >

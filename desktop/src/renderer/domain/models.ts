@@ -33,8 +33,13 @@ export interface Schedule {
   end: string;
   timezone: string;
 }
+export interface StrategyExecutionLimitsDraft {
+  max_records: number | null;
+  max_runtime_seconds: number | null;
+}
 export interface TaskDraft {
   research?: import("./researchUsage").ResearchSettings;
+  executionLimits?: StrategyExecutionLimitsDraft;
   templateSourceDraftIds?: string[];
   id: string;
   revision: number;

@@ -162,6 +162,25 @@ class _Schedule(_Frozen):
         return self
 
 
+class _VersionedSchedule(_Schedule):
+    # A required field on a separate shape preserves legacy JSON and its digest.
+    # This records user intent; it does not declare scheduler capabilities.
+    policyVersion: Literal[1]
+
+    @field_validator("policyVersion", mode="before")
+    @classmethod
+    def exact_policy(cls, value):
+        if type(value) is not int or value != 1:
+            raise ValueError("invalid schedule policy version")
+        return value
+
+    @model_validator(mode="after")
+    def interval_window(self):
+        if self.kind == "interval" and self.start == self.end:
+            raise ValueError("interval schedule requires distinct bounds")
+        return self
+
+
 class _ResearchLimits(_Frozen):
     sources: _PositiveLimit
     minutes: _PositiveLimit
@@ -210,7 +229,7 @@ class ResearchStrategyConfiguration(_Frozen):
     exclusions: tuple[str, ...] = Field(max_length=20)
     links: tuple[str, ...] = Field(max_length=100)
     mode: Literal["once", "monitor"]
-    schedule: _Schedule | None
+    schedule: _VersionedSchedule | _Schedule | None
     research: _Research | None
 
     @field_validator("name")

@@ -40,6 +40,7 @@ export const API_OPERATIONS = [
   'profiles.list', 'profiles.save', 'profiles.confirm',
   'connections.list',
   'opportunities.list', 'opportunities.get', 'followups.list', 'followups.add',
+  'strategies.prepare', 'strategies.confirm', 'strategies.revoke', 'strategies.receipt', 'strategies.get',
   'capabilities.get'
 ] as const;
 

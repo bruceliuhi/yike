@@ -565,3 +565,65 @@ def test_confirm_waits_for_profile_confirmation_and_rejects_replaced_profile(env
             conn.execute("UPDATE business_profile_versions SET status='CONFIRMED' WHERE profile_version_id=%s",(next_profile['version_id'],))
         with pytest.raises(StrategyStoreError,match='profile_unavailable'): future.result(timeout=5)
     assert service(env).get_strategy(env.claims,pending['strategy_version_id'])['state']=='DRAFT'
+
+
+def test_real_node_client_strategy_roundtrip(env):
+    """Real renderer -> fixed main transport -> loopback HTTP -> restricted PG.
+
+    Explicit test-only HTTP does not prove production TLS, platforms or sending.
+    No request/receipt is stubbed and synthetic credentials never reach argv/logs.
+    """
+    import shutil
+    import socket
+    import subprocess
+    import threading
+    import uvicorn
+    from pilot.web import build_app
+
+    node = os.environ.get('YIKE_STRATEGY_NODE_BINARY') or shutil.which('node')
+    if not node:
+        pytest.skip('Node 24 required for actual desktop client consumer')
+    version = subprocess.run([node, '--version'], capture_output=True, text=True, timeout=10, check=True)
+    assert version.stdout.strip().startswith('v24.'), 'Node 24 required'
+    auth_store = PilotStore(env.db)
+    # Consume the shared composition, including its real identity/Origin checks.
+    # The existing dev-only HTTP option is restricted to this loopback listener.
+    app = build_app(auth_store, auth_secret=SECRET, dev_login=True, research_strategies=service(env))
+    paths = [route.path for route in app.routes
+             if route.path.startswith(('/api/ui/research-strategies/', '/api/ui/research-strategy-operations/'))]
+    assert len(paths) == len(set(paths)) == 5, 'strategy routes must not be shadowed by a test router'
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(('127.0.0.1', 0))
+        listener.listen(64)
+        server = uvicorn.Server(uvicorn.Config(app, log_level='critical', access_log=False, lifespan='off'))
+        thread = threading.Thread(target=server.run, kwargs={'sockets': [listener]}, daemon=True)
+        thread.start()
+        try:
+            deadline = time.monotonic() + 10
+            while not server.started and thread.is_alive() and time.monotonic() < deadline:
+                time.sleep(.02)
+            assert server.started and thread.is_alive(), 'isolated HTTP fixture failed to start'
+            child_env = os.environ.copy()
+            # The Node consumer receives no database credentials.
+            for key in list(child_env):
+                if 'DATABASE' in key.upper() or key.upper().startswith('POSTGRES_'):
+                    child_env.pop(key)
+            child_env.update(YIKE_STRATEGY_LIVE_BASE=f'http://127.0.0.1:{listener.getsockname()[1]}',
+                YIKE_STRATEGY_LIVE_TOKEN=issue_token(env.users[0], SECRET), YIKE_STRATEGY_LIVE_PROFILE=env.profile)
+            result = subprocess.run([node, 'node_modules/vitest/vitest.mjs', 'run',
+                'tests/integration/research-strategy-live.test.ts'], cwd=ROOT / 'desktop', env=child_env,
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=50)
+            # Keep diagnostics while redacting the synthetic credential and DB URLs.
+            output = result.stdout + result.stderr
+            for secret in (child_env['YIKE_STRATEGY_LIVE_TOKEN'],
+                           os.environ.get('YIKE_RESEARCH_STRATEGY_TEST_DATABASE_URL'),
+                           os.environ.get('YIKE_RESEARCH_STRATEGY_TEST_APP_DATABASE_URL')):
+                if secret:
+                    output = output.replace(secret, '[redacted]')
+            assert result.returncode == 0, output
+            assert '1 passed' in output and '1 skipped' not in output, output
+            print('actual Node 24 renderer/fixed-IPC/HTTP/PG: 1 passed')
+        finally:
+            server.should_exit = True
+            thread.join(timeout=10)
+            assert not thread.is_alive(), 'isolated HTTP fixture did not stop'
