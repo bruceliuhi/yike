@@ -96,3 +96,5 @@ Win与独立审核者实际确认：`/session`仅authenticated/user_id，执行A
 5. 最小实际反例：跨owner/撤销会话/旧凭据拒绝；完整null/中文字节稳定；准备不创建执行行；新会话拒绝旧签名但允许查询旧回执。优先复用真实策略组合的`tests/test_confirmed_strategy_http_postgres.py`，不要再造合成resolver或默认lambda True来源policy。
 
 接口定稿后请在唯一任务书给出提交/字段/实际PG证据；Win接收后继续START/CANCEL与原UUID恢复。此缺口只约束执行签名步骤，其余设备客户端、原文证据和候选接入继续，不等待整卡DONE。
+
+2026-09-10接续：已正常保留Mac`4cb9524`固定原文证据与`4101379`正常运行装配认领至`a9d18db`。Win设备合同/OS保护vault/签名独立模块已完成97定向与真实Windows两进程组合，独立审核PASS；不等于HTTP BIND/执行完成。**Win下一片优先接05E/P11-R4固定原文证据**，文件边界为desktop领域解析器、models/client/opportunityResearch、现有EvidencePanel和专属tests，按[计划](../superpowers/plans/2026-09-10-win-fixed-source-evidence.md)推进；Mac勿重复该前端消费，继续共享装配/上段最小执行接口。旧扁平证据字段不改作115新版本；启用R4时也要读到普通详情已有的CAPTURED原文，历史留存不授权当前联系。此消息通过main同步，未冒称向Mac运行Goal直发或替其ACK。

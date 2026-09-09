@@ -10,6 +10,8 @@
 
 基线`22bae22`，继承已批准R3/R4与[设备合同](../../contracts/V02_DEVICE_KEYS.md)、[执行合同](../../contracts/V02_EXECUTION_RUNTIME.md)和原05C接续。原文证据/多找类似/短句建联仍为首发必需；这是执行身份前置，不是扩大高级加密/轮换工作。
 
+进度更新（正常合入主线`a9d18db`后）：**Chunk1独立模块完成并通过非作者SPEC/代码/架构/质量审核**，根97项/类型检查与实际Windows两进程OS保护→产品挑战签名组合通过，见[实际验收](../../qa/V02_DEVICE_SIGNING_CLIENT_WIN_REVIEW.md)。Chunk2产品会话/HTTP尚未接；Mac执行载荷入口仍待实际接收。利用接口接续窗口，Win下一片优先[现P11/R4固定原文证据](2026-09-10-win-fixed-source-evidence.md)，不继续扩高级密码或管理功能。
+
 ## 当前事实与不越过的边界
 
 - 现有desktop仅通用HTTP桥接，没有设备私钥或持钥流程。服务端BIND/PROVE、设备登记及窄回执均已共享注册。ROTATE增强不在本片；已有服务端能力不删除。
@@ -24,22 +26,22 @@
 
 **Files:** Create `desktop/src/shared/deviceProof.ts`, `desktop/tests/deviceProof.test.ts`。
 
-- [ ] 写RED：BIND/PROVE输入严格UUID/版本/nullable公钥；canonical base64url32/64字节；服务端challenge四字段与signing_payload所有12字段精确匹配：protocol、tenant_id、user_id、device_id、request_id、challenge_id、session_digest、operation、expected_credential_version、target_public_key、nonce、expires_at。拒未知字段、错用户/设备/原request/operation/version/target_public_key、内外challenge_id/expiry不同、原字节非ASCII或重复JSONkey、过期/过大payload。返回原始字符串不重新序列化。仅接受`yike-device-proof-v1`，不接受execution域；合法Unicode身份允许以Python的ASCII转义形式出现。
-- [ ] 导出`deviceChallengeRequestSchema`（BIND/PROVE）、`deviceCompletionSchema`、`deviceProofReceiptSchema`、`parseDeviceChallenge(raw, expected, nowSeconds)`。expected含严格challenge request、device_id、服务端session.get已验证user_id及本机公钥；tenant/session摘要只允许来自受信HTTPS挑战，校验有界非空ID/64位小写SHA，不返renderer。
-- [ ] 为避免JSON重复键签名歧义：payload必须ASCII，完整比较Python `json.dumps(sort_keys=True,separators=(',', ':'),ensure_ascii=True)`等价表示与原文；固定ASCII字段名排序，字符串沿用JSON转义并将DEL与非ASCII UTF-16单元转为小写四位转义，包含BMP与非BMP代理对。使用实际Python生成的跨语言golden覆盖中文/emoji/DEL与控制字符；不是仅比较普通JSON.stringify。签名始终保留服务端原字节。payload.challenge_id/expires_at必须分别等于外层字段；nonce必须canonical base64url32字节。nowSeconds必须有限安全整数，`nowSeconds < expires_at <= nowSeconds + 150`，明确允许服务端时钟最多快30秒，服务端最终120秒有效期判断不变；不延长已过期挑战、不无限放宽。
-- [ ] 窄回执严格五字段；SUCCEEDED必须预期credential_version（BIND1/PROVE原版本），其它状态必须null，request/device/operation必须匹配。只把SUCCEEDED记录为历史成功，不生成执行token。
-- [ ] 运行`node node_modules/vitest/vitest.mjs run tests/deviceProof.test.ts` RED→GREEN、`node node_modules/typescript/bin/tsc --noEmit`；独立规格及代码/架构/质量审查。
+- [x] 写RED：BIND/PROVE输入严格UUID/版本/nullable公钥；canonical base64url32/64字节；服务端challenge四字段与signing_payload所有12字段精确匹配：protocol、tenant_id、user_id、device_id、request_id、challenge_id、session_digest、operation、expected_credential_version、target_public_key、nonce、expires_at。拒未知字段、错用户/设备/原request/operation/version/target_public_key、内外challenge_id/expiry不同、原字节非ASCII或重复JSONkey、过期/过大payload。返回原始字符串不重新序列化。仅接受`yike-device-proof-v1`，不接受execution域；合法Unicode身份允许以Python的ASCII转义形式出现。
+- [x] 导出`deviceChallengeRequestSchema`（BIND/PROVE）、`deviceCompletionSchema`、`deviceProofReceiptSchema`、`parseDeviceChallenge(raw, expected, nowSeconds)`及上下文绑定的`parseDeviceProofReceipt(raw, expected)`。challenge expected固定为`{serviceOrigin,userId,deviceId,publicKey,request}`，其中userId来自服务端session.get，request为严格challenge request；receipt expected仅`{deviceId,request}`。tenant/session摘要只允许来自受信HTTPS挑战，校验有界非空ID/64位小写SHA，不返renderer。服务origin与vault一致，仅规范HTTPS或现有开发loopback HTTP；Python身份字符串长度按Unicode codepoint，不按UTF-16单元，UUID不凭空收窄服务端允许的版本位。
+- [x] 为避免JSON重复键签名歧义：payload必须ASCII，完整比较Python `json.dumps(sort_keys=True,separators=(',', ':'),ensure_ascii=True)`等价表示与原文；固定ASCII字段名排序，字符串沿用JSON转义并将DEL与非ASCII UTF-16单元转为小写四位转义，包含BMP与非BMP代理对。使用实际Python生成的跨语言golden覆盖中文/emoji/DEL与控制字符；不是仅比较普通JSON.stringify。签名始终保留服务端原字节。payload.challenge_id/expires_at必须分别等于外层字段；nonce必须canonical base64url32字节。nowSeconds必须有限安全整数，`nowSeconds < expires_at <= nowSeconds + 150`，明确允许服务端时钟最多快30秒，服务端最终120秒有效期判断不变；不延长已过期挑战、不无限放宽。
+- [x] 窄回执严格五字段；SUCCEEDED必须预期credential_version（BIND1/PROVE原版本），其它状态必须null，request/device/operation必须匹配。只把SUCCEEDED记录为历史成功，不生成执行token。
+- [x] 运行`node node_modules/vitest/vitest.mjs run tests/deviceProof.test.ts` RED→GREEN、`node node_modules/typescript/bin/tsc --noEmit`；独立规格及代码/架构/质量审查。
 
 ### Task 2: 标准密钥与不可明文回退存储
 
-**Files:** Create `desktop/src/main/deviceKeyVault.ts`, `desktop/src/main/deviceProofSigner.ts`, `desktop/tests/deviceKeyVault.test.ts`, `desktop/tests/deviceProofSigner.test.ts`。
+**Files:** Create `desktop/src/main/deviceKeyVault.ts`, `desktop/src/main/deviceProofSigner.ts`, `desktop/tests/deviceKeyVault.test.ts`, `desktop/tests/deviceProofSigner.test.ts`；Windows显式验证夹具为`desktop/tests/native/deviceKeyVault.cjs`及`verifyDeviceKeyVault.mjs`，不接产品构建入口或自动Vitest。
 
-- [ ] RED：无OS保护时不生成/保存；文件读取失败/损坏/身份不符不替换；不同service/user/device不同记录；并发首次创建只有同一持久键；文件中无明文私钥；renderer无法提供路径。真实Node生成/验证Ed25519签名，不只mock签名成功。
-- [ ] `createDeviceKeyVault({directory, protection})`仅主进程使用；protection封装isEncryptionAvailable/encryptString/decryptString，目录来自app.getPath('userData')固定子目录。`getOrCreate(scope)` scope={serviceOrigin,userId,deviceId}全部校验，derive SHA256文件名。用crypto.generateKeyPairSync('ed25519')，privateKey以标准PKCS8 PEM放入加密记录，publicKey以JWK.x的canonical base64url32字节表示；读取时重新派生公钥校验。记录严格含version=1/scope/publicKey/privateKey，返回只供主进程的`DeviceKeyMaterial {scope,publicKey,privateKey}`；错误只固定code。
-- [ ] 首次文件以独占创建、同步写入并fsync后可供BIND。写入失败保留现场并报错、不先POST；并发EEXIST读取同一原文件，不覆盖。使用同进程per-scope串行避免读取半写入；跨进程由已有Electron single-instance限制，损坏文件failclosed保留。不得自动删除/修复未知文件。
-- [ ] signer导出`signDeviceChallenge({key, challenge, expected, nowSeconds})`，key为上述持久键，challenge为原始服务端响应，expected同Task1。临签再次调用parseDeviceChallenge，校验当前期望用户/设备与key.scope及本机公钥一致，不允许把早先parse结果当无限期签名许可；服务origin由主进程受信HTTP实例绑定，不接受renderer输入。签原UTF-8字节并用本机公钥实际验签，返回completion窄签名给受信HTTP流程，不导出通用sign IPC。
-- [ ] 执行两个定向test与tsc。真实Electron safeStorage验证用独立受控临时profile，不覆盖产品userData；至少实测isEncryptionAvailable、encrypt/decrypt与重建vault保持公钥。没有真实Electron结果明确未验收，不能用注入保护fixture冒充Windows验收。
-- [ ] 非作者两阶段审核并根代理提交，记录源码与实际检查范围。
+- [x] RED：无OS保护时不生成/保存；文件读取失败/损坏/身份不符不替换；不同service/user/device不同记录；并发首次创建只有同一持久键；文件中无明文私钥；renderer无法提供路径。真实Node生成/验证Ed25519签名，不只mock签名成功。
+- [x] `createDeviceKeyVault({directory, protection})`仅主进程使用；protection封装isEncryptionAvailable/encryptString/decryptString，目录来自app.getPath('userData')固定子目录。`getOrCreate(scope)` scope={serviceOrigin,userId,deviceId}全部校验，derive SHA256文件名。用crypto.generateKeyPairSync('ed25519')，privateKey以标准PKCS8 PEM放入加密记录，publicKey以JWK.x的canonical base64url32字节表示；读取时重新派生公钥校验。记录严格含version=1/scope/publicKey/privateKey，返回只供主进程的`DeviceKeyMaterial {scope,publicKey,privateKey}`；错误只固定code。
+- [x] 首次文件以独占创建、同步写入并fsync后可供BIND。写入失败保留现场并报错、不先POST；并发EEXIST读取同一原文件，不覆盖。使用同进程per-scope串行避免读取半写入；跨进程由已有Electron single-instance限制，损坏文件failclosed保留。不得自动删除/修复未知文件。实测新增反例：完整写入但sync失败后，下一次读取仍须在同文件句柄成功sync才返回，不把能读到完整密文当作已持久成功；持续sync失败持续拒绝，不改变密文或密钥。
+- [x] signer导出`signDeviceChallenge({key, challenge, expected, nowSeconds})`，key为上述持久键，challenge为原始服务端响应，expected同Task1。临签再次调用parseDeviceChallenge，校验当前期望用户/设备与key.scope及本机公钥一致，不允许把早先parse结果当无限期签名许可；服务origin由主进程受信HTTP实例绑定，不接受renderer输入。签原UTF-8字节并用本机公钥实际验签，返回completion窄签名给受信HTTP流程，不导出通用sign IPC。
+- [x] 执行两个定向test与tsc。真实Electron safeStorage验证用独立受控临时profile，不覆盖产品userData；至少实测isEncryptionAvailable、encrypt/decrypt与重建vault保持公钥。没有真实Electron结果明确未验收，不能用注入保护fixture冒充Windows验收。
+- [x] 非作者两阶段审核并根代理提交，记录源码与实际检查范围。
 
 ## Chunk 2: 主进程真实BIND/PROVE消费（接续检查点）
 
