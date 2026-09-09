@@ -9,7 +9,7 @@ import {
 } from "react";
 import { errorMessage } from "../services/contracts";
 import { boundedRequest } from "./boundedRequest";
-import { sessionTaskContentAtRisk } from "./sessionTaskContent";
+import { sessionContentAtRisk } from "./sessionContent";
 export function useResource<T>(loader: (signal?: AbortSignal) => Promise<T>, deps: unknown[] = []) {
   // The dependency identity also gates render-time data. Clearing in an effect
   // alone would expose the previous account's data for one render.
@@ -101,6 +101,7 @@ export function useResource<T>(loader: (signal?: AbortSignal) => Promise<T>, dep
   };
 }
 const draftMemory = new Map<string, unknown>();
+const editedDraftKeys = new Set<string>();
 const DRAFT_PREFIX = "yike.ui.draft.v1.";
 const draftListeners = new Set<() => void>();
 const draftKeyEpochs = new Map<string, number>();
@@ -143,24 +144,29 @@ export function hasUnsavedChanges() {
   return guards.size > 0;
 }
 /** Includes drafts from pages that have unmounted, without exposing their text. */
-export function hasSessionTaskDrafts() {
+export function hasSessionContentAtRisk() {
   const values = new Map<string, unknown>();
+  const written = new Set(editedDraftKeys);
   try {
     if (!storageReadsBlocked) {
       for (const key of Object.keys(sessionStorage)) {
         if (!key.startsWith(DRAFT_PREFIX) || draftKeyEpochs.has(key)) continue;
-        try { values.set(key, JSON.parse(sessionStorage.getItem(key) || "null")); }
+        try {
+          values.set(key, JSON.parse(sessionStorage.getItem(key) || "null"));
+          if (!draftMemory.has(key)) written.add(key);
+        }
         catch { /* Malformed storage is not accepted as a draft. */ }
       }
     }
   } catch { /* Memory still protects unsaved input when storage is denied. */ }
   for (const [key, value] of draftMemory) values.set(key, value);
   for (const [key, value] of values)
-    if (sessionTaskContentAtRisk(key.slice(DRAFT_PREFIX.length), value)) return true;
+    if (sessionContentAtRisk(key.slice(DRAFT_PREFIX.length), value, written.has(key))) return true;
   return false;
 }
 export function clearLocalDrafts() {
   clearEpoch++;
+  editedDraftKeys.clear();
   const keys = new Set([...draftMemory.keys(), ...draftKeyEpochs.keys()]);
   try {
     for (const key of Object.keys(sessionStorage))
@@ -273,6 +279,7 @@ export function useLocalDraft<T>(
       const saved = draftMemory.get(storageKey);
       if (valid(saved)) return saved as T;
       draftMemory.delete(storageKey);
+      editedDraftKeys.delete(storageKey);
       removeStoredDraft(storageKey);
     }
     try {
@@ -287,6 +294,8 @@ export function useLocalDraft<T>(
           const saved: unknown = JSON.parse(raw);
           if (valid(saved)) {
             draftMemory.set(storageKey, saved);
+            if (key.startsWith("followup:v3:") && JSON.stringify(saved) !== JSON.stringify(base))
+              editedDraftKeys.add(storageKey);
             return saved as T;
           }
         } catch {
@@ -313,16 +322,25 @@ export function useLocalDraft<T>(
       typeof next === "function" ? (next as (previous: T) => T)(read()) : next;
     // Persist synchronously, so clear cannot race a queued effect writing old data.
     draftMemory.set(storageKey, updated);
-    try {
-      sessionStorage.setItem(storageKey, JSON.stringify(updated));
-    } catch {
-      /* Keep the edit in memory on quota or permission failure. */
+    const restoredFollowup = key.startsWith("followup:v3:") &&
+      JSON.stringify(updated) === JSON.stringify(base);
+    if (restoredFollowup) {
+      editedDraftKeys.delete(storageKey);
+      removeStoredDraft(storageKey);
+    } else {
+      editedDraftKeys.add(storageKey);
+      try {
+        sessionStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch {
+        /* Keep the edit in memory on quota or permission failure. */
+      }
     }
     announceDraftChange();
   };
   const clear = () => {
     if (!stillCurrent()) return;
     draftMemory.delete(storageKey);
+    editedDraftKeys.delete(storageKey);
     removeStoredDraft(storageKey);
     draftKeyEpochs.set(storageKey, keyEpoch + 1);
     announceDraftChange();
