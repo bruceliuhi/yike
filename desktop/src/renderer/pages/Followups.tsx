@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "@phosphor-icons/react";
 import { useApp } from "../app/context";
 import { useResource } from "../app/hooks";
@@ -32,8 +32,19 @@ function localDay(value: string) {
   return `${time.getFullYear()}-${String(time.getMonth() + 1).padStart(2, "0")}-${String(time.getDate()).padStart(2, "0")}`;
 }
 export function FollowupsPage() {
-  const { session } = useApp();
-  return <FollowupWorkspace key={session.userId || "public"} />;
+  const { service, session } = useApp();
+  const identity = useMemo(
+    () => crypto.randomUUID(),
+    [
+      service,
+      service.followup,
+      session.authenticated,
+      session.userId,
+      session.accountScope?.id,
+      session.accountScope?.version,
+    ],
+  );
+  return <FollowupWorkspace key={identity} />;
 }
 function FollowupWorkspace() {
   const { service, session, route, navigate } = useApp();
@@ -72,7 +83,13 @@ function FollowupWorkspace() {
       records: records.filter((r) => r.kind === "manual").map(legacyRecord),
       members: [],
     };
-  }, [service, session.userId, session.authenticated]);
+  }, [
+    service,
+    session.userId,
+    session.authenticated,
+    session.accountScope?.id,
+    session.accountScope?.version,
+  ]);
   const opportunities = useResource(
     () =>
       session.authenticated
@@ -80,7 +97,13 @@ function FollowupWorkspace() {
             timeoutMessage: "商机读取超时，请重试。",
           })
         : Promise.resolve([] as Opportunity[]),
-    [service, session.userId, session.authenticated],
+    [
+      service,
+      session.userId,
+      session.authenticated,
+      session.accountScope?.id,
+      session.accountScope?.version,
+    ],
   );
   const records: FollowupView[] = resource.data?.records || [];
   const members = resource.data?.members || [];
@@ -161,6 +184,31 @@ function FollowupWorkspace() {
       )}
       {focused && (
         <p className="muted text-small">已定位目标商机的最新登记。</p>
+      )}
+      {(operation.storageError || operation.historical.length > 0) && (
+        <section className="followup-pending">
+          <Notice tone="warning">
+            {operation.storageError ||
+              "旧跟进操作尚未绑定当前客户空间或版本，不能在此核对或重复保存。请返回原空间版本核对；归属未知时需由服务管理员核实。"}
+          </Notice>
+          {operation.historical.map((entry, index) => (
+            <Field key={index} label={`待核对原请求 ${index + 1}`}>
+              <input
+                aria-label={`待核对原请求 ${index + 1}`}
+                readOnly
+                value={entry.binding.requestId}
+              />
+              <small>
+                {entry.accountScope === "unbound"
+                  ? "旧版本：客户空间归属未绑定"
+                  : entry.accountScope
+                    ? `原空间 ${entry.accountScope.id} · 版本 ${entry.accountScope.version}`
+                    : "原会话未提供客户空间"}
+              </small>
+            </Field>
+          ))}
+          <Button onClick={operation.refresh}>重新读取操作记录</Button>
+        </section>
       )}
       {pending.length > 0 && (
         <section className="followup-pending">

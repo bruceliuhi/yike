@@ -12,7 +12,12 @@ import { FollowupsPage } from "../../src/renderer/pages/Followups";
 import { PUBLIC_SAMPLE } from "../../src/renderer/pages/Opportunities";
 import { parseRoute } from "../../src/renderer/domain/routes";
 import { clearLocalDrafts } from "../../src/renderer/app/hooks";
-import { operationLedgerKey } from "../../src/renderer/app/operationLedger";
+import {
+  followupOwner,
+  followupOperationStorageKey,
+  readFollowupOperations,
+  storeFollowupOperation,
+} from "../../src/renderer/pages/followups/followupOperationStorage";
 import {
   followupKey,
   type FollowupRecord,
@@ -64,8 +69,13 @@ const reply = (change: Partial<LinkedReply> = {}): LinkedReply => ({
   ...change,
 });
 const ledger = () =>
-  operationLedgerKey("followup-operations", context.session.userId!);
-const stored = () => JSON.parse(localStorage.getItem(ledger()) || "{}");
+  followupOperationStorageKey(followupOwner(context.session));
+const stored = () => {
+  const pending = readFollowupOperations(
+    followupOwner(context.session),
+  ).pending;
+  return pending ? { [followupKey(pending)]: "PENDING" } : {};
+};
 function mockRecords(records = [row()]) {
   vi.mocked(context.service.followup!.list).mockResolvedValue({
     records,
@@ -332,7 +342,7 @@ describe("P15 structured and legacy persistence", () => {
     );
     expect(context.navigate).not.toHaveBeenCalled();
     expect(context.notify).not.toHaveBeenCalled();
-    expect(JSON.parse(localStorage.getItem(oldKey)!)).toEqual({});
+    expect(JSON.parse(localStorage.getItem(oldKey)!).pending).toEqual(binding);
     expect(stored()).toEqual({});
   });
   it("times out a pending save without discarding the draft or releasing the original operation", async () => {
@@ -433,10 +443,7 @@ describe("P15 structured and legacy persistence", () => {
         targetRevision: 0,
         requestId: "TEST-request",
       };
-      localStorage.setItem(
-        ledger(),
-        JSON.stringify({ [followupKey(binding)]: "PENDING" }),
-      );
+      storeFollowupOperation(followupOwner(context.session), binding);
       vi.mocked(context.service.followup!.operation).mockResolvedValue({
         binding:
           result === "wrong identity"
@@ -546,15 +553,33 @@ describe("P15 structured and legacy persistence", () => {
   it("preserves the local followup date when correcting a record in a positive UTC offset", async () => {
     const original = new Date(2030, 0, 15, 9, 0).toISOString();
     mockRecords([row({ nextFollowupAt: original })]);
-    vi.mocked(context.service.followup!.mutate).mockImplementation(async input => ({ binding: input.binding, status: "SUCCEEDED", confirmed: true,
-      record: row({ ...input.values, id: "TEST-corrected-local-date", correctsId: input.binding.targetId }) }));
-    render(<FollowupsPage />); await selectManual();
+    vi.mocked(context.service.followup!.mutate).mockImplementation(
+      async (input) => ({
+        binding: input.binding,
+        status: "SUCCEEDED",
+        confirmed: true,
+        record: row({
+          ...input.values,
+          id: "TEST-corrected-local-date",
+          correctsId: input.binding.targetId,
+        }),
+      }),
+    );
+    render(<FollowupsPage />);
+    await selectManual();
     fireEvent.click(screen.getByRole("button", { name: "纠正记录" }));
     expect(screen.getByDisplayValue("2030-01-15")).toBeTruthy();
-    fireEvent.change(screen.getByRole("textbox", { name: "纠正原因" }), { target: { value: "TEST 修正备注，保留日期" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "纠正原因" }), {
+      target: { value: "TEST 修正备注，保留日期" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "保存记录" }));
-    await waitFor(() => expect(context.service.followup!.mutate).toHaveBeenCalledOnce());
-    expect(vi.mocked(context.service.followup!.mutate).mock.calls[0][0].values?.nextFollowupAt).toBe(original);
+    await waitFor(() =>
+      expect(context.service.followup!.mutate).toHaveBeenCalledOnce(),
+    );
+    expect(
+      vi.mocked(context.service.followup!.mutate).mock.calls[0][0].values
+        ?.nextFollowupAt,
+    ).toBe(original);
   });
   it("requires a reason and confirmation before withdrawing a manual fact", async () => {
     vi.mocked(context.service.followup!.mutate).mockImplementation(

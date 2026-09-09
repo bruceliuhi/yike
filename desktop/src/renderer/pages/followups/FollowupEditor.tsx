@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { useApp } from "../../app/context";
 import { useAction, useLocalDraft, useUnsavedChanges } from "../../app/hooks";
@@ -22,6 +22,8 @@ import {
 } from "../../domain/followup";
 import { isSample } from "../Opportunities";
 import { useFollowupOperation } from "./useFollowupOperation";
+import { taskDraftOwner } from "../../app/taskDraft";
+import { hashText } from "../../domain/taskOperations";
 const draftSchema = z.object({
   opportunityId: z.string(),
   status: z.string(),
@@ -74,13 +76,48 @@ export function FollowupEditor({
     ownerId: correction?.ownerId || session.userId || "",
     reason: "",
   }));
+  const draftKey = `followup:v3:${JSON.stringify([taskDraftOwner(session.userId, session.accountScope), correction?.id || "create", requested || "new"])}`;
   const [draft, setDraft, clear] = useLocalDraft<Draft>(
-    `followup:v2:${session.userId || "public"}:${correction?.id || requested || "new"}`,
+    draftKey,
     () => initial,
     (value) => draftSchema.safeParse(value).success,
   );
   const [closeAsked, setCloseAsked] = useState(false);
   const [exit, setExit] = useState<"saved" | "close" | null>(null);
+  const draftText = JSON.stringify(draftSchema.parse(draft));
+  const liveDraft = useRef(draftText);
+  liveDraft.current = draftText;
+  const recovered = useRef(false);
+  const finishRecovered = (hash: string, text: string) => {
+    if (!operation.current() || liveDraft.current !== text || recovered.current)
+      return;
+    recovered.current = true;
+    clear();
+    operation.acknowledgeDraft({ key: draftKey, hash });
+    notify("原跟进请求已确认保存，已清理相同提交稿。", "success");
+    setExit("saved");
+  };
+  useEffect(() => {
+    let active = true;
+    const hashes = operation.resolvedDrafts[draftKey] || [];
+    if (hashes.length && !saving.busy && !operation.action.busy)
+      void hashText(draftText)
+        .then((hash) => {
+          if (active && hashes.includes(hash)) finishRecovered(hash, draftText);
+        })
+        .catch(() => {
+          /* Keep the draft if its fingerprint cannot be checked. */
+        });
+    return () => {
+      active = false;
+    };
+  }, [
+    draftKey,
+    draftText,
+    operation.resolvedDrafts,
+    saving.busy,
+    operation.action.busy,
+  ]);
   const edited = JSON.stringify(draft) !== JSON.stringify(initial);
   useUnsavedChanges(edited && !exit);
   useEffect(() => {
@@ -97,8 +134,16 @@ export function FollowupEditor({
     setDraft((old) => ({ ...old, ...value }));
   const submit = () =>
     saving.run(async () => {
-      const row = rows.find((r) => r.id === draft.opportunityId);
       if (!session.authenticated) throw new Error("请先登录客户空间。");
+      const draftHash = await hashText(draftText);
+      if (!operation.current()) return;
+      // Also gate the click path, so a fast click before the effect settles
+      // cannot send the same recovered draft under a fresh request ID.
+      if ((operation.resolvedDrafts[draftKey] || []).includes(draftHash)) {
+        finishRecovered(draftHash, draftText);
+        return;
+      }
+      const row = rows.find((r) => r.id === draft.opportunityId);
       if (!row || isSample(row) || !draft.status || !draft.note.trim())
         throw new Error("请选择已入库商机、事实类型，并填写实际沟通内容。");
       if (
@@ -190,10 +235,13 @@ export function FollowupEditor({
                 legacyNote(fields.data),
               )
           : undefined,
+        { key: draftKey, hash: draftHash },
       );
       if (!operation.current()) return;
       if (result === "SUCCEEDED") {
+        recovered.current = true;
         clear();
+        operation.acknowledgeDraft({ key: draftKey, hash: draftHash });
         notify(
           correction ? "纠正记录已保存，原登记保留。" : "跟进事实已保存。",
           "success",
@@ -219,7 +267,7 @@ export function FollowupEditor({
                 !session.authenticated ||
                 loading ||
                 !!error ||
-                Object.keys(operation.pending).length > 0
+                operation.blocked
               }
               onClick={() => void submit()}
             >
@@ -351,7 +399,7 @@ export function FollowupEditor({
             ? "人工登记与通道回复分开，原登记不会因纠正被抹除。"
             : "联系时间与下一步将随备注保存；结构化计划和提醒服务尚未接通。"}
         </Notice>
-        {!!Object.keys(operation.pending).length && (
+        {operation.blocked && (
           <Notice tone="warning">
             有操作结果待确认，请关闭抽屉后核对原操作，当前内容仍保留。
           </Notice>
