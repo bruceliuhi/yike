@@ -59,3 +59,25 @@ uv run --frozen pytest -q tests/test_reply_contract.py tests/test_reply_store.py
 原 Win QA 记录该候选纯协议 43 项、与旧候选/客户端合跑 80 项及原非作者 PASS；这些均为对方实跑，本人没有重跑。INTEGRATION_STATUS 中的桌面 1337/26、Python 32、全量 2108/485、受限 PG 11 及 CP-06 配置预检也分别是来件责任人的记录，不能计入本报告实测。配置预检通过不等于上线、备份恢复、实际平台或客户 UAT。
 
 未来最终 merge SHA 需要重新绑定本报告；当前结论只针对上述 d5→83e 增量，不提前审批随后远端推进。
+
+## 最终正常合并 62e7a1c：限定 PASS
+
+追加只读核验绑定 **`62e7a1c5e4fc76155b2208fbdcbf5961f53c1f1f`**。Git 对象双亲精确为本地 `b95d7539a9330415403e518e2e744e111880b298` 和远端 `83e76be9e00a627af2286b52e0087966b812831d`，不是强制覆盖。
+
+已实际通过 Git blob 对比确认：
+
+- 本地父提交原有 **342 个 desktop 文件全部原字节保留，0 项变化/缺失**；只增加上文三份候选协议/测试/夹具。
+- 来件 **345 个 desktop 文件全部原字节保留，0 项变化/缺失**；`git diff 83e76be 62e7a1c -- desktop pilot tests` 为空。
+- `pilot` 43 文件、`tests` 90 文件的 Git blob 树分别与来件完全相同。没有用本地旧回复存储覆盖新 payload 编码，也没有修改来件 PostgreSQL 测试夹具。
+- 两份共享状态/任务书相对本地父仅追加来件段落，本地可见 QA 与认领保持；相对远端多出的本地文件均为既有 QA/文档。
+- **8af8eaf..62e7a1c** 的 renderer/main/preload、既有 shared/contracts、Vite/Forge 与 package/lock 均无差异。P04 紧凑空态、P06/P09 返回和 P14/P15 可见流程仍是原生产字节；8af 包和浏览器检查保持原绑定，不宣称新候选协议已装配。
+
+主线程在该合并候选实际执行，我仅读取日志确认其内容和归属：
+
+| 主线程接收验证 | 实际记录 |
+|---|---|
+| 4 套候选/旧页面/固定客户端 | **80 passed / 2.83s**，`docs/qa/ui-visible-local-handoff/logs/incoming-83e-desktop-tests.log` |
+| TypeScript | 退出 0，`docs/qa/ui-visible-local-handoff/logs/incoming-83e-typecheck.log` |
+| 两套 reply 纯契约/存储领域 | **20 passed / 0.09s**，`docs/qa/ui-visible-local-handoff/logs/incoming-83e-reply-tests.log` |
+
+以上不是本审核者重跑，也不与来件原 80/43 或历史全量相加；20 项仍不替代实际 ReplyEventStore JSONB INSERT/PG 验证。此次最终合并兼容性 **PASS，无新增已发现 P0/P1 或接收阻断**，允许继续按原边界交付资料；不扩大为全后端、实际平台、候选完整接线、原生重新构包、Windows 发行或产品上线批准。原报告中的“待合并”是此前时点，现由本节准确绑定取代。
