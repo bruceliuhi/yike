@@ -1,0 +1,3 @@
+(node:86890) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.
+(Use `YikeAI --trace-deprecation ...` to show where the warning was created)
+[86890:0910/011940.652489:INFO:CONSOLE:10] " Note that 'script-src' was not explicitly set, so 'default-src' is used as a fallback.", source: yike://app/assets/index-BkYBPob_.js (10)
