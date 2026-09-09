@@ -1,0 +1,67 @@
+{
+  "candidate": "8af8eafba0faef68ae48ea76f3d5d4a70c7b06c8",
+  "method": "CUA CDP per-tab metrics, stable observation in subsequent call, Page.captureScreenshot fromSurface true / no clip / captureBeyondViewport false",
+  "state": "P14 replies-only after first explicit manual save, all tab, matched reply read",
+  "captures": [
+    {
+      "css": {
+        "dpr": 1.0000000149011612,
+        "height": 720,
+        "scrollWidth": 1280,
+        "width": 1280
+      },
+      "pngWidth": 1280,
+      "pngHeight": 720,
+      "file": "screenshots/p14-final-1280x720.png",
+      "sha256": "7cfad7729064411be05ae2c3e311dac1b70c0b17381947911185a3326e5fa061"
+    },
+    {
+      "css": {
+        "dpr": 1.0000000149011612,
+        "height": 768,
+        "scrollWidth": 1366,
+        "width": 1366
+      },
+      "pngWidth": 1366,
+      "pngHeight": 768,
+      "file": "screenshots/p14-final-1366x768.png",
+      "sha256": "aa28f714db6e714832f79a97dd7a157446888b621586b21ad444c839a625f266"
+    },
+    {
+      "css": {
+        "dpr": 1.0000000149011612,
+        "height": 1024,
+        "scrollWidth": 1440,
+        "width": 1440
+      },
+      "pngWidth": 1440,
+      "pngHeight": 1024,
+      "file": "screenshots/p14-final-1440x1024.png",
+      "sha256": "89e34fca34d779b2d98af23c48644cf76c49e21bb0f4361084026f1a718ee406"
+    },
+    {
+      "css": {
+        "dpr": 1.0000000149011612,
+        "height": 1080,
+        "scrollWidth": 1920,
+        "width": 1920
+      },
+      "pngWidth": 1920,
+      "pngHeight": 1080,
+      "file": "screenshots/p14-final-1920x1080.png",
+      "sha256": "bbc0525c650d68d9d817ceca08e3bafc6dd725a3b9722f7f876da250888c1728"
+    },
+    {
+      "css": {
+        "dpr": 1.0000000149011612,
+        "height": 1440,
+        "scrollWidth": 2560,
+        "width": 2560
+      },
+      "pngWidth": 2560,
+      "pngHeight": 1440,
+      "file": "screenshots/p14-final-2560x1440.png",
+      "sha256": "0d119999091e0556876ce62e7033076a415b56acf43413f09780c530c25e3913"
+    }
+  ]
+}

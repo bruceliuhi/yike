@@ -1,0 +1,118 @@
+- note: TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
+- generic "TEST 场景"
+- link "跳到主要内容":
+  - /url: "#main-content"
+- complementary:
+  - button "意客AI商机工作台":
+    - strong: 意客AI
+    - generic: 商机工作空间
+  - navigation "主导航":
+    - button "商机工作台":
+      - generic: 商机工作台
+    - generic: 发现商机
+    - button "业务画像":
+      - generic: 业务画像
+    - button "线索采集":
+      - generic: 线索采集
+    - button "监控任务":
+      - generic: 监控任务
+    - generic: 推进商机
+    - button "商机库":
+      - generic: 商机库
+    - button "触达中心":
+      - generic: 触达中心
+    - button "跟进记录":
+      - generic: 跟进记录
+  - button "账号与授权":
+    - generic: 账号与授权
+  - button "客户工作空间":
+    - generic: 客户工作空间
+- banner:
+  - button "收起导航":
+  - button "返回上级":
+  - generic: 账号与授权 / 连接平台
+  - generic: V0.2
+- main:
+  - heading "账号与授权" [level=1]
+  - tablist:
+    - tab "平台连接" [selected]
+    - tab "设备与使用授权"
+  - button "添加平台连接":
+    - text: 添加平台连接
+  - paragraph: 连接用于采集或触达，能力按平台分别显示。
+  - table:
+    - rowgroup:
+      - row "平台 当前账号 连接状态 可用能力 操作":
+        - columnheader "平台"
+        - columnheader "当前账号"
+        - columnheader "连接状态"
+        - columnheader "可用能力"
+        - columnheader "操作"
+    - rowgroup:
+      - row "小红书 — 未连接 待检查平台能力 连接":
+        - cell "小红书":
+          - generic: 小红书
+        - cell "—"
+        - cell "未连接":
+          - generic: 未连接
+        - cell "待检查平台能力"
+        - cell "连接":
+          - button "连接"
+      - row "抖音 — 未连接 待检查平台能力 连接":
+        - cell "抖音":
+          - generic: 抖音
+        - cell "—"
+        - cell "未连接":
+          - generic: 未连接
+        - cell "待检查平台能力"
+        - cell "连接":
+          - button "连接"
+      - row "B站 — 未连接 待检查平台能力 连接":
+        - cell "B站":
+          - generic: B站
+        - cell "—"
+        - cell "未连接":
+          - generic: 未连接
+        - cell "待检查平台能力"
+        - cell "连接":
+          - button "连接"
+      - row "知乎 — 未连接 待检查平台能力 连接":
+        - cell "知乎":
+          - generic: 知乎
+        - cell "—"
+        - cell "未连接":
+          - generic: 未连接
+        - cell "待检查平台能力"
+        - cell "连接":
+          - button "连接"
+      - row "公开网站 无需账号 未连接 公开页面读取（范围待验收）":
+        - cell "公开网站":
+          - generic: 公开网站
+        - cell "无需账号"
+        - cell "未连接":
+          - generic: 未连接
+        - cell "公开页面读取（范围待验收）"
+        - cell
+  - heading "说明" [level=3]
+  - list:
+    - listitem: 连接状态和能力以平台实际检查结果为准。
+    - listitem: 断开连接前，请确认对应任务的影响；额外验证在平台页面中完成。
+  - dialog "连接小红书" [active]:
+    - heading "连接小红书" [level=2]
+    - button "关闭连接小红书":
+    - list "连接步骤":
+      - text: 选择平台
+      - generic: "2"
+      - text: 登录账号
+      - generic: "3"
+      - text: 检查连接
+    - heading "本机浏览器登录" [level=3]
+    - paragraph: 账号登录在平台原生页面完成，意客AI不要求输入平台密码。
+    - text: 当前状态
+    - status: 等待打开登录窗口
+    - paragraph: 点击下方按钮打开平台登录窗口。
+    - paragraph: 扫码、验证码和额外验证均在平台原生页面处理。
+    - button "取消"
+    - button "我已完成登录，检查连接" [disabled]
+    - button "打开登录窗口":
+      - text: 打开登录窗口
