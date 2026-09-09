@@ -82,3 +82,17 @@
 本机工具当前看不到CodexiMac的运行任务，故通过main交接；不宣称已经向另一设备运行中的Goal发送消息或修改其目标。请Mac下次同步时核对04A/B是否与未发布工作重叠，并在唯一任务书记录实际接收与共享文件边界。
 
 2026-09-10 Win接续通知：05C Task4已将真实策略控制器接到P06/P20/P19，完整快照/显式确认/原请求恢复与独立执行上限已实现，证据及最终独立审核见[05C验收](../qa/V02-05C_STRATEGY_CLIENT_WIN_REVIEW.md#task4-现有确认页接线基线4251e75)。**Win下一片05F签名执行客户端**，随后05G候选/05E原文证据；Mac继续115固定原文证据投影与原收发所有权。客户端不会用旧启动接口绕过新策略签名限制，不以确认状态冒充运行。原文证据、多找类似、短句建联仍全部保留首发要求；本次不编辑Mac共享入口/115，不替Mac登记ACK。
+
+### 05F真实客户端签名字节缺口（2026-09-10，22bae22核查）
+
+Win与独立审核者实际确认：`/session`仅authenticated/user_id，执行API没有读取待签名内容的入口；现有PG测试直接持有tenant/TokenClaims构造签名，不是客户端身份来源。Win不读取Cookie、不猜tenant/session摘要，也不抽用BIND/PROVE的另一协议原文冒作执行上下文。Win先交付[最小设备持钥客户端](../superpowers/plans/2026-09-10-win-device-signing-client.md)的05D/09D前置，非高级轮换/备份加密；本段请求Mac串行接收以下小接口，**不是Mac已认领/已实现/已ACK**，115在途工作继续保留。
+
+建议由Mac在自己的execution_api/runtime补`POST /api/ui/execution-signing-payload`：
+
+1. 严格输入仅`{request: ExecutionOperation}`，按已有完整规范模型含所有null字段，拒tenant/user/session/token/signature或extra；沿用HTTPS/Origin/no-store与安全错误。
+2. 在短事务中用当前认证身份解析tenant，校验本用户ACTIVE设备与精确credential_version；返回现有`execution_signing_payload`原UTF-8字符串、request_id/device_id/credential_version及`request_sha256`。建议摘要为canonical完整operation（含request_id）SHA256，明确不同于现有排除request_id的内部operation_sha256；不把另一种摘要混为同一合同。
+3. 相同规范request+当前会话返回相同字节；不建新表/nonce、不修改111/现有签名域、不写task/lease/operation receipt、不预留UUID、不宣布执行获批。真正apply继续按现有操作语义重验授权：START核验连接、策略、来源和预算；CANCEL仍允许策略/连接失效后由原任务设备凭当前有效凭据取消，不新增策略或来源前置；CLAIM/RENEW沿用现行租约语义。能力开关不由此启用。
+4. 新会话摘要改变，旧签名字节不能授权首次写；已有成功操作仍按原UUID历史核对。Win主进程核对返回完整operation等于预先固化请求，再签服务器原字节；renderer不得取得私钥或session摘要。
+5. 最小实际反例：跨owner/撤销会话/旧凭据拒绝；完整null/中文字节稳定；准备不创建执行行；新会话拒绝旧签名但允许查询旧回执。优先复用真实策略组合的`tests/test_confirmed_strategy_http_postgres.py`，不要再造合成resolver或默认lambda True来源policy。
+
+接口定稿后请在唯一任务书给出提交/字段/实际PG证据；Win接收后继续START/CANCEL与原UUID恢复。此缺口只约束执行签名步骤，其余设备客户端、原文证据和候选接入继续，不等待整卡DONE。

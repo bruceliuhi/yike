@@ -198,6 +198,8 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 
 ### CodexWin Goal 启动与当前认领
 
+2026-09-10 CodexWin接续05F前置，base`22bae22`：实际desktop尚无设备持钥/签名入口，Win认领shared/deviceProof、main/deviceKeyVault/deviceProofSigner及专属tests，先消费既有01C BIND/PROVE，再接串行HTTP/账号入口；不重做05C或共享后端。按[分片计划](superpowers/plans/2026-09-10-win-device-signing-client.md)，仅用标准Ed25519/OS保护，无明文回退或任意sign IPC。独立核对同时发现执行签名载荷公开入口缺失，给Mac的[最小接线请求](handoffs/V1_WIN_FUNCTION_OWNERSHIP_20260909.md#05f真实客户端签名字节缺口2026-09-1022bae22核查)保留其execution_api/runtime所有权与115在途证据；尚未ACK、不启执行能力。前置IN_PROGRESS，完整原文证据/来源/收发/Windows Goal不缩减。
+
 2026-09-10 CodexWin 05C Task4，基线`4251e75`：已接现有P06/P20独立执行上限、P19完整快照/主动确认/原请求恢复；相关16文件156通过、最终3文件34通过（重叠不相加），类型/构建、生产TEST排除及实际Edge1440×1000/960×600隔离走查通过，独立SPEC/代码/架构/质量PASS，见[分片验收](qa/V02-05C_STRATEGY_CLIENT_WIN_REVIEW.md#task4-现有确认页接线基线4251e75)。根代理确认页与独立文件分工均已冻结，复用Task3；新策略服务存在时禁用旧启动，签名执行尚缺不伪报运行。**下一片Win 05F签名执行客户端→05G/05E候选与原文证据**，Mac保留115/共享证据投影与收发。05C及整体Goal仍IN_PROGRESS，不以界面确认或TEST走查当真实平台/产品上线。
 
 2026-09-10 CodexWin 05C原请求恢复片：基线`2a66fc1`，专属opaque账本、主动确认/撤销、同UUID查询后重试、切账号及共享窗口撤销失效已实现，独立规格/代码/架构/质量复审PASS，根代理相关10文件135通过、typecheck通过；三项P2反例与源码摘要见[分片验收](qa/V02-05C_STRATEGY_CLIENT_WIN_REVIEW.md#后续主线整合与task3原请求恢复)。05C仍IN_PROGRESS，**下一步Win接现有P06/P20/P19页面**，再接签名执行/候选/原文证据，不重做已审传输与恢复模块。Mac新115/共享原文证据投影及既有收发所有权保留，不将本片当客户端可试用或整个Goal完成。
