@@ -214,6 +214,14 @@ function topDialog(): DialogEntry | undefined {
     if (entry) return entry;
   }
 }
+function syncDialogModality() {
+  // Chromium on macOS can expose the first aria-modal dialog and hide a later
+  // sibling confirmation. Only the active layer owns the modal declaration.
+  // Do not hide/inert lower dialogs: a top dialog may be their descendant.
+  const top = topDialog();
+  for (const node of dialogs.keys())
+    node.setAttribute("aria-modal", String(node === top?.node));
+}
 function dialogFocusable(node: HTMLDivElement): HTMLElement[] {
   return [
     ...node.querySelectorAll<HTMLElement>(
@@ -302,9 +310,11 @@ export function Modal({
       document.addEventListener("focusin", containDialogFocus, true);
     }
     dialogs.set(node, { node, close: () => close.current() });
+    syncDialogModality();
     topDialog()?.node.focus();
     return () => {
       dialogs.delete(node);
+      syncDialogModality();
       if (!dialogs.size) {
         document.body.style.overflow = bodyOverflow;
         document.removeEventListener("keydown", dialogKeydown, true);
@@ -328,7 +338,6 @@ export function Modal({
         data-yike-dialog
         className={`${drawer ? "drawer" : "modal"} modal-${size}`}
         role="dialog"
-        aria-modal="true"
         aria-labelledby={heading}
         tabIndex={-1}
       >
