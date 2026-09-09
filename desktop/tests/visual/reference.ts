@@ -5,6 +5,8 @@ import { connections, monitor, profile, TEST_USER } from "./fixtures";
 /** Explicit TEST-only state alignment with R3. Never imported by the product renderer. */
 export function applyReferenceState(service: YikeService, page: string) {
   service.connections = async () => structuredClone(connections);
+  if (page === "P12" || page === "P13")
+    service.opportunities = async () => [];
   if (page === "P03")
     service.profiles = async () => [
       {

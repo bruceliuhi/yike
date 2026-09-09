@@ -6,15 +6,15 @@
 
 ## 后续交互增量（2026-09-09）
 
-最新增量 `237a5b2`、`1c15673`：资料生命周期、四队列、跟进纠正/回复、任务回执恢复/模板，以及各页面平台原有Logo已进入代码。最终50文件493项前端通过、1项Windows专属回归跳过，新Mac包已构建并启动；当前来源和限制以 [本轮交付](qa/ui-flow-completion/REVIEW.md)、[视觉检查](qa/ui-flow-completion/design-qa.md) 和 [新包记录](qa/ui-flow-completion/mac-package.json) 为准。四组可选业务服务仍需真实接通；品牌大尺寸截图异常、P10结构化列与Windows验收保持未完成。下方早期测试数与包哈希为历史记录。
+最新 UI 增量 `58c8a7d`、整合 `b89df6c`：P10结构化事实/筛选、P07原复核持久恢复、P16有界断开、多行关键词粘贴及P19终态反馈已完成；平台原Logo沿用上一批并用20页清晰Chrome原图复核。最终Node24.19.0下61文件626项通过、21个Windows或x64专属检查跳过，新Mac包107项输入绑定整合提交。当前证据以 [本轮交付](qa/ui-final-acceptance/REVIEW.md)、[设计对照](qa/ui-final-acceptance/index.html)、[视觉与交互范围](qa/ui-final-acceptance/design-qa.md) 和 [新包记录](qa/ui-final-acceptance/mac-package.json) 为准。真实后台、未覆盖的状态组合、Windows实机及新的可见原生窗口完整走查仍未完成；旧品牌截图和P10列缺口已被本批相应证据覆盖。下方早期测试数与包哈希为历史记录。
 
 后续在 `main` 基础上补齐登录/连接/AI 建议的超时与迟到隔离、原生文件保存回执、触达三队列及原请求核对、P18 管理可用状态及影响确认。具体提交、独立复核、Mac 包和未完成项见 [交互增量验收](qa/ui-interactions/REVIEW.md)。该记录更新相应交互，下面标明 `10ab8b6` 的结果仍是历史候选证据，不能用于替代新包验收。产品代码最终汇入 `yike-ai2026/main`。
 
 ## 入口与交付物
 
-- 开发预览：从 `desktop/` 使用 Node.js 24 执行 `npm ci && npm run dev`，打开 `http://127.0.0.1:18791/`。
+- 开发预览：从 `desktop/` 使用 Node.js >=24.15.0 <25 执行 `npm ci && npm run dev`，打开 `http://127.0.0.1:18791/`。
 - 二十页审阅：`#P01` 至 `#P20`，正常使用走语义路由和侧栏；样例与客户数据明确区分。
-- Mac：`desktop/out/意客AI-darwin-arm64/意客AI.app`；当前 ZIP 与哈希见 [交互版本打包记录](qa/ui-interactions/mac-package.json)，[先前 R3 记录](qa/ui-r3/mac-package.json)仅作历史溯源。产物在本机，未将二进制提交 Git。
+- Mac：`desktop/out/意客AI-darwin-arm64/意客AI.app`；当前 ZIP 与哈希见 [最新打包记录](qa/ui-final-acceptance/mac-package.json)，[先前 R3 记录](qa/ui-r3/mac-package.json)仅作历史溯源。产物在本机，未将二进制提交 Git。
 - Windows：按 [构建与验收](../desktop/docs/PACKAGING.md) 执行 `desktop/scripts/build-windows.ps1`。不把 macOS 构建或 Electron 冒烟算作 Windows 实机安装通过。
 - 逐页交接：[页面与接口契约](UI_R3_PAGE_CONTRACTS.md)、[视觉复核](qa/ui-r3/VISUAL_REVIEW.md)、[实现补充检查](qa/ui-r3/IMPLEMENTATION_REVIEW.md)。
 
@@ -58,7 +58,7 @@
 
 ## Windows 后续操作
 
-在 Windows PowerShell、Node.js 24 x64 环境，使用一个新的目录：
+在 Windows PowerShell、Node.js >=24.15.0 <25 x64 环境，使用一个新的目录：
 
 ```powershell
 git clone --branch main --single-branch https://gitee.com/xinghetech/yike-ai2026.git yike-ai-ui-r3

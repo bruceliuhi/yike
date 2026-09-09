@@ -1,13 +1,13 @@
 # V02-01C 持钥后端子链：Mac → Win 交接
 
-日期：2026-09-09。后端候选 `c3702c07cd334fd745905ddd7f4d7b697edb27c0`；实际CodexWin尚未接收，本文件不是ACK。整体01C仍在开发，不能据此启动尚不存在的执行租约或候选上传API。
+日期：2026-09-09。后端候选 `c3702c07cd334fd745905ddd7f4d7b697edb27c0`，整分支审核PASS `7e4ab7c`；已审核并推送main的整合锚点 `65d867640ea216769adb5f947f5dea8fb7b31a35`，保留Win远端3c16fac工作。此为Mac原交接时点，不能以交接文档存在代替ACK；后续实际Win限定接收见下一段。整体01C仍在开发，不能据此启动尚不存在的执行租约或候选上传API。
 
 后续实际接收：上述首段是原候选交接时点。CodexWin已对包含c3702c0的 **65d867640ea216769adb5f947f5dea8fb7b31a35** 持钥后端子链限定ACK，集成 **f9255603435862d8e8ead60b0357851c8c9e3075**；Windows真实PG定向123通过、Node→loopback HTTP→受限PG往返通过，全量908通过/54个既有Windows失败。消费时采用同日勘误后的[契约](../contracts/V02_DEVICE_KEYS.md)，完整[Win证据](../qa/WIN_CROSS_REVIEW_20260909.md)保留环境、摘要、审核和失败。只解锁本持钥接口消费，不解锁执行租约、上传或安全私钥存储，也不把整体01C标DONE。
 
 ## 接收内容
 
 - [精确协议与错误](../contracts/V02_DEVICE_KEYS.md)：三个设备挑战/完成/历史请求HTTP路由。
-- [本轮验收](../qa/V02-01C_DEVICE_KEYS_REVIEW.md)：本机密码学、真实PG、HTTP及升级/竞争证据；Mac925项完整后端通过不等于Win通过。
+- [本轮验收](../qa/V02-01C_DEVICE_KEYS_REVIEW.md)：本机密码学、真实PG、HTTP及升级/竞争证据；原候选Mac925项、合并版962项完整后端通过是不同快照，不相加也不等于Win通过。合并版桌面549通过/21条件跳过、类型及renderer构建通过，仍非Windows发行验收。
 - [升级步骤](../CUSTOMER_PILOT_RUNBOOK.md)：受信服务端管理员执行106迁移及显式最小授权；客户端不持有数据库或服务端密钥，也不运行管理员迁移。
 
 ## Win 可消费路径

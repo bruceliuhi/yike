@@ -31,6 +31,13 @@ export const connections: PlatformConnection[] = [
   {platform: 'web', status: 'DISCONNECTED', capabilities: [], reason: 'TEST 公开范围待确认'},
 ];
 export const opportunity: Opportunity = {
+  sourceObservedAt: TEST_TIME, sourceEvidenceVersion: 'TEST-evidence-v1',
+  libraryFacts: {
+    schema_version: 1, opportunity_id: 'TEST-opportunity', source_url: 'https://visual-test.invalid/TEST-opportunity',
+    observed_at: TEST_TIME, evidence_version: 'TEST-evidence-v1',
+    stage: {status: 'KNOWN', label: 'TEST 预算询价', evidence_excerpt: 'TEST 预算编制阶段询价，仅用于布局。'},
+    materials_deadline: {status: 'KNOWN', at: '2026-09-15T18:00:00+08:00', evidence_excerpt: 'TEST 合成资料截止，只用于筛选与布局。'},
+  },
   id: 'TEST-opportunity', sample: false,
   title: 'TEST 180㎡展区设计搭建预算询价', buyer: 'TEST 需求方（合成测试对象）',
   summary: 'TEST 180㎡展区，包含设计、搭建、维护、撤展与组展服务。',

@@ -1,6 +1,6 @@
 # V02-01C 设备持钥子链验收记录
 
-日期：2026-09-09。实施者：device_key_implementation；CodexiMac负责整体集成与复跑。候选代码 `c3702c07cd334fd745905ddd7f4d7b697edb27c0`，基线 main `0a3ccf70efb569c39b3f91a558ab4b39140fd2f1`。独立任务审核已通过，整分支最终审核仍待完成；未合入main、尚无实际CodexWin接收。
+日期：2026-09-09。实施者：device_key_implementation；CodexiMac负责整体集成与复跑。候选代码 `c3702c07cd334fd745905ddd7f4d7b697edb27c0`，基线 main `0a3ccf70efb569c39b3f91a558ab4b39140fd2f1`。独立任务、整分支及合并复核均通过；持钥后端子链已随 `65d867640ea216769adb5f947f5dea8fb7b31a35` 推送main，并核实远端SHA一致。此为Mac合并时点记录；整体01C仍在开发，后续实际Win限定ACK见末节，不覆盖下方原始验证历史。
 
 ## 本轮交付与边界
 
@@ -44,8 +44,25 @@ uv run --frozen pytest -q tests/test_device_keys.py tests/test_device_credential
 
 device_authorization_architecture 对精确c3702c0及完整任务brief/report/diff作只读审核：Spec Compliance通过、Task Quality通过，Critical/Important/Minor均无具体问题。检查了严格公钥点校验、双钥轮换/回执、session→device锁序、owner、复合FK/FORCE RLS与最小授权；另外只查继承的Origin/no-store与共享会话调用点。审核者未重复PG测试，也未以提供的925项结果冒充自己实测。
 
-整分支最终审核与main整合证据在完成后追加；Windows须记录自己的环境与ACK，不能复制上述Mac测试结果当作验收。[交接包](../handoffs/V02-01C_DEVICE_KEYS_MAC_TO_WIN.md)说明实际消费步骤及未完成边界。
+candidate_final_review对 `0a3ccf7..7e4ab7c` 完整分支作最终审核，PASS，Critical/Important/Minor均无具体未决项；确认c370后只有文档变化。首次推送前fetch发现远端main已前进到3c16fac，祖先门禁停止推送，未覆盖协作者工作。
+
+## 并行主线整合与重新验证
+
+正常合并 `7e4ab7c` 与实际远端 `3c16fac` 得到 `65d8676`。仅任务书出现冲突，保留Win已取得的02A限定ACK（d14594f）和本卡01C在途状态；02A接收不能沿用为01C接收。Win候选IDNA/IP修正、Windows staging/runtime/ASAR改动及其失败记录完整保留，依赖同时保留PyNaCl1.6.2与idna3.18。
+
+| 合并版验证（65d8676，Mac实测） | 结果 |
+|---|---|
+| 同四个专用PG环境变量，冻结锁完整后端 | `962 passed in74.52s`，0跳过，exit0；不与旧925相加 |
+| `npm ci --ignore-scripts` 后 `npm test` | 53文件，549 passed / 21 skipped，exit0；跳过项为Windows/非当前架构条件，非全平台通过 |
+| 桌面 `npm run typecheck` / `npm run build:renderer` | 均exit0；未运行发行打包或真实Windows |
+| compileall、静态JS、secret_scan、diff --check | 均exit0；持钥代码与7e4ab7c相同，desktop与3c16fac相同 |
+
+锁定安装仍报告17 high及旧依赖弃用警告；本轮没有执行audit fix，也未消除[既有发行风险](BUILD_DEPENDENCY_AUDIT_20260909.md)。Windows既有失败、ASAR修正后的完整重跑、包内冒烟、安装/卸载和生命周期仍由Win提供自己的实测证据。
+
+device_authorization_architecture只读复核远端增量 `0a3ccf7..3c16fac` 与持钥实现的兼容性，PASS；candidate_final_review独立核对合并65d8676两亲本、冲突处理及代码/依赖保全，PASS，均无具体阻断项。两者没有冒充上述根代理实测。正常push及ls-remote确认main和设备授权分支均为65d8676；后续分支会前进，使用时重新核验。
+
+Windows须记录本卡自己的环境与ACK，不能复制上述Mac测试结果当作验收。[交接包](../handoffs/V02-01C_DEVICE_KEYS_MAC_TO_WIN.md)说明实际消费步骤及未完成边界。
 
 ## 后续Win限定接收与主线整合
 
-原文“尚未main/Win未接收”为候选时点记录。CodexWin冻结复核 **65d867640ea216769adb5f947f5dea8fb7b31a35**（含c370及此前Win来源身份修复），实际Windows PG定向123 passed；完整962项为908 passed/54既有Windows失败/0跳过。新增的真实Node→loopback HTTP→受限PG证明签名字节、绑定/双签换钥/重放/拒绝可消费，不等于生产TLS或Windows私钥持久化。独立代码/架构/质量及合入复核通过后，正常集成 **f9255603435862d8e8ead60b0357851c8c9e3075**，对本后端子链限定ACK；01C执行授权剩余部分继续。两处契约文案勘误不改变代码行为，Win原始摘要、旧失败和验证工具修复见[Win复核第9节](WIN_CROSS_REVIEW_20260909.md)。不将本次不同集合相加或覆盖此前Mac925证据。
+原文“尚未main/Win未接收”为候选时点记录。CodexWin冻结复核 **65d867640ea216769adb5f947f5dea8fb7b31a35**（含c370及此前Win来源身份修复），实际Windows PG定向123 passed；完整962项为908 passed/54既有Windows失败/0跳过。新增的真实Node→loopback HTTP→受限PG证明签名字节、绑定/双签换钥/重放/拒绝可消费，不等于生产TLS或Windows私钥持久化。独立代码/架构/质量及合入复核通过后，正常集成 **f9255603435862d8e8ead60b0357851c8c9e3075**，对本后端子链限定ACK；01C执行授权剩余部分继续。两处契约文案勘误不改变代码行为，Win原始摘要、旧失败和验证工具修复见[Win复核第9节](WIN_CROSS_REVIEW_20260909.md)。不将本次不同集合相加或覆盖此前Mac925/962证据。

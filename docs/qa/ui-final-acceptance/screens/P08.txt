@@ -1,0 +1,118 @@
+- note: TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
+- generic "TEST 场景"
+- link "跳到主要内容":
+  - /url: "#main-content"
+- complementary:
+  - button "意客AI商机工作台":
+    - strong: 意客AI
+    - generic: 商机工作空间
+  - navigation "主导航":
+    - button "商机工作台":
+      - generic: 商机工作台
+    - generic: 发现商机
+    - button "业务画像":
+      - generic: 业务画像
+    - button "线索采集":
+      - generic: 线索采集
+    - button "监控任务":
+      - generic: 监控任务
+    - generic: 推进商机
+    - button "商机库":
+      - generic: 商机库
+    - button "触达中心":
+      - generic: 触达中心
+    - button "跟进记录":
+      - generic: 跟进记录
+  - button "账号与授权":
+    - generic: 账号与授权
+  - button "客户工作空间":
+    - generic: 客户工作空间
+- banner:
+  - button "收起导航":
+  - button "返回上级":
+  - generic: 监控任务
+  - generic: V0.2
+- main:
+  - heading "监控任务" [level=1]
+  - generic: 持续发现新需求，按平台查看运行状态。
+  - button "新建监控任务":
+    - text: 新建监控任务
+  - tablist:
+    - tab "全部任务" [selected]
+    - tab "运行中"
+    - tab "已暂停"
+    - tab "需要处理"
+    - tab "本机草稿 1":
+      - text: 本机草稿
+      - generic: "1"
+  - textbox "搜索任务":
+    - /placeholder: 搜索任务名称
+  - text: 平台
+  - combobox "筛选任务平台":
+    - option "全部平台" [selected]
+    - option "小红书"
+    - option "抖音"
+    - option "B站"
+    - option "知乎"
+    - option "公开网站"
+  - text: 最近更新
+  - textbox "任务更新开始日期"
+  - text: 至
+  - textbox "任务更新结束日期"
+  - button "刷新"
+  - article:
+    - heading "TEST 展台需求监控" [level=3]
+    - paragraph:
+      - generic: 小红书
+      - generic: 抖音
+      - generic: B站
+      - generic: 知乎
+      - generic: 公开网站
+      - text: · 2026/9/9 09:00:00
+    - generic: 本机草稿 · 未启动
+    - button "收起配置" [expanded] [active]
+    - button "继续编辑"
+    - button "删除"
+  - region "监控草稿配置":
+    - term: 任务名称
+    - definition: TEST 展台需求监控
+    - term: 草稿状态
+    - definition: 本机草稿，尚未启动
+    - term: 业务画像
+    - definition: TEST-profile-v1 · v1
+    - term: 目标平台
+    - definition:
+      - generic: 小红书
+      - generic: 抖音
+      - generic: B站
+      - generic: 知乎
+      - generic: 公开网站
+    - term: 采集范围
+    - definition: 关键词搜索
+    - term: 搜索关键词
+    - definition: 找展台搭建、求展台设计、展台搭建报价、展位设计预算、展会布展需求、展台搭建招标、展位施工询价、展台搭建推荐
+    - term: 排除词
+    - definition: 招聘、求职、培训、招生
+    - term: 日程频率
+    - definition: 每日 09:00、15:00
+    - term: 时区
+    - definition: Asia/Shanghai
+    - button "前往确认启动"
+  - navigation "任务分页":
+    - generic: 共 1 项
+    - generic: 每页
+    - combobox "每页任务数":
+      - option "10" [selected]
+      - option "20"
+      - option "50"
+    - generic: 项
+    - button "上一页" [disabled]
+    - generic: 第 1 / 1 页
+    - button "下一页" [disabled]
+  - heading "多平台监控" [level=2]
+  - generic: 能力由实际连接检查
+  - generic: 小红书
+  - generic: 抖音
+  - generic: B站
+  - generic: 知乎
+  - generic: 公开网站
