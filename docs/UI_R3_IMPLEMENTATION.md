@@ -1,6 +1,6 @@
 # R3 前端与客户端交付记录
 
-2026-09-09，分支 `codex/ui-r3-desktop`。设计基准为 `5929de671d314748f621a1992c646acee5622f67` 的 P01–P20、状态矩阵与交互约定。用户已明确：Windows 在其现有电脑上后续手动运行脚本并回传结果，本次 Mac 检查完成后即可提交 Gitee。
+2026-09-09，分支 `codex/ui-r3-desktop`。设计基准为 `5929de671d314748f621a1992c646acee5622f67` 的 P01–P20、状态矩阵与交互约定。实现提交 `10ab8b6cf3a9b29aa72fcdef23cd09a7b63c22e9`，后续独立复核作为文档提交。用户已明确：Windows 在其现有电脑上后续手动运行脚本并回传结果，本次 Mac 检查完成后即可提交 Gitee。
 
 本次交付 React/TypeScript 前端、安全 Electron 客户端与现有 Pilot 服务的 JSON 接口。完整获客版仍按 V0.2 任务书开发；本次不能宣称多平台真实采集、持续监控、AI 建议、真实发送及回复后台已经接通或产品已上线。
 
@@ -45,6 +45,10 @@
 | 依赖审计 | 运行时依赖 0 漏洞；构建开发链仍有 extract-zip 引起的 17 个 high 项，见 [审计记录](qa/ui-r3/dependency-audit.json)；未用强制降级掩盖 |
 
 以上本机 PostgreSQL 证明不等于生产 CP-06：生产域名/HTTPS、ACL、备份恢复、回滚和手机验收仍须在目标环境完成。
+
+## 独立复核
+
+三项复核绑定实现提交 `10ab8b6cf3a9b29aa72fcdef23cd09a7b63c22e9`，分别排除审核者自作模块，交叉覆盖：[架构](qa/ui-r3/ARCHITECTURE_REVIEW.md)、[代码](qa/ui-r3/CODE_REVIEW.md)、[质量](qa/ui-r3/QUALITY_REVIEW.md)。构建输入与实现提交逐文件比对，46项一致；后续提交仅追加交付和复核记录。
 
 ## Windows 后续操作
 

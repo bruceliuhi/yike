@@ -3,7 +3,7 @@
   "recordedAtUtc": "2026-09-09T08:02:42.062527+00:00",
   "source": {
     "baseCommit": "5929de671d314748f621a1992c646acee5622f67",
-    "state": "frozen working tree before candidate commit",
+    "state": "46 package input files match candidate commit; review and delivery evidence may follow in documentation-only commits",
     "inputCount": 46,
     "inputManifestSha256": "a645ca9b4cebf207523ddffd779d743731ac6fd109c877f11ce428400f448e35",
     "manifestRecipe": "sorted relative path + NUL + hex SHA-256 + newline",
@@ -54,7 +54,8 @@
       "desktop/vite.main.config.ts": "d16eac7bf0cef42ba9bda2d86f9c65bcaae95183c106b73e80d95c8caacdfb1d",
       "desktop/vite.preload.config.ts": "5986b9cc77564207d0cc54ea06fe4a7f021435dfdceb902aa9d15d4426d0c615",
       "desktop/vite.renderer.config.ts": "0582abe9c25ff82133d5edbe06f9dcaf49b0898527a27b6d0188c13d9a3879d1"
-    }
+    },
+    "candidateCommit": "10ab8b6cf3a9b29aa72fcdef23cd09a7b63c22e9"
   },
   "build": {
     "platform": "darwin",
