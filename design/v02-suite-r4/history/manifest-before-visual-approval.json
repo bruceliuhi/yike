@@ -1,0 +1,125 @@
+{
+  "designVersion": "R4",
+  "createdAt": "2026-09-09",
+  "dateAnchor": "2026-09-09",
+  "scopeStatus": "CONFIRMED",
+  "visualStatus": "PENDING_USER_REVIEW",
+  "sourceCommit": "9e27723b4513d184438da44628017c237e895fe0",
+  "approvedR3DesignCommit": "5929de671d314748f621a1992c646acee5622f67",
+  "generationTool": "built-in image_gen.imagegen",
+  "assetHandling": "Original generated PNG copied byte-for-byte; no resampling, compositing, drawing, or raster rewriting.",
+  "pages": [
+    {
+      "group": "R4-01",
+      "page": "P12",
+      "title": "短句教练",
+      "image": "screens/R4-01-P12.png",
+      "width": 1484,
+      "height": 1060,
+      "bytes": 1337095,
+      "sha256": "b6a5ffd7f300e162bd2aa75de545aa0875a36841ae99ddb7a268847fc1321623",
+      "generatedFile": "exec-e98dd32f-1f05-4831-87ac-da8280d4cf47.png",
+      "supersededGeneratedFile": "exec-5aa82c96-3e6f-4ab4-be1b-20cfb3176886.png",
+      "referenceImage": "docs/qa/ui-final-acceptance/screens/P12.png",
+      "referenceSha256": "14e81d771ecddc49c304987c90fdbd44c62c59b2401f32b628ae97bbf8fcc385",
+      "prompts": [
+        "prompts/coach.txt",
+        "prompts/coach_polish.txt"
+      ],
+      "status": "PENDING_USER_REVIEW"
+    },
+    {
+      "group": "R4-02",
+      "page": "P09",
+      "title": "搜索覆盖与结果解释",
+      "image": "screens/R4-02-P09.png",
+      "width": 1484,
+      "height": 1060,
+      "bytes": 1319945,
+      "sha256": "7c4f73951ed899c4d04fbc25a99acd3c176ec8b7e61255b565751475d77d2913",
+      "generatedFile": "exec-8e455866-7755-4fb6-afb0-2f3ab8652a68.png",
+      "supersededGeneratedFile": "exec-b28c5e60-d3ef-4c41-9d0e-ae6ece0593fe.png",
+      "referenceImage": "docs/qa/ui-final-acceptance/screens/P09.png",
+      "referenceSha256": "0b6426138023ee44bc6476c6f6c1f4718a7ee2b9d15332d2117c9842218d00f6",
+      "prompts": [
+        "prompts/coverage.txt",
+        "prompts/coverage_polish.txt"
+      ],
+      "status": "PENDING_USER_REVIEW"
+    },
+    {
+      "group": "R4-03",
+      "page": "P06",
+      "title": "任务策略与预算",
+      "image": "screens/R4-03-P06.png",
+      "width": 1484,
+      "height": 1060,
+      "bytes": 1120382,
+      "sha256": "c315a8e60c3c7e837a17615445e46aafa501cd85ca2e4d0f328f850d5847423e",
+      "generatedFile": "exec-853c4b40-e7ef-437f-817e-e9f1ca2a575d.png",
+      "supersededGeneratedFile": null,
+      "referenceImage": "docs/qa/ui-final-acceptance/screens/P06.png",
+      "referenceSha256": "0d9f7256dfa28f7f81925c79dbc791473dc55d4edf742ee3f72050f316afd92c",
+      "prompts": [
+        "prompts/budget.txt"
+      ],
+      "status": "PENDING_USER_REVIEW"
+    },
+    {
+      "group": "R4-04",
+      "page": "P10",
+      "title": "机会与观察",
+      "image": "screens/R4-04-P10.png",
+      "width": 1485,
+      "height": 1059,
+      "bytes": 1274402,
+      "sha256": "343f028b0fe6cd00339677ddde910071492800de31d3e5a47e5ddb1115ada896",
+      "generatedFile": "exec-8d517662-acf4-4486-9ac9-c9e549eb7159.png",
+      "supersededGeneratedFile": "exec-6e3f75e0-f281-4e08-aa75-816b28027137.png",
+      "referenceImage": "docs/qa/ui-final-acceptance/screens/P10.png",
+      "referenceSha256": "419af014cff2dcc5aea5518c31a4a29a4e7ff6cd261f96117f1dbc74bcc8c896",
+      "prompts": [
+        "prompts/opportunities.txt",
+        "prompts/opportunities_polish.txt"
+      ],
+      "status": "PENDING_USER_REVIEW"
+    },
+    {
+      "group": "R4-05",
+      "page": "P11",
+      "title": "证据时间线与多找类似",
+      "image": "screens/R4-05-P11.png",
+      "width": 1484,
+      "height": 1060,
+      "bytes": 1123493,
+      "sha256": "7079400885e6d86b5824939d3b2c25e70efb80af591c5bad548790a9b8e25b22",
+      "generatedFile": "exec-3bba24c5-8145-4673-a15b-8f85362c202a.png",
+      "supersededGeneratedFile": null,
+      "referenceImage": "docs/qa/ui-final-acceptance/screens/P11.png",
+      "referenceSha256": "2d3b3e4e525efdbe20389033c52ba74ef2c2dc81826854b2b24dbb9c773252d6",
+      "prompts": [
+        "prompts/detail.txt"
+      ],
+      "status": "PENDING_USER_REVIEW"
+    },
+    {
+      "group": "R4-06",
+      "page": "P02",
+      "title": "工作台简报",
+      "image": "screens/R4-06-P02.png",
+      "width": 1484,
+      "height": 1060,
+      "bytes": 1284367,
+      "sha256": "964bbb7dd86f7af2c45bcdcdba2fc3dfc2b7547a6830269bab56db515ad2ef28",
+      "generatedFile": "exec-cc152c0c-4f7b-4340-93c7-4e41a56b0012.png",
+      "supersededGeneratedFile": "exec-c4aa6850-aa08-4b3a-9441-7aea5848d251.png",
+      "referenceImage": "docs/qa/ui-final-acceptance/screens/P02.png",
+      "referenceSha256": "6e27cc540ef918cfe39418c217a8f9a4e0619ded09e8f43019d592ad94f44a54",
+      "prompts": [
+        "prompts/brief.txt",
+        "prompts/brief_polish.txt"
+      ],
+      "status": "PENDING_USER_REVIEW"
+    }
+  ]
+}

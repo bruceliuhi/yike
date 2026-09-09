@@ -1,0 +1,16 @@
+Create high-fidelity R4 意客AI desktop P11 evidence detail with an open right “多找类似” drawer.1484x1060 using attached existing P11 exact shell/logo/style. Preserve208pxnav,60pxheader,existingnavlabels,noaddednav,商机库active. Feishu/Alipaycleanwhite-blue #1677FF #172B4D #52637A #E8EDF3; crisp Chinese 24 title16section14body. NoTESTdebug; top R4 · 设计预览.
+Base page visible left ~850px including nav, right drawer width520px pale shadow noheavyblack scrim. Main area heading 机会证据; source title 180㎡高交会展区设计搭建预算询价 (wrap2lines ifnecessary). Official globe 湖南省商务厅官网. Badge 公开研究样例 · 未入客户库.
+Baseleft content: tabs 证据详情 / 项目变化 (selected). Compact exactquote “本次报价仅用于预算测算。” Topfactrow 资料截止2026-09-15 18:00; 地点深圳国际会展中心. Timelineheading 项目变化时间线:
+only one factualsourceversion:
+原文版本 v1 /发布于2026-09-08 16:54
+首次留存时间 待真实采集回执
+尚无后续原文版本
+secondline 联系与回复 尚无记录
+Noinventedlatestobservationtimeorbudgetincrease. Separatecollapsedline 待补证：技术资料获取方式、实际采购预算. One explanatorysentence 访问失败不会被记为项目关闭。
+Rightdrawer header 多找类似 with ×close. Shortbadge 配置预览 · 不会立即执行. Drawerbody:
+相似依据 field 展区设计搭建 / 公开预算询价
+目标画像 dropdown 选择已确认画像 (required, empty).
+建议新增搜索词 chips 展区搭建预算询价,会展设计服务范围,展台技术资料 and +添加, editable AI建议. Caption 保留现有用词，可逐项删改。
+搜索平台 ORIGINALofficiallogos 小红书、抖音、公开网站 withcheckboxchoices and note 仅可选择已支持的平台；连接状态在下一步检查。 Do notclaimconnected.
+增量范围 compactsummary: 新增搜索方向 3项建议; 单次独立来源上限30; 单次研究时长上限10分钟. Badge 配置示例. 费用估算 暂不可计量. Noinventedspend.
+Nearbottom info 已认可的客户机会可发起扩展；本公开样例仅用于预览。 Buttons primarydisabled 创建任务草稿 (untilrealcustomerapprovedsourceandprofile), secondary 取消. Explicitline 创建草稿后，仍需确认范围和预算才执行。 Neveractualsendorcontact. Do notmakepublicsampleactionactive. All content polished and readable, drawer footerfullyvisible, no extraneousmockconsole or hugedecorativecards.
