@@ -52,8 +52,14 @@ def _parse_time(value: str) -> datetime:
     except ValueError: raise ValueError("invalid source time") from None
 
 def _normalize_host(hostname: str) -> str:
-    host = hostname[:-1] if hostname.endswith(".") else hostname
-    return host.encode("idna").decode("ascii").lower()
+    if "%" in hostname:
+        raise ValueError("invalid hostname")
+    host = hostname.encode("idna").decode("ascii").lower()
+    if host.endswith("."):
+        host = host[:-1]
+    if not host or host.endswith(".") or any(not label for label in host.split(".")):
+        raise ValueError("invalid hostname")
+    return host
 
 def _origin(url: str) -> str:
     parts = urlsplit(url)

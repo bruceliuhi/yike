@@ -166,7 +166,26 @@ def test_noncanonical_local_or_numeric_hosts_are_rejected(url):
     assert_code(payload, "INVALID_SOURCE_URL")
 
 
-@pytest.mark.parametrize("url", ["https://example.org/page", "https://8.8.8.8/page"])
+@pytest.mark.parametrize("url", [
+    "https://localhost。/",
+    "https://localhost．/",
+    "https://localhost｡/",
+    "https://127.0.0.1。/",
+    "https://127.0.0.1．/",
+    "https://127.0.0.1｡/",
+    "https://%6cocalhost/",
+    "https://%31%32%37.0.0.1/",
+    "https://example..org/",
+    "https://example.org../",
+])
+def test_encoded_equivalent_or_malformed_hosts_are_rejected(url):
+    payload = batch(platform="PUBLIC_WEB", execution=anonymous_execution(), records=[
+        record(kind="PAGE", external_source_id=None, public_url=url)
+    ])
+    assert_code(payload, "INVALID_SOURCE_URL")
+
+
+@pytest.mark.parametrize("url", ["https://example.org/page", "https://example.org./page", "https://8.8.8.8/page"])
 def test_public_web_accepts_public_domain_and_ip_controls(url):
     payload = batch(platform="PUBLIC_WEB", execution=anonymous_execution(), records=[
         record(kind="PAGE", external_source_id=None, public_url=url)
@@ -180,6 +199,23 @@ def test_non_null_parent_url_uses_full_source_url_validation(parent_url):
         "published_at":None, "public_url":parent_url}
     child = record(kind="COMMENT", external_comment_id="reply-1", parent=parent)
     assert_code(batch(records=[child]), "INVALID_SOURCE_URL")
+
+
+@pytest.mark.parametrize("parent_url", [
+    "https://localhost。/reply",
+    "https://localhost．/reply",
+    "https://localhost｡/reply",
+    "https://127.0.0.1。/reply",
+    "https://127.0.0.1．/reply",
+    "https://127.0.0.1｡/reply",
+    "https://%6cocalhost/reply",
+    "https://%31%32%37.0.0.1/reply",
+])
+def test_parent_url_rejects_encoded_or_equivalent_local_hosts(parent_url):
+    parent = {"external_comment_id":"reply-0", "body":None, "author_public_id":None,
+        "published_at":None, "public_url":parent_url}
+    child = record(kind="COMMENT", external_comment_id="reply-1", parent=parent)
+    assert_code(batch(platform="PUBLIC_WEB", execution=anonymous_execution(), records=[child]), "INVALID_SOURCE_URL")
 
 
 def test_null_parent_url_is_allowed():
@@ -209,6 +245,20 @@ def test_public_web_origin_identity_normalizes_trailing_dot():
         records=[record(external_source_id="123", public_url="https://EXAMPLE.org./a")]), now=NOW).records[0]
     same=first.model_copy(update={"public_url":"https://example.org/other"})
     assert source_identity(first,"PUBLIC_WEB") == source_identity(same,"PUBLIC_WEB")
+
+
+def test_public_web_origin_identity_normalizes_idna_and_unicode_dot_equivalents():
+    urls = [
+        "https://xn--bcher-kva.example/a",
+        "https://bücher.example/b",
+        "https://bücher。example/c",
+        "https://xn--bcher-kva.example./d",
+    ]
+    parsed = [validate_candidate_batch(batch(platform="PUBLIC_WEB", execution=anonymous_execution(),
+        records=[record(external_source_id="123", public_url=url)]), now=NOW).records[0] for url in urls]
+    assert [item.public_url for item in parsed] == urls
+    assert len({source_identity(item, "PUBLIC_WEB") for item in parsed}) == 1
+    assert len({content_version(item) for item in parsed}) == len(urls)
 
 
 def test_content_version_inputs_and_platform_scoped_identity():
