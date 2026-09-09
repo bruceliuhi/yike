@@ -169,7 +169,12 @@ function monitorRun(overrides: Partial<TaskRun> = {}): TaskRun {
 function loadMonitor(run: TaskRun) {
   context.route = parseRoute("#/monitors/" + encodeURIComponent(run.id));
   context.service.tasks = vi.fn().mockResolvedValue([run]);
-  return render(<TasksPage />);
+  const view = render(<TasksPage />);
+  // R4 opens coverage by default. These R3 regressions explicitly inspect the retained platform tab.
+  void screen
+    .findByRole("tab", { name: "平台状态" })
+    .then((tab) => fireEvent.click(tab));
+  return view;
 }
 describe("monitor detail from execution service data", () => {
   it("distinguishes actual platform states and returns to the same monitor after reconnecting", async () => {

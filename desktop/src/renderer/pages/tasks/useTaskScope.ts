@@ -5,7 +5,7 @@ export function useTaskScope(variant = "") {
   const { service, session } = useApp();
   const identity = useMemo(
     () => ({}),
-    [service, session.authenticated, session.userId, variant],
+    [service, session.authenticated, session.userId, session.accountScope?.id, session.accountScope?.version, variant],
   );
   const latest = useRef(identity);
   latest.current = identity;

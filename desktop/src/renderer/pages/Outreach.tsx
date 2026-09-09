@@ -1,25 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  ArrowSquareOut,
-  Copy,
-  MagnifyingGlass,
-  PaperPlaneTilt,
-} from "@phosphor-icons/react";
+import { MagnifyingGlass } from "@phosphor-icons/react";
 import { useApp } from "../app/context";
-import {
-  useAction,
-  useLocalDraft,
-  useResource,
-  useUnsavedChanges,
-} from "../app/hooks";
+import { useAction, useLocalDraft, useResource } from "../app/hooks";
 import { useOperationLedger } from "../app/operationLedger";
 import { boundedRequest } from "../app/boundedRequest";
 import {
   Badge,
   Button,
-  Confirm,
   Empty,
-  Field,
   Modal,
   Notice,
   PageHeader,
@@ -43,9 +31,9 @@ import {
 } from "../domain/outreach";
 import { requireOutreach } from "../services/outreach";
 import { OutreachQueue } from "./OutreachQueue";
-import { ContactNotes } from "./outreach/ContactNotes";
+import { ContactEditor } from "./outreach/ContactEditor";
 import { sortContactRows, type ContactSort } from "../domain/contactList";
-import { EvidencePanel, PUBLIC_SAMPLE, isSample } from "./Opportunities";
+import { PUBLIC_SAMPLE, isSample } from "./Opportunities";
 
 export function contactFingerprint(
   draft: ContactDraft,
@@ -69,29 +57,13 @@ export function contactFingerprint(
     connection?.capabilities || [],
   ]);
 }
-function initialDraft(
-  row: Opportunity,
-  channel: "comment" | "dm",
-): ContactDraft {
-  const content = channel === "comment" ? row.comment : row.dm;
-  return {
-    opportunityId: row.id,
-    channel,
-    content,
-    version: 1,
-    savedContent: content,
-    accountId: "",
-    recipient: "",
-  };
-}
-interface DraftSet {
-  comment: ContactDraft;
-  dm: ContactDraft;
-}
-
 export function OutreachPage() {
   const { session } = useApp();
-  return <OutreachWorkspace key={session.userId || "public"} />;
+  return (
+    <OutreachWorkspace
+      key={JSON.stringify([session.userId || "public", session.accountScope])}
+    />
+  );
 }
 function OutreachWorkspace() {
   const { service, session, route, navigate } = useApp();
@@ -120,7 +92,7 @@ function OutreachWorkspace() {
     query: string;
     sort: ContactSort;
   }>(
-    `contact-list:${session.userId || "public"}`,
+    `contact-list:${session.userId || "public"}:${session.accountScope ? JSON.stringify(session.accountScope) : "legacy"}`,
     { query: "", sort: "newest" },
     (value) =>
       !!value &&
@@ -261,361 +233,14 @@ function OutreachWorkspace() {
             <ContactEditor
               key={`${session.userId || "public"}:${selected.id}:${route.query.get("channel") === "dm" ? "dm" : "comment"}`}
               row={selected}
+              renderConfirmation={(props) => (
+                <SendConfirmation row={selected} {...props} />
+              )}
             />
           ) : (
             <Empty title="商机暂不可访问" />
           )}
         </div>
-      )}
-    </>
-  );
-}
-
-function ContactEditor({ row }: { row: Opportunity }) {
-  const { service, session, route, navigate, notify } = useApp();
-  const sample = isSample(row);
-  const [channel, setChannel] = useState<"comment" | "dm">(() =>
-    route.query.get("channel") === "dm" ? "dm" : "comment",
-  );
-  const [drafts, setDrafts] = useLocalDraft<DraftSet>(
-    `contact:${session.userId || "public"}:${row.id}`,
-    () => ({
-      comment: initialDraft(row, "comment"),
-      dm: initialDraft(row, "dm"),
-    }),
-  );
-  const draft = sample ? initialDraft(row, channel) : drafts[channel];
-  const [generated, setGenerated] = useState<{
-    channel: "comment" | "dm";
-    content: string;
-    version: number;
-  } | null>(null);
-  const [pendingRegenerate, setPendingRegenerate] = useState(false);
-  const [generationFailed, setGenerationFailed] = useState(false);
-  const action = useAction();
-  const request = useRef(0);
-  const live = useRef(draft);
-  live.current = draft;
-  useEffect(
-    () => () => {
-      request.current++;
-    },
-    [],
-  );
-  const connections = useResource(
-    () =>
-      sample
-        ? Promise.resolve([] as PlatformConnection[])
-        : service.connections(),
-    [service, row.id, sample],
-  );
-  const available = (connections.data || []).filter(
-    (c) =>
-      c.status === "CONNECTED" &&
-      c.accountId &&
-      c.capabilities.some((v) =>
-        ["send", channel, "send_" + channel].includes(v),
-      ),
-  );
-  const connection = available.find((c) => c.accountId === draft.accountId);
-  const dirty = draft.content !== draft.savedContent;
-  useUnsavedChanges(!sample && dirty);
-  const edit = (change: Partial<ContactDraft>) => {
-    if (sample || !session.authenticated) return;
-    setDrafts((old) => ({
-      ...old,
-      [channel]: {
-        ...old[channel],
-        ...change,
-        version: old[channel].version + 1,
-        confirmedFingerprint: undefined,
-      },
-    }));
-  };
-  const generate = async () => {
-    if (sample || !session.authenticated) return;
-    setPendingRegenerate(false);
-    setGenerationFailed(false);
-    const id = ++request.current;
-    const atChannel = channel;
-    const version = draft.version;
-    const result = await action.run(async () => {
-      const value = await boundedRequest(
-        () => service.generateContact(row.id, atChannel),
-        { timeoutMessage: "草稿生成超时，当前内容已保留，请重试生成。" },
-      );
-      if (typeof value !== "string" || !value.trim())
-        throw new Error("未生成可用草稿，当前内容已保留，请重试生成。");
-      return value;
-    });
-    if (typeof result === "string" && id === request.current) {
-      setGenerated({ channel: atChannel, content: result, version });
-    } else if (id === request.current) setGenerationFailed(true);
-  };
-  const applyGenerated = () => {
-    if (!generated || sample || !session.authenticated) return;
-    if (generated.channel !== channel) {
-      notify("用途已切换，请返回对应草稿再应用。");
-      return;
-    }
-    setDrafts((old) => ({
-      ...old,
-      [channel]: {
-        ...old[channel],
-        content: generated.content,
-        version: old[channel].version + 1,
-        confirmedFingerprint: undefined,
-      },
-    }));
-    setGenerated(null);
-  };
-  const save = async () => {
-    if (sample || !session.authenticated || !draft.content.trim()) return;
-    const submitted = { ...draft };
-    await action.run(async () => {
-      await service.saveContact(submitted);
-      setDrafts((old) => {
-        const current = old[submitted.channel];
-        return {
-          ...old,
-          [submitted.channel]: { ...current, savedContent: submitted.content },
-        };
-      });
-      notify("草稿已保存到客户空间。", "success");
-    });
-  };
-  const copy = async () => {
-    try {
-      await service.copy(draft.content);
-      notify("文字已复制，尚未发送。", "success");
-    } catch (error) {
-      notify(errorMessage(error), "error");
-    }
-  };
-  const closeConfirm = () =>
-    navigate(
-      "/outreach?opportunity=" +
-        encodeURIComponent(row.id) +
-        "&channel=" +
-        channel,
-    );
-  return (
-    <>
-      <section className="contact-editor">
-        <div className="section-heading">
-          <h2>联系草稿</h2>
-          <Badge tone={sample ? "orange" : "neutral"}>
-            {sample
-              ? "公开研究样例 · 只读"
-              : dirty
-                ? "本机修改未同步"
-                : "已保存内容"}
-          </Badge>
-        </div>
-        <Tabs
-          active={channel}
-          onChange={(value) => setChannel(value as "comment" | "dm")}
-          items={[
-            { key: "comment", label: "评论草稿" },
-            { key: "dm", label: "私信草稿" },
-          ]}
-        />
-        <Field
-          label="收件对象"
-          hint="对象须经渠道映射核验，手填名称不能作为身份依据。"
-        >
-          <input
-            aria-label="收件对象"
-            value={draft.recipient}
-            disabled={sample}
-            onChange={(e) => edit({ recipient: e.target.value })}
-            placeholder="核对原文后填写"
-          />
-        </Field>
-        <Field label="选择已连接渠道">
-          <select
-            aria-label="发送账号"
-            value={draft.accountId}
-            disabled={sample || connections.loading}
-            onChange={(e) => edit({ accountId: e.target.value })}
-          >
-            <option value="">未选择</option>
-            {available.map((c) => (
-              <option key={`${c.platform}:${c.accountId}`} value={c.accountId}>
-                {c.accountName || c.accountId} · {c.platform}
-              </option>
-            ))}
-          </select>
-        </Field>
-        {!sample && connections.error && (
-          <p className="field-hint">{connections.error}</p>
-        )}
-        <div className="section-heading">
-          <h3>沟通内容</h3>
-          <Button
-            variant="ghost"
-            disabled={sample || !session.authenticated || action.busy}
-            onClick={() =>
-              draft.content && !generationFailed
-                ? setPendingRegenerate(true)
-                : void generate()
-            }
-          >
-            {generationFailed
-              ? "重试生成"
-              : draft.content.trim()
-                ? "重新生成"
-                : "生成联系草稿"}
-          </Button>
-        </div>
-        <textarea
-          className="contact-content"
-          aria-label="沟通内容"
-          value={draft.content}
-          readOnly={sample}
-          onChange={(e) => edit({ content: e.target.value })}
-          rows={10}
-          placeholder={
-            sample ? "此用途尚无样例草稿" : "填写联系内容，或根据商机生成草稿"
-          }
-        />
-        <p className="character-count">{Array.from(draft.content).length} 字</p>
-        {action.error && <Notice tone="error">{action.error}</Notice>}
-        <p className="muted text-small">
-          {sample
-            ? "公开样例仅供预览和复制，不能保存或发送。"
-            : "编辑内容按当前账号保存在本机当前会话；同步成功前不会成为客户空间草稿。"}
-        </p>
-        <div className="action-row">
-          <Button
-            variant="primary"
-            disabled={sample || !session.authenticated || !draft.content.trim()}
-            loading={action.busy}
-            onClick={() => void save()}
-          >
-            保存草稿
-          </Button>
-          <Button
-            disabled={
-              sample || !session.authenticated || !draft.content.trim() || dirty
-            }
-            onClick={() =>
-              navigate(
-                "/outreach?opportunity=" +
-                  encodeURIComponent(row.id) +
-                  "&channel=" +
-                  channel +
-                  "&confirm=send",
-              )
-            }
-          >
-            <PaperPlaneTilt />
-            准备发送
-          </Button>
-          <Button
-            variant={sample ? "primary" : "ghost"}
-            disabled={!draft.content}
-            onClick={() => void copy()}
-            aria-label="复制联系草稿"
-          >
-            <Copy />
-            {sample ? "复制样例文字" : null}
-          </Button>
-        </div>
-      </section>
-      <aside className="outreach-evidence">
-        <div className="section-heading">
-          <h2>相关商机</h2>
-          <Button
-            variant="ghost"
-            onClick={() =>
-              navigate("/opportunities/" + encodeURIComponent(row.id))
-            }
-          >
-            查看详情
-            <ArrowSquareOut />
-          </Button>
-        </div>
-        <h3>{row.title}</h3>
-        <Badge tone={sample ? "orange" : "blue"}>
-          {sample ? "公开研究样例 · 待复核 · 未入客户库" : "客户商机"}
-        </Badge>
-        <dl className="detail-list">
-          <div>
-            <dt>发布单位</dt>
-            <dd>{row.buyer || "—"}</dd>
-          </div>
-          <div>
-            <dt>发布时间</dt>
-            <dd>{formatDate(row.publishedAt)}</dd>
-          </div>
-          {sample && (
-            <>
-              <div>
-                <dt>项目地点</dt>
-                <dd>深圳国际会展中心</dd>
-              </div>
-              <div>
-                <dt>展区面积</dt>
-                <dd>180㎡</dd>
-              </div>
-              <div>
-                <dt>资料截止</dt>
-                <dd>09-15 18:00</dd>
-              </div>
-            </>
-          )}
-        </dl>
-        <EvidencePanel opportunity={row} compact />
-        {!sample && <Notice>发送前需完成来源、画像、对象及账号的核验。</Notice>}
-        <ContactNotes
-          key={`${session.userId}:${row.id}:${row.profileVersionId}`}
-          row={row}
-        />
-      </aside>
-      {pendingRegenerate && (
-        <Confirm
-          title="重新生成联系草稿"
-          onCancel={() => setPendingRegenerate(false)}
-          onConfirm={() => void generate()}
-          confirmText="生成新建议"
-        >
-          <p>当前内容会保留。生成后先预览新建议，由你决定是否替换。</p>
-        </Confirm>
-      )}
-      {generated && (
-        <Modal
-          title="新草稿预览"
-          onClose={() => setGenerated(null)}
-          footer={
-            <>
-              <Button onClick={() => setGenerated(null)}>保留当前内容</Button>
-              <Button
-                variant="primary"
-                disabled={generated.channel !== channel}
-                onClick={applyGenerated}
-              >
-                替换当前草稿
-              </Button>
-            </>
-          }
-        >
-          <p>替换会覆盖当前用途的文字，请先核对。</p>
-          {generated.version !== draft.version && (
-            <Notice tone="warning">
-              生成期间你修改了草稿；当前编辑仍完整保留。
-            </Notice>
-          )}
-          <pre className="draft-preview">{generated.content}</pre>
-        </Modal>
-      )}
-      {route.query.get("confirm") === "send" && (
-        <SendConfirmation
-          row={row}
-          draft={draft}
-          connection={connection}
-          onClose={closeConfirm}
-        />
       )}
     </>
   );

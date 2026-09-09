@@ -8,7 +8,8 @@ import {
   type SetStateAction,
 } from "react";
 import { errorMessage } from "../services/contracts";
-export function useResource<T>(loader: () => Promise<T>, deps: unknown[] = []) {
+import { boundedRequest } from "./boundedRequest";
+export function useResource<T>(loader: (signal?: AbortSignal) => Promise<T>, deps: unknown[] = []) {
   // The dependency identity also gates render-time data. Clearing in an effect
   // alone would expose the previous account's data for one render.
   const identity = useMemo(() => ({}), deps);
@@ -16,6 +17,7 @@ export function useResource<T>(loader: () => Promise<T>, deps: unknown[] = []) {
   active.current = identity;
   const mounted = useRef(true);
   const generation = useRef(0);
+  const pending = useRef<AbortController | null>(null);
   const [state, setState] = useState<{
     identity: object;
     data: T | undefined;
@@ -25,9 +27,16 @@ export function useResource<T>(loader: () => Promise<T>, deps: unknown[] = []) {
   const load = useCallback(async () => {
     if (active.current !== identity || !mounted.current) return;
     const id = ++generation.current;
+    pending.current?.abort();
+    const controller = new AbortController();
+    pending.current = controller;
     setState({ identity, data: undefined, loading: true, error: "" });
     try {
-      const data = await loader();
+      // Start immediately, retaining established loader identity and StrictMode semantics.
+      const promise = loader(controller.signal);
+      void promise.catch(() => undefined);
+      // Existing domain reads own a 30s deadline and their specific recovery message.
+      const data = await boundedRequest(() => promise, { signal: controller.signal, timeoutMs: 31_000, timeoutMessage: "读取超时，请重试。" });
       if (
         mounted.current &&
         active.current === identity &&
@@ -46,6 +55,8 @@ export function useResource<T>(loader: () => Promise<T>, deps: unknown[] = []) {
           loading: false,
           error: errorMessage(error),
         });
+    } finally {
+      controller.abort();
     }
   }, [identity]);
   useEffect(() => {
@@ -54,12 +65,14 @@ export function useResource<T>(loader: () => Promise<T>, deps: unknown[] = []) {
     return () => {
       mounted.current = false;
       generation.current++;
+      pending.current?.abort();
     };
   }, [load]);
   const setData = useCallback(
     (next: SetStateAction<T | undefined>) => {
       if (!mounted.current || active.current !== identity) return;
       generation.current++;
+      pending.current?.abort();
       setState((old) => ({
         identity,
         loading: false,

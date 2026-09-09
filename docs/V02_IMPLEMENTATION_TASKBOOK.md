@@ -6,7 +6,7 @@
 
 ## 1. 当前基线与推进原则
 
-2026-09-09 R4 增量范围已获用户“R4 确认”。六组设计与目标合同见 [R4 入口](../design/v02-suite-r4/README.md)，视觉确认及新增实现尚未完成；不清零 R3 进度、不重编号、不将下表新增能力标为已完成。视觉确认后按现有 03/04/05/06/07/08 子卡归属补正式合同和验收。R3 仍需处理的界面状态与可见证据见 [P01–P09 审计](qa/ui-final-acceptance/R3_REMAINING_STATE_AUDIT.md)、[P10–P20 审计](qa/ui-final-acceptance/R3_REMAINING_STATE_AUDIT_P10_P20.md)。
+2026-09-09 R4 六组图展示后，用户明确“其余没问题，可以继续开发”，并要求以搜贝统一研究用量。[R4 入口](../design/v02-suite-r4/README.md)及[确认记录](../design/v02-suite-r4/APPROVAL.md)已更新为实现授权；当前正在原 03/04/05/06/07/08 子卡范围内实现搜索覆盖、需求分类、证据时间线、相似研究草稿、短句教练、简报及搜贝用量合同。不清零 R3、不重编号、不以接口定义或隔离 TEST 夹具将真实服务标为完成。用量边界见[搜贝合同](UI_RESEARCH_USAGE_CONTRACT.md)。R3 余项继续按 [P01–P09 审计](qa/ui-final-acceptance/R3_REMAINING_STATE_AUDIT.md)、[P10–P20 审计](qa/ui-final-acceptance/R3_REMAINING_STATE_AUDIT_P10_P20.md)收口，最终验证须绑定本次候选提交。
 
 - 起点：`codex/customer-pilot / eac3c4c`，已包含 `f82a9ae` 的客户试用和安全修改，以及规划、设计图和 Logo。
 - 可复用：画像及确认建任务、人工复核包校验、逐条事务和来源版本、商机证据、人工跟进、短期签名会话、PostgreSQL 与 v3 RLS。

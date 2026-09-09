@@ -1,0 +1,161 @@
+.opportunity-brief {
+  margin-top: 20px;
+}
+.opportunity-brief > .notice p {
+  margin: 5px 0 0;
+  font-size: 12px;
+}
+.brief-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(270px, 1fr);
+  gap: 28px;
+  margin-top: 26px;
+}
+.brief-main {
+  min-width: 0;
+}
+.brief-main .section-heading {
+  margin-bottom: 10px;
+}
+.brief-main .empty-state {
+  min-height: 245px;
+}
+.brief-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  margin: 8px 0;
+}
+.brief-profile select {
+  max-width: 320px;
+}
+.brief-platforms {
+  border-left: 1px solid var(--line, #e4eaf2);
+  padding-left: 28px;
+  min-width: 0;
+}
+.brief-platforms h2 {
+  white-space: nowrap;
+}
+.brief-platforms .section-heading {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.brief-platforms ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.brief-platforms li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line, #e4eaf2);
+  font-size: 14px;
+}
+.brief-platforms li > .muted {
+  font-size: 12px;
+}
+.brief-hint,
+.brief-scope {
+  font-size: 12px;
+  color: var(--muted, #64748b);
+  line-height: 1.7;
+}
+.brief-hint {
+  margin-top: 20px;
+}
+.brief-row {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line, #e4eaf2);
+  overflow-wrap: anywhere;
+}
+.brief-row-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.brief-row p,
+.brief-row details {
+  font-size: 13px;
+}
+.brief-row summary,
+.brief-scope summary {
+  cursor: pointer;
+}
+.brief-row blockquote {
+  margin: 10px 0;
+  border-left: 2px solid #d9e8fc;
+  padding-left: 12px;
+  white-space: pre-wrap;
+}
+.brief-row > .button {
+  margin: 8px -8px -6px;
+}
+.brief-next {
+  border-top: 1px solid var(--line, #e4eaf2);
+  padding-top: 18px;
+}
+.brief-next h3 {
+  margin: 0 0 12px;
+}
+.brief-next > .button {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.brief-pagination {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+.brief-scope {
+  margin-top: 18px;
+  overflow-wrap: anywhere;
+}
+.workbench-existing {
+  margin: 24px 0;
+  padding: 16px 0;
+  border-top: 1px solid var(--line, #e4eaf2);
+  border-bottom: 1px solid var(--line, #e4eaf2);
+}
+.workbench-existing > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.workbench-existing[open] > summary {
+  margin-bottom: 18px;
+}
+@media (max-width: 1100px) {
+  .brief-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .brief-platforms {
+    border-left: 0;
+    border-top: 1px solid var(--line, #e4eaf2);
+    padding: 18px 0 0;
+  }
+  .brief-platforms ul {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 24px;
+  }
+}
+@media (max-width: 620px) {
+  .brief-platforms ul {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .brief-profile {
+    flex-wrap: wrap;
+  }
+  .brief-row-heading {
+    align-items: flex-start;
+  }
+}

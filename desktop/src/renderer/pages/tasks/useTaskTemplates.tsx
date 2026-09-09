@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../../app/context";
 import { useLocalDraft } from "../../app/hooks";
-import { useTaskDraft } from "../../app/taskDraft";
+import { taskDraftOwner, useTaskDraft } from "../../app/taskDraft";
+import { defaultResearchSettings } from "../../domain/researchUsage";
 import { useOperationLedger } from "../../app/operationLedger";
 import {
   Button,
@@ -26,11 +27,15 @@ export function useTaskTemplates() {
   const { session, route, navigate, notify } = useApp();
   const scope = useTaskScope(route.path);
   const [templates, setTemplates] = useLocalDraft<LocalTaskTemplate[]>(
-    `task-templates.${session.userId || "guest"}`,
+    `task-templates.${taskDraftOwner(session.userId, session.accountScope)}`,
     [],
     (value) => localTemplatesSchema.safeParse(value).success,
   );
-  const [, setDraft] = useTaskDraft(session.userId);
+  const [, setDraft] = useTaskDraft(
+    session.userId,
+    "once",
+    session.accountScope,
+  );
   const [unknown, setUnknown] = useOperationLedger(
     "unknown-task-starts",
     session.userId,
@@ -39,7 +44,10 @@ export function useTaskTemplates() {
     draft: TaskDraft;
     identity: object;
   } | null>(null);
-  const [deleting, setDeleting] = useState<LocalTaskTemplate | null>(null);
+  const [deleting, setDeleting] = useState<{
+    template: LocalTaskTemplate;
+    identity: object;
+  } | null>(null);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
@@ -97,6 +105,7 @@ export function useTaskTemplates() {
     try {
       assertClear(template.sourceDraftIds);
       const next = draftFromTemplate(template);
+      next.research ??= defaultResearchSettings();
       setDraft(next);
       navigate(
         next.mode === "monitor" ? "/tasks/new?mode=monitor" : "/tasks/new",
@@ -106,8 +115,13 @@ export function useTaskTemplates() {
     }
   };
   const remove = () => {
-    if (!deleting || !scope.current() || !session.authenticated) return;
-    setTemplates((old) => old.filter((item) => item.id !== deleting.id));
+    if (
+      !deleting ||
+      deleting.identity !== scope.identity ||
+      !scope.current() ||
+      !session.authenticated
+    ) return;
+    setTemplates((old) => old.filter((item) => item.id !== deleting.template.id));
     setDeleting(null);
     notify("本机会话模板已删除。");
   };
@@ -146,7 +160,7 @@ export function useTaskTemplates() {
                 >
                   从模板新建
                 </Button>
-                <Button variant="ghost" onClick={() => setDeleting(template)}>
+                <Button variant="ghost" onClick={() => setDeleting({ template, identity: scope.identity })}>
                   删除模板
                 </Button>
               </div>
@@ -196,7 +210,7 @@ export function useTaskTemplates() {
             {error && <Notice tone="error">{error}</Notice>}
           </Modal>
         )}
-        {deleting && (
+        {deleting && deleting.identity === scope.identity && (
           <Confirm
             title="删除本机模板？"
             danger
@@ -204,7 +218,7 @@ export function useTaskTemplates() {
             onCancel={() => setDeleting(null)}
             onConfirm={remove}
           >
-            <p>删除“{deleting.name}”的本机会话模板，不会删除任务或核对记录。</p>
+            <p>删除“{deleting.template.name}”的本机会话模板，不会删除任务或核对记录。</p>
           </Confirm>
         )}
       </>

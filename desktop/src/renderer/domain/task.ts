@@ -6,6 +6,7 @@ import {
   type Profile,
   type PlatformConnection,
 } from "./models";
+import { researchSettingsSchema } from "./researchUsage";
 export const termKey = (value: string) =>
   value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
 export function splitTerms(value: string): string[] {
@@ -166,6 +167,8 @@ export function startBlockers(
   deviceReady: boolean,
 ): string[] {
   const blockers = Object.values(taskErrors(draft));
+  if (draft.research && (!researchSettingsSchema.safeParse(draft.research).success || draft.research.maxSoubei === null))
+    blockers.push("请填写有效的研究范围及搜贝上限。");
   const profile = profiles.find(
     (p) =>
       p.id === draft.profileId &&
@@ -214,5 +217,6 @@ export function taskFingerprint(draft: TaskDraft): string {
     schedule: draft.schedule,
     source: draft.source,
     links: draft.links,
+    ...(draft.research ? { research: draft.research } : {}),
   });
 }

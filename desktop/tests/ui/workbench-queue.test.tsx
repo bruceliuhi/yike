@@ -206,21 +206,20 @@ it("shows an explicit missing target state", async () => {
 });
 it("excludes public samples from the legacy customer opportunity fallback", async () => {
   context.service.workbench = undefined;
-  context.service.opportunities = vi
-    .fn()
-    .mockResolvedValue([
-      opportunity,
-      { ...opportunity, id: "sample", title: "TEST hidden sample ID" },
-      {
-        ...opportunity,
-        id: "TEST-sample",
-        sample: true,
-        title: "TEST hidden sample flag",
-      },
-    ]);
+  context.service.opportunities = vi.fn().mockResolvedValue([
+    opportunity,
+    { ...opportunity, id: "sample", title: "TEST hidden sample ID" },
+    {
+      ...opportunity,
+      id: "TEST-sample",
+      sample: true,
+      title: "TEST hidden sample flag",
+    },
+  ]);
   context.service.connections = vi.fn().mockResolvedValue([]);
   context.service.tasks = vi.fn().mockResolvedValue([]);
   render(<WorkbenchPage />);
+  fireEvent.click(screen.getByText("全部待办与准备步骤"));
   fireEvent.click(screen.getByRole("tab", { name: "待联系" }));
   expect(
     await screen.findByRole("button", { name: new RegExp(opportunity.title) }),
