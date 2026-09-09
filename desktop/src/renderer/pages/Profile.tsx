@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from "react";
-import { Plus, UploadSimple, FileText } from "@phosphor-icons/react";
+import { Plus, UploadSimple } from "@phosphor-icons/react";
 import { useApp } from "../app/context";
 import {
   useAction,
@@ -19,16 +19,15 @@ import {
   PageHeader,
   ResourceStatus,
   Tabs,
-  formatDate,
 } from "../components/ui";
 import {
   EMPTY_PROFILE,
-  type MaterialDraft,
   type Profile,
   type ProfileFields,
 } from "../domain/models";
 import { boundedRequest } from "../app/boundedRequest";
 import { MaterialsWorkspace } from "./profile/MaterialsWorkspace";
+import { LocalMaterialDrafts, type LocalMaterialDraft as Material } from "./profile/LocalMaterialDrafts";
 import { taskDraftOwner } from "../app/taskDraft";
 
 interface ProfileEditor {
@@ -36,9 +35,6 @@ interface ProfileEditor {
   baseline: ProfileFields;
   versionId: string | null;
   example: boolean;
-}
-interface Material extends MaterialDraft {
-  purpose: string;
 }
 function validMaterials(value: unknown): value is Material[] {
   return (
@@ -579,6 +575,9 @@ function ProfileWorkspace() {
           api={service.materials}
           profile={current}
           currentFields={editor.fields}
+          localDrafts={materials}
+          onEditLocal={openMaterial}
+          onRemoveLocal={setDeleteMaterial}
           onApply={(fields) => {
             setEditor((old) => ({
               ...old,
@@ -602,55 +601,7 @@ function ProfileWorkspace() {
               添加资料
             </Button>
           </div>
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>资料名称</th>
-                  <th>用途</th>
-                  <th>引用范围</th>
-                  <th>状态</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {materials.map((entry) => (
-                  <tr key={entry.id}>
-                    <td>
-                      <FileText aria-hidden />
-                      {entry.name}
-                      <small>{formatDate(entry.updatedAt)}</small>
-                    </td>
-                    <td>{entry.purpose}</td>
-                    <td>
-                      {entry.visibility === "internal"
-                        ? "仅供内部判断"
-                        : "允许对外引用（待确认）"}
-                    </td>
-                    <td>
-                      <Badge>本机草稿</Badge>
-                    </td>
-                    <td>
-                      <div className="inline-actions">
-                        <Button
-                          variant="ghost"
-                          onClick={() => openMaterial(entry)}
-                        >
-                          编辑
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          onClick={() => setDeleteMaterial(entry)}
-                        >
-                          删除
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <LocalMaterialDrafts drafts={materials} onEdit={openMaterial} onRemove={setDeleteMaterial} />
           {!materials.length && (
             <Empty title="暂无资料" description="添加产品介绍或真实案例。" />
           )}
