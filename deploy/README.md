@@ -25,6 +25,7 @@ docker compose -f deploy/compose.pilot.yml up -d
 ```
 
 `YIKE_PILOT_IMAGE` 必须替换为已记录 digest 的实际镜像；`YIKE_PILOT_ENV_FILE` 必须位于 Git 仓库之外，不能提交或打印。
+运行时 env 文件只允许包含应用连接和运行时密钥，禁止放入 `YIKE_PILOT_ADMIN_DATABASE_URL`；迁移、provision 和研究包导入使用独立的管理员终端/文件。
 
 容器不启用 `YIKE_PILOT_DEV_LOGIN`。真实用户通过 HTTPS `/session` 粘贴短期令牌换取 HttpOnly 会话 Cookie；应用不信任客户端自带的 `X-Forwarded-Proto`，反向代理必须在受信边界内覆盖并由 Uvicorn 正确解析 scheme，同时禁止应用端口公网直连。反向代理应将 `/healthz` 用作存活检查、`/readyz` 用作 PostgreSQL 就绪检查，并只通过 HTTPS 暴露用户页面。
 

@@ -25,7 +25,7 @@ uv run --frozen yike-pilot-web
 
 客户试用应用默认关闭 FastAPI 的 `/docs`、`/redoc` 和 `/openapi.json`，不向公网暴露内部路由描述；如需本地调试，应在隔离环境临时开启，不得作为生产配置。
 
-使用受限 Compose 时，先从与 `YIKE_PILOT_ENV_FILE` 相同的仓库外文件加载环境变量，再运行 preflight，确保校验值与容器实际注入值一致：`set -a; . "$YIKE_PILOT_ENV_FILE"; set +a`。该文件只允许受信管理员读取，不能提交或打印。
+使用受限 Compose 时，`YIKE_PILOT_ENV_FILE` 必须是仅含应用 URL、认证密钥及运行配置的独立文件，绝不能包含 `YIKE_PILOT_ADMIN_DATABASE_URL`；管理员 URL 只在迁移/provision/import 的管理员终端或独立 env 文件中使用。先从运行时文件加载变量，再运行 preflight，确保校验值与容器实际注入值一致：`set -a; . "$YIKE_PILOT_ENV_FILE"; set +a`。该文件只允许受信管理员读取，不能提交或打印。
 
 ## 受信 provisioning
 

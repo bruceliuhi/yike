@@ -102,6 +102,20 @@ def test_production_preflight_rejects_group_readable_env_file(tmp_path: Path) ->
     assert "env file" in result.stderr.lower()
 
 
+def test_production_preflight_rejects_admin_database_url_in_runtime_env(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
+    Path(env["YIKE_PILOT_ENV_FILE"]).write_text(
+        "YIKE_PILOT_DATABASE_URL=postgresql://pilot:password@private-db:5432/pilot\n"
+        "YIKE_PILOT_ADMIN_DATABASE_URL=postgresql://admin:password@private-db:5432/pilot\n",
+        encoding="utf-8",
+    )
+
+    result = _run(env)
+
+    assert result.returncode != 0
+    assert "admin database" in result.stderr.lower()
+
+
 def test_production_preflight_rejects_mutable_image_tag(tmp_path: Path) -> None:
     env = _base_env(tmp_path)
     env["YIKE_PILOT_IMAGE"] = "registry.example.com/yike/customer-pilot:latest"
