@@ -24,3 +24,5 @@ Windows、真实服务、全Goal保持各自验收，不能由本轮beforeunload
 代码审核曾指出的跟进恢复初始值误报已修，见 [代码报告](reviews/code.md)；[架构报告](reviews/architecture.md)保留存储拒绝及重新加载边界。联系、画像和跟进的广度由明确的UI/状态测试证明，原生本轮只签P04这条退出链，不扩成所有页面实际点击通过。
 
 原始测试/构包日志保留其尾空白，差异检查仅对这类原始日志排除空白告警；产品/文档检查通过。四个原有raw草稿未纳入。整体05A与Goal继续IN_PROGRESS。
+
+提交前正常合入远端05016e5的运行时模板打包修正与说明；根线程限定运行 `tests/test_vendor_packaging.py`，14 passed / 3.32s。该来件不修改desktop，`git diff b8b8236 HEAD -- desktop`为空；安装包仍绑定同一桌面实现，不追认平台采集/安装运行已验收。
