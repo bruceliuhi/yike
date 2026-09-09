@@ -1,0 +1,45 @@
+{
+  "candidate": "cd642bddfc1238853a21a7aef39a2c0432dbe38a",
+  "documentationIntegrationCommit": "386e8e28c0c9360af168d536c5dd86545535e0e9",
+  "documentationDeltaScope": "Only documentation changed after the code candidate; product code and test inputs unchanged.",
+  "recordedAt": "2026-09-09T08:38:50.418616+00:00",
+  "evidenceOrigin": "Observed root tool outputs in this run; concise transcription, not retained raw logs",
+  "checks": [
+    {
+      "command": "npm run typecheck && npm test",
+      "cwd": "desktop",
+      "nodeMajor": 24,
+      "exitCode": 0,
+      "filesPassed": 27,
+      "testsPassed": 238,
+      "output": "Test Files 27 passed (27); Tests 238 passed (238)",
+      "toolChunk": "34b2d7"
+    },
+    {
+      "command": "uv run --frozen --extra dev pytest -q tests/test_import_atomicity.py tests/test_research_import.py tests/test_ui_api.py tests/test_pilot_web.py tests/test_pilot_contracts.py tests/test_vendor_packaging.py",
+      "environment": "isolated PostgreSQL 16; distinct admin and non-superuser/no-bypass-RLS application roles; no production database",
+      "exitCode": 0,
+      "testsPassed": 95,
+      "skipped": 0,
+      "output": "95 passed in 4.77s",
+      "toolChunk": "e98ca6"
+    },
+    {
+      "command": "bash scripts/secret_scan.sh; bash -n scripts/fetch_mediacrawler.sh scripts/package_mediacrawler.sh; python -m compileall -q pilot tests/test_import_atomicity.py tests/test_vendor_packaging.py; git diff --check",
+      "exitCode": 0,
+      "output": "secret-scan: clean; other checks completed successfully",
+      "toolChunk": "7e6542"
+    },
+    {
+      "command": "git diff --exit-code 10ab8b6 HEAD -- desktop/src desktop/assets desktop/forge.config.ts desktop/package.json desktop/package-lock.json desktop/vite.renderer.config.ts",
+      "exitCode": 0,
+      "meaning": "Existing Mac runtime source/config/lock inputs unchanged; no new Mac package created"
+    }
+  ],
+  "limitations": [
+    "Windows/PowerShell execution and actual installation/display scaling remain user-run",
+    "Visual harness is test-only, not proof of real collection or all page fidelity",
+    "No actual upstream source bundle distributed or installed in this run",
+    "Frontend Goal remains in progress; current task integrates existing work into main"
+  ]
+}

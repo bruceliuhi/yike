@@ -35,5 +35,5 @@ git push -u origin codex/<主题>
 
 - 远端 `main` 已从 `0e20ffb` 快进到已审查的 R3 客户端候选 `615e340`，包含 `10ab8b6` 的前端/桌面实现与绑定审核。
 - Gitee 仓库设置显示默认分支 `main`；`git ls-remote --symref origin HEAD` 同样返回 `refs/heads/main`。本地 `origin/HEAD` 已同步。
-- 未完成工作在最新 `main` 上创建的 `codex/main-integration` 中继续收尾，验收后再合并；提交到主干不表示这些产品能力已全部接通或已上线。
+- 本轮收尾工作在最新 `main` 上创建的 `codex/main-integration` 中验证并整合，实际纳入内容和绑定审核见[主线整合验收](qa/main-integration/REVIEW.md)；提交到主干不表示这些产品能力已全部接通或已上线。
 - 具体功能状态和验收限制见 [R3 UI 实施记录](UI_R3_IMPLEMENTATION.md)及[实施任务书](V02_IMPLEMENTATION_TASKBOOK.md)。Windows 实机由用户按脚本执行并回传结果，macOS 验证不替代该项。
