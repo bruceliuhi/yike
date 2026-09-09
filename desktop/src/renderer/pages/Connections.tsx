@@ -9,6 +9,7 @@ import {
 } from "@phosphor-icons/react";
 import { useApp } from "../app/context";
 import { useAction, useResource } from "../app/hooks";
+import { boundedRequest, RequestCancelled, RequestTimeout } from "../app/boundedRequest";
 import {
   Badge,
   Button,
@@ -45,8 +46,8 @@ const connectionLabel: Record<PlatformConnection["status"], string> = {
 };
 
 export function ConnectionsPage() {
-  const { service, route, navigate, notify } = useApp();
-  const connections = useResource(() => service.connections(), [service]);
+  const { service, session, route, navigate, notify } = useApp();
+  const connections = useResource(() => service.connections(), [service, session.userId]);
   const disconnect = useAction();
   const selected = PLATFORMS.find(
     (p) => p.id === route.query.get("connect") && p.id !== "web",
@@ -61,16 +62,19 @@ export function ConnectionsPage() {
   const [disconnectTarget, setDisconnectTarget] =
     useState<PlatformConnection | null>(null);
   const generation = useRef(0);
+  const controller = useRef<AbortController | null>(null);
   useEffect(() => {
     generation.current++;
+    controller.current?.abort();
     setState("idle");
     setError("");
     setOpened(false);
     setResult(null);
     return () => {
       generation.current++;
+      controller.current?.abort();
     };
-  }, [selected?.id, modalOpen]);
+  }, [selected?.id, modalOpen, session.userId]);
   useEffect(() => {
     if (state !== "waiting") return;
     const timer = window.setTimeout(() => {
@@ -83,6 +87,7 @@ export function ConnectionsPage() {
   const busy = state === "opening" || state === "checking";
   const close = () => {
     generation.current++;
+    controller.current?.abort();
     navigate(returnTo);
   };
   const openPlatform = (id: string) => {
@@ -93,17 +98,23 @@ export function ConnectionsPage() {
   const openLogin = async () => {
     if (!selected || busy) return;
     const request = ++generation.current;
+    controller.current?.abort();
+    const abort = new AbortController();
+    controller.current = abort;
     setState("opening");
     setError("");
     setResult(null);
     try {
-      await service.connect(selected.id);
+      await boundedRequest(() => service.connect(selected.id), {
+        signal: abort.signal,
+        timeoutMessage: "打开登录窗口超时，窗口状态尚未确认。请先核对原生窗口后重试；当前未记为已连接。",
+      });
       if (request !== generation.current) return;
       setOpened(true);
       setState("waiting");
     } catch (e) {
-      if (request === generation.current) {
-        setState("error");
+      if (request === generation.current && !(e instanceof RequestCancelled)) {
+        setState(e instanceof RequestTimeout ? "timeout" : "error");
         setError(errorMessage(e));
       }
     }
@@ -111,10 +122,16 @@ export function ConnectionsPage() {
   const check = async () => {
     if (!selected || !opened || busy) return;
     const request = ++generation.current;
+    controller.current?.abort();
+    const abort = new AbortController();
+    controller.current = abort;
     setState("checking");
     setError("");
     try {
-      const connection = await service.checkConnection(selected.id);
+      const connection = await boundedRequest(() => service.checkConnection(selected.id), {
+        signal: abort.signal,
+        timeoutMessage: "检查连接超时，连接结果尚未确认。可重新检查，现有任务配置不会改变。",
+      });
       if (request !== generation.current) return;
       if (connection.platform !== selected.id) {
         setState("error");
@@ -135,8 +152,8 @@ export function ConnectionsPage() {
         );
       }
     } catch (e) {
-      if (request === generation.current) {
-        setState("error");
+      if (request === generation.current && !(e instanceof RequestCancelled)) {
+        setState(e instanceof RequestTimeout ? "timeout" : "error");
         setError(errorMessage(e));
       }
     }

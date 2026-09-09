@@ -1,6 +1,17 @@
 import { useState } from "react";
 import { useApp } from "../app/context";
 import { clearLocalDrafts, useAction, useResource } from "../app/hooks";
+import { accountSchema } from "../domain/management";
+import {
+  managementRequest,
+  unavailableManagement,
+} from "../services/management";
+import {
+  CustomerDataActions,
+  ManagementAction,
+  PendingManagement,
+  UpdateManagement,
+} from "./settings/ManagementActions";
 import {
   Badge,
   Button,
@@ -34,17 +45,34 @@ export function SettingsPage() {
   const { service, session, navigate, notify, refreshSession } = useApp();
   const info = useResource(() => service.info(), [service]);
   const activation = useAction();
-  const update = useAction();
   const logout = useAction();
   const copying = useAction();
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState("");
   const [activationSent, setActivationSent] = useState(false);
+  const management = service.management ?? unavailableManagement;
+  const account = useResource(
+    async () =>
+      accountSchema.parse(await managementRequest(() => management.account())),
+    [management, session.userId],
+  );
+  const refreshAccount = () => {
+    void account.reload();
+  };
+  const licenseLabels = {
+    UNKNOWN: "待核验",
+    INACTIVE: "未激活",
+    ACTIVE: "已激活",
+    EXPIRED: "已过期",
+    SUSPENDED: "已停用",
+  };
+  const deviceLabels = {
+    UNBOUND: "尚未绑定",
+    BOUND: "已绑定",
+    REVOKED: "已撤销",
+    OFFLINE: "已绑定 · 离线",
+  };
   const [dialog, setDialog] = useState<SettingsDialog>(null);
-  const [updateResult, setUpdateResult] = useState<{
-    available: boolean;
-    version?: string;
-  } | null>(null);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const platform = info.data?.platform;
@@ -75,14 +103,9 @@ export function SettingsPage() {
     if (done) {
       setCode("");
       setActivationSent(true);
+      refreshAccount();
       notify("激活请求已完成，请以服务端授权结果为准。");
     }
-  };
-  const checkUpdate = async () => {
-    setDialog("update");
-    setUpdateResult(null);
-    const result = await update.run(() => service.checkUpdate());
-    if (result) setUpdateResult(result);
   };
   const logoutNow = async () => {
     await logout.run(async () => {
@@ -117,7 +140,7 @@ export function SettingsPage() {
     if (done) notify("脱敏诊断已复制。", "success");
   };
   return (
-    <>
+    <div className="settings-page">
       <PageHeader title="账号与授权" />
       <Tabs
         items={[
@@ -138,7 +161,17 @@ export function SettingsPage() {
         <h2>使用授权</h2>
         <div className="settings-row">
           <span>授权状态</span>
-          <Badge tone="orange">{activationSent ? "等待核验" : "待核验"}</Badge>
+          <Badge
+            tone={
+              account.data?.license.status === "ACTIVE" ? "green" : "orange"
+            }
+          >
+            {account.data
+              ? licenseLabels[account.data.license.status]
+              : activationSent
+                ? "等待核验"
+                : "待核验"}
+          </Badge>
         </div>
         <div className="settings-row">
           <label htmlFor="activation-code">授权码</label>
@@ -174,20 +207,39 @@ export function SettingsPage() {
         {activation.error && <Notice tone="error">{activation.error}</Notice>}
         <div className="settings-row">
           <span>有效期</span>
-          <span>—</span>
+          <span>
+            {account.data?.license.expiresAt
+              ? new Date(account.data.license.expiresAt).toLocaleString("zh-CN")
+              : "—"}
+          </span>
         </div>
-        <p className="field-hint">授权状态和有效期以实际服务端核验结果为准。</p>
+        {service.management && (
+          <ResourceStatus
+            loading={account.loading}
+            error={account.error}
+            onRetry={() => void account.reload()}
+          />
+        )}
       </section>
       <section className="settings-section">
         <h2>设备管理</h2>
         <div className="settings-row">
           <span>运行环境</span>
           <span>{platformName}</span>
-          <Button onClick={() => setDialog("bind")}>绑定设备</Button>
+          <Button onClick={() => setDialog("bind")}>
+            {account.data &&
+            ["BOUND", "OFFLINE"].includes(account.data.device.status)
+              ? "解绑设备"
+              : "绑定设备"}
+          </Button>
         </div>
         <div className="settings-row">
           <span>设备状态</span>
-          <span>尚未完成绑定核验</span>
+          <span>
+            {account.data
+              ? `${account.data.device.name} · ${deviceLabels[account.data.device.status]}`
+              : "尚未完成绑定核验"}
+          </span>
         </div>
         <div className="settings-row">
           <span>客户服务</span>
@@ -199,16 +251,13 @@ export function SettingsPage() {
               : "待检查"}
           </span>
         </div>
-        <p className="field-hint">服务地址已配置不代表平台账号已连接。</p>
       </section>
       <section className="settings-section">
         <h2>版本与数据</h2>
         <div className="settings-row">
           <span>当前版本</span>
           <span>{info.data?.version || "—"}</span>
-          <Button loading={update.busy} onClick={() => void checkUpdate()}>
-            检查更新
-          </Button>
+          <Button onClick={() => setDialog("update")}>检查更新</Button>
         </div>
         <div className="settings-row">
           <span>客户数据</span>
@@ -253,9 +302,16 @@ export function SettingsPage() {
           </div>
         )}
       </section>
+      <PendingManagement account={account.data} changed={refreshAccount} />
       {dialog && (
         <Modal
-          title={dialogTitles[dialog]}
+          title={
+            dialog === "bind" &&
+            account.data &&
+            ["BOUND", "OFFLINE"].includes(account.data.device.status)
+              ? "解绑本机设备"
+              : dialogTitles[dialog]
+          }
           onClose={() => setDialog(null)}
           footer={
             <>
@@ -269,49 +325,27 @@ export function SettingsPage() {
                   复制脱敏诊断
                 </Button>
               )}
-              {dialog === "update" && update.error && (
-                <Button
-                  variant="primary"
-                  loading={update.busy}
-                  onClick={() => void checkUpdate()}
-                >
-                  重试
-                </Button>
-              )}
             </>
           }
         >
           {dialog === "bind" && (
-            <>
-              <Notice tone="warning">
-                设备绑定服务尚未接通，本机尚未完成绑定。
-              </Notice>
-              <dl className="detail-list">
-                <div>
-                  <dt>运行环境</dt>
-                  <dd>{platformName}</dd>
-                </div>
-                <div>
-                  <dt>客户端版本</dt>
-                  <dd>{info.data?.version || "—"}</dd>
-                </div>
-              </dl>
-            </>
+            <ManagementAction
+              account={account.data}
+              kind={
+                account.data &&
+                ["BOUND", "OFFLINE"].includes(account.data.device.status)
+                  ? "unbind-device"
+                  : "bind-device"
+              }
+              changed={refreshAccount}
+            />
           )}
-          {dialog === "export" && (
-            <Notice tone="warning">
-              客户数据导出服务尚未接通，当前没有生成导出文件。
-            </Notice>
-          )}
-          {dialog === "backup" && (
-            <>
-              <Notice tone="warning">
-                客户数据恢复服务尚未接通，当前没有执行覆盖或恢复。
-              </Notice>
-              <p>
-                本机配置草稿不属于客户数据库灾备。恢复功能接通后，需先核对客户空间、文件版本、恢复范围和影响记录，再明确确认。
-              </p>
-            </>
+          {(dialog === "export" || dialog === "backup") && (
+            <CustomerDataActions
+              account={account.data}
+              backup={dialog === "backup"}
+              changed={refreshAccount}
+            />
           )}
           {dialog === "support" && (
             <>
@@ -341,17 +375,7 @@ export function SettingsPage() {
             </>
           )}
           {dialog === "update" && (
-            <>
-              {update.busy && <p role="status">正在检查更新…</p>}
-              {update.error && <Notice tone="error">{update.error}</Notice>}
-              {updateResult && (
-                <Notice>
-                  {updateResult.available
-                    ? `发现新版本${updateResult.version ? " " + updateResult.version : ""}。下载与安装服务尚未接通，当前版本保持不变。`
-                    : "未发现可用更新。"}
-                </Notice>
-              )}
-            </>
+            <UpdateManagement account={account.data} changed={refreshAccount} />
           )}
         </Modal>
       )}
@@ -386,6 +410,6 @@ export function SettingsPage() {
           {logout.error && <Notice tone="error">{logout.error}</Notice>}
         </Confirm>
       )}
-    </>
+    </div>
   );
 }

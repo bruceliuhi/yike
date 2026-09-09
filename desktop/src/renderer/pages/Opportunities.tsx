@@ -23,6 +23,7 @@ import {
 } from "../components/ui";
 import type { Opportunity, Profile } from "../domain/models";
 import { ServiceError, errorMessage } from "../services/contracts";
+import { downloadText, downloadErrorMessage } from "../services/download";
 import {
   CANDIDATE_EVIDENCE_LABELS,
   CANDIDATE_STATUS_LABELS,
@@ -194,6 +195,15 @@ function OpportunityList() {
   const [sort, setSort] = useState(route.query.get("sort") || "updated");
   const [page, setPage] = useState(Number(route.query.get("page")) || 1);
   const [selected, setSelected] = useState<string[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const exportPending = useRef(false);
+  const exportMounted = useRef(true);
+  const exportIdentity = useRef(session.authenticated ? session.userId : null);
+  exportIdentity.current = session.authenticated ? session.userId : null;
+  useEffect(() => {
+    exportMounted.current = true;
+    return () => { exportMounted.current = false; };
+  }, []);
   const customers = (resource.data || []).filter((r) => !isSample(r));
   const rows = scope === "sample" ? [PUBLIC_SAMPLE] : customers;
   const filtered = useMemo(
@@ -242,8 +252,9 @@ function OpportunityList() {
       `/opportunities/${encodeURIComponent(row.id)}?returnTo=${encodeURIComponent("/opportunities?" + back)}`,
     );
   };
-  const exportRows = () => {
+  const exportRows = async () => {
     if (
+      exportPending.current ||
       !session.authenticated ||
       scope !== "customer" ||
       resource.loading ||
@@ -252,15 +263,24 @@ function OpportunityList() {
       return;
     const chosen = customers.filter((r) => selected.includes(r.id));
     if (!chosen.length) return;
-    const url = URL.createObjectURL(
-      new Blob([customerCsv(chosen)], { type: "text/csv;charset=utf-8;" }),
-    );
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "意客AI-客户商机.csv";
-    link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    notify(`已导出 ${chosen.length} 条选中客户商机。`, "success");
+    const identity = exportIdentity.current;
+    exportPending.current = true;
+    setExporting(true);
+    try {
+      const result = await downloadText({
+        format: "csv", name: "意客AI-客户商机.csv", content: customerCsv(chosen),
+      });
+      if (!exportMounted.current || identity !== exportIdentity.current) return;
+      if (result.status === "saved") notify(`已保存 ${chosen.length} 条选中客户商机。`, "success");
+      else if (result.status === "initiated") notify(`已发起 ${chosen.length} 条客户商机的下载，请在浏览器中确认。`, "info");
+      else if (result.status === "error") notify(downloadErrorMessage(result.error), "error");
+    } catch {
+      if (exportMounted.current && identity === exportIdentity.current)
+        notify("文件未能保存，请检查保存位置后重试。", "error");
+    } finally {
+      exportPending.current = false;
+      if (exportMounted.current) setExporting(false);
+    }
   };
   return (
     <>
@@ -455,6 +475,7 @@ function OpportunityList() {
             )}
             <Button
               disabled={
+                exporting ||
                 scope === "sample" ||
                 !selected.length ||
                 resource.loading ||
@@ -464,7 +485,7 @@ function OpportunityList() {
               onClick={exportRows}
             >
               <DownloadSimple />
-              导出所选客户商机
+              {exporting ? "正在保存…" : "导出所选客户商机"}
             </Button>
             <Pagination
               page={visiblePage}
@@ -606,7 +627,7 @@ function OpportunityDetail({ id }: { id: string }) {
               <p>仅供研究查看，尚未绑定客户画像。</p>
               <Button
                 variant="ghost"
-                onClick={() => navigate("/outreach?opportunity=sample")}
+                onClick={() => navigate("/outreach?opportunity=sample&channel=comment")}
               >
                 查看样例联系准备
               </Button>
@@ -617,7 +638,7 @@ function OpportunityDetail({ id }: { id: string }) {
                 variant="primary"
                 onClick={() =>
                   navigate(
-                    "/outreach?opportunity=" + encodeURIComponent(row.id),
+                    "/outreach?opportunity=" + encodeURIComponent(row.id) + "&channel=comment",
                   )
                 }
               >

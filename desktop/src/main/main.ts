@@ -7,7 +7,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {
   DESKTOP_RUNTIME_NOT_READY, GET_RUNTIME_STATUS_CHANNEL,
-  GET_CLIENT_INFO_CHANNEL, REQUEST_API_CHANNEL, OPEN_EXTERNAL_CHANNEL, COPY_TEXT_CHANNEL
+  GET_CLIENT_INFO_CHANNEL, REQUEST_API_CHANNEL, OPEN_EXTERNAL_CHANNEL, COPY_TEXT_CHANNEL, SAVE_EXPORT_CHANNEL
 } from '../shared/contracts';
 import {CONTENT_SECURITY_POLICY, loadRendererAssets} from './rendererAssets';
 import {
@@ -16,6 +16,7 @@ import {
 } from './windowPolicy';
 import {createServiceClient, configuredService} from './serviceClient';
 import {validatedExternalUrl, validClipboardText} from './servicePolicy';
+import {createExportHandler, writeExportFile} from './exportService';
 
 protocol.registerSchemesAsPrivileged([
   {scheme: 'yike', privileges: {standard: true, secure: true, supportFetchAPI: true}}
@@ -158,6 +159,19 @@ async function startApplication(): Promise<void> {
     try { clipboard.writeText(input); return {ok: true}; }
     catch { return {ok: false, error: 'COPY_TEXT_FAILED'}; }
   });
+  ipcMain.handle(SAVE_EXPORT_CHANNEL, createExportHandler<IpcMainInvokeEvent>({
+    isTrusted: event => { try { trustedSender(event); return true; } catch { return false; } },
+    chooseFile: (_event, request) => dialog.showSaveDialog(mainWindow!, {
+      title: '保存导出文件', buttonLabel: '保存', defaultPath: request.name,
+      filters: [{name: request.format === 'csv' ? 'CSV 表格' : '意客AI备份',
+        extensions: [request.format === 'csv' ? 'csv' : 'json']}],
+      // Electron filters take bare extensions; the handler additionally enforces
+      // the full .yike-backup.json suffix before writing the selected path.
+      message: request.format === 'csv' ? '导出所选客户商机。' : '请保留 .yike-backup.json 文件扩展名。',
+      properties: ['showOverwriteConfirmation', 'createDirectory']
+    }),
+    writeFile: writeExportFile
+  }));
   installMenu();
   createMainWindow();
   app.on('activate', () => {

@@ -1227,6 +1227,28 @@ tbody tr:hover {
 .draft-list {
   min-width: 0;
 }
+.outreach-queue-layout {
+  grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1.6fr);
+}
+.management-action {
+  display: grid;
+  gap: 16px;
+}
+.management-action .detail-list {
+  margin: 0;
+}
+.management-action .checkbox-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.7;
+}
+.management-action .checkbox-line input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-top: 4px;
+}
 .draft-list .empty-state {
   min-height: 180px;
   padding: 24px 8px;
@@ -2227,4 +2249,11 @@ tbody tr:hover {
 }
 .settings-row > .badge {
   justify-self: start;
+}
+.settings-page .settings-row {
+  padding: 8px 0;
+}
+.settings-page .settings-section {
+  padding-bottom: 16px;
+  margin-bottom: 16px;
 }

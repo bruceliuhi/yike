@@ -11,6 +11,7 @@ import { parseRoute, type AppRoute } from "../domain/routes";
 import { service as defaultService } from "../services/client";
 import type { YikeService } from "../services/contracts";
 import { hasUnsavedChanges } from "./hooks";
+import { boundedRequest } from "./boundedRequest";
 import { Confirm } from "../components/ui";
 export interface Toast {
   id: number;
@@ -24,7 +25,7 @@ export interface AppContextValue {
   route: AppRoute;
   navigate: (path: string) => void;
   notify: (message: string, tone?: Toast["tone"]) => void;
-  refreshSession: () => Promise<Session>;
+  refreshSession: (signal?: AbortSignal) => Promise<Session>;
 }
 const Context = createContext<AppContextValue | null>(null);
 export function useApp(): AppContextValue {
@@ -62,18 +63,19 @@ export function AppProvider({
     window.addEventListener("hashchange", changed);
     return () => window.removeEventListener("hashchange", changed);
   }, []);
-  const refreshSession = async () => {
+  const refreshSession = async (signal?: AbortSignal) => {
+    if (signal?.aborted) throw new DOMException("Session refresh cancelled", "AbortError");
     const id = ++sessionGeneration.current;
     try {
       const next = await service.session();
-      if (id === sessionGeneration.current) {
+      if (!signal?.aborted && id === sessionGeneration.current) {
         setSession(next);
         setSessionReady(true);
       }
       return next;
     } catch {
       const next = { authenticated: false };
-      if (id === sessionGeneration.current) {
+      if (!signal?.aborted && id === sessionGeneration.current) {
         setSession(next);
         setSessionReady(true);
       }
@@ -81,8 +83,24 @@ export function AppProvider({
     }
   };
   useEffect(() => {
-    void refreshSession();
+    const abort = new AbortController();
+    let requestId = -1;
+    void boundedRequest(signal => {
+      const pending = refreshSession(signal);
+      requestId = sessionGeneration.current;
+      return pending;
+    }, {
+      signal: abort.signal,
+      timeoutMessage: "登录状态确认超时，客户工作空间尚未打开。请重新登录后重试。",
+    }).catch(error => {
+      if (abort.signal.aborted || requestId !== sessionGeneration.current) return;
+      sessionGeneration.current++;
+      setSession({ authenticated: false });
+      setSessionReady(true);
+      notify(error instanceof Error ? error.message : "登录状态尚未确认，请重新登录后重试。", "error");
+    });
     return () => {
+      abort.abort();
       sessionGeneration.current++;
     };
   }, [service]);

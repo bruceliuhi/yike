@@ -10,6 +10,16 @@ import {EXCLUSIONS, KEYWORDS, opportunity, profile, taskDraft} from './fixtures'
 
 afterEach(() => {cleanup(); vi.restoreAllMocks();});
 describe('strictly separate visual service', () => {
+  it('supplies all three TEST outreach queues without enabling send or claiming a receipt', async () => {
+    const harness = createVisualService();
+    for (const queue of ['confirm', 'reply', 'issues'] as const) {
+      expect((await harness.service.outreach!.queue(queue)).items[0].title).toContain('TEST');
+      expect((await createVisualService('empty').service.outreach!.queue(queue)).items).toEqual([]);
+    }
+    const draft = {opportunityId: opportunity.id, channel: 'comment' as const, content: 'TEST', version: 1, savedContent: 'TEST', accountId: 'TEST-account', recipient: 'TEST-recipient'};
+    await expect(harness.service.outreach!.send(draft, {requestId: 'TEST-request', confirmationToken: 'TEST-token'})).rejects.toMatchObject({code: 'CAPABILITY_UNAVAILABLE'});
+    expect((await harness.service.outreach!.reconcile({requestId: 'TEST-request', opportunityId: opportunity.id, channel: 'comment', version: 1})).status).toBe('UNKNOWN');
+  });
   it('keeps writes in one service instance and never calls network or clipboard', async () => {
     const network = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('must not reach network'));
     const a = createVisualService(); const b = createVisualService();

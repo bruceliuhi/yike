@@ -14,6 +14,7 @@ const script = `
 const {app, dialog} = require('electron');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const fs = require('node:fs/promises');
 app.setPath('userData', path.join(__dirname, 'user-data'));
 const failures = [];
 app.on('browser-window-created', (_event, window) => {
@@ -46,6 +47,25 @@ app.on('browser-window-created', (_event, window) => {
       assert.equal(result.clipboard.error, 'INVALID_CLIPBOARD_TEXT');
       assert(result.body.includes('商机工作台'), 'Packaged workbench did not render.');
       assert.equal(failures.length, 0, failures.join(','));
+      // Save dialogs are substituted only inside this isolated smoke process.
+      // The real packaged IPC, validation, and disk writer still execute.
+      let exportDialogs = 0;
+      dialog.showSaveDialog = async (_window, options) => {
+        exportDialogs++;
+        assert.equal(options.defaultPath, exportDialogs === 2 ? 'TEST-backup.yike-backup.json' : 'TEST-export.csv');
+        assert.deepEqual(options.filters[0].extensions, [exportDialogs === 2 ? 'json' : 'csv']);
+        return exportDialogs === 3 ? {canceled: true} : {canceled: false, filePath: path.join(__dirname, options.defaultPath)};
+      };
+      const invokeExport = request => window.webContents.executeJavaScript('window.yikeDesktop.saveExport(' + JSON.stringify(request) + ')');
+      const csvExport = {format: 'csv', name: 'TEST-export', content: 'TEST,export'};
+      assert.deepEqual(await invokeExport(csvExport), {status: 'saved'});
+      assert.equal(await fs.readFile(path.join(__dirname, 'TEST-export.csv'), 'utf8'), csvExport.content);
+      const backupExport = {format: 'backup-json', name: 'TEST-backup', content: JSON.stringify({test: true})};
+      assert.deepEqual(await invokeExport(backupExport), {status: 'saved'});
+      assert.deepEqual(JSON.parse(await fs.readFile(path.join(__dirname, 'TEST-backup.yike-backup.json'), 'utf8')), {test: true});
+      assert.deepEqual(await invokeExport(csvExport), {status: 'cancelled'});
+      assert.deepEqual(await invokeExport({...csvExport, name: '../rejected'}), {status: 'error', error: 'INVALID_EXPORT_REQUEST'});
+      assert.equal(exportDialogs, 3);
       let prompts = 0;
       dialog.showMessageBoxSync = (_window, options) => {
         assert.equal(options.title, '尚有未提交的更改');
@@ -62,7 +82,7 @@ app.on('browser-window-created', (_event, window) => {
       assert.equal(alive.serviceConfigured, false);
       app.once('will-quit', () => {
         assert.equal(prompts, 2, 'Discard and close must run the native confirmation.');
-        console.log('PASS packaged main/preload/renderer: sandbox, custom protocol, application render, fixed IPC, unconfigured service, rejected native primitives, cancelled quit then normal confirmed quit.');
+        console.log('PASS packaged main/preload/renderer: sandbox, custom protocol, application render, fixed IPC, unconfigured service, rejected native primitives, CSV/backup export actual temporary-file writes and cancellation, cancelled quit then normal confirmed quit.');
       });
       app.quit();
     } catch (error) {

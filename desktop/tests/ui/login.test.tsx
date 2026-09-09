@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,
+  act,
   fireEvent,
   render,
   screen,
@@ -20,6 +21,7 @@ afterEach(() => {
   cleanup();
   clearLocalDrafts();
   window.history.replaceState(null, "", "/");
+  vi.useRealTimers();
 });
 function mount(overrides: Partial<YikeService> = {}) {
   const service = {
@@ -81,6 +83,9 @@ describe("登录", () => {
   });
   it("已有凭证走真实登录方法，凭证不进入本机存储", async () => {
     const service = mount({
+      session: vi.fn()
+        .mockResolvedValueOnce({ authenticated: false })
+        .mockResolvedValue({ authenticated: true, userId: "test-user" }),
       loginToken: vi
         .fn()
         .mockResolvedValue({ authenticated: true, userId: "test-user" }),
@@ -100,5 +105,103 @@ describe("登录", () => {
     expect(
       (screen.getByLabelText("短期访问凭证") as HTMLInputElement).value,
     ).toBe("");
+  });
+
+  it.each([{ authenticated: false }, { authenticated: true }])("登录返回成功但刷新未建立有效身份时留在登录页：%j", async (identity) => {
+    const service = mount({
+      loginToken: vi.fn().mockResolvedValue({ authenticated: true, userId: "test-user" }),
+      session: vi.fn().mockResolvedValueOnce({ authenticated: false }).mockResolvedValue(identity),
+    });
+    fireEvent.click(screen.getByRole("button", { name: /使用已有访问凭证/ }));
+    fireEvent.change(screen.getByLabelText("短期访问凭证"), { target: { value: "test-only-token" } });
+    fireEvent.click(screen.getByRole("button", { name: "使用凭证登录" }));
+    await screen.findByText("登录会话尚未建立或已失效，请核对凭证后重试。");
+    expect(service.session).toHaveBeenCalledTimes(2);
+    expect(window.location.hash).not.toBe("#/workbench");
+    expect((screen.getByLabelText("短期访问凭证") as HTMLInputElement).value).toBe("test-only-token");
+  });
+
+  it.each(["success", "failure"])("换手机号后忽略旧短信请求的晚到%s，可请求当前号码", async (outcome) => {
+    let finish!: (value: {retryAfter: number}) => void;
+    let fail!: (reason: Error) => void;
+    const service = mount({ requestCode: vi.fn()
+      .mockImplementationOnce(() => new Promise((resolve, reject) => { finish = resolve; fail = reject; }))
+      .mockResolvedValue({ retryAfter: 60 }) });
+    fireEvent.change(screen.getByLabelText("手机号码"), { target: { value: "13800000000" } });
+    fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
+    await waitFor(() => expect(service.requestCode).toHaveBeenCalledOnce());
+    fireEvent.change(screen.getByLabelText("短信验证码"), { target: { value: "123456" } });
+    fireEvent.change(screen.getByLabelText("手机号码"), { target: { value: "13900000000" } });
+    await act(async () => outcome === "success" ? finish({ retryAfter: 120 }) : fail(new Error("旧号码错误")));
+    expect(screen.queryByText("旧号码错误")).toBeNull();
+    expect(screen.queryByRole("button", { name: "120 秒后重试" })).toBeNull();
+    expect((screen.getByLabelText("短信验证码") as HTMLInputElement).value).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
+    await screen.findByRole("button", { name: "60 秒后重试" });
+    expect(service.requestCode).toHaveBeenLastCalledWith("13900000000");
+  });
+
+  it("登录时等待会话确认，未确认前不能重复提交", async () => {
+    let finish!: (value: {authenticated: boolean; userId: string}) => void;
+    const service = mount({
+      login: vi.fn().mockResolvedValue({ authenticated: true, userId: "test-user" }),
+      session: vi.fn().mockResolvedValueOnce({ authenticated: false }).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })),
+    });
+    fireEvent.change(screen.getByLabelText("手机号码"), { target: { value: "13800000000" } });
+    fireEvent.change(screen.getByLabelText("短信验证码"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
+    await waitFor(() => expect(service.session).toHaveBeenCalledTimes(2));
+    expect(window.location.hash).not.toBe("#/workbench");
+    expect((screen.getByRole("button", { name: /登录/ }) as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => finish({ authenticated: true, userId: "test-user" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/workbench"));
+    expect(service.login).toHaveBeenCalledOnce();
+  });
+
+  it("短信请求挂起后超时，保留手机号并释放重试入口", async () => {
+    const service = mount({ requestCode: vi.fn().mockImplementation(() => new Promise(() => {})) });
+    await act(async () => {});
+    vi.useFakeTimers();
+    fireEvent.change(screen.getByLabelText("手机号码"), { target: { value: "13800000000" } });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "获取验证码" })));
+    expect(service.requestCode).toHaveBeenCalledOnce();
+    await act(async () => vi.advanceTimersByTimeAsync(30_000));
+    expect(screen.getByText(/验证码请求超时，发送结果尚未确认/)).toBeTruthy();
+    expect((screen.getByRole("button", { name: "获取验证码" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByLabelText("手机号码") as HTMLInputElement).value).toBe("13800000000");
+    expect(window.location.hash).not.toBe("#/workbench");
+  });
+
+  it.each(["exchange", "session"])("登录%s挂起时超时释放表单，丢弃晚到成功后仍可重新登录", async (stage) => {
+    let finish!: (value: {authenticated: boolean; userId: string}) => void;
+    const pending = new Promise<{authenticated: boolean; userId: string}>(resolve => { finish = resolve; });
+    const identity = { authenticated: true, userId: "test-current-user" };
+    const service = mount({
+      loginToken: stage === "exchange"
+        ? vi.fn().mockReturnValueOnce(pending).mockResolvedValue(identity)
+        : vi.fn().mockResolvedValue(identity),
+      session: stage === "session"
+        ? vi.fn().mockResolvedValueOnce({ authenticated: false }).mockReturnValueOnce(pending).mockResolvedValue(identity)
+        : vi.fn().mockResolvedValueOnce({ authenticated: false }).mockResolvedValue(identity),
+    });
+    await act(async () => {});
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole("button", { name: /使用已有访问凭证/ }));
+    fireEvent.change(screen.getByLabelText("短期访问凭证"), { target: { value: "test-only-token" } });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "使用凭证登录" })));
+    expect((screen.getByLabelText("短期访问凭证") as HTMLInputElement).disabled).toBe(true);
+    await act(async () => vi.advanceTimersByTimeAsync(30_000));
+    expect(screen.getByText(stage === "exchange"
+      ? "登录请求超时，结果尚未确认。请稍后重试并重新确认会话。"
+      : "会话确认超时，登录状态尚未核实。请稍后重试。")).toBeTruthy();
+    expect((screen.getByLabelText("短期访问凭证") as HTMLInputElement).disabled).toBe(false);
+    expect((screen.getByLabelText("短期访问凭证") as HTMLInputElement).value).toBe("test-only-token");
+    await act(async () => finish({ authenticated: true, userId: "test-stale-user" }));
+    expect(window.location.hash).not.toBe("#/workbench");
+    expect(service.session).toHaveBeenCalledTimes(stage === "exchange" ? 1 : 2);
+    fireEvent.change(screen.getByLabelText("短期访问凭证"), { target: { value: "test-current-token" } });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "使用凭证登录" })));
+    expect(service.loginToken).toHaveBeenLastCalledWith("test-current-token");
+    expect(window.location.hash).toBe("#/workbench");
   });
 });

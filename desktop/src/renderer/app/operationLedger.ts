@@ -2,7 +2,10 @@ import { useEffect, useSyncExternalStore, type SetStateAction } from "react";
 import { ServiceError } from "../services/contracts";
 import { forgetLegacyOperationLock, readLegacyOperationLock } from "./hooks";
 
-export type OperationScope = "send-attempts" | "unknown-task-starts";
+export type OperationScope =
+  | "send-attempts"
+  | "unknown-task-starts"
+  | "management-operations";
 export type OperationEntries = Record<string, string>;
 const PREFIX = "yike.ui.operation.v1.";
 const memory = new Map<string, OperationEntries>();
@@ -55,6 +58,18 @@ function validEntries(
       typeof status !== "string"
     )
       return false;
+    if (scope === "management-operations")
+      return (
+        /^[a-zA-Z0-9_-]{1,200}$/.test(key) &&
+        [
+          "bind-device",
+          "unbind-device",
+          "restore",
+          "download-update",
+          "install-update",
+          "rollback",
+        ].includes(status)
+      );
     if (scope === "unknown-task-starts")
       return (
         key.length <= 512 &&
@@ -66,7 +81,7 @@ function validEntries(
       const parts: unknown = JSON.parse(key);
       return (
         Array.isArray(parts) &&
-        (parts.length === 2 || parts.length === 3) &&
+        (parts.length === 2 || parts.length === 3 || parts.length === 4) &&
         typeof parts[0] === "string" &&
         !!parts[0] &&
         parts[0].length <= 512 &&
@@ -74,7 +89,11 @@ function validEntries(
         (parts.length === 2 ||
           (typeof parts[2] === "number" &&
             Number.isSafeInteger(parts[2]) &&
-            parts[2] >= 1))
+            parts[2] >= 1)) &&
+        (parts.length !== 4 ||
+          (typeof parts[3] === "string" &&
+            parts[3].length > 0 &&
+            parts[3].length <= 128))
       );
     } catch {
       return false;
