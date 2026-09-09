@@ -9,3 +9,5 @@ cookies/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+desktop/node_modules/
+desktop/.vite/
