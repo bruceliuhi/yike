@@ -119,7 +119,7 @@ it("retrieves the exact candidate from a todo link rather than the first list ro
       ids: ["TEST-candidate"],
       page: 1,
       pageSize: 10,
-    }),
+    }, expect.any(AbortSignal)),
   );
   expect(screen.getByRole("button", { name: "查看全部线索" })).toBeTruthy();
   expect(
@@ -166,7 +166,7 @@ it("clears the old selection and confirmation when a todo target changes", async
       ids: ["TEST-next"],
       page: 1,
       pageSize: 10,
-    }),
+    }, expect.any(AbortSignal)),
   );
   expect(screen.queryByRole("dialog", { name: "确认候选入库" })).toBeNull();
   expect(

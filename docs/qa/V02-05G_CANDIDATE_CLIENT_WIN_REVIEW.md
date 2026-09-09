@@ -122,3 +122,13 @@ Win根代理对合入版本执行Python `-X utf8 -m pytest -q tests/test_device_
 Windows Edge真实浏览器已在1440×1000和960×600检查原文、完整确认弹窗、取消/重新确认、成功入口、回执丢失及筛选外原请求恢复、原文读取明确失败。数据/平台/模型为TEST隔离，真实浏览器不等于真实后端整链；浏览器不执行外部来源访问或发送。最终合入及提示修复后复验单独记录。
 
 Task4产品写入口现已安装；**Task5实际Node→HTTP→受限PostgreSQL仍未执行**，sourceVerificationId服务回执接收、真实来源/模型/收发、安装发行及客户试用仍不能冒称完成。05G/PH-F06/整体Goal保持IN_PROGRESS。
+
+### Task4 主干整合与最终复验
+
+源码`90c1feb`，正常保留Mac`81adccb`合入`5614d71`。仅整合状态顶部并行记录冲突，保留双方全部文字。Mac弹窗可访问性、迁移110注册、会话内容退出保护均保留；两段来件分别经独立限定兼容审核PASS，不将Mac原生包或PG证据计为Win。
+
+扩大到全部UI与候选合同/服务/视觉隔离后首次93文件：1421 passed/2 failed。失败明确是工作台候选定位两项旧断言未包含新增AbortSignal第二参数；只补`expect.any(AbortSignal)`，精确ID/分页和切换时清除选择/确认的断言未减弱，独立适配审核PASS。最终同批**93文件1423 passed/0 skipped，53.36s**，不是与612项相加。Node24 `tsc --noEmit`退出0；生产排除构建4788 transformed/4787 graph modules、manifestHarnessReferences=0、failures=[]，existingAsarChecked=false。Win Python身份合同**19 passed/0 skipped，0.35s**（含110注册），不是实际PG执行。
+
+最终合入产品字节在Windows Edge以1440×1000/960×600复验原文与确认弹窗，960重新执行取消→重新勾选→提交丢回执→筛选外GET恢复：事件恰好一次ASSESS、VERIFY、INCLUDE、GET_REQUEST，成功后无旧未知提示，scrollWidth=960。原文读取失败场景只LIST/RAW、无摘要替代且不能纳入。截图与页面/事件记录见[candidate-p07-win](candidate-p07-win/README.md)。全部是明确标识的TEST内存传输，未调用实际平台、模型或客户库。
+
+自己的源码/文档diff检查和凭据扫描通过。合入Mac历史验收日志与刻意空白fixture的diff check报告原有尾随空白，原证据按字节保留，未替别人清洗历史记录。
