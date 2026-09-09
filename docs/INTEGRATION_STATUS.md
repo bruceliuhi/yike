@@ -138,6 +138,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 事实重验增量已集成 `1d1d39c5d3a4b567324918215ea5cfbd687342dd`：确认绑定事务现在锁定并重查来源平台/公开 URL/健康度、商机来源与 OPEN 状态、连接平台/CONNECTED 状态/连接版本；缺失、关闭、阻断或版本变化均拒绝持久化。专项测试 **12 passed**。这仍是服务端防伪边界，不包含 PostgreSQL 实测、真实发送或回复回流。
 
+2026-09-10 回复/跟进契约切片：新增 `pilot/reply_contract.py` 与专项测试，平台回复和人工跟进严格分型，绑定租户/用户/商机/来源/画像版本/原发送请求；明确 `UNKNOWN` 不得标已读、纠正/撤销只能追加、平台公开回复 ID 去重冲突拒绝。专项 **12 passed**，compileall/diff check 通过；[契约](contracts/V02_REPLY_FOLLOWUP.md)。当前仅 contract-only，未接 PostgreSQL 事件表、真实平台回流、已读同步或提醒，V02-08继续 `IN_PROGRESS`。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
