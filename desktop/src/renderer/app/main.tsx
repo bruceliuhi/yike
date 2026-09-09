@@ -1,3 +1,4 @@
+import "./validationRuntime";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { AppProvider } from "./context";
