@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Plus, X } from "@phosphor-icons/react";
 import { addTerms, termKey } from "../domain/task";
 import type { Term } from "../domain/models";
@@ -21,6 +21,14 @@ export function TermEditor({
   const [editing, setEditing] = useState<string | null>(null);
   const [edit, setEdit] = useState("");
   const [error, setError] = useState("");
+  const addInput = useRef<HTMLInputElement>(null);
+  const pasteCaret = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (pasteCaret.current !== null && addInput.current) {
+      addInput.current.setSelectionRange(pasteCaret.current, pasteCaret.current);
+      pasteCaret.current = null;
+    }
+  }, [input]);
   const add = () => {
     if (!input.trim()) {
       setAdding(false);
@@ -111,11 +119,33 @@ export function TermEditor({
         {adding ? (
           <div className="term-add">
             <input
+              ref={addInput}
               autoFocus
               aria-label={`新增${label}`}
               value={input}
               placeholder="逗号或换行可批量添加"
               onChange={(e) => setInput(e.target.value)}
+              onPaste={(e) => {
+                const text = e.clipboardData.getData("text/plain");
+                if (!/[\r\n]/.test(text)) return;
+                // A single-line input strips pasted line breaks before onChange.
+                // Preserve their meaning as separators without committing the draft.
+                e.preventDefault();
+                const field = e.currentTarget;
+                const start = field.selectionStart ?? input.length;
+                const end = field.selectionEnd ?? start;
+                const pasted = text.replace(/\r\n?|\n/g, ", ");
+                const next = input.slice(0, start) + pasted + input.slice(end);
+                const caret = start + pasted.length;
+                // An unchanged value does not trigger the input layout effect.
+                if (next === input) {
+                  field.setSelectionRange(caret, caret);
+                  pasteCaret.current = null;
+                } else {
+                  pasteCaret.current = caret;
+                  setInput(next);
+                }
+              }}
               onBlur={add}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.nativeEvent.isComposing) {

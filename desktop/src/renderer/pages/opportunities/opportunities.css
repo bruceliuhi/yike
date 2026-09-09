@@ -1,0 +1,51 @@
+.opportunity-library-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  margin: -8px 0 18px;
+}
+.opportunity-library-filters .field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.opportunity-library-filters .field > .field-label {
+  margin: 0;
+  white-space: nowrap;
+}
+.opportunity-library-filters select {
+  width: auto;
+  min-width: 118px;
+  max-width: 220px;
+}
+.opportunity-table th:first-child {
+  width: 36px;
+}
+.opportunity-table th:nth-child(2) {
+  width: 31%;
+}
+.opportunity-table th:nth-child(3) {
+  width: 19%;
+}
+.opportunity-table td:nth-child(4) {
+  min-width: 92px;
+}
+.opportunity-table td:nth-child(6) {
+  min-width: 126px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.opportunity-table td:last-child {
+  min-width: 80px;
+  white-space: nowrap;
+}
+@media (max-width: 1050px) {
+  .opportunity-table {
+    min-width: 790px;
+  }
+  .opportunity-library-filters {
+    gap: 8px 12px;
+  }
+}

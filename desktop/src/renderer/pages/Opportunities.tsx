@@ -24,6 +24,24 @@ import {
 } from "../components/ui";
 import { PlatformIcon, PlatformLabel } from "../components/Platform";
 import type { Opportunity, Profile } from "../domain/models";
+import {
+  compareDeadlines,
+  deadlineFilter,
+  libraryExportFields,
+  matchesLibraryFilters,
+} from "../domain/opportunityLibrary";
+import {
+  libraryFactCells,
+  LibraryFilters,
+  useDeadlineClock,
+} from "./opportunities/LibraryFacts";
+import { useCandidateReviewLedger } from "./opportunities/useCandidateReviewLedger";
+import { PendingCandidateReviews } from "./opportunities/PendingCandidateReviews";
+import {
+  candidateReviewHash,
+  matchingCandidateReceipt,
+  type CandidateReviewOperation,
+} from "../domain/candidateReviewOperation";
 import { ServiceError, errorMessage } from "../services/contracts";
 import { downloadText, downloadErrorMessage } from "../services/download";
 import {
@@ -66,6 +84,26 @@ export const PUBLIC_SAMPLE: Opportunity = {
   reviewedAt: "",
   publishedAt: "2026-09-08T16:54:00+08:00",
   updatedAt: "",
+  sourceObservedAt: "2026-09-09T11:20:40Z",
+  sourceEvidenceVersion: "public-sample-20260909-v1",
+  libraryFacts: {
+    schema_version: 1,
+    opportunity_id: "sample",
+    source_url:
+      "https://swt.hunan.gov.cn/swt/hnswt/85753/fdzdgknr/caizhengxinxi/zfcgh/202609/t20260908_44997689265690696.html",
+    observed_at: "2026-09-09T11:20:40Z",
+    evidence_version: "public-sample-20260909-v1",
+    stage: {
+      status: "KNOWN",
+      label: "预算询价",
+      evidence_excerpt: "本次为预算编制阶段市场调研询价。",
+    },
+    materials_deadline: {
+      status: "KNOWN",
+      at: "2026-09-15T18:00:00+08:00",
+      evidence_excerpt: "递交截止时间：2026年9月15日18:00（北京时间）",
+    },
+  },
   intentStatus: "PENDING_REVIEW",
   comment:
     "您好，关注到本次高交会展区预算询价。请问展位技术资料及组展服务范围如何获取？我们会先核实自身能力，再按公告要求准备资料。理解此次仅用于预算编制，后续采购以正式公告为准。",
@@ -121,14 +159,25 @@ export function customerCsv(rows: Opportunity[]) {
     ) +
     '"';
   const fields = [
-    ["商机标题", "需求方", "来源平台", "状态", "来源链接", "原文摘录"],
+    [
+      "商机标题",
+      "需求方",
+      "来源平台",
+      "阶段",
+      "状态",
+      "资料截止",
+      "来源链接",
+      "原文摘录",
+    ],
     ...rows
       .filter((r) => !isSample(r))
       .map((r) => [
         r.title,
         r.buyer,
         r.platform,
+        libraryExportFields(r)[0],
         opportunityStatus(r),
+        libraryExportFields(r)[1],
         r.url,
         r.excerpt,
       ]),
@@ -198,14 +247,20 @@ export function EvidencePanel({
 
 export function OpportunitiesPage() {
   const { session } = useApp();
-  return <OpportunityList key={session.userId || "public"} />;
+  return (
+    <OpportunityList
+      key={`${session.authenticated}:${session.userId || "public"}`}
+    />
+  );
 }
 function OpportunityList() {
   const { service, session, route, navigate, notify } = useApp();
   const resource = useResource(
     () =>
       session.authenticated
-        ? service.opportunities()
+        ? boundedRequest(() => service.opportunities(), {
+            timeoutMessage: "商机读取超时，请重试。",
+          })
         : Promise.resolve([] as Opportunity[]),
     [service, session.userId, session.authenticated],
   );
@@ -213,6 +268,11 @@ function OpportunityList() {
   const [query, setQuery] = useState(route.query.get("q") || "");
   const [platform, setPlatform] = useState(route.query.get("platform") || "");
   const [status, setStatus] = useState(route.query.get("status") || "");
+  const [stage, setStage] = useState(route.query.get("stage") || "all");
+  const [deadline, setDeadline] = useState(
+    deadlineFilter(route.query.get("deadline")),
+  );
+  const now = useDeadlineClock();
   const [sort, setSort] = useState(route.query.get("sort") || "updated");
   const [page, setPage] = useState(Number(route.query.get("page")) || 1);
   const [selected, setSelected] = useState<string[]>([]);
@@ -240,15 +300,18 @@ function OpportunityList() {
                 .toLowerCase()
                 .includes(query.trim().toLowerCase())) &&
             (!platform || r.platform === platform) &&
-            (!status || opportunityStatus(r) === status),
+            (!status || opportunityStatus(r) === status) &&
+            matchesLibraryFilters(r, stage, deadline, now),
         )
         .sort((a, b) =>
-          sort === "title"
-            ? a.title.localeCompare(b.title, "zh-CN")
-            : (Date.parse(b.updatedAt || b.publishedAt) || 0) -
-              (Date.parse(a.updatedAt || a.publishedAt) || 0),
+          sort === "deadline"
+            ? compareDeadlines(a, b)
+            : sort === "title"
+              ? a.title.localeCompare(b.title, "zh-CN")
+              : (Date.parse(b.updatedAt || b.publishedAt) || 0) -
+                (Date.parse(a.updatedAt || a.publishedAt) || 0),
         ),
-    [rows, query, platform, status, sort],
+    [rows, query, platform, status, stage, deadline, sort, now],
   );
   const visiblePage = Math.min(
     Math.max(1, page),
@@ -260,6 +323,8 @@ function OpportunityList() {
     setPage(1);
     setPlatform("");
     setStatus("");
+    setStage("all");
+    setDeadline("all");
     navigate("/opportunities" + (value === "sample" ? "?scope=sample" : ""));
   };
   const open = (row: Opportunity) => {
@@ -268,6 +333,8 @@ function OpportunityList() {
       q: query,
       platform,
       status,
+      stage,
+      deadline,
       sort,
       page: String(visiblePage),
     });
@@ -362,15 +429,42 @@ function OpportunityList() {
             ))}
           </select>
         </Field>
-        <select
-          aria-label="排序方式"
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-        >
-          <option value="updated">最近更新</option>
-          <option value="title">标题排序</option>
-        </select>
       </div>
+      <LibraryFilters
+        rows={rows}
+        stage={stage}
+        deadline={deadline}
+        sort={sort}
+        onStage={(value) => {
+          setStage(value);
+          setPage(1);
+        }}
+        onDeadline={(value) => {
+          setDeadline(value);
+          setPage(1);
+        }}
+        onSort={(value) => {
+          setSort(value);
+          setPage(1);
+        }}
+        active={Boolean(
+          query ||
+          platform ||
+          status ||
+          stage !== "all" ||
+          deadline !== "all" ||
+          sort !== "updated",
+        )}
+        onReset={() => {
+          setQuery("");
+          setPlatform("");
+          setStatus("");
+          setStage("all");
+          setDeadline("all");
+          setSort("updated");
+          setPage(1);
+        }}
+      />
       <Tabs
         active={scope}
         items={[
@@ -426,8 +520,9 @@ function OpportunityList() {
                     </th>
                     <th>商机标题</th>
                     <th>来源</th>
-                    <th>阶段 / 状态</th>
-                    <th>更新时间</th>
+                    <th>阶段</th>
+                    <th>状态</th>
+                    <th>资料截止</th>
                     <th>操作</th>
                   </tr>
                 </thead>
@@ -465,12 +560,13 @@ function OpportunityList() {
                           }
                         />
                       </td>
+                      <td>{libraryFactCells(row).stage}</td>
                       <td>
                         <Badge tone={isSample(row) ? "orange" : "neutral"}>
                           {opportunityStatus(row)}
                         </Badge>
                       </td>
-                      <td>{formatDate(row.updatedAt || row.publishedAt)}</td>
+                      <td>{libraryFactCells(row).deadline}</td>
                       <td>
                         <Button variant="ghost" onClick={() => open(row)}>
                           查看证据
@@ -483,7 +579,11 @@ function OpportunityList() {
               {!visible.length && (
                 <Empty
                   title={
-                    query || platform || status
+                    query ||
+                    platform ||
+                    status ||
+                    stage !== "all" ||
+                    deadline !== "all"
                       ? "没有符合条件的商机"
                       : "暂无客户商机"
                   }
@@ -708,7 +808,11 @@ function OpportunityDetail({ id }: { id: string }) {
 
 export function CandidatesPage() {
   const { session } = useApp();
-  return <CandidateWorkbench key={session.userId || "public"} />;
+  return (
+    <CandidateWorkbench
+      key={`${session.authenticated}:${session.userId || "public"}`}
+    />
+  );
 }
 
 interface CandidateEditor {
@@ -793,8 +897,11 @@ async function candidateTimeout<T>(promise: Promise<T>): Promise<T> {
 function uncertainReview(error: unknown): boolean {
   return !(
     error instanceof ServiceError &&
-    ((error.status >= 400 && error.status < 500 && error.status !== 408) ||
-      error.status === 501)
+    ((error.code === "REVIEW_REJECTED" &&
+      error.status >= 400 &&
+      error.status < 500 &&
+      error.status !== 408) ||
+      (error.code === "CAPABILITY_UNAVAILABLE" && error.status === 501))
   );
 }
 
@@ -802,6 +909,16 @@ function CandidateWorkbench() {
   const { service, session, route, navigate, notify } = useApp();
   const sample = route.query.get("scope") === "sample";
   const requestedId = sample ? null : route.query.get("candidate");
+  const reviewLedger = useCandidateReviewLedger(
+    session.authenticated ? session.userId : undefined,
+  );
+  const scopeRef = useRef("");
+  scopeRef.current = JSON.stringify([
+    session.userId,
+    session.authenticated,
+    sample,
+    requestedId,
+  ]);
   const [query, setQuery] = useState("");
   const [platform, setPlatform] = useState("");
   const [status, setStatus] = useState<CandidateStatus | "">("PENDING_REVIEW");
@@ -889,8 +1006,26 @@ function CandidateWorkbench() {
   const unsafeSample = !sample && resource.data?.items.some(candidateSample);
   const rows = unsafeSample ? [] : resource.data?.items || [];
   const selected = rows.find((row) => row.id === selectedId) || rows[0];
+  const withPending = (
+    row: Candidate,
+    draft: CandidateEditor,
+  ): CandidateEditor => {
+    const record = reviewLedger.records.find(
+      (record) => record.candidateId === row.id,
+    );
+    return record && draft.pending?.requestId !== record.requestId
+      ? {
+          ...draft,
+          pending: {
+            requestId: record.requestId,
+            action: record.action,
+            status: "UNKNOWN",
+          },
+        }
+      : draft;
+  };
   const editor = selected
-    ? drafts[selected.id] || candidateEditor(selected)
+    ? withPending(selected, drafts[selected.id] || candidateEditor(selected))
     : undefined;
   const selectedProfile = confirmedProfiles.find(
     (p) => p.id === editor?.profileId,
@@ -922,7 +1057,10 @@ function CandidateWorkbench() {
       [candidate.id]: update(old[candidate.id] || candidateEditor(candidate)),
     }));
   const getDraft = (candidate: Candidate) =>
-    draftsRef.current[candidate.id] || candidateEditor(candidate);
+    withPending(
+      candidate,
+      draftsRef.current[candidate.id] || candidateEditor(candidate),
+    );
   const blockers = (
     candidate: Candidate,
     action: "INCLUDE" | "EXCLUDE",
@@ -1090,6 +1228,8 @@ function CandidateWorkbench() {
   };
   const submit = async () => {
     const snapshot = confirmation;
+    const scope = scopeRef.current;
+    const current = () => live.current && scopeRef.current === scope;
     if (
       !snapshot?.acknowledged ||
       lock.current ||
@@ -1108,6 +1248,7 @@ function CandidateWorkbench() {
     let completed = 0;
     try {
       for (let i = 0; i < snapshot.rows.length; i++) {
+        if (!current()) return;
         const candidate = snapshot.rows[i];
         const request: DecisionReview = {
           ...snapshot.reviews[i],
@@ -1120,12 +1261,18 @@ function CandidateWorkbench() {
           status: "PROCESSING",
           review: reviewSnapshot(request),
         };
-        updateDraft(candidate, (old) => ({ ...old, pending: receipt }));
+        let operation: CandidateReviewOperation | undefined;
         try {
+          operation = await reviewLedger.begin(request, current);
+          if (!current()) {
+            reviewLedger.release(operation);
+            return;
+          }
+          updateDraft(candidate, (old) => ({ ...old, pending: receipt }));
           const result = await candidateTimeout(
             service.reviewCandidate(request),
           );
-          if (!live.current) return;
+          if (!current()) return;
           if (
             result.kind === "pending" &&
             result.requestId === request.requestId &&
@@ -1148,24 +1295,34 @@ function CandidateWorkbench() {
             result.receipt.requestId !== request.requestId ||
             result.receipt.action !== request.action ||
             !completedCandidateReview(result.candidate, result.receipt) ||
-            !sameReviewSnapshot(receipt.review, result.receipt.review)
+            !sameReviewSnapshot(receipt.review, result.receipt.review) ||
+            !(await matchingCandidateReceipt(operation, result.receipt))
           )
             throw new ServiceError(
               "RESULT_UNKNOWN",
               "服务结果尚不能确认，请核对本次复核。",
               408,
             );
+          if (!current()) return;
+          reviewLedger.release(operation);
           applyDecision(result.candidate, result.receipt);
           completed++;
         } catch (e) {
-          if (!live.current) return;
-          if (uncertainReview(e))
+          if (!current()) return;
+          if (operation && uncertainReview(e))
             updateDraft(candidate, (old) => ({
               ...old,
               pending: { ...receipt, status: "UNKNOWN" },
             }));
-          else
+          else if (operation) {
+            try {
+              reviewLedger.release(operation);
+            } catch (releaseError) {
+              setError(errorMessage(releaseError));
+              break;
+            }
             updateDraft(candidate, (old) => ({ ...old, pending: undefined }));
+          }
           setError(
             `${errorMessage(e)}${snapshot.rows.length > 1 ? ` 本批已完成 ${completed} 条，其余未继续提交。` : ""}`,
           );
@@ -1180,44 +1337,47 @@ function CandidateWorkbench() {
       }
     }
   };
-  const reconcile = async (candidate: Candidate) => {
-    const pending = getDraft(candidate).pending;
-    if (!pending || lock.current) return;
+  const reconcileOperation = async (operation: CandidateReviewOperation) => {
+    if (lock.current) return;
+    const scope = scopeRef.current;
+    const current = () => live.current && scopeRef.current === scope;
     lock.current = true;
-    setBusy(candidate.id);
+    setBusy(operation.candidateId);
     setError("");
     try {
       const page = await candidateTimeout(
         service.candidates({
-          ids: [candidate.id],
-          reviewRequestId: pending.requestId,
+          ids: [operation.candidateId],
+          reviewRequestId: operation.requestId,
           page: 1,
           pageSize: 1,
         }),
       );
-      if (!live.current) return;
-      const latest = page.items.find(
-        (item) => item.id === candidate.id && !candidateSample(item),
-      );
+      if (!current()) return;
+      const latest =
+        page.items.length === 1 &&
+        page.items[0].id === operation.candidateId &&
+        !candidateSample(page.items[0])
+          ? page.items[0]
+          : undefined;
       const receipt = latest?.lastReview;
       if (
         !latest ||
         !receipt ||
-        receipt.requestId !== pending.requestId ||
-        receipt.action !== pending.action
+        !(await matchingCandidateReceipt(operation, receipt))
       ) {
         setError("尚未获得本次复核的确定结果，请稍后再次核对。");
         return;
       }
-      if (
-        completedCandidateReview(latest, receipt) &&
-        (!pending.review || sameReviewSnapshot(pending.review, receipt.review))
-      ) {
+      if (!current()) return;
+      if (completedCandidateReview(latest, receipt)) {
+        reviewLedger.release(operation);
         applyDecision(latest, receipt);
         return;
       }
-      if (receipt.status === "FAILED") {
-        updateDraft(candidate, (old) => ({ ...old, pending: undefined }));
+      if (receipt.status === "FAILED" && latest.status === "PENDING_REVIEW") {
+        reviewLedger.release(operation);
+        updateDraft(latest, (old) => ({ ...old, pending: undefined }));
         resource.setData((old) =>
           old
             ? {
@@ -1236,10 +1396,40 @@ function CandidateWorkbench() {
       }
       setError("复核仍在处理中或结果未知，尚未重新提交。");
     } catch (e) {
-      if (live.current) setError(errorMessage(e));
+      if (current()) setError(errorMessage(e));
     } finally {
       lock.current = false;
       if (live.current) setBusy(null);
+    }
+  };
+  const reconcile = async (candidate: Candidate) => {
+    const operation = reviewLedger.records.find(
+      (record) => record.candidateId === candidate.id,
+    );
+    if (operation) return reconcileOperation(operation);
+    const pending = getDraft(candidate).pending;
+    // Legacy/server-only receipts must carry the original confirmed snapshot.
+    if (!pending?.review) {
+      setError("旧复核缺少原始确认版本，请在服务端核对；当前不能重新提交。");
+      return;
+    }
+    try {
+      const hash = await candidateReviewHash(pending.review);
+      if (!live.current) return;
+      return reconcileOperation({
+        key: JSON.stringify([
+          candidate.id,
+          pending.action,
+          pending.requestId,
+          hash,
+        ]),
+        candidateId: candidate.id,
+        action: pending.action,
+        requestId: pending.requestId,
+        reviewHash: hash,
+      });
+    } catch {
+      if (live.current) setError("原始复核记录无效，请在服务端核对。");
     }
   };
   const openSource = async (candidate: Candidate) => {
@@ -1334,6 +1524,14 @@ function CandidateWorkbench() {
         />
       ) : (
         <>
+          {!sample && (
+            <PendingCandidateReviews
+              records={reviewLedger.records}
+              visibleIds={selected ? [selected.id] : []}
+              busy={!!busy}
+              onReconcile={(operation) => void reconcileOperation(operation)}
+            />
+          )}
           <ResourceStatus
             loading={resource.loading}
             error={resource.error}

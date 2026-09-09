@@ -4,6 +4,7 @@ import {
   service,
   profileDescription,
   mapProfile,
+  mapOpportunity,
 } from "../../src/renderer/services/client";
 import type { YikeDesktopApi } from "../../src/shared/contracts";
 const host = window as unknown as { yikeDesktop?: YikeDesktopApi };
@@ -12,6 +13,23 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("real client transport boundaries", () => {
+  it("keeps absent P10 facts optional and malformed facts distinct without deriving dates", () => {
+    const missing = mapOpportunity({
+      opportunity_id: "TEST-o",
+      intent_status: "QUOTED",
+      action_signal: "9月15日18:00截止",
+    });
+    expect(missing.libraryFacts).toBeUndefined();
+    const invalid = mapOpportunity({
+      opportunity_id: "TEST-o",
+      library_facts: { schema_version: 999 },
+      source_observed_at: "2026-09-09T00:00:00Z",
+      source_evidence_version: "TEST-v1",
+    });
+    expect(invalid.libraryFacts).toBeNull();
+    expect(invalid.sourceObservedAt).toBe("2026-09-09T00:00:00Z");
+    expect(invalid.sourceEvidenceVersion).toBe("TEST-v1");
+  });
   it("preserves newline and punctuation in real profile roundtrip", () => {
     const fields = {
       service: "展台\n设计",
@@ -45,13 +63,11 @@ describe("real client transport boundaries", () => {
   });
   it("preserves configuration error from the native fixed-operation bridge", async () => {
     host.yikeDesktop = {
-      requestApi: vi
-        .fn()
-        .mockResolvedValue({
-          ok: false,
-          status: 0,
-          error: "SERVICE_NOT_CONFIGURED",
-        }),
+      requestApi: vi.fn().mockResolvedValue({
+        ok: false,
+        status: 0,
+        error: "SERVICE_NOT_CONFIGURED",
+      }),
     } as unknown as YikeDesktopApi;
     await expect(service.profiles()).rejects.toMatchObject({
       code: "SERVICE_NOT_CONFIGURED",

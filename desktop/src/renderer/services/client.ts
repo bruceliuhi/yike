@@ -7,6 +7,7 @@ import {
   type ProfileFields,
 } from "../domain/models";
 import type { YikeDesktopApi, ApiOperation } from "../../shared/contracts";
+import { decodeLibraryFacts } from "../domain/opportunityLibrary";
 
 type JsonRecord = Record<string, unknown>;
 function bridge(): YikeDesktopApi | undefined {
@@ -141,6 +142,9 @@ export function mapProfile(raw: JsonRecord): Profile {
 }
 export function mapOpportunity(r: JsonRecord): Opportunity {
   return {
+    sourceObservedAt: text(r.source_observed_at) || undefined,
+    sourceEvidenceVersion: text(r.source_evidence_version) || undefined,
+    libraryFacts: decodeLibraryFacts(r.library_facts),
     id: text(r.opportunity_id),
     title: text(r.title),
     buyer: text(r.buyer),
