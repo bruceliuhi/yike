@@ -37,6 +37,11 @@ def test_migration_versions_are_unique():
     assert len(versions) == len(set(versions))
 
 
+def test_migration_registry_includes_search_suggestions_schema():
+    paths = {version: path.name for version, path in PilotDatabase.migration_paths}
+    assert paths["v02-search-suggestions"] == "110_v02_search_suggestions.sql"
+
+
 def test_connection_input_rejects_credentials_and_unknown_platforms():
     with pytest.raises(IdentityValidationError):
         validate_connection_input("unknown", "device-1", "acct", "vault://ref")
