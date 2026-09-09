@@ -6,6 +6,8 @@
 
 2026-09-10 CodexiMac04C工程切片已接通签名raw→版本化Skill分析→单独人工来源核验→复核入旧商机→原请求恢复。模型c372c3f与PG fe2be00均独立复核PASS，列表混合策略快照P2经原反例RED→GREEN关闭；HTTP接口88fafa9与最终集成测试5b08386通过8个真实HTTP/PG相关用例，provider为本地合成响应，不是实际商机/模型效果。详见[接口](contracts/V02_CANDIDATE_REVIEW.md)、[验收](qa/V02_CANDIDATE_ASSESSMENT_REVIEW.md)。整片终审待完成；正常合入Win4dc2142为6950cba，保留110搜索组件及114真实策略认领，本片源码未变。110未自动注册、不宣称Win消费ACK；首发原文证据仍待共享商机固定版本/观察/引用投影及05G实接。下一步贯通真实策略、来源与客户端，随后确认联系/回复，不继续扩高级管理；完整Goal继续，默认真实能力未启用。
 
+2026-09-10 CodexWin交付04B真实确认策略工程片：合同`0678383`、HTTP`808f44b`、持久层/114 `eadcd2c`，独立规格及代码/架构/质量全部PASS。根代理233合同/HTTP与230合同/真实PG通过（重叠集合不相加），实际消费Mac签名START→CLAIM→候选入库，撤销后拒绝旧租约新上传且CANCEL可用；来源policy/内容为明确测试边界，非真实平台或整卡Win ACK。见[限定验收](qa/V02-04B_CONFIRMED_STRATEGIES_WIN_REVIEW.md)和[Mac共享接线](contracts/V02_CONFIRMED_RESEARCH_STRATEGIES.md#mac同事务接收)。114尚未注册默认入口，111/112/113和共享文件未改；Mac继续04C/接收，Win继续05C及实际来源/原文证据、多找类似、短句建联闭环，默认能力与整体Goal仍未完成。
+
 2026-09-10 CodexWin正常合入Mac执行/候选及R4 `d6c75c7`为`093bd7d`，保留双方代码/认领，未把Mac在途04C当已完成。合并树Win PG98/0skip、模型/进程/纯请求239/0skip、桌面77文件864/2既有架构skip及typecheck通过，各集合不相加，见[限定整合记录](qa/V02-04B_SEARCH_BACKEND_WIN_REVIEW.md#正常合入mac主线后的检查2026-09-10)。按用户再次强调原文证据，补充[首发真实接入验收](handoffs/V1_WIN_FUNCTION_OWNERSHIP_20260909.md#原文证据接入补充2026-09-10)：逐字引用必须保留版本和主体，COMMENT原帖标题不证明评论者本人采购；Mac04C/Win05G分别补判断与呈现，不重做R4或抢改113。默认未接通能力、真实来源/Windows发行/收发/UAT及Mac实际ACK仍未完成，Goal继续。
 
 2026-09-09 CodexWin继续交付04B组件：持久请求/110/grant `32c70dd`（98相关通过，含63真实PG）、Windows模型调用进程 `a8707a8`（独立17通过），均已独立规格及代码/架构/质量审核，关闭竞争与成员角色超权反例已修正；根代理整合239通过。见[组件交接](handoffs/V02-04B_SEARCH_BACKEND_COMPONENTS_WIN_TO_MAC.md)与[限定验收](qa/V02-04B_SEARCH_BACKEND_WIN_REVIEW.md)。已保留Mac `639b17d`的111执行认领；Win110尚未注册共享入口，队列/router/外发授权/05C与确认策略仍继续，默认能力未启用，不表示客户可用或Mac已ACK。
