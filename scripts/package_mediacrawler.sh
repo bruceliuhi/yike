@@ -40,7 +40,7 @@ for item in filter(None, set(tracked) | set(history)):
     # Git log separates commits with newlines even with NUL path delimiters.
     lower = item.lstrip('\r\n').lower()
     name = Path(lower).name
-    if any(part.startswith('.env') for part in Path(lower).parts) or 'browser_data' in lower or re.search(r'(^|[._-])(cookie|cookies|token|secret|credential)([._-]|$)', name): fail(f'source contains private-state path: {item}')
+    if any(part.startswith('.env') and part != '.env.example' for part in Path(lower).parts) or 'browser_data' in lower or re.search(r'(^|[._-])(cookie|cookies|token|secret|credential)([._-]|$)', name): fail(f'source contains private-state path: {item}')
 patch_entries=[]
 for entry in lock.get('patches',[]):
     path=(lock_path.parent.parent/entry['path']).resolve()
