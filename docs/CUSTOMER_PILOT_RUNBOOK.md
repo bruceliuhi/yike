@@ -15,13 +15,17 @@ export YIKE_PILOT_ADMIN_DATABASE_URL='postgresql://<admin-user>:<password>@<priv
 export YIKE_PILOT_DATABASE_URL='postgresql://<app-user>:<password>@<private-host>:5432/<database>'
 export YIKE_PILOT_AUTH_SECRET='<random-secret-kept-outside-git>'
 uv run --frozen yike-pilot-migrate   # 仅由受信管理员/发布作业执行一次
+# 105升级：替换为既有应用角色，不使用管理员角色或 PUBLIC。
+psql "$YIKE_PILOT_ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "SET yike.app_role = 'YOUR_EXISTING_APP_ROLE'" -f deploy/grant_session_revocations.sql
 uv sync --frozen --extra dev
-uv run --frozen yike-pilot-web
+env -u YIKE_PILOT_ADMIN_DATABASE_URL uv run --frozen yike-pilot-web
 ```
 
 反向代理或容器编排可使用 `GET /healthz` 做进程存活检查、`GET /readyz` 做 PostgreSQL 就绪检查；二者不要求用户令牌，数据库不可用时 `/readyz` 返回 503。
 
 缺少数据库 URL 或认证密钥时，启动必须失败；不会静默退回旧 SQLite 数据库。Web 进程本身不执行迁移，生产应用角色无需 CREATE/ALTER 权限；迁移必须由受信管理员或发布作业先执行。
+
+上述 `psql` 是受信发布环境工具，命令从仓库根目录执行；示例占位角色必须替换为应用 URL 对应的真实既有角色。105 升级仅补新撤销表 SELECT/INSERT，幂等可重跑，不代替初次应用角色配置。已有 schema USAGE 和 pilot_users SELECT 保持不变，不增加用户表 UPDATE 或撤销表 UPDATE/DELETE。若没有这一步，鉴权按失败关闭返回错误，不能把 `/readyz` 的数据库连通当作新表权限已验收。生产运行 env 必须单独提供，不包含管理员 URL。
 
 若由 HTTPS 反向代理终止 TLS，设置 `YIKE_PILOT_PROXY_HEADERS=1` 与 `YIKE_PILOT_FORWARDED_ALLOW_IPS=<反代实际来源IP或CIDR>`。后者必须是精确 allowlist，禁止设为 `*`；否则保持默认代理头信任关闭。
 
@@ -46,7 +50,7 @@ uv run --frozen yike-pilot-provision token --user-id '<user-id>' --ttl-seconds 3
 
 CLI 输出的令牌只应通过安全渠道交给试用用户，不写入仓库、日志或研究包。
 
-V02-01B 会话撤销候选要求发布作业先执行 105 迁移。客户 `DELETE /api/ui/session` 将撤销本次携带的有效 Bearer/Cookie，旧凭据不能重新换取登录 Cookie；应用不可用时不宣称撤销成功。它不是管理员“全端退出”或短信登录已交付，详细边界与升级顺序见[会话撤销契约](contracts/V02_SESSION_REVOCATION.md)。
+V02-01B 会话撤销候选要求发布作业先执行 105 迁移及上面的显式最小权限授权。客户 `DELETE /api/ui/session` 将撤销本次携带的有效 Bearer/Cookie，旧凭据不能重新换取登录 Cookie；应用不可用时不宣称撤销成功。它不是管理员“全端退出”或短信登录已交付，详细边界与升级顺序见[会话撤销契约](contracts/V02_SESSION_REVOCATION.md)。
 
 ## 当前管理员研究包导入
 

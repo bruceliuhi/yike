@@ -21,7 +21,9 @@ class PilotSessionRegistry:
     @staticmethod
     def _tenant(cursor, user_id: str) -> str | None:
         cursor.execute("SELECT set_config('yike.user_id', %s, true)", (user_id,))
-        cursor.execute("SELECT tenant_id FROM pilot_users WHERE user_id=%s FOR KEY SHARE", (user_id,))
+        # A normal session lookup needs SELECT only. The composite FK acquires
+        # the reference lock on revoke and prevents reparenting existing rows.
+        cursor.execute("SELECT tenant_id FROM pilot_users WHERE user_id=%s", (user_id,))
         row = cursor.fetchone()
         if row is None:
             return None

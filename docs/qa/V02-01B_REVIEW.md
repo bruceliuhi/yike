@@ -29,6 +29,15 @@ git diff --check
 
 ## 审核及主线门禁
 
-本候选等待 `review_identity` 对锁定 SHA 的独立代码/架构复核；测试作者不作为最终审核者。01A 的 PASS 不自动覆盖本次。CodexWin 交叉验证尚未发生，未合并 main、未部署。
+`review_identity` 对 `adcb63193616403cc6072562098c7a7d5c7abd45` 独立复跑 143 passed、2 skipped，给出 REQUEST_CHANGES（0 Critical、1 Important）：新表权限未进入生产升级路径，且 FOR KEY SHARE 隐含要求用户表 UPDATE；原测试的全表授权掩盖了缺口。测试作者不是最终审核者，01A 的 PASS 不覆盖本次。
+
+### 权限修复候选
+
+- 新增受信 `deploy/grant_session_revocations.sql`，仅新表 SELECT/INSERT，目标为既有受限非 owner 应用角色；运行手册和部署入口明确迁移→最小授权→新版应用顺序，Web 不含管理员环境。
+- 鉴权用户查找恢复只需 SELECT，撤销表复合 FK 保留用户归属保护，不向应用增加用户表写权限。
+- 新增 `test_session_upgrade_postgres.py`：另建不继承 identity_app 的一次性受限角色，只授予旧用户表 SELECT；先复现升级脚本缺失、再复现 `permission denied for table pilot_users`，修复后验证最小权限下访问、交换、退出和拒绝旧凭据。没有对该角色做全表授权。
+- 上述定向组合加 `tests/test_session_upgrade_postgres.py`：**147 passed、2 skipped**，compileall/diff check 通过；权限脚本重复执行和拒绝空/未知/特权角色均已覆盖。
+
+修复候选待锁定新 SHA 复审。CodexWin 交叉验证尚未发生，未合并 main、未部署。
 
 全仓仍有[历史测试基线漂移](BASELINE_TEST_DRIFT_20260909.md)，另在 `codex/mac-baseline-test-clock` 修复，不使用本子项定向通过宣称全仓 green。

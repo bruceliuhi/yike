@@ -13,7 +13,8 @@
 
 ## 数据与部署
 
-- 管理员发布作业先执行既有 `yike-pilot-migrate`，应用再加载代码。新增迁移为 `105_v02_session_revocation.sql`，不修改已合并的历史迁移。Web 不获迁移权限。
+- 管理员发布作业先执行既有 `yike-pilot-migrate`，再对既有应用角色执行 `deploy/grant_session_revocations.sql` 的最小授权，之后才加载新版应用。仅迁移不代表应用可访问新表；精确命令见[运行手册](../CUSTOMER_PILOT_RUNBOOK.md)。新增迁移为 `105_v02_session_revocation.sql`，不修改已合并的历史迁移；Web 不获迁移权限。
+- 该授权脚本只为新撤销表授予 SELECT/INSERT，不创建角色、不全表授权、不更改其他表权限。应用仍只需对 pilot_users 的既有 SELECT，不因普通鉴权获得用户表 UPDATE。脚本必须在受信管理员连接执行，检查目标存在且不是超级用户、BYPASSRLS、CREATEROLE 或该表 owner。
 - 表仅保存 `tenant_id/user_id`、`SHA256(已经验签的原始payload段)`、到期和撤销时间。摘要不是完整 token、Cookie、明文 jti 或可登录凭据；不新增凭据导出接口。
 - RLS 同时限制 tenant_id/user_id，只有 SELECT/INSERT policy，不允许应用更新或删除撤销记录。复合 FK 使存在撤销记录的用户不能修改 tenant_id 而隐藏历史撤销。当前无用户换租户功能，也没有撤销记录清理任务。
 - PostgreSQL/服务器不可用时不返回登录成功；重试不能删除或解除既有撤销。未来清理任务只能删除真正过期且不再可接受的凭据记录，不按固定保存天数提前删除。

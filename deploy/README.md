@@ -4,6 +4,8 @@
 
 这是应用容器骨架，不是生产上线证明。目标环境仍须单独提供私网 PostgreSQL、反向代理 HTTPS、日志脱敏、备份恢复和回滚记录。应用已关闭 Uvicorn 原始访问日志，并仅记录不含查询参数的 method/path/status。先由受信发布作业运行 `uv run --frozen yike-pilot-migrate`，再以非 owner 应用角色启动 `yike-pilot-web`；Web 进程不会执行迁移。
 
+V02-01B/105 升级必须在迁移后、新版启动前，对既有应用角色执行 [grant_session_revocations.sql](grant_session_revocations.sql)；只增加新撤销表 SELECT/INSERT，不依赖测试中的全表授权。执行命令、角色选择和管理员运行环境隔离见[客户试用运行手册](../docs/CUSTOMER_PILOT_RUNBOOK.md)。仅数据库连通不证明新表权限已配置。
+
 ## 构建与运行
 
 在仓库根目录执行：
