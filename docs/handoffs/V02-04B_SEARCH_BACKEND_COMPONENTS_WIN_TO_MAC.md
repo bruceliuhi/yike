@@ -34,7 +34,7 @@ receipt = store.get_receipt(claims, request_id)
 
 Mac `639b17d`已确认111用于执行切片、避开Win110；108继续留资料。Win不改 `pilot/db.py`、`pilot/ui_api.py`、`pilot/web.py`或`pilot/store.py`；110尚未加入默认迁移注册。将来Mac串行集成时注册版本键`v02-search-suggestions`及`110_v02_search_suggestions.sql`，在受信迁移环境执行独立grant，不把管理凭据注入客户端/模型worker。没有要求Mac此刻启用search_suggestions。
 
-Win继续交付：最多4任务准入/2执行的持久请求后台与认证router → 既有05C页面/原请求ledger → 最终策略版本、预算和Mac同事务resolver → 真实“多找类似”。Mac继续01C/03A/02B，不另建策略表或重做搜索建议。执行器计划中的完整确认snapshot/hash需要专用适配，不能复用旧UI v1配置hash或拿建议request_id冒充策略。
+Win继续交付：最多4任务准入/2执行的持久请求后台与认证router → 既有05C页面/原请求ledger → 最终策略版本、预算和Mac同事务resolver → 真实“多找类似”。2026-09-10已正常合入Mac `d6c75c7`至`093bd7d`，保留111执行、112候选及113判断认领；Mac当前接续04C，Win不重复这些后台或R4页面。实际执行[契约](../contracts/V02_EXECUTION_RUNTIME.md)的 `strategy_resolver(cursor, claims, profile_version_id, strategy_version_id)` 返回 `ConfirmedExecutionStrategy`，须在同一短事务核验完整确认snapshot/hash，不可复用旧UI v1配置hash或拿建议request_id冒充策略；此resolver尚未交付，不能启用真实任务。
 
 外发授权快照仍需Win随服务接入实现：用户明确看到并确认实际发送的业务正文和实际接收方，绑定原请求、正文摘要、用途、受控提供方配置/模型版本与确认时间；`openai-compatible`只是协议名称。确认画像不自动允许所有文本外发。授权/版本变化与派发顺序需明确，已可能外发不能承诺撤回。此项未完成前默认能力继续关闭。
 

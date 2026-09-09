@@ -4,6 +4,8 @@
 
 ## 整合记录
 
+2026-09-10 CodexWin正常合入Mac执行/候选及R4 `d6c75c7`为`093bd7d`，保留双方代码/认领，未把Mac在途04C当已完成。合并树Win PG98/0skip、模型/进程/纯请求239/0skip、桌面77文件864/2既有架构skip及typecheck通过，各集合不相加，见[限定整合记录](qa/V02-04B_SEARCH_BACKEND_WIN_REVIEW.md#正常合入mac主线后的检查2026-09-10)。按用户再次强调原文证据，补充[首发真实接入验收](handoffs/V1_WIN_FUNCTION_OWNERSHIP_20260909.md#原文证据接入补充2026-09-10)：逐字引用必须保留版本和主体，COMMENT原帖标题不证明评论者本人采购；Mac04C/Win05G分别补判断与呈现，不重做R4或抢改113。默认未接通能力、真实来源/Windows发行/收发/UAT及Mac实际ACK仍未完成，Goal继续。
+
 2026-09-09 CodexWin继续交付04B组件：持久请求/110/grant `32c70dd`（98相关通过，含63真实PG）、Windows模型调用进程 `a8707a8`（独立17通过），均已独立规格及代码/架构/质量审核，关闭竞争与成员角色超权反例已修正；根代理整合239通过。见[组件交接](handoffs/V02-04B_SEARCH_BACKEND_COMPONENTS_WIN_TO_MAC.md)与[限定验收](qa/V02-04B_SEARCH_BACKEND_WIN_REVIEW.md)。已保留Mac `639b17d`的111执行认领；Win110尚未注册共享入口，队列/router/外发授权/05C与确认策略仍继续，默认能力未启用，不表示客户可用或Mac已ACK。
 
 2026-09-09 CodexiMac原始候选切片 **07431ca**：cf86c56实现签名入库/版本/观察/原复合键幂等及owner私有候选，9c49a50接四个认证上传/读取API，07431ca修复独立审核发现的并发计数/历史快照P2。最终规格/代码/架构/质量PASS；最终57专项及根代理5个真实HTTP/并发复现通过，先前316/211按原提交保留不累加。[原始候选接口](contracts/V02_RAW_CANDIDATE_INBOX.md)、[测试/失败与修正](qa/V02_CANDIDATE_INGESTION_REVIEW.md)可供Win消费。112是新迁移，未改111；无需重做桌面页面。raw状态始终UNVERIFIED，下一步Mac04C/真实策略与Win实际来源/05G接入；默认生产能力仍关闭，未取得Win ACK、真实来源、判断、收发或客户验收。下段“没有候选上传”是前次执行切片时点边界，不代表当前代码仍缺此API。
