@@ -347,7 +347,11 @@ function ScopedMaterialsWorkspace({api, profile, currentFields, onApply, localDr
         </div>
       )}
       {resource.data?.length === 0 && (
-        <Empty title="暂无资料" description="添加产品介绍或真实案例。" />
+        localDrafts.length > 0 ? (
+          <p className="muted">当前画像尚无已同步资料，可从下方草稿带入。</p>
+        ) : (
+          <Empty title="暂无资料" description="添加产品介绍或真实案例。" />
+        )
       )}
       {localDrafts.length > 0 && onEditLocal && onRemoveLocal && (
         <details className="local-material-drafts" open>
