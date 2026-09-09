@@ -31,16 +31,16 @@
 
 ### Task 2: Mac 后端主链（`V02-01`～`V02-04`）
 
-**Files:** `app/`、`migrations/`、`tests/`。
+**Files:** `pilot/`、`migrations/`、`tests/`；旧 `app/` 仅作为经评估的复用来源，不建立第二套客户事实库。
 
 - [ ] 先写身份串租户、整包事务、执行代次、坏模型输出、跨 run 绑定和未确认发送的失败测试。
 - [ ] 实现最小闭环：认证/设备/连接 -> 候选 API -> 调度 -> Skill 评分 -> 人工复核。
 - [ ] 每个子任务独立 commit，交 Win Codex 复核；修复后复审。
-- [ ] 通过 pytest、compileall、数据库迁移和 secret scan 后才进入 UI/触达依赖。
+- [ ] 通过 pytest、compileall、数据库迁移和 secret scan 后再联调依赖这些新 API 的 UI/触达路径；已授权前端可以按现有契约独立推进。
 
 ### Task 3: Win 适配与客户端（`V02-02-WIN`、`V02-05`、`V02-09`）
 
-**Files:** `app/adapters/`、`static/`、`app/web/`、`desktop/`、`tests/`。
+**Files:** `desktop/`、`pilot/` 的版本化接口及 `tests/`；旧 `app/adapters/` 仅作适配器复用来源，R3 页面继续在 `desktop/src/renderer/` 实现。
 
 - [ ] 只依赖 Mac 发布的接口契约，不直连数据库或管理员 CLI。
 - [ ] 先完成适配器/解析器契约测试，再接入 R3 页面和 API client。
@@ -49,7 +49,7 @@
 
 ### Task 4: 触达、回复与跟进（`V02-06`～`V02-08`）
 
-**Files:** `app/`、`static/`、`tests/`。
+**Files:** `pilot/`、`desktop/src/renderer/`、`tests/` 及 `desktop/tests/`。
 
 - [ ] 先验证首发通道可联系性和主体映射，再实现草稿版本、确认快照、幂等队列和未知结果对账。
 - [ ] 真实发送前必须人工确认；回复事件与人工登记分开记录。
