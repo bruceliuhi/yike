@@ -6,7 +6,9 @@ import {
   REQUEST_API_CHANNEL,
   OPEN_EXTERNAL_CHANNEL,
   COPY_TEXT_CHANNEL,
+  SAVE_EXPORT_CHANNEL,
   type ApiRequest,
+  type ExportRequest,
   type YikeDesktopApi
 } from '../shared/contracts';
 
@@ -15,7 +17,8 @@ const api: YikeDesktopApi = Object.freeze({
   getClientInfo: () => ipcRenderer.invoke(GET_CLIENT_INFO_CHANNEL),
   requestApi: (request: ApiRequest) => ipcRenderer.invoke(REQUEST_API_CHANNEL, request),
   openExternal: (url: string) => ipcRenderer.invoke(OPEN_EXTERNAL_CHANNEL, url),
-  copyText: (text: string) => ipcRenderer.invoke(COPY_TEXT_CHANNEL, text)
+  copyText: (text: string) => ipcRenderer.invoke(COPY_TEXT_CHANNEL, text),
+  saveExport: (request: ExportRequest) => ipcRenderer.invoke(SAVE_EXPORT_CHANNEL, request)
 });
 
 contextBridge.exposeInMainWorld('yikeDesktop', api);

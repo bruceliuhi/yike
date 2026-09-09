@@ -34,13 +34,13 @@
 
 ### Mac Codex：主实现、后端与发布集成
 
-- 默认负责 `main` 合并、迁移、服务端集成和发布判定；用户明确指定的提交由指定执行者完成。本次文档/目标调整按用户要求由 CodexWin 直接提交 main，不改变后续功能分支约定。
+- 默认负责 `main` 合并、迁移、服务端集成和发布判定；用户明确指定的提交由指定执行者完成。本次文档/目标调整按用户要求由 CodexWin 直接提交 main；后续按仓库工作流执行小改直接 main、较大或并行工作使用短期分支。
 - 负责账号/设备/执行协议、PostgreSQL 客户数据、任务调度、Skill 运行、评分复核、触达状态、回复跟进和生产门禁。
 - 负责处理 API/数据库冲突，保存每个任务的提交 SHA、测试和证据路径。
 
 ### Win Codex：独立模块与 Windows 交付
 
-- 功能开发从最新 `origin/main` 建 `codex/win-<主题>` 分支；本次用户指定的文档提交按上面的例外执行。
+- 较大或并行功能从最新 `origin/main` 建短期 `codex/win-<主题>` 分支；小范围串行改动按仓库工作流直接在 main 验证、审核和提交。
 - 负责平台适配器/解析器契约测试、R3 前端/API client、Electron/sidecar、安装更新和 Windows 实机证据。
 - 不直接修改 Mac 正在编辑的 migration、事实表、租户隔离或服务端集成入口。
 
@@ -50,7 +50,7 @@
 
 `SYNC-01` 改为每卡开工/集成检查：检查最新主线、任务书、已认领路径和历史迁入边界，保存 base_sha。保留在途对齐记录作证据，不要求重做旧迁移、不作为所有新工作的全局锁。
 
-建议主责一列只有一个交付责任人；Mac 指 CodexMac/CodexiMac，Win 指 CodexWin。另一端或未参与该实现的独立 Agent 审核，不能自审；实际接收人与 reviewer 在认领时登记。涉及同一契约/页面的卡片先明确文件边界再并行。分支名在真正开工时从最新 main 建立并记录，不预先把建议名称当作存在的分支。
+建议主责一列只有一个交付责任人；Mac 指 CodexMac/CodexiMac，Win 指 CodexWin。另一端或未参与该实现的独立 Agent 审核，不能自审；实际接收人与 reviewer 在认领时登记。涉及同一契约/页面的卡片先明确文件边界再并行。小范围串行改动直接使用最新 main；确需短期分支时再从最新 main 建立并记录，不预先把建议名称当作存在的分支。
 
 依赖规则：下表是**实现/联调需要的最小子项**，不要求等待整个父任务 DONE。契约设计和合成反例可先做；使用上游新能力须复现其绑定版本并 ACK，最终主线交付还须集成到 main。真实账号、平台或部署条件只阻塞对应实测。每卡验收范围有意限定，端到端与客户效果由 V02-10 的独立卡收口，避免双方等待对方先验收。
 
@@ -67,7 +67,7 @@
 | V02-04A / Mac | 多业务画像与资料提取契约/服务；沿用 `pilot/store.py`、`pilot/ui_api.py`，独立封装新增逻辑；定义资料格式、失败补录与版本确认 | 可先设计/测试；保存与鉴权使用现有 pilot 基础及已接收的身份契约 | 多产品/服务、客群、地域、供应能力、销售方式、规模/周期及排除项可保存确认；输入权限/大小/类型、来源引用及版本反例 |
 | V02-04B / Mac | 行业/销售方式策略服务与评测集；`skills/ai-project-lead-research-v1/`、新增 `pilot/` 研究模块 | V02-04A 的画像契约；规则与五类业务反例可先做 | 来源/需求表达/搜索排除/判断/预算输出绑定版本；人工修改受保护；有真实模型运行及失败证据，模板不是行业允许名单 |
 | V02-06A / Mac | 首发触达能力和来源对象映射调查，定义发送/回执/回复协议及可联系条件；`docs/contracts/`、`pilot/` | 只读可行性与契约可先做；真实账号核验需要对应授权 | 对各候选通道逐项给可用/不可用/未验证与来源依据；至少形成可实施首发通道方案；没有授权不发测试消息 |
-| V02-07A / Mac | 持久发送操作契约及状态机：operationId、幂等键、确认快照、原请求查询、未知对账；`pilot/`、桌面服务接口交接包 | 可先定义；通道字段与 V02-06A 协调 | 对象/内容/渠道/连接变更使确认失效；确定失败与未知结果分开，重试不重复发送；合成状态机反例及接收 ACK |
+| V02-07A / Mac | 以既有 [Outreach 契约](UI_OUTREACH_CONTRACT.md)的 requestId/send/reconcile 为基础，冻结生产端持久幂等、确认快照及原请求查询语义；`pilot/`、桌面服务交接包 | 可先定义；通道字段与 V02-06A 协调，不另建不兼容请求标识 | 对象/内容/渠道/连接变更使确认失效；确定未发送失败与未知结果分开，重试不重复发送；合成状态机反例及接收 ACK |
 | V02-09A / Win | Windows 构建与执行依赖可行性；`desktop/scripts/build-windows.ps1`、`verify-package.mjs`、`desktop/forge.config.ts` | 不等后台；真实 Windows/依赖条件独立记录 | 可复现构建、包内容/资源/版本/摘要检查；仅构建通过不算安装或真实 sidecar 可用 |
 | V02-10A / Mac | 跨行业验收协议、样本登记和人工对照方案；`docs/`、新增脱敏评测 fixture | 可立即制定；收集客户资料/邀请试用另取授权 | 冻结五类各两家、14 天、配置≤10分钟、同质量耗时降≥50%及事实追溯口径；每项分母、缺样本和失败处理明确 |
 | V02-10E / Mac | 已知主线测试基线漂移修复；`tests/test_bootstrap.py`、`tests/test_d04_remediation.py` 及相关实现 | 先检查是否已有实际认领，避免重复；不阻止不相关契约设计 | 在固定 base 复现旧权威断言/日期窗口失败，按当前有效契约修复并独立审核；不得删除测试或放宽窗口来制造通过 |
@@ -92,10 +92,10 @@
 
 | ID / 建议主责 | 小卡交付及代码入口 | 实现/联调依赖 | 本卡完成证据 |
 |---|---|---|---|
-| V02-05A / Mac（保留原前端工作） | R3 已有服务交互、同状态视觉对照和原生导出回执收尾；`desktop/src/renderer/`、`desktop/src/main/` | 继续原任务，不因本表移交；新增后端不可用部分转对应接入卡 | 页面对照 R3 授权，真实已有服务路径与缺失能力区分；导出取消/失败/保存成功回执正确 |
+| V02-05A / Mac（保留原前端工作） | R3 剩余可用服务交互与同状态视觉对照；`desktop/src/renderer/`、`desktop/src/main/`；复用三队列/P18管理UI和原生CSV导出 | 继续原任务，不因本表移交；已交付/剩余范围以任务书及交互验收为准，新后端转对应接入卡 | 逐页对照 R3 授权，真实服务与不可用能力区分；保护既有导出取消/失败/保存回执，不重复开发 |
 | V02-05B / Win | 跨行业资料/画像增量 UI；现有画像页面、`services/contracts.ts`、`domain/models.ts` | 与 V02-05A 划清文件后，V02-04A 契约 ACK；先做声明为合成数据的契约测试 | 多业务建档、解析失败补录、版本冲突、人工确认；不覆盖已确认数据；真实API接入证据 |
 | V02-05C / Win | 策略预览、可编辑条件、人工修改保护与预算确认；`pages/TaskWizard.tsx` 和任务领域模型 | V02-04B 契约 ACK，与 V02-05A 划清路径 | 重新生成不覆盖人工编辑，不暗增来源/频率/费用；样本五类业务可解释差异，真实建议失败不显示成功 |
-| V02-05D / Win | 身份/连接 IPC/API 接入；`shared/contracts.ts`、`main/serviceClient.ts`、renderer services | V02-01A/B/C/D 按收到的接口逐批接入；与 V02-05A 划清页面边界 | 正常/无权限/过期/撤销/未知路径；UNVERIFIED 不映成 CONNECTED；缺接口不扩白名单伪造可用 |
+| V02-05D / Win | 身份/连接 IPC/API 接入；`shared/contracts.ts`、`main/serviceClient.ts`、renderer services；复用现有登录/连接等待保护，与 [Management 契约](UI_MANAGEMENT_CONTRACT.md)共用身份语义 | V02-01A/B/C/D 按收到的接口逐批接入；管理操作接 V02-09F，不新造另一套绑定协议；与 V02-05A 划清页面边界 | 正常/无权限/过期/撤销/未知路径；UNVERIFIED 不映成 CONNECTED；缺接口不扩白名单伪造可用 |
 | V02-05E / Win | 商机证据、分维度判断及变化呈现；现有商机/监控页面与 renderer domain | V02-04C 的证据模型、V02-03B 变化模型分别接入；与 V02-05A 协调 | 原文可回查、事实/推断/未知分开，新增/变化/无新增/离线准确；真实列表与详情一致 |
 | V02-05F / Win | 任务启动/操作 transport 与结果映射；`domain/task.ts`、`app/operationLedger.ts`、renderer services | V02-03A 契约 ACK；执行身份使用 V02-01C | 请求绑定最终配置、重复点击单请求、未知结果查询原请求；按合同区分整任务/单平台重试，不能仅凭HTTP200报启动 |
 | V02-05G / Win | 候选读取与人工复核 HTTP/IPC 接入；`domain/candidates.ts`、renderer services 和 IPC 白名单 | V02-02B、V02-04C ACK；复用已有 P07 类型与组件测试 | 分页、来源/画像版本冲突、服务端复核身份、幂等回执/未知查询、跨客户拒绝；组件替身不替代真实接口 |
@@ -106,12 +106,13 @@
 |---|---|---|---|
 | V02-06B / Mac | 首发实际通道适配器，封装发送/回执查询/回复读取；新增独立 `pilot/` 通道模块，需本机工具时与 Win 明确边界 | V02-06A、V02-01C、V02-07A；模块可用合成端点先测 | 通道返回状态及可联系性准确，秘密不泄漏；真实发送只经 V02-07B 确认队列，整链验证在 V02-10B，不形成循环前置 |
 | V02-07B / Mac | 草稿持久化、确认快照、幂等队列和未知对账实现；独立 `pilot/` 模块 | V02-07A、V02-06B 适配接口；草稿业务引用使用 V02-04A/C | 换对象/内容/渠道/连接后旧确认失效；并发同键/超时/重启不重发，未知先查原操作；队列专项隔离测试 |
-| V02-07C / Win | 草稿编辑、确认、发送结果和未知恢复 UI；现有触达页面与发送确认领域模型 | V02-07A ACK 后可做契约测试，真实接入 V02-07B；不和 V02-05A 同文件并发 | 确认绑定正确版本；服务端失败/未知不显示已发送，原操作可查询；真实确认路径在 V02-10B 联验 |
+| V02-07C / Win | 现有三队列/草稿/确认/未知恢复 UI 的真实服务增量接入；复用 `services/outreach.ts`、`domain/outreach.ts`、`pages/OutreachQueue.tsx` 与既有确认模型 | V02-07A ACK 后做契约反例，真实接入 V02-07B；保留 Mac 已交付UI，先交接文件，不自动转移原任务 | 完整队列与独立草稿、快照/持久防重/原requestId核对回归；后台失败/未知不显示已发送，真实确认路径在 V02-10B 联验 |
 | V02-08A / Mac | 回复关联与跟进事件 API，含负责人/到期/撤销修正、平台事实与人工事实、未读及统计语义 | 契约可先做；平台回复接 V02-06B/07B，复用现有人工 followups | 重复/乱序/跨租户/一主体多机会关联反例；明细能复算，人工备注不冒充平台回复 |
 | V02-08B / Win | 回复/到期/负责人/下一步工作台与时间线；renderer 跟进页面及服务 client | V02-08A ACK 后契约测试，真实API就绪再接入；保留 V02-05A 已有页面 | 正确租户/商机回流、到期与未读变化、修正/失败/重试可见；真实回复和人工登记明确区分 |
 | V02-08C / Mac | 有效商机/回复/下一步与用量成本查询口径及API，前端展示由 V02-08B 按接收版本补齐 | V02-08A、V02-10A；候选/执行用量分别来自实际数据模块 | 分母与来源可复算，重试不重复计费计数；未知成本不是零，测试回复不计商业转化 |
-| V02-09C / Win | Windows 安装/卸载、激活/到期、备份还原与脱敏诊断；构建脚本及 `desktop/docs/` | 构建/安装可先验证；业务生命周期接 V02-09B/D、V02-01D 及各实际执行功能 | 新机实测及用户回传证据，绑定包SHA/版本；窗口缩放/重启、授权失效和恢复、不遗留执行进程；不以Mac包替代 |
-| V02-09E / Win | 更新与版本回退；`desktop/forge.config.ts`、主进程更新模块及既有设置页接入 | 先由发布责任人确定清单/摘要或签名/兼容性/回退契约；本地双版本演练可先准备，正式更新源另列授权 | 损坏包拒绝、下载/安装失败、升级/回退后启动与数据兼容证据；Squirrel安装事件不等于更新完成 |
+| V02-09C / Win | Windows 安装/卸载、激活/到期、备份还原与脱敏诊断；复用 P18 管理UI、`services/management.ts`及原生保存回执，补真实服务/IPC接入 | 构建/安装可先验证；业务生命周期接 V02-09B/D、V02-01D；绑定/客户备份恢复接 V02-09F，不由UI代替后台 | 新机实测及用户回传证据，绑定包SHA/版本；缩放/重启、授权失效和恢复、不遗留进程；备份真实保存和恢复分开验收，不以Mac包替代 |
+| V02-09E / Win | Windows 更新下载/安装与版本回退执行；`desktop/forge.config.ts`、主进程模块，复用 P18 更新/取消/回退UI及 Management 契约 | 与发布责任人/V02-09F 冻结清单、摘要或签名、兼容性、受控执行及回执接口；双方模块反例先行，不互等整卡DONE；正式更新源另列授权 | 损坏包拒绝、下载/安装失败、升级/回退后启动与数据兼容证据；真实管理联验接09F；Squirrel事件或UI进度不等于更新完成 |
+| V02-09F / Mac | 生产 ManagementService：账号/设备状态、绑定/解绑、客户导出/备份恢复与管理操作协调；复用 [Management 契约](UI_MANAGEMENT_CONTRACT.md)的 prepare/execute/operation/cancel，新增独立 `pilot/` 模块 | 契约与隔离反例可先做；身份/授权接 V02-01C/D；恢复字段按 V02-04A/03A/04C/08A 已接收模型分批接入；更新执行与09E先冻结接口再联验 | 服务端权限、旧revision/过期计划/变更hash拒绝；持久requestId幂等与未知查询；字段白名单/关联完整/事务或可核验补偿；取消终态不继续执行；不重写01D授权，不替代10C灾难恢复 |
 | V02-10B / Mac | 分阶段整链与独立架构/代码/质量复核；M1/M2/M3 每阶段单独冻结 SHA 与证据 | 按阶段需要的子卡逐项 ACK/集成，M3 必须包含真实收发及 Windows 证据 | 客户独立走通来源→机会→确认发送→真实回复→跟进；受授权且可从来源回查的对象，无发布阻断问题 |
 | V02-10C / Mac | 服务端实际部署 CP-06、备份恢复与回滚；`deploy/`、`scripts/cp06_*`、备份恢复脚本 | 验收准备可先做；真实部署需版本、环境与用户授权 | 私网PG、应用非超级用户/RLS/ACL、HTTPS、管理员隔离、部署SHA、备份恢复/回滚和真实手机证据 |
 | V02-10D / Mac | 跨行业14天试用与价值报告，邀请/数据授权由用户提供；Win协助客户端问题定位 | V02-10A；先可用阶段试用，完整14天验收绑定满足承诺的M3/CP-06版本 | 五类各两家，按产品计划保留所有失败/无回复/流失样本；配置、质量/耗时、事实追溯、实付/使用记录，未达标不宣称Goal完成 |
@@ -154,13 +155,13 @@
 |---|---|---|
 | 所有文档/代码卡 | 根目录 `git diff --check`；Git Bash 下 `bash scripts/secret_scan.sh` | 验证绑定候选 SHA；纯文档卡不需要伪造业务测试 |
 | V02-01A | 已锁定的身份实现版本中运行 `uv run --frozen pytest -q tests/test_identity_contract.py tests/test_identity_postgres.py` | 实现文件是否已集成以任务书和最新主线核查为准；锁定版本并配置专用一次性PG；未发布104候选迁移按其要求用新空库，不能用生产库或静默跳过身份实测 |
-| V02-01B | 已锁定的会话撤销实现版本中运行 `uv run --frozen pytest -q tests/test_identity_contract.py tests/test_session_auth.py tests/test_identity_postgres.py tests/test_session_revocation_postgres.py` | 含01A回归及01B新增测试，运行前核对所选版本包含这些文件；测试库环境变量按契约设置，不将别人的结果计为本轮通过 |
+| V02-01B | 已锁定的会话撤销实现版本中运行 `uv run --frozen pytest -q tests/test_identity_contract.py tests/test_session_auth.py tests/test_identity_postgres.py tests/test_session_revocation_postgres.py tests/test_session_upgrade_postgres.py` | 含01A回归及最小权限升级测试，运行前核对所选版本包含这些文件；测试库环境变量按契约设置，不将别人的结果计为本轮通过 |
 | V02-02C 与平台解析 | 根目录 `uv run --frozen pytest -q tests/test_d03_remediation.py -k "adapters or normalize_time or bilibili"`；再运行本卡新增的平台测试 | 记录实际收集数，零测试不能算通过；fixture与真实平台证据分开 |
 | pilot 服务/API | 根目录 `uv run --frozen pytest -q tests/test_pilot_contracts.py tests/test_ui_api.py tests/test_pilot_web.py`；`uv run --frozen python -m compileall -q pilot tests` | 新模块另加定向测试；数据库隔离/并发/迁移须使用真实专用PG，不以compileall替代 |
 | V02-05B/C | `desktop/` 中 `npm test -- tests/ui/profile.test.tsx tests/ui/task-wizard.test.tsx tests/ui/client.test.ts tests/servicePolicy.test.ts` | 增补多业务/策略反例及真实API往返；保护人工编辑 |
 | V02-05D/F/G | `desktop/` 中 `npm test -- tests/serviceClient.test.ts tests/servicePolicy.test.ts tests/ui/candidates.test.tsx tests/ui/task-start-contract.test.tsx tests/ui/tasks.test.tsx tests/ui/operation-ledger.test.tsx` | 不能只测替身；新增接口/错误/原请求查询需隔离服务联调 |
-| V02-07C、V02-08B | `desktop/` 中 `npm test -- tests/ui/outreach.test.tsx tests/ui/send-confirmation.test.tsx tests/ui/followups.test.tsx` | 真实发送/回复在授权后验收，UI绿色不能清除此门禁 |
-| V02-09A/C/E | `desktop/` 中 `npm test -- tests/windowsBuildEvidence.test.mjs tests/ui/settings.test.tsx`、`npm run typecheck`；Windows PowerShell 中 `./scripts/build-windows.ps1` | Node版本以package.json为准；包SHA、原始退出码及实机回传；进程/存储/更新新增模块须另补测试 |
+| V02-07C、V02-08B | `desktop/` 中 `npm test -- tests/ui/outreach.test.tsx tests/ui/outreach-queues.test.tsx tests/ui/outreach-reconciliation.test.tsx tests/ui/send-confirmation.test.tsx tests/ui/followups.test.tsx` | 真实发送/回复在授权后验收，UI绿色不能清除此门禁 |
+| V02-09A/C/E | `desktop/` 中 `npm test -- tests/windowsBuildEvidence.test.mjs tests/ui/settings.test.tsx tests/ui/management.test.tsx tests/ui/management-scope.test.tsx tests/exportService.test.ts`、`npm run typecheck`；Windows PowerShell 中 `./scripts/build-windows.ps1` | Node版本以package.json为准；包SHA、原始退出码及实机回传；进程/存储/更新新增模块须另补测试；09F服务端按pilot行新增真实隔离/幂等/恢复测试，不以组件替身代替 |
 | 全部R3变更与最终集成 | `desktop/` 中 `npm test`、`npm run typecheck`、`npm run build:renderer`；根目录最终运行 `uv run --frozen pytest -q` | 同视口同状态视觉对照、数据库/平台/Windows/生产验证分别保留，不混为一次PASS |
 
 - 真实平台、真实账号、扫码、Windows、通道和客户回复是独立证据层；缺少时在唯一任务书对应实测子步骤记 `WAITING_INPUT` 并列明输入，不得用 mock 清除或把整个父任务标为阻塞。
@@ -169,10 +170,6 @@
 
 ## Gitee 工作流
 
-```bash
-git fetch origin
-git switch -c codex/<主题> origin/main
-git push -u origin codex/<主题>
-```
+按[仓库工作流](REPOSITORY_WORKFLOW.md)选择小改直接 main 或较大/并行工作使用短期分支；不是每张卡都强制新建分支或PR。先检查工作树、fetch 并记录基线，推送前再次核查远端；出现并行提交时正常整合并按影响重新验证、审核。
 
-PR 目标固定为 `xinghetech/yike-ai2026:main`。Mac 默认负责功能集成，用户指定执行者的文档提交按本文件约定处理；未有 reviewer PASS、相应验证证据和回滚点的变更不得推送 `main`，不强制推送或覆盖并行提交。
+需要PR时目标固定为 `xinghetech/yike-ai2026:main`。Mac 默认负责功能集成，用户指定执行者的文档提交按本文件约定处理；直接main提交同样记录修改范围、测试、证据、限制及回滚点，取得独立reviewer PASS后再推送，不强制推送或覆盖并行提交。

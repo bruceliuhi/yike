@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUtc": "2026-09-09T09:27:21.486977+00:00",
+  "source": {
+    "candidateCommit": "a9f3078b98ffe443ee5b7d95b7bc5ff55530a2e5",
+    "baseCommit": "15ddb7039e385c9adbda04bfd553bf8d222e6308",
+    "state": "All listed build inputs match the candidate byte-for-byte; subsequent edits are documentation and QA only.",
+    "inputCount": 58,
+    "inputManifestSha256": "e38d2c49e7c23b02d1bf9b4e26dfff6a5e25725935f5bb9cc6257662fd5f3023",
+    "manifestRecipe": "sorted relative path + NUL + hex SHA-256 + newline",
+    "inputs": {
+      "desktop/assets/yike.icns": "f93e910440d9a4e7f5af1912f7160b93d5b10976f0f3c86c517e49e4fb088e9a",
+      "desktop/assets/yike.ico": "7408190377425bcf743cc3e7b4db8d966052bfe9cc75a02e9216fe0cdd1400a6",
+      "desktop/forge.config.ts": "c7c668d6892e8cfc5055d2fbbc952ed8da3f904c14175321c3c93480622a114d",
+      "desktop/package-lock.json": "50acb7eedd32a65c25ea9e813d62c9e0e2d60aee0a185e06a87242a2d02c63e8",
+      "desktop/package.json": "45ad09658ecdc0a51297367f652fe04f4a2eef4997563c4d9f1c49410bc68a76",
+      "desktop/src/main/exportService.ts": "927dcb2282368139aeddcc55f9b2e915ce1c4207fee2de43090896ee5cec8190",
+      "desktop/src/main/main.ts": "a13ae9b05950b352eca9b55370a4be2d79f9771547ade5d7081d15ee40701e58",
+      "desktop/src/main/rendererAssets.ts": "eb70e8bbe44ef603bb1c7ada5a002838af80e544ba8e7b45c040e286090cc3d6",
+      "desktop/src/main/serviceClient.ts": "b4fad787326d9eda39d16d5875eaed0a327bcc6f21ab4c861928f66ce6d1e596",
+      "desktop/src/main/servicePolicy.ts": "57135f7c997f6a68fbfc9dfaaf5b85df62a9c7ed5c9ba5c3638141a1361c0b02",
+      "desktop/src/main/squirrel-startup.d.ts": "6297de1a26f86cae303cacccc167f24207ad6c835ab85601d57ef0033430a0d0",
+      "desktop/src/main/windowPolicy.ts": "b9fd128049f47129cf745d282ffece33159509831a0ebb261adb501978dfdbfc",
+      "desktop/src/preload/index.ts": "677f6194eb7b649a6fadf5129f365a32b1f1ba3d9226cffb756950ff306a06cb",
+      "desktop/src/renderer/app/App.tsx": "41781ca054241a419fd96ae0981ae6bf4bffcbab327ecfe1e9eedc93702aa14f",
+      "desktop/src/renderer/app/boundedRequest.ts": "0e1186ca993861bcac6b81e51aea1a818e009d89094169c31e65af2f53f1530e",
+      "desktop/src/renderer/app/context.tsx": "fe5cd210e232195f65ae2694e28cf174559f7162ad8c8d97d1be9d42b882c5d0",
+      "desktop/src/renderer/app/hooks.ts": "8221ee0c15dc3a2d33fd91221f9775438bca590a4f5bd2a8e635736b3d749f68",
+      "desktop/src/renderer/app/main.tsx": "7a051f7225483a2269e80f292bb5684b72795897dbaeeac68f1401c85d0c0abd",
+      "desktop/src/renderer/app/operationLedger.ts": "eb46030ab72b7d7985f69284578cf7367c74ae21a9353d115986c05aaf978ea7",
+      "desktop/src/renderer/app/taskDraft.ts": "a4af9a89284ec117ceb6678c4b32c1584551fb31a8394e25a5cca79e04342a67",
+      "desktop/src/renderer/assets/logo.png": "b4f4bade37c5806f618c243af90747b7596f2b248d739eaa3130378f1a4f7595",
+      "desktop/src/renderer/base.css": "a5c2fff0d5ccb5dd12ec7950b16f86719349c6bb76e23c2ea56a00f3fabbbfc1",
+      "desktop/src/renderer/components/TermEditor.tsx": "af5b57e4ea09df7934a37a8a11fe158271d6070b4ffe6114c7db6bac4d243195",
+      "desktop/src/renderer/components/ui.tsx": "238306c2dd7df38a171b5a2df687188eb4d586d12e2377d3cadc5c4e0b0a67c5",
+      "desktop/src/renderer/domain/candidates.ts": "aae293df07a0b333b7dd9a5fc77e572d45129d5eb7db414cafdbcc1f631ed11d",
+      "desktop/src/renderer/domain/management.ts": "0f3d921660b24807c681e126110b3064672f13e0be4eac25f6f9a6e6a57abd76",
+      "desktop/src/renderer/domain/models.ts": "fb11d4118d41a7cf4847f2a9c1e5a3474595a290e2a47b7b26a9a5f51c1d215f",
+      "desktop/src/renderer/domain/outreach.ts": "65eb76b8b5651ab6b529bafe3b745023b227ddf4633ebacb4be2710a638e2049",
+      "desktop/src/renderer/domain/routes.ts": "e7783c6c41ffb3979928a453a26d2f73960064b962edf7111e584d40a9015794",
+      "desktop/src/renderer/domain/task.ts": "05b0a6fb2d09b19d4d982cff48f911ffb6303f34472a806495bfd7f53ea2d1bf",
+      "desktop/src/renderer/env.d.ts": "65996936fbb042915f7b74a200fcdde7e410f32a669b1ab9597cfaa4b0faddb5",
+      "desktop/src/renderer/index.html": "c536784c71f4f936b1c408158b9031632167b65fdbb26959189d6ce93f9cbfe0",
+      "desktop/src/renderer/pages/Connections.tsx": "6ab170db73eecc14e444f8f67e57bddd7d67834c5e1804752ece3fe31c8b67a6",
+      "desktop/src/renderer/pages/Followups.tsx": "4955d0f33c3d970f4013cea16110456f267d6f56de65b8c84c8a19d82aa0785a",
+      "desktop/src/renderer/pages/Login.tsx": "9ab80677ce633d8a7d9222ed65051942fb029952747546faad8b75a4d7ed1405",
+      "desktop/src/renderer/pages/Opportunities.tsx": "d5644a48853bf1ac5ec8d55389b01f66fa1b1d05a210931a2995c4560504d6ca",
+      "desktop/src/renderer/pages/Outreach.tsx": "97c076a555ba67195642952d3445e31a9a798a925b1dedcaac026e2c445a16ef",
+      "desktop/src/renderer/pages/OutreachQueue.tsx": "45d022bbc646da9d88cfac2c1d971be1b8dd37b817ac4ead6c5378a41b09d961",
+      "desktop/src/renderer/pages/Profile.tsx": "07819f451d6b8db124b66641df6eba4b7deeaa9c89a5f16d9572068973579ff3",
+      "desktop/src/renderer/pages/Settings.tsx": "0192b3b9303bb86427cad3de77b93a4386530e4bf85b1f20c7b16734411b3c1c",
+      "desktop/src/renderer/pages/TaskWizard.tsx": "813e71a2b6e4881b7778cdd8bbe83aa90ac01d7dfeddd2798213baf0758b2a33",
+      "desktop/src/renderer/pages/Tasks.tsx": "d3121539b31514588da042e5f741912e9f9fbcf320c89d2477ad7c19bed7b378",
+      "desktop/src/renderer/pages/Workbench.tsx": "d3f0c887da2b5eeec7cb51a2d94427a703557811ecfd674365c620ec59c8a4c5",
+      "desktop/src/renderer/pages/settings/ManagementActions.tsx": "d3b3262e83f4207361b974ed19ebd21cf4aef0e67adef9befa0a235e213693f4",
+      "desktop/src/renderer/pages/settings/useManagedOperation.ts": "2fbe1732adbf66995c40463cf7a8d167095a45456306f9ffe0adf00201293917",
+      "desktop/src/renderer/pages/settings/useManagementScope.ts": "263b021134e9b734822abc46308d6454b7524fa467a3cda3e1ce6d023c58a962",
+      "desktop/src/renderer/services/client.ts": "84de4534f0a8548a3e32e47236e1a7be1f765bf7210706bebb394c1d67f5d06b",
+      "desktop/src/renderer/services/contracts.ts": "c169262cfc7d309c0130020004cad300d6f9a4f9ae60bde958377f8be450f00b",
+      "desktop/src/renderer/services/download.ts": "ee739d60808894f94a88322d018ec1eaac0cfa3b35b854e74da4cced7379b252",
+      "desktop/src/renderer/services/management.ts": "6134a4f08d3d50ae3d2725f36de890e3261093ef7c1b34cf7c64cd8b01196a6a",
+      "desktop/src/renderer/services/outreach.ts": "eb6309049e8c56f761af61192cfb67e7a6d15281cb3f99d700dac50f4044a904",
+      "desktop/src/renderer/styles.css": "e72ff52d51b9e8c2d897e1d4108d39768bd1b56487da73b353ac0cf402419004",
+      "desktop/src/shared/contracts.ts": "3e560b9e5f52a7e8e10c11ec8569a642740c0ca47e42311325716819a4663d3d",
+      "desktop/src/shared/exportValidation.ts": "022f597ba90a781738a7cf1a6fa86659479cd5089dd8c3e60683f26b5e78b402",
+      "desktop/tsconfig.json": "9e16fdd9b587c8a044a5568f317118a3fa300a501264d70168613268bb0edd1f",
+      "desktop/vite.main.config.ts": "d16eac7bf0cef42ba9bda2d86f9c65bcaae95183c106b73e80d95c8caacdfb1d",
+      "desktop/vite.preload.config.ts": "5986b9cc77564207d0cc54ea06fe4a7f021435dfdceb902aa9d15d4426d0c615",
+      "desktop/vite.renderer.config.ts": "0582abe9c25ff82133d5edbe06f9dcaf49b0898527a27b6d0188c13d9a3879d1"
+    },
+    "validationInputHashes": {
+      "desktop/scripts/verify-package.mjs": "289a834178e5596e54fb582f2b62c0f40fd3c8a21233050701432f3f0560aa53",
+      "desktop/scripts/run-native-service-smoke.mjs": "55ef59805be92e0d21b522468c82757bc42ed596db73da27a541202e78278bbc",
+      "desktop/scripts/run-packaged-smoke.mjs": "ceb6085478f9215bf4ab160d8c7c96ea0bd0b27d68d6cb7902db5256c6381938",
+      "desktop/tests/nativeServiceSmoke.ts": "eb8891ee60dc6ff68b5943cbb82db5372b6f41ffbc1f7a91d41ed4eb2d571c43"
+    }
+  },
+  "build": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "macOSVersion": "26.5.2",
+    "nodeVersion": "v24.19.0",
+    "npmVersion": "10.8.2",
+    "electronVersion": "43.4.1",
+    "applicationVersion": "0.2.0",
+    "command": "npm run make:mac",
+    "exitCode": 0,
+    "installedDependencyOverrides": {
+      "tar": "7.5.22",
+      "tmp": "0.2.7"
+    }
+  },
+  "checks": {
+    "unitTests": {
+      "command": "npm test",
+      "reportedBy": "integration agent on final source tree",
+      "filesPassed": 37,
+      "testsPassed": 362,
+      "exitCode": 0
+    },
+    "nativeTransport": {
+      "command": "node scripts/run-native-service-smoke.mjs",
+      "exitCode": 0,
+      "passed": [
+        "actual service Origin",
+        "memory cookie roundtrip",
+        "session isolation",
+        "redirect rejection",
+        "logout clearing"
+      ]
+    },
+    "packageStructure": {
+      "archive": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/app.asar",
+      "version": "0.2.0",
+      "main": ".vite/build/main.cjs",
+      "rendererAssetCount": 24,
+      "archiveSha256": "c325913658b41943a49353000b0ffe408a93666687358ff2b04669dc98ac2d65",
+      "rendererHashes": {
+        "index.html": "7d390b1b628f2c5f14e4405bc829023c21ef497a14c97ae16ce37e352a9e66c8",
+        "assets/ArrowRight.es-X1iyLiUw.js": "17884ff09e1222439e1296e57c3f6d45f87486aac15abdb34ca7bd1d63bea970",
+        "assets/ArrowSquareOut.es-DgZimD3G.js": "3f44f94329066af69adf418b6f364ccecb26d97dc7def104d04ab7995b03984f",
+        "assets/Check.es-BohQ7-JT.js": "363b03b1706fec2a9f34ac531b91ae03f8300d478b67643f9cc09dee95f7e000",
+        "assets/Globe.es-6dsQczRW.js": "3f394e404710af244f736994491ccb8f157a455ea7b3e8d93433fb5c216cbae2",
+        "assets/Plus.es-D5I9ZtJt.js": "071e402d3534ab395a569ebeb2360cab0107a5665b1b2f057a18a13f32c86098",
+        "assets/download-B-uQR4Il.js": "84173e7ed2ce3ce04d8ad08f61615dc957002d112a156ccfe73fcf86352cafb1",
+        "assets/operationLedger-79p8tme9.js": "09e25460be7b7b564e6a6629ba383129eac2bfb02f651c262cfc4eb305e350e0",
+        "assets/schemas-Dtk4_9sS.js": "344327a3920f7dd4496c240cf5e477204877c2ee49c293e0a9fb2c18eae3acc3",
+        "assets/taskDraft-D1KXNHf8.js": "2e12b909514f2f3fa70a8275ba10eab25bab22c952bd905581eb7f0d96f63396",
+        "assets/logo-B-T1ksKV.png": "b4f4bade37c5806f618c243af90747b7596f2b248d739eaa3130378f1a4f7595",
+        "assets/index-DddGNIZ_.js": "d3f2cf466783706842849788906cf8a1dbeb94b80cde67889bb1a4a9f3533282",
+        "assets/index-DGSKXXxx.css": "bd24b063de7d7027a481834dfd078f193bbae0b83e1917482c82e29f7d72647f",
+        "assets/Connections-BadSKdU1.js": "ad772a4df1196dd91c67889110cb29ae53fe1a3495c0340990e2a57f5770b444",
+        "assets/Followups-BnEl-ho4.js": "a680636fecff668c216baea6ce292f38db521e1fb41a68c86b82cdcbc4312da4",
+        "assets/Login-CIUhZH5w.js": "e4b5721f6c2629e44754faa61b4d7bbdec9071718987b2bbc9cdd6b6ca8cf972",
+        "assets/Opportunities-5kbtT9Td.js": "0883029ee6cbd3324dd9a0d89effe97e3dacb78c25d95c8408e05159e85b70bf",
+        "assets/Outreach-B0gcr_Mh.js": "9453cb6c3366042061d669cf012ff470ee096f4a2b01ea4240c4dfec53b910ed",
+        "assets/OutreachQueue-CzUKqdzq.js": "12e7f855f54c3610a1ebfab196aeaf1e32db06d694d857b33d4f9ed1dd3ad2b8",
+        "assets/Profile-BQbX3_hH.js": "7ef7d072ae18ce7b374c8b1172711cfb4924fd065b21e7521c6217c0a778cbaf",
+        "assets/Settings-Xd3r22Zm.js": "046d65563e698257aac810e31ac6e6d47e1e99fa2ecca7531bf6778b6f81a9fa",
+        "assets/TaskWizard-DtkKMQDQ.js": "111e515aac70eb95405849fc7ec3a75a46bd0deaaa9ff7394a06ae5f416c5b2d",
+        "assets/Tasks-N0hfIRH1.js": "c90b46ff281ab628ec2f01d7f0db665752884889e7d66b406ae512991fe5e413",
+        "assets/Workbench-CsXrbnW1.js": "389a1ab71f927a04808b01df0cb6dcae1a9b5d7e03df8521d84db68e8be8742e"
+      },
+      "verified": "Package structure and bytes only; does not prove installation or business readiness."
+    },
+    "packagedRuntime": {
+      "command": "node scripts/run-packaged-smoke.mjs <app.asar>",
+      "exitCode": 0,
+      "passed": [
+        "actual packaged main/preload/renderer",
+        "sandbox/context isolation/no Node integration",
+        "custom yike protocol and workbench render",
+        "fixed IPC validation and honest unconfigured service",
+        "invalid external URL and empty clipboard rejected",
+        "CSV and backup export actual temporary-file writes read back",
+        "save cancellation and invalid export path rejection",
+        "cancelled quit preserves window",
+        "confirmed quit exits normally"
+      ],
+      "saveDialogScope": "Only this isolated test process substitutes native dialog results; actual package IPC, validation and disk writer execute. No user-selected destination is written."
+    },
+    "zipIntegrity": {
+      "crc": "passed",
+      "containedArchiveSha256": "c325913658b41943a49353000b0ffe408a93666687358ff2b04669dc98ac2d65"
+    },
+    "approvedIcon": {
+      "bundleResource": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/electron.icns",
+      "sha256": "f93e910440d9a4e7f5af1912f7160b93d5b10976f0f3c86c517e49e4fb088e9a",
+      "matchesApprovedIcns": true
+    }
+  },
+  "artifacts": {
+    "app": "desktop/out/意客AI-darwin-arm64/意客AI.app",
+    "asar": {
+      "path": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/app.asar",
+      "bytes": 1499656,
+      "sha256": "c325913658b41943a49353000b0ffe408a93666687358ff2b04669dc98ac2d65"
+    },
+    "zip": {
+      "path": "desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip",
+      "bytes": 122395304,
+      "sha256": "167009f2b8272980fbeb3baaaea19c35a657b76949d34bd04aacf8fcd0828bc0"
+    }
+  },
+  "scope": {
+    "customerServiceConfiguredForSmoke": false,
+    "usesCustomerData": false,
+    "externalMessagesSent": false,
+    "clipboardChanged": false,
+    "externalLinksOpened": false,
+    "visibleAppAcceptance": "PASS: final bundle launched, platform/settings navigation and backup dialog inspected, quit verified by process absence, then relaunched. See mac-visible.json. No backend or native save-dialog acceptance implied.",
+    "realNativeSaveDialogAcceptance": "NOT_RUN: save smoke uses substituted dialog results in an isolated process.",
+    "codeSignedForDistribution": false,
+    "notarized": false,
+    "windowsX64InstallerBuilt": false,
+    "productionServiceAcceptance": "CP-06 remains separate"
+  },
+  "warnings": [
+    "Forge/Vite inlineDynamicImports deprecation warning; make exited 0.",
+    "Packaged smoke fs.Stats deprecation warning; smoke exited 0.",
+    "The 8011a30 intermediate package was superseded; these hashes belong to final source a9f3078."
+  ]
+}

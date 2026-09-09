@@ -1,0 +1,45 @@
+{
+  "sourceCommit": "a9f3078b98ffe443ee5b7d95b7bc5ff55530a2e5",
+  "date": "2026-09-09",
+  "platform": "macOS arm64",
+  "nodeMajor": 24,
+  "checks": [
+    {
+      "command": "npm --prefix desktop test",
+      "files": 37,
+      "passed": 362,
+      "failed": 0,
+      "result": "PASS",
+      "evidence": "root exec session 67511 completed; chunk 502b9b"
+    },
+    {
+      "command": "npm --prefix desktop run typecheck",
+      "result": "PASS",
+      "evidence": "same final run after tests"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    },
+    {
+      "command": "bash scripts/secret_scan.sh",
+      "result": "PASS",
+      "note": "Repeated after final documentation and native-visible records; clean."
+    }
+  ],
+  "browser": {
+    "fixture": "tests/visual; TEST-only; no external collection/send/customer DB writes",
+    "responsiveChecks": 12,
+    "horizontalOverflow": 0,
+    "matrix": "responsive.json",
+    "minimumDialog": "dialog-960.json",
+    "queueNavigation": "queue-navigation.json"
+  },
+  "notEstablished": [
+    "all P01-P20 same-state visual fidelity",
+    "real management/outreach backend",
+    "Windows physical acceptance",
+    "signed/notarized release",
+    "production deployment"
+  ]
+}

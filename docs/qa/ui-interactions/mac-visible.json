@@ -1,0 +1,52 @@
+{
+  "sourceCommit": "a9f3078b98ffe443ee5b7d95b7bc5ff55530a2e5",
+  "recordedAtUtc": "2026-09-09T09:35:33.041599+00:00",
+  "app": "desktop/out/意客AI-darwin-arm64/意客AI.app",
+  "asarSha256": "c325913658b41943a49353000b0ffe408a93666687358ff2b04669dc98ac2d65",
+  "method": "CUA visible native application inspection; process read confirms exit",
+  "checks": [
+    {
+      "action": "Launch final packaged app",
+      "result": "PASS",
+      "observed": "Workbench renders from yike://app/index.html"
+    },
+    {
+      "action": "Navigate platform connections and account/device settings",
+      "result": "PASS",
+      "observed": "Actual macOS/version shown; unconfigured services and unverified license remain explicit"
+    },
+    {
+      "action": "Open and close backup/recovery dialog",
+      "result": "PASS",
+      "observed": "Unavailable account state; no backup upload or restore executed"
+    },
+    {
+      "action": "Quit with Cmd+Q",
+      "result": "PASS",
+      "observed": "pgrep for the exact packaged MacOS/YikeAI process returned no process"
+    },
+    {
+      "action": "Relaunch same final bundle",
+      "result": "PASS",
+      "observed": "Workbench renders again"
+    },
+    {
+      "action": "Open real browser preview",
+      "result": "PASS",
+      "observed": "http://127.0.0.1:18791/#/workbench fully loaded with honest signed-out state"
+    }
+  ],
+  "screenshots": {
+    "platformConnections": "screens/mac-connections.jpg",
+    "backupDialog": "screens/mac-backup.jpg"
+  },
+  "screenshotsNote": "CUA JPEG captures at 1080x768; not used for same-viewport design comparisons.",
+  "notVerified": [
+    "real native save dialog selection",
+    "production service",
+    "distribution signing or notarization",
+    "Windows build or physical acceptance"
+  ],
+  "externalMessagesSent": false,
+  "customerDataWritten": false
+}

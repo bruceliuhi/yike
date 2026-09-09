@@ -1,0 +1,182 @@
+[
+  {
+    "route": "/outreach?opportunity=sample",
+    "requested": [
+      1280,
+      720
+    ],
+    "actual": {
+      "documentWidth": 1280,
+      "height": 720,
+      "mainWidth": 1072,
+      "width": 1280
+    },
+    "zoom": 1.5,
+    "pass": true
+  },
+  {
+    "route": "/outreach?opportunity=sample",
+    "requested": [
+      1366,
+      768
+    ],
+    "actual": {
+      "documentWidth": 1366,
+      "height": 768,
+      "mainWidth": 1158,
+      "width": 1366
+    },
+    "zoom": 1.5,
+    "pass": true
+  },
+  {
+    "route": "/outreach?opportunity=sample",
+    "requested": [
+      1440,
+      1024
+    ],
+    "actual": {
+      "documentWidth": 1440,
+      "height": 1024,
+      "mainWidth": 1232,
+      "width": 1440
+    },
+    "zoom": 1.5,
+    "pass": true
+  },
+  {
+    "route": "/outreach?opportunity=sample",
+    "requested": [
+      1920,
+      1080
+    ],
+    "actual": {
+      "documentWidth": 1920,
+      "height": 1080,
+      "mainWidth": 1712,
+      "width": 1920
+    },
+    "zoom": 1.5,
+    "pass": true
+  },
+  {
+    "route": "/outreach?opportunity=sample",
+    "requested": [
+      2560,
+      1440
+    ],
+    "actual": {
+      "documentWidth": 2560,
+      "height": 1440,
+      "mainWidth": 1840,
+      "width": 2560
+    },
+    "zoom": 1.5,
+    "pass": true
+  },
+  {
+    "route": "/outreach?opportunity=sample",
+    "requested": [
+      960,
+      600
+    ],
+    "actual": {
+      "documentWidth": 960,
+      "height": 600,
+      "mainWidth": 776,
+      "width": 960
+    },
+    "zoom": 1.5,
+    "pass": true
+  },
+  {
+    "route": "/settings",
+    "requested": [
+      1280,
+      720
+    ],
+    "actual": {
+      "documentWidth": 1280,
+      "height": 720,
+      "mainWidth": 1072,
+      "width": 1280
+    },
+    "zoom": 1.5,
+    "pass": true
+  },
+  {
+    "route": "/settings",
+    "requested": [
+      1366,
+      768
+    ],
+    "actual": {
+      "documentWidth": 1366,
+      "height": 768,
+      "mainWidth": 1158,
+      "width": 1366
+    },
+    "zoom": 1.5,
+    "pass": true
+  },
+  {
+    "route": "/settings",
+    "requested": [
+      1440,
+      1024
+    ],
+    "actual": {
+      "documentWidth": 1440,
+      "height": 1024,
+      "mainWidth": 1232,
+      "width": 1440
+    },
+    "zoom": 1.5,
+    "pass": true
+  },
+  {
+    "route": "/settings",
+    "requested": [
+      1920,
+      1080
+    ],
+    "actual": {
+      "documentWidth": 1920,
+      "height": 1080,
+      "mainWidth": 1712,
+      "width": 1920
+    },
+    "zoom": 1.5,
+    "pass": true
+  },
+  {
+    "route": "/settings",
+    "requested": [
+      2560,
+      1440
+    ],
+    "actual": {
+      "documentWidth": 2560,
+      "height": 1440,
+      "mainWidth": 1840,
+      "width": 2560
+    },
+    "zoom": 1.5,
+    "pass": true
+  },
+  {
+    "route": "/settings",
+    "requested": [
+      960,
+      600
+    ],
+    "actual": {
+      "documentWidth": 960,
+      "height": 600,
+      "mainWidth": 776,
+      "width": 960
+    },
+    "zoom": 1.5,
+    "pass": true
+  }
+]

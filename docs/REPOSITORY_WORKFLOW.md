@@ -6,7 +6,21 @@
 
 产品仓库为 [yike-ai2026](https://gitee.com/xinghetech/yike-ai2026)，集成分支和默认分支均为 `main`。前端、客户端、后端、Skill、测试、构建脚本及产品功能都在这里交付。`ike-ai2026` 是随后被用户更正的名称，不是另一个提交目标。
 
-新功能流程：
+按用户提出的减少分支、加快主干整合方向，`main` 是唯一长期主干。小范围串行修改直接在最新 `main` 开发，完成必要验证与独立审核后提交、推送。较大功能或多任务并行时使用一个短期 `codex/<主题>` 分支；不是每个修复、文档或验收步骤都新建分支。
+
+小改流程：
+
+```sh
+git fetch --prune origin
+git switch main
+git merge --ff-only origin/main
+# 开发、验证、独立审核、提交
+git fetch origin
+# 若 main 已前进，先整合并按影响重新验证
+git push origin main
+```
+
+较大或并行功能流程：
 
 ```sh
 git fetch --prune origin
@@ -19,6 +33,7 @@ git merge origin/main
 # 如有合并修改，按影响范围重新验证和审核
 git push -u origin codex/<主题>
 # 将审核后的功能分支合并回 main，再推送 main；可通过 PR 完成
+# 确认 main 已包含全部提交后，仅清理本次短期分支
 ```
 
 先检查工作树；有未提交改动时妥善保留或使用隔离 worktree，不覆盖其他任务。推送 `main` 使用正常快进/合并，遇到并发提交重新获取并整合，不强制推送。旧分支暂时保留作溯源，不能因“全部代码归 main”而把未经评估、过时或相互冲突的路线整批覆盖当前代码。

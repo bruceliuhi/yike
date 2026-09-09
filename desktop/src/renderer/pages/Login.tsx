@@ -1,12 +1,15 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { CaretDown, CaretUp } from "@phosphor-icons/react";
 import { useApp } from "../app/context";
 import { useAction } from "../app/hooks";
+import { boundedRequest, RequestCancelled } from "../app/boundedRequest";
+import { errorMessage } from "../services/contracts";
+import type { Session } from "../domain/models";
 import { Button, Field, Modal, Notice } from "../components/ui";
 import logo from "../assets/logo.png";
 
 export function LoginPage() {
-  const { service, navigate, refreshSession } = useApp();
+  const { service, session, navigate, refreshSession } = useApp();
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [trial, setTrial] = useState("");
@@ -17,7 +20,26 @@ export function LoginPage() {
   const [cooldown, setCooldown] = useState(0);
   const [information, setInformation] = useState<string | null>(null);
   const login = useAction();
-  const sms = useAction();
+  const [smsBusy, setSmsBusy] = useState(false);
+  const [smsError, setSmsError] = useState("");
+  const smsGeneration = useRef(0);
+  const smsController = useRef<AbortController | null>(null);
+  const loginController = useRef<AbortController | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      smsGeneration.current++;
+      smsController.current?.abort();
+      loginController.current?.abort();
+    };
+  }, []);
+  // A real session refresh may remount the login page under its new user key.
+  // Only an established server identity can continue after that remount.
+  useEffect(() => {
+    if (session.authenticated && session.userId?.trim()) navigate("/workbench");
+  }, [session.authenticated, session.userId]);
   useEffect(() => {
     if (cooldown <= 0) return;
     const timer = window.setTimeout(() => setCooldown((n) => n - 1), 1000);
@@ -32,19 +54,52 @@ export function LoginPage() {
     return true;
   };
   const requestCode = async () => {
-    if (!validPhone() || cooldown > 0) return;
-    const result = await sms.run(() => service.requestCode(phone.trim()));
-    if (result) setCooldown(Math.max(1, Math.min(300, result.retryAfter)));
-  };
-  const finish = async (authenticated: boolean) => {
-    if (!authenticated) {
-      login.setError("登录尚未完成，请核对凭证后重试。");
-      return;
+    if (!validPhone() || cooldown > 0 || smsBusy) return;
+    const request = ++smsGeneration.current;
+    const abort = new AbortController();
+    smsController.current?.abort();
+    smsController.current = abort;
+    const requestedPhone = phone.trim();
+    setSmsBusy(true);
+    setSmsError("");
+    try {
+      const result = await boundedRequest(() => service.requestCode(requestedPhone), {
+        signal: abort.signal,
+        timeoutMessage: "验证码请求超时，发送结果尚未确认。请稍后检查短信或重试。",
+      });
+      if (!mounted.current || request !== smsGeneration.current) return;
+      if (!Number.isFinite(result.retryAfter) || result.retryAfter < 0)
+        throw new Error("验证码服务响应无效，请稍后重试。");
+      setCooldown(Math.max(1, Math.min(300, Math.ceil(result.retryAfter))));
+    } catch (error) {
+      if (mounted.current && request === smsGeneration.current && !(error instanceof RequestCancelled))
+        setSmsError(errorMessage(error));
+    } finally {
+      if (mounted.current && request === smsGeneration.current) setSmsBusy(false);
     }
-    setCode("");
-    setToken("");
-    await refreshSession();
-    navigate("/workbench");
+  };
+  const performLogin = async (operation: () => Promise<Session>) => {
+    await login.run(async () => {
+      const abort = new AbortController();
+      loginController.current = abort;
+      const result = await boundedRequest(operation, {
+        signal: abort.signal,
+        timeoutMessage: "登录请求超时，结果尚未确认。请稍后重试并重新确认会话。",
+      });
+      if (!mounted.current) return;
+      if (!result.authenticated)
+        throw new Error("登录尚未完成，请核对凭证后重试。");
+      const established = await boundedRequest(signal => refreshSession(signal), {
+        signal: abort.signal,
+        timeoutMessage: "会话确认超时，登录状态尚未核实。请稍后重试。",
+      });
+      if (!established.authenticated || !established.userId?.trim())
+        throw new Error("登录会话尚未建立或已失效，请核对凭证后重试。");
+      if (!mounted.current) return;
+      setCode("");
+      setToken("");
+      navigate("/workbench");
+    });
   };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -57,10 +112,9 @@ export function LoginPage() {
       setErrors({ trial: "请输入试用码，或收起试用开通。" });
       return;
     }
-    const result = await login.run(() =>
+    await performLogin(() =>
       service.login(phone.trim(), code, trialOpen ? trial.trim() : undefined),
     );
-    if (result) await finish(result.authenticated);
   };
   const submitToken = async (event: FormEvent) => {
     event.preventDefault();
@@ -69,8 +123,7 @@ export function LoginPage() {
       return;
     }
     setErrors({});
-    const result = await login.run(() => service.loginToken(token.trim()));
-    if (result) await finish(result.authenticated);
+    await performLogin(() => service.loginToken(token.trim()));
   };
   return (
     <main className="login-layout">
@@ -95,10 +148,16 @@ export function LoginPage() {
               maxLength={11}
               placeholder="请输入手机号码"
               value={phone}
+              disabled={login.busy}
               onChange={(e) => {
+                smsGeneration.current++;
+                smsController.current?.abort();
+                setSmsBusy(false);
+                setCooldown(0);
+                setCode("");
                 setPhone(e.target.value);
                 setErrors({});
-                sms.setError("");
+                setSmsError("");
               }}
             />
           </Field>
@@ -112,6 +171,7 @@ export function LoginPage() {
                 maxLength={6}
                 placeholder="请输入验证码"
                 value={code}
+                disabled={login.busy}
                 onChange={(e) => {
                   setCode(e.target.value);
                   setErrors({});
@@ -119,14 +179,14 @@ export function LoginPage() {
               />
               <Button
                 onClick={() => void requestCode()}
-                loading={sms.busy}
-                disabled={cooldown > 0}
+                loading={smsBusy}
+                disabled={cooldown > 0 || login.busy}
               >
                 {cooldown > 0 ? `${cooldown} 秒后重试` : "获取验证码"}
               </Button>
             </div>
           </Field>
-          {sms.error && <Notice tone="error">{sms.error}</Notice>}
+          {smsError && <Notice tone="error">{smsError}</Notice>}
           {trialOpen && (
             <Field label="试用码" required error={errors.trial}>
               <input
@@ -135,6 +195,7 @@ export function LoginPage() {
                 maxLength={128}
                 placeholder="请输入试用码"
                 value={trial}
+                disabled={login.busy}
                 onChange={(e) => {
                   setTrial(e.target.value);
                   setErrors({});
@@ -157,6 +218,7 @@ export function LoginPage() {
             variant="ghost"
             className="login-expand"
             aria-expanded={trialOpen}
+            disabled={login.busy}
             onClick={() => {
               setTrialOpen(!trialOpen);
               setErrors({});
@@ -169,6 +231,7 @@ export function LoginPage() {
           <Button
             variant="ghost"
             aria-expanded={tokenOpen}
+            disabled={login.busy}
             onClick={() => {
               setTokenOpen(!tokenOpen);
               setToken("");
@@ -192,6 +255,7 @@ export function LoginPage() {
                   autoComplete="off"
                   maxLength={8192}
                   value={token}
+                  disabled={login.busy}
                   placeholder="粘贴已有访问凭证"
                   onChange={(e) => {
                     setToken(e.target.value);
