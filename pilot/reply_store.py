@@ -93,6 +93,18 @@ class ReplyEventStore:
             cursor.execute("SELECT pg_advisory_xact_lock(11801,%s)", (self._lock_key(identity),))
             self._active(cursor, claims)
             if isinstance(event, PlatformReplyEvent):
+                # A platform reply is accepted only when the same owner has a
+                # durable, human-confirmed origin request for this source and
+                # opportunity.  A client cannot fabricate a reply association.
+                cursor.execute(
+                    "SELECT opportunity_id,source_id FROM pilot_outreach_confirmations "
+                    "WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s",
+                    (tenant_id, claims.user_id, event.outreach_request_id),
+                )
+                origin = cursor.fetchone()
+                if origin is None or origin[0] != event.opportunity_id or origin[1] != event.source_id:
+                    raise ReplyStoreError("reply_origin_unavailable", 409)
+            if isinstance(event, PlatformReplyEvent):
                 cursor.execute("""SELECT event_id,revision,payload,payload_sha256 FROM pilot_reply_events
                     WHERE tenant_id=%s AND owner_user_id=%s AND source_id=%s AND outreach_request_id=%s
                       AND platform=%s AND external_reply_id=%s ORDER BY revision DESC LIMIT 1 FOR UPDATE""",
