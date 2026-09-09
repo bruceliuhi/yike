@@ -45,3 +45,7 @@ uv run --frozen pytest -q tests/test_device_keys.py tests/test_device_credential
 device_authorization_architecture 对精确c3702c0及完整任务brief/report/diff作只读审核：Spec Compliance通过、Task Quality通过，Critical/Important/Minor均无具体问题。检查了严格公钥点校验、双钥轮换/回执、session→device锁序、owner、复合FK/FORCE RLS与最小授权；另外只查继承的Origin/no-store与共享会话调用点。审核者未重复PG测试，也未以提供的925项结果冒充自己实测。
 
 整分支最终审核与main整合证据在完成后追加；Windows须记录自己的环境与ACK，不能复制上述Mac测试结果当作验收。[交接包](../handoffs/V02-01C_DEVICE_KEYS_MAC_TO_WIN.md)说明实际消费步骤及未完成边界。
+
+## 后续Win限定接收与主线整合
+
+原文“尚未main/Win未接收”为候选时点记录。CodexWin冻结复核 **65d867640ea216769adb5f947f5dea8fb7b31a35**（含c370及此前Win来源身份修复），实际Windows PG定向123 passed；完整962项为908 passed/54既有Windows失败/0跳过。新增的真实Node→loopback HTTP→受限PG证明签名字节、绑定/双签换钥/重放/拒绝可消费，不等于生产TLS或Windows私钥持久化。独立代码/架构/质量及合入复核通过后，正常集成 **f9255603435862d8e8ead60b0357851c8c9e3075**，对本后端子链限定ACK；01C执行授权剩余部分继续。两处契约文案勘误不改变代码行为，Win原始摘要、旧失败和验证工具修复见[Win复核第9节](WIN_CROSS_REVIEW_20260909.md)。不将本次不同集合相加或覆盖此前Mac925证据。

@@ -152,3 +152,33 @@ uv lock --check --offline
 随后从干净 **3c16fac** 运行完整脚本（exec session17526）：**53文件/568 passed/2 skipped**，66.37s，计数来自控制台chunk d1943d；所有9个自动阶段PASSED，包含Squirrel制作、ASAR 32资源校验和真实包内Electron冒烟，最终exit0。冒烟覆盖实际main/preload/renderer、沙箱/自定义协议、IPC拒绝、未配置服务、隔离临时文件CSV/备份导出及取消、未保存退出确认；保存/退出对话框在隔离进程被替代，**不构成用户手动安装或可见交互验收**。本轮通过不证明前述间歇夹具清理已修好。
 
 成功报告 `desktop/out/windows-evidence/2026-09-09T11-45-38-367Z-cc8227d5/windows-build.json` SHA256 `0126fed3ba69286e7b82a7aec4934be8956e61cebba0bf4d243e02574dcf2599`；ASAR SHA256 `aee5e624987dd99f4b6b820d92003e2f00a1c5904a5aaac23b01af55a702a52a`；本轮Setup SHA256 `25b6465e7c69228f8f14e233bc84681088b152586353e98621420c986f371220`。Setup因重新制作与上一失败候选不同，不把旧Setup摘要回填为本轮。人工11项仍UNTESTED，17 high仍未消除，正式签名/安装更新/真实业务不在此次通过范围。已正常推送main 3c16fac并用ls-remote核验；Goal继续ACTIVE。
+
+## 8. 独立Node夹具与第二次完整自动链
+
+`84c4b6ff2c5f117a7303da59cdc4f14b74309207` 只改runtime测试：每个Node夹具独立copy，新增source/A/B文件身份、nlink及摘要检查和真实IPC A存活时清理B的反例。身份测试原hardlink明确RED（3个路径仅1个文件对象），不是EPERM确定性复现。作者 `windows_bootstrap_fix`，独立 `win_contract_readiness` 规格/架构/代码/质量PASS，实际runtime34 passed/1架构skip、typecheck通过；root五文件87 passed/2 skip（exec 142658，11.65s），另行typecheck通过。
+
+根代理从干净84c4b6f再次完整构建（session50349，结果chunk b346b2）：53文件/**570 passed/2明确skipped**、67.12s；9自动阶段全部PASSED、exit0，含原生与包内冒烟。报告 `desktop/out/windows-evidence/2026-09-09T11-58-05-200Z-3c0d0702/windows-build.json` SHA256 `a4051e39ed44b5def7ed642480db2ba0b7e0fcdc69f09983e32c16aeaabd38cb`。本轮ASAR仍为aee5e624…；Setup SHA256 `3b1c89810ab89081d345a1ad06679366c6120c1439b2c1ebdc971b527fb11155`。人工11项仍UNTESTED，17 high仍在，不重写旧报告。
+
+作者及root分别检查：新增runtime临时目录/子进程无遗留，历史AvlVDu/Mk7kCl仍原样保留；未调整权限或删除共享原Node。此修复证明文件隔离与本轮清理边界，不宣称所有Windows环境永无间歇故障。与3c16相比仅新增2个测试，不把总数差当产品功能数量。
+
+## 9. 新设备持钥后端的Windows限定接收
+
+Mac后续 `65d867640ea216769adb5f947f5dea8fb7b31a35` 含 `c3702c0` 设备持钥切片，代码已进入远端main但未因此自动ACK。Win保留冻结detached检出 `.worktrees/review-device-65d8676`，以独立非editable CPython3.11.14/PyNaCl1.6.2/cffi2.1.1环境按lock安装，不污染原win-dev环境。
+
+独立 `supplychain_readiness` 核对严格Ed25519点/编码、UTF-8原字节、双签轮换、session→device锁序、数据库实时到期、owner/FK/RLS和显式最小授权，未发现P0/P1/P2；本机纯协议/身份/会话三文件53 passed（包含先跑的20项，不累加）。额外合成点/编码反例通过。发现两处非阻断文案：Origin中间件403不属于路由no-store JSON，以及session_digest实际为encoded payload字节SHA256；本次修正文档，不改变签名协议或HTTP行为。
+
+root独立使用官方PostgreSQL16.15一次性Docker实例（127.0.0.1随机端口、tmpfs、`--rm`），在新win_pilot/win_identity库和NOSUPERUSER/NOBYPASSRLS角色下验证。新设备测试先于旧identity夹具运行；另外升级测试自己建立最小角色/105库，重复106及显式grant，验证无users UPDATE、新表DELETE、schema CREATE，不能把后续旧夹具的宽授权当作本次最小权限证明。
+
+| 验证 | 本次Windows结果 |
+|---|---|
+| 7文件设备/身份/会话PG定向 | **123 passed，19.29s，0 skip**；exec 8e9c6a |
+| 全仓Python（同65d，`-X utf8`） | **908 passed / 54 failed / 0 error / 0 skip**，92.99s，962总计；exec 1204f4，退出1 |
+| 旧失败集合对比 | 54全部属于原222的58个既有Windows失败，无新增失败名；少的4个在原222加`-X utf8`复跑也通过（exec 9db32e，4 passed），不归因设备功能修复 |
+| Windows真实Node→HTTP→PG | Node24.19本机生成且仅在内存持有私钥；实际loopback HTTP调用绑定/证明/双签换钥/成功重放/旧钥拒绝/历史回执，受限角色实际落PG；两轮通过，第二轮exec 228505 |
+| 主线整合定向 | staged集成后8文件323 passed，1.76s，exec 123f91；不同于123/962集合，不相加 |
+
+定向XML `.runtime/device-targeted-65d8676.xml` SHA256 `2d15ad8a8a34e60129cdb331e0390c5fb263f2bbbffdd69a6bd93ec6b32a46e5`；全量 `.runtime/device-full-65d8676.xml` SHA256 `44393e5cb3c3180a8ce9d9cb6da1b6b049c8b1f311f34b52d8a9d3266679dd08`。不把Mac旧925测试数复制为Win或65d全量结果；新65d还包括Win此前37个IDNA反例。
+
+Node探针只导出公开key/signature，产品测试token经stdin传入；子进程env只留系统/临时目录字段，不继承数据库或服务端密钥。临时服务明确使用仅loopback开发HTTP，不等于生产TLS或私钥落盘验收。工具在 `.runtime/review-device-65d8676.ps1`、`review-device-probe.py`、`review-device-node.mjs`。独立 `windows_bootstrap_fix` 发现原工具stop失败仅警告的P2，root改为失败退出并核对精确容器消失；新ProbeOnly轮再次通过并确认移除，不覆盖第一轮XML。第一次容器亦已独立查无残留。旧POSIX supervisor失败留下的本轮pytest-15子进程经精确命令行/ID核查后终止，未碰其他服务；未删除其测试文件。
+
+正常集成提交 **`f9255603435862d8e8ead60b0357851c8c9e3075`**。独立 `win_contract_readiness` 核对index：Mac19非任务书blob与65d完全一致，desktop与84c完全一致，唯一任务书同时保留双方状态。CodexWin于2026-09-09对**65d中的持钥后端子链限定ACK**，以本次勘误契约为消费说明；父01C仍IN_PROGRESS。尚无连接版本/执行租约/领取续租取消/结果提交授权、02B上传或09D私钥安全存储，不据此激活平台capability；真实安装、收发、生产和客户UAT仍未验收，Goal继续ACTIVE。

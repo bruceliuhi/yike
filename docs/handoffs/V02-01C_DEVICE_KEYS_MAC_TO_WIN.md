@@ -2,6 +2,8 @@
 
 日期：2026-09-09。后端候选 `c3702c07cd334fd745905ddd7f4d7b697edb27c0`；实际CodexWin尚未接收，本文件不是ACK。整体01C仍在开发，不能据此启动尚不存在的执行租约或候选上传API。
 
+后续实际接收：上述首段是原候选交接时点。CodexWin已对包含c3702c0的 **65d867640ea216769adb5f947f5dea8fb7b31a35** 持钥后端子链限定ACK，集成 **f9255603435862d8e8ead60b0357851c8c9e3075**；Windows真实PG定向123通过、Node→loopback HTTP→受限PG往返通过，全量908通过/54个既有Windows失败。消费时采用同日勘误后的[契约](../contracts/V02_DEVICE_KEYS.md)，完整[Win证据](../qa/WIN_CROSS_REVIEW_20260909.md)保留环境、摘要、审核和失败。只解锁本持钥接口消费，不解锁执行租约、上传或安全私钥存储，也不把整体01C标DONE。
+
 ## 接收内容
 
 - [精确协议与错误](../contracts/V02_DEVICE_KEYS.md)：三个设备挑战/完成/历史请求HTTP路由。
