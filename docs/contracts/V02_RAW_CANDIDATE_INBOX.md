@@ -4,12 +4,13 @@
 
 ## 1. 接入方式
 
-复用 `build_app(..., candidate_ingestion=CandidateIngestionStore(database, execution_runtime))`，应用连接不得是管理员连接。未传服务时四个入口返回 501 `capability_unavailable`；不自动将 `task_execution`、来源读取或触达能力改为可用。构造服务不替代真实确认策略、来源和设备授权的接通与验收。
+复用 `build_app(..., candidate_ingestion=CandidateIngestionStore(database, execution_runtime))`，应用连接不得是管理员连接。未传服务时五个入口返回 501 `capability_unavailable`；不自动将 `task_execution`、来源读取或触达能力改为可用。构造服务不替代真实确认策略、来源和设备授权的接通与验收。
 
-所有入口要求有效产品会话；沿用 HTTPS、Origin、防撤销及 `Cache-Control: no-store`。服务再次在数据库事务内核验会话及 owner，租户不得来自上传包。只有 POST 的新请求验证设备签名、当前租约、策略/画像、连接版本、取消、代次和预算；成功历史只读不是重新执行授权。
+所有入口要求有效产品会话；沿用 HTTPS、Origin、防撤销及 `Cache-Control: no-store`。服务再次在数据库事务内核验会话及 owner，租户不得来自上传包。只有上传 POST 的新批次验证设备签名、当前租约、策略/画像、连接版本、取消、代次和预算；准备不提供执行准入，成功历史只读不是重新执行授权。
 
 | 方法与路径（前缀 `/api/ui`） | 输入 | 输出 |
 |---|---|---|
+| POST `/candidate-submission-signing-payload` | JSON `{batch: CandidateBatch}` | 当前会话绑定的五字段待签原文；不产生上传回执 |
 | POST `/candidate-batches` | JSON `{batch: CandidateBatch, signature: string}` | 不可变批次回执 |
 | GET `/candidate-batches/{platform_run_id}/{request_id}` | 原平台运行 UUID、原 opaque 请求 ID | 原成功回执；未找到为 404，不等于执行失败 |
 | GET `/raw-candidates` | 可选 task_id、platform、page、page_size | 当前原始候选列表 |
@@ -18,6 +19,28 @@
 传输体仅接受 `application/json`，最大 **4 MiB（实际字节）**；超限 413 `request_too_large`，连接器必须拆分为新请求，不截断原文。02A 每批至多100条仍成立，但较长Unicode内容可能先到字节上限。重复字段、非JSON数字、额外 envelope 字段、错误签名形状拒绝；签名采用既有 `submission_signing_payload`，canonical base64url、无填充、64字节Ed25519签名。服务保存解码后的原文字段，不记录签名、会话凭据或整个HTTP payload。
 
 `request_id` 允许 ASCII 字母/数字开头及 `_.:-`，1–128字符，不强制UUID。`platform_run_id/task_id/candidate_id` 是当前服务产生的UUID。platform 使用02A服务枚举，不自动猜测 xhs/dy/bili。分页默认1/20，page_size为1–100；未知或重复查询参数拒绝。task筛选看该任务是否有观察，不仅看最后一次观察来自哪个任务。
+
+### 1.1 普通客户端候选签名准备（2026-09-10）
+
+输入是完整batch，不传tenant/user/session/signature/now等额外字段。准备与上传共用实际字节4 MiB的有界JSON reader，DB时钟验证现CandidateBatch，再检查当前用户ACTIVE设备及精确credential_version，返回前重验会话。`connection_id`必须显式传值或null；仅`connection_version`可按现DTO缺省为null。无runtime时准备501，已有原回执读取/重放不因此失效。
+
+响应精确五字段：
+
+| 字段 | 含义 |
+|---|---|
+| `signing_payload` | 既有canonical JSON原字符串；UTF-8签名，不重新序列化 |
+| `request_id` | 原batch的opaque ID，不能更换恢复键 |
+| `device_id` | 同一batch.execution中的当前owner设备 |
+| `credential_version` | 同一batch.execution中核对过的整数版本 |
+| `batch_fingerprint` | 规范模型完整batch**去掉request_id**后的canonical SHA256 |
+
+原文域仍为`yike-candidate-submission-v1`，包含服务端tenant/user/current session digest，以及单独绑定的request_id和batch_fingerprint；不同于执行operation签名域及`request_sha256`。相同规范batch/当前会话字节稳定，换会话必须为未提交批次重新准备。fingerprint不从原HTTP字节算：null/default、JSON键顺序、Unicode会按现候选模型规范化；records顺序与正文空白保持原义。
+
+Win主进程冻结待提交batch，核对五字段、原文协议及request_id/fingerprint绑定，签原字符串UTF-8，再向原上传入口发送该batch和canonical Ed25519签名。不要读Cookie或自行推导租户，不向renderer、日志或持久业务数据转存完整待签原文/签名。此片选择完整batch多传一次正文，避免先让客户端实现另一套规范化；准备和最终含signature的上传envelope均须≤4 MiB。
+
+准备不调用来源/策略/连接/任务、不续租、不预留request_id或预算，也不创建候选/挑战/回执。准备后取消、撤销策略、换钥、租约过期、预算不足仍由正式上传重新检查；准备成功不是采集/上传成功。**未知结果先GET原platform_run_id/request_id**，已有回执直接核对；不能强制重新准备后才恢复历史，否则设备撤销后的合法历史恢复会退化。404只是当时未找到，未提交路径仍复用原batch/原请求；不能盲换ID重发。
+
+实际ASGI/受限PG验证及当前接收边界见[本片QA](../qa/V02_CANDIDATE_SUBMISSION_SIGNING.md)。本接口不替Win登记消费ACK。
 
 ## 2. 返回契约
 
