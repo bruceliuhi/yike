@@ -10,6 +10,8 @@
 
 基线`a77e582`。沿用已批准[R3搜索行为](../../../design/v02-suite-r3/AI_SEARCH_CONDITIONS.md)、[R4交互](../../../design/v02-suite-r4/INTERACTION_CONTRACT.md)，不是新视觉或产品范围。承接[04B原计划](2026-09-09-win-search-suggestions.md)Chunk3，将真实策略提前与建议后台并行；完整04B/05C、监控、搜贝及类似建议的未完项不取消。
 
+2026-09-10工程片：合同`0678383`、HTTP`808f44b`、持久层`eadcd2c`均经独立规格及代码/架构/质量审核；根代理233合同/HTTP、230合同/实际PG通过，集合不相加。[验收与失败历史](../../qa/V02-04B_CONFIRMED_STRATEGIES_WIN_REVIEW.md)、[Mac共享入口接线](../../contracts/V02_CONFIRMED_RESEARCH_STRATEGIES.md#mac同事务接收)已交接；共享默认入口、客户端与真实来源未完成，后续勾选项保留。
+
 ## 已核实的选择
 
 - 主线没有生产策略表/resolver；不复用synthetic_strategy、随机策略ID、旧pilot_tasks或旧UI哈希冒充执行确认。
@@ -42,9 +44,9 @@ confirm字段：同schema/request_id、strategy_version_id规范UUID、configura
 
 `strategy_snapshot(profile_version_id,strategy_version_id,configuration,platforms,max_records,max_runtime_seconds)`输出Mac六字段快照；配置转严格JSON、platforms转list。`configuration_digest(snapshot)`按sorted keys/紧凑UTF-8/allow_nan=False计算SHA256。
 
-- [ ] RED覆盖中文正例/三操作、bool/整数混淆/额外字段/伪造实例/重复/冲突/URL/时区/上限/Unicode；确定性快照匹配Mac，平台顺序/预算/研究设置变化都改hash。
-- [ ] 命令`./.runtime/venvs/win-device-review/Scripts/python.exe -X utf8 -m pytest -q tests/test_research_strategy_contract.py`先明确缺模块失败，再最小实现及GREEN。
-- [ ] 自审、独立spec与代码/架构/质量审核，只提交这两文件。
+- [x] RED覆盖中文正例/三操作、bool/整数混淆/额外字段/伪造实例/重复/冲突/URL/时区/上限/Unicode；确定性快照匹配Mac，平台顺序/预算/研究设置变化都改hash。
+- [x] 命令`./.runtime/venvs/win-device-review/Scripts/python.exe -X utf8 -m pytest -q tests/test_research_strategy_contract.py`先明确缺模块失败，再最小实现及GREEN。
+- [x] 自审、独立spec与代码/架构/质量审核，只提交这两文件。
 
 ## Chunk 2：受限PostgreSQL确认与撤销
 
@@ -70,10 +72,10 @@ resolve验证私有owner、当前指针、CONFIRMED、画像绑定及完整原pa
 
 grant仅三表必需SELECT/INSERT/UPDATE（operations无UPDATE）；拒绝DELETE/TRUNCATE/REFERENCES/TRIGGER及禁止列权限、owner/super/bypass/createrole/createdb/replication与MEMBER可切换父角色超权，沿用110已审模式，重复升级不扩大权限。
 
-- [ ] 真实独立PG RED：prepare→confirm→resolve/原回执跨服务重启、两租户/同租户owner隔离、修改/撤销/画像内容状态变化、两会话并发、坏hash/伪造身份、FK/RLS/终态/最小grant。
-- [ ] 最小实现及GREEN，验证resolver事务回滚、并发confirm不多建、prepare新revision与消费互斥、锁等待后会话过期。
-- [ ] 真PG用真实策略store替换Mac合成resolver：实际Ed25519 START→CLAIM→签名原始候选上传；撤销后旧租约提交失败、CANCEL仍可用。只有来源policy明确为合成边界，不当真实来源验收。
-- [ ] 独立spec和代码/架构/质量审核；随机PostgreSQL16容器精确清理，不操作客户库；记录失败/修正/候选后正常main交接。
+- [x] 真实独立PG RED：prepare→confirm→resolve/原回执跨服务重启、两租户/同租户owner隔离、修改/撤销/画像内容状态变化、两会话并发、坏hash/伪造身份、FK/RLS/终态/最小grant。
+- [x] 最小实现及GREEN，验证resolver事务回滚、并发confirm不多建、prepare新revision与消费互斥、锁等待后会话过期。
+- [x] 真PG用真实策略store替换Mac合成resolver：实际Ed25519 START→CLAIM→签名原始候选上传；撤销后旧租约提交失败、CANCEL仍可用。只有来源policy明确为合成边界，不当真实来源验收。
+- [x] 独立spec和代码/架构/质量审核；随机PostgreSQL16容器精确清理，不操作客户库；记录失败/修正/候选后正常main交接。
 
 ## Chunk 3：认证入口与现有确认流程
 
@@ -81,7 +83,7 @@ grant仅三表必需SELECT/INSERT/UPDATE（operations无UPDATE）；拒绝DELETE
 
 **Files:** Create `pilot/research_strategy_api.py`, `tests/test_research_strategy_api.py`, `docs/contracts/V02_CONFIRMED_RESEARCH_STRATEGIES.md`, `docs/qa/V02-04B_CONFIRMED_STRATEGIES_WIN_REVIEW.md`。
 
-- [ ] 独立router POST `/research-strategies/prepare|confirm|revoke`，GET `/research-strategy-operations/{request_id}`和`/research-strategies/{strategy_version_id}`。受信identity/HTTPS、JSON≤128KiB、重复key/非JSON数字/未知query拒绝、no-store/safe errors；无注入501，DB不阻塞event loop；共享build_app交Mac。
-- [ ] 实际TestClient→真PG完整操作/tenant隔离，无外部调用。交接114迁移注册与strategy_resolver=store.resolve；不能因确认策略就启用实际来源。
+- [x] 独立router POST `/research-strategies/prepare|confirm|revoke`，GET `/research-strategy-operations/{request_id}`和`/research-strategies/{strategy_version_id}`。受信identity/HTTPS、JSON≤128KiB、重复key/非JSON数字/未知query拒绝、no-store/safe errors；无注入501，DB不阻塞event loop；共享build_app交Mac。
+- [x] 实际TestClient→真PG完整操作/tenant隔离，无外部调用。交接114迁移注册与strategy_resolver=store.resolve；不能因确认策略就启用实际来源。
 - [ ] 05C随后接P19：单存prepare/confirm UUID/server快照hash/旧UI hash与原请求；逐字段预览核对、主动确认后CONFIRM，编辑失效、未知先查原请求，不覆盖旧R4 ledger。本合同/PG通过不计客户端已接通。
 - [ ] R4全上限、搜贝真实预留/计量、monitor调度、类似/覆盖provenance、真实来源/原文证据/试用继续交付；缺失部分阻止相应执行，不取消最终范围或把测试当上线。

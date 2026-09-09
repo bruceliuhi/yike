@@ -179,6 +179,8 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 
 ### CodexWin Goal 启动与当前认领
 
+2026-09-10 CodexWin真实确认策略工程片已交付：`0678383`合同、`808f44b`HTTP、`eadcd2c`持久层/114，独立规格及代码/架构/质量PASS；根代理233合同/HTTP及230合同/实际PG通过，集合有重叠不相加。真实策略已被Mac执行/候选模块在测试中实际消费，撤销后旧提交拒绝；这只更新上方“仍缺resolver”的工程状态，不表示默认共享入口、客户端或实际来源已接通，也不是整卡Win ACK。Mac按[接入合同](contracts/V02_CONFIRMED_RESEARCH_STRATEGIES.md#mac同事务接收)串行注册/接收，继续113判断；Win继续05C与真实来源、原文证据展示和多找类似，不改Mac在途文件。详见[失败与限定验收](qa/V02-04B_CONFIRMED_STRATEGIES_WIN_REVIEW.md)。
+
 2026-09-10 CodexWin认领04B真实确认策略切片，base `a77e582`，**114预留Win策略版本/确认/原回执**；108/110继续Win，111/112/113保留Mac。按[实施计划](superpowers/plans/2026-09-10-win-confirmed-strategies.md)实现独立合同/存储/resolver与认证router，提前解锁Mac执行/判断依赖，不另造合成已批准策略、不抢改Mac04C或共享db/store/ui_api/web。原建议后台/05C和真实类似搜索未取消，整体04B继续IN_PROGRESS；本段认领不是接口ACK或功能完成。
 
 2026-09-09：用户要求 CodexWin 设置 Goal 并持续执行至开发完成，本地 Goal 已启动。范围为任务板 Win 卡及对应跨端复核/集成缺口；保留 Mac 前端和服务端在途任务。每卡独立测试、审核、ACK和主线集成；真实平台、安装、收发和部署条件不足只暂停具体实测，不缩减目标。
@@ -196,7 +198,7 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 | 子卡 / 实际负责人 | 状态 / 当前切片 | 路径、基线与执行位置 | 接收、验证及下一动作 |
 |---|---|---|---|
 | V02-04A / CodexWin（用户授权新增分担），Mac独立接收 | NOT_STARTED（已认领；当前为契约/文件边界细化，非实现完成） | 基线 `5022b36`；拟新增独立 `pilot/business_profiles.py`、`pilot/materials.py`、`pilot/business_api.py` 及专项测试，复用现有PostgreSQL/身份及P03/P04；共享迁移编号与入口边界见上方Mac分工接收 | 先让一个真实业务保存/确认画像、资料与引用授权可用，解锁搜索及联系；随后补独立多业务管理和资料其余操作，复用`UI_MATERIALS_CONTRACT.md`。必要撤销、租户/版本/幂等随首次引用交付，真实PG、API和05B联调后独立审核，不能将本机草稿或假AI当后台。分工及共享入口串行集成边界已ACK；具体补丁与接口验收待交付，不抢改在途文件 |
-| V02-04B / CodexWin（用户授权新增分担），Mac独立接收 | IN_PROGRESS（原文模型、持久请求与Win调用进程已审核；服务/策略/客户端未接通） | 模型`e26c7a3`，持久层/110 `32c70dd`，调用进程`a8707a8`；[实施计划](superpowers/plans/2026-09-09-win-search-suggestions.md)、[后台验收](qa/V02-04B_SEARCH_BACKEND_WIN_REVIEW.md)、[Mac组件交接](handoffs/V02-04B_SEARCH_BACKEND_COMPONENTS_WIN_TO_MAC.md)。独立规格/代码/架构/质量PASS，98持久层相关通过（含63真实PG），独立17进程通过，根代理组合239通过 | 不把替身当真实模型效果、不把组件当客户可用。Win110未注册共享入口，108留资料，Mac111执行；共享入口由Mac串行接收。继续有界后台/原请求查询、外发授权、05C人工修改保护、最终策略/预算及真实多找类似；父硬崩溃/其他OS/真实供应商及Mac实际ACK另验，默认能力关闭 |
+| V02-04B / CodexWin（用户授权新增分担），Mac独立接收 | IN_PROGRESS（原文模型、持久请求、Win调用进程及真实确认策略已审核；默认服务/客户端未接通） | 既有模型`e26c7a3`、110 `32c70dd`、进程`a8707a8`；新增合同`0678383`、HTTP`808f44b`、策略/114 `eadcd2c`，独立规格及代码/架构/质量PASS。[新验收](qa/V02-04B_CONFIRMED_STRATEGIES_WIN_REVIEW.md)记录233合同/HTTP、230合同/真PG及执行/上传实际消费；[原组件](handoffs/V02-04B_SEARCH_BACKEND_COMPONENTS_WIN_TO_MAC.md)证据保留，各集合不相加 | Win110/114尚未注册默认入口，[Mac接线](contracts/V02_CONFIRMED_RESEARCH_STRATEGIES.md#mac同事务接收)已给出，108留资料、111/112/113归Mac。继续建议后台/外发授权、05C服务快照确认/原请求恢复、真实预算和多找类似；Mac实际ACK、客户端、真实来源及供应商效果仍需验收，默认能力关闭 |
 | V02-02C / CodexWin | IN_PROGRESS；旧纯解析及新原始评论映射均已通过独立审核 | 旧`e368b5a`随`bea5c7d`在main；新基线`6780582`、代码`78116d9`，`connectors/candidate_mapping.py`与两测试文件，[新计划](superpowers/plans/2026-09-09-win-candidate-mapping.md)、[映射验收/交接](qa/V02-02C_RAW_MAPPING_WIN_REVIEW.md) | 02A更正d14594f已ACK；新映射保原文/匿名/未知时间/父关系并消费正式DTO，根代理与独立质量方各476定向通过、旧解析各31通过/42 deselected，wheel隔离导入通过，独立规格及代码/架构/质量PASS。旧76/42及Mac877保留在[历史记录](qa/WIN_CROSS_REVIEW_20260909.md)，不与新测试相加。Mac新映射ACK、真实采集/上传及其余来源仍未完成，不整卡DONE |
 | V02-09A 自动构建验证 / CodexWin | IN_PROGRESS；夹具隔离审核通过，最新UI自动链通过，发行依赖风险仍在 | 预检 `e01e99a`、staging `e9983ed`、runtime `0b79a68`、ASAR `3c16fac`、夹具 `84c4b6f`；最新UI整合 `4454a45`；[Win复核第10节](qa/WIN_CROSS_REVIEW_20260909.md) | 干净4454a45全链61文件647 passed/2明确架构skipped，9阶段通过，实际新包内冒烟通过；前次84c 570/2及旧失败分别保留。人工11项UNTESTED、17 high及实际NotSigned未关闭，不以自动链通过放行发行 |
 
