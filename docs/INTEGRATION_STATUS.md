@@ -1,5 +1,16 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-10 Mac 增量复核（执行签名与回复持久层）
+
+本轮在 `codex/mac-device-authorization` 工作树对已实现的执行签名准备接口、触达确认快照和回复/跟进事件持久层重新执行定向回归：
+
+- `tests/test_execution_api.py`、`tests/test_execution_contract.py`、`tests/test_execution_signing_payload.py`、`tests/test_pilot_runtime.py`、`tests/test_outreach_contract.py`、`tests/test_outreach_store.py`、`tests/test_reply_contract.py`、`tests/test_reply_store.py`：**101 passed**。
+- `tests/test_execution_signing_payload_http_postgres.py`：**11 skipped**，原因是本轮未提供该测试所需的专用 PostgreSQL/身份环境；跳过不计为真实 HTTP/数据库闭环证据。
+
+本轮未改变产品边界，也未接入真实平台采集、发送或回复回流；V02-06/07/08、Windows 交付、生产部署和客户 UAT 仍保持 `IN_PROGRESS`。
+
+同日全仓 `bash scripts/check.sh` 新鲜结果为 **2108 passed / 485 skipped**；该结果是代码回归门禁，不替代真实平台、生产或客户证据。
+
 2026-09-10 05A 可见验收补齐：`8af8eaf`收紧P04空态，本机资料与带入操作完整进入1280×720首屏；实际走通P06平台/设备往返、P09原标签与平台返回、P14无人工记录的匹配回复/已读/首次人工登记。新Mac包ASAR `98debe8e` / ZIP `f580c225` 已实际冷启动、取消关闭继续编辑、保存75搜贝会话草稿、明确退出并同目录重启；退出清除会话稿符合提示。定向33项/类型/构包/严格smoke通过，先前全量1340/23仍绑定d816，不追认重跑。证据及截图校准过程见[当前可见验收](qa/ui-visible-local-handoff/README.md)。05A仍IN_PROGRESS；原生选择器、剩余状态、真实后台及Windows分项接续。
 
 2026-09-10 05A 本机资料与返回流程已收口：P04 `d66d487` 保留首画像保存前的本机资料，并支持人工带入/取消/重复复用目标；P06/P09/P16/P18 `315d590` 保留原任务、步骤、标签和平台。正常合入 `bbe2e20` 为 **fcae33e**，接收固定原文展示与执行签名准备，双方字节保留并独立兼容复核通过。旧超时测试计时起点修正为 **d816a9d**，产品未变；最终桌面 **1340 passed / 23 skipped**、类型、隔离 Mac 构包与严格 smoke 通过，原失败保留。包 ASAR `6ef0d95e` / ZIP `5ff63633` 绑定 fcae33e，详见[本批验收](qa/ui-local-handoff/README.md)。本片独立代码工作已完成；用户再次“继续”后 Mac 已恢复可操作，接续同状态视觉与原生生命周期，Windows/真实服务继续分项待验，05A 不标 DONE。
