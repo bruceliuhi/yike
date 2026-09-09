@@ -11,7 +11,7 @@
 - 未知发布时间保留 null；来源身份、内容版本和观察分开，公共网站身份包含规范 origin，匿名作者不按昵称合并。
 - 同批重复/冲突整批拒绝；纯重放比较不等于数据库持久幂等。
 - URL 仅做离线形状检查，不进行 DNS、跳转或 SSRF 运行验证；不安全回链需由连接器另记待补证，不能报告没有需求。
-- 未实现 HTTP 上传、认证、候选持久化、实际采集、Skill 运行、审核接口或 UI 接入，未发生本卡的真实 CodexWin 接收 ACK；01A/B 的后续限定 ACK 不覆盖02A。
+- 未实现 HTTP 上传、认证、候选持久化、实际采集、Skill 运行、审核接口或 UI 接入。原Mac交接记录尚未包含本卡Win ACK；后续更正与实际接收见末节，01A/B的ACK不替代02A。
 
 ## 实施与失败记录
 
@@ -38,6 +38,14 @@
 
 ## 当前结论与下一步
 
-本卡纯契约代码已在 main，可交给 Win 按[精确交接](../handoffs/V02-02A_MAC_TO_WIN.md)复现。任务状态保持 READY_FOR_REVIEW，表示实际Win尚未接收02A；不是代码尚未独立审核。01A/B已收到Win限定ACK，不再重复等待其历史“未接收”状态。
+原Mac交接时，纯契约代码已在main，任务为READY_FOR_REVIEW，表示当时Win尚未接收02A，不是代码尚未独立审核。后续Win接收以本节追加记录及[任务书](../V02_IMPLEMENTATION_TASKBOOK.md)为准。
 
 下一步 Mac 推进01C设备执行授权与02B候选上传事务；Win的02C需从原始字段适配，旧Normalizer的trim/必填作者不能冒充02A原文保留/允许匿名的完整行为。双方代码与受控环境验证通过不等于真实平台、Windows发行、生产部署或客户UAT完成；整体Goal继续ACTIVE。
+
+### CodexWin交叉复核与更正接收
+
+Win锁定 `e4d1695`，定向182项通过仍漏测来源origin错误：IDNA2003将两个网站 `faß.example`/`fass.example`误合并；同一IPv6压缩/展开写法反而产生不同来源身份。独立 `win_contract_readiness` 判为P2，根代理通过公开入口复现，未直接ACK原候选。该SHA中未补齐的最终Mac审核说明已由后续 `2e2e378` 补齐，保留其877项Mac结果，不冒充Win结果。
+
+更正 `d14594f042b094885f439477d376399cfd3e5ab5` 在detached快照由 `supplychain_readiness` 实施：统一非过渡UTS46及IP规范化，保留原URL、私网/本地主机拒绝；已锁定idna3.18仅提升为直接依赖，不升级包节点。新增37例取得21 failed/16 passed后全部通过；六文件定向221项、compileall、离线lock检查通过。非实现者 `windows_bootstrap_fix` 对冻结文件实现/规格/质量复审PASS，额外验证等价origin、不同站点及拒绝路径；根代理独立221项通过。
+
+2026-09-09 **CodexWin ACK `d14594f`，仅DTO/来源纯契约**，正常集成main `95285dd04966d213bc1ba4dc12aa62975d18f758`。完整命令、两个不同测试集合的原始XML摘要见[Win记录](WIN_CROSS_REVIEW_20260909.md)。01C、02B、真实平台及客户端映射仍分别交付，不能从本次ACK推导上传或执行已完成。

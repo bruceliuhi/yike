@@ -97,3 +97,22 @@ try {
 本机 Python 因中文 editable 路径遇到 GBK 解码失败，使用 `uv sync --frozen --extra dev --no-editable` 创建 `.runtime/venvs/win-dev`，不改全局 Python。测试在冻结源码目录执行。Windows 不支持旧进程组测试的清理路径，已按测试临时目录精确核实并停止本次遗留进程，没有终止其他开发任务。
 
 上述代码/数据库证据不能证明设备持钥认证、正常手机号登录、真实平台连接、采集/发送/回复、Windows 生命周期、生产部署或客户试用。Goal 保持 ACTIVE。
+
+## 5. V02-02A 来源契约交叉接收与最新UI整合
+
+冻结Mac候选 `e4d1695749f037bcafa13f77e703544b67b25c09`，根代理在detached工作树以非editable CPython3.11.14运行候选/来源、旧纯解析器、研究导入和Skill五文件，182 passed。独立 `win_contract_readiness` 在两契约文件126 passed后另行发现P2：Python内建IDNA2003将 `faß.example` 与 `fass.example`合并，两个不同网站相同站内ID发生错误冲突；等价IPv6压缩/展开写法则漏去重。根代理实际复现两者，原候选不直接接收。
+
+按[更正计划](../superpowers/plans/2026-09-09-candidate-origin-erratum.md)，`supplychain_readiness` 在另一个detached快照更正，未改Mac工作分支。新增37反例先21 failed/16 passed，修复后37 passed；共用host规范化采用ipaddress和非过渡UTS46，原public_url快照不变，特殊用途/私网及Unicode等价点绕过继续拒绝。idna3.18由已有传递依赖提升直接声明，锁定包节点/摘要无升级。
+
+更正提交 `d14594f042b094885f439477d376399cfd3e5ab5`，独立 `windows_bootstrap_fix` 实现/规格/质量复审PASS，无未决P1/P2；其额外公开入口反例覆盖不同网站、同站Unicode/A-label/IP表示及禁止I/O。实现者、reviewer和根代理各自定向221 passed（不相加），compileall、`uv lock --check --offline`、diffcheck通过。2026-09-09 CodexWin限定ACK此SHA，仅解锁DTO/纯函数与02C原始字段映射；main正常集成 `95285dd04966d213bc1ba4dc12aa62975d18f758`。
+
+根代理最新实际命令在 `.worktrees/review-candidate-idna`：
+
+```powershell
+& 'C:/Users/bruce/AI/意客AI2026/.runtime/venvs/win-dev/Scripts/python.exe' -X utf8 -m pytest -q tests/test_candidate_contract.py tests/test_source_capabilities.py tests/test_connector_parsers.py tests/test_research_import.py tests/test_pilot_import_cli.py tests/test_research_skill_contract.py --junitxml=C:/Users/bruce/AI/意客AI2026/.runtime/win-candidate-idna-fixed.xml
+uv lock --check --offline
+```
+
+原e4的182集合未含2项导入CLI，新集合另增37反例，不能直接把总数差当成修复失败数。旧XML `.runtime/win-candidate-e4d1695-targeted.xml` SHA256 `d8a213de823107af13399d88fbbb8520dfd006f911b1c933b5aaa4ade7ef4f67`；新XML `.runtime/win-candidate-idna-fixed.xml` SHA256 `921ead0cc9d00106edb5769489f926c9fd8a0232e530d4f4d8ecfcb76b75ee7b`，保留两份。尚无HTTP上传、授权租约、持久事务或真实来源证明；旧Normalizer的trim/必填作者不等于新契约完整适配。
+
+同期远端 `0a3ccf70efb569c39b3f91a558ab4b39140fd2f1` 纳入Mac前端流程/品牌及02A最终交接记录。正常整合到 `37592ed36e7979147bdc187d57dabe6801d3b02b`，只解决任务书冲突：保留Mac02C接收、Win09A状态和双方全部代码。`supplychain_readiness` 独立核对index中UI与0a、候选模块与d145完全一致；未把未暂存runtime修复混入。根代理在Windows以Node24.19执行 `vitest run tests/ui tests/taskOperations.test.ts`：39文件/423 passed，随后typecheck通过。此结果不取代Mac493/1skip或完整Windows构建；P10字段与品牌截图限制仍按[Mac审核](ui-flow-completion/REVIEW.md)保留。远端两原始日志自带空行/尾空格，未改写其字节；排除这两日志的集成diffcheck通过。
