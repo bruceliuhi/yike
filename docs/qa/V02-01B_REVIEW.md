@@ -38,6 +38,8 @@ git diff --check
 - 新增 `test_session_upgrade_postgres.py`：另建不继承 identity_app 的一次性受限角色，只授予旧用户表 SELECT；先复现升级脚本缺失、再复现 `permission denied for table pilot_users`，修复后验证最小权限下访问、交换、退出和拒绝旧凭据。没有对该角色做全表授权。
 - 上述定向组合加 `tests/test_session_upgrade_postgres.py`：**147 passed、2 skipped**，compileall/diff check 通过；权限脚本重复执行和拒绝空/未知/特权角色均已覆盖。
 
-修复候选待锁定新 SHA 复审。CodexWin 交叉验证尚未发生，未合并 main、未部署。
+独立 `review_identity` 对 `120b9389a7105d75d31aab6dc2c09ca9a8a83287` 复审 **PASS**：独立复跑 147 passed、2 skipped，compileall/diff check/secret scan 通过，工作树干净；无 Critical/Important 阻断。105 未改写，最小权限升级问题已收口。
+
+此结论仅覆盖 V02-01B。CodexWin 交叉验证尚未发生，未合并 main、未部署；正常登录与真实平台能力仍分别验收。
 
 全仓仍有[历史测试基线漂移](BASELINE_TEST_DRIFT_20260909.md)，另在 `codex/mac-baseline-test-clock` 修复，不使用本子项定向通过宣称全仓 green。

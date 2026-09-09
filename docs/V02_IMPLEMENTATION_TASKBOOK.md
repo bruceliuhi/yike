@@ -31,7 +31,7 @@ V02-05 的[全页面设计 R3](../design/v02-suite-r3/README.md)已于 2026-09-0
 
 | 编号 / 责任方向 | 状态 | 可先做与下一动作 | 完成依赖和必须补齐的证据 | 实现提交 / 验收 |
 |---|---|---|---|---|
-| V02-01 账号、设备与执行协议 / CodexiMac 主实现、CodexWin 交叉复核 | IN_PROGRESS | 设备/连接登记与遥测候选已获子项复审；继续实现[服务端会话撤销](contracts/V02_SESSION_REVOCATION.md)，仍需手机号正常登录/激活与设备认证 | 两客户/设备隔离、退出撤销、连接身份；客户不依赖 CLI 取 token，桌面无服务端凭据 | 分支 `codex/mac-identity-execution-contract`；01A `da2a2f2` 本地独立复审 PASS；01B `adcb631` 审查要求补最小权限升级，修复验证147 passed/2 skipped，见[审查记录](qa/V02-01B_REVIEW.md)；CodexWin 交叉验证未发生，尚未合并或完成任务 |
+| V02-01 账号、设备与执行协议 / CodexiMac 主实现、CodexWin 交叉复核 | IN_PROGRESS | 设备/连接登记及[服务端会话撤销](contracts/V02_SESSION_REVOCATION.md)已获子项复审；下一步手机号登录/激活、设备认证与执行授权版本 | 两客户/设备隔离、退出撤销、连接身份；客户不依赖 CLI 取 token，桌面无服务端凭据 | 分支 `codex/mac-identity-execution-contract`；01A `da2a2f2`、01B `120b938` 本地独立复审 PASS；后者147 passed/2 skipped，见[审查记录](qa/V02-01B_REVIEW.md)；CodexWin 交叉验证未发生，尚未合并或完成任务 |
 | V02-02 多平台连接器与客户数据 / 采集＋后端 | IN_PROGRESS | 受信研究包整包事务、同键 URL 冲突校验及源码打包工具已纳入；原始候选模型、能力注册、上传及真实连接器仍待做 | 依赖 01；每个平台真实搜索/读取；安全 API 入候选、幂等、事务回滚、平台/租户隔离；不向桌面开放管理员导入 | [主线整合验收](qa/main-integration/REVIEW.md)，不代表平台已接通 |
 | V02-03 持续任务执行器 / 后端＋桌面 | NOT_STARTED | 定义监控配置、逐次逐平台运行、执行代次和游标；连接器逐个接入 | 依赖 01/02 可用子项；每平台多轮含无新增、部分成功、暂停/恢复、过期接管与失效恢复；旧执行者不能回写 | 未提供 |
 | V02-04 Skill、意向与复核 / AI＋后端 | IN_PROGRESS | 通用研究 Skill 已迁入 `skills/ai-project-lead-research-v1`（`9c092be`）；下一步定义真实运行入口、证据校验与用户复核接口 | 依赖 02 候选层；实际模型/工具运行，引用原文；未复核候选不进已批准商机，设备不能伪造复核人 | `9c092be`；规则包契约测试 2 passed，运行验收未提供 |

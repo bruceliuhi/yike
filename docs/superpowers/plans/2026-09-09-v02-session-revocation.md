@@ -46,7 +46,7 @@
 - [x] 新增同租户/用户复合外键及双条件 RLS（tenant_id + user_id）。撤销记录 INSERT 幂等且不允许应用 UPDATE/DELETE policy；只存摘要、归属及到期/撤销时间。
 - [x] 全部 HTTP 鉴权及交换入口执行相同检查；签名有效但未开通仍 403。退出数据库失败返回错误且不声明服务端已退出。
 - [x] 验证重建服务、旧 token、两个租户、同秒新会话、重复退出、Bearer/Cookie 双凭据和数据库不可用。
-- [ ] 定向组合测试、secret scan、diff check；更新实际证据和限制，提交候选并请独立 Agent 审核新 SHA。
+- [x] 定向组合测试、secret scan、diff check；`120b938` 获独立复审 PASS，147 passed/2 skipped；最小权限升级测试及修复过程见 `docs/qa/V02-01B_REVIEW.md`。实际 CodexWin 交叉验证仍待完成。
 
 ## 完成判定
 
