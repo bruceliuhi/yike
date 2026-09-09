@@ -2052,6 +2052,8 @@ AND NOT EXISTS (
     SELECT 1 FROM mvp_runs run
     WHERE run.mvp_run_id = NEW.mvp_run_id
       AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
       AND yike_is_canonical_utc(NEW.recorded_at) = 1
       AND NEW.recorded_at BETWEEN run.started_at AND run.day14_due_at
 )
@@ -2066,6 +2068,8 @@ WHEN EXISTS (
 AND NOT EXISTS (
     SELECT 1 FROM mvp_runs run
     WHERE run.mvp_run_id = NEW.mvp_run_id
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
       AND yike_is_canonical_utc(NEW.created_at) = 1
       AND NEW.created_at BETWEEN run.started_at AND run.day14_due_at
 )
@@ -2112,6 +2116,8 @@ AND NOT EXISTS (
      AND score.signal_id = NEW.signal_id
     WHERE run.mvp_run_id = NEW.mvp_run_id
       AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
       AND yike_is_canonical_utc(NEW.presented_at) = 1
       AND NEW.presented_at BETWEEN run.started_at AND run.day14_due_at
       AND NEW.presented_at >= score.created_at
@@ -2127,6 +2133,8 @@ WHEN EXISTS (
 AND NOT EXISTS (
     SELECT 1 FROM mvp_runs run
     WHERE run.mvp_run_id = NEW.mvp_run_id
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
       AND yike_is_canonical_utc(NEW.started_at) = 1
       AND NEW.started_at BETWEEN run.started_at AND run.day14_due_at
 )
@@ -2157,6 +2165,8 @@ AND NOT EXISTS (
     SELECT 1 FROM mvp_runs run
     WHERE run.mvp_run_id = NEW.mvp_run_id
       AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
       AND yike_is_canonical_utc(NEW.completed_at) = 1
       AND NEW.completed_at BETWEEN NEW.started_at AND run.day14_due_at
 )
@@ -2168,6 +2178,8 @@ WHEN NOT EXISTS (
     SELECT 1 FROM mvp_runs run
     WHERE run.mvp_run_id = NEW.mvp_run_id
       AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
       AND yike_is_canonical_utc(NEW.received_at) = 1
       AND NEW.received_at BETWEEN run.started_at AND run.day14_due_at
 )
@@ -2179,6 +2191,8 @@ WHEN NOT EXISTS (
     SELECT 1 FROM mvp_runs run
     WHERE run.mvp_run_id = NEW.mvp_run_id
       AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
       AND yike_is_canonical_utc(NEW.started_at) = 1
       AND yike_is_canonical_utc(NEW.completed_at) = 1
       AND NEW.completed_at >= NEW.started_at
@@ -2236,6 +2250,8 @@ WHEN EXISTS (
 AND NOT EXISTS (
     SELECT 1 FROM mvp_runs run
     WHERE run.mvp_run_id = NEW.mvp_run_id
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
       AND yike_is_canonical_utc(NEW.created_at) = 1
       AND NEW.created_at BETWEEN run.started_at AND run.day14_due_at
 )
@@ -2286,6 +2302,8 @@ WHEN NOT EXISTS (
     SELECT 1 FROM mvp_runs run
     WHERE run.mvp_run_id = NEW.mvp_run_id
       AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
       AND yike_is_canonical_utc(NEW.created_at) = 1
       AND NEW.created_at BETWEEN run.started_at AND run.day14_due_at
       AND yike_is_canonical_utc(NEW.sent_at) = 1
@@ -2343,6 +2361,8 @@ WHEN NOT EXISTS (
     SELECT 1 FROM mvp_runs run
     WHERE run.mvp_run_id = NEW.mvp_run_id
       AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
       AND yike_is_canonical_utc(NEW.recorded_at) = 1
       AND NEW.recorded_at BETWEEN run.started_at AND run.day14_due_at
       AND (NEW.occurred_at IS NULL OR (
@@ -2373,6 +2393,8 @@ WHEN NOT EXISTS (
     SELECT 1 FROM mvp_runs run
     WHERE run.mvp_run_id = NEW.mvp_run_id
       AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
       AND yike_is_canonical_utc(NEW.recorded_at) = 1
       AND NEW.recorded_at BETWEEN run.started_at AND run.day14_due_at
       AND (NEW.scheduled_at IS NULL OR (
@@ -2417,6 +2439,8 @@ WHEN NOT EXISTS (
     SELECT 1 FROM mvp_runs run
     WHERE run.mvp_run_id = NEW.mvp_run_id
       AND run.state = 'ACTIVE'
+      AND strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          BETWEEN run.started_at AND run.day14_due_at
       AND yike_is_canonical_utc(NEW.recorded_at) = 1
       AND NEW.recorded_at BETWEEN run.started_at AND run.day14_due_at
       AND yike_is_canonical_utc(NEW.agreed_to_receive_pricing_at) = 1
