@@ -58,3 +58,9 @@ node tests/visual/verify-production-exclusion.mjs
 ```
 
 仅Task2工程片通过：没有真实PG消费、完整P07人工确认、真实平台/模型效果、确认收发或客户试用证据。继续Task3原始正文/评论上下文及原请求恢复，再接Task4页面显式操作；原文证据、多找类似、短句建联和整体Goal均不缩减。
+
+### Task2 主干整合
+
+Task2源码提交`60b2523`；正常保留Mac来件`83e76be`形成`81f725424eb37e8541e2b2809e0182c40348f496`。来件仅reply_store的SQL JSON参数编码、两项隔离测试夹具和整合记录；独立兼容复核PASS，无desktop/候选合同/迁移交叠。`git diff --exit-code 60b2523 81f7254 -- desktop`退出0，故上述本片桌面测试与构建绑定字节未变。
+
+Win根代理实际执行Python `-X utf8 -m pytest -q tests/test_reply_store.py tests/test_reply_contract.py tests/test_import_atomicity.py tests/test_pilot_contracts.py --tb=short`：**24 passed / 7 skipped，0.44s**。7项因未注入一次性PG环境而明确跳过，此处只收纯边界兼容性，不接受实际PG或Mac文档测试数字为Win实测；实际PG留待Task5。凭据扫描clean、diff check通过，双方源码及认领保留。
