@@ -1,5 +1,7 @@
 """Synthetic evidence and local transport tests; not real buyer/model proof."""
 import copy
+import asyncio
+from contextlib import contextmanager
 import importlib
 import importlib.util
 import json
@@ -9,6 +11,7 @@ from pathlib import Path
 import subprocess
 import sys
 import threading
+import time
 import traceback
 
 import httpx
@@ -167,6 +170,16 @@ def adapter(**options):
         "base_url": "https://model.example/v1", "api_key": "synthetic-test-secret", "model": "test/model-v1", **options})
 
 
+@contextmanager
+def internal_client(**options):
+    """Own only a mock-boundary async client; no real pooled cross-loop I/O."""
+    client = httpx.AsyncClient(**options)
+    try:
+        yield client
+    finally:
+        asyncio.run(client.aclose())
+
+
 def envelope():
     return {"choices": [{"finish_reason": "stop", "message": {
         "role": "assistant", "content": json.dumps(assessment(), ensure_ascii=False), "refusal": None}}],
@@ -178,7 +191,7 @@ def run_response(response):
     def handle(request):
         requests.append(request)
         return response
-    with httpx.Client(transport=httpx.MockTransport(handle), follow_redirects=True) as client:
+    with internal_client(transport=httpx.MockTransport(handle), follow_redirects=True) as client:
         try:
             return adapter(http_client=client).assess(description=DESCRIPTION, content=CONTENT)
         finally:
@@ -229,7 +242,7 @@ def test_adapter_uses_fixed_rules_and_sends_only_projected_data_with_strict_sche
         assert schema["schema"]["additionalProperties"] is False
         assert set(schema["schema"]["required"]) == set(assessment())
         return httpx.Response(200, json=envelope())
-    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+    with internal_client(transport=httpx.MockTransport(handle)) as client:
         model = adapter(http_client=client, timeout_seconds=7)
         assert "synthetic-test-secret" not in repr(model) and "model.example" not in repr(model)
         result, usage = model.assess(description=DESCRIPTION, content=CONTENT)
@@ -335,21 +348,21 @@ def test_transport_exception_has_no_sensitive_context(error):
     def handle(request):
         requests.append(request)
         raise error("SECRET_PROVIDER_RESPONSE synthetic-test-secret")
-    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+    with internal_client(transport=httpx.MockTransport(handle)) as client:
         safe_error(lambda: adapter(http_client=client).assess(description=DESCRIPTION, content=CONTENT),
                    "assessment_result_unknown", 504)
     assert len(requests) == 1
 
 
 def test_response_byte_limit_applies_while_streaming():
-    class LargeStream(httpx.SyncByteStream):
+    class LargeStream(httpx.AsyncByteStream):
         chunks = 0
         closed = False
-        def __iter__(self):
+        async def __aiter__(self):
             for _ in range(100):
                 self.chunks += 1
                 yield b" " * 16384
-        def close(self):
+        async def aclose(self):
             self.closed = True
     stream = LargeStream()
     safe_error(lambda: run_response(httpx.Response(200, stream=stream)))
@@ -362,7 +375,7 @@ def test_response_byte_limit_applies_while_streaming():
 def test_invalid_input_never_contacts_provider():
     def handle(request):
         pytest.fail("invalid input must not contact provider")
-    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+    with internal_client(transport=httpx.MockTransport(handle)) as client:
         safe_error(lambda: adapter(http_client=client).assess(description=DESCRIPTION, content=CONTENT | {"author": "private"}),
                    "invalid_assessment_input", 400)
 
@@ -372,7 +385,7 @@ def test_default_transport_disables_retries(monkeypatch):
     def transport_factory(**kwargs):
         options.append(kwargs)
         return httpx.MockTransport(lambda request: httpx.Response(200, json=envelope()))
-    monkeypatch.setattr(httpx, "HTTPTransport", transport_factory)
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", transport_factory)
     assert adapter().assess(description=DESCRIPTION, content=CONTENT)[0].model_dump() == assessment()
     assert options == [{"retries": 0}]
 
@@ -450,7 +463,7 @@ def test_model_request_and_grounding_share_snapshot_when_callers_mutate_content(
         content["body"] = "后来发生了变化"
         content["parent"]["body"] = "父帖也更新了"
         return httpx.Response(200, json=envelope())
-    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+    with internal_client(transport=httpx.MockTransport(handle)) as client:
         result, _ = adapter(http_client=client).assess(description=DESCRIPTION, content=content)
     assert result.model_dump() == assessment()
 
@@ -475,3 +488,82 @@ def test_comment_container_title_cannot_be_personal_intent_evidence():
     safe_error(lambda: validate(value, content=content))
     value["intent"]["citations"] = [{"field": "title", "quote": "急找团队报价"}]
     safe_error(lambda: validate(value, content=content))
+
+
+def test_real_slow_drip_is_cancelled_at_total_deadline_and_disconnects():
+    requests = []
+    disconnected = threading.Event()
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            requests.append(self.rfile.read(int(self.headers["content-length"])))
+            self.send_response(200)
+            self.end_headers()
+            raw = json.dumps(envelope()).encode()
+            try:
+                for offset in range(0, len(raw), 100):
+                    self.wfile.write(raw[offset:offset + 100])
+                    self.wfile.flush()
+                    time.sleep(0.03)  # Below each read timeout, above total budget.
+            except (BrokenPipeError, ConnectionResetError):
+                disconnected.set()
+        def log_message(self, *args):
+            pass
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        model = adapter(base_url=f"http://127.0.0.1:{server.server_port}/v1", timeout_seconds=0.08)
+        started = time.monotonic()
+        safe_error(lambda: model.assess(description=DESCRIPTION, content=CONTENT), "assessment_result_unknown", 504)
+        assert time.monotonic() - started < 0.3
+        assert disconnected.wait(timeout=0.3), "cancel must close the socket, not abandon a worker"
+        assert len(requests) == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+@pytest.mark.parametrize("phase", ["headers", "body"])
+def test_total_timeout_awaits_cancellation_and_closes_owned_transport(monkeypatch, phase):
+    events = []
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            try:
+                events.append("read")
+                await asyncio.sleep(10)
+                yield b"unreachable"
+            finally:
+                events.append("read_cancelled")
+        async def aclose(self):
+            events.append("response_closed")
+    class Transport(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            events.append("request")
+            if phase == "headers":
+                try:
+                    await asyncio.sleep(10)
+                finally:
+                    events.append("headers_cancelled")
+            return httpx.Response(200, stream=Stream())
+        async def aclose(self):
+            events.append("transport_closed")
+    def factory(**options):
+        assert options == {"retries": 0}
+        return Transport()
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", factory)
+    model = adapter(timeout_seconds=0.03)
+    started = time.monotonic()
+    safe_error(lambda: model.assess(description=DESCRIPTION, content=CONTENT), "assessment_result_unknown", 504)
+    assert time.monotonic() - started < 0.25
+    if phase == "body":
+        assert events == ["request", "read", "read_cancelled", "response_closed", "transport_closed"]
+    else:
+        assert events == ["request", "headers_cancelled", "transport_closed"]
+
+
+def test_sync_entrypoint_rejects_running_loop_without_abandoned_coroutine():
+    model = adapter()
+    async def call():
+        safe_error(lambda: model.assess(description=DESCRIPTION, content=CONTENT), "invalid_assessment_configuration", 500)
+    asyncio.run(call())

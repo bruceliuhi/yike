@@ -10,9 +10,10 @@ current author's own text. The model intentionally receives no raw kind or IDs.
 """
 from __future__ import annotations
 
-import json
+import asyncio
 import hashlib
 import ipaddress
+import json
 import math
 import re
 import unicodedata
@@ -266,13 +267,17 @@ class OpenAICompatibleCandidateAssessmentModel:
 Default transport has no retries, redirects or ambient proxies. Internal test
 clients must not add their own retries/hooks/auth that change this contract.
 Rules are loaded once so advertised provenance matches each request exactly.
+The synchronous entry point runs in a service worker, not an existing event
+loop; asynchronous I/O is cancelled and cleaned up within its total deadline.
+This is not a hard-real-time guarantee over native OS DNS resolution: event
+loop shutdown waits for an in-progress resolver instead of abandoning it.
 """
 
     base_url: str = field(repr=False)
     api_key: str = field(repr=False)
     model: str
     timeout_seconds: float = 30
-    http_client: httpx.Client | None = field(default=None, repr=False)
+    http_client: httpx.AsyncClient | None = field(default=None, repr=False)
     provider: ClassVar[str] = "openai-compatible"
     rule_version: str = field(init=False)
     rule_sha256: str = field(init=False)
@@ -301,7 +306,7 @@ Rules are loaded once so advertised provenance matches each request exactly.
                 raise ValueError("invalid model")
             if type(self.timeout_seconds) not in (int, float) or not 0 < self.timeout_seconds <= 60:
                 raise ValueError("invalid timeout")
-            if self.http_client is not None and not isinstance(self.http_client, httpx.Client):
+            if self.http_client is not None and not isinstance(self.http_client, httpx.AsyncClient):
                 raise ValueError("invalid internal client")
             valid = True
         except (ValueError, TypeError, UnicodeError, httpx.InvalidURL):
@@ -323,29 +328,48 @@ Rules are loaded once so advertised provenance matches each request exactly.
             {"role": "user", "content": json.dumps({"description": description, "content": content}, ensure_ascii=False)},
         ], "response_format": {"type": "json_schema", "json_schema": {
             "name": "candidate_assessment", "strict": True, "schema": AssessmentContent.model_json_schema()}}}
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+        else:
+            # Do not create a coroutine or spawn a background worker when a
+            # caller violates this synchronous service-worker interface.
+            raise AssessmentModelError("invalid_assessment_configuration", 500)
+        return asyncio.run(self._request(body, description=description, content=content))
+
+    async def _request(self, body: dict, *, description: str, content: dict) -> tuple[AssessmentContent, dict | None]:
+        deadline = asyncio.get_running_loop().time() + self.timeout_seconds
         error = "assessment_result_unknown"
+        result = None
         try:
             owner = (nullcontext(self.http_client) if self.http_client is not None else
-                     httpx.Client(transport=httpx.HTTPTransport(retries=0), trust_env=False))
-            with owner as client, client.stream("POST", self.base_url.rstrip("/") + "/chat/completions",
+                     httpx.AsyncClient(transport=httpx.AsyncHTTPTransport(retries=0), trust_env=False))
+            async with asyncio.timeout_at(deadline), owner as client, client.stream("POST", self.base_url.rstrip("/") + "/chat/completions",
                     headers={"Authorization": f"Bearer {self.api_key}"}, json=body,
                     timeout=self.timeout_seconds, follow_redirects=False) as response:
                 if response.status_code == 200:
                     error = "invalid_assessment_result"
                     chunks = bytearray()
-                    for chunk in response.iter_bytes(chunk_size=16384):
+                    async for chunk in response.aiter_bytes(chunk_size=16384):
                         if len(chunks) + len(chunk) > 256 * 1024:
                             break
                         chunks.extend(chunk)
                     else:
                         try:
-                            return _parse_assessment(bytes(chunks), description=description, content=content)
+                            result = _parse_assessment(bytes(chunks), description=description, content=content)
                         except (ValueError, TypeError, UnicodeError, RecursionError, AssessmentModelError):
                             pass
                 elif 400 <= response.status_code < 500:
                     error = "assessment_provider_rejected"
                 elif response.status_code < 500:
                     error = "invalid_assessment_result"
+            # Also reject a late buffered parse/cleanup that did not suspend
+            # long enough for asyncio's cancellation callback to run.
+            if asyncio.get_running_loop().time() >= deadline:
+                error = "assessment_result_unknown"
+            elif result is not None:
+                return result
         except httpx.DecodingError:
             error = "invalid_assessment_result"
         except Exception:
