@@ -93,3 +93,11 @@ node node_modules/vitest/vitest.mjs run tests/rawCandidateEvidence.test.ts tests
 ```
 
 当前仅基础模块和只读产品接线。完整P07显式判断/来源核验/确认入库尚待Task4；实际Node→HTTP→受限PG验证核验ID、Windows双视口及用户整链仍待Task5。没有实际平台采集、模型收费、发送、生产部署或客户试用操作，不将05G/PH-F06或完整Goal标DONE。
+
+### Task3 主干整合
+
+源码提交`323c786`，正常保留Mac `797d0b1`形成`8d24e67e99b0afd0c49b40b66fa62a2b972c6099`。来件91文件主要是Mac可视/native证据，生产差异仅两份device GRANT的6行；desktop与pilot源码不变，独立限定兼容复核PASS，无P0/P1/P2合入阻断。`git diff --exit-code 323c786 8d24e67 -- desktop`退出0，546项、类型与生产构建仍绑定相同产品字节。
+
+独立审核保留非阻断部署提醒：device credentials授权脚本的owner guard尚未包含新增授权的connections/session_revocations表，GRANT本身不授予表所有权；后续独立部署需按既有session授权脚本验证两表非应用角色所有。此处没有执行生产授权、扩展安全工程或冒充新PG接收。Mac本轮截图/包/PG数字各保留其原版本与执行归属，不作为Win或新P07实际验收。
+
+Win根代理对合入版本执行Python `-X utf8 -m pytest -q tests/test_device_keys.py tests/test_device_registration.py --tb=short`：38 passed/0 skipped，0.16s。仅纯设备/登记兼容检查，不证明SQL grants已在Windows PG实际应用；此前单独18项是其子集，不累计。
