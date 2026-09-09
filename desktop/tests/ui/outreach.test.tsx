@@ -13,6 +13,7 @@ import {
 } from "../../src/renderer/pages/Outreach";
 import { PUBLIC_SAMPLE } from "../../src/renderer/pages/Opportunities";
 import { parseRoute } from "../../src/renderer/domain/routes";
+import { hasUnsavedChanges } from "../../src/renderer/app/hooks";
 import type { AppContextValue } from "../../src/renderer/app/context";
 import type { ContactDraft } from "../../src/renderer/domain/models";
 import {
@@ -138,6 +139,34 @@ describe("contact preparation and confirmation", () => {
       ).toBe("服务端草稿"),
     );
   });
+  it("protects both purposes across switches, saves only the submitted purpose, and releases after both are restored or saved", async () => {
+    const opportunity = { ...PUBLIC_SAMPLE, id: "two-purpose", sample: false,
+      comment: "已保存评论", dm: "已保存私信" };
+    context.route = parseRoute("#/outreach?opportunity=two-purpose");
+    context.service.opportunity = vi.fn().mockResolvedValue(opportunity);
+    context.service.saveContact = vi.fn().mockResolvedValue(undefined);
+    render(<OutreachPage />);
+    await screen.findByDisplayValue("已保存评论");
+    const content = () => screen.getByRole("textbox", { name: "沟通内容" });
+    fireEvent.change(content(), { target: { value: "未保存评论" } });
+    expect(hasUnsavedChanges()).toBe(true);
+    fireEvent.click(screen.getByRole("tab", { name: "私信草稿" }));
+    expect(hasUnsavedChanges()).toBe(true);
+    expect(screen.getByText(/评论草稿仍有未保存修改/)).toBeTruthy();
+    fireEvent.change(content(), { target: { value: "已更新私信" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+    await screen.findByText("已保存内容");
+    expect(context.service.saveContact).toHaveBeenCalledWith(expect.objectContaining({ channel: "dm", content: "已更新私信" }));
+    expect(hasUnsavedChanges()).toBe(true);
+    fireEvent.click(screen.getByRole("tab", { name: "评论草稿" }));
+    expect(screen.getByDisplayValue("未保存评论")).toBeTruthy();
+    // Restoring this purpose's saved content discards only its unsaved change.
+    fireEvent.change(content(), { target: { value: "已保存评论" } });
+    expect(hasUnsavedChanges()).toBe(false);
+    fireEvent.click(screen.getByRole("tab", { name: "私信草稿" }));
+    expect(screen.getByDisplayValue("已更新私信")).toBeTruthy();
+    expect(hasUnsavedChanges()).toBe(false);
+  });
   it("binds confirmation to content, purpose, account, recipient and source version", () => {
     const draft: ContactDraft = {
       opportunityId: "real",
@@ -162,6 +191,9 @@ describe("contact preparation and confirmation", () => {
       );
     expect(
       contactFingerprint(draft, { ...row, profileVersionId: "changed" }),
+    ).not.toBe(original);
+    expect(
+      contactFingerprint(draft, { ...row, sourceEvidenceVersion: "evidence-v2" }),
     ).not.toBe(original);
   });
 });

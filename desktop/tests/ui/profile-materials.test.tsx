@@ -13,6 +13,8 @@ import { clearLocalDrafts } from "../../src/renderer/app/hooks";
 import { MaterialsWorkspace } from "../../src/renderer/pages/profile/MaterialsWorkspace";
 import { MaterialEditor } from "../../src/renderer/pages/profile/MaterialEditor";
 import { MaterialExtraction } from "../../src/renderer/pages/profile/MaterialExtraction";
+import { legacyMaterialOperationKey } from "../../src/renderer/pages/profile/materialOperationStorage";
+import { MemoryStorage } from "../visual/isolation";
 import {
   parseMaterialReceipt,
   parseMaterials,
@@ -22,10 +24,10 @@ import {
   type MaterialRequest,
 } from "../../src/renderer/domain/materials";
 import type { MaterialService } from "../../src/renderer/services/materials";
-import type { Profile, ProfileFields } from "../../src/renderer/domain/models";
+import type { Profile, ProfileFields, Session } from "../../src/renderer/domain/models";
 
 const context = vi.hoisted(() => ({
-  session: { authenticated: true, userId: "material-test-user" },
+  session: { authenticated: true, userId: "material-test-user" } as Session,
   notify: vi.fn(),
 }));
 vi.mock("../../src/renderer/app/context", () => ({ useApp: () => context }));
@@ -132,8 +134,8 @@ async function add() {
   fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
 }
 const locks = () =>
-  Object.keys(localStorage).filter((key) =>
-    key.startsWith("yike.ui.material-operation.v1."),
+  Array.from({length: localStorage.length}, (_, index) => localStorage.key(index)!).filter((key) =>
+    key?.startsWith("yike.ui.material-operation."),
   );
 beforeEach(() => {
   context.session = { authenticated: true, userId: "material-test-user" };
@@ -146,9 +148,125 @@ afterEach(() => {
   localStorage.clear();
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("P04 客户空间资料生命周期", () => {
+  it("标准 MemoryStorage 下 UNKNOWN 重开只能核对原请求并可靠释放原锁", async () => {
+    vi.stubGlobal("localStorage", new MemoryStorage());
+    const api = adapter([row()]);
+    vi.mocked(api.mutate).mockRejectedValue(new Error("TEST 结果未知"));
+    const view = mount(api);
+    fireEvent.click(await screen.findByRole("button", { name: "解析资料" }));
+    await screen.findByText("TEST 结果未知");
+    const submitted = vi.mocked(api.mutate).mock.calls[0][0];
+    view.unmount();
+    mount(api);
+    await screen.findByText("TEST 资料");
+    expect((screen.getByRole("button", { name: "解析资料" }) as HTMLButtonElement).disabled).toBe(true);
+    vi.mocked(api.operation).mockResolvedValue(receipt(submitted, row("PARSING", 2)));
+    fireEvent.click(screen.getByRole("button", { name: "核对原资料操作" }));
+    await screen.findByText("解析中");
+    expect(api.operation).toHaveBeenLastCalledWith(profile.id, submitted.requestId);
+    expect(api.mutate).toHaveBeenCalledTimes(1);
+    expect(locks()).toHaveLength(0);
+  });
+
+  it("同用户切换空间立即关闭旧的已确认移除影响弹窗", async () => {
+    context.session.accountScope = { id: "TEST-space-a", version: 1 };
+    const api = adapter([row("READY")]);
+    const view = mount(api);
+    fireEvent.click(await screen.findByRole("button", { name: "移除" }));
+    await screen.findByLabelText("已核对引用影响");
+    fireEvent.click(screen.getByLabelText("已核对引用影响"));
+    expect((screen.getByRole("button", { name: "确认移除" }) as HTMLButtonElement).disabled).toBe(false);
+    context.session = { ...context.session, accountScope: { id: "TEST-space-b", version: 1 } };
+    view.rerender(<MaterialsWorkspace api={api} profile={profile} currentFields={fields} onApply={vi.fn()} />);
+    expect(screen.queryByRole("dialog", { name: "移除资料？" })).toBeNull();
+    expect(api.mutate).not.toHaveBeenCalled();
+  });
+
+  it("同用户切换空间后不提供旧空间原请求核对入口", async () => {
+    context.session.accountScope = { id: "TEST-space-a", version: 1 };
+    const api = adapter([row()]);
+    vi.mocked(api.mutate).mockRejectedValue(new Error("TEST 结果未知"));
+    const view = mount(api);
+    fireEvent.click(await screen.findByRole("button", { name: "解析资料" }));
+    await screen.findByText("TEST 结果未知");
+    expect(locks()).toHaveLength(1);
+    context.session = { ...context.session, accountScope: { id: "TEST-space-b", version: 1 } };
+    view.rerender(<MaterialsWorkspace api={api} profile={profile} currentFields={fields} onApply={vi.fn()} />);
+    await screen.findByText("TEST 资料");
+    expect(screen.queryByRole("button", { name: "核对原资料操作" })).toBeNull();
+    expect(api.operation).not.toHaveBeenCalled();
+    expect(locks()).toHaveLength(1);
+  });
+
+  it("同一空间版本变化保留旧请求身份，不能查询或再次提交", async () => {
+    context.session.accountScope = { id: "TEST-space-a", version: 1 };
+    const api = adapter([row()]);
+    vi.mocked(api.mutate).mockRejectedValue(new Error("TEST 结果未知"));
+    const view = mount(api);
+    fireEvent.click(await screen.findByRole("button", { name: "解析资料" }));
+    await screen.findByText("TEST 结果未知");
+    const request = vi.mocked(api.mutate).mock.calls[0][0];
+    context.session = { ...context.session, accountScope: { id: "TEST-space-a", version: 2 } };
+    view.rerender(<MaterialsWorkspace api={api} profile={profile} currentFields={fields} onApply={vi.fn()} />);
+    await screen.findByText("TEST 资料");
+    fireEvent.click(screen.getByText("查看原资料操作身份"));
+    expect((screen.getByLabelText("旧资料操作请求ID") as HTMLInputElement).value).toBe(request.requestId);
+    expect(screen.queryByRole("button", { name: "核对原资料操作" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "解析资料" }));
+    expect(api.mutate).toHaveBeenCalledTimes(1);
+    expect(api.operation).not.toHaveBeenCalled();
+    expect(locks()).toHaveLength(1);
+  });
+
+  it("v1 未知记录不自动归属当前空间，清草稿重开仍提供原请求ID且不派发", async () => {
+    const pending: MaterialPending = { requestId: crypto.randomUUID(), profileVersionId: profile.id, materialId: "material-test", kind: "parse", expectedVersion: 1 };
+    const key = legacyMaterialOperationKey(context.session.userId!, profile.id);
+    const saved = JSON.stringify(pending);
+    localStorage.setItem(key, saved);
+    context.session.accountScope = { id: "TEST-space-a", version: 1 };
+    const api = adapter([row()]);
+    const view = mount(api);
+    await screen.findByText("TEST 资料");
+    fireEvent.click(screen.getByText("查看原资料操作身份"));
+    expect((screen.getByLabelText("旧资料操作请求ID") as HTMLInputElement).value).toBe(pending.requestId);
+    clearLocalDrafts();
+    view.unmount();
+    mount(api);
+    await screen.findByText("TEST 资料");
+    fireEvent.click(screen.getByRole("button", { name: "解析资料" }));
+    fireEvent.click(screen.getByRole("button", { name: "重新读取操作记录" }));
+    expect(api.mutate).not.toHaveBeenCalled();
+    expect(api.operation).not.toHaveBeenCalled();
+    expect(localStorage.getItem(key)).toBe(saved);
+    expect(locks()).toHaveLength(1);
+  });
+
+  it("同用户换空间后迟到的核对回执不清旧锁、不更新或通知新空间", async () => {
+    context.session.accountScope = { id: "TEST-space-a", version: 1 };
+    const api = adapter([row()]);
+    vi.mocked(api.mutate).mockRejectedValue(new Error("TEST 结果未知"));
+    const result = deferred<MaterialReceipt>();
+    vi.mocked(api.operation).mockReturnValue(result.promise);
+    const view = mount(api);
+    fireEvent.click(await screen.findByRole("button", { name: "解析资料" }));
+    await screen.findByText("TEST 结果未知");
+    const request = vi.mocked(api.mutate).mock.calls[0][0];
+    fireEvent.click(screen.getByRole("button", { name: "核对原资料操作" }));
+    await waitFor(() => expect(api.operation).toHaveBeenCalledOnce());
+    context.session = { ...context.session, accountScope: { id: "TEST-space-b", version: 1 } };
+    vi.mocked(api.list).mockResolvedValue([]);
+    view.rerender(<MaterialsWorkspace api={api} profile={profile} currentFields={fields} onApply={vi.fn()} />);
+    await screen.findByText("暂无资料");
+    await act(async () => result.resolve(receipt(request, row("PARSING", 2))));
+    expect(screen.queryByText("解析中")).toBeNull();
+    expect(context.notify).not.toHaveBeenCalled();
+    expect(locks()).toHaveLength(1);
+  });
+
   it("保存等待真实回执和进度；编辑新版本仍是未解析草稿", async () => {
     const api = adapter();
     const pending = deferred<MaterialReceipt>();

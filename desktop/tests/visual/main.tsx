@@ -1,3 +1,4 @@
+import "../../src/renderer/app/validationRuntime";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App, AppErrorBoundary } from "../../src/renderer/app/App";
@@ -22,6 +23,10 @@ import "./visual.css";
 import { configureR4Visual, r4TaskDraft, R4_TEST_SCOPE } from "./r4";
 import { taskDraftOwner } from "../../src/renderer/app/taskDraft";
 import { configureRegistryVisual } from "./connectionRegistry";
+import { makeMaterialRecovery } from "./materialRecovery";
+import { MaterialRecoveryControls } from "./MaterialRecoveryControls";
+import { selectManagementRecovery, configureManagementRecovery } from "./managementRecovery";
+import { ManagementRecoveryControls } from "./ManagementRecoveryControls";
 
 const params = new URLSearchParams(location.search);
 const state = (
@@ -79,6 +84,15 @@ if (params.get("capabilities") === "complete" && state === "populated") {
   harness.service.materials = makeVisualMaterials();
   harness.service.followup = makeVisualFollowup();
 }
+const materialRecovery = params.get("materials") === "recovery"
+  && page === "P04" && state === "populated" && params.get("session") !== "guest"
+  ? makeMaterialRecovery(harness.record) : undefined;
+if (params.has("materials") && !materialRecovery)
+  throw new Error("TEST 资料恢复仅接受 P04/populated/TEST 登录身份与 materials=recovery。");
+if (materialRecovery) harness.service.materials = materialRecovery.service;
+const managementRecovery = selectManagementRecovery(
+  params.get("management"), page, state, page === "P01" || params.get("session") === "guest",
+) ? configureManagementRecovery(harness) : undefined;
 const recoveryName = selectRecovery(
   params.get("recovery"),
   page,
@@ -88,7 +102,7 @@ const recoveryName = selectRecovery(
 const recovery = recoveryName
   ? configureRecovery(harness, recoveryName)
   : undefined;
-const storage = isolateBrowser(harness.record);
+const storage = isolateBrowser(harness.record, { saveExport: managementRecovery?.saveExport });
 const seed = (name: string, value: unknown) =>
   storage.session.setItem("yike.ui.draft.v1." + name, JSON.stringify(value));
 if (state === "populated") {
@@ -151,10 +165,13 @@ createRoot(document.getElementById("root")!).render(
       <div id="visual-harness-banner" role="note">
         TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
         {recoveryName && ` · 恢复场景 ${recoveryName}`}
+        {managementRecovery && " · TEST 模拟保存/取消，不写文件"}
       </div>
       <details id="visual-harness-controls">
         <summary>TEST 场景</summary>
         {recovery && <RecoveryControls controller={recovery} />}
+        {materialRecovery && <MaterialRecoveryControls controller={materialRecovery} />}
+        {managementRecovery && <ManagementRecoveryControls controller={managementRecovery} />}
         <div>
           {Object.keys(routes).map((id) => (
             <a key={id} href={`/?scenario=${id}&state=${state}`}>

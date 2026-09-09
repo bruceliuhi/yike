@@ -37,6 +37,42 @@ beforeEach(()=>{
 });
 afterEach(()=>{cleanup();vi.useRealTimers();});
 describe('original send request reconciliation',()=>{
+ it.each(['SENT','FAILED'] as const)('clears only the settled send error after authoritative %s reconciliation',async status=>{
+  vi.mocked(context.service.outreach!.send).mockRejectedValue(new Error('TEST 发送断线，结果未知'));
+  mount();await submit();
+  await screen.findByText('TEST 发送断线，结果未知');
+  const request=vi.mocked(context.service.outreach!.send).mock.calls[0][1];
+  vi.mocked(context.service.outreach!.reconcile).mockResolvedValue({requestId:request.requestId,opportunityId:row.id,channel:draft.channel,version:draft.version,status,confirmed:true,confirmedNotDelivered:true} as never);
+  fireEvent.click(screen.getByRole('button',{name:'核对原发送结果'}));
+  await waitFor(()=>expect(Object.values(entries())).not.toContain('PENDING'));
+  expect(screen.queryByText('TEST 发送断线，结果未知')).toBeNull();
+  expect(context.notify).toHaveBeenCalledWith(status==='SENT'?'原请求已确认发送成功，不会重复发送。':'原请求已确认未送达；请重新核验并确认后发送。',status==='SENT'?'success':'info');
+  expect(context.service.outreach!.send).toHaveBeenCalledOnce();
+ });
+ it.each(['UNKNOWN','wrong request'] as const)('retains the original send error and lock when reconciliation is %s',async outcome=>{
+  vi.mocked(context.service.outreach!.send).mockRejectedValue(new Error('TEST 原发送错误'));
+  mount();await submit();await screen.findByText('TEST 原发送错误');
+  const request=vi.mocked(context.service.outreach!.send).mock.calls[0][1];
+  vi.mocked(context.service.outreach!.reconcile).mockResolvedValue({requestId:outcome==='wrong request'?'different':request.requestId,opportunityId:row.id,channel:draft.channel,version:draft.version,status:outcome==='UNKNOWN'?'UNKNOWN':'SENT',confirmed:true} as never);
+  fireEvent.click(screen.getByRole('button',{name:'核对原发送结果'}));
+  await waitFor(()=>expect(context.service.outreach!.reconcile).toHaveBeenCalledOnce());
+  await waitFor(()=>expect((screen.getByRole('button',{name:'核对原发送结果'}) as HTMLButtonElement).disabled).toBe(false));
+  expect(screen.getByText('TEST 原发送错误')).toBeTruthy();
+  expect(Object.values(entries())).toContain('PENDING');
+ });
+ it('does not clear a separate verification error when an older operation is settled',async()=>{
+  vi.mocked(context.service.verifyContact).mockRejectedValue(new Error('TEST 当前核验读取失败'));
+  const view=mount();
+  fireEvent.click(screen.getByRole('button',{name:'核验发送条件'}));
+  await screen.findByText('TEST 当前核验读取失败');
+  const original=pending();
+  vi.mocked(context.service.outreach!.reconcile).mockResolvedValue({...original,status:'FAILED',confirmed:true,confirmedNotDelivered:true});
+  view.rerender(<SendConfirmation row={row} draft={draft} connection={connection} onClose={vi.fn()}/>);
+  fireEvent.click(screen.getByRole('button',{name:'核对原发送结果'}));
+  await waitFor(()=>expect(Object.values(entries())).not.toContain('PENDING'));
+  expect(screen.getByText('TEST 当前核验读取失败')).toBeTruthy();
+  expect(context.service.outreach!.send).not.toHaveBeenCalled();
+ });
  it.each(['original-request pending','legacy pending','same-version sent'])('does not dispatch if %s appears while the final verification is pending',async kind=>{
   mount();
   fireEvent.click(screen.getByRole('button',{name:'核验发送条件'}));

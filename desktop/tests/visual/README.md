@@ -53,12 +53,18 @@ P07/P10/P11/P12/P13 的 `reference=r3` 还通过 [routing.ts](routing.ts) 进入
 
 20 个页面现在已有真实 React 运行截图与 R3 参考图的逐页对比。详细状态、可见流程、剩余差异与滚动限制以 [本轮 design-qa](../../../docs/qa/ui-flow-completion/design-qa.md) 为准，独立审核见 [QUALITY_REVIEW](../../../docs/qa/ui-flow-completion/QUALITY_REVIEW.md)。这不表示每页所有业务状态、所有分辨率、生产服务或 Windows 实机都已验收。
 
+## 资料与管理恢复场景（2026-09-10）
+
+- `?scenario=P04&state=populated&materials=recovery`：从产品页添加含 TEST 的资料，解析并人工确认后，在“TEST 场景”中选择下一次保存、撤销或移除回执暂为未知。必须先在产品页核对原操作；TEST 控制释放原回执后仍需再次核对，不能用刷新或新请求当作恢复。改变的是内存传输可见性，没有真实资料后台。该场景仅固定 TEST 画像，不证明跨客户空间授权。
+- `?scenario=P18&state=populated&management=lifecycle`：TEST 控制选择模拟保存取消/成功/失败、执行或查询的未知/明确终态，以及取消待处理/已确认。恢复使用本目录 `TEST-management.yike-backup.json`，通过产品页文件选择和影响确认；只更改内存，不写文件、不恢复客户数据或安装软件。产品页正常请求与原请求查询仍由真实组件发起，控制器不直接清产品待确认锁。
+- 并行开发的 HMR 会重置这些 TEST 内存。持续状态验收应先冻结独立 visual 构建，在相同 `127.0.0.1:18794` 入口提供静态资源并保留严格 CSP，再开始一条完整流程；不要把热更新重置当作产品操作结果。Windows 缩放和原生保存框仍另行验收。
+
 ## 数据与外部动作边界
 
 - [fixtures.ts](fixtures.ts) 全部使用 TEST 标记。任务关键词、排除词和两次监控时刻沿用已批准的展台场景；不存在真实采购联系人、预算或成交数据。合成询价对象使用 `.invalid` 来源地址；产品自带公开研究样例仍按原页面的只读规则展示。
 - [service.ts](service.ts) 数据每个实例独立深拷贝，画像 / 跟进 / 任务动作只影响该实例内存。候选入库、真实任务启动和消息发送始终不执行；默认启动/发送返回不可用，显式恢复适配仅返回上述 TEST 原请求状态。登录、短信、生成草稿等测试响应不调用外部服务。
 - [materials.ts](materials.ts) 与 [followup.ts](followup.ts) 只接受固定 TEST 画像/商机范围，操作回执保存在各自实例的内存中。资料的解析内容和收到的回复均为测试内容，不调用真实 AI 或平台。它们不访问网络、客户库或持久存储，不属于生产 renderer 的依赖图。
-- [isolation.ts](isolation.ts) 将 localStorage 与 sessionStorage 替换为内存对象，禁用 native bridge、业务 fetch / XHR / beacon、剪贴板写入、外链打开和 CSV 下载（包括脱离 DOM 的下载链接）。刷新后测试存储重置，不接触产品端口的存储。
+- [isolation.ts](isolation.ts) 将 localStorage 与 sessionStorage 替换为内存对象，默认禁用 native bridge；仅上述 P18 场景注入只有 saveExport 的内存模拟桥。业务 fetch / XHR / beacon、剪贴板写入、外链打开和 CSV 下载（包括脱离 DOM 的下载链接）继续阻断。刷新后测试存储重置，不接触产品端口的存储。
 - 页面固定显示 TEST 标识。外部动作只记录在 `window.__YIKE_VISUAL__.events` 的内存事件数组中；复制只记录字符数，登录不记录输入凭证。
 - Vite 仅加载本机模块与 HMR，CSP 限制连接到本机入口；不应输入任何真实客户资料或凭据。
 

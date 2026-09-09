@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, FileText } from "@phosphor-icons/react";
 import { useApp } from "../../app/context";
 import { boundedRequest } from "../../app/boundedRequest";
@@ -25,17 +25,20 @@ import { MaterialImpact } from "./MaterialImpact";
 import { useMaterialRequest } from "./useMaterialRequest";
 import "./profile.css";
 
-export function MaterialsWorkspace({
-  api,
-  profile,
-  currentFields,
-  onApply,
-}: {
+type MaterialsWorkspaceProps = {
   api: MaterialService;
   profile: Profile;
   currentFields: ProfileFields;
   onApply: (fields: Partial<ProfileFields>) => void;
-}) {
+};
+export function MaterialsWorkspace(props: MaterialsWorkspaceProps) {
+  const { session } = useApp();
+  // Remount the entire editor/impact boundary synchronously on identity changes.
+  const boundary = useMemo(() => crypto.randomUUID(), [props.api, props.profile.id, props.profile.version, session.authenticated, session.userId, session.accountScope?.id, session.accountScope?.version]);
+  return <ScopedMaterialsWorkspace key={boundary} {...props} />;
+}
+
+function ScopedMaterialsWorkspace({api, profile, currentFields, onApply}: MaterialsWorkspaceProps) {
   const { session, notify } = useApp();
   const resource = useResource(
     async () =>
@@ -45,7 +48,7 @@ export function MaterialsWorkspace({
         }),
         profile.id,
       ),
-    [api, profile.id, session.userId],
+    [api, profile.id, session.authenticated, session.userId, session.accountScope?.id, session.accountScope?.version],
   );
   const [editor, setEditor] = useState<{
     id: string;
@@ -95,7 +98,7 @@ export function MaterialsWorkspace({
   };
   const request = useMaterialRequest(api, profile.id, receive);
   const blocked =
-    !!request.pending || !!request.storageError || request.action.busy;
+    !!request.pending || request.historical.length > 0 || !!request.storageError || request.action.busy;
   const openEditor = (record?: Material) => {
     request.action.setError("");
     setEditor({ id: record?.id || crypto.randomUUID(), record });
@@ -140,6 +143,23 @@ export function MaterialsWorkspace({
           >
             核对原资料操作
           </Button>
+        </Notice>
+      )}
+      {request.historical.length > 0 && (
+        <Notice tone="warning">
+          存在未绑定当前客户空间版本的旧资料操作。记录已保留；确认原请求归属和结果前，不会重新提交或在当前空间查询。
+          {request.historical.map((entry) => (
+            <details key={entry.requestId}>
+              <summary>查看原资料操作身份</summary>
+              <p>画像版本：{entry.profileVersionId}</p>
+              <p>空间：{entry.accountScope === "unbound" ? "旧记录未保存空间归属" : entry.accountScope ? `${entry.accountScope.id} · 版本 ${entry.accountScope.version}` : "原请求未提供空间身份"}</p>
+              <label>
+                原请求 ID（可复制）
+                <input readOnly aria-label="旧资料操作请求ID" value={entry.requestId} onFocus={event => event.currentTarget.select()} />
+              </label>
+            </details>
+          ))}
+          <Button variant="ghost" onClick={request.reloadStorage}>重新读取操作记录</Button>
         </Notice>
       )}
       {request.action.error && !editor && !extraction && !impact && (
@@ -289,7 +309,7 @@ export function MaterialsWorkspace({
           key={editor.id}
           record={editor.record}
           busy={request.action.busy}
-          locked={!!request.pending || !!request.storageError}
+          locked={!!request.pending || request.historical.length > 0 || !!request.storageError}
           progress={request.progress}
           error={request.action.error}
           onClose={() => setEditor(null)}
@@ -338,7 +358,7 @@ export function MaterialsWorkspace({
           record={impact.record}
           kind={impact.kind}
           busy={request.action.busy}
-          locked={!!request.pending || !!request.storageError}
+          locked={!!request.pending || request.historical.length > 0 || !!request.storageError}
           error={request.action.error}
           onClose={() => setImpact(null)}
           onConfirm={(impactToken) =>

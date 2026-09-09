@@ -9,7 +9,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { AppProvider } from "../../src/renderer/app/context";
+import { AppProvider, useApp } from "../../src/renderer/app/context";
 import { clearLocalDrafts } from "../../src/renderer/app/hooks";
 import { ProfilePage } from "../../src/renderer/pages/Profile";
 import { service as baseService } from "../../src/renderer/services/client";
@@ -46,6 +46,10 @@ const material: Material = {
     evidence: [{ field: "service", quote: "人工核实服务" }],
   },
 };
+function ChangeTestSpace() {
+  const {refreshSession} = useApp();
+  return <button onClick={() => void refreshSession()}>TEST 切换空间</button>;
+}
 afterEach(() => {
   cleanup();
   clearLocalDrafts();
@@ -53,6 +57,31 @@ afterEach(() => {
   window.history.replaceState(null, "", "/");
   vi.useRealTimers();
 });
+it("真实 ProfilePage 同用户换空间不显示旧人工稿，切回原空间保留其草稿", async () => {
+  window.history.replaceState(null, "", "#/profile");
+  const user = {authenticated: true, userId: "TEST-scoped-profile"};
+  let activeSpace = "TEST-space-a", sessionReads = 0;
+  const service = {
+    ...baseService,
+    session: vi.fn(async () => {
+      activeSpace = ++sessionReads === 2 ? "TEST-space-b" : "TEST-space-a";
+      return {...user, accountScope: {id: activeSpace, version: 1}};
+    }),
+    profiles: vi.fn(async () => [activeSpace === "TEST-space-a" ? profile : {...profile, fields: {...profile.fields, service: "TEST B 服务"}}]),
+    saveProfile: vi.fn(),
+    confirmProfile: vi.fn(),
+  };
+  render(<AppProvider service={service}><ChangeTestSpace /><ProfilePage /></AppProvider>);
+  await waitFor(() => expect((screen.getByLabelText("服务内容", {selector: "input"}) as HTMLInputElement).value).toBe("原人工服务"));
+  fireEvent.change(screen.getByLabelText("服务内容", {selector: "input"}), {target: {value: "TEST A 未保存人工稿"}});
+  fireEvent.click(screen.getByRole("button", {name: "TEST 切换空间"}));
+  await waitFor(() => expect((screen.getByLabelText("服务内容", {selector: "input"}) as HTMLInputElement).value).toBe("TEST B 服务"));
+  fireEvent.click(screen.getByRole("button", {name: "TEST 切换空间"}));
+  await waitFor(() => expect((screen.getByLabelText("服务内容", {selector: "input"}) as HTMLInputElement).value).toBe("TEST A 未保存人工稿"));
+  expect(service.saveProfile).not.toHaveBeenCalled();
+  expect(service.confirmProfile).not.toHaveBeenCalled();
+});
+
 it("真实 ProfilePage 入口选资料、确认填入和回业务描述，保持其余人工字段且不自动保存确认", async () => {
   window.history.replaceState(null, "", "#/profile?tab=materials");
   const materials: MaterialService = {

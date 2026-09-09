@@ -7,14 +7,18 @@ import {
 } from "../../src/renderer/domain/management";
 
 /** Isolated layout fixtures. No activation, restore, update, export or external IO. */
-export function makeVisualManagement(state: string): ManagementService {
-  const account: AccountState = {
+export function visualManagementAccount(): AccountState {
+  return {
     spaceId: "TEST-visual-space",
     spaceName: "TEST 视觉验收空间",
     revision: "TEST-r1",
     license: { status: "INACTIVE", expiresAt: null },
     device: { id: "TEST-device", name: "TEST 本机设备", status: "UNBOUND" },
   };
+}
+
+export function makeVisualManagement(state: string): ManagementService {
+  const account = visualManagementAccount();
   const read = async <T>(value: T): Promise<T> => {
     if (state === "loading") return new Promise<T>(() => {});
     if (state === "error")
