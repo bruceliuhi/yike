@@ -8,6 +8,8 @@
 
 ## 从这里开始
 
+面向产品规划、销售和宣传的统一入口：[产品手册：功能、版本与对外口径](docs/PRODUCT_HANDBOOK.md)。包含完整功能、V1.0/V1.1 映射、证据与宣传边界；现有能力以绑定版本的验收为准，开发状态仍以任务书为准。
+
 1. [产品与开发权威](AUTHORITY.md)：本轮确定的产品目标和必须继承的约束。
 2. [实施任务书](docs/V02_IMPLEMENTATION_TASKBOOK.md)：当前状态、可以先做的工作、依赖与验收。
 3. [完整获客版计划](docs/V02_COMMERCIAL_RELEASE_PLAN.md) 与 [多平台 Skill 方案](docs/V02_MULTIPLATFORM_SKILL_PLAN.md)：功能及技术分工。

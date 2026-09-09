@@ -1,6 +1,6 @@
 # V02-01C 设备持钥子链验收记录
 
-日期：2026-09-09。实施者：device_key_implementation；CodexiMac负责整体集成与复跑。候选代码 `c3702c07cd334fd745905ddd7f4d7b697edb27c0`，基线 main `0a3ccf70efb569c39b3f91a558ab4b39140fd2f1`。独立任务、整分支及合并复核均通过；持钥后端子链已随 `65d867640ea216769adb5f947f5dea8fb7b31a35` 推送main，并核实远端SHA一致。整体01C仍在开发，尚无本卡实际CodexWin接收。
+日期：2026-09-09。实施者：device_key_implementation；CodexiMac负责整体集成与复跑。候选代码 `c3702c07cd334fd745905ddd7f4d7b697edb27c0`，基线 main `0a3ccf70efb569c39b3f91a558ab4b39140fd2f1`。独立任务、整分支及合并复核均通过；持钥后端子链已随 `65d867640ea216769adb5f947f5dea8fb7b31a35` 推送main，并核实远端SHA一致。此为Mac合并时点记录；整体01C仍在开发，后续实际Win限定ACK见末节，不覆盖下方原始验证历史。
 
 ## 本轮交付与边界
 
@@ -62,3 +62,7 @@ candidate_final_review对 `0a3ccf7..7e4ab7c` 完整分支作最终审核，PASS�
 device_authorization_architecture只读复核远端增量 `0a3ccf7..3c16fac` 与持钥实现的兼容性，PASS；candidate_final_review独立核对合并65d8676两亲本、冲突处理及代码/依赖保全，PASS，均无具体阻断项。两者没有冒充上述根代理实测。正常push及ls-remote确认main和设备授权分支均为65d8676；后续分支会前进，使用时重新核验。
 
 Windows须记录本卡自己的环境与ACK，不能复制上述Mac测试结果当作验收。[交接包](../handoffs/V02-01C_DEVICE_KEYS_MAC_TO_WIN.md)说明实际消费步骤及未完成边界。
+
+## 后续Win限定接收与主线整合
+
+原文“尚未main/Win未接收”为候选时点记录。CodexWin冻结复核 **65d867640ea216769adb5f947f5dea8fb7b31a35**（含c370及此前Win来源身份修复），实际Windows PG定向123 passed；完整962项为908 passed/54既有Windows失败/0跳过。新增的真实Node→loopback HTTP→受限PG证明签名字节、绑定/双签换钥/重放/拒绝可消费，不等于生产TLS或Windows私钥持久化。独立代码/架构/质量及合入复核通过后，正常集成 **f9255603435862d8e8ead60b0357851c8c9e3075**，对本后端子链限定ACK；01C执行授权剩余部分继续。两处契约文案勘误不改变代码行为，Win原始摘要、旧失败和验证工具修复见[Win复核第9节](WIN_CROSS_REVIEW_20260909.md)。不将本次不同集合相加或覆盖此前Mac925/962证据。

@@ -4,6 +4,14 @@
 
 ## 整合记录
 
+2026-09-09发行阻断补充：Win复核独立确认既有备份脚本HMAC误用密钥文件路径字面值的P1，未修复；[手册](CUSTOMER_PILOT_RUNBOOK.md)已标注禁止以该侧车放行CP-06，合成复现见[Win复核第12节](qa/WIN_CROSS_REVIEW_20260909.md)。不影响下面版本绑定的UI/持钥切片接收结论，但产品发布审核不通过，需优先修复并重新演练。
+
+2026-09-09后续：CodexWin正常保留Mac最新前端9e27723并合入 **4454a45**，独立增量/合入审核PASS；干净4454a45 Windows全链61文件647 passed/2架构skipped、9自动阶段通过，真实新ASAR及安装包摘要见[Win复核第10节](qa/WIN_CROSS_REVIEW_20260909.md)。同版本后端代码仍为已测65d，未重复报全量。原始Mac视觉/日志保留，R4仅未确认提案；候选/断连真实后台、人工安装更新及17 high/未签名等发行门禁仍未完成，不把新UI或构包通过写成产品上线。
+
+2026-09-09后续：CodexWin实际接收65d8676中的设备持钥后端子链，Windows PG定向123通过、真实Node/HTTP/受限PG往返通过，全仓908通过/54既有Windows失败；独立代码/集成审核后正常合入f925560，保留Mac代码与Win84c4b6f。Windows干净84c完整自动构建570通过/2架构跳过，9阶段通过，人工与供应链门禁仍未完成。契约两处文案勘误、受限ACK与原始报告摘要见[Win复核第8/9节](qa/WIN_CROSS_REVIEW_20260909.md)，父01C/09仍IN_PROGRESS。
+
+以下Mac段落保留65d8676当时状态，其中“Win ACK未完成”已由上方后续实际限定接收取代；Mac与Win各自的全量结果分开解释。
+
 2026-09-09 CodexiMac持钥后端子链已审并纳入main `65d867640ea216769adb5f947f5dea8fb7b31a35`：代码c3702c0实现设备owner、公钥绑定/一次性持钥检查/双钥轮换、持久回执、会话撤销事务锁与106最小权限升级。整分支7e4ab7c独立审核PASS；推送前发现并保留Win主线3c16fac，合并65d8676再获独立复核PASS。合并版Mac完整后端962通过/0跳过，桌面549通过/21平台或架构条件跳过、typecheck/renderer构建通过；原925仅为合并前快照，不相加。锁定安装17 high和Windows未验收项保留。01C实际Win ACK、连接版本/执行租约/提交授权、02B上传、真实平台与上线/UAT仍未完成；详见[01C验收](qa/V02-01C_DEVICE_KEYS_REVIEW.md)及[交接](handoffs/V02-01C_DEVICE_KEYS_MAC_TO_WIN.md)。Goal保持ACTIVE，继续01C并衔接03A任务运行持久化和02B结果入库。
 
 2026-09-09后续CodexWin交叉接收：02A原e4d1695虽定向通过，独立复核发现IDNA不同网站误合并/等价IPv6漏去重。更正d14594f独立实现/规格/质量审核PASS，Win221项定向通过后限定ACK并集成95285dd；仅DTO/来源纯契约，不代表01C授权或02B上传。随后正常保留远端0a3ccf7的全部Mac前端与交接到37592ed，Win新UI定向423项/typecheck通过，完整Windows构建仍另验。详情见[Win记录](qa/WIN_CROSS_REVIEW_20260909.md)，任务书为唯一现态。

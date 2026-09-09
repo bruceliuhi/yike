@@ -142,3 +142,90 @@ uv lock --check --offline
 失败报告 `desktop/out/windows-evidence/2026-09-09T11-31-01-267Z-c0ae1c30/windows-build.json` SHA256 `583f8377901f1ee5af20cd075711b323f8bb9a2bc61eb0a34aaab4c8476f422a`，未覆盖旧make失败报告。其ASAR SHA256 `aee5e624987dd99f4b6b820d92003e2f00a1c5904a5aaac23b01af55a702a52a`，Setup SHA256 `dbea9147ff5aed17b0851b74bd3e079ae7e8ef25c550da3b9439610e12d149b1`；均为**全链失败候选，不提供安装验收或发布批准**。
 
 根代理只读列出该ASAR实际42个条目，并用 `path.normalize` 查询同一未修改归档，读取主入口80406字节、preload502字节、index584字节。原入口确实存在，不归咎于Vite漏打包；应按[校验器修复计划](../superpowers/plans/2026-09-09-win-asar-verification.md)补真实ASAR/CLI反例，不修改归档或跳过检查。npm仍报告17 high及已有弃用/git完整性警告，Vite仍有旧选项弃用警告；不视为随打包路径或运行时修复自动关闭。Goal保持ACTIVE。
+
+## 7. ASAR修复后Windows自动链通过，保留夹具清理缺口
+
+修复提交 `3c16faca1fb243652f70d08327a30ddc771fc1ef` 仅在ASAR读取边界加入 `path.normalize`，新增18项真实归档/实际CLI测试，固定CJS、原始manifest白名单、非空资源和秘密文件拒绝规则不变。作者 `windows_bootstrap_fix` 的完整包正例在旧实现明确RED；修复后与renderer回归共21 passed。独立 `win_contract_readiness` 规格/架构/代码/质量PASS，实际21项/typecheck通过；root再跑21项通过（exec 2e6355），typecheck/secret scan通过。原归档重新校验32项资源，SHA仍为aee5e624…，未修改旧失败JSON或以改包让检查通过。
+
+根代理合跑五个相关文件时曾出现1 failed/84 passed/2 skipped（19:44:29，exec 3c807d）：`windowsBuildRuntime.test.mjs` 的真实dependency-exit测试在afterEach清理临时Node时EPERM。只读确认残留Node非ReadOnly、ACL无deny，未发现从该临时路径运行的进程；AvlVDu夹具与bundled源Node共享同一NTFS File ID，当前夹具优先hardlink，不是独立文件。未捕获故障时句柄，不能认定具体占用者或杀毒软件；历史临时目录保留，不绕过删除限制。按[夹具隔离计划](../superpowers/plans/2026-09-09-win-runtime-fixture-isolation.md)继续，不靠重跑成功抹去此缺口。
+
+随后从干净 **3c16fac** 运行完整脚本（exec session17526）：**53文件/568 passed/2 skipped**，66.37s，计数来自控制台chunk d1943d；所有9个自动阶段PASSED，包含Squirrel制作、ASAR 32资源校验和真实包内Electron冒烟，最终exit0。冒烟覆盖实际main/preload/renderer、沙箱/自定义协议、IPC拒绝、未配置服务、隔离临时文件CSV/备份导出及取消、未保存退出确认；保存/退出对话框在隔离进程被替代，**不构成用户手动安装或可见交互验收**。本轮通过不证明前述间歇夹具清理已修好。
+
+成功报告 `desktop/out/windows-evidence/2026-09-09T11-45-38-367Z-cc8227d5/windows-build.json` SHA256 `0126fed3ba69286e7b82a7aec4934be8956e61cebba0bf4d243e02574dcf2599`；ASAR SHA256 `aee5e624987dd99f4b6b820d92003e2f00a1c5904a5aaac23b01af55a702a52a`；本轮Setup SHA256 `25b6465e7c69228f8f14e233bc84681088b152586353e98621420c986f371220`。Setup因重新制作与上一失败候选不同，不把旧Setup摘要回填为本轮。人工11项仍UNTESTED，17 high仍未消除，正式签名/安装更新/真实业务不在此次通过范围。已正常推送main 3c16fac并用ls-remote核验；Goal继续ACTIVE。
+
+## 8. 独立Node夹具与第二次完整自动链
+
+`84c4b6ff2c5f117a7303da59cdc4f14b74309207` 只改runtime测试：每个Node夹具独立copy，新增source/A/B文件身份、nlink及摘要检查和真实IPC A存活时清理B的反例。身份测试原hardlink明确RED（3个路径仅1个文件对象），不是EPERM确定性复现。作者 `windows_bootstrap_fix`，独立 `win_contract_readiness` 规格/架构/代码/质量PASS，实际runtime34 passed/1架构skip、typecheck通过；root五文件87 passed/2 skip（exec 142658，11.65s），另行typecheck通过。
+
+根代理从干净84c4b6f再次完整构建（session50349，结果chunk b346b2）：53文件/**570 passed/2明确skipped**、67.12s；9自动阶段全部PASSED、exit0，含原生与包内冒烟。报告 `desktop/out/windows-evidence/2026-09-09T11-58-05-200Z-3c0d0702/windows-build.json` SHA256 `a4051e39ed44b5def7ed642480db2ba0b7e0fcdc69f09983e32c16aeaabd38cb`。本轮ASAR仍为aee5e624…；Setup SHA256 `3b1c89810ab89081d345a1ad06679366c6120c1439b2c1ebdc971b527fb11155`。人工11项仍UNTESTED，17 high仍在，不重写旧报告。
+
+作者及root分别检查：新增runtime临时目录/子进程无遗留，历史AvlVDu/Mk7kCl仍原样保留；未调整权限或删除共享原Node。此修复证明文件隔离与本轮清理边界，不宣称所有Windows环境永无间歇故障。与3c16相比仅新增2个测试，不把总数差当产品功能数量。
+
+## 9. 新设备持钥后端的Windows限定接收
+
+Mac后续 `65d867640ea216769adb5f947f5dea8fb7b31a35` 含 `c3702c0` 设备持钥切片，代码已进入远端main但未因此自动ACK。Win保留冻结detached检出 `.worktrees/review-device-65d8676`，以独立非editable CPython3.11.14/PyNaCl1.6.2/cffi2.1.1环境按lock安装，不污染原win-dev环境。
+
+独立 `supplychain_readiness` 核对严格Ed25519点/编码、UTF-8原字节、双签轮换、session→device锁序、数据库实时到期、owner/FK/RLS和显式最小授权，未发现P0/P1/P2；本机纯协议/身份/会话三文件53 passed（包含先跑的20项，不累加）。额外合成点/编码反例通过。发现两处非阻断文案：Origin中间件403不属于路由no-store JSON，以及session_digest实际为encoded payload字节SHA256；本次修正文档，不改变签名协议或HTTP行为。
+
+root独立使用官方PostgreSQL16.15一次性Docker实例（127.0.0.1随机端口、tmpfs、`--rm`），在新win_pilot/win_identity库和NOSUPERUSER/NOBYPASSRLS角色下验证。新设备测试先于旧identity夹具运行；另外升级测试自己建立最小角色/105库，重复106及显式grant，验证无users UPDATE、新表DELETE、schema CREATE，不能把后续旧夹具的宽授权当作本次最小权限证明。
+
+| 验证 | 本次Windows结果 |
+|---|---|
+| 7文件设备/身份/会话PG定向 | **123 passed，19.29s，0 skip**；exec 8e9c6a |
+| 全仓Python（同65d，`-X utf8`） | **908 passed / 54 failed / 0 error / 0 skip**，92.99s，962总计；exec 1204f4，退出1 |
+| 旧失败集合对比 | 54全部属于原222的58个既有Windows失败，无新增失败名；少的4个在原222加`-X utf8`复跑也通过（exec 9db32e，4 passed），不归因设备功能修复 |
+| Windows真实Node→HTTP→PG | Node24.19本机生成且仅在内存持有私钥；实际loopback HTTP调用绑定/证明/双签换钥/成功重放/旧钥拒绝/历史回执，受限角色实际落PG；两轮通过，第二轮exec 228505 |
+| 主线整合定向 | staged集成后8文件323 passed，1.76s，exec 123f91；不同于123/962集合，不相加 |
+
+定向XML `.runtime/device-targeted-65d8676.xml` SHA256 `2d15ad8a8a34e60129cdb331e0390c5fb263f2bbbffdd69a6bd93ec6b32a46e5`；全量 `.runtime/device-full-65d8676.xml` SHA256 `44393e5cb3c3180a8ce9d9cb6da1b6b049c8b1f311f34b52d8a9d3266679dd08`。不把Mac旧925测试数复制为Win或65d全量结果；新65d还包括Win此前37个IDNA反例。
+
+Node探针只导出公开key/signature，产品测试token经stdin传入；子进程env只留系统/临时目录字段，不继承数据库或服务端密钥。临时服务明确使用仅loopback开发HTTP，不等于生产TLS或私钥落盘验收。工具在 `.runtime/review-device-65d8676.ps1`、`review-device-probe.py`、`review-device-node.mjs`。独立 `windows_bootstrap_fix` 发现原工具stop失败仅警告的P2，root改为失败退出并核对精确容器消失；新ProbeOnly轮再次通过并确认移除，不覆盖第一轮XML。第一次容器亦已独立查无残留。旧POSIX supervisor失败留下的本轮pytest-15子进程经精确命令行/ID核查后终止，未碰其他服务；未删除其测试文件。
+
+正常集成提交 **`f9255603435862d8e8ead60b0357851c8c9e3075`**。独立 `win_contract_readiness` 核对index：Mac19非任务书blob与65d完全一致，desktop与84c完全一致，唯一任务书同时保留双方状态。CodexWin于2026-09-09对**65d中的持钥后端子链限定ACK**，以本次勘误契约为消费说明；父01C仍IN_PROGRESS。尚无连接版本/执行租约/领取续租取消/结果提交授权、02B上传或09D私钥安全存储，不据此激活平台capability；真实安装、收发、生产和客户UAT仍未验收，Goal继续ACTIVE。
+
+## 10. 最新Mac前端交叉审核及Windows重新构建
+
+追加接收远端 **`9e27723b4513d184438da44628017c237e895fe0`**，其中前端候选 **`58c8a7d3a8743f5f2eb9590e93ba8c2c66751fd9`**，Mac构建基线b89df6c及其最终整合证据见[UI验收](ui-final-acceptance/REVIEW.md)。Win冻结detached副本独立检查，不把Mac的626/21、20页截图、120视口记录称为本机实测，也不沿用旧84c的570项作为新UI构建结果。
+
+`win_contract_readiness` 独立审核P07原请求/摘要持久保护、P16断连状态机及身份切换；`windows_bootstrap_fix` 只读辅审P10四锚点事实、期限/导出、TermEditor/client和视觉入口隔离，范围内无新增P1/P2。默认候选服务不可用、断连接口无服务端原子账号版本/请求查询、本机ledger非跨设备幂等等限制保留；此为前端切片接收，不是这些后台功能上线。
+
+root在合并内容上实际执行：UI新增相关10文件 **99 passed / 6.81s**（exec4e835f），Python UI/session/identity/device/candidate五文件 **239 passed / 1.08s**（exec62feb6），TypeScript检查exit0（570a42），secret scan clean（684449）。不同集合不相加。后端/迁移/依赖锁与65d无变化，沿用第9节版本绑定的真实PG结果而非重报一次全量。
+
+正常合并提交 **`4454a453d09b7e83d48c16b5650ad8a486466d32`**，亲本d027d77和9e27723。独立`supplychain_readiness`核对合并index PASS：Mac全部UI和证据保留，desktop相对9e仅多Win已审runtime隔离测试；三个文档冲突保留Mac925/962历史、最新05A行与Win01C限定ACK/09证据。两文首段明确历史时点，不把旧“未接收”覆盖新ACK。R4仍是`PROPOSAL_PENDING_CONFIRMATION`，不批准新实现或改动V0.2 Goal。
+
+root从干净4454a45执行完整`desktop/scripts/build-windows.ps1`（session13080）：Windows11 x64，Node24.19.0/npm11.6.2，报告`dirty=false`；**61文件 / 647 passed / 2明确架构skipped**，68.40s（控制台chunkd7bde3）。9自动阶段全部PASSED、exit0（最终chunk468b42），含锁定安装、类型检查、原生会话传输、Squirrel、32项ASAR资源校验和实际包内main/preload/renderer冒烟。包内测试仍按第7节隔离替代对话框，不能当人工安装/可见流程通过。
+
+| 当前产物或报告 | SHA-256 |
+|---|---|
+| `desktop/out/windows-evidence/2026-09-09T12-24-49-635Z-617145af/windows-build.json` | `5ebf191addd13ee26d70137d1afbda45748a113775f2261f6277fe5d7ccb741e` |
+| `desktop/out/意客AI-win32-x64/resources/app.asar`，1615399字节 | `6f22e47ff71220c842cbc50d36bca0b81799d10971ec91836dd4dde43bea85a0` |
+| `desktop/out/make/squirrel.windows/x64/YikeAI-Setup.exe`，146782208字节 | `17a01bc93eb86d8933345179f47a5fb2d7d292524a16c05120a5580ef9cf1078` |
+
+额外只读检查实际新ASAR 42条目/24文本条目：无tests目录；3个已在RecoveryControls原文确认存在的TEST控制标记，在包内均无匹配（exece96bc7）。此为指定路径/标记检查，与独立源码隔离审核相互补充，不冒充全部模块图验证。安装包Authenticode实际`NotSigned`（exec4cb10f）。同目录人工表11项仍UNTESTED，17 high及已有依赖/构建弃用警告保留。
+
+范围`git diff --check`有6个原始UI QA日志尾空行/尾空格，逐一确认与远端原始blob相同；排除这6份原始日志后代码/文档差异检查通过。不改写日志以制造全范围clean；此前失败报告保持原样。05A/09及整体产品未DONE，真实业务、人工安装/更新/缩放、生产与客户UAT另验。
+
+## 11. 54个既有Windows失败的只读分类
+
+`windows_bootstrap_fix` 结合第9节全量XML与冻结65d源码分类（`supplychain_readiness`辅核shell入口）；相关实现至4454a45无差异。本次只读分析未复跑/修复这54项，不把“旧失败”或平台差异一律解释为可忽略。
+
+| 共同阻塞或环境假设 | 数量 | 证据与下一步边界 |
+|---|---:|---|
+| 私有目录精确POSIX权限门禁 | 27 | `app/collector.py:716` 的chmod/700检查，失败由362处映射；阻止后续运行时验证/子进程启动。CLI/collector/D03多项缺文件或未触发中断是下游表现，不能称安全隔离已验证；XML未保留底层异常，不保证只改权限后27项全绿。Windows需实际ACL方案 |
+| 取消/超时进程树 | 2 | `app/collector.py:135` 直接依赖os.killpg，Windows无此分支；测试亦含POSIX假设。需Windows真实子孙进程清理证据，不能仅kill父进程或skip |
+| 锁定补丁checkout字节改变 | 1 | `tests/test_collector.py:508`；实际i/lf w/crlf，原字节摘要不等于lock，仅在内存恢复LF后精确匹配。建议限定.gitattributes及真实autocrlf检出回归，不改锁摘要、不放宽校验 |
+| 原生直接执行.sh | 11 | `tests/test_vendor_packaging.py:38` 一类WinError193；尚未运行包装器业务逻辑 |
+| PATH选择不可用WSL Bash | 10 | backup 2项、CP06 8项，缺/bin/bash；服务端Linux流程仍需在适用环境实际验收，不能记业务通过 |
+| 创建symlink缺特权 | 3 | collector 1项、vendor 2项，fixture阶段WinError1314；未验证产品重定向防护，需明确能力条件及Windows重解析点反例 |
+
+合计54。采集器测试使用旧SQLite实验路径，暴露真实兼容缺口但不是PostgreSQL设备持钥新增回归。原始XML摘要和908/54结果仍以第9节为准，不将分类作为关闭V02-10E或发行门禁的证据。
+
+## 12. 额外确认的备份完整性P1：未修复，阻断CP-06放行
+
+只读分类中`supplychain_readiness`发现，`windows_bootstrap_fix`交叉确认：`scripts/backup_pilot.sh:54`及`restore_pilot.sh:50`调用`openssl dgst -sha256 -mac HMAC -macopt "key:file:$passphrase_file"`。该参数实际将`file:`加文件路径的字符串作为HMAC密钥，而不是读取秘密文件内容。AES加密另用`enc -pass file:...`，本发现不代表明文已经泄露，但现有侧车不能提供所宣称的秘密密钥认证。
+
+root独立使用本地Git OpenSSL、固定TEST消息及根本不存在的`/TEST-NONEXISTENT-PATH/backup-passphrase`进行最小反例：命令exit0，输出严格等于Python标准库以字面`file:/TEST-NONEXISTENT-PATH/backup-passphrase`为key计算的HMAC-SHA256（exec5cc3ac）。独立`supplychain_readiness`另用OpenSSL3.0.16和.NET标准HMAC复现同类不存在路径反例（exec8af699）。均未读取真实秘密/备份或访问数据库。知道或猜到路径者可对改变后的密文重算相同方案的侧车，不需要知道加密口令即可伪造这层MAC。
+
+这是4454a45继承的既有脚本问题，不是设备/UI新增回归，也不是54个Windows入口失败直接证明的结果。当前两个backup测试只验证生成sidecar及不重算MAC的简单尾部篡改，未覆盖秘密内容绑定、换路径恢复或路径密钥伪造；原通过数不能将本项关闭。**状态：P1已复现、修复未实现，CP-06备份恢复认证门禁不通过。**
+
+下一优先级：测试先覆盖上述反例，再独立审核不将秘密放入命令行/日志的版本化认证实现及历史备份处理规则；不得自动接受旧的路径MAC当作可信备份，不删除既有备份、不自动恢复生产库。修复后另需适用Linux环境的真实脚本/隔离PG恢复演练，本轮Windows桌面绿色构建不替代此验证。
