@@ -252,6 +252,13 @@ it("does not unlock another request on a mismatched query receipt", async () => 
   expect(context.notify).not.toHaveBeenCalled();
 });
 it("locks on timeout and ignores a late action response", async () => {
+  const nativeDigest = crypto.subtle.digest.bind(crypto.subtle);
+  let releaseDigest!: () => void;
+  const digestGate = new Promise<void>((done) => { releaseDigest = done; });
+  vi.spyOn(crypto.subtle, "digest").mockImplementation(async (...args) => {
+    await digestGate;
+    return nativeDigest(...args);
+  });
   let resolve!: (v: unknown) => void;
   ops().action = vi.fn(
     () =>
@@ -264,7 +271,12 @@ it("locks on timeout and ignores a late action response", async () => {
   vi.useFakeTimers();
   fireEvent.click(button);
   await act(() => vi.advanceTimersByTimeAsync(1));
-  expect(ops().action).toHaveBeenCalledOnce();
+  // Fake timer ticks do not complete Web Crypto's real asynchronous digest.
+  expect(ops().action).not.toHaveBeenCalled();
+  await act(async () => {
+    releaseDigest();
+    await vi.waitFor(() => expect(ops().action).toHaveBeenCalledOnce());
+  });
   const binding = vi.mocked(ops().action).mock.calls[0][0];
   await act(() => vi.advanceTimersByTimeAsync(30_001));
   expect(screen.getByText(/任务操作结果尚未确认，已保留原请求/)).toBeTruthy();

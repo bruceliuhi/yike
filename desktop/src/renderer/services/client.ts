@@ -38,6 +38,7 @@ function serviceFailure(status: number, body: unknown): ServiceError {
     503: "服务暂时不可用，请稍后重试。",
   };
   const codes: Record<string, string> = {
+    phone_auth_failed: "验证码无效或已过期，请重新核对或获取验证码。",
     SERVICE_NOT_CONFIGURED: "客户服务尚未连接；可以先准备本机草稿。",
     SERVICE_UNAVAILABLE: "客户服务暂时不可用，请稍后重试。",
     NETWORK_ERROR: "网络连接失败，当前输入已保留。",

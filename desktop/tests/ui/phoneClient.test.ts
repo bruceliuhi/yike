@@ -13,6 +13,10 @@ function bridge(data: unknown) {
 }
 
 describe('phone login fixed transport', () => {
+  it('shows an actionable phone-proof error on the login page', async () => {
+    host.yikeDesktop = {requestApi: vi.fn().mockResolvedValue({ok: false, status: 401, error: 'phone_auth_failed'})} as unknown as YikeDesktopApi;
+    await expect(service.login('19900000001', '123456')).rejects.toThrow('验证码无效或已过期，请重新核对或获取验证码。');
+  });
   it('maps code cooldown without asserting message delivery', async () => {
     const call = bridge({retry_after: 60});
     await expect(service.requestCode('19900000001')).resolves.toEqual({retryAfter: 60});
