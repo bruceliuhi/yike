@@ -36,6 +36,7 @@ export function errorMessage(error: unknown): string {
       : "操作未完成，请重试。";
 }
 export interface YikeService {
+  candidateReview?: import("./candidateReview").CandidateReviewService;
   researchStrategies?: import("./researchStrategies").ResearchStrategiesService;
   coveragePlans?: import("./coveragePlan").CoveragePlanService;
   opportunityBrief?: import("./opportunityBrief").OpportunityBriefService;
@@ -54,7 +55,10 @@ export interface YikeService {
     draft: ContactDraft,
     fingerprint: string,
   ): Promise<import("../domain/models").ContactVerification>;
-  candidates(query?: CandidateQuery): Promise<CandidatePage>;
+  candidates(
+    query?: CandidateQuery,
+    signal?: AbortSignal,
+  ): Promise<CandidatePage>;
   reviewCandidate(review: CandidateReview): Promise<CandidateReviewResult>;
   session(): Promise<Session>;
   loginToken(token: string): Promise<Session>;

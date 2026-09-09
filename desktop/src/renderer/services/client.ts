@@ -11,6 +11,7 @@ import { decodeLibraryFacts } from "../domain/opportunityLibrary";
 import { decodeConnectionRegistry } from "./connectionRegistry";
 import { createResearchStrategiesService } from "./researchStrategies";
 import { parseOpportunitySourceEvidence } from "../domain/opportunitySourceEvidence";
+import { createCandidateReviewService, CANDIDATE_PLATFORM_LABELS } from "./candidateReview";
 
 type JsonRecord = Record<string, unknown>;
 function bridge(): YikeDesktopApi | undefined {
@@ -234,10 +235,22 @@ function unavailable(name: string): never {
     501,
   );
 }
+const candidateReads = createCandidateReviewService(request);
 export const service: YikeService = {
   researchStrategies: createResearchStrategiesService(request),
   verifyContact: async () => unavailable("收件对象与发送条件核验"),
-  candidates: async () => unavailable("原始候选读取"),
+  candidates: async (query = {}, signal) => {
+    const page = await candidateReads.list(query, signal);
+    return {
+      ...page,
+      items: page.items.map((item) => ({
+        ...item,
+        platform: CANDIDATE_PLATFORM_LABELS[item.platform],
+        sourceLabel: CANDIDATE_PLATFORM_LABELS[item.platform],
+      })),
+    };
+  },
+  // Enable writes only after the durable ledger and explicit P07 actions are composed.
   reviewCandidate: async () => unavailable("候选判断与人工复核"),
   session: async () => {
     const r = await request("session.get", "/session");

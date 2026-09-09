@@ -35,12 +35,14 @@
 
 **Files:** Modify `desktop/src/shared/contracts.ts`, `desktop/src/main/servicePolicy.ts`, `desktop/src/renderer/services/contracts.ts`, `desktop/src/renderer/services/client.ts`, `desktop/src/renderer/domain/candidates.ts`; create `desktop/src/renderer/services/candidateReview.ts`, `desktop/tests/candidateReviewService.test.ts`; extend `desktop/tests/serviceClient.test.ts`, `desktop/tests/ui/client.test.ts`。
 
-- [ ] 先写 RED：固定 `candidates.list/review/verifySource/request` 对应四个已存在 HTTP 入口；写操作仅已验证 payload，无通用 URL/任意方法，无来源核验冒充评估。所有动作复用同 session 队列与 HTTPS/Origin/no-store/响应字节限制。
-- [ ] 独立 `createCandidateReviewService(request)` 做严格边界解析、预期身份核对及错误映射，提供候选读/复核/来源核验/原请求读取。此片产品组合只接只读candidates，旧reviewCandidate保持明确不可用：当前P07换画像会直接调用它且没有ASSESS原请求持久化，不能提前启用真实模型。Task3/4恢复路径及显式按钮完成后再接产品写入口，无新通用权限框架/配置开关。浏览器透传 AbortSignal，IPC 调用前/采用响应前检查取消；不声称物理取消服务器操作。
-- [ ] P07当前中文平台筛选值显式映射为服务枚举`XIAOHONGSHU/DOUYIN/BILIBILI/ZHIHU/PUBLIC_WEB`，并提供反向显示映射；共享DTO不因此接受任意字符串。
-- [ ] 保留旧 Candidate 类型兼容公开样例/旧 R3 夹具，实际服务 DTO 必须严格；新增服务元数据明确标识，不能让缺新字段旧夹具经真实接口变为已核验。
-- [ ] 定向现策略/原文/连接/发送回归及类型检查；服务接线不自动调用模型或核验/入库。独立审核后进入恢复与 UI。
-- [ ] 组合回归证明此片真实service的旧判断入口仍不发候选POST；页面选择画像亦不能借只读接线触发模型。最终启用另验持久化先于POST。
+- [x] 先写 RED：固定 `candidates.list/review/verifySource/request` 对应四个已存在 HTTP 入口；写操作仅已验证 payload，无通用 URL/任意方法，无来源核验冒充评估。所有动作复用同 session 队列与 HTTPS/Origin/no-store/响应字节限制。
+- [x] 独立 `createCandidateReviewService(request)` 做严格边界解析、预期身份核对及错误映射，提供候选读/复核/来源核验/原请求读取。此片产品组合只接只读candidates，旧reviewCandidate保持明确不可用：当前P07换画像会直接调用它且没有ASSESS原请求持久化，不能提前启用真实模型。Task3/4恢复路径及显式按钮完成后再接产品写入口，无新通用权限框架/配置开关。浏览器透传 AbortSignal，IPC 调用前/采用响应前检查取消；不声称物理取消服务器操作。
+- [x] P07当前中文平台筛选值显式映射为服务枚举`XIAOHONGSHU/DOUYIN/BILIBILI/ZHIHU/PUBLIC_WEB`，并提供反向显示映射；共享DTO不因此接受任意字符串。
+- [x] 保留旧 Candidate 类型兼容公开样例/旧 R3 夹具，实际服务 DTO 必须严格；新增服务元数据明确标识，不能让缺新字段旧夹具经真实接口变为已核验。
+- [x] 定向现策略/原文/连接/发送回归及类型检查；服务接线不自动调用模型或核验/入库。独立审核后进入恢复与 UI。
+- [x] 组合回归证明此片真实service的旧判断入口仍不发候选POST；页面选择画像亦不能借只读接线触发模型。最终启用另验持久化先于POST。
+
+Task2独立SPEC/代码/架构/质量通过，198相关及115策略/原文/确认发送检查分别通过，类型与生产TEST排除通过；[QA](../../qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task2-固定传输与实际候选读取)保留原失败。此完成状态只覆盖固定传输和产品读取，不覆盖后续写入、PG与完整P07。
 
 ## Chunk 2: 来源证据与可靠操作接线
 
