@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { capturedEvidenceFixture } from "../fixtures/opportunitySourceEvidence";
 import {
   parseResearchCollection,
   parseResearchTimeline,
@@ -15,6 +16,44 @@ import {
 } from "./r4-opportunity-research-fixtures";
 
 describe("R4 research identity and evidence contract", () => {
+  it("parses fixed evidence without changing the R4 classification or source binding", () => {
+    const raw = structuredClone(collection);
+    const sourceEvidence = capturedEvidenceFixture({ opportunityId: researchRow.id,
+      profileVersionId: researchRow.profileVersionId });
+    Object.assign(raw.records[0].opportunity, { sourceEvidence });
+    const parsed = parseResearchCollection(raw, binding.userId, Date.now(), binding.accountScope);
+    expect(parsed.records[0].opportunity.sourceEvidence).toEqual(sourceEvidence);
+    expect(parsed.records[0].opportunity.sourceEvidence).not.toBe(sourceEvidence);
+    expect(parsed.records[0].classification).toEqual(collection.records[0].classification);
+    expect(parsed.records[0].opportunity.sourceEvidenceVersion).toBe(researchRow.sourceEvidenceVersion);
+  });
+  it.each([{ opportunityId: "TEST-other" }, { profileVersionId: "TEST-other" }])(
+    "rejects fixed evidence with another opportunity/profile binding", (override) => {
+      const raw = structuredClone(collection);
+      Object.assign(raw.records[0].opportunity, { sourceEvidence: capturedEvidenceFixture({
+        opportunityId: researchRow.id, profileVersionId: researchRow.profileVersionId, ...override,
+      }) });
+      expect(() => parseResearchCollection(raw, binding.userId, Date.now(), binding.accountScope))
+        .toThrow("原文证据响应不完整，请重新读取。");
+    },
+  );
+  it.each([null, undefined, { status: "CAPTURED", secret: "TEST-private" },
+    { status: "UNAVAILABLE", reason: "NOT_CAPTURED", extra: true }])(
+    "rejects malformed fixed evidence instead of passing it through R4", (sourceEvidence) => {
+      const raw = structuredClone(collection);
+      Object.assign(raw.records[0].opportunity, { sourceEvidence });
+      expect(() => parseResearchCollection(raw, binding.userId, Date.now(), binding.accountScope)).toThrow();
+    },
+  );
+  it("preserves explicit fixed-evidence absence and optional omission separately", () => {
+    const raw = structuredClone(collection);
+    const sourceEvidence = { status: "UNAVAILABLE", reason: "NOT_CAPTURED" };
+    expect(parseResearchCollection(raw, binding.userId, Date.now(), binding.accountScope)
+      .records[0].opportunity.sourceEvidence).toBeUndefined();
+    Object.assign(raw.records[0].opportunity, { sourceEvidence });
+    expect(parseResearchCollection(raw, binding.userId, Date.now(), binding.accountScope)
+      .records[0].opportunity.sourceEvidence).toEqual(sourceEvidence);
+  });
   it("requires trusted session scope instead of accepting scope self-reported in a reply", () => {
     expect(researchBinding(researchRow, binding.userId)).toBeNull();
     expect(

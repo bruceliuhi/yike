@@ -19,6 +19,8 @@ import { SimilarResearchDrawer } from "../../src/renderer/pages/opportunities/Si
 import type { AppContextValue } from "../../src/renderer/app/context";
 import type { YikeService } from "../../src/renderer/services/contracts";
 import { parseRoute } from "../../src/renderer/domain/routes";
+import { capturedEvidenceFixture } from "../fixtures/opportunitySourceEvidence";
+import { parseOpportunitySourceEvidence } from "../../src/renderer/domain/opportunitySourceEvidence";
 import {
   binding,
   collection,
@@ -51,7 +53,8 @@ beforeEach(() => {
         })),
       },
       profiles: vi.fn().mockResolvedValue([researchProfile]),
-      opportunity: vi.fn().mockResolvedValue(researchRow),
+      opportunity: vi.fn().mockResolvedValue({ ...researchRow,
+        sourceEvidence: { status: "UNAVAILABLE", reason: "NOT_CAPTURED" } }),
       opportunities: vi.fn().mockResolvedValue([researchRow]),
     } as unknown as YikeService,
   };
@@ -93,7 +96,7 @@ describe("R4 opportunity collection and source timeline", () => {
     context.route = parseRoute("#/opportunities/" + researchRow.id);
     render(<OpportunityDetailPage />);
     await screen.findByText(researchRow.title);
-    expect(context.service.opportunity).toHaveBeenCalledWith(researchRow.id);
+    expect(context.service.opportunity).toHaveBeenCalledWith(researchRow.id, expect.any(AbortSignal));
     expect(context.service.opportunityResearch!.list).not.toHaveBeenCalled();
     await expect(
       readResearchRecord(
@@ -271,6 +274,86 @@ describe("R4 opportunity collection and source timeline", () => {
     context.route = parseRoute("#/opportunities/wanted");
     render(<OpportunityDetailPage />);
     await screen.findByText(/机会身份不匹配/);
+    expect(screen.queryByText(researchRow.title)).toBeNull();
+  });
+});
+
+describe("fixed evidence in the preferred R4 detail path", () => {
+  function detailRoute() {
+    context.route = parseRoute("#/opportunities/" + researchRow.id);
+  }
+  function capturedRow() {
+    return { ...researchRow, sourceEvidence: parseOpportunitySourceEvidence(
+      capturedEvidenceFixture({ opportunityId: researchRow.id, profileVersionId: researchRow.profileVersionId }),
+      { opportunityId: researchRow.id, profileVersionId: researchRow.profileVersionId },
+    ) };
+  }
+  it("supplements missing R4 fixed evidence from the ordinary authenticated detail", async () => {
+    detailRoute();
+    context.service.opportunity = vi.fn().mockResolvedValue(capturedRow());
+    render(<OpportunityDetailPage />);
+    await screen.findByText(researchRow.title);
+    expect(context.service.opportunity).toHaveBeenCalledWith(researchRow.id, expect.any(AbortSignal));
+    expect(context.service.opportunityResearch!.list).toHaveBeenCalledTimes(1);
+  });
+  it("does not issue a second read when R4 already carries validated fixed evidence", async () => {
+    detailRoute();
+    context.service.opportunityResearch!.list = vi.fn().mockResolvedValue({ ...collection,
+      records: [{ ...researchRecord, opportunity: capturedRow() }] });
+    render(<OpportunityDetailPage />);
+    await screen.findByText(researchRow.title);
+    expect(context.service.opportunity).not.toHaveBeenCalled();
+  });
+  it.each(["identity", "profile", "missing", "malformed"])("rejects %s in the supplemental detail instead of showing incomplete evidence", async (kind) => {
+    detailRoute();
+    const row = capturedRow();
+    if (kind === "identity") row.id = "TEST-other";
+    if (kind === "profile") row.profileVersionId = "TEST-other";
+    if (kind === "missing") delete (row as { sourceEvidence?: unknown }).sourceEvidence;
+    if (kind === "malformed") Object.assign(row, { sourceEvidence: null });
+    context.service.opportunity = vi.fn().mockResolvedValue(row);
+    render(<OpportunityDetailPage />);
+    await screen.findByText(/原文证据.*重新读取/);
+    expect(screen.queryByText(researchRow.title)).toBeNull();
+    expect(screen.queryByText("未留存固定原文证据")).toBeNull();
+  });
+  it("retries a failed supplementary read without silently substituting the legacy excerpt", async () => {
+    detailRoute();
+    context.service.opportunity = vi.fn().mockRejectedValueOnce(new Error("TEST 原文读取失败"))
+      .mockResolvedValueOnce(capturedRow());
+    render(<OpportunityDetailPage />);
+    await screen.findByText("TEST 原文读取失败");
+    expect(screen.queryByText(researchRow.title)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    await screen.findByText(researchRow.title);
+    expect(context.service.opportunity).toHaveBeenCalledTimes(2);
+  });
+  it("aborts the shared generation and never starts fallback after an account switch", async () => {
+    detailRoute();
+    let resolve!: (value: typeof collection) => void;
+    context.service.opportunityResearch!.list = vi.fn(() => new Promise<typeof collection>((done) => { resolve = done; }));
+    const view = render(<OpportunityDetailPage />);
+    await waitFor(() => expect(context.service.opportunityResearch!.list).toHaveBeenCalledTimes(1));
+    const signal = vi.mocked(context.service.opportunityResearch!.list).mock.calls[0][0]!;
+    context = { ...context, session: { authenticated: false } };
+    view.rerender(<OpportunityDetailPage />);
+    expect(signal.aborted).toBe(true);
+    await act(async () => { resolve(collection); });
+    expect(context.service.opportunity).not.toHaveBeenCalled();
+    expect(screen.queryByText(researchRow.title)).toBeNull();
+  });
+  it("does not display a late fallback after switching to another opportunity", async () => {
+    detailRoute();
+    let resolve!: (value: ReturnType<typeof capturedRow>) => void;
+    context.service.opportunity = vi.fn(() => new Promise<ReturnType<typeof capturedRow>>((done) => { resolve = done; }));
+    const view = render(<OpportunityDetailPage />);
+    await waitFor(() => expect(context.service.opportunity).toHaveBeenCalledTimes(1));
+    const signal = vi.mocked(context.service.opportunity).mock.calls[0][1]!;
+    context = { ...context, route: parseRoute("#/opportunities/TEST-other") };
+    view.rerender(<OpportunityDetailPage />);
+    expect(signal.aborted).toBe(true);
+    await act(async () => { resolve(capturedRow()); });
+    await screen.findByText(/未找到该记录/);
     expect(screen.queryByText(researchRow.title)).toBeNull();
   });
 });

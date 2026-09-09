@@ -1218,6 +1218,62 @@ tbody tr:hover {
   overflow-wrap: anywhere;
   line-height: 1.75;
 }
+.fixed-source-evidence {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.fixed-source-evidence h3 {
+  margin: 1.25rem 0 0.6rem;
+}
+.fixed-source-evidence .evidence-quote {
+  overflow-wrap: anywhere;
+  font-size: 1.1429rem;
+}
+.fixed-evidence-body {
+  max-height: 32rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0.75rem 0;
+  padding: 1rem;
+  border-left: 3px solid var(--primary);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: #f1f7ff;
+  color: #425b7a;
+  font-size: 1.1429rem;
+  line-height: 1.8;
+}
+.fixed-evidence-body--collapsed {
+  max-height: 10rem;
+}
+.fixed-evidence-context {
+  margin-block: 1rem;
+  border-left: 2px solid var(--line);
+  padding-left: 1rem;
+}
+.fixed-evidence-context .fixed-evidence-body {
+  background: var(--sidebar);
+  border-left-color: var(--line);
+}
+.fixed-evidence-citations > ul {
+  padding-left: 1.5rem;
+}
+.fixed-evidence-citations > ul > li + li {
+  margin-top: 1rem;
+}
+.fixed-evidence-versions {
+  border-block: 1px solid var(--line);
+  margin-top: 1rem;
+}
+.fixed-evidence-versions > summary {
+  min-height: 3.2rem;
+  padding-block: 0.8rem;
+  cursor: pointer;
+  color: var(--link);
+}
+.fixed-source-evidence button {
+  min-height: 3.2rem;
+}
 .detail-list {
   margin: 12px 0;
   font-size: 13px;

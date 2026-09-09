@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Opportunity, PlatformId, Session } from "./models";
 import { explicitInstant } from "./opportunityLibrary";
+import { parseOpportunitySourceEvidence } from "./opportunitySourceEvidence";
 
 const id = z.string().trim().min(1).max(512);
 const text = z.string().trim().min(1).max(8000);
@@ -125,6 +126,7 @@ const opportunitySchema = z
     sourceObservedAt: z.string().optional(),
     sample: z.literal(false).optional(),
     libraryFacts: z.unknown().optional(),
+    sourceEvidence: z.unknown().optional(),
   })
   .passthrough();
 const recordSchema = z
@@ -191,6 +193,16 @@ export function parseResearchCollection(
   for (const record of data.records) {
     const row = record.opportunity,
       c = record.classification;
+    if (Object.hasOwn(row, "sourceEvidence")) {
+      try {
+        row.sourceEvidence = parseOpportunitySourceEvidence(row.sourceEvidence, {
+          opportunityId: row.id,
+          profileVersionId: row.profileVersionId,
+        });
+      } catch {
+        invalid("原文证据响应不完整，请重新读取。");
+      }
+    }
     const sourceKey = JSON.stringify([row.profileVersionId, row.url]);
     if (row.id === "sample" || seen.has(row.id) || sources.has(sourceKey))
       invalid();

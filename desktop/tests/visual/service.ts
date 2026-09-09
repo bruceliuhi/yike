@@ -177,7 +177,9 @@ export function createVisualService(
     opportunity: async (id) => {
       if (state === "empty")
         throw new ServiceError("NOT_FOUND", "TEST 记录不存在", 404);
-      return read("opportunity", findOpportunity(id), findOpportunity(id));
+      const row = { ...findOpportunity(id),
+        sourceEvidence: { status: "UNAVAILABLE", reason: "NOT_CAPTURED" } as const };
+      return read("opportunity", row, row);
     },
     followups: () => read("followups", followups, []),
     addFollowup: async (id, status, note) => {

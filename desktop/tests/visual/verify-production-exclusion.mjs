@@ -12,7 +12,7 @@ let modules = 0;
 await build({configFile: resolve(root, 'vite.renderer.config.ts'), root: resolve(root, 'src/renderer'),
   build: {outDir: resolve(root, 'out/visual-production-check'), emptyOutDir: true, manifest: true},
   plugins: [{name: 'verify-no-visual-harness', generateBundle(_options, bundle) {
-    for (const id of this.getModuleIds()) {modules++; if (id.replaceAll('\\', '/').includes('/tests/visual/')) failures.push('module:' + id);}
+    for (const id of this.getModuleIds()) {modules++; if (/\/tests\/(visual|fixtures)\//.test(id.replaceAll('\\', '/'))) failures.push('module:' + id);}
     for (const [name, item] of Object.entries(bundle)) {
       const text = item.type === 'chunk' ? item.code : String(item.source);
       if (text.includes(marker) || /TEST-visual-review|TEST-monitor-paused/.test(text)) failures.push('asset:' + name);

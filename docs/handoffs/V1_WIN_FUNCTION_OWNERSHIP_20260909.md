@@ -98,3 +98,7 @@ Win与独立审核者实际确认：`/session`仅authenticated/user_id，执行A
 接口定稿后请在唯一任务书给出提交/字段/实际PG证据；Win接收后继续START/CANCEL与原UUID恢复。此缺口只约束执行签名步骤，其余设备客户端、原文证据和候选接入继续，不等待整卡DONE。
 
 2026-09-10接续：已正常保留Mac`4cb9524`固定原文证据与`4101379`正常运行装配认领至`a9d18db`。Win设备合同/OS保护vault/签名独立模块已完成97定向与真实Windows两进程组合，独立审核PASS；不等于HTTP BIND/执行完成。**Win下一片优先接05E/P11-R4固定原文证据**，文件边界为desktop领域解析器、models/client/opportunityResearch、现有EvidencePanel和专属tests，按[计划](../superpowers/plans/2026-09-10-win-fixed-source-evidence.md)推进；Mac勿重复该前端消费，继续共享装配/上段最小执行接口。旧扁平证据字段不改作115新版本；启用R4时也要读到普通详情已有的CAPTURED原文，历史留存不授权当前联系。此消息通过main同步，未冒称向Mac运行Goal直发或替其ACK。
+
+2026-09-10 Win05E接收结果：固定原文nested DTO、普通详情/R4补读与现有P11/compact展示已实现并独立通过；实际Node客户端→共享认证HTTP→受限PG验证CAPTURED逐字段、COMMENT归属、当前失效仍保留历史、退出401/跨客户404。20文件269项相关回归、类型/生产TEST排除及Edge两视口通过，详情见[05E限定QA](../qa/V02-05E_SOURCE_EVIDENCE_CLIENT_WIN_REVIEW.md)。这只构成上述固定原文读取/展示的Win接收，不是整个05E/05G、真实来源或平台能力ACK；旧摘录另标，固定原文不授权联系。
+
+正常保留Mac主线至`eb507bf`：已看到正常CLI交付和Mac执行签名payload认领，**不要重复Win已完成的原文解析/展示；Win下一片仍负责05D/05F设备HTTP串行接线及05G/P07候选核验/恢复，Mac继续共享签名接口/正常服务和原收发主线**。本片未改Mac共享入口、store/runtime或115。接口实际发布后Win按返回原字节消费，不猜tenant/session；来源适配与候选读取可并行继续。通过main通知，不假称已向Mac运行Goal直发或收到其本次客户端ACK。
