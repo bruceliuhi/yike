@@ -44,3 +44,14 @@ remote9e27723的前端断开仍调用`disconnect(platform)`并期待void，只�
 修复候选 `af0faf6a67b26b23a2adae7c5e66c36bc88d977a` 仅改旧collector和相关Python/Node测试：SIGKILL后有界确认，未知走既有FAILED且不重复清理；仅冷ready使用10秒，IPC/close仍3秒。TDD初始Python5失败/Node1失败，修复后collector56通过、Node23通过/14既有平台条件跳过；原真实取消/超时两测5轮均通过。长期僵尸组或权限未知2秒后保守失败，Linux该行为未实测，不声称全平台进程验收完成。实现者定向结果不等于独立合并通过。
 
 随后正常纳入R4授权主线448e88a形成66f5de3，保留两端成果；分阶段优先级文档经execution_preflight独立审核PASS，5文件74本地链接与secret scan通过。整分支最终验证及审核另行追加，当前仍不是平台收发、Windows或生产验收。
+
+## 冻结候选最终验证
+
+锁定 **`458dd81863604c7962dc5bdc5dc2634f24bd1032`**，工作树干净，代码、依赖与测试未变，CodexiMac按顺序而非并行执行：
+
+- 上述四个专用PG测试环境变量下 `uv run --frozen pytest -q --tb=short`：**1037 passed in69.09s，0 skipped，exit0**。
+- `desktop/` 的 `npm test`：**61 files / 630 passed / 21既有平台或架构条件skipped，31.15s，exit0**；随后 `npm run typecheck` 与 `npm run build:renderer` 均exit0。Node24.19.0 / npm11.17.0。
+- `git diff --check 448e88a HEAD`、secret scan通过；服务端/迁移/部署及连接测试与a8a36fe字节相同，进程修复三文件与af0faf6相同。
+- 非实现者 `integration_final_review` 对精确448e88a..458dd81完成最终代码/架构/质量审核：**PASS，可集成，无新增Critical/Important/Minor待改项**；审核者未冒称重跑上述测试。
+
+这些是本机冻结候选集成证据，不与之前测试数相加、不覆盖d49失败。后续仅追加文档回执时复用这个代码证据，不重跑整仓。Windows/Linux进程实测、Win CV ACK、平台收发、完整执行链、CP-06及UAT仍未完成；既有备份HMAC路径字面值P1继续阻止上线。当前Goal保持ACTIVE。
