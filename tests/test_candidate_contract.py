@@ -112,6 +112,25 @@ def test_invalid_source_times_are_rejected(field, value):
     assert_code(batch(records=[record(**{field:value})]), "INVALID_SOURCE_TIME")
 
 
+@pytest.mark.parametrize("location", ["published_at", "observed_at", "parent"])
+def test_source_times_reject_non_ascii_digits(location):
+    unicode_year = "٢٠٢٦-09-08T01:02:03Z"
+    if location == "parent":
+        parent = {"external_comment_id":"reply-0", "body":None, "author_public_id":None,
+            "published_at":unicode_year, "public_url":None}
+        candidate = record(kind="COMMENT", external_comment_id="reply-1", parent=parent)
+    else:
+        candidate = record(**{location:unicode_year})
+    assert_code(batch(records=[candidate]), "INVALID_SOURCE_TIME")
+
+
+def test_source_times_accept_ascii_utc_iso_control():
+    parent = {"external_comment_id":"reply-0", "body":None, "author_public_id":None,
+        "published_at":"2026-09-08T00:00:00Z", "public_url":None}
+    candidate = record(kind="COMMENT", external_comment_id="reply-1", parent=parent)
+    assert validate_candidate_batch(batch(records=[candidate]), now=NOW)
+
+
 def test_parent_time_and_identity_rules():
     parent={"external_comment_id":"reply-0", "body":None, "author_public_id":None,
         "published_at":"2026-09-09T02:00:01Z", "public_url":None}
@@ -191,6 +210,56 @@ def test_public_web_accepts_public_domain_and_ip_controls(url):
         record(kind="PAGE", external_source_id=None, public_url=url)
     ])
     assert validate_candidate_batch(payload, now=NOW)
+
+
+@pytest.mark.parametrize("url", ["https://224.0.0.1/page", "https://[ff02::1]/page"])
+@pytest.mark.parametrize("location", ["record", "parent"])
+def test_public_web_rejects_multicast_urls_in_record_and_parent(url, location):
+    parent = {"external_comment_id":"reply-0", "body":None, "author_public_id":None,
+        "published_at":None, "public_url":url if location == "parent" else None}
+    child = record(kind="COMMENT", external_comment_id="reply-1", parent=parent,
+        public_url=url if location == "record" else "https://example.org/reply")
+    assert_code(batch(platform="PUBLIC_WEB", execution=anonymous_execution(), records=[child]),
+        "INVALID_SOURCE_URL")
+
+
+@pytest.mark.parametrize("url", [
+    "https://0.0.0.0/page",
+    "https://127.0.0.1/page",
+    "https://169.254.1.1/page",
+    "https://240.0.0.1/page",
+    "https://[::]/page",
+    "https://[::1]/page",
+    "https://[fe80::1]/page",
+])
+def test_public_web_rejects_other_special_use_ip_representatives(url):
+    payload = batch(platform="PUBLIC_WEB", execution=anonymous_execution(), records=[
+        record(kind="PAGE", external_source_id=None, public_url=url)
+    ])
+    assert_code(payload, "INVALID_SOURCE_URL")
+
+
+@pytest.mark.parametrize("url", [
+    "https://example.org/page",
+    "https://8.8.8.8/page",
+    "https://[2606:4700:4700::1111]/page",
+])
+def test_public_web_accepts_global_domain_ipv4_and_ipv6_controls(url):
+    payload = batch(platform="PUBLIC_WEB", execution=anonymous_execution(), records=[
+        record(kind="PAGE", external_source_id=None, public_url=url)
+    ])
+    assert validate_candidate_batch(payload, now=NOW)
+
+
+@pytest.mark.parametrize("url", ["https://example.org/a\x85b", "https://example.org/a%C2%85b"])
+@pytest.mark.parametrize("location", ["record", "parent"])
+def test_public_web_rejects_raw_and_percent_encoded_c1_in_record_and_parent(url, location):
+    parent = {"external_comment_id":"reply-0", "body":None, "author_public_id":None,
+        "published_at":None, "public_url":url if location == "parent" else None}
+    child = record(kind="COMMENT", external_comment_id="reply-1", parent=parent,
+        public_url=url if location == "record" else "https://example.org/reply")
+    assert_code(batch(platform="PUBLIC_WEB", execution=anonymous_execution(), records=[child]),
+        "INVALID_SOURCE_URL")
 
 
 @pytest.mark.parametrize("parent_url", ["", "x" * 2049, "not-a-url", "https://127.1/reply"])

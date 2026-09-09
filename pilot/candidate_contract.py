@@ -12,7 +12,7 @@ from urllib.parse import parse_qsl, unquote, urlsplit
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError, field_validator, model_validator
 
 _OPAQUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
-_TIME = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+_TIME = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
 _FRAGMENT = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 _SENSITIVE = ("token", "cookie", "session", "authorization", "signature", "password", "secret")
 _NUMERIC_HOST = re.compile(r"^(?:0x[0-9a-f]+|[0-9]+)(?:\.(?:0x[0-9a-f]+|[0-9]+))*$", re.IGNORECASE)
@@ -73,7 +73,7 @@ def _validate_url(value: str, platform: str) -> str:
     try: value.encode("utf-8")
     except UnicodeEncodeError: raise ValueError("invalid source url") from None
     decoded = unquote(value)
-    if "\\" in value or any(ord(ch) < 33 or ord(ch) == 127 for ch in decoded): raise ValueError("invalid source url")
+    if "\\" in value or any(ord(ch) < 33 or 127 <= ord(ch) <= 159 for ch in decoded): raise ValueError("invalid source url")
     try:
         parts = urlsplit(value)
         port = parts.port
@@ -87,7 +87,10 @@ def _validate_url(value: str, platform: str) -> str:
         address = ipaddress.ip_address(host)
     except ValueError:
         address = None
-    if address is not None and not address.is_global: raise ValueError("invalid source url")
+    if address is not None and (not address.is_global or address.is_multicast or address.is_reserved
+        or address.is_loopback or address.is_link_local or address.is_unspecified
+        or getattr(address, "is_site_local", False)):
+        raise ValueError("invalid source url")
     if address is None and _NUMERIC_HOST.fullmatch(host): raise ValueError("invalid source url")
     if platform != "PUBLIC_WEB" and not any(host == domain or host.endswith("." + domain) for domain in _DOMAINS[platform]):
         raise ValueError("invalid source url")
