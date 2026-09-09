@@ -1,0 +1,169 @@
+{
+  "candidate": "fcae33e62f77d38208a0b3eaf97028d337000acc",
+  "source": "/tmp/yike-local-handoff-release-fcae33e",
+  "servedPath": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/visual-harness",
+  "previousBuildPreservedAt": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/visual-harness-before-local-handoff-fcae33e",
+  "url": "http://127.0.0.1:18794/?scenario=P04&state=populated&capabilities=complete",
+  "httpStatus": 200,
+  "headers": {
+    "Server": "SimpleHTTP/0.6 Python/3.9.6",
+    "Date": "Wed, 09 Sep 2026 20:01:35 GMT",
+    "Content-type": "text/html",
+    "Content-Length": "450",
+    "Last-Modified": "Wed, 09 Sep 2026 20:01:14 GMT",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-src 'none'; worker-src 'none'; form-action 'none'; base-uri 'none'",
+    "Cache-Control": "no-store"
+  },
+  "visibleAcceptance": false,
+  "scope": "Isolated TEST bundle only; HTTP and build checks do not prove visible UI or actual service behavior.",
+  "files": [
+    {
+      "path": ".vite/manifest.json",
+      "sha256": "29a79b46e1a8a40adfb5862a96161fb451f1278b8fed6174423dcfcde3ce47c5"
+    },
+    {
+      "path": "assets/ArrowRight.es-BSOWoz88.js",
+      "sha256": "82fa534744949ccf9970a4bfe6065c3c6c284d7df7ae589ab4ae2fafbe009c33"
+    },
+    {
+      "path": "assets/ArrowSquareOut.es-BbakamS5.js",
+      "sha256": "ceb9cacce85737cf3a24d46d06148df1b07f7ea2ece43a8a98170135c547aa97"
+    },
+    {
+      "path": "assets/Connections-B3Ap4Y2E.js",
+      "sha256": "7a58d40beebd7ddaa529596cd434476015260339f2544834ae44a1b1dae51d5e"
+    },
+    {
+      "path": "assets/Followups-B18j1o0V.js",
+      "sha256": "e2d87fff4442c5d1c84b627da7516cf5972a1169907c2801ddd9065e1746d87b"
+    },
+    {
+      "path": "assets/Followups-BEcgu2i8.css",
+      "sha256": "13cff2b01f5ef277c4ed616a8792852d4f9406a4bf84876f8add30b65c06bdd2"
+    },
+    {
+      "path": "assets/Login-J8g3YJB9.js",
+      "sha256": "74e57b9748e57f9d3c44cf4e695b6bb43e5962f6d13a640f03d229689ffec555"
+    },
+    {
+      "path": "assets/Opportunities-BKB0PBx6.js",
+      "sha256": "09e6df285e1114118bcb8456ce61a964da158d0cfed75188bc0099e16b0afb18"
+    },
+    {
+      "path": "assets/Opportunities-DcLfveqg.css",
+      "sha256": "67d025e8b82bedb37cbe6a65a368743328f729e2f0c12c162e3691534ec41650"
+    },
+    {
+      "path": "assets/Outreach-BdvfCDuK.css",
+      "sha256": "526139ba52f75c49594bf2cc23f1583bf846b93936df1cbe142864e8c58b317a"
+    },
+    {
+      "path": "assets/Outreach-CB41XrHd.js",
+      "sha256": "b7d57956f29e552ecde15335c6e5a3021b3e44fe096eda3e65b460cccd8adb96"
+    },
+    {
+      "path": "assets/OutreachQueue-Wev4jg2s.js",
+      "sha256": "f8bc0eeffc698747a64322e81dfabd1cfa0cebe9da2a0635b71c959f5c233923"
+    },
+    {
+      "path": "assets/PendingTaskStarts-BqiSuAXA.css",
+      "sha256": "5f39cd34d2b924261f06748eb2034c6e93e5b58747fdac1bd21476aa6bcc58ab"
+    },
+    {
+      "path": "assets/PendingTaskStarts-DUzj_tkc.js",
+      "sha256": "02fa70dfadf482c683eff698f7257ce3aee669afcf605dbe70f2b66841fa2797"
+    },
+    {
+      "path": "assets/Platform-Cv9eUYLS.js",
+      "sha256": "8c6d6d6ed2a42f1337aea14529036dbce60afe4364aedd0d4fa6ce105902a1d8"
+    },
+    {
+      "path": "assets/Platform-DHJI-W19.css",
+      "sha256": "799e34322d6d86a2e7c1c266fd00dfd3c2d4df34dbdaea13c21408bce5b8d237"
+    },
+    {
+      "path": "assets/Plus.es-BpGyUxtw.js",
+      "sha256": "f794e5c1d09848e15f7635be24db869ef73fbf0440d14ab14bdfa37f58c447b0"
+    },
+    {
+      "path": "assets/Profile-BQAZSynW.css",
+      "sha256": "843f619904ff239bfabe87535dea20901d4dd9461d9b1a4696514370d754ff55"
+    },
+    {
+      "path": "assets/Profile-DFdGpzIK.js",
+      "sha256": "0c6a786af43bdb5bb6e4670d2dc93b5ceb24a090347f29d2fb2548ccf8d28f66"
+    },
+    {
+      "path": "assets/Settings-BhtOjbtq.js",
+      "sha256": "6392008a979ceba2b5ede24e26db482be0f25b003c0163846680f296850f4bd6"
+    },
+    {
+      "path": "assets/TaskWizard-D7POUov0.js",
+      "sha256": "a71ec7f83f545dda78b5710491f235876f25f7f6457b15f332204fbddcec7642"
+    },
+    {
+      "path": "assets/TaskWizard-D7TM1lBJ.css",
+      "sha256": "d03b6b23d487dbef3a915da0e567c836b84ac169593ecc3b2f645c10e327a613"
+    },
+    {
+      "path": "assets/Tasks-D_VHXXEg.css",
+      "sha256": "e25ef659745e2a3ebc0a411f96a8bca9386e4662bf21ad1e6c62d461cf15d388"
+    },
+    {
+      "path": "assets/Tasks-ejbpu91g.js",
+      "sha256": "a1baf2e333e2e7d456b619a1f623df1607ae13e68afc0e099021fb41e118608e"
+    },
+    {
+      "path": "assets/TermEditor-Bc-pBY1N.js",
+      "sha256": "88167f34f052ae4af920b8198680a822b4f49c679bc1fadb746dc3b0cca49eb4"
+    },
+    {
+      "path": "assets/Workbench-722IFVeW.js",
+      "sha256": "11e77ffda2152bf2b83ac0549e143cdd526f2e8dccd5af53861e732a86ee326a"
+    },
+    {
+      "path": "assets/Workbench-BBPw0GCx.css",
+      "sha256": "f4d255f7902c11054536d3bc2ecd3c19e767f64915c94d79acfce1a883aef6ba"
+    },
+    {
+      "path": "assets/bilibili-B4f0lnyN.ico",
+      "sha256": "2681561eb24e7435fea1acf26f3af95e4efc9f7d451587b58bef62f030f337e9"
+    },
+    {
+      "path": "assets/context-DFst5ecK.js",
+      "sha256": "9745e36fc8d7f051016a68d99b00477d279cc243e39bcd215e36aff890aba905"
+    },
+    {
+      "path": "assets/douyin-FBAm5jUt.ico",
+      "sha256": "e67348e3ab54fa207e1ce4be78e8399d1b73a794d819a17d8656ea2b17a1109d"
+    },
+    {
+      "path": "assets/download-DtWwTJpQ.js",
+      "sha256": "3b37924ada9eb5a343f220af0fdb0cb37be30c99fedd2801a99dc283c8479a3a"
+    },
+    {
+      "path": "assets/index-B6PIh5ne.js",
+      "sha256": "11172783a3e02e81402679f30e83e947de5f7bf1f0f685d923660fb7e4432043"
+    },
+    {
+      "path": "assets/index-CjajCOQB.css",
+      "sha256": "bbbf7c05339ace39bef524f3796179f2a6cbb767a1a2ab556cbc7f66811d0841"
+    },
+    {
+      "path": "assets/logo-B-T1ksKV.png",
+      "sha256": "b4f4bade37c5806f618c243af90747b7596f2b248d739eaa3130378f1a4f7595"
+    },
+    {
+      "path": "assets/operationLedger-CUNINYp_.js",
+      "sha256": "f81a825f98273f875d6473264376f82cdcfd204d7dfbdfb1a532ce289feaf2a5"
+    },
+    {
+      "path": "assets/zhihu-OfkkMzms.ico",
+      "sha256": "ca501e1d6c35f64b94d78bbabad986fe888d6aab08702a0083ba88076ad60f37"
+    },
+    {
+      "path": "index.html",
+      "sha256": "1d739d1f34c79b88806de79467ee9ce3f93db3786b5f77ed2dbf0e2f8ce0f012"
+    }
+  ]
+}

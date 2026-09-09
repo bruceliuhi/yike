@@ -219,7 +219,9 @@ describe("monitor detail from execution service data", () => {
     const url = new URL(destination, "https://test.invalid");
     expect(url.pathname).toBe("/connections");
     expect(url.searchParams.get("connect")).toBe("xhs");
-    expect(url.searchParams.get("returnTo")).toBe("/monitors/monitor-test");
+    expect(url.searchParams.get("returnTo")).toBe(
+      "/monitors/monitor-test?tab=platforms&platform=xhs",
+    );
     fireEvent.click(table.getByRole("button", { name: "查看抖音状态" }));
     expect(aside.getByText("测试限频原因")).toBeTruthy();
     expect(aside.getByText("最早重试时间")).toBeTruthy();
@@ -230,7 +232,14 @@ describe("monitor detail from execution service data", () => {
     expect(aside.getByText("本次执行未发现新增线索。")).toBeTruthy();
     fireEvent.click(table.getByRole("button", { name: "查看公开网站状态" }));
     fireEvent.click(aside.getByRole("button", { name: "检查执行设备" }));
-    expect(context.navigate).toHaveBeenLastCalledWith("/settings");
+    const settings = new URL(
+      vi.mocked(context.navigate).mock.calls.at(-1)![0],
+      "https://test.invalid",
+    );
+    expect(settings.pathname).toBe("/settings");
+    expect(settings.searchParams.get("returnTo")).toBe(
+      "/monitors/monitor-test?tab=platforms&platform=web",
+    );
     const statistics = within(screen.getByRole("region", { name: "执行统计" }));
     expect(statistics.getByText("3")).toBeTruthy();
     expect(statistics.getAllByText("—")).toHaveLength(2);

@@ -12,6 +12,7 @@ import { useApp } from "../app/context";
 import { useOperationLedger } from "../app/operationLedger";
 import { useResource } from "../app/hooks";
 import { boundedRequest } from "../app/boundedRequest";
+import { routeHref } from "../domain/routes";
 import { parseTaskRuns, taskActionsFor } from "../domain/taskOperations";
 import { PendingTaskStarts } from "./tasks/PendingTaskStarts";
 import { useTaskActions } from "./tasks/useTaskActions";
@@ -204,11 +205,27 @@ function MonitorDetail({
   disabled: boolean;
   onCoveragePlan?: (request: CoveragePlanRequest) => void | Promise<void>;
 }) {
-  const { navigate } = useApp();
-  const [tab, setTab] = useState("coverage");
-  const [chosen, setChosen] = useState<PlatformId | null>(null);
+  const { navigate, route } = useApp();
+  const requestedTab = route.query.get("tab");
+  const routeTab =
+    requestedTab && ["coverage", "platforms", "events", "config"].includes(requestedTab)
+      ? requestedTab : "coverage";
+  const routePlatform =
+    run.platforms.find((id) => id === route.query.get("platform")) ?? null;
+  const [tab, setTab] = useState(routeTab);
+  const [chosen, setChosen] = useState<PlatformId | null>(routePlatform);
+  useEffect(() => {
+    setTab(routeTab);
+    setChosen(routePlatform);
+  }, [route.path, routeTab, routePlatform]);
   const platform =
     chosen && run.platforms.includes(chosen) ? chosen : run.platforms[0];
+  // Keep the current local selection when leaving for connection/device setup.
+  const returnQuery = new URLSearchParams(route.query);
+  returnQuery.set("tab", tab);
+  if (platform) returnQuery.set("platform", platform);
+  else returnQuery.delete("platform");
+  const returnTo = routeHref({ ...route, query: returnQuery });
   const stage = run.platformStages?.find((item) => item.platform === platform);
   const schedule = run.schedule;
   const keywords = run.keywords?.length ? run.keywords.join("、") : "待读取";
@@ -218,7 +235,7 @@ function MonitorDetail({
         "/connections?" +
           new URLSearchParams({
             connect: platform,
-            returnTo: `/monitors/${encodeURIComponent(run.id)}`,
+            returnTo,
           }),
       );
   };
@@ -398,7 +415,13 @@ function MonitorDetail({
                       </Button>
                     )}
                   {stage?.status === "OFFLINE" && (
-                    <Button onClick={() => navigate("/settings")}>
+                    <Button
+                      onClick={() =>
+                        navigate(
+                          `/settings?returnTo=${encodeURIComponent(returnTo)}`,
+                        )
+                      }
+                    >
                       检查执行设备
                     </Button>
                   )}

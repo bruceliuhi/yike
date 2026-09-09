@@ -1,0 +1,210 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+ ❯ tests/ui/r4-short-coach.test.tsx (31 tests | 1 failed) 2974ms
+     × times out legacy saving and cannot re-save after reopening or apply late success 26ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/r4-short-coach.test.tsx > P12 durable draft save recovery > times out legacy saving and cannot re-save after reopening or apply late success
+TestingLibraryElementError: Unable to find an element with the text: /原同步接口暂不支持请求核对/. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m""[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<header[39m
+      [33mclass[39m=[32m"page-heading"[39m
+    [36m>[39m
+      [36m<div>[39m
+        [36m<h1[39m
+          [33mtabindex[39m=[32m"-1"[39m
+        [36m>[39m
+          [0m触达中心[0m
+        [36m</h1>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"page-description"[39m
+        [36m>[39m
+          [0m基于公开信息，准备沟通内容，跟进商机进展。[0m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</header>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"tabs"[39m
+      [33mrole[39m=[32m"tablist"[39m
+    [36m>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"true"[39m
+        [33mclass[39m=[32m"active"[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"0"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m草稿箱[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m待确认[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m待回复[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m需处理[0m
+      [36m</button>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"outreach-layout"[39m
+    [36m>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"draft-list"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"search-input"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33mfill[39m=[32m"currentColor"[39m
+            [33mheight[39m=[32m"1em"[39m
+            [33mviewBox[39m=[32m"0 0 256 256"[39m
+            [33mwidth[39m=[32m"1em"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<input[39m
+            [33maria-label[39m=[32m"搜索联系准备"[39m
+            [33mplaceholder[39m=[32m"搜索商机标题或来源"[39m
+            [33mvalue[39m=[32m""[39m
+          [36m/>[39m
+        [36m</div>[39m
+        [36m<select[39m
+          [33maria-label[39m=[32m"联系准备排序"[39m
+          [33mclass[39m=[32m"contact-sort"[39m
+        [36m>[39m
+          [36m<option[39m
+            [33mvalue[39m=[32m"newest"[39m
+          [36m>[39m
+            [0m按更新时间 · 最新优先[0m
+          [36m</option>[39m
+          [36m<option[39m
+            [33mvalue[39m=[32m"oldest"[39m
+          [36m>[39m
+            [0m按更新时间 · 最早优先[0m
+          [36m</option>[39m
+          [36m<option[39m
+            [33mvalue[39m=[32m"title"[39m
+          [36m>[39m
+            [0m按商机标题[0m
+          [36m</option>[39m
+        [36m</select>[39m
+        [36m<button[39m
+          [33mclass[39m=[32m"list-item selected"[39m
+        [36m>[39m
+          [36m<strong>[39m
+            [0m180㎡高交会展区设计搭建预算询价[0m
+          [36m</strong>[39m
+          [36m<span>[39m
+            [0m湖南省商务厅对外贸易发展处[0m
+          [36m</span>[39m
+          [36m<small>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"brand-platform-label"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"brand-platform-icon"[39m
+                [33mstyle[39m=[32m"width: 16px; height: 16px;"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mfill[39m=[32m"currentColor"[39m
+                  [33mheight[39m=[32m"16"[39m
+                  [33mviewBox[39m=[32m"0 0 256 256"[39m
+                  [33mwidth[39m=[32m"16"[39m
+                  [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M128,24h0A104,104,0,1,0,232,128,104.12,104.12,0,0,0,128,24Zm88,104a87.61,87.61,0,0,1-3.33,24H174.16a157.44,157.44,0,0,0,0-48h38.51A87.61,87.61,0,0,1,216,128ZM102,168H154a115.11,115.11,0,0,1-26,45A115.27,115.27,0,0,1,102,168Zm-3.9-16a140.84,140.84,0,0,1,0-48h59.88a140.84,140.84,0,0,1,0,48ZM40,128a87.61,87.61,0,0,1,3.33-24H81.84a157.44,157.44,0,0,0,0,48H43.33A87.61,87.61,0,0,1,40,128ZM154,88H102a115.11,115.11,0,0,1,26-45A115.27,115.27,0,0,1,154,88Zm52.33,0H170.71a135.28,135.28,0,0,0-22.3-45.6A88.29,88.29,0,0,1,206.37,88ZM107.59,42.4A135.28,135.28,0,0,0,85.29,88H49.63A88.29,88.29,0,0,1,107.59,42.4ZM49.63,168H85.29a135.28,135.28,0,0,0,22.3,45.6A88.29,88.29,0,0,1,49.63,168Zm98.78,45.6a135.28,135.28,0,0,0,22.3-45.6h35.66A88.29,88.29,0,0,1,148.41,213.6Z"[39m
+                  [36m/>[39m
+                [36m</svg>[39m
+              [36m</span>[39m
+              [36m<span>[39m
+                [0m公开网站[0m
+              [36m</span>[39m
+            [36m</span>[39m
+            [0m ·[0m
+            [0m [0m
+            [0m已有联系草稿[0m
+          [36m</small>[39m
+          [36m<small>[39m
+            [0m更新于 [0m
+            [0m—[0m
+          [36m</small>[39m
+        [36m</button>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"sample-list-section"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"muted"[39m
+          [36m>[39m
+            [0m公开研究样例[0m
+          [36m</span>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"list-item "[39m
+          [36m>[39m
+            [36m<strong>[39m
+              [0m高交会预算询价 · 联系准备[0m
+            [36m</strong>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"brand-platform-label"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"brand-platform-icon"[39m
+                [33mstyle[39m=[32m"width: 16px; height: 16px;"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mfill[39m=[32m"currentColor"[39m
+                  [33mheight[39m=[32m"16"[39m
+                  [33mviewBox[39m=[32m"0 0 256 256"...
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ tests/ui/r4-short-coach.test.tsx:568:19
+    566|       await vi.advanceTimersByTimeAsync(30_001);
+    567|     });
+    568|     expect(screen.getByText(/原同步接口暂不支持请求核对/)).toBeTruthy();
+       |                   ^
+    569|     expect(Object.values(stored())).toEqual(["PENDING"]);
+    570|     await act(async () => resolve());
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 113 passed | 2 skipped (116)
+      Tests  1 failed | 1339 passed | 23 skipped (1363)
+   Start at  03:58:52
+   Duration  15.22s (transform 7.80s, setup 0ms, import 90.68s, tests 61.26s, environment 29.08s)
+

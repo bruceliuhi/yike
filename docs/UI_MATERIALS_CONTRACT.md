@@ -8,7 +8,9 @@
 
 `YikeService.materials` 是可选的 [MaterialService](../desktop/src/renderer/services/materials.ts)。只有存在该服务、已登录、且当前画像已有服务端版本 ID 时，页面启用客户空间资料生命周期。本轮没有新增资料 HTTP API、数据库表、AI 解析器、正式桌面 IPC 或默认模拟实现。生产适配器仍不提供此服务。自动化测试中的 `TEST` 数据只用于隔离验证。
 
-客户空间资料与旧本机草稿使用不同存储语义；启用资料服务不会自动上传、合并或删除旧本机草稿。正式资料服务接入前须确定旧草稿的显式导入流程，不能把旧草稿自动视为已确认资料。当前“用于画像”是**经人工核对后复制所选字段到本机画像草稿**，不新增持久引用关系、不自动保存或确认画像。现有画像 API 不接收资料引用 ID；服务端的正式引用追踪须在后续接入时补齐，不能宣称当前复制行为可被远程撤销或自动回溯。
+客户空间资料与旧本机草稿使用不同存储语义；启用资料服务不会自动上传、合并或删除旧本机草稿。保存首个画像后仍展示可展开的本机草稿表，保留编辑和删除入口。“带入当前画像”只预填客户资料编辑窗，人工保存后才调用资料服务；取消不写入，原本机草稿保留，引用范围不提升，也不自动解析或确认。同一本机草稿带入同一客户空间与画像时，目标 materialId 固定为 `local-` 加 SHA-256 十六进制摘要；摘要输入为版本标识 `local-material-v1`、用户 ID、可信空间 ID/版本、画像版本 ID、本机草稿 ID 的 JSON 数组。ID 仅用于避免重复创建，不替代服务端权限。列表已有同 ID 时打开编辑并携带该记录的 expectedVersion；资料解析中、读取失败或有待核对操作时不能带入。不同画像/空间的目标身份分别计算；服务端仍须原子核对 ID 唯一性与 expectedVersion，不能无条件覆盖。
+
+当前“用于画像”是**经人工核对后复制所选字段到本机画像草稿**，不新增持久引用关系、不自动保存或确认画像。现有画像 API 不接收资料引用 ID；服务端的正式引用追踪须在后续接入时补齐，不能宣称当前复制行为可被远程撤销或自动回溯。
 
 ## 数据与方法
 
@@ -56,6 +58,6 @@
 
 ## 可复核检查
 
-相关测试为 [profile-materials.test.tsx](../desktop/tests/ui/profile-materials.test.tsx)、[真实页面入口回归](../desktop/tests/ui/profile-materials-integration.test.tsx) 和 [既有画像/本机草稿回归](../desktop/tests/ui/profile.test.tsx)。覆盖资料全流程、等待与失败、原文/版本错配、影响过期、原操作核对、清草稿防重、跨账号迟到、文件读取迟到、画像人工字段保护和不自动确认。
+相关测试为 [profile-materials.test.tsx](../desktop/tests/ui/profile-materials.test.tsx)、[真实页面入口回归](../desktop/tests/ui/profile-materials-integration.test.tsx) 和 [既有画像/本机草稿回归](../desktop/tests/ui/profile.test.tsx)。另见 [本机草稿带入回归](../desktop/tests/ui/material-local-handoff.test.tsx)。覆盖资料全流程、等待与失败、原文/版本错配、影响过期、原操作核对、清草稿防重、跨账号迟到、文件读取迟到、画像人工字段保护和不自动确认。
 
 这些是前端与隔离服务契约验证，不是资料后端、真实 AI 解析、生产数据库或 Windows 客户端验收。可见页面与打包结果由本轮主任务 QA 记录绑定实际候选。

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Plus, FileText } from "@phosphor-icons/react";
 import { useApp } from "../../app/context";
 import { boundedRequest } from "../../app/boundedRequest";
@@ -13,9 +13,11 @@ import {
 } from "../../components/ui";
 import {
   materialStatus,
+  materialInputSchema,
   parseMaterials,
   type Material,
   type MaterialReceipt,
+  type MaterialInput,
 } from "../../domain/materials";
 import type { Profile, ProfileFields } from "../../domain/models";
 import type { MaterialService } from "../../services/materials";
@@ -23,6 +25,9 @@ import { MaterialEditor } from "./MaterialEditor";
 import { MaterialExtraction } from "./MaterialExtraction";
 import { MaterialImpact } from "./MaterialImpact";
 import { useMaterialRequest } from "./useMaterialRequest";
+import { LocalMaterialDrafts, type LocalMaterialDraft } from "./LocalMaterialDrafts";
+import { localMaterialIdentity } from "./localMaterialIdentity";
+import { materialOwner } from "./materialOperationStorage";
 import "./profile.css";
 
 type MaterialsWorkspaceProps = {
@@ -30,6 +35,9 @@ type MaterialsWorkspaceProps = {
   profile: Profile;
   currentFields: ProfileFields;
   onApply: (fields: Partial<ProfileFields>) => void;
+  localDrafts?: LocalMaterialDraft[];
+  onEditLocal?: (draft: LocalMaterialDraft) => void;
+  onRemoveLocal?: (draft: LocalMaterialDraft) => void;
 };
 export function MaterialsWorkspace(props: MaterialsWorkspaceProps) {
   const { session } = useApp();
@@ -38,7 +46,7 @@ export function MaterialsWorkspace(props: MaterialsWorkspaceProps) {
   return <ScopedMaterialsWorkspace key={boundary} {...props} />;
 }
 
-function ScopedMaterialsWorkspace({api, profile, currentFields, onApply}: MaterialsWorkspaceProps) {
+function ScopedMaterialsWorkspace({api, profile, currentFields, onApply, localDrafts = [], onEditLocal, onRemoveLocal}: MaterialsWorkspaceProps) {
   const { session, notify } = useApp();
   const resource = useResource(
     async () =>
@@ -53,6 +61,7 @@ function ScopedMaterialsWorkspace({api, profile, currentFields, onApply}: Materi
   const [editor, setEditor] = useState<{
     id: string;
     record?: Material;
+    initialInput?: MaterialInput;
   } | null>(null);
   const [extraction, setExtraction] = useState<{
     record: Material;
@@ -99,6 +108,42 @@ function ScopedMaterialsWorkspace({api, profile, currentFields, onApply}: Materi
   const request = useMaterialRequest(api, profile.id, receive);
   const blocked =
     !!request.pending || request.historical.length > 0 || !!request.storageError || request.action.busy;
+  const [preparing, setPreparing] = useState(false);
+  const live = useRef(false);
+  const preparingRef = useRef(false);
+  const latest = useRef({ blocked, resource });
+  latest.current = { blocked, resource };
+  useLayoutEffect(() => {
+    live.current = true;
+    return () => { live.current = false; };
+  }, []);
+  const transfer = async (draft: LocalMaterialDraft) => {
+    if (blocked || preparingRef.current || resource.loading || resource.error) return;
+    preparingRef.current = true;
+    setPreparing(true);
+    request.action.setError("");
+    try {
+      const parsed = materialInputSchema.safeParse({
+        name: draft.name, text: draft.text, purpose: draft.purpose, visibility: draft.visibility,
+        ...(draft.fileName ? { fileName: draft.fileName, bytes: draft.bytes } : {}),
+      });
+      if (!parsed.success) throw new Error("本机草稿格式不完整，请先编辑检查名称、内容和用途。");
+      const initialInput = parsed.data;
+      const id = await localMaterialIdentity(materialOwner(session), profile.id, draft.id);
+      if (!live.current) return;
+      const state = latest.current;
+      if (state.blocked || state.resource.loading || state.resource.error) return;
+      const record = state.resource.data?.find(item => item.id === id);
+      if (record?.status === "PARSING") throw new Error("这份资料正在解析，请完成后再带入修改。");
+      if (!record && (state.resource.data?.length ?? 0) >= 500) throw new Error("当前画像资料已达上限，请先整理已有资料。");
+      setEditor({ id, record, initialInput });
+    } catch (error) {
+      if (live.current) request.action.setError(error instanceof Error ? error.message : "资料暂时无法带入，请重试。");
+    } finally {
+      preparingRef.current = false;
+      if (live.current) setPreparing(false);
+    }
+  };
   const openEditor = (record?: Material) => {
     request.action.setError("");
     setEditor({ id: record?.id || crypto.randomUUID(), record });
@@ -110,7 +155,7 @@ function ScopedMaterialsWorkspace({api, profile, currentFields, onApply}: Materi
         <Button
           variant="primary"
           disabled={
-            blocked ||
+            blocked || preparing ||
             resource.loading ||
             !!resource.error ||
             (resource.data?.length ?? 0) >= 500
@@ -302,12 +347,26 @@ function ScopedMaterialsWorkspace({api, profile, currentFields, onApply}: Materi
         </div>
       )}
       {resource.data?.length === 0 && (
-        <Empty title="暂无资料" description="添加产品介绍或真实案例。" />
+        localDrafts.length > 0 ? (
+          <p className="muted">当前画像尚无已同步资料，可从下方草稿带入。</p>
+        ) : (
+          <Empty title="暂无资料" description="添加产品介绍或真实案例。" />
+        )
+      )}
+      {localDrafts.length > 0 && onEditLocal && onRemoveLocal && (
+        <details className="local-material-drafts" open>
+          <summary>本机资料草稿 · {localDrafts.length} 份</summary>
+          <p className="muted">本机草稿仍可编辑；选择带入，再保存到当前画像。</p>
+          <LocalMaterialDrafts drafts={localDrafts} onEdit={onEditLocal} onRemove={onRemoveLocal}
+            onTransfer={draft => void transfer(draft)}
+            transferDisabled={blocked || preparing || resource.loading || !!resource.error} />
+        </details>
       )}
       {editor && (
         <MaterialEditor
           key={editor.id}
           record={editor.record}
+          initialInput={editor.initialInput}
           busy={request.action.busy}
           locked={!!request.pending || request.historical.length > 0 || !!request.storageError}
           progress={request.progress}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useApp } from "../app/context";
 import { clearLocalDrafts, useAction, useResource } from "../app/hooks";
 import { accountSchema } from "../domain/management";
+import { safeReturnTo } from "../domain/routes";
 import {
   managementRequest,
   unavailableManagement,
@@ -42,7 +43,8 @@ const dialogTitles: Record<Exclude<SettingsDialog, null>, string> = {
 };
 
 export function SettingsPage() {
-  const { service, session, navigate, notify, refreshSession } = useApp();
+  const { service, session, route, navigate, notify, refreshSession } = useApp();
+  const caller = safeReturnTo(route.query.get("returnTo"), "");
   const info = useResource(() => service.info(), [service]);
   const activation = useAction();
   const logout = useAction();
@@ -149,7 +151,10 @@ export function SettingsPage() {
         ]}
         active="settings"
         onChange={(key) => {
-          if (key === "connections") navigate("/connections");
+          if (key === "connections")
+            navigate(
+              caller ? `/connections?returnTo=${encodeURIComponent(caller)}` : "/connections",
+            );
         }}
       />
       <ResourceStatus
