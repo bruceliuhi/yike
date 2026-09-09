@@ -65,3 +65,17 @@ Forge 配置和 package 清单已改变，`58c8a7d` 的旧 Mac 包不能作为�
 纠正后主 Agent 的[最终集成测试日志](integrated-node24-tests.log)记录 **61 个文件、626 passed、21 skipped**。跳过项为当前 macOS arm64 不适用的 Windows/真实 x64 专属检查，不计为 Windows 通过。类型检查、新 Mac `make:mac`、[ASAR 结构与哈希检查](package-check.json)、[包内冒烟](packaged-smoke.log)及[生产排除检查](production-exclusion.log)已完成。`mac-package.json` 记录 Node 24.19.0/npm 11.17.0、107 个构建输入与源提交一致、构建退出码 0，以及当前 ASAR/ZIP 哈希。
 
 此处为已读取的主 Agent 执行证据，不是本审核者重复运行。包内冒烟使用真实 ASAR 的 main/preload/renderer 和隔离进程，仅替换保存对话框；本批未把旧客户端的可见操作证据当作新包可见验收。Windows 安装、重启、卸载及系统缩放、签名/公证、真实平台后台和全页面全部交互状态继续按构建记录的未验证范围保留。
+
+### 最终设备持钥增量合并复核
+
+**有限集成结论：PASS，未发现本次合并阻断。** 最终合并提交为 `26ad58def0d8e72f24824dd4dab254c5b3c06fd3`，双父为 `49692c43ca75d8ec76d745b97e9195d190e56b41`（父为 `b89df6c`，增加本轮 QA 文档）与远端设备持钥增量 `714b323469a465e4291937bb2ab9a23438497826`。已核对父链和祖先关系；任务书同时保留远端 V02-01C 进展与本轮 V02-05A 最新验收记录，没有将任一父卡改为完成。
+
+整个 `desktop` 目录相对 `b89df6c` 无差异。独立将 `mac-package.json` 的 **107 个构建输入**逐一与 `b89df6c`、最终合并提交和工作树 SHA-256 比较，**mismatches=[]**，工具输出 chunk `da1172`。因此原 Mac 包仍准确对应相同桌面输入；包的原构建提交保持 `b89df6c`，此比较不把后来新增的 Python 后端虚称为已包含在旧包内。
+
+在最终合并工作树实际执行：
+
+```sh
+uv run --frozen pytest -q tests/test_ui_api.py tests/test_pilot_web.py tests/test_session_auth.py tests/test_identity_contract.py tests/test_device_keys.py
+```
+
+结果：**115 passed**，工具输出 chunk `742c1a`。这是既有 UI/Web、会话认证、身份契约与设备密钥纯逻辑的定向兼容检查，不替代新 PostgreSQL 库上的迁移、事务锁、最小角色、并发轮换/撤销或真实持钥请求验收；本审核者未运行需新 PG 库的设备凭据测试。设备持钥后端整卡、Windows 接收 ACK、执行租约及取消/提交授权、候选上传与真实平台能力均不因本次合并而宣称通过。此前 148 项来源契约及 626/21 项桌面检查各自保持原提交/环境与测试集合，不相加成整链验收。
