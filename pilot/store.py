@@ -28,6 +28,7 @@ class PilotStore:
         tenant_id = str(uuid4())
         with self.database.connect() as connection:
             with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
                 cursor.execute("INSERT INTO pilot_tenants(tenant_id, name) VALUES (%s, %s)", (tenant_id, name))
         return tenant_id
 

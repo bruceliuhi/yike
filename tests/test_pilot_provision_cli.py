@@ -20,8 +20,8 @@ def test_provision_tenant_is_trusted_cli_only(monkeypatch, capsys):
             assert name == "试用团队"
             return "tenant-1"
 
-    monkeypatch.setenv("YIKE_PILOT_DATABASE_URL", "postgresql://example")
-    monkeypatch.setattr(cli.PilotDatabase, "from_environment", lambda: FakeDatabase())
+    monkeypatch.setenv("YIKE_PILOT_ADMIN_DATABASE_URL", "postgresql://example")
+    monkeypatch.setattr(cli.PilotDatabase, "from_admin_environment", lambda: FakeDatabase())
     monkeypatch.setattr(cli, "PilotStore", FakeStore)
 
     assert cli.provision(["tenant", "--name", "试用团队"]) == 0
@@ -31,9 +31,9 @@ def test_provision_tenant_is_trusted_cli_only(monkeypatch, capsys):
 def test_provision_user_requires_explicit_tenant(monkeypatch, capsys):
     from pilot import cli
 
-    monkeypatch.delenv("YIKE_PILOT_DATABASE_URL", raising=False)
+    monkeypatch.delenv("YIKE_PILOT_ADMIN_DATABASE_URL", raising=False)
     assert cli.provision(["user", "--tenant-id", "tenant-1", "--email", "a@example.com"]) == 2
-    assert "YIKE_PILOT_DATABASE_URL" in capsys.readouterr().err
+    assert "YIKE_PILOT_ADMIN_DATABASE_URL" in capsys.readouterr().err
 
 
 def test_web_start_does_not_run_migrations_as_app_role(monkeypatch):
@@ -71,9 +71,19 @@ def test_migrate_command_is_available_for_trusted_admin(monkeypatch):
             self.migrated = True
 
     database = FakeDatabase()
-    monkeypatch.setattr(cli.PilotDatabase, "from_environment", lambda: database)
+    monkeypatch.setattr(cli.PilotDatabase, "from_admin_environment", lambda: database)
     assert cli.migrate([]) == 0
     assert database.migrated is True
+
+
+def test_migrate_requires_explicit_admin_database_url(monkeypatch, capsys):
+    from pilot import cli
+
+    monkeypatch.delenv("YIKE_PILOT_ADMIN_DATABASE_URL", raising=False)
+    monkeypatch.delenv("YIKE_PILOT_DATABASE_URL", raising=False)
+
+    assert cli.migrate([]) == 2
+    assert "YIKE_PILOT_ADMIN_DATABASE_URL" in capsys.readouterr().err
 
 
 def test_web_rejects_wildcard_forwarded_proxy_allowlist(monkeypatch):

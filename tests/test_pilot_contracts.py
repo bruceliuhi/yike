@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+import inspect
 import os
 from pathlib import Path
 from threading import Barrier
@@ -44,11 +45,16 @@ def test_sqlite_url_is_rejected_for_pilot(monkeypatch):
         PilotDatabase.from_environment()
 
 
+def test_provision_tenant_binds_new_tenant_before_force_rls_insert():
+    source = inspect.getsource(PilotStore.provision_tenant)
+    assert "set_config('yike.tenant_id', %s, false)" in source
+
+
 @pytest.mark.integration
 def test_two_tenants_are_isolated_and_import_is_idempotent():
-    url = os.environ.get("YIKE_PILOT_DATABASE_URL")
+    url = os.environ.get("YIKE_PILOT_ADMIN_DATABASE_URL")
     if not url:
-        pytest.skip("set YIKE_PILOT_DATABASE_URL for PostgreSQL integration")
+        pytest.skip("set YIKE_PILOT_ADMIN_DATABASE_URL for PostgreSQL integration")
     admin_database = PilotDatabase(url)
     admin_database.migrate()
     admin_database.migrate()
@@ -186,9 +192,9 @@ def test_two_tenants_are_isolated_and_import_is_idempotent():
 
 @pytest.mark.integration
 def test_concurrent_profile_confirmation_keeps_one_current_version():
-    url = os.environ.get("YIKE_PILOT_DATABASE_URL")
+    url = os.environ.get("YIKE_PILOT_ADMIN_DATABASE_URL")
     if not url:
-        pytest.skip("set YIKE_PILOT_DATABASE_URL for PostgreSQL integration")
+        pytest.skip("set YIKE_PILOT_ADMIN_DATABASE_URL for PostgreSQL integration")
     database = PilotDatabase(url)
     database.migrate()
     store = PilotStore(database)

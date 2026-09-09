@@ -31,6 +31,14 @@ class PilotDatabase:
             raise MissingDatabaseConfiguration("YIKE_PILOT_DATABASE_URL is required")
         return cls(url)
 
+    @classmethod
+    def from_admin_environment(cls) -> "PilotDatabase":
+        """Build the trusted migration/provisioning connection explicitly."""
+        url = os.environ.get("YIKE_PILOT_ADMIN_DATABASE_URL", "").strip()
+        if not url:
+            raise MissingDatabaseConfiguration("YIKE_PILOT_ADMIN_DATABASE_URL is required")
+        return cls(url)
+
     def connect(self):
         return psycopg.connect(self.url, connect_timeout=5, application_name="yike-customer-pilot")
 

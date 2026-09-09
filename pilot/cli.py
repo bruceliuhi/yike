@@ -43,7 +43,7 @@ def migrate(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="意客 AI 客户试用数据库迁移（仅管理员执行）")
     parser.parse_args(argv)
     try:
-        database = PilotDatabase.from_environment()
+        database = PilotDatabase.from_admin_environment()
         database.migrate()
         print(json.dumps({"status": "migrated"}, ensure_ascii=False))
         return 0
@@ -59,7 +59,7 @@ def import_bundle(argv: list[str] | None = None) -> int:
     parser.add_argument("--profile-version-id", required=True, help="已确认的业务画像版本 ID")
     args = parser.parse_args(argv)
     try:
-        database = PilotDatabase.from_environment()
+        database = PilotDatabase.from_admin_environment()
         bundle = json.loads(Path(args.bundle).read_text(encoding="utf-8"))
         results = import_reviewed_bundle(PilotStore(database), args.user_id, args.profile_version_id, bundle)
     except (MissingDatabaseConfiguration, OSError, json.JSONDecodeError, ValueError, KeyError, psycopg.Error, RuntimeError) as error:
@@ -92,7 +92,7 @@ def provision(argv: list[str] | None = None) -> int:
                 raise ValueError("ttl-seconds must be between 60 and 86400")
             print(json.dumps({"user_id": args.user_id, "token": issue_token(args.user_id, secret, ttl_seconds=args.ttl_seconds)}, ensure_ascii=False))
             return 0
-        database = PilotDatabase.from_environment()
+        database = PilotDatabase.from_admin_environment()
         database.migrate()
         store = PilotStore(database)
         if args.command == "tenant":

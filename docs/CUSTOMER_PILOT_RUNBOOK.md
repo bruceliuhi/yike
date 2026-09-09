@@ -7,6 +7,7 @@
 准备一个独立 PostgreSQL 数据库，并在当前 shell 临时设置变量（不要提交 `.env`）：
 
 ```bash
+export YIKE_PILOT_ADMIN_DATABASE_URL='postgresql://<admin-user>:<password>@<private-host>:5432/<database>'
 export YIKE_PILOT_DATABASE_URL='postgresql://<app-user>:<password>@<private-host>:5432/<database>'
 export YIKE_PILOT_AUTH_SECRET='<random-secret-kept-outside-git>'
 uv run --frozen yike-pilot-migrate   # 仅由受信管理员/发布作业执行一次
@@ -48,7 +49,7 @@ CLI 输出的令牌只应通过安全渠道交给试用用户，不写入仓库�
 管理员可用命令行导入已批准的 JSON 研究包（不会开放为客户 HTTP 接口；导入命令不执行迁移，须先由受信迁移作业完成 schema）：
 
 ```bash
-export YIKE_PILOT_DATABASE_URL='postgresql://<app-user>:<password>@<private-host>:5432/<database>'
+export YIKE_PILOT_ADMIN_DATABASE_URL='postgresql://<admin-user>:<password>@<private-host>:5432/<database>'
 uv run --frozen yike-pilot-import \
   --bundle ./approved-bundle.json \
   --user-id '<provisioned-user-id>' \

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${YIKE_PILOT_DATABASE_URL:?set YIKE_PILOT_DATABASE_URL to an isolated PostgreSQL test database}"
+: "${YIKE_PILOT_ADMIN_DATABASE_URL:?set YIKE_PILOT_ADMIN_DATABASE_URL to an isolated PostgreSQL test database}"
 
 uv run --frozen pytest -q \
   tests/test_pilot_contracts.py \
