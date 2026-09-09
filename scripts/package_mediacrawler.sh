@@ -9,7 +9,7 @@ lock_path="${3:-${project_root}/vendor/mediacrawler.lock}"
 [[ -d "$source_path" && ! -L "$source_path" ]] || { echo 'source must be a regular directory' >&2; exit 2; }
 [[ ! -e "$destination" && ! -L "$destination" ]] || { echo 'destination already exists' >&2; exit 2; }
 python3 - "$source_path" "$destination" "$lock_path" <<'PY'
-import hashlib, json, shutil, subprocess, sys
+import hashlib, json, re, shutil, subprocess, sys
 from pathlib import Path
 source, destination, lock_path = (Path(v).resolve() for v in sys.argv[1:])
 def fail(message): raise SystemExit(message)
@@ -22,15 +22,16 @@ try:
     head = subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'], text=True).strip()
     dirty = subprocess.check_output(['git','-C',str(source),'status','--porcelain','--untracked-files=all'], text=True)
     license_text = subprocess.check_output(['git','-C',str(source),'show',f'{commit}:LICENSE'], text=True)
-    tracked = subprocess.check_output(['git','-C',str(source),'ls-files','-z']) .decode().split('\0')
+    tracked = subprocess.check_output(['git','-C',str(source),'ls-files','-z']).decode().split('\0')
+    history = subprocess.check_output(['git','-C',str(source),'log','--all','--pretty=format:','--name-only','-z']).decode().split('\0')
 except (OSError, subprocess.CalledProcessError): fail('source must be a pinned git checkout containing LICENSE')
 if head != commit: fail('source HEAD does not match MediaCrawler lock commit')
 if dirty.strip(): fail('source checkout must be clean')
 if not license_text.strip(): fail('upstream LICENSE is missing')
-for item in filter(None, tracked):
+for item in filter(None, set(tracked) | set(history)):
     lower = item.lower()
     name = Path(item).name.lower()
-    if lower in {'.env','.env.local'} or 'browser_data' in lower or name in {'cookies','cookie.json','storage_state.json','token.json'}: fail(f'source contains private-state path: {item}')
+    if lower in {'.env','.env.local'} or 'browser_data' in lower or re.search(r'(^|[._-])(cookie|cookies|token|secret|credential)([._-]|$)', name): fail(f'source contains private-state path: {item}')
 patch_entries=[]
 for entry in lock.get('patches',[]):
     path=(lock_path.parent.parent/entry['path']).resolve()
