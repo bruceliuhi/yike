@@ -16,6 +16,7 @@ import {
   type ReviewedCandidatePageDto,
 } from "../../shared/candidateReviewApi";
 import { ServiceError } from "./contracts";
+import { expectedRawCandidateEvidenceSchema, parseRawCandidateEvidence, type RawCandidateEvidenceDto } from "../../shared/rawCandidateEvidence";
 
 export const CANDIDATE_PLATFORM_LABELS = {
   XIAOHONGSHU: "小红书",
@@ -26,6 +27,7 @@ export const CANDIDATE_PLATFORM_LABELS = {
 } as const satisfies Record<z.infer<typeof candidatePlatformSchema>, string>;
 
 export interface CandidateReviewService {
+  getRawEvidence(expected: unknown, signal?: AbortSignal): Promise<RawCandidateEvidenceDto>;
   list(
     query?: unknown,
     signal?: AbortSignal,
@@ -183,6 +185,18 @@ export function createCandidateReviewService(
     return parsed;
   }
   return {
+    async getRawEvidence(input, signal) {
+      checkAbort(signal);
+      const expected = validate(expectedRawCandidateEvidenceSchema, input);
+      return dispatch(
+        "candidates.rawEvidence",
+        `/raw-candidates/${encodeURIComponent(expected.candidateId)}`,
+        "GET",
+        { candidateId: expected.candidateId },
+        raw => parseRawCandidateEvidence(raw, expected),
+        signal,
+      );
+    },
     async list(input, signal) {
       checkAbort(signal);
       const query = normalizeCandidateQuery(input);

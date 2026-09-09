@@ -48,11 +48,11 @@ Task2独立SPEC/代码/架构/质量通过，198相关及115策略/原文/确认
 
 ### Task 3: 原始证据读取与新版操作恢复
 
-**Files:** Create `desktop/src/shared/rawCandidateEvidence.ts`, `desktop/src/renderer/domain/candidateRequestOperation.ts`, `desktop/src/renderer/pages/opportunities/useCandidateRequests.ts` 及各专属 tests；extend `desktop/src/renderer/app/operationLedger.ts`/`hooks.ts`（仅新的 opaque scope）、service policy/adapter。
+**Files:** Create `desktop/src/shared/rawCandidateEvidence.ts`, `desktop/src/renderer/domain/candidateRequestOperation.ts`, `desktop/src/renderer/pages/opportunities/useCandidateRequests.ts` 及各专属 tests；extend `desktop/src/renderer/app/operationLedger.ts`（仅新的 opaque scope）、service policy/adapter。实际核查后无需改`hooks.ts`，其清草稿流程本来就不删除新localStorage操作scope。
 
-- [ ] RED→GREEN：现 raw-candidate GET 的严格当前候选/版本/观察解析，bind candidateId/profile/strategy/version；COMMENT 当前本人正文/作者与原帖标题/父评论分开。列表与详情版本变化提示刷新，不能混合展示或付费重判。
-- [ ] 新 scope 保留 ASSESS/VERIFY_SOURCE/INCLUDE/EXCLUDE 原 requestId、action、candidateId、绑定/确认摘要及必要 opaque 核验/重试 ID，不写原文/人工依据/凭据。先持久化再 POST；失败不派发，其他账户隔离，清草稿/退出不清记录。旧 candidate-reviews scope 完全保留。
-- [ ] 结果未知、错回执、401/404/5xx保留；GET 原请求只读取，不自动调用模型或换 UUID。已查询的 FAILED/UNKNOWN 分析仅在用户显式确认后新 requestId+retryOf；PROCESSING不能发新请求；未知人工核验/决策先核对原请求，不能盲重试。
+- [x] RED→GREEN：现 raw-candidate GET 的严格当前候选/版本/观察解析，bind candidateId/profile/strategy/version；COMMENT 当前本人正文/作者与原帖标题/父评论分开。不同版本拒绝混合；界面刷新提示及展示由Task4接。raw的profile_version_id就是复核profileId，无法从raw单独证明numeric profileVersion，不伪造该字段。
+- [x] 新 scope 保留 ASSESS/VERIFY_SOURCE/INCLUDE/EXCLUDE 原 requestId、action、candidateId、绑定/确认摘要及必要 opaque 核验/重试 ID，不写原文/人工依据/凭据。先持久化再 POST；失败不派发，其他账户隔离，清草稿/退出不清记录。旧 candidate-reviews scope 完全保留并只读检查旧未决。实现/测试仅基础hook，实际页面写服务仍等Task4安装。
+- [x] 结果未知、错回执、401/404/5xx保留；GET 原请求只读取，不自动调用模型或换 UUID。已查询的 FAILED/UNKNOWN 分析仅在用户显式确认后新 requestId+retryOf；PROCESSING不能发新请求；未知人工核验/决策先核对原请求，不能盲重试。按实际producer，requestId一直是用户原请求，invocationRequestId指实际模型调用；额外保存opaque invocationId，重试指它而不是错误的别名。慢hash期间同候选记录任何变化均使该次确认失效。
 - [ ] 新 INCLUDE 确认摘要覆盖 sourceVerificationId；旧缺字段回执不假装匹配新确认。Mac最小字段补齐后通过真实 HTTP 验证；若尚未交付保留该精确接收缺口，不以客户端推断替代。
 
 ### Task 4: 复用 P07 的完整人工流程

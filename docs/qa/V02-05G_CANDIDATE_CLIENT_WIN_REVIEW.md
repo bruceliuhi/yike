@@ -64,3 +64,40 @@ node tests/visual/verify-production-exclusion.mjs
 Task2源码提交`60b2523`；正常保留Mac来件`83e76be`形成`81f725424eb37e8541e2b2809e0182c40348f496`。来件仅reply_store的SQL JSON参数编码、两项隔离测试夹具和整合记录；独立兼容复核PASS，无desktop/候选合同/迁移交叠。`git diff --exit-code 60b2523 81f7254 -- desktop`退出0，故上述本片桌面测试与构建绑定字节未变。
 
 Win根代理实际执行Python `-X utf8 -m pytest -q tests/test_reply_store.py tests/test_reply_contract.py tests/test_import_atomicity.py tests/test_pilot_contracts.py --tb=short`：**24 passed / 7 skipped，0.44s**。7项因未注入一次性PG环境而明确跳过，此处只收纯边界兼容性，不接受实际PG或Mac文档测试数字为Win实测；实际PG留待Task5。凭据扫描clean、diff check通过，双方源码及认领保留。
+
+## Task3 原始证据与操作恢复基础
+
+基线`b1b2cba`；Task3a原文边界和Task3b恢复域为两个独立helper，root负责固定接线、hook、共享ledger和最终验证。只接既有服务，不改Mac后端、判断模型或发送模块。
+
+### 原始证据读取
+
+- `rawCandidateEvidence`完整保留原始候选/版本/最多100条观察及原执行身份。COMMENT自身正文/作者与原帖标题/父评论分开，发布时间null不补造，观察和接收另存；截断窗口可不含当前观察，若包含必须精确核对。实际`profileId`来自raw.profile_version_id，不冒称从raw核对numeric profileVersion。
+- helper有效拒绝stub RED1项；边界158 failed/9 passed；时间一致性4 failed/168 passed；最终172项GREEN，联合已审协议215项通过。期间全桌面tsc遇并行ledger测试类型错误，已如实报告；并行作者修复后root最终全桌面检查通过。
+- root固定GET RED1 failed/5 passed→6 passed；factory RED3 failed/67 passed→70 passed；真实客户端组合RED1 failed/37 passed→38 passed。只有candidateId进入固定IPC payload；实际产品仅新增只读属性，未安装candidateReview写服务。
+- 独立SPEC与代码/架构/质量PASS，0 Critical/Important/Minor；独立6个只读探针通过。绑定11文件排序哈希清单摘要`47A3B0776B9DE48A89F808A81782EE1F30E3E374E10DDC00DA2890C58CA02E30`（算法同Task2）。raw源码SHA256 `A3052998E72F8CE3213C99C8E9EF5A245C4A167E21A40F41779A0FC91E3A0F98`。
+
+### 原请求恢复
+
+- 独立新版scope保存原请求摘要与字段存在性标记，原文、人工依据及回执正文均不落本机操作账本；旧scope/hash字节不改。实际producer的invocationRequestId是模型调用标识而非用户请求ID，新记录额外保留该opaque ID以正确构造显式retryOf，不放宽原requestId匹配。
+- helper可导入stub有效RED53项→53 passed；实际producer终态反例2 failed→55 passed。FAILED/RECORDED不能被后到结果降级。root hook首次stub9项失败，其中3项最初直接读不存在记录导致TypeError，补明确长度断言后有效9项断言RED→9 passed；不将原TypeError当产品缺陷。
+- root补旧未决账本绕过反例1 failed/9 passed→10 passed；中间一次括号拼写造成transform失败，无测试执行，修正后通过。扩展错误/退出/账号/空间/显式重试/超时后19项通过。
+- root再查慢hash并发：一窗口已完成，另一窗口旧确认可能再次POST。首次探针误将原提交和恢复两次hash都挂起，造成超时和后续测试干扰（11 failed/9 passed）；修正只挂第一次后获得有效产品RED1 failed/19 passed。提交前新增同scope/candidate条目快照CAS，任何在途变化包含RECORDED都使旧确认失效；最终20 passed，类型检查通过。此为普通同机交互防重，不替代服务端跨设备幂等。
+- Task3b独立SPEC及慢hash定点复审PASS，随后代码/架构/质量PASS，0 Critical/Important/Minor。独立慢hash1项/其余19未选，以及字段存在性/别名/终态4项/其余51未选分别通过，不冒称全组重跑。绑定5文件排序哈希清单摘要`7C4038FE514E94F22D031C00345B699416C31CC0BBFA5399C7318C830892312F`（算法同Task2）。
+
+### 根代理最终验证
+
+在最终格式化后的代码执行Node24：**14文件546 passed / 0 skipped，5.34s**，覆盖新raw/恢复/固定传输及旧候选、operation ledger、策略恢复和确认发送/对账；各阶段结果不相加。`tsc --noEmit`退出0。生产renderer排除构建4781 transformed/4780 graph modules、manifestHarnessReferences=0、failures=[]，existingAsarChecked=false。凭据扫描clean、diff check通过。
+
+```text
+node node_modules/vitest/vitest.mjs run tests/rawCandidateEvidence.test.ts tests/candidateRequestOperation.test.ts tests/candidateReviewApi.test.ts tests/candidateReviewService.test.ts tests/serviceClient.test.ts tests/servicePolicy.test.ts tests/ui/client.test.ts tests/ui/candidate tests/ui/operation-ledger.test.tsx tests/ui/strategy-confirmation-hook.test.tsx tests/ui/outreach-reconciliation.test.tsx tests/ui/send-confirmation.test.tsx --maxWorkers=4
+```
+
+当前仅基础模块和只读产品接线。完整P07显式判断/来源核验/确认入库尚待Task4；实际Node→HTTP→受限PG验证核验ID、Windows双视口及用户整链仍待Task5。没有实际平台采集、模型收费、发送、生产部署或客户试用操作，不将05G/PH-F06或完整Goal标DONE。
+
+### Task3 主干整合
+
+源码提交`323c786`，正常保留Mac `797d0b1`形成`8d24e67e99b0afd0c49b40b66fa62a2b972c6099`。来件91文件主要是Mac可视/native证据，生产差异仅两份device GRANT的6行；desktop与pilot源码不变，独立限定兼容复核PASS，无P0/P1/P2合入阻断。`git diff --exit-code 323c786 8d24e67 -- desktop`退出0，546项、类型与生产构建仍绑定相同产品字节。
+
+独立审核保留非阻断部署提醒：device credentials授权脚本的owner guard尚未包含新增授权的connections/session_revocations表，GRANT本身不授予表所有权；后续独立部署需按既有session授权脚本验证两表非应用角色所有。此处没有执行生产授权、扩展安全工程或冒充新PG接收。Mac本轮截图/包/PG数字各保留其原版本与执行归属，不作为Win或新P07实际验收。
+
+Win根代理对合入版本执行Python `-X utf8 -m pytest -q tests/test_device_keys.py tests/test_device_registration.py --tb=short`：38 passed/0 skipped，0.16s。仅纯设备/登记兼容检查，不证明SQL grants已在Windows PG实际应用；此前单独18项是其子集，不累计。

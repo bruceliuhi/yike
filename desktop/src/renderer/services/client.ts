@@ -238,6 +238,7 @@ function unavailable(name: string): never {
 const candidateReads = createCandidateReviewService(request);
 export const service: YikeService = {
   researchStrategies: createResearchStrategiesService(request),
+  rawCandidateEvidence: candidateReads.getRawEvidence,
   verifyContact: async () => unavailable("收件对象与发送条件核验"),
   candidates: async (query = {}, signal) => {
     const page = await candidateReads.list(query, signal);
