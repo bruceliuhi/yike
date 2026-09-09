@@ -522,6 +522,7 @@ def test_lock_and_fetch_script_define_a_frozen_playwright_runtime():
     lock = json.loads((PROJECT_ROOT / "vendor" / "mediacrawler.lock").read_text())
     environment = lock["runtime_environment"]
     script = (PROJECT_ROOT / "scripts" / "fetch_mediacrawler.sh").read_text()
+    assert 'git clone --filter=blob:none' not in script
 
     assert environment == {
         "uv_version": "0.11.6",

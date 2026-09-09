@@ -33,6 +33,8 @@ MediaCrawler 受控获取已验证固定 commit 和补丁链；打包门禁规�
 
 从 bundle 安装目录执行 `cd runtime && .venv/bin/python main.py --help` 成功加载 CLI，入口列出 `xhs/dy/bili/zhihu` 等平台；直接在其他 cwd 启动会因上游相对资源路径失败，已核对 `app/collector.py` 将受控子进程 `cwd` 固定为 runtime 目录。该项只证明运行时可启动，不证明账号登录或真实采集。
 
+本轮修复 `fetch_mediacrawler.sh` 的浅克隆问题：bundle 需要完整历史传递固定 commit，脚本改为完整 clone；新增回归与 vendor packaging 合计 **15 passed**。仍不包含真实账号登录或平台采集证据。
+
 2026-09-10 05A 可见验收补齐：`8af8eaf`收紧P04空态，本机资料与带入操作完整进入1280×720首屏；实际走通P06平台/设备往返、P09原标签与平台返回、P14无人工记录的匹配回复/已读/首次人工登记。新Mac包ASAR `98debe8e` / ZIP `f580c225` 已实际冷启动、取消关闭继续编辑、保存75搜贝会话草稿、明确退出并同目录重启；退出清除会话稿符合提示。定向33项/类型/构包/严格smoke通过，先前全量1340/23仍绑定d816，不追认重跑。证据及截图校准过程见[当前可见验收](qa/ui-visible-local-handoff/README.md)。05A仍IN_PROGRESS；原生选择器、剩余状态、真实后台及Windows分项接续。
 
 2026-09-10 05A 本机资料与返回流程已收口：P04 `d66d487` 保留首画像保存前的本机资料，并支持人工带入/取消/重复复用目标；P06/P09/P16/P18 `315d590` 保留原任务、步骤、标签和平台。正常合入 `bbe2e20` 为 **fcae33e**，接收固定原文展示与执行签名准备，双方字节保留并独立兼容复核通过。旧超时测试计时起点修正为 **d816a9d**，产品未变；最终桌面 **1340 passed / 23 skipped**、类型、隔离 Mac 构包与严格 smoke 通过，原失败保留。包 ASAR `6ef0d95e` / ZIP `5ff63633` 绑定 fcae33e，详见[本批验收](qa/ui-local-handoff/README.md)。本片独立代码工作已完成；用户再次“继续”后 Mac 已恢复可操作，接续同状态视觉与原生生命周期，Windows/真实服务继续分项待验，05A 不标 DONE。

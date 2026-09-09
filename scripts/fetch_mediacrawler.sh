@@ -63,7 +63,9 @@ PY
   run_private git -C "${destination}" remote add package "${package_path}"
   run_private git -C "${destination}" fetch --quiet package refs/yike/package:refs/remotes/package/pinned
 else
-  run_private git clone --filter=blob:none "${repository_url}" "${destination}"
+  # Keep complete history so the governed bundler can verify and transfer the
+  # pinned commit without relying on shallow-object negotiation.
+  run_private git clone "${repository_url}" "${destination}"
 fi
 run_private chmod 700 "${destination}"
 run_private git -C "${destination}" checkout --detach "${pinned_commit}"
