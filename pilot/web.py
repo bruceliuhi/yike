@@ -38,6 +38,14 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
     class RedactedAccessLogMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request: Request, call_next):
             response = await call_next(request)
+            response.headers["content-security-policy"] = (
+                "default-src 'self'; style-src 'self'; script-src 'self'; "
+                "base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+            )
+            response.headers["x-content-type-options"] = "nosniff"
+            response.headers["x-frame-options"] = "DENY"
+            response.headers["referrer-policy"] = "strict-origin-when-cross-origin"
+            response.headers["permissions-policy"] = "camera=(), microphone=(), geolocation=()"
             access_logger.info("%s %s %s", request.method, request.url.path, response.status_code)
             return response
 

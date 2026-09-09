@@ -82,6 +82,21 @@ def test_pilot_pages_load_local_styles_and_mobile_viewport():
     assert "@media (max-width: 760px)" in stylesheet.text
 
 
+def test_pilot_pages_set_baseline_security_headers():
+    client = TestClient(build_app(Store(), auth_secret="test-secret"))
+    headers = {"Authorization": "Bearer " + issue_token("user-1", "test-secret")}
+
+    response = client.get("/profile", headers=headers)
+
+    assert response.headers["content-security-policy"] == (
+        "default-src 'self'; style-src 'self'; script-src 'self'; "
+        "base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+    )
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+
+
 def test_authenticated_user_without_tenant_is_rejected_without_server_error():
     class UnknownUserStore(Store):
         def list_opportunities(self, user_id):
