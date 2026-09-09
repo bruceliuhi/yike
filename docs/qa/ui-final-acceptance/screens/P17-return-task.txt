@@ -1,0 +1,102 @@
+- note: TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入 · 恢复场景 connection-limited
+- generic "TEST 场景"
+- link "跳到主要内容":
+  - /url: "#main-content"
+- complementary:
+  - button "意客AI商机工作台":
+    - strong: 意客AI
+    - generic: 商机工作空间
+  - navigation "主导航":
+    - button "商机工作台":
+      - generic: 商机工作台
+    - generic: 发现商机
+    - button "业务画像":
+      - generic: 业务画像
+    - button "线索采集":
+      - generic: 线索采集
+    - button "监控任务":
+      - generic: 监控任务
+    - generic: 推进商机
+    - button "商机库":
+      - generic: 商机库
+    - button "触达中心":
+      - generic: 触达中心
+    - button "跟进记录":
+      - generic: 跟进记录
+  - button "账号与授权":
+    - generic: 账号与授权
+  - button "客户工作空间":
+    - generic: 客户工作空间
+- banner:
+  - button "收起导航":
+  - button "返回上级":
+  - generic: 线索采集 / 新建任务
+  - generic: V0.2
+- main:
+  - heading "新建获客任务" [level=1]
+  - generic: 本机草稿 · 未启动
+  - generic "任务步骤":
+    - generic: "1"
+    - text: 任务条件
+    - generic: "2"
+    - text: 平台连接
+    - generic: "3"
+    - text: 确认启动
+  - heading "为所选平台配置执行账号" [level=2]
+  - paragraph: 返回修改会保留所有搜索条件和运行设置。
+  - table:
+    - rowgroup:
+      - row "平台 执行账号 / 范围 操作":
+        - columnheader "平台"
+        - columnheader "执行账号 / 范围"
+        - columnheader "操作"
+    - rowgroup:
+      - row "小红书 选择已连接账号 连接账号":
+        - cell "小红书":
+          - generic: 小红书
+        - cell "选择已连接账号":
+          - combobox "小红书执行账号":
+            - option "选择已连接账号" [selected]
+            - option "TEST 内存账号（并未真实登录）"
+        - cell "连接账号":
+          - button "连接账号"
+      - row "抖音 选择已连接账号 连接账号":
+        - cell "抖音":
+          - generic: 抖音
+        - cell "选择已连接账号":
+          - combobox "抖音执行账号":
+            - option "选择已连接账号" [selected]
+        - cell "连接账号":
+          - button "连接账号"
+      - row "B站 选择已连接账号 连接账号":
+        - cell "B站":
+          - generic: B站
+        - cell "选择已连接账号":
+          - combobox "B站执行账号":
+            - option "选择已连接账号" [selected]
+        - cell "连接账号":
+          - button "连接账号"
+      - row "知乎 选择已连接账号 连接账号":
+        - cell "知乎":
+          - generic: 知乎
+        - cell "选择已连接账号":
+          - combobox "知乎执行账号":
+            - option "选择已连接账号" [selected]
+        - cell "连接账号":
+          - button "连接账号"
+      - row "公开网站 公开页面读取范围需由执行服务确认 查看范围":
+        - cell "公开网站":
+          - generic: 公开网站
+        - cell "公开页面读取范围需由执行服务确认"
+        - cell "查看范围":
+          - button "查看范围"
+  - heading "执行设备" [level=2]
+  - generic: 待绑定或检查
+  - paragraph: darwin · 当前任务只有在设备可用时才能启动。
+  - button "重新检查"
+  - button "上一步"
+  - button "保存草稿"
+  - button "下一步：确认任务"
+  - paragraph: 本机会话草稿保存于 2026/9/9 09:00:00；退出登录会清除。
+- text: 小红书已完成连接检查。
+- button "关闭提示": 关闭

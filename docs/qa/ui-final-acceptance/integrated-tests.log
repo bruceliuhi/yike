@@ -1,0 +1,36 @@
+
+> yike-ai-desktop@0.2.0 test
+> vitest run --reporter=dot
+
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+········x··········--------------···-·-···············-············································································································································································-·---·······························································································································································································································································································································································································································
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/windowsBuildRuntime.test.mjs > Windows build runtime > rejects the real non-x64 Node before npm discovery
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/windowsBuildRuntime.test.mjs:74:59
+     72|
+     73|   it.skipIf(process.arch === 'x64')('rejects the real non-x64 Node bef…
+     74|     expect(isSupportedNodeVersion(process.versions.node)).toBe(true);
+       |                                                           ^
+     75|     expect(() => createWindowsBuildRuntime({env: {}, cwd: temporaryPar…
+     76|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 60 passed (61)
+      Tests  1 failed | 625 passed | 21 skipped (647)
+   Start at  19:51:10
+   Duration  11.89s (transform 4.19s, setup 0ms, import 83.97s, tests 37.54s, environment 24.57s)
+

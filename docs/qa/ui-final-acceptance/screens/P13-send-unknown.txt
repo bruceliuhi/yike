@@ -1,0 +1,138 @@
+- note: TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入 · 恢复场景 send-unknown
+- generic "TEST 场景"
+- link "跳到主要内容":
+  - /url: "#main-content"
+- complementary:
+  - button "意客AI商机工作台":
+    - strong: 意客AI
+    - generic: 商机工作空间
+  - navigation "主导航":
+    - button "商机工作台":
+      - generic: 商机工作台
+    - generic: 发现商机
+    - button "业务画像":
+      - generic: 业务画像
+    - button "线索采集":
+      - generic: 线索采集
+    - button "监控任务":
+      - generic: 监控任务
+    - generic: 推进商机
+    - button "商机库":
+      - generic: 商机库
+    - button "触达中心":
+      - generic: 触达中心
+    - button "跟进记录":
+      - generic: 跟进记录
+  - button "账号与授权":
+    - generic: 账号与授权
+  - button "客户工作空间":
+    - generic: 客户工作空间
+- banner:
+  - button "收起导航":
+  - button "返回上级":
+  - generic: 触达中心 / 发送确认
+  - generic: V0.2
+- main:
+  - heading "触达中心" [level=1]
+  - generic: 基于公开信息，准备沟通内容，跟进商机进展。
+  - tablist:
+    - tab "草稿箱" [selected]
+    - tab "待确认"
+    - tab "待回复"
+    - tab "需处理"
+  - complementary:
+    - textbox "搜索联系准备":
+      - /placeholder: 搜索商机标题或来源
+    - combobox "联系准备排序":
+      - option "按更新时间 · 最新优先" [selected]
+      - option "按更新时间 · 最早优先"
+      - option "按商机标题"
+    - button "TEST 180㎡展区设计搭建预算询价 TEST 需求方（合成测试对象） 公开网站 · 已有联系草稿 更新于 2026/9/9 09:00:00":
+      - strong: TEST 180㎡展区设计搭建预算询价
+      - generic: TEST 需求方（合成测试对象）
+      - generic: 公开网站
+      - text: · 已有联系草稿
+      - generic: 更新于 2026/9/9 09:00:00
+    - text: 公开研究样例
+    - button "高交会预算询价 · 联系准备 湖南省商务厅官网 公开样例 · 只读":
+      - strong: 高交会预算询价 · 联系准备
+      - generic: 湖南省商务厅官网
+      - generic: 公开样例 · 只读
+  - heading "联系草稿" [level=2]
+  - generic: 已保存内容
+  - tablist:
+    - tab "评论草稿" [selected]
+    - tab "私信草稿"
+  - group "收件对象":
+    - generic: 收件对象
+    - textbox "收件对象":
+      - /placeholder: 核对原文后填写
+      - text: TEST-recovery-recipient
+    - generic: 对象须经渠道映射核验，手填名称不能作为身份依据。
+  - group "选择已连接渠道":
+    - generic: 选择已连接渠道
+    - combobox "发送账号":
+      - option "未选择"
+      - option "TEST 内存账号（并未真实登录） · xhs" [selected]
+  - heading "沟通内容" [level=3]
+  - button "重新生成"
+  - textbox "沟通内容":
+    - /placeholder: 填写联系内容，或根据商机生成草稿
+    - text: TEST 您好，请问本次展区设计搭建的资料要求与服务范围如何获取？本内容只用于视觉验收，不会发送。
+  - paragraph: 49 字
+  - paragraph: 编辑内容按当前账号保存在本机当前会话；同步成功前不会成为客户空间草稿。
+  - button "保存草稿"
+  - button "准备发送":
+    - text: 准备发送
+  - button "复制联系草稿":
+  - complementary:
+    - heading "相关商机" [level=2]
+    - button "查看详情":
+      - text: 查看详情
+    - heading "TEST 180㎡展区设计搭建预算询价" [level=3]
+    - generic: 客户商机
+    - term: 发布单位
+    - definition: TEST 需求方（合成测试对象）
+    - term: 发布时间
+    - definition: 2026/9/8 16:54:00
+    - heading "原文证据" [level=2]
+    - button "查看原文":
+      - text: 查看原文
+    - blockquote: TEST 本次报价仅用于预算测算。
+    - paragraph:
+      - generic: 公开网站
+      - text: · 发布于 2026/9/8 16:54:00
+    - status:
+      - generic: 发送前需完成来源、画像、对象及账号的核验。
+    - group "备注":
+      - generic: 备注
+      - textbox "联系准备备注":
+        - /placeholder: 添加备注（选填）
+      - generic: 仅保留在本机会话，不随消息发送。
+    - paragraph: 0/500
+  - dialog "确认发送":
+    - heading "确认发送" [level=2]
+    - button "关闭确认发送":
+    - paragraph: 核对发送信息。
+    - term: 渠道
+    - definition:
+      - generic: 小红书
+      - text: · 评论
+    - term: 发送账号
+    - definition: TEST 内存账号（并未真实登录）
+    - term: 收件对象
+    - definition: TEST-recovery-recipient
+    - term: 关联来源
+    - definition: TEST 180㎡展区设计搭建预算询价
+    - heading "发送内容预览" [level=3]
+    - generic: TEST 您好，请问本次展区设计搭建的资料要求与服务范围如何获取？本内容只用于视觉验收，不会发送。
+    - checkbox "我已核对联系对象、发送账号和内容"
+    - text: 我已核对联系对象、发送账号和内容
+    - status:
+      - generic: 此版本发送结果尚待确认，请核对平台记录，避免重复发送。
+    - paragraph: 原请求编号：cab4738e-4aae-4f86-87fe-9badf437f905
+    - button "核对原发送结果" [active]
+    - button "返回修改"
+    - button "确认并发送" [disabled]
+- text: 原请求结果仍未确定，发送保护继续保留。
+- button "关闭提示": 关闭

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>意客AI · R3 实现对照</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font:14px/1.6 system-ui,"PingFang SC","Microsoft YaHei",sans-serif;color:#172b4d;background:#f7f9fc}header{padding:20px 28px;background:#fff;border-bottom:1px solid #e8edf3}h1{font-size:22px;margin:0 0 6px}p{margin:4px 0;color:#52637a}a{color:#0958d9}nav{display:flex;flex-wrap:wrap;gap:6px;padding:16px 28px}button,select{font:inherit;border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:6px 12px;color:inherit;cursor:pointer}button[aria-current=true]{background:#e6f4ff;color:#0958d9;border-color:#1677ff}button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid #1677ff;outline-offset:3px}.toolbar{display:flex;align-items:center;gap:16px;margin:0 28px 14px}.toolbar strong{font-size:16px}.pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 28px 28px}.pair.single{grid-template-columns:1fr}.pair.single figure:first-child{display:none}figure{margin:0;min-width:0;background:#fff;border:1px solid #e8edf3}figcaption{padding:9px 12px;border-bottom:1px solid #e8edf3;font-weight:600}figure img{width:100%;height:auto;display:block}footer{padding:0 28px 24px}#notes{margin:0 28px 16px;max-width:1000px}@media(max-width:1000px){.pair{grid-template-columns:1fr}.toolbar{flex-wrap:wrap}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+<header>
+  <h1>意客AI · R3 设计与实现对照</h1>
+  <p>左侧为已批准设计，右侧为真实 React 页面在隔离 TEST 环境中的截图。设计字号以 DESIGN_SYSTEM 为准，平台 Logo 按后续要求使用官方资产。</p>
+  <p>基准视口：1484 × 1060 CSS px。Chrome DPR 1 直接原图；尺寸与路由见 captures.json，没有重采样、拼接或改写画面内容。</p>
+  <p><a href="REVIEW.md">验收范围与仍未完成项</a> · <a href="../../../design/v02-suite-r3/PAGE_STATE_MATRIX.md">交互状态要求</a> · <a href="http://127.0.0.1:18791/#/workbench">运行产品</a></p>
+</header>
+<nav aria-label="页面选择"></nav>
+<div class="toolbar"><strong id="title"></strong><label>显示方式 <select id="mode"><option value="pair">设计 / 实现并排</option><option value="single">仅查看实现</option></select></label><a id="original" target="_blank" rel="noopener">打开原始运行截图</a></div>
+<p id="notes" role="status"></p>
+<main class="pair"><figure><figcaption>已批准 R3 设计</figcaption><img id="reference" alt=""></figure><figure><figcaption>真实页面 · 隔离 TEST 数据</figcaption><img id="current" alt=""></figure></main>
+<footer>截图只证明对应页面和状态的渲染，不证明平台已接入、真实消息发送、客户库写入或 Windows 安装验收。每页其他状态的检查以验收记录为准。</footer>
+<script>
+const names=['登录与试用','商机工作台','业务画像','资料与案例','线索采集','新建获客任务','原始线索','监控任务','监控详情','商机库','机会证据','联系准备','发送确认','回复与跟进','添加跟进','平台连接','连接平台','设备与使用授权','确认启动','持续监控设置'];
+const notes={P01:'登录字段与操作布局；TEST 环境不发送真实验证码。',P04:'添加资料抽屉。长内容可纵向滚动，固定底栏单独验收。',P07:'公开研究样例，只读，不进入客户库；真实候选的复核恢复另有记录。',P09:'按平台显示部分完成、登录失效与等待；下方执行记录可滚动查看。',P10:'公开样例与客户库分开；阶段和资料截止只展示具有匹配来源证据的结构化字段。',P11:'公开研究样例的原文、评估与联系准备。',P12:'公开样例只读，复制与真实发送严格区分。',P13:'公开样例始终不能发送；客户合成对象的结果未知恢复另有 TEST 验收。',P15:'抽屉取消在左、保存在右；长表单滚动后仍可操作。',P16:'四个平台官方 Logo 本地打包，公开网站使用通用图标。',P17:'等待原生平台登录；不伪造二维码或授权成功。',P18:'授权、设备、更新与数据操作按实际服务能力显示。',P19:'确认读取当前最终草稿；缺平台或设备条件时不可启动。',P20:'监控时间、时区与跨日设置采用同一任务草稿；允许自然纵向滚动。'};
+const pages=names.map((name,i)=>({id:'P'+String(i+1).padStart(2,'0'),name}));
+const nav=document.querySelector('nav');
+for(const page of pages){const button=document.createElement('button');button.type='button';button.textContent=page.id;button.title=page.name;button.dataset.id=page.id;button.addEventListener('click',()=>{location.hash=page.id});nav.append(button)}
+function show(){const page=pages.find(p=>p.id===location.hash.slice(1))||pages[0];document.getElementById('title').textContent=page.id+' · '+page.name;for(const button of nav.children)button.setAttribute('aria-current',String(button.dataset.id===page.id));document.getElementById('reference').src='../../../design/v02-suite-r3/screens/'+page.id+'.png';document.getElementById('reference').alt=page.name+'批准设计';document.getElementById('current').src='screens/'+page.id+'.png';document.getElementById('current').alt=page.name+'实际运行页面';document.getElementById('original').href='screens/'+page.id+'-raw.png';document.getElementById('notes').textContent=notes[page.id]||'查看本页的实际状态和可操作入口；截图范围之外的边界状态另行验收。'}
+document.getElementById('mode').addEventListener('change',event=>document.querySelector('main').classList.toggle('single',event.target.value==='single'));
+window.addEventListener('hashchange',show);show();
+</script>
+</html>
