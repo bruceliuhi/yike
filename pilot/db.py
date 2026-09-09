@@ -23,6 +23,7 @@ class PilotDatabase:
         ("v02-connection-versions", migration_path.with_name("107_v02_connection_versions.sql")),
         ("v02-phone-login", migration_path.with_name("109_v02_phone_login.sql")),
         ("v02-execution-runtime", migration_path.with_name("111_v02_execution_runtime.sql")),
+        ("v02-candidate-ingestion", migration_path.with_name("112_v02_candidate_ingestion.sql")),
     )
 
     def __init__(self, url: str):
