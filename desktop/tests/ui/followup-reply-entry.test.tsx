@@ -10,11 +10,19 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppContextValue } from "../../src/renderer/app/context";
 import { clearLocalDrafts } from "../../src/renderer/app/hooks";
-import type { LinkedReply } from "../../src/renderer/domain/followup";
+import type {
+  FollowupReceipt,
+  FollowupRecord,
+  LinkedReply,
+} from "../../src/renderer/domain/followup";
 import type { Opportunity } from "../../src/renderer/domain/models";
 import { parseRoute } from "../../src/renderer/domain/routes";
 import { FollowupsPage } from "../../src/renderer/pages/Followups";
 import { PUBLIC_SAMPLE } from "../../src/renderer/pages/Opportunities";
+import {
+  followupOwner,
+  readFollowupOperations,
+} from "../../src/renderer/pages/followups/followupOperationStorage";
 import {
   ServiceError,
   type YikeService,
@@ -335,6 +343,199 @@ describe("P14 exact matched-reply entry without a manual followup", () => {
     expect(screen.queryByText(reply().content)).toBeNull();
     expect(screen.getByText("TEST新目标回复")).toBeTruthy();
     expect(context.service.opportunity).toHaveBeenLastCalledWith(next.id);
+    assertNoRegistration();
+  });
+});
+
+describe("P14 selection changes during asynchronous work", () => {
+  const manual: FollowupRecord = {
+    id: "TEST-manual-before-withdrawal",
+    opportunityId: opportunity.id,
+    profileVersionId: opportunity.profileVersionId,
+    revision: 1,
+    title: opportunity.title,
+    status: "CONTACTED",
+    note: "TEST待核对人工事实",
+    createdAt: "2026-09-10T07:00:00Z",
+    occurredAt: null,
+    nextStep: "",
+    nextFollowupAt: null,
+    ownerId: "TEST-reply-user",
+    ownerName: "TEST成员",
+    state: "ACTIVE",
+    kind: "manual",
+    sample: false,
+    replyCount: 1,
+  };
+  it.each(["mark-read", "void"] as const)(
+    "does not dispatch an old %s preflight after selecting a different target",
+    async (action) => {
+      vi.mocked(context.service.followup!.list).mockResolvedValue({
+        records: [manual],
+        members: [],
+      });
+      const view = render(<FollowupsPage />);
+      await screen.findByText(reply().content);
+      if (action === "void") {
+        fireEvent.click(screen.getByRole("tab", { name: "人工登记" }));
+        fireEvent.click(
+          await screen.findByRole("button", { name: "撤销登记" }),
+        );
+        fireEvent.change(screen.getByRole("textbox", { name: "撤销原因" }), {
+          target: { value: "TEST需核对事实" },
+        });
+      }
+      const old = deferred<Opportunity>();
+      vi.mocked(context.service.opportunity).mockReturnValueOnce(old.promise);
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: action === "void" ? "确认撤销" : "标为已读",
+        }),
+      );
+      await waitFor(() =>
+        expect(context.service.opportunity).toHaveBeenCalledTimes(2),
+      );
+      const next = { ...opportunity, id: "TEST-different-target" };
+      vi.mocked(context.service.opportunity).mockResolvedValue(next);
+      context = {
+        ...context,
+        route: parseRoute(`#/followups?opportunity=${next.id}&tab=replies`),
+      };
+      view.rerender(<FollowupsPage />);
+      await waitFor(() =>
+        expect(context.service.opportunity).toHaveBeenLastCalledWith(next.id),
+      );
+      await act(async () => old.resolve(opportunity));
+      expect(
+        screen.queryByRole("dialog", { name: "撤销这条人工登记？" }),
+      ).toBeNull();
+      expect(context.service.followup!.mutate).not.toHaveBeenCalled();
+      expect(
+        readFollowupOperations(followupOwner(context.session)).pending,
+      ).toBeNull();
+      expect(context.notify).not.toHaveBeenCalled();
+    },
+  );
+
+  it("retains the original mark-read request when a dispatched result arrives after leaving its target", async () => {
+    const result = deferred<FollowupReceipt>();
+    vi.mocked(context.service.followup!.mutate).mockReturnValue(result.promise);
+    const view = render(<FollowupsPage />);
+    await screen.findByText(reply().content);
+    fireEvent.click(screen.getByRole("button", { name: "标为已读" }));
+    await waitFor(() =>
+      expect(context.service.followup!.mutate).toHaveBeenCalledOnce(),
+    );
+    const original = vi.mocked(context.service.followup!.mutate).mock
+      .calls[0][0].binding;
+    const next = { ...opportunity, id: "TEST-different-target" };
+    vi.mocked(context.service.opportunity).mockResolvedValue(next);
+    context = {
+      ...context,
+      route: parseRoute(`#/followups?opportunity=${next.id}&tab=replies`),
+    };
+    view.rerender(<FollowupsPage />);
+    await waitFor(() =>
+      expect(context.service.opportunity).toHaveBeenLastCalledWith(next.id),
+    );
+    await act(async () =>
+      result.resolve({
+        binding: original,
+        status: "SUCCEEDED",
+        confirmed: true,
+        reply: reply({ revision: 2, read: true }),
+      }),
+    );
+    expect(
+      readFollowupOperations(followupOwner(context.session)).pending,
+    ).toEqual(original);
+    expect(context.service.followup!.mutate).toHaveBeenCalledOnce();
+    expect(context.service.followup!.operation).not.toHaveBeenCalled();
+    expect(context.notify).not.toHaveBeenCalled();
+  });
+
+  it("does not reset an explicitly selected date when the initial manual-list request finishes late", async () => {
+    const list = deferred<{
+      records: FollowupRecord[];
+      members: { id: string; name: string }[];
+    }>();
+    vi.mocked(context.service.followup!.list).mockReturnValue(list.promise);
+    render(<FollowupsPage />);
+    await screen.findByText(reply().content);
+    fireEvent.change(screen.getByLabelText("筛选记录日期"), {
+      target: { value: "2026-09-01" },
+    });
+    fireEvent.click(screen.getByRole("tab", { name: "全部" }));
+    await act(async () => list.resolve({ records: [manual], members: [] }));
+    expect(
+      (screen.getByLabelText("筛选记录日期") as HTMLInputElement).value,
+    ).toBe("2026-09-01");
+    expect(
+      screen.getByRole("tab", { name: "全部" }).getAttribute("aria-selected"),
+    ).toBe("true");
+    expect(
+      (
+        screen.getByRole("combobox", {
+          name: "查看商机回复",
+        }) as HTMLSelectElement
+      ).value,
+    ).toBe(opportunity.id);
+    expect(screen.getByText(reply().content)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: manual.title })).toBeNull();
+    expect(screen.queryByText("已定位目标商机的最新登记。")).toBeNull();
+  });
+
+  it("does not focus the original deep-link row after the reply selector changes during list loading", async () => {
+    const list = deferred<{
+      records: FollowupRecord[];
+      members: { id: string; name: string }[];
+    }>();
+    const next = {
+      ...opportunity,
+      id: "TEST-selected-reply-target",
+      title: "TEST用户选择的商机",
+    };
+    vi.mocked(context.service.followup!.list).mockReturnValue(list.promise);
+    vi.mocked(context.service.opportunities).mockResolvedValue([
+      opportunity,
+      next,
+    ]);
+    vi.mocked(context.service.opportunity).mockImplementation(async (id) =>
+      id === next.id ? next : opportunity,
+    );
+    vi.mocked(context.service.followup!.replies).mockImplementation(
+      async (id) =>
+        id === next.id
+          ? [
+              reply({
+                id: "TEST-selected-reply",
+                opportunityId: next.id,
+                content: "TEST用户选择的回复",
+              }),
+            ]
+          : [reply()],
+    );
+    render(<FollowupsPage />);
+    await screen.findByText(reply().content);
+    fireEvent.change(screen.getByRole("combobox", { name: "查看商机回复" }), {
+      target: { value: next.id },
+    });
+    await screen.findByText("TEST用户选择的回复");
+    await act(async () => list.resolve({ records: [manual], members: [] }));
+    expect(
+      screen.getByRole("button", { name: manual.title }).closest("tr")
+        ?.className,
+    ).not.toBe("selected");
+    expect(screen.queryByText("已定位目标商机的最新登记。")).toBeNull();
+    expect(
+      (
+        screen.getByRole("combobox", {
+          name: "查看商机回复",
+        }) as HTMLSelectElement
+      ).value,
+    ).toBe(next.id);
+    fireEvent.click(screen.getByRole("tab", { name: "人工登记" }));
+    expect(screen.queryByText(manual.note)).toBeNull();
     assertNoRegistration();
   });
 });

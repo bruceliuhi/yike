@@ -72,11 +72,16 @@ function FollowupWorkspace() {
     : routeReplyId;
   const selectReply = (id?: string) => setReplySelection({ intent, id });
   const replyOpportunity = resolvedReply?.id === replyId ? resolvedReply : undefined;
+  const handledIntent = useRef("");
   useEffect(() => {
+    handledIntent.current = "";
     setReplySelection({ intent, id: routeReplyId });
     setTab(followupTab(route.query.get("tab")));
+    setOwner("");
+    setDate("");
+    setSelected("");
+    setFocused("");
   }, [intent]);
-  const handledIntent = useRef("");
   const [focused, setFocused] = useState("");
   const resource = useResource(async () => {
     if (!session.authenticated)
@@ -148,12 +153,12 @@ function FollowupWorkspace() {
         (r) => r.opportunityId === target && !r.sample && target !== "sample",
       )
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
-    setOwner("");
-    setDate("");
     setSelected(latest?.id || "");
     setFocused(latest?.id || "");
   }, [intent, resource.data, resource.loading, resource.error]);
   const localSelection = () => {
+    // A late list must not replace a choice made after entering this route.
+    handledIntent.current = intent;
     setFocused("");
   };
   const visible = records
@@ -413,7 +418,11 @@ function FollowupWorkspace() {
           choicesLoading={opportunities.loading}
           choicesError={opportunities.error}
           onReloadChoices={opportunities.reload}
-          onSelect={selectReply}
+          onSelect={(id) => {
+            localSelection();
+            setSelected("");
+            selectReply(id);
+          }}
           onResolved={setResolvedReply}
           records={records}
           recordsLoading={resource.loading}
