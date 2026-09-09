@@ -52,9 +52,9 @@
 - `public_url`：1–2048 字符，http/https 绝对链接；拒绝 userinfo、控制字符、反斜杠、私网/特殊用途 IP、localhost/本地域名和非默认端口。非 PUBLIC_WEB 还须匹配其平台域名或子域，不接受 lookalike 后缀；不请求网络，不宣称通过 DNS/SSRF 验收。
 - query/fragment 中拒绝命中 token/cookie/session/authorization/signature/password/secret 的参数名（忽略大小写，解析 URL 编码）；片段只接受 1–128 字符的字母数字、`_ . : -`，供无凭据的评论锚点使用。不静默去掉敏感参数后声称原链接仍可重开。
 - `title`：可空，非空时 1–512 字符；`author_public_id`：可空，非空时 1–256 字符，匿名买方不因此排除。
-- `body`：非纯空白原文，1–20000 字符；保持原字节，不 trim 或改写。拒绝 NUL 及除制表/换行/回车外的控制字符。
+- `body`：非纯空白原文，1–20000 字符；保持 JSON 解码后的原 Unicode 文本，不 trim 或改写，不声称等于来源 HTTP 原始字节。拒绝 NUL 及除制表/换行/回车外的控制字符。
 - `published_at`：可空；`observed_at`：必填。均采用精确 `YYYY-MM-DDTHH:MM:SSZ`，必须是真实日历 UTC 时间且不晚于调用方传入的可信 `now`；发布时间不得晚于观察时间。未知发布时间保留 null，不用采集时间或父帖时间填充。不在原始入站层套 60 天商机过滤，筛选时由 Skill/复核判断时效。
-- `parent`：可空；仅 COMMENT 可有。字段为 `external_comment_id`、`body`、可空 `author_public_id/published_at/public_url`，边界同上。父评论 ID 不得等于自身 ID；父发布时间若已知，不晚于已知子评论时间或观察时间。父上下文的时间不能刷新子评论时效。
+- `parent`：可空；仅 COMMENT 可有。必填字段为 `external_comment_id`；`body/author_public_id/published_at/public_url` 可空，非空时边界同上。只知道父 ID 时保留关系和 null 正文，不丢弃子评论，也不编造父正文。父评论 ID 不得等于自身 ID；父发布时间若已知，不晚于已知子评论时间或观察时间。父上下文的时间不能刷新子评论时效。
 - `collector_version`、`normalizer_version`：opaque ID；`query`：可空，非空时 1–500 字符，保留观察来源；不用查询内容作为同一公开对象的身份。
 
 所有对象均拒绝未知字段。原文、父上下文是非受信业务内容，不能成为工具指令；校验器不判断买方真假/预算，不承诺能识别原文内所有秘密，调用方仍负责只上传授权公开内容且不记录 payload。
@@ -63,7 +63,7 @@
 
 纯函数采用 UTF-8 的 canonical JSON（sort_keys、ensure_ascii=False、紧凑分隔符）再 SHA-256，禁止依赖 Python hash 或简单冒号拼接：
 
-- `source_identity(record, platform)`：platform、kind、来源 ID（空时 public_url）及评论 ID。平台或来源不同不合并；匿名作者不能按昵称跨平台合并。
+- `source_identity(record, platform)`：platform、kind、来源 ID（空时 public_url）及评论 ID；PUBLIC_WEB 还必须始终加入规范 origin（scheme 小写、hostname 经 IDNA 转 ASCII 并小写、默认端口省略）。不同网站可以有相同站内 ID，不能因此合并；平台或来源不同不合并，匿名作者不能按昵称跨平台合并。
 - `content_version(record)`：公开 URL、title、author、body、published_at、parent 的结构化快照。不包含 observed_at、query、collector/normalizer_version。重复观察不改版本；正文、作者、时间、定位链接或父上下文变化产生新版本。
 - `batch_fingerprint(batch)`：全部校验后的上传字段，去掉 request_id。相同语义字典键顺序不影响指纹；record 顺序、观察时间、执行/画像/策略版本不同必须改变指纹。同 request_id 重试应使用原上传内容；新观察使用新 request_id。
 - 单批内同一 source_identity 重复且 content_version 相同：`DUPLICATE_RECORD`；不同版本：`SOURCE_VERSION_CONFLICT`。两者都整批拒绝，不挑一条留下。跨批内容变化允许形成新版本，由02B持久化，不沿用旧不可变 Signal 的全局拒绝规则。
@@ -73,8 +73,10 @@
 
 公开校验入口 `validate_candidate_batch(payload, *, now)` 返回冻结的 CandidateBatch 或 `CandidateContractError`。外部可见错误只有稳定码：`INVALID_BATCH`、`INVALID_RECORD`、`INVALID_EXECUTION_CLAIM`、`INVALID_SOURCE_URL`、`INVALID_SOURCE_TIME`、`DUPLICATE_RECORD`、`SOURCE_VERSION_CONFLICT`。异常文本/表示不包含原文、URL、字段值、底层 Pydantic 输入或 traceback 中的 chained validation error。调用方禁止打印上传对象。
 
-未来02B为已有 request_id 查询保存的结果；缺少记录/响应超时不是 FAILED。与01C/03的执行授权、原请求查询协议交接后再提供 HTTP 上传，当前不新增可对外访问的路由、IPC 白名单或 capability 开关。
+未来02B为已有 request_id 查询保存的结果，查询必须使用原租户＋原 platform_run_id＋request_id 复合键，不能换成当前运行项；已成功请求的合法产品用户仍可只读查询，不因执行租约后来失效而把原成功改成 UNKNOWN。缺少记录/响应超时不是 FAILED。与01C/03的执行授权、原请求查询协议交接后再提供 HTTP 上传，当前不新增可对外访问的路由、IPC 白名单或 capability 开关。
 
-R3 Candidate 是展示/审核对象，不是采集上传体。id/revision/sourceVersionId/status/assessment/opportunityId/reviewedBy 等由服务端建立，设备不能填入。本卡不改 R3 页面或夺取 Win 的适配器代码。
+R3 Candidate 是展示/审核对象，不是采集上传体。id/revision/sourceVersionId/status/assessment/opportunityId/reviewedBy 等由服务端建立，设备不能填入。展示适配需明确发布时间 null→未知，不能填当前时间、父时间或伪造 ISO 时间；现有 string 字段由后续展示契约协调。本卡不改 R3 页面或夺取 Win 的适配器代码。
+
+URL 安全入站拒绝不证明来源不存在或没有业务需求。无法安全保留回链的对象由连接器记作待补证，不计成无新增；拒绝参数名按 URL query 解析后的名称作上述敏感子串匹配，不扫普通参数值来臆测业务含义。安全检测不是凭据发现的完全保证。
 
 接收方使用 `uv run --frozen pytest -q tests/test_candidate_contract.py tests/test_source_capabilities.py` 复现，并在任务书记录精确 SHA 与 ACK；只有 DTO/纯函数通过时不得写“已上传、已鉴权、已采集、已连接、已复核”。

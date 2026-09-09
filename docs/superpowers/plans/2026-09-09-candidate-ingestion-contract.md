@@ -79,7 +79,7 @@ def _digest(value: object) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 ```
 
-哈希对象选择、重复和冲突规则逐项按契约第4节实现。URL校验只分析形状，不做DNS/HTTP调用。公开入口捕获内部校验错误并 `raise CandidateContractError(code) from None`，不使用 `str(validation_error)` 或在公开异常中保存原 payload。处理批内冲突不写数据库。
+哈希对象选择、重复和冲突规则逐项按契约第4节实现。PUBLIC_WEB 的来源身份始终含规范 origin，测试不同站点同一站内 ID 不碰撞。URL校验只分析形状，不做DNS/HTTP调用。公开入口捕获内部校验错误并 `raise CandidateContractError(code) from None`，不使用 `str(validation_error)` 或在公开异常中保存原 payload。处理批内冲突不写数据库。
 
 - [ ] **Step 3：补齐并运行反例 GREEN。** 精确覆盖五组平台ID；默认六能力不能VERIFIED、缺证据的非初值声明拒绝；匿名web连接字段全空通过、混合/错误模式拒绝；bool/零/负/浮点/字符串代次拒绝；顶层与嵌套未知字段/APPROVED/tenant/reviewer/token拒绝；主帖/评论/网页的ID关系；未知时间保留null、过期原文可入站、未来/错日历/非UTC/父子时间冲突拒绝；正文空白/NUL/上限、匿名作者；token/userinfo/恶意域名/端口/私网地址/注入字符URL拒绝、B站reply片段通过；来源跨平台不合并；观察/query不改内容版本，正文/父上下文更新改版本；批内重复/不同版本分别拒绝；指纹对键顺序稳定且绑定执行/策略/画像/观察内容；相同request新内容CONFLICT；验证返回冻结嵌套对象、不修改原payload；错误str/repr不含提交的敏感样例值。不使用实际客户数据。
 
