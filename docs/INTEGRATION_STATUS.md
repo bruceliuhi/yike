@@ -158,6 +158,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 搜索建议套件独立 PostgreSQL 验证：按 `tests/test_search_suggestions_postgres.py` 自有初始化流程使用全新 `win_search_suggestion` 数据库，由套件创建 `suggestion_app` 受限角色，**63 passed**。覆盖画像版本绑定、额度、幂等、失败持久化、并发、RLS、最小授权和 Node/HTTP 路径；仍不代表真实模型服务或生产部署已接通。
 
+2026-09-10 执行运行时独立 PostgreSQL 验证：使用一次性数据库并由套件创建动态 `NOSUPERUSER/NOBYPASSRLS` 执行角色，运行 `tests/test_execution_runtime_postgres.py` 与 `tests/test_execution_http_postgres.py`，**44 passed**。覆盖任务启动、逐平台租约、取消/停止确认、原始回执、服务重建、签名核验和 HTTP→受限 PG 往返；仍不代表真实来源 worker、平台执行或生产部署已接通。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
