@@ -90,11 +90,13 @@ def test_pilot_pages_set_baseline_security_headers():
 
     assert response.headers["content-security-policy"] == (
         "default-src 'self'; style-src 'self'; script-src 'self'; "
-        "base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+        "base-uri 'none'; object-src 'none'; frame-src 'none'; "
+        "frame-ancestors 'none'; form-action 'self'"
     )
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["x-frame-options"] == "DENY"
     assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+    assert response.headers["cache-control"] == "no-store"
 
 
 def test_unhandled_errors_keep_baseline_security_headers():

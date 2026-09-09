@@ -13,7 +13,8 @@ _MAX_PROFILE_DESCRIPTION = 8_000
 _SECURITY_HEADERS = {
     "content-security-policy": (
         "default-src 'self'; style-src 'self'; script-src 'self'; "
-        "base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+        "base-uri 'none'; object-src 'none'; frame-src 'none'; "
+        "frame-ancestors 'none'; form-action 'self'"
     ),
     "x-content-type-options": "nosniff",
     "x-frame-options": "DENY",
@@ -28,7 +29,7 @@ def _set_security_headers(response) -> None:
 
 
 def _page(title: str, body: str) -> HTMLResponse:
-    return HTMLResponse(
+    response = HTMLResponse(
         "<!doctype html><html lang='zh-CN'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
         f"<title>{escape(title)}</title><link rel='stylesheet' href='/static/styles.css'>"
@@ -38,6 +39,8 @@ def _page(title: str, body: str) -> HTMLResponse:
         "<a href='/followups'>跟进反馈</a></nav></header><main id='main-content'>"
         f"{body}</main></div></body></html>"
     )
+    response.headers["cache-control"] = "no-store"
+    return response
 
 
 def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
