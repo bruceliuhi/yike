@@ -1,0 +1,26 @@
+.task-profile-status {
+  margin: 12px 0;
+}
+.task-profile-status .notice {
+  align-items: center;
+}
+.task-profile-status p {
+  margin: 0;
+}
+.task-profile-status .field-hint {
+  margin-top: 4px;
+}
+.task-profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+@media (max-width: 1100px) {
+  .task-profile-status .notice {
+    flex-wrap: wrap;
+  }
+  .task-profile-status .notice-action {
+    margin-left: 26px;
+  }
+}

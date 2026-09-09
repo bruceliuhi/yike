@@ -446,7 +446,10 @@ describe("task wizard service boundary", () => {
   });
 
   it("retains all steps and requires a new confirmation after editing the final task fingerprint", async () => {
-    seed({ mode: "monitor" });
+    // This fixture exercises the existing unversioned startTask adapter.
+    const legacySchedule = { ...newTaskDraft("monitor").schedule };
+    delete legacySchedule.policyVersion;
+    seed({ mode: "monitor", schedule: legacySchedule });
     context.route = parseRoute("#/tasks/new?mode=monitor");
     const view = render(<TaskWizardPage />);
     await screen.findByText("已确认版本 v1");

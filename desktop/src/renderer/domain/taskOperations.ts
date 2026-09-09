@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { TaskAction, TaskDraft, TaskRun } from "./models";
 import { taskFingerprint } from "./task";
 import { usageReservationSchema, type UsageReservation } from "./researchUsage";
+import { scheduleSchema } from "./schedule";
 
 const id = z.string().regex(/^[A-Za-z0-9_-][A-Za-z0-9_.:-]{0,127}$/);
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
@@ -44,16 +45,7 @@ export const taskRunSchema = z.object({
   keywords: z.array(z.string().max(80)).max(20).optional(),
   regions: z.string().max(1000).optional(),
   failureReason: z.string().max(8000).optional(),
-  schedule: z
-    .object({
-      kind: z.enum(["daily", "interval"]),
-      times: z.array(z.string()),
-      interval: z.number(),
-      start: z.string(),
-      end: z.string(),
-      timezone: z.string(),
-    })
-    .optional(),
+  schedule: scheduleSchema.optional(),
   platformStages: z
     .array(
       z.object({

@@ -1441,6 +1441,10 @@ tbody tr:hover {
 .connection-table td {
   height: 78px;
 }
+.connection-table .connection-account {
+  max-width: 300px;
+  overflow-wrap: anywhere;
+}
 .platform-choice-control {
   display: flex;
   align-items: center;

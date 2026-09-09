@@ -19,6 +19,8 @@ import { inDateRange, pageItems } from "./tasks/listState";
 import { TaskDraftRow } from "./tasks/TaskDraftRow";
 import { useTaskTemplates } from "./tasks/useTaskTemplates";
 import { TaskEvents } from "./tasks/TaskEvents";
+import { TaskProfileStatus } from "./tasks/TaskProfileStatus";
+import { schedulePolicyDescription, scheduleWindowLabel } from "../domain/schedule";
 import { TaskPagination } from "./tasks/TaskPagination";
 import { SearchCoverage } from "./tasks/SearchCoverage";
 import { CoveragePlanDrawer } from "./tasks/CoveragePlanDrawer";
@@ -270,6 +272,7 @@ function MonitorDetail({
           <span>{run.failureReason}</span>
         </div>
       )}
+      <TaskProfileStatus run={run} />
       <Tabs
         active={tab}
         onChange={setTab}
@@ -493,17 +496,19 @@ function MonitorDetail({
               <div>
                 <dt>执行窗口</dt>
                 <dd>
-                  {schedule
-                    ? schedule.kind === "interval"
-                      ? `${schedule.start}–${schedule.end}`
-                      : "按每日设定时间"
-                    : "待读取"}
+                  {schedule ? scheduleWindowLabel(schedule) : "待读取"}
                 </dd>
               </div>
               <div>
                 <dt>时区</dt>
                 <dd>{schedule?.timezone || "待读取"}</dd>
               </div>
+              {schedule && (
+                <div>
+                  <dt>日程规则</dt>
+                  <dd>{schedulePolicyDescription(schedule).map((line) => <p key={line}>{line}</p>)}</dd>
+                </div>
+              )}
               <div>
                 <dt>最近运行</dt>
                 <dd>{formatDate(run.lastRunAt || "")}</dd>

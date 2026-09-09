@@ -1,6 +1,7 @@
 param([string]$NodeExecutable, [string]$UnsupportedNodeExecutable)
 
 $ErrorActionPreference = 'Stop'
+$candidateCommit = '0123456789abcdef0123456789abcdef01234567'
 $desktopSource = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $powershellExecutable = (Get-Process -Id $PID).Path
 $temporaryParent = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\')
@@ -46,7 +47,7 @@ function Assert-BootstrapFailure([string]$Name, [string]$SearchPath, [string]$Fa
   Copy-Item -LiteralPath (Join-Path $desktopSource 'scripts/build-windows.ps1') -Destination $failedScripts
   Copy-Item -LiteralPath (Join-Path $desktopSource 'docs/WINDOWS_ACCEPTANCE_TEMPLATE.md') -Destination $failedDocs
   Copy-Item -LiteralPath $evidenceScript -Destination $failedScripts
-  $result = Invoke-FixturePowerShell ('-File "' + (Join-Path $failedScripts 'build-windows.ps1') + '"') $SearchPath
+  $result = Invoke-FixturePowerShell ('-File "' + (Join-Path $failedScripts 'build-windows.ps1') + '" -ExpectedCommit ' + $candidateCommit) $SearchPath
   if ($result.ExitCode -ne 1 -or $result.Output.Contains('BOOTSTRAP_FIXTURE ') -or $result.Error) {
     throw ('{0}: Expected bootstrap exit 1 without downstream invocation or stderr; got exit {1}. {2} {3}' -f $Name, $result.ExitCode, $result.Output.Trim(), $result.Error.Trim())
   }
@@ -96,6 +97,12 @@ function Assert-BootstrapFailure([string]$Name, [string]$SearchPath, [string]$Fa
 }
 
 try {
+  # Parse the actual installer identity entry using Windows PowerShell's parser.
+  # This is syntax coverage only, not a fabricated running installed process.
+  $parseTokens = $null
+  $parseErrors = $null
+  $null = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $desktopSource 'scripts/verify-windows-install.ps1'), [ref]$parseTokens, [ref]$parseErrors)
+  if ($parseErrors.Count -ne 0) { throw 'Installed identity script has PowerShell syntax errors.' }
   # Use a real supported Node binary. Get-Command in the child is deliberately not mocked.
   $candidates = if ($NodeExecutable) { @($NodeExecutable) } else {
     @(Get-Command node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)
@@ -163,7 +170,7 @@ process.exit(Number(process.env.YIKE_BOOTSTRAP_FIXTURE_EXIT));
       throw 'Fixture must expose exactly two real Node applications in the requested PATH order.'
     }
 
-    $result = Invoke-FixturePowerShell ('-File "' + $bootstrapScript + '"') $searchPath $scenario.ExitCode
+    $result = Invoke-FixturePowerShell ('-File "' + $bootstrapScript + '" -ExpectedCommit ' + $candidateCommit) $searchPath $scenario.ExitCode
     if ($result.ExitCode -ne $scenario.ExitCode) {
       throw ('Expected downstream exit code {0}, got {1}. {2} {3}' -f $scenario.ExitCode, $result.ExitCode, $result.Output.Trim(), $result.Error.Trim())
     }
@@ -173,7 +180,7 @@ process.exit(Number(process.env.YIKE_BOOTSTRAP_FIXTURE_EXIT));
     }
     $invocation = $lines[0].Substring('BOOTSTRAP_FIXTURE '.Length) | ConvertFrom-Json
     if ($invocation.executable -ne $expectedNode) { throw 'Bootstrap did not invoke the first Node application on PATH.' }
-    if ($invocation.arguments.Count -ne 1 -or $invocation.arguments[0] -ne $evidenceScript) {
+    if ($invocation.arguments.Count -ne 3 -or $invocation.arguments[0] -ne $evidenceScript -or $invocation.arguments[1] -ne '--expected-commit' -or $invocation.arguments[2] -ne $candidateCommit) {
       throw 'Bootstrap did not preserve the script path containing spaces as one argument.'
     }
     if ($invocation.cwd -ne $desktopFixture) { throw 'Bootstrap did not use its desktop directory.' }

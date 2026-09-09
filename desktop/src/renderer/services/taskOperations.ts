@@ -10,6 +10,8 @@ import { ServiceError } from "./contracts";
 
 /** Optional authenticated execution adapter. All queries are server tenant scoped. */
 export interface TaskOperationsService {
+  /** v1 honors window, DST and missed-run policy in schedule.policyVersion. */
+  scheduleContractVersion?: 1;
   /** v1 atomically reserves the quoted cap with the task; start/reconcile are idempotent. */
   researchContractVersion?: 1;
   start(draft: TaskDraft, binding: TaskStartBinding, usage?: import("../domain/researchUsage").UsageQuote): Promise<TaskStartReceipt>;

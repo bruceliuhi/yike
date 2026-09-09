@@ -63,6 +63,8 @@ export function checkedDisconnectConnection(
   return connection;
 }
 export function disconnectTarget(value: PlatformConnection): DisconnectTarget {
+  if (value.registration)
+    throw new Error("此账号需要按设备和连接版本核验，不能使用仅按平台断开的旧操作。");
   if (value.status !== "CONNECTED" || !value.accountId?.trim())
     throw new Error("当前账号身份或连接状态不完整，请先检查连接。");
   const [id, accountId] = binding.parse([

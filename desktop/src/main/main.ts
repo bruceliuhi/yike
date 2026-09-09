@@ -79,7 +79,9 @@ export function createMainWindow(): BrowserWindow {
   window.webContents.on('will-prevent-unload', event => {
     const discard = dialog.showMessageBoxSync(window, {
       type: 'question', buttons: ['继续编辑', '放弃更改并关闭'], defaultId: 0, cancelId: 0,
-      title: '尚有未提交的更改', message: '是否放弃当前未提交的更改并关闭窗口？', noLink: true
+      title: '尚有未提交的更改',
+      message: '存在未提交的更改或本机会话草稿。关闭窗口会清除会话草稿，是否放弃并关闭？',
+      noLink: true
     }) === 1;
     if (discard) event.preventDefault(); // Electron uses preventDefault here to permit the unload.
     else quitting = false;

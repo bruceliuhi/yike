@@ -1,0 +1,4 @@
+(node:31791) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.
+(Use `Electron --trace-deprecation ...` to show where the warning was created)
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+PASS packaged main/preload/renderer: sandbox, custom protocol, application render, fixed IPC, unconfigured service, rejected native primitives, CSV/backup export actual temporary-file writes and cancellation, cancelled quit then normal confirmed quit.

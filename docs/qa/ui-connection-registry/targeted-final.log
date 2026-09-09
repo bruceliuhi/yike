@@ -1,0 +1,13 @@
+
+> yike-ai-desktop@0.2.0 test
+> vitest run tests/ui/connection-registry-client.test.ts tests/ui/connection-registry.test.tsx tests/ui/connections.test.tsx tests/ui/connection-disconnect.test.tsx tests/servicePolicy.test.ts
+
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+
+ Test Files  5 passed (5)
+      Tests  43 passed (43)
+   Start at  00:40:34
+   Duration  1.76s (transform 225ms, setup 0ms, import 2.77s, tests 1.14s, environment 1.17s)
+

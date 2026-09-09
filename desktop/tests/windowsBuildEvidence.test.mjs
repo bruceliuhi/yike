@@ -68,7 +68,10 @@ describe('Windows build evidence', () => {
     const manual = readFileSync(path.join(evidence.directory, 'WINDOWS_ACCEPTANCE.md'), 'utf8');
     expect(manual).toContain(report.runId);
     expect(manual).not.toContain('{{RUN_ID}}');
-    expect(manual.match(/\| UNTESTED \|/g)).toHaveLength(11);
+    expect(manual.match(/\| UNTESTED \|/g)).toHaveLength(24);
+    expect(manual).toContain('960×600');
+    expect(manual).toContain('连续拖动并恢复');
+    expect(manual).toContain('windows-installed-*.json');
   });
 
   it.skipIf(!windowsX64Host)('rejects a real Node below the minimum before dependencies can run', context => {
@@ -156,8 +159,8 @@ describe('Windows build evidence', () => {
   it('keeps human checks UNTESTED even when every automatic stage succeeds', () => {
     const evidence = createEvidence(fixture());
     for (const stage of evidence.report.stages) complete(evidence, stage.id);
-    expect(finishEvidence(evidence)).toBe(0);
-    expect(saved(evidence)).toMatchObject({outcome: 'BUILD_SUCCEEDED', failureCode: null, manualAcceptance: 'UNTESTED'});
+    expect(finishEvidence(evidence)).toBe(1);
+    expect(saved(evidence)).toMatchObject({outcome: 'BUILD_FAILED', failureCode: 'SOURCE_NOT_VERIFIED', manualAcceptance: 'UNTESTED'});
     expect(saved(evidence).stages.every(stage => stage.exitCode === 0)).toBe(true);
     expect(readFileSync(path.join(evidence.directory, 'WINDOWS_ACCEPTANCE.md'), 'utf8')).toContain('整体人工结论：**UNTESTED**');
   });

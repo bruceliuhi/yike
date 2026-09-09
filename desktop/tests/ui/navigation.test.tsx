@@ -218,6 +218,22 @@ describe("应用路由与会话边界", () => {
     view.rerender(<App />);
     expect(window.scrollY).toBe(380);
   });
+  it("监控各步骤保持导航归属，切为单次确认后标题与侧栏同步切换", async () => {
+    context.route = parseRoute("#/tasks/new?mode=monitor");
+    const view = render(<App />);
+    await screen.findByText("测试任务配置");
+    for (const step of ["", "connect", "confirm"]) {
+      context = {...context, route: parseRoute("#/tasks/new?mode=monitor" + (step ? "&step=" + step : ""))};
+      view.rerender(<App />);
+      expect(screen.getByRole("button", {name: "监控任务"}).getAttribute("aria-current")).toBe("page");
+      expect(screen.getByRole("button", {name: "线索采集"}).hasAttribute("aria-current")).toBe(false);
+      expect(document.title).toMatch(/^监控任务/);
+    }
+    context = {...context, route: parseRoute("#/tasks/new?step=confirm")};
+    view.rerender(<App />);
+    expect(screen.getByRole("button", {name: "线索采集"}).getAttribute("aria-current")).toBe("page");
+    expect(document.title).toMatch(/^线索采集/);
+  });
   it("用户主动滚动后内容变化不会强行拉回", async () => {
     let resized!: () => void;
     vi.stubGlobal(

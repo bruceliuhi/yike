@@ -290,7 +290,8 @@ describe("monitor detail from execution service data", () => {
     expect(screen.getByText("测试展台服务画像")).toBeTruthy();
     expect(screen.getByText("v7")).toBeTruthy();
     expect(screen.getByText("每 3 小时")).toBeTruthy();
-    expect(screen.getByText("09:00–18:00")).toBeTruthy();
+    expect(screen.getByText("09:00–18:00（历史规则待核验）")).toBeTruthy();
+    expect(screen.getByText(/历史日程未声明/)).toBeTruthy();
     expect(screen.getByText("下次计划").nextElementSibling?.textContent).toBe(
       "—",
     );

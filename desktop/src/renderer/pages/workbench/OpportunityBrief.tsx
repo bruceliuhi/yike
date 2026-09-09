@@ -48,6 +48,7 @@ const connectionLabels = {
   EXPIRED: "登录失效",
   LIMITED: "访问受限",
   UNAVAILABLE: "尚未接通",
+  UNVERIFIED: "待核验",
 };
 
 function BriefRows({

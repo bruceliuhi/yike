@@ -1,0 +1,13 @@
+
+> yike-ai-desktop@0.2.0 typecheck
+> tsc --noEmit
+
+tests/ui/navigation.test.tsx(228,56): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.
+tests/ui/navigation.test.tsx(229,56): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.
+tests/ui/navigation.test.tsx(234,54): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.

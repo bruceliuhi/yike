@@ -1,0 +1,124 @@
+- note: TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
+- generic "TEST 场景"
+- link "跳到主要内容":
+  - /url: "#main-content"
+- complementary:
+  - button "意客AI商机工作台":
+    - strong: 意客AI
+    - generic: 商机工作空间
+  - navigation "主导航":
+    - button "商机工作台":
+      - generic: 商机工作台
+    - generic: 发现商机
+    - button "业务画像":
+      - generic: 业务画像
+    - button "线索采集":
+      - generic: 线索采集
+    - button "监控任务":
+      - generic: 监控任务
+    - generic: 推进商机
+    - button "商机库":
+      - generic: 商机库
+    - button "触达中心":
+      - generic: 触达中心
+    - button "跟进记录":
+      - generic: 跟进记录
+  - button "账号与授权":
+    - generic: 账号与授权
+  - button "客户工作空间":
+    - generic: 客户工作空间
+- banner:
+  - button "收起导航":
+  - button "返回上级":
+  - generic: 监控任务 / 确认任务
+  - generic: V0.2
+- main:
+  - heading "确认启动任务" [active] [level=1]
+  - generic: 本机草稿 · 未启动
+  - generic "任务步骤":
+    - generic: "1"
+    - text: 任务条件
+    - generic: "2"
+    - text: 平台连接
+    - generic: "3"
+    - text: 确认启动
+  - heading "配置摘要" [level=2]
+  - button "修改配置"
+  - term: 任务名称
+  - definition: TEST 展台需求监控
+  - term: 业务画像
+  - definition: TEST 展台设计搭建
+  - term: 画像版本
+  - definition: v1
+  - term: 执行设备
+  - definition: 本机 · 待绑定或检查
+  - term: 搜索关键词
+  - definition: 找展台搭建、求展台设计、展台搭建报价、展位设计预算、展会布展需求、展台搭建招标、展位施工询价、展台搭建推荐
+  - term: 来源范围
+  - definition: 关键词搜索
+  - term: 运行方式
+  - definition: 持续监控
+  - term: 排除词
+  - definition: 招聘、求职、培训、招生
+  - term: 条件来源
+  - definition: AI 建议 · 可返回修改
+  - term: 执行频率
+  - definition: 每日 09:00、15:00
+  - term: 执行窗口
+  - definition: 按每日设定时间
+  - term: 时区
+  - definition: Asia/Shanghai
+  - term: 日程规则
+  - definition:
+    - paragraph: 历史日程未声明跨日、夏令时与离线规则；继续沿用原配置，需由原执行服务核验。
+  - heading "平台与执行账号" [level=2]
+  - table:
+    - rowgroup:
+      - row "平台 执行账号 连接状态 范围":
+        - columnheader "平台"
+        - columnheader "执行账号"
+        - columnheader "连接状态"
+        - columnheader "范围"
+    - rowgroup:
+      - row "小红书 — 未连接 关键词搜索":
+        - cell "小红书":
+          - generic: 小红书
+        - cell "—"
+        - cell "未连接":
+          - generic: 未连接
+        - cell "关键词搜索"
+      - row "抖音 — 未连接 关键词搜索":
+        - cell "抖音":
+          - generic: 抖音
+        - cell "—"
+        - cell "未连接":
+          - generic: 未连接
+        - cell "关键词搜索"
+      - row "B站 — 未连接 关键词搜索":
+        - cell "B站":
+          - generic: B站
+        - cell "—"
+        - cell "未连接":
+          - generic: 未连接
+        - cell "关键词搜索"
+      - row "知乎 — 未连接 关键词搜索":
+        - cell "知乎":
+          - generic: 知乎
+        - cell "—"
+        - cell "未连接":
+          - generic: 未连接
+        - cell "关键词搜索"
+      - row "公开网站 无需账号 范围待确认 关键词搜索":
+        - cell "公开网站":
+          - generic: 公开网站
+        - cell "无需账号"
+        - cell "范围待确认":
+          - generic: 范围待确认
+        - cell "关键词搜索"
+  - generic "启动前还需完成（6）：检查平台连接与执行条件"
+  - checkbox "我已核对以上画像版本、搜索条件、账号与运行设置"
+  - text: 我已核对以上画像版本、搜索条件、账号与运行设置
+  - button "返回修改"
+  - button "保存草稿"
+  - button "确认并启动" [disabled]
+  - paragraph: 本机会话草稿保存于 2026/9/9 09:00:00；关闭客户端或退出登录会清除。
