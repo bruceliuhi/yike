@@ -1,8 +1,14 @@
 from pathlib import Path
+import re
 
 import pytest
 
-from pilot.identity import IdentityValidationError, validate_connection_input, validate_execution_event
+from pilot.identity import (
+    SUPPORTED_EVENT_TYPES,
+    IdentityValidationError,
+    validate_connection_input,
+    validate_execution_event,
+)
 from pilot.store import PilotStore
 from pilot.ui_api import register_ui_api
 from pilot.db import PilotDatabase
@@ -55,6 +61,24 @@ def test_execution_event_requires_positive_generation_and_safe_event_type():
     with pytest.raises(IdentityValidationError):
         validate_execution_event("COLLECTION_PROGRESS", 1, {"token": "never-store"})
     assert validate_execution_event("COLLECTION_STARTED", 2, {})["execution_generation"] == 2
+
+
+def test_documented_execution_event_types_match_validator():
+    contract = (
+        Path(__file__).parents[1] / "docs" / "contracts" / "V02_IDENTITY_REGISTRY.md"
+    ).read_text(encoding="utf-8")
+    events_section = contract.split("## 报告事件\n", 1)[1].split("\n## ", 1)[0]
+    documented_events = {
+        event_type
+        for group in re.findall(r"^- ([A-Z_]+(?:/[A-Z_]+)*) ", events_section, re.MULTILINE)
+        for event_type in group.split("/")
+    }
+    assert documented_events == SUPPORTED_EVENT_TYPES
+    for event_type in documented_events:
+        assert validate_execution_event(event_type, 1, {})["event_type"] == event_type
+    for event_type in ("STARTED", "CANCELLED", "REGISTER"):
+        with pytest.raises(IdentityValidationError, match="unsupported event_type"):
+            validate_execution_event(event_type, 1, {})
 
 
 @pytest.mark.parametrize("payload", [

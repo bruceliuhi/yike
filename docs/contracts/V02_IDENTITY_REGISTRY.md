@@ -23,7 +23,7 @@
 
 ## 报告事件
 
-- STARTED/CANCELLED/CONNECTION_EXPIRED/CONNECTION_REVOKED 的 payload 只能为空对象。
+- COLLECTION_STARTED/COLLECTION_CANCELLED/CONNECTION_EXPIRED/CONNECTION_REVOKED 的 payload 只能为空对象。
 - COLLECTION_PROGRESS/COLLECTION_SUCCEEDED 仅接收 `raw_count`、`unique_count`，为 0～2147483647 的整数，拒绝布尔、字符串、嵌套对象和自由文本。
 - COLLECTION_FAILED 仅接收固定 `error_code` 枚举，见 `pilot/identity.py`；禁止错误原文、异常对象或额外字段。
 - 事件要求 ACTIVE 设备与已核验的 CONNECTED 连接，当前注册接口不能赋予此状态。提供 task_id 时，服务端及数据库均检查同租户任务存在。
