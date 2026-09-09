@@ -1,0 +1,14 @@
+Design R4 page P06 of 意客AI as a polished desktop screenshot 1484x1060 using attached actual P06 as strict shell/style reference. Preserve blue Y logo, 208px pale sidebar,60px header, exact existing navigation with 线索采集 active, clean Feishu/Alipay white-blue style, #1677FF #172B4D #52637A #E8EDF3, crisp Simplified Chinese 24px title/16 section/14 body. Remove TEST debugging. Topright R4 · 设计预览.
+Title 新建获客任务, subtitle 配置示例 · 尚未启动. Existing stepper 1任务条件(active)→2平台连接→3确认启动. Main left form 65%, right research budget panel35%, thin divider, no nested decorative cards.
+Left:
+基本信息:任务名称 field 展台需求发现;业务画像 dropdown 展台设计搭建 · 示例画像
+需求类型 multiselect bluechecked 明确询价 / 方案比较 / 更换供应商; unchecked 业务变化. Concise helper 业务变化进入观察池，需补证后再判断。
+搜索条件 with small AI建议 label and 重新生成 link. Editablechips 找展台搭建、展台搭建报价、展位设计预算、展台服务商比较. Exclusionchips 招聘、培训、招生, +添加. Helper 基于画像建议，可直接修改。
+采集范围 with recognizable original officiallogos 小红书、抖音、B站、知乎、公开网站, checkbox examplesselected but side status 待检查 (notconnected). Runmode radio 单次采集selected /持续监控. Show compact 可在监控任务中设置执行时段.
+Right panel title 研究预算 with badge 配置示例. Inputs 单次独立来源上限 30; 单次研究时长上限 10 分钟; 单次模型调用上限 20. Clearly limits/settings, not observedmetrics.
+补证顺序: 1 原文与发布时间 →2 需求依据与目标匹配 →3 联系上下文. simple vertical numbered list, no illustration.
+停止条件 with actualcheckboxes: 任一上限到达即停止 checked; 无可靠原文时停止补证 checked. One-line helper 未完成范围会保留在运行结果中。
+费用 row 费用估算 暂不可计量 (never0). concise 注：调用次数不等于实际费用。
+Atbottom sticky clean action bar 保存草稿 secondary; 下一步：连接平台 primary; thin mutedtext 本步仅保存配置，最终确认后才执行。
+Footer of rightpanel link 查看启动确认内容 with concise line 平台、需求类型、预算及停止条件将再次核对。
+No invented results, accountstatuses, revenue, success counts. Use well-proportioned aligned inputs, restrained lines, ample purposeful whitespace. Fit all controls into image, no clipped footer.
