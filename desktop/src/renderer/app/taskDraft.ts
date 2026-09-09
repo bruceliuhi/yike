@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { useLocalDraft } from "./hooks";
 import { newTaskDraft, type TaskDraft } from "../domain/models";
+import { defaultResearchSettings, researchDraftSchema } from "../domain/researchUsage";
 const term = z.object({
   id: z.string(),
   value: z.string(),
@@ -8,6 +9,7 @@ const term = z.object({
   edited: z.boolean(),
 });
 export const taskDraftSchema = z.object({
+  research: researchDraftSchema.optional(),
   templateSourceDraftIds: z
     .array(z.string().min(1).max(512).refine(id => id.trim() === id))
     .max(50)
@@ -40,16 +42,20 @@ export const taskDraftSchema = z.object({
 export function useTaskDraft(
   userId?: string,
   mode: "once" | "monitor" = "once",
+  scope?: { id: string; version: number },
 ) {
   return useLocalDraft<TaskDraft>(
-    "task." + (userId || "guest"),
-    () => newTaskDraft(mode),
+    "task." + taskDraftOwner(userId, scope),
+    () => ({ ...newTaskDraft(mode), research: defaultResearchSettings() }),
     (value) => taskDraftSchema.safeParse(value).success,
   );
 }
-export function useTaskLibrary(userId?: string) {
+export function taskDraftOwner(userId?: string, scope?: { id: string; version: number }) {
+  return scope ? JSON.stringify([userId || "guest", scope.id, scope.version]) : userId || "guest";
+}
+export function useTaskLibrary(userId?: string, scope?: { id: string; version: number }) {
   return useLocalDraft<TaskDraft[]>(
-    "task-library." + (userId || "guest"),
+    "task-library." + taskDraftOwner(userId, scope),
     [],
     (value) => z.array(taskDraftSchema).safeParse(value).success,
   );

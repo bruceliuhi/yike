@@ -97,6 +97,7 @@ describe('real page components with the real AppProvider', () => {
     location.hash = '#/monitors/TEST-monitor';
     render(<AppProvider service={createVisualService().service}><TasksPage /></AppProvider>);
     await screen.findByText('TEST 平台状态组合示意，非真实运行记录。');
+    fireEvent.click(screen.getByRole('tab', {name: '平台状态'}));
     expect(screen.getByRole('button', {name: '查看小红书状态'})).toBeTruthy();
     fireEvent.click(screen.getByRole('button', {name: '查看抖音状态'}));
     expect(screen.getByText('TEST 限流状态示意，等待平台允许后再执行。')).toBeTruthy();

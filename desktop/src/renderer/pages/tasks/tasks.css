@@ -131,3 +131,60 @@
 .task-template-platforms {
   margin: 6px 0;
 }
+
+/* P09 keeps the full task metadata available without pushing coverage below the fold. */
+.monitor-detail .monitor-facts {
+  padding-block: 12px;
+  margin-bottom: 12px;
+}
+.monitor-detail > .tabs {
+  margin-bottom: 8px;
+}
+.monitor-keywords summary {
+  cursor: pointer;
+  list-style: none;
+}
+.monitor-keywords summary::-webkit-details-marker {
+  display: none;
+}
+.monitor-keywords summary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+.monitor-keywords-preview {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.monitor-keywords-toggle {
+  color: var(--link);
+  font-size: 12px;
+}
+.monitor-keywords[open] .monitor-keywords-preview,
+.monitor-keywords[open] .monitor-keywords-toggle {
+  display: none;
+}
+.monitor-keywords[open] summary::after {
+  content: "收起完整列表";
+  color: var(--link);
+  font-size: 12px;
+}
+.monitor-keywords p {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+.monitor-task-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0 12px;
+  color: #815b22;
+  font-size: 13px;
+  line-height: 21px;
+  overflow-wrap: anywhere;
+}
+.monitor-task-note > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}

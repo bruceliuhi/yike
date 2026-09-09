@@ -1,0 +1,14 @@
+
+> yike-ai-desktop@0.2.0 test
+> vitest run --run tests/ui/opportunities.test.tsx tests/ui/outreach-completion.test.tsx tests/ui/r4-short-coach.test.tsx tests/ui/r4-opportunity-research-ui.test.tsx --reporter=dot
+
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+························································
+
+ Test Files  3 passed (3)
+      Tests  56 passed (56)
+   Start at  21:51:58
+   Duration  2.97s (transform 457ms, setup 0ms, import 2.85s, tests 2.26s, environment 767ms)
+

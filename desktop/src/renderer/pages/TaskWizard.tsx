@@ -45,6 +45,9 @@ import {
 import { PendingTaskStarts } from "./tasks/PendingTaskStarts";
 import { useTaskScope } from "./tasks/useTaskScope";
 import { TaskConfirmationSummary } from "./tasks/TaskConfirmationSummary";
+import { DemandSettings, ResearchSettingsPanel } from "./tasks/ResearchSettings";
+import { useUsageQuote } from "./tasks/useUsageQuote";
+import { parseUsageQuote, usageQuoteCurrent, usageQuoteRequest, usageReservation } from "../domain/researchUsage";
 
 export { matchesCreatedTask } from "../domain/taskOperations";
 
@@ -53,8 +56,10 @@ export function TaskWizardPage() {
   const [draft, setDraft] = useTaskDraft(
     session.userId,
     route.query.get("mode") === "monitor" ? "monitor" : "once",
+    session.accountScope,
   );
-  const [, setLibrary] = useTaskLibrary(session.userId);
+  const [, setLibrary] = useTaskLibrary(session.userId, session.accountScope);
+  const usage = useUsageQuote(draft);
   const [manualConditionOrigin, setManualConditionOrigin] = useLocalDraft<
     string | null
   >(
@@ -70,13 +75,13 @@ export function TaskWizardPage() {
         : 1;
   const profiles = useResource(
     () => (session.authenticated ? service.profiles() : Promise.resolve([])),
-    [service, session.userId],
+    [service, session.userId, session.authenticated, session.accountScope?.id, session.accountScope?.version],
   );
   const connections = useResource(
     () => service.connections(),
-    [service, session.userId],
+    [service, session.userId, session.authenticated, session.accountScope?.id, session.accountScope?.version],
   );
-  const info = useResource(() => service.info(), [service, session.userId]);
+  const info = useResource(() => service.info(), [service, session.userId, session.authenticated, session.accountScope?.id, session.accountScope?.version]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [generating, setGenerating] = useState(false);
   const [suggestionError, setSuggestionError] = useState("");
@@ -129,6 +134,11 @@ export function TaskWizardPage() {
   );
   if (!session.authenticated)
     blockers.unshift("请登录客户工作空间后启动任务。");
+  if (draft.research) {
+    if (!service.researchUsage || service.taskOperations?.researchContractVersion !== 1)
+      blockers.push("研究用量服务尚未接通，当前可以保存草稿。");
+    else if (!usage.valid) blockers.push("请先估算当前配置的搜贝用量，再确认启动。");
+  }
   const update = (patch: Partial<TaskDraft>) => {
     setDraft((old) => ({
       ...old,
@@ -209,7 +219,7 @@ export function TaskWizardPage() {
     setGenerating(false);
     setPreview(null);
     setSuggestionError("");
-  }, [draft.id, draft.profileId, draft.profileVersion, session.userId, step]);
+  }, [draft.id, draft.profileId, draft.profileVersion, session.userId, session.accountScope?.id, session.accountScope?.version, step]);
   const cancelSuggestion = () => {
     requestGeneration.current++;
     controller.current?.abort();
@@ -288,6 +298,8 @@ export function TaskWizardPage() {
       selectedProfile &&
       step === 1 &&
       !draft.savedAt &&
+      !draft.templateSourceDraftIds?.length &&
+      !draft.research?.provenance &&
       !draft.suggestionProfile &&
       lastSuggestion.current !==
         `${draft.id}:${selectedProfile.id}:${selectedProfile.version}` &&
@@ -322,6 +334,7 @@ export function TaskWizardPage() {
     )
       return;
     const snapshot = structuredClone(current.current);
+    const usageSnapshot = usage.quote;
     setStarting(true);
     await action.run(async () => {
       // Recheck live execution prerequisites immediately before creating one task.
@@ -356,7 +369,14 @@ export function TaskWizardPage() {
         revision: snapshot.revision,
         configurationHash: await configurationHash(snapshot),
         mode: snapshot.mode,
+        ...(snapshot.research && usageSnapshot ? { usageReservation: usageReservation(usageSnapshot) } : {}),
       };
+      if (snapshot.research) {
+        if (!service.researchUsage || service.taskOperations?.researchContractVersion !== 1 || !usageQuoteCurrent(usageSnapshot, snapshot, session))
+          throw new Error("研究用量尚未确认或估算已经过期，请重新核对；尚未启动。");
+        const expected = usageQuoteRequest(snapshot, session, binding.configurationHash);
+        parseUsageQuote(usageSnapshot, { ...expected, requestId: usageSnapshot!.requestId });
+      }
       if (!startScope.current()) return;
       const stored = startEntry(binding);
       setUnknownStarts((old) => {
@@ -373,7 +393,7 @@ export function TaskWizardPage() {
         if (service.taskOperations) {
           const receipt = parseStartReceipt(
             await boundedRequest(
-              () => service.taskOperations!.start(snapshot, binding),
+              () => service.taskOperations!.start(snapshot, binding, snapshot.research ? usageSnapshot! : undefined),
               {
                 timeoutMessage:
                   "启动等待超时，结果尚未确认，请核对原启动结果。",
@@ -381,6 +401,7 @@ export function TaskWizardPage() {
             ),
             binding,
           );
+          if (!startScope.current()) return;
           if (receipt.status === "REJECTED") {
             setUnknownStarts((old) => {
               const next = { ...old };
@@ -490,7 +511,7 @@ export function TaskWizardPage() {
       {step === 1 ? (
         <div className="task-layout">
           <div
-            className={`task-form ${draft.mode === "monitor" ? "monitor-form" : ""}`}
+            className={`task-form ${draft.research ? "research-form" : ""} ${draft.mode === "monitor" ? "monitor-form" : ""}`}
           >
             <section className="form-section">
               <h2>基本信息</h2>
@@ -557,6 +578,7 @@ export function TaskWizardPage() {
                 </Notice>
               )}
             </section>
+            <DemandSettings value={draft.research} onChange={research => update({ research })} />
             <section className="form-section">
               <div className="search-heading">
                 <div>
@@ -640,6 +662,7 @@ export function TaskWizardPage() {
                         }
                       />
                       <PlatformLabel platform={p.id} size={18} />
+                      {draft.research && <small className="muted">{connections.data?.some(c => c.platform === p.id && c.status === "CONNECTED") ? "已连接" : connections.loading ? "读取中" : "待连接"}</small>}
                     </label>
                   ))}
                 </div>
@@ -894,6 +917,8 @@ export function TaskWizardPage() {
             </section>
           </div>
           <aside className="task-aside">
+            <ResearchSettingsPanel value={draft.research} onChange={research => update({ research })} quote={usage.quote} busy={usage.busy} error={usage.error} onEstimate={() => void usage.estimate()} onCancel={usage.cancel} onPreview={() => changeStep(3)} />
+            {!draft.research && <>
             <div className="section-heading">
               <h2>平台连接状态</h2>
               <span className="muted text-small">按实际连接检查</span>
@@ -928,6 +953,7 @@ export function TaskWizardPage() {
               })}
             </div>
             <Notice>下一步完成平台连接。</Notice>
+            </>}
             {connections.error && (
               <p className="field-hint">{connections.error}</p>
             )}
@@ -1044,12 +1070,16 @@ export function TaskWizardPage() {
         <div className="confirmation-layout task-confirmation-page">
           <TaskConfirmationSummary
             draft={draft}
+            usage={usage.quote}
             profile={selectedProfile}
             connections={connections.data || []}
             deviceReady={!!info.data?.deviceReady}
             disabled={starting}
             onEdit={() => changeStep(1)}
           />
+          {draft.research && <Notice action={<Button disabled={starting} onClick={usage.busy ? usage.cancel : () => void usage.estimate()}>{usage.busy ? "取消估算" : "重新估算"}</Button>}>
+            {usage.error || (usage.quote ? `预计 ${usage.quote.estimatedSoubei} 搜贝，最多 ${usage.quote.maxSoubei} 搜贝；确认后按本次规则执行。` : "请完成用量估算，再核对配置并启动。")}
+          </Notice>}
           {blockers.length > 0 && (
             <details className="task-start-blockers">
               <summary>

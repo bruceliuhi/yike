@@ -50,10 +50,13 @@ export function PendingTaskStarts({
         (!draftId || row.id === draftId) &&
         (!mode || !row.binding?.mode || row.binding.mode === mode),
     );
+  const owns = (binding?: TaskStartLookup) => !binding?.usageReservation || (
+    binding.usageReservation.accountScopeId === session.accountScope?.id &&
+    binding.usageReservation.accountScopeVersion === session.accountScope?.version);
   if (!session.authenticated || (!records.length && !resolved)) return null;
   const reconcile = async (id: string, originalValue: string) => {
     const original = readStartEntry(id, originalValue);
-    if (!original) return;
+    if (!original || !owns(original)) return;
     await action.run(async () => {
       try {
         const receipt = parseStartReceipt(
@@ -68,6 +71,7 @@ export function PendingTaskStarts({
           ),
           original,
         );
+        if (!scope.current()) return;
         if (receipt.status === "ACCEPTED" || receipt.status === "REJECTED") {
           setEntries((old) => {
             const next = { ...old };
@@ -110,7 +114,7 @@ export function PendingTaskStarts({
             </p>
             {row.binding && (
               <span className="field-hint">
-                配置版本 {row.binding.revision}
+                {!owns(row.binding) ? "请切回原客户空间核对 · " : ""}配置版本 {row.binding.revision}
                 {row.binding.mode
                   ? ` · ${row.binding.mode === "monitor" ? "持续监控" : "单次采集"}`
                   : " · 旧版记录"}
@@ -119,7 +123,7 @@ export function PendingTaskStarts({
           </div>
           <Button
             loading={action.busy}
-            disabled={!row.binding}
+            disabled={!row.binding || !owns(row.binding)}
             onClick={() => void reconcile(row.id, row.value)}
           >
             核对原启动结果

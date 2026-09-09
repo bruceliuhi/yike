@@ -4,6 +4,7 @@ import {
   MagnifyingGlass,
   ArrowRight,
   ArrowClockwise,
+  WarningCircle,
 } from "@phosphor-icons/react";
 import { PlatformLabel } from "../components/Platform";
 import { TaskPlatforms } from "./tasks/TaskPlatforms";
@@ -19,6 +20,11 @@ import { TaskDraftRow } from "./tasks/TaskDraftRow";
 import { useTaskTemplates } from "./tasks/useTaskTemplates";
 import { TaskEvents } from "./tasks/TaskEvents";
 import { TaskPagination } from "./tasks/TaskPagination";
+import { SearchCoverage } from "./tasks/SearchCoverage";
+import { CoveragePlanDrawer } from "./tasks/CoveragePlanDrawer";
+import { CoverageAdjustmentRecovery } from "./tasks/CoverageAdjustmentRecovery";
+import { defaultResearchSettings } from "../domain/researchUsage";
+import type { CoveragePlanRequest } from "../domain/searchCoverage";
 import "./tasks/tasks.css";
 import { useTaskDraft, useTaskLibrary } from "../app/taskDraft";
 import {
@@ -189,18 +195,21 @@ function MonitorDetail({
   run,
   onAction,
   disabled,
+  onCoveragePlan,
 }: {
   run: TaskRun;
   onAction: (run: TaskRun, action: TaskAction) => void;
   disabled: boolean;
+  onCoveragePlan?: (request: CoveragePlanRequest) => void | Promise<void>;
 }) {
   const { navigate } = useApp();
-  const [tab, setTab] = useState("platforms");
+  const [tab, setTab] = useState("coverage");
   const [chosen, setChosen] = useState<PlatformId | null>(null);
   const platform =
     chosen && run.platforms.includes(chosen) ? chosen : run.platforms[0];
   const stage = run.platformStages?.find((item) => item.platform === platform);
   const schedule = run.schedule;
+  const keywords = run.keywords?.length ? run.keywords.join("、") : "待读取";
   const reconnect = () => {
     if (platform)
       navigate(
@@ -212,7 +221,7 @@ function MonitorDetail({
       );
   };
   return (
-    <>
+    <section className="monitor-detail" aria-label="监控详情内容">
       <dl className="fact-strip monitor-facts">
         <div>
           <dt>监控任务</dt>
@@ -220,7 +229,23 @@ function MonitorDetail({
         </div>
         <div>
           <dt>监控关键词</dt>
-          <dd>{run.keywords?.length ? run.keywords.join("、") : "待读取"}</dd>
+          <dd>
+            {keywords.length > 36 ? (
+              <details className="monitor-keywords">
+                <summary
+                  aria-label={`监控关键词，共 ${run.keywords?.length || 0} 个`}
+                >
+                  <span className="monitor-keywords-preview">{keywords}</span>
+                  <span className="monitor-keywords-toggle">
+                    共 {run.keywords?.length} 个 · 展开
+                  </span>
+                </summary>
+                <p>{keywords}</p>
+              </details>
+            ) : (
+              keywords
+            )}
+          </dd>
         </div>
         <div>
           <dt>监控区域</dt>
@@ -239,16 +264,28 @@ function MonitorDetail({
           </dd>
         </div>
       </dl>
-      {run.failureReason && <Notice tone="warning">{run.failureReason}</Notice>}
+      {run.failureReason && (
+        <div className="monitor-task-note" role="status">
+          <WarningCircle size={16} aria-hidden />
+          <span>{run.failureReason}</span>
+        </div>
+      )}
       <Tabs
         active={tab}
         onChange={setTab}
         items={[
+          { key: "coverage", label: "搜索覆盖" },
           { key: "platforms", label: "平台状态" },
           { key: "events", label: "执行记录" },
           { key: "config", label: "任务配置" },
         ]}
       />
+      {tab === "coverage" && (
+        <SearchCoverage
+          run={run}
+          onPlan={disabled ? undefined : onCoveragePlan}
+        />
+      )}
       {tab === "platforms" && (
         <>
           <div className="task-layout">
@@ -479,11 +516,28 @@ function MonitorDetail({
           </section>
         </div>
       )}
-    </>
+    </section>
   );
 }
-export function TasksPage() {
+export function TasksPage({
+  onCoveragePlan,
+}: {
+  onCoveragePlan?: (request: CoveragePlanRequest) => void | Promise<void>;
+} = {}) {
   const { service, session, route, navigate, notify } = useApp();
+  const [coverageRequest, setCoverageRequest] =
+    useState<CoveragePlanRequest | null>(null);
+  const openCoveragePlan = (request: CoveragePlanRequest) =>
+    onCoveragePlan ? onCoveragePlan(request) : setCoverageRequest(request);
+  useEffect(
+    () => setCoverageRequest(null),
+    [
+      route.path,
+      session.userId,
+      session.accountScope?.id,
+      session.accountScope?.version,
+    ],
+  );
   const monitor = route.path.startsWith("/monitors");
   const [tab, setTab] = useState("all");
   const [search, setSearch] = useState("");
@@ -497,8 +551,15 @@ export function TasksPage() {
     () => setPage(1),
     [search, platformFilter, from, to, tab, monitor, session.userId],
   );
-  const [library, setLibrary] = useTaskLibrary(session.userId);
-  const [currentDraft, setDraft] = useTaskDraft(session.userId);
+  const [library, setLibrary] = useTaskLibrary(
+    session.userId,
+    session.accountScope,
+  );
+  const [currentDraft, setDraft] = useTaskDraft(
+    session.userId,
+    "once",
+    session.accountScope,
+  );
   const tasks = useResource(
     async () =>
       session.authenticated
@@ -508,7 +569,13 @@ export function TasksPage() {
             }),
           )
         : [],
-    [service, session.authenticated, session.userId],
+    [
+      service,
+      session.authenticated,
+      session.userId,
+      session.accountScope?.id,
+      session.accountScope?.version,
+    ],
   );
   const acceptRun = (run: TaskRun) =>
     tasks.setData((old) => [
@@ -552,7 +619,7 @@ export function TasksPage() {
       (tab === "all" || tab === "draft"),
   );
   const create = () => {
-    setDraft(newTaskDraft(mode));
+    setDraft({ ...newTaskDraft(mode), research: defaultResearchSettings() });
     navigate(monitor ? "/tasks/new?mode=monitor" : "/tasks/new");
   };
   const edit = (draft: TaskDraft, confirm = false) => {
@@ -623,6 +690,7 @@ export function TasksPage() {
             key={selected.id}
             run={selected}
             onAction={requestAction}
+            onCoveragePlan={openCoveragePlan}
             disabled={
               tasks.loading ||
               !!tasks.error ||
@@ -646,6 +714,17 @@ export function TasksPage() {
         )}{" "}
         {operations.recovery}
         {operationDialog}
+        {selected && <CoverageAdjustmentRecovery taskId={selected.id} />}
+        {coverageRequest &&
+          coverageRequest.userId === session.userId &&
+          coverageRequest.accountScopeId === session.accountScope?.id &&
+          coverageRequest.scopeVersion === session.accountScope.version && (
+            <CoveragePlanDrawer
+              key={JSON.stringify(coverageRequest)}
+              plan={coverageRequest}
+              onClose={() => setCoverageRequest(null)}
+            />
+          )}
       </>
     );
   return (

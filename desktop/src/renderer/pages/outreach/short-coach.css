@@ -1,0 +1,124 @@
+.short-coach {
+  margin: 24px 0 20px;
+  min-width: 0;
+}
+.short-coach .section-heading {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.short-coach .section-heading h3 {
+  margin: 0;
+}
+.coach-checks {
+  background: var(--blue-soft, #f0f6ff);
+  border-radius: 5px;
+  padding: 12px 14px;
+  color: var(--muted, #52637a);
+}
+.coach-checks p {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin: 8px 0;
+}
+.coach-checks svg {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+.coach-wait {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.coach-quote {
+  margin: 12px 0;
+  padding: 12px 16px;
+  border-left: 3px solid var(--blue, #1677ff);
+  background: var(--blue-soft, #f0f6ff);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.coach-quote p {
+  margin: 0 0 6px;
+}
+.coach-comparison {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+.coach-comparison .draft-preview {
+  margin-top: 8px;
+  min-height: 100px;
+}
+.coach-check-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.draft-save-recovery {
+  margin: 12px 0;
+  overflow-wrap: anywhere;
+}
+.draft-save-recovery .inline-actions {
+  margin-top: 10px;
+}
+.r4-contact-editor .contact-content {
+  min-height: 160px;
+}
+.r4-contact-editor .section-heading {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.r4-contact-editor .action-row {
+  flex-wrap: wrap;
+}
+.r4-contact-editor .contact-routing {
+  margin: 12px 0;
+  border-top: 1px solid var(--border, #e5e9f0);
+  border-bottom: 1px solid var(--border, #e5e9f0);
+  padding: 10px 0;
+}
+.r4-contact-editor .contact-routing summary {
+  cursor: pointer;
+  color: var(--muted, #52637a);
+}
+.r4-contact-editor .contact-routing summary span {
+  margin-left: 12px;
+  font-size: 12px;
+}
+.r4-contact-editor .contact-routing-fields {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.coach-adopted-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.coach-adopted-heading > span {
+  color: var(--muted, #52637a);
+  font-size: 12px;
+}
+.coach-adopted-heading > .button {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+@media (max-width: 650px) {
+  .coach-comparison {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .coach-wait > .button {
+    margin-left: 0;
+  }
+  .short-coach .section-heading > .button {
+    padding-left: 0;
+  }
+}

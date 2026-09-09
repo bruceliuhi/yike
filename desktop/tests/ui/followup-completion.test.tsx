@@ -543,6 +543,19 @@ describe("P15 structured and legacy persistence", () => {
       reason: "TEST原时间有误",
     });
   });
+  it("preserves the local followup date when correcting a record in a positive UTC offset", async () => {
+    const original = new Date(2030, 0, 15, 9, 0).toISOString();
+    mockRecords([row({ nextFollowupAt: original })]);
+    vi.mocked(context.service.followup!.mutate).mockImplementation(async input => ({ binding: input.binding, status: "SUCCEEDED", confirmed: true,
+      record: row({ ...input.values, id: "TEST-corrected-local-date", correctsId: input.binding.targetId }) }));
+    render(<FollowupsPage />); await selectManual();
+    fireEvent.click(screen.getByRole("button", { name: "纠正记录" }));
+    expect(screen.getByDisplayValue("2030-01-15")).toBeTruthy();
+    fireEvent.change(screen.getByRole("textbox", { name: "纠正原因" }), { target: { value: "TEST 修正备注，保留日期" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存记录" }));
+    await waitFor(() => expect(context.service.followup!.mutate).toHaveBeenCalledOnce());
+    expect(vi.mocked(context.service.followup!.mutate).mock.calls[0][0].values?.nextFollowupAt).toBe(original);
+  });
   it("requires a reason and confirmation before withdrawing a manual fact", async () => {
     vi.mocked(context.service.followup!.mutate).mockImplementation(
       async (input) => ({

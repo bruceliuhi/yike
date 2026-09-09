@@ -36,6 +36,13 @@ export function errorMessage(error: unknown): string {
       : "操作未完成，请重试。";
 }
 export interface YikeService {
+  coveragePlans?: import("./coveragePlan").CoveragePlanService;
+  opportunityBrief?: import("./opportunityBrief").OpportunityBriefService;
+  researchUsage?: import("./researchUsage").ResearchUsageService;
+  shortCoach?: import("./shortCoach").ShortCoachService;
+  contactDrafts?: import("./shortCoach").ContactDraftService;
+  opportunityResearch?: import("./opportunityResearch").OpportunityResearchService;
+  searchCoverage?: import("./searchCoverage").SearchCoverageService;
   materials?: import("./materials").MaterialService;
   followup?: import("./followup").FollowupService;
   taskOperations?: import("./taskOperations").TaskOperationsService;

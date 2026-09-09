@@ -1,0 +1,438 @@
+{
+  "sourceCommit": "cbc61703347c407413f8a732a6ca9a5637258eba",
+  "environment": "macOS in-app Chromium, CSS viewport emulation; not Windows display-scale UAT",
+  "cases": [
+    {
+      "scenario": "P02",
+      "target": [
+        960,
+        600
+      ],
+      "hasMain": true,
+      "heading": "商机工作台",
+      "height": 600,
+      "scrollWidth": 960,
+      "width": 960
+    },
+    {
+      "scenario": "P06",
+      "target": [
+        960,
+        600
+      ],
+      "hasMain": true,
+      "heading": "新建获客任务",
+      "height": 600,
+      "scrollWidth": 960,
+      "width": 960
+    },
+    {
+      "scenario": "P09",
+      "target": [
+        960,
+        600
+      ],
+      "hasMain": true,
+      "heading": "TEST 展台需求监控",
+      "height": 600,
+      "scrollWidth": 960,
+      "width": 960
+    },
+    {
+      "scenario": "P10",
+      "target": [
+        960,
+        600
+      ],
+      "hasMain": true,
+      "heading": "商机库",
+      "height": 600,
+      "scrollWidth": 960,
+      "width": 960
+    },
+    {
+      "scenario": "P11",
+      "target": [
+        960,
+        600
+      ],
+      "hasMain": true,
+      "heading": "TEST 180㎡展区设计搭建预算询价",
+      "height": 600,
+      "scrollWidth": 960,
+      "width": 960
+    },
+    {
+      "scenario": "P12",
+      "target": [
+        960,
+        600
+      ],
+      "hasMain": true,
+      "heading": "触达中心",
+      "height": 600,
+      "scrollWidth": 960,
+      "width": 960
+    },
+    {
+      "scenario": "P02",
+      "target": [
+        1280,
+        720
+      ],
+      "hasMain": true,
+      "heading": "商机工作台",
+      "height": 720,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "P06",
+      "target": [
+        1280,
+        720
+      ],
+      "hasMain": true,
+      "heading": "新建获客任务",
+      "height": 720,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "P09",
+      "target": [
+        1280,
+        720
+      ],
+      "hasMain": true,
+      "heading": "TEST 展台需求监控",
+      "height": 720,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "P10",
+      "target": [
+        1280,
+        720
+      ],
+      "hasMain": true,
+      "heading": "商机库",
+      "height": 720,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "P11",
+      "target": [
+        1280,
+        720
+      ],
+      "hasMain": true,
+      "heading": "TEST 180㎡展区设计搭建预算询价",
+      "height": 720,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "P12",
+      "target": [
+        1280,
+        720
+      ],
+      "hasMain": true,
+      "heading": "触达中心",
+      "height": 720,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "P02",
+      "target": [
+        1366,
+        768
+      ],
+      "hasMain": true,
+      "heading": "商机工作台",
+      "height": 768,
+      "scrollWidth": 1366,
+      "width": 1366
+    },
+    {
+      "scenario": "P06",
+      "target": [
+        1366,
+        768
+      ],
+      "hasMain": true,
+      "heading": "新建获客任务",
+      "height": 768,
+      "scrollWidth": 1366,
+      "width": 1366
+    },
+    {
+      "scenario": "P09",
+      "target": [
+        1366,
+        768
+      ],
+      "hasMain": true,
+      "heading": "TEST 展台需求监控",
+      "height": 768,
+      "scrollWidth": 1366,
+      "width": 1366
+    },
+    {
+      "scenario": "P10",
+      "target": [
+        1366,
+        768
+      ],
+      "hasMain": true,
+      "heading": "商机库",
+      "height": 768,
+      "scrollWidth": 1366,
+      "width": 1366
+    },
+    {
+      "scenario": "P11",
+      "target": [
+        1366,
+        768
+      ],
+      "hasMain": true,
+      "heading": "TEST 180㎡展区设计搭建预算询价",
+      "height": 768,
+      "scrollWidth": 1366,
+      "width": 1366
+    },
+    {
+      "scenario": "P12",
+      "target": [
+        1366,
+        768
+      ],
+      "hasMain": true,
+      "heading": "触达中心",
+      "height": 768,
+      "scrollWidth": 1366,
+      "width": 1366
+    },
+    {
+      "scenario": "P02",
+      "target": [
+        1440,
+        1024
+      ],
+      "hasMain": true,
+      "heading": "商机工作台",
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "scenario": "P06",
+      "target": [
+        1440,
+        1024
+      ],
+      "hasMain": true,
+      "heading": "新建获客任务",
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "scenario": "P09",
+      "target": [
+        1440,
+        1024
+      ],
+      "hasMain": true,
+      "heading": "TEST 展台需求监控",
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "scenario": "P10",
+      "target": [
+        1440,
+        1024
+      ],
+      "hasMain": true,
+      "heading": "商机库",
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "scenario": "P11",
+      "target": [
+        1440,
+        1024
+      ],
+      "hasMain": true,
+      "heading": "TEST 180㎡展区设计搭建预算询价",
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "scenario": "P12",
+      "target": [
+        1440,
+        1024
+      ],
+      "hasMain": true,
+      "heading": "触达中心",
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "scenario": "P02",
+      "target": [
+        1920,
+        1080
+      ],
+      "hasMain": true,
+      "heading": "商机工作台",
+      "height": 1080,
+      "scrollWidth": 1920,
+      "width": 1920
+    },
+    {
+      "scenario": "P06",
+      "target": [
+        1920,
+        1080
+      ],
+      "hasMain": true,
+      "heading": "新建获客任务",
+      "height": 1080,
+      "scrollWidth": 1920,
+      "width": 1920
+    },
+    {
+      "scenario": "P09",
+      "target": [
+        1920,
+        1080
+      ],
+      "hasMain": true,
+      "heading": "TEST 展台需求监控",
+      "height": 1080,
+      "scrollWidth": 1920,
+      "width": 1920
+    },
+    {
+      "scenario": "P10",
+      "target": [
+        1920,
+        1080
+      ],
+      "hasMain": true,
+      "heading": "商机库",
+      "height": 1080,
+      "scrollWidth": 1920,
+      "width": 1920
+    },
+    {
+      "scenario": "P11",
+      "target": [
+        1920,
+        1080
+      ],
+      "hasMain": true,
+      "heading": "TEST 180㎡展区设计搭建预算询价",
+      "height": 1080,
+      "scrollWidth": 1920,
+      "width": 1920
+    },
+    {
+      "scenario": "P12",
+      "target": [
+        1920,
+        1080
+      ],
+      "hasMain": true,
+      "heading": "触达中心",
+      "height": 1080,
+      "scrollWidth": 1920,
+      "width": 1920
+    },
+    {
+      "scenario": "P02",
+      "target": [
+        2560,
+        1440
+      ],
+      "hasMain": true,
+      "heading": "商机工作台",
+      "height": 1440,
+      "scrollWidth": 2560,
+      "width": 2560
+    },
+    {
+      "scenario": "P06",
+      "target": [
+        2560,
+        1440
+      ],
+      "hasMain": true,
+      "heading": "新建获客任务",
+      "height": 1440,
+      "scrollWidth": 2560,
+      "width": 2560
+    },
+    {
+      "scenario": "P09",
+      "target": [
+        2560,
+        1440
+      ],
+      "hasMain": true,
+      "heading": "TEST 展台需求监控",
+      "height": 1440,
+      "scrollWidth": 2560,
+      "width": 2560
+    },
+    {
+      "scenario": "P10",
+      "target": [
+        2560,
+        1440
+      ],
+      "hasMain": true,
+      "heading": "商机库",
+      "height": 1440,
+      "scrollWidth": 2560,
+      "width": 2560
+    },
+    {
+      "scenario": "P11",
+      "target": [
+        2560,
+        1440
+      ],
+      "hasMain": true,
+      "heading": "TEST 180㎡展区设计搭建预算询价",
+      "height": 1440,
+      "scrollWidth": 2560,
+      "width": 2560
+    },
+    {
+      "scenario": "P12",
+      "target": [
+        2560,
+        1440
+      ],
+      "hasMain": true,
+      "heading": "触达中心",
+      "height": 1440,
+      "scrollWidth": 2560,
+      "width": 2560
+    }
+  ]
+}

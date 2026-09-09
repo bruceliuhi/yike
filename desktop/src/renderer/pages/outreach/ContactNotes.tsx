@@ -9,7 +9,7 @@ export function ContactNotes({ row }: { row: Opportunity }) {
   const { session } = useApp();
   const readOnly = isSample(row) || !session.authenticated;
   const [note, setNote] = useLocalDraft(
-    `contact-note:${session.userId || "public"}:${row.id}:${row.profileVersionId}`,
+    `contact-note:${session.userId || "public"}:${row.id}:${row.profileVersionId}${session.accountScope ? ":" + JSON.stringify(session.accountScope) : ""}`,
     "",
     (value) => typeof value === "string" && Array.from(value).length <= 500,
   );

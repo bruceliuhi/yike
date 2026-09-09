@@ -37,6 +37,15 @@ import {
 } from "./opportunities/LibraryFacts";
 import { useCandidateReviewLedger } from "./opportunities/useCandidateReviewLedger";
 import { PendingCandidateReviews } from "./opportunities/PendingCandidateReviews";
+import { ResearchLibrary } from "./opportunities/ResearchLibrary";
+import { EvidenceTimeline } from "./opportunities/EvidenceTimeline";
+import { ResearchDraftHandoff } from "./opportunities/ResearchDraftHandoff";
+import { hasResearchScope } from "../domain/opportunityResearch";
+import { readResearchRecord } from "../services/opportunityResearch";
+import {
+  RESEARCH_CATEGORIES,
+  type ResearchClassification,
+} from "../domain/opportunityResearch";
 import {
   candidateReviewHash,
   matchingCandidateReceipt,
@@ -62,194 +71,36 @@ import {
   type CandidateStatus,
 } from "../domain/candidates";
 
-// Source verified on 2026-09-09. This public inquiry is never a customer record.
-export const PUBLIC_SAMPLE: Opportunity = {
-  id: "sample",
-  sample: true,
-  title: "180㎡高交会展区设计搭建预算询价",
-  buyer: "湖南省商务厅对外贸易发展处",
-  summary: "180㎡展区，涵盖设计、搭建、维护、撤展和组展服务。",
-  excerpt: "本次报价仅用于预算测算。",
-  matchReason: "买方公开征询服务方案与成本；适配需结合地域、施工及组展能力。",
-  actionSignal: "9月15日18:00前递交资料，可评估是否参与预算询价。",
-  value: "适合提前了解需求；预算、合同和收入尚未确定。",
-  risk: "预算金额未公开，需进一步核实。本次不确定供应商、不签合同，参与不带来后续招标优先资格。",
-  contactPath: "以官方公告的采购咨询、资料递交要求为准。",
-  url: "https://swt.hunan.gov.cn/swt/hnswt/85753/fdzdgknr/caizhengxinxi/zfcgh/202609/t20260908_44997689265690696.html",
-  platform: "公开网站",
-  sourceStatus: "UNVERIFIED",
-  profileStatus: "UNBOUND",
-  profileVersionId: "",
-  reviewer: "",
-  reviewedAt: "",
-  publishedAt: "2026-09-08T16:54:00+08:00",
-  updatedAt: "",
-  sourceObservedAt: "2026-09-09T11:20:40Z",
-  sourceEvidenceVersion: "public-sample-20260909-v1",
-  libraryFacts: {
-    schema_version: 1,
-    opportunity_id: "sample",
-    source_url:
-      "https://swt.hunan.gov.cn/swt/hnswt/85753/fdzdgknr/caizhengxinxi/zfcgh/202609/t20260908_44997689265690696.html",
-    observed_at: "2026-09-09T11:20:40Z",
-    evidence_version: "public-sample-20260909-v1",
-    stage: {
-      status: "KNOWN",
-      label: "预算询价",
-      evidence_excerpt: "本次为预算编制阶段市场调研询价。",
-    },
-    materials_deadline: {
-      status: "KNOWN",
-      at: "2026-09-15T18:00:00+08:00",
-      evidence_excerpt: "递交截止时间：2026年9月15日18:00（北京时间）",
-    },
-  },
-  intentStatus: "PENDING_REVIEW",
-  comment:
-    "您好，关注到本次高交会展区预算询价。请问展位技术资料及组展服务范围如何获取？我们会先核实自身能力，再按公告要求准备资料。理解此次仅用于预算编制，后续采购以正式公告为准。",
-  dm: "",
-};
-export function isSample(row: Opportunity) {
-  return row.sample === true || row.id === "sample";
-}
-function SourcePlatform({
-  platform,
-  sourceLabel,
-}: {
-  platform: string;
-  sourceLabel?: string;
-}) {
-  return sourceLabel ? (
-    <span className="brand-platform-label" style={{ whiteSpace: "normal" }}>
-      <PlatformIcon platform={platform} size={16} />
-      <span>{sourceLabel}</span>
-    </span>
-  ) : (
-    <PlatformLabel platform={platform || "来源待核验"} size={16} />
-  );
-}
-export function opportunityStatus(row: Opportunity) {
-  if (isSample(row)) return "待复核";
-  return (
-    (
-      {
-        NEW: "新商机",
-        REVIEW: "待复核",
-        READY: "可联系",
-        CONTACTED: "已联系",
-        CLOSED: "已关闭",
-        REPLIED: "已回复",
-        MEETING: "已约谈",
-        QUOTED: "已报价",
-        WON: "已成交",
-        LOST: "已关闭",
-        PENDING_REVIEW: "待复核",
-      } as Record<string, string>
-    )[row.intentStatus] ||
-    row.intentStatus ||
-    "状态待核验"
-  );
-}
-export function customerCsv(rows: Opportunity[]) {
-  const cell = (value: string) =>
-    '"' +
-    (/^[\s]*[=+\-@\t\r]/.test(value) ? "'" + value : value).replaceAll(
-      '"',
-      '""',
-    ) +
-    '"';
-  const fields = [
-    [
-      "商机标题",
-      "需求方",
-      "来源平台",
-      "阶段",
-      "状态",
-      "资料截止",
-      "来源链接",
-      "原文摘录",
-    ],
-    ...rows
-      .filter((r) => !isSample(r))
-      .map((r) => [
-        r.title,
-        r.buyer,
-        r.platform,
-        libraryExportFields(r)[0],
-        opportunityStatus(r),
-        libraryExportFields(r)[1],
-        r.url,
-        r.excerpt,
-      ]),
-  ];
-  return "\uFEFF" + fields.map((row) => row.map(cell).join(",")).join("\r\n");
-}
-export function EvidencePanel({
-  opportunity: row,
-  compact = false,
-}: {
-  opportunity: Opportunity;
-  compact?: boolean;
-}) {
-  const { service, notify } = useApp();
-  const open = async () => {
-    try {
-      await service.openExternal(row.url);
-    } catch (error) {
-      notify(errorMessage(error), "error");
-    }
-  };
-  return (
-    <section className="evidence-panel">
-      <div className="section-heading">
-        <h2>{compact ? "原文证据" : "原文证据"}</h2>
-        <Button variant="ghost" disabled={!row.url} onClick={() => void open()}>
-          查看{compact ? "" : "官方"}原文 <ArrowSquareOut />
-        </Button>
-      </div>
-      <blockquote className="evidence-quote">
-        {row.excerpt || "尚未提供原始摘录"}
-      </blockquote>
-      <p className="muted source-meta">
-        <SourcePlatform
-          platform={row.platform}
-          sourceLabel={isSample(row) ? "湖南省商务厅官网" : undefined}
-        />{" "}
-        · 发布于 {formatDate(row.publishedAt)}
-      </p>
-      {!compact && (
-        <>
-          <h3>需求概述</h3>
-          <p>{row.summary || "尚未提供需求概述"}</p>
-          <h3>证据评估</h3>
-          <dl className="detail-list">
-            <div>
-              <dt>匹配依据</dt>
-              <dd>{row.matchReason || "尚未复核"}</dd>
-            </div>
-            <div>
-              <dt>行动信号</dt>
-              <dd>{row.actionSignal || "尚未核实"}</dd>
-            </div>
-            <div>
-              <dt>机会价值</dt>
-              <dd>{row.value || "尚未判断"}</dd>
-            </div>
-          </dl>
-          <Notice tone="warning">{row.risk || "风险与未知项尚未核实"}</Notice>
-          <h3>联系渠道</h3>
-          <p>{row.contactPath || "尚未核实联系渠道"}</p>
-        </>
-      )}
-    </section>
-  );
-}
+export {
+  PUBLIC_SAMPLE,
+  isSample,
+  opportunityStatus,
+  customerCsv,
+  EvidencePanel,
+} from "./opportunities/OpportunityEvidence";
+import {
+  PUBLIC_SAMPLE,
+  isSample,
+  opportunityStatus,
+  customerCsv,
+  EvidencePanel,
+  SourcePlatform,
+} from "./opportunities/OpportunityEvidence";
 
 export function OpportunitiesPage() {
-  const { session } = useApp();
+  const { session, service, route } = useApp();
+  if (
+    (service.opportunityResearch && hasResearchScope(session.accountScope)) ||
+    route.query.get("scope") === "sample"
+  )
+    return (
+      <ResearchLibrary
+        key={`${session.authenticated}:${session.userId || "public"}:${JSON.stringify(session.accountScope)}:${route.query.get("scope") || "customer"}`}
+      />
+    );
   return (
     <OpportunityList
-      key={`${session.authenticated}:${session.userId || "public"}`}
+      key={`${session.authenticated}:${session.userId || "public"}:${JSON.stringify(session.accountScope)}`}
     />
   );
 }
@@ -386,6 +237,12 @@ function OpportunityList() {
         title="商机库"
         description="汇集多渠道的商机信息，支持筛选、查看和跟进。"
       />
+      <Notice>
+        {service.opportunityResearch && !hasResearchScope(session.accountScope)
+          ? "当前账户空间尚未核验，需求分类与观察服务暂不可用。"
+          : "需求分类与观察服务尚未接通。"}
+        以下保留已有客户商机，处理状态与采购阶段不代表需求分类。
+      </Notice>
       <div className="filter-bar">
         <div className="search-input">
           <MagnifyingGlass />
@@ -642,19 +499,48 @@ export function OpportunityDetailPage() {
     /* An invalid identifier remains a service not-found result. */
   }
   return (
-    <OpportunityDetail key={`${session.userId || "public"}:${id}`} id={id} />
+    <OpportunityDetail
+      key={`${session.userId || "public"}:${JSON.stringify(session.accountScope)}:${id}`}
+      id={id}
+    />
   );
 }
 function OpportunityDetail({ id }: { id: string }) {
   const { service, session, route, navigate, notify } = useApp();
-  const resource = useResource(
-    () =>
-      id === "sample"
-        ? Promise.resolve(PUBLIC_SAMPLE)
-        : service.opportunity(id),
-    [id, service, session.userId],
+  const [detailTab, setDetailTab] = useState(
+    route.query.get("tab") === "changes" ? "changes" : "evidence",
   );
-  const row = resource.data;
+  const [similarOpen, setSimilarOpen] = useState(false);
+  const resource = useResource(async () => {
+    if (id === "sample")
+      return {
+        opportunity: PUBLIC_SAMPLE,
+        classification: undefined as ResearchClassification | undefined,
+      };
+    if (!session.authenticated) throw new Error("请登录后查看客户商机。");
+    const record = await boundedRequest(
+      async (signal) =>
+        service.opportunityResearch && hasResearchScope(session.accountScope)
+          ? readResearchRecord(service.opportunityResearch, session, id, signal)
+          : {
+              opportunity: await service.opportunity(id),
+              classification: undefined as ResearchClassification | undefined,
+            },
+      { timeoutMessage: "机会证据读取超时，请重试。" },
+    );
+    const item = record.opportunity;
+    if (item.id !== id || isSample(item))
+      throw new Error("机会身份不匹配，请刷新重试。");
+    return record;
+  }, [
+    id,
+    service,
+    session.userId,
+    session.authenticated,
+    JSON.stringify(session.accountScope),
+  ]);
+  const row = resource.data?.opportunity;
+  const classification = resource.data?.classification;
   const back = () => {
     const value = route.query.get("returnTo");
     navigate(value?.startsWith("/opportunities?") ? value : "/opportunities");
@@ -687,15 +573,28 @@ function OpportunityDetail({ id }: { id: string }) {
       </>
     );
   const sample = isSample(row);
+  const researchOnly = Boolean(
+    classification &&
+    (classification.category !== "OPPORTUNITY" ||
+      classification.review.status !== "RECOGNIZED"),
+  );
   return (
     <>
       <PageHeader title={row.title} description={row.buyer} back={back} />
+      <div className="action-row">
+        <Button onClick={() => setSimilarOpen(true)}>多找类似</Button>
+      </div>
       <div className="inline-meta">
         <Badge tone={sample ? "orange" : "blue"}>
           {sample
             ? "公开研究样例 · 待人工复核 · 未入客户库"
             : opportunityStatus(row)}
         </Badge>
+        {classification && (
+          <Badge tone="neutral">
+            {RESEARCH_CATEGORIES[classification.category]}
+          </Badge>
+        )}
         {!sample && (
           <span className="muted">
             复核人 {row.reviewer || "未记录"} · {formatDate(row.reviewedAt)}
@@ -712,8 +611,29 @@ function OpportunityDetail({ id }: { id: string }) {
             ]
           : [
               ["来源平台", row.platform],
-              ["来源状态", row.sourceStatus],
-              ["画像状态", row.profileStatus],
+              [
+                "来源状态",
+                (
+                  {
+                    OPEN: "有效",
+                    UNVERIFIED: "待核验",
+                    EXPIRED: "已过期",
+                    BLOCKED: "访问受阻",
+                    CLOSED: "已关闭",
+                  } as Record<string, string>
+                )[row.sourceStatus] || "待核验",
+              ],
+              [
+                "画像状态",
+                (
+                  {
+                    CONFIRMED: "已确认",
+                    DRAFT: "待确认",
+                    UNBOUND: "未绑定",
+                    STALE: "需重新确认",
+                  } as Record<string, string>
+                )[row.profileStatus] || "待核验",
+              ],
               ["发布时间", formatDate(row.publishedAt)],
             ]
         ).map(([label, value]) => (
@@ -735,73 +655,110 @@ function OpportunityDetail({ id }: { id: string }) {
             来源或画像需要重新核验，请先确认需求仍有效。
           </Notice>
         )}
-      <div className="evidence-layout">
-        <EvidencePanel opportunity={row} />
-        <aside className="contact-panel">
-          <h2>
-            联系准备 <span className="muted text-small">待校对 · 尚未发送</span>
-          </h2>
-          <Field label="询问草稿">
-            <textarea
-              aria-label="询问草稿"
-              rows={8}
-              value={row.comment || row.dm || ""}
-              readOnly
-              placeholder="尚无联系草稿"
-            />
-          </Field>
-          <div className="action-row">
-            <Button
-              disabled={!row.comment && !row.dm}
-              onClick={() => void copy()}
-            >
-              <Copy />
-              复制草稿
-            </Button>
-          </div>
-          <p className="muted">按公告要求联系采购方</p>
-          <hr />
-          {sample ? (
+      <div
+        className={`evidence-layout${similarOpen ? " research-expanded" : ""}`}
+      >
+        <section>
+          <Tabs
+            active={detailTab}
+            items={[
+              { key: "evidence", label: "证据详情" },
+              { key: "changes", label: "项目变化" },
+            ]}
+            onChange={setDetailTab}
+          />
+          <EvidencePanel opportunity={row} compact={detailTab === "changes"} />
+          {detailTab === "changes" && <EvidenceTimeline opportunity={row} />}
+        </section>
+        <aside className="contact-panel" hidden={similarOpen}>
+          {researchOnly ? (
             <>
-              <h3>样例状态</h3>
-              <p>仅供研究查看，尚未绑定客户画像。</p>
-              <Button
-                variant="ghost"
-                onClick={() =>
-                  navigate("/outreach?opportunity=sample&channel=comment")
-                }
-              >
-                查看样例联系准备
-              </Button>
+              <h2>研究判断</h2>
+              <p>{classification!.reason}</p>
+              {classification!.evidence.map((quote, i) => (
+                <blockquote className="evidence-quote" key={i}>
+                  {quote.quote}
+                </blockquote>
+              ))}
+              <Notice>
+                该记录尚不是已认可的明确需求，先保留研究证据，不进入客户触达或自动扩展。
+              </Notice>
             </>
           ) : (
-            <div className="action-row">
-              <Button
-                variant="primary"
-                onClick={() =>
-                  navigate(
-                    "/outreach?opportunity=" +
-                      encodeURIComponent(row.id) +
-                      "&channel=comment",
-                  )
-                }
-              >
-                生成联系草稿
-              </Button>
-              <Button
-                onClick={() =>
-                  navigate(
-                    "/followups?add=1&opportunity=" +
-                      encodeURIComponent(row.id),
-                  )
-                }
-              >
-                添加跟进
-              </Button>
-            </div>
+            <>
+              <h2>
+                联系准备{" "}
+                <span className="muted text-small">待校对 · 尚未发送</span>
+              </h2>
+              <Field label="询问草稿">
+                <textarea
+                  aria-label="询问草稿"
+                  rows={8}
+                  value={row.comment || row.dm || ""}
+                  readOnly
+                  placeholder="尚无联系草稿"
+                />
+              </Field>
+              <div className="action-row">
+                <Button
+                  disabled={!row.comment && !row.dm}
+                  onClick={() => void copy()}
+                >
+                  <Copy />
+                  复制草稿
+                </Button>
+              </div>
+              <p className="muted">按公告要求联系采购方</p>
+              <hr />
+              {sample ? (
+                <>
+                  <h3>样例状态</h3>
+                  <p>仅供研究查看，尚未绑定客户画像。</p>
+                  <Button
+                    variant="ghost"
+                    onClick={() =>
+                      navigate("/outreach?opportunity=sample&channel=comment")
+                    }
+                  >
+                    查看样例联系准备
+                  </Button>
+                </>
+              ) : (
+                <div className="action-row">
+                  <Button
+                    variant="primary"
+                    onClick={() =>
+                      navigate(
+                        "/outreach?opportunity=" +
+                          encodeURIComponent(row.id) +
+                          "&channel=comment",
+                      )
+                    }
+                  >
+                    生成联系草稿
+                  </Button>
+                  <Button
+                    onClick={() =>
+                      navigate(
+                        "/followups?add=1&opportunity=" +
+                          encodeURIComponent(row.id),
+                      )
+                    }
+                  >
+                    添加跟进
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </aside>
       </div>
+      {similarOpen && (
+        <ResearchDraftHandoff
+          opportunity={row}
+          onClose={() => setSimilarOpen(false)}
+        />
+      )}
     </>
   );
 }
@@ -810,7 +767,7 @@ export function CandidatesPage() {
   const { session } = useApp();
   return (
     <CandidateWorkbench
-      key={`${session.authenticated}:${session.userId || "public"}`}
+      key={`${session.authenticated}:${session.userId || "public"}:${JSON.stringify(session.accountScope)}`}
     />
   );
 }

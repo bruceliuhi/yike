@@ -70,7 +70,7 @@ export function FollowupEditor({
     note: correction?.note || "",
     contact: localTime(correction?.occurredAt || null),
     nextStep: correction?.nextStep || "",
-    nextDate: correction?.nextFollowupAt?.slice(0, 10) || "",
+    nextDate: localTime(correction?.nextFollowupAt || null).slice(0, 10),
     ownerId: correction?.ownerId || session.userId || "",
     reason: "",
   }));

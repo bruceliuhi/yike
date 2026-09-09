@@ -1,0 +1,39 @@
+.coverage-plan {
+  display: grid;
+  gap: 16px;
+}
+.coverage-plan > p,
+.coverage-plan h3 {
+  margin: 0;
+}
+.coverage-plan-scope {
+  white-space: pre-wrap;
+  line-height: 1.65;
+}
+.coverage-plan dl {
+  margin: 0;
+  display: grid;
+  gap: 0;
+}
+.coverage-plan dl > div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 16px;
+  border-bottom: 1px solid var(--border, #e5e9f0);
+  padding: 12px 0;
+}
+.coverage-plan dt {
+  color: var(--text-secondary, #667085);
+}
+.coverage-plan dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.coverage-plan-recovery {
+  margin: 16px 0;
+  display: grid;
+  gap: 12px;
+}

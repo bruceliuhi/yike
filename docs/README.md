@@ -23,7 +23,22 @@
 
 [当前整合状态](INTEGRATION_STATUS.md)记录已迁入的 Skill、桌面壳、提交 SHA、验证结果和明确未整合内容，供后续 AI 接续工作时先行阅读。
 
-当前视觉基准：[20 页完整设计 R3](../design/v02-suite-r3/README.md)。整套图册与关键状态已于 2026-09-09 获得实现授权；当前按图开发与逐页对照，进度见 [R3 UI 实施记录](UI_R3_IMPLEMENTATION.md)，不能把设计完成记成业务功能完成。
+原始候选服务交接见[02B上传/收件箱合同](contracts/V02_RAW_CANDIDATE_INBOX.md)和[独立验收](qa/V02_CANDIDATE_INGESTION_REVIEW.md)：在02A与执行护栏之上提供原文/版本/观察、原键重查及待判断列表，不是已评分商机DTO，也不表示真实平台或客户闭环已接通。
+
+整体视觉基准是[20 页完整设计 R3](../design/v02-suite-r3/README.md)，当前增量是已获实现授权的[R4 六组设计](../design/v02-suite-r4/README.md)。R4 六组前端及搜贝交互已落入候选 `cbc6170`；实现、独立审核、分版本测试与 Mac 包证据见 [R4 验收](qa/ui-r4/README.md)，同状态截图和视口结果见[设计验收](../design-qa.md)。[R3 UI 实施记录](UI_R3_IMPLEMENTATION.md)保留既有历史。可选服务合同与隔离 TEST 场景不代表真实后台、平台、收费或 Windows 已验收，完整 Goal 仍在推进。
+
+## R4 前端服务交接
+
+以下合同说明已实现界面需要消费的服务、绑定校验与失败边界，供原责任子卡接入；不是生产接口已上线清单。缺可信账户空间或服务能力时，新路径明确不可用，既有可用服务路径继续保留。
+
+| 合同 | 页面与重点 |
+|---|---|
+| [研究用量与搜贝](UI_RESEARCH_USAGE_CONTRACT.md) | P06/P19/P20：预计、最多、实际用量；版本化估算和原子启动、未知预留保护，不定义售价或余额 |
+| [搜索覆盖](UI_SEARCH_COVERAGE_CONTRACT.md) | P09：运行/画像/窗口绑定，搜索完整度与筛选结果分开，未知统计不填零 |
+| [覆盖补查与调整](UI_COVERAGE_PLAN_CONTRACT.md) | P09：暂停追加须新确认；终态转新草稿保留来源；未知请求恢复，不自动恢复执行 |
+| [机会研究](UI_OPPORTUNITY_RESEARCH_CONTRACT.md) | P10/P11：需求分类、同来源证据时间线、已认可机会的类似研究草稿；公开样例不入客户库或发送 |
+| [短句教练](UI_SHORT_COACH_CONTRACT.md) | P12：证据与可联系性约束、人工草稿保护、确认保存及未知恢复，发送仍走既有确认路径 |
+| [机会简报](UI_OPPORTUNITY_BRIEF_CONTRACT.md) | P02：账户空间、业务日/时区与画像版本快照；只读导航到已有机会及跟进 |
 
 ## 当前可运行基础与部署
 
