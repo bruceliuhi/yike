@@ -1,6 +1,6 @@
 # V02-01B：服务端会话撤销
 
-`120b938` 代码候选已获本地独立复审 PASS，详见[审核记录](../qa/V02-01B_REVIEW.md)；尚未合并 main，实际 CodexWin 交叉验证仍待完成。V02-01A 的 `da2a2f2` PASS 与本子项分开记录。
+`120b938` 是历史子项复审版本，详见[审核记录](../qa/V02-01B_REVIEW.md)。组合修复 `222119e` 已经独立复审，并在 `5d3373d9b7fa6cb74f0a9f6241bbb282e4db2514` 合入远端 main；实际 CodexWin 交叉验证仍待完成。V02-01A 的 `da2a2f2` PASS 与本子项分开记录，最新回归见[组合验收](../qa/IDENTITY_INTEGRATION_20260909.md)。
 
 ## 行为契约
 

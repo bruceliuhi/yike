@@ -9,11 +9,11 @@
 - 01B：`120b938` 服务端会话撤销，本地独立复审 PASS。
 - 组合候选 `2f0626c` 合入测试时钟修复后，整合复核发现 104 三张新表的应用角色授权遗漏，结论 `REQUEST_CHANGES`。修复后锁定接收版本 **`222119e0b41b86b65867a92e14d3ed00dede4e7d`**，本机独立复审 PASS，根代理全量串行复跑 **705 passed、0 skipped**。失败、修复及验证边界见[组合验收记录](../qa/IDENTITY_INTEGRATION_20260909.md)。
 - 该代码版本包含 main `30da93e`；main 后续至 `022b0fb` 的细化任务卡已由本交接文档保留，不把后来的文档提交冒充代码测试基线。
-- **代码尚未进入 main。** 不能看到此交接文件便开启手机号登录、平台连接或执行 capability。
+- **代码已在 `5d3373d9b7fa6cb74f0a9f6241bbb282e4db2514` 合入远端 main**，本机独立整合复审 PASS；该版本重新运行 705 项后端与 362 项桌面测试、typecheck/build 全部通过。代码集成不是实际 Win 接收，不开启手机号登录、平台连接或执行 capability。
 
 ## 接口与限制
 
-契约在候选分支：`docs/contracts/V02_IDENTITY_REGISTRY.md`、`docs/contracts/V02_SESSION_REVOCATION.md`。拉取后按精确候选 SHA 阅读，不在 main 上寻找尚未合入的脚本。
+契约已进入 main：`docs/contracts/V02_IDENTITY_REGISTRY.md`、`docs/contracts/V02_SESSION_REVOCATION.md`。接收时锁定下述精确集成 SHA；后续纯文档提交不改变该代码验证版本。
 
 | 能力 | 当前含义 | 不能推导为 |
 |---|---|---|
@@ -26,7 +26,7 @@
 
 ## 接收步骤
 
-1. `git fetch origin`，在干净隔离审查工作区锁定 `222119e0b41b86b65867a92e14d3ed00dede4e7d`，保留其他任务的修改；不要只按移动中的分支头验收。
+1. `git fetch origin`，在干净隔离审查工作区锁定 `5d3373d9b7fa6cb74f0a9f6241bbb282e4db2514`，保留其他任务的修改；其业务/测试代码与 `222119e` 完全一致，只正常合并了最新主线文档。不要只按移动中的分支头验收。
 2. 阅读上述契约、`docs/qa/V02-01A_REVIEW.md`、`V02-01B_REVIEW.md` 和组合复审记录，确认客户端可正确呈现字段、状态与限制。
 3. 准备专用一次性 PostgreSQL，管理员/应用角色分离，不与其他 reviewer 共用正在运行 DDL/授权测试的库。未发布的 104 旧候选 checksum 不得覆盖；新空库按候选运行手册执行迁移，再运行 `deploy/grant_session_revocations.sql` 对四张身份表的最小权限升级，最后启动应用。真实数据库凭据不提交 Git。
 4. 设置专用测试环境变量 `YIKE_IDENTITY_TEST_DATABASE_URL`、`YIKE_IDENTITY_TEST_APP_DATABASE_URL`，执行 `uv sync --frozen --extra dev`，再运行 `uv run --frozen pytest -q tests/test_identity_contract.py tests/test_identity_postgres.py tests/test_session_auth.py tests/test_session_revocation_postgres.py tests/test_session_upgrade_postgres.py tests/test_ui_api.py tests/test_pilot_web.py`。skip 不算数据库验收通过；重点复现权限升级、租户隔离、旧 token 撤销、注销错误与不伪造连接。

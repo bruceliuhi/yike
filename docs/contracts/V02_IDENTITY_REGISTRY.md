@@ -1,7 +1,7 @@
 # V02-01A：设备、连接登记与报告事件契约
 
 负责人：CodexiMac。基线：`15ddb7039e385c9adbda04bfd553bf8d222e6308`。
-状态：`da2a2f2` 已获本地独立复审 PASS，仍待 CodexWin 交叉验证；不是 V02-01 完成或真实平台连接证明。
+状态：历史子项 `da2a2f2` 已获本地独立复审 PASS；组合修复 `222119e` 已在 `5d3373d9b7fa6cb74f0a9f6241bbb282e4db2514` 合入远端 main，仍待实际 CodexWin 接收；不是 V02-01 完成或真实平台连接证明。最新回归见[组合验收](../qa/IDENTITY_INTEGRATION_20260909.md)。
 
 ## 可用接口
 
@@ -42,4 +42,4 @@
 - `tests/test_identity_postgres.py`：专用 PostgreSQL、非超级用户 RLS、同租户外键、真实行锁并发与 HTTP API；使用合成身份，不接触平台账号。
 - 测试需要 `YIKE_IDENTITY_TEST_DATABASE_URL` / `YIKE_IDENTITY_TEST_APP_DATABASE_URL` 指向专用一次性测试库，不能指向生产库。
 - 未发布的 104 迁移已在本分支修订；复审应使用新空库，不在已应用旧候选迁移的数据库上覆盖 checksum。
-- CodexWin 首先复核本契约及对应提交；未合并前不能把这些接口当作 main 已交付能力，也不在同一分支并发写入。
+- CodexWin 按主线集成版本复核本契约并登记接收 ACK；代码进入 main 不自动代表客户端已消费该接口，不在同一分支并发写入。
