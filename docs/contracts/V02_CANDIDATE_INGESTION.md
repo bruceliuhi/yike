@@ -52,7 +52,7 @@
 - `public_url`：1–2048 字符，http/https 绝对链接；拒绝 userinfo、控制字符、反斜杠、私网/特殊用途 IP、localhost/本地域名和非默认端口。非 PUBLIC_WEB 还须匹配其平台域名或子域，不接受 lookalike 后缀；不请求网络，不宣称通过 DNS/SSRF 验收。
 - query/fragment 中拒绝命中 token/cookie/session/authorization/signature/password/secret 的参数名（忽略大小写，解析 URL 编码）；片段只接受 1–128 字符的字母数字、`_ . : -`，供无凭据的评论锚点使用。不静默去掉敏感参数后声称原链接仍可重开。
 - `title`：可空，非空时 1–512 字符；`author_public_id`：可空，非空时 1–256 字符，匿名买方不因此排除。
-- `body`：非纯空白原文，1–20000 字符；保持 JSON 解码后的原 Unicode 文本，不 trim 或改写，不声称等于来源 HTTP 原始字节。拒绝 NUL 及除制表/换行/回车外的控制字符。
+- `body`：非纯空白原文，1–20000 字符；保持 JSON 解码后的原 Unicode 文本，不 trim 或改写，不声称等于来源 HTTP 原始字节。拒绝 C0（U+0000–001F）、DEL（U+007F）及 C1（U+0080–009F）控制字符，仅允许制表/换行/回车（U+0009/000A/000D）；不删除字符后冒充原文。
 - `published_at`：可空；`observed_at`：必填。均采用精确 `YYYY-MM-DDTHH:MM:SSZ`，必须是真实日历 UTC 时间且不晚于调用方传入的可信 `now`；发布时间不得晚于观察时间。未知发布时间保留 null，不用采集时间或父帖时间填充。不在原始入站层套 60 天商机过滤，筛选时由 Skill/复核判断时效。
 - `parent`：可空；仅 COMMENT 可有。必填字段为 `external_comment_id`；`body/author_public_id/published_at/public_url` 可空，非空时边界同上。只知道父 ID 时保留关系和 null 正文，不丢弃子评论，也不编造父正文。父评论 ID 不得等于自身 ID；父发布时间若已知，不晚于已知子评论时间或观察时间。父上下文的时间不能刷新子评论时效。
 - `collector_version`、`normalizer_version`：opaque ID；`query`：可空，非空时 1–500 字符，保留观察来源；不用查询内容作为同一公开对象的身份。
