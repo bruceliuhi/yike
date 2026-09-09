@@ -1,5 +1,7 @@
 # 当前整合状态（供后续 AI 交接）
 
+2026-09-10 05A 可见验收补齐：`8af8eaf`收紧P04空态，本机资料与带入操作完整进入1280×720首屏；实际走通P06平台/设备往返、P09原标签与平台返回、P14无人工记录的匹配回复/已读/首次人工登记。新Mac包ASAR `98debe8e` / ZIP `f580c225` 已实际冷启动、取消关闭继续编辑、保存75搜贝会话草稿、明确退出并同目录重启；退出清除会话稿符合提示。定向33项/类型/构包/严格smoke通过，先前全量1340/23仍绑定d816，不追认重跑。证据及截图校准过程见[当前可见验收](qa/ui-visible-local-handoff/README.md)。05A仍IN_PROGRESS；原生选择器、剩余状态、真实后台及Windows分项接续。
+
 2026-09-10 05A 本机资料与返回流程已收口：P04 `d66d487` 保留首画像保存前的本机资料，并支持人工带入/取消/重复复用目标；P06/P09/P16/P18 `315d590` 保留原任务、步骤、标签和平台。正常合入 `bbe2e20` 为 **fcae33e**，接收固定原文展示与执行签名准备，双方字节保留并独立兼容复核通过。旧超时测试计时起点修正为 **d816a9d**，产品未变；最终桌面 **1340 passed / 23 skipped**、类型、隔离 Mac 构包与严格 smoke 通过，原失败保留。包 ASAR `6ef0d95e` / ZIP `5ff63633` 绑定 fcae33e，详见[本批验收](qa/ui-local-handoff/README.md)。本片独立代码工作已完成；用户再次“继续”后 Mac 已恢复可操作，接续同状态视觉与原生生命周期，Windows/真实服务继续分项待验，05A 不标 DONE。
 
 2026-09-10 Mac原确认回执补齐候选`9d9e965`（base `7b640c9`）：仅新决策返回原来源核验ID，旧持久回执不回填；不新增SQL/授权，不改Win客户端。root101项相关实际HTTP/受限PG与46项纯边界分别通过；完整`7b640c9..9d81665`独立规格/代码/架构/质量PASS、0项发现，[本次QA](qa/V02_CANDIDATE_ASSESSMENT_REVIEW.md#05g原确认回执补齐2026-09-10)保留RED、测试修正及各自验证归属。实际Win消费、来源/发送/上线未验。Mac下一处接设备登记未知恢复最小合同；首发仍按已批准端到端及三个亮点推进，高级管理/复杂统计/重复全量测试后排，基础隔离/确认防重/恢复不后排。
@@ -153,6 +155,18 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 2026-09-10 CP-06 配置预检正向验证：使用仓外临时 runtime env、仓外 0600 备份口令、禁用开发登录、digest 固定镜像和 PostgreSQL URL，`scripts/cp06_validate_env.sh` 返回 `cp06-preflight: pass`。该结果只证明配置门禁规则可被满足，不代表镜像已发布、服务已部署、备份恢复已实测或真实平台/客户验收完成。
 
 2026-09-10 PostgreSQL 跨套件探针：在一次性数据库上为多个专项统一注入同一管理员/受限角色，运行连接、策略、建议、执行、导入、触达/回复套件，结果 **237 passed / 44 failed / 202 errors**。失败主体为各套件专属授权/角色初始化缺失（如 `pilot_users` 权限）及共享库状态假设，不能归因于统一业务回归；该混合结果不计入通过。后续必须按测试套件独立数据库、角色和 grants 重新执行，保留受限 PostgreSQL 11 项通过作为当前可靠证据。
+
+2026-09-10 策略套件独立 PostgreSQL 验证：按 `tests/test_research_strategies_postgres.py` 自有初始化流程使用全新 `win_research_strategy` 数据库，由套件创建 `strategy_app` 受限角色，**49 passed**。这消除了统一探针中的角色预创建冲突，证明确认策略、版本、撤销、RLS、HTTP 和真实 Node 往返在该独立环境通过；仍不代表生产部署、真实模型效果或客户 UAT。
+
+2026-09-10 搜索建议套件独立 PostgreSQL 验证：按 `tests/test_search_suggestions_postgres.py` 自有初始化流程使用全新 `win_search_suggestion` 数据库，由套件创建 `suggestion_app` 受限角色，**63 passed**。覆盖画像版本绑定、额度、幂等、失败持久化、并发、RLS、最小授权和 Node/HTTP 路径；仍不代表真实模型服务或生产部署已接通。
+
+2026-09-10 执行运行时独立 PostgreSQL 验证：使用一次性数据库并由套件创建动态 `NOSUPERUSER/NOBYPASSRLS` 执行角色，运行 `tests/test_execution_runtime_postgres.py` 与 `tests/test_execution_http_postgres.py`，**44 passed**。覆盖任务启动、逐平台租约、取消/停止确认、原始回执、服务重建、签名核验和 HTTP→受限 PG 往返；仍不代表真实来源 worker、平台执行或生产部署已接通。
+
+2026-09-10 设备凭据授权增量：`grant_device_credentials.sql` 现明确授予受限角色读取 `pilot_users`、读写 `pilot_devices`、读取会话撤销表，以满足设备身份解析和历史校验的最小运行依赖。独立套件在一次性 PostgreSQL 上从原先无法初始化推进到 **24 passed / 4 failed**；剩余失败集中在撤销跨模块连接/会话授权和登出失效语义，尚未计为通过，需拆分依赖后继续验证。
+
+2026-09-10 设备凭据授权收口：进一步补充受限角色更新 `pilot_platform_connections`、写入 `pilot_session_revocations` 的最小权限；独立 `tests/test_device_credentials_postgres.py` 在一次性 PostgreSQL 上 **28 passed**。设备挑战、签名、轮换、撤销、并发和 HTTP 安全路径通过；该结果不替代生产部署、真实平台连接或客户 UAT。
+
+2026-09-10 设备登记恢复独立 PostgreSQL 验证：沿用受限身份角色和登记授权脚本，核心登记套件 **7 passed**，HTTP 登记恢复/严格输入/权限套件 **22 passed**。覆盖原 request_id 恢复、幂等冲突、撤销/过期、owner 隔离、HTTPS/Origin 和 no-store；不代表平台账号已连接或 Windows 实机验收完成。
 
 ## 后续 AI 必须遵守
 

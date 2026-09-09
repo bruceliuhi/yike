@@ -1,0 +1,12 @@
+{
+  "candidate": "8af8eafba0faef68ae48ea76f3d5d4a70c7b06c8",
+  "buildSource": "/tmp/yike-visible-local-release-8af8eaf",
+  "trackedDesktopInputs": 342,
+  "allInputsMatchCommit": true,
+  "app": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/visible-local-8af8eaf/意客AI.app",
+  "asarSha256": "98debe8e3c1e58e93e3da04209abc38d7773909ff4a3fb5ff317e7068c9fd067",
+  "zip": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/visible-local-8af8eaf/意客AI-darwin-arm64-0.2.0.zip",
+  "zipSha256": "f580c225264db5cd23f9033e235ecf2f35e3a9e1fd3e682e19f78647033d8569",
+  "zipAsarSha256": "98debe8e3c1e58e93e3da04209abc38d7773909ff4a3fb5ff317e7068c9fd067",
+  "scope": "Mac arm64 build and isolated packaged smoke. Visible native and browser checks are recorded separately for this exact artifact; Windows and actual service acceptance remain separate."
+}

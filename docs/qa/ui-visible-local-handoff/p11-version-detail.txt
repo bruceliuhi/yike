@@ -1,0 +1,177 @@
+- note: TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
+- generic "TEST 场景"
+- link "跳到主要内容":
+  - /url: "#main-content"
+- complementary:
+  - button "意客AI商机工作台":
+    - strong: 意客AI
+    - generic: 商机工作空间
+  - navigation "主导航":
+    - button "商机工作台":
+      - generic: 商机工作台
+    - generic: 发现商机
+    - button "业务画像":
+      - generic: 业务画像
+    - button "线索采集":
+      - generic: 线索采集
+    - button "监控任务":
+      - generic: 监控任务
+    - generic: 推进商机
+    - button "商机库":
+      - generic: 商机库
+    - button "触达中心":
+      - generic: 触达中心
+    - button "跟进记录":
+      - generic: 跟进记录
+  - button "账号与授权":
+    - generic: 账号与授权
+  - button "客户工作空间":
+    - generic: 客户工作空间
+- banner:
+  - button "收起导航":
+  - button "返回上级":
+  - generic: 商机库 / 机会证据
+  - generic: V0.2
+- main:
+  - button "返回":
+    - text: 返回
+  - heading "TEST 180㎡展区设计搭建预算询价" [level=1]
+  - generic: TEST 需求方（合成测试对象）
+  - button "多找类似"
+  - generic: 可联系
+  - generic: 明确需求
+  - generic: 复核人 TEST 复核人 · 2026/9/9 09:00:00
+  - generic: 来源平台
+  - strong:
+    - generic: 公开网站
+  - generic: 来源状态
+  - strong: 有效
+  - generic: 画像状态
+  - strong: 已确认
+  - generic: 发布时间
+  - strong: 2026/9/8 16:54:00
+  - tablist:
+    - tab "证据详情" [selected]
+    - tab "项目变化"
+  - heading "原文证据" [level=2]
+  - button "查看来源原文":
+    - text: 查看来源原文
+  - region "固定原文证据快照":
+    - heading "评论原文" [level=3]
+    - generic: TEST 评论正文：我们需要批量制作 保留 空白 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。 TEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。
+    - button "展开完整原文"
+    - term: 来源平台
+    - definition: 小红书
+    - term: 来源类型
+    - definition: 评论
+    - term: 评论公开作者
+    - definition: TEST-public-author
+    - term: 来源发布
+    - definition:
+      - time: 2026/9/9 09:02:03
+    - term: 采集端观察
+    - definition:
+      - time: 2026/9/10 08:59:58
+    - term: 服务器收到
+    - definition:
+      - time: 2026/9/10 09:00:00
+    - term: 纳入留存
+    - definition:
+      - time: 2026/9/10 09:10:11
+    - heading "评论所在上下文" [level=3]
+    - term: 原帖标题（上下文）
+    - definition: TEST 原帖标题：门店视频需求
+    - paragraph: 原帖和父评论仅作上下文，不代表该评论者本人有采购需求。
+    - heading "父评论" [level=4]
+    - generic: TEST 父评论正文：请说明交付时间
+    - term: 父评论公开作者
+    - definition: TEST-parent-author
+    - term: 父评论发布时间
+    - definition:
+      - time: 2026/9/9 08:02:03
+    - button "查看父评论所在来源"
+    - heading "AI 公开原文逐字引用" [level=3]
+    - list "AI 公开原文逐字引用":
+      - paragraph:
+        - strong: 业务匹配
+        - text: · 原帖标题（上下文）
+      - blockquote: 门店视频需求
+      - paragraph:
+        - strong: 需求意向
+        - text: · 评论原文
+      - blockquote: 需要批量制作
+      - paragraph:
+        - strong: 紧迫度
+        - text: · 父评论原文
+      - blockquote: 交付时间
+      - paragraph:
+        - strong: 可行动性
+        - text: · 评论原文
+      - blockquote: 保留 空白
+    - paragraph: 另有 1 条画像依据未在此共享，仅显示数量。
+    - generic "版本与当时判断明细" [active]
+    - term: 快照格式
+    - definition: opportunity-source-evidence-v1
+    - term: 来源版本
+    - definition: TEST-source-version-1
+    - term: 来源内容摘要
+    - definition: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    - term: 固定快照摘要
+    - definition: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    - term: 观察记录
+    - definition: TEST-observation-1
+    - term: 判断记录
+    - definition: TEST-assessment-1
+    - term: 当时画像版本
+    - definition: TEST-profile-v1 · 第 7 版
+    - term: 当时策略版本
+    - definition: TEST-strategy-version-1
+    - term: 模型提供方
+    - definition: TEST-provider
+    - term: 当时模型
+    - definition: TEST-model
+    - term: 规则版本
+    - definition: TEST-rule-v1
+    - term: 规则摘要
+    - definition: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    - term: 当时模型判断时间
+    - definition:
+      - time: 2026/9/10 09:05:00
+    - term: 人工回看时间（历史）
+    - definition:
+      - time: 2026/9/10 09:07:00
+    - term: 纳入时来源状态
+    - definition: 有效（纳入时）
+    - term: 纳入时回看方式
+    - definition: 直接打开
+    - term: 纳入时联系方式
+    - definition: 评论
+    - paragraph: 这是纳入时的历史留存，不证明对方当前仍在采购，也不表示已允许联系。来源当前失效时，有权查看的历史快照仍保留。
+  - heading "当前复核与判断" [level=3]
+  - paragraph: 复核人：TEST 复核人 · 复核时间：2026/9/9 09:00:00
+  - heading "需求概述" [level=3]
+  - paragraph: TEST 180㎡展区，包含设计、搭建、维护、撤展与组展服务。
+  - heading "证据评估" [level=3]
+  - term: 匹配依据
+  - definition: TEST 展台设计搭建范围与已选测试画像一致。
+  - term: 行动信号
+  - definition: TEST 需先核对资料要求，再准备预算询价内容。
+  - term: 机会价值
+  - definition: TEST 用于检查证据栏排版；不代表客户价值或实际收入。
+  - status:
+    - generic: TEST 未确认预算、合同或联系人，不能据此真实联系。
+  - heading "联系渠道" [level=3]
+  - paragraph: TEST 仅测试收件对象，无真实联系方式。
+  - complementary:
+    - heading "联系准备 待校对 · 尚未发送" [level=2]
+    - group "询问草稿":
+      - generic: 询问草稿
+      - textbox "询问草稿":
+        - /placeholder: 尚无联系草稿
+        - text: TEST 您好，请问本次展区设计搭建的资料要求与服务范围如何获取？本内容只用于视觉验收，不会发送。
+    - button "复制草稿":
+      - text: 复制草稿
+    - paragraph: 按公告要求联系采购方
+    - separator
+    - button "生成联系草稿"
+    - button "添加跟进"
