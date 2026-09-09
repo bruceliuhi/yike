@@ -81,6 +81,7 @@ export interface Suggestion {
   requestId: string;
 }
 export interface Opportunity {
+  sourceEvidence?: import("./opportunitySourceEvidence").OpportunitySourceEvidence;
   sourceObservedAt?: string;
   sourceEvidenceVersion?: string;
   libraryFacts?: import("./opportunityLibrary").OpportunityLibraryFacts | null;

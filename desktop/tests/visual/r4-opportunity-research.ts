@@ -13,6 +13,8 @@ import {
 } from "../../src/renderer/domain/opportunityResearch";
 import type { VisualState } from "./service";
 import { opportunity, profile, TEST_TIME } from "./fixtures";
+import { capturedEvidenceFixture } from "../fixtures/opportunitySourceEvidence";
+import { parseOpportunitySourceEvidence } from "../../src/renderer/domain/opportunitySourceEvidence";
 
 /** Isolated visual harness only. No network, charging, collection, messages or
  * customer writes. All objects are synthetic TEST records with .invalid URLs. */
@@ -101,6 +103,20 @@ export function configureResearchVisual(
       },
     },
   ];
+  // Synthetic first-inclusion snapshot, separate from the R4 change-history fixture.
+  const evidence = parseOpportunitySourceEvidence(capturedEvidenceFixture({
+    opportunityId: primary.id, profileVersionId: primary.profileVersionId,
+  }), { opportunityId: primary.id, profileVersionId: primary.profileVersionId });
+  if (evidence.status === "CAPTURED") {
+    evidence.snapshot.source.body += "\nTEST 长原文排版：保留原始段落、空白和引用，不代表真实客户需求。".repeat(40);
+    evidence.snapshot.source.public_url = "https://visual-test.invalid/TEST-post?comment=TEST-comment";
+    if (evidence.snapshot.source.parent)
+      evidence.snapshot.source.parent.public_url = "https://visual-test.invalid/TEST-post?comment=TEST-parent";
+  }
+  for (const record of records)
+    record.opportunity.sourceEvidence = record.opportunity.id === primary.id
+      ? evidence : { status: "UNAVAILABLE", reason: "NOT_CAPTURED" };
+
   const read = async (signal?: AbortSignal): Promise<Session> => {
     if (signal?.aborted) throw new DOMException("TEST cancelled", "AbortError");
     const session = await service.session();

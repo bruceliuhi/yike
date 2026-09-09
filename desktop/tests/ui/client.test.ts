@@ -11,6 +11,7 @@ import {
   parseTaskProfiles,
 } from "../../src/renderer/domain/taskProfile";
 import type { YikeDesktopApi } from "../../src/shared/contracts";
+import { capturedEvidenceFixture } from "../fixtures/opportunitySourceEvidence";
 const host = window as unknown as { yikeDesktop?: YikeDesktopApi };
 afterEach(() => {
   delete host.yikeDesktop;
@@ -203,7 +204,11 @@ describe("real client transport boundaries", () => {
       .fn()
       .mockResolvedValue(
         new Response(
-          JSON.stringify({ opportunity: { opportunity_id: "o1" } }),
+          JSON.stringify({ opportunity: {
+            opportunity_id: "o1",
+            profile_version_id: "p1",
+            source_evidence: { status: "UNAVAILABLE", reason: "NOT_CAPTURED" },
+          } }),
           { headers: { "content-type": "application/json" } },
         ),
       );
@@ -235,5 +240,91 @@ describe("real client transport boundaries", () => {
       serviceConfigured: false,
       deviceReady: false,
     });
+  });
+});
+
+describe("fixed original evidence in the ordinary opportunity client", () => {
+  const absent = { status: "UNAVAILABLE", reason: "NOT_CAPTURED" };
+  function detail(raw: Record<string, unknown>) {
+    const requestApi = vi.fn().mockResolvedValue({
+      ok: true, status: 200, data: { opportunity: raw },
+    });
+    host.yikeDesktop = { requestApi } as unknown as YikeDesktopApi;
+    return requestApi;
+  }
+  it("retains the entire captured snapshot even when current source is blocked", async () => {
+    const evidence = capturedEvidenceFixture();
+    detail({ opportunity_id: "TEST-o", profile_version_id: "TEST-p", source_evidence: evidence,
+      source_status: "BLOCKED", source_evidence_version: "TEST-R4-version" });
+    await expect(service.opportunity("TEST-o")).resolves.toMatchObject({
+      sourceEvidence: evidence, sourceStatus: "BLOCKED", sourceEvidenceVersion: "TEST-R4-version",
+    });
+  });
+  it.each([
+    { opportunityId: "TEST-other" }, { profileVersionId: "TEST-other" },
+  ])("rejects a captured snapshot for another identity or profile", async (overrides) => {
+    detail({ opportunity_id: "TEST-o", profile_version_id: "TEST-p",
+      source_evidence: capturedEvidenceFixture(overrides) });
+    await expect(service.opportunity("TEST-o")).rejects.toMatchObject({ code: "INVALID_SERVICE_RESPONSE" });
+  });
+  it("keeps list omission distinct from explicit absence without rebinding legacy evidence", () => {
+    const raw = { opportunity_id: "TEST-o", profile_version_id: "TEST-p",
+      source_evidence_version: "TEST-legacy-version", source_observed_at: "TEST-legacy-time" };
+    expect(mapOpportunity(raw).sourceEvidence).toBeUndefined();
+    expect(mapOpportunity({ ...raw, source_evidence: absent })).toMatchObject({
+      sourceEvidence: absent, sourceEvidenceVersion: "TEST-legacy-version",
+      sourceObservedAt: "TEST-legacy-time",
+    });
+  });
+  it.each([null, undefined, { status: "CAPTURED", raw_secret: "TEST-secret" },
+    { ...absent, extra: "TEST-secret" }])("rejects invalid present evidence without exposing its payload", (evidence) => {
+    expect(() => mapOpportunity({ opportunity_id: "TEST-o", profile_version_id: "TEST-p",
+      source_evidence: evidence })).toThrow("原文证据响应不完整，请重新读取。");
+  });
+  it("requires explicit evidence on detail, rather than inventing NOT_CAPTURED", async () => {
+    detail({ opportunity_id: "TEST-o", profile_version_id: "TEST-p" });
+    await expect(service.opportunity("TEST-o")).rejects.toMatchObject({
+      code: "INVALID_SERVICE_RESPONSE", message: "原文证据响应不完整，请重新读取。",
+    });
+  });
+  it("rejects a different opportunity returned by the detail endpoint", async () => {
+    detail({ opportunity_id: "TEST-other", profile_version_id: "TEST-p", source_evidence: absent });
+    await expect(service.opportunity("TEST-o")).rejects.toMatchObject({ code: "INVALID_SERVICE_RESPONSE" });
+  });
+  it("preserves explicit absence from a successful native detail read", async () => {
+    const requestApi = detail({ opportunity_id: "TEST-o", profile_version_id: "TEST-p", source_evidence: absent });
+    await expect(service.opportunity("TEST-o")).resolves.toMatchObject({ sourceEvidence: absent });
+    expect(requestApi).toHaveBeenCalledWith({ operation: "opportunities.get", payload: { id: "TEST-o" } });
+  });
+  it("passes cancellation to the actual browser GET", async () => {
+    const controller = new AbortController();
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ opportunity: {
+      opportunity_id: "TEST-o", profile_version_id: "TEST-p", source_evidence: absent,
+    } }), { headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetcher);
+    await service.opportunity("TEST-o", controller.signal);
+    expect(fetcher).toHaveBeenCalledWith("/api/ui/opportunities/TEST-o", expect.objectContaining({
+      signal: controller.signal, method: "GET", body: undefined,
+    }));
+  });
+  it("does not dispatch an already canceled native read", async () => {
+    const requestApi = detail({ opportunity_id: "TEST-o", profile_version_id: "TEST-p", source_evidence: absent });
+    const controller = new AbortController();
+    controller.abort();
+    await expect(service.opportunity("TEST-o", controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    expect(requestApi).not.toHaveBeenCalled();
+  });
+  it("discards a native reply after cancellation without claiming to cancel IPC", async () => {
+    let resolve!: (value: unknown) => void;
+    const requestApi = vi.fn(() => new Promise((done) => { resolve = done; }));
+    host.yikeDesktop = { requestApi } as unknown as YikeDesktopApi;
+    const controller = new AbortController();
+    const pending = service.opportunity("TEST-o", controller.signal);
+    controller.abort();
+    resolve({ ok: true, status: 200, data: { opportunity: {
+      opportunity_id: "TEST-o", profile_version_id: "TEST-p", source_evidence: absent,
+    } } });
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(requestApi).toHaveBeenCalledTimes(1);
   });
 });

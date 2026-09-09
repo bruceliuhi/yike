@@ -18,6 +18,11 @@ class ExecutionEnvelope(BaseModel):
         return value
 
 
+class ExecutionSigningEnvelope(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", hide_input_in_errors=True)
+    request: ExecutionOperation
+
+
 def register_execution_api(router, runtime, identity, require_session_https):
     def run(request, operation):
         require_session_https(request)
@@ -30,6 +35,10 @@ def register_execution_api(router, runtime, identity, require_session_https):
                 "message": "执行服务尚未接入，当前操作未执行。",
             })
         return operation(runtime, current.claims)
+
+    @router.post("/execution-signing-payload")
+    def signing_payload(body: ExecutionSigningEnvelope, request: Request):
+        return run(request, lambda service, claims: service.prepare_signing_payload(claims, body.request))
 
     @router.post("/execution-operations")
     def apply(body: ExecutionEnvelope, request: Request):

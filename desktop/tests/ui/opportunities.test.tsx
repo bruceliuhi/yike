@@ -12,7 +12,10 @@ import {
   OpportunityDetailPage,
   PUBLIC_SAMPLE,
   customerCsv,
+  EvidencePanel,
 } from "../../src/renderer/pages/Opportunities";
+import { capturedEvidenceFixture } from "../fixtures/opportunitySourceEvidence";
+import { parseOpportunitySourceEvidence } from "../../src/renderer/domain/opportunitySourceEvidence";
 import { parseRoute } from "../../src/renderer/domain/routes";
 import type { AppContextValue } from "../../src/renderer/app/context";
 import type { YikeService } from "../../src/renderer/services/contracts";
@@ -92,7 +95,7 @@ describe("customer and public sample boundaries", () => {
     context.route = parseRoute("#/opportunities/sample");
     render(<OpportunityDetailPage />);
     await screen.findByText(PUBLIC_SAMPLE.title);
-    fireEvent.click(screen.getByRole("button", { name: /查看官方原文/ }));
+    fireEvent.click(screen.getByRole("button", { name: /查看来源原文/ }));
     await waitFor(() =>
       expect(context.service.openExternal).toHaveBeenCalledWith(
         PUBLIC_SAMPLE.url,
@@ -116,5 +119,44 @@ describe("customer and public sample boundaries", () => {
     ]);
     expect(result).toContain("'=HYPERLINK");
     expect(result).not.toContain(PUBLIC_SAMPLE.title);
+  });
+});
+
+describe("existing evidence panel with fixed original evidence", () => {
+  function capturedRow() {
+    return { ...PUBLIC_SAMPLE, id: "TEST-o", profileVersionId: "TEST-p", sample: false,
+      sourceStatus: "BLOCKED", sourceEvidence: parseOpportunitySourceEvidence(capturedEvidenceFixture(), {
+        opportunityId: "TEST-o", profileVersionId: "TEST-p",
+      }) };
+  }
+  it("opens the fixed source URL only on explicit click and reports native failure", async () => {
+    const row = capturedRow();
+    context.service.openExternal = vi.fn().mockRejectedValue(new Error("TEST 打开失败"));
+    render(<EvidencePanel opportunity={row} />);
+    expect(context.service.openExternal).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "查看来源原文" }));
+    await waitFor(() => expect(context.service.openExternal).toHaveBeenCalledWith(
+      "https://example.test/posts/TEST-source-1?comment=TEST-comment-1",
+    ));
+    expect(context.notify).toHaveBeenCalledWith("TEST 打开失败", "error");
+  });
+  it("distinguishes confirmed absence from unloaded evidence and labels the legacy excerpt", () => {
+    const row = { ...PUBLIC_SAMPLE, id: "TEST-o", sample: false,
+      sourceEvidence: { status: "UNAVAILABLE", reason: "NOT_CAPTURED" } as const };
+    const view = render(<EvidencePanel opportunity={row} compact />);
+    expect(screen.getByText("未留存固定原文证据")).toBeTruthy();
+    expect(screen.getByText("旧版摘录（非固定原文）")).toBeTruthy();
+    view.rerender(<EvidencePanel opportunity={{ ...row, sourceEvidence: undefined }} compact />);
+    expect(screen.queryByText("未留存固定原文证据")).toBeNull();
+    expect(screen.getByText("固定原文证据尚未加载")).toBeTruthy();
+  });
+  it("shows the fixed body and current judgment as separate sections, not the legacy excerpt", () => {
+    const row = capturedRow();
+    render(<EvidencePanel opportunity={row} />);
+    expect(screen.getByText(/TEST 评论正文/)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "当前复核与判断" })).toBeTruthy();
+    expect(screen.queryByText(PUBLIC_SAMPLE.excerpt)).toBeNull();
+    expect(context.service.copy).not.toHaveBeenCalled();
+    expect(context.service.openExternal).not.toHaveBeenCalled();
   });
 });

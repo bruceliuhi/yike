@@ -10,6 +10,7 @@ import type { YikeDesktopApi, ApiOperation } from "../../shared/contracts";
 import { decodeLibraryFacts } from "../domain/opportunityLibrary";
 import { decodeConnectionRegistry } from "./connectionRegistry";
 import { createResearchStrategiesService } from "./researchStrategies";
+import { parseOpportunitySourceEvidence } from "../domain/opportunitySourceEvidence";
 
 type JsonRecord = Record<string, unknown>;
 function bridge(): YikeDesktopApi | undefined {
@@ -168,8 +169,26 @@ export function mapProfile(raw: JsonRecord): Profile {
     description,
   };
 }
+function invalidEvidenceResponse(): never {
+  throw new ServiceError(
+    "INVALID_SERVICE_RESPONSE",
+    "原文证据响应不完整，请重新读取。",
+  );
+}
 export function mapOpportunity(r: JsonRecord): Opportunity {
+  let sourceEvidence: Opportunity["sourceEvidence"];
+  if (Object.hasOwn(r, "source_evidence")) {
+    try {
+      sourceEvidence = parseOpportunitySourceEvidence(r.source_evidence, {
+        opportunityId: text(r.opportunity_id),
+        profileVersionId: text(r.profile_version_id),
+      });
+    } catch {
+      invalidEvidenceResponse();
+    }
+  }
   return {
+    ...(sourceEvidence === undefined ? {} : { sourceEvidence }),
     sourceObservedAt: text(r.source_observed_at) || undefined,
     sourceEvidenceVersion: text(r.source_evidence_version) || undefined,
     libraryFacts: decodeLibraryFacts(r.library_facts),
@@ -267,19 +286,22 @@ export const service: YikeService = {
     list((await request("opportunities.list", "/opportunities")).items).map(
       mapOpportunity,
     ),
-  opportunity: async (id) =>
-    mapOpportunity(
-      record(
-        (
-          await request(
-            "opportunities.get",
-            `/opportunities/${encodeURIComponent(id)}`,
-            "GET",
-            { id },
-          )
-        ).opportunity,
-      ),
-    ),
+  opportunity: async (id, signal) => {
+    signal?.throwIfAborted();
+    const response = await request(
+      "opportunities.get",
+      `/opportunities/${encodeURIComponent(id)}`,
+      "GET",
+      { id },
+      signal,
+    );
+    // The native bridge has no cancellation protocol: never adopt its late reply.
+    signal?.throwIfAborted();
+    const raw = record(response.opportunity);
+    if (raw.opportunity_id !== id || !Object.hasOwn(raw, "source_evidence"))
+      invalidEvidenceResponse();
+    return mapOpportunity(raw);
+  },
   followups: async () =>
     list((await request("followups.list", "/followups")).items).map(
       mapFollowup,

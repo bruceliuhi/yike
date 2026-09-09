@@ -42,6 +42,7 @@ import { EvidenceTimeline } from "./opportunities/EvidenceTimeline";
 import { ResearchDraftHandoff } from "./opportunities/ResearchDraftHandoff";
 import { hasResearchScope } from "../domain/opportunityResearch";
 import { readResearchRecord } from "../services/opportunityResearch";
+import { parseOpportunitySourceEvidence } from "../domain/opportunitySourceEvidence";
 import {
   RESEARCH_CATEGORIES,
   type ResearchClassification,
@@ -511,7 +512,7 @@ function OpportunityDetail({ id }: { id: string }) {
     route.query.get("tab") === "changes" ? "changes" : "evidence",
   );
   const [similarOpen, setSimilarOpen] = useState(false);
-  const resource = useResource(async () => {
+  const resource = useResource(async (requestSignal) => {
     if (id === "sample")
       return {
         opportunity: PUBLIC_SAMPLE,
@@ -519,14 +520,34 @@ function OpportunityDetail({ id }: { id: string }) {
       };
     if (!session.authenticated) throw new Error("请登录后查看客户商机。");
     const record = await boundedRequest(
-      async (signal) =>
-        service.opportunityResearch && hasResearchScope(session.accountScope)
-          ? readResearchRecord(service.opportunityResearch, session, id, signal)
+      async (signal) => {
+        const research = service.opportunityResearch && hasResearchScope(session.accountScope);
+        const record = research
+          ? await readResearchRecord(service.opportunityResearch!, session, id, signal)
           : {
-              opportunity: await service.opportunity(id),
+              opportunity: await service.opportunity(id, signal),
               classification: undefined as ResearchClassification | undefined,
-            },
-      { timeoutMessage: "机会证据读取超时，请重试。" },
+            };
+        signal.throwIfAborted();
+        let item = record.opportunity;
+        if (research && item.sourceEvidence === undefined) {
+          const detail = await service.opportunity(id, signal);
+          signal.throwIfAborted();
+          if (detail.id !== item.id || detail.profileVersionId !== item.profileVersionId)
+            throw new Error("原文证据身份或画像不匹配，请重新读取。");
+          // Supplement only the fixed snapshot; keep the R4 classification and bindings.
+          item = { ...item, sourceEvidence: detail.sourceEvidence };
+        }
+        try {
+          item = { ...item, sourceEvidence: parseOpportunitySourceEvidence(item.sourceEvidence, {
+            opportunityId: item.id, profileVersionId: item.profileVersionId,
+          }) };
+        } catch {
+          throw new Error("原文证据响应不完整，请重新读取。");
+        }
+        return { ...record, opportunity: item };
+      },
+      { signal: requestSignal, timeoutMessage: "机会证据读取超时，请重试。" },
     );
     const item = record.opportunity;
     if (item.id !== id || isSample(item))
