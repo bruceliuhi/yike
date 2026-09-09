@@ -12,8 +12,8 @@ from app.model_contract import (
 
 
 _MIGRATION = Path(__file__).resolve().parents[1] / "migrations" / "001_discovery.sql"
-_SCHEMA_VERSION = "DISCOVERY_FACT_STORE_V18"
-_SCHEMA_SIGNATURE = "1c2cb57139ec6e14741bb65ee39f9bc64767fd4eb7d8ff56de5f8f481d4666c1"
+_SCHEMA_VERSION = "DISCOVERY_FACT_STORE_V19"
+_SCHEMA_SIGNATURE = "7e5e836d87500a9d0fad3b7d548593c78e310c51f73b20e81c9795558b864da1"
 
 
 class UnsupportedSchemaError(RuntimeError):
