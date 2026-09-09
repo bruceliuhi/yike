@@ -1,0 +1,32 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+ ❯ tests/ui/followup-reply-entry.test.tsx (17 tests | 1 failed) 476ms
+     × does not reset an explicitly selected date when the initial manual-list request finishes late 21ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/followup-reply-entry.test.tsx > P14 selection changes during asynchronous work > does not reset an explicitly selected date when the initial manual-list request finishes late
+AssertionError: expected '' to be '2026-09-01' // Object.is equality
+
+- Expected
++ Received
+
+- 2026-09-01
+
+ ❯ tests/ui/followup-reply-entry.test.tsx:472:7
+    470|     expect(
+    471|       (screen.getByLabelText("筛选记录日期") as HTMLInputElement).value,
+    472|     ).toBe("2026-09-01");
+       |       ^
+    473|     expect(
+    474|       screen.getByRole("tab", { name: "全部" }).getAttribute("aria-selec…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 passed (17)
+   Start at  03:26:44
+   Duration  1.55s (transform 160ms, setup 0ms, import 800ms, tests 476ms, environment 222ms)
+

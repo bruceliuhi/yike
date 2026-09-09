@@ -1,0 +1,9 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+
+ Test Files  7 passed (7)
+      Tests  75 passed (75)
+   Start at  03:28:55
+   Duration  2.39s (transform 912ms, setup 0ms, import 5.79s, tests 3.56s, environment 1.95s)
+
