@@ -28,6 +28,7 @@ class PilotDatabase:
         ("v02-research-strategies", migration_path.with_name("114_v02_research_strategies.sql")),
         ("v02-opportunity-evidence", migration_path.with_name("115_v02_opportunity_evidence.sql")),
         ("v02-device-registration", migration_path.with_name("116_v02_device_registration.sql")),
+        ("v02-reply-events", migration_path.with_name("118_v02_reply_events.sql")),
         ("v02-outreach-contract", migration_path.with_name("117_v02_outreach_contract.sql")),
     )
 
