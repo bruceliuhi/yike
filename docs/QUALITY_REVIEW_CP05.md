@@ -33,3 +33,5 @@
 本机浏览器 390×844 窄视口检查记录在 `docs/BROWSER_ACCEPTANCE_CP04.md`：页面无横向溢出，主按钮约 45px。该证据仍不等于真实手机验收；本轮 Docker Desktop 不可用，未新增受限容器 smoke，既有受限镜像证据仍只适用于其对应提交。
 
 独立代码复审针对 `a176dba` 运行 `tests/test_pilot_web.py tests/test_deploy_contracts.py tests/test_pilot_contracts.py`，结果为 `24 passed, 2 skipped`；静态资源路径穿越、`.env` 和目录索引探测均为 404，未发现 P0/P1/P2。静态目录保持仅放 CSS/JS 的约束，不能放入敏感文件。
+
+安全头修复提交 `d961d4b` 经独立复审：定向测试 `23 passed`；正常 200、401、400、404、503 以及 `raise_server_exceptions=False` 的 500 均包含五个基线安全头，`raise_server_exceptions=True` 仍保留原异常语义，未发现 P0/P1。当前分支最新提交以远端实际 SHA 为准。
