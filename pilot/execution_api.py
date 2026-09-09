@@ -1,0 +1,46 @@
+"""Fixed execution routes; installation is not proof of a usable collector."""
+from fastapi import HTTPException, Request
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from pilot.device_keys import decode_canonical, uuid_string
+from pilot.execution_contract import ExecutionOperation, ExecutionRuntimeError
+
+
+class ExecutionEnvelope(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", hide_input_in_errors=True)
+    request: ExecutionOperation
+    signature: str = Field(min_length=86, max_length=86, repr=False)
+
+    @field_validator("signature")
+    @classmethod
+    def valid_signature(cls, value):
+        decode_canonical(value, 64)
+        return value
+
+
+def register_execution_api(router, runtime, identity, require_session_https):
+    def run(request, operation):
+        require_session_https(request)
+        current = identity(request)
+        if current.claims is None:
+            raise ExecutionRuntimeError("invalid_session", 401)
+        if runtime is None:
+            raise HTTPException(501, detail={
+                "code": "capability_unavailable",
+                "message": "执行服务尚未接入，当前操作未执行。",
+            })
+        return operation(runtime, current.claims)
+
+    @router.post("/execution-operations")
+    def apply(body: ExecutionEnvelope, request: Request):
+        return run(request, lambda service, claims: service.apply(claims, body.request, body.signature))
+
+    @router.get("/execution-operations/{request_id}")
+    def receipt(request_id: str, request: Request):
+        uuid_string(request_id)
+        return run(request, lambda service, claims: service.get_receipt(claims, request_id))
+
+    @router.get("/execution-tasks/{task_id}")
+    def task(task_id: str, request: Request):
+        uuid_string(task_id)
+        return run(request, lambda service, claims: service.get_task(claims, task_id))

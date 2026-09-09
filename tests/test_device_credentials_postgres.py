@@ -482,8 +482,11 @@ def test_fresh_105_upgrade_twice_and_explicit_restricted_grants(databases):
             conn.autocommit = True
             conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database_name)))
             created = True
-        fresh.migration_paths = tuple(item for item in PilotDatabase.migration_paths
-                                      if item[0] not in ("v02-device-credentials", "v02-connection-versions"))
+        # The historical pre-upgrade database ends at105, not "all except two";
+        # later dependent migrations belong only to the subsequent full upgrade.
+        legacy_end = next(i for i, item in enumerate(PilotDatabase.migration_paths)
+                          if item[0] == "v02-session-revocation") + 1
+        fresh.migration_paths = PilotDatabase.migration_paths[:legacy_end]
         fresh.migrate()
         with fresh.connect() as conn:
             assert not conn.execute("SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='pilot_devices' AND column_name='owner_user_id')").fetchone()[0]
