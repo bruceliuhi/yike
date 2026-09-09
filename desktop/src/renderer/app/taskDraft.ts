@@ -2,6 +2,7 @@ import { z } from "zod";
 import { useLocalDraft } from "./hooks";
 import { newTaskDraft, type TaskDraft } from "../domain/models";
 import { defaultResearchSettings, researchDraftSchema } from "../domain/researchUsage";
+import { scheduleSchema } from "../domain/schedule";
 const term = z.object({
   id: z.string(),
   value: z.string(),
@@ -28,14 +29,7 @@ export const taskDraftSchema = z.object({
   platforms: z.array(z.enum(["xhs", "douyin", "bilibili", "zhihu", "web"])),
   accounts: z.record(z.string(), z.string()),
   mode: z.enum(["once", "monitor"]),
-  schedule: z.object({
-    kind: z.enum(["daily", "interval"]),
-    times: z.array(z.string()),
-    interval: z.number(),
-    start: z.string(),
-    end: z.string(),
-    timezone: z.string(),
-  }),
+  schedule: scheduleSchema,
   savedAt: z.string().nullable(),
   suggestionProfile: z.string().nullable(),
 });

@@ -1,6 +1,6 @@
 # 桌面构建与验收
 
-此目录交付 Electron 客户端和固定业务 API 桥接。它不包含采集 sidecar、平台连接器、短信登录或消息发送服务。`getRuntimeStatus()` 仍返回 `LOCAL_SERVICE_UNAVAILABLE`，不能用打包成功证明这些业务已接通。UI 和服务端的实际范围以仓库的 R3 实施记录为准。
+此目录交付 Electron 客户端和固定业务 API 桥接。它不包含采集 sidecar、平台连接器或消息发送服务；短信登录已有客户端/服务契约，真实供应商接通状态仍以身份交接为准。`getRuntimeStatus()` 仍返回 `LOCAL_SERVICE_UNAVAILABLE`，不能用打包成功证明这些业务已接通。UI 和服务端实际范围见 [R4 验收](../../docs/qa/ui-r4/README.md)及实施任务书，R3 保留历史。
 
 ## 构建前提
 
@@ -41,11 +41,17 @@ YIKE_SERVICE_URL=https://customer.example \
 
 ## Windows x64
 
-在 Windows x64、Node.js `>=24.15.0 <25` x64 环境中，获取要验收的代码提交，然后从仓库的 `desktop/` 目录用 PowerShell 运行：
+在 Windows x64、Node.js `>=24.15.0 <25` x64 环境中，获取最终交付的完整 40 位候选 SHA，在干净独立 checkout 中构建，不使用会继续变化的 main 名称。Windows 换行转换会造成字节不同，可从现有仓库创建隔离工作树（不覆盖已有改动或更改全局 Git 配置）：
 
 ```powershell
-./scripts/build-windows.ps1
+$Candidate = '<最终交付的完整40位SHA>'
+git fetch origin
+git -c core.autocrlf=false worktree add --detach ../yike-windows-candidate $Candidate
+Set-Location ../yike-windows-candidate/desktop
+./scripts/build-windows.ps1 -ExpectedCommit $Candidate
 ```
+
+路径已存在时选择新的空工作树目录，不删除旧环境。SHA 必须由交付方给出；占位文本不会通过预检。预检核对 HEAD、干净工作树及 desktop 已跟踪源码、测试、品牌和构建配置的实际字节与提交一致；忽略或未跟踪的可执行输入、链接、CRLF 转换、Git 不可用均不能放行。结束再次核对输入，漂移即 BUILD_FAILED。
 
 脚本执行安装依赖、类型检查、单元测试、原生网络冒烟、Squirrel 安装包构建、ASAR 校验、包内启动冒烟和产物 SHA-256。安装程序为 `out/make/squirrel.windows/x64/YikeAI-Setup.exe`；同时保留 `.nupkg` 和 `RELEASES`。
 
@@ -55,23 +61,30 @@ PowerShell 始终选择 PATH 中的第一个 Node，版本不满足时直接预�
 
 每次运行会生成独立目录 `out/windows-evidence/<运行编号>/`，控制台会显示该位置。其中：
 
-- `windows-build.json` 记录当前 Git 提交与 dirty 状态、Node/操作系统版本及架构、锁文件 SHA-256、每个阶段的状态和退出码，以及实际产物的大小和 SHA-256。无法读取 Git 时明确记为 `null`；不要将带本地改动的构建当成提交的精确产物。
+- `windows-build.json` 记录当前 Git 提交与 dirty 状态、Node/操作系统版本及架构、锁文件 SHA-256、每个阶段的状态和退出码，以及实际产物的大小和 SHA-256。新增 `sourceVerification` 记录预期 SHA、构建前输入清单和构建后摘要，仅两次一致为 VERIFIED；Git 不可用、dirty 或候选不符即失败。`testSummary` 单列文件数、passed/failed/skipped/todo 和跳过用例的文件/序号，原始 reporter 内容读完删除，不回传绝对路径、用例输入或失败日志。
 - 独立 `runtime` 字段仅记录 Node 版本范围、npm 实测版本、CLI 来源模式、选定 Node 与 CLI 的 SHA-256、直接启动模式；未完成探测的值为 `null`。运行时内部的绝对路径、环境副本和配置不进入报告。
-- `WINDOWS_ACCEPTANCE.md` 来自[人工验收模板](WINDOWS_ACCEPTANCE_TEMPLATE.md)，安装、可见启动、任务草稿、退出、重启、单实例、卸载及 100%/125%/150% 显示缩放均默认 `UNTESTED`。自动构建成功不会自动勾选人工项目。
+- `WINDOWS_ACCEPTANCE.md` 来自[人工验收模板](WINDOWS_ACCEPTANCE_TEMPLATE.md)，安装、可见启动、任务草稿、退出、重启、单实例、卸载及 100%/125%/150% × 默认/1280×720/最小960×600/连续拖动矩阵均默认 `UNTESTED`。自动构建成功不会自动勾选人工项目。
 
 依赖安装或后续阶段失败会保留报告和实际退出码，尚未执行的阶段为 `NOT_RUN`。缺少 Node 或版本不满足 `>=24.15.0 <25` 时，PowerShell 入口也会尝试写入预检失败报告。报告目录不可写等初始化故障只能在控制台提示；强制终止进程可能留下 `IN_PROGRESS`/`RUNNING`，这同样不是成功证据。证据文件不采集环境变量、Cookie、凭证、原始构建日志或异常全文。依赖漏洞审计结果仍按独立风险记录处理，不因运行时对齐而自动通过。
 
-完成构建后，只运行报告对应的本次安装包，逐项实际检查并填写人工表。回传同一运行目录中的 JSON、人工表及必要的脱敏截图；失败也回传 JSON，没有安装包的项目保持 `UNTESTED`。不要回传 `.env`、平台会话、用户数据目录、`node_modules` 或完整控制台日志。自动报告中的 `BUILD_SUCCEEDED` 只表示构建及自动检查通过，不能替代 Windows 实机与产品功能验收。
+构建后先用 `Get-FileHash -Algorithm SHA256` 核对 Setup 与报告一致，只运行该安装包。退出旧实例前先由用户处理未保存内容；从已安装快捷方式启动，不把单实例唤醒的旧窗口算新包。查看主窗口 PID 并核对（不自动结束进程）：
+
+```powershell
+Get-Process YikeAI | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object Id, StartTime
+./scripts/verify-windows-install.ps1 -BuildReport '<本次windows-build.json路径>' -ExpectedCommit $Candidate -ProcessId <本次主窗口PID>
+```
+
+核验要求实际 EXE 与 resources/app.asar 摘要等于构建报告、进程启动晚于构建完成、前后 PID/时间一致。每次生成 windows-installed-*.json，仅含摘要、PID/时间及固定错误码，不记录安装绝对路径或环境。IDENTITY_VERIFIED 只证明可见进程/包身份，不证明安装/缩放/业务成功，仍须逐项填人工表。失败先排除旧实例或错误安装包。回传同一运行目录中的 windows-build.json、windows-installed-*.json、人工表及脱敏截图/连续拖动录屏；失败也回传 JSON，没有安装包的项目保持 `UNTESTED`。不要回传 `.env`、平台会话、用户数据目录、`node_modules` 或完整控制台日志。自动报告中的 `BUILD_SUCCEEDED` 只表示构建及自动检查通过，不能替代 Windows 实机与产品功能验收。
 
 Squirrel 的 `--squirrel-install`、更新和卸载事件由 `electron-squirrel-startup` 处理。主程序名固定为 `YikeAI.exe`，AppUserModelId 为 `com.squirrel.YikeAI.YikeAI`。
 
 Squirrel.Windows 的官方构建宿主为 Windows，或安装 Mono 和 Wine 的 Linux；不支持本机 macOS 直接制作安装程序。因此只有在上述脚本于可用宿主成功执行并实际验收后，才能报告 Windows 安装包已交付。[官方构建要求](https://www.electronforge.io/config/makers/squirrel.windows)
 
-### Windows 证据脚本的本机验证
+### 历史 Windows 证据脚本的本机验证
 
 2026-09-09 在 macOS / Node 24.19.0 上，`node --check scripts/windows-build-evidence.mjs` 通过；`npm test -- tests/windowsBuildEvidence.test.mjs` 为 **7 passed**。测试使用隔离临时目录中的真实文件和 Git 提交，检查 SHA-256、失败退出码、阶段持久化、产物路径边界及人工状态保持未验收。实际运行 Node 入口返回退出码 1，生成 `WINDOWS_X64_NODE24_REQUIRED` 报告，后续 8 个阶段均为 `NOT_RUN`；记录见 [windows-evidence-writer-check.json](../../docs/qa/ui-r3/windows-evidence-writer-check.json)。
 
-本机未安装 PowerShell，`.ps1` 的解析、Node 缺失兜底、Windows 构建及人工验收都尚未在 Windows 执行。本记录不宣称 Windows 包已经生成或验证，也不改变上次 macOS 包的构建摘要。
+上述是早期 Mac 记录，不覆盖后来的 [Win 记录第10节](../../docs/qa/WIN_CROSS_REVIEW_20260909.md#10-最新Mac前端交叉审核及Windows重新构建)：旧候选4454a45已真实完成Windows九阶段（647 passed / 2 skipped），人工11项仍UNTESTED。历史成功不覆盖当前R4或新增候选锁定/实例核验入口；新增PowerShell路径须在Windows实际执行。
 
 ## 服务连接和会话边界
 

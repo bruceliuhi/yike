@@ -79,6 +79,32 @@ async function start() {
   );
 }
 describe("P16 断开连接的有界等待与原账号核对", () => {
+  it.each(["CONNECTED", "DISCONNECTED"] as const)("旧预检拒绝带设备版本的%s响应，不派发断开", async (status) => {
+    vi.mocked(context.service.checkConnection).mockResolvedValue({...account, status, registration: {
+      connectionId: "TEST-registered", deviceId: "TEST-other-device", version: 2,
+      connectedAt: "2026-09-09T00:00:00Z", disconnectedAt: null,
+    }});
+    await mount(); await start();
+    expect(screen.getByText(/返回连接带有设备与版本信息/)).toBeTruthy();
+    expect(context.service.disconnect).not.toHaveBeenCalled();
+    expect(ledger()).toEqual({});
+  });
+
+  it("旧请求不能用带设备版本的断开记录核销", async () => {
+    const original = JSON.stringify(["xhs", "TEST-account-a", "TEST-acknowledged"]);
+    localStorage.setItem(ledgerKey(), JSON.stringify({[original]: "ACKNOWLEDGED"}));
+    vi.mocked(context.service.checkConnection).mockResolvedValue({...disconnected, registration: {
+      connectionId: "TEST-registered", deviceId: "TEST-other-device", version: 2,
+      connectedAt: "2026-09-09T00:00:00Z", disconnectedAt: "2026-09-09T01:00:00Z",
+    }});
+    await mount();
+    fireEvent.click(screen.getByRole("button", {name: "核对断开结果（小红书）"}));
+    await act(async () => fireEvent.click(screen.getByRole("button", {name: "核对连接状态"})));
+    expect(screen.getByText(/返回连接带有设备与版本信息/)).toBeTruthy();
+    expect(ledger()[original]).toBe("ACKNOWLEDGED");
+    expect(context.notify).not.toHaveBeenCalled();
+  });
+
   it("预检中取消后，晚到的相同账号也不触发断开", async () => {
     const check = deferred<PlatformConnection>();
     vi.mocked(context.service.checkConnection).mockReturnValue(check.promise);

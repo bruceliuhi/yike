@@ -9,6 +9,7 @@ import {
 } from "react";
 import { errorMessage } from "../services/contracts";
 import { boundedRequest } from "./boundedRequest";
+import { sessionTaskContentAtRisk } from "./sessionTaskContent";
 export function useResource<T>(loader: (signal?: AbortSignal) => Promise<T>, deps: unknown[] = []) {
   // The dependency identity also gates render-time data. Clearing in an effect
   // alone would expose the previous account's data for one render.
@@ -139,6 +140,23 @@ export function forgetLegacyOperationLock(key: string) {
 const guards = new Set<symbol>();
 export function hasUnsavedChanges() {
   return guards.size > 0;
+}
+/** Includes drafts from pages that have unmounted, without exposing their text. */
+export function hasSessionTaskDrafts() {
+  const values = new Map<string, unknown>();
+  try {
+    if (!storageReadsBlocked) {
+      for (const key of Object.keys(sessionStorage)) {
+        if (!key.startsWith(DRAFT_PREFIX) || draftKeyEpochs.has(key)) continue;
+        try { values.set(key, JSON.parse(sessionStorage.getItem(key) || "null")); }
+        catch { /* Malformed storage is not accepted as a draft. */ }
+      }
+    }
+  } catch { /* Memory still protects unsaved input when storage is denied. */ }
+  for (const [key, value] of draftMemory) values.set(key, value);
+  for (const [key, value] of values)
+    if (sessionTaskContentAtRisk(key.slice(DRAFT_PREFIX.length), value)) return true;
+  return false;
 }
 export function clearLocalDrafts() {
   clearEpoch++;

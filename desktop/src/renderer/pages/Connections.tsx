@@ -11,7 +11,6 @@ import {
   RequestTimeout,
 } from "../app/boundedRequest";
 import {
-  Badge,
   Button,
   Field,
   Modal,
@@ -27,6 +26,8 @@ import {
 } from "../domain/models";
 import { safeReturnTo } from "../domain/routes";
 import { errorMessage } from "../services/contracts";
+import { mergeConnectionRead } from "../services/connectionRegistry";
+import { ConnectionRegistryTable } from "./connections/ConnectionRegistryTable";
 
 type ConnectingState =
   | "idle"
@@ -36,28 +37,18 @@ type ConnectingState =
   | "connected"
   | "timeout"
   | "error";
-const connectionLabel: Record<PlatformConnection["status"], string> = {
-  CONNECTED: "已连接",
-  DISCONNECTED: "未连接",
-  EXPIRED: "登录已失效",
-  LIMITED: "连接受限",
-  UNAVAILABLE: "连接服务待接通",
-};
-
 export function ConnectionsPage() {
   const { service, session, route, navigate, notify } = useApp();
   const connections = useResource(
-    () =>
+    (signal) =>
       boundedRequest(() => service.connections(), {
+        signal,
         timeoutMessage: "连接列表读取超时，请重试。",
       }),
-    [service, session.userId],
+    [service, session.authenticated, session.userId, session.accountScope?.id, session.accountScope?.version],
   );
   const disconnect = useConnectionDisconnect((connection) => {
-    connections.setData((old) => [
-      ...(old || []).filter((item) => item.platform !== connection.platform),
-      connection,
-    ]);
+    connections.setData((old) => mergeConnectionRead(old, connection));
   });
   const selected = PLATFORMS.find(
     (p) => p.id === route.query.get("connect") && p.id !== "web",
@@ -82,7 +73,7 @@ export function ConnectionsPage() {
       generation.current++;
       controller.current?.abort();
     };
-  }, [selected?.id, modalOpen, session.userId]);
+  }, [selected?.id, modalOpen, service, session.authenticated, session.userId, session.accountScope?.id, session.accountScope?.version]);
   useEffect(() => {
     if (state !== "waiting") return;
     const timer = window.setTimeout(() => {
@@ -163,10 +154,7 @@ export function ConnectionsPage() {
         return;
       }
       setResult(connection);
-      connections.setData((old) => [
-        ...(old || []).filter((c) => c.platform !== connection.platform),
-        connection,
-      ]);
+      connections.setData((old) => mergeConnectionRead(old, connection));
       if (connection.status === "CONNECTED") {
         setState("connected");
       } else {
@@ -241,95 +229,16 @@ export function ConnectionsPage() {
       {!disconnect.target && disconnect.message && (
         <Notice tone="warning">{disconnect.message}</Notice>
       )}
-      <div className="table-scroll">
-        <table className="connection-table">
-          <thead>
-            <tr>
-              <th>平台</th>
-              <th>当前账号</th>
-              <th>连接状态</th>
-              <th>可用能力</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {PLATFORMS.map((platform) => {
-              const connection = connections.data?.find(
-                (c) => c.platform === platform.id,
-              );
-              const isWeb = platform.id === "web";
-              return (
-                <tr key={platform.id}>
-                  <td>
-                    <PlatformLabel platform={platform.id} size={22} />
-                  </td>
-                  <td>
-                    {isWeb
-                      ? "无需账号"
-                      : connection?.accountName || connection?.accountId || "—"}
-                  </td>
-                  <td>
-                    {isWeb ? (
-                      "—"
-                    ) : (
-                      <Badge
-                        tone={
-                          connection?.status === "CONNECTED"
-                            ? "green"
-                            : connection?.status === "EXPIRED" ||
-                                connection?.status === "LIMITED"
-                              ? "orange"
-                              : "neutral"
-                        }
-                      >
-                        {connection
-                          ? connectionLabel[connection.status]
-                          : "待读取连接状态"}
-                      </Badge>
-                    )}
-                  </td>
-                  <td>
-                    {connection?.capabilities.length
-                      ? connection.capabilities.join("、")
-                      : isWeb
-                        ? "公开页面读取（范围待验收）"
-                        : "待检查平台能力"}
-                  </td>
-                  <td>
-                    {!isWeb && (
-                      <div className="inline-actions">
-                        <Button
-                          disabled={disconnect.records.some(
-                            (record) => record.platform === platform.id,
-                          )}
-                          onClick={() => openPlatform(platform.id)}
-                        >
-                          {connection?.status === "CONNECTED"
-                            ? "查看连接"
-                            : connection?.status === "EXPIRED"
-                              ? "重新连接"
-                              : "连接"}
-                        </Button>
-                        {connection?.status === "CONNECTED" && (
-                          <Button
-                            variant="ghost"
-                            disabled={disconnect.records.some(
-                              (record) => record.platform === platform.id,
-                            )}
-                            onClick={() => disconnect.open(connection)}
-                          >
-                            断开
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <ConnectionRegistryTable
+        key={JSON.stringify([session.authenticated, session.userId, session.accountScope?.id, session.accountScope?.version])}
+        rows={connections.data}
+        loading={connections.loading}
+        error={connections.error}
+        pendingPlatforms={disconnect.records.map(record => record.platform)}
+        onOpen={openPlatform}
+        onDisconnect={disconnect.open}
+        onRefresh={() => void connections.reload()}
+      />
       <section className="connection-notes">
         <h3>说明</h3>
         <ul>

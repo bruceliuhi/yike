@@ -29,6 +29,7 @@ import logo from "../assets/logo.png";
 import { useApp } from "./context";
 import { NAV, safeReturnTo, type AppRoute } from "../domain/routes";
 import { Empty, Button } from "../components/ui";
+import { useSessionDraftExitProtection } from "./sessionDraftExit";
 
 const loaders = import.meta.glob("../pages/*.tsx");
 const missingLoader = async (): Promise<unknown> => {
@@ -352,12 +353,17 @@ function useRouteScroll(route: AppRoute, identity: string, ready: boolean) {
   return restore;
 }
 export function App() {
+  useSessionDraftExitProtection();
   const { route, navigate, session, sessionReady } = useApp();
+  const monitoringTask = route.path === "/tasks/new" && route.query.get("mode") === "monitor";
+  const pageTitle = monitoringTask
+    ? (titleByPage[route.page] || "页面不存在").replace(/^线索采集/, "监控任务")
+    : titleByPage[route.page] || "页面不存在";
   const [collapsed, setCollapsed] = useState(false);
   const ready = sessionReady !== false;
   const restoreScroll = useRouteScroll(route, session.userId || "local", ready);
   useEffect(() => {
-    document.title = `${titleByPage[route.page] || "页面不存在"} · 意客AI`;
+    document.title = `${pageTitle} · 意客AI`;
     const frame = requestAnimationFrame(() => {
       if (!document.querySelector("[data-yike-dialog]"))
         document
@@ -365,7 +371,7 @@ export function App() {
           ?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
-  }, [route.path, route.page, ready]);
+  }, [route.path, route.page, pageTitle, ready]);
   if (!ready)
     return (
       <main className="loading-state" role="status">
@@ -380,7 +386,7 @@ export function App() {
     );
   const active =
     route.path.startsWith("/tasks") || route.path === "/candidates"
-      ? "/collection"
+      ? monitoringTask ? "/monitors" : "/collection"
       : route.path.startsWith("/monitors/")
         ? "/monitors"
         : route.path.startsWith("/opportunities/")
@@ -475,7 +481,7 @@ export function App() {
                 <ArrowLeft size={18} />
               </button>
             )}
-            <span>{titleByPage[route.page] || "页面不存在"}</span>
+            <span>{pageTitle}</span>
           </div>
           <div className="topbar-actions">
             <span className="version-label">V0.2</span>

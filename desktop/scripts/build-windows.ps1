@@ -1,3 +1,5 @@
+param([string]$ExpectedCommit)
+
 $ErrorActionPreference = 'Stop'
 $requiredNodeRange = '>=24.15.0 <25'
 $desktopRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -38,6 +40,7 @@ try {
     $report = [ordered]@{
       schemaVersion = 1; runId = $runId; startedAt = $now; finishedAt = $now
       outcome = 'BUILD_FAILED'; failureCode = $(if ($nodeCommand) { 'NODE_24_15_REQUIRED' } else { 'NODE_NOT_FOUND' }); manualAcceptance = 'UNTESTED'
+      sourceVerification = @{ expectedCommit = $(if ($ExpectedCommit -match '^[a-fA-F0-9]{40}$') { $ExpectedCommit.ToLowerInvariant() } else { $null }); status = 'NOT_RUN'; before = $null; after = $null }; testSummary = $null
       source = @{ commit = $commit; dirty = $dirty; gitAvailable = ($null -ne $commit -and $null -ne $dirty); lockfile = @{ path = 'package-lock.json'; sha256 = $lockHash } }
       host = @{ platform = [Environment]::OSVersion.Platform.ToString(); osVersion = [Environment]::OSVersion.VersionString; osRelease = [Environment]::OSVersion.Version.ToString(); osArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString(); nodeVersion = $nodeVersion; nodeArch = $null }
       runtime = @{ requiredNodeRange = $requiredNodeRange; npmVersion = $null; npmSource = $null; nodeSha256 = $null; npmCliSha256 = $null; launchMode = $null }
@@ -52,7 +55,7 @@ try {
     Write-Output ('Node.js ' + $requiredNodeRange + ' x64 is required. Failure evidence: ' + $evidenceDirectory)
     exit 1
   }
-  & $nodeCommand.Source (Join-Path $PSScriptRoot 'windows-build-evidence.mjs')
+  & $nodeCommand.Source (Join-Path $PSScriptRoot 'windows-build-evidence.mjs') --expected-commit $ExpectedCommit
   $buildExitCode = $LASTEXITCODE
   exit $buildExitCode
 } finally {

@@ -157,6 +157,8 @@ export function taskErrors(draft: TaskDraft): Record<string, string> {
         !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.end))
     )
       errors.schedule = "请填写有效的执行窗口。";
+    else if (schedule.kind === "interval" && schedule.start === schedule.end)
+      errors.schedule = "执行窗口开始与结束不能相同；请明确设置当天或跨日窗口。";
   }
   return errors;
 }
@@ -181,6 +183,7 @@ export function startBlockers(
     const connection = connections.find(
       (c) =>
         c.platform === platform &&
+        !c.registration &&
         c.status === "CONNECTED" &&
         (platform === "web" || c.accountId === draft.accounts[platform]),
     );

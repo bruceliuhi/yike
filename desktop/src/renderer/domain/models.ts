@@ -9,7 +9,10 @@ export interface ProfileFields {
   exclusions: string;
 }
 export interface Profile {
+  /** Version-row ID. Never substitute the stable profile entity ID here. */
   id: string;
+  /** Stable entity ID supplied by the service; absent for legacy responses. */
+  profileEntityId?: string;
   version: number;
   status: "DRAFT" | "CONFIRMED" | "REVOKED";
   fields: ProfileFields;
@@ -22,6 +25,7 @@ export interface Term {
   edited: boolean;
 }
 export interface Schedule {
+  policyVersion?: 1;
   kind: "daily" | "interval";
   times: string[];
   interval: number;
@@ -51,11 +55,19 @@ export interface TaskDraft {
 }
 export interface PlatformConnection {
   platform: PlatformId;
-  status: "CONNECTED" | "DISCONNECTED" | "EXPIRED" | "LIMITED" | "UNAVAILABLE";
+  status: "CONNECTED" | "DISCONNECTED" | "EXPIRED" | "LIMITED" | "UNAVAILABLE" | "UNVERIFIED";
   accountId?: string;
   accountName?: string;
   capabilities: string[];
   reason?: string;
+  /** Server registration identity. It is not an execution capability or a session credential. */
+  registration?: {
+    connectionId: string;
+    deviceId: string;
+    version: number;
+    connectedAt: string;
+    disconnectedAt: string | null;
+  };
 }
 export interface Suggestion {
   keywords: string[];
@@ -219,6 +231,7 @@ export function newTaskDraft(mode: "once" | "monitor" = "once"): TaskDraft {
     accounts: {},
     mode,
     schedule: {
+      policyVersion: 1,
       kind: "daily",
       times: ["09:00"],
       interval: 3,
