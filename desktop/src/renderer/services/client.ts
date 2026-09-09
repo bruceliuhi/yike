@@ -237,6 +237,7 @@ function unavailable(name: string): never {
 }
 const candidateReads = createCandidateReviewService(request);
 export const service: YikeService = {
+  candidateReview: candidateReads,
   researchStrategies: createResearchStrategiesService(request),
   rawCandidateEvidence: candidateReads.getRawEvidence,
   verifyContact: async () => unavailable("收件对象与发送条件核验"),
@@ -251,7 +252,7 @@ export const service: YikeService = {
       })),
     };
   },
-  // Enable writes only after the durable ledger and explicit P07 actions are composed.
+  // Real P07 writes use candidateReview + its durable request ledger; legacy implicit calls remain blocked.
   reviewCandidate: async () => unavailable("候选判断与人工复核"),
   session: async () => {
     const r = await request("session.get", "/session");

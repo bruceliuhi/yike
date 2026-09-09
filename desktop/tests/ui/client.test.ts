@@ -20,13 +20,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("real client transport boundaries", () => {
-  it("reads original candidate evidence through the product client without enabling writes", async () => {
+  it("reads original candidate evidence while the legacy implicit write entry stays disabled", async () => {
     const data = rawEvidenceFixture();
     const requestApi = vi.fn().mockResolvedValue({ok:true,status:200,data});
     host.yikeDesktop = {requestApi} as unknown as YikeDesktopApi;
     expect(await service.rawCandidateEvidence!(rawEvidenceBinding)).toEqual(data);
     expect(requestApi).toHaveBeenCalledExactlyOnceWith({operation:"candidates.rawEvidence",payload:{candidateId:rawEvidenceBinding.candidateId}});
-    expect(service.candidateReview).toBeUndefined();
+    expect(service.candidateReview).toBeDefined();
     await expect(service.reviewCandidate(assessmentRequestFixture() as Parameters<typeof service.reviewCandidate>[0])).rejects.toMatchObject({status:501});
     expect(requestApi).toHaveBeenCalledTimes(1);
   });

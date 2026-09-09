@@ -236,6 +236,8 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 
 ### CodexWin Goal 启动与当前认领
 
+2026-09-10 Win05G Task4已将“原文证据”及完整人工流程接入现P07：正文/父上下文/时间版本、判断逐字引用、显式ASSESS、人工核验、固定核验ID的确认纳入/排除、原请求恢复。独立复审PASS，根612相关测试通过，Windows Edge两视口采用TEST隔离；这些不代表真实后端或客户试用通过。**Win下一片独占Task5实际Node→HTTP→受限PG接收与P11固定原文核对**，不改Mac在途后端/设备/回复实现。详见[QA](qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task4-p07-原文证据与完整人工流程)，05G/PH-F06/Goal保持IN_PROGRESS；下列较早记录按其版本保留。
+
 2026-09-10 Win05G原始证据/恢复基础基于`b1b2cba`完成限定切片：真实只读原文保留COMMENT主体/父上下文、未知时间和版本/观察；新版opaque恢复覆盖四动作、原请求与invocation别名、明确重试、旧未决保护及慢hash并发CAS。两片均独立SPEC/代码/架构/质量PASS，根14文件546项、类型、生产TEST排除通过，[QA](qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task3-原始证据与操作恢复基础)保留全部反例。**Win接续现P07显式判断/人工核验/确认入库，再做真实HTTP/PG与Windows界面接收**；写服务尚未装入产品，不把hook可用写成客户流程已通。Mac后端/设备与收发所有权不变，05G/PH-F06/整体Goal继续IN_PROGRESS。
 
 2026-09-10 Win05G真实候选读取片基于`d45699b`：四固定传输和严格响应适配已接，产品仅开放候选读取；旧隐式判断仍501，待原请求持久化及显式按钮后启用写服务。独立SPEC/代码/架构/质量PASS，根代理198相关、115策略/原文/确认发送回归分别通过，类型和生产TEST排除通过，见[QA](qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task2-固定传输与实际候选读取)。Win继续独占desktop原始证据详情、评论归属与候选恢复/P07接线；不改Mac后端/回复/设备在途实现。05G和Goal仍IN_PROGRESS，未将只读模块或测试当完整客户体验；通过main同步，未冒称Mac直达消息或实际ACK。
