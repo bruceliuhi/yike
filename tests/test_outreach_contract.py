@@ -178,3 +178,17 @@ def test_idempotency_rejects_same_request_with_changed_binding():
     registry.bind(first)
     with pytest.raises(ValueError, match="request_id binding conflict"):
         registry.bind(second)
+
+
+def test_content_change_invalidates_confirmation_digest():
+    source_obj = source()
+    connection_id = str(uuid4())
+    mapping = map_recipient(source_obj, capability(connection_id), recipient(source_obj, connection_id))
+    item = draft(source_obj, connection_id)
+    now = datetime(2026, 9, 10, 2, tzinfo=timezone.utc)
+    snapshot = bind_confirmation(
+        source_obj, item, mapping, request_id=str(uuid4()),
+        expires_at=now + timedelta(minutes=15), confirmed_at=now,
+    )
+    changed = item.model_copy(update={"content": "另一条消息"})
+    assert not snapshot.is_valid_for(changed, mapping, now + timedelta(minutes=1))
