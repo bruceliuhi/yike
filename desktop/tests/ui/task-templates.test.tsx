@@ -221,7 +221,8 @@ it("expands monitor configuration read-only, shows every platform and does not i
   fireEvent.click(screen.getByRole("button", { name: "查看配置" }));
   const panel = within(screen.getByRole("region", { name: "监控草稿配置" }));
   expect(panel.getByText("人工精修词")).toBeTruthy();
-  expect(panel.getByText("小红书、抖音、B站、知乎、公开网站")).toBeTruthy();
+  for (const name of ["小红书", "抖音", "B站", "知乎", "公开网站"])
+    expect(panel.getByText(name)).toBeTruthy();
   expect(panel.getByText("每 3 小时 · 09:00–18:00")).toBeTruthy();
   expect(panel.getByText("Asia/Shanghai")).toBeTruthy();
   expect(panel.queryByText("最近运行")).toBeNull();

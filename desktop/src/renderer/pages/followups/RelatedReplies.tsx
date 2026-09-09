@@ -13,6 +13,7 @@ import {
   Tabs,
   formatDate,
 } from "../../components/ui";
+import { PlatformLabel } from "../../components/Platform";
 import {
   FOLLOWUP_LABELS,
   readReplies,
@@ -184,7 +185,9 @@ export function RelatedReplies({
                       <Badge tone={reply.read ? "neutral" : "blue"}>
                         {reply.read ? "已读" : "未读"}
                       </Badge>{" "}
-                      <Badge>{reply.platform}</Badge>
+                      <Badge>
+                        <PlatformLabel platform={reply.platform} size={16} />
+                      </Badge>
                       {reply.sample && (
                         <Badge tone="orange">公开样例 · 只读</Badge>
                       )}

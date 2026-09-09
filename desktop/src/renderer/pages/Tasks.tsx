@@ -3,9 +3,10 @@ import {
   Plus,
   MagnifyingGlass,
   ArrowRight,
-  Globe,
   ArrowClockwise,
 } from "@phosphor-icons/react";
+import { PlatformLabel } from "../components/Platform";
+import { TaskPlatforms } from "./tasks/TaskPlatforms";
 import { useApp } from "../app/context";
 import { useOperationLedger } from "../app/operationLedger";
 import { useResource } from "../app/hooks";
@@ -285,8 +286,7 @@ function MonitorDetail({
                                 aria-pressed={id === platform}
                                 onClick={() => setChosen(id)}
                               >
-                                <Globe size={18} aria-hidden />
-                                {platformName(id)}
+                                <PlatformLabel platform={id} size={18} />
                               </button>
                             </td>
                             <td>
@@ -319,8 +319,7 @@ function MonitorDetail({
                 <>
                   <div className="section-heading">
                     <h2 className="platform-label">
-                      <Globe size={24} aria-hidden />
-                      {platformName(platform)}
+                      <PlatformLabel platform={platform} size={24} />
                     </h2>
                     <Badge tone={stateTone(stage?.status || "")}>
                       {stage
@@ -436,7 +435,7 @@ function MonitorDetail({
               <div>
                 <dt>监控平台</dt>
                 <dd>
-                  {run.platforms.map(platformName).join("、") || "待读取"}
+                  <TaskPlatforms platforms={run.platforms} empty="待读取" />
                 </dd>
               </div>
             </dl>
@@ -790,7 +789,7 @@ export function TasksPage() {
             <div>
               <h3>{run.name}</h3>
               <p>
-                {run.platforms.map(platformName).join("、")} ·{" "}
+                <TaskPlatforms platforms={run.platforms} /> ·{" "}
                 {formatDate(run.updatedAt || "")}
               </p>
             </div>
@@ -896,8 +895,7 @@ export function TasksPage() {
           <div className="platform-choices">
             {PLATFORMS.map((p) => (
               <span className="platform-label" key={p.id}>
-                <Globe size={20} />
-                {p.name}
+                <PlatformLabel platform={p.id} size={20} />
               </span>
             ))}
           </div>

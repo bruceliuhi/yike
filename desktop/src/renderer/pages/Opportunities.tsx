@@ -22,6 +22,7 @@ import {
   Tabs,
   formatDate,
 } from "../components/ui";
+import { PlatformIcon, PlatformLabel } from "../components/Platform";
 import type { Opportunity, Profile } from "../domain/models";
 import { ServiceError, errorMessage } from "../services/contracts";
 import { downloadText, downloadErrorMessage } from "../services/download";
@@ -72,6 +73,22 @@ export const PUBLIC_SAMPLE: Opportunity = {
 };
 export function isSample(row: Opportunity) {
   return row.sample === true || row.id === "sample";
+}
+function SourcePlatform({
+  platform,
+  sourceLabel,
+}: {
+  platform: string;
+  sourceLabel?: string;
+}) {
+  return sourceLabel ? (
+    <span className="brand-platform-label" style={{ whiteSpace: "normal" }}>
+      <PlatformIcon platform={platform} size={16} />
+      <span>{sourceLabel}</span>
+    </span>
+  ) : (
+    <PlatformLabel platform={platform || "来源待核验"} size={16} />
+  );
 }
 export function opportunityStatus(row: Opportunity) {
   if (isSample(row)) return "待复核";
@@ -145,8 +162,11 @@ export function EvidencePanel({
         {row.excerpt || "尚未提供原始摘录"}
       </blockquote>
       <p className="muted source-meta">
-        {isSample(row) ? "湖南省商务厅官网" : row.platform || "来源待核验"} ·
-        发布于 {formatDate(row.publishedAt)}
+        <SourcePlatform
+          platform={row.platform}
+          sourceLabel={isSample(row) ? "湖南省商务厅官网" : undefined}
+        />{" "}
+        · 发布于 {formatDate(row.publishedAt)}
       </p>
       {!compact && (
         <>
@@ -438,9 +458,12 @@ function OpportunityList() {
                         )}
                       </td>
                       <td>
-                        {isSample(row)
-                          ? "湖南省商务厅官网"
-                          : row.platform || "—"}
+                        <SourcePlatform
+                          platform={row.platform}
+                          sourceLabel={
+                            isSample(row) ? "湖南省商务厅官网" : undefined
+                          }
+                        />
                       </td>
                       <td>
                         <Badge tone={isSample(row) ? "orange" : "neutral"}>
@@ -596,7 +619,13 @@ function OpportunityDetail({ id }: { id: string }) {
         ).map(([label, value]) => (
           <div key={label}>
             <span>{label}</span>
-            <strong>{value || "—"}</strong>
+            <strong>
+              {label === "来源平台" ? (
+                <PlatformLabel platform={value || "来源待核验"} size={18} />
+              ) : (
+                value || "—"
+              )}
+            </strong>
           </div>
         ))}
       </div>
@@ -1416,8 +1445,11 @@ function CandidateWorkbench() {
                     >
                       <h3>{row.title}</h3>
                       <p className="muted">
-                        {row.sourceLabel || row.platform} ·{" "}
-                        {formatDate(row.publishedAt)}
+                        <SourcePlatform
+                          platform={row.platform}
+                          sourceLabel={row.sourceLabel}
+                        />{" "}
+                        · {formatDate(row.publishedAt)}
                       </p>
                       <Badge
                         tone={
@@ -1472,7 +1504,10 @@ function CandidateWorkbench() {
                       <div>
                         <span>发布来源</span>
                         <strong>
-                          {selected.sourceLabel || selected.platform}
+                          <SourcePlatform
+                            platform={selected.platform}
+                            sourceLabel={selected.sourceLabel}
+                          />
                         </strong>
                       </div>
                       <div>

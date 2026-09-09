@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { Badge, Button, formatDate } from "../../components/ui";
-import { PLATFORMS, type TaskDraft } from "../../domain/models";
+import { TaskPlatforms } from "./TaskPlatforms";
+import { type TaskDraft } from "../../domain/models";
 export function TaskDraftRow({
   draft,
   pending,
@@ -19,17 +20,14 @@ export function TaskDraftRow({
   const [expanded, setExpanded] = useState(false);
   const region = useId();
   const monitor = draft.mode === "monitor";
-  const platforms =
-    draft.platforms
-      .map((id) => PLATFORMS.find((p) => p.id === id)?.name || id)
-      .join("、") || "尚未选择平台";
   return (
     <div className="task-draft-block">
       <article className="task-list-row">
         <div>
           <h3>{draft.name || "未命名任务"}</h3>
           <p>
-            {platforms} · {formatDate(draft.savedAt || "")}
+            <TaskPlatforms platforms={draft.platforms} /> ·{" "}
+            {formatDate(draft.savedAt || "")}
           </p>
         </div>
         <Badge tone={pending ? "orange" : "neutral"}>
@@ -84,7 +82,9 @@ export function TaskDraftRow({
             </div>
             <div>
               <dt>目标平台</dt>
-              <dd>{platforms}</dd>
+              <dd>
+                <TaskPlatforms platforms={draft.platforms} />
+              </dd>
             </div>
             <div>
               <dt>采集范围</dt>

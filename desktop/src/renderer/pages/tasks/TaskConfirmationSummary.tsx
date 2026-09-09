@@ -1,7 +1,6 @@
-import { Globe } from "@phosphor-icons/react";
+import { PlatformLabel } from "../../components/Platform";
 import { Badge, Button } from "../../components/ui";
 import {
-  PLATFORMS,
   type PlatformConnection,
   type Profile,
   type TaskDraft,
@@ -162,8 +161,7 @@ export function TaskConfirmationSummary({
                   <tr key={id}>
                     <td>
                       <span className="task-confirm-platform">
-                        <Globe />
-                        {PLATFORMS.find((p) => p.id === id)?.name || id}
+                        <PlatformLabel platform={id} size={20} />
                       </span>
                     </td>
                     <td>

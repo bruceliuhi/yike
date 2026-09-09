@@ -27,6 +27,7 @@ import {
   Tabs,
   formatDate,
 } from "../components/ui";
+import { PlatformIcon, PlatformLabel } from "../components/Platform";
 import type {
   ContactDraft,
   Opportunity,
@@ -215,6 +216,7 @@ function OutreachWorkspace() {
                 <strong>{row.title}</strong>
                 <span>{row.buyer}</span>
                 <small>
+                  <PlatformLabel platform={row.platform} size={16} /> ·{" "}
                   {row.comment || row.dm ? "已有联系草稿" : "待准备内容"}
                 </small>
                 <small>更新于 {formatDate(row.updatedAt)}</small>
@@ -234,7 +236,10 @@ function OutreachWorkspace() {
                 onClick={() => navigate("/outreach?opportunity=sample")}
               >
                 <strong>高交会预算询价 · 联系准备</strong>
-                <span>湖南省商务厅官网</span>
+                <span className="brand-platform-label">
+                  <PlatformIcon platform={PUBLIC_SAMPLE.platform} size={16} />
+                  <span>湖南省商务厅官网</span>
+                </span>
                 <Badge tone="orange">公开样例 · 只读</Badge>
               </button>
             </div>
@@ -961,7 +966,15 @@ export function SendConfirmation({
       <dl className="detail-list">
         <div>
           <dt>渠道</dt>
-          <dd>{snapshot.draft.channel === "comment" ? "评论" : "私信"}</dd>
+          <dd>
+            {connection?.platform && (
+              <>
+                <PlatformLabel platform={connection.platform} size={16} />{" "}
+                ·{" "}
+              </>
+            )}
+            {snapshot.draft.channel === "comment" ? "评论" : "私信"}
+          </dd>
         </div>
         <div>
           <dt>发送账号</dt>

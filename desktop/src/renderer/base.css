@@ -1441,6 +1441,15 @@ tbody tr:hover {
 .connection-table td {
   height: 78px;
 }
+.platform-choice-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.platform-choice-control > select {
+  flex: 1;
+  min-width: 0;
+}
 .connection-notes {
   padding: 28px 0;
   color: #6d7f97;
@@ -2201,7 +2210,7 @@ tbody tr:hover {
     grid-column: 1/-1;
   }
 }
-.fact-strip span {
+.fact-strip > div > span {
   display: block;
   font-size: 12px;
   color: #71829a;

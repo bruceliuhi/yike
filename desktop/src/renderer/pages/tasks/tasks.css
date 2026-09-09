@@ -121,3 +121,13 @@
     flex-wrap: wrap;
   }
 }
+.task-platforms {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  vertical-align: middle;
+}
+.task-template-platforms {
+  margin: 6px 0;
+}

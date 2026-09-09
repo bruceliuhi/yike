@@ -1,0 +1,29 @@
+.brand-platform-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.brand-platform-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.brand-platform-icon > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 18%;
+}
+
+.brand-platform-icon > svg {
+  display: block;
+  flex: 0 0 auto;
+}

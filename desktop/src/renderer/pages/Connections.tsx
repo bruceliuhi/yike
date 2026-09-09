@@ -1,12 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  ArrowSquareOut,
-  CheckCircle,
-  Clock,
-  Globe,
-  Plus,
-} from "@phosphor-icons/react";
+import { ArrowSquareOut, CheckCircle, Plus } from "@phosphor-icons/react";
 import { useApp } from "../app/context";
+import { PlatformIcon, PlatformLabel } from "../components/Platform";
 import { useAction, useResource } from "../app/hooks";
 import {
   boundedRequest,
@@ -245,10 +240,7 @@ export function ConnectionsPage() {
               return (
                 <tr key={platform.id}>
                   <td>
-                    <span className="platform-label">
-                      <Globe size={20} aria-hidden />
-                      {platform.name}
-                    </span>
+                    <PlatformLabel platform={platform.id} size={22} />
                   </td>
                   <td>
                     {isWeb
@@ -333,17 +325,22 @@ export function ConnectionsPage() {
           }
         >
           <Field label="选择平台" required>
-            <select
-              aria-label="选择连接平台"
-              value={platformChoice}
-              onChange={(e) => setPlatformChoice(e.target.value as PlatformId)}
-            >
-              {PLATFORMS.filter((p) => p.id !== "web").map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+            <div className="platform-choice-control">
+              <PlatformIcon platform={platformChoice} size={24} />
+              <select
+                aria-label="选择连接平台"
+                value={platformChoice}
+                onChange={(e) =>
+                  setPlatformChoice(e.target.value as PlatformId)
+                }
+              >
+                {PLATFORMS.filter((p) => p.id !== "web").map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </Field>
           <p className="field-hint">下一步将在平台原生页面登录账号。</p>
         </Modal>
@@ -406,7 +403,7 @@ export function ConnectionsPage() {
             账号登录在平台原生页面完成，意客AI不要求输入平台密码。
           </p>
           <div className="connection-status">
-            <Clock size={28} aria-hidden />
+            <PlatformIcon platform={selected.id} size={32} />
             <div>
               <span className="muted">当前状态</span>
               <h3 role="status">{currentState}</h3>

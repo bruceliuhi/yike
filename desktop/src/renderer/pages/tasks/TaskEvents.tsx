@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Badge, Button, Empty, Notice, formatDate } from "../../components/ui";
+import { PlatformLabel } from "../../components/Platform";
 import { PLATFORMS, type TaskRun } from "../../domain/models";
 import { inDateRange, pageItems } from "./listState";
 import { TaskPagination } from "./TaskPagination";
@@ -94,10 +95,11 @@ export function TaskEvents({ run }: { run: TaskRun }) {
                 <tr key={`${event.id}:${index}`}>
                   <td>{formatDate(event.occurredAt || "")}</td>
                   <td>
-                    {event.platform
-                      ? PLATFORMS.find((p) => p.id === event.platform)?.name ||
-                        event.platform
-                      : "任务"}
+                    {event.platform ? (
+                      <PlatformLabel platform={event.platform} size={16} />
+                    ) : (
+                      "任务"
+                    )}
                   </td>
                   <td>{event.message}</td>
                   <td>

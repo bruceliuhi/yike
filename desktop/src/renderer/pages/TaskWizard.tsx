@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowClockwise, Globe, Plus, Sparkle, X } from "@phosphor-icons/react";
+import { ArrowClockwise, Plus, Sparkle, X } from "@phosphor-icons/react";
+import { PlatformLabel } from "../components/Platform";
 import { useApp } from "../app/context";
 import { useAction, useLocalDraft, useResource } from "../app/hooks";
 import {
@@ -638,7 +639,7 @@ export function TaskWizardPage() {
                           })
                         }
                       />
-                      {p.name}
+                      <PlatformLabel platform={p.id} size={18} />
                     </label>
                   ))}
                 </div>
@@ -905,8 +906,7 @@ export function TaskWizardPage() {
                 return (
                   <div className="platform-status-row" key={p.id}>
                     <span>
-                      <Globe size={21} />
-                      {p.name}
+                      <PlatformLabel platform={p.id} size={21} />
                     </span>
                     <Badge
                       tone={
@@ -962,7 +962,9 @@ export function TaskWizardPage() {
               <tbody>
                 {draft.platforms.map((id) => (
                   <tr key={id}>
-                    <td>{platformLabel(id)}</td>
+                    <td>
+                      <PlatformLabel platform={id} size={18} />
+                    </td>
                     <td>
                       {id === "web" ? (
                         <span>公开页面读取范围需由执行服务确认</span>

@@ -20,6 +20,7 @@ import {
   templateFromDraft,
   type LocalTaskTemplate,
 } from "./localTemplates";
+import { TaskPlatforms } from "./TaskPlatforms";
 import { useTaskScope } from "./useTaskScope";
 export function useTaskTemplates() {
   const { session, route, navigate, notify } = useApp();
@@ -124,6 +125,12 @@ export function useTaskTemplates() {
             <div className="task-template-row" key={template.id}>
               <div>
                 <strong>{template.name}</strong>
+                <p className="task-template-platforms">
+                  <TaskPlatforms
+                    platforms={template.conditions.platforms}
+                    size={16}
+                  />
+                </p>
                 <p className="field-hint">
                   保存于 {formatDate(template.savedAt)}
                   {blocked(template.sourceDraftIds)
