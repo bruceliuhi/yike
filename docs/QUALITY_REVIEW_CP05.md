@@ -25,3 +25,9 @@
 3. 目标生产 Registry、HTTPS 和部署验收仍未提供；本地镜像构建与受限 smoke 不等于已部署生产。
 
 未关闭的部署阻断项不得降级为“上线可用”。
+
+## 2026-09-09 UI 增量复审记录
+
+提交 `a176dba` 将客户试用页统一接入本地静态样式，并把 `static/` 纳入生产镜像；新增页面契约覆盖样式路由、viewport 与移动端布局规则。针对 Web、部署契约、研究导入和 CP-06 preflight 的非集成定向套件结果为 `37 passed`；`compileall`、`bash -n`、`git diff --check` 与敏感信息扫描均通过。
+
+本机浏览器 390×844 窄视口检查记录在 `docs/BROWSER_ACCEPTANCE_CP04.md`：页面无横向溢出，主按钮约 45px。该证据仍不等于真实手机验收；本轮 Docker Desktop 不可用，未新增受限容器 smoke，既有受限镜像证据仍只适用于其对应提交。
