@@ -19,7 +19,8 @@ run_private() {
 
 readonly repository_url="https://github.com/NanmiCoder/MediaCrawler.git"
 readonly pinned_commit="439509782cc2991c8ef7648e178d5847b0545798"
-readonly destination="${1:?usage: fetch_mediacrawler.sh ABSOLUTE_DESTINATION}"
+readonly destination="${1:?usage: fetch_mediacrawler.sh ABSOLUTE_DESTINATION [BUNDLE_PATH]}"
+readonly package_path="${2:-${YIKE_MEDIACRAWLER_PACKAGE_PATH:-}}"
 readonly project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly lock_path="${project_root}/vendor/mediacrawler.lock"
 
@@ -27,15 +28,56 @@ if [[ "${destination}" != /* ]]; then
   echo "destination must be absolute" >&2
   exit 2
 fi
-if [[ -e "${destination}" ]]; then
+if [[ -e "${destination}" || -L "${destination}" ]]; then
   echo "destination already exists" >&2
   exit 2
 fi
 
-run_private git clone --filter=blob:none "${repository_url}" "${destination}"
+if [[ -n "${package_path}" ]]; then
+  if [[ "${package_path}" != /* || ! -f "${package_path}" ]]; then
+    echo "package bundle must be an existing absolute file" >&2
+    exit 2
+  fi
+  run_private python3 - "${package_path}" "${lock_path}" <<'PY'
+import hashlib, json, sys
+from pathlib import Path
+bundle, lock_path = map(Path, sys.argv[1:])
+manifest_path = Path(str(bundle) + ".manifest.json")
+try:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+except (OSError, ValueError) as exc:
+    raise SystemExit(f"invalid MediaCrawler package manifest: {exc}")
+if manifest.get("schema_version") != "YIKE_MEDIACRAWLER_PACKAGE_V2":
+    raise SystemExit("unsupported MediaCrawler package manifest")
+if manifest.get("bundle_sha256") != hashlib.sha256(bundle.read_bytes()).hexdigest():
+    raise SystemExit("MediaCrawler package checksum mismatch")
+if manifest.get("commit") != lock.get("commit"):
+    raise SystemExit("MediaCrawler package commit mismatch")
+if manifest.get("patchset_sha256") != lock.get("patchset_sha256"):
+    raise SystemExit("MediaCrawler package patchset mismatch")
+if manifest.get("lock_sha256") != hashlib.sha256(lock_path.read_bytes()).hexdigest():
+    raise SystemExit("MediaCrawler package lock checksum mismatch")
+PY
+  run_private git init -q "${destination}"
+  run_private git -C "${destination}" remote add package "${package_path}"
+  run_private git -C "${destination}" fetch --quiet package refs/yike/package:refs/remotes/package/pinned
+else
+  run_private git clone --filter=blob:none "${repository_url}" "${destination}"
+fi
 run_private chmod 700 "${destination}"
 run_private git -C "${destination}" checkout --detach "${pinned_commit}"
 test "$(run_private git -C "${destination}" rev-parse HEAD)" = "${pinned_commit}"
+if [[ -n "${package_path}" ]]; then
+  run_private python3 - "${package_path}" "${destination}/LICENSE" <<'PY'
+import hashlib, json, sys
+from pathlib import Path
+bundle, license_path = map(Path, sys.argv[1:])
+manifest = json.loads(Path(str(bundle) + ".manifest.json").read_text(encoding="utf-8"))
+if manifest.get("license_sha256") != hashlib.sha256(license_path.read_bytes()).hexdigest():
+    raise SystemExit("MediaCrawler package license checksum mismatch")
+PY
+fi
 
 run_private python3 - "${lock_path}" "${project_root}" "${destination}" <<'PY'
 import hashlib
