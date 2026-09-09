@@ -1,8 +1,9 @@
 """Server-side session revocation shared by JSON, HTML and development routes."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
+import hashlib
 
 from pilot.auth import InvalidPilotToken, TokenClaims, verify_token_claims
 from pilot.db import PilotDatabase
@@ -12,6 +13,7 @@ from pilot.db import PilotDatabase
 class SessionIdentity:
     user_id: str
     tenant_id: str
+    claims: TokenClaims | None = field(default=None, repr=False)
 
 
 class PilotSessionRegistry:
@@ -33,23 +35,41 @@ class PilotSessionRegistry:
     def authenticate(self, claims: TokenClaims) -> str:
         with self.database.connect() as connection:
             with connection.cursor() as cursor:
-                tenant = self._tenant(cursor, claims.user_id)
-                if tenant is None:
-                    raise PermissionError("pilot user is not provisioned")
-                cursor.execute(
-                    "SELECT 1 FROM pilot_session_revocations WHERE user_id=%s AND revocation_key=%s",
-                    (claims.user_id, claims.revocation_key),
-                )
-                if cursor.fetchone() is not None:
-                    raise InvalidPilotToken("invalid pilot token")
-                return tenant
+                return self.require_active(cursor, claims)
+
+    @staticmethod
+    def _lock_id(claims: TokenClaims) -> int:
+        raw = ("yike-session-fence-v1\0" + claims.user_id + "\0" + claims.revocation_key).encode()
+        return int.from_bytes(hashlib.sha256(raw).digest()[:8], "big", signed=True)
+
+    @classmethod
+    def lock_session(cls, cursor, claims: TokenClaims) -> None:
+        cursor.execute("SELECT pg_advisory_xact_lock(%s)", (cls._lock_id(claims),))
+
+    def require_active(self, cursor, claims: TokenClaims) -> str:
+        self.lock_session(cursor, claims)
+        tenant = self._tenant(cursor, claims.user_id)
+        if tenant is None:
+            raise PermissionError("pilot user is not provisioned")
+        cursor.execute(
+            "SELECT EXISTS(SELECT 1 FROM pilot_session_revocations WHERE user_id=%s AND revocation_key=%s), "
+            "extract(epoch FROM clock_timestamp()) >= %s",
+            (claims.user_id, claims.revocation_key, claims.expires_at),
+        )
+        revoked, expired = cursor.fetchone()
+        if revoked or expired:
+            raise InvalidPilotToken("invalid pilot token")
+        return tenant
 
     def revoke(self, credentials: list[TokenClaims]) -> None:
         # All credentials in a logout share one transaction, including when
         # Bearer and Cookie refer to different customers. Never persist tokens.
         with self.database.connect() as connection:
             with connection.cursor() as cursor:
-                for claims in sorted(set(credentials), key=lambda item: (item.user_id, item.revocation_key)):
+                ordered = sorted(set(credentials), key=self._lock_id)
+                for claims in ordered:
+                    self.lock_session(cursor, claims)
+                for claims in ordered:
                     tenant = self._tenant(cursor, claims.user_id)
                     if tenant is None:
                         continue  # An unprovisioned identity already cannot access.
@@ -62,7 +82,7 @@ class PilotSessionRegistry:
 
 def authenticate_session(store, token: str, secret: str) -> SessionIdentity:
     claims = verify_token_claims(token, secret)
-    return SessionIdentity(claims.user_id, store.sessions.authenticate(claims))
+    return SessionIdentity(claims.user_id, store.sessions.authenticate(claims), claims)
 
 
 def revoke_session_tokens(store, tokens: list[str | None], secret: str) -> None:

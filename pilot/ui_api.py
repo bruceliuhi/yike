@@ -14,6 +14,8 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from pilot.auth import InvalidPilotToken
+from pilot.device_api import register_device_api
+from pilot.device_keys import DeviceKeyError
 from pilot.identity import IdentityValidationError
 from pilot.sessions import SessionIdentity, authenticate_session, revoke_session_tokens
 
@@ -94,6 +96,10 @@ class _UiRoute(APIRoute):
                 response = JSONResponse(
                     {"detail": {"code": "invalid_request", "message": "请求字段无效，请检查后重试。"}},
                     status_code=422,
+                )
+            except DeviceKeyError as error:
+                response = JSONResponse(
+                    {"detail": {"code": error.code, "message": error.code}}, status_code=error.status,
                 )
             except HTTPException as error:
                 response = JSONResponse({"detail": error.detail}, status_code=error.status_code, headers=error.headers)
@@ -310,4 +316,5 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
             identity(request)
         raise _error(501, "capability_unavailable", "该能力尚未接入，当前操作未执行。")
 
+    register_device_api(router, store, identity, require_session_https)
     app.include_router(router)

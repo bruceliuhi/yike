@@ -387,8 +387,8 @@ class PilotStore:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
                 cursor.execute(
-                    "INSERT INTO pilot_devices(device_id, tenant_id, device_label) VALUES (%s,%s,%s)",
-                    (device_id, tenant_id, device_label.strip()),
+                    "INSERT INTO pilot_devices(device_id, tenant_id, device_label, owner_user_id) VALUES (%s,%s,%s,%s)",
+                    (device_id, tenant_id, device_label.strip(), user_id),
                 )
         return {"device_id": device_id, "device_label": device_label.strip(), "status": "ACTIVE"}
 

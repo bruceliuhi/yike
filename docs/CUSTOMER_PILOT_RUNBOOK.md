@@ -17,6 +17,8 @@ export YIKE_PILOT_AUTH_SECRET='<random-secret-kept-outside-git>'
 uv run --frozen yike-pilot-migrate   # 仅由受信管理员/发布作业执行一次
 # 104/105升级：替换为既有应用角色，不使用管理员角色或 PUBLIC。
 psql "$YIKE_PILOT_ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "SET yike.app_role = 'YOUR_EXISTING_APP_ROLE'" -f deploy/grant_session_revocations.sql
+# 106 升级：迁移后另行补齐设备持钥证明的新表权限。
+psql "$YIKE_PILOT_ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "SET yike.app_role = 'YOUR_EXISTING_APP_ROLE'" -f deploy/grant_device_credentials.sql
 uv sync --frozen --extra dev
 env -u YIKE_PILOT_ADMIN_DATABASE_URL uv run --frozen yike-pilot-web
 ```
@@ -36,6 +38,8 @@ env -u YIKE_PILOT_ADMIN_DATABASE_URL uv run --frozen yike-pilot-web
 使用受限 Compose 时，`YIKE_PILOT_ENV_FILE` 必须是仅含应用 URL、认证密钥及运行配置的独立文件，绝不能包含 `YIKE_PILOT_ADMIN_DATABASE_URL`；管理员 URL 只在迁移/provision/import 的管理员终端或独立 env 文件中使用。先从运行时文件加载变量，再运行 preflight，确保校验值与容器实际注入值一致：`set -a; . "$YIKE_PILOT_ENV_FILE"; set +a`。该文件只允许受信管理员读取，不能提交或打印。
 
 ## 受信 provisioning
+
+106 设备持钥证明另需上述新授权脚本：仅新凭据/挑战表 SELECT、INSERT、UPDATE，不新增 DELETE、用户 UPDATE 或 schema CREATE；两表 FORCE RLS，运行角色不能是 owner/BYPASSRLS。历史设备 owner 保持 NULL，不自动归属第一个申请者。升级可重复运行；不删除旧迁移或证明记录。API 与重启/重试约定见[设备密钥契约](contracts/V02_DEVICE_KEYS.md)。这不是 Windows 私钥保存、执行租约或平台连接验收。
 
 `PilotStore.provision_tenant` 和 `provision_user` 只允许管理员脚本调用。它们不得暴露为客户 HTTP 路由。生产 provisioning/migration 必须使用独立的数据库 owner/管理员连接；Web 应用角色不能读取 `pilot_tenants` 目录，也不能创建租户。管理员生成用户后，用 `pilot.auth.issue_token()` 签发短期令牌；令牌只通过 HTTPS 或本机安全渠道交给用户。
 
