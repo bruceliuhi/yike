@@ -1,0 +1,13 @@
+Create a high-fidelity desktop UI design image for 意客AI, R4 page P09 搜索结果解释, 1484x1060. This is a new incremental design grounded in attached actual R3 P09 screenshot. Preserve exact blue Y logo, 208px navigation and 60px header, existing nav wording and hierarchy. Clean Feishu/Alipay inspired Chinese professional software; white content, very pale gray background, blue #1677FF, navy #172B4D, secondary #52637A, borders #E8EDF3; typography crisp Simplified Chinese, titles24 section16 body14. No giant cards, gradients, decorative illustration or dashboard metrics.
+Main title 运行详情. Breadcrumb 监控任务 / 运行详情. Top-right tag R4 · 设计预览. State badge 状态示意 · 非运行记录. Remove TEST developer toolbar.
+Design an understandable partial-search result, no fake actual execution counts. Main prominent summary 部分范围未完成，暂不能判断本轮是否无机会。 Secondary concise: 平台访问、预算与筛选结果分别记录。
+Two-column dense useful content: left 70% platform coverage table and query direction; right30% selected platform explanation and next action.
+Table title 搜索覆盖. Header 平台 / 搜索方向 / 独立来源 / 检查结果 / 操作. Four rows with recognizable ORIGINAL OFFICIAL logos like attached:
+小红书 / 买方询价表达 / — / 访问失败 / 重新连接
+抖音 / 方案比较表达 / — / 预算耗尽 / 调整预算
+哔哩哔哩 / 替换服务商表达 / — / 内容均被排除 / 查看排除原因
+官网公告 (globe icon) / 公开需求表达 / — / 已检查范围无合格机会 / 查看已查范围
+All rows are clearly under 状态示意 and contain no fabricated counts. Show selected小红书row pale-blue.
+Right details heading 本平台尚未完成搜索. Explain 登录状态失效；本次未取得可判断的搜索结果。 fields 数据覆盖 未完成 / 来源数量 未知 / 后续动作 恢复连接后，重新确认执行范围。 PrimaryCTA 重新连接. No fakeQR or account.
+Below table compacttabs 搜索方向 | 排除明细 | 运行记录. Selected 排除明细, rows重复来源、已过期、不符合目标画像 each count—. Footnote 数量仅在有实际回执时显示，未知不记为 0。
+A slim bottom summary 已检查范围无结果 ≠ 所有平台没有需求. Avoid long explanations and excessive status cards. Keep official logo alongside platform resources. No all-success claims, performance data, conversion rate, leads revenue, connected account or made-up customer. Display all key areas fully, clear margins and restrained shadows, polished shippable screenshot.
