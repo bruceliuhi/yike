@@ -7,7 +7,7 @@ import {rendererManifestAssets} from '../src/main/rendererAssets.ts';
 
 const archive = process.argv[2];
 assert(archive && archive.endsWith('.asar'), 'Pass the packaged resources/app.asar path.');
-const read = name => asar.extractFile(archive, name);
+const read = name => asar.extractFile(archive, path.normalize(name));
 const pkg = JSON.parse(read('package.json').toString());
 assert.equal(pkg.main, '.vite/build/main.cjs', 'Packaged main entry must be CJS.');
 assert(read(pkg.main).length > 0);
