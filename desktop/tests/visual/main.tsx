@@ -21,6 +21,7 @@ import "../../src/renderer/styles.css";
 import "./visual.css";
 import { configureR4Visual, r4TaskDraft, R4_TEST_SCOPE } from "./r4";
 import { taskDraftOwner } from "../../src/renderer/app/taskDraft";
+import { configureRegistryVisual } from "./connectionRegistry";
 
 const params = new URLSearchParams(location.search);
 const state = (
@@ -62,6 +63,18 @@ const r4 = params.get("suite") === "r4";
 if (reference && state !== "error" && state !== "loading")
   applyReferenceState(harness.service, page);
 if (r4) configureR4Visual(harness.service, state);
+if (params.get("registry") === "registered" && page === "P16" && state === "populated")
+  configureRegistryVisual(harness.service, harness.record);
+// Isolated read-only lineage case; never infer versions in the production adapter.
+if (params.get("lineage") === "updated" && page === "P09" && state === "populated") {
+  harness.service.profiles = async () => {
+    harness.record("profiles.TEST-lineage");
+    return [
+      {...structuredClone(profile), profileEntityId: "TEST-profile-entity", status: "REVOKED"},
+      {...structuredClone(profile), id: "TEST-profile-v2", profileEntityId: "TEST-profile-entity", version: 2, status: "CONFIRMED"},
+    ];
+  };
+}
 if (params.get("capabilities") === "complete" && state === "populated") {
   harness.service.materials = makeVisualMaterials();
   harness.service.followup = makeVisualFollowup();

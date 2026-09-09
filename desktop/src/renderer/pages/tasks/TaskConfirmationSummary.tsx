@@ -7,6 +7,7 @@ import {
 } from "../../domain/models";
 import "./confirmation.css";
 import { DEMAND_TYPES, type UsageQuote } from "../../domain/researchUsage";
+import { schedulePolicyDescription, scheduleWindowLabel } from "../../domain/schedule";
 
 export function TaskConfirmationSummary({
   draft,
@@ -169,14 +170,16 @@ export function TaskConfirmationSummary({
                 <div>
                   <dt>执行窗口</dt>
                   <dd>
-                    {draft.schedule.kind === "interval"
-                      ? `${draft.schedule.start}–${draft.schedule.end}`
-                      : "按每日设定时间"}
+                    {scheduleWindowLabel(draft.schedule)}
                   </dd>
                 </div>
                 <div>
                   <dt>时区</dt>
                   <dd>{draft.schedule.timezone}</dd>
+                </div>
+                <div>
+                  <dt>日程规则</dt>
+                  <dd>{schedulePolicyDescription(draft.schedule).map((line) => <p key={line}>{line}</p>)}</dd>
                 </div>
               </>
             )}
@@ -210,6 +213,7 @@ export function TaskConfirmationSummary({
                       EXPIRED: "登录已过期",
                       LIMITED: "平台限流",
                       UNAVAILABLE: "暂不可用",
+                      UNVERIFIED: "待核验",
                     }[connection.status]
                   : "待核验";
                 const webReady =

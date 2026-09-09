@@ -48,6 +48,7 @@ import { TaskConfirmationSummary } from "./tasks/TaskConfirmationSummary";
 import { DemandSettings, ResearchSettingsPanel } from "./tasks/ResearchSettings";
 import { useUsageQuote } from "./tasks/useUsageQuote";
 import { parseUsageQuote, usageQuoteCurrent, usageQuoteRequest, usageReservation } from "../domain/researchUsage";
+import { scheduleContractBlocker, schedulePolicyDescription, scheduleWindowLabel } from "../domain/schedule";
 
 export { matchesCreatedTask } from "../domain/taskOperations";
 
@@ -134,6 +135,10 @@ export function TaskWizardPage() {
   );
   if (!session.authenticated)
     blockers.unshift("请登录客户工作空间后启动任务。");
+  if (draft.mode === "monitor") {
+    const scheduleBlocker = scheduleContractBlocker(draft.schedule, service.taskOperations?.scheduleContractVersion);
+    if (scheduleBlocker) blockers.push(scheduleBlocker);
+  }
   if (draft.research) {
     if (!service.researchUsage || service.taskOperations?.researchContractVersion !== 1)
       blockers.push("研究用量服务尚未接通，当前可以保存草稿。");
@@ -356,6 +361,10 @@ export function TaskWizardPage() {
         freshConnections,
         freshInfo.deviceReady === true,
       );
+      if (snapshot.mode === "monitor") {
+        const scheduleBlocker = scheduleContractBlocker(snapshot.schedule, service.taskOperations?.scheduleContractVersion);
+        if (scheduleBlocker) reasons.push(scheduleBlocker);
+      }
       if (changed || reasons.length) {
         setVerified(null);
         throw new Error(
@@ -378,6 +387,10 @@ export function TaskWizardPage() {
         parseUsageQuote(usageSnapshot, { ...expected, requestId: usageSnapshot!.requestId });
       }
       if (!startScope.current()) return;
+      if (snapshot.mode === "monitor") {
+        const scheduleBlocker = scheduleContractBlocker(snapshot.schedule, service.taskOperations?.scheduleContractVersion);
+        if (scheduleBlocker) throw new Error(scheduleBlocker);
+      }
       const stored = startEntry(binding);
       setUnknownStarts((old) => {
         if (
@@ -662,7 +675,7 @@ export function TaskWizardPage() {
                         }
                       />
                       <PlatformLabel platform={p.id} size={18} />
-                      {draft.research && <small className="muted">{connections.data?.some(c => c.platform === p.id && c.status === "CONNECTED") ? "已连接" : connections.loading ? "读取中" : "待连接"}</small>}
+                      {draft.research && <small className="muted">{connections.loading ? "读取中" : connections.error ? "读取失败" : connections.data?.some(c => c.platform === p.id && c.status === "CONNECTED") ? "已连接" : connections.data?.some(c => c.platform === p.id && c.status === "UNVERIFIED") ? "待核验" : "待连接"}</small>}
                     </label>
                   ))}
                 </div>
@@ -909,9 +922,22 @@ export function TaskWizardPage() {
                       ))}
                     </select>
                   </Field>
-                  <p className="field-hint">
-                    执行时间受所选平台能力和设备在线状态限制。
-                  </p>
+                  <div aria-label="监控日程规则">
+                    {draft.schedule.kind === "interval" && (
+                      <p className="field-hint">任务窗口：{scheduleWindowLabel(draft.schedule)}</p>
+                    )}
+                    {schedulePolicyDescription(draft.schedule).map((line) => (
+                      <p className="field-hint" key={line}>{line}</p>
+                    ))}
+                    {draft.schedule.policyVersion === undefined && (
+                      <Button variant="ghost" onClick={() => update({
+                        schedule: { ...draft.schedule, policyVersion: 1 },
+                      })}>
+                        采用当前日程规则
+                      </Button>
+                    )}
+                    <p className="field-hint">执行时间仍受所选平台能力和设备在线状态限制。</p>
+                  </div>
                 </div>
               )}
             </section>
@@ -942,6 +968,8 @@ export function TaskWizardPage() {
                         ? "已连接"
                         : connection?.status === "EXPIRED"
                           ? "登录已失效"
+                          : connection?.status === "UNVERIFIED"
+                            ? "待核验"
                           : p.id === "web"
                             ? "范围待确认"
                             : connections.loading
@@ -1011,13 +1039,18 @@ export function TaskWizardPage() {
                           {connections.data
                             ?.filter(
                               (c) =>
-                                c.platform === id && c.status === "CONNECTED",
+                                c.platform === id && c.status === "CONNECTED" && !c.registration,
                             )
                             .map((c) => (
                               <option key={c.accountId} value={c.accountId}>
                                 {c.accountName || c.accountId}
                               </option>
                             ))}
+                          {connections.data?.filter(c => c.platform === id && c.registration).map(c => (
+                            <option key={c.registration!.connectionId} value={`registered:${c.registration!.connectionId}`} disabled>
+                              {c.accountName || c.accountId} · 设备 {c.registration!.deviceId.slice(0, 8)}（执行能力待核验）
+                            </option>
+                          ))}
                         </select>
                       )}
                     </td>
@@ -1168,7 +1201,7 @@ export function TaskWizardPage() {
       )}
       {draft.savedAt && (
         <p className="field-hint">
-          本机会话草稿保存于 {formatDate(draft.savedAt)}；退出登录会清除。
+          本机会话草稿保存于 {formatDate(draft.savedAt)}；关闭客户端或退出登录会清除。
         </p>
       )}
       {preview && (

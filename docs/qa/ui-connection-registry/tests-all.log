@@ -1,0 +1,13 @@
+
+> yike-ai-desktop@0.2.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+
+ Test Files  84 passed (84)
+      Tests  924 passed | 21 skipped (945)
+   Start at  00:37:22
+   Duration  13.51s (transform 4.19s, setup 0ms, import 92.61s, tests 43.12s, environment 26.14s)
+

@@ -8,6 +8,7 @@ import {
 } from "../domain/models";
 import type { YikeDesktopApi, ApiOperation } from "../../shared/contracts";
 import { decodeLibraryFacts } from "../domain/opportunityLibrary";
+import { decodeConnectionRegistry } from "./connectionRegistry";
 
 type JsonRecord = Record<string, unknown>;
 function bridge(): YikeDesktopApi | undefined {
@@ -133,6 +134,9 @@ export function mapProfile(raw: JsonRecord): Profile {
   if (!Object.values(fields).some(Boolean)) fields.service = description;
   return {
     id: text(raw.version_id),
+    ...(typeof raw.profile_id === "string" && raw.profile_id.trim()
+      ? { profileEntityId: raw.profile_id }
+      : {}),
     version: Number(raw.version) || 1,
     status: (["DRAFT", "CONFIRMED", "REVOKED"].includes(text(raw.status))
       ? raw.status
@@ -263,7 +267,7 @@ export const service: YikeService = {
       note,
     });
   },
-  connections: async () => unavailable("平台连接"),
+  connections: async () => decodeConnectionRegistry(await request("connections.list", "/connections")),
   connect: async () => unavailable("平台登录"),
   checkConnection: async () => unavailable("连接检查"),
   disconnect: async () => unavailable("断开连接"),

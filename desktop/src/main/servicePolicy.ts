@@ -11,6 +11,7 @@ const schemas = {
   'session.requestCode': z.object({phone}).strict(),
   'session.loginPhone': z.object({phone, code: z.string().length(6).regex(/^[0-9]{6}$/), trial_code: z.string().max(128).optional()}).strict(),
   'profiles.list': empty,
+  'connections.list': empty,
   'profiles.save': z.object({description: text}).strict(),
   'profiles.confirm': z.object({version_id: identifier}).strict(),
   'opportunities.list': empty,
@@ -45,6 +46,7 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
     case 'session.requestCode': return {path: '/api/ui/auth/sms-code', method: 'POST', body: JSON.stringify(data), logout: false};
     case 'session.loginPhone': return {path: '/api/ui/auth/sms-session', method: 'POST', body: JSON.stringify(data), logout: false};
     case 'profiles.list': return {path: '/api/ui/profiles', method: 'GET', logout: false};
+    case 'connections.list': return {path: '/api/ui/connections', method: 'GET', logout: false};
     case 'profiles.save': return {path: '/api/ui/profiles', method: 'POST', body: JSON.stringify(data), logout: false};
     case 'profiles.confirm': return {path: `/api/ui/profiles/${encodeURIComponent(data!.version_id)}/confirm`, method: 'POST', logout: false};
     case 'opportunities.list': return {path: '/api/ui/opportunities', method: 'GET', logout: false};

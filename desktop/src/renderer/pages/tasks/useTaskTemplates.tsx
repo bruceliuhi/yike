@@ -205,7 +205,7 @@ export function useTaskTemplates() {
               />
             </Field>
             <p className="field-hint">
-              本机会话模板 · 未同步；退出登录或清除本机草稿时一并清除。
+              本机会话模板 · 未同步；关闭客户端、退出登录或清除本机草稿时一并清除。
             </p>
             {error && <Notice tone="error">{error}</Notice>}
           </Modal>

@@ -1,0 +1,13 @@
+
+> yike-ai-desktop@0.2.0 test
+> vitest run tests/ui/tasks.test.tsx tests/ui/schedule-policy-ui.test.tsx tests/ui/schedule-policy.test.ts
+
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+
+ Test Files  3 passed (3)
+      Tests  27 passed (27)
+   Start at  00:00:29
+   Duration  1.61s (transform 290ms, setup 0ms, import 1.86s, tests 769ms, environment 492ms)
+

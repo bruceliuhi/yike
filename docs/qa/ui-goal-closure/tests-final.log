@@ -1,0 +1,939 @@
+
+> yike-ai-desktop@0.2.0 test
+> vitest run --reporter=verbose
+
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > verifies a complete real archive in a spaced Unicode path and reports exact allowlisted hashes 154ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects the specifically missing required file .vite/build/main.cjs 109ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects the specifically missing required file .vite/build/preload.cjs 98ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > allows cold readiness beyond 3s but bounds it at 10s 3ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > keeps ready-after startup IPC and close bounded at 3s 1ms
+ ✓ tests/windowsSourceBinding.test.mjs > Windows exact candidate binding > captures real committed input bytes and identical final snapshot 373ms
+ ✓ tests/windowsSourceBinding.test.mjs > Windows exact candidate binding > requires a full immutable commit (undefined) 97ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > uses independent Node file identities with unchanged source bytes 418ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects the specifically missing required file .vite/renderer/main_window/.vite/manifest.json 110ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects the specifically missing required file .vite/renderer/main_window/index.html 77ms
+ ✓ tests/ui/r4-short-coach-visual.test.ts > generates exact source-bound TEST references without changing manual input 365ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects the specifically missing required file .vite/renderer/main_window/assets/main-abc.js 83ms
+ ✓ tests/windowsSourceBinding.test.mjs > Windows exact candidate binding > requires a full immutable commit (main) 127ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects the incorrect main declaration main.js before reading it 109ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects the incorrect main declaration .vite/build/main.js before reading it 98ms
+ ✓ tests/windowsSourceBinding.test.mjs > Windows exact candidate binding > requires a full immutable commit (abc) 161ms
+ ✓ tests/windowsSourceBinding.test.mjs > Windows exact candidate binding > requires a full immutable commit (fffffffffffffffffffffffffffffffffffffff) 123ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects specifically empty required bytes at .vite/build/main.cjs 99ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects specifically empty required bytes at .vite/build/preload.cjs 88ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects specifically empty required bytes at .vite/renderer/main_window/assets/main-abc.js 94ms
+ ✓ tests/windowsSourceBinding.test.mjs > Windows exact candidate binding > requires a full immutable commit (fffffffffffffffffffffffffffffffffffffffff) 119ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects the raw invalid manifest path assets/../escape.js before normalizing it 110ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects the raw invalid manifest path ../escape.js before normalizing it 89ms
+ ✓ tests/windowsSourceBinding.test.mjs > Windows exact candidate binding > rejects a different candidate and dirty tracked or untracked inputs 271ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects the raw invalid manifest path assets\escape.js before normalizing it 84ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects the forbidden archive member .env after valid entry and asset checks 98ms
+ ✓ tests/windowsSourceBinding.test.mjs > Windows exact candidate binding > rejects ignored executable inputs even though Git is clean 190ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects the forbidden archive member config/.env.production after valid entry and asset checks 100ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects the forbidden archive member .ssh/id_rsa after valid entry and asset checks 87ms
+ ✓ tests/verifyPackage.test.mjs > packaged ASAR CLI verification > rejects the forbidden archive member .ssh/id_ed25519.backup after valid entry and asset checks 113ms
+ ✓ tests/ui/r4-short-coach-visual.test.ts > persists only an in-memory bound snapshot and queries the original idempotent receipt 1407ms
+ ✓ tests/ui/r4-short-coach-visual.test.ts > rejects non-TEST scope and error state without a false saved result 1ms
+ ✓ tests/windowsSourceBinding.test.mjs > Windows exact candidate binding > does not trust a clean status when checkout bytes differ from Git 277ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > keeps an independent fixture process responsive while another fixture is cleaned 1678ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > selects real fixture coverage for darwin / arm64 / arm64 0ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > selects real fixture coverage for darwin / x64 / x86_64 0ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > selects real fixture coverage for win32 / arm64 / ARM64 0ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > selects real fixture coverage for win32 / x64 / ARM64 0ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > selects real fixture coverage for win32 / ia32 / x86_64 0ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > selects real fixture coverage for win32 / x64 / x86_64 0ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > selects real fixture coverage for win32 / x64 / AMD64 0ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > selects real fixture coverage for linux / x64 / x86_64 0ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > rejects the real non-x64 Node before npm discovery 34ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > validates the minimum Node range for 24.11.1 0ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > validates the minimum Node range for 24.14.99 0ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > validates the minimum Node range for 24.15.0 0ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > validates the minimum Node range for 24.19.0 0ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > validates the minimum Node range for 25.0.0 0ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > validates the minimum Node range for 24.15.0-rc.1 0ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > validates the minimum Node range for 24.15 0ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > validates the minimum Node range for 24.15.0
+secret 0ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > keeps package and lock root engines consistent with the runtime range 3ms
+ ✓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > merges Path and PATH without changing the original environment 0ms
+ ↓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > runs the real discovered global-prefix CLI and its node child with the selected spaced Node path, preserving exit 37
+ ↓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > runs the real discovered adjacent-local CLI and its node child with the selected spaced Node path, preserving exit 37
+ ↓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > fails closed on missing-prefix without using a lower-priority CLI
+ ↓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > fails closed on prefix-exit without using a lower-priority CLI
+ ↓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > fails closed on prefix-empty without using a lower-priority CLI
+ ↓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > fails closed on prefix-lines without using a lower-priority CLI
+ ↓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > fails closed on prefix-relative without using a lower-priority CLI
+ ↓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > fails closed on missing-cli without using a lower-priority CLI
+ ↓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > fails closed on bad-version without using a lower-priority CLI
+ ↓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > fails closed on global-version-exit without using a lower-priority CLI
+ ↓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > serializes only the runtime whitelist into build evidence
+ ↓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > records the actual dependency-exit failure stage without running later commands
+ ↓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > records the actual version-probe-exit failure stage without running later commands
+ ↓ tests/windowsBuildRuntime.test.mjs > Windows build runtime > executes the installed npm CLI lifecycle using the selected Node rather than the older system Node
+ ✓ tests/windowsSourceBinding.test.mjs > Windows exact candidate binding > retains source failure at final check and never returns a successful build 318ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > does not regenerate a saved empty draft on entry or remount 97ms
+ ✓ tests/ui/candidates.test.tsx > 原始候选 P07 > 默认适配器仍明确不可用，不制造客户候选或复核结果 8ms
+ ✓ tests/ui/profile-materials.test.tsx > P04 客户空间资料生命周期 > 保存等待真实回执和进度；编辑新版本仍是未解析草稿 152ms
+ ✓ tests/ui/connection-disconnect.test.tsx > P16 断开连接的有界等待与原账号核对 > 预检中取消后，晚到的相同账号也不触发断开 124ms
+ ✓ tests/ui/connection-disconnect.test.tsx > P16 断开连接的有界等待与原账号核对 > 预检期间出现同平台未决记录，派发前重新读锁并拒绝重复 37ms
+ ✓ tests/ui/connection-disconnect.test.tsx > P16 断开连接的有界等待与原账号核对 > 原生登录入口也读取未决锁，损坏存储不能绕过保护 28ms
+ ✓ tests/windowsSourceBinding.test.mjs > Windows exact candidate binding > all automatic stages cannot imply source or manual acceptance 333ms
+ ✓ tests/ui/profile-materials.test.tsx > P04 客户空间资料生命周期 > 解析受理后刷新结果、对照证据人工确认，再显式填入画像草稿 94ms
+ ✓ tests/ui/profile-materials.test.tsx > P04 客户空间资料生命周期 > 解析失败保留正文且可重试 31ms
+ ✓ tests/ui/connection-disconnect.test.tsx > P16 断开连接的有界等待与原账号核对 > 收到原回执并读到原账号断开后才清锁，不用void响应直接报成功 111ms
+ ✓ tests/ui/followup-completion.test.tsx > P14 structured followup lists and replies > honors a workbench target once, selects its latest record, and does not pull back a local selection on refresh 266ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > does not auto-generate on confirmation or replace manually entered exclusions 39ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > never starts a suggestion request on the connect step even with empty conditions 14ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > never starts a suggestion request on the confirm step even with empty conditions 34ms
+ ✓ tests/ui/candidates.test.tsx > 原始候选 P07 > 筛选与分页传服务端契约，条件变化回到第一页 229ms
+ ✓ tests/ui/candidates.test.tsx > 原始候选 P07 > 公开样例完全只读，客户接口夹带样例也被阻止 69ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > enables only after mapped proof and explicit review, rechecks on send, and records the actual outcome 180ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > rejects denied proof before enabling send 21ms
+ ✓ tests/ui/profile-materials.test.tsx > P04 客户空间资料生命周期 > 只有确认未执行的失败才释放提交保护且保留输入 120ms
+ ✓ tests/ui/task-actions.test.tsx > confirms RUNNING with a single original request and actual transition 168ms
+ ✓ tests/ui/connection-disconnect.test.tsx > P16 断开连接的有界等待与原账号核对 > 挂起30秒释放等待；晚到ACK仅更新原记录，核对前不能再次断开或重新连接 131ms
+ ✓ tests/ui/followup-completion.test.tsx > P14 structured followup lists and replies > reports a missing workbench target without selecting another customer 21ms
+ ✓ tests/ui/followup-completion.test.tsx > P14 structured followup lists and replies > filters owners and dates and distinguishes all from planned followups 49ms
+ ✓ tests/ui/followup-completion.test.tsx > P14 structured followup lists and replies > filters the displayed local calendar day rather than the stored UTC date 32ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > saving during an automatic request preserves the saved empty snapshot and rejects late fill 183ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > cancels automatic suggestions immediately and ignores a transport that resolves late 85ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > rejects wrong fingerprint proof before enabling send 37ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > rejects wrong opportunity proof before enabling send 21ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > rejects wrong account proof before enabling send 33ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > rejects wrong channel proof before enabling send 38ms
+ ✓ tests/ui/task-actions.test.tsx > confirms PAUSED with a single original request and actual transition 64ms
+ ✓ tests/ui/task-actions.test.tsx > confirms FAILED with a single original request and actual transition 60ms
+ ✓ tests/ui/candidates.test.tsx > 原始候选 P07 > 仅已确认画像可绑定，过期判断结果不可用于入库 70ms
+ ✓ tests/ui/profile-materials.test.tsx > P04 客户空间资料生命周期 > 断网保留原请求，清草稿或重开不会重复提交，只能核对同一回执 126ms
+ ✓ tests/ui/profile-materials.test.tsx > P04 客户空间资料生命周期 > 本机提交记录不可写时不发出写请求 23ms
+ ✓ tests/ui/profile-materials.test.tsx > P04 客户空间资料生命周期 > 写请求 30 秒超时释放等待，迟到回执不能伪报成功，核对后才更新 39ms
+ ✓ tests/ui/connection-disconnect.test.tsx > P16 断开连接的有界等待与原账号核对 > 取消并离页、清本机草稿后仍按原请求核对；当前DISCONNECTED不能伪造ACK 96ms
+ ✓ tests/ui/connection-disconnect.test.tsx > P16 断开连接的有界等待与原账号核对 > 预检account变化阻止派发，不断开新对象 50ms
+ ✓ tests/windowsSourceBinding.test.mjs > Windows exact candidate binding > rejects a changed manifest even with an unchanged commit 281ms
+ ✓ tests/windowsSourceBinding.test.mjs > Windows exact candidate binding > rejects linked input even when assume-unchanged hides it 331ms
+ ✓ tests/windowsSourceBinding.test.mjs > safe test summary > preserves skipped and todo counts without raw logs/absolute paths/test inputs 1ms
+ ✓ tests/windowsSourceBinding.test.mjs > safe test summary > rejects a missing or inconsistent report rather than claiming full success 0ms
+ ✓ tests/ui/followup-completion.test.tsx > P14 structured followup lists and replies > excludes same-opportunity samples from the customer manual timeline 51ms
+ ✓ tests/ui/followup-completion.test.tsx > P14 structured followup lists and replies > does not treat a failed service as an empty list and supports refresh 43ms
+ ✓ tests/ui/followup-completion.test.tsx > P14 structured followup lists and replies > rejects duplicate identities and never renders their actions 15ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > keeps edits during generation, compares complete text, verifies evidence and only then replaces 350ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > does not turn the legacy string generator into checked coaching 56ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > rejects no mapped recipient proof before enabling send 26ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > rejects no readable recipient proof before enabling send 23ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > rejects no token proof before enabling send 22ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > rejects expired proof before enabling send 19ms
+ ✓ tests/ui/task-actions.test.tsx > confirms PENDING with a single original request and actual transition 44ms
+ ✓ tests/ui/task-actions.test.tsx > refuses an unavailable service before recording or dispatching an operation 34ms
+ ✓ tests/ui/task-actions.test.tsx > rejects a stale task preflight before dispatch 35ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > times out hanging suggestions and permits an explicit retry without applying late data 98ms
+ ✓ tests/ui/candidates.test.tsx > 原始候选 P07 > 重新判断保护人工编辑，判断失败保留修改内容 126ms
+ ✓ tests/ui/candidates.test.tsx > 原始候选 P07 > 绑定后采用服务返回的五项判断，尚未产生入库操作 67ms
+ ✓ tests/ui/profile-materials.test.tsx > P04 客户空间资料生命周期 > 切换客户空间后旧请求不会通知成功或清除原请求保护 81ms
+ ✓ tests/ui/profile-materials.test.tsx > P04 客户空间资料生命周期 > 接口返回其他画像的资料时显示错误，不能退化成正常空态 10ms
+ ✓ tests/ui/profile-materials.test.tsx > P04 客户空间资料生命周期 > remove 必须读取当前引用影响并确认，成功后状态准确 29ms
+ ✓ tests/ui/connection-disconnect.test.tsx > P16 断开连接的有界等待与原账号核对 > 预检user变化阻止派发，不断开新对象 60ms
+ ✓ tests/ui/connection-disconnect.test.tsx > P16 断开连接的有界等待与原账号核对 > 预检platform变化阻止派发，不断开新对象 41ms
+ ✓ tests/ui/connection-disconnect.test.tsx > P16 断开连接的有界等待与原账号核对 > 持久记录无法写入时不派发外部断开 27ms
+ ✓ tests/ui/navigation.test.tsx > 页面加载恢复边界 > 懒加载失败显示错误；重试重新调用加载器后可成功打开 700ms
+ ✓ tests/ui/followup-completion.test.tsx > P14 structured followup lists and replies > loads associated channel replies with their sending record and read state 53ms
+ ✓ tests/ui/followup-completion.test.tsx > P14 structured followup lists and replies > shows unmatched replies without enabling writes or inventing an association 14ms
+ ✓ tests/ui/followup-completion.test.tsx > P14 structured followup lists and replies > rejects a reply for another opportunity 24ms
+ ✓ tests/ui/followup-completion.test.tsx > P14 structured followup lists and replies > never offers correction or withdrawal for sample or historical records 35ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > expires a previously valid proof and clears the confirmation checkbox 94ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > rejects a changed mapped recipient in the final preflight and requires another review 33ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > retains ai condition origin after profile changes through the final summary 69ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > retains manual condition origin after profile changes through the final summary 49ms
+ ✓ tests/ui/connection-disconnect.test.tsx > P16 断开连接的有界等待与原账号核对 > 等待时切换身份，迟到ACK只结算原用户记录且不改变新页面 37ms
+ ✓ tests/ui/connection-disconnect.test.tsx > P16 断开连接的有界等待与原账号核对 > 核对返回其他账号或失效不能清锁；核对挂起也可取消并保留原记录 90ms
+ ✓ tests/ui/profile-materials.test.tsx > P04 客户空间资料生命周期 > revoke 必须读取当前引用影响并确认，成功后状态准确 29ms
+ ✓ tests/ui/profile-materials.test.tsx > P04 客户空间资料生命周期 > 影响查询错误和过期都可重新核对，过期 token 不提交 50ms
+ ✓ tests/ui/profile-materials.test.tsx > P03/P04 提取和输入保护 > 保存回执正文与提交快照不一致时不清输入、不释放操作保护 39ms
+ ✓ tests/ui/task-actions.test.tsx > does not dispatch after leaving a pending preflight: unmount 82ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > cancels waiting and discards a late suggestion without overwriting the draft 117ms
+ ✓ tests/ui/candidates.test.tsx > 原始候选 P07 > 来源 EXPIRED 阻止入库，打开原文不会解除门禁 33ms
+ ✓ tests/ui/candidates.test.tsx > 原始候选 P07 > 来源 BLOCKED 阻止入库，打开原文不会解除门禁 30ms
+ ✓ tests/ui/candidates.test.tsx > 原始候选 P07 > 来源 UNVERIFIED 阻止入库，打开原文不会解除门禁 39ms
+ ✓ tests/ui/profile-materials.test.tsx > P03/P04 提取和输入保护 > 提取成功回执未采用人工修改时不关闭面板、不释放操作保护 39ms
+ ✓ tests/ui/profile-materials.test.tsx > P03/P04 提取和输入保护 > 人工画像在核对期间变化时不能覆盖 9ms
+ ✓ tests/ui/profile-materials.test.tsx > P03/P04 提取和输入保护 > 文件读取后切换文字编辑，迟到结果不得覆盖人工内容 21ms
+ ✓ tests/ui/profile-materials.test.tsx > P03/P04 提取和输入保护 > 资料修改退出有确认；选择内部资料不会自动批准对外引用 11ms
+ ✓ tests/ui/profile-materials.test.tsx > 资料证据与回执契约 > 证据必须是同版本资料原文，重复 ID 或错误画像拒绝 1ms
+ ✓ tests/ui/profile-materials.test.tsx > 资料证据与回执契约 > 缺失结果、错误状态、不增版本或未确认失败不能释放原请求 0ms
+ ↓ tests/windowsBuildEvidence.test.mjs > Windows build evidence > runs the real PowerShell bootstrap regression on Windows
+ ✓ tests/windowsBuildEvidence.test.mjs > Windows build evidence > records measured host and lock hash without environment values or unearned success 61ms
+ ↓ tests/windowsBuildEvidence.test.mjs > Windows build evidence > rejects a real Node below the minimum before dependencies can run
+ ↓ tests/windowsBuildEvidence.test.mjs > Windows build evidence > rejects a real unsupported Windows host or Node architecture before npm discovery
+ ↓ tests/windowsBuildEvidence.test.mjs > Windows build evidence > records npm discovery failure in preflight without leaking environment or paths
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > rejects an expired proof returned by the final preflight 30ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > blocks content changes after proof without losing the original preview 15ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > blocks account changes after proof without losing the original preview 27ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > blocks source changes after proof without losing the original preview 23ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > never verifies or sends a public sample even with complete fields and a checked review 7ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > blocks expired connection at the confirmation boundary 6ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > blocks disconnected account at the confirmation boundary 6ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > blocks another account at the confirmation boundary 6ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > blocks missing capability at the confirmation boundary 6ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > keeps manual edits while a delayed automatic suggestion waits for explicit merge 63ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > preserves edited and deleted terms when replacing untouched AI suggestions 84ms
+ ✓ tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > does not apply late success to a new user or clear their draft 95ms
+ ✓ tests/ui/task-actions.test.tsx > does not dispatch after leaving a pending preflight: identity 87ms
+ ✓ tests/ui/candidates.test.tsx > 原始候选 P07 > 空证据阻止入库；确认快照绑定版本、人工依据并只提交一次 125ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > bounds a hung generation and permits a new request without applying the old one 139ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > blocks another channel capability at the confirmation boundary 8ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > rejects a draft belonging to another opportunity before requesting verification 6ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > persists PENDING before the send call and ignores repeated clicks while awaiting a result 28ms
+ ✓ tests/ui/task-actions.test.tsx > does not dispatch after leaving a pending preflight: route 100ms
+ ✓ tests/ui/task-actions.test.tsx > does not execute if local persistence fails 30ms
+ ✓ tests/ui/navigation.test.tsx > 页面加载恢复边界 > 缺少页面导出时提供工作台恢复入口 311ms
+ ✓ tests/ui/navigation.test.tsx > 页面加载恢复边界 > 运行时渲染错误也能重试恢复，不显示内部异常详情 5ms
+ ✓ tests/ui/navigation.test.tsx > 页面加载恢复边界 > 切换路由会清除前一页错误状态 3ms
+ ✓ tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > times out a pending save without discarding the draft or releasing the original operation 79ms
+ ✓ tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > saves contact time, next action and assigned member with an exact version binding 85ms
+ ✓ tests/ui/candidates.test.tsx > 原始候选 P07 > 超时结果保留同一请求，仅核对确定回执后解除保护 82ms
+ ✓ tests/ui/candidates.test.tsx > 原始候选 P07 > 不接受行状态与成功回执矛盾的结果，不显示假成功 88ms
+ ✓ tests/windowsBuildEvidence.test.mjs > Windows build evidence > persists stage failure with its actual exit code and leaves later stages unexecuted 42ms
+ ✓ tests/windowsBuildEvidence.test.mjs > Windows build evidence > hashes actual output bytes and rejects paths outside out including symlink escapes 42ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > discards responses after 用途 changes 97ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > aborts profile-one suggestions and ignores their late response after choosing profile two 94ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > does not send after leaving during the final verification 77ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > does not send an old draft when content changes during the final verification 81ms
+ ✓ tests/ui/task-actions.test.tsx > keeps an unresolved wrong-id action locked and recovers only the original request after remount 86ms
+ ✓ tests/ui/task-actions.test.tsx > keeps an unresolved pending action locked and recovers only the original request after remount 69ms
+ ✓ tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > retains inputs and pending identity after network failure, including clear-drafts and reopening 91ms
+ ✓ tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > reconciles UNKNOWN without inventing success 26ms
+ ✓ tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > reconciles FAILED without inventing success 13ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > discards responses after 身份 changes 105ms
+ ✓ tests/ui/candidates.test.tsx > 原始候选 P07 > 服务回执不能悄悄改写用户确认的复核依据 72ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > retains all steps and requires a new confirmation after editing the final task fingerprint 137ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > rechecks capabilities immediately before start and never submits after capability revocation 26ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > requires the specific execution capability: '小红书 的读取能力尚未通过检查。' 19ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > requires the specific execution capability: '小红书 尚不具备持续监控能力。' 31ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > does not send when account changes during the final verification 85ms
+ ✓ tests/ui/task-actions.test.tsx > keeps an unresolved network action locked and recovers only the original request after remount 56ms
+ ✓ tests/ui/task-actions.test.tsx > keeps an unresolved rejected-without-proof action locked and recovers only the original request after remount 58ms
+ ✓ tests/ui/task-actions.test.tsx > does not unlock another request on a mismatched query receipt 15ms
+ ✓ tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > reconciles wrong identity without inventing success 20ms
+ ✓ tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > prevents saving a changed opportunity version 65ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > discards responses after 来源 changes 106ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > refuses to replace from a changed or revoked source at application time 79ms
+ ✓ tests/windowsBuildEvidence.test.mjs > Windows build evidence > does not let partial or explicit failed runs become successful 144ms
+ ✓ tests/windowsBuildEvidence.test.mjs > Windows build evidence > keeps human checks UNTESTED even when every automatic stage succeeds 45ms
+ ✓ tests/ui/candidates.test.tsx > 原始候选 P07 > 确定拒绝保留手动证据，用户可核对后再次确认 81ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > allows a retry after an explicit capability rejection without inventing a created task 41ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > keeps an unknown NETWORK_ERROR start locked across remount instead of duplicating the request 61ms
+ ✓ tests/ui/navigation.test.tsx > 页面加载恢复边界 > 加载完成回调只在组件真实挂载后触发 302ms
+ ✓ tests/ui/navigation.test.tsx > 应用路由与会话边界 > 未知或异常编码路由仍有可操作的工作台入口 25ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > does not send when identity changes during the final verification 91ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > retains the unknown-result lock after NETWORK_ERROR and reopening the dialog 27ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > retains the unknown-result lock after SERVICE_TIMEOUT and reopening the dialog 36ms
+ ✓ tests/windowsBuildEvidence.test.mjs > Windows build evidence > records real Git commit and dirty state without recording changed file names 181ms
+ ✓ tests/windowsBuildEvidence.test.mjs > Windows build evidence > rejects out-of-order and duplicate stage completions 56ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > does not apply a suggestion after its expiry and retains the current text 59ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > keeps customer text and gives a retryable error when structured generation fails 62ms
+ ✓ tests/ui/task-actions.test.tsx > locks on timeout and ignores a late action response 94ms
+ ✓ tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > protects unsaved input on close and preserves a draft after explicit confirmation 74ms
+ ✓ tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > keeps the real legacy facade and explicitly embeds optional facts without claiming reminders 64ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > keeps an unknown SERVICE_TIMEOUT start locked across remount instead of duplicating the request 54ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > keeps an unknown SERVICE_UNAVAILABLE start locked across remount instead of duplicating the request 56ms
+ ✓ tests/ui/candidates.test.tsx > 原始候选 P07 > 重复来源回执展示已有商机，不宣称新建；排除要求人工原因 173ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > retains the unknown-result lock after SERVICE_UNAVAILABLE and reopening the dialog 32ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > preserves an in-flight lock after leaving and receiving a late unknown failure 26ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > does not bypass an unknown-result lock by reopening a newer draft version 31ms
+ ✓ tests/ui/task-actions.test.tsx > re-reads durable locks after preflight even without a storage event, disabling a concurrent dispatch 100ms
+ ✓ tests/ui/task-actions.test.tsx > releases only an explicitly confirmed unperformed original action without reporting success 38ms
+ ✓ tests/ui/r4-search-coverage.test.tsx > opens the real P09 coverage tab by default and keeps the original platform/events/config tabs 159ms
+ ✓ tests/ui/r4-search-coverage.test.tsx > missing capability or verified session account never requests or fabricates coverage 19ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > retains a pending send after clearing drafts and signing back into the same customer space 47ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > retains a confirmed sent-version lock when ordinary drafts are cleared 29ms
+ ✓ tests/ui/send-confirmation.test.tsx > send confirmation with isolated available service fixtures > unlocks an explicit no-execution rejection and verifies again before retrying 41ms
+ ✓ tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > requires correction reason and appends correction instead of erasing the original 109ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > records a pending request before navigation so a late network failure cannot lose the duplicate-start lock 48ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > retains an unknown start after clearing drafts and restoring the same task for the signed-in user 54ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > requires another comparison when the user edits during evidence recheck 125ms
+ ✓ tests/ui/candidates.test.tsx > 原始候选 P07 > 批量复核逐项展示，第一项未知即停止其余提交 79ms
+ ✓ tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > preserves the local followup date when correcting a record in a positive UTC offset 74ms
+ ✓ tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > requires a reason and confirmation before withdrawing a manual fact 57ms
+ ✓ tests/ui/r4-search-coverage.test.tsx > shows the four result types, distinct unknown counts, evidence and exact reconnect route 68ms
+ ✓ tests/ui/r4-search-coverage.test.tsx > requires exact response identity and preserves an error with retry instead of empty success 21ms
+ ✓ tests/ui/r4-search-coverage.test.tsx > bounds hanging reads and ignores late responses after timeout and retry 16ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > keeps public samples read-only and copying does not call a coach or save service 47ms
+ ✓ tests/ui/task-wizard.test.tsx > task wizard service boundary > does not initiate a new write after leaving while the final capability recheck is pending 72ms
+ ✓ tests/ui/task-wizard.test.tsx > new original-start contract > persists the exact configuration binding before dispatch and reconciles rather than restarting 47ms
+ ✓ tests/ui/navigation.test.tsx > 应用路由与会话边界 > 初始化阶段不挂载客户编辑页，会话就绪后再显示 309ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > does not dispatch if original-request pending appears while the final verification is pending 191ms
+ ✓ tests/ui/candidates.test.tsx > P07 durable original review reconciliation > retains the original request after clearing drafts and remounting, and only queries that request 136ms
+ ✓ tests/ui/r4-search-coverage.test.tsx > discards an old response after a account change 71ms
+ ✓ tests/ui/r4-search-coverage.test.tsx > discards an old response after a profile change 69ms
+ ✓ tests/ui/task-wizard.test.tsx > new original-start contract > requires manual confirmation of a new revision only after a bound definitive rejection 47ms
+ ✓ tests/ui/task-wizard.test.tsx > new original-start contract > does not start when durable request recording fails 26ms
+ ✓ tests/ui/task-wizard.test.tsx > template ancestry start guards > shows the original ancestor request and blocks starting a descendant draft 18ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > retains only the applied checks through saving, then removes them after editing even when text is restored 111ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > clears adopted checks after purpose changes and never resurrects them when switching back 48ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > clears adopted checks after channel changes and never resurrects them when switching back 46ms
+ ✓ tests/ui/task-wizard.test.tsx > template ancestry start guards > rechecks ancestor locks after live preflight even without a storage event 77ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > does not dispatch if legacy pending appears while the final verification is pending 85ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > does not dispatch if same-version sent appears while the final verification is pending 80ms
+ ✓ tests/ui/candidates.test.tsx > P07 durable original review reconciliation > keeps recovery reachable when the original candidate is absent from the current list 96ms
+ ✓ tests/ui/r4-search-coverage.test.tsx > discards an old response after a user change 72ms
+ ✓ tests/ui/r4-search-coverage.test.tsx > keeps expired snapshots readable but disables related actions 26ms
+ ✓ tests/ui/r4-search-coverage.test.tsx > expires a displayed snapshot without a page refresh 32ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > clears adopted checks after source changes and never resurrects them when switching back 60ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > does not call a legacy FAILED string a confirmed non-delivery 41ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > times out an unresolved send without unlocking and ignores a late unqueried result 38ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > persists an opaque original request before sending and never blindly retries unknown 37ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > settles only a matching definitive SENT receipt 16ms
+ ✓ tests/ui/candidates.test.tsx > P07 durable original review reconciliation > does not unlock a failed receipt with changed confirmation words; exact failure can be retried manually 145ms
+ ✓ tests/ui/r4-search-coverage.test.tsx > does not accept coverage for unconfigured platforms or query a task without a profile binding 12ms
+ ✓ tests/ui/r4-search-coverage.test.tsx > does not replace a remounted page with a response from the page that was left 69ms
+ ✓ tests/ui/navigation.test.tsx > 应用路由与会话边界 > 兼容未提供optional sessionReady的调用方 308ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > clears adopted checks after space changes and never resurrects them when switching back 66ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > clears adopted checks after expiry changes and never resurrects them when switching back 61ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > settles only a matching definitive FAILED receipt 21ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > keeps protection for UNKNOWN 25ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > keeps protection for PENDING 15ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > keeps protection for not found 12ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > keeps protection for network error 25ms
+ ✓ tests/ui/management.test.tsx > P18 available management contracts > keeps a timed-out management request locked until the original receipt is checked 218ms
+ ✓ tests/ui/management.test.tsx > P18 available management contracts > shows verified license and requires impact confirmation before unbinding 88ms
+ ✓ tests/ui/candidates.test.tsx > P07 durable original review reconciliation > isolates durable records by user and does not unlock on a generic 4xx response 79ms
+ ✓ tests/ui/candidates.test.tsx > P07 durable original review reconciliation > does not dispatch when durable storage fails 58ms
+ ✓ tests/ui/candidates.test.tsx > P07 durable original review reconciliation > does not dispatch after leaving while the confirmation fingerprint is being prepared 35ms
+ ✓ tests/ui/r4-search-coverage.test.tsx > terminal runs offer a new draft plan while unknown recovery cannot be retried as execution 69ms
+ ✓ tests/ui/r4-search-coverage.test.tsx > opens a typed limit preview only for confirmed resumability, never executes or settles 41ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > keeps protection for wrong request 19ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > keeps protection for wrong opportunity 17ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > keeps protection for wrong channel 19ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > keeps protection for wrong version 23ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > keeps protection for unconfirmed failed 16ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > keeps protection for unconfirmed sent 20ms
+ ✓ tests/ui/r4-short-coach.test.tsx > R4 structured short coach > places routing behind a closed disclosure after the coach and retains its values across collapse 68ms
+ ✓ tests/ui/r4-short-coach.test.tsx > P12 durable draft save recovery > saves only after the bound receipt and preserves edits made while saving 57ms
+ ✓ tests/ui/management.test.tsx > P18 available management contracts > retains original request across closing and only unlocks matching authoritative receipt 102ms
+ ✓ tests/ui/candidates.test.tsx > P07 durable original review reconciliation > rechecks the durable candidate lock immediately after hashing instead of trusting render-time state 54ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > keeps the original version across draft edits, clearing drafts and same-user remount 16ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > does not expose or query another user operation 9ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > legacy pending locks without original IDs cannot be queried or retried 5ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > a missing reconciliation adapter keeps the lock and reports unavailable 10ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > a sample cannot use a forged pending request to query customer data 4ms
+ ✓ tests/ui/outreach-reconciliation.test.tsx > original send request reconciliation > malformed send results keep their durable lock for reconciliation 22ms
+ ✓ tests/ui/candidates.test.tsx > P07 actual timeout survives leaving and clearing drafts, with no new mutation on re-entry 88ms
+ ✓ tests/ui/candidates.test.tsx > P07 refuses dispatch with a corrupt stored request fingerprint 45ms
+ ✓ tests/ui/r4-short-coach.test.tsx > P12 durable draft save recovery > keeps the original request across network failure, closing and draft cleanup; query cannot resave 73ms
+ ✓ tests/ui/r4-short-coach.test.tsx > P12 durable draft save recovery > does not dispatch when durable storage fails 21ms
+ ✓ tests/ui/r4-short-coach.test.tsx > P12 durable draft save recovery > times out legacy saving and cannot re-save after reopening or apply late success 59ms
+ ✓ tests/ui/management.test.tsx > P18 available management contracts > rejects stale or mismatched impact previews 45ms
+ ✓ tests/ui/management.test.tsx > P18 available management contracts > does not dispatch when durable operation storage fails 69ms
+ ✓ tests/ui/navigation.test.tsx > 应用路由与会话边界 > 页头返回按钮可以返回带筛选条件的商机列表 317ms
+ ✓ tests/ui/r4-short-coach.test.tsx > P12 durable draft save recovery > settles the original user only and never notifies a new identity 35ms
+ ✓ tests/ui/r4-short-coach.test.tsx > P12 durable draft save recovery > does not show an old space's local draft or notify its late save under the same user 63ms
+ ✓ tests/ui/management.test.tsx > P18 available management contracts > saves backups only after the real save receipt and handles cancellation 52ms
+ ✓ tests/ui/management.test.tsx > P18 available management contracts > rejects a backup from another space before any file download 34ms
+ ✓ tests/ui/management.test.tsx > P18 available management contracts > previews the selected backup and binds its hash before restoring 79ms
+ ✓ tests/ui/management.test.tsx > P18 available management contracts > shows update download failure and the available rollback path 38ms
+ ✓ tests/ui/management.test.tsx > backup parser rejects credentials, unknown versions and invalid JSON 1ms
+ ✓ tests/ui/r4-short-coach.test.tsx > P12 durable draft save recovery > does not apply a recovered save from another account scope (id) 82ms
+ ✓ tests/ui/r4-short-coach.test.tsx > P12 durable draft save recovery > does not apply a recovered save from another account scope (version) 77ms
+ ✓ tests/ui/r4-short-coach.test.tsx > P12 durable draft save recovery > does not apply a recovered save from another account scope (missing) 90ms
+ ✓ tests/ui/r4-short-coach.test.tsx > P12 durable draft save recovery > uses one save request for repeated clicks and remounts old send confirmation after saving 75ms
+ ✓ tests/ui/r4-short-coach.test.tsx > P12 durable draft save recovery > releases only a confirmed rejection while keeping the manual content 46ms
+ ✓ tests/ui/r4-short-coach.test.tsx > P12 durable draft save recovery > rejects malformed save ledger keys before any caller can dispatch 2ms
+ ✓ tests/ui/outreach-queues.test.tsx > outreach queue contract > opens the actual parent draft workspace from a queue with the selected comment purpose 167ms
+ ✓ tests/ui/r4-opportunity-brief.test.tsx > renders three groups, their source basis and exact existing destinations without a business mutation 125ms
+ ✓ tests/ui/r4-opportunity-brief.test.tsx > retains old todo and sample entries on the real workbench page 51ms
+ ✓ tests/ui/r4-opportunity-brief.test.tsx > missing capability, missing verified scope and missing confirmed profile do not fabricate a briefing 47ms
+ ✓ tests/ui/outreach-queues.test.tsx > outreach queue contract > opens the actual parent draft workspace from a queue with the selected dm purpose 46ms
+ ✓ tests/ui/outreach-queues.test.tsx > outreach queue contract > loads confirm records and navigates using opportunity identity + channel 17ms
+ ✓ tests/ui/outreach-queues.test.tsx > outreach queue contract > loads reply records and navigates using opportunity identity + channel 11ms
+ ✓ tests/ui/outreach-queues.test.tsx > outreach queue contract > loads issues records and navigates using opportunity identity + channel 13ms
+ ✓ tests/ui/r4-opportunity-brief.test.tsx > keeps no-check, partial and truly empty complete snapshots distinct 59ms
+ ✓ tests/ui/navigation.test.tsx > 应用路由与会话边界 > 首次新页面回到顶部，返回已访问路由恢复位置 920ms
+ ✓ tests/ui/outreach-queues.test.tsx > outreach queue contract > handles loading, failure and refresh without retaining old content 92ms
+ ✓ tests/ui/outreach-queues.test.tsx > outreach queue contract > default unavailable is distinct from an empty queue 4ms
+ ✓ tests/ui/outreach-queues.test.tsx > outreach queue contract > rejects wrong queue rather than showing actionable records 8ms
+ ✓ tests/ui/outreach-queues.test.tsx > outreach queue contract > rejects duplicate ids rather than showing actionable records 6ms
+ ✓ tests/ui/outreach-queues.test.tsx > outreach queue contract > rejects partial snapshot rather than showing actionable records 5ms
+ ✓ tests/ui/outreach-queues.test.tsx > outreach queue contract > rejects malformed date rather than showing actionable records 8ms
+ ✓ tests/ui/outreach-queues.test.tsx > outreach queue contract > samples are read-only and cannot navigate to the send workspace 16ms
+ ✓ tests/ui/outreach-queues.test.tsx > outreach queue contract > does not query as guest or retain records across account changes 8ms
+ ✓ tests/ui/r4-opportunity-brief.test.tsx > rejects stale identity data and does not flash it after profile selection 74ms
+ ✓ tests/ui/r4-opportunity-brief.test.tsx > bounds hanging reads, ignores a late result and permits a fresh retry 35ms
+ ✓ tests/ui/r4-opportunity-brief.test.tsx > does not navigate unavailable targets and disables expired summaries 32ms
+ ✓ tests/ui/r4-opportunity-brief.test.tsx > rejects a mismatched date and recovers on retry without claiming zero results 26ms
+ ✓ tests/ui/outreach-queues.test.tsx > first draft and manual edits > offers initial generation, retries failure and previews without overwriting manual text 71ms
+ ✓ tests/ui/outreach-queues.test.tsx > first draft and manual edits > empty generation is failure and cannot replace text 32ms
+ ✓ tests/ui/outreach-queues.test.tsx > first draft and manual edits > rejects a detail response for another opportunity 10ms
+ ✓ tests/ui/outreach-queues.test.tsx > first draft and manual edits > keeps edits made while generation is pending until explicit replacement 101ms
+ ✓ tests/ui/r4-opportunity-brief.test.tsx > discards a previous user's late briefing 66ms
+ ✓ tests/ui/r4-opportunity-brief.test.tsx > discards a previous account's late briefing 70ms
+ ✓ tests/ui/r4-opportunity-brief.test.tsx > paginates complete snapshot rows without navigating to an unrelated target 24ms
+ ✓ tests/ui/navigation.test.tsx > 应用路由与会话边界 > 任务新步骤首次从顶部开始，同用户返回条件页恢复位置 310ms
+ ✓ tests/ui/r4-coverage-plan.test.tsx > creates one editable local draft while retaining the active input and existing library 107ms
+ ✓ tests/ui/r4-coverage-plan.test.tsx > requires a fresh exact cap preview and confirmation; adjustment never resumes 80ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 opportunity collection and source timeline > keeps contact preparation available after closing the expanded research drawer 202ms
+ ✓ tests/ui/navigation.test.tsx > 应用路由与会话边界 > 监控各步骤保持导航归属，切为单次确认后标题与侧栏同步切换 339ms
+ ✓ tests/ui/r4-coverage-plan.test.tsx > keeps UNKNOWN through close and draft cleanup, and only reconciles the original immutable snapshot 67ms
+ ✓ tests/ui/r4-coverage-plan.test.tsx > does not dispatch on failed durable storage or update a new identity after delayed preview 41ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 opportunity collection and source timeline > keeps the old facade available without calling R4 when trusted scope is absent 36ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 opportunity collection and source timeline > refuses timeline and similar preview before a request when session scope is absent 4ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 opportunity collection and source timeline > does not display another workspace's classification for the same user 4ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 opportunity collection and source timeline > preserves filters and the exact selection in a detail return path 61ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 opportunity collection and source timeline > shows observations as research evidence without customer outreach actions 15ms
+ ✓ tests/ui/r4-coverage-plan.test.tsx > ignores delayed preview after account scope changes 65ms
+ ✓ tests/ui/r4-coverage-plan.test.tsx > shows unavailable preview honestly without creating a draft 18ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 opportunity collection and source timeline > separates observation from opportunity despite identical processing statuses 46ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 opportunity collection and source timeline > rejects another user snapshot and offers retry instead of an empty result 24ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 opportunity collection and source timeline > discards a previous identity's late collection 13ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 opportunity collection and source timeline > shows bound before/after evidence without treating access failure as closure 12ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 opportunity collection and source timeline > keeps sample history at one original with unknown observation time 5ms
+ ✓ tests/ui/task-templates.test.tsx > saves a named standalone template and creates a new draft with only user configuration 259ms
+ ✓ tests/ui/task-templates.test.tsx > strips runtime fields and propagates ancestor source IDs across template generations 1ms
+ ✓ tests/ui/r4-coverage-plan.test.tsx > connects the production task detail entry to a real preview drawer without an injected onPlan 92ms
+ ✓ tests/ui/r4-coverage-plan.test.tsx > creates new tasks with research limits and hides old task rows on same-user scope changes 28ms
+ ✓ tests/ui/r4-coverage-plan.test.tsx > does not query an adjustment from another account scope 49ms
+ ✓ tests/visual/recovery-pages.test.tsx > P06 real page preserves manual terms and schedule until explicitly merging a late TEST suggestion 258ms
+ ✓ tests/ui/r4-coverage-plan.test.tsx > discards a rejected confirmation and requires a new preview before another adjustment 57ms
+ ✓ tests/ui/r4-coverage-plan.test.tsx > rejects mismatched preview scope 1ms
+ ✓ tests/ui/r4-coverage-plan.test.tsx > rejects mismatched preview expiry 0ms
+ ✓ tests/ui/r4-coverage-plan.test.tsx > rejects mismatched preview difference 0ms
+ ✓ tests/ui/r4-coverage-plan.test.tsx > rejects mismatched preview budget 0ms
+ ✓ tests/ui/r4-coverage-plan.test.tsx > binds all terminal receipt facts to the exact confirmed preview and rejects malformed ledger records 2ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 opportunity collection and source timeline > retains legacy customer functionality when the new optional adapter is absent 26ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 opportunity collection and source timeline > never displays a mismatched opportunity returned for a detail request 3ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 similar research local draft preview > never calls services or hands off a public sample 7ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 similar research local draft preview > exposes editable terms, actual supported platform and unknown soubei before local handoff 44ms
+ ✓ tests/ui/task-templates.test.tsx > refuses saving when the source becomes unresolved after naming opens, even without a storage event 43ms
+ ✓ tests/ui/task-templates.test.tsx > refuses using a pre-existing template if any ancestor later becomes unresolved 36ms
+ ✓ tests/ui/task-templates.test.tsx > does not clone if unknown-result storage cannot be verified 62ms
+ ✓ tests/ui/navigation.test.tsx > 应用路由与会话边界 > 用户主动滚动后内容变化不会强行拉回 306ms
+ ✓ tests/ui/login.test.tsx > 登录 > 验证手机号并保留失败输入，短信服务失败不会进入倒计时 108ms
+ ✓ tests/ui/login.test.tsx > 登录 > 仅真实短信响应启动冷却，并校验验证码与试用码 63ms
+ ✓ tests/visual/recovery-pages.test.tsx > P06 cancellation ignores the same transport response when it is released later 69ms
+ ✓ tests/ui/task-templates.test.tsx > clears session templates with local drafts and isolates them from another identity 50ms
+ ✓ tests/ui/task-templates.test.tsx > never exposes an old template deletion dialog in a new space before passive cleanup 9ms
+ ✓ tests/ui/task-templates.test.tsx > validates bounded unique nonempty template ancestry while accepting legacy drafts 1ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 similar research local draft preview > rechecks source and profile before handoff and preserves edited text on rejection 48ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 similar research local draft preview > requires explicit discard when edited configuration is closed 30ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 similar research local draft preview > refuses local handoff if recognition is revoked during the final read 48ms
+ ✓ tests/ui/login.test.tsx > 登录 > 已有凭证走真实登录方法，凭证不进入本机存储 47ms
+ ✓ tests/ui/login.test.tsx > 登录 > 登录返回成功但刷新未建立有效身份时留在登录页：{"authenticated":false} 35ms
+ ✓ tests/ui/login.test.tsx > 登录 > 登录返回成功但刷新未建立有效身份时留在登录页：{"authenticated":true} 24ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 similar research local draft preview > does not apply a late preflight after the user edits the requested configuration 51ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 similar research local draft preview > does not hand off a response after the same user switches workspace 34ms
+ ✓ tests/ui/r4-opportunity-research-ui.test.tsx > R4 similar research local draft preview > bounds a suggestion read and offers a safe retry 9ms
+ ✓ tests/ui/task-templates.test.tsx > expands monitor configuration read-only, shows every platform and does not invent run history 57ms
+ ✓ tests/ui/task-templates.test.tsx > keeps unresolved monitor expansion inspectable while blocking confirmation 9ms
+ ✓ tests/ui/task-templates.test.tsx > opens a saved monitor at the existing final confirmation route without starting 24ms
+ ✓ tests/ui/task-templates.test.tsx > disables an open deletion confirmation when an ancestor becomes unresolved 27ms
+ ✓ tests/ui/login.test.tsx > 登录 > 换手机号后忽略旧短信请求的晚到success，可请求当前号码 62ms
+ ✓ tests/ui/login.test.tsx > 登录 > 换手机号后忽略旧短信请求的晚到failure，可请求当前号码 61ms
+ ✓ tests/ui/login.test.tsx > 登录 > 登录时等待会话确认，未确认前不能重复提交 31ms
+ ✓ tests/ui/r4-research-usage.test.tsx > R4 usage bindings and recovered start protection > hashes demand types, cap, resource limits and provenance as confirmed configuration 32ms
+ ✓ tests/ui/r4-research-usage.test.tsx > R4 usage bindings and recovered start protection > rejects a quote with a wrong accountScopeId 10ms
+ ✓ tests/ui/r4-research-usage.test.tsx > R4 usage bindings and recovered start protection > rejects a quote with a wrong accountScopeVersion 3ms
+ ✓ tests/ui/r4-research-usage.test.tsx > R4 usage bindings and recovered start protection > rejects a quote with a wrong configurationHash 1ms
+ ✓ tests/ui/r4-research-usage.test.tsx > R4 usage bindings and recovered start protection > rejects a quote with a wrong maxSoubei 1ms
+ ✓ tests/ui/r4-research-usage.test.tsx > R4 usage bindings and recovered start protection > rejects a quote with a wrong requestId 1ms
+ ✓ tests/ui/r4-research-usage.test.tsx > R4 usage bindings and recovered start protection > rejects over-cap and expired quotes, never supplies a zero estimate for missing accounting 1ms
+ ✓ tests/ui/r4-research-usage.test.tsx > R4 usage bindings and recovered start protection > preserves in-progress blank and invalid limits without erasing the task 10ms
+ ✓ tests/visual/recovery-pages.test.tsx > P13 real route binds UNKNOWN to the original request; only an explicit non-delivery lookup unlocks 246ms
+ ✓ tests/visual/recovery-pages.test.tsx > P19 real page queries the original UNKNOWN startup and never invents an accepted task 61ms
+ ✓ tests/visual/recovery-pages.test.tsx > P17 capability-insufficient connection returns through real hashchange without losing the task draft 84ms
+ ✓ tests/ui/login.test.tsx > 登录 > 短信请求挂起后超时，保留手机号并释放重试入口 29ms
+ ✓ tests/ui/login.test.tsx > 登录 > 登录exchange挂起时超时释放表单，丢弃晚到成功后仍可重新登录 46ms
+ ✓ tests/ui/login.test.tsx > 登录 > 登录session挂起时超时释放表单，丢弃晚到成功后仍可重新登录 47ms
+ ✓ tests/ui/connections.test.tsx > 平台连接 > 连接服务失败不变成登录成功，检查按钮保持禁用 180ms
+ ✓ tests/ui/r4-research-usage.test.tsx > R4 usage bindings and recovered start protection > does not silently start a research draft through a legacy execution adapter 82ms
+ ✓ tests/ui/r4-research-usage.test.tsx > R4 usage bindings and recovered start protection > starts once with the quoted cap and requires the corresponding reservation receipt 75ms
+ ✓ tests/ui/opportunity-library-ui.test.tsx > P10 library columns and interactive filters > renders independent facts/status columns and preserves the original platform logo 139ms
+ ✓ tests/ui/opportunity-library-ui.test.tsx > P10 library columns and interactive filters > combines exact stage and deadline filters, resets them and preserves them in the return route 78ms
+ ✓ tests/ui/connections.test.tsx > 平台连接 > 原生窗口已打开后才检查；能力不足不会当作全部通过 107ms
+ ✓ tests/ui/connections.test.tsx > 平台连接 > 取消返回原任务并忽略过期的打开窗口响应 81ms
+ ✓ tests/ui/navigation.test.tsx > 应用路由与会话边界 > 不同用户的同一路由不复用滚动位置 612ms
+ ✓ tests/ui/navigation.test.tsx > 父级路径契约 > /tasks/new?mode=monitor&step=confirm 返回 /tasks/new?mode=monitor 0ms
+ ✓ tests/ui/navigation.test.tsx > 父级路径契约 > /tasks/new?step=connect 返回 /tasks/new 0ms
+ ✓ tests/ui/navigation.test.tsx > 父级路径契约 > /tasks/new?mode=monitor 返回 /monitors 0ms
+ ✓ tests/ui/navigation.test.tsx > 父级路径契约 > /tasks/new 返回 /collection 0ms
+ ✓ tests/ui/navigation.test.tsx > 父级路径契约 > /opportunities/item 返回 /opportunities 0ms
+ ✓ tests/ui/navigation.test.tsx > 父级路径契约 > /opportunities/item?returnTo=https://other.example 返回 /opportunities 0ms
+ ✓ tests/ui/navigation.test.tsx > 父级路径契约 > /monitors/item 返回 /monitors 0ms
+ ✓ tests/ui/navigation.test.tsx > 父级路径契约 > /candidates 返回 /collection 0ms
+ ✓ tests/ui/navigation.test.tsx > 父级路径契约 > /profile?tab=materials 返回 /profile 0ms
+ ✓ tests/ui/navigation.test.tsx > 父级路径契约 > /outreach?opportunity=item&confirm=send 返回 /outreach?opportunity=item 0ms
+ ✓ tests/ui/navigation.test.tsx > 父级路径契约 > /followups?add=1 返回 /followups 0ms
+ ✓ tests/ui/navigation.test.tsx > 父级路径契约 > /connections?connect=xhs&returnTo=%2Ftasks%2Fnew%3Fstep%3Dconnect 返回 /tasks/new?step=connect 0ms
+ ✓ tests/ui/navigation.test.tsx > 父级路径契约 > /settings 返回 /connections 0ms
+ ✓ tests/ui/navigation.test.tsx > 父级路径契约 > 同一组查询条件的排列不创建不同滚动记录 0ms
+ ✓ tests/ui/opportunity-library-ui.test.tsx > P10 library columns and interactive filters > keeps missing fields and version mismatches visible and independently filterable 55ms
+ ✓ tests/ui/opportunity-library-ui.test.tsx > P10 library columns and interactive filters > sorts known deadlines earliest first, keeps absent values last and exports exact timezone 26ms
+ ✓ tests/ui/r4-research-usage.test.tsx > R4 usage bindings and recovered start protection > does not dispatch an old-space start after delayed prerequisite checks 101ms
+ ✓ tests/ui/r4-research-usage.test.tsx > R4 usage bindings and recovered start protection > requires a rejected request to confirm the same usage reservation is absent 5ms
+ ✓ tests/ui/workbench-queue.test.tsx > loads review and preserves the exact target in its destination 91ms
+ ✓ tests/ui/connections.test.tsx > 平台连接 > 打开窗口挂起会超时，可重试；晚到结果不能恢复等待状态 84ms
+ ✓ tests/ui/r4-research-usage.test.tsx > R4 usage bindings and recovered start protection > retains a durable unknown start when the receipt omits accounting, including after remount 97ms
+ ✓ tests/ui/r4-research-usage.test.tsx > R4 usage bindings and recovered start protection > rejects a quote that arrives after an edit or a same-user space switch 57ms
+ ✓ tests/ui/r4-research-usage.test.tsx > R4 usage bindings and recovered start protection > keeps terminal-run provenance and rejects estimation in another customer space 2ms
+ ✓ tests/ui/r4-research-usage.test.tsx > R4 usage bindings and recovered start protection > preserves similar-source provenance while requesting a fresh estimate 1ms
+ ✓ tests/ui/opportunity-library-ui.test.tsx > P10 library columns and interactive filters > keeps source-backed public sample read-only and clears customer fact filters on scope change 70ms
+ ✓ tests/ui/opportunity-library-ui.test.tsx > P10 library columns and interactive filters > shows no-match feedback without hiding a saved stage filter 39ms
+ ✓ tests/ui/opportunity-library-ui.test.tsx > P10 library columns and interactive filters > exposes a permission failure as an error instead of empty or made-up fields 18ms
+ ✓ tests/ui/opportunity-library-ui.test.tsx > P10 library columns and interactive filters > bounds a hanging list and ignores a late response after retry 33ms
+ ✓ tests/ui/opportunity-library-ui.test.tsx > P10 library columns and interactive filters > discards pending source facts and selections after changing identity 33ms
+ ✓ tests/ui/workbench-queue.test.tsx > loads contact and preserves the exact target in its destination 16ms
+ ✓ tests/ui/workbench-queue.test.tsx > loads reply and preserves the exact target in its destination 9ms
+ ✓ tests/ui/workbench-queue.test.tsx > loads followup and preserves the exact target in its destination 12ms
+ ✓ tests/ui/workbench-queue.test.tsx > shows an empty queue only after a complete authoritative empty response 66ms
+ ✓ tests/ui/connections.test.tsx > 平台连接 > 连接检查挂起会超时，保留已打开状态供重试并忽略旧成功 69ms
+ ✓ tests/ui/connections.test.tsx > 平台连接 > 检查中取消返回原任务，晚到成功不会更新连接列表 80ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > stages a Chinese workspace under an ASCII path, preserves config and returns identical bytes at the original output 96ms
+ ✓ tests/ui/workbench-queue.test.tsx > does not reuse a late result after switching queues 59ms
+ ✓ tests/ui/workbench-queue.test.tsx > rejects wrong queue, duplicate records, partial snapshots and sample targets 1ms
+ ✓ tests/ui/workbench-queue.test.tsx > retrieves the exact candidate from a todo link rather than the first list row 42ms
+ ✓ tests/ui/task-start-contract.test.tsx > task start result boundary > keeps original request unknown after malformed result undefined 229ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > propagates native failure, preserves all original outputs and cleans only this run staging 14ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > uses an ASCII system temporary directory by default 33ms
+ ↓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > restores the complete old artifact set when the real second copy fails on a read-only Setup.exe
+ ✓ tests/ui/workbench-queue.test.tsx > does not display a different candidate returned for a todo target 33ms
+ ✓ tests/ui/workbench-queue.test.tsx > clears the old selection and confirmation when a todo target changes 76ms
+ ✓ tests/ui/workbench-queue.test.tsx > times out a stalled candidate target without substituting a different row 25ms
+ ✓ tests/ui/workbench-queue.test.tsx > shows an explicit missing target state 10ms
+ ✓ tests/ui/workbench-queue.test.tsx > excludes public samples from the legacy customer opportunity fallback 55ms
+ ✓ tests/ui/task-start-contract.test.tsx > task start result boundary > keeps original request unknown after malformed result null 77ms
+ ✓ tests/ui/task-start-contract.test.tsx > task start result boundary > keeps original request unknown after malformed result {} 52ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > removes this run partial files after a real second copy failure with no historical artifacts 110ms
+ ↓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > retains original backups and a recovery manifest when rollback itself fails
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > rejects a non-ASCII system temporary directory before the native maker even with explicit ASCII staging 3ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > rejects invalid staging root relative-root before native work 3ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > rejects invalid staging root  before native work 3ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > rejects invalid staging root missing before native work 4ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > rejects invalid staging root 中文暂存 before native work 3ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > rejects invalid staging root traversal before native work 3ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > rejects a staging root with a junction ancestor 3ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > rejects outside artifact results before any copy 13ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > rejects directory artifact results before any copy 20ms
+ ✓ tests/ui/task-start-contract.test.tsx > task start result boundary > keeps original request unknown after malformed result {"id":"wrong","mode":"monitor"} 72ms
+ ✓ tests/ui/task-start-contract.test.tsx > task start result boundary > keeps original request unknown after malformed result {"id":"wrong","status":"SUCCESS"} 44ms
+ ✓ tests/ui/task-start-contract.test.tsx > task start result boundary > rejects a well-shaped run for another platform or profile 1ms
+ ✓ tests/ui/task-start-contract.test.tsx > task start result boundary > accepts a matching server task only after a nonempty identifier and state 31ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > rejects junction artifact results before any copy 82ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > rejects duplicate artifact results before any copy 64ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > rejects empty artifact results before any copy 22ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > rejects a junction in the final output path without touching its target 5ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > rejects an architecture that escapes the run directory before native work 15ms
+ ✓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > refuses cleanup when the private staging root has been replaced by a junction 10ms
+ ↓ tests/asciiStagingSquirrel.test.ts > Squirrel ASCII output staging > edits a real Setup.exe in ASCII staging and copies Chinese product metadata intact
+ ✓ tests/visual/harness.test.tsx > strictly separate visual service > supplies all three TEST outreach queues without enabling send or claiming a receipt 2ms
+ ✓ tests/visual/harness.test.tsx > strictly separate visual service > keeps writes in one service instance and never calls network or clipboard 1ms
+ ✓ tests/visual/harness.test.tsx > strictly separate visual service > returns deep copies so view edits cannot mutate fixture or other reads 0ms
+ ✓ tests/visual/harness.test.tsx > strictly separate visual service > never permits execution or sending, even when directly invoked 0ms
+ ✓ tests/visual/harness.test.tsx > strictly separate visual service > rejects memory mutation in the guest and failure scenarios 0ms
+ ✓ tests/visual/harness.test.tsx > strictly separate visual service > models task action states only in memory without an executor 0ms
+ ✓ tests/visual/harness.test.tsx > strictly separate visual service > retains approved 8/4 terms and both monitor times 0ms
+ ✓ tests/visual/harness.test.tsx > strictly separate visual service > does not claim platform accounts or a ready executor 0ms
+ ✓ tests/visual/harness.test.tsx > strictly separate visual service > supplies a memory Storage interface without sharing values 0ms
+ ✓ tests/ui/tasks.test.tsx > task lists and local drafts > filters local drafts by mode and search, then edits a real draft snapshot without starting it 152ms
+ ✓ tests/ui/tasks.test.tsx > task lists and local drafts > deletes only the chosen local draft after confirmation without calling the service 43ms
+ ✓ tests/ui/tasks.test.tsx > task lists and local drafts > includes failed and blocked tasks in the needs-attention filter 30ms
+ ✓ tests/visual/harness.test.tsx > real page components with the real AppProvider > switches the same opportunity from an existing comment route to queue-selected dm through real asynchronous hashchange 210ms
+ ✓ tests/ui/tasks.test.tsx > task lists and local drafts > does not show a single collection run as a monitor detail through a changed URL 21ms
+ ✓ tests/ui/tasks.test.tsx > monitor detail from execution service data > distinguishes actual platform states and returns to the same monitor after reconnecting 88ms
+ ✓ tests/visual/harness.test.tsx > real page components with the real AppProvider > renders all five monitor platform states and real detail tabs 68ms
+ ✓ tests/visual/harness.test.tsx > real page components with the real AppProvider > renders actual task lists from isolated data 26ms
+ ✓ tests/visual/harness.test.tsx > real page components with the real AppProvider > renders the real followup drawer against the same isolated service 50ms
+ ✓ tests/ui/tasks.test.tsx > monitor detail from execution service data > does not turn absent execution data into waiting states, zero counts, or example events 28ms
+ ✓ tests/ui/tasks.test.tsx > monitor detail from execution service data > renders the service profile version, schedule, events, and failure reason without deriving a next run 36ms
+ ✓ tests/ui/tasks.test.tsx > monitor detail from execution service data > shows an unavailable detail as a service error without inventing a monitor 9ms
+ ✓ tests/ui/tasks.test.tsx > monitor detail from execution service data > keeps a malformed detail URL in the missing-task state instead of crashing 8ms
+ ✓ tests/ui/tasks.test.tsx > actual task list pagination and filters > paginates returned rows, resets on platform/date filters and never invents missing update dates 96ms
+ ✓ tests/ui/tasks.test.tsx > actual task list pagination and filters > prevents deleting a draft whose original startup has not been reconciled 18ms
+ ✓ tests/ui/tasks.test.tsx > paginates and filters actual execution events without fabricating a timestamp 62ms
+ ✓ tests/ui/settings.test.tsx > 设备与授权 > 会话变化立即卸载设置页时，退出仍会清草稿并导航 100ms
+ ✓ tests/ui/settings.test.tsx > 设备与授权 > 离线退出后重查会话，清草稿并保留服务端结果未知提示 54ms
+ ✓ tests/ui/settings.test.tsx > 设备与授权 > 远端退出失败且会话仍有效时保留草稿与重试入口 47ms
+ ✓ tests/ui/settings.test.tsx > 设备与授权 > 使用实际运行信息并诚实报告激活失败 49ms
+ ✓ tests/ui/settings.test.tsx > 设备与授权 > 诊断仅含实际运行信息，不包含凭证或业务记录 47ms
+ ✓ tests/ui/settings.test.tsx > 设备与授权 > 退出需确认，成功后清除本机草稿 39ms
+ ✓ tests/ui/settings.test.tsx > 设备与授权 > 恢复服务未接通时不执行任何覆盖 12ms
+ ✓ tests/ui/profile.test.tsx > 业务画像和资料 > 拒绝损坏的本机资料恢复数据并保持可用空态 36ms
+ ✓ tests/ui/profile.test.tsx > 业务画像和资料 > 确认后返回历史状态时不显示画像确认成功 114ms
+ ✓ tests/ui/profile.test.tsx > 业务画像和资料 > 空客户不填假数据；示例仍未确认且必填地区缺失不能保存 36ms
+ ✓ tests/ui/followups.test.tsx > manual followup facts > allows only customer opportunities and retains the note on save failure 240ms
+ ✓ tests/ui/followups.test.tsx > manual followup facts > closes the drawer only after a real service save succeeds 98ms
+ ✓ tests/ui/followups.test.tsx > manual followup facts > requires an authenticated customer before any write 22ms
+ ✓ tests/ui/profile.test.tsx > 业务画像和资料 > 保存失败保留全部字段；确认需核验并只调用画像确认 113ms
+ ✓ tests/ui/profile.test.tsx > 业务画像和资料 > 已有确认版本修改后保留旧版本语义 46ms
+ ✓ tests/ui/profile.test.tsx > 业务画像和资料 > 资料校验、取消保护、本机保存和删除确认均可操作 91ms
+ ✓ tests/ui/profile.test.tsx > 业务画像和资料 > 拒绝不支持的上传，不伪报文件已上传 17ms
+ ✓ tests/ui/schedule-policy-ui.test.tsx > keeps overnight rules through save, step navigation and final confirmation 217ms
+ ✓ tests/ui/schedule-policy-ui.test.tsx > blocks equal start/end before advancing and preserves the input 58ms
+ ✓ tests/ui/schedule-policy-ui.test.tsx > leaves old schedule hashes unchanged on entry and adopts only after the explicit action 44ms
+ ✓ tests/ui/schedule-policy-ui.test.tsx > preserves the old unversioned monitor adapter path without claiming v1 93ms
+ ✓ tests/ui/task-profile.test.tsx > task profile entity lineage > maps only the actual profile entity and preserves the version-row ID 2ms
+ ✓ tests/ui/task-profile.test.tsx > task profile entity lineage > ignores other businesses even when their confirmed version number is much higher 1ms
+ ✓ tests/ui/task-profile.test.tsx > task profile entity lineage > never infers an entity from the only confirmed row or the same description 0ms
+ ✓ tests/ui/task-profile.test.tsx > task profile entity lineage > treats ambiguous or inconsistent version relations as unknown 0ms
+ ✓ tests/ui/task-profile.test.tsx > task profile entity lineage > treats ambiguous or inconsistent version relations as unknown 0ms
+ ✓ tests/ui/task-profile.test.tsx > task profile entity lineage > treats ambiguous or inconsistent version relations as unknown 0ms
+ ✓ tests/ui/task-profile.test.tsx > task profile entity lineage > treats ambiguous or inconsistent version relations as unknown 0ms
+ ✓ tests/ui/task-profile.test.tsx > task profile entity lineage > does not use another entity's confirmation when this one has no confirmed version 0ms
+ ✓ tests/ui/task-profile.test.tsx > task profile entity lineage > rejects malformed responses instead of reading them as an empty/current list 1ms
+ ✓ tests/ui/task-profile.test.tsx > task profile entity lineage > rejects malformed responses instead of reading them as an empty/current list 0ms
+ ✓ tests/ui/task-profile.test.tsx > task profile entity lineage > rejects malformed responses instead of reading them as an empty/current list 0ms
+ ✓ tests/ui/opportunity-export.test.tsx > customer CSV native receipt > waits for actual saved receipt, blocks repeated clicks, and only includes selected customers 131ms
+ ✓ tests/ui/opportunity-export.test.tsx > customer CSV native receipt > keeps selection and never shows success when the user cancels 89ms
+ ✓ tests/ui/schedule-policy-ui.test.tsx > dispatches v1 only through a declared adapter and keeps its exact schedule 55ms
+ ✓ tests/ui/schedule-policy-ui.test.tsx > rechecks support after delayed preflight before writing a pending start or dispatching 98ms
+ ✓ tests/ui/task-profile.test.tsx > P09 profile comparison interaction > shows the live lineage and lets users keep history or go to the profile without mutation 107ms
+ ✓ tests/ui/task-profile.test.tsx > P09 profile comparison interaction > shows a new warning after a later version even after keeping the earlier history 61ms
+ ✓ tests/ui/opportunity-export.test.tsx > customer CSV native receipt > keeps selection after disk failure and exposes only the friendly error 46ms
+ ✓ tests/ui/opportunity-export.test.tsx > customer CSV native receipt > reports browser initiation as info instead of disk success 44ms
+ ✓ tests/ui/opportunity-export.test.tsx > customer CSV native receipt > does not export public sample rows 24ms
+ ✓ tests/ui/opportunity-export.test.tsx > customer CSV native receipt > does not publish a late success after the customer page unmounts 38ms
+ ✓ tests/ui/r4-opportunity-research-handoff.test.tsx > R4 local task handoff > stores the local task under its verified workspace without exposing it in another workspace 204ms
+ ✓ tests/ui/r4-opportunity-research-handoff.test.tsx > R4 local task handoff > creates one deterministic local task under StrictMode without any execution API 59ms
+ ✓ tests/ui/task-profile.test.tsx > P09 profile comparison interaction > does not present a failed refresh as agreement with the current profile 43ms
+ ✓ tests/ui/task-profile.test.tsx > P09 profile comparison interaction > times out a hung profile read and ignores its late response 15ms
+ ✓ tests/ui/task-profile.test.tsx > P09 profile comparison interaction > drops old-space reads and cannot restore an old acknowledgement on an A-B-A switch 99ms
+ ✓ tests/ui/task-profile.test.tsx > P09 profile comparison interaction > never labels a legacy unlinked profile as current 6ms
+ ✓ tests/ui/task-profile.test.tsx > P09 profile comparison interaction > keeps the warning available in task configuration and does not call a task mutation 43ms
+ ✓ tests/ui/r4-opportunity-research-handoff.test.tsx > R4 local task handoff > keeps an existing unsaved task and requires explicit switch confirmation 88ms
+ ✓ tests/ui/r4-opportunity-research-handoff.test.tsx > R4 local task handoff > cancels switching without replacing the current task 56ms
+ ✓ tests/ui/followup-routing.test.tsx > returns to the list only after saving and does not ask to abandon the just-saved form 276ms
+ ✓ tests/ui/followup-routing.test.tsx > explicit keep-and-close navigates via real hashchange and reopening restores the unsaved draft 144ms
+ ✓ tests/exportService.test.ts > fixed export payload > normalizes only supported extensions and validates UTF-8 byte length 10ms
+ ✓ tests/exportService.test.ts > fixed export payload > rejects path or unsafe name ../secret 0ms
+ ✓ tests/exportService.test.ts > fixed export payload > rejects path or unsafe name /tmp/file 0ms
+ ✓ tests/exportService.test.ts > fixed export payload > rejects path or unsafe name C:\secret 0ms
+ ✓ tests/exportService.test.ts > fixed export payload > rejects path or unsafe name name/path 0ms
+ ✓ tests/exportService.test.ts > fixed export payload > rejects path or unsafe name name\path 0ms
+ ✓ tests/exportService.test.ts > fixed export payload > rejects path or unsafe name .hidden 0ms
+ ✓ tests/exportService.test.ts > fixed export payload > rejects path or unsafe name a..b 0ms
+ ✓ tests/exportService.test.ts > fixed export payload > rejects path or unsafe name NUL 0ms
+ ✓ tests/exportService.test.ts > fixed export payload > rejects path or unsafe name CON.txt 0ms
+ ✓ tests/exportService.test.ts > fixed export payload > rejects path or unsafe name 报告
+隐藏 0ms
+ ✓ tests/exportService.test.ts > fixed export payload > rejects arbitrary fields, executable format, NUL, and non-object backups 1ms
+ ✓ tests/exportService.test.ts > native save handler > returns saved only after actual temporary-file write and preserves exact UTF-8 bytes 18ms
+ ✓ tests/exportService.test.ts > native save handler > uses the backup extension and never returns the selected absolute path 15ms
+ ✓ tests/exportService.test.ts > native save handler > rejects untrusted sender before opening a dialog and rejects extra paths 0ms
+ ✓ tests/exportService.test.ts > native save handler > cancellation never writes and permits a later request 0ms
+ ✓ tests/exportService.test.ts > native save handler > keeps one dialog active and does not queue duplicate requests 0ms
+ ✓ tests/exportService.test.ts > native save handler > does not write after the originating frame becomes untrusted during the dialog 0ms
+ ✓ tests/exportService.test.ts > native save handler > rejects a destination with the wrong extension or shape 0ms
+ ✓ tests/exportService.test.ts > native save handler > rejects a destination with the wrong extension or shape 0ms
+ ✓ tests/exportService.test.ts > native save handler > rejects a destination with the wrong extension or shape 0ms
+ ✓ tests/exportService.test.ts > native save handler > rejects a destination with the wrong extension or shape 0ms
+ ✓ tests/exportService.test.ts > native save handler > does not report success while disk write is pending and sanitizes write failures 52ms
+ ✓ tests/exportService.test.ts > native save handler > cleans temporary data if atomic replacement fails and leaves the destination intact 15ms
+ ✓ tests/ui/hooks.test.tsx > persistent draft recovery and ownership > discards malformed JSON without writing defaults back to storage 7ms
+ ✓ tests/ui/hooks.test.tsx > persistent draft recovery and ownership > rejects deeply wrong fields and object values in nullable scalar fields 1ms
+ ✓ tests/ui/hooks.test.tsx > persistent draft recovery and ownership > restores valid nested values and a nullable scalar identifier 1ms
+ ✓ tests/ui/hooks.test.tsx > persistent draft recovery and ownership > preserves edits that explicitly clear an optional object field 1ms
+ ✓ tests/ui/hooks.test.tsx > persistent draft recovery and ownership > requires an element validator for nonempty arrays with an empty default 1ms
+ ✓ tests/ui/hooks.test.tsx > persistent draft recovery and ownership > contains validator exceptions and restores the initial draft 0ms
+ ✓ tests/ui/hooks.test.tsx > persistent draft recovery and ownership > switches accounts immediately and ignores a captured setter from the old account 1ms
+ ✓ tests/ui/hooks.test.tsx > persistent draft recovery and ownership > clear updates mounted consumers immediately and rejects delayed old writes 1ms
+ ✓ tests/ui/hooks.test.tsx > persistent draft recovery and ownership > per-key clear preserves other drafts and does not persist the reset value 1ms
+ ✓ tests/ui/hooks.test.tsx > persistent draft recovery and ownership > does not reload a cleared private value when storage removal is denied 1ms
+ ✓ tests/ui/hooks.test.tsx > persistent draft recovery and ownership > survives StrictMode and runs a functional edit once 1ms
+ ✓ tests/ui/hooks.test.tsx > persistent draft recovery and ownership > keeps valid edits in memory when browser storage rejects reads or writes 1ms
+ ✓ tests/ui/hooks.test.tsx > resource identity and late results > ends an unbounded read, aborts it, and ignores its late response after retry 19ms
+ ✓ tests/ui/hooks.test.tsx > resource identity and late results > never renders the previous account data while the next account loads or fails 67ms
+ ✓ tests/ui/hooks.test.tsx > resource identity and late results > discards an old identity result even when it resolves last 1ms
+ ✓ tests/ui/hooks.test.tsx > resource identity and late results > clears old results on failed reload and ignores overlapping older reloads 55ms
+ ✓ tests/ui/hooks.test.tsx > resource identity and late results > preserves a newer explicit update against an older pending fetch 1ms
+ ✓ tests/ui/hooks.test.tsx > resource identity and late results > uses only the active StrictMode request result 1ms
+ ✓ tests/ui/task-recovery.test.tsx > recovers the same original request after clearing drafts and remounting, without starting anything 134ms
+ ✓ tests/ui/task-recovery.test.tsx > retains the original lock on mismatch 19ms
+ ✓ tests/ui/task-recovery.test.tsx > retains the original lock on pending 11ms
+ ✓ tests/ui/task-recovery.test.tsx > retains the original lock on network 22ms
+ ✓ tests/ui/task-recovery.test.tsx > retains the original lock on rejection-without-proof 11ms
+ ✓ tests/ui/task-recovery.test.tsx > retains the original lock on legacy 14ms
+ ✓ tests/ui/task-recovery.test.tsx > requires definitive rejected confirmation before releasing the original record 6ms
+ ✓ tests/ui/task-recovery.test.tsx > bounds reconciliation waiting and ignores a late response after timeout 9ms
+ ✓ tests/ui/outreach.test.tsx > contact preparation and confirmation > never unlocks sample writing or sending after confirmation is checked 155ms
+ ✓ tests/ui/profile-materials-integration.test.tsx > 真实 ProfilePage 入口选资料、确认填入和回业务描述，保持其余人工字段且不自动保存确认 231ms
+ ✓ tests/ui/profile-materials-integration.test.tsx > 画像保存迟到回执不能恢复卸载后的客户草稿 100ms
+ ✓ tests/ui/task-recovery.test.tsx > does not route or publish another identity after the original account leaves 62ms
+ ✓ tests/ui/task-recovery.test.tsx > validates new binding values and retains legacy locks 2ms
+ ✓ tests/ui/outreach.test.tsx > contact preparation and confirmation > retains manual text when saving fails and isolates comment from dm edits 133ms
+ ✓ tests/ui/outreach.test.tsx > contact preparation and confirmation > does not carry locally edited customer content to another signed-in identity 39ms
+ ✓ tests/ui/outreach.test.tsx > contact preparation and confirmation > binds confirmation to content, purpose, account, recipient and source version 1ms
+ ✓ tests/ui/r4-search-coverage-domain.test.ts > R4 immutable coverage window > rejects future-generated data while preserving an expired window for labelled history 15ms
+ ✓ tests/ui/r4-search-coverage-domain.test.ts > R4 immutable coverage window > keeps coverage and screening independent, preserves unknown values and uses no global sum 1ms
+ ✓ tests/ui/r4-search-coverage-domain.test.ts > R4 immutable coverage window > rejects a different requestId 0ms
+ ✓ tests/ui/r4-search-coverage-domain.test.ts > R4 immutable coverage window > rejects a different taskId 0ms
+ ✓ tests/ui/r4-search-coverage-domain.test.ts > R4 immutable coverage window > rejects a different profileId 0ms
+ ✓ tests/ui/r4-search-coverage-domain.test.ts > R4 immutable coverage window > rejects a different userId 0ms
+ ✓ tests/ui/r4-search-coverage-domain.test.ts > R4 immutable coverage window > rejects a different accountScopeId 0ms
+ ✓ tests/ui/r4-search-coverage-domain.test.ts > R4 immutable coverage window > rejects changed profileVersion 0ms
+ ✓ tests/ui/r4-search-coverage-domain.test.ts > R4 immutable coverage window > rejects changed scopeVersion 2ms
+ ✓ tests/ui/r4-search-coverage-domain.test.ts > R4 immutable coverage window > rejects samples, duplicate units, unsupported versions, incomplete or invalid window metadata 2ms
+ ✓ tests/ui/r4-search-coverage-domain.test.ts > R4 immutable coverage window > does not accept completed/empty claims while a platform or human review remains unresolved 1ms
+ ✓ tests/ui/r4-search-coverage-domain.test.ts > R4 immutable coverage window > requires bound exclusion evidence and refuses unsafe source URLs 1ms
+ ✓ tests/ui/r4-search-coverage-domain.test.ts > R4 immutable coverage window > quotes no prices and offers only typed plans for verified recoverability 0ms
+ ✓ tests/ui/r4-search-coverage-domain.test.ts > R4 immutable coverage window > rejects claims exceeding the authorized maximum and settled usage without actual units 1ms
+ ✓ tests/ui/r4-opportunity-brief-domain.test.ts > binds one account/profile/day and does not sum repeated opportunities across groups 19ms
+ ✓ tests/ui/r4-opportunity-brief-domain.test.ts > rejects future-generated data while leaving expired snapshots available for labelled history 1ms
+ ✓ tests/ui/r4-opportunity-brief-domain.test.ts > refuses changed requestId 0ms
+ ✓ tests/ui/r4-opportunity-brief-domain.test.ts > refuses changed userId 0ms
+ ✓ tests/ui/r4-opportunity-brief-domain.test.ts > refuses changed accountScopeId 0ms
+ ✓ tests/ui/r4-opportunity-brief-domain.test.ts > refuses changed profileId 0ms
+ ✓ tests/ui/r4-opportunity-brief-domain.test.ts > refuses changed businessDate 0ms
+ ✓ tests/ui/r4-opportunity-brief-domain.test.ts > refuses changed timezone 0ms
+ ✓ tests/ui/r4-opportunity-brief-domain.test.ts > refuses a changed profileVersion 0ms
+ ✓ tests/ui/r4-opportunity-brief-domain.test.ts > refuses a changed scopeVersion 0ms
+ ✓ tests/ui/r4-opportunity-brief-domain.test.ts > requires coherent coverage, group counts, known sources and excludes all sample IDs 2ms
+ ✓ tests/ui/r4-opportunity-brief-domain.test.ts > provides exact existing navigation, while unavailable objects cannot open another record 0ms
+ ✓ tests/ui/r4-opportunity-brief-domain.test.ts > computes the explicit business date in the requested zone, including near midnight 4ms
+ ✓ tests/ui/r4-coverage-plan-visual.test.ts > keeps one adjustment UNKNOWN until the original request confirms notResumed 28ms
+ ✓ tests/ui/r4-coverage-plan-visual.test.ts > converts only the confirmed terminal TEST plan into a new local editable draft 5ms
+ ✓ tests/ui/contact-preparation.test.tsx > sorts actual update timestamps, keeps unknown times last, and preserves the input array 2ms
+ ✓ tests/taskOperations.test.ts > task execution receipt contracts > hashes the entire confirmed configuration and stores only its binding 19ms
+ ✓ tests/taskOperations.test.ts > task execution receipt contracts > rejects a different start requestId 1ms
+ ✓ tests/taskOperations.test.ts > task execution receipt contracts > rejects a different start draftId 0ms
+ ✓ tests/taskOperations.test.ts > task execution receipt contracts > rejects a different start revision 0ms
+ ✓ tests/taskOperations.test.ts > task execution receipt contracts > rejects a different start configurationHash 0ms
+ ✓ tests/taskOperations.test.ts > task execution receipt contracts > rejects a different start mode 0ms
+ ✓ tests/taskOperations.test.ts > task execution receipt contracts > requires definitive rejection and refuses to auto-unlock legacy records 1ms
+ ✓ tests/taskOperations.test.ts > task execution receipt contracts > binds task operations and requires the actual completed transition 1ms
+ ✓ tests/taskOperations.test.ts > task execution receipt contracts > filters known update dates inclusively and clamps the last page 0ms
+ ✓ tests/ui/contact-preparation.test.tsx > searches source URLs and restores the selected sort/filter after reopening 184ms
+ ✓ tests/ui/contact-preparation.test.tsx > keeps preparation notes outside saved message payloads 45ms
+ ✓ tests/ui/contact-preparation.test.tsx > separates notes by user, opportunity and profile version 17ms
+ ✓ tests/ui/contact-preparation.test.tsx > limits notes to 500 characters without splitting supplementary Unicode 3ms
+ ✓ tests/ui/contact-preparation.test.tsx > does not accept or persist notes for public samples 3ms
+ ✓ tests/visual/recovery.test.ts > opt-in recovery transport fixtures > accepts only the finite, matching authenticated TEST scenarios 3ms
+ ✓ tests/visual/recovery.test.ts > opt-in recovery transport fixtures > releases only explicitly requested advice, including intentionally late cancelled transport results 2ms
+ ✓ tests/visual/recovery.test.ts > opt-in recovery transport fixtures > keeps send UNKNOWN bound to its one original request, with no network and only explicit TEST non-delivery 9ms
+ ✓ tests/visual/recovery.test.ts > opt-in recovery transport fixtures > requires exact startup configuration and only ever resolves UNKNOWN or confirmed not-started 9ms
+ ✓ tests/visual/recovery.test.ts > opt-in recovery transport fixtures > models only an opened TEST connection with no verified capability and preserves other instances 0ms
+ ✓ tests/ui/operation-ledger.test.tsx > 持久操作确认记录 > 清除编辑草稿不清除未知发送或启动记录 18ms
+ ✓ tests/ui/operation-ledger.test.tsx > 持久操作确认记录 > 退出与重新挂载后从localStorage恢复同一账号的锁 1ms
+ ✓ tests/ui/operation-ledger.test.tsx > 持久操作确认记录 > 切换用户及访客不会显示前一账号的记录，同用户重登仍有锁 7ms
+ ✓ tests/ui/operation-ledger.test.tsx > 持久操作确认记录 > 账号切换后迟到的确认结果只更新原账号 1ms
+ ✓ tests/ui/operation-ledger.test.tsx > 持久操作确认记录 > 离开页面后仍能持久化已开始操作的最终结果 0ms
+ ✓ tests/ui/operation-ledger.test.tsx > 持久操作确认记录 > 首次迁移前清草稿也保留旧sessionStorage锁 1ms
+ ✓ tests/ui/operation-ledger.test.tsx > 持久操作确认记录 > 合并旧锁与现有持久记录，不覆盖已经确认的版本记录 0ms
+ ✓ tests/ui/operation-ledger.test.tsx > 持久操作确认记录 > 迁移写入失败时保留旧锁，并阻止新的外部提交 1ms
+ ✓ tests/ui/operation-ledger.test.tsx > 持久操作确认记录 > 持久记录损坏时不静默置空后允许重复提交 1ms
+ ✓ tests/ui/operation-ledger.test.tsx > 持久操作确认记录 > 新锁不能可靠写入时停止外部提交，不假装已记录 1ms
+ ✓ tests/ui/operation-ledger.test.tsx > 持久操作确认记录 > 只接受标识符和预期状态，不允许保存正文或凭证字段 0ms
+ ✓ tests/ui/operation-ledger.test.tsx > 持久操作确认记录 > StrictMode下同域多个消费者同步看到已经写入的锁 1ms
+ ✓ tests/ui/operation-ledger.test.tsx > 持久操作确认记录 > 旧版本仅保存在内存中的锁也在清草稿后迁移 1ms
+ ✓ tests/serviceClient.test.ts > fixed service transport > does not request anything without service config or with an invalid operation 3ms
+ ✓ tests/serviceClient.test.ts > fixed service transport > uses the fixed origin, session cookies and no renderer-supplied headers 20ms
+ ✓ tests/serviceClient.test.ts > fixed service transport > rejects redirects, HTML, oversized streams and surfaces only safe error codes 1ms
+ ✓ tests/serviceClient.test.ts > fixed service transport > orders login before logout and clears local credentials even when logout fails 1ms
+ ✓ tests/ui/opportunities.test.tsx > customer and public sample boundaries > keeps public sample selection and customer export disabled 106ms
+ ✓ tests/ui/opportunities.test.tsx > customer and public sample boundaries > filters actual service results and retains the list query when opening details 92ms
+ ✓ tests/ui/opportunities.test.tsx > customer and public sample boundaries > opens the verified exact source and copies without fabricating a sent fact 47ms
+ ✓ tests/ui/opportunities.test.tsx > customer and public sample boundaries > escapes CSV formula prefixes and excludes samples even if supplied in a batch 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > requires trusted session scope instead of accepting scope self-reported in a reply 5ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects reversed/equal/future collection snapshot timestamps, allowing bounded clock skew 1ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects reversed/equal/future timeline snapshot timestamps, allowing bounded clock skew 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects reversed/equal/future similar snapshot timestamps, allowing bounded clock skew 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > keeps classification independent of workflow and stage 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid collection: user 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid collection: source 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid collection: version 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid collection: sample 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid collection: duplicate 1ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid collection: quote 1ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid collection: empty evidence 1ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid collection: recognition 1ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid collection: expired 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > accepts same-source version changes and distinguishes manual events 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid timeline: other project 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid timeline: broken chain 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid timeline: latest version 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid timeline: invented difference 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid timeline: receipt 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid timeline: contact target 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > allows unknown metering without converting it to zero 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid similar preview: request 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid similar preview: recognition 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid similar preview: profile 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid similar preview: platform 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > rejects invalid similar preview: price 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > never creates a research binding for samples or missing evidence 0ms
+ ✓ tests/ui/r4-opportunity-research-domain.test.ts > R4 research identity and evidence contract > binds the same user's workspace and revision exactly 0ms
+ ✓ tests/ui/r4-search-coverage-visual.test.ts > provides bounded populated TEST snapshots using current verified scope and no external IO 20ms
+ ✓ tests/ui/r4-search-coverage-visual.test.ts > provides bounded empty TEST snapshots using current verified scope and no external IO 1ms
+ ✓ tests/ui/r4-search-coverage-visual.test.ts > retains error states and rejects different accounts or public samples before producing data 1ms
+ ✓ tests/ui/schedule-policy.test.ts > monitor configuration without executing a scheduler > shows next-day and exclusive-end semantics only for the declared policy 14ms
+ ✓ tests/ui/schedule-policy.test.ts > monitor configuration without executing a scheduler > rejects equal or incomplete windows without guessing all-day semantics 1ms
+ ✓ tests/ui/schedule-policy.test.ts > monitor configuration without executing a scheduler > records daily DST and offline rules for Europe/London without inventing next-run times 1ms
+ ✓ tests/ui/schedule-policy.test.ts > monitor configuration without executing a scheduler > records daily DST and offline rules for America/New_York without inventing next-run times 0ms
+ ✓ tests/ui/schedule-policy.test.ts > monitor configuration without executing a scheduler > records daily DST and offline rules for Australia/Sydney without inventing next-run times 0ms
+ ✓ tests/ui/schedule-policy.test.ts > monitor configuration without executing a scheduler > keeps elapsed-hour intervals distinct from daily wall-clock recurrence 0ms
+ ✓ tests/ui/schedule-policy.test.ts > monitor configuration without executing a scheduler > preserves a legacy draft and its hash until explicit adoption 4ms
+ ✓ tests/ui/schedule-policy.test.ts > monitor configuration without executing a scheduler > requires executor opt-in for v1 while identifying the legacy contract 1ms
+ ✓ tests/ui/schedule-policy.test.ts > monitor configuration without executing a scheduler > retains policy in the service task read model 1ms
+ ✓ tests/visual/followup.test.ts > uses isolated TEST identities and deep copies with valid followup/reply contracts 7ms
+ ✓ tests/visual/followup.test.ts > creates, corrects and voids memory records while retaining audit history and exact receipts 8ms
+ ✓ tests/visual/followup.test.ts > marks only the original reply read and preserves immutable original request receipts 5ms
+ ✓ tests/visual/followup.test.ts > rejects stale versions and wrong scope without mutating memory, and keeps missing requests unknown 1ms
+ ✓ tests/ui/task-domain.test.ts > task draft invariants > keeps manual changes and removed suggestions during replacement 13ms
+ ✓ tests/ui/task-domain.test.ts > task draft invariants > ignores responses from a different profile 0ms
+ ✓ tests/ui/task-domain.test.ts > task draft invariants > does not change platforms or schedules when applying suggestions 0ms
+ ✓ tests/ui/task-domain.test.ts > task draft invariants > detects broad exclusion and duplicate schedule times 1ms
+ ✓ tests/ui/task-domain.test.ts > task draft invariants > confirmation fingerprint changes for account, schedule or edited content 0ms
+ ✓ tests/ui/r4-opportunity-research-visual.test.ts > R4 research isolated visual adapter > does not invent a trusted session scope in its isolated adapter 5ms
+ ✓ tests/ui/r4-opportunity-research-visual.test.ts > R4 research isolated visual adapter > returns strict TEST classification and same-source timeline without touching send/start methods 8ms
+ ✓ tests/ui/r4-opportunity-research-visual.test.ts > R4 research isolated visual adapter > rejects mismatched caller scope, source versions and missing object ids 0ms
+ ✓ tests/ui/r4-opportunity-research-visual.test.ts > R4 research isolated visual adapter > separates empty and error states and cancels a test loading wait 3ms
+ ✓ tests/ui/session-draft-exit.test.tsx > window exit protects ephemeral task work > does not prompt for opening an empty task or for unrelated view preferences 18ms
+ ✓ tests/ui/session-draft-exit.test.tsx > window exit protects ephemeral task work > protects the most recent edit synchronously without blocking internal navigation 2ms
+ ✓ tests/ui/session-draft-exit.test.tsx > window exit protects ephemeral task work > protects a saved task library even after the editor leaves and a window reloads 1ms
+ ✓ tests/ui/session-draft-exit.test.tsx > window exit protects ephemeral task work > treats saved templates as session content but not durable unknown-operation ledgers 1ms
+ ✓ tests/ui/session-draft-exit.test.tsx > window exit protects ephemeral task work > protects condition-only edits even when the name remains blank 2ms
+ ✓ tests/ui/session-draft-exit.test.tsx > window exit protects ephemeral task work > clears exit protection when all local task content is deliberately cleared 3ms
+ ✓ tests/ui/session-draft-exit.test.tsx > window exit protects ephemeral task work > does not resurrect cleared content when storage removal fails 1ms
+ ✓ tests/ui/session-draft-exit.test.tsx > window exit protects ephemeral task work > still protects memory-only edits if session storage is unavailable 1ms
+ ✓ tests/ui/session-draft-exit.test.tsx > window exit protects ephemeral task work > ignores malformed stored JSON and cleans up its StrictMode listener 1ms
+ ✓ tests/ui/candidate-review-operation.test.ts > candidate review operation binding > stores only identifiers and SHA256, and accepts only the original confirmed receipt 21ms
+ ✓ tests/ui/candidate-review-operation.test.ts > candidate review operation binding > binds every confirmed revision, assessment, evidence field and reason 64ms
+ ✓ tests/ui/candidate-review-operation.test.ts > candidate review operation binding > refuses malformed durable key 0 0ms
+ ✓ tests/ui/candidate-review-operation.test.ts > candidate review operation binding > refuses malformed durable key 1 2ms
+ ✓ tests/ui/candidate-review-operation.test.ts > candidate review operation binding > refuses malformed durable key 2 0ms
+ ✓ tests/ui/candidate-review-operation.test.ts > candidate review operation binding > refuses malformed durable key 3 0ms
+ ✓ tests/ui/candidate-review-operation.test.ts > candidate review operation binding > refuses malformed durable key 4 0ms
+ ✓ tests/ui/candidate-review-operation.test.ts > candidate review operation binding > refuses malformed durable key 5 0ms
+ ✓ tests/ui/modal.test.tsx > 共享弹窗键盘与焦点 > Escape一次只关闭最上层，逐层恢复原按钮焦点 226ms
+ ✓ tests/ui/modal.test.tsx > 共享弹窗键盘与焦点 > 父子同次挂载时以界面层级识别顶层，不依赖effect顺序 8ms
+ ✓ tests/ui/modal.test.tsx > 共享弹窗键盘与焦点 > StrictMode不会重复监听，最后一层关闭才恢复页面滚动 19ms
+ ✓ tests/ui/modal.test.tsx > 共享弹窗键盘与焦点 > 整个弹窗树一起卸载也回到最初按钮 12ms
+ ✓ tests/ui/modal.test.tsx > 共享弹窗键盘与焦点 > Tab和Shift+Tab仅在最上层可操作控件间循环 18ms
+ ✓ tests/ui/modal.test.tsx > 共享弹窗键盘与焦点 > 禁用和隐藏控件不进入键盘循环 7ms
+ ✓ tests/ui/modal.test.tsx > 共享弹窗键盘与焦点 > 输入法正在选字时Escape不关闭弹窗 4ms
+ ✓ tests/ui/modal.test.tsx > 共享弹窗键盘与焦点 > 由调用方决定忙碌时是否允许关闭，并读取最新onClose 4ms
+ ✓ tests/servicePolicy.test.ts > desktop service boundary > allows only bounded phone proof fields on fixed login routes 7ms
+ ✓ tests/servicePolicy.test.ts > desktop service boundary > only allows a configured HTTPS origin, with explicit unpackaged loopback HTTP 2ms
+ ✓ tests/servicePolicy.test.ts > desktop service boundary > maps only fixed operations and validates payload fields and lengths 6ms
+ ✓ tests/servicePolicy.test.ts > desktop service boundary > opens only explicit HTTP(S) source URLs and bounds clipboard text 1ms
+ ✓ tests/visual/isolation.test.ts > browser isolation guards > uses memory storage and removes the native bridge 1ms
+ ✓ tests/visual/isolation.test.ts > browser isolation guards > rejects browser network primitives 1ms
+ ✓ tests/visual/isolation.test.ts > browser isolation guards > records opening and copying without invoking external capabilities 0ms
+ ✓ tests/visual/isolation.test.ts > browser isolation guards > blocks detached download and external anchors as well as visible links 6ms
+ ✓ tests/rendererAssets.test.ts > packaged renderer manifest > includes hashed JS, CSS, imported brand image and lazy chunks but no other files 2ms
+ ✓ tests/rendererAssets.test.ts > packaged renderer manifest > fails closed for malformed manifest or directory traversal paths 1ms
+ ✓ tests/rendererAssets.test.ts > packaged renderer manifest > fails startup when an allowlisted asset is absent or points outside the renderer tree 4ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > separates an absent optional field from malformed or unbound facts 3ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > rejects a mismatched current id anchor 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > rejects a mismatched current url anchor 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > rejects a mismatched current sourceObservedAt anchor 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > rejects a mismatched current sourceEvidenceVersion anchor 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > rejects a mismatched current sourceObservedAt anchor 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > rejects a mismatched current sourceEvidenceVersion anchor 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > refuses ambiguous or invalid timestamp 2026-02-30T18:00:00+08:00 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > refuses ambiguous or invalid timestamp 2026-09-15 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > refuses ambiguous or invalid timestamp 2026-09-15T18:00:00 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > refuses ambiguous or invalid timestamp 2026-09-15T24:00:00+08:00 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > refuses ambiguous or invalid timestamp 2026-09-15T18:60:00+08:00 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > refuses ambiguous or invalid timestamp 2026-09-15T18:00:00+15:00 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > refuses ambiguous or invalid timestamp 2026-09-15T18:00:00-00:00 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > supports leap dates, midnight and an exact offset without local-time reinterpretation 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > rejects unknown state enums and credentials in a source URL 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > does not derive business stage or deadline from followup, intent or prose 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > keeps unknown, missing, invalid and explicitly unstated deadlines separate 0ms
+ ✓ tests/ui/opportunity-library.test.ts > P10 source-bound library facts > uses exact instants across midnight and puts absent deadlines after known ones 0ms
+ ✓ tests/boundedRequest.test.ts > bounded UI requests > settles on cancellation even if the service ignores abort and resolves later 1ms
+ ✓ tests/boundedRequest.test.ts > bounded UI requests > times out a hanging request, aborts its transport and consumes late rejection 1ms
+ ✓ tests/boundedRequest.test.ts > bounded UI requests > does not invoke an already cancelled operation and removes successful timers 1ms
+ ✓ tests/ui/followup-ledger.test.tsx > accepts a six-part followup identity and preserves it through draft cleanup 13ms
+ ✓ tests/ui/followup-ledger.test.tsx > rejects wrong action before dispatch 1ms
+ ✓ tests/ui/followup-ledger.test.tsx > rejects negative revision before dispatch 1ms
+ ✓ tests/ui/followup-ledger.test.tsx > rejects empty request before dispatch 2ms
+ ✓ tests/ui/followup-ledger.test.tsx > rejects wrong status before dispatch 2ms
+ ✓ tests/ui/followup-ledger.test.tsx > rejects oversized combined key before dispatch 2ms
+ ✓ tests/ui/followup-ledger.test.tsx > rejects unconfirmed or identity-mismatched terminal receipts 4ms
+ ✓ tests/windowPolicy.test.ts > desktop window boundary > keeps renderer sandboxed and local 1ms
+ ✓ tests/windowPolicy.test.ts > desktop window boundary > fits a 1280×720 desktop without a larger minimum window or forced zoom 0ms
+ ✓ tests/windowPolicy.test.ts > desktop window boundary > rejects IPC from subframes, foreign windows and non-app documents 0ms
+ ✓ tests/windowPolicy.test.ts > desktop window boundary > allows only the local app host and exact renderer manifest assets 0ms
+ ✓ tests/ui/download.test.ts > download result contract > preserves native saved without starting a browser download 2ms
+ ✓ tests/ui/download.test.ts > download result contract > preserves native cancelled without starting a browser download 0ms
+ ✓ tests/ui/download.test.ts > download result contract > does not fall back to browser downloads when the native bridge is old or fails 0ms
+ ✓ tests/ui/download.test.ts > download result contract > rejects malformed native replies without returning raw details 0ms
+ ✓ tests/ui/download.test.ts > download result contract > rejects malformed native replies without returning raw details 0ms
+ ✓ tests/ui/download.test.ts > download result contract > rejects malformed native replies without returning raw details 0ms
+ ✓ tests/ui/download.test.ts > download result contract > rejects malformed native replies without returning raw details 0ms
+ ✓ tests/ui/download.test.ts > download result contract > preserves a fixed native error code 0ms
+ ✓ tests/ui/download.test.ts > download result contract > reports only initiated for a browser download and revokes its object URL 2ms
+ ✓ tests/ui/download.test.ts > download result contract > uses a fixed backup extension and JSON MIME without claiming browser disk success 0ms
+ ✓ tests/ui/download.test.ts > download result contract > reports a blocked browser click as error and rejects invalid input before either transport 0ms
+ ✓ tests/ui/routes.test.ts > route contracts > resolves all 20 design IDs to semantic routes without injecting records 2ms
+ ✓ tests/ui/routes.test.ts > route contracts > does not crash on malformed or unrecognized fragments 1ms
+ ✓ tests/ui/routes.test.ts > route contracts > keeps platform return paths inside supported local routes 0ms
+ ✓ tests/ui/management-scope.test.tsx > does not save an old export after the space changes 111ms
+ ✓ tests/ui/management-scope.test.tsx > does not save an old export after the revision changes 16ms
+ ✓ tests/ui/management-scope.test.tsx > does not upload a restore preview after closing during hashing 13ms
+ ✓ tests/ui/management-scope.test.tsx > keeps file selection disabled while reading and releases it on completion 12ms
+ ✓ tests/ui/client.test.ts > real client transport boundaries > keeps absent P10 facts optional and malformed facts distinct without deriving dates 2ms
+ ✓ tests/ui/client.test.ts > real client transport boundaries > preserves newline and punctuation in real profile roundtrip 0ms
+ ✓ tests/ui/client.test.ts > real client transport boundaries > does not turn rejected native copy or external links into success 1ms
+ ✓ tests/ui/client.test.ts > real client transport boundaries > preserves configuration error from the native fixed-operation bridge 1ms
+ ✓ tests/ui/client.test.ts > real client transport boundaries > sends no GET body and refuses browser redirects 3ms
+ ✓ tests/ui/client.test.ts > real client transport boundaries > reports plaintext Origin forbidden separately from unconfigured service 0ms
+ ✓ tests/ui/client.test.ts > real client transport boundaries > does not claim configured service or ready executor from a browser URL 0ms
+ ✓ tests/preload.test.ts > preload export bridge > exposes a frozen fixed API and forwards only the export payload to its fixed channel 2ms
+ ✓ tests/ui/tasks-draft-resume.test.tsx > 继续编辑任务草稿 > 保留同ID更高版本的本机编辑，并按最新运行方式返回 92ms
+ ✓ tests/ui/phoneClient.test.ts > phone login fixed transport > shows an actionable phone-proof error on the login page 2ms
+ ✓ tests/ui/phoneClient.test.ts > phone login fixed transport > maps code cooldown without asserting message delivery 1ms
+ ✓ tests/ui/phoneClient.test.ts > phone login fixed transport > exchanges phone proof without exposing a token 0ms
+ ✓ tests/ui/phoneClient.test.ts > phone login fixed transport > omits unused trial field but preserves explicitly supplied code 0ms
+ ✓ tests/ui/phoneClient.test.ts > phone login fixed transport > rejects malformed cooldown {} 0ms
+ ✓ tests/ui/phoneClient.test.ts > phone login fixed transport > rejects malformed cooldown {"retry_after":"60"} 0ms
+ ✓ tests/ui/phoneClient.test.ts > phone login fixed transport > rejects malformed cooldown {"retry_after":-1} 0ms
+ ✓ tests/ui/phoneClient.test.ts > phone login fixed transport > rejects malformed cooldown {"retry_after":0} 0ms
+ ✓ tests/ui/phoneClient.test.ts > phone login fixed transport > rejects malformed cooldown {"retry_after":301} 0ms
+ ✓ tests/ui/phoneClient.test.ts > phone login fixed transport > rejects malformed cooldown {"retry_after":1.5} 0ms
+ ✓ tests/ui/phoneClient.test.ts > phone login fixed transport > rejects malformed session {} 0ms
+ ✓ tests/ui/phoneClient.test.ts > phone login fixed transport > rejects malformed session {"authenticated":true} 0ms
+ ✓ tests/ui/phoneClient.test.ts > phone login fixed transport > rejects malformed session {"authenticated":true,"user_id":" "} 0ms
+ ✓ tests/ui/phoneClient.test.ts > phone login fixed transport > rejects malformed session {"authenticated":"true","user_id":"test-user"} 0ms
+ ✓ tests/ui/phoneClient.test.ts > phone login fixed transport > preserves disabled service status 0ms
+ ✓ tests/ui/tasks-draft-resume.test.tsx > 继续编辑任务草稿 > 打开不同ID时载入选中的保存草稿 17ms
+ ✓ tests/ui/tasks-draft-resume.test.tsx > 继续编辑任务草稿 > 同ID保存版本更高时不回退为旧本机版本 21ms
+ ✓ tests/ui/platform.test.tsx > 本地平台品牌资源 > 小红书 的常见别名保留相同官方图标与名称 24ms
+ ✓ tests/ui/platform.test.tsx > 本地平台品牌资源 > 抖音 的常见别名保留相同官方图标与名称 3ms
+ ✓ tests/ui/platform.test.tsx > 本地平台品牌资源 > B站 的常见别名保留相同官方图标与名称 3ms
+ ✓ tests/ui/platform.test.tsx > 本地平台品牌资源 > 知乎 的常见别名保留相同官方图标与名称 2ms
+ ✓ tests/ui/platform.test.tsx > 本地平台品牌资源 > 公开网站使用统一地球图标，未知来源保留原名 7ms
+ ✓ tests/ui/platform.test.tsx > 本地平台品牌资源 > 图标与组合标签支持指定尺寸和独立样式，不重复朗读图标 4ms
+ ✓ tests/ui/session-bootstrap.test.tsx > initial session lifecycle > releases initial loading after timeout, ignores the late old identity, and accepts a fresh retry 70ms
+ ✓ tests/ui/session-bootstrap.test.tsx > initial session lifecycle > does not let an older bootstrap timeout reset a newer established session 5ms
+ ✓ tests/ui/term-editor.test.tsx > multiline keyword paste > keeps CRLF, LF and CR word boundaries, deduplicates and commits only on confirmation 70ms
+ ✓ tests/ui/term-editor.test.tsx > multiline keyword paste > replaces only the selected range and places the caret after the pasted words 10ms
+ ✓ tests/ui/term-editor.test.tsx > multiline keyword paste > collapses the selection after a multiline paste even when its normalized text is unchanged 6ms
+ ✓ tests/ui/term-editor.test.tsx > multiline keyword paste > retains the entire input without partial writes when more than 20 terms are pasted 7ms
+ ✓ tests/ui/term-editor.test.tsx > multiline keyword paste > does not write a partial batch when a pasted word exceeds the length limit 6ms
+ ✓ tests/ui/term-editor.test.tsx > multiline keyword paste > does not commit on a Chinese composition Enter, and Escape cancels the pending batch 4ms
+ ✓ tests/ui/term-editor.test.tsx > multiline keyword paste > leaves ordinary single-line paste to the browser 4ms
+ ✓ tests/visual/routing.test.tsx > routes only the five R3 reference states to explicit public samples 1ms
+ ✓ tests/visual/routing.test.tsx > the actual P13 reference route cannot verify, write or send a public sample 111ms
+ ✓ tests/ui/r4-short-coach-domain.test.ts > R4 short coach evidence contract > accepts exact source anchors and identity without a cost/count default 4ms
+ ✓ tests/ui/r4-short-coach-domain.test.ts > R4 short coach evidence contract > rejects mismatched requestId 1ms
+ ✓ tests/ui/r4-short-coach-domain.test.ts > R4 short coach evidence contract > rejects mismatched opportunityId 0ms
+ ✓ tests/ui/r4-short-coach-domain.test.ts > R4 short coach evidence contract > rejects mismatched profileVersionId 0ms
+ ✓ tests/ui/r4-short-coach-domain.test.ts > R4 short coach evidence contract > rejects mismatched sourceEvidenceVersion 0ms
+ ✓ tests/ui/r4-short-coach-domain.test.ts > R4 short coach evidence contract > rejects mismatched draftHash 0ms
+ ✓ tests/ui/r4-short-coach-domain.test.ts > R4 short coach evidence contract > rejects mismatched channel 0ms
+ ✓ tests/ui/r4-short-coach-domain.test.ts > R4 short coach evidence contract > rejects mismatched purpose 0ms
+ ✓ tests/ui/r4-short-coach-domain.test.ts > R4 short coach evidence contract > rejects invented quotes, unsafe URLs, unknown anchors and expired suggestions 1ms
+ ✓ tests/ui/r4-short-coach-domain.test.ts > R4 short coach evidence contract > rejects supported CONTEXT without evidence anchors 0ms
+ ✓ tests/ui/r4-short-coach-domain.test.ts > R4 short coach evidence contract > rejects supported PROMISE without evidence anchors 0ms
+ ✓ tests/ui/r4-short-coach-domain.test.ts > R4 short coach evidence contract > does not accept samples or unversioned source data as checked evidence 0ms
+ ✓ tests/ui/r4-short-coach-domain.test.ts > R4 short coach evidence contract > accepts only a bound saved snapshot and confirmed failed receipt 1ms
+ ✓ tests/ui/r4-short-coach-domain.test.ts > R4 short coach evidence contract > rejects malformed save binding ["id","comment","req","bad"] 0ms
+ ✓ tests/ui/r4-short-coach-domain.test.ts > R4 short coach evidence contract > rejects malformed save binding ["id","dm","req"] 0ms
+ ✓ tests/ui/r4-short-coach-domain.test.ts > R4 short coach evidence contract > rejects malformed save binding ["","comment","req","aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] 0ms
+
+ Test Files  82 passed (82)
+      Tests  903 passed | 21 skipped (924)
+   Start at  00:18:15
+   Duration  12.92s (transform 3.84s, setup 0ms, import 87.49s, tests 43.33s, environment 23.81s)
+
