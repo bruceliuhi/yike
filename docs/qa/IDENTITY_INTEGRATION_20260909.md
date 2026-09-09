@@ -17,7 +17,7 @@
 
 - devices / connections 仅 `SELECT, INSERT, UPDATE`。
 - execution events / session revocations 仅 `SELECT, INSERT`。
-- 授权前拒绝缺失、超级用户、BYPASSRLS、CREATEROLE 及四张表任一 owner；不授予 ALL TABLES、默认权限或 app_users UPDATE。
+- 授权前拒绝缺失、超级用户、BYPASSRLS、CREATEROLE 及四张表任一 owner；不授予 ALL TABLES、默认权限或 pilot_users UPDATE。
 - 104/105 迁移字节未修改，不弱化租户 RLS、Origin、认证或运行时管理员隔离。
 - 新反例覆盖关联任务的事件、跨租户拒绝、重复升级、撤销/断开和禁止的表权限；全部使用一次性合成身份。
 
