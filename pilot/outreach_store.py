@@ -104,6 +104,46 @@ class OutreachConfirmationStore:
         except (InvalidPilotToken, PermissionError):
             raise OutreachStoreError("invalid_session", 401) from None
 
+    @staticmethod
+    def _assert_authoritative_facts(cursor, tenant_id: str, source: SourceObject,
+                                    draft: DraftBinding, mapping: RecipientMapping) -> None:
+        """Re-read current tenant facts before accepting a confirmation.
+
+        The DTOs arriving from a client are not authorization.  This check is
+        intentionally conservative: a missing, closed, blocked, or stale
+        source/opportunity/connection cannot produce a durable confirmation.
+        """
+        cursor.execute(
+            "SELECT platform,public_url,health FROM pilot_sources "
+            "WHERE tenant_id=%s AND source_id=%s FOR SHARE",
+            (tenant_id, source.source_id),
+        )
+        source_row = cursor.fetchone()
+        if source_row is None or source_row[0] != source.platform or source_row[1] != source.public_url or source_row[2] == "BLOCKED":
+            raise OutreachStoreError("source_facts_unavailable", 409)
+        cursor.execute(
+            "SELECT source_id,source_status FROM pilot_opportunities "
+            "WHERE tenant_id=%s AND opportunity_id=%s FOR SHARE",
+            (tenant_id, source.opportunity_id),
+        )
+        opportunity_row = cursor.fetchone()
+        if opportunity_row is None or opportunity_row[0] != source.source_id or opportunity_row[1] != "OPEN":
+            raise OutreachStoreError("opportunity_facts_unavailable", 409)
+        cursor.execute(
+            "SELECT platform,status,connection_version FROM pilot_platform_connections "
+            "WHERE tenant_id=%s AND connection_id=%s FOR SHARE",
+            (tenant_id, draft.account_id),
+        )
+        connection_row = cursor.fetchone()
+        if (
+            connection_row is None
+            or connection_row[0] != source.platform
+            or connection_row[1] != "CONNECTED"
+            or connection_row[2] != draft.connection_version
+            or mapping.connection_id != draft.account_id
+        ):
+            raise OutreachStoreError("connection_facts_unavailable", 409)
+
     def bind(
         self,
         claims: TokenClaims,
@@ -139,6 +179,7 @@ class OutreachConfirmationStore:
                 (self._lock_key(tenant_id, claims.user_id, snapshot.request_id),),
             )
             self._active(cursor, claims)
+            self._assert_authoritative_facts(cursor, tenant_id, source, draft, mapping)
             cursor.execute(
                 "SELECT snapshot,snapshot_sha256 FROM pilot_outreach_confirmations "
                 "WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s",
