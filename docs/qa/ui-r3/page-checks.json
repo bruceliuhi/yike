@@ -1,0 +1,247 @@
+{
+  "date": "2026-09-09",
+  "viewport": "1440x1024 CSS px",
+  "captureZoom": 1.25,
+  "capturePixels": "1800x1280",
+  "pages": [
+    {
+      "id": "P01",
+      "dialogs": 0,
+      "headings": [
+        "找到值得联系的新需求",
+        "欢迎使用意客AI"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P02",
+      "dialogs": 0,
+      "headings": [
+        "商机工作台",
+        "今日待办",
+        "使用路径",
+        "公开研究样例"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P03",
+      "dialogs": 0,
+      "headings": [
+        "业务画像",
+        "业务描述",
+        "画像确认摘要"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P04",
+      "dialogs": 1,
+      "headings": [
+        "业务资料",
+        "添加资料"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P05",
+      "dialogs": 0,
+      "headings": [
+        "线索采集"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P06",
+      "dialogs": 0,
+      "headings": [
+        "新建获客任务",
+        "基本信息",
+        "搜索条件",
+        "采集范围",
+        "运行设置",
+        "平台连接状态"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P07",
+      "dialogs": 0,
+      "headings": [
+        "原始线索"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P08",
+      "dialogs": 0,
+      "headings": [
+        "监控任务",
+        "多平台监控"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P09",
+      "dialogs": 0,
+      "headings": [
+        "监控任务详情"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P10",
+      "dialogs": 0,
+      "headings": [
+        "商机库"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P11",
+      "dialogs": 0,
+      "headings": [
+        "180㎡高交会展区设计搭建预算询价",
+        "原文证据",
+        "联系准备 待校对 · 尚未发送"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P12",
+      "dialogs": 0,
+      "headings": [
+        "触达中心",
+        "联系草稿",
+        "相关商机",
+        "原文证据"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P13",
+      "dialogs": 1,
+      "headings": [
+        "触达中心",
+        "联系草稿",
+        "相关商机",
+        "原文证据",
+        "确认发送"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P14",
+      "dialogs": 0,
+      "headings": [
+        "跟进记录",
+        "关联回复"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P15",
+      "dialogs": 1,
+      "headings": [
+        "跟进记录",
+        "关联回复",
+        "添加跟进"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P16",
+      "dialogs": 0,
+      "headings": [
+        "账号与授权"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P17",
+      "dialogs": 1,
+      "headings": [
+        "账号与授权",
+        "连接小红书"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P18",
+      "dialogs": 0,
+      "headings": [
+        "账号与授权",
+        "使用授权",
+        "设备管理",
+        "版本与数据",
+        "支持与诊断"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P19",
+      "dialogs": 0,
+      "headings": [
+        "确认启动任务",
+        "基本信息",
+        "采集范围",
+        "搜索条件",
+        "运行设置"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "id": "P20",
+      "dialogs": 0,
+      "headings": [
+        "新建监控任务",
+        "基本信息",
+        "搜索条件",
+        "采集范围",
+        "运行设置",
+        "平台连接状态"
+      ],
+      "height": 1024,
+      "scrollWidth": 1440,
+      "width": 1440
+    }
+  ]
+}

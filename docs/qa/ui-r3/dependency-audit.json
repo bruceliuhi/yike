@@ -1,0 +1,114 @@
+{
+  "date": "2026-09-09",
+  "runtime": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "dependencies": {
+      "prod": 9,
+      "dev": 631,
+      "optional": 78,
+      "peer": 10,
+      "peerOptional": 0,
+      "total": 639
+    }
+  },
+  "full": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 17,
+      "critical": 0,
+      "total": 17
+    },
+    "dependencies": {
+      "prod": 9,
+      "dev": 631,
+      "optional": 78,
+      "peer": 10,
+      "peerOptional": 0,
+      "total": 639
+    }
+  },
+  "unpatchedRoot": {
+    "name": "extract-zip",
+    "severity": "high",
+    "isDirect": false,
+    "via": [
+      {
+        "source": 1139346,
+        "name": "extract-zip",
+        "dependency": "extract-zip",
+        "title": "extract-zip unvalidated symlink path traversal",
+        "url": "https://github.com/advisories/GHSA-jmr9-qjv8-65gv",
+        "severity": "high",
+        "cwe": [
+          "CWE-22"
+        ],
+        "cvss": {
+          "score": 8.1,
+          "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+        },
+        "range": "<=2.0.1"
+      },
+      {
+        "source": 1193685,
+        "name": "extract-zip",
+        "dependency": "extract-zip",
+        "title": "extract-zip allows arbitrary file writes through symlink archive entries",
+        "url": "https://github.com/advisories/GHSA-7pqw-9j4j-h8q3",
+        "severity": "high",
+        "cwe": [
+          "CWE-22"
+        ],
+        "cvss": {
+          "score": 8.1,
+          "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:H"
+        },
+        "range": "<=2.0.1"
+      }
+    ],
+    "effects": [
+      "@electron/packager"
+    ],
+    "range": "*",
+    "nodes": [
+      "node_modules/extract-zip"
+    ],
+    "fixAvailable": {
+      "name": "@electron-forge/shared-types",
+      "version": "6.4.2",
+      "isSemVerMajor": true
+    }
+  },
+  "affectedDevPackages": [
+    "@electron-forge/cli",
+    "@electron-forge/core",
+    "@electron-forge/core-utils",
+    "@electron-forge/maker-base",
+    "@electron-forge/maker-squirrel",
+    "@electron-forge/maker-zip",
+    "@electron-forge/plugin-base",
+    "@electron-forge/plugin-vite",
+    "@electron-forge/publisher-base",
+    "@electron-forge/shared-types",
+    "@electron-forge/template-base",
+    "@electron-forge/template-vite",
+    "@electron-forge/template-vite-typescript",
+    "@electron-forge/template-webpack",
+    "@electron-forge/template-webpack-typescript",
+    "@electron/packager",
+    "extract-zip"
+  ],
+  "overrides": {
+    "tar": "7.5.22",
+    "tmp": "0.2.7"
+  },
+  "boundary": "Build tooling only; runtime dependency audit is zero. Fixed lockfile, Electron official distribution; no untrusted custom archive inputs. macOS build does not verify Windows maker."
+}

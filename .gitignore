@@ -11,3 +11,12 @@ __pycache__/
 .pytest_cache/
 desktop/node_modules/
 desktop/.vite/
+
+desktop/out/
+desktop/coverage/
+desktop/test-results/
+desktop/assets/*.iconset/
+docs/qa/ui-r3/screens/*-raw.png
+docs/qa/ui-r3/screens/*-initial.png
+docs/qa/ui-r3/screens/*-cdp.png
+docs/qa/ui-r3/screens/*-normalized.png

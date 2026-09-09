@@ -1,0 +1,48 @@
+{
+  "baseline_commit": "5929de671d314748f621a1992c646acee5622f67",
+  "python": "/Users/bruce/Developer/work/yike-ai-product-design/.venv/bin/python",
+  "utc": "2026-09-09T07:53:19.869882+00:00",
+  "app_and_test_diff": "",
+  "results": [
+    {
+      "name": "baseline-5929de6",
+      "directory": "/var/folders/xk/53c7rb5d5g3g0fgftczb8yr40000gn/T/yike-web-5929de6-7qohtgpy",
+      "returncode": 1,
+      "provenance": [
+        "/Users/bruce/Developer/work/yike-ai-product-design/.venv/bin/python",
+        "/private/var/folders/xk/53c7rb5d5g3g0fgftczb8yr40000gn/T/yike-web-5929de6-7qohtgpy/app/__init__.py",
+        "2026-09-09T07:53:17.978681+00:00"
+      ],
+      "failures": [
+        "FAILED tests/test_web.py::test_signal_filters_use_persisted_score_review_query_and_outreach",
+        "FAILED tests/test_web.py::test_detail_posts_review_draft_and_manual_outreach_then_redirects",
+        "FAILED tests/test_web.py::test_followup_posts_response_interview_and_quote_facts",
+        "FAILED tests/test_web.py::test_csv_export_has_visible_facts_and_no_model_or_secret_columns",
+        "FAILED tests/test_web.py::test_metrics_page_ignores_browser_supplied_counts_and_decision"
+      ],
+      "summary": [
+        "5 failed, 6 passed in 0.81s"
+      ]
+    },
+    {
+      "name": "current",
+      "directory": "/Users/bruce/Developer/work/yike-ai-product-design",
+      "returncode": 1,
+      "provenance": [
+        "/Users/bruce/Developer/work/yike-ai-product-design/.venv/bin/python",
+        "/Users/bruce/Developer/work/yike-ai-product-design/app/__init__.py",
+        "2026-09-09T07:53:18.932145+00:00"
+      ],
+      "failures": [
+        "FAILED tests/test_web.py::test_signal_filters_use_persisted_score_review_query_and_outreach",
+        "FAILED tests/test_web.py::test_detail_posts_review_draft_and_manual_outreach_then_redirects",
+        "FAILED tests/test_web.py::test_followup_posts_response_interview_and_quote_facts",
+        "FAILED tests/test_web.py::test_csv_export_has_visible_facts_and_no_model_or_secret_columns",
+        "FAILED tests/test_web.py::test_metrics_page_ignores_browser_supplied_counts_and_decision"
+      ],
+      "summary": [
+        "5 failed, 6 passed in 0.79s"
+      ]
+    }
+  ]
+}

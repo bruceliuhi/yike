@@ -283,4 +283,6 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
             raise HTTPException(status_code=400, detail="invalid follow-up") from error
         return RedirectResponse(f"/opportunities/{opportunity_id}", status_code=303)
 
+    from pilot.ui_api import register_ui_api
+    register_ui_api(app, store, auth_secret=auth_secret, dev_login=dev_login)
     return app

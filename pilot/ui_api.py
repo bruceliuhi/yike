@@ -1,0 +1,234 @@
+"""Authenticated JSON facade for the existing customer-pilot store.
+
+This module does not implement collection, platform login, sending, or a task
+executor. The capability responses make those missing boundaries explicit.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Literal
+
+from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from pilot.auth import InvalidPilotToken, verify_token
+
+
+class _Input(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+
+class SessionInput(_Input):
+    token: str = Field(min_length=1, max_length=16_384)
+
+
+class ProfileInput(_Input):
+    description: str = Field(min_length=1, max_length=8_000)
+
+    @field_validator("description")
+    @classmethod
+    def nonempty_description(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("description is required")
+        return value
+
+
+class FollowupInput(_Input):
+    opportunity_id: str = Field(min_length=1, max_length=128)
+    status: Literal["CONTACTED", "REPLIED", "MEETING", "QUOTED", "LOST", "WON"]
+    note: str = Field(min_length=1, max_length=8_000)
+
+    @field_validator("opportunity_id", "note")
+    @classmethod
+    def nonempty_value(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("value is required")
+        return value
+
+
+def _error(status: int, code: str, message: str) -> HTTPException:
+    return HTTPException(status_code=status, detail={"code": code, "message": message})
+
+
+class _UiRoute(APIRoute):
+    """Keep JSON errors generic, and never echo rejected tokens or inputs."""
+
+    def get_route_handler(self):
+        original = super().get_route_handler()
+
+        async def handler(request: Request):
+            try:
+                response = await original(request)
+            except RequestValidationError:
+                response = JSONResponse(
+                    {"detail": {"code": "invalid_request", "message": "请求字段无效，请检查后重试。"}},
+                    status_code=422,
+                )
+            except HTTPException as error:
+                response = JSONResponse({"detail": error.detail}, status_code=error.status_code, headers=error.headers)
+            except PermissionError:
+                response = JSONResponse(
+                    {"detail": {"code": "user_not_provisioned", "message": "当前账号尚未开通客户空间。"}},
+                    status_code=403,
+                )
+            except Exception:
+                response = JSONResponse(
+                    {"detail": {"code": "internal_error", "message": "服务暂时无法完成请求。"}},
+                    status_code=500,
+                )
+            response.headers["cache-control"] = "no-store"
+            return response
+
+        return handler
+
+
+@dataclass(frozen=True)
+class _Identity:
+    user_id: str
+    tenant_id: str
+
+
+_CAPABILITIES = {
+    "pilot_token_session": True,
+    "profiles": True,
+    "opportunities": True,
+    "manual_followups": True,
+    "sms_login": False,
+    "platform_connections": False,
+    "task_execution": False,
+    "search_suggestions": False,
+    "outreach": False,
+    "replies": False,
+}
+
+
+def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = False) -> None:
+    # The enclosing pilot app retains its same-Origin middleware and security
+    # headers. This router deliberately does not install a permissive CORS rule.
+    router = APIRouter(prefix="/api/ui", route_class=_UiRoute)
+
+    def token_identity(token: str) -> _Identity:
+        try:
+            user_id = verify_token(token, auth_secret)
+        except InvalidPilotToken as error:
+            raise _error(401, "invalid_session", "访问凭证已失效，请重新登录。") from error
+        return _Identity(user_id, store._tenant_for_user(user_id))
+
+    def identity(request: Request) -> _Identity:
+        authorization = request.headers.get("authorization")
+        token = authorization[7:].strip() if authorization and authorization.startswith("Bearer ") else request.cookies.get("pilot_session")
+        if not token:
+            raise _error(401, "authentication_required", "请先登录。")
+        return token_identity(token)
+
+    def require_session_https(request: Request) -> None:
+        if not dev_login and request.url.scheme != "https":
+            raise _error(400, "https_required", "登录会话需要 HTTPS 连接。")
+
+    @router.get("/session")
+    def session(request: Request):
+        current = identity(request)
+        return {"authenticated": True, "user_id": current.user_id}
+
+    @router.post("/session")
+    def exchange_session(body: SessionInput, request: Request, response: Response):
+        require_session_https(request)
+        current = token_identity(body.token.strip())
+        response.set_cookie(
+            "pilot_session", body.token.strip(), httponly=True,
+            secure=request.url.scheme == "https", samesite="strict", max_age=3600,
+        )
+        return {"authenticated": True, "user_id": current.user_id}
+
+    @router.delete("/session")
+    def logout(request: Request, response: Response):
+        require_session_https(request)
+        # Existing stateless bearer tokens have no revocation store. This only
+        # clears this browser session, even when its cookie has already expired.
+        response.delete_cookie("pilot_session", httponly=True, secure=request.url.scheme == "https", samesite="strict")
+        return {"authenticated": False}
+
+    @router.get("/profiles")
+    def profiles(request: Request):
+        current = identity(request)
+        # PilotStore has version lookup but no list method. Keep this read in the
+        # facade, with the same server-derived tenant setting and SQL predicate.
+        with store.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (current.tenant_id,))
+                cursor.execute(
+                    "SELECT profile_id, profile_version_id AS version_id, version, payload, status "
+                    "FROM business_profile_versions WHERE tenant_id=%s ORDER BY version DESC",
+                    (current.tenant_id,),
+                )
+                columns = [column.name for column in cursor.description]
+                rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        return {"items": rows}
+
+    @router.post("/profiles")
+    def save_profile(body: ProfileInput, request: Request):
+        current = identity(request)
+        try:
+            result = store.save_profile(current.user_id, {"description": body.description})
+        except ValueError as error:
+            raise _error(400, "invalid_profile", "业务描述无效。") from error
+        if result["status"] == "REVOKED":
+            raise _error(409, "profile_revoked", "该内容对应已撤销版本，请修改业务描述。")
+        return result
+
+    @router.post("/profiles/{version_id}/confirm")
+    def confirm_profile(version_id: str, request: Request):
+        current = identity(request)
+        try:
+            store.confirm_profile(current.user_id, version_id)
+            return store.get_profile_version(current.user_id, version_id)
+        except KeyError as error:
+            raise _error(404, "profile_not_found", "未找到该画像版本。") from error
+        except ValueError as error:
+            raise _error(400, "profile_not_confirmable", "该画像版本无法确认。") from error
+
+    @router.get("/opportunities")
+    def opportunities(request: Request):
+        current = identity(request)
+        return {"items": store.list_opportunities(current.user_id)}
+
+    @router.get("/opportunities/{opportunity_id}")
+    def opportunity(opportunity_id: str, request: Request):
+        current = identity(request)
+        try:
+            result = store.get_opportunity(current.user_id, opportunity_id)
+        except KeyError as error:
+            raise _error(404, "opportunity_not_found", "未找到该机会。") from error
+        return {"opportunity": result, "followups": store.list_followups(current.user_id, opportunity_id)}
+
+    @router.get("/followups")
+    def followups(request: Request):
+        current = identity(request)
+        return {"items": store.list_all_followups(current.user_id)}
+
+    @router.post("/followups", status_code=201)
+    def save_followup(body: FollowupInput, request: Request):
+        current = identity(request)
+        try:
+            return store.record_followup(current.user_id, body.opportunity_id, body.status, body.note)
+        except KeyError as error:
+            raise _error(404, "opportunity_not_found", "未找到该机会。") from error
+        except ValueError as error:
+            raise _error(400, "invalid_followup", "跟进记录无效。") from error
+
+    @router.get("/capabilities")
+    def capabilities():
+        return {"capabilities": {name: {"available": available} for name, available in _CAPABILITIES.items()}}
+
+    @router.post("/capabilities/{capability}")
+    def unavailable_capability(capability: str, request: Request):
+        if capability not in _CAPABILITIES or _CAPABILITIES[capability]:
+            raise _error(404, "capability_not_found", "未找到该能力入口。")
+        if capability != "sms_login":
+            identity(request)
+        raise _error(501, "capability_unavailable", "该能力尚未接入，当前操作未执行。")
+
+    app.include_router(router)

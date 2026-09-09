@@ -1,0 +1,543 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { TaskWizardPage } from "../../src/renderer/pages/TaskWizard";
+import { clearLocalDrafts } from "../../src/renderer/app/hooks";
+import { useTaskDraft } from "../../src/renderer/app/taskDraft";
+import { parseRoute } from "../../src/renderer/domain/routes";
+import {
+  EMPTY_PROFILE,
+  newTaskDraft,
+  type PlatformConnection,
+  type Profile,
+  type Suggestion,
+  type TaskDraft,
+  type TaskRun,
+} from "../../src/renderer/domain/models";
+import { makeTerm } from "../../src/renderer/domain/task";
+import {
+  ServiceError,
+  type YikeService,
+} from "../../src/renderer/services/contracts";
+import type { AppContextValue } from "../../src/renderer/app/context";
+
+let context: AppContextValue;
+vi.mock("../../src/renderer/app/context", () => ({ useApp: () => context }));
+const profiles: Profile[] = [
+  {
+    id: "profile-one",
+    version: 1,
+    status: "CONFIRMED",
+    description: "测试画像一",
+    fields: { ...EMPTY_PROFILE, service: "测试服务一" },
+  },
+  {
+    id: "profile-two",
+    version: 2,
+    status: "CONFIRMED",
+    description: "测试画像二",
+    fields: { ...EMPTY_PROFILE, service: "测试服务二" },
+  },
+];
+const connections: PlatformConnection[] = [
+  {
+    platform: "xhs",
+    status: "CONNECTED",
+    accountId: "account-one",
+    accountName: "测试账号一",
+    capabilities: ["search", "read", "monitor"],
+  },
+  {
+    platform: "xhs",
+    status: "CONNECTED",
+    accountId: "account-two",
+    accountName: "测试账号二",
+    capabilities: ["search", "read", "monitor"],
+  },
+];
+beforeEach(() => {
+  clearLocalDrafts();
+  sessionStorage.clear();
+  localStorage.clear();
+  context = {
+    service: {
+      profiles: vi.fn().mockResolvedValue(profiles),
+      connections: vi.fn().mockResolvedValue(connections),
+      info: vi
+        .fn()
+        .mockResolvedValue({
+          version: "0.2.0",
+          platform: "test",
+          serviceConfigured: true,
+          deviceReady: true,
+        }),
+      suggest: vi
+        .fn()
+        .mockRejectedValue(
+          new ServiceError("UNAVAILABLE", "测试建议服务不可用", 501),
+        ),
+      startTask: vi.fn(async (draft: TaskDraft) => ({
+        id: "test-created-run",
+        name: draft.name,
+        mode: draft.mode,
+        status: "PENDING",
+        platforms: draft.platforms,
+      })),
+    } as unknown as YikeService,
+    session: { authenticated: true, userId: crypto.randomUUID() },
+    sessionReady: true,
+    route: parseRoute("#/tasks/new"),
+    navigate: vi.fn(),
+    notify: vi.fn(),
+    refreshSession: vi.fn(),
+  };
+});
+afterEach(cleanup);
+function seed(patch: Partial<TaskDraft> = {}): TaskDraft {
+  const value = {
+    ...newTaskDraft(),
+    name: "测试采集任务",
+    profileId: "profile-one",
+    profileVersion: 1,
+    terms: [makeTerm("人工需求")],
+    platforms: ["xhs"] as TaskDraft["platforms"],
+    accounts: { xhs: "account-one" },
+    ...patch,
+  };
+  sessionStorage.setItem(
+    "yike.ui.draft.v1.task." + context.session.userId,
+    JSON.stringify(value),
+  );
+  return value;
+}
+function currentDraft(): TaskDraft {
+  return JSON.parse(
+    sessionStorage.getItem("yike.ui.draft.v1.task." + context.session.userId)!,
+  );
+}
+function addKeyword(value: string) {
+  fireEvent.click(
+    within(screen.getByRole("group", { name: "搜索关键词" })).getByRole(
+      "button",
+      { name: "添加" },
+    ),
+  );
+  const input = screen.getByRole("textbox", { name: "新增搜索关键词" });
+  fireEvent.change(input, { target: { value } });
+  fireEvent.keyDown(input, { key: "Enter" });
+}
+function followNavigation(view: ReturnType<typeof render>) {
+  const calls = vi.mocked(context.navigate).mock.calls;
+  context = { ...context, route: parseRoute("#" + calls[calls.length - 1][0]) };
+  view.rerender(<TaskWizardPage />);
+}
+async function confirmReady() {
+  fireEvent.click(
+    screen.getByRole("checkbox", {
+      name: "我已核对以上画像版本、搜索条件、账号与运行设置",
+    }),
+  );
+  const start = screen.getByRole("button", {
+    name: "确认并启动",
+  }) as HTMLButtonElement;
+  await waitFor(() => expect(start.disabled).toBe(false));
+  return start;
+}
+
+describe("task wizard service boundary", () => {
+  it("keeps manual edits while a delayed automatic suggestion waits for explicit merge", async () => {
+    seed({ terms: [], exclusions: [] });
+    let resolve!: (value: Suggestion) => void;
+    let requestId = "";
+    context.service.suggest = vi.fn((_profileId, id) => {
+      requestId = id;
+      return new Promise<Suggestion>((done) => {
+        resolve = done;
+      });
+    });
+    render(<TaskWizardPage />);
+    await waitFor(() => expect(context.service.suggest).toHaveBeenCalledOnce());
+    addKeyword("人工输入");
+    await act(async () =>
+      resolve({
+        profileId: "profile-one",
+        requestId,
+        keywords: ["新建议"],
+        exclusions: ["招聘"],
+      }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "更新搜索建议" });
+    expect(currentDraft().terms.map((t) => t.value)).toEqual(["人工输入"]);
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "合并新增建议" }),
+    );
+    await screen.findByRole("button", { name: "新建议" });
+    expect(currentDraft().terms.map((t) => t.value)).toEqual([
+      "人工输入",
+      "新建议",
+    ]);
+    expect(currentDraft().platforms).toEqual(["xhs"]);
+    expect(context.service.startTask).not.toHaveBeenCalled();
+  });
+
+  it("preserves edited and deleted terms when replacing untouched AI suggestions", async () => {
+    const original = seed({
+      mode: "monitor",
+      terms: [
+        makeTerm("人工需求"),
+        makeTerm("原AI词", "ai"),
+        makeTerm("删除词", "ai"),
+        makeTerm("旧AI词", "ai"),
+      ],
+    });
+    context.service.suggest = vi.fn(async (profileId, requestId) => ({
+      profileId,
+      requestId,
+      keywords: ["删除词", "全新建议"],
+      exclusions: ["招聘"],
+    }));
+    render(<TaskWizardPage />);
+    await screen.findByText("已确认版本 v1");
+    fireEvent.click(screen.getByRole("button", { name: "原AI词" }));
+    const input = screen.getByRole("textbox", { name: "修改原AI词" });
+    fireEvent.change(input, { target: { value: "人工改过建议" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: "删除删除词" }));
+    fireEvent.click(screen.getByRole("button", { name: "重新生成" }));
+    const dialog = await screen.findByRole("dialog", { name: "更新搜索建议" });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "替换未修改的建议" }),
+    );
+    await screen.findByRole("button", { name: "全新建议" });
+    expect(currentDraft().terms.map((t) => t.value)).toEqual([
+      "人工需求",
+      "人工改过建议",
+      "全新建议",
+    ]);
+    expect(currentDraft().schedule).toEqual(original.schedule);
+    expect(currentDraft().mode).toBe("monitor");
+  });
+
+  it("aborts profile-one suggestions and ignores their late response after choosing profile two", async () => {
+    seed({ terms: [] });
+    const requests: {
+      profileId: string;
+      requestId: string;
+      signal?: AbortSignal;
+      resolve: (value: Suggestion) => void;
+    }[] = [];
+    context.service.suggest = vi.fn(
+      (profileId, requestId, signal) =>
+        new Promise<Suggestion>((resolve) =>
+          requests.push({ profileId, requestId, signal, resolve }),
+        ),
+    );
+    render(<TaskWizardPage />);
+    await waitFor(() => expect(requests).toHaveLength(1));
+    fireEvent.change(screen.getByRole("combobox", { name: "业务画像" }), {
+      target: { value: "profile-two" },
+    });
+    await waitFor(() => expect(requests).toHaveLength(2));
+    expect(requests[0].signal?.aborted).toBe(true);
+    await act(async () =>
+      requests[0].resolve({
+        profileId: "profile-one",
+        requestId: requests[0].requestId,
+        keywords: ["旧画像迟到词"],
+        exclusions: [],
+      }),
+    );
+    expect(screen.queryByText("旧画像迟到词")).toBeNull();
+    await act(async () =>
+      requests[1].resolve({
+        profileId: "profile-two",
+        requestId: requests[1].requestId,
+        keywords: ["新画像建议"],
+        exclusions: [],
+      }),
+    );
+    await screen.findByRole("button", { name: "新画像建议" });
+    expect(currentDraft().profileId).toBe("profile-two");
+    expect(currentDraft().profileVersion).toBe(2);
+    expect(currentDraft().terms.map((t) => t.value)).toEqual(["新画像建议"]);
+  });
+
+  it("retains all steps and requires a new confirmation after editing the final task fingerprint", async () => {
+    seed({ mode: "monitor" });
+    context.route = parseRoute("#/tasks/new?mode=monitor");
+    const view = render(<TaskWizardPage />);
+    await screen.findByText("已确认版本 v1");
+    fireEvent.change(screen.getByRole("textbox", { name: "任务名称" }), {
+      target: { value: "修改后的监控任务" },
+    });
+    addKeyword("另一个人工词");
+    fireEvent.click(screen.getByRole("button", { name: "下一步：连接平台" }));
+    followNavigation(view);
+    fireEvent.change(screen.getByRole("combobox", { name: "小红书执行账号" }), {
+      target: { value: "account-two" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "下一步：确认任务" }));
+    followNavigation(view);
+    await confirmReady();
+    fireEvent.click(screen.getByRole("button", { name: "返回修改" }));
+    followNavigation(view);
+    expect(
+      (screen.getByRole("textbox", { name: "任务名称" }) as HTMLInputElement)
+        .value,
+    ).toBe("修改后的监控任务");
+    expect(screen.getByRole("button", { name: "另一个人工词" })).toBeTruthy();
+    fireEvent.change(screen.getByRole("textbox", { name: "任务名称" }), {
+      target: { value: "最终监控任务" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "下一步：连接平台" }));
+    followNavigation(view);
+    expect(
+      (
+        screen.getByRole("combobox", {
+          name: "小红书执行账号",
+        }) as HTMLSelectElement
+      ).value,
+    ).toBe("account-two");
+    fireEvent.click(screen.getByRole("button", { name: "下一步：确认任务" }));
+    followNavigation(view);
+    expect(
+      (screen.getByRole("button", { name: "确认并启动" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    const start = await confirmReady();
+    fireEvent.click(start);
+    await waitFor(() =>
+      expect(context.service.startTask).toHaveBeenCalledOnce(),
+    );
+    const [sent, requestId] = vi.mocked(context.service.startTask).mock
+      .calls[0];
+    expect(sent).toMatchObject({
+      name: "最终监控任务",
+      mode: "monitor",
+      profileId: "profile-one",
+      profileVersion: 1,
+      accounts: { xhs: "account-two" },
+    });
+    expect(sent.terms.map((t) => t.value)).toEqual([
+      "人工需求",
+      "另一个人工词",
+    ]);
+    expect(requestId).toBe(`task:${sent.id}:${sent.revision}`);
+  });
+
+  it("rechecks capabilities immediately before start and never submits after capability revocation", async () => {
+    seed();
+    context.route = parseRoute("#/tasks/new?step=confirm");
+    render(<TaskWizardPage />);
+    const start = await confirmReady();
+    vi.mocked(context.service.connections).mockResolvedValueOnce([
+      { ...connections[0], capabilities: [] },
+    ]);
+    fireEvent.click(start);
+    await screen.findByText("小红书 的搜索能力尚未通过检查。");
+    expect(context.service.startTask).not.toHaveBeenCalled();
+    expect(start.disabled).toBe(true);
+    expect(
+      (
+        screen.getByRole("checkbox", {
+          name: "我已核对以上画像版本、搜索条件、账号与运行设置",
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(false);
+  });
+
+  it.each([
+    {
+      patch: {
+        source: "links" as const,
+        links: "https://example.test/public-source",
+      },
+      reason: "小红书 的读取能力尚未通过检查。",
+    },
+    {
+      patch: { mode: "monitor" as const },
+      reason: "小红书 尚不具备持续监控能力。",
+    },
+  ])(
+    "requires the specific execution capability: $reason",
+    async ({ patch, reason }) => {
+      seed(patch);
+      context.route = parseRoute("#/tasks/new?step=confirm");
+      context.service.connections = vi
+        .fn()
+        .mockResolvedValue([{ ...connections[0], capabilities: ["search"] }]);
+      render(<TaskWizardPage />);
+      await screen.findByText(reason);
+      fireEvent.click(
+        screen.getByRole("checkbox", {
+          name: "我已核对以上画像版本、搜索条件、账号与运行设置",
+        }),
+      );
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "确认并启动",
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(true);
+      expect(context.service.startTask).not.toHaveBeenCalled();
+    },
+  );
+
+  it("allows a retry after an explicit capability rejection without inventing a created task", async () => {
+    seed();
+    context.route = parseRoute("#/tasks/new?step=confirm");
+    context.service.startTask = vi
+      .fn()
+      .mockRejectedValue(
+        new ServiceError("CAPABILITY_UNAVAILABLE", "测试启动能力未接通", 501),
+      );
+    render(<TaskWizardPage />);
+    fireEvent.click(await confirmReady());
+    await screen.findByText("测试启动能力未接通");
+    await waitFor(() =>
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "确认并启动",
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(false),
+    );
+    expect(
+      screen.queryByText("启动结果尚未确认，请先检查任务列表，避免重复创建。"),
+    ).toBeNull();
+    expect(context.navigate).not.toHaveBeenCalled();
+    expect(context.notify).not.toHaveBeenCalled();
+  });
+
+  it.each(["NETWORK_ERROR", "SERVICE_TIMEOUT", "SERVICE_UNAVAILABLE"])(
+    "keeps an unknown %s start locked across remount instead of duplicating the request",
+    async (code) => {
+      seed();
+      context.route = parseRoute("#/tasks/new?step=confirm");
+      context.service.startTask = vi
+        .fn()
+        .mockRejectedValue(new ServiceError(code, "测试网络结果未知"));
+      const view = render(<TaskWizardPage />);
+      fireEvent.click(await confirmReady());
+      await screen.findByText(
+        "启动结果尚未确认，请先检查任务列表，避免重复创建。",
+      );
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "确认并启动",
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(true);
+      view.unmount();
+      render(<TaskWizardPage />);
+      await screen.findByText(
+        "启动结果尚未确认，请先检查任务列表，避免重复创建。",
+      );
+      fireEvent.click(
+        screen.getByRole("checkbox", {
+          name: "我已核对以上画像版本、搜索条件、账号与运行设置",
+        }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "确认并启动" }));
+      expect(context.service.startTask).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("records a pending request before navigation so a late network failure cannot lose the duplicate-start lock", async () => {
+    seed();
+    context.route = parseRoute("#/tasks/new?step=confirm");
+    let reject!: (reason: unknown) => void;
+    context.service.startTask = vi.fn(
+      () =>
+        new Promise<TaskRun>((_resolve, fail) => {
+          reject = fail;
+        }),
+    );
+    const view = render(<TaskWizardPage />);
+    fireEvent.click(await confirmReady());
+    await waitFor(() =>
+      expect(context.service.startTask).toHaveBeenCalledOnce(),
+    );
+    view.unmount();
+    await act(async () =>
+      reject(new ServiceError("NETWORK_ERROR", "离开后返回的网络错误")),
+    );
+    render(<TaskWizardPage />);
+    await screen.findByText(
+      "启动结果尚未确认，请先检查任务列表，避免重复创建。",
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: "我已核对以上画像版本、搜索条件、账号与运行设置",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "确认并启动" }));
+    expect(context.service.startTask).toHaveBeenCalledOnce();
+  });
+  it("retains an unknown start after clearing drafts and restoring the same task for the signed-in user", async () => {
+    const saved = seed();
+    const userId = context.session.userId!;
+    context.route = parseRoute("#/tasks/new?step=confirm");
+    context.service.startTask = vi
+      .fn()
+      .mockRejectedValue(new ServiceError("NETWORK_ERROR", "测试启动结果未知"));
+    const view = render(<TaskWizardPage />);
+    fireEvent.click(await confirmReady());
+    await screen.findByText(
+      "启动结果尚未确认，请先检查任务列表，避免重复创建。",
+    );
+    view.unmount();
+    act(() => clearLocalDrafts());
+    context = { ...context, session: { authenticated: true, userId } };
+    const restored = renderHook(() => useTaskDraft(userId));
+    act(() => restored.result.current[1](saved));
+    restored.unmount();
+    render(<TaskWizardPage />);
+    await screen.findByText(
+      "启动结果尚未确认，请先检查任务列表，避免重复创建。",
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: "我已核对以上画像版本、搜索条件、账号与运行设置",
+      }),
+    );
+    expect(
+      (screen.getByRole("button", { name: "确认并启动" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(context.service.startTask).toHaveBeenCalledOnce();
+  });
+
+  it("does not initiate a new write after leaving while the final capability recheck is pending", async () => {
+    seed();
+    context.route = parseRoute("#/tasks/new?step=confirm");
+    const view = render(<TaskWizardPage />);
+    const start = await confirmReady();
+    let resolve!: (value: Profile[]) => void;
+    vi.mocked(context.service.profiles).mockImplementationOnce(
+      () =>
+        new Promise<Profile[]>((done) => {
+          resolve = done;
+        }),
+    );
+    fireEvent.click(start);
+    await waitFor(() =>
+      expect(context.service.profiles).toHaveBeenCalledTimes(2),
+    );
+    view.unmount();
+    await act(async () => resolve(profiles));
+    expect(context.service.startTask).not.toHaveBeenCalled();
+  });
+});

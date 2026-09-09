@@ -1,0 +1,1152 @@
+import { useEffect, useRef, useState } from "react";
+import {
+  ArrowClockwise,
+  Check,
+  Globe,
+  Plus,
+  Sparkle,
+  X,
+} from "@phosphor-icons/react";
+import { useApp } from "../app/context";
+import { useAction, useResource } from "../app/hooks";
+import { useOperationLedger } from "../app/operationLedger";
+import { useTaskDraft, useTaskLibrary } from "../app/taskDraft";
+import {
+  Badge,
+  Button,
+  Field,
+  Modal,
+  Notice,
+  PageHeader,
+  ResourceStatus,
+  formatDate,
+} from "../components/ui";
+import { TermEditor } from "../components/TermEditor";
+import {
+  PLATFORMS,
+  type Suggestion,
+  type TaskDraft,
+  type TaskRun,
+} from "../domain/models";
+import {
+  applySuggestion,
+  removeTerm,
+  startBlockers,
+  taskErrors,
+  taskFingerprint,
+} from "../domain/task";
+import { errorMessage } from "../services/contracts";
+
+/** An HTTP success alone does not establish that this configuration created a task. */
+export function matchesCreatedTask(
+  value: unknown,
+  draft: TaskDraft,
+): value is TaskRun {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const run = value as Partial<TaskRun>;
+  return (
+    typeof run.id === "string" &&
+    /^[A-Za-z0-9_-][A-Za-z0-9_.:-]{0,127}$/.test(run.id) &&
+    run.mode === draft.mode &&
+    typeof run.name === "string" &&
+    run.name.trim() === draft.name.trim() &&
+    typeof run.status === "string" &&
+    [
+      "PENDING",
+      "RUNNING",
+      "PAUSED",
+      "COMPLETED",
+      "FAILED",
+      "CANCELED",
+      "BLOCKED",
+      "PARTIAL",
+      "OFFLINE",
+      "RETRYING",
+      "CANCELLING",
+    ].includes(run.status) &&
+    Array.isArray(run.platforms) &&
+    run.platforms.length === draft.platforms.length &&
+    new Set(run.platforms).size === run.platforms.length &&
+    run.platforms.every((platform) => draft.platforms.includes(platform)) &&
+    (run.profileId === undefined || run.profileId === draft.profileId) &&
+    (run.profileVersion === undefined ||
+      run.profileVersion === draft.profileVersion)
+  );
+}
+
+export function TaskWizardPage() {
+  const { service, session, route, navigate, notify } = useApp();
+  const [draft, setDraft] = useTaskDraft(
+    session.userId,
+    route.query.get("mode") === "monitor" ? "monitor" : "once",
+  );
+  const [, setLibrary] = useTaskLibrary(session.userId);
+  const step =
+    route.query.get("step") === "confirm"
+      ? 3
+      : route.query.get("step") === "connect"
+        ? 2
+        : 1;
+  const profiles = useResource(
+    () => (session.authenticated ? service.profiles() : Promise.resolve([])),
+    [service, session.userId],
+  );
+  const connections = useResource(
+    () => service.connections(),
+    [service, session.userId],
+  );
+  const info = useResource(() => service.info(), [service, session.userId]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [generating, setGenerating] = useState(false);
+  const [suggestionError, setSuggestionError] = useState("");
+  const [preview, setPreview] = useState<Suggestion | null>(null);
+  const requestGeneration = useRef(0);
+  const controller = useRef<AbortController | null>(null);
+  const current = useRef(draft);
+  current.current = draft;
+  const lastSuggestion = useRef<string | null>(null);
+  const action = useAction();
+  const mounted = useRef(true);
+  const [verified, setVerified] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [unknownStarts, setUnknownStarts] = useOperationLedger(
+    "unknown-task-starts",
+    session.userId,
+  );
+  const resultUnknown = !!unknownStarts[draft.id];
+  const confirmed =
+    profiles.data?.filter((p) => p.status === "CONFIRMED") || [];
+  const selectedProfile = confirmed.find(
+    (p) => p.id === draft.profileId && p.version === draft.profileVersion,
+  );
+  const fingerprint = taskFingerprint(draft);
+  const blockers = startBlockers(
+    draft,
+    profiles.data || [],
+    connections.data || [],
+    info.data?.deviceReady === true,
+  );
+  if (!session.authenticated)
+    blockers.unshift("请登录客户工作空间后启动任务。");
+  const update = (patch: Partial<TaskDraft>) => {
+    setDraft((old) => ({
+      ...old,
+      ...patch,
+      revision: old.revision + 1,
+      savedAt: null,
+    }));
+    setVerified(null);
+    setErrors({});
+  };
+  const save = () => {
+    const snapshot = { ...current.current, savedAt: new Date().toISOString() };
+    setDraft(snapshot);
+    setLibrary((old) => [snapshot, ...old.filter((t) => t.id !== snapshot.id)]);
+    notify("任务草稿已保存在本机会话中，尚未启动。", "success");
+  };
+  const stepPath = (next: number) =>
+    "/tasks/new?" +
+    new URLSearchParams({
+      ...(next === 1 ? {} : { step: next === 2 ? "connect" : "confirm" }),
+      ...(draft.mode === "monitor" ? { mode: "monitor" } : {}),
+    }).toString();
+  const changeStep = (next: number) => {
+    if (next > step) {
+      const validation = taskErrors(current.current);
+      if (Object.keys(validation).length) {
+        setErrors(validation);
+        notify("请先检查任务条件。", "error");
+        return;
+      }
+    }
+    navigate(stepPath(next));
+  };
+  useEffect(() => {
+    if (!draft.profileId && confirmed.length) {
+      setDraft((old) =>
+        old.profileId
+          ? old
+          : {
+              ...old,
+              profileId: confirmed[0].id,
+              profileVersion: confirmed[0].version,
+              revision: old.revision + 1,
+            },
+      );
+    }
+  }, [profiles.data]);
+  useEffect(() => {
+    if (
+      route.query.get("mode") === "monitor" &&
+      current.current.mode !== "monitor"
+    )
+      setDraft((old) => ({
+        ...old,
+        mode: "monitor",
+        revision: old.revision + 1,
+      }));
+  }, [route.query.get("mode")]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      requestGeneration.current++;
+      controller.current?.abort();
+    };
+  }, []);
+  useEffect(() => {
+    requestGeneration.current++;
+    controller.current?.abort();
+    setGenerating(false);
+    setPreview(null);
+    setSuggestionError("");
+  }, [draft.profileId, session.userId]);
+  const generate = async (automatic = false) => {
+    const snapshot = current.current;
+    if (!snapshot.profileId) {
+      setSuggestionError(
+        "确认业务画像后可生成搜索建议，也可以先手工添加关键词。",
+      );
+      return;
+    }
+    controller.current?.abort();
+    const abort = new AbortController();
+    controller.current = abort;
+    const generation = ++requestGeneration.current;
+    const requestId = crypto.randomUUID();
+    setGenerating(true);
+    setSuggestionError("");
+    try {
+      const result = await service.suggest(
+        snapshot.profileId,
+        requestId,
+        abort.signal,
+      );
+      if (
+        generation !== requestGeneration.current ||
+        current.current.profileId !== snapshot.profileId
+      )
+        return;
+      if (
+        result.profileId !== snapshot.profileId ||
+        result.requestId !== requestId
+      )
+        throw new Error("搜索建议与当前画像不一致，请重新生成。");
+      if (
+        !Array.isArray(result.keywords) ||
+        !Array.isArray(result.exclusions) ||
+        [...result.keywords, ...result.exclusions].some(
+          (v) => typeof v !== "string" || !v.trim() || v.length > 80,
+        ) ||
+        result.keywords.length > 20 ||
+        result.exclusions.length > 20
+      )
+        throw new Error("搜索建议格式不完整，请重试或手工添加。");
+      if (
+        automatic &&
+        current.current.revision === snapshot.revision &&
+        !snapshot.terms.length &&
+        !snapshot.exclusions.length
+      ) {
+        setDraft((old) => applySuggestion(old, result, "append"));
+      } else setPreview(result);
+    } catch (error) {
+      if (
+        generation === requestGeneration.current &&
+        !(error instanceof DOMException && error.name === "AbortError")
+      )
+        setSuggestionError(errorMessage(error));
+    } finally {
+      if (generation === requestGeneration.current) setGenerating(false);
+    }
+  };
+  useEffect(() => {
+    if (
+      selectedProfile &&
+      !draft.suggestionProfile &&
+      lastSuggestion.current !== selectedProfile.id &&
+      !draft.terms.length
+    ) {
+      lastSuggestion.current = selectedProfile.id;
+      void generate(true);
+    }
+  }, [selectedProfile?.id]);
+  const acceptSuggestion = (mode: "append" | "replace_unedited") => {
+    if (!preview) return;
+    const next = applySuggestion(current.current, preview, mode);
+    if (next.terms.length > 20 || next.exclusions.length > 20) {
+      setSuggestionError("合并后词项超过20个，请先删除部分词项再合并。");
+      setPreview(null);
+      return;
+    }
+    setDraft(next);
+    setPreview(null);
+    setSuggestionError("");
+    setVerified(null);
+  };
+  const start = async () => {
+    if (
+      starting ||
+      resultUnknown ||
+      verified !== taskFingerprint(current.current)
+    )
+      return;
+    const snapshot = structuredClone(current.current);
+    setStarting(true);
+    await action.run(async () => {
+      // Recheck live execution prerequisites immediately before creating one task.
+      const [freshProfiles, freshConnections, freshInfo] = await Promise.all([
+        service.profiles(),
+        service.connections(),
+        service.info(),
+      ]);
+      if (!mounted.current) return;
+      const changed =
+        taskFingerprint(current.current) !== taskFingerprint(snapshot);
+      const reasons = startBlockers(
+        snapshot,
+        freshProfiles,
+        freshConnections,
+        freshInfo.deviceReady === true,
+      );
+      if (changed || reasons.length) {
+        setVerified(null);
+        throw new Error(
+          changed ? "任务配置已经变化，请重新核对。" : reasons.join(" "),
+        );
+      }
+      const requestId = `task:${snapshot.id}:${snapshot.revision}`;
+      setUnknownStarts((old) => ({ ...old, [snapshot.id]: requestId }));
+      let run;
+      try {
+        run = await service.startTask(snapshot, requestId);
+      } catch (error) {
+        const code =
+          error && typeof error === "object" && "code" in error
+            ? String(error.code)
+            : "";
+        if (
+          [
+            "CAPABILITY_UNAVAILABLE",
+            "INVALID_REQUEST",
+            "FORBIDDEN",
+            "UNAUTHORIZED",
+            "VALIDATION_ERROR",
+          ].includes(code)
+        )
+          setUnknownStarts((old) => {
+            const next = { ...old };
+            delete next[snapshot.id];
+            return next;
+          });
+        throw error;
+      }
+      if (!matchesCreatedTask(run, snapshot))
+        throw new Error(
+          "任务返回结果与本次配置不一致，创建结果尚未确认。请核对原请求，勿重新提交。",
+        );
+      setUnknownStarts((old) => {
+        const next = { ...old };
+        delete next[snapshot.id];
+        return next;
+      });
+      if (!mounted.current) return;
+      setLibrary((old) => old.filter((t) => t.id !== snapshot.id));
+      notify("任务已创建，运行状态以任务详情为准。", "success");
+      navigate(
+        snapshot.mode === "monitor"
+          ? `/monitors/${encodeURIComponent(run.id)}`
+          : "/collection",
+      );
+    });
+    setStarting(false);
+  };
+  const platformLabel = (id: string) =>
+    PLATFORMS.find((p) => p.id === id)?.name || id;
+  return (
+    <>
+      <PageHeader
+        title={
+          step === 3
+            ? "确认启动任务"
+            : draft.mode === "monitor"
+              ? "新建监控任务"
+              : "新建获客任务"
+        }
+        description={
+          draft.savedAt ? "本机草稿 · 未启动" : "配置任务条件，确认后再启动。"
+        }
+      />
+      <div className="wizard-steps" aria-label="任务步骤">
+        {["任务条件", "平台连接", "确认启动"].map((label, i) => (
+          <div
+            className={`wizard-step ${step === i + 1 ? "active" : ""}`}
+            aria-current={step === i + 1 ? "step" : undefined}
+            key={label}
+          >
+            <span className={`step-number ${step >= i + 1 ? "current" : ""}`}>
+              {step > i + 1 ? <Check /> : i + 1}
+            </span>
+            {label}
+          </div>
+        ))}
+      </div>
+      {step === 1 ? (
+        <div className="task-layout">
+          <div
+            className={`task-form ${draft.mode === "monitor" ? "monitor-form" : ""}`}
+          >
+            <section className="form-section">
+              <h2>基本信息</h2>
+              <Field
+                label="任务名称"
+                required
+                className="horizontal-field"
+                error={errors.name}
+              >
+                <input
+                  aria-label="任务名称"
+                  value={draft.name}
+                  maxLength={60}
+                  placeholder="给这个任务起一个便于识别的名称"
+                  onChange={(e) => update({ name: e.target.value })}
+                />
+              </Field>
+              <Field
+                label="业务画像"
+                className="horizontal-field"
+                hint={
+                  selectedProfile
+                    ? `已确认版本 v${selectedProfile.version}`
+                    : "选择真实已确认画像，或先保存本机草稿。"
+                }
+              >
+                <select
+                  aria-label="业务画像"
+                  value={draft.profileId}
+                  disabled={profiles.loading}
+                  onChange={(e) => {
+                    const selected = confirmed.find(
+                      (p) => p.id === e.target.value,
+                    );
+                    update({
+                      profileId: selected?.id || "",
+                      profileVersion: selected?.version || null,
+                      suggestionProfile: null,
+                    });
+                  }}
+                >
+                  <option value="">选择业务画像</option>
+                  {confirmed.map((p) => (
+                    <option value={p.id} key={p.id}>
+                      {p.fields.service || "业务画像"} · v{p.version}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {profiles.error && (
+                <Notice
+                  tone="warning"
+                  action={
+                    <Button variant="ghost" onClick={profiles.reload}>
+                      重试
+                    </Button>
+                  }
+                >
+                  {profiles.error}
+                </Notice>
+              )}
+            </section>
+            <section className="form-section">
+              <div className="search-heading">
+                <div>
+                  <h2>搜索条件</h2>
+                  <Badge tone="blue">
+                    <Sparkle size={12} /> AI 建议
+                  </Badge>
+                </div>
+                <Button
+                  variant="ghost"
+                  loading={generating}
+                  onClick={() => void generate()}
+                >
+                  <ArrowClockwise />
+                  {draft.terms.length ? "重新生成" : "生成建议"}
+                </Button>
+              </div>
+              <Field
+                label="搜索关键词"
+                className="horizontal-field"
+                error={errors.terms}
+                hint={
+                  generating
+                    ? "正在根据画像生成，当前编辑不会被覆盖。"
+                    : draft.suggestionProfile
+                      ? "建议基于所选画像，可自由修改。"
+                      : "确认画像后自动建议，也可手工添加。"
+                }
+              >
+                <TermEditor
+                  label="搜索关键词"
+                  terms={draft.terms}
+                  onChange={(terms) => update({ terms })}
+                  onRemove={(id) =>
+                    setDraft((old) => removeTerm(old, "terms", id))
+                  }
+                />
+              </Field>
+              <Field label="排除词" className="horizontal-field">
+                <TermEditor
+                  label="排除词"
+                  terms={draft.exclusions}
+                  neutral
+                  onChange={(exclusions) => update({ exclusions })}
+                  onRemove={(id) =>
+                    setDraft((old) => removeTerm(old, "exclusions", id))
+                  }
+                />
+              </Field>
+              {suggestionError && (
+                <Notice tone="warning">{suggestionError}</Notice>
+              )}
+              {errors.conflicts && (
+                <Notice tone="error">{errors.conflicts}</Notice>
+              )}
+            </section>
+            <section className="form-section">
+              <h2>采集范围</h2>
+              <Field
+                label="选择平台"
+                className="horizontal-field"
+                error={errors.platforms}
+              >
+                <div className="platform-choices">
+                  {PLATFORMS.map((p) => (
+                    <label key={p.id}>
+                      <input
+                        type="checkbox"
+                        checked={draft.platforms.includes(p.id)}
+                        onChange={(e) =>
+                          update({
+                            platforms: e.target.checked
+                              ? [...draft.platforms, p.id]
+                              : draft.platforms.filter((id) => id !== p.id),
+                          })
+                        }
+                      />
+                      {p.name}
+                    </label>
+                  ))}
+                </div>
+              </Field>
+              <Field label="来源范围" className="horizontal-field">
+                <div className="radio-group">
+                  <label>
+                    <input
+                      type="radio"
+                      name="source"
+                      checked={draft.source === "search"}
+                      onChange={() => update({ source: "search" })}
+                    />
+                    关键词搜索
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="source"
+                      checked={draft.source === "links"}
+                      onChange={() => update({ source: "links" })}
+                    />
+                    指定内容链接
+                  </label>
+                </div>
+              </Field>
+              {draft.source === "links" && (
+                <Field
+                  label="内容链接"
+                  className="horizontal-field"
+                  error={errors.links}
+                >
+                  <textarea
+                    aria-label="内容链接"
+                    rows={4}
+                    value={draft.links}
+                    placeholder="每行一个公开内容链接"
+                    onChange={(e) => update({ links: e.target.value })}
+                  />
+                </Field>
+              )}
+            </section>
+            <section className="form-section">
+              <h2>运行设置</h2>
+              <Field label="运行方式" className="horizontal-field">
+                <div className="radio-group">
+                  <label>
+                    <input
+                      type="radio"
+                      name="mode"
+                      checked={draft.mode === "once"}
+                      onChange={() => update({ mode: "once" })}
+                    />
+                    单次采集
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="mode"
+                      checked={draft.mode === "monitor"}
+                      onChange={() => update({ mode: "monitor" })}
+                    />
+                    持续监控
+                  </label>
+                </div>
+              </Field>
+              {draft.mode === "monitor" && (
+                <div className="schedule-fields">
+                  <Field
+                    label="执行频率"
+                    className="horizontal-field"
+                    error={errors.schedule}
+                  >
+                    <div className="radio-group">
+                      <label>
+                        <input
+                          type="radio"
+                          name="schedule"
+                          checked={draft.schedule.kind === "daily"}
+                          onChange={() =>
+                            update({
+                              schedule: { ...draft.schedule, kind: "daily" },
+                            })
+                          }
+                        />
+                        每日定时
+                      </label>
+                      <label>
+                        <input
+                          type="radio"
+                          name="schedule"
+                          checked={draft.schedule.kind === "interval"}
+                          onChange={() =>
+                            update({
+                              schedule: { ...draft.schedule, kind: "interval" },
+                            })
+                          }
+                        />
+                        固定间隔
+                      </label>
+                    </div>
+                  </Field>
+                  {draft.schedule.kind === "daily" ? (
+                    <Field label="执行时间" className="horizontal-field">
+                      <div className="time-list">
+                        {draft.schedule.times.map((time, i) => (
+                          <div key={i} className="time-entry">
+                            <input
+                              type="time"
+                              aria-label={`执行时间${i + 1}`}
+                              value={time}
+                              onChange={(e) =>
+                                update({
+                                  schedule: {
+                                    ...draft.schedule,
+                                    times: draft.schedule.times.map((t, n) =>
+                                      i === n ? e.target.value : t,
+                                    ),
+                                  },
+                                })
+                              }
+                            />
+                            <button
+                              className="icon-button"
+                              aria-label={`删除执行时间${i + 1}`}
+                              disabled={draft.schedule.times.length === 1}
+                              onClick={() =>
+                                update({
+                                  schedule: {
+                                    ...draft.schedule,
+                                    times: draft.schedule.times.filter(
+                                      (_, n) => n !== i,
+                                    ),
+                                  },
+                                })
+                              }
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                        <Button
+                          variant="ghost"
+                          disabled={draft.schedule.times.length >= 6}
+                          onClick={() =>
+                            update({
+                              schedule: {
+                                ...draft.schedule,
+                                times: [...draft.schedule.times, "14:00"],
+                              },
+                            })
+                          }
+                        >
+                          <Plus />
+                          添加时间
+                        </Button>
+                      </div>
+                    </Field>
+                  ) : (
+                    <>
+                      <Field label="间隔" className="horizontal-field">
+                        <div className="schedule-inline">
+                          每
+                          <input
+                            aria-label="间隔小时"
+                            type="number"
+                            min={1}
+                            max={168}
+                            value={draft.schedule.interval}
+                            onChange={(e) =>
+                              update({
+                                schedule: {
+                                  ...draft.schedule,
+                                  interval: Number(e.target.value),
+                                },
+                              })
+                            }
+                          />
+                          小时
+                        </div>
+                      </Field>
+                      <Field label="执行窗口" className="horizontal-field">
+                        <div className="schedule-inline">
+                          <input
+                            type="time"
+                            aria-label="执行窗口开始"
+                            value={draft.schedule.start}
+                            onChange={(e) =>
+                              update({
+                                schedule: {
+                                  ...draft.schedule,
+                                  start: e.target.value,
+                                },
+                              })
+                            }
+                          />
+                          至
+                          <input
+                            type="time"
+                            aria-label="执行窗口结束"
+                            value={draft.schedule.end}
+                            onChange={(e) =>
+                              update({
+                                schedule: {
+                                  ...draft.schedule,
+                                  end: e.target.value,
+                                },
+                              })
+                            }
+                          />
+                        </div>
+                      </Field>
+                    </>
+                  )}
+                  <Field
+                    label="时区"
+                    className="horizontal-field"
+                    error={errors.timezone}
+                  >
+                    <select
+                      aria-label="执行时区"
+                      value={draft.schedule.timezone}
+                      onChange={(e) =>
+                        update({
+                          schedule: {
+                            ...draft.schedule,
+                            timezone: e.target.value,
+                          },
+                        })
+                      }
+                    >
+                      {[
+                        ...new Set([
+                          draft.schedule.timezone,
+                          "Asia/Shanghai",
+                          "Asia/Hong_Kong",
+                          "Asia/Singapore",
+                          "Europe/London",
+                          "America/New_York",
+                          "UTC",
+                        ]),
+                      ].map((t) => (
+                        <option key={t}>{t}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <p className="field-hint">
+                    执行时间受所选平台能力和设备在线状态限制。
+                  </p>
+                </div>
+              )}
+            </section>
+          </div>
+          <aside className="task-aside">
+            <div className="section-heading">
+              <h2>平台连接状态</h2>
+              <span className="muted text-small">按实际连接检查</span>
+            </div>
+            <div className="platform-status-list">
+              {PLATFORMS.map((p) => {
+                const connection = connections.data?.find(
+                  (c) => c.platform === p.id,
+                );
+                return (
+                  <div className="platform-status-row" key={p.id}>
+                    <span>
+                      <Globe size={21} />
+                      {p.name}
+                    </span>
+                    <Badge
+                      tone={
+                        connection?.status === "CONNECTED" ? "green" : "neutral"
+                      }
+                    >
+                      {connection?.status === "CONNECTED"
+                        ? "已连接"
+                        : connection?.status === "EXPIRED"
+                          ? "登录已失效"
+                          : p.id === "web"
+                            ? "范围待确认"
+                            : connections.loading
+                              ? "正在读取"
+                              : "待连接"}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+            <Notice>下一步完成平台连接。</Notice>
+            {connections.error && (
+              <p className="field-hint">{connections.error}</p>
+            )}
+            <div className="task-footer">
+              <Button onClick={save}>保存草稿</Button>
+              <Button variant="primary" onClick={() => changeStep(2)}>
+                下一步：连接平台
+              </Button>
+            </div>
+          </aside>
+        </div>
+      ) : step === 2 ? (
+        <div className="confirmation-layout">
+          <h2>为所选平台配置执行账号</h2>
+          <p className="page-description">
+            返回修改会保留所有搜索条件和运行设置。
+          </p>
+          <ResourceStatus
+            loading={connections.loading}
+            error={connections.error}
+            onRetry={connections.reload}
+          />
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>平台</th>
+                  <th>执行账号 / 范围</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {draft.platforms.map((id) => (
+                  <tr key={id}>
+                    <td>{platformLabel(id)}</td>
+                    <td>
+                      {id === "web" ? (
+                        <span>公开页面读取范围需由执行服务确认</span>
+                      ) : (
+                        <select
+                          aria-label={`${platformLabel(id)}执行账号`}
+                          value={draft.accounts[id] || ""}
+                          onChange={(e) =>
+                            update({
+                              accounts: {
+                                ...draft.accounts,
+                                [id]: e.target.value,
+                              },
+                            })
+                          }
+                        >
+                          <option value="">选择已连接账号</option>
+                          {connections.data
+                            ?.filter(
+                              (c) =>
+                                c.platform === id && c.status === "CONNECTED",
+                            )
+                            .map((c) => (
+                              <option key={c.accountId} value={c.accountId}>
+                                {c.accountName || c.accountId}
+                              </option>
+                            ))}
+                        </select>
+                      )}
+                    </td>
+                    <td>
+                      <Button
+                        variant="ghost"
+                        onClick={() =>
+                          navigate(
+                            id === "web"
+                              ? "/connections"
+                              : `/connections?connect=${id}&returnTo=${encodeURIComponent(stepPath(2))}`,
+                          )
+                        }
+                      >
+                        {id === "web" ? "查看范围" : "连接账号"}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!draft.platforms.length && (
+            <Notice tone="warning">请返回任务条件选择至少一个平台。</Notice>
+          )}
+          <section className="form-section">
+            <div className="section-heading">
+              <h2>执行设备</h2>
+              <Badge tone={info.data?.deviceReady ? "green" : "neutral"}>
+                {info.data?.deviceReady ? "执行服务已就绪" : "待绑定或检查"}
+              </Badge>
+            </div>
+            <p className="muted">
+              {info.data?.platform || "本机"} ·
+              当前任务只有在设备可用时才能启动。
+            </p>
+            <Button variant="ghost" onClick={() => void info.reload()}>
+              重新检查
+            </Button>
+          </section>
+          <div className="task-footer">
+            <Button onClick={() => changeStep(1)}>上一步</Button>
+            <Button onClick={save}>保存草稿</Button>
+            <Button variant="primary" onClick={() => changeStep(3)}>
+              下一步：确认任务
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="confirmation-layout">
+          <div className="configuration-summary">
+            <section>
+              <h2>基本信息</h2>
+              <dl className="detail-list">
+                <div>
+                  <dt>任务名称</dt>
+                  <dd>{draft.name || "未填写"}</dd>
+                </div>
+                <div>
+                  <dt>业务画像</dt>
+                  <dd>
+                    {selectedProfile?.fields.service || "待确认真实画像"}{" "}
+                    {draft.profileVersion ? `· v${draft.profileVersion}` : ""}
+                  </dd>
+                </div>
+                <div>
+                  <dt>执行设备</dt>
+                  <dd>
+                    {info.data?.deviceReady
+                      ? "执行服务已就绪"
+                      : "本机 · 待绑定或检查"}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+            <section>
+              <h2>采集范围</h2>
+              <dl className="detail-list">
+                <div>
+                  <dt>目标平台</dt>
+                  <dd>
+                    {draft.platforms.map(platformLabel).join("、") || "未选择"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>来源范围</dt>
+                  <dd>
+                    {draft.source === "search" ? "关键词搜索" : "指定内容链接"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>执行账号</dt>
+                  <dd>
+                    {draft.platforms
+                      .map(
+                        (id) =>
+                          `${platformLabel(id)}：${id === "web" ? "公开范围待确认" : draft.accounts[id] || "待选择"}`,
+                      )
+                      .join("\n") || "未选择"}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+            <section>
+              <h2>搜索条件</h2>
+              <dl className="detail-list">
+                <div>
+                  <dt>搜索关键词</dt>
+                  <dd>
+                    {draft.terms.map((t) => t.value).join("、") || "未填写"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>排除词</dt>
+                  <dd>
+                    {draft.exclusions.map((t) => t.value).join("、") || "无"}
+                  </dd>
+                </div>
+                {draft.source === "links" && (
+                  <div>
+                    <dt>内容链接</dt>
+                    <dd>{draft.links}</dd>
+                  </div>
+                )}
+              </dl>
+            </section>
+            <section>
+              <h2>运行设置</h2>
+              <dl className="detail-list">
+                <div>
+                  <dt>运行方式</dt>
+                  <dd>{draft.mode === "once" ? "单次采集" : "持续监控"}</dd>
+                </div>
+                {draft.mode === "monitor" && (
+                  <>
+                    <div>
+                      <dt>执行频率</dt>
+                      <dd>
+                        {draft.schedule.kind === "daily"
+                          ? `每日 ${draft.schedule.times.join("、")}`
+                          : `每 ${draft.schedule.interval} 小时`}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>执行窗口</dt>
+                      <dd>
+                        {draft.schedule.kind === "interval"
+                          ? `${draft.schedule.start}–${draft.schedule.end}`
+                          : "按每日设定时间"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>时区</dt>
+                      <dd>{draft.schedule.timezone}</dd>
+                    </div>
+                  </>
+                )}
+              </dl>
+            </section>
+          </div>
+          {blockers.length > 0 && (
+            <Notice tone="warning">
+              <strong>启动前还需完成</strong>
+              <ul className="blocker-list">
+                {blockers.map((reason, i) => (
+                  <li key={i}>{reason}</li>
+                ))}
+              </ul>
+            </Notice>
+          )}
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={verified === fingerprint}
+              disabled={starting}
+              onChange={(e) =>
+                setVerified(e.target.checked ? fingerprint : null)
+              }
+            />
+            我已核对以上画像版本、搜索条件、账号与运行设置
+          </label>
+          {action.error && <Notice tone="error">{action.error}</Notice>}
+          {resultUnknown && (
+            <Notice
+              tone="warning"
+              action={
+                <Button
+                  onClick={() =>
+                    navigate(
+                      draft.mode === "monitor" ? "/monitors" : "/collection",
+                    )
+                  }
+                >
+                  查看任务列表
+                </Button>
+              }
+            >
+              启动结果尚未确认，请先检查任务列表，避免重复创建。
+            </Notice>
+          )}
+          <div className="task-footer">
+            <Button disabled={starting} onClick={() => changeStep(1)}>
+              返回修改
+            </Button>
+            <Button disabled={starting} onClick={save}>
+              保存草稿
+            </Button>
+            <Button
+              variant="primary"
+              loading={starting}
+              disabled={
+                blockers.length > 0 || verified !== fingerprint || resultUnknown
+              }
+              onClick={() => void start()}
+            >
+              确认并启动
+            </Button>
+          </div>
+        </div>
+      )}
+      {draft.savedAt && (
+        <p className="field-hint">
+          本机会话草稿保存于 {formatDate(draft.savedAt)}；退出登录会清除。
+        </p>
+      )}
+      {preview && (
+        <Modal
+          title="更新搜索建议"
+          onClose={() => setPreview(null)}
+          footer={
+            <>
+              <Button onClick={() => setPreview(null)}>保留当前</Button>
+              <Button onClick={() => acceptSuggestion("replace_unedited")}>
+                替换未修改的建议
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => acceptSuggestion("append")}
+              >
+                合并新增建议
+              </Button>
+            </>
+          }
+        >
+          <p className="muted">
+            人工新增、修改和删除的词项会保留，平台与监控设置不会改变。
+          </p>
+          <h3>搜索关键词</h3>
+          <div className="suggestion-list">
+            {preview.keywords.map((v, i) => (
+              <span key={i}>{v}</span>
+            ))}
+          </div>
+          <h3>排除词</h3>
+          <div className="suggestion-list">
+            {preview.exclusions.map((v, i) => (
+              <span key={i}>{v}</span>
+            ))}
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}

@@ -1,0 +1,473 @@
+{
+  "environment": "macOS in-app Chromium; measured CSS viewport; not Windows OS scaling",
+  "checks": [
+    {
+      "page": "P06",
+      "target": [
+        1280,
+        720
+      ],
+      "height": 720,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1280,
+      "visibleDialog": false,
+      "width": 1280
+    },
+    {
+      "page": "P11",
+      "target": [
+        1280,
+        720
+      ],
+      "height": 720,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1280,
+      "visibleDialog": false,
+      "width": 1280
+    },
+    {
+      "page": "P15",
+      "target": [
+        1280,
+        720
+      ],
+      "height": 720,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1280,
+      "visibleDialog": true,
+      "width": 1280
+    },
+    {
+      "page": "P18",
+      "target": [
+        1280,
+        720
+      ],
+      "height": 720,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1280,
+      "visibleDialog": false,
+      "width": 1280
+    },
+    {
+      "page": "P19",
+      "target": [
+        1280,
+        720
+      ],
+      "height": 720,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1280,
+      "visibleDialog": false,
+      "width": 1280
+    },
+    {
+      "page": "P20",
+      "target": [
+        1280,
+        720
+      ],
+      "height": 720,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1280,
+      "visibleDialog": false,
+      "width": 1280
+    },
+    {
+      "page": "P06",
+      "target": [
+        1366,
+        768
+      ],
+      "height": 768,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1366,
+      "visibleDialog": false,
+      "width": 1366
+    },
+    {
+      "page": "P11",
+      "target": [
+        1366,
+        768
+      ],
+      "height": 768,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1366,
+      "visibleDialog": false,
+      "width": 1366
+    },
+    {
+      "page": "P15",
+      "target": [
+        1366,
+        768
+      ],
+      "height": 768,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1366,
+      "visibleDialog": true,
+      "width": 1366
+    },
+    {
+      "page": "P18",
+      "target": [
+        1366,
+        768
+      ],
+      "height": 768,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1366,
+      "visibleDialog": false,
+      "width": 1366
+    },
+    {
+      "page": "P19",
+      "target": [
+        1366,
+        768
+      ],
+      "height": 768,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1366,
+      "visibleDialog": false,
+      "width": 1366
+    },
+    {
+      "page": "P20",
+      "target": [
+        1366,
+        768
+      ],
+      "height": 768,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1366,
+      "visibleDialog": false,
+      "width": 1366
+    },
+    {
+      "page": "P06",
+      "target": [
+        1440,
+        1024
+      ],
+      "height": 1024,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1440,
+      "visibleDialog": false,
+      "width": 1440
+    },
+    {
+      "page": "P11",
+      "target": [
+        1440,
+        1024
+      ],
+      "height": 1024,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1440,
+      "visibleDialog": false,
+      "width": 1440
+    },
+    {
+      "page": "P15",
+      "target": [
+        1440,
+        1024
+      ],
+      "height": 1024,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1440,
+      "visibleDialog": true,
+      "width": 1440
+    },
+    {
+      "page": "P18",
+      "target": [
+        1440,
+        1024
+      ],
+      "height": 1024,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1440,
+      "visibleDialog": false,
+      "width": 1440
+    },
+    {
+      "page": "P19",
+      "target": [
+        1440,
+        1024
+      ],
+      "height": 1024,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1440,
+      "visibleDialog": false,
+      "width": 1440
+    },
+    {
+      "page": "P20",
+      "target": [
+        1440,
+        1024
+      ],
+      "height": 1024,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1440,
+      "visibleDialog": false,
+      "width": 1440
+    },
+    {
+      "page": "P06",
+      "target": [
+        1920,
+        1080
+      ],
+      "height": 1080,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1920,
+      "visibleDialog": false,
+      "width": 1920
+    },
+    {
+      "page": "P11",
+      "target": [
+        1920,
+        1080
+      ],
+      "height": 1080,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1920,
+      "visibleDialog": false,
+      "width": 1920
+    },
+    {
+      "page": "P15",
+      "target": [
+        1920,
+        1080
+      ],
+      "height": 1080,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1920,
+      "visibleDialog": true,
+      "width": 1920
+    },
+    {
+      "page": "P18",
+      "target": [
+        1920,
+        1080
+      ],
+      "height": 1080,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1920,
+      "visibleDialog": false,
+      "width": 1920
+    },
+    {
+      "page": "P19",
+      "target": [
+        1920,
+        1080
+      ],
+      "height": 1080,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1920,
+      "visibleDialog": false,
+      "width": 1920
+    },
+    {
+      "page": "P20",
+      "target": [
+        1920,
+        1080
+      ],
+      "height": 1080,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 1920,
+      "visibleDialog": false,
+      "width": 1920
+    },
+    {
+      "page": "P06",
+      "target": [
+        2560,
+        1440
+      ],
+      "height": 1440,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 2560,
+      "visibleDialog": false,
+      "width": 2560
+    },
+    {
+      "page": "P11",
+      "target": [
+        2560,
+        1440
+      ],
+      "height": 1440,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 2560,
+      "visibleDialog": false,
+      "width": 2560
+    },
+    {
+      "page": "P15",
+      "target": [
+        2560,
+        1440
+      ],
+      "height": 1440,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 2560,
+      "visibleDialog": true,
+      "width": 2560
+    },
+    {
+      "page": "P18",
+      "target": [
+        2560,
+        1440
+      ],
+      "height": 1440,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 2560,
+      "visibleDialog": false,
+      "width": 2560
+    },
+    {
+      "page": "P19",
+      "target": [
+        2560,
+        1440
+      ],
+      "height": 1440,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 2560,
+      "visibleDialog": false,
+      "width": 2560
+    },
+    {
+      "page": "P20",
+      "target": [
+        2560,
+        1440
+      ],
+      "height": 1440,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 2560,
+      "visibleDialog": false,
+      "width": 2560
+    },
+    {
+      "page": "P06",
+      "target": [
+        960,
+        600
+      ],
+      "height": 600,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 960,
+      "visibleDialog": false,
+      "width": 960
+    },
+    {
+      "page": "P11",
+      "target": [
+        960,
+        600
+      ],
+      "height": 600,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 960,
+      "visibleDialog": false,
+      "width": 960
+    },
+    {
+      "page": "P15",
+      "target": [
+        960,
+        600
+      ],
+      "height": 600,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 960,
+      "visibleDialog": true,
+      "width": 960
+    },
+    {
+      "page": "P18",
+      "target": [
+        960,
+        600
+      ],
+      "height": 600,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 960,
+      "visibleDialog": false,
+      "width": 960
+    },
+    {
+      "page": "P19",
+      "target": [
+        960,
+        600
+      ],
+      "height": 600,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 960,
+      "visibleDialog": false,
+      "width": 960
+    },
+    {
+      "page": "P20",
+      "target": [
+        960,
+        600
+      ],
+      "height": 600,
+      "horizontalOverflow": false,
+      "mainPresent": true,
+      "scrollWidth": 960,
+      "visibleDialog": false,
+      "width": 960
+    }
+  ]
+}

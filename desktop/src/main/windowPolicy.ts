@@ -2,22 +2,47 @@ import type { BrowserWindowConstructorOptions } from 'electron';
 
 const APP_PROTOCOL = 'yike:';
 const APP_HOST = 'app';
+export const APP_URL = 'yike://app/index.html';
 
-export function mainWindowOptions(preload: string): BrowserWindowConstructorOptions {
+export function mainWindowOptions(
+  preload: string,
+  workArea?: {width: number; height: number}
+): BrowserWindowConstructorOptions {
+  const width = Math.min(1440, workArea?.width ?? 1440);
+  const height = Math.min(1024, workArea?.height ?? 1024);
   return {
-    width: 1180,
-    height: 760,
-    minWidth: 960,
-    minHeight: 640,
+    width,
+    height,
+    minWidth: Math.min(960, width),
+    minHeight: Math.min(600, height),
     show: false,
+    title: '意客AI',
+    backgroundColor: '#ffffff',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      webviewTag: false,
+      navigateOnDragDrop: false,
+      spellcheck: false,
       preload
     }
   };
+}
+
+/** Only the packaged top-level document may receive a preload capability. */
+export function isTrustedRendererDocument(rawUrl: string): boolean {
+  return rawUrl.split('#', 1)[0] === APP_URL;
+}
+
+export function isTrustedRuntimeSender(
+  documentUrl: string | undefined,
+  isMainFrame: boolean,
+  belongsToMainWindow: boolean
+): boolean {
+  return isMainFrame && belongsToMainWindow && typeof documentUrl === 'string' &&
+    isTrustedRendererDocument(documentUrl);
 }
 
 export function rendererAssetForUrl(

@@ -1,0 +1,120 @@
+import type {ApiResult} from '../shared/contracts';
+import {validatedOperation, type ServiceOperation} from './servicePolicy';
+
+export function configuredService(
+  input: string | undefined,
+  environment: {packaged: boolean; allowLoopbackHttp: boolean}
+): string | null {
+  if (!input || /[\x00-\x20\x7f\\]/.test(input)) return null;
+  try {
+    const url = new URL(input);
+    if (url.username || url.password || url.search || url.hash || url.pathname !== '/') return null;
+    const loopbackHttp = !environment.packaged && environment.allowLoopbackHttp &&
+      ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) && url.protocol === 'http:';
+    return url.protocol === 'https:' || loopbackHttp ? url.origin : null;
+  } catch { return null; }
+}
+
+type Fetcher = (url: string, options: RequestInit) => Promise<Response>;
+interface ServiceClientOptions {
+  baseUrl: string | null;
+  fetch: Fetcher;
+  clearSession: () => Promise<void>;
+  timeoutMs?: number;
+  maxResponseBytes?: number;
+}
+
+async function boundedJson(response: Response, limit: number): Promise<unknown> {
+  if (Number(response.headers.get('content-length')) > limit) {
+    await response.body?.cancel();
+    throw new Error('SERVICE_RESPONSE_TOO_LARGE');
+  }
+  if (response.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
+    await response.body?.cancel();
+    throw new Error('SERVICE_NON_JSON_RESPONSE');
+  }
+  if (!response.body) throw new Error('SERVICE_INVALID_RESPONSE');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let text = '';
+  try {
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > limit) {
+        await reader.cancel();
+        throw new Error('SERVICE_RESPONSE_TOO_LARGE');
+      }
+      text += decoder.decode(value, {stream: true});
+    }
+    text += decoder.decode();
+    return JSON.parse(text);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'SERVICE_RESPONSE_TOO_LARGE') throw error;
+    throw new Error('SERVICE_INVALID_RESPONSE');
+  } finally { reader.releaseLock(); }
+}
+
+function responseError(data: unknown, status: number): string {
+  if (data && typeof data === 'object' && 'detail' in data) {
+    const detail = data.detail;
+    if (detail && typeof detail === 'object' && 'code' in detail &&
+      typeof detail.code === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(detail.code)) return detail.code;
+  }
+  return `HTTP_${status}`;
+}
+
+export function createServiceClient(options: ServiceClientOptions): {request(input: unknown): Promise<ApiResult>} {
+  let queue: Promise<unknown> = Promise.resolve();
+  let pending = 0;
+  async function execute(operation: ServiceOperation): Promise<ApiResult> {
+    if (options.baseUrl === null) return {ok: false, status: 0, error: 'SERVICE_NOT_CONFIGURED'};
+    const abort = new AbortController();
+    const timeout = setTimeout(() => abort.abort(), options.timeoutMs ?? 12_000);
+    try {
+      const response = await options.fetch(options.baseUrl + operation.path, {
+        method: operation.method,
+        headers: {
+          Accept: 'application/json',
+          Origin: options.baseUrl,
+          ...(operation.body !== undefined ? {'Content-Type': 'application/json'} : {})
+        },
+        body: operation.body,
+        credentials: 'include', redirect: 'manual', cache: 'no-store', signal: abort.signal
+      });
+      if (response.status >= 300 && response.status < 400 || response.redirected) {
+        await response.body?.cancel();
+        return {ok: false, status: response.status, error: 'SERVICE_REDIRECT_REJECTED'};
+      }
+      const data = await boundedJson(response, options.maxResponseBytes ?? 2_097_152);
+      return response.ok ? {ok: true, status: response.status, data} : {
+        ok: false, status: response.status, error: responseError(data, response.status)
+      };
+    } catch (error) {
+      const code = abort.signal.aborted ? 'SERVICE_TIMEOUT' : error instanceof Error &&
+        ['SERVICE_RESPONSE_TOO_LARGE', 'SERVICE_NON_JSON_RESPONSE', 'SERVICE_INVALID_RESPONSE'].includes(error.message)
+        ? error.message : 'SERVICE_UNAVAILABLE';
+      return {ok: false, status: 0, error: code};
+    } finally {
+      clearTimeout(timeout);
+      if (operation.logout) {
+        try { await options.clearSession(); }
+        catch { return {ok: false, status: 0, error: 'SESSION_CLEAR_FAILED'}; }
+      }
+    }
+  }
+  return {
+    request(input) {
+      const operation = validatedOperation(input);
+      if (!operation) return Promise.resolve({ok: false, status: 0, error: 'INVALID_API_REQUEST'});
+      if (pending >= 16) return Promise.resolve({ok: false, status: 0, error: 'SERVICE_BUSY'});
+      pending++;
+      // Serial ordering keeps a pending login from restoring cookies after logout.
+      const result = queue.then(() => execute(operation)).finally(() => { pending--; });
+      queue = result.catch(() => undefined);
+      return result;
+    }
+  };
+}

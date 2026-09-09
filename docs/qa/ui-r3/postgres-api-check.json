@@ -1,0 +1,31 @@
+{
+  "environment": "isolated local PostgreSQL 16 in Docker; non-production synthetic fixtures only",
+  "at": "2026-09-09T07:33:50.109035+00:00",
+  "image": "postgres@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94",
+  "passed": 22,
+  "checks": [
+    "anonymous profile access rejected",
+    "signed token login creates cookie session",
+    "secure HttpOnly cookie flags",
+    "fresh application role can read empty tenant profile list",
+    "real PostgreSQL profile insert via UI facade",
+    "profile identical save is idempotent",
+    "stored description preserves full content",
+    "second tenant does not see first tenant profile",
+    "second tenant cannot confirm first tenant version",
+    "real profile confirmation succeeds",
+    "repeated confirmation queues one research task",
+    "authorized opportunity list returns scoped stored row",
+    "cross-tenant opportunity detail rejected",
+    "manual followup persists through actual facade",
+    "followup list roundtrip",
+    "followup tenant isolation",
+    "foreign Origin write rejected",
+    "missing sender never returns fake success",
+    "actual app role is non-superuser and no RLS bypass",
+    "unset tenant context cannot read rows",
+    "logout clears cookie",
+    "session inaccessible after logout"
+  ],
+  "no_external_messages_sent": true
+}

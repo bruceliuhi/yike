@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUtc": "2026-09-09T08:02:42.062527+00:00",
+  "source": {
+    "baseCommit": "5929de671d314748f621a1992c646acee5622f67",
+    "state": "frozen working tree before candidate commit",
+    "inputCount": 46,
+    "inputManifestSha256": "a645ca9b4cebf207523ddffd779d743731ac6fd109c877f11ce428400f448e35",
+    "manifestRecipe": "sorted relative path + NUL + hex SHA-256 + newline",
+    "inputs": {
+      "desktop/assets/yike.icns": "f93e910440d9a4e7f5af1912f7160b93d5b10976f0f3c86c517e49e4fb088e9a",
+      "desktop/assets/yike.ico": "7408190377425bcf743cc3e7b4db8d966052bfe9cc75a02e9216fe0cdd1400a6",
+      "desktop/forge.config.ts": "c7c668d6892e8cfc5055d2fbbc952ed8da3f904c14175321c3c93480622a114d",
+      "desktop/package-lock.json": "50acb7eedd32a65c25ea9e813d62c9e0e2d60aee0a185e06a87242a2d02c63e8",
+      "desktop/package.json": "45ad09658ecdc0a51297367f652fe04f4a2eef4997563c4d9f1c49410bc68a76",
+      "desktop/src/main/main.ts": "c38aa3ce7d42485b91e47b7ed0faef057a6d16d1ea9171cc10b2b379bf0aefd7",
+      "desktop/src/main/rendererAssets.ts": "eb70e8bbe44ef603bb1c7ada5a002838af80e544ba8e7b45c040e286090cc3d6",
+      "desktop/src/main/serviceClient.ts": "b4fad787326d9eda39d16d5875eaed0a327bcc6f21ab4c861928f66ce6d1e596",
+      "desktop/src/main/servicePolicy.ts": "57135f7c997f6a68fbfc9dfaaf5b85df62a9c7ed5c9ba5c3638141a1361c0b02",
+      "desktop/src/main/squirrel-startup.d.ts": "6297de1a26f86cae303cacccc167f24207ad6c835ab85601d57ef0033430a0d0",
+      "desktop/src/main/windowPolicy.ts": "b9fd128049f47129cf745d282ffece33159509831a0ebb261adb501978dfdbfc",
+      "desktop/src/preload/index.ts": "19e3b7246f067b6fce4aef29b7c9212bb8fd4e6542625ea5bea8dda1dd1e0d33",
+      "desktop/src/renderer/app/App.tsx": "41781ca054241a419fd96ae0981ae6bf4bffcbab327ecfe1e9eedc93702aa14f",
+      "desktop/src/renderer/app/context.tsx": "b76095513c55d2213e63c3c798bde55bd253ce508dbba7214e539dac3cd9e3e4",
+      "desktop/src/renderer/app/hooks.ts": "8221ee0c15dc3a2d33fd91221f9775438bca590a4f5bd2a8e635736b3d749f68",
+      "desktop/src/renderer/app/main.tsx": "7a051f7225483a2269e80f292bb5684b72795897dbaeeac68f1401c85d0c0abd",
+      "desktop/src/renderer/app/operationLedger.ts": "8953c0bf8109e10898ff204acf9d8118c874fd323a03abe22a782d259f03ba79",
+      "desktop/src/renderer/app/taskDraft.ts": "a4af9a89284ec117ceb6678c4b32c1584551fb31a8394e25a5cca79e04342a67",
+      "desktop/src/renderer/assets/logo.png": "b4f4bade37c5806f618c243af90747b7596f2b248d739eaa3130378f1a4f7595",
+      "desktop/src/renderer/base.css": "0e7afcc559b8240725e319dd8a8c8f5a7cf59c9107bd9e0e900b1b57857756c9",
+      "desktop/src/renderer/components/TermEditor.tsx": "af5b57e4ea09df7934a37a8a11fe158271d6070b4ffe6114c7db6bac4d243195",
+      "desktop/src/renderer/components/ui.tsx": "238306c2dd7df38a171b5a2df687188eb4d586d12e2377d3cadc5c4e0b0a67c5",
+      "desktop/src/renderer/domain/candidates.ts": "aae293df07a0b333b7dd9a5fc77e572d45129d5eb7db414cafdbcc1f631ed11d",
+      "desktop/src/renderer/domain/models.ts": "fb11d4118d41a7cf4847f2a9c1e5a3474595a290e2a47b7b26a9a5f51c1d215f",
+      "desktop/src/renderer/domain/routes.ts": "e7783c6c41ffb3979928a453a26d2f73960064b962edf7111e584d40a9015794",
+      "desktop/src/renderer/domain/task.ts": "05b0a6fb2d09b19d4d982cff48f911ffb6303f34472a806495bfd7f53ea2d1bf",
+      "desktop/src/renderer/env.d.ts": "65996936fbb042915f7b74a200fcdde7e410f32a669b1ab9597cfaa4b0faddb5",
+      "desktop/src/renderer/index.html": "c536784c71f4f936b1c408158b9031632167b65fdbb26959189d6ce93f9cbfe0",
+      "desktop/src/renderer/pages/Connections.tsx": "e1fea6a99b7998e9e9db424450b4f77360d336eaecfcf9a1887af9fa20d85580",
+      "desktop/src/renderer/pages/Followups.tsx": "4955d0f33c3d970f4013cea16110456f267d6f56de65b8c84c8a19d82aa0785a",
+      "desktop/src/renderer/pages/Login.tsx": "c304baf637973b23eb1f06f2eb465a3a1b19b01d085352d7a952049405cb9c17",
+      "desktop/src/renderer/pages/Opportunities.tsx": "5d91927b31e1f36165cd411eb7eae1729823839c4de49b80d99e93de9bd79ab9",
+      "desktop/src/renderer/pages/Outreach.tsx": "35f274328d9ab97395c7d5143d3614812de8542ce091bbb065643ca62af2eb72",
+      "desktop/src/renderer/pages/Profile.tsx": "07819f451d6b8db124b66641df6eba4b7deeaa9c89a5f16d9572068973579ff3",
+      "desktop/src/renderer/pages/Settings.tsx": "43a17be51b27ce2bed46bcfe5c79cf79c6471e69ee707bdb226766a5c286f469",
+      "desktop/src/renderer/pages/TaskWizard.tsx": "1a093485ace3a4418b48e03c1bf6a39812d8073f5293b3d7041edfa59150f586",
+      "desktop/src/renderer/pages/Tasks.tsx": "d3121539b31514588da042e5f741912e9f9fbcf320c89d2477ad7c19bed7b378",
+      "desktop/src/renderer/pages/Workbench.tsx": "d3f0c887da2b5eeec7cb51a2d94427a703557811ecfd674365c620ec59c8a4c5",
+      "desktop/src/renderer/services/client.ts": "84de4534f0a8548a3e32e47236e1a7be1f765bf7210706bebb394c1d67f5d06b",
+      "desktop/src/renderer/services/contracts.ts": "87a46d336e46ebe16f781ae1ce95848b527a70252cb209b84927d449e1a196d2",
+      "desktop/src/renderer/styles.css": "e72ff52d51b9e8c2d897e1d4108d39768bd1b56487da73b353ac0cf402419004",
+      "desktop/src/shared/contracts.ts": "505a277965d590ff5f690f4413833b3abe6dbe31912d8b034c324920554349e1",
+      "desktop/tsconfig.json": "9e16fdd9b587c8a044a5568f317118a3fa300a501264d70168613268bb0edd1f",
+      "desktop/vite.main.config.ts": "d16eac7bf0cef42ba9bda2d86f9c65bcaae95183c106b73e80d95c8caacdfb1d",
+      "desktop/vite.preload.config.ts": "5986b9cc77564207d0cc54ea06fe4a7f021435dfdceb902aa9d15d4426d0c615",
+      "desktop/vite.renderer.config.ts": "0582abe9c25ff82133d5edbe06f9dcaf49b0898527a27b6d0188c13d9a3879d1"
+    }
+  },
+  "build": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "macOSVersion": "26.5.2",
+    "nodeVersion": "v24.19.0",
+    "npmVersion": "10.8.2",
+    "electronVersion": "43.4.1",
+    "applicationVersion": "0.2.0",
+    "command": "npm run make:mac",
+    "exitCode": 0,
+    "installedDependencyOverrides": {
+      "tar": "7.5.22",
+      "tmp": "0.2.7"
+    }
+  },
+  "checks": {
+    "unitTests": {
+      "command": "npm test",
+      "exitCode": 0,
+      "filesPassed": 24,
+      "testsPassed": 216
+    },
+    "nativeTransport": {
+      "command": "node scripts/run-native-service-smoke.mjs",
+      "exitCode": 0,
+      "passed": [
+        "actual service Origin",
+        "memory cookie roundtrip",
+        "session isolation",
+        "redirect rejection",
+        "logout clearing"
+      ]
+    },
+    "packageStructure": {
+      "archive": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/app.asar",
+      "version": "0.2.0",
+      "main": ".vite/build/main.cjs",
+      "rendererAssetCount": 21,
+      "archiveSha256": "fb970401b4a117e4ca0be599d9fd2d044e5b7c85e8f43d783b0cfd1607c17522",
+      "rendererHashes": {
+        "index.html": "e37b7eabcd8cda2df4047fed75f37c40e1de2867e71ca330ed3d8e9b6de682b3",
+        "assets/ArrowRight.es-BGMC8m8O.js": "2e36a8dae6d8489aeedcf01600d0bb77cda726fc713c0916f4c65440013086a1",
+        "assets/ArrowSquareOut.es-BqZjHKL4.js": "6c50f971302023823048a691e60a29b9334f419e1a8fbce67914bb9d705cd3da",
+        "assets/Check.es-Dz3eJMqc.js": "e294699d4c100962d7cd0f3df95fc39fd60bbecb82cd1234797d674123440da6",
+        "assets/Globe.es-Daens53z.js": "9bba7fba0de77939bae993b5fe637208a23056308b3918b3f593d686cf95d02a",
+        "assets/Plus.es-DADUf2NP.js": "97a4a9228df8291c2d99f42eebb6574c0028fa48c456c82c073492d3eab83f37",
+        "assets/operationLedger-DbyjFT6F.js": "577cce7358a32ec2a517e9fdeebfca6b3364967a5b29c1e7e33b72fa9dc46d25",
+        "assets/taskDraft-DeXFr8Zu.js": "7a5779d9c94283a2f527304d9eb4e75739b45596b6fe60006d6d1d3b7cf76ecf",
+        "assets/logo-B-T1ksKV.png": "b4f4bade37c5806f618c243af90747b7596f2b248d739eaa3130378f1a4f7595",
+        "assets/index-C6e4J1cL.js": "344b8784538515a433309ec93a1d3bc84d018f70d6f47e75bdca34d0002f1a3a",
+        "assets/index-BKXOdCQZ.css": "cfd06e827253c0fa02bc00f329ec29cbfcff73bb961a0af6ca0122cfbda1b22c",
+        "assets/Connections-aPh7C9et.js": "0ebd156f96cfd42fe1e7af7c684ca748309f6796146adfbe26c0cc7df46a4e54",
+        "assets/Followups-BEUNcNTt.js": "381613fde34f0a584dc4c570ec58697ccc027dc7885035b4c79bfc43bc7c55d6",
+        "assets/Login-CmcXF9hm.js": "cde5f3a09a67b1af0ea5caf1f051ab99fd4f1db5676f6a44371f9764ff27395e",
+        "assets/Opportunities-1sUp3KHv.js": "86b35713768ce90cdfeaf3ee8cd3ccbd342cc5d544c549a18a00c419fee2a027",
+        "assets/Outreach-CvwVd1IR.js": "fa1cbdf94ababdff28aaa4a3fab4d242adc8e223073e4aa84172c1d26f3dc1b9",
+        "assets/Profile-abVTZSLr.js": "43fca6b8058a5d2ad1b221ffee0bdb6577341931f2c33a229dee6cdebe586eeb",
+        "assets/Settings-B70ODLle.js": "ffb124f3f64f8a0df590c861cc471f691c3e80fb53161499d10403d45c9b09e5",
+        "assets/TaskWizard-RCOsQWg_.js": "3200afc8a5153519c62016faf82a7a51d8516bb6749026a83b59beb154d2adc6",
+        "assets/Tasks-C1Pk1KLf.js": "6939d4661262420dac8ca9f6a51b4d9a2db1eb5e9d7ccd5e731cc3939993ee72",
+        "assets/Workbench-ChWZKoCj.js": "f623a8ef67dcdb20ab01bfdcfcbe1a7c2bdf5dadefb71f365ab671f81e295063"
+      },
+      "verified": "Package structure and bytes only; does not prove installation or business readiness."
+    },
+    "packagedRuntime": {
+      "command": "node scripts/run-packaged-smoke.mjs <app.asar>",
+      "exitCode": 0,
+      "passed": [
+        "actual packaged main/preload/renderer",
+        "sandbox/context isolation/no Node integration",
+        "yike custom protocol",
+        "workbench rendering",
+        "fixed IPC validation",
+        "honest unconfigured service",
+        "invalid native primitives rejected",
+        "cancelled quit preserves window",
+        "confirmed quit exits normally"
+      ]
+    },
+    "zipIntegrity": {
+      "crc": "passed",
+      "containedArchiveSha256": "fb970401b4a117e4ca0be599d9fd2d044e5b7c85e8f43d783b0cfd1607c17522"
+    },
+    "approvedIcon": {
+      "bundleResource": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/electron.icns",
+      "sha256": "f93e910440d9a4e7f5af1912f7160b93d5b10976f0f3c86c517e49e4fb088e9a",
+      "matchesApprovedIcns": true
+    }
+  },
+  "artifacts": {
+    "app": "desktop/out/意客AI-darwin-arm64/意客AI.app",
+    "asar": {
+      "path": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/app.asar",
+      "bytes": 1462923,
+      "sha256": "fb970401b4a117e4ca0be599d9fd2d044e5b7c85e8f43d783b0cfd1607c17522"
+    },
+    "zip": {
+      "path": "desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip",
+      "bytes": 122384080,
+      "sha256": "f7719bb9c809b38d47000a04b5eb04cac84a3eb7ef3fb2a3d7460e72f7588b1a"
+    }
+  },
+  "scope": {
+    "customerServiceConfiguredForSmoke": false,
+    "usesCustomerData": false,
+    "externalMessagesSent": false,
+    "clipboardChanged": false,
+    "externalLinksOpened": false,
+    "visibleAppAcceptance": "passed on macOS via CUA: visible launch, task inputs, save draft, 3 steps, honest blocked start, Cmd+Q process exit and relaunch; see IMPLEMENTATION_REVIEW.md",
+    "codeSignedForDistribution": false,
+    "notarized": false,
+    "windowsX64InstallerBuilt": false,
+    "productionServiceAcceptance": "CP-06 remains separate"
+  },
+  "warnings": [
+    "Forge/Vite emitted an inlineDynamicImports deprecation warning; build exited 0.",
+    "Packaged smoke emitted an fs.Stats deprecation warning; smoke exited 0.",
+    "Installed tar/tmp overrides passed this macOS build path; Windows installer compatibility still needs a Windows build."
+  ]
+}
