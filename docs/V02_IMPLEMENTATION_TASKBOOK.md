@@ -10,6 +10,8 @@ V1.0 是首个正式商用版；为保留任务、提交和验收溯源，本任
 
 2026-09-09 R4 增量范围已获用户“R4 确认”。六组设计与目标合同见 [R4 入口](../design/v02-suite-r4/README.md)，视觉确认及新增实现尚未完成；不清零 R3 进度、不重编号、不将下表新增能力标为已完成。视觉确认后按现有 03/04/05/06/07/08 子卡归属补正式合同和验收。R3 仍需处理的界面状态与可见证据见 [P01–P09 审计](qa/ui-final-acceptance/R3_REMAINING_STATE_AUDIT.md)、[P10–P20 审计](qa/ui-final-acceptance/R3_REMAINING_STATE_AUDIT_P10_P20.md)。
 
+上述段落是范围确认时快照。随后用户已允许六组继续开发并要求统一搜贝，实际授权以[R4确认记录最新节](../design/v02-suite-r4/APPROVAL.md)为准，随主线 `448e88a` 接收；不重复索取整套设计批准。搜贝换算与售价仍未定，目标交互不是已实现计量/收费服务；当前分阶段顺序继续复用这些已授权设计。
+
 - 起点：`codex/customer-pilot / eac3c4c`，已包含 `f82a9ae` 的客户试用和安全修改，以及规划、设计图和 Logo。
 - 可复用：画像及确认建任务、人工复核包校验、逐条事务和来源版本、商机证据、人工跟进、短期签名会话、PostgreSQL 与 v3 RLS。
 - 尚缺：客户自主登录/激活、设备执行授权与真实平台连接、原始候选 API、多平台采集与监控、Skill 实际运行入口、真实收发、全部页面交互验收、Windows 发行。受信研究包的 PostgreSQL 整包原子导入及服务端会话撤销已补齐；原始候选 API 尚未完成。
@@ -74,9 +76,10 @@ CodexiMac并行主线集成快照（2026-09-09）：正常合并最新 main `f7e
 | V02-01B / CodexiMac，CodexWin接收 | DONE（仅会话撤销/权限升级子卡） | 原 `120b938`、权限修复 `222119e`；接收 `f42ea909`，服务端/迁移/部署对象与222相同；集成 `bea5c7d` | 2026-09-09 CodexWin ACK；独立PG重跑与最小角色升级通过，136定向与647/58全量为不同集合、不相加。独立 `api_contract_gaps` PASS；不覆盖设备认证、正常登录或取消在途任务，下一步仍为01C/D |
 | V02-02A / CodexiMac主实现，CodexWin接收 | DONE（仅候选DTO/来源纯契约） | 原代码 `3f0afad`、整合 `e4d1695`；Win发现IDNA不同站点误合并/等价IPv6漏去重P2，更正 `d14594f042b094885f439477d376399cfd3e5ab5`，集成 `95285dd`；[验收](qa/V02-02A_REVIEW.md)保留Mac877通过及各轮独立审核历史 | 2026-09-09 CodexWin限定ACK `d14594f`；新37反例RED→GREEN，独立reviewer `windows_bootstrap_fix` 及根代理各221项定向通过，锁定依赖节点不变。仅解锁02C原始字段输出映射；01C授权、02B上传/事务和真实平台未完成，见[Win记录](qa/WIN_CROSS_REVIEW_20260909.md) |
 | V02-01C / CodexiMac，CodexWin限定接收 | IN_PROGRESS；持钥后端子链已ACK，执行授权继续 | 代码 `c3702c0`、最终审 `7e4ab7c`、接收 `65d8676`、正常集成 `f925560`；[验收](qa/V02-01C_DEVICE_KEYS_REVIEW.md)保留Mac925及合并962历史，独立代码/架构/质量及合入PASS；本次仅勘误契约两处文案 | 2026-09-09 Win对持钥后端限定ACK：真实PG定向123通过、Node→HTTP→受限PG往返通过；全量908通过/54既有Windows失败，见[Win证据](qa/WIN_CROSS_REVIEW_20260909.md)。连接版本、执行租约/取消/提交授权、02B上传及09D安全落盘未完成；回执不是执行token，不整卡DONE |
-| V02-01C-CV / CodexiMac | IN_PROGRESS；已实际认领连接版本 fencing 切片 | base `714b323469a465e4291937bb2ab9a23438497826`，分支 `codex/mac-device-authorization`；计划 [2026-09-09-connection-version-fencing.md](superpowers/plans/2026-09-09-connection-version-fencing.md)；拟新增107迁移和连接版本/变更回执/会话事务核验，只读锁定当前连接边界 | 实现与验收证据待后续登记；不改既有01C持钥交付和验收结论，实际Win ACK仍未发生，不标整个01C或03A DONE，02B上传仍未实现 |
+| V02-01C-CV / CodexiMac | READY_FOR_REVIEW；后端候选已独立源码审，等待最终集成与Win接收 | base `714b323`，分支 `codex/mac-device-authorization`；代码 `a8a36fe`新增107连接版本/不可变操作回执/当前会话事务核验；独立connection_version_review规格与质量PASS，定向224通过、合并前Mac全量1025通过，见[验收](qa/V02-01C_CONNECTION_VERSIONS_REVIEW.md)与[Win交接](handoffs/V02-01C_CONNECTION_VERSIONS_MAC_TO_WIN.md) | 合并d49出现旧进程与Node冷启动失败，修复af0faf6后待最终集成验证；实际Win CV ACK未发生。05D须绑定request/device/connection/version并查原回执，不能把HTTP200拒绝当成功；整个01C/03A及02B上传仍未完成 |
 | V02-05A / CodexMac，保留原前端工作及主线交接记录 | IN_PROGRESS | UI `58c8a7d`，整合 `b89df6c`；资料/跟进/任务原请求恢复、P10结构化列、P07持久复核、P16断开及平台原Logo已补；[最新验收](qa/ui-final-acceptance/REVIEW.md)有20页清晰对照、120项视口检查和Mac新包。Node24.19下61文件626passed/21专属skip，不与历史数相加 | 保留其余状态矩阵、真实后台与Windows实机未完成项；P04/P08展开状态和P09/P15底部滚动已验证。新包隔离ASAR启动通过，未打断用户旧客户端重走可见原生操作。接入仍按05B～G/07C/08B/09C/E，具体文件先交接，不重建已交付UI |
 | V02-10E / CodexiMac 侧 baseline_clock_fix；Windows缺口由Win接续 | IN_PROGRESS；时钟切片已ACK并集成 | 候选 `475166a` / 审查快照 `e577f4b`，随 `f42ea909` 集成到 `bea5c7d`；历史Mac624/7见[原审核](qa/BASELINE_CLOCK_REVIEW.md) | 2026-09-09 CodexWin限定ACK时钟/权威修复；独立Windows566通过/58失败/7跳过、原生时钟34通过、新fixture16通过；修复175个旧失败/错误且无同名原通过变失败。Windows旧POSIX/编码/换行缺口见[Win复核](qa/WIN_CROSS_REVIEW_20260909.md)，不宣称全仓或整链通过 |
+| V02-10E-PROC / CodexiMac侧 integration_process_diagnosis | READY_FOR_REVIEW；合并失败的最小进程修复 | base `d49fb0a`，候选 `af0faf6`；仅`app/collector.py`、`tests/test_collector.py`和`desktop/tests/windowsBuildRuntime.test.mjs`；组停止有界确认和Node冷启动预算分离；Python56通过，Node23通过/14既有条件跳过 | 原合并失败保留在[验收记录](qa/V02-01C_CONNECTION_VERSIONS_REVIEW.md)；待非实现者复核与主代理冻结候选集成验证，不冒充新09B sidecar或Linux/Windows实机通过 |
 
 2026-09-09 CodexWin最新接收：以上01A/B限定子卡已ACK `f42ea909` 并集成到 `bea5c7d`，取代前文历史“未收到ACK”状态。原 `222119e` 全量在Windows为647通过/58失败/0跳过，失败集合与独立clock基线相同；事件契约P2已由独立修复和复审关闭，集成定向161通过。没有接受01C/D或真实平台 capability。完整命令、原始证据摘要和剩余缺口见[Win交叉复核](qa/WIN_CROSS_REVIEW_20260909.md)。
 

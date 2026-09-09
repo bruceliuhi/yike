@@ -35,4 +35,12 @@ PG测试观察真实Lock wait_event后再释放，覆盖检查器与重连/断�
 
 remote9e27723的前端断开仍调用`disconnect(platform)`并期待void，只在本地保存UUID。05D须显式接入request/device/connection/version及GET原回执，不能将HTTP200的REJECTED当成已断开；当前默认不可用保持。检查器还须与持钥、任务/策略/预算、run/lease/generation和结果提交同事务衔接。完整01C、02B、03A、真实Windows、平台收发、生产及UAT继续未完成。
 
-整分支、远端合并及最终验证另行追加；本候选测试不预先证明后来代码通过。
+## 合并失败与有界修复（保留原结果）
+
+正常合并主线5022b36形成d49fb0a后，Mac同时运行后端和Vitest：后端1024通过/1失败（108.72s），原`test_supervisor_cancel_terminates_then_kills_the_whole_process_group`返回后heartbeat由`2`变为空；桌面627通过/21条件跳过/1失败，新复制Node夹具ready在3秒超时。该轮typecheck/build因前置失败没有执行，不能用合并前1025通过回填。
+
+独立integration_process_diagnosis定位：POSIX组SIGKILL提交后未确认后代停止；隔离复测通过不能豁免该边界。Node精确单测也曾失败，冷副本启动约1.90～2.35秒、同副本复用约32～34ms，失败发生另一夹具清理前，未证明清理误删。没有更改原断言、平台跳过或通过重试改写失败。
+
+修复候选 `af0faf6a67b26b23a2adae7c5e66c36bc88d977a` 仅改旧collector和相关Python/Node测试：SIGKILL后有界确认，未知走既有FAILED且不重复清理；仅冷ready使用10秒，IPC/close仍3秒。TDD初始Python5失败/Node1失败，修复后collector56通过、Node23通过/14既有平台条件跳过；原真实取消/超时两测5轮均通过。长期僵尸组或权限未知2秒后保守失败，Linux该行为未实测，不声称全平台进程验收完成。实现者定向结果不等于独立合并通过。
+
+随后正常纳入R4授权主线448e88a形成66f5de3，保留两端成果；分阶段优先级文档经execution_preflight独立审核PASS，5文件74本地链接与secret scan通过。整分支最终验证及审核另行追加，当前仍不是平台收发、Windows或生产验收。
