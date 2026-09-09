@@ -153,6 +153,8 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 
 ## 7. 进度更新与证据格式
 
+2026-09-09 CodexiMac认领 **V02-04C判断与人工复核切片**，base `f3770a415effa89b459c51e432cc78e9da050bc0`，继续隔离 `codex/mac-device-authorization`。**113预留本片；108/110仍归Win**，111/112不可改写。按[实施计划](superpowers/plans/2026-09-09-candidate-assessment-review-slice.md)交付版本化Skill分析、显式人工来源核验、复核入库及原请求查询；04A/B仍由Win实施，生产策略resolver与真实样本不以fixture补齐。当前IN_PROGRESS，不重做02B/R4，不声明04C或Goal完成。
+
 2026-09-09 CodexiMac完成02B工程候选 **07431ca**（cf86c56核心＋9c49a50 HTTP），复用当前隔离 `codex/mac-device-authorization`。独立最终审核发现一次并发读取不一致P2，经真实双会话RED→GREEN、单SQL快照修正后复审PASS；最终57专项、根代理5个并发/HTTP复现通过。历史316/211与当前集合不相加。[02B交接](contracts/V02_RAW_CANDIDATE_INBOX.md)可供Win接入，迁移112归本片且接收后不可改写，108/110仍留Win。下一步Mac **04C判断/复核＋接收Win真实策略**，再贯通真实来源和收发，不重复执行已审底座或重建R4。单纯API可注入不代表默认生产启用、来源已读、Win已ACK或Goal完成；下面认领/旧切片记录保留历史时间边界。
 
 2026-09-09 CodexiMac认领 **V02-02B原始候选上传/读取切片**，base `3874d6225d9dad1bd5b1e3f915ef03c7f9fd60f8`，复用隔离 `codex/mac-device-authorization`。**112预留Mac候选入库；108/110仍归Win**，不改111执行迁移。范围为原始记录、不可变版本/观察、稳定候选ID、幂等预算事务及认证原始收件箱API；[实施计划](superpowers/plans/2026-09-09-candidate-ingestion-slice.md)已包含独立实现/审核与共享预算反例。消费已有02A/01C/03A，不抢04A/B、05B/C或真实来源适配文件；原始候选不自动成为已审核商机。当前IN_PROGRESS，无真实采集/上线或02B完成声明。
