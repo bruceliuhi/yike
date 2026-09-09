@@ -116,3 +116,29 @@ uv lock --check --offline
 原e4的182集合未含2项导入CLI，新集合另增37反例，不能直接把总数差当成修复失败数。旧XML `.runtime/win-candidate-e4d1695-targeted.xml` SHA256 `d8a213de823107af13399d88fbbb8520dfd006f911b1c933b5aaa4ade7ef4f67`；新XML `.runtime/win-candidate-idna-fixed.xml` SHA256 `921ead0cc9d00106edb5769489f926c9fd8a0232e530d4f4d8ecfcb76b75ee7b`，保留两份。尚无HTTP上传、授权租约、持久事务或真实来源证明；旧Normalizer的trim/必填作者不等于新契约完整适配。
 
 同期远端 `0a3ccf70efb569c39b3f91a558ab4b39140fd2f1` 纳入Mac前端流程/品牌及02A最终交接记录。正常整合到 `37592ed36e7979147bdc187d57dabe6801d3b02b`，只解决任务书冲突：保留Mac02C接收、Win09A状态和双方全部代码。`supplychain_readiness` 独立核对index中UI与0a、候选模块与d145完全一致；未把未暂存runtime修复混入。根代理在Windows以Node24.19执行 `vitest run tests/ui tests/taskOperations.test.ts`：39文件/423 passed，随后typecheck通过。此结果不取代Mac493/1skip或完整Windows构建；P10字段与品牌截图限制仍按[Mac审核](ui-flow-completion/REVIEW.md)保留。远端两原始日志自带空行/尾空格，未改写其字节；排除这两日志的集成diffcheck通过。
+
+## 6. 统一运行时与整合后完整Windows构建
+
+运行时修复 `0b79a6884b5a4047a06c396d8af5a5cca0da7f12`：首项Node最低要求24.15；直接用选定Node运行npm CLI，按真实npm-prefix语义定位，不再用npm.cmd选择另一个Node。只修改子进程环境副本，报告只序列化6个白名单字段；package/lock仅根engines改变，依赖节点未升级。
+
+作者 `windows_bootstrap_fix` / PS子执行者 `runtime_bootstrap`，独立reviewer `win_contract_readiness`。原evidence三反例RED，runtime实际CLI与范围/环境反例RED，PS真实无Node/首项24.11拒绝RED后修复。第一次34项通过仍被独立审核发现P2：11个实际x64 Node夹具未隔离Mac ARM适用范围。修复仅测试门禁，生产限制不放宽；新增8项选择矩阵有4 failed/4 passed的逻辑RED，不能称为实际Mac执行。最终独立42 passed/2 skipped，原Windows34项均实际通过；2个新skip是当前x64主机不适用的非x64/不支持Windows宿主拒绝分支。根代理连同staging复跑64 passed/2 skipped，typecheck通过。没有真实Mac ARM或Windows ARM复跑证据。
+
+整合后Python候选/来源/解析/导入/身份/会话/UI十文件：316 passed（2.02s）；`.runtime/win-integrated-candidate-ui.xml` SHA256 `54f0c561da5e1e0b32ee99869cd6f6cdb9f7a3f2752478188493466d287a8564`。与此前PG全量不是同一集合，不以316替代真实数据库或58个既有Windows失败的处置。
+
+从干净提交 **`f4d4a560993a4c02d897e60712f4f51b0265c9f1`** 实际执行完整脚本；仅当前PowerShell进程的PATH前置已选Node目录，不改机器设置。报告 `dirty=false`、Node24.19.0、npm11.6.2、`adjacent-local`、`selected-node-direct-cli`；Node和CLI摘要均记录，未出现旧Node依赖engine警告。
+
+| 阶段 | 本次结果 |
+|---|---|
+| preflight / dependencies / typecheck | PASSED |
+| unit-tests | PASSED，52文件 / 550 passed / 2明确skipped，69.84s |
+| native-smoke | PASSED，实际Electron Origin、内存Cookie、会话隔离、拒绝重定向及退出清理 |
+| make-win / artifacts | PASSED，Squirrel中文工作区已通过staging制作；产物记录不等于发行通过 |
+| archive-check | FAILED，校验脚本误报主入口不存在，后续定位为Windows ASAR查询路径分隔符不匹配 |
+| packaged-smoke | NOT_RUN |
+| 安装、可见运行、卸载、缩放 | UNTESTED |
+
+550/2及69.84s来自根代理完整构建控制台（exec session 9670），不是JSON内置计数字段；JSON仅记录阶段状态和退出码，未另存本次控制台原始日志。
+
+失败报告 `desktop/out/windows-evidence/2026-09-09T11-31-01-267Z-c0ae1c30/windows-build.json` SHA256 `583f8377901f1ee5af20cd075711b323f8bb9a2bc61eb0a34aaab4c8476f422a`，未覆盖旧make失败报告。其ASAR SHA256 `aee5e624987dd99f4b6b820d92003e2f00a1c5904a5aaac23b01af55a702a52a`，Setup SHA256 `dbea9147ff5aed17b0851b74bd3e079ae7e8ef25c550da3b9439610e12d149b1`；均为**全链失败候选，不提供安装验收或发布批准**。
+
+根代理只读列出该ASAR实际42个条目，并用 `path.normalize` 查询同一未修改归档，读取主入口80406字节、preload502字节、index584字节。原入口确实存在，不归咎于Vite漏打包；应按[校验器修复计划](../superpowers/plans/2026-09-09-win-asar-verification.md)补真实ASAR/CLI反例，不修改归档或跳过检查。npm仍报告17 high及已有弃用/git完整性警告，Vite仍有旧选项弃用警告；不视为随打包路径或运行时修复自动关闭。Goal保持ACTIVE。
