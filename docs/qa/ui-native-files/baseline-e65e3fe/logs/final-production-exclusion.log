@@ -1,0 +1,51 @@
+vite v8.2.2 building client environment for production...
+transforming...
+✓ 4779 modules transformed.
+rendering chunks...
+computing gzip size...
+out/visual-production-check/index.html                               0.56 kB │ gzip:   0.36 kB
+out/visual-production-check/assets/xiaohongshu-CwpQmenZ.png          2.48 kB
+out/visual-production-check/assets/bilibili-B4f0lnyN.ico             4.28 kB
+out/visual-production-check/assets/douyin-FBAm5jUt.ico               4.28 kB
+out/visual-production-check/assets/zhihu-OfkkMzms.ico                4.28 kB
+out/visual-production-check/.vite/manifest.json                      7.20 kB │ gzip:   1.20 kB
+out/visual-production-check/assets/logo-B-T1ksKV.png               826.34 kB
+out/visual-production-check/assets/Platform-DHJI-W19.css             0.38 kB │ gzip:   0.21 kB
+out/visual-production-check/assets/Followups-BEcgu2i8.css            0.63 kB │ gzip:   0.29 kB
+out/visual-production-check/assets/Profile-BQAZSynW.css              0.92 kB │ gzip:   0.43 kB
+out/visual-production-check/assets/Outreach-BdvfCDuK.css             1.99 kB │ gzip:   0.69 kB
+out/visual-production-check/assets/Workbench-BBPw0GCx.css            2.42 kB │ gzip:   0.79 kB
+out/visual-production-check/assets/PendingTaskStarts-BqiSuAXA.css    2.93 kB │ gzip:   0.95 kB
+out/visual-production-check/assets/Opportunities-DcLfveqg.css        3.61 kB │ gzip:   1.08 kB
+out/visual-production-check/assets/Tasks-D_VHXXEg.css                3.90 kB │ gzip:   1.20 kB
+out/visual-production-check/assets/TaskWizard-D7TM1lBJ.css           5.43 kB │ gzip:   1.39 kB
+out/visual-production-check/assets/index-BHVrdGRX.css               33.39 kB │ gzip:   7.56 kB
+out/visual-production-check/assets/ArrowRight.es-BUbD7tLX.js         1.53 kB │ gzip:   0.60 kB
+out/visual-production-check/assets/Plus.es-Bx-kWfxv.js               1.54 kB │ gzip:   0.56 kB
+out/visual-production-check/assets/ArrowSquareOut.es-Bv8SgX4s.js     2.34 kB │ gzip:   0.83 kB
+out/visual-production-check/assets/download-B-uQR4Il.js              2.46 kB │ gzip:   1.26 kB
+out/visual-production-check/assets/TermEditor-C6sNJ4Fg.js            2.60 kB │ gzip:   1.31 kB
+out/visual-production-check/assets/PendingTaskStarts-CY_angnY.js     3.25 kB │ gzip:   1.74 kB
+out/visual-production-check/assets/OutreachQueue-DTkuDiYy.js         4.92 kB │ gzip:   2.33 kB
+out/visual-production-check/assets/Platform-B0jBaO7A.js              6.56 kB │ gzip:   2.20 kB
+out/visual-production-check/assets/taskDraft-Cnlq6KKt.js             6.78 kB │ gzip:   3.08 kB
+out/visual-production-check/assets/Login-Ccb8gWcL.js                 8.78 kB │ gzip:   3.22 kB
+out/visual-production-check/assets/Connections-DIv2nKS8.js          18.39 kB │ gzip:   6.55 kB
+out/visual-production-check/assets/Workbench-DYdBKwCM.js            21.41 kB │ gzip:   7.70 kB
+out/visual-production-check/assets/Settings-Cditg233.js             22.18 kB │ gzip:   7.55 kB
+out/visual-production-check/assets/operationLedger-CyBwLyrZ.js      30.11 kB │ gzip:  10.30 kB
+out/visual-production-check/assets/Followups-CGkLQ4Kl.js            33.63 kB │ gzip:  10.95 kB
+out/visual-production-check/assets/Outreach-CUYp2N4r.js             40.92 kB │ gzip:  12.97 kB
+out/visual-production-check/assets/Profile-C2mPtffd.js              46.25 kB │ gzip:  14.13 kB
+out/visual-production-check/assets/TaskWizard-V-pjuG54.js           57.78 kB │ gzip:  16.83 kB
+out/visual-production-check/assets/Tasks-BOHRfBB9.js                66.30 kB │ gzip:  19.91 kB
+out/visual-production-check/assets/Opportunities-CQ7KmwPG.js        86.47 kB │ gzip:  25.98 kB
+out/visual-production-check/assets/index-DjZIkD-m.js               376.52 kB │ gzip: 113.94 kB
+
+✓ built in 291ms
+{
+  "productionGraphModules": 4778,
+  "manifestHarnessReferences": 0,
+  "existingAsarChecked": true,
+  "failures": []
+}
