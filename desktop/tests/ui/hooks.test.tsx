@@ -24,6 +24,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
   clearLocalDrafts();
 });
@@ -205,6 +206,19 @@ describe("persistent draft recovery and ownership", () => {
 });
 
 describe("resource identity and late results", () => {
+  it("ends an unbounded read, aborts it, and ignores its late response after retry", async () => {
+    vi.useFakeTimers();
+    const old = deferred<string>();
+    let signal: AbortSignal | undefined;
+    const loader = vi.fn().mockImplementationOnce((value?: AbortSignal) => { signal = value; return old.promise; }).mockResolvedValueOnce("fresh");
+    const { result } = renderHook(() => useResource<string>(loader));
+    await act(async () => { await vi.advanceTimersByTimeAsync(31_001); });
+    expect(result.current.error).toBe("读取超时，请重试。");
+    expect(result.current.loading).toBe(false); expect(signal?.aborted).toBe(true);
+    await act(async () => { await result.current.reload(); });
+    await act(async () => old.resolve("late"));
+    expect(result.current.data).toBe("fresh");
+  });
   it("never renders the previous account data while the next account loads or fails", async () => {
     const next = deferred<string>();
     const loader = vi.fn((id: string) =>

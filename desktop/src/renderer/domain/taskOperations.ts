@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { TaskAction, TaskDraft, TaskRun } from "./models";
 import { taskFingerprint } from "./task";
+import { usageReservationSchema, type UsageReservation } from "./researchUsage";
 
 const id = z.string().regex(/^[A-Za-z0-9_-][A-Za-z0-9_.:-]{0,127}$/);
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
@@ -125,6 +126,7 @@ export async function hashText(value: string) {
     .join("");
 }
 export interface TaskStartBinding {
+  usageReservation?: UsageReservation;
   requestId: string;
   draftId: string;
   revision: number;
@@ -142,6 +144,7 @@ export function startEntry(binding: TaskStartBinding) {
     binding.revision,
     binding.configurationHash,
     binding.mode,
+    ...(binding.usageReservation ? [binding.usageReservation] : []),
   ]);
 }
 export function readStartEntry(
@@ -149,9 +152,10 @@ export function readStartEntry(
   entry: string,
 ): TaskStartLookup | undefined {
   try {
-    const [requestId, rev, digest, kind] = z
-      .tuple([z.string(), revision, hash, mode])
+    const [requestId, rev, digest, kind, usageReservation] = z
+      .tuple([z.string(), revision, hash, mode]).rest(usageReservationSchema)
       .parse(JSON.parse(entry));
+    if (JSON.parse(entry).length > 5) return;
     if (requestId !== `task:${draftId}:${rev}`) return;
     return {
       draftId,
@@ -159,6 +163,7 @@ export function readStartEntry(
       revision: rev,
       configurationHash: digest,
       mode: kind,
+      ...(usageReservation ? { usageReservation } : {}),
     };
   } catch {
     const prefix = `task:${draftId}:`;
@@ -170,6 +175,7 @@ export function readStartEntry(
   }
 }
 const startFields = {
+  usageReservation: usageReservationSchema.optional(),
   requestId: z.string().min(1).max(700),
   draftId: z.string().min(1).max(512),
   revision,
@@ -186,6 +192,7 @@ const startReceipt = z.discriminatedUnion("status", [
     ...startFields,
     status: z.literal("REJECTED"),
     confirmedNotStarted: z.literal(true),
+    confirmedNoUsageReserved: z.literal(true).optional(),
     message: z.string().max(2000).optional(),
   }),
   z.object({
@@ -212,6 +219,11 @@ export function parseStartReceipt(
     (expected.mode && receipt.mode !== expected.mode)
   )
     throw new Error("启动回执与原请求或确认配置不匹配，保护继续保留。");
+  if (expected.usageReservation && (receipt.status === "ACCEPTED" || receipt.status === "REJECTED") &&
+      (!receipt.usageReservation || Object.entries(expected.usageReservation).some(([key, value]) => receipt.usageReservation![key as keyof UsageReservation] !== value)))
+    throw new Error("启动回执尚未确认原搜贝上限与计量规则，保护继续保留。");
+  if (expected.usageReservation && receipt.status === "REJECTED" && receipt.confirmedNoUsageReserved !== true)
+    throw new Error("原请求的搜贝预留尚未核对，保护继续保留。");
   if (!expected.configurationHash || !expected.mode)
     throw new Error(
       "旧请求未保存确认配置摘要，请联系服务方核对原请求；当前不会重复启动。",

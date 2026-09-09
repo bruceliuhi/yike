@@ -19,6 +19,8 @@ import { RecoveryControls } from "./RecoveryControls";
 import { referenceRoute } from "./routing";
 import "../../src/renderer/styles.css";
 import "./visual.css";
+import { configureR4Visual, r4TaskDraft, R4_TEST_SCOPE } from "./r4";
+import { taskDraftOwner } from "../../src/renderer/app/taskDraft";
 
 const params = new URLSearchParams(location.search);
 const state = (
@@ -56,8 +58,10 @@ const harness = createVisualService(
   page === "P01" || params.get("session") === "guest",
 );
 const reference = params.get("reference") === "r3";
+const r4 = params.get("suite") === "r4";
 if (reference && state !== "error" && state !== "loading")
   applyReferenceState(harness.service, page);
+if (r4) configureR4Visual(harness.service, state);
 if (params.get("capabilities") === "complete" && state === "populated") {
   harness.service.materials = makeVisualMaterials();
   harness.service.followup = makeVisualFollowup();
@@ -75,8 +79,10 @@ const storage = isolateBrowser(harness.record);
 const seed = (name: string, value: unknown) =>
   storage.session.setItem("yike.ui.draft.v1." + name, JSON.stringify(value));
 if (state === "populated") {
-  seed(`task.${TEST_USER}`, taskDraft(page === "P20" ? "monitor" : "once"));
-  seed(`task-library.${TEST_USER}`, [taskDraft("once"), taskDraft("monitor")]);
+  const owner = taskDraftOwner(TEST_USER, r4 ? R4_TEST_SCOPE : undefined);
+  const makeTask = r4 ? r4TaskDraft : taskDraft;
+  seed(`task.${owner}`, makeTask(page === "P20" ? "monitor" : "once"));
+  seed(`task-library.${owner}`, [makeTask("once"), makeTask("monitor")]);
   if (!reference) {
     seed(`materials.${TEST_USER}`, [
       {

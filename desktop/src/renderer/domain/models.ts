@@ -30,6 +30,7 @@ export interface Schedule {
   timezone: string;
 }
 export interface TaskDraft {
+  research?: import("./researchUsage").ResearchSettings;
   templateSourceDraftIds?: string[];
   id: string;
   revision: number;
@@ -141,6 +142,8 @@ export interface RuntimeInfo {
 export interface Session {
   authenticated: boolean;
   userId?: string;
+  /** Supplied by the authenticated service, never inferred from resource data. */
+  accountScope?: { id: string; version: number };
 }
 export type TaskAction = "pause" | "resume" | "cancel" | "retry";
 export interface TaskPlatformStage {

@@ -8,9 +8,9 @@
 
 V1.0 是首个正式商用版；为保留任务、提交和验收溯源，本任务书继续使用 `V02-*`/`MP-*` 编号。V1.1 仅保留设计、未启动；不将其映射项标记为 `IN_PROGRESS`。版本范围见 [V1 版本映射](V1_VERSION_MAPPING.md)，本文仍是唯一实施状态台账。
 
-2026-09-09 R4 增量范围已获用户“R4 确认”，当时视觉仍待确认；后续用户明确“其余没问题，可以继续开发”，最新授权及统一搜贝用量要求见 [R4确认记录](../design/v02-suite-r4/APPROVAL.md)。六组设计与目标合同见 [R4 入口](../design/v02-suite-r4/README.md)，新增实现及真实验收尚未完成；不清零 R3 进度、不重编号、不将下表新增能力标为已完成。按现有 03/04/05/06/07/08 子卡归属补正式合同和验收，执行优先级采用第7节用户最新“端到端体验＋三个亮点”要求。R3 仍需处理的界面状态与可见证据见 [P01–P09 审计](qa/ui-final-acceptance/R3_REMAINING_STATE_AUDIT.md)、[P10–P20 审计](qa/ui-final-acceptance/R3_REMAINING_STATE_AUDIT_P10_P20.md)。
+2026-09-09 R4 六组图展示后，用户明确“其余没问题，可以继续开发”，并要求以搜贝统一研究用量。[R4 入口](../design/v02-suite-r4/README.md)及[确认记录](../design/v02-suite-r4/APPROVAL.md)已更新为实现授权；六组前端及条件交互已落入候选 `cbc61703347c407413f8a732a6ca9a5637258eba`，涵盖 P02 简报、P06 研究配置（联动 P19/P20）、P09 搜索覆盖 / 补查、P10 需求分类、P11 证据时间线 / 相似研究草稿、P12 短句教练。工作仍归原 03/04/05/06/07/08 子卡，不清零 R3、不重编号；可选服务未接通时准确不可用，不以接口定义或隔离 TEST 夹具将真实服务标为完成。搜贝用量与确认边界见[搜贝合同](UI_RESEARCH_USAGE_CONTRACT.md)，本轮证据见[R4 验收](qa/ui-r4/README.md)和[设计验收](../design-qa.md)。R3 余项继续按 [P01–P09 审计](qa/ui-final-acceptance/R3_REMAINING_STATE_AUDIT.md)、[P10–P20 审计](qa/ui-final-acceptance/R3_REMAINING_STATE_AUDIT_P10_P20.md)收口，完整 Goal 尚未完成。
 
-R4实际授权随主线 `448e88a` 接收，不重复索取整套设计批准。搜贝换算与售价仍未定，目标交互不是已实现计量/收费服务；当前分阶段顺序继续复用这些已授权设计。
+执行优先级保留第7节用户最新“端到端体验＋三个亮点”安排。R4 实际授权随主线 `448e88a` 接收；搜贝换算与售价仍未定，目标交互不代表已接通计量或收费服务。
 
 - 起点：`codex/customer-pilot / eac3c4c`，已包含 `f82a9ae` 的客户试用和安全修改，以及规划、设计图和 Logo。
 - 可复用：画像及确认建任务、人工复核包校验、逐条事务和来源版本、商机证据、人工跟进、短期签名会话、PostgreSQL 与 v3 RLS。
@@ -55,9 +55,9 @@ V02-05 的[全页面设计 R3](../design/v02-suite-r3/README.md)已于 2026-09-0
 | V02-02 多平台连接器与客户数据 / 采集＋后端 | IN_PROGRESS | 受信导入事务、候选/来源纯契约02A及Win保行为解析器02C切片已集成；继续设备授权、原始候选上传事务与实际平台适配 | 依赖 01；每个平台真实搜索/读取；安全 API 入候选、幂等、事务回滚、平台/租户隔离；不向桌面开放管理员导入 | main `e4d1695`；[02A验收](qa/V02-02A_REVIEW.md)与[Win切片](qa/WIN_CROSS_REVIEW_20260909.md)，不代表上传/平台已接通 |
 | V02-03 持续任务执行器 / 后端＋桌面 | IN_PROGRESS | Mac启动01C/03A任务/run/最小租约与提交fence；随后02B入库，逐平台接入与调度继续 | 依赖 01/02/04B 可用子项；每平台多轮含无新增、部分成功、暂停/恢复、过期接管与失效恢复；旧执行者不能回写 | base bc56ed1，[执行切片计划](superpowers/plans/2026-09-09-execution-runtime-slice.md)；实现与真实验收未完成 |
 | V02-04 Skill、意向与复核 / AI＋后端 | IN_PROGRESS | 通用研究 Skill 已迁入 `skills/ai-project-lead-research-v1`（`9c092be`）；下一步定义真实运行入口、证据校验与用户复核接口 | 依赖 02 候选层；实际模型/工具运行，引用原文；未复核候选不进已批准商机，设备不能伪造复核人 | `9c092be`；规则包契约测试 2 passed，运行验收未提供 |
-| V02-05 画像与任务界面 / 产品设计＋前端 | IN_PROGRESS | R3 整套 `APPROVED_FOR_IMPLEMENTATION`；按图实现全部页面、交互、适配与既有能力接入，保留自动搜索建议/可编辑词/人工修改保护；真实建议服务仍需 V02-04/05 补齐 | 设计实现授权已获得；接 01～04 API；客户从空空间配置、启动、复核、暂停/恢复；同视口截图对照，缺失后台能力不伪报成功 | 设计基准 `5929de6`；实现与验证过程见 [UI 实施记录](UI_R3_IMPLEMENTATION.md)，历史 `10ab8b6` 候选的前端24文件216项与Pilot UI/Web 62项通过，Mac已打包并可见操作验收；全链后台和Windows仍未验收 |
+| V02-05 画像与任务界面 / 产品设计＋前端 | IN_PROGRESS | R3 整套及 R4 六组已获实现授权，R4 前端已实现；继续真实接口接入与剩余逐状态验收，保留自动搜索建议/可编辑词/人工修改保护；真实建议服务仍需 V02-04/05 补齐 | 设计实现授权已获得；接 01～04 API；客户从空空间配置、启动、复核、暂停/恢复；同视口截图对照，缺失后台能力不伪报成功 | 最新 R4 候选 `cbc6170` 及分版本证据见 [R4 验收](qa/ui-r4/README.md)与下方05A；设计基准 `5929de6`、历史 `10ab8b6` 的前端216项/Pilot 62项及Mac可见验收保留于 [UI 实施记录](UI_R3_IMPLEMENTATION.md)，不与最新结果相加；全链后台和本候选Windows仍未验收 |
 | V02-06 真实触达通道 / 通道＋后端 | NOT_STARTED | 立即验证能力条件，定义对象映射及发送/回执/回复契约 | 依赖 01 身份；真实采集对象到收件人映射、可联系性、确认后真实发送和关联回复；失败原因准确 | 未提供 |
-| V02-07 草稿、确认与发送队列 / 后端＋前端 | IN_PROGRESS | 前端三队列、独立草稿、确认快照、持久防重及原请求核对已实现；继续接真实队列、生成/发送/回执后台 | 依赖 04/06；对象、内容版本、渠道或连接改变使确认失效；真成功/失败/未知对账；未经确认不发送 | [R3 交互增量](qa/ui-interactions/REVIEW.md)；默认真实通道尚未接入，不等于已发送 |
+| V02-07 草稿、确认与发送队列 / 后端＋前端 | IN_PROGRESS | 前端三队列、独立草稿、确认快照、持久防重及原请求核对已实现；R4补短句教练与联系准备交互，继续接真实队列、生成/发送/回执后台 | 依赖 04/06；对象、内容版本、渠道或连接改变使确认失效；真成功/失败/未知对账；未经确认不发送 | [R3 交互增量](qa/ui-interactions/REVIEW.md)、[R4 验收](qa/ui-r4/README.md)；默认真实通道及短句服务尚未接入，不等于已生成客户草稿或已发送 |
 | V02-08 回复与跟进工作台 / 后端＋前端 | NOT_STARTED | 先定义事件关联、撤销/修正、未读/到期与统计口径 | 依赖 05/07；真实回复归到正确租户/商机；人工事实与平台事实分开；状态不能随意回退，统计可复算 | 未提供 |
 | V02-09 Windows 发行与许可 / 桌面＋交付 | IN_PROGRESS | Win干净84c4b6f完整自动链570项通过/2跳过，含Squirrel/ASAR/包内冒烟，夹具独立文件已审核；继续sidecar/隔离存储和生命周期 | 真实Windows安装/卸载、休眠/取消/恢复、授权、更新/回退；[依赖发行风险](qa/BUILD_DEPENDENCY_AUDIT_20260909.md)仍未关闭 | staging `e9983ed`、runtime `0b79a68`、ASAR `3c16fac`、夹具 `84c4b6f`；[Win实测](qa/WIN_CROSS_REVIEW_20260909.md)保留所有历史失败；人工UNTESTED、17 high未关闭，不等于发行 |
 | V02-10 集成、独立审核与试用 / QA＋交付 | NOT_STARTED | 先明确逐平台样例、客户操作脚本和证据格式 | 02～09 完成；锁定 SHA，三方独立复核；客户自行走通整链；需服务端部署时通过 CP-06 | 未提供 |
@@ -78,7 +78,7 @@ CodexiMac并行主线集成快照（2026-09-09）：正常合并最新 main `f7e
 | V02-01C / CodexiMac，CodexWin限定接收 | IN_PROGRESS；持钥后端子链已ACK，执行授权继续 | 代码 `c3702c0`、最终审 `7e4ab7c`、接收 `65d8676`、正常集成 `f925560`；[验收](qa/V02-01C_DEVICE_KEYS_REVIEW.md)保留Mac925及合并962历史，独立代码/架构/质量及合入PASS；本次仅勘误契约两处文案 | 2026-09-09 Win对持钥后端限定ACK：真实PG定向123通过、Node→HTTP→受限PG往返通过；全量908通过/54既有Windows失败，见[Win证据](qa/WIN_CROSS_REVIEW_20260909.md)。连接版本后端已按下一行后续限定ACK；执行租约/取消/提交授权、02B上传及09D安全落盘仍未完成；回执不是执行token，不整卡DONE |
 | V02-01C-CV / CodexiMac主实现，CodexWin限定接收 | DONE（仅连接版本/后端操作回执与当前态检查） | Mac代码`a8a36fe`、冻结`458dd81`及历史1037/630保留在[原验收](qa/V02-01C_CONNECTION_VERSIONS_REVIEW.md)；Win在`2ce6f8a`对同字节代码独立复核，68专项通过/0跳过，真实Node24.19→HTTP→受限PG通过，[Win接收](qa/V02-01C_CONNECTION_WIN_REVIEW.md) | 2026-09-09 CodexWin限定ACK `a8a36fe`；新增同owner错设备/平台、200拒绝及历史回执消费反例经独立审核。05D仍须接持久request/device/connection/version核对，HTTP200拒绝不是成功；真实平台/安全存储/执行租约及整个01C/03A/02B未完成，10E-PROC不在本ACK范围 |
 | V02-01D-PHONE / CodexiMac | READY_FOR_REVIEW；工程切片独立通过，待Win接收和短信实测 | base `3a51a2f`；核心 `9556fab`、HTTP/客户端 `f36ec97`、最终代码 `fe78c9e`；[计划](superpowers/plans/2026-09-09-phone-login-slice.md)、[接口/验证交接](handoffs/V02-01D_PHONE_LOGIN_MAC_TO_WIN.md)；phone_auth_task_review与phone_auth_preflight独立规格/代码/架构/质量通过；109认证，108仍留Win | 真实PG+HTTP登录/退出链路通过；f36后端1092通过/0跳过，合并Win映射后定向497通过；最终桌面646通过/21既有条件跳过、类型/构建通过，旧失败及修复保留。未接真实供应商，生产sms_login=false；无注册/试用权益/Windows ACK，不整卡DONE；两项非阻断P3见交接 |
-| V02-05A / CodexMac，保留原前端工作及主线交接记录 | IN_PROGRESS | UI `58c8a7d`，整合 `b89df6c`；资料/跟进/任务原请求恢复、P10结构化列、P07持久复核、P16断开及平台原Logo已补；[最新验收](qa/ui-final-acceptance/REVIEW.md)有20页清晰对照、120项视口检查和Mac新包。Node24.19下61文件626passed/21专属skip，不与历史数相加 | 保留其余状态矩阵、真实后台与Windows实机未完成项；P04/P08展开状态和P09/P15底部滚动已验证。新包隔离ASAR启动通过，未打断用户旧客户端重走可见原生操作。接入仍按05B～G/07C/08B/09C/E，具体文件先交接，不重建已交付UI |
+| V02-05A / CodexMac，保留原前端工作及主线交接记录 | IN_PROGRESS | R4主体 `676970c`，合入远端 `2ce6f8a` 为 `190683c`，最终文案候选 `cbc6170`；六组前端、搜贝和条件服务交互已实现。[R4验收](qa/ui-r4/README.md)：190全量76文件829passed/21平台或架构条件skip；CBC文案差量3文件56passed；最终Mac make:mac、ASAR冒烟及生产TEST排除通过。历史UI `58c8a7d` / `b89df6c` 的20页、120项视口和626/21记录保留于[原验收](qa/ui-final-acceptance/REVIEW.md)，不相加、不回填 | 剩余状态/分辨率证据见[设计验收](../design-qa.md)；保留真实后台、本候选Windows、平台与计量收费未验收项。可选服务缺失仍明确不可用，TEST结果不当真实机会/消耗。接入仍按05B～G/07C/08B/09C/E，复用现有UI，不重建、不将05A或完整Goal标DONE |
 | V02-10E / CodexiMac 侧 baseline_clock_fix；Windows缺口由Win接续 | IN_PROGRESS；时钟切片已ACK并集成 | 候选 `475166a` / 审查快照 `e577f4b`，随 `f42ea909` 集成到 `bea5c7d`；历史Mac624/7见[原审核](qa/BASELINE_CLOCK_REVIEW.md) | 2026-09-09 CodexWin限定ACK时钟/权威修复；独立Windows566通过/58失败/7跳过、原生时钟34通过、新fixture16通过；修复175个旧失败/错误且无同名原通过变失败。Windows旧POSIX/编码/换行缺口见[Win复核](qa/WIN_CROSS_REVIEW_20260909.md)，不宣称全仓或整链通过 |
 | V02-10E-PROC / CodexiMac侧 integration_process_diagnosis | READY_FOR_REVIEW；Mac冻结候选通过，跨端实测保留 | base `d49fb0a`，候选 `af0faf6`，集成 `458dd81`；仅`app/collector.py`及对应Python/Node测试；组停止有界确认和Node冷启动预算分离；最终integration_final_review非实现者PASS，Mac1037后端/630桌面及类型/构建通过 | 原合并失败保留在[验收记录](qa/V02-01C_CONNECTION_VERSIONS_REVIEW.md)；Linux/Windows实际行为未测，长期未知保守FAILED，不冒充新09B sidecar或整卡10E完成 |
 
@@ -150,6 +150,12 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 共同首发 Goal 的完成还要求通过[产品计划第 7 节](V02_COMMERCIAL_RELEASE_PLAN.md)的跨行业、体验、价值和可靠性交付验收；本节 M3 不单独证明该 Goal 完成。样本不足或外部条件缺失明确保留，不能默认为通过；需要改变承诺范围时向用户提出具体决策，不自行降低标准。
 
 ## 7. 进度更新与证据格式
+
+2026-09-09 R4正常合入远端639b17d后为14aa73e；最新桌面77文件845passed/21条件skip，类型、Mac构包、ASAR和生产TEST排除通过；[精确候选证据](qa/ui-r4/README.md#最新主线合入与再验证)。下面CBC条目保留为历史，不回填。新增手机号认证和Win搜索交付归原责任人，R4真实服务仍按既有子卡接入，05A和完整Goal继续IN_PROGRESS。
+
+2026-09-09 R4 前端交付记录：CodexMac 在 `codex/r4-implementation` 完成已授权六组增量，主体 `676970c` 正常合入远端 `2ce6f8a` 为 `190683c`，最终候选 `cbc61703347c407413f8a732a6ca9a5637258eba` 仅补只读公开样例短句文案。新增页面模块、版本化可选服务合同及隔离 UI 测试，不覆盖远端手机号登录、V1 分期或 Win 认领。主线程在 Mac 对190运行桌面全量76文件829passed/21平台或架构条件skipped，对CBC运行文案差量3文件56passed；最终Mac make:mac、ASAR包内冒烟与生产TEST排除通过。独立代码/架构/质量审核、精确范围和原始证据由[R4验收](qa/ui-r4/README.md)汇总，视觉逐项结果见[设计验收](../design-qa.md)，不把历史全量说成CBC重新全量通过。
+
+本次推进的是可接服务的前端闭环：可信账户空间与版本绑定、人工修改/确认、取消/超时/未知恢复和本机草稿保留；真实研究用量、覆盖调整、需求集合/证据/类似建议、短句教练及简报服务仍待原责任子卡交付。搜贝换算、售价、真实扣费和平台执行未验收。05A继续 `IN_PROGRESS`，后续按既有05B～G/07C/08B/09C/E接入并补实际Windows和服务验收；以下端到端优先级、M3/CP-06、跨行业14天及完整Goal要求不变。
 
 2026-09-09 CodexiMac认领01C/03A执行底座切片：base`bc56ed1`，现有隔离`codex/mac-device-authorization`，新增`pilot/execution_contract.py`/`execution_runtime.py`/`execution_api.py`及专项测试。同步发现Win主线bc08e7f已预留110搜索建议持久层，故**Mac改用111，108/110继续Win**；未实施旧110执行迁移，不改历史迁移。消费Win04B同事务确认策略接口，不另造策略表或假已批准配置；签名任务/租约/提交核验之后接02B。现为IN_PROGRESS，无真实执行/Win ACK；[计划](superpowers/plans/2026-09-09-execution-runtime-slice.md)明确旧UI哈希不变，需显式新适配，不抢Win04A/B/05B/C文件。
 

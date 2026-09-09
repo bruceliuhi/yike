@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, afterEach, it, expect, vi } from "vitest";
+import { useLayoutEffect } from "react";
 import {
   act,
   cleanup,
@@ -14,7 +15,8 @@ import {
   templateFromDraft,
   draftFromTemplate,
 } from "../../src/renderer/pages/tasks/localTemplates";
-import { taskDraftSchema } from "../../src/renderer/app/taskDraft";
+import { taskDraftOwner, taskDraftSchema } from "../../src/renderer/app/taskDraft";
+import { useTaskTemplates } from "../../src/renderer/pages/tasks/useTaskTemplates";
 import { clearLocalDrafts } from "../../src/renderer/app/hooks";
 import { operationLedgerKey } from "../../src/renderer/app/operationLedger";
 import { newTaskDraft, type TaskDraft } from "../../src/renderer/domain/models";
@@ -176,6 +178,39 @@ it("clears session templates with local drafts and isolates them from another id
   act(() => clearLocalDrafts());
   expect(screen.queryByText("TEST独立模板")).toBeNull();
   expect(templates()).toEqual([]);
+});
+it("never exposes an old template deletion dialog in a new space before passive cleanup", () => {
+  const firstScope = { id: "TEST-space-a", version: 1 };
+  const secondScope = { id: "TEST-space-b", version: 1 };
+  context = { ...context, session: { ...context.session, accountScope: firstScope } };
+  const first = templateFromDraft(draft, "TEST空间A模板");
+  const second = { ...first, name: "TEST空间B同ID模板" };
+  const key = (scope: typeof firstScope) =>
+    "yike.ui.draft.v1.task-templates." + taskDraftOwner(context.session.userId, scope);
+  sessionStorage.setItem(key(firstScope), JSON.stringify([first]));
+  sessionStorage.setItem(key(secondScope), JSON.stringify([second]));
+  const beforeCleanup: boolean[] = [];
+  function TemplateProbe() {
+    const templateUI = useTaskTemplates();
+    useLayoutEffect(() => {
+      if (context.session.accountScope?.id === secondScope.id) {
+        // Observe the committed UI before the hook's effect clears its old object.
+        const dialog = screen.queryByRole("dialog", { name: "删除本机模板？" });
+        beforeCleanup.push(!!dialog);
+      }
+    }, [context.session.accountScope?.id]);
+    return <>{templateUI.section}{templateUI.dialog}</>;
+  }
+  const view = render(<TemplateProbe />);
+  fireEvent.click(screen.getByRole("button", { name: "删除模板" }));
+  expect(screen.getByRole("dialog", { name: "删除本机模板？" })).toBeTruthy();
+  context = { ...context, session: { ...context.session, accountScope: secondScope } };
+  view.rerender(<TemplateProbe />);
+  expect(beforeCleanup).toEqual([false]);
+  expect(screen.queryByRole("dialog", { name: "删除本机模板？" })).toBeNull();
+  expect(JSON.parse(sessionStorage.getItem(key(firstScope))!)).toEqual([first]);
+  expect(JSON.parse(sessionStorage.getItem(key(secondScope))!)).toEqual([second]);
+  expect(context.notify).not.toHaveBeenCalled();
 });
 it("validates bounded unique nonempty template ancestry while accepting legacy drafts", () => {
   expect(taskDraftSchema.safeParse(draft).success).toBe(true);

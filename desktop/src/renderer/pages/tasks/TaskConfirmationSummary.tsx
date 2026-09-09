@@ -6,9 +6,11 @@ import {
   type TaskDraft,
 } from "../../domain/models";
 import "./confirmation.css";
+import { DEMAND_TYPES, type UsageQuote } from "../../domain/researchUsage";
 
 export function TaskConfirmationSummary({
   draft,
+  usage,
   profile,
   connections,
   deviceReady,
@@ -16,6 +18,7 @@ export function TaskConfirmationSummary({
   onEdit,
 }: {
   draft: TaskDraft;
+  usage?: UsageQuote | null;
   profile?: Profile;
   connections: PlatformConnection[];
   deviceReady: boolean;
@@ -40,6 +43,62 @@ export function TaskConfirmationSummary({
         </div>
         <div className="task-confirm-columns">
           <dl className="detail-list">
+            {draft.research && (
+              <>
+                <div>
+                  <dt>需求类型</dt>
+                  <dd>
+                    {draft.research.demandTypes
+                      .map((type) => DEMAND_TYPES[type])
+                      .join("、")}
+                  </dd>
+                </div>
+                <div>
+                  <dt>搜贝上限</dt>
+                  <dd>
+                    {draft.research.maxSoubei === null
+                      ? "待设置"
+                      : `${draft.research.maxSoubei} 搜贝`}
+                  </dd>
+                </div>
+                <div>
+                  <dt>预计消耗</dt>
+                  <dd>
+                    {usage
+                      ? `${usage.estimatedSoubei} 搜贝 · ${usage.ruleVersion}`
+                      : "待重新估算"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>停止条件</dt>
+                  <dd>
+                    搜贝、来源、时长或模型调用达到任一上限即停止；扩大范围需重新确认。
+                  </dd>
+                </div>
+                {draft.research.provenance && (
+                  <div>
+                    <dt>相似研究来源</dt>
+                    <dd>
+                      {draft.research.provenance.sourceUrl}
+                      <br />
+                      {draft.research.provenance.additionalScope}
+                    </dd>
+                  </div>
+                )}
+                {draft.research.coverageProvenance && (
+                  <div>
+                    <dt>原检查范围</dt>
+                    <dd>
+                      {draft.research.coverageProvenance.scopeSummary}
+                      <br />
+                      原运行 {draft.research.coverageProvenance.runId} ·
+                      去重版本{" "}
+                      {draft.research.coverageProvenance.deduplicationVersion}
+                    </dd>
+                  </div>
+                )}
+              </>
+            )}
             <div>
               <dt>任务名称</dt>
               <dd>{draft.name || "未填写"}</dd>

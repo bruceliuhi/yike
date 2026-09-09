@@ -2,6 +2,8 @@ import { useEffect, useSyncExternalStore, type SetStateAction } from "react";
 import { ServiceError } from "../services/contracts";
 import { forgetLegacyOperationLock, readLegacyOperationLock } from "./hooks";
 import { parseCandidateOperation } from "../domain/candidateReviewOperation";
+import { usageReservationSchema } from "../domain/researchUsage";
+import { validCoverageAdjustmentEntry } from "../domain/coveragePlan";
 
 export type OperationScope =
   | "send-attempts"
@@ -10,6 +12,8 @@ export type OperationScope =
   | "task-operations"
   | "connection-disconnects"
   | "candidate-reviews"
+  | "contact-draft-saves"
+  | "coverage-adjustments"
   | "management-operations";
 export type OperationEntries = Record<string, string>;
 const PREFIX = "yike.ui.operation.v1.";
@@ -65,6 +69,18 @@ function validEntries(
       return false;
     if (scope === "candidate-reviews")
       return status === "PENDING" && parseCandidateOperation(key) !== null;
+    if (scope === "coverage-adjustments") return validCoverageAdjustmentEntry(key, status);
+    if (scope === "contact-draft-saves") {
+      if (status !== "PENDING") return false;
+      try {
+        const parts: unknown = JSON.parse(key);
+        return Array.isArray(parts) && parts.length === 4 &&
+          typeof parts[0] === "string" && parts[0].trim().length > 0 && parts[0].length <= 128 &&
+          ["comment", "dm"].includes(parts[1]) &&
+          typeof parts[2] === "string" && parts[2].trim().length > 0 && parts[2].length <= 128 &&
+          typeof parts[3] === "string" && /^[a-f0-9]{64}$/.test(parts[3]);
+      } catch { return false; }
+    }
     if (scope === "connection-disconnects") {
       if (status !== "PENDING" && status !== "ACKNOWLEDGED") return false;
       try {
@@ -153,7 +169,7 @@ function validEntries(
         const parts: unknown = JSON.parse(status);
         return (
           Array.isArray(parts) &&
-          parts.length === 4 &&
+          (parts.length === 4 || (parts.length === 5 && usageReservationSchema.safeParse(parts[4]).success)) &&
           Number.isSafeInteger(parts[1]) &&
           parts[1] >= 1 &&
           parts[0] === `task:${key}:${parts[1]}` &&
