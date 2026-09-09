@@ -16,7 +16,7 @@
 
 说明：仓库根目录的旧 Discovery 测试仍绑定历史 AUTHORITY SHA，不属于当前 customer-pilot 验收范围；本结论只采用 customer-pilot 专用门禁及定向套件，不将旧 gate 的失败误报为本产品回归。
 
-该结论覆盖远端分支 `codex/customer-pilot` 的当前实现，最近核对提交为 `fca816f0401cc9f4a8d65bde91c7bef17233f810`；后续代码增量已在独立质量复核中重新运行。当前本地 pilot-only 镜像为 `sha256:22cace8671c225893804da0766f76917223dff24fd4169b91da636bb2ffa5a4b`，带对应 OCI revision。所有结果均不替代目标环境验收。
+该结论覆盖远端分支 `codex/customer-pilot` 的当前实现；原始质量快照对应 `fca816f0401cc9f4a8d65bde91c7bef17233f810`，随后 UI 增量已由本记录追加复核，当前远端分支以 `cacbed6368f0f389441720efdbbb2506686ae0d7` 为准。历史本地 pilot-only 镜像为 `sha256:22cace8671c225893804da0766f76917223dff24fd4169b91da636bb2ffa5a4b`，带对应旧提交 OCI revision；本轮未重建镜像。所有结果均不替代目标环境验收。
 
 ## 阻断与边界
 
