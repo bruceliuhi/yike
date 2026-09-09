@@ -15,7 +15,7 @@ export YIKE_PILOT_ADMIN_DATABASE_URL='postgresql://<admin-user>:<password>@<priv
 export YIKE_PILOT_DATABASE_URL='postgresql://<app-user>:<password>@<private-host>:5432/<database>'
 export YIKE_PILOT_AUTH_SECRET='<random-secret-kept-outside-git>'
 uv run --frozen yike-pilot-migrate   # 仅由受信管理员/发布作业执行一次
-# 105升级：替换为既有应用角色，不使用管理员角色或 PUBLIC。
+# 104/105升级：替换为既有应用角色，不使用管理员角色或 PUBLIC。
 psql "$YIKE_PILOT_ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "SET yike.app_role = 'YOUR_EXISTING_APP_ROLE'" -f deploy/grant_session_revocations.sql
 uv sync --frozen --extra dev
 env -u YIKE_PILOT_ADMIN_DATABASE_URL uv run --frozen yike-pilot-web
@@ -25,7 +25,7 @@ env -u YIKE_PILOT_ADMIN_DATABASE_URL uv run --frozen yike-pilot-web
 
 缺少数据库 URL 或认证密钥时，启动必须失败；不会静默退回旧 SQLite 数据库。Web 进程本身不执行迁移，生产应用角色无需 CREATE/ALTER 权限；迁移必须由受信管理员或发布作业先执行。
 
-上述 `psql` 是受信发布环境工具，命令从仓库根目录执行；示例占位角色必须替换为应用 URL 对应的真实既有角色。105 升级仅补新撤销表 SELECT/INSERT，幂等可重跑，不代替初次应用角色配置。已有 schema USAGE 和 pilot_users SELECT 保持不变，不增加用户表 UPDATE 或撤销表 UPDATE/DELETE。若没有这一步，鉴权按失败关闭返回错误，不能把 `/readyz` 的数据库连通当作新表权限已验收。生产运行 env 必须单独提供，不包含管理员 URL。
+上述 `psql` 是受信发布环境工具，命令从仓库根目录执行；示例占位角色必须替换为应用 URL 对应的真实既有角色。该兼容脚本一次补齐 104 设备/连接/事件表与 105 会话撤销表：设备、连接仅 SELECT/INSERT/UPDATE，事件仅 SELECT/INSERT，会话撤销仅 SELECT/INSERT；幂等可重跑，不代替初次应用角色配置。已有 schema USAGE、pilot_users SELECT 及任务表所需既有权限保持不变；不增加用户表 UPDATE、设备/连接 DELETE，事件 UPDATE/DELETE 或撤销表 UPDATE/DELETE。若没有这一步，鉴权或身份登记 API 按失败关闭返回错误，不能把 `/readyz` 的数据库连通当作新表权限已验收。生产运行 env 必须单独提供，不包含管理员 URL。
 
 若由 HTTPS 反向代理终止 TLS，设置 `YIKE_PILOT_PROXY_HEADERS=1` 与 `YIKE_PILOT_FORWARDED_ALLOW_IPS=<反代实际来源IP或CIDR>`。后者必须是精确 allowlist，禁止设为 `*`；否则保持默认代理头信任关闭。
 

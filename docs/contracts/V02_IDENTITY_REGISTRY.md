@@ -36,6 +36,8 @@
 
 ## 验证与交接
 
+- 既有环境升级必须由受信发布作业先完成 104/105 迁移，再对既有受限应用角色执行 `deploy/grant_session_revocations.sql`，最后才启动新版应用。该脚本保留既有文件名，幂等授予设备/连接 SELECT、INSERT、UPDATE，事件 SELECT、INSERT 及会话撤销 SELECT、INSERT；拒绝特权或身份表 owner 角色。Web 运行时不持有管理员 DSN，也不获得全表、默认授权或上述契约外权限。
+
 - `tests/test_identity_contract.py`：字段白名单、边界值、迁移唯一性及路由契约。
 - `tests/test_identity_postgres.py`：专用 PostgreSQL、非超级用户 RLS、同租户外键、真实行锁并发与 HTTP API；使用合成身份，不接触平台账号。
 - 测试需要 `YIKE_IDENTITY_TEST_DATABASE_URL` / `YIKE_IDENTITY_TEST_APP_DATABASE_URL` 指向专用一次性测试库，不能指向生产库。
