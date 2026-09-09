@@ -136,6 +136,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 持久确认快照候选：在 `c32ddb6` 基线上新增 `pilot/outreach_store.py`、117 迁移、受限角色授权脚本和纯函数专项。绑定事务已加入来源 URL/平台/健康度、商机来源与 OPEN 状态、连接平台/CONNECTED 状态/连接版本重验；但尚无 PostgreSQL 并发/RLS/回滚实测，数据库也未建立到业务表的外键，不能视作生产授权。没有真实平台发送、回执对账、回复回流、Windows 或客户 UAT 证据，V02-06/07继续 `IN_PROGRESS`。
 
+2026-09-10 事实重验增量已集成 `1d1d39c5d3a4b567324918215ea5cfbd687342dd`：确认绑定事务现在锁定并重查来源平台/公开 URL/健康度、商机来源与 OPEN 状态、连接平台/CONNECTED 状态/连接版本；缺失、关闭、阻断或版本变化均拒绝持久化。专项测试 **12 passed**。这仍是服务端防伪边界，不包含 PostgreSQL 实测、真实发送或回复回流。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
