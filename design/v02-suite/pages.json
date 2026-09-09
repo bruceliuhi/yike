@@ -1,0 +1,122 @@
+[
+  {
+    "id": "P01",
+    "title": "登录与试用",
+    "active": "login",
+    "brief": "No sidebar on login. Large tasteful Y mark and 意客AI in left portion of white screen, quiet title 找到值得联系的新需求, small plain workflow 找需求 · 看证据 · 跟进联系; no illustration or business promises. Right 400px unboxed login form with 手机号码 and 短信验证码 fields, 获取验证码 secondary button, 登录 primary. Small 首次使用，输入试用码开通 expandable link and privacy/terms links, 联系支持 text. Footer V0.2 设计预览 · 登录流程设计. No real number, codes, expiry dates or user identity. Show clear blank field labels and button state. This is proposed normal customer login replacing admin tokens."
+  },
+  {
+    "id": "P02",
+    "title": "商机工作台",
+    "active": "商机工作台",
+    "brief": "First-use workbench. Title 商机工作台, subtitle 今天从一个获客任务开始. Main focus a compact 3-step onboarding checklist with 1 完善业务画像 未完成 / 2 连接目标平台 未连接 / 3 创建获客任务 未开始. Primary 创建获客任务 top right. Below a simple grouped row section 今日待办 with tabs 待复核 / 待联系 / 待回复 / 待跟进; empty message 还没有待处理商机 and short 创建任务后，新增需求会出现在这里. Separate narrow right column 使用路径 with text numbered 确认业务画像→发现需求→核对证据→确认联系→记录跟进. A single plain row 公开研究样例: 180㎡高交会展区设计搭建预算询价 with 查看样例. No statistics cards, no counts, no invented records."
+  },
+  {
+    "id": "P03",
+    "title": "业务画像",
+    "active": "业务画像",
+    "brief": "Page title 业务画像, tabs 业务描述 active / 资料与案例. Small 填写示例 · 未确认 label. One well-composed 2-column form: 服务内容=展台设计与搭建; 服务地区 placeholder 选择实际可服务地区; 目标客户=有参展或展区建设需求的企业与机构; 项目偏好 placeholder 填写预算、规模或行业偏好; 排除项=同行推广、招聘、课程培训; divider AI整理后的画像 with compact review rows, no invented capabilities. Footer 保存草稿 secondary and 确认画像 primary. Side thin note 本次确认将用于后续获客任务, version 草稿. No premature confirmed badge."
+  },
+  {
+    "id": "P04",
+    "title": "资料与案例",
+    "active": "业务画像",
+    "brief": "Same profile area, tab 资料与案例 active next to 业务描述. Main title 业务资料. Primary 添加资料. A wide clean table header 资料名称 / 用途 / 引用范围 / 状态 and useful empty state 添加产品介绍或真实案例 with one-line 支持上传文件或粘贴文字. Right inline panel 添加资料 opened, labelled fields 资料名称, 内容, 用途 select 产品介绍, 引用范围 radio 仅供内部判断 selected and 允许对外引用, bottom 保存草稿. No pretend files or customer cases. This is a functional empty input state with full controls, no illustrated drop zone."
+  },
+  {
+    "id": "P05",
+    "title": "线索采集任务",
+    "active": "线索采集",
+    "brief": "Title 线索采集, primary 新建获客任务. Tabs 采集任务 active / 原始线索. Filter row 任务状态 全部, 平台 全部. Show one design configuration draft row named 展台需求发现 with small 配置示例 label, 平台 小红书 · 抖音 · B站 · 知乎 · 公开网站, 状态 草稿, 最近执行 —, 原始线索 —; action 编辑任务. Under row compact note 完成平台连接后可开始采集. No fake totals or past executions. Secondary 保存的模板 section with empty 未保存模板 and explain 可将任务条件保存为模板 in one short line, not decorative cards."
+  },
+  {
+    "id": "P06",
+    "title": "新建获客任务",
+    "active": "线索采集",
+    "brief": "Full page form with breadcrumb 线索采集 / 新建任务; title 新建获客任务; three small progress labels 任务条件 active / 平台连接 / 确认启动. Fields 任务名称=展台需求发现 with 配置示例 label; 业务画像 select 选择已确认画像; 搜索关键词=展台搭建, 展区设计, 预算询价 as editable chips; 排除词=招聘, 培训; 平台 multi-check 小红书 抖音 B站 知乎 公开网站 checked; no unsupported platform connections. 来源范围 controls 关键词搜索, 指定内容链接; bottom 运行方式 单次采集 / 持续监控, single selected. Right small summary 待连接的平台 all four 未连接; 公开网站 无需账号 as discovery source, no live success claim. Sticky footer 保存草稿 secondary, 下一步：连接平台 primary. Clear step, no giant drawer or floating decorative cards."
+  },
+  {
+    "id": "P07",
+    "title": "原始线索复核",
+    "active": "线索采集",
+    "brief": "Breadcrumb 线索采集 / 原始线索. Title 原始线索. Filters 来源 全部 and 复核状态 待复核. Left broad result list shows ONLY single public sample: 180㎡高交会展区设计搭建预算询价, 湖南省商务厅官网, 09-08 16:54, 公开研究样例, 待复核. Right evidence panel 线索复核 with excerpt 本次报价仅用于预算测算, sections 需求方/采购阶段/需核实事项, source link 查看官方原文. Target画像 select 未绑定. Actions 排除 secondary and 确认入库 disabled until profile chosen; small 请先绑定业务画像. No invented social collected items, no claims that current image has run. Shown state is real public sample awaiting decision."
+  },
+  {
+    "id": "P08",
+    "title": "监控任务",
+    "active": "监控任务",
+    "brief": "Title 监控任务 with primary 新建监控. One draft example row 展台需求监控 tagged 配置示例. Columns 监控对象=关键词与内容 / 平台=小红书·抖音·B站·知乎·公开网站 / 状态=待配置 / 上次执行=— / 下次执行=— / 新增=—. Row action 配置. A settings summary under selected row exposes 运行频率 每日2次 as proposed setting, note 本机在线时执行, 平台连接 待完成; controls 启动 disabled with brief 完成画像与平台连接后启动. No pretend task running or success counters. Show compact tabs 全部 / 运行中 / 已暂停 / 需处理 without number badges."
+  },
+  {
+    "id": "P09",
+    "title": "监控运行详情",
+    "active": "监控任务",
+    "brief": "Breadcrumb 监控任务 / 任务详情. Title 展台需求监控. Clearly visible 状态示意 · 无真实运行数据. Show a failure-recovery design scenario without records or counts: overall 部分平台需处理. Main platform list rows 小红书 登录失效 [重新连接], 抖音 暂时受限 [查看原因], B站 等待执行, 知乎 等待执行, 公开网站 等待执行. Execution totals all —. Tabs 平台状态 active / 执行记录 / 任务配置. Right panel selected 小红书, explanation 账号连接已失效，请重新连接后恢复监控; button 重新连接. Top 暂停任务 secondary, 返回列表. Bottom statesnote 下一次可用窗口恢复；无法读取不记为无新增. Do not show fake connected accounts, timestamps, success events or actual records."
+  },
+  {
+    "id": "P10",
+    "title": "商机库",
+    "active": "商机库",
+    "brief": "Title 商机库, top search 搜索需求、买方或关键词; filter 平台 全部, 状态 待复核, divider tabs 客户商机 / 公开研究样例 with 公开研究样例 selected so public sample not customer record. One table row only known inquiry: title 180㎡高交会展区设计搭建预算询价 / 来源 湖南省商务厅官网 / 阶段 预算询价 / 状态 待复核 / 资料截止 09-15 18:00 / action 查看证据. No lead rating or fictional amount. Compact bottom note 研究样例未绑定客户画像，不计入客户商机. Export secondary outline disabled no selected actual customer. No dashboard."
+  },
+  {
+    "id": "P11",
+    "title": "机会证据详情",
+    "active": "商机库",
+    "brief": "Reuse exact existing evidence detail reference image, no new generation needed."
+  },
+  {
+    "id": "P12",
+    "title": "触达中心",
+    "active": "触达中心",
+    "brief": "Title 触达中心, tabs 草稿箱 selected / 待确认 / 待回复 / 需处理. Clearly 公开研究样例 · 未发送. Left selected draft titled 高交会预算询价 · 联系准备, source 湖南省商务厅官网; no customer identity fabricated. Center editable labeled 联系草稿 contains 您好，关注到本次高交会展区预算询价。请问展位技术资料及组展服务范围如何获取？我们会先核实自身能力，再按公告要求准备资料。理解此次仅用于预算编制，后续采购以正式公告为准。 Channel dropdown 选择已连接渠道 currently 未选择; 收件对象 blank 核对原文后填写. Footer 保存草稿 primary, 准备发送 secondary disabled until confirmed sourceidentity/channel; right narrow evidence shows 本次报价仅用于预算测算 and 查看原文. No artificial sends, threads or mockcontactemail. No Skill name."
+  },
+  {
+    "id": "P13",
+    "title": "发送确认",
+    "active": "触达中心",
+    "brief": "Full app with outreach context subdued and a carefully composed central 640px modal 确认发送. Explicit 状态示意 · 尚未发送. Fields 渠道 请选择已连接渠道, 发送账号 待确认, 收件对象 待核对, 关联来源 高交会展区预算询价 (公开研究样例). Show short draft preview 您好，想咨询本次展区预算询价的技术资料获取方式。 Below unchecked checkbox 我已核对联系对象、发送账号和内容. Footer 返回修改 secondary, 确认并发送 disabled. Small explanation 填写并核对对象后可发送, no invented recipient or token, no fake successful history. Include close X. This is real confirmation-state design, no empty placeholder of entire modal."
+  },
+  {
+    "id": "P14",
+    "title": "回复与跟进",
+    "active": "跟进记录",
+    "brief": "Title 跟进记录. Main tabs 待跟进 / 回复记录 / 全部, filter 负责人 全部 and 日期 全部. Primary 添加跟进. Left wide grouped table headers 商机 / 最近联系 / 客户回复 / 下次跟进 / 负责人 with intentional empty state 暂无跟进记录 and small 联系后记录下一步，避免遗漏. Right narrower panel 关联回复 clean section with two tabs 通道回复 / 人工登记 and empty 暂无收到的回复. Do not invent customer chat bubbles or meetings. Small neutral label 空状态设计 so understandable as preview. Show mature typography and spacious table surface without illustration."
+  },
+  {
+    "id": "P15",
+    "title": "添加跟进",
+    "active": "跟进记录",
+    "brief": "Followups page with a 480px right drawer 添加跟进, background subdued but sidebar remains legible. Drawer fields 关联商机 select 请选择已入库商机, 跟进类型 dropdown 人工登记, 事实类型 radio 已联系 / 已回复 / 已约谈 / 已报价, none selected; 联系时间 placeholder 选择实际发生时间; 备注 textarea 写下实际沟通内容; 下一步 multiline input; 下次跟进 date picker placeholder 选择日期; 负责人 dropdown 当前成员 no inventedname. Bottom 保存记录 primary and 取消. Small explicit 手工记录会标记为人工登记，与渠道回执分开展示. No actualnewrecord saved orfake reply."
+  },
+  {
+    "id": "P16",
+    "title": "账号与平台连接",
+    "active": "账号与授权",
+    "brief": "Title 账号与授权; tabs 平台连接 active / 设备与使用授权. Compact explanation 连接用于采集或触达，能力按平台分别显示. Mature horizontal table 平台 / 当前账号 / 连接状态 / 可用能力 / 操作. Rows 小红书,抖音,B站,知乎 all 当前账号 —, 未连接; 可用能力 待读取连接状态, button 连接. 公开网站 row 无需账号, capabilities 公开页面读取(范围待验收) no verifiedstatus. No fake green onlinebadges/accounts. Far bottom small notes 断开连接后对应任务暂停 and 手动处理平台验证. Primary 添加平台连接. Brand cleanquiet."
+  },
+  {
+    "id": "P17",
+    "title": "连接平台",
+    "active": "账号与授权",
+    "brief": "Full app platform list subdued behind a centered 640px modal 连接小红书. Step indicator 选择平台 / 登录账号 active / 检查连接. Content uses calm structured text 本机浏览器登录, 账号登录在平台原生页面完成，意客AI不要求输入平台密码。 Primary 打开登录窗口. Secondary 我已完成登录，检查连接 disabled before opening. 状态 等待登录. Include helper 登录失效时可以重新连接；验证码需在平台页面处理. No fake QR code or actual account, no passwordform. Footer 取消, no automatic success. Show proper modal close, focus style, app backdrop brandvisible."
+  },
+  {
+    "id": "P18",
+    "title": "设备与使用授权",
+    "active": "账号与授权",
+    "brief": "Title 账号与授权, tabs 平台连接 / 设备与使用授权 active. Three organized simple sections with line separators, no cards. 使用授权: 未激活; 授权码 blank input, 激活 primary; 有效期 —; no purchased plan, fee or expiry invented. 设备管理: 本机 (名称由安装后读取), 状态 尚未绑定; 绑定设备 secondary. 版本与数据: 当前版本 —, 检查更新; 导出数据 / 备份与恢复 small secondary actions. Bottom 支持与诊断 with 导出脱敏诊断 and 联系支持. The surface covers license/device/update/backup planned features but no quotas, revenue or assumedconnectedserver. Small 设计预览 · 状态以实际授权为准."
+  },
+  {
+    "id": "P19",
+    "title": "确认启动",
+    "active": "线索采集",
+    "brief": "P06 第三步：配置摘要、平台与执行账号、缺项和禁用启动。完整生成提示词见 prompts/P19.txt。"
+  },
+  {
+    "id": "P20",
+    "title": "持续监控设置",
+    "active": "线索采集",
+    "brief": "P06 持续监控模式：每日时刻/间隔、时区、执行窗口、设备离线处理。完整提示词见 prompts/P20.txt。"
+  }
+]

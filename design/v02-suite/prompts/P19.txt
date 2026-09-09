@@ -1,0 +1,29 @@
+Use case: ui-mockup. Create ONE realistic production-quality Chinese desktop UI screen for 意客AI at 1440x1024, matching the existing natural screenshot proportions. One complete application screen, no browser/device bezel and no multi-screen collage. This is P19 确认启动, the third step of the same acquisition-task wizard in P06, not a new product feature.
+
+Actual input images: image 1 is the final P06 task-creation screen and is the exact shell/wizard reference; image 2 is P11 opportunity detail for blue-white visual style only; image 3 is the exact blue Y logo. Preserve the existing logo, navigation, shell geometry and typography. Never copy the opportunity inquiry title, agency, quote, date or content from image 2.
+
+Keep the same 208px pale cool sidebar #F7F9FC, 60px header and 28px content gutters, white main canvas. Top left blue Y logo + 意客AI. Exact navigation: 商机工作台; 发现商机 group: 业务画像, 线索采集, 监控任务; 推进商机 group: 商机库, 触达中心, 跟进记录; bottom 账号与授权 and 演示工作空间. Only 线索采集 active. Top right V0.2 设计预览. No avatars.
+
+Art direction: refined Feishu/Alipay-like professional clean Chinese B2B app; flat white surfaces, restrained blue #1677FF primary controls, #0958D9 small links, dark #172B4D body, #52637A secondary, #E8EDF3 rules. No decorative cards, nested cards, gradients, shadows, AI stars, illustrations, charts, revenue counters, ratings or metric tiles. Separate content using whitespace, typography and thin rules. Body 14px, title24px, section16px, helper12-13px; compact 34-36px controls, 6px radius, 48px table rows. Readable spacing with no clipped content.
+
+Page breadcrumb: 线索采集 / 新建任务. Main title: 确认启动. Small adjacent tags 配置示例 and 未启动. Three-step wizard at the same place as P06: 1 任务条件 / 2 平台连接 / 3 确认启动. Third step is active blue; prior steps use quiet numbered circles, not success-check badges since requirements are incomplete.
+
+Below the wizard, section title 配置摘要 with a small 返回修改 link aligned right. Compact two-column key/value summary, not editable fields:
+任务名称: 展台需求发现
+业务画像: 待选择已确认画像
+搜索关键词: 展台搭建 · 展区设计 · 预算询价
+排除词: 招聘 · 培训
+来源范围: 关键词搜索
+运行方式: 单次采集
+
+Then section 平台与执行账号 containing a clean full-width five-row table with exact columns 平台 / 执行账号 / 连接状态 / 范围:
+小红书 / — / 未连接 / 关键词搜索
+抖音 / — / 未连接 / 关键词搜索
+B站 / — / 未连接 / 关键词搜索
+知乎 / — / 未连接 / 关键词搜索
+公开网站 / 无需账号 / 无需账号 / 范围待确认
+No green connected badge, real account name or capability-passed claim. No extra platforms and no assumed public-website scope.
+
+Below the table one concise required-action message: 请先选择已确认画像并完成所选平台连接. Bottom sticky footer with a thin rule, all controls aligned right: 取消 (quiet text), 上一步 (outline), 确认启动 (disabled grey primary-position button). Main action is disabled because requirements are not satisfied. No collection has started. Keep white space around the concise configuration and platform table rather than adding explanations or cards.
+
+Date anchor 2026-09-09. Show 状态示意 · 无真实运行数据 once in subtle small text. This design contains only explicit configuration examples, no genuine account, result, success, confirmation, customer, revenue or performance. No MediaCrawler, Skill, model token, API key, database/admin terms in customer UI. No QR code. Render one polished complete desktop screen with correct Chinese and consistent shell.

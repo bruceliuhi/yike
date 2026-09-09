@@ -1,0 +1,20 @@
+Use case: ui-mockup. Create ONE polished realistic Chinese desktop app UI design for 意客AI. This is P20, the same task-creation screen as P06 after selecting continuous monitoring, not a new product style. Target natural desktop 1440x1024, one complete screen, no bezel, no collage.
+
+Input image 1 is the exact P06 task form and shell reference. Input image 2 is ONLY the approved P11 shell/style reference: DO NOT copy its opportunity title, source, date, evidence or breadcrumb. Input image 3 is the exact blue Y logo to retain. Preserve shell geometry, logo, brand, palette, sidebar labels and header relative proportions.
+
+Keep the common pale #F7F9FC left sidebar (208px design width), white main canvas, 60px header, 28px gutters. Sidebar exact order: 商机工作台; 发现商机 group: 业务画像, 线索采集 active in #E6F4FF with blue text, 监控任务; 推进商机 group: 商机库, 触达中心, 跟进记录; bottom 账号与授权; very bottom 演示工作空间. Top-left exact blue Y logo and 意客AI. Top-right small V0.2 设计预览. Color blue #1677FF primary, #0958D9 links, #172B4D text, #52637A secondary, #E8EDF3 rules. Consistent thin-line icons, system Chinese sans serif, body14px, title24px, sections16px, controls34-36px, radius6px. No gradients, shadows, decorative cards, illustrations, big explanatory paragraphs, fake charts, fake metrics or extra UI.
+
+Header breadcrumb 线索采集 / 新建任务. Title 新建获客任务. Compact step indicator: 1 任务条件 active, 2 平台连接, 3 确认启动. No extra subtitle. One clear primary action 下一步：连接平台; secondary 保存草稿, aligned together bottom right in a sticky footer.
+
+Main left form about 66% width and right platform connection summary about34%, divided with a fine vertical line. Keep form deliberately compact so the entire schedule and footer fit in frame with nothing clipped. At the top of the form, task name and profile may use two aligned half-width fields in one row to save height. Task name label 任务名称, value 展台需求监控, small 配置示例 tag. Profile label 业务画像, unselected placeholder 选择已确认画像. Then 搜索关键词 editable chips 展台搭建 / 展区设计 / 预算询价; 排除词 editable chips 招聘 / 培训. Then 选择平台 all checked: 小红书 抖音 B站 知乎 公开网站. 来源范围 compact radio row: 关键词搜索 selected, 指定内容链接 unselected. Do not put instructions beneath every field.
+
+Then a clean separator and section 运行设置. Radio row 运行方式: 单次采集 unselected, 持续监控 selected blue. Expand an editable scheduling form directly on this same surface:
+- 运行频率 with two choices 每日 selected and 每隔 unselected. These are user-adjustable controls, not hard-coded daily twice.
+- 执行时间 with TWO separate editable time-picker rows, first 09:00 and second 15:00, each with clock icon and a small remove action; below these a text button + 添加时间. Do not call these past executions.
+- 时区 dropdown showing Asia/Shanghai（北京时间）.
+- One short quiet line only: 本机离线时，恢复在线后按计划继续.
+Do not show latest/next timestamps or execution totals. The two times are editable configuration examples, not an invariant or performance claim.
+
+Right summary title 平台连接状态. Five plain rows: 小红书 未连接; 抖音 未连接; B站 未连接; 知乎 未连接; 公开网站 无需账号. No connected account names, no success icons, no fake QR. Beneath rows only one helper 请在下一步完成平台连接. Small unobtrusive 配置示例 · 尚未执行 identity appears ONCE on the page. No task explanation section or repeated disclaimer.
+
+Data boundary: anchor date2026-09-09; all task fields are explicit draft configuration. No actual profile confirmation, actual runs, results, customers, revenue, messages or account identities. Do not insert the source inquiry from the style reference. No internal engine name, Skill, database, keys or model tokens in UI. Produce one complete coherent high-fidelity screen with every required control readable and uncropped.

@@ -9,9 +9,9 @@
 1. [产品与开发权威](AUTHORITY.md)：本轮确定的产品目标和必须继承的约束。
 2. [实施任务书](docs/V02_IMPLEMENTATION_TASKBOOK.md)：当前状态、可以先做的工作、依赖与验收。
 3. [完整获客版计划](docs/V02_COMMERCIAL_RELEASE_PLAN.md) 与 [多平台 Skill 方案](docs/V02_MULTIPLATFORM_SKILL_PLAN.md)：功能及技术分工。
-4. [设计入口](design/README.md)：八入口蓝白工作台、Logo 和设计图。
+4. [设计入口](design/README.md)与[20 页完整图册](design/v02-suite/README.md)：八入口蓝白设计、关键状态与组件规范，当前待用户确认。
 5. [文档索引](docs/README.md)：正式文档、运行说明和历史证据的关系。
 
 当前代码的运行方式见 [客户试用运行手册](docs/CUSTOMER_PILOT_RUNBOOK.md)。这条受控路径还需要管理员提供访问令牌和已复核研究包，不是 V0.2 最终使用体验。旧 `app/` 双平台采集器属于复用来源，尚未接入 `pilot/` 客户数据流程。
 
-最终页面在用户选定设计图后实现；接口、存储、Skill 和执行器可以并行推进。缺少生产环境只阻止相应部署验收，不阻止整个产品开发。发布条件以任务书与 [CP-06 验收模板](docs/DEPLOYMENT_ACCEPTANCE_CP06_TEMPLATE.md) 为准。
+最终页面在整套图册及关键状态经用户统一确认后实现，并按图逐页验收；接口、存储、Skill 和执行器可以并行推进。缺少生产环境只阻止相应部署验收，不阻止整个产品开发。发布条件以任务书与 [CP-06 验收模板](docs/DEPLOYMENT_ACCEPTANCE_CP06_TEMPLATE.md) 为准。
