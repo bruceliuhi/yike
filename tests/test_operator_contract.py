@@ -11,6 +11,9 @@ from tests.test_scoring import valid_decision
 from tests.support import collect_verified_signal
 
 
+pytestmark = pytest.mark.usefixtures("discovery_clock")
+
+
 class Clock:
     def __init__(self, value: str):
         self.value = datetime.fromisoformat(value.replace("Z", "+00:00"))

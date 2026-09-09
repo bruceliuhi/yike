@@ -10,6 +10,9 @@ from app.repository import NormalizedSignal, Repository
 from app.workflow import Workflow
 
 
+pytestmark = pytest.mark.usefixtures("discovery_clock")
+
+
 def _advance_to_importing(
     repository: Repository, collection_run_id: str
 ) -> None:

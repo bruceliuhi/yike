@@ -4,9 +4,18 @@ import pytest
 
 from pilot.auth import InvalidPilotToken, issue_token, verify_token
 from pilot.web import build_app
+from session_support import MemorySessionRegistry
 
 
 class Store:
+    def __init__(self):
+        self.sessions = MemorySessionRegistry(self._tenant_for_user)
+
+    def _tenant_for_user(self, user_id):
+        if user_id != "user-1":
+            raise PermissionError("unprovisioned synthetic user")
+        return "tenant-1"
+
     def list_opportunities(self, user_id):
         assert user_id == "user-1"
         return [{"opportunity_id": "opp-1", "title": "展台搭建", "buyer": "采购负责人", "intent_status": "NEW", "source_status": "OPEN", "profile_status": "CONFIRMED", "summary": "秋季展会一体化搭建", "updated_at": "2026-09-08T10:00:00+00:00", "public_excerpt": "秋季展会寻团队"}]
