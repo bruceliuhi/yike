@@ -1,0 +1,18 @@
+{
+  "candidate": "bd4b86a846a3703b9954a6c81e633a81ec1d11b4",
+  "incoming": "9a59288531cab7be0df9b6934fc3dc61e181c072",
+  "desktop": {
+    "files": 9,
+    "passed": 198,
+    "seconds": 2.49,
+    "exitCode": 0,
+    "log": "logs/incoming-9a-desktop-tests.log"
+  },
+  "typecheck": {
+    "command": "Node 24 node_modules/typescript/bin/tsc --noEmit",
+    "exitCode": 0,
+    "log": "logs/incoming-9a-typecheck.log"
+  },
+  "macPackage": "8af8eaf remains prior artifact; not rebuilt or rebound to this runtime change",
+  "visibleTestBundle": "8af8eaf frozen; not relabelled as latest main"
+}

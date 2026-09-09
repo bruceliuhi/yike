@@ -1,0 +1,18 @@
+{
+  "actions": [
+    {
+      "height": 36,
+      "text": "带入当前画像",
+      "width": 97.5999984741211,
+      "x": 1052.8062744140625,
+      "y": 495.8000183105469
+    }
+  ],
+  "dpr": 1.25,
+  "height": 720,
+  "scripts": [
+    "http://127.0.0.1:18794/assets/index-DoO7IweI.js"
+  ],
+  "scrollWidth": 1280,
+  "width": 1280
+}

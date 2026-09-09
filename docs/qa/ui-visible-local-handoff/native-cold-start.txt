@@ -1,0 +1,7 @@
+The following is a diff from the previous accessibility tree for Window: "商机工作台 · 意客AI" with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+~						46 标题 商机工作台, Value: 1
+~						54 标题 机会简报, Value: 2
+~						64 标题 待完善, Value: 3
+~							69 标题 平台准备, Value: 2
+~						87 标题 公开研究样例, Value: 2
+The focused UI element is 3 HTML 内容 商机工作台 · 意客AI, URL: yike://app/index.html

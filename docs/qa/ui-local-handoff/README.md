@@ -52,3 +52,5 @@
 根在 eda1e2f 做有界纯接收：[候选签名/登记/触达/回复合同 88 项](logs/incoming-eda1e2f-contract-tests.log)、[旧候选/设备密钥/UI 路由 90 项](logs/incoming-eda1e2f-legacy-tests.log)分别通过，不含真实 PostgreSQL。来件触达持久层的 MAJOR FOLLOW-UP、117 实库迁移/ACL和真实渠道未验边界保留，不能把本文兼容通过解读为该骨架已可生产使用。
 
 此后用户继续触发新的实际可见检查。P04 空态留白精修和新包属于后续视觉切片，另录 `ui-visible-local-handoff`；本文件的 fcae33e/d816a9d 产物绑定不变。
+
+后续可见结果已单独登记于[8af本片验收](../ui-visible-local-handoff/README.md)：本机稿首屏、任务/平台返回、无人工记录回复入口及新包原生退出重启已执行；本文件先前“待验”为原时点，不再视为当前零证据。旧804日志为文件未找到，并未执行32项；真实32项属于d5后的四文件定向，见新记录，不追认旧尝试。
