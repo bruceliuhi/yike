@@ -19,6 +19,7 @@
 | 项目 | 实际证据 | 结果 |
 | --- | --- | --- |
 | 空库迁移与重复迁移 | `待填写命令和输出` | `PENDING` |
+| v3 租户目录 RLS 与管理员连接分离 | `待填写 v1→v2→v3 迁移输出、YIKE_PILOT_ADMIN_DATABASE_URL 管理员作业记录；运行时 env 不含 admin URL` | `PENDING` |
 | `/healthz` | `待填写 HTTPS 响应` | `PENDING` |
 | `/readyz` | `待填写 HTTPS 响应` | `PENDING` |
 | HTTPS 证书与强制跳转 | `待填写 curl/浏览器证据` | `PENDING` |
