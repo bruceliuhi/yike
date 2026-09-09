@@ -44,3 +44,7 @@
 收口时主线已前进至 `b7a4c51`，已快进保留。新增范围仅为采集器获取脚本、对应测试及集成说明，没有桌面差异；本次 UI 证据仍绑定上面的冻结源，不据此宣称真实采集验证通过。
 
 [获取脚本契约测试](logs/incoming-fetch-contract.log) 为 1 passed，仅确认新脚本契约，不重复签收其作者的真实运行结果。限定质量复核见 [review.md](review.md)。
+
+首次推送因远端新提交被拒绝后，正常合并 `ca1f28a` 成为 `fbcc171e002e976daabd6035aaa597d84654168f`，没有强推或冲突。新来件包含 P07 候选证据、人工来源核验、确认与原请求恢复，其作者验收见 [05G](../V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md)。这次已经存在 desktop 差异，旧截图、浏览器实例和 Mac 包仍绑定原冻结源，不追认为合并版。
+
+合并后的本地 P18 定向回归仍为 [3 文件、15 passed](logs/management-tests-integrated.log)，类型检查 `tsc --noEmit` 退出 0（[原始空日志](logs/typecheck-integrated.log)）。这是新的限定回归，不能与前一批相加或替代 P07 作者的 Windows/全量记录。未重新构建 Mac 包，未把 Windows 浏览器 TEST 走查记作 Windows 安装包验收。

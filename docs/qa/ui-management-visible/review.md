@@ -10,3 +10,14 @@
 - README 当前 **16 个本地链接均存在**。Windows、真实原生保存、恢复文件可见链、真实服务及完整 UI Goal 的未完成项保留，没有夸大本轮验收。
 
 本审核没有产品修改、新浏览器操作、测试或构包，也没有接触四个无关 rawCandidate 草稿。仅新增本报告，未 Git commit。
+
+
+## fbcc171 合并后的限定边界补充
+
+本次最终集成为 `fbcc171e002e976daabd6035aaa597d84654168f`，父提交 `729a6b67d094053bd94942d1de10a564ed019e66` 与远端 `ca1f28ac1bdbda3c9222fe22db6e5b688034b729`。主线程报告正常无冲突合并；独立核对父关系、无未合并索引项，且合并结果 desktop 与 ca1f28a 完全相同，没有另外改写来件源码。
+
+**限定集成边界 PASS。** 相对 b7 已有 16 个 desktop 文件差异，主要为 P07 证据/人工来源核验/确认与恢复接线、测试及隔离入口；因此上文“desktop 无差异”的结论只属于当时 b7，不扩至 fbcc171。已核 b8→fbcc171 的 P18 Settings、settings 子模块、management 域/服务、管理 TEST 与 isolation 文件无变化。共享 client 新增 candidateReview 接线、visual main 新增候选配置调用，不是本次重验 P07 或 P18 新构包。
+
+README 末段正确保留旧 b8 截图、浏览器构建和 Mac 包身份，不追认为 fbcc171。新的 `management-tests-integrated.log` 实际为 3 文件、15 passed（07:52:06，1.98s），是合并后另一次限定回归，未与原 15 项相加。类型检查退出 0 为主线程执行记录，空日志不单独产生额外证明，本审核未重跑。
+
+05G 文档确有其作者最终 93 文件、1423 项及 Windows Edge 双视口 TEST 记录；README 只引用对应归属，未由本线程代签，也未把 TEST 浏览器走查当 Windows 安装包、真实平台/模型/客户库验收。更新后 README **21 个本地链接均有效**。没有重跑全套、修改产品或进行新浏览器操作。
