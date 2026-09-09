@@ -23,6 +23,8 @@
 
 [当前整合状态](INTEGRATION_STATUS.md)记录已迁入的 Skill、桌面壳、提交 SHA、验证结果和明确未整合内容，供后续 AI 接续工作时先行阅读。
 
+原始候选服务交接见[02B上传/收件箱合同](contracts/V02_RAW_CANDIDATE_INBOX.md)和[独立验收](qa/V02_CANDIDATE_INGESTION_REVIEW.md)：在02A与执行护栏之上提供原文/版本/观察、原键重查及待判断列表，不是已评分商机DTO，也不表示真实平台或客户闭环已接通。
+
 整体视觉基准是[20 页完整设计 R3](../design/v02-suite-r3/README.md)，当前增量是已获实现授权的[R4 六组设计](../design/v02-suite-r4/README.md)。R4 六组前端及搜贝交互已落入候选 `cbc6170`；实现、独立审核、分版本测试与 Mac 包证据见 [R4 验收](qa/ui-r4/README.md)，同状态截图和视口结果见[设计验收](../design-qa.md)。[R3 UI 实施记录](UI_R3_IMPLEMENTATION.md)保留既有历史。可选服务合同与隔离 TEST 场景不代表真实后台、平台、收费或 Windows 已验收，完整 Goal 仍在推进。
 
 ## R4 前端服务交接
