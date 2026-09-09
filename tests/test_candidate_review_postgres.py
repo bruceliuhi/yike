@@ -2,6 +2,7 @@
 import copy
 import importlib.util
 import json
+from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
@@ -58,7 +59,16 @@ class BoundaryModel:
 def store(env, model=None):
     assert importlib.util.find_spec('pilot.candidate_review') is not None, 'candidate review service is missing'
     from pilot.candidate_review import CandidateReviewStore
-    return CandidateReviewStore(env.db, model=model or BoundaryModel(), strategy_resolver=env.resolver)
+    return CandidateReviewStore(env.db, model=model or BoundaryModel(), strategy_resolver=env.resolver,
+        strategy_snapshot_reader=snapshot_reader(env))
+
+def snapshot_reader(env):
+    # Explicit synthetic projection collaborator; never used as write authority.
+    def read(cursor, claims, profile_id, strategy_id):
+        value = asdict(env.resolver(cursor, claims, profile_id, strategy_id))
+        value['platforms'] = list(value['platforms'])
+        return value
+    return read
 
 def seed(env, **record_changes):
     begun, lease = claimed(env)
@@ -506,7 +516,7 @@ def test_list_strategy_reads_share_raw_review_snapshot(env):
     changed=env.snapshot | {'max_records':7}
     def interleaved(cursor,claims,profile_id,strategy_id):
         nonlocal calls
-        resolved=env.resolver(cursor,claims,profile_id,strategy_id)
+        resolved=snapshot_reader(env)(cursor,claims,profile_id,strategy_id)
         calls+=1
         if calls==1:
             with env.admin.connect() as other:
@@ -514,12 +524,12 @@ def test_list_strategy_reads_share_raw_review_snapshot(env):
                 other.execute("UPDATE business_profile_versions SET payload=jsonb_set(payload,'{synthetic_strategy}',%s::jsonb) WHERE profile_version_id=%s",
                               (json.dumps(changed),env.profile))
         return resolved
-    service.strategy_resolver=interleaved
+    service.strategy_snapshot_reader=interleaved
     # Both candidates share one strategy. A mixed one-item page is impossible
     # in a single database snapshot, including its count and filter result.
     during=service.list_candidates(env.claims,status='IMPORTED')
     assert during['total']==2 and len(during['items'])==2
-    service.strategy_resolver=env.resolver
+    service.strategy_snapshot_reader=snapshot_reader(env)
     assert service.list_candidates(env.claims,status='IMPORTED')['total']==0
 
 def test_list_session_revoke_committed_while_waiting_is_not_hidden_by_snapshot(env):
@@ -543,48 +553,50 @@ def test_list_session_expiry_during_strategy_read_uses_live_final_clock(env):
         deadline=conn.execute('SELECT extract(epoch FROM clock_timestamp())+1').fetchone()[0]
     claims=replace(env.claims,expires_at=float(deadline))
     def after_expiry(cursor,owner,profile_id,strategy_id):
-        resolved=env.resolver(cursor,owner,profile_id,strategy_id)
+        resolved=snapshot_reader(env)(cursor,owner,profile_id,strategy_id)
         cursor.execute('SELECT pg_sleep(1.1)')
         return resolved
-    service.strategy_resolver=after_expiry
+    service.strategy_snapshot_reader=after_expiry
     with pytest.raises(CandidateIngestionError,match='invalid_session'):
         service.list_candidates(claims)
 
 def test_list_final_auth_sees_administrative_revocation_after_data_snapshot(env):
     service,b,assessed,check,decision=prepared(env)
     def revoke_after_snapshot(cursor,claims,profile_id,strategy_id):
-        resolved=env.resolver(cursor,claims,profile_id,strategy_id)
+        resolved=snapshot_reader(env)(cursor,claims,profile_id,strategy_id)
         with env.admin.connect() as conn:
             conn.execute('INSERT INTO pilot_session_revocations(tenant_id,user_id,revocation_key,expires_at) VALUES(%s,%s,%s,to_timestamp(%s))',
                          (env.tenant,claims.user_id,claims.revocation_key,claims.expires_at))
         return resolved
-    service.strategy_resolver=revoke_after_snapshot
+    service.strategy_snapshot_reader=revoke_after_snapshot
     with pytest.raises(CandidateIngestionError,match='invalid_session'):
         service.list_candidates(env.claims)
 
-def test_list_allows_strategy_resolver_row_lock_on_supplied_cursor(env):
+def test_list_reader_cannot_lock_or_write_on_supplied_cursor(env):
     service,b,assessed,check,decision=prepared(env)
     def locked(cursor,claims,profile_id,strategy_id):
-        cursor.execute('SELECT profile_version_id FROM business_profile_versions WHERE profile_version_id=%s FOR UPDATE',(profile_id,))
-        return env.resolver(cursor,claims,profile_id,strategy_id)
-    service.strategy_resolver=locked
+        for sql in ('SELECT profile_version_id FROM business_profile_versions WHERE profile_version_id=%s FOR UPDATE',
+                    "UPDATE business_profile_versions SET status='REVOKED' WHERE profile_version_id=%s"):
+            with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
+                with cursor.connection.transaction():
+                    cursor.execute(sql,(profile_id,))
+        return snapshot_reader(env)(cursor,claims,profile_id,strategy_id)
+    service.strategy_snapshot_reader=locked
     assert service.list_candidates(env.claims)['items'][0]['assessment']['id']==assessed['assessment']['id']
 
 def test_list_serialization_conflict_is_explicit_without_automatic_retry(env):
     service,b,assessed,check,decision=prepared(env)
     calls=0
-    def concurrent_lock(cursor,claims,profile_id,strategy_id):
+    def snapshot_conflict(cursor,claims,profile_id,strategy_id):
         nonlocal calls
         calls+=1
-        with env.admin.connect() as conn:
-            conn.execute("UPDATE business_profile_versions SET payload=jsonb_set(payload,'{synthetic_strategy,max_records}','7'::jsonb) WHERE profile_version_id=%s",(profile_id,))
-        cursor.execute('SELECT profile_version_id FROM business_profile_versions WHERE profile_version_id=%s FOR UPDATE',(profile_id,))
-        return env.resolver(cursor,claims,profile_id,strategy_id)
-    service.strategy_resolver=concurrent_lock
+        # Exercise the error boundary without permitting forbidden row locks.
+        raise psycopg.errors.SerializationFailure('synthetic snapshot conflict')
+    service.strategy_snapshot_reader=snapshot_conflict
     with pytest.raises(CandidateIngestionError,match='candidate_snapshot_changed'):
         service.list_candidates(env.claims)
     assert calls==1
     # The failed read released both connections and the session fence.
-    service.strategy_resolver=env.resolver
+    service.strategy_snapshot_reader=snapshot_reader(env)
     assert service.get_request(env.claims,assessed['requestId'])==assessed
-    assert service.list_candidates(env.claims)['items'][0]['assessmentStale']
+    assert not service.list_candidates(env.claims)['items'][0]['assessmentStale']

@@ -70,13 +70,17 @@ class ResearchStrategyStore:
         self.database=database
         self.sessions=PilotSessionRegistry(database)
 
-    def _active(self,cursor,claims):
+    @staticmethod
+    def _validate_claims(claims):
         if (not isinstance(claims,TokenClaims) or type(claims.user_id) is not str
                 or not 1<=len(claims.user_id)<=256 or claims.user_id.strip()!=claims.user_id
                 or any(unicodedata.category(ch)[0]=='C' for ch in claims.user_id)
                 or type(claims.revocation_key) is not str or not re.fullmatch('[0-9a-f]{64}',claims.revocation_key)
                 or type(claims.expires_at) is not int or not 0<claims.expires_at<=253402300799):
             raise StrategyStoreError('invalid_session',401)
+
+    def _active(self,cursor,claims):
+        self._validate_claims(claims)
         try:
             return self.sessions.require_active(cursor,claims)
         except (InvalidPilotToken,PermissionError):
@@ -90,6 +94,17 @@ class ResearchStrategyStore:
             (tenant,user,version))
         row=cursor.fetchone()
         return dict(zip(_VERSION_FIELDS,row)) if row else None
+
+    @staticmethod
+    def _profile_state(row):
+        if row is None:
+            return None
+        valid=False
+        try:
+            valid=type(row[0]) is dict and _digest(row[0])==row[1] and row[2]=='CONFIRMED'
+        except (ValueError,TypeError,UnicodeError,RecursionError):
+            pass
+        return {'sha256':row[1],'valid':valid}
 
     def _profile(self,cursor,claims,tenant,version):
         cursor.execute('SELECT profile_id FROM business_profile_versions WHERE tenant_id=%s AND profile_version_id=%s',
@@ -106,14 +121,7 @@ class ResearchStrategyStore:
             'WHERE tenant_id=%s AND profile_id=%s AND profile_version_id=%s FOR UPDATE',(tenant,parent[0],version))
         row=cursor.fetchone()
         self._active(cursor,claims)
-        if row is None:
-            return None
-        valid=False
-        try:
-            valid=type(row[0]) is dict and _digest(row[0])==row[1] and row[2]=='CONFIRMED'
-        except (ValueError,TypeError,UnicodeError,RecursionError):
-            pass
-        return {'sha256':row[1],'valid':valid}
+        return self._profile_state(row)
 
     def _draft(self,cursor,claims,tenant,draft_id):
         cursor.execute('SELECT current_revision,current_version_id FROM pilot_research_strategy_drafts '
@@ -284,6 +292,45 @@ class ResearchStrategyStore:
                           profile_current=self._profile_current(row,profile))
             self._active(cursor,claims)
             return result
+
+    def read_snapshot(self,cursor,claims,profile_version_id,strategy_version_id):
+        """Presentation only: use the caller's scoped RR/read-only transaction."""
+        error_code,error_status='strategy_conflict',409
+        try:
+            self._validate_claims(claims)
+            if cursor.connection.autocommit:
+                raise StrategyStoreError('strategy_conflict')
+            cursor.execute("SELECT current_setting('transaction_isolation'),current_setting('transaction_read_only'),"
+                "current_setting('yike.user_id',true),current_setting('yike.tenant_id',true)")
+            isolation,readonly,user,tenant=cursor.fetchone()
+            if isolation!='repeatable read' or readonly!='on':
+                raise StrategyStoreError('strategy_conflict')
+            if not user or not tenant or user!=claims.user_id:
+                raise StrategyStoreError('invalid_session',401)
+            _uuid(profile_version_id)
+            _uuid(strategy_version_id)
+            row=self._version(cursor,tenant,user,strategy_version_id)
+            if row is None or row['profile_version_id']!=profile_version_id or row['state']!='CONFIRMED':
+                raise StrategyStoreError('strategy_conflict')
+            cursor.execute('SELECT current_revision,current_version_id FROM pilot_research_strategy_drafts '
+                'WHERE tenant_id=%s AND owner_user_id=%s AND draft_id=%s',(tenant,user,row['draft_id']))
+            draft=cursor.fetchone()
+            cursor.execute('SELECT v.payload,v.content_sha256,v.status FROM business_profile_versions v '
+                'JOIN business_profiles p ON p.tenant_id=v.tenant_id AND p.profile_id=v.profile_id '
+                'WHERE v.tenant_id=%s AND v.profile_version_id=%s',(tenant,profile_version_id))
+            profile=self._profile_state(cursor.fetchone())
+            if not self._current(row,draft) or not self._profile_current(row,profile) or not self._intact(row):
+                raise StrategyStoreError('strategy_conflict')
+            return json.loads(_json(row['snapshot'])) | {'configuration_sha256':row['configuration_sha256']}
+        except StrategyStoreError as error:
+            if error.code=='invalid_session':
+                error_code,error_status='invalid_session',401
+        except psycopg.errors.SerializationFailure:
+            # The list owner exposes its deterministic snapshot-conflict boundary.
+            raise
+        except psycopg.Error:
+            error_code,error_status='strategy_store_unavailable',503
+        raise ExecutionRuntimeError(error_code,error_status)
 
     def resolve(self,cursor,claims,profile_version_id,strategy_version_id):
         """Reuse the caller transaction; profile -> draft -> version, no request/device/task lock."""
