@@ -1,0 +1,3 @@
+(node:1244) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.
+(Use `YikeAI --trace-deprecation ...` to show where the warning was created)
+2026-09-10 01:26:36.587 YikeAI[1244:15996072] error messaging the mach port for IMKCFRunLoopWakeUpReliable

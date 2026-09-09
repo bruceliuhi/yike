@@ -1,0 +1,7 @@
+(node:90654) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.
+(Use `Electron --trace-deprecation ...` to show where the warning was created)
+DIAGNOSTIC_RENDERER_ERROR {"level":"error","message":" Note that 'script-src' was not explicitly set, so 'default-src' is used as a fallback.","lineNumber":10,"sourceId":"yike://app/assets/index-BkYBPob_.js"}
+RENDERER_CONSOLE_ERROR
+
+1 !== 0
+

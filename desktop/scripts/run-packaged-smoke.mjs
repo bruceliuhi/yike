@@ -1,28 +1,34 @@
-import {mkdtemp, rm, writeFile} from 'node:fs/promises';
+import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
 import asar from '@electron/asar';
 import electronPath from 'electron';
+import {inspectWorkbench, isRendererConsoleError, workbenchFailure} from './packaged-smoke-policy.mjs';
 
 const archive = process.argv[2];
 if (!archive?.endsWith('.asar')) throw new Error('Pass the packaged resources/app.asar path.');
 const archivePath = path.resolve(archive);
 const pkg = JSON.parse(asar.extractFile(archivePath, 'package.json').toString());
 const temporary = await mkdtemp(path.join(os.tmpdir(), 'yike-packaged-smoke-'));
+const rendererProbe = '(async () => ({url:location.href, title:document.title, workbench:(' + inspectWorkbench.toString() + ')(document), bridge:!!window.yikeDesktop, info:await window.yikeDesktop?.getClientInfo(), invalid:await window.yikeDesktop?.requestApi({operation:"not-an-operation"}), unconfigured:await window.yikeDesktop?.requestApi({operation:"session.get"}), file:await window.yikeDesktop?.openExternal("file:///private/invalid"), clipboard:await window.yikeDesktop?.copyText("")}))()';
 const script = `
 const {app, dialog} = require('electron');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs/promises');
+const {writeFileSync} = require('node:fs');
+const isRendererConsoleError = ${isRendererConsoleError.toString()};
+const workbenchFailure = ${workbenchFailure.toString()};
 app.setPath('userData', path.join(__dirname, 'user-data'));
 const failures = [];
 app.on('browser-window-created', (_event, window) => {
   // Verify actual packaged main/preload/renderer without disturbing the user's foreground app.
   window.show = () => {};
   window.webContents.on('preload-error', () => failures.push('PRELOAD_ERROR'));
-  window.webContents.on('console-message', (_event, details) => {
-    if (details.level === 'error') failures.push('RENDERER_CONSOLE_ERROR');
+  window.webContents.on('render-process-gone', () => failures.push('RENDERER_PROCESS_GONE'));
+  window.webContents.on('console-message', (...args) => {
+    if (isRendererConsoleError(...args)) failures.push('RENDERER_CONSOLE_ERROR');
   });
   window.webContents.once('did-finish-load', async () => {
     try {
@@ -32,9 +38,13 @@ app.on('browser-window-created', (_event, window) => {
       assert.equal(preferences.sandbox, true);
       const deadline = Date.now() + 10000;
       let result;
+      let stable = 0;
       do {
-        result = await window.webContents.executeJavaScript('(async () => ({url:location.href, title:document.title, body:document.body.innerText, bridge:!!window.yikeDesktop, info:await window.yikeDesktop?.getClientInfo(), invalid:await window.yikeDesktop?.requestApi({operation:"not-an-operation"}), unconfigured:await window.yikeDesktop?.requestApi({operation:"session.get"}), file:await window.yikeDesktop?.openExternal("file:///private/invalid"), clipboard:await window.yikeDesktop?.copyText("")}))()');
-        if (result.bridge && result.body.includes('商机工作台')) break;
+        result = await window.webContents.executeJavaScript(${JSON.stringify(rendererProbe)});
+        assert.equal(failures.length, 0, failures.join(','));
+        assert.notEqual(workbenchFailure(result.workbench), 'PACKAGED_PAGE_ERROR', 'PACKAGED_PAGE_ERROR');
+        stable = result.bridge && workbenchFailure(result.workbench) === null ? stable + 1 : 0;
+        if (stable >= 3) break;
         await new Promise(resolve => setTimeout(resolve, 100));
       } while (Date.now() < deadline);
       assert.equal(result.url.split('#')[0], 'yike://app/index.html');
@@ -45,7 +55,8 @@ app.on('browser-window-created', (_event, window) => {
       assert.equal(result.unconfigured.error, 'SERVICE_NOT_CONFIGURED');
       assert.equal(result.file.error, 'INVALID_EXTERNAL_URL');
       assert.equal(result.clipboard.error, 'INVALID_CLIPBOARD_TEXT');
-      assert(result.body.includes('商机工作台'), 'Packaged workbench did not render.');
+      assert.equal(workbenchFailure(result.workbench), null, workbenchFailure(result.workbench));
+      assert(stable >= 3, 'PACKAGED_WORKBENCH_NOT_STABLE');
       assert.equal(failures.length, 0, failures.join(','));
       // Save dialogs are substituted only inside this isolated smoke process.
       // The real packaged IPC, validation, and disk writer still execute.
@@ -66,6 +77,9 @@ app.on('browser-window-created', (_event, window) => {
       assert.deepEqual(await invokeExport(csvExport), {status: 'cancelled'});
       assert.deepEqual(await invokeExport({...csvExport, name: '../rejected'}), {status: 'error', error: 'INVALID_EXPORT_REQUEST'});
       assert.equal(exportDialogs, 3);
+      const finalWorkbench = await window.webContents.executeJavaScript(${JSON.stringify('(' + inspectWorkbench.toString() + ')(document)')});
+      assert.equal(workbenchFailure(finalWorkbench), null, workbenchFailure(finalWorkbench));
+      assert.equal(failures.length, 0, failures.join(','));
       let prompts = 0;
       dialog.showMessageBoxSync = (_window, options) => {
         assert.equal(options.title, '尚有未提交的更改');
@@ -81,7 +95,15 @@ app.on('browser-window-created', (_event, window) => {
       const alive = await window.webContents.executeJavaScript('window.yikeDesktop.getClientInfo()');
       assert.equal(alive.serviceConfigured, false);
       app.once('will-quit', () => {
-        assert.equal(prompts, 2, 'Discard and close must run the native confirmation.');
+        try {
+          assert.equal(prompts, 2, 'Discard and close must run the native confirmation.');
+          assert.equal(failures.length, 0, failures.join(','));
+          writeFileSync(path.join(__dirname, 'completed.json'), JSON.stringify({passed: true}));
+        } catch (error) {
+          console.error(error instanceof Error ? error.message : 'PACKAGED_SMOKE_FAILED');
+          app.exit(1);
+          return;
+        }
         console.log('PASS packaged main/preload/renderer: sandbox, custom protocol, application render, fixed IPC, unconfigured service, rejected native primitives, CSV/backup export actual temporary-file writes and cancellation, cancelled quit then normal confirmed quit.');
       });
       app.quit();
@@ -106,5 +128,11 @@ try {
     child.once('exit', (code, signal) => resolve(signal ? 1 : code ?? 1));
   });
   clearTimeout(timer);
-  process.exitCode = status;
+  let completed = false;
+  if (status === 0) {
+    try { completed = JSON.parse(await readFile(path.join(temporary, 'completed.json'), 'utf8')).passed === true; }
+    catch { /* A clean early exit is not successful verification. */ }
+  }
+  if (status === 0 && !completed) console.error('PACKAGED_SMOKE_INCOMPLETE');
+  process.exitCode = status === 0 && completed ? 0 : 1;
 } finally { await rm(temporary, {recursive: true, force: true}); }

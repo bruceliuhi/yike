@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {prepareStrategySchema, confirmStrategySchema, revokeStrategySchema, strategyUuidSchema} from '../shared/researchStrategies';
 
 const empty = z.object({}).strict().optional();
 const identifier = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-][A-Za-z0-9_.:-]*$/);
@@ -22,7 +23,12 @@ const schemas = {
     status: z.enum(['CONTACTED', 'REPLIED', 'MEETING', 'QUOTED', 'LOST', 'WON']),
     note: text
   }).strict(),
-  'capabilities.get': empty
+  'capabilities.get': empty,
+  'strategies.prepare': prepareStrategySchema,
+  'strategies.confirm': confirmStrategySchema,
+  'strategies.revoke': revokeStrategySchema,
+  'strategies.receipt': z.object({request_id: strategyUuidSchema}).strict(),
+  'strategies.get': z.object({strategy_version_id: strategyUuidSchema}).strict()
 } as const;
 
 export interface ServiceOperation {
@@ -38,8 +44,14 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
   const {operation, payload} = request.data;
   const parsed = schemas[operation].safeParse(payload);
   if (!parsed.success) return null;
+  if (operation.startsWith('strategies.') && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 128 * 1024) return null;
   const data = parsed.data as Record<string, string> | undefined;
   switch (operation) {
+    case 'strategies.prepare': return {path: '/api/ui/research-strategies/prepare', method: 'POST', body: JSON.stringify(data), logout: false};
+    case 'strategies.confirm': return {path: '/api/ui/research-strategies/confirm', method: 'POST', body: JSON.stringify(data), logout: false};
+    case 'strategies.revoke': return {path: '/api/ui/research-strategies/revoke', method: 'POST', body: JSON.stringify(data), logout: false};
+    case 'strategies.receipt': return {path: `/api/ui/research-strategy-operations/${data!.request_id}`, method: 'GET', logout: false};
+    case 'strategies.get': return {path: `/api/ui/research-strategies/${data!.strategy_version_id}`, method: 'GET', logout: false};
     case 'session.get': return {path: '/api/ui/session', method: 'GET', logout: false};
     case 'session.login': return {path: '/api/ui/session', method: 'POST', body: JSON.stringify(data), logout: false};
     case 'session.logout': return {path: '/api/ui/session', method: 'DELETE', logout: true};

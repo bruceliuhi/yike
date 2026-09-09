@@ -1,0 +1,6 @@
+(node:88789) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.
+(Use `Electron --trace-deprecation ...` to show where the warning was created)
+RENDERER_CONSOLE_ERROR
+
+1 !== 0
+

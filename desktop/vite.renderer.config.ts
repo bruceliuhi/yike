@@ -4,6 +4,9 @@ export default defineConfig({
   plugins:[{name:'dev-csp',apply:'serve',transformIndexHtml(html){return html.replace(/<meta\s+http-equiv="Content-Security-Policy"[^>]*>/i,'');}}],
   root: 'src/renderer',
   base: './',
+  // Forge preserves symlink paths by default. Linked review/workspace dependencies
+  // must still share React's dispatcher with react-dom and component libraries.
+  resolve: {preserveSymlinks: false, dedupe: ['react', 'react-dom']},
   server: {
     host: '127.0.0.1',
     port: 18791,

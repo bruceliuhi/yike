@@ -1,0 +1,12 @@
+{
+  "revision": "4eca41301e599a431e06808d2b717926a094bbb5",
+  "recordedAt": "2026-09-10T01:40:28.142189+08:00",
+  "process": "20667 ./out/意客AI-darwin-arm64/意客AI.app/Contents/MacOS/YikeAI --user-data-dir=/tmp/yike-native-merged-20260910 --enable-logging=stderr",
+  "openExecutableAndArchive": [
+    "n/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/MacOS/YikeAI",
+    "n/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/app.asar"
+  ],
+  "archiveSha256": "d7f2d2c0cc4b0cfa3f3034b0074287a66ef00097d827d8f599e52c6f578006af",
+  "userDataDirectory": "/tmp/yike-native-merged-20260910",
+  "verified": "Actual native process and read-only workbench/task-form/connections navigation; no end-to-end backend or new full quit lifecycle claimed."
+}

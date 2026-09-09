@@ -1,0 +1,113 @@
+Window: "线索采集 · 意客AI", App: YikeAI.
+0 标准窗口 线索采集 · 意客AI, Secondary Actions: Raise
+	1 container 线索采集 · 意客AI
+		2 container
+			3 HTML 内容 线索采集 · 意客AI, URL: yike://app/index.html#/collection
+				4 container
+					5 link Description: 跳到主要内容, Value: yike://app/index.html#main-content
+					6 按钮 意客AI商机工作台
+						7 文本 意客AI
+						8 文本 商机工作空间
+					9 container 主导航
+						10 按钮 商机工作台
+							11 图像
+							12 文本 商机工作台
+						13 文本 发现商机
+						14 按钮 业务画像
+							15 图像
+							16 文本 业务画像
+						17 按钮 线索采集
+							18 图像
+							19 文本 线索采集
+						20 按钮 监控任务
+							21 图像
+							22 文本 监控任务
+						23 文本 推进商机
+						24 按钮 商机库
+							25 图像
+							26 文本 商机库
+						27 按钮 触达中心
+							28 图像
+							29 文本 触达中心
+						30 按钮 跟进记录
+							31 图像
+							32 文本 跟进记录
+					33 按钮 账号与授权
+						34 图像
+						35 文本 账号与授权
+					36 按钮 本机工作空间
+						37 图像
+						38 文本 本机工作空间
+					39 按钮 收起导航
+						40 图像
+					41 按钮 返回上级
+						42 图像
+					43 text 线索采集 V0.2
+					44 按钮 登录
+						45 图像
+						46 文本 登录
+					47 container
+						48 标题 线索采集, Value: 1
+							49 文本 线索采集
+						50 文本 配置采集范围，筛选值得推进的需求。
+						51 按钮 新建获客任务
+							52 图像
+							53 文本 新建获客任务
+					54 标签组
+						55 标签 (selected) 全部任务, Value: 1
+						56 标签 (settable, integer) 运行中, Value: 0
+						57 标签 (settable, integer) 已暂停, Value: 0
+						58 标签 (settable, integer) 需要处理, Value: 0
+						59 标签 (settable, integer) 本机草稿 0, Value: 0
+							60 文本 本机草稿
+							61 文本 0
+					62 图像
+					63 文本栏 (settable) Description: 搜索任务, Placeholder: 搜索任务名称
+					64 container
+						65 文本 平台
+						66 弹出式按钮 Description: 筛选任务平台, Value: 全部平台
+							67 (selected) 全部平台
+					68 container
+						69 文本 最近更新
+						70 日期选择器 任务更新开始日期
+							71 container
+								72 步进器 (settable, float) Description: 年 任务更新开始日期, Value: 0, Placeholder:  年 
+								73 文本 /
+								74 步进器 (settable, float) Description: 月 任务更新开始日期, Value: 0, Placeholder: 月
+								75 文本 /
+								76 步进器 (settable, float) Description: 日 任务更新开始日期, Value: 0, Placeholder: 日
+							77 弹出式按钮 显示日期选择器
+					78 container
+						79 文本 至
+						80 日期选择器 任务更新结束日期
+							81 container
+								82 步进器 (settable, float) Description: 年 任务更新结束日期, Value: 0, Placeholder:  年 
+								83 文本 /
+								84 步进器 (settable, float) Description: 月 任务更新结束日期, Value: 0, Placeholder: 月
+								85 文本 /
+								86 步进器 (settable, float) Description: 日 任务更新结束日期, Value: 0, Placeholder: 日
+							87 弹出式按钮 显示日期选择器
+					88 按钮 刷新
+					89 按钮 查看原始线索
+						90 文本 查看原始线索
+						91 图像
+					92 标题 还没有采集任务, Value: 3
+						93 文本 还没有采集任务
+					94 文本 创建任务，确认画像、范围与执行条件。
+					95 按钮 创建第一个任务
+					96 container 保存的模板
+						97 标题 保存的模板, Value: 2
+							98 文本 保存的模板
+						99 文本 本机会话模板 · 未同步
+						100 文本 登录后可保存和使用本机会话模板。
+	101 关闭按钮
+	102 全屏幕按钮 Help: 此按钮也可以执行缩放窗口的操作, Secondary Actions: 缩放窗口
+	103 最小化按钮
+104 menu bar
+	105 意客AI
+	106 File
+	107 Edit
+	108 显示
+	109 Window
+
+The focused UI element is 17 按钮 线索采集
