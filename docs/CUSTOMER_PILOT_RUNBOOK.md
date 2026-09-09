@@ -60,7 +60,7 @@ uv run --frozen yike-pilot-import \
   --profile-version-id '<confirmed-profile-version-id>'
 ```
 
-命令不会执行迁移，只校验整包并输出 `created`、`duplicates` 和 `total`。任一条证据不合格时整包不写入；schema 必须由受信迁移作业预先完成。当前实现先整包预校验、再逐条事务写入；后续条目发生数据库错误时不能保证回滚前面的条目，整包原子写入列入 V02-02。
+命令不会执行迁移，只校验整包并输出 `created`、`duplicates` 和 `total`。任一条证据不合格时整包不写入；schema 必须由受信迁移作业预先完成。当前 PostgreSQL 实现先整包预校验，再在同一事务中写入全部条目、来源版本与观察记录；后续条目发生冲突或数据库错误时整包回滚。重复导入键必须匹配原画像、来源身份和公开 URL，否则拒绝，不以幂等命中掩盖 URL 冲突。隔离库验证见 [主线整合验收](qa/main-integration/REVIEW.md)。
 
 ## 当前已实现的用户路径
 

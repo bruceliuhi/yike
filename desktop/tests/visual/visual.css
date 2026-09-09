@@ -1,0 +1,5 @@
+#visual-harness-banner {position: fixed; top: 3px; left: 50%; transform: translateX(-50%); z-index: 100000; border: 1px solid #f2cc76; border-radius: 3px; background: #fff8e7; color: #765018; padding: 2px 8px; font: 10px/15px system-ui; white-space: nowrap; pointer-events: none;}
+#visual-harness-controls {position: fixed; left: 6px; bottom: 4px; z-index: 100001; background: #fff8e7; border: 1px solid #f2cc76; padding: 2px 6px; font: 10px/16px system-ui; max-width: 240px;}
+#visual-harness-controls summary {cursor: pointer;}
+#visual-harness-controls div {display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; padding: 8px 0;}
+#visual-harness-controls a {color: #315eb8; margin-right: 4px;}

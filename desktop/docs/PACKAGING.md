@@ -41,7 +41,7 @@ YIKE_SERVICE_URL=https://customer.example \
 
 ## Windows x64
 
-在 Windows x64、Node.js 24 x64 环境的 PowerShell 运行：
+在 Windows x64、Node.js 24 x64 环境中，获取要验收的代码提交，然后从仓库的 `desktop/` 目录用 PowerShell 运行：
 
 ```powershell
 ./scripts/build-windows.ps1
@@ -49,9 +49,24 @@ YIKE_SERVICE_URL=https://customer.example \
 
 脚本执行安装依赖、类型检查、单元测试、原生网络冒烟、Squirrel 安装包构建、ASAR 校验、包内启动冒烟和产物 SHA-256。安装程序为 `out/make/squirrel.windows/x64/YikeAI-Setup.exe`；同时保留 `.nupkg` 和 `RELEASES`。
 
+每次运行会生成独立目录 `out/windows-evidence/<运行编号>/`，控制台会显示该位置。其中：
+
+- `windows-build.json` 记录当前 Git 提交与 dirty 状态、Node/操作系统版本及架构、锁文件 SHA-256、每个阶段的状态和退出码，以及实际产物的大小和 SHA-256。无法读取 Git 时明确记为 `null`；不要将带本地改动的构建当成提交的精确产物。
+- `WINDOWS_ACCEPTANCE.md` 来自[人工验收模板](WINDOWS_ACCEPTANCE_TEMPLATE.md)，安装、可见启动、任务草稿、退出、重启、单实例、卸载及 100%/125%/150% 显示缩放均默认 `UNTESTED`。自动构建成功不会自动勾选人工项目。
+
+依赖安装或后续阶段失败会保留报告和实际退出码，尚未执行的阶段为 `NOT_RUN`。缺少 Node 24 时 PowerShell 入口也会尝试写入预检失败报告。报告目录不可写等初始化故障只能在控制台提示；强制终止进程可能留下 `IN_PROGRESS`/`RUNNING`，这同样不是成功证据。证据文件不采集环境变量、Cookie、凭证、原始构建日志或异常全文。
+
+完成构建后，只运行报告对应的本次安装包，逐项实际检查并填写人工表。回传同一运行目录中的 JSON、人工表及必要的脱敏截图；失败也回传 JSON，没有安装包的项目保持 `UNTESTED`。不要回传 `.env`、平台会话、用户数据目录、`node_modules` 或完整控制台日志。自动报告中的 `BUILD_SUCCEEDED` 只表示构建及自动检查通过，不能替代 Windows 实机与产品功能验收。
+
 Squirrel 的 `--squirrel-install`、更新和卸载事件由 `electron-squirrel-startup` 处理。主程序名固定为 `YikeAI.exe`，AppUserModelId 为 `com.squirrel.YikeAI.YikeAI`。
 
 Squirrel.Windows 的官方构建宿主为 Windows，或安装 Mono 和 Wine 的 Linux；不支持本机 macOS 直接制作安装程序。因此只有在上述脚本于可用宿主成功执行并实际验收后，才能报告 Windows 安装包已交付。[官方构建要求](https://www.electronforge.io/config/makers/squirrel.windows)
+
+### Windows 证据脚本的本机验证
+
+2026-09-09 在 macOS / Node 24.19.0 上，`node --check scripts/windows-build-evidence.mjs` 通过；`npm test -- tests/windowsBuildEvidence.test.mjs` 为 **7 passed**。测试使用隔离临时目录中的真实文件和 Git 提交，检查 SHA-256、失败退出码、阶段持久化、产物路径边界及人工状态保持未验收。实际运行 Node 入口返回退出码 1，生成 `WINDOWS_X64_NODE24_REQUIRED` 报告，后续 8 个阶段均为 `NOT_RUN`；记录见 [windows-evidence-writer-check.json](../../docs/qa/ui-r3/windows-evidence-writer-check.json)。
+
+本机未安装 PowerShell，`.ps1` 的解析、Node 缺失兜底、Windows 构建及人工验收都尚未在 Windows 执行。本记录不宣称 Windows 包已经生成或验证，也不改变上次 macOS 包的构建摘要。
 
 ## 服务连接和会话边界
 

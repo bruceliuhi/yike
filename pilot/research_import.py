@@ -61,10 +61,15 @@ def import_reviewed_bundle(store, user_id: str, profile_version_id: str, bundle:
         if now_utc - published_at > timedelta(days=60):
             raise ValueError("source_published_at 必须在最近 60 天内")
         validated.append({**lead, "reviewed_by": reviewer_id, "reviewed_at": reviewed_at_text})
-    results = []
+    entries = []
     for lead in validated:
         data = {key: lead[key] for key in _REQUIRED if key != "lead_id"}
         data["reviewed_by"] = lead["reviewed_by"]
         data["reviewed_at"] = lead["reviewed_at"]
-        results.append(store.import_opportunity(user_id, profile_version_id, f"{bundle_id}:{lead['lead_id']}", data))
-    return results
+        entries.append((f"{bundle_id}:{lead['lead_id']}", data))
+    # Production stores commit the entire package in one transaction. The
+    # per-item protocol remains supported for offline validation adapters.
+    bulk_import = getattr(store, "import_opportunities", None)
+    if bulk_import is not None:
+        return bulk_import(user_id, profile_version_id, entries)
+    return [store.import_opportunity(user_id, profile_version_id, key, data) for key, data in entries]

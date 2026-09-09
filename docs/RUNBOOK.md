@@ -58,7 +58,9 @@ mkdir -p "$YIKE_RUNTIME_ROOT"
   /absolute/path/to/mediacrawler.bundle
 ```
 
-bundle 只包含固定 commit 的源码和 manifest，不包含 `.venv`、Profile、Cookie、Token 或授权原件；安装步骤会在仓外重新生成运行环境。
+产物为 Git bundle 和旁路 `.manifest.json` 两个文件；bundle 包含固定 commit 及其可达 Git 历史，保留其中的上游许可证，不是去除历史的源码快照。打包器检查当前树及该历史的受限路径，拒绝任意层级的 `.env*`（含模板文件）、`browser_data` 和可识别的 Cookie/Token/凭据文件名；这不替代内容级秘密扫描，分发前仍需检查授权源码历史。未跟踪的运行目录不会复制到 bundle，安装步骤在仓外重新生成运行环境。
+
+打包使用临时独立 Git 仓库，不修改源 checkout 的分支或引用。目标 bundle 与 manifest 都必须不存在（符号链接也拒绝）；发布完整文件时不覆盖已有输出。若进程被强制终止而只留下 manifest，请先人工核对并换用新的输出路径重试。源码包支持不等于 Electron 已内置采集器，也不代表真实平台连接或采集验收通过。
 
 不要覆盖或手改已有 runtime；需要重建时使用新的空路径，并更新 `.env.local`。
 

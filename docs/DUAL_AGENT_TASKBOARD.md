@@ -1,5 +1,7 @@
 # 意客 AI 双 AI 协作任务板
 
+> **适用范围校正（2026-09-09 主线整合）：下文的 DISCOVERY MVP/SQLite/D04～D06 任务是旧 `app/` 路线的参考，不是当前 V0.2 开发任务板。** 来源 `554c1ed`、`e7c94a9` 的内容保留溯源。当前产品已明确为多平台、PostgreSQL 客户空间、R3 前端与桌面客户端，执行入口为 [V0.2 实施任务书](V02_IMPLEMENTATION_TASKBOOK.md)；不能用下文“冻结云端/多租户/其他平台”等旧范围取消这些要求。仓库协作以[当前工作流](REPOSITORY_WORKFLOW.md)为准，Windows 实机由用户手动运行脚本并回传证据，不能假定已有远程 Windows 执行环境。
+
 > 主仓：`xinghetech/yike-ai2026`
 > 主分支：`main`
 > 初始基线：`0e20ffb`；当前主线以最新 `origin/main` 为准

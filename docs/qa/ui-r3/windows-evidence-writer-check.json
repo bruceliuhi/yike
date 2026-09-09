@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-09-09T08:31:45.034Z",
+  "scope": "Windows evidence writer verification on macOS only; no Windows installer or manual acceptance is claimed.",
+  "source": {
+    "commitAtExecution": "40e5a9574748da8be58be070bd49669d2f26b3d5",
+    "dirtyAtExecution": true,
+    "inputs": [
+      {
+        "path": "desktop/scripts/build-windows.ps1",
+        "sha256": "cc84cdc5437a67928b9d61bd221c0f288fdd76e0e662be2f4a5543b00d707379"
+      },
+      {
+        "path": "desktop/scripts/windows-build-evidence.mjs",
+        "sha256": "3788f8b58f4d17f9cc06278da9522b4dfe96c6f4f52dbe9405b1e249f6dc5350"
+      },
+      {
+        "path": "desktop/tests/windowsBuildEvidence.test.mjs",
+        "sha256": "bbfc4308effed234ea423c00c25cb8c1b03734a497bd67144954a46396052400"
+      },
+      {
+        "path": "desktop/docs/WINDOWS_ACCEPTANCE_TEMPLATE.md",
+        "sha256": "9a5af6966e481f10e8030155651d6f1aeb4a7143dbd6e8ebda1a9b02d753247d"
+      }
+    ]
+  },
+  "environment": {
+    "platform": "darwin",
+    "nodeVersion": "v24.19.0",
+    "nodeArch": "arm64",
+    "osRelease": "25.5.0"
+  },
+  "checks": [
+    {
+      "command": "node --check scripts/windows-build-evidence.mjs",
+      "exitCode": 0
+    },
+    {
+      "command": "npm test -- tests/windowsBuildEvidence.test.mjs",
+      "exitCode": 0,
+      "filesPassed": 1,
+      "testsPassed": 7
+    },
+    {
+      "command": "node scripts/windows-build-evidence.mjs",
+      "exitCode": 1,
+      "expected": "Reject non-Windows host and retain failure report"
+    }
+  ],
+  "actualCliReport": {
+    "runId": "2026-09-09T08-29-35-604Z-e2c2917d",
+    "outcome": "BUILD_FAILED",
+    "failureCode": "WINDOWS_X64_NODE24_REQUIRED",
+    "preflight": {
+      "id": "preflight",
+      "status": "FAILED",
+      "startedAt": "2026-09-09T08:29:35.629Z",
+      "finishedAt": "2026-09-09T08:29:35.629Z",
+      "exitCode": 1
+    },
+    "remainingStages": [
+      {
+        "id": "dependencies",
+        "status": "NOT_RUN",
+        "startedAt": null,
+        "finishedAt": null,
+        "exitCode": null
+      },
+      {
+        "id": "typecheck",
+        "status": "NOT_RUN",
+        "startedAt": null,
+        "finishedAt": null,
+        "exitCode": null
+      },
+      {
+        "id": "unit-tests",
+        "status": "NOT_RUN",
+        "startedAt": null,
+        "finishedAt": null,
+        "exitCode": null
+      },
+      {
+        "id": "native-smoke",
+        "status": "NOT_RUN",
+        "startedAt": null,
+        "finishedAt": null,
+        "exitCode": null
+      },
+      {
+        "id": "make-win",
+        "status": "NOT_RUN",
+        "startedAt": null,
+        "finishedAt": null,
+        "exitCode": null
+      },
+      {
+        "id": "artifacts",
+        "status": "NOT_RUN",
+        "startedAt": null,
+        "finishedAt": null,
+        "exitCode": null
+      },
+      {
+        "id": "archive-check",
+        "status": "NOT_RUN",
+        "startedAt": null,
+        "finishedAt": null,
+        "exitCode": null
+      },
+      {
+        "id": "packaged-smoke",
+        "status": "NOT_RUN",
+        "startedAt": null,
+        "finishedAt": null,
+        "exitCode": null
+      }
+    ],
+    "artifacts": [],
+    "manualAcceptance": "UNTESTED",
+    "lockfile": {
+      "path": "package-lock.json",
+      "sha256": "50acb7eedd32a65c25ea9e813d62c9e0e2d60aee0a185e06a87242a2d02c63e8"
+    }
+  },
+  "pending": [
+    "PowerShell parsing and Node-missing bootstrap on Windows",
+    "Actual Windows x64 dependency install, build and packaged smoke",
+    "Visible installation, launch, quit, relaunch, uninstall and 100/125/150 percent scaling"
+  ],
+  "outputReference": "desktop/out/windows-evidence/2026-09-09T08-29-35-604Z-e2c2917d/windows-build.json"
+}

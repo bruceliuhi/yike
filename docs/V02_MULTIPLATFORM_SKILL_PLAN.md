@@ -16,7 +16,7 @@ Skill 和底层采集引擎属于内部实现。对外仍展示意客AI、监控
 
 - [客户试用手册](CUSTOMER_PILOT_RUNBOOK.md) 规定“Codex＋商机研究 Skill→人工复核→研究包导入”。
 - [研究验证记录](SKILL_VALIDATION_CP05.md) 有小红书平台内、V2EX、知乎及其他来源的抽样/排除记录；是当时人工/Agent 研究记录，不是当前登录或持续监控结果。
-- [研究包校验](../pilot/research_import.py) 已定义来源平台、原文、时间、画像、匹配理由、行动信号、价值判断、风险、独立草稿和复核信息；整包预校验后仍逐条写入，数据库写入故障的整包回滚尚待补齐。
+- [研究包校验](../pilot/research_import.py) 已定义来源平台、原文、时间、画像、匹配理由、行动信号、价值判断、风险、独立草稿和复核信息；PostgreSQL 写入已补整包事务和 URL 冲突校验，失败回滚覆盖来源、版本、观察与商机表。原始候选上传与平台执行仍需开发，详见[主线整合验收](qa/main-integration/REVIEW.md)。
 - [初始客户迁移](../migrations/101_customer_pilot.sql) 支持来源、版本与观察；[证据迁移](../migrations/102_customer_pilot_evidence.sql) 支持同画像去重；[存储层](../pilot/store.py) 有研究任务和 claim/complete/fail 租约基础；[v3 租户 RLS](../migrations/103_customer_pilot_tenant_rls.sql) 已纳入目标环境验收。
 - 当前仓库已纳入版本化通用研究 Skill 包：[ai-project-lead-research-v1](../skills/ai-project-lead-research-v1/SKILL.md)。它只承载研究规则、证据与评测契约，不包含平台连接器、调度器或发送器；实际运行入口仍待 V02-01/V02-02/V02-04 后续实现与验收，不能据此宣称平台已接通。
 - [旧采集器](../app/collector.py) 与 [版本锁定](../vendor/mediacrawler.lock) 只集成抖音/B站，并使用旧 SQLite 流程。底层依赖支持更多平台，不意味着本分支的适配、状态和会话隔离已覆盖它们。

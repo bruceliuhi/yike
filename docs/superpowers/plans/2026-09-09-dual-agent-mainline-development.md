@@ -1,5 +1,7 @@
 # 双 AI 主线协作 Implementation Plan
 
+> **范围：旧 DISCOVERY MVP 参考计划，非当前执行授权。** 2026-09-09 整合保留来源 `554c1ed`、`e7c94a9`。下文旧 SQLite/双平台限制与固定 SHA 不覆盖已授权的多平台、PostgreSQL、R3 页面及客户端目标；接续工作须转至 [V0.2 实施任务书](../../V02_IMPLEMENTATION_TASKBOOK.md)和[仓库工作流](../../REPOSITORY_WORKFLOW.md)。本计划中的步骤与技能调用是历史内容，不应自动启动。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 在 `yike-ai2026/main` 上用 Mac Codex 主集成、Win Codex 独立模块和双向复核，完成当前 B 站＋抖音 DISCOVERY MVP。

@@ -1,0 +1,37 @@
+{
+  "date": "2026-09-09",
+  "baseCommit": "615e3407a97eb39989b4b4fefc114b89599ba071",
+  "branchAtValidation": "codex/main-integration",
+  "scope": "isolated visual harness only; not production business acceptance",
+  "tests": {
+    "command": "npx vitest run tests/visual",
+    "filesPassed": 2,
+    "testsPassed": 15,
+    "exitCode": 0
+  },
+  "typecheck": {"command": "npm run typecheck", "exitCode": 0},
+  "productionExclusion": {
+    "command": "node tests/visual/verify-production-exclusion.mjs",
+    "productionGraphModules": 4659,
+    "manifestHarnessReferences": 0,
+    "existingAsarChecked": true,
+    "failures": [],
+    "exitCode": 0,
+    "scope": "production renderer rebuilt into separate out/visual-production-check; existing local Mac ASAR inspected; no new package created"
+  },
+  "browser": {
+    "surface": "Chrome via CUA",
+    "url": "http://127.0.0.1:18794/?scenario=P09#/monitors/TEST-monitor",
+    "verified": [
+      "TEST isolation banner visible",
+      "real App navigation and TasksPage rendered",
+      "five platform states present with synthetic TEST labels",
+      "execution-record tab click displayed two TEST memory events"
+    ],
+    "all20PagesCaptured": false,
+    "externalMessagesSent": false,
+    "realAccountsUsed": false,
+    "customerDatabaseWritten": false
+  },
+  "pending": ["complete same-state screenshot comparison on a later feature branch"]
+}
