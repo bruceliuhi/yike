@@ -125,7 +125,7 @@ _CAPABILITIES = {
     "opportunities": True,
     "manual_followups": True,
     "sms_login": False,
-    "platform_connections": True,
+    "platform_connections": False,
     "task_execution": False,
     "search_suggestions": False,
     "outreach": False,

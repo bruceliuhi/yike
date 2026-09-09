@@ -39,7 +39,7 @@
 
 | ID | Owner | 分支（从任务开始时最新 `origin/main` 起） | 交付范围 | 依赖 | 上线验收 | Reviewer | 状态 |
 |---|---|---|---|---|---|---|---|
-| `SYNC-01` | Mac | `codex/mac-identity-execution-contract` | 对齐 parent authority、`AUTHORITY.md`、V02 计划与当前 main；列出旧 Discovery 分支的选择性迁移清单 | 无 | [对齐记录](SYNC-01_BASELINE_RECONCILIATION.md)；范围、数据存储、身份边界和证据等级已明确；不整支盲合并 | Win | `DONE` |
+| `SYNC-01` | Mac | `codex/mac-identity-execution-contract` | 对齐 parent authority、`AUTHORITY.md`、V02 计划与当前 main；列出旧 Discovery 分支的选择性迁移清单 | 无 | [对齐记录](SYNC-01_BASELINE_RECONCILIATION.md)已形成，待独立复核；不改写只读父仓、不整支盲合并 | Win | `REVIEW` |
 | `V02-01` | Mac | `codex/mac-identity-execution-contract` | 客户激活/登录/退出、客户空间、设备绑定/撤销、平台连接、执行事件与 Origin/认证边界 | `SYNC-01` | 两客户/设备不可串用；退出/断开立即失效；桌面不持有服务端密钥或 DB 连接 | Win | `DOING` |
 | `V02-02` | Mac | `codex/mac-multiplatform-data-api` | 平台能力注册、候选上传 API、PostgreSQL 事实模型、租户解析、整包事务、幂等和去重 | `V02-01` | 首发平台逐个可溯源；重复运行不重复入库；失败整包回滚；SQLite 不作为正式客户库 | Win | `BLOCKED_DEPENDENCY` |
 | `V02-02-WIN` | Win | `codex/win-adapter-contracts` | MediaCrawler/平台适配器、解析器、标准化、平台 ID 冲突和可重开来源契约 | `SYNC-01` | 只依赖公开接口；不直连 DB；定向测试、secret scan 和跨平台路径检查通过 | Mac | `READY` |

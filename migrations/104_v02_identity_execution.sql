@@ -15,13 +15,16 @@ CREATE TABLE IF NOT EXISTS pilot_platform_connections (
     platform TEXT NOT NULL CHECK (platform IN ('XIAOHONGSHU', 'DOUYIN', 'BILIBILI', 'ZHIHU', 'PUBLIC_WEB')),
     account_public_id TEXT NOT NULL CHECK (length(trim(account_public_id)) BETWEEN 1 AND 256),
     session_ref TEXT NOT NULL CHECK (session_ref LIKE 'vault://%' AND length(session_ref) <= 512),
-    status TEXT NOT NULL DEFAULT 'CONNECTED' CHECK (status IN ('CONNECTED', 'DISCONNECTED', 'EXPIRED')),
+    status TEXT NOT NULL DEFAULT 'UNVERIFIED' CHECK (status IN ('UNVERIFIED', 'CONNECTED', 'DISCONNECTED', 'EXPIRED')),
     connected_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     disconnected_at TIMESTAMPTZ,
     UNIQUE (tenant_id, connection_id),
+    UNIQUE (tenant_id, device_id, connection_id),
     UNIQUE (tenant_id, device_id, platform, account_public_id),
     FOREIGN KEY (tenant_id, device_id) REFERENCES pilot_devices(tenant_id, device_id)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS pilot_tasks_tenant_task_id_key ON pilot_tasks(tenant_id, task_id);
 
 CREATE TABLE IF NOT EXISTS pilot_execution_events (
     event_id TEXT PRIMARY KEY,
@@ -39,7 +42,8 @@ CREATE TABLE IF NOT EXISTS pilot_execution_events (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, event_id),
     FOREIGN KEY (tenant_id, device_id) REFERENCES pilot_devices(tenant_id, device_id),
-    FOREIGN KEY (tenant_id, connection_id) REFERENCES pilot_platform_connections(tenant_id, connection_id)
+    FOREIGN KEY (tenant_id, device_id, connection_id) REFERENCES pilot_platform_connections(tenant_id, device_id, connection_id),
+    FOREIGN KEY (tenant_id, task_id) REFERENCES pilot_tasks(tenant_id, task_id)
 );
 
 ALTER TABLE pilot_devices ENABLE ROW LEVEL SECURITY;

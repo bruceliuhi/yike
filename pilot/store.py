@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from pilot.db import PilotDatabase
-from pilot.identity import IdentityValidationError, validate_connection_input, validate_execution_event
+from pilot.identity import validate_connection_input, validate_execution_event
 
 
 class PilotStore:
@@ -419,16 +419,13 @@ class PilotStore:
                     return False
                 cursor.execute(
                     "UPDATE pilot_platform_connections SET status='DISCONNECTED', disconnected_at=COALESCE(disconnected_at, CURRENT_TIMESTAMP) "
-                    "WHERE tenant_id=%s AND device_id=%s AND status='CONNECTED'",
+                    "WHERE tenant_id=%s AND device_id=%s AND status<>'DISCONNECTED'",
                     (tenant_id, device_id.strip()),
                 )
         return True
 
     def connect_platform(self, user_id: str, platform: str, device_id: str, account_public_id: str, session_ref: str) -> dict:
-        try:
-            values = validate_connection_input(platform, device_id, account_public_id, session_ref)
-        except IdentityValidationError:
-            raise
+        values = validate_connection_input(platform, device_id, account_public_id, session_ref)
         tenant_id = self._tenant_for_user(user_id)
         connection_id = str(uuid4())
         with self.database.connect() as connection:
@@ -447,7 +444,7 @@ class PilotStore:
                     "INSERT INTO pilot_platform_connections(connection_id, tenant_id, device_id, platform, account_public_id, session_ref) "
                     "VALUES (%s,%s,%s,%s,%s,%s) "
                     "ON CONFLICT (tenant_id, device_id, platform, account_public_id) DO UPDATE SET "
-                    "session_ref=EXCLUDED.session_ref, status='CONNECTED', disconnected_at=NULL "
+                    "session_ref=EXCLUDED.session_ref, status='UNVERIFIED', disconnected_at=NULL "
                     "RETURNING connection_id, platform, account_public_id, status",
                     (connection_id, tenant_id, values["device_id"], values["platform"], values["account_public_id"], values["session_ref"]),
                 )
@@ -478,12 +475,13 @@ class PilotStore:
                 cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
                 cursor.execute(
                     "UPDATE pilot_platform_connections SET status='DISCONNECTED', disconnected_at=COALESCE(disconnected_at, CURRENT_TIMESTAMP) "
-                    "WHERE tenant_id=%s AND connection_id=%s AND status='CONNECTED' RETURNING connection_id",
+                    "WHERE tenant_id=%s AND connection_id=%s AND status<>'DISCONNECTED' RETURNING connection_id",
                     (tenant_id, connection_id.strip()),
                 )
                 return cursor.fetchone() is not None
 
     def append_execution_event(self, user_id: str, device_id: str, connection_id: str, execution_generation: int, event_type: str, payload: dict, task_id: str | None = None) -> dict:
+        """Append reported telemetry only; never advance tasks, cursors or metrics."""
         event = validate_execution_event(event_type, execution_generation, payload)
         tenant_id = self._tenant_for_user(user_id)
         event_id = str(uuid4())
@@ -492,16 +490,28 @@ class PilotStore:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
                 cursor.execute(
-                    "SELECT d.status, c.status FROM pilot_devices d "
-                    "JOIN pilot_platform_connections c ON c.tenant_id=d.tenant_id AND c.device_id=d.device_id "
-                    "WHERE d.tenant_id=%s AND d.device_id=%s AND c.connection_id=%s",
+                    "SELECT status FROM pilot_devices WHERE tenant_id=%s AND device_id=%s FOR UPDATE",
+                    (tenant_id, device_id),
+                )
+                device = cursor.fetchone()
+                if device is None:
+                    raise KeyError("device not found in tenant")
+                if device[0] != "ACTIVE":
+                    raise ValueError("device is not active")
+                # Fixed lock order: device, then connection, same as revoke.
+                cursor.execute(
+                    "SELECT status FROM pilot_platform_connections WHERE tenant_id=%s AND device_id=%s AND connection_id=%s FOR UPDATE",
                     (tenant_id, device_id, connection_id),
                 )
-                row = cursor.fetchone()
-                if row is None:
+                connected = cursor.fetchone()
+                if connected is None:
                     raise KeyError("device or connection not found in tenant")
-                if row != ("ACTIVE", "CONNECTED"):
-                    raise ValueError("device or connection is not active")
+                if connected[0] != "CONNECTED":
+                    raise ValueError("connection is not active")
+                if task_id is not None:
+                    cursor.execute("SELECT task_id FROM pilot_tasks WHERE tenant_id=%s AND task_id=%s FOR KEY SHARE", (tenant_id, task_id))
+                    if cursor.fetchone() is None:
+                        raise KeyError("task not found in tenant")
                 cursor.execute(
                     "INSERT INTO pilot_execution_events(event_id, tenant_id, device_id, connection_id, task_id, execution_generation, event_type, payload) "
                     "VALUES (%s,%s,%s,%s,%s,%s,%s,%s::jsonb)",

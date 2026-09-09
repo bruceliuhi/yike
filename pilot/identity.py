@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import re
 
 
@@ -20,7 +19,16 @@ SUPPORTED_EVENT_TYPES = frozenset({
 })
 _OPAQUE_REF = re.compile(r"^vault://[A-Za-z0-9._~:/-]{1,512}$")
 _SECRET_MARKERS = ("cookie=", "token=", "password=", "secret=", "authorization:")
-_SECRET_KEYS = {"cookie", "token", "password", "secret", "authorization", "profile", "qr"}
+_EVENT_FIELDS = {
+    "COLLECTION_STARTED": frozenset(),
+    "COLLECTION_PROGRESS": frozenset({"raw_count", "unique_count"}),
+    "COLLECTION_SUCCEEDED": frozenset({"raw_count", "unique_count"}),
+    "COLLECTION_FAILED": frozenset({"error_code"}),
+    "COLLECTION_CANCELLED": frozenset(),
+    "CONNECTION_EXPIRED": frozenset(),
+    "CONNECTION_REVOKED": frozenset(),
+}
+_ERROR_CODES = frozenset({"PLATFORM_AUTH_REQUIRED", "PLATFORM_PERMISSION_DENIED", "PLATFORM_RATE_LIMITED", "PLATFORM_VERIFICATION_REQUIRED", "PLATFORM_RESPONSE_CHANGED", "COLLECTION_NETWORK_FAILED", "COLLECTION_PARSE_FAILED"})
 
 
 def _text(value: str, field: str, limit: int = 256) -> str:
@@ -54,18 +62,12 @@ def validate_execution_event(event_type: str, execution_generation: int, payload
         raise IdentityValidationError("execution_generation must be positive")
     if not isinstance(payload, dict):
         raise IdentityValidationError("payload must be an object")
-    def has_secret_key(value: object) -> bool:
-        if isinstance(value, dict):
-            if any(str(key).lower() in _SECRET_KEYS for key in value):
-                return True
-            return any(has_secret_key(item) for item in value.values())
-        if isinstance(value, list):
-            return any(has_secret_key(item) for item in value)
-        return False
-    if has_secret_key(payload):
-        raise IdentityValidationError("payload contains a protected field")
-    try:
-        json.dumps(payload, ensure_ascii=False, allow_nan=False)
-    except (TypeError, ValueError) as error:
-        raise IdentityValidationError("payload must be JSON serializable") from error
+    if set(payload) - _EVENT_FIELDS[event_type]:
+        raise IdentityValidationError("payload contains unsupported fields")
+    for key, value in payload.items():
+        if key == "error_code":
+            if not isinstance(value, str) or value not in _ERROR_CODES:
+                raise IdentityValidationError("unsupported error_code")
+        elif type(value) is not int or not 0 <= value <= 2_147_483_647:
+            raise IdentityValidationError("counts must be bounded nonnegative integers")
     return {"event_type": event_type, "execution_generation": execution_generation, "payload": payload}

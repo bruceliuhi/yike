@@ -232,8 +232,7 @@ def test_missing_capabilities_never_report_execution_success(setup):
     store, client, headers = setup
     capabilities = client.get("/api/ui/capabilities").json()["capabilities"]
     assert capabilities["profiles"] == {"available": True}
-    assert capabilities["platform_connections"] == {"available": True}
-    for capability in ("sms_login", "task_execution", "search_suggestions", "outreach", "replies"):
+    for capability in ("sms_login", "platform_connections", "task_execution", "search_suggestions", "outreach", "replies"):
         assert capabilities[capability] == {"available": False}
         response = client.post(f"/api/ui/capabilities/{capability}", headers=headers)
         assert response.status_code == 501

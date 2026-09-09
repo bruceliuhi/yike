@@ -5,6 +5,7 @@ import pytest
 from pilot.identity import IdentityValidationError, validate_connection_input, validate_execution_event
 from pilot.store import PilotStore
 from pilot.ui_api import register_ui_api
+from pilot.db import PilotDatabase
 
 
 MIGRATION = Path(__file__).parents[1] / "migrations" / "104_v02_identity_execution.sql"
@@ -23,6 +24,11 @@ def test_identity_migration_contains_tenant_scoped_device_connection_and_events(
         "pilot_tenant_scope",
     ):
         assert marker in sql
+
+
+def test_migration_versions_are_unique():
+    versions = [version for version, _ in PilotDatabase.migration_paths]
+    assert len(versions) == len(set(versions))
 
 
 def test_connection_input_rejects_credentials_and_unknown_platforms():
@@ -48,7 +54,23 @@ def test_execution_event_requires_positive_generation_and_safe_event_type():
         validate_execution_event("cookie_dump", 1, {})
     with pytest.raises(IdentityValidationError):
         validate_execution_event("COLLECTION_PROGRESS", 1, {"token": "never-store"})
-    assert validate_execution_event("COLLECTION_STARTED", 2, {"query": "agent"})["execution_generation"] == 2
+    assert validate_execution_event("COLLECTION_STARTED", 2, {})["execution_generation"] == 2
+
+
+@pytest.mark.parametrize("payload", [
+    {"access_token": "synthetic-secret"}, {"cookies": "synthetic-secret"},
+    {"error": "Authorization: Bearer synthetic-secret"},
+    {"nested": {"private_key": "synthetic-secret"}},
+    {"raw_count": True}, {"raw_count": -1}, {"raw_count": "5"},
+    {"error_code": "cookie=synthetic-secret"}, {"raw_count": {"token": "x"}},
+])
+def test_events_only_accept_bounded_scalar_telemetry(payload):
+    with pytest.raises(IdentityValidationError):
+        validate_execution_event("COLLECTION_PROGRESS", 1, payload)
+
+
+def test_progress_event_accepts_only_count_fields():
+    assert validate_execution_event("COLLECTION_PROGRESS", 1, {"raw_count": 5, "unique_count": 3})["payload"] == {"raw_count": 5, "unique_count": 3}
 
 
 def test_store_exposes_tenant_scoped_identity_operations():
