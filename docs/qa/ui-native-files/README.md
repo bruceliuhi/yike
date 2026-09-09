@@ -38,3 +38,9 @@
 首次 CUA 粘贴 Go to Folder 路径超时，实际输入未生效；读取路径栏后用原生 setValue 定位成功，没有重复导入或将工具超时归作产品缺陷。
 
 独立[代码审核](reviews/modal-code-review.md)、[架构审核](reviews/modal-architecture-review.md)与[来件集成审核](reviews/incoming-integration.md)保留各次候选范围。Windows、客户服务原生导出/备份和其余完整Goal验收仍分别继续。
+
+## 提交前主线接续
+
+正常合入 ebee184，仅增加服务端搜索建议迁移注册及相关测试/说明；`git diff f20b404 HEAD -- desktop` 为空，安装包仍准确绑定相同桌面源码，不为文档/后端变动重建。根线程独立运行迁移注册所在身份合同套件 [19 passed](logs/incoming-migration-registry.log)；不据此代签真实数据库或生产迁移。
+
+`secret_scan` clean。差异空白检查对产品代码与文档通过；原始构包/测试日志保留工具产生的尾空白，空白 TXT 是实际无效文件验收样本，单独排除这两类，不篡改原始输出或测试文件。
