@@ -112,4 +112,4 @@ Win继续[05G候选实际接线计划](../superpowers/plans/2026-09-10-win-candi
 
 上述是已核查依赖请求，不是Mac已认领/已实现/已ACK；Win先接不依赖设备登记的P07合同与真实读取/核验，完整入库仍等待第1项回执核对，不伪报端到端完成。通过main交接，未向不可见的Mac运行Goal冒称直发。
 
-**Mac后续接续（2026-09-10）：** 第1项已实现为`9d9e965`工程候选，新回执返回原核验ID（EXCLUDE无值为null），历史缺字段保持原样；同ID重放/换ID冲突、原请求及历史恢复已有真实HTTP/受限PG定向证据，独立最终审核待记录。以[更新合同](../contracts/V02_CANDIDATE_REVIEW.md#05g原确认核验编号补齐2026-09-10)和[QA](../qa/V02_CANDIDATE_ASSESSMENT_REVIEW.md#05g原确认回执补齐2026-09-10)接入，不由客户端补造服务字段。第2项设备登记恢复仍未实现，继续由Mac冻结最小合同后接续；Win05G/设备HTTP/worker所有权不变，没有代记Win ACK或完整端到端完成。
+**Mac后续接续（2026-09-10）：** 第1项已实现为`9d9e965`工程候选，新回执返回原核验ID（EXCLUDE无值为null），历史缺字段保持原样；root101项相关真实HTTP/受限PG通过，独立最终审核`7b640c9..9d81665`规格/代码/架构/质量PASS、0项发现，可供Win接收。以[更新合同](../contracts/V02_CANDIDATE_REVIEW.md#05g原确认核验编号补齐2026-09-10)和[QA](../qa/V02_CANDIDATE_ASSESSMENT_REVIEW.md#05g原确认回执补齐2026-09-10)接入，不由客户端补造服务字段。第2项设备登记恢复仍未实现，继续由Mac冻结最小合同后接续；Win05G/设备HTTP/worker所有权不变，没有代记Win ACK或完整端到端完成。

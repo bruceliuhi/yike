@@ -8,7 +8,7 @@
 
 ## 1. 当前基线与推进原则
 
-2026-09-10 CodexiMac接续04C→05G原确认回执：base `7b640c9`，代码`9d9e965`，继续隔离`codex/mac-device-authorization`。新决策补原`sourceVerificationId`，旧回执不补写；真实HTTP/受限PG定向7项、API/固定原文纯边界46项分别通过，整批与独立审核见[本次QA](qa/V02_CANDIDATE_ASSESSMENT_REVIEW.md#05g原确认回执补齐2026-09-10)。工程候选待最终审核/Win消费，不整卡DONE。下一步Mac最小设备登记未知恢复，Win继续05G真实核验/入库与设备HTTP/来源worker，随后贯通确认联系和回复；不重复上一片候选签名准备，不移走首发原文证据/多找类似/短句建联。
+2026-09-10 CodexiMac接续04C→05G原确认回执：base `7b640c9`，代码`9d9e965`，继续隔离`codex/mac-device-authorization`。新决策补原`sourceVerificationId`，旧回执不补写；root101项相关真实HTTP/受限PG与46项纯边界分别通过，整片`7b640c9..9d81665`独立规格/代码/架构/质量PASS、0项发现，见[本次QA](qa/V02_CANDIDATE_ASSESSMENT_REVIEW.md#05g原确认回执补齐2026-09-10)。工程片可接收，待Win实际消费，不整卡DONE。下一步Mac最小设备登记未知恢复，Win继续05G真实核验/入库与设备HTTP/来源worker，随后贯通确认联系和回复；不重复上一片候选签名准备，不移走首发原文证据/多找类似/短句建联。
 
 2026-09-10 02B最小候选签名接线已交付到主线`626bbd9`，main/工作分支/本地HEAD经ls-remote核对精确一致、0/0且干净。终审后仅记录事实，工程片可供Win接续，[完成计划](superpowers/plans/2026-09-10-candidate-submission-signing.md)/[QA](qa/V02_CANDIDATE_SUBMISSION_SIGNING.md)保留实际证据；不等于02B/05G整卡、真实来源或上线验收。下一步Mac优先INCLUDE核验ID原回执，Win继续P07/设备HTTP/worker；完整Goal保持进行中。
 

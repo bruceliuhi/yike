@@ -64,6 +64,8 @@ TDD与故障记录：
 
 回归覆盖新INCLUDE原值、EXCLUDE省略/null/有ID三种形态、重复POST不重复入库、同requestId改ID冲突、服务重建后GET恢复、原文变化后的历史决策，以及新核验出现后旧缺字段回执的POST/GET/当前与历史列表仍原样。每个HTTP场景只发生一次本地模型调用；人工纳入不授权发送。
 
-冻结代码`9d9e965`相关批次：`uv run --frozen pytest -q tests/test_candidate_review_http_postgres.py tests/test_candidate_review_postgres.py tests/test_opportunity_evidence_postgres.py tests/test_confirmed_strategy_review_postgres.py`，**101 passed，80.64s，0 skipped**（执行会话65186退出0）。含原文固定入库、实际确认策略消费和原复核保护；与前述7项重叠，不相加，不冒充全仓回归。`git diff --check`通过；独立最终审核待记录。
+冻结代码`9d9e965`相关批次：`uv run --frozen pytest -q tests/test_candidate_review_http_postgres.py tests/test_candidate_review_postgres.py tests/test_opportunity_evidence_postgres.py tests/test_confirmed_strategy_review_postgres.py`，**101 passed，80.64s，0 skipped**（执行会话65186退出0）。含原文固定入库、实际确认策略消费和原复核保护；与前述7项重叠，不相加，不冒充全仓回归。`git diff --check`与`bash scripts/secret_scan.sh`通过。
+
+独立非实现者`candidate_receipt_final_review`对完整`7b640c9a6b58211ea025d120984bbc27112e2ef4..9d8166590bc692b72818b4ab10e9ad2489dadc8f`给出SPEC/代码/架构/质量**PASS，Critical/Important/Minor均0；本修复可以合入**。该审核员独立运行`PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_candidate_review_api.py tests/test_opportunity_evidence.py`，46 passed/0.85s；这是独立非PG复现，101项仍属于root实际运行，不改称独立PG重跑。审阅了完整diff、请求验证/原回放/列表、113不可变与权限合同；最终收尾只登记审核事实，生产/测试字节不变。
 
 PG测试使用已有专用隔离库与NOLOGIN/NOSUPERUSER/NOBYPASSRLS应用角色；管理连接仅设置和清理合成fixture。ASGI、SQL、核验/决策、恢复为真实代码；普通review测试的来源、策略collaborator及本机HTTP模型响应是合成输入，confirmed-strategy专项实际使用持久策略服务。不是真实平台、付费模型质量、Windows客户端接收、外部发送、部署或客户UAT证据。
