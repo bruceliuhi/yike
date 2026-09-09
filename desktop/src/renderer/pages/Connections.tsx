@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowSquareOut, CheckCircle, Plus } from "@phosphor-icons/react";
 import { useApp } from "../app/context";
 import { PlatformIcon, PlatformLabel } from "../components/Platform";
-import { useAction, useResource } from "../app/hooks";
+import { useResource } from "../app/hooks";
+import { useConnectionDisconnect } from "./connections/useConnectionDisconnect";
+import { DisconnectPanel } from "./connections/DisconnectPanel";
 import {
   boundedRequest,
   RequestCancelled,
@@ -11,7 +13,6 @@ import {
 import {
   Badge,
   Button,
-  Confirm,
   Field,
   Modal,
   Notice,
@@ -46,10 +47,18 @@ const connectionLabel: Record<PlatformConnection["status"], string> = {
 export function ConnectionsPage() {
   const { service, session, route, navigate, notify } = useApp();
   const connections = useResource(
-    () => service.connections(),
+    () =>
+      boundedRequest(() => service.connections(), {
+        timeoutMessage: "连接列表读取超时，请重试。",
+      }),
     [service, session.userId],
   );
-  const disconnect = useAction();
+  const disconnect = useConnectionDisconnect((connection) => {
+    connections.setData((old) => [
+      ...(old || []).filter((item) => item.platform !== connection.platform),
+      connection,
+    ]);
+  });
   const selected = PLATFORMS.find(
     (p) => p.id === route.query.get("connect") && p.id !== "web",
   );
@@ -60,8 +69,6 @@ export function ConnectionsPage() {
   const [error, setError] = useState("");
   const [opened, setOpened] = useState(false);
   const [result, setResult] = useState<PlatformConnection | null>(null);
-  const [disconnectTarget, setDisconnectTarget] =
-    useState<PlatformConnection | null>(null);
   const generation = useRef(0);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => {
@@ -97,7 +104,18 @@ export function ConnectionsPage() {
     navigate("/connections?" + params.toString());
   };
   const openLogin = async () => {
-    if (!selected || busy) return;
+    if (
+      !selected ||
+      busy ||
+      disconnect.records.some((record) => record.platform === selected.id)
+    )
+      return;
+    try {
+      disconnect.assertConnectable(selected.id);
+    } catch (error) {
+      setError(errorMessage(error));
+      return;
+    }
     const request = ++generation.current;
     controller.current?.abort();
     const abort = new AbortController();
@@ -164,21 +182,6 @@ export function ConnectionsPage() {
       }
     }
   };
-  const disconnectNow = async () => {
-    if (!disconnectTarget) return;
-    const name =
-      PLATFORMS.find((p) => p.id === disconnectTarget.platform)?.name ||
-      disconnectTarget.platform;
-    const success = await disconnect.run(async () => {
-      await service.disconnect(disconnectTarget.platform);
-      return true;
-    });
-    if (success) {
-      setDisconnectTarget(null);
-      await connections.reload();
-      notify(`${name}连接已断开。`, "success");
-    }
-  };
   const currentState =
     state === "opening"
       ? "正在打开登录窗口"
@@ -220,6 +223,24 @@ export function ConnectionsPage() {
         error={connections.error}
         onRetry={() => void connections.reload()}
       />
+      {disconnect.records.map((record) => (
+        <Notice
+          key={record.key}
+          tone="warning"
+          action={
+            <Button onClick={() => disconnect.openRecord(record)}>
+              核对断开结果（
+              {PLATFORMS.find((item) => item.id === record.platform)?.name}）
+            </Button>
+          }
+        >
+          <PlatformLabel platform={record.platform} />{" "}
+          的原账号断开结果待核对，暂不重复断开或重新连接。
+        </Notice>
+      ))}
+      {!disconnect.target && disconnect.message && (
+        <Notice tone="warning">{disconnect.message}</Notice>
+      )}
       <div className="table-scroll">
         <table className="connection-table">
           <thead>
@@ -277,7 +298,12 @@ export function ConnectionsPage() {
                   <td>
                     {!isWeb && (
                       <div className="inline-actions">
-                        <Button onClick={() => openPlatform(platform.id)}>
+                        <Button
+                          disabled={disconnect.records.some(
+                            (record) => record.platform === platform.id,
+                          )}
+                          onClick={() => openPlatform(platform.id)}
+                        >
                           {connection?.status === "CONNECTED"
                             ? "查看连接"
                             : connection?.status === "EXPIRED"
@@ -287,7 +313,10 @@ export function ConnectionsPage() {
                         {connection?.status === "CONNECTED" && (
                           <Button
                             variant="ghost"
-                            onClick={() => setDisconnectTarget(connection)}
+                            disabled={disconnect.records.some(
+                              (record) => record.platform === platform.id,
+                            )}
+                            onClick={() => disconnect.open(connection)}
                           >
                             断开
                           </Button>
@@ -376,7 +405,12 @@ export function ConnectionsPage() {
                 <Button
                   variant="primary"
                   loading={state === "opening"}
-                  disabled={state === "checking"}
+                  disabled={
+                    state === "checking" ||
+                    disconnect.records.some(
+                      (record) => record.platform === selected.id,
+                    )
+                  }
                   onClick={() => void openLogin()}
                 >
                   <ArrowSquareOut />
@@ -427,27 +461,7 @@ export function ConnectionsPage() {
           </p>
         </Modal>
       )}
-      {disconnectTarget && (
-        <Confirm
-          title={`断开${PLATFORMS.find((p) => p.id === disconnectTarget.platform)?.name}连接？`}
-          confirmText="断开连接"
-          danger
-          loading={disconnect.busy}
-          onCancel={() => {
-            if (!disconnect.busy) setDisconnectTarget(null);
-          }}
-          onConfirm={() => void disconnectNow()}
-        >
-          <p>
-            将断开账号“
-            {disconnectTarget.accountName ||
-              disconnectTarget.accountId ||
-              "当前账号"}
-            ”。依赖该连接的采集与触达任务需要重新连接后才能继续。
-          </p>
-          {disconnect.error && <Notice tone="error">{disconnect.error}</Notice>}
-        </Confirm>
-      )}
+      <DisconnectPanel action={disconnect} />
     </>
   );
 }

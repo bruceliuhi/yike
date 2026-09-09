@@ -4,7 +4,7 @@
 
 ## 接口与严格字段
 
-沿用产品会话与同 Origin 包装，生产需要 HTTPS，全部响应 `Cache-Control: no-store`。tenant/user 仅来自服务端已验证会话。
+沿用产品会话与同 Origin 包装，生产需要 HTTPS。经UI路由处理的JSON响应带 `Cache-Control: no-store`；继承的Origin中间件会在路由之前返回纯文本403，该提前拒绝响应当前没有此缓存头，不将其描述为路由JSON错误。tenant/user 仅来自服务端已验证会话。
 
 | 接口 | 请求字段 | 返回 |
 |---|---|---|
@@ -24,7 +24,7 @@ UUID 是 36 字符小写标准字符串。版本是严格整数 0..2147483646，
 
 `protocol='yike-device-proof-v1'`, `tenant_id`, `user_id`, `device_id`, `request_id`, `challenge_id`, `session_digest`, `operation`, `expected_credential_version`, `target_public_key`, `nonce`, `expires_at`。
 
-nonce 由服务端 `secrets.token_urlsafe(32)` 生成（43 字符）。expires_at 为数据库 UTC epoch 整数秒加 120，秒精度向下取整不足 1 秒。PROVE 的 target_public_key 是创建时当前公钥。session_digest 是已验证产品令牌签名字节的非秘密撤销摘要，不是原 token。协议域、随机 nonce、持久化 challenge 与身份/会话/版本绑定防止跨请求重用；completion 不接收客户端 payload。
+nonce 由服务端 `secrets.token_urlsafe(32)` 生成（43 字符）。expires_at 为数据库 UTC epoch 整数秒加 120，秒精度向下取整不足 1 秒。PROVE 的 target_public_key 是创建时当前公钥。session_digest 是已验证产品令牌中原始 encoded payload ASCII字节的SHA-256撤销摘要（token第一个点号之前的部分），不是signature字节摘要、解码后JSON摘要或原token。客户端仍只签服务器返回的完整payload，不自行重建。协议域、随机 nonce、持久化 challenge 与身份/会话/版本绑定防止跨请求重用；completion 不接收客户端 payload。
 
 ## 生命周期与重试
 

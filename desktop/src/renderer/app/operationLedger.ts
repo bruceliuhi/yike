@@ -1,12 +1,15 @@
 import { useEffect, useSyncExternalStore, type SetStateAction } from "react";
 import { ServiceError } from "../services/contracts";
 import { forgetLegacyOperationLock, readLegacyOperationLock } from "./hooks";
+import { parseCandidateOperation } from "../domain/candidateReviewOperation";
 
 export type OperationScope =
   | "send-attempts"
   | "unknown-task-starts"
   | "followup-operations"
   | "task-operations"
+  | "connection-disconnects"
+  | "candidate-reviews"
   | "management-operations";
 export type OperationEntries = Record<string, string>;
 const PREFIX = "yike.ui.operation.v1.";
@@ -60,6 +63,27 @@ function validEntries(
       typeof status !== "string"
     )
       return false;
+    if (scope === "candidate-reviews")
+      return status === "PENDING" && parseCandidateOperation(key) !== null;
+    if (scope === "connection-disconnects") {
+      if (status !== "PENDING" && status !== "ACKNOWLEDGED") return false;
+      try {
+        const parts: unknown = JSON.parse(key);
+        return (
+          Array.isArray(parts) &&
+          parts.length === 3 &&
+          ["xhs", "douyin", "bilibili", "zhihu"].includes(parts[0]) &&
+          typeof parts[1] === "string" &&
+          parts[1].trim().length > 0 &&
+          parts[1].length <= 512 &&
+          typeof parts[2] === "string" &&
+          parts[2].trim().length > 0 &&
+          parts[2].length <= 128
+        );
+      } catch {
+        return false;
+      }
+    }
     if (scope === "task-operations") {
       if (status !== "PENDING") return false;
       try {

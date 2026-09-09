@@ -1,0 +1,87 @@
+- note: TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入 · 恢复场景 start-unknown
+- generic "TEST 场景"
+- link "跳到主要内容":
+  - /url: "#main-content"
+- complementary:
+  - button "意客AI商机工作台":
+    - strong: 意客AI
+    - generic: 商机工作空间
+  - navigation "主导航":
+    - button "商机工作台":
+      - generic: 商机工作台
+    - generic: 发现商机
+    - button "业务画像":
+      - generic: 业务画像
+    - button "线索采集":
+      - generic: 线索采集
+    - button "监控任务":
+      - generic: 监控任务
+    - generic: 推进商机
+    - button "商机库":
+      - generic: 商机库
+    - button "触达中心":
+      - generic: 触达中心
+    - button "跟进记录":
+      - generic: 跟进记录
+  - button "账号与授权":
+    - generic: 账号与授权
+  - button "客户工作空间":
+    - generic: 客户工作空间
+- banner:
+  - button "收起导航":
+  - button "返回上级":
+  - generic: 线索采集 / 确认任务
+  - generic: V0.2
+- main:
+  - heading "确认启动任务" [level=1]
+  - generic: 配置任务条件，确认后再启动。
+  - generic "任务步骤":
+    - generic: "1"
+    - text: 任务条件
+    - generic: "2"
+    - text: 平台连接
+    - generic: "3"
+    - text: 确认启动
+  - heading "配置摘要" [level=2]
+  - button "修改配置"
+  - term: 任务名称
+  - definition: TEST 展台需求发现
+  - term: 业务画像
+  - definition: TEST 展台设计搭建
+  - term: 画像版本
+  - definition: v1
+  - term: 执行设备
+  - definition: 执行服务已就绪
+  - term: 搜索关键词
+  - definition: 找展台搭建、求展台设计、展台搭建报价、展位设计预算、展会布展需求、展台搭建招标、展位施工询价、展台搭建推荐
+  - term: 来源范围
+  - definition: 关键词搜索
+  - term: 运行方式
+  - definition: 单次采集
+  - term: 排除词
+  - definition: 招聘、求职、培训、招生
+  - term: 条件来源
+  - definition: AI 建议 · 可返回修改
+  - heading "平台与执行账号" [level=2]
+  - table:
+    - rowgroup:
+      - row "平台 执行账号 连接状态 范围":
+        - columnheader "平台"
+        - columnheader "执行账号"
+        - columnheader "连接状态"
+        - columnheader "范围"
+    - rowgroup:
+      - row "小红书 TEST 内存账号（并未真实登录） 已连接 关键词搜索":
+        - cell "小红书":
+          - generic: 小红书
+        - cell "TEST 内存账号（并未真实登录）"
+        - cell "已连接":
+          - generic: 已连接
+        - cell "关键词搜索"
+  - checkbox "我已核对以上画像版本、搜索条件、账号与运行设置"
+  - text: 我已核对以上画像版本、搜索条件、账号与运行设置
+  - button "返回修改"
+  - button "保存草稿"
+  - button "确认并启动" [disabled]
+- text: TEST 原请求确认未创建任务；没有执行器运行。
+- button "关闭提示": 关闭

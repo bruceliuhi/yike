@@ -14,6 +14,9 @@ import { isolateBrowser } from "./isolation";
 import { applyReferenceState } from "./reference";
 import { makeVisualMaterials } from "./materials";
 import { makeVisualFollowup } from "./followup";
+import { configureRecovery, selectRecovery } from "./recovery";
+import { RecoveryControls } from "./RecoveryControls";
+import { referenceRoute } from "./routing";
 import "../../src/renderer/styles.css";
 import "./visual.css";
 
@@ -59,6 +62,15 @@ if (params.get("capabilities") === "complete" && state === "populated") {
   harness.service.materials = makeVisualMaterials();
   harness.service.followup = makeVisualFollowup();
 }
+const recoveryName = selectRecovery(
+  params.get("recovery"),
+  page,
+  state,
+  page === "P01" || params.get("session") === "guest",
+);
+const recovery = recoveryName
+  ? configureRecovery(harness, recoveryName)
+  : undefined;
 const storage = isolateBrowser(harness.record);
 const seed = (name: string, value: unknown) =>
   storage.session.setItem("yike.ui.draft.v1." + name, JSON.stringify(value));
@@ -84,13 +96,22 @@ if (state === "populated") {
     });
   }
 }
+recovery?.seed(storage.session, page);
 history.replaceState(
   null,
   "",
   location.pathname +
     location.search +
     "#" +
-    (routes[requested] ||
+    (referenceRoute(page, reference, state, recoveryName) ||
+      (recoveryName === "send-unknown"
+        ? "/outreach?opportunity=TEST-opportunity&channel=comment"
+        : undefined) ||
+      (recoveryName === "connection-limited"
+        ? "/connections?connect=xhs&returnTo=" +
+          encodeURIComponent("/tasks/new?step=connect")
+        : undefined) ||
+      routes[requested] ||
       (location.hash.startsWith("#/") && !/^#\/P\d+$/.test(location.hash)
         ? location.hash.slice(1)
         : routes[page])),
@@ -110,9 +131,11 @@ createRoot(document.getElementById("root")!).render(
     <>
       <div id="visual-harness-banner" role="note">
         TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
+        {recoveryName && ` · 恢复场景 ${recoveryName}`}
       </div>
       <details id="visual-harness-controls">
         <summary>TEST 场景</summary>
+        {recovery && <RecoveryControls controller={recovery} />}
         <div>
           {Object.keys(routes).map((id) => (
             <a key={id} href={`/?scenario=${id}&state=${state}`}>

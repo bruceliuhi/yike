@@ -1,0 +1,111 @@
+- note: TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
+- generic "TEST 场景"
+- link "跳到主要内容":
+  - /url: "#main-content"
+- complementary:
+  - button "意客AI商机工作台":
+    - strong: 意客AI
+    - generic: 商机工作空间
+  - navigation "主导航":
+    - button "商机工作台":
+      - generic: 商机工作台
+    - generic: 发现商机
+    - button "业务画像":
+      - generic: 业务画像
+    - button "线索采集":
+      - generic: 线索采集
+    - button "监控任务":
+      - generic: 监控任务
+    - generic: 推进商机
+    - button "商机库":
+      - generic: 商机库
+    - button "触达中心":
+      - generic: 触达中心
+    - button "跟进记录":
+      - generic: 跟进记录
+  - button "账号与授权":
+    - generic: 账号与授权
+  - button "客户工作空间":
+    - generic: 客户工作空间
+- banner:
+  - button "收起导航":
+  - button "返回上级":
+  - generic: 商机库
+  - generic: V0.2
+- main:
+  - heading "商机库" [level=1]
+  - generic: 汇集多渠道的商机信息，支持筛选、查看和跟进。
+  - textbox "搜索商机":
+    - /placeholder: 搜索需求、买方或关键词
+  - group "平台":
+    - generic: 平台
+    - combobox "筛选平台":
+      - option "全部" [selected]
+      - option "公开网站"
+  - group "状态":
+    - generic: 状态
+    - combobox "筛选状态":
+      - option "全部" [selected]
+      - option "待复核"
+  - group "阶段":
+    - generic: 阶段
+    - combobox "筛选阶段":
+      - option "全部" [selected]
+      - option "预算询价"
+      - option "尚未提供"
+      - option "待核验"
+  - group "资料截止":
+    - generic: 资料截止
+    - combobox "筛选资料截止":
+      - option "全部" [selected]
+      - option "未截止"
+      - option "7天内截止"
+      - option "已截止"
+      - option "来源未说明"
+      - option "尚未提供"
+      - option "待核验"
+  - group "排序":
+    - generic: 排序
+    - combobox "排序方式":
+      - option "最近更新" [selected]
+      - option "资料截止最早"
+      - option "标题排序"
+  - tablist:
+    - tab "客户商机"
+    - tab "公开研究样例" [selected]
+  - table:
+    - rowgroup:
+      - row "选择本页客户商机 商机标题 来源 阶段 状态 资料截止 操作":
+        - columnheader "选择本页客户商机":
+          - checkbox "选择本页客户商机" [disabled]
+        - columnheader "商机标题"
+        - columnheader "来源"
+        - columnheader "阶段"
+        - columnheader "状态"
+        - columnheader "资料截止"
+        - columnheader "操作"
+    - rowgroup:
+      - row "选择180㎡高交会展区设计搭建预算询价 180㎡高交会展区设计搭建预算询价 公开研究样例 · 未入客户库 湖南省商务厅官网 预算询价 待复核 09-15 18:00 2026 · UTC+08:00 查看证据":
+        - cell "选择180㎡高交会展区设计搭建预算询价":
+          - checkbox "选择180㎡高交会展区设计搭建预算询价" [disabled]
+        - cell "180㎡高交会展区设计搭建预算询价 公开研究样例 · 未入客户库":
+          - strong: 180㎡高交会展区设计搭建预算询价
+          - generic: 公开研究样例 · 未入客户库
+        - cell "湖南省商务厅官网":
+          - generic: 湖南省商务厅官网
+        - cell "预算询价"
+        - cell "待复核":
+          - generic: 待复核
+        - cell "09-15 18:00 2026 · UTC+08:00":
+          - time:
+            - text: 09-15 18:00
+            - generic: 2026 · UTC+08:00
+        - cell "查看证据":
+          - button "查看证据"
+  - generic: 研究样例未绑定客户画像，不计入客户商机。
+  - button "导出所选客户商机" [disabled]:
+    - text: 导出所选客户商机
+  - generic: 共 1 条
+  - button "上一页" [disabled]
+  - generic: 1 / 1
+  - button "下一页" [disabled]

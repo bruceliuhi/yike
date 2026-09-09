@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -10,6 +11,7 @@ import {
 } from "@testing-library/react";
 import { AppProvider } from "../../src/renderer/app/context";
 import { clearLocalDrafts } from "../../src/renderer/app/hooks";
+import { operationLedgerKey } from "../../src/renderer/app/operationLedger";
 import { CandidatesPage } from "../../src/renderer/pages/Opportunities";
 import { service as baseService } from "../../src/renderer/services/client";
 import {
@@ -30,6 +32,9 @@ import type { Profile } from "../../src/renderer/domain/models";
 afterEach(() => {
   cleanup();
   clearLocalDrafts();
+  localStorage.clear();
+  vi.restoreAllMocks();
+  vi.useRealTimers();
   window.history.replaceState(null, "", "/");
 });
 const confirmed: Profile = {
@@ -93,12 +98,10 @@ function mount(overrides: Partial<YikeService> = {}, path = "/candidates") {
   window.history.replaceState(null, "", "#" + path);
   const service = {
     ...baseService,
-    session: vi
-      .fn()
-      .mockResolvedValue({
-        authenticated: true,
-        userId: "candidate-contract-user",
-      }),
+    session: vi.fn().mockResolvedValue({
+      authenticated: true,
+      userId: "candidate-contract-user",
+    }),
     profiles: vi.fn().mockResolvedValue([confirmed]),
     candidates: vi.fn().mockResolvedValue(page([candidate()])),
     ...overrides,
@@ -384,7 +387,7 @@ describe("原始候选 P07", () => {
     ).toBe(true);
     sendConfirmed(dialog);
     fireEvent.click(within(dialog).getByRole("button", { name: "确认入库" }));
-    expect(review).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(review).toHaveBeenCalledTimes(1));
     const request = review.mock.calls[0][0] as CandidateReview;
     expect(request).toMatchObject({
       action: "INCLUDE",
@@ -581,4 +584,285 @@ describe("原始候选 P07", () => {
     await screen.findByText("连接中断 本批已完成 0 条，其余未继续提交。");
     expect(review).toHaveBeenCalledTimes(1);
   });
+});
+
+const candidateLedgerKey = operationLedgerKey(
+  "candidate-reviews",
+  "candidate-contract-user",
+);
+function storedCandidateReviews() {
+  return JSON.parse(localStorage.getItem(candidateLedgerKey) || "{}") as Record<
+    string,
+    string
+  >;
+}
+async function unknownReview() {
+  const review = vi
+    .fn()
+    .mockRejectedValue(new ServiceError("NETWORK", "TEST 结果未知", 0));
+  mount({ reviewCandidate: review });
+  await ready();
+  sendConfirmed(openImport());
+  await screen.findByText("TEST 结果未知");
+  return { review, request: review.mock.calls[0][0] as CandidateReview };
+}
+describe("P07 durable original review reconciliation", () => {
+  it("retains the original request after clearing drafts and remounting, and only queries that request", async () => {
+    const { request } = await unknownReview();
+    const stored = Object.entries(storedCandidateReviews());
+    expect(stored).toHaveLength(1);
+    expect(stored[0][1]).toBe("PENDING");
+    expect(stored[0][0]).toContain(request.requestId);
+    expect(JSON.stringify(stored)).not.toContain("测试服务与公开需求匹配");
+    cleanup();
+    clearLocalDrafts();
+    const review = vi.fn();
+    const load = vi.fn().mockImplementation(async (query) => {
+      if (query?.reviewRequestId) {
+        const result = decision(request);
+        if (result.kind === "decision") return page([result.candidate]);
+      }
+      return page([candidate()]);
+    });
+    mount({ reviewCandidate: review, candidates: load });
+    await ready();
+    expect(
+      (screen.getByRole("button", { name: "确认入库" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "核对本次结果" }));
+    await screen.findByText("已确认入库。");
+    expect(review).not.toHaveBeenCalled();
+    expect(load).toHaveBeenLastCalledWith({
+      ids: ["candidate-1"],
+      reviewRequestId: request.requestId,
+      page: 1,
+      pageSize: 1,
+    });
+    expect(storedCandidateReviews()).toEqual({});
+  });
+  it("keeps recovery reachable when the original candidate is absent from the current list", async () => {
+    const { request } = await unknownReview();
+    cleanup();
+    const load = vi.fn().mockImplementation(async (query) => {
+      if (query?.reviewRequestId) {
+        const result = decision(request);
+        if (result.kind === "decision") return page([result.candidate]);
+      }
+      return page([]);
+    });
+    const review = vi.fn();
+    mount({ candidates: load, reviewCandidate: review });
+    const recover = await screen.findByRole("button", {
+      name: "核对原复核结果",
+    });
+    fireEvent.click(recover);
+    await screen.findByText("已确认入库。");
+    expect(review).not.toHaveBeenCalled();
+    expect(storedCandidateReviews()).toEqual({});
+  });
+  it("does not unlock a failed receipt with changed confirmation words; exact failure can be retried manually", async () => {
+    const { request } = await unknownReview();
+    cleanup();
+    const result = decision(request);
+    if (result.kind !== "decision") throw new Error("fixture");
+    let mismatch = true;
+    const review = vi.fn();
+    const load = vi
+      .fn()
+      .mockImplementation(async (query) =>
+        query?.reviewRequestId
+          ? page([
+              candidate({
+                lastReview: {
+                  ...result.receipt,
+                  status: "FAILED",
+                  outcome: undefined,
+                  opportunityId: undefined,
+                  review: mismatch
+                    ? {
+                        ...result.receipt.review!,
+                        reason: "TEST different confirmation",
+                      }
+                    : result.receipt.review,
+                },
+              }),
+            ])
+          : page([candidate()]),
+      );
+    mount({ reviewCandidate: review, candidates: load });
+    await ready();
+    fireEvent.click(screen.getByRole("button", { name: "核对本次结果" }));
+    await screen.findByText("尚未获得本次复核的确定结果，请稍后再次核对。");
+    expect(Object.keys(storedCandidateReviews())).toHaveLength(1);
+    expect(
+      (screen.getByRole("button", { name: "确认入库" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    mismatch = false;
+    fireEvent.click(screen.getByRole("button", { name: "核对本次结果" }));
+    await screen.findByText(
+      "服务端确认本次复核失败，当前信息已保留，可检查后重新提交。",
+    );
+    expect(storedCandidateReviews()).toEqual({});
+    expect(
+      (screen.getByRole("button", { name: "确认入库" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+    expect(review).not.toHaveBeenCalled();
+  });
+  it("isolates durable records by user and does not unlock on a generic 4xx response", async () => {
+    const review = vi
+      .fn()
+      .mockRejectedValue(new ServiceError("UPSTREAM", "TEST 网关400", 400));
+    mount({ reviewCandidate: review });
+    await ready();
+    sendConfirmed(openImport());
+    await screen.findByText("TEST 网关400");
+    expect(Object.keys(storedCandidateReviews())).toHaveLength(1);
+    cleanup();
+    mount({
+      session: vi
+        .fn()
+        .mockResolvedValue({
+          authenticated: true,
+          userId: "TEST-another-user",
+        }),
+    });
+    await ready();
+    expect(screen.queryByRole("button", { name: "核对本次结果" })).toBeNull();
+    expect(
+      (screen.getByRole("button", { name: "确认入库" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+    expect(Object.keys(storedCandidateReviews())).toHaveLength(1);
+  });
+  it("does not dispatch when durable storage fails", async () => {
+    const setItem = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
+      this: Storage,
+      key,
+      value,
+    ) {
+      if (key === candidateLedgerKey)
+        throw new Error("TEST storage unavailable");
+      return setItem.call(this, key, value);
+    });
+    const review = vi.fn();
+    mount({ reviewCandidate: review });
+    await ready();
+    sendConfirmed(openImport());
+    await screen.findByText(
+      "操作确认记录暂时无法可靠保存，请检查本机存储并核对平台记录后重试。",
+    );
+    expect(review).not.toHaveBeenCalled();
+  });
+  it("does not dispatch after leaving while the confirmation fingerprint is being prepared", async () => {
+    let finish!: (value: ArrayBuffer) => void;
+    vi.spyOn(crypto.subtle, "digest").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const review = vi.fn();
+    mount({ reviewCandidate: review });
+    await ready();
+    sendConfirmed(openImport());
+    await waitFor(() => expect(finish).toBeTypeOf("function"));
+    cleanup();
+    await act(async () => {
+      finish(new Uint8Array(32).buffer);
+    });
+    expect(review).not.toHaveBeenCalled();
+    expect(storedCandidateReviews()).toEqual({});
+  });
+  it("rechecks the durable candidate lock immediately after hashing instead of trusting render-time state", async () => {
+    let finish!: (value: ArrayBuffer) => void;
+    vi.spyOn(crypto.subtle, "digest").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const review = vi.fn();
+    mount({ reviewCandidate: review });
+    await ready();
+    sendConfirmed(openImport());
+    await waitFor(() => expect(finish).toBeTypeOf("function"));
+    const key = JSON.stringify([
+      "candidate-1",
+      "INCLUDE",
+      "TEST-other-request",
+      "a".repeat(64),
+    ]);
+    localStorage.setItem(
+      candidateLedgerKey,
+      JSON.stringify({ [key]: "PENDING" }),
+    );
+    await act(async () => {
+      finish(new Uint8Array(32).buffer);
+    });
+    await screen.findByText("上次复核结果尚未核对，未再次提交。");
+    expect(review).not.toHaveBeenCalled();
+    expect(storedCandidateReviews()).toEqual({ [key]: "PENDING" });
+  });
+});
+
+it("P07 actual timeout survives leaving and clearing drafts, with no new mutation on re-entry", async () => {
+  const review = vi.fn().mockImplementation(() => new Promise(() => {}));
+  mount({ reviewCandidate: review });
+  await ready();
+  vi.useFakeTimers();
+  vi.spyOn(crypto.subtle, "digest").mockResolvedValue(
+    new Uint8Array(32).buffer,
+  );
+  sendConfirmed(openImport());
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(20001);
+  });
+  expect(screen.getByText("请求已超时，请核对结果后再继续。")).toBeTruthy();
+  const original = review.mock.calls[0][0] as CandidateReview;
+  cleanup();
+  clearLocalDrafts();
+  vi.useRealTimers();
+  const restartedReview = vi.fn();
+  const load = vi.fn().mockResolvedValue(page([candidate()]));
+  mount({ reviewCandidate: restartedReview, candidates: load });
+  await ready();
+  expect(
+    (screen.getByRole("button", { name: "确认入库" }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "核对本次结果" }));
+  await screen.findByText("尚未获得本次复核的确定结果，请稍后再次核对。");
+  expect(load).toHaveBeenLastCalledWith({
+    ids: ["candidate-1"],
+    reviewRequestId: original.requestId,
+    page: 1,
+    pageSize: 1,
+  });
+  expect(restartedReview).not.toHaveBeenCalled();
+  expect(Object.keys(storedCandidateReviews())).toHaveLength(1);
+});
+it("P07 refuses dispatch with a corrupt stored request fingerprint", async () => {
+  const key = JSON.stringify([
+    "candidate-1",
+    "INCLUDE",
+    "TEST-older-request",
+    "not-a-hash",
+  ]);
+  const review = vi.fn();
+  mount({ reviewCandidate: review });
+  await ready();
+  localStorage.setItem(
+    candidateLedgerKey,
+    JSON.stringify({ [key]: "PENDING" }),
+  );
+  sendConfirmed(openImport());
+  await screen.findByText(
+    "操作确认记录暂时无法可靠保存，请检查本机存储并核对平台记录后重试。",
+  );
+  expect(review).not.toHaveBeenCalled();
+  expect(storedCandidateReviews()).toEqual({ [key]: "PENDING" });
 });

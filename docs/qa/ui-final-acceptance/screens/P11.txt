@@ -1,0 +1,82 @@
+- note: TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
+- generic "TEST 场景"
+- link "跳到主要内容":
+  - /url: "#main-content"
+- complementary:
+  - button "意客AI商机工作台":
+    - strong: 意客AI
+    - generic: 商机工作空间
+  - navigation "主导航":
+    - button "商机工作台":
+      - generic: 商机工作台
+    - generic: 发现商机
+    - button "业务画像":
+      - generic: 业务画像
+    - button "线索采集":
+      - generic: 线索采集
+    - button "监控任务":
+      - generic: 监控任务
+    - generic: 推进商机
+    - button "商机库":
+      - generic: 商机库
+    - button "触达中心":
+      - generic: 触达中心
+    - button "跟进记录":
+      - generic: 跟进记录
+  - button "账号与授权":
+    - generic: 账号与授权
+  - button "客户工作空间":
+    - generic: 客户工作空间
+- banner:
+  - button "收起导航":
+  - button "返回上级":
+  - generic: 商机库 / 机会证据
+  - generic: V0.2
+- main:
+  - button "返回":
+    - text: 返回
+  - heading "180㎡高交会展区设计搭建预算询价" [level=1]
+  - generic: 湖南省商务厅对外贸易发展处
+  - generic: 公开研究样例 · 待人工复核 · 未入客户库
+  - generic: 需求阶段
+  - strong: 预算编制市场询价
+  - generic: 项目地点
+  - strong: 深圳国际会展中心
+  - generic: 展区面积
+  - strong: 180㎡
+  - generic: 资料截止
+  - strong: 2026-09-15 18:00
+  - heading "原文证据" [level=2]
+  - button "查看官方原文":
+    - text: 查看官方原文
+  - blockquote: 本次报价仅用于预算测算。
+  - paragraph:
+    - generic: 湖南省商务厅官网
+    - text: · 发布于 2026/9/8 16:54:00
+  - heading "需求概述" [level=3]
+  - paragraph: 180㎡展区，涵盖设计、搭建、维护、撤展和组展服务。
+  - heading "证据评估" [level=3]
+  - term: 匹配依据
+  - definition: 买方公开征询服务方案与成本；适配需结合地域、施工及组展能力。
+  - term: 行动信号
+  - definition: 9月15日18:00前递交资料，可评估是否参与预算询价。
+  - term: 机会价值
+  - definition: 适合提前了解需求；预算、合同和收入尚未确定。
+  - status:
+    - generic: 预算金额未公开，需进一步核实。本次不确定供应商、不签合同，参与不带来后续招标优先资格。
+  - heading "联系渠道" [level=3]
+  - paragraph: 以官方公告的采购咨询、资料递交要求为准。
+  - complementary:
+    - heading "联系准备 待校对 · 尚未发送" [level=2]
+    - group "询问草稿":
+      - generic: 询问草稿
+      - textbox "询问草稿":
+        - /placeholder: 尚无联系草稿
+        - text: 您好，关注到本次高交会展区预算询价。请问展位技术资料及组展服务范围如何获取？我们会先核实自身能力，再按公告要求准备资料。理解此次仅用于预算编制，后续采购以正式公告为准。
+    - button "复制草稿":
+      - text: 复制草稿
+    - paragraph: 按公告要求联系采购方
+    - separator
+    - heading "样例状态" [level=3]
+    - paragraph: 仅供研究查看，尚未绑定客户画像。
+    - button "查看样例联系准备"

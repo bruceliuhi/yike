@@ -1,0 +1,28 @@
+- note: TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
+- generic "TEST 场景"
+- main:
+  - main:
+    - region "意客 AI":
+      - generic: 意客AI
+      - heading "找到值得联系的新需求" [level=1]
+      - paragraph: 找需求 · 看证据 · 跟进联系
+    - region "欢迎使用意客AI":
+      - heading "欢迎使用意客AI" [level=2]
+      - paragraph: 登录后开启商机发现与跟进工作
+      - group "手机号码 *":
+        - generic: 手机号码 *
+        - textbox "手机号码":
+          - /placeholder: 请输入手机号码
+      - group "短信验证码 *":
+        - generic: 短信验证码 *
+        - textbox "短信验证码":
+          - /placeholder: 请输入验证码
+        - button "获取验证码"
+      - button "登录"
+      - button "首次使用，输入试用码开通":
+        - text: 首次使用，输入试用码开通
+      - button "使用已有访问凭证":
+        - text: 使用已有访问凭证
+      - button "用户协议"
+      - button "隐私政策"
+      - button "联系支持"

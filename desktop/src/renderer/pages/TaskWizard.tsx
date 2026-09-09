@@ -1095,6 +1095,7 @@ export function TaskWizardPage() {
           <PendingTaskStarts
             draftId={draft.id}
             onSettled={(status) => {
+              action.setError("");
               setVerified(null);
               if (status === "REJECTED")
                 setDraft((old) => ({
