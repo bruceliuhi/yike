@@ -69,3 +69,43 @@ desktop/tests/ui/operation-ledger.test.tsx 10C9F2A31304B575B2F7A016C29EF8D1F0ACF
 ```
 
 下一动作仍是Task4 P06/P20/P19接线和实际视口走查；整个05C、原文证据实接、来源/签名执行、收发与Goal没有提前完成。
+
+## Task4 现有确认页接线（基线4251e75）
+
+上述Task4未开始/未接线为先前时点。本片新增可选executionLimits草稿字段与高级输入，明确采用建议100条/900秒后才写入；空值保留、范围校验、不从搜贝换算。编辑增加revision，旧taskFingerprint与启动协议不改。P19使用Task3控制器：点击准备→完整服务端快照→勾选复核→显式确认；查询/原键重试/撤销和历史只读继续受原账本校验。全部绑定配置可展开，包含非生效来源、单次保留但不调度的日程、所有研究设置、平台顺序及执行上限。
+
+独立实施前契约核对明确：当前没有05F签名适配，新服务存在时必须在按钮和start处理函数拦旧startTask/taskOperations.start，且不写旧启动账本；不能把当前策略recheck当签名执行授权。旧注入适配没有新服务时保持原受控路径。确认勾选绑定已展示回执ID/策略ID/双SHA和当前草稿，不由历史查询自动恢复。
+
+测试与失败：实际TaskWizard测试首个RED为缺准备按钮，后实现；执行上限schema4个反例、组件/helper4个行为反例先失败后修正，测试重复role查询歧义和6条nullable TypeScript错误分别修正，不当产品安全漏洞。13项新增页面测试覆盖主动确认、完整字段、501/不完整服务不降级、丢回包查询、同UUID重试、重载再确认、撤销未知、改名/真实修改上限保留其他配置且修订递增；新增预算接线项在已有实现首次通过，不伪报RED。隔离visual夹具先无有效配置失败，后严格回执往返通过；不触达任何外部来源。
+
+根代理最新检查（Node24.19，desktop）：
+
+| 范围 | 结果 |
+|---|---|
+| strategy-confirmation(当时12项)/strategy-execution-limits/strategy-confirmation-hook/strategyConfirmation/task-wizard/task-start-contract/task-recovery/tasks-draft-resume/r4-coverage-plan，以及tests/visual | 16文件156 passed / 7.65s |
+| 最终strategy-confirmation(13项)+task-confirmation-summary+r4-research-usage | 3文件34 passed / 5.27s |
+| tsc --noEmit；生产renderer build | exit0；4770模块/245ms |
+| tests/visual/verify-production-exclusion.mjs | graph4769，manifestHarnessReferences=0，failures=[]；existingAsarChecked=false，不是安装包验收 |
+
+重叠集合不相加；没有无关全仓复跑。Task1/2实际Node→共享HTTP→PG源码本片未修改，继续引用62af2ea及上节绑定的真实往返，不声称本轮再次运行PG。页面用实际生产组件/控制器与显式内存服务测试；尚无真实来源、计量、签名启动或客户试用成绩。
+
+真实Edge隔离入口`?scenario=P19&strategy=confirm`已操作准备、展开全部配置、勾选/确认、返回编辑记录37→38、切持续监控并返回P19，确认失效且913秒和Asia/Shanghai保留。1440×1000：root1440、main1232/1232；960×600：root960、main776/776、展开details728/728，未见横向溢出；小窗口控件可见、长摘要换行，保留既有滚动/固定页脚。仅favicon404，无页面运行异常；首次HMR因编辑触发测试草稿beforeunload，接受后重新走查。浏览器及本次Vite已关闭。截图/原始快照保留在本机忽略目录`.runtime/output/playwright/strategy-confirmation-20260910/`，并非跨设备已接收：
+
+```text
+page-2026-09-09T18-10-57-287Z.png 26F87A6BCE05C62BA5462A228F2E6990F8B09EAE1225557E67CA817649CEA8BB
+page-2026-09-09T18-11-13-729Z.png 6BB7B53B34FD8B558731F71C20E49C309EA5D2698279831A46969A64739A9390
+page-2026-09-09T18-12-59-521Z.png 6199E74D3289D58E0E22807D0CC192168BB1CBF910F444177C2F1E2F303443F4
+```
+
+Task4独立`strategy_client_plan_review`已完成SPEC及代码/架构/质量两阶段PASS，无需修复的P1/P2；审核者只读源码和测试设计，未冒充根代理的实际运行。15个改动/新文件已逐一SHA256核对，以下列核心绑定；结论不覆盖05F、原文证据展示或整个05C完成：
+
+```text
+desktop/src/renderer/pages/TaskWizard.tsx 4F2877DE54E1AE28CB491BA31455BA82615BE8E66CD7B2E86E38E185EDBFBE36
+desktop/src/renderer/pages/tasks/StrategyConfirmationPanel.tsx 1685873BC936A9AFE63BDF93B6FF6BEE3540B68FC6DED8A5DDC5A4AE592F8626
+desktop/src/renderer/pages/tasks/StrategySnapshotDetails.tsx 2167FD5694C01DA082FCB704D467D83938A93BAF033479E0344CCFEFC9B27526
+desktop/src/renderer/pages/tasks/TaskConfirmationSummary.tsx 521251DC911A8CF7DFE3F196183C996D141C415D9E204F04877A97274D7CE0A4
+desktop/src/renderer/domain/strategyExecutionLimits.ts 73EE736554DB0E2ADAECDB0BF51CF8DF01275B6B0FD46B591FCCE72ADD275169
+desktop/src/renderer/pages/tasks/StrategyExecutionLimits.tsx C5A3387279B9F523DAC481E04E6DF6C8B025782AB20DCC8BAB476C1E810D78CB
+desktop/tests/ui/strategy-confirmation.test.tsx 9AADBA926E2FE8649EFE3809A1AE47CDB76548D4F34101D62D1F4F696BFEC78C
+desktop/tests/visual/strategy.ts 101EDF07FA980791CB3EFC1B476C698989867146E5EA0CBA665F4FFB2946B148
+```

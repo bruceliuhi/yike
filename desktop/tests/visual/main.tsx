@@ -22,6 +22,7 @@ import "./visual.css";
 import { configureR4Visual, r4TaskDraft, R4_TEST_SCOPE } from "./r4";
 import { taskDraftOwner } from "../../src/renderer/app/taskDraft";
 import { configureRegistryVisual } from "./connectionRegistry";
+import { configureStrategyVisual } from "./strategy";
 
 const params = new URLSearchParams(location.search);
 const state = (
@@ -116,6 +117,12 @@ if (state === "populated") {
   }
 }
 recovery?.seed(storage.session, page);
+if (params.get("strategy") === "confirm" && ["P06", "P19", "P20"].includes(page)
+  && state === "populated" && params.get("session") !== "guest" && !recoveryName) {
+  const draft = configureStrategyVisual(harness.service);
+  if (page === "P20") draft.mode = "monitor";
+  seed(`task.${taskDraftOwner(TEST_USER, r4 ? R4_TEST_SCOPE : undefined)}`, draft);
+}
 history.replaceState(
   null,
   "",

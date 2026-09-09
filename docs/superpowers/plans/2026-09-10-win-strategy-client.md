@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript/Zod/React/Vitest；现有Electron固定API桥接，真实FastAPI/PostgreSQL后台。
 
-**接续位置（2026-09-10）：** Task1/2已独立审核并提交`62af2ea`，正常保留Mac原文证据认领和运行兼容修正为`2a66fc1`。Task3原请求恢复已实现、规格及代码/架构/质量复审通过；Task4页面接线尚未开始。以下逐步清单保留原实施要求，实际执行/失败/复审见[分片验收](../../qa/V02-05C_STRATEGY_CLIENT_WIN_REVIEW.md)，不从旧未勾选行推断代码不存在或重复开发。
+**接续位置（2026-09-10）：** Task1/2已独立审核并提交`62af2ea`，正常保留Mac原文证据认领和运行兼容修正为`2a66fc1`；Task3已提交`4251e75`。Task4已接P06/P20执行上限与P19真实策略快照/主动确认/恢复，定向回归、类型/构建及隔离Edge视口检查通过，独立终审状态见[分片验收](../../qa/V02-05C_STRATEGY_CLIENT_WIN_REVIEW.md)。下一片是05F签名执行接入，不重复Task1～4。以下逐步清单保留原实施要求，不从旧未勾选行推断代码不存在或重复开发；整个05C/真实采集与Goal仍未完成。
 
 基线`36fef5b`；继承已批准[R4交互](../../../design/v02-suite-r4/INTERACTION_CONTRACT.md)、[R3搜索确认](../../../design/v02-suite-r3/AI_SEARCH_CONDITIONS.md)及[真实策略合同](../../contracts/V02_CONFIRMED_RESEARCH_STRATEGIES.md)，接续原计划Chunk3。不是重新设计R4或缩小完整Goal。当前Mac仍负责04C/113及pilot共享入口，Win负责本片desktop文件；若远端出现重叠先整合，不覆盖。
 
@@ -70,6 +70,8 @@ domain导出`strategyPrepareRequest(draft, requestId, limits)`，limits为显式
 - [ ] 独立双阶段审核，不替换旧启动ledger或引入新全局状态框架。
 
 ### Task 4：接入R4确认页和验收
+
+接线时按执行合同补清边界：新researchStrategies服务存在但05F签名适配尚缺时，启动按钮及处理函数均阻止旧taskOperations.start/startTask，并且不写旧启动ledger。策略确认不能借旧协议越过新快照/预算；旧注入服务未提供researchStrategies时才保持旧受控路径。P19直接进入后点击“准备策略快照”，不在render/effect或导航期间自动POST。复核勾选绑定当前回执ID、策略ID、双摘要与本地配置/上限；Task3不重写。完整明细和按钮分别放StrategySnapshotDetails/StrategyConfirmationPanel，避免TaskWizard继续承载状态机。
 
 **Files:** Modify `desktop/src/renderer/pages/TaskWizard.tsx`, `desktop/src/renderer/pages/tasks/TaskConfirmationSummary.tsx`, `desktop/src/renderer/domain/models.ts`, `desktop/src/renderer/app/taskDraft.ts`；Create `desktop/src/renderer/pages/tasks/StrategyExecutionLimits.tsx`, `desktop/tests/ui/strategy-confirmation.test.tsx`；update plan/taskbook/handoff/QA。
 
