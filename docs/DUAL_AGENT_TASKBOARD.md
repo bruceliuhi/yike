@@ -1,6 +1,6 @@
 # 意客 AI 双 AI 协作任务板（V0.2 完整获客版）
 
-> **执行定位（2026-09-09 主线整合）：本文件是协作分工建议，当前功能编号、进度与验收证据以 [V0.2 实施任务书](V02_IMPLEMENTATION_TASKBOOK.md)为唯一台账；下表不能重置已完成工作或冻结已授权开发。** `6f449e6` 已将旧 DISCOVERY/SQLite 计划校正到 V0.2；当前正式代码入口为 `pilot/` 与 `desktop/`，旧 `app/` 仅作复用来源。现有 Mac 前端 Goal 继续执行，Windows 实机由用户手动运行脚本回传，不能假定已有可远控 Windows。仓库规则见[当前工作流](REPOSITORY_WORKFLOW.md)。
+> **执行定位（2026-09-09 任务卡细化）：本文件定义可交付小卡、建议分工、依赖和验收，不再维护另一张 READY/DOING/BLOCKED 状态表。实际认领、进度、候选/集成 SHA、接收 ACK 与证据只在 [V0.2 实施任务书](V02_IMPLEMENTATION_TASKBOOK.md)记录。** `6f449e6` 已将旧 DISCOVERY/SQLite 计划校正到 V0.2；当前正式代码入口为 `pilot/` 与 `desktop/`，旧 `app/` 仅作复用来源。现有 Mac 前端 Goal 继续执行，Windows 实机由用户手动运行脚本回传，不能假定已有可远控 Windows。仓库规则见[当前工作流](REPOSITORY_WORKFLOW.md)。
 
 > 主仓：`xinghetech/yike-ai2026`
 > 主分支：`main`
@@ -46,22 +46,90 @@
 
 ## 任务卡
 
-状态：`READY`、`DOING`、`REVIEW`、`DONE`、`BLOCKED_INPUT`、`BLOCKED_DEPENDENCY`。
+保留 V02-01～10 主任务编号，下列后缀只拆分交付，不增加产品范围。`V02-01A/B` 沿用 Mac 已使用的真实子项编号，其余是待认领的切片；创建卡片不等于已分派或已开始。旧 `V02-02-WIN` 拆为 `V02-02C` 与 `V02-02D-*`，旧整项 V02-05/V02-08 不再整体分配给 Win。
 
-| ID | Owner | 分支（从任务开始时最新 `origin/main` 起） | 交付范围 | 依赖 | 上线验收 | Reviewer | 状态 |
-|---|---|---|---|---|---|---|---|
-| `SYNC-01` | Mac | `codex/sync-authority-baseline` | 对齐 parent authority、`AUTHORITY.md`、V02 计划与当前 main；列出旧 Discovery 分支的选择性迁移清单 | 无 | 范围、数据存储、身份边界和证据等级无冲突；不整支盲合并 | Win | `READY` |
-| `V02-01` | Mac | `codex/mac-identity-execution-contract` | 客户激活/登录/退出、客户空间、设备绑定/撤销、平台连接、执行事件与 Origin/认证边界 | `SYNC-01` | 两客户/设备不可串用；退出/断开立即失效；桌面不持有服务端密钥或 DB 连接 | Win | `READY` |
-| `V02-02` | Mac | `codex/mac-multiplatform-data-api` | 平台能力注册、候选上传 API、PostgreSQL 事实模型、租户解析、整包事务、幂等和去重 | `V02-01` | 首发平台逐个可溯源；重复运行不重复入库；失败整包回滚；SQLite 不作为正式客户库 | Win | `BLOCKED_DEPENDENCY` |
-| `V02-02-WIN` | Win | `codex/win-adapter-contracts` | MediaCrawler/平台适配器、解析器、标准化、平台 ID 冲突和可重开来源契约 | `SYNC-01` | 只依赖公开接口；不直连 DB；定向测试、secret scan 和跨平台路径检查通过 | Mac | `READY` |
-| `V02-03` | Mac | `codex/mac-monitoring-executor` | 多平台持续任务、游标、租约/执行代次、账号锁、暂停/恢复、重试和部分成功 | `V02-01`,`V02-02` | 每平台多轮真实运行；无新增、失效恢复和旧执行者回写拒绝均有证据 | Win | `BLOCKED_DEPENDENCY` |
-| `V02-04` | Mac | `codex/mac-skill-review-workflow` | 版本化通用/平台 Skill、证据提取、意向判断、人工复核和纠错 | `V02-02` | 原文引用、画像版本、反证和未知项可追溯；未复核不能成为已批准商机 | Win | `BLOCKED_DEPENDENCY` |
-| `V02-05` | Win | `codex/win-r3-product-ui` | 八个入口、画像、任务、采集、监控、商机、触达、跟进、账号页面及 API client | `V02-01`，并行接入 `V02-02~04` | 空客户空间可完成配置、启动、复核、暂停/恢复；页面和真实 API 状态一致 | Mac | `BLOCKED_DEPENDENCY` |
-| `V02-06` | Mac | `codex/mac-channel-capability` | 触达通道能力矩阵、来源主体到收件人的可核验映射、发送/回执/回复协议 | `V02-01` | 真实来源对象可判断可联系性；失败原因准确；不以测试账号替代获客闭环 | Win | `BLOCKED_DEPENDENCY` |
-| `V02-07` | Mac | `codex/mac-outreach-confirmation` | 草稿版本、对象/渠道确认快照、幂等发送队列、未知结果对账和暂停 | `V02-04`,`V02-06` | 任一对象/内容/渠道/连接变化使确认失效；未经确认不发送；未知结果不盲重试 | Win | `BLOCKED_DEPENDENCY` |
-| `V02-08` | Win | `codex/win-reply-followup-workbench` | 回复回流、未读/到期队列、负责人、跟进时间线和事实/平台事件区分 | `V02-05`,`V02-07` | 回复归属正确客户和商机；跨租户不可见；明细可复算统计 | Mac | `BLOCKED_DEPENDENCY` |
-| `V02-09` | Win | `codex/win-release-lifecycle` | Electron/sidecar、凭据私有存储、安装/卸载、激活、更新/回退、休眠恢复 | `V02-01`，逐步接入 `V02-03`,`V02-06` | Windows 新机真实验收；不含 DB/Admin secret；取消/恢复和授权失效可追溯 | Mac | `BLOCKED_DEPENDENCY` |
-| `V02-10` | Mac | `codex/mac-release-uat` | 集成、独立架构/代码/质量审核、部署、备份恢复、回滚、客户试用和发布清单 | `V02-02~09` | M1/M2/M3 证据齐全；私网 PostgreSQL、RLS/ACL、HTTPS、部署 SHA、真实端到端和客户 UAT 全部通过 | Win | `BLOCKED_DEPENDENCY` |
+`SYNC-01` 改为每卡开工/集成检查：检查最新主线、任务书、已认领路径和历史迁入边界，保存 base_sha。保留在途对齐记录作证据，不要求重做旧迁移、不作为所有新工作的全局锁。
+
+建议主责一列只有一个交付责任人；Mac 指 CodexMac/CodexiMac，Win 指 CodexWin。另一端或未参与该实现的独立 Agent 审核，不能自审；实际接收人与 reviewer 在认领时登记。涉及同一契约/页面的卡片先明确文件边界再并行。分支名在真正开工时从最新 main 建立并记录，不预先把建议名称当作存在的分支。
+
+依赖规则：下表是**实现/联调需要的最小子项**，不要求等待整个父任务 DONE。契约设计和合成反例可先做；使用上游新能力须复现其绑定版本并 ACK，最终主线交付还须集成到 main。真实账号、平台或部署条件只阻塞对应实测。每卡验收范围有意限定，端到端与客户效果由 V02-10 的独立卡收口，避免双方等待对方先验收。
+
+### 第一组：立即消除接口依赖与首发风险
+
+| ID / 建议主责 | 小卡交付及代码入口 | 实现/联调依赖 | 本卡完成证据 |
+|---|---|---|---|
+| V02-01A / Mac | 设备、连接登记和窄字段报告事件；候选中的 `pilot/identity.py`、迁移104与 `/api/ui` 接口 | 候选已经存在；先核对任务书中锁定 SHA，不重复实现 | 独立复审与接收 ACK；登记只能为 UNVERIFIED，报告事件不能推进商机/游标；专项隔离 PostgreSQL 反例 |
+| V02-01B / Mac | 服务端会话撤销；候选中的 `pilot/sessions.py`、`pilot/auth.py`、迁移105及所有登录入口 | V02-01A 所用身份基线；候选已存在，先复审 | 锁定新 SHA 审核；退出事务失败不报成功、双凭据/双租户/重启撤销均通过；01A PASS 不覆盖本卡 |
+| V02-01C / Mac | 设备认证与执行授权契约/实现；在 `pilot/` 独立模块定义凭据轮换、连接版本、领取/续租/取消、owner/代次、结果提交及统一错误/未知结果查询 | V02-01A/B 的接收版本；契约可先设计 | 服务端授权与客户端遥测明确分离；撤销/换号后旧执行者不能提交结果；隔离库与并发测试，交付可运行契约测试 |
+| V02-01D / Mac | 客户正常登录、激活、试用到期和授权恢复；`pilot/auth.py`、`pilot/ui_api.py`；确认具体登录方式及外部条件 | V02-01B；采用新增收费通道前取得相应授权 | 客户不依赖管理员 CLI/token；登录失败/过期/重试/退出完整测试，客户端接入另在 V02-05D |
+| V02-02A / Mac | 候选与来源能力契约：平台 ID、原文/评论身份、内容版本、画像/策略/run 标识、上传幂等与冲突错误；`pilot/`、`docs/contracts/`（新增文件待本卡确定） | 可立即定义；身份字段复用 V02-01C，不自行另造认证 | 契约样例和失败用例可运行；明确前端小写 ID、候选服务端枚举与依赖内部 ID 的映射；读取/监控/收发分列 |
+| V02-02C / Win | 独立解析器及平台 ID 映射；复用 `app/collectors/douyin.py`、`bilibili.py`、`app/normalizer.py`，解除新适配代码对旧 Repository 的依赖 | 纯解析/回链可先做；正式输出映射须 V02-02A ACK | 真实格式的脱敏 fixture 与坏 ID/时间/URL/重复评论测试；不直连客户库、不把 fixture 当真实采集 |
+| V02-04A / Mac | 多业务画像与资料提取契约/服务；沿用 `pilot/store.py`、`pilot/ui_api.py`，独立封装新增逻辑；定义资料格式、失败补录与版本确认 | 可先设计/测试；保存与鉴权使用现有 pilot 基础及已接收的身份契约 | 多产品/服务、客群、地域、供应能力、销售方式、规模/周期及排除项可保存确认；输入权限/大小/类型、来源引用及版本反例 |
+| V02-04B / Mac | 行业/销售方式策略服务与评测集；`skills/ai-project-lead-research-v1/`、新增 `pilot/` 研究模块 | V02-04A 的画像契约；规则与五类业务反例可先做 | 来源/需求表达/搜索排除/判断/预算输出绑定版本；人工修改受保护；有真实模型运行及失败证据，模板不是行业允许名单 |
+| V02-06A / Mac | 首发触达能力和来源对象映射调查，定义发送/回执/回复协议及可联系条件；`docs/contracts/`、`pilot/` | 只读可行性与契约可先做；真实账号核验需要对应授权 | 对各候选通道逐项给可用/不可用/未验证与来源依据；至少形成可实施首发通道方案；没有授权不发测试消息 |
+| V02-07A / Mac | 持久发送操作契约及状态机：operationId、幂等键、确认快照、原请求查询、未知对账；`pilot/`、桌面服务接口交接包 | 可先定义；通道字段与 V02-06A 协调 | 对象/内容/渠道/连接变更使确认失效；确定失败与未知结果分开，重试不重复发送；合成状态机反例及接收 ACK |
+| V02-09A / Win | Windows 构建与执行依赖可行性；`desktop/scripts/build-windows.ps1`、`verify-package.mjs`、`desktop/forge.config.ts` | 不等后台；真实 Windows/依赖条件独立记录 | 可复现构建、包内容/资源/版本/摘要检查；仅构建通过不算安装或真实 sidecar 可用 |
+| V02-10A / Mac | 跨行业验收协议、样本登记和人工对照方案；`docs/`、新增脱敏评测 fixture | 可立即制定；收集客户资料/邀请试用另取授权 | 冻结五类各两家、14 天、配置≤10分钟、同质量耗时降≥50%及事实追溯口径；每项分母、缺样本和失败处理明确 |
+| V02-10E / Mac | 已知主线测试基线漂移修复；`tests/test_bootstrap.py`、`tests/test_d04_remediation.py` 及相关实现 | 先检查是否已有实际认领，避免重复；不阻止不相关契约设计 | 在固定 base 复现旧权威断言/日期窗口失败，按当前有效契约修复并独立审核；不得删除测试或放宽窗口来制造通过 |
+
+### 第二组：贯通真实采集与持续监控
+
+| ID / 建议主责 | 小卡交付及代码入口 | 实现/联调依赖 | 本卡完成证据 |
+|---|---|---|---|
+| V02-02B / Mac | 受认证原始候选上传 API 与短事务存储；`pilot/ui_api.py`、独立候选模块、`migrations/`；复用已有原子导入测试模式 | V02-01C、V02-02A | 同键重放/异内容冲突/整包回滚/租户解析/旧代次拒绝；桌面不能上传 APPROVED 或运行管理员导入 |
+| V02-02D-XHS / Win | 小红书连接核验、搜索/读取和候选上传适配，内部依赖经已授权源码复用 | V02-01C、V02-02A/B/C、V02-09B/D；具体账号/读取权限单独记录 | 本平台真实来源与账号可核验、隔离会话、读取深度和失效原因；未核验登记不得显示已连接 |
+| V02-02D-DY / Win | 抖音连接、旧解析器复用和客户执行适配 | 同 V02-02D-XHS 的最小契约/运行条件，不依赖小红书完成 | 抖音真实首次运行和入候选证据；旧 dy 名称映射可追溯，不沿用旧 SQLite 客户路径 |
+| V02-02D-BILI / Win | B站连接、旧解析器复用和客户执行适配 | 同 V02-02D-XHS 的最小契约/运行条件，不依赖其他平台完成 | B站真实首次运行和入候选证据；bili 映射、评论回链和失效路径可核验 |
+| V02-02D-ZHIHU / Win | 知乎连接、原文/评论读取与客户执行适配 | 同 V02-02D-XHS 的最小契约/运行条件，不依赖其他平台完成 | 知乎真实首次运行和入候选证据；受限内容不算已读取，失败准确回传 |
+| V02-02D-WEB / Win | 公开网站/社区连接器；评估采购公告、企业公开动态和行业站点，登记具体首发来源 | V02-01C、V02-02A/B/C、V02-09B；公共来源不强制伪造平台登录 | 原文及时间可回查，逐站声明读取能力；摘要只作发现入口，不能用 web 标签冒充全网支持 |
+| V02-03A / Mac | 监控配置、单次运行/平台运行、原请求查询、时区/补跑/重叠/单平台重试契约及调度实现；新增 `pilot/` 执行模块 | 契约可先做；实现使用 V02-01C、V02-02B | 任务/run/平台运行有明确身份；领取续租、暂停恢复、部分失败及短事务 fencing 通过隔离测试 |
+| V02-03B / Mac | 持续监控恢复与提醒；游标、去重、实质变化、离线/失效及预算控制 | V02-03A，至少一张 V02-02D 平台卡与 V02-09B 可联调；随后逐平台补验收 | 每首发平台至少三次真实运行，包含无新增/重启恢复；旧 worker 无法提交、无重复提醒，离线不冒充无新增 |
+| V02-04C / Mac | 真实 Skill 运行、证据校验及候选复核 API；复用 P07 版本/请求查询模型与 `pilot/research_import.py` 规则 | V02-02B、V02-04A/B；真实样本至少一张 V02-02D | 模型超时/坏引用/过期版本/伪造复核拒绝；业务匹配/意向/紧迫性/可行动性分开；复核后才成正式商机 |
+| V02-09B / Win | 本机 sidecar 进程生命周期；`desktop/src/main/`、`desktop/src/shared/contracts.ts` 及 IPC | 本地进程/路径隔离先做；真实服务授权使用 V02-01C 的 ACK 契约 | 子进程启动/取消/退出/崩溃/休眠恢复，无孤儿进程；秘密不进日志/IPC；不以 READY 标签冒充执行完成 |
+| V02-09D / Win | 客户/设备/平台/账号隔离的本机会话存储、受控引用及失效清理；新增 `desktop/src/main/` 存储模块 | 本地合成身份与损坏/隔离测试可先做；真实身份键/撤销使用 V02-01C | 两个隔离身份不能互读，Windows访问限制可验证；凭据不进入renderer、业务API、日志或安装包；vault引用不冒充已实现存储 |
+
+### 第三组：保留 R3 成果，按契约增量接入
+
+| ID / 建议主责 | 小卡交付及代码入口 | 实现/联调依赖 | 本卡完成证据 |
+|---|---|---|---|
+| V02-05A / Mac（保留原前端工作） | R3 已有服务交互、同状态视觉对照和原生导出回执收尾；`desktop/src/renderer/`、`desktop/src/main/` | 继续原任务，不因本表移交；新增后端不可用部分转对应接入卡 | 页面对照 R3 授权，真实已有服务路径与缺失能力区分；导出取消/失败/保存成功回执正确 |
+| V02-05B / Win | 跨行业资料/画像增量 UI；现有画像页面、`services/contracts.ts`、`domain/models.ts` | 与 V02-05A 划清文件后，V02-04A 契约 ACK；先做声明为合成数据的契约测试 | 多业务建档、解析失败补录、版本冲突、人工确认；不覆盖已确认数据；真实API接入证据 |
+| V02-05C / Win | 策略预览、可编辑条件、人工修改保护与预算确认；`pages/TaskWizard.tsx` 和任务领域模型 | V02-04B 契约 ACK，与 V02-05A 划清路径 | 重新生成不覆盖人工编辑，不暗增来源/频率/费用；样本五类业务可解释差异，真实建议失败不显示成功 |
+| V02-05D / Win | 身份/连接 IPC/API 接入；`shared/contracts.ts`、`main/serviceClient.ts`、renderer services | V02-01A/B/C/D 按收到的接口逐批接入；与 V02-05A 划清页面边界 | 正常/无权限/过期/撤销/未知路径；UNVERIFIED 不映成 CONNECTED；缺接口不扩白名单伪造可用 |
+| V02-05E / Win | 商机证据、分维度判断及变化呈现；现有商机/监控页面与 renderer domain | V02-04C 的证据模型、V02-03B 变化模型分别接入；与 V02-05A 协调 | 原文可回查、事实/推断/未知分开，新增/变化/无新增/离线准确；真实列表与详情一致 |
+| V02-05F / Win | 任务启动/操作 transport 与结果映射；`domain/task.ts`、`app/operationLedger.ts`、renderer services | V02-03A 契约 ACK；执行身份使用 V02-01C | 请求绑定最终配置、重复点击单请求、未知结果查询原请求；按合同区分整任务/单平台重试，不能仅凭HTTP200报启动 |
+| V02-05G / Win | 候选读取与人工复核 HTTP/IPC 接入；`domain/candidates.ts`、renderer services 和 IPC 白名单 | V02-02B、V02-04C ACK；复用已有 P07 类型与组件测试 | 分页、来源/画像版本冲突、服务端复核身份、幂等回执/未知查询、跨客户拒绝；组件替身不替代真实接口 |
+
+### 第四组：真实触达、回复、交付和跨行业验收
+
+| ID / 建议主责 | 小卡交付及代码入口 | 实现/联调依赖 | 本卡完成证据 |
+|---|---|---|---|
+| V02-06B / Mac | 首发实际通道适配器，封装发送/回执查询/回复读取；新增独立 `pilot/` 通道模块，需本机工具时与 Win 明确边界 | V02-06A、V02-01C、V02-07A；模块可用合成端点先测 | 通道返回状态及可联系性准确，秘密不泄漏；真实发送只经 V02-07B 确认队列，整链验证在 V02-10B，不形成循环前置 |
+| V02-07B / Mac | 草稿持久化、确认快照、幂等队列和未知对账实现；独立 `pilot/` 模块 | V02-07A、V02-06B 适配接口；草稿业务引用使用 V02-04A/C | 换对象/内容/渠道/连接后旧确认失效；并发同键/超时/重启不重发，未知先查原操作；队列专项隔离测试 |
+| V02-07C / Win | 草稿编辑、确认、发送结果和未知恢复 UI；现有触达页面与发送确认领域模型 | V02-07A ACK 后可做契约测试，真实接入 V02-07B；不和 V02-05A 同文件并发 | 确认绑定正确版本；服务端失败/未知不显示已发送，原操作可查询；真实确认路径在 V02-10B 联验 |
+| V02-08A / Mac | 回复关联与跟进事件 API，含负责人/到期/撤销修正、平台事实与人工事实、未读及统计语义 | 契约可先做；平台回复接 V02-06B/07B，复用现有人工 followups | 重复/乱序/跨租户/一主体多机会关联反例；明细能复算，人工备注不冒充平台回复 |
+| V02-08B / Win | 回复/到期/负责人/下一步工作台与时间线；renderer 跟进页面及服务 client | V02-08A ACK 后契约测试，真实API就绪再接入；保留 V02-05A 已有页面 | 正确租户/商机回流、到期与未读变化、修正/失败/重试可见；真实回复和人工登记明确区分 |
+| V02-08C / Mac | 有效商机/回复/下一步与用量成本查询口径及API，前端展示由 V02-08B 按接收版本补齐 | V02-08A、V02-10A；候选/执行用量分别来自实际数据模块 | 分母与来源可复算，重试不重复计费计数；未知成本不是零，测试回复不计商业转化 |
+| V02-09C / Win | Windows 安装/卸载、激活/到期、备份还原与脱敏诊断；构建脚本及 `desktop/docs/` | 构建/安装可先验证；业务生命周期接 V02-09B/D、V02-01D 及各实际执行功能 | 新机实测及用户回传证据，绑定包SHA/版本；窗口缩放/重启、授权失效和恢复、不遗留执行进程；不以Mac包替代 |
+| V02-09E / Win | 更新与版本回退；`desktop/forge.config.ts`、主进程更新模块及既有设置页接入 | 先由发布责任人确定清单/摘要或签名/兼容性/回退契约；本地双版本演练可先准备，正式更新源另列授权 | 损坏包拒绝、下载/安装失败、升级/回退后启动与数据兼容证据；Squirrel安装事件不等于更新完成 |
+| V02-10B / Mac | 分阶段整链与独立架构/代码/质量复核；M1/M2/M3 每阶段单独冻结 SHA 与证据 | 按阶段需要的子卡逐项 ACK/集成，M3 必须包含真实收发及 Windows 证据 | 客户独立走通来源→机会→确认发送→真实回复→跟进；受授权且可从来源回查的对象，无发布阻断问题 |
+| V02-10C / Mac | 服务端实际部署 CP-06、备份恢复与回滚；`deploy/`、`scripts/cp06_*`、备份恢复脚本 | 验收准备可先做；真实部署需版本、环境与用户授权 | 私网PG、应用非超级用户/RLS/ACL、HTTPS、管理员隔离、部署SHA、备份恢复/回滚和真实手机证据 |
+| V02-10D / Mac | 跨行业14天试用与价值报告，邀请/数据授权由用户提供；Win协助客户端问题定位 | V02-10A；先可用阶段试用，完整14天验收绑定满足承诺的M3/CP-06版本 | 五类各两家，按产品计划保留所有失败/无回复/流失样本；配置、质量/耗时、事实追溯、实付/使用记录，未达标不宣称Goal完成 |
+
+### 当前领取顺序与单卡交付模板
+
+1. **优先接收在途成果：** 先锁定并复核 V02-01A/B，不重复开发登记/撤销；主线尚无这些接口。Mac 的 V02-05A 继续原任务。候选详情和边界见任务书“在途子卡与接收登记”。
+2. **可独立认领：** Win 的 V02-02C、V02-09A（随后 V02-09B 的本地进程部分）；Mac 的 V02-01C、V02-02A、V02-04A/B 的契约与反例、V02-06A、V02-07A、V02-10A。先检查已有认领；列表不是同时启动所有卡的指令。
+3. **依赖逐项解锁：** 最小身份/候选契约就绪后接每个平台和调度；R3 新服务按接口逐批接入，不再把 V02-05/V02-09 整项写成阻塞。每端默认一张主实现卡加一张交叉审核卡，完成小交付后再领下一项。
+4. **不压到最后：** 首发触达可行性、Windows 本地生命周期、样本/对照方案与主链并行；真实试用/部署/发送的授权门禁照旧。
+
+每卡先在唯一任务书登记：`ID、主任务、实际负责人/执行任务、修改路径、分支/base_sha、状态、精确依赖版本及ACK、输入/外部条件、计划测试、候选SHA、集成SHA、reviewer、结果/证据、下一动作`。状态仅用任务书枚举；没有认领记录的新增卡为待认领，不自动标 IN_PROGRESS。需要多份小提交的卡继续按以下步骤拆分，保留所属 ID：
+
+- [ ] 核对有效契约与已在途文件，明确本次输入/输出、成功和失败边界；新增文件列为“拟新增”，不声称已经存在。
+- [ ] 先写最小失败/反例测试，记录精确命令及失败原因；纯文档/调查卡使用逐项检查清单，不伪造 RED/GREEN。
+- [ ] 实现该切片，运行定向验证；需要数据库时只用隔离测试库，缺环境列为未执行。
+- [ ] 提交候选 SHA，交独立 reviewer；修复后绑定新 SHA 复审。
+- [ ] 接收方复现通过并明确 ACK 后解除对应依赖；集成人从最新 main 正常整合，再检查受影响路径。只有该卡要求的真实证据齐全才记 DONE。
 
 ## 里程碑与上线判定
 
@@ -80,15 +148,22 @@
 - Mac 负责短事务、迁移和最终合并；Win 不覆盖 Mac 正在修改的契约文件。
 - 最低代码门禁：
 
-```bash
-uv sync --frozen --extra dev
-uv run --frozen pytest -q
-uv run --frozen python -m compileall -q app tests
-node --check static/app.js
-git diff --check
-```
+每卡选与改动相关的定向命令并追加新增契约/反例测试；下面是当前真实入口，不是本轮已执行的结果。新模块的测试文件与精确命令必须在该卡开始时补齐。最终集成仍运行全仓回归，已知旧基线失败由 V02-10E 跟踪，不用定向通过冒充全仓通过；`node --check static/app.js` 仅用于旧实现改动，不能替代 R3 验收。
 
-- 真实平台、真实账号、扫码、Windows、通道和客户回复是独立证据层；缺少时只记 `BLOCKED_INPUT`，不得用 mock 清除。
+| 适用卡 | 命令与工作目录 | 必须另外说明的证据 |
+|---|---|---|
+| 所有文档/代码卡 | 根目录 `git diff --check`；Git Bash 下 `bash scripts/secret_scan.sh` | 验证绑定候选 SHA；纯文档卡不需要伪造业务测试 |
+| V02-01A | 候选已检出的隔离环境中运行 `uv run --frozen pytest -q tests/test_identity_contract.py tests/test_identity_postgres.py` | 这些新增文件尚未在本轮 main 中；须锁定候选并配置专用一次性PG；104迁移按候选要求用新空库，不能用生产库或静默跳过身份实测 |
+| V02-01B | 候选已检出的隔离环境中运行 `uv run --frozen pytest -q tests/test_identity_contract.py tests/test_session_auth.py tests/test_identity_postgres.py tests/test_session_revocation_postgres.py` | 含01A回归及01B新增测试，文件只在对应候选版本存在；测试库环境变量按候选契约设置，不将别人的结果计为本轮通过 |
+| V02-02C 与平台解析 | 根目录 `uv run --frozen pytest -q tests/test_d03_remediation.py -k "adapters or normalize_time or bilibili"`；再运行本卡新增的平台测试 | 记录实际收集数，零测试不能算通过；fixture与真实平台证据分开 |
+| pilot 服务/API | 根目录 `uv run --frozen pytest -q tests/test_pilot_contracts.py tests/test_ui_api.py tests/test_pilot_web.py`；`uv run --frozen python -m compileall -q pilot tests` | 新模块另加定向测试；数据库隔离/并发/迁移须使用真实专用PG，不以compileall替代 |
+| V02-05B/C | `desktop/` 中 `npm test -- tests/ui/profile.test.tsx tests/ui/task-wizard.test.tsx tests/ui/client.test.ts tests/servicePolicy.test.ts` | 增补多业务/策略反例及真实API往返；保护人工编辑 |
+| V02-05D/F/G | `desktop/` 中 `npm test -- tests/serviceClient.test.ts tests/servicePolicy.test.ts tests/ui/candidates.test.tsx tests/ui/task-start-contract.test.tsx tests/ui/tasks.test.tsx tests/ui/operation-ledger.test.tsx` | 不能只测替身；新增接口/错误/原请求查询需隔离服务联调 |
+| V02-07C、V02-08B | `desktop/` 中 `npm test -- tests/ui/outreach.test.tsx tests/ui/send-confirmation.test.tsx tests/ui/followups.test.tsx` | 真实发送/回复在授权后验收，UI绿色不能清除此门禁 |
+| V02-09A/C/E | `desktop/` 中 `npm test -- tests/windowsBuildEvidence.test.mjs tests/ui/settings.test.tsx`、`npm run typecheck`；Windows PowerShell 中 `./scripts/build-windows.ps1` | Node版本以package.json为准；包SHA、原始退出码及实机回传；进程/存储/更新新增模块须另补测试 |
+| 全部R3变更与最终集成 | `desktop/` 中 `npm test`、`npm run typecheck`、`npm run build:renderer`；根目录最终运行 `uv run --frozen pytest -q` | 同视口同状态视觉对照、数据库/平台/Windows/生产验证分别保留，不混为一次PASS |
+
+- 真实平台、真实账号、扫码、Windows、通道和客户回复是独立证据层；缺少时在唯一任务书对应实测子步骤记 `WAITING_INPUT` 并列明输入，不得用 mock 清除或把整个父任务标为阻塞。
 - Cookie、Token、API Key、Profile、二维码和私信内容不得进入 Git、数据库、日志或导出。
 - 平台处罚、误发、重复骚扰、越权采集或敏感信息泄露立即停止。
 
