@@ -6,7 +6,7 @@
 
 **Architecture:** Existing authenticated product sessions identify users and tenants. A server-generated, persisted challenge is signed by device-held Ed25519 keys; a short PostgreSQL transaction rechecks session revocation, device ownership and the current key version before changing credentials and recording the result. This is the first implementation slice of the approved 01C card; connection generations, execution leases and submission guards remain required subsequent work, not removed scope.
 
-**Tech Stack:** Python >=3.11,<3.13; existing FastAPI/Pydantic/psycopg; PostgreSQL; pinned cryptography==50.0.1 (PyCA Ed25519 implementation, no handwritten cryptography).
+**Tech Stack:** Python >=3.11,<3.13; existing FastAPI/Pydantic/psycopg; PostgreSQL; pinned PyNaCl==1.6.2 (libsodium Ed25519 verification and point validation, no handwritten cryptography).
 
 ## Global Constraints
 
@@ -65,7 +65,7 @@ def test_key_proof_is_not_reusable_after_rotation(service, claims, owned_device,
 
 Test helpers bind/challenge/rotate/complete construct the explicit request/proof DTOs and sign server-returned signing_payload with the generated key; they must not mock SQL, cryptography or authorization. Run `uv run --frozen pytest -q tests/test_device_keys.py tests/test_device_credentials_postgres.py` before implementation, record the missing behavior/import failure. Baseline session/identity tests already run separately. Dependency installation is allowed before crypto tests; implement no production logic until RED observed.
 
-- [ ] **Step 2: Add migration, grants and strict proof module.** Lock exact dependency with `uv lock`; add migration tuple ('v02-device-credentials', ...106...) without editing historical migrations. Follow grant_session_revocations.sql role validation but restrict grants to these new tables. Verify encoding by decode/re-encode exact equality, validate 32/64-byte lengths, verify through Ed25519PublicKey.from_public_bytes(...).verify(signature,message). Convert InvalidSignature/decoding failures to fixed DeviceKeyError codes. Use cryptography only for verification in production, not server generation of private keys.
+- [ ] **Step 2: Add migration, grants and strict proof module.** Lock exact dependency with `uv lock`; add migration tuple ('v02-device-credentials', ...106...) without editing historical migrations. Follow grant_session_revocations.sql role validation but restrict grants to these new tables. Verify encoding by decode/re-encode exact equality, validate 32/64-byte lengths, reject invalid public points using nacl.bindings.crypto_core_ed25519_is_valid_point, then verify with nacl.signing.VerifyKey(public_key).verify(message,signature). Convert BadSignatureError/decoding failures to fixed DeviceKeyError codes. Generate private keys in tests/client only; production backend only verifies.
 
 ```python
 decoded = base64.b64decode(value + '=' * (-len(value) % 4), altchars=b'-_', validate=True)
@@ -99,4 +99,4 @@ The private helpers above belong to device_credentials.py and must be defined th
 
 Approved task: [01C in dual-agent taskboard](../../DUAL_AGENT_TASKBOARD.md), [current task state](../../V02_IMPLEMENTATION_TASKBOOK.md). Existing 01A/B actual ACK f42ea909 covers registration/revocation; it is not an ACK for this new protocol. This plan changes implementation details within approved01C, not the product scope.
 
-Cryptography APIs verified against [PyCA Ed25519 documentation](https://cryptography.io/en/stable/hazmat/primitives/asymmetric/ed25519/); dependency pinned from [PyPI50.0.1](https://pypi.org/project/cryptography/50.0.1/). No independently invented cryptographic algorithm. Server proof and transport are explicitly separated from platform login/collection and Windows acceptance.
+Initial PyCA cryptography50.0.1 selection was rejected by a real local preflight: public key bytes `01` followed by31 zero bytes and signature comprising that key followed by32 zero bytes verified an arbitrary message without a private key. The production dependency is therefore PyNaCl1.6.2 instead; the same local probe returns invalid point and BadSignatureError. Add this exact negative test plus zero/noncanonical point tests; do not implement a hand-maintained curve blacklist. Both algorithms remain Ed25519 with unchanged32/64-byte wire sizes. API references: [PyNaCl signing](https://pynacl.readthedocs.io/en/latest/signing/), [PyPI1.6.2](https://pypi.org/project/PyNaCl/1.6.2/), [libsodium point validation](https://doc.libsodium.org/advanced/point-arithmetic). This is an evidence-driven implementation correction, not a product scope change. Server proof and transport remain separated from platform login/collection and Windows acceptance.
