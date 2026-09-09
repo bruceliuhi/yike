@@ -36,6 +36,12 @@ P14 UNKNOWN 可见链未执行。有效商机已有匹配回复、但尚无人�
 
 ## 最终集成与新包
 
+提交时远端新增 `ff623ed`，普通 push 被拒绝后正常合并为 **16a9a3f4f2915f39d3650bf25c50dec24a6c0ea6**，没有强推或覆盖。此新集成的[全量回归](final/merge-16a9-tests.log)为 **104 文件通过 / 1 文件跳过，1206 passed / 22 skipped**；[325 文件源码](final/merge-16a9-test-source.json)和[完整命令](final/merge-16a9-test-invocation.json)单独绑定。下面 1121 项是 c88 的先前候选，不混同、不相加。
+
+新增的 Win 持钥/签名模块尚未导入产品 main/preload/renderer 入口，[原范围与 Windows 证据](../V02_DEVICE_SIGNING_CLIENT_WIN_REVIEW.md)保持独立。现有 Mac 包仍为 f18 运行路径；不重写其摘要为 16a，也不宣称设备 BIND/PROVE 已接入。合并保留双方任务台账，后端没有本批额外修改。
+
+[16a 合并独立复核](reviews/yike-ui-state-merge-16a9a3f.md)通过，新增模块 85 项及类型检查独立通过。随后 `369a049` 仅将测试中的私钥 PEM 头正则改为实际解析并重新导出 PKCS8 PEM 后逐字比较，保留更严格的编码校验，避免凭据扫描把测试断言当密钥。该差量[33 项通过](logs/device-key-encoding-assertion.log)、[类型检查通过](logs/device-key-encoding-typecheck.log)，扫描 clean；不把 16a 旧树扫描或全量结果回填为该提交重新执行，产品及包字节未变。
+
 后端/文档主线 `a9d18db` 正常合入为 `07d4b85`，[合并审核](reviews/yike-ui-state-merge-07d4b85.md)确认 desktop 与 f18 相同、后端与远端相同。产品源码经[非作者代码及架构复核](reviews/yike-followup-code-f18a922.md)与[质量审核](reviews/yike-ui-state-quality-f18a922.md)，未发现本片剩余 P0/P1。
 
 - 最终 **c88c9e20934c536a600d67dfe2ba2f7a02dd6404** 的 [全量回归](final/release-verified-tests.log)：101 文件通过、1 文件跳过，**1121 passed / 22 skipped**。包含实际坏 ASAR 反例；执行命令与源码分别记录于[调用记录](final/release-verified-test-invocation.json)和[源码哈希](final/release-verified-test-source.json)，四个未提交 raw 草稿排除。
