@@ -44,3 +44,11 @@
 最终提交 **d816a9d** 的完整受控桌面集合为 **114 文件通过 / 2 文件跳过，1340 passed / 23 skipped / 0 failed**：[日志](logs/final-full-tests.log)、[精确调用](final-test-invocation.json)、[342 项输入快照](final-test-source.json)。包含真实坏 ASAR 反例；新 live 原文读取用例在无指定数据库环境时明确跳过，不把对方实际 PG 结果记为此次通过。四个未提交 raw 辅助草稿未纳入受控测试或产品。
 
 [唯一差量绑定](test-only-change-binding.json)证明 fcae33e 至 d816a9d 只有该测试文件变化，生产源码、资源和构建配置相同；因此保留 fcae33e 的已验证包，不重新打包不变产品。类型检查和[凭据扫描](logs/yike-local-handoff-secret-scan.log)通过。[最终独立交付质量核对](reviews/yike-local-handoff-quality-d816a9d.md)限定 PASS：输入/Git/实际 ASAR 与 ZIP、资源、链接及失败记录均核对一致，不扩大 Mac 可见、Windows、真实资料/回复服务或整产品上线的范围。
+
+## 后续并发主线接收
+
+首次普通推送因另一端推进 main 而非快进拒绝，没有强推。先正常保留 0eab72a 的三份 Win 认领文档为 249bc77，再接收 2d799bc 为 **eda1e2f0d6d2f7e4667f1e2684b5017b3cf74455**；唯一整合状态文本冲突逐段保留双方进度。独立[限定兼容复核](reviews/yike-local-handoff-incoming-2d799bc.md)通过：desktop 与 d816a9d 字节相同，pilot/migrations/deploy/tests 与来件相同。本任务不重做对方后端，也不把新独立合同当成已接通发送/回复。
+
+根在 eda1e2f 做有界纯接收：[候选签名/登记/触达/回复合同 88 项](logs/incoming-eda1e2f-contract-tests.log)、[旧候选/设备密钥/UI 路由 90 项](logs/incoming-eda1e2f-legacy-tests.log)分别通过，不含真实 PostgreSQL。来件触达持久层的 MAJOR FOLLOW-UP、117 实库迁移/ACL和真实渠道未验边界保留，不能把本文兼容通过解读为该骨架已可生产使用。
+
+此后用户继续触发新的实际可见检查。P04 空态留白精修和新包属于后续视觉切片，另录 `ui-visible-local-handoff`；本文件的 fcae33e/d816a9d 产物绑定不变。
