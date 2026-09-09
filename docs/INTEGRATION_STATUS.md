@@ -148,6 +148,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 CP-06 环境复核：`scripts/check.sh` 全量 **2108 passed / 485 skipped**，`scripts/secret_scan.sh` clean，MediaCrawler 打包/采集专项 **69 passed**。`scripts/cp06_validate_env.sh` 在当前工作区明确拒绝非 PostgreSQL 数据库 URL（`cp06-preflight: database URL must use PostgreSQL`）；当前没有可用 PostgreSQL 实例证据，因此 RLS、并发、回滚和生产部署门禁仍未完成，不能将本地回归升级为生产就绪。
 
+2026-09-10 PostgreSQL 隔离夹具加固：使用本机一次性 PostgreSQL 容器，以 `NOSUPERUSER/NOBYPASSRLS` 独立应用角色重跑导入原子性与租户隔离集合，**11 passed**。修正测试授权覆盖新增机会证据表，并禁止隔离测试因沿用管理员 URL 而静默绕过 RLS。该结果证明测试夹具真实执行了受限角色路径，不代表生产数据库、备份恢复或真实客户 UAT 已完成。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
