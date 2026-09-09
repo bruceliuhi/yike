@@ -1,0 +1,12 @@
+{
+  "candidate": "b8b82367b34af24da218dba3796a8945d667aaa6",
+  "buildSource": "/tmp/yike-session-content-release-b8b8236",
+  "trackedDesktopInputs": 355,
+  "allInputsMatchCommit": true,
+  "app": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/session-content-b8b8236/意客AI.app",
+  "asarSha256": "f2cd0342c969ee19005041558fd91eccb4f79bb00735d4d8c51b09023daa5778",
+  "zip": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/session-content-b8b8236/意客AI-darwin-arm64-0.2.0.zip",
+  "zipSha256": "fb9fa4ee102f14fe9b5889749386142634d71044a75ed19860dc0f4be5939823",
+  "zipAsarSha256": "f2cd0342c969ee19005041558fd91eccb4f79bb00735d4d8c51b09023daa5778",
+  "scope": "Mac arm64 build and isolated packaged smoke. Visible native and browser checks are recorded separately for this exact artifact; Windows and actual service acceptance remain separate."
+}
