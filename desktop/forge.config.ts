@@ -1,7 +1,7 @@
 import type {ForgeConfig} from '@electron-forge/shared-types';
 import {VitePlugin} from '@electron-forge/plugin-vite';
 import {MakerZIP} from '@electron-forge/maker-zip';
-import {MakerSquirrel} from '@electron-forge/maker-squirrel';
+import {AsciiStagingSquirrelMaker} from './build/asciiStagingSquirrel';
 import {resolve} from 'node:path';
 
 const config: ForgeConfig = {
@@ -15,7 +15,7 @@ const config: ForgeConfig = {
   },
   makers: [
     new MakerZIP({}, ['darwin']),
-    new MakerSquirrel({
+    new AsciiStagingSquirrelMaker({
       name: 'YikeAI', authors: '星河科技', description: '意客AI商机工作台',
       exe: 'YikeAI.exe', setupExe: 'YikeAI-Setup.exe', setupIcon: resolve('assets/yike.ico'), noMsi: true
     })

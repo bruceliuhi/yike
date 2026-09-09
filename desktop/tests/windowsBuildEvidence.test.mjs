@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest';
 import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
-import {mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -10,6 +10,8 @@ import {
 } from '../scripts/windows-build-evidence.mjs';
 
 const roots = [];
+const windowsX64Host = process.platform === 'win32' && process.arch === 'x64' &&
+  ['x86_64', 'amd64', 'x64'].includes(os.machine().toLowerCase());
 function fixture() {
   const root = mkdtempSync(path.join(os.tmpdir(), 'yike-windows-evidence-test-'));
   roots.push(root);
@@ -22,6 +24,17 @@ function saved(evidence) {
 function complete(evidence, id, code = 0) {
   beginStage(evidence, id);
   endStage(evidence, id, code);
+}
+function isolatedBuild(nodeExecutable, root) {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toLowerCase() !== 'path'));
+  env.PATH = '';
+  env.PRIVATE_BUILD_TOKEN = 'must-not-appear-in-evidence';
+  const module = new URL('../scripts/windows-build-evidence.mjs', import.meta.url).href;
+  const result = spawnSync(nodeExecutable, ['--input-type=module', '-e',
+    `import {runWindowsBuild} from ${JSON.stringify(module)}; process.exitCode=runWindowsBuild(${JSON.stringify(root)});`],
+  {cwd: root, env, encoding: 'utf8', windowsHide: true, timeout: 30000});
+  const directory = path.join(root, 'out', 'windows-evidence');
+  return {result, report: JSON.parse(readFileSync(path.join(directory, readdirSync(directory)[0], 'windows-build.json'), 'utf8'))};
 }
 afterEach(() => roots.splice(0).forEach(root => rmSync(root, {recursive: true, force: true})));
 
@@ -45,6 +58,8 @@ describe('Windows build evidence', () => {
     expect(report.source.lockfile.sha256).toBe(createHash('sha256').update('test-lock\n').digest('hex'));
     expect(report.source).toMatchObject({gitAvailable: false, commit: null, dirty: null});
     expect(report.outcome).toBe('IN_PROGRESS');
+    expect(report.runtime).toEqual({requiredNodeRange: '>=24.15.0 <25', npmVersion: null, npmSource: null,
+      nodeSha256: null, npmCliSha256: null, launchMode: null});
     expect(report.manualAcceptance).toBe('UNTESTED');
     expect(report.stages).toHaveLength(9);
     expect(report.stages.every(stage => stage.status === 'NOT_RUN' && stage.exitCode === null)).toBe(true);
@@ -54,6 +69,40 @@ describe('Windows build evidence', () => {
     expect(manual).toContain(report.runId);
     expect(manual).not.toContain('{{RUN_ID}}');
     expect(manual.match(/\| UNTESTED \|/g)).toHaveLength(11);
+  });
+
+  it.skipIf(!windowsX64Host)('rejects a real Node below the minimum before dependencies can run', context => {
+    const oldNode = path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'node.exe');
+    if (!existsSync(oldNode)) return context.skip();
+    const version = spawnSync(oldNode, ['-p', 'process.versions.node'], {encoding: 'utf8', windowsHide: true}).stdout.trim();
+    if (!/^24\.(?:[0-9]|1[0-4])\.\d+$/.test(version)) return context.skip();
+    const {result, report} = isolatedBuild(oldNode, fixture());
+    expect(result.status).toBe(1);
+    expect(report.failureCode).toBe('WINDOWS_X64_NODE24_15_REQUIRED');
+    expect(report.stages[0].status).toBe('FAILED');
+    expect(report.stages.slice(1).every(stage => stage.status === 'NOT_RUN')).toBe(true);
+    expect(report.artifacts).toEqual([]);
+  });
+
+  it.skipIf(process.platform !== 'win32' || windowsX64Host)('rejects a real unsupported Windows host or Node architecture before npm discovery', () => {
+    const {result, report} = isolatedBuild(process.execPath, fixture());
+    expect(result.status).toBe(1);
+    expect(report.failureCode).toBe('WINDOWS_X64_NODE24_15_REQUIRED');
+    expect(report.stages[0].status).toBe('FAILED');
+    expect(report.stages.slice(1).every(stage => stage.status === 'NOT_RUN')).toBe(true);
+    expect(report.artifacts).toEqual([]);
+    expect(report.runtime.npmVersion).toBeNull();
+  });
+
+  it.skipIf(!windowsX64Host)('records npm discovery failure in preflight without leaking environment or paths', () => {
+    const root = fixture();
+    const {result, report} = isolatedBuild(process.execPath, root);
+    expect(result.status).toBe(1);
+    expect(report.failureCode).toBe('NPM_CMD_NOT_FOUND');
+    expect(report.stages[0].status).toBe('FAILED');
+    expect(report.stages.slice(1).every(stage => stage.status === 'NOT_RUN')).toBe(true);
+    expect(JSON.stringify(report)).not.toContain(root);
+    expect(JSON.stringify(report)).not.toContain('must-not-appear-in-evidence');
   });
 
   it('persists stage failure with its actual exit code and leaves later stages unexecuted', () => {
