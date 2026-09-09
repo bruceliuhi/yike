@@ -5,6 +5,7 @@ import { PlatformIcon, PlatformLabel } from "../../components/Platform";
 import type { Opportunity } from "../../domain/models";
 import { libraryExportFields } from "../../domain/opportunityLibrary";
 import { errorMessage } from "../../services/contracts";
+import { FixedSourceEvidence } from "./FixedSourceEvidence";
 
 // Source verified on 2026-09-09. This public inquiry is never a customer record.
 export const PUBLIC_SAMPLE: Opportunity = {
@@ -136,9 +137,11 @@ export function EvidencePanel({
   compact?: boolean;
 }) {
   const { service, notify } = useApp();
-  const open = async () => {
+  const fixed = row.sourceEvidence?.status === "CAPTURED" ? row.sourceEvidence : undefined;
+  const sourceUrl = fixed?.snapshot.source.public_url ?? row.url;
+  const open = async (url: string) => {
     try {
-      await service.openExternal(row.url);
+      await service.openExternal(url);
     } catch (error) {
       notify(errorMessage(error), "error");
     }
@@ -146,23 +149,37 @@ export function EvidencePanel({
   return (
     <section className="evidence-panel">
       <div className="section-heading">
-        <h2>{compact ? "原文证据" : "原文证据"}</h2>
-        <Button variant="ghost" disabled={!row.url} onClick={() => void open()}>
-          查看{compact ? "" : "官方"}原文 <ArrowSquareOut />
+        <h2>原文证据</h2>
+        <Button variant="ghost" disabled={!sourceUrl} onClick={() => void open(sourceUrl)}>
+          查看来源原文 <ArrowSquareOut />
         </Button>
       </div>
-      <blockquote className="evidence-quote">
-        {row.excerpt || "尚未提供原始摘录"}
-      </blockquote>
-      <p className="muted source-meta">
-        <SourcePlatform
-          platform={row.platform}
-          sourceLabel={isSample(row) ? "湖南省商务厅官网" : undefined}
-        />{" "}
-        · 发布于 {formatDate(row.publishedAt)}
-      </p>
+      {fixed ? (
+        <FixedSourceEvidence key={fixed.snapshot_sha256} evidence={fixed}
+          compact={compact} onOpen={(url) => void open(url)} />
+      ) : (
+        <>
+          {!isSample(row) && <p className="muted">
+            {row.sourceEvidence?.status === "UNAVAILABLE"
+              ? "未留存固定原文证据" : "固定原文证据尚未加载"}
+          </p>}
+          <h3>{isSample(row) ? "公开样例摘录" : "旧版摘录（非固定原文）"}</h3>
+          <blockquote className="evidence-quote">
+            {row.excerpt || "尚未提供原始摘录"}
+          </blockquote>
+          <p className="muted source-meta">
+            <SourcePlatform platform={row.platform}
+              sourceLabel={isSample(row) ? "湖南省商务厅官网" : undefined} />{" "}
+            · 发布于 {formatDate(row.publishedAt)}
+          </p>
+        </>
+      )}
       {!compact && (
         <>
+          <h3>当前复核与判断</h3>
+          <p className="muted source-meta">
+            复核人：{row.reviewer || "未知"} · 复核时间：{row.reviewedAt ? formatDate(row.reviewedAt) : "未知"}
+          </p>
           <h3>需求概述</h3>
           <p>{row.summary || "尚未提供需求概述"}</p>
           <h3>证据评估</h3>

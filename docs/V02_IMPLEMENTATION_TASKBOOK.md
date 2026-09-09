@@ -210,6 +210,8 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 
 ### CodexWin Goal 启动与当前认领
 
+2026-09-10 CodexWin完成05E固定原文客户端限定片：按既有合同接入普通详情/R4缺字段补读、P11/compact原文/评论归属/逐字引用/事件时间/历史版本，旧摘录不冒充固定原文；整片独立SPEC/代码/架构/质量PASS，P12旧标签P2已修复。根代理20文件269项、类型/生产TEST排除、Windows Edge双视口通过，实际客户端→认证HTTP→受限PG 1 passed/0skip；[限定QA](qa/V02-05E_SOURCE_EVIDENCE_CLIENT_WIN_REVIEW.md)保留反例与边界。正常快进保留Mac至`eb507bf`正常CLI装配与签名接口认领，无desktop源码重叠。**Win接续05D/05F设备HTTP与05G/P07候选读取、来源核验和恢复**；原签名载荷接口已由Mac在`eb507bf`认领，不重复实现。未完成真实平台→客户UI整链、确认收发或Windows发行，05E/PH-F06与整体Goal仍IN_PROGRESS；原文证据、多找类似、短句建联均为首发必有。
+
 2026-09-10 CodexWin完成05F前置Chunk1独立模块：基线`a9d18db`，shared设备合同/main保护vault与原文签名完成；97定向、类型检查、真实Windows Electron两独立进程OS保护与产品signer组合通过，非作者SPEC/代码/架构/质量PASS，见[限定QA](qa/V02_DEVICE_SIGNING_CLIENT_WIN_REVIEW.md)。尚未接产品HTTP，不将此记作设备已绑定、采集已就绪或05F整卡完成。**下一片Win优先05E/P11-R4固定原文证据客户端**，按[已审分片计划](superpowers/plans/2026-09-10-win-fixed-source-evidence.md)消费Mac115新nested DTO；只认领desktop领域解析/现有读取/EvidencePanel及专属测试，不碰Mac共享store/runtime/115。Mac继续正常CLI装配和待接的执行签名载荷小接口，设备会话串行BIND/PROVE/START/CANCEL随后接续；全行业真实来源、确认收发、多找类似/短句与完整Goal继续。
 
 2026-09-10 CodexWin接续05F前置，base`22bae22`：实际desktop尚无设备持钥/签名入口，Win认领shared/deviceProof、main/deviceKeyVault/deviceProofSigner及专属tests，先消费既有01C BIND/PROVE，再接串行HTTP/账号入口；不重做05C或共享后端。按[分片计划](superpowers/plans/2026-09-10-win-device-signing-client.md)，仅用标准Ed25519/OS保护，无明文回退或任意sign IPC。独立核对同时发现执行签名载荷公开入口缺失，给Mac的[最小接线请求](handoffs/V1_WIN_FUNCTION_OWNERSHIP_20260909.md#05f真实客户端签名字节缺口2026-09-1022bae22核查)保留其execution_api/runtime所有权与115在途证据；尚未ACK、不启执行能力。前置IN_PROGRESS，完整原文证据/来源/收发/Windows Goal不缩减。

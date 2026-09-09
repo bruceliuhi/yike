@@ -65,7 +65,7 @@ export interface YikeService {
   saveProfile(fields: ProfileFields): Promise<Profile>;
   confirmProfile(id: string): Promise<Profile>;
   opportunities(): Promise<Opportunity[]>;
-  opportunity(id: string): Promise<Opportunity>;
+  opportunity(id: string, signal?: AbortSignal): Promise<Opportunity>;
   followups(): Promise<Followup[]>;
   addFollowup(id: string, status: FollowupStatus, note: string): Promise<void>;
   connections(): Promise<PlatformConnection[]>;

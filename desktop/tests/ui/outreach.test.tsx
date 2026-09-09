@@ -12,6 +12,8 @@ import {
   contactFingerprint,
 } from "../../src/renderer/pages/Outreach";
 import { PUBLIC_SAMPLE } from "../../src/renderer/pages/Opportunities";
+import { capturedEvidenceFixture } from "../fixtures/opportunitySourceEvidence";
+import { parseOpportunitySourceEvidence } from "../../src/renderer/domain/opportunitySourceEvidence";
 import { parseRoute } from "../../src/renderer/domain/routes";
 import { hasUnsavedChanges } from "../../src/renderer/app/hooks";
 import type { AppContextValue } from "../../src/renderer/app/context";
@@ -51,6 +53,22 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe("contact preparation and confirmation", () => {
+  it("labels the legacy excerpt beside the fixed snapshot without changing sending authority", async () => {
+    const row = { ...PUBLIC_SAMPLE, id: "TEST-o", profileVersionId: "TEST-p", sample: false,
+      excerpt: "TEST 旧摘录不是新固定正文", sourceEvidence: parseOpportunitySourceEvidence(
+        capturedEvidenceFixture(), { opportunityId: "TEST-o", profileVersionId: "TEST-p" },
+      ) };
+    context.route = parseRoute("#/outreach?opportunity=TEST-o");
+    context.service.opportunity = vi.fn().mockResolvedValue(row);
+    render(<OutreachPage />);
+    await screen.findByText("TEST 旧摘录不是新固定正文");
+    expect(screen.getByRole("heading", { name: "旧版摘录（非固定原文）" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "原文摘要" })).toBeNull();
+    fireEvent.click(screen.getByText("查看完整判断"));
+    expect(screen.getByText(/TEST 评论正文/)).toBeTruthy();
+    expect(screen.getByText(/这是纳入时的历史留存/)).toBeTruthy();
+    expect(context.service.send).not.toHaveBeenCalled();
+  });
   it("never unlocks sample writing or sending after confirmation is checked", async () => {
     render(<OutreachPage />);
     await screen.findByRole("dialog", { name: "确认发送" });

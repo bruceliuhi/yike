@@ -450,7 +450,7 @@ export function ContactEditor({
             </>
           )}
         </dl>
-        <h3>原文摘要</h3>
+        <h3>{sample ? "公开样例摘录" : "旧版摘录（非固定原文）"}</h3>
         <blockquote className="coach-quote">
           {row.excerpt || "暂无原始摘录"}
         </blockquote>
