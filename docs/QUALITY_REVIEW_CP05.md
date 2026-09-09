@@ -43,3 +43,7 @@
 提交 `cfb2f01`（远端分支 `codex/customer-pilot`）新增 v3 租户目录 RLS、显式 `YIKE_PILOT_ADMIN_DATABASE_URL` 管理员连接、provisioning 的新租户 GUC 绑定，以及运行时 env 文件禁止携带管理员数据库 URL。独立安全复审确认当前定向门禁为 `55 passed, 2 skipped`，`secret_scan`、`compileall`、Shell 语法和 `git diff --check` 均通过，未发现新的 P0/P1。
 
 完整 `scripts/check_customer_pilot.sh` 在本机未启动 PostgreSQL 时为 `44 passed, 2 failed`；失败仅为两项真实 PostgreSQL integration（连接 `127.0.0.1:5432` 被拒），因此 v3 的真实空库迁移、RLS 和并发确认仍未验收。该结果不替代 CP-06 目标环境证据，CP-06 继续保持 `NOT_STARTED`。
+
+## 2026-09-09 Origin 防护复审
+
+提交 `763cc29` 对状态变更请求增加同源 `Origin` 校验，并将畸形 Origin 解析失败改为明确 `403`。独立安全复审确认跨源请求被拒绝、同源请求（含末尾斜杠）正常、无 Origin 的受信路径仍可用；定向套件为 `58 passed, 2 skipped`，未发现 P0/P1/P2。
