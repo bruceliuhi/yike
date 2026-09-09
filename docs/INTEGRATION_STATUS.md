@@ -156,6 +156,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 策略套件独立 PostgreSQL 验证：按 `tests/test_research_strategies_postgres.py` 自有初始化流程使用全新 `win_research_strategy` 数据库，由套件创建 `strategy_app` 受限角色，**49 passed**。这消除了统一探针中的角色预创建冲突，证明确认策略、版本、撤销、RLS、HTTP 和真实 Node 往返在该独立环境通过；仍不代表生产部署、真实模型效果或客户 UAT。
 
+2026-09-10 搜索建议套件独立 PostgreSQL 验证：按 `tests/test_search_suggestions_postgres.py` 自有初始化流程使用全新 `win_search_suggestion` 数据库，由套件创建 `suggestion_app` 受限角色，**63 passed**。覆盖画像版本绑定、额度、幂等、失败持久化、并发、RLS、最小授权和 Node/HTTP 路径；仍不代表真实模型服务或生产部署已接通。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
