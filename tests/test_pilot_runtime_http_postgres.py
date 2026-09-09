@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from fastapi.testclient import TestClient
 
 from pilot import cli
-from pilot.auth import issue_token, verify_token_claims
+from pilot.auth import issue_token
 from tests.test_candidate_assessment_model import CONTENT, assessment
 from tests.test_candidate_ingestion_postgres import claimed, payload, service, submit
 from tests.test_candidate_review_http_postgres import local_provider
@@ -172,9 +172,8 @@ def test_ordinary_cli_without_model_or_source_does_not_create_authority(monkeypa
     env = real_strategy_env
     binding, _, _, _, _ = seed_signed_synthetic_candidate(env)
     with ordinary_client(monkeypatch, env) as client:
-        claims = verify_token_claims(client.headers["Authorization"].removeprefix("Bearer "), SECRET)
         start_request = start(env)
-        started = send_execution(client, env, claims, start_request)
+        started = send_execution(client, env, start_request)
         assert started.status_code == 501, started.text
         assert started.json()["detail"]["code"] == "capability_unavailable"
         missing_receipt = client.get("/api/ui/execution-operations/" + start_request.request_id)
