@@ -1,15 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  ArrowClockwise,
-  Check,
-  Globe,
-  Plus,
-  Sparkle,
-  X,
-} from "@phosphor-icons/react";
+import { ArrowClockwise, Plus, Sparkle, X } from "@phosphor-icons/react";
+import { PlatformLabel } from "../components/Platform";
 import { useApp } from "../app/context";
 import { useAction, useLocalDraft, useResource } from "../app/hooks";
-import { boundedRequest, RequestCancelled, SUGGESTION_TIMEOUT_MS } from "../app/boundedRequest";
+import {
+  boundedRequest,
+  RequestCancelled,
+  SUGGESTION_TIMEOUT_MS,
+} from "../app/boundedRequest";
 import { useOperationLedger } from "../app/operationLedger";
 import { useTaskDraft, useTaskLibrary } from "../app/taskDraft";
 import {
@@ -37,43 +35,18 @@ import {
   taskFingerprint,
 } from "../domain/task";
 import { errorMessage } from "../services/contracts";
+import {
+  configurationHash,
+  matchesCreatedTask,
+  parseStartReceipt,
+  startEntry,
+  type TaskStartBinding,
+} from "../domain/taskOperations";
+import { PendingTaskStarts } from "./tasks/PendingTaskStarts";
+import { useTaskScope } from "./tasks/useTaskScope";
+import { TaskConfirmationSummary } from "./tasks/TaskConfirmationSummary";
 
-/** An HTTP success alone does not establish that this configuration created a task. */
-export function matchesCreatedTask(
-  value: unknown,
-  draft: TaskDraft,
-): value is TaskRun {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const run = value as Partial<TaskRun>;
-  return (
-    typeof run.id === "string" &&
-    /^[A-Za-z0-9_-][A-Za-z0-9_.:-]{0,127}$/.test(run.id) &&
-    run.mode === draft.mode &&
-    typeof run.name === "string" &&
-    run.name.trim() === draft.name.trim() &&
-    typeof run.status === "string" &&
-    [
-      "PENDING",
-      "RUNNING",
-      "PAUSED",
-      "COMPLETED",
-      "FAILED",
-      "CANCELED",
-      "BLOCKED",
-      "PARTIAL",
-      "OFFLINE",
-      "RETRYING",
-      "CANCELLING",
-    ].includes(run.status) &&
-    Array.isArray(run.platforms) &&
-    run.platforms.length === draft.platforms.length &&
-    new Set(run.platforms).size === run.platforms.length &&
-    run.platforms.every((platform) => draft.platforms.includes(platform)) &&
-    (run.profileId === undefined || run.profileId === draft.profileId) &&
-    (run.profileVersion === undefined ||
-      run.profileVersion === draft.profileVersion)
-  );
-}
+export { matchesCreatedTask } from "../domain/taskOperations";
 
 export function TaskWizardPage() {
   const { service, session, route, navigate, notify } = useApp();
@@ -82,7 +55,9 @@ export function TaskWizardPage() {
     route.query.get("mode") === "monitor" ? "monitor" : "once",
   );
   const [, setLibrary] = useTaskLibrary(session.userId);
-  const [manualConditionOrigin, setManualConditionOrigin] = useLocalDraft<string | null>(
+  const [manualConditionOrigin, setManualConditionOrigin] = useLocalDraft<
+    string | null
+  >(
     `condition-origin.${session.userId || "guest"}.${draft.id}`,
     null,
     (value) => value === null || typeof value === "string",
@@ -119,7 +94,11 @@ export function TaskWizardPage() {
     "unknown-task-starts",
     session.userId,
   );
-  const resultUnknown = !!unknownStarts[draft.id];
+  const unresolvedAncestorIds = (draft.templateSourceDraftIds || []).filter(
+    (id) => !!unknownStarts[id],
+  );
+  const resultUnknown =
+    !!unknownStarts[draft.id] || unresolvedAncestorIds.length > 0;
   const confirmed =
     profiles.data?.filter((p) => p.status === "CONFIRMED") || [];
   const selectedProfile = confirmed.find(
@@ -129,14 +108,19 @@ export function TaskWizardPage() {
   const previousSuggestionProfile = profiles.data?.find(
     (p) => p.id === conditionsOrigin,
   );
-  const staleConditions = !!conditionsOrigin && conditionsOrigin !== draft.profileId &&
+  const staleConditions =
+    !!conditionsOrigin &&
+    conditionsOrigin !== draft.profileId &&
     (draft.terms.length > 0 || draft.exclusions.length > 0);
   const conditionsWarning = staleConditions
-    ? `当前搜索条件仍来自「${previousSuggestionProfile
-      ? `${previousSuggestionProfile.fields.service || "业务画像"} · v${previousSuggestionProfile.version}`
-      : "历史画像（当前不可见）"}」，你的修改已保留。请按新画像复核，或重新生成后选择应用方式。`
+    ? `当前搜索条件仍来自「${
+        previousSuggestionProfile
+          ? `${previousSuggestionProfile.fields.service || "业务画像"} · v${previousSuggestionProfile.version}`
+          : "历史画像（当前不可见）"
+      }」，你的修改已保留。请按新画像复核，或重新生成后选择应用方式。`
     : "";
   const fingerprint = taskFingerprint(draft);
+  const startScope = useTaskScope(fingerprint);
   const blockers = startBlockers(
     draft,
     profiles.data || [],
@@ -162,7 +146,12 @@ export function TaskWizardPage() {
     const snapshot = { ...current.current, savedAt: new Date().toISOString() };
     setDraft(snapshot);
     setLibrary((old) => [snapshot, ...old.filter((t) => t.id !== snapshot.id)]);
-    notify("任务草稿已保存在本机会话中，尚未启动。", "success");
+    notify(
+      resultUnknown
+        ? "任务草稿已保存；原启动结果仍待核对。"
+        : "任务草稿已保存在本机会话中，尚未启动。",
+      "success",
+    );
   };
   const stepPath = (next: number) =>
     "/tasks/new?" +
@@ -245,11 +234,12 @@ export function TaskWizardPage() {
     setSuggestionError("");
     try {
       const result = await boundedRequest(
-        signal => service.suggest(snapshot.profileId, requestId, signal),
+        (signal) => service.suggest(snapshot.profileId, requestId, signal),
         {
           signal: abort.signal,
           timeoutMs: SUGGESTION_TIMEOUT_MS,
-          timeoutMessage: "搜索建议生成超时，现有条件已保留。可重试或继续手工填写。",
+          timeoutMessage:
+            "搜索建议生成超时，现有条件已保留。可重试或继续手工填写。",
         },
       );
       if (
@@ -299,7 +289,8 @@ export function TaskWizardPage() {
       step === 1 &&
       !draft.savedAt &&
       !draft.suggestionProfile &&
-      lastSuggestion.current !== `${draft.id}:${selectedProfile.id}:${selectedProfile.version}` &&
+      lastSuggestion.current !==
+        `${draft.id}:${selectedProfile.id}:${selectedProfile.version}` &&
       !draft.terms.length &&
       !draft.exclusions.length &&
       !draft.removed.length
@@ -324,6 +315,7 @@ export function TaskWizardPage() {
   };
   const start = async () => {
     if (
+      !session.authenticated ||
       starting ||
       resultUnknown ||
       verified !== taskFingerprint(current.current)
@@ -333,12 +325,16 @@ export function TaskWizardPage() {
     setStarting(true);
     await action.run(async () => {
       // Recheck live execution prerequisites immediately before creating one task.
-      const [freshProfiles, freshConnections, freshInfo] = await Promise.all([
-        service.profiles(),
-        service.connections(),
-        service.info(),
-      ]);
-      if (!mounted.current) return;
+      const [freshProfiles, freshConnections, freshInfo] = await boundedRequest(
+        () =>
+          Promise.all([
+            service.profiles(),
+            service.connections(),
+            service.info(),
+          ]),
+        { timeoutMessage: "启动条件检查超时，尚未创建任务，请重新检查。" },
+      );
+      if (!startScope.current()) return;
       const changed =
         taskFingerprint(current.current) !== taskFingerprint(snapshot);
       const reasons = startBlockers(
@@ -354,16 +350,73 @@ export function TaskWizardPage() {
         );
       }
       const requestId = `task:${snapshot.id}:${snapshot.revision}`;
-      setUnknownStarts((old) => ({ ...old, [snapshot.id]: requestId }));
+      const binding: TaskStartBinding = {
+        requestId,
+        draftId: snapshot.id,
+        revision: snapshot.revision,
+        configurationHash: await configurationHash(snapshot),
+        mode: snapshot.mode,
+      };
+      if (!startScope.current()) return;
+      const stored = startEntry(binding);
+      setUnknownStarts((old) => {
+        if (
+          [snapshot.id, ...(snapshot.templateSourceDraftIds || [])].some(
+            (id) => !!old[id],
+          )
+        )
+          throw new Error("该任务已有启动请求待确认，当前不会重复创建。");
+        return { ...old, [snapshot.id]: stored };
+      });
       let run;
       try {
-        run = await service.startTask(snapshot, requestId);
+        if (service.taskOperations) {
+          const receipt = parseStartReceipt(
+            await boundedRequest(
+              () => service.taskOperations!.start(snapshot, binding),
+              {
+                timeoutMessage:
+                  "启动等待超时，结果尚未确认，请核对原启动结果。",
+              },
+            ),
+            binding,
+          );
+          if (receipt.status === "REJECTED") {
+            setUnknownStarts((old) => {
+              const next = { ...old };
+              if (next[snapshot.id] === stored) delete next[snapshot.id];
+              return next;
+            });
+            if (startScope.current()) {
+              setVerified(null);
+              setDraft((old) =>
+                old.id === snapshot.id
+                  ? { ...old, revision: old.revision + 1, savedAt: null }
+                  : old,
+              );
+            }
+            throw new Error(
+              receipt.message || "原请求已确认未创建任务，请重新检查配置。",
+            );
+          }
+          if (receipt.status !== "ACCEPTED")
+            throw new Error("启动结果尚未确认，请核对原请求，勿重新提交。");
+          run = receipt.run;
+        } else {
+          run = await boundedRequest(
+            () => service.startTask(snapshot, requestId),
+            {
+              timeoutMessage: "启动等待超时，结果尚未确认，请核对原启动结果。",
+            },
+          );
+        }
       } catch (error) {
         const code =
           error && typeof error === "object" && "code" in error
             ? String(error.code)
             : "";
         if (
+          !service.taskOperations &&
           [
             "CAPABILITY_UNAVAILABLE",
             "INVALID_REQUEST",
@@ -388,7 +441,7 @@ export function TaskWizardPage() {
         delete next[snapshot.id];
         return next;
       });
-      if (!mounted.current) return;
+      if (!startScope.current()) return;
       setLibrary((old) => old.filter((t) => t.id !== snapshot.id));
       notify("任务已创建，运行状态以任务详情为准。", "success");
       navigate(
@@ -397,7 +450,7 @@ export function TaskWizardPage() {
           : "/collection",
       );
     });
-    setStarting(false);
+    if (mounted.current) setStarting(false);
   };
   const platformLabel = (id: string) =>
     PLATFORMS.find((p) => p.id === id)?.name || id;
@@ -412,7 +465,11 @@ export function TaskWizardPage() {
               : "新建获客任务"
         }
         description={
-          draft.savedAt ? "本机草稿 · 未启动" : "配置任务条件，确认后再启动。"
+          resultUnknown
+            ? "启动结果待确认"
+            : draft.savedAt
+              ? "本机草稿 · 未启动"
+              : "配置任务条件，确认后再启动。"
         }
       />
       <div className="wizard-steps" aria-label="任务步骤">
@@ -422,8 +479,8 @@ export function TaskWizardPage() {
             aria-current={step === i + 1 ? "step" : undefined}
             key={label}
           >
-            <span className={`step-number ${step >= i + 1 ? "current" : ""}`}>
-              {step > i + 1 ? <Check /> : i + 1}
+            <span className={`step-number ${step === i + 1 ? "current" : ""}`}>
+              {i + 1}
             </span>
             {label}
           </div>
@@ -468,7 +525,10 @@ export function TaskWizardPage() {
                     const selected = confirmed.find(
                       (p) => p.id === e.target.value,
                     );
-                    if ((draft.terms.length || draft.exclusions.length) && !conditionsOrigin)
+                    if (
+                      (draft.terms.length || draft.exclusions.length) &&
+                      !conditionsOrigin
+                    )
                       setManualConditionOrigin(draft.profileId || null);
                     update({
                       profileId: selected?.id || "",
@@ -505,15 +565,17 @@ export function TaskWizardPage() {
                     <Sparkle size={12} /> AI 建议
                   </Badge>
                 </div>
-                {generating ? <Button variant="ghost" onClick={cancelSuggestion}>
-                  <X />取消生成
-                </Button> : <Button
-                  variant="ghost"
-                  onClick={() => void generate()}
-                >
-                  <ArrowClockwise />
-                  {draft.terms.length ? "重新生成" : "生成建议"}
-                </Button>}
+                {generating ? (
+                  <Button variant="ghost" onClick={cancelSuggestion}>
+                    <X />
+                    取消生成
+                  </Button>
+                ) : (
+                  <Button variant="ghost" onClick={() => void generate()}>
+                    <ArrowClockwise />
+                    {draft.terms.length ? "重新生成" : "生成建议"}
+                  </Button>
+                )}
               </div>
               <Field
                 label="搜索关键词"
@@ -525,8 +587,8 @@ export function TaskWizardPage() {
                     : staleConditions
                       ? "沿用旧画像条件，请按当前画像复核。"
                       : draft.suggestionProfile
-                      ? "建议基于所选画像，可自由修改。"
-                      : "确认画像后自动建议，也可手工添加。"
+                        ? "建议基于所选画像，可自由修改。"
+                        : "确认画像后自动建议，也可手工添加。"
                 }
               >
                 <TermEditor
@@ -577,7 +639,7 @@ export function TaskWizardPage() {
                           })
                         }
                       />
-                      {p.name}
+                      <PlatformLabel platform={p.id} size={18} />
                     </label>
                   ))}
                 </div>
@@ -844,8 +906,7 @@ export function TaskWizardPage() {
                 return (
                   <div className="platform-status-row" key={p.id}>
                     <span>
-                      <Globe size={21} />
-                      {p.name}
+                      <PlatformLabel platform={p.id} size={21} />
                     </span>
                     <Badge
                       tone={
@@ -901,7 +962,9 @@ export function TaskWizardPage() {
               <tbody>
                 {draft.platforms.map((id) => (
                   <tr key={id}>
-                    <td>{platformLabel(id)}</td>
+                    <td>
+                      <PlatformLabel platform={id} size={18} />
+                    </td>
                     <td>
                       {id === "web" ? (
                         <span>公开页面读取范围需由执行服务确认</span>
@@ -978,126 +1041,26 @@ export function TaskWizardPage() {
           </div>
         </div>
       ) : (
-        <div className="confirmation-layout">
-          <div className="configuration-summary">
-            <section>
-              <h2>基本信息</h2>
-              <dl className="detail-list">
-                <div>
-                  <dt>任务名称</dt>
-                  <dd>{draft.name || "未填写"}</dd>
-                </div>
-                <div>
-                  <dt>业务画像</dt>
-                  <dd>
-                    {selectedProfile?.fields.service || "待确认真实画像"}{" "}
-                    {draft.profileVersion ? `· v${draft.profileVersion}` : ""}
-                  </dd>
-                </div>
-                <div>
-                  <dt>执行设备</dt>
-                  <dd>
-                    {info.data?.deviceReady
-                      ? "执行服务已就绪"
-                      : "本机 · 待绑定或检查"}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-            <section>
-              <h2>采集范围</h2>
-              <dl className="detail-list">
-                <div>
-                  <dt>目标平台</dt>
-                  <dd>
-                    {draft.platforms.map(platformLabel).join("、") || "未选择"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>来源范围</dt>
-                  <dd>
-                    {draft.source === "search" ? "关键词搜索" : "指定内容链接"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>执行账号</dt>
-                  <dd>
-                    {draft.platforms
-                      .map(
-                        (id) =>
-                          `${platformLabel(id)}：${id === "web" ? "公开范围待确认" : draft.accounts[id] || "待选择"}`,
-                      )
-                      .join("\n") || "未选择"}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-            <section>
-              <h2>搜索条件</h2>
-              <dl className="detail-list">
-                <div>
-                  <dt>搜索关键词</dt>
-                  <dd>
-                    {draft.terms.map((t) => t.value).join("、") || "未填写"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>排除词</dt>
-                  <dd>
-                    {draft.exclusions.map((t) => t.value).join("、") || "无"}
-                  </dd>
-                </div>
-                {draft.source === "links" && (
-                  <div>
-                    <dt>内容链接</dt>
-                    <dd>{draft.links}</dd>
-                  </div>
-                )}
-              </dl>
-            </section>
-            <section>
-              <h2>运行设置</h2>
-              <dl className="detail-list">
-                <div>
-                  <dt>运行方式</dt>
-                  <dd>{draft.mode === "once" ? "单次采集" : "持续监控"}</dd>
-                </div>
-                {draft.mode === "monitor" && (
-                  <>
-                    <div>
-                      <dt>执行频率</dt>
-                      <dd>
-                        {draft.schedule.kind === "daily"
-                          ? `每日 ${draft.schedule.times.join("、")}`
-                          : `每 ${draft.schedule.interval} 小时`}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>执行窗口</dt>
-                      <dd>
-                        {draft.schedule.kind === "interval"
-                          ? `${draft.schedule.start}–${draft.schedule.end}`
-                          : "按每日设定时间"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>时区</dt>
-                      <dd>{draft.schedule.timezone}</dd>
-                    </div>
-                  </>
-                )}
-              </dl>
-            </section>
-          </div>
+        <div className="confirmation-layout task-confirmation-page">
+          <TaskConfirmationSummary
+            draft={draft}
+            profile={selectedProfile}
+            connections={connections.data || []}
+            deviceReady={!!info.data?.deviceReady}
+            disabled={starting}
+            onEdit={() => changeStep(1)}
+          />
           {blockers.length > 0 && (
-            <Notice tone="warning">
-              <strong>启动前还需完成</strong>
+            <details className="task-start-blockers">
+              <summary>
+                启动前还需完成（{blockers.length}）：检查平台连接与执行条件
+              </summary>
               <ul className="blocker-list">
                 {blockers.map((reason, i) => (
                   <li key={i}>{reason}</li>
                 ))}
               </ul>
-            </Notice>
+            </details>
           )}
           <label className="check-row">
             <input
@@ -1129,6 +1092,29 @@ export function TaskWizardPage() {
               启动结果尚未确认，请先检查任务列表，避免重复创建。
             </Notice>
           )}
+          <PendingTaskStarts
+            draftId={draft.id}
+            onSettled={(status) => {
+              setVerified(null);
+              if (status === "REJECTED")
+                setDraft((old) => ({
+                  ...old,
+                  revision: old.revision + 1,
+                  savedAt: null,
+                }));
+            }}
+            onAccepted={(run) => {
+              setLibrary((old) => old.filter((item) => item.id !== draft.id));
+              navigate(
+                run.mode === "monitor"
+                  ? `/monitors/${encodeURIComponent(run.id)}`
+                  : "/collection",
+              );
+            }}
+          />
+          {unresolvedAncestorIds.map((id) => (
+            <PendingTaskStarts key={id} draftId={id} />
+          ))}
           <div className="task-footer">
             <Button disabled={starting} onClick={() => changeStep(1)}>
               返回修改

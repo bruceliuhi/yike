@@ -1,15 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  ArrowSquareOut,
-  CheckCircle,
-  Clock,
-  Globe,
-  Plus,
-  ChatsCircle,
-} from "@phosphor-icons/react";
+import { ArrowSquareOut, CheckCircle, Plus } from "@phosphor-icons/react";
 import { useApp } from "../app/context";
+import { PlatformIcon, PlatformLabel } from "../components/Platform";
 import { useAction, useResource } from "../app/hooks";
-import { boundedRequest, RequestCancelled, RequestTimeout } from "../app/boundedRequest";
+import {
+  boundedRequest,
+  RequestCancelled,
+  RequestTimeout,
+} from "../app/boundedRequest";
 import {
   Badge,
   Button,
@@ -47,7 +45,10 @@ const connectionLabel: Record<PlatformConnection["status"], string> = {
 
 export function ConnectionsPage() {
   const { service, session, route, navigate, notify } = useApp();
-  const connections = useResource(() => service.connections(), [service, session.userId]);
+  const connections = useResource(
+    () => service.connections(),
+    [service, session.userId],
+  );
   const disconnect = useAction();
   const selected = PLATFORMS.find(
     (p) => p.id === route.query.get("connect") && p.id !== "web",
@@ -107,7 +108,8 @@ export function ConnectionsPage() {
     try {
       await boundedRequest(() => service.connect(selected.id), {
         signal: abort.signal,
-        timeoutMessage: "打开登录窗口超时，窗口状态尚未确认。请先核对原生窗口后重试；当前未记为已连接。",
+        timeoutMessage:
+          "打开登录窗口超时，窗口状态尚未确认。请先核对原生窗口后重试；当前未记为已连接。",
       });
       if (request !== generation.current) return;
       setOpened(true);
@@ -128,10 +130,14 @@ export function ConnectionsPage() {
     setState("checking");
     setError("");
     try {
-      const connection = await boundedRequest(() => service.checkConnection(selected.id), {
-        signal: abort.signal,
-        timeoutMessage: "检查连接超时，连接结果尚未确认。可重新检查，现有任务配置不会改变。",
-      });
+      const connection = await boundedRequest(
+        () => service.checkConnection(selected.id),
+        {
+          signal: abort.signal,
+          timeoutMessage:
+            "检查连接超时，连接结果尚未确认。可重新检查，现有任务配置不会改变。",
+        },
+      );
       if (request !== generation.current) return;
       if (connection.platform !== selected.id) {
         setState("error");
@@ -234,14 +240,7 @@ export function ConnectionsPage() {
               return (
                 <tr key={platform.id}>
                   <td>
-                    <span className="platform-label">
-                      {isWeb ? (
-                        <Globe size={27} aria-hidden />
-                      ) : (
-                        <ChatsCircle size={27} aria-hidden />
-                      )}
-                      {platform.name}
-                    </span>
+                    <PlatformLabel platform={platform.id} size={22} />
                   </td>
                   <td>
                     {isWeb
@@ -326,17 +325,22 @@ export function ConnectionsPage() {
           }
         >
           <Field label="选择平台" required>
-            <select
-              aria-label="选择连接平台"
-              value={platformChoice}
-              onChange={(e) => setPlatformChoice(e.target.value as PlatformId)}
-            >
-              {PLATFORMS.filter((p) => p.id !== "web").map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+            <div className="platform-choice-control">
+              <PlatformIcon platform={platformChoice} size={24} />
+              <select
+                aria-label="选择连接平台"
+                value={platformChoice}
+                onChange={(e) =>
+                  setPlatformChoice(e.target.value as PlatformId)
+                }
+              >
+                {PLATFORMS.filter((p) => p.id !== "web").map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </Field>
           <p className="field-hint">下一步将在平台原生页面登录账号。</p>
         </Modal>
@@ -399,7 +403,7 @@ export function ConnectionsPage() {
             账号登录在平台原生页面完成，意客AI不要求输入平台密码。
           </p>
           <div className="connection-status">
-            <Clock size={28} aria-hidden />
+            <PlatformIcon platform={selected.id} size={32} />
             <div>
               <span className="muted">当前状态</span>
               <h3 role="status">{currentState}</h3>

@@ -11,7 +11,7 @@
 - 未知发布时间保留 null；来源身份、内容版本和观察分开，公共网站身份包含规范 origin，匿名作者不按昵称合并。
 - 同批重复/冲突整批拒绝；纯重放比较不等于数据库持久幂等。
 - URL 仅做离线形状检查，不进行 DNS、跳转或 SSRF 运行验证；不安全回链需由连接器另记待补证，不能报告没有需求。
-- 未实现 HTTP 上传、认证、候选持久化、实际采集、Skill 运行、审核接口或 UI 接入，未发生真实 CodexWin 接收 ACK。
+- 未实现 HTTP 上传、认证、候选持久化、实际采集、Skill 运行、审核接口或 UI 接入，未发生本卡的真实 CodexWin 接收 ACK；01A/B 的后续限定 ACK 不覆盖02A。
 
 ## 实施与失败记录
 
@@ -27,6 +27,17 @@
 10. 独立最终审核 `candidate_final_review` 对 `9077383..65e0c3f` 判定 **REQUEST_CHANGES**：`is_global` 仍可接受组播 IP，URL 控制字符检查遗漏 C1。两项均由完整公开入口离线反例证实；不是实际 SSRF、真实平台或生产事件。全量809项未覆盖这两个缺口，必须补反例、修复和复审后才可推送本卡代码。
 11. 同批补充 root 的时间格式反例：正则 `\d` 与 strptime 可接受非 ASCII 数字年份，违反规范 UTC 字符串边界；必须整条拒绝，不悄悄转换原始发布时间。最终修复一并覆盖发布、观察和父时间，正常 ASCII 值保持不变。
 
-## 当前结论
+## 最终修复与主线交付
 
-上述审核问题正在按 RED→GREEN 修复并复审；尚不据此放行当前分支。最终精确 SHA、全量回归和独立结论待下方补录。实际 Win 接收、01C 执行授权及02B 上传仍是后续交付，不得从本卡的纯契约测试推导完成。
+- 最终代码 `3f0afad8d63babf58ab7364c15d70e020572d835`：组播/URL控制字符 RED 8项，时间格式 RED 3项；修复后聚焦18项与4项通过，四文件定向回归 **137 passed in 0.14s**。不将各轮计数相加。
+- 代码、架构和质量最终审核 `candidate_final_review` 对 `899c6d55eb9aba9b7042a9ef9d4cb7d07d6f1a29` 判定 **PASS / Ready to merge**，Critical/Important/Minor 均无未决项。根代理对相同代码独占全量回归 **831 passed in 42.89s、0 skipped**，compileall、静态脚本检查、secret scan、diff check 全部通过。
+- 推送前发现并保留真实 CodexWin 新主线 `fe85b46`，正常合并为 **`e4d1695749f037bcafa13f77e703544b67b25c09`**。仅任务书冲突，保留实际01A/B限定ACK与本卡登记；候选模块/测试与899完全一致。`candidate_final_review` 集成复核 PASS；`device_authorization_architecture` 独立交叉审核 Win 解析器/包清单/Node预检/事件名修正，限定增量可接收，无新增阻断。
+- **e4d1695 已正常推送远端 main 与 codex/mac-candidate-contract，实际 ls-remote 双分支SHA一致。** 该版本 Mac/CPython 3.12 专用 PostgreSQL 全量 **877 passed in 43.28s、0 skipped**；compileall、`node --check static/app.js`、secret scan、diff check exit 0。已包含 Win 新解析器和事件契约反例，不用旧831替代合并后验证。
+- 桌面在同版本初次运行因隔离工作树未安装依赖报 `vitest: command not found`；执行锁定 `npm ci` 后，**37文件，362 passed / 1 skipped**，typecheck、renderer build 均 exit 0。跳过的是 `windowsBuildEvidence.test.mjs` 中 `skipIf(process.platform !== 'win32')` 的真实 PowerShell 测试，不能计入通过或取代Win实测。
+- `npm ci` 仍报告 **17 high**、旧依赖弃用/某git依赖integrity警告，以及两个未批准install scripts提示；没有执行audit fix或批准额外脚本，包锁未改。这些与Win现有58项测试失败、Squirrel中文路径和npm运行时不一致一起保留为发行缺口，不因本卡合入而清除。
+
+## 当前结论与下一步
+
+本卡纯契约代码已在 main，可交给 Win 按[精确交接](../handoffs/V02-02A_MAC_TO_WIN.md)复现。任务状态保持 READY_FOR_REVIEW，表示实际Win尚未接收02A；不是代码尚未独立审核。01A/B已收到Win限定ACK，不再重复等待其历史“未接收”状态。
+
+下一步 Mac 推进01C设备执行授权与02B候选上传事务；Win的02C需从原始字段适配，旧Normalizer的trim/必填作者不能冒充02A原文保留/允许匿名的完整行为。双方代码与受控环境验证通过不等于真实平台、Windows发行、生产部署或客户UAT完成；整体Goal继续ACTIVE。

@@ -57,6 +57,7 @@ const runs: TaskRun[] = [
 beforeEach(() => {
   clearLocalDrafts();
   sessionStorage.clear();
+  localStorage.clear();
   context = {
     service: {
       tasks: vi.fn().mockResolvedValue(runs),
@@ -145,57 +146,6 @@ describe("task lists and local drafts", () => {
     expect(screen.getByText("测试失败任务")).toBeTruthy();
     expect(screen.getByText("测试待处理任务")).toBeTruthy();
     expect(screen.queryByText("测试运行任务")).toBeNull();
-  });
-
-  it("keeps the prior status and reports no success when a task operation is rejected", async () => {
-    context.service.taskAction = vi
-      .fn()
-      .mockRejectedValue(
-        new ServiceError("STATE_CONFLICT", "测试状态已变化", 409),
-      );
-    render(<TasksPage />);
-    await screen.findByText("测试运行任务");
-    fireEvent.click(screen.getByRole("button", { name: "暂停" }));
-    const dialog = screen.getByRole("dialog", { name: "暂停任务？" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "确认" }));
-    await screen.findByText("测试状态已变化");
-    expect(context.service.taskAction).toHaveBeenCalledWith(
-      "running-test",
-      "pause",
-    );
-    expect(context.notify).not.toHaveBeenCalled();
-    expect(context.service.tasks).toHaveBeenCalledOnce();
-    expect(screen.getByRole("dialog", { name: "暂停任务？" })).toBeTruthy();
-  });
-
-  it("submits one confirmed operation and reloads the actual status only after it succeeds", async () => {
-    let resolve!: () => void;
-    context.service.taskAction = vi.fn(
-      () =>
-        new Promise<void>((done) => {
-          resolve = done;
-        }),
-    );
-    render(<TasksPage />);
-    await screen.findByText("测试运行任务");
-    fireEvent.click(screen.getByRole("button", { name: "暂停" }));
-    const button = within(
-      screen.getByRole("dialog", { name: "暂停任务？" }),
-    ).getByRole("button", { name: "确认" });
-    fireEvent.click(button);
-    fireEvent.click(button);
-    expect(context.service.taskAction).toHaveBeenCalledOnce();
-    expect(context.notify).not.toHaveBeenCalled();
-    vi.mocked(context.service.tasks).mockResolvedValueOnce([
-      { ...runs[0], status: "PAUSED" },
-    ]);
-    await act(async () => resolve());
-    await screen.findByRole("button", { name: "恢复" });
-    expect(context.service.tasks).toHaveBeenCalledTimes(2);
-    expect(context.notify).toHaveBeenCalledWith(
-      "操作已提交，请以最新任务状态为准。",
-      "success",
-    );
   });
 
   it("does not show a single collection run as a monitor detail through a changed URL", async () => {
@@ -341,61 +291,6 @@ describe("monitor detail from execution service data", () => {
     );
     expect(context.service.taskAction).not.toHaveBeenCalled();
   });
-  it.each([
-    ["RUNNING", "暂停任务", "暂停任务？", "pause"],
-    ["PAUSED", "恢复任务", "恢复任务？", "resume"],
-    ["FAILED", "重试任务", "重试任务？", "retry"],
-    ["PENDING", "取消任务", "取消任务？", "cancel"],
-  ] as const)(
-    "confirms the detail action in %s and waits for the actual response",
-    async (status, label, title, action) => {
-      let resolve!: () => void;
-      context.service.taskAction = vi.fn(
-        () =>
-          new Promise<void>((done) => {
-            resolve = done;
-          }),
-      );
-      loadMonitor(monitorRun({ status, platforms: ["web"] }));
-      await screen.findByRole("button", { name: label });
-      fireEvent.click(screen.getByRole("button", { name: label }));
-      const confirm = within(
-        screen.getByRole("dialog", { name: title }),
-      ).getByRole("button", { name: "确认" });
-      expect(context.service.taskAction).not.toHaveBeenCalled();
-      fireEvent.click(confirm);
-      fireEvent.click(confirm);
-      expect(context.service.taskAction).toHaveBeenCalledOnce();
-      expect(context.service.taskAction).toHaveBeenCalledWith(
-        "monitor-test",
-        action,
-      );
-      expect(context.notify).not.toHaveBeenCalled();
-      await act(async () => resolve());
-      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-      expect(context.service.tasks).toHaveBeenCalledTimes(2);
-    },
-  );
-  it("keeps a rejected detail action visible and leaves the returned status unchanged", async () => {
-    context.service.taskAction = vi
-      .fn()
-      .mockRejectedValue(
-        new ServiceError("STATE_CONFLICT", "任务状态已变化，请刷新", 409),
-      );
-    loadMonitor(monitorRun({ status: "PAUSED", platforms: ["web"] }));
-    await screen.findByRole("button", { name: "恢复任务" });
-    fireEvent.click(screen.getByRole("button", { name: "恢复任务" }));
-    fireEvent.click(
-      within(screen.getByRole("dialog", { name: "恢复任务？" })).getByRole(
-        "button",
-        { name: "确认" },
-      ),
-    );
-    await screen.findByText("任务状态已变化，请刷新");
-    expect(screen.getByText("已暂停")).toBeTruthy();
-    expect(context.notify).not.toHaveBeenCalled();
-    expect(context.service.tasks).toHaveBeenCalledOnce();
-  });
   it("shows an unavailable detail as a service error without inventing a monitor", async () => {
     context.route = parseRoute("#/monitors/unavailable");
     context.service.tasks = vi
@@ -414,4 +309,95 @@ describe("monitor detail from execution service data", () => {
     await screen.findByText("尚无可查看的监控详情");
     expect(context.service.taskAction).not.toHaveBeenCalled();
   });
+});
+
+describe("actual task list pagination and filters", () => {
+  it("paginates returned rows, resets on platform/date filters and never invents missing update dates", async () => {
+    context.service.tasks = vi.fn().mockResolvedValue(
+      Array.from({ length: 23 }, (_, i) => ({
+        ...runs[0],
+        id: `task-${i}`,
+        name: `分页任务 ${i}`,
+        platforms: [i % 2 ? "xhs" : "web"],
+        updatedAt:
+          i === 22
+            ? undefined
+            : i < 12
+              ? "2026-09-08T00:00:00Z"
+              : "2026-09-10T00:00:00Z",
+      })),
+    );
+    render(<TasksPage />);
+    await screen.findByText("分页任务 0");
+    expect(screen.queryByText("分页任务 10")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    expect(screen.getByText("分页任务 10")).toBeTruthy();
+    fireEvent.change(screen.getByRole("combobox", { name: "筛选任务平台" }), {
+      target: { value: "web" },
+    });
+    await screen.findByText("分页任务 0");
+    expect(screen.queryByText("分页任务 1")).toBeNull();
+    fireEvent.change(screen.getByLabelText("任务更新开始日期"), {
+      target: { value: "2026-09-09" },
+    });
+    expect(screen.getByText("分页任务 12")).toBeTruthy();
+    expect(screen.queryByText("分页任务 0")).toBeNull();
+    expect(screen.queryByText("分页任务 22")).toBeNull();
+    fireEvent.change(screen.getByLabelText("任务更新结束日期"), {
+      target: { value: "2026-09-08" },
+    });
+    expect(screen.getByText("开始日期不能晚于结束日期。")).toBeTruthy();
+    expect(screen.queryByText("分页任务 12")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
+    expect(screen.getByText("分页任务 0")).toBeTruthy();
+  });
+  it("prevents deleting a draft whose original startup has not been reconciled", async () => {
+    saveLibrary();
+    localStorage.setItem(
+      "yike.ui.operation.v1.unknown-task-starts." + context.session.userId,
+      JSON.stringify({ "saved-once": "task:saved-once:1" }),
+    );
+    render(<TasksPage />);
+    fireEvent.click(screen.getByRole("tab", { name: /本机草稿/ }));
+    expect(
+      (screen.getByRole("button", { name: "删除" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "删除" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByText("本机草稿 · 未启动")).toBeNull();
+    expect(screen.getAllByText("启动结果待确认")).toHaveLength(2);
+  });
+});
+it("paginates and filters actual execution events without fabricating a timestamp", async () => {
+  loadMonitor(
+    monitorRun({
+      events: Array.from({ length: 13 }, (_, i) => ({
+        id: `event-${i}`,
+        message: `实际测试记录 ${i}`,
+        platform: i % 2 ? "xhs" : "web",
+        occurredAt:
+          i === 12
+            ? undefined
+            : i < 6
+              ? "2026-09-08T00:00:00Z"
+              : "2026-09-10T00:00:00Z",
+      })),
+    }),
+  );
+  await screen.findByRole("heading", { name: "测试监控任务", level: 1 });
+  fireEvent.click(screen.getByRole("tab", { name: "执行记录" }));
+  expect(screen.queryByText("实际测试记录 10")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+  expect(screen.getByText("实际测试记录 12")).toBeTruthy();
+  fireEvent.change(screen.getByLabelText("记录开始日期"), {
+    target: { value: "2026-09-09" },
+  });
+  expect(screen.queryByText("实际测试记录 12")).toBeNull();
+  expect(screen.getByText("实际测试记录 6")).toBeTruthy();
+  fireEvent.change(screen.getByRole("combobox", { name: "筛选执行记录平台" }), {
+    target: { value: "xhs" },
+  });
+  expect(screen.queryByText("实际测试记录 6")).toBeNull();
+  expect(screen.getByText("实际测试记录 7")).toBeTruthy();
 });

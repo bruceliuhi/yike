@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus } from "@phosphor-icons/react";
 import { useApp } from "../app/context";
-import { useAction, useLocalDraft, useResource } from "../app/hooks";
+import { useResource } from "../app/hooks";
+import { boundedRequest } from "../app/boundedRequest";
 import {
   Badge,
   Button,
-  Drawer,
   Empty,
   Field,
   Notice,
@@ -14,79 +14,199 @@ import {
   Tabs,
   formatDate,
 } from "../components/ui";
-import type { Followup, FollowupStatus, Opportunity } from "../domain/models";
+import {
+  legacyRecord,
+  readSnapshot,
+  FOLLOWUP_LABELS,
+  type FollowupRecord,
+  type FollowupView,
+} from "../domain/followup";
+import type { Opportunity } from "../domain/models";
+import { FollowupEditor } from "./followups/FollowupEditor";
+import { RelatedReplies } from "./followups/RelatedReplies";
+import { useFollowupOperation } from "./followups/useFollowupOperation";
 import { isSample } from "./Opportunities";
-
-const labels: Record<FollowupStatus, string> = {
-  CONTACTED: "已联系",
-  REPLIED: "已回复",
-  MEETING: "已约谈",
-  QUOTED: "已报价",
-  LOST: "未成交",
-  WON: "已成交",
-};
+import "./followups/followups.css";
+function localDay(value: string) {
+  const time = new Date(value);
+  return `${time.getFullYear()}-${String(time.getMonth() + 1).padStart(2, "0")}-${String(time.getDate()).padStart(2, "0")}`;
+}
 export function FollowupsPage() {
   const { session } = useApp();
   return <FollowupWorkspace key={session.userId || "public"} />;
 }
 function FollowupWorkspace() {
   const { service, session, route, navigate } = useApp();
-  const [tab, setTab] = useState("todo");
-  const [replyTab, setReplyTab] = useState("platform");
-  const [selected, setSelected] = useState<string>("");
-  const [date, setDate] = useState("");
-  const rows = useResource(
-    () =>
-      session.authenticated
-        ? service.followups()
-        : Promise.resolve([] as Followup[]),
-    [service, session.userId, session.authenticated],
+  const [tab, setTab] = useState(() =>
+    route.query.get("tab") === "replies" ? "replies" : "todo",
   );
+  const [selected, setSelected] = useState("");
+  const [owner, setOwner] = useState("");
+  const [date, setDate] = useState("");
+  const [correction, setCorrection] = useState<FollowupRecord>();
+  const operation = useFollowupOperation();
+  const target =
+    route.query.get("add") === "1" ? "" : route.query.get("opportunity") || "";
+  const intent = JSON.stringify([target, route.query.get("tab")]);
+  const handledIntent = useRef("");
+  const [focused, setFocused] = useState("");
+  const [missingTarget, setMissingTarget] = useState(false);
+  const resource = useResource(async () => {
+    if (!session.authenticated)
+      return {
+        records: [] as FollowupView[],
+        members: [] as { id: string; name: string }[],
+      };
+    if (service.followup)
+      return readSnapshot(
+        await boundedRequest(() => service.followup!.list(), {
+          timeoutMessage: "跟进记录读取超时，请刷新重试。",
+        }),
+      );
+    const records = await boundedRequest(() => service.followups(), {
+      timeoutMessage: "跟进记录读取超时，请刷新重试。",
+    });
+    if (new Set(records.map((r) => r.id)).size !== records.length)
+      throw new Error("服务返回重复登记，请刷新核对。");
+    return {
+      records: records.filter((r) => r.kind === "manual").map(legacyRecord),
+      members: [],
+    };
+  }, [service, session.userId, session.authenticated]);
   const opportunities = useResource(
     () =>
       session.authenticated
-        ? service.opportunities()
+        ? boundedRequest(() => service.opportunities(), {
+            timeoutMessage: "商机读取超时，请重试。",
+          })
         : Promise.resolve([] as Opportunity[]),
     [service, session.userId, session.authenticated],
   );
-  const filtered = useMemo(
-    () =>
-      (rows.data || []).filter(
-        (row) =>
-          (tab !== "replies" || row.status === "REPLIED") &&
-          (!date || row.createdAt.startsWith(date)),
-      ),
-    [rows.data, tab, date],
-  );
-  const current = filtered.find((row) => row.id === selected);
-  const matching = (rows.data || []).filter(
-    (row) =>
-      current &&
-      row.opportunityId === current.opportunityId &&
-      row.kind === (replyTab === "platform" ? "platform" : "manual"),
-  );
-  const done = () => {
-    navigate("/followups");
-    void rows.reload();
+  const records: FollowupView[] = resource.data?.records || [];
+  const members = resource.data?.members || [];
+  useEffect(() => {
+    if (resource.loading || resource.error || handledIntent.current === intent)
+      return;
+    handledIntent.current = intent;
+    if (!target) {
+      setFocused("");
+      setMissingTarget(false);
+      return;
+    }
+    const latest = records
+      .filter(
+        (r) => r.opportunityId === target && !r.sample && target !== "sample",
+      )
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
+    setTab(route.query.get("tab") === "replies" ? "replies" : "todo");
+    setOwner("");
+    setDate("");
+    setSelected(latest?.id || "");
+    setFocused(latest?.id || "");
+    setMissingTarget(!latest);
+  }, [intent, resource.data, resource.loading, resource.error]);
+  const localSelection = () => {
+    setFocused("");
+    setMissingTarget(false);
   };
+  const visible = records
+    .filter(
+      (row) =>
+        !row.sample &&
+        row.opportunityId !== "sample" &&
+        (!owner || row.ownerId === owner) &&
+        (!date || localDay(row.occurredAt || row.createdAt) === date) &&
+        (row.id === focused ||
+          (tab === "all" || tab === "replies"
+            ? tab !== "replies" || row.status === "REPLIED" || !!row.replyCount
+            : !service.followup ||
+              (!!row.nextFollowupAt &&
+                row.state === "ACTIVE" &&
+                !["LOST", "WON"].includes(row.status)))),
+    )
+    .sort(
+      (a, b) =>
+        Date.parse(b.occurredAt || b.createdAt) -
+        Date.parse(a.occurredAt || a.createdAt),
+    );
+  const current = visible.find((r) => r.id === selected);
+  const reload = () => {
+    void resource.reload();
+  };
+  const saved = () => {
+    setCorrection(undefined);
+    navigate("/followups");
+    reload();
+  };
+  const pending = Object.keys(operation.pending);
   return (
     <>
       <PageHeader title="跟进记录" />
       <Tabs
         active={tab}
+        onChange={(value) => {
+          localSelection();
+          setTab(value);
+        }}
         items={[
           { key: "todo", label: "待跟进" },
           { key: "replies", label: "回复记录" },
           { key: "all", label: "全部" },
         ]}
-        onChange={setTab}
       />
+      {missingTarget && (
+        <Notice tone="warning">
+          未找到目标商机的跟进记录，请核对商机是否已登记或仍可访问。
+        </Notice>
+      )}
+      {focused && (
+        <p className="muted text-small">已定位目标商机的最新登记。</p>
+      )}
+      {pending.length > 0 && (
+        <section className="followup-pending">
+          <Notice tone="warning">
+            有跟进操作结果待确认，请先核对原请求，避免重复登记。
+          </Notice>
+          {pending.map((key) => (
+            <Button
+              key={key}
+              loading={operation.action.busy}
+              onClick={() =>
+                void operation.reconcile(key).then((result) => {
+                  if (
+                    operation.current() &&
+                    ["SUCCEEDED", "FAILED"].includes(result || "")
+                  )
+                    reload();
+                })
+              }
+            >
+              核对原跟进操作
+            </Button>
+          ))}
+          {operation.action.error && (
+            <Notice tone="error">{operation.action.error}</Notice>
+          )}
+        </section>
+      )}
       <div className="followup-layout">
         <section>
           <div className="filter-bar">
             <Field label="负责人">
-              <select aria-label="筛选负责人" disabled>
-                <option>当前成员</option>
+              <select
+                aria-label="筛选负责人"
+                value={owner}
+                onChange={(e) => {
+                  localSelection();
+                  setOwner(e.target.value);
+                }}
+              >
+                <option value="">全部</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label="日期">
@@ -94,16 +214,24 @@ function FollowupWorkspace() {
                 aria-label="筛选记录日期"
                 type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => {
+                  localSelection();
+                  setDate(e.target.value);
+                }}
               />
             </Field>
-            <Button
-              variant="primary"
-              onClick={() => navigate("/followups?add=1")}
-            >
-              <Plus />
-              添加跟进
-            </Button>
+            <div className="followup-filter-actions">
+              <Button onClick={reload} loading={resource.loading}>
+                刷新
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => navigate("/followups?add=1")}
+              >
+                <Plus />
+                添加跟进
+              </Button>
+            </div>
           </div>
           {!session.authenticated ? (
             <Empty
@@ -113,15 +241,15 @@ function FollowupWorkspace() {
           ) : (
             <>
               <ResourceStatus
-                loading={rows.loading}
-                error={rows.error}
-                onRetry={rows.reload}
+                loading={resource.loading}
+                error={resource.error}
+                onRetry={reload}
               />
-              {!rows.loading && !rows.error && (
+              {!resource.loading && !resource.error && (
                 <>
-                  {tab === "todo" && (
+                  {tab === "todo" && !service.followup && (
                     <p className="muted text-small">
-                      到期提醒尚未接通，以下为已登记的跟进记录。
+                      结构化计划尚未接通，以下为已登记的人工跟进，不代表到期提醒。
                     </p>
                   )}
                   <div className="table-wrap">
@@ -129,13 +257,14 @@ function FollowupWorkspace() {
                       <thead>
                         <tr>
                           <th>商机</th>
-                          <th>登记时间</th>
-                          <th>事实类型</th>
+                          <th>最近联系</th>
+                          <th>客户回复</th>
                           <th>下次跟进</th>
+                          <th>负责人</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filtered.map((row) => (
+                        {visible.map((row) => (
                           <tr
                             key={row.id}
                             className={selected === row.id ? "selected" : ""}
@@ -143,23 +272,63 @@ function FollowupWorkspace() {
                             <td>
                               <Button
                                 variant="ghost"
-                                onClick={() => setSelected(row.id)}
+                                onClick={() => {
+                                  localSelection();
+                                  setSelected(row.id);
+                                }}
                               >
                                 {row.title || "查看关联商机"}
                               </Button>
+                              <small>
+                                {FOLLOWUP_LABELS[row.status]}
+                                {row.state !== "ACTIVE"
+                                  ? ` · ${row.state === "VOID" ? "已撤销" : "已纠正"}`
+                                  : ""}
+                              </small>
                             </td>
-                            <td>{formatDate(row.createdAt)}</td>
                             <td>
-                              <Badge>{labels[row.status] || row.status}</Badge>
+                              {row.occurredAt ? (
+                                formatDate(row.occurredAt)
+                              ) : (
+                                <>
+                                  <span>未填写</span>
+                                  <small>
+                                    登记 {formatDate(row.createdAt)}
+                                  </small>
+                                </>
+                              )}
                             </td>
-                            <td>—</td>
+                            <td>
+                              {row.replyCount !== undefined
+                                ? `${row.replyCount} 条通道回复`
+                                : row.status === "REPLIED"
+                                  ? "人工登记已回复"
+                                  : "—"}
+                            </td>
+                            <td>
+                              {row.nextFollowupAt ? (
+                                <>
+                                  {formatDate(row.nextFollowupAt)}
+                                  {Date.parse(row.nextFollowupAt) <
+                                    Date.now() &&
+                                    row.state === "ACTIVE" && (
+                                      <Badge tone="orange">已到期</Badge>
+                                    )}
+                                </>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td>{row.ownerName || "未提供"}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                    {!filtered.length && (
+                    {!visible.length && (
                       <Empty
-                        title="暂无跟进记录"
+                        title={
+                          owner || date ? "没有符合筛选的记录" : "暂无跟进记录"
+                        }
                         description="联系后记录下一步，避免遗漏。"
                       />
                     )}
@@ -169,200 +338,37 @@ function FollowupWorkspace() {
             </>
           )}
         </section>
-        <aside className="related-replies">
-          <h2>关联回复</h2>
-          <Tabs
-            active={replyTab}
-            items={[
-              { key: "platform", label: "通道回复" },
-              { key: "manual", label: "人工登记" },
-            ]}
-            onChange={setReplyTab}
-          />
-          {replyTab === "platform" ? (
-            <Empty
-              title="回复回流尚未接通"
-              description="接通后展示真实渠道回复。"
-            />
-          ) : !current ? (
-            <Empty title="选择一条跟进记录" />
-          ) : matching.length ? (
-            <div className="followup-timeline">
-              {matching.map((row) => (
-                <article key={row.id}>
-                  <Badge>人工登记</Badge>
-                  <h3>{labels[row.status]}</h3>
-                  <p className="preserve-lines">{row.note}</p>
-                  <small className="muted">{formatDate(row.createdAt)}</small>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <Empty title="暂无关联登记" />
-          )}
-        </aside>
-      </div>
-      {route.query.get("add") === "1" && (
-        <FollowupEditor
+        <RelatedReplies
           key={session.userId || "public"}
+          current={current}
+          records={records}
+          onCorrect={setCorrection}
+          onChanged={reload}
+        />
+      </div>
+      {(route.query.get("add") === "1" || correction) && (
+        <FollowupEditor
+          key={`${session.userId}:${correction?.id || route.query.get("opportunity") || "new"}`}
           rows={(opportunities.data || []).filter((row) => !isSample(row))}
-          loading={opportunities.loading}
-          error={opportunities.error}
-          onRetry={opportunities.reload}
-          onClose={() => navigate("/followups")}
-          onSaved={done}
+          members={members}
+          correction={correction}
+          loading={
+            opportunities.loading || (!!service.followup && resource.loading)
+          }
+          error={
+            opportunities.error || (service.followup && resource.error) || ""
+          }
+          onRetry={() => {
+            void opportunities.reload();
+            reload();
+          }}
+          onClose={() => {
+            setCorrection(undefined);
+            if (route.query.get("add") === "1") navigate("/followups");
+          }}
+          onSaved={saved}
         />
       )}
     </>
-  );
-}
-interface FollowupDraft {
-  opportunityId: string;
-  status: FollowupStatus | "";
-  note: string;
-  next: string;
-}
-function FollowupEditor({
-  rows,
-  loading,
-  error,
-  onRetry,
-  onClose,
-  onSaved,
-}: {
-  rows: Opportunity[];
-  loading: boolean;
-  error: string;
-  onRetry: () => void;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const { service, session, route, notify } = useApp();
-  const action = useAction();
-  const [validation, setValidation] = useState("");
-  const [draft, setDraft, clear] = useLocalDraft<FollowupDraft>(
-    `followup:${session.userId || "public"}`,
-    () => ({
-      opportunityId: route.query.get("opportunity") || "",
-      status: "",
-      note: "",
-      next: "",
-    }),
-  );
-  const submit = async () => {
-    setValidation("");
-    const row = rows.find((item) => item.id === draft.opportunityId);
-    if (!session.authenticated) {
-      setValidation("请先登录客户空间。");
-      return;
-    }
-    if (!row || isSample(row) || !draft.status || !draft.note.trim()) {
-      setValidation("请选择已入库商机、事实类型，并填写实际沟通内容。");
-      return;
-    }
-    await action.run(async () => {
-      await service.addFollowup(
-        row.id,
-        draft.status as FollowupStatus,
-        draft.note.trim(),
-      );
-      clear();
-      notify("跟进事实已保存。", "success");
-      onSaved();
-    });
-  };
-  const update = (change: Partial<FollowupDraft>) =>
-    setDraft((old) => ({ ...old, ...change }));
-  return (
-    <Drawer
-      title="添加跟进"
-      onClose={onClose}
-      footer={
-        <>
-          <Button onClick={onClose}>取消</Button>
-          <Button
-            variant="primary"
-            loading={action.busy}
-            disabled={!session.authenticated || loading || Boolean(error)}
-            onClick={() => void submit()}
-          >
-            保存记录
-          </Button>
-        </>
-      }
-    >
-      {!session.authenticated && (
-        <Notice tone="warning">请先登录后登记客户跟进。</Notice>
-      )}
-      <ResourceStatus loading={loading} error={error} onRetry={onRetry} />
-      <Field label="关联商机" required>
-        <select
-          aria-label="关联商机"
-          value={draft.opportunityId}
-          disabled={!session.authenticated || loading}
-          onChange={(e) => update({ opportunityId: e.target.value })}
-        >
-          <option value="">请选择已入库商机</option>
-          {rows.map((row) => (
-            <option key={row.id} value={row.id}>
-              {row.title}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="跟进类型">
-        <input aria-label="跟进类型" value="人工登记" readOnly />
-      </Field>
-      <Field label="事实类型" required>
-        <div className="radio-group">
-          {(
-            ["CONTACTED", "REPLIED", "MEETING", "QUOTED"] as FollowupStatus[]
-          ).map((status) => (
-            <label key={status}>
-              <input
-                type="radio"
-                name="followup-status"
-                checked={draft.status === status}
-                onChange={() => update({ status })}
-              />
-              {labels[status]}
-            </label>
-          ))}
-        </div>
-      </Field>
-      <Field label="联系时间">
-        <input type="datetime-local" aria-label="联系时间" disabled />
-      </Field>
-      <Field
-        label="备注"
-        required
-        hint="联系时间与计划一并写入备注；暂不提供提醒。"
-      >
-        <textarea
-          aria-label="跟进备注"
-          rows={4}
-          maxLength={500}
-          value={draft.note}
-          onChange={(e) => update({ note: e.target.value })}
-          placeholder="记录实际沟通内容"
-        />
-        <span className="character-count">
-          {Array.from(draft.note).length}/500
-        </span>
-      </Field>
-      <Field label="下一步">
-        <textarea rows={2} disabled placeholder="在备注中记录下一步计划" />
-      </Field>
-      <Field label="下次跟进">
-        <input type="date" aria-label="下次跟进" disabled />
-      </Field>
-      <Field label="负责人">
-        <input value="当前成员" readOnly />
-      </Field>
-      <Notice>人工登记，与渠道回执分开；未保存内容暂存本机会话。</Notice>
-      {(validation || action.error) && (
-        <Notice tone="error">{validation || action.error}</Notice>
-      )}
-    </Drawer>
   );
 }

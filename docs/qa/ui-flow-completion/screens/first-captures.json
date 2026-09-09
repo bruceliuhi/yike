@@ -1,0 +1,257 @@
+[
+  {
+    "page": "P01",
+    "url": "http://127.0.0.1:18794/?scenario=P01#/login",
+    "state": "Browser tab: 8, Title: \"登录 · 意客AI\", URL: \"http://127.0.0.1:18794/?scenario=P01#/login\".\n1 AXWebArea 登录 · 意客AI, URL: 127.0.0.1:18794/?scenario=P01#/login\n\t2 container root\n\t\t3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入\n\t\t4 button (collapsed) TEST 场景, Secondary Actions: Expand\n\t\t\t5 text TEST 场景\n\t\t6 container\n\t\t\t7 contai",
+    "layout": {
+      "contentSize": {
+        "height": 1325,
+        "width": 1855,
+        "x": 0,
+        "y": 0
+      },
+      "cssContentSize": {
+        "height": 1060,
+        "width": 1484,
+        "x": 0,
+        "y": 0
+      },
+      "cssLayoutViewport": {
+        "clientHeight": 1060,
+        "clientWidth": 1484,
+        "pageX": 0,
+        "pageY": 0
+      },
+      "cssVisualViewport": {
+        "clientHeight": 1060,
+        "clientWidth": 1484,
+        "offsetX": 0,
+        "offsetY": 0,
+        "pageX": 0,
+        "pageY": 0,
+        "scale": 1,
+        "zoom": 1.25
+      },
+      "layoutViewport": {
+        "clientHeight": 1325,
+        "clientWidth": 1855,
+        "pageX": 0,
+        "pageY": 0
+      },
+      "visualViewport": {
+        "clientHeight": 1325,
+        "clientWidth": 1855,
+        "offsetX": 0,
+        "offsetY": 0,
+        "pageX": 0,
+        "pageY": 0,
+        "scale": 1,
+        "zoom": 1.25
+      }
+    }
+  },
+  {
+    "page": "P02",
+    "url": "http://127.0.0.1:18794/?scenario=P02&state=empty#/workbench",
+    "state": "Browser tab: 8, Title: \"商机工作台 · 意客AI\", URL: \"http://127.0.0.1:18794/?scenario=P02&state=empty#/workbench\".\n1 AXWebArea 商机工作台 · 意客AI, URL: 127.0.0.1:18794/?scenario=P02&state=empty#/workbench\n\t2 container root\n\t\t3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入\n\t\t4 button (collapsed) TEST 场景, Secondary Actions: Expand\n\t\t\t5 ",
+    "layout": {
+      "contentSize": {
+        "height": 1325,
+        "width": 1855,
+        "x": 0,
+        "y": 0
+      },
+      "cssContentSize": {
+        "height": 1060,
+        "width": 1484,
+        "x": 0,
+        "y": 0
+      },
+      "cssLayoutViewport": {
+        "clientHeight": 1060,
+        "clientWidth": 1484,
+        "pageX": 0,
+        "pageY": 0
+      },
+      "cssVisualViewport": {
+        "clientHeight": 1060,
+        "clientWidth": 1484,
+        "offsetX": 0,
+        "offsetY": 0,
+        "pageX": 0,
+        "pageY": 0,
+        "scale": 1,
+        "zoom": 1.25
+      },
+      "layoutViewport": {
+        "clientHeight": 1325,
+        "clientWidth": 1855,
+        "pageX": 0,
+        "pageY": 0
+      },
+      "visualViewport": {
+        "clientHeight": 1325,
+        "clientWidth": 1855,
+        "offsetX": 0,
+        "offsetY": 0,
+        "pageX": 0,
+        "pageY": 0,
+        "scale": 1,
+        "zoom": 1.25
+      }
+    }
+  },
+  {
+    "page": "P11",
+    "url": "http://127.0.0.1:18794/#/opportunities/sample",
+    "state": "Browser tab: 8, Title: \"商机库 / 机会证据 · 意客AI\", URL: \"http://127.0.0.1:18794/#/opportunities/sample\".\n1 AXWebArea 商机库 / 机会证据 · 意客AI, URL: 127.0.0.1:18794/#/opportunities/sample\n\t2 container root\n\t\t3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入\n\t\t4 button (collapsed) TEST 场景, Secondary Actions: Expand\n\t\t\t5 text TEST 场景\n\t\t6 l",
+    "layout": {
+      "contentSize": {
+        "height": 1325,
+        "width": 1855,
+        "x": 0,
+        "y": 0
+      },
+      "cssContentSize": {
+        "height": 1060,
+        "width": 1484,
+        "x": 0,
+        "y": 0
+      },
+      "cssLayoutViewport": {
+        "clientHeight": 1060,
+        "clientWidth": 1484,
+        "pageX": 0,
+        "pageY": 0
+      },
+      "cssVisualViewport": {
+        "clientHeight": 1060,
+        "clientWidth": 1484,
+        "offsetX": 0,
+        "offsetY": 0,
+        "pageX": 0,
+        "pageY": 0,
+        "scale": 1,
+        "zoom": 1.25
+      },
+      "layoutViewport": {
+        "clientHeight": 1325,
+        "clientWidth": 1855,
+        "pageX": 0,
+        "pageY": 0
+      },
+      "visualViewport": {
+        "clientHeight": 1325,
+        "clientWidth": 1855,
+        "offsetX": 0,
+        "offsetY": 0,
+        "pageX": 0,
+        "pageY": 0,
+        "scale": 1,
+        "zoom": 1.25
+      }
+    }
+  },
+  {
+    "page": "P12",
+    "url": "http://127.0.0.1:18794/#/outreach?opportunity=sample",
+    "state": "Browser tab: 8, Title: \"触达中心 · 意客AI\", URL: \"http://127.0.0.1:18794/#/outreach?opportunity=sample\".\n1 AXWebArea 触达中心 · 意客AI, URL: 127.0.0.1:18794/#/outreach?opportunity=sample\n\t2 container root\n\t\t3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入\n\t\t4 button (collapsed) TEST 场景, Secondary Actions: Expand\n\t\t\t5 text TEST 场景\n\t\t6",
+    "layout": {
+      "contentSize": {
+        "height": 1325,
+        "width": 1855,
+        "x": 0,
+        "y": 0
+      },
+      "cssContentSize": {
+        "height": 1060,
+        "width": 1484,
+        "x": 0,
+        "y": 0
+      },
+      "cssLayoutViewport": {
+        "clientHeight": 1060,
+        "clientWidth": 1484,
+        "pageX": 0,
+        "pageY": 0
+      },
+      "cssVisualViewport": {
+        "clientHeight": 1060,
+        "clientWidth": 1484,
+        "offsetX": 0,
+        "offsetY": 0,
+        "pageX": 0,
+        "pageY": 0,
+        "scale": 1,
+        "zoom": 1.25
+      },
+      "layoutViewport": {
+        "clientHeight": 1325,
+        "clientWidth": 1855,
+        "pageX": 0,
+        "pageY": 0
+      },
+      "visualViewport": {
+        "clientHeight": 1325,
+        "clientWidth": 1855,
+        "offsetX": 0,
+        "offsetY": 0,
+        "pageX": 0,
+        "pageY": 0,
+        "scale": 1,
+        "zoom": 1.25
+      }
+    }
+  },
+  {
+    "page": "P13",
+    "url": "http://127.0.0.1:18794/#/outreach?opportunity=sample&channel=comment&confirm=send",
+    "state": "Browser tab: 8, Title: \"触达中心 / 发送确认 · 意客AI\", URL: \"http://127.0.0.1:18794/#/outreach?opportunity=sample&channel=comment&confirm=send\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\n~1 AXWebAre",
+    "layout": {
+      "contentSize": {
+        "height": 1325,
+        "width": 1855,
+        "x": 0,
+        "y": 0
+      },
+      "cssContentSize": {
+        "height": 1060,
+        "width": 1484,
+        "x": 0,
+        "y": 0
+      },
+      "cssLayoutViewport": {
+        "clientHeight": 1060,
+        "clientWidth": 1484,
+        "pageX": 0,
+        "pageY": 0
+      },
+      "cssVisualViewport": {
+        "clientHeight": 1060,
+        "clientWidth": 1484,
+        "offsetX": 0,
+        "offsetY": 0,
+        "pageX": 0,
+        "pageY": 0,
+        "scale": 1,
+        "zoom": 1.25
+      },
+      "layoutViewport": {
+        "clientHeight": 1325,
+        "clientWidth": 1855,
+        "pageX": 0,
+        "pageY": 0
+      },
+      "visualViewport": {
+        "clientHeight": 1325,
+        "clientWidth": 1855,
+        "offsetX": 0,
+        "offsetY": 0,
+        "pageX": 0,
+        "pageY": 0,
+        "scale": 1,
+        "zoom": 1.25
+      }
+    }
+  }
+]

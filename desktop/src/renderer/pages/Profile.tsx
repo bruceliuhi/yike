@@ -27,6 +27,8 @@ import {
   type Profile,
   type ProfileFields,
 } from "../domain/models";
+import { boundedRequest } from "../app/boundedRequest";
+import { MaterialsWorkspace } from "./profile/MaterialsWorkspace";
 
 interface ProfileEditor {
   fields: ProfileFields;
@@ -115,11 +117,29 @@ const statusLabel = (status?: string) =>
       : "草稿";
 
 export function ProfilePage() {
+  const { session } = useApp();
+  return <ProfileWorkspace key={session.userId || "guest"} />;
+}
+
+function ProfileWorkspace() {
   const { service, session, route, navigate, notify } = useApp();
+  const alive = useRef(true);
+  const activeService = useRef(service);
+  activeService.current = service;
+  const currentScope = () => alive.current && activeService.current === service;
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
   const tab =
     route.query.get("tab") === "materials" ? "materials" : "description";
   const profiles = useResource(
-    () => service.profiles(),
+    () =>
+      boundedRequest(() => service.profiles(), {
+        timeoutMessage: "画像加载超时，请重试。",
+      }),
     [service, session.userId],
   );
   const action = useAction();
@@ -164,6 +184,8 @@ export function ProfilePage() {
     materialOpen && JSON.stringify(material) !== materialBaseline;
   useUnsavedChanges(dirty || materialDirty);
   const current = profiles.data?.find((p) => p.id === editor.versionId);
+  const activeEditor = useRef(editor);
+  activeEditor.current = editor;
   const applyProfile = (profile: Profile) => {
     setEditor({
       fields: { ...profile.fields },
@@ -203,8 +225,20 @@ export function ProfilePage() {
   const save = async (forConfirmation = false) => {
     if (!validate()) return;
     const snapshot = { ...editor.fields };
-    const saved = await action.run(() => service.saveProfile(snapshot));
-    if (!saved) return;
+    const originalVersion = editor.versionId;
+    const saved = await action.run(() =>
+      boundedRequest(() => service.saveProfile(snapshot), {
+        timeoutMessage:
+          "画像保存等待超时，尚未确认保存结果；输入保留，请刷新核对版本。",
+      }),
+    );
+    if (
+      !saved ||
+      !currentScope() ||
+      activeEditor.current.versionId !== originalVersion ||
+      JSON.stringify(activeEditor.current.fields) !== JSON.stringify(snapshot)
+    )
+      return;
     setEditor((old) => ({
       ...old,
       fields: { ...saved.fields },
@@ -236,10 +270,13 @@ export function ProfilePage() {
   const confirm = async () => {
     if (!confirming || !verified) return;
     const result = await action.run(() =>
-      service.confirmProfile(confirming.id),
+      boundedRequest(() => service.confirmProfile(confirming.id), {
+        timeoutMessage:
+          "画像确认等待超时，尚未确认结果；请刷新核对原画像版本。",
+      }),
     );
-    if (!result) return;
-    if (result.status !== "CONFIRMED") {
+    if (!result || !currentScope()) return;
+    if (result.id !== confirming.id || result.status !== "CONFIRMED") {
       action.setError("画像状态已发生变化，请取消并刷新后核对。");
       await profiles.reload();
       return;
@@ -282,6 +319,7 @@ export function ProfilePage() {
     if (!file) return;
     const generation = ++readGeneration.current;
     setMaterialError("");
+    setReading(false);
     if (!/\.(txt|md)$/i.test(file.name) || file.size > 200 * 1024) {
       setMaterialError("请选择不超过 200 KB 的 TXT 或 Markdown 文件。");
       event.target.value = "";
@@ -289,7 +327,9 @@ export function ProfilePage() {
     }
     setReading(true);
     try {
-      const text = await file.text();
+      const text = await boundedRequest(() => file.text(), {
+        timeoutMessage: "文件读取超时，请重新选择或粘贴文字。",
+      });
       if (generation !== readGeneration.current) return;
       if (!text.trim() || text.length > 2000 || text.includes("\u0000")) {
         setMaterialError("文件内容须为有效文字，且不超过 2000 字。");
@@ -302,9 +342,13 @@ export function ProfilePage() {
         bytes: file.size,
         name: old.name || file.name.replace(/\.(txt|md)$/i, ""),
       }));
-    } catch {
+    } catch (error) {
       if (generation === readGeneration.current)
-        setMaterialError("文件读取失败，请重试或粘贴文字。");
+        setMaterialError(
+          error instanceof Error
+            ? error.message
+            : "文件读取失败，请重试或粘贴文字。",
+        );
     } finally {
       if (generation === readGeneration.current) setReading(false);
       event.target.value = "";
@@ -528,8 +572,28 @@ export function ProfilePage() {
             </div>
           </footer>
         </>
+      ) : service.materials && session.authenticated && current ? (
+        <MaterialsWorkspace
+          key={`${session.userId}:${current.id}`}
+          api={service.materials}
+          profile={current}
+          currentFields={editor.fields}
+          onApply={(fields) => {
+            setEditor((old) => ({
+              ...old,
+              fields: { ...old.fields, ...fields },
+              example: false,
+            }));
+            notify("所选提取内容已填入画像草稿，尚未保存或确认。", "info");
+          }}
+        />
       ) : (
         <>
+          {service.materials && (
+            <Notice>
+              请先保存业务画像到客户空间，再同步和解析资料。当前可编辑本机草稿。
+            </Notice>
+          )}
           <div className="section-heading">
             <span className="muted">本机资料草稿 · 尚未同步</span>
             <Button variant="primary" onClick={() => openMaterial()}>

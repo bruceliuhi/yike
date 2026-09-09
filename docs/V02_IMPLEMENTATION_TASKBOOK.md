@@ -33,7 +33,7 @@ V02-05 的[全页面设计 R3](../design/v02-suite-r3/README.md)已于 2026-09-0
 | 编号 / 责任方向 | 状态 | 可先做与下一动作 | 完成依赖和必须补齐的证据 | 实现提交 / 验收 |
 |---|---|---|---|---|
 | V02-01 账号、设备与执行协议 / CodexiMac 主实现、CodexWin 接收复核 | IN_PROGRESS | 01A 登记/遥测、01B 撤销及权限升级已由Win接收并整合；Mac继续01C设备执行授权、01D正常登录/激活 | 两客户/设备隔离、退出撤销、连接身份；客户不依赖 CLI 取 token，桌面无服务端凭据；01C/D分别验收 | 原组合 `222119e`，更正后接收 `f42ea909`，集成 `bea5c7d`；Win PG定向136通过、全量647通过/58个既有Windows失败；[Win交叉复核](qa/WIN_CROSS_REVIEW_20260909.md)，父任务未完成 |
-| V02-02 多平台连接器与客户数据 / 采集＋后端 | IN_PROGRESS | 受信研究包整包事务、同键 URL 冲突校验及源码打包工具已纳入；原始候选模型、能力注册、上传及真实连接器仍待做 | 依赖 01；每个平台真实搜索/读取；安全 API 入候选、幂等、事务回滚、平台/租户隔离；不向桌面开放管理员导入 | [主线整合验收](qa/main-integration/REVIEW.md)，不代表平台已接通 |
+| V02-02 多平台连接器与客户数据 / 采集＋后端 | IN_PROGRESS | 受信导入事务、候选/来源纯契约02A及Win保行为解析器02C切片已集成；继续设备授权、原始候选上传事务与实际平台适配 | 依赖 01；每个平台真实搜索/读取；安全 API 入候选、幂等、事务回滚、平台/租户隔离；不向桌面开放管理员导入 | main `e4d1695`；[02A验收](qa/V02-02A_REVIEW.md)与[Win切片](qa/WIN_CROSS_REVIEW_20260909.md)，不代表上传/平台已接通 |
 | V02-03 持续任务执行器 / 后端＋桌面 | NOT_STARTED | 定义监控配置、逐次逐平台运行、执行代次和游标；连接器逐个接入 | 依赖 01/02 可用子项；每平台多轮含无新增、部分成功、暂停/恢复、过期接管与失效恢复；旧执行者不能回写 | 未提供 |
 | V02-04 Skill、意向与复核 / AI＋后端 | IN_PROGRESS | 通用研究 Skill 已迁入 `skills/ai-project-lead-research-v1`（`9c092be`）；下一步定义真实运行入口、证据校验与用户复核接口 | 依赖 02 候选层；实际模型/工具运行，引用原文；未复核候选不进已批准商机，设备不能伪造复核人 | `9c092be`；规则包契约测试 2 passed，运行验收未提供 |
 | V02-05 画像与任务界面 / 产品设计＋前端 | IN_PROGRESS | R3 整套 `APPROVED_FOR_IMPLEMENTATION`；按图实现全部页面、交互、适配与既有能力接入，保留自动搜索建议/可编辑词/人工修改保护；真实建议服务仍需 V02-04/05 补齐 | 设计实现授权已获得；接 01～04 API；客户从空空间配置、启动、复核、暂停/恢复；同视口截图对照，缺失后台能力不伪报成功 | 设计基准 `5929de6`；实现与验证过程见 [UI 实施记录](UI_R3_IMPLEMENTATION.md)，历史 `10ab8b6` 候选的前端24文件216项与Pilot UI/Web 62项通过，Mac已打包并可见操作验收；全链后台和Windows仍未验收 |
@@ -55,7 +55,7 @@ CodexiMac并行主线集成快照（2026-09-09）：正常合并最新 main `f7e
 |---|---|---|---|
 | V02-01A / CodexiMac，CodexWin接收 | DONE（仅登记/遥测子卡） | 原 `da2a2f2`、组合 `222119e`；Win发现事件名称契约P2，更正与回归提交 `f42ea909c9eb36791a3a557acb9afaef7fecf403`；集成 `bea5c7dd2e6860fadd965e094e4fbd2bc5e515cc` | 2026-09-09 CodexWin ACK `f42ea909`；空隔离PG定向136通过，四表最小权限/跨租户/撤销验证通过；独立 `api_contract_gaps` 复审PASS，见[Win复核](qa/WIN_CROSS_REVIEW_20260909.md)。仅解锁登记/遥测；UNVERIFIED、客户端generation仍非连接/执行授权 |
 | V02-01B / CodexiMac，CodexWin接收 | DONE（仅会话撤销/权限升级子卡） | 原 `120b938`、权限修复 `222119e`；接收 `f42ea909`，服务端/迁移/部署对象与222相同；集成 `bea5c7d` | 2026-09-09 CodexWin ACK；独立PG重跑与最小角色升级通过，136定向与647/58全量为不同集合、不相加。独立 `api_contract_gaps` PASS；不覆盖设备认证、正常登录或取消在途任务，下一步仍为01C/D |
-| V02-02A / CodexiMac，当前主实现卡 | IN_PROGRESS | `codex/mac-candidate-contract`，base `f7e71653249f2b8102be75b92dda5d3894117ae6`；[技术契约](contracts/V02_CANDIDATE_INGESTION.md)、[实施步骤](superpowers/plans/2026-09-09-candidate-ingestion-contract.md)；修改边界为新增候选/来源纯模块及对应测试，不改 UI、数据库迁移或认证 | 当前仅契约/合成反例，不依赖尚未接收的01A/B实现；候选SHA、独立审核和实际Win ACK 尚未提供。01C权威执行授权及02B上传事务另行接入；未打开平台能力 |
+| V02-02A / CodexiMac，Win待接收 | READY_FOR_REVIEW | `codex/mac-candidate-contract`，base `f7e7165`；代码 `3f0afad`，最终审查 `899c6d5`，与Win最新主线整合并推送 main `e4d1695`；[验收](qa/V02-02A_REVIEW.md)：独立代码/架构/质量及集成复核PASS，Mac后端877通过/0跳过；仅新增两纯模块和两测试及相关文档 | 本卡不依赖01A/B运行实现，实际Win 02A ACK未收到，按[交接](handoffs/V02-02A_MAC_TO_WIN.md)复现；01A/B已有的限定ACK不覆盖本卡。01C授权及02B上传事务另行接入，未打开平台能力 |
 | V02-05A / CodexMac，保留原前端工作及主线交接记录 | IN_PROGRESS | R3及 `8011a30`/`a9f3078` 交互增量已集成；[UI实施记录](UI_R3_IMPLEMENTATION.md)、[交互验收](qa/ui-interactions/REVIEW.md)保留原SHA与环境，含三队列/原请求核对、P18管理UI、原生CSV导出；记录中的362项是其版本测试结果，不是本轮复跑 | 不将整项前端转给Win；保留同状态视觉、P04资料、P14/P15跟进、P19任务查询等未完成边界；后端接入分别归05B～G/07C/08B/09C/E，不重建已交付UI，具体文件须先交接 |
 | V02-10E / CodexiMac 侧 baseline_clock_fix；Windows缺口由Win接续 | IN_PROGRESS；时钟切片已ACK并集成 | 候选 `475166a` / 审查快照 `e577f4b`，随 `f42ea909` 集成到 `bea5c7d`；历史Mac624/7见[原审核](qa/BASELINE_CLOCK_REVIEW.md) | 2026-09-09 CodexWin限定ACK时钟/权威修复；独立Windows566通过/58失败/7跳过、原生时钟34通过、新fixture16通过；修复175个旧失败/错误且无同名原通过变失败。Windows旧POSIX/编码/换行缺口见[Win复核](qa/WIN_CROSS_REVIEW_20260909.md)，不宣称全仓或整链通过 |
 
@@ -140,5 +140,5 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 
 | 子卡 / 实际负责人 | 状态 / 当前切片 | 路径、基线与执行位置 | 接收、验证及下一动作 |
 |---|---|---|---|
-| V02-02C / CodexWin | IN_PROGRESS；纯解析切片已完成并审核 | 基线 `022b0fb`；实现 `e368b5a`，随 `bea5c7d` 在main；`connectors/`、旧兼容入口、测试和wheel清单；[计划](superpowers/plans/2026-09-09-win-source-parsers.md) | RED/GREEN后76 passed/42 deselected，wheel隔离导入与双独立审核PASS；[Win记录](qa/WIN_CROSS_REVIEW_20260909.md)。02A DTO未接收，尚非整卡/真实平台完成 |
+| V02-02C / CodexWin | IN_PROGRESS；纯解析切片已完成并审核 | 基线 `022b0fb`；实现 `e368b5a`，随 `bea5c7d` 在main；`connectors/`、旧兼容入口、测试和wheel清单；[计划](superpowers/plans/2026-09-09-win-source-parsers.md) | RED/GREEN后76 passed/42 deselected，wheel隔离导入与双独立审核PASS；[Win记录](qa/WIN_CROSS_REVIEW_20260909.md)。2026-09-09 CodexiMac限定接收保行为解析切片（整合e4d1695，独立交叉审核PASS、Mac全量877通过）；旧trim/必填作者仍需02A适配，Win尚未ACK02A，不是整卡/真实平台完成 |
 | V02-09A 自动构建验证 / CodexWin | IN_PROGRESS；双Node及staging修复已审核，runtime一致性修复中 | 基线 `022b0fb`；预检 `e01e99a`、staging `e9983ed`；[staging计划](superpowers/plans/2026-09-09-win-squirrel-staging.md)、[runtime计划](superpowers/plans/2026-09-09-win-build-runtime.md) | staging独立复审30项/typecheck通过，回拷和回滚失败反例已补；新全链未运行。旧全链363单测/native-smoke通过、make失败证据保留。17 high仍是发行缺口；不关闭资源编辑或以残包充成功 |

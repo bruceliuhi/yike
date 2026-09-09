@@ -27,6 +27,7 @@ import {
   Tabs,
   formatDate,
 } from "../components/ui";
+import { PlatformIcon, PlatformLabel } from "../components/Platform";
 import type {
   ContactDraft,
   Opportunity,
@@ -34,9 +35,16 @@ import type {
   ContactVerification,
 } from "../domain/models";
 import { errorMessage } from "../services/contracts";
-import { parseSendReceipt, pendingSend, type OutreachQueue as Queue, type SendRequestBinding } from "../domain/outreach";
+import {
+  parseSendReceipt,
+  pendingSend,
+  type OutreachQueue as Queue,
+  type SendRequestBinding,
+} from "../domain/outreach";
 import { requireOutreach } from "../services/outreach";
 import { OutreachQueue } from "./OutreachQueue";
+import { ContactNotes } from "./outreach/ContactNotes";
+import { sortContactRows, type ContactSort } from "../domain/contactList";
 import { EvidencePanel, PUBLIC_SAMPLE, isSample } from "./Opportunities";
 
 export function contactFingerprint(
@@ -108,15 +116,30 @@ function OutreachWorkspace() {
           : Promise.resolve(undefined),
     [service, id, session.userId, session.authenticated],
   );
-  const [query, setQuery] = useState("");
+  const [listView, setListView] = useLocalDraft<{
+    query: string;
+    sort: ContactSort;
+  }>(
+    `contact-list:${session.userId || "public"}`,
+    { query: "", sort: "newest" },
+    (value) =>
+      !!value &&
+      typeof value === "object" &&
+      typeof (value as { query?: unknown }).query === "string" &&
+      ["newest", "oldest", "title"].includes((value as { sort: string }).sort),
+  );
+  const query = listView.query;
   const [queue, setQueue] = useState("draft");
-  const rows = (list.data || []).filter(
-    (r) =>
-      !isSample(r) &&
-      [r.title, r.buyer]
-        .join(" ")
-        .toLowerCase()
-        .includes(query.trim().toLowerCase()),
+  const rows = sortContactRows(
+    (list.data || []).filter(
+      (r) =>
+        !isSample(r) &&
+        [r.title, r.buyer, r.platform, r.url]
+          .join(" ")
+          .toLowerCase()
+          .includes(query.trim().toLowerCase()),
+    ),
+    listView.sort,
   );
   const selected = detail.data;
   return (
@@ -139,7 +162,10 @@ function OutreachWorkspace() {
         <OutreachQueue
           key={`${session.userId}:${queue}`}
           queue={queue as Queue}
-          onOpen={(path) => { setQueue("draft"); navigate(path); }}
+          onOpen={(path) => {
+            setQueue("draft");
+            navigate(path);
+          }}
         />
       ) : (
         <div className="outreach-layout">
@@ -149,11 +175,27 @@ function OutreachWorkspace() {
               <input
                 aria-label="搜索联系准备"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) =>
+                  setListView((old) => ({ ...old, query: e.target.value }))
+                }
                 placeholder="搜索商机标题或来源"
               />
             </div>
-            <p className="muted">选择商机，准备联系内容</p>
+            <select
+              className="contact-sort"
+              aria-label="联系准备排序"
+              value={listView.sort}
+              onChange={(event) =>
+                setListView((old) => ({
+                  ...old,
+                  sort: event.target.value as ContactSort,
+                }))
+              }
+            >
+              <option value="newest">按更新时间 · 最新优先</option>
+              <option value="oldest">按更新时间 · 最早优先</option>
+              <option value="title">按商机标题</option>
+            </select>
             {session.authenticated && (
               <ResourceStatus
                 loading={list.loading}
@@ -174,8 +216,10 @@ function OutreachWorkspace() {
                 <strong>{row.title}</strong>
                 <span>{row.buyer}</span>
                 <small>
+                  <PlatformLabel platform={row.platform} size={16} /> ·{" "}
                   {row.comment || row.dm ? "已有联系草稿" : "待准备内容"}
                 </small>
+                <small>更新于 {formatDate(row.updatedAt)}</small>
               </button>
             ))}
             {!list.loading &&
@@ -192,7 +236,10 @@ function OutreachWorkspace() {
                 onClick={() => navigate("/outreach?opportunity=sample")}
               >
                 <strong>高交会预算询价 · 联系准备</strong>
-                <span>湖南省商务厅官网</span>
+                <span className="brand-platform-label">
+                  <PlatformIcon platform={PUBLIC_SAMPLE.platform} size={16} />
+                  <span>湖南省商务厅官网</span>
+                </span>
                 <Badge tone="orange">公开样例 · 只读</Badge>
               </button>
             </div>
@@ -227,7 +274,9 @@ function OutreachWorkspace() {
 function ContactEditor({ row }: { row: Opportunity }) {
   const { service, session, route, navigate, notify } = useApp();
   const sample = isSample(row);
-  const [channel, setChannel] = useState<"comment" | "dm">(() => route.query.get("channel") === "dm" ? "dm" : "comment");
+  const [channel, setChannel] = useState<"comment" | "dm">(() =>
+    route.query.get("channel") === "dm" ? "dm" : "comment",
+  );
   const [drafts, setDrafts] = useLocalDraft<DraftSet>(
     `contact:${session.userId || "public"}:${row.id}`,
     () => ({
@@ -291,7 +340,10 @@ function ContactEditor({ row }: { row: Opportunity }) {
     const atChannel = channel;
     const version = draft.version;
     const result = await action.run(async () => {
-      const value = await boundedRequest(() => service.generateContact(row.id, atChannel), {timeoutMessage: "草稿生成超时，当前内容已保留，请重试生成。"});
+      const value = await boundedRequest(
+        () => service.generateContact(row.id, atChannel),
+        { timeoutMessage: "草稿生成超时，当前内容已保留，请重试生成。" },
+      );
       if (typeof value !== "string" || !value.trim())
         throw new Error("未生成可用草稿，当前内容已保留，请重试生成。");
       return value;
@@ -341,7 +393,12 @@ function ContactEditor({ row }: { row: Opportunity }) {
     }
   };
   const closeConfirm = () =>
-    navigate("/outreach?opportunity=" + encodeURIComponent(row.id) + "&channel=" + channel);
+    navigate(
+      "/outreach?opportunity=" +
+        encodeURIComponent(row.id) +
+        "&channel=" +
+        channel,
+    );
   return (
     <>
       <section className="contact-editor">
@@ -399,10 +456,16 @@ function ContactEditor({ row }: { row: Opportunity }) {
             variant="ghost"
             disabled={sample || !session.authenticated || action.busy}
             onClick={() =>
-              draft.content && !generationFailed ? setPendingRegenerate(true) : void generate()
+              draft.content && !generationFailed
+                ? setPendingRegenerate(true)
+                : void generate()
             }
           >
-            {generationFailed ? "重试生成" : draft.content.trim() ? "重新生成" : "生成联系草稿"}
+            {generationFailed
+              ? "重试生成"
+              : draft.content.trim()
+                ? "重新生成"
+                : "生成联系草稿"}
           </Button>
         </div>
         <textarea
@@ -440,7 +503,9 @@ function ContactEditor({ row }: { row: Opportunity }) {
               navigate(
                 "/outreach?opportunity=" +
                   encodeURIComponent(row.id) +
-                  "&channel=" + channel + "&confirm=send",
+                  "&channel=" +
+                  channel +
+                  "&confirm=send",
               )
             }
           >
@@ -503,6 +568,10 @@ function ContactEditor({ row }: { row: Opportunity }) {
         </dl>
         <EvidencePanel opportunity={row} compact />
         {!sample && <Notice>发送前需完成来源、画像、对象及账号的核验。</Notice>}
+        <ContactNotes
+          key={`${session.userId}:${row.id}:${row.profileVersionId}`}
+          row={row}
+        />
       </aside>
       {pendingRegenerate && (
         <Confirm
@@ -580,7 +649,9 @@ export function SendConfirmation({
   const attemptKey = JSON.stringify([row.id, draft.channel]);
   const sentKey = JSON.stringify([row.id, draft.channel, draft.version]);
   const pending = pendingSend(attempts, row.id, draft.channel);
-  const attempted = pending ? "PENDING" : attempts[attemptKey] || attempts[sentKey];
+  const attempted = pending
+    ? "PENDING"
+    : attempts[attemptKey] || attempts[sentKey];
   const changed = snapshot.fingerprint !== fingerprint;
   const sample = isSample(row);
   const prerequisites = sample
@@ -652,9 +723,10 @@ export function SendConfirmation({
     setProof(null);
     setExpired(false);
     await verify.run(async () => {
-      const value = await boundedRequest(() => service.verifyContact(
-        snapshot.draft, snapshot.fingerprint,
-      ), {timeoutMessage: "发送条件核验超时，尚未发送，请重新核验。"});
+      const value = await boundedRequest(
+        () => service.verifyContact(snapshot.draft, snapshot.fingerprint),
+        { timeoutMessage: "发送条件核验超时，尚未发送，请重新核验。" },
+      );
       if (!mounted.current) return;
       if (
         liveState.current.fingerprint !== snapshot.fingerprint ||
@@ -680,9 +752,10 @@ export function SendConfirmation({
     )
       return;
     await sending.run(async () => {
-      const fresh = await boundedRequest(() => service.verifyContact(
-        snapshot.draft, snapshot.fingerprint,
-      ), {timeoutMessage: "发送条件核验超时，尚未发送，请重新核验。"});
+      const fresh = await boundedRequest(
+        () => service.verifyContact(snapshot.draft, snapshot.fingerprint),
+        { timeoutMessage: "发送条件核验超时，尚未发送，请重新核验。" },
+      );
       if (!mounted.current) return;
       if (
         liveState.current.fingerprint !== snapshot.fingerprint ||
@@ -702,32 +775,66 @@ export function SendConfirmation({
         setProof(null);
         throw new Error("发送对象或条件已变化，请重新核验并确认。");
       }
-      const binding: SendRequestBinding | undefined = service.outreach ? {
-        requestId: crypto.randomUUID(), opportunityId: row.id,
-        channel: snapshot.draft.channel, version: snapshot.draft.version,
-      } : undefined;
-      const operationKey = binding ? JSON.stringify([binding.opportunityId, binding.channel, binding.version, binding.requestId]) : attemptKey;
+      const binding: SendRequestBinding | undefined = service.outreach
+        ? {
+            requestId: crypto.randomUUID(),
+            opportunityId: row.id,
+            channel: snapshot.draft.channel,
+            version: snapshot.draft.version,
+          }
+        : undefined;
+      const operationKey = binding
+        ? JSON.stringify([
+            binding.opportunityId,
+            binding.channel,
+            binding.version,
+            binding.requestId,
+          ])
+        : attemptKey;
       setAttempts((old) => {
         // Verification awaited a service response. Another window/request may
         // have settled or started meanwhile; recheck the freshest durable map
         // inside the updater before reserving this attempt and dispatching.
-        if (pendingSend(old, row.id, snapshot.draft.channel) || old[attemptKey] || old[sentKey] === "SENT")
-          throw new Error("核验期间发现已有发送记录，请先核对原请求，当前未重复发送。");
+        if (
+          pendingSend(old, row.id, snapshot.draft.channel) ||
+          old[attemptKey] ||
+          old[sentKey] === "SENT"
+        )
+          throw new Error(
+            "核验期间发现已有发送记录，请先核对原请求，当前未重复发送。",
+          );
         return { ...old, [operationKey]: "PENDING" };
       });
       let result;
       try {
         result = binding
-          ? parseSendReceipt(await boundedRequest(() => requireOutreach(service.outreach).send(snapshot.draft, {
-              requestId: binding.requestId, confirmationToken: fresh.confirmationToken,
-            }), {timeoutMessage: "发送等待超时，结果尚未确定，请核对原发送结果。"}), binding)
-          : await boundedRequest(() => service.send(snapshot.draft, fresh.confirmationToken), {timeoutMessage: "发送等待超时，结果尚未确定，请核对平台记录。"});
+          ? parseSendReceipt(
+              await boundedRequest(
+                () =>
+                  requireOutreach(service.outreach).send(snapshot.draft, {
+                    requestId: binding.requestId,
+                    confirmationToken: fresh.confirmationToken,
+                  }),
+                {
+                  timeoutMessage:
+                    "发送等待超时，结果尚未确定，请核对原发送结果。",
+                },
+              ),
+              binding,
+            )
+          : await boundedRequest(
+              () => service.send(snapshot.draft, fresh.confirmationToken),
+              {
+                timeoutMessage: "发送等待超时，结果尚未确定，请核对平台记录。",
+              },
+            );
       } catch (error) {
         const code =
           error && typeof error === "object" && "code" in error
             ? String(error.code)
             : "";
-        if (!binding &&
+        if (
+          !binding &&
           [
             "CAPABILITY_UNAVAILABLE",
             "INVALID_REQUEST",
@@ -752,36 +859,69 @@ export function SendConfirmation({
         delete next[operationKey];
         return next;
       });
-      if (!mounted.current || liveState.current.userId !== session.userId) return;
-      if (confirmedFailure) { setProof(null); setChecked(false); }
+      if (!mounted.current || liveState.current.userId !== session.userId)
+        return;
+      if (confirmedFailure) {
+        setProof(null);
+        setChecked(false);
+      }
       notify(
         status === "SENT"
           ? "渠道已确认发送成功。"
-          : confirmedFailure ? "渠道已确认未送达，请重新核验后再决定是否发送。"
-          : "发送请求已提交，结果尚待渠道确认。",
+          : confirmedFailure
+            ? "渠道已确认未送达，请重新核验后再决定是否发送。"
+            : "发送请求已提交，结果尚待渠道确认。",
         status === "SENT" ? "success" : "info",
       );
     });
   };
   const reconcile = async () => {
-    if (sample || !session.authenticated || !pending?.binding || reconciliation.busy || sending.busy) return;
+    if (
+      sample ||
+      !session.authenticated ||
+      !pending?.binding ||
+      reconciliation.busy ||
+      sending.busy
+    )
+      return;
     const original = pending.binding;
     const originalKey = pending.key;
     await reconciliation.run(async () => {
-      const receipt = parseSendReceipt(await boundedRequest(() => requireOutreach(service.outreach).reconcile(original), {timeoutMessage: "原请求核对超时，发送保护继续保留。"}), original);
+      const receipt = parseSendReceipt(
+        await boundedRequest(
+          () => requireOutreach(service.outreach).reconcile(original),
+          { timeoutMessage: "原请求核对超时，发送保护继续保留。" },
+        ),
+        original,
+      );
       // A confirmed outcome settles the captured user's original operation, even
       // after navigation. Missing/unknown/invalid receipts cannot remove its lock.
-      if (receipt.status === "SENT" || receipt.status === "FAILED") setAttempts((old) => {
-        const next = { ...old };
-        if (receipt.status === "SENT") next[JSON.stringify([original.opportunityId, original.channel, original.version])] = "SENT";
-        delete next[originalKey];
-        return next;
-      });
-      if (!mounted.current || liveState.current.userId !== session.userId) return;
-      setProof(null); setChecked(false);
-      notify(receipt.status === "SENT" ? "原请求已确认发送成功，不会重复发送。" : receipt.status === "FAILED"
-        ? "原请求已确认未送达；请重新核验并确认后发送。" : "原请求结果仍未确定，发送保护继续保留。",
-        receipt.status === "SENT" ? "success" : "info");
+      if (receipt.status === "SENT" || receipt.status === "FAILED")
+        setAttempts((old) => {
+          const next = { ...old };
+          if (receipt.status === "SENT")
+            next[
+              JSON.stringify([
+                original.opportunityId,
+                original.channel,
+                original.version,
+              ])
+            ] = "SENT";
+          delete next[originalKey];
+          return next;
+        });
+      if (!mounted.current || liveState.current.userId !== session.userId)
+        return;
+      setProof(null);
+      setChecked(false);
+      notify(
+        receipt.status === "SENT"
+          ? "原请求已确认发送成功，不会重复发送。"
+          : receipt.status === "FAILED"
+            ? "原请求已确认未送达；请重新核验并确认后发送。"
+            : "原请求结果仍未确定，发送保护继续保留。",
+        receipt.status === "SENT" ? "success" : "info",
+      );
     });
   };
   const reason =
@@ -803,13 +943,18 @@ export function SendConfirmation({
       }}
       footer={
         <>
-          <Button disabled={sending.busy || reconciliation.busy} onClick={onClose}>
+          <Button
+            disabled={sending.busy || reconciliation.busy}
+            onClick={onClose}
+          >
             返回修改
           </Button>
           <Button
             variant="primary"
             loading={sending.busy}
-            disabled={!!reason || !checked || verify.busy || reconciliation.busy}
+            disabled={
+              !!reason || !checked || verify.busy || reconciliation.busy
+            }
             onClick={() => void send()}
           >
             确认并发送
@@ -821,7 +966,15 @@ export function SendConfirmation({
       <dl className="detail-list">
         <div>
           <dt>渠道</dt>
-          <dd>{snapshot.draft.channel === "comment" ? "评论" : "私信"}</dd>
+          <dd>
+            {connection?.platform && (
+              <>
+                <PlatformLabel platform={connection.platform} size={16} />{" "}
+                ·{" "}
+              </>
+            )}
+            {snapshot.draft.channel === "comment" ? "评论" : "私信"}
+          </dd>
         </div>
         <div>
           <dt>发送账号</dt>
@@ -866,15 +1019,33 @@ export function SendConfirmation({
         我已核对联系对象、发送账号和内容
       </label>
       {reason && <Notice tone="warning">{reason}</Notice>}
-      {pending && !sample && session.authenticated && <>
-        {pending.binding ? <div>
-          <p className="muted text-small">原请求编号：{pending.binding.requestId}</p>
-          <Button loading={reconciliation.busy} disabled={sending.busy} onClick={() => void reconcile()}>核对原发送结果</Button>
-        </div> : <Notice>旧版本未记录可查询的请求编号，请联系服务管理员核对平台记录；当前不会重新发送。</Notice>}
-      </>}
+      {pending && !sample && session.authenticated && (
+        <>
+          {pending.binding ? (
+            <div>
+              <p className="muted text-small">
+                原请求编号：{pending.binding.requestId}
+              </p>
+              <Button
+                loading={reconciliation.busy}
+                disabled={sending.busy}
+                onClick={() => void reconcile()}
+              >
+                核对原发送结果
+              </Button>
+            </div>
+          ) : (
+            <Notice>
+              旧版本未记录可查询的请求编号，请联系服务管理员核对平台记录；当前不会重新发送。
+            </Notice>
+          )}
+        </>
+      )}
       {verify.error && <Notice tone="error">{verify.error}</Notice>}
       {sending.error && <Notice tone="error">{sending.error}</Notice>}
-      {reconciliation.error && <Notice tone="error">{reconciliation.error}</Notice>}
+      {reconciliation.error && (
+        <Notice tone="error">{reconciliation.error}</Notice>
+      )}
     </Modal>
   );
 }

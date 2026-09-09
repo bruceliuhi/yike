@@ -30,6 +30,7 @@ export interface Schedule {
   timezone: string;
 }
 export interface TaskDraft {
+  templateSourceDraftIds?: string[];
   id: string;
   revision: number;
   name: string;
@@ -87,12 +88,7 @@ export interface Opportunity {
   sample?: boolean;
 }
 export type FollowupStatus =
-  | "CONTACTED"
-  | "REPLIED"
-  | "MEETING"
-  | "QUOTED"
-  | "LOST"
-  | "WON";
+  "CONTACTED" | "REPLIED" | "MEETING" | "QUOTED" | "LOST" | "WON";
 export interface Followup {
   id: string;
   opportunityId: string;

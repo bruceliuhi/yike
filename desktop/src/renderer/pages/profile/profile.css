@@ -1,0 +1,47 @@
+.material-fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  display: grid;
+  gap: 18px;
+}
+.material-table td small {
+  display: block;
+  max-width: 280px;
+  margin-top: 6px;
+  white-space: normal;
+}
+.material-table .inline-actions {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.material-table td:last-child {
+  min-width: 220px;
+}
+.material-fieldset + progress {
+  width: 100%;
+}
+.material-source {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border, #e8edf3);
+  margin-bottom: 16px;
+}
+.material-source p,
+.material-extraction-field blockquote {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.material-extraction-field {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border, #e8edf3);
+}
+.material-extraction-field blockquote {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-left: 2px solid #c7d8f7;
+  color: #596779;
+  background: #f7faff;
+  font-size: 13px;
+}

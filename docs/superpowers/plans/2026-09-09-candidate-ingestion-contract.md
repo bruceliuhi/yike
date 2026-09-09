@@ -49,7 +49,7 @@ def replay_decision(stored_fingerprint: str | None, incoming_fingerprint: str) -
 
 类型内部采用 frozen/extra-forbid 模型；records 为 tuple，嵌套模型同样冻结。对 dict/list 的公共入口进行严格类型验证，允许 JSON list 输入转换为冻结 tuple，但不要接受数字字符串、bool 或对象的隐式强转。now 必须为时区感知 datetime；异常 now 是编程错误，可抛固定 ValueError，不包含数据。
 
-- [ ] **Step 1：写行为测试并观察 RED。** 从平台精确映射与公共匿名空批次开始，再分组加入原文/时间/重放/错误/权限伪造反例。代码示例（其他字段完整样例按契约构造）：
+- [x] **Step 1：写行为测试并观察 RED。** 从平台精确映射与公共匿名空批次开始，再分组加入原文/时间/重放/错误/权限伪造反例。代码示例（其他字段完整样例按契约构造）：
 
 ```python
 def test_platform_namespaces_do_not_guess():
@@ -71,7 +71,7 @@ def test_replay_is_not_new_observation(batch):
 
 运行 `uv run --frozen pytest -q tests/test_source_capabilities.py tests/test_candidate_contract.py`；先观察缺少契约模块/行为的失败，不把测试拼写或环境错误当 RED。最初模块不存在可先用 importlib 检查模块不存在的断言，以正常断言失败展示缺失能力；随后实现最小部分并迭代新反例。
 
-- [ ] **Step 2：实现严格校验与纯函数。** 采用 frozen Pydantic模型，record/body保留原文，解析时间为UTC进行比较但输出仍为原始规范字符串。hash helper 的精确算法：
+- [x] **Step 2：实现严格校验与纯函数。** 采用 frozen Pydantic模型，record/body保留原文，解析时间为UTC进行比较但输出仍为原始规范字符串。hash helper 的精确算法：
 
 ```python
 def _digest(value: object) -> str:
@@ -81,9 +81,9 @@ def _digest(value: object) -> str:
 
 哈希对象选择、重复和冲突规则逐项按契约第4节实现。PUBLIC_WEB 的来源身份始终含规范 origin，测试不同站点同一站内 ID 不碰撞。URL校验只分析形状，不做DNS/HTTP调用。公开入口捕获内部校验错误并 `raise CandidateContractError(code) from None`，不使用 `str(validation_error)` 或在公开异常中保存原 payload。处理批内冲突不写数据库。
 
-- [ ] **Step 3：补齐并运行反例 GREEN。** 精确覆盖五组平台ID；默认六能力不能VERIFIED、缺证据的非初值声明拒绝；匿名web连接字段全空通过、混合/错误模式拒绝；bool/零/负/浮点/字符串代次拒绝；顶层与嵌套未知字段/APPROVED/tenant/reviewer/token拒绝；主帖/评论/网页的ID关系；未知时间保留null、过期原文可入站、未来/错日历/非UTC/父子时间冲突拒绝；正文空白/NUL/上限、匿名作者；token/userinfo/恶意域名/端口/私网地址/注入字符URL拒绝、B站reply片段通过；来源跨平台不合并；观察/query不改内容版本，正文/父上下文更新改版本；批内重复/不同版本分别拒绝；指纹对键顺序稳定且绑定执行/策略/画像/观察内容；相同request新内容CONFLICT；验证返回冻结嵌套对象、不修改原payload；错误str/repr不含提交的敏感样例值。不使用实际客户数据。
+- [x] **Step 3：补齐并运行反例 GREEN。** 精确覆盖五组平台ID；默认六能力不能VERIFIED、缺证据的非初值声明拒绝；匿名web连接字段全空通过、混合/错误模式拒绝；bool/零/负/浮点/字符串代次拒绝；顶层与嵌套未知字段/APPROVED/tenant/reviewer/token拒绝；主帖/评论/网页的ID关系；未知时间保留null、过期原文可入站、未来/错日历/非UTC/父子时间冲突拒绝；正文空白/NUL/上限、匿名作者；token/userinfo/恶意域名/端口/私网地址/注入字符URL拒绝、B站reply片段通过；来源跨平台不合并；观察/query不改内容版本，正文/父上下文更新改版本；批内重复/不同版本分别拒绝；指纹对键顺序稳定且绑定执行/策略/画像/观察内容；相同request新内容CONFLICT；验证返回冻结嵌套对象、不修改原payload；错误str/repr不含提交的敏感样例值。不使用实际客户数据。
 
-- [ ] **Step 4：定向回归与提交。** 运行下面命令，记录原始退出结果及绑定代码 SHA：
+- [x] **Step 4：定向回归与提交。** 运行下面命令，记录原始退出结果及绑定代码 SHA：
 
 ```sh
 uv run --frozen pytest -q tests/test_candidate_contract.py tests/test_source_capabilities.py tests/test_research_import.py tests/test_research_skill_contract.py
@@ -96,4 +96,4 @@ git commit -m "feat: define validated candidate ingestion contracts"
 
 根代理另跑全仓验证，将主线既有时钟/权威断言失败与本卡失败分别记录；不重复V02-10E已有修复，不从 feature 偷带未接收代码使数字变绿。独立reviewer按具体风险复核，不与其他Agent共用DDL测试库。
 
-- [ ] **Step 5：交接。** 独立审核绑定完整候选区间，修复后复审；根代理更新唯一任务书并推送候选，实际Win复现与ACK未收到前不标 DONE，不宣称正式上传API或平台已上线。
+- [ ] **Step 5：交接。** 独立审核、修复复审、主线集成及[交接包](../../handoffs/V02-02A_MAC_TO_WIN.md)已准备完成；实际Win复现/ACK尚未发生，本步骤保留未完成，不把01A/B的ACK转移至02A，不宣称正式上传API或平台已上线。

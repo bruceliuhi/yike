@@ -6,6 +6,7 @@ import {
   MagnifyingGlass,
 } from "@phosphor-icons/react";
 import { useApp } from "../app/context";
+import { boundedRequest } from "../app/boundedRequest";
 import { useResource, useUnsavedChanges } from "../app/hooks";
 import {
   Badge,
@@ -21,6 +22,7 @@ import {
   Tabs,
   formatDate,
 } from "../components/ui";
+import { PlatformIcon, PlatformLabel } from "../components/Platform";
 import type { Opportunity, Profile } from "../domain/models";
 import { ServiceError, errorMessage } from "../services/contracts";
 import { downloadText, downloadErrorMessage } from "../services/download";
@@ -71,6 +73,22 @@ export const PUBLIC_SAMPLE: Opportunity = {
 };
 export function isSample(row: Opportunity) {
   return row.sample === true || row.id === "sample";
+}
+function SourcePlatform({
+  platform,
+  sourceLabel,
+}: {
+  platform: string;
+  sourceLabel?: string;
+}) {
+  return sourceLabel ? (
+    <span className="brand-platform-label" style={{ whiteSpace: "normal" }}>
+      <PlatformIcon platform={platform} size={16} />
+      <span>{sourceLabel}</span>
+    </span>
+  ) : (
+    <PlatformLabel platform={platform || "来源待核验"} size={16} />
+  );
 }
 export function opportunityStatus(row: Opportunity) {
   if (isSample(row)) return "待复核";
@@ -144,8 +162,11 @@ export function EvidencePanel({
         {row.excerpt || "尚未提供原始摘录"}
       </blockquote>
       <p className="muted source-meta">
-        {isSample(row) ? "湖南省商务厅官网" : row.platform || "来源待核验"} ·
-        发布于 {formatDate(row.publishedAt)}
+        <SourcePlatform
+          platform={row.platform}
+          sourceLabel={isSample(row) ? "湖南省商务厅官网" : undefined}
+        />{" "}
+        · 发布于 {formatDate(row.publishedAt)}
       </p>
       {!compact && (
         <>
@@ -202,7 +223,9 @@ function OpportunityList() {
   exportIdentity.current = session.authenticated ? session.userId : null;
   useEffect(() => {
     exportMounted.current = true;
-    return () => { exportMounted.current = false; };
+    return () => {
+      exportMounted.current = false;
+    };
   }, []);
   const customers = (resource.data || []).filter((r) => !isSample(r));
   const rows = scope === "sample" ? [PUBLIC_SAMPLE] : customers;
@@ -268,12 +291,20 @@ function OpportunityList() {
     setExporting(true);
     try {
       const result = await downloadText({
-        format: "csv", name: "意客AI-客户商机.csv", content: customerCsv(chosen),
+        format: "csv",
+        name: "意客AI-客户商机.csv",
+        content: customerCsv(chosen),
       });
       if (!exportMounted.current || identity !== exportIdentity.current) return;
-      if (result.status === "saved") notify(`已保存 ${chosen.length} 条选中客户商机。`, "success");
-      else if (result.status === "initiated") notify(`已发起 ${chosen.length} 条客户商机的下载，请在浏览器中确认。`, "info");
-      else if (result.status === "error") notify(downloadErrorMessage(result.error), "error");
+      if (result.status === "saved")
+        notify(`已保存 ${chosen.length} 条选中客户商机。`, "success");
+      else if (result.status === "initiated")
+        notify(
+          `已发起 ${chosen.length} 条客户商机的下载，请在浏览器中确认。`,
+          "info",
+        );
+      else if (result.status === "error")
+        notify(downloadErrorMessage(result.error), "error");
     } catch {
       if (exportMounted.current && identity === exportIdentity.current)
         notify("文件未能保存，请检查保存位置后重试。", "error");
@@ -427,9 +458,12 @@ function OpportunityList() {
                         )}
                       </td>
                       <td>
-                        {isSample(row)
-                          ? "湖南省商务厅官网"
-                          : row.platform || "—"}
+                        <SourcePlatform
+                          platform={row.platform}
+                          sourceLabel={
+                            isSample(row) ? "湖南省商务厅官网" : undefined
+                          }
+                        />
                       </td>
                       <td>
                         <Badge tone={isSample(row) ? "orange" : "neutral"}>
@@ -585,7 +619,13 @@ function OpportunityDetail({ id }: { id: string }) {
         ).map(([label, value]) => (
           <div key={label}>
             <span>{label}</span>
-            <strong>{value || "—"}</strong>
+            <strong>
+              {label === "来源平台" ? (
+                <PlatformLabel platform={value || "来源待核验"} size={18} />
+              ) : (
+                value || "—"
+              )}
+            </strong>
           </div>
         ))}
       </div>
@@ -627,7 +667,9 @@ function OpportunityDetail({ id }: { id: string }) {
               <p>仅供研究查看，尚未绑定客户画像。</p>
               <Button
                 variant="ghost"
-                onClick={() => navigate("/outreach?opportunity=sample&channel=comment")}
+                onClick={() =>
+                  navigate("/outreach?opportunity=sample&channel=comment")
+                }
               >
                 查看样例联系准备
               </Button>
@@ -638,7 +680,9 @@ function OpportunityDetail({ id }: { id: string }) {
                 variant="primary"
                 onClick={() =>
                   navigate(
-                    "/outreach?opportunity=" + encodeURIComponent(row.id) + "&channel=comment",
+                    "/outreach?opportunity=" +
+                      encodeURIComponent(row.id) +
+                      "&channel=comment",
                   )
                 }
               >
@@ -757,6 +801,7 @@ function uncertainReview(error: unknown): boolean {
 function CandidateWorkbench() {
   const { service, session, route, navigate, notify } = useApp();
   const sample = route.query.get("scope") === "sample";
+  const requestedId = sample ? null : route.query.get("candidate");
   const [query, setQuery] = useState("");
   const [platform, setPlatform] = useState("");
   const [status, setStatus] = useState<CandidateStatus | "">("PENDING_REVIEW");
@@ -797,12 +842,28 @@ function CandidateWorkbench() {
             pageSize: 10,
           })
         : session.authenticated
-          ? service.candidates({
-              query: query.trim(),
-              platform: platform || undefined,
-              status: status || undefined,
-              page,
-              pageSize: 10,
+          ? boundedRequest(
+              () =>
+                service.candidates(
+                  requestedId
+                    ? { ids: [requestedId], page: 1, pageSize: 10 }
+                    : {
+                        query: query.trim(),
+                        platform: platform || undefined,
+                        status: status || undefined,
+                        page,
+                        pageSize: 10,
+                      },
+                ),
+              { timeoutMessage: "线索读取超时，请重试。" },
+            ).then((result) => {
+              if (
+                requestedId &&
+                (result.items.length > 1 ||
+                  result.items.some((row) => row.id !== requestedId))
+              )
+                throw new Error("返回线索与待办目标不匹配，请刷新重试。");
+              return result;
             })
           : Promise.resolve<CandidatePage>({
               items: [],
@@ -819,6 +880,7 @@ function CandidateWorkbench() {
       platform,
       status,
       page,
+      requestedId,
     ],
   );
   const confirmedProfiles = (profiles.data || []).filter(
@@ -848,7 +910,9 @@ function CandidateWorkbench() {
   useEffect(() => {
     setChecked([]);
     setSelectedId("");
-  }, [query, platform, status, page, sample]);
+    setConfirmation(null);
+    setReplaceAssessment(null);
+  }, [query, platform, status, page, sample, requestedId]);
   const updateDraft = (
     candidate: Candidate,
     update: (old: CandidateEditor) => CandidateEditor,
@@ -1207,8 +1271,8 @@ function CandidateWorkbench() {
         <Field label="来源">
           <select
             aria-label="候选来源筛选"
-            value={platform}
-            disabled={sample}
+            value={requestedId ? "" : platform}
+            disabled={sample || !!requestedId}
             onChange={(e) => {
               setPlatform(e.target.value);
               setPage(1);
@@ -1223,8 +1287,8 @@ function CandidateWorkbench() {
         <Field label="复核状态">
           <select
             aria-label="候选复核状态筛选"
-            value={status}
-            disabled={sample}
+            value={requestedId ? "" : status}
+            disabled={sample || !!requestedId}
             onChange={(e) => {
               setStatus(e.target.value as CandidateStatus | "");
               setPage(1);
@@ -1243,8 +1307,8 @@ function CandidateWorkbench() {
           <input
             aria-label="搜索原始线索"
             placeholder="搜索需求或需求方"
-            disabled={sample}
-            value={query}
+            disabled={sample || !!requestedId}
+            value={requestedId ? "" : query}
             onChange={(e) => {
               setQuery(e.target.value);
               setPage(1);
@@ -1252,6 +1316,17 @@ function CandidateWorkbench() {
           />
         </div>
       </div>
+      {requestedId && (
+        <Notice
+          action={
+            <Button variant="ghost" onClick={() => navigate("/candidates")}>
+              查看全部线索
+            </Button>
+          }
+        >
+          当前仅查看待办关联的线索。
+        </Notice>
+      )}
       {!sample && !session.authenticated ? (
         <Empty
           title="登录后查看原始线索"
@@ -1370,8 +1445,11 @@ function CandidateWorkbench() {
                     >
                       <h3>{row.title}</h3>
                       <p className="muted">
-                        {row.sourceLabel || row.platform} ·{" "}
-                        {formatDate(row.publishedAt)}
+                        <SourcePlatform
+                          platform={row.platform}
+                          sourceLabel={row.sourceLabel}
+                        />{" "}
+                        · {formatDate(row.publishedAt)}
                       </p>
                       <Badge
                         tone={
@@ -1391,11 +1469,17 @@ function CandidateWorkbench() {
                 {!rows.length && (
                   <Empty
                     title={
-                      query || platform || status !== "PENDING_REVIEW"
-                        ? "没有符合条件的线索"
-                        : "暂无待复核线索"
+                      requestedId
+                        ? "未找到待办关联的线索"
+                        : query || platform || status !== "PENDING_REVIEW"
+                          ? "没有符合条件的线索"
+                          : "暂无待复核线索"
                     }
-                    description="完成真实采集后，在这里核对原文与画像。"
+                    description={
+                      requestedId
+                        ? "线索可能已移除或当前账号无权查看，请返回全部线索核对。"
+                        : "完成真实采集后，在这里核对原文与画像。"
+                    }
                   />
                 )}
                 <Pagination
@@ -1420,7 +1504,10 @@ function CandidateWorkbench() {
                       <div>
                         <span>发布来源</span>
                         <strong>
-                          {selected.sourceLabel || selected.platform}
+                          <SourcePlatform
+                            platform={selected.platform}
+                            sourceLabel={selected.sourceLabel}
+                          />
                         </strong>
                       </div>
                       <div>
