@@ -212,6 +212,8 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 
 ### CodexWin Goal 启动与当前认领
 
+2026-09-10 CodexWin接续05G，base`c88b64b`：按[计划](superpowers/plans/2026-09-10-win-candidate-review-client.md)接已有P07的真实候选/原文、判断、独立人工来源核验、含核验ID的确认和原请求恢复；独占desktop DTO/固定传输/候选页面及专项tests，不改Mac04C或设备/执行在途文件。实际核查到成功决策回执漏sourceVerificationId、设备登记缺幂等找回，给Mac[最小接口请求](handoffs/V1_WIN_FUNCTION_OWNERSHIP_20260909.md#05g接线及设备恢复的最小服务缺口2026-09-10c88b64b核查)；没有按设备标签冒认或盲重登。当前IN_PROGRESS，不假报该新片或父Goal完成；先推进无此依赖的合同/读取，后接完整核验/入库与设备HTTP。
+
 2026-09-10 Win05E最终整合：代码`c7ebb6b`正常合入Mac并发`a08751d`为`52ed3e7`，双方源码/认领保留；一次新跟进视觉测试旧详情期望已精确适配并独立通过，worker异常首跑不算通过。最终30文件372通过/0skip/无worker错误、类型/生产TEST排除/凭据扫描通过；[QA](qa/V02-05E_SOURCE_EVIDENCE_CLIENT_WIN_REVIEW.md#并发主线整合后的最终验证)记录失败及版本。未改05E已审生产字节，不将Mac未验回复选择器、真实来源/收发/Windows发行记为完成。下段269为先前候选范围，不相加；当前Win后续分工不变。
 
 2026-09-10 CodexWin完成05E固定原文客户端限定片：按既有合同接入普通详情/R4缺字段补读、P11/compact原文/评论归属/逐字引用/事件时间/历史版本，旧摘录不冒充固定原文；整片独立SPEC/代码/架构/质量PASS，P12旧标签P2已修复。根代理20文件269项、类型/生产TEST排除、Windows Edge双视口通过，实际客户端→认证HTTP→受限PG 1 passed/0skip；[限定QA](qa/V02-05E_SOURCE_EVIDENCE_CLIENT_WIN_REVIEW.md)保留反例与边界。正常快进保留Mac至`eb507bf`正常CLI装配与签名接口认领，无desktop源码重叠。**Win接续05D/05F设备HTTP与05G/P07候选读取、来源核验和恢复**；原签名载荷接口已由Mac在`eb507bf`认领，不重复实现。未完成真实平台→客户UI整链、确认收发或Windows发行，05E/PH-F06与整体Goal仍IN_PROGRESS；原文证据、多找类似、短句建联均为首发必有。
