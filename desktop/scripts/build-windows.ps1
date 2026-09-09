@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 $desktopRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Push-Location $desktopRoot
 try {
-  $nodeCommand = Get-Command node -CommandType Application -ErrorAction SilentlyContinue
+  $nodeCommand = Get-Command node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
   $nodeVersion = $null
   if ($nodeCommand) {
     try {

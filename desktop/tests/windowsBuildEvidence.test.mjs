@@ -4,6 +4,7 @@ import {spawnSync} from 'node:child_process';
 import {mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {
   addArtifact, beginStage, createEvidence, endStage, finishEvidence, sha256
 } from '../scripts/windows-build-evidence.mjs';
@@ -25,6 +26,16 @@ function complete(evidence, id, code = 0) {
 afterEach(() => roots.splice(0).forEach(root => rmSync(root, {recursive: true, force: true})));
 
 describe('Windows build evidence', () => {
+  it.skipIf(process.platform !== 'win32')('runs the real PowerShell bootstrap regression on Windows', () => {
+    const script = fileURLToPath(new URL('./windowsBootstrap.test.ps1', import.meta.url));
+    const powershell = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+    const result = spawnSync(powershell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+      '-File', script, '-NodeExecutable', process.execPath], {encoding: 'utf8', windowsHide: true, timeout: 30000});
+    expect(result.error).toBeUndefined();
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain('PASS: Windows bootstrap regression (2 scenarios).');
+  }, 35000);
+
   it('records measured host and lock hash without environment values or unearned success', () => {
     const root = fixture();
     const evidence = createEvidence(root);
