@@ -20,4 +20,5 @@ BEGIN
         'GRANT SELECT, INSERT ON TABLE public.pilot_device_registrations TO %I',
         target_role
     );
+    EXECUTE format('GRANT SELECT ON TABLE public.pilot_users TO %I', target_role);
 END $$;
