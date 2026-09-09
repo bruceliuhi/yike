@@ -184,5 +184,19 @@
     "signing/notarization",
     "real platform collection or messaging",
     "all design states pixel equivalence"
-  ]
+  ],
+  "finalIntegration": {
+    "commit": "58622ef38a090dc577b998535cee03476de9d93a",
+    "macBuildInputsUnchanged": true,
+    "frontend": {
+      "files": 50,
+      "passed": 493,
+      "skipped": 1,
+      "skipReason": "Windows-only PowerShell bootstrap regression"
+    },
+    "backendUiSessionIdentityParsers": {
+      "passed": 140
+    },
+    "independentReview": "Agent A verified both merge parents, 97 build input hashes and scoped evidence; no integration blockers"
+  }
 }
