@@ -12,11 +12,11 @@
 
 ## 阅读顺序
 
-1. [交接说明](../docs/V02_DESIGN_HANDOFF.md)：目标分支、已实现能力、演示分支差异与下一步。
-2. [完整获客版计划](../docs/V02_COMMERCIAL_RELEASE_PLAN.md)：付费闭环、八个入口、十项工程任务、演示与发布标准。
-3. [多平台 Skill 监控方案](../docs/V02_MULTIPLATFORM_SKILL_PLAN.md)：通用研究规则、平台规则、连接器、执行与数据边界。
-4. [完整流程与范围复核](reviews/2026-09-09-v02-product-scope.md)：导航动作、源码能力、竞品研究背景及品牌约束。
-5. [工作台生成记录](previews/WORKBENCH_V02_PROMPT.md)：输入用途、完整提示词、视觉目标和未验证项。
+1. [完整获客版计划](../docs/V02_COMMERCIAL_RELEASE_PLAN.md)：当前付费闭环、八个入口、功能与交付标准。
+2. [实施任务书](../docs/V02_IMPLEMENTATION_TASKBOOK.md)：当前任务、设计/代码依赖与验收状态。
+3. [多平台 Skill 监控方案](../docs/V02_MULTIPLATFORM_SKILL_PLAN.md)：通用规则、平台规则、连接器与执行数据边界。
+4. [工作台生成记录](previews/WORKBENCH_V02_PROMPT.md)：当前图片的输入、完整提示词、视觉目标和未验证项。
+5. [交接说明](../docs/V02_DESIGN_HANDOFF.md) 与 [范围复核](reviews/2026-09-09-v02-product-scope.md)：迁入快照、演示分支差异及竞品研究背景。
 
 ## 品牌资产与历史
 
