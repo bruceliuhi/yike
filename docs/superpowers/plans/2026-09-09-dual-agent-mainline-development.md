@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- 主仓固定为 `xinghetech/yike-ai2026`，主分支固定为 `main`，当前基线 `0e20ffb`。
+- 主仓固定为 `xinghetech/yike-ai2026`，主分支固定为 `main`；任务开始前必须以最新 `origin/main` 作为 base，初始基线为 `0e20ffb`。
 - 当前范围固定为 B 站＋抖音 DISCOVERY MVP；不恢复冻结的云端、多租户、自动外联或其他平台。
 - 不使用 mock/fixture 证明真实采集、联系、回复或商业成功。
 - 所有外部发送必须人工批准；不绕过验证码、限流或平台风控。

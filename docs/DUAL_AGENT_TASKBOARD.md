@@ -2,7 +2,7 @@
 
 > 主仓：`xinghetech/yike-ai2026`
 > 主分支：`main`
-> 基线：`0e20ffb`
+> 初始基线：`0e20ffb`；当前主线以最新 `origin/main` 为准
 > 更新：2026-09-09
 
 ## 目标与边界
@@ -34,7 +34,7 @@
 
 任务卡状态：`READY`、`DOING`、`REVIEW`、`DONE`、`BLOCKED_INPUT`、`BLOCKED_DEPENDENCY`。
 
-| ID | Owner | Branch（均从 `main@0e20ffb` 起） | 范围/目录 | 依赖 | 验收与证据 | Reviewer | 状态 |
+| ID | Owner | Branch（均从任务开始时最新 `origin/main` 起） | 范围/目录 | 依赖 | 验收与证据 | Reviewer | 状态 |
 |---|---|---|---|---|---|---|---|
 | `SYNC-01` | Mac | `codex/sync-authority-baseline` | `AUTHORITY.md`、`docs/` | 无 | 逐项核对 parent authority、main 基线与未合并旧分支；形成差异清单，不盲目整支合并 | Win | `READY` |
 | `YK-D04-MAC` | Mac | `codex/mac-score-review-workflow` | `app/`、`migrations/`、`tests/` | `SYNC-01` | 坏模型输出失败关闭；score/review/draft/contact 同 run 绑定；唯一主体和回复/访谈/报价因果链测试全绿 | Win | `READY` |
