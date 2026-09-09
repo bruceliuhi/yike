@@ -152,6 +152,8 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 
 ## 7. 进度更新与证据格式
 
+2026-09-09 CodexiMac认领 **V02-02B原始候选上传/读取切片**，base `3874d6225d9dad1bd5b1e3f915ef03c7f9fd60f8`，复用隔离 `codex/mac-device-authorization`。**112预留Mac候选入库；108/110仍归Win**，不改111执行迁移。范围为原始记录、不可变版本/观察、稳定候选ID、幂等预算事务及认证原始收件箱API；[实施计划](superpowers/plans/2026-09-09-candidate-ingestion-slice.md)已包含独立实现/审核与共享预算反例。消费已有02A/01C/03A，不抢04A/B、05B/C或真实来源适配文件；原始候选不自动成为已审核商机。当前IN_PROGRESS，无真实采集/上线或02B完成声明。
+
 2026-09-09 CodexiMac执行片已提交核心990ebca与HTTP25d393b，经两名非实现者独立审核PASS；正常保留R4主线9291963为e5b4bcc。任务/逐平台lease/取消和原请求查询实际通过HTTP→真实受限PG验证，服务重建后记录仍在；取消仅停止接收结果，不伪报物理停止。[交接验收](qa/V02_EXECUTION_RUNTIME_REVIEW.md)与[协议](contracts/V02_EXECUTION_RUNTIME.md)明确生产resolver仍缺、task_execution=false。Mac下一张主实现卡为02B，不继续扩大高级授权；Win继续04A/B→05B/C及真实来源接入。两个平台共享预算/不同session竞争随02B补最小反例，部署实际有效角色权限另验；未因分阶段取消基础隔离或正式发布门禁。
 
 2026-09-09 R4正常合入远端639b17d后为14aa73e；最新桌面77文件845passed/21条件skip，类型、Mac构包、ASAR和生产TEST排除通过；[精确候选证据](qa/ui-r4/README.md#最新主线合入与再验证)。下面CBC条目保留为历史，不回填。新增手机号认证和Win搜索交付归原责任人，R4真实服务仍按既有子卡接入，05A和完整Goal继续IN_PROGRESS。
