@@ -12,12 +12,44 @@ import {
 } from "../../src/renderer/domain/taskProfile";
 import type { YikeDesktopApi } from "../../src/shared/contracts";
 import { capturedEvidenceFixture } from "../fixtures/opportunitySourceEvidence";
+import { pageFixture, assessmentRequestFixture } from "../fixtures/candidateReviewApi";
 const host = window as unknown as { yikeDesktop?: YikeDesktopApi };
 afterEach(() => {
   delete host.yikeDesktop;
   vi.unstubAllGlobals();
 });
 describe("real client transport boundaries", () => {
+  it("reads strict candidates but does not enable the legacy implicit assessment entry", async () => {
+    const data = pageFixture();
+    const requestApi = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, data });
+    host.yikeDesktop = { requestApi } as unknown as YikeDesktopApi;
+    const page = await service.candidates({
+      query: "   ",
+      platform: "公开网站",
+    });
+    expect(page).toEqual({
+      ...data,
+      items: data.items.map((item) => ({
+        ...item,
+        platform: "公开网站",
+        sourceLabel: "公开网站",
+      })),
+    });
+    expect(requestApi).toHaveBeenCalledWith({
+      operation: "candidates.list",
+      payload: { platform: "PUBLIC_WEB" },
+    });
+    await expect(
+      service.reviewCandidate(
+        assessmentRequestFixture() as Parameters<
+          typeof service.reviewCandidate
+        >[0],
+      ),
+    ).rejects.toMatchObject({ status: 501 });
+    expect(requestApi).toHaveBeenCalledTimes(1);
+  });
   function profilesResponse(items: unknown[]) {
     host.yikeDesktop = {
       requestApi: vi.fn().mockResolvedValue({
