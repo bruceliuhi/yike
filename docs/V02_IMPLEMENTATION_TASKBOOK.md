@@ -40,7 +40,7 @@ V02-05 的[全页面设计 R3](../design/v02-suite-r3/README.md)已于 2026-09-0
 | V02-06 真实触达通道 / 通道＋后端 | NOT_STARTED | 立即验证能力条件，定义对象映射及发送/回执/回复契约 | 依赖 01 身份；真实采集对象到收件人映射、可联系性、确认后真实发送和关联回复；失败原因准确 | 未提供 |
 | V02-07 草稿、确认与发送队列 / 后端＋前端 | IN_PROGRESS | 前端三队列、独立草稿、确认快照、持久防重及原请求核对已实现；继续接真实队列、生成/发送/回执后台 | 依赖 04/06；对象、内容版本、渠道或连接改变使确认失效；真成功/失败/未知对账；未经确认不发送 | [R3 交互增量](qa/ui-interactions/REVIEW.md)；默认真实通道尚未接入，不等于已发送 |
 | V02-08 回复与跟进工作台 / 后端＋前端 | NOT_STARTED | 先定义事件关联、撤销/修正、未读/到期与统计口径 | 依赖 05/07；真实回复归到正确租户/商机；人工事实与平台事实分开；状态不能随意回退，统计可复算 | 未提供 |
-| V02-09 Windows 发行与许可 / 桌面＋交付 | IN_PROGRESS | Win已修复双Node预检；自动链完成类型检查、363单测和native-smoke，Squirrel中文路径失败已定位并修复中；继续sidecar/隔离存储和生命周期 | 真实Windows安装/卸载、休眠/取消/恢复、授权、更新/回退；[依赖发行风险](qa/BUILD_DEPENDENCY_AUDIT_20260909.md)仍未关闭 | 代码 `e01e99a`；[Win实测](qa/WIN_CROSS_REVIEW_20260909.md)保留失败JSON，安装/缩放尚未验收；full audit 17 high、production audit 0不等于可发行 |
+| V02-09 Windows 发行与许可 / 桌面＋交付 | IN_PROGRESS | Win已修复双Node预检；Squirrel中文路径staging修复已独立复审，待运行时一致性修复后重跑全链；继续sidecar/隔离存储和生命周期 | 真实Windows安装/卸载、休眠/取消/恢复、授权、更新/回退；[依赖发行风险](qa/BUILD_DEPENDENCY_AUDIT_20260909.md)仍未关闭 | 预检 `e01e99a`、staging `e9983ed`；[Win实测](qa/WIN_CROSS_REVIEW_20260909.md)保留旧363单测/native-smoke通过及make失败JSON，新完整链未验收；full audit 17 high、production audit 0不等于可发行 |
 | V02-10 集成、独立审核与试用 / QA＋交付 | NOT_STARTED | 先明确逐平台样例、客户操作脚本和证据格式 | 02～09 完成；锁定 SHA，三方独立复核；客户自行走通整链；需服务端部署时通过 CP-06 | 未提供 |
 
 ### 在途子卡与接收登记
@@ -140,4 +140,4 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 | 子卡 / 实际负责人 | 状态 / 当前切片 | 路径、基线与执行位置 | 接收、验证及下一动作 |
 |---|---|---|---|
 | V02-02C / CodexWin | IN_PROGRESS；纯解析切片已完成并审核 | 基线 `022b0fb`；实现 `e368b5a`，随 `bea5c7d` 在main；`connectors/`、旧兼容入口、测试和wheel清单；[计划](superpowers/plans/2026-09-09-win-source-parsers.md) | RED/GREEN后76 passed/42 deselected，wheel隔离导入与双独立审核PASS；[Win记录](qa/WIN_CROSS_REVIEW_20260909.md)。02A DTO未接收，尚非整卡/真实平台完成 |
-| V02-09A 自动构建验证 / CodexWin | IN_PROGRESS；双Node预检已修、中文路径staging修复中 | 基线 `022b0fb`；预检提交 `e01e99a`；maker修复范围 `desktop/build/`、对应tests、forge.config.ts；[计划](superpowers/plans/2026-09-09-win-squirrel-staging.md) | 全链363单测/native-smoke通过，make失败独立2×2定位；适配在TDD推进，独立审核后重跑全链。npm实际Node与runner不一致及17 high另留发行缺口；不关闭资源编辑或以残包充成功 |
+| V02-09A 自动构建验证 / CodexWin | IN_PROGRESS；双Node及staging修复已审核，runtime一致性修复中 | 基线 `022b0fb`；预检 `e01e99a`、staging `e9983ed`；[staging计划](superpowers/plans/2026-09-09-win-squirrel-staging.md)、[runtime计划](superpowers/plans/2026-09-09-win-build-runtime.md) | staging独立复审30项/typecheck通过，回拷和回滚失败反例已补；新全链未运行。旧全链363单测/native-smoke通过、make失败证据保留。17 high仍是发行缺口；不关闭资源编辑或以残包充成功 |

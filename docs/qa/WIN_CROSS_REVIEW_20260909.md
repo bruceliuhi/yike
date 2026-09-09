@@ -28,7 +28,13 @@
 
 原始证据：`desktop/out/windows-evidence/2026-09-09T10-25-27-908Z-743650fc/windows-build.json`，SHA256 `3361907fe2c3625cb8ade12d87e790a77410938925c65094f632268db5d1d4d7`。源码 `dirty: true` 如实记录当时尚未提交的本次文档，desktop 源码相对锁定版本无变化。残留 Setup.exe 不是验收通过的安装包，报告 `artifacts=[]`。
 
-独立 reviewer 在新临时目录复制相同 Setup.exe，保持工具、图标和中文元数据相同：目标 EXE 为 ASCII 路径两组成功、中文路径两组失败；图标路径是否中文不影响结果。原始产物未修改。诊断结果 SHA256 `f33e984b5bb9641a65a061968e7d3d83858c1a67d0810b5bcad29545a314191d`，本机原始文件在临时目录 `yike-rcedit-diagnostic-922016fed879454eb14c093728412dc6/results.json`。下一步按[staging 修复计划](../superpowers/plans/2026-09-09-win-squirrel-staging.md)实施和复审。
+独立 reviewer 在新临时目录复制相同 Setup.exe，保持工具、图标和中文元数据相同：目标 EXE 为 ASCII 路径两组成功、中文路径两组失败；图标路径是否中文不影响结果。原始产物未修改。诊断结果 SHA256 `f33e984b5bb9641a65a061968e7d3d83858c1a67d0810b5bcad29545a314191d`，本机原始文件在临时目录 `yike-rcedit-diagnostic-922016fed879454eb14c093728412dc6/results.json`。
+
+按[staging 修复计划](../superpowers/plans/2026-09-09-win-squirrel-staging.md)完成代码切片 `e9983ed`：只在新建、受校验的 ASCII 临时目录运行原 Squirrel maker，再校验并回拷产物；不改变中文产品名称、图标或资源编辑。系统 TEMP 本身非 ASCII 时明确拒绝，单独指定 staging 不能掩盖上游仍使用系统 TEMP 的限制。未对原 make 输出目录执行递归删除。
+
+第一轮独立审核发现两个 P2，均保留反例后修复：后续文件复制失败会造成旧产物混合；路径穿越测试此前被 path.join 预先归一化。修复先备份并校验全部旧目标，任何回拷失败均恢复本次已尝试的文件；没有旧文件时只删除本次新增项。若恢复本身失败，明确失败并保留有摘要的备份及恢复清单，不清理唯一恢复副本。新增只读失败、复制途中源文件消失、回滚也失败的真实文件系统反例均 RED→GREEN；路径反例保留原始 `..`，且归一化终点实际存在。
+
+独立 `win_contract_readiness` 复审 PASS（无未决 P1/P2），Node 24.19.0 运行两个相关文件 **30 passed**，`tsc --noEmit` 通过；根代理另跑 staging 文件 **22 passed**。复审后冻结 SHA256：maker `76dc22e3051d05798569ecacd7b60d4b6a3e6f2c418a76a08532d64b7104fe4f`、staging 测试 `72b5a90f2738c92cda841f7f15f97386b273a4e4a520b3b0b2d2200d578b81c5`、Forge 配置 `2f827b08ac037e41aa29b63b2c425645e4fd2b83ad7e798d7b3aa308b7cbc73f`。这些单测不等于真实 Squirrel 构建成功；完整链待运行时一致性修复后重新执行，旧失败证据不变。
 
 独立问题：runner 使用 Node 24.19.0，但系统 npm.cmd 实际选择同目录 Node 24.11.1，低于锁定 jsdom 的 24.15 最低版本。不能只记录 runner 版本便声称所有步骤运行时一致。完整安装另报告 17 high；见[依赖风险](BUILD_DEPENDENCY_AUDIT_20260909.md)，未运行自动依赖升级或放宽发行门禁。
 
