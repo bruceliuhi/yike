@@ -184,5 +184,8 @@ def test_ordinary_cli_without_model_or_source_does_not_create_authority(monkeypa
         assert assessed.json()["detail"]["code"] == "capability_unavailable"
         with env.db.connect() as connection:
             assert connection.execute("SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname=current_user").fetchone() == (False, False)
+        # Administrative test inspection cannot mistake an unscoped RLS-empty
+        # result for proof that the ordinary app wrote no assessment.
+        with env.admin.connect() as connection:
             assert connection.execute("SELECT count(*) FROM pilot_candidate_assessments WHERE tenant_id=%s",
                                       (env.tenant,)).fetchone()[0] == 0

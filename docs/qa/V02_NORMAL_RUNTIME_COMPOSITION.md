@@ -51,3 +51,11 @@ uv run --frozen pytest -q tests/test_pilot_runtime_http_postgres.py tests/test_c
 ```
 
 结果 **9 passed / 15.62s / 0 skipped / 0 failed**。包含上述2项，不能相加；原策略/签名/模型子进程 HTTP 契约保持通过，没有再次跑无关桌面、打包或全仓测试。
+
+根代理自审另将“未写入分析记录”的检查改用受信测试连接直接计数，避免未设置身份的RLS空结果形成虚假证明；普通服务仍只用受限角色。只重跑本片2项，**2 passed / 4.26s / 0 skipped**，生产代码仍为冻结的 `bc6a5b6`。
+
+## 并行工作保留
+
+已正常合入Win `a9d18db`，合并为 `fad2d24`，新增仅设备签名客户端计划/分工，不改变本片生产代码。root读取完整新增计划与交接，确认Win承担05F持钥/来源链；Mac接收其执行签名payload最小接口请求。不是Win已接收本片运行效果，也不是设备/平台功能已经完成。
+
+`secret_scan.sh` clean；本片与部署文档17个相对链接有效，增量 `git diff --check` 通过。目标环境角色、真实来源/模型、客户安装和生产验收仍未执行。
