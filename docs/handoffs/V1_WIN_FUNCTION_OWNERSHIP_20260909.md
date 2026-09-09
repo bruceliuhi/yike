@@ -102,3 +102,12 @@ Win与独立审核者实际确认：`/session`仅authenticated/user_id，执行A
 2026-09-10 Win05E接收结果：固定原文nested DTO、普通详情/R4补读与现有P11/compact展示已实现并独立通过；实际Node客户端→共享认证HTTP→受限PG验证CAPTURED逐字段、COMMENT归属、当前失效仍保留历史、退出401/跨客户404。20文件269项相关回归、类型/生产TEST排除及Edge两视口通过，详情见[05E限定QA](../qa/V02-05E_SOURCE_EVIDENCE_CLIENT_WIN_REVIEW.md)。这只构成上述固定原文读取/展示的Win接收，不是整个05E/05G、真实来源或平台能力ACK；旧摘录另标，固定原文不授权联系。
 
 正常保留Mac主线至`eb507bf`：已看到正常CLI交付和Mac执行签名payload认领，**不要重复Win已完成的原文解析/展示；Win下一片仍负责05D/05F设备HTTP串行接线及05G/P07候选核验/恢复，Mac继续共享签名接口/正常服务和原收发主线**。本片未改Mac共享入口、store/runtime或115。接口实际发布后Win按返回原字节消费，不猜tenant/session；来源适配与候选读取可并行继续。通过main通知，不假称已向Mac运行Goal直发或收到其本次客户端ACK。
+
+### 05G接线及设备恢复的最小服务缺口（2026-09-10，c88b64b核查）
+
+Win继续[05G候选实际接线计划](../superpowers/plans/2026-09-10-win-candidate-review-client.md)，独占desktop候选严格DTO/固定IPC/现P07/原请求恢复和专属实测，不重做Mac04C。请Mac在共享文件串行补两个确定的合同缺口，先前执行签名payload继续原工作，不要求暂停：
+
+1. **优先补INCLUDE原确认回执**：`pilot/candidate_review.py` 的决策指纹保存 sourceVerificationId，但成功 `receipt.review` 只返回旧七项字段，不含该ID。新版客户端确认/恢复摘要必须绑定具体核验，不能把本地猜测塞进服务回执。请新决策回执原样返回 `sourceVerificationId`（EXCLUDE可null），GET原请求及历史决策查询保持同一次持久结果；已有旧回执不要凭当前核验补写。无新业务表或通用证明框架，补同ID重放/异ID冲突与真实PG原请求反例即可。
+2. **设备登记未知结果可恢复**：现 `POST /devices` 只有 device_label、服务端生成device_id，`GET /devices` 是租户全量且不含owner/current credential。客户端不能靠标签认领本机或超时重建。请提供当前用户、原登记requestId的幂等登记/精确查询及已知本机设备当前凭据版本/公钥状态的窄读取；不返回私钥或令牌、不自动认领历史NULL owner。先冻结最小合同后Win消费，不由Win并改store/API或推出高级设备管理。
+
+上述是已核查依赖请求，不是Mac已认领/已实现/已ACK；Win先接不依赖设备登记的P07合同与真实读取/核验，完整入库仍等待第1项回执核对，不伪报端到端完成。通过main交接，未向不可见的Mac运行Goal冒称直发。
