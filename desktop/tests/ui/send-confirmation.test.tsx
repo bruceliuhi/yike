@@ -152,7 +152,7 @@ describe("send confirmation with isolated available service fixtures", () => {
     );
     fireEvent.click(sendButton());
     await waitFor(() => expect(context.service.send).toHaveBeenCalledOnce());
-    expect(context.service.verifyContact).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(context.service.verifyContact).toHaveBeenCalledTimes(2));
     expect(context.service.send).toHaveBeenCalledWith(
       draft,
       "isolated-confirmation-token",
@@ -357,7 +357,7 @@ describe("send confirmation with isolated available service fixtures", () => {
     const view = mount();
     await verifyAndCheck();
     fireEvent.click(sendButton());
-    expect(context.service.verifyContact).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(context.service.verifyContact).toHaveBeenCalledTimes(2));
     view.unmount();
     await act(async () => resolve(proof()));
     expect(context.service.send).not.toHaveBeenCalled();
@@ -379,6 +379,7 @@ describe("send confirmation with isolated available service fixtures", () => {
     const view = mount();
     await verifyAndCheck();
     fireEvent.click(sendButton());
+    await waitFor(() => expect(context.service.verifyContact).toHaveBeenCalledTimes(2));
     draft = {
       ...draft,
       content: "核验期间修改",
@@ -413,6 +414,7 @@ describe("send confirmation with isolated available service fixtures", () => {
       const view = mount();
       await verifyAndCheck();
       fireEvent.click(sendButton());
+      await waitFor(() => expect(context.service.verifyContact).toHaveBeenCalledTimes(2));
       if (change === "account")
         connection = { ...connection, status: "EXPIRED" };
       else

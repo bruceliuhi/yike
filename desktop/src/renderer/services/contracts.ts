@@ -36,6 +36,8 @@ export function errorMessage(error: unknown): string {
       : "操作未完成，请重试。";
 }
 export interface YikeService {
+  outreach?: import("./outreach").OutreachService;
+  management?: import("./management").ManagementService;
   verifyContact(
     draft: ContactDraft,
     fingerprint: string,

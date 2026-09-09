@@ -4,7 +4,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 在 `xinghetech/yike-ai2026/main` 上完成可安装、可试用、可验收的多平台获客产品，而不是仅完成本地演示。
+**Goal:** 在 `xinghetech/yike-ai2026/main` 上交付首发面向所有行业企业的 AI 商机发现与跟进工作台：自主业务建档及行业策略、多平台真实需求与证据、持续监控、复核、确认触达、回复跟进、Windows 与服务端交付全部贯通；通过跨行业、体验、价值、独立审核和部署恢复验收。共同 Goal 以 [AUTHORITY](../../../AUTHORITY.md) 为准，两端执行目标见[双 AI 任务板](../../DUAL_AGENT_TASKBOARD.md)，不另设一套完成状态。
 
 **Architecture:** Mac Codex 负责身份、服务端事实库、调度、Skill、触达状态、集成和发布；Win Codex 负责适配器契约、前端/API client、Electron/sidecar 和 Windows 证据。两者只通过版本化 API/数据契约协作，所有外部发送仍需人工确认。
 
@@ -12,8 +12,8 @@
 
 ## Global Constraints
 
-- `yike-ai2026/main` 是唯一产品主线；每个任务从最新 `origin/main` 建 `codex/<主题>` 分支。
-- V0.2 必须覆盖账号、客户空间、多平台采集、持续监控、Skill、复核、真实触达、回复跟进、Windows 交付和部署门禁。
+- `yike-ai2026/main` 是唯一产品主线；小范围串行改动直接在 main 验证、审核和提交，较大或并行功能从最新 `origin/main` 建短期 `codex/<主题>` 分支，完成后合并清理。本次用户明确要求的文档/目标调整由 CodexWin 直接提交 main。
+- V0.2 首发面向所有行业企业，必须覆盖账号、客户空间、多产品/服务画像、行业与销售方式策略、多平台采集、持续监控、Skill、复核、真实触达、回复跟进、Windows 交付和部署门禁。
 - PostgreSQL 是正式客户库；SQLite 只可用于明确标记的本地实验。
 - 未经人工确认不发送，不绕过验证码/限流/风控，不把凭据或私密会话写入仓库、数据库、日志或导出。
 - mock、fixture、静态页面和 HTTP 200 不能证明真实平台、触达、回复、UAT 或商业成功。
@@ -27,7 +27,7 @@
 - [ ] Fetch 最新 `origin/main`，记录 base SHA。
 - [ ] 对照 `AUTHORITY.md`、`V02_COMMERCIAL_RELEASE_PLAN.md`、`V02_IMPLEMENTATION_TASKBOOK.md` 和旧 Discovery 文档，写出选择性迁移清单。
 - [ ] 运行 `git diff --check` 和 secret scan；由 Win Codex 复核。
-- [ ] 提交后才允许启动 V02-01/V02-02-WIN。
+- [ ] 根据最新主线确认依赖和实际认领；不以旧勾选框阻止已授权且无依赖冲突的 V02-01/V02-02-WIN 或在途前端工作。
 
 ### Task 2: Mac 后端主链（`V02-01`～`V02-04`）
 
@@ -35,6 +35,7 @@
 
 - [ ] 先写身份串租户、整包事务、执行代次、坏模型输出、跨 run 绑定和未确认发送的失败测试。
 - [ ] 实现最小闭环：认证/设备/连接 -> 候选 API -> 调度 -> Skill 评分 -> 人工复核。
+- [ ] 明确跨行业画像/资料输入、策略及证据输出的版本化契约；覆盖不同销售方式与反例，来源能力和触达能力分别验收。
 - [ ] 每个子任务独立 commit，交 Win Codex 复核；修复后复审。
 - [ ] 通过 pytest、compileall、数据库迁移和 secret scan 后再联调依赖这些新 API 的 UI/触达路径；已授权前端可以按现有契约独立推进。
 
@@ -43,6 +44,7 @@
 **Files:** `desktop/`、`pilot/` 的版本化接口及 `tests/`；旧 `app/adapters/` 仅作适配器复用来源，R3 页面继续在 `desktop/src/renderer/` 实现。
 
 - [ ] 只依赖 Mac 发布的接口契约，不直连数据库或管理员 CLI。
+- [ ] 在唯一任务书认领具体子项，接收并复现接口交接包；复用在途 R3 前端，补业务建档、可编辑策略和证据/变化展示，不重做他人已交付页面。
 - [ ] 先完成适配器/解析器契约测试，再接入 R3 页面和 API client。
 - [ ] 在真实 Windows 新机验证安装、登录、sidecar 取消/恢复、休眠/唤醒、更新/回退和凭据隔离。
 - [ ] Mac Codex 对每个 PR 做独立复核并检查证据边界。
@@ -61,5 +63,5 @@
 
 - [ ] 验证私网 PostgreSQL、非超级用户、RLS/ACL、HTTPS、备份恢复、回滚和部署 SHA。
 - [ ] 逐平台保存真实运行与来源证据；真实账号/扫码/通道缺失只标 `BLOCKED_INPUT`。
-- [ ] 锁定发布提交，Win Codex 做最终质量复核；Mac 才能合并 `main`。
-- [ ] 至少 3 家客户完成 7–14 天试用并记录实付、使用、有效回复和续费意向；技术完成不等于商业成功。
+- [ ] 锁定发布提交，由未参与相应实现的独立 reviewer 完成架构/代码/质量复核；Mac 收口功能集成，Win 不自审本人实现。
+- [ ] 按[产品计划第 7 节](../../V02_COMMERCIAL_RELEASE_PLAN.md)完成五类业务各两家企业、每家连续 14 天试用，记录配置用时、同质量人工对照、证据、实付/使用/有效回复和续费意向；不足或未达标如实记录，技术完成不等于商业成功。

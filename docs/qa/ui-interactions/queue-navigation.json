@@ -1,0 +1,16 @@
+{
+  "sourceCommit": "a9f3078b98ffe443ee5b7d95b7bc5ff55530a2e5",
+  "url": "http://127.0.0.1:18794/#/outreach?opportunity=TEST-opportunity&channel=dm",
+  "selectedTabs": [
+    "草稿箱",
+    "私信草稿"
+  ],
+  "steps": [
+    "same opportunity comment",
+    "confirm queue",
+    "queue DM item",
+    "open contact preparation"
+  ],
+  "externalWrites": false,
+  "editorPlaceholder": "填写联系内容，或根据商机生成草稿"
+}

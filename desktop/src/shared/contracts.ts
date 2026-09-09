@@ -16,7 +16,23 @@ export interface YikeDesktopApi {
   requestApi(request: ApiRequest): Promise<ApiResult>;
   openExternal(url: string): Promise<DesktopActionResult>;
   copyText(text: string): Promise<DesktopActionResult>;
+  saveExport(request: ExportRequest): Promise<SaveExportResult>;
 }
+
+export interface ExportRequest {
+  format: 'csv' | 'backup-json';
+  name: string;
+  content: string;
+}
+export const EXPORT_ERROR_CODES = [
+  'INVALID_EXPORT_REQUEST', 'UNTRUSTED_SENDER', 'EXPORT_BUSY',
+  'INVALID_EXPORT_DESTINATION', 'EXPORT_UNAVAILABLE', 'EXPORT_FAILED'
+] as const;
+export type ExportErrorCode = typeof EXPORT_ERROR_CODES[number];
+export type SaveExportResult =
+  | {status: 'saved'}
+  | {status: 'cancelled'}
+  | {status: 'error'; error: ExportErrorCode};
 
 export const API_OPERATIONS = [
   'session.get', 'session.login', 'session.logout',
@@ -50,3 +66,4 @@ export const GET_CLIENT_INFO_CHANNEL = 'desktop:get-client-info';
 export const REQUEST_API_CHANNEL = 'desktop:request-api';
 export const OPEN_EXTERNAL_CHANNEL = 'desktop:open-external';
 export const COPY_TEXT_CHANNEL = 'desktop:copy-text';
+export const SAVE_EXPORT_CHANNEL = 'desktop:save-export';

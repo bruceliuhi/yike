@@ -2,6 +2,7 @@ import { ServiceError, type YikeService } from '../../src/renderer/services/cont
 import type { CandidateReviewResult } from '../../src/renderer/domain/candidates';
 import type { ContactVerification, Profile, Session } from '../../src/renderer/domain/models';
 import * as fixtures from './fixtures';
+import { makeVisualManagement } from './management';
 
 export type VisualState = 'populated' | 'empty' | 'error' | 'loading';
 export interface HarnessEvent {sequence: number; operation: string; detail: string}
@@ -32,6 +33,19 @@ export function createVisualService(state: VisualState = 'populated', guest = fa
     if (state === 'error') throw new ServiceError('VISUAL_TEST_ERROR', 'TEST 保存失败；输入保留', 503);
   };
   const service: YikeService = {
+    management: makeVisualManagement(state),
+    outreach: {
+      queue: queue => read('outreach.queue.' + queue, {queue, items: [{
+        id: 'TEST-outreach-' + queue, opportunityId: fixtures.opportunity.id,
+        channel: 'dm' as const, version: 1, queue,
+        title: 'TEST 触达记录 · ' + {confirm: '待确认', reply: '待回复', issues: '需处理'}[queue],
+        recipientLabel: 'TEST 内存对象', content: fixtures.opportunity.dm,
+        updatedAt: fixtures.TEST_TIME, sample: false,
+        message: 'TEST 队列状态示意，未进行真实联系。',
+      }], total: 1}, {queue, items: [], total: 0}),
+      send: async () => {record('outreach.send', 'TEST 拦截发送'); throw new ServiceError('CAPABILITY_UNAVAILABLE', 'TEST 消息没有发送', 501);},
+      reconcile: async request => {record('outreach.reconcile', 'TEST 只读核对；无真实请求'); return {...request, status: 'UNKNOWN'};},
+    },
     session: async () => structuredClone(session),
     loginToken: async () => {record('loginToken', 'TEST 不记录或验证输入凭证'); return session = {authenticated: true, userId: fixtures.TEST_USER};},
     login: async () => {record('login', 'TEST 不发送短信'); return session = {authenticated: true, userId: fixtures.TEST_USER};},

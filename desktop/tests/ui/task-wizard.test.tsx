@@ -101,7 +101,7 @@ beforeEach(() => {
     refreshSession: vi.fn(),
   };
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 function seed(patch: Partial<TaskDraft> = {}): TaskDraft {
   const value = {
     ...newTaskDraft(),
@@ -154,6 +154,116 @@ async function confirmReady() {
 }
 
 describe("task wizard service boundary", () => {
+  it("does not regenerate a saved empty draft on entry or remount", async () => {
+    seed({ terms: [], exclusions: [], savedAt: "2026-09-09T00:00:00Z" });
+    const view = render(<TaskWizardPage />);
+    await screen.findByText("已确认版本 v1");
+    expect(context.service.suggest).not.toHaveBeenCalled();
+    view.unmount();
+    render(<TaskWizardPage />);
+    await screen.findByText("已确认版本 v1");
+    expect(context.service.suggest).not.toHaveBeenCalled();
+  });
+
+  it("does not auto-generate on confirmation or replace manually entered exclusions", async () => {
+    seed({ terms: [], exclusions: [makeTerm("人工排除")] });
+    const view = render(<TaskWizardPage />);
+    await screen.findByText("已确认版本 v1");
+    expect(context.service.suggest).not.toHaveBeenCalled();
+    context.route = parseRoute("#/tasks/new?step=confirm");
+    view.rerender(<TaskWizardPage />);
+    expect(context.service.suggest).not.toHaveBeenCalled();
+  });
+
+  it.each(["connect", "confirm"])("never starts a suggestion request on the %s step even with empty conditions", async step => {
+    seed({ terms: [], exclusions: [] });
+    context.route = parseRoute(`#/tasks/new?step=${step}`);
+    render(<TaskWizardPage />);
+    await waitFor(() => expect(context.service.profiles).toHaveBeenCalledOnce());
+    await act(async () => {});
+    expect(context.service.suggest).not.toHaveBeenCalled();
+  });
+
+  it("saving during an automatic request preserves the saved empty snapshot and rejects late fill", async () => {
+    seed({ terms: [], exclusions: [] });
+    let finish!: (value: Suggestion) => void;
+    let requestId = "";
+    context.service.suggest = vi.fn((_profile, id) => {
+      requestId = id;
+      return new Promise<Suggestion>(resolve => { finish = resolve; });
+    });
+    const view = render(<TaskWizardPage />);
+    await waitFor(() => expect(context.service.suggest).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+    expect(currentDraft().savedAt).toBeTruthy();
+    await act(async () => finish({ profileId: "profile-one", requestId, keywords: ["未保存的晚到词"], exclusions: [] }));
+    expect(currentDraft().terms).toEqual([]);
+    view.unmount();
+    render(<TaskWizardPage />);
+    await screen.findByText("已确认版本 v1");
+    expect(context.service.suggest).toHaveBeenCalledOnce();
+  });
+
+  it("cancels automatic suggestions immediately and ignores a transport that resolves late", async () => {
+    seed({ terms: [], exclusions: [] });
+    let finish!: (value: Suggestion) => void;
+    let signal!: AbortSignal;
+    let requestId = "";
+    context.service.suggest = vi.fn((_profile, id, requestSignal) => {
+      signal = requestSignal!; requestId = id;
+      return new Promise<Suggestion>(resolve => { finish = resolve; });
+    });
+    render(<TaskWizardPage />);
+    await waitFor(() => expect(context.service.suggest).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole("button", { name: "取消生成" }));
+    expect(signal.aborted).toBe(true);
+    expect(screen.getByText(/已取消建议生成/)).toBeTruthy();
+    addKeyword("继续人工填写");
+    await act(async () => finish({ profileId: "profile-one", requestId, keywords: ["已取消的晚到词"], exclusions: [] }));
+    expect(screen.queryByText("已取消的晚到词")).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "更新搜索建议" })).toBeNull();
+    expect(currentDraft().terms.map(t => t.value)).toEqual(["继续人工填写"]);
+  });
+
+  it("times out hanging suggestions and permits an explicit retry without applying late data", async () => {
+    seed();
+    let finish!: (value: Suggestion) => void;
+    let oldId = "";
+    context.service.suggest = vi.fn().mockImplementationOnce((_profile, id) => {
+      oldId = id; return new Promise(resolve => { finish = resolve; });
+    }).mockImplementationOnce(async (profileId, requestId) => ({ profileId, requestId, keywords: ["重试新建议"], exclusions: [] }));
+    render(<TaskWizardPage />);
+    await screen.findByText("已确认版本 v1");
+    vi.useFakeTimers();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "重新生成" })));
+    await act(async () => vi.advanceTimersByTimeAsync(45_000));
+    expect(screen.getByText(/搜索建议生成超时/)).toBeTruthy();
+    expect(currentDraft().terms.map(t => t.value)).toEqual(["人工需求"]);
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "重新生成" })));
+    const dialog = screen.getByRole("dialog", { name: "更新搜索建议" });
+    await act(async () => finish({ profileId: "profile-one", requestId: oldId, keywords: ["超时旧词"], exclusions: [] }));
+    expect(screen.queryByText("超时旧词")).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "合并新增建议" }));
+    expect(currentDraft().terms.map(t => t.value)).toEqual(["人工需求", "重试新建议"]);
+  });
+
+  it.each(["ai", "manual"] as const)("retains %s condition origin after profile changes through the final summary", async (origin) => {
+    seed({ terms: [makeTerm("原画像条件", origin)], suggestionProfile: origin === "ai" ? "profile-one" : null });
+    const view = render(<TaskWizardPage />);
+    await screen.findByText("已确认版本 v1");
+    fireEvent.change(screen.getByRole("combobox", { name: "业务画像" }), { target: { value: "profile-two" } });
+    expect(screen.getByText(/当前搜索条件仍来自「测试服务一 · v1」/)).toBeTruthy();
+    expect(currentDraft().terms.map(t => t.value)).toEqual(["原画像条件"]);
+    expect(context.service.suggest).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "下一步：连接平台" }));
+    followNavigation(view);
+    fireEvent.click(screen.getByRole("button", { name: "下一步：确认任务" }));
+    followNavigation(view);
+    expect(screen.getByText(/当前搜索条件仍来自「测试服务一 · v1」/)).toBeTruthy();
+    expect(screen.getByText("原画像条件")).toBeTruthy();
+    expect(context.service.startTask).not.toHaveBeenCalled();
+  });
+
   it("keeps manual edits while a delayed automatic suggestion waits for explicit merge", async () => {
     seed({ terms: [], exclusions: [] });
     let resolve!: (value: Suggestion) => void;

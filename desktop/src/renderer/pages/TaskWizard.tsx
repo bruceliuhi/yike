@@ -8,7 +8,8 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { useApp } from "../app/context";
-import { useAction, useResource } from "../app/hooks";
+import { useAction, useLocalDraft, useResource } from "../app/hooks";
+import { boundedRequest, RequestCancelled, SUGGESTION_TIMEOUT_MS } from "../app/boundedRequest";
 import { useOperationLedger } from "../app/operationLedger";
 import { useTaskDraft, useTaskLibrary } from "../app/taskDraft";
 import {
@@ -81,6 +82,11 @@ export function TaskWizardPage() {
     route.query.get("mode") === "monitor" ? "monitor" : "once",
   );
   const [, setLibrary] = useTaskLibrary(session.userId);
+  const [manualConditionOrigin, setManualConditionOrigin] = useLocalDraft<string | null>(
+    `condition-origin.${session.userId || "guest"}.${draft.id}`,
+    null,
+    (value) => value === null || typeof value === "string",
+  );
   const step =
     route.query.get("step") === "confirm"
       ? 3
@@ -119,6 +125,17 @@ export function TaskWizardPage() {
   const selectedProfile = confirmed.find(
     (p) => p.id === draft.profileId && p.version === draft.profileVersion,
   );
+  const conditionsOrigin = draft.suggestionProfile || manualConditionOrigin;
+  const previousSuggestionProfile = profiles.data?.find(
+    (p) => p.id === conditionsOrigin,
+  );
+  const staleConditions = !!conditionsOrigin && conditionsOrigin !== draft.profileId &&
+    (draft.terms.length > 0 || draft.exclusions.length > 0);
+  const conditionsWarning = staleConditions
+    ? `当前搜索条件仍来自「${previousSuggestionProfile
+      ? `${previousSuggestionProfile.fields.service || "业务画像"} · v${previousSuggestionProfile.version}`
+      : "历史画像（当前不可见）"}」，你的修改已保留。请按新画像复核，或重新生成后选择应用方式。`
+    : "";
   const fingerprint = taskFingerprint(draft);
   const blockers = startBlockers(
     draft,
@@ -139,6 +156,9 @@ export function TaskWizardPage() {
     setErrors({});
   };
   const save = () => {
+    requestGeneration.current++;
+    controller.current?.abort();
+    setGenerating(false);
     const snapshot = { ...current.current, savedAt: new Date().toISOString() };
     setDraft(snapshot);
     setLibrary((old) => [snapshot, ...old.filter((t) => t.id !== snapshot.id)]);
@@ -200,7 +220,14 @@ export function TaskWizardPage() {
     setGenerating(false);
     setPreview(null);
     setSuggestionError("");
-  }, [draft.profileId, session.userId]);
+  }, [draft.id, draft.profileId, draft.profileVersion, session.userId, step]);
+  const cancelSuggestion = () => {
+    requestGeneration.current++;
+    controller.current?.abort();
+    setGenerating(false);
+    setPreview(null);
+    setSuggestionError("已取消建议生成，现有条件已保留，可继续手工填写。");
+  };
   const generate = async (automatic = false) => {
     const snapshot = current.current;
     if (!snapshot.profileId) {
@@ -217,14 +244,19 @@ export function TaskWizardPage() {
     setGenerating(true);
     setSuggestionError("");
     try {
-      const result = await service.suggest(
-        snapshot.profileId,
-        requestId,
-        abort.signal,
+      const result = await boundedRequest(
+        signal => service.suggest(snapshot.profileId, requestId, signal),
+        {
+          signal: abort.signal,
+          timeoutMs: SUGGESTION_TIMEOUT_MS,
+          timeoutMessage: "搜索建议生成超时，现有条件已保留。可重试或继续手工填写。",
+        },
       );
       if (
         generation !== requestGeneration.current ||
-        current.current.profileId !== snapshot.profileId
+        current.current.id !== snapshot.id ||
+        current.current.profileId !== snapshot.profileId ||
+        current.current.profileVersion !== snapshot.profileVersion
       )
         return;
       if (
@@ -253,6 +285,7 @@ export function TaskWizardPage() {
     } catch (error) {
       if (
         generation === requestGeneration.current &&
+        !(error instanceof RequestCancelled) &&
         !(error instanceof DOMException && error.name === "AbortError")
       )
         setSuggestionError(errorMessage(error));
@@ -263,14 +296,18 @@ export function TaskWizardPage() {
   useEffect(() => {
     if (
       selectedProfile &&
+      step === 1 &&
+      !draft.savedAt &&
       !draft.suggestionProfile &&
-      lastSuggestion.current !== selectedProfile.id &&
-      !draft.terms.length
+      lastSuggestion.current !== `${draft.id}:${selectedProfile.id}:${selectedProfile.version}` &&
+      !draft.terms.length &&
+      !draft.exclusions.length &&
+      !draft.removed.length
     ) {
-      lastSuggestion.current = selectedProfile.id;
+      lastSuggestion.current = `${draft.id}:${selectedProfile.id}:${selectedProfile.version}`;
       void generate(true);
     }
-  }, [selectedProfile?.id]);
+  }, [draft.id, selectedProfile?.id, selectedProfile?.version, step]);
   const acceptSuggestion = (mode: "append" | "replace_unedited") => {
     if (!preview) return;
     const next = applySuggestion(current.current, preview, mode);
@@ -280,6 +317,7 @@ export function TaskWizardPage() {
       return;
     }
     setDraft(next);
+    setManualConditionOrigin(null);
     setPreview(null);
     setSuggestionError("");
     setVerified(null);
@@ -391,6 +429,7 @@ export function TaskWizardPage() {
           </div>
         ))}
       </div>
+      {conditionsWarning && <Notice tone="warning">{conditionsWarning}</Notice>}
       {step === 1 ? (
         <div className="task-layout">
           <div
@@ -429,10 +468,11 @@ export function TaskWizardPage() {
                     const selected = confirmed.find(
                       (p) => p.id === e.target.value,
                     );
+                    if ((draft.terms.length || draft.exclusions.length) && !conditionsOrigin)
+                      setManualConditionOrigin(draft.profileId || null);
                     update({
                       profileId: selected?.id || "",
                       profileVersion: selected?.version || null,
-                      suggestionProfile: null,
                     });
                   }}
                 >
@@ -465,14 +505,15 @@ export function TaskWizardPage() {
                     <Sparkle size={12} /> AI 建议
                   </Badge>
                 </div>
-                <Button
+                {generating ? <Button variant="ghost" onClick={cancelSuggestion}>
+                  <X />取消生成
+                </Button> : <Button
                   variant="ghost"
-                  loading={generating}
                   onClick={() => void generate()}
                 >
                   <ArrowClockwise />
                   {draft.terms.length ? "重新生成" : "生成建议"}
-                </Button>
+                </Button>}
               </div>
               <Field
                 label="搜索关键词"
@@ -481,7 +522,9 @@ export function TaskWizardPage() {
                 hint={
                   generating
                     ? "正在根据画像生成，当前编辑不会被覆盖。"
-                    : draft.suggestionProfile
+                    : staleConditions
+                      ? "沿用旧画像条件，请按当前画像复核。"
+                      : draft.suggestionProfile
                       ? "建议基于所选画像，可自由修改。"
                       : "确认画像后自动建议，也可手工添加。"
                 }
