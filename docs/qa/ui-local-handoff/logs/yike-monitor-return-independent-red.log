@@ -1,0 +1,32 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+ ❯ tests/ui/task-context-return-independent.test.tsx (4 tests | 2 failed) 166ms
+   × restores the actual platform tab and non-first platform after device inspection 105ms
+   × restores the actual platform tab and non-first platform after connection inspection 29ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/task-context-return-independent.test.tsx > restores the actual platform tab and non-first platform after device inspection
+ FAIL  tests/ui/task-context-return-independent.test.tsx > restores the actual platform tab and non-first platform after connection inspection
+AssertionError: expected 'false' to be 'true' // Object.is equality
+
+Expected: "true"
+Received: "false"
+
+ ❯ tests/ui/task-context-return-independent.test.tsx:70:94
+     68|     context.route = back;
+     69|     render(<TasksPage />);
+     70|     expect((await screen.findByRole("tab", { name: "平台状态" })).getAttri…
+       |                                                                                              ^
+     71|     expect(screen.getByRole("button", { name: "查看小红书状态" }).getAttribut…
+     72|     expect(context.service.taskAction).not.toHaveBeenCalled();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed (4)
+   Start at  03:55:06
+   Duration  1.22s (transform 142ms, setup 0ms, import 780ms, tests 166ms, environment 220ms)
+

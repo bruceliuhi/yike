@@ -1,0 +1,640 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+ × tests/ui/material-local-handoff.test.tsx > 保存首个画像后仍可编辑本机资料，并由人工带入当前画像后再同步 1132ms
+   → Unable to find an element with the text: TEST 首次准备的案例. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m""[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<header[39m
+      [33mclass[39m=[32m"page-heading"[39m
+    [36m>[39m
+      [36m<div>[39m
+        [36m<h1[39m
+          [33mtabindex[39m=[32m"-1"[39m
+        [36m>[39m
+          [0m业务资料[0m
+        [36m</h1>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"page-description"[39m
+        [36m>[39m
+          [0m管理产品介绍与真实案例。[0m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</header>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"tabs"[39m
+      [33mrole[39m=[32m"tablist"[39m
+    [36m>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m业务描述[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"true"[39m
+        [33mclass[39m=[32m"active"[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"0"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m资料与案例[0m
+      [36m</button>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"section-heading"[39m
+    [36m>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"muted"[39m
+      [36m>[39m
+        [0m画像版本 [0m
+        [0m1[0m
+        [0m · 客户空间资料[0m
+      [36m</span>[39m
+      [36m<button[39m
+        [33mclass[39m=[32m"button button-primary "[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33mfill[39m=[32m"currentColor"[39m
+          [33mheight[39m=[32m"1em"[39m
+          [33mviewBox[39m=[32m"0 0 256 256"[39m
+          [33mwidth[39m=[32m"1em"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+        [0m添加资料[0m
+      [36m</button>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"table-scroll material-table"[39m
+    [36m>[39m
+      [36m<table>[39m
+        [36m<thead>[39m
+          [36m<tr>[39m
+            [36m<th>[39m
+              [0m资料名称[0m
+            [36m</th>[39m
+            [36m<th>[39m
+              [0m用途[0m
+            [36m</th>[39m
+            [36m<th>[39m
+              [0m引用范围[0m
+            [36m</th>[39m
+            [36m<th>[39m
+              [0m状态[0m
+            [36m</th>[39m
+            [36m<th>[39m
+              [0m操作[0m
+            [36m</th>[39m
+          [36m</tr>[39m
+        [36m</thead>[39m
+        [36m<tbody />[39m
+      [36m</table>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"empty-state"[39m
+    [36m>[39m
+      [36m<svg[39m
+        [33maria-hidden[39m=[32m"true"[39m
+        [33mclass[39m=[32m"empty-icon"[39m
+        [33mfill[39m=[32m"currentColor"[39m
+        [33mheight[39m=[32m"56"[39m
+        [33mviewBox[39m=[32m"0 0 256 256"[39m
+        [33mwidth[39m=[32m"56"[39m
+        [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+      [36m>[39m
+        [36m<path[39m
+          [33md[39m=[32m"M208,88H152V32Z"[39m
+          [33mopacity[39m=[32m"0.2"[39m
+        [36m/>[39m
+        [36m<path[39m
+          [33md[39m=[32m"M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-45.54-48.85a36.05,36.05,0,1,0-11.31,11.31l11.19,11.2a8,8,0,0,0,11.32-11.32ZM104,148a20,20,0,1,1,20,20A20,20,0,0,1,104,148Z"[39m
+        [36m/>[39m
+      [36m</svg>[39m
+      [36m<h3>[39m
+        [0m暂无资料[0m
+      [36m</h3>[39m
+      [36m<p>[39m
+        [0m添加产品介绍或真实案例。[0m
+      [36m</p>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33maria-live[39m=[32m"polite"[39m
+      [33mclass[39m=[32m"toast-stack"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"toast toast-success"[39m
+      [36m>[39m
+        [0m已保存本机资料草稿，尚未同步到客户服务。[0m
+        [36m<button[39m
+          [33maria-label[39m=[32m"关闭提示"[39m
+        [36m>[39m
+          [0m关闭[0m
+        [36m</button>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"toast toast-success"[39m
+      [36m>[39m
+        [0m画像草稿已保存。[0m
+        [36m<button[39m
+          [33maria-label[39m=[32m"关闭提示"[39m
+        [36m>[39m
+          [0m关闭[0m
+        [36m</button>[39m
+      [36m</div>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m""[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<header[39m
+      [33mclass[39m=[32m"page-heading"[39m
+    [36m>[39m
+      [36m<div>[39m
+        [36m<h1[39m
+          [33mtabindex[39m=[32m"-1"[39m
+        [36m>[39m
+          [0m业务资料[0m
+        [36m</h1>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"page-description"[39m
+        [36m>[39m
+          [0m管理产品介绍与真实案例。[0m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</header>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"tabs"[39m
+      [33mrole[39m=[32m"tablist"[39m
+    [36m>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m业务描述[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"true"[39m
+        [33mclass[39m=[32m"active"[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"0"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m资料与案例[0m
+      [36m</button>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"section-heading"[39m
+    [36m>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"muted"[39m
+      [36m>[39m
+        [0m画像版本 [0m
+        [0m1[0m
+        [0m · 客户空间资料[0m
+      [36m</span>[39m
+      [36m<button[39m
+        [33mclass[39m=[32m"button button-primary "[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33mfill[39m=[32m"currentColor"[39m
+          [33mheight[39m=[32m"1em"[39m
+          [33mviewBox[39m=[32m"0 0 256 256"[39m
+          [33mwidth[39m=[32m"1em"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+        [0m添加资料[0m
+      [36m</button>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"table-scroll material-table"[39m
+    [36m>[39m
+      [36m<table>[39m
+        [36m<thead>[39m
+          [36m<tr>[39m
+            [36m<th>[39m
+              [0m资料名称[0m
+            [36m</th>[39m
+            [36m<th>[39m
+              [0m用途[0m
+            [36m</th>[39m
+            [36m<th>[39m
+              [0m引用范围[0m
+            [36m</th>[39m
+            [36m<th>[39m
+              [0m状态[0m
+            [36m</th>[39m
+            [36m<th>[39m
+              [0m操作[0m
+            [36m</th>[39m
+          [36m</tr>[39m
+        [36m</thead>[39m
+        [36m<tbody />[39m
+      [36m</table>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"empty-state"[39m
+    [36m>[39m
+      [36m<svg[39m
+        [33maria-hidden[39m=[32m"true"[39m
+        [33mclass[39m=[32m"empty-icon"[39m
+        [33mfill[39m=[32m"currentColor"[39m
+        [33mheight[39m=[32m"56"[39m
+        [33mviewBox[39m=[32m"0 0 256 256"[39m
+        [33mwidth[39m=[32m"56"[39m
+        [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+      [36m>[39m
+        [36m<path[39m
+          [33md[39m=[32m"M208,88H152V32Z"[39m
+          [33mopacity[39m=[32m"0.2"[39m
+        [36m/>[39m
+        [36m<path[39m
+          [33md[39m=[32m"M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-45.54-48.85a36.05,36.05,0,1,0-11.31,11.31l11.19,11.2a8,8,0,0,0,11.32-11.32ZM104,148a20,20,0,1,1,20,20A20,20,0,0,1,104,148Z"[39m
+        [36m/>[39m
+      [36m</svg>[39m
+      [36m<h3>[39m
+        [0m暂无资料[0m
+      [36m</h3>[39m
+      [36m<p>[39m
+        [0m添加产品介绍或真实案例。[0m
+      [36m</p>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33maria-live[39m=[32m"polite"[39m
+      [33mclass[39m=[32m"toast-stack"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"toast toast-success"[39m
+      [36m>[39m
+        [0m已保存本机资料草稿，尚未同步到客户服务。[0m
+        [36m<button[39m
+          [33maria-label[39m=[32m"关闭提示"[39m
+        [36m>[39m
+          [0m关闭[0m
+        [36m</button>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"toast toast-success"[39m
+      [36m>[39m
+        [0m画像草稿已保存。[0m
+        [36m<button[39m
+          [33maria-label[39m=[32m"关闭提示"[39m
+        [36m>[39m
+          [0m关闭[0m
+        [36m</button>[39m
+      [36m</div>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/material-local-handoff.test.tsx > 保存首个画像后仍可编辑本机资料，并由人工带入当前画像后再同步
+TestingLibraryElementError: Unable to find an element with the text: TEST 首次准备的案例. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m""[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<header[39m
+      [33mclass[39m=[32m"page-heading"[39m
+    [36m>[39m
+      [36m<div>[39m
+        [36m<h1[39m
+          [33mtabindex[39m=[32m"-1"[39m
+        [36m>[39m
+          [0m业务资料[0m
+        [36m</h1>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"page-description"[39m
+        [36m>[39m
+          [0m管理产品介绍与真实案例。[0m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</header>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"tabs"[39m
+      [33mrole[39m=[32m"tablist"[39m
+    [36m>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m业务描述[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"true"[39m
+        [33mclass[39m=[32m"active"[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"0"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m资料与案例[0m
+      [36m</button>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"section-heading"[39m
+    [36m>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"muted"[39m
+      [36m>[39m
+        [0m画像版本 [0m
+        [0m1[0m
+        [0m · 客户空间资料[0m
+      [36m</span>[39m
+      [36m<button[39m
+        [33mclass[39m=[32m"button button-primary "[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33mfill[39m=[32m"currentColor"[39m
+          [33mheight[39m=[32m"1em"[39m
+          [33mviewBox[39m=[32m"0 0 256 256"[39m
+          [33mwidth[39m=[32m"1em"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+        [0m添加资料[0m
+      [36m</button>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"table-scroll material-table"[39m
+    [36m>[39m
+      [36m<table>[39m
+        [36m<thead>[39m
+          [36m<tr>[39m
+            [36m<th>[39m
+              [0m资料名称[0m
+            [36m</th>[39m
+            [36m<th>[39m
+              [0m用途[0m
+            [36m</th>[39m
+            [36m<th>[39m
+              [0m引用范围[0m
+            [36m</th>[39m
+            [36m<th>[39m
+              [0m状态[0m
+            [36m</th>[39m
+            [36m<th>[39m
+              [0m操作[0m
+            [36m</th>[39m
+          [36m</tr>[39m
+        [36m</thead>[39m
+        [36m<tbody />[39m
+      [36m</table>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"empty-state"[39m
+    [36m>[39m
+      [36m<svg[39m
+        [33maria-hidden[39m=[32m"true"[39m
+        [33mclass[39m=[32m"empty-icon"[39m
+        [33mfill[39m=[32m"currentColor"[39m
+        [33mheight[39m=[32m"56"[39m
+        [33mviewBox[39m=[32m"0 0 256 256"[39m
+        [33mwidth[39m=[32m"56"[39m
+        [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+      [36m>[39m
+        [36m<path[39m
+          [33md[39m=[32m"M208,88H152V32Z"[39m
+          [33mopacity[39m=[32m"0.2"[39m
+        [36m/>[39m
+        [36m<path[39m
+          [33md[39m=[32m"M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-45.54-48.85a36.05,36.05,0,1,0-11.31,11.31l11.19,11.2a8,8,0,0,0,11.32-11.32ZM104,148a20,20,0,1,1,20,20A20,20,0,0,1,104,148Z"[39m
+        [36m/>[39m
+      [36m</svg>[39m
+      [36m<h3>[39m
+        [0m暂无资料[0m
+      [36m</h3>[39m
+      [36m<p>[39m
+        [0m添加产品介绍或真实案例。[0m
+      [36m</p>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33maria-live[39m=[32m"polite"[39m
+      [33mclass[39m=[32m"toast-stack"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"toast toast-success"[39m
+      [36m>[39m
+        [0m已保存本机资料草稿，尚未同步到客户服务。[0m
+        [36m<button[39m
+          [33maria-label[39m=[32m"关闭提示"[39m
+        [36m>[39m
+          [0m关闭[0m
+        [36m</button>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"toast toast-success"[39m
+      [36m>[39m
+        [0m画像草稿已保存。[0m
+        [36m<button[39m
+          [33maria-label[39m=[32m"关闭提示"[39m
+        [36m>[39m
+          [0m关闭[0m
+        [36m</button>[39m
+      [36m</div>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m""[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<header[39m
+      [33mclass[39m=[32m"page-heading"[39m
+    [36m>[39m
+      [36m<div>[39m
+        [36m<h1[39m
+          [33mtabindex[39m=[32m"-1"[39m
+        [36m>[39m
+          [0m业务资料[0m
+        [36m</h1>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"page-description"[39m
+        [36m>[39m
+          [0m管理产品介绍与真实案例。[0m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</header>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"tabs"[39m
+      [33mrole[39m=[32m"tablist"[39m
+    [36m>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m业务描述[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"true"[39m
+        [33mclass[39m=[32m"active"[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"0"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m资料与案例[0m
+      [36m</button>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"section-heading"[39m
+    [36m>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"muted"[39m
+      [36m>[39m
+        [0m画像版本 [0m
+        [0m1[0m
+        [0m · 客户空间资料[0m
+      [36m</span>[39m
+      [36m<button[39m
+        [33mclass[39m=[32m"button button-primary "[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33mfill[39m=[32m"currentColor"[39m
+          [33mheight[39m=[32m"1em"[39m
+          [33mviewBox[39m=[32m"0 0 256 256"[39m
+          [33mwidth[39m=[32m"1em"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+        [0m添加资料[0m
+      [36m</button>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"table-scroll material-table"[39m
+    [36m>[39m
+      [36m<table>[39m
+        [36m<thead>[39m
+          [36m<tr>[39m
+            [36m<th>[39m
+              [0m资料名称[0m
+            [36m</th>[39m
+            [36m<th>[39m
+              [0m用途[0m
+            [36m</th>[39m
+            [36m<th>[39m
+              [0m引用范围[0m
+            [36m</th>[39m
+            [36m<th>[39m
+              [0m状态[0m
+            [36m</th>[39m
+            [36m<th>[39m
+              [0m操作[0m
+            [36m</th>[39m
+          [36m</tr>[39m
+        [36m</thead>[39m
+        [36m<tbody />[39m
+      [36m</table>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"empty-state"[39m
+    [36m>[39m
+      [36m<svg[39m
+        [33maria-hidden[39m=[32m"true"[39m
+        [33mclass[39m=[32m"empty-icon"[39m
+        [33mfill[39m=[32m"currentColor"[39m
+        [33mheight[39m=[32m"56"[39m
+        [33mviewBox[39m=[32m"0 0 256 256"[39m
+        [33mwidth[39m=[32m"56"[39m
+        [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+      [36m>[39m
+        [36m<path[39m
+          [33md[39m=[32m"M208,88H152V32Z"[39m
+          [33mopacity[39m=[32m"0.2"[39m
+        [36m/>[39m
+        [36m<path[39m
+          [33md[39m=[32m"M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-45.54-48.85a36.05,36.05,0,1,0-11.31,11.31l11.19,11.2a8,8,0,0,0,11.32-11.32ZM104,148a20,20,0,1,1,20,20A20,20,0,0,1,104,148Z"[39m
+        [36m/>[39m
+      [36m</svg>[39m
+      [36m<h3>[39m
+        [0m暂无资料[0m
+      [36m</h3>[39m
+      [36m<p>[39m
+        [0m添加产品介绍或真实案例。[0m
+      [36m</p>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33maria-live[39m=[32m"polite"[39m
+      [33mclass[39m=[32m"toast-stack"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"toast toast-success"[39m
+      [36m>[39m
+        [0m已保存本机资料草稿，尚未同步到客户服务。[0m
+        [36m<button[39m
+          [33maria-label[39m=[32m"关闭提示"[39m
+        [36m>[39m
+          [0m关闭[0m
+        [36m</button>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"toast toast-success"[39m
+      [36m>[39m
+        [0m画像草稿已保存。[0m
+        [36m<button[39m
+          [33maria-label[39m=[32m"关闭提示"[39m
+        [36m>[39m
+          [0m关闭[0m
+        [36m</button>[39m
+      [36m</div>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ waitForWrapper node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ tests/ui/material-local-handoff.test.tsx:122:34
+    120|
+    121|   // The new customer workspace must not hide previously saved local m…
+    122|   const localName = await screen.findByText("TEST 首次准备的案例");
+       |                                  ^
+    123|   const localSection = localName.closest("details");
+    124|   if (localSection && !localSection.open)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  03:48:32
+   Duration  2.10s (transform 88ms, setup 0ms, import 688ms, tests 1.13s, environment 220ms)
+

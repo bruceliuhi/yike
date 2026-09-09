@@ -551,19 +551,31 @@ describe("P12 durable draft save recovery", () => {
   it("times out legacy saving and cannot re-save after reopening or apply late success", async () => {
     context.service.contactDrafts = undefined;
     let resolve!: () => void;
-    vi.mocked(context.service.saveContact).mockImplementation(
-      () =>
-        new Promise((done) => {
-          resolve = done;
-        }),
-    );
+    let started!: () => void;
+    const requestStarted = new Promise<void>((done) => {
+      started = done;
+    });
+    vi.mocked(context.service.saveContact).mockImplementation(() => {
+      started();
+      return new Promise((done) => {
+        resolve = done;
+      });
+    });
     const view = await mount();
     vi.useFakeTimers();
-    await act(async () =>
-      fireEvent.click(screen.getByRole("button", { name: "保存草稿" })),
-    );
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(30_001);
+      fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+      // The real WebCrypto digest must finish before the save timeout begins.
+      await requestStarted;
+    });
+    expect(context.service.saveContact).toHaveBeenCalledOnce();
+    expect(Object.values(stored())).toEqual(["PENDING"]);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(29_999);
+    });
+    expect(screen.queryByText(/原同步接口暂不支持请求核对/)).toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2);
     });
     expect(screen.getByText(/原同步接口暂不支持请求核对/)).toBeTruthy();
     expect(Object.values(stored())).toEqual(["PENDING"]);

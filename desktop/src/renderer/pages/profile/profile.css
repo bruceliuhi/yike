@@ -6,6 +6,15 @@
   display: grid;
   gap: 18px;
 }
+.local-material-drafts {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border, #e8edf3);
+}
+.local-material-drafts summary {
+  cursor: pointer;
+  font-weight: 600;
+}
 .material-table td small {
   display: block;
   max-width: 280px;

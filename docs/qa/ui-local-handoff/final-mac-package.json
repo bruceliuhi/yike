@@ -1,0 +1,12 @@
+{
+  "candidate": "fcae33e62f77d38208a0b3eaf97028d337000acc",
+  "buildSource": "/tmp/yike-local-handoff-release-fcae33e",
+  "trackedDesktopInputs": 342,
+  "allInputsMatchCommit": true,
+  "app": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/local-handoff-fcae33e/意客AI.app",
+  "asarSha256": "6ef0d95e89d0f7f3653d3f21eb35d8884d60f876f2778b36857be723f80874e0",
+  "zip": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/local-handoff-fcae33e/意客AI-darwin-arm64-0.2.0.zip",
+  "zipSha256": "5ff63633c3b32178a4d982b6b50ba18e8f154280b8d716dcf98a09e4d54259ea",
+  "zipAsarSha256": "6ef0d95e89d0f7f3653d3f21eb35d8884d60f876f2778b36857be723f80874e0",
+  "scope": "Mac arm64 build and isolated packaged smoke; no current visible native/browser acceptance because Mac locked. Windows and actual service acceptance remain separate."
+}

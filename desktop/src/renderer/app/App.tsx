@@ -277,9 +277,13 @@ export function parentRoute(route: AppRoute): string {
     query.delete("add");
     return "/followups" + (query.size ? "?" + query : "");
   }
-  if (route.path === "/connections" && route.query.has("connect"))
+  if (route.path === "/connections")
+    return safeReturnTo(
+      route.query.get("returnTo"),
+      route.query.has("connect") ? "/connections" : "/workbench",
+    );
+  if (route.path === "/settings")
     return safeReturnTo(route.query.get("returnTo"), "/connections");
-  if (route.path === "/settings") return "/connections";
   return "/workbench";
 }
 export function semanticRouteKey(route: AppRoute): string {

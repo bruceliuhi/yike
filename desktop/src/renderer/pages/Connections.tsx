@@ -55,6 +55,7 @@ export function ConnectionsPage() {
   );
   const modalOpen = route.query.has("connect");
   const returnTo = safeReturnTo(route.query.get("returnTo"));
+  const caller = safeReturnTo(route.query.get("returnTo"), "");
   const [platformChoice, setPlatformChoice] = useState<PlatformId>("xhs");
   const [state, setState] = useState<ConnectingState>("idle");
   const [error, setError] = useState("");
@@ -195,7 +196,10 @@ export function ConnectionsPage() {
           ]}
           active="connections"
           onChange={(key) => {
-            if (key === "settings") navigate("/settings");
+            if (key === "settings")
+              navigate(
+                caller ? `/settings?returnTo=${encodeURIComponent(caller)}` : "/settings",
+              );
           }}
         />
         <Button variant="primary" onClick={() => openPlatform("select")}>

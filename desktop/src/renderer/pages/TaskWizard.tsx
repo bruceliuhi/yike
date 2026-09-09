@@ -35,6 +35,7 @@ import {
   taskFingerprint,
 } from "../domain/task";
 import { errorMessage } from "../services/contracts";
+import { routeHref } from "../domain/routes";
 import {
   configurationHash,
   matchesCreatedTask,
@@ -1095,8 +1096,8 @@ export function TaskWizardPage() {
                         onClick={() =>
                           navigate(
                             id === "web"
-                              ? "/connections"
-                              : `/connections?connect=${id}&returnTo=${encodeURIComponent(stepPath(2))}`,
+                              ? `/connections?returnTo=${encodeURIComponent(routeHref(route))}`
+                              : `/connections?connect=${id}&returnTo=${encodeURIComponent(routeHref(route))}`,
                           )
                         }
                       >

@@ -1,0 +1,18 @@
+{
+  "packageCandidate": "fcae33e62f77d38208a0b3eaf97028d337000acc",
+  "finalTestCandidate": "d816a9d5eb56ed9dd178fc42937bbd47d8227a7c",
+  "onlyChangedPath": [
+    "desktop/tests/ui/r4-short-coach.test.tsx"
+  ],
+  "productAndBuildInputsUnchanged": true,
+  "comparedPaths": [
+    "desktop/src",
+    "desktop/assets",
+    "desktop/forge.config.ts",
+    "desktop/vite.renderer.config.ts",
+    "desktop/vite.main.config.ts",
+    "desktop/vite.preload.config.ts",
+    "desktop/package.json",
+    "desktop/package-lock.json"
+  ]
+}

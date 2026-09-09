@@ -18,6 +18,7 @@ import {
 
 export function MaterialEditor({
   record,
+  initialInput,
   busy,
   locked,
   error,
@@ -26,6 +27,7 @@ export function MaterialEditor({
   onSave,
 }: {
   record?: Material;
+  initialInput?: MaterialInput;
   busy: boolean;
   locked: boolean;
   error: string;
@@ -34,7 +36,7 @@ export function MaterialEditor({
   onSave: (input: MaterialInput) => void;
 }) {
   const [input, setInput] = useState<MaterialInput>(() =>
-    record
+    initialInput ? { ...initialInput } : record
       ? {
           name: record.name,
           text: record.text,
@@ -137,6 +139,7 @@ export function MaterialEditor({
           </>
         }
       >
+        {initialInput && <Notice>已从本机草稿带入，保存后同步到当前画像；原本机草稿保留。</Notice>}
         <fieldset className="material-fieldset" disabled={busy || locked}>
           <Field label="资料名称" required>
             <input
