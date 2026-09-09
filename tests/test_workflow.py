@@ -10,6 +10,9 @@ from tests.test_scoring import valid_decision
 from tests.support import collect_verified_signal
 
 
+pytestmark = pytest.mark.usefixtures("discovery_clock")
+
+
 class SuccessfulClient:
     provider = "openai-compatible"
     model = "test-model"

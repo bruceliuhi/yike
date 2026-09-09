@@ -11,6 +11,9 @@ from app.workflow import Workflow
 from tests.test_scoring import valid_decision
 
 
+pytestmark = pytest.mark.usefixtures("discovery_clock")
+
+
 INTERVIEW_ANSWERS = {
     "customer_source_and_sales_process": "内容营销进入销售跟进",
     "weekly_lead_volume_and_loss_point": "每周 200 条，首轮筛选丢失最多",
