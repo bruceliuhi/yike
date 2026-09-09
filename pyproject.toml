@@ -32,3 +32,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app", "pilot", "connectors"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"skills/ai-project-lead-research-v1/SKILL.md" = "pilot/_assessment_rules/SKILL.md"
+"skills/ai-project-lead-research-v1/references/qualification-and-evidence.md" = "pilot/_assessment_rules/references/qualification-and-evidence.md"
