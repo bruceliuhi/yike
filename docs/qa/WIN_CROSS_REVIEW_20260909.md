@@ -182,3 +182,50 @@ root独立使用官方PostgreSQL16.15一次性Docker实例（127.0.0.1随机端�
 Node探针只导出公开key/signature，产品测试token经stdin传入；子进程env只留系统/临时目录字段，不继承数据库或服务端密钥。临时服务明确使用仅loopback开发HTTP，不等于生产TLS或私钥落盘验收。工具在 `.runtime/review-device-65d8676.ps1`、`review-device-probe.py`、`review-device-node.mjs`。独立 `windows_bootstrap_fix` 发现原工具stop失败仅警告的P2，root改为失败退出并核对精确容器消失；新ProbeOnly轮再次通过并确认移除，不覆盖第一轮XML。第一次容器亦已独立查无残留。旧POSIX supervisor失败留下的本轮pytest-15子进程经精确命令行/ID核查后终止，未碰其他服务；未删除其测试文件。
 
 正常集成提交 **`f9255603435862d8e8ead60b0357851c8c9e3075`**。独立 `win_contract_readiness` 核对index：Mac19非任务书blob与65d完全一致，desktop与84c完全一致，唯一任务书同时保留双方状态。CodexWin于2026-09-09对**65d中的持钥后端子链限定ACK**，以本次勘误契约为消费说明；父01C仍IN_PROGRESS。尚无连接版本/执行租约/领取续租取消/结果提交授权、02B上传或09D私钥安全存储，不据此激活平台capability；真实安装、收发、生产和客户UAT仍未验收，Goal继续ACTIVE。
+
+## 10. 最新Mac前端交叉审核及Windows重新构建
+
+追加接收远端 **`9e27723b4513d184438da44628017c237e895fe0`**，其中前端候选 **`58c8a7d3a8743f5f2eb9590e93ba8c2c66751fd9`**，Mac构建基线b89df6c及其最终整合证据见[UI验收](ui-final-acceptance/REVIEW.md)。Win冻结detached副本独立检查，不把Mac的626/21、20页截图、120视口记录称为本机实测，也不沿用旧84c的570项作为新UI构建结果。
+
+`win_contract_readiness` 独立审核P07原请求/摘要持久保护、P16断连状态机及身份切换；`windows_bootstrap_fix` 只读辅审P10四锚点事实、期限/导出、TermEditor/client和视觉入口隔离，范围内无新增P1/P2。默认候选服务不可用、断连接口无服务端原子账号版本/请求查询、本机ledger非跨设备幂等等限制保留；此为前端切片接收，不是这些后台功能上线。
+
+root在合并内容上实际执行：UI新增相关10文件 **99 passed / 6.81s**（exec4e835f），Python UI/session/identity/device/candidate五文件 **239 passed / 1.08s**（exec62feb6），TypeScript检查exit0（570a42），secret scan clean（684449）。不同集合不相加。后端/迁移/依赖锁与65d无变化，沿用第9节版本绑定的真实PG结果而非重报一次全量。
+
+正常合并提交 **`4454a453d09b7e83d48c16b5650ad8a486466d32`**，亲本d027d77和9e27723。独立`supplychain_readiness`核对合并index PASS：Mac全部UI和证据保留，desktop相对9e仅多Win已审runtime隔离测试；三个文档冲突保留Mac925/962历史、最新05A行与Win01C限定ACK/09证据。两文首段明确历史时点，不把旧“未接收”覆盖新ACK。R4仍是`PROPOSAL_PENDING_CONFIRMATION`，不批准新实现或改动V0.2 Goal。
+
+root从干净4454a45执行完整`desktop/scripts/build-windows.ps1`（session13080）：Windows11 x64，Node24.19.0/npm11.6.2，报告`dirty=false`；**61文件 / 647 passed / 2明确架构skipped**，68.40s（控制台chunkd7bde3）。9自动阶段全部PASSED、exit0（最终chunk468b42），含锁定安装、类型检查、原生会话传输、Squirrel、32项ASAR资源校验和实际包内main/preload/renderer冒烟。包内测试仍按第7节隔离替代对话框，不能当人工安装/可见流程通过。
+
+| 当前产物或报告 | SHA-256 |
+|---|---|
+| `desktop/out/windows-evidence/2026-09-09T12-24-49-635Z-617145af/windows-build.json` | `5ebf191addd13ee26d70137d1afbda45748a113775f2261f6277fe5d7ccb741e` |
+| `desktop/out/意客AI-win32-x64/resources/app.asar`，1615399字节 | `6f22e47ff71220c842cbc50d36bca0b81799d10971ec91836dd4dde43bea85a0` |
+| `desktop/out/make/squirrel.windows/x64/YikeAI-Setup.exe`，146782208字节 | `17a01bc93eb86d8933345179f47a5fb2d7d292524a16c05120a5580ef9cf1078` |
+
+额外只读检查实际新ASAR 42条目/24文本条目：无tests目录；3个已在RecoveryControls原文确认存在的TEST控制标记，在包内均无匹配（exece96bc7）。此为指定路径/标记检查，与独立源码隔离审核相互补充，不冒充全部模块图验证。安装包Authenticode实际`NotSigned`（exec4cb10f）。同目录人工表11项仍UNTESTED，17 high及已有依赖/构建弃用警告保留。
+
+范围`git diff --check`有6个原始UI QA日志尾空行/尾空格，逐一确认与远端原始blob相同；排除这6份原始日志后代码/文档差异检查通过。不改写日志以制造全范围clean；此前失败报告保持原样。05A/09及整体产品未DONE，真实业务、人工安装/更新/缩放、生产与客户UAT另验。
+
+## 11. 54个既有Windows失败的只读分类
+
+`windows_bootstrap_fix` 结合第9节全量XML与冻结65d源码分类（`supplychain_readiness`辅核shell入口）；相关实现至4454a45无差异。本次只读分析未复跑/修复这54项，不把“旧失败”或平台差异一律解释为可忽略。
+
+| 共同阻塞或环境假设 | 数量 | 证据与下一步边界 |
+|---|---:|---|
+| 私有目录精确POSIX权限门禁 | 27 | `app/collector.py:716` 的chmod/700检查，失败由362处映射；阻止后续运行时验证/子进程启动。CLI/collector/D03多项缺文件或未触发中断是下游表现，不能称安全隔离已验证；XML未保留底层异常，不保证只改权限后27项全绿。Windows需实际ACL方案 |
+| 取消/超时进程树 | 2 | `app/collector.py:135` 直接依赖os.killpg，Windows无此分支；测试亦含POSIX假设。需Windows真实子孙进程清理证据，不能仅kill父进程或skip |
+| 锁定补丁checkout字节改变 | 1 | `tests/test_collector.py:508`；实际i/lf w/crlf，原字节摘要不等于lock，仅在内存恢复LF后精确匹配。建议限定.gitattributes及真实autocrlf检出回归，不改锁摘要、不放宽校验 |
+| 原生直接执行.sh | 11 | `tests/test_vendor_packaging.py:38` 一类WinError193；尚未运行包装器业务逻辑 |
+| PATH选择不可用WSL Bash | 10 | backup 2项、CP06 8项，缺/bin/bash；服务端Linux流程仍需在适用环境实际验收，不能记业务通过 |
+| 创建symlink缺特权 | 3 | collector 1项、vendor 2项，fixture阶段WinError1314；未验证产品重定向防护，需明确能力条件及Windows重解析点反例 |
+
+合计54。采集器测试使用旧SQLite实验路径，暴露真实兼容缺口但不是PostgreSQL设备持钥新增回归。原始XML摘要和908/54结果仍以第9节为准，不将分类作为关闭V02-10E或发行门禁的证据。
+
+## 12. 额外确认的备份完整性P1：未修复，阻断CP-06放行
+
+只读分类中`supplychain_readiness`发现，`windows_bootstrap_fix`交叉确认：`scripts/backup_pilot.sh:54`及`restore_pilot.sh:50`调用`openssl dgst -sha256 -mac HMAC -macopt "key:file:$passphrase_file"`。该参数实际将`file:`加文件路径的字符串作为HMAC密钥，而不是读取秘密文件内容。AES加密另用`enc -pass file:...`，本发现不代表明文已经泄露，但现有侧车不能提供所宣称的秘密密钥认证。
+
+root独立使用本地Git OpenSSL、固定TEST消息及根本不存在的`/TEST-NONEXISTENT-PATH/backup-passphrase`进行最小反例：命令exit0，输出严格等于Python标准库以字面`file:/TEST-NONEXISTENT-PATH/backup-passphrase`为key计算的HMAC-SHA256（exec5cc3ac）。独立`supplychain_readiness`另用OpenSSL3.0.16和.NET标准HMAC复现同类不存在路径反例（exec8af699）。均未读取真实秘密/备份或访问数据库。知道或猜到路径者可对改变后的密文重算相同方案的侧车，不需要知道加密口令即可伪造这层MAC。
+
+这是4454a45继承的既有脚本问题，不是设备/UI新增回归，也不是54个Windows入口失败直接证明的结果。当前两个backup测试只验证生成sidecar及不重算MAC的简单尾部篡改，未覆盖秘密内容绑定、换路径恢复或路径密钥伪造；原通过数不能将本项关闭。**状态：P1已复现、修复未实现，CP-06备份恢复认证门禁不通过。**
+
+下一优先级：测试先覆盖上述反例，再独立审核不将秘密放入命令行/日志的版本化认证实现及历史备份处理规则；不得自动接受旧的路径MAC当作可信备份，不删除既有备份、不自动恢复生产库。修复后另需适用Linux环境的真实脚本/隔离PG恢复演练，本轮Windows桌面绿色构建不替代此验证。

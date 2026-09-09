@@ -121,6 +121,8 @@ CodexiMac并行主线集成快照（2026-09-09）：正常合并最新 main `f7e
 
 CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员连接隔离、HTTPS、日志、备份恢复、回滚、真实手机及部署 SHA 证据。它不能替代多平台或收发验收，V0.2 功能完成也不能替代 CP-06。私有客户环境交付同样验收实际服务端环境，不能以没有公开域名为由省略隔离和恢复检查。
 
+2026-09-09 Win交叉审核确认CP-06既有P1：backup/restore脚本HMAC使用路径字面值而非秘密文件内容，独立本地合成反例已复现；**未修复，备份认证验收不通过**。优先补秘密内容绑定/换路径/伪造反例、版本化安全实现与历史备份处理说明，再独立审核及隔离Linux/PG演练；不删除或自动恢复现有备份。证据及适用范围见[Win复核第12节](qa/WIN_CROSS_REVIEW_20260909.md)，UI/持钥限定ACK不覆盖此门禁。
+
 报价与试用范围以已经验证的能力为准；不承诺未测平台、自动成交、固定线索量或无限触达。文档审核通过只证明本文件可用，不能记为上表任一实现完成。
 
 共同首发 Goal 的完成还要求通过[产品计划第 7 节](V02_COMMERCIAL_RELEASE_PLAN.md)的跨行业、体验、价值和可靠性交付验收；本节 M3 不单独证明该 Goal 完成。样本不足或外部条件缺失明确保留，不能默认为通过；需要改变承诺范围时向用户提出具体决策，不自行降低标准。
@@ -142,4 +144,4 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 | 子卡 / 实际负责人 | 状态 / 当前切片 | 路径、基线与执行位置 | 接收、验证及下一动作 |
 |---|---|---|---|
 | V02-02C / CodexWin | IN_PROGRESS；纯解析切片已完成并审核 | 基线 `022b0fb`；实现 `e368b5a`，随 `bea5c7d` 在main；`connectors/`、旧兼容入口、测试和wheel清单；[计划](superpowers/plans/2026-09-09-win-source-parsers.md) | RED/GREEN后76 passed/42 deselected，wheel隔离导入与双独立审核PASS；[Win记录](qa/WIN_CROSS_REVIEW_20260909.md)。CodexiMac限定接收保行为解析切片（e4d1695、Mac877通过）；Win现已ACK02A更正d14594f，下一步从原始字段适配，旧trim/必填作者不满足新契约。不是整卡/真实平台完成 |
-| V02-09A 自动构建验证 / CodexWin | IN_PROGRESS；夹具隔离审核通过，自动链通过，发行依赖风险仍在 | 预检 `e01e99a`、staging `e9983ed`、runtime `0b79a68`、ASAR `3c16fac`、夹具 `84c4b6f`；[计划](superpowers/plans/2026-09-09-win-runtime-fixture-isolation.md) | 干净84c4b6f全链570 passed/2明确skipped，9阶段全部通过；root相关87项/独立runtime34项通过（不同集合不相加），新夹具/进程无遗留；旧失败保留。人工UNTESTED及17 high未关闭，不以自动链通过放行发行 |
+| V02-09A 自动构建验证 / CodexWin | IN_PROGRESS；夹具隔离审核通过，最新UI自动链通过，发行依赖风险仍在 | 预检 `e01e99a`、staging `e9983ed`、runtime `0b79a68`、ASAR `3c16fac`、夹具 `84c4b6f`；最新UI整合 `4454a45`；[Win复核第10节](qa/WIN_CROSS_REVIEW_20260909.md) | 干净4454a45全链61文件647 passed/2明确架构skipped，9阶段通过，实际新包内冒烟通过；前次84c 570/2及旧失败分别保留。人工11项UNTESTED、17 high及实际NotSigned未关闭，不以自动链通过放行发行 |
