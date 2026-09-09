@@ -1,7 +1,7 @@
 # V02-01A：设备、连接登记与报告事件契约
 
 负责人：CodexiMac。基线：`15ddb7039e385c9adbda04bfd553bf8d222e6308`。
-状态：历史子项 `da2a2f2` 已获本地独立复审 PASS；组合修复 `222119e` 已在 `5d3373d9b7fa6cb74f0a9f6241bbb282e4db2514` 合入远端 main，仍待实际 CodexWin 接收；不是 V02-01 完成或真实平台连接证明。最新回归见[组合验收](../qa/IDENTITY_INTEGRATION_20260909.md)。
+接收版本：原 `da2a2f2` 登记实现经后续权限升级与事件名称文档修正，由 CodexWin 接收 `f42ea909` 并集成 `bea5c7d`；验证与当前状态见[唯一任务书](../V02_IMPLEMENTATION_TASKBOOK.md)。不是 V02-01 完成或真实平台连接证明。
 
 ## 可用接口
 
@@ -23,7 +23,7 @@
 
 ## 报告事件
 
-- STARTED/CANCELLED/CONNECTION_EXPIRED/CONNECTION_REVOKED 的 payload 只能为空对象。
+- COLLECTION_STARTED/COLLECTION_CANCELLED/CONNECTION_EXPIRED/CONNECTION_REVOKED 的 payload 只能为空对象。
 - COLLECTION_PROGRESS/COLLECTION_SUCCEEDED 仅接收 `raw_count`、`unique_count`，为 0～2147483647 的整数，拒绝布尔、字符串、嵌套对象和自由文本。
 - COLLECTION_FAILED 仅接收固定 `error_code` 枚举，见 `pilot/identity.py`；禁止错误原文、异常对象或额外字段。
 - 事件要求 ACTIVE 设备与已核验的 CONNECTED 连接，当前注册接口不能赋予此状态。提供 task_id 时，服务端及数据库均检查同租户任务存在。
