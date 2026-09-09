@@ -65,6 +65,8 @@ class SearchSuggestionModel:
 
 原预留会话的revocation_key与expires_at仅内部持久绑定（不存token、不出现在回执）。finish必须使用该原会话且仍有效；同用户重新登录可以读取/重放历史请求，但不得借新会话完成旧已撤销会话的PENDING。无需在事务外读取会话元数据或引入跨会话锁顺序。
 
+2026-09-09纯持久层已按`32c70dd`交付，最终98相关测试通过、独立规格和代码/架构/质量PASS；[证据及范围](../../qa/V02-04B_SEARCH_BACKEND_WIN_REVIEW.md)。下方含后台/模型调度的复合条目保持未完成，不能因store可用就勾选整个服务链。110默认注册仍由Mac串行接收，Mac已认领111执行。
+
 - [ ] 严格请求包含request_id/draft_id/profile_version_id规范UUID、draft_revision非负有界整数；不接受tenant、用户、description、model、费用或自由URL。同用户request_id固定绑定完整正文摘要；同ID不同正文409，同ID原结果可读取不再调用。用户切换互不读取，tenant由SessionRegistry解析。
 - [ ] 请求表存受认证tenant/user/request、请求摘要、画像版本/内容摘要、草稿版本、PENDING/SUCCEEDED/FAILED/UNKNOWN、规则/模型版本、已验证结果/usage、时间和固定错误码。强制tenant+user RLS，应用仅需要SELECT/INSERT/UPDATE，无DELETE；grant拒绝特权/owner。仅合成独立PG，不能用客户库。
 - [ ] 客户级配额不能在user RLS请求表聚合（会漏掉他用户）。同迁移另建tenant-only FORCE RLS的`pilot_search_suggestion_quota_events`，仅tenant_id/随机quota_event_id/created_at，无用户/请求正文/画像字段；应用仅SELECT/INSERT。每次新预留与单条配额事件同事务提交，在11001 tenant锁下以数据库墙钟计算滚动一小时及两秒间隔；所有状态都占用，重放不新增。
@@ -75,6 +77,19 @@ class SearchSuggestionModel:
 - [ ] 外部调用在事务外；完成短事务重新核对会话、画像版本和原请求，晚到结果不覆盖其他请求/新画像。记录成功/明确失败/未知；进程中断遗留PENDING只查询，不用同ID再次执行。模型调用后会话已撤销时不给结果，原请求保持待核对，不能以异常回滚恢复调用额度。
 - [ ] 查询返回原绑定及状态；历史结果与当前画像有效性分开（`profile_current`），过期画像的结果不可伪装成当前可应用建议。不发放执行策略ID、执行许可或扣费回执。
 - [ ] RED/GREEN覆盖持久重放/冲突、两租户同租户异用户、并发仅一次模型、模型期间可另开事务/撤销/换画像、未知不重试、配额及失败计数不回滚、最小权限/升级幂等。测试先创建独立库，再显式应用110和grant；不能把跳过算验证。
+
+### Task 2a：模型调用总截止与可确认退出
+
+**Files:** Create `pilot/search_suggestion_process.py`, `pilot/search_suggestion_worker.py`, `tests/test_search_suggestion_process.py`. 本项与纯持久层无文件重叠；不改变已冻结 adapter、默认入口或数据库。不引入通用调度器，现有最多2线程只监督最多2个一次性模型子进程。
+
+本项只保证有序关闭和调用截止，父进程异常硬崩溃后的孤儿清理未保证、未验收。terminate、kill、wait、I/O join共用一个有限清理截止；close对全部在途工作共用预算，不逐步骤或逐进程重置。
+
+- [x] 测试先行验证 `ProcessSearchSuggestionModel(...).generate(description=...)` 使用同版本 adapter，通过真实 Windows 子进程和 loopback 合成 HTTP 得到逐字证据及 usage；子进程退出后才交成功。provider/model与原协议相同，配置只来自服务端。
+- [x] 固定 `sys.executable -I -X utf8 <absolute worker.py>`，worker按自身受控安装路径加载同包，不误载开发虚拟环境里的旧 wheel。凭据和正文只走有限 stdin JSON，不在 argv、环境或落盘；只保留必要OS环境，禁用shell，Windows隐藏子进程，stderr不转发。worker只调用受控adapter，不生成子孙进程。
+- [x] 默认总截止30秒，最多60秒；父进程独立监督启动后的整个I/O与调用。Windows `communicate(input, timeout)`本身可能先阻塞stdin写，故单独受控I/O线程独占communicate，监督者用monotonic截止等待，不并发关闭其管道。超时/close执行terminate→kill并以wait和I/O线程结束共同证明退出；总截止与有限清理宽限分开记录。
+- [x] 最多2在途；启动前登记工作，close先封闭准入再有界等监督者清理，成功结果与关闭在同一生命周期锁下仲裁。调用超时/退出异常返回原固定UNKNOWN，不自动重试；明确未启动才是dispatch_failed。无法确认子进程或I/O退出时保留工作、poison后拒绝新调用并返回停止未确认，不能假称释放资源。OS进程创建若卡住，close也不能报成功。
+- [x] 真实测试正常响应、持续慢速响应不靠read-timeout自行结束、关闭中的调用及重复close；只读观测Popen实际句柄退出/I/O线程结束。管道启动前不读stdin的阻塞反例用独立受控子进程，其他无法安全制造的OS创建/kill失败可在进程边界注入。每次只终止自己创建的精确Popen对象，测试清理不按名称扫用户进程。代码`a8707a8`，独立规格及代码/架构/质量PASS，最终17专项通过；[实际边界与失败历史](../../qa/V02-04B_SEARCH_BACKEND_WIN_REVIEW.md)。
+- [ ] 不把Windows成功写成Linux/Mac已实测；也不因关闭本地连接宣称供应商撤销费用。此runner没有客户输入外发授权，service/router默认不得启用；后续05C显式告知仅向受控模型发送当前业务介绍，并将用户主动生成动作及对应画像摘要绑定为授权证据，授权缺失拒绝调用，不以搜索词脱敏替代。
 
 ### Task 3：最小router与Mac交接
 
