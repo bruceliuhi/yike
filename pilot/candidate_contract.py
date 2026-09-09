@@ -15,6 +15,7 @@ _OPAQUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 _TIME = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 _FRAGMENT = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 _SENSITIVE = ("token", "cookie", "session", "authorization", "signature", "password", "secret")
+_NUMERIC_HOST = re.compile(r"^(?:0x[0-9a-f]+|[0-9]+)(?:\.(?:0x[0-9a-f]+|[0-9]+))*$", re.IGNORECASE)
 _DOMAINS = {
     "XIAOHONGSHU": ("xiaohongshu.com", "xhslink.com"),
     "DOUYIN": ("douyin.com", "iesdouyin.com"),
@@ -41,7 +42,8 @@ def _text(value: str, minimum: int, maximum: int, *, blank: bool = True) -> str:
     try: value.encode("utf-8")
     except UnicodeEncodeError: raise ValueError("invalid unicode") from None
     if not blank and not value.strip(): raise ValueError("blank text")
-    if any(ord(ch) < 32 and ch not in "\t\n\r" for ch in value): raise ValueError("control character")
+    if any((ord(ch) < 32 and ch not in "\t\n\r") or 127 <= ord(ch) <= 159 for ch in value):
+        raise ValueError("control character")
     return value
 
 def _parse_time(value: str) -> datetime:
@@ -49,9 +51,13 @@ def _parse_time(value: str) -> datetime:
     try: return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
     except ValueError: raise ValueError("invalid source time") from None
 
+def _normalize_host(hostname: str) -> str:
+    host = hostname[:-1] if hostname.endswith(".") else hostname
+    return host.encode("idna").decode("ascii").lower()
+
 def _origin(url: str) -> str:
     parts = urlsplit(url)
-    host = (parts.hostname or "").encode("idna").decode("ascii").lower()
+    host = _normalize_host(parts.hostname or "")
     if ":" in host:
         host = f"[{host}]"
     return f"{parts.scheme.lower()}://{host}"
@@ -65,16 +71,18 @@ def _validate_url(value: str, platform: str) -> str:
     try:
         parts = urlsplit(value)
         port = parts.port
-        host = (parts.hostname or "").encode("idna").decode("ascii").lower()
+        host = _normalize_host(parts.hostname or "")
     except (ValueError, UnicodeError): raise ValueError("invalid source url") from None
     if parts.scheme not in ("http", "https") or not host or parts.username is not None or parts.password is not None:
         raise ValueError("invalid source url")
     if port not in (None, 80 if parts.scheme == "http" else 443): raise ValueError("invalid source url")
     if host == "localhost" or host.endswith((".localhost", ".local")): raise ValueError("invalid source url")
     try:
-        if not ipaddress.ip_address(host).is_global: raise ValueError("invalid source url")
-    except ValueError as exc:
-        if str(exc) == "invalid source url": raise
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        address = None
+    if address is not None and not address.is_global: raise ValueError("invalid source url")
+    if address is None and _NUMERIC_HOST.fullmatch(host): raise ValueError("invalid source url")
     if platform != "PUBLIC_WEB" and not any(host == domain or host.endswith("." + domain) for domain in _DOMAINS[platform]):
         raise ValueError("invalid source url")
     for key, _ in parse_qsl(parts.query, keep_blank_values=True):
@@ -209,7 +217,7 @@ def validate_candidate_batch(payload: object, *, now: datetime) -> CandidateBatc
     try: execution=ExecutionContextClaim.model_validate(execution_data)
     except ValidationError: raise CandidateContractError("INVALID_EXECUTION_CLAIM") from None
     platform=payload.get("platform")
-    if platform not in {"XIAOHONGSHU", "DOUYIN", "BILIBILI", "ZHIHU", "PUBLIC_WEB"}:
+    if not isinstance(platform, str) or platform not in {"XIAOHONGSHU", "DOUYIN", "BILIBILI", "ZHIHU", "PUBLIC_WEB"}:
         raise CandidateContractError("INVALID_BATCH") from None
     if execution.access_mode == "PLATFORM_ACCOUNT":
         if execution.connection_id is None or execution.connection_version is None:
@@ -235,7 +243,7 @@ def validate_candidate_batch(payload: object, *, now: datetime) -> CandidateBatc
         if item.external_source_id is None and platform != "PUBLIC_WEB": raise CandidateContractError("INVALID_RECORD") from None
         try:
             _validate_url(item.public_url, platform)
-            if item.parent and item.parent.public_url: _validate_url(item.parent.public_url, platform)
+            if item.parent and item.parent.public_url is not None: _validate_url(item.parent.public_url, platform)
         except (ValueError, KeyError): raise CandidateContractError("INVALID_SOURCE_URL") from None
         observed=_parse_time(item.observed_at); published=_parse_time(item.published_at) if item.published_at else None
         parent_time=_parse_time(item.parent.published_at) if item.parent and item.parent.published_at else None

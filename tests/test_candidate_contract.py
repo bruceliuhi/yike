@@ -44,6 +44,15 @@ def test_public_anonymous_empty_batch_is_valid_frozen_and_nonmutating():
     with pytest.raises(ValidationError): parsed.execution.device_id = "other"
 
 
+@pytest.mark.parametrize("bad_platform", [[], {}, True, None])
+def test_public_entry_rejects_wrong_type_platform_with_stable_batch_error(bad_platform):
+    assert_code(batch(platform=bad_platform), "INVALID_BATCH")
+
+
+def test_public_entry_accepts_valid_platform_control():
+    assert validate_candidate_batch(batch(platform="BILIBILI"), now=NOW).platform == "BILIBILI"
+
+
 @pytest.mark.parametrize("field", ["connection_id", "connection_version"])
 def test_account_connection_fields_must_be_both_present(field):
     execution=batch()["execution"]; execution[field]=None
@@ -116,12 +125,68 @@ def test_parent_time_and_identity_rules():
 def test_body_boundaries(body): assert_code(batch(records=[record(body=body)]), "INVALID_RECORD")
 
 
+@pytest.mark.parametrize("control", [chr(127), chr(133), chr(159)])
+def test_body_rejects_del_and_c1_controls(control):
+    assert_code(batch(records=[record(body=f"prefix{control}suffix")]), "INVALID_RECORD")
+
+
+@pytest.mark.parametrize("control", [chr(127), chr(133), chr(159)])
+def test_parent_body_rejects_del_and_c1_controls(control):
+    parent = {"external_comment_id":"reply-0", "body":f"prefix{control}suffix",
+        "author_public_id":None, "published_at":None, "public_url":None}
+    child = record(kind="COMMENT", external_comment_id="reply-1", parent=parent)
+    assert_code(batch(records=[child]), "INVALID_RECORD")
+
+
+def test_body_preserves_unicode_and_allowed_whitespace_controls():
+    body = "中文😊\t下一列\n换行\r返回"
+    parsed = validate_candidate_batch(batch(records=[record(body=body)]), now=NOW)
+    assert parsed.records[0].body == body
+
+
 @pytest.mark.parametrize("url", ["https://user:pass@bilibili.com/video/1",
     "https://bilibili.com:8443/video/1", "https://localhost/page", "https://127.0.0.1/page",
     "https://10.0.0.1/page", "https://bilibili.com.evil.test/video/1",
     "https://bilibili.com/video/1?token=secret", "https://bilibili.com/video/1?%74oken=secret",
     "https://bilibili.com/video/1#bad/fragment", "https://bilibili.com\\@evil.test/video/1"])
 def test_unsafe_urls(url): assert_code(batch(records=[record(public_url=url)]), "INVALID_SOURCE_URL")
+
+
+@pytest.mark.parametrize("url", [
+    "https://localhost./page",
+    "https://127.1/page",
+    "https://2130706433/page",
+    "https://0x7f000001/page",
+    "https://0177.0.0.1/page",
+])
+def test_noncanonical_local_or_numeric_hosts_are_rejected(url):
+    payload = batch(platform="PUBLIC_WEB", execution=anonymous_execution(), records=[
+        record(kind="PAGE", external_source_id=None, public_url=url)
+    ])
+    assert_code(payload, "INVALID_SOURCE_URL")
+
+
+@pytest.mark.parametrize("url", ["https://example.org/page", "https://8.8.8.8/page"])
+def test_public_web_accepts_public_domain_and_ip_controls(url):
+    payload = batch(platform="PUBLIC_WEB", execution=anonymous_execution(), records=[
+        record(kind="PAGE", external_source_id=None, public_url=url)
+    ])
+    assert validate_candidate_batch(payload, now=NOW)
+
+
+@pytest.mark.parametrize("parent_url", ["", "x" * 2049, "not-a-url", "https://127.1/reply"])
+def test_non_null_parent_url_uses_full_source_url_validation(parent_url):
+    parent = {"external_comment_id":"reply-0", "body":None, "author_public_id":None,
+        "published_at":None, "public_url":parent_url}
+    child = record(kind="COMMENT", external_comment_id="reply-1", parent=parent)
+    assert_code(batch(records=[child]), "INVALID_SOURCE_URL")
+
+
+def test_null_parent_url_is_allowed():
+    parent = {"external_comment_id":"reply-0", "body":None, "author_public_id":None,
+        "published_at":None, "public_url":None}
+    child = record(kind="COMMENT", external_comment_id="reply-1", parent=parent)
+    assert validate_candidate_batch(batch(records=[child]), now=NOW).records[0].parent.public_url is None
 
 
 def test_bilibili_reply_fragment_is_allowed():
@@ -137,6 +202,13 @@ def test_identity_scopes_public_web_by_normalized_origin():
     other=first.model_copy(update={"public_url":"https://example.net/a"})
     assert source_identity(first,"PUBLIC_WEB") == source_identity(same,"PUBLIC_WEB")
     assert source_identity(first,"PUBLIC_WEB") != source_identity(other,"PUBLIC_WEB")
+
+
+def test_public_web_origin_identity_normalizes_trailing_dot():
+    first=validate_candidate_batch(batch(platform="PUBLIC_WEB", execution=anonymous_execution(),
+        records=[record(external_source_id="123", public_url="https://EXAMPLE.org./a")]), now=NOW).records[0]
+    same=first.model_copy(update={"public_url":"https://example.org/other"})
+    assert source_identity(first,"PUBLIC_WEB") == source_identity(same,"PUBLIC_WEB")
 
 
 def test_content_version_inputs_and_platform_scoped_identity():
