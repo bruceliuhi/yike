@@ -4,11 +4,15 @@
 
 本次交付 React/TypeScript 前端、安全 Electron 客户端与现有 Pilot 服务的 JSON 接口。完整获客版仍按 V0.2 任务书开发；本次不能宣称多平台真实采集、持续监控、AI 建议、真实发送及回复后台已经接通或产品已上线。
 
+## 后续交互增量（2026-09-09）
+
+后续在 `main` 基础上补齐登录/连接/AI 建议的超时与迟到隔离、原生文件保存回执、触达三队列及原请求核对、P18 管理可用状态及影响确认。具体提交、独立复核、Mac 包和未完成项见 [交互增量验收](qa/ui-interactions/REVIEW.md)。该记录更新相应交互，下面标明 `10ab8b6` 的结果仍是历史候选证据，不能用于替代新包验收。产品代码最终汇入 `yike-ai2026/main`。
+
 ## 入口与交付物
 
 - 开发预览：从 `desktop/` 使用 Node.js 24 执行 `npm ci && npm run dev`，打开 `http://127.0.0.1:18791/`。
 - 二十页审阅：`#P01` 至 `#P20`，正常使用走语义路由和侧栏；样例与客户数据明确区分。
-- Mac：`desktop/out/意客AI-darwin-arm64/意客AI.app`；ZIP 与哈希见 [打包记录](qa/ui-r3/mac-package.json)。产物在本机，未将二进制提交 Git。
+- Mac：`desktop/out/意客AI-darwin-arm64/意客AI.app`；当前 ZIP 与哈希见 [交互版本打包记录](qa/ui-interactions/mac-package.json)，[先前 R3 记录](qa/ui-r3/mac-package.json)仅作历史溯源。产物在本机，未将二进制提交 Git。
 - Windows：按 [构建与验收](../desktop/docs/PACKAGING.md) 执行 `desktop/scripts/build-windows.ps1`。不把 macOS 构建或 Electron 冒烟算作 Windows 实机安装通过。
 - 逐页交接：[页面与接口契约](UI_R3_PAGE_CONTRACTS.md)、[视觉复核](qa/ui-r3/VISUAL_REVIEW.md)、[实现补充检查](qa/ui-r3/IMPLEMENTATION_REVIEW.md)。
 
@@ -55,7 +59,7 @@
 在 Windows PowerShell、Node.js 24 x64 环境，使用一个新的目录：
 
 ```powershell
-git clone --branch codex/ui-r3-desktop --single-branch https://gitee.com/xinghetech/yike-ai2026.git yike-ai-ui-r3
+git clone --branch main --single-branch https://gitee.com/xinghetech/yike-ai2026.git yike-ai-ui-r3
 cd yike-ai-ui-r3/desktop
 ./scripts/build-windows.ps1
 ```
