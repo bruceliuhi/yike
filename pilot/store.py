@@ -12,6 +12,7 @@ from pilot.auth import InvalidPilotToken, TokenClaims
 from pilot.connection_versions import ConnectionOperationError, MAX_VERSION
 from pilot.db import PilotDatabase
 from pilot.identity import validate_connection_input, validate_execution_event
+from pilot.opportunity_evidence import evidence_view
 from pilot.sessions import PilotSessionRegistry
 
 
@@ -229,16 +230,24 @@ class PilotStore:
 
     def get_opportunity(self, user_id: str, opportunity_id: str) -> dict:
         tenant_id = self._tenant_for_user(user_id)
-        return self._fetchone(
+        row = self._fetchone(
             tenant_id,
             "SELECT o.opportunity_id, o.title, o.buyer, o.summary, o.contact_path, o.public_excerpt, o.match_reason, o.action_signal, o.value_judgment, o.risk, o.reviewed_by, o.reviewed_at, o.profile_version_id, p.status AS profile_status, "
             "o.draft_comment, o.draft_dm, o.source_status, o.intent_status, o.updated_at, s.platform AS source_platform, "
-            "s.public_url, s.published_at FROM pilot_opportunities o "
+            "s.public_url, s.published_at, e.payload AS source_evidence_payload, e.payload_sha256 AS source_evidence_sha256 FROM pilot_opportunities o "
             "JOIN pilot_sources s ON s.tenant_id=o.tenant_id AND s.source_id=o.source_id "
             "JOIN business_profile_versions p ON p.tenant_id=o.tenant_id AND p.profile_version_id=o.profile_version_id "
+            "LEFT JOIN pilot_opportunity_evidence e ON e.tenant_id=o.tenant_id AND e.opportunity_id=o.opportunity_id "
             "WHERE o.tenant_id=%s AND o.opportunity_id=%s",
             (tenant_id, opportunity_id),
         )
+        payload = row.pop("source_evidence_payload")
+        digest = row.pop("source_evidence_sha256")
+        row["source_evidence"] = evidence_view(
+            payload, digest, opportunity_id=opportunity_id,
+            profile_version_id=row["profile_version_id"],
+        )
+        return row
 
     def set_source_status(self, user_id: str, opportunity_id: str, status: str) -> None:
         if status not in {"OPEN", "EXPIRED", "BLOCKED", "UNVERIFIED"}:

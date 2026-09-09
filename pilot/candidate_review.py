@@ -12,6 +12,7 @@ from pilot.candidate_assessment_model import AssessmentModelError, validate_asse
 from pilot.candidate_review_contract import CandidateReviewError, binding, validate_payload
 from pilot.execution_runtime import ConfirmedExecutionStrategy
 from pilot.execution_contract import ExecutionRuntimeError
+from pilot.opportunity_evidence import build_evidence, canonical_json, evidence_digest
 from pilot.store import PilotStore
 
 
@@ -310,6 +311,21 @@ class CandidateReviewStore(CandidateIngestionStore):
                 cursor.execute('INSERT INTO pilot_candidate_reviews(tenant_id,owner_user_id,request_id,binding_hash,assessment_id,verification_id,opportunity_id,result) VALUES(%s,%s,%s,%s,%s,%s,%s,%s::jsonb)',
                     (tenant,claims.user_id,request.requestId,bound,request.assessmentId,request.sourceVerificationId,
                      opportunity['opportunity_id'] if opportunity else None,_json(result)))
+                if opportunity and opportunity['created']:
+                    raw = snapshot['raw']
+                    cursor.execute('''SELECT observation_id,candidate_id,version_id,observed_at,received_at
+                        FROM pilot_candidate_observations
+                        WHERE tenant_id=%s AND owner_user_id=%s AND observation_id=%s
+                          AND candidate_id=%s AND version_id=%s''',
+                        (tenant,claims.user_id,raw['current_observation_id'],raw['candidate_id'],raw['version_id']))
+                    observation = _primitive(_row(cursor))
+                    public = build_evidence(opportunity_id=opportunity['opportunity_id'],snapshot=snapshot,
+                        assessment=assessed,observation=observation,verification=check[2],captured_at=now)
+                    cursor.execute('''INSERT INTO pilot_opportunity_evidence
+                        (tenant_id,opportunity_id,included_by_user_id,include_request_id,payload,payload_sha256)
+                        VALUES(%s,%s,%s,%s,%s::jsonb,%s)''',
+                        (tenant,opportunity['opportunity_id'],claims.user_id,request.requestId,
+                         canonical_json(public),evidence_digest(public)))
                 self._active(cursor,claims)
                 return result
         except CandidateIngestionError:
