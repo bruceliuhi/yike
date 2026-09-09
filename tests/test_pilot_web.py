@@ -97,6 +97,24 @@ def test_pilot_pages_set_baseline_security_headers():
     assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
 
 
+def test_unhandled_errors_keep_baseline_security_headers():
+    class BrokenStore(Store):
+        def list_opportunities(self, user_id):
+            raise RuntimeError("unexpected database failure")
+
+    client = TestClient(build_app(BrokenStore(), auth_secret="test-secret"), raise_server_exceptions=False)
+    headers = {"Authorization": "Bearer " + issue_token("user-1", "test-secret")}
+
+    response = client.get("/opportunities", headers=headers)
+
+    assert response.status_code == 500
+    assert response.headers["content-security-policy"].startswith("default-src 'self'")
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+    assert response.headers["permissions-policy"] == "camera=(), microphone=(), geolocation=()"
+
+
 def test_authenticated_user_without_tenant_is_rejected_without_server_error():
     class UnknownUserStore(Store):
         def list_opportunities(self, user_id):

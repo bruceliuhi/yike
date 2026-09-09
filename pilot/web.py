@@ -3,13 +3,28 @@ from __future__ import annotations
 from html import escape
 from pathlib import Path
 from fastapi import Cookie, FastAPI, Form, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 import logging
 from pilot.auth import InvalidPilotToken, verify_token
 
 _MAX_PROFILE_DESCRIPTION = 8_000
+_SECURITY_HEADERS = {
+    "content-security-policy": (
+        "default-src 'self'; style-src 'self'; script-src 'self'; "
+        "base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+    ),
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+}
+
+
+def _set_security_headers(response) -> None:
+    for name, value in _SECURITY_HEADERS.items():
+        response.headers[name] = value
 
 
 def _page(title: str, body: str) -> HTMLResponse:
@@ -38,18 +53,19 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
     class RedactedAccessLogMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request: Request, call_next):
             response = await call_next(request)
-            response.headers["content-security-policy"] = (
-                "default-src 'self'; style-src 'self'; script-src 'self'; "
-                "base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
-            )
-            response.headers["x-content-type-options"] = "nosniff"
-            response.headers["x-frame-options"] = "DENY"
-            response.headers["referrer-policy"] = "strict-origin-when-cross-origin"
-            response.headers["permissions-policy"] = "camera=(), microphone=(), geolocation=()"
+            _set_security_headers(response)
             access_logger.info("%s %s %s", request.method, request.url.path, response.status_code)
             return response
 
     app.add_middleware(RedactedAccessLogMiddleware)
+
+    @app.exception_handler(Exception)
+    async def unhandled_error_handler(request: Request, error: Exception):
+        # Keep the error body generic and do not log exception text, which may
+        # contain database details or user-provided content.
+        response = PlainTextResponse("Internal Server Error", status_code=500)
+        _set_security_headers(response)
+        return response
 
     @app.get("/healthz")
     def healthz():
