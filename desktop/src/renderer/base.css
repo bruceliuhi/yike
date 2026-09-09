@@ -1234,6 +1234,21 @@ tbody tr:hover {
   display: grid;
   gap: 16px;
 }
+.customer-data-actions,
+.update-management {
+  display: grid;
+  gap: 16px;
+}
+.customer-data-actions > .button {
+  justify-self: start;
+}
+.customer-data-actions hr,
+.update-management hr {
+  width: 100%;
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
 .management-action .detail-list {
   margin: 0;
 }

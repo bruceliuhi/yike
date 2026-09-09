@@ -25,6 +25,20 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe('outreach queue contract', () => {
+  it.each(['comment','dm'] as const)('opens the actual parent draft workspace from a queue with the selected %s purpose',async channel=>{
+    vi.mocked(context.service.outreach!.queue).mockResolvedValue({queue:'confirm',items:[record('confirm',{channel})],total:1});
+    vi.mocked(context.service.opportunity).mockResolvedValue({...PUBLIC_SAMPLE,id:'test-opportunity',sample:false,comment:'TEST 评论联系准备',dm:'TEST 私信联系准备'});
+    context.navigate=vi.fn((path:string)=>{context.route=parseRoute('#'+path);});
+    render(<OutreachPage/>);
+    fireEvent.click(screen.getByRole('tab',{name:'待确认'}));
+    fireEvent.click(await screen.findByRole('button',{name:/TEST 隔离触达记录/}));
+    fireEvent.click(screen.getByRole('button',{name:'查看联系准备'}));
+    await screen.findByDisplayValue(channel==='dm'?'TEST 私信联系准备':'TEST 评论联系准备');
+    expect(screen.getByRole('tab',{name:'草稿箱'}).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tab',{name:channel==='dm'?'私信草稿':'评论草稿'}).getAttribute('aria-selected')).toBe('true');
+    expect(screen.queryByRole('region',{name:'待确认队列'})).toBeNull();
+    expect(context.service.opportunity).toHaveBeenCalledWith('test-opportunity');
+  });
   it.each(['confirm','reply','issues'] as const)('loads %s records and navigates using opportunity identity + channel', async queue => {
     vi.mocked(context.service.outreach!.queue).mockResolvedValue({queue,items:[record(queue)],total:1});
     render(<OutreachQueue queue={queue}/>);

@@ -4,6 +4,7 @@ import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/reac
 import {AppProvider} from '../../src/renderer/app/context';
 import {TasksPage} from '../../src/renderer/pages/Tasks';
 import {FollowupsPage} from '../../src/renderer/pages/Followups';
+import {OutreachPage} from '../../src/renderer/pages/Outreach';
 import {createVisualService} from './service';
 import {MemoryStorage} from './isolation';
 import {EXCLUSIONS, KEYWORDS, opportunity, profile, taskDraft} from './fixtures';
@@ -72,6 +73,26 @@ describe('strictly separate visual service', () => {
   });
 });
 describe('real page components with the real AppProvider', () => {
+  it('switches the same opportunity from an existing comment route to queue-selected dm through real asynchronous hashchange', async () => {
+    history.replaceState(null, '', '#/outreach?opportunity=TEST-opportunity&channel=comment');
+    const harness = createVisualService();
+    harness.service.session = async () => ({authenticated: true, userId: 'TEST-outreach-route-' + 'real-hash'});
+    render(<AppProvider service={harness.service}><OutreachPage /></AppProvider>);
+    await screen.findByDisplayValue(opportunity.comment);
+    fireEvent.change(screen.getByRole('textbox', {name: '沟通内容'}), {target: {value: 'TEST 已保留的人工评论'}});
+    fireEvent.click(screen.getByRole('tab', {name: '待确认'}));
+    fireEvent.click(await screen.findByRole('button', {name: /TEST 触达记录 · 待确认/}));
+    fireEvent.click(screen.getByRole('button', {name: '查看联系准备'}));
+    // No synchronous route mock or manual event dispatch: AppProvider observes
+    // the hashchange scheduled by its real navigate() after the queue update.
+    await screen.findByDisplayValue(opportunity.dm);
+    expect(location.hash).toBe('#/outreach?opportunity=TEST-opportunity&channel=dm');
+    expect(screen.getByRole('tab', {name: '草稿箱'}).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tab', {name: '私信草稿'}).getAttribute('aria-selected')).toBe('true');
+    fireEvent.click(screen.getByRole('tab', {name: '评论草稿'}));
+    expect((screen.getByRole('textbox', {name: '沟通内容'}) as HTMLTextAreaElement).value).toBe('TEST 已保留的人工评论');
+    expect(harness.events.some(event => event.operation === 'send' || event.operation === 'outreach.send')).toBe(false);
+  });
   it('renders all five monitor platform states and real detail tabs', async () => {
     location.hash = '#/monitors/TEST-monitor';
     render(<AppProvider service={createVisualService().service}><TasksPage /></AppProvider>);

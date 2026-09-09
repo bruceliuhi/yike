@@ -7,7 +7,7 @@ import { OUTREACH_QUEUE_LABELS, parseOutreachQueue, type OutreachQueue as Queue 
 import { requireOutreach } from "../services/outreach";
 
 /** Queue records remain distinct from opportunity IDs and never become send authority. */
-export function OutreachQueue({ queue }: { queue: Queue }) {
+export function OutreachQueue({ queue, onOpen }: { queue: Queue; onOpen?: (path: string) => void }) {
   const { service, session, navigate } = useApp();
   const [selectedId, setSelectedId] = useState("");
   const [query, setQuery] = useState("");
@@ -42,7 +42,7 @@ export function OutreachQueue({ queue }: { queue: Queue }) {
             <dl className="detail-list"><div><dt>记录编号</dt><dd>{selected.id}</dd></div><div><dt>收件对象</dt><dd>{selected.recipientLabel || "待核对"}</dd></div><div><dt>草稿版本</dt><dd>{selected.version}</dd></div></dl>
             <pre className="draft-preview">{selected.content || "暂无内容"}</pre>
             {selected.message && <Notice>{selected.message}</Notice>}
-            {selected.sample || selected.id === "sample" || selected.opportunityId === "sample" ? <Notice>样例记录仅供查看，不能进入客户发送流程。</Notice> : <Button onClick={() => navigate("/outreach?opportunity=" + encodeURIComponent(selected.opportunityId) + "&channel=" + selected.channel)}>查看联系准备</Button>}
+            {selected.sample || selected.id === "sample" || selected.opportunityId === "sample" ? <Notice>样例记录仅供查看，不能进入客户发送流程。</Notice> : <Button onClick={() => (onOpen || navigate)("/outreach?opportunity=" + encodeURIComponent(selected.opportunityId) + "&channel=" + selected.channel)}>查看联系准备</Button>}
           </section> : <Empty title="选择一条触达记录" />}
         </div>}
     </>}

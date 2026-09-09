@@ -313,7 +313,7 @@ export function UpdateManagement({
     void updates.reload();
   };
   return (
-    <>
+    <div className="update-management">
       <ResourceStatus
         loading={updates.loading}
         error={updates.error}
@@ -370,7 +370,7 @@ export function UpdateManagement({
           )}
         </>
       )}
-    </>
+    </div>
   );
 }
 
@@ -440,7 +440,7 @@ export function CustomerDataActions({
     );
   };
   return (
-    <>
+    <div className="customer-data-actions">
       {account ? (
         <p>当前客户空间：{account.spaceName}</p>
       ) : service.management ? (
@@ -521,6 +521,6 @@ export function CustomerDataActions({
           )}
         </>
       )}
-    </>
+    </div>
   );
 }

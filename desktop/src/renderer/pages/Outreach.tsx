@@ -136,7 +136,11 @@ function OutreachWorkspace() {
         ]}
       />
       {queue !== "draft" ? (
-        <OutreachQueue key={`${session.userId}:${queue}`} queue={queue as Queue} />
+        <OutreachQueue
+          key={`${session.userId}:${queue}`}
+          queue={queue as Queue}
+          onOpen={(path) => { setQueue("draft"); navigate(path); }}
+        />
       ) : (
         <div className="outreach-layout">
           <aside className="draft-list">
@@ -208,7 +212,7 @@ function OutreachWorkspace() {
             />
           ) : selected ? (
             <ContactEditor
-              key={`${session.userId || "public"}:${selected.id}`}
+              key={`${session.userId || "public"}:${selected.id}:${route.query.get("channel") === "dm" ? "dm" : "comment"}`}
               row={selected}
             />
           ) : (
