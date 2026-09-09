@@ -42,7 +42,7 @@ Routes under existing /api/ui and existing same-Origin wrapper: POST /devices/{d
 - Modify pilot/db.py migration list; pilot/store.py register_device owner only; pilot/sessions.py internal claims and shared session-lock/recheck helpers; pilot/ui_api.py register new helper.
 - Modify pyproject.toml and uv.lock with pinned dependency only.
 - Create tests/test_device_keys.py, tests/test_device_credentials_postgres.py; extend session concurrency tests if necessary without changing old expected behavior.
-- Create docs/contracts/V02_DEVICE_KEYS.md; update existing RUNBOOK with additive migration/grants only (in this isolated worktree, never touch the user's dirty root RUNBOOK).
+- Create docs/contracts/V02_DEVICE_KEYS.md; update docs/CUSTOMER_PILOT_RUNBOOK.md and deploy/README.md with additive migration/grants only. docs/RUNBOOK.md is the historical SQLite reference and is not the correct operational entry point; leave it unchanged in every worktree.
 
 **Interfaces:**
 - Consume TokenClaims from pilot.auth and PilotDatabase from pilot.db; existing PilotSessionRegistry._tenant resolves and sets both RLS identities.
