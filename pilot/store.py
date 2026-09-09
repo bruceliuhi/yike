@@ -7,11 +7,13 @@ from uuid import uuid4
 
 from pilot.db import PilotDatabase
 from pilot.identity import validate_connection_input, validate_execution_event
+from pilot.sessions import PilotSessionRegistry
 
 
 class PilotStore:
     def __init__(self, database: PilotDatabase):
         self.database = database
+        self.sessions = PilotSessionRegistry(database)
 
     def _fetchone(self, tenant_id: str, query: str, params=()):
         with self.database.connect() as connection:

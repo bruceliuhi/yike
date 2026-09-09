@@ -5,7 +5,6 @@ executor. The capability responses make those missing boundaries explicit.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Literal
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
@@ -14,8 +13,9 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from pilot.auth import InvalidPilotToken, verify_token
+from pilot.auth import InvalidPilotToken
 from pilot.identity import IdentityValidationError
+from pilot.sessions import SessionIdentity, authenticate_session, revoke_session_tokens
 
 
 class _Input(BaseModel):
@@ -113,12 +113,6 @@ class _UiRoute(APIRoute):
         return handler
 
 
-@dataclass(frozen=True)
-class _Identity:
-    user_id: str
-    tenant_id: str
-
-
 _CAPABILITIES = {
     "pilot_token_session": True,
     "profiles": True,
@@ -138,14 +132,13 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
     # headers. This router deliberately does not install a permissive CORS rule.
     router = APIRouter(prefix="/api/ui", route_class=_UiRoute)
 
-    def token_identity(token: str) -> _Identity:
+    def token_identity(token: str) -> SessionIdentity:
         try:
-            user_id = verify_token(token, auth_secret)
+            return authenticate_session(store, token, auth_secret)
         except InvalidPilotToken as error:
             raise _error(401, "invalid_session", "访问凭证已失效，请重新登录。") from error
-        return _Identity(user_id, store._tenant_for_user(user_id))
 
-    def identity(request: Request) -> _Identity:
+    def identity(request: Request) -> SessionIdentity:
         authorization = request.headers.get("authorization")
         token = authorization[7:].strip() if authorization and authorization.startswith("Bearer ") else request.cookies.get("pilot_session")
         if not token:
@@ -174,8 +167,10 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
     @router.delete("/session")
     def logout(request: Request, response: Response):
         require_session_https(request)
-        # Existing stateless bearer tokens have no revocation store. This only
-        # clears this browser session, even when its cookie has already expired.
+        authorization = request.headers.get("authorization")
+        bearer = authorization[7:].strip() if authorization and authorization.startswith("Bearer ") else None
+        revoke_session_tokens(store, [bearer, request.cookies.get("pilot_session")], auth_secret)
+        # Do not return success or clear the cookie before the transaction commits.
         response.delete_cookie("pilot_session", httponly=True, secure=request.url.scheme == "https", samesite="strict")
         return {"authenticated": False}
 

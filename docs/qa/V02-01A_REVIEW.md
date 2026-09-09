@@ -25,4 +25,6 @@
 
 ## 复审状态
 
-修复候选等待独立复审；CodexWin 实机/交叉验证尚未发生。本地辅助审查 Agent 不冒充 CodexWin，也不构成 Windows 验收。
+独立 Agent `review_identity` 已对 `da2a2f233e716551289a833e623477f122aa230c` 复审 PASS，范围仅为 V02-01A。审查者独立运行上述组合检查，92 passed、2 skipped，并核对行锁、复合外键、迁移唯一性、secret scan 与干净工作树。
+
+CodexWin 实机/交叉验证尚未发生。本地辅助审查 Agent 不冒充 CodexWin，也不构成 Windows 验收。该提交未合并 main，V02-01 仍为 IN_PROGRESS。后续身份改动必须绑定新 SHA 重新审核，不能沿用本次 PASS。

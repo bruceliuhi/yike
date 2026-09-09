@@ -8,6 +8,7 @@ import pytest
 
 from pilot.auth import issue_token
 from pilot.web import build_app
+from session_support import MemorySessionRegistry
 
 
 class FakeDatabase:
@@ -47,6 +48,7 @@ class FakeStore:
 
     def __init__(self):
         self.database = FakeDatabase(self)
+        self.sessions = MemorySessionRegistry(self._tenant_for_user)
         self.profiles = {
             "tenant-1": {"profile_id": "profile-1", "version_id": "version-1", "version": 1, "payload": {"description": "测试业务"}, "status": "DRAFT"},
             "tenant-2": {"profile_id": "profile-2", "version_id": "version-2", "version": 1, "payload": {"description": "另一个租户"}, "status": "DRAFT"},

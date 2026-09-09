@@ -46,6 +46,8 @@ uv run --frozen yike-pilot-provision token --user-id '<user-id>' --ttl-seconds 3
 
 CLI 输出的令牌只应通过安全渠道交给试用用户，不写入仓库、日志或研究包。
 
+V02-01B 会话撤销候选要求发布作业先执行 105 迁移。客户 `DELETE /api/ui/session` 将撤销本次携带的有效 Bearer/Cookie，旧凭据不能重新换取登录 Cookie；应用不可用时不宣称撤销成功。它不是管理员“全端退出”或短信登录已交付，详细边界与升级顺序见[会话撤销契约](contracts/V02_SESSION_REVOCATION.md)。
+
 ## 当前管理员研究包导入
 
 后台 Codex＋商机研究 Skill 先输出研究包，人工核对原帖/原评论、时间、业务背景和联系路径，并将 `review_status` 设为 `APPROVED`。通过 `pilot.research_import.import_reviewed_bundle()` 导入；任何一条证据校验失败，整包在写入前拒绝。导入后用户只能看到自己租户的数据。

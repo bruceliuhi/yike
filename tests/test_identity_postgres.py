@@ -51,6 +51,20 @@ def test_customer_registration_does_not_prove_platform_login(identities):
     assert result["status"] == "UNVERIFIED"
 
 
+def test_logout_revokes_bearer_cookie_and_exchange_after_service_restart(identities):
+    _, database, store, _, user, _, _ = identities
+    token = issue_token(user, "synthetic-test-secret")
+    headers = {"Authorization": "Bearer " + token}
+    client = TestClient(build_app(store, auth_secret="synthetic-test-secret"), base_url="https://testserver")
+    assert client.post("/api/ui/session", json={"token": token}).status_code == 200
+    assert client.delete("/api/ui/session").status_code == 200
+    restarted = TestClient(build_app(PilotStore(database), auth_secret="synthetic-test-secret"), base_url="https://testserver")
+    for path in ("/api/ui/session", "/profile", "/api/ui/devices"):
+        assert restarted.get(path, headers=headers).status_code == 401
+    assert restarted.post("/api/ui/session", json={"token": token}).status_code == 401
+    assert restarted.post("/session", data={"token": token}, follow_redirects=False).status_code == 401
+
+
 def test_unverified_registration_can_be_disconnected(identities):
     _, _, store, _, user, device, _ = identities
     item = store.connect_platform(user, "DOUYIN", device, "synthetic-dy", "vault://synthetic-dy")
