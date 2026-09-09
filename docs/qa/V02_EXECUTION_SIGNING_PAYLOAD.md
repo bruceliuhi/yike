@@ -71,3 +71,23 @@ npm run typecheck
 实际 **8文件 /80 passed /10.14s /0 skipped**，类型检查退出0；源码/Markdown/JSON差异格式及凭据扫描通过。不是对方1253项桌面记录的重新执行，也未重复不变的PG、构包或原生验收。[来件原QA](ui-reply-entry/README.md)及独立报告保持各自身份与锁屏/真实回复服务未验边界；根代理仅接收其兼容性，不冒认作者或产品验收。合并独立复核和实际最终远端核验另记。
 
 独立合并兼容性复核对精确`12c0c95`为**PASS，0项未关闭发现**，已确认双方产品字节保留，现followup/模板协议不消费或替代执行签名。该通过绑定此合并，不预先包含之后新增的远端变更。
+
+## Win固定原文消费接收
+
+后续fetch收到Win`c88b64b`的05E原文详情/R4展示，正常无冲突合并为`cfaf4fd`。`pilot/deploy/migrations`与已审`3fb4673`完全相同，`desktop`与来件`c88b64b`完全相同，未重复实现Win模块。[Win原QA](V02-05E_SOURCE_EVIDENCE_CLIENT_WIN_REVIEW.md)保留其269/372项、实际PG、Edge与作者/审核者归属。
+
+root在Mac首次独立接收该代码：
+
+```sh
+# desktop目录
+npm run test -- tests/opportunitySourceEvidence.test.ts tests/ui/client.test.ts tests/ui/r4-opportunity-research-domain.test.ts tests/ui/r4-opportunity-research-ui.test.tsx tests/ui/fixed-source-evidence.test.tsx tests/ui/outreach.test.tsx tests/ui/followup-reply-entry.test.tsx tests/visual/followup.test.ts --maxWorkers=4
+npm run typecheck
+# 仓库目录，专用受限测试PG通过进程环境配置
+uv run --frozen pytest -q tests/test_desktop_opportunity_http_postgres.py --tb=short
+```
+
+实际桌面 **8文件 /176 passed /4.81s /0 skipped**，类型检查退出0；实际产品Node客户端→本地socket HTTP→受限PG **1 passed /2.40s /0 skipped**，各集合不相加。后者逐字段核对合成COMMENT固定快照/父评论归属、当前失效与历史留存分离、跨租户404及注销401；管理员仅准备测试状态，子进程不携带数据库环境。凭据扫描与源码/Markdown/JSON差异格式通过，没有再跑同一套PG、全桌面或构包。
+
+这构成Mac实际读取链路的限定接收，不是实际平台采集、Windows发行、正常短信/模型vendor、收发或客户UAT。签名准备、上传签名和原文详情仍为不同协议；普通证据可读取不等于当前允许联系。独立合并兼容性复核与最终main交付另记。
+
+最终独立兼容性复核绑定`cfaf4fd024332bb08779dd4edc7617850caf83e0`：**PASS，0项未关闭发现，可正常推送**。115后端详情与必填sourceEvidence、R4缺字段补读、回复入口及历史不授权边界均已核对；未改双方产品字节。上文待复核仅保留各候选时点。此后本次收据仅修改文档，不能借此宣称实际平台、收发、发行或客户验收完成；交付另以正常push及实时远端SHA核对为准。

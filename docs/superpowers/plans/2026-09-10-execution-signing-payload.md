@@ -101,4 +101,6 @@ assert applied.status_code == 200, applied.text
 - [x] Step 2: 扩实际回归：同请求重读无写入；admin测试连接按该租户/用户数任务/run/platform/operation/key_request，不能依赖未设身份的RLS空集；source policy/resolver/model调用为0。owner/tenant/停设备/旧凭据、设备锁等待会话到期、注销拒绝分别覆盖。请求完整null/摘要与响应五字段直接核对。
 - [x] Step 3: 实际新会话对尚未执行的原请求，旧签名400但新准备字节签名可用；已有成功请求新会话可GET/重放历史回执。实际START→CLAIM→RENEW→策略撤销→CANCEL沿新准备路径，保持取消与历史恢复。无真实source policy时prepare200而START501且无成功执行行；不能把fixture来源许可复制到production。
 - [x] Step 4: 把既有实际策略→签名上传→模型分析→复核纳入链的执行签名改为只签API响应；客户端helper不再用tenant/claims自行构造执行原文。上传另有既有协议，本片不偷改该域。
-- [ ] Step 5: 执行新HTTP文件及现`test_confirmed_strategy_http_postgres.py`、`test_pilot_runtime_http_postgres.py`；所有PG串行，记录各集合不相加，必要失败修复按TDD。更新契约/QA和台账，独立最终代码/架构/质量审核精确提交，正常fetch/合并/push后核对main SHA。真实模型vendor、来源、Windows及M3仍独立验收。
+- [x] Step 5: 执行新HTTP文件及现`test_confirmed_strategy_http_postgres.py`、`test_pilot_runtime_http_postgres.py`；所有PG串行，记录各集合不相加，必要失败修复按TDD。契约/QA和台账已更新，独立最终审核`9fc197c`及两次正常合并`12c0c95`/`cfaf4fd`全部通过，详见本片QA；合并后的Win原文读取链另由Mac实际接收。真实模型vendor、来源、Windows及M3仍独立验收。
+
+交付收口按用户授权正常推送main及功能分支，并实时核对远端SHA；该动作的结果以实际Git回执为准，以上测试/审核完成不等于已上线。保留当前隔离工作树用于父Goal后续工作，不清理原checkout的用户改动。
