@@ -160,6 +160,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 执行运行时独立 PostgreSQL 验证：使用一次性数据库并由套件创建动态 `NOSUPERUSER/NOBYPASSRLS` 执行角色，运行 `tests/test_execution_runtime_postgres.py` 与 `tests/test_execution_http_postgres.py`，**44 passed**。覆盖任务启动、逐平台租约、取消/停止确认、原始回执、服务重建、签名核验和 HTTP→受限 PG 往返；仍不代表真实来源 worker、平台执行或生产部署已接通。
 
+2026-09-10 设备凭据授权增量：`grant_device_credentials.sql` 现明确授予受限角色读取 `pilot_users`、读写 `pilot_devices`、读取会话撤销表，以满足设备身份解析和历史校验的最小运行依赖。独立套件在一次性 PostgreSQL 上从原先无法初始化推进到 **24 passed / 4 failed**；剩余失败集中在撤销跨模块连接/会话授权和登出失效语义，尚未计为通过，需拆分依赖后继续验证。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。

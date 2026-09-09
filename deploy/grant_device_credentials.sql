@@ -19,4 +19,7 @@ BEGIN
     END IF;
     EXECUTE format('GRANT SELECT, INSERT, UPDATE ON TABLE public.pilot_device_credentials TO %I', target_role);
     EXECUTE format('GRANT SELECT, INSERT, UPDATE ON TABLE public.pilot_device_key_requests TO %I', target_role);
+    EXECUTE format('GRANT SELECT, INSERT, UPDATE ON TABLE public.pilot_devices TO %I', target_role);
+    EXECUTE format('GRANT SELECT ON TABLE public.pilot_users TO %I', target_role);
+    EXECUTE format('GRANT SELECT ON TABLE public.pilot_session_revocations TO %I', target_role);
 END $$;
