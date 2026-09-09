@@ -12,8 +12,22 @@ import {
 } from "../../src/renderer/domain/followup";
 import { opportunity, profile, TEST_TIME, TEST_USER } from "./fixtures";
 
+export function selectRepliesOnlyFollowup(
+  value: string | null,
+  page: string,
+  state: string,
+  capabilities: string | null,
+  guest: boolean,
+): boolean {
+  if (value === null) return false;
+  if (value !== "replies-only" || page !== "P14" || state !== "populated" ||
+    capabilities !== "complete" || guest)
+    throw new Error("TEST 回复入口仅接受 P14/populated/TEST 登录身份、capabilities=complete 与 followup=replies-only。");
+  return true;
+}
+
 /** TEST-only memory service. No platform messages, network, customer DB or storage IO. */
-export function makeVisualFollowup(): FollowupService {
+export function makeVisualFollowup(options: { emptyManual?: boolean } = {}): FollowupService {
   const member = { id: TEST_USER, name: "TEST 当前成员" };
   let sequence = 0;
   let records: FollowupRecord[] = [
@@ -37,6 +51,7 @@ export function makeVisualFollowup(): FollowupService {
       replyCount: 1,
     },
   ];
+  if (options.emptyManual) records = [];
   let replies: LinkedReply[] = [
     {
       id: "TEST-followup-reply",
@@ -51,6 +66,19 @@ export function makeVisualFollowup(): FollowupService {
       sample: false,
     },
   ];
+  const unmatched: LinkedReply[] = options.emptyManual ? [{
+    id: "TEST-unmatched-followup-reply",
+    revision: 1,
+    opportunityId: null,
+    profileVersionId: null,
+    sendRequestId: null,
+    platform: "TEST 内存通道",
+    content: "TEST 独立未匹配回复，不能当作所选商机的消息。",
+    receivedAt: TEST_TIME,
+    read: false,
+    sample: false,
+    unmatchedReason: "TEST 缺少商机和发送记录关联，仅用于未匹配状态验收。",
+  }] : [];
   const operations = new Map<
     string,
     { key: string; input: string; receipt: FollowupReceipt }
@@ -172,7 +200,7 @@ export function makeVisualFollowup(): FollowupService {
   return {
     list: async () => clone(readSnapshot({ records, members: [member] })),
     replies: async (id) =>
-      clone(id === opportunity.id ? replies : []),
+      clone(id === opportunity.id ? replies : id === undefined ? unmatched : []),
     mutate,
     operation: async (binding) => {
       requireBinding(binding);
