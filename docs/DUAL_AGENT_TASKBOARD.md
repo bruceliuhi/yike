@@ -118,7 +118,7 @@
 
 ### 当前领取顺序与单卡交付模板
 
-1. **优先接收在途成果：** 先锁定并复核 V02-01A/B，不重复开发登记/撤销；主线尚无这些接口。Mac 的 V02-05A 继续原任务。候选详情和边界见任务书“在途子卡与接收登记”。
+1. **优先接收在途成果：** 先锁定并复核 V02-01A/B，不重复开发登记/撤销；候选及集成情况以任务书登记为准。Mac 的 V02-05A 继续原任务。候选详情和边界见任务书“在途子卡与接收登记”。
 2. **可独立认领：** Win 的 V02-02C、V02-09A（随后 V02-09B 的本地进程部分）；Mac 的 V02-01C、V02-02A、V02-04A/B 的契约与反例、V02-06A、V02-07A、V02-10A。先检查已有认领；列表不是同时启动所有卡的指令。
 3. **依赖逐项解锁：** 最小身份/候选契约就绪后接每个平台和调度；R3 新服务按接口逐批接入，不再把 V02-05/V02-09 整项写成阻塞。每端默认一张主实现卡加一张交叉审核卡，完成小交付后再领下一项。
 4. **不压到最后：** 首发触达可行性、Windows 本地生命周期、样本/对照方案与主链并行；真实试用/部署/发送的授权门禁照旧。
@@ -153,8 +153,8 @@
 | 适用卡 | 命令与工作目录 | 必须另外说明的证据 |
 |---|---|---|
 | 所有文档/代码卡 | 根目录 `git diff --check`；Git Bash 下 `bash scripts/secret_scan.sh` | 验证绑定候选 SHA；纯文档卡不需要伪造业务测试 |
-| V02-01A | 候选已检出的隔离环境中运行 `uv run --frozen pytest -q tests/test_identity_contract.py tests/test_identity_postgres.py` | 这些新增文件尚未在本轮 main 中；须锁定候选并配置专用一次性PG；104迁移按候选要求用新空库，不能用生产库或静默跳过身份实测 |
-| V02-01B | 候选已检出的隔离环境中运行 `uv run --frozen pytest -q tests/test_identity_contract.py tests/test_session_auth.py tests/test_identity_postgres.py tests/test_session_revocation_postgres.py` | 含01A回归及01B新增测试，文件只在对应候选版本存在；测试库环境变量按候选契约设置，不将别人的结果计为本轮通过 |
+| V02-01A | 已锁定的身份实现版本中运行 `uv run --frozen pytest -q tests/test_identity_contract.py tests/test_identity_postgres.py` | 实现文件是否已集成以任务书和最新主线核查为准；锁定版本并配置专用一次性PG；未发布104候选迁移按其要求用新空库，不能用生产库或静默跳过身份实测 |
+| V02-01B | 已锁定的会话撤销实现版本中运行 `uv run --frozen pytest -q tests/test_identity_contract.py tests/test_session_auth.py tests/test_identity_postgres.py tests/test_session_revocation_postgres.py` | 含01A回归及01B新增测试，运行前核对所选版本包含这些文件；测试库环境变量按契约设置，不将别人的结果计为本轮通过 |
 | V02-02C 与平台解析 | 根目录 `uv run --frozen pytest -q tests/test_d03_remediation.py -k "adapters or normalize_time or bilibili"`；再运行本卡新增的平台测试 | 记录实际收集数，零测试不能算通过；fixture与真实平台证据分开 |
 | pilot 服务/API | 根目录 `uv run --frozen pytest -q tests/test_pilot_contracts.py tests/test_ui_api.py tests/test_pilot_web.py`；`uv run --frozen python -m compileall -q pilot tests` | 新模块另加定向测试；数据库隔离/并发/迁移须使用真实专用PG，不以compileall替代 |
 | V02-05B/C | `desktop/` 中 `npm test -- tests/ui/profile.test.tsx tests/ui/task-wizard.test.tsx tests/ui/client.test.ts tests/servicePolicy.test.ts` | 增补多业务/策略反例及真实API往返；保护人工编辑 |
