@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -54,13 +55,23 @@ def test_normal_runtime_container_layout_constructs_configured_app_with_tracked_
     expected_version, expected_digest, _ = load_assessment_rules()
     script = """
 import json
+import socket
 import sys
+from pathlib import Path
 
 sys.path.insert(0, sys.argv[1])
 from fastapi import FastAPI
+import psycopg
 from pilot import cli
 from pilot.candidate_assessment_model import load_assessment_rules
 
+layout = Path(sys.argv[1]).resolve()
+assert Path(cli.__file__).resolve() == layout / "pilot/cli.py"
+def external_connection_forbidden(*args, **kwargs):
+    raise AssertionError("normal runtime construction must not connect to network or database")
+socket.create_connection = external_connection_forbidden
+socket.socket.connect = external_connection_forbidden
+psycopg.connect = external_connection_forbidden
 captured = []
 cli.uvicorn.run = lambda app, **options: captured.append((app, options))
 cli.web()
@@ -68,13 +79,14 @@ assert len(captured) == 1 and isinstance(captured[0][0], FastAPI)
 version, digest, _ = load_assessment_rules()
 print(json.dumps({"version": version, "digest": digest}))
 """
-    environment = {
+    environment = {name: os.environ[name] for name in ("SystemRoot", "WINDIR") if name in os.environ}
+    environment.update({
         "YIKE_PILOT_AUTH_SECRET": "synthetic-auth-secret",
         "YIKE_PILOT_DATABASE_URL": "postgresql://pilot_app:synthetic@127.0.0.1:5432/pilot",
         "YIKE_PILOT_ASSESSMENT_BASE_URL": "https://model.invalid/v1",
         "YIKE_PILOT_ASSESSMENT_API_KEY": "synthetic-model-secret",
         "YIKE_PILOT_ASSESSMENT_MODEL": "synthetic/model-v1",
-    }
+    })
     result = subprocess.run(
         [sys.executable, "-I", "-c", script, str(layout)],
         cwd=tmp_path,
