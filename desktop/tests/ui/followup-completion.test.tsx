@@ -347,14 +347,22 @@ describe("P15 structured and legacy persistence", () => {
   });
   it("times out a pending save without discarding the draft or releasing the original operation", async () => {
     addRoute();
-    vi.mocked(context.service.followup!.mutate).mockImplementation(
-      () => new Promise(() => {}),
-    );
+    let signalRequestStarted!: () => void;
+    const requestStarted = new Promise<void>((resolve) => {
+      signalRequestStarted = resolve;
+    });
+    vi.mocked(context.service.followup!.mutate).mockImplementation(() => {
+      signalRequestStarted();
+      return new Promise(() => {});
+    });
     render(<FollowupsPage />);
     await fill();
     vi.useFakeTimers();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "保存记录" }));
+      // Native SHA-256 finishes asynchronously before preflight and dispatch.
+      // Start measuring the request deadline only after that real work finishes.
+      await requestStarted;
     });
     expect(context.service.followup!.mutate).toHaveBeenCalledOnce();
     await act(async () => {
