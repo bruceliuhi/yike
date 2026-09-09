@@ -154,6 +154,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 PostgreSQL 跨套件探针：在一次性数据库上为多个专项统一注入同一管理员/受限角色，运行连接、策略、建议、执行、导入、触达/回复套件，结果 **237 passed / 44 failed / 202 errors**。失败主体为各套件专属授权/角色初始化缺失（如 `pilot_users` 权限）及共享库状态假设，不能归因于统一业务回归；该混合结果不计入通过。后续必须按测试套件独立数据库、角色和 grants 重新执行，保留受限 PostgreSQL 11 项通过作为当前可靠证据。
 
+2026-09-10 策略套件独立 PostgreSQL 验证：按 `tests/test_research_strategies_postgres.py` 自有初始化流程使用全新 `win_research_strategy` 数据库，由套件创建 `strategy_app` 受限角色，**49 passed**。这消除了统一探针中的角色预创建冲突，证明确认策略、版本、撤销、RLS、HTTP 和真实 Node 往返在该独立环境通过；仍不代表生产部署、真实模型效果或客户 UAT。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
