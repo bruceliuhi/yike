@@ -482,7 +482,8 @@ def test_fresh_105_upgrade_twice_and_explicit_restricted_grants(databases):
             conn.autocommit = True
             conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database_name)))
             created = True
-        fresh.migration_paths = PilotDatabase.migration_paths[:-1]
+        fresh.migration_paths = tuple(item for item in PilotDatabase.migration_paths
+                                      if item[0] not in ("v02-device-credentials", "v02-connection-versions"))
         fresh.migrate()
         with fresh.connect() as conn:
             assert not conn.execute("SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='pilot_devices' AND column_name='owner_user_id')").fetchone()[0]
@@ -496,7 +497,7 @@ def test_fresh_105_upgrade_twice_and_explicit_restricted_grants(databases):
         fresh.migrate()
         fresh.migrate()
         with fresh.connect() as conn:
-            assert conn.execute("SELECT count(*) FROM pilot_schema_meta").fetchone()[0] == 6
+            assert conn.execute("SELECT count(*) FROM pilot_schema_meta").fetchone()[0] == len(PilotDatabase.migration_paths)
             conn.execute("SELECT set_config('yike.app_role',%s,true)", (role,))
             grant = (Path(__file__).parents[1] / "deploy/grant_device_credentials.sql").read_text()
             conn.execute(grant)

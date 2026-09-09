@@ -14,6 +14,8 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from pilot.auth import InvalidPilotToken
+from pilot.connection_api import register_connection_api
+from pilot.connection_versions import ConnectionOperationError
 from pilot.device_api import register_device_api
 from pilot.device_keys import DeviceKeyError
 from pilot.identity import IdentityValidationError
@@ -97,9 +99,13 @@ class _UiRoute(APIRoute):
                     {"detail": {"code": "invalid_request", "message": "请求字段无效，请检查后重试。"}},
                     status_code=422,
                 )
-            except DeviceKeyError as error:
+            except (DeviceKeyError, ConnectionOperationError) as error:
                 response = JSONResponse(
                     {"detail": {"code": error.code, "message": error.code}}, status_code=error.status,
+                )
+            except InvalidPilotToken:
+                response = JSONResponse(
+                    {"detail": {"code": "invalid_session", "message": "invalid_session"}}, status_code=401,
                 )
             except HTTPException as error:
                 response = JSONResponse({"detail": error.detail}, status_code=error.status_code, headers=error.headers)
@@ -196,7 +202,7 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
     @router.post("/devices/{device_id}/revoke")
     def revoke_device(device_id: str, request: Request):
         current = identity(request)
-        if not store.revoke_device(current.user_id, device_id):
+        if not store.revoke_device(current.user_id, device_id, claims=current.claims):
             raise _error(404, "device_not_found", "未找到可撤销的设备。")
         return {"device_id": device_id, "status": "REVOKED"}
 
@@ -209,7 +215,7 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
     def connect_platform(body: ConnectionInput, request: Request):
         current = identity(request)
         try:
-            return store.connect_platform(current.user_id, body.platform, body.device_id, body.account_public_id, body.session_ref)
+            return store.connect_platform(current.user_id, body.platform, body.device_id, body.account_public_id, body.session_ref, claims=current.claims)
         except IdentityValidationError as error:
             raise _error(400, "invalid_connection", "平台连接信息无效。") from error
         except KeyError as error:
@@ -220,7 +226,7 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
     @router.post("/connections/{connection_id}/disconnect")
     def disconnect_platform(connection_id: str, request: Request):
         current = identity(request)
-        if not store.disconnect_platform(current.user_id, connection_id):
+        if not store.disconnect_platform(current.user_id, connection_id, claims=current.claims):
             raise _error(404, "connection_not_found", "未找到可断开的平台连接。")
         return {"connection_id": connection_id, "status": "DISCONNECTED"}
 
@@ -317,4 +323,5 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
         raise _error(501, "capability_unavailable", "该能力尚未接入，当前操作未执行。")
 
     register_device_api(router, store, identity, require_session_https)
+    register_connection_api(router, store, identity, require_session_https)
     app.include_router(router)
