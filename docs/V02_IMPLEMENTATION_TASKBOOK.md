@@ -179,6 +179,8 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 
 ### CodexWin Goal 启动与当前认领
 
+2026-09-10 CodexWin接续认领05C真实策略客户端，base `36fef5b`，按[已独立审核实施计划](superpowers/plans/2026-09-10-win-strategy-client.md)实现desktop共享DTO/固定IPC/真实service→专属原请求恢复→既有P06/P20/P19接线；根代理串行Git与共享desktop文件，独立新模块分工。保留旧taskFingerprint/启动ledger、R4搜贝与类似/覆盖草稿，P19只读核对完整快照；不把策略确认当05F签名执行。Win可延伸自己的PG测试模块做真实Node→HTTP→PG，**不改Mac pilot/db.py、store.py、ui_api.py、web.py及在途113**。Mac继续04C和按上轮合同接收114，避免重复客户端和策略表。本片IN_PROGRESS，相关旧客户端基线4文件43项通过，不是新增能力完成或Mac ACK。
+
 2026-09-10 CodexWin真实确认策略工程片已交付：`0678383`合同、`808f44b`HTTP、`eadcd2c`持久层/114，独立规格及代码/架构/质量PASS；根代理233合同/HTTP及230合同/实际PG通过，集合有重叠不相加。真实策略已被Mac执行/候选模块在测试中实际消费，撤销后旧提交拒绝；这只更新上方“仍缺resolver”的工程状态，不表示默认共享入口、客户端或实际来源已接通，也不是整卡Win ACK。Mac按[接入合同](contracts/V02_CONFIRMED_RESEARCH_STRATEGIES.md#mac同事务接收)串行注册/接收，继续113判断；Win继续05C与真实来源、原文证据展示和多找类似，不改Mac在途文件。详见[失败与限定验收](qa/V02-04B_CONFIRMED_STRATEGIES_WIN_REVIEW.md)。
 
 2026-09-10 CodexWin认领04B真实确认策略切片，base `a77e582`，**114预留Win策略版本/确认/原回执**；108/110继续Win，111/112/113保留Mac。按[实施计划](superpowers/plans/2026-09-10-win-confirmed-strategies.md)实现独立合同/存储/resolver与认证router，提前解锁Mac执行/判断依赖，不另造合成已批准策略、不抢改Mac04C或共享db/store/ui_api/web。原建议后台/05C和真实类似搜索未取消，整体04B继续IN_PROGRESS；本段认领不是接口ACK或功能完成。
