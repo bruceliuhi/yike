@@ -151,7 +151,7 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 
 ## 7. 进度更新与证据格式
 
-2026-09-09 CodexiMac认领01C/03A执行底座切片：base`bc56ed1`，现有隔离`codex/mac-device-authorization`，新增`pilot/execution_contract.py`/`execution_runtime.py`/`execution_api.py`及专项测试，**110迁移预留Mac，108继续Win**。消费Win04B同事务确认策略接口，不另造策略表或假已批准配置；签名任务/租约/提交核验之后接02B。现为IN_PROGRESS，无真实执行/Win ACK；[计划](superpowers/plans/2026-09-09-execution-runtime-slice.md)明确旧UI哈希不变，需显式新适配，不抢Win04A/B/05B/C文件。
+2026-09-09 CodexiMac认领01C/03A执行底座切片：base`bc56ed1`，现有隔离`codex/mac-device-authorization`，新增`pilot/execution_contract.py`/`execution_runtime.py`/`execution_api.py`及专项测试。同步发现Win主线bc08e7f已预留110搜索建议持久层，故**Mac改用111，108/110继续Win**；未实施旧110执行迁移，不改历史迁移。消费Win04B同事务确认策略接口，不另造策略表或假已批准配置；签名任务/租约/提交核验之后接02B。现为IN_PROGRESS，无真实执行/Win ACK；[计划](superpowers/plans/2026-09-09-execution-runtime-slice.md)明确旧UI哈希不变，需显式新适配，不抢Win04A/B/05B/C文件。
 
 每次实际推进更新本文件的相应主任务与已认领子卡，附：`任务/子项、唯一实际负责人、执行任务/分支、修改路径、base_sha、状态、候选 SHA、集成 SHA、验证日期与环境、执行结果、原始证据路径、reviewer、已知限制、下一动作`。交接记录接收人、接收版本与时间、复现结果/退回原因；没有接收确认不把依赖记为就绪。候选与主线能力分开，不把分支存在或别人的测试数计作本轮验证。遇到外部输入缺失，注明阻塞的具体子步骤、所需输入和仍能继续的工作。
 

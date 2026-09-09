@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Target yike-ai2026/main; existing isolated codex/mac-device-authorization worktree, base bc56ed1. Preserve Win work and historical migrations. Mac owns01C/03A/02B; Win owns04A/B+05B/C. Migration108 remains Win; this slice reserves110 only.
+- Target yike-ai2026/main; existing isolated codex/mac-device-authorization worktree, base bc56ed1. Preserve Win work and historical migrations. Mac owns01C/03A/02B; Win owns04A/B+05B/C. Migration108 remains Win; latestWin mainbc08e7f also reserved110 for search persistence, so this slice reserves111 only (supersedes initial110 plan before implementation).
 - Server session resolves tenant/user. Public input cannot assign tenant, owner, reviewer, approval, capability or server budget. Mutation rechecks active session in its own commit transaction.
 - Device possession receipt, telemetry and connection registration are not execution authority. Require request-bound Ed25519 proof, current owned device/key and current CONNECTED connection version. PUBLIC_ANONYMOUS only for PUBLIC_WEB, still product/device authenticated.
 - Lock order: session → operation-id advisory → device → credential → connection → profile aggregate/version → confirmed strategy → task/run/platform run. Current checks use database clock after waits and before returning writes. Pre-reads only discover IDs; locked reread decides authority.
@@ -23,7 +23,7 @@
 
 ## Task 1: Persistent task/run/lease and caller-owned submission guard
 
-**Files:** create `pilot/execution_contract.py`, `pilot/execution_runtime.py`, `migrations/110_v02_execution_runtime.sql`, `deploy/grant_execution_runtime.sql`, `tests/test_execution_contract.py`, `tests/test_execution_runtime_postgres.py`; append110 registry entry only in `pilot/db.py`.
+**Files:** create `pilot/execution_contract.py`, `pilot/execution_runtime.py`, `migrations/111_v02_execution_runtime.sql`, `deploy/grant_execution_runtime.sql`, `tests/test_execution_contract.py`, `tests/test_execution_runtime_postgres.py`; append111 registry entry only in `pilot/db.py`.
 
 **Interfaces (signatures; their full behavior is specified below):**
 
