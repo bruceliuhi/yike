@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.db import connect, migrate
@@ -8,6 +9,9 @@ from app.repository import NormalizedSignal, Repository
 from app.web import create_app
 from tests.test_scoring import valid_decision
 from tests.test_web import facts, settings_for
+
+
+pytestmark = pytest.mark.usefixtures("discovery_clock")
 
 
 def valid_draft():
@@ -30,6 +34,7 @@ class WebModelClient:
         return valid_draft(), {"total_tokens": 11}
 
 
+@pytest.mark.native_clock
 def test_web_hides_and_rejects_model_and_activity_actions_after_day14(tmp_path):
     settings = settings_for(tmp_path)
     connection = connect(settings.data_dir / "discovery.sqlite3")

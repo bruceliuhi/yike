@@ -2,6 +2,7 @@ import csv
 from datetime import UTC, datetime
 import io
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.config import Settings
@@ -12,6 +13,9 @@ from app.repository import NormalizedSignal, Repository
 from app.web import create_app
 from app.workflow import Workflow
 from tests.support import collect_verified_signal
+
+
+pytestmark = pytest.mark.usefixtures("discovery_clock")
 
 
 def settings_for(tmp_path):
@@ -380,7 +384,7 @@ def test_detail_posts_review_draft_and_manual_outreach_then_redirects(tmp_path, 
     connection.close()
 
 
-def test_followup_posts_response_interview_and_quote_facts(tmp_path):
+def test_followup_posts_response_interview_and_quote_facts(tmp_path, discovery_clock):
     settings = settings_for(tmp_path)
     connection, _, workflow, run_id, signal_id, _ = facts(settings)
     workflow.present_score(run_id, signal_id, "web-score")
@@ -401,6 +405,7 @@ def test_followup_posts_response_interview_and_quote_facts(tmp_path):
         source_url="https://www.bilibili.com/video/av-web#reply-web", source_link_opened=True,
     )
     connection.close()
+    discovery_clock.value = datetime(2026, 8, 12, 10, 1, tzinfo=UTC)
     with TestClient(create_app(settings)) as client:
         response = client.post(
             "/followups/responses",
@@ -410,9 +415,11 @@ def test_followup_posts_response_interview_and_quote_facts(tmp_path):
                   "verified_at": "2026-08-12T10:01:00Z",
                   "evidence_summary": "愿意进一步沟通"}, follow_redirects=False,
         )
+    assert response.status_code == 303
     connection = connect(settings.data_dir / "discovery.sqlite3")
     response_id = connection.execute("SELECT response_event_id FROM response_events").fetchone()[0]
     connection.close()
+    discovery_clock.value = datetime(2026, 8, 13, 1, 30, tzinfo=UTC)
     with TestClient(create_app(settings)) as client:
         interview = client.post(
             "/followups/interviews",
@@ -426,9 +433,11 @@ def test_followup_posts_response_interview_and_quote_facts(tmp_path):
                   "minimum_agent_scenario_and_decision_process": "先试排序",
                   "solution_fit": "SOLVABLE", "next_step": "报价"}, follow_redirects=False,
         )
+    assert interview.status_code == 303
     connection = connect(settings.data_dir / "discovery.sqlite3")
     interview_id = connection.execute("SELECT interview_id FROM interviews").fetchone()[0]
     connection.close()
+    discovery_clock.value = datetime(2026, 8, 13, 1, 32, tzinfo=UTC)
     with TestClient(create_app(settings)) as client:
         quote = client.post(
             "/followups/quotes",
