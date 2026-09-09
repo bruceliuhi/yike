@@ -165,6 +165,58 @@ def test_secure_session_exchange_rejects_plain_http_in_production():
     assert client.post("/session", data={"token": token}, headers={"x-forwarded-proto": "https"}, follow_redirects=False).status_code == 400
 
 
+def test_state_changing_requests_reject_cross_origin_posts():
+    client = TestClient(build_app(Store(), auth_secret="test-secret"), base_url="https://pilot.example")
+    headers = {
+        "Authorization": "Bearer " + issue_token("user-1", "test-secret"),
+        "Origin": "https://evil.example",
+    }
+
+    response = client.post(
+        "/opportunities/opp-1/followups",
+        headers=headers,
+        data={"status": "REPLIED", "note": "跨站请求"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 403
+    assert "origin" in response.text.lower()
+
+
+def test_state_changing_requests_accept_same_origin_posts():
+    client = TestClient(build_app(Store(), auth_secret="test-secret"), base_url="https://pilot.example")
+    headers = {
+        "Authorization": "Bearer " + issue_token("user-1", "test-secret"),
+        "Origin": "https://pilot.example/",
+    }
+
+    response = client.post(
+        "/opportunities/opp-1/followups",
+        headers=headers,
+        data={"status": "REPLIED", "note": "同源请求"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+
+
+def test_state_changing_requests_reject_malformed_origin():
+    client = TestClient(build_app(Store(), auth_secret="test-secret"), base_url="https://pilot.example", raise_server_exceptions=False)
+    headers = {
+        "Authorization": "Bearer " + issue_token("user-1", "test-secret"),
+        "Origin": "https://[malformed",
+    }
+
+    response = client.post(
+        "/opportunities/opp-1/followups",
+        headers=headers,
+        data={"status": "REPLIED", "note": "畸形 Origin"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 403
+
+
 def test_health_and_readiness_are_public_and_readiness_checks_database():
     class Cursor:
         def __enter__(self):

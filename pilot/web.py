@@ -6,6 +6,7 @@ from fastapi import Cookie, FastAPI, Form, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
+from urllib.parse import urlsplit
 import logging
 from pilot.auth import InvalidPilotToken, verify_token
 
@@ -60,6 +61,29 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False) -> FastAPI:
 
     class RedactedAccessLogMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request: Request, call_next):
+            if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+                origin = request.headers.get("origin")
+                if origin:
+                    try:
+                        parsed = urlsplit(origin)
+                        expected = f"{request.url.scheme}://{request.url.netloc}".lower()
+                        supplied = f"{parsed.scheme}://{parsed.netloc}".lower() if parsed.scheme and parsed.netloc else ""
+                        valid_origin = (
+                            parsed.scheme in {"http", "https"}
+                            and not parsed.username
+                            and not parsed.password
+                            and parsed.path in {"", "/"}
+                            and not parsed.query
+                            and not parsed.fragment
+                            and supplied == expected
+                        )
+                    except ValueError:
+                        valid_origin = False
+                    if not valid_origin:
+                        response = PlainTextResponse("origin forbidden", status_code=403)
+                        _set_security_headers(response)
+                        access_logger.info("%s %s %s", request.method, request.url.path, response.status_code)
+                        return response
             response = await call_next(request)
             _set_security_headers(response)
             access_logger.info("%s %s %s", request.method, request.url.path, response.status_code)
