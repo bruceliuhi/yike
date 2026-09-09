@@ -139,7 +139,8 @@ _CAPABILITIES = {
 }
 
 
-def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = False) -> None:
+def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = False,
+                    phone_auth=None, sms_sender=None) -> None:
     # The enclosing pilot app retains its same-Origin middleware and security
     # headers. This router deliberately does not install a permissive CORS rule.
     router = APIRouter(prefix="/api/ui", route_class=_UiRoute)
@@ -312,11 +313,11 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
 
     @router.get("/capabilities")
     def capabilities():
-        return {"capabilities": {name: {"available": available} for name, available in _CAPABILITIES.items()}}
+        return {"capabilities": {name: {"available": available} for name, available in capabilities_state.items()}}
 
     @router.post("/capabilities/{capability}")
     def unavailable_capability(capability: str, request: Request):
-        if capability not in _CAPABILITIES or _CAPABILITIES[capability]:
+        if capability not in capabilities_state or capabilities_state[capability]:
             raise _error(404, "capability_not_found", "未找到该能力入口。")
         if capability != "sms_login":
             identity(request)
@@ -324,4 +325,8 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
 
     register_device_api(router, store, identity, require_session_https)
     register_connection_api(router, store, identity, require_session_https)
+    from pilot.phone_api import register_phone_api
+    capabilities_state = dict(_CAPABILITIES)
+    capabilities_state["sms_login"] = register_phone_api(
+        router, store, phone_auth, sms_sender, auth_secret, require_session_https)
     app.include_router(router)
