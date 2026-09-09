@@ -20,3 +20,13 @@
 V02-09 发行前需重新核对上游：有修复版则精确更新并验证；没有时评估经专项安全测试的解压器补丁/替换，或提交明确风险决策。不得自动采用 npm 建议的 Forge 6.4.2 大版本降级，也不得把“使用官方归档”写成漏洞已修复。隔离构建机与归档校验只是缓解措施。
 
 修复后需复跑完整/production audit、Mac 打包与包内冒烟、Windows maker 和实际运行；当前 362 项桌面测试、类型检查、renderer build 均不代替这些验收。`npm ci --ignore-scripts` 跳过 Electron 下载及安装脚本，只证明锁定 JS 依赖树可安装，不证明发行包可运行。
+
+## 同日Win只读复核补充
+
+绑定 `14a082fed11afd01b073091eb416565f1ab0b373` 与lock blob `446e7786c2543c76c4fb508b85e36ceb7709d90b`；独立 `supplychain_readiness` 使用Node24.19/npm11.6.2再次核验：full audit仍17 high，production 0。runtime切片只改根engines，依赖节点不变，发行门禁不关闭。
+
+更正前述上游现状：extract-zip仍无已发布修复版，但[Packager20.0.1](https://github.com/electron/packager/releases/tag/v20.0.1)已换用官方 `@electron-internal/extract-zip`，当前最新20.3.0。稳定Forge7.11.2仍要求Packager18系列；不能直接覆盖为Packager20或切Forge8 alpha并视为兼容。
+
+待专项验证的最小候选是仅在 `@electron/packager@18.4.4` 父节点下，将extract-zip精确替换为官方 `@electron-internal/extract-zip@1.0.5`。本次只确认Packager调用形状和CJS默认导入可加载，没有修改依赖或执行解压/打包，不视为已修复。该包的[官方安全模型](https://github.com/electron/extract-zip/blob/main/SECURITY.md)要求校验过的可信Electron归档与干净目标目录，不覆盖任意不受信任ZIP及预置攻击者内容。
+
+实施前后需保留公告反例、路径/链接/重复项及正常归档测试；锁定变更和两个audit外，还需Windows完整maker/包内及实际生命周期，以及同锁Mac Framework链接/权限、打包启动验证。audit归零不能替代以上条件，未批准豁免、自动降级或无关升级。

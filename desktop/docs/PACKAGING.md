@@ -4,7 +4,7 @@
 
 ## 构建前提
 
-- 使用 Node.js 24 和提交的 `package-lock.json`，从 `desktop/` 执行命令。
+- 使用 Node.js `>=24.15.0 <25` 和提交的 `package-lock.json`，从 `desktop/` 执行命令；最低版本与锁定 jsdom 的要求对齐。
 - `npm ci` 会安装固定版本的 Electron。需要能够访问依赖和 Electron 二进制下载源。
 - 不将访问凭证、数据库连接、管理员密钥或环境文件打入安装包。正式服务地址由启动进程环境固定配置。
 - 本轮没有配置代码签名、macOS 公证或自动更新发布；未经对应平台验收的产物称为候选包。
@@ -41,7 +41,7 @@ YIKE_SERVICE_URL=https://customer.example \
 
 ## Windows x64
 
-在 Windows x64、Node.js 24 x64 环境中，获取要验收的代码提交，然后从仓库的 `desktop/` 目录用 PowerShell 运行：
+在 Windows x64、Node.js `>=24.15.0 <25` x64 环境中，获取要验收的代码提交，然后从仓库的 `desktop/` 目录用 PowerShell 运行：
 
 ```powershell
 ./scripts/build-windows.ps1
@@ -49,12 +49,17 @@ YIKE_SERVICE_URL=https://customer.example \
 
 脚本执行安装依赖、类型检查、单元测试、原生网络冒烟、Squirrel 安装包构建、ASAR 校验、包内启动冒烟和产物 SHA-256。安装程序为 `out/make/squirrel.windows/x64/YikeAI-Setup.exe`；同时保留 `.nupkg` 和 `RELEASES`。
 
+PowerShell 始终选择 PATH 中的第一个 Node，版本不满足时直接预检失败，不跳到后面的 Node。runner 用该 Node 直接执行首个 `npm.cmd` 邻接的 `npm-prefix.js`，优先使用探测到的 global prefix 中的 npm CLI；该 CLI 不存在时，使用 `npm.cmd` 邻接安装中的 CLI。prefix 或版本探测失败会停止构建，不能静默改用另一套 npm。
+
+外层 npm 通过选定的 `process.execPath` 直接运行 `npm-cli.js`，不执行 `npm.cmd` 外层 shell。只在子进程的环境副本中合并 `Path`/`PATH` 并前置选定 Node 目录，使当前固定生命周期脚本中的 `node` 一致；不修改机器 PATH、npm 配置或依赖版本，也不创建临时 npm shim。这一约束不承诺任意未来脚本内嵌套调用 `npm` 都使用相同运行时，新增嵌套命令需另行验证。
+
 每次运行会生成独立目录 `out/windows-evidence/<运行编号>/`，控制台会显示该位置。其中：
 
 - `windows-build.json` 记录当前 Git 提交与 dirty 状态、Node/操作系统版本及架构、锁文件 SHA-256、每个阶段的状态和退出码，以及实际产物的大小和 SHA-256。无法读取 Git 时明确记为 `null`；不要将带本地改动的构建当成提交的精确产物。
+- 独立 `runtime` 字段仅记录 Node 版本范围、npm 实测版本、CLI 来源模式、选定 Node 与 CLI 的 SHA-256、直接启动模式；未完成探测的值为 `null`。运行时内部的绝对路径、环境副本和配置不进入报告。
 - `WINDOWS_ACCEPTANCE.md` 来自[人工验收模板](WINDOWS_ACCEPTANCE_TEMPLATE.md)，安装、可见启动、任务草稿、退出、重启、单实例、卸载及 100%/125%/150% 显示缩放均默认 `UNTESTED`。自动构建成功不会自动勾选人工项目。
 
-依赖安装或后续阶段失败会保留报告和实际退出码，尚未执行的阶段为 `NOT_RUN`。缺少 Node 24 时 PowerShell 入口也会尝试写入预检失败报告。报告目录不可写等初始化故障只能在控制台提示；强制终止进程可能留下 `IN_PROGRESS`/`RUNNING`，这同样不是成功证据。证据文件不采集环境变量、Cookie、凭证、原始构建日志或异常全文。
+依赖安装或后续阶段失败会保留报告和实际退出码，尚未执行的阶段为 `NOT_RUN`。缺少 Node 或版本不满足 `>=24.15.0 <25` 时，PowerShell 入口也会尝试写入预检失败报告。报告目录不可写等初始化故障只能在控制台提示；强制终止进程可能留下 `IN_PROGRESS`/`RUNNING`，这同样不是成功证据。证据文件不采集环境变量、Cookie、凭证、原始构建日志或异常全文。依赖漏洞审计结果仍按独立风险记录处理，不因运行时对齐而自动通过。
 
 完成构建后，只运行报告对应的本次安装包，逐项实际检查并填写人工表。回传同一运行目录中的 JSON、人工表及必要的脱敏截图；失败也回传 JSON，没有安装包的项目保持 `UNTESTED`。不要回传 `.env`、平台会话、用户数据目录、`node_modules` 或完整控制台日志。自动报告中的 `BUILD_SUCCEEDED` 只表示构建及自动检查通过，不能替代 Windows 实机与产品功能验收。
 

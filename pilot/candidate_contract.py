@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Literal
 from urllib.parse import parse_qsl, unquote, urlsplit
 
+import idna
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError, field_validator, model_validator
 
 _OPAQUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
@@ -54,11 +55,21 @@ def _parse_time(value: str) -> datetime:
 def _normalize_host(hostname: str) -> str:
     if "%" in hostname:
         raise ValueError("invalid hostname")
-    host = hostname.encode("idna").decode("ascii").lower()
+    try:
+        return ipaddress.ip_address(hostname).compressed
+    except ValueError:
+        pass
+    # IDNA2003 folds distinct origins such as faß.example and fass.example.
+    host = idna.encode(hostname, uts46=True, transitional=False, std3_rules=True).decode("ascii").lower()
     if host.endswith("."):
         host = host[:-1]
     if not host or host.endswith(".") or any(not label for label in host.split(".")):
         raise ValueError("invalid hostname")
+    # UTS46 may turn Unicode digits/dots into an IP; validation must see it as one.
+    try:
+        return ipaddress.ip_address(host).compressed
+    except ValueError:
+        pass
     return host
 
 def _origin(url: str) -> str:
