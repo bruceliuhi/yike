@@ -20,6 +20,7 @@ class PilotDatabase:
         ("v02-identity-execution", migration_path.with_name("104_v02_identity_execution.sql")),
         ("v02-session-revocation", migration_path.with_name("105_v02_session_revocation.sql")),
         ("v02-device-credentials", migration_path.with_name("106_v02_device_credentials.sql")),
+        ("v02-connection-versions", migration_path.with_name("107_v02_connection_versions.sql")),
     )
 
     def __init__(self, url: str):

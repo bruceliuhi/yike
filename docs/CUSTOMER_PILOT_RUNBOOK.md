@@ -19,6 +19,8 @@ uv run --frozen yike-pilot-migrate   # 仅由受信管理员/发布作业执行�
 psql "$YIKE_PILOT_ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "SET yike.app_role = 'YOUR_EXISTING_APP_ROLE'" -f deploy/grant_session_revocations.sql
 # 106 升级：迁移后另行补齐设备持钥证明的新表权限。
 psql "$YIKE_PILOT_ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "SET yike.app_role = 'YOUR_EXISTING_APP_ROLE'" -f deploy/grant_device_credentials.sql
+# 107 升级：迁移后显式授予不可变连接操作回执 SELECT/INSERT。
+psql "$YIKE_PILOT_ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "SET yike.app_role = 'YOUR_EXISTING_APP_ROLE'" -f deploy/grant_connection_operations.sql
 uv sync --frozen --extra dev
 env -u YIKE_PILOT_ADMIN_DATABASE_URL uv run --frozen yike-pilot-web
 ```
@@ -40,6 +42,8 @@ env -u YIKE_PILOT_ADMIN_DATABASE_URL uv run --frozen yike-pilot-web
 ## 受信 provisioning
 
 106 设备持钥证明另需上述新授权脚本：仅新凭据/挑战表 SELECT、INSERT、UPDATE，不新增 DELETE、用户 UPDATE 或 schema CREATE；两表 FORCE RLS，运行角色不能是 owner/BYPASSRLS。历史设备 owner 保持 NULL，不自动归属第一个申请者。升级可重复运行；不删除旧迁移或证明记录。API 与重启/重试约定见[设备密钥契约](contracts/V02_DEVICE_KEYS.md)。这不是 Windows 私钥保存、执行租约或平台连接验收。
+
+107 连接版本升级保持旧连接状态、账号、vault 引用，初始化版本 1。迁移后、启新应用前运行 grant_connection_operations.sql，仅新增回执 SELECT/INSERT，无 UPDATE/DELETE、用户 UPDATE 或 schema CREATE；回执 tenant+user FORCE RLS。脚本可重复，不能替代 104–106 授权。变更/回执同事务，重放返回历史状态而非当前 readiness；详见[连接版本契约](contracts/V02_CONNECTION_VERSIONS.md)。管理员连接仅用于独立受信发布终端，不进入运行时 env。
 
 `PilotStore.provision_tenant` 和 `provision_user` 只允许管理员脚本调用。它们不得暴露为客户 HTTP 路由。生产 provisioning/migration 必须使用独立的数据库 owner/管理员连接；Web 应用角色不能读取 `pilot_tenants` 目录，也不能创建租户。管理员生成用户后，用 `pilot.auth.issue_token()` 签发短期令牌；令牌只通过 HTTPS 或本机安全渠道交给用户。
 

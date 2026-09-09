@@ -1,0 +1,57 @@
+# V02-01C 连接版本后端切片验收
+
+日期：2026-09-09。实现者：connection_versions_implementation；集成与独立复跑：CodexiMac；独立任务源码审核：connection_version_review。
+
+候选：`a8a36fecba408e22a201ce6e3f14da2c0b30a857`，计划基线 `94437cdb1fce605aaa85bd7a1025ee0702c392de`。工程主任务01C未完成；本文件不代表实际Win接收、真实平台、完整执行许可或上线。
+
+## 交付
+
+107迁移提供单调连接版本，显式重连即使vault引用不变也递增；断开/撤销使旧版本失效。新POST/GET连接操作使用严格请求、不可变历史回执、幂等冲突和所有者/客户空间隔离。受信旧管理接口保留语义，真实HTTP在写事务内重新核验会话；`lock_current`只在调用者事务内检查当前版本，不单独授予执行权。详细请求、错误、锁顺序及升级见[协议](../contracts/V02_CONNECTION_VERSIONS.md)。
+
+未改101～106迁移、desktop、连接器或默认平台能力。REGISTER仍为UNVERIFIED；合成CONNECTED只用于测试失效检查，不是真实登录证据。
+
+## 测试与独立审核
+
+| 检查 | 结果及边界 |
+|---|---|
+| 实现者规定定向10文件 | 224 passed in33.55s，0跳过；新增23个DTO与40个PG用例 |
+| 实现者补充断言 | 原始SQL溢出回滚1通过；回执查询等锁后过期反例先失败、恢复代码后1通过；不与全量相加 |
+| CodexiMac完整后端 | `uv run --frozen pytest -q --tb=short`，1025 passed in82.47s，0跳过，exit0 |
+| CodexiMac静态检查 | compileall pilot/tests、secret_scan及diff --check均exit0 |
+| 独立任务审核 | 对精确a8a36fe规格合规、代码质量PASS，无Critical/Important/Minor待改项；审核者未冒充运行上述测试 |
+
+完整后端运行时配置四个专用本地测试DSN：`YIKE_PILOT_ADMIN_DATABASE_URL`、`YIKE_PILOT_DATABASE_URL`、`YIKE_IDENTITY_TEST_DATABASE_URL`、`YIKE_IDENTITY_TEST_APP_DATABASE_URL`。本文件不记录凭据值。运行期间后端和测试字节冻结在a8a36fe，只有并行版本规划文档提交为4d974aa；非平台实测。
+
+PG测试观察真实Lock wait_event后再释放，覆盖检查器与重连/断开/撤销双向竞争、相同及不同请求、注销先后、锁等待过期、原回执重放、插入失败整笔回滚。独立随机数据库101～106升级107两次及授权两次，验证受限角色、FORCE RLS、不可变回执与不安全授权拒绝。
+
+## 明确边界与反例
+
+- 不存在或他人设备也需持久拒绝，但不能外键指向他人的授权：requested_device_id与nullable authorized_device_id分开，后者为空只允许安全device_unavailable且连接结果全空。
+- PostgreSQL原始INTEGER表达式可在触发器前溢出；支持的业务接口在锁内预检并给稳定耗尽错误，触发器可观察的MAX字段变化给YC001。两者原子回滚、不重置版本；没有为任意SQL表达式添加新类型或助手接口。
+- 旧106升级测试使用“最后一条迁移之前”在新增107后失去105基线；改用明确迁移ID选择，保留原105状态断言，未删减身份安全测试。
+- 回执查询后遗漏会话墙钟复核的敏感性用真实表锁测试验证，临时移除该复核时失败；恢复相同生产代码后通过。
+
+## 后续接入门禁
+
+remote9e27723的前端断开仍调用`disconnect(platform)`并期待void，只在本地保存UUID。05D须显式接入request/device/connection/version及GET原回执，不能将HTTP200的REJECTED当成已断开；当前默认不可用保持。检查器还须与持钥、任务/策略/预算、run/lease/generation和结果提交同事务衔接。完整01C、02B、03A、真实Windows、平台收发、生产及UAT继续未完成。
+
+## 合并失败与有界修复（保留原结果）
+
+正常合并主线5022b36形成d49fb0a后，Mac同时运行后端和Vitest：后端1024通过/1失败（108.72s），原`test_supervisor_cancel_terminates_then_kills_the_whole_process_group`返回后heartbeat由`2`变为空；桌面627通过/21条件跳过/1失败，新复制Node夹具ready在3秒超时。该轮typecheck/build因前置失败没有执行，不能用合并前1025通过回填。
+
+独立integration_process_diagnosis定位：POSIX组SIGKILL提交后未确认后代停止；隔离复测通过不能豁免该边界。Node精确单测也曾失败，冷副本启动约1.90～2.35秒、同副本复用约32～34ms，失败发生另一夹具清理前，未证明清理误删。没有更改原断言、平台跳过或通过重试改写失败。
+
+修复候选 `af0faf6a67b26b23a2adae7c5e66c36bc88d977a` 仅改旧collector和相关Python/Node测试：SIGKILL后有界确认，未知走既有FAILED且不重复清理；仅冷ready使用10秒，IPC/close仍3秒。TDD初始Python5失败/Node1失败，修复后collector56通过、Node23通过/14既有平台条件跳过；原真实取消/超时两测5轮均通过。长期僵尸组或权限未知2秒后保守失败，Linux该行为未实测，不声称全平台进程验收完成。实现者定向结果不等于独立合并通过。
+
+随后正常纳入R4授权主线448e88a形成66f5de3，保留两端成果；分阶段优先级文档经execution_preflight独立审核PASS，5文件74本地链接与secret scan通过。整分支最终验证及审核另行追加，当前仍不是平台收发、Windows或生产验收。
+
+## 冻结候选最终验证
+
+锁定 **`458dd81863604c7962dc5bdc5dc2634f24bd1032`**，工作树干净，代码、依赖与测试未变，CodexiMac按顺序而非并行执行：
+
+- 上述四个专用PG测试环境变量下 `uv run --frozen pytest -q --tb=short`：**1037 passed in69.09s，0 skipped，exit0**。
+- `desktop/` 的 `npm test`：**61 files / 630 passed / 21既有平台或架构条件skipped，31.15s，exit0**；随后 `npm run typecheck` 与 `npm run build:renderer` 均exit0。Node24.19.0 / npm11.17.0。
+- `git diff --check 448e88a HEAD`、secret scan通过；服务端/迁移/部署及连接测试与a8a36fe字节相同，进程修复三文件与af0faf6相同。
+- 非实现者 `integration_final_review` 对精确448e88a..458dd81完成最终代码/架构/质量审核：**PASS，可集成，无新增Critical/Important/Minor待改项**；审核者未冒称重跑上述测试。
+
+这些是本机冻结候选集成证据，不与之前测试数相加、不覆盖d49失败。后续仅追加文档回执时复用这个代码证据，不重跑整仓。Windows/Linux进程实测、Win CV ACK、平台收发、完整执行链、CP-06及UAT仍未完成；既有备份HMAC路径字面值P1继续阻止上线。当前Goal保持ACTIVE。

@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import psycopg
+
+from pilot.auth import InvalidPilotToken, TokenClaims
+from pilot.connection_versions import ConnectionOperationError, MAX_VERSION
 from pilot.db import PilotDatabase
 from pilot.identity import validate_connection_input, validate_execution_event
 from pilot.sessions import PilotSessionRegistry
@@ -405,55 +410,82 @@ class PilotStore:
                 columns = [column.name for column in cursor.description]
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-    def revoke_device(self, user_id: str, device_id: str) -> bool:
+    def _check_mutation_session(self, cursor, user_id, claims):
+        if claims is not None:
+            if claims.user_id != user_id:
+                raise InvalidPilotToken("invalid pilot token")
+            self.sessions.require_active(cursor, claims)
+
+    @contextmanager
+    def _connection_mutation(self, user_id, claims):
+        try:
+            with self.database.connect() as connection, connection.cursor() as cursor:
+                self._check_mutation_session(cursor, user_id, claims)
+                yield cursor
+                self._check_mutation_session(cursor, user_id, claims)
+        except psycopg.Error as error:
+            if error.sqlstate in ("YC001", "YC002"):
+                code = "connection_version_exhausted" if error.sqlstate == "YC001" else "connection_version_conflict"
+                raise ConnectionOperationError(code) from None
+            raise
+
+    def revoke_device(self, user_id: str, device_id: str, *, claims: TokenClaims | None = None) -> bool:
         if not isinstance(device_id, str) or not device_id.strip():
             raise ValueError("device_id is required")
         tenant_id = self._tenant_for_user(user_id)
-        with self.database.connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
-                cursor.execute(
-                    "UPDATE pilot_devices SET status='REVOKED', revoked_at=COALESCE(revoked_at, CURRENT_TIMESTAMP) "
-                    "WHERE tenant_id=%s AND device_id=%s AND status <> 'REVOKED' RETURNING device_id",
-                    (tenant_id, device_id.strip()),
-                )
-                if cursor.fetchone() is None:
-                    return False
-                cursor.execute(
-                    "UPDATE pilot_platform_connections SET status='DISCONNECTED', disconnected_at=COALESCE(disconnected_at, CURRENT_TIMESTAMP) "
-                    "WHERE tenant_id=%s AND device_id=%s AND status<>'DISCONNECTED'",
-                    (tenant_id, device_id.strip()),
-                )
+        with self._connection_mutation(user_id, claims) as cursor:
+            cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+            cursor.execute(
+                "UPDATE pilot_devices SET status='REVOKED', revoked_at=COALESCE(revoked_at, CURRENT_TIMESTAMP) "
+                "WHERE tenant_id=%s AND device_id=%s AND status <> 'REVOKED' RETURNING device_id",
+                (tenant_id, device_id.strip()),
+            )
+            if cursor.fetchone() is None:
+                return False
+            self._check_mutation_session(cursor, user_id, claims)
+            cursor.execute(
+                "UPDATE pilot_platform_connections SET status='DISCONNECTED', disconnected_at=COALESCE(disconnected_at, CURRENT_TIMESTAMP) "
+                "WHERE tenant_id=%s AND device_id=%s AND status<>'DISCONNECTED'",
+                (tenant_id, device_id.strip()),
+            )
         return True
 
-    def connect_platform(self, user_id: str, platform: str, device_id: str, account_public_id: str, session_ref: str) -> dict:
+    def connect_platform(self, user_id: str, platform: str, device_id: str, account_public_id: str, session_ref: str, *, claims: TokenClaims | None = None) -> dict:
         values = validate_connection_input(platform, device_id, account_public_id, session_ref)
         tenant_id = self._tenant_for_user(user_id)
         connection_id = str(uuid4())
-        with self.database.connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
-                cursor.execute(
-                    "SELECT status FROM pilot_devices WHERE tenant_id=%s AND device_id=%s FOR UPDATE",
-                    (tenant_id, values["device_id"]),
-                )
-                device = cursor.fetchone()
-                if device is None:
-                    raise KeyError("device not found in tenant")
-                if device[0] != "ACTIVE":
-                    raise ValueError("device is revoked")
-                cursor.execute(
-                    "INSERT INTO pilot_platform_connections(connection_id, tenant_id, device_id, platform, account_public_id, session_ref) "
-                    "VALUES (%s,%s,%s,%s,%s,%s) "
-                    "ON CONFLICT (tenant_id, device_id, platform, account_public_id) DO UPDATE SET "
-                    "session_ref=EXCLUDED.session_ref, status='UNVERIFIED', disconnected_at=NULL "
-                    "RETURNING connection_id, platform, account_public_id, status",
-                    (connection_id, tenant_id, values["device_id"], values["platform"], values["account_public_id"], values["session_ref"]),
-                )
-                row = cursor.fetchone()
-                if row is None:
-                    raise RuntimeError("platform connection upsert failed")
-        return {"connection_id": row[0], "platform": row[1], "account_public_id": row[2], "status": row[3]}
+        with self._connection_mutation(user_id, claims) as cursor:
+            cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+            cursor.execute(
+                "SELECT status FROM pilot_devices WHERE tenant_id=%s AND device_id=%s FOR UPDATE",
+                (tenant_id, values["device_id"]),
+            )
+            device = cursor.fetchone()
+            self._check_mutation_session(cursor, user_id, claims)
+            if device is None:
+                raise KeyError("device not found in tenant")
+            if device[0] != "ACTIVE":
+                raise ValueError("device is revoked")
+            cursor.execute("SELECT connection_version FROM pilot_platform_connections "
+                "WHERE tenant_id=%s AND device_id=%s AND platform=%s AND account_public_id=%s FOR UPDATE",
+                (tenant_id, values["device_id"], values["platform"], values["account_public_id"]))
+            existing = cursor.fetchone()
+            self._check_mutation_session(cursor, user_id, claims)
+            if existing and existing[0] == MAX_VERSION:
+                raise ConnectionOperationError("connection_version_exhausted")
+            cursor.execute(
+                "INSERT INTO pilot_platform_connections(connection_id, tenant_id, device_id, platform, account_public_id, session_ref) "
+                "VALUES (%s,%s,%s,%s,%s,%s) "
+                "ON CONFLICT (tenant_id, device_id, platform, account_public_id) DO UPDATE SET "
+                "session_ref=EXCLUDED.session_ref, status='UNVERIFIED', disconnected_at=NULL, "
+                "connection_version=pilot_platform_connections.connection_version+1 "
+                "RETURNING connection_id, platform, account_public_id, status, connection_version",
+                (connection_id, tenant_id, values["device_id"], values["platform"], values["account_public_id"], values["session_ref"]),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                raise RuntimeError("platform connection upsert failed")
+        return {"connection_id": row[0], "platform": row[1], "account_public_id": row[2], "status": row[3], "connection_version": row[4]}
 
     def list_connections(self, user_id: str) -> list[dict]:
         tenant_id = self._tenant_for_user(user_id)
@@ -461,26 +493,34 @@ class PilotStore:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
                 cursor.execute(
-                    "SELECT connection_id, device_id, platform, account_public_id, status, connected_at, disconnected_at "
+                    "SELECT connection_id, device_id, platform, account_public_id, status, connected_at, disconnected_at, connection_version "
                     "FROM pilot_platform_connections WHERE tenant_id=%s ORDER BY connected_at DESC, connection_id DESC",
                     (tenant_id,),
                 )
                 columns = [column.name for column in cursor.description]
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-    def disconnect_platform(self, user_id: str, connection_id: str) -> bool:
+    def disconnect_platform(self, user_id: str, connection_id: str, *, claims: TokenClaims | None = None) -> bool:
         if not isinstance(connection_id, str) or not connection_id.strip():
             raise ValueError("connection_id is required")
         tenant_id = self._tenant_for_user(user_id)
-        with self.database.connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
-                cursor.execute(
-                    "UPDATE pilot_platform_connections SET status='DISCONNECTED', disconnected_at=COALESCE(disconnected_at, CURRENT_TIMESTAMP) "
-                    "WHERE tenant_id=%s AND connection_id=%s AND status<>'DISCONNECTED' RETURNING connection_id",
-                    (tenant_id, connection_id.strip()),
-                )
-                return cursor.fetchone() is not None
+        with self._connection_mutation(user_id, claims) as cursor:
+            cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+            # Read identity without locking connection, then device→connection.
+            cursor.execute("SELECT device_id FROM pilot_platform_connections WHERE tenant_id=%s AND connection_id=%s",
+                           (tenant_id, connection_id.strip()))
+            target = cursor.fetchone()
+            if target is None:
+                return False
+            cursor.execute("SELECT device_id FROM pilot_devices WHERE tenant_id=%s AND device_id=%s FOR UPDATE",
+                           (tenant_id, target[0]))
+            self._check_mutation_session(cursor, user_id, claims)
+            cursor.execute(
+                "UPDATE pilot_platform_connections SET status='DISCONNECTED', disconnected_at=COALESCE(disconnected_at, CURRENT_TIMESTAMP) "
+                "WHERE tenant_id=%s AND device_id=%s AND connection_id=%s AND status<>'DISCONNECTED' RETURNING connection_id",
+                (tenant_id, target[0], connection_id.strip()),
+            )
+            return cursor.fetchone() is not None
 
     def append_execution_event(self, user_id: str, device_id: str, connection_id: str, execution_generation: int, event_type: str, payload: dict, task_id: str | None = None) -> dict:
         """Append reported telemetry only; never advance tasks, cursors or metrics."""

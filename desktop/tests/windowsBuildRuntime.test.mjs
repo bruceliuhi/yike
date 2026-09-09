@@ -1,4 +1,5 @@
-import {afterEach, describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
+import {EventEmitter} from 'node:events';
 import {createHash} from 'node:crypto';
 import {spawn, spawnSync} from 'node:child_process';
 import {copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync} from 'node:fs';
@@ -55,10 +56,10 @@ function cleanupFixture(root) {
   rmSync(root, {recursive: true, force: true, maxRetries: 5, retryDelay: 100});
   roots.splice(roots.indexOf(root), 1);
 }
-function bounded(promise, label) {
+function bounded(promise, label, timeoutMs = 3000) {
   let timer;
   return Promise.race([promise, new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`Timed out waiting for ${label}`)), 3000);
+    timer = setTimeout(() => reject(new Error(`Timed out waiting for ${label}`)), timeoutMs);
   })]).finally(() => clearTimeout(timer));
 }
 async function message(child, type) {
@@ -69,7 +70,9 @@ async function message(child, type) {
     onClose = () => reject(new Error(`Fixture child closed before ${type}`));
     child.on('message', onMessage).once('error', onError).once('close', onClose);
   });
-  try {return await bounded(received, type);}
+  // Fresh copied executables take ~2s to start on macOS versus ~33ms warm.
+  // Keep cold startup separate from the 3s IPC/exit responsiveness contract.
+  try {return await bounded(received, type, type === 'ready' ? 10000 : 3000);}
   finally {child.off('message', onMessage).off('error', onError).off('close', onClose);}
 }
 afterEach(() => {
@@ -77,6 +80,38 @@ afterEach(() => {
 });
 
 describe('Windows build runtime', () => {
+  it('allows cold readiness beyond 3s but bounds it at 10s', async () => {
+    vi.useFakeTimers();
+    try {
+      const child = new EventEmitter();
+      let settled = false;
+      const ready = message(child, 'ready').then(value => {settled = true; return value;}, error => {
+        settled = true; return error;
+      });
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(settled).toBe(false);
+      child.emit('message', {type: 'ready'});
+      expect(await ready).toEqual({type: 'ready'});
+      const neverReady = message(child, 'ready').catch(error => error);
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(await neverReady).toEqual(new Error('Timed out waiting for ready'));
+      expect(child.listenerCount('message')).toBe(0);
+    } finally {vi.useRealTimers();}
+  });
+
+  it('keeps ready-after startup IPC and close bounded at 3s', async () => {
+    vi.useFakeTimers();
+    try {
+      const child = new EventEmitter();
+      const pong = message(child, 'pong').catch(error => error);
+      const close = bounded(new Promise(() => {}), 'normal child close').catch(error => error);
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(await pong).toEqual(new Error('Timed out waiting for pong'));
+      expect(await close).toEqual(new Error('Timed out waiting for normal child close'));
+      expect(child.listenerCount('message')).toBe(0);
+    } finally {vi.useRealTimers();}
+  });
+
   it('uses independent Node file identities with unchanged source bytes', () => {
     const sourceDigest = digest(process.execPath);
     const first = fixture();
@@ -135,7 +170,7 @@ if(value==='stop')process.disconnect();
       }
       if (childError) throw childError;
     }
-  }, 12000);
+  }, 20000);
 
   it.each([
     ['darwin', 'arm64', 'arm64', false, false],

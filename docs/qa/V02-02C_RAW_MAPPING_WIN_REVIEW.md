@@ -39,7 +39,15 @@ uv build --wheel --offline --python ./.runtime/venvs/win-device-review/Scripts/p
 
 - 规格审核：win_contract_readiness直接阅读新模块和两测试文件，PASS；模块SHA-256 `df2dd3e00a8e201218db98e61a660d2d2e45be95f5823f990fd6d7068394a43f`，实现测试`8c157dedd8ded1fa2a32a30509bc1e955fa80f8a7d1d31c2ee0235656c213b80`，独立消费测试`34c8217762c8305142d2eb19de28b03870427f21754037524c6ada13095be730`。
 - 代码/架构/质量：supplychain_readiness独立审核PASS，三文件摘要与上述规格冻结值一致；独立复跑同组476 passed/0.67s，旧解析31 passed/42 deselected/0.10s，无新增P1/P2。代码提交`78116d9`包含这三个已审文件，不把根代理检查冒作独立审核。
-- 接收：通过main向Mac交接可消费的DTO映射，尚无Mac实际ACK。Mac的01C/02B/03A及R4页面没有在本批被修改。
+- 接收：通过main向Mac交接可消费的DTO映射，尚无Mac对此映射的实际ACK。Mac的01C/02B/03A及R4页面没有在本映射提交中被修改。
 - 仍缺：真实采集执行与原始观察时间传递、上传/持久化、主帖/网页及其余来源适配、逐平台样本和整链验收。capability仍未解锁，不以纯映射成功冒称已发现真实商机。
 
 下一条功能线已按源码确认现有单业务画像保存/确认可复用（pilot/store.py、ui_api.py及renderer/services/client.ts），04B可直接从已确认版本继续，无需先重做完整多业务管理；生产suggest仍不可用。此结论为源码接入调查，不是本轮重新运行PG或完成策略服务的证据。
+
+## 同轮保留Mac最新主线
+
+正常整合远端`3a51a2f66ee55b24f7e6406a9f2508cb30e1d65f`，没有覆盖其107连接版本、进程停止、Node冷启动夹具及R4/分期文档。Mac已在该提交实际ACK 04A/B→05B/C分工，明确不重复实现；共享ui_api/db/store由Win提供最小补丁、Mac串行集成，108仅预留给需要时的首个资料/画像迁移。该分工ACK不等于本映射ACK或新接口验收。
+
+合并工作树定向验证：原476＋连接版本纯契约23＝499 passed/0.80s，旧解析31 passed/42 deselected/0.11s；这里不是新增PG接收。Node24.19下`node node_modules/vitest/vitest.mjs run tests/windowsBuildRuntime.test.mjs`为36 passed/1既有非x64条件skip，11.91s。首次误用`node --test`启动Vitest文件，因缺Vitest suite报错（退出1）；检查文件导入及package脚本后仅纠正命令，未改代码或将该次调用错误隐去。
+
+此次未重跑Windows完整打包、连接版本真实PG或Linux进程生命周期，未给01C-CV/10E-PROC新的完整Win ACK。其Mac自带1037/630结果仍只属于Mac，不与本次结果相加。
