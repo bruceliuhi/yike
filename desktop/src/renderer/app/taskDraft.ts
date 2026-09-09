@@ -8,6 +8,11 @@ const term = z.object({
   edited: z.boolean(),
 });
 export const taskDraftSchema = z.object({
+  templateSourceDraftIds: z
+    .array(z.string().min(1).max(512).refine(id => id.trim() === id))
+    .max(50)
+    .refine((ids) => new Set(ids).size === ids.length)
+    .optional(),
   id: z.string(),
   revision: z.number(),
   name: z.string(),

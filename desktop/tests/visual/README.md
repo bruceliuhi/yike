@@ -26,12 +26,20 @@ npx vite --config vite.visual.config.ts
 
 `state=populated|empty|error|loading` 控制数据读取状态，默认 `populated`；详情在 `empty` 时呈现记录不存在。会话默认使用 TEST 身份，`session=guest` 或 P01 使用访客。启动确认仍缺真实账号和执行设备，不能启动；P13 仍禁止发送。
 
-20 个入口已映射，不表示 20 页所有状态已做视觉验收。当前仅完成 P09 浏览器打开与执行记录切换，以及任务 / 监控 / 跟进的组件回归；完整截图比较留待后续功能分支。
+两个附加参数也只影响隔离 TEST 状态：
+
+- `reference=r3`：按 [reference.ts](reference.ts) 将指定页面对齐到已批准 R3 的可比状态，例如画像草稿、未启动任务、监控平台状态和空跟进列表。`error` / `loading` 时不覆盖失败或等待状态。它不会修改生产数据或把参考图里的状态当成真实执行结果。
+- `capabilities=complete`：仅在 `state=populated` 时挂接 [materials.ts](materials.ts) 和 [followup.ts](followup.ts) 两个可选 **纯内存 TEST 服务**。资料可进行保存、解析状态、人工确认和引用影响操作；跟进可新增、纠正、撤销、标已读和按原请求查询。这里的 `complete` 是测试入口参数名，不表示生产能力全部接通，也不启用真实采集或消息发送。与 `reference=r3` 同时使用时，这两个内存服务替换相应的参考空态服务。
+
+例如 [TEST 跟进操作](http://127.0.0.1:18794/?scenario=P15&state=populated&reference=r3&capabilities=complete) 或 [TEST 资料操作](http://127.0.0.1:18794/?scenario=P04&state=populated&capabilities=complete)。所有输入应使用 TEST 合成内容；切换场景或刷新重建服务后内存记录重置。
+
+20 个页面现在已有真实 React 运行截图与 R3 参考图的逐页对比。详细状态、可见流程、剩余差异与滚动限制以 [本轮 design-qa](../../../docs/qa/ui-flow-completion/design-qa.md) 为准，独立审核见 [QUALITY_REVIEW](../../../docs/qa/ui-flow-completion/QUALITY_REVIEW.md)。这不表示每页所有业务状态、所有分辨率、生产服务或 Windows 实机都已验收。
 
 ## 数据与外部动作边界
 
 - [fixtures.ts](fixtures.ts) 全部使用 TEST 标记。任务关键词、排除词和两次监控时刻沿用已批准的展台场景；不存在真实采购联系人、预算或成交数据。合成询价对象使用 `.invalid` 来源地址；产品自带公开研究样例仍按原页面的只读规则展示。
 - [service.ts](service.ts) 数据每个实例独立深拷贝，画像 / 跟进 / 任务动作只影响该实例内存。候选入库、真实任务启动和消息发送始终拒绝；登录、短信、生成草稿等测试响应不调用外部服务。
+- [materials.ts](materials.ts) 与 [followup.ts](followup.ts) 只接受固定 TEST 画像/商机范围，操作回执保存在各自实例的内存中。资料的解析内容和收到的回复均为测试内容，不调用真实 AI 或平台。它们不访问网络、客户库或持久存储，不属于生产 renderer 的依赖图。
 - [isolation.ts](isolation.ts) 将 localStorage 与 sessionStorage 替换为内存对象，禁用 native bridge、业务 fetch / XHR / beacon、剪贴板写入、外链打开和 CSV 下载（包括脱离 DOM 的下载链接）。刷新后测试存储重置，不接触产品端口的存储。
 - 页面固定显示 TEST 标识。外部动作只记录在 `window.__YIKE_VISUAL__.events` 的内存事件数组中；复制只记录字符数，登录不记录输入凭证。
 - Vite 仅加载本机模块与 HMR，CSP 限制连接到本机入口；不应输入任何真实客户资料或凭据。
@@ -51,3 +59,5 @@ node tests/visual/verify-production-exclusion.mjs
 独立视觉构建若需要使用 `npx vite build --config vite.visual.config.ts`，输出到 `desktop/out/visual-harness`，不覆盖生产 `.vite/renderer`，且不是 Forge 的 renderer 入口。所有 `out` 产物不提交 Git。
 
 当前记录见 [VALIDATION.json](VALIDATION.json)。后续修改生产打包配置或新建安装包时重新执行排除脚本；本轮对既有 ASAR 的检查不替代未来安装包检查。
+
+完整前端回归使用 `npm test -- --run` 和 `npm run typecheck`，确切日期、测试总数及本轮限制记录在 [QUALITY_REVIEW](../../../docs/qa/ui-flow-completion/QUALITY_REVIEW.md)，不要将多轮重复执行的数量相加。

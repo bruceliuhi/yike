@@ -5,6 +5,8 @@ import { forgetLegacyOperationLock, readLegacyOperationLock } from "./hooks";
 export type OperationScope =
   | "send-attempts"
   | "unknown-task-starts"
+  | "followup-operations"
+  | "task-operations"
   | "management-operations";
 export type OperationEntries = Record<string, string>;
 const PREFIX = "yike.ui.operation.v1.";
@@ -58,6 +60,55 @@ function validEntries(
       typeof status !== "string"
     )
       return false;
+    if (scope === "task-operations") {
+      if (status !== "PENDING") return false;
+      try {
+        const parts: unknown = JSON.parse(key);
+        return (
+          Array.isArray(parts) &&
+          parts.length === 4 &&
+          typeof parts[0] === "string" &&
+          parts[0].length > 0 &&
+          parts[0].length <= 128 &&
+          ["pause", "resume", "retry", "cancel"].includes(parts[1]) &&
+          typeof parts[2] === "string" &&
+          /^[a-f0-9]{64}$/.test(parts[2]) &&
+          typeof parts[3] === "string" &&
+          parts[3].length > 0 &&
+          parts[3].length <= 128
+        );
+      } catch {
+        return false;
+      }
+    }
+    if (scope === "followup-operations") {
+      if (status !== "PENDING") return false;
+      try {
+        const parts: unknown = JSON.parse(key);
+        return (
+          Array.isArray(parts) &&
+          parts.length === 6 &&
+          typeof parts[0] === "string" &&
+          parts[0].length > 0 &&
+          parts[0].length <= 512 &&
+          typeof parts[1] === "string" &&
+          parts[1].length > 0 &&
+          parts[1].length <= 512 &&
+          ["create", "correct", "void", "mark-read", "legacy-create"].includes(
+            parts[2],
+          ) &&
+          typeof parts[3] === "string" &&
+          parts[3].length <= 512 &&
+          Number.isSafeInteger(parts[4]) &&
+          parts[4] >= 0 &&
+          typeof parts[5] === "string" &&
+          parts[5].length > 0 &&
+          parts[5].length <= 128
+        );
+      } catch {
+        return false;
+      }
+    }
     if (scope === "management-operations")
       return (
         /^[a-zA-Z0-9_-]{1,200}$/.test(key) &&
@@ -70,12 +121,26 @@ function validEntries(
           "rollback",
         ].includes(status)
       );
-    if (scope === "unknown-task-starts")
-      return (
-        key.length <= 512 &&
-        status.startsWith("task:" + key + ":") &&
-        /^\d+$/.test(status.slice(("task:" + key + ":").length))
-      );
+    if (scope === "unknown-task-starts") {
+      if (key.length > 512) return false;
+      if (status.startsWith("task:" + key + ":"))
+        return /^\d+$/.test(status.slice(("task:" + key + ":").length));
+      try {
+        const parts: unknown = JSON.parse(status);
+        return (
+          Array.isArray(parts) &&
+          parts.length === 4 &&
+          Number.isSafeInteger(parts[1]) &&
+          parts[1] >= 1 &&
+          parts[0] === `task:${key}:${parts[1]}` &&
+          typeof parts[2] === "string" &&
+          /^[a-f0-9]{64}$/.test(parts[2]) &&
+          (parts[3] === "once" || parts[3] === "monitor")
+        );
+      } catch {
+        return false;
+      }
+    }
     if (status !== "PENDING" && status !== "SENT") return false;
     try {
       const parts: unknown = JSON.parse(key);

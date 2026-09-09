@@ -2,6 +2,9 @@ import { useState } from "react";
 import { ArrowRight, CaretRight, Check } from "@phosphor-icons/react";
 import { useApp } from "../app/context";
 import { useResource } from "../app/hooks";
+import { TodoQueue } from "./workbench/TodoQueue";
+import { isSample } from "./Opportunities";
+import type { WorkbenchQueue } from "../services/workbench";
 import {
   Badge,
   Button,
@@ -34,6 +37,9 @@ export function WorkbenchPage() {
     deps,
   );
   const completed = profiles.data?.some((p) => p.status === "CONFIRMED");
+  const customerOpportunities = (opportunities.data || []).filter(
+    (row) => !isSample(row),
+  );
   const connected = connections.data?.some((c) => c.status === "CONNECTED");
   const steps = [
     {
@@ -121,6 +127,8 @@ export function WorkbenchPage() {
               title="登录后查看客户待办"
               description="也可以先准备业务与任务草稿。"
             />
+          ) : service.workbench ? (
+            <TodoQueue queue={tab as WorkbenchQueue} />
           ) : tab === "contact" ? (
             <>
               <Notice>待联系队列尚未接通，以下为客户空间的商机。</Notice>
@@ -131,9 +139,9 @@ export function WorkbenchPage() {
               />
               {!opportunities.loading &&
                 !opportunities.error &&
-                (opportunities.data?.length ? (
+                (customerOpportunities.length ? (
                   <div className="todo-list">
-                    {opportunities.data.slice(0, 6).map((o) => (
+                    {customerOpportunities.slice(0, 6).map((o) => (
                       <button
                         key={o.id}
                         onClick={() =>

@@ -72,14 +72,12 @@ beforeEach(() => {
     service: {
       profiles: vi.fn().mockResolvedValue(profiles),
       connections: vi.fn().mockResolvedValue(connections),
-      info: vi
-        .fn()
-        .mockResolvedValue({
-          version: "0.2.0",
-          platform: "test",
-          serviceConfigured: true,
-          deviceReady: true,
-        }),
+      info: vi.fn().mockResolvedValue({
+        version: "0.2.0",
+        platform: "test",
+        serviceConfigured: true,
+        deviceReady: true,
+      }),
       suggest: vi
         .fn()
         .mockRejectedValue(
@@ -101,7 +99,10 @@ beforeEach(() => {
     refreshSession: vi.fn(),
   };
 });
-afterEach(() => { cleanup(); vi.useRealTimers(); });
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 function seed(patch: Partial<TaskDraft> = {}): TaskDraft {
   const value = {
     ...newTaskDraft(),
@@ -175,14 +176,19 @@ describe("task wizard service boundary", () => {
     expect(context.service.suggest).not.toHaveBeenCalled();
   });
 
-  it.each(["connect", "confirm"])("never starts a suggestion request on the %s step even with empty conditions", async step => {
-    seed({ terms: [], exclusions: [] });
-    context.route = parseRoute(`#/tasks/new?step=${step}`);
-    render(<TaskWizardPage />);
-    await waitFor(() => expect(context.service.profiles).toHaveBeenCalledOnce());
-    await act(async () => {});
-    expect(context.service.suggest).not.toHaveBeenCalled();
-  });
+  it.each(["connect", "confirm"])(
+    "never starts a suggestion request on the %s step even with empty conditions",
+    async (step) => {
+      seed({ terms: [], exclusions: [] });
+      context.route = parseRoute(`#/tasks/new?step=${step}`);
+      render(<TaskWizardPage />);
+      await waitFor(() =>
+        expect(context.service.profiles).toHaveBeenCalledOnce(),
+      );
+      await act(async () => {});
+      expect(context.service.suggest).not.toHaveBeenCalled();
+    },
+  );
 
   it("saving during an automatic request preserves the saved empty snapshot and rejects late fill", async () => {
     seed({ terms: [], exclusions: [] });
@@ -190,13 +196,22 @@ describe("task wizard service boundary", () => {
     let requestId = "";
     context.service.suggest = vi.fn((_profile, id) => {
       requestId = id;
-      return new Promise<Suggestion>(resolve => { finish = resolve; });
+      return new Promise<Suggestion>((resolve) => {
+        finish = resolve;
+      });
     });
     const view = render(<TaskWizardPage />);
     await waitFor(() => expect(context.service.suggest).toHaveBeenCalledOnce());
     fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
     expect(currentDraft().savedAt).toBeTruthy();
-    await act(async () => finish({ profileId: "profile-one", requestId, keywords: ["未保存的晚到词"], exclusions: [] }));
+    await act(async () =>
+      finish({
+        profileId: "profile-one",
+        requestId,
+        keywords: ["未保存的晚到词"],
+        exclusions: [],
+      }),
+    );
     expect(currentDraft().terms).toEqual([]);
     view.unmount();
     render(<TaskWizardPage />);
@@ -210,8 +225,11 @@ describe("task wizard service boundary", () => {
     let signal!: AbortSignal;
     let requestId = "";
     context.service.suggest = vi.fn((_profile, id, requestSignal) => {
-      signal = requestSignal!; requestId = id;
-      return new Promise<Suggestion>(resolve => { finish = resolve; });
+      signal = requestSignal!;
+      requestId = id;
+      return new Promise<Suggestion>((resolve) => {
+        finish = resolve;
+      });
     });
     render(<TaskWizardPage />);
     await waitFor(() => expect(context.service.suggest).toHaveBeenCalledOnce());
@@ -219,50 +237,96 @@ describe("task wizard service boundary", () => {
     expect(signal.aborted).toBe(true);
     expect(screen.getByText(/已取消建议生成/)).toBeTruthy();
     addKeyword("继续人工填写");
-    await act(async () => finish({ profileId: "profile-one", requestId, keywords: ["已取消的晚到词"], exclusions: [] }));
+    await act(async () =>
+      finish({
+        profileId: "profile-one",
+        requestId,
+        keywords: ["已取消的晚到词"],
+        exclusions: [],
+      }),
+    );
     expect(screen.queryByText("已取消的晚到词")).toBeNull();
     expect(screen.queryByRole("dialog", { name: "更新搜索建议" })).toBeNull();
-    expect(currentDraft().terms.map(t => t.value)).toEqual(["继续人工填写"]);
+    expect(currentDraft().terms.map((t) => t.value)).toEqual(["继续人工填写"]);
   });
 
   it("times out hanging suggestions and permits an explicit retry without applying late data", async () => {
     seed();
     let finish!: (value: Suggestion) => void;
     let oldId = "";
-    context.service.suggest = vi.fn().mockImplementationOnce((_profile, id) => {
-      oldId = id; return new Promise(resolve => { finish = resolve; });
-    }).mockImplementationOnce(async (profileId, requestId) => ({ profileId, requestId, keywords: ["重试新建议"], exclusions: [] }));
+    context.service.suggest = vi
+      .fn()
+      .mockImplementationOnce((_profile, id) => {
+        oldId = id;
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      })
+      .mockImplementationOnce(async (profileId, requestId) => ({
+        profileId,
+        requestId,
+        keywords: ["重试新建议"],
+        exclusions: [],
+      }));
     render(<TaskWizardPage />);
     await screen.findByText("已确认版本 v1");
     vi.useFakeTimers();
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: "重新生成" })));
+    await act(async () =>
+      fireEvent.click(screen.getByRole("button", { name: "重新生成" })),
+    );
     await act(async () => vi.advanceTimersByTimeAsync(45_000));
     expect(screen.getByText(/搜索建议生成超时/)).toBeTruthy();
-    expect(currentDraft().terms.map(t => t.value)).toEqual(["人工需求"]);
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: "重新生成" })));
+    expect(currentDraft().terms.map((t) => t.value)).toEqual(["人工需求"]);
+    await act(async () =>
+      fireEvent.click(screen.getByRole("button", { name: "重新生成" })),
+    );
     const dialog = screen.getByRole("dialog", { name: "更新搜索建议" });
-    await act(async () => finish({ profileId: "profile-one", requestId: oldId, keywords: ["超时旧词"], exclusions: [] }));
+    await act(async () =>
+      finish({
+        profileId: "profile-one",
+        requestId: oldId,
+        keywords: ["超时旧词"],
+        exclusions: [],
+      }),
+    );
     expect(screen.queryByText("超时旧词")).toBeNull();
-    fireEvent.click(within(dialog).getByRole("button", { name: "合并新增建议" }));
-    expect(currentDraft().terms.map(t => t.value)).toEqual(["人工需求", "重试新建议"]);
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "合并新增建议" }),
+    );
+    expect(currentDraft().terms.map((t) => t.value)).toEqual([
+      "人工需求",
+      "重试新建议",
+    ]);
   });
 
-  it.each(["ai", "manual"] as const)("retains %s condition origin after profile changes through the final summary", async (origin) => {
-    seed({ terms: [makeTerm("原画像条件", origin)], suggestionProfile: origin === "ai" ? "profile-one" : null });
-    const view = render(<TaskWizardPage />);
-    await screen.findByText("已确认版本 v1");
-    fireEvent.change(screen.getByRole("combobox", { name: "业务画像" }), { target: { value: "profile-two" } });
-    expect(screen.getByText(/当前搜索条件仍来自「测试服务一 · v1」/)).toBeTruthy();
-    expect(currentDraft().terms.map(t => t.value)).toEqual(["原画像条件"]);
-    expect(context.service.suggest).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "下一步：连接平台" }));
-    followNavigation(view);
-    fireEvent.click(screen.getByRole("button", { name: "下一步：确认任务" }));
-    followNavigation(view);
-    expect(screen.getByText(/当前搜索条件仍来自「测试服务一 · v1」/)).toBeTruthy();
-    expect(screen.getByText("原画像条件")).toBeTruthy();
-    expect(context.service.startTask).not.toHaveBeenCalled();
-  });
+  it.each(["ai", "manual"] as const)(
+    "retains %s condition origin after profile changes through the final summary",
+    async (origin) => {
+      seed({
+        terms: [makeTerm("原画像条件", origin)],
+        suggestionProfile: origin === "ai" ? "profile-one" : null,
+      });
+      const view = render(<TaskWizardPage />);
+      await screen.findByText("已确认版本 v1");
+      fireEvent.change(screen.getByRole("combobox", { name: "业务画像" }), {
+        target: { value: "profile-two" },
+      });
+      expect(
+        screen.getByText(/当前搜索条件仍来自「测试服务一 · v1」/),
+      ).toBeTruthy();
+      expect(currentDraft().terms.map((t) => t.value)).toEqual(["原画像条件"]);
+      expect(context.service.suggest).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "下一步：连接平台" }));
+      followNavigation(view);
+      fireEvent.click(screen.getByRole("button", { name: "下一步：确认任务" }));
+      followNavigation(view);
+      expect(
+        screen.getByText(/当前搜索条件仍来自「测试服务一 · v1」/),
+      ).toBeTruthy();
+      expect(screen.getByText("原画像条件")).toBeTruthy();
+      expect(context.service.startTask).not.toHaveBeenCalled();
+    },
+  );
 
   it("keeps manual edits while a delayed automatic suggestion waits for explicit merge", async () => {
     seed({ terms: [], exclusions: [] });
@@ -648,6 +712,159 @@ describe("task wizard service boundary", () => {
     );
     view.unmount();
     await act(async () => resolve(profiles));
+    expect(context.service.startTask).not.toHaveBeenCalled();
+  });
+});
+
+describe("new original-start contract", () => {
+  it("persists the exact configuration binding before dispatch and reconciles rather than restarting", async () => {
+    const draft = seed();
+    context.route = parseRoute("#/tasks/new?step=confirm");
+    const start = vi.fn(
+      async (
+        _draft: TaskDraft,
+        binding: import("../../src/renderer/domain/taskOperations").TaskStartBinding,
+      ) => ({ ...binding, status: "UNKNOWN" as const }),
+    );
+    const reconcile = vi.fn(
+      async (
+        binding: import("../../src/renderer/domain/taskOperations").TaskStartLookup,
+      ) => ({
+        ...binding,
+        status: "ACCEPTED" as const,
+        run: {
+          id: "actual-task",
+          name: draft.name,
+          mode: draft.mode,
+          status: "PENDING",
+          platforms: draft.platforms,
+        },
+      }),
+    );
+    context.service.taskOperations = {
+      start,
+      reconcileStart: reconcile,
+    } as unknown as NonNullable<YikeService["taskOperations"]>;
+    render(<TaskWizardPage />);
+    await screen.findByText("执行服务已就绪");
+    fireEvent.click(await confirmReady());
+    await screen.findByRole("button", { name: "核对原启动结果" });
+    await waitFor(() => expect(start).toHaveBeenCalledOnce());
+    expect(context.service.startTask).not.toHaveBeenCalled();
+    const [, binding] = start.mock.calls[0];
+    expect(binding.configurationHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(binding.requestId).toBe(`task:${draft.id}:${draft.revision}`);
+    fireEvent.click(screen.getByRole("button", { name: "核对原启动结果" }));
+    await waitFor(() =>
+      expect(context.navigate).toHaveBeenCalledWith("/collection"),
+    );
+    expect(reconcile).toHaveBeenCalledWith(binding);
+    expect(start).toHaveBeenCalledOnce();
+  });
+  it("requires manual confirmation of a new revision only after a bound definitive rejection", async () => {
+    const draft = seed();
+    context.route = parseRoute("#/tasks/new?step=confirm");
+    const start = vi.fn(
+      async (
+        _draft: TaskDraft,
+        binding: import("../../src/renderer/domain/taskOperations").TaskStartBinding,
+      ) => ({
+        ...binding,
+        status: "REJECTED" as const,
+        confirmedNotStarted: true as const,
+        message: "已核实未创建测试任务",
+      }),
+    );
+    context.service.taskOperations = { start } as unknown as NonNullable<
+      YikeService["taskOperations"]
+    >;
+    render(<TaskWizardPage />);
+    await screen.findByText("执行服务已就绪");
+    fireEvent.click(await confirmReady());
+    await screen.findByText("已核实未创建测试任务");
+    expect(currentDraft().revision).toBe(draft.revision + 1);
+    expect(
+      (screen.getByRole("button", { name: "确认并启动" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    fireEvent.click(await confirmReady());
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+    expect(start.mock.calls[1][1].requestId).not.toBe(
+      start.mock.calls[0][1].requestId,
+    );
+  });
+  it("does not start when durable request recording fails", async () => {
+    seed();
+    context.route = parseRoute("#/tasks/new?step=confirm");
+    const start = vi.fn();
+    context.service.taskOperations = { start } as unknown as NonNullable<
+      YikeService["taskOperations"]
+    >;
+    render(<TaskWizardPage />);
+    await screen.findByText("执行服务已就绪");
+    const button = await confirmReady();
+    const original = Storage.prototype.setItem;
+    const spy = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(function (this: Storage, key, value) {
+        if (key.startsWith("yike.ui.operation."))
+          throw new Error("test unavailable storage");
+        return original.call(this, key, value);
+      });
+    fireEvent.click(button);
+    await screen.findByText(/操作确认记录暂时无法可靠保存/);
+    expect(start).not.toHaveBeenCalled();
+    expect(context.service.startTask).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});
+
+describe("template ancestry start guards", () => {
+  it("shows the original ancestor request and blocks starting a descendant draft", async () => {
+    seed({ templateSourceDraftIds: ["ancestor-original"] });
+    context.route = parseRoute("#/tasks/new?step=confirm");
+    localStorage.setItem(
+      `yike.ui.operation.v1.unknown-task-starts.${context.session.userId}`,
+      JSON.stringify({ "ancestor-original": "task:ancestor-original:1" }),
+    );
+    render(<TaskWizardPage />);
+    await screen.findByText("执行服务已就绪");
+    expect(screen.getByText("task:ancestor-original:1")).toBeTruthy();
+    const start = screen.getByRole("button", {
+      name: "确认并启动",
+    }) as HTMLButtonElement;
+    expect(start.disabled).toBe(true);
+    fireEvent.click(start);
+    expect(context.service.startTask).not.toHaveBeenCalled();
+  });
+  it("rechecks ancestor locks after live preflight even without a storage event", async () => {
+    seed({ templateSourceDraftIds: ["ancestor-original"] });
+    context.route = parseRoute("#/tasks/new?step=confirm");
+    render(<TaskWizardPage />);
+    await screen.findByText("执行服务已就绪");
+    const button = await confirmReady();
+    let resolve!: (value: unknown) => void;
+    context.service.info = vi.fn(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    ) as never;
+    fireEvent.click(button);
+    await waitFor(() => expect(resolve).toBeTypeOf("function"));
+    localStorage.setItem(
+      `yike.ui.operation.v1.unknown-task-starts.${context.session.userId}`,
+      JSON.stringify({ "ancestor-original": "task:ancestor-original:1" }),
+    );
+    await act(async () =>
+      resolve({
+        version: "test",
+        platform: "test",
+        serviceConfigured: true,
+        deviceReady: true,
+      }),
+    );
+    await screen.findByText("该任务已有启动请求待确认，当前不会重复创建。");
     expect(context.service.startTask).not.toHaveBeenCalled();
   });
 });

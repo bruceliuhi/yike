@@ -360,6 +360,7 @@ export function Confirm({
   onConfirm,
   loading = false,
   confirmText = "确认",
+  confirmDisabled = false,
   danger = false,
 }: {
   title: string;
@@ -368,6 +369,7 @@ export function Confirm({
   onConfirm: () => void;
   loading?: boolean;
   confirmText?: string;
+  confirmDisabled?: boolean;
   danger?: boolean;
 }) {
   return (
@@ -380,6 +382,7 @@ export function Confirm({
           <Button onClick={onCancel}>取消</Button>
           <Button
             variant={danger ? "danger" : "primary"}
+            disabled={confirmDisabled}
             loading={loading}
             onClick={onConfirm}
           >

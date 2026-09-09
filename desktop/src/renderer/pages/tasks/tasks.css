@@ -1,0 +1,123 @@
+.task-recovery {
+  margin: 16px 0;
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.task-recovery h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.task-recovery-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+}
+.task-recovery-row > div {
+  min-width: 0;
+}
+.task-request-id {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 12px;
+  margin: 4px 0;
+}
+.task-filter-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.task-filter-field select,
+.task-filter-field input {
+  min-height: 36px;
+  max-width: 165px;
+}
+.task-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 18px 0;
+}
+.task-pagination-controls {
+  display: flex;
+  flex-wrap: wrap;
+  white-space: nowrap;
+  gap: 8px;
+  align-items: center;
+}
+@media (max-width: 760px) {
+  .task-recovery-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .task-filter-field {
+    flex-wrap: wrap;
+  }
+}
+
+.task-pagination-controls .task-page-size {
+  display: inline-flex;
+  flex-flow: row nowrap;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  margin: 0;
+}
+.task-page-size select {
+  display: inline-block;
+  flex: 0 0 68px;
+  width: 68px;
+  min-width: 68px;
+  max-width: 68px;
+  margin: 0;
+}
+.task-draft-config {
+  padding: 20px;
+  background: #f7faff;
+  border-bottom: 1px solid var(--line);
+}
+.task-draft-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 24px;
+  margin: 0 0 18px;
+}
+.task-draft-facts dt {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.task-draft-facts dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.task-templates {
+  margin: 32px 0 0;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.task-template-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.task-template-row > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .task-draft-facts {
+    grid-template-columns: 1fr;
+  }
+  .task-template-row {
+    flex-wrap: wrap;
+  }
+}

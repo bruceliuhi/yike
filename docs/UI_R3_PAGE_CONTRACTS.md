@@ -2,6 +2,8 @@
 
 日期：2026-09-09。工作分支：`codex/ui-r3-desktop`。本轮用户已确认整套 R3 并授权开发；设计确认记录由主任务同步到 [APPROVAL](../design/v02-suite-r3/APPROVAL.md)。本文件是实现交接，不是新的任务状态台账，也不表示页面或业务功能已通过验收。
 
+2026-09-09 后续增量由 `codex/ui-flow-completion` 验证后整合 `main`。当前交接另见[工作台与联系准备](UI_WORKBENCH_CONTRACT.md)、[资料生命周期](UI_MATERIALS_CONTRACT.md)、[跟进与回复](UI_FOLLOWUP_CONTRACT.md)、[任务执行核对](UI_TASK_OPERATIONS_CONTRACT.md)。这些可选服务契约不表示生产适配已接通；历史布局预检及验收数字保留其原适用版本。
+
 依据：[R3 图册](../design/v02-suite-r3/README.md)、[页面状态矩阵](../design/v02-suite-r3/PAGE_STATE_MATRIX.md)、[设计规范及图片勘误](../design/v02-suite-r3/DESIGN_SYSTEM.md)、[AI 搜索条件](../design/v02-suite-r3/AI_SEARCH_CONDITIONS.md)。实现进度仍只维护在 [V02 实施任务书](V02_IMPLEMENTATION_TASKBOOK.md)。
 
 初次契约预检实际打开 P02、P03、P04、P10、P11、P12、P14、P16、P18 原图；后续实施按各负责页核对 R3 图册。以下布局表保留预检基准，当前运行截图、分辨率与打包结果以实施台账和 `docs/qa/ui-r3/` 原始证据为准，不把契约条目本身当成验收通过。
@@ -75,7 +77,7 @@
 | 服务组 | 必需能力与权威数据 | 当前接入前提 |
 |---|---|---|
 | Session | 客户登录/退出、当前身份、授权状态、验证码冷却 | 已接短期访问凭证交换与 Cookie 会话；手机验证码、试用开通和授权激活仍不可用，不借旧凭证接口伪造验证码成功 |
-| Profile / Material | 画像版本、确认、业务资料、引用范围、提取结果确认 | 画像列表/保存/确认已接 JSON facade；资料当前为本机会话草稿，TXT/Markdown 读取不是上传客户服务，提取与外发引用仍待接入 |
+| Profile / Material | 画像版本、确认、业务资料、引用范围、提取结果确认 | 画像列表/保存/确认已接 JSON facade；默认资料仍为本机会话草稿。已补可选 MaterialService 下的版本化同步、解析、证据确认、选字段填入和移除/撤销交互，实际资料服务与外发引用仍待接入，详见 [资料生命周期契约](UI_MATERIALS_CONTRACT.md) |
 | Discovery | 任务草稿、平台能力、搜索建议、候选、用户复核、启动/暂停/恢复、逐平台运行 | 已写类型契约与可用契约下的交互；实际 adapter 的候选/复核/任务/建议仍明确不可用。研究 Skill 文档不等于执行运行时 |
 | Opportunity | 客户商机列表/详情、证据、来源状态、筛选/导出 | 已复用 PilotStore 并接 JSON facade；筛选/CSV 导出只操作当前获授权客户集合，样例独立只读 |
 | Outreach | 分用途草稿、对象映射、版本、发送确认、发送/回执/回复 | 已有前端确认状态；真实生成、保存、核验、发送与回复服务仍不可用。确认 token 和未知结果的接入门禁见 5.3 |
