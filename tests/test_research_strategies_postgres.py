@@ -468,23 +468,10 @@ def test_resolver_rechecks_stored_snapshot_after_corruption(env,change):
 
 
 def client_for(env):
-    from fastapi import APIRouter,HTTPException
     from fastapi.testclient import TestClient
-    from pilot.sessions import authenticate_session
-    from pilot.ui_api import _UiRoute
     from pilot.web import build_app
-    from pilot.research_strategy_api import register_research_strategy_api
     auth_store=PilotStore(env.db)
-    app=build_app(auth_store,auth_secret=SECRET)
-    router=APIRouter(prefix='/api/ui',route_class=_UiRoute)
-    def identity(request):
-        bearer=request.headers.get('authorization','')
-        if not bearer.startswith('Bearer '): raise HTTPException(401,detail={'code':'authentication_required'})
-        return authenticate_session(auth_store,bearer[7:],SECRET)
-    def https(request):
-        if request.url.scheme!='https': raise HTTPException(400,detail={'code':'https_required'})
-    register_research_strategy_api(router,service(env),identity,https)
-    app.include_router(router)
+    app=build_app(auth_store,auth_secret=SECRET,research_strategies=service(env))
     return TestClient(app,base_url='https://pilot.example')
 
 

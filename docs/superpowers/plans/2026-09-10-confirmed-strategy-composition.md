@@ -62,6 +62,7 @@ def __init__(self, database, *, model=None, strategy_resolver=None,
 **Files:**
 - Modify `pilot/db.py`, `pilot/web.py`, `pilot/ui_api.py` and the existing trusted deployment grant path if one exists for other optional services.
 - Create `tests/test_confirmed_strategy_composition.py` and `tests/test_confirmed_strategy_http_postgres.py`.
+- Adapt existing `tests/test_research_strategy_api.py` and `tests/test_research_strategies_postgres.py` helpers to consume the shared registration exactly once; their old manual second router must not be shadowed by default-disabled routes.
 - Reuse Task 1's fixture/module helpers rather than copying another tenant/device/strategy setup.
 - Update `docs/contracts/V02_CONFIRMED_RESEARCH_STRATEGIES.md`, `docs/qa/V02_CONFIRMED_STRATEGY_COMPOSITION.md`, unique taskbook and integration record.
 

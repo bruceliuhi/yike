@@ -22,7 +22,7 @@ from tests.test_candidate_assessment_model import CONTENT, assessment
 from tests.test_candidate_ingestion_http_postgres import started, signed
 from tests.test_candidate_ingestion_postgres import payload
 from tests.test_candidate_review_postgres import (
-    execution_databases, execution_env, raw_databases, raw_env, databases, env,
+    execution_databases, execution_env, raw_databases, raw_env, databases, env, snapshot_reader,
 )
 from tests.test_execution_runtime_postgres import SECRET
 
@@ -67,7 +67,8 @@ def client_for(env, model, *, with_resolver=True):
     token = issue_token(env.claims.user_id, SECRET)
     claims = verify_token_claims(token, SECRET)
     review = CandidateReviewStore(env.db, model=model,
-        strategy_resolver=env.resolver if with_resolver else None)
+        strategy_resolver=env.resolver if with_resolver else None,
+        strategy_snapshot_reader=snapshot_reader(env) if with_resolver else None)
     client = TestClient(build_app(env.store, auth_secret=SECRET, execution_runtime=env.runtime,
         candidate_ingestion=CandidateIngestionStore(env.db, env.runtime), candidate_review=review),
         base_url="https://pilot.example")

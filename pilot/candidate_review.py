@@ -29,12 +29,22 @@ def _now(cursor):
     return cursor.fetchone()[0]
 
 
+def _strategy_error(error):
+    if error.status==401:
+        return CandidateReviewError('invalid_session',401)
+    if error.status>=500:
+        return CandidateReviewError('strategy_store_unavailable',503)
+    return CandidateReviewError('strategy_conflict',409)
+
+
 class CandidateReviewStore(CandidateIngestionStore):
-    def __init__(self, database, *, model=None, strategy_resolver=None, max_daily_calls=20):
+    def __init__(self, database, *, model=None, strategy_resolver=None,
+                 strategy_snapshot_reader=None, max_daily_calls=20):
         super().__init__(database)
         if type(max_daily_calls) is not int or not 1 <= max_daily_calls <= 10000:
             raise ValueError('invalid assessment quota')
         self.model, self.strategy_resolver = model, strategy_resolver
+        self.strategy_snapshot_reader = strategy_snapshot_reader
         self.max_daily_calls = max_daily_calls
 
     def _request(self, cursor, tenant, user, request_id):
@@ -90,7 +100,7 @@ class CandidateReviewStore(CandidateIngestionStore):
             try:
                 strategy = self.strategy_resolver(cursor,claims,request.profileId,scope[0])
             except ExecutionRuntimeError as error:
-                raise CandidateReviewError('strategy_conflict',409) from None
+                raise _strategy_error(error) from None
             if not isinstance(strategy,ConfirmedExecutionStrategy): raise CandidateReviewError('strategy_conflict',409)
         cursor.execute(self._projection_sql+' WHERE p.tenant_id=%s AND p.owner_user_id=%s AND p.candidate_id=%s FOR UPDATE OF p', (tenant,claims.user_id,request.candidateId))
         raw = _primitive(_row(cursor))
@@ -333,18 +343,17 @@ class CandidateReviewStore(CandidateIngestionStore):
             tenant = self._active(auth_cursor,claims)
             try:
                 with self.database.connect() as connection, connection.cursor() as cursor:
-                    cursor.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
+                    cursor.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY')
                     cursor.execute("SELECT set_config('yike.user_id',%s,true),set_config('yike.tenant_id',%s,true)",
                                    (claims.user_id,tenant))
-                    # Resolver may read/lock strategy using this cursor only. It
-                    # must not reacquire the outer session fence or open a connection.
+                    # Presentation reader uses this cursor only: no locks, writes,
+                    # session fence reacquisition, new connection or network.
                     yield cursor,tenant,_now(cursor)
             except SerializationFailure:
-                # Row-locking resolvers can encounter a newer concurrent version.
                 # Expose one rereadable conflict; never silently retry/mix snapshots.
                 raise CandidateReviewError('candidate_snapshot_changed',409) from None
             # Original READ COMMITTED connection sees current revocation and clock,
-            # even if credentials expire during a long data/resolver read.
+            # even if credentials expire during a long data/strategy read.
             self._active(auth_cursor,claims)
 
     def list_candidates(self, claims, *, query=None,platform=None,status=None,ids=None,review_request_id=None,page=1,page_size=20):
@@ -363,7 +372,7 @@ class CandidateReviewStore(CandidateIngestionStore):
             _id(review_request_id,opaque=True)
             if ids is None or len(ids)!=1 or page!=1 or page_size!=1: raise CandidateReviewError('invalid_request',422)
         with self._listing_snapshot(claims) as (cursor,tenant,now):
-            # The whole data transaction, including resolver reads, shares MVCC.
+            # The whole data transaction, including strategy reads, shares MVCC.
             cursor.execute('''SELECT to_jsonb(q),v.version,v.status,v.payload,
                 COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.created_at DESC,r.request_id DESC)
                     FROM pilot_candidate_review_requests r WHERE r.tenant_id=%s AND r.owner_user_id=%s
@@ -384,14 +393,23 @@ class CandidateReviewStore(CandidateIngestionStore):
                 valid = profile_status=='CONFIRMED' and not raw['ambiguous']
                 if valid and matching:
                     try:
-                        resolved = self.strategy_resolver(cursor,claims,b['profileId'],raw['strategy_version_id']) if self.strategy_resolver else None
-                        current_strategy = asdict(resolved) if isinstance(resolved,ConfirmedExecutionStrategy) else None
-                        if current_strategy:
-                            declared = current_strategy.pop('configuration_sha256')
-                            current_strategy['platforms']=list(current_strategy['platforms'])
-                            valid = current_strategy==matching[0]['snapshot']['strategy'] and declared==_hash(current_strategy)
-                        else: valid=False
-                    except ExecutionRuntimeError:
+                        resolved = self.strategy_snapshot_reader(cursor,claims,b['profileId'],raw['strategy_version_id']) if self.strategy_snapshot_reader else None
+                        fields = {'profile_version_id','strategy_version_id','configuration','platforms',
+                                  'max_records','max_runtime_seconds','configuration_sha256'}
+                        valid = type(resolved) is dict and set(resolved)==fields
+                        if valid:
+                            current_strategy = {key:value for key,value in resolved.items() if key!='configuration_sha256'}
+                            valid = (type(current_strategy['platforms']) is list
+                                and current_strategy==matching[0]['snapshot']['strategy']
+                                and resolved['configuration_sha256']==_hash(current_strategy)==matching[0]['snapshot']['strategyHash']
+                                and current_strategy['profile_version_id']==b['profileId']
+                                and current_strategy['strategy_version_id']==raw['strategy_version_id']
+                                and raw['platform'] in current_strategy['platforms'])
+                    except ExecutionRuntimeError as error:
+                        mapped = _strategy_error(error)
+                        if mapped.status!=409: raise mapped from None
+                        valid=False
+                    except (ValueError,TypeError,UnicodeError,RecursionError):
                         valid=False
                 if review_request_id:
                     original = next((r for r in requests if r['request_id']==review_request_id and r['action'] in ('INCLUDE','EXCLUDE')),None)

@@ -20,7 +20,11 @@
 
 列表参数：`query`（最多200字符）、`platform`（02A正式平台标识）、`status`（PENDING_REVIEW/IMPORTED/EXCLUDED/DUPLICATE）、`page`（从1开始）、`pageSize`（1–100）。`ids`为1–100个不重复UUID，以逗号分隔。原复核恢复使用唯一 `ids`、`reviewRequestId`、`page=1&pageSize=1`；不要把当前新版本候选与旧成功回执拼成同一次操作。
 
-列表的原文、画像、分析及策略使用同一REPEATABLE READ视图，核验时效共用一个数据库时间；身份在外层READ COMMITTED事务前后检查。此路径同时占用两个短期数据库连接。策略resolver只能使用传入cursor，不另开连接、重复获取会话锁或联网；允许必要行锁。并发版本冲突返回409 `candidate_snapshot_changed`，不返回混合分页结果、不自动重跑模型。当前仍在owner可见数据中投影分页，不能宣传大数据量性能。
+列表的原文、画像、分析及策略使用同一`REPEATABLE READ READ ONLY`视图，核验时效共用一个数据库时间；身份在外层READ COMMITTED事务前后检查。此路径同时占用两个短期数据库连接。显式构造`CandidateReviewStore(..., strategy_resolver=strategies.resolve, strategy_snapshot_reader=strategies.read_snapshot)`：ASSESS/INCLUDE仍使用带锁的写入resolver；列表只调用snapshot reader，不探测回调类型、不回退到写入resolver。
+
+reader只能使用传入cursor及其已有user/tenant作用域，不另开连接、提交、改身份、取行锁、重复获取会话锁或联网。返回普通JSON字典，精确包含`profile_version_id / strategy_version_id / configuration / platforms / max_records / max_runtime_seconds / configuration_sha256`七项；platforms为JSON列表。列表比对原复核快照、摘要、画像/策略及平台绑定。reader缺失或当前策略冲突时旧分析标为stale，不授予当前绑定；会话失效返回401 `invalid_session`，策略存储故障返回脱敏503 `strategy_store_unavailable`，不得伪装成正常空列表。写入resolver的401/503也保留此区别，未确认或无效策略仍为409。
+
+并发版本冲突返回409 `candidate_snapshot_changed`，不返回混合分页结果、不自动重试或重跑模型。当前仍在owner可见数据中投影分页，不能宣传大数据量性能。原成功回执可恢复，但快照reader返回值和历史回执都不是执行授权。
 
 ## 写入绑定
 

@@ -111,12 +111,36 @@ const labels: Record<keyof ProfileFields, string> = {
   preference: "项目偏好",
   exclusions: "排除项",
 };
+const profileStatuses = ["DRAFT", "CONFIRMED", "REVOKED"] as const;
+function validProfileIdentifier(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= 512 &&
+    value.trim() === value &&
+    !/[\u0000-\u001f\u007f]/.test(value)
+  );
+}
+function invalidProfileResponse(): never {
+  throw new ServiceError(
+    "INVALID_SERVICE_RESPONSE",
+    "画像列表响应不完整，请重新读取；未确认任何版本关系。",
+  );
+}
 export function profileDescription(fields: ProfileFields): string {
   return (Object.keys(labels) as (keyof ProfileFields)[])
     .map((k) => `${labels[k]}：${JSON.stringify(fields[k])}`)
     .join("\n");
 }
 export function mapProfile(raw: JsonRecord): Profile {
+  if (
+    !validProfileIdentifier(raw.version_id) ||
+    !Number.isSafeInteger(raw.version) ||
+    (raw.version as number) <= 0 ||
+    !profileStatuses.includes(raw.status as (typeof profileStatuses)[number]) ||
+    (raw.profile_id !== undefined && !validProfileIdentifier(raw.profile_id))
+  )
+    invalidProfileResponse();
   const description = text(record(raw.payload).description);
   const fields = { ...EMPTY_PROFILE };
   for (const key of Object.keys(labels) as (keyof ProfileFields)[]) {
@@ -133,14 +157,12 @@ export function mapProfile(raw: JsonRecord): Profile {
   }
   if (!Object.values(fields).some(Boolean)) fields.service = description;
   return {
-    id: text(raw.version_id),
-    ...(typeof raw.profile_id === "string" && raw.profile_id.trim()
+    id: raw.version_id,
+    ...(raw.profile_id !== undefined
       ? { profileEntityId: raw.profile_id }
       : {}),
-    version: Number(raw.version) || 1,
-    status: (["DRAFT", "CONFIRMED", "REVOKED"].includes(text(raw.status))
-      ? raw.status
-      : "DRAFT") as Profile["status"],
+    version: raw.version as number,
+    status: raw.status as Profile["status"],
     fields,
     description,
   };

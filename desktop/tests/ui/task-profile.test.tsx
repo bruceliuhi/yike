@@ -100,12 +100,22 @@ describe("task profile entity lineage", () => {
       profileEntityId: "entity",
       version: 4,
     });
-    for (const profile_id of [undefined, null, "", "   ", 42]) {
-      expect(
-        mapProfile({ profile_id, version_id: "version-row", version: 4 })
-          .profileEntityId,
-      ).toBeUndefined();
-    }
+    expect(
+      mapProfile({
+        version_id: "legacy-version-row",
+        version: 3,
+        status: "REVOKED",
+      }).profileEntityId,
+    ).toBeUndefined();
+    for (const profile_id of [null, "", "   ", 42])
+      expect(() =>
+        mapProfile({
+          profile_id,
+          version_id: "version-row",
+          version: 4,
+          status: "CONFIRMED",
+        }),
+      ).toThrow(/响应不完整/);
   });
   it("ignores other businesses even when their confirmed version number is much higher", () => {
     const profiles = [
