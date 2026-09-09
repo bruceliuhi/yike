@@ -32,7 +32,7 @@ V02-05 的[全页面设计 R3](../design/v02-suite-r3/README.md)已于 2026-09-0
 
 | 编号 / 责任方向 | 状态 | 可先做与下一动作 | 完成依赖和必须补齐的证据 | 实现提交 / 验收 |
 |---|---|---|---|---|
-| V02-01 账号、设备与执行协议 / CodexiMac 主实现、CodexWin 接收复核 | IN_PROGRESS | 01A 登记/遥测与 01B 会话撤销已有在途候选，先独立复审和接收；再做设备执行授权、真实平台连接及正常登录/激活 | 两客户/设备隔离、退出撤销、连接身份；客户不依赖 CLI 取 token，桌面无服务端凭据 | `codex/mac-identity-execution-contract`；01A `da2a2f2`，01B 修复候选 `120b938`，均未合并 main；文件记录的测试/审核范围及未完成 ACK 见下方子卡登记，不算 Win 本轮实测 |
+| V02-01 账号、设备与执行协议 / CodexiMac 主实现、CodexWin 接收复核 | IN_PROGRESS | 01A 登记/遥测、01B 会话撤销与基线修复已在候选分支整合并修复权限升级；交叉接收后推进01C设备执行授权及01D正常登录/激活 | 两客户/设备隔离、退出撤销、连接身份；客户不依赖 CLI 取 token，桌面无服务端凭据；接收方必须复现并 ACK | `codex/mac-identity-execution-contract`，组合候选 `222119e` 本地独立复审 PASS；代码未合入 main、实际Win ACK未收到；历史子项和最新接收版本见下方登记及[Mac→Win 交接](handoffs/V02-01_MAC_TO_WIN.md) |
 | V02-02 多平台连接器与客户数据 / 采集＋后端 | IN_PROGRESS | 受信研究包整包事务、同键 URL 冲突校验及源码打包工具已纳入；原始候选模型、能力注册、上传及真实连接器仍待做 | 依赖 01；每个平台真实搜索/读取；安全 API 入候选、幂等、事务回滚、平台/租户隔离；不向桌面开放管理员导入 | [主线整合验收](qa/main-integration/REVIEW.md)，不代表平台已接通 |
 | V02-03 持续任务执行器 / 后端＋桌面 | NOT_STARTED | 定义监控配置、逐次逐平台运行、执行代次和游标；连接器逐个接入 | 依赖 01/02 可用子项；每平台多轮含无新增、部分成功、暂停/恢复、过期接管与失效恢复；旧执行者不能回写 | 未提供 |
 | V02-04 Skill、意向与复核 / AI＋后端 | IN_PROGRESS | 通用研究 Skill 已迁入 `skills/ai-project-lead-research-v1`（`9c092be`）；下一步定义真实运行入口、证据校验与用户复核接口 | 依赖 02 候选层；实际模型/工具运行，引用原文；未复核候选不进已批准商机，设备不能伪造复核人 | `9c092be`；规则包契约测试 2 passed，运行验收未提供 |
@@ -40,19 +40,21 @@ V02-05 的[全页面设计 R3](../design/v02-suite-r3/README.md)已于 2026-09-0
 | V02-06 真实触达通道 / 通道＋后端 | NOT_STARTED | 立即验证能力条件，定义对象映射及发送/回执/回复契约 | 依赖 01 身份；真实采集对象到收件人映射、可联系性、确认后真实发送和关联回复；失败原因准确 | 未提供 |
 | V02-07 草稿、确认与发送队列 / 后端＋前端 | IN_PROGRESS | 前端三队列、独立草稿、确认快照、持久防重及原请求核对已实现；继续接真实队列、生成/发送/回执后台 | 依赖 04/06；对象、内容版本、渠道或连接改变使确认失效；真成功/失败/未知对账；未经确认不发送 | [R3 交互增量](qa/ui-interactions/REVIEW.md)；默认真实通道尚未接入，不等于已发送 |
 | V02-08 回复与跟进工作台 / 后端＋前端 | NOT_STARTED | 先定义事件关联、撤销/修正、未读/到期与统计口径 | 依赖 05/07；真实回复归到正确租户/商机；人工事实与平台事实分开；状态不能随意回退，统计可复算 | 未提供 |
-| V02-09 Windows 发行与许可 / 桌面＋交付 | IN_PROGRESS | 安全 Electron 桌面壳候选已迁入 `desktop/`（`3c854b8`）；下一步验证 sidecar、安装/更新和 Windows 生命周期 | 依赖真实 Windows 与 02/03/06 执行任务；新机安装/卸载、休眠/恢复、取消、授权、更新/回退与备份还原 | 安全壳基础 `3c854b8`；R3已交付Mac候选包、安全桥接及Windows构建脚本，详见[客户端记录](../desktop/docs/PACKAGING.md)；用户后续手动执行Windows脚本，实机验收未提供 |
+| V02-09 Windows 发行与许可 / 桌面＋交付 | IN_PROGRESS | 安全 Electron 桌面壳候选已迁入 `desktop/`（`3c854b8`）；继续 sidecar、安装/更新和 Windows 生命周期；解决构建依赖发行门禁 | 依赖真实 Windows 与 02/03/06 执行任务；新机安装/卸载、休眠/恢复、取消、授权、更新/回退与备份还原；[构建依赖核查](qa/BUILD_DEPENDENCY_AUDIT_20260909.md)的未决风险须处理 | 安全壳基础 `3c854b8`；R3已交付Mac候选包、安全桥接及Windows构建脚本，详见[客户端记录](../desktop/docs/PACKAGING.md)；用户后续手动执行Windows脚本，实机验收未提供；2026-09-09 full audit 17 high、production audit 0，不代表可发行 |
 | V02-10 集成、独立审核与试用 / QA＋交付 | NOT_STARTED | 先明确逐平台样例、客户操作脚本和证据格式 | 02～09 完成；锁定 SHA，三方独立复核；客户自行走通整链；需服务端部署时通过 CP-06 | 未提供 |
 
 ### 在途子卡与接收登记
 
-核查快照（2026-09-09）：本轮从 `5eb180f41a84ad2b850bf41476524e25521628a5` 开始，收尾同步至远端 main `30da93e5ba39c9bc11227640b06094c7afe980b2`；身份分支头为 `8553491270a37f9d2f180a8eb525e7a862c73cb6`，测试基线修复分支头为 `e577f4bfc7549fc10180a08e72b38768701242f3`。两条候选分支共同基线均为 `15ddb7039e385c9adbda04bfd553bf8d222e6308`，未包含 main 最新跨行业文档；将来整合必须保留当前目标、小卡及并行 UI 成果，不能整份覆盖。本轮只读核查候选源码与记录，未复跑其中测试、未合并这两条功能分支、未完成 CodexWin 对功能的最终审核。
+历史只读核查快照（2026-09-09，保留原检查边界）：从 `5eb180f41a84ad2b850bf41476524e25521628a5` 开始，收尾同步至远端 main `30da93e5ba39c9bc11227640b06094c7afe980b2`；当时身份分支头为 `8553491270a37f9d2f180a8eb525e7a862c73cb6`，测试基线修复分支头为 `e577f4bfc7549fc10180a08e72b38768701242f3`。两条候选当时共同基线均为 `15ddb7039e385c9adbda04bfd553bf8d222e6308`，未包含最新跨行业文档。该次只读核查没有复跑测试、合并功能或完成 CodexWin 最终审核。
+
+最新 CodexiMac 组合验证（同日，独立于上述只读核查）：身份分支已正常整合 main `30da93e` 与测试时钟候选，修复 104 表的显式应用权限遗漏后锁定接收版本 **`222119e0b41b86b65867a92e14d3ed00dede4e7d`**。本机独立复审 PASS；CodexiMac 专用 PG 串行全量 **705 passed、0 skipped**，相同桌面代码 **362 passed**、typecheck/build 通过。main 后续 `022b0fb` 的跨行业目标、细化小卡与既有认领在本次文档整合中保留。该代码仍未集成 main，实际 CodexWin ACK 仍未收到；[组合验收](qa/IDENTITY_INTEGRATION_20260909.md)保留失败、修复、环境和证据边界，[交接说明](handoffs/V02-01_MAC_TO_WIN.md)给出精确复现步骤。下面原子项 SHA 与测试数保留为历史证据，不与组合结果相加。
 
 | 子卡 / 实际责任依据 | 状态 | 候选/已集成证据 | 接收与下一动作 |
 |---|---|---|---|
-| V02-01A / CodexiMac，身份分支中的实施记录 | READY_FOR_REVIEW | 候选 `da2a2f233e716551289a833e623477f122aa230c`；[分支01A记录](https://gitee.com/xinghetech/yike-ai2026/blob/8553491270a37f9d2f180a8eb525e7a862c73cb6/docs/qa/V02-01A_REVIEW.md)记载独立 Agent PASS、92 passed/2 skipped，范围仅登记/遥测；未集成 main | CodexWin 交叉复现与 ACK 未发生；锁定当前待接收候选，用新空的隔离PG核对104迁移，不能将 UNVERIFIED 或客户端 generation 当真实连接/执行权限 |
-| V02-01B / CodexiMac，身份分支中的实施记录 | READY_FOR_REVIEW | 修复候选 `120b9389a7105d75d31aab6dc2c09ca9a8a83287`；[分支01B记录](https://gitee.com/xinghetech/yike-ai2026/blob/8553491270a37f9d2f180a8eb525e7a862c73cb6/docs/qa/V02-01B_REVIEW.md)记载 `adcb631` 曾因升级权限缺口 REQUEST_CHANGES，修复后独立复审 PASS、147 passed/2 skipped（含最小权限升级）；未集成 main | 01A的PASS不覆盖本卡；CodexWin 交叉复现/ACK 尚未发生，须核对迁移→最小授权→应用升级及退出撤销；不替代设备认证、正常客户登录或取消在途任务 |
+| V02-01A / CodexiMac，身份分支中的实施记录 | READY_FOR_REVIEW | 历史候选 `da2a2f233e716551289a833e623477f122aa230c`；[分支01A记录](https://gitee.com/xinghetech/yike-ai2026/blob/8553491270a37f9d2f180a8eb525e7a862c73cb6/docs/qa/V02-01A_REVIEW.md)记载独立 Agent PASS、92 passed/2 skipped，范围仅登记/遥测；当前组合候选 `222119e`，未集成 main | CodexWin 交叉复现与 ACK 未发生；锁定 `222119e`，用新空的隔离PG核对104迁移及最小权限升级，不能将 UNVERIFIED 或客户端 generation 当真实连接/执行权限 |
+| V02-01B / CodexiMac，身份分支中的实施记录 | READY_FOR_REVIEW | 历史修复候选 `120b9389a7105d75d31aab6dc2c09ca9a8a83287`；[分支01B记录](https://gitee.com/xinghetech/yike-ai2026/blob/8553491270a37f9d2f180a8eb525e7a862c73cb6/docs/qa/V02-01B_REVIEW.md)记载 `adcb631` 曾因升级权限缺口 REQUEST_CHANGES，修复后独立复审 PASS、147 passed/2 skipped；组合 `222119e` 另修复104权限遗漏，未集成 main | 01A的PASS不覆盖本卡；CodexWin 对 `222119e` 交叉复现/ACK 尚未发生，须核对迁移→四张身份表最小授权→应用升级及退出撤销；不替代设备认证、正常客户登录或取消在途任务 |
 | V02-05A / CodexMac，保留原前端工作及主线交接记录 | IN_PROGRESS | R3及 `8011a30`/`a9f3078` 交互增量已集成；[UI实施记录](UI_R3_IMPLEMENTATION.md)、[交互验收](qa/ui-interactions/REVIEW.md)保留原SHA与环境，含三队列/原请求核对、P18管理UI、原生CSV导出；记录中的362项是其版本测试结果，不是本轮复跑 | 不将整项前端转给Win；保留同状态视觉、P04资料、P14/P15跟进、P19任务查询等未完成边界；后端接入分别归05B～G/07C/08B/09C/E，不重建已交付UI，具体文件须先交接 |
-| V02-10E / CodexiMac 侧 `baseline_clock_fix`，分支实施记录 | READY_FOR_REVIEW | `codex/mac-baseline-test-clock` 候选 `475166ac27e6d84ef019d669cc15cb9aec578ae4`；[独立审核记录](https://gitee.com/xinghetech/yike-ai2026/blob/e577f4bfc7549fc10180a08e72b38768701242f3/docs/qa/BASELINE_CLOCK_REVIEW.md)记载 PASS、624 passed/7 skipped、native_clock 34项通过；仅测试代码，未集成 main | 不重复开卡修复；Win交叉接收尚未发生。7项PG跳过不是通过；该候选不含身份分支，不能将两支测试数拼成整链通过；整合后按影响重验 |
+| V02-10E / CodexiMac 侧 `baseline_clock_fix`，分支实施记录 | READY_FOR_REVIEW | `codex/mac-baseline-test-clock` 历史候选 `475166ac27e6d84ef019d669cc15cb9aec578ae4`；[独立审核记录](https://gitee.com/xinghetech/yike-ai2026/blob/e577f4bfc7549fc10180a08e72b38768701242f3/docs/qa/BASELINE_CLOCK_REVIEW.md)记载 PASS、624 passed/7 skipped、native_clock 34项通过；现已合入身份组合 `222119e`，未集成 main | 不重复开卡修复；Win交叉接收尚未发生。历史7项PG跳过不是通过，本次组合已配置专用PG全量重跑705项无跳过；两次证据不相加，也不构成真实平台整链通过 |
 
 只有上述有证据的在途子卡登记实际状态。其他新拆卡是待认领的交付定义，不因此标记开工、分支存在或已接收；既有父任务状态及已完成基础仍有效。V02-10E 是既有基线修复的接收登记，不据此把 V02-10 新产品整链/试用实现改为已开始。已纳入 main 的研究规则包、原子导入与桌面壳不重做；历史失败、候选修复和最新主线的实际回归结果分别记录。
 
