@@ -1,5 +1,17 @@
 # P07 复核未知结果恢复契约
 
+## 2026-09-10 新真实接口接线补充
+
+以下原2026-09-09章节保留旧R3账本含义，不适用于新ASSESS/人工来源核验。当前实际客户端已接候选和原始证据读取；新写入仍待现有P07显式按钮/确认面板接线，不能以基础hook完成称用户已可复核。
+
+新版使用独立`candidate-request-operations` scope，外层按userId隔离，键`[accountScopeId|null,scopeVersion|null,candidateId,requestId]`；值仅包含版本、动作、候选/来源/画像绑定、原请求摘要、assessmentId、核验ID与retryOf的省略/null/有值标记、invocationId及状态。不保存原文、人工说明或回执正文，不改写旧账本或旧hash；旧候选待确认记录仍阻止新写。
+
+四类操作均先可靠落盘再POST；存储失败、账号/空间/目标改变或hash期间同候选记录变化时不提交。所有恢复仅GET原requestId；404、401、普通失败/错回执和超时均保留。仅用户明确要求重新分析，并新鲜GET确认FAILED/UNKNOWN后，才创建新requestId，retryOf指原实际invocation；PROCESSING、已存在重试子请求不再次POST。缓存别名中的requestId仍是本机原请求，invocationRequestId不是可替代它的回执匹配键。
+
+原始证据严格核对来源版本与候选revision，评论者正文、原帖标题、父评论及发布/观察/接收时间各自保留。OPEN只是人工声明已打开，不代表平台真实性、可发送或发过消息。实际服务/PG及Windows界面接收仍按[05G验收记录](qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md)分别验证。
+
+## 旧R3记录（保留适用版本）
+
 日期：2026-09-09。范围仅为前端原请求保留与核对；默认 `candidates` / `reviewCandidate` 仍为明确不可用，本文没有创建新后端接口或宣称真实入库已接通。
 
 ## 请求与持久保护

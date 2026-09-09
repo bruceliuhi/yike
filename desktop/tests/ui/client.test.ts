@@ -13,12 +13,23 @@ import {
 import type { YikeDesktopApi } from "../../src/shared/contracts";
 import { capturedEvidenceFixture } from "../fixtures/opportunitySourceEvidence";
 import { pageFixture, assessmentRequestFixture } from "../fixtures/candidateReviewApi";
+import { rawEvidenceBinding, rawEvidenceFixture } from "../fixtures/rawCandidateEvidence";
 const host = window as unknown as { yikeDesktop?: YikeDesktopApi };
 afterEach(() => {
   delete host.yikeDesktop;
   vi.unstubAllGlobals();
 });
 describe("real client transport boundaries", () => {
+  it("reads original candidate evidence through the product client without enabling writes", async () => {
+    const data = rawEvidenceFixture();
+    const requestApi = vi.fn().mockResolvedValue({ok:true,status:200,data});
+    host.yikeDesktop = {requestApi} as unknown as YikeDesktopApi;
+    expect(await service.rawCandidateEvidence!(rawEvidenceBinding)).toEqual(data);
+    expect(requestApi).toHaveBeenCalledExactlyOnceWith({operation:"candidates.rawEvidence",payload:{candidateId:rawEvidenceBinding.candidateId}});
+    expect(service.candidateReview).toBeUndefined();
+    await expect(service.reviewCandidate(assessmentRequestFixture() as Parameters<typeof service.reviewCandidate>[0])).rejects.toMatchObject({status:501});
+    expect(requestApi).toHaveBeenCalledTimes(1);
+  });
   it("reads strict candidates but does not enable the legacy implicit assessment entry", async () => {
     const data = pageFixture();
     const requestApi = vi

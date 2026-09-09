@@ -5,6 +5,7 @@ import { parseCandidateOperation } from "../domain/candidateReviewOperation";
 import { usageReservationSchema } from "../domain/researchUsage";
 import { validCoverageAdjustmentEntry } from "../domain/coveragePlan";
 import { validStrategyEntry } from "../domain/strategyConfirmation";
+import { validCandidateRequestEntry } from "../domain/candidateRequestOperation";
 
 export type OperationScope =
   | "send-attempts"
@@ -13,6 +14,7 @@ export type OperationScope =
   | "task-operations"
   | "connection-disconnects"
   | "candidate-reviews"
+  | "candidate-request-operations"
   | "contact-draft-saves"
   | "coverage-adjustments"
   | "research-strategy-operations"
@@ -73,6 +75,7 @@ function validEntries(
       return status === "PENDING" && parseCandidateOperation(key) !== null;
     if (scope === "coverage-adjustments") return validCoverageAdjustmentEntry(key, status);
     if (scope === "research-strategy-operations") return validStrategyEntry(key, status);
+    if (scope === "candidate-request-operations") return validCandidateRequestEntry(key, status);
     if (scope === "contact-draft-saves") {
       if (status !== "PENDING") return false;
       try {

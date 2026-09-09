@@ -3,6 +3,16 @@ import {createServiceClient} from '../src/main/serviceClient';
 import {candidateBinding, assessmentRequestFixture, verificationRequestFixture} from './fixtures/candidateReviewApi';
 
 describe('fixed service transport', () => {
+  it('reads raw candidate evidence by a strict candidate UUID without caller URLs', async () => {
+    const fetch = vi.fn(async () => Response.json({}));
+    const client = createServiceClient({baseUrl:'https://customer.example',fetch,clearSession:async()=>{}});
+    expect(await client.request({operation:'candidates.rawEvidence',payload:{candidateId:candidateBinding.candidateId}})).toMatchObject({ok:true});
+    expect(fetch).toHaveBeenCalledWith(`https://customer.example/api/ui/raw-candidates/${candidateBinding.candidateId}`,expect.objectContaining({method:'GET'}));
+    for (const payload of [{candidateId:'../other'},{candidateId:candidateBinding.candidateId,url:'https://other.example'},{candidateId:candidateBinding.candidateId,tenantId:'other'}]) {
+      expect(await client.request({operation:'candidates.rawEvidence',payload})).toMatchObject({ok:false,error:'INVALID_API_REQUEST'});
+    }
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
   it('routes candidate operations through the same fixed authenticated origin', async () => {
     const fetch = vi.fn(async () => Response.json({}));
     const client = createServiceClient({baseUrl:'https://customer.example',fetch,clearSession:async()=>{}});
