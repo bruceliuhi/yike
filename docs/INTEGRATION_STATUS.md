@@ -150,6 +150,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 PostgreSQL 隔离夹具加固：使用本机一次性 PostgreSQL 容器，以 `NOSUPERUSER/NOBYPASSRLS` 独立应用角色重跑导入原子性与租户隔离集合，**11 passed**。修正测试授权覆盖新增机会证据表，并禁止隔离测试因沿用管理员 URL 而静默绕过 RLS。该结果证明测试夹具真实执行了受限角色路径，不代表生产数据库、备份恢复或真实客户 UAT 已完成。
 
+2026-09-10 CP-06 配置预检正向验证：使用仓外临时 runtime env、仓外 0600 备份口令、禁用开发登录、digest 固定镜像和 PostgreSQL URL，`scripts/cp06_validate_env.sh` 返回 `cp06-preflight: pass`。该结果只证明配置门禁规则可被满足，不代表镜像已发布、服务已部署、备份恢复已实测或真实平台/客户验收完成。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
