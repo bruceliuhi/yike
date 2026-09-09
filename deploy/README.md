@@ -8,6 +8,8 @@ V02-01A/104 与 V02-01B/105 升级必须严格按“迁移→显式最小授权�
 
 ## 构建与运行
 
+V02-01C 持钥切片新增 migration 106：迁移后、启应用前，另运行 [grant_device_credentials.sql](grant_device_credentials.sql)，在同一 psql 会话设置既有受限角色 `yike.app_role`（完整命令见客户试用运行手册）。脚本只授新凭据/挑战表 SELECT/INSERT/UPDATE，可重复，不给 DELETE、pilot_users UPDATE 或 schema CREATE；Web/桌面不携带管理员连接。它不替代 104/105 旧授权，也不代表执行租约或 Windows 验收完成。
+
 在仓库根目录执行：
 
 ```bash
