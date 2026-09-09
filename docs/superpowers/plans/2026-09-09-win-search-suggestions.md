@@ -44,12 +44,12 @@ class SearchSuggestionModel:
     def generate(self, *, description: str) -> tuple[SuggestionContent, dict | None]: ...
 ```
 
-- [ ] 写RED：模块缺失用明确断言；制造业与软件服务两个合成画像，传输只接收对应description；严格类型、额外字段、空白/长度/重复、排除包含搜索词冲突、无依据引用、手机号/邮箱/URL词、Unicode正文不变。
-- [ ] 实现 `validate_suggestion(payload, *, description)`；description严格字符串、非空、最多8000字符且保留原文；模型schema使用strict/extra forbid；词为单行，去重键按空白合并和lower，不静默丢坏词或改变证据原文。排除词包含关系会误杀任一建议词时拒绝。不限定必须8–12词，信息不足不凑数。
-- [ ] 实现 `OpenAICompatibleSearchSuggestionModel(base_url, api_key, model, timeout_seconds=30, http_client=None)`；构造参数有界，api_key repr隐藏，HTTPS或loopback HTTP，无URL凭据/query/fragment；只一次chat/completions调用、显式不重定向，默认自建HTTPTransport(retries=0)，固定输出上限2048 tokens，响应体读取中限制256KiB。http_client仅为可信内部/测试注入，注入方须提供无重试transport；公开API不能证明任意外部transport内部行为，不窥探私有字段作伪保证。外部文本只能作为user数据，不得通过画像指定模型/URL/schema/系统提示。
-- [ ] 严格读取JSON对象（拒绝重复key/NaN/非JSON外围文本）、message.content与finish_reason=stop；finish_reason截断/拒绝/无效结构不作为成功。调用超时→`suggestion_result_unknown` 504；传输或服务端异常保守同类UNKNOWN；明确4xx→`suggestion_provider_rejected` 502；坏模型输出→`invalid_suggestion_result` 502；错误不含原文/响应/密钥、无暴露的异常链。
-- [ ] usage只返回已校验prompt_tokens/completion_tokens/total_tokens非负严格整数且总数一致；缺失或不可靠返回null，不造零/人民币/搜贝；保留模型和规则版本供持久服务记录。
-- [ ] 用httpx.MockTransport验证真实适配器请求/解析，不调用外部模型、不把替身当实际智能质量。命令：`./.runtime/venvs/win-device-review/Scripts/python.exe -X utf8 -m pytest -q tests/test_search_suggestion_model.py`；先RED再GREEN，独立规格与代码/架构/质量审核。
+- [x] 写RED：模块缺失用明确断言；制造业与软件服务两个合成画像，传输只接收对应description；严格类型、额外字段、空白/长度/重复、排除包含搜索词冲突、无依据引用、手机号/邮箱/URL词、Unicode正文不变。
+- [x] 实现 `validate_suggestion(payload, *, description)`；description严格字符串、非空、最多8000字符且保留原文；模型schema使用strict/extra forbid；词为单行，去重键按空白合并和lower，不静默丢坏词或改变证据原文。排除词包含关系会误杀任一建议词时拒绝。不限定必须8–12词，信息不足不凑数。
+- [x] 实现 `OpenAICompatibleSearchSuggestionModel(base_url, api_key, model, timeout_seconds=30, http_client=None)`；构造参数有界，api_key repr隐藏，HTTPS或loopback HTTP，无URL凭据/query/fragment；只一次chat/completions调用、显式不重定向，默认自建HTTPTransport(retries=0)，固定输出上限2048 tokens，响应体读取中限制256KiB。http_client仅为可信内部/测试注入，注入方须提供无重试transport；公开API不能证明任意外部transport内部行为，不窥探私有字段作伪保证。外部文本只能作为user数据，不得通过画像指定模型/URL/schema/系统提示。
+- [x] 严格读取JSON对象（拒绝重复key/NaN/非JSON外围文本）、message.content与finish_reason=stop；finish_reason截断/拒绝/无效结构不作为成功。调用超时→`suggestion_result_unknown` 504；传输或服务端异常保守同类UNKNOWN；明确4xx→`suggestion_provider_rejected` 502；坏模型输出→`invalid_suggestion_result` 502；错误不含原文/响应/密钥、无暴露的异常链。
+- [x] usage只返回已校验prompt_tokens/completion_tokens/total_tokens非负严格整数且总数一致；缺失或不可靠返回null，不造零/人民币/搜贝；保留模型和规则版本供持久服务记录。
+- [x] 用httpx.MockTransport验证真实适配器请求/解析，不调用外部模型、不把替身当实际智能质量。命令：`./.runtime/venvs/win-device-review/Scripts/python.exe -X utf8 -m pytest -q tests/test_search_suggestion_model.py`；先RED再GREEN，独立规格与代码/架构/质量审核。代码`e26c7a3`，187 passed/0 skipped；[范围与失败历史](../../qa/V02-04B_SEARCH_MODEL_WIN_REVIEW.md)。
 
 ## Chunk 2：请求持久化与认证HTTP
 
@@ -62,6 +62,8 @@ class SearchSuggestionModel:
 安全回执字段固定为request_id、draft_id、draft_revision、profile_version_id、profile_sha256、rule_version、model_provider、model_name、state、result、usage、error_code、created_at、updated_at、profile_current。result只含已验证SuggestionContent；usage只含Task1允许计量。provider/model是受控服务配置，不接受HTTP指定。UUID为规范小写，revision<=2147483647；所有读取/完成均查认证user/tenant。HTTP轮询看到旧画像结果时保留历史但不可应用，不能把profile_current当执行授权。
 
 完成事务锁session→request→画像；reserve在其前增加tenant配额锁（两整数namespace11001，避免碰10701/会话bigint），读到当前请求即返回、不再计配额。新画像确认仍使用已有business_profiles锁，完成等待后复核墙钟会话及画像状态/摘要。已变化画像使终态FAILED/profile_changed、不写建议结果；已撤销会话不返回结果且保留原PENDING待核对。后台不会以PENDING超时触发第二次模型。
+
+原预留会话的revocation_key与expires_at仅内部持久绑定（不存token、不出现在回执）。finish必须使用该原会话且仍有效；同用户重新登录可以读取/重放历史请求，但不得借新会话完成旧已撤销会话的PENDING。无需在事务外读取会话元数据或引入跨会话锁顺序。
 
 - [ ] 严格请求包含request_id/draft_id/profile_version_id规范UUID、draft_revision非负有界整数；不接受tenant、用户、description、model、费用或自由URL。同用户request_id固定绑定完整正文摘要；同ID不同正文409，同ID原结果可读取不再调用。用户切换互不读取，tenant由SessionRegistry解析。
 - [ ] 请求表存受认证tenant/user/request、请求摘要、画像版本/内容摘要、草稿版本、PENDING/SUCCEEDED/FAILED/UNKNOWN、规则/模型版本、已验证结果/usage、时间和固定错误码。强制tenant+user RLS，应用仅需要SELECT/INSERT/UPDATE，无DELETE；grant拒绝特权/owner。仅合成独立PG，不能用客户库。
