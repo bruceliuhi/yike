@@ -12,22 +12,26 @@ import psycopg
 from pilot.db import MissingDatabaseConfiguration, PilotDatabase
 from pilot.auth import issue_token
 from pilot.research_import import import_reviewed_bundle
+from pilot.runtime import build_runtime_app
 from pilot.store import PilotStore
-from pilot.web import build_app
 
 
 def web():
-    database = PilotDatabase.from_environment()
     secret = os.environ.get("YIKE_PILOT_AUTH_SECRET", "").strip()
     if not secret:
         raise RuntimeError("YIKE_PILOT_AUTH_SECRET is required")
-    app = build_app(PilotStore(database), auth_secret=secret, dev_login=os.environ.get("YIKE_PILOT_DEV_LOGIN") == "1")
     proxy_headers = os.environ.get("YIKE_PILOT_PROXY_HEADERS", "0") == "1"
     forwarded_allow_ips = os.environ.get("YIKE_PILOT_FORWARDED_ALLOW_IPS", "").strip()
     if proxy_headers and not forwarded_allow_ips:
         raise RuntimeError("YIKE_PILOT_FORWARDED_ALLOW_IPS is required when proxy headers are enabled")
     if any(item.strip() == "*" or item.strip().endswith("/0") for item in forwarded_allow_ips.split(",")):
         raise RuntimeError("YIKE_PILOT_FORWARDED_ALLOW_IPS must not contain wildcard or /0 network")
+    database = PilotDatabase.from_environment()
+    app = build_runtime_app(
+        database,
+        auth_secret=secret,
+        dev_login=os.environ.get("YIKE_PILOT_DEV_LOGIN") == "1",
+    )
     uvicorn.run(
         app,
         host=os.environ.get("YIKE_PILOT_HOST", "127.0.0.1"),

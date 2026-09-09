@@ -43,18 +43,25 @@ def test_web_start_does_not_run_migrations_as_app_role(monkeypatch):
         def migrate(self):
             raise AssertionError("web process must not run privileged migrations")
 
-    class FakeStore:
-        def __init__(self, database):
-            self.database = database
-
     called = {}
+    database = FakeDatabase()
+    app = object()
     monkeypatch.setenv("YIKE_PILOT_DATABASE_URL", "postgresql://example")
     monkeypatch.setenv("YIKE_PILOT_AUTH_SECRET", "test-secret")
-    monkeypatch.setattr(cli.PilotDatabase, "from_environment", lambda: FakeDatabase())
-    monkeypatch.setattr(cli, "PilotStore", FakeStore)
-    monkeypatch.setattr(cli.uvicorn, "run", lambda app, **kwargs: called.update(kwargs))
+    monkeypatch.delenv("YIKE_PILOT_ADMIN_DATABASE_URL", raising=False)
+    monkeypatch.setattr(cli.PilotDatabase, "from_environment", lambda: database)
+    monkeypatch.setattr(
+        cli,
+        "build_runtime_app",
+        lambda selected, **kwargs: called.update(database=selected, runtime_kwargs=kwargs) or app,
+    )
+    monkeypatch.setattr(cli.uvicorn, "run", lambda launched, **kwargs: called.update(app=launched, **kwargs))
 
     cli.web()
+    assert called["database"] is database
+    assert called["runtime_kwargs"]["auth_secret"] == "test-secret"
+    assert called["runtime_kwargs"]["dev_login"] is False
+    assert called["app"] is app
     assert called["access_log"] is False
     assert called["proxy_headers"] is False
     assert called["forwarded_allow_ips"] == ""
@@ -97,6 +104,10 @@ def test_web_rejects_wildcard_forwarded_proxy_allowlist(monkeypatch):
     monkeypatch.setenv("YIKE_PILOT_PROXY_HEADERS", "1")
     monkeypatch.setenv("YIKE_PILOT_FORWARDED_ALLOW_IPS", "10.0.0.1, *")
     monkeypatch.setattr(cli.PilotDatabase, "from_environment", lambda: FakeDatabase())
-    monkeypatch.setattr(cli, "PilotStore", lambda database: type("Store", (), {"database": database})())
+    monkeypatch.setattr(
+        cli,
+        "build_runtime_app",
+        lambda *_args, **_kwargs: pytest.fail("proxy options must be validated before app assembly"),
+    )
     with pytest.raises(RuntimeError, match="must not contain wildcard"):
         cli.web()
