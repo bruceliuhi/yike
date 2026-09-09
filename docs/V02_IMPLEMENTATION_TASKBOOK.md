@@ -49,6 +49,8 @@ V02-05 的[全页面设计 R3](../design/v02-suite-r3/README.md)已于 2026-09-0
 
 CodexiMac 交接时组合验证快照（同日，后续Win接收见下表）：身份分支已正常整合 main `30da93e` 与测试时钟候选，修复 104 表的显式应用权限遗漏后锁定接收版本 **`222119e0b41b86b65867a92e14d3ed00dede4e7d`**。本机独立复审 PASS；CodexiMac 专用 PG 串行全量 **705 passed、0 skipped**，相同桌面代码 **362 passed**、typecheck/build 通过。main 后续 `022b0fb` 的跨行业目标、细化小卡与既有认领在本次文档整合中保留。当时该代码未集成 main、尚未收到实际 CodexWin ACK；[组合验收](qa/IDENTITY_INTEGRATION_20260909.md)保留失败、修复、环境和证据边界，[交接说明](handoffs/V02-01_MAC_TO_WIN.md)给出精确复现步骤。下面原子项 SHA 与测试数保留为历史证据，不与组合结果相加。
 
+CodexiMac并行主线集成快照（2026-09-09）：正常合并最新 main `f7e7165`，保留跨行业目标、细化小卡及既有认领，形成并推送 **`5d3373d9b7fa6cb74f0a9f6241bbb282e4db2514`**。独立 Agent 对精确 SHA 复审 PASS；合并后重新运行专用 PG 全量 **705 passed in 48.30s、0 skipped**，桌面 **37 files / 362 passed**，typecheck/build、compileall、静态脚本检查与 secret scan 通过。按任务板现有规则，非实现者独立审核可用于代码集成；该记录时点尚未收到实际 CodexWin 复现/ACK（后续签收见下表），不能据此把 Win 接口依赖标记为就绪或把 V02-01 标记 DONE。[组合验收](qa/IDENTITY_INTEGRATION_20260909.md)保留失败、修复、环境和证据边界，[交接说明](handoffs/V02-01_MAC_TO_WIN.md)锁定最新接收 SHA。历史测试数与最新结果不相加。
+
 | 子卡 / 实际责任依据 | 状态 | 候选/已集成证据 | 接收与下一动作 |
 |---|---|---|---|
 | V02-01A / CodexiMac，CodexWin接收 | DONE（仅登记/遥测子卡） | 原 `da2a2f2`、组合 `222119e`；Win发现事件名称契约P2，更正与回归提交 `f42ea909c9eb36791a3a557acb9afaef7fecf403`；集成 `bea5c7dd2e6860fadd965e094e4fbd2bc5e515cc` | 2026-09-09 CodexWin ACK `f42ea909`；空隔离PG定向136通过，四表最小权限/跨租户/撤销验证通过；独立 `api_contract_gaps` 复审PASS，见[Win复核](qa/WIN_CROSS_REVIEW_20260909.md)。仅解锁登记/遥测；UNVERIFIED、客户端generation仍非连接/执行授权 |

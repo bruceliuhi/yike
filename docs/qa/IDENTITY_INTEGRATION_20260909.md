@@ -4,10 +4,18 @@
 
 后续接收说明：以下保留 CodexiMac 交接时的验证快照，“未接收/未集成”描述属于当时状态。CodexWin 后续实测、事件契约P2修正 `f42ea909` 和集成 `bea5c7d` 见[Win交叉复核](WIN_CROSS_REVIEW_20260909.md)，当前状态以任务书为准；原705通过仍只属于Mac环境。
 
+## CodexiMac 并行主线集成快照
+
+2026-09-09：代码在 **`5d3373d9b7fa6cb74f0a9f6241bbb282e4db2514`** 合入远端 main，`git ls-remote` 已核验。它正常整合 `222119e` 与主线 `f7e7165`；任务板和任务书冲突按最新 main 原文保留，`pilot/app/migrations/tests/desktop/deploy` 相对 `222119e` 零差异。
+
+本机独立 reviewer `identity_integration_review` 对 `5d3373d` 复审 PASS（0 Critical / 0 Important / 0 Minor）。CodexiMac 在该 SHA 配齐两组专用 PG 管理员/应用环境变量，串行重跑 `uv run --frozen pytest -q --tb=short`：**705 passed in 48.30s，0 skipped**；compileall、JS 语法、秘密扫描与 diff 检查均通过。`desktop/` 同版本本轮重新执行 **362 passed / 37 files**，typecheck 和 build:renderer 退出 0。
+
+代码验证/集成与接收 ACK 分开：AUTHORITY、仓库工作流及任务板第53/55/146行允许独立 Agent 审核后正常集成；该记录时点尚未发生实际 CodexWin 接收（后续签收见开头Win记录），不能标为其接口依赖已就绪或 Windows 已验收。构建依赖17 high门禁与整个产品剩余工作仍保留。以下为先前候选阶段记录，保留失败与测试归属，不与最新结果相加。
+
 ## 版本与独立审核
 
 - 代码分支：`codex/mac-identity-execution-contract`。
-- 接收候选：[222119e0b41b86b65867a92e14d3ed00dede4e7d](https://gitee.com/xinghetech/yike-ai2026/commit/222119e0b41b86b65867a92e14d3ed00dede4e7d)。代码未集成 main，CodexWin 接收 ACK 未收到。
+- 历史接收候选：[222119e0b41b86b65867a92e14d3ed00dede4e7d](https://gitee.com/xinghetech/yike-ai2026/commit/222119e0b41b86b65867a92e14d3ed00dede4e7d)。该候选检查时点未集成 main、未收到 CodexWin ACK；后续集成与签收分别见上文。
 - 已正常合并 main `30da93e5ba39c9bc11227640b06094c7afe980b2` 的跨行业目标和 R3 成果，保留并行 UI 实现。后续 main `022b0fb` 仅变更任务卡/文档，本交接同步保留，不重写上述代码测试版本。
 - 已合入 `codex/mac-baseline-test-clock` 的 `e577f4b`（测试修复候选 `475166a`）。组合审核基线 `2f0626c3f3e76e0c4bec8748c898237e2a97db9f`。
 - 独立 reviewer：本机 `identity_integration_review`；修复实现者为另一 Agent `identity_grant_fix`，集成与最终串行回归为 CodexiMac。reviewer 不是实现者，也不是实际 CodexWin。

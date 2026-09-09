@@ -42,4 +42,4 @@
 - `tests/test_identity_postgres.py`：专用 PostgreSQL、非超级用户 RLS、同租户外键、真实行锁并发与 HTTP API；使用合成身份，不接触平台账号。
 - 测试需要 `YIKE_IDENTITY_TEST_DATABASE_URL` / `YIKE_IDENTITY_TEST_APP_DATABASE_URL` 指向专用一次性测试库，不能指向生产库。
 - 未发布的 104 迁移已在本分支修订；复审应使用新空库，不在已应用旧候选迁移的数据库上覆盖 checksum。
-- CodexWin 首先复核本契约及对应提交；未合并前不能把这些接口当作 main 已交付能力，也不在同一分支并发写入。
+- CodexWin 按主线集成版本复核本契约并登记接收 ACK；代码进入 main 不自动代表客户端已消费该接口，不在同一分支并发写入。
