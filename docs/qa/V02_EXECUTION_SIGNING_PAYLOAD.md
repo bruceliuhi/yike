@@ -56,3 +56,18 @@ uv run --frozen pytest -q tests/test_execution_signing_payload_http_postgres.py 
 独立终审对`eb507bf..956ecfe`提出一项Minor：摘要变体测试同时随机生成device_id，三个摘要不同不足以单独证明targets顺序或request_id的影响。root核对后以`9fc197c`固定两个变体的device_id与原始请求一致，仅两行测试修改。随后`uv run --frozen pytest -q tests/test_execution_signing_payload.py --tb=short`实际 **6 passed /0.18s /0 skipped**；未改产品源码，也未重跑不变的PG集合。
 
 独立审核者随后仅复核两行delta，原Minor关闭。完整`eb507bf..9fc197c`最终**Spec / Code / Architecture / Quality PASS，Ready to merge YES，0项未关闭发现**。上文待审核为历史时点，不据此重跑已通过的相同代码。root可按授权正常同步、推送并核对远端SHA；任何新的源码或冲突合并另做影响范围验证。此后仅登记本次实际审核/交付的文档不改变已审代码快照。
+
+## 并发主线保留与合并验证
+
+首次普通推送`3fb4673`时，功能分支成功，main因同期UI来件`a08751d`而非快进拒绝；未强推。随后普通合并为`12c0c95`，唯一整合状态文本冲突逐段保留双方记录。实际`git diff --exit-code 3fb4673 HEAD -- pilot tests deploy migrations`与`git diff --exit-code a08751d HEAD -- desktop`均退出0，证明双方源码完整保留。
+
+root在该合并树运行以下受影响UI文件，再执行类型检查：
+
+```sh
+npm run test -- tests/ui/followup-completion.test.tsx tests/ui/followup-reply-entry.test.tsx tests/ui/followup-reply-flow.test.tsx tests/ui/followup-routing.test.tsx tests/ui/followup-scope.test.tsx tests/ui/followups.test.tsx tests/ui/task-template-research.test.tsx tests/ui/workbench-queue-scope.test.tsx
+npm run typecheck
+```
+
+实际 **8文件 /80 passed /10.14s /0 skipped**，类型检查退出0；源码/Markdown/JSON差异格式及凭据扫描通过。不是对方1253项桌面记录的重新执行，也未重复不变的PG、构包或原生验收。[来件原QA](ui-reply-entry/README.md)及独立报告保持各自身份与锁屏/真实回复服务未验边界；根代理仅接收其兼容性，不冒认作者或产品验收。合并独立复核和实际最终远端核验另记。
+
+独立合并兼容性复核对精确`12c0c95`为**PASS，0项未关闭发现**，已确认双方产品字节保留，现followup/模板协议不消费或替代执行签名。该通过绑定此合并，不预先包含之后新增的远端变更。
