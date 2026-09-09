@@ -16,6 +16,7 @@ import { useTaskDraft } from "../../src/renderer/app/taskDraft";
 import { parseRoute } from "../../src/renderer/domain/routes";
 import {
   EMPTY_PROFILE,
+  PLATFORMS,
   newTaskDraft,
   type PlatformConnection,
   type Profile,
@@ -153,6 +154,72 @@ async function confirmReady() {
   await waitFor(() => expect(start.disabled).toBe(false));
   return start;
 }
+
+function expectPlatformState(name: string, status: string) {
+  const accessibleName = status ? `${name} ${status}` : name;
+  const checkbox = screen.getByRole("checkbox", { name: accessibleName });
+  // Explicitly update Chromium's AX name as well as the changing implicit label.
+  expect(checkbox.getAttribute("aria-label")).toBe(accessibleName);
+  const label = checkbox.closest("label")!;
+  expect(within(label).getByText(name)).toBeTruthy();
+  expect(label.querySelector("small")?.textContent || "").toBe(status);
+  return checkbox;
+}
+
+describe("platform selection state names", () => {
+  it("keeps visible and explicit accessible names in sync from loading to failure", async () => {
+    let reject!: (error: Error) => void;
+    context.service.connections = vi.fn(() => new Promise<PlatformConnection[]>((_, fail) => { reject = fail; }));
+    render(<TaskWizardPage />);
+    for (const platform of PLATFORMS) expectPlatformState(platform.name, "读取中");
+    await act(async () => reject(new Error("TEST 连接读取失败")));
+    for (const platform of PLATFORMS) expectPlatformState(platform.name, "读取失败");
+    expect(screen.queryByRole("checkbox", { name: /读取中|已连接/ })).toBeNull();
+    // Selecting a draft's scope never asserts that it is executable.
+    fireEvent.click(expectPlatformState("小红书", "读取失败"));
+    expect((expectPlatformState("小红书", "读取失败") as HTMLInputElement).checked).toBe(true);
+    expect(context.service.startTask).not.toHaveBeenCalled();
+  });
+
+  it("names only the actual ready records and does not equate registration with execution", async () => {
+    context.service.connections = vi.fn().mockResolvedValue([
+      { ...connections[0], capabilities: [], registration: { connectionId: "TEST-registry", deviceId: "TEST-device", version: 1, connectedAt: "2026-09-10T00:00:00Z", disconnectedAt: null } },
+      { platform: "douyin", status: "UNVERIFIED", capabilities: [] },
+      { platform: "bilibili", status: "EXPIRED", capabilities: [] },
+      { platform: "zhihu", status: "UNAVAILABLE", capabilities: [] },
+    ]);
+    render(<TaskWizardPage />);
+    await screen.findByRole("checkbox", { name: "小红书 已连接" });
+    expectPlatformState("小红书", "已连接");
+    expectPlatformState("抖音", "待核验");
+    for (const name of ["B站", "知乎", "公开网站"]) expectPlatformState(name, "待连接");
+    expect(screen.queryByRole("checkbox", { name: /读取中|可用/ })).toBeNull();
+    expect(context.service.startTask).not.toHaveBeenCalled();
+  });
+
+  it("does not restore an old space's connected name after the new space fails", async () => {
+    let finishOld!: (value: PlatformConnection[]) => void;
+    context.session.accountScope = { id: "TEST-space-a", version: 1 };
+    context.service.connections = vi.fn()
+      .mockImplementationOnce(() => new Promise<PlatformConnection[]>((resolve) => { finishOld = resolve; }))
+      .mockRejectedValueOnce(new Error("TEST 新空间读取失败"));
+    const view = render(<TaskWizardPage />);
+    expectPlatformState("小红书", "读取中");
+    context = { ...context, session: { ...context.session, accountScope: { id: "TEST-space-b", version: 1 } } };
+    view.rerender(<TaskWizardPage />);
+    await screen.findByRole("checkbox", { name: "小红书 读取失败" });
+    await act(async () => finishOld(connections));
+    for (const platform of PLATFORMS) expectPlatformState(platform.name, "读取失败");
+    expect(screen.queryByRole("checkbox", { name: /已连接|读取中/ })).toBeNull();
+  });
+
+  it("preserves the platform-only name for historical drafts without research state", async () => {
+    seed({ research: undefined });
+    render(<TaskWizardPage />);
+    await screen.findByText("已确认版本 v1");
+    for (const platform of PLATFORMS) expectPlatformState(platform.name, "");
+  });
+});
 
 describe("task wizard service boundary", () => {
   it("does not regenerate a saved empty draft on entry or remount", async () => {

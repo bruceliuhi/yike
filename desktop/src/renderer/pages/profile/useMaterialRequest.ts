@@ -1,15 +1,21 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../../app/context";
 import { useAction } from "../../app/hooks";
 import { boundedRequest } from "../../app/boundedRequest";
 import {
-  materialPendingSchema,
   parseMaterialReceipt,
   type MaterialChange,
   type MaterialPending,
   type MaterialReceipt,
 } from "../../domain/materials";
 import type { MaterialService } from "../../services/materials";
+import {
+  finishMaterialOperation,
+  materialOwner,
+  readMaterialOperations,
+  storeMaterialOperation,
+  type HistoricalMaterialOperation,
+} from "./materialOperationStorage";
 
 /** Stores opaque identities only; clearing editable drafts must not permit a second write. */
 export function useMaterialRequest(
@@ -18,31 +24,23 @@ export function useMaterialRequest(
   receive: (receipt: MaterialReceipt) => void,
 ) {
   const { session, notify } = useApp();
-  const key =
-    "yike.ui.material-operation.v1." +
-    encodeURIComponent(session.userId || "guest") +
-    "." +
-    encodeURIComponent(profileVersionId);
-  const read = () => {
-    const text = localStorage.getItem(key);
-    if (text === null) return null;
-    const pending = materialPendingSchema.parse(JSON.parse(text));
-    if (pending.profileVersionId !== profileVersionId)
-      throw new Error("资料操作记录与当前画像不匹配。");
-    return pending;
-  };
+  const identity = useMemo(() => ({}), [api, profileVersionId, session.authenticated, session.userId, session.accountScope?.id, session.accountScope?.version]);
+  const active = useRef(identity);
+  active.current = identity;
+  const read = () => readMaterialOperations(materialOwner(session), profileVersionId);
   const [pending, setPending] = useState<MaterialPending | null>(null);
+  const [historical, setHistorical] = useState<HistoricalMaterialOperation[]>([]);
   const [storageError, setStorageError] = useState("");
   const [progress, setProgress] = useState<number | null>(null);
   const action = useAction();
   const live = useRef(true);
-  const currentApi = useRef(api);
-  currentApi.current = api;
-  const current = () => live.current && currentApi.current === api;
+  const current = () => live.current && active.current === identity;
   const abort = useRef<AbortController | null>(null);
   const load = () => {
     try {
-      setPending(read());
+      const stored = read();
+      setPending(stored.pending);
+      setHistorical(stored.historical);
       setStorageError("");
     } catch {
       setStorageError(
@@ -50,11 +48,11 @@ export function useMaterialRequest(
       );
     }
   };
-  useEffect(() => {
+  useLayoutEffect(() => {
     live.current = true;
     load();
     const changed = (event: StorageEvent) => {
-      if (event.key === key || event.key === null) load();
+      if (event.key === null || event.key.startsWith("yike.ui.material-operation.")) load();
     };
     window.addEventListener("storage", changed);
     return () => {
@@ -62,16 +60,16 @@ export function useMaterialRequest(
       abort.current?.abort();
       window.removeEventListener("storage", changed);
     };
-  }, [key]);
+  }, [identity]);
   const settle = (
     value: unknown,
     binding: MaterialPending,
     change?: MaterialChange,
   ) => {
+    if (!current()) return;
     const receipt = parseMaterialReceipt(value, binding, change);
     if (["SUCCEEDED", "FAILED"].includes(receipt.status)) {
-      // Captured key remains that of the original account even if the page closes.
-      if (read()?.requestId === binding.requestId) localStorage.removeItem(key);
+      finishMaterialOperation(materialOwner(session), binding);
       if (current()) {
         setPending(null);
         if (receipt.status === "FAILED")
@@ -85,11 +83,11 @@ export function useMaterialRequest(
   };
   const run = async (change: MaterialChange) =>
     action.run(async () => {
+      if (!current()) return;
       if (!session.authenticated || !session.userId)
         throw new Error("请先登录客户空间。");
       let binding: MaterialPending;
       try {
-        if (read()) throw new Error("pending");
         binding = {
           requestId: crypto.randomUUID(),
           profileVersionId,
@@ -97,7 +95,7 @@ export function useMaterialRequest(
           kind: change.kind,
           expectedVersion: change.expectedVersion,
         };
-        localStorage.setItem(key, JSON.stringify(binding));
+        storeMaterialOperation(materialOwner(session), binding);
       } catch {
         throw new Error("存在待确认资料操作或本机记录不可写，请先核对原操作。");
       }
@@ -107,8 +105,9 @@ export function useMaterialRequest(
       abort.current = controller;
       try {
         const receipt = await boundedRequest(
-          (signal) =>
-            api.mutate(
+          (signal) => {
+            if (!current()) throw new Error("客户空间已变化，资料操作未提交。");
+            return api.mutate(
               { requestId: binding.requestId, profileVersionId, change },
               {
                 signal,
@@ -125,7 +124,8 @@ export function useMaterialRequest(
                     );
                 },
               },
-            ),
+            );
+          },
           {
             signal: controller.signal,
             timeoutMessage:
@@ -141,19 +141,30 @@ export function useMaterialRequest(
     });
   const reconcile = () =>
     action.run(async () => {
-      const binding = read();
+      if (!current()) return;
+      const binding = read().pending;
       if (!binding) {
         load();
         return;
       }
-      const receipt = await boundedRequest(
-        () => api.operation(profileVersionId, binding.requestId),
-        { timeoutMessage: "核对超时，原资料操作保护继续保留。" },
-      );
-      return settle(receipt, binding);
+      const controller = new AbortController();
+      abort.current = controller;
+      try {
+        const receipt = await boundedRequest(
+          () => {
+            if (!current()) throw new Error("客户空间已变化，未查询原资料操作。");
+            return api.operation(profileVersionId, binding.requestId);
+          },
+          { signal: controller.signal, timeoutMessage: "核对超时，原资料操作保护继续保留。" },
+        );
+        return settle(receipt, binding);
+      } catch (error) {
+        if (current()) throw error;
+      }
     });
   return {
     pending,
+    historical,
     storageError,
     progress,
     action,

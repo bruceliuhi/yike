@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 1,
+  "candidateCommit": "a25ba7b331e7712c4fba53b173cbbc704ec3e734",
+  "recordedAt": "2026-09-09T18:20:34.930071+00:00",
+  "status": "INTERMEDIATE_CANDIDATE_AUTOMATED_GATES_PASSED_NOT_FOR_FINAL_DELIVERY",
+  "reason": "Parallel review identified a P14/P15 cross-account-space boundary requiring a follow-up source fix and rebuild. No visible native UAT is asserted for this candidate.",
+  "platform": "darwin",
+  "arch": "arm64",
+  "nodeVersion": "v24.19.0",
+  "electronVersion": "43.4.1",
+  "appVersion": "0.2.0",
+  "sourceBinding": {
+    "before": {
+      "path": "docs/qa/ui-state-recovery/source-final-before.json",
+      "bytes": 35301,
+      "sha256": "58e8ae269feb2036619d7cf0d6e2ee5d7f61e46d94c83972de4dcd7824637b7c"
+    },
+    "after": {
+      "path": "docs/qa/ui-state-recovery/source-final-after.json",
+      "bytes": 35476,
+      "sha256": "39692d5122ab9c63d87a675b2db5fcf0248a694a3d4eb6d5f9bf0dd90ac8d9ba"
+    },
+    "trackedDesktopFileCount": 296,
+    "allMatchedCommitAndBefore": true,
+    "manifestAlgorithm": "SHA256 of UTF-8 sorted relativePath + NUL + fileSHA256 + newline",
+    "inputManifestSha256": "5f618e546cad164185fef0b56533981efc958cc851a0547e7c1e6b96a7fe6588",
+    "untrackedRawDraftsExcluded": [
+      "desktop/src/renderer/domain/rawCandidates.ts",
+      "desktop/src/renderer/services/rawCandidates.ts",
+      "desktop/src/shared/rawCandidateRead.ts",
+      "desktop/tests/rawCandidateReads.test.ts"
+    ]
+  },
+  "artifacts": {
+    "asar": {
+      "path": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/app.asar",
+      "bytes": 1774811,
+      "sha256": "dbb50b11feb25e35b4d5055af106022fd64a7d71a6ff3c9e7d7f9c1556eea582"
+    },
+    "zip": {
+      "path": "desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip",
+      "bytes": 122474078,
+      "sha256": "f557ec55424b875df6b56f5e5de664a17b71dc2f24375c1947d6446651771806"
+    },
+    "executable": {
+      "path": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/MacOS/YikeAI",
+      "bytes": 33968,
+      "sha256": "221d5695ab9eb2263b9107e4a5bb3f5780adc35963530e322673d5535e8eeae5"
+    },
+    "icon": {
+      "path": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/electron.icns",
+      "bytes": 1640524,
+      "sha256": "f93e910440d9a4e7f5af1912f7160b93d5b10976f0f3c86c517e49e4fb088e9a"
+    },
+    "approvedSourceIcon": {
+      "path": "desktop/assets/yike.icns",
+      "bytes": 1640524,
+      "sha256": "f93e910440d9a4e7f5af1912f7160b93d5b10976f0f3c86c517e49e4fb088e9a"
+    }
+  },
+  "zipValidation": {
+    "crcCheck": "passed",
+    "entryCount": 582,
+    "asarEntry": "µäÅσ«óAI.app/Contents/Resources/app.asar",
+    "asarSha256": "dbb50b11feb25e35b4d5055af106022fd64a7d71a6ff3c9e7d7f9c1556eea582",
+    "matchesBuiltAsar": true
+  },
+  "approvedIconMatches": true,
+  "commands": [
+    {
+      "command": "npm run typecheck",
+      "exitCode": 0,
+      "log": "logs/final-typecheck.log"
+    },
+    {
+      "command": "npm run make:mac",
+      "exitCode": 0,
+      "log": "logs/mac-build.log"
+    },
+    {
+      "command": "node scripts/verify-package.mjs <actual app.asar>",
+      "exitCode": 0,
+      "log": "native/package-check.json"
+    },
+    {
+      "command": "node scripts/run-packaged-smoke.mjs <actual app.asar>",
+      "exitCode": 0,
+      "log": "logs/packaged-smoke.log"
+    },
+    {
+      "command": "node scripts/run-native-service-smoke.mjs",
+      "exitCode": 0,
+      "log": "logs/native-service-smoke.log"
+    },
+    {
+      "command": "node tests/visual/verify-production-exclusion.mjs <actual app.asar>",
+      "exitCode": 0,
+      "log": "logs/production-exclusion.log"
+    }
+  ],
+  "fullTests": {
+    "executedBy": "parent agent before this build; result independently read from retained log",
+    "testFilesPassed": 92,
+    "testsPassed": 1007,
+    "testsSkipped": 21,
+    "testsTotal": 1028,
+    "log": "logs/final-tests.log"
+  },
+  "checks": {
+    "rendererManifestAssetCount": 37,
+    "productionGraphAndAsar": {
+      "revision": "a25ba7b331e7712c4fba53b173cbbc704ec3e734",
+      "productionGraphModuleCount": 4761,
+      "frozenTrackedGraphFileCount": 129,
+      "rawFilesExcluded": [
+        "desktop/src/renderer/domain/rawCandidates.ts",
+        "desktop/src/renderer/services/rawCandidates.ts",
+        "desktop/src/shared/rawCandidateRead.ts",
+        "desktop/tests/rawCandidateReads.test.ts"
+      ],
+      "forbiddenGraphModules": [],
+      "changedFrozenGraphFiles": [],
+      "comparedGeneratedOutputs": 38,
+      "generatedOutputsDifferingFromActualAsar": [],
+      "rawArchivePaths": [],
+      "passed": true
+    },
+    "mainPreloadAndManifest": {
+      "comparisons": [
+        {
+          "name": ".vite/build/main.cjs",
+          "diskSha256": "64c0f37696b4350de49d3c4858e815047b9cb56051546784152950956e12aaf6",
+          "asarSha256": "64c0f37696b4350de49d3c4858e815047b9cb56051546784152950956e12aaf6",
+          "equal": true
+        },
+        {
+          "name": ".vite/build/preload.cjs",
+          "diskSha256": "ca7db7b32d21efaea118b173bd8e6f33a8f812cfe4345ded9e7dbd5cf2ff8a9d",
+          "asarSha256": "ca7db7b32d21efaea118b173bd8e6f33a8f812cfe4345ded9e7dbd5cf2ff8a9d",
+          "equal": true
+        },
+        {
+          "name": ".vite/renderer/main_window/.vite/manifest.json",
+          "diskSha256": "3a403199074fd099f9bfc81149d79ab92fd81664486903858054d23d4e83e037",
+          "asarSha256": "3a403199074fd099f9bfc81149d79ab92fd81664486903858054d23d4e83e037",
+          "equal": true
+        }
+      ],
+      "forbiddenSourceOrTestPaths": [],
+      "passed": true
+    }
+  },
+  "evidence": {
+    "logs/final-tests.log": {
+      "path": "docs/qa/ui-state-recovery/logs/final-tests.log",
+      "bytes": 270,
+      "sha256": "bb5f38540cc36220fd133e6df1a5627680666af6e10bf55425217128a5c8dab2"
+    },
+    "logs/final-typecheck.log": {
+      "path": "docs/qa/ui-state-recovery/logs/final-typecheck.log",
+      "bytes": 51,
+      "sha256": "c23b4d6231a9c99ec1645d33c8da2445604a14e0db327596aade7db9ca031717"
+    },
+    "logs/mac-build.log": {
+      "path": "docs/qa/ui-state-recovery/logs/mac-build.log",
+      "bytes": 1888,
+      "sha256": "28498730a6862b3d77189cff0821eeff60c391711403e85f2569695565fd01db"
+    },
+    "logs/native-service-smoke.log": {
+      "path": "docs/qa/ui-state-recovery/logs/native-service-smoke.log",
+      "bytes": 128,
+      "sha256": "d6002d7fe8fac5f2516f55d6f2123df33f08770766cc7524e31f103e7357de9e"
+    },
+    "logs/packaged-smoke.log": {
+      "path": "docs/qa/ui-state-recovery/logs/packaged-smoke.log",
+      "bytes": 410,
+      "sha256": "ce221e9f2352a68528e75177aab52b9b1f723eda36ffe3ad2d192afadd8253d3"
+    },
+    "logs/production-exclusion.log": {
+      "path": "docs/qa/ui-state-recovery/logs/production-exclusion.log",
+      "bytes": 3873,
+      "sha256": "d9fa23e27a2bd96ac758caeb89e1cbc776c63a8a393f5b8df5e9cbb04926f189"
+    },
+    "logs/package-check.stderr.log": {
+      "path": "docs/qa/ui-state-recovery/logs/package-check.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "native/package-check.json": {
+      "path": "docs/qa/ui-state-recovery/native/package-check.json",
+      "bytes": 4297,
+      "sha256": "3d5e94012bee5465f92e325967ec4b1a957ac51cdb1ece692ee535ae23591331"
+    },
+    "native/input-graph-check.json": {
+      "path": "docs/qa/ui-state-recovery/native/input-graph-check.json",
+      "bytes": 554,
+      "sha256": "327eceb7ab6ed63200f20c795de2be50e87fcc876fcf3f7756f3b1ca7470e388"
+    },
+    "native/bundle-bytes-check.json": {
+      "path": "docs/qa/ui-state-recovery/native/bundle-bytes-check.json",
+      "bytes": 850,
+      "sha256": "7d9053462ecd4deb772968fcd02141eb5363ce8034212da524fc201585c37434"
+    },
+    "native/signing-inspection.log": {
+      "path": "docs/qa/ui-state-recovery/native/signing-inspection.log",
+      "bytes": 398,
+      "sha256": "7de4c841a2af26f846a5d5f5bf758405ad1181bb9ea02930b84157aedfecb60e"
+    }
+  },
+  "limits": [
+    "This record binds a25ba7b build inputs and actual artifacts only; it is not approval of later changed source.",
+    "Packaged smoke used isolated temporary state/files and checked real packaged renderer plus IPC. Native network smoke used a local fixture server, not a production service.",
+    "No visible native acceptance was performed by this agent for a25ba7b. Root owns that acceptance and this intermediate candidate is withheld pending P14/P15 remediation.",
+    "codesign inspection shows linker-signed ad-hoc binary, no TeamIdentifier, Info.plist not bound and no sealed resources. No Apple Developer ID signing or notarization is established.",
+    "Windows installer execution, installation/uninstallation and real-machine scaling have not been performed by this build.",
+    "TEST/visual fixtures and the four untracked raw-candidate drafts are excluded from the production renderer graph and ASAR. TEST behaviors are not evidence of connected backend capabilities."
+  ]
+}

@@ -1,0 +1,307 @@
+{
+  "schemaVersion": 1,
+  "buildSourceCommit": "f18a922b778f437400de8165e67b162fea028724",
+  "recordedHead": "c59cf1b68d5446be6a4fbb2ea9d6e9815f1a349e",
+  "recordedAt": "2026-09-09T18:50:55.455530+00:00",
+  "status": "AUTOMATED_PACKAGE_GATES_AND_FINAL_SUITE_PASSED_NATIVE_PARTIAL",
+  "platform": "darwin",
+  "arch": "arm64",
+  "nodeVersion": "v24.19.0",
+  "electronVersion": "43.4.1",
+  "appVersion": "0.2.0",
+  "sourceBinding": {
+    "before": {
+      "path": "docs/qa/ui-state-recovery/final/release-build-source-before.json",
+      "bytes": 38140,
+      "sha256": "e62d4d32c1fa4ca0d618452d0f0f49a6c8aba67a6b0a009a20191db97304fd5d"
+    },
+    "after": {
+      "path": "docs/qa/ui-state-recovery/final/release-build-source-after.json",
+      "bytes": 38169,
+      "sha256": "901cbaf1696c947062e0441569debf264f2f821202e24c16c11d8221b837d0eb"
+    },
+    "trackedDesktopFileCount": 317,
+    "allMatchedCommitAndBeforeAtRecordedTimes": true,
+    "manifestAlgorithm": "SHA256 of UTF-8 sorted relativePath + NUL + fileSHA256 + newline",
+    "inputManifestSha256": "8c3a0f22b2cdb298dd06adc3bfe6e555f99ad1ed2fdc520479998bed8caf9c14",
+    "untrackedRawDraftsExcluded": [
+      "desktop/src/renderer/domain/rawCandidates.ts",
+      "desktop/src/renderer/services/rawCandidates.ts",
+      "desktop/src/shared/rawCandidateRead.ts",
+      "desktop/tests/rawCandidateReads.test.ts"
+    ]
+  },
+  "artifacts": {
+    "asar": {
+      "path": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/app.asar",
+      "bytes": 1826753,
+      "sha256": "79a52de9d645378e0903fd93c4f49ac4c9ce703592fc1b537875708b372c86fa"
+    },
+    "zip": {
+      "path": "desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip",
+      "bytes": 122488736,
+      "sha256": "75d4f8b269e8ecef2b7211d267447189bea7f940e9d1fc3e0ee8b814b185de32"
+    },
+    "executable": {
+      "path": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/MacOS/YikeAI",
+      "bytes": 33968,
+      "sha256": "221d5695ab9eb2263b9107e4a5bb3f5780adc35963530e322673d5535e8eeae5"
+    },
+    "icon": {
+      "path": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/electron.icns",
+      "bytes": 1640524,
+      "sha256": "f93e910440d9a4e7f5af1912f7160b93d5b10976f0f3c86c517e49e4fb088e9a"
+    },
+    "approvedSourceIcon": {
+      "path": "desktop/assets/yike.icns",
+      "bytes": 1640524,
+      "sha256": "f93e910440d9a4e7f5af1912f7160b93d5b10976f0f3c86c517e49e4fb088e9a"
+    }
+  },
+  "zipValidation": {
+    "crcCheck": "passed",
+    "entryCount": 582,
+    "asarEntry": "µäÅσ«óAI.app/Contents/Resources/app.asar",
+    "asarSha256": "79a52de9d645378e0903fd93c4f49ac4c9ce703592fc1b537875708b372c86fa",
+    "matchesBuiltAsar": true
+  },
+  "approvedIconMatches": true,
+  "commands": [
+    {
+      "command": "npm run typecheck",
+      "exitCode": 0,
+      "log": "release-typecheck.log"
+    },
+    {
+      "command": "npm run make:mac",
+      "exitCode": 0,
+      "log": "release-mac-build.log"
+    },
+    {
+      "command": "node scripts/verify-package.mjs <actual app.asar>",
+      "exitCode": 0,
+      "log": "release-package-check.json"
+    },
+    {
+      "command": "node scripts/run-packaged-smoke.mjs <actual app.asar>",
+      "exitCode": 0,
+      "log": "release-packaged-smoke.log"
+    },
+    {
+      "command": "node scripts/run-native-service-smoke.mjs",
+      "exitCode": 0,
+      "log": "release-native-service-smoke.log"
+    },
+    {
+      "command": "node tests/visual/verify-production-exclusion.mjs <actual app.asar>",
+      "exitCode": 0,
+      "log": "release-production-exclusion.log"
+    }
+  ],
+  "fullTestObservation": {
+    "executedBy": "parent agent; result independently read from retained log",
+    "status": "FAILED_PENDING_TEST_TIMING_REVIEW",
+    "testFilesPassed": 100,
+    "testFilesFailed": 1,
+    "testFilesSkipped": 1,
+    "testsPassed": 1120,
+    "testsFailed": 1,
+    "testsSkipped": 22,
+    "testsTotal": 1143,
+    "failedTest": "followup-completion.test.tsx:359 pending save timeout test expects mutate before asynchronous draft hash finishes",
+    "log": "release-tests.log",
+    "notClaimedPassed": true
+  },
+  "checks": {
+    "rendererManifestAssetCount": 37,
+    "productionGraphAndAsar": {
+      "revision": "f18a922b778f437400de8165e67b162fea028724",
+      "productionGraphModuleCount": 4771,
+      "frozenTrackedGraphFileCount": 139,
+      "rawFilesExcluded": [
+        "desktop/src/renderer/domain/rawCandidates.ts",
+        "desktop/src/renderer/services/rawCandidates.ts",
+        "desktop/src/shared/rawCandidateRead.ts",
+        "desktop/tests/rawCandidateReads.test.ts"
+      ],
+      "forbiddenGraphModules": [],
+      "changedFrozenGraphFiles": [],
+      "comparedGeneratedOutputs": 38,
+      "generatedOutputsDifferingFromActualAsar": [],
+      "rawArchivePaths": [],
+      "passed": true
+    },
+    "mainPreloadAndManifest": {
+      "comparisons": [
+        {
+          "name": ".vite/build/main.cjs",
+          "diskSha256": "580e926ab3a693e1ee9be4cb081abca77556843b445506205dad9c1ab794c33e",
+          "asarSha256": "580e926ab3a693e1ee9be4cb081abca77556843b445506205dad9c1ab794c33e",
+          "equal": true
+        },
+        {
+          "name": ".vite/build/preload.cjs",
+          "diskSha256": "ca7db7b32d21efaea118b173bd8e6f33a8f812cfe4345ded9e7dbd5cf2ff8a9d",
+          "asarSha256": "ca7db7b32d21efaea118b173bd8e6f33a8f812cfe4345ded9e7dbd5cf2ff8a9d",
+          "equal": true
+        },
+        {
+          "name": ".vite/renderer/main_window/.vite/manifest.json",
+          "diskSha256": "454886fcb4aa4504ec45f25ea2a7c2d52a0d91914ace8fa492336804ce25f98e",
+          "asarSha256": "454886fcb4aa4504ec45f25ea2a7c2d52a0d91914ace8fa492336804ce25f98e",
+          "equal": true
+        }
+      ],
+      "forbiddenSourceOrTestPaths": [],
+      "passed": true
+    }
+  },
+  "evidence": {
+    "release-typecheck.log": {
+      "path": "docs/qa/ui-state-recovery/final/release-typecheck.log",
+      "bytes": 51,
+      "sha256": "c23b4d6231a9c99ec1645d33c8da2445604a14e0db327596aade7db9ca031717"
+    },
+    "release-mac-build.log": {
+      "path": "docs/qa/ui-state-recovery/final/release-mac-build.log",
+      "bytes": 1888,
+      "sha256": "28498730a6862b3d77189cff0821eeff60c391711403e85f2569695565fd01db"
+    },
+    "release-native-service-smoke.log": {
+      "path": "docs/qa/ui-state-recovery/final/release-native-service-smoke.log",
+      "bytes": 128,
+      "sha256": "d6002d7fe8fac5f2516f55d6f2123df33f08770766cc7524e31f103e7357de9e"
+    },
+    "release-packaged-smoke.log": {
+      "path": "docs/qa/ui-state-recovery/final/release-packaged-smoke.log",
+      "bytes": 409,
+      "sha256": "d2893489b857f3916c21639ad59c0fe189ec4d0041dd519aa2fb2bb8ccf97316"
+    },
+    "release-production-exclusion.log": {
+      "path": "docs/qa/ui-state-recovery/final/release-production-exclusion.log",
+      "bytes": 3873,
+      "sha256": "ad1d7ef923d1e9f6650812ea607369456fb9f1f4ad4b5df47856416af7628f8f"
+    },
+    "release-package-check.stderr.log": {
+      "path": "docs/qa/ui-state-recovery/final/release-package-check.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "release-package-check.json": {
+      "path": "docs/qa/ui-state-recovery/final/release-package-check.json",
+      "bytes": 4297,
+      "sha256": "cc1c098aec77bf036cfb471fefe2ef5a88917bdaa6224fb465af1e041704d62c"
+    },
+    "release-input-graph-check.json": {
+      "path": "docs/qa/ui-state-recovery/final/release-input-graph-check.json",
+      "bytes": 554,
+      "sha256": "ef4e5915797232636713a65be5d92e77c7fbf2c16e81f4b376675367aa92dd40"
+    },
+    "release-bundle-bytes-check.json": {
+      "path": "docs/qa/ui-state-recovery/final/release-bundle-bytes-check.json",
+      "bytes": 850,
+      "sha256": "24ddfbc627535ef1ef1835ce3dce4773d3cb290e3dad91523a718bef3ab04dbe"
+    },
+    "release-signing-inspection.log": {
+      "path": "docs/qa/ui-state-recovery/final/release-signing-inspection.log",
+      "bytes": 398,
+      "sha256": "7de4c841a2af26f846a5d5f5bf758405ad1181bb9ea02930b84157aedfecb60e"
+    },
+    "release-tests.log": {
+      "path": "docs/qa/ui-state-recovery/final/release-tests.log",
+      "bytes": 1254,
+      "sha256": "500232e19cf24fb1a76406c09b78c1e9f0ecfab173174c2c5e2503b7e3e39b91"
+    },
+    "release-desktop-equivalence.json": {
+      "path": "docs/qa/ui-state-recovery/final/release-desktop-equivalence.json",
+      "bytes": 22145,
+      "sha256": "febb13f8dff49e6e28bbf1296d045c2b419bf6973e44d66dedd692948594228d"
+    },
+    "release-desktop-equivalence-c88c9e2.json": {
+      "path": "docs/qa/ui-state-recovery/final/release-desktop-equivalence-c88c9e2.json",
+      "bytes": 22254,
+      "sha256": "aebdeca3ecb0d461e4b7c5d3b627f3f606b5f2964d4dec718bf2e00150cdfc35"
+    },
+    "release-verified-tests.log": {
+      "path": "docs/qa/ui-state-recovery/final/release-verified-tests.log",
+      "bytes": 284,
+      "sha256": "f1f61e5a2563cff16d7078ed6169aa5701e7473197c02bfd84d0a063052cf3ab"
+    },
+    "release-verified-test-source.json": {
+      "path": "docs/qa/ui-state-recovery/final/release-verified-test-source.json",
+      "bytes": 37965,
+      "sha256": "68fd2e19912fe941585e6a4ae8eddd9dd6aa8b865c3b25af64ed514cfda71a6c"
+    },
+    "release-verified-test-invocation.json": {
+      "path": "docs/qa/ui-state-recovery/final/release-verified-test-invocation.json",
+      "bytes": 4645,
+      "sha256": "a56eefa02300199231867565d14a344f479cfa352757327702909a0b04d52465"
+    },
+    "release-final-tests.log": {
+      "path": "docs/qa/ui-state-recovery/final/release-final-tests.log",
+      "bytes": 3233,
+      "sha256": "208d73a260957d45fa31ff4b1c59bca529b375b792392b7b8ca36307e06e6bdb"
+    },
+    "NATIVE_ACCEPTANCE.md": {
+      "path": "docs/qa/ui-state-recovery/final/NATIVE_ACCEPTANCE.md",
+      "bytes": 1825,
+      "sha256": "edb4ebbe7480ad74c02260f5c74b52518c4cce9b6e591ff2c25df208c708b955"
+    },
+    "native-launch-binding.json": {
+      "path": "docs/qa/ui-state-recovery/final/native-launch-binding.json",
+      "bytes": 731,
+      "sha256": "96d26110621d4d36d62263242092b5b8aac6c77645f25c652504f77680f7ba25"
+    },
+    "native-cold-start.png": {
+      "path": "docs/qa/ui-state-recovery/final/native-cold-start.png",
+      "bytes": 93987,
+      "sha256": "4e5f7287b21f57802ca42dd23601056ce6faef7f11dd0f93668375fc38bf3f88"
+    },
+    "native-cold-start.txt": {
+      "path": "docs/qa/ui-state-recovery/final/native-cold-start.txt",
+      "bytes": 3857,
+      "sha256": "31cfd9fc93a546aad1acd68141735353db6e4274efc4e50e3be89a75916c93b1"
+    },
+    "native-task-status.txt": {
+      "path": "docs/qa/ui-state-recovery/final/native-task-status.txt",
+      "bytes": 6582,
+      "sha256": "3b75e2c256cb090b040131f2879c44823f176c77fe84447056622118ca3675d8"
+    }
+  },
+  "limits": [
+    "This record binds f18a922 build inputs and actual artifacts. Later backend/docs-only merges or test-only changes require explicit byte-equivalence evidence; they are not silently included.",
+    "Earlier full-suite failures remain recorded in fullTestObservation and original logs. finalSuite contains the later verified passing run; skipped tests remain excluded from passes.",
+    "Packaged smoke used isolated temporary state/files and the actual packaged renderer/IPC. Native network smoke used a local fixture server, not a production service.",
+    "No visible native acceptance was performed by this agent for this package. Root owns actual visible launch/quit/restart acceptance.",
+    "codesign inspection shows ad-hoc linker signature, no TeamIdentifier, Info.plist not bound and no sealed resources. No Apple Developer ID signing or notarization is established.",
+    "Windows installation/uninstallation, real-machine scaling and production backend access have not been performed by this build.",
+    "Production excludes TEST/visual and the four untracked raw-candidate drafts. TEST fixture actions do not prove connected backend capabilities."
+  ],
+  "equivalentProductionCandidateCommit": "c88c9e20934c536a600d67dfe2ba2f7a02dd6404",
+  "equivalenceEvidence": "release-desktop-equivalence-c88c9e2.json",
+  "finalSuite": {
+    "candidateCommit": "c88c9e20934c536a600d67dfe2ba2f7a02dd6404",
+    "executedBy": "parent agent; complete log and exact 317-file source manifest independently checked by code reviewer",
+    "exitCode": 0,
+    "testFilesPassed": 101,
+    "testFilesSkipped": 1,
+    "testFilesTotal": 102,
+    "testsPassed": 1121,
+    "testsSkipped": 22,
+    "testsTotal": 1143,
+    "log": "release-verified-tests.log",
+    "sourceManifest": "release-verified-test-source.json",
+    "invocation": "release-verified-test-invocation.json",
+    "supersedesFailedGateObservationWithoutRemovingHistoricalLogs": true
+  },
+  "nativeAcceptance": {
+    "executedBy": "parent agent using CUA; this reviewer checked retained text records and artifact hashes, not independently operated GUI",
+    "asarSha256": "79a52de9d645378e0903fd93c4f49ac4c9ce703592fc1b537875708b372c86fa",
+    "coldStart": "PASSED_AS_RECORDED_BY_PARENT",
+    "platformAccessibleAndVisibleStatus": "five platforms honestly show read failure while service is unconfigured",
+    "quitCancelAndRestart": "NOT_EXECUTED_FOR_THIS_PACKAGE_MAC_LOCKED",
+    "document": "NATIVE_ACCEPTANCE.md",
+    "noOldVersionEvidencePromoted": true,
+    "doesNotProveProductionServices": true
+  }
+}

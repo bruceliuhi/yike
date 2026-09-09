@@ -1,0 +1,9 @@
+Executable=/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/MacOS/YikeAI
+Identifier=Electron
+Format=app bundle with Mach-O thin (arm64)
+CodeDirectory v=20400 size=392 flags=0x20002(adhoc,linker-signed) hashes=9+0 location=embedded
+Signature=adhoc
+Info.plist=not bound
+TeamIdentifier=not set
+Sealed Resources=none
+Internal requirements=none

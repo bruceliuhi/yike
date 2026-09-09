@@ -1,0 +1,12 @@
+{
+  "product": "yike-ai",
+  "schemaVersion": 1,
+  "spaceId": "TEST-visual-space",
+  "createdAt": "2026-09-10T00:00:00+08:00",
+  "data": {
+    "profiles": [{"id": "TEST-restored-profile", "name": "TEST 合成备份，仅用于内存验收"}],
+    "tasks": [],
+    "opportunities": [],
+    "followups": []
+  }
+}

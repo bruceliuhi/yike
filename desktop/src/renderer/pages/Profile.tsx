@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from "react";
 import { Plus, UploadSimple, FileText } from "@phosphor-icons/react";
 import { useApp } from "../app/context";
 import {
@@ -29,6 +29,7 @@ import {
 } from "../domain/models";
 import { boundedRequest } from "../app/boundedRequest";
 import { MaterialsWorkspace } from "./profile/MaterialsWorkspace";
+import { taskDraftOwner } from "../app/taskDraft";
 
 interface ProfileEditor {
   fields: ProfileFields;
@@ -118,7 +119,7 @@ const statusLabel = (status?: string) =>
 
 export function ProfilePage() {
   const { session } = useApp();
-  return <ProfileWorkspace key={session.userId || "guest"} />;
+  return <ProfileWorkspace key={JSON.stringify([session.authenticated, taskDraftOwner(session.userId, session.accountScope)])} />;
 }
 
 function ProfileWorkspace() {
@@ -127,7 +128,7 @@ function ProfileWorkspace() {
   const activeService = useRef(service);
   activeService.current = service;
   const currentScope = () => alive.current && activeService.current === service;
-  useEffect(() => {
+  useLayoutEffect(() => {
     alive.current = true;
     return () => {
       alive.current = false;
@@ -140,11 +141,11 @@ function ProfileWorkspace() {
       boundedRequest(() => service.profiles(), {
         timeoutMessage: "画像加载超时，请重试。",
       }),
-    [service, session.userId],
+    [service, session.authenticated, session.userId, session.accountScope?.id, session.accountScope?.version],
   );
   const action = useAction();
   const [editor, setEditor] = useLocalDraft<ProfileEditor>(
-    "profile." + (session.userId || "guest"),
+    "profile." + taskDraftOwner(session.userId, session.accountScope),
     () => ({
       fields: { ...EMPTY_PROFILE },
       baseline: { ...EMPTY_PROFILE },
@@ -153,7 +154,7 @@ function ProfileWorkspace() {
     }),
   );
   const [materials, setMaterials] = useLocalDraft<Material[]>(
-    "materials." + (session.userId || "guest"),
+    "materials." + taskDraftOwner(session.userId, session.accountScope),
     [],
     validMaterials,
   );
@@ -574,7 +575,7 @@ function ProfileWorkspace() {
         </>
       ) : service.materials && session.authenticated && current ? (
         <MaterialsWorkspace
-          key={`${session.userId}:${current.id}`}
+          key={`${taskDraftOwner(session.userId, session.accountScope)}:${current.id}`}
           api={service.materials}
           profile={current}
           currentFields={editor.fields}

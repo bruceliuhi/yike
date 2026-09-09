@@ -1,0 +1,551 @@
+{
+  "capturedAtUtc": "2026-09-09T18:14:09.480133+00:00",
+  "buildRoot": "desktop/out/visual-harness",
+  "captureHead": "a25ba7b331e7712c4fba53b173cbbc704ec3e734",
+  "purpose": "Preserve exact files of the static TEST harness used for P18 visible acceptance before rebuild.",
+  "sourceBindingLimit": "Capture HEAD is not the build source commit. Root identifies this static freeze as preceding the final P04 materialOperationStorage dot-ID change. The P18 source slice was unchanged. No pre-build complete output hash was saved; this is a post-run capture, not a reconstructed pre-run attestation.",
+  "sourceSnapshots": {
+    "source-before.json": {
+      "sha256": "cc1d0716afcee6d77bdbe2f8d7af417e5cfd76ecaaf556c26073a496460a5592",
+      "keys": [
+        "base",
+        "excluded",
+        "sha256"
+      ],
+      "sourceInputCount": 296,
+      "declaredBase": "1c56fc5734c738558067979c99c2fdd23d307552",
+      "declaredSourceCommit": null,
+      "declaredRevision": null
+    },
+    "source-final-before.json": {
+      "sha256": "58e8ae269feb2036619d7cf0d6e2ee5d7f61e46d94c83972de4dcd7824637b7c",
+      "keys": [
+        "revision",
+        "sha256"
+      ],
+      "sourceInputCount": 296,
+      "declaredBase": null,
+      "declaredSourceCommit": null,
+      "declaredRevision": "a25ba7b331e7712c4fba53b173cbbc704ec3e734"
+    }
+  },
+  "fileCount": 37,
+  "symlinkCount": 0,
+  "files": [
+    {
+      "path": ".vite/manifest.json",
+      "type": "file",
+      "sizeBytes": 8099,
+      "sha256": "5f38c6ae6f082b3dab45bc0b76c292f2d3338114b80cbee51cdd2dee0ff5490e"
+    },
+    {
+      "path": "assets/ArrowRight.es-C7hhk4G2.js",
+      "type": "file",
+      "sizeBytes": 1540,
+      "sha256": "188c407e979824c7fe28fdf0c1dd51a8bc37637490bfd24a2231bfa65782ccad"
+    },
+    {
+      "path": "assets/ArrowSquareOut.es-Cz5eMkvP.js",
+      "type": "file",
+      "sizeBytes": 2349,
+      "sha256": "a1f89618f014f0aabf01e8cebc40ad7f257bf252bcf852f62c80a48ef05b4c16"
+    },
+    {
+      "path": "assets/Connections-_DkFSQ9K.js",
+      "type": "file",
+      "sizeBytes": 18319,
+      "sha256": "ee98c1598996969ece9cd02e4c74608326609a7f47d29e5a62b3e2fb45f3d65e"
+    },
+    {
+      "path": "assets/Followups-BEcgu2i8.css",
+      "type": "file",
+      "sizeBytes": 633,
+      "sha256": "13cff2b01f5ef277c4ed616a8792852d4f9406a4bf84876f8add30b65c06bdd2"
+    },
+    {
+      "path": "assets/Followups-BqkKjeiR.js",
+      "type": "file",
+      "sizeBytes": 21701,
+      "sha256": "2416141439fa5269a1b1fae0f3d4ad77c5fdca995dac79d4d16272b0e7e6adf6"
+    },
+    {
+      "path": "assets/Login-DU7zBGnZ.js",
+      "type": "file",
+      "sizeBytes": 8818,
+      "sha256": "77c311215810b23536d856c7dc05972f0a23bd84f5d1386aed535ce5d32c9d77"
+    },
+    {
+      "path": "assets/Opportunities-BkNERfj1.js",
+      "type": "file",
+      "sizeBytes": 73379,
+      "sha256": "987623034f8d554b9e799d41c0fa9705e8f012ef62738aa262c797e2f8a95bf8"
+    },
+    {
+      "path": "assets/Opportunities-DcLfveqg.css",
+      "type": "file",
+      "sizeBytes": 3611,
+      "sha256": "67d025e8b82bedb37cbe6a65a368743328f729e2f0c12c162e3691534ec41650"
+    },
+    {
+      "path": "assets/Outreach-BdvfCDuK.css",
+      "type": "file",
+      "sizeBytes": 1990,
+      "sha256": "526139ba52f75c49594bf2cc23f1583bf846b93936df1cbe142864e8c58b317a"
+    },
+    {
+      "path": "assets/Outreach-CAXv0Kfu.js",
+      "type": "file",
+      "sizeBytes": 35347,
+      "sha256": "023f30597c07e284a940a7fa9395b90739f013d84cb040e035dbebfc8c4efbea"
+    },
+    {
+      "path": "assets/OutreachQueue-C7_zm7um.js",
+      "type": "file",
+      "sizeBytes": 4921,
+      "sha256": "81a6d5caf5e9a2af9863840a25c2418d25b356f28b2d7351383d22259a2dcfbd"
+    },
+    {
+      "path": "assets/PendingTaskStarts-4x_BbTIj.js",
+      "type": "file",
+      "sizeBytes": 3282,
+      "sha256": "229d8b8cd61cb71dd03ab398816a0fe5f923b393f200ef35c606683a94f7dfcb"
+    },
+    {
+      "path": "assets/PendingTaskStarts-BqiSuAXA.css",
+      "type": "file",
+      "sizeBytes": 2931,
+      "sha256": "5f39cd34d2b924261f06748eb2034c6e93e5b58747fdac1bd21476aa6bcc58ab"
+    },
+    {
+      "path": "assets/Platform-DHJI-W19.css",
+      "type": "file",
+      "sizeBytes": 388,
+      "sha256": "799e34322d6d86a2e7c1c266fd00dfd3c2d4df34dbdaea13c21408bce5b8d237"
+    },
+    {
+      "path": "assets/Platform-dhBk3-0C.js",
+      "type": "file",
+      "sizeBytes": 9766,
+      "sha256": "1523756c7763bc74d54584702d74ce2513ee90d2b62b2b92baa9902b16451056"
+    },
+    {
+      "path": "assets/Plus.es-CO7tg7BB.js",
+      "type": "file",
+      "sizeBytes": 1543,
+      "sha256": "15bc7e10cc4b6fa976bd4f3a1c0fa3fd08e3ff1adb1125b9fe17fd5b1df06150"
+    },
+    {
+      "path": "assets/Profile-CTKdTZn5.js",
+      "type": "file",
+      "sizeBytes": 40092,
+      "sha256": "e873445d499ad4a8f8c91c001231d035dc553e2530bb9bf59dc393219d739fef"
+    },
+    {
+      "path": "assets/Profile-DwpBIdIc.css",
+      "type": "file",
+      "sizeBytes": 764,
+      "sha256": "bbfcd35afdddeb9bfefdfdde3392c4a1ba07621efc8ce03ad87a7fc7ad82ac90"
+    },
+    {
+      "path": "assets/Settings-KrsvsIoN.js",
+      "type": "file",
+      "sizeBytes": 19838,
+      "sha256": "090738c59661fe372662904a14514f492dc88b3ff8f991a2f11026329ab68d0f"
+    },
+    {
+      "path": "assets/TaskWizard-C1ZAYL80.js",
+      "type": "file",
+      "sizeBytes": 42511,
+      "sha256": "6465e1188629364fd54cab6541ef8407417f219575bda5d7d3cd028d54aaa198"
+    },
+    {
+      "path": "assets/TaskWizard-CxGVM_aT.css",
+      "type": "file",
+      "sizeBytes": 5081,
+      "sha256": "d848c097f43e6f4025f18c612628a74b693f657cdf683f0e21efe2755a0ae9df"
+    },
+    {
+      "path": "assets/Tasks-D_VHXXEg.css",
+      "type": "file",
+      "sizeBytes": 3909,
+      "sha256": "e25ef659745e2a3ebc0a411f96a8bca9386e4662bf21ad1e6c62d461cf15d388"
+    },
+    {
+      "path": "assets/Tasks-Da4o4-4c.js",
+      "type": "file",
+      "sizeBytes": 59761,
+      "sha256": "16aaad9e557160e423a84f3598cf40bd1a6c4baffe7918bfceca4a9f79092dc6"
+    },
+    {
+      "path": "assets/TermEditor-DRWFh07R.js",
+      "type": "file",
+      "sizeBytes": 2598,
+      "sha256": "df304ce7ddb237029bafff5b894d49aba1210ec7518e787b2ef94706b2eba32d"
+    },
+    {
+      "path": "assets/Workbench-BBPw0GCx.css",
+      "type": "file",
+      "sizeBytes": 2421,
+      "sha256": "f4d255f7902c11054536d3bc2ecd3c19e767f64915c94d79acfce1a883aef6ba"
+    },
+    {
+      "path": "assets/Workbench-XykAPNTO.js",
+      "type": "file",
+      "sizeBytes": 21376,
+      "sha256": "7e60a5ad2a944ebbeeaf105a7114ed8e89aa8c085c67ff9604b42011d1726a36"
+    },
+    {
+      "path": "assets/bilibili-B4f0lnyN.ico",
+      "type": "file",
+      "sizeBytes": 4286,
+      "sha256": "2681561eb24e7435fea1acf26f3af95e4efc9f7d451587b58bef62f030f337e9"
+    },
+    {
+      "path": "assets/context-DvJgIS8E.js",
+      "type": "file",
+      "sizeBytes": 125083,
+      "sha256": "9cf56f3a56ef8ad69d446dc9903a33bb8fac5b45146c869868b29dc766563d00"
+    },
+    {
+      "path": "assets/douyin-FBAm5jUt.ico",
+      "type": "file",
+      "sizeBytes": 4286,
+      "sha256": "e67348e3ab54fa207e1ce4be78e8399d1b73a794d819a17d8656ea2b17a1109d"
+    },
+    {
+      "path": "assets/download-pHyP2G3C.js",
+      "type": "file",
+      "sizeBytes": 1619,
+      "sha256": "c404be827a658d9453cb71d3efb53f59c9c0db3c84f3d2c9036cc25799b56877"
+    },
+    {
+      "path": "assets/index-6keRUN1i.js",
+      "type": "file",
+      "sizeBytes": 344351,
+      "sha256": "51413d83bf07ef0f0c175d58f866a9387643816bdd02823a4d72889c1a2af3d0"
+    },
+    {
+      "path": "assets/index-D3pi6dz_.css",
+      "type": "file",
+      "sizeBytes": 32989,
+      "sha256": "33da09e815c3c29e46108d17a30654185766beeac499ef1e6f8f238a5d9ea622"
+    },
+    {
+      "path": "assets/logo-B-T1ksKV.png",
+      "type": "file",
+      "sizeBytes": 826349,
+      "sha256": "b4f4bade37c5806f618c243af90747b7596f2b248d739eaa3130378f1a4f7595"
+    },
+    {
+      "path": "assets/operationLedger-Jj9XTtuD.js",
+      "type": "file",
+      "sizeBytes": 7437,
+      "sha256": "06bd6a3e5cc63377cdb786dd6174f7ee91bd7e2fd18b10121b84b1c357880575"
+    },
+    {
+      "path": "assets/zhihu-OfkkMzms.ico",
+      "type": "file",
+      "sizeBytes": 4286,
+      "sha256": "ca501e1d6c35f64b94d78bbabad986fe888d6aab08702a0083ba88076ad60f37"
+    },
+    {
+      "path": "index.html",
+      "type": "file",
+      "sizeBytes": 450,
+      "sha256": "607a4bb09241f8c3a77e560eb1657f80af798ca25aa66793c5217b174e93eb37"
+    }
+  ],
+  "viteManifest": {
+    "../../src/renderer/assets/logo.png": {
+      "file": "assets/logo-B-T1ksKV.png",
+      "src": "../../src/renderer/assets/logo.png"
+    },
+    "../../src/renderer/assets/platforms/bilibili.ico": {
+      "file": "assets/bilibili-B4f0lnyN.ico",
+      "src": "../../src/renderer/assets/platforms/bilibili.ico"
+    },
+    "../../src/renderer/assets/platforms/douyin.ico": {
+      "file": "assets/douyin-FBAm5jUt.ico",
+      "src": "../../src/renderer/assets/platforms/douyin.ico"
+    },
+    "../../src/renderer/assets/platforms/zhihu.ico": {
+      "file": "assets/zhihu-OfkkMzms.ico",
+      "src": "../../src/renderer/assets/platforms/zhihu.ico"
+    },
+    "../../src/renderer/pages/Connections.tsx": {
+      "file": "assets/Connections-_DkFSQ9K.js",
+      "name": "Connections",
+      "src": "../../src/renderer/pages/Connections.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-DvJgIS8E.js",
+        "_ArrowSquareOut.es-Cz5eMkvP.js",
+        "_Platform-dhBk3-0C.js",
+        "_Plus.es-CO7tg7BB.js",
+        "_operationLedger-Jj9XTtuD.js"
+      ]
+    },
+    "../../src/renderer/pages/Followups.tsx": {
+      "file": "assets/Followups-BqkKjeiR.js",
+      "name": "Followups",
+      "src": "../../src/renderer/pages/Followups.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-DvJgIS8E.js",
+        "_Platform-dhBk3-0C.js",
+        "_Plus.es-CO7tg7BB.js",
+        "index.html",
+        "_operationLedger-Jj9XTtuD.js",
+        "../../src/renderer/pages/Opportunities.tsx"
+      ],
+      "css": [
+        "assets/Followups-BEcgu2i8.css"
+      ]
+    },
+    "../../src/renderer/pages/Login.tsx": {
+      "file": "assets/Login-DU7zBGnZ.js",
+      "name": "Login",
+      "src": "../../src/renderer/pages/Login.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-DvJgIS8E.js",
+        "index.html"
+      ]
+    },
+    "../../src/renderer/pages/Opportunities.tsx": {
+      "file": "assets/Opportunities-BkNERfj1.js",
+      "name": "Opportunities",
+      "src": "../../src/renderer/pages/Opportunities.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-DvJgIS8E.js",
+        "_ArrowSquareOut.es-Cz5eMkvP.js",
+        "_Platform-dhBk3-0C.js",
+        "index.html",
+        "_operationLedger-Jj9XTtuD.js",
+        "_download-pHyP2G3C.js",
+        "_TermEditor-DRWFh07R.js"
+      ],
+      "css": [
+        "assets/Opportunities-DcLfveqg.css"
+      ]
+    },
+    "../../src/renderer/pages/Outreach.tsx": {
+      "file": "assets/Outreach-CAXv0Kfu.js",
+      "name": "Outreach",
+      "src": "../../src/renderer/pages/Outreach.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-DvJgIS8E.js",
+        "_ArrowSquareOut.es-Cz5eMkvP.js",
+        "_Platform-dhBk3-0C.js",
+        "index.html",
+        "_operationLedger-Jj9XTtuD.js",
+        "../../src/renderer/pages/Opportunities.tsx",
+        "../../src/renderer/pages/OutreachQueue.tsx"
+      ],
+      "css": [
+        "assets/Outreach-BdvfCDuK.css"
+      ]
+    },
+    "../../src/renderer/pages/OutreachQueue.tsx": {
+      "file": "assets/OutreachQueue-C7_zm7um.js",
+      "name": "OutreachQueue",
+      "src": "../../src/renderer/pages/OutreachQueue.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-DvJgIS8E.js"
+      ]
+    },
+    "../../src/renderer/pages/Profile.tsx": {
+      "file": "assets/Profile-CTKdTZn5.js",
+      "name": "Profile",
+      "src": "../../src/renderer/pages/Profile.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-DvJgIS8E.js",
+        "_Plus.es-CO7tg7BB.js",
+        "index.html"
+      ],
+      "css": [
+        "assets/Profile-DwpBIdIc.css"
+      ]
+    },
+    "../../src/renderer/pages/Settings.tsx": {
+      "file": "assets/Settings-KrsvsIoN.js",
+      "name": "Settings",
+      "src": "../../src/renderer/pages/Settings.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-DvJgIS8E.js",
+        "index.html",
+        "_operationLedger-Jj9XTtuD.js",
+        "_download-pHyP2G3C.js"
+      ]
+    },
+    "../../src/renderer/pages/TaskWizard.tsx": {
+      "file": "assets/TaskWizard-C1ZAYL80.js",
+      "name": "TaskWizard",
+      "src": "../../src/renderer/pages/TaskWizard.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-DvJgIS8E.js",
+        "_Platform-dhBk3-0C.js",
+        "_Plus.es-CO7tg7BB.js",
+        "index.html",
+        "_operationLedger-Jj9XTtuD.js",
+        "_TermEditor-DRWFh07R.js",
+        "_PendingTaskStarts-4x_BbTIj.js"
+      ],
+      "css": [
+        "assets/TaskWizard-CxGVM_aT.css"
+      ]
+    },
+    "../../src/renderer/pages/Tasks.tsx": {
+      "file": "assets/Tasks-Da4o4-4c.js",
+      "name": "Tasks",
+      "src": "../../src/renderer/pages/Tasks.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-DvJgIS8E.js",
+        "_ArrowRight.es-C7hhk4G2.js",
+        "_Platform-dhBk3-0C.js",
+        "_Plus.es-CO7tg7BB.js",
+        "index.html",
+        "_operationLedger-Jj9XTtuD.js",
+        "_PendingTaskStarts-4x_BbTIj.js"
+      ],
+      "css": [
+        "assets/Tasks-D_VHXXEg.css"
+      ]
+    },
+    "../../src/renderer/pages/Workbench.tsx": {
+      "file": "assets/Workbench-XykAPNTO.js",
+      "name": "Workbench",
+      "src": "../../src/renderer/pages/Workbench.tsx",
+      "isDynamicEntry": true,
+      "imports": [
+        "_context-DvJgIS8E.js",
+        "_ArrowRight.es-C7hhk4G2.js",
+        "_Platform-dhBk3-0C.js",
+        "../../src/renderer/pages/Opportunities.tsx"
+      ],
+      "css": [
+        "assets/Workbench-BBPw0GCx.css"
+      ]
+    },
+    "_ArrowRight.es-C7hhk4G2.js": {
+      "file": "assets/ArrowRight.es-C7hhk4G2.js",
+      "name": "ArrowRight.es",
+      "imports": [
+        "_context-DvJgIS8E.js"
+      ]
+    },
+    "_ArrowSquareOut.es-Cz5eMkvP.js": {
+      "file": "assets/ArrowSquareOut.es-Cz5eMkvP.js",
+      "name": "ArrowSquareOut.es",
+      "imports": [
+        "_context-DvJgIS8E.js"
+      ]
+    },
+    "_PendingTaskStarts-4x_BbTIj.js": {
+      "file": "assets/PendingTaskStarts-4x_BbTIj.js",
+      "name": "PendingTaskStarts",
+      "imports": [
+        "_context-DvJgIS8E.js",
+        "index.html",
+        "_operationLedger-Jj9XTtuD.js"
+      ],
+      "css": [
+        "assets/PendingTaskStarts-BqiSuAXA.css"
+      ]
+    },
+    "_PendingTaskStarts-BqiSuAXA.css": {
+      "file": "assets/PendingTaskStarts-BqiSuAXA.css",
+      "src": "_PendingTaskStarts-BqiSuAXA.css"
+    },
+    "_Platform-DHJI-W19.css": {
+      "file": "assets/Platform-DHJI-W19.css",
+      "src": "_Platform-DHJI-W19.css"
+    },
+    "_Platform-dhBk3-0C.js": {
+      "file": "assets/Platform-dhBk3-0C.js",
+      "name": "Platform",
+      "imports": [
+        "_context-DvJgIS8E.js"
+      ],
+      "css": [
+        "assets/Platform-DHJI-W19.css"
+      ],
+      "assets": [
+        "assets/douyin-FBAm5jUt.ico",
+        "assets/bilibili-B4f0lnyN.ico",
+        "assets/zhihu-OfkkMzms.ico"
+      ]
+    },
+    "_Plus.es-CO7tg7BB.js": {
+      "file": "assets/Plus.es-CO7tg7BB.js",
+      "name": "Plus.es",
+      "imports": [
+        "_context-DvJgIS8E.js"
+      ]
+    },
+    "_TermEditor-DRWFh07R.js": {
+      "file": "assets/TermEditor-DRWFh07R.js",
+      "name": "TermEditor",
+      "imports": [
+        "_context-DvJgIS8E.js",
+        "_Plus.es-CO7tg7BB.js",
+        "index.html"
+      ]
+    },
+    "_context-DvJgIS8E.js": {
+      "file": "assets/context-DvJgIS8E.js",
+      "name": "context"
+    },
+    "_download-pHyP2G3C.js": {
+      "file": "assets/download-pHyP2G3C.js",
+      "name": "download",
+      "imports": [
+        "index.html"
+      ]
+    },
+    "_operationLedger-Jj9XTtuD.js": {
+      "file": "assets/operationLedger-Jj9XTtuD.js",
+      "name": "operationLedger",
+      "imports": [
+        "_context-DvJgIS8E.js",
+        "index.html"
+      ]
+    },
+    "index.html": {
+      "file": "assets/index-6keRUN1i.js",
+      "name": "index",
+      "src": "index.html",
+      "isEntry": true,
+      "imports": [
+        "_context-DvJgIS8E.js"
+      ],
+      "dynamicImports": [
+        "../../src/renderer/pages/Connections.tsx",
+        "../../src/renderer/pages/Followups.tsx",
+        "../../src/renderer/pages/Login.tsx",
+        "../../src/renderer/pages/Opportunities.tsx",
+        "../../src/renderer/pages/Outreach.tsx",
+        "../../src/renderer/pages/OutreachQueue.tsx",
+        "../../src/renderer/pages/Profile.tsx",
+        "../../src/renderer/pages/Settings.tsx",
+        "../../src/renderer/pages/TaskWizard.tsx",
+        "../../src/renderer/pages/Tasks.tsx",
+        "../../src/renderer/pages/Workbench.tsx"
+      ],
+      "css": [
+        "assets/index-D3pi6dz_.css"
+      ],
+      "assets": [
+        "assets/logo-B-T1ksKV.png"
+      ]
+    }
+  },
+  "externalBoundary": "TEST harness only; simulated save receipts do not write files, restore/install actions only alter in-memory fixture state."
+}

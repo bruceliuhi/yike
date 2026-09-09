@@ -1,0 +1,83 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+ ❯ tests/ui/management-scope.test.tsx (4 tests | 1 failed) 230ms
+   × keeps file selection disabled while reading and releases it on completion 32ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/management-scope.test.tsx > keeps file selection disabled while reading and releases it on completion
+TestingLibraryElementError: Unable to find an element with the text: 已选择：TEST.yike-backup.json. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<span>[39m
+      [0mTEST已登录[0m
+    [36m</span>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"customer-data-actions"[39m
+    [36m>[39m
+      [36m<p>[39m
+        [0m当前客户空间：[0m
+        [0mTEST空间[0m
+      [36m</p>[39m
+      [36m<button[39m
+        [33mclass[39m=[32m"button button-primary "[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m保存客户数据备份[0m
+      [36m</button>[39m
+      [36m<hr />[39m
+      [36m<h3>[39m
+        [0m从备份恢复[0m
+      [36m</h3>[39m
+      [36m<div[39m
+        [33maria-labelledby[39m=[32m"_r_2_"[39m
+        [33mclass[39m=[32m"field "[39m
+        [33mrole[39m=[32m"group"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"field-label"[39m
+          [33mid[39m=[32m"_r_2_"[39m
+        [36m>[39m
+          [0m客户数据备份[0m
+        [36m</div>[39m
+        [36m<input[39m
+          [33maccept[39m=[32m".yike-backup.json,application/json"[39m
+          [33maria-label[39m=[32m"客户数据备份"[39m
+          [33mtype[39m=[32m"file"[39m
+        [36m/>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"field-hint"[39m
+        [36m>[39m
+          [0m选择 .yike-backup.json 文件，最大 2 MB。先检查覆盖范围，再确认恢复。[0m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33maria-live[39m=[32m"polite"[39m
+      [33mclass[39m=[32m"toast-stack"[39m
+    [36m/>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ tests/ui/management-scope.test.tsx:161:17
+    159|   await act(async () => resolve(backup));
+    160|   expect(input).not.toBeDisabled();
+    161|   expect(screen.getByText("已选择：TEST.yike-backup.json")).toBeVisible();
+       |                 ^
+    162| });
+    163|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 100 passed | 1 skipped (102)
+      Tests  1 failed | 1120 passed | 22 skipped (1143)
+   Start at  02:51:11
+   Duration  14.12s (transform 4.86s, setup 0ms, import 82.67s, tests 56.52s, environment 28.09s)
+

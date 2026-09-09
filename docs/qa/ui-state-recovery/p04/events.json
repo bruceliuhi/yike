@@ -1,0 +1,92 @@
+[
+  {
+    "sequence": 1,
+    "operation": "profiles",
+    "detail": "TEST 内存操作；未调用外部服务"
+  },
+  {
+    "sequence": 2,
+    "operation": "materialRecovery.mutate",
+    "detail": "save:787ae5f3-ec99-472e-aa74-0716041defa4:SUCCEEDED"
+  },
+  {
+    "sequence": 3,
+    "operation": "materialRecovery.mutate",
+    "detail": "parse:fa547a0b-9339-4762-baa6-4049f314ed00:SUCCEEDED"
+  },
+  {
+    "sequence": 4,
+    "operation": "materialRecovery.mutate",
+    "detail": "confirm:8cb7ade4-1479-401f-a7f1-a5abdf76546b:SUCCEEDED"
+  },
+  {
+    "sequence": 5,
+    "operation": "materialRecovery.mutate",
+    "detail": "revoke:c7f80be0-57e4-4e3f-aa3c-6460b006c618:SUCCEEDED"
+  },
+  {
+    "sequence": 6,
+    "operation": "materialRecovery.query",
+    "detail": "c7f80be0-57e4-4e3f-aa3c-6460b006c618"
+  },
+  {
+    "sequence": 7,
+    "operation": "workbench.review",
+    "detail": "TEST 内存操作；未调用外部服务"
+  },
+  {
+    "sequence": 8,
+    "operation": "profiles",
+    "detail": "TEST 内存操作；未调用外部服务"
+  },
+  {
+    "sequence": 9,
+    "operation": "opportunities",
+    "detail": "TEST 内存操作；未调用外部服务"
+  },
+  {
+    "sequence": 10,
+    "operation": "connections",
+    "detail": "TEST 内存操作；未调用外部服务"
+  },
+  {
+    "sequence": 11,
+    "operation": "tasks",
+    "detail": "TEST 内存操作；未调用外部服务"
+  },
+  {
+    "sequence": 12,
+    "operation": "profiles",
+    "detail": "TEST 内存操作；未调用外部服务"
+  },
+  {
+    "sequence": 13,
+    "operation": "materialRecovery.release",
+    "detail": "c7f80be0-57e4-4e3f-aa3c-6460b006c618"
+  },
+  {
+    "sequence": 14,
+    "operation": "materialRecovery.query",
+    "detail": "c7f80be0-57e4-4e3f-aa3c-6460b006c618"
+  },
+  {
+    "sequence": 15,
+    "operation": "materialRecovery.mutate",
+    "detail": "remove:47d0e28c-622f-4e37-814c-4b04eeb36d19:SUCCEEDED"
+  },
+  {
+    "sequence": 16,
+    "operation": "materialRecovery.query",
+    "detail": "47d0e28c-622f-4e37-814c-4b04eeb36d19"
+  },
+  {
+    "sequence": 17,
+    "operation": "materialRecovery.release",
+    "detail": "47d0e28c-622f-4e37-814c-4b04eeb36d19"
+  },
+  {
+    "sequence": 18,
+    "operation": "materialRecovery.query",
+    "detail": "47d0e28c-622f-4e37-814c-4b04eeb36d19"
+  }
+]

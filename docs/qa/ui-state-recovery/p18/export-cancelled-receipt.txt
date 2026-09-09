@@ -1,0 +1,148 @@
+Browser tab: 22, Title: "账号与授权 · 意客AI", URL: "http://127.0.0.1:18794/?scenario=P18&state=populated&management=lifecycle#/settings".
+1 AXWebArea 账号与授权 · 意客AI, URL: 127.0.0.1:18794/?scenario=P18&state=populated&management=lifecycle#/settings
+	2 container root
+		3 container visual-harness-banner
+			4 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入  · TEST 模拟保存/取消，不写文件
+		5 container visual-harness-controls
+			6 button (expanded) TEST 场景, Secondary Actions: Collapse
+				7 text TEST 场景
+			8 container TEST 管理生命周期控制
+				9 container
+					10 text TEST 内存管理 ·  READY 。保存/恢复/更新均为模拟，不创建文件。
+				11 container
+					12 text TEST 保存回执
+					13 pop up button (collapsed, settable) Description: TEST 保存回执, Value: 取消保存, Secondary Actions: Expand
+						14 menu
+							15 (selected) 取消保存
+							16 内存模拟已保存
+							17 保存失败
+				18 container
+					19 text TEST 执行回执
+					20 pop up button (collapsed, settable) Description: TEST 执行回执, Value: 结果未知, Secondary Actions: Expand
+						21 menu
+							22 (selected) 结果未知
+							23 确定未执行
+							24 仅内存完成
+				25 container
+					26 text TEST 原请求查询
+					27 pop up button (collapsed, settable) Description: TEST 原请求查询, Value: 仍未知, Secondary Actions: Expand
+						28 menu
+							29 (selected) 仍未知
+							30 确定未执行
+							31 仅内存完成
+				32 container
+					33 text TEST 取消回执
+					34 pop up button (collapsed, settable) Description: TEST 取消回执, Value: 仅收到取消请求, Secondary Actions: Expand
+						35 menu
+							36 (selected) 仅收到取消请求
+							37 确定已取消
+				38 text 改变选择后，请点击产品页的原操作按钮；不直接清除待确认记录。
+				39 text TEST 模拟取消保存，未创建文件
+			40 link Description: P01, Value: 127.0.0.1:18794/?scenario=P01&state=populated
+			41 link Description: P02, Value: 127.0.0.1:18794/?scenario=P02&state=populated
+			42 link Description: P03, Value: 127.0.0.1:18794/?scenario=P03&state=populated
+			43 link Description: P04, Value: 127.0.0.1:18794/?scenario=P04&state=populated
+			44 link Description: P05, Value: 127.0.0.1:18794/?scenario=P05&state=populated
+			45 link Description: P06, Value: 127.0.0.1:18794/?scenario=P06&state=populated
+			46 link Description: P07, Value: 127.0.0.1:18794/?scenario=P07&state=populated
+			47 link Description: P08, Value: 127.0.0.1:18794/?scenario=P08&state=populated
+			48 link Description: P09, Value: 127.0.0.1:18794/?scenario=P09&state=populated
+			49 link Description: P10, Value: 127.0.0.1:18794/?scenario=P10&state=populated
+			50 link Description: P11, Value: 127.0.0.1:18794/?scenario=P11&state=populated
+			51 link Description: P12, Value: 127.0.0.1:18794/?scenario=P12&state=populated
+			52 link Description: P13, Value: 127.0.0.1:18794/?scenario=P13&state=populated
+			53 link Description: P14, Value: 127.0.0.1:18794/?scenario=P14&state=populated
+			54 link Description: P15, Value: 127.0.0.1:18794/?scenario=P15&state=populated
+			55 link Description: P16, Value: 127.0.0.1:18794/?scenario=P16&state=populated
+			56 link Description: P17, Value: 127.0.0.1:18794/?scenario=P17&state=populated
+			57 link Description: P18, Value: 127.0.0.1:18794/?scenario=P18&state=populated
+			58 link Description: P19, Value: 127.0.0.1:18794/?scenario=P19&state=populated
+			59 link Description: P20, Value: 127.0.0.1:18794/?scenario=P20&state=populated
+			60 container
+				61 text 状态：
+				62 link Description: populated , Value: 127.0.0.1:18794/?scenario=P18&state=populated
+				63 link Description: empty , Value: 127.0.0.1:18794/?scenario=P18&state=empty
+				64 link Description: error , Value: 127.0.0.1:18794/?scenario=P18&state=error
+				65 link Description: loading, Value: 127.0.0.1:18794/?scenario=P18&state=loading
+		66 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?scenario=P18&state=populated&management=lifecycle#main-content
+		67 container
+			68 button 意客AI商机工作台
+				69 text 意客AI
+				70 text 商机工作空间
+			71 container 主导航
+				72 button 商机工作台
+					73 image
+					74 text 商机工作台
+				75 text 发现商机
+				76 button 业务画像
+					77 image
+					78 text 业务画像
+				79 button 线索采集
+					80 image
+					81 text 线索采集
+				82 button 监控任务
+					83 image
+					84 text 监控任务
+				85 text 推进商机
+				86 button 商机库
+					87 image
+					88 text 商机库
+				89 button 触达中心
+					90 image
+					91 text 触达中心
+				92 button 跟进记录
+					93 image
+					94 text 跟进记录
+			95 button 账号与授权
+				96 image
+				97 text 账号与授权
+			98 button 客户工作空间
+				99 image
+				100 text 客户工作空间
+		101 container
+			102 button 收起导航
+				103 image
+			104 button 返回上级
+				105 image
+			106 text 账号与授权 V0.2
+		107 container main-content
+			108 heading 账号与授权, Value: 1
+				109 text 账号与授权
+			110 tab group
+				111 tab (selectable, settable, boolean) 平台连接, Value: 0
+				112 tab (selected, settable, boolean) 设备与使用授权, Value: 1
+			113 container
+				114 heading 使用授权, Value: 2
+					115 text 使用授权
+				116 text 授权状态 未激活 授权码
+				117 text field (settable) 授权码
+				118 button 激活
+				119 text 有效期 —
+			120 container
+				121 heading 设备管理, Value: 2
+					122 text 设备管理
+				123 text 运行环境 macOS
+				124 button 绑定设备
+				125 text 设备状态 TEST 本机设备 · 尚未绑定 客户服务 尚未配置服务地址
+			126 container
+				127 heading 版本与数据, Value: 2
+					128 text 版本与数据
+				129 text 当前版本 0.2.0-TEST
+				130 button 检查更新
+				131 text 客户数据 按当前客户空间授权范围导出
+				132 button 导出数据
+				133 text 备份与恢复 先检查文件、恢复范围与覆盖影响
+				134 button 备份与恢复
+				135 text 本机草稿 当前会话的配置与资料草稿
+				136 button 清除本机草稿
+			137 container
+				138 heading 支持与诊断, Value: 2
+					139 text 支持与诊断
+				140 text 脱敏诊断 版本、运行环境和服务配置状态
+				141 button 查看脱敏诊断
+				142 text 联系支持
+				143 button 联系支持
+				144 text 当前会话 已登录
+				145 button 退出登录
+
+The focused UI element is 6 button (expanded) TEST 场景, Secondary Actions: Collapse

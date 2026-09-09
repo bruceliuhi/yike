@@ -1,84 +1,222 @@
-import { useEffect, useRef } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import { useApp } from "../../app/context";
-import { useAction } from "../../app/hooks";
-import { useOperationLedger } from "../../app/operationLedger";
+import { useAction, useLocalDraft } from "../../app/hooks";
+import { errorMessage } from "../../services/contracts";
+import {
+  followupOwner,
+  readFollowupOperations,
+  storeFollowupOperation,
+  finishFollowupOperation,
+  parseFollowupKey,
+  type HistoricalFollowupOperation,
+  type FollowupDraftReference,
+} from "./followupOperationStorage";
 import { boundedRequest } from "../../app/boundedRequest";
 import {
-  bindingFromKey,
   followupKey,
   readReceipt,
   type FollowupBinding,
   type FollowupMutation,
 } from "../../domain/followup";
 import { requireFollowup } from "../../services/followup";
+const listeners = new Set<() => void>();
+let revision = 0;
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+};
+const snapshot = () => revision;
+function changed() {
+  revision++;
+  for (const listener of listeners) listener();
+}
 export function useFollowupOperation() {
   const { service, session, notify } = useApp();
   const action = useAction();
-  const [pending, setPending] = useOperationLedger(
-    "followup-operations",
-    session.userId,
+  const resolvedDraftKey =
+    "followup-resolved:" +
+    JSON.stringify([
+      session.userId,
+      session.accountScope?.id ?? null,
+      session.accountScope?.version ?? null,
+    ]);
+  const [resolvedDrafts, setResolvedDrafts] = useLocalDraft<
+    Record<string, string[]>
+  >(
+    resolvedDraftKey,
+    {},
+    (value) =>
+      !!value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.entries(value).every(
+        ([key, hashes]) =>
+          key.length > 0 &&
+          Array.isArray(hashes) &&
+          hashes.every(
+            (hash) => typeof hash === "string" && /^[a-f0-9]{64}$/.test(hash),
+          ),
+      ),
   );
-  const mounted = useRef(true);
-  const identity = useRef({
-    service,
-    user: session.userId,
-    authenticated: session.authenticated,
-  });
-  identity.current = {
-    service,
-    user: session.userId,
-    authenticated: session.authenticated,
+  const acknowledgeDraft = (draft: FollowupDraftReference) => {
+    if (!current()) return false;
+    // clear() tolerates storage failure for ordinary form editing. Do not erase
+    // the reliable acknowledgement while that submitted body could reappear
+    // after a reload. Keep it until the source draft is verifiably absent.
+    try {
+      if (sessionStorage.getItem("yike.ui.draft.v1." + draft.key) !== null)
+        return false;
+    } catch {
+      return false;
+    }
+    setResolvedDrafts((old) => {
+      const next = { ...old };
+      const hashes = (next[draft.key] || []).filter(
+        (hash) => hash !== draft.hash,
+      );
+      if (hashes.length) next[draft.key] = hashes;
+      else delete next[draft.key];
+      return next;
+    });
+    return true;
   };
-  useEffect(() => {
+  const identity = useMemo(
+    () => ({}),
+    [
+      service,
+      service.followup,
+      session.authenticated,
+      session.userId,
+      session.accountScope?.id,
+      session.accountScope?.version,
+    ],
+  );
+  const active = useRef(identity);
+  active.current = identity;
+  const mounted = useRef(true);
+  useLayoutEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
     };
+  }, [identity]);
+  useSyncExternalStore(subscribe, snapshot, snapshot);
+  useEffect(() => {
+    window.addEventListener("storage", changed);
+    return () => window.removeEventListener("storage", changed);
   }, []);
-  const current = () =>
-    mounted.current &&
-    identity.current.service === service &&
-    identity.current.user === session.userId &&
-    identity.current.authenticated === session.authenticated;
-  const settle = (value: unknown, binding: FollowupBinding) => {
-    const receipt = readReceipt(value, binding);
-    if (receipt.status === "SUCCEEDED" || receipt.status === "FAILED")
-      setPending((old) => {
-        const next = { ...old };
-        delete next[followupKey(binding)];
+  const current = () => mounted.current && active.current === identity;
+  let pending: Record<string, string> = {};
+  let historical: HistoricalFollowupOperation[] = [];
+  let storageError = "";
+  if (session.authenticated)
+    try {
+      const stored = readFollowupOperations(followupOwner(session));
+      if (stored.pending)
+        pending = { [followupKey(stored.pending)]: "PENDING" };
+      historical = stored.historical;
+    } catch (error) {
+      storageError =
+        "原跟进操作记录无法可靠读取，保护仍保留。" + errorMessage(error);
+    }
+  const blocked =
+    !!storageError || historical.length > 0 || Object.keys(pending).length > 0;
+  const finishConfirmed = (binding: FollowupBinding, succeeded: boolean) => {
+    if (!current()) throw new Error("原跟进操作上下文已变化，保护仍保留。");
+    const stored = readFollowupOperations(followupOwner(session));
+    if (!stored.pending || followupKey(stored.pending) !== followupKey(binding))
+      throw new Error("原跟进操作记录已变化，保护仍保留。");
+    // Store only a hash and opaque draft key, never the submitted note. The
+    // editable draft and this acknowledgement have the same session lifetime.
+    if (succeeded && stored.draft) {
+      const draft = stored.draft;
+      let persisted = false;
+      setResolvedDrafts((old) => {
+        const next = {
+          ...old,
+          [draft.key]: Array.from(
+            new Set([...(old[draft.key] || []), draft.hash]),
+          ),
+        };
+        // useLocalDraft deliberately tolerates quota errors for editable input.
+        // This acknowledgement is different: verify durable session storage
+        // before publishing it to draft memory or deleting the operation lock.
+        const key = "yike.ui.draft.v1." + resolvedDraftKey;
+        const serialized = JSON.stringify(next);
+        try {
+          sessionStorage.setItem(key, serialized);
+          if (sessionStorage.getItem(key) !== serialized)
+            throw new Error("readback mismatch");
+        } catch {
+          throw new Error(
+            "原稿确认记录未能可靠保存，原请求保护与草稿仍保留，请恢复本机存储后核对。",
+          );
+        }
+        persisted = true;
         return next;
       });
+      if (!persisted)
+        throw new Error("原稿确认上下文已变化，原请求保护仍保留。");
+    }
+    finishFollowupOperation(followupOwner(session), binding);
+    changed();
+  };
+  const settle = (value: unknown, binding: FollowupBinding) => {
+    if (!current()) return undefined;
+    const receipt = readReceipt(value, binding);
+    if (receipt.status === "SUCCEEDED" || receipt.status === "FAILED")
+      finishConfirmed(binding, receipt.status === "SUCCEEDED");
     return receipt;
   };
   return {
     pending,
+    historical,
+    storageError,
+    blocked,
+    refresh: changed,
+    resolvedDrafts,
+    acknowledgeDraft,
     action,
     current,
-    run: (mutation: FollowupMutation, legacy?: () => Promise<void>) =>
+    run: (
+      mutation: FollowupMutation,
+      legacy?: () => Promise<void>,
+      draft?: FollowupDraftReference,
+    ) =>
       action.run(async () => {
         if (!session.authenticated || !current())
           throw new Error("请先登录客户空间。");
-        const key = followupKey(mutation.binding);
-        setPending((old) => {
-          if (Object.keys(old).length)
-            throw new Error("请先核对未完成的跟进操作，不能重复保存。");
-          return { ...old, [key]: "PENDING" };
-        });
+        storeFollowupOperation(followupOwner(session), mutation.binding, draft);
+        changed();
         if (legacy) {
           await boundedRequest(() => legacy(), {
             timeoutMessage: "保存结果未确认，请核对已有登记，不要重复保存。",
           });
-          setPending((old) => {
-            const next = { ...old };
-            delete next[key];
-            return next;
-          });
+          if (!current()) return;
+          try {
+            // The legacy facade has no operation-query protocol, but its direct
+            // successful return still requires the same reliable draft ACK.
+            finishConfirmed(mutation.binding, true);
+          } catch {
+            throw new Error(
+              "本次人工登记接口已返回成功，但本机确认记录无法可靠更新；原请求保护仍保留。请核对已有登记并由服务管理员确认，不要重复保存。",
+            );
+          }
           return "SUCCEEDED" as const;
         }
         const raw = await boundedRequest(
           () => requireFollowup(service.followup).mutate(mutation),
           { timeoutMessage: "保存结果未确认，请核对原操作，不要重复保存。" },
         );
+        if (!current()) return;
         const checked = readReceipt(raw, mutation.binding);
         if (
           checked.status === "SUCCEEDED" &&
@@ -91,6 +229,7 @@ export function useFollowupOperation() {
         )
           throw new Error("保存回执内容与提交快照不一致，原操作保护仍保留。");
         const receipt = settle(checked, mutation.binding);
+        if (!receipt) return;
         if (
           current() &&
           (receipt.status === "PENDING" || receipt.status === "UNKNOWN")
@@ -101,7 +240,10 @@ export function useFollowupOperation() {
     reconcile: (key: string) =>
       action.run(async () => {
         if (!session.authenticated || !current()) return;
-        const binding = bindingFromKey(key);
+        const binding = parseFollowupKey(key);
+        const stored = readFollowupOperations(followupOwner(session));
+        if (!stored.pending || followupKey(stored.pending) !== key)
+          throw new Error("只能在原客户空间及版本核对原跟进操作。");
         if (binding.action === "legacy-create")
           throw new Error(
             "此人工登记使用旧接口，没有原请求查询能力。请核对已有登记并由服务管理员确认，当前不会重复保存。",
@@ -113,6 +255,7 @@ export function useFollowupOperation() {
           ),
           binding,
         );
+        if (!receipt) return;
         if (current())
           notify(
             receipt.status === "SUCCEEDED"

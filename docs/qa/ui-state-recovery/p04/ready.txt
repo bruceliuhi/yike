@@ -1,0 +1,94 @@
+Browser tab: 22, Title: "业务画像 / 资料与案例 · 意客AI", URL: "http://127.0.0.1:18794/?scenario=P04&state=populated&materials=recovery#/profile?tab=materials".
+1 AXWebArea 业务画像 / 资料与案例 · 意客AI, URL: 127.0.0.1:18794/?scenario=P04&state=populated&materials=recovery#/profile?tab=materials
+	2 container root
+		3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
+		4 button (collapsed) TEST 场景, Secondary Actions: Expand
+			5 text TEST 场景
+		6 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?scenario=P04&state=populated&materials=recovery#main-content
+		7 container
+			8 button 意客AI商机工作台
+				9 text 意客AI
+				10 text 商机工作空间
+			11 container 主导航
+				12 button 商机工作台
+					13 image
+					14 text 商机工作台
+				15 text 发现商机
+				16 button 业务画像
+					17 image
+					18 text 业务画像
+				19 button 线索采集
+					20 image
+					21 text 线索采集
+				22 button 监控任务
+					23 image
+					24 text 监控任务
+				25 text 推进商机
+				26 button 商机库
+					27 image
+					28 text 商机库
+				29 button 触达中心
+					30 image
+					31 text 触达中心
+				32 button 跟进记录
+					33 image
+					34 text 跟进记录
+			35 button 账号与授权
+				36 image
+				37 text 账号与授权
+			38 button 客户工作空间
+				39 image
+				40 text 客户工作空间
+		41 container
+			42 button 收起导航
+				43 image
+			44 button 返回上级
+				45 image
+			46 text 业务画像 / 资料与案例 V0.2
+		47 container main-content
+			48 container
+				49 heading 业务资料, Value: 1
+					50 text 业务资料
+				51 text 管理产品介绍与真实案例。
+			52 tab group
+				53 tab (selectable, settable, boolean) 业务描述, Value: 0
+				54 tab (selected, settable, boolean) 资料与案例, Value: 1
+			55 text 画像版本 
+			56 text 1
+			57 text  · 客户空间资料
+			58 button 添加资料
+				59 image
+				60 text 添加资料
+			61 table
+				62 row
+					63 cell
+						64 text 资料名称
+					65 cell
+						66 text 用途
+					67 cell
+						68 text 引用范围
+					69 cell
+						70 text 状态
+					71 cell
+						72 text 操作
+				73 row
+					74 cell
+						75 text TEST 产品介绍 · 资料撤销验收
+						76 container
+							77 text 版本  3  ·  2026/9/10 02:16:00
+					78 cell
+						79 text 产品介绍
+					80 cell
+						81 text 允许对外引用
+					82 cell
+						83 text 已确认
+					84 cell
+						85 button 编辑
+						88 button 用于画像
+						89 button 撤销引用
+						87 button 移除
+		90 container
+			91 text 资料提取结果已确认；业务画像仍需单独保存和确认。
+			92 button 关闭提示
+
+The focused UI element is 1 AXWebArea 业务画像 / 资料与案例 · 意客AI, URL: 127.0.0.1:18794/?scenario=P04&state=populated&materials=recovery#/profile?tab=materials

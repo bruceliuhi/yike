@@ -686,10 +686,18 @@ export function TaskWizardPage() {
                 error={errors.platforms}
               >
                 <div className="platform-choices">
-                  {PLATFORMS.map((p) => (
+                  {PLATFORMS.map((p) => {
+                    const status = !draft.research ? ""
+                      : connections.loading ? "读取中"
+                      : connections.error ? "读取失败"
+                      : connections.data?.some(c => c.platform === p.id && c.status === "CONNECTED") ? "已连接"
+                      : connections.data?.some(c => c.platform === p.id && c.status === "UNVERIFIED") ? "待核验"
+                      : "待连接";
+                    return (
                     <label key={p.id}>
                       <input
                         type="checkbox"
+                        aria-label={status ? `${p.name} ${status}` : p.name}
                         checked={draft.platforms.includes(p.id)}
                         onChange={(e) =>
                           update({
@@ -700,9 +708,10 @@ export function TaskWizardPage() {
                         }
                       />
                       <PlatformLabel platform={p.id} size={18} />
-                      {draft.research && <small className="muted">{connections.loading ? "读取中" : connections.error ? "读取失败" : connections.data?.some(c => c.platform === p.id && c.status === "CONNECTED") ? "已连接" : connections.data?.some(c => c.platform === p.id && c.status === "UNVERIFIED") ? "待核验" : "待连接"}</small>}
+                      {status && <small className="muted">{status}</small>}
                     </label>
-                  ))}
+                    );
+                  })}
                 </div>
               </Field>
               <Field label="来源范围" className="horizontal-field">

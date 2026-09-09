@@ -1,0 +1,1553 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+····························xx·xxxx······
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > does not apply late success to a new user or clear their draft
+AssertionError: expected null to deeply equal {}
+
+- Expected:
+{}
+
++ Received:
+null
+
+ ❯ tests/ui/followup-completion.test.tsx:335:55
+    333|     expect(context.navigate).not.toHaveBeenCalled();
+    334|     expect(context.notify).not.toHaveBeenCalled();
+    335|     expect(JSON.parse(localStorage.getItem(oldKey)!)).toEqual({});
+       |                                                       ^
+    336|     expect(stored()).toEqual({});
+    337|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > times out a pending save without discarding the draft or releasing the original operation
+AssertionError: expected [] to deeply equal [ 'PENDING' ]
+
+- Expected
++ Received
+
+- [
+-   "PENDING",
+- ]
++ []
+
+ ❯ tests/ui/followup-completion.test.tsx:356:37
+    354|       screen.getByText("保存结果未确认，请核对原操作，不要重复保存。"),
+    355|     ).toBeTruthy();
+    356|     expect(Object.values(stored())).toEqual(["PENDING"]);
+       |                                     ^
+    357|     expect(
+    358|       (screen.getByRole("textbox", { name: "跟进备注" }) as HTMLTextAreaEl…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > retains inputs and pending identity after network failure, including clear-drafts and reopening
+AssertionError: expected [] to deeply equal [ 'PENDING' ]
+
+- Expected
++ Received
+
+- [
+-   "PENDING",
+- ]
++ []
+
+ ❯ tests/ui/followup-completion.test.tsx:415:37
+    413|         .value,
+    414|     ).toBe("TEST人工记录");
+    415|     expect(Object.values(stored())).toEqual(["PENDING"]);
+       |                                     ^
+    416|     view.unmount();
+    417|     act(() => clearLocalDrafts());
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > reconciles UNKNOWN without inventing success
+TestingLibraryElementError: Unable to find an accessible element with the role "button" and name "核对原跟进操作"
+
+Here are the accessible roles:
+
+  banner:
+
+  Name "":
+  [36m<header[39m
+    [33mclass[39m=[32m"page-heading"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  heading:
+
+  Name "跟进记录":
+  [36m<h1[39m
+    [33mtabindex[39m=[32m"-1"[39m
+  [36m/>[39m
+
+  Name "关联回复":
+  [36m<h2 />[39m
+
+  --------------------------------------------------
+  tablist:
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"tabs"[39m
+    [33mrole[39m=[32m"tablist"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"tabs"[39m
+    [33mrole[39m=[32m"tablist"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  tab:
+
+  Name "待跟进":
+  [36m<button[39m
+    [33maria-selected[39m=[32m"true"[39m
+    [33mclass[39m=[32m"active"[39m
+    [33mrole[39m=[32m"tab"[39m
+    [33mtabindex[39m=[32m"0"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "回复记录":
+  [36m<button[39m
+    [33maria-selected[39m=[32m"false"[39m
+    [33mclass[39m=[32m""[39m
+    [33mrole[39m=[32m"tab"[39m
+    [33mtabindex[39m=[32m"-1"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "全部":
+  [36m<button[39m
+    [33maria-selected[39m=[32m"false"[39m
+    [33mclass[39m=[32m""[39m
+    [33mrole[39m=[32m"tab"[39m
+    [33mtabindex[39m=[32m"-1"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "通道回复":
+  [36m<button[39m
+    [33maria-selected[39m=[32m"true"[39m
+    [33mclass[39m=[32m"active"[39m
+    [33mrole[39m=[32m"tab"[39m
+    [33mtabindex[39m=[32m"0"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "人工登记":
+  [36m<button[39m
+    [33maria-selected[39m=[32m"false"[39m
+    [33mclass[39m=[32m""[39m
+    [33mrole[39m=[32m"tab"[39m
+    [33mtabindex[39m=[32m"-1"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  status:
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"notice notice-warning"[39m
+    [33mrole[39m=[32m"status"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"loading-state"[39m
+    [33mrole[39m=[32m"status"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"loading-state"[39m
+    [33mrole[39m=[32m"status"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  group:
+
+  Name "待核对原请求 1":
+  [36m<div[39m
+    [33maria-labelledby[39m=[32m"_r_2d_"[39m
+    [33mclass[39m=[32m"field "[39m
+    [33mrole[39m=[32m"group"[39m
+  [36m/>[39m
+
+  Name "负责人":
+  [36m<div[39m
+    [33maria-labelledby[39m=[32m"_r_2e_"[39m
+    [33mclass[39m=[32m"field "[39m
+    [33mrole[39m=[32m"group"[39m
+  [36m/>[39m
+
+  Name "日期":
+  [36m<div[39m
+    [33maria-labelledby[39m=[32m"_r_2f_"[39m
+    [33mclass[39m=[32m"field "[39m
+    [33mrole[39m=[32m"group"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  textbox:
+
+  Name "待核对原请求 1":
+  [36m<input[39m
+    [33maria-label[39m=[32m"待核对原请求 1"[39m
+    [33mreadonly[39m=[32m""[39m
+    [33mvalue[39m=[32m"TEST-request"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  button:
+
+  Name "重新读取操作记录":
+  [36m<button[39m
+    [33mclass[39m=[32m"button button-secondary "[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "刷新":
+  [36m<button[39m
+    [33maria-busy[39m=[32m"true"[39m
+    [33mclass[39m=[32m"button button-secondary "[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "添加跟进":
+  [36m<button[39m
+    [33mclass[39m=[32m"button button-primary "[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "刷新回复":
+  [36m<button[39m
+    [33maria-busy[39m=[32m"true"[39m
+    [33mclass[39m=[32m"button button-ghost "[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  combobox:
+
+  Name "筛选负责人":
+  [36m<select[39m
+    [33maria-label[39m=[32m"筛选负责人"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  option:
+
+  Name "全部":
+  [36m<option[39m
+    [33mvalue[39m=[32m""[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  complementary:
+
+  Name "":
+  [36m<aside[39m
+    [33mclass[39m=[32m"related-replies"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m""[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<header[39m
+      [33mclass[39m=[32m"page-heading"[39m
+    [36m>[39m
+      [36m<div>[39m
+        [36m<h1[39m
+          [33mtabindex[39m=[32m"-1"[39m
+        [36m>[39m
+          [0m跟进记录[0m
+        [36m</h1>[39m
+      [36m</div>[39m
+    [36m</header>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"tabs"[39m
+      [33mrole[39m=[32m"tablist"[39m
+    [36m>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"true"[39m
+        [33mclass[39m=[32m"active"[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"0"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m待跟进[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m回复记录[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m全部[0m
+      [36m</button>[39m
+    [36m</div>[39m
+    [36m<section[39m
+      [33mclass[39m=[32m"followup-pending"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"notice notice-warning"[39m
+        [33mrole[39m=[32m"status"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mfill[39m=[32m"currentColor"[39m
+          [33mheight[39m=[32m"18"[39m
+          [33mviewBox[39m=[32m"0 0 256 256"[39m
+          [33mwidth[39m=[32m"18"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm-8-80V80a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,172Z"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+        [36m<div>[39m
+          [0m旧跟进操作尚未绑定当前客户空间或版本，不能在此核对或重复保存。请返回原空间版本核对；归属未知时需由服务管理员核实。[0m
+        [36m</div>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33maria-labelledby[39m=[32m"_r_2d_"[39m
+        [33mclass[39m=[32m"field "[39m
+        [33mrole[39m=[32m"group"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"field-label"[39m
+          [33mid[39m=[32m"_r_2d_"[39m
+        [36m>[39m
+          [0m待核对原请求 1[0m
+        [36m</div>[39m
+        [36m<input[39m
+          [33maria-label[39m=[32m"待核对原请求 1"[39m
+          [33mreadonly[39m=[32m""[39m
+          [33mvalue[39m=[32m"TEST-request"[39m
+        [36m/>[39m
+        [36m<small>[39m
+          [0m旧版本：客户空间归属未绑定[0m
+        [36m</small>[39m
+      [36m</div>[39m
+      [36m<button[39m
+        [33mclass[39m=[32m"button button-secondary "[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m重新读取操作记录[0m
+      [36m</button>[39m
+    [36m</section>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"followup-layout"[39m
+    [36m>[39m
+      [36m<section>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"filter-bar"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33maria-labelledby[39m=[32m"_r_2e_"[39m
+            [33mclass[39m=[32m"field "[39m
+            [33mrole[39m=[32m"group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"field-label"[39m
+              [33mid[39m=[32m"_r_2e_"[39m
+            [36m>[39m
+              [0m负责人[0m
+            [36m</div>[39m
+            [36m<select[39m
+              [33maria-label[39m=[32m"筛选负责人"[39m
+            [36m>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m""[39m
+              [36m>[39m
+                [0m全部[0m
+              [36m</option>[39m
+            [36m</select>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33maria-labelledby[39m=[32m"_r_2f_"[39m
+            [33mclass[39m=[32m"field "[39m
+            [33mrole[39m=[32m"group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"field-label"[39m
+              [33mid[39m=[32m"_r_2f_"[39m
+            [36m>[39m
+              [0m日期[0m
+            [36m</div>[39m
+            [36m<input[39m
+              [33maria-label[39m=[32m"筛选记录日期"[39m
+              [33mtype[39m=[32m"date"[39m
+              [33mvalue[39m=[32m""[39m
+            [36m/>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"followup-filter-actions"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33maria-busy[39m=[32m"true"[39m
+              [33mclass[39m=[32m"button button-secondary "[39m
+              [33mdisabled[39m=[32m""[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"spin"[39m
+                [33mfill[39m=[32m"currentColor"[39m
+                [33mheight[39m=[32m"1em"[39m
+                [33mviewBox[39m=[32m"0 0 256 256"[39m
+                [33mwidth[39m=[32m"1em"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0m刷新[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"button button-primary "[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"currentColor"[39m
+                [33mheight[39m=[32m"1em"[39m
+                [33mviewBox[39m=[32m"0 0 256 256"[39m
+                [33mwidth[39m=[32m"1em"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0m添加跟进[0m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"loading-state"[39m
+          [33mrole[39m=[32m"status"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33mclass[39m=[32m"spin"[39m
+            [33mfill[39m=[32m"currentColor"[39m
+            [33mheight[39m=[32m"1em"[39m
+            [33mviewBox[39m=[32m"0 0 256 256"[39m
+            [33mwidth[39m=[32m"1em"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [0m正在加载…[0m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"related-replies"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"followup-selection"[39m
+        [36m>[39m
+          [36m<h2>[39m
+            [0m关联回复[0m
+          [36m</h2>[39m
+          [36m<button[39m
+            [33maria-busy[39m=[32m"true"[39m
+            [33mclass[39m=[32m"button button-ghost "[39m
+            [33mdisabled[39m=[32m""[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"spin"[39m
+              [33mfill[39m=[32m"currentColor"[39m
+              [33mheight[39m=[32m"1em"[39m
+              [33mviewBox[39m=[32m"0 0 256 256"[39m
+              [33mwidth[39m=[32m"1em"[39m
+              [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [0m刷新回复[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"tabs"[39m
+          [33mrole[39m=[32m"tablist"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-selected[39m=[32m"true"[39m
+            [33mclass[39m=[32m"active"[39m
+            [33mrole[39m=[32m"tab"[39m
+            [33mtabindex[39m=[32m"0"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m通道回复[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-selected[39m=[32m"false"[39m
+            [33mclass[39m=[32m""[39m
+            [33mrole[39m=[32m"tab"[39m
+            [33mtabindex[39m=[32m"-1"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m人工登记[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"loading-state"[39m
+          [33mrole[39m=[32m"status"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33mclass[39m=[32m"spin"[39m
+            [33mfill[39m=[32m"currentColor"[39m
+            [33mheight[39m=[32m"1em"[39m
+            [33mviewBox[39m=[32m"0 0 256 256"[39m
+            [33mwidth[39m=[32m"1em"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [0m正在加载…[0m
+        [36m</div>[39m
+      [36m</aside>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ tests/ui/followup-completion.test.tsx:449:30
+    447|       });
+    448|       render(<FollowupsPage />);
+    449|       fireEvent.click(screen.getByRole("button", { name: "核对原跟进操作" }));
+       |                              ^
+    450|       await waitFor(() =>
+    451|         expect(context.service.followup!.operation).toHaveBeenCalledOn…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > reconciles FAILED without inventing success
+TestingLibraryElementError: Unable to find an accessible element with the role "button" and name "核对原跟进操作"
+
+Here are the accessible roles:
+
+  banner:
+
+  Name "":
+  [36m<header[39m
+    [33mclass[39m=[32m"page-heading"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  heading:
+
+  Name "跟进记录":
+  [36m<h1[39m
+    [33mtabindex[39m=[32m"-1"[39m
+  [36m/>[39m
+
+  Name "关联回复":
+  [36m<h2 />[39m
+
+  --------------------------------------------------
+  tablist:
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"tabs"[39m
+    [33mrole[39m=[32m"tablist"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"tabs"[39m
+    [33mrole[39m=[32m"tablist"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  tab:
+
+  Name "待跟进":
+  [36m<button[39m
+    [33maria-selected[39m=[32m"true"[39m
+    [33mclass[39m=[32m"active"[39m
+    [33mrole[39m=[32m"tab"[39m
+    [33mtabindex[39m=[32m"0"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "回复记录":
+  [36m<button[39m
+    [33maria-selected[39m=[32m"false"[39m
+    [33mclass[39m=[32m""[39m
+    [33mrole[39m=[32m"tab"[39m
+    [33mtabindex[39m=[32m"-1"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "全部":
+  [36m<button[39m
+    [33maria-selected[39m=[32m"false"[39m
+    [33mclass[39m=[32m""[39m
+    [33mrole[39m=[32m"tab"[39m
+    [33mtabindex[39m=[32m"-1"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "通道回复":
+  [36m<button[39m
+    [33maria-selected[39m=[32m"true"[39m
+    [33mclass[39m=[32m"active"[39m
+    [33mrole[39m=[32m"tab"[39m
+    [33mtabindex[39m=[32m"0"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "人工登记":
+  [36m<button[39m
+    [33maria-selected[39m=[32m"false"[39m
+    [33mclass[39m=[32m""[39m
+    [33mrole[39m=[32m"tab"[39m
+    [33mtabindex[39m=[32m"-1"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  status:
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"notice notice-warning"[39m
+    [33mrole[39m=[32m"status"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"loading-state"[39m
+    [33mrole[39m=[32m"status"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"loading-state"[39m
+    [33mrole[39m=[32m"status"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  group:
+
+  Name "待核对原请求 1":
+  [36m<div[39m
+    [33maria-labelledby[39m=[32m"_r_2g_"[39m
+    [33mclass[39m=[32m"field "[39m
+    [33mrole[39m=[32m"group"[39m
+  [36m/>[39m
+
+  Name "负责人":
+  [36m<div[39m
+    [33maria-labelledby[39m=[32m"_r_2h_"[39m
+    [33mclass[39m=[32m"field "[39m
+    [33mrole[39m=[32m"group"[39m
+  [36m/>[39m
+
+  Name "日期":
+  [36m<div[39m
+    [33maria-labelledby[39m=[32m"_r_2i_"[39m
+    [33mclass[39m=[32m"field "[39m
+    [33mrole[39m=[32m"group"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  textbox:
+
+  Name "待核对原请求 1":
+  [36m<input[39m
+    [33maria-label[39m=[32m"待核对原请求 1"[39m
+    [33mreadonly[39m=[32m""[39m
+    [33mvalue[39m=[32m"TEST-request"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  button:
+
+  Name "重新读取操作记录":
+  [36m<button[39m
+    [33mclass[39m=[32m"button button-secondary "[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "刷新":
+  [36m<button[39m
+    [33maria-busy[39m=[32m"true"[39m
+    [33mclass[39m=[32m"button button-secondary "[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "添加跟进":
+  [36m<button[39m
+    [33mclass[39m=[32m"button button-primary "[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "刷新回复":
+  [36m<button[39m
+    [33maria-busy[39m=[32m"true"[39m
+    [33mclass[39m=[32m"button button-ghost "[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  combobox:
+
+  Name "筛选负责人":
+  [36m<select[39m
+    [33maria-label[39m=[32m"筛选负责人"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  option:
+
+  Name "全部":
+  [36m<option[39m
+    [33mvalue[39m=[32m""[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  complementary:
+
+  Name "":
+  [36m<aside[39m
+    [33mclass[39m=[32m"related-replies"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m""[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<header[39m
+      [33mclass[39m=[32m"page-heading"[39m
+    [36m>[39m
+      [36m<div>[39m
+        [36m<h1[39m
+          [33mtabindex[39m=[32m"-1"[39m
+        [36m>[39m
+          [0m跟进记录[0m
+        [36m</h1>[39m
+      [36m</div>[39m
+    [36m</header>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"tabs"[39m
+      [33mrole[39m=[32m"tablist"[39m
+    [36m>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"true"[39m
+        [33mclass[39m=[32m"active"[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"0"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m待跟进[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m回复记录[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m全部[0m
+      [36m</button>[39m
+    [36m</div>[39m
+    [36m<section[39m
+      [33mclass[39m=[32m"followup-pending"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"notice notice-warning"[39m
+        [33mrole[39m=[32m"status"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mfill[39m=[32m"currentColor"[39m
+          [33mheight[39m=[32m"18"[39m
+          [33mviewBox[39m=[32m"0 0 256 256"[39m
+          [33mwidth[39m=[32m"18"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm-8-80V80a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,172Z"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+        [36m<div>[39m
+          [0m旧跟进操作尚未绑定当前客户空间或版本，不能在此核对或重复保存。请返回原空间版本核对；归属未知时需由服务管理员核实。[0m
+        [36m</div>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33maria-labelledby[39m=[32m"_r_2g_"[39m
+        [33mclass[39m=[32m"field "[39m
+        [33mrole[39m=[32m"group"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"field-label"[39m
+          [33mid[39m=[32m"_r_2g_"[39m
+        [36m>[39m
+          [0m待核对原请求 1[0m
+        [36m</div>[39m
+        [36m<input[39m
+          [33maria-label[39m=[32m"待核对原请求 1"[39m
+          [33mreadonly[39m=[32m""[39m
+          [33mvalue[39m=[32m"TEST-request"[39m
+        [36m/>[39m
+        [36m<small>[39m
+          [0m旧版本：客户空间归属未绑定[0m
+        [36m</small>[39m
+      [36m</div>[39m
+      [36m<button[39m
+        [33mclass[39m=[32m"button button-secondary "[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m重新读取操作记录[0m
+      [36m</button>[39m
+    [36m</section>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"followup-layout"[39m
+    [36m>[39m
+      [36m<section>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"filter-bar"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33maria-labelledby[39m=[32m"_r_2h_"[39m
+            [33mclass[39m=[32m"field "[39m
+            [33mrole[39m=[32m"group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"field-label"[39m
+              [33mid[39m=[32m"_r_2h_"[39m
+            [36m>[39m
+              [0m负责人[0m
+            [36m</div>[39m
+            [36m<select[39m
+              [33maria-label[39m=[32m"筛选负责人"[39m
+            [36m>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m""[39m
+              [36m>[39m
+                [0m全部[0m
+              [36m</option>[39m
+            [36m</select>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33maria-labelledby[39m=[32m"_r_2i_"[39m
+            [33mclass[39m=[32m"field "[39m
+            [33mrole[39m=[32m"group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"field-label"[39m
+              [33mid[39m=[32m"_r_2i_"[39m
+            [36m>[39m
+              [0m日期[0m
+            [36m</div>[39m
+            [36m<input[39m
+              [33maria-label[39m=[32m"筛选记录日期"[39m
+              [33mtype[39m=[32m"date"[39m
+              [33mvalue[39m=[32m""[39m
+            [36m/>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"followup-filter-actions"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33maria-busy[39m=[32m"true"[39m
+              [33mclass[39m=[32m"button button-secondary "[39m
+              [33mdisabled[39m=[32m""[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"spin"[39m
+                [33mfill[39m=[32m"currentColor"[39m
+                [33mheight[39m=[32m"1em"[39m
+                [33mviewBox[39m=[32m"0 0 256 256"[39m
+                [33mwidth[39m=[32m"1em"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0m刷新[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"button button-primary "[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"currentColor"[39m
+                [33mheight[39m=[32m"1em"[39m
+                [33mviewBox[39m=[32m"0 0 256 256"[39m
+                [33mwidth[39m=[32m"1em"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0m添加跟进[0m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"loading-state"[39m
+          [33mrole[39m=[32m"status"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33mclass[39m=[32m"spin"[39m
+            [33mfill[39m=[32m"currentColor"[39m
+            [33mheight[39m=[32m"1em"[39m
+            [33mviewBox[39m=[32m"0 0 256 256"[39m
+            [33mwidth[39m=[32m"1em"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [0m正在加载…[0m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"related-replies"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"followup-selection"[39m
+        [36m>[39m
+          [36m<h2>[39m
+            [0m关联回复[0m
+          [36m</h2>[39m
+          [36m<button[39m
+            [33maria-busy[39m=[32m"true"[39m
+            [33mclass[39m=[32m"button button-ghost "[39m
+            [33mdisabled[39m=[32m""[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"spin"[39m
+              [33mfill[39m=[32m"currentColor"[39m
+              [33mheight[39m=[32m"1em"[39m
+              [33mviewBox[39m=[32m"0 0 256 256"[39m
+              [33mwidth[39m=[32m"1em"[39m
+              [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [0m刷新回复[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"tabs"[39m
+          [33mrole[39m=[32m"tablist"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-selected[39m=[32m"true"[39m
+            [33mclass[39m=[32m"active"[39m
+            [33mrole[39m=[32m"tab"[39m
+            [33mtabindex[39m=[32m"0"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m通道回复[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-selected[39m=[32m"false"[39m
+            [33mclass[39m=[32m""[39m
+            [33mrole[39m=[32m"tab"[39m
+            [33mtabindex[39m=[32m"-1"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m人工登记[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"loading-state"[39m
+          [33mrole[39m=[32m"status"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33mclass[39m=[32m"spin"[39m
+            [33mfill[39m=[32m"currentColor"[39m
+            [33mheight[39m=[32m"1em"[39m
+            [33mviewBox[39m=[32m"0 0 256 256"[39m
+            [33mwidth[39m=[32m"1em"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [0m正在加载…[0m
+        [36m</div>[39m
+      [36m</aside>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ tests/ui/followup-completion.test.tsx:449:30
+    447|       });
+    448|       render(<FollowupsPage />);
+    449|       fireEvent.click(screen.getByRole("button", { name: "核对原跟进操作" }));
+       |                              ^
+    450|       await waitFor(() =>
+    451|         expect(context.service.followup!.operation).toHaveBeenCalledOn…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > reconciles wrong identity without inventing success
+TestingLibraryElementError: Unable to find an accessible element with the role "button" and name "核对原跟进操作"
+
+Here are the accessible roles:
+
+  banner:
+
+  Name "":
+  [36m<header[39m
+    [33mclass[39m=[32m"page-heading"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  heading:
+
+  Name "跟进记录":
+  [36m<h1[39m
+    [33mtabindex[39m=[32m"-1"[39m
+  [36m/>[39m
+
+  Name "关联回复":
+  [36m<h2 />[39m
+
+  --------------------------------------------------
+  tablist:
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"tabs"[39m
+    [33mrole[39m=[32m"tablist"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"tabs"[39m
+    [33mrole[39m=[32m"tablist"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  tab:
+
+  Name "待跟进":
+  [36m<button[39m
+    [33maria-selected[39m=[32m"true"[39m
+    [33mclass[39m=[32m"active"[39m
+    [33mrole[39m=[32m"tab"[39m
+    [33mtabindex[39m=[32m"0"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "回复记录":
+  [36m<button[39m
+    [33maria-selected[39m=[32m"false"[39m
+    [33mclass[39m=[32m""[39m
+    [33mrole[39m=[32m"tab"[39m
+    [33mtabindex[39m=[32m"-1"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "全部":
+  [36m<button[39m
+    [33maria-selected[39m=[32m"false"[39m
+    [33mclass[39m=[32m""[39m
+    [33mrole[39m=[32m"tab"[39m
+    [33mtabindex[39m=[32m"-1"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "通道回复":
+  [36m<button[39m
+    [33maria-selected[39m=[32m"true"[39m
+    [33mclass[39m=[32m"active"[39m
+    [33mrole[39m=[32m"tab"[39m
+    [33mtabindex[39m=[32m"0"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "人工登记":
+  [36m<button[39m
+    [33maria-selected[39m=[32m"false"[39m
+    [33mclass[39m=[32m""[39m
+    [33mrole[39m=[32m"tab"[39m
+    [33mtabindex[39m=[32m"-1"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  status:
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"notice notice-warning"[39m
+    [33mrole[39m=[32m"status"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"loading-state"[39m
+    [33mrole[39m=[32m"status"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"loading-state"[39m
+    [33mrole[39m=[32m"status"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  group:
+
+  Name "待核对原请求 1":
+  [36m<div[39m
+    [33maria-labelledby[39m=[32m"_r_2j_"[39m
+    [33mclass[39m=[32m"field "[39m
+    [33mrole[39m=[32m"group"[39m
+  [36m/>[39m
+
+  Name "负责人":
+  [36m<div[39m
+    [33maria-labelledby[39m=[32m"_r_2k_"[39m
+    [33mclass[39m=[32m"field "[39m
+    [33mrole[39m=[32m"group"[39m
+  [36m/>[39m
+
+  Name "日期":
+  [36m<div[39m
+    [33maria-labelledby[39m=[32m"_r_2l_"[39m
+    [33mclass[39m=[32m"field "[39m
+    [33mrole[39m=[32m"group"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  textbox:
+
+  Name "待核对原请求 1":
+  [36m<input[39m
+    [33maria-label[39m=[32m"待核对原请求 1"[39m
+    [33mreadonly[39m=[32m""[39m
+    [33mvalue[39m=[32m"TEST-request"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  button:
+
+  Name "重新读取操作记录":
+  [36m<button[39m
+    [33mclass[39m=[32m"button button-secondary "[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "刷新":
+  [36m<button[39m
+    [33maria-busy[39m=[32m"true"[39m
+    [33mclass[39m=[32m"button button-secondary "[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "添加跟进":
+  [36m<button[39m
+    [33mclass[39m=[32m"button button-primary "[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "刷新回复":
+  [36m<button[39m
+    [33maria-busy[39m=[32m"true"[39m
+    [33mclass[39m=[32m"button button-ghost "[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  combobox:
+
+  Name "筛选负责人":
+  [36m<select[39m
+    [33maria-label[39m=[32m"筛选负责人"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  option:
+
+  Name "全部":
+  [36m<option[39m
+    [33mvalue[39m=[32m""[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  complementary:
+
+  Name "":
+  [36m<aside[39m
+    [33mclass[39m=[32m"related-replies"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m""[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<header[39m
+      [33mclass[39m=[32m"page-heading"[39m
+    [36m>[39m
+      [36m<div>[39m
+        [36m<h1[39m
+          [33mtabindex[39m=[32m"-1"[39m
+        [36m>[39m
+          [0m跟进记录[0m
+        [36m</h1>[39m
+      [36m</div>[39m
+    [36m</header>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"tabs"[39m
+      [33mrole[39m=[32m"tablist"[39m
+    [36m>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"true"[39m
+        [33mclass[39m=[32m"active"[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"0"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m待跟进[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m回复记录[0m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-selected[39m=[32m"false"[39m
+        [33mclass[39m=[32m""[39m
+        [33mrole[39m=[32m"tab"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m全部[0m
+      [36m</button>[39m
+    [36m</div>[39m
+    [36m<section[39m
+      [33mclass[39m=[32m"followup-pending"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"notice notice-warning"[39m
+        [33mrole[39m=[32m"status"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mfill[39m=[32m"currentColor"[39m
+          [33mheight[39m=[32m"18"[39m
+          [33mviewBox[39m=[32m"0 0 256 256"[39m
+          [33mwidth[39m=[32m"18"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm-8-80V80a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,172Z"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+        [36m<div>[39m
+          [0m旧跟进操作尚未绑定当前客户空间或版本，不能在此核对或重复保存。请返回原空间版本核对；归属未知时需由服务管理员核实。[0m
+        [36m</div>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33maria-labelledby[39m=[32m"_r_2j_"[39m
+        [33mclass[39m=[32m"field "[39m
+        [33mrole[39m=[32m"group"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"field-label"[39m
+          [33mid[39m=[32m"_r_2j_"[39m
+        [36m>[39m
+          [0m待核对原请求 1[0m
+        [36m</div>[39m
+        [36m<input[39m
+          [33maria-label[39m=[32m"待核对原请求 1"[39m
+          [33mreadonly[39m=[32m""[39m
+          [33mvalue[39m=[32m"TEST-request"[39m
+        [36m/>[39m
+        [36m<small>[39m
+          [0m旧版本：客户空间归属未绑定[0m
+        [36m</small>[39m
+      [36m</div>[39m
+      [36m<button[39m
+        [33mclass[39m=[32m"button button-secondary "[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0m重新读取操作记录[0m
+      [36m</button>[39m
+    [36m</section>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"followup-layout"[39m
+    [36m>[39m
+      [36m<section>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"filter-bar"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33maria-labelledby[39m=[32m"_r_2k_"[39m
+            [33mclass[39m=[32m"field "[39m
+            [33mrole[39m=[32m"group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"field-label"[39m
+              [33mid[39m=[32m"_r_2k_"[39m
+            [36m>[39m
+              [0m负责人[0m
+            [36m</div>[39m
+            [36m<select[39m
+              [33maria-label[39m=[32m"筛选负责人"[39m
+            [36m>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m""[39m
+              [36m>[39m
+                [0m全部[0m
+              [36m</option>[39m
+            [36m</select>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33maria-labelledby[39m=[32m"_r_2l_"[39m
+            [33mclass[39m=[32m"field "[39m
+            [33mrole[39m=[32m"group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"field-label"[39m
+              [33mid[39m=[32m"_r_2l_"[39m
+            [36m>[39m
+              [0m日期[0m
+            [36m</div>[39m
+            [36m<input[39m
+              [33maria-label[39m=[32m"筛选记录日期"[39m
+              [33mtype[39m=[32m"date"[39m
+              [33mvalue[39m=[32m""[39m
+            [36m/>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"followup-filter-actions"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33maria-busy[39m=[32m"true"[39m
+              [33mclass[39m=[32m"button button-secondary "[39m
+              [33mdisabled[39m=[32m""[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"spin"[39m
+                [33mfill[39m=[32m"currentColor"[39m
+                [33mheight[39m=[32m"1em"[39m
+                [33mviewBox[39m=[32m"0 0 256 256"[39m
+                [33mwidth[39m=[32m"1em"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0m刷新[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"button button-primary "[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"currentColor"[39m
+                [33mheight[39m=[32m"1em"[39m
+                [33mviewBox[39m=[32m"0 0 256 256"[39m
+                [33mwidth[39m=[32m"1em"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0m添加跟进[0m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"loading-state"[39m
+          [33mrole[39m=[32m"status"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33mclass[39m=[32m"spin"[39m
+            [33mfill[39m=[32m"currentColor"[39m
+            [33mheight[39m=[32m"1em"[39m
+            [33mviewBox[39m=[32m"0 0 256 256"[39m
+            [33mwidth[39m=[32m"1em"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [0m正在加载…[0m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"related-replies"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"followup-selection"[39m
+        [36m>[39m
+          [36m<h2>[39m
+            [0m关联回复[0m
+          [36m</h2>[39m
+          [36m<button[39m
+            [33maria-busy[39m=[32m"true"[39m
+            [33mclass[39m=[32m"button button-ghost "[39m
+            [33mdisabled[39m=[32m""[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"spin"[39m
+              [33mfill[39m=[32m"currentColor"[39m
+              [33mheight[39m=[32m"1em"[39m
+              [33mviewBox[39m=[32m"0 0 256 256"[39m
+              [33mwidth[39m=[32m"1em"[39m
+              [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [0m刷新回复[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"tabs"[39m
+          [33mrole[39m=[32m"tablist"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-selected[39m=[32m"true"[39m
+            [33mclass[39m=[32m"active"[39m
+            [33mrole[39m=[32m"tab"[39m
+            [33mtabindex[39m=[32m"0"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m通道回复[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-selected[39m=[32m"false"[39m
+            [33mclass[39m=[32m""[39m
+            [33mrole[39m=[32m"tab"[39m
+            [33mtabindex[39m=[32m"-1"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m人工登记[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"loading-state"[39m
+          [33mrole[39m=[32m"status"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33mclass[39m=[32m"spin"[39m
+            [33mfill[39m=[32m"currentColor"[39m
+            [33mheight[39m=[32m"1em"[39m
+            [33mviewBox[39m=[32m"0 0 256 256"[39m
+            [33mwidth[39m=[32m"1em"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [0m正在加载…[0m
+        [36m</div>[39m
+      [36m</aside>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ tests/ui/followup-completion.test.tsx:449:30
+    447|       });
+    448|       render(<FollowupsPage />);
+    449|       fireEvent.click(screen.getByRole("button", { name: "核对原跟进操作" }));
+       |                              ^
+    450|       await waitFor(() =>
+    451|         expect(context.service.followup!.operation).toHaveBeenCalledOn…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  1 failed | 4 passed (5)
+      Tests  6 failed | 35 passed (41)
+   Start at  02:23:07
+   Duration  2.13s (transform 545ms, setup 0ms, import 3.71s, tests 1.93s, environment 1.37s)
+

@@ -50,7 +50,14 @@ export function RelatedReplies({
       ),
       current?.opportunityId,
     );
-  }, [service, session.userId, session.authenticated, current?.opportunityId]);
+  }, [
+    service,
+    session.userId,
+    session.authenticated,
+    session.accountScope?.id,
+    session.accountScope?.version,
+    current?.opportunityId,
+  ]);
   const manual = records.filter(
     (r) =>
       current &&
@@ -58,7 +65,7 @@ export function RelatedReplies({
       r.opportunityId !== "sample" &&
       r.opportunityId === current.opportunityId,
   );
-  const blocked = Object.keys(operation.pending).length > 0;
+  const blocked = operation.blocked;
   const refresh = () => {
     void resource.reload();
     onChanged();

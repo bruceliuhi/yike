@@ -142,7 +142,11 @@ it("does not upload a restore preview after closing during hashing", async () =>
 });
 it("keeps file selection disabled while reading and releases it on completion", async () => {
   let resolve!: (value: string) => void;
-  mount({});
+  // Finish the real session initialization and its scope-reset effects before
+  // selecting a file; seeing the session marker alone is not that boundary.
+  await act(async () => {
+    mount({});
+  });
   await screen.findByText("TEST已登录");
   const file = new File([backup], "TEST.yike-backup.json", {
     type: "application/json",
@@ -157,6 +161,8 @@ it("keeps file selection disabled while reading and releases it on completion", 
   fireEvent.change(input, { target: { files: [file] } });
   expect(input).toBeDisabled();
   await act(async () => resolve(backup));
+  // Resolving file.text() is not the UI completion signal: wait for validation
+  // and the selected-file state to commit before checking the released input.
+  expect(await screen.findByText("已选择：TEST.yike-backup.json")).toBeVisible();
   expect(input).not.toBeDisabled();
-  expect(screen.getByText("已选择：TEST.yike-backup.json")).toBeVisible();
 });

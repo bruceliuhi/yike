@@ -1,0 +1,29 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+-----------x
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/followup-scope.test.tsx > keeps the verified acknowledgement when removing the old submitted draft fails
+AssertionError: expected '{}' to be '{"followup:v3:[\"[\\\"TEST-user\\\",\…' // Object.is equality
+
+Expected: "{"followup:v3:[\"[\\\"TEST-user\\\",\\\"TEST-space-A\\\",1]\",\"create\",\"new\"]":["f545088c94bb1f0220ecf10f5a1e76b6f22812b30761c5ce1aa200ffd574a0ea"]}"
+Received: "{}"
+
+ ❯ tests/ui/followup-scope.test.tsx:369:42
+    367|   await waitFor(()=>expect(screen.queryByDisplayValue('TEST空间A未保存正文'))…
+    368|   expect(sessionStorage.getItem(draftKey)).toContain('TEST空间A未保存正文');
+    369|   expect(sessionStorage.getItem(ackKey)).toBe(oldAcknowledgement);
+       |                                          ^
+    370|   expect(context.service.followup!.mutate).toHaveBeenCalledOnce();
+    371|   fault.mockRestore();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 skipped (12)
+   Start at  02:33:39
+   Duration  1.37s (transform 178ms, setup 0ms, import 861ms, tests 210ms, environment 241ms)
+

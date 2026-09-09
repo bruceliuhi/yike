@@ -1,6 +1,7 @@
 import {existsSync} from 'node:fs';
 import {mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {spawnSync} from 'node:child_process';
+import {finished} from 'node:stream/promises';
 import {fileURLToPath} from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
@@ -28,7 +29,7 @@ describe('packaged smoke negative artifact regression', () => {
     try {
       await writeFile(path.join(fixture, 'package.json'), JSON.stringify({name: 'test-early-exit', version: '0.0.0', main: 'main.cjs'}));
       await writeFile(path.join(fixture, 'main.cjs'), "const {app}=require('electron'); app.whenReady().then(()=>app.exit(0));");
-      await asar.createPackage(fixture, archive);
+      await finished(await asar.createPackage(fixture, archive));
       const result = spawnSync(process.execPath, ['scripts/run-packaged-smoke.mjs', archive], {
         cwd: root, encoding: 'utf8', timeout: 35_000,
       });
@@ -54,7 +55,7 @@ describe('packaged smoke negative artifact regression', () => {
           window.loadURL('data:text/html,' + encodeURIComponent('<script>console.error("TEST renderer error probe")</script>'));
         });
       `);
-      await asar.createPackage(fixture, archive);
+      await finished(await asar.createPackage(fixture, archive));
       const result = spawnSync(process.execPath, ['scripts/run-packaged-smoke.mjs', archive], {
         cwd: root, encoding: 'utf8', timeout: 35_000,
       });

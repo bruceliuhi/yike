@@ -242,7 +242,7 @@ describe("send confirmation with isolated available service fixtures", () => {
     expect(storedAttempts()).toEqual({});
   });
 
-  it.each(["content", "account", "source"] as const)(
+  it.each(["content", "account", "source", "evidence version"] as const)(
     "blocks %s changes after proof without losing the original preview",
     async (change) => {
       const original = draft.content;
@@ -258,6 +258,7 @@ describe("send confirmation with isolated available service fixtures", () => {
       if (change === "account")
         connection = { ...connection, status: "EXPIRED" };
       if (change === "source") row = { ...row, sourceStatus: "CLOSED" };
+      if (change === "evidence version") row = { ...row, sourceEvidenceVersion: "new-evidence-version" };
       view.rerender(
         <SendConfirmation
           row={row}
@@ -274,6 +275,24 @@ describe("send confirmation with isolated available service fixtures", () => {
       expect(context.service.send).not.toHaveBeenCalled();
     },
   );
+
+  it("does not send when the evidence version changes during the final verification", async () => {
+    row = { ...row, sourceEvidenceVersion: "evidence-v1" };
+    const view = mount();
+    await verifyAndCheck();
+    const original = proof();
+    let resolve!: (value: ContactVerification) => void;
+    context.service.verifyContact = vi.fn(() => new Promise<ContactVerification>((done) => { resolve = done; }));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(context.service.verifyContact).toHaveBeenCalledOnce());
+    row = { ...row, sourceEvidenceVersion: "evidence-v2" };
+    view.rerender(<SendConfirmation row={row} draft={draft} connection={connection} onClose={onClose} />);
+    await act(async () => resolve(original));
+    expect(context.service.send).not.toHaveBeenCalled();
+    expect(sendButton().disabled).toBe(true);
+    expect((checkbox() as HTMLInputElement).checked).toBe(false);
+    expect(storedAttempts()).toEqual({});
+  });
 
   it("never verifies or sends a public sample even with complete fields and a checked review", () => {
     row = { ...row, sample: true };

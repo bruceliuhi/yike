@@ -1,0 +1,1 @@
+PASS native Electron transport: actual Origin, memory cookie roundtrip, session isolation, redirect rejection, logout clearing.

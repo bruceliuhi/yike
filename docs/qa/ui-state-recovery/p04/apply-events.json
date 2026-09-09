@@ -1,0 +1,22 @@
+[
+  {
+    "sequence": 1,
+    "operation": "profiles",
+    "detail": "TEST 内存操作；未调用外部服务"
+  },
+  {
+    "sequence": 2,
+    "operation": "materialRecovery.mutate",
+    "detail": "save:c12ce1e0-13e5-4511-97fa-bba62cc2ddad:SUCCEEDED"
+  },
+  {
+    "sequence": 3,
+    "operation": "materialRecovery.mutate",
+    "detail": "parse:ae069cd1-0ffa-44f5-aed3-00c202066db4:SUCCEEDED"
+  },
+  {
+    "sequence": 4,
+    "operation": "materialRecovery.mutate",
+    "detail": "confirm:232b0b83-b693-4f6a-8c9f-49d7968bd2fd:SUCCEEDED"
+  }
+]

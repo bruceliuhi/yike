@@ -1,0 +1,26 @@
+
+ RUN  v4.1.11 /Users/bruce/Developer/work/yike-ai-product-design/desktop
+
+ ❯ tests/ui/followup-completion.test.tsx (24 tests | 1 failed) 1583ms
+     × times out a pending save without discarding the draft or releasing the original operation 67ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ui/followup-completion.test.tsx > P15 structured and legacy persistence > times out a pending save without discarding the draft or releasing the original operation
+AssertionError: expected "vi.fn()" to be called once, but got 0 times
+ ❯ tests/ui/followup-completion.test.tsx:359:46
+    357|       fireEvent.click(screen.getByRole("button", { name: "保存记录" }));
+    358|     });
+    359|     expect(context.service.followup!.mutate).toHaveBeenCalledOnce();
+       |                                              ^
+    360|     await act(async () => {
+    361|       await vi.advanceTimersByTimeAsync(30_001);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 100 passed | 1 skipped (102)
+      Tests  1 failed | 1120 passed | 22 skipped (1143)
+   Start at  02:45:30
+   Duration  13.47s (transform 4.87s, setup 0ms, import 77.72s, tests 57.50s, environment 26.99s)
+

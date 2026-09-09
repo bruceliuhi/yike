@@ -1,0 +1,175 @@
+Browser tab: 22, Title: "跟进记录 · 意客AI", URL: "http://127.0.0.1:18794/?scenario=P15&state=populated&capabilities=complete#/followups".
+1 AXWebArea 跟进记录 · 意客AI, URL: 127.0.0.1:18794/?scenario=P15&state=populated&capabilities=complete#/followups
+	2 container root
+		3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
+		4 button (collapsed) TEST 场景, Secondary Actions: Expand
+			5 text TEST 场景
+		6 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?scenario=P15&state=populated&capabilities=complete#main-content
+		7 container
+			8 button 意客AI商机工作台
+				9 text 意客AI
+				10 text 商机工作空间
+			11 container 主导航
+				12 button 商机工作台
+					13 image
+					14 text 商机工作台
+				15 text 发现商机
+				16 button 业务画像
+					17 image
+					18 text 业务画像
+				19 button 线索采集
+					20 image
+					21 text 线索采集
+				22 button 监控任务
+					23 image
+					24 text 监控任务
+				25 text 推进商机
+				26 button 商机库
+					27 image
+					28 text 商机库
+				29 button 触达中心
+					30 image
+					31 text 触达中心
+				32 button 跟进记录
+					33 image
+					34 text 跟进记录
+			35 button 账号与授权
+				36 image
+				37 text 账号与授权
+			38 button 客户工作空间
+				39 image
+				40 text 客户工作空间
+		41 container
+			42 button 收起导航
+				43 image
+			44 button 返回上级
+				45 image
+			46 text 跟进记录 V0.2
+		47 container main-content
+			48 heading 跟进记录, Value: 1
+				49 text 跟进记录
+			50 tab group
+				51 tab (selectable, settable, boolean) 待跟进, Value: 0
+				52 tab (selectable, settable, boolean) 回复记录, Value: 0
+				53 tab (selected, settable, boolean) 全部, Value: 1
+			54 container
+				55 container 负责人
+					56 text 负责人
+					57 pop up button (collapsed, settable) Description: 筛选负责人, Value: 全部, Secondary Actions: Expand
+						58 menu
+							59 (selected) 全部
+							60 TEST 当前成员
+				61 container 日期
+					62 text 日期
+					63 date field (settable) 筛选记录日期
+						64 container
+							65 stepper
+							66 stepper
+							67 stepper
+						68 pop up button 显示日期选择器
+				69 button 刷新
+				70 button 添加跟进
+					71 image
+					72 text 添加跟进
+				73 table
+					74 row
+						75 cell
+							76 text 商机
+						77 cell
+							78 text 最近联系
+						79 cell
+							80 text 客户回复
+						81 cell
+							82 text 下次跟进
+						83 cell
+							84 text 负责人
+					85 row
+						86 cell
+							87 button TEST 180㎡展区设计搭建预算询价
+							88 text 已联系
+						89 cell
+							90 text 未填写
+							91 container
+								92 text 登记  2026/9/10 02:41:12
+						93 cell
+							94 text 1 条通道回复
+						95 cell
+							96 text —
+						97 cell
+							98 text TEST 当前成员
+					99 row
+						100 cell
+							101 button TEST 180㎡展区设计搭建预算询价
+							102 container
+								103 text 已联系  · 已纠正
+						104 cell
+							105 text 未填写
+							106 container
+								107 text 登记  2026/9/10 02:39:55
+						108 cell
+							109 text 1 条通道回复
+						110 cell
+							111 text —
+						112 cell
+							113 text TEST 当前成员
+					114 row
+						115 cell
+							116 button TEST 180㎡展区设计搭建预算询价
+							117 text 已联系
+						118 cell
+							119 text 2026/9/9 09:00:00
+						120 cell
+							121 text 1 条通道回复
+						122 cell
+							123 text 2026/9/10 09:00:00
+						124 cell
+							125 text TEST 当前成员
+			126 container
+				127 heading 关联回复, Value: 2
+					128 text 关联回复
+				129 button 刷新回复
+				130 tab group
+					131 tab (selectable, settable, boolean) 通道回复, Value: 0
+					132 tab (selected, settable, boolean) 人工登记, Value: 1
+				133 text 人工登记
+				134 heading 已联系, Value: 3
+					135 text 已联系
+				136 text TEST 已补充服务范围，等待核对材料清单。
+				137 container
+					138 text 登记： 2026/9/10 02:41:12
+				139 container
+					140 text 下一步： TEST 核对服务范围后再准备方案。
+				141 container
+					142 text 纠正原记录： TEST-followup-created-1
+				143 container
+					144 text 原因： TEST 补充核对后的记录内容
+				145 button 纠正记录
+				146 button 撤销登记
+				147 text 人工登记
+				148 text 已纠正
+				149 heading 已联系, Value: 3
+					150 text 已联系
+				151 text TEST 已核对资料获取方式，等待对方补充服务范围。
+				152 container
+					153 text 登记： 2026/9/10 02:39:55
+				154 container
+					155 text 下一步： TEST 核对服务范围后再准备方案。
+				156 text 人工登记
+				157 heading 已联系, Value: 3
+					158 text 已联系
+				159 text TEST 人工登记示意：仅用于检查跟进流程，没有进行真实联系。
+				160 container
+					161 text 登记： 2026/9/9 09:00:00
+				162 container
+					163 text 联系： 2026/9/9 09:00:00
+				164 container
+					165 text 下一步： TEST 核对资料要求，仅测试内存内容。
+				166 container
+					167 text 下次跟进： 2026/9/10 09:00:00
+				168 button 纠正记录
+				169 button 撤销登记
+		170 container
+			171 text 纠正记录已保存，原登记保留。
+			172 button 关闭提示
+
+The focused UI element is 1 AXWebArea 跟进记录 · 意客AI, URL: 127.0.0.1:18794/?scenario=P15&state=populated&capabilities=complete#/followups

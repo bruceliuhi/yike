@@ -1,3 +1,5 @@
+import type { ExportRequest, SaveExportResult } from '../../src/shared/contracts';
+
 export class MemoryStorage implements Storage {
   private values = new Map<string, string>();
   get length() {return this.values.size;}
@@ -8,13 +10,19 @@ export class MemoryStorage implements Storage {
   setItem(key: string, value: string) {this.values.set(String(key), String(value));}
 }
 /** Install before mounting the real App. No persistent storage or business network. */
-export function isolateBrowser(record: (operation: string, detail?: string) => void) {
+export function isolateBrowser(record: (operation: string, detail?: string) => void, options: {
+  /** TEST-only receipt simulator. It must not write disk or forward to native IPC. */
+  saveExport?: (request: ExportRequest) => Promise<SaveExportResult>;
+} = {}) {
   if (window.location.hostname !== '127.0.0.1' || window.location.port !== '18794') throw new Error('Visual harness requires 127.0.0.1:18794');
   const session = new MemoryStorage();
   const local = new MemoryStorage();
   Object.defineProperty(window, 'sessionStorage', {value: session, configurable: true});
   Object.defineProperty(window, 'localStorage', {value: local, configurable: true});
-  Object.defineProperty(window, 'yikeDesktop', {value: undefined, configurable: false});
+  Object.defineProperty(window, 'yikeDesktop', {
+    value: options.saveExport ? Object.freeze({saveExport: options.saveExport}) : undefined,
+    configurable: false,
+  });
   window.fetch = async () => {record('BLOCKED_FETCH'); throw new Error('TEST business fetch blocked');};
   window.open = () => {record('BLOCKED_WINDOW_OPEN'); return null;};
   XMLHttpRequest.prototype.open = function () {record('BLOCKED_XHR'); throw new Error('TEST XHR blocked');};

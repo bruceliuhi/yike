@@ -1,0 +1,109 @@
+Browser tab: 22, Title: "业务画像 · 意客AI", URL: "http://127.0.0.1:18794/?scenario=P04&state=populated&materials=recovery#/profile".
+1 AXWebArea 业务画像 · 意客AI, URL: 127.0.0.1:18794/?scenario=P04&state=populated&materials=recovery#/profile
+	2 container root
+		3 text TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
+		4 button (collapsed) TEST 场景, Secondary Actions: Expand
+			5 text TEST 场景
+		6 link Description: 跳到主要内容, Value: 127.0.0.1:18794/?scenario=P04&state=populated&materials=recovery#main-content
+		7 container
+			8 button 意客AI商机工作台
+				9 text 意客AI
+				10 text 商机工作空间
+			11 container 主导航
+				12 button 商机工作台
+					13 image
+					14 text 商机工作台
+				15 text 发现商机
+				16 button 业务画像
+					17 image
+					18 text 业务画像
+				19 button 线索采集
+					20 image
+					21 text 线索采集
+				22 button 监控任务
+					23 image
+					24 text 监控任务
+				25 text 推进商机
+				26 button 商机库
+					27 image
+					28 text 商机库
+				29 button 触达中心
+					30 image
+					31 text 触达中心
+				32 button 跟进记录
+					33 image
+					34 text 跟进记录
+			35 button 账号与授权
+				36 image
+				37 text 账号与授权
+			38 button 客户工作空间
+				39 image
+				40 text 客户工作空间
+		41 container
+			42 button 收起导航
+				43 image
+			44 button 返回上级
+				45 image
+			46 text 业务画像 V0.2
+		47 container main-content
+			55 heading 业务画像, Value: 1
+				56 text 业务画像
+			52 tab group
+				53 tab (selected, settable, boolean) 业务描述, Value: 1
+				54 tab (selectable, settable, boolean) 资料与案例, Value: 0
+			57 container
+				58 heading 业务描述, Value: 2
+					59 text 业务描述
+				60 text 未保存修改
+				61 button 使用填写示例
+				62 container 画像版本
+					63 text 画像版本
+					64 pop up button (collapsed, settable) Description: 画像版本, Value: 版本 1 · 已确认, Secondary Actions: Expand
+						65 menu
+							66 (selected) 版本 1 · 已确认
+				67 text 修改后需保存并重新确认；已有任务仍保留原画像版本。
+				68 container 服务内容 *
+					69 container
+						70 text 服务内容  *
+					71 combo box (settable) Description: 服务内容, Value: TEST 人工核对：展区设计、搭建及现场维护。
+				72 container 目标客户 *
+					73 container
+						74 text 目标客户  *
+					75 text field (settable) Description: 目标客户, Value: TEST 参展企业与展会主办方
+				76 container 排除项
+					77 text 排除项
+					78 text field (settable) Description: 排除项, Value: 招聘、求职、培训、招生
+				79 container 服务地区 *
+					80 container
+						81 text 服务地区  *
+					82 text field (settable) Description: 服务地区, Value: TEST 湖南、深圳
+				83 container 项目偏好
+					84 text 项目偏好
+					85 text entry area (settable) Description: 项目偏好, Value: TEST 公开预算询价与布展需求
+					86 text 16/200
+			87 container
+				88 heading 画像确认摘要, Value: 2
+					89 text 画像确认摘要
+				90 text 根据当前填写内容展示
+				91 definition list
+					92 container 服务内容
+						93 text 服务内容
+					94 text TEST 人工核对：展区设计、搭建及现场维护。
+					95 container 目标客户
+						96 text 目标客户
+					97 text TEST 参展企业与展会主办方
+					98 container 服务地区
+						99 text 服务地区
+					100 text TEST 湖南、深圳
+					101 container 项目偏好
+						102 text 项目偏好
+					103 text TEST 公开预算询价与布展需求
+					104 container 排除项
+						105 text 排除项
+					106 text 招聘、求职、培训、招生
+			107 container
+				108 text 确认后可配置获客任务，尚未启动采集。
+				109 button 保存草稿
+				110 button 确认画像
+
+The focused UI element is 55 heading 业务画像, Value: 1

@@ -1,6 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest';
 import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
+import {finished} from 'node:stream/promises';
 import {mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -48,7 +49,9 @@ async function archiveFixture(overrides = {}) {
     writeFileSync(destination, bytes);
   }
   const archive = path.join(root, '真实 package.asar');
-  await asar.createPackage(source, archive);
+  // Locked asar 3.4.1 resolves with an ended WriteStream before its writes finish.
+  // Let it flush before a synchronous child process reads the archive bytes.
+  await finished(await asar.createPackage(source, archive));
   return archive;
 }
 function verify(archive) {

@@ -45,6 +45,7 @@ export function contactFingerprint(
     opportunity.profileVersionId,
     opportunity.profileStatus,
     opportunity.sourceStatus,
+    opportunity.sourceEvidenceVersion ?? null,
     isSample(opportunity),
     draft.channel,
     draft.version,
@@ -265,6 +266,9 @@ export function SendConfirmation({
   const [expired, setExpired] = useState(false);
   const verify = useAction();
   const sending = useAction();
+  // An error from a dispatched send belongs to that original operation. A
+  // terminal reconciliation may retire it without clearing unrelated errors.
+  const sendErrorOperation = useRef<string | null>(null);
   const reconciliation = useAction();
   const mounted = useRef(true);
   const [attempts, setAttempts] = useOperationLedger(
@@ -377,6 +381,7 @@ export function SendConfirmation({
     )
       return;
     await sending.run(async () => {
+      sendErrorOperation.current = null;
       const fresh = await boundedRequest(
         () => service.verifyContact(snapshot.draft, snapshot.fingerprint),
         { timeoutMessage: "发送条件核验超时，尚未发送，请重新核验。" },
@@ -454,6 +459,7 @@ export function SendConfirmation({
               },
             );
       } catch (error) {
+        sendErrorOperation.current = operationKey;
         const code =
           error && typeof error === "object" && "code" in error
             ? String(error.code)
@@ -537,6 +543,13 @@ export function SendConfirmation({
         });
       if (!mounted.current || liveState.current.userId !== session.userId)
         return;
+      if (
+        (receipt.status === "SENT" || receipt.status === "FAILED") &&
+        sendErrorOperation.current === originalKey
+      ) {
+        sending.setError("");
+        sendErrorOperation.current = null;
+      }
       setProof(null);
       setChecked(false);
       notify(

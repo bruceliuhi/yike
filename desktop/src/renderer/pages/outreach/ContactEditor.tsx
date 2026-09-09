@@ -125,7 +125,12 @@ export function ContactEditor({
   );
   const connection = available.find((c) => c.accountId === draft.accountId);
   const dirty = draft.content !== draft.savedContent;
-  useUnsavedChanges(!sample && dirty);
+  const otherChannel = channel === "comment" ? "dm" : "comment";
+  const otherDirty =
+    drafts[otherChannel].content !== drafts[otherChannel].savedContent;
+  // Switching purposes keeps both local texts; saving one must not silently
+  // remove the exit guard for unsaved edits in the other purpose.
+  useUnsavedChanges(!sample && (dirty || otherDirty));
   const edit = (change: Partial<ContactDraft>) => {
     if (sample || !session.authenticated) return;
     setDrafts((old) => ({
@@ -223,6 +228,11 @@ export function ContactEditor({
             { key: "dm", label: "私信草稿" },
           ]}
         />
+        {!sample && otherDirty && (
+          <p className="muted text-small" role="status">
+            {otherChannel === "comment" ? "评论" : "私信"}草稿仍有未保存修改；切换用途不会保存或放弃内容。
+          </p>
+        )}
         <Field label="沟通目的">
           <select
             aria-label="沟通目的"
