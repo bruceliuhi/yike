@@ -58,6 +58,25 @@ async function review() {
   fireEvent.click(screen.getByRole('checkbox', {name: '我已核对以上画像版本、搜索条件、账号与运行设置'}));
 }
 describe('original TaskWizard signed execution entry', () => {
+  it('makes only the exact foreground registered account selectable without removing its registration', async () => {
+    draft.platforms=['xhs']; draft.accounts={};
+    context.route=parseRoute('#/tasks/new?step=connect');
+    const connectionId=crypto.randomUUID(), deviceId=crypto.randomUUID();
+    const account={platform:'xhs' as const,status:'CONNECTED' as const,accountId:'account01',capabilities:['search'],
+      registration:{connectionId,deviceId,version:2,connectedAt:'2026-09-10T00:00:00Z',disconnectedAt:null},
+      foregroundBinding:{mode:'xhs-foreground-v1' as const,platform:'XIAOHONGSHU' as const,connectionId,connectionVersion:2,deviceId,accountPublicId:'account01'}};
+    vi.mocked(context.service.connections).mockResolvedValue([account, {...account,accountId:'account02',foregroundBinding:undefined,
+      registration:{...account.registration,connectionId:crypto.randomUUID()}}]);
+    sessionStorage.setItem('yike.ui.draft.v1.task.'+context.session.userId,JSON.stringify(draft));
+    render(<TaskWizardPage />);
+    const select=await screen.findByRole('combobox',{name:'小红书执行账号'});
+    const ready=await screen.findByRole('option',{name:/account01/}) as HTMLOptionElement;
+    expect(ready.disabled).toBe(false);
+    expect(ready.value).toBe('account01');
+    expect((screen.getByRole('option',{name:/account02/}) as HTMLOptionElement).disabled).toBe(true);
+    fireEvent.change(select,{target:{value:'account01'}});
+    expect(account.registration.connectionId).toBe(connectionId);
+  });
   it('uses original confirm button, rechecks prerequisites, and preserves unknown UUID across remount', async () => {
     const view = render(<TaskWizardPage />);
     await review();

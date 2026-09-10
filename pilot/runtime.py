@@ -11,6 +11,7 @@ from pilot.candidate_ingestion import CandidateIngestionStore
 from pilot.candidate_review import CandidateReviewStore
 from pilot.db import PilotDatabase
 from pilot.execution_runtime import ExecutionRuntime
+from pilot.foreground_collection import configured_collection_policy
 from pilot.research_strategies import ResearchStrategyStore
 from pilot.reply_store import ReplyEventStore
 from pilot.store import PilotStore
@@ -54,7 +55,8 @@ def build_runtime_app(
     model = _assessment_model(environment)
     store = PilotStore(database)
     strategies = ResearchStrategyStore(database)
-    runtime = ExecutionRuntime(database, strategy_resolver=strategies.resolve, capability_check=None)
+    runtime = ExecutionRuntime(database, strategy_resolver=strategies.resolve,
+                               capability_check=configured_collection_policy(environment))
     ingestion = CandidateIngestionStore(database, execution_runtime=runtime)
     review = CandidateReviewStore(
         database,

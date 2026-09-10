@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from pilot.device_keys import decode_canonical, uuid_string
 from pilot.execution_contract import ExecutionOperation, ExecutionRuntimeError
+from pilot.foreground_collection import foreground_collection_support
 
 
 class ExecutionEnvelope(BaseModel):
@@ -35,6 +36,10 @@ def register_execution_api(router, runtime, identity, require_session_https):
                 "message": "执行服务尚未接入，当前操作未执行。",
             })
         return operation(runtime, current.claims)
+
+    @router.get('/execution-support')
+    def support(request: Request):
+        return run(request, foreground_collection_support)
 
     @router.post("/execution-signing-payload")
     def signing_payload(body: ExecutionSigningEnvelope, request: Request):

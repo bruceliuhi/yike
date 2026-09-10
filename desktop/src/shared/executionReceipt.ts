@@ -39,7 +39,19 @@ const cancelReceiptSchema = z.object({
   stop_confirmed: z.boolean(),
 }).strict().refine(receipt => receipt.stop_confirmed === (receipt.status === 'CANCELED'),
   'invalid execution stop state');
-export const executionReceiptSchema = z.discriminatedUnion('operation', [startReceiptSchema, leaseReceiptSchema, cancelReceiptSchema]);
+const finishReceiptSchema = z.object({
+  ...envelope,
+  operation: z.literal('FINISH'),
+  status: z.enum(['RUNNING', 'SUCCEEDED']),
+  stop_confirmed: z.boolean(),
+  platform_run_id: deviceUuidSchema,
+  lease_id: deviceUuidSchema,
+  execution_generation: z.number().int().min(1).max(2_147_483_647),
+  upload_request_id: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]*$/),
+  records_used: z.number().int().min(0).max(10000),
+}).strict().refine(receipt => receipt.stop_confirmed === (receipt.status === 'SUCCEEDED'),
+  'invalid execution stop state');
+export const executionReceiptSchema = z.discriminatedUnion('operation', [startReceiptSchema, leaseReceiptSchema, cancelReceiptSchema, finishReceiptSchema]);
 const receiptSchema = executionReceiptSchema;
 export type ExecutionReceipt = z.infer<typeof receiptSchema>;
 
@@ -73,6 +85,9 @@ export function parseExecutionReceipt(raw: unknown, expected: ExecutionOperation
       }
     } else {
       if (receipt.task_id !== request.task_id) throw new Error('task mismatch');
+      if (receipt.operation === 'FINISH' && (receipt.platform_run_id !== request.platform_run_id ||
+          receipt.lease_id !== request.lease_id || receipt.execution_generation !== request.execution_generation ||
+          receipt.upload_request_id !== request.upload_request_id)) throw new Error('finish mismatch');
       if (receipt.operation === 'CLAIM' || receipt.operation === 'RENEW') {
         if (receipt.platform_run_id !== request.platform_run_id || !withinDeadline(receipt.lease_expires_at, receipt.deadline_at)) {
           throw new Error('lease mismatch');

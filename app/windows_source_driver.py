@@ -119,7 +119,7 @@ def verify_installed_runtime(runtime_path: Path) -> Path:
 
 def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_path: Path,
                            platform: str, query: str, max_records: int, timeout_seconds: int,
-                           cancel_requested=None) -> dict:
+                           cancel_requested=None, expected_account_public_id=None) -> dict:
     from app.collection_output import read_collection_output, CollectionOutputError
     if sys.platform != 'win32':
         raise WindowsSourceError('windows_required')
@@ -128,6 +128,9 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
         if (platform not in ('DOUYIN', 'BILIBILI', 'XIAOHONGSHU') or type(max_records) is not int or not 1 <= max_records <= 100
                 or type(timeout_seconds) is not int or not 1 <= timeout_seconds <= 900
                 or not isinstance(query, str) or not 1 <= len(query) <= 80 or canonical_single_keyword(query) != query):
+            raise WindowsSourceError('source_input_invalid')
+        if expected_account_public_id is not None and (platform != 'XIAOHONGSHU' or
+                not isinstance(expected_account_public_id, str) or not re.fullmatch(r'[A-Za-z0-9]{8,32}', expected_account_public_id)):
             raise WindowsSourceError('source_input_invalid')
         paths = [Path(p) for p in (runtime_path, profile_path, output_path)]
         if any(not p.is_absolute() or p.drive.startswith('\\') for p in paths):
@@ -161,11 +164,16 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
                 PLAYWRIGHT_BROWSERS_PATH=str(runtime_path / '.venv/playwright-browsers'),
                 TEMP=str(temporary), TMP=str(temporary), MPLCONFIGDIR=str(temporary / 'matplotlib'))
             environment['PATH'] = str(runtime_path / '.venv/Lib/site-packages/playwright/driver') + os.pathsep + environment.get('PATH', '')
+            entrypoint = runtime_path / 'main.py'
+            if expected_account_public_id is not None:
+                entrypoint = Path(__file__).with_name('platform_collection_worker.py').resolve()
+                environment['YIKE_EXPECTED_ACCOUNT_PUBLIC_ID'] = expected_account_public_id
+                environment['PYTHONDONTWRITEBYTECODE'] = '1'
             # Sample several comments per post (including replies when available)
             # rather than spending the entire budget on first-comment-only posts.
             max_contents = min(5, max_records)
             comments_per_content = max_records // max_contents
-            command = [str(python), '-X', 'utf8', str(runtime_path / 'main.py'), '--platform', code,
+            command = [str(python), '-X', 'utf8', str(entrypoint), '--platform', code,
                        '--lt', 'qrcode', '--type', 'search', '--keywords=' + query,
                        '--get_comment', 'yes', '--get_sub_comment', 'yes', '--headless', 'no',
                        '--save_data_option', 'jsonl', '--save_data_path=' + str(output_path),

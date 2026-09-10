@@ -32,6 +32,7 @@ class PilotDatabase:
         ("v02-reply-events", migration_path.with_name("118_v02_reply_events.sql")),
         ("v02-outreach-contract", migration_path.with_name("117_v02_outreach_contract.sql")),
         ("v02-connection-verification", migration_path.with_name("119_v02_connection_verification.sql")),
+        ("v02-execution-finish", migration_path.with_name("120_v02_execution_finish.sql")),
     )
 
     def __init__(self, url: str):

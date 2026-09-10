@@ -1,6 +1,7 @@
 import { ServiceError, type YikeService } from "./contracts";
 import { desktopDeviceIdentity } from './deviceIdentity';
 import { desktopExecution } from './desktopExecution';
+import {foregroundCollection, attachForegroundBinding} from './foregroundCollection';
 import {
   EMPTY_PROFILE,
   type Followup,
@@ -249,6 +250,7 @@ const candidateReads = createCandidateReviewService(request);
 const platformConnections = createPlatformConnectionService(bridge, () => service.connections());
 export const service: YikeService = {
   get execution() { return desktopExecution(bridge()); },
+  get foregroundCollection() { return foregroundCollection(bridge()); },
   get deviceIdentity() { return desktopDeviceIdentity(bridge()); },
   candidateReview: candidateReads,
   researchStrategies: createResearchStrategiesService(request),
@@ -346,7 +348,12 @@ export const service: YikeService = {
         "保存回执不完整，结果尚未确认。输入与原请求保护已保留，请核对已有登记，不要重复保存。",
       );
   },
-  connections: async () => decodeConnectionRegistry(await request("connections.list", "/connections")),
+  connections: async () => {
+    const api = foregroundCollection(bridge());
+    const [raw, capability] = await Promise.all([request("connections.list", "/connections"),
+      api ? api.execute({action:'CAPABILITIES'}) : Promise.resolve({state:'UNAVAILABLE'} as const)]);
+    return attachForegroundBinding(decodeConnectionRegistry(raw), capability);
+  },
   connect: platformConnections.connect,
   checkConnection: platformConnections.checkConnection,
   cancelConnection: platformConnections.cancelConnection,
@@ -363,9 +370,10 @@ export const service: YikeService = {
   info: async () => {
     const desktop = bridge();
     if (desktop) {
-      const info = await desktop.getClientInfo();
-      const runtime = await desktop.getRuntimeStatus();
-      return { ...info, deviceReady: runtime.state === "READY" };
+      const api = foregroundCollection(desktop);
+      const [info, runtime, capability] = await Promise.all([desktop.getClientInfo(), desktop.getRuntimeStatus(),
+        api ? api.execute({action:'CAPABILITIES'}) : Promise.resolve({state:'UNAVAILABLE'} as const)]);
+      return { ...info, deviceReady: runtime.state === "READY" || capability.state === 'AVAILABLE' };
     }
     let serviceConfigured = false;
     try {

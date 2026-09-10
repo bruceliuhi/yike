@@ -37,6 +37,7 @@ export function errorMessage(error: unknown): string {
 }
 export interface YikeService {
   execution?: import('./desktopExecution').DesktopExecutionService;
+  foregroundCollection?: import('./foregroundCollection').ForegroundCollectionService;
   deviceIdentity?: import('./deviceIdentity').DeviceIdentityApi;
   candidateReview?: import("./candidateReview").CandidateReviewService;
   rawCandidateEvidence?: import("./candidateReview").CandidateReviewService["getRawEvidence"];

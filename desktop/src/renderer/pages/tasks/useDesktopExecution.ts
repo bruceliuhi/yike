@@ -11,6 +11,9 @@ import {useEffect, useRef, useState} from 'react';
 import {useApp} from '../../app/context';
 import {boundedRequest} from '../../app/boundedRequest';
 import {useTaskScope} from './useTaskScope';
+import {hasForegroundBinding} from '../../domain/task';
+import {foregroundCollectionCommandSchema, foregroundCollectionResultSchema,
+  type ForegroundCollectionResult} from '../../../shared/foregroundCollection';
 
 export type DesktopStartCommand = Extract<DesktopExecutionCommand, {action: 'START'}>;
 export interface DesktopExecutionEntry {
@@ -20,6 +23,7 @@ export interface DesktopExecutionEntry {
   command?: Exclude<DesktopExecutionCommand, {action: 'LIST' | 'RECOVER'}>;
   receipt?: ExecutionReceipt;
   state?: string;
+  collection?: ForegroundCollectionResult;
 }
 function startBinding(entry: DesktopExecutionEntry) {
   if (entry.request?.operation === 'START') return {profileVersionId: entry.request.profile_version_id,
@@ -33,6 +37,7 @@ function startBinding(entry: DesktopExecutionEntry) {
 export function useDesktopExecution(prepared: StrategyReceipt | null) {
   const {service, session} = useApp();
   const api = service.execution;
+  const collectionApi = service.foregroundCollection;
   const scope = useTaskScope();
   type State = {identity: object; entries: DesktopExecutionEntry[]; loaded: boolean; busy: boolean; error: string};
   const empty = (): State => ({identity: scope.identity, entries: [], loaded: false, busy: false, error: ''});
@@ -124,12 +129,31 @@ export function useDesktopExecution(prepared: StrategyReceipt | null) {
     save(pending);
     await dispatch(pending, command);
   });
+  const collection = (supplied: DesktopExecutionEntry, recover: boolean, humanConfirmed = false) => run(async () => {
+    const entry = latest.current.entries.find(value => value.requestId === supplied.requestId);
+    if (!collectionApi || !latest.current.loaded || entry?.receipt?.operation !== 'START') throw new Error();
+    if (recover && (humanConfirmed !== true || entry.collection?.state !== 'STATUS' || !entry.collection.recoverable)) throw new Error();
+    const taskId = entry.receipt.task_id;
+    const command = foregroundCollectionCommandSchema.parse(recover
+      ? {action:'RECOVER', taskId, humanConfirmed:true, retry:true} : {action:'STATUS', taskId});
+    save({...entry, collection:undefined});
+    const result = foregroundCollectionResultSchema.parse(await boundedRequest(() => {
+      if (!scope.current()) throw new Error();
+      return collectionApi.execute(command);
+    }, {timeoutMessage:'采集状态等待超时，原批次已保留；请重新查询。'}));
+    if (!scope.current()) return;
+    if (result.state === 'AVAILABLE' || result.state === 'STATUS' && result.taskId !== taskId) throw new Error();
+    save({...entry, collection:result});
+  });
   const blocksStart = !shown.loaded || shown.entries.some(entry => {
     const binding = startBinding(entry);
     return prepared && binding?.strategyVersionId === prepared.strategy_version_id &&
       binding.configurationSha256 === prepared.configuration_sha256 && binding.profileVersionId === prepared.profile_version_id;
   });
-  return {...shown, blocksStart, refresh, start, recover, cancel};
+  return {...shown, blocksStart, refresh, start, recover, cancel,
+    collectionAvailable:!!collectionApi,
+    collectionStatus:(entry:DesktopExecutionEntry) => collection(entry, false),
+    recoverCollection:(entry:DesktopExecutionEntry, confirmed:boolean) => collection(entry, true, confirmed)};
 }
 export function desktopStartCommand(draft: TaskDraft, prepared: StrategyReceipt, connections: PlatformConnection[], requestId: string): DesktopStartCommand {
   try {
@@ -147,8 +171,10 @@ export function desktopStartCommand(draft: TaskDraft, prepared: StrategyReceipt,
       const accountId = draft.accounts[platform];
       if (platform === 'web' && !accountId) return {platform: 'PUBLIC_WEB' as const, access_mode: 'PUBLIC_ANONYMOUS' as const,
         connection_id: null, connection_version: null};
+      const foreground = connections.some(row => row.platform === platform && hasForegroundBinding(row));
       const matches = connections.filter(row => row.platform === platform && row.accountId === accountId &&
-        row.status === 'CONNECTED' && row.registration && row.registration.disconnectedAt === null);
+        row.status === 'CONNECTED' && row.registration && row.registration.disconnectedAt === null &&
+        (!foreground || hasForegroundBinding(row)));
       if (!accountId || matches.length !== 1) throw new Error();
       const registration = matches[0].registration!;
       devices.add(deviceUuidSchema.parse(registration.deviceId));

@@ -10,14 +10,15 @@ import {candidateSubmissionSchema, type CandidateSubmission} from '../shared/can
 type Lease = Extract<ExecutionReceipt, {operation: 'CLAIM' | 'RENEW'}>;
 type RecoveryKey = {platformRunId: string; requestId: string};
 type StopReason = 'CANCELLED' | 'SESSION_CHANGED' | 'LEASE_EXPIRED' | 'LEASE_UNKNOWN';
-export type CollectionWorkerResult = {taskCompleted: false} & (
+export type CollectionWorkerResult = {state: 'COMPLETED'; taskCompleted: boolean; requestId: string; recoveryKey: RecoveryKey} | ({taskCompleted: false} & (
   | {state: 'UPLOADED'; recoveryKey: RecoveryKey}
   | {state: 'UPLOAD_UNKNOWN'; recoveryKey: RecoveryKey}
+  | {state: 'FINISH_UNKNOWN'; requestId: string; recoveryKey: RecoveryKey}
   | {state: 'LEASE_UNKNOWN'; requestId: string}
   | {state: 'STOPPED'; reason: StopReason; requestId?: string; recoveryKey?: RecoveryKey}
   | {state: 'BUSY'}
   | {state: 'FAILED'; error: 'COLLECTION_WORKER_INVALID_INPUT' | 'COLLECTION_WORKER_FAILED' | 'SOURCE_STOP_FAILED'; recoveryKey?: RecoveryKey}
-);
+));
 export interface CollectionDriver {
   // Synchronous handle creation guarantees there is always a stop handle once
   // any source process starts. The driver owns raw output preservation/cleanup.
@@ -54,6 +55,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
       let stopPromise: Promise<void> | null = null;
       let timer: ReturnType<typeof setInterval> | undefined;
       let pendingRenewal: Promise<void> | null = null;
+      let autoRenew = true;
       let stoppedResolve!: () => void;
       let stoppedReject!: (error: unknown) => void;
       const stopped = new Promise<void>((resolve, reject) => {stoppedResolve = resolve; stoppedReject = reject;});
@@ -133,7 +135,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
         timer = setInterval(() => {
           if (!scope.session.isCurrent()) stop('SESSION_CHANGED');
           if (performance.now() >= leaseDeadline) stop('LEASE_EXPIRED');
-          if (reason || pendingRenewal || performance.now() < renewAt) return;
+          if (reason || !autoRenew || pendingRenewal || performance.now() < renewAt) return;
           pendingRenewal = (async () => {
             const renewed = await acquire(operation('RENEW', lease));
             if (!renewed) stop('LEASE_UNKNOWN'); else lease = renewed;
@@ -141,23 +143,53 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
         }, 100);
         const outcome = await Promise.race([process.completed.then(records => ({records})), stopped.then(() => null)]);
         if (!outcome || reason) return stoppedResult();
+        // Source collection has ended. Keep deadline/session monitoring, but no
+        // timer renewal may race upload budget accounting or the FINISH journal.
+        autoRenew = false;
         // Completed output is consumed only after its writer/browser has stopped.
         await stopSource();
-        if (pendingRenewal) await pendingRenewal;
+        if (pendingRenewal) await Promise.race([pendingRenewal, stopped]);
         if (!scope.session.isCurrent()) stop('SESSION_CHANGED');
         if (performance.now() >= leaseDeadline) stop('LEASE_EXPIRED');
         if (reason) return stoppedResult();
         if (!Array.isArray(outcome.records) || outcome.records.length > maxRecords) throw new Error();
+        // Renew at most once before upload if less than a normal minute remains.
+        // After upload even a full record budget must proceed directly to FINISH.
+        if (leaseDeadline - performance.now() < 60_000) {
+          const renewed = await Promise.race([acquire(operation('RENEW', lease)), stopped.then(() => null)]);
+          if (reason) return stoppedResult();
+          if (!renewed) {stop('LEASE_UNKNOWN'); return stoppedResult();}
+          lease = renewed;
+        }
         const batch: CandidateSubmission = candidateSubmissionSchema.parse({schema_version: 'candidate-upload-v1', request_id: randomUUID(),
           platform: target.platform, profile_version_id: start.profile_version_id, strategy_version_id: start.strategy_version_id,
           execution: {device_id: start.device_id, credential_version: start.credential_version, task_id: receipt.task_id,
             run_id: receipt.run_id, platform_run_id: input.platformRunId, lease_id: lease.lease_id, execution_generation: lease.execution_generation,
             access_mode: target.access_mode, connection_id: target.connection_id, connection_version: target.connection_version}, records: outcome.records});
         recoveryKey = {platformRunId: input.platformRunId, requestId: batch.request_id};
-        const uploaded = await candidates.submit(scope.session, batch);
+        const uploaded = await Promise.race([
+          candidates.submit(scope.session, batch).catch(() => null), stopped.then(() => null)]);
         if (!scope.session.isCurrent()) stop('SESSION_CHANGED');
+        if (performance.now() >= leaseDeadline) stop('LEASE_EXPIRED');
         if (reason) return stoppedResult();
-        return {state: uploaded.state === 'RECORDED' ? 'UPLOADED' : 'UPLOAD_UNKNOWN', recoveryKey, taskCompleted: false};
+        if (uploaded?.state !== 'RECORDED') return {state: 'UPLOAD_UNKNOWN', recoveryKey, taskCompleted: false};
+        const finish = executionOperationSchema.parse({schema_version: 'execution-runtime-v1', request_id: randomUUID(),
+          operation: 'FINISH', device_id: start.device_id, credential_version: start.credential_version,
+          task_id: receipt.task_id, platform_run_id: input.platformRunId, lease_id: lease.lease_id,
+          execution_generation: lease.execution_generation, upload_request_id: batch.request_id});
+        requestId = finish.request_id;
+        const finished = await Promise.race([
+          execution.submit(scope.session, finish).catch(() => null), stopped.then(() => null)]);
+        if (!scope.session.isCurrent()) stop('SESSION_CHANGED');
+        if (performance.now() >= leaseDeadline) stop('LEASE_EXPIRED');
+        if (reason) return stoppedResult();
+        const unknown: CollectionWorkerResult = {state: 'FINISH_UNKNOWN', requestId, recoveryKey, taskCompleted: false};
+        if (finished?.state !== 'RECORDED') return unknown;
+        let terminal;
+        try {terminal = parseExecutionReceipt(finished.receipt, finish);} catch {return unknown;}
+        if (terminal.operation !== 'FINISH' || terminal.run_id !== receipt.run_id) return unknown;
+        return {state: 'COMPLETED', requestId, recoveryKey,
+          taskCompleted: terminal.status === 'SUCCEEDED' && terminal.stop_confirmed};
       } catch {
         if (reason) return stoppedResult();
         return {state: 'FAILED', error: validInput ? 'COLLECTION_WORKER_FAILED' : 'COLLECTION_WORKER_INVALID_INPUT',

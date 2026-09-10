@@ -61,6 +61,16 @@ def test_build_runtime_app_composes_real_services_on_one_database_and_strategy_s
     assert capabilities["outreach"] == {"available": False}
 
 
+def test_explicit_foreground_mode_composes_bounded_policy_without_global_capability():
+    from pilot.runtime import build_runtime_app
+    from pilot.foreground_collection import foreground_collection_policy
+    app = build_runtime_app(object(), auth_secret='synthetic-auth-secret',
+                            environment={'YIKE_PILOT_COLLECTION_MODE':'xhs-foreground-v1'})
+    runtime = _route_service(app, '/api/ui/execution-operations', ExecutionRuntime)
+    assert runtime.capability_check is foreground_collection_policy
+    assert TestClient(app).get('/api/ui/capabilities').json()['capabilities']['task_execution'] == {'available':False}
+
+
 def test_absent_or_blank_assessment_configuration_keeps_model_unavailable():
     from pilot.runtime import build_runtime_app
 

@@ -59,6 +59,33 @@ def test_fixed_command_environment_and_no_data(source, monkeypatch):
     assert 'private data' not in str(result)
 
 
+def test_expected_xhs_account_selects_fixed_project_wrapper_and_public_env(source, monkeypatch):
+    def run(command, **kwargs):
+        result = source.runner(command, **kwargs)
+        for name in ('.yike-collection-status.json', '.yike-collection-progress.json'):
+            path = source.args['output_path'] / name
+            payload = json.loads(path.read_text()); payload['platform'] = 'xhs'
+            path.write_text(json.dumps(payload))
+        return result
+    monkeypatch.setattr(source.api, 'run_supervised_process', run)
+    expected = '66c01234abcdef0123456789'
+    result = source.api.collect_windows_source(**(source.args | {'platform': 'XIAOHONGSHU'}), expected_account_public_id=expected)
+    assert result['state'] == 'COLLECTED'
+    command, kwargs = source.calls[0]
+    assert command[3] == str(Path(source.api.__file__).with_name('platform_collection_worker.py').resolve())
+    assert kwargs['env']['YIKE_EXPECTED_ACCOUNT_PUBLIC_ID'] == expected
+    assert kwargs['env']['PYTHONDONTWRITEBYTECODE'] == '1'
+    assert kwargs['cwd'] == source.args['runtime_path']
+    assert '--keywords=中文 é😀' in command and command[command.index('--platform') + 1] == 'xhs'
+
+
+@pytest.mark.parametrize('value', ['bad', 'private?cookie=x', True])
+def test_invalid_expected_account_driver_rejects_before_launch(source, value):
+    with pytest.raises(source.api.WindowsSourceError):
+        source.api.collect_windows_source(**(source.args | {'platform': 'XIAOHONGSHU'}), expected_account_public_id=value)
+    assert not source.calls
+
+
 @pytest.mark.parametrize('change', [dict(platform='ZHIHU'), dict(query='a,b'), dict(query=''),
     dict(max_records=101), dict(max_records=True), dict(timeout_seconds=0), dict(timeout_seconds=True)])
 def test_invalid_or_unsupported_never_launches(source, change):

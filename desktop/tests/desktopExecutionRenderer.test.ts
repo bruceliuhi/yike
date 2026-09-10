@@ -25,6 +25,19 @@ function fixture() {
 }
 
 describe('desktop execution renderer adapter', () => {
+  it('selects the current foreground registration when the same public account exists on another device', () => {
+    const {draft,prepared,connections}=fixture();
+    draft.platforms=['xhs']; draft.accounts={...draft.accounts,xhs:'account01'} as typeof draft.accounts;
+    const current=strategyPrepareRequest(draft,prepared.request_id,draft.executionLimits);
+    prepared.snapshot.configuration=current.configuration; prepared.snapshot.platforms=current.platforms;
+    const first:PlatformConnection={...connections[0],platform:'xhs',accountId:'account01',capabilities:['search']};
+    first.foregroundBinding={mode:'xhs-foreground-v1',platform:'XIAOHONGSHU',accountPublicId:'account01',
+      connectionId:first.registration!.connectionId,connectionVersion:2,deviceId:first.registration!.deviceId};
+    const other:PlatformConnection={...first,foregroundBinding:undefined,
+      registration:{...first.registration!,connectionId:crypto.randomUUID(),deviceId:crypto.randomUUID()}};
+    const command=desktopStartCommand(draft,prepared,[other,first],crypto.randomUUID());
+    expect(command.targets[0].connection_id).toBe(first.registration!.connectionId);
+  });
   it('keeps older bridges unavailable with no generic HTTP fallback', () => {
     expect(desktopExecution(undefined)).toBeUndefined();
     expect(desktopExecution({} as YikeDesktopApi)).toBeUndefined();

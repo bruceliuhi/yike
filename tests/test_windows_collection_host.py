@@ -83,6 +83,27 @@ def test_maps_actual_formal_records_preserving_raw_and_driver_metadata(tmp_path,
     assert 'mapping' not in calls[0] and 'secret' not in wire.decode()
 
 
+def test_optional_expected_account_passed_only_to_xhs_driver(tmp_path, monkeypatch):
+    expected = '66c01234abcdef0123456789'
+    calls = []
+    def driver(**kwargs):
+        calls.append(kwargs)
+        return dict(state='COLLECTED', records=[], query=kwargs['query'], collector_version='source-1')
+    result, _ = run(monkeypatch, encoded(request(tmp_path) | {'platform': 'XIAOHONGSHU',
+        'expected_account_public_id': expected}), driver)
+    assert result['state'] == 'COLLECTED' and calls[0]['expected_account_public_id'] == expected
+
+
+@pytest.mark.parametrize('platform,expected', [('BILIBILI', '66c01234abcdef0123456789'),
+    ('XIAOHONGSHU', None), ('XIAOHONGSHU', 1), ('XIAOHONGSHU', 'bad'),
+    ('XIAOHONGSHU', '66c01234abcdef0123456789?token=private')])
+def test_invalid_expected_account_never_launches(tmp_path, monkeypatch, platform, expected):
+    calls = []
+    result, _ = run(monkeypatch, encoded(request(tmp_path) | {'platform': platform,
+        'expected_account_public_id': expected}), lambda **kwargs: calls.append(kwargs))
+    assert result['state'] == 'FAILED' and not calls
+
+
 @pytest.mark.parametrize('change', [dict(platform='ZHIHU'), dict(query='a,b'), dict(query=''),
     dict(query=' padded '), dict(query='x' * 81), dict(max_records=True), dict(max_records=101),
     dict(timeout_seconds=True), dict(timeout_seconds=901), dict(runtime_path='relative'),

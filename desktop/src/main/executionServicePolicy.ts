@@ -4,6 +4,7 @@ import {deviceUuidSchema} from '../shared/deviceRegistration';
 import type {ServiceOperation} from './servicePolicy';
 
 const privateExecutionSchema = z.discriminatedUnion('operation', [
+  z.object({operation:z.literal('execution.support')}).strict(),
   z.object({operation: z.literal('execution.prepare'), payload: z.object({request: executionOperationSchema}).strict()}).strict(),
   z.object({operation: z.literal('execution.apply'), payload: z.object({
     request: executionOperationSchema, signature: executionSignatureSchema,
@@ -18,6 +19,7 @@ export function validatedExecutionOperation(input: unknown): ServiceOperation | 
   if (!parsed.success) return null;
   const request = parsed.data;
   switch (request.operation) {
+    case 'execution.support': return {path:'/api/ui/execution-support',method:'GET',logout:false};
     case 'execution.prepare': return {
       path: '/api/ui/execution-signing-payload', method: 'POST', body: JSON.stringify(request.payload), logout: false,
     };

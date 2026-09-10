@@ -243,6 +243,13 @@ class ExecutionRuntime:
                 if previous[0] != fingerprint: raise ExecutionRuntimeError('request_conflict')
                 self._active(cursor, claims)
                 return previous[1]  # Historical receipt is not a renewed authorization.
+            if request.operation == 'FINISH':
+                # Same immutable upload lock and order as CandidateIngestionStore:
+                # sessions -> execution request -> upload -> device/key -> task.
+                upload_lock = int.from_bytes(hashlib.sha256(_json([
+                    tenant, request.platform_run_id, request.upload_request_id]).encode()).digest()[:4], 'big', signed=True)
+                cursor.execute('SELECT pg_advisory_xact_lock(11201,%s)', (upload_lock,))
+                self._active(cursor, claims)
             key = self._key(cursor, claims, tenant, request.device_id, request.credential_version)
             self._signature(key, signature, execution_signing_payload(tenant_id=tenant, claims=claims, operation=request))
             if request.operation == 'START':
@@ -258,10 +265,12 @@ class ExecutionRuntime:
             self._active(cursor, claims)
             if request.operation != 'CANCEL':
                 task, run, platforms = self._locks(cursor, claims, tenant, result['task_id'])
-                now, _ = self._live(cursor, task, run, platforms, budget=True)
+                finishing = request.operation == 'FINISH'
+                now, _ = self._live(cursor, task, run, platforms, budget=not finishing, finished=finishing)
                 if request.operation != 'START':
                     platform = next(p for p in platforms if p['platform_run_id']==result['platform_run_id'])
-                    self._lease(platform, request.credential_version, result['lease_id'], result['execution_generation'], now)
+                    self._lease(platform, request.credential_version, result['lease_id'], result['execution_generation'], now,
+                                status='SUCCEEDED' if finishing else 'RUNNING')
             return result
 
     def _start(self, cursor, claims, tenant, request):
@@ -328,9 +337,11 @@ class ExecutionRuntime:
             task['configuration_sha256'], (target,))
         if _json(snapshot) != _json(task['configuration_snapshot']): raise ExecutionRuntimeError('strategy_conflict')
 
-    def _live(self, cursor, task, run, platforms, *, budget):
+    def _live(self, cursor, task, run, platforms, *, budget, finished=False):
         if task['status'] in ('CANCELLING','CANCELED') or run['status'] in ('CANCELLING','CANCELED'):
             raise ExecutionRuntimeError('task_cancelled')
+        if not finished and (task['status'] == 'SUCCEEDED' or run['status'] == 'SUCCEEDED'):
+            raise ExecutionRuntimeError('task_finished')
         now = self._now(cursor)
         if now >= task['deadline_at']: raise ExecutionRuntimeError('task_expired')
         remaining = task['max_records'] - sum(p['records_used'] for p in platforms)
@@ -340,21 +351,27 @@ class ExecutionRuntime:
     def _mutate(self, cursor, claims, tenant, request):
         peek = self._peek_task(cursor, tenant, claims.user_id, request.task_id)
         if peek['device_id'] != request.device_id: raise ExecutionRuntimeError('device_unavailable', 404)
+        if peek['status'] == 'SUCCEEDED': raise ExecutionRuntimeError('task_finished')
         if request.operation != 'CANCEL':
             # Cancellation failure takes precedence even when strategy was revoked.
             if peek['status'] in ('CANCELED','CANCELLING'): raise ExecutionRuntimeError('task_cancelled')
             self._versions(cursor, claims, tenant, peek, request.platform_run_id, request.device_id)
         task, run, platforms = self._locks(cursor, claims, tenant, request.task_id)
         params = (tenant, claims.user_id, request.task_id)
+        if task['status'] == 'SUCCEEDED': raise ExecutionRuntimeError('task_finished')
         if request.operation == 'CANCEL':
-            stopped = all(p['execution_generation'] == 0 for p in platforms)
+            stopped = all(p['status'] == 'SUCCEEDED' or p['execution_generation'] == 0 for p in platforms)
             status = 'CANCELED' if stopped else 'CANCELLING'
             for table in ('pilot_collection_tasks', 'pilot_collection_runs', 'pilot_collection_platform_runs'):
-                cursor.execute(f'UPDATE {table} SET status=%s WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s', (status, *params))
+                cursor.execute(f'UPDATE {table} SET status=%s WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s '
+                               "AND status<>'SUCCEEDED'", (status, *params))
             return dict(task_id=task['task_id'], run_id=run['run_id'], status=status, stop_confirmed=stopped)
-        now, _ = self._live(cursor, task, run, platforms, budget=True)
+        now, _ = self._live(cursor, task, run, platforms, budget=request.operation != 'FINISH')
         platform = next((p for p in platforms if p['platform_run_id'] == request.platform_run_id), None)
         if platform is None: raise ExecutionRuntimeError('platform_run_not_found', 404)
+        if request.operation == 'FINISH':
+            self._lease(platform, request.credential_version, request.lease_id, request.execution_generation, now)
+            return self._finish(cursor, claims, tenant, request, task, run, platforms, platform)
         if request.operation == 'CLAIM':
             if platform['status'] not in ('PENDING','RUNNING') or (platform['lease_expires_at'] and platform['lease_expires_at'] > now):
                 raise ExecutionRuntimeError('lease_conflict')
@@ -376,11 +393,49 @@ class ExecutionRuntime:
             lease_expires_at=expires.isoformat(), deadline_at=task['deadline_at'].isoformat())
 
     @staticmethod
-    def _lease(platform, credential_version, lease_id, generation, now):
+    def _lease(platform, credential_version, lease_id, generation, now, *, status='RUNNING'):
         if (platform['credential_version'], platform['lease_id'], platform['execution_generation']) != (credential_version, lease_id, generation):
             raise ExecutionRuntimeError('lease_conflict')
-        if platform['status'] != 'RUNNING': raise ExecutionRuntimeError('lease_conflict')
+        if platform['status'] != status: raise ExecutionRuntimeError('lease_conflict')
         if platform['lease_expires_at'] <= now: raise ExecutionRuntimeError('lease_expired')
+
+    def _finish(self, cursor, claims, tenant, request, task, run, platforms, platform):
+        # Batches are immutable and SELECT-only to the app. The ingest advisory
+        # lock is already held, so an in-flight upload must commit before this read.
+        cursor.execute('SELECT * FROM pilot_candidate_batches WHERE tenant_id=%s AND owner_user_id=%s '
+            'AND platform_run_id=%s AND request_id=%s',
+            (tenant, claims.user_id, request.platform_run_id, request.upload_request_id))
+        batch = _row(cursor)
+        expected_context = dict(device_id=request.device_id, credential_version=request.credential_version,
+            task_id=task['task_id'], run_id=run['run_id'], platform_run_id=request.platform_run_id,
+            lease_id=request.lease_id, execution_generation=request.execution_generation,
+            access_mode=platform['access_mode'], connection_id=platform['connection_id'],
+            connection_version=platform['connection_version'])
+        binding = dict(task_id=task['task_id'], run_id=run['run_id'], platform=platform['platform'],
+            profile_version_id=task['profile_version_id'], strategy_version_id=task['strategy_version_id'])
+        if not batch or any(batch[key] != value for key, value in binding.items()) or \
+                _json(batch['execution_context']) != _json(expected_context):
+            raise ExecutionRuntimeError('upload_unavailable')
+        receipt = batch['receipt']
+        evidence = dict(schema_version='candidate-receipt-v1', request_id=request.upload_request_id,
+            task_id=task['task_id'], run_id=run['run_id'], platform_run_id=request.platform_run_id,
+            accepted_count=batch['accepted_count'], received_at=batch['received_at'].isoformat())
+        if type(receipt) is not dict or _json({key:receipt.get(key) for key in evidence}) != _json(evidence) or \
+                type(receipt.get('items')) is not list or len(receipt['items']) != batch['accepted_count'] or \
+                batch['accepted_count'] > platform['records_used']:
+            raise ExecutionRuntimeError('upload_unavailable')
+        cursor.execute("UPDATE pilot_collection_platform_runs SET status='SUCCEEDED' "
+            'WHERE tenant_id=%s AND owner_user_id=%s AND platform_run_id=%s',
+            (tenant, claims.user_id, request.platform_run_id))
+        succeeded = all(p['platform_run_id'] == request.platform_run_id or p['status'] == 'SUCCEEDED' for p in platforms)
+        status = 'SUCCEEDED' if succeeded else 'RUNNING'
+        for table in ('pilot_collection_tasks', 'pilot_collection_runs'):
+            cursor.execute(f'UPDATE {table} SET status=%s WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s',
+                (status, tenant, claims.user_id, task['task_id']))
+        return dict(task_id=task['task_id'], run_id=run['run_id'], platform_run_id=request.platform_run_id,
+            lease_id=request.lease_id, execution_generation=request.execution_generation,
+            upload_request_id=request.upload_request_id, records_used=platform['records_used'],
+            status=status, stop_confirmed=succeeded)
 
     @staticmethod
     def _transaction(cursor):
@@ -457,7 +512,8 @@ class ExecutionRuntime:
             task, run, platforms = self._locks(cursor, claims, tenant, task_id)
             self._active(cursor, claims)
             return dict(task_id=task_id, run_id=run['run_id'], status=task['status'],
-                stop_confirmed=task['status']=='CANCELED' and all(p['execution_generation']==0 for p in platforms),
+                stop_confirmed=task['status']=='SUCCEEDED' or (task['status']=='CANCELED' and
+                    all(p['status']=='SUCCEEDED' or p['execution_generation']==0 for p in platforms)),
                 profile_version_id=task['profile_version_id'], strategy_version_id=task['strategy_version_id'],
                 max_records=task['max_records'], records_used=sum(p['records_used'] for p in platforms),
                 deadline_at=task['deadline_at'].isoformat(), platform_runs=[{

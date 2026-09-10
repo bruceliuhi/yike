@@ -31,6 +31,7 @@ import {
   applySuggestion,
   removeTerm,
   startBlockers,
+  hasForegroundBinding,
   taskErrors,
   taskFingerprint,
 } from "../domain/task";
@@ -1104,14 +1105,14 @@ export function TaskWizardPage() {
                           {connections.data
                             ?.filter(
                               (c) =>
-                                c.platform === id && c.status === "CONNECTED" && !c.registration,
+                                c.platform === id && c.status === "CONNECTED" && (!c.registration || hasForegroundBinding(c)),
                             )
                             .map((c) => (
-                              <option key={c.accountId} value={c.accountId}>
+                              <option key={c.registration?.connectionId || c.accountId} value={c.accountId}>
                                 {c.accountName || c.accountId}
                               </option>
                             ))}
-                          {connections.data?.filter(c => c.platform === id && c.registration).map(c => (
+                          {connections.data?.filter(c => c.platform === id && c.registration && !hasForegroundBinding(c)).map(c => (
                             <option key={c.registration!.connectionId} value={`registered:${c.registration!.connectionId}`} disabled>
                               {c.accountName || c.accountId} · 设备 {c.registration!.deviceId.slice(0, 8)}（执行能力待核验）
                             </option>

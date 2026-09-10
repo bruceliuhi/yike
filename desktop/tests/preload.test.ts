@@ -9,7 +9,7 @@ describe('preload export bridge', () => {
     expect(mocks.expose).toHaveBeenCalledOnce();
     const [name, api] = mocks.expose.mock.calls[0] as [string, YikeDesktopApi];
     expect(name).toBe('yikeDesktop'); expect(Object.isFrozen(api)).toBe(true);
-    expect(Object.keys(api).sort()).toEqual(['copyText','executionCommand','getClientInfo','getDeviceIdentityStatus','getRuntimeStatus','openExternal','platformConnectionCommand','prepareDeviceIdentity','requestApi','saveExport']);
+    expect(Object.keys(api).sort()).toEqual(['copyText','executionCommand','foregroundCollectionCommand','getClientInfo','getDeviceIdentityStatus','getRuntimeStatus','openExternal','platformConnectionCommand','prepareDeviceIdentity','requestApi','saveExport']);
     const request = {format: 'csv' as const, name: 'TEST.csv', content: 'TEST'};
     expect(await api.saveExport(request)).toEqual({status: 'cancelled'});
     expect(mocks.invoke).toHaveBeenCalledWith(SAVE_EXPORT_CHANNEL, request);
@@ -24,5 +24,7 @@ describe('preload export bridge', () => {
     expect(mocks.invoke).toHaveBeenCalledWith('desktop:execution-command', {action:'LIST'});
     await api.platformConnectionCommand!({action:'OPEN', platform:'XIAOHONGSHU'});
     expect(mocks.invoke).toHaveBeenCalledWith('desktop:platform-connection-command', {action:'OPEN', platform:'XIAOHONGSHU'});
+    await api.foregroundCollectionCommand!({action:'CAPABILITIES'});
+    expect(mocks.invoke).toHaveBeenCalledWith('desktop:foreground-collection',{action:'CAPABILITIES'});
   });
 });

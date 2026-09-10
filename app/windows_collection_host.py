@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import re
 import sys
 import threading
 
@@ -54,12 +55,16 @@ def _request(stdin) -> dict:
         raise ValueError()
     payload = json.loads(frame.decode('utf-8'), object_pairs_hook=_unique_pairs,
                          parse_constant=_reject_constant)
-    if not isinstance(payload, dict) or set(payload) != _FIELDS:
+    if not isinstance(payload, dict) or set(payload) not in (_FIELDS, _FIELDS | {'expected_account_public_id'}):
         raise ValueError()
     if payload['schema_version'] != SCHEMA_VERSION:
         raise ValueError()
     if payload['platform'] not in ('DOUYIN', 'BILIBILI', 'XIAOHONGSHU'):
         raise ValueError()
+    if 'expected_account_public_id' in payload:
+        expected = payload['expected_account_public_id']
+        if payload['platform'] != 'XIAOHONGSHU' or not isinstance(expected, str) or not re.fullmatch(r'[A-Za-z0-9]{8,32}', expected):
+            raise ValueError()
     if (type(payload['max_records']) is not int or not 1 <= payload['max_records'] <= 100
             or type(payload['timeout_seconds']) is not int or not 1 <= payload['timeout_seconds'] <= 900):
         raise ValueError()
@@ -98,9 +103,10 @@ def _watch_input(stdin, cancelled: threading.Event) -> None:
 
 
 def _collect(payload: dict, cancelled: threading.Event) -> dict:
+    binding = {'expected_account_public_id': payload['expected_account_public_id']} if 'expected_account_public_id' in payload else {}
     result = collect_windows_source(**{key: payload[key] for key in (
         'runtime_path', 'profile_path', 'output_path', 'platform', 'query',
-        'max_records', 'timeout_seconds')}, cancel_requested=cancelled.is_set)
+        'max_records', 'timeout_seconds')}, cancel_requested=cancelled.is_set, **binding)
     # The driver only returns after physical cleanup of its complete owned tree.
     if cancelled.is_set():
         return _failure('COLLECTION_CANCELLED', 'CANCELLED')

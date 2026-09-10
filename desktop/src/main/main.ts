@@ -25,7 +25,11 @@ import {createDeviceIdentityController} from './deviceIdentityController';
 import {createExecutionController} from './executionController';
 import {createExecutionSession} from './executionSession';
 import {createExecutionJournal} from './executionJournal';
-import {EXECUTION_COMMAND_CHANNEL} from '../shared/desktopExecution';
+import {EXECUTION_COMMAND_CHANNEL,desktopExecutionCommandSchema} from '../shared/desktopExecution';
+import {FOREGROUND_COLLECTION_CHANNEL} from '../shared/foregroundCollection';
+import {createForegroundCollectionController} from './foregroundCollectionController';
+import {createCandidateJournal} from './candidateJournal';
+import {createCandidateSession} from './candidateSession';
 import {GET_DEVICE_IDENTITY_STATUS_CHANNEL, PREPARE_DEVICE_IDENTITY_CHANNEL} from '../shared/deviceIdentity';
 import {PLATFORM_CONNECTION_CHANNEL} from '../shared/platformConnection';
 import {createConnectionProfileStore} from './connectionProfileStore';
@@ -41,6 +45,7 @@ let mainWindow: BrowserWindow | null = null;
 let quitting = false;
 let startupFailed = false;
 let platformConnection:ReturnType<typeof createPlatformConnectionController>|null=null;
+let foregroundCollection:ReturnType<typeof createForegroundCollectionController>|null=null;
 let platformShutdown:Promise<void>|null=null;
 let platformStopped=false;
 
@@ -166,25 +171,47 @@ async function startApplication(): Promise<void> {
     if (baseUrl === null) throw new Error('SERVICE_NOT_CONFIGURED');
     return createDeviceIdentitySession({serviceOrigin:baseUrl, deviceLabel:'意客AI Windows客户端',transport,journal,vault});
   }});
+  const executionJournal=createExecutionJournal({directory:path.join(app.getPath('userData'),'execution-operations'),protection});
+  const candidateJournal=createCandidateJournal({directory:path.join(app.getPath('userData'),'candidate-batches'),protection});
+  const profileStore=createConnectionProfileStore({directory:path.join(app.getPath('userData'),'platform-connection-records'),protection});
   const execution = baseUrl === null ? null : createExecutionController({identity,
     execution: createExecutionSession({serviceOrigin: baseUrl, transport: identity, vault,
-      journal: createExecutionJournal({directory: path.join(app.getPath('userData'), 'execution-operations'), protection})})});
+      journal: executionJournal})});
   const loginConfiguration=platformLoginConfiguration({env:process.env,packaged:app.isPackaged,platform:process.platform,userData:app.getPath('userData')});
   if(baseUrl!==null && loginConfiguration!==null) {
     // These empty parents contain only UUID-named leaves; Python creates each cookie/output leaf with native private ACLs.
     await mkdir(loginConfiguration.profileRoot,{recursive:true});
     await mkdir(loginConfiguration.outputRoot,{recursive:true});
     platformConnection=createPlatformConnectionController({serviceOrigin:baseUrl,identity,
-      store:createConnectionProfileStore({directory:path.join(app.getPath('userData'),'platform-connection-records'),protection}),
+      store:profileStore,
       login:createPlatformLoginDriver(loginConfiguration)});
+    const outputRoot=path.join(app.getPath('userData'),'platform-collection-output');
+    await mkdir(outputRoot,{recursive:true});
+    foregroundCollection=createForegroundCollectionController({serviceOrigin:baseUrl,identity,store:profileStore,
+      configuration:{...loginConfiguration,outputRoot},executionJournal,candidateJournal,
+      sessions:scope=>({execution:createExecutionSession({serviceOrigin:baseUrl,transport:scope.transport,vault,journal:executionJournal}),
+        candidates:createCandidateSession({serviceOrigin:baseUrl,transport:scope.transport,vault,journal:candidateJournal})})});
   }
   ipcMain.handle(PLATFORM_CONNECTION_CHANNEL,(event,command:unknown)=>{
     trustedSender(event);
     return platformConnection?platformConnection.execute(command):{state:'SERVICE_UNAVAILABLE'};
   });
-  ipcMain.handle(EXECUTION_COMMAND_CHANNEL, (event, command: unknown) => {
+  ipcMain.handle(EXECUTION_COMMAND_CHANNEL, async (event, command: unknown) => {
     trustedSender(event);
-    return execution ? execution.execute(command) : {state: 'SERVICE_UNAVAILABLE'};
+    const parsed=desktopExecutionCommandSchema.safeParse(command);
+    if(!parsed.success)return {state:'INVALID_REQUEST'};
+    if(parsed.data.action==='START')return foregroundCollection?foregroundCollection.start(parsed.data):{state:'SERVICE_UNAVAILABLE'};
+    if(parsed.data.action==='CANCEL')foregroundCollection?.cancel(parsed.data.taskId);
+    if(!execution)return {state:'SERVICE_UNAVAILABLE'};
+    const result=await execution.execute(command);
+    if(parsed.data.action==='RECOVER' && parsed.data.retry===true && result.state==='RECORDED' && result.receipt.operation==='START'){
+      // Explicit original-intent retry may continue a never-claimed task. CLAIM journals prohibit recollection.
+      await foregroundCollection?.resumeStart(parsed.data.requestId);
+    }
+    return result;
+  });
+  ipcMain.handle(FOREGROUND_COLLECTION_CHANNEL,(event,command:unknown)=>{
+    trustedSender(event);return foregroundCollection?foregroundCollection.execute(command):{state:'UNAVAILABLE'};
   });
   ipcMain.handle(GET_DEVICE_IDENTITY_STATUS_CHANNEL, event => {
     trustedSender(event);
@@ -241,11 +268,13 @@ async function startApplication(): Promise<void> {
 
 app.on('before-quit', event => {
   quitting = true;
-  if(platformConnection && !platformStopped) {
+  if((platformConnection || foregroundCollection) && !platformStopped) {
     event.preventDefault();
-    if(!platformShutdown)platformShutdown=platformConnection.shutdown().catch(()=>{
+    if(!platformShutdown)platformShutdown=Promise.allSettled([platformConnection?.shutdown(),foregroundCollection?.shutdown()]).then(results=>{
+      if(results.some(r=>r.status==='rejected'))throw new Error('PLATFORM_STOP_UNCONFIRMED');
+    }).catch(()=>{
       console.error('YIKE_PLATFORM_LOGIN_STOP_UNCONFIRMED');
-      dialog.showErrorBox('登录窗口停止状态未确认','客户端未把本次登录记为成功。请核对平台浏览器是否仍在运行，再重新打开客户端。');
+      dialog.showErrorBox('平台浏览器停止状态未确认','本次登录或采集的停止状态未确认。请核对平台浏览器是否仍在运行，再重新打开客户端；不要重复启动原任务。');
     }).finally(()=>{platformStopped=true;app.quit();});
   }
 });

@@ -7,6 +7,16 @@ import {
   type PlatformConnection,
 } from "./models";
 import { researchSettingsSchema } from "./researchUsage";
+import {foregroundBindingSchema} from '../../shared/foregroundCollection';
+
+export function hasForegroundBinding(connection: PlatformConnection): boolean {
+  const parsed = foregroundBindingSchema.safeParse(connection.foregroundBinding);
+  if (!parsed.success || !connection.registration || connection.platform !== 'xhs' || connection.status !== 'CONNECTED') return false;
+  const binding = parsed.data, registration = connection.registration;
+  return registration.disconnectedAt === null && registration.connectionId === binding.connectionId &&
+    registration.version === binding.connectionVersion && registration.deviceId === binding.deviceId &&
+    connection.accountId === binding.accountPublicId;
+}
 export const termKey = (value: string) =>
   value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
 export function splitTerms(value: string): string[] {
@@ -183,7 +193,7 @@ export function startBlockers(
     const connection = connections.find(
       (c) =>
         c.platform === platform &&
-        !c.registration &&
+        (!c.registration || hasForegroundBinding(c)) &&
         c.status === "CONNECTED" &&
         (platform === "web" || c.accountId === draft.accounts[platform]),
     );
@@ -191,6 +201,13 @@ export function startBlockers(
       blockers.push(`${name} 需连接并选择有效账号或确认读取范围。`);
       continue;
     }
+    if (connection.registration && (draft.platforms.length !== 1 || draft.platforms[0] !== 'xhs' ||
+        draft.source !== 'search' || draft.mode !== 'once' || draft.exclusions.length > 0 ||
+        draft.links.trim() !== '' || draft.research))
+      blockers.push('本机受控采集仅支持小红书单次关键词搜索，暂不支持排除词、链接、研究或监控。');
+    if (connection.registration && draft.executionLimits &&
+        ((draft.executionLimits.max_records ?? 0) > 100 || (draft.executionLimits.max_runtime_seconds ?? 0) > 900))
+      blockers.push('本机受控采集每次最多 100 条记录、900 秒，请调低执行上限。');
     const required = draft.source === "search" ? "search" : "read";
     if (!connection.capabilities.includes(required))
       blockers.push(

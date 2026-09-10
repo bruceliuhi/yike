@@ -9,7 +9,7 @@ import {executionReceiptSchema} from '../shared/executionReceipt';
 type Input = Parameters<CollectionDriver['start']>[0];
 interface Options {
   pythonExecutable: string; projectRoot: string; runtimePath: string; profilePath: string; outputRoot: string;
-  binding: {deviceId: string; credentialVersion: number} & Input['target'];
+  binding: {deviceId: string; credentialVersion: number; expectedAccountPublicId?: string} & Input['target'];
 }
 const SCHEMA = 'windows-source-host-v1';
 const MAX_FRAME = 4 * 1024 * 1024;
@@ -95,6 +95,10 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
       try {
         const c = strategyConfigurationSchema.parse(snapshot.configuration);
         const lease = executionReceiptSchema.parse(input.lease);
+        const expectedAccount = owned.binding.expectedAccountPublicId;
+        if (expectedAccount !== undefined && (target.platform !== 'XIAOHONGSHU' ||
+            typeof expectedAccount !== 'string' || expectedAccount.length < 8 || expectedAccount.length > 32 ||
+            /[^A-Za-z0-9]/.test(expectedAccount))) throw failure();
         if (lease.operation !== 'CLAIM' && lease.operation !== 'RENEW') throw failure();
         if (c.mode !== 'once' || c.schedule !== null || c.source !== 'search' || c.links.length || c.exclusions.length || c.research !== null ||
             c.keywords.some(q => q !== q.trim() || q.includes(',')) ||
@@ -126,6 +130,7 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
         let result: unknown;
         try {result = await invoke({schema_version: SCHEMA, runtime_path: owned.runtimePath, profile_path: owned.profilePath,
           output_path: path.join(owned.outputRoot, randomUUID()), platform: target.platform, query, max_records: cap,
+          ...(owned.binding.expectedAccountPublicId === undefined ? {} : {expected_account_public_id: owned.binding.expectedAccountPublicId}),
           timeout_seconds: seconds, mapping: {...mapping, request_id: randomUUID()}});}
         catch (error) {if (timedOut) throw failure('SOURCE_DRIVER_TIMED_OUT'); throw error;}
         if (cancelled) throw failure(timedOut ? 'SOURCE_DRIVER_TIMED_OUT' : 'SOURCE_DRIVER_CANCELLED');

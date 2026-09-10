@@ -23,7 +23,8 @@ function fixture() {
   start.configuration_sha256 = strategy.configuration_sha256 = createHash('sha256').update(canonical(strategy.snapshot)).digest('hex');
   const scope = {session: {userId: 'owner', sessionId: id(20), isCurrent: () => current}, device: {deviceId: id(2), credentialVersion: 1},
     transport: {requestExecution: vi.fn(), requestCandidate: vi.fn()}, close: vi.fn(() => {current = false;})};
-  const execution = {submit: vi.fn(async (_session, request) => ({state: 'RECORDED', receipt: {
+  const execution = {submit: vi.fn(async (_session, request): Promise<any> => request.operation === 'FINISH'
+    ? {state: 'RECORDED', receipt: finishReceipt(request)} : ({state: 'RECORDED', receipt: {
     schema_version: 'execution-runtime-v1', request_id: request.request_id, operation: request.operation, task_id: id(6), run_id: id(7),
     platform_run_id: id(8), status: 'RUNNING', stop_confirmed: false, lease_id: id(9), execution_generation: 1,
     lease_expires_at: new Date(Date.now() + 120_000).toISOString(), deadline_at: new Date(Date.now() + 600_000).toISOString()}}))};
@@ -38,6 +39,10 @@ function fixture() {
 beforeEach(() => {vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-10T00:01:00Z'));});
 afterEach(() => vi.useRealTimers());
 async function tick(ms = 0) {await vi.advanceTimersByTimeAsync(ms);}
+function finishReceipt(request: any) {return {schema_version: 'execution-runtime-v1', operation: 'FINISH',
+  request_id: request.request_id, task_id: id(6), run_id: id(7), platform_run_id: id(8),
+  lease_id: id(9), execution_generation: 1, upload_request_id: request.upload_request_id,
+  records_used: 0, status: 'SUCCEEDED', stop_confirmed: true};}
 
 it('claims before source, stops source before upload, preserves original execution tuple and unknown result', async () => {
   const f = fixture(); const done = f.run(); await tick();
@@ -168,4 +173,92 @@ it('does not silently execute deferred monitoring strategies as a one-shot colle
   f.instance.cancel(); await tick(); const result = await done;
   expect(claimed).toBe(0);
   expect(result).toMatchObject({state: 'FAILED', error: 'COLLECTION_WORKER_INVALID_INPUT'});
+});
+
+it('FINISH follows physical source stop and recorded upload with the exact original tuple', async () => {
+  const f = fixture(); const physical = deferred<void>(); const upload = deferred<any>();
+  f.stopped.mockImplementation(() => physical.promise); f.candidates.submit.mockImplementation(() => upload.promise);
+  const done = f.run(); await tick(); f.output.resolve([]); await tick();
+  expect(f.candidates.submit).not.toHaveBeenCalled(); expect(f.execution.submit).toHaveBeenCalledTimes(1);
+  physical.resolve(); await tick(); expect(f.candidates.submit).toHaveBeenCalledTimes(1);
+  expect(f.execution.submit).toHaveBeenCalledTimes(1);
+  upload.resolve({state: 'RECORDED'}); await tick();
+  const result = await done; const batch = f.candidates.submit.mock.calls[0][1] as any;
+  expect(f.execution.submit).toHaveBeenCalledTimes(2);
+  const finish = f.execution.submit.mock.calls[1][1];
+  expect(finish).toMatchObject({operation: 'FINISH', task_id: id(6), platform_run_id: id(8),
+    lease_id: id(9), execution_generation: 1, upload_request_id: batch.request_id});
+  expect(result).toMatchObject({state: 'COMPLETED', taskCompleted: true, requestId: finish.request_id,
+    recoveryKey: {platformRunId: id(8), requestId: batch.request_id}});
+  expect(f.stopped).toHaveBeenCalledTimes(1);
+});
+
+it.each(['RUNNING', 'UNKNOWN', 'invalid', 'throw'])('FINISH %s never falsely marks task complete and retains both recovery ids', async kind => {
+  const f = fixture(); f.candidates.submit.mockResolvedValue({state: 'RECORDED'} as any);
+  const done = f.run(); await tick();
+  f.execution.submit.mockImplementationOnce(async (_s, request) => {
+    if (kind === 'throw') throw new Error('private');
+    if (kind === 'UNKNOWN') return {state: 'UNKNOWN', requestId: request.request_id};
+    const receipt = finishReceipt(request);
+    if (kind === 'RUNNING') {receipt.status = 'RUNNING'; receipt.stop_confirmed = false;}
+    if (kind === 'invalid') receipt.run_id = id(99);
+    return {state: 'RECORDED', receipt};
+  });
+  f.output.resolve([]); await tick();
+  const result = await done; const finish = f.execution.submit.mock.calls[1]?.[1];
+  expect(result).toMatchObject({state: kind === 'RUNNING' ? 'COMPLETED' : 'FINISH_UNKNOWN',
+    taskCompleted: false, requestId: finish?.request_id, recoveryKey: {platformRunId: id(8), requestId: expect.any(String)}});
+});
+
+it('drains an existing renewal then disables automatic renew during upload and FINISH', async () => {
+  const f = fixture(); const renewal = deferred<any>(); const upload = deferred<any>();
+  f.candidates.submit.mockImplementation(() => upload.promise);
+  const done = f.run(); await tick(); f.execution.submit.mockImplementationOnce(() => renewal.promise);
+  await tick(60_000); f.output.resolve([]); await tick(); expect(f.candidates.submit).not.toHaveBeenCalled();
+  const request = f.execution.submit.mock.calls[1][1];
+  renewal.resolve({state: 'RECORDED', receipt: {schema_version: 'execution-runtime-v1', operation: 'RENEW',
+    request_id: request.request_id, task_id: id(6), run_id: id(7), platform_run_id: id(8), status: 'RUNNING', stop_confirmed: false,
+    lease_id: id(9), execution_generation: 1, lease_expires_at: new Date(Date.now() + 120_000).toISOString(),
+    deadline_at: new Date(Date.now() + 540_000).toISOString()}});
+  await tick(); expect(f.candidates.submit).toHaveBeenCalledTimes(1);
+  await tick(61_000); expect(f.execution.submit).toHaveBeenCalledTimes(2);
+  upload.resolve({state: 'RECORDED'}); await tick();
+  expect((await done).state).toBe('COMPLETED');
+  expect(f.execution.submit.mock.calls.map(c => c[1].operation)).toEqual(['CLAIM', 'RENEW', 'FINISH']);
+});
+
+it.each(['upload', 'finish'])('deadline still closes the scope during pending %s without a late success', async phase => {
+  const f = fixture(); const pending = deferred<any>();
+  f.candidates.submit.mockImplementation(() => phase === 'upload' ? pending.promise : Promise.resolve({state: 'RECORDED'} as any));
+  const done = f.run(); await tick();
+  if (phase === 'finish') f.execution.submit.mockImplementationOnce(() => pending.promise);
+  f.output.resolve([]); await tick(); await tick(120_100);
+  expect(await done).toMatchObject({state: 'STOPPED', reason: 'LEASE_EXPIRED', taskCompleted: false,
+    recoveryKey: {platformRunId: id(8), requestId: expect.any(String)}});
+  expect(f.scope.close).toHaveBeenCalledTimes(1);
+  pending.resolve({state: 'UNKNOWN'}); await tick(); expect(f.driver.start).toHaveBeenCalledTimes(1);
+});
+
+it('renews a short remaining lease exactly once before upload, never after it', async () => {
+  const f = fixture(); const submit = f.execution.submit.getMockImplementation()!;
+  f.execution.submit.mockImplementationOnce(async (session, request) => {
+    const response = await submit(session, request);
+    response.receipt.lease_expires_at = new Date(Date.now() + 20_000).toISOString(); return response;
+  });
+  f.candidates.submit.mockResolvedValue({state: 'RECORDED'} as any);
+  const done = f.run(); await tick(); f.output.resolve([]); await tick();
+  expect(await done).toMatchObject({state: 'COMPLETED', taskCompleted: true});
+  expect(f.execution.submit.mock.calls.map(c => c[1].operation)).toEqual(['CLAIM', 'RENEW', 'FINISH']);
+});
+
+it.each(['cancel', 'session'])('pending FINISH preserves its request id on %s and never restarts', async kind => {
+  const f = fixture(); const pending = deferred<any>(); f.candidates.submit.mockResolvedValue({state: 'RECORDED'} as any);
+  const done = f.run(); await tick(); f.execution.submit.mockImplementationOnce(() => pending.promise);
+  f.output.resolve([]); await tick(); const finish = f.execution.submit.mock.calls[1][1];
+  if (kind === 'cancel') f.instance.cancel(); else f.expire();
+  await tick(100);
+  expect(await done).toMatchObject({state: 'STOPPED', reason: kind === 'cancel' ? 'CANCELLED' : 'SESSION_CHANGED',
+    taskCompleted: false, requestId: finish.request_id, recoveryKey: {platformRunId: id(8), requestId: expect.any(String)}});
+  pending.resolve({state: 'RECORDED', receipt: finishReceipt(finish)}); await tick();
+  expect(f.execution.submit).toHaveBeenCalledTimes(2); expect(f.driver.start).toHaveBeenCalledTimes(1);
 });

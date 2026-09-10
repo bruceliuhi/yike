@@ -2,6 +2,7 @@ import {contextBridge, ipcRenderer} from 'electron';
 import {GET_DEVICE_IDENTITY_STATUS_CHANNEL, PREPARE_DEVICE_IDENTITY_CHANNEL} from '../shared/deviceIdentity';
 import {EXECUTION_COMMAND_CHANNEL, type DesktopExecutionCommand} from '../shared/desktopExecution';
 import {PLATFORM_CONNECTION_CHANNEL, type PlatformConnectionCommand} from '../shared/platformConnection';
+import {FOREGROUND_COLLECTION_CHANNEL,type ForegroundCollectionCommand} from '../shared/foregroundCollection';
 
 import {
   GET_RUNTIME_STATUS_CHANNEL,
@@ -21,6 +22,7 @@ const api: YikeDesktopApi = Object.freeze({
   getDeviceIdentityStatus: () => ipcRenderer.invoke(GET_DEVICE_IDENTITY_STATUS_CHANNEL),
   prepareDeviceIdentity: (options = {}) => ipcRenderer.invoke(PREPARE_DEVICE_IDENTITY_CHANNEL, options),
   executionCommand: (command: DesktopExecutionCommand) => ipcRenderer.invoke(EXECUTION_COMMAND_CHANNEL, command),
+  foregroundCollectionCommand: (command: ForegroundCollectionCommand) => ipcRenderer.invoke(FOREGROUND_COLLECTION_CHANNEL, command),
   platformConnectionCommand: (command: PlatformConnectionCommand) => ipcRenderer.invoke(PLATFORM_CONNECTION_CHANNEL, command),
   requestApi: (request: ApiRequest) => ipcRenderer.invoke(REQUEST_API_CHANNEL, request),
   openExternal: (url: string) => ipcRenderer.invoke(OPEN_EXTERNAL_CHANNEL, url),

@@ -65,6 +65,8 @@ export interface PlatformConnection {
   accountName?: string;
   capabilities: string[];
   reason?: string;
+  /** Current main-process capability bound to this exact server registration. */
+  foregroundBinding?: import('../../shared/foregroundCollection').ForegroundBinding;
   /** Server registration identity. It is not an execution capability or a session credential. */
   registration?: {
     connectionId: string;

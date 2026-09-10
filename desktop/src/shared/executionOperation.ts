@@ -19,11 +19,12 @@ const executionTargetSchema = z.object({
 });
 
 const conditionalFields = ['profile_version_id', 'strategy_version_id', 'configuration_sha256', 'targets',
-  'task_id', 'platform_run_id', 'lease_id', 'execution_generation'] as const;
-const applicableFields: Record<'START' | 'CLAIM' | 'RENEW' | 'CANCEL', readonly string[]> = {
+  'task_id', 'platform_run_id', 'lease_id', 'execution_generation', 'upload_request_id'] as const;
+const applicableFields: Record<'START' | 'CLAIM' | 'RENEW' | 'CANCEL' | 'FINISH', readonly string[]> = {
   START: ['profile_version_id', 'strategy_version_id', 'configuration_sha256', 'targets'],
   CLAIM: ['task_id', 'platform_run_id'],
   RENEW: ['task_id', 'platform_run_id', 'lease_id', 'execution_generation'],
+  FINISH: ['task_id', 'platform_run_id', 'lease_id', 'execution_generation', 'upload_request_id'],
   CANCEL: ['task_id'],
 };
 
@@ -31,7 +32,7 @@ const applicableFields: Record<'START' | 'CLAIM' | 'RENEW' | 'CANCEL', readonly 
 export const executionOperationSchema = z.object({
   schema_version: z.literal('execution-runtime-v1'),
   request_id: deviceUuidSchema,
-  operation: z.enum(['START', 'CLAIM', 'RENEW', 'CANCEL']),
+  operation: z.enum(['START', 'CLAIM', 'RENEW', 'CANCEL', 'FINISH']),
   device_id: deviceUuidSchema,
   credential_version: versionSchema,
   profile_version_id: opaqueSchema.nullable().default(null),
@@ -42,16 +43,19 @@ export const executionOperationSchema = z.object({
   platform_run_id: opaqueSchema.nullable().default(null),
   lease_id: opaqueSchema.nullable().default(null),
   execution_generation: versionSchema.nullable().default(null),
+  upload_request_id: opaqueSchema.nullable().optional(),
 }).strict().superRefine((request, context) => {
   const applicable = applicableFields[request.operation];
   for (const field of conditionalFields) {
-    if ((request[field] !== null) !== applicable.includes(field)) {
+    if ((request[field] != null) !== applicable.includes(field)) {
       context.addIssue({code: 'custom', path: [field], message: 'invalid operation field'});
     }
   }
   if (request.targets && new Set(request.targets.map(target => target.platform)).size !== request.targets.length) {
     context.addIssue({code: 'custom', path: ['targets'], message: 'duplicate execution platform'});
   }
+  // Old journal/signature bytes must not acquire a new null field.
+  if (request.operation !== 'FINISH') delete request.upload_request_id;
 });
 
 export type ExecutionOperation = z.infer<typeof executionOperationSchema>;

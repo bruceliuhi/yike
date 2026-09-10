@@ -5,7 +5,7 @@ import re
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, model_serializer
 
 MAX_VERSION = 2147483647
 Platform = Literal['XIAOHONGSHU', 'DOUYIN', 'BILIBILI', 'ZHIHU', 'PUBLIC_WEB']
@@ -56,7 +56,7 @@ class ExecutionTarget(_Frozen):
 class ExecutionOperation(_Frozen):
     schema_version: Literal['execution-runtime-v1']
     request_id: str
-    operation: Literal['START', 'CLAIM', 'RENEW', 'CANCEL']
+    operation: Literal['START', 'CLAIM', 'RENEW', 'CANCEL', 'FINISH']
     device_id: str
     credential_version: int = Field(ge=1, le=MAX_VERSION)
     profile_version_id: str | None = None
@@ -67,6 +67,14 @@ class ExecutionOperation(_Frozen):
     platform_run_id: str | None = None
     lease_id: str | None = None
     execution_generation: int | None = Field(default=None, ge=1, le=MAX_VERSION)
+    upload_request_id: str | None = None
+
+    @model_serializer(mode='wrap')
+    def compatible_serialization(self, handler):
+        value = handler(self)
+        if self.operation != 'FINISH':
+            value.pop('upload_request_id', None)
+        return value
 
     @field_validator('targets', mode='before')
     @classmethod
@@ -78,7 +86,7 @@ class ExecutionOperation(_Frozen):
     def uuid(cls, value):
         return canonical_uuid(value)
 
-    @field_validator('profile_version_id', 'strategy_version_id', 'task_id', 'platform_run_id', 'lease_id')
+    @field_validator('profile_version_id', 'strategy_version_id', 'task_id', 'platform_run_id', 'lease_id', 'upload_request_id')
     @classmethod
     def opaque(cls, value):
         if value is not None and not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}', value):
@@ -91,10 +99,11 @@ class ExecutionOperation(_Frozen):
             'START': {'profile_version_id', 'strategy_version_id', 'configuration_sha256', 'targets'},
             'CLAIM': {'task_id', 'platform_run_id'},
             'RENEW': {'task_id', 'platform_run_id', 'lease_id', 'execution_generation'},
+            'FINISH': {'task_id', 'platform_run_id', 'lease_id', 'execution_generation', 'upload_request_id'},
             'CANCEL': {'task_id'},
         }[self.operation]
         conditional = {'profile_version_id', 'strategy_version_id', 'configuration_sha256', 'targets',
-                       'task_id', 'platform_run_id', 'lease_id', 'execution_generation'}
+                       'task_id', 'platform_run_id', 'lease_id', 'execution_generation', 'upload_request_id'}
         if any((getattr(self, key) is not None) != (key in applicable) for key in conditional):
             raise ExecutionRuntimeError('invalid_request', 422)
         if self.targets and len({target.platform for target in self.targets}) != len(self.targets):

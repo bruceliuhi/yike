@@ -111,3 +111,25 @@ it('one second is a usable budget and total deadline cancels the host', async ()
   f.children[0].stdout.write(JSON.stringify({schema_version, state: 'CANCELLED'}) + '\n'); f.children[0].emit('close', 0, null);
   expect(await outcome).toBe('SOURCE_DRIVER_TIMED_OUT'); await run.stop(); now.mockRestore();
 });
+it('forwards main-owned canonical XHS account binding on every query, but omits legacy binding', async () => {
+  const f = fixture(); const account = '66c01234abcdef0123456789';
+  const driver = createPythonCollectionDriver({...f.options, binding: {...f.options.binding, expectedAccountPublicId: account}});
+  const run = driver.start(f.input); await tick(); expect(f.request(0).expected_account_public_id).toBe(account);
+  f.respond(0); await tick(); expect(f.request(1).expected_account_public_id).toBe(account);
+  f.respond(1); await expect(run.completed).resolves.toEqual([]); await run.stop();
+  const g = fixture(); g.input.snapshot.configuration.keywords = ['设计'];
+  const legacy = g.driver.start(g.input); await tick(); expect(g.request(0)).not.toHaveProperty('expected_account_public_id');
+  g.respond(0); await legacy.completed; await legacy.stop();
+});
+it.each(['short', 'a'.repeat(33), '汉字12345678', 'abcdefgh\n', ' abcdefgh', null, 12345678, 'other-platform'])
+('rejects invalid or non-XHS account binding %s before spawn', async value => {
+  const f = fixture();
+  const binding = {...f.options.binding, expectedAccountPublicId: value} as any;
+  if (value === 'other-platform') {
+    binding.platform = 'DOUYIN'; binding.expectedAccountPublicId = 'abcdefgh';
+    f.input.target.platform = 'DOUYIN'; f.input.snapshot.platforms = ['DOUYIN'];
+  }
+  const run = createPythonCollectionDriver({...f.options, binding}).start(f.input);
+  const outcome = run.completed.catch(error => error.message); await tick();
+  expect(spawn).not.toHaveBeenCalled(); expect(await outcome).toBe('SOURCE_DRIVER_INVALID_INPUT'); await run.stop();
+});
