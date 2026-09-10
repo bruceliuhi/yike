@@ -32,7 +32,7 @@ Pulse 原则：
 
 ExecutionRuntime 增加可选 `monitor_runtime` 接线，不改变现有签名JSON：
 - START成功建task前后同事务，以 `request_id` 查询并锁定原预留，对原 START JSON逐字段规范化比对、到期时间、当前计划状态/revision/绑定及snapshot检查，关联真实task/run；伪造未预留的monitor START拒绝。无monitor_runtime时monitor策略不能START。
-- `_versions` 对 monitor task 追加当前plan/revision及原轮次关联检查；暂停/恢复旧revision后 CLAIM/RENEW/候选入库/FINISH 不再续授权。该check只读计划（避免和暂停的plan→profile锁顺序成环），保留原runtime重复围栏/事务验证。CANCEL可结束已暂停旧任务。普通once完全不改变语义/签名字节。
+- `_versions` 对 monitor task 追加当前plan/revision及原轮次关联检查；暂停/恢复旧revision后 CLAIM/RENEW/候选入库/FINISH 不再续授权。该check不改计划，但须在设备/连接/画像/策略锁之后取得计划的非阻塞共享行锁并保留到事务结束，和暂停建立提交顺序；锁忙拒绝，不形成plan→profile反向等待环。START同样保护计划，保留原runtime重复围栏/事务验证。CANCEL可结束已暂停旧任务。普通once完全不改变语义/签名字节。
 - 不能仅因 capability_check 接受 monitor 就绕过预留；现有runtime先校验设备签名。
 
 TDD：专用受限Postgres与真实 Ed25519 + 正式已确认策略/计划。验证首次上线跳过、稳定到期唯一原请求/并发恢复、START→CLAIM关联、无预留/改目标/过期拒绝、暂停后拒续授权、重启/轮次未决/设备换绑、owner隔离和最小权限。只测必要路径，不全量回归。可让测试把服务端存储的last_seen/next_due改成合成时刻，不以fixture证明真实平台采集。
@@ -42,3 +42,13 @@ TDD：专用受限Postgres与真实 Ed25519 + 正式已确认策略/计划。验
 CodexiMac负责 `pilot/monitor_runtime_api.py`、普通web/ui/runtime装配、`foreground_collection.py` 显式 `three-platform-monitor-v1` 模式（兼容once，monitor仅policy1且相同受限搜索能力）、对应HTTP/policy小范围测试与文档。现有 foreground support 不冒充新原生客户端已适配；新模式的后端能力与客户端实际可用状态分别呈现。
 
 本批不虚构“客户端已经自动运行”。后续接主进程心跳/原签名/采集worker、暂停/恢复界面与真实平台验收，继续完整Goal。
+
+## 实施与验证
+
+最终源码 `a68b945ac2c85c61f21d3097199afe6ff6094683`，非作者独立批次审核及修复差异复核 GO。`374eb11` 接普通认证 pulse 接口和显式部署模式；`f528789` 实现127持久轮次和原执行围栏；`fa41d71` 补正式确认策略/计划、B站合成当前连接、真实Ed25519与受限PG流程，并移除误放入产品树的过程报告。
+
+定向证据：原搜索能力与新模式19 PASS；新HTTP/普通runtime接线4 PASS。Task1首次35 PASS只证明参数、迁移ACL与原签名/请求契约，**不证明周期运行**；补充3个受限PG组合场景 PASS（11项未重跑）：离线跳过/并发唯一预留/原请求重开/换进程恢复、签名START→CLAIM及暂停拒RENEW、未预留/过期拒START。正式部署仍需真实平台和客户端验收。本批不全量测试或构包。
+
+首次独立审核 `fa41d71` NO-GO，专用受限PG与真实设备签名窄复现：P1暂停提交和续租提交缺乏并发顺序；P2繁忙期间错过时段会补跑；P2恢复新revision仍返回旧预留READY。`a68b945` 全部修复：原“只读计划”细化为不改计划+非阻塞共享行锁，不能用无锁检查替代暂停围栏；忙碌保持在线并跳过到期槽；旧revision只恢复核对。对应RED 3 FAIL → 受影响真实PG GREEN 7 PASS/11未重跑（含原3场景，不能直接相加）。独立复审仅看差异，未重跑测试，无新增P1/P2。专用合成PG容器随本批清理，共享库未动；过程报告保留在私有git工作树元数据，不进入产品树。
+
+下一接入点：原生main按已保存计划每30秒调用 `/api/ui/monitor-runtime/pulse`；保持每进程 monitor_session_id，READY 仅提交返回的原 START 给已有设备签名/执行会话；不可自己生成替代UUID或重写策略成once。RUNNING/RECOVERY_REQUIRED 先核对原任务，不重复采集；SKIPPED_* 不是“没有新线索”。当前客户端收集器仍只接受once，下一批须连接其monitor入口与暂停/恢复，不能仅改显示文案宣布可用。

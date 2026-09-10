@@ -1,5 +1,7 @@
 # 意客 AI 应用镜像
 
+周期轮次后端（迁移127）：继126后执行 [轮次授权](grant_monitor_runtime.sql)，复用原执行/策略/连接授权。仅显式 `YIKE_PILOT_COLLECTION_MODE=three-platform-monitor-v1` 接受policy1的monitor搜索，且每次START仍必须有有效原预留和设备签名；旧模式不扩大权限，新模式保留旧三平台foreground单次入口。普通runtime接 `/api/ui/monitor-runtime/pulse`，无外部发送。原生周期客户端尚待接线，不能只切环境变量就宣传持续采集。[单一实施与证据](../docs/superpowers/plans/2026-09-11-monitor-execution.md)。
+
 监控计划基础（迁移126）：迁移后以受信发布作业设置既有 `yike.app_role` 并执行 [监控计划授权](grant_monitor_plans.sql)，另需原画像/策略/会话权限。普通runtime仅保存计划、暂停/恢复和历史回执，不启动采集；`ACTIVE + NOT_CONNECTED` 不能作为监控已运行。尚无周期执行器/新客户端入口，本记录不是生产部署。[接口与证据](../docs/superpowers/plans/2026-09-11-monitor-plans.md)。
 
 本文件是现有 `pilot/` 服务端的部署子手册。当前开发目标与进度见 [V0.2 实施任务书](../docs/V02_IMPLEMENTATION_TASKBOOK.md)；缺少生产环境只影响相应部署验收，不阻止其他研发。下面的 Linux Web 镜像不是 Windows 客户端或平台采集执行器，不得把管理员连接、应用数据库连接或服务端签名密钥打入桌面安装包。
