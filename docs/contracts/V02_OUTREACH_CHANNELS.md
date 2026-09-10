@@ -2,6 +2,18 @@
 
 状态：`CONTEXT_QUEUE_AND_DISPATCH_LEDGER_IMPLEMENTED / REAL_PLATFORM_SEND_UNVERIFIED`
 
+## 07B 私有客户端调用链（2026-09-10）
+
+`3478556`将现有`serviceClient`同队列中的私有`requestOutreach`接到`deviceIdentityController.openWorkerScope()`；公共request/IPC不放行派发。新增`createOutreachDispatchSession({serviceOrigin,identity,vault,journal,channel})`，其中identity为现有身份controller，vault为OS保护密钥，journal及channel按下节绑定可信主进程实现。
+
+`e2aa65f`补充scope即时取消生命周期：注销/换身份/关闭scope立即abort，派发会话组合caller及scope信号传到driver；缺scope.signal拒绝动作。driver须在每次等待后、实际动作前检查该signal，不能仅在外层看到结果时判断会话。已发生动作的有效晚回执仍保留待回传事实。
+
+- `dispatch({tenantId,requestId,claimId,contextSha256},signal)`仅接已确认队列的原绑定；user/device/session由原身份scope捕获，不接受调用者覆盖。执行CLAIM准备→规范字节签名→一次领取→本机消费→RESULT准备/签名/提交，任一不确定路径不得重新动作。
+- `reconcile(同一绑定,signal)`仅GET原queue，不CLAIM、不消费、不发送。RECONCILED只是当前服务端状态；UNKNOWN不能说未投递。
+- `RESULT_RECORDED`/`serverAccepted:true`要求服务端回执request/claim/resultId/status相符；`RESULT_PENDING`只保留待回传的原事实及resultId，当前返回给调用方，**尚无持久结果outbox/跨重启补交**。回传失败/注销不得重新执行平台动作。后续须补结果可靠保存、按原结果ID补交与平台查询，完成前不启用外部发送。
+
+原签名域/服务器DTO固定不变；协议使用真实Python生成的固定向量核对，不将Node fixture当服务端业务实测。main里尚未实例化此会话、Win07C尚未ACK、真实平台driver尚未安装；[本批验证](../superpowers/plans/2026-09-10-outreach-private-session.md#本批验证)为唯一测试与审核记录。
+
 ## 07B 本机许可消费组件（2026-09-10）
 
 `74b4d52`新增私有主进程组件`outreachConsumer.ts`和`outreachConsumptionJournal.ts`；验证与审核记录集中于[本批计划](../superpowers/plans/2026-09-10-native-outreach-consumption.md#本批验证)。尚未注册main/IPC或安装真实发送器，不代表Win已消费。

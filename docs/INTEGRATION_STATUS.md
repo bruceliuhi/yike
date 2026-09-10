@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-10 私有客户端派发链
+
+`3478556`接通既有身份scope/HTTP传输→签名CLAIM→本机consume→签名RESULT及只读恢复，公共IPC没有派发权限。[验证记录](superpowers/plans/2026-09-10-outreach-private-session.md#本批验证)集中维护原失败和定向证据；[Win接入合同](contracts/V02_OUTREACH_CHANNELS.md#07b-私有客户端调用链2026-09-10)说明调用及状态。持久结果outbox、真实driver、main/Win界面接入未完成，父卡/Goal仍IN_PROGRESS；不把测试中的SENT当实际消息。
+
 ## 2026-09-10 本机一次消费组件
 
 `74b4d52`补充实际文件持久消费和主进程控制器，异常不重发、跨会话重建防重；[单一验证记录](superpowers/plans/2026-09-10-native-outreach-consumption.md#本批验证)集中维护。尚未接私有transport/main/IPC、真实渠道或Win界面，不是平台收发完成。下一步按[接入合同](contracts/V02_OUTREACH_CHANNELS.md#07b-本机许可消费组件2026-09-10)装配真实链路，不重复开发日志，不重复无变化全量测试/构包。
