@@ -220,6 +220,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 设备凭据 PostgreSQL 复核：使用全新 `yike_mac_identity_20260910` 数据库、管理员与独立受限 `identity_app_mac` 角色运行 `tests/test_device_credentials_postgres.py`，**28 passed**。覆盖挑战、Ed25519 签名、轮换、撤销、并发与 HTTP 安全路径；不代表真实平台账号或 Windows 实机已接通。
 
+2026-09-10 设备登记 PostgreSQL 复核：在同一受限身份数据库运行 `tests/test_device_registration_postgres.py` 与 `tests/test_device_registration_http_postgres.py`，**29 passed**。覆盖登记恢复、幂等、撤销/过期、owner 隔离、HTTPS/Origin 与 no-store；不代表真实平台账号或 Windows 实机已接通。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
