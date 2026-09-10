@@ -1,0 +1,44 @@
+vite v8.2.2 building client environment for production...
+transforming...
+✓ 4806 modules transformed.
+rendering chunks...
+computing gzip size...
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/index.html                               0.45 kB │ gzip:   0.32 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/bilibili-B4f0lnyN.ico             4.28 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/douyin-FBAm5jUt.ico               4.28 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/zhihu-OfkkMzms.ico                4.28 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/.vite/manifest.json                      8.09 kB │ gzip:   1.19 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/logo-B-T1ksKV.png               826.34 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Platform-DHJI-W19.css             0.38 kB │ gzip:   0.21 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Followups-BEcgu2i8.css            0.63 kB │ gzip:   0.29 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Profile-BQAZSynW.css              0.92 kB │ gzip:   0.43 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Outreach-BdvfCDuK.css             1.99 kB │ gzip:   0.69 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Workbench-BBPw0GCx.css            2.42 kB │ gzip:   0.79 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/PendingTaskStarts-BqiSuAXA.css    2.93 kB │ gzip:   0.95 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Opportunities-DcLfveqg.css        3.61 kB │ gzip:   1.08 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Tasks-D_VHXXEg.css                3.90 kB │ gzip:   1.20 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/TaskWizard-D7TM1lBJ.css           5.43 kB │ gzip:   1.39 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/index-CjajCOQB.css               34.02 kB │ gzip:   7.71 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/ArrowRight.es-BHxlZ4TO.js         1.54 kB │ gzip:   0.61 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Plus.es-BC87m3-0.js               1.54 kB │ gzip:   0.56 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/download-C2BiBfKl.js              1.61 kB │ gzip:   0.89 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/ArrowSquareOut.es-Can0chbP.js     2.35 kB │ gzip:   0.83 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/TermEditor-DP19mS95.js            2.59 kB │ gzip:   1.30 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/PendingTaskStarts-C4f0RQb5.js     3.28 kB │ gzip:   1.76 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/OutreachQueue-f_1fNsgk.js         4.92 kB │ gzip:   2.33 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Login-BnyC74RJ.js                 8.81 kB │ gzip:   3.24 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Platform-g6PO-u3Q.js              9.76 kB │ gzip:   4.61 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/operationLedger-Ctzj4SRV.js      17.05 kB │ gzip:   5.86 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Connections-MKT2bs7C.js          18.40 kB │ gzip:   6.54 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Settings-DDjjpzGs.js             19.94 kB │ gzip:   6.57 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Workbench-CY4niLOD.js            21.42 kB │ gzip:   7.69 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Followups-B_n_k4L7.js            30.17 kB │ gzip:  10.04 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Outreach-BvFPLK_a.js             35.39 kB │ gzip:  11.39 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Profile-B2GUPoUQ.js              42.55 kB │ gzip:  13.17 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/TaskWizard-Ba91rUkp.js           57.80 kB │ gzip:  16.85 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Tasks-mRBgnNrD.js                60.31 kB │ gzip:  17.98 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/Opportunities-DWUaIHkq.js        80.40 kB │ gzip:  24.06 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/context-D7_B5NWg.js             152.06 kB │ gzip:  45.37 kB
+../../../../../private/tmp/yike-session-content-release-b8b8236/desktop/out/visual-harness/assets/index-Brdo2hqz.js               350.53 kB │ gzip: 111.23 kB
+
+✓ built in 276ms

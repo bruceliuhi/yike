@@ -1,0 +1,114 @@
+- note: TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入 · TEST 模拟保存/取消，不写文件
+- generic "TEST 场景"
+- option "取消保存"
+- option "内存模拟已保存" [selected]
+- option "保存失败"
+- option "结果未知" [selected]
+- option "确定未执行"
+- option "仅内存完成"
+- option "仍未知" [selected]
+- option "确定未执行"
+- option "仅内存完成"
+- option "仅收到取消请求"
+- option "确定已取消" [selected]
+- link "跳到主要内容":
+  - /url: "#main-content"
+- complementary:
+  - button "意客AI商机工作台":
+    - strong: 意客AI
+    - generic: 商机工作空间
+  - navigation "主导航":
+    - button "商机工作台":
+      - generic: 商机工作台
+    - generic: 发现商机
+    - button "业务画像":
+      - generic: 业务画像
+    - button "线索采集":
+      - generic: 线索采集
+    - button "监控任务":
+      - generic: 监控任务
+    - generic: 推进商机
+    - button "商机库":
+      - generic: 商机库
+    - button "触达中心":
+      - generic: 触达中心
+    - button "跟进记录":
+      - generic: 跟进记录
+  - button "账号与授权":
+    - generic: 账号与授权
+  - button "客户工作空间":
+    - generic: 客户工作空间
+- banner:
+  - button "收起导航":
+  - button "返回上级":
+  - generic: 账号与授权
+  - generic: V0.2
+- main:
+  - heading "账号与授权" [level=1]
+  - tablist:
+    - tab "平台连接"
+    - tab "设备与使用授权" [selected]
+  - heading "使用授权" [level=2]
+  - generic: 授权状态
+  - generic: 未激活
+  - generic: 授权码
+  - textbox "授权码":
+    - /placeholder: 请输入授权码
+  - button "激活"
+  - generic: 有效期
+  - generic: —
+  - heading "设备管理" [level=2]
+  - generic: 运行环境
+  - generic: macOS
+  - button "绑定设备"
+  - generic: 设备状态
+  - generic: TEST 本机设备 · 尚未绑定
+  - generic: 客户服务
+  - generic: 尚未配置服务地址
+  - heading "版本与数据" [level=2]
+  - generic: 当前版本
+  - generic: 0.2.0-TEST
+  - button "检查更新"
+  - generic: 客户数据
+  - generic: 按当前客户空间授权范围导出
+  - button "导出数据"
+  - generic: 备份与恢复
+  - generic: 先检查文件、恢复范围与覆盖影响
+  - button "备份与恢复"
+  - generic: 本机草稿
+  - generic: 当前会话的配置与资料草稿
+  - button "清除本机草稿"
+  - heading "支持与诊断" [level=2]
+  - generic: 脱敏诊断
+  - generic: 版本、运行环境和服务配置状态
+  - button "查看脱敏诊断"
+  - generic: 联系支持
+  - button "联系支持"
+  - generic: 当前会话
+  - generic: 已登录
+  - button "退出登录"
+  - dialog "检查更新":
+    - heading "检查更新" [level=2]
+    - button "关闭检查更新" [active]:
+    - status:
+      - generic: 发现新版本 0.2.1-TEST
+    - paragraph: TEST 内存更新状态，没有下载地址或真实安装程序。
+    - term: 客户空间
+    - definition: TEST 视觉验收空间
+    - term: 本机设备
+    - definition: TEST 本机设备
+    - term: 目标版本
+    - definition: 0.2.1-TEST
+    - button "检查影响并预览"
+    - separator
+    - heading "回退至上一版本" [level=3]
+    - term: 客户空间
+    - definition: TEST 视觉验收空间
+    - term: 本机设备
+    - definition: TEST 本机设备
+    - term: 目标版本
+    - definition: 0.2.0-TEST
+    - button "检查影响并预览"
+    - button "关闭"
+- text: 原操作已取消。
+- button "关闭提示": 关闭
