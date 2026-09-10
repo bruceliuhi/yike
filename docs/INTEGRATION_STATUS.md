@@ -2,7 +2,7 @@
 
 ## 2026-09-11 小红书实际页面适配
 
-07B新增主帖评论页面适配及现有受控runtime生命周期接入；只读实测发现去参直达404，已改用作者主页精确点击原帖。源码/定向证据/审核见[本批记录](superpowers/plans/2026-09-11-xhs-comment-driver.md)。下一步Mac完成Windows受监督两阶段进程桥，Win接main/UI；当前没有开放发送入口，未实际外发、未部署，父卡继续IN_PROGRESS。
+07B已有页面适配（作者主页精确点击重开原帖），本批继续接受监督CHECK/EXECUTE进程桥及TS NativeOutreachChannel，见[当前记录](superpowers/plans/2026-09-11-outreach-process-bridge.md)和[接入合同](contracts/V02_OUTREACH_CHANNELS.md#07b-小红书页面执行接续2026-09-11)。下一步是可信connection/profile解析→main私有派发session→Win确认/结果界面装配；不是再写一套协议。当前没有开放发送入口，未实际外发、未部署，Windows实机仍待验，父卡继续IN_PROGRESS。
 
 ## 2026-09-10 结果落盘与重启补交
 

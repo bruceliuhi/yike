@@ -6,7 +6,9 @@
 
 `app.xhs_comment_channel.XhsPostCommentChannel`实现同一Playwright页的`check(context)`/`execute(context, operation)`；`app.platform_outreach_runtime.open_xhs_comment_channel`复用已安装受控runtime，打开作者公开主页并点击准确原帖后yield该对象。只支持主帖评论；其他渠道未被宣称可用。原帖去参数直达失败、正常主页点击重开及本批验证集中见[记录](../superpowers/plans/2026-09-11-xhs-comment-driver.md)。
 
-下一步Mac接既有Windows Job监督器和TS `NativeOutreachChannel`桥：main按原connection/profile映射持有独占profile；同一个存活worker先CHECK，只在现有consumer已持久消费许可后收到原operation才EXECUTE一次；取消、会话切换和进程异常不得重发。结果先保存原outbox，清理失败不能抹掉平台回执。此批未安装该进程桥或开放IPC，Win不得直接从renderer调用Python发送方法；真实平台收发/Windows仍待验。
+进程桥增量见[单一记录](../superpowers/plans/2026-09-11-outreach-process-bridge.md)：`createPlatformOutreachDriver({...loginDriverPaths,profileId,connection})` 为每次派发构造一个单用 `NativeOutreachChannel`；Python固定入口 `app.windows_platform_outreach` 复用Job监督器，正文仅经带一次性鉴权的本机socket传入同一worker/page，CHECK后等待原EXECUTE，不阻塞监督循环。取消/会话切换/异常不得重发，明确回执不因后置清理失败消失。
+
+下一步main按当前身份的已确认connection/profile映射构造driver，并接已有consumer、journal、outbox及私有派发session；原context/operation不得由renderer替换。`cleanupConfirmed()===false` 必须暂停对应profile后续操作，不能用重建driver恢复。结果先保存原outbox；未知结果只对账。当前main/公共IPC/UI未装配此桥，Win不得直接从renderer调用Python方法；Windows Job/ACL实机和真实平台收发仍待验。
 
 ## 07B 结果持久恢复（2026-09-10）
 

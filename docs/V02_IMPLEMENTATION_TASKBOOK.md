@@ -6,7 +6,7 @@
 
 ## 当前执行范围：完整 V0.2 全量推进（2026-09-10）
 
-07B已推进小红书真实页面适配与受控runtime接续，[本批记录](superpowers/plans/2026-09-11-xhs-comment-driver.md)保留原帖直达失败及正常重开证据。Mac下一步是既有Windows监督器→同页CHECK/EXECUTE桥，Win继续main/UI装配；未开放发送入口，不将适配器或合成行为测试计为真实收发。
+07B已推进页面适配及既有Windows监督器→同页CHECK/EXECUTE桥，[当前记录](superpowers/plans/2026-09-11-outreach-process-bridge.md)集中保留原失败/修复/差量审核。下一步Mac/Win按[合同](contracts/V02_OUTREACH_CHANNELS.md#07b-小红书页面执行接续2026-09-11)接可信profile解析、main派发session及确认/结果UI；没有开放发送入口，实机/真实收发仍待验，不以本机socket或合成页面测试标整卡完成。
 
 07B本批接入持久结果恢复，已保存回执重启只补原结果，不再调用发送；接口变化及原失败/审核见[单一记录](superpowers/plans/2026-09-10-outreach-result-recovery.md#本批验证)。此增量更新下文outbox待办，但真实driver/main/Win UI与真实收发仍未完成；下一批优先接已有隔离平台运行时，不扩展新的孤立协议。
 
