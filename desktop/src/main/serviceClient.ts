@@ -1,6 +1,7 @@
 import type {ApiResult} from '../shared/contracts';
 import {validatedOperation, type ServiceOperation} from './servicePolicy';
 import {validatedDeviceOperation} from './deviceServicePolicy';
+import {validatedExecutionOperation} from './executionServicePolicy';
 
 export function configuredService(
   input: string | undefined,
@@ -70,6 +71,7 @@ function responseError(data: unknown, status: number): string {
 export function createServiceClient(options: ServiceClientOptions): {
   request(input: unknown): Promise<ApiResult>;
   requestDevice(input: unknown): Promise<ApiResult>;
+  requestExecution(input: unknown): Promise<ApiResult>;
 } {
   let queue: Promise<unknown> = Promise.resolve();
   let pending = 0;
@@ -113,7 +115,7 @@ export function createServiceClient(options: ServiceClientOptions): {
     if (!operation) return Promise.resolve({ok: false, status: 0, error: 'INVALID_API_REQUEST'});
     if (pending >= 16) return Promise.resolve({ok: false, status: 0, error: 'SERVICE_BUSY'});
     pending++;
-    // Public session changes and private device calls share cookie ordering and capacity.
+    // Public session changes and private device/execution calls share cookie ordering and capacity.
     const result = queue.then(() => execute(operation)).finally(() => { pending--; });
     queue = result.catch(() => undefined);
     return result;
@@ -121,5 +123,6 @@ export function createServiceClient(options: ServiceClientOptions): {
   return {
     request(input) { return enqueue(validatedOperation(input)); },
     requestDevice(input) { return enqueue(validatedDeviceOperation(input)); },
+    requestExecution(input) { return enqueue(validatedExecutionOperation(input)); },
   };
 }
