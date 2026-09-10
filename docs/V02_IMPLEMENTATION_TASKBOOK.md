@@ -246,6 +246,8 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 
 ### CodexWin Goal 启动与当前认领
 
+2026-09-10 Win普通设备入口已接main/preload/现Settings并独立终审PASS，代码e5774b6，真实controller→HTTP→受限PG1项通过；**本批唯一Windows候选** `desktop/out/candidate-e5774b6/YikeAI-Setup.exe` 已生成，包内启动通过、未签名，入口/可验收动作/缺口见[简短QA](qa/V02_DEVICE_IDENTITY_RECOVERY_WIN_REVIEW.md#普通设备入口基线3c4da162026-09-10)。保留Mac23a68b6为252d482，不为后续来件重复构包。Win继续05F执行签名/真实来源worker及确认联系接线，不扩展高级管理或继续重复身份审核；Mac保留回复P2和后端API收口。全链/实际平台/收发/人工安装/UAT未完成，Goal继续。
+
 2026-09-10 Win入站复核：正常保留Mac69a0cb2为804b4cb，候选中文进度UI定向15项/类型通过；回复更正3a5a4b6存在平台唯一键revision冲突及目标绑定验证缺口，独立审查P2详见[交接](handoffs/V1_WIN_FUNCTION_OWNERSHIP_20260909.md#分工调整)。回复修复交还Mac串行收口，Win不代签ACK、不抢改后端，继续设备普通入口。
 
 2026-09-10 Win设备身份恢复Chunk1完成限定工程接收：持久原登记/证明、已绑定密钥只读找回、BIND/PROVE及会话代次检查已实现并独立SPEC/代码/架构/质量PASS；463定向、真实Node→HTTP→受限PG 1项、Windows双进程safeStorage通过，各自范围见[简要QA](qa/V02_DEVICE_IDENTITY_RECOVERY_WIN_REVIEW.md)。**Win下一步独占main/preload/窄设备身份合同与现有账号页装配**，Mac保留设备/执行/回复后端；源码层已看到69a0cb2恢复撤销表最小GRANT，不重复修补。普通产品入口尚未接，05D/F与Goal不标完成；原文证据、多找类似和短句建联保留首发。

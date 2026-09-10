@@ -32,3 +32,7 @@ Mac `69a0cb2` 来件中会话撤销 GRANT 已恢复 SELECT/INSERT，源码层关
 入口：账号与授权→设备与使用授权→核验本机身份。复用原页面/Modal，原商业绑定/解绑保留；明确确认后主进程从真实session.get派生身份，使用固定userData与safeStorage。退出/重新登录进入即失效；未知先核对原请求，重试再次确认。上次身份核验通过不代表平台、使用授权或runtime就绪。
 
 验证：root页面/服务/preload/main及旧管理回归7文件35项/tsc通过；作者controller最初51有效RED、异步补强2RED、严格合同6RED，最终93项/tsc通过。根增强controller→真实HTTP→受限PG **1 passed/0 skip，2.62s**，原登记/BIND/PROVE、防重与退出迟到均核对，专用容器已移除；本次增强测试首次通过，不伪造RED。独立SPEC与整批代码/架构/质量最终PASS；两项严格合同修正独立6项通过，先前UI/main独立20项不重复运行。源码最终shared C347C59E/controller9E8F3A92（完整摘要在Git对应文件可算）。后续只构建本批一次候选，实际平台/收发/客户UAT仍未完成。
+
+候选已生成：固定源码 **e5774b6**，本机 `desktop/out/candidate-e5774b6/YikeAI-Setup.exe`，同目录简短验收说明。一次make-win成功，385输入构包前后逐字节一致（manifest `99460de707b2bfa2ffe46ea55f39957311f25aa55b25eaa398e9c0198f36166f`）；结构与原生包内启动冒烟通过。安装包SHA256 `1b3c688a5a448068713b44d70f252bc1d3198b981edea463c5a7ae2dea392ef2`，ASAR `143b6819aa74e0a642ef8d8d50d66be8afe1a25a085e1b16be74f8e07b7c0def`，NotSigned。直接扫描本ASAR无TEST入口、含两窄身份方法；首轮扫描命令未处理Windows前导反斜杠而失败，修正检查命令后通过，产品未改/未重新构包。人工安装及本包真实账号操作仍未验收；无服务配置时不会伪报可用。
+
+期间保留Mac23a68b6为252d482，客户端来件与身份适配定向40项、回复API纯HTTP2项通过；未改本包、未将它追认为最新main。Mac回复更正两项P2仍以交接为准，新增API不自动关闭；不重复构包或全量测试。
