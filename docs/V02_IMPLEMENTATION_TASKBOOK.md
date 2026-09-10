@@ -6,6 +6,8 @@
 
 ## 当前执行范围：完整 V0.2 全量推进（2026-09-10）
 
+06A/07A联系对象后端接续：`53501e9`已完成独立审核（GO），普通runtime的`POST /api/ui/outreach/context`按本人最新保存稿、固定原文和当前设备/连接解析主帖评论、评论回复及私信对象。最终14项实际HTTP/受限PG通过，见[本批证据](superpowers/plans/2026-09-10-outreach-context.md#本批验证)。Win按[对象合同](contracts/V02_OUTREACH_CHANNELS.md#已接普通服务的联系上下文2026-09-10)接联系准备，不能把NOT_GRANTED/UNVERIFIED转换成发送许可；尚无客户端ACK。下一步仍是06B真实渠道检查及07B人工确认/持久发送队列，不能继续用纯上下文代替实际执行；父卡/完整Goal不关闭。
+
 07B后端草稿实际保存/原回执接续：`fca33d3`及前驱CAS修复`2d77f58`已完成独立审核（GO），普通runtime接入三个认证接口、121迁移及SELECT/INSERT授权。实际HTTP/受限PG最终12项通过；版本、原失败和测试复用见[本批记录](superpowers/plans/2026-09-10-contact-draft-persistence.md#本批证据)。Win07C按[草稿合同](UI_SHORT_COACH_CONTRACT.md#07b-后端接入2026-09-10)接最新稿/前驱/原请求恢复，不能只开启保存按钮；尚无客户端ACK。Mac下一步继续07B确认快照及发送队列/06B对账，不扩孤立模型服务。保存不等于发送，07B和完整Goal仍IN_PROGRESS。
 
 最新接续：Mac已接收Win `d9ebbb7` 的实机运行包来件，替代本地重复库存候选；验收字节/范围及宿主测试调整集中于[整合记录](INTEGRATION_STATUS.md#2026-09-10-mac-接收-win-已实测运行包来件)。Win继续09B/C客户bootstrap与平台客户端；Mac继续06/07真实触达后端，不双写Windows入口。两条主链仍IN_PROGRESS，运行包不等于已安装客户产品。
