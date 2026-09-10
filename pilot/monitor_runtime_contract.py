@@ -14,6 +14,7 @@ class MonitorPulseRequest(BaseModel):
     device_id: str
     monitor_session_id: str
     credential_version: int = Field(ge=1, le=MAX_VERSION)
+    can_start: bool = True
     targets: tuple[ExecutionTarget, ...] = Field(min_length=1, max_length=5)
 
     @field_validator("targets", mode="before")

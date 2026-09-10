@@ -2,6 +2,7 @@ import { ServiceError, type YikeService } from "./contracts";
 import { desktopDeviceIdentity } from './deviceIdentity';
 import { desktopExecution } from './desktopExecution';
 import {foregroundCollection, attachForegroundBinding} from './foregroundCollection';
+import {monitorCollection} from './monitorCollection';
 import {
   EMPTY_PROFILE,
   type Followup,
@@ -270,6 +271,7 @@ export const service: YikeService = {
   replyEvidence:(opportunityId,signal)=>requestRaw('replies.evidence',`/opportunities/${encodeURIComponent(opportunityId)}/replies/evidence`,'GET',{opportunityId},signal),
   get execution() { return desktopExecution(bridge()); },
   get foregroundCollection() { return foregroundCollection(bridge()); },
+  get monitorCollection() { return monitorCollection(bridge()); },
   get deviceIdentity() { return desktopDeviceIdentity(bridge()); },
   candidateReview: candidateReads,
   researchStrategies: createResearchStrategiesService(request),

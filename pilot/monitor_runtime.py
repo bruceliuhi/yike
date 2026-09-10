@@ -34,6 +34,16 @@ class MonitorRuntime:
         self.database = database
         self.execution_runtime = execution_runtime
 
+    @_safe
+    def support(self, claims):
+        from pilot.foreground_collection import three_platform_monitor_policy
+        runtime = self.execution_runtime
+        with self.database.connect() as connection, connection.cursor() as cursor:
+            runtime._active(cursor, claims)
+            return self._authorized(cursor, claims, dict(
+                schema_version='monitor-runtime-support-v1',
+                mode='three-platform-monitor-v1' if runtime.capability_check is three_platform_monitor_policy else None))
+
     def _authorized(self, cursor, claims, response):
         self.execution_runtime._active(cursor, claims)
         return response
@@ -190,6 +200,11 @@ class MonitorRuntime:
             last_seen = binding[4]
             if due > now:
                 return self._authorized(cursor, claims, self._response(request, revision, "WAITING", now, due))
+            if not request.can_start:
+                due = next_occurrence(schedule, after=now)
+                cursor.execute("UPDATE pilot_monitor_plans SET next_due_at=%s,updated_at=%s WHERE tenant_id=%s AND owner_user_id=%s AND plan_id=%s",
+                               (due, now, tenant, claims.user_id, request.plan_id))
+                return self._authorized(cursor, claims, self._response(request, revision, "SKIPPED_BUSY", now, due))
             if due <= last_seen:
                 due = next_occurrence(schedule, after=now)
                 cursor.execute("UPDATE pilot_monitor_plans SET next_due_at=%s,updated_at=%s WHERE tenant_id=%s AND owner_user_id=%s AND plan_id=%s",

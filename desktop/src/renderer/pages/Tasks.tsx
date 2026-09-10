@@ -30,6 +30,7 @@ import { defaultResearchSettings } from "../domain/researchUsage";
 import type { CoveragePlanRequest } from "../domain/searchCoverage";
 import "./tasks/tasks.css";
 import { useTaskDraft, useTaskLibrary } from "../app/taskDraft";
+import {NativeMonitorPlans} from './tasks/NativeMonitorPlans';
 import {
   Badge,
   Button,
@@ -552,6 +553,11 @@ export function TasksPage({
 }: {
   onCoveragePlan?: (request: CoveragePlanRequest) => void | Promise<void>;
 } = {}) {
+  const {service,route}=useApp();
+  return service.monitorCollection && (route.path==='/monitors'||route.path.startsWith('/monitors/'))
+    ? <NativeMonitorPlans/> : <LegacyTasksPage onCoveragePlan={onCoveragePlan}/>;
+}
+function LegacyTasksPage({onCoveragePlan}:{onCoveragePlan?:(request:CoveragePlanRequest)=>void|Promise<void>}) {
   const { service, session, route, navigate, notify } = useApp();
   const [coverageRequest, setCoverageRequest] =
     useState<CoveragePlanRequest | null>(null);

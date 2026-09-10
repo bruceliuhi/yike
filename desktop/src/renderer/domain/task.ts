@@ -179,6 +179,7 @@ export function startBlockers(
   profiles: Profile[],
   connections: PlatformConnection[],
   deviceReady: boolean,
+  nativeMonitorReady = false,
 ): string[] {
   const blockers = Object.values(taskErrors(draft));
   if (draft.research && (!researchSettingsSchema.safeParse(draft.research).success || draft.research.maxSoubei === null))
@@ -203,8 +204,10 @@ export function startBlockers(
       blockers.push(`${name} 需连接并选择有效账号或确认读取范围。`);
       continue;
     }
-    if (connection.registration && (draft.platforms.length !== 1 ||
-        draft.source !== 'search' || draft.mode !== 'once' || draft.exclusions.length > 0 ||
+    const nativeMonitor = nativeMonitorReady && draft.mode === 'monitor' && hasForegroundBinding(connection) &&
+      draft.platforms.every(p => ['xhs','douyin','bilibili'].includes(p));
+    if (connection.registration && ((!nativeMonitor && (draft.platforms.length !== 1 || draft.mode !== 'once')) ||
+        draft.source !== 'search' || draft.exclusions.length > 0 ||
         draft.links.trim() !== '' || draft.research))
       blockers.push('本机受控采集仅支持单个平台的单次关键词搜索，暂不支持排除词、链接、研究或监控。');
     if (connection.registration && draft.executionLimits &&
@@ -217,7 +220,7 @@ export function startBlockers(
       );
     if (
       draft.mode === "monitor" &&
-      !connection.capabilities.includes("monitor")
+      !nativeMonitor && !connection.capabilities.includes("monitor")
     )
       blockers.push(`${name} 尚不具备持续监控能力。`);
   }

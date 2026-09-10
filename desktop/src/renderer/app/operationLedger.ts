@@ -6,8 +6,10 @@ import { usageReservationSchema } from "../domain/researchUsage";
 import { validCoverageAdjustmentEntry } from "../domain/coveragePlan";
 import { validStrategyEntry } from "../domain/strategyConfirmation";
 import { validCandidateRequestEntry } from "../domain/candidateRequestOperation";
+import { monitorCollectionCommandSchema } from '../../shared/monitorCollection';
 
 export type OperationScope =
+  | "monitor-operations"
   | "send-attempts"
   | "unknown-task-starts"
   | "followup-operations"
@@ -73,6 +75,12 @@ function validEntries(
       return false;
     if (scope === "candidate-reviews")
       return status === "PENDING" && parseCandidateOperation(key) !== null;
+    if (scope === "monitor-operations") {
+      try {
+        const command = monitorCollectionCommandSchema.safeParse(JSON.parse(key));
+        return status === 'PENDING' && command.success && ['CREATE','SET_STATE'].includes(command.data.action);
+      } catch { return false; }
+    }
     if (scope === "coverage-adjustments") return validCoverageAdjustmentEntry(key, status);
     if (scope === "research-strategy-operations") return validStrategyEntry(key, status);
     if (scope === "candidate-request-operations") return validCandidateRequestEntry(key, status);

@@ -19,15 +19,20 @@ def register_monitor_runtime_api(router, service, identity, require_session_http
         _no_query(request)
         return claims
 
-    def invoke(claims, body):
+    def invoke(method, *args):
         try:
-            return service.pulse(claims, body)
+            return method(*args)
         except ExecutionRuntimeError as error:
             status, code = error.status, error.code
         raise _error(status, code)
+
+    @router.get('/monitor-runtime/support')
+    async def support(request: Request):
+        claims = await run_in_threadpool(current, request)
+        return await run_in_threadpool(invoke, service.support, claims)
 
     @router.post('/monitor-runtime/pulse')
     async def pulse(request: Request):
         claims = await run_in_threadpool(current, request)
         body = await _body(request, MonitorPulseRequest)
-        return await run_in_threadpool(invoke, claims, body)
+        return await run_in_threadpool(invoke, service.pulse, claims, body)

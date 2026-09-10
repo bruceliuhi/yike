@@ -14,7 +14,7 @@ SECRET = 'synthetic-monitor-pulse'
 
 def payload():
     return dict(schema_version='monitor-runtime-v1', plan_id=str(uuid4()), device_id=str(uuid4()),
-                monitor_session_id=str(uuid4()), credential_version=1,
+                monitor_session_id=str(uuid4()), credential_version=1, can_start=True,
                 targets=[dict(platform='BILIBILI', access_mode='PLATFORM_ACCOUNT',
                               connection_id=str(uuid4()), connection_version=1)])
 
@@ -34,6 +34,15 @@ class Service:
         if self.error:
             raise self.error
         return {'state': 'WAITING', 'occurrence': None}
+
+    def support(self, claims):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError('DB call must not block ASGI loop')
+        return {'schema_version': 'monitor-runtime-support-v1', 'mode': 'three-platform-monitor-v1'}
 
 
 def client_for(service):
@@ -59,12 +68,25 @@ def test_pulse_rejects_injected_authority_ambiguous_json_and_query():
     client = client_for(service)
     for changed in (payload() | {'server_time': 'tomorrow'}, payload() | {'human_confirmed': True},
                     payload() | {'credential_version': True}, payload() | {'owner_user_id': 'other'},
-                    payload() | {'targets': []}):
+                    payload() | {'targets': []}, payload() | {'can_start': 1},
+                    payload() | {'can_start': 'false'}):
         assert client.post('/api/ui/monitor-runtime/pulse', json=changed).status_code == 422
     assert client.post('/api/ui/monitor-runtime/pulse?plan=other', json=payload()).status_code == 422
     assert client.post('/api/ui/monitor-runtime/pulse', content='{"plan_id":"a","plan_id":"b"}',
                        headers={'Content-Type': 'application/json'}).status_code == 422
     assert service.calls == []
+
+
+def test_monitor_support_is_authenticated_strict_read_only_metadata():
+    client = client_for(Service())
+    response = client.get('/api/ui/monitor-runtime/support')
+    assert response.status_code == 200
+    assert response.json() == {'schema_version': 'monitor-runtime-support-v1', 'mode': 'three-platform-monitor-v1'}
+    assert response.headers['cache-control'] == 'no-store'
+    assert client.get('/api/ui/monitor-runtime/support?override=1').status_code == 422
+    client.headers.pop('Authorization')
+    assert client.get('/api/ui/monitor-runtime/support').status_code == 401
+    assert client_for(None).get('/api/ui/monitor-runtime/support').status_code == 501
 
 
 def test_pulse_auth_origin_https_unavailable_and_store_error_boundaries():

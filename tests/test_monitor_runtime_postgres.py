@@ -354,3 +354,35 @@ def test_real_pg_start_plan_lock_is_nowait_busy(runtime_env):
                         (env.tenant, env.plan["plan_id"]))
         with pytest.raises(ExecutionRuntimeError, match="monitor_plan_busy"):
             sign_apply(env, ready["occurrence"]["start_request"])
+
+
+def test_real_pg_client_capacity_skips_without_reservation_or_catchup(runtime_env):
+    env = runtime_env
+    session = str(uuid4())
+    env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    force_due_window(env)
+    busy = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session, can_start=False))
+    assert busy['state'] == 'SKIPPED_BUSY' and busy['occurrence'] is None
+    with env.admin.connect() as connection:
+        assert connection.execute('SELECT count(*) FROM pilot_monitor_occurrences WHERE plan_id=%s',
+                                  (env.plan['plan_id'],)).fetchone() == (0,)
+        seen = connection.execute('SELECT last_seen_at FROM pilot_monitor_bindings WHERE plan_id=%s',
+                                  (env.plan['plan_id'],)).fetchone()[0]
+        assert connection.execute('SELECT clock_timestamp()').fetchone()[0] - seen < timedelta(seconds=5)
+    free = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session, can_start=True))
+    assert free['state'] == 'WAITING' and free['occurrence'] is None
+    force_due_window(env)
+    ready = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session, can_start=True))
+    assert ready['state'] == 'READY'
+    retained = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session, can_start=False))
+    assert retained['occurrence'] == ready['occurrence']
+
+
+def test_real_pg_support_requires_explicit_monitor_deployment_policy(runtime_env):
+    from pilot.foreground_collection import three_platform_collection_policy, three_platform_monitor_policy
+    env = runtime_env
+    env.execution.capability_check = three_platform_collection_policy
+    assert env.monitor.support(env.claims)['mode'] is None
+    env.execution.capability_check = three_platform_monitor_policy
+    assert env.monitor.support(env.claims) == {
+        'schema_version': 'monitor-runtime-support-v1', 'mode': 'three-platform-monitor-v1'}

@@ -125,6 +125,31 @@ async function confirmSnapshot() {
 }
 
 describe("TaskWizard strategy confirmation with the actual controller", () => {
+  it('creates a native monitor only after strategy confirmation, without a once START', async()=>{
+    const account='5cbef3a50000000016026b8f',device=crypto.randomUUID(),connection=crypto.randomUUID();
+    draft={...draft,mode:'monitor',exclusions:[],links:'',accounts:{xhs:account},
+      schedule:{kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1},
+      executionLimits:{max_records:20,max_runtime_seconds:600}};
+    context.route=parseRoute('#/tasks/new?mode=monitor&step=confirm');
+    context.service.connections=vi.fn().mockResolvedValue([{platform:'xhs',status:'CONNECTED',accountId:account,capabilities:['search'],
+      registration:{connectionId:connection,version:1,deviceId:device,disconnectedAt:null},
+      foregroundBinding:{mode:'three-platform-foreground-v1',platform:'XIAOHONGSHU',connectionId:connection,connectionVersion:1,deviceId:device,accountPublicId:account}}]);
+    context.service.execution={execute:vi.fn().mockResolvedValue({state:'LIST',requests:[]})};
+    const execute=vi.fn(async(command:any)=>command.action==='LIST'?{state:'LIST',supported:true,plans:[],serverTime:null}:{state:'UNKNOWN',requestId:command.requestId});
+    context.service.monitorCollection={execute} as any;
+    persistDraft();render(<TaskWizardPage/>);
+    await prepareSnapshot();fireEvent.click(checkbox());
+    fireEvent.click(button('确认本次策略'));await screen.findByText('本次策略已确认');
+    await waitFor(()=>expect(button('确认并启动').disabled).toBe(false));
+    fireEvent.click(button('确认并启动'));
+    await waitFor(()=>expect(execute.mock.calls.some(([c])=>c.action==='CREATE')).toBe(true));
+    const create=execute.mock.calls.find(([c])=>c.action==='CREATE')![0];
+    expect(create).toMatchObject({profileVersionId:draft.profileId,humanConfirmed:true,targets:[{platform:'XIAOHONGSHU',connection_id:connection,connection_version:1}]});
+    expect(vi.mocked(context.service.execution.execute).mock.calls.every(([c])=>c.action==='LIST')).toBe(true);
+    await waitFor(()=>expect(button('确认并启动').disabled).toBe(true));
+    fireEvent.click(button('确认并启动'));
+    expect(execute.mock.calls.filter(([c])=>c.action==='CREATE')).toHaveLength(1);
+  });
   it("does not prepare from direct P19 render and cannot use the local checkbox to bypass new confirmation", async () => {
     render(<StrictMode><TaskWizardPage /></StrictMode>);
     await waitFor(() => expect(context.service.profiles).toHaveBeenCalled());

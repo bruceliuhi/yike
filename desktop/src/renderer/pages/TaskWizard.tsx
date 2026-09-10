@@ -57,6 +57,8 @@ import { DemandSettings, ResearchSettingsPanel } from "./tasks/ResearchSettings"
 import { useUsageQuote } from "./tasks/useUsageQuote";
 import { parseUsageQuote, usageQuoteCurrent, usageQuoteRequest, usageReservation } from "../domain/researchUsage";
 import { scheduleContractBlocker, schedulePolicyDescription, scheduleWindowLabel } from "../domain/schedule";
+import {useMonitorCollection} from './tasks/useMonitorCollection';
+import {monitorCreateCommand} from '../domain/monitorCollection';
 
 export { matchesCreatedTask } from "../domain/taskOperations";
 
@@ -73,6 +75,9 @@ export function TaskWizardPage() {
   // Invalid/incomplete values never become suggested authority or leave this client.
   const strategy = useStrategyConfirmation(draft, executionLimits ?? { max_records: 0, max_runtime_seconds: 0 });
   const desktopExecution = useDesktopExecution(strategy.prepared);
+  const monitors = useMonitorCollection();
+  const nativeMonitor = draft.mode === 'monitor' && monitors.available;
+  const monitorReady = nativeMonitor && monitors.list?.supported === true;
   const strategyPreparationError = !executionLimits
     ? "请返回任务条件，明确设置执行记录与执行时长上限；建议值尚未采用。"
     : draft.research?.provenance || draft.research?.coverageProvenance
@@ -121,7 +126,7 @@ export function TaskWizardPage() {
     (id) => !!unknownStarts[id],
   );
   const resultUnknown =
-    !!unknownStarts[draft.id] || unresolvedAncestorIds.length > 0;
+    !!unknownStarts[draft.id] || unresolvedAncestorIds.length > 0 || nativeMonitor && monitors.pending.some(p=>p.action==='CREATE' && p.strategyVersionId===strategy.prepared?.strategy_version_id);
   const confirmed =
     profiles.data?.filter((p) => p.status === "CONFIRMED") || [];
   const selectedProfile = confirmed.find(
@@ -154,20 +159,23 @@ export function TaskWizardPage() {
     profiles.data || [],
     connections.data || [],
     info.data?.deviceReady === true,
+    monitorReady,
   );
   if (!session.authenticated)
     blockers.unshift("请登录客户工作空间后启动任务。");
   if (strategy.available) {
     if (!service.execution) blockers.push("策略可先确认；签名执行接入尚未完成，当前不会启动采集。");
     // This protocol has no billing reservation or schedule; keep those original contracts gated.
-    if (service.execution && (draft.mode !== "once" || draft.research))
+    if (service.execution && ((!nativeMonitor && draft.mode !== "once") || draft.research))
       blockers.push("当前签名执行仅支持无研究计费的单次任务；研究用量与监控调度接通前不会启动。");
     if (strategyPreparationError) blockers.push(strategyPreparationError);
     if (!strategy.confirmed) blockers.push("请准备策略快照、核对后主动确认本次策略。");
   }
   if (draft.mode === "monitor") {
-    const scheduleBlocker = scheduleContractBlocker(draft.schedule, service.taskOperations?.scheduleContractVersion);
+    const scheduleBlocker = scheduleContractBlocker(draft.schedule, monitorReady ? 1 : service.taskOperations?.scheduleContractVersion);
     if (scheduleBlocker) blockers.push(scheduleBlocker);
+    if(nativeMonitor && !monitorReady) blockers.push('请等待本机监控能力检查；未接通时只可保存草稿。');
+    if(nativeMonitor && monitors.list?.plans.some(p=>p.strategyVersionId===strategy.prepared?.strategy_version_id)) blockers.push('该策略已有监控计划，请前往监控任务查看或接管。');
   }
   if (draft.research) {
     if (!service.researchUsage || service.taskOperations?.researchContractVersion !== 1)
@@ -387,13 +395,24 @@ export function TaskWizardPage() {
       starting ||
       resultUnknown ||
       !reviewed ||
-      (strategy.available && (!service.execution || desktopExecution.blocksStart || desktopExecution.busy || blockers.length > 0))
+      (strategy.available && (!service.execution || (!nativeMonitor && (desktopExecution.blocksStart || desktopExecution.busy)) || monitors.busy || blockers.length > 0))
     )
       return;
     const snapshot = structuredClone(current.current);
     const usageSnapshot = usage.quote;
     setStarting(true);
     await action.run(async () => {
+      if(nativeMonitor){
+        if(!monitorReady || !strategy.confirmed || !strategy.prepared || !strategy.view || !await strategy.recheck() || !startScope.current())throw new Error('请重新核对当前监控策略。');
+        const [freshProfiles,freshConnections,freshInfo]=await boundedRequest(()=>Promise.all([service.profiles(),service.connections(),service.info()]),{timeoutMessage:'监控启动条件检查超时，尚未创建计划。'});
+        if(!startScope.current())throw new RequestCancelled();
+        const reasons=startBlockers(snapshot,freshProfiles,freshConnections,freshInfo.deviceReady===true,true);
+        if(reasons.length)throw new Error(reasons.join(' '));
+        const result=await monitors.execute(monitorCreateCommand(snapshot,strategy.prepared,strategy.view,freshConnections,crypto.randomUUID()));
+        if(!startScope.current())return;
+        if(result?.state==='RECORDED')navigate(`/monitors/${result.plan.planId}`);
+        return;
+      }
       if (strategy.available) {
         await desktopExecution.start(await validateDesktopStart(crypto.randomUUID()));
         return;
@@ -1205,7 +1224,10 @@ export function TaskWizardPage() {
             我已核对以上画像版本、搜索条件、账号与运行设置
           </label>}
           {action.error && <Notice tone="error">{action.error}</Notice>}
-          {service.execution && <DesktopExecutionRequests
+          {nativeMonitor && <Notice action={<Button onClick={()=>navigate('/monitors')}>查看监控任务与原请求</Button>}>
+            保存并接管后，在客户端在线期间按已确认周期采集；关闭客户端不补跑。{monitors.error}
+          </Notice>}
+          {service.execution && !nativeMonitor && <DesktopExecutionRequests
             key={JSON.stringify([session.userId, session.accountScope])}
             execution={desktopExecution}
             canRetryStart={strategy.available && strategy.confirmed && reviewed && blockers.length === 0 && !resultUnknown && !starting}
@@ -1265,7 +1287,7 @@ export function TaskWizardPage() {
               loading={starting}
               disabled={
                 blockers.length > 0 || !reviewed || resultUnknown || (strategy.available &&
-                  (!strategy.confirmed || desktopExecution.blocksStart || desktopExecution.busy))
+                  (!strategy.confirmed || (nativeMonitor ? monitors.busy : desktopExecution.blocksStart || desktopExecution.busy)))
               }
               onClick={() => void start()}
             >
