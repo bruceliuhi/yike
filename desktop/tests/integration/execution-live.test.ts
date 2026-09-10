@@ -1,13 +1,18 @@
 import {expect, it} from 'vitest';
-import {createPrivateKey, createPublicKey, randomUUID} from 'node:crypto';
+import {createCipheriv, createDecipheriv, createPrivateKey, createPublicKey, randomBytes, randomUUID} from 'node:crypto';
+import {mkdtemp, rm} from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import {createServiceClient} from '../../src/main/serviceClient';
 import {signExecutionOperation} from '../../src/main/executionProofSigner';
 import {executionOperationSchema, type ExecutionOperation} from '../../src/shared/executionOperation';
 import type {ApiResult} from '../../src/shared/contracts';
+import {createExecutionJournal} from '../../src/main/executionJournal';
+import {createExecutionSession} from '../../src/main/executionSession';
 
 const names = ['BASE', 'USER', 'TOKEN', 'NEXT_TOKEN', 'SEED', 'START'] as const;
 it.skipIf(!names.some(name => process.env[`YIKE_EXECUTION_LIVE_${name}`]))(
-  'signs actual server bytes, recovers lost START, leases and cancels across sessions', async () => {
+  'persists actual requests, reconstructs after lost START, leases and cancels across sessions', async () => {
     const values = Object.fromEntries(names.map(name => [name, process.env[`YIKE_EXECUTION_LIVE_${name}`]]));
     expect(Object.values(values).every(Boolean)).toBe(true);
     expect(Object.keys(process.env).filter(name => /DATABASE|^POSTGRES_/i.test(name))).toEqual([]);
@@ -21,6 +26,20 @@ it.skipIf(!names.some(name => process.env[`YIKE_EXECUTION_LIVE_${name}`]))(
     const key = {scope: {serviceOrigin: base, userId: values.USER!, deviceId: start.device_id},
       privateKey: privateKey.export({format: 'pem', type: 'pkcs8'}).toString(),
       publicKey: createPublicKey(privateKey).export({format: 'jwk'}).x!};
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'yike-execution-live-'));
+    const protectionKey = randomBytes(32);
+    // Test protection only: native Windows safeStorage has separate lifecycle evidence.
+    const protection = {isEncryptionAvailable: () => true,
+      encryptString(value: string) {
+        const iv = randomBytes(12); const cipher = createCipheriv('aes-256-gcm', protectionKey, iv);
+        return Buffer.concat([iv, cipher.update(value, 'utf8'), cipher.final(), cipher.getAuthTag()]);
+      },
+      decryptString(bytes: Buffer) {
+        const cipher = createDecipheriv('aes-256-gcm', protectionKey, bytes.subarray(0, 12));
+        cipher.setAuthTag(bytes.subarray(-16));
+        return Buffer.concat([cipher.update(bytes.subarray(12, -16)), cipher.final()]).toString('utf8');
+      }};
+    try {
     let cookie = '';
     let loseStart = true;
     let applyCalls = 0;
@@ -40,6 +59,14 @@ it.skipIf(!names.some(name => process.env[`YIKE_EXECUTION_LIVE_${name}`]))(
       }
       return response;
     }});
+    let epoch = randomUUID();
+    const activeSession = () => {
+      const original = epoch;
+      return {userId: values.USER!, sessionId: original, isCurrent: () => original === epoch};
+    };
+    const newCoordinator = () => createExecutionSession({serviceOrigin: base, transport: client,
+      journal: createExecutionJournal({directory, protection}), vault: {read: async () => key}});
+    let coordinator = newCoordinator();
     function data(result: ApiResult): any {
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error('expected successful execution HTTP response: ' + result.error);
@@ -50,12 +77,19 @@ it.skipIf(!names.some(name => process.env[`YIKE_EXECUTION_LIVE_${name}`]))(
       return signExecutionOperation({key, prepared, expected: {serviceOrigin: base, userId: values.USER!, request}});
     }
     async function apply(request: ExecutionOperation) {
-      return client.requestExecution({operation: 'execution.apply', payload: await signed(request)});
+      const result = await coordinator.submit(activeSession(), request);
+      expect(result.state).toBe('RECORDED');
+      if (result.state !== 'RECORDED') throw new Error('execution must have recorded receipt');
+      return {ok: true, status: 200, data: result.receipt} as const;
     }
     data(await client.request({operation: 'session.login', payload: {token: values.TOKEN}}));
-    expect(await apply(start)).toMatchObject({ok: false, status: 0, error: 'SERVICE_UNAVAILABLE'});
+    expect(await coordinator.submit(activeSession(), start)).toEqual({state: 'UNKNOWN', requestId: start.request_id});
     expect(applyCalls).toBe(1);
-    const begun = data(await client.requestExecution({operation: 'execution.receipt', payload: {request_id: start.request_id}}));
+    coordinator = newCoordinator(); // No in-memory request state retained.
+    const recovered = await coordinator.recover(activeSession(), start.request_id);
+    expect(recovered.state).toBe('RECORDED');
+    if (recovered.state !== 'RECORDED') throw new Error('original receipt missing');
+    const begun: any = recovered.receipt;
     expect(begun.status).toBe('PENDING');
     expect(applyCalls).toBe(1);
     const claim = executionOperationSchema.parse({schema_version: start.schema_version, request_id: randomUUID(),
@@ -69,11 +103,22 @@ it.skipIf(!names.some(name => process.env[`YIKE_EXECUTION_LIVE_${name}`]))(
     const cancel = executionOperationSchema.parse({schema_version: start.schema_version, request_id: randomUUID(),
       operation: 'CANCEL', device_id: start.device_id, credential_version: 1, task_id: begun.task_id});
     const stale = await signed(cancel);
+    const oldSession = activeSession();
+    epoch = randomUUID();
     data(await client.request({operation: 'session.logout'}));
+    expect(await coordinator.recover(oldSession, start.request_id)).toEqual({state: 'SESSION_CHANGED'});
     expect(await client.requestExecution({operation: 'execution.receipt', payload: {request_id: start.request_id}})).toMatchObject({ok: false, status: 401});
     data(await client.request({operation: 'session.login', payload: {token: values.NEXT_TOKEN}}));
     expect(await client.requestExecution({operation: 'execution.apply', payload: stale})).toMatchObject({ok: false, error: 'invalid_proof'});
     expect(data(await apply(cancel))).toMatchObject({status: 'CANCELLING', stop_confirmed: false});
     expect(data(await client.requestExecution({operation: 'execution.task', payload: {task_id: begun.task_id}}))).toMatchObject({status: 'CANCELLING'});
     expect(data(await client.requestExecution({operation: 'execution.receipt', payload: {request_id: start.request_id}}))).toEqual(begun);
+    const list = await newCoordinator().list(activeSession());
+    expect(list.state).toBe('LIST');
+    if (list.state === 'LIST') expect(list.requests.map(r => r.request_id).sort())
+      .toEqual([start.request_id, claim.request_id, renew.request_id, cancel.request_id].sort());
+    } finally {
+      if (path.dirname(directory) !== path.resolve(os.tmpdir()) || !path.basename(directory).startsWith('yike-execution-live-')) throw new Error('invalid test cleanup path');
+      await rm(directory, {recursive: true, force: true});
+    }
   }, 30_000);
