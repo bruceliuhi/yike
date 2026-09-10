@@ -12,6 +12,8 @@
 
 ## 范围限制与接续
 
+原生Windows补验（同包、未重构）：使用computer-use实际启动上述候选的 `YikeAI.exe`，首屏正常且未登录；打开公开样例，原文摘录/未知复核人/未入客户库标签可见；“多找类似”显示配置预览，创建任务按钮禁用，取消返回原页。Alt+F4正常退出后精确候选路径进程数0；同包再启动恢复未登录首屏，再次退出后进程数0。ASAR实测摘要仍为下述 `6fe6cfb2…`。只证明便携候选的上述原生交互和生命周期，不证明安装、真实客户证据或实际类似搜索；未访问来源网站、登录、发送或修改客户数据。
+
 Windows 候选：`desktop/out/candidate-1a47178/YikeAI-Setup.exe`。410 个 desktop 输入构包前后匹配源码；一次 make、结构校验、实际 main/preload/renderer 严格 smoke（含固定执行 IPC 的未配置服务状态）通过，实际 ASAR 25 个脚本/页面未含本批 TEST 夹具。Setup SHA256 `571dd76d08f41b138db8e6786fc6dfde837c41b6760ca2af498772ad73fe771c`；ASAR `6fe6cfb201fa715c3d73ae951778794fee8ca03544bc6fe3f09ea77f02b7ad86`。NotSigned；未执行安装/卸载。旧 `e5774b6` 候选保留，不冒充本包。
 
 新执行入口仅支持无研究计费的单次任务；研究用量、监控调度、真实来源/runtime 门禁保留。默认运行时仍 NOT_READY，不能把设备 READY、测试场景或安装包当作真实采集成功。真实平台/收发、安装卸载及客户 UAT 尚未完成，05F 和完整 Goal 保持 IN_PROGRESS。
