@@ -39,6 +39,7 @@ class PilotDatabase:
         ("v02-reply-attestation", migration_path.with_name("124_v02_reply_attestation.sql")),
         ("v02-materials", migration_path.with_name("125_v02_materials.sql")),
         ("v02-monitor-plans", migration_path.with_name("126_v02_monitor_plans.sql")),
+        ("v02-monitor-runtime", migration_path.with_name("127_v02_monitor_runtime.sql")),
     )
 
     def __init__(self, url: str):

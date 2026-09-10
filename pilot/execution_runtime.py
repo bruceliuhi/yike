@@ -105,6 +105,7 @@ class ExecutionRuntime:
         self.sessions = PilotSessionRegistry(database)
         self.connections = ConnectionOperationStore(database)
         self.strategy_resolver, self.capability_check = strategy_resolver, capability_check
+        self.monitor_runtime = None
         # A final fence must follow a successful guard on this cursor/transaction.
         # These markers are NOT authority; the full stored join is rechecked.
         self._submission_guards = WeakKeyDictionary()
@@ -278,6 +279,11 @@ class ExecutionRuntime:
             self._connection(cursor, claims, request.device_id, target)
         snapshot = self._strategy(cursor, claims, tenant, request.profile_version_id,
             request.strategy_version_id, request.configuration_sha256, request.targets)
+        occurrence_id = None
+        if snapshot['configuration'].get('mode') == 'monitor':
+            if self.monitor_runtime is None:
+                raise ExecutionRuntimeError('monitor_occurrence_required')
+            occurrence_id = self.monitor_runtime.guard_start(cursor, claims, tenant, request, snapshot)
         task_id, run_id = str(uuid4()), str(uuid4())
         now = self._now(cursor)
         cursor.execute('INSERT INTO pilot_collection_tasks(tenant_id,owner_user_id,task_id,device_id,'
@@ -297,6 +303,8 @@ class ExecutionRuntime:
                 (tenant, claims.user_id, task_id, run_id, platform_id, request.device_id, request.profile_version_id,
                  target.platform, index, target.access_mode, target.connection_id, target.connection_version, request.credential_version))
             platforms.append(dict(platform_run_id=platform_id, platform=target.platform, status='PENDING'))
+        if occurrence_id is not None:
+            self.monitor_runtime.link_start(cursor, claims, tenant, occurrence_id, task_id, run_id)
         return dict(task_id=task_id, run_id=run_id, status='PENDING', stop_confirmed=False, platform_runs=platforms)
 
     def _peek_task(self, cursor, tenant, user, task_id):
@@ -327,6 +335,10 @@ class ExecutionRuntime:
 
     def _versions(self, cursor, claims, tenant, task, platform_id, device_id):
         if task['device_id'] != device_id: raise ExecutionRuntimeError('device_unavailable', 404)
+        if task['configuration_snapshot'].get('configuration', {}).get('mode') == 'monitor':
+            if self.monitor_runtime is None:
+                raise ExecutionRuntimeError('monitor_occurrence_required')
+            self.monitor_runtime.guard_task(cursor, claims, tenant, task)
         cursor.execute('SELECT * FROM pilot_collection_platform_runs WHERE tenant_id=%s AND owner_user_id=%s '
             'AND task_id=%s AND platform_run_id=%s', (tenant, claims.user_id, task['task_id'], platform_id))
         platform = _row(cursor)
