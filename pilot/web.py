@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from html import escape
+from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import Cookie, FastAPI, Form, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.concurrency import run_in_threadpool
 from urllib.parse import urlsplit
 import logging
 from pilot.auth import InvalidPilotToken
@@ -48,12 +50,24 @@ def _page(title: str, body: str) -> HTMLResponse:
 def build_app(store, *, auth_secret: str, dev_login: bool = False,
               phone_auth=None, sms_sender=None, execution_runtime=None, candidate_ingestion=None,
               candidate_review=None, research_strategies=None, reply_store=None, contact_drafts=None,
-              outreach_queue=None, materials=None, monitor_plans=None, monitor_runtime=None) -> FastAPI:
+              outreach_queue=None, materials=None, monitor_plans=None, monitor_runtime=None,
+              search_suggestions=None) -> FastAPI:
+    @asynccontextmanager
+    async def lifespan(_app):
+        try:
+            yield
+        finally:
+            if search_suggestions is not None:
+                stopped = await run_in_threadpool(search_suggestions.close, timeout_seconds=5)
+                if not stopped:
+                    raise RuntimeError("search_suggestion_shutdown_unconfirmed")
+
     app = FastAPI(
         title="意客 AI 客户试用",
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
+        lifespan=lifespan,
     )
     static_dir = Path(__file__).resolve().parent.parent / "static"
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -292,6 +306,7 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False,
                     phone_auth=phone_auth, sms_sender=sms_sender, execution_runtime=execution_runtime,
                     contact_drafts=contact_drafts,
                     materials=materials,
+                    search_suggestions=search_suggestions,
                     monitor_plans=monitor_plans,
                     monitor_runtime=monitor_runtime,
                     outreach_queue=outreach_queue,

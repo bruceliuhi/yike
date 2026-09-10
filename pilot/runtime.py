@@ -21,6 +21,10 @@ from pilot.foreground_collection import configured_collection_policy
 from pilot.research_strategies import ResearchStrategyStore
 from pilot.reply_store import ReplyEventStore
 from pilot.signed_replies import SignedReplyStore
+from pilot.search_suggestion_model import SearchSuggestionError
+from pilot.search_suggestion_process import ProcessSearchSuggestionModel
+from pilot.search_suggestion_service import SearchSuggestionService
+from pilot.search_suggestions import SearchSuggestionStore
 from pilot.store import PilotStore
 from pilot.web import build_app
 
@@ -30,6 +34,25 @@ _ASSESSMENT_CONFIGURATION = (
     "YIKE_PILOT_ASSESSMENT_API_KEY",
     "YIKE_PILOT_ASSESSMENT_MODEL",
 )
+
+_SUGGESTION_CONFIGURATION = (
+    "YIKE_PILOT_SEARCH_SUGGESTION_BASE_URL",
+    "YIKE_PILOT_SEARCH_SUGGESTION_API_KEY",
+    "YIKE_PILOT_SEARCH_SUGGESTION_MODEL",
+)
+
+
+def _suggestion_model(environment: Mapping[str, str]):
+    values = tuple(environment.get(name, "") for name in _SUGGESTION_CONFIGURATION)
+    present = tuple(bool(value.strip()) for value in values)
+    if not any(present):
+        return None
+    if all(present):
+        try:
+            return ProcessSearchSuggestionModel(base_url=values[0], api_key=values[1], model=values[2])
+        except SearchSuggestionError:
+            pass
+    raise RuntimeError("invalid_search_suggestion_configuration")
 
 
 def _assessment_model(environment: Mapping[str, str]):
@@ -94,5 +117,6 @@ def build_runtime_app(
         reply_store=replies,
         contact_drafts=drafts,
         materials=MaterialStore(database, model=MaterialExtractionModel(model) if model is not None else None),
+        search_suggestions=SearchSuggestionService(SearchSuggestionStore(database), model=_suggestion_model(environment)),
         outreach_queue=queue,
     )

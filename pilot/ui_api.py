@@ -146,7 +146,8 @@ _CAPABILITIES = {
 def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = False,
                     phone_auth=None, sms_sender=None, execution_runtime=None, candidate_ingestion=None,
                     candidate_review=None, research_strategies=None, reply_store=None, contact_drafts=None,
-                    outreach_queue=None, materials=None, monitor_plans=None, monitor_runtime=None) -> None:
+                    outreach_queue=None, materials=None, monitor_plans=None, monitor_runtime=None,
+                    search_suggestions=None) -> None:
     # The enclosing pilot app retains its same-Origin middleware and security
     # headers. This router deliberately does not install a permissive CORS rule.
     router = APIRouter(prefix="/api/ui", route_class=_UiRoute)
@@ -319,11 +320,15 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
 
     @router.get("/capabilities")
     def capabilities():
-        return {"capabilities": {name: {"available": available} for name, available in capabilities_state.items()}}
+        state = dict(capabilities_state)
+        state["search_suggestions"] = bool(search_suggestions is not None and search_suggestions.available)
+        return {"capabilities": {name: {"available": available} for name, available in state.items()}}
 
     @router.post("/capabilities/{capability}")
     def unavailable_capability(capability: str, request: Request):
-        if capability not in capabilities_state or capabilities_state[capability]:
+        available = (bool(search_suggestions is not None and search_suggestions.available)
+                     if capability == "search_suggestions" else capabilities_state.get(capability, False))
+        if capability not in capabilities_state or available:
             raise _error(404, "capability_not_found", "未找到该能力入口。")
         if capability != "sms_login":
             identity(request)
@@ -347,6 +352,8 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
     register_contact_draft_api(router, contact_drafts, identity, require_session_https)
     from pilot.material_api import register_material_api
     register_material_api(router, materials, identity, require_session_https)
+    from pilot.search_suggestion_api import register_search_suggestion_api
+    register_search_suggestion_api(router, search_suggestions, identity, require_session_https)
     from pilot.outreach_queue_api import register_outreach_queue_api
     register_outreach_queue_api(router, outreach_queue, identity, require_session_https)
     from pilot.phone_api import register_phone_api
