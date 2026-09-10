@@ -28,6 +28,7 @@ import { safeReturnTo } from "../domain/routes";
 import { errorMessage, ServiceError } from "../services/contracts";
 import { mergeConnectionRead } from "../services/connectionRegistry";
 import { ConnectionRegistryTable } from "./connections/ConnectionRegistryTable";
+import { PortableRuntimeNotice } from "./connections/PortableRuntimeNotice";
 
 type ConnectingState =
   | "idle"
@@ -195,6 +196,7 @@ export function ConnectionsPage() {
   return (
     <>
       <PageHeader title="账号与授权" />
+      <PortableRuntimeNotice />
       <div className="section-heading">
         <Tabs
           items={[

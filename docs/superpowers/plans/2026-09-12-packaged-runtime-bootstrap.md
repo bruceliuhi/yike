@@ -23,7 +23,7 @@ Base `28e063a`。执行既有Windows离线交付设计的接续，不增加下�
 
 ## Task 2 — build绑定与Node bootstrap（根代理）
 
-新增desktop共享portableManifest校验/文件复核、main bootstrap及定向tests；Forge explicit `YIKE_PORTABLE_BUNDLE_PATH`/`YIKE_PORTABLE_BUNDLE_SHA256`绑定复制到resources/yike-portable，Vite编译digest常量；开发模式原配置保留。安装器固定上述CLI，用清洁环境，不继承Python/Git/数据库变量；有界stdout/超时/close与取消。返回原PlatformLoginDriverOptions固定子路径。正式包不使用env配置。状态GET专用只读IPC（NOT_REQUIRED/PREPARING/READY/FAILED），不给renderer传路径/摘要替换参数。
+新增desktop共享portableManifest校验/文件复核、main bootstrap及定向tests；Forge explicit `YIKE_PORTABLE_BUNDLE_PATH`/`YIKE_PORTABLE_BUNDLE_SHA256`绑定复制到resources，因packager原extraResource保持源目录名，Vite将受限ASCII资源目录名与digest一起编译进常量；客户不能替换两者。开发start模式原配置保留。安装器固定上述CLI，用清洁环境，不继承Python/Git/数据库变量；有界stdout/超时/close与取消。返回原PlatformLoginDriverOptions固定子路径。正式包不使用env配置。状态GET专用只读IPC（NOT_REQUIRED/PREPARING/READY/FAILED），不给renderer传路径/摘要替换参数。
 
 ## Task 3 — existing main/UI组合（根代理）
 

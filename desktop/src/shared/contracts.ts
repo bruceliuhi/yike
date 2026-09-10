@@ -13,6 +13,7 @@ export type DesktopStatus =
 export interface YikeDesktopApi {
   getRuntimeStatus(): Promise<DesktopStatus>;
   getClientInfo(): Promise<ClientInfo>;
+  getPortableRuntimeStatus?():Promise<import('./portableRuntime').PortableRuntimeStatus>;
   getDeviceIdentityStatus?(): Promise<import('./deviceIdentity').DeviceIdentityStatus>;
   prepareDeviceIdentity?(options?: import('./deviceIdentity').DeviceIdentityRetry): Promise<import('./deviceIdentity').DeviceIdentityStatus>;
   executionCommand?(command: import('./desktopExecution').DesktopExecutionCommand): Promise<import('./desktopExecution').DesktopExecutionResult>;

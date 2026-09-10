@@ -9,7 +9,7 @@ describe('preload export bridge', () => {
     expect(mocks.expose).toHaveBeenCalledOnce();
     const [name, api] = mocks.expose.mock.calls[0] as [string, YikeDesktopApi];
     expect(name).toBe('yikeDesktop'); expect(Object.isFrozen(api)).toBe(true);
-    expect(Object.keys(api).sort()).toEqual(['copyText','executionCommand','foregroundCollectionCommand','getClientInfo','getDeviceIdentityStatus','getRuntimeStatus','nativeOutreachCommand','openExternal','platformConnectionCommand','prepareDeviceIdentity','requestApi','saveExport']);
+    expect(Object.keys(api).sort()).toEqual(['copyText','executionCommand','foregroundCollectionCommand','getClientInfo','getDeviceIdentityStatus','getPortableRuntimeStatus','getRuntimeStatus','nativeOutreachCommand','openExternal','platformConnectionCommand','prepareDeviceIdentity','requestApi','saveExport']);
     const request = {format: 'csv' as const, name: 'TEST.csv', content: 'TEST'};
     expect(await api.saveExport(request)).toEqual({status: 'cancelled'});
     expect(mocks.invoke).toHaveBeenCalledWith(SAVE_EXPORT_CHANNEL, request);
@@ -30,5 +30,7 @@ describe('preload export bridge', () => {
     await api.nativeOutreachCommand!(cancel);
     expect(mocks.invoke).toHaveBeenCalledWith('desktop:native-outreach',cancel);
     expect(api).not.toHaveProperty('requestOutreach');
+    await api.getPortableRuntimeStatus!();
+    expect(mocks.invoke).toHaveBeenCalledWith('desktop:portable-runtime-status');
   });
 });

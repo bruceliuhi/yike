@@ -41,6 +41,10 @@ import {createNativeOutreachController} from './nativeOutreachController';
 import {createPlatformOutreachDriver} from './platformOutreachDriver';
 import {createOutreachConsumptionJournal} from './outreachConsumptionJournal';
 import {createOutreachResultOutbox} from './outreachResultOutbox';
+import {createPortableBootstrap} from './portableBootstrap';
+import {PORTABLE_RUNTIME_STATUS_CHANNEL} from '../shared/portableRuntime';
+import type {PlatformLoginDriverOptions} from './platformLoginDriver';
+declare const __YIKE_PORTABLE_PIN__:{sha256:string;resourceName:string}|null;
 
 protocol.registerSchemesAsPrivileged([
   {scheme: 'yike', privileges: {standard: true, secure: true, supportFetchAPI: true}}
@@ -52,6 +56,9 @@ let startupFailed = false;
 let platformConnection:ReturnType<typeof createPlatformConnectionController>|null=null;
 let foregroundCollection:ReturnType<typeof createForegroundCollectionController>|null=null;
 let nativeOutreach:ReturnType<typeof createNativeOutreachController>|null=null;
+let portableBootstrap:ReturnType<typeof createPortableBootstrap>|null=null;
+let runtimeStartup:Promise<void>|null=null;
+let runtimeSetupFailed=false;
 let platformShutdown:Promise<void>|null=null;
 let platformStopped=false;
 
@@ -184,27 +191,36 @@ async function startApplication(): Promise<void> {
     execution: createExecutionSession({serviceOrigin: baseUrl, transport: identity, vault,
       journal: executionJournal})});
   const loginConfiguration=platformLoginConfiguration({env:process.env,packaged:app.isPackaged,platform:process.platform,userData:app.getPath('userData')});
-  if(baseUrl!==null && loginConfiguration!==null) {
+  async function attachPlatformRuntime(loginConfiguration:PlatformLoginDriverOptions) {
+    if(baseUrl===null||quitting)return;
     // These empty parents contain only UUID-named leaves; Python creates each cookie/output leaf with native private ACLs.
-    await mkdir(loginConfiguration.profileRoot,{recursive:true});
-    await mkdir(loginConfiguration.outputRoot,{recursive:true});
+    const outputRoot=path.join(app.getPath('userData'),'platform-collection-output');
+    const outreachOutputRoot=path.join(app.getPath('userData'),'platform-outreach-output');
+    await Promise.all([loginConfiguration.profileRoot,loginConfiguration.outputRoot,outputRoot,outreachOutputRoot].map(p=>mkdir(p,{recursive:true})));
+    if(quitting)return;
     platformConnection=createPlatformConnectionController({serviceOrigin:baseUrl,identity,
       store:profileStore,
       login:createPlatformLoginDriver(loginConfiguration)});
-    const outputRoot=path.join(app.getPath('userData'),'platform-collection-output');
-    await mkdir(outputRoot,{recursive:true});
     foregroundCollection=createForegroundCollectionController({serviceOrigin:baseUrl,identity,store:profileStore,
       configuration:{...loginConfiguration,outputRoot},executionJournal,candidateJournal,
       sessions:scope=>({execution:createExecutionSession({serviceOrigin:baseUrl,transport:scope.transport,vault,journal:executionJournal}),
         candidates:createCandidateSession({serviceOrigin:baseUrl,transport:scope.transport,vault,journal:candidateJournal})})});
-    const outreachOutputRoot=path.join(app.getPath('userData'),'platform-outreach-output');
-    await mkdir(outreachOutputRoot,{recursive:true});
     nativeOutreach=createNativeOutreachController({serviceOrigin:baseUrl,identity,store:profileStore,vault,
       journal:createOutreachConsumptionJournal({directory:path.join(app.getPath('userData'),'outreach-consumption'),protection}),
       outbox:createOutreachResultOutbox({directory:path.join(app.getPath('userData'),'outreach-results'),protection}),
       driver:(context,profileId)=>createPlatformOutreachDriver({...loginConfiguration,outputRoot:outreachOutputRoot,
         profileId,connection:context.connection})});
   }
+  if(loginConfiguration!==null)await attachPlatformRuntime(loginConfiguration);
+  const packagedWindows=app.isPackaged&&process.platform==='win32';
+  if(packagedWindows){
+    const pin=typeof __YIKE_PORTABLE_PIN__==='undefined'?null:__YIKE_PORTABLE_PIN__;
+    if(pin)portableBootstrap=createPortableBootstrap({resourcesPath:process.resourcesPath,userData:app.getPath('userData'),pin});
+    else runtimeSetupFailed=true;
+  }
+  ipcMain.handle(PORTABLE_RUNTIME_STATUS_CHANNEL,event=>{
+    trustedSender(event);return runtimeSetupFailed?{state:'FAILED'}:portableBootstrap?.status()??{state:'NOT_REQUIRED'};
+  });
   ipcMain.handle(NATIVE_OUTREACH_CHANNEL,(event,command:unknown)=>{
     trustedSender(event);
     return nativeOutreach?nativeOutreach.execute(command):{state:'FAILED',error:'OUTREACH_FAILED'};
@@ -278,6 +294,9 @@ async function startApplication(): Promise<void> {
   }));
   installMenu();
   createMainWindow();
+  if(portableBootstrap)runtimeStartup=portableBootstrap.start().then(async configuration=>{
+    if(configuration&&!quitting)await attachPlatformRuntime(configuration);
+  }).catch(()=>{runtimeSetupFailed=true;});
   app.on('activate', () => {
     if (!quitting && !startupFailed && BrowserWindow.getAllWindows().length === 0) createMainWindow();
   });
@@ -285,14 +304,16 @@ async function startApplication(): Promise<void> {
 
 app.on('before-quit', event => {
   quitting = true;
-  if((platformConnection || foregroundCollection || nativeOutreach) && !platformStopped) {
+  if((platformConnection || foregroundCollection || nativeOutreach || portableBootstrap) && !platformStopped) {
     event.preventDefault();
-    if(!platformShutdown)platformShutdown=Promise.allSettled([platformConnection?.shutdown(),foregroundCollection?.shutdown(),nativeOutreach?.stop()]).then(results=>{
+    if(!platformShutdown)platformShutdown=Promise.allSettled([platformConnection?.shutdown(),foregroundCollection?.shutdown(),nativeOutreach?.stop(),portableBootstrap?.stop(),runtimeStartup]).then(results=>{
       if(results.some(r=>r.status==='rejected'))throw new Error('PLATFORM_STOP_UNCONFIRMED');
+      platformStopped=true;app.quit();
     }).catch(()=>{
+      platformShutdown=null;quitting=false;
       console.error('YIKE_PLATFORM_LOGIN_STOP_UNCONFIRMED');
       dialog.showErrorBox('平台浏览器停止状态未确认','本次登录或采集的停止状态未确认。请核对平台浏览器是否仍在运行，再重新打开客户端；不要重复启动原任务。');
-    }).finally(()=>{platformStopped=true;app.quit();});
+    });
   }
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

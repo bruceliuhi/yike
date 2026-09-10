@@ -3,6 +3,9 @@ import {VitePlugin} from '@electron-forge/plugin-vite';
 import {MakerZIP} from '@electron-forge/maker-zip';
 import {AsciiStagingSquirrelMaker} from './build/asciiStagingSquirrel';
 import {resolve} from 'node:path';
+import {portableBuildInput} from './build/portableBuild';
+// Forge start is the existing explicit developer path, never a distributable.
+const portable=process.argv.includes('start')?null:portableBuildInput(process.env,process.platform);
 
 const config: ForgeConfig = {
   packagerConfig: {
@@ -11,7 +14,8 @@ const config: ForgeConfig = {
     executableName: 'YikeAI',
     icon: resolve('assets/yike'),
     appCategoryType: 'public.app-category.business',
-    asar: true
+    asar: true,
+    ...(portable?{extraResource:[portable.source]}:{})
   },
   makers: [
     new MakerZIP({}, ['darwin']),
