@@ -180,6 +180,72 @@ def _stop_process_group(
         time.sleep(min(0.01, remaining))
 
 
+def _run_windows_supervised_process(
+    command: list[str], *, cwd: Path, env: dict[str, str], timeout_seconds: float,
+    cancel_requested: Callable[[], bool] | None, poll_callback: Callable[[], None] | None,
+    poll_interval_seconds: float, terminate_grace_seconds: float,
+) -> SupervisedProcessResult:
+    from app.windows_process_job import launch_job_process
+
+    process, job = launch_job_process(command, cwd=cwd, env=env)
+    deadline = time.monotonic() + timeout_seconds
+    cleanup_started = False
+
+    def stop_and_drain() -> tuple[str, str]:
+        nonlocal cleanup_started
+        cleanup_started = True
+        budget = max(0, terminate_grace_seconds) + 2.0
+        end = time.monotonic() + budget
+        if not job.terminate_and_wait(timeout_seconds=budget):
+            raise OSError('Windows process tree termination unconfirmed')
+        try:
+            return process.communicate(timeout=max(0, end - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            raise OSError('Windows process output drain unconfirmed') from None
+
+    try:
+        while True:
+            if poll_callback is not None:
+                poll_callback()
+            if cancel_requested is not None and cancel_requested():
+                stdout, stderr = stop_and_drain()
+                return SupervisedProcessResult(process.returncode, stdout, stderr, cancelled=True)
+            # A descendant can retain the output pipes after the command/launcher
+            # exits. Observe the parent first, then terminate its remaining tree.
+            original_code = process.poll()
+            if original_code is not None:
+                stdout, stderr = stop_and_drain()
+                return SupervisedProcessResult(original_code, stdout, stderr)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                stdout, stderr = stop_and_drain()
+                return SupervisedProcessResult(process.returncode, stdout, stderr, timed_out=True)
+            try:
+                process.communicate(timeout=min(poll_interval_seconds, remaining))
+            except subprocess.TimeoutExpired:
+                continue
+            original_code = process.returncode
+            stdout, stderr = stop_and_drain()
+            return SupervisedProcessResult(original_code, stdout, stderr)
+    except BaseException:
+        if not cleanup_started:
+            stop_and_drain()
+        raise
+    finally:
+        try:
+            job.close()  # Also kills the tree if prior cleanup was unconfirmed.
+        finally:
+            # Closing the Job does not reap Popen or release its output pipes.
+            # Drain first: closing a pipe with a live reader can block indefinitely.
+            try:
+                process.communicate(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                raise OSError('Windows process output drain unconfirmed') from None
+            else:
+                process.stdout.close()
+                process.stderr.close()
+
+
 def run_supervised_process(
     command: list[str],
     *,
@@ -191,7 +257,12 @@ def run_supervised_process(
     poll_interval_seconds: float = 0.1,
     terminate_grace_seconds: float = 2.0,
 ) -> SupervisedProcessResult:
-    """Run one command in an isolated session and own its full process group."""
+    """Run one command and own its POSIX process group or Windows Job tree."""
+    if sys.platform == 'win32':
+        return _run_windows_supervised_process(command, cwd=cwd, env=env,
+            timeout_seconds=timeout_seconds, cancel_requested=cancel_requested,
+            poll_callback=poll_callback, poll_interval_seconds=poll_interval_seconds,
+            terminate_grace_seconds=terminate_grace_seconds)
     process = subprocess.Popen(
         command,
         cwd=cwd,

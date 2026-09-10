@@ -828,6 +828,9 @@ def test_stop_process_group_bounds_post_kill_parent_drain(monkeypatch):
 def test_supervisor_does_not_repeat_unconfirmed_cleanup(tmp_path, monkeypatch, cancel):
     from app.collector import run_supervised_process
 
+    # This test doubles _stop_process_group: select the POSIX branch explicitly.
+    # Windows Job failure handling is exercised with real owned processes separately.
+    monkeypatch.setattr("app.collector.sys.platform", "linux")
     stopped = []
     monkeypatch.setattr("app.collector.subprocess.Popen", lambda *args, **kwargs: object())
 
@@ -874,7 +877,11 @@ def test_supervisor_uses_new_process_session_without_shell(tmp_path, monkeypatch
 
     assert result.returncode == 0
     assert result.stdout.strip() == "ready"
-    assert observed["start_new_session"] is True
+    if sys.platform == "win32":
+        assert observed["creationflags"] & subprocess.CREATE_NO_WINDOW
+        assert observed["close_fds"] is True
+    else:
+        assert observed["start_new_session"] is True
     assert observed["shell"] is False
 
 
