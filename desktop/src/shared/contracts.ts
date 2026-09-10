@@ -48,6 +48,7 @@ export const API_OPERATIONS = [
   'session.requestCode', 'session.loginPhone',
   'profiles.list', 'profiles.save', 'profiles.confirm',
   'connections.list',
+  'taskFeed.list', 'taskFeed.get',
   'opportunities.list', 'opportunities.get', 'followups.list', 'followups.add',
   'replies.evidence',
   'strategies.prepare', 'strategies.confirm', 'strategies.revoke', 'strategies.receipt', 'strategies.get',

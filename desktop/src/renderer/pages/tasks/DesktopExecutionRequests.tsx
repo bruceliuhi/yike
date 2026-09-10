@@ -2,9 +2,10 @@ import {useState} from 'react';
 import {Button, Notice} from '../../components/ui';
 import type {DesktopStartCommand, useDesktopExecution} from './useDesktopExecution';
 
-export function DesktopExecutionRequests({execution, canRetryStart, validateStart}: {
+export function DesktopExecutionRequests({execution, canRetryStart, canRetryCancel = true, validateStart}: {
   execution: ReturnType<typeof useDesktopExecution>;
   canRetryStart: boolean;
+  canRetryCancel?: boolean;
   validateStart: (requestId: string) => Promise<DesktopStartCommand>;
 }) {
   const [retry, setRetry] = useState<Record<string, boolean>>({});
@@ -23,14 +24,14 @@ export function DesktopExecutionRequests({execution, canRetryStart, validateStar
       const collection = entry.collection;
       const recoveryChecked = recovery.identity === execution.identity && recovery.checked[entry.requestId] === true;
       const canRecover = collection?.state === 'STATUS' && collection.recoverable;
-      const canRetry = entry.operation === 'CANCEL' || entry.operation === 'START' && canRetryStart;
+      const canRetry = entry.operation === 'CANCEL' && canRetryCancel || entry.operation === 'START' && canRetryStart;
       const retryChecked = canRetry && retry[entry.requestId] === true;
       const cancelExists = receipt?.operation === 'START' && execution.entries.some(value => value.operation === 'CANCEL' &&
         (value.request?.task_id === receipt.task_id || value.command?.action === 'CANCEL' && value.command.taskId === receipt.task_id));
       return <article key={entry.requestId} className="task-start-blockers">
         <h3>{{START: '启动任务', CANCEL: '取消任务', CLAIM: '领取任务', RENEW: '续期任务', FINISH:'完成登记'}[entry.operation]} · 原执行请求</h3><p className="field-hint">{entry.requestId}</p>
         <p>{receipt?.operation === 'START' ? '原启动回执：任务已创建，当时待执行；不是当前任务状态，不代表采集成功。'
-          : receipt?.operation === 'CANCEL' ? receipt.stop_confirmed ? '任务已确认停止。' : '取消已登记，等待停止确认。'
+          : receipt?.operation === 'CANCEL' ? receipt.stop_confirmed ? '服务端已登记停止；本机来源请另行核对。' : '取消已登记，等待停止确认。'
           : receipt?.operation === 'FINISH' ? '已核对历史完成回执；它记录当时结果，不是当前执行授权。'
           : receipt ? '已核对历史租约回执，不代表当前仍有执行授权。'
           : `原请求待核对（${entry.state || '未查询'}）；未查到不表示请求失败。`}</p>

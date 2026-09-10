@@ -36,6 +36,7 @@ export function errorMessage(error: unknown): string {
       : "操作未完成，请重试。";
 }
 export interface YikeService {
+  taskFeed?: import('./taskFeed').TaskFeedService;
   monitorCollection?: import('./monitorCollection').MonitorCollectionService;
   execution?: import('./desktopExecution').DesktopExecutionService;
   foregroundCollection?: import('./foregroundCollection').ForegroundCollectionService;

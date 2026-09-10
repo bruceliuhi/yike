@@ -118,16 +118,20 @@ export function useDesktopExecution(prepared: StrategyReceipt | null) {
     } else if (retry && entry.operation !== 'CANCEL') throw new Error();
     await dispatch(entry, {action: 'RECOVER', requestId: entry.requestId, ...(retry ? {retry: true, humanConfirmed: true} : {})});
   });
-  const cancel = (supplied: DesktopExecutionEntry, humanConfirmed: boolean) => run(async () => {
-    const entry = latest.current.entries.find(value => value.requestId === supplied.requestId);
-    if (!latest.current.loaded || humanConfirmed !== true || !entry?.receipt || entry.receipt.operation !== 'START') throw new Error();
-    const taskId = entry.receipt.task_id;
+  const submitCancel = async (taskId: string, humanConfirmed: boolean) => {
+    if (!latest.current.loaded || humanConfirmed !== true) throw new Error();
     if (latest.current.entries.some(value => value.operation === 'CANCEL' &&
         (value.request?.task_id === taskId || value.command?.action === 'CANCEL' && value.command.taskId === taskId))) throw new Error();
     const command = desktopExecutionCommandSchema.parse({action: 'CANCEL', requestId: crypto.randomUUID(), taskId, humanConfirmed: true}) as Extract<DesktopExecutionCommand, {action: 'CANCEL'}>;
     const pending: DesktopExecutionEntry = {requestId: command.requestId, operation: 'CANCEL', command, state: 'UNKNOWN'};
     save(pending);
     await dispatch(pending, command);
+  };
+  const cancelTask = (taskId: string, humanConfirmed: boolean) => run(() => submitCancel(taskId, humanConfirmed));
+  const cancel = (supplied: DesktopExecutionEntry, humanConfirmed: boolean) => run(async () => {
+    const entry = latest.current.entries.find(value => value.requestId === supplied.requestId);
+    if (!entry?.receipt || entry.receipt.operation !== 'START') throw new Error();
+    await submitCancel(entry.receipt.task_id, humanConfirmed);
   });
   const collection = (supplied: DesktopExecutionEntry, recover: boolean, humanConfirmed = false) => run(async () => {
     const entry = latest.current.entries.find(value => value.requestId === supplied.requestId);
@@ -150,7 +154,7 @@ export function useDesktopExecution(prepared: StrategyReceipt | null) {
     return prepared && binding?.strategyVersionId === prepared.strategy_version_id &&
       binding.configurationSha256 === prepared.configuration_sha256 && binding.profileVersionId === prepared.profile_version_id;
   });
-  return {...shown, blocksStart, refresh, start, recover, cancel,
+  return {...shown, blocksStart, refresh, start, recover, cancel, cancelTask,
     collectionAvailable:!!collectionApi,
     collectionStatus:(entry:DesktopExecutionEntry) => collection(entry, false),
     recoverCollection:(entry:DesktopExecutionEntry, confirmed:boolean) => collection(entry, true, confirmed)};

@@ -19,6 +19,7 @@ import { createResearchStrategiesService } from "./researchStrategies";
 import { parseOpportunitySourceEvidence } from "../domain/opportunitySourceEvidence";
 import { createCandidateReviewService, CANDIDATE_PLATFORM_LABELS } from "./candidateReview";
 import { createMaterialsService } from "./materials";
+import { createTaskFeedService } from './taskFeed';
 
 type JsonRecord = Record<string, unknown>;
 function bridge(): YikeDesktopApi | undefined {
@@ -267,6 +268,7 @@ function unavailable(name: string): never {
 const candidateReads = createCandidateReviewService(request);
 const platformConnections = createPlatformConnectionService(bridge, () => service.connections());
 export const service: YikeService = {
+  taskFeed: createTaskFeedService(requestRaw),
   materials: createMaterialsService(requestRaw),
   replyEvidence:(opportunityId,signal)=>requestRaw('replies.evidence',`/opportunities/${encodeURIComponent(opportunityId)}/replies/evidence`,'GET',{opportunityId},signal),
   get execution() { return desktopExecution(bridge()); },

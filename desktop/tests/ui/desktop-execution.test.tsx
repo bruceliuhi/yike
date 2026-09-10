@@ -31,6 +31,28 @@ beforeEach(() => {
 afterEach(() => {cleanup(); vi.useRealTimers();});
 
 describe('desktop execution original-request safety', () => {
+  it('cancels a listed task without a local START receipt, preserves unknown and reloads the same cancel', async () => {
+    let stored: ReturnType<typeof executionOperationSchema.parse> | undefined;
+    execute.mockImplementation(async value => {
+      if(value.action==='LIST')return {state:'LIST',requests:stored?[stored]:[]};
+      if(value.action==='CANCEL')stored=executionOperationSchema.parse({schema_version:'execution-runtime-v1',
+        operation:'CANCEL',request_id:value.requestId,device_id:profileId,credential_version:1,task_id:value.taskId});
+      return {state:'UNKNOWN',requestId:value.requestId};
+    });
+    const hook=renderHook(()=>useDesktopExecution(null));
+    await waitFor(()=>expect(hook.result.current.loaded).toBe(true));
+    await act(async()=>{await hook.result.current.cancelTask(taskId,false);});
+    expect(execute.mock.calls.filter(([c])=>c.action==='CANCEL')).toHaveLength(0);
+    await act(async()=>{await hook.result.current.cancelTask(taskId,true);});
+    await act(async()=>{await hook.result.current.cancelTask(taskId,true);});
+    expect(execute.mock.calls.filter(([c])=>c.action==='CANCEL')).toHaveLength(1);
+    hook.unmount();const reopened=renderHook(()=>useDesktopExecution(null));
+    await waitFor(()=>expect(reopened.result.current.loaded).toBe(true));
+    await act(async()=>{await reopened.result.current.cancelTask(taskId,true);});
+    await act(async()=>{await reopened.result.current.recover(reopened.result.current.entries[0]);});
+    expect(execute).toHaveBeenLastCalledWith({action:'RECOVER',requestId:stored!.request_id});
+    expect(execute.mock.calls.filter(([c])=>c.action==='CANCEL')).toHaveLength(1);
+  });
   it('blocks START until LIST succeeds and never treats unreadable LIST as empty history', async () => {
     let finish!: (value: DesktopExecutionResult) => void;
     execute.mockImplementationOnce(() => new Promise(resolve => {finish = resolve;}));

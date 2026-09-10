@@ -31,6 +31,7 @@ import type { CoveragePlanRequest } from "../domain/searchCoverage";
 import "./tasks/tasks.css";
 import { useTaskDraft, useTaskLibrary } from "../app/taskDraft";
 import {NativeMonitorPlans} from './tasks/NativeMonitorPlans';
+import {NativeCollectionTasks} from './tasks/NativeCollectionTasks';
 import {
   Badge,
   Button,
@@ -554,6 +555,7 @@ export function TasksPage({
   onCoveragePlan?: (request: CoveragePlanRequest) => void | Promise<void>;
 } = {}) {
   const {service,route}=useApp();
+  if(service.taskFeed && route.path==='/collection')return <NativeCollectionTasks/>;
   return service.monitorCollection && (route.path==='/monitors'||route.path.startsWith('/monitors/'))
     ? <NativeMonitorPlans/> : <LegacyTasksPage onCoveragePlan={onCoveragePlan}/>;
 }

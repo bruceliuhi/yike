@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {taskFeedQuerySchema,taskFeedGetSchema} from '../shared/taskFeed';
 import {prepareStrategySchema, confirmStrategySchema, revokeStrategySchema, strategyUuidSchema} from '../shared/researchStrategies';
 import {candidateBindingSchema, candidateQuerySchema, candidateReviewRequestSchema, sourceVerificationRequestSchema, candidateRequestIdSchema, type CandidateQueryInput} from '../shared/candidateReviewApi';
 import {materialImpactRequestSchema, materialListRequestSchema, materialMutationRequestSchema, materialOperationRequestSchema} from '../shared/materialsApi';
@@ -15,6 +16,8 @@ const schemas = {
   'session.loginPhone': z.object({phone, code: z.string().length(6).regex(/^[0-9]{6}$/), trial_code: z.string().max(128).optional()}).strict(),
   'profiles.list': empty,
   'connections.list': empty,
+  'taskFeed.list': taskFeedQuerySchema,
+  'taskFeed.get': taskFeedGetSchema,
   'profiles.save': z.object({description: text}).strict(),
   'profiles.confirm': z.object({version_id: identifier}).strict(),
   'opportunities.list': empty,
@@ -61,6 +64,12 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
   if (operation.startsWith('strategies.') && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 128 * 1024) return null;
   const data = parsed.data as Record<string, string> | undefined;
   switch (operation) {
+    case 'taskFeed.list': {
+      const params=new URLSearchParams();
+      for(const [key,value] of Object.entries(parsed.data!))params.set(key,String(value));
+      return {path:'/api/ui/execution-task-feed'+(params.size?'?'+params:''),method:'GET',logout:false};
+    }
+    case 'taskFeed.get': return {path:`/api/ui/execution-task-feed/${data!.taskId}`,method:'GET',logout:false};
     case 'materials.list': {
       const value = parsed.data as {profileVersionId:string};
       return {path:`/api/ui/materials?profileVersionId=${encodeURIComponent(value.profileVersionId)}`,method:'GET',logout:false};
