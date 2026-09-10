@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-11 三平台账号连接源码
+
+`23cae61` 接通小红书、抖音、B站的原生登录平台分派和各自本人账号识别，复用原账号页面、隔离 profile 与版本化连接回执；独立源合入审核 GO。[单一证据及后续](superpowers/plans/2026-09-12-three-platform-login.md#本批实施与证据实际核对日期2026-09-11北京时间)保留首次 NO-GO 和仅一项补测。没有 Windows/真实登录/采集/发送/构包/发布证据，采集能力没有扩大；下一片实现两视频平台采集账号绑定及前台入口，之后周期监控，完整 V0.2 继续。
+
 ## 2026-09-11 小红书实际页面适配
 
 07B已有页面适配（作者主页精确点击重开原帖），本批继续接受监督CHECK/EXECUTE进程桥及TS NativeOutreachChannel，见[当前记录](superpowers/plans/2026-09-11-outreach-process-bridge.md)和[接入合同](contracts/V02_OUTREACH_CHANNELS.md#07b-小红书页面执行接续2026-09-11)。下一步是可信connection/profile解析→main私有派发session→Win确认/结果界面装配；不是再写一套协议。当前没有开放发送入口，未实际外发、未部署，Windows实机仍待验，父卡继续IN_PROGRESS。
