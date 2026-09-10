@@ -6,7 +6,7 @@ import json
 from datetime import datetime
 
 from pilot.auth import InvalidPilotToken, TokenClaims
-from pilot.reply_contract import ManualFollowupEvent, PlatformReplyEvent, parse_reply_event
+from pilot.reply_contract import ManualFollowupEvent, PlatformReplyEvent, mark_read, parse_reply_event, transition_state
 from pilot.sessions import PilotSessionRegistry
 
 
@@ -81,6 +81,38 @@ class ReplyEventStore:
         row = cursor.fetchone()
         return None if row is None else dict(zip((column.name for column in cursor.description), row))
 
+    def _lock_events(self, cursor, tenant, owner, event):
+        # Both uniqueness domains must serialize, even if a conflicting caller
+        # changes the source/platform attached to an existing event UUID.
+        identities = [('event', tenant, owner, event.event_id)]
+        if event.corrects_event_id:
+            identities.append(('event', tenant, owner, event.corrects_event_id))
+        if isinstance(event, PlatformReplyEvent):
+            identities.append(('platform', tenant, owner, event.source_id,
+                event.outreach_request_id, event.platform, event.external_reply_id))
+        for key in sorted({self._lock_key(_json(identity)) for identity in identities}):
+            cursor.execute('SELECT pg_advisory_xact_lock(11801,%s)', (key,))
+
+    @staticmethod
+    def _read_transition(previous, event):
+        try:
+            if not isinstance(previous, PlatformReplyEvent) or event.state != 'ACTIVE': raise ValueError
+            expected = mark_read(previous, read_at=_ts(event.read_at), observed_at=_ts(event.observed_at))
+            if expected != event or _ts(event.observed_at) < _ts(previous.observed_at): raise ValueError
+        except (ValueError, TypeError, AttributeError):
+            raise ReplyStoreError('event_conflict', 409) from None
+
+    @staticmethod
+    def _transition(previous, event):
+        try:
+            transition_state(previous, event)
+            if previous.event_id == event.event_id: raise ValueError
+            if isinstance(previous, PlatformReplyEvent) and any(getattr(previous, key) != getattr(event, key)
+                    for key in ('platform', 'channel', 'external_reply_id', 'sender_public_id')):
+                raise ValueError
+        except ValueError:
+            raise ReplyStoreError('event_transition_invalid', 409) from None
+
     def record(self, claims: TokenClaims, event):
         if not isinstance(event, (PlatformReplyEvent, ManualFollowupEvent)):
             raise ReplyStoreError("invalid_event", 422)
@@ -88,23 +120,39 @@ class ReplyEventStore:
             tenant_id = self._active(cursor, claims)
             if event.tenant_id != tenant_id or event.user_id != claims.user_id:
                 raise ReplyStoreError("event_scope_mismatch", 409)
-            identity = (f"{tenant_id}\0{event.source_id}\0{event.outreach_request_id}\0"
-                        f"{getattr(event, 'platform', 'MANUAL')}\0{getattr(event, 'external_reply_id', event.event_id)}")
-            cursor.execute("SELECT pg_advisory_xact_lock(11801,%s)", (self._lock_key(identity),))
+            self._lock_events(cursor, tenant_id, claims.user_id, event)
             self._active(cursor, claims)
+            # Append-only rows need SELECT, not FOR UPDATE. The transaction's
+            # advisory locks protect inserts, including the absent-first-row case.
+            cursor.execute('SELECT revision,payload,payload_sha256 FROM pilot_reply_events '
+                'WHERE tenant_id=%s AND owner_user_id=%s AND event_id=%s ORDER BY revision DESC',
+                (tenant_id, claims.user_id, event.event_id))
+            prior = cursor.fetchall()
+            stored = None
+            for _, payload, digest in prior:
+                candidate = decode_event(payload, digest)
+                if event_digest(candidate) == event_digest(event):
+                    self._active(cursor, claims)
+                    return candidate  # An exact old revision is historical, not a rollback.
+                if stored is None: stored = candidate
+            if stored is not None:
+                if not isinstance(event, PlatformReplyEvent) or event.state != 'ACTIVE':
+                    raise ReplyStoreError('event_conflict', 409)
+                self._read_transition(stored, event)
+            revision = 1
             if event.state != "ACTIVE":
                 # Corrections/voids are history entries.  They must point at
                 # an existing event in the same owner scope and are keyed by
                 # their own event id, not by the platform identity.
-                cursor.execute("""SELECT 1 FROM pilot_reply_events
+                cursor.execute("""SELECT payload,payload_sha256 FROM pilot_reply_events
                     WHERE tenant_id=%s AND owner_user_id=%s AND event_id=%s
                     ORDER BY revision DESC LIMIT 1""",
                                (tenant_id, claims.user_id, event.corrects_event_id))
-                if cursor.fetchone() is None:
+                target = cursor.fetchone()
+                if target is None:
                     raise ReplyStoreError("event_target_unavailable", 409)
-                cursor.execute("""SELECT event_id,revision,payload,payload_sha256 FROM pilot_reply_events
-                    WHERE tenant_id=%s AND owner_user_id=%s AND event_id=%s ORDER BY revision DESC LIMIT 1 FOR UPDATE""",
-                               (tenant_id, claims.user_id, event.event_id))
+                previous = decode_event(target[0], target[1])
+                self._transition(previous, event)
             elif isinstance(event, PlatformReplyEvent):
                 # A platform reply is accepted only when the same owner has a
                 # durable, human-confirmed origin request for this source and
@@ -119,27 +167,23 @@ class ReplyEventStore:
                     raise ReplyStoreError("reply_origin_unavailable", 409)
                 cursor.execute("""SELECT event_id,revision,payload,payload_sha256 FROM pilot_reply_events
                     WHERE tenant_id=%s AND owner_user_id=%s AND source_id=%s AND outreach_request_id=%s
-                      AND platform=%s AND external_reply_id=%s ORDER BY revision DESC LIMIT 1 FOR UPDATE""",
+                      AND platform=%s AND external_reply_id=%s AND state='ACTIVE' ORDER BY revision DESC LIMIT 1""",
                                (tenant_id, claims.user_id, event.source_id, event.outreach_request_id, event.platform, event.external_reply_id))
-            elif isinstance(event, ManualFollowupEvent):
-                cursor.execute("""SELECT event_id,revision,payload,payload_sha256 FROM pilot_reply_events
-                    WHERE tenant_id=%s AND owner_user_id=%s AND event_id=%s ORDER BY revision DESC LIMIT 1 FOR UPDATE""",
-                               (tenant_id, claims.user_id, event.event_id))
-            existing = self._row(cursor)
-            revision = 1
-            if existing is not None:
-                stored = decode_event(existing["payload"], existing["payload_sha256"])
-                if isinstance(event, PlatformReplyEvent) and event.event_id != stored.event_id:
-                    old = stored.model_dump(mode="json"); new = event.model_dump(mode="json")
+                existing = self._row(cursor)
+                if existing is not None and stored is None:
+                    same_reply = decode_event(existing['payload'], existing['payload_sha256'])
+                    old = same_reply.model_dump(mode="json"); new = event.model_dump(mode="json")
                     old.pop("event_id", None); new.pop("event_id", None)
                     if old != new:
                         raise ReplyStoreError("duplicate_reply_conflict", 409)
-                    return stored
-                if event_digest(stored) == event_digest(event):
-                    return stored
-                if isinstance(event, ManualFollowupEvent) or event.event_id != stored.event_id:
-                    raise ReplyStoreError("event_conflict", 409)
-                revision = existing["revision"] + 1
+                    self._active(cursor, claims)
+                    return same_reply
+            if isinstance(event, PlatformReplyEvent):
+                cursor.execute('SELECT COALESCE(max(revision),0)+1 FROM pilot_reply_events '
+                    'WHERE tenant_id=%s AND owner_user_id=%s AND source_id=%s AND outreach_request_id=%s '
+                    'AND platform=%s AND external_reply_id=%s',
+                    (tenant_id, claims.user_id, event.source_id, event.outreach_request_id, event.platform, event.external_reply_id))
+                revision = cursor.fetchone()[0]
             record = event_record(event, revision)
             sql_record = record | {"tenant_id": tenant_id, "owner_user_id": claims.user_id,
                                    "payload": _json(record["payload"])}
