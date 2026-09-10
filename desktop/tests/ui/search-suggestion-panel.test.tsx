@@ -85,9 +85,28 @@ describe("controlled search suggestion panel", () => {
     const service = { preview: vi.fn(), submit: vi.fn(), getReceipt: vi.fn().mockResolvedValue(receipt(request)) };
     render(<SearchSuggestionPanel {...props(service)} draftId="55555555-5555-4555-8555-555555555555" />);
     expect(await screen.findByText("设备预测性维护")).toBeTruthy();
-    expect(service.getReceipt).toHaveBeenCalledWith(request);
+    expect(service.getReceipt).toHaveBeenCalledWith(request, expect.any(AbortSignal));
     expect(service.submit).not.toHaveBeenCalled();
     expect(screen.getByText(/历史草稿\/画像，只读核对/)).toBeTruthy();
     expect((screen.getByRole("button", { name: "合并新增建议" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("does not apply when the adopting GET resolves after unmount", async () => {
+    let finish!: (value: SuggestionReceipt) => void;
+    let original!: SuggestionRequest;
+    const service = { preview: vi.fn().mockResolvedValue(preview),
+      submit: vi.fn(async (request: SuggestionRequest) => { original = request; return receipt(request); }),
+      getReceipt: vi.fn(() => new Promise<SuggestionReceipt>(resolve => { finish = resolve; })) };
+    const input = props(service);
+    const view = render(<SearchSuggestionPanel {...input} />);
+    fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
+    await screen.findByText(preview.description);
+    fireEvent.click(screen.getByRole("button", { name: "我已核对，发送并生成" }));
+    await screen.findByText("设备预测性维护");
+    fireEvent.click(screen.getByRole("button", { name: "合并新增建议" }));
+    await waitFor(() => expect(service.getReceipt).toHaveBeenCalledOnce());
+    view.unmount();
+    await act(async () => finish(receipt(original)));
+    expect(input.onApply).not.toHaveBeenCalled();
   });
 });

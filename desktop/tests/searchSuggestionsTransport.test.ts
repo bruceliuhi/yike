@@ -43,6 +43,15 @@ describe('governed suggestion transport',()=>{
     const result=await createSearchSuggestionsService(vi.fn().mockResolvedValue({...receipt(),profile_current:false})).getReceipt(request);
     expect(result.profile_current).toBe(false);
   });
+  it('forwards read cancellation and does not dispatch an already cancelled submit',async()=>{
+    const transport=vi.fn().mockResolvedValue(receipt()); const service=createSearchSuggestionsService(transport);
+    const abort=new AbortController();
+    await service.getReceipt(request,abort.signal);
+    expect(transport.mock.calls[0][4]).toBe(abort.signal);
+    abort.abort();
+    await expect(service.submit(request,abort.signal)).rejects.toThrow();
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
   it('rejects wrong preview profile and impossible success state',async()=>{
     await expect(createSearchSuggestionsService(vi.fn().mockResolvedValue({...preview,profile_version_id:id})).preview(profile)).rejects.toThrow();
     await expect(createSearchSuggestionsService(vi.fn().mockResolvedValue({...receipt(),result:null})).submit(request)).rejects.toThrow();

@@ -38,13 +38,20 @@ export interface SearchSuggestionPanelProps {
 
 export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
   const [preview, setPreview] = useState<SuggestionPreview | null>(null);
+  const [previewBinding, setPreviewBinding] = useState("");
   const [record, setRecord] = useState<SearchSuggestionRecord | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const generation = useRef(0);
-  const currentBinding = () => !!record && record.request.draft_id === props.draftId &&
-    record.request.profile_version_id === props.profileVersionId;
+  const viewBinding = `${props.scope?.userId || ""}:${props.scope?.accountScopeId || ""}:${props.scope?.accountScopeVersion ?? ""}:${props.draftId}:${props.profileVersionId}`;
+  const currentBinding = () => !!record && !!props.scope &&
+    record.scope.userId === props.scope.userId && record.scope.accountScopeId === props.scope.accountScopeId &&
+    record.scope.accountScopeVersion === props.scope.accountScopeVersion &&
+    record.request.draft_id === props.draftId && record.request.profile_version_id === props.profileVersionId;
+  const recordInScope = !!record && !!props.scope && record.scope.userId === props.scope.userId &&
+    record.scope.accountScopeId === props.scope.accountScopeId &&
+    record.scope.accountScopeVersion === props.scope.accountScopeVersion;
 
   const persist = (next: SearchSuggestionRecord) => {
     saveSearchSuggestion(next);
@@ -56,9 +63,16 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
     const started = Date.now();
     let receipt = initial;
     while (true) {
-      if (!receipt) receipt = await boundedRequest(() => props.service.getReceipt(base.request), {
-        signal: abort.signal, timeoutMs: REQUEST_MS, timeoutMessage: "原搜索建议回执核对超时。",
-      });
+      if (!receipt) {
+        const remaining = TOTAL_WAIT_MS - (Date.now() - started);
+        if (remaining <= 0) {
+          setError("等待已到45秒，模型请求可能仍在处理；已保留原请求，只能继续核对，不能新建重试。");
+          return;
+        }
+        receipt = await boundedRequest(signal => props.service.getReceipt(base.request, signal), {
+          signal: abort.signal, timeoutMs: Math.min(REQUEST_MS, remaining), timeoutMessage: "原搜索建议回执核对超时。",
+        });
+      }
       if (id !== generation.current || abort.signal.aborted) return;
       if (!sameRequest(receipt, base.request)) throw new Error("搜索建议回执与原请求不一致，请核对原请求。");
       const next = { ...base, receipt };
@@ -80,18 +94,19 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
     const id = ++generation.current;
     controller.current?.abort();
     controller.current = new AbortController();
-    setPreview(null); setRecord(null); setError(""); setBusy(false);
-    if (!props.scope) return;
+    const cleanupEffect = () => { generation.current++; controller.current?.abort(); };
+    setPreview(null); setPreviewBinding(""); setRecord(null); setError(""); setBusy(false);
+    if (!props.scope) return cleanupEffect;
     const loaded = loadSearchSuggestion(props.scope);
-    if (loaded.kind === "error") { setError(loaded.message); return; }
-    if (loaded.kind === "empty") return;
+    if (loaded.kind === "error") { setError(loaded.message); return cleanupEffect; }
+    if (loaded.kind === "empty") return cleanupEffect;
     setRecord(loaded.record);
     setBusy(true);
     void waitForReceipt(loaded.record).catch((reason) => {
       if (id === generation.current && !(reason instanceof RequestCancelled))
         setError(`原搜索建议结果尚无法核验：${errorMessage(reason)} 不会自动重新提交。`);
     }).finally(() => { if (id === generation.current) setBusy(false); });
-    return () => { generation.current++; controller.current?.abort(); };
+    return cleanupEffect;
   }, [props.service, props.scope?.userId, props.scope?.accountScopeId, props.scope?.accountScopeVersion,
     props.draftId, props.profileVersionId]);
 
@@ -101,7 +116,7 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
     if (!props.profileConfirmed || !UUID.test(props.profileVersionId) || !UUID.test(props.draftId)) {
       setError("请选择已确认画像并使用有效草稿后再生成。手工搜索词仍可继续编辑。"); return;
     }
-    if (record) {
+    if (recordInScope && record) {
       const id = generation.current;
       setBusy(true); setError("");
       void waitForReceipt(record).catch((reason) => {
@@ -113,16 +128,18 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
     const id = generation.current;
     setBusy(true); setError("");
     try {
-      const value = await boundedRequest(() => props.service.preview(props.profileVersionId), {
+      const value = await boundedRequest(signal => props.service.preview(props.profileVersionId, signal), {
         signal: controller.current?.signal, timeoutMs: REQUEST_MS, timeoutMessage: "搜索建议说明读取超时，尚未发送业务介绍。",
       });
-      if (id === generation.current && value.profile_version_id === props.profileVersionId) setPreview(value);
+      if (id === generation.current && value.profile_version_id === props.profileVersionId) {
+        setPreviewBinding(viewBinding); setPreview(value);
+      }
     } catch (reason) { if (id === generation.current && !(reason instanceof RequestCancelled)) setError(errorMessage(reason)); }
     finally { if (id === generation.current) setBusy(false); }
   };
 
   const submit = async () => {
-    if (!preview || !props.scope || busy) return;
+    if (!preview || previewBinding !== viewBinding || !props.scope || busy) return;
     const request: SuggestionRequest = {
       request_id: crypto.randomUUID(), draft_id: props.draftId,
       profile_version_id: props.profileVersionId, draft_revision: props.draftRevision,
@@ -133,9 +150,9 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
     const base: SearchSuggestionRecord = { schemaVersion: 1, scope: props.scope, request, receipt: null };
     try { persist(base); } catch (reason) { setError(errorMessage(reason)); return; }
     const id = generation.current;
-    setPreview(null); setBusy(true); setError("");
+    setPreview(null); setPreviewBinding(""); setBusy(true); setError("");
     try {
-      const receipt = await boundedRequest(() => props.service.submit(request), {
+      const receipt = await boundedRequest(signal => props.service.submit(request, signal), {
         signal: controller.current?.signal, timeoutMs: REQUEST_MS,
         timeoutMessage: "提交回执未收到；已保留原请求，只能核对，不能自动重新提交。",
       });
@@ -148,14 +165,14 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
 
   const cancel = () => {
     generation.current++; controller.current?.abort(); controller.current = new AbortController();
-    setBusy(false); setPreview(null);
+    setBusy(false); setPreview(null); setPreviewBinding("");
     setError("已停止本地等待；这不表示模型请求或费用已撤销。原请求仍保留供核对。");
   };
   const apply = async (mode: "append" | "replace_unedited") => {
     if (!record || !props.scope || busy) return;
     const id = generation.current; setBusy(true); setError("");
     try {
-      const receipt = await boundedRequest(() => props.service.getReceipt(record.request), {
+      const receipt = await boundedRequest(signal => props.service.getReceipt(record.request, signal), {
         signal: controller.current?.signal, timeoutMs: REQUEST_MS, timeoutMessage: "采用前核对回执超时，未修改当前草稿。",
       });
       if (id !== generation.current) return;
@@ -176,20 +193,21 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
     else setError("未能安全结束原搜索建议记录。");
   };
 
-  const result = record?.receipt?.state === "SUCCEEDED" ? record.receipt.result : null;
+  const result = recordInScope && record?.receipt?.state === "SUCCEEDED" ? record.receipt.result : null;
   return <>
     <div className="search-heading"><div><h2>搜索条件</h2><Badge tone="blue"><Sparkle size={12} /> AI 建议</Badge></div>
       {busy ? <Button variant="ghost" onClick={cancel}><X />停止本地等待</Button>
         : <Button variant="ghost" onClick={() => void requestPreview()}><ArrowClockwise />
-          {record ? "核对原请求" : props.hasTerms ? "重新生成" : "生成建议"}</Button>}
+          {recordInScope ? "核对原请求" : props.hasTerms ? "重新生成" : "生成建议"}</Button>}
     </div>
     {error && <Notice tone="warning">{error}</Notice>}
-    {record && <Notice tone={record.receipt?.state === "FAILED" ? "warning" : "info"}>
+    {record && record.scope.userId === props.scope?.userId && record.scope.accountScopeId === props.scope?.accountScopeId &&
+      record.scope.accountScopeVersion === props.scope?.accountScopeVersion && <Notice tone={record.receipt?.state === "FAILED" ? "warning" : "info"}>
       原请求 {record.request.request_id} · {record.receipt?.state || "回执待核对"}
       {!currentBinding() && " · 历史草稿/画像，只读核对"}
       {record.receipt && terminal(record.receipt) && <Button variant="ghost" onClick={finish}>结束原请求</Button>}
     </Notice>}
-    {preview && <Modal title="确认发送业务介绍" onClose={() => setPreview(null)} footer={<>
+    {preview && previewBinding === viewBinding && <Modal title="确认发送业务介绍" onClose={() => { setPreview(null); setPreviewBinding(""); }} footer={<>
       <Button onClick={() => setPreview(null)}>暂不发送</Button>
       <Button variant="primary" onClick={() => void submit()}>我已核对，发送并生成</Button>
     </>}>
