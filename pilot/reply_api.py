@@ -15,7 +15,7 @@ from pilot.reply_store import ReplyStoreError
 from pilot.contact_drafts import _Input, DraftError
 from pilot.execution_contract import ExecutionRuntimeError
 from pilot.device_keys import decode_canonical
-from pilot.signed_replies import SignedReplyRequest
+from pilot.signed_replies import SignedReplyRequest, ReplySyncContextRequest
 
 MAX_BODY_BYTES = 256 * 1024
 
@@ -87,6 +87,12 @@ def register_reply_api(router, service, identity, require_session_https):
         signed=signed_service()
         value=await _body(request,ReplyEnvelope)
         return await signed_call(signed.record,claims,value.request.model_dump(),value.signature)
+
+    @router.post('/replies/sync-context')
+    async def reply_sync_context(request: Request):
+        claims=current(request)
+        value=await _body(request,ReplySyncContextRequest)
+        return await signed_call(signed_service().sync_context,claims,value.model_dump())
 
     @router.get('/opportunities/{opportunity_id}/replies/evidence')
     async def reply_evidence(opportunity_id: str,request: Request):
