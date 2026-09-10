@@ -36,4 +36,8 @@ TS：`tests/platformOutreachDriver.test.ts` 定向 5 passed；同批 `tsc --noEm
 
 `createPlatformOutreachDriver({...loginDriverPaths,profileId,connection})` 每次派发构造一个实例；connection/profileId 须由可信 main 同一身份的已确认连接记录解析，不能从 renderer 取路径。`check/execute` 接现有 consumer；`cleanupConfirmed()` 单独表示 host 树清理，false 不抹掉明确回执，main 应停住对应 profile 的后续动作并提示处理。`stop()` 关闭 stdin 并等待退出，不能用 Promise 取消代替物理停止。Win main/IPC 尚未装配。
 
-Python与整批审核待接收；Windows Job/ACL、实际平台发送仍未验。
+Python初稿 `86ca208` 的6项解析用例不足以证明桥接。独立审核结论 **NO-GO**：READY缺真实绑定、等待stdin阻塞监督循环、EXECUTE后EOF不传播、正常退出未排空回执、接收缓冲未限额、未拒绝提前/重复操作。原6项通过不升级为通道成功；修复及真实本机socket（合成页面）定向证据集中见[host报告](2026-09-11-outreach-process-host-report.md)，仅修复差量复审，不重跑旧模块。
+
+Windows Job/ACL、实际平台发送仍未验；本批完成后才更新主交接和推送。
+
+联核补充：TS 停止后再次 CHECK 原先仍会启动子进程，新增单例用例已复现；入口加 stopping/settled 拒绝，针对同一 driver 文件复验6项通过。类型检查复用前次，新增断言不改类型接口。

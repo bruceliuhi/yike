@@ -56,3 +56,8 @@ it('does not launch with an aborted signal or wrong owned connection',async()=>{
   const f=await fixture();f.signal.abort();await expect(f.driver.check(f.context,f.signal.signal)).rejects.toThrow('OUTREACH_HOST_FAILED');expect(f.spawn).not.toHaveBeenCalled();
   const g=await fixture();await expect(g.driver.check({...g.context,connection:{...g.context.connection,connectionId:id()}},g.signal.signal)).rejects.toThrow('OUTREACH_HOST_FAILED');expect(g.spawn).not.toHaveBeenCalled();
 });
+it('cannot reopen a lifetime stopped before CHECK',async()=>{
+  const f=await fixture();await expect(f.driver.stop()).rejects.toThrow('OUTREACH_HOST_FAILED');
+  await expect(f.driver.check(f.context,f.signal.signal)).rejects.toThrow('OUTREACH_HOST_FAILED');
+  expect(f.spawn).not.toHaveBeenCalled();
+});

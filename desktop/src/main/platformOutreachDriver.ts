@@ -78,7 +78,7 @@ export function createPlatformOutreachDriver(options:Options):NativeOutreachChan
   }
   return {
     async check(context,signal){
-      if(started||signal.aborted)throw failure();started=true;
+      if(started||stopping||settled||signal.aborted)throw failure();started=true;
       try{
         snapshot=parseNativeOutreachContext(context);contextWire=JSON.stringify(snapshot);
         if((Object.keys(snapshot.connection) as (keyof OutreachContext['connection'])[]).some(key=>snapshot!.connection[key]!==owned.connection[key])||snapshot.source.platform!=='XIAOHONGSHU'||snapshot.target.action!=='POST_COMMENT')throw failure();
