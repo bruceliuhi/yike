@@ -25,3 +25,14 @@ Workbench已启动判断优先taskFeed.list(limit1)，读取失败保持待核�
 共享candidateQuery和page解析加taskId及请求响应精确绑定；YikeService映射保留taskId。采集详情“查看本次发现线索”→/candidates?task=UUID；待判断页带任务标题/返回任务、说明当前最新版本与去重口径，所有读取保留taskId。默认显示全部状态方便回看已纳入候选，可自行筛选。当前任务参数与sample不可混用；切任务/账号重置作用域，已有候选deep link可以与task交集。
 
 定向测试真实service路径与忽略/错误回显拒绝、首页已有任务/失败、UI按任务筛选/状态切换保留任务/切任务旧确认不提交。最后一次独立整批审核、renderer构建和正常main快进推送；完整goal继续。
+
+## 实施与验证
+
+最终源码 `4ad05d6b6b2c7064821074e7bf7eaf5dec3a8b8f`（后端67402c6，前端2dd4ee8/80c226d，恢复范围修复4ad05d6）。入口：首页已建任务步骤→线索采集→任务详情“查看本次发现线索”→带任务名称的复核页。按历史观察关联任务，呈现候选当前最新版本与当前复核状态，默认全部状态；原文变化和重复观察不冒充净新增商机。任务查询失败或返回错误taskId不当成空列表。
+
+- 后端：API35通过；实PostgreSQL受限角色任务归属/多次观察/最新版本/隔离5通过（48未选），对应HTTP实PG1通过（10未选）。未过滤DTO不变。独立测试容器及合成卷已删除。
+- 前端：新增任务参数及响应绑定1通过（70未选）；首页/按任务复核/晚到响应3通过；任务详情导航1通过（3未选）；已有candidate API合同43通过；类型检查通过。全部为合成UI/协议检查，不是客户或平台效果证据。
+- 独立 `task_results_final_review` 首轮发现1个P2（两个历史请求入口未按任务限定）和2个轻微项。4ad05d6补齐两类history范围、taskId/echo和异步作用域核验；原ledger不删除，非当前页候选可到全部线索核对。补真实打开确认弹窗后切任务且不提交测试；提示观察记录可能跨任务、受条数上限限制，不能保证覆盖全部历史。差量复审GO，全部3项关闭。
+- 修复相关UI/复核/请求hook四文件 `68 passed`（包含上述新UI用例，非额外累计）；类型检查通过。最终源码冻结后单次Vite renderer生产构建通过，产物 `desktop/.vite/renderer/main_window`，不是Electron/Windows安装包。未触发模型、采集、发送或生产部署，未重复全套测试。
+
+后续应接真实AI搜索建议的服务入口及其确认/原请求恢复：已有 `search_suggestion_model/process/worker` 和 PostgreSQL receipt store，但 `service.suggest` 仍不可用，不能将内部模型模块视为普通用户已可用。其余平台、真实Windows、部署和跨行业UAT继续未完成。
