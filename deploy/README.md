@@ -18,7 +18,9 @@ V02-01A/104 与 V02-01B/105 升级必须严格按“迁移→显式最小授权�
 
 123增加单次领取/签名结果：迁移后**同时执行队列授权和[派发授权](grant_outreach_dispatch.sql)**，后者只给新事件表SELECT/INSERT，原队列查询/取消现在也需要这些读取权限；漏授权会拒绝请求，不能按旧122部署。`YIKE_PILOT_OUTREACH_PLATFORMS`默认为空（CLAIM拒绝），仅接受逗号分隔BILIBILI/DOUYIN/XIAOHONGSHU/ZHIHU，未知值启动拒绝。正式开启需对应客户端实际渠道核验、持久消费许可及真实平台验收；本批没有开启生产配置或全局outreach能力，也没有运行发送进程。接口与UNKNOWN恢复见[增量合同](../docs/contracts/V02_OUTREACH_CHANNELS.md#07b-单次领取与结果2026-09-10)。
 
-如需候选 ASSESS，从仓库外服务器配置同时提供 `YIKE_PILOT_ASSESSMENT_BASE_URL`、`YIKE_PILOT_ASSESSMENT_API_KEY`、`YIKE_PILOT_ASSESSMENT_MODEL`；三项全无仍可启动，部分或非法配置明确失败。启动与只读接口不探测模型。完整配置规则见[正常装配契约](../docs/contracts/V02_NORMAL_RUNTIME_COMPOSITION.md)。真实来源 policy 未接通时 START 仍不可用，短信/建议/平台收发能力仍关闭，不把 Web 存活或数据库可连当作全链就绪。
+如需候选 ASSESS，从仓库外服务器配置同时提供 `YIKE_PILOT_ASSESSMENT_BASE_URL`、`YIKE_PILOT_ASSESSMENT_API_KEY`、`YIKE_PILOT_ASSESSMENT_MODEL`；三项全无仍可启动，部分或非法配置明确失败。启动与只读接口不探测模型。完整配置规则见[正常装配契约](../docs/contracts/V02_NORMAL_RUNTIME_COMPOSITION.md)。真实来源 policy 未接通时 START 仍不可用；建议和平台收发须分别满足下述专用配置及授权，不能由评分模型配置推导开启，也不把 Web 存活或数据库可连当作全链就绪。
+
+搜索建议服务（迁移110＋128）：先完成迁移及既有[建议请求授权](grant_search_suggestions.sql)，仍需原画像/会话权限。受控服务器独立配置 `YIKE_PILOT_SEARCH_SUGGESTION_BASE_URL`、`YIKE_PILOT_SEARCH_SUGGESTION_API_KEY`、`YIKE_PILOT_SEARCH_SUGGESTION_MODEL`；三项全无时只保留认证回执查询，部分/非法配置阻止启动。不能隐式复用评分凭据。客户端需先展示 `/api/ui/search-suggestions/preview` 返回的完整业务介绍及模型快照，再以显式授权提交；画像确认不等于允许外发。只外发该业务介绍，搜索词不是自动采集许可。POST快速返回持久原请求，最多2工作者/4已接收工作，模型总截止由现有子进程监督；UNKNOWN/PENDING只核对原请求，不重跑。关闭未确认会以固定错误报告，不伪称已停止。本批接通服务端，不代表桌面生成/采用入口已可用；版本及后续见[接续记录](../docs/superpowers/plans/2026-09-11-search-suggestion-service.md)。
 
 124签名回复来源：先迁移再启动新版，复用[回复事件授权](grant_reply_events.sql)的表级SELECT/INSERT、旧117授权及上述设备/队列/领取读取权限，不另授UPDATE/DELETE。新增证明列不改旧payload哈希；签名入口/证据列表见[回复合同](../docs/contracts/V02_REPLY_FOLLOWUP.md#08-新发送来源接入2026-09-10)。普通runtime仅记录设备提交并验签的观察，不自动读取私人会话、不自动回复或标记平台已读；真实连接器和客户端另验。
 
