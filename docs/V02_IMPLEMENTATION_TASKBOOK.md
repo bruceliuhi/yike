@@ -6,6 +6,8 @@
 
 ## 当前执行范围：完整 V0.2 全量推进（2026-09-10）
 
+07B本批接入持久结果恢复，已保存回执重启只补原结果，不再调用发送；接口变化及原失败/审核见[单一记录](superpowers/plans/2026-09-10-outreach-result-recovery.md#本批验证)。此增量更新下文outbox待办，但真实driver/main/Win UI与真实收发仍未完成；下一批优先接已有隔离平台运行时，不扩展新的孤立协议。
+
 07B私有调用链`3478556`已将原身份scope、现有传输、签名派发和本机消费连接起来，[证据/审核](superpowers/plans/2026-09-10-outreach-private-session.md#本批验证)集中维护。Mac下一步必须推进持久结果恢复/真实driver；Win07C按[合同](contracts/V02_OUTREACH_CHANNELS.md#07b-私有客户端调用链2026-09-10)装配main和界面，当前未ACK，不重复另建签名器。当前仍无实际发送入口，不标07B或产品完成。
 
 07B本机组件`74b4d52`已实现许可核验、实际文件持久防重和单次动作控制；[验证/审核](superpowers/plans/2026-09-10-native-outreach-consumption.md#本批验证)为单一记录。06B/07B继续IN_PROGRESS：Mac接真实渠道及私有传输，Win07C消费主进程组件/结果展示（尚无ACK），不能因组件测试通过开启发送或标整卡完成。遵循用户省token要求，只做受影响定向检查和整批独立审核，不重构无变化产物。

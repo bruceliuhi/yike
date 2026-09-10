@@ -2,6 +2,15 @@
 
 状态：`CONTEXT_QUEUE_AND_DISPATCH_LEDGER_IMPLEMENTED / REAL_PLATFORM_SEND_UNVERIFIED`
 
+## 07B 结果持久恢复（2026-09-10）
+
+本批将`createOutreachResultOutbox({directory,protection})`作为`createOutreachDispatchSession`必需的`outbox`依赖，可信主进程固定目录与OS保护器，保存加密回执元数据而非正文/凭据。当前实现与独立审核以[单一证据](../superpowers/plans/2026-09-10-outreach-result-recovery.md#本批验证)为准，更新下方历史“outbox尚无”的状态。
+
+- `dispatch`先检查原scope/requestId已存记录；存在则仅补交RESULT，不再CLAIM或调用driver。明确SENT/FAILED先落盘再报告，返回`RESULT_PENDING.durable`区分已保存与落盘失败。
+- `resumeResult(原绑定,signal)`用当前合法会话、原设备及当前有效密钥读取原记录，提交原resultId/原outcome；原claim/context/device不匹配拒绝，无记录返回NO_SAVED_RESULT，不猜测、不发送。
+- 服务端123只允许同一结果的credentialVersion随当前认证更新；其他字段变化仍冲突，历史payload/digest/receipt不改写。结果记录不可变保留，不通过删除日志解锁重发。
+- UNKNOWN无新投递事实，CLAIM已是UNKNOWN，不占据最终结果槽。落盘前崩溃或驱动无回执仍需平台原请求查证，不能据此重发；此批不证明所有断电情况或Windows实机。main/真实driver/Win界面仍待接入，发送入口继续关闭。
+
 ## 07B 私有客户端调用链（2026-09-10）
 
 `3478556`将现有`serviceClient`同队列中的私有`requestOutreach`接到`deviceIdentityController.openWorkerScope()`；公共request/IPC不放行派发。新增`createOutreachDispatchSession({serviceOrigin,identity,vault,journal,channel})`，其中identity为现有身份controller，vault为OS保护密钥，journal及channel按下节绑定可信主进程实现。
