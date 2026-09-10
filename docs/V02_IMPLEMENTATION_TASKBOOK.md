@@ -6,7 +6,9 @@
 
 ## 当前执行范围：完整 V0.2 全量推进（2026-09-10）
 
-06A/07A联系对象后端接续：`53501e9`已完成独立审核（GO），普通runtime的`POST /api/ui/outreach/context`按本人最新保存稿、固定原文和当前设备/连接解析主帖评论、评论回复及私信对象。最终14项实际HTTP/受限PG通过，见[本批证据](superpowers/plans/2026-09-10-outreach-context.md#本批验证)。Win按[对象合同](contracts/V02_OUTREACH_CHANNELS.md#已接普通服务的联系上下文2026-09-10)接联系准备，不能把NOT_GRANTED/UNVERIFIED转换成发送许可；尚无客户端ACK。下一步仍是06B真实渠道检查及07B人工确认/持久发送队列，不能继续用纯上下文代替实际执行；父卡/完整Goal不关闭。
+07B确认队列后端`8461892`已独立审核GO；确认/原请求查询/取消接普通runtime，设备签名及最新context同事务核验，122持久化未决防重。[定向证据及原失败](superpowers/plans/2026-09-10-outreach-confirmation-queue.md#本批验证)集中维护。Win07C须按[新接口](contracts/V02_OUTREACH_CHANNELS.md#07b-人工确认队列2026-09-10)接实际渠道核验、人工确认及QUEUED/CANCELLED显示，尚无消费ACK。Mac下一步06B/07B领取、实际执行、UNKNOWN原请求对账与08回流关联，不将持久排队当触达完成，父卡/Goal继续IN_PROGRESS。
+
+06A/07A联系对象后端接续：`53501e9`独立审核GO，普通runtime按本人最新稿/固定原文/本人设备连接解析评论和私信对象；[14项HTTP/PG证据](superpowers/plans/2026-09-10-outreach-context.md#本批验证)复用。此处NOT_GRANTED/UNVERIFIED仍不是渠道许可，后续队列实现见上方；真实渠道和客户端尚未验。
 
 07B后端草稿实际保存/原回执接续：`fca33d3`及前驱CAS修复`2d77f58`已完成独立审核（GO），普通runtime接入三个认证接口、121迁移及SELECT/INSERT授权。实际HTTP/受限PG最终12项通过；版本、原失败和测试复用见[本批记录](superpowers/plans/2026-09-10-contact-draft-persistence.md#本批证据)。Win07C按[草稿合同](UI_SHORT_COACH_CONTRACT.md#07b-后端接入2026-09-10)接最新稿/前驱/原请求恢复，不能只开启保存按钮；尚无客户端ACK。Mac下一步继续07B确认快照及发送队列/06B对账，不扩孤立模型服务。保存不等于发送，07B和完整Goal仍IN_PROGRESS。
 

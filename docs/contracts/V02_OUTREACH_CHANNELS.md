@@ -1,6 +1,25 @@
 # V02 触达对象与确认协议
 
-状态：`CONTRACT_ONLY / NOT_PRODUCTION_SEND`
+状态：`CONTEXT_AND_CONFIRMATION_QUEUE_IMPLEMENTED / NOT_PRODUCTION_SEND`
+
+## 07B 人工确认队列（2026-09-10）
+
+普通runtime新增以下认证接口；部署先执行迁移122及`deploy/grant_outreach_queue.sql`，不改旧117整数版本契约。
+
+| 入口 | 用途 |
+|---|---|
+| `POST /api/ui/outreach/signing-payload` | 输入`{request}`，取得当前会话绑定的`signing_payload`和requestSha256；准备字节不授权发送 |
+| `POST /api/ui/outreach/queue` | 输入`{request,signature}`，验证已登记设备Ed25519签名并重新核验完整context后入队 |
+| `GET /api/ui/outreach/queue/{request_id}` | 本人原请求恢复；不创建操作，404不能推定未送达 |
+| `POST /api/ui/outreach/queue/{request_id}/cancel` | 仅取消尚未派发的QUEUED；重复取消返回原CANCELLED |
+
+`request`字段：`requestId`（新确认UUID）、`context`（上一节原请求）、`contextSha256`（上一节响应摘要）、`credentialVersion`、严格布尔`humanConfirmed:true`、`channelCheck:{status:"AVAILABLE",observedAt:"带时区ISO时间"}`。签名必须由**该设备**私钥对服务返回的UTF-8原文字节生成，采用现有无padding的base64url；协议域`yike-outreach-confirmation-v1`绑定tenant、owner和当前session。切换会话需重新取字节签名，不能复用旧签名；私钥和签名均不入数据库。
+
+只有客户端已完成原账号/目标/渠道核验后才可以报告AVAILABLE；签名只证明设备声明，不证明服务器实测平台。入队要求报告最多120秒前（允许5秒时钟超前）、最新保存稿/来源/画像/连接版本及整个context不变。CONNECTED不能自行转换为AVAILABLE。**当前客户端尚未消费本接口，不能在UI伪造核验报告来开启按钮。**
+
+响应为`{requestId,state:"QUEUED"|"CANCELLED",deliveryConfirmed:false}`。同owner/商机/channel只允许一条未决；换UUID或账号不能绕过。原UUID同绑定返回当前原状态，即使后来来源失效也可恢复；变更绑定409。设备撤销/换钥后通过只读GET恢复，不能复用旧签名重新确认。取消后如确需重新联系，必须走新上下文、新核验、新人工确认和新UUID，旧请求永不重启。
+
+本批仅持久化人工确认及当时完整context，不发消息、不创建SENT、不启用全局outreach能力。队列等待并不延长渠道核验/确认的有效期；后续领取必须再次验证有效期与最新事实。06B原生检查/单次派发、07B领取/UNKNOWN对账、08与实际发送原请求关联仍未完成，旧117回复origin不能直接冒认122队列为已发送。实现与定向证据集中见[本批计划](../superpowers/plans/2026-09-10-outreach-confirmation-queue.md)。
 
 ## 已接普通服务的联系上下文（2026-09-10）
 
