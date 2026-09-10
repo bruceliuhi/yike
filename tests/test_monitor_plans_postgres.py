@@ -17,6 +17,7 @@ from pilot.db import PilotDatabase
 from pilot.monitor_plans import MonitorPlanStore
 from pilot.research_strategies import ResearchStrategyStore
 from pilot.store import PilotStore
+from pilot.execution_contract import ExecutionRuntimeError
 
 ROOT = Path(__file__).parents[1]
 SECRET = "synthetic-monitor-test"
@@ -191,3 +192,50 @@ def test_create_rejects_once_and_unversioned_schedule(monitor_env, mode, version
     from pilot.monitor_contract import MonitorPlanError
     with pytest.raises(MonitorPlanError, match="unsupported_schedule"):
         env.store.create(env.claims, body)
+
+
+@pytest.mark.parametrize("relation", ["pilot_monitor_plans", "pilot_monitor_plan_operations"])
+def test_grant_rejects_reachable_full_update_even_noinherit(pg, relation):
+    admin, _ = pg
+    inherited = "monitor_excess_update"
+    grant_sql = (ROOT / "deploy" / "grant_monitor_plans.sql").read_text()
+    with admin.connect() as conn:
+        conn.execute(sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier(inherited)))
+        conn.execute(sql.SQL("CREATE ROLE {} NOLOGIN NOINHERIT").format(sql.Identifier(inherited)))
+        conn.execute(sql.SQL("GRANT UPDATE ON {} TO {}").format(
+            sql.Identifier(relation), sql.Identifier(inherited)))
+        conn.execute(sql.SQL("GRANT {} TO monitor_app").format(sql.Identifier(inherited)))
+    try:
+        with admin.connect() as conn:
+            conn.execute("SELECT set_config('yike.app_role','monitor_app',true)")
+            with pytest.raises(psycopg.errors.RaiseException, match="excess reachable monitor"):
+                conn.execute(grant_sql)
+    finally:
+        with admin.connect() as conn:
+            conn.execute(sql.SQL("REVOKE {} FROM monitor_app").format(sql.Identifier(inherited)))
+            conn.execute(sql.SQL("DROP OWNED BY {}").format(sql.Identifier(inherited)))
+            conn.execute(sql.SQL("DROP ROLE {}").format(sql.Identifier(inherited)))
+
+
+def test_restricted_role_cannot_update_immutable_plan_or_receipt_columns(monitor_env):
+    env = monitor_env
+    receipt = env.store.create(env.claims, monitor_body(env))
+    with env.app.connect() as conn:
+        # Session lookup establishes both scoped settings.
+        with conn.cursor() as cursor:
+            env.store.sessions.require_active(cursor, env.claims)
+        with pytest.raises(psycopg.errors.InsufficientPrivilege), conn.transaction():
+            conn.execute("UPDATE pilot_monitor_plans SET schedule=schedule WHERE plan_id=%s", (receipt["plan"]["plan_id"],))
+        with pytest.raises(psycopg.errors.InsufficientPrivilege), conn.transaction():
+            conn.execute("UPDATE pilot_monitor_plan_operations SET receipt=receipt WHERE request_id=%s", (receipt["request_id"],))
+
+
+def test_resolver_unavailability_remains_503(monitor_env):
+    env = monitor_env
+    def unavailable(*args):
+        raise ExecutionRuntimeError("strategy_store_unavailable", 503)
+    env.store.strategy_resolver = unavailable
+    from pilot.monitor_contract import MonitorPlanError
+    with pytest.raises(MonitorPlanError, match="monitor_store_unavailable") as caught:
+        env.store.create(env.claims, monitor_body(env))
+    assert caught.value.status == 503

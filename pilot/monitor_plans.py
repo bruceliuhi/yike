@@ -91,6 +91,8 @@ class MonitorPlanStore:
         except ExecutionRuntimeError as error:
             if error.code == "invalid_session":
                 raise MonitorPlanError("invalid_session") from None
+            if error.status == 503:
+                raise MonitorPlanError("monitor_store_unavailable") from None
             raise MonitorPlanError("strategy_conflict") from None
         if not isinstance(strategy, ConfirmedExecutionStrategy):
             raise MonitorPlanError("strategy_conflict")
