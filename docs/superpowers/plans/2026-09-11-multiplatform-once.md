@@ -32,10 +32,10 @@
 
 1. 前缀 FINISH 回执是任务级 RUNNING/false，不能要求整任务 SUCCEEDED 才续接。
 2. 本地仅剩 START 不证明未执行；所有 launch 必须核对当前服务端 generation 和完整本机批次，缺证据不能重采。
-3. execution.task 按平台名排序，与原确认顺序不同；必须按原 platform_run_id 映射后核验，不按数组位置续接。taskFeed 则按 target_order 排序，客户端该处不受此排序问题影响。
+3. **后续联验已更正的审核误判**：首轮认为execution.task按平台名返回、与原确认顺序不同；实际get_task第536行已经按target_order排序，自 `990ebca8` 即如此。首轮只看到 `_locks` 内部排序，漏看输出排序，不是实际产品缺陷。按platform_run_id映射和乱序合成测试保留为防御性处理，不能宣称修复了真实接口乱序；详见[更正联验记录](2026-09-11-multiplatform-http-acceptance.md)。
 
 首轮有限证据：renderer 两文件29 passed（初始3个缺实现失败，另2个缺boundedRequest参数的实现失败已修复）；native两文件49 passed，预算反例先失败再通过；整树tsc通过。审核同时发现前缀恢复和多批次RECOVER等场景缺测试，修复批须补上。尚未构包，未重复全量/数据库测试；没有真实平台/Windows/生产/UAT证据。完整Goal仍在进行，修复后复审差量再交付。
 
 修复候选 `0dfdaf825fa5b94407217c245a44c419c4fb5da9`：已改为所有launch前读取当前任务、按原平台run ID映射顺序，核对前缀真实平台完成及原FINISH；后缀须generation0且无任何执行记录。首次CLAIM若generation>1也不启动driver，封住查询与领取之间的重采窗口。多批次恢复在写入前整体检查映射。定向native两文件 **58 passed**（与49项重叠，不累加），包含日志缺失、乱序原回执、前缀恢复、多批次、取消、身份变化和第二平台UNKNOWN；反例原先失败已保留。整树tsc通过，未变renderer29项复用。该候选一次renderer构建通过，不是Windows包。
 
-非作者 `multiplatform_once_final_review` 对修复差量复审 **GO / 本批代码**，三个P1关闭，未发现新阻断；保留两项非阻断测试精度边界：冲突批次用例先命中generation不一致，未单独到达重复分支；monitor预算用例只覆盖单平台，跨平台均分依赖已测once与共享实现的代码审查，不将其写成三平台monitor端到端实测。首次审核和失败证据不删除，未追加无变化的全量测试。真实来源、Windows、部署和客户验收继续未完成。
+非作者 `multiplatform_once_final_review` 对修复差量复审 **GO / 本批代码**，当时将三个报告项关闭；后续证实R3为上述审核误判，实际确认缺陷为R1/R2。保留两项非阻断测试精度边界：冲突批次用例先命中generation不一致，未单独到达重复分支；monitor预算用例只覆盖单平台，跨平台均分依赖已测once与共享实现的代码审查，不将其写成三平台monitor端到端实测。首次审核和失败证据不删除，未追加无变化的全量测试。真实来源、Windows、部署和客户验收继续未完成。
