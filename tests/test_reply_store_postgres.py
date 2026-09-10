@@ -144,6 +144,7 @@ def test_correction_target_must_be_existing_same_owner_active_kind(env):
     wrong_kind=platform(env,opportunity_id=event.opportunity_id,source_id=event.source_id,
         profile_version_id=event.profile_version_id,outreach_request_id=event.outreach_request_id,
         state='CORRECTED',corrects_event_id=event.event_id,reason='synthetic')
+    origin(env,wrong_kind)  # Reach kind validation with an authorized legacy origin.
     with pytest.raises(ReplyStoreError,match='event_transition_invalid'): env.store.record(env.claims,wrong_kind)
     updated=correction(event); env.store.record(env.claims,updated)
     with pytest.raises(ReplyStoreError,match='event_transition_invalid'):

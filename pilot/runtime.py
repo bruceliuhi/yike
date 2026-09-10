@@ -16,6 +16,7 @@ from pilot.execution_runtime import ExecutionRuntime
 from pilot.foreground_collection import configured_collection_policy
 from pilot.research_strategies import ResearchStrategyStore
 from pilot.reply_store import ReplyEventStore
+from pilot.signed_replies import SignedReplyStore
 from pilot.store import PilotStore
 from pilot.web import build_app
 
@@ -72,6 +73,8 @@ def build_runtime_app(
         environment.get('YIKE_PILOT_OUTREACH_PLATFORMS','').split(','))))
     if outreach_platforms - {'BILIBILI','DOUYIN','XIAOHONGSHU','ZHIHU'}:
         raise RuntimeError('invalid_outreach_platform_configuration')
+    queue = OutreachQueueStore(database, drafts, runtime, outreach_platforms)
+    replies.signed = SignedReplyStore(queue, replies)
     return build_app(
         store,
         auth_secret=auth_secret,
@@ -82,5 +85,5 @@ def build_runtime_app(
         research_strategies=strategies,
         reply_store=replies,
         contact_drafts=drafts,
-        outreach_queue=OutreachQueueStore(database, drafts, runtime, outreach_platforms),
+        outreach_queue=queue,
     )
