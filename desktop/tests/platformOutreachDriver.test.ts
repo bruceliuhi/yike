@@ -61,3 +61,11 @@ it('cannot reopen a lifetime stopped before CHECK',async()=>{
   await expect(f.driver.check(f.context,f.signal.signal)).rejects.toThrow('OUTREACH_HOST_FAILED');
   expect(f.spawn).not.toHaveBeenCalled();
 });
+it('reuses only a fresh same-context check and closes a read-only lifetime cleanly',async()=>{
+  const f=await fixture();const checked=f.driver.check(f.context,f.signal.signal);await tick();
+  f.frame({schema_version,state:'READY',observation:f.observation});await checked;
+  expect(await f.driver.check(f.context,new AbortController().signal)).toEqual(f.observation);
+  expect(f.spawn).toHaveBeenCalledTimes(1);
+  const stopped=f.driver.stop();f.frame({schema_version,state:'RESULT',outcome:{status:'UNKNOWN'},cleanupConfirmed:true});f.child.emit('close',0,null);
+  await stopped;expect(f.driver.cleanupConfirmed()).toBe(true);
+});

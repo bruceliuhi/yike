@@ -43,6 +43,7 @@ export function createPlatformOutreachDriver(options:Options):NativeOutreachChan
   let child:ChildProcessWithoutNullStreams|undefined;
   let started=false,ready=false,executed=false,settled=false,stopping=false,protocolBad=false,clean=false;
   let snapshot:OutreachContext|undefined,contextWire:string|undefined;
+  let observation:ReturnType<typeof parseNativeOutreachObservation>|undefined;
   let receipt:NativeOutreachOutcome|undefined,terminalClean=false,terminal=false;
   let timer:ReturnType<typeof setTimeout>|undefined,grace:ReturnType<typeof setTimeout>|undefined;
   const signals=new Set<AbortSignal>();
@@ -78,6 +79,10 @@ export function createPlatformOutreachDriver(options:Options):NativeOutreachChan
   }
   return {
     async check(context,signal){
+      if(ready&&!executed&&!stopping&&!settled&&!signal.aborted&&observation){
+        const age=Date.now()-Date.parse(observation.checkedAt);
+        if(age>=-5000&&age<=5000&&JSON.stringify(parseNativeOutreachContext(context))===contextWire){watch(signal);return {...observation};}
+      }
       if(started||stopping||settled||signal.aborted)throw failure();started=true;
       try{
         snapshot=parseNativeOutreachContext(context);contextWire=JSON.stringify(snapshot);
@@ -102,12 +107,15 @@ export function createPlatformOutreachDriver(options:Options):NativeOutreachChan
               const frame=decode(pending.subarray(0,end));pending=pending.subarray(end+1);
               const keys=Object.keys(frame).sort().join(',');
               if(frame.state==='READY'&&keys==='observation,schema_version,state'&&!ready&&!executed&&!stopping){
-                const observation=parseNativeOutreachObservation(frame.observation),c=snapshot!;
+                const value=parseNativeOutreachObservation(frame.observation),c=snapshot!;
+                observation=value;
                 const age=Date.now()-Date.parse(observation.checkedAt);
                 if(observation.contextSha256!==c.contextSha256||observation.deviceId!==c.connection.deviceId||observation.connectionId!==c.connection.connectionId||observation.connectionVersion!==c.connection.connectionVersion||observation.accountPublicId!==c.connection.accountPublicId||observation.recipientId!==c.target.authorPublicId||age< -5000||age>5000)throw failure();
-                ready=true;resolveCheck(observation);
-              }else if(frame.state==='RESULT'&&keys==='cleanupConfirmed,outcome,schema_version,state'&&ready&&executed&&typeof frame.cleanupConfirmed==='boolean'){
-                receipt=parseNativeOutreachOutcome(frame.outcome);terminalClean=frame.cleanupConfirmed;terminal=true;
+                ready=true;resolveCheck({...observation});
+              }else if(frame.state==='RESULT'&&keys==='cleanupConfirmed,outcome,schema_version,state'&&ready&&typeof frame.cleanupConfirmed==='boolean'){
+                const value=parseNativeOutreachOutcome(frame.outcome);
+                if(!executed&&(!stopping||value.status!=='UNKNOWN'))throw failure();
+                receipt=value;terminalClean=frame.cleanupConfirmed;terminal=true;
               }else if(frame.state==='FAILED'&&keys==='error_code,schema_version,state'&&frame.error_code==='OUTREACH_HOST_FAILED'){
                 terminal=true;
               }else throw failure();

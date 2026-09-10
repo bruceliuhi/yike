@@ -18,6 +18,7 @@ export interface YikeDesktopApi {
   executionCommand?(command: import('./desktopExecution').DesktopExecutionCommand): Promise<import('./desktopExecution').DesktopExecutionResult>;
   foregroundCollectionCommand?(command: import('./foregroundCollection').ForegroundCollectionCommand): Promise<import('./foregroundCollection').ForegroundCollectionResult>;
   platformConnectionCommand?(command: import('./platformConnection').PlatformConnectionCommand): Promise<import('./platformConnection').PlatformConnectionResult>;
+  nativeOutreachCommand?(command: import('./nativeOutreach').NativeOutreachCommand): Promise<import('./nativeOutreach').NativeOutreachResult>;
   requestApi(request: ApiRequest): Promise<ApiResult>;
   openExternal(url: string): Promise<DesktopActionResult>;
   copyText(text: string): Promise<DesktopActionResult>;

@@ -135,12 +135,15 @@ def run_outreach(**request):
                 elif state['phase']=='RESULT' and set(message)=={'state','outcome'} and message['state']=='RESULT' and isinstance(message['outcome'],dict):
                     state['result']=message['outcome']; state['phase']='DONE'
                 else: raise ValueError()
-            if state['eof'] and (state['buffer'] or state['result'] is None): raise ValueError()
+            readonly_cancel = cancelled() and state['phase']=='OPERATION'
+            if state['eof'] and (state['buffer'] or state['result'] is None and not readonly_cancel): raise ValueError()
         command=[str(python),'-B','-X','utf8',str(Path(__file__).with_name('platform_outreach_worker.py').resolve())]
         cleanup_confirmed=True
+        supervised=None
         try:
             result=run_supervised_process(command,cwd=runtime,env=env,timeout_seconds=max(0.01,request['timeout_seconds']-(time.monotonic()-started)),cancel_requested=cancelled,poll_callback=poll)
-            cleanup_confirmed=result.returncode==0
+            supervised=result
+            cleanup_confirmed=result.returncode==0 or (getattr(result,'cancelled',False) is True and state['phase']=='OPERATION')
         except Exception:
             # A receipt observed before Job cleanup remains fact, never a retry permit.
             cleanup_confirmed=False
@@ -158,6 +161,10 @@ def run_outreach(**request):
                 server.close()
         try: verify_private_tree(profile); verify_private_tree(output)
         except Exception: cleanup_confirmed=False
+        if state['result'] is None and state['phase']=='OPERATION' and getattr(supervised,'cancelled',False) is True:
+            # No EXECUTE was queued. The supervisor returned only after stopping
+            # the Job tree; this is a read-only close, not a delivery receipt.
+            state['result']={'status':'UNKNOWN'}
         if state['result'] is None: raise ValueError()
         return {'observation':state['ready'], 'outcome':state['result'], 'cleanupConfirmed':cleanup_confirmed}
 

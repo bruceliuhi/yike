@@ -36,6 +36,11 @@ import {createConnectionProfileStore} from './connectionProfileStore';
 import {createPlatformConnectionController} from './platformConnectionController';
 import {createPlatformLoginDriver} from './platformLoginDriver';
 import {platformLoginConfiguration} from './platformLoginConfiguration';
+import {NATIVE_OUTREACH_CHANNEL} from '../shared/nativeOutreach';
+import {createNativeOutreachController} from './nativeOutreachController';
+import {createPlatformOutreachDriver} from './platformOutreachDriver';
+import {createOutreachConsumptionJournal} from './outreachConsumptionJournal';
+import {createOutreachResultOutbox} from './outreachResultOutbox';
 
 protocol.registerSchemesAsPrivileged([
   {scheme: 'yike', privileges: {standard: true, secure: true, supportFetchAPI: true}}
@@ -46,6 +51,7 @@ let quitting = false;
 let startupFailed = false;
 let platformConnection:ReturnType<typeof createPlatformConnectionController>|null=null;
 let foregroundCollection:ReturnType<typeof createForegroundCollectionController>|null=null;
+let nativeOutreach:ReturnType<typeof createNativeOutreachController>|null=null;
 let platformShutdown:Promise<void>|null=null;
 let platformStopped=false;
 
@@ -191,7 +197,18 @@ async function startApplication(): Promise<void> {
       configuration:{...loginConfiguration,outputRoot},executionJournal,candidateJournal,
       sessions:scope=>({execution:createExecutionSession({serviceOrigin:baseUrl,transport:scope.transport,vault,journal:executionJournal}),
         candidates:createCandidateSession({serviceOrigin:baseUrl,transport:scope.transport,vault,journal:candidateJournal})})});
+    const outreachOutputRoot=path.join(app.getPath('userData'),'platform-outreach-output');
+    await mkdir(outreachOutputRoot,{recursive:true});
+    nativeOutreach=createNativeOutreachController({serviceOrigin:baseUrl,identity,store:profileStore,vault,
+      journal:createOutreachConsumptionJournal({directory:path.join(app.getPath('userData'),'outreach-consumption'),protection}),
+      outbox:createOutreachResultOutbox({directory:path.join(app.getPath('userData'),'outreach-results'),protection}),
+      driver:(context,profileId)=>createPlatformOutreachDriver({...loginConfiguration,outputRoot:outreachOutputRoot,
+        profileId,connection:context.connection})});
   }
+  ipcMain.handle(NATIVE_OUTREACH_CHANNEL,(event,command:unknown)=>{
+    trustedSender(event);
+    return nativeOutreach?nativeOutreach.execute(command):{state:'FAILED',error:'OUTREACH_FAILED'};
+  });
   ipcMain.handle(PLATFORM_CONNECTION_CHANNEL,(event,command:unknown)=>{
     trustedSender(event);
     return platformConnection?platformConnection.execute(command):{state:'SERVICE_UNAVAILABLE'};
@@ -268,9 +285,9 @@ async function startApplication(): Promise<void> {
 
 app.on('before-quit', event => {
   quitting = true;
-  if((platformConnection || foregroundCollection) && !platformStopped) {
+  if((platformConnection || foregroundCollection || nativeOutreach) && !platformStopped) {
     event.preventDefault();
-    if(!platformShutdown)platformShutdown=Promise.allSettled([platformConnection?.shutdown(),foregroundCollection?.shutdown()]).then(results=>{
+    if(!platformShutdown)platformShutdown=Promise.allSettled([platformConnection?.shutdown(),foregroundCollection?.shutdown(),nativeOutreach?.stop()]).then(results=>{
       if(results.some(r=>r.status==='rejected'))throw new Error('PLATFORM_STOP_UNCONFIRMED');
     }).catch(()=>{
       console.error('YIKE_PLATFORM_LOGIN_STOP_UNCONFIRMED');

@@ -227,9 +227,9 @@ def test_real_host_pending_operation_keeps_supervisor_responsive(tmp_path,monkey
         kw['poll_callback']() # EOF also reaches worker, before supervisor cleanup.
         assert closed.wait(.5)
         thread.join(.5)
-        return SimpleNamespace(returncode=1)
+        return SimpleNamespace(returncode=1, cancelled=True)
     monkeypatch.setattr(host,'run_supervised_process',supervise)
     try:
-        with pytest.raises(ValueError):
-            host.run_outreach(runtime_path=tmp_path/'runtime',profile_path=tmp_path/'profile',output_path=tmp_path/'output',context={},timeout_seconds=1,on_ready=ready,take_operation=inputs.take,cancel_requested=inputs.cancelled.is_set)
+        result=host.run_outreach(runtime_path=tmp_path/'runtime',profile_path=tmp_path/'profile',output_path=tmp_path/'output',context={},timeout_seconds=1,on_ready=ready,take_operation=inputs.take,cancel_requested=inputs.cancelled.is_set)
+        assert result == {'observation':OBS,'outcome':{'status':'UNKNOWN'},'cleanupConfirmed':True}
     finally: peer.close(); stream.close(); local.close()

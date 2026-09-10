@@ -3,6 +3,7 @@ import {GET_DEVICE_IDENTITY_STATUS_CHANNEL, PREPARE_DEVICE_IDENTITY_CHANNEL} fro
 import {EXECUTION_COMMAND_CHANNEL, type DesktopExecutionCommand} from '../shared/desktopExecution';
 import {PLATFORM_CONNECTION_CHANNEL, type PlatformConnectionCommand} from '../shared/platformConnection';
 import {FOREGROUND_COLLECTION_CHANNEL,type ForegroundCollectionCommand} from '../shared/foregroundCollection';
+import {NATIVE_OUTREACH_CHANNEL,type NativeOutreachCommand} from '../shared/nativeOutreach';
 
 import {
   GET_RUNTIME_STATUS_CHANNEL,
@@ -24,6 +25,7 @@ const api: YikeDesktopApi = Object.freeze({
   executionCommand: (command: DesktopExecutionCommand) => ipcRenderer.invoke(EXECUTION_COMMAND_CHANNEL, command),
   foregroundCollectionCommand: (command: ForegroundCollectionCommand) => ipcRenderer.invoke(FOREGROUND_COLLECTION_CHANNEL, command),
   platformConnectionCommand: (command: PlatformConnectionCommand) => ipcRenderer.invoke(PLATFORM_CONNECTION_CHANNEL, command),
+  nativeOutreachCommand: (command: NativeOutreachCommand) => ipcRenderer.invoke(NATIVE_OUTREACH_CHANNEL, command),
   requestApi: (request: ApiRequest) => ipcRenderer.invoke(REQUEST_API_CHANNEL, request),
   openExternal: (url: string) => ipcRenderer.invoke(OPEN_EXTERNAL_CHANNEL, url),
   copyText: (text: string) => ipcRenderer.invoke(COPY_TEXT_CHANNEL, text),
