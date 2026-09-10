@@ -33,7 +33,7 @@ type Flow={id:string;scope:DeviceWorkerScope;context:OutreachContext;profileId:s
   binding:NativeOutreachBinding;expires:number;abort:AbortController;driver:NativeOutreachDriver|null;used:boolean;
   timer:ReturnType<typeof setInterval>|null;stopping:Promise<void>|null};
 class Failure extends Error {constructor(readonly code:NativeOutreachError){super(code);}}
-const fail=(code:NativeOutreachError):never=>{throw new Failure(code);};
+function fail(code:NativeOutreachError):never {throw new Failure(code);}
 const failed=(error:NativeOutreachError):NativeOutreachResult=>({state:'FAILED',error});
 const same=(a:unknown,b:unknown)=>canonicalJson(a)===canonicalJson(b);
 function freeze<T>(value:T):T {if(value && typeof value==='object'){for(const v of Object.values(value))freeze(v);Object.freeze(value);}return value;}
