@@ -1,4 +1,4 @@
-"""Private fixed XHS login host. OPENED is not an authenticated connection."""
+"""Private three-platform login host. OPENED is not an authenticated connection."""
 from __future__ import annotations
 
 from contextlib import redirect_stderr, redirect_stdout
@@ -14,6 +14,7 @@ import time
 from app.collector import _minimal_child_environment, run_supervised_process
 from app.windows_private_directory import create_private_directory, verify_private_tree
 from app.windows_source_driver import _exclusive_paths, verify_installed_runtime
+from app.platform_login_worker import login_platform_supported, valid_account
 
 
 SCHEMA = 'windows-platform-login-v1'
@@ -69,7 +70,7 @@ def _request(stdin):
     if not isinstance(value, dict) or set(value) != _FIELDS or value['schema_version'] != SCHEMA:
         raise ValueError()
     if any(not isinstance(value[key], str) for key in ('runtime_path', 'profile_path', 'output_path')): raise ValueError()
-    if value['platform'] != 'XIAOHONGSHU' or type(value['timeout_seconds']) is not int or not 1 <= value['timeout_seconds'] <= 180:
+    if not login_platform_supported(value['platform']) or type(value['timeout_seconds']) is not int or not 1 <= value['timeout_seconds'] <= 180:
         raise ValueError()
     paths = _paths(*(value[key] for key in ('runtime_path', 'profile_path', 'output_path')))
     for key, path in zip(('runtime_path', 'profile_path', 'output_path'), paths): value[key] = path
@@ -86,11 +87,12 @@ def _marker(path):
     return _decode(raw)
 
 
-def _terminal(value):
+def _terminal(value, platform='XIAOHONGSHU'):
+    if not login_platform_supported(platform): raise ValueError()
     if not isinstance(value, dict) or value.get('schema_version') != SCHEMA: raise ValueError()
     if value.get('state') == 'AUTHENTICATED':
         if set(value) != {'schema_version', 'state', 'account_public_id', 'checked_at'}: raise ValueError()
-        if not isinstance(value['account_public_id'], str) or not re.fullmatch(r'[A-Za-z0-9]{8,32}', value['account_public_id']): raise ValueError()
+        if not valid_account(platform, value['account_public_id']): raise ValueError()
         when = value['checked_at']
         if not isinstance(when, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z', when): raise ValueError()
         datetime.strptime(when, '%Y-%m-%dT%H:%M:%SZ')
@@ -109,7 +111,7 @@ def login_windows_platform(*, runtime_path, profile_path, output_path, platform,
         if time.monotonic() - started >= timeout_seconds: return dict(schema_version=SCHEMA, state='TIMED_OUT')
         return None
     try:
-        if sys.platform != 'win32' or platform != 'XIAOHONGSHU' or type(timeout_seconds) is not int or not 1 <= timeout_seconds <= 180:
+        if sys.platform != 'win32' or not login_platform_supported(platform) or type(timeout_seconds) is not int or not 1 <= timeout_seconds <= 180:
             raise ValueError()
         runtime_path, profile_path, output_path = _paths(runtime_path, profile_path, output_path)
         if os.path.lexists(output_path): raise ValueError()
@@ -125,6 +127,7 @@ def login_windows_platform(*, runtime_path, profile_path, output_path, platform,
             (temporary / 'matplotlib').mkdir()
             env = _minimal_child_environment(YIKE_PROFILE_PATH=str(profile_path),
                 YIKE_LOGIN_OUTPUT_PATH=str(output_path),
+                YIKE_LOGIN_PLATFORM=platform,
                 PYTHONDONTWRITEBYTECODE='1',
                 PLAYWRIGHT_BROWSERS_PATH=str(runtime_path / '.venv/playwright-browsers'),
                 TEMP=str(temporary), TMP=str(temporary), MPLCONFIGDIR=str(temporary / 'matplotlib'))
@@ -151,7 +154,7 @@ def login_windows_platform(*, runtime_path, profile_path, output_path, platform,
             if result.cancelled: return _failure('PLATFORM_LOGIN_CANCELLED', 'CANCELLED')
             if result.timed_out: return dict(schema_version=SCHEMA, state='TIMED_OUT')
             if result.returncode != 0: return _failure('SOURCE_HOST_FAILED')
-            terminal = _terminal(_marker(output_path / '.yike-login-terminal.json'))
+            terminal = _terminal(_marker(output_path / '.yike-login-terminal.json'), platform)
             if terminal['state'] == 'AUTHENTICATED' and not opened: raise ValueError()
             return terminal
     except KeyboardInterrupt:
@@ -194,7 +197,7 @@ def main(stdin=None, stdout=None):
         else:
             threading.Thread(target=_watch, args=(stdin, cancelled), daemon=True).start()
             try:
-                terminal = _terminal(login_windows_platform(**payload, on_opened=opened, cancel_requested=cancelled.is_set))
+                terminal = _terminal(login_windows_platform(**payload, on_opened=opened, cancel_requested=cancelled.is_set), payload['platform'])
             except (Exception, KeyboardInterrupt):
                 terminal = _failure('SOURCE_HOST_FAILED')
         try: emit(terminal)

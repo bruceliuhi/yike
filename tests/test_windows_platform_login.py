@@ -73,7 +73,7 @@ def test_fixed_worker_launch_environment_private_profile_and_opened_once(source,
     assert 'secret' not in str(result)
 
 
-@pytest.mark.parametrize('change', [dict(platform='DOUYIN'), dict(timeout_seconds=True),
+@pytest.mark.parametrize('change', [dict(platform='WEIBO'), dict(timeout_seconds=True),
     dict(timeout_seconds=181), dict(runtime_path='relative'), dict(cookie='private'), dict(schema_version='other')])
 def test_invalid_request_rejected_before_launch(tmp_path, monkeypatch, change):
     api = module()
