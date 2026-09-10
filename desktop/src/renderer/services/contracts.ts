@@ -76,7 +76,8 @@ export interface YikeService {
   followups(): Promise<Followup[]>;
   addFollowup(id: string, status: FollowupStatus, note: string): Promise<void>;
   connections(): Promise<PlatformConnection[]>;
-  connect(platform: string): Promise<void>;
+  connect(platform: string, signal?: AbortSignal): Promise<void>;
+  cancelConnection?(platform: string): Promise<void>;
   checkConnection(platform: string): Promise<PlatformConnection>;
   disconnect(platform: string): Promise<void>;
   suggest(

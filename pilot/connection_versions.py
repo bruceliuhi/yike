@@ -1,6 +1,8 @@
 """Versioned connection receipts and a caller-owned transaction fence.
 
 Neither registration nor a historical receipt proves platform readiness.
+VERIFY is an authenticated owner client's bound local observation, not server
+platform proof or authority to execute; execution retains its own fresh fences.
 """
 from __future__ import annotations
 
@@ -42,7 +44,7 @@ class ConnectionOperation(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid", hide_input_in_errors=True,
                               frozen=True, revalidate_instances="always")
     request_id: str
-    action: Literal["REGISTER", "DISCONNECT"]
+    action: Literal["REGISTER", "DISCONNECT", "VERIFY"]
     device_id: str
     connection_id: str | None
     expected_connection_version: int = Field(ge=0, le=MAX_VERSION)
@@ -63,7 +65,10 @@ class ConnectionOperation(BaseModel):
             ):
                 raise ConnectionOperationError("invalid_request", 422)
         else:
-            if self.connection_id is not None or self.platform not in SUPPORTED_PLATFORMS:
+            if (self.platform not in SUPPORTED_PLATFORMS
+                    or (self.action == "REGISTER" and self.connection_id is not None)
+                    or (self.action == "VERIFY" and
+                        (self.connection_id is None or self.expected_connection_version == 0))):
                 raise ConnectionOperationError("invalid_request", 422)
             try:
                 values = validate_connection_input(self.platform, self.device_id,
@@ -162,18 +167,24 @@ class ConnectionOperationStore:
                 "WHERE tenant_id=%s AND device_id=%s AND platform=%s AND account_public_id=%s FOR UPDATE",
                 (tenant, request.device_id, request.platform, request.account_public_id))
         else:
-            cursor.execute("SELECT connection_id,connection_version,status FROM pilot_platform_connections "
+            cursor.execute("SELECT connection_id,connection_version,status,platform,account_public_id,session_ref "
+                "FROM pilot_platform_connections "
                 "WHERE tenant_id=%s AND device_id=%s AND connection_id=%s FOR UPDATE",
                 (tenant, request.device_id, request.connection_id))
         row = cursor.fetchone()
         self._active(cursor, claims)
         if row:
             result.update(connection_id=row[0], connection_version=row[1], connection_status=row[2])
-        if request.action == "DISCONNECT" and row is None:
+        if request.action in {"DISCONNECT", "VERIFY"} and row is None:
+            result["error_code"] = "connection_unavailable"
+        elif request.action == "VERIFY" and (row[2] == "DISCONNECTED" or
+                tuple(row[3:]) != (request.platform, request.account_public_id, request.session_ref)):
             result["error_code"] = "connection_unavailable"
         elif request.expected_connection_version != (row[1] if row else 0):
             result["error_code"] = "connection_version_conflict"
-        elif row and row[1] == MAX_VERSION and (request.action == "REGISTER" or row[2] != "DISCONNECTED"):
+        elif row and row[1] == MAX_VERSION and (request.action == "REGISTER" or
+                (request.action == "DISCONNECT" and row[2] != "DISCONNECTED") or
+                (request.action == "VERIFY" and row[2] != "CONNECTED")):
             result["error_code"] = "connection_version_exhausted"
         else:
             if request.action == "REGISTER":
@@ -187,6 +198,12 @@ class ConnectionOperationStore:
                         "platform,account_public_id,session_ref) VALUES (%s,%s,%s,%s,%s,%s) "
                         "RETURNING connection_id,connection_version,status",
                         (str(uuid4()), tenant, request.device_id, request.platform, request.account_public_id, request.session_ref))
+            elif request.action == "VERIFY":
+                # The 107 guard advances only a real status change. A fresh
+                # already-CONNECTED observation is a version-preserving no-op.
+                cursor.execute("UPDATE pilot_platform_connections SET status='CONNECTED' "
+                    "WHERE tenant_id=%s AND connection_id=%s RETURNING connection_id,connection_version,status",
+                    (tenant, row[0]))
             else:
                 cursor.execute("UPDATE pilot_platform_connections SET status='DISCONNECTED',"
                     "disconnected_at=COALESCE(disconnected_at,CURRENT_TIMESTAMP) "

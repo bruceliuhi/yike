@@ -25,7 +25,7 @@ import {
   type PlatformId,
 } from "../domain/models";
 import { safeReturnTo } from "../domain/routes";
-import { errorMessage } from "../services/contracts";
+import { errorMessage, ServiceError } from "../services/contracts";
 import { mergeConnectionRead } from "../services/connectionRegistry";
 import { ConnectionRegistryTable } from "./connections/ConnectionRegistryTable";
 
@@ -60,6 +60,7 @@ export function ConnectionsPage() {
   const [state, setState] = useState<ConnectingState>("idle");
   const [error, setError] = useState("");
   const [opened, setOpened] = useState(false);
+  const [recoverable, setRecoverable] = useState(false);
   const [result, setResult] = useState<PlatformConnection | null>(null);
   const generation = useRef(0);
   const controller = useRef<AbortController | null>(null);
@@ -69,10 +70,12 @@ export function ConnectionsPage() {
     setState("idle");
     setError("");
     setOpened(false);
+    setRecoverable(false);
     setResult(null);
     return () => {
       generation.current++;
       controller.current?.abort();
+      if (selected && modalOpen) void service.cancelConnection?.(selected.id).catch(() => {});
     };
   }, [selected?.id, modalOpen, service, session.authenticated, session.userId, session.accountScope?.id, session.accountScope?.version]);
   useEffect(() => {
@@ -88,6 +91,7 @@ export function ConnectionsPage() {
   const close = () => {
     generation.current++;
     controller.current?.abort();
+    if (selected) void service.cancelConnection?.(selected.id).catch(() => {});
     navigate(returnTo);
   };
   const openPlatform = (id: string) => {
@@ -114,9 +118,11 @@ export function ConnectionsPage() {
     controller.current = abort;
     setState("opening");
     setError("");
+    setOpened(false);
+    setRecoverable(false);
     setResult(null);
     try {
-      await boundedRequest(() => service.connect(selected.id), {
+      await boundedRequest((signal) => service.connect(selected.id, signal), {
         signal: abort.signal,
         timeoutMessage:
           "打开登录窗口超时，窗口状态尚未确认。请先核对原生窗口后重试；当前未记为已连接。",
@@ -126,13 +132,14 @@ export function ConnectionsPage() {
       setState("waiting");
     } catch (e) {
       if (request === generation.current && !(e instanceof RequestCancelled)) {
+        if (e instanceof ServiceError && (e.code === 'UNKNOWN' || e.code === 'WAITING_LOGIN')) setRecoverable(true);
         setState(e instanceof RequestTimeout ? "timeout" : "error");
         setError(errorMessage(e));
       }
     }
   };
   const check = async () => {
-    if (!selected || !opened || busy) return;
+    if (!selected || (!opened && !recoverable) || busy) return;
     const request = ++generation.current;
     controller.current?.abort();
     const abort = new AbortController();
@@ -309,7 +316,7 @@ export function ConnectionsPage() {
               <>
                 <Button onClick={close}>取消</Button>
                 <Button
-                  disabled={!opened || busy}
+                  disabled={(!opened && !recoverable) || busy}
                   loading={state === "checking"}
                   onClick={() => void check()}
                 >

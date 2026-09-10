@@ -10,6 +10,7 @@ export interface DeviceIdentityControllerOptions {
     requestDevice(input: unknown): Promise<ApiResult>;
     requestExecution?(input: unknown): Promise<ApiResult>;
     requestCandidate?(input: unknown): Promise<ApiResult>;
+    requestConnection?(input: unknown): Promise<ApiResult>;
   };
   identityFactory(transport: {requestDevice(input: unknown): Promise<ApiResult>}): {
     prepare(session: DeviceIdentitySessionInput, retry: DeviceIdentityRetry): Promise<DeviceIdentityResult>;
@@ -23,6 +24,7 @@ export type DeviceWorkerScope = {
   transport: {
     requestExecution(input: unknown): Promise<ApiResult>;
     requestCandidate(input: unknown): Promise<ApiResult>;
+    requestConnection(input: unknown): Promise<ApiResult>;
   };
   close(): void;
 };
@@ -98,7 +100,7 @@ export function createDeviceIdentityController({service, identityFactory}: Devic
         const requestEpoch = session.sessionId;
         let closed = false;
         const current = () => !closed && requestEpoch === epoch;
-        async function request(family: 'requestExecution' | 'requestCandidate', input: unknown): Promise<ApiResult> {
+        async function request(family: 'requestExecution' | 'requestCandidate' | 'requestConnection', input: unknown): Promise<ApiResult> {
           if (!current()) return {ok: false, status: 0, error: 'SESSION_CHANGED'};
           const send = service[family];
           if (!send) return {ok: false, status: 0, error: 'SERVICE_UNAVAILABLE'};
@@ -115,6 +117,7 @@ export function createDeviceIdentityController({service, identityFactory}: Devic
           transport: {
             requestExecution: input => request('requestExecution', input),
             requestCandidate: input => request('requestCandidate', input),
+            requestConnection: input => request('requestConnection', input),
           },
           close() {closed = true;},
         };

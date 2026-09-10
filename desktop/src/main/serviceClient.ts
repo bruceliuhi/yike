@@ -3,6 +3,7 @@ import {validatedOperation, type ServiceOperation} from './servicePolicy';
 import {validatedDeviceOperation} from './deviceServicePolicy';
 import {validatedExecutionOperation} from './executionServicePolicy';
 import {validatedCandidateOperation} from './candidateServicePolicy';
+import {validatedConnectionOperation} from './connectionServicePolicy';
 
 export function configuredService(
   input: string | undefined,
@@ -74,6 +75,7 @@ export function createServiceClient(options: ServiceClientOptions): {
   requestDevice(input: unknown): Promise<ApiResult>;
   requestExecution(input: unknown): Promise<ApiResult>;
   requestCandidate(input: unknown): Promise<ApiResult>;
+  requestConnection(input: unknown): Promise<ApiResult>;
 } {
   let queue: Promise<unknown> = Promise.resolve();
   let pending = 0;
@@ -127,5 +129,6 @@ export function createServiceClient(options: ServiceClientOptions): {
     requestDevice(input) { return enqueue(validatedDeviceOperation(input)); },
     requestExecution(input) { return enqueue(validatedExecutionOperation(input)); },
     requestCandidate(input) { return enqueue(validatedCandidateOperation(input)); },
+    requestConnection(input) { return enqueue(validatedConnectionOperation(input)); },
   };
 }

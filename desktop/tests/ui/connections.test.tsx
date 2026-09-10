@@ -64,7 +64,7 @@ describe("平台连接", () => {
     ).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "打开登录窗口" }));
     await screen.findByText("平台登录服务尚未接通");
-    expect(service.connect).toHaveBeenCalledWith("xhs");
+    expect(service.connect).toHaveBeenCalledWith("xhs", expect.any(AbortSignal));
     expect(service.checkConnection).not.toHaveBeenCalled();
     expect(screen.queryByText("账号已连接")).toBeNull();
     expect(

@@ -11,6 +11,7 @@ import {
 import type { YikeDesktopApi, ApiOperation } from "../../shared/contracts";
 import { decodeLibraryFacts } from "../domain/opportunityLibrary";
 import { decodeConnectionRegistry } from "./connectionRegistry";
+import { createPlatformConnectionService } from "./platformConnection";
 import { createResearchStrategiesService } from "./researchStrategies";
 import { parseOpportunitySourceEvidence } from "../domain/opportunitySourceEvidence";
 import { createCandidateReviewService, CANDIDATE_PLATFORM_LABELS } from "./candidateReview";
@@ -245,6 +246,7 @@ function unavailable(name: string): never {
   );
 }
 const candidateReads = createCandidateReviewService(request);
+const platformConnections = createPlatformConnectionService(bridge, () => service.connections());
 export const service: YikeService = {
   get execution() { return desktopExecution(bridge()); },
   get deviceIdentity() { return desktopDeviceIdentity(bridge()); },
@@ -345,8 +347,9 @@ export const service: YikeService = {
       );
   },
   connections: async () => decodeConnectionRegistry(await request("connections.list", "/connections")),
-  connect: async () => unavailable("平台登录"),
-  checkConnection: async () => unavailable("连接检查"),
+  connect: platformConnections.connect,
+  checkConnection: platformConnections.checkConnection,
+  cancelConnection: platformConnections.cancelConnection,
   disconnect: async () => unavailable("断开连接"),
   suggest: async () => unavailable("AI 搜索建议"),
   tasks: async () => unavailable("任务运行服务"),

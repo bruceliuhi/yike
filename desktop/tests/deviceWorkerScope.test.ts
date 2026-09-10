@@ -9,7 +9,7 @@ const auth = (user_id = 'TEST-owner') => ok({authenticated: true, user_id});
 const changed = {ok: false, status: 0, error: 'SESSION_CHANGED'};
 const unavailable = {ok: false, status: 0, error: 'SERVICE_UNAVAILABLE'};
 const unauthorized = (): ApiResult => ({ok: false, status: 401, error: 'invalid_session'});
-const families = ['requestExecution', 'requestCandidate'] as const;
+const families = ['requestExecution', 'requestCandidate', 'requestConnection'] as const;
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (error: unknown) => void;
@@ -29,6 +29,7 @@ function fixture(candidateAvailable = true) {
       async request(input) {state.publicCalls.push(input); return state.publicHandler(input);},
       async requestDevice() {throw new Error('unexpected device request');},
       async requestExecution(input) {state.privateCalls.push({family: 'requestExecution', input}); return state.privateHandler(input);},
+      async requestConnection(input) {state.privateCalls.push({family: 'requestConnection', input}); return state.privateHandler(input);},
       ...(candidateAvailable ? {async requestCandidate(input: unknown) {state.privateCalls.push({family: 'requestCandidate', input}); return state.privateHandler(input);}} : {}),
     },
     identityFactory: () => ({async prepare() {return state.prepareResult;}}),
@@ -54,6 +55,7 @@ describe('bounded main-only device worker scope', () => {
     expect(f.controller.getStatus()).toEqual(ready);
     expect(await scope.transport.requestExecution({operation: 'execution.start'})).toEqual(ok());
     expect(await scope.transport.requestCandidate({operation: 'candidate.submit'})).toEqual(ok());
+    expect(await scope.transport.requestConnection({operation: 'connections.current'})).toEqual(ok());
     expect(await f.controller.requestExecution({operation: 'execution.start'})).toEqual(changed);
     expect(f.state.privateCalls.map(call => call.family)).toEqual([...families]);
   });

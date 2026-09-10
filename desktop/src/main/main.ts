@@ -4,6 +4,7 @@ import {
 } from 'electron';
 import squirrelStartup from 'electron-squirrel-startup';
 import path from 'node:path';
+import {mkdir} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {
   DESKTOP_RUNTIME_NOT_READY, GET_RUNTIME_STATUS_CHANNEL,
@@ -26,6 +27,11 @@ import {createExecutionSession} from './executionSession';
 import {createExecutionJournal} from './executionJournal';
 import {EXECUTION_COMMAND_CHANNEL} from '../shared/desktopExecution';
 import {GET_DEVICE_IDENTITY_STATUS_CHANNEL, PREPARE_DEVICE_IDENTITY_CHANNEL} from '../shared/deviceIdentity';
+import {PLATFORM_CONNECTION_CHANNEL} from '../shared/platformConnection';
+import {createConnectionProfileStore} from './connectionProfileStore';
+import {createPlatformConnectionController} from './platformConnectionController';
+import {createPlatformLoginDriver} from './platformLoginDriver';
+import {platformLoginConfiguration} from './platformLoginConfiguration';
 
 protocol.registerSchemesAsPrivileged([
   {scheme: 'yike', privileges: {standard: true, secure: true, supportFetchAPI: true}}
@@ -34,6 +40,9 @@ protocol.registerSchemesAsPrivileged([
 let mainWindow: BrowserWindow | null = null;
 let quitting = false;
 let startupFailed = false;
+let platformConnection:ReturnType<typeof createPlatformConnectionController>|null=null;
+let platformShutdown:Promise<void>|null=null;
+let platformStopped=false;
 
 function failStartup(): void {
   if (quitting || startupFailed) return;
@@ -160,6 +169,19 @@ async function startApplication(): Promise<void> {
   const execution = baseUrl === null ? null : createExecutionController({identity,
     execution: createExecutionSession({serviceOrigin: baseUrl, transport: identity, vault,
       journal: createExecutionJournal({directory: path.join(app.getPath('userData'), 'execution-operations'), protection})})});
+  const loginConfiguration=platformLoginConfiguration({env:process.env,packaged:app.isPackaged,platform:process.platform,userData:app.getPath('userData')});
+  if(baseUrl!==null && loginConfiguration!==null) {
+    // These empty parents contain only UUID-named leaves; Python creates each cookie/output leaf with native private ACLs.
+    await mkdir(loginConfiguration.profileRoot,{recursive:true});
+    await mkdir(loginConfiguration.outputRoot,{recursive:true});
+    platformConnection=createPlatformConnectionController({serviceOrigin:baseUrl,identity,
+      store:createConnectionProfileStore({directory:path.join(app.getPath('userData'),'platform-connection-records'),protection}),
+      login:createPlatformLoginDriver(loginConfiguration)});
+  }
+  ipcMain.handle(PLATFORM_CONNECTION_CHANNEL,(event,command:unknown)=>{
+    trustedSender(event);
+    return platformConnection?platformConnection.execute(command):{state:'SERVICE_UNAVAILABLE'};
+  });
   ipcMain.handle(EXECUTION_COMMAND_CHANNEL, (event, command: unknown) => {
     trustedSender(event);
     return execution ? execution.execute(command) : {state: 'SERVICE_UNAVAILABLE'};
@@ -217,7 +239,16 @@ async function startApplication(): Promise<void> {
   });
 }
 
-app.on('before-quit', () => { quitting = true; });
+app.on('before-quit', event => {
+  quitting = true;
+  if(platformConnection && !platformStopped) {
+    event.preventDefault();
+    if(!platformShutdown)platformShutdown=platformConnection.shutdown().catch(()=>{
+      console.error('YIKE_PLATFORM_LOGIN_STOP_UNCONFIRMED');
+      dialog.showErrorBox('登录窗口停止状态未确认','客户端未把本次登录记为成功。请核对平台浏览器是否仍在运行，再重新打开客户端。');
+    }).finally(()=>{platformStopped=true;app.quit();});
+  }
+});
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 if (squirrelStartup || !app.requestSingleInstanceLock()) {
   app.quit();

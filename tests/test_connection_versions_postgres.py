@@ -462,7 +462,8 @@ def test_upgrade_106_to_107_twice_and_immutable_owner_rls(databases):
             conn.autocommit = True
             conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(dbname)))
             created = True
-        fresh.migration_paths = tuple(item for item in PilotDatabase.migration_paths if item[0] != "v02-connection-versions")
+        fresh.migration_paths = tuple(item for item in PilotDatabase.migration_paths
+            if item[0] not in {"v02-connection-versions", "v02-connection-verification"})
         fresh.migrate()
         provisioner = PilotStore(fresh)
         tenant = provisioner.provision_tenant("synthetic-upgrade")
