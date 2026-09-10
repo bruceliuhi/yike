@@ -234,6 +234,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 连接版本 PostgreSQL 复核：在独立身份数据库使用管理员/受限角色运行 `tests/test_connection_versions_postgres.py`，**40 passed**。覆盖连接版本递增、撤销/重连、租户隔离、RLS 与权限边界；不代表真实平台账号已连接。
 
+2026-09-10 桌面机会 HTTP PostgreSQL 复核：同时注入研究策略、身份和 Pilot 受限数据库连接，运行 `tests/test_desktop_opportunity_http_postgres.py`，**1 passed**。覆盖桌面客户端读取机会、证据与跟进状态的 HTTP 往返；数据为合成输入，不代表真实平台线索或客户 UAT。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
