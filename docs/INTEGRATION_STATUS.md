@@ -226,6 +226,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 研究导入原子性 PostgreSQL 复核：在全新 `yike_mac_import_20260910` 数据库使用独立管理员与受限 `import_app_mac` 角色运行 `tests/test_import_atomicity.py`，**5 passed**。覆盖受限导入、失败回滚和跨租户边界；不代表真实平台采集或生产部署完成。
 
+2026-09-10 候选入库 PostgreSQL 复核：使用独立身份数据库的管理员/受限角色运行 `tests/test_candidate_ingestion_postgres.py`，**23 passed**。覆盖签名提交、原子回执、版本历史、租户隔离、预算/租约与失败关闭；不代表真实平台采集或生产部署完成。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
