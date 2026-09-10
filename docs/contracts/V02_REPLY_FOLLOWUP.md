@@ -40,6 +40,16 @@ Win必须采用响应返回的canonical event_id，后续UNREAD→READ修订沿�
 
 ## 事件边界
 
+### 2026-09-12 客户手动同步入口
+
+普通跟进页新增小红书公开评论回复同步，preload `nativeReplyCommand` 仅接受 `{action:'SYNC',opportunityId,requestId}`；main IPC `desktop:native-reply`经过trustedSender。来源提示取当前身份/商机原生联系记录或已验证回复证据，renderer不能提交正文/设备/路径/签名。提示不构成SENT证明，main重新从认证服务定位原SENT根评论。
+
+当前实现依次核对原context摘要和owner/device、当前原profile的VERIFY与CONNECTED版本、原账号/对象真实CHECK，再READ_REPLIES；必须实际关闭并确认清理后才签名上报。不是私信同步，不改变平台已读，不自动轮询或发送。未知/清理失败不报告零回复；退出等待来源停止。
+
+结果为`SYNCED(requestId,coverage,observed,recorded)`或`FAILED(error,recorded)`；coverage区分COMPLETE/PARTIAL，recorded包含服务器语义去重结果，不等于新增回复。中途失败保留已确认数量并刷新已保存证据；接受去重返回的原event_id与原观察时间，不虚构更正。
+
+实现/验收边界见[唯一记录](../superpowers/plans/2026-09-12-native-reply-client.md#本批实现与证据)。客户端源码装配不替代Windows新运行包、实际平台、生产或UAT证据。
+
 - `PlatformReplyEvent` 必须绑定租户、用户、商机、来源、画像版本和原发送请求，并保留平台、渠道、公开回复 ID、发送者公开 ID、原文、收到/观察时间和 `UNREAD / READ / UNKNOWN` 状态。
 - `ManualFollowupEvent` 只记录人工事实（联系、会议、报价、输单、赢单或备注），不携带平台字段。平台回复与人工记录必须分开统计。
 - 所有 ID、时间、文本和额外字段严格校验；回复观察时间不能早于收到时间，人工发生时间不能晚于观察时间。
