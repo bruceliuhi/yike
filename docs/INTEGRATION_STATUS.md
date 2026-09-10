@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-10 人工草稿后端已接普通启动
+
+`2d77f58` 已通过独立审核；现有Web提供本人评论/私信保存、原请求恢复及最新稿读取，迁移121和授权说明已接入。原失败、12项实际HTTP/受限PG及未改字节复用见[本批证据](superpowers/plans/2026-09-10-contact-draft-persistence.md#本批证据)。Win接入须同时维护编辑前驱requestId，详情见[07B合同](UI_SHORT_COACH_CONTRACT.md#07b-后端接入2026-09-10)；未触碰Win客户端或构包，不冒称已消费。Mac继续确认发送/回执链；保存不等于发送或完整产品可上线。
+
 ## 2026-09-10 Mac 接收 Win 已实测运行包来件
 
 当前接收 `d9ebbb7`，生成器/库存生产字节保持 Win `e2b75ce`；Windows生成、搬迁和独立审核证据复用[Win单一记录](superpowers/plans/2026-09-10-win-portable-runtime.md#本批交付与验证2026-09-10-恢复后)，Mac未重构或重跑Windows。Mac同时进行的库存替代实现已保留在本地 `codex/v02-full-scope@431cd4a`，被该实机来件取代，不再合并或重复接续；原脏工作树未改动。
