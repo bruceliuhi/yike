@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {suggestionPreviewRequestSchema,suggestionRequestSchema,suggestionReceiptRequestSchema} from '../shared/searchSuggestions';
 import {taskFeedQuerySchema,taskFeedGetSchema} from '../shared/taskFeed';
 import {prepareStrategySchema, confirmStrategySchema, revokeStrategySchema, strategyUuidSchema} from '../shared/researchStrategies';
 import {candidateBindingSchema, candidateQuerySchema, candidateReviewRequestSchema, sourceVerificationRequestSchema, candidateRequestIdSchema, type CandidateQueryInput} from '../shared/candidateReviewApi';
@@ -9,6 +10,9 @@ const identifier = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-][A-Za-z0-9_.:
 const text = z.string().max(8000).refine(value => value.trim().length > 0);
 const phone = z.string().length(11).regex(/^1[0-9]{10}$/);
 const schemas = {
+  'suggestions.preview': suggestionPreviewRequestSchema,
+  'suggestions.submit': suggestionRequestSchema,
+  'suggestions.receipt': suggestionReceiptRequestSchema,
   'session.get': empty,
   'session.login': z.object({token: z.string().min(1).max(8192)}).strict(),
   'session.logout': empty,
@@ -60,6 +64,7 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
   const {operation, payload} = request.data;
   const parsed = schemas[operation].safeParse(payload);
   if (!parsed.success) return null;
+  if (operation === 'suggestions.submit' && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 32 * 1024) return null;
   if (operation === 'materials.mutate' && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 32 * 1024) return null;
   if (operation.startsWith('strategies.') && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 128 * 1024) return null;
   const data = parsed.data as Record<string, string> | undefined;
@@ -70,6 +75,9 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
       return {path:'/api/ui/execution-task-feed'+(params.size?'?'+params:''),method:'GET',logout:false};
     }
     case 'taskFeed.get': return {path:`/api/ui/execution-task-feed/${data!.taskId}`,method:'GET',logout:false};
+    case 'suggestions.preview': return {path:`/api/ui/search-suggestions/preview?profileVersionId=${data!.profile_version_id}`,method:'GET',logout:false};
+    case 'suggestions.submit': return {path:'/api/ui/search-suggestions',method:'POST',body:JSON.stringify(parsed.data),logout:false};
+    case 'suggestions.receipt': return {path:`/api/ui/search-suggestions/${data!.request_id}`,method:'GET',logout:false};
     case 'materials.list': {
       const value = parsed.data as {profileVersionId:string};
       return {path:`/api/ui/materials?profileVersionId=${encodeURIComponent(value.profileVersionId)}`,method:'GET',logout:false};

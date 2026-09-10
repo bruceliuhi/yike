@@ -19,6 +19,7 @@ import { createResearchStrategiesService } from "./researchStrategies";
 import { parseOpportunitySourceEvidence } from "../domain/opportunitySourceEvidence";
 import { createCandidateReviewService, CANDIDATE_PLATFORM_LABELS } from "./candidateReview";
 import { createMaterialsService } from "./materials";
+import { createSearchSuggestionsService } from "./searchSuggestions";
 import { createTaskFeedService } from './taskFeed';
 
 type JsonRecord = Record<string, unknown>;
@@ -270,6 +271,7 @@ const platformConnections = createPlatformConnectionService(bridge, () => servic
 export const service: YikeService = {
   taskFeed: createTaskFeedService(requestRaw),
   materials: createMaterialsService(requestRaw),
+  searchSuggestions: createSearchSuggestionsService(requestRaw),
   replyEvidence:(opportunityId,signal)=>requestRaw('replies.evidence',`/opportunities/${encodeURIComponent(opportunityId)}/replies/evidence`,'GET',{opportunityId},signal),
   get execution() { return desktopExecution(bridge()); },
   get foregroundCollection() { return foregroundCollection(bridge()); },
