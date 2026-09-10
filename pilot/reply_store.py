@@ -92,7 +92,20 @@ class ReplyEventStore:
                         f"{getattr(event, 'platform', 'MANUAL')}\0{getattr(event, 'external_reply_id', event.event_id)}")
             cursor.execute("SELECT pg_advisory_xact_lock(11801,%s)", (self._lock_key(identity),))
             self._active(cursor, claims)
-            if isinstance(event, PlatformReplyEvent):
+            if event.state != "ACTIVE":
+                # Corrections/voids are history entries.  They must point at
+                # an existing event in the same owner scope and are keyed by
+                # their own event id, not by the platform identity.
+                cursor.execute("""SELECT 1 FROM pilot_reply_events
+                    WHERE tenant_id=%s AND owner_user_id=%s AND event_id=%s
+                    ORDER BY revision DESC LIMIT 1""",
+                               (tenant_id, claims.user_id, event.corrects_event_id))
+                if cursor.fetchone() is None:
+                    raise ReplyStoreError("event_target_unavailable", 409)
+                cursor.execute("""SELECT event_id,revision,payload,payload_sha256 FROM pilot_reply_events
+                    WHERE tenant_id=%s AND owner_user_id=%s AND event_id=%s ORDER BY revision DESC LIMIT 1 FOR UPDATE""",
+                               (tenant_id, claims.user_id, event.event_id))
+            elif isinstance(event, PlatformReplyEvent):
                 # A platform reply is accepted only when the same owner has a
                 # durable, human-confirmed origin request for this source and
                 # opportunity.  A client cannot fabricate a reply association.
@@ -104,12 +117,11 @@ class ReplyEventStore:
                 origin = cursor.fetchone()
                 if origin is None or origin[0] != event.opportunity_id or origin[1] != event.source_id:
                     raise ReplyStoreError("reply_origin_unavailable", 409)
-            if isinstance(event, PlatformReplyEvent):
                 cursor.execute("""SELECT event_id,revision,payload,payload_sha256 FROM pilot_reply_events
                     WHERE tenant_id=%s AND owner_user_id=%s AND source_id=%s AND outreach_request_id=%s
                       AND platform=%s AND external_reply_id=%s ORDER BY revision DESC LIMIT 1 FOR UPDATE""",
                                (tenant_id, claims.user_id, event.source_id, event.outreach_request_id, event.platform, event.external_reply_id))
-            else:
+            elif isinstance(event, ManualFollowupEvent):
                 cursor.execute("""SELECT event_id,revision,payload,payload_sha256 FROM pilot_reply_events
                     WHERE tenant_id=%s AND owner_user_id=%s AND event_id=%s ORDER BY revision DESC LIMIT 1 FOR UPDATE""",
                                (tenant_id, claims.user_id, event.event_id))
