@@ -56,3 +56,14 @@ Files: 新建`desktop/src/main/deviceIdentitySession.ts`、`desktop/tests/device
 ## 交接
 
 Win独占上述desktop新模块、vault最小扩展及自有验收；Mac设备/执行/回复/授权P2收口仍由Mac处理。按SHA/实际结果同步任务书；不擅自外发、付费或部署，也不把一片完成当全Goal完成。
+
+## Chunk 2 执行细化：既有设备页正常入口
+
+沿已批准的主进程持钥/现有设备页设计，不新增平台能力或使用授权含义。设备身份与商业授权/平台连接分开；既有管理服务仍管理其原授权，不能把 BIND 冒充购买或平台登录。
+
+- [ ] Task4：新增 `desktop/src/shared/deviceIdentity.ts`（严格 `{retryRegistration?,retryProof?}`，受限结果/状态 schema、固定两频道）；新增 `desktop/src/main/deviceIdentityController.ts` 及测试。factory `{service, identityFactory}` 让原 coordinator 使用拦截401的专用 transport；`requestApi(unknown)`代理原固定API，login/loginPhone/logout进入即生成新UUID并清空本机结果，所有401只失效自己的代次。auth操作在途时prepare不排到旧身份上，返回BUSY。`prepare(unknown)`先严格解析快照选项，再通过真实session.get严格取得 authenticated:true/user_id；用户名1～256码点/无控制字符/边界空白，永远不接受renderer身份或路径。新的同user登录也必须新证明；每异步完成检查代次，串行忙碌防重，异常固定FAILED。`getStatus()`只读本机最近观察，初始NOT_PREPARED，非实时授权；退出立即清空。coordinator READY严格解析，只传deviceId/credentialVersion，其他状态只传固定code，无签名/密钥。
+- [ ] Task5：root修改main.ts固定userData子目录（device-keys / device-identity）与safeStorage，构造真实journal/vault/coordinator/controller；三个handler均trustedSender，普通API改走controller，不改变runtime NOT_READY，不暴露requestDevice。preload只增加getDeviceIdentityStatus/prepareDeviceIdentity固定频道，类型合同新增可选方法兼容旧包，现preload始终提供；定向测试含冻结入口/原签名不可达/main实际装配与恶意来源拒绝。
+- [ ] Task6：root复用Settings设备区域及原bind弹窗，新增专用DeviceIdentityPanel与UI测试。真实桌面两方法存在且非样例时显示本机身份操作；浏览器/旧包/样例保留原管理流程。无需输入用户ID或密钥。首次明确确认→prepare；结果未知先核对，另一次明确确认才retry原请求。状态文字区分上次身份核验通过、未核验、未知、缺失/撤销/会话变化；始终注明不是平台已连接/使用授权。切账号、退出、关闭卸载忽略迟到结果；仅本次busy禁止重复按钮。保留既有授权/导出等功能，不重排页面。
+- [ ] Task7：TDD有效RED→GREEN，控制器、preload、实际main装配、Settings/管理与既有身份定向+tsc；非作者SPEC后质量审核。一次生产候选构包在本批真实入口完成后做，沿已通过原生/PG字节证据不重复整套；实际运行观察普通入口与未知/失效提示，不将TEST或只有绑定当整链完成。Git由root串行、验证后main同步；高级管理不扩展。
+
+验证命令从desktop运行Node24 `node_modules/vitest/vitest.mjs run tests/deviceIdentityController.test.ts tests/preload.test.ts tests/deviceIdentityMain.test.ts tests/ui/device-identity-panel.test.tsx tests/ui/settings.test.tsx` 与 `node_modules/typescript/bin/tsc --noEmit`。新边界测试必须先失败，已有同字节模块证据不重复全量；字段/集成真实错误按风险追加。
