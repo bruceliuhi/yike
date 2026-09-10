@@ -15,7 +15,7 @@ const localLabels={DETACHED:'本机未接管',ATTACHED:'已接管，等待到期
 const hints:Record<string,string>={SKIPPED_BUSY:'采集器忙碌，本次到期已跳过，不补跑。',SKIPPED_OFFLINE:'离线错过的时段已跳过。',
  SKIPPED_MISSED:'错过的执行时段已跳过。',RECOVERY_REQUIRED:'旧轮次待核对，不会重新打开来源。',START_UNKNOWN:'启动结果待核对，不会重复启动。'};
 export function NativeMonitorPlans(){
- const {service,session,route,navigate}=useApp(),scope=useTaskScope(),monitor=useMonitorCollection();
+ const {service,session,route,navigate}=useApp(),scope=useTaskScope(route.path),monitor=useMonitorCollection();
  const [library]=useTaskLibrary(session.userId,session.accountScope);
  const [,setDraft]=useTaskDraft(session.userId,'monitor',session.accountScope);
  const id=route.path.startsWith('/monitors/')?route.path.slice('/monitors/'.length):null;
