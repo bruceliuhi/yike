@@ -244,6 +244,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 Pilot 专用数据库权限与导入原子性复核：使用独立 `yike_mac_pilot_20260910` PostgreSQL 数据库及受限 `pilot_app` 角色运行 `tests/test_pilot_contracts.py` 与 `tests/test_import_atomicity.py`，**11 passed**。该结果补足此前将身份库角色误用于 Pilot 套件的环境问题，证明受限角色下的权限/原子性合同可执行；仍不代表真实平台采集、真实发送、生产部署或客户 UAT。
 
+2026-09-10 回复历史追加修复：`3a5a4b6` 修正 `CORRECTED/VOID` 事件在同一租户/用户下被后续查询覆盖、误报 `event_conflict` 的问题；新增事件以自身 `event_id` 做幂等查询，并在目标不存在时返回 `event_target_unavailable`。回复合同与存储专项 **20 passed**，compile 检查通过。尚未完成 PostgreSQL 受限角色集成、真实平台回流、已读同步、提醒调度或客户 UAT。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
