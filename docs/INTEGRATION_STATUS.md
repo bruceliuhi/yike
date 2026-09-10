@@ -250,6 +250,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 回复事件 PostgreSQL 受限角色探针：在一次性 `yike_mac_pilot_20260910` 数据库核对 `pilot_reply_events` 已启用并强制 RLS，`pilot_app` 为 `NOSUPERUSER/NOBYPASSRLS`，具备最小 SELECT/INSERT 权限，当前事件表为空。该探针验证迁移与角色边界，不代表回复事件业务写入、并发、回流或生产部署已完成。
 
+2026-09-10 固定 Mac 验收候选：在 `dc0e62e` 上执行桌面类型检查、生产 renderer 构建和 `npm run package:dev`，均通过；产物为 `desktop/out/意客AI-darwin-arm64/意客AI.app`，ASAR SHA-256 `b534830606316667fb485cc79d9d56d821662c4b5637e8b29ae6aec1f543cca9`。该包仅作为后续可见验收固定输入，不代表 Windows 实机、真实平台采集/发送/回流或客户 UAT 完成。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
