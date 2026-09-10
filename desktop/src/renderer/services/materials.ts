@@ -79,12 +79,15 @@ export function createMaterialsService(transport: Transport): MaterialService {
     },
     async operation(profileVersionId, requestId) {
       const payload = checked(materialOperationRequestSchema, { profileVersionId, requestId });
-      return materialReceiptSchema.parse(await transport(
+      const result = materialReceiptSchema.parse(await transport(
         "materials.operation",
         `/materials/operation?profileVersionId=${encodeURIComponent(profileVersionId)}&requestId=${encodeURIComponent(requestId)}`,
         "GET",
         payload,
       ));
+      if (result.profileVersionId !== profileVersionId || result.requestId !== requestId)
+        throw new Error("资料回执与查询请求不匹配，请继续核对原操作。");
+      return result;
     },
     async impact(profileVersionId, materialId, version, action) {
       const payload = checked(materialImpactRequestSchema, { profileVersionId, materialId, version, action });

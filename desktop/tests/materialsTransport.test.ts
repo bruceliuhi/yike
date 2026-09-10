@@ -116,6 +116,32 @@ describe("materials renderer transport", () => {
     expect(requestApi).toHaveBeenCalledExactlyOnceWith({ operation: "materials.mutate", payload: request });
   });
 
+  it("accepts a versioned save when editing an existing material", async () => {
+    const request = saveRequest();
+    request.change.expectedVersion = 1 as never;
+    const requestApi = vi.fn(async () => ({ ok: true as const, status: 200, data: {
+      requestId: request.requestId, profileVersionId, materialId, kind: "save", status: "SUCCEEDED", record: record(2),
+    } }));
+    host.yikeDesktop = { requestApi } as unknown as YikeDesktopApi;
+    await expect(service.materials!.mutate(request, {
+      signal: new AbortController().signal, onUploadProgress: vi.fn(),
+    })).resolves.toMatchObject({ status: "SUCCEEDED", record: { version: 2 } });
+    expect(requestApi).toHaveBeenCalledExactlyOnceWith({ operation: "materials.mutate", payload: request });
+  });
+
+  it("rejects an operation receipt for a different query identity", async () => {
+    const requestId = id();
+    const requestApi = vi.fn(async () => ({ ok: true as const, status: 200, data: {
+      requestId: id(), profileVersionId: id(), materialId, kind: "save", status: "PENDING",
+    } }));
+    host.yikeDesktop = { requestApi } as unknown as YikeDesktopApi;
+    await expect(service.materials!.operation(profileVersionId, requestId))
+      .rejects.toThrow("资料回执与查询请求不匹配");
+    expect(requestApi).toHaveBeenCalledExactlyOnceWith({
+      operation: "materials.operation", payload: { profileVersionId, requestId },
+    });
+  });
+
   it("forwards browser abort but only rejects a late Electron result after dispatch", async () => {
     const browserAbort = new AbortController();
     const fetch = vi.fn((_url: string, init: RequestInit) => new Promise<Response>((_resolve, reject) => {

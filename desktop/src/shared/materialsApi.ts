@@ -20,7 +20,7 @@ const input = z.object({
 }).strict();
 const materialId = { materialId: id };
 const change = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("save"), ...materialId, expectedVersion: z.null(), input }).strict(),
+  z.object({ kind: z.literal("save"), ...materialId, expectedVersion: version.nullable(), input }).strict(),
   z.object({ kind: z.literal("parse"), ...materialId, expectedVersion: version }).strict(),
   z.object({ kind: z.literal("confirm"), ...materialId, expectedVersion: version, extractionId: id, fields }).strict(),
   z.object({ kind: z.enum(["remove", "revoke"]), ...materialId, expectedVersion: version, impactToken: id }).strict(),
