@@ -208,6 +208,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 设备登记恢复独立 PostgreSQL 验证：沿用受限身份角色和登记授权脚本，核心登记套件 **7 passed**，HTTP 登记恢复/严格输入/权限套件 **22 passed**。覆盖原 request_id 恢复、幂等冲突、撤销/过期、owner 隔离、HTTPS/Origin 和 no-store；不代表平台账号已连接或 Windows 实机验收完成。
 
+2026-09-10 执行运行时复核：在全新一次性 PostgreSQL 数据库 `yike_mac_20260910_try` 上，由执行套件自行迁移并创建动态 `NOSUPERUSER/NOBYPASSRLS` 角色，`tests/test_execution_runtime_postgres.py` **42 passed**。此前复用旧库触发 `v02-identity-execution` checksum mismatch，已确认不能将旧库状态当作当前 schema 证据；本结果仅覆盖执行运行时套件，不代表其他 PG 套件或生产部署完成。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
