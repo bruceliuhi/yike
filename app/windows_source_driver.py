@@ -125,7 +125,7 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
         raise WindowsSourceError('windows_required')
     started = time.monotonic()
     try:
-        if (platform not in ('DOUYIN', 'BILIBILI') or type(max_records) is not int or not 1 <= max_records <= 100
+        if (platform not in ('DOUYIN', 'BILIBILI', 'XIAOHONGSHU') or type(max_records) is not int or not 1 <= max_records <= 100
                 or type(timeout_seconds) is not int or not 1 <= timeout_seconds <= 900
                 or not isinstance(query, str) or not 1 <= len(query) <= 80 or canonical_single_keyword(query) != query):
             raise WindowsSourceError('source_input_invalid')
@@ -155,7 +155,7 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
             temporary = output_path / '.temporary'
             temporary.mkdir()
             (temporary / 'matplotlib').mkdir()
-            code = 'bili' if platform == 'BILIBILI' else 'dy'
+            code = {'BILIBILI': 'bili', 'DOUYIN': 'dy', 'XIAOHONGSHU': 'xhs'}[platform]
             environment = _minimal_child_environment(
                 YIKE_PROFILE_PATH=str(profile_path),
                 PLAYWRIGHT_BROWSERS_PATH=str(runtime_path / '.venv/playwright-browsers'),

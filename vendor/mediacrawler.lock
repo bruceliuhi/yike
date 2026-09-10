@@ -25,22 +25,30 @@
     {
       "path": "vendor/patches/mediacrawler/0001-yike-controlled-runtime.patch",
       "sha256": "871f8c8f18031a10bc4433472aa38b085305a79e000135d7d8a9ac4ce4acda6d"
+    },
+    {
+      "path": "vendor/patches/mediacrawler/0002-yike-xhs-runtime.patch",
+      "sha256": "6cad30d02500f2ed6ffa239247cca6b01218d65fffbe265f6026cbe87cf0f332"
     }
   ],
-  "patchset_sha256": "605a052fb903336d94c940fbc456a94c5ba92a20d04b51e360b5ff810cae654e",
+  "patchset_sha256": "3ea56022c91160abe17a63bc8ad539c891011a93b67434f4ab9099bb49c09a22",
   "patched_files": {
     "config/base_config.py": "7c5a9da4b9715fb7f2eec8ab9470a67b3ee47601f4c368168fa8352f3048b46a",
-    "main.py": "e91bdea10c043eb805b4dc5d62545875426e31165fab6b86c8fdbcd0e74d1dc4",
+    "main.py": "f0c6baceb0e3a7ea87143ab236319c937f7719e3103b5bd4bf6f8d561027100f",
     "media_platform/bilibili/client.py": "efe64ce0f22a71290bbdfab98ad5eaa3461ad4b389636b0b184bea5e2f043baa",
     "media_platform/bilibili/core.py": "3e4c1d4db9a2fc00adf4fa53e13eda50a2e99be40031bb3a1c49d4ce9db02975",
     "media_platform/bilibili/login.py": "06e2495e1aa04b1b7e12b84bd579e96c86622446e2efc88fe5139573a5b33f94",
     "media_platform/douyin/client.py": "f2a7b1707c27a08a1379cc04a18cdb0ad45db3f4ec9d0f2c3867ef7c1d1cdbe2",
     "media_platform/douyin/core.py": "33a9b6bc31b88309e507d6289175152d69d465061365da01582b17d0ada8e72c",
     "media_platform/douyin/login.py": "dc3495a2f2e75bda41c8e85106451582c889561950b229006a2aa17c495059e5",
+    "media_platform/xhs/client.py": "952d32e57d1ff0f7c7fa0dcc82920bb590dfda848103e5b2e804f680eeb40109",
+    "media_platform/xhs/core.py": "cbfafdfc65ebdc52338eba3089461605f161557754b4d98f5b97ffa2d575dcfd",
+    "media_platform/xhs/login.py": "f651f6aa9af958f707eeb2047bc1df4b791c3b967505c78d7e403537d731ec41",
+    "store/xhs/__init__.py": "77efcb60be3d60dd7a488740ee7d1cad6eab50ffe2f02f2c648bc9e85b26c3ef",
     "tools/crawler_util.py": "1bb27bdd68faf24df13c2bd32db441953c759c84c7dc6adf30659af605381a2d",
     "tools/yike_runtime.py": "1c0a3d89d84d90c88df99cb05aecdd1f63049f465e323b7246da805cdbb1c976"
   },
-  "patched_tree_sha256": "5903f857774228ec22f11fdb42490171a5939f0e703c3516a85d4aa999034ffe",
+  "patched_tree_sha256": "4eeead75f56d5a434863b605617ab16c54687cc4152d3b0c5654997a5e093585",
   "runtime_environment": {
     "uv_version": "0.11.6",
     "lock_path": "uv.lock",

@@ -8,7 +8,7 @@
 
 | 顺序 / 原卡 | 本阶段工作与实际主责 | 当前状态 / 下一动作 |
 |---|---|---|
-| P0 / 02、03、05F/G、09B/C | Win：Windows运行时/worker/现任务入口、小红书映射及候选/执行后端 | IN_PROGRESS；scope/worker5e09d48及既有安装/恢复已交付；本批推进实际来源driver和XHS映射修复，见[交接](handoffs/V1_WIN_FUNCTION_OWNERSHIP_20260909.md#分工调整)。接续XHS受控运行时、main/bootstrap、终态完成/来源capability，三渠道真实采集未验 |
+| P0 / 02、03、05F/G、09B/C | Win：Windows运行时/worker/现任务入口、小红书映射及候选/执行后端 | IN_PROGRESS；XHS受控补丁、Windows读取及私有Node/Python桥已实现，见[交接](handoffs/V1_WIN_FUNCTION_OWNERSHIP_20260909.md#分工调整)。接续真实账号与本机profile绑定、main/worker装配、终态完成/来源capability；三渠道真实采集未验 |
 | P0 / 06、07、08 | Win：小红书真实发送可行性、发送/回执与回复存储修复、现确认/跟进页面接入 | IN_PROGRESS；先验证真实主渠道，不以合同/草稿当发送。人工核验回复登记允许，自动回复后排 |
 | P1 / 04、05B/C/E/G、07 | Win：最小业务画像/关键词、列表原文、实际多找类似、真实判断/短句生成服务 | IN_PROGRESS；复用已交付证据/策略模块，补真实消费，不扩高级评分/管理 |
 | P1 / 09C、10 | Win冻结一个可安装候选；非作者一次整批独立审核及真实链路验收 | NOT_STARTED（本精简版整体验收）；现1a47178包仅历史入口证据，非本阶段完成 |

@@ -1,0 +1,1945 @@
+diff --git a/main.py b/main.py
+index 797f215..78a8195 100644
+--- a/main.py
++++ b/main.py
+@@ -74,7 +74,7 @@ class CrawlerFactory:
+ 
+ crawler: Optional[AbstractCrawler] = None
+ def _has_comment_output() -> bool:
+-    platform_dir = "bili" if config.PLATFORM == "bili" else "douyin"
++    platform_dir = {"bili": "bili", "dy": "douyin", "xhs": "xhs"}[config.PLATFORM]
+     data_dir = Path(config.SAVE_DATA_PATH) / platform_dir / "jsonl"
+     for path in data_dir.glob("search_comments_*.jsonl"):
+         with path.open(encoding="utf-8") as source:
+diff --git a/media_platform/xhs/client.py b/media_platform/xhs/client.py
+index 4627cd2..739fcf5 100644
+--- a/media_platform/xhs/client.py
++++ b/media_platform/xhs/client.py
+@@ -1,752 +1,235 @@
+ # -*- coding: utf-8 -*-
+ # Copyright (c) 2025 relakkes@gmail.com
+-#
+-# This file is part of MediaCrawler project.
+-# Repository: https://github.com/NanmiCoder/MediaCrawler/blob/main/media_platform/xhs/client.py
+-# GitHub: https://github.com/NanmiCoder
+-# Licensed under NON-COMMERCIAL LEARNING LICENSE 1.1
+-#
+-
+-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+-# 1. 不得用于任何商业用途。
+-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+-# 3. 不得进行大规模爬取或对平台造成运营干扰。
+-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
+-# 5. 不得用于任何非法或不当的用途。
+-#
+-# 详细许可条款请参阅项目根目录下的LICENSE文件。
+-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
+-
++# MediaCrawler: https://github.com/NanmiCoder/MediaCrawler
++# Licensed under NON-COMMERCIAL LEARNING LICENSE 1.1; see LICENSE.
++"""Strict, bounded XHS search transport. Failures never become empty success."""
+ import asyncio
+ import json
+-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
+-from urllib.parse import quote, urlencode
+-
++from typing import Dict
++from urllib.parse import quote
+ import httpx
+-from playwright.async_api import BrowserContext, Page
+-from tenacity import (
+-    RetryError,
+-    retry,
+-    retry_if_not_exception_type,
+-    stop_after_attempt,
+-    wait_fixed,
+-)
+-from tools.httpx_util import make_async_client
+-
+-import config
+ from base.base_crawler import AbstractApiClient
+-from proxy.proxy_mixin import ProxyRefreshMixin
++import config
+ from tools import utils
+-
+-if TYPE_CHECKING:
+-    from proxy.proxy_ip_pool import ProxyIpPool
+-
+-from .exception import (
+-    DataFetchError,
+-    IPBlockError,
+-    NoteNotFoundError,
+-    PlatformAccessError,
++from tools.httpx_util import make_async_client
++from tools.yike_runtime import (
++    YikePlatformAuthRequired, YikePlatformPermissionDenied,
++    YikePlatformVerificationRequired, YikePlatformRateLimited,
++    YikePlatformResponseChanged, YikeNetworkFailed,
++    require_bool_field, require_mapping_field, require_mapping_list_field,
++    require_nonempty_string_field,
+ )
+-from .field import SearchNoteType, SearchSortType
+-from .help import get_search_id
+-from .extractor import XiaoHongShuExtractor
++from .field import SearchSortType, SearchNoteType
+ from .playwright_sign import sign_with_xhshow
+ 
+ 
+-class XiaoHongShuClient(AbstractApiClient, ProxyRefreshMixin):
+-
+-    def __init__(
+-        self,
+-        timeout=60,  # If media crawling is enabled, Xiaohongshu long videos need longer timeout
+-        proxy=None,
+-        *,
+-        headers: Dict[str, str],
+-        playwright_page: Page,
+-        cookie_dict: Dict[str, str],
+-        proxy_ip_pool: Optional["ProxyIpPool"] = None,
+-    ):
+-        self.proxy = proxy
++class XiaoHongShuClient(AbstractApiClient):
++    def __init__(self, timeout=60, proxy=None, *, headers, playwright_page,
++                 cookie_dict, proxy_ip_pool=None):
+         self.timeout = timeout
+         self.headers = headers
+-        if config.XHS_INTERNATIONAL:
+-            self._host = "https://webapi.rednote.com"
+-            self._domain = "https://www.rednote.com"
+-        else:
+-            self._host = "https://edith.xiaohongshu.com"
+-            self._domain = "https://www.xiaohongshu.com"
+-        self.cookie_urls = [self._domain]
+-        self.IP_ERROR_STR = "Network connection error, please check network settings or restart"
+-        self.IP_ERROR_CODE = 300012
+-        self.SECURITY_LIMIT_CODE = 300011
+-        self.NOTE_NOT_FOUND_CODE = -510000
+-        self.NOTE_ABNORMAL_STR = "Note status abnormal, please check later"
+-        self.NOTE_ABNORMAL_CODE = -510001
+         self.playwright_page = playwright_page
+         self.cookie_dict = cookie_dict
+-        self._extractor = XiaoHongShuExtractor()
+-        # Initialize proxy pool (from ProxyRefreshMixin)
+-        self.init_proxy_pool(proxy_ip_pool)
+-
+-    async def _pre_headers(self, url: str, params: Optional[Dict] = None, payload: Optional[Dict] = None) -> Dict:
+-        """请求头参数签名 (使用 xhshow 纯算法)
+-
+-        Args:
+-            url: 请求 URI path
+-            params: GET 请求参数
+-            payload: POST 请求参数
+-
+-        Returns:
+-            Dict: 签名后的请求头参数
+-        """
+-        if params is not None:
+-            data = params
+-            method = "GET"
+-        elif payload is not None:
+-            data = payload
+-            method = "POST"
+-        else:
+-            raise ValueError("params or payload is required")
+-
+-        # 使用 xhshow 纯算法生成签名
+-        signs = sign_with_xhshow(
+-            uri=url,
+-            data=data,
++        self._host = "https://edith.xiaohongshu.com"
++        self.cookie_urls = ["https://www.xiaohongshu.com"]
++
++    async def _pre_headers(self, url, params=None, payload=None):
++        data = params if params is not None else payload
++        if data is None:
++            raise YikePlatformResponseChanged()
++        signs = sign_with_xhshow(uri=url, data=data,
+             cookie_str=self.headers.get("Cookie", ""),
+-            method=method,
+-        )
+-
+-        headers = {
+-            "X-S": signs["x-s"],
+-            "X-T": signs["x-t"],
+-            "x-S-Common": signs["x-s-common"],
+-            "X-B3-Traceid": signs["x-b3-traceid"],
+-        }
+-        self.headers.update(headers)
+-        return self.headers
+-
+-    @retry(
+-        stop=stop_after_attempt(3),
+-        wait=wait_fixed(1),
+-        retry=retry_if_not_exception_type(
+-            (NoteNotFoundError, IPBlockError, PlatformAccessError)
+-        ),
+-    )
+-    async def request(self, method, url, **kwargs) -> Union[str, Any]:
+-        """
+-        Wrapper for httpx common request method, processes request response
+-        Args:
+-            method: Request method
+-            url: Request URL
+-            **kwargs: Other request parameters, such as headers, body, etc.
+-
+-        Returns:
+-
+-        """
+-        # Check if proxy is expired before each request
+-        await self._refresh_proxy_if_expired()
+-
+-        # return response.text
+-        return_response = kwargs.pop("return_response", False)
+-        async with make_async_client(proxy=self.proxy) as client:
+-            response = await client.request(method, url, timeout=self.timeout, **kwargs)
+-
+-        if response.status_code in {401, 403, 429}:
+-            raise PlatformAccessError(
+-                f"XHS request blocked with HTTP {response.status_code}"
+-            )
++            method="GET" if params is not None else "POST")
++        return {**self.headers, "X-S": signs["x-s"], "X-T": signs["x-t"],
++            "x-S-Common": signs["x-s-common"], "X-B3-Traceid": signs["x-b3-traceid"]}
+ 
+-        if response.status_code == 471 or response.status_code == 461:
+-            # someday someone maybe will bypass captcha
+-            verify_type = response.headers["Verifytype"]
+-            verify_uuid = response.headers["Verifyuuid"]
+-            msg = f"CAPTCHA appeared, request failed, Verifytype: {verify_type}, Verifyuuid: {verify_uuid}, Response: {response}"
+-            utils.logger.error(msg)
+-            raise Exception(msg)
+-
+-        response_data: Optional[Dict] = None
++    async def request(self, method, url, **kwargs):
++        # Ignore ambient proxies; always verify TLS. No challenge or error retry.
++        try:
++            async with make_async_client(trust_env=False, verify=True) as client:
++                response = await client.request(method, url, timeout=self.timeout, **kwargs)
++        except httpx.HTTPError:
++            raise YikeNetworkFailed() from None
++        if response.status_code == 401:
++            raise YikePlatformAuthRequired()
++        if response.status_code == 403:
++            raise YikePlatformPermissionDenied()
++        if response.status_code == 429:
++            raise YikePlatformRateLimited()
++        if response.status_code in {461, 471}:
++            raise YikePlatformVerificationRequired()
++        if response.status_code >= 500:
++            raise YikeNetworkFailed()
++        if response.status_code != 200:
++            raise YikePlatformResponseChanged()
+         try:
+-            candidate_data = response.json()
+-            if isinstance(candidate_data, dict):
+-                response_data = candidate_data
++            data = response.json()
+         except (TypeError, ValueError):
+-            pass
+-
+-        response_code = (
+-            str(response_data.get("code"))
+-            if response_data is not None and response_data.get("code") is not None
+-            else ""
+-        )
+-        if response_code == str(self.IP_ERROR_CODE):
+-            raise IPBlockError(self.IP_ERROR_STR)
+-        if response_code == str(self.SECURITY_LIMIT_CODE):
+-            raise PlatformAccessError(
+-                f"XHS account security restriction, code: {self.SECURITY_LIMIT_CODE}"
+-            )
+-
+-        if return_response:
+-            return response.text
+-        data: Dict = response_data if response_data is not None else response.json()
+-        if data["success"]:
+-            return data.get("data", data.get("success", {}))
+-        # IP_ERROR_CODE / SECURITY_LIMIT_CODE are already handled above, before return_response.
+-        elif data["code"] in (self.NOTE_NOT_FOUND_CODE, self.NOTE_ABNORMAL_CODE):
+-            raise NoteNotFoundError(f"Note not found or abnormal, code: {data['code']}")
+-        else:
+-            err_msg = data.get("msg", None) or f"{response.text}"
+-            raise DataFetchError(err_msg)
++            raise YikePlatformResponseChanged() from None
++        if type(data) is not dict:
++            raise YikePlatformResponseChanged()
++        code = data.get("code")
++        if str(code) in {"-100", "-101", "401"}:
++            raise YikePlatformAuthRequired()
++        if str(code) in {"300011", "461", "471"}:
++            raise YikePlatformVerificationRequired()
++        if str(code) in {"300012", "429"}:
++            raise YikePlatformRateLimited()
++        if str(code) in {"-510000", "-510001", "403"}:
++            raise YikePlatformPermissionDenied()
++        if data.get("success") is not True or (code is not None and (type(code) is not int or code != 0)):
++            raise YikePlatformResponseChanged()
++        return require_mapping_field(data, "data")
+ 
+     @staticmethod
+-    def _build_query_string(params: Dict) -> str:
+-        """Build URL query string with encoding matching browser behavior (commas not encoded)"""
+-        parts = []
+-        for key, value in params.items():
+-            value_str = str(value) if value is not None else ""
+-            parts.append(f"{key}={quote(value_str, safe=',')}")
+-        return "&".join(parts)
+-
+-    async def get(self, uri: str, params: Optional[Dict] = None) -> Dict:
+-        """
+-        GET request, signs request headers
+-        Args:
+-            uri: Request route
+-            params: Request parameters
+-
+-        Returns:
++    def _build_query_string(params):
++        return "&".join(f"{key}={quote(str(value) if value is not None else '', safe=',')}"
++                        for key, value in params.items())
+ 
+-        """
+-        headers = await self._pre_headers(uri, params)
+-        # Build URL manually to ensure query string encoding matches the sign string
+-        # (httpx's default params encoding differs from browser/XHS frontend behavior)
+-        if params:
+-            full_url = f"{self._host}{uri}?{self._build_query_string(params)}"
+-        else:
+-            full_url = f"{self._host}{uri}"
++    async def get(self, uri, params=None):
++        params = params or {}
++        headers = await self._pre_headers(uri, params=params)
++        query = self._build_query_string(params)
++        return await self.request("GET", self._host + uri + ("?" + query if query else ""), headers=headers)
+ 
+-        return await self.request(
+-            method="GET", url=full_url, headers=headers
+-        )
+-
+-    async def post(self, uri: str, data: dict, **kwargs) -> Dict:
+-        """
+-        POST request, signs request headers
+-        Args:
+-            uri: Request route
+-            data: Request body parameters
+-
+-        Returns:
+-
+-        """
++    async def post(self, uri, data, **kwargs):
+         headers = await self._pre_headers(uri, payload=data)
+-        json_str = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+-        return await self.request(
+-            method="POST",
+-            url=f"{self._host}{uri}",
+-            data=json_str,
+-            headers=headers,
+-            **kwargs,
+-        )
+-
+-    async def get_note_media(self, url: str) -> Union[bytes, None]:
+-        # Check if proxy is expired before request
+-        await self._refresh_proxy_if_expired()
+-
+-        async with make_async_client(proxy=self.proxy) as client:
+-            try:
+-                response = await client.request("GET", url, timeout=self.timeout)
+-                response.raise_for_status()
+-                if not response.reason_phrase == "OK":
+-                    utils.logger.error(
+-                        f"[XiaoHongShuClient.get_note_media] request {url} err, res:{response.text}"
+-                    )
+-                    return None
+-                else:
+-                    return response.content
+-            except (
+-                httpx.HTTPError
+-            ) as exc:  # some wrong when call httpx.request method, such as connection error, client error, server error or response status code is not 2xx
+-                utils.logger.error(
+-                    f"[XiaoHongShuClient.get_aweme_media] {exc.__class__.__name__} for {exc.request.url} - {exc}"
+-                )  # Keep original exception type name for developer debugging
+-                return None
++        return await self.request("POST", self._host + uri, headers=headers,
++            data=json.dumps(data, separators=(",", ":"), ensure_ascii=False), **kwargs)
+ 
+-    async def query_self(self) -> Optional[Dict]:
+-        """
+-        Query self user info to check login state
+-        Returns:
+-            Dict: User info if logged in, None otherwise
+-        """
+-        uri = "/api/sns/web/v1/user/selfinfo"
+-        headers = await self._pre_headers(uri, params={})
+-        async with make_async_client(proxy=self.proxy) as client:
+-            response = await client.get(f"{self._host}{uri}", headers=headers)
+-            if response.status_code == 200:
+-                return response.json()
+-        return None
++    async def query_self(self):
++        return await self.get("/api/sns/web/v1/user/selfinfo", {})
+ 
+-    async def pong(self) -> bool:
+-        """
+-        Check if login state is still valid by querying self user info
+-        Returns:
+-            bool: True if logged in, False otherwise
+-        """
+-        utils.logger.info("[XiaoHongShuClient.pong] Begin to check login state...")
+-        ping_flag = False
++    async def pong(self):
+         try:
+-            self_info: Dict = await self.query_self()
+-            if self_info and self_info.get("data", {}).get("result", {}).get("success"):
+-                ping_flag = True
+-        except Exception as e:
+-            utils.logger.error(
+-                f"[XiaoHongShuClient.pong] Check login state failed: {e}, and try to login again..."
+-            )
+-            ping_flag = False
+-        utils.logger.info(f"[XiaoHongShuClient.pong] Login state result: {ping_flag}")
+-        return ping_flag
++            data = await self.query_self()
++        except YikePlatformAuthRequired:
++            return False
++        result = require_mapping_field(data, "result")
++        return require_bool_field(result, "success")
+ 
+-    async def update_cookies(self, browser_context: BrowserContext, urls: Optional[list[str]] = None):
+-        """
+-        Update cookies method provided by API client, usually called after successful login
+-        Args:
+-            browser_context: Browser context object
+-
+-        Returns:
+-
+-        """
++    async def update_cookies(self, browser_context, urls=None):
+         cookie_str, cookie_dict = await utils.convert_browser_context_cookies(
+-            browser_context,
+-            urls=urls or self.cookie_urls,
+-        )
++            browser_context, urls=urls or self.cookie_urls)
+         self.headers["Cookie"] = cookie_str
+         self.cookie_dict = cookie_dict
+ 
+-    async def get_note_by_keyword(
+-        self,
+-        keyword: str,
+-        search_id: str = get_search_id(),
+-        page: int = 1,
+-        page_size: int = 20,
+-        sort: SearchSortType = SearchSortType.GENERAL,
+-        note_type: SearchNoteType = SearchNoteType.ALL,
+-    ) -> Dict:
+-        """
+-        Search notes by keyword
+-        Args:
+-            keyword: Keyword parameter
+-            page: Page number
+-            page_size: Page data length
+-            sort: Search result sorting specification
+-            note_type: Type of note to search
+-
+-        Returns:
+-
+-        """
+-        uri = "/api/sns/web/v1/search/notes"
+-        data = {
+-            "keyword": keyword,
+-            "page": page,
+-            "page_size": page_size,
+-            "search_id": search_id,
+-            "sort": sort.value,
+-            "note_type": note_type.value,
+-        }
+-        return await self.post(uri, data)
+-
+-    async def get_note_by_id(
+-        self,
+-        note_id: str,
+-        xsec_source: str,
+-        xsec_token: str,
+-    ) -> Dict:
+-        """
+-        Get note detail API
+-        Args:
+-            note_id: Note ID
+-            xsec_source: Channel source
+-            xsec_token: Token returned from search keyword result list
+-
+-        Returns:
+-
+-        """
+-        if xsec_source == "":
+-            xsec_source = "pc_search"
+-
+-        data = {
+-            "source_note_id": note_id,
+-            "image_formats": ["jpg", "webp", "avif"],
+-            "extra": {"need_body_topic": 1},
+-            "xsec_source": xsec_source,
+-            "xsec_token": xsec_token,
+-        }
+-        uri = "/api/sns/web/v1/feed"
+-        res = await self.post(uri, data)
+-        if res and res.get("items"):
+-            res_dict: Dict = res["items"][0]["note_card"]
+-            return res_dict
+-        # When crawling frequently, some notes may have results while others don't
+-        utils.logger.error(
+-            f"[XiaoHongShuClient.get_note_by_id] get note id:{note_id} empty and res:{res}"
+-        )
+-        return dict()
+-
+-    async def get_note_comments(
+-        self,
+-        note_id: str,
+-        xsec_token: str,
+-        cursor: str = "",
+-    ) -> Dict:
+-        """
+-        Get first-level comments API
+-        Args:
+-            note_id: Note ID
+-            xsec_token: Verification token
+-            cursor: Pagination cursor
+-
+-        Returns:
+-
+-        """
+-        uri = "/api/sns/web/v2/comment/page"
+-        params = {
+-            "note_id": note_id,
+-            "cursor": cursor,
+-            "top_comment_id": "",
+-            "image_formats": "jpg,webp,avif",
+-            "xsec_token": xsec_token,
+-        }
+-        return await self.get(uri, params)
+-
+-    async def get_note_sub_comments(
+-        self,
+-        note_id: str,
+-        root_comment_id: str,
+-        xsec_token: str,
+-        num: int = 10,
+-        cursor: str = "",
+-    ):
+-        """
+-        Get sub-comments under specified parent comment API
+-        Args:
+-            note_id: Post ID of sub-comments
+-            root_comment_id: Root comment ID
+-            xsec_token: Verification token
+-            num: Pagination quantity
+-            cursor: Pagination cursor
+-
+-        Returns:
+-
+-        """
+-        uri = "/api/sns/web/v2/comment/sub/page"
+-        params = {
+-            "note_id": note_id,
+-            "root_comment_id": root_comment_id,
+-            "num": str(num),
+-            "cursor": cursor,
+-            "image_formats": "jpg,webp,avif",
+-            "top_comment_id": "",
+-            "xsec_token": xsec_token,
+-        }
+-        return await self.get(uri, params)
+-
+-    async def get_note_all_comments(
+-        self,
+-        note_id: str,
+-        xsec_token: str,
+-        crawl_interval: float = 1.0,
+-        callback: Optional[Callable] = None,
+-        max_count: int = 10,
+-    ) -> List[Dict]:
+-        """
+-        Get all first-level comments under specified note, this method will continuously find all comment information under a post
+-        Args:
+-            note_id: Note ID
+-            xsec_token: Verification token
+-            crawl_interval: Crawl delay per note (seconds)
+-            callback: Callback after one note crawl ends
+-            max_count: Maximum number of comments to crawl per note
+-        Returns:
+-
+-        """
+-        result = []
+-        comments_has_more = True
+-        comments_cursor = ""
+-        while comments_has_more and len(result) < max_count:
+-            comments_res = await self.get_note_comments(
+-                note_id=note_id, xsec_token=xsec_token, cursor=comments_cursor
+-            )
+-            comments_has_more = comments_res.get("has_more", False)
+-            comments_cursor = comments_res.get("cursor", "")
+-            if "comments" not in comments_res:
+-                utils.logger.info(
+-                    f"[XiaoHongShuClient.get_note_all_comments] No 'comments' key found in response: {comments_res}"
+-                )
++    async def get_note_by_keyword(self, keyword, search_id, page=1, page_size=20,
++                                  sort=SearchSortType.GENERAL, note_type=SearchNoteType.ALL):
++        return await self.post("/api/sns/web/v1/search/notes", {
++            "keyword": keyword, "page": page, "page_size": page_size,
++            "search_id": search_id, "sort": sort.value, "note_type": note_type.value})
++
++    async def get_note_by_id(self, note_id, xsec_source, xsec_token):
++        data = await self.post("/api/sns/web/v1/feed", {
++            "source_note_id": note_id, "image_formats": ["jpg", "webp", "avif"],
++            "extra": {"need_body_topic": 1}, "xsec_source": xsec_source or "pc_search",
++            "xsec_token": xsec_token})
++        items = require_mapping_list_field(data, "items")
++        if len(items) != 1:
++            raise YikePlatformResponseChanged()
++        note = require_mapping_field(items[0], "note_card")
++        if note.get("note_id") != note_id:
++            raise YikePlatformResponseChanged()
++        return note
++
++    async def get_note_comments(self, note_id, xsec_token, cursor=""):
++        return await self.get("/api/sns/web/v2/comment/page", {
++            "note_id": note_id, "cursor": cursor, "top_comment_id": "",
++            "image_formats": "jpg,webp,avif", "xsec_token": xsec_token})
++
++    async def get_note_sub_comments(self, note_id, root_comment_id, xsec_token, num=10, cursor=""):
++        return await self.get("/api/sns/web/v2/comment/sub/page", {
++            "note_id": note_id, "root_comment_id": root_comment_id, "num": str(num),
++            "cursor": cursor, "image_formats": "jpg,webp,avif",
++            "top_comment_id": "", "xsec_token": xsec_token})
++
++    async def get_note_all_comments(self, note_id, xsec_token, crawl_interval=1.0,
++                                    callback=None, max_count=10):
++        if type(max_count) is not int or max_count < 0:
++            raise YikePlatformResponseChanged()
++        result, cursor, seen = [], "", {}
++        while len(result) < max_count:
++            data = await self.get_note_comments(note_id, xsec_token, cursor)
++            comments = require_mapping_list_field(data, "comments")
++            has_more = require_bool_field(data, "has_more")
++            selected = []
++            for comment in comments:
++                comment_id = require_nonempty_string_field(comment, "id")
++                if comment.get("note_id", note_id) != note_id:
++                    raise YikePlatformResponseChanged()
++                item = {**comment, "note_id": note_id}
++                # Snapshot all supplied evidence before callbacks; JSON also
++                # distinguishes boolean/integer and null/empty-string values.
++                evidence = json.dumps(item, sort_keys=True, ensure_ascii=False)
++                if comment_id in seen:
++                    if seen[comment_id] != evidence:
++                        raise YikePlatformResponseChanged()
++                    continue
++                if len(selected) < max_count - len(result):
++                    selected.append(item)
++                    seen[comment_id] = evidence
++            if callback and selected:
++                await callback(note_id, selected)
++            result.extend(selected)
++            replies = await self.get_comments_all_sub_comments(
++                selected, xsec_token, crawl_interval, callback, max_count - len(result), seen)
++            result.extend(replies)
++            if not has_more or len(result) >= max_count:
+                 break
+-            comments = comments_res["comments"]
+-            if len(result) + len(comments) > max_count:
+-                comments = comments[: max_count - len(result)]
+-            if callback:
+-                await callback(note_id, comments)
++            next_cursor = require_nonempty_string_field(data, "cursor")
++            if next_cursor == cursor or not selected:
++                raise YikePlatformResponseChanged()
++            cursor = next_cursor
+             await asyncio.sleep(crawl_interval)
+-            result.extend(comments)
+-            sub_comments = await self.get_comments_all_sub_comments(
+-                comments=comments,
+-                xsec_token=xsec_token,
+-                crawl_interval=crawl_interval,
+-                callback=callback,
+-            )
+-            result.extend(sub_comments)
+         return result
+ 
+-    async def get_comments_all_sub_comments(
+-        self,
+-        comments: List[Dict],
+-        xsec_token: str,
+-        crawl_interval: float = 1.0,
+-        callback: Optional[Callable] = None,
+-    ) -> List[Dict]:
+-        """
+-        Get all second-level comments under specified first-level comments, this method will continuously find all second-level comment information under first-level comments
+-        Args:
+-            comments: Comment list
+-            xsec_token: Verification token
+-            crawl_interval: Crawl delay per comment (seconds)
+-            callback: Callback after one comment crawl ends
+-
+-        Returns:
+-
+-        """
+-        if not config.ENABLE_GET_SUB_COMMENTS:
+-            utils.logger.info(
+-                f"[XiaoHongShuCrawler.get_comments_all_sub_comments] Crawling sub_comment mode is not enabled"
+-            )
++    async def get_comments_all_sub_comments(self, comments, xsec_token, crawl_interval=1.0,
++                                            callback=None, max_count=0, seen=None):
++        if not config.ENABLE_GET_SUB_COMMENTS or max_count <= 0:
+             return []
+-
+-        result = []
+-        for comment in comments:
+-            try:
+-                note_id = comment.get("note_id")
+-                sub_comments = comment.get("sub_comments")
+-                if sub_comments and callback:
+-                    await callback(note_id, sub_comments)
+-
+-                sub_comment_has_more = comment.get("sub_comment_has_more")
+-                if not sub_comment_has_more:
+-                    continue
+-
+-                root_comment_id = comment.get("id")
+-                sub_comment_cursor = comment.get("sub_comment_cursor")
+-
+-                while sub_comment_has_more:
+-                    try:
+-                        comments_res = await self.get_note_sub_comments(
+-                            note_id=note_id,
+-                            root_comment_id=root_comment_id,
+-                            xsec_token=xsec_token,
+-                            num=10,
+-                            cursor=sub_comment_cursor,
+-                        )
+-
+-                        if comments_res is None:
+-                            utils.logger.info(
+-                                f"[XiaoHongShuClient.get_comments_all_sub_comments] No response found for note_id: {note_id}"
+-                            )
+-                            break
+-                        sub_comment_has_more = comments_res.get("has_more", False)
+-                        sub_comment_cursor = comments_res.get("cursor", "")
+-                        if "comments" not in comments_res:
+-                            utils.logger.info(
+-                                f"[XiaoHongShuClient.get_comments_all_sub_comments] No 'comments' key found in response: {comments_res}"
+-                            )
+-                            break
+-                        comments = comments_res["comments"]
+-                        if callback:
+-                            await callback(note_id, comments)
+-                        await asyncio.sleep(crawl_interval)
+-                        result.extend(comments)
+-                    except DataFetchError as e:
+-                        utils.logger.warning(
+-                            f"[XiaoHongShuClient.get_comments_all_sub_comments] Failed to get sub-comments for note_id: {note_id}, root_comment_id: {root_comment_id}, error: {e}. Skipping this comment's sub-comments."
+-                        )
+-                        break  # Break out of the sub-comment acquisition loop of the current comment and continue processing the next comment
+-                    except Exception as e:
+-                        utils.logger.error(
+-                            f"[XiaoHongShuClient.get_comments_all_sub_comments] Unexpected error when getting sub-comments for note_id: {note_id}, root_comment_id: {root_comment_id}, error: {e}"
+-                        )
+-                        break
+-            except Exception as e:
+-                utils.logger.error(
+-                    f"[XiaoHongShuClient.get_comments_all_sub_comments] Error processing comment: {comment.get('id', 'unknown')}, error: {e}. Continuing with next comment."
+-                )
+-                continue  # Continue to next comment
+-        return result
+-
+-    async def get_creator_info(
+-        self, user_id: str, xsec_token: str = "", xsec_source: str = ""
+-    ) -> Dict:
+-        """
+-        Get user profile brief information by parsing user homepage HTML
+-        The PC user homepage has window.__INITIAL_STATE__ variable, just parse it
+-
+-        Args:
+-            user_id: User ID
+-            xsec_token: Verification token (optional, pass if included in URL)
+-            xsec_source: Channel source (optional, pass if included in URL)
+-
+-        Returns:
+-            Dict: Creator information
+-        """
+-        # Build URI, add xsec parameters to URL if available
+-        uri = f"/user/profile/{user_id}"
+-        if xsec_token and xsec_source:
+-            uri = f"{uri}?xsec_token={xsec_token}&xsec_source={xsec_source}"
+-
+-        html_content = await self.request(
+-            "GET", self._domain + uri, return_response=True, headers=self.headers
+-        )
+-        return self._extractor.extract_creator_info_from_html(html_content)
+-
+-    async def get_notes_by_creator(
+-        self,
+-        creator: str,
+-        cursor: str,
+-        page_size: int = 30,
+-        xsec_token: str = "",
+-        xsec_source: str = "pc_feed",
+-    ) -> Dict:
+-        """
+-        Get creator's notes
+-        Args:
+-            creator: Creator ID
+-            cursor: Last note ID from previous page
+-            page_size: Page data length
+-            xsec_token: Verification token
+-            xsec_source: Channel source
+-
+-        Returns:
+-
+-        """
+-        uri = f"/api/sns/web/v1/user_posted"
+-        params = {
+-            "num": page_size,
+-            "cursor": cursor,
+-            "user_id": creator,
+-            "image_formats": "jpg,webp,avif",
+-            "xsec_token": xsec_token,
+-            "xsec_source": xsec_source,
+-        }
+-        return await self.get(uri, params)
+-
+-    async def get_all_notes_by_creator(
+-        self,
+-        user_id: str,
+-        crawl_interval: float = 1.0,
+-        callback: Optional[Callable] = None,
+-        xsec_token: str = "",
+-        xsec_source: str = "pc_feed",
+-    ) -> List[Dict]:
+-        """
+-        Get all posts published by specified user, this method will continuously find all post information under a user
+-        Args:
+-            user_id: User ID
+-            crawl_interval: Crawl delay (seconds)
+-            callback: Update callback function after one pagination crawl ends
+-            xsec_token: Verification token
+-            xsec_source: Channel source
+-
+-        Returns:
+-
+-        """
++        seen = seen if seen is not None else {}
+         result = []
+-        notes_has_more = True
+-        notes_cursor = ""
+-        while notes_has_more and len(result) < config.CRAWLER_MAX_NOTES_COUNT:
+-            notes_res = await self.get_notes_by_creator(
+-                user_id, notes_cursor, xsec_token=xsec_token, xsec_source=xsec_source
+-            )
+-            if not notes_res:
+-                utils.logger.error(
+-                    f"[XiaoHongShuClient.get_notes_by_creator] The current creator may have been banned by xhs, so they cannot access the data."
+-                )
++        for parent in comments:
++            if len(result) >= max_count:
+                 break
+-
+-            notes_has_more = notes_res.get("has_more", False)
+-            notes_cursor = notes_res.get("cursor", "")
+-            if "notes" not in notes_res:
+-                utils.logger.info(
+-                    f"[XiaoHongShuClient.get_all_notes_by_creator] No 'notes' key found in response: {notes_res}"
+-                )
+-                break
+-
+-            notes = notes_res["notes"]
+-            utils.logger.info(
+-                f"[XiaoHongShuClient.get_all_notes_by_creator] got user_id:{user_id} notes len : {len(notes)}"
+-            )
+-
+-            remaining = config.CRAWLER_MAX_NOTES_COUNT - len(result)
+-            if remaining <= 0:
+-                break
+-
+-            notes_to_add = notes[:remaining]
+-            if callback:
+-                await callback(notes_to_add)
+-
+-            result.extend(notes_to_add)
+-            await asyncio.sleep(crawl_interval)
+-
+-        utils.logger.info(
+-            f"[XiaoHongShuClient.get_all_notes_by_creator] Finished getting notes for user {user_id}, total: {len(result)}"
+-        )
++            note_id = require_nonempty_string_field(parent, "note_id")
++            parent_id = require_nonempty_string_field(parent, "id")
++            batch = require_mapping_list_field({"comments": parent.get("sub_comments", [])}, "comments")
++            has_more = parent.get("sub_comment_has_more", False)
++            if type(has_more) is not bool:
++                raise YikePlatformResponseChanged()
++            cursor = parent.get("sub_comment_cursor", "")
++            visited = set()
++            while True:
++                selected = []
++                for reply in batch:
++                    reply_id = require_nonempty_string_field(reply, "id")
++                    if reply.get("note_id", note_id) != note_id:
++                        raise YikePlatformResponseChanged()
++                    # The endpoint identifies the root; preserve an explicit reply target.
++                    target = reply.get("target_comment") or {"id": parent_id}
++                    item = {**reply, "note_id": note_id, "target_comment": target}
++                    evidence = json.dumps(item, sort_keys=True, ensure_ascii=False)
++                    if reply_id in seen:
++                        if seen[reply_id] != evidence:
++                            raise YikePlatformResponseChanged()
++                        continue
++                    if len(selected) < max_count - len(result):
++                        selected.append(item)
++                        seen[reply_id] = evidence
++                if callback and selected:
++                    await callback(note_id, selected)
++                result.extend(selected)
++                if not has_more or len(result) >= max_count:
++                    break
++                if type(cursor) is not str or not cursor or cursor in visited:
++                    raise YikePlatformResponseChanged()
++                visited.add(cursor)
++                await asyncio.sleep(crawl_interval)
++                data = await self.get_note_sub_comments(
++                    note_id, parent_id, xsec_token, num=min(10, max_count - len(result)), cursor=cursor)
++                batch = require_mapping_list_field(data, "comments")
++                has_more = require_bool_field(data, "has_more")
++                cursor = data.get("cursor", "")
+         return result
+-
+-    async def get_note_short_url(self, note_id: str) -> Dict:
+-        """
+-        Get note short URL
+-        Args:
+-            note_id: Note ID
+-
+-        Returns:
+-
+-        """
+-        uri = f"/api/sns/web/short_url"
+-        data = {"original_url": f"{self._domain}/discovery/item/{note_id}"}
+-        return await self.post(uri, data=data, return_response=True)
+-
+-    @retry(
+-        stop=stop_after_attempt(3),
+-        wait=wait_fixed(1),
+-        retry=retry_if_not_exception_type(
+-            (RetryError, IPBlockError, PlatformAccessError)
+-        ),
+-    )
+-    async def get_note_by_id_from_html(
+-        self,
+-        note_id: str,
+-        xsec_source: str,
+-        xsec_token: str,
+-        enable_cookie: bool = False,
+-    ) -> Optional[Dict]:
+-        """
+-        Get note details by parsing note detail page HTML, this interface may fail, retry 3 times here
+-        copy from https://github.com/ReaJason/xhs/blob/eb1c5a0213f6fbb592f0a2897ee552847c69ea2d/xhs/core.py#L217-L259
+-        thanks for ReaJason
+-        Args:
+-            note_id:
+-            xsec_source:
+-            xsec_token:
+-            enable_cookie:
+-
+-        Returns:
+-
+-        """
+-        url = (
+-            f"{self._domain}/explore/"
+-            + note_id
+-            + f"?xsec_token={xsec_token}&xsec_source={xsec_source}"
+-        )
+-        copy_headers = self.headers.copy()
+-        if not enable_cookie:
+-            del copy_headers["Cookie"]
+-
+-        html = await self.request(
+-            method="GET", url=url, return_response=True, headers=copy_headers
+-        )
+-
+-        return self._extractor.extract_note_detail_from_html(note_id, html)
+diff --git a/media_platform/xhs/core.py b/media_platform/xhs/core.py
+index 2dc64e9..b7bd17a 100644
+--- a/media_platform/xhs/core.py
++++ b/media_platform/xhs/core.py
+@@ -1,542 +1,152 @@
+ # -*- coding: utf-8 -*-
+ # Copyright (c) 2025 relakkes@gmail.com
+-#
+-# This file is part of MediaCrawler project.
+-# Repository: https://github.com/NanmiCoder/MediaCrawler/blob/main/media_platform/xhs/core.py
+-# GitHub: https://github.com/NanmiCoder
+-# Licensed under NON-COMMERCIAL LEARNING LICENSE 1.1
+-#
+-
+-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+-# 1. 不得用于任何商业用途。
+-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+-# 3. 不得进行大规模爬取或对平台造成运营干扰。
+-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
+-# 5. 不得用于任何非法或不当的用途。
+-#
+-# 详细许可条款请参阅项目根目录下的LICENSE文件。
+-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
+-
++# MediaCrawler: https://github.com/NanmiCoder/MediaCrawler
++# Licensed under NON-COMMERCIAL LEARNING LICENSE 1.1; see LICENSE.
++"""Governed keyword search only; no creator, media, CDP or proxy path."""
+ import asyncio
+ import os
+-import random
+-from asyncio import Task
+-from typing import Dict, List, Optional
+-
+-from playwright.async_api import (
+-    BrowserContext,
+-    BrowserType,
+-    Page,
+-    Playwright,
+-    async_playwright,
+-)
+-from tenacity import RetryError
++from pathlib import Path
+ 
++from playwright.async_api import async_playwright
+ import config
+ from base.base_crawler import AbstractCrawler
+-from model.m_xiaohongshu import NoteUrlInfo, CreatorUrlInfo
+-from proxy.proxy_ip_pool import IpInfoModel, create_ip_pool
+ from store import xhs as xhs_store
+ from tools import utils
+-from tools.cdp_browser import CDPBrowserManager
++from tools.yike_runtime import (
++    YikePlatformAuthRequired, YikePlatformResponseChanged,
++    require_bool_field, require_mapping_list_field, require_nonempty_string_field,
++    write_progress,
++)
+ from var import crawler_type_var, source_keyword_var
+-
+ from .client import XiaoHongShuClient
+-from .exception import (
+-    DataFetchError,
+-    IPBlockError,
+-    NoteNotFoundError,
+-    PlatformAccessError,
+-)
+ from .field import SearchSortType
+-from .help import parse_note_info_from_note_url, parse_creator_info_from_url, get_search_id
++from .help import get_search_id
+ from .login import XiaoHongShuLogin
+ 
+ 
+ class XiaoHongShuCrawler(AbstractCrawler):
+-    context_page: Page
+-    xhs_client: XiaoHongShuClient
+-    browser_context: BrowserContext
+-    cdp_manager: Optional[CDPBrowserManager]
+-
+-    def __init__(self) -> None:
+-        self.index_url = "https://www.rednote.com" if config.XHS_INTERNATIONAL else "https://www.xiaohongshu.com"
++    def __init__(self):
++        self.index_url = "https://www.xiaohongshu.com"
+         self.cookie_urls = [self.index_url]
+-        # self.user_agent = utils.get_user_agent()
+-        self.user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
++        self.user_agent = None
+         self.cdp_manager = None
+-        self.ip_proxy_pool = None  # Proxy IP pool for automatic proxy refresh
+-
+-    async def start(self) -> None:
+-        playwright_proxy_format, httpx_proxy_format = None, None
+-        if config.ENABLE_IP_PROXY:
+-            self.ip_proxy_pool = await create_ip_pool(config.IP_PROXY_POOL_COUNT, enable_validate_ip=True)
+-            ip_proxy_info: IpInfoModel = await self.ip_proxy_pool.get_proxy()
+-            playwright_proxy_format, httpx_proxy_format = utils.format_proxy_info(ip_proxy_info)
++        self.ip_proxy_pool = None
+ 
++    async def start(self):
++        if config.CRAWLER_TYPE != "search" or config.XHS_INTERNATIONAL:
++            raise YikePlatformResponseChanged()
+         async with async_playwright() as playwright:
+-            # Choose launch mode based on configuration
+-            if config.ENABLE_CDP_MODE:
+-                utils.logger.info("[XiaoHongShuCrawler] Launching browser using CDP mode")
+-                self.browser_context = await self.launch_browser_with_cdp(
+-                    playwright,
+-                    playwright_proxy_format,
+-                    self.user_agent,
+-                    headless=config.CDP_HEADLESS,
+-                )
+-            else:
+-                utils.logger.info("[XiaoHongShuCrawler] Launching browser using standard mode")
+-                # Launch a browser context.
+-                chromium = playwright.chromium
+-                self.browser_context = await self.launch_browser(
+-                    chromium,
+-                    playwright_proxy_format,
+-                    self.user_agent,
+-                    headless=config.HEADLESS,
+-                )
+-                # stealth.min.js is a js script to prevent the website from detecting the crawler.
+-                await self.browser_context.add_init_script(path="libs/stealth.min.js")
+-
++            self.browser_context = await self.launch_browser(playwright.chromium, None, None, False)
+             self.context_page = await self.browser_context.new_page()
+             await self.context_page.goto(self.index_url)
+-
+-            # Create a client to interact with the Xiaohongshu website.
+-            self.xhs_client = await self.create_xhs_client(httpx_proxy_format)
++            self.xhs_client = await self.create_xhs_client(None)
+             if not await self.xhs_client.pong():
+-                login_obj = XiaoHongShuLogin(
+-                    login_type=config.LOGIN_TYPE,
+-                    login_phone="",  # input your phone number
+-                    browser_context=self.browser_context,
++                write_progress(config.SAVE_DATA_PATH, "xhs", "WAITING_LOGIN")
++                login = XiaoHongShuLogin(
++                    login_type="qrcode", browser_context=self.browser_context,
+                     context_page=self.context_page,
+-                    cookie_str=config.COOKIES,
+                 )
+-                await login_obj.begin()
+-                await self.xhs_client.update_cookies(
+-                    browser_context=self.browser_context,
+-                    urls=self.cookie_urls,
+-                )
+-
+-            crawler_type_var.set(config.CRAWLER_TYPE)
+-            if config.CRAWLER_TYPE == "search":
+-                # Search for notes and retrieve their comment information.
+-                await self.search()
+-            elif config.CRAWLER_TYPE == "detail":
+-                # Get the information and comments of the specified post
+-                await self.get_specified_notes()
+-            elif config.CRAWLER_TYPE == "creator":
+-                # Get creator's information and their notes and comments
+-                await self.get_creators_and_notes()
+-            else:
+-                pass
+-
+-            utils.logger.info("[XiaoHongShuCrawler.start] Xhs Crawler finished ...")
+-
+-    async def search(self) -> None:
+-        """Search for notes and retrieve their comment information."""
+-        utils.logger.info("[XiaoHongShuCrawler.search] Begin search Xiaohongshu keywords")
+-        xhs_limit_count = 20  # Xiaohongshu limit page fixed value
+-        if config.CRAWLER_MAX_NOTES_COUNT < xhs_limit_count:
+-            config.CRAWLER_MAX_NOTES_COUNT = xhs_limit_count
+-        start_page = config.START_PAGE
++                await login.begin()
++                await self.xhs_client.update_cookies(self.browser_context, urls=self.cookie_urls)
++                if not await self.xhs_client.pong():
++                    raise YikePlatformAuthRequired()
++            write_progress(config.SAVE_DATA_PATH, "xhs", "RUNNING")
++            crawler_type_var.set("search")
++            await self.search()
++
++    async def search(self):
++        remaining = config.CRAWLER_MAX_NOTES_COUNT
++        if type(remaining) is not int or remaining < 0:
++            raise YikePlatformResponseChanged()
++        seen = set()
++        # Single task-wide budget, including all supplied keywords.
+         for keyword in config.KEYWORDS.split(","):
+             source_keyword_var.set(keyword)
+-            utils.logger.info(f"[XiaoHongShuCrawler.search] Current search keyword: {keyword}")
+-            page = 1
++            page = config.START_PAGE
+             search_id = get_search_id()
+-            while (page - start_page + 1) * xhs_limit_count <= config.CRAWLER_MAX_NOTES_COUNT:
+-                if page < start_page:
+-                    utils.logger.info(f"[XiaoHongShuCrawler.search] Skip page {page}")
+-                    page += 1
+-                    continue
+-
+-                try:
+-                    utils.logger.info(f"[XiaoHongShuCrawler.search] search Xiaohongshu keyword: {keyword}, page: {page}")
+-                    note_ids: List[str] = []
+-                    xsec_tokens: List[str] = []
+-                    notes_res = await self.xhs_client.get_note_by_keyword(
+-                        keyword=keyword,
+-                        search_id=search_id,
+-                        page=page,
+-                        sort=(SearchSortType(config.SORT_TYPE) if config.SORT_TYPE != "" else SearchSortType.GENERAL),
++            while remaining > 0:
++                response = await self.xhs_client.get_note_by_keyword(
++                    keyword=keyword, search_id=search_id, page=page,
++                    sort=SearchSortType(config.SORT_TYPE) if config.SORT_TYPE else SearchSortType.GENERAL,
++                )
++                items = require_mapping_list_field(response, "items")
++                has_more = require_bool_field(response, "has_more")
++                selected = []
++                for item in items:
++                    if item.get("model_type") in {"rec_query", "hot_query"}:
++                        continue
++                    note_id = require_nonempty_string_field(item, "id")
++                    if note_id not in seen and len(selected) < remaining:
++                        selected.append(item)
++                        seen.add(note_id)
++                note_ids, tokens = [], []
++                for item in selected:
++                    detail = await self.get_note_detail_async_task(
++                        note_id=item["id"], xsec_source=item.get("xsec_source", "pc_search"),
++                        xsec_token=item.get("xsec_token", ""), semaphore=asyncio.Semaphore(1),
+                     )
+-                    utils.logger.info(f"[XiaoHongShuCrawler.search] Search notes response: {notes_res}")
+-                    if not notes_res or not notes_res.get("has_more", False):
+-                        utils.logger.info("[XiaoHongShuCrawler.search] No more content!")
+-                        break
+-                    semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
+-                    task_list = [
+-                        self.get_note_detail_async_task(
+-                            note_id=post_item.get("id"),
+-                            xsec_source=post_item.get("xsec_source"),
+-                            xsec_token=post_item.get("xsec_token"),
+-                            semaphore=semaphore,
+-                        ) for post_item in notes_res.get("items", {}) if post_item.get("model_type") not in ("rec_query", "hot_query")
+-                    ]
+-                    note_details = await asyncio.gather(*task_list)
+-                    for note_detail in note_details:
+-                        if note_detail:
+-                            await xhs_store.update_xhs_note(note_detail)
+-                            await self.get_notice_media(note_detail)
+-                            note_ids.append(note_detail.get("note_id"))
+-                            xsec_tokens.append(note_detail.get("xsec_token"))
+-                    page += 1
+-                    utils.logger.info(f"[XiaoHongShuCrawler.search] Note details: {note_details}")
+-                    await self.batch_get_note_comments(note_ids, xsec_tokens)
+-
+-                    # Sleep after each page navigation
+-                    await asyncio.sleep(config.CRAWLER_MAX_SLEEP_SEC)
+-                    utils.logger.info(f"[XiaoHongShuCrawler.search] Sleeping for {config.CRAWLER_MAX_SLEEP_SEC} seconds after page {page-1}")
+-                except DataFetchError:
+-                    utils.logger.error("[XiaoHongShuCrawler.search] Get note detail error")
++                    await xhs_store.update_xhs_note(detail)
++                    note_ids.append(item["id"])
++                    tokens.append(item.get("xsec_token", ""))
++                    remaining -= 1
++                await self.batch_get_note_comments(note_ids, tokens)
++                if not has_more:
+                     break
++                if not selected:
++                    raise YikePlatformResponseChanged()
++                page += 1
++                if remaining:
++                    await asyncio.sleep(config.CRAWLER_MAX_SLEEP_SEC)
+ 
+-    async def get_creators_and_notes(self) -> None:
+-        """Get creator's notes and retrieve their comment information."""
+-        utils.logger.info("[XiaoHongShuCrawler.get_creators_and_notes] Begin get Xiaohongshu creators")
+-        for creator_url in config.XHS_CREATOR_ID_LIST:
+-            try:
+-                # Parse creator URL to get user_id and security tokens
+-                creator_info: CreatorUrlInfo = parse_creator_info_from_url(creator_url)
+-                utils.logger.info(f"[XiaoHongShuCrawler.get_creators_and_notes] Parse creator URL info: {creator_info}")
+-                user_id = creator_info.user_id
+-
+-                # get creator detail info from web html content
+-                createor_info: Dict = await self.xhs_client.get_creator_info(
+-                    user_id=user_id,
+-                    xsec_token=creator_info.xsec_token,
+-                    xsec_source=creator_info.xsec_source
+-                )
+-                if createor_info:
+-                    await xhs_store.save_creator(user_id, creator=createor_info)
+-            except ValueError as e:
+-                utils.logger.error(f"[XiaoHongShuCrawler.get_creators_and_notes] Failed to parse creator URL: {e}")
+-                continue
+-            except (IPBlockError, PlatformAccessError) as e:
+-                # Access restricted on the creator homepage, skip this creator instead of crashing the run.
+-                utils.logger.error(
+-                    f"[XiaoHongShuCrawler.get_creators_and_notes] Access restricted for creator {creator_url}: {e}. "
+-                    f"建议降低采集频率、更换 IP 或检查账号状态"
+-                )
+-                continue
+-
+-            # Use fixed crawling interval
+-            crawl_interval = config.CRAWLER_MAX_SLEEP_SEC
+-            # Get all note information of the creator
+-            all_notes_list = await self.xhs_client.get_all_notes_by_creator(
+-                user_id=user_id,
+-                crawl_interval=crawl_interval,
+-                callback=self.fetch_creator_notes_detail,
+-                xsec_token=creator_info.xsec_token,
+-                xsec_source=creator_info.xsec_source,
+-            )
+-
+-            note_ids = []
+-            xsec_tokens = []
+-            for note_item in all_notes_list:
+-                note_ids.append(note_item.get("note_id"))
+-                xsec_tokens.append(note_item.get("xsec_token"))
+-            await self.batch_get_note_comments(note_ids, xsec_tokens)
+-
+-    async def fetch_creator_notes_detail(self, note_list: List[Dict]):
+-        """Concurrently obtain the specified post list and save the data"""
+-        semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
+-        task_list = [
+-            self.get_note_detail_async_task(
+-                note_id=post_item.get("note_id"),
+-                xsec_source=post_item.get("xsec_source"),
+-                xsec_token=post_item.get("xsec_token"),
+-                semaphore=semaphore,
+-            ) for post_item in note_list
+-        ]
+-
+-        note_details = await asyncio.gather(*task_list)
+-        for note_detail in note_details:
+-            if note_detail:
+-                await xhs_store.update_xhs_note(note_detail)
+-                await self.get_notice_media(note_detail)
+-
+-    async def get_specified_notes(self):
+-        """Get the information and comments of the specified post
+-
+-        Note: Must specify note_id, xsec_source, xsec_token
+-        """
+-        get_note_detail_task_list = []
+-        for full_note_url in config.XHS_SPECIFIED_NOTE_URL_LIST:
+-            note_url_info: NoteUrlInfo = parse_note_info_from_note_url(full_note_url)
+-            utils.logger.info(f"[XiaoHongShuCrawler.get_specified_notes] Parse note url info: {note_url_info}")
+-            crawler_task = self.get_note_detail_async_task(
+-                note_id=note_url_info.note_id,
+-                xsec_source=note_url_info.xsec_source,
+-                xsec_token=note_url_info.xsec_token,
+-                semaphore=asyncio.Semaphore(config.MAX_CONCURRENCY_NUM),
+-            )
+-            get_note_detail_task_list.append(crawler_task)
+-
+-        need_get_comment_note_ids = []
+-        xsec_tokens = []
+-        note_details = await asyncio.gather(*get_note_detail_task_list)
+-        for note_detail in note_details:
+-            if note_detail:
+-                need_get_comment_note_ids.append(note_detail.get("note_id", ""))
+-                xsec_tokens.append(note_detail.get("xsec_token", ""))
+-                await xhs_store.update_xhs_note(note_detail)
+-                await self.get_notice_media(note_detail)
+-        await self.batch_get_note_comments(need_get_comment_note_ids, xsec_tokens)
+-
+-    async def get_note_detail_async_task(
+-        self,
+-        note_id: str,
+-        xsec_source: str,
+-        xsec_token: str,
+-        semaphore: asyncio.Semaphore,
+-    ) -> Optional[Dict]:
+-        """Get note detail
+-
+-        Args:
+-            note_id:
+-            xsec_source:
+-            xsec_token:
+-            semaphore:
+-
+-        Returns:
+-            Dict: note detail
+-        """
+-        note_detail = None
+-        utils.logger.info(f"[get_note_detail_async_task] Begin get note detail, note_id: {note_id}")
++    async def get_note_detail_async_task(self, note_id, xsec_source, xsec_token, semaphore):
+         async with semaphore:
+-            try:
+-                try:
+-                    note_detail = await self.xhs_client.get_note_by_id(note_id, xsec_source, xsec_token)
+-                except RetryError:
+-                    pass
+-
+-                if not note_detail:
+-                    note_detail = await self.xhs_client.get_note_by_id_from_html(note_id, xsec_source, xsec_token,
+-                                                                                 enable_cookie=True)
+-                    if not note_detail:
+-                        utils.logger.warning(f"[skip] Failed to get note detail, Id: {note_id}, 跳过继续")
+-                        return None
+-
+-                note_detail.update({"xsec_token": xsec_token, "xsec_source": xsec_source})
+-
+-                # Sleep after fetching note detail
+-                await asyncio.sleep(config.CRAWLER_MAX_SLEEP_SEC)
+-                utils.logger.info(f"[get_note_detail_async_task] Sleeping for {config.CRAWLER_MAX_SLEEP_SEC} seconds after fetching note {note_id}")
+-
+-                return note_detail
+-
+-            except NoteNotFoundError as ex:
+-                utils.logger.warning(f"[XiaoHongShuCrawler.get_note_detail_async_task] Note not found: {note_id}, {ex}")
+-                return None
+-            except (IPBlockError, PlatformAccessError) as ex:
+-                # Access restricted (IP block / rate limit / account security).
+-                # Skip this note instead of aborting the whole asyncio.gather batch.
+-                utils.logger.error(
+-                    f"[XiaoHongShuCrawler.get_note_detail_async_task] Access restricted while getting note {note_id}: {ex}. "
+-                    f"建议降低采集频率、更换 IP 或检查账号状态"
+-                )
+-                return None
+-            except DataFetchError as ex:
+-                utils.logger.error(f"[XiaoHongShuCrawler.get_note_detail_async_task] Get note detail error: {ex}")
+-                return None
+-            except KeyError as ex:
+-                utils.logger.error(f"[XiaoHongShuCrawler.get_note_detail_async_task] have not fund note detail note_id:{note_id}, err: {ex}")
+-                return None
++            detail = await self.xhs_client.get_note_by_id(note_id, xsec_source, xsec_token)
++            if not isinstance(detail, dict) or detail.get("note_id") != note_id:
++                raise YikePlatformResponseChanged()
++            await asyncio.sleep(config.CRAWLER_MAX_SLEEP_SEC)
++            return detail
+ 
+-    async def batch_get_note_comments(self, note_list: List[str], xsec_tokens: List[str]):
+-        """Batch get note comments"""
++    async def batch_get_note_comments(self, note_list, xsec_tokens):
+         if not config.ENABLE_GET_COMMENTS:
+-            utils.logger.info(f"[XiaoHongShuCrawler.batch_get_note_comments] Crawling comment mode is not enabled")
+             return
++        for note_id, token in zip(note_list, xsec_tokens):
++            await self.get_comments(note_id, token, asyncio.Semaphore(1))
+ 
+-        utils.logger.info(f"[XiaoHongShuCrawler.batch_get_note_comments] Begin batch get note comments, note list: {note_list}")
+-        semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
+-        task_list: List[Task] = []
+-        for index, note_id in enumerate(note_list):
+-            task = asyncio.create_task(
+-                self.get_comments(note_id=note_id, xsec_token=xsec_tokens[index], semaphore=semaphore),
+-                name=note_id,
+-            )
+-            task_list.append(task)
+-        await asyncio.gather(*task_list)
+-
+-    async def get_comments(self, note_id: str, xsec_token: str, semaphore: asyncio.Semaphore):
+-        """Get note comments with keyword filtering and quantity limitation"""
++    async def get_comments(self, note_id, xsec_token, semaphore):
+         async with semaphore:
+-            utils.logger.info(f"[XiaoHongShuCrawler.get_comments] Begin get note id comments {note_id}")
+-            # Use fixed crawling interval
+-            crawl_interval = config.CRAWLER_MAX_SLEEP_SEC
+             await self.xhs_client.get_note_all_comments(
+-                note_id=note_id,
+-                xsec_token=xsec_token,
+-                crawl_interval=crawl_interval,
++                note_id=note_id, xsec_token=xsec_token,
++                crawl_interval=config.CRAWLER_MAX_SLEEP_SEC,
+                 callback=xhs_store.batch_update_xhs_note_comments,
+                 max_count=config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES,
+             )
+ 
+-            # Sleep after fetching comments
+-            await asyncio.sleep(crawl_interval)
+-            utils.logger.info(f"[XiaoHongShuCrawler.get_comments] Sleeping for {crawl_interval} seconds after fetching comments for note {note_id}")
+-
+-    async def create_xhs_client(self, httpx_proxy: Optional[str]) -> XiaoHongShuClient:
+-        """Create Xiaohongshu client"""
+-        utils.logger.info("[XiaoHongShuCrawler.create_xhs_client] Begin create Xiaohongshu API client ...")
++    async def create_xhs_client(self, httpx_proxy):
+         cookie_str, cookie_dict = await utils.convert_browser_context_cookies(
+-            self.browser_context,
+-            urls=self.cookie_urls,
++            self.browser_context, urls=self.cookie_urls,
+         )
+-        xhs_client_obj = XiaoHongShuClient(
+-            proxy=httpx_proxy,
++        return XiaoHongShuClient(
+             headers={
+                 "accept": "application/json, text/plain, */*",
+-                "accept-language": "zh-CN,zh;q=0.9",
+-                "cache-control": "no-cache",
+                 "content-type": "application/json;charset=UTF-8",
+-                "origin": self.index_url,
+-                "pragma": "no-cache",
+-                "priority": "u=1, i",
+-                "referer": f"{self.index_url}/",
+-                "sec-ch-ua": '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
+-                "sec-ch-ua-mobile": "?0",
+-                "sec-ch-ua-platform": '"Windows"',
+-                "sec-fetch-dest": "empty",
+-                "sec-fetch-mode": "cors",
+-                "sec-fetch-site": "same-site",
+-                "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
++                "origin": self.index_url, "referer": self.index_url + "/",
++                "user-agent": await self.context_page.evaluate("navigator.userAgent"),
+                 "Cookie": cookie_str,
+             },
+-            playwright_page=self.context_page,
+-            cookie_dict=cookie_dict,
+-            proxy_ip_pool=self.ip_proxy_pool,  # Pass proxy pool for automatic refresh
++            playwright_page=self.context_page, cookie_dict=cookie_dict,
+         )
+-        return xhs_client_obj
+-
+-    async def launch_browser(
+-        self,
+-        chromium: BrowserType,
+-        playwright_proxy: Optional[Dict],
+-        user_agent: Optional[str],
+-        headless: bool = True,
+-    ) -> BrowserContext:
+-        """Launch browser and create browser context"""
+-        utils.logger.info("[XiaoHongShuCrawler.launch_browser] Begin create browser context ...")
+-        if config.SAVE_LOGIN_STATE:
+-            # feat issue #14
+-            # we will save login state to avoid login every time
+-            user_data_dir = os.path.join(os.getcwd(), "browser_data", config.USER_DATA_DIR % config.PLATFORM)  # type: ignore
+-            browser_context = await chromium.launch_persistent_context(
+-                user_data_dir=user_data_dir,
+-                accept_downloads=True,
+-                headless=headless,
+-                proxy=playwright_proxy,  # type: ignore
+-                viewport={
+-                    "width": 1920,
+-                    "height": 1080
+-                },
+-                user_agent=user_agent,
+-            )
+-            return browser_context
+-        else:
+-            browser = await chromium.launch(headless=headless, proxy=playwright_proxy)  # type: ignore
+-            browser_context = await browser.new_context(viewport={"width": 1920, "height": 1080}, user_agent=user_agent)
+-            return browser_context
+-
+-    async def launch_browser_with_cdp(
+-        self,
+-        playwright: Playwright,
+-        playwright_proxy: Optional[Dict],
+-        user_agent: Optional[str],
+-        headless: bool = True,
+-    ) -> BrowserContext:
+-        """Launch browser using CDP mode"""
+-        try:
+-            self.cdp_manager = CDPBrowserManager()
+-            browser_context = await self.cdp_manager.launch_and_connect(
+-                playwright=playwright,
+-                playwright_proxy=playwright_proxy,
+-                user_agent=user_agent,
+-                headless=headless,
+-            )
+-
+-            # Display browser information
+-            browser_info = await self.cdp_manager.get_browser_info()
+-            utils.logger.info(f"[XiaoHongShuCrawler] CDP browser info: {browser_info}")
+ 
+-            return browser_context
+-
+-        except Exception as e:
+-            utils.logger.error(f"[XiaoHongShuCrawler] CDP mode launch failed, falling back to standard mode: {e}")
+-            # Fall back to standard mode
+-            chromium = playwright.chromium
+-            return await self.launch_browser(chromium, playwright_proxy, user_agent, headless)
++    async def launch_browser(self, chromium, playwright_proxy, user_agent, headless=True):
++        # Caller creates/verifies this private owner/device/platform profile.
++        value = os.environ.get("YIKE_PROFILE_PATH", "")
++        profile = Path(value)
++        if not value or not profile.is_absolute() or not profile.is_dir() or profile.is_symlink():
++            raise YikePlatformAuthRequired()
++        return await chromium.launch_persistent_context(
++            user_data_dir=str(profile), headless=False, accept_downloads=False,
++            viewport={"width": 1280, "height": 900},
++        )
+ 
+     async def close(self):
+-        """Close browser context"""
+-        # Special handling if using CDP mode
+-        if self.cdp_manager:
+-            await self.cdp_manager.cleanup()
+-            self.cdp_manager = None
+-        else:
++        if getattr(self, "browser_context", None):
+             await self.browser_context.close()
+-        utils.logger.info("[XiaoHongShuCrawler.close] Browser context closed ...")
+-
+-    async def get_notice_media(self, note_detail: Dict):
+-        if not config.ENABLE_GET_MEIDAS:
+-            utils.logger.info(f"[XiaoHongShuCrawler.get_notice_media] Crawling image mode is not enabled")
+-            return
+-        await self.get_note_images(note_detail)
+-        await self.get_notice_video(note_detail)
+-
+-    async def get_note_images(self, note_item: Dict):
+-        """Get note images. Please use get_notice_media
+-
+-        Args:
+-            note_item: Note item dictionary
+-        """
+-        if not config.ENABLE_GET_MEIDAS:
+-            return
+-        note_id = note_item.get("note_id")
+-        image_list: List[Dict] = note_item.get("image_list", [])
+-
+-        for img in image_list:
+-            if img.get("url_default") != "":
+-                img.update({"url": img.get("url_default")})
+-
+-        if not image_list:
+-            return
+-        picNum = 0
+-        for pic in image_list:
+-            url = pic.get("url")
+-            if not url:
+-                continue
+-            content = await self.xhs_client.get_note_media(url)
+-            await asyncio.sleep(random.random())
+-            if content is None:
+-                continue
+-            extension_file_name = f"{picNum}.jpg"
+-            picNum += 1
+-            await xhs_store.update_xhs_note_image(note_id, content, extension_file_name)
+-
+-    async def get_notice_video(self, note_item: Dict):
+-        """Get note videos. Please use get_notice_media
+-
+-        Args:
+-            note_item: Note item dictionary
+-        """
+-        if not config.ENABLE_GET_MEIDAS:
+-            return
+-        note_id = note_item.get("note_id")
+-
+-        videos = xhs_store.get_video_url_arr(note_item)
+-
+-        if not videos:
+-            return
+-        videoNum = 0
+-        for url in videos:
+-            content = await self.xhs_client.get_note_media(url)
+-            await asyncio.sleep(random.random())
+-            if content is None:
+-                continue
+-            extension_file_name = f"{videoNum}.mp4"
+-            videoNum += 1
+-            await xhs_store.update_xhs_note_video(note_id, content, extension_file_name)
+diff --git a/media_platform/xhs/login.py b/media_platform/xhs/login.py
+index e382954..6afa48c 100644
+--- a/media_platform/xhs/login.py
++++ b/media_platform/xhs/login.py
+@@ -1,224 +1,39 @@
+ # -*- coding: utf-8 -*-
+ # Copyright (c) 2025 relakkes@gmail.com
+-#
+-# This file is part of MediaCrawler project.
+-# Repository: https://github.com/NanmiCoder/MediaCrawler/blob/main/media_platform/xhs/login.py
+-# GitHub: https://github.com/NanmiCoder
+-# Licensed under NON-COMMERCIAL LEARNING LICENSE 1.1
+-#
+-
+-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+-# 1. 不得用于任何商业用途。
+-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+-# 3. 不得进行大规模爬取或对平台造成运营干扰。
+-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
+-# 5. 不得用于任何非法或不当的用途。
+-#
+-# 详细许可条款请参阅项目根目录下的LICENSE文件。
+-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
+-
+-
++# MediaCrawler: https://github.com/NanmiCoder/MediaCrawler
++# Licensed under NON-COMMERCIAL LEARNING LICENSE 1.1; see LICENSE.
++"""Wait for the user in the visible platform page without copying QR/secrets."""
+ import asyncio
+-import functools
+-import sys
+-from typing import Optional
+-
+-from playwright.async_api import BrowserContext, Page
+-from tenacity import (RetryError, retry, retry_if_result, stop_after_attempt,
+-                      wait_fixed)
+-
+-import config
+ from base.base_crawler import AbstractLogin
+-from cache.cache_factory import CacheFactory
+-from tools import utils
++from tools.yike_runtime import YikePlatformAuthRequired, YikePlatformVerificationRequired
+ 
+ 
+ class XiaoHongShuLogin(AbstractLogin):
+-
+-    def __init__(self,
+-                 login_type: str,
+-                 browser_context: BrowserContext,
+-                 context_page: Page,
+-                 login_phone: Optional[str] = "",
+-                 cookie_str: str = ""
+-                 ):
+-        config.LOGIN_TYPE = login_type
++    def __init__(self, login_type, browser_context, context_page, **kwargs):
+         self.browser_context = browser_context
+         self.context_page = context_page
+-        self.login_phone = login_phone
+-        self.cookie_str = cookie_str
+-
+-    @retry(stop=stop_after_attempt(600), wait=wait_fixed(1), retry=retry_if_result(lambda value: value is False))
+-    async def check_login_state(self, no_logged_in_session: str) -> bool:
+-        """
+-        Verify login status using dual-check: UI elements and Cookies.
+-        """
+-        # 1. Priority check: Check if the "Me" (Profile) node appears in the sidebar
+-        try:
+-            # Selector for elements containing "Me" text with a link pointing to the profile
+-            # XPath Explanation: Find a span with text "Me" inside an anchor tag (<a>) 
+-            # whose href attribute contains "/user/profile/"
+-            user_profile_selector = "xpath=//a[contains(@href, '/user/profile/')]//span[text()='我']"
+-            
+-            # Set a short timeout since this is called within a retry loop
+-            is_visible = await self.context_page.is_visible(user_profile_selector, timeout=500)
+-            if is_visible:
+-                utils.logger.info("[XiaoHongShuLogin.check_login_state] Login status confirmed by UI element ('Me' button).")
+-                return True
+-        except Exception:
+-            pass
+ 
+-        # 2. Alternative: Check for CAPTCHA prompt
++    async def check_login_state(self):
+         if "请通过验证" in await self.context_page.content():
+-            utils.logger.info("[XiaoHongShuLogin.check_login_state] CAPTCHA appeared, please verify manually.")
+-
+-        # 3. Compatibility fallback: Original Cookie-based change detection
+-        current_cookie = await self.browser_context.cookies()
+-        _, cookie_dict = utils.convert_cookies(current_cookie)
+-        current_web_session = cookie_dict.get("web_session")
+-        
+-        # If web_session has changed, consider the login successful
+-        if current_web_session and current_web_session != no_logged_in_session:
+-            utils.logger.info("[XiaoHongShuLogin.check_login_state] Login status confirmed by Cookie (web_session changed).")
+-            return True
+-
+-        return False
++            raise YikePlatformVerificationRequired()
++        return await self.context_page.is_visible(
++            "xpath=//a[contains(@href, '/user/profile/')]//span[text()='我']", timeout=500,
++        )
+ 
+     async def begin(self):
+-        """Start login xiaohongshu"""
+-        utils.logger.info("[XiaoHongShuLogin.begin] Begin login xiaohongshu ...")
+-        if config.LOGIN_TYPE == "qrcode":
+-            await self.login_by_qrcode()
+-        elif config.LOGIN_TYPE == "phone":
+-            await self.login_by_mobile()
+-        elif config.LOGIN_TYPE == "cookie":
+-            await self.login_by_cookies()
+-        else:
+-            raise ValueError("[XiaoHongShuLogin.begin]I nvalid Login Type Currently only supported qrcode or phone or cookies ...")
+-
+-    async def login_by_mobile(self):
+-        """Login xiaohongshu by mobile"""
+-        utils.logger.info("[XiaoHongShuLogin.login_by_mobile] Begin login xiaohongshu by mobile ...")
+-        await asyncio.sleep(1)
+-        try:
+-            # After entering Xiaohongshu homepage, the login dialog may not pop up automatically, need to manually click login button
+-            login_button_ele = await self.context_page.wait_for_selector(
+-                selector="xpath=//*[@id='app']/div[1]/div[2]/div[1]/ul/div[1]/button",
+-                timeout=5000
+-            )
+-            await login_button_ele.click()
+-            # The login dialog has two forms: one shows phone number and verification code directly
+-            # The other requires clicking to switch to phone login
+-            element = await self.context_page.wait_for_selector(
+-                selector='xpath=//div[@class="login-container"]//div[@class="other-method"]/div[1]',
+-                timeout=5000
+-            )
+-            await element.click()
+-        except Exception as e:
+-            utils.logger.info("[XiaoHongShuLogin.login_by_mobile] have not found mobile button icon and keep going ...")
+-
+-        await asyncio.sleep(1)
+-        login_container_ele = await self.context_page.wait_for_selector("div.login-container")
+-        input_ele = await login_container_ele.query_selector("label.phone > input")
+-        await input_ele.fill(self.login_phone)
+-        await asyncio.sleep(0.5)
+-
+-        send_btn_ele = await login_container_ele.query_selector("label.auth-code > span")
+-        await send_btn_ele.click()  # Click to send verification code
+-        sms_code_input_ele = await login_container_ele.query_selector("label.auth-code > input")
+-        submit_btn_ele = await login_container_ele.query_selector("div.input-container > button")
+-        cache_client = CacheFactory.create_cache(config.CACHE_TYPE_MEMORY)
+-        max_get_sms_code_time = 60 * 2  # Maximum time to get verification code is 2 minutes
+-        no_logged_in_session = ""
+-        while max_get_sms_code_time > 0:
+-            utils.logger.info(f"[XiaoHongShuLogin.login_by_mobile] get sms code from redis remaining time {max_get_sms_code_time}s ...")
++        # User opens/scans the normal site's login dialog. Never click SMS send,
++        # fill secrets, solve challenges, export QR images or inject cookies.
++        for _ in range(120):
++            if await self.check_login_state():
++                return
+             await asyncio.sleep(1)
+-            sms_code_key = f"xhs_{self.login_phone}"
+-            sms_code_value = cache_client.get(sms_code_key)
+-            if not sms_code_value:
+-                max_get_sms_code_time -= 1
+-                continue
+-
+-            current_cookie = await self.browser_context.cookies()
+-            _, cookie_dict = utils.convert_cookies(current_cookie)
+-            no_logged_in_session = cookie_dict.get("web_session")
+-
+-            await sms_code_input_ele.fill(value=sms_code_value.decode())  # Enter SMS verification code
+-            await asyncio.sleep(0.5)
+-            agree_privacy_ele = self.context_page.locator("xpath=//div[@class='agreements']//*[local-name()='svg']")
+-            await agree_privacy_ele.click()  # Click to agree to privacy policy
+-            await asyncio.sleep(0.5)
+-
+-            await submit_btn_ele.click()  # Click login
+-
+-            # TODO: Should also check if the verification code is correct, as it may be incorrect
+-            break
+-
+-        try:
+-            await self.check_login_state(no_logged_in_session)
+-        except RetryError:
+-            utils.logger.info("[XiaoHongShuLogin.login_by_mobile] Login xiaohongshu failed by mobile login method ...")
+-            sys.exit()
+-
+-        wait_redirect_seconds = 5
+-        utils.logger.info(f"[XiaoHongShuLogin.login_by_mobile] Login successful then wait for {wait_redirect_seconds} seconds redirect ...")
+-        await asyncio.sleep(wait_redirect_seconds)
++        raise YikePlatformAuthRequired()
+ 
+     async def login_by_qrcode(self):
+-        """login xiaohongshu website and keep webdriver login state"""
+-        utils.logger.info("[XiaoHongShuLogin.login_by_qrcode] Begin login xiaohongshu by qrcode ...")
+-        # login_selector = "div.login-container > div.left > div.qrcode > img"
+-        qrcode_img_selector = "xpath=//img[@class='qrcode-img']"
+-        # find login qrcode
+-        base64_qrcode_img = await utils.find_login_qrcode(
+-            self.context_page,
+-            selector=qrcode_img_selector
+-        )
+-        if not base64_qrcode_img:
+-            utils.logger.info("[XiaoHongShuLogin.login_by_qrcode] login failed , have not found qrcode please check ....")
+-            # if this website does not automatically popup login dialog box, we will manual click login button
+-            await asyncio.sleep(0.5)
+-            login_button_ele = self.context_page.locator("xpath=//*[@id='app']/div[1]/div[2]/div[1]/ul/div[1]/button")
+-            await login_button_ele.click()
+-            base64_qrcode_img = await utils.find_login_qrcode(
+-                self.context_page,
+-                selector=qrcode_img_selector
+-            )
+-            if not base64_qrcode_img:
+-                sys.exit()
+-
+-        # get not logged session
+-        current_cookie = await self.browser_context.cookies()
+-        _, cookie_dict = utils.convert_cookies(current_cookie)
+-        no_logged_in_session = cookie_dict.get("web_session")
++        await self.begin()
+ 
+-        # show login qrcode
+-        # fix issue #12
+-        # we need to use partial function to call show_qrcode function and run in executor
+-        # then current asyncio event loop will not be blocked
+-        partial_show_qrcode = functools.partial(utils.show_qrcode, base64_qrcode_img)
+-        asyncio.get_running_loop().run_in_executor(executor=None, func=partial_show_qrcode)
+-
+-        utils.logger.info(f"[XiaoHongShuLogin.login_by_qrcode] waiting for scan code login, remaining time is 120s")
+-        try:
+-            await self.check_login_state(no_logged_in_session)
+-        except RetryError:
+-            utils.logger.info("[XiaoHongShuLogin.login_by_qrcode] Login xiaohongshu failed by qrcode login method ...")
+-            sys.exit()
+-
+-        wait_redirect_seconds = 5
+-        utils.logger.info(f"[XiaoHongShuLogin.login_by_qrcode] Login successful then wait for {wait_redirect_seconds} seconds redirect ...")
+-        await asyncio.sleep(wait_redirect_seconds)
++    async def login_by_mobile(self):
++        raise YikePlatformAuthRequired()
+ 
+     async def login_by_cookies(self):
+-        """login xiaohongshu website by cookies"""
+-        utils.logger.info("[XiaoHongShuLogin.login_by_cookies] Begin login xiaohongshu by cookie ...")
+-        for key, value in utils.convert_str_cookie_to_dict(self.cookie_str).items():
+-            if key != "web_session":  # Only set web_session cookie attribute
+-                continue
+-            await self.browser_context.add_cookies([{
+-                'name': key,
+-                'value': value,
+-                'domain': ".rednote.com" if config.XHS_INTERNATIONAL else ".xiaohongshu.com",
+-                'path': "/"
+-            }])
++        raise YikePlatformAuthRequired()
+diff --git a/store/xhs/__init__.py b/store/xhs/__init__.py
+index 5ef8e3c..19e7d4d 100644
+--- a/store/xhs/__init__.py
++++ b/store/xhs/__init__.py
+@@ -22,6 +22,8 @@
+ # @Time    : 2024/1/14 17:34
+ # @Desc    :
+ from typing import List
++from datetime import datetime, timezone
++from tools.yike_runtime import YikePlatformResponseChanged
+ 
+ import config
+ from var import source_keyword_var
+@@ -85,6 +87,18 @@ def get_video_url_arr(note_item: Dict) -> List:
+     return videoArr
+ 
+ 
++def _xhs_time(value):
++    """Upstream XHS publication fields are milliseconds; unknown stays null."""
++    if value is None:
++        return None
++    if type(value) is not int or value < 0:
++        raise YikePlatformResponseChanged()
++    try:
++        return datetime.fromtimestamp(value // 1000, timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
++    except (ValueError, OverflowError, OSError):
++        raise YikePlatformResponseChanged() from None
++
++
+ async def update_xhs_note(note_item: Dict):
+     """
+     Update Xiaohongshu note
+@@ -109,11 +123,11 @@ async def update_xhs_note(note_item: Dict):
+     local_db_item = {
+         "note_id": note_item.get("note_id"),  # Note ID
+         "type": note_item.get("type"),  # Note type
+-        "title": note_item.get("title") or note_item.get("desc", "")[:255],  # Note title
+-        "desc": note_item.get("desc", ""),  # Note description
++        "title": note_item.get("title"),  # Never synthesize a title from description
++        "desc": note_item.get("desc"),  # Original description, including null
+         "video_url": video_url,  # Note video url
+-        "time": note_item.get("time"),  # Note publish time
+-        "last_update_time": note_item.get("last_update_time", 0),  # Note last update time
++        "time": _xhs_time(note_item.get("time")),  # Explicit UTC publication seconds
++        "last_update_time": _xhs_time(note_item.get("last_update_time")),
+         "creator_hash": anonymize_user_id(user_info.get("user_id")),  # 创作者匿名哈希(不存原始 user_id)
+         "nickname": mask_nickname(user_info.get("nickname")),  # 用户昵称(已脱敏)
+         "liked_count": interact_info.get("liked_count"),  # Like count
+@@ -123,11 +137,9 @@ async def update_xhs_note(note_item: Dict):
+         "image_list": ','.join([img.get('url', '') for img in image_list]),  # Image URLs
+         "tag_list": ','.join([tag.get('name', '') for tag in tag_list if tag.get('type') == 'topic']),  # Tags
+         "last_modify_ts": utils.get_current_timestamp(),  # Last modification timestamp (Generated by MediaCrawler, mainly used to record the latest update time of a record in DB storage)
+-        "note_url": f"https://www.xiaohongshu.com/explore/{note_id}?xsec_token={note_item.get('xsec_token')}&xsec_source=pc_search",  # Note URL
++        "note_url": f"https://www.xiaohongshu.com/explore/{note_id}",
+         "source_keyword": source_keyword_var.get(),  # Search keyword
+-        "xsec_token": note_item.get("xsec_token"),  # xsec_token
+     }
+-    utils.logger.info(f"[store.xhs.update_xhs_note] xhs note: {local_db_item}")
+     await XhsStoreFactory.create_store().store_content(local_db_item)
+ 
+ 
+@@ -160,21 +172,20 @@ async def update_xhs_note_comment(note_id: str, comment_item: Dict):
+     user_info = comment_item.get("user_info", {})
+     comment_id = comment_item.get("id")
+     comment_pictures = [item.get("url_default", "") for item in comment_item.get("pictures", [])]
+-    target_comment = comment_item.get("target_comment", {})
++    target_comment = comment_item.get("target_comment") or {}
+     local_db_item = {
+         "comment_id": comment_id,  # Comment ID
+-        "create_time": comment_item.get("create_time"),  # Comment time
++        "create_time": _xhs_time(comment_item.get("create_time")),
+         "note_id": note_id,  # Note ID
+         "content": comment_item.get("content"),  # Comment content
+         "creator_hash": anonymize_user_id(user_info.get("user_id")),  # 创作者匿名哈希(不存原始 user_id)
+         "nickname": mask_nickname(user_info.get("nickname")),  # 用户昵称(已脱敏)
+         "sub_comment_count": comment_item.get("sub_comment_count", 0),  # Sub-comment count
+         "pictures": ",".join(comment_pictures),  # Comment pictures
+-        "parent_comment_id": target_comment.get("id", ""),  # Parent comment ID
++        "parent_comment_id": target_comment.get("id") or None,
+         "last_modify_ts": utils.get_current_timestamp(),  # Last modification timestamp (Generated by MediaCrawler, mainly used to record the latest update time of a record in DB storage)
+         "like_count": comment_item.get("like_count", 0),
+     }
+-    utils.logger.info(f"[store.xhs.update_xhs_note_comment] xhs note comment:{local_db_item}")
+     await XhsStoreFactory.create_store().store_comment(local_db_item)
+ 
+ 

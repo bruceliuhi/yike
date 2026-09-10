@@ -15,6 +15,10 @@ _MAX_FILES = 64
 _MAX_BYTES = 16 * 1024 * 1024
 _MAX_LINE_BYTES = 2 * 1024 * 1024
 _NUMERIC_ID = re.compile(r"[1-9][0-9]{0,19}")
+_XHS_ID = re.compile(r"[A-Za-z0-9]{8,32}")
+_PLATFORMS = {"DOUYIN": ("douyin", "aweme_id", "cid"),
+              "BILIBILI": ("bili", "video_id", "rpid"),
+              "XIAOHONGSHU": ("xhs", "note_id", "id")}
 _FILENAME = re.compile(r"search_(contents|comments)_[^/\\:]+\.jsonl")
 _REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
 
@@ -66,7 +70,9 @@ def _float(value: str) -> float:
     return number
 
 
-def _id(value: object) -> str:
+def _id(value: object, platform: str = "DOUYIN") -> str:
+    if platform == "XIAOHONGSHU" and isinstance(value, str) and _XHS_ID.fullmatch(value):
+        return value
     if type(value) is int:
         value = str(value)
     if not isinstance(value, str) or not _NUMERIC_ID.fullmatch(value):
@@ -75,16 +81,18 @@ def _id(value: object) -> str:
 
 
 def _source_id(row: dict, platform: str) -> str:
-    field = "aweme_id" if platform == "DOUYIN" else "video_id"
-    source = _id(row.get(field))
+    field = _PLATFORMS[platform][1]
+    source = _id(row.get(field), platform)
     if platform == "BILIBILI" and row.get("aid") is not None and _id(row["aid"]) != source:
+        raise CollectionOutputError()
+    if platform == "XIAOHONGSHU" and row.get("source_id") is not None and _id(row["source_id"], platform) != source:
         raise CollectionOutputError()
     return source
 
 
 def _comment_id(row: dict, platform: str) -> str:
-    fields = ("comment_id", "cid" if platform == "DOUYIN" else "rpid")
-    values = [_id(row[field]) for field in fields if row.get(field) is not None]
+    fields = ("comment_id", _PLATFORMS[platform][2])
+    values = [_id(row[field], platform) for field in fields if row.get(field) is not None]
     if not values or any(value != values[0] for value in values):
         raise CollectionOutputError()
     return values[0]
@@ -108,7 +116,7 @@ def _with_observation(row: dict) -> dict:
 
 def _content_identity(row: dict, platform: str, source: str) -> str:
     canonical = dict(row)
-    canonical["aweme_id" if platform == "DOUYIN" else "video_id"] = source
+    canonical[_PLATFORMS[platform][1]] = source
     if platform == "BILIBILI" and canonical.get("aid") is not None:
         canonical["aid"] = source
     # JSON comparison distinguishes e.g. true from 1 while leaving all text exact.
@@ -117,11 +125,11 @@ def _content_identity(row: dict, platform: str, source: str) -> str:
 
 def _read(output_dir: Path, platform: str, max_records: int) -> list[dict]:
     if (not isinstance(output_dir, Path) or ".." in output_dir.parts
-            or not isinstance(platform, str) or platform not in ("DOUYIN", "BILIBILI")
+            or not isinstance(platform, str) or platform not in _PLATFORMS
             or type(max_records) is not int or not 1 <= max_records <= 100):
         raise CollectionOutputError()
     root = output_dir.absolute()
-    leaf = root / ("douyin" if platform == "DOUYIN" else "bili") / "jsonl"
+    leaf = root / _PLATFORMS[platform][0] / "jsonl"
     if not _check_directory(leaf):
         return []
     resolved_root = root.resolve(strict=True)

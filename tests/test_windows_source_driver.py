@@ -59,7 +59,7 @@ def test_fixed_command_environment_and_no_data(source, monkeypatch):
     assert 'private data' not in str(result)
 
 
-@pytest.mark.parametrize('change', [dict(platform='XIAOHONGSHU'), dict(query='a,b'), dict(query=''),
+@pytest.mark.parametrize('change', [dict(platform='ZHIHU'), dict(query='a,b'), dict(query=''),
     dict(max_records=101), dict(max_records=True), dict(timeout_seconds=0), dict(timeout_seconds=True)])
 def test_invalid_or_unsupported_never_launches(source, change):
     with pytest.raises(source.api.WindowsSourceError):

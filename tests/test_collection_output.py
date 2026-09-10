@@ -69,7 +69,7 @@ def test_record_limit_is_exact_bounded_int(tmp_path, value):
     rejected(tmp_path, max_records=value)
 
 
-@pytest.mark.parametrize("value", ["dy", "bili", "XIAOHONGSHU", "", None, []])
+@pytest.mark.parametrize("value", ["dy", "bili", "ZHIHU", "", None, []])
 def test_platform_is_allowlisted(tmp_path, value):
     rejected(tmp_path, platform=value)
 

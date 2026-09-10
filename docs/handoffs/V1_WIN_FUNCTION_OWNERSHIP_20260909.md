@@ -4,6 +4,16 @@
 
 ## 分工调整
 
+本批实际管道补证：root 设置 `YIKE_SOURCE_HOST_PYTHON` 后运行 `desktop/tests/pythonCollectionDriver.process.test.ts`，**2 passed / 0 skipped / 931ms**；真实Node固定spawn→当前Python host→真实mapper，原文/查询/来源时间逐字段正确，真实EOF取消在清理标记及host退出之后才resolve。仅来源边界是离线fixture，不计真实平台。临时测试目录已清理，无凭据或平台数据；本批产品字节未变，类型检查继续引用下列证据。
+
+2026-09-10 Win XHS/固定来源桥工程片（base `5f8bc37`）：新增0002受控search-only补丁，保留原pin/依赖/0001；XHS私有profile、用户登录重验、末页/共享评论上限、明确失败、原文/null/毫秒时间和无token回链进入Windows读取/正式mapper。新增 `app.windows_collection_host` 与 main-only `createPythonCollectionDriver`，固定stdin/stdout接口、多词共用已消耗预算/时限、保留每次原始目录；EOF取消等待host退出，强杀/未知清理不确认停止。完全相同观察可去重，冲突原文/来源/父关系失败，不返还重复观察预算。未新增renderer通用进程权限或开启来源能力。
+
+本批root定向 **228 passed / 3 skipped / 11.40s**：host、实际补丁模块离线链、XHS原始输出/Windows Job→正式mapper、reader/source与补丁锁声明；其中实际新安装 `.runtime/windows-installed-xhs-20260910-02` 只读预检已通过，3跳过仅Windows符号链接权限。Node bridge **18 passed**、worker既有16项通过，`tsc --noEmit`通过。新安装CLI/Chromium149.0.7827.55本地无网络探针和整树私有检查返回0；receipt tree `4eeead75f56d5a434863b605617ab16c54687cc4152d3b0c5654997a5e093585`、patchset `3ea56022c91160abe17a63bc8ad539c891011a93b67434f4ab9099bb49c09a22`，平台仍UNVERIFIED。先前 `.runtime/windows-installed-xhs-20260910-01` 绑定审核前补丁，与原0001安装一并保留，均不得冒充最终字节。
+
+非作者一次SPEC后代码/架构/质量及差量审核PASS：XHS重复冲突P2（新增24例RED18fail/6pass→73项全绿），Node总量返还/清理未知/1秒期限3处P2（RED3fail/15pass→18pass）已关闭。审核绑定Node SHA `0f434fe730fd6ff9e6154c4f51c6475b6b593125647fe828245bfc6f30f9b0ac`、host `1df9388728a3f2132d257711ff9e9613d06f1a7c55c8326bccfe1a3f8f9e25d7`、0002 `6cad30d02500f2ed6ffa239247cca6b01218d65fffbe265f6026cbe87cf0f332`。扩大执行旧 `tests/test_collector.py` 曾为28failed/28passed；未修改main同环境复现相同28失败（含POSIX killpg、旧私有目录拒绝与symlink权限），不是本批新增回归，保留未解。没有为其删除测试/断言，也不称全仓绿色。
+
+**下一步唯一主责Win：** 复用已有连接版本/设备/候选模块，先补用户登录账号与本机profile绑定，再装配main真实worker/候选journal及诚实的capability/任务终态，走P06→P07原文与判断；随后接已确认联系/回复。当前内部桥拒绝尚未实现的links/research/exclusions，不是取消这些产品需求；页面启用前必须按确认策略接齐或明确限制，不静默忽略。真实登录/平台采集、真实发送、新Windows候选均未验，旧1a47178包不变，不重复构包或等待Mac，Goal保持进行中。
+
 2026-09-10 用户确认“Mac已经没有在做了”，授权 CodexWin 独立推进：Win 接管原Mac全部剩余精简主线（XHS映射/受控来源、执行候选、判断短句、确认发送/回复），保留已提交实现，先查差量，不再等待另一端ACK。独立非作者审核保留，不另启动用户任务；本轮先修XHS来源ID/评论ID别名问题并接Windows源驱动，之后优先小红书真实端到端。以下旧分工和待ACK为历史，不是当前阻塞条件；账号登录/挑战/明确对象内容渠道的外发批准仍由用户参与。
 
 本批实现（base5e09d48；独立终审树 `b2fb187a59e753faba3ee643611034d8e3629223`）：`app.windows_source_driver.collect_windows_source` 在运行时/profile互斥范围核验安装受控字节及私有目录，仅固定bili/dy命令，原输出新建保留；最多5帖分配总评论预算，停止整树后严格读取原JSONL并按来源ID配对，毫秒观察时间明确转换、原文不trim、匿名身份不反推。返回COLLECTED不是上传或任务终态。XHS mapper同步修复来源/父来源误用数字ID和comment.id被当note.id；无SQL/合同变化。root最终5文件 **556passed/3skip/4.45s**，包括实际已安装运行时只读预检、真实Windows测试子进程→Job→原文读取→正式mapper、子进程取消/超时退出、原生hardlink/junction拒绝；3skip仅无符号链接权限，不代表实平台。非作者一次SPEC/代码/架构/质量审核及采样差量PASS。保留RED：缺失驱动API、XHS9失败→别名2失败→修复、采样命令20帖→5帖断言；reader手算时间期望错误已独立核对修正，旧pytest ACL垃圾目录警告用独立临时目录隔离，未删除旧数据。同步文件预检只能前后响应取消/截止，启动后的来源树使用剩余超时预算。**仍缺Node/main桥、XHS受控profile/终态、真实账号采集/发送和新候选包**；Win接管后优先补这些，不用构造来源冒充平台验收。未构包/登录/外发，旧1a47178包不变，Goal继续。
