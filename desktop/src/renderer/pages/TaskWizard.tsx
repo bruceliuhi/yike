@@ -50,6 +50,8 @@ import { StrategyConfirmationPanel } from "./tasks/StrategyConfirmationPanel";
 import { StrategyExecutionLimits } from "./tasks/StrategyExecutionLimits";
 import { validStrategyExecutionLimits } from "../domain/strategyExecutionLimits";
 import { useStrategyConfirmation } from "./tasks/useStrategyConfirmation";
+import { desktopStartCommand, useDesktopExecution } from "./tasks/useDesktopExecution";
+import { DesktopExecutionRequests } from "./tasks/DesktopExecutionRequests";
 import { DemandSettings, ResearchSettingsPanel } from "./tasks/ResearchSettings";
 import { useUsageQuote } from "./tasks/useUsageQuote";
 import { parseUsageQuote, usageQuoteCurrent, usageQuoteRequest, usageReservation } from "../domain/researchUsage";
@@ -69,6 +71,7 @@ export function TaskWizardPage() {
   const executionLimits = validStrategyExecutionLimits(draft.executionLimits);
   // Invalid/incomplete values never become suggested authority or leave this client.
   const strategy = useStrategyConfirmation(draft, executionLimits ?? { max_records: 0, max_runtime_seconds: 0 });
+  const desktopExecution = useDesktopExecution(strategy.prepared);
   const strategyPreparationError = !executionLimits
     ? "请返回任务条件，明确设置执行记录与执行时长上限；建议值尚未采用。"
     : draft.research?.provenance || draft.research?.coverageProvenance
@@ -154,9 +157,10 @@ export function TaskWizardPage() {
   if (!session.authenticated)
     blockers.unshift("请登录客户工作空间后启动任务。");
   if (strategy.available) {
-    // 05F must carry the confirmed strategy through the signed execution protocol.
-    // An old task request cannot enforce this snapshot or its independent limits.
-    blockers.push("策略可先确认；签名执行接入尚未完成，当前不会启动采集。");
+    if (!service.execution) blockers.push("策略可先确认；签名执行接入尚未完成，当前不会启动采集。");
+    // This protocol has no billing reservation or schedule; keep those original contracts gated.
+    if (service.execution && (draft.mode !== "once" || draft.research))
+      blockers.push("当前签名执行仅支持无研究计费的单次任务；研究用量与监控调度接通前不会启动。");
     if (strategyPreparationError) blockers.push(strategyPreparationError);
     if (!strategy.confirmed) blockers.push("请准备策略快照、核对后主动确认本次策略。");
   }
@@ -355,19 +359,44 @@ export function TaskWizardPage() {
     setSuggestionError("");
     setVerified(null);
   };
+  const validateDesktopStart = async (requestId: string) => {
+    if (!session.authenticated || !reviewed || !strategy.confirmed || !strategy.prepared ||
+        !service.execution || strategyPreparationError || resultUnknown || !startScope.current())
+      throw new Error("请核对当前草稿及已确认策略，尚未启动。");
+    const snapshot = structuredClone(current.current);
+    const prepared = structuredClone(strategy.prepared);
+    if (snapshot.mode !== "once" || snapshot.research)
+      throw new Error("当前执行协议尚未接通研究计费与监控调度，尚未启动。");
+    const [freshProfiles, freshConnections, freshInfo] = await boundedRequest(() => Promise.all([
+      service.profiles(), service.connections(), service.info(),
+    ]), {timeoutMessage: "启动条件检查超时，尚未创建任务，请重新检查。"});
+    if (!startScope.current()) throw new RequestCancelled();
+    // A selected web account must also have its own checked runtime capability.
+    const capabilityConnections = snapshot.accounts.web ? freshConnections.filter(row =>
+      row.platform !== "web" || row.accountId === snapshot.accounts.web) : freshConnections;
+    const reasons = startBlockers(snapshot, freshProfiles, capabilityConnections, freshInfo.deviceReady === true);
+    if (reasons.length) throw new Error(reasons.join(" "));
+    if (!await strategy.recheck() || !startScope.current())
+      throw new Error("当前策略尚未重新核实，尚未启动。");
+    return desktopStartCommand(snapshot, prepared, freshConnections, requestId);
+  };
   const start = async () => {
     if (
       !session.authenticated ||
       starting ||
       resultUnknown ||
       !reviewed ||
-      strategy.available
+      (strategy.available && (!service.execution || desktopExecution.blocksStart || desktopExecution.busy || blockers.length > 0))
     )
       return;
     const snapshot = structuredClone(current.current);
     const usageSnapshot = usage.quote;
     setStarting(true);
     await action.run(async () => {
+      if (strategy.available) {
+        await desktopExecution.start(await validateDesktopStart(crypto.randomUUID()));
+        return;
+      }
       // Recheck live execution prerequisites immediately before creating one task.
       const [freshProfiles, freshConnections, freshInfo] = await boundedRequest(
         () =>
@@ -1175,6 +1204,12 @@ export function TaskWizardPage() {
             我已核对以上画像版本、搜索条件、账号与运行设置
           </label>}
           {action.error && <Notice tone="error">{action.error}</Notice>}
+          {service.execution && <DesktopExecutionRequests
+            key={JSON.stringify([session.userId, session.accountScope])}
+            execution={desktopExecution}
+            canRetryStart={strategy.available && strategy.confirmed && reviewed && blockers.length === 0 && !resultUnknown && !starting}
+            validateStart={validateDesktopStart}
+          />}
           {resultUnknown && (
             <Notice
               tone="warning"
@@ -1228,7 +1263,8 @@ export function TaskWizardPage() {
               variant="primary"
               loading={starting}
               disabled={
-                blockers.length > 0 || !reviewed || resultUnknown || (strategy.available && !strategy.confirmed)
+                blockers.length > 0 || !reviewed || resultUnknown || (strategy.available &&
+                  (!strategy.confirmed || desktopExecution.blocksStart || desktopExecution.busy))
               }
               onClick={() => void start()}
             >

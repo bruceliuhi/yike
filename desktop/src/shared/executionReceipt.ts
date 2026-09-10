@@ -39,7 +39,8 @@ const cancelReceiptSchema = z.object({
   stop_confirmed: z.boolean(),
 }).strict().refine(receipt => receipt.stop_confirmed === (receipt.status === 'CANCELED'),
   'invalid execution stop state');
-const receiptSchema = z.discriminatedUnion('operation', [startReceiptSchema, leaseReceiptSchema, cancelReceiptSchema]);
+export const executionReceiptSchema = z.discriminatedUnion('operation', [startReceiptSchema, leaseReceiptSchema, cancelReceiptSchema]);
+const receiptSchema = executionReceiptSchema;
 export type ExecutionReceipt = z.infer<typeof receiptSchema>;
 
 function timestampParts(value: string): {milliseconds: number; fraction: string} {

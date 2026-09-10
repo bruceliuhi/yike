@@ -36,6 +36,7 @@ export function errorMessage(error: unknown): string {
       : "操作未完成，请重试。";
 }
 export interface YikeService {
+  execution?: import('./desktopExecution').DesktopExecutionService;
   deviceIdentity?: import('./deviceIdentity').DeviceIdentityApi;
   candidateReview?: import("./candidateReview").CandidateReviewService;
   rawCandidateEvidence?: import("./candidateReview").CandidateReviewService["getRawEvidence"];

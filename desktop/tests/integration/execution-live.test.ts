@@ -9,6 +9,8 @@ import {executionOperationSchema, type ExecutionOperation} from '../../src/share
 import type {ApiResult} from '../../src/shared/contracts';
 import {createExecutionJournal} from '../../src/main/executionJournal';
 import {createExecutionSession} from '../../src/main/executionSession';
+import {createDeviceIdentityController} from '../../src/main/deviceIdentityController';
+import {createExecutionController} from '../../src/main/executionController';
 
 const names = ['BASE', 'USER', 'TOKEN', 'NEXT_TOKEN', 'SEED', 'START'] as const;
 it.skipIf(!names.some(name => process.env[`YIKE_EXECUTION_LIVE_${name}`]))(
@@ -59,14 +61,13 @@ it.skipIf(!names.some(name => process.env[`YIKE_EXECUTION_LIVE_${name}`]))(
       }
       return response;
     }});
-    let epoch = randomUUID();
-    const activeSession = () => {
-      const original = epoch;
-      return {userId: values.USER!, sessionId: original, isCurrent: () => original === epoch};
-    };
-    const newCoordinator = () => createExecutionSession({serviceOrigin: base, transport: client,
+    // The fixture pre-bound this key. Actual registration/PROVE is covered by the device live test.
+    const identity = createDeviceIdentityController({service: client, identityFactory: () => ({prepare: async () =>
+      ({state:'READY' as const, deviceId:start.device_id, credentialVersion:1})})});
+    const newCoordinator = () => createExecutionSession({serviceOrigin: base, transport: identity,
       journal: createExecutionJournal({directory, protection}), vault: {read: async () => key}});
     let coordinator = newCoordinator();
+    let entry = createExecutionController({identity, execution:coordinator});
     function data(result: ApiResult): any {
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error('expected successful execution HTTP response: ' + result.error);
@@ -77,16 +78,22 @@ it.skipIf(!names.some(name => process.env[`YIKE_EXECUTION_LIVE_${name}`]))(
       return signExecutionOperation({key, prepared, expected: {serviceOrigin: base, userId: values.USER!, request}});
     }
     async function apply(request: ExecutionOperation) {
-      const result = await coordinator.submit(activeSession(), request);
+      const authenticated = await identity.withAuthenticatedSession(session => coordinator.submit(session, request));
+      if (!authenticated.ok) throw new Error('expected current main session');
+      const result = authenticated.value;
       expect(result.state).toBe('RECORDED');
       if (result.state !== 'RECORDED') throw new Error('execution must have recorded receipt');
       return {ok: true, status: 200, data: result.receipt} as const;
     }
-    data(await client.request({operation: 'session.login', payload: {token: values.TOKEN}}));
-    expect(await coordinator.submit(activeSession(), start)).toEqual({state: 'UNKNOWN', requestId: start.request_id});
+    data(await identity.requestApi({operation: 'session.login', payload: {token: values.TOKEN}}));
+    expect(await identity.prepare()).toMatchObject({state:'READY'});
+    expect(await entry.execute({action:'START',requestId:start.request_id,profileVersionId:start.profile_version_id,
+      strategyVersionId:start.strategy_version_id,configurationSha256:start.configuration_sha256,targets:start.targets,humanConfirmed:true}))
+      .toEqual({state: 'UNKNOWN', requestId: start.request_id});
     expect(applyCalls).toBe(1);
     coordinator = newCoordinator(); // No in-memory request state retained.
-    const recovered = await coordinator.recover(activeSession(), start.request_id);
+    entry = createExecutionController({identity,execution:coordinator});
+    const recovered = await entry.execute({action:'RECOVER',requestId:start.request_id});
     expect(recovered.state).toBe('RECORDED');
     if (recovered.state !== 'RECORDED') throw new Error('original receipt missing');
     const begun: any = recovered.receipt;
@@ -103,17 +110,19 @@ it.skipIf(!names.some(name => process.env[`YIKE_EXECUTION_LIVE_${name}`]))(
     const cancel = executionOperationSchema.parse({schema_version: start.schema_version, request_id: randomUUID(),
       operation: 'CANCEL', device_id: start.device_id, credential_version: 1, task_id: begun.task_id});
     const stale = await signed(cancel);
-    const oldSession = activeSession();
-    epoch = randomUUID();
-    data(await client.request({operation: 'session.logout'}));
-    expect(await coordinator.recover(oldSession, start.request_id)).toEqual({state: 'SESSION_CHANGED'});
+    const capture = await identity.withAuthenticatedSession(async session => session);
+    if (!capture.ok) throw new Error('expected main session');
+    data(await identity.requestApi({operation: 'session.logout'}));
+    expect(await coordinator.recover(capture.value, start.request_id)).toEqual({state: 'SESSION_CHANGED'});
     expect(await client.requestExecution({operation: 'execution.receipt', payload: {request_id: start.request_id}})).toMatchObject({ok: false, status: 401});
-    data(await client.request({operation: 'session.login', payload: {token: values.NEXT_TOKEN}}));
+    data(await identity.requestApi({operation: 'session.login', payload: {token: values.NEXT_TOKEN}}));
     expect(await client.requestExecution({operation: 'execution.apply', payload: stale})).toMatchObject({ok: false, error: 'invalid_proof'});
-    expect(data(await apply(cancel))).toMatchObject({status: 'CANCELLING', stop_confirmed: false});
+    expect(await identity.prepare()).toMatchObject({state:'READY'});
+    expect(await entry.execute({action:'CANCEL',requestId:cancel.request_id,taskId:begun.task_id,humanConfirmed:true}))
+      .toMatchObject({state:'RECORDED',receipt:{status: 'CANCELLING', stop_confirmed: false}});
     expect(data(await client.requestExecution({operation: 'execution.task', payload: {task_id: begun.task_id}}))).toMatchObject({status: 'CANCELLING'});
     expect(data(await client.requestExecution({operation: 'execution.receipt', payload: {request_id: start.request_id}}))).toEqual(begun);
-    const list = await newCoordinator().list(activeSession());
+    const list = await createExecutionController({identity,execution:newCoordinator()}).execute({action:'LIST'});
     expect(list.state).toBe('LIST');
     if (list.state === 'LIST') expect(list.requests.map(r => r.request_id).sort())
       .toEqual([start.request_id, claim.request_id, renew.request_id, cancel.request_id].sort());

@@ -15,6 +15,7 @@ export interface YikeDesktopApi {
   getClientInfo(): Promise<ClientInfo>;
   getDeviceIdentityStatus?(): Promise<import('./deviceIdentity').DeviceIdentityStatus>;
   prepareDeviceIdentity?(options?: import('./deviceIdentity').DeviceIdentityRetry): Promise<import('./deviceIdentity').DeviceIdentityStatus>;
+  executionCommand?(command: import('./desktopExecution').DesktopExecutionCommand): Promise<import('./desktopExecution').DesktopExecutionResult>;
   requestApi(request: ApiRequest): Promise<ApiResult>;
   openExternal(url: string): Promise<DesktopActionResult>;
   copyText(text: string): Promise<DesktopActionResult>;

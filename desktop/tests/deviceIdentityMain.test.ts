@@ -8,8 +8,14 @@ const mocks = vi.hoisted(()=>{
   return {handlers,frame,window,request:vi.fn().mockResolvedValue({ok:true,status:200,data:{authenticated:true,user_id:'verified-user'}}),
     requestDevice:vi.fn(),prepare:vi.fn().mockResolvedValue({state:'READY',deviceId:'12345678-1234-1234-1234-123456789abc',credentialVersion:1}),
     coordinator:vi.fn(),journal:vi.fn().mockReturnValue({journal:true}),vault:vi.fn().mockReturnValue({vault:true}),
+    executionJournal:vi.fn().mockReturnValue({executionJournal:true}), executionSession:vi.fn(),
+    executionList:vi.fn().mockResolvedValue({state:'LIST',requests:[]}),
     safeStorage:{isEncryptionAvailable:()=>true,encryptString:vi.fn(),decryptString:vi.fn()},quit:vi.fn()};
 });
+vi.mock('../src/main/executionJournal',()=>({createExecutionJournal:mocks.executionJournal}));
+vi.mock('../src/main/executionSession',()=>({createExecutionSession:(options:any)=>{
+  mocks.executionSession(options); return {list:mocks.executionList,submit:vi.fn(),recover:vi.fn()};
+}}));
 vi.mock('electron-squirrel-startup',()=>({default:false}));
 vi.mock('electron',()=>({
   app:{whenReady:()=>Promise.resolve(),on:vi.fn(),quit:mocks.quit,isPackaged:false,getPath:()=>path.resolve('TEST-device-main-user-data'),getVersion:()=> 'test',requestSingleInstanceLock:()=>true,setAppUserModelId:vi.fn()},
@@ -46,14 +52,22 @@ it('installs normal trusted identity handlers with fixed userData vault and jour
   expect(await mocks.handlers.get('desktop:get-runtime-status')!(trusted())).toEqual({state:'FAILED',errorCode:'LOCAL_SERVICE_UNAVAILABLE'});
   expect(mocks.quit).not.toHaveBeenCalled();
 });
-it('rejects subframes, foreign windows and URLs on both identity channels',()=>{
-  for(const channel of ['desktop:get-device-identity-status','desktop:prepare-device-identity']){
+it('rejects subframes, foreign windows and URLs on identity and execution channels',()=>{
+  for(const channel of ['desktop:get-device-identity-status','desktop:prepare-device-identity','desktop:execution-command']){
     expect(mocks.handlers.has(channel)).toBe(true);
     const handler=mocks.handlers.get(channel)!;
     expect(()=>handler({...trusted(),senderFrame:{url:'https://evil.invalid'}},{})).toThrow('UNTRUSTED_DESKTOP_SENDER');
     expect(()=>handler({...trusted(),senderFrame:{url:mocks.frame.url}},{})).toThrow('UNTRUSTED_DESKTOP_SENDER');
     expect(()=>handler({sender:{mainFrame:mocks.frame},senderFrame:mocks.frame},{})).toThrow('UNTRUSTED_DESKTOP_SENDER');
   }
+});
+it('assembles execution on the normal identity epoch and fixed protected userData journal', async()=>{
+  const handler=mocks.handlers.get('desktop:execution-command');
+  expect(handler).toBeTypeOf('function');
+  expect(await handler!(trusted(),{action:'LIST'})).toEqual({state:'LIST',requests:[]});
+  expect(mocks.executionJournal.mock.calls[0][0].directory).toBe(path.resolve('TEST-device-main-user-data','execution-operations'));
+  expect(mocks.executionSession.mock.calls[0][0]).toMatchObject({serviceOrigin:'http://127.0.0.1:9800',journal:{executionJournal:true}});
+  expect(mocks.executionList.mock.calls.at(-1)![0]).toMatchObject({userId:'verified-user',isCurrent:expect.any(Function)});
 });
 it('routes ordinary logout through controller to clear last identity observation immediately',async()=>{
   expect(mocks.handlers.has('desktop:prepare-device-identity')).toBe(true);

@@ -53,6 +53,8 @@ app.on('browser-window-created', (_event, window) => {
       assert.equal(result.info.version, ${JSON.stringify(pkg.version)});
       assert.equal(result.invalid.error, 'INVALID_API_REQUEST');
       assert.equal(result.unconfigured.error, 'SERVICE_NOT_CONFIGURED');
+      assert.deepEqual(await window.webContents.executeJavaScript('window.yikeDesktop.executionCommand({action:"LIST"})'),
+        {state: 'SERVICE_UNAVAILABLE'}, 'Fixed execution IPC must preserve unconfigured-service state.');
       assert.equal(result.file.error, 'INVALID_EXTERNAL_URL');
       assert.equal(result.clipboard.error, 'INVALID_CLIPBOARD_TEXT');
       assert.equal(workbenchFailure(result.workbench), null, workbenchFailure(result.workbench));

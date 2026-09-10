@@ -9,7 +9,7 @@ describe('preload export bridge', () => {
     expect(mocks.expose).toHaveBeenCalledOnce();
     const [name, api] = mocks.expose.mock.calls[0] as [string, YikeDesktopApi];
     expect(name).toBe('yikeDesktop'); expect(Object.isFrozen(api)).toBe(true);
-    expect(Object.keys(api).sort()).toEqual(['copyText','getClientInfo','getDeviceIdentityStatus','getRuntimeStatus','openExternal','prepareDeviceIdentity','requestApi','saveExport']);
+    expect(Object.keys(api).sort()).toEqual(['copyText','executionCommand','getClientInfo','getDeviceIdentityStatus','getRuntimeStatus','openExternal','prepareDeviceIdentity','requestApi','saveExport']);
     const request = {format: 'csv' as const, name: 'TEST.csv', content: 'TEST'};
     expect(await api.saveExport(request)).toEqual({status: 'cancelled'});
     expect(mocks.invoke).toHaveBeenCalledWith(SAVE_EXPORT_CHANNEL, request);
@@ -20,5 +20,7 @@ describe('preload export bridge', () => {
     const retry = {retryProof:true};
     await api.prepareDeviceIdentity!(retry);
     expect(mocks.invoke).toHaveBeenCalledWith('desktop:prepare-device-identity', retry);
+    await api.executionCommand!({action:'LIST'});
+    expect(mocks.invoke).toHaveBeenCalledWith('desktop:execution-command', {action:'LIST'});
   });
 });

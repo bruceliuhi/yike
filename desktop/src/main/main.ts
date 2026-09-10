@@ -21,6 +21,10 @@ import {createDeviceIdentityJournal} from './deviceIdentityJournal';
 import {createDeviceKeyVault} from './deviceKeyVault';
 import {createDeviceIdentitySession} from './deviceIdentitySession';
 import {createDeviceIdentityController} from './deviceIdentityController';
+import {createExecutionController} from './executionController';
+import {createExecutionSession} from './executionSession';
+import {createExecutionJournal} from './executionJournal';
+import {EXECUTION_COMMAND_CHANNEL} from '../shared/desktopExecution';
 import {GET_DEVICE_IDENTITY_STATUS_CHANNEL, PREPARE_DEVICE_IDENTITY_CHANNEL} from '../shared/deviceIdentity';
 
 protocol.registerSchemesAsPrivileged([
@@ -153,6 +157,13 @@ async function startApplication(): Promise<void> {
     if (baseUrl === null) throw new Error('SERVICE_NOT_CONFIGURED');
     return createDeviceIdentitySession({serviceOrigin:baseUrl, deviceLabel:'意客AI Windows客户端',transport,journal,vault});
   }});
+  const execution = baseUrl === null ? null : createExecutionController({identity,
+    execution: createExecutionSession({serviceOrigin: baseUrl, transport: identity, vault,
+      journal: createExecutionJournal({directory: path.join(app.getPath('userData'), 'execution-operations'), protection})})});
+  ipcMain.handle(EXECUTION_COMMAND_CHANNEL, (event, command: unknown) => {
+    trustedSender(event);
+    return execution ? execution.execute(command) : {state: 'SERVICE_UNAVAILABLE'};
+  });
   ipcMain.handle(GET_DEVICE_IDENTITY_STATUS_CHANNEL, event => {
     trustedSender(event);
     return identity.getStatus();

@@ -24,16 +24,18 @@ function deferred<T>() {
 
 function fixture() {
   const state = {
-    publicCalls: [] as unknown[], privateCalls: [] as unknown[],
+    publicCalls: [] as unknown[], privateCalls: [] as unknown[], executionCalls: [] as unknown[],
     prepares: [] as {session: DeviceIdentitySessionInput; retry: DeviceIdentityRetry}[],
     publicHandler: async (_input: unknown): Promise<ApiResult> => auth(),
     privateHandler: async (_input: unknown): Promise<ApiResult> => ok({}),
+    executionHandler: async (_input: unknown): Promise<ApiResult> => ok({}),
     prepareHandler: async (_session: DeviceIdentitySessionInput, _retry: DeviceIdentityRetry, _transport: {requestDevice(input: unknown): Promise<ApiResult>}): Promise<DeviceIdentityResult> => ready,
   };
   const controller = createDeviceIdentityController({
     service: {
       async request(input) {state.publicCalls.push(structuredClone(input)); return state.publicHandler(input);},
       async requestDevice(input) {state.privateCalls.push(structuredClone(input)); return state.privateHandler(input);},
+      async requestExecution(input) {state.executionCalls.push(structuredClone(input)); return state.executionHandler(input);},
     },
     identityFactory: transport => ({async prepare(session, retry) {
       state.prepares.push({session, retry: structuredClone(retry)});
@@ -328,5 +330,123 @@ describe('main device identity controller', () => {
     f.state.prepareHandler = async () => ready; expect(await f.controller.prepare()).toEqual(ready);
     expect(await f.controller.prepare({userId: 'forged'})).toEqual({state: 'INVALID_REQUEST'});
     expect(f.controller.getStatus()).toEqual({state: 'INVALID_REQUEST'});
+  });
+});
+
+describe('main-only authenticated action scope', () => {
+  it('reads the real session without automatically preparing a device', async () => {
+    const f = fixture(); let seen: DeviceIdentitySessionInput | undefined;
+    expect(await f.controller.withAuthenticatedSession(async session => {seen = session; return 'value';})).toEqual({ok: true, value: 'value'});
+    expect(f.state.publicCalls).toEqual([{operation: 'session.get'}]);
+    expect(f.state.prepares).toEqual([]); expect(f.state.privateCalls).toEqual([]);
+    expect(seen?.userId).toBe('TEST-owner'); expect(seen?.isCurrent()).toBe(true);
+    expect(f.controller.getStatus()).toEqual({state: 'NOT_PREPARED'});
+  });
+  it('retains same-user prepared epoch and READY while a read-only action runs', async () => {
+    const f = fixture(); expect(await f.controller.prepare()).toEqual(ready);
+    const previous = f.state.prepares[0].session;
+    const result = await f.controller.withAuthenticatedSession(async session => {
+      expect(session.sessionId).toBe(previous.sessionId); return f.controller.getStatus();
+    });
+    expect(result).toEqual({ok: true, value: ready});
+    expect(f.controller.getStatus()).toEqual(ready); expect(f.state.prepares).toHaveLength(1);
+  });
+  it('observing a changed user clears the former READY before calling the action', async () => {
+    const f = fixture(); expect(await f.controller.prepare()).toEqual(ready); const previous = f.state.prepares[0].session;
+    f.state.publicHandler = async () => auth('TEST-next-owner');
+    expect(await f.controller.withAuthenticatedSession(async session => {
+      expect(session.userId).toBe('TEST-next-owner'); expect(session.sessionId).not.toBe(previous.sessionId);
+      expect(f.controller.getStatus()).toEqual({state: 'NOT_PREPARED'}); return 'next-owner-only';
+    })).toEqual({ok: true, value: 'next-owner-only'});
+    expect(previous.isCurrent()).toBe(false);
+  });
+  it.each([unauthorized(), ok({authenticated: false})])('signed-out observations never run the action %#', async response => {
+    const f = fixture(); f.state.publicHandler = async () => response; let called = false;
+    expect(await f.controller.withAuthenticatedSession(async () => {called = true;})).toEqual({ok: false, state: 'SIGNED_OUT'});
+    expect(called).toBe(false); expect(f.controller.getStatus()).toEqual(signedOut);
+  });
+  it.each([ok({authenticated: true, user_id: 'TEST-owner', tenant_id: 'extra'}), ok({authenticated: true, user_id: '\ud800'}), ok({authenticated: false, user_id: 'mixed'}), {ok: false, status: 503, error: 'SERVICE_UNAVAILABLE'} as ApiResult])('invalid/unavailable authentication fails closed %#', async response => {
+    const f = fixture(); f.state.publicHandler = async () => response; let called = false;
+    expect(await f.controller.withAuthenticatedSession(async () => {called = true;})).toEqual({ok: false, state: 'FAILED'});
+    expect(called).toBe(false);
+  });
+  it('shares the prepare busy lock for the entire authenticated action', async () => {
+    const f = fixture(); const blocked = deferred<string>(); const started = deferred<void>();
+    const pending = f.controller.withAuthenticatedSession(async () => {started.resolve(); return blocked.promise;});
+    await Promise.race([started.promise, pending]); expect(f.state.publicCalls).toHaveLength(1);
+    expect(await f.controller.prepare()).toEqual({state: 'BUSY'});
+    expect(await f.controller.withAuthenticatedSession(async () => 'other')).toEqual({ok: false, state: 'BUSY'});
+    blocked.resolve('done'); expect(await pending).toEqual({ok: true, value: 'done'});
+    expect(await f.controller.prepare()).toEqual(ready);
+  });
+  it('does not enter an action while authentication or device preparation is pending', async () => {
+    const f = fixture(); const authResponse = deferred<ApiResult>(); f.state.publicHandler = async () => authResponse.promise;
+    const loginPending = f.controller.requestApi(login);
+    expect(await f.controller.withAuthenticatedSession(async () => 'wrong')).toEqual({ok: false, state: 'BUSY'});
+    authResponse.resolve(auth()); await loginPending;
+    const prepareResponse = deferred<DeviceIdentityResult>(); const started = deferred<void>();
+    f.state.prepareHandler = async () => {started.resolve(); return prepareResponse.promise;};
+    const preparePending = f.controller.prepare(); await Promise.race([started.promise, preparePending]);
+    expect(f.state.prepares).toHaveLength(1);
+    expect(await f.controller.withAuthenticatedSession(async () => 'wrong')).toEqual({ok: false, state: 'BUSY'});
+    prepareResponse.resolve(ready); await preparePending;
+  });
+  it.each(['resolve', 'reject'] as const)('drops late session-read %s after logout without running action', async outcome => {
+    const f = fixture(); const response = deferred<ApiResult>(); let called = false;
+    f.state.publicHandler = async input => (input as {operation: string}).operation === 'session.get' ? response.promise : ok({authenticated: false});
+    const pending = f.controller.withAuthenticatedSession(async () => {called = true;});
+    await f.controller.requestApi(logout);
+    outcome === 'resolve' ? response.resolve(auth()) : response.reject(new Error('/private/session'));
+    expect(await pending).toEqual({ok: false, state: 'SESSION_CHANGED'}); expect(called).toBe(false);
+    expect(f.controller.getStatus()).toEqual(signedOut);
+  });
+  it.each(['resolve', 'reject'] as const)('drops late action %s after login without leaking its value', async outcome => {
+    const f = fixture(); const response = deferred<string>(); const started = deferred<void>();
+    const pending = f.controller.withAuthenticatedSession(async () => {started.resolve(); return response.promise;});
+    await Promise.race([started.promise, pending]); expect(f.state.publicCalls).toHaveLength(1);
+    await f.controller.requestApi(login);
+    outcome === 'resolve' ? response.resolve('private old value') : response.reject(new Error('/private/action'));
+    expect(await pending).toEqual({ok: false, state: 'SESSION_CHANGED'});
+    expect(f.controller.getStatus()).toEqual({state: 'NOT_PREPARED'});
+  });
+  it('sanitizes an action failure and releases the lock', async () => {
+    const f = fixture();
+    expect(await f.controller.withAuthenticatedSession(async () => {throw new Error('/private/action');})).toEqual({ok: false, state: 'FAILED'});
+    expect(await f.controller.withAuthenticatedSession(async () => 42)).toEqual({ok: true, value: 42});
+  });
+  it('private execution transport requires a currently active authenticated scope', async () => {
+    const f = fixture(); const input = {operation: 'execution.receipt', payload: {request_id: deviceId}};
+    expect(await f.controller.requestExecution(input)).toEqual({ok: false, status: 0, error: 'SESSION_CHANGED'});
+    expect(f.state.executionCalls).toEqual([]);
+    expect(await f.controller.withAuthenticatedSession(() => f.controller.requestExecution(input))).toEqual({ok: true, value: ok({})});
+    expect(f.state.executionCalls).toEqual([input]);
+  });
+  it('current execution 401 invalidates the scope and suppresses a later action value', async () => {
+    const f = fixture(); f.state.executionHandler = async () => unauthorized();
+    expect(await f.controller.withAuthenticatedSession(async session => {
+      await f.controller.requestExecution({operation: 'execution.receipt', payload: {request_id: deviceId}});
+      expect(session.isCurrent()).toBe(false); return 'must not escape';
+    })).toEqual({ok: false, state: 'SESSION_CHANGED'});
+    expect(f.controller.getStatus()).toEqual(signedOut);
+  });
+  it.each(['success', '401', 'reject'] as const)('old execution %s cannot mutate a new epoch or reach an old action', async outcome => {
+    const f = fixture(); const response = deferred<ApiResult>(); const started = deferred<void>(); let delivered: unknown;
+    f.state.executionHandler = async () => {started.resolve(); return response.promise;};
+    const pending = f.controller.withAuthenticatedSession(async () => {delivered = await f.controller.requestExecution({operation: 'execution.receipt', payload: {request_id: deviceId}}); return 'old';});
+    await Promise.race([started.promise, pending]); expect(f.state.executionCalls).toHaveLength(1);
+    await f.controller.requestApi(login);
+    if (outcome === 'reject') response.reject(new Error('/private/execution')); else response.resolve(outcome === '401' ? unauthorized() : ok({private: 'old'}));
+    expect(await pending).toEqual({ok: false, state: 'SESSION_CHANGED'});
+    expect(delivered).toEqual({ok: false, status: 0, error: 'SESSION_CHANGED'});
+    expect(f.controller.getStatus()).toEqual({state: 'NOT_PREPARED'});
+  });
+  it('an old active action cannot adopt the new epoch for a second execution request', async () => {
+    const f = fixture();
+    expect(await f.controller.withAuthenticatedSession(async () => {
+      await f.controller.requestApi(logout);
+      expect(await f.controller.requestExecution({operation: 'execution.apply', payload: {}})).toEqual({ok: false, status: 0, error: 'SESSION_CHANGED'});
+      return 'old';
+    })).toEqual({ok: false, state: 'SESSION_CHANGED'});
+    expect(f.state.executionCalls).toEqual([]);
   });
 });

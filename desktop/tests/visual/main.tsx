@@ -28,6 +28,7 @@ import { MaterialRecoveryControls } from "./MaterialRecoveryControls";
 import { selectManagementRecovery, configureManagementRecovery } from "./managementRecovery";
 import { ManagementRecoveryControls } from "./ManagementRecoveryControls";
 import { configureStrategyVisual } from "./strategy";
+import { configureExecutionVisual } from './execution';
 import { configureCandidateReviewVisual } from "./candidate-review";
 
 const params = new URLSearchParams(location.search);
@@ -140,6 +141,7 @@ recovery?.seed(storage.session, page);
 if (params.get("strategy") === "confirm" && ["P06", "P19", "P20"].includes(page)
   && state === "populated" && params.get("session") !== "guest" && !recoveryName) {
   const draft = configureStrategyVisual(harness.service);
+  if (params.get('execution') === 'confirm' && page === 'P19') configureExecutionVisual(harness.service, draft);
   if (page === "P20") draft.mode = "monitor";
   seed(`task.${taskDraftOwner(TEST_USER, r4 ? R4_TEST_SCOPE : undefined)}`, draft);
 }

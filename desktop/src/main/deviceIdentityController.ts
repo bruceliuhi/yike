@@ -8,11 +8,14 @@ export interface DeviceIdentityControllerOptions {
   service: {
     request(input: unknown): Promise<ApiResult>;
     requestDevice(input: unknown): Promise<ApiResult>;
+    requestExecution?(input: unknown): Promise<ApiResult>;
   };
   identityFactory(transport: {requestDevice(input: unknown): Promise<ApiResult>}): {
     prepare(session: DeviceIdentitySessionInput, retry: DeviceIdentityRetry): Promise<DeviceIdentityResult>;
   };
 }
+export type AuthenticatedSessionResult<T> = {ok: true; value: T} |
+  {ok: false; state: 'SIGNED_OUT' | 'SESSION_CHANGED' | 'BUSY' | 'FAILED'};
 
 const authenticatedSessionSchema = z.object({
   authenticated: z.literal(true),
@@ -34,6 +37,7 @@ export function createDeviceIdentityController({service, identityFactory}: Devic
   let status: DeviceIdentityStatus = {state: 'NOT_PREPARED'};
   let authPending = 0;
   let preparing = false;
+  let activeAuthenticatedEpoch: string | null = null;
   function observe(value: DeviceIdentityStatus): DeviceIdentityStatus {
     status = {...value};
     return {...status};
@@ -45,6 +49,49 @@ export function createDeviceIdentityController({service, identityFactory}: Devic
     observe(value);
   }
   return {
+    async withAuthenticatedSession<T>(action: (session: DeviceIdentitySessionInput) => Promise<T>): Promise<AuthenticatedSessionResult<T>> {
+      if (preparing || authPending > 0) return {ok: false, state: 'BUSY'};
+      preparing = true;
+      let actionEpoch = epoch;
+      const current = () => actionEpoch === epoch;
+      try {
+        const response = await service.request({operation: 'session.get'});
+        if (!current()) return {ok: false, state: 'SESSION_CHANGED'};
+        if (response.status === 401 || response.ok && signedOutSchema.safeParse(response.data).success) {
+          invalidate({state: 'SIGNED_OUT'}, actionEpoch);
+          return {ok: false, state: 'SIGNED_OUT'};
+        }
+        if (!response.ok) return {ok: false, state: 'FAILED'};
+        const authenticated = authenticatedSessionSchema.safeParse(response.data);
+        if (!authenticated.success) {
+          invalidate(failure(), actionEpoch);
+          return {ok: false, state: 'FAILED'};
+        }
+        if (userId !== null && userId !== authenticated.data.user_id) {
+          invalidate({state: 'NOT_PREPARED'}, actionEpoch);
+          actionEpoch = epoch;
+        }
+        userId = authenticated.data.user_id;
+        activeAuthenticatedEpoch = actionEpoch;
+        const value = await action({userId, sessionId: actionEpoch, isCurrent: current});
+        if (!current()) return {ok: false, state: 'SESSION_CHANGED'};
+        return {ok: true, value};
+      } catch {return {ok: false, state: current() ? 'FAILED' : 'SESSION_CHANGED'};}
+      finally {activeAuthenticatedEpoch = null; preparing = false;}
+    },
+    async requestExecution(input: unknown): Promise<ApiResult> {
+      // A stale action must not capture a newer global epoch for its next private request.
+      const requestEpoch = activeAuthenticatedEpoch;
+      const current = () => requestEpoch !== null && requestEpoch === epoch && activeAuthenticatedEpoch === requestEpoch;
+      if (!current()) return {ok: false, status: 0, error: 'SESSION_CHANGED'};
+      if (!service.requestExecution) return {ok: false, status: 0, error: 'SERVICE_UNAVAILABLE'};
+      try {
+        const response = await service.requestExecution(input);
+        if (!current()) return {ok: false, status: 0, error: 'SESSION_CHANGED'};
+        if (response.status === 401) invalidate({state: 'SIGNED_OUT'}, requestEpoch!);
+        return response;
+      } catch {return {ok: false, status: 0, error: current() ? 'SERVICE_UNAVAILABLE' : 'SESSION_CHANGED'};}
+    },
     async requestApi(input: unknown): Promise<ApiResult> {
       let operation: unknown;
       try { operation = input && typeof input === 'object' ? (input as {operation?: unknown}).operation : undefined; }
