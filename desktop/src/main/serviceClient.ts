@@ -1,5 +1,6 @@
 import type {ApiResult} from '../shared/contracts';
 import {validatedOperation, type ServiceOperation} from './servicePolicy';
+import {validatedDeviceOperation} from './deviceServicePolicy';
 
 export function configuredService(
   input: string | undefined,
@@ -66,7 +67,10 @@ function responseError(data: unknown, status: number): string {
   return `HTTP_${status}`;
 }
 
-export function createServiceClient(options: ServiceClientOptions): {request(input: unknown): Promise<ApiResult>} {
+export function createServiceClient(options: ServiceClientOptions): {
+  request(input: unknown): Promise<ApiResult>;
+  requestDevice(input: unknown): Promise<ApiResult>;
+} {
   let queue: Promise<unknown> = Promise.resolve();
   let pending = 0;
   async function execute(operation: ServiceOperation): Promise<ApiResult> {
@@ -105,16 +109,17 @@ export function createServiceClient(options: ServiceClientOptions): {request(inp
       }
     }
   }
+  function enqueue(operation: ServiceOperation | null): Promise<ApiResult> {
+    if (!operation) return Promise.resolve({ok: false, status: 0, error: 'INVALID_API_REQUEST'});
+    if (pending >= 16) return Promise.resolve({ok: false, status: 0, error: 'SERVICE_BUSY'});
+    pending++;
+    // Public session changes and private device calls share cookie ordering and capacity.
+    const result = queue.then(() => execute(operation)).finally(() => { pending--; });
+    queue = result.catch(() => undefined);
+    return result;
+  }
   return {
-    request(input) {
-      const operation = validatedOperation(input);
-      if (!operation) return Promise.resolve({ok: false, status: 0, error: 'INVALID_API_REQUEST'});
-      if (pending >= 16) return Promise.resolve({ok: false, status: 0, error: 'SERVICE_BUSY'});
-      pending++;
-      // Serial ordering keeps a pending login from restoring cookies after logout.
-      const result = queue.then(() => execute(operation)).finally(() => { pending--; });
-      queue = result.catch(() => undefined);
-      return result;
-    }
+    request(input) { return enqueue(validatedOperation(input)); },
+    requestDevice(input) { return enqueue(validatedDeviceOperation(input)); },
   };
 }
