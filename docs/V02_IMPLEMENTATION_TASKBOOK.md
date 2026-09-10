@@ -6,7 +6,9 @@
 
 ## 当前执行范围：完整 V0.2 全量推进（2026-09-10）
 
-07B确认队列后端`8461892`已独立审核GO；确认/原请求查询/取消接普通runtime，设备签名及最新context同事务核验，122持久化未决防重。[定向证据及原失败](superpowers/plans/2026-09-10-outreach-confirmation-queue.md#本批验证)集中维护。Win07C须按[新接口](contracts/V02_OUTREACH_CHANNELS.md#07b-人工确认队列2026-09-10)接实际渠道核验、人工确认及QUEUED/CANCELLED显示，尚无消费ACK。Mac下一步06B/07B领取、实际执行、UNKNOWN原请求对账与08回流关联，不将持久排队当触达完成，父卡/Goal继续IN_PROGRESS。
+07B领取/结果后端`04a4017`已独立审核GO；确认队列之后接一次许可、UNKNOWN恢复、签名平台回执声明与终态防重，默认不开放平台派发许可。[本批原失败与定向证据](superpowers/plans/2026-09-10-outreach-dispatch-ledger.md#本批验证)统一维护。Win07C按[123增量合同](contracts/V02_OUTREACH_CHANNELS.md#07b-单次领取与结果2026-09-10)接原生持久消费、实际渠道和状态显示，尚无消费ACK。Mac接续06B真实执行及08新原请求回流关联；服务端grant不等于本机已消费或平台已送达，父卡/Goal继续IN_PROGRESS。
+
+前批07B确认队列`8461892`已独立审核GO；[122证据](superpowers/plans/2026-09-10-outreach-confirmation-queue.md#本批验证)复用，123增量以上文为准。
 
 06A/07A联系对象后端接续：`53501e9`独立审核GO，普通runtime按本人最新稿/固定原文/本人设备连接解析评论和私信对象；[14项HTTP/PG证据](superpowers/plans/2026-09-10-outreach-context.md#本批验证)复用。此处NOT_GRANTED/UNVERIFIED仍不是渠道许可，后续队列实现见上方；真实渠道和客户端尚未验。
 

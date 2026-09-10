@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-10 单次领取与结果台账
+
+`04a4017`独立审核GO。普通runtime已接一次派发许可、签名结果、UNKNOWN不重派及原请求恢复，123/最小授权就绪；[单一证据记录](superpowers/plans/2026-09-10-outreach-dispatch-ledger.md#本批验证)保留原失败与定向补验。本机持久消费/真实通道、Win消费ACK及旧回复origin桥接未完成，不宣称端到端最多发送一次。Mac继续这条主链，不重测本批无变化字节。
+
 ## 2026-09-10 人工确认已能持久入队
 
 `8461892`独立审核GO：普通runtime接设备签名确认、同事务最新context复核、未决防重、原UUID恢复和派发前取消，122最小授权已配套。[本批记录](superpowers/plans/2026-09-10-outreach-confirmation-queue.md#本批验证)集中保留定向测试和原失败，不重构包。仅QUEUED/CANCELLED，无实际发送，Win尚未消费ACK；Mac继续06B/07B领取、实际执行与UNKNOWN对账，完整V0.2继续推进。

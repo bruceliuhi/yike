@@ -25,7 +25,17 @@
 
 **Interfaces:** `/api/ui/outreach/dispatch/signing-payload`准备`{request}`；`/dispatch`接受`{request,signature}`。request的action为CLAIM或RESULT，公共requestId/deviceId/credentialVersion/contextSha256；CLAIM含claimId，RESULT增加resultId及严格outcome。GET沿用原queue入口，返回原状态及dispatchAllowed:false。
 
-- [ ] 写实际HTTP RED：签名准备404，先跑`.../python /tmp/yike-draft-pg-check.py tests/test_outreach_dispatch_http_postgres.py::test_claim_once_unknown_recovery_and_signed_platform_receipt`。
-- [ ] 实现新输入/事务/API/123授权，首次领取和取消共用owner锁，结果仅操作原领取，SQL强制不可变事件。
-- [ ] 跑本批HTTP/受限PG及受改queue测试一次，覆盖签名/原设备、重启重放、并发唯一许可、旧事实/过期、取消后拒领、UNKNOWN不重派、结果冲突及默认配置拒绝；只对实际失败补差量。
-- [ ] 一个具体commit独立审核，补合同/唯一任务书/部署说明并推main，不构包、不合成平台成功。
+- [x] 写实际HTTP RED：签名准备404，先跑`.../python /tmp/yike-draft-pg-check.py tests/test_outreach_dispatch_http_postgres.py::test_claim_once_unknown_recovery_and_signed_platform_receipt`。
+- [x] 实现新输入/事务/API/123授权，首次领取和取消共用owner锁，结果仅操作原领取，SQL强制不可变事件。
+- [x] 跑本批HTTP/受限PG及受改queue测试一次，覆盖签名/原设备、重启重放、并发唯一许可、旧事实/过期、取消后拒领、UNKNOWN不重派、结果冲突及默认配置拒绝；只对实际失败补差量。
+- [x] 一个具体commit独立审核，补合同/唯一任务书/部署说明；正常推main并核对远端，不构包、不合成平台成功。
+
+## 本批验证
+
+`04a4017`经非作者`draft_batch_review`对`1e70f36..04a4017`独立规格/代码/架构审核GO，无阻断，未重复测试/构包。
+
+- 实际HTTP先取得新接口404 RED（1 failed）。实现后9项dispatch及11项受改queue合跑：16 passed/4 failed，12.77s。失败均为旧queue夹具未执行123新增读取授权，真实表现为原查询/取消500；补齐部署同款授权后仅这4项重跑4 passed，3.55s。部署说明同步要求两份grant，未放宽权限。
+- 追加同owner跨新队列复用claimId，实际500 RED（1 failed）；补事务内冲突检查返回409后，该项及并发唯一许可差量2 passed，2.47s。其余通过且未改路径复用原证据，不冒称最终全量重跑。
+- 所有测试使用临时真实PG/受限role/实际HTTP和设备签名，完成仅删除本次临时数据库，无生产操作。平台观察/结果为合成输入，不能作为真实投递、客户效果或商业证明。
+
+本机消费许可、真实渠道、Win客户端消费ACK、117回复origin接入仍未完成。Mac接续06B/07B/08整链，完整Goal保持active，不以本片GO关闭任何真实平台门槛。

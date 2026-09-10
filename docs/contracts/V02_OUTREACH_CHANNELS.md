@@ -1,6 +1,30 @@
 # V02 触达对象与确认协议
 
-状态：`CONTEXT_AND_CONFIRMATION_QUEUE_IMPLEMENTED / NOT_PRODUCTION_SEND`
+状态：`CONTEXT_QUEUE_AND_DISPATCH_LEDGER_IMPLEMENTED / REAL_PLATFORM_SEND_UNVERIFIED`
+
+## 07B 单次领取与结果（2026-09-10）
+
+123增量新增普通runtime接口`POST /api/ui/outreach/dispatch/signing-payload`（`{request}`）及`POST /api/ui/outreach/dispatch`（`{request,signature}`）。沿用设备Ed25519，独立域`yike-outreach-dispatch-v1`绑定当前会话；直接签服务返回的规范UTF-8字节。
+
+request公共字段：`action`（CLAIM/RESULT）、`requestId`（原确认）、`claimId`、`deviceId`、`credentialVersion`、`contextSha256`；RESULT另需`resultId`及`outcome`，CLAIM不带结果。未知字段/宽松布尔不接受。
+
+CLAIM同事务重验完整context、原设备/密钥及原稿/来源/画像/连接，确认和渠道报告最多120秒。默认平台允许集合为空；配置只开服务许可，不证明真实平台已验收。首次领取才返回`dispatchAllowed:true`、冻结context、claimId、dispatchBefore（最多30秒且不超过原120秒期限），状态立即为UNKNOWN。重放CLAIM、结果响应及GET原queue始终false，重放不附可执行context。
+
+**本机worker必须在平台动作前原子持久消费(requestId,claimId)**；重复响应/IPC/崩溃恢复不得再动作，动作前实际核验原账号/对象/内容/渠道，过期许可不能用。此本机能力尚未接入，不能仅凭服务端一次grant宣称端到端最多发送一次，Win不得直接开启发送按钮。领取后取消/换claimId均拒绝，超时不得回QUEUED；QUEUED/UNKNOWN/SENT防新UUID，FAILED或CANCELLED后仍需新人工确认。已SENT后的明确跟进应另接后续动作，不能自动新建首联请求规避。
+
+RESULT只核对原领取/设备/context，不重验后来变更的草稿/来源/连接。可用该设备当前有效密钥和当前会话报告原结果；设备撤销仍拒写，原请求可读。严格outcome：
+
+| status | 必填 | 不允许 |
+|---|---|---|
+| UNKNOWN | status | confirmed、confirmedNotDelivered、proof非null |
+| SENT | confirmed:true；proof.kind=ACCEPTED | confirmedNotDelivered非null |
+| FAILED | confirmed:true、confirmedNotDelivered:true；proof.kind=REJECTED_NOT_DELIVERED | 把超时、空查询、点击无响应当未投递 |
+
+proof含externalId（不透明平台结果ID）、sha256（核验回执摘要）、observedAt（带时区，不早于领取、不晚于现在，允许5秒误差）。不回传Cookie、私钥、敏感URL或原始平台响应。SENT/FAILED回执注明`evidenceAuthority:DEVICE_ATTESTED_PLATFORM_RECEIPT`，是签名设备的明确平台回执声明，**不是服务器独立实测**；实际适配器仍需验收。
+
+同resultId同内容返回原历史，异内容409；UNKNOWN可到SENT/FAILED，终态不反转。历史UNKNOWN重放不等于当前态，当前态查原queue；GET带claimId/dispatchBefore，永远不重新授权。仅SENT的deliveryConfirmed为true，FAILED另有confirmedNotDelivered:true。
+
+旧renderer `send(draft,confirmationToken)`和117回复origin尚未接此协议，不能把dispatchAllowed映成SENT或伪造117整数来源版本。下一步本机消费/真实渠道、原队列回复关联须显式接入。[本批记录](../superpowers/plans/2026-09-10-outreach-dispatch-ledger.md#本批验证)统一保留证据。以下122段描述其首次交付，当前状态和接口增量以上文为准。
 
 ## 07B 人工确认队列（2026-09-10）
 

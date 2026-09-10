@@ -12,6 +12,8 @@ V02-01A/104 与 V02-01B/105 升级必须严格按“迁移→显式最小授权�
 
 人工确认队列接普通runtime：迁移122后，同一受限角色运行[队列授权](grant_outreach_queue.sql)，新表仅SELECT/INSERT及UPDATE(state)，触发器禁止改确认内容或重启已取消请求。API见[触达合同](../docs/contracts/V02_OUTREACH_CHANNELS.md#07b-人工确认队列2026-09-10)；无派发进程，不启用outreach能力，不代表真实发送/上线。
 
+123增加单次领取/签名结果：迁移后**同时执行队列授权和[派发授权](grant_outreach_dispatch.sql)**，后者只给新事件表SELECT/INSERT，原队列查询/取消现在也需要这些读取权限；漏授权会拒绝请求，不能按旧122部署。`YIKE_PILOT_OUTREACH_PLATFORMS`默认为空（CLAIM拒绝），仅接受逗号分隔BILIBILI/DOUYIN/XIAOHONGSHU/ZHIHU，未知值启动拒绝。正式开启需对应客户端实际渠道核验、持久消费许可及真实平台验收；本批没有开启生产配置或全局outreach能力，也没有运行发送进程。接口与UNKNOWN恢复见[增量合同](../docs/contracts/V02_OUTREACH_CHANNELS.md#07b-单次领取与结果2026-09-10)。
+
 如需候选 ASSESS，从仓库外服务器配置同时提供 `YIKE_PILOT_ASSESSMENT_BASE_URL`、`YIKE_PILOT_ASSESSMENT_API_KEY`、`YIKE_PILOT_ASSESSMENT_MODEL`；三项全无仍可启动，部分或非法配置明确失败。启动与只读接口不探测模型。完整配置规则见[正常装配契约](../docs/contracts/V02_NORMAL_RUNTIME_COMPOSITION.md)。真实来源 policy 未接通时 START 仍不可用，短信/建议/平台收发能力仍关闭，不把 Web 存活或数据库可连当作全链就绪。
 
 该镜像不安装项目wheel，因此Dockerfile另将已有两份版本化分析规则显式复制到`pilot/_assessment_rules/`，与wheel约定相同；不能遗漏后依赖开发目录补读。发行布局回归不代表已完成实际Linux镜像运行，目标环境仍按下述生产门禁验收。
