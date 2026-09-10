@@ -100,10 +100,34 @@ it('keeps a verified sibling capability when another one platform profile read f
  expect(await f.controller.execute({action:'CAPABILITIES'})).toEqual({state:'AVAILABLE',bindings:[{mode:'three-platform-foreground-v1',platform:'DOUYIN',connectionId:id(50),connectionVersion:3,deviceId:id(2),accountPublicId:'studio_2026'}]});
 });
 
-it('STATUS accepts multiple platform candidate batches but keeps recovery conservative',async()=>{
+it('STATUS exposes explicit recovery when multiple original platform batches exist',async()=>{
  const f=fixture();(f.candidatesJournal.list as any).mockResolvedValue(['a','b']);
  (f.candidatesJournal.read as any).mockImplementation(async(_scope:any,key:string)=>({request_id:id(key==='a'?70:71),execution:{task_id:id(6)}}));
- expect(await f.controller.execute({action:'STATUS',taskId:id(6)})).toMatchObject({state:'STATUS',recordsUsed:0,recoverable:false});
+ expect(await f.controller.execute({action:'STATUS',taskId:id(6)})).toMatchObject({state:'STATUS',recordsUsed:0,recoverable:true});
+});
+
+it('runs a confirmed three-platform once task serially with fixed shared budgets and independent profiles',async()=>{
+ const f=fixture();const platforms=['XIAOHONGSHU','DOUYIN','BILIBILI'] as const;
+ f.command.targets=platforms.map((platform,index)=>({platform,access_mode:'PLATFORM_ACCOUNT',connection_id:id(50+index),connection_version:2}));
+ f.strategy.snapshot.platforms=[...platforms];f.strategy.snapshot.max_records=8;
+ const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.command.configurationSha256=hash;f.strategy.configuration_sha256=hash;
+ f.startReceipt.platform_runs=platforms.map((platform,index)=>({platform_run_id:id(80+index),platform,status:'PENDING'}));
+ (f.scope.transport.requestExecution as any).mockImplementation(async(input:any)=>({ok:true,status:200,data:input.operation==='execution.support'
+  ?{schema_version:'foreground-collection-support-v1',mode:'three-platform-foreground-v1'}:{}}));
+ (f.resolveAccount as any).mockImplementation(async(input:any)=>({profileId:id(31+platforms.indexOf(input.target.platform)),accountPublicId:'account'}));
+ f.worker.run.mockResolvedValueOnce({state:'COMPLETED',taskCompleted:false}).mockResolvedValueOnce({state:'COMPLETED',taskCompleted:false}).mockResolvedValueOnce({state:'COMPLETED',taskCompleted:true});
+ expect(await f.controller.start(f.command)).toMatchObject({state:'RECORDED'});
+ await new Promise(resolve=>setImmediate(resolve));await new Promise(resolve=>setImmediate(resolve));
+ expect(f.worker.run.mock.calls.map((call:any[])=>[call[0].platformRunId,call[0].platformMaxRecords])).toEqual([[id(80),3],[id(81),3],[id(82),2]]);
+ expect(f.driverFactory.mock.calls.map((call:any[])=>call[0].profilePath)).toEqual(['C:\\profiles\\'+id(31),'C:\\profiles\\'+id(32),'C:\\profiles\\'+id(33)]);
+ await f.controller.shutdown();
+});
+
+it('rejects a shared record budget smaller than the selected platform count',async()=>{
+ const f=fixture();f.command.targets=[f.command.targets[0],{...f.command.targets[0],platform:'DOUYIN',connection_id:id(51)}];
+ f.strategy.snapshot.platforms=['XIAOHONGSHU','DOUYIN'];f.strategy.snapshot.max_records=1;
+ const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.command.configurationSha256=hash;f.strategy.configuration_sha256=hash;
+ expect(await f.controller.start(f.command)).toEqual({state:'SERVICE_UNAVAILABLE'});expect(f.execution.submit).not.toHaveBeenCalled();
 });
 
 it('monitor source stop failure latches the same foreground slot',async()=>{

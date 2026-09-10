@@ -43,7 +43,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
   return {
     cancel() {cancelActive?.();},
     async run(input: {scope: DeviceWorkerScope; start: unknown; startReceipt: unknown; strategy: unknown;
-      platformRunId: string;allowMonitor?:boolean}): Promise<CollectionWorkerResult> {
+      platformRunId: string;allowMonitor?:boolean;platformMaxRecords?:number}): Promise<CollectionWorkerResult> {
       if (cancelActive) return {state: 'BUSY', taskCompleted: false};
       const {scope} = input;
       const abort = new AbortController();
@@ -89,7 +89,9 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
             strategy.snapshot.profile_version_id !== start.profile_version_id || strategy.snapshot.strategy_version_id !== start.strategy_version_id ||
             strategy.configuration_sha256 !== start.configuration_sha256 ||
             createHash('sha256').update(canonical(strategy.snapshot)).digest('hex') !== start.configuration_sha256 ||
-            start.device_id !== scope.device.deviceId || start.credential_version !== scope.device.credentialVersion) throw new Error();
+            start.device_id !== scope.device.deviceId || start.credential_version !== scope.device.credentialVersion ||
+            input.platformMaxRecords!==undefined && (!Number.isInteger(input.platformMaxRecords) || input.platformMaxRecords<1 ||
+              input.platformMaxRecords>strategy.snapshot.max_records || input.platformMaxRecords>100)) throw new Error();
         const index = receipt.platform_runs.findIndex(run => run.platform_run_id === input.platformRunId);
         const target = start.targets![index];
         if (index < 0 || !target || !strategy.snapshot.platforms.includes(target.platform)) throw new Error();
@@ -131,7 +133,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
         if (reason) return stoppedResult();
         if (!claimed) return {state: 'LEASE_UNKNOWN', requestId: requestId!, taskCompleted: false};
         lease = claimed;
-        const maxRecords = Math.min(strategy.snapshot.max_records, 100);
+        const maxRecords = input.platformMaxRecords??Math.min(strategy.snapshot.max_records, 100);
         process = driver.start({snapshot: structuredClone(strategy.snapshot), target: structuredClone(target),
           lease: structuredClone(lease), maxRecords, signal: abort.signal});
         timer = setInterval(() => {

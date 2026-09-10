@@ -185,6 +185,21 @@ it('executes one server-reserved monitor iteration only with main-only authoriza
   f.instance.cancel();await tick();expect(await done).toMatchObject({state:'STOPPED'});
 });
 
+it('uses an explicitly allocated platform budget and rejects an invalid allocation before CLAIM', async () => {
+  const f = fixture();
+  const done=f.instance.run({scope:f.scope,start:f.start,startReceipt:f.receipt,strategy:f.strategy,
+    platformRunId:id(8),platformMaxRecords:17});
+  await tick();
+  expect(f.driver.start).toHaveBeenCalledWith(expect.objectContaining({maxRecords:17}));
+  f.instance.cancel();await tick();expect(await done).toMatchObject({state:'STOPPED'});
+
+  const invalid=fixture();
+  expect(await invalid.instance.run({scope:invalid.scope,start:invalid.start,startReceipt:invalid.receipt,
+    strategy:invalid.strategy,platformRunId:id(8),platformMaxRecords:51})).toMatchObject({
+      state:'FAILED',error:'COLLECTION_WORKER_INVALID_INPUT'});
+  expect(invalid.execution.submit).not.toHaveBeenCalled();
+});
+
 it('FINISH follows physical source stop and recorded upload with the exact original tuple', async () => {
   const f = fixture(); const physical = deferred<void>(); const upload = deferred<any>();
   f.stopped.mockImplementation(() => physical.promise); f.candidates.submit.mockImplementation(() => upload.promise);
