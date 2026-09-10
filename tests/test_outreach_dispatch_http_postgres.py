@@ -82,6 +82,35 @@ def test_claim_once_unknown_recovery_and_signed_platform_receipt(env):
     assert dispatch(env,result(claim,'FAILED'),key).status_code==409
 
 
+@pytest.mark.parametrize('status',['SENT','UNKNOWN'])
+def test_original_result_replays_after_real_key_rotation_without_rewriting_fact(env,status):
+    from types import SimpleNamespace
+    from nacl.signing import SigningKey
+    from pilot.auth import verify_token_claims
+    from pilot.device_credentials import DeviceCredentialStore
+    from tests.test_device_credentials_postgres import challenge,complete
+    _,claim,key=queued(env)
+    assert dispatch(env,claim,key).status_code==200
+    sent=result(claim,status)
+    first=dispatch(env,sent,key)
+    assert first.status_code==200
+    with env.admin.connect() as conn:
+        before=conn.execute('SELECT payload,request_sha256 FROM pilot_outreach_results WHERE result_id=%s',(sent['resultId'],)).fetchone()
+    claims=verify_token_claims(env.client.headers['Authorization'].removeprefix('Bearer '),SECRET)
+    identity=SimpleNamespace(service=DeviceCredentialStore(env.app),claims=claims,device=claim['deviceId'])
+    new_key=SigningKey.generate()
+    assert complete(identity,challenge(identity,'ROTATE',1,new_key),new_key,key)['credential_version']==2
+    sent['credentialVersion']=2
+    replay=dispatch(env,sent,new_key)
+    assert replay.status_code==200,replay.text
+    assert replay.json()==first.json()
+    changed=result(claim);changed.update(resultId=sent['resultId'],credentialVersion=2)
+    changed['outcome']['proof']['externalId']='different-fact'
+    assert dispatch(env,changed,new_key).status_code==409
+    with env.admin.connect() as conn:
+        assert conn.execute('SELECT payload,request_sha256 FROM pilot_outreach_results WHERE result_id=%s',(sent['resultId'],)).fetchone()==before
+
+
 def test_concurrent_claim_has_exactly_one_permission_and_no_cancel_or_new_uuid(env):
     value,claim,key=queued(env)
     payload=signed(env,claim,key)

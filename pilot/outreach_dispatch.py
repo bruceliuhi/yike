@@ -172,12 +172,17 @@ class OutreachDispatch:
     def _result(self,cursor,claims,tenant,value,digest,row,claim):
         if claim is None or claim[0]!=value.claimId:
             raise DraftError('outreach_original_claim_required')
-        cursor.execute('SELECT request_sha256,receipt FROM pilot_outreach_results '
+        cursor.execute('SELECT request_sha256,receipt,payload FROM pilot_outreach_results '
             'WHERE tenant_id=%s AND owner_user_id=%s AND result_id=%s',
             (tenant,claims.user_id,value.resultId))
         original=cursor.fetchone()
         if original:
-            if original[0]!=digest:
+            # Current credential was already authenticated above. Rotation changes
+            # transport proof, not the immutable result under this original UUID.
+            saved=original[2]
+            if (original[0]!=_hash(saved) or
+                    _hash({k:v for k,v in saved.items() if k!='credentialVersion'})!=
+                    _hash(value.model_dump(exclude={'credentialVersion'}))):
                 raise DraftError('outreach_result_conflict')
             return original[1]
         if row[3]!='UNKNOWN':

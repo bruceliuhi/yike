@@ -7,6 +7,7 @@ import type {DeviceWorkerScope} from './deviceIdentityController';
 import type {DeviceKeyMaterial,DeviceKeyScope} from './deviceKeyVault';
 import {dispatchRequestSchema,type DispatchRequest} from './outreachDispatchProtocol';
 import {signOutreachDispatch} from './outreachDispatchSigner';
+import type {OutreachResultOutbox} from './outreachResultOutbox';
 
 const uuid=z.string().uuid();
 const bindingSchema=z.object({tenantId:uuid,requestId:uuid,claimId:uuid,contextSha256:z.string().regex(/^[a-f0-9]{64}$/)}).strict();
@@ -21,16 +22,16 @@ const receiptSchema=z.object({requestId:uuid,state:z.enum(['QUEUED','UNKNOWN','S
   (r.state==='FAILED')===(r.confirmedNotDelivered===true) &&
   (r.claimId!==undefined)===(r.dispatchBefore!==undefined));
 type Receipt=z.infer<typeof receiptSchema>;
-type Pending={state:'RESULT_PENDING';serverAccepted:false;requestId:string;claimId:string;resultId:string;outcome:NativeOutreachOutcome};
+type Pending={state:'RESULT_PENDING';serverAccepted:false;durable:boolean;requestId:string;claimId:string;resultId:string;outcome:NativeOutreachOutcome};
 type Result={state:'UNKNOWN';serverAccepted:false;reason:string} | Pending |
   {state:'RESULT_RECORDED'|'RECONCILED';serverAccepted:true;receipt:Receipt};
 
 export function createOutreachDispatchSession(options:{serviceOrigin:string;
   identity:{openWorkerScope():Promise<{ok:true;scope:Scope}|{ok:false;state:string}>};
   vault:{read(scope:DeviceKeyScope):Promise<DeviceKeyMaterial|null>};
-  journal:OutreachConsumptionJournal;channel:NativeOutreachChannel}) {
+  journal:OutreachConsumptionJournal;channel:NativeOutreachChannel;outbox:OutreachResultOutbox}) {
   const unknown=(reason:string):Result=>({state:'UNKNOWN',serverAccepted:false,reason});
-  async function run(raw:unknown,signal:AbortSignal,reconcile:boolean):Promise<Result>{
+  async function run(raw:unknown,signal:AbortSignal,mode:'dispatch'|'resume'|'reconcile'):Promise<Result>{
     const parsed=bindingSchema.safeParse(raw);if(!parsed.success)return unknown('INVALID_REQUEST');
     const binding=Object.freeze(parsed.data);let scope:Scope|undefined,pending:Pending|undefined;
     try {
@@ -56,9 +57,15 @@ export function createOutreachDispatchSession(options:{serviceOrigin:string;
           result && (r.claimId!==binding.claimId || r.resultId!==result.resultId || r.state!==result.outcome?.status))throw new Error('RECEIPT_MISMATCH');
         return r;
       }
-      if(reconcile)return {state:'RECONCILED',serverAccepted:true,receipt:receipt(await request('outreach.dispatch.receipt',{requestId:binding.requestId}))};
+      if(mode==='reconcile')return {state:'RECONCILED',serverAccepted:true,receipt:receipt(await request('outreach.dispatch.receipt',{requestId:binding.requestId}))};
+      const resultScope={serviceOrigin:options.serviceOrigin,userId:session.userId,tenantId:binding.tenantId};
+      guard();const saved=await options.outbox.read(resultScope,binding.requestId);guard();
+      if(saved){
+        if(saved.requestId!==binding.requestId || saved.claimId!==binding.claimId || saved.deviceId!==device.deviceId || saved.contextSha256!==binding.contextSha256)return unknown('ORIGINAL_RESULT_BINDING_MISMATCH');
+        pending={state:'RESULT_PENDING',serverAccepted:false,durable:true,requestId:saved.requestId,claimId:saved.claimId,resultId:saved.resultId,outcome:saved.outcome};
+      } else if(mode==='resume')return unknown('NO_SAVED_RESULT');
       guard();const key=await options.vault.read({serviceOrigin:options.serviceOrigin,userId:session.userId,deviceId:device.deviceId});guard();
-      if(!key)return unknown('DEVICE_KEY_UNAVAILABLE');
+      if(!key)return pending ?? unknown('DEVICE_KEY_UNAVAILABLE');
       const common={requestId:binding.requestId,claimId:binding.claimId,deviceId:device.deviceId,
         credentialVersion:device.credentialVersion,contextSha256:binding.contextSha256};
       async function signed(rawRequest:unknown){
@@ -68,17 +75,26 @@ export function createOutreachDispatchSession(options:{serviceOrigin:string;
           userId:session.userId,tenantId:binding.tenantId,request:value}});
         return request('outreach.dispatch.apply',signedValue);
       }
-      const grant=await signed({...common,action:'CLAIM'});guard();
-      const consumer=createOutreachConsumer({journal:options.journal,channel:options.channel,isCurrent:()=>current()});
-      const consumed=await consumer.consume(expected,grant,executionSignal);
-      if(consumed.state!=='RESULT_READY')return unknown(consumed.reason);
-      // Retain a valid native fact when logout, transport failure or a bad ACK prevents reporting.
-      pending={state:'RESULT_PENDING',serverAccepted:false,requestId:binding.requestId,claimId:binding.claimId,resultId:randomUUID(),outcome:consumed.outcome};
+      if(!pending){
+        const grant=await signed({...common,action:'CLAIM'});guard();
+        const consumer=createOutreachConsumer({journal:options.journal,channel:options.channel,isCurrent:()=>current()});
+        const consumed=await consumer.consume(expected,grant,executionSignal);
+        if(consumed.state!=='RESULT_READY')return unknown(consumed.reason);
+        // CLAIM already records UNKNOWN. No fact should occupy the final-result slot.
+        if(consumed.outcome.status==='UNKNOWN')return unknown('PLATFORM_RESULT_UNKNOWN');
+        pending={state:'RESULT_PENDING',serverAccepted:false,durable:false,requestId:binding.requestId,claimId:binding.claimId,resultId:randomUUID(),outcome:consumed.outcome};
+        // Persist under the original identity even if logout happened after the action.
+        // A storage error leaves the consumed marker intact and forbids volatile reporting.
+        const stored=await options.outbox.put(resultScope,{requestId:binding.requestId,claimId:binding.claimId,
+          deviceId:device.deviceId,contextSha256:binding.contextSha256,resultId:pending.resultId,outcome:pending.outcome});
+        pending={...pending,durable:true,resultId:stored.resultId,outcome:stored.outcome};
+      }
       const result=dispatchRequestSchema.parse({...common,action:'RESULT',resultId:pending.resultId,outcome:pending.outcome});
       return {state:'RESULT_RECORDED',serverAccepted:true,receipt:receipt(await signed(result),result)};
     }catch{return pending ?? unknown('DISPATCH_UNCONFIRMED');}
     finally {try {scope?.close();}catch{/* No raw errors or second action on cleanup failure. */}}
   }
-  return {dispatch:(binding:Binding,signal:AbortSignal)=>run(binding,signal,false),
-    reconcile:(binding:Binding,signal:AbortSignal)=>run(binding,signal,true)};
+  return {dispatch:(binding:Binding,signal:AbortSignal)=>run(binding,signal,'dispatch'),
+    resumeResult:(binding:Binding,signal:AbortSignal)=>run(binding,signal,'resume'),
+    reconcile:(binding:Binding,signal:AbortSignal)=>run(binding,signal,'reconcile')};
 }

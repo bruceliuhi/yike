@@ -1,8 +1,13 @@
 import {describe,it,expect,vi} from 'vitest';
-import {createHash,generateKeyPairSync,randomUUID,verify} from 'node:crypto';
+import {createHash,generateKeyPairSync,randomUUID,verify,randomBytes,createCipheriv,createDecipheriv} from 'node:crypto';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {createServer} from 'node:http';
 import {createServiceClient} from '../src/main/serviceClient';
 import {createOutreachDispatchSession} from '../src/main/outreachDispatchSession';
+import {createOutreachResultOutbox} from '../src/main/outreachResultOutbox';
+import type {NativeOutreachChannel} from '../src/main/outreachConsumer';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -21,7 +26,7 @@ async function fixture(options:{omitScopeSignal?:boolean}={}){
     channelCapability:{status:'UNVERIFIED',reason:'CHANNEL_CHECK_REQUIRED'},authorization:'NOT_GRANTED'};
   const contextSha256=createHash('sha256').update(canonical(snapshot)).digest('hex'),context={...snapshot,contextSha256};
   const binding={tenantId,requestId,claimId,contextSha256};const pair=generateKeyPairSync('ed25519');
-  let claimed=false,consumed=false,current=true,state='UNKNOWN',failResult=false,changeOnClaim=false;const calls:string[]=[];
+  let claimed=false,consumed=false,current=true,state='UNKNOWN',failResult=false,changeOnClaim=false;const calls:string[]=[],applied:any[]=[];
   const deadline=new Date(Date.now()+25_000).toISOString();
   const payload=(request:unknown)=>canonical({protocol:'yike-outreach-dispatch-v1',tenant_id:tenantId,user_id:userId,session_digest:'d'.repeat(64),request});
   const receipt=()=>({requestId,claimId,state,deliveryConfirmed:state==='SENT',dispatchAllowed:false,dispatchBefore:deadline,...(state==='SENT'?{evidenceAuthority:'DEVICE_ATTESTED_PLATFORM_RECEIPT'}:{})});
@@ -31,6 +36,7 @@ async function fixture(options:{omitScopeSignal?:boolean}={}){
     if(req.method==='GET'){res.end(JSON.stringify(receipt()));return;}
     if(req.url?.endsWith('/signing-payload')){res.end(JSON.stringify({signing_payload:payload(body.request)}));return;}
     if(!verify(null,Buffer.from(payload(body.request)),pair.publicKey,Buffer.from(body.signature,'base64url'))){res.statusCode=403;res.end('{}');return;}
+    applied.push(body.request);
     if(body.request.action==='CLAIM'){
       if(changeOnClaim)current=false;
       const data=claimed?receipt():{...receipt(),dispatchAllowed:true,context};claimed=true;res.end(JSON.stringify(data));return;
@@ -41,25 +47,32 @@ async function fixture(options:{omitScopeSignal?:boolean}={}){
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const address=server.address();if(!address || typeof address==='string')throw new Error();
   const serviceOrigin='http://127.0.0.1:'+address.port;
   const service=createServiceClient({baseUrl:serviceOrigin,fetch,clearSession:async()=>{}});
+  const directory=await mkdtemp(join(tmpdir(),'yike-result-session-')),secret=randomBytes(32);
+  const protection={isEncryptionAvailable:()=>true,
+    encryptString(text:string){const iv=randomBytes(12),c=createCipheriv('aes-256-gcm',secret,iv);return Buffer.concat([iv,c.update(text,'utf8'),c.final(),c.getAuthTag()]);},
+    decryptString(bytes:Buffer){const c=createDecipheriv('aes-256-gcm',secret,bytes.subarray(0,12));c.setAuthTag(bytes.subarray(-16));return Buffer.concat([c.update(bytes.subarray(12,-16)),c.final()]).toString('utf8');}};
+  const outbox=createOutreachResultOutbox({directory,protection});
   const key={scope:{serviceOrigin,userId,deviceId},publicKey:pair.publicKey.export({format:'jwk'}).x!,privateKey:pair.privateKey.export({format:'pem',type:'pkcs8'}).toString()};
   let scopeAbort:AbortController;
   const close=vi.fn();const channel={check:vi.fn(async()=>({status:'AVAILABLE',contextSha256,deviceId,connectionId:context.connection.connectionId,connectionVersion:1,accountPublicId:'account-1',recipientId:'buyer-1',checkedAt:new Date().toISOString()})),
-    execute:vi.fn(async(_context:unknown,_operation:unknown,_signal:AbortSignal)=>({status:'SENT',confirmed:true,proof:{kind:'ACCEPTED',externalId:'fixture-receipt',sha256:'c'.repeat(64),observedAt:new Date().toISOString()}}))};
-  const controller=createOutreachDispatchSession({serviceOrigin,identity:{openWorkerScope:async()=>{
+    execute:vi.fn<NativeOutreachChannel['execute']>(async()=>({status:'SENT',confirmed:true,proof:{kind:'ACCEPTED',externalId:'fixture-receipt',sha256:'c'.repeat(64),observedAt:new Date().toISOString()}}))};
+  const restart=(results=createOutreachResultOutbox({directory,protection}))=>createOutreachDispatchSession({serviceOrigin,outbox:results,identity:{openWorkerScope:async()=>{
     const openedScope=new AbortController();scopeAbort=openedScope;
     return {ok:true as const,scope:{session:{userId,sessionId,isCurrent:()=>current},device:{deviceId,credentialVersion:1},
       ...(!options.omitScopeSignal?{signal:openedScope.signal}:{}),transport:{requestOutreach:service.requestOutreach},close:()=>{openedScope.abort();close();}}};
   }},
     vault:{read:async()=>key},journal:{consumed:async()=>consumed,consume:async()=>{if(consumed)return{created:false};consumed=true;return{created:true};}},channel});
-  return {controller,binding,channel,calls,service,close,invalidateScope:()=>scopeAbort.abort(),setFailResult:()=>{failResult=true;},changeOnClaim:()=>{changeOnClaim=true;},
-    dispose:()=>new Promise<void>((resolve,reject)=>{server.close(error=>error?reject(error):resolve());server.closeAllConnections();})};
+  const controller=restart(outbox);
+  return {controller,restart,outbox,binding,channel,calls,applied,service,close,invalidateScope:()=>scopeAbort.abort(),setFailResult:(value=true)=>{failResult=value;},changeOnClaim:()=>{changeOnClaim=true;},
+    dispose:async()=>{await new Promise<void>((resolve,reject)=>{server.close(error=>error?reject(error):resolve());server.closeAllConnections();});await rm(directory,{recursive:true,force:true});}};
 }
 describe('private outreach session over real HTTP with synthetic platform/server fixtures',()=>{
   it('claims, consumes once, signs a result and only then reports server recording',async()=>{
     const f=await fixture();try {
       expect(await f.controller.dispatch(f.binding,new AbortController().signal)).toMatchObject({state:'RESULT_RECORDED',receipt:{state:'SENT',dispatchAllowed:false}});
       expect(f.calls).toHaveLength(4);expect(f.channel.execute).toHaveBeenCalledTimes(1);
-      expect(await f.controller.dispatch(f.binding,new AbortController().signal)).toMatchObject({state:'UNKNOWN'});
+      expect(await f.controller.dispatch(f.binding,new AbortController().signal)).toMatchObject({state:'RESULT_RECORDED'});
+      expect(f.applied.filter(v=>v.action==='CLAIM')).toHaveLength(1);
       expect(f.channel.execute).toHaveBeenCalledTimes(1);
       expect(await f.controller.reconcile(f.binding,new AbortController().signal)).toMatchObject({state:'RECONCILED',receipt:{state:'SENT'}});
       expect(f.calls.at(-1)).toBe('GET /api/ui/outreach/queue/'+f.binding.requestId);
@@ -72,6 +85,42 @@ describe('private outreach session over real HTTP with synthetic platform/server
       expect(f.calls).toHaveLength(4);
       expect(await f.controller.reconcile(f.binding,new AbortController().signal)).toMatchObject({state:'RECONCILED',receipt:{state:'UNKNOWN'}});
       expect(f.channel.execute).toHaveBeenCalledTimes(1);
+    } finally {await f.dispose();}
+  });
+  it('reconstructs from encrypted disk and retries the original RESULT, never CLAIM or platform action',async()=>{
+    const f=await fixture();try {f.setFailResult();
+      const first=await f.controller.dispatch(f.binding,new AbortController().signal);
+      expect(first).toMatchObject({state:'RESULT_PENDING',durable:true});
+      if(first.state!=='RESULT_PENDING')throw new Error('missing result');
+      f.setFailResult(false);
+      expect(await f.restart().resumeResult(f.binding,new AbortController().signal)).toMatchObject({state:'RESULT_RECORDED',receipt:{resultId:first.resultId,state:'SENT'}});
+      expect(f.applied.filter(v=>v.action==='CLAIM')).toHaveLength(1);
+      expect(f.applied.filter(v=>v.action==='RESULT').map(v=>v.resultId)).toEqual([first.resultId,first.resultId]);
+      expect(f.channel.execute).toHaveBeenCalledTimes(1);
+    } finally {await f.dispose();}
+  });
+  it('does not invent a result or claim permission when recovery has no saved result',async()=>{
+    const f=await fixture();try {
+      expect(await f.controller.resumeResult(f.binding,new AbortController().signal)).toMatchObject({state:'UNKNOWN',reason:'NO_SAVED_RESULT'});
+      expect(f.calls).toEqual([]);expect(f.channel.execute).not.toHaveBeenCalled();
+    } finally {await f.dispose();}
+  });
+  it('storage failure never promises restart recovery or submits a volatile result',async()=>{
+    const f=await fixture();try {vi.spyOn(f.outbox,'put').mockRejectedValueOnce(new Error('private storage'));
+      expect(await f.controller.dispatch(f.binding,new AbortController().signal)).toMatchObject({state:'RESULT_PENDING',durable:false});
+      expect(f.applied.map(v=>v.action)).toEqual(['CLAIM']);expect(f.channel.execute).toHaveBeenCalledTimes(1);
+    } finally {await f.dispose();}
+  });
+  it('a broken result store stops a fresh claim instead of treating damage as empty',async()=>{
+    const f=await fixture();try {vi.spyOn(f.outbox,'read').mockRejectedValueOnce(new Error('private corrupt record'));
+      expect(await f.controller.dispatch(f.binding,new AbortController().signal)).toMatchObject({state:'UNKNOWN'});
+      expect(f.calls).toEqual([]);expect(f.channel.execute).not.toHaveBeenCalled();
+    } finally {await f.dispose();}
+  });
+  it('an unknown native observation does not occupy the immutable final-result slot',async()=>{
+    const f=await fixture();try {const put=vi.spyOn(f.outbox,'put');f.channel.execute.mockResolvedValueOnce({status:'UNKNOWN'});
+      expect(await f.controller.dispatch(f.binding,new AbortController().signal)).toMatchObject({state:'UNKNOWN',reason:'PLATFORM_RESULT_UNKNOWN'});
+      expect(put).not.toHaveBeenCalled();expect(f.applied.map(v=>v.action)).toEqual(['CLAIM']);
     } finally {await f.dispose();}
   });
   it('a session change while CLAIM is in flight prevents any native action',async()=>{
