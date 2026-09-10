@@ -9,7 +9,7 @@ const auth = (user_id = 'TEST-owner') => ok({authenticated: true, user_id});
 const changed = {ok: false, status: 0, error: 'SESSION_CHANGED'};
 const unavailable = {ok: false, status: 0, error: 'SERVICE_UNAVAILABLE'};
 const unauthorized = (): ApiResult => ({ok: false, status: 401, error: 'invalid_session'});
-const families = ['requestExecution', 'requestCandidate', 'requestConnection'] as const;
+const families = ['requestExecution', 'requestCandidate', 'requestConnection', 'requestOutreach'] as const;
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (error: unknown) => void;
@@ -30,18 +30,21 @@ function fixture(candidateAvailable = true) {
       async requestDevice() {throw new Error('unexpected device request');},
       async requestExecution(input) {state.privateCalls.push({family: 'requestExecution', input}); return state.privateHandler(input);},
       async requestConnection(input) {state.privateCalls.push({family: 'requestConnection', input}); return state.privateHandler(input);},
+      async requestOutreach(input: unknown) {state.privateCalls.push({family: 'requestOutreach', input}); return state.privateHandler(input);},
       ...(candidateAvailable ? {async requestCandidate(input: unknown) {state.privateCalls.push({family: 'requestCandidate', input}); return state.privateHandler(input);}} : {}),
     },
     identityFactory: () => ({async prepare() {return state.prepareResult;}}),
   });
   return {state, controller};
 }
-async function open(f: ReturnType<typeof fixture>): Promise<DeviceWorkerScope> {
+type ReadyScope = DeviceWorkerScope & {transport:{requestOutreach(input:unknown):Promise<ApiResult>}};
+async function open(f: ReturnType<typeof fixture>): Promise<ReadyScope> {
   expect(await f.controller.prepare()).toEqual(ready);
   const result = await f.controller.openWorkerScope();
   expect(result.ok).toBe(true);
   if (!result.ok) throw new Error('scope must open');
-  return result.scope;
+  expect(typeof result.scope.transport.requestOutreach).toBe('function');
+  return result.scope as ReadyScope;
 }
 
 describe('bounded main-only device worker scope', () => {
@@ -56,6 +59,7 @@ describe('bounded main-only device worker scope', () => {
     expect(await scope.transport.requestExecution({operation: 'execution.start'})).toEqual(ok());
     expect(await scope.transport.requestCandidate({operation: 'candidate.submit'})).toEqual(ok());
     expect(await scope.transport.requestConnection({operation: 'connections.current'})).toEqual(ok());
+    expect(await scope.transport.requestOutreach?.({operation:'outreach.dispatch.receipt',payload:{requestId:ready.deviceId}})).toEqual(ok());
     expect(await f.controller.requestExecution({operation: 'execution.start'})).toEqual(changed);
     expect(f.state.privateCalls.map(call => call.family)).toEqual([...families]);
   });
