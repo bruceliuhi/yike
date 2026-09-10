@@ -78,6 +78,7 @@ def snapshot_digest(snapshot: DraftSnapshot) -> str:
 class DraftSaveInput(_Input):
     binding: DraftSaveBinding
     snapshot: DraftSnapshot
+    previousRequestId: Id | None = None
 
     @model_validator(mode='after')
     def matching(self):
@@ -191,10 +192,14 @@ class ContactDraftStore:
             previous = cursor.fetchone()
             if previous is None:
                 previous_content, previous_version = facts[7 if draft.channel == 'comment' else 8], 0
+                previous_request_id = None
             else:
-                old = _receipt(previous)['snapshot']['draft']
+                previous_receipt = _receipt(previous)
+                old = previous_receipt['snapshot']['draft']
+                previous_request_id = previous_receipt['binding']['requestId']
                 previous_content, previous_version = old['content'], old['version']
-            if draft.savedContent != previous_content or draft.version <= previous_version:
+            if (value.previousRequestId != previous_request_id
+                    or draft.savedContent != previous_content or draft.version <= previous_version):
                 raise DraftError('draft_version_conflict')
             payload = value.model_dump()
             payload['snapshot']['draft']['savedContent'] = draft.content

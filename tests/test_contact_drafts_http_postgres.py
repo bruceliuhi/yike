@@ -26,12 +26,12 @@ SECRET = 'synthetic-draft-test-secret'
 
 
 def body(env, *, channel='dm', content='您好，项目现在还在找团队吗？', version=2,
-         saved='', **snapshot_changes):
+         saved='', previous=None, **snapshot_changes):
     snapshot = dict(draft=dict(opportunityId=env.opp, channel=channel, content=content,
         savedContent=saved, version=version, accountId='', recipient=''), accountScope=None,
         profileVersionId=env.profile, sourceEvidenceVersion=env.evidence_version)
     snapshot.update(snapshot_changes)
-    return rehash(dict(binding=dict(opportunityId=env.opp, channel=channel,
+    return rehash(dict(previousRequestId=previous,binding=dict(opportunityId=env.opp, channel=channel,
         requestId=str(uuid4()), contentHash=''), snapshot=snapshot))
 
 
@@ -121,7 +121,7 @@ def test_stale_window_and_changed_request_cannot_overwrite(env):
     changed=copy.deepcopy(first); changed['snapshot']['draft']['content']='另一份'; rehash(changed)
     assert save(env,changed).status_code==409
     assert save(env,body(env,version=10)).status_code==409  # Wrong saved predecessor.
-    second=body(env,version=3,saved=first['snapshot']['draft']['content'],content='只问一个问题')
+    second=body(env,version=3,saved=first['snapshot']['draft']['content'],content='只问一个问题',previous=first['binding']['requestId'])
     assert save(env,second).status_code==200
     assert latest(env).json()['snapshot']['draft']['content']=='只问一个问题'
     assert recover(env,first).json()['snapshot']['draft']['content']==first['snapshot']['draft']['content']
@@ -130,7 +130,7 @@ def test_stale_window_and_changed_request_cannot_overwrite(env):
 @pytest.mark.parametrize('change',['source','profile','evidence'])
 def test_stale_facts_refuse_new_save_but_keep_original_receipt(env,change):
     first=body(env); assert save(env,first).status_code==200
-    next_value=body(env,version=3,saved=first['snapshot']['draft']['content'])
+    next_value=body(env,version=3,saved=first['snapshot']['draft']['content'],previous=first['binding']['requestId'])
     with env.admin.connect() as conn:
         if change=='source': conn.execute("UPDATE pilot_sources SET health='BLOCKED' WHERE source_id=%s",(env.source,))
         elif change=='profile': conn.execute("UPDATE business_profile_versions SET status='REVOKED' WHERE profile_version_id=%s",(env.profile,))
@@ -192,3 +192,12 @@ def test_storage_error_rolls_back_and_same_request_can_be_saved(env):
         with env.admin.connect() as conn:
             conn.execute(sql.SQL('ALTER TABLE pilot_contact_drafts DROP CONSTRAINT {}').format(sql.Identifier(name)))
     assert save(env,value).status_code==200
+
+
+def test_aba_or_metadata_change_cannot_be_overwritten_by_old_window(env):
+    original=body(env,content='A'); assert save(env,original).status_code==200
+    middle=body(env,content='B',version=3,saved='A',previous=original['binding']['requestId']); assert save(env,middle).status_code==200
+    newest=body(env,content='A',version=4,saved='B',previous=middle['binding']['requestId']); assert save(env,newest).status_code==200
+    stale=body(env,content='old-window',version=12,saved='A',previous=original['binding']['requestId'])
+    assert save(env,stale).status_code==409
+    assert recover(env,original).status_code==200

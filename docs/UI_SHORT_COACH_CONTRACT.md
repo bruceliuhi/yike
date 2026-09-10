@@ -39,6 +39,18 @@
 
 ## 验证与后端接入边界
 
+### 07B 后端接入（2026-09-10）
+
+普通 Web runtime 已提供：`POST /api/ui/contact-drafts`（`DraftSaveInput`加顶层 `previousRequestId`）、`POST /api/ui/contact-drafts/operation`（原 `DraftSaveBinding`）、`GET /api/ui/opportunities/{id}/contact-drafts/{comment|dm}`（本人最新成功保存回执）。三者沿用正式会话、HTTPS及Origin边界。迁移121和显式草稿授权须先部署；客户端07C尚未接入，不据此打开outreach或短句模型能力。
+
+`previousRequestId` 首次保存为null/省略；已有人工稿时必须等于**开始编辑时**采用的保存回执 `binding.requestId`。客户端收到自己的成功保存或明确读取/采用最新稿后才更新这个前驱；不得在提交时静默读取新前驱替旧窗口补签。服务端按owner锁校验前驱，即使正文A→B→A或只变账号/对象也拒绝旧窗口。该字段是保存CAS条件，不进入既有内容摘要，不改变原查询绑定或回执形状；Win的adapter与编辑状态需同时接入，不能只打开save方法。
+
+服务只返回确切的 `SUCCEEDED/confirmed:true` 或安全错误，不把404/超时当作FAILED。原请求重放/查询返回原版本，即使来源后来失效；最新草稿也只是保存事实，不是实时可发送证明。客户端恢复后须采用已存版本和savedContent，再以更高版本提交人工编辑；不能每次从版本1覆盖。comment和dm分别保存，租户内不同用户的人工稿互不可见。
+
+`accountScope:null` 为现有无scope会话的兼容值，仍由服务器会话确定租户/owner；非空必须精确等于 `{id: authenticatedTenantId, version:1}`，不是客户端自报授权。来源/画像ID须有效且匹配服务器固定证据；不接受公开sample。账号和收件文字仅是人工草稿内容，保存不核发发送许可，不代替后续连接版本与收件人实际核验。
+
+Win接入时保留原pending账本；普通HTTP错误不转成 `DRAFT_SAVE_REJECTED`，请求冲突尤其不能推断原操作未保存。原始研究建议仍保留在商机详情，不能用它替代本人的最新人工稿。[本批计划与证据](superpowers/plans/2026-09-10-contact-draft-persistence.md)供接续，不记客户端ACK。
+
 域约束：[r4-short-coach-domain.test.ts](../desktop/tests/ui/r4-short-coach-domain.test.ts)；编辑/迟到/跨空间/保存恢复：[r4-short-coach.test.tsx](../desktop/tests/ui/r4-short-coach.test.tsx)；保留原触达流程的回归：[outreach.test.tsx](../desktop/tests/ui/outreach.test.tsx)、[send-confirmation.test.tsx](../desktop/tests/ui/send-confirmation.test.tsx)。
 
 [TEST adapter](../desktop/tests/visual/r4-short-coach.ts) 与 [adapter 回归](../desktop/tests/ui/r4-short-coach-visual.test.ts) 仅用于隔离内存演练，读取 TEST 身份和 TEST 原文构造精确引用，未调用模型、真实客户空间或外部平台。后端接入须另行提供真实授权、幂等持久化和接口验收；本轮没有新增任意路径 IPC 或假生产 adapter。
