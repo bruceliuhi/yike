@@ -51,6 +51,7 @@ export const API_OPERATIONS = [
   'replies.evidence',
   'strategies.prepare', 'strategies.confirm', 'strategies.revoke', 'strategies.receipt', 'strategies.get',
   'candidates.list', 'candidates.review', 'candidates.verifySource', 'candidates.request', 'candidates.rawEvidence',
+  'materials.list', 'materials.mutate', 'materials.operation', 'materials.impact',
   'capabilities.get'
 ] as const;
 

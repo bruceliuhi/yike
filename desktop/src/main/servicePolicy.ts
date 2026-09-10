@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {prepareStrategySchema, confirmStrategySchema, revokeStrategySchema, strategyUuidSchema} from '../shared/researchStrategies';
 import {candidateBindingSchema, candidateQuerySchema, candidateReviewRequestSchema, sourceVerificationRequestSchema, candidateRequestIdSchema, type CandidateQueryInput} from '../shared/candidateReviewApi';
+import {materialImpactRequestSchema, materialListRequestSchema, materialMutationRequestSchema, materialOperationRequestSchema} from '../shared/materialsApi';
 
 const empty = z.object({}).strict().optional();
 const identifier = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-][A-Za-z0-9_.:-]*$/);
@@ -35,7 +36,11 @@ const schemas = {
   'strategies.confirm': confirmStrategySchema,
   'strategies.revoke': revokeStrategySchema,
   'strategies.receipt': z.object({request_id: strategyUuidSchema}).strict(),
-  'strategies.get': z.object({strategy_version_id: strategyUuidSchema}).strict()
+  'strategies.get': z.object({strategy_version_id: strategyUuidSchema}).strict(),
+  'materials.list': materialListRequestSchema,
+  'materials.mutate': materialMutationRequestSchema,
+  'materials.operation': materialOperationRequestSchema,
+  'materials.impact': materialImpactRequestSchema,
 } as const;
 
 export interface ServiceOperation {
@@ -51,9 +56,20 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
   const {operation, payload} = request.data;
   const parsed = schemas[operation].safeParse(payload);
   if (!parsed.success) return null;
+  if (operation === 'materials.mutate' && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 32 * 1024) return null;
   if (operation.startsWith('strategies.') && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 128 * 1024) return null;
   const data = parsed.data as Record<string, string> | undefined;
   switch (operation) {
+    case 'materials.list': {
+      const value = parsed.data as {profileVersionId:string};
+      return {path:`/api/ui/materials?profileVersionId=${encodeURIComponent(value.profileVersionId)}`,method:'GET',logout:false};
+    }
+    case 'materials.mutate': return {path:'/api/ui/materials/mutate',method:'POST',body:JSON.stringify(parsed.data),logout:false};
+    case 'materials.operation': {
+      const value = parsed.data as {profileVersionId:string;requestId:string};
+      return {path:`/api/ui/materials/operation?profileVersionId=${encodeURIComponent(value.profileVersionId)}&requestId=${encodeURIComponent(value.requestId)}`,method:'GET',logout:false};
+    }
+    case 'materials.impact': return {path:'/api/ui/materials/impact',method:'POST',body:JSON.stringify(parsed.data),logout:false};
     case 'candidates.list': {
       const params = new URLSearchParams();
       for (const [key,value] of Object.entries(parsed.data as CandidateQueryInput)) {
