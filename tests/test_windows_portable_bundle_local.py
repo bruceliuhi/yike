@@ -43,6 +43,26 @@ def test_real_portable_bundle_has_no_developer_python_dependency(tmp_path):
     destination = relocated
     manifest = json.loads((destination / 'bundle-manifest.json').read_text(encoding='utf-8'))
     assert result == manifest
+    _verify_relocated_bundle(destination, tmp_path)
+
+
+def test_explicit_retained_portable_bundle(tmp_path):
+    """Recheck unchanged bytes after a probe-only fix without rebuilding 1 GB."""
+    keys = ('YIKE_PORTABLE_EXISTING', 'YIKE_PORTABLE_EXISTING_MANIFEST_SHA256')
+    if os.name != 'nt' or not all(os.environ.get(key) for key in keys):
+        pytest.skip('requires explicit retained artifact and previously observed manifest digest')
+    destination = Path(os.environ[keys[0]])
+    assert destination.is_absolute() and destination.name.endswith('-relocated')
+    assert not destination.with_name(destination.name.removesuffix('-relocated')).exists()
+    with (destination / 'bundle-manifest.json').open('rb') as handle:
+        assert hashlib.file_digest(handle, 'sha256').hexdigest() == os.environ[keys[1]]
+    _verify_relocated_bundle(destination, tmp_path)
+
+
+def _verify_relocated_bundle(destination, tmp_path):
+    from app.windows_private_directory import verify_private_tree
+    verify_private_tree(destination)
+    manifest = json.loads((destination / 'bundle-manifest.json').read_text(encoding='utf-8'))
     assert manifest['schema_version'] == 'YIKE_WINDOWS_PORTABLE_BUNDLE_V1'
 
     # Inspect the generated inventory independently, not via the builder's verifier.
@@ -64,8 +84,12 @@ def test_real_portable_bundle_has_no_developer_python_dependency(tmp_path):
 
     # Deliberately use an unrelated cwd and invalid Python environment variables.
     # _pth must win without relying on another installed interpreter or site hook.
-    env = {key: value for key, value in os.environ.items() if key in ('SystemRoot', 'WINDIR')}
-    env.update(PATH=str(Path(os.environ['SystemRoot']) / 'System32'),
+    # Windows os.environ iteration uppercases keys; index the required OS names
+    # case-insensitively so the hostile Python environment still has Winsock.
+    env = {key: os.environ[key] for key in ('SystemRoot', 'WINDIR', 'USERNAME') if key in os.environ}
+    env.update(PATHEXT='.EXE',
+               PATH=os.pathsep.join((str(Path(os.environ['SystemRoot']) / 'System32'),
+                                   str(destination / 'runtime/.venv/Lib/site-packages/playwright/driver'))),
                TEMP=str(tmp_path), TMP=str(tmp_path), MPLCONFIGDIR=str(tmp_path),
                PLAYWRIGHT_BROWSERS_PATH=str(destination / 'runtime/.venv/playwright-browsers'),
                PYTHONHOME=str(tmp_path / 'nonexistent-home'),
