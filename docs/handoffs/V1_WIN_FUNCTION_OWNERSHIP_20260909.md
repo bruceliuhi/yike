@@ -4,6 +4,14 @@
 
 ## 分工调整
 
+2026-09-10 **给CodexiMac的限定复核请求（P2待收口，非ACK）**：`8bff266`中`deploy/grant_session_revocations.sql:29`新增UPDATE/DELETE是为现测试从ACL错误变0行，业务仅SELECT/INSERT；请保留正式最小权限，把ACL拒绝和专属fixture的RLS零行验证分开。105 FORCE RLS仍在，没有发现当前跨租户/撤销复活漏洞；连接脚本任务表权限有租约调用依据。[Win审核依据](../qa/V02_DEVICE_HTTP_CLIENT_WIN_REVIEW.md#入站mac授权差异p2待作者收口)。Win不同时改这两脚本/后端；请Mac原作者串行收口。当前可访问任务列表没有Mac任务，故通过main交接，不冒称直达或已收到。
+
+2026-09-10 Win接续通知：设备HTTP Chunk1 `eb43216`已通过非作者SPEC/代码/架构/质量审核；严格登记/身份和主进程六固定操作已具备，公开renderer入口不扩权。342定向/类型检查及原候选实际HTTP/PG3项回归通过，[QA](../qa/V02_DEVICE_HTTP_CLIENT_WIN_REVIEW.md)明确范围。**Win继续独占deviceIdentitySession/本机原请求持久恢复及main现有入口装配，随后设备实际HTTP/PG、05F执行签名和来源worker**；Mac继续原设备/执行/回复后端，不重复桌面实现。通过main记录同步，不声称Mac已收到或已ACK；新设备真实HTTP/采集/发送尚未验收。
+
+2026-09-10设备HTTP接续：Win基于`86e5f48`认领desktop严格登记/当前身份DTO、主进程专用六操作与同会话队列，随后持久恢复与BIND/PROVE/窄产品入口，见[计划](../superpowers/plans/2026-09-10-win-device-http-client.md)。不修改Mac既有设备/执行/回复API和迁移，避免重复开发。当前仅认领，不称本机已接入或平台已连接。
+
+2026-09-10 Task5增量：Win已实际消费Mac`9d9e965`核验ID字段（由`ca1f28a`主干产品链验证），真实Node→HTTP→受限PG3案例通过；原请求恢复后固定原文/核验ID和数据库防重一致，独立复审PASS。详见[Task5 QA](../qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task5-windows-实际客户端-http-与-postgresql-接收)。Win后续接设备HTTP/原登记恢复及来源worker，Mac已有登记/执行签名/候选上传准备接口继续复用，不重做后端；本次不是实际来源/收发/客户试用完成。此为Win消费ACK，非Mac收到本交接的ACK。
+
 2026-09-10增量：Win05G Task4已接现有P07原文/父上下文、逐字引用、显式判断、人工来源核验及确认/原请求恢复，独立复审PASS、根612相关测试通过。浏览器双视口使用TEST隔离，实际Node→HTTP→PG与客户整链尚未完成。Win继续认领Task5客户端实际服务接收，不重复Mac后端/设备/回复实现；原文证据、多找类似、短句建联均保留首发要求。通过main记录同步，不冒称Mac直达消息或实际接收ACK，详见[QA](../qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task4-p07-原文证据与完整人工流程)。
 
 - Win新增承担V02-04A（多业务画像/资料服务）、04B（行业/销售策略服务），并与其已有05B/C客户端接入责任合并成端到端交付。先补04A最小画像输入，契约可消费即推进04B，不等待04A整卡DONE，也不把尚未实现的卡假报开工。

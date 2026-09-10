@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-10 Win 候选实际 HTTP/PG 接收
+
+基线`ca1f28a`，现P07产品service→主进程固定ServiceClient→socket HTTP→受限PostgreSQL实际通过：原文/逐字引用、显式分析、人工来源核验、INCLUDE丢回执原请求恢复、防重、P11固定原文和三类时间、跨用户/退出拒绝、来源/画像版本失效。根3案例实际PG通过，20文件613相关回归、类型/生产TEST排除通过；独立规格及代码/架构/质量PASS。Mac原`sourceVerificationId`修复已取得Win实际消费ACK，详见[Task5 QA](qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task5-windows-实际客户端-http-与-postgresql-接收)。平台/模型输入合成，不代表真实获客或上线；Win继续设备HTTP/来源worker，05G父卡及Goal保持IN_PROGRESS。
+
 ## 2026-09-10 Win P07 原文证据与人工闭环
 
 Win在既有P07完成原文/父上下文/来源时间版本、四维判断逐字引用、显式判断、人工来源核验、固定核验ID的确认入库及筛选外原请求恢复。产品写入口已安装，不自动模型调用或发送。独立SPEC与代码/质量复审PASS，根20文件612项通过；Windows Edge双视口为TEST隔离界面验证，非真实服务/客户验收。详见[05G QA](qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task4-p07-原文证据与完整人工流程)。Win继续Task5真实Node→HTTP→PG，不重复Mac后端/设备/回复工作；05G和Goal仍IN_PROGRESS。
@@ -207,6 +211,36 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 2026-09-10 设备凭据授权收口：进一步补充受限角色更新 `pilot_platform_connections`、写入 `pilot_session_revocations` 的最小权限；独立 `tests/test_device_credentials_postgres.py` 在一次性 PostgreSQL 上 **28 passed**。设备挑战、签名、轮换、撤销、并发和 HTTP 安全路径通过；该结果不替代生产部署、真实平台连接或客户 UAT。
 
 2026-09-10 设备登记恢复独立 PostgreSQL 验证：沿用受限身份角色和登记授权脚本，核心登记套件 **7 passed**，HTTP 登记恢复/严格输入/权限套件 **22 passed**。覆盖原 request_id 恢复、幂等冲突、撤销/过期、owner 隔离、HTTPS/Origin 和 no-store；不代表平台账号已连接或 Windows 实机验收完成。
+
+2026-09-10 执行运行时复核：在全新一次性 PostgreSQL 数据库 `yike_mac_20260910_try` 上，由执行套件自行迁移并创建动态 `NOSUPERUSER/NOBYPASSRLS` 角色，`tests/test_execution_runtime_postgres.py` **42 passed**。此前复用旧库触发 `v02-identity-execution` checksum mismatch，已确认不能将旧库状态当作当前 schema 证据；本结果仅覆盖执行运行时套件，不代表其他 PG 套件或生产部署完成。
+
+2026-09-10 搜索建议 PostgreSQL 复核：清理旧测试角色及其数据库对象后，使用固定 `win_search_suggestion` 数据库，由套件重新创建 `suggestion_app` 受限角色，`tests/test_search_suggestions_postgres.py` **63 passed**。覆盖迁移、RLS、配额、幂等、并发、失败持久化与 HTTP/Node 路径；该结果仅适用于一次性本机测试容器，不代表生产数据库或真实模型服务。
+
+2026-09-10 研究策略 PostgreSQL 复核：清理旧 `strategy_app` 角色及其数据库对象，并安装锁定的 desktop Node 依赖后，使用固定 `win_research_strategy` 数据库按套件自有流程运行，`tests/test_research_strategies_postgres.py` **49 passed**。覆盖策略版本、确认/撤销、RLS、HTTP 和 Node 客户端往返；该结果仅适用于一次性本机测试容器，不代表生产部署或真实模型服务。
+
+2026-09-10 设备凭据 PostgreSQL 复核：使用全新 `yike_mac_identity_20260910` 数据库、管理员与独立受限 `identity_app_mac` 角色运行 `tests/test_device_credentials_postgres.py`，**28 passed**。覆盖挑战、Ed25519 签名、轮换、撤销、并发与 HTTP 安全路径；不代表真实平台账号或 Windows 实机已接通。
+
+2026-09-10 设备登记 PostgreSQL 复核：在同一受限身份数据库运行 `tests/test_device_registration_postgres.py` 与 `tests/test_device_registration_http_postgres.py`，**29 passed**。覆盖登记恢复、幂等、撤销/过期、owner 隔离、HTTPS/Origin 与 no-store；不代表真实平台账号或 Windows 实机已接通。
+
+2026-09-10 触达/回复迁移授权探针：在全新 `yike_mac_outreach_20260910` PostgreSQL 数据库创建一次性受限应用角色，完成全量迁移并重复执行 `grant_outreach_contract.sql`、`grant_reply_events.sql`，输出 `migrations-and-grants-pass`。该探针只证明表结构与授权脚本可重复应用，不代表真实发送、回复回流或 RLS 业务套件已通过。
+
+2026-09-10 研究导入原子性 PostgreSQL 复核：在全新 `yike_mac_import_20260910` 数据库使用独立管理员与受限 `import_app_mac` 角色运行 `tests/test_import_atomicity.py`，**5 passed**。覆盖受限导入、失败回滚和跨租户边界；不代表真实平台采集或生产部署完成。
+
+2026-09-10 候选入库 PostgreSQL 复核：使用独立身份数据库的管理员/受限角色运行 `tests/test_candidate_ingestion_postgres.py`，**23 passed**。覆盖签名提交、原子回执、版本历史、租户隔离、预算/租约与失败关闭；不代表真实平台采集或生产部署完成。
+
+2026-09-10 候选人工复核 PostgreSQL 复核：在受限身份数据库按候选入库套件创建授权后，运行 `tests/test_candidate_review_postgres.py` 与 `tests/test_candidate_review_http_postgres.py`，**58 passed**。覆盖模型评估边界、来源核验、人工复核、配额、RLS、HTTP 与回滚；模型为本地合成边界服务，不代表真实模型质量、平台采集或客户 UAT。
+
+2026-09-10 机会证据 PostgreSQL 复核：在同一受限身份数据库运行 `tests/test_opportunity_evidence_postgres.py`，**8 passed**。覆盖证据快照、来源绑定、摘要哈希、晋级边界、RLS 与跨租户约束；数据为合成来源，不代表真实项目机会或商业转化。
+
+2026-09-10 连接版本 PostgreSQL 复核：在独立身份数据库使用管理员/受限角色运行 `tests/test_connection_versions_postgres.py`，**40 passed**。覆盖连接版本递增、撤销/重连、租户隔离、RLS 与权限边界；不代表真实平台账号已连接。
+
+2026-09-10 桌面机会 HTTP PostgreSQL 复核：同时注入研究策略、身份和 Pilot 受限数据库连接，运行 `tests/test_desktop_opportunity_http_postgres.py`，**1 passed**。覆盖桌面客户端读取机会、证据与跟进状态的 HTTP 往返；数据为合成输入，不代表真实平台线索或客户 UAT。
+
+2026-09-10 执行签名回执 HTTP PostgreSQL 复核：在独立身份数据库运行 `tests/test_execution_signing_payload_http_postgres.py`，**11 passed**。覆盖签名载荷、请求完整性、回执关联、预算和受限 PostgreSQL HTTP 往返；不代表真实平台执行或发送。
+
+2026-09-10 Pilot 运行时 HTTP 复核：同时注入身份与研究策略数据库，运行 `tests/test_pilot_runtime_http_postgres.py`，**2 passed**。覆盖普通 CLI 启动、实际 HTTP 路由、受限应用数据库选择与任务执行边界；来源/模型仍为合成输入，不代表真实平台采集或发送。
+
+2026-09-10 已确认策略复核 PostgreSQL 验证：使用独立研究策略与身份数据库运行 `tests/test_confirmed_strategy_review_postgres.py`，**35 passed**。覆盖策略确认、复核绑定、撤销/重启、RLS、租户隔离及执行前约束；不代表真实平台采集或发送。
 
 ## 后续 AI 必须遵守
 
