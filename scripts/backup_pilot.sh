@@ -15,6 +15,13 @@ if [[ -z "$backup_path" || "$backup_path" == -* || "$backup_path" != *.enc ]]; t
   echo "usage: YIKE_PILOT_BACKUP_PASSPHRASE_FILE=/secure/passphrase backup_pilot.sh /explicit/path/pilot-YYYYMMDD.dump.enc" >&2
   exit 2
 fi
+backup_realpath="$(cd -- "$(dirname -- "$backup_path")" && pwd -P)/$(basename -- "$backup_path")"
+case "$backup_realpath" in
+  "$repo_root"|"$repo_root"/*)
+    echo "backup destination must be outside the repository" >&2
+    exit 2
+    ;;
+esac
 if [[ -z "$passphrase_file" || ! -f "$passphrase_file" || ! -r "$passphrase_file" || ! -s "$passphrase_file" ]] || ! LC_ALL=C grep -q '[^[:space:]]' "$passphrase_file"; then
   echo "YIKE_PILOT_BACKUP_PASSPHRASE_FILE must point to a non-empty readable secret file outside the repository" >&2
   exit 2
@@ -46,23 +53,35 @@ if [[ -e "$mac_path" ]]; then
   echo "refusing to overwrite existing backup MAC: $mac_path" >&2
   exit 2
 fi
-temp_dir="$(mktemp -d "$(dirname -- "$backup_path")/.yike-backup.XXXXXX")"
+temp_dir=""
+secret_temp_dir=""
+secret_snapshot=""
 published_backup=0
 complete=0
 cleanup() {
-  if (( ! complete && published_backup )) && [[ "$backup_path" -ef "$temp_dir/pilot.dump.enc" ]]; then
+  if (( ! complete && published_backup )) && [[ -n "$temp_dir" && "$backup_path" -ef "$temp_dir/pilot.dump.enc" ]]; then
     rm -f -- "$backup_path"
   fi
-  rm -f -- "$temp_dir/pilot.dump.enc" "$temp_dir/pilot.dump.enc.mac"
-  rmdir -- "$temp_dir"
+  if [[ -n "$temp_dir" ]]; then
+    rm -f -- "$temp_dir/pilot.dump.enc" "$temp_dir/pilot.dump.enc.mac"
+    rmdir -- "$temp_dir"
+  fi
+  if [[ -n "$secret_temp_dir" ]]; then
+    rm -f -- "$secret_snapshot"
+    rmdir -- "$secret_temp_dir"
+  fi
 }
 trap cleanup EXIT
+temp_dir="$(mktemp -d "$(dirname -- "$backup_path")/.yike-backup.XXXXXX")"
+secret_temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/yike-pilot-secret.XXXXXX")"
+secret_snapshot="$secret_temp_dir/passphrase.snapshot"
+python3 "$script_dir/backup_auth.py" snapshot "$passphrase_file" "$secret_snapshot"
 pg_dump --format=custom --no-owner "$YIKE_PILOT_DATABASE_URL" \
-  | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass "file:$passphrase_file" -out "$temp_dir/pilot.dump.enc"
-python3 "$script_dir/backup_auth.py" create "$temp_dir/pilot.dump.enc" "$passphrase_file" "$temp_dir/pilot.dump.enc.mac"
+  | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass "file:$secret_snapshot" -out "$temp_dir/pilot.dump.enc"
+python3 "$script_dir/backup_auth.py" create "$temp_dir/pilot.dump.enc" "$secret_snapshot" "$temp_dir/pilot.dump.enc.mac"
 # Link publication is no-clobber even if a target appeared after the precheck.
-ln -- "$temp_dir/pilot.dump.enc" "$backup_path"
+python3 "$script_dir/backup_auth.py" publish "$temp_dir/pilot.dump.enc" "$backup_path"
 published_backup=1
-ln -- "$temp_dir/pilot.dump.enc.mac" "$mac_path"
+python3 "$script_dir/backup_auth.py" publish "$temp_dir/pilot.dump.enc.mac" "$mac_path"
 complete=1
 echo "authenticated encrypted backup created: $backup_path (MAC: $mac_path)"

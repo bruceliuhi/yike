@@ -47,10 +47,12 @@ if [[ ! "$passphrase_mode" =~ ^[0-9]+$ ]] || (( 10#$passphrase_mode % 100 != 0 )
   exit 2
 fi
 temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/yike-pilot-restore.XXXXXX")"
-trap 'rm -f -- "$temp_dir/backup.enc" "$temp_dir/pilot.dump"; rmdir -- "$temp_dir"' EXIT
+secret_snapshot="$temp_dir/passphrase.snapshot"
+trap 'rm -f -- "$temp_dir/backup.enc" "$temp_dir/pilot.dump" "$secret_snapshot"; rmdir -- "$temp_dir"' EXIT
 # Authenticate and decrypt the same private snapshot, not a mutable source path.
 cp -- "$backup_path" "$temp_dir/backup.enc"
-python3 "$script_dir/backup_auth.py" verify "$temp_dir/backup.enc" "$passphrase_file" "$mac_path"
-openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass "file:$passphrase_file" -in "$temp_dir/backup.enc" -out "$temp_dir/pilot.dump"
+python3 "$script_dir/backup_auth.py" snapshot "$passphrase_file" "$secret_snapshot"
+python3 "$script_dir/backup_auth.py" verify "$temp_dir/backup.enc" "$secret_snapshot" "$mac_path"
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass "file:$secret_snapshot" -in "$temp_dir/backup.enc" -out "$temp_dir/pilot.dump"
 pg_restore --clean --if-exists --no-owner --dbname="$YIKE_PILOT_DATABASE_URL" "$temp_dir/pilot.dump"
 echo "authenticated encrypted backup restored: $backup_path"

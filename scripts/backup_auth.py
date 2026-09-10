@@ -51,8 +51,31 @@ def mac(path: Path, secret: bytes) -> bytes:
         return PREFIX + digest.digest()
 
 
+def write_exclusive(path: Path, value: bytes) -> None:
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'wb') as stream:
+        stream.write(value)
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def require_destination_outside_repository(path: Path) -> None:
+    repository = Path(__file__).resolve().parents[1]
+    destination = path.parent.resolve(strict=True) / path.name
+    if destination == repository or destination.is_relative_to(repository):
+        raise ValueError()
+
+
 def main(argv: list[str]) -> int:
     try:
+        if len(argv) == 3 and argv[0] == 'snapshot':
+            snapshot = Path(argv[2])
+            require_destination_outside_repository(snapshot)
+            write_exclusive(snapshot, secret_bytes(Path(argv[1])) + b'\n')
+            return 0
+        if len(argv) == 3 and argv[0] == 'publish':
+            os.link(argv[1], argv[2], follow_symlinks=False)
+            return 0
         if len(argv) != 4 or argv[0] not in ('create', 'verify'):
             raise ValueError()
         mode, cipher, secret, sidecar = argv
@@ -66,11 +89,7 @@ def main(argv: list[str]) -> int:
             if not hmac.compare_digest(supplied, expected):
                 raise ValueError()
         else:
-            fd = os.open(sidecar, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(fd, 'wb') as stream:
-                stream.write(expected)
-                stream.flush()
-                os.fsync(stream.fileno())
+            write_exclusive(Path(sidecar), expected)
         return 0
     except Exception:
         print('backup integrity operation failed (requires valid V2 format and secret)', file=sys.stderr)

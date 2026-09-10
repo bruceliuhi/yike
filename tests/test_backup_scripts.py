@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import stat
 import subprocess
 import hashlib
@@ -166,3 +167,141 @@ def test_restore_decrypts_verified_private_snapshot_not_changed_original(tmp_pat
     assert result.returncode == 0, result.stderr
     assert backup.read_bytes() == b'changed'
     assert restored.read_bytes() == b'pilot-dump-fixture'
+
+
+def _rotating_python_wrapper(path: Path, original_secret: Path) -> None:
+    path.write_text(
+        '#!' + sys.executable + '\n'
+        + 'import os, subprocess, sys\n'
+        + 'from pathlib import Path\n'
+        + 'code = subprocess.call([' + repr(sys.executable) + '] + sys.argv[1:])\n'
+        + 'if code == 0 and len(sys.argv) > 2 and sys.argv[2] == "snapshot":\n'
+        + '    Path(os.environ["TEST_ORIGINAL_SECRET"]).write_text("rotated-secret\\n")\n'
+        + 'raise SystemExit(code)\n',
+        encoding='utf-8',
+    )
+    path.chmod(0o700)
+
+
+def test_backup_uses_one_private_secret_snapshot_if_original_rotates(tmp_path):
+    secret = _secret_file(tmp_path)
+    original = secret.read_bytes()
+    restored = tmp_path / 'restored.dump'
+    bindir = _fake_pg_tools(tmp_path, restored)
+    _rotating_python_wrapper(bindir / 'python3', secret)
+    backup = tmp_path / 'pilot.dump.enc'
+    env = {
+        **os.environ,
+        'PATH': f"{bindir}:{os.environ['PATH']}",
+        'YIKE_PILOT_DATABASE_URL': 'postgresql://example.invalid/pilot',
+        'YIKE_PILOT_BACKUP_PASSPHRASE_FILE': str(secret),
+        'TEST_ORIGINAL_SECRET': str(secret),
+    }
+
+    created = subprocess.run(
+        ['bash', str(ROOT / 'scripts/backup_pilot.sh'), str(backup)],
+        env=env, capture_output=True, text=True,
+    )
+    assert created.returncode == 0, created.stderr
+    assert secret.read_text(encoding='utf-8') == 'rotated-secret\n'
+    recovery_secret = tmp_path / 'recovery-secret'
+    recovery_secret.write_bytes(original)
+    recovery_secret.chmod(0o600)
+    env['YIKE_PILOT_BACKUP_PASSPHRASE_FILE'] = str(recovery_secret)
+    restored_result = subprocess.run(
+        ['bash', str(ROOT / 'scripts/restore_pilot.sh'), str(backup)],
+        env={**env, 'CONFIRM_RESTORE': 'YES'}, capture_output=True, text=True,
+    )
+    assert restored_result.returncode == 0, restored_result.stderr
+    assert restored.read_bytes() == b'pilot-dump-fixture'
+
+
+def test_restore_uses_one_private_secret_snapshot_if_original_rotates(tmp_path):
+    secret, restored, backup, env, run = _case(tmp_path)
+    _rotating_python_wrapper(tmp_path / 'bin' / 'python3', secret)
+    env['TEST_ORIGINAL_SECRET'] = str(secret)
+
+    result = run('restore_pilot.sh')
+
+    assert result.returncode == 0, result.stderr
+    assert secret.read_text(encoding='utf-8') == 'rotated-secret\n'
+    assert restored.read_bytes() == b'pilot-dump-fixture'
+
+
+def test_backup_exact_publish_rejects_directory_created_after_precheck(tmp_path):
+    secret = _secret_file(tmp_path)
+    bindir = _fake_pg_tools(tmp_path)
+    backup = tmp_path / 'pilot.dump.enc'
+    wrapper = bindir / 'python3'
+    wrapper.write_text(
+        '#!' + sys.executable + '\n'
+        + 'import os, subprocess, sys\n'
+        + 'from pathlib import Path\n'
+        + 'code = subprocess.call([' + repr(sys.executable) + '] + sys.argv[1:])\n'
+        + 'if code == 0 and len(sys.argv) > 2 and sys.argv[2] == "create":\n'
+        + '    Path(os.environ["TEST_BACKUP_TARGET"]).mkdir()\n'
+        + 'raise SystemExit(code)\n',
+        encoding='utf-8',
+    )
+    wrapper.chmod(0o700)
+    env = {
+        **os.environ,
+        'PATH': f"{bindir}:{os.environ['PATH']}",
+        'YIKE_PILOT_DATABASE_URL': 'postgresql://example.invalid/pilot',
+        'YIKE_PILOT_BACKUP_PASSPHRASE_FILE': str(secret),
+        'TEST_BACKUP_TARGET': str(backup),
+    }
+
+    result = subprocess.run(
+        ['bash', str(ROOT / 'scripts/backup_pilot.sh'), str(backup)],
+        env=env, capture_output=True, text=True,
+    )
+
+    assert result.returncode != 0
+    assert backup.is_dir()
+    assert list(backup.iterdir()) == []
+    assert not Path(str(backup) + '.mac').exists()
+
+
+def test_backup_rejects_repository_destination_before_creating_temp_files(tmp_path):
+    repo = tmp_path / 'repo'
+    scripts = repo / 'scripts'
+    scripts.mkdir(parents=True)
+    shutil.copy2(ROOT / 'scripts/backup_pilot.sh', scripts)
+    shutil.copy2(ROOT / 'scripts/backup_auth.py', scripts)
+    secret = _secret_file(tmp_path)
+    bindir = _fake_pg_tools(tmp_path)
+    backup = repo / 'pilot.dump.enc'
+    env = {
+        **os.environ,
+        'PATH': f"{bindir}:{os.environ['PATH']}",
+        'YIKE_PILOT_DATABASE_URL': 'postgresql://example.invalid/pilot',
+        'YIKE_PILOT_BACKUP_PASSPHRASE_FILE': str(secret),
+    }
+
+    result = subprocess.run(
+        ['bash', str(scripts / 'backup_pilot.sh'), str(backup)],
+        env=env, capture_output=True, text=True,
+    )
+
+    assert result.returncode != 0
+    assert not backup.exists()
+    assert not list(repo.glob('.yike-backup.*'))
+
+
+def test_snapshot_helper_rejects_repository_target_without_writing_secret(tmp_path):
+    repo = tmp_path / 'repo'
+    scripts = repo / 'scripts'
+    scripts.mkdir(parents=True)
+    helper = scripts / 'backup_auth.py'
+    shutil.copy2(ROOT / 'scripts/backup_auth.py', helper)
+    secret = _secret_file(tmp_path)
+    snapshot = repo / 'passphrase.snapshot'
+
+    result = subprocess.run(
+        [sys.executable, str(helper), 'snapshot', str(secret), str(snapshot)],
+        capture_output=True, text=True,
+    )
+
+    assert result.returncode != 0
+    assert not snapshot.exists()
