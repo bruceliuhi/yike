@@ -9,6 +9,7 @@ export interface DeviceIdentityControllerOptions {
     request(input: unknown): Promise<ApiResult>;
     requestDevice(input: unknown): Promise<ApiResult>;
     requestExecution?(input: unknown): Promise<ApiResult>;
+    requestCandidate?(input: unknown): Promise<ApiResult>;
   };
   identityFactory(transport: {requestDevice(input: unknown): Promise<ApiResult>}): {
     prepare(session: DeviceIdentitySessionInput, retry: DeviceIdentityRetry): Promise<DeviceIdentityResult>;
@@ -16,6 +17,17 @@ export interface DeviceIdentityControllerOptions {
 }
 export type AuthenticatedSessionResult<T> = {ok: true; value: T} |
   {ok: false; state: 'SIGNED_OUT' | 'SESSION_CHANGED' | 'BUSY' | 'FAILED'};
+export type DeviceWorkerScope = {
+  session: DeviceIdentitySessionInput;
+  device: {deviceId: string; credentialVersion: number};
+  transport: {
+    requestExecution(input: unknown): Promise<ApiResult>;
+    requestCandidate(input: unknown): Promise<ApiResult>;
+  };
+  close(): void;
+};
+export type DeviceWorkerScopeResult = {ok: true; scope: DeviceWorkerScope} |
+  {ok: false; state: 'SIGNED_OUT' | 'SESSION_CHANGED' | 'BUSY' | 'FAILED' | 'DEVICE_NOT_READY'};
 
 const authenticatedSessionSchema = z.object({
   authenticated: z.literal(true),
@@ -48,7 +60,7 @@ export function createDeviceIdentityController({service, identityFactory}: Devic
     userId = null;
     observe(value);
   }
-  return {
+  const controller = {
     async withAuthenticatedSession<T>(action: (session: DeviceIdentitySessionInput) => Promise<T>): Promise<AuthenticatedSessionResult<T>> {
       if (preparing || authPending > 0) return {ok: false, state: 'BUSY'};
       preparing = true;
@@ -78,6 +90,38 @@ export function createDeviceIdentityController({service, identityFactory}: Devic
         return {ok: true, value};
       } catch {return {ok: false, state: current() ? 'FAILED' : 'SESSION_CHANGED'};}
       finally {activeAuthenticatedEpoch = null; preparing = false;}
+    },
+    async openWorkerScope(): Promise<DeviceWorkerScopeResult> {
+      // Authentication and READY capture share only the short opening mutex.
+      const opened = await controller.withAuthenticatedSession(async session => {
+        if (status.state !== 'READY') return null;
+        const requestEpoch = session.sessionId;
+        let closed = false;
+        const current = () => !closed && requestEpoch === epoch;
+        async function request(family: 'requestExecution' | 'requestCandidate', input: unknown): Promise<ApiResult> {
+          if (!current()) return {ok: false, status: 0, error: 'SESSION_CHANGED'};
+          const send = service[family];
+          if (!send) return {ok: false, status: 0, error: 'SERVICE_UNAVAILABLE'};
+          try {
+            const response = await send.call(service, input);
+            if (!current()) return {ok: false, status: 0, error: 'SESSION_CHANGED'};
+            if (response.status === 401) invalidate({state: 'SIGNED_OUT'}, requestEpoch);
+            return response;
+          } catch {return {ok: false, status: 0, error: current() ? 'SERVICE_UNAVAILABLE' : 'SESSION_CHANGED'};}
+        }
+        const scope: DeviceWorkerScope = {
+          session: {...session, isCurrent: current},
+          device: {deviceId: status.deviceId, credentialVersion: status.credentialVersion},
+          transport: {
+            requestExecution: input => request('requestExecution', input),
+            requestCandidate: input => request('requestCandidate', input),
+          },
+          close() {closed = true;},
+        };
+        return scope;
+      });
+      if (!opened.ok) return opened;
+      return opened.value ? {ok: true, scope: opened.value} : {ok: false, state: 'DEVICE_NOT_READY'};
     },
     async requestExecution(input: unknown): Promise<ApiResult> {
       // A stale action must not capture a newer global epoch for its next private request.
@@ -165,4 +209,5 @@ export function createDeviceIdentityController({service, identityFactory}: Devic
     // Historical local observation only; consumers must not treat this as execution authorization.
     getStatus(): DeviceIdentityStatus {return {...status};},
   };
+  return controller;
 }
