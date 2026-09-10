@@ -42,7 +42,7 @@ export function createNativeOutreachController(options:NativeOutreachControllerO
   const now=options.now??Date.now;
   let active:Flow|null=null,busy=false,closed=false,poisoned=false;
   // One body-free timeout proof, valid only for the same still-current original session/device.
-  let expired:{id:string;binding:NativeOutreachBinding;session:DeviceWorkerScope['session'];device:DeviceWorkerScope['device']}|null=null;
+  let expired:{id:string;binding:NativeOutreachBinding;userId:string;sessionId:string;deviceId:string;credentialVersion:number}|null=null;
   function scopeGuard(scope:DeviceWorkerScope) {
     const status=options.identity.getStatus();
     if(closed || !scope.signal || scope.signal.aborted || !scope.session.isCurrent() || status.state!=='READY' ||
@@ -175,7 +175,8 @@ export function createNativeOutreachController(options:NativeOutreachControllerO
           f.timer=setInterval(()=>{try{guard(f);}catch(error){
             const timedOut=error instanceof Failure && error.code==='FLOW_EXPIRED' && !f.used;
             void stopFlow(f).then(()=>{
-              if(timedOut && !f.applyStarted && !f.cancelledByUser)expired={id:f.id,binding:f.binding,session:f.scope.session,device:f.scope.device};
+              if(timedOut && !f.applyStarted && !f.cancelledByUser)expired={id:f.id,binding:f.binding,
+                userId:f.scope.session.userId,sessionId:f.scope.session.sessionId,deviceId:f.scope.device.deviceId,credentialVersion:f.scope.device.credentialVersion};
             }).catch(()=>{});
           }},100);f.timer.unref?.();
           return {state:'PREPARED',flowId:f.id,binding:f.binding,context:f.context};
@@ -184,9 +185,12 @@ export function createNativeOutreachController(options:NativeOutreachControllerO
           const f=active;
           if(!f || f.id!==command.flowId || f.used){
             if(expired?.id===command.flowId){
-              const proof=expired;expired=null;const device=options.identity.getStatus();
-              if(proof.session.isCurrent() && device.state==='READY' && device.deviceId===proof.device.deviceId &&
-                device.credentialVersion===proof.device.credentialVersion)return {state:'NOT_SUBMITTED',binding:proof.binding,error:'FLOW_EXPIRED'};
+              const proof=expired;expired=null;
+              const opened=await options.identity.openWorkerScope();if(!opened.ok)return failed('DEVICE_NOT_READY');
+              scope=opened.scope;scopeGuard(scope);
+              if(scope.session.userId===proof.userId && scope.session.sessionId===proof.sessionId &&
+                scope.device.deviceId===proof.deviceId && scope.device.credentialVersion===proof.credentialVersion)
+                return {state:'NOT_SUBMITTED',binding:proof.binding,error:'FLOW_EXPIRED'};
             }
             return failed('INVALID_REQUEST');
           }
