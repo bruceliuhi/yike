@@ -24,7 +24,7 @@ const sourceSchema=z.object({schemaVersion:z.literal('reply-sync-context-v1'),co
 const rowsSchema=z.object({items:z.array(connectionRegistryRowSchema).max(10000)}).strict();
 const hash=(value:unknown)=>createHash('sha256').update(canonicalJson(value)).digest('hex');
 class Failure extends Error {constructor(readonly code:NativeReplyError){super(code);}}
-const fail=(code:NativeReplyError):never=>{throw new Failure(code);};
+function fail(code:NativeReplyError):never {throw new Failure(code);}
 const failed=(error:NativeReplyError,recorded=0):NativeReplyResult=>({state:'FAILED',error,recorded});
 function freeze<T>(value:T):T {if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;}
 // Pydantic normalizes UTC timestamps to zero or six fractional digits. Preserve

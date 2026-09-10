@@ -1,5 +1,6 @@
 import {expect,it,vi} from 'vitest';
 import {createHash,generateKeyPairSync,randomUUID,verify} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
 import {createNativeReplyController} from '../src/main/nativeReplyController';
 import {canonicalJson} from '../src/main/outreachDispatchSigner';
 const hash=(x:unknown)=>createHash('sha256').update(canonicalJson(x)).digest('hex');
@@ -54,6 +55,15 @@ it('reads exact original root then stops, signs original request and records par
 });
 it('accepts server semantic deduplication without reporting new replies',async()=>{
  const f=fixture();f.dedup();expect(await f.controller.execute(f.command)).toMatchObject({state:'SYNCED',recorded:1});await f.controller.stop();
+});
+it.skipIf(!process.env.YIKE_REPLY_PYTHON)('preserves real Python reply contract canonical timestamps including microseconds',async()=>{
+ const f=fixture(),stamp=new Date().toISOString().replace('Z','456+00:00');
+ f.batch.items[0].receivedAt=stamp;f.batch.items[0].observedAt=stamp;
+ expect(await f.controller.execute(f.command)).toMatchObject({state:'SYNCED'});
+ const canonical=execFileSync(process.env.YIKE_REPLY_PYTHON!,['-c',
+  'import sys,json; from pilot.reply_contract import PlatformReplyEvent; print(json.dumps(PlatformReplyEvent.model_validate(json.load(sys.stdin)).model_dump(),ensure_ascii=False,sort_keys=True,separators=(",",":")))'],
+  {cwd:process.cwd().endsWith('/desktop')?'..':process.cwd(),input:JSON.stringify(f.events[0]),encoding:'utf8'}).trim();
+ expect(canonical).toBe(canonicalJson(f.events[0]));await f.controller.stop();
 });
 it.each(['owner','opportunity','digest','connection','profile'] as const)('rejects mismatched %s before any browser opens',async kind=>{
  const f=fixture();
