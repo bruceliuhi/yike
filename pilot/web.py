@@ -48,7 +48,7 @@ def _page(title: str, body: str) -> HTMLResponse:
 def build_app(store, *, auth_secret: str, dev_login: bool = False,
               phone_auth=None, sms_sender=None, execution_runtime=None, candidate_ingestion=None,
               candidate_review=None, research_strategies=None, reply_store=None, contact_drafts=None,
-              outreach_queue=None, materials=None, monitor_plans=None) -> FastAPI:
+              outreach_queue=None, materials=None, monitor_plans=None, monitor_runtime=None) -> FastAPI:
     app = FastAPI(
         title="意客 AI 客户试用",
         docs_url=None,
@@ -293,6 +293,7 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False,
                     contact_drafts=contact_drafts,
                     materials=materials,
                     monitor_plans=monitor_plans,
+                    monitor_runtime=monitor_runtime,
                     outreach_queue=outreach_queue,
                     candidate_ingestion=candidate_ingestion, candidate_review=candidate_review,
                     research_strategies=research_strategies, reply_store=reply_store)

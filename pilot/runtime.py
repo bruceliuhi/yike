@@ -13,6 +13,7 @@ from pilot.contact_drafts import ContactDraftStore
 from pilot.materials import MaterialStore
 from pilot.material_model import MaterialExtractionModel
 from pilot.monitor_plans import MonitorPlanStore
+from pilot.monitor_runtime import MonitorRuntime
 from pilot.outreach_queue import OutreachQueueStore
 from pilot.db import PilotDatabase
 from pilot.execution_runtime import ExecutionRuntime
@@ -63,6 +64,8 @@ def build_runtime_app(
     strategies = ResearchStrategyStore(database)
     runtime = ExecutionRuntime(database, strategy_resolver=strategies.resolve,
                                capability_check=configured_collection_policy(environment))
+    monitor = MonitorRuntime(database, execution_runtime=runtime)
+    runtime.monitor_runtime = monitor
     ingestion = CandidateIngestionStore(database, execution_runtime=runtime)
     review = CandidateReviewStore(
         database,
@@ -87,6 +90,7 @@ def build_runtime_app(
         candidate_review=review,
         research_strategies=strategies,
         monitor_plans=MonitorPlanStore(database, strategy_resolver=strategies.resolve),
+        monitor_runtime=monitor,
         reply_store=replies,
         contact_drafts=drafts,
         materials=MaterialStore(database, model=MaterialExtractionModel(model) if model is not None else None),

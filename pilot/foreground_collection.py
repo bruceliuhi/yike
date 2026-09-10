@@ -30,14 +30,32 @@ def configured_collection_policy(environment):
         return foreground_collection_policy
     if mode == 'three-platform-foreground-v1':
         return three_platform_collection_policy
+    if mode == 'three-platform-monitor-v1':
+        return three_platform_monitor_policy
     raise RuntimeError('invalid_collection_configuration')
+
+
+def three_platform_monitor_policy(platform, access_mode, configuration):
+    """Backend support only; monitor START separately requires a reserved slot."""
+    try:
+        parsed = ResearchStrategyConfiguration.model_validate(configuration)
+    except (ValidationError, ValueError, TypeError, RecursionError):
+        return False
+    if parsed.mode == 'once':
+        return three_platform_collection_policy(platform, access_mode, configuration)
+    if getattr(parsed.schedule, 'policyVersion', None) != 1:
+        return False
+    # Validate the same search surface without modifying the stored strategy
+    # snapshot, its digest, or the execution request's monitor intent.
+    search = parsed.model_dump(mode='json') | {'mode': 'once', 'schedule': None}
+    return three_platform_collection_policy(platform, access_mode, search)
 
 
 def foreground_collection_support(runtime, claims):
     with runtime.database.connect() as connection, connection.cursor() as cursor:
         runtime._active(cursor, claims)
         mode = 'xhs-foreground-v1' if runtime.capability_check is foreground_collection_policy else None
-        if runtime.capability_check is three_platform_collection_policy:
+        if runtime.capability_check in (three_platform_collection_policy, three_platform_monitor_policy):
             mode = 'three-platform-foreground-v1'
         runtime._active(cursor, claims)
         return {'schema_version':'foreground-collection-support-v1', 'mode':mode}
