@@ -6,6 +6,7 @@ import {validatedCandidateOperation} from './candidateServicePolicy';
 import {validatedConnectionOperation} from './connectionServicePolicy';
 import {validatedOutreachDispatchOperation} from './outreachDispatchProtocol';
 import {validatedOutreachConfirmationOperation} from './outreachConfirmationProtocol';
+import {validatedNativeReplyOperation} from './nativeReplyProtocol';
 
 export function configuredService(
   input: string | undefined,
@@ -133,6 +134,6 @@ export function createServiceClient(options: ServiceClientOptions): {
     requestExecution(input) { return enqueue(validatedExecutionOperation(input)); },
     requestCandidate(input) { return enqueue(validatedCandidateOperation(input)); },
     requestConnection(input) { return enqueue(validatedConnectionOperation(input)); },
-    requestOutreach(input) { return enqueue(validatedOutreachDispatchOperation(input) ?? validatedOutreachConfirmationOperation(input)); },
+    requestOutreach(input) { return enqueue(validatedOutreachDispatchOperation(input) ?? validatedOutreachConfirmationOperation(input) ?? validatedNativeReplyOperation(input)); },
   };
 }

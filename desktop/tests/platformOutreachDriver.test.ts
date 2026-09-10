@@ -26,6 +26,26 @@ async function fixture(){
   const signal=new AbortController();
   return {driver,child,context,observation,frame,operation,outcome,signal,spawn};
 }
+it('reads a large reply result through the same checked host without EXECUTE and waits for clean close',async()=>{
+ const f=await fixture(),check=f.driver.check(f.context,f.signal.signal);await tick();f.child.stdin.read();
+ f.frame({schema_version,state:'READY',observation:f.observation});await check;
+ const input={rootCommentId:'d'.repeat(24),claimedAt:new Date(Date.now()-60000).toISOString()};
+ let finished=false;const pending=f.driver.readReplies(f.context,input,f.signal.signal).then(value=>{finished=true;return value;});
+ const sent=JSON.parse(f.child.stdin.read().toString());expect(sent).toEqual({schema_version,action:'READ_REPLIES',operation:input});
+ const item={externalReplyId:'e'.repeat(24),senderPublicId:author,body:'询'.repeat(8000),receivedAt:new Date().toISOString(),observedAt:new Date().toISOString(),readState:'UNKNOWN'};
+ const outcome={status:'PARTIAL',items:[item,{...item,externalReplyId:'f'.repeat(24)}]};
+ f.frame({schema_version,state:'RESULT',outcome,cleanupConfirmed:true});await tick();expect(finished).toBe(false);
+ f.child.emit('close',0,null);expect(await pending).toEqual(outcome);expect(f.driver.cleanupConfirmed()).toBe(true);
+ await expect(f.driver.execute(f.context,f.operation,f.signal.signal)).rejects.toThrow();
+});
+it('does not publish replies when host cleanup was not confirmed',async()=>{
+ const f=await fixture(),check=f.driver.check(f.context,f.signal.signal);await tick();f.child.stdin.read();
+ f.frame({schema_version,state:'READY',observation:f.observation});await check;
+ const pending=f.driver.readReplies(f.context,{rootCommentId:'d'.repeat(24),claimedAt:new Date().toISOString()},f.signal.signal);
+ const rejected=expect(pending).rejects.toThrow('OUTREACH_HOST_FAILED');
+ f.frame({schema_version,state:'RESULT',outcome:{status:'COMPLETE',items:[]},cleanupConfirmed:false});f.child.emit('close',0,null);
+ await rejected;expect(f.driver.cleanupConfirmed()).toBe(false);
+});
 it('keeps one fixed host alive between CHECK and one EXECUTE, waits close for result',async()=>{
   const f=await fixture();const check=f.driver.check(f.context,f.signal.signal);await tick();
   const request=JSON.parse(f.child.stdin.read().toString());expect(request).toMatchObject({action:'CHECK',schema_version,context:f.context});

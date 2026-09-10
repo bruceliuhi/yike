@@ -5,6 +5,7 @@ import {randomUUID} from 'node:crypto';
 import {lstatSync} from 'node:fs';
 import {win32 as path} from 'node:path';
 import type {PlatformLoginDriverOptions} from './platformLoginDriver';
+import {nativeReplyReadSchema,parseNativeReplyBatch,type NativeReplyRead,type NativeReplyBatch} from './nativeReplyProtocol';
 import {parseNativeOutreachContext,parseNativeOutreachObservation,parseNativeOutreachOutcome,
   type NativeOutreachChannel,type NativeOutreachOutcome,type OutreachContext} from './outreachConsumer';
 
@@ -38,6 +39,7 @@ function decode(bytes:Buffer):Record<string,unknown>{
 
 export function createPlatformOutreachDriver(options:Options):NativeOutreachChannel & {
   stop():Promise<void>;cleanupConfirmed():boolean;
+  readReplies(context:Readonly<OutreachContext>,operation:NativeReplyRead,signal:AbortSignal):Promise<NativeReplyBatch>;
 }{
   const owned={...options,connection:{...options.connection}},launch=owned.spawn??spawn;
   let child:ChildProcessWithoutNullStreams|undefined;
@@ -45,6 +47,7 @@ export function createPlatformOutreachDriver(options:Options):NativeOutreachChan
   let snapshot:OutreachContext|undefined,contextWire:string|undefined;
   let observation:ReturnType<typeof parseNativeOutreachObservation>|undefined;
   let receipt:NativeOutreachOutcome|undefined,terminalClean=false,terminal=false;
+  let readOperation:NativeReplyRead|undefined,replyBatch:NativeReplyBatch|undefined;
   let timer:ReturnType<typeof setTimeout>|undefined,grace:ReturnType<typeof setTimeout>|undefined;
   const signals=new Set<AbortSignal>();
   let resolveCheck!:(value:unknown)=>void,rejectCheck!:(error:Error)=>void;
@@ -98,12 +101,13 @@ export function createPlatformOutreachDriver(options:Options):NativeOutreachChan
         active.on('error',invalid);active.stdin.on('error',invalid);active.stdout.on('error',invalid);active.stderr.on('error',invalid);
         active.stdout.on('data',(chunk:Buffer)=>{
           if(settled||protocolBad)return;
-          total+=chunk.length;if(total>32768){invalid();return;}
+          total+=chunk.length;if(total>(readOperation?524288+32768:32768)){invalid();return;}
           pending=Buffer.concat([pending,chunk]);
           try{
             let end:number;
             while((end=pending.indexOf(10))>=0){
               if(terminal)throw failure();
+              if(end>(readOperation?524288:32768))throw failure();
               const frame=decode(pending.subarray(0,end));pending=pending.subarray(end+1);
               const keys=Object.keys(frame).sort().join(',');
               if(frame.state==='READY'&&keys==='observation,schema_version,state'&&!ready&&!executed&&!stopping){
@@ -113,9 +117,14 @@ export function createPlatformOutreachDriver(options:Options):NativeOutreachChan
                 if(observation.contextSha256!==c.contextSha256||observation.deviceId!==c.connection.deviceId||observation.connectionId!==c.connection.connectionId||observation.connectionVersion!==c.connection.connectionVersion||observation.accountPublicId!==c.connection.accountPublicId||observation.recipientId!==c.target.authorPublicId||age< -5000||age>5000)throw failure();
                 ready=true;resolveCheck({...observation});
               }else if(frame.state==='RESULT'&&keys==='cleanupConfirmed,outcome,schema_version,state'&&ready&&typeof frame.cleanupConfirmed==='boolean'){
-                const value=parseNativeOutreachOutcome(frame.outcome);
-                if(!executed&&(!stopping||value.status!=='UNKNOWN'))throw failure();
-                receipt=value;terminalClean=frame.cleanupConfirmed;terminal=true;
+                if(readOperation){
+                  replyBatch=parseNativeReplyBatch(frame.outcome,snapshot!.target.authorPublicId,readOperation.claimedAt);
+                }else{
+                  const value=parseNativeOutreachOutcome(frame.outcome);
+                  if(!executed&&(!stopping||value.status!=='UNKNOWN'))throw failure();
+                  receipt=value;
+                }
+                terminalClean=frame.cleanupConfirmed;terminal=true;
               }else if(frame.state==='FAILED'&&keys==='error_code,schema_version,state'&&frame.error_code==='OUTREACH_HOST_FAILED'){
                 terminal=true;
               }else throw failure();
@@ -140,6 +149,17 @@ export function createPlatformOutreachDriver(options:Options):NativeOutreachChan
         executed=true;watch(signal);write({schema_version:SCHEMA,action:'EXECUTE',operation:{requestId,claimId,dispatchBefore}});
       }catch{stopRequested();throw failure();}
       return result;
+    },
+    async readReplies(context,operation,signal){
+      try{
+        if(!ready||executed||stopping||settled||signal.aborted||JSON.stringify(parseNativeOutreachContext(context))!==contextWire)throw failure();
+        readOperation=nativeReplyReadSchema.parse(operation);
+        if(Date.parse(readOperation.claimedAt)>Date.now()+5000)throw failure();
+        executed=true;watch(signal);write({schema_version:SCHEMA,action:'READ_REPLIES',operation:readOperation});
+        await result;
+        if(!clean||!replyBatch||signal.aborted)throw failure();
+        return replyBatch;
+      }catch{stopRequested();throw failure();}
     },
     async stop(){stopRequested();await result;if(!clean)throw failure();},
     cleanupConfirmed:()=>clean,

@@ -20,7 +20,7 @@ const base = {
   corrects_event_id: uuid.nullable(),
   reason: text(1024).nullable(),
 };
-const platformEvent = z
+export const platformEvent = z
   .object({
     ...base,
     kind: z.literal("PLATFORM_REPLY"),
