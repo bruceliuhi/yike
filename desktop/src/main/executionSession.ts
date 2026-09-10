@@ -22,7 +22,7 @@ export type ExecutionSessionResult =
   | {state: 'RECORDED'; receipt: ExecutionReceipt}
   | {state: 'UNKNOWN'; requestId: string}
   | {state: 'LIST'; requests: ExecutionOperation[]}
-  | {state: 'SESSION_CHANGED' | 'BUSY' | 'NOT_FOUND' | 'KEY_MISSING'}
+  | {state: 'SESSION_CHANGED' | 'BUSY' | 'NOT_FOUND' | 'KEY_MISSING' | 'DEVICE_NOT_READY'}
   | {state: 'FAILED'; error: 'EXECUTION_SESSION_FAILED'};
 const sessionSchema = z.object({
   userId: z.string().min(1).refine(v => Array.from(v).length <= 256 && v === v.trim() &&
@@ -32,6 +32,7 @@ const sessionSchema = z.object({
 }).strict();
 const changed = Symbol('session changed');
 const failed = (): ExecutionSessionResult => ({state: 'FAILED', error: 'EXECUTION_SESSION_FAILED'});
+const deviceBindingSchema = z.object({deviceId: deviceUuidSchema, credentialVersion: z.number().int().min(1).max(2_147_483_647)}).strict();
 
 /** Main-only coordinator. Callers supply an authenticated, epoch-guarded session, never renderer identity. */
 export function createExecutionSession(options: ExecutionSessionOptions) {
@@ -107,14 +108,20 @@ export function createExecutionSession(options: ExecutionSessionOptions) {
         return saved.created ? context.apply(original) : context.recover(original, false);
       });
     },
-    recover(session: DeviceIdentitySessionInput, inputId: unknown, inputRetry: unknown = false): Promise<ExecutionSessionResult> {
-      let requestId: string; let retry: boolean;
-      try {requestId = deviceUuidSchema.parse(inputId); retry = z.boolean().parse(inputRetry);} catch {return Promise.resolve(failed());}
+    recover(session: DeviceIdentitySessionInput, inputId: unknown, inputRetry: unknown = false, inputDevice?: unknown): Promise<ExecutionSessionResult> {
+      let requestId: string; let retry: boolean; let device: z.infer<typeof deviceBindingSchema> | undefined;
+      try {
+        requestId = deviceUuidSchema.parse(inputId); retry = z.boolean().parse(inputRetry);
+        device = retry ? deviceBindingSchema.parse(inputDevice) : undefined;
+      } catch {return Promise.resolve(failed());}
       return run(session, async context => {
         const saved = await context.checked(() => journal.read(context.scope, requestId));
         if (!saved) return {state: 'NOT_FOUND'};
         const request = executionOperationSchema.parse(saved);
         if (request.request_id !== requestId) throw new Error();
+        if (retry && (request.device_id !== device!.deviceId || request.credential_version !== device!.credentialVersion)) {
+          return {state: 'DEVICE_NOT_READY'};
+        }
         return context.recover(request, retry);
       });
     },

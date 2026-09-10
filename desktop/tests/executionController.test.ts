@@ -19,7 +19,7 @@ const ok = (data: unknown): ApiResult => ({ok: true, status: 200, data});
 const auth = () => ok({authenticated: true, user_id: 'TEST-owner'});
 function fixture() {
   const state = {
-    publicCalls: [] as unknown[], calls: [] as {method: string; session: DeviceIdentitySessionInput; request?: unknown; retry?: unknown}[],
+    publicCalls: [] as unknown[], calls: [] as {method: string; session: DeviceIdentitySessionInput; request?: unknown; retry?: unknown; device?: unknown}[],
     sessionRead: async (): Promise<ApiResult> => auth(),
     result: {state: 'UNKNOWN', requestId} as ExecutionSessionResult,
     execute: async (): Promise<ExecutionSessionResult> => state.result,
@@ -29,7 +29,7 @@ function fixture() {
   }, identityFactory: () => ({async prepare() {return ready;}})});
   const execution = {
     async submit(session: DeviceIdentitySessionInput, request: unknown) {state.calls.push({method: 'submit', session, request}); return state.execute();},
-    async recover(session: DeviceIdentitySessionInput, request: unknown, retry?: unknown) {state.calls.push({method: 'recover', session, request, retry}); return state.execute();},
+    async recover(session: DeviceIdentitySessionInput, request: unknown, retry?: unknown, device?: unknown) {state.calls.push({method: 'recover', session, request, retry, device}); return state.execute();},
     async list(session: DeviceIdentitySessionInput) {state.calls.push({method: 'list', session}); return state.execute();},
   };
   return {state, identity, controller: createExecutionController({identity, execution})};
@@ -53,12 +53,23 @@ describe('narrow desktop execution controller', () => {
     f.state.sessionRead = async () => ok({authenticated: true, user_id: 'TEST-other'});
     expect(await f.controller.execute(start)).toEqual({state: 'DEVICE_NOT_READY'}); expect(f.state.calls).toEqual([]);
   });
-  it.each([{action: 'LIST'}, {action: 'RECOVER', requestId}, {action: 'RECOVER', requestId, retry: true, humanConfirmed: true}])('allows historical $action without READY and never substitutes the original operation', async command => {
+  it.each([{action: 'LIST'}, {action: 'RECOVER', requestId}])('allows read-only historical $action without READY and never substitutes the original operation', async command => {
     const f = fixture(); expect(await f.controller.execute(command)).toEqual({state: 'UNKNOWN', requestId});
     expect(f.state.calls).toHaveLength(1); const call = f.state.calls[0];
     expect(call.method).toBe(command.action === 'LIST' ? 'list' : 'recover');
     if (command.action === 'RECOVER') {expect(call.request).toBe(requestId); expect(call.retry).toBe('retry' in command ? true : false);}
     expect(f.identity.getStatus()).toEqual({state: 'NOT_PREPARED'});
+  });
+  it('requires a current READY identity for an explicit mutating retry', async () => {
+    const f = fixture();
+    expect(await f.controller.execute({action: 'RECOVER', requestId, retry: true, humanConfirmed: true})).toEqual({state: 'DEVICE_NOT_READY'});
+    expect(f.state.calls).toEqual([]);
+  });
+  it('passes the freshly authenticated READY device binding to an original-request retry', async () => {
+    const f = fixture(); expect(await f.identity.prepare()).toEqual(ready);
+    expect(await f.controller.execute({action: 'RECOVER', requestId, retry: true, humanConfirmed: true})).toEqual({state: 'UNKNOWN', requestId});
+    expect(f.state.calls).toEqual([expect.objectContaining({method: 'recover', request: requestId, retry: true,
+      device: {deviceId, credentialVersion: 3}})]);
   });
   it.each([null, [], {}, {action: 'CLAIM'}, {action: 'RENEW'}, {...start, deviceId}, {...start, credentialVersion: 9}, {...start, userId: 'forged'}, {...start, humanConfirmed: false}, {...cancel, sessionId: requestId}, {action: 'RECOVER', requestId, retry: true}, {action: 'LIST', url: 'https://other.example'}])('rejects malformed or privileged command %# before authentication or storage', async command => {
     const f = fixture(); expect(await f.controller.execute(command)).toEqual({state: 'INVALID_REQUEST'});

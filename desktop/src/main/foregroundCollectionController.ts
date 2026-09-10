@@ -265,7 +265,7 @@ export function createForegroundCollectionController(options:Options) {
       const request=original??executionOperationSchema.parse({schema_version:'execution-runtime-v1',operation:'FINISH',request_id:randomUUID(),
        device_id:batch.execution.device_id,credential_version:batch.execution.credential_version,task_id:batch.execution.task_id,platform_run_id:batch.execution.platform_run_id,
        lease_id:batch.execution.lease_id,execution_generation:batch.execution.execution_generation,upload_request_id:batch.request_id});
-      const finish=original?await sessions.execution.recover(scope.session,original.request_id,command.retry??false):await sessions.execution.submit(scope.session,request);guard(scope);
+      const finish=original?await sessions.execution.recover(scope.session,original.request_id,command.retry??false,scope.device):await sessions.execution.submit(scope.session,request);guard(scope);
       if(finish.state==='RECORDED'){
        const receipt=parseExecutionReceipt(finish.receipt,request);if(receipt.operation!=='FINISH')throw new Error();
        local.set(localKey(scope,command.taskId),{state:'COMPLETED',taskCompleted:receipt.status==='SUCCEEDED' && receipt.stop_confirmed,requestId:request.request_id,

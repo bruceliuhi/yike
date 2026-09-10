@@ -82,14 +82,36 @@ describe('durable original execution session', () => {
     expect(await client.recover(f.session, id)).toEqual({state: 'UNKNOWN', requestId: id});
     expect(f.events).not.toContain('execution.apply');
     f.options.transport.requestExecution.mockResolvedValueOnce(missing);
-    expect(await client.recover(f.session, id, true)).toEqual({state: 'RECORDED', receipt: f.receipt});
+    expect(await client.recover(f.session, id, true, {deviceId: id, credentialVersion: 1})).toEqual({state: 'RECORDED', receipt: f.receipt});
     expect(f.events).toContain('execution.prepare');
+  });
+  it.each([
+    {deviceId: task, credentialVersion: 1},
+    {deviceId: id, credentialVersion: 2},
+  ])('rejects mutating retry when current READY binding differs from the original journal request %#', async device => {
+    const f = fixture(); const client = f.create(); await client.submit(f.session, f.request);
+    f.events.length = 0;
+    expect(await client.recover(f.session, id, true, device)).toEqual({state: 'DEVICE_NOT_READY'});
+    expect(f.events).toEqual(['read']);
+  });
+  it('fences a retry when the authenticated identity changes while receipt lookup is pending', async () => {
+    const f = fixture(); const client = f.create(); await client.submit(f.session, f.request);
+    f.events.length = 0;
+    f.options.transport.requestExecution.mockImplementationOnce(async () => {
+      f.setCurrent(false);
+      return {ok: false, status: 404, error: 'request_not_found'};
+    });
+    expect(await client.recover(f.session, id, true, {deviceId: id, credentialVersion: 1})).toEqual({state: 'SESSION_CHANGED'});
+    expect(f.events).toEqual(['read']);
+    expect(f.options.transport.requestExecution.mock.calls.at(-1)?.[0]).toMatchObject({operation: 'execution.receipt'});
+    expect(f.options.transport.requestExecution.mock.calls.slice(-1).some(([input]) =>
+      input.operation === 'execution.prepare' || input.operation === 'execution.apply')).toBe(false);
   });
   it.each([401, 403, 409, 500])('does not retry recovery HTTP %i', async status => {
     const f = fixture(); const client = f.create(); await client.submit(f.session, f.request);
     f.options.transport.requestExecution.mockResolvedValueOnce({ok: false, status, error: 'request_not_found'});
     f.events.length = 0;
-    expect(await client.recover(f.session, id, true)).toMatchObject({state: 'UNKNOWN'});
+    expect(await client.recover(f.session, id, true, {deviceId: id, credentialVersion: 1})).toMatchObject({state: 'UNKNOWN'});
     expect(f.events).toEqual(['read']);
   });
   it('never fetches after disk failure', async () => {
@@ -122,7 +144,7 @@ describe('durable original execution session', () => {
     expect(await client.list(f.session)).toEqual({state: 'SESSION_CHANGED'});
   });
   it('does not recreate missing original intent on recovery', async () => {
-    const f = fixture(); expect(await f.create().recover(f.session, id, true)).toEqual({state: 'NOT_FOUND'});
+    const f = fixture(); expect(await f.create().recover(f.session, id, true, {deviceId: id, credentialVersion: 1})).toEqual({state: 'NOT_FOUND'});
     expect(f.options.journal.persist).not.toHaveBeenCalled();
     expect(f.options.transport.requestExecution).not.toHaveBeenCalled();
   });
