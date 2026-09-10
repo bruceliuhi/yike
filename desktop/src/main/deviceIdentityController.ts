@@ -36,6 +36,7 @@ export type DeviceWorkerScopeResult = {ok: true; scope: DeviceWorkerScope} |
 
 const authenticatedSessionSchema = z.object({
   authenticated: z.literal(true),
+  account_scope: z.object({id:z.string().uuid().regex(/^[a-f0-9-]+$/),version:z.literal(1)}).strict().optional(),
   user_id: z.string().min(1).refine(value => {
     if (value !== value.trim() || Array.from(value).length > 256 || /[\x00-\x1f]/.test(value)) return false;
     return Array.from(value).every(character => {

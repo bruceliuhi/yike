@@ -39,6 +39,8 @@ import {platformLoginConfiguration} from './platformLoginConfiguration';
 import {NATIVE_OUTREACH_CHANNEL} from '../shared/nativeOutreach';
 import {createNativeOutreachController} from './nativeOutreachController';
 import {createPlatformOutreachDriver} from './platformOutreachDriver';
+import {NATIVE_REPLY_CHANNEL} from '../shared/nativeReply';
+import {createNativeReplyController} from './nativeReplyController';
 import {createOutreachConsumptionJournal} from './outreachConsumptionJournal';
 import {createOutreachResultOutbox} from './outreachResultOutbox';
 import {createPortableBootstrap,publishedPortableStatus} from './portableBootstrap';
@@ -56,6 +58,7 @@ let startupFailed = false;
 let platformConnection:ReturnType<typeof createPlatformConnectionController>|null=null;
 let foregroundCollection:ReturnType<typeof createForegroundCollectionController>|null=null;
 let nativeOutreach:ReturnType<typeof createNativeOutreachController>|null=null;
+let nativeReplies:ReturnType<typeof createNativeReplyController>|null=null;
 let portableBootstrap:ReturnType<typeof createPortableBootstrap>|null=null;
 let runtimeStartup:Promise<void>|null=null;
 let runtimeSetupFailed=false;
@@ -211,6 +214,9 @@ async function startApplication(): Promise<void> {
       outbox:createOutreachResultOutbox({directory:path.join(app.getPath('userData'),'outreach-results'),protection}),
       driver:(context,profileId)=>createPlatformOutreachDriver({...loginConfiguration,outputRoot:outreachOutputRoot,
         profileId,connection:context.connection})});
+    nativeReplies=createNativeReplyController({serviceOrigin:baseUrl,identity,store:profileStore,vault,
+      driver:(context,profileId)=>createPlatformOutreachDriver({...loginConfiguration,outputRoot:outreachOutputRoot,
+        profileId,connection:context.connection})});
   }
   if(loginConfiguration!==null)await attachPlatformRuntime(loginConfiguration);
   const packagedWindows=app.isPackaged&&process.platform==='win32';
@@ -225,6 +231,10 @@ async function startApplication(): Promise<void> {
   ipcMain.handle(NATIVE_OUTREACH_CHANNEL,(event,command:unknown)=>{
     trustedSender(event);
     return nativeOutreach?nativeOutreach.execute(command):{state:'FAILED',error:'OUTREACH_FAILED'};
+  });
+  ipcMain.handle(NATIVE_REPLY_CHANNEL,(event,command:unknown)=>{
+    trustedSender(event);
+    return nativeReplies?nativeReplies.execute(command):{state:'FAILED',error:'SOURCE_UNAVAILABLE',recorded:0};
   });
   ipcMain.handle(PLATFORM_CONNECTION_CHANNEL,(event,command:unknown)=>{
     trustedSender(event);
@@ -306,9 +316,9 @@ async function startApplication(): Promise<void> {
 
 app.on('before-quit', event => {
   quitting = true;
-  if((platformConnection || foregroundCollection || nativeOutreach || portableBootstrap) && !platformStopped) {
+  if((platformConnection || foregroundCollection || nativeOutreach || nativeReplies || portableBootstrap) && !platformStopped) {
     event.preventDefault();
-    if(!platformShutdown)platformShutdown=Promise.allSettled([platformConnection?.shutdown(),foregroundCollection?.shutdown(),nativeOutreach?.stop(),portableBootstrap?.stop(),runtimeStartup]).then(results=>{
+    if(!platformShutdown)platformShutdown=Promise.allSettled([platformConnection?.shutdown(),foregroundCollection?.shutdown(),nativeOutreach?.stop(),nativeReplies?.stop(),portableBootstrap?.stop(),runtimeStartup]).then(results=>{
       if(results.some(r=>r.status==='rejected'))throw new Error('PLATFORM_STOP_UNCONFIRMED');
       platformStopped=true;app.quit();
     }).catch(()=>{

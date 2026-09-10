@@ -73,6 +73,14 @@ describe('narrow shared device identity contract', () => {
 });
 
 describe('main device identity controller', () => {
+  it('accepts the current authenticated account scope DTO and rejects malformed scope', async () => {
+    const f=fixture();
+    f.state.publicHandler=async()=>ok({authenticated:true,user_id:'TEST-owner',account_scope:{id:deviceId,version:1}});
+    expect(await f.controller.prepare()).toEqual(ready);
+    const opened=await f.controller.openWorkerScope();expect(opened.ok).toBe(true);if(opened.ok)opened.scope.close();
+    f.state.publicHandler=async()=>ok({authenticated:true,user_id:'TEST-owner',account_scope:{id:'bad',version:1}});
+    expect((await f.controller.openWorkerScope()).ok).toBe(false);
+  });
   it('starts NOT_PREPARED, reads a real authenticated user and returns only a copied safe status', async () => {
     const f = fixture();
     expect(f.controller.getStatus()).toEqual({state: 'NOT_PREPARED'});
