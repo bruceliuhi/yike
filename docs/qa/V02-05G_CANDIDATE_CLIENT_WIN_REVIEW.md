@@ -142,7 +142,7 @@ Task4产品写入口现已安装；**Task5实际Node→HTTP→受限PostgreSQL�
 - Node24读取当前候选与本人COMMENT原文/父上下文→显式ASSESS→人工OPEN核验→INCLUDE。实际服务成功提交后，仅在fetch边界丢弃回执；GET原请求恢复正确`sourceVerificationId`，没有恢复时自动POST。另显式原ID重放和新ID重复纳入，数据库仅1商机、2决策记录、1分析、1核验，模型调用1次。
 - 实际P11服务读取固定原文、本人作者与父作者、逐字引用、画像/来源版本；原发布时间与观察时间刻意不同，Node比对raw当前观察ID、观察/接收时间，Python再核对原始版本/观察数据库行和固定证据摘要。核验ID在原决策回执持久化中验证，不强行加入本来不含私有核验ID的共享P11快照。
 - 同租户其他用户看不到私有候选/原文/原请求，不能写候选；共享P11投影仍按既定租户权限可读。其他租户不可读P11。退出后的读取、写入和原请求恢复均401；跨租户写入按既定先校验画像顺序返回`409 profile_unavailable`，同租户非owner为`404 candidate_not_found`。
-- 独立新数据库案例分别经真实签名上传改变来源，或确认新版画像；旧来源核验和旧INCLUDE均409，未新增商机/复核记录，不再次调用模型。
+- 同一一次性数据库中的独立租户夹具案例分别经真实签名上传改变来源，或确认新版画像；旧来源核验和旧INCLUDE均409，未新增商机/复核记录，不再次调用模型。
 - 子Node仅允许系统运行环境及本轮HTTP测试值，不含数据库URL/管理员连接/服务端secret。token不进argv/日志，失败输出脱敏；HTTP线程和Node进程均有退出界限。受限角色明确非superuser/BYPASSRLS，候选review表RLS实际有效。
 
 ### 失败、审核与最终执行
@@ -166,3 +166,9 @@ python -X utf8 -m pytest -q -p no:cacheprovider --tb=short -r s tests/test_deskt
 本机Docker原未启动；启动后Computer Use读取错误：`dockerInference`运行时套接字无法访问。正常退出失败后经官方`docker desktop stop --force`停止异常进程，确认停止后把专用run目录移至同级`run.before-candidate-review-20260910`保留，再启动成功，服务端28.3.2。未恢复出厂、删除镜像/业务卷或停止恢复后的其他业务容器。备份为本机运行文件，不入Git。测试结束只清理精确创建的临时PG。
 
 Task1～5限定客户端工程接收已具备证据，Mac原核验ID字段修复取得Win实际消费ACK。**05G整卡、真实来源/收费模型、确认联系/回复、Windows安装发行、生产及客户试用仍未完成，整体Goal不关闭。** 后续Win继续已分配的设备HTTP/原请求恢复与来源worker，再接确认联系和回复；不把这次测试接收当产品可上线。
+
+### Task5 最终主干接收
+
+源码与验收提交`c0bd9f0`，正常保留远端`21f82c0`形成`152abaa11c40e9fbb5f44e39ef62a784b63c62d0`。来件净变更只含P18等历史验收文档；其间迁移改动已由原作者撤回，最终`git diff --exit-code c0bd9f0 HEAD -- desktop tests pilot migrations`退出0，未覆盖双方源码。产品源码也与基线`ca1f28a`相同，旧UI/构建证据不重新冒签。
+
+合入后Win重新启动专用PG跑当前3案例：**3 passed/0 skipped，8.92s**，再次确认精确临时容器移除；不得与前次3项累计。凭据扫描clean、当前diff检查通过，受影响产品与测试字节未变。独立最终文档/提交边界复核PASS；其中“独立新数据库案例”的非阻断措辞已纠正为同库独立租户夹具，避免夸大隔离层级。
