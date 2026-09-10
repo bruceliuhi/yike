@@ -88,6 +88,13 @@ it('unknown claim preserves operation recovery id and never starts a source', as
   expect(f.driver.start).not.toHaveBeenCalled(); expect(f.candidates.submit).not.toHaveBeenCalled();
 });
 
+it('refuses a first CLAIM whose generation proves the platform was claimed before', async () => {
+  const f=fixture();const submit=f.execution.submit.getMockImplementation()!;
+  f.execution.submit.mockImplementationOnce(async(session,request)=>{const result=await submit(session,request);result.receipt.execution_generation=2;return result;});
+  const done=f.run();await tick();expect(f.driver.start).not.toHaveBeenCalled();
+  f.instance.cancel();await tick();expect(await done).toMatchObject({state:'LEASE_UNKNOWN',taskCompleted:false});
+});
+
 it('rejects changed strategy/profile/device/run bindings before source or claim', async () => {
   const f = fixture(); f.strategy.profile_version_id = id(99);
   expect(await f.run()).toMatchObject({state: 'FAILED', error: 'COLLECTION_WORKER_INVALID_INPUT'});

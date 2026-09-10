@@ -132,6 +132,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
         const claimed = await acquire(operation('CLAIM'));
         if (reason) return stoppedResult();
         if (!claimed) return {state: 'LEASE_UNKNOWN', requestId: requestId!, taskCompleted: false};
+        if (claimed.execution_generation !== 1) return {state:'LEASE_UNKNOWN',requestId:claimed.request_id,taskCompleted:false};
         lease = claimed;
         const maxRecords = input.platformMaxRecords??Math.min(strategy.snapshot.max_records, 100);
         process = driver.start({snapshot: structuredClone(strategy.snapshot), target: structuredClone(target),

@@ -48,7 +48,6 @@ export function createForegroundCollectionController(options:Options) {
  let opening=false,shuttingDown=false,stopUnconfirmed=false;
  let openingDone:Promise<void>|null=null,finishOpening:(()=>void)|null=null;
  let capabilityPending:Promise<ForegroundCollectionResult>|null=null;
- const resumeRequests=new Set<string>();
  type Active={taskId:string;userId:string;scope:DeviceWorkerScope;worker:ReturnType<typeof createCollectionWorker>;done:Promise<void>};
  let active:Active|null=null;
  const local=new Map<string,CollectionWorkerResult>();
@@ -207,7 +206,7 @@ export function createForegroundCollectionController(options:Options) {
     command={action:'START',humanConfirmed:true,requestId:original.request_id,profileVersionId:original.profile_version_id,
      strategyVersionId:original.strategy_version_id,configurationSha256:original.configuration_sha256,targets:original.targets};
    }catch{return {state:'SERVICE_UNAVAILABLE'};}finally{scope?.close();}
-   resumeRequests.add(requestId);try{return await controller.start(command);}finally{resumeRequests.delete(requestId);}
+   return controller.start(command);
   },
   async start(raw:unknown):Promise<DesktopExecutionResult>{
    const parsed=desktopExecutionCommandSchema.safeParse(raw);if(!parsed.success || parsed.data.action!=='START')return {state:'INVALID_REQUEST'};
@@ -235,26 +234,30 @@ export function createForegroundCollectionController(options:Options) {
     if(result.state!=='RECORDED')return result;
     const receipt=parseExecutionReceipt(result.receipt,start);if(receipt.operation!=='START'||receipt.platform_runs.length!==command.targets.length||receipt.platform_runs.some((run,index)=>run.platform!==command.targets[index].platform))throw new Error();
     const history=await options.executionJournal.list(journalScope(scope));guard(scope);
-    // Even a CLAIM whose response was lost can have started a source before a crash.
-    const taskHistory=history.filter(r=>r.task_id===receipt.task_id&&r.operation!=='START');let startIndex=0;
-    if(taskHistory.length){
-     if(!resumeRequests.has(command.requestId))return result;
-     const currentTask=await task(scope,receipt.task_id),batches=await batchesFor(scope,receipt.task_id);guard(scope);
-     if(currentTask.profile_version_id!==start.profile_version_id||currentTask.strategy_version_id!==start.strategy_version_id||
-       currentTask.platform_runs.length!==receipt.platform_runs.length||Date.parse(currentTask.deadline_at)<=Date.now()||['CANCELED','CANCELLING','SUCCEEDED'].includes(currentTask.status))throw new Error();
-     startIndex=currentTask.platform_runs.findIndex(run=>run.status==='PENDING');if(startIndex<0)throw new Error();
-     for(let index=0;index<currentTask.platform_runs.length;index++){
-      const run=currentTask.platform_runs[index],runOps=taskHistory.filter(item=>item.platform_run_id===run.platform_run_id),runBatches=batches.filter(batch=>batch.execution.platform_run_id===run.platform_run_id);
-      if(index<startIndex){
-       if(run.status!=='SUCCEEDED'||run.execution_generation<1||runBatches.length!==1)throw new Error();const batch=runBatches[0];
-       if(batch.execution.device_id!==scope.device.deviceId||batch.execution.credential_version!==scope.device.credentialVersion||batch.execution.execution_generation!==run.execution_generation||
-        runOps.filter(item=>item.operation==='CLAIM').length!==1)throw new Error();
-       const finishes=runOps.filter(item=>item.operation==='FINISH'&&item.upload_request_id===batch.request_id);if(finishes.length!==1)throw new Error();
-       const recovered=await sessions.execution.recover(scope.session,finishes[0].request_id,false,scope.device);guard(scope);
-       if(recovered.state!=='RECORDED'){return result;}const verified=parseExecutionReceipt(recovered.receipt,finishes[0]);
-       if(verified.operation!=='FINISH'||verified.status!=='SUCCEEDED'||!verified.stop_confirmed)throw new Error();
-      }else if(run.status!=='PENDING'||run.execution_generation!==0||run.records_used!==0||runOps.length||runBatches.length)throw new Error();
-     }
+    // Local absence is never evidence that a source was not executed: bind every launch to current generation zero.
+    const taskHistory=history.filter(r=>r.task_id===receipt.task_id&&r.operation!=='START');
+    const currentTask=await task(scope,receipt.task_id),batches=await batchesFor(scope,receipt.task_id);guard(scope);
+    if(currentTask.run_id!==receipt.run_id||currentTask.profile_version_id!==start.profile_version_id||currentTask.strategy_version_id!==start.strategy_version_id||
+      currentTask.max_records!==snapshot.max_records||currentTask.platform_runs.length!==receipt.platform_runs.length||Date.parse(currentTask.deadline_at)<=Date.now()||
+      ['CANCELED','CANCELLING','SUCCEEDED'].includes(currentTask.status))throw new Error();
+    const currentById=new Map(currentTask.platform_runs.map(run=>[run.platform_run_id,run]));
+    if(currentById.size!==receipt.platform_runs.length)throw new Error();
+    const ordered=receipt.platform_runs.map((original,index)=>{const run=currentById.get(original.platform_run_id);
+      if(!run||run.platform!==original.platform||run.platform!==command.targets[index].platform)return null;return run;});
+    if(ordered.some(run=>run===null))throw new Error();let startIndex=ordered.findIndex(run=>run!.status!=='SUCCEEDED');
+    if(startIndex<0)throw new Error();
+    for(let index=0;index<ordered.length;index++){
+     const run=ordered[index]!,runOps=taskHistory.filter(item=>item.platform_run_id===run.platform_run_id),runBatches=batches.filter(batch=>batch.execution.platform_run_id===run.platform_run_id);
+     if(index<startIndex){
+      if(run.status!=='SUCCEEDED'||run.execution_generation<1||runBatches.length!==1)throw new Error();const batch=runBatches[0];
+      if(batch.platform!==run.platform||batch.execution.run_id!==receipt.run_id||batch.execution.device_id!==scope.device.deviceId||
+       batch.execution.credential_version!==scope.device.credentialVersion||batch.execution.execution_generation!==run.execution_generation||
+       runOps.filter(item=>item.operation==='CLAIM').length!==1)throw new Error();
+      const finishes=runOps.filter(item=>item.operation==='FINISH'&&item.upload_request_id===batch.request_id);if(finishes.length!==1)throw new Error();
+      const recovered=await sessions.execution.recover(scope.session,finishes[0].request_id,false,scope.device);guard(scope);
+      if(recovered.state!=='RECORDED'){return result;}const verified=parseExecutionReceipt(recovered.receipt,finishes[0]);
+      if(verified.operation!=='FINISH'||verified.run_id!==receipt.run_id||verified.platform_run_id!==run.platform_run_id)throw new Error();
+     }else if(run.status!=='PENDING'||run.execution_generation!==0||run.records_used!==0||runOps.length||runBatches.length)throw new Error();
     }
     launchSequence({scope,start,receipt,strategy,targets:command.targets,bindings,firstSessions:sessions,startIndex});scope=undefined;handedOff=true;
     return result;
@@ -274,32 +277,35 @@ export function createForegroundCollectionController(options:Options) {
     if(command.action==='RECOVER'){
      const currentTask=await task(scope,command.taskId),batches=await batchesFor(scope,command.taskId);guard(scope);if(!batches.length)return {state:'NOT_FOUND'};
      const runOrder=new Map(currentTask.platform_runs.map((run,index)=>[run.platform_run_id,index]));batches.sort((left,right)=>runOrder.get(left.execution.platform_run_id)!-runOrder.get(right.execution.platform_run_id)!);
-     const seen=new Set<string>(),seenRuns=new Set<string>(),seenRequests=new Set<string>();
+     const history=await options.executionJournal.list(journalScope(scope));guard(scope);
+     const seen=new Set<string>(),seenRuns=new Set<string>(),seenRequests=new Set<string>();const plans:{batch:(typeof batches)[number];original:any}[]=[];
      for(const batch of batches){
      const mapping=JSON.stringify([batch.execution.platform_run_id,batch.request_id]);
+     const serverRun=currentTask.platform_runs.find(run=>run.platform_run_id===batch.execution.platform_run_id);
      if(seen.has(mapping)||seenRuns.has(batch.execution.platform_run_id)||seenRequests.has(batch.request_id)||batch.execution.task_id!==command.taskId||batch.execution.run_id!==currentTask.run_id||
-       batch.profile_version_id!==currentTask.profile_version_id||batch.strategy_version_id!==currentTask.strategy_version_id||!currentTask.platform_runs.some(run=>run.platform_run_id===batch.execution.platform_run_id)||
+       batch.profile_version_id!==currentTask.profile_version_id||batch.strategy_version_id!==currentTask.strategy_version_id||!serverRun||batch.platform!==serverRun.platform||
+       batch.execution.execution_generation!==serverRun.execution_generation||
        batch.execution.device_id!==scope.device.deviceId || batch.execution.credential_version!==scope.device.credentialVersion)throw new Error();seen.add(mapping);
      seenRuns.add(batch.execution.platform_run_id);seenRequests.add(batch.request_id);
+     const finishes=history.filter(r=>r.operation==='FINISH'&&r.task_id===command.taskId&&r.platform_run_id===batch.execution.platform_run_id&&r.upload_request_id===batch.request_id);
+     if(finishes.length>1)throw new Error();const original=finishes[0];
+     if(original&&(original.device_id!==batch.execution.device_id||original.credential_version!==batch.execution.credential_version||original.lease_id!==batch.execution.lease_id||original.execution_generation!==batch.execution.execution_generation))throw new Error();
+     plans.push({batch,original});
+     }
+     for(const {batch,original} of plans){
      const sessions=options.sessions(scope);
      const uploaded=await sessions.candidates.recover(scope.session,{platformRunId:batch.execution.platform_run_id,requestId:batch.request_id},command.retry??false);guard(scope);
-     if(uploaded.state==='RECORDED'){
-      const history=await options.executionJournal.list(journalScope(scope));guard(scope);
-      const finishes=history.filter(r=>r.operation==='FINISH' && r.task_id===command.taskId && r.platform_run_id===batch.execution.platform_run_id && r.upload_request_id===batch.request_id);
-      if(finishes.length>1)throw new Error();
+     if(uploaded.state!=='RECORDED')break;
       // Candidate journals are written only after physical source stop. Resume only this immutable batch, never the browser.
-      const original=finishes[0];
       const request=original??executionOperationSchema.parse({schema_version:'execution-runtime-v1',operation:'FINISH',request_id:randomUUID(),
        device_id:batch.execution.device_id,credential_version:batch.execution.credential_version,task_id:batch.execution.task_id,platform_run_id:batch.execution.platform_run_id,
        lease_id:batch.execution.lease_id,execution_generation:batch.execution.execution_generation,upload_request_id:batch.request_id});
       const finish=original?await sessions.execution.recover(scope.session,original.request_id,command.retry??false,scope.device):await sessions.execution.submit(scope.session,request);guard(scope);
-      if(finish.state==='RECORDED'){
+      if(finish.state!=='RECORDED')break;
        const receipt=parseExecutionReceipt(finish.receipt,request);if(receipt.operation!=='FINISH')throw new Error();
        local.set(localKey(scope,command.taskId),{state:'COMPLETED',taskCompleted:receipt.status==='SUCCEEDED' && receipt.stop_confirmed,requestId:request.request_id,
        recoveryKey:{platformRunId:batch.execution.platform_run_id,requestId:batch.request_id}});
-      }
-     }
-     }
+    }
     }
     return await status(scope,command.taskId);
    }catch{return {state:'UNAVAILABLE'};}finally{
