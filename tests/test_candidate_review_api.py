@@ -103,6 +103,19 @@ def test_query_preserves_original_request_and_read_never_reexecutes():
     assert [call[0] for call in service.calls] == ["list", "request"]
 
 
+def test_candidate_query_accepts_and_forwards_task_id():
+    service = ReviewBoundary()
+    task_id = str(uuid4())
+    response = client_for(service).get(
+        "/api/ui/candidates", params={"taskId": task_id}, headers=headers()
+    )
+    assert response.status_code == 200
+    assert service.calls[-1][2] == dict(
+        query=None, platform=None, status=None, ids=None,
+        review_request_id=None, task_id=task_id, page=1, page_size=20,
+    )
+
+
 @pytest.mark.parametrize("path,body", [
     ("candidate-reviews", {"action": "APPROVED"}),
     ("candidate-reviews", {"action": "ASSESS", "reviewer": "someone"}),
@@ -145,7 +158,8 @@ def test_body_limit_counts_actual_bytes_and_requires_json():
 
 @pytest.mark.parametrize("query", ["page=0", "pageSize=101", "page=true", "ids=bad",
     "page=1&page=2", "status=APPROVED", "platform=xhs", "ignored=secret",
-    "reviewRequestId=req", "query=" + "a" * 201, "page=1.0"])
+    "reviewRequestId=req", "query=" + "a" * 201, "page=1.0", "taskId=bad",
+    "taskId=" + str(uuid4()) + "&taskId=" + str(uuid4())])
 def test_invalid_query_rejected(query):
     service = ReviewBoundary()
     assert client_for(service).get("/api/ui/candidates?" + query, headers=headers()).status_code == 422

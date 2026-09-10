@@ -144,6 +144,29 @@ def test_http_owned_provider_assessment_is_not_approval_and_replay_does_not_call
     assert client.get("/api/ui/capabilities").json()["capabilities"]["task_execution"] == {"available": False}
 
 
+def test_http_candidate_task_scope_echoes_and_fails_closed(env, local_provider):
+    client, claims = client_for(env, local_provider.model)
+    binding, _ = upload(client, env, claims)
+    with env.admin.connect() as connection:
+        task_id = connection.execute('''SELECT b.task_id
+            FROM pilot_candidate_observations o JOIN pilot_candidate_batches b
+            USING(tenant_id,owner_user_id,platform_run_id,request_id)
+            WHERE o.tenant_id=%s AND o.owner_user_id=%s AND o.candidate_id=%s''',
+            (env.tenant,claims.user_id,binding['candidateId'])).fetchone()[0]
+    page = client.get('/api/ui/candidates', params={'taskId': task_id})
+    assert page.status_code == 200, page.text
+    assert page.json()['taskId'] == task_id
+    assert [item['id'] for item in page.json()['items']] == [binding['candidateId']]
+    for hidden in (env.users[1], env.users[2]):
+        response = client.get('/api/ui/candidates', params={'taskId': task_id},
+            headers={'Authorization': 'Bearer ' + issue_token(hidden, SECRET)})
+        assert response.status_code == 404
+        assert response.json()['detail']['code'] == 'task_not_found'
+    missing = client.get('/api/ui/candidates', params={'taskId': str(uuid4())})
+    assert missing.status_code == 404
+    assert missing.json()['detail']['code'] == 'task_not_found'
+
+
 def test_http_review_history_is_private_and_new_session_can_recover_without_model(env, local_provider, caplog):
     client, claims = client_for(env, local_provider.model)
     binding, _ = upload(client, env, claims)

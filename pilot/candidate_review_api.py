@@ -79,7 +79,7 @@ def register_candidate_review_api(router, service, identity, require_session_htt
     def candidates(request: Request):
         claims = current(request)
         query = request.query_params
-        if (set(query) - {"query", "platform", "status", "ids", "reviewRequestId", "page", "pageSize"}
+        if (set(query) - {"query", "platform", "status", "ids", "reviewRequestId", "taskId", "page", "pageSize"}
                 or any(len(query.getlist(key)) != 1 for key in query)):
             raise _invalid()
         page, size = query.get("page", "1"), query.get("pageSize", "20")
@@ -106,5 +106,11 @@ def register_candidate_review_api(router, service, identity, require_session_htt
             _request_id(original)
             if ids is None or len(ids) != 1 or page != "1" or size != "1":
                 raise _invalid()
-        return service.list_candidates(claims, query=text, platform=platform, status=status,
-            ids=ids, review_request_id=original, page=int(page), page_size=int(size))
+        task_id = query.get("taskId")
+        if task_id is not None:
+            uuid_string(task_id)
+        arguments = dict(query=text, platform=platform, status=status, ids=ids,
+            review_request_id=original, page=int(page), page_size=int(size))
+        if task_id is not None:
+            arguments["task_id"] = task_id
+        return service.list_candidates(claims, **arguments)

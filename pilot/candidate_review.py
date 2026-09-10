@@ -373,7 +373,8 @@ class CandidateReviewStore(CandidateIngestionStore):
             # even if credentials expire during a long data/strategy read.
             self._active(auth_cursor,claims)
 
-    def list_candidates(self, claims, *, query=None,platform=None,status=None,ids=None,review_request_id=None,page=1,page_size=20):
+    def list_candidates(self, claims, *, query=None,platform=None,status=None,ids=None,review_request_id=None,
+                        task_id=None,page=1,page_size=20):
         if type(page) is not int or page<1 or type(page_size) is not int or not 1<=page_size<=100:
             raise CandidateReviewError('invalid_request',422)
         if query is not None and (type(query) is not str or not query.strip() or len(query)>200):
@@ -388,16 +389,32 @@ class CandidateReviewStore(CandidateIngestionStore):
         if review_request_id is not None:
             _id(review_request_id,opaque=True)
             if ids is None or len(ids)!=1 or page!=1 or page_size!=1: raise CandidateReviewError('invalid_request',422)
+        if task_id is not None: _id(task_id)
         with self._listing_snapshot(claims) as (cursor,tenant,now):
             # The whole data transaction, including strategy reads, shares MVCC.
+            task_filter = ''
+            task_params = ()
+            if task_id is not None:
+                cursor.execute('''SELECT 1 FROM pilot_collection_tasks
+                    WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s''',
+                    (tenant,claims.user_id,task_id))
+                if cursor.fetchone() is None:
+                    raise CandidateReviewError('task_not_found',404)
+                task_filter = ''' AND EXISTS(SELECT 1 FROM pilot_candidate_observations o
+                    JOIN pilot_candidate_batches b
+                    USING(tenant_id,owner_user_id,platform_run_id,request_id)
+                    WHERE o.tenant_id=%s AND o.owner_user_id=%s
+                    AND o.candidate_id=q.candidate_id AND b.task_id=%s)'''
+                task_params = (tenant,claims.user_id,task_id)
             cursor.execute('''SELECT to_jsonb(q),v.version,v.status,v.payload,
                 COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.created_at DESC,r.request_id DESC)
                     FROM pilot_candidate_review_requests r WHERE r.tenant_id=%s AND r.owner_user_id=%s
                     AND r.candidate_id=q.candidate_id AND r.status='SUCCEEDED' AND r.invocation_id IS NULL),'[]'::jsonb)
                 FROM ('''+self._projection_sql+''') q JOIN business_profile_versions v
                 ON v.tenant_id=%s AND v.profile_version_id=q.profile_version_id
-                WHERE q.candidate_id IN(SELECT candidate_id FROM pilot_candidate_projections WHERE tenant_id=%s AND owner_user_id=%s)
-                ORDER BY q.latest_observed_at DESC,q.candidate_id''', (tenant,claims.user_id,tenant,tenant,claims.user_id))
+                WHERE q.candidate_id IN(SELECT candidate_id FROM pilot_candidate_projections WHERE tenant_id=%s AND owner_user_id=%s)'''
+                +task_filter+''' ORDER BY q.latest_observed_at DESC,q.candidate_id''',
+                (tenant,claims.user_id,tenant,tenant,claims.user_id,*task_params))
             rows = cursor.fetchall()
             items = []
             for raw,version,profile_status,profile,requests in rows:
@@ -446,4 +463,6 @@ class CandidateReviewStore(CandidateIngestionStore):
                         receipt=review['result']['receipt'] if review else None,verification=verification,valid=valid)
                     candidate['assessmentStale'] = bool(any(r['action']=='ASSESS' for r in requests)) and assessment_request is None
                 if status is None or candidate['status']==status: items.append(candidate)
-            return dict(items=items[(page-1)*page_size:page*page_size],total=len(items),page=page,pageSize=page_size)
+            result = dict(items=items[(page-1)*page_size:page*page_size],total=len(items),page=page,pageSize=page_size)
+            if task_id is not None: result['taskId'] = task_id
+            return result

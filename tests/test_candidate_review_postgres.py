@@ -73,6 +73,9 @@ def snapshot_reader(env):
     return read
 
 def seed(env, **record_changes):
+    return seed_for_task(env, **record_changes)[2]
+
+def seed_for_task(env, **record_changes):
     begun, lease = claimed(env)
     value = payload(env, begun, lease)
     value['records'][0].update(title=CONTENT['title'], body=CONTENT['body'],
@@ -80,8 +83,94 @@ def seed(env, **record_changes):
                               published_at=datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'))
     value['records'][0].update(record_changes)
     item = submit(env, raw_service(env), value)['items'][0]
-    return dict(candidateId=item['candidate_id'], candidateRevision=item['revision'],
+    binding = dict(candidateId=item['candidate_id'], candidateRevision=item['revision'],
                 sourceVersionId=item['version_id'], profileId=env.profile, profileVersion=1)
+    return begun, lease, binding
+
+
+def test_task_filter_returns_current_candidate_once_and_intersects_filters(env):
+    service = store(env)
+    first_task, _, first = seed_for_task(
+        env, body=CONTENT['body'] + ' first task version', observed_at='2026-01-11T01:00:00Z',
+        published_at='2026-01-11T00:00:00Z'
+    )
+    second_task, _, current = seed_for_task(
+        env, body=CONTENT['body'] + ' later current version', observed_at='2026-01-11T02:00:00Z',
+        published_at='2026-01-11T00:00:00Z'
+    )
+    assert first['candidateId'] == current['candidateId']
+
+    assessed = service.review(env.claims, review_payload(current))
+    excluded = service.review(env.claims, review_payload(
+        current, 'EXCLUDE', assessmentId=assessed['assessment']['id'],
+        sourceVerificationId=None, humanConfirmed=True,
+        evidence=assessment()['evidence'], reason='合成排除',
+    ))
+    page = service.list_candidates(
+        env.claims, task_id=first_task['task_id'], ids=[current['candidateId']],
+        status='EXCLUDED', platform='PUBLIC_WEB', query='later current version',
+    )
+    assert page['taskId'] == first_task['task_id']
+    assert page['total'] == 1
+    assert [item['id'] for item in page['items']] == [current['candidateId']]
+    assert page['items'][0]['excerpt'] == CONTENT['body'] + ' later current version'
+    assert page['items'][0]['lastReview'] == excluded['receipt']
+    assert service.list_candidates(env.claims, task_id=second_task['task_id'])['total'] == 1
+    assert service.list_candidates(env.claims, task_id=first_task['task_id'], status='IMPORTED')['total'] == 0
+    assert 'taskId' not in service.list_candidates(env.claims)
+
+
+def test_task_filter_rejects_unknown_task_instead_of_returning_empty(env):
+    with pytest.raises(CandidateIngestionError, match='task_not_found') as error:
+        store(env).list_candidates(env.claims, task_id=str(uuid4()))
+    assert error.value.status == 404
+
+
+def test_task_filter_keeps_tasks_separate_and_deduplicates_observations(env):
+    service = store(env)
+    first_task, first_lease, first = seed_for_task(
+        env, public_url='https://example.com/task-one',
+        observed_at='2026-01-12T01:00:00Z', published_at='2026-01-12T00:00:00Z',
+    )
+    repeated = payload(env, first_task, first_lease)
+    repeated['records'][0].update(
+        public_url='https://example.com/task-one',
+        observed_at='2026-01-12T02:00:00Z', published_at='2026-01-12T00:00:00Z',
+    )
+    submit(env, raw_service(env), repeated)
+    second_task, _, second = seed_for_task(
+        env, public_url='https://example.com/task-two',
+        observed_at='2026-01-12T03:00:00Z', published_at='2026-01-12T00:00:00Z',
+    )
+    first_page = service.list_candidates(env.claims, task_id=first_task['task_id'])
+    second_page = service.list_candidates(env.claims, task_id=second_task['task_id'])
+    assert first_page['total'] == 1
+    assert [item['id'] for item in first_page['items']] == [first['candidateId']]
+    assert second_page['total'] == 1
+    assert [item['id'] for item in second_page['items']] == [second['candidateId']]
+
+
+@pytest.mark.parametrize('user_index', [1, 2])
+def test_task_filter_hides_other_owner_and_tenant_tasks(env, user_index):
+    from pilot.store import PilotStore
+    provisioner = PilotStore(env.admin)
+    user = env.users[user_index]
+    tenant = env.tenants[0 if user_index == 1 else 1]
+    device = provisioner.register_device(user, 'foreign-task')['device_id']
+    profile = provisioner.save_profile(user, {'description': 'foreign'})['version_id']
+    provisioner.confirm_profile(user, profile)
+    task_id = str(uuid4())
+    with env.admin.connect() as conn:
+        conn.execute('''INSERT INTO pilot_collection_tasks(
+            tenant_id,owner_user_id,task_id,device_id,profile_version_id,
+            strategy_version_id,configuration_sha256,configuration_snapshot,
+            max_records,max_runtime_seconds,created_at,deadline_at,status)
+            VALUES(%s,%s,%s,%s,%s,'foreign-strategy',%s,'{}'::jsonb,
+                1,600,clock_timestamp(),clock_timestamp()+interval '600 seconds','PENDING')''',
+            (tenant,user,task_id,device,profile,'a' * 64))
+    with pytest.raises(CandidateIngestionError, match='task_not_found') as error:
+        store(env).list_candidates(env.claims, task_id=task_id)
+    assert error.value.status == 404
 
 def review_payload(binding, action='ASSESS', **changes):
     return binding | dict(requestId=str(uuid4()), action=action) | changes
