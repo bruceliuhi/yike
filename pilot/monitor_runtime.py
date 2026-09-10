@@ -119,6 +119,13 @@ class MonitorRuntime:
             if provisional is None:
                 raise ExecutionRuntimeError("plan_not_found", 404)
             profile, strategy_id, digest, schedule, state, revision, due = provisional
+            targets = self._targets(request)
+            cursor.execute("SELECT device_id,credential_version,targets FROM pilot_monitor_bindings "
+                           "WHERE tenant_id=%s AND owner_user_id=%s AND plan_id=%s AND plan_revision=%s",
+                           (tenant, claims.user_id, request.plan_id, revision))
+            existing_binding = cursor.fetchone()
+            if existing_binding and existing_binding != (request.device_id, request.credential_version, targets):
+                raise ExecutionRuntimeError("monitor_binding_conflict")
             runtime._key(cursor, claims, tenant, request.device_id, request.credential_version)
             for target in sorted(request.targets, key=lambda item: (item.platform, item.connection_id or "")):
                 runtime._connection(cursor, claims, request.device_id, target)
@@ -136,7 +143,6 @@ class MonitorRuntime:
             if state != "ACTIVE":
                 raise ExecutionRuntimeError("monitor_plan_inactive")
             now = runtime._now(cursor)
-            targets = self._targets(request)
             cursor.execute("SELECT device_id,credential_version,targets,monitor_session_id,last_seen_at "
                            "FROM pilot_monitor_bindings WHERE tenant_id=%s AND owner_user_id=%s AND plan_id=%s AND plan_revision=%s FOR UPDATE",
                            (tenant, claims.user_id, request.plan_id, revision))

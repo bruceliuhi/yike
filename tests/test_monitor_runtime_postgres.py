@@ -1,17 +1,28 @@
 """Focused monitor-runtime contract checks; PostgreSQL scenarios use their own DB."""
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
-import psycopg
 import pytest
 from pydantic import ValidationError
 from psycopg import sql
+from nacl.signing import SigningKey
 
+from pilot.auth import issue_token, verify_token_claims
 from pilot.db import PilotDatabase
+from pilot.device_credentials import DeviceCredentialStore
 from pilot.execution_contract import ExecutionRuntimeError
-from pilot.execution_runtime import ExecutionRuntime
+from pilot.execution_contract import ExecutionOperation
+from pilot.execution_runtime import ExecutionRuntime, execution_signing_payload
+from pilot.monitor_plans import MonitorPlanStore
+from pilot.monitor_runtime import MonitorRuntime
 from pilot.monitor_runtime_contract import MonitorPulseRequest
+from pilot.research_strategies import ResearchStrategyStore
+from pilot.store import PilotStore
+from tests.test_device_credentials_postgres import RoleDatabase, bind
+from tests.test_device_keys import encoded
 
 
 def pulse_body(**changes):
@@ -71,3 +82,171 @@ def test_migration_forces_owner_rls_and_grant_preserves_immutable_columns():
         assert connection.execute("SELECT has_column_privilege(%s,'pilot_monitor_occurrences','status','UPDATE')", (role,)).fetchone() == (True,)
         connection.execute(sql.SQL("DROP OWNED BY {}") .format(sql.Identifier(role)))
         connection.execute(sql.SQL("DROP ROLE {}") .format(sql.Identifier(role)))
+
+
+@pytest.fixture(scope="module")
+def runtime_databases():
+    url = os.environ.get("YIKE_MONITOR_RUNTIME_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("dedicated monitor runtime PostgreSQL required")
+    admin = PilotDatabase(url)
+    admin.migrate()
+    role = "monitor_behavior_" + uuid4().hex
+    root = Path(__file__).parents[1]
+    with admin.connect() as connection:
+        connection.execute(sql.SQL("CREATE ROLE {} NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEROLE NOCREATEDB")
+                           .format(sql.Identifier(role)))
+        connection.execute(sql.SQL("GRANT USAGE ON SCHEMA public TO {}") .format(sql.Identifier(role)))
+        connection.execute(sql.SQL("GRANT SELECT ON pilot_users,business_profiles,business_profile_versions TO {}")
+                           .format(sql.Identifier(role)))
+        connection.execute(sql.SQL("GRANT UPDATE(name) ON business_profiles TO {}") .format(sql.Identifier(role)))
+        connection.execute(sql.SQL("GRANT UPDATE(status) ON business_profile_versions TO {}") .format(sql.Identifier(role)))
+        connection.execute("SELECT set_config('yike.app_role',%s,true)", (role,))
+        for filename in ("grant_session_revocations.sql", "grant_device_credentials.sql",
+                         "grant_connection_operations.sql", "grant_execution_runtime.sql",
+                         "grant_research_strategies.sql", "grant_monitor_plans.sql",
+                         "grant_monitor_runtime.sql"):
+            connection.execute((root / "deploy" / filename).read_text())
+    yield admin, RoleDatabase(admin, role)
+    with admin.connect() as connection:
+        connection.execute(sql.SQL("DROP OWNED BY {}") .format(sql.Identifier(role)))
+        connection.execute(sql.SQL("DROP ROLE {}") .format(sql.Identifier(role)))
+
+
+@pytest.fixture
+def runtime_env(runtime_databases):
+    admin, database = runtime_databases
+    provisioner = PilotStore(admin)
+    tenant = provisioner.provision_tenant("synthetic-monitor-runtime")
+    user = provisioner.provision_user(tenant, f"{uuid4()}@example.invalid")
+    claims = verify_token_claims(issue_token(user, "synthetic-monitor-runtime"), "synthetic-monitor-runtime")
+    store = PilotStore(database)
+    device = store.register_device(user, "synthetic-monitor-runtime")["device_id"]
+    key = SigningKey.generate()
+    bind(SimpleNamespace(service=DeviceCredentialStore(database), claims=claims, device=device), key)
+    connection = store.connect_platform(user, "BILIBILI", device, "synthetic-account", "vault://synthetic")
+    with admin.connect() as conn:
+        conn.execute("UPDATE pilot_platform_connections SET status='CONNECTED' WHERE connection_id=%s",
+                     (connection["connection_id"],))
+        connection["connection_version"] = conn.execute(
+            "SELECT connection_version FROM pilot_platform_connections WHERE connection_id=%s",
+            (connection["connection_id"],)).fetchone()[0]
+    profile = provisioner.save_profile(user, {"description": "真实数据库中的合成监控契约"})
+    provisioner.confirm_profile(user, profile["version_id"])
+    schedule = dict(kind="interval", times=[], interval=1, start="00:00", end="23:59",
+                    timezone="UTC", policyVersion=1)
+    configuration = dict(schema_version="research-strategy-v1", name="监控策略", source="search",
+                         keywords=["设备采购"], exclusions=[], links=[], mode="monitor",
+                         schedule=schedule, research=None)
+    strategies = ResearchStrategyStore(database)
+    prepared = strategies.prepare(claims, dict(schema_version="strategy-confirmation-v1",
+        request_id=str(uuid4()), draft_id=str(uuid4()), draft_revision=1,
+        profile_version_id=profile["version_id"], configuration=configuration,
+        platforms=["BILIBILI"], max_records=10, max_runtime_seconds=600))
+    strategy = strategies.confirm(claims, dict(schema_version="strategy-confirmation-v1",
+        request_id=str(uuid4()), strategy_version_id=prepared["strategy_version_id"],
+        configuration_sha256=prepared["configuration_sha256"], human_confirmed=True))
+    plans = MonitorPlanStore(database, strategy_resolver=strategies.resolve)
+    plan = plans.create(claims, dict(schema_version="monitor-plans-v1", request_id=str(uuid4()),
+        profile_version_id=profile["version_id"], strategy_version_id=strategy["strategy_version_id"],
+        human_confirmed=True))["plan"]
+    policy = lambda platform, access_mode, config: (
+        platform in ("XIAOHONGSHU", "DOUYIN", "BILIBILI")
+        and access_mode == "PLATFORM_ACCOUNT" and config.get("mode") == "monitor"
+        and config.get("schedule", {}).get("policyVersion") == 1)
+    execution = ExecutionRuntime(database, strategy_resolver=strategies.resolve, capability_check=policy)
+    monitor = MonitorRuntime(database, execution)
+    execution.monitor_runtime = monitor
+    target = dict(platform="BILIBILI", access_mode="PLATFORM_ACCOUNT",
+                  connection_id=connection["connection_id"], connection_version=connection["connection_version"])
+    yield SimpleNamespace(admin=admin, database=database, tenant=tenant, user=user, claims=claims,
+        device=device, key=key, profile=profile["version_id"], strategy=strategy,
+        plan=plan, plans=plans, execution=execution, monitor=monitor, target=target)
+    # This database is disposable and root owns its lifecycle. Immutable audit
+    # rows deliberately are not weakened for fixture cleanup.
+
+
+def runtime_pulse(env, **changes):
+    return dict(schema_version="monitor-runtime-v1", plan_id=env.plan["plan_id"],
+                device_id=env.device, monitor_session_id=str(uuid4()), credential_version=1,
+                targets=[env.target]) | changes
+
+
+def force_due_window(env):
+    with env.admin.connect() as connection:
+        connection.execute("UPDATE pilot_monitor_bindings SET last_seen_at=clock_timestamp()-interval '30 seconds' "
+                           "WHERE tenant_id=%s AND plan_id=%s", (env.tenant, env.plan["plan_id"]))
+        connection.execute("UPDATE pilot_monitor_plans SET next_due_at=clock_timestamp()-interval '10 seconds' "
+                           "WHERE tenant_id=%s AND plan_id=%s", (env.tenant, env.plan["plan_id"]))
+
+
+def sign_apply(env, body):
+    operation = ExecutionOperation.model_validate(body)
+    signature = encoded(env.key.sign(execution_signing_payload(
+        tenant_id=env.tenant, claims=env.claims, operation=operation).encode()).signature)
+    return env.execution.apply(env.claims, operation, signature)
+
+
+def test_real_pg_offline_then_concurrent_reservation_and_restart_recovery(runtime_env):
+    env = runtime_env
+    session = str(uuid4())
+    with env.admin.connect() as connection:
+        connection.execute("UPDATE pilot_monitor_plans SET next_due_at=clock_timestamp()-interval '10 seconds' "
+                           "WHERE tenant_id=%s AND plan_id=%s", (env.tenant, env.plan["plan_id"]))
+    first = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    assert first["state"] == "SKIPPED_OFFLINE" and first["occurrence"] is None
+    force_due_window(env)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: env.monitor.pulse(
+            env.claims, runtime_pulse(env, monitor_session_id=session)), range(2)))
+    assert results[0]["state"] == results[1]["state"] == "READY"
+    assert results[0]["occurrence"] == results[1]["occurrence"]
+    assert results[0]["occurrence"]["task_id"] is None
+    assert results[0]["occurrence"]["start_request"] == ExecutionOperation.model_validate(
+        results[0]["occurrence"]["start_request"]).model_dump(mode="json")
+    recovered = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=str(uuid4())))
+    assert recovered["state"] == "RECOVERY_REQUIRED"
+    with pytest.raises(ExecutionRuntimeError, match="monitor_binding_conflict"):
+        env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session,
+            credential_version=2))
+
+
+def test_real_pg_reserved_start_claim_and_pause_fence(runtime_env):
+    env = runtime_env
+    session = str(uuid4())
+    env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    force_due_window(env)
+    ready = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    begun = sign_apply(env, ready["occurrence"]["start_request"])
+    running = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    assert running["state"] == "RUNNING" and running["occurrence"]["task_id"] == begun["task_id"]
+    claim = dict(schema_version="execution-runtime-v1", request_id=str(uuid4()), operation="CLAIM",
+                 device_id=env.device, credential_version=1, profile_version_id=None,
+                 strategy_version_id=None, configuration_sha256=None, targets=None,
+                 task_id=begun["task_id"], platform_run_id=begun["platform_runs"][0]["platform_run_id"],
+                 lease_id=None, execution_generation=None)
+    leased = sign_apply(env, claim)
+    assert leased["status"] == "RUNNING" and leased["execution_generation"] == 1
+    env.plans.set_state(env.claims, dict(schema_version="monitor-plans-v1", request_id=str(uuid4()),
+        plan_id=env.plan["plan_id"], expected_revision=1, state="PAUSED", human_confirmed=True))
+    renew = claim | dict(request_id=str(uuid4()), operation="RENEW", lease_id=leased["lease_id"],
+                         execution_generation=leased["execution_generation"])
+    with pytest.raises(ExecutionRuntimeError, match="monitor_plan_inactive"):
+        sign_apply(env, renew)
+
+
+def test_real_pg_unreserved_and_expired_monitor_start_are_rejected(runtime_env, monkeypatch):
+    env = runtime_env
+    session = str(uuid4())
+    env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    force_due_window(env)
+    ready = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    forged = ready["occurrence"]["start_request"] | {"request_id": str(uuid4())}
+    with pytest.raises(ExecutionRuntimeError, match="monitor_occurrence_required"):
+        sign_apply(env, forged)
+    def expired_now(cursor):
+        cursor.execute("SELECT clock_timestamp()+interval '120 seconds'")
+        return cursor.fetchone()[0]
+    monkeypatch.setattr(env.execution, "_now", expired_now)
+    with pytest.raises(ExecutionRuntimeError, match="monitor_occurrence_expired"):
+        sign_apply(env, ready["occurrence"]["start_request"])
