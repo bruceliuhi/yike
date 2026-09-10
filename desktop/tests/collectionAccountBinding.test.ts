@@ -27,3 +27,13 @@ it.each(['PENDING','missing_verify','wrong_reference','wrong_device','wrong_scop
 it('discards lookup when original client session changes during I/O',async()=>{
  const f=fixture();f.store.read.mockImplementation(async()=>{f.invalidate();return f.record;});await expect(resolveCollectionAccount(f.input)).rejects.toThrow('COLLECTION_ACCOUNT_UNAVAILABLE');expect(f.scope.transport.requestConnection).not.toHaveBeenCalled();
 });
+it.each([
+ ['DOUYIN','douyin.account-1'],
+ ['BILIBILI','123456789'],
+] as const)('resolves %s only from its matching protected profile and current row',async(platform,accountId)=>{
+ const f=fixture();
+ f.target.platform=platform as any;f.row.platform=platform as any;f.row.account_public_id=accountId;
+ f.record.scope.platform=platform as any;f.record.verification.platform=platform as any;f.record.verification.account_public_id=accountId;
+ expect(await resolveCollectionAccount(f.input)).toEqual({profileId:id(5),accountPublicId:accountId});
+ expect(f.store.read).toHaveBeenCalledWith(expect.objectContaining({platform}));
+});

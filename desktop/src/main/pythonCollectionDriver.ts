@@ -5,6 +5,7 @@ import type {CollectionDriver} from './collectionWorker';
 import {candidateSubmissionSchema, type CandidateSubmission} from '../shared/candidateSubmission';
 import {strategyConfigurationSchema} from '../shared/researchStrategies';
 import {executionReceiptSchema} from '../shared/executionReceipt';
+import {nativeLoginPlatformSchema,validNativeAccount} from '../shared/platformAccount';
 
 type Input = Parameters<CollectionDriver['start']>[0];
 interface Options {
@@ -96,9 +97,9 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
         const c = strategyConfigurationSchema.parse(snapshot.configuration);
         const lease = executionReceiptSchema.parse(input.lease);
         const expectedAccount = owned.binding.expectedAccountPublicId;
-        if (expectedAccount !== undefined && (target.platform !== 'XIAOHONGSHU' ||
-            typeof expectedAccount !== 'string' || expectedAccount.length < 8 || expectedAccount.length > 32 ||
-            /[^A-Za-z0-9]/.test(expectedAccount))) throw failure();
+        const nativePlatform=nativeLoginPlatformSchema.safeParse(target.platform);
+        if (expectedAccount !== undefined && (!nativePlatform.success || typeof expectedAccount !== 'string' ||
+            !validNativeAccount(nativePlatform.data,expectedAccount))) throw failure();
         if (lease.operation !== 'CLAIM' && lease.operation !== 'RENEW') throw failure();
         if (c.mode !== 'once' || c.schedule !== null || c.source !== 'search' || c.links.length || c.exclusions.length || c.research !== null ||
             c.keywords.some(q => q !== q.trim() || q.includes(',')) ||

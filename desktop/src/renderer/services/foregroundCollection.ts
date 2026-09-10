@@ -29,8 +29,9 @@ export function foregroundCollection(bridge: YikeDesktopApi | undefined): Foregr
 }
 export function attachForegroundBinding(rows: PlatformConnection[], result: ForegroundCollectionResult): PlatformConnection[] {
   if (result.state !== 'AVAILABLE') return rows;
-  const matching = rows.filter(row => hasForegroundBinding({...row, foregroundBinding:result.binding}));
-  if (matching.length !== 1) return rows;
-  return rows.map(row => row === matching[0] ? {...row, foregroundBinding:result.binding, capabilities:['search'],
-    reason:'本机受控采集支持已核对，仅限当前账号的小红书单次搜索；不代表采集成功。'} : row);
+  const matched=new Map<PlatformConnection,typeof result.bindings[number]>();
+  for(const binding of result.bindings){const matching=rows.filter(row=>hasForegroundBinding({...row,foregroundBinding:binding}));
+    if(matching.length!==1)return rows;matched.set(matching[0],binding);}
+  return rows.map(row=>{const binding=matched.get(row);return binding?{...row,foregroundBinding:binding,capabilities:['search'],
+    reason:'本机受控采集支持已核对，仅限当前账号的单次搜索；不代表采集成功。'}:row;});
 }

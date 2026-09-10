@@ -121,15 +121,19 @@ it('forwards main-owned canonical XHS account binding on every query, but omits 
   const legacy = g.driver.start(g.input); await tick(); expect(g.request(0)).not.toHaveProperty('expected_account_public_id');
   g.respond(0); await legacy.completed; await legacy.stop();
 });
-it.each(['short', 'a'.repeat(33), '汉字12345678', 'abcdefgh\n', ' abcdefgh', null, 12345678, 'other-platform'])
-('rejects invalid or non-XHS account binding %s before spawn', async value => {
+it.each(['short', 'a'.repeat(33), '汉字12345678', 'abcdefgh\n', ' abcdefgh', null, 12345678])
+('rejects invalid account binding %s before spawn', async value => {
   const f = fixture();
   const binding = {...f.options.binding, expectedAccountPublicId: value} as any;
-  if (value === 'other-platform') {
-    binding.platform = 'DOUYIN'; binding.expectedAccountPublicId = 'abcdefgh';
-    f.input.target.platform = 'DOUYIN'; f.input.snapshot.platforms = ['DOUYIN'];
-  }
   const run = createPythonCollectionDriver({...f.options, binding}).start(f.input);
   const outcome = run.completed.catch(error => error.message); await tick();
   expect(spawn).not.toHaveBeenCalled(); expect(await outcome).toBe('SOURCE_DRIVER_INVALID_INPUT'); await run.stop();
+});
+it.each([['DOUYIN','douyin.account-1'],['BILIBILI','123456789']] as const)
+('forwards the selected %s expected account without changing the host wire field',async(platform,account)=>{
+ const f=fixture();f.input.target.platform=platform;f.input.snapshot.platforms=[platform];
+ const binding={...f.options.binding,platform,expectedAccountPublicId:account};
+ const run=createPythonCollectionDriver({...f.options,binding} as any).start(f.input);await tick();
+ expect(f.request(0)).toMatchObject({platform,expected_account_public_id:account});f.respond(0);await tick();f.respond(1);
+ await run.completed;await run.stop();
 });

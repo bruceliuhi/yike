@@ -67,6 +67,24 @@ it('explicit resume reads original START without letting a request id supply new
 });
 it('concurrent capability reads share one probe and bind only the protected current profile',async()=>{
  const f=fixture();const results=await Promise.all([f.controller.execute({action:'CAPABILITIES'}),f.controller.execute({action:'CAPABILITIES'})]);
- expect(results[0]).toEqual(results[1]);expect(results[0]).toMatchObject({state:'AVAILABLE',binding:{connectionId:id(5),deviceId:id(2)}});
- expect(f.probe).toHaveBeenCalledTimes(1);expect(f.options.store.read).toHaveBeenCalledTimes(1);
+ expect(results[0]).toEqual(results[1]);expect(results[0]).toMatchObject({state:'AVAILABLE',bindings:[{connectionId:id(5),deviceId:id(2)}]});
+ expect(f.probe).toHaveBeenCalledTimes(1);expect(f.options.store.read).toHaveBeenCalledTimes(3);
+});
+it.each(['DOUYIN','BILIBILI'] as const)('starts selected %s target only in three-platform server mode',async platform=>{
+ const f=fixture();const account=platform==='DOUYIN'?'douyin.account-1':'123456789';
+ f.command.targets[0].platform=platform as any;f.strategy.snapshot.platforms=[platform] as any;
+ const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.command.configurationSha256=hash;f.strategy.configuration_sha256=hash;
+ f.scope.transport.requestExecution.mockImplementation(async(input:any)=>({ok:true,status:200,data:input.operation==='execution.support'
+  ?{schema_version:'foreground-collection-support-v1',mode:'three-platform-foreground-v1'}
+  :{task_id:id(6),run_id:id(7),status:'RUNNING',stop_confirmed:false,profile_version_id:id(3),strategy_version_id:id(4),max_records:50,records_used:0,deadline_at:'2026-09-10T00:10:00Z',platform_runs:[{platform_run_id:id(8),platform,status:'RUNNING',execution_generation:1,records_used:0}]}}));
+ f.resolveAccount.mockResolvedValue({profileId:id(30),accountPublicId:account});
+ f.startReceipt.platform_runs[0].platform=platform as any;
+ expect(await f.controller.start(f.command)).toMatchObject({state:'RECORDED'});
+ expect(f.driverFactory).toHaveBeenCalledWith(expect.objectContaining({binding:expect.objectContaining({platform,expectedAccountPublicId:account})}));
+ f.finish();await f.controller.shutdown();
+});
+it('does not start a video target under legacy xhs-only support',async()=>{
+ const f=fixture();f.command.targets[0].platform='DOUYIN' as any;f.strategy.snapshot.platforms=['DOUYIN'] as any;
+ expect(await f.controller.start(f.command)).toEqual({state:'SERVICE_UNAVAILABLE'});
+ expect(f.execution.submit).not.toHaveBeenCalled();expect(f.driverFactory).not.toHaveBeenCalled();
 });

@@ -19,6 +19,7 @@ import {createCollectionWorker,type CollectionWorkerResult} from './collectionWo
 import {createPythonCollectionDriver} from './pythonCollectionDriver';
 import {resolveCollectionAccount} from './collectionAccountBinding';
 import {probeCollectionRuntime} from './collectionRuntimeProbe';
+import {nativeLoginPlatformSchema,type NativeLoginPlatform} from '../shared/platformAccount';
 
 interface Options {
  serviceOrigin:string;
@@ -31,7 +32,7 @@ interface Options {
  workerFactory?:typeof createCollectionWorker; driverFactory?:typeof createPythonCollectionDriver;
  resolveAccount?:typeof resolveCollectionAccount;probe?:typeof probeCollectionRuntime;
 }
-const supportSchema=z.object({schema_version:z.literal('foreground-collection-support-v1'),mode:z.literal('xhs-foreground-v1')}).strict();
+const supportSchema=z.object({schema_version:z.literal('foreground-collection-support-v1'),mode:z.enum(['xhs-foreground-v1','three-platform-foreground-v1']).nullable()}).strict();
 const rowsSchema=z.object({items:z.array(connectionRegistryRowSchema).max(10000)}).strict();
 const stateSchema=z.enum(['PENDING','RUNNING','CANCELLING','CANCELED','SUCCEEDED']);
 const taskSchema=z.object({task_id:uuid,run_id:uuid,status:stateSchema,stop_confirmed:z.boolean(),profile_version_id:uuid,strategy_version_id:uuid,
@@ -68,25 +69,34 @@ export function createForegroundCollectionController(options:Options) {
  async function supported(scope:DeviceWorkerScope){
   if(stopUnconfirmed)throw new Error('SOURCE_STOP_FAILED');
   guard(scope);const response=await scope.transport.requestExecution({operation:'execution.support'});guard(scope);
-  if(!response.ok || !supportSchema.safeParse(response.data).success)throw new Error('COLLECTION_UNAVAILABLE');
+  if(!response.ok)throw new Error('COLLECTION_UNAVAILABLE');const support=supportSchema.safeParse(response.data);
+  if(!support.success || support.data.mode===null)throw new Error('COLLECTION_UNAVAILABLE');
   if(!await (options.probe??probeCollectionRuntime)(configuration))throw new Error('COLLECTION_UNAVAILABLE');guard(scope);
+  return support.data.mode;
  }
- async function account(scope:DeviceWorkerScope,target:unknown){
-  guard(scope);const value=await (options.resolveAccount??resolveCollectionAccount)({serviceOrigin,scope,store:options.store,target});guard(scope);return value;
+ async function account(scope:DeviceWorkerScope,target:unknown,extra:object={}){
+  guard(scope);const value=await (options.resolveAccount??resolveCollectionAccount)({serviceOrigin,scope,store:options.store,target,...extra});guard(scope);return value;
  }
  async function capabilities():Promise<ForegroundCollectionResult>{
   let scope:DeviceWorkerScope|undefined;
   try{
-   scope=await open();await supported(scope);
+   scope=await open();const mode=await supported(scope);
    const response=await scope.transport.requestConnection({operation:'connections.current'});guard(scope);if(!response.ok)throw new Error();
    const rows=rowsSchema.parse(response.data).items;if(new Set(rows.map(row=>row.connection_id)).size!==rows.length)throw new Error();
-   // Select from one protected profile, not N network checks for N registrations.
-   const record=await options.store.read({serviceOrigin,userId:scope.session.userId,deviceId:scope.device.deviceId,platform:'XIAOHONGSHU'});guard(scope);
-   const row=record?.state==='RESOLVED'?rows.find(r=>r.connection_id===record.verification?.connection_id && r.platform==='XIAOHONGSHU' && r.device_id===scope!.device.deviceId && r.status==='CONNECTED'):undefined;
-   if(!row)return {state:'UNAVAILABLE'};
-   const binding=await account(scope,{platform:row.platform,access_mode:'PLATFORM_ACCOUNT',connection_id:row.connection_id,connection_version:row.connection_version});
-   if(binding.accountPublicId!==row.account_public_id)throw new Error();guard(scope);
-   return {state:'AVAILABLE',binding:{mode:'xhs-foreground-v1',platform:'XIAOHONGSHU',connectionId:row.connection_id,connectionVersion:row.connection_version,deviceId:row.device_id,accountPublicId:row.account_public_id}};
+   const platforms:NativeLoginPlatform[]=['XIAOHONGSHU','DOUYIN','BILIBILI'];
+   const bindings=[];
+   for(const platform of platforms){
+    const record=await options.store.read({serviceOrigin,userId:scope.session.userId,deviceId:scope.device.deviceId,platform});guard(scope);
+    if(mode==='xhs-foreground-v1' && platform!=='XIAOHONGSHU' || record?.state!=='RESOLVED')continue;
+    const row=rows.find(r=>r.connection_id===record.verification?.connection_id && r.platform===platform && r.device_id===scope!.device.deviceId && r.status==='CONNECTED');
+    if(!row)continue;
+    try{const binding=await account(scope,{platform:row.platform,access_mode:'PLATFORM_ACCOUNT',connection_id:row.connection_id,connection_version:row.connection_version},
+      {protectedRecord:record,currentRows:{items:rows}});
+     if(binding.accountPublicId!==row.account_public_id)continue;guard(scope);
+     bindings.push({mode,platform,connectionId:row.connection_id,connectionVersion:row.connection_version,deviceId:row.device_id,accountPublicId:row.account_public_id});
+    }catch{guard(scope);}
+   }
+   return bindings.length?{state:'AVAILABLE',bindings}:{state:'UNAVAILABLE'};
   }catch{return {state:'UNAVAILABLE'};}finally{scope?.close();}
  }
  async function task(scope:DeviceWorkerScope,taskId:string){
@@ -131,15 +141,17 @@ export function createForegroundCollectionController(options:Options) {
    opening=true;openingDone=new Promise(resolve=>{finishOpening=resolve;});let scope:DeviceWorkerScope|undefined,handedOff=false;
    try{
     const command=parsed.data;
-    if(command.targets.length!==1 || command.targets[0].platform!=='XIAOHONGSHU' || command.targets[0].access_mode!=='PLATFORM_ACCOUNT')throw new Error();
-    scope=await open();await supported(scope);const binding=await account(scope,command.targets[0]);
+    if(command.targets.length!==1 || !nativeLoginPlatformSchema.safeParse(command.targets[0].platform).success || command.targets[0].access_mode!=='PLATFORM_ACCOUNT')throw new Error();
+    scope=await open();const mode=await supported(scope);const target=command.targets[0];
+    if(mode==='xhs-foreground-v1' && target.platform!=='XIAOHONGSHU')throw new Error();
+    const binding=await account(scope,target);
     const response=await identity.requestApi({operation:'strategies.get',payload:{strategy_version_id:command.strategyVersionId}});guard(scope);if(!response.ok)throw new Error();
     const strategy=strategyViewSchema.parse(response.data),snapshot=strategy.snapshot,c=snapshot.configuration;
     if(strategy.state!=='CONFIRMED' || !strategy.is_current || !strategy.profile_current || strategy.confirmed_at===null || strategy.revoked_at!==null ||
      strategy.profile_version_id!==command.profileVersionId || strategy.strategy_version_id!==command.strategyVersionId ||
      snapshot.profile_version_id!==command.profileVersionId || snapshot.strategy_version_id!==command.strategyVersionId ||
      strategy.configuration_sha256!==command.configurationSha256 || createHash('sha256').update(canonical(snapshot)).digest('hex')!==command.configurationSha256 ||
-     snapshot.platforms.length!==1 || snapshot.platforms[0]!=='XIAOHONGSHU' || snapshot.max_records>100 || snapshot.max_runtime_seconds>900 ||
+     snapshot.platforms.length!==1 || snapshot.platforms[0]!==target.platform || snapshot.max_records>100 || snapshot.max_runtime_seconds>900 ||
      c.mode!=='once' || c.source!=='search' || c.schedule!==null || c.research!==null || c.links.length || c.exclusions.length || c.keywords.some(k=>k!==k.trim() || k.includes(',')))throw new Error();
     const start=executionOperationSchema.parse({schema_version:'execution-runtime-v1',operation:'START',request_id:command.requestId,
      device_id:scope.device.deviceId,credential_version:scope.device.credentialVersion,profile_version_id:command.profileVersionId,strategy_version_id:command.strategyVersionId,
