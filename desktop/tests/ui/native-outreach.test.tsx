@@ -99,3 +99,18 @@ it('keeps unresolved metadata visible in the editor after closing the confirmati
   const initial=render(view());await prepare();await confirm();await screen.findByText(/发送结果尚未确定/);initial.unmount();
   render(<ContactEditor row={row} renderConfirmation={()=>null}/>);expect(screen.getByText(/原生发送结果待核对/)).toBeTruthy();expect(screen.getByRole('button',{name:'查看原发送记录'})).toBeTruthy();
 });
+it('retires only the original pending binding after a trusted NOT_SUBMITTED from CONFIRM, without automatically preparing again',async()=>{
+  render(view());await prepare();
+  command.mockImplementationOnce(async()=>({state:'NOT_SUBMITTED',binding:prepared.binding,error:'CHANNEL_UNVERIFIED'} as unknown as NativeOutreachResult));
+  await confirm();await screen.findByText('尚未提交发送，请重新核对后确认。');
+  expect(saved()).toEqual([]);expect(screen.getByRole('button',{name:'核对发送信息'})).toBeTruthy();
+  expect((screen.getByRole('checkbox',{name:'我已核对联系对象、发送账号和内容'}) as HTMLInputElement).checked).toBe(false);
+  expect(command.mock.calls.map(([value])=>value.action)).toEqual(['PREPARE','CONFIRM']);
+});
+it('keeps protection when NOT_SUBMITTED is for a different binding',async()=>{
+  render(view());await prepare();
+  command.mockImplementationOnce(async()=>({state:'NOT_SUBMITTED',binding:{...prepared.binding,claimId:id()},error:'CHANNEL_UNVERIFIED'} as unknown as NativeOutreachResult));
+  await confirm();await screen.findByRole('button',{name:'核对原发送结果'});
+  expect(saved()[0].value).toContain('PENDING');expect(saved()[0].value).toContain(prepared.binding.claimId);
+  expect(screen.queryByRole('button',{name:'核对发送信息'})).toBeNull();expect(screen.queryByText('尚未提交发送，请重新核对后确认。')).toBeNull();
+});

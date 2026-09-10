@@ -16,3 +16,9 @@ Task 2 follows `2026-09-12-native-outreach-flow.md`; existing modal, editor, not
 - Owned-path `git diff --check` passed. Root owns final combined typecheck; the renderer indexed-field type diagnostic was corrected to explicit business-field keys.
 
 No full suite, build, packaging, actual platform send or production permission change was performed. Main/controller/driver integration and independent final review belong to the root batch.
+
+## P2 correction — explicit pre-submission failure
+
+The independent review found that a confirmed pre-apply failure left the renderer permanently pending. The controller now supplies a distinct `NOT_SUBMITTED` result only when original CONFIRM never began 122 apply and cleanup is confirmed. The UI accepts it only from that original CONFIRM, with exact response/original-ledger binding equality and a still-PENDING record; it clears that record, resets the preview/checkbox and requires fresh explicit preparation and confirmation. Generic FAILED/CANCEL/404 and mismatched bindings never clear protection.
+
+Focused RED: 1 failed / 1 passed (11 unrelated tests filtered). GREEN: `vitest run tests/ui/native-outreach.test.tsx -t NOT_SUBMITTED` — **2 passed / 11 filtered**. No broader rerun, typecheck or build by this subtask; root owns combined verification.

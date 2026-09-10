@@ -50,8 +50,16 @@ export function NativeSendConfirmation({row,draft,connection,onClose,fingerprint
     }catch(e){if(current()){setError(e instanceof Error && (Object.values(messages).includes(e.message)||e.message===fallback||e.message.startsWith('确认信息与'))?e.message:fallback);if(active.current){cancel(active.current);active.current=null;}}}
     finally {working.current=false;if(current())setBusy(false);}
   }
-  function accept(value:NativeOutreachResult,binding:NativeOutreachBinding) {
+  function accept(value:NativeOutreachResult,binding:NativeOutreachBinding,fromConfirm=false) {
     if(!current())return;
+    if(value.state==='NOT_SUBMITTED') {
+      const original=readNativeOutreachRecord(key);
+      if(!fromConfirm || !original || original.state!=='PENDING' ||
+        JSON.stringify(nativeOutreachBindingSchema.parse(value.binding))!==JSON.stringify(binding) ||
+        JSON.stringify(original.binding)!==JSON.stringify(binding))throw new Error();
+      writeNativeOutreachRecord(key,null,binding);setPrepared(null);setChecked(false);setQueued(false);
+      setMessage('尚未提交发送，请重新核对后确认。');return;
+    }
     if(value.state==='FAILED'){setError(messages[value.error]||fallback);return;}
     if(value.state!=='RESULT' || JSON.stringify(nativeOutreachBindingSchema.parse(value.binding))!==JSON.stringify(binding))throw new Error();
     const r=value.result;
@@ -75,7 +83,7 @@ export function NativeSendConfirmation({row,draft,connection,onClose,fingerprint
       // Synchronous write + exact readback must finish before the native CONFIRM.
       writeNativeOutreachRecord(key,{binding:prepared.binding,state:'PENDING'});
       const value=await command({action:'CONFIRM',flowId:prepared.flowId,humanConfirmed:true});
-      if(!current())return;active.current=null;accept(value,prepared.binding);
+      if(!current())return;active.current=null;accept(value,prepared.binding,true);
     }catch(e){if(current())setError(e instanceof Error && e.message===storageMessage?storageMessage:fallback);}
     finally {working.current=false;if(current())setBusy(false);}
   }
