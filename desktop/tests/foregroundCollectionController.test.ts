@@ -68,7 +68,7 @@ it('explicit resume reads original START without letting a request id supply new
 it('concurrent capability reads share one probe and bind only the protected current profile',async()=>{
  const f=fixture();const results=await Promise.all([f.controller.execute({action:'CAPABILITIES'}),f.controller.execute({action:'CAPABILITIES'})]);
  expect(results[0]).toEqual(results[1]);expect(results[0]).toMatchObject({state:'AVAILABLE',bindings:[{connectionId:id(5),deviceId:id(2)}]});
- expect(f.probe).toHaveBeenCalledTimes(1);expect(f.options.store.read).toHaveBeenCalledTimes(3);
+ expect(f.probe).toHaveBeenCalledTimes(1);expect(f.options.store.read).toHaveBeenCalledTimes(1);
 });
 it.each(['DOUYIN','BILIBILI'] as const)('starts selected %s target only in three-platform server mode',async platform=>{
  const f=fixture();const account=platform==='DOUYIN'?'douyin.account-1':'123456789';
@@ -87,4 +87,13 @@ it('does not start a video target under legacy xhs-only support',async()=>{
  const f=fixture();f.command.targets[0].platform='DOUYIN' as any;f.strategy.snapshot.platforms=['DOUYIN'] as any;
  expect(await f.controller.start(f.command)).toEqual({state:'SERVICE_UNAVAILABLE'});
  expect(f.execution.submit).not.toHaveBeenCalled();expect(f.driverFactory).not.toHaveBeenCalled();
+});
+it('keeps a verified sibling capability when another one platform profile read fails',async()=>{
+ const f=fixture();const dy={connection_id:id(50),device_id:id(2),platform:'DOUYIN',account_public_id:'studio_2026',connection_version:3,status:'CONNECTED',connected_at:'2026-09-10T00:00:00Z',disconnected_at:null};
+ f.scope.transport.requestExecution.mockImplementation(async()=>({ok:true,status:200,data:{schema_version:'foreground-collection-support-v1',mode:'three-platform-foreground-v1'}} as any));
+ f.scope.transport.requestConnection.mockResolvedValue({ok:true,status:200,data:{items:[dy]}});
+ f.options.store.read.mockImplementation(async({platform}:any)=>{if(platform==='XIAOHONGSHU')throw new Error('corrupt');
+  if(platform==='DOUYIN')return {state:'RESOLVED',verification:{connection_id:id(50)}};return null;});
+ f.resolveAccount.mockResolvedValue({profileId:id(30),accountPublicId:'studio_2026'});
+ expect(await f.controller.execute({action:'CAPABILITIES'})).toEqual({state:'AVAILABLE',bindings:[{mode:'three-platform-foreground-v1',platform:'DOUYIN',connectionId:id(50),connectionVersion:3,deviceId:id(2),accountPublicId:'studio_2026'}]});
 });

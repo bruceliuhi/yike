@@ -143,7 +143,7 @@ def install_video_account_guard(crawler_type, client_type, auth_error, expected,
                 if account != expected: raise ValueError()
             except Exception as error:
                 # A crawler may catch request exceptions; never erase a mismatch.
-                failed = (error_types or {}).get(error.code, auth_error) if isinstance(error, _GuardFailure) else auth_error
+                failed = (error_types or {}).get(getattr(error, 'code', None), auth_error)
                 raise failed() from None
         try:
             if platform == 'DOUYIN': own_page = await crawler.browser_context.new_page()

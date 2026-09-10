@@ -108,7 +108,17 @@ def _classified_failure(error, runtime, cleanup_failed):
 
 async def read_douyin_self_account(page):
     """Read only the official self route. Caller owns this page/context."""
-    await page.goto(_DY_SELF)
+    try:
+        response = await page.goto(_DY_SELF)
+    except Exception:
+        raise _LoginError('COLLECTION_NETWORK_FAILED') from None
+    status = getattr(response, 'status', None)
+    code = {401: 'PLATFORM_AUTH_REQUIRED', 403: 'PLATFORM_PERMISSION_DENIED',
+        429: 'PLATFORM_RATE_LIMITED'}.get(status)
+    if code:
+        raise _LoginError(code)
+    if type(status) is not int or not 200 <= status < 300:
+        raise _LoginError('PLATFORM_RESPONSE_CHANGED')
     def self_url():
         url = urlsplit(page.url)
         return url.scheme == 'https' and url.netloc == 'www.douyin.com' and url.path == '/user/self'

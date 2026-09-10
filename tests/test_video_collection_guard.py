@@ -58,6 +58,7 @@ def test_guard_enforces_account_before_after_source_and_restores_classes(platfor
         async def goto(self, url):
             assert url == 'https://www.douyin.com/user/self'
             self.url = url
+            return NS(status=200)
         def get_by_text(self, pattern): return Locator()
         async def close(self): state.closed += 1
     class Context:
@@ -107,3 +108,28 @@ def test_bilibili_guard_preserves_known_limit_permission_challenge(status, code,
     with pytest.raises(worker._GuardFailure) as failure:
         asyncio.run(worker._bilibili_self_account(NS(request=NS(get=get))))
     assert failure.value.code == expected
+
+
+@pytest.mark.parametrize('status,expected', [(403, 'Permission'), (429, 'Rate'), (500, 'Changed')])
+def test_douyin_guard_maps_and_latches_structured_self_route_failure(status, expected):
+    events = []
+    code = {'Permission': 'PLATFORM_PERMISSION_DENIED', 'Rate': 'PLATFORM_RATE_LIMITED',
+        'Changed': 'PLATFORM_RESPONSE_CHANGED'}[expected]
+    error_types = {code: type(expected, (Exception,), {})}
+    class AuthError(Exception): pass
+    class Page:
+        url = 'https://www.douyin.com/user/self'
+        async def goto(self, url): events.append('guard'); return NS(status=status)
+        async def close(self): events.append('close')
+    class Context:
+        async def new_page(self): return Page()
+    class Client:
+        def __init__(self, page): self.playwright_page = page
+        async def request(self, *args, **kwargs): pytest.fail('source request must not start')
+    class Crawler:
+        def __init__(self):
+            self.context_page = Page(); self.browser_context = Context(); self.dy_client = Client(self.context_page)
+        async def search(self): await self.dy_client.request()
+    with worker.install_video_account_guard(Crawler, Client, AuthError, 'studio_2026', 'DOUYIN', error_types=error_types):
+        with pytest.raises(error_types[code]): asyncio.run(Crawler().search())
+    assert events == ['guard', 'close']

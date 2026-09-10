@@ -86,11 +86,13 @@ export function createForegroundCollectionController(options:Options) {
    const platforms:NativeLoginPlatform[]=['XIAOHONGSHU','DOUYIN','BILIBILI'];
    const bindings=[];
    for(const platform of platforms){
-    const record=await options.store.read({serviceOrigin,userId:scope.session.userId,deviceId:scope.device.deviceId,platform});guard(scope);
-    if(mode==='xhs-foreground-v1' && platform!=='XIAOHONGSHU' || record?.state!=='RESOLVED')continue;
-    const row=rows.find(r=>r.connection_id===record.verification?.connection_id && r.platform===platform && r.device_id===scope!.device.deviceId && r.status==='CONNECTED');
-    if(!row)continue;
-    try{const binding=await account(scope,{platform:row.platform,access_mode:'PLATFORM_ACCOUNT',connection_id:row.connection_id,connection_version:row.connection_version},
+    if(mode==='xhs-foreground-v1' && platform!=='XIAOHONGSHU')continue;
+    try{
+     const record=await options.store.read({serviceOrigin,userId:scope.session.userId,deviceId:scope.device.deviceId,platform});guard(scope);
+     if(record?.state!=='RESOLVED')continue;
+     const row=rows.find(r=>r.connection_id===record.verification?.connection_id && r.platform===platform && r.device_id===scope!.device.deviceId && r.status==='CONNECTED');
+     if(!row)continue;
+     const binding=await account(scope,{platform:row.platform,access_mode:'PLATFORM_ACCOUNT',connection_id:row.connection_id,connection_version:row.connection_version},
       {protectedRecord:record,currentRows:{items:rows}});
      if(binding.accountPublicId!==row.account_public_id)continue;guard(scope);
      bindings.push({mode,platform,connectionId:row.connection_id,connectionVersion:row.connection_version,deviceId:row.device_id,accountPublicId:row.account_public_id});

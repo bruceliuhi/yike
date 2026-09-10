@@ -51,6 +51,7 @@ def test_fixed_video_login_identity_and_cleanup(tmp_path, monkeypatch, platform)
         url = ''
         async def goto(self, url):
             self.url = 'https://evil.example/user/self' if state.foreign else url
+            return NS(status=200)
         async def evaluate(self, script):
             assert 'navigator.userAgent' in script
             return 'synthetic-agent'
@@ -114,6 +115,27 @@ def test_fixed_video_login_identity_and_cleanup(tmp_path, monkeypatch, platform)
 def test_unknown_platform_never_loads_a_browser(tmp_path, monkeypatch):
     monkeypatch.setattr(worker, '_load_runtime', lambda: pytest.fail('must not load XHS'))
     assert asyncio.run(worker.login_platform(platform='WEIBO', output_path=tmp_path))['state'] == 'FAILED'
+
+
+@pytest.mark.parametrize('status,expected', [(401, 'PLATFORM_AUTH_REQUIRED'),
+    (403, 'PLATFORM_PERMISSION_DENIED'), (429, 'PLATFORM_RATE_LIMITED'),
+    (500, 'PLATFORM_RESPONSE_CHANGED')])
+def test_douyin_self_route_preserves_http_failure(status, expected):
+    class Page:
+        url = 'https://www.douyin.com/user/self'
+        async def goto(self, url): return NS(status=status)
+    with pytest.raises(worker._LoginError) as failure:
+        asyncio.run(worker.read_douyin_self_account(Page()))
+    assert failure.value.code == expected
+
+
+def test_douyin_self_route_preserves_navigation_network_failure():
+    class Page:
+        url = ''
+        async def goto(self, url): raise TimeoutError('private network detail')
+    with pytest.raises(worker._LoginError) as failure:
+        asyncio.run(worker.read_douyin_self_account(Page()))
+    assert failure.value.code == 'COLLECTION_NETWORK_FAILED'
 
 
 @pytest.mark.parametrize('platform,account', [('BILIBILI', '123456'), ('DOUYIN', 'studio_2026.test')])
