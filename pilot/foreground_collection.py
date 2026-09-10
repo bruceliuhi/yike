@@ -5,7 +5,11 @@ from pilot.research_strategy_contract import ResearchStrategyConfiguration
 
 
 def foreground_collection_policy(platform, access_mode, configuration):
-    if platform != 'XIAOHONGSHU' or access_mode != 'PLATFORM_ACCOUNT':
+    return platform == 'XIAOHONGSHU' and three_platform_collection_policy(platform, access_mode, configuration)
+
+
+def three_platform_collection_policy(platform, access_mode, configuration):
+    if platform not in ('XIAOHONGSHU', 'DOUYIN', 'BILIBILI') or access_mode != 'PLATFORM_ACCOUNT':
         return False
     try:
         parsed = ResearchStrategyConfiguration.model_validate(configuration)
@@ -24,6 +28,8 @@ def configured_collection_policy(environment):
         return None
     if mode == 'xhs-foreground-v1':
         return foreground_collection_policy
+    if mode == 'three-platform-foreground-v1':
+        return three_platform_collection_policy
     raise RuntimeError('invalid_collection_configuration')
 
 
@@ -31,5 +37,7 @@ def foreground_collection_support(runtime, claims):
     with runtime.database.connect() as connection, connection.cursor() as cursor:
         runtime._active(cursor, claims)
         mode = 'xhs-foreground-v1' if runtime.capability_check is foreground_collection_policy else None
+        if runtime.capability_check is three_platform_collection_policy:
+            mode = 'three-platform-foreground-v1'
         runtime._active(cursor, claims)
         return {'schema_version':'foreground-collection-support-v1', 'mode':mode}

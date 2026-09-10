@@ -18,6 +18,7 @@ import threading
 from app.collector import _EXIT_RESULTS
 from app.repository import canonical_single_keyword
 from app.windows_source_driver import collect_windows_source
+from app.platform_login_worker import valid_account
 from connectors.candidate_mapping import build_comment_batch
 
 
@@ -63,7 +64,7 @@ def _request(stdin) -> dict:
         raise ValueError()
     if 'expected_account_public_id' in payload:
         expected = payload['expected_account_public_id']
-        if payload['platform'] != 'XIAOHONGSHU' or not isinstance(expected, str) or not re.fullmatch(r'[A-Za-z0-9]{8,32}', expected):
+        if not valid_account(payload['platform'], expected):
             raise ValueError()
     if (type(payload['max_records']) is not int or not 1 <= payload['max_records'] <= 100
             or type(payload['timeout_seconds']) is not int or not 1 <= payload['timeout_seconds'] <= 900):

@@ -20,6 +20,7 @@ import time
 
 from app.collector import _EXIT_RESULTS, _minimal_child_environment, run_supervised_process
 from app.repository import canonical_single_keyword
+from app.platform_login_worker import valid_account
 from app.windows_private_directory import create_private_directory, verify_private_tree
 from app.windows_runtime_install import load_governance, PIN, WINDOWS_PYTHON, _within, _digest
 
@@ -129,8 +130,7 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
                 or type(timeout_seconds) is not int or not 1 <= timeout_seconds <= 900
                 or not isinstance(query, str) or not 1 <= len(query) <= 80 or canonical_single_keyword(query) != query):
             raise WindowsSourceError('source_input_invalid')
-        if expected_account_public_id is not None and (platform != 'XIAOHONGSHU' or
-                not isinstance(expected_account_public_id, str) or not re.fullmatch(r'[A-Za-z0-9]{8,32}', expected_account_public_id)):
+        if expected_account_public_id is not None and not valid_account(platform, expected_account_public_id):
             raise WindowsSourceError('source_input_invalid')
         paths = [Path(p) for p in (runtime_path, profile_path, output_path)]
         if any(not p.is_absolute() or p.drive.startswith('\\') for p in paths):
@@ -168,6 +168,7 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
             if expected_account_public_id is not None:
                 entrypoint = Path(__file__).with_name('platform_collection_worker.py').resolve()
                 environment['YIKE_EXPECTED_ACCOUNT_PUBLIC_ID'] = expected_account_public_id
+                environment['YIKE_COLLECTION_PLATFORM'] = platform
                 environment['PYTHONDONTWRITEBYTECODE'] = '1'
             # Sample several comments per post (including replies when available)
             # rather than spending the entire budget on first-comment-only posts.

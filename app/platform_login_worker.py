@@ -106,6 +106,27 @@ def _classified_failure(error, runtime, cleanup_failed):
     return _failure(code, state)
 
 
+async def read_douyin_self_account(page):
+    """Read only the official self route. Caller owns this page/context."""
+    await page.goto(_DY_SELF)
+    def self_url():
+        url = urlsplit(page.url)
+        return url.scheme == 'https' and url.netloc == 'www.douyin.com' and url.path == '/user/self'
+    if not self_url():
+        raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
+    label = page.get_by_text(_DY_HANDLE)
+    try:
+        await label.wait_for(state='visible', timeout=10000)
+    except Exception:
+        raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED') from None
+    if not self_url() or await label.count() != 1 or not await label.is_visible():
+        raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
+    match = _DY_HANDLE.fullmatch(await label.inner_text())
+    if match is None:
+        raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
+    return match.group(1)
+
+
 async def login_platform(*, platform, output_path: Path) -> dict:
     if platform == 'XIAOHONGSHU':
         return await login_xhs(output_path=output_path)
@@ -149,25 +170,7 @@ async def login_platform(*, platform, output_path: Path) -> dict:
                     account = str(mid)
                 else:
                     # Only the signed-in self route; never arbitrary creator URLs.
-                    await crawler.context_page.goto(_DY_SELF)
-                    url = urlsplit(crawler.context_page.url)
-                    if url.scheme != 'https' or url.netloc != 'www.douyin.com' or url.path != '/user/self':
-                        raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
-                    label = crawler.context_page.get_by_text(_DY_HANDLE)
-                    try:
-                        # goto/load may precede SPA account-header rendering.
-                        await label.wait_for(state='visible', timeout=10000)
-                    except Exception:
-                        raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED') from None
-                    url = urlsplit(crawler.context_page.url)
-                    if url.scheme != 'https' or url.netloc != 'www.douyin.com' or url.path != '/user/self':
-                        raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
-                    if await label.count() != 1 or not await label.is_visible():
-                        raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
-                    match = _DY_HANDLE.fullmatch(await label.inner_text())
-                    if match is None:
-                        raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
-                    account = match.group(1)
+                    account = await read_douyin_self_account(crawler.context_page)
                 if not valid_account(platform, account):
                     raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
                 checked_at = datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
