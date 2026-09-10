@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+04B/05C客户端接续：普通TaskWizard已接授权预览→生成→原请求恢复→有依据的人工采用；旧自动suggest在真实服务路径关闭，人工词/删除记录保留。版本、定向测试与独立审核见[单一客户端记录](superpowers/plans/2026-09-11-search-suggestion-client.md#实施与验证)。下一步在授权环境联验真实模型和任务主流程，不重做已交付服务/UI；Windows/真实平台、部署与客户UAT仍待验，不将父卡/Goal标完成。
+
 04B/05C接续：搜索建议服务已接显式业务介绍外发授权、原请求恢复和普通runtime；128新增快照保护，模型/store/process复用。精确源码、独立审核及限定验证见[唯一记录](superpowers/plans/2026-09-11-search-suggestion-service.md#实施与验证)。下一片接TaskWizard客户端生成/采用/持久原请求恢复，不重写服务，也不直接调用缺授权与草稿版本的旧suggest。客户端、真实模型质量、Windows/生产/UAT仍待验，04B/05C及完整Goal继续IN_PROGRESS。
 
 **2026-09-10 最新用户决定：同步最新代码，按照原规划的 V0.2 目标全量推进。** 此决定恢复本任务的开发授权，取代此前额度暂停及精简范围安排；CodexiMac 已恢复接续，CodexWin 的运行状态须单独确认，不能据此冒称其已启动或 ACK。[暂停交接](handoffs/WIN_PAUSED_20260910.md)中的已知失败和未审工作仍需处理。本次重新读取 CodexiMac 当前任务的 Goal，文字已覆盖完整目标且状态为 `active`；这是本次运行快照，不代表另一端已启动，也不标完成。
