@@ -14,4 +14,5 @@ BEGIN
         RAISE EXCEPTION 'application role must not own connection registry tables';
     END IF;
     EXECUTE format('GRANT SELECT, INSERT ON TABLE public.pilot_connection_operations TO %I',target_role);
+    EXECUTE format('GRANT SELECT, INSERT, UPDATE ON TABLE public.pilot_tasks TO %I',target_role);
 END $$;
