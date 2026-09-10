@@ -90,5 +90,24 @@ def test_actual_three_platform_recovery_and_resume_over_http_postgres(real_strat
         assert runs == [('XIAOHONGSHU','SUCCEEDED',1),('DOUYIN','SUCCEEDED',2),('BILIBILI','SUCCEEDED',1)]
         assert connection.execute('SELECT count(*) FROM pilot_candidate_batches WHERE tenant_id=%s',(env.tenant,)).fetchone()[0] == 3
         assert connection.execute('SELECT count(*) FROM pilot_candidate_observations WHERE tenant_id=%s',(env.tenant,)).fetchone()[0] == 4
+        persisted = connection.execute('''
+            SELECT s.platform,s.kind,s.external_source_id,s.external_comment_id,
+                   v.content->>'public_url',v.content->>'title',v.content->>'author_public_id',
+                   v.content->>'body',v.content->>'published_at',v.content->'parent',
+                   to_char(o.observed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+                   o.query,o.collector_version,o.normalizer_version
+            FROM pilot_candidate_observations o
+            JOIN pilot_candidate_sources s USING(tenant_id,owner_user_id,source_id)
+            JOIN pilot_candidate_versions v USING(tenant_id,owner_user_id,source_id,version_id)
+            WHERE o.tenant_id=%s AND o.owner_user_id=%s
+            ORDER BY s.platform,s.external_comment_id
+        ''',(env.tenant,env.claims.user_id)).fetchall()
+        expected = sorted((platform, record['kind'], record['external_source_id'],
+            record['external_comment_id'], record['public_url'], record['title'],
+            record['author_public_id'], record['body'], record['published_at'],
+            record['parent'], record['observed_at'], record['query'],
+            record['collector_version'], record['normalizer_version'])
+            for platform, platform_records in records.items() for record in platform_records)
+        assert persisted == expected
         operations=connection.execute('SELECT operation,count(*) FROM pilot_execution_operations WHERE tenant_id=%s GROUP BY operation',(env.tenant,)).fetchall()
         assert sorted(operations) == [('CLAIM',3),('FINISH',3),('START',1)]
