@@ -68,7 +68,8 @@ it.skipIf(!names.some(name => process.env[`YIKE_MULTIPLATFORM_LIVE_${name}`]))(
       probe:async()=>true,sessions:scope=>({execution:createExecutionSession({serviceOrigin:base,transport:scope.transport,journal:executionJournal(),vault:{read:async()=>key}}),
         candidates:createCandidateSession({serviceOrigin:base,transport:scope.transport,journal:candidateJournal(),vault:{read:async()=>key}})}),
       driverFactory:options=>({start(input){const platform=input.target.platform as NativeLoginPlatform;starts.push(platform);budgets.push(input.maxRecords);
-        boundAccounts.push(options.binding.expectedAccountPublicId);profilePaths.push(options.profilePath);driverTargets.push(structuredClone(input.target));
+        expect(options.binding.expectedAccountPublicId).toBeDefined();boundAccounts.push(options.binding.expectedAccountPublicId!);
+        profilePaths.push(options.profilePath);driverTargets.push(structuredClone(input.target));
         return {completed:Promise.resolve(structuredClone(records[platform])),async stop(){}};}})});controllers.push(c);return c;}
     try {
       expect((await identity.requestApi({operation:'session.login',payload:{token:values.TOKEN}})).ok).toBe(true);
@@ -98,7 +99,7 @@ it.skipIf(!names.some(name => process.env[`YIKE_MULTIPLATFORM_LIVE_${name}`]))(
       expect(driverTargets).toEqual(targets.slice(0,2));
       await first.shutdown();const recovered=controller();
       expect(await recovered.execute({action:'RECOVER',taskId,humanConfirmed:true,retry:false})).toMatchObject({state:'STATUS',serverStatus:'RUNNING',stopConfirmed:false,recordsUsed:3});
-      expect(starts).toEqual(['XIAOHONGSHU','DOUYIN']);expect(candidateReads).toHaveLength(1);
+      expect(starts).toEqual(['XIAOHONGSHU','DOUYIN']);expect(candidateReads).toHaveLength(2);
       const resumed=await recovered.resumeStart(template.request_id);expect(resumed).toEqual(begun);
       await vi.waitFor(async()=>expect(await recovered.execute({action:'STATUS',taskId})).toMatchObject(
         {localState:'COMPLETED',serverStatus:'SUCCEEDED',stopConfirmed:true,recordsUsed:4}),{timeout:10000,interval:50});
