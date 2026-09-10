@@ -10,6 +10,8 @@ from pilot.candidate_assessment_model import AssessmentModelError, OpenAICompati
 from pilot.candidate_ingestion import CandidateIngestionStore
 from pilot.candidate_review import CandidateReviewStore
 from pilot.contact_drafts import ContactDraftStore
+from pilot.materials import MaterialStore
+from pilot.material_model import MaterialExtractionModel
 from pilot.outreach_queue import OutreachQueueStore
 from pilot.db import PilotDatabase
 from pilot.execution_runtime import ExecutionRuntime
@@ -85,5 +87,6 @@ def build_runtime_app(
         research_strategies=strategies,
         reply_store=replies,
         contact_drafts=drafts,
+        materials=MaterialStore(database, model=MaterialExtractionModel(model) if model is not None else None),
         outreach_queue=queue,
     )

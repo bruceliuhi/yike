@@ -6,7 +6,9 @@
 
 画像列表、保存与确认沿用现有 JSON facade。确认画像仍只复用对应研究任务，不启动采集。没有资料服务时，现有添加、编辑、删除和 TXT/Markdown 读取继续保存为**本机会话草稿**；不报告上传、解析或对外引用成功。
 
-`YikeService.materials` 是可选的 [MaterialService](../desktop/src/renderer/services/materials.ts)。只有存在该服务、已登录、且当前画像已有服务端版本 ID 时，页面启用客户空间资料生命周期。本轮没有新增资料 HTTP API、数据库表、AI 解析器、正式桌面 IPC 或默认模拟实现。生产适配器仍不提供此服务。自动化测试中的 `TEST` 数据只用于隔离验证。
+`YikeService.materials` 保持可选的 [MaterialService](../desktop/src/renderer/services/materials.ts)，普通客户端现已提供认证适配器，经固定 `materials.*` IPC 或同源 HTTP 接入服务。只有已登录、且当前画像已有服务端版本 ID 时，页面启用客户空间资料生命周期。后端迁移125保存追加版本、原请求回执和影响确认 token；未迁移/授权不能宣称可用。没有默认模拟实现，自动化测试的数据只用于隔离验证。
+
+2026-09-12 后端接通批次见[唯一实施与验证记录](superpowers/plans/2026-09-12-materials-lifecycle.md)。模型提取复用服务端已有三项 `YIKE_PILOT_ASSESSMENT_*` 配置，但使用独立资料提取提示词；只有用户点击解析才调用，最多20秒、64 KiB响应，无重试/跳转。无配置或无法得到逐字证据时保存 FAILED；成功提取仍为 REVIEW_REQUIRED，须人工确认才为 READY。该批次不证明真实客户资料、付费模型或 Windows/生产验收。
 
 客户空间资料与旧本机草稿使用不同存储语义；启用资料服务不会自动上传、合并或删除旧本机草稿。保存首个画像后仍展示可展开的本机草稿表，保留编辑和删除入口。“带入当前画像”只预填客户资料编辑窗，人工保存后才调用资料服务；取消不写入，原本机草稿保留，引用范围不提升，也不自动解析或确认。同一本机草稿带入同一客户空间与画像时，目标 materialId 固定为 `local-` 加 SHA-256 十六进制摘要；摘要输入为版本标识 `local-material-v1`、用户 ID、可信空间 ID/版本、画像版本 ID、本机草稿 ID 的 JSON 数组。ID 仅用于避免重复创建，不替代服务端权限。列表已有同 ID 时打开编辑并携带该记录的 expectedVersion；资料解析中、读取失败或有待核对操作时不能带入。不同画像/空间的目标身份分别计算；服务端仍须原子核对 ID 唯一性与 expectedVersion，不能无条件覆盖。
 
@@ -60,4 +62,4 @@
 
 相关测试为 [profile-materials.test.tsx](../desktop/tests/ui/profile-materials.test.tsx)、[真实页面入口回归](../desktop/tests/ui/profile-materials-integration.test.tsx) 和 [既有画像/本机草稿回归](../desktop/tests/ui/profile.test.tsx)。另见 [本机草稿带入回归](../desktop/tests/ui/material-local-handoff.test.tsx)。覆盖资料全流程、等待与失败、原文/版本错配、影响过期、原操作核对、清草稿防重、跨账号迟到、文件读取迟到、画像人工字段保护和不自动确认。
 
-这些是前端与隔离服务契约验证，不是资料后端、真实 AI 解析、生产数据库或 Windows 客户端验收。可见页面与打包结果由本轮主任务 QA 记录绑定实际候选。
+上述既有 UI 测试仍只证明前端契约。本批另有真实 HTTP/runtime、私有模型子进程、回环合成模型服务和独立 PostgreSQL 受限角色验证，证据见唯一实施记录；不能把合成模型响应当成真实 AI 提取质量或生产验收。没有新增打包结果。
