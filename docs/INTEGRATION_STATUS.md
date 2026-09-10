@@ -246,6 +246,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 回复历史追加修复：`3a5a4b6` 修正 `CORRECTED/VOID` 事件在同一租户/用户下被后续查询覆盖、误报 `event_conflict` 的问题；新增事件以自身 `event_id` 做幂等查询，并在目标不存在时返回 `event_target_unavailable`。回复合同与存储专项 **20 passed**，compile 检查通过。尚未完成 PostgreSQL 受限角色集成、真实平台回流、已读同步、提醒调度或客户 UAT。
 
+2026-09-10 最新主线回归：在 `c0f0fcc`（含回复历史追加修复）上运行 `uv run --frozen pytest -q`，结果 **2110 passed / 488 skipped in 54.41s**。这是锁定代码的本地全量回归；跳过项仍主要依赖真实 PostgreSQL、平台账号、Windows 实机、生产环境或外部回复，不能升级为 M3 完成。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
