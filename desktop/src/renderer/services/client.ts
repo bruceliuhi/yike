@@ -65,18 +65,18 @@ function serviceFailure(status: number, body: unknown): ServiceError {
     status,
   );
 }
-async function request(
+async function requestRaw(
   operation: ApiOperation,
   path: string,
   method = "GET",
   payload?: unknown,
   signal?: AbortSignal,
-): Promise<JsonRecord> {
+): Promise<unknown> {
   const b = bridge();
   if (b?.requestApi) {
     const result = await b.requestApi({ operation, payload });
     if (!result.ok) throw serviceFailure(result.status, result.error);
-    return record(result.data);
+    return result.data;
   }
   if (window.location.protocol === "yike:")
     throw new ServiceError(
@@ -105,7 +105,7 @@ async function request(
     }
     const body: unknown = await response.json();
     if (!response.ok) throw serviceFailure(response.status, body);
-    return record(body);
+    return body;
   } catch (error) {
     if (
       error instanceof ServiceError ||
@@ -117,6 +117,9 @@ async function request(
       "网络连接失败，输入已保留。请检查网络后重试。",
     );
   }
+}
+async function request(operation:ApiOperation,path:string,method='GET',payload?:unknown,signal?:AbortSignal):Promise<JsonRecord>{
+  return record(await requestRaw(operation,path,method,payload,signal));
 }
 const labels: Record<keyof ProfileFields, string> = {
   service: "服务内容",
@@ -249,6 +252,7 @@ function unavailable(name: string): never {
 const candidateReads = createCandidateReviewService(request);
 const platformConnections = createPlatformConnectionService(bridge, () => service.connections());
 export const service: YikeService = {
+  replyEvidence:(opportunityId,signal)=>requestRaw('replies.evidence',`/opportunities/${encodeURIComponent(opportunityId)}/replies/evidence`,'GET',{opportunityId},signal),
   get execution() { return desktopExecution(bridge()); },
   get foregroundCollection() { return foregroundCollection(bridge()); },
   get deviceIdentity() { return desktopDeviceIdentity(bridge()); },

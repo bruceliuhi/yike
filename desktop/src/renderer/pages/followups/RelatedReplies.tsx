@@ -24,6 +24,7 @@ import {
 } from "../../domain/followup";
 import { useFollowupOperation } from "./useFollowupOperation";
 import { useRelatedReplies } from "./useRelatedReplies";
+import { ReplyEvidencePanel } from "./ReplyEvidencePanel";
 import type { Opportunity } from "../../domain/models";
 import { isSample } from "../Opportunities";
 export function RelatedReplies({
@@ -203,6 +204,13 @@ export function RelatedReplies({
       ) : tab === "platform" ? (
         !session.authenticated ? (
           <Empty title="登录后查看回复" />
+        ) : service.replyEvidence ? (
+          target.data && target.data.id === opportunityId && !isSample(target.data) ? (
+            <ReplyEvidencePanel
+              key={`${session.userId}:${session.accountScope?.id}:${session.accountScope?.version}:${opportunityId}`}
+              opportunity={target.data}
+            />
+          ) : <Empty title="选择商机查看回复证据" />
         ) : !service.followup ? (
           <Empty
             title="回复回流尚未接通"

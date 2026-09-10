@@ -51,6 +51,7 @@ export interface YikeService {
   searchCoverage?: import("./searchCoverage").SearchCoverageService;
   materials?: import("./materials").MaterialService;
   followup?: import("./followup").FollowupService;
+  replyEvidence?(opportunityId:string,signal?:AbortSignal):Promise<unknown>;
   taskOperations?: import("./taskOperations").TaskOperationsService;
   workbench?: import("./workbench").WorkbenchService;
   outreach?: import("./outreach").OutreachService;

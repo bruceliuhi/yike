@@ -18,6 +18,7 @@ const schemas = {
   'profiles.confirm': z.object({version_id: identifier}).strict(),
   'opportunities.list': empty,
   'opportunities.get': z.object({id: identifier}).strict(),
+  'replies.evidence': z.object({opportunityId:z.string().uuid()}).strict(),
   'followups.list': empty,
   'followups.add': z.object({
     opportunity_id: identifier,
@@ -84,6 +85,7 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
     case 'followups.list': return {path: '/api/ui/followups', method: 'GET', logout: false};
     case 'followups.add': return {path: '/api/ui/followups', method: 'POST', body: JSON.stringify(data), logout: false};
     case 'capabilities.get': return {path: '/api/ui/capabilities', method: 'GET', logout: false};
+    case 'replies.evidence': return {path:`/api/ui/opportunities/${data!.opportunityId}/replies/evidence`,method:'GET',logout:false};
   }
 }
 
