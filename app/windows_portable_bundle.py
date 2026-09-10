@@ -27,6 +27,7 @@ import app.windows_collection_host, app.windows_platform_login, app.windows_sour
 import app.platform_collection_worker, app.platform_login_worker, app.windows_process_job, app.collection_output
 import app.windows_platform_outreach, app.platform_outreach_worker
 import app.platform_outreach_runtime, app.xhs_comment_channel
+import app.windows_portable_install
 import pydantic, pydantic_core, idna
 root = Path(sys.executable).resolve().parents[1]
 assert all(Path(value).resolve().is_relative_to(root) for value in sys.path)
