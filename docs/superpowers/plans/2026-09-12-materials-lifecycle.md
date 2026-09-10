@@ -41,3 +41,9 @@ Frozen source `85ddb16` (base `a266198`): client `09ed567` plus update/replay bi
 - TypeScript `tsc --noEmit` passed after final timeout type change; diff whitespace check passed. No full regression suite, bundle, Windows package or deployment performed.
 
 Review status is recorded separately in `docs/qa/MATERIALS_LIFECYCLE_REVIEW.md`; no GO claim is inferred from tests. Existing profile save/confirm and UI interaction were reused. Formal material-reference tracking, real provider quality, actual-platform/Windows/production/UAT evidence remain outside this completed code slice and inside the full V0.2 goal.
+
+### Independent-review corrections
+
+Initial review rejected `85ddb16`: synchronous identity I/O could block the ASGI event loop, and extraction held a session/database transaction across the model wait. `2454417` moves material authentication into the worker pool (focused API 4 passed); `2de6e10` keeps only an owner-scoped session advisory lock during extraction and uses short preflight/commit transactions (store 7 passed; assembled HTTP main journey 1 passed, other case not rerun).
+
+Delta review then reproduced logout leaving no final receipt and a permanently pending client operation. `7edfeb8` records only the exact pre-authorized, interrupted parse's FAILED/confirmedNoChange audit outcome after rollback, without storing extracted content or another material version. The old caller remains rejected; a new active login can reconcile. Newly submitted revoked requests still cannot write receipts. Focused store file 8 passed, including the added logout/relogin case. These counts overlap earlier runs; no full regression/build was added. Final independent disposition is in the same review report, bound to `7edfeb8`.
