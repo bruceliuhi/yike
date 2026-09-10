@@ -112,6 +112,8 @@ it("deep link reads its own task; confirmation cancels once and retains unknown 
   context.route = parseRoute(`#/collection?task=${id}`);
   render(<NativeCollectionTasks />);
   await screen.findByRole("button", { name: "取消本次采集" });
+  fireEvent.click(screen.getByRole('button',{name:'查看本次发现线索'}));
+  expect(context.navigate).toHaveBeenCalledWith(`/candidates?task=${id}`);
   await waitFor(() =>
     expect(
       (

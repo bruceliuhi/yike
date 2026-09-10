@@ -18,6 +18,17 @@ import {
 } from "./fixtures/candidateReviewApi";
 
 describe("candidate review service fixed transport boundary", () => {
+  it('requires an exact task echo and keeps the filter on the fixed read route', async () => {
+    const taskId='11111111-1111-4111-8111-111111111111';
+    const page={...pageFixture(),taskId};
+    const request=vi.fn().mockResolvedValue(page),api=createCandidateReviewService(request);
+    expect(await api.list({taskId})).toEqual(page);
+    expect(request.mock.calls[0].slice(0,4)).toEqual(['candidates.list',`/candidates?taskId=${taskId}`,'GET',{taskId}]);
+    for(const bad of [pageFixture(),{...page,taskId:'22222222-2222-4222-8222-222222222222'}]){
+      request.mockResolvedValue(bad);await expect(api.list({taskId})).rejects.toThrow();
+    }
+    request.mockResolvedValue(page);await expect(api.list({})).rejects.toThrow();
+  });
   it("reads raw evidence through the fixed candidate route without changing any original text", async () => {
     const raw = rawEvidenceFixture(), request = vi.fn().mockResolvedValue(raw);
     const controller = new AbortController();

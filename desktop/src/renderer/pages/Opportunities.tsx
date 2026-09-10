@@ -792,10 +792,10 @@ function OpportunityDetail({ id }: { id: string }) {
 }
 
 export function CandidatesPage() {
-  const { session } = useApp();
+  const { session, route } = useApp();
   return (
     <CandidateWorkbench
-      key={`${session.authenticated}:${session.userId || "public"}:${JSON.stringify(session.accountScope)}`}
+      key={`${session.authenticated}:${session.userId || "public"}:${JSON.stringify(session.accountScope)}:${route.query.get('task')||''}:${route.query.get('scope')||''}`}
     />
   );
 }
@@ -910,6 +910,7 @@ function CandidateWorkbench() {
   const { service, session, route, navigate, notify } = useApp();
   const sample = route.query.get("scope") === "sample";
   const requestedId = sample ? null : route.query.get("candidate");
+  const taskId = sample ? null : route.query.get('task');
   const reviewLedger = useCandidateReviewLedger(
     session.authenticated ? session.userId : undefined,
   );
@@ -923,7 +924,7 @@ function CandidateWorkbench() {
   ]);
   const [query, setQuery] = useState("");
   const [platform, setPlatform] = useState("");
-  const [status, setStatus] = useState<CandidateStatus | "">("PENDING_REVIEW");
+  const [status, setStatus] = useState<CandidateStatus | "">(taskId ? '' : "PENDING_REVIEW");
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState("");
   const [checked, setChecked] = useState<string[]>([]);
@@ -966,8 +967,9 @@ function CandidateWorkbench() {
               (requestSignal) =>
                 service.candidates(
                   requestedId
-                    ? { ids: [requestedId], page: 1, pageSize: 10 }
+                    ? { ids: [requestedId], page: 1, pageSize: 10, ...(taskId?{taskId}:{}) }
                     : {
+                        ...(taskId?{taskId}:{}),
                         query: query.trim(),
                         platform: platform || undefined,
                         status: status || undefined,
@@ -978,6 +980,8 @@ function CandidateWorkbench() {
                 ),
               { signal, timeoutMessage: "线索读取超时，请重试。" },
             ).then((result) => {
+              if (result.taskId !== (taskId || undefined))
+                throw new Error('返回线索与采集任务不匹配，请刷新重试。');
               if (
                 requestedId &&
                 (result.items.length > 1 ||
@@ -1002,6 +1006,7 @@ function CandidateWorkbench() {
       status,
       page,
       requestedId,
+      taskId,
     ],
   );
   const confirmedProfiles = (profiles.data || []).filter(
@@ -1066,6 +1071,7 @@ function CandidateWorkbench() {
     session.accountScope,
     sample,
     requestedId,
+    taskId,
     query,
     platform,
     status,
@@ -1096,7 +1102,7 @@ function CandidateWorkbench() {
     setSelectedId("");
     setConfirmation(null);
     setReplaceAssessment(null);
-  }, [query, platform, status, page, sample, requestedId]);
+  }, [query, platform, status, page, sample, requestedId, taskId]);
   const updateDraft = (
     candidate: Candidate,
     update: (old: CandidateEditor) => CandidateEditor,
@@ -1726,8 +1732,11 @@ function CandidateWorkbench() {
       <PageHeader
         title="原始线索"
         description="先核对原文与画像，再确认是否进入客户商机库。"
-        back={() => navigate("/collection")}
+        back={() => navigate(taskId ? `/collection?task=${taskId}` : "/collection")}
       />
+      {taskId && <Notice action={<Button variant="ghost" onClick={()=>navigate(`/collection?task=${taskId}`)}>返回采集任务</Button>}>
+        本任务发现过的线索 · 当前最新版本。重复观察按线索去重，不等同于采集入库记录数；历史任务发现的原文请在来源证据中核对。
+      </Notice>}
       <Tabs
         active={sample ? "sample" : "customer"}
         items={[

@@ -66,6 +66,7 @@ const bodyFits = (value: unknown) =>
 
 export const candidateQuerySchema = z
   .object({
+    taskId: uuid.optional(),
     query: text(200).optional(),
     platform: candidatePlatformSchema.optional(),
     status: status.optional(),
@@ -322,6 +323,7 @@ const candidate = z
 export type ReviewedCandidateDto = z.infer<typeof candidate>;
 const pageSchema = z
   .object({
+    taskId: uuid.optional(),
     items: z.array(candidate).max(100),
     total: z.number().int().safe().nonnegative(),
     page: integer.max(999999999),
@@ -478,6 +480,7 @@ export function parseCandidatePage(
   try {
     const q = candidateQuerySchema.parse(query),
       page = pageSchema.parse(raw);
+    if (page.taskId !== q.taskId) throw new Error();
     if (page.page !== (q.page ?? 1) || page.pageSize !== (q.pageSize ?? 20))
       throw new Error();
     const count = Math.min(

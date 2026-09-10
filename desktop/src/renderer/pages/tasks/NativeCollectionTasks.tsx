@@ -320,8 +320,8 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
             >
               查询本机采集状态
             </Button>
-            <Button onClick={() => navigate("/candidates")}>
-              前往待判断线索
+            <Button onClick={() => navigate(`/candidates?task=${item.task_id}`)}>
+              查看本次发现线索
             </Button>
             {item.mode === "monitor" && (
               <Button onClick={() => navigate("/monitors")}>

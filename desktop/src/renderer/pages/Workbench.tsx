@@ -55,12 +55,15 @@ export function WorkbenchPage() {
     deps,
   );
   const tasks = useResource(
-    () =>
+    (signal) =>
       session.authenticated
-        ? boundedRequest(() => service.tasks(), {
+        ? boundedRequest(async () => service.taskFeed
+            ? (await service.taskFeed.list({limit:1},signal)).items.length > 0
+            : (await service.tasks()).length > 0, {
+            signal,
             timeoutMessage: "任务状态读取超时，请重试。",
           })
-        : Promise.resolve([]),
+        : Promise.resolve(false),
     deps,
   );
   const completed = profiles.data?.some((p) => p.status === "CONFIRMED");
@@ -96,11 +99,11 @@ export function WorkbenchPage() {
       status:
         tasks.loading || tasks.error
           ? "待核验"
-          : tasks.data?.length
+          : tasks.data
             ? "已有任务"
             : "未开始",
-      path: "/tasks/new",
-      done: !!tasks.data?.length,
+      path: tasks.data ? "/collection" : "/tasks/new",
+      done: tasks.data === true,
     },
   ];
   return (

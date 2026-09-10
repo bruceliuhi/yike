@@ -82,6 +82,7 @@ export interface Candidate extends Partial<
   lastReview?: CandidateReceipt;
 }
 export interface CandidateQuery {
+  taskId?: string;
   query?: string;
   platform?: string;
   status?: CandidateStatus;
@@ -92,6 +93,7 @@ export interface CandidateQuery {
   reviewRequestId?: string;
 }
 export interface CandidatePage {
+  taskId?: string;
   items: Candidate[];
   total: number;
   page: number;
