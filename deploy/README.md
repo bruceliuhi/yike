@@ -1,5 +1,7 @@
 # 意客 AI 应用镜像
 
+搜索建议未受理恢复（迁移129）：在原110＋128基础上完成129，并重新执行新版[建议请求授权](grant_search_suggestions.sql)，才启动本批runtime。新表按租户/用户FORCE RLS且只授SELECT/INSERT，拒绝与受理不能双写；旧请求仍从原接口只读恢复。没有迁移/授权时，不把读取异常或404解释为未受理。本说明是部署要求，不是实际生产执行记录；[版本与验收](../docs/superpowers/plans/2026-09-11-search-suggestion-rejection.md#实施与验证)。
+
 持续监控（迁移126/127）：执行 [轮次授权](grant_monitor_runtime.sql)，复用原执行/策略/连接授权。仅显式 `YIKE_PILOT_COLLECTION_MODE=three-platform-monitor-v1` 开放 policy1 监控；每次 START 仍必须有原预留和设备签名，旧模式不扩大权限。客户端源码已接“新建监控→确认策略和账号→本机接管→周期执行→暂停/原请求核对”，三个原生平台串行共用采集槽。必须保持客户端在线；关闭后不补跑，重新打开需确认账号后接管，不能仅切环境变量就宣传持续采集。`/api/ui/monitor-runtime/support` 只报告部署能力，不证明本机环境或平台成功；`pulse.can_start=false` 维持在线并明确跳过忙碌时段。无外部发送。本批尚无新的 Windows 包/真实平台或生产验收证据，入口与版本见[客户端单一记录](../docs/superpowers/plans/2026-09-11-monitor-client.md)。
 
 监控计划基础（迁移126）：迁移后以受信发布作业设置既有 `yike.app_role` 并执行 [监控计划授权](grant_monitor_plans.sql)，另需原画像/策略/会话权限。普通runtime仅保存计划、暂停/恢复和历史回执，不启动采集；`ACTIVE + NOT_CONNECTED` 不能作为监控已运行。尚无周期执行器/新客户端入口，本记录不是生产部署。[接口与证据](../docs/superpowers/plans/2026-09-11-monitor-plans.md)。

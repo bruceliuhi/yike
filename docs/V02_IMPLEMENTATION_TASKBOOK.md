@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+04B/05C恢复补齐：搜索建议新增服务端持久NOT_SUBMITTED事实和客户端明确结束入口，处理配额/授权变化等确未受理情况；与受理同锁且DB互斥，未知/404不解锁。具体版本、审核与定向验证见[唯一记录](superpowers/plans/2026-09-11-search-suggestion-rejection.md#实施与验证)。后续回到同版本真实主流程联验及完整V0.2未完成项，不以此恢复补丁标产品或Goal完成。
+
 04B/05C客户端接续：普通TaskWizard已接授权预览→生成→原请求恢复→有依据的人工采用；旧自动suggest在真实服务路径关闭，人工词/删除记录保留。版本、定向测试与独立审核见[单一客户端记录](superpowers/plans/2026-09-11-search-suggestion-client.md#实施与验证)。下一步在授权环境联验真实模型和任务主流程，不重做已交付服务/UI；Windows/真实平台、部署与客户UAT仍待验，不将父卡/Goal标完成。
 
 04B/05C接续：搜索建议服务已接显式业务介绍外发授权、原请求恢复和普通runtime；128新增快照保护，模型/store/process复用。精确源码、独立审核及限定验证见[唯一记录](superpowers/plans/2026-09-11-search-suggestion-service.md#实施与验证)。下一片接TaskWizard客户端生成/采用/持久原请求恢复，不重写服务，也不直接调用缺授权与草稿版本的旧suggest。客户端、真实模型质量、Windows/生产/UAT仍待验，04B/05C及完整Goal继续IN_PROGRESS。
