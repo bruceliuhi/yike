@@ -21,3 +21,12 @@
 `/tmp/yike-main-merge.PZkSlU/.venv/bin/python -m pytest -q tests/test_xhs_comment_channel.py`
 
 结果：`6 passed in 0.02s`。
+
+## 独立审核 P1 差量
+
+- 审核提交 `c8203e9` 指出：发送按钮处于自动等待时，取消回调不能仅取消 Python Future；以及 reload 后读回不能用页面全局 ID 选择器。
+- 两个专项测试先真实 RED：旧实现对“disabled pending click 后取消”和“刷新后同 ID 仅在 note 顶层作用域外”均错误返回 `SENT`。
+- 修复后，pending click 同时监测取消与 deadline；任一先到即关闭该受信 runtime 独占 page（`run_before_unload=False`），收敛 click task 后返回 `UNKNOWN`，不再执行页面操作。若 click 已先完成，则停止监视，允许后续持久读回保留晚回执。
+- reload 后读回限定为 `#noteContainer` 内、正确 ID 的唯一可见顶层 `.comment-item:not(.comment-item-sub)`，并要求作者和正文各唯一可见后再核对；外部、隐藏、子回复或重复节点均不能形成 `SENT` 证明。
+
+最终定向验证结果更新为：`8 passed`；仍为合成行为测试，未执行真实平台发送。

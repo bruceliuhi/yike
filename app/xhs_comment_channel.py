@@ -150,15 +150,39 @@ class XhsPostCommentChannel:
             candidates = (await self._comment_ids()) - before
             matching = []
             for comment_id in candidates:
-                base = f"#comment-{comment_id}"
-                author = self.page.locator(base + " a.name")
-                text = self.page.locator(base + " .note-text")
-                author_id = _profile_id(await author.get_attribute("href", timeout=500)) if await author.count() == 1 else None
-                if author_id == value["connection"]["accountPublicId"] and await text.count() == 1 and (await text.inner_text(timeout=500)).strip() == value["draft"]["savedContent"]:
-                    matching.append(comment_id)
+                if await self._receipt_matches(comment_id, value): matching.append(comment_id)
             if len(matching) == 1: return matching[0]
             if len(matching) > 1 or asyncio.get_running_loop().time() >= end: return None
             await asyncio.sleep(.1)
+
+    async def _receipt_matches(self, comment_id, value):
+        base = f"#noteContainer .comment-item:not(.comment-item-sub)#comment-{comment_id}"
+        item = self.page.locator(base)
+        if await item.count() != 1 or not await item.is_visible(timeout=500): return False
+        author, text = self.page.locator(base + " a.name"), self.page.locator(base + " .note-text")
+        if await author.count() != 1 or not await author.is_visible(timeout=500) or await text.count() != 1 or not await text.is_visible(timeout=500): return False
+        return (_profile_id(await author.get_attribute("href", timeout=500)) == value["connection"]["accountPublicId"] and
+                (await text.inner_text(timeout=500)).strip() == value["draft"]["savedContent"])
+
+    async def _click_or_abort(self, button, deadline, timeout):
+        async def stopped():
+            while not self.cancelled() and _utc(self.now()) < deadline:
+                await asyncio.sleep(.01)
+        click_task = asyncio.create_task(button.click(timeout=timeout))
+        stop_task = asyncio.create_task(stopped())
+        done, _ = await asyncio.wait((click_task, stop_task), return_when=asyncio.FIRST_COMPLETED)
+        if click_task in done:
+            stop_task.cancel()
+            await asyncio.gather(stop_task, return_exceptions=True)
+            await click_task
+            return True
+        try:
+            await asyncio.wait_for(self.page.close(run_before_unload=False), timeout=1)
+        finally:
+            await asyncio.gather(click_task, return_exceptions=True)
+            stop_task.cancel()
+            await asyncio.gather(stop_task, return_exceptions=True)
+        return False
 
     async def execute(self, context, operation):
         if self._consumed: return dict(_UNKNOWN)
@@ -180,16 +204,13 @@ class XhsPostCommentChannel:
             if (await editor.inner_text(timeout=500)).strip() != value["draft"]["savedContent"] or self.cancelled() or _utc(self.now()) >= deadline.astimezone(UTC): return dict(_UNKNOWN)
             remaining_ms = int((deadline.astimezone(UTC) - _utc(self.now())).total_seconds() * 1_000)
             if remaining_ms <= 0: return dict(_UNKNOWN)
-            await button.click(timeout=min(500, remaining_ms))
+            if not await self._click_or_abort(button, deadline.astimezone(UTC), min(500, remaining_ms)):
+                return dict(_UNKNOWN)
             async with asyncio.timeout(5): comment_id = await self._matching_new_comment(before, value)
             if comment_id is None: return dict(_UNKNOWN)
             await self.page.reload(wait_until="domcontentloaded", timeout=5_000)
             await self._identity(value, require_blank=True)
-            base = f"#comment-{comment_id}"
-            author, text = self.page.locator(base + " a.name"), self.page.locator(base + " .note-text")
-            author_id = _profile_id(await author.get_attribute("href", timeout=500)) if await author.count() == 1 else None
-            if author_id != value["connection"]["accountPublicId"] or await text.count() != 1 or (await text.inner_text(timeout=500)).strip() != value["draft"]["savedContent"]:
-                return dict(_UNKNOWN)
+            if not await self._receipt_matches(comment_id, value): return dict(_UNKNOWN)
             facts = {"platform": "XIAOHONGSHU", "noteId": value["target"]["postId"], "accountId": value["connection"]["accountPublicId"], "commentId": comment_id, "content": value["draft"]["savedContent"], "contextSha256": value["contextSha256"]}
             return {"status": "SENT", "confirmed": True, "proof": {"kind": "ACCEPTED", "externalId": comment_id,
                     "sha256": sha256(_canonical(facts).encode()).hexdigest(), "observedAt": _utc(self.now()).isoformat()}}

@@ -38,6 +38,11 @@ class Locator:
     def nth(self, index): return ItemLocator(self.page.nodes(self.selector)[index])
     async def fill(self, value, **_): self.page.draft = value
     async def click(self, **_):
+        if self.page.pending_click:
+            self.page.click_started.set()
+            try: await asyncio.wait_for(self.page.click_gate.wait(), .05)
+            except TimeoutError: pass
+            if self.page.closed: return
         self.page.clicks += 1
         self.page.comments.append({"id": f"comment-{COMMENT}", "author": ACCOUNT, "text": self.page.draft})
 
@@ -48,10 +53,12 @@ class ItemLocator:
 
 
 class Page:
-    def __init__(self, *, account=ACCOUNT, persist=True):
+    def __init__(self, *, account=ACCOUNT, persist=True, pending_click=False):
         self.url = f"https://www.xiaohongshu.com/explore/{NOTE}?xsec_source=pc_feed"
         self.account, self.author, self.persist = account, AUTHOR, persist
         self.draft, self.clicks, self.reloads, self.comments = "", 0, 0, []
+        self.pending_click, self.closed = pending_click, False
+        self.click_started, self.click_gate = asyncio.Event(), asyncio.Event()
     def locator(self, selector): return Locator(self, selector)
     def nodes(self, selector):
         if selector == "#noteContainer": return [{}]
@@ -63,6 +70,12 @@ class Page:
         if selector == "button:has-text('发送')": return [{}]
         if selector == "#noteContainer .comment-item:not(.comment-item-sub)":
             return [{"id": c["id"]} for c in self.comments]
+        if selector.startswith("#noteContainer .comment-item:not(.comment-item-sub)#comment-"):
+            wanted = selector.split("#comment-", 1)[1].split()[0]
+            rows = [c for c in self.comments if c["id"] == f"comment-{wanted}" and not c.get("outside") and not c.get("sub")]
+            if selector.endswith(" a.name"): return [{"text": "当前用户", "href": f"/user/profile/{c['author']}?xsec_token=discard"} for c in rows]
+            if selector.endswith(" .note-text"): return [{"text": c["text"]} for c in rows]
+            return rows
         if selector.startswith("#comment-"):
             wanted = selector.split()[0][1:]
             rows = [c for c in self.comments if c["id"] == wanted]
@@ -70,6 +83,9 @@ class Page:
             if selector.endswith(" .note-text"): return [{"text": c["text"]} for c in rows]
             return rows
         return []
+    async def close(self, **_):
+        self.closed = True
+        self.click_gate.set()
     async def reload(self, **_):
         self.reloads += 1
         self.draft = ""
@@ -135,4 +151,33 @@ def test_refresh_disappearance_is_unknown_without_retry():
         await channel.check(value)
         assert await channel.execute(value, operation(now)) == {"status": "UNKNOWN"}
         assert page.clicks == 1 and page.reloads == 1
+    asyncio.run(run())
+
+
+def test_cancellation_closes_page_and_aborts_pending_click():
+    async def run():
+        now = datetime(2026, 9, 11, 10, tzinfo=UTC); value = context(); page = Page(pending_click=True)
+        state = {"cancelled": False}
+        channel = XhsPostCommentChannel(page, cancelled=lambda: state["cancelled"], now=lambda: now)
+        await channel.check(value)
+        task = asyncio.create_task(channel.execute(value, operation(now)))
+        await page.click_started.wait()
+        state["cancelled"] = True
+        assert await task == {"status": "UNKNOWN"}
+        assert page.closed is True and page.clicks == 0
+    asyncio.run(run())
+
+
+def test_reload_receipt_outside_top_level_note_scope_is_unknown():
+    class OutsideReceiptPage(Page):
+        async def reload(self, **kwargs):
+            await super().reload(**kwargs)
+            self.comments[0]["outside"] = True
+        def nodes(self, selector):
+            return super().nodes(selector)
+    async def run():
+        now = datetime(2026, 9, 11, 10, tzinfo=UTC); value = context(); page = OutsideReceiptPage()
+        channel = XhsPostCommentChannel(page, cancelled=lambda: False, now=lambda: now)
+        await channel.check(value)
+        assert await channel.execute(value, operation(now)) == {"status": "UNKNOWN"}
     asyncio.run(run())
