@@ -1,6 +1,8 @@
 """Focused monitor-runtime contract checks; PostgreSQL scenarios use their own DB."""
 import os
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
+from threading import Event
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
@@ -21,7 +23,7 @@ from pilot.monitor_runtime import MonitorRuntime
 from pilot.monitor_runtime_contract import MonitorPulseRequest
 from pilot.research_strategies import ResearchStrategyStore
 from pilot.store import PilotStore
-from tests.test_device_credentials_postgres import RoleDatabase, bind
+from tests.test_device_credentials_postgres import RoleDatabase, bind, wait_for_lock
 from tests.test_device_keys import encoded
 
 
@@ -250,3 +252,105 @@ def test_real_pg_unreserved_and_expired_monitor_start_are_rejected(runtime_env, 
     monkeypatch.setattr(env.execution, "_now", expired_now)
     with pytest.raises(ExecutionRuntimeError, match="monitor_occurrence_expired"):
         sign_apply(env, ready["occurrence"]["start_request"])
+
+
+def begin_and_claim(env, session):
+    env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    force_due_window(env)
+    ready = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    begun = sign_apply(env, ready["occurrence"]["start_request"])
+    claim = dict(schema_version="execution-runtime-v1", request_id=str(uuid4()), operation="CLAIM",
+                 device_id=env.device, credential_version=1, profile_version_id=None,
+                 strategy_version_id=None, configuration_sha256=None, targets=None,
+                 task_id=begun["task_id"], platform_run_id=begun["platform_runs"][0]["platform_run_id"],
+                 lease_id=None, execution_generation=None)
+    return begun, claim, sign_apply(env, claim)
+
+
+def test_real_pg_inflight_renew_holds_plan_share_lock_against_other_session_pause(runtime_env, monkeypatch):
+    env = runtime_env
+    session = str(uuid4())
+    _, claim, leased = begin_and_claim(env, session)
+    renew = claim | dict(request_id=str(uuid4()), operation="RENEW", lease_id=leased["lease_id"],
+                         execution_generation=leased["execution_generation"])
+    other_claims = verify_token_claims(issue_token(env.user, "synthetic-monitor-runtime"),
+                                       "synthetic-monitor-runtime")
+    guarded, release = Event(), Event()
+    original = env.monitor.guard_task
+
+    def guarded_task(*args):
+        original(*args)
+        guarded.set()
+        assert release.wait(3)
+
+    monkeypatch.setattr(env.monitor, "guard_task", guarded_task)
+    pause = dict(schema_version="monitor-plans-v1", request_id=str(uuid4()),
+                 plan_id=env.plan["plan_id"], expected_revision=1,
+                 state="PAUSED", human_confirmed=True)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        renewing = pool.submit(sign_apply, env, renew)
+        assert guarded.wait(3)
+        pausing = pool.submit(env.plans.set_state, other_claims, pause)
+        try:
+            wait_for_lock(env.admin, "pilot_monitor_plans WHERE tenant_id=")
+            assert not pausing.done()
+        finally:
+            release.set()
+        assert renewing.result(timeout=3)["status"] == "RUNNING"
+        assert pausing.result(timeout=3)["plan"]["state"] == "PAUSED"
+
+
+def test_real_pg_busy_pulse_refreshes_seen_and_skips_due_before_cancel(runtime_env):
+    env = runtime_env
+    session = str(uuid4())
+    env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    force_due_window(env)
+    ready = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    begun = sign_apply(env, ready["occurrence"]["start_request"])
+    force_due_window(env)
+    busy = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    assert busy["state"] == "RUNNING"
+    with env.admin.connect() as connection:
+        seen, due = connection.execute(
+            "SELECT b.last_seen_at,p.next_due_at FROM pilot_monitor_bindings b "
+            "JOIN pilot_monitor_plans p USING(tenant_id,owner_user_id,plan_id) "
+            "WHERE b.tenant_id=%s AND b.plan_id=%s AND b.plan_revision=1",
+            (env.tenant, env.plan["plan_id"])).fetchone()
+        now = connection.execute("SELECT clock_timestamp()").fetchone()[0]
+    assert now - seen < timedelta(seconds=5) and due > now
+    cancel = dict(schema_version="execution-runtime-v1", request_id=str(uuid4()), operation="CANCEL",
+                  device_id=env.device, credential_version=1, profile_version_id=None,
+                  strategy_version_id=None, configuration_sha256=None, targets=None,
+                  task_id=begun["task_id"], platform_run_id=None, lease_id=None,
+                  execution_generation=None)
+    assert sign_apply(env, cancel)["status"] == "CANCELED"
+    after = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    assert after["state"] == "WAITING" and after["occurrence"] is None
+
+
+def test_real_pg_old_revision_pending_is_recovery_not_ready(runtime_env):
+    env = runtime_env
+    session = str(uuid4())
+    env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    force_due_window(env)
+    original = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    pause = env.plans.set_state(env.claims, dict(schema_version="monitor-plans-v1", request_id=str(uuid4()),
+        plan_id=env.plan["plan_id"], expected_revision=1, state="PAUSED", human_confirmed=True))["plan"]
+    env.plans.set_state(env.claims, dict(schema_version="monitor-plans-v1", request_id=str(uuid4()),
+        plan_id=env.plan["plan_id"], expected_revision=pause["revision"], state="ACTIVE", human_confirmed=True))
+    recovered = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    assert recovered["state"] == "RECOVERY_REQUIRED"
+    assert recovered["occurrence"]["start_request"] == original["occurrence"]["start_request"]
+
+
+def test_real_pg_start_plan_lock_is_nowait_busy(runtime_env):
+    env = runtime_env
+    session = str(uuid4())
+    env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    force_due_window(env)
+    ready = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
+    with env.admin.connect() as blocker:
+        blocker.execute("SELECT 1 FROM pilot_monitor_plans WHERE tenant_id=%s AND plan_id=%s FOR UPDATE",
+                        (env.tenant, env.plan["plan_id"]))
+        with pytest.raises(ExecutionRuntimeError, match="monitor_plan_busy"):
+            sign_apply(env, ready["occurrence"]["start_request"])

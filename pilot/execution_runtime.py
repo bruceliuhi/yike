@@ -335,10 +335,9 @@ class ExecutionRuntime:
 
     def _versions(self, cursor, claims, tenant, task, platform_id, device_id):
         if task['device_id'] != device_id: raise ExecutionRuntimeError('device_unavailable', 404)
-        if task['configuration_snapshot'].get('configuration', {}).get('mode') == 'monitor':
-            if self.monitor_runtime is None:
-                raise ExecutionRuntimeError('monitor_occurrence_required')
-            self.monitor_runtime.guard_task(cursor, claims, tenant, task)
+        monitor = task['configuration_snapshot'].get('configuration', {}).get('mode') == 'monitor'
+        if monitor and self.monitor_runtime is None:
+            raise ExecutionRuntimeError('monitor_occurrence_required')
         cursor.execute('SELECT * FROM pilot_collection_platform_runs WHERE tenant_id=%s AND owner_user_id=%s '
             'AND task_id=%s AND platform_run_id=%s', (tenant, claims.user_id, task['task_id'], platform_id))
         platform = _row(cursor)
@@ -348,6 +347,8 @@ class ExecutionRuntime:
         snapshot = self._strategy(cursor, claims, tenant, task['profile_version_id'], task['strategy_version_id'],
             task['configuration_sha256'], (target,))
         if _json(snapshot) != _json(task['configuration_snapshot']): raise ExecutionRuntimeError('strategy_conflict')
+        if monitor:
+            self.monitor_runtime.guard_task(cursor, claims, tenant, task)
 
     def _live(self, cursor, task, run, platforms, *, budget, finished=False):
         if task['status'] in ('CANCELLING','CANCELED') or run['status'] in ('CANCELLING','CANCELED'):

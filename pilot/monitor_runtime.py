@@ -73,36 +73,38 @@ class MonitorRuntime:
                     occurrence=MonitorRuntime._occurrence(occurrence))
 
     def _pending(self, cursor, tenant, user, plan_id):
-        cursor.execute("SELECT occurrence_id,scheduled_at,expires_at,start_request,task_id,status,monitor_session_id "
-                       "FROM pilot_monitor_occurrences JOIN pilot_monitor_bindings USING(tenant_id,owner_user_id,plan_id,plan_revision) "
-                       "WHERE tenant_id=%s AND owner_user_id=%s AND plan_id=%s AND status IN ('RESERVED','STARTED') "
-                       "FOR UPDATE OF pilot_monitor_occurrences", (tenant, user, plan_id))
+        cursor.execute("SELECT o.occurrence_id,o.scheduled_at,o.expires_at,o.start_request,o.task_id,o.status,b.monitor_session_id,o.plan_revision "
+                       "FROM pilot_monitor_occurrences o JOIN pilot_monitor_bindings b USING(tenant_id,owner_user_id,plan_id,plan_revision) "
+                       "WHERE o.tenant_id=%s AND o.owner_user_id=%s AND o.plan_id=%s AND o.status IN ('RESERVED','STARTED') "
+                       "FOR UPDATE OF o", (tenant, user, plan_id))
         return cursor.fetchone()
 
     def _settle_pending(self, cursor, request, tenant, user, now, revision, due):
         row = self._pending(cursor, tenant, user, request.plan_id)
         if row is None:
-            return None
-        occurrence, scheduled, expires, start, task_id, status, session_id = row
+            return None, False
+        occurrence, scheduled, expires, start, task_id, status, session_id, occurrence_revision = row
         public = (occurrence, scheduled, expires, start, task_id)
         if status == "RESERVED":
             if now >= expires:
                 cursor.execute("UPDATE pilot_monitor_occurrences SET status='EXPIRED' "
                                "WHERE tenant_id=%s AND owner_user_id=%s AND occurrence_id=%s",
                                (tenant, user, occurrence))
-                return None
-            state = "READY" if session_id == request.monitor_session_id else "RECOVERY_REQUIRED"
-            return self._response(request, revision, state, now, due, public)
+                return None, True
+            current_process = occurrence_revision == revision and session_id == request.monitor_session_id
+            state = "READY" if current_process else "RECOVERY_REQUIRED"
+            return self._response(request, revision, state, now, due, public), True
         cursor.execute("SELECT status,deadline_at FROM pilot_collection_tasks "
                        "WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s", (tenant, user, task_id))
         task = cursor.fetchone()
         if task and task[0] not in ("SUCCEEDED", "CANCELED") and now < task[1]:
-            state = "RUNNING" if session_id == request.monitor_session_id else "RECOVERY_REQUIRED"
-            return self._response(request, revision, state, now, due, public)
+            current_process = occurrence_revision == revision and session_id == request.monitor_session_id
+            state = "RUNNING" if current_process else "RECOVERY_REQUIRED"
+            return self._response(request, revision, state, now, due, public), True
         cursor.execute("UPDATE pilot_monitor_occurrences SET status='CLOSED' "
                        "WHERE tenant_id=%s AND owner_user_id=%s AND occurrence_id=%s",
                        (tenant, user, occurrence))
-        return None
+        return None, True
 
     @_safe
     def pulse(self, claims, body):
@@ -149,7 +151,20 @@ class MonitorRuntime:
             binding = cursor.fetchone()
             if binding and (binding[0], binding[1], binding[2]) != (request.device_id, request.credential_version, targets):
                 raise ExecutionRuntimeError("monitor_binding_conflict")
-            pending = self._settle_pending(cursor, request, tenant, claims.user_id, now, revision, due)
+            pending, had_pending = self._settle_pending(
+                cursor, request, tenant, claims.user_id, now, revision, due)
+            if had_pending and binding and binding[3] == request.monitor_session_id:
+                cursor.execute("UPDATE pilot_monitor_bindings SET last_seen_at=%s "
+                               "WHERE tenant_id=%s AND owner_user_id=%s AND plan_id=%s AND plan_revision=%s",
+                               (now, tenant, claims.user_id, request.plan_id, revision))
+                binding = (*binding[:4], now)
+            if had_pending and due is not None and due <= now:
+                due = next_occurrence(schedule, after=now)
+                cursor.execute("UPDATE pilot_monitor_plans SET next_due_at=%s,updated_at=%s "
+                               "WHERE tenant_id=%s AND owner_user_id=%s AND plan_id=%s",
+                               (due, now, tenant, claims.user_id, request.plan_id))
+                if pending is not None:
+                    pending["next_due_at"] = due.isoformat()
             if pending is not None:
                 return self._authorized(cursor, claims, pending)
             offline = binding is None or binding[3] != request.monitor_session_id or now - binding[4] > timedelta(seconds=90)
@@ -210,9 +225,12 @@ class MonitorRuntime:
             raise ExecutionRuntimeError("monitor_occurrence_expired")
         if device_id != request.device_id or _json(original) != _json(request.model_dump(mode="json")):
             raise ExecutionRuntimeError("monitor_binding_conflict")
-        cursor.execute("SELECT state,revision,profile_version_id,strategy_version_id,configuration_sha256 "
-                       "FROM pilot_monitor_plans WHERE tenant_id=%s AND owner_user_id=%s AND plan_id=%s",
-                       (tenant, claims.user_id, plan_id))
+        try:
+            cursor.execute("SELECT state,revision,profile_version_id,strategy_version_id,configuration_sha256 "
+                           "FROM pilot_monitor_plans WHERE tenant_id=%s AND owner_user_id=%s AND plan_id=%s FOR SHARE NOWAIT",
+                           (tenant, claims.user_id, plan_id))
+        except psycopg.errors.LockNotAvailable:
+            raise ExecutionRuntimeError("monitor_plan_busy") from None
         plan = cursor.fetchone()
         if not plan or plan[0] != "ACTIVE" or plan[1] != revision:
             raise ExecutionRuntimeError("monitor_plan_inactive")
@@ -238,11 +256,14 @@ class MonitorRuntime:
 
     @staticmethod
     def guard_task(cursor, claims, tenant, task):
-        cursor.execute("SELECT o.plan_id,o.plan_revision,p.state,p.revision,b.device_id,b.credential_version,b.targets,o.start_request "
-                       "FROM pilot_monitor_occurrences o JOIN pilot_monitor_plans p USING(tenant_id,owner_user_id,plan_id) "
-                       "JOIN pilot_monitor_bindings b USING(tenant_id,owner_user_id,plan_id,plan_revision) "
-                       "WHERE o.tenant_id=%s AND o.owner_user_id=%s AND o.task_id=%s AND o.status='STARTED'",
-                       (tenant, claims.user_id, task["task_id"]))
+        try:
+            cursor.execute("SELECT o.plan_id,o.plan_revision,p.state,p.revision,b.device_id,b.credential_version,b.targets,o.start_request "
+                           "FROM pilot_monitor_occurrences o JOIN pilot_monitor_plans p USING(tenant_id,owner_user_id,plan_id) "
+                           "JOIN pilot_monitor_bindings b USING(tenant_id,owner_user_id,plan_id,plan_revision) "
+                           "WHERE o.tenant_id=%s AND o.owner_user_id=%s AND o.task_id=%s AND o.status='STARTED' "
+                           "FOR SHARE OF p NOWAIT", (tenant, claims.user_id, task["task_id"]))
+        except psycopg.errors.LockNotAvailable:
+            raise ExecutionRuntimeError("monitor_plan_busy") from None
         row = cursor.fetchone()
         if row is None:
             raise ExecutionRuntimeError("monitor_occurrence_required")
