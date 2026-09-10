@@ -13,7 +13,7 @@ const taskId='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-82
 beforeEach(()=>{
  context={session:{authenticated:true,userId:'user',accountScope:{id:taskId,version:1}},route:parseRoute('#/workbench'),navigate:vi.fn(),notify:vi.fn(),
   service:{profiles:vi.fn().mockResolvedValue([]),connections:vi.fn().mockResolvedValue([]),opportunities:vi.fn().mockResolvedValue([]),
-   tasks:vi.fn().mockRejectedValue(new Error('old unavailable')),taskFeed:{list:vi.fn().mockResolvedValue({items:[{task_id:taskId}],next_cursor:null})},
+   tasks:vi.fn().mockRejectedValue(new Error('old unavailable')),taskFeed:{list:vi.fn().mockResolvedValue({items:[{task_id:taskId}],next_cursor:null}),get:vi.fn().mockImplementation(async id=>({task_id:id,name:'制造企业需求'}))},
    candidates:vi.fn().mockImplementation(async q=>({items:[],page:1,pageSize:10,total:0,...(q.taskId?{taskId:q.taskId}:{})})),
   }} as unknown as AppContextValue;
 });
@@ -32,6 +32,7 @@ it('carries task filter through status changes, validates echo and returns to th
  context.route=parseRoute(`#/candidates?task=${taskId}`);const view=render(<CandidatesPage/>);
  await waitFor(()=>expect(context.service.candidates).toHaveBeenCalledWith(expect.objectContaining({taskId,status:undefined}),expect.any(AbortSignal)));
  expect(screen.getByText(/当前最新版本/)).toBeTruthy();
+ expect(await screen.findByRole('heading',{name:'制造企业需求 · 发现线索'})).toBeTruthy();
  fireEvent.change(screen.getByLabelText('候选复核状态筛选'),{target:{value:'IMPORTED'}});
  await waitFor(()=>expect(context.service.candidates).toHaveBeenLastCalledWith(expect.objectContaining({taskId,status:'IMPORTED'}),expect.any(AbortSignal)));
  fireEvent.click(screen.getByRole('button',{name:'返回采集任务'}));expect(context.navigate).toHaveBeenCalledWith(`/collection?task=${taskId}`);

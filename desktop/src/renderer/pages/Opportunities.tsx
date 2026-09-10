@@ -911,6 +911,11 @@ function CandidateWorkbench() {
   const sample = route.query.get("scope") === "sample";
   const requestedId = sample ? null : route.query.get("candidate");
   const taskId = sample ? null : route.query.get('task');
+  const task = useResource(
+    (signal) => session.authenticated && taskId && service.taskFeed
+      ? service.taskFeed.get(taskId, signal) : Promise.resolve(null),
+    [service, session.userId, session.authenticated, session.accountScope?.id, session.accountScope?.version, taskId],
+  );
   const reviewLedger = useCandidateReviewLedger(
     session.authenticated ? session.userId : undefined,
   );
@@ -1730,13 +1735,14 @@ function CandidateWorkbench() {
   return (
     <>
       <PageHeader
-        title="原始线索"
+        title={taskId ? `${task.data?.name || '本次采集'} · 发现线索` : "原始线索"}
         description="先核对原文与画像，再确认是否进入客户商机库。"
         back={() => navigate(taskId ? `/collection?task=${taskId}` : "/collection")}
       />
       {taskId && <Notice action={<Button variant="ghost" onClick={()=>navigate(`/collection?task=${taskId}`)}>返回采集任务</Button>}>
         本任务发现过的线索 · 当前最新版本。重复观察按线索去重，不等同于采集入库记录数；历史任务发现的原文请在来源证据中核对。
       </Notice>}
+      {taskId && task.error && <Notice tone="warning">任务名称读取未完成；线索范围仍按当前任务编号核验。</Notice>}
       <Tabs
         active={sample ? "sample" : "customer"}
         items={[
