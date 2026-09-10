@@ -4,6 +4,8 @@
 
 ## 分工调整
 
+2026-09-10 Win开始精简版Windows进程清理批次（base c08fd03）：独占新 `app/windows_process_job.py`、现 `app/collector.py` 的Windows supervisor分支及两个Windows专项测试。复用Job Object管理受控树；不改Mac来源映射/发送回复/候选后端，不重新构包。后续路径/私有目录、worker/批次恢复按同一精简目标接续；本段只认领，不标完成或Mac ACK。
+
 2026-09-10 **用户已批准精简可验收版优先**：唯一当前范围见[产品计划第1.0节](../V02_COMMERCIAL_RELEASE_PLAN.md#10-当前优先精简可验收版2026-09-10)，实际顺序见任务书顶部。Win继续独占Windows运行时/进程清理、worker/批次恢复、既有任务/证据/类似搜索/确认跟进客户端；Mac保留小红书映射、候选/执行后端及在途回复修复，接续主渠道真实发送/回执和短句服务。抖音/B站先辅助采集；其余平台、复杂CRM、计费、多租户管理、自动回复与高级更新后排，不拆现有隔离/防重保护。以一条可操作链路收口，不重复设计前端或全仓审核。此为main交接通知，不代写Mac收到或ACK；当前没有可直接发送到Mac的任务通道。
 
 2026-09-10 Win候选上传接线完成限定接收：新增主进程私有prepare/apply/原复合键GET和绑定签名器，原文不trim/NFC，未知上传不自动重发。根6文件256项及类型通过；`tests/test_desktop_candidate_upload_http_postgres.py` 实际Node→socket HTTP→受限PG **1passed/0skip/3.34s**，验证丢回执后原GET、单份原文/一次计量、换会话拒旧签名与历史读取；专属PG已移除。非作者一次SPEC→架构/代码/质量PASS，0需修复项，绑定base `6c5c958`与冻结树 `f2b777bcb76cfb8fcb661ee0a0c515ac22c97380`，随后仅补本文和任务书，不重复套件/构包。最初集成失败是测试检查器误查body列，改查content JSONB后通过，未改产品。TDD RED来自DTO/签名器stub及18项缺失requestCandidate测试，不把检查器失败当产品RED。设备、来源和记录均合成；无真实worker/批次持久恢复/UI装配，不关闭父卡。Win继续上述后续模块；Mac保留后端/来源映射/回复修复，避免重复。当前任务列表仍无可直达Mac，仅通过main交接，非Mac接收ACK。
