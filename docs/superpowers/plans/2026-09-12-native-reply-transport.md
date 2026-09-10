@@ -29,3 +29,13 @@ Own desktop/src/main/platformOutreachDriver.ts、nativeReplyProtocol.ts、native
 - [ ] 私有requestOutreach新增固定操作：replies.source POST /api/ui/replies/sync-context（payload=requestId/deviceId/credentialVersion）；replies.prepare POST /api/ui/replies/signing-payload（payload={request}）；replies.record POST /api/ui/replies/signed（payload={request,signature}）。不加入公共API_OPERATIONS/preload。
 - [ ] `signNativeReply({key,prepared,expected:{serviceOrigin,userId,tenantId,request}})`核256KiB字节上限、完整规范JSON与域/owner/tenant/request一致，再复用Ed25519私有primitive。正文只来自原worker后续装配，当前未向renderer开放。
 - [ ] 定向驱动/协议/签名测试与一次tsc；整批审核后main。本片补可调用原生读取和签名传输，下一主链是main身份/profile装配及现有界面同步意图，未装配前不可标回复同步可用。
+
+## 本批证据
+
+上述Task 1、Task 2本切片全部完成；最终源码`53990d6f1b4adb419c1fdf19f43b32aec8e26a3e`独立整批审核GO，无P1/P2，审核报告提交`7dde740`。上方复选项保留原始计划，完成依据以本节为准。
+
+- Python源码 `97b40bd`：READ_REPLIES独立动作及私有worker调用完成；定向和已有发送回归35 passed，具体RED/GREEN及边界见[native-reply-bridge-report.md](native-reply-bridge-report.md)。
+- Node源码 `53990d6`：同一CHECK进程内互斥读取/发送，最多30条原买方回复，512KiB读取帧预算，真实close与cleanup双确认后返回；三个main私有固定路由与完整域/用户/租户/设备绑定签名。未开放renderer任意请求或签名。
+- Node RED：新模块缺失且driver没有readReplies；已有7个driver测试通过。实现后定向3文件24项中23通过，1个非规范JSON测试样本仍是规范JSON；修正样本加入缩进后仅重跑该文件9项通过，不累加为新覆盖。实际命中的文件为nativeReplyProtocol、platformOutreachDriver、serviceClient（不存在的outreachDispatchSigner.test.ts未产生测试，不计证据）。一次desktop TypeScript检查exit 0。
+- 按用户省Token要求：不重复全量测试、构包或已有数据库验证。整批审核单独见[native-reply-transport-review.md](native-reply-transport-review.md)。
+- **下一片：**复用当前SENT源定位、身份/profile解析，将readReplies与签名上报装配到main和现有跟进页；当前仅底层可调用，未标自动同步可用。实际XHS、Windows新运行包、生产部署、客户UAT仍待验；完整V0.2 Goal继续。

@@ -6,6 +6,8 @@
 
 ## 当前执行范围：完整 V0.2 全量推进（2026-09-10）
 
+2026-09-12原生回复进程桥与签名传输：Python `97b40bd`、Node `53990d6`补齐原CHECK生命周期下互斥READ_REPLIES、清理后交付数据、main私有固定源定位/签名/入库路由与完整设备签名校验。[唯一证据与审核](superpowers/plans/2026-09-12-native-reply-transport.md#本批证据)。下一片直接接main身份/profile装配和现有客户同步入口；不重复开发原reader/签名器。当前不是实际同步可用、没有Windows/真实平台验收，不标父卡或完整Goal完成。
+
 2026-09-12原生公开回复来源增量：最终源码`74f7a16`独立增量审核GO，后端从本人原SENT回执定位XHS根评论，reader在原隔离browser核对账号/原文后仅取原买方直接回复，限3页/15秒。原requestId核对与密钥轮换历史保留缺陷已修复，[唯一证据/接续位置](superpowers/plans/2026-09-12-xhs-reply-source.md#本批证据)。**私有worker/main签名上报/客户同步入口仍未装配**，不得宣传实际回复同步已可用；下一片直接接这些现有入口，不重建原定位/reader。实际XHS/Windows/生产/UAT仍待验，完整Goal继续。
 
 2026-09-12回复证据数据库补验：`8e7e3de`在独立临时PostgreSQL完成5项真实HTTP/设备验签/受限角色检查，0跳过；填补下段上批fixture缺失，不重复UI/构包。原库未修改，临时合成库已移除。[唯一证据](superpowers/plans/2026-09-12-reply-evidence-client.md#隔离-postgresql-补验2026-09-12源码-8e7e3de)。仍未实现并验证实际平台回复同步，不标完整闭环或Goal完成。
