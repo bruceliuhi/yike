@@ -1,58 +1,57 @@
 """Child half of the private loopback bridge; never reads stdin or logs context."""
 from __future__ import annotations
-import asyncio, json, os, socket, sys, threading, time
+import asyncio, json, os, socket, sys, threading
 from pathlib import Path
 
 # The governed runtime is cwd; this bridge remains imported from the product tree.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 def _wire(value): return (json.dumps(value,ensure_ascii=False,allow_nan=False,separators=(',',':'))+'\n').encode()
-def _pairs(items):
-    value = {}
-    for key, item in items:
-        if key in value: raise ValueError()
-        value[key] = item
-    return value
-
-def _read(conn):
-    data=b''
-    while b'\n' not in data:
-        part=conn.recv(131073-len(data))
-        if not part: raise ValueError()
-        data+=part
-        if len(data)>131072: raise ValueError()
-    raw,extra=data.split(b'\n',1)
-    if extra: raise ValueError()
-    return json.loads(raw.decode('utf-8'), object_pairs_hook=_pairs,
-                      parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
-
 async def _run(conn):
-    first=_read(conn)
-    if not isinstance(first,dict) or set(first)!={'context'} or not isinstance(first['context'],dict): raise ValueError()
+    from app.windows_platform_outreach import _decode, _operation, SCHEMA
+    conn.setblocking(False)
+    loop=asyncio.get_running_loop(); owner=asyncio.current_task()
+    context_ready=loop.create_future(); operation_ready=loop.create_future()
+    phase={'value':'CONTEXT'}
     cancelled=threading.Event()
-    from app.platform_outreach_runtime import open_xhs_comment_channel
-    async with open_xhs_comment_channel(first['context'],cancelled=cancelled.is_set) as channel:
-        # The context manager performs the one authoritative check before yield.
-        observation={'status':'AVAILABLE'}
-        conn.sendall(_wire({'state':'READY','observation':observation}))
-        operation=_read(conn)
-        if not isinstance(operation,dict) or set(operation)!={'operation'}: raise ValueError()
-        # After operation delivery, EOF is a cancellation signal even while a
-        # browser await is pending; MSG_PEEK leaves protocol bytes untouched.
-        def watch_eof():
-            conn.setblocking(False)
-            try:
-                while not cancelled.is_set():
-                    try:
-                        if conn.recv(1, socket.MSG_PEEK) == b'': cancelled.set(); return
-                    except BlockingIOError: pass
-                    except OSError: cancelled.set(); return
-                    time.sleep(.01)
-            finally: conn.setblocking(True)
-        watcher=threading.Thread(target=watch_eof,daemon=True); watcher.start()
-        outcome=await channel.execute(first['context'],operation['operation'])
-        cancelled.set(); watcher.join(.2)
-        conn.sendall(_wire({'state':'RESULT','outcome':outcome}))
+    async def read_frames():
+        buffer=b''; received=0
+        try:
+            while True:
+                data=await loop.sock_recv(conn,131073-len(buffer))
+                if not data: raise ValueError()
+                buffer+=data; received+=len(data)
+                if len(buffer)>131072 or received>2*131072: raise ValueError()
+                while b'\n' in buffer:
+                    raw,buffer=buffer.split(b'\n',1); value=_decode(raw)
+                    if not isinstance(value,dict): raise ValueError()
+                    if phase['value']=='CONTEXT' and set(value)=={'context'} and isinstance(value['context'],dict):
+                        phase['value']='SETUP'; context_ready.set_result(value['context'])
+                    elif phase['value']=='OPERATION' and set(value)=={'operation'}:
+                        operation=_operation({'schema_version':SCHEMA,'action':'EXECUTE','operation':value['operation']})
+                        phase['value']='EXECUTING'; operation_ready.set_result(operation)
+                    else: raise ValueError()
+        except asyncio.CancelledError: raise
+        except Exception:
+            cancelled.set(); owner.cancel()
+    async def send(value):
+        data=_wire(value)
+        if len(data)>131072: raise ValueError()
+        await loop.sock_sendall(conn,data)
+    reader=asyncio.create_task(read_frames())
+    try:
+        context=await context_ready
+        from app.platform_outreach_runtime import open_xhs_comment_channel
+        async with open_xhs_comment_channel(context,cancelled=cancelled.is_set) as channel:
+            observation=await channel.check(context)
+            phase['value']='OPERATION'
+            await send({'state':'READY','observation':observation})
+            operation=await operation_ready
+            outcome=await channel.execute(context,operation)
+            await send({'state':'RESULT','outcome':outcome})
+    finally:
+        cancelled.set(); reader.cancel()
+        await asyncio.gather(reader,return_exceptions=True)
 
 def main():
     token=os.environ.pop('YIKE_OUTREACH_TOKEN'); port=int(os.environ.pop('YIKE_OUTREACH_PORT'))
