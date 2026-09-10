@@ -58,3 +58,17 @@ def register_execution_api(router, runtime, identity, require_session_https):
     def task(task_id: str, request: Request):
         uuid_string(task_id)
         return run(request, lambda service, claims: service.get_task(claims, task_id))
+
+    @router.get("/execution-task-feed")
+    def task_feed(request: Request, limit: int = 20, cursor: str | None = None):
+        return run(request, lambda service, claims: service.get_task_feed(
+            claims, limit=limit, cursor=cursor,
+            query_fields=set(request.query_params.keys()),
+        ))
+
+    @router.get("/execution-task-feed/{task_id}")
+    def task_feed_item(task_id: str, request: Request):
+        return run(request, lambda service, claims: {
+            "schema_version": "execution-task-feed-item-v1",
+            "item": service.get_task_feed_item(claims, uuid_string(task_id)),
+        })

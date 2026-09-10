@@ -7,6 +7,8 @@ network/model/browser wait. Default construction intentionally fails closed.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import base64
+from datetime import datetime
 import hashlib
 import json
 import math
@@ -532,3 +534,112 @@ class ExecutionRuntime:
                 deadline_at=task['deadline_at'].isoformat(), platform_runs=[{
                     key: p[key] for key in ('platform_run_id','platform','status','execution_generation','records_used')
                 } for p in sorted(platforms, key=lambda p: p['target_order'])])
+
+    _FEED_SQL = """
+        SELECT t.task_id,t.device_id,t.profile_version_id,t.strategy_version_id,
+               t.configuration_snapshot,t.created_at,t.deadline_at,t.status,t.max_records,
+               r.run_id,o.request_id AS start_request_id,
+               jsonb_agg(jsonb_build_object(
+                   'platform_run_id',p.platform_run_id,'platform',p.platform,'status',p.status,
+                   'execution_generation',p.execution_generation,'records_used',p.records_used
+               ) ORDER BY p.target_order) AS platform_runs
+          FROM pilot_collection_tasks t
+          JOIN pilot_collection_runs r
+            ON r.tenant_id=t.tenant_id AND r.owner_user_id=t.owner_user_id AND r.task_id=t.task_id
+          JOIN pilot_execution_operations o
+            ON o.tenant_id=t.tenant_id AND o.owner_user_id=t.owner_user_id
+           AND o.task_id=t.task_id AND o.operation='START'
+          JOIN pilot_collection_platform_runs p
+            ON p.tenant_id=t.tenant_id AND p.owner_user_id=t.owner_user_id AND p.task_id=t.task_id
+         WHERE t.tenant_id=%s AND t.owner_user_id=%s
+    """
+
+    @staticmethod
+    def _feed_cursor(created_at, task_id):
+        value = _json({'created_at': created_at.isoformat(), 'task_id': task_id}).encode()
+        return base64.urlsafe_b64encode(value).rstrip(b'=').decode('ascii')
+
+    @classmethod
+    def _decode_feed_cursor(cls, value):
+        try:
+            if type(value) is not str or not 1 <= len(value) <= 1024:
+                raise ValueError
+            raw = base64.b64decode(value + '=' * (-len(value) % 4), altchars=b'-_', validate=True)
+            decoded = json.loads(raw)
+            if type(decoded) is not dict or set(decoded) != {'created_at', 'task_id'}:
+                raise ValueError
+            created_at = datetime.fromisoformat(decoded['created_at'])
+            if created_at.tzinfo is None:
+                raise ValueError
+            task_id = canonical_uuid(decoded['task_id'])
+            if cls._feed_cursor(created_at, task_id) != value:
+                raise ValueError
+            return created_at, task_id
+        except (ValueError, TypeError, UnicodeError, json.JSONDecodeError, ExecutionRuntimeError):
+            raise ExecutionRuntimeError('invalid_request', 422) from None
+
+    @staticmethod
+    def _feed_item(row):
+        configuration = row['configuration_snapshot'].get('configuration', {})
+        name = configuration.get('name') if type(configuration) is dict else None
+        if type(name) is not str or not 1 <= len(name) <= 60:
+            name = None
+        mode = configuration.get('mode') if type(configuration) is dict else None
+        if mode not in ('once', 'monitor'):
+            mode = None
+        platforms = row['platform_runs']
+        return dict(
+            task_id=row['task_id'], run_id=row['run_id'], device_id=row['device_id'],
+            profile_version_id=row['profile_version_id'], strategy_version_id=row['strategy_version_id'],
+            start_request_id=row['start_request_id'], name=name, mode=mode,
+            created_at=row['created_at'].isoformat(), deadline_at=row['deadline_at'].isoformat(),
+            status=row['status'], max_records=row['max_records'],
+            records_used=sum(item['records_used'] for item in platforms),
+            stop_confirmed=row['status'] == 'SUCCEEDED' or (row['status'] == 'CANCELED' and
+                all(item['status'] == 'SUCCEEDED' or item['execution_generation'] == 0 for item in platforms)),
+            platform_runs=platforms,
+        )
+
+    def _read_feed(self, claims, *, task_id=None, limit=None, cursor=None):
+        with self.database.connect() as connection, connection.cursor() as db_cursor:
+            tenant = self._active(db_cursor, claims)
+            parameters = [tenant, claims.user_id]
+            sql = self._FEED_SQL
+            if task_id is not None:
+                sql += ' AND t.task_id=%s'
+                parameters.append(task_id)
+            elif cursor is not None:
+                sql += ' AND (t.created_at,t.task_id)<(%s,%s)'
+                parameters.extend(cursor)
+            sql += (' GROUP BY t.tenant_id,t.owner_user_id,t.task_id,r.run_id,o.request_id '
+                    'ORDER BY t.created_at DESC,t.task_id DESC')
+            if limit is not None:
+                sql += ' LIMIT %s'
+                parameters.append(limit)
+            db_cursor.execute(sql, parameters)
+            rows = [dict(zip((column.name for column in db_cursor.description), row))
+                    for row in db_cursor.fetchall()]
+            self._active(db_cursor, claims)
+            return [self._feed_item(row) for row in rows]
+
+    def get_task_feed(self, claims, *, limit=20, cursor=None, query_fields=None):
+        if query_fields is not None and not query_fields <= {'limit', 'cursor'}:
+            raise ExecutionRuntimeError('invalid_request', 422)
+        if type(limit) is not int or not 1 <= limit <= 50:
+            raise ExecutionRuntimeError('invalid_request', 422)
+        decoded = self._decode_feed_cursor(cursor) if cursor is not None else None
+        items = self._read_feed(claims, limit=limit + 1, cursor=decoded)
+        more = len(items) > limit
+        items = items[:limit]
+        next_cursor = None
+        if more:
+            last = items[-1]
+            next_cursor = self._feed_cursor(datetime.fromisoformat(last['created_at']), last['task_id'])
+        return {'schema_version': 'execution-task-feed-v1', 'items': items, 'next_cursor': next_cursor}
+
+    def get_task_feed_item(self, claims, task_id):
+        canonical_uuid(task_id)
+        items = self._read_feed(claims, task_id=task_id)
+        if not items:
+            raise ExecutionRuntimeError('task_not_found', 404)
+        return items[0]
