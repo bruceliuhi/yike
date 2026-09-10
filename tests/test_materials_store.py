@@ -12,6 +12,7 @@ from pilot.auth import issue_token, verify_token_claims
 from pilot.db import PilotDatabase
 from pilot.material_contract import MaterialError, MaterialRequest
 from pilot.materials import MaterialStore
+from pilot.sessions import PilotSessionRegistry
 from pilot.store import PilotStore
 from tests.test_device_credentials_postgres import RoleDatabase
 
@@ -167,6 +168,48 @@ def test_paused_model_does_not_block_same_session_read(env):
         finally:
             release.set()
         assert parsing.result(timeout=3)["record"]["status"] == "REVIEW_REQUIRED"
+
+
+def test_logout_during_model_persists_only_terminal_no_change_receipt(env):
+    entered, release = Event(), Event()
+
+    class PausedModel(Model):
+        def extract(self, text):
+            self.calls += 1
+            entered.set()
+            assert release.wait(3)
+            return self.result
+
+    model = PausedModel({"fields": {"service": "制造企业"},
+                         "evidence": [{"field": "service", "quote": "制造企业"}]})
+    store = MaterialStore(env.db, model)
+    saved = mutate(store, env, save_request(env.profiles[0]))["record"]
+    request = {"requestId": str(uuid4()), "profileVersionId": env.profiles[0],
+               "change": {"kind": "parse", "materialId": saved["id"], "expectedVersion": 1}}
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        parsing = pool.submit(mutate, store, env, request)
+        assert entered.wait(1)
+        PilotSessionRegistry(env.db).revoke([env.claims[0]])
+        release.set()
+        with pytest.raises(MaterialError) as error:
+            parsing.result(timeout=3)
+    assert (error.value.code, error.value.status) == ("invalid_session", 401)
+
+    fresh = verify_token_claims(issue_token(env.users[0], SECRET), SECRET)
+    receipt = store.operation(fresh, env.profiles[0], request["requestId"])
+    assert receipt["status"] == "FAILED" and receipt["confirmedNoChange"] is True
+    assert receipt["message"] == "登录状态已变化，资料操作未执行。"
+    rows = store.list(fresh, env.profiles[0])
+    assert rows[0]["version"] == 1 and rows[0]["status"] == "DRAFT"
+    assert model.calls == 1
+
+    rejected = save_request(env.profiles[0])
+    with pytest.raises(MaterialError) as error:
+        store.mutate(env.claims[0], rejected)
+    assert error.value.status == 401
+    with pytest.raises(MaterialError) as error:
+        store.operation(fresh, env.profiles[0], rejected["requestId"])
+    assert error.value.status == 404
 
 
 def test_parse_confirm_impact_revoke_and_remove_preserve_history(env):

@@ -86,6 +86,30 @@ class MaterialStore:
             raise MaterialError("material_request_conflict")
         return row[1]
 
+    def _record_interrupted_parse(self, tenant, owner, request, request_sha):
+        """Record only the audited no-change outcome of a pre-authorized parse."""
+        receipt = {"requestId": request.requestId, "profileVersionId": request.profileVersionId,
+                   "materialId": request.change.materialId, "kind": request.change.kind,
+                   "status": "FAILED", "confirmedNoChange": True,
+                   "message": "登录状态已变化，资料操作未执行。"}
+        with self.database.connect() as conn, conn.cursor() as cursor:
+            # Bind this exceptional audit write to the identity snapshot that
+            # passed require_active before provider work. It never authorizes a
+            # fresh revoked request and never writes a material revision.
+            cursor.execute("SELECT set_config('yike.user_id',%s,true),set_config('yike.tenant_id',%s,true)",
+                           (owner, tenant))
+            cursor.execute("SELECT 1 FROM pilot_users WHERE tenant_id=%s AND user_id=%s", (tenant, owner))
+            if cursor.fetchone() is None:
+                raise MaterialError("invalid_session", 401)
+            self._profile(cursor, tenant, request.profileVersionId)
+            original = self._original(cursor, tenant, owner, request.requestId, request_sha)
+            if original is None:
+                cursor.execute("INSERT INTO pilot_material_operations "
+                    "(tenant_id,owner_user_id,profile_version_id,request_id,material_id,kind,request_sha256,receipt) "
+                    "VALUES(%s,%s,%s,%s,%s,%s,%s,%s::jsonb)", (tenant, owner, request.profileVersionId,
+                    request.requestId, request.change.materialId, request.change.kind, request_sha, _json(receipt)))
+        return receipt
+
     @staticmethod
     def _latest(cursor, tenant, owner, profile, material):
         query = ("SELECT material_version,record,removed FROM pilot_material_revisions "
@@ -172,33 +196,40 @@ class MaterialStore:
                     return original
                 latest = self._latest(cursor, tenant, claims.user_id, request.profileVersionId, request.change.materialId)
             extraction = None
+            model_started = False
             if request.change.kind == "parse" and latest is not None and not latest[2] and latest[0] == request.change.expectedVersion:
                 try:
                     if self.model is None:
                         raise RuntimeError("model unavailable")
+                    model_started = True
                     extraction = validate_extraction(self.model.extract(latest[1]["text"]), latest[1]["text"])
                 except Exception:
                     extraction = None
-            with self.database.connect() as conn, conn.cursor() as cursor:
-                tenant = self._active(cursor, claims)
-                self._profile(cursor, tenant, request.profileVersionId)
-                original = self._original(cursor, tenant, claims.user_id, request.requestId, request_sha)
-                if original is not None:
-                    return original
-                latest = self._latest(cursor, tenant, claims.user_id, request.profileVersionId, request.change.materialId)
-                try:
-                    receipt = self._apply(cursor, tenant, claims.user_id, request, latest, extraction)
-                except MaterialError as error:
-                    receipt = {"requestId": request.requestId, "profileVersionId": request.profileVersionId,
-                               "materialId": request.change.materialId, "kind": request.change.kind,
-                               "status": "FAILED", "confirmedNoChange": True,
-                               "message": FAILURE_MESSAGES.get(error.code, "资料操作未执行，请刷新后重试。")}
-                cursor.execute("INSERT INTO pilot_material_operations "
-                    "(tenant_id,owner_user_id,profile_version_id,request_id,material_id,kind,request_sha256,receipt) "
-                    "VALUES(%s,%s,%s,%s,%s,%s,%s,%s::jsonb)", (tenant, claims.user_id, request.profileVersionId,
-                    request.requestId, request.change.materialId, request.change.kind, request_sha, _json(receipt)))
-                self._active(cursor, claims)
-                return receipt
+            try:
+                with self.database.connect() as conn, conn.cursor() as cursor:
+                    tenant = self._active(cursor, claims)
+                    self._profile(cursor, tenant, request.profileVersionId)
+                    original = self._original(cursor, tenant, claims.user_id, request.requestId, request_sha)
+                    if original is not None:
+                        return original
+                    latest = self._latest(cursor, tenant, claims.user_id, request.profileVersionId, request.change.materialId)
+                    try:
+                        receipt = self._apply(cursor, tenant, claims.user_id, request, latest, extraction)
+                    except MaterialError as error:
+                        receipt = {"requestId": request.requestId, "profileVersionId": request.profileVersionId,
+                                   "materialId": request.change.materialId, "kind": request.change.kind,
+                                   "status": "FAILED", "confirmedNoChange": True,
+                                   "message": FAILURE_MESSAGES.get(error.code, "资料操作未执行，请刷新后重试。")}
+                    cursor.execute("INSERT INTO pilot_material_operations "
+                        "(tenant_id,owner_user_id,profile_version_id,request_id,material_id,kind,request_sha256,receipt) "
+                        "VALUES(%s,%s,%s,%s,%s,%s,%s,%s::jsonb)", (tenant, claims.user_id, request.profileVersionId,
+                        request.requestId, request.change.materialId, request.change.kind, request_sha, _json(receipt)))
+                    self._active(cursor, claims)
+                    return receipt
+            except MaterialError as error:
+                if error.code == "invalid_session" and model_started:
+                    self._record_interrupted_parse(tenant, claims.user_id, request, request_sha)
+                raise
 
     def _apply(self, cursor, tenant, owner, request, latest, extraction):
         change = request.change
