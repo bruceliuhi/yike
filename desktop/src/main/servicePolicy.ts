@@ -48,6 +48,7 @@ export interface ServiceOperation {
   method: 'GET' | 'POST' | 'DELETE';
   body?: string;
   logout: boolean;
+  timeoutMs?: 25_000;
 }
 
 export function validatedOperation(input: unknown): ServiceOperation | null {
@@ -64,7 +65,10 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
       const value = parsed.data as {profileVersionId:string};
       return {path:`/api/ui/materials?profileVersionId=${encodeURIComponent(value.profileVersionId)}`,method:'GET',logout:false};
     }
-    case 'materials.mutate': return {path:'/api/ui/materials/mutate',method:'POST',body:JSON.stringify(parsed.data),logout:false};
+    case 'materials.mutate': return {
+      path:'/api/ui/materials/mutate',method:'POST',body:JSON.stringify(parsed.data),logout:false,
+      ...((parsed.data as {change:{kind:string}}).change.kind === 'parse' ? {timeoutMs:25_000 as const} : {}),
+    };
     case 'materials.operation': {
       const value = parsed.data as {profileVersionId:string;requestId:string};
       return {path:`/api/ui/materials/operation?profileVersionId=${encodeURIComponent(value.profileVersionId)}&requestId=${encodeURIComponent(value.requestId)}`,method:'GET',logout:false};

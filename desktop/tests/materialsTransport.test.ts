@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { validatedOperation } from "../src/main/servicePolicy";
 import { API_OPERATIONS, type YikeDesktopApi } from "../src/shared/contracts";
 import { service } from "../src/renderer/services/client";
+import { createServiceClient } from "../src/main/serviceClient";
 
 const host = window as unknown as { yikeDesktop?: YikeDesktopApi };
 const id = () => randomUUID();
@@ -78,6 +79,34 @@ describe("materials fixed-operation policy", () => {
       { operation: "materials.mutate", payload: { ...valid, change: { ...valid.change, input: { ...input(), text: "x".repeat(2001) } } } },
       { operation: "materials.mutate", payload: { ...valid, change: { kind: "parse", materialId, expectedVersion: null } } },
     ]) expect(validatedOperation(request)).toBeNull();
+  });
+
+  it("gives only parse mutation a bounded 25 second main-process timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      const signals: AbortSignal[] = [];
+      const fetch = vi.fn((_url: string, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
+        signals.push(init.signal as AbortSignal);
+        init.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+      }));
+      const client = createServiceClient({ baseUrl: "https://pilot.example", fetch, clearSession: async () => {} });
+      const parse = {
+        requestId: id(), profileVersionId,
+        change: { kind: "parse" as const, materialId, expectedVersion: 1 },
+      };
+      const parsePending = client.request({ operation: "materials.mutate", payload: parse });
+      await vi.advanceTimersByTimeAsync(12_000);
+      expect(signals[0].aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(13_000);
+      await expect(parsePending).resolves.toEqual({ ok: false, status: 0, error: "SERVICE_TIMEOUT" });
+
+      const ordinaryPending = client.request({ operation: "materials.list", payload: { profileVersionId } });
+      await vi.advanceTimersByTimeAsync(12_000);
+      await expect(ordinaryPending).resolves.toEqual({ ok: false, status: 0, error: "SERVICE_TIMEOUT" });
+      expect(signals[1].aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

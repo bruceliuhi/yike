@@ -86,7 +86,7 @@ export function createServiceClient(options: ServiceClientOptions): {
   async function execute(operation: ServiceOperation): Promise<ApiResult> {
     if (options.baseUrl === null) return {ok: false, status: 0, error: 'SERVICE_NOT_CONFIGURED'};
     const abort = new AbortController();
-    const timeout = setTimeout(() => abort.abort(), options.timeoutMs ?? 12_000);
+    const timeout = setTimeout(() => abort.abort(), options.timeoutMs ?? operation.timeoutMs ?? 12_000);
     try {
       const response = await options.fetch(options.baseUrl + operation.path, {
         method: operation.method,
