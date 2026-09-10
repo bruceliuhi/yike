@@ -110,5 +110,6 @@ it('monitor source stop failure latches the same foreground slot',async()=>{
  (f.scope.transport.requestExecution as any).mockImplementation(async(input:any)=>input.operation==='monitor.support'?{ok:true,status:200,data:{schema_version:'monitor-runtime-support-v1',mode:'three-platform-monitor-v1'}}:{ok:false,status:400,error:'unexpected'});
  const start={schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:hash,targets:f.command.targets};
  expect(await f.controller.startMonitor(start)).toMatchObject({state:'RECORDED'});f.finish({state:'FAILED',error:'SOURCE_STOP_FAILED',taskCompleted:false});await new Promise(resolve=>setImmediate(resolve));
- expect(f.controller.canStart()).toBe(false);await expect(f.controller.shutdown()).rejects.toThrow('SOURCE_STOP_FAILED');
+ expect(f.controller.canStart()).toBe(false);await expect(f.controller.stop(id(6))).rejects.toThrow('SOURCE_STOP_FAILED');
+ await expect(f.controller.shutdown()).rejects.toThrow('SOURCE_STOP_FAILED');
 });

@@ -125,7 +125,8 @@ export function createForegroundCollectionController(options:Options) {
  }
  const controller={
   canStart(){return !opening&&!active&&!shuttingDown&&!stopUnconfirmed;},
-  async stop(taskId?:string){const current=active;if(!current||taskId&&current.taskId!==taskId)return;current.worker.cancel();await current.done;},
+  async stop(taskId?:string){const current=active;if(!current||taskId&&current.taskId!==taskId){if(stopUnconfirmed)throw new Error('SOURCE_STOP_FAILED');return;}
+   current.worker.cancel();await current.done;if(stopUnconfirmed)throw new Error('SOURCE_STOP_FAILED');},
   async validateMonitorBinding(profileId:string,strategyId:string,targets:NonNullable<import('../shared/executionOperation').ExecutionOperation['targets']>):Promise<boolean>{
    let scope:DeviceWorkerScope|undefined;
    try{

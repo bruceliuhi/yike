@@ -53,3 +53,12 @@ it('pause works after support is disabled and stops only the exact observed task
  expect(await f.controller.execute({action:'SET_STATE',requestId:id(10),planId:id(1),expectedRevision:1,state:'PAUSED',humanConfirmed:true})).toMatchObject({state:'RECORDED'});
  expect(f.foreground.stop).toHaveBeenCalledWith(id(9));expect(f.foreground.stop).not.toHaveBeenCalledWith(undefined);
 });
+
+it('failed physical stop keeps exact task visible and never submits PAUSED',async()=>{
+ const f=fixture();await f.controller.execute({action:'ATTACH',planId:id(1),expectedRevision:1,targets:[target],humanConfirmed:true});
+ const startRequest={schema_version:'execution-runtime-v1',request_id:id(8),operation:'START',device_id:id(6),credential_version:1,profile_version_id:id(2),strategy_version_id:id(3),configuration_sha256:'a'.repeat(64),targets:[target]};
+ f.respond(input=>input.operation==='monitor.pulse'?{ok:true,status:200,data:{schema_version:'monitor-runtime-v1',plan_id:id(1),plan_revision:1,state:'RUNNING',server_time:'2026-09-11T09:00:00Z',next_due_at:'2026-09-11T10:00:00Z',occurrence:{id:id(7),scheduled_at:'2026-09-11T09:00:00Z',expires_at:'2026-09-11T09:01:30Z',start_request:startRequest,task_id:id(9)}}}:null);await f.controller.tick();
+ f.foreground.stop.mockRejectedValue(new Error('SOURCE_STOP_FAILED'));f.respond(input=>input.operation==='monitor.state'?(()=>{throw new Error('must not submit')})():null);
+ expect(await f.controller.execute({action:'SET_STATE',requestId:id(10),planId:id(1),expectedRevision:1,state:'PAUSED',humanConfirmed:true})).toEqual({state:'SERVICE_UNAVAILABLE'});
+ const listing=await f.controller.execute({action:'LIST'});expect(listing).toMatchObject({state:'LIST',plans:[{localState:'STOP_UNCONFIRMED',taskId:id(9),lastError:'SOURCE_STOP_FAILED'}]});
+});

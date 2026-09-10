@@ -98,6 +98,8 @@ type Attachment = {
   taskId: string | null;
   lastError: string | null;
   running: boolean;
+  stopping: boolean;
+  stopUnconfirmed: boolean;
 };
 interface Options {
   identity: {
@@ -183,7 +185,15 @@ export function createMonitorCollectionController(options: Options) {
       state: plan.state,
       revision: plan.revision,
       nextDueAt: plan.next_due_at,
-      localState: local ? (local.running ? "RUNNING" : "ATTACHED") : "DETACHED",
+      localState: local
+        ? local.stopUnconfirmed
+          ? "STOP_UNCONFIRMED"
+          : local.stopping
+            ? "STOPPING"
+            : local.running
+              ? "RUNNING"
+              : "ATTACHED"
+        : "DETACHED",
       taskId: local?.taskId ?? null,
       lastError: local?.lastError ?? null,
     };
@@ -219,6 +229,8 @@ export function createMonitorCollectionController(options: Options) {
       taskId: null,
       lastError: null,
       running: false,
+      stopping: false,
+      stopUnconfirmed: false,
     };
     if (!current(scope, token)) return null;
     attached.set(plan.plan_id, value);
@@ -367,9 +379,18 @@ export function createMonitorCollectionController(options: Options) {
         if (command.state === "PAUSED" && prior?.running && !prior.taskId)
           return { state: "BUSY" };
         if (command.state === "PAUSED" && prior) {
-          attached.delete(command.planId);
-          await stopExact(prior);
+          prior.stopping = true;
+          try {
+            await stopExact(prior);
+          } catch {
+            prior.stopping = false;
+            prior.running = false;
+            prior.stopUnconfirmed = true;
+            prior.lastError = "SOURCE_STOP_FAILED";
+            return { state: "SERVICE_UNAVAILABLE" };
+          }
           if (!current(scope, token)) return { state: "SESSION_CHANGED" };
+          attached.delete(command.planId);
         }
         if (command.state === "ACTIVE") {
           const latest = (await plans(scope, token)).find(
@@ -541,7 +562,10 @@ export function createMonitorCollectionController(options: Options) {
                     local.credentialVersion)
               )
                 throw new Error();
-              local.taskId = occurrence?.task_id ?? local.taskId;
+              local.taskId =
+                pulse.state === "READY"
+                  ? null
+                  : (occurrence?.task_id ?? local.taskId);
               local.running = pulse.state === "RUNNING";
               local.lastError =
                 pulse.state.startsWith("SKIPPED_") ||
@@ -549,7 +573,12 @@ export function createMonitorCollectionController(options: Options) {
                   ? pulse.state
                   : null;
               if (pulse.state === "RECOVERY_REQUIRED") {
-                await stopExact(local);
+                try {
+                  await stopExact(local);
+                } catch {
+                  local.stopUnconfirmed = true;
+                  local.lastError = "SOURCE_STOP_FAILED";
+                }
                 local.running = false;
                 continue;
               }
@@ -559,17 +588,11 @@ export function createMonitorCollectionController(options: Options) {
                   occurrence!.start_request,
                 );
                 fairCursor = (values.indexOf(local) + 1) % values.length;
-                if (!current(scope, token, local)) continue;
+                let startedTaskId: string | null = null;
                 if (
-                  !result ||
-                  typeof result !== "object" ||
-                  !("state" in result)
-                ) {
-                  local.lastError = "MONITOR_START_FAILED";
-                  local.running = false;
-                } else if (String(result.state) === "UNKNOWN")
-                  local.lastError = "MONITOR_START_UNKNOWN";
-                else if (
+                  result &&
+                  typeof result === "object" &&
+                  "state" in result &&
                   String(result.state) === "RECORDED" &&
                   "receipt" in result
                 ) {
@@ -579,11 +602,39 @@ export function createMonitorCollectionController(options: Options) {
                       occurrence!.start_request,
                     );
                     if (receipt.operation !== "START") throw new Error();
-                    local.taskId = receipt.task_id;
+                    startedTaskId = receipt.task_id;
+                    local.taskId = startedTaskId;
                   } catch {
                     local.lastError = "MONITOR_START_FAILED";
                     local.running = false;
                   }
+                }
+                if (!current(scope, token, local)) {
+                  if (startedTaskId) {
+                    try {
+                      await stopExact(local);
+                    } catch {
+                      local.stopUnconfirmed = true;
+                      local.lastError = "SOURCE_STOP_FAILED";
+                    }
+                  }
+                  continue;
+                }
+                if (
+                  !result ||
+                  typeof result !== "object" ||
+                  !("state" in result)
+                ) {
+                  local.lastError = "MONITOR_START_FAILED";
+                  local.running = false;
+                } else if (String(result.state) === "UNKNOWN") {
+                  local.lastError = "MONITOR_START_UNKNOWN";
+                  local.running = false;
+                } else if (
+                  String(result.state) === "RECORDED" &&
+                  "receipt" in result
+                ) {
+                  if (!startedTaskId) local.running = false;
                 } else if (String(result.state) !== "RECORDED") {
                   local.lastError = "MONITOR_START_FAILED";
                   local.running = false;
