@@ -12,6 +12,7 @@ from pilot.candidate_review import CandidateReviewStore
 from pilot.contact_drafts import ContactDraftStore
 from pilot.materials import MaterialStore
 from pilot.material_model import MaterialExtractionModel
+from pilot.monitor_plans import MonitorPlanStore
 from pilot.outreach_queue import OutreachQueueStore
 from pilot.db import PilotDatabase
 from pilot.execution_runtime import ExecutionRuntime
@@ -85,6 +86,7 @@ def build_runtime_app(
         candidate_ingestion=ingestion,
         candidate_review=review,
         research_strategies=strategies,
+        monitor_plans=MonitorPlanStore(database, strategy_resolver=strategies.resolve),
         reply_store=replies,
         contact_drafts=drafts,
         materials=MaterialStore(database, model=MaterialExtractionModel(model) if model is not None else None),
