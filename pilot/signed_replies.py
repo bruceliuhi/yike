@@ -29,7 +29,7 @@ def evidence_row(row):
             raise ReplyStoreError('stored_reply_attestation_invalid',503)
     else:
         proof=dict(authority='MANUAL_RECORD' if event.kind=='MANUAL_FOLLOWUP' else 'OPERATOR_RECORDED')
-    return dict(event=event.model_dump(),verification=proof)
+    return dict(event=event.model_dump(),verification=proof,revision=row[3])
 
 
 class SignedReplyStore:
@@ -76,7 +76,7 @@ class SignedReplyStore:
             # A later poll is not a new reply fact. Preserve the first signed
             # observation rather than rewriting its timestamp or provenance.
             if event.state=='ACTIVE':
-                cursor.execute('SELECT payload,payload_sha256,device_attestation FROM pilot_reply_events '
+                cursor.execute('SELECT payload,payload_sha256,device_attestation,revision FROM pilot_reply_events '
                     'WHERE tenant_id=%s AND owner_user_id=%s AND source_id=%s AND outreach_request_id=%s '
                     "AND platform=%s AND external_reply_id=%s AND state='ACTIVE' ORDER BY revision DESC LIMIT 1",
                     (tenant,claims.user_id,event.source_id,event.outreach_request_id,event.platform,event.external_reply_id))
@@ -97,7 +97,7 @@ class SignedReplyStore:
                 replyEventSha256=event_digest(event),verifiedAt=now.isoformat())
             saved=self.replies.record_in_transaction(cursor,claims,event,device_attestation=proof)
             # Semantic deduplication may return an original, different event UUID.
-            cursor.execute('SELECT payload,payload_sha256,device_attestation FROM pilot_reply_events '
+            cursor.execute('SELECT payload,payload_sha256,device_attestation,revision FROM pilot_reply_events '
                 'WHERE tenant_id=%s AND owner_user_id=%s AND event_id=%s AND payload_sha256=%s '
                 'ORDER BY revision DESC LIMIT 1',(tenant,claims.user_id,saved.event_id,event_digest(saved)))
             result=evidence_row(cursor.fetchone())
@@ -109,7 +109,7 @@ class SignedReplyStore:
         opportunity_id=canonical_uuid(opportunity_id)
         with self.queue.database.connect() as conn, conn.cursor() as cursor:
             tenant=self.replies._active(cursor,claims)
-            cursor.execute('SELECT payload,payload_sha256,device_attestation FROM pilot_reply_events '
+            cursor.execute('SELECT payload,payload_sha256,device_attestation,revision FROM pilot_reply_events '
                 'WHERE tenant_id=%s AND owner_user_id=%s AND opportunity_id=%s ORDER BY observed_at,revision',
                 (tenant,claims.user_id,opportunity_id))
             result=[evidence_row(row) for row in cursor.fetchall()]

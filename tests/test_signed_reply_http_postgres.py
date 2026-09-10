@@ -8,6 +8,8 @@ from uuid import uuid4
 import pytest
 
 from pilot.auth import issue_token
+from pilot.reply_store import event_digest
+from pilot.signed_replies import evidence_row
 from tests.test_outreach_dispatch_http_postgres import (
     databases as dispatch_databases, queue_databases, draft_databases,
     execution_databases, env, queued, dispatch, result, get, encoded, SECRET,
@@ -52,6 +54,11 @@ def evidence(env,**kw):
     return env.client.get(f'/api/ui/opportunities/{env.opp}/replies/evidence',**kw)
 
 
+def test_evidence_row_projects_stored_revision():
+    event=platform_event()
+    assert evidence_row((event.model_dump(),event_digest(event),None,7))['revision']==7
+
+
 def test_signed_reply_reaches_original_opportunity_without_old_117_or_mutating_send(env):
     queue,value,key=setup(env,status='UNKNOWN')
     with env.admin.connect() as conn:
@@ -60,6 +67,7 @@ def test_signed_reply_reaches_original_opportunity_without_old_117_or_mutating_s
     reply=record(env,value,key)
     assert reply.status_code==200,reply.text
     output=reply.json()
+    assert output['revision']==1
     assert output['event']==value['event']
     assert output['verification']['authority']=='DEVICE_ATTESTED_PLATFORM_REPLY'
     assert output['verification']['claimId']==value['claimId']
@@ -121,8 +129,10 @@ def test_manual_record_stays_manual_and_native_read_revision_keeps_its_proof(env
     rows=evidence(env).json()
     assert len(rows)==3
     native=[r for r in rows if r['event']['kind']=='PLATFORM_REPLY']
-    assert len(native)==2 and all(r['verification']['authority']=='DEVICE_ATTESTED_PLATFORM_REPLY' for r in native)
+    assert [r['revision'] for r in native]==[1,2]
+    assert all(r['verification']['authority']=='DEVICE_ATTESTED_PLATFORM_REPLY' for r in native)
     manual=[r for r in rows if r['event']['kind']=='MANUAL_FOLLOWUP']
+    assert manual[0]['revision']==1
     assert manual[0]['verification']=={'authority':'MANUAL_RECORD'}
 
 
