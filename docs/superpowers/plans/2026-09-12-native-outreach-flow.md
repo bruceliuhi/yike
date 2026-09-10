@@ -43,3 +43,9 @@ Task1专属：shared/nativeOutreach.ts、main/nativeOutreachController.ts、main
 ## 本批验证（持续更新，非发布结论）
 
 Task3两个定向RED分别复现：重复读同一核验失败、只读stop被当不明清理；修复后driver 7 passed，Python bridge24 passed（合成页面+本机socket，非Windows实机）。preload固定API用例随新增专用channel先失败，更新精确名单/调用断言后1 passed；最终driver/preload合计8 passed。controller独立实现见[native-outreach-controller-report](native-outreach-controller-report.md)，46定向通过包含实际Python签名字节向量。首次集成类型检查发现controller的never箭头函数未完成空值收窄和UI草稿索引类型问题；修复后再做一次集成类型检查，不重复无变化测试。UI与整批独立审核待接收，未跑全量suite或构包。
+
+`01fac55`已完成main/预览确认/恢复装配，集成类型检查通过；UI四文件52定向通过，见[UI简报](2026-09-12-native-outreach-ui-report.md)。独立整批审核在该提交发现1项P2：CONFIRM尚未提交122队列就失败时，UI已写入PENDING，导致以后无法安全恢复新确认。其余未发现阻断。修复约束为可信原请求`NOT_SUBMITTED`：必须证明apply从未开始且清理已确认，仅清该原绑定；不把泛FAILED、CANCEL或404解释成未投递。修复后仅差量复审与受影响定向用例，不重跑全批。当前开发配置只支持未打包Windows运行时，故不做无助于该链验收的Mac重复构包。
+
+`f1a6067`差量类型检查通过，UI新增2项通过、controller相关14项通过（未变更Python向量此轮跳过、原通过证据复用）。差量复审仍NO-GO：超时证明用了已经close的scope.isCurrent，真实身份控制器会因abort而返回false，原超时P2残留；测试fixture未关联close，故须改为新认证scope核对原身份与设备，并修正该单一回归。不得将此轮通过项当作该问题已关闭。
+
+最终代码候选 **d0b305ade77a194807579a1ab438d5aaee6a10d0**：改为新认证scope核对原user/session/device/version，finally关闭；真实close-abort语义的单一超时用例RED→GREEN，最终集成类型检查通过。独立差量终审 **GO、原P2关闭**，没有重跑全套、构包或外部发送。各次测试为不同范围不相加，原失败保留上述记录。主流程源码已装配；正式包bootstrap、Windows实机、真实平台与生产/UAT仍待完成，07B/07C和Goal继续进行。

@@ -8,7 +8,7 @@
 
 进程桥增量见[单一记录](../superpowers/plans/2026-09-11-outreach-process-bridge.md)：`createPlatformOutreachDriver({...loginDriverPaths,profileId,connection})` 为每次派发构造一个单用 `NativeOutreachChannel`；Python固定入口 `app.windows_platform_outreach` 复用Job监督器，正文仅经带一次性鉴权的本机socket传入同一worker/page，CHECK后等待原EXECUTE，不阻塞监督循环。取消/会话切换/异常不得重发，明确回执不因后置清理失败消失。
 
-下一步main按当前身份的已确认connection/profile映射构造driver，并接已有consumer、journal、outbox及私有派发session；原context/operation不得由renderer替换。`cleanupConfirmed()===false` 必须暂停对应profile后续操作，不能用重建driver恢复。结果先保存原outbox；未知结果只对账。当前main/公共IPC/UI未装配此桥，Win不得直接从renderer调用Python方法；Windows Job/ACL实机和真实平台收发仍待验。
+2026-09-12 装配候选见[原生确认闭环](../superpowers/plans/2026-09-12-native-outreach-flow.md)：main按当前身份已确认connection/profile映射构造driver，接consumer、journal、outbox及私有派发session；新增可信sender专用IPC，renderer只给PREPARE/CONFIRM/取消/原结果恢复意图，不能替换context/operation或直接调用Python。确认页显示服务端已保存全文与原账号/对象，CONFIRM前恢复绑定须持久写入并读回；UNKNOWN/SENT不因编辑草稿解除保护。`cleanupConfirmed()===false` 保持controller阻断，不用重建driver绕过。当前仍复用开发用Windows运行时配置，正式包bootstrap未接好；服务器实际发送许可默认关闭，Windows Job/ACL实机和真实平台收发仍待验。下方各历史段落的“尚未装配”不代表此候选的当前装配状态，整批审核结论以本批记录为准。
 
 ## 07B 结果持久恢复（2026-09-10）
 

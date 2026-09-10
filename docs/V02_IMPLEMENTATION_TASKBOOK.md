@@ -6,7 +6,7 @@
 
 ## 当前执行范围：完整 V0.2 全量推进（2026-09-10）
 
-07B已推进页面适配及既有Windows监督器→同页CHECK/EXECUTE桥，[当前记录](superpowers/plans/2026-09-11-outreach-process-bridge.md)集中保留原失败/修复/差量审核。下一步Mac/Win按[合同](contracts/V02_OUTREACH_CHANNELS.md#07b-小红书页面执行接续2026-09-11)接可信profile解析、main派发session及确认/结果UI；没有开放发送入口，实机/真实收发仍待验，不以本机socket或合成页面测试标整卡完成。
+07B已从页面/进程桥推进到可信profile解析、main派发session及确认/恢复UI，当前装配与审核集中见[原生确认闭环](superpowers/plans/2026-09-12-native-outreach-flow.md)及[合同](contracts/V02_OUTREACH_CHANNELS.md#07b-小红书页面执行接续2026-09-11)。用户确认前先显示已保存正文与对象，原请求绑定持久后才可确认；未知结果只核对/补报，不自动重发。此为开发用Windows运行时源码候选，不是正式包bootstrap或实际发送许可；下一步接正式包运行时、实机/真实收发与结果验收，不以本机socket或合成页面测试标整卡完成。完整V0.2与07B/07C继续进行，Win未对本批单独ACK。
 
 07B本批接入持久结果恢复，已保存回执重启只补原结果，不再调用发送；接口变化及原失败/审核见[单一记录](superpowers/plans/2026-09-10-outreach-result-recovery.md#本批验证)。此增量更新下文outbox待办，但真实driver/main/Win UI与真实收发仍未完成；下一批优先接已有隔离平台运行时，不扩展新的孤立协议。
 
