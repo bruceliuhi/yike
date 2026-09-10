@@ -31,7 +31,8 @@ const grantSchema=z.object({requestId:uuid,claimId:uuid,state:z.literal('UNKNOWN
   dispatchAllowed:z.literal(true),dispatchBefore:time,context:contextSchema}).strict();
 const checkSchema=z.object({status:z.literal('AVAILABLE'),contextSha256:sha,deviceId:uuid,connectionId:uuid,
   connectionVersion:version,accountPublicId:opaque,recipientId:opaque,checkedAt:time}).strict();
-const proof=z.object({kind:z.enum(['ACCEPTED','REJECTED_NOT_DELIVERED']),externalId:opaque,sha256:sha,observedAt:time}).strict();
+const proof=z.object({kind:z.enum(['ACCEPTED','REJECTED_NOT_DELIVERED']),
+  externalId:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/),sha256:sha,observedAt:time}).strict();
 const outcomeSchema=z.discriminatedUnion('status',[
   z.object({status:z.literal('UNKNOWN'),confirmed:z.null().optional(),confirmedNotDelivered:z.null().optional(),proof:z.null().optional()}).strict(),
   z.object({status:z.literal('SENT'),confirmed:z.literal(true),confirmedNotDelivered:z.null().optional(),proof:proof.extend({kind:z.literal('ACCEPTED')})}).strict(),

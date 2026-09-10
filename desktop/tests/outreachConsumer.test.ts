@@ -62,6 +62,11 @@ describe('native outreach consumer (synthetic platform driver)',()=>{
     const f=fixture();await Promise.all([1,2].map(()=>f.controller.consume(f.expected,f.grant,new AbortController().signal)));
     expect(f.channel.execute).toHaveBeenCalledTimes(1);
   });
+  it('rejects receipt IDs that the signed RESULT API cannot accept',async()=>{
+    const f=fixture();
+    f.channel.execute.mockResolvedValueOnce({status:'SENT',confirmed:true,proof:{kind:'ACCEPTED',externalId:'平台回执1',sha256:'c'.repeat(64),observedAt:new Date().toISOString()}});
+    expect(await f.controller.consume(f.expected,f.grant,new AbortController().signal)).toMatchObject({state:'UNKNOWN',reason:'RESULT_INVALID'});
+  });
   it.each(['permission','expired','context','scope','target','url'] as const)('rejects changed %s before action',async kind=>{
     const f=fixture();
     if(kind==='permission')f.grant.dispatchAllowed=false;
