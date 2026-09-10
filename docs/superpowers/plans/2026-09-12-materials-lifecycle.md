@@ -29,3 +29,15 @@ Own pilot/material_model.py, pilot/material_api.py, pilot/runtime.py, pilot/web.
 
 ### Task 4: one batch acceptance
 Changed-path Python/TS checks only. One independent wholebatch review at exact commit; only fix-related delta tests/review. Update contract/taskbook with actual evidence and remaining managed-reference/platform/Windows/production boundaries. Fetch and push to yike-ai2026/main only after passing; full V0.2 goal remains active.
+
+## Implemented batch and focused evidence
+
+Frozen source `85ddb16` (base `a266198`): client `09ed567` plus update/replay binding `1593a42` and fixed parse deadline `5987f0b`; runtime/model/API `f6c9a07`; durable domain `85ddb16`.
+
+- Python model/API/runtime: `tests/test_material_model.py tests/test_material_api.py tests/test_pilot_runtime.py` — 25 passed. Missing modules first produced expected RED, then implemented. No real provider requests.
+- Store: `tests/test_materials_store.py` — 6 passed against dedicated PostgreSQL and restricted role; replay/CAS, owner isolation, concurrent same-request extraction, confirmation, impact and retained history. This suite was corrected and rerun only within this changed component, not across the repository.
+- Assembled HTTP: `tests/test_materials_http_postgres.py` — 2 passed. Actual runtime → fixed private model subprocess → loopback synthetic HTTP provider → restricted PostgreSQL → confirm/revoke/remove/restart. Missing model and logout also checked. No mock database; model replies remain synthetic and do not prove extraction quality.
+- Client initial affected policy/transport/existing-materials UI tests: 48 passed across six files. Found/fixed update-save version schema and original-receipt binding; affected transport file 7 passed. Fixed main 12-second timeout conflicting with model's 20-second deadline; final transport file 8 passed using fake timers, with explicit 25-second parse-only bound. These are overlapping reruns, not 63 unique cases.
+- TypeScript `tsc --noEmit` passed after final timeout type change; diff whitespace check passed. No full regression suite, bundle, Windows package or deployment performed.
+
+Review status is recorded separately in `docs/qa/MATERIALS_LIFECYCLE_REVIEW.md`; no GO claim is inferred from tests. Existing profile save/confirm and UI interaction were reused. Formal material-reference tracking, real provider quality, actual-platform/Windows/production/UAT evidence remain outside this completed code slice and inside the full V0.2 goal.
