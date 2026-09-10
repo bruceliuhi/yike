@@ -222,6 +222,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 设备登记 PostgreSQL 复核：在同一受限身份数据库运行 `tests/test_device_registration_postgres.py` 与 `tests/test_device_registration_http_postgres.py`，**29 passed**。覆盖登记恢复、幂等、撤销/过期、owner 隔离、HTTPS/Origin 与 no-store；不代表真实平台账号或 Windows 实机已接通。
 
+2026-09-10 触达/回复迁移授权探针：在全新 `yike_mac_outreach_20260910` PostgreSQL 数据库创建一次性受限应用角色，完成全量迁移并重复执行 `grant_outreach_contract.sql`、`grant_reply_events.sql`，输出 `migrations-and-grants-pass`。该探针只证明表结构与授权脚本可重复应用，不代表真实发送、回复回流或 RLS 业务套件已通过。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
