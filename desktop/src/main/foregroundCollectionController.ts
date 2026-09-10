@@ -108,20 +108,20 @@ export function createForegroundCollectionController(options:Options) {
    value.records_used!==value.platform_runs.reduce((n,p)=>n+p.records_used,0) || value.status==='SUCCEEDED' && (!value.stop_confirmed || value.platform_runs.some(p=>p.status!=='SUCCEEDED')))throw new Error();
   return value;
  }
- async function batchFor(scope:DeviceWorkerScope,taskId:string){
+ async function batchesFor(scope:DeviceWorkerScope,taskId:string){
   const keys=await options.candidateJournal.list(journalScope(scope));guard(scope);
-  let found:Awaited<ReturnType<CandidateJournal['read']>>=null;
+  const found:NonNullable<Awaited<ReturnType<CandidateJournal['read']>>>[]=[];
   for(const key of keys){const batch=await options.candidateJournal.read(journalScope(scope),key);guard(scope);
-   if(batch?.execution.task_id===taskId){if(found)throw new Error();found=batch;}}
+   if(batch?.execution.task_id===taskId)found.push(batch);}
   return found;
  }
  async function status(scope:DeviceWorkerScope,taskId:string):Promise<ForegroundCollectionResult>{
-  const current=await task(scope,taskId),batch=await batchFor(scope,taskId);guard(scope);
+  const current=await task(scope,taskId),batches=await batchesFor(scope,taskId);guard(scope);
   const running=active?.taskId===taskId && active.userId===scope.session.userId && active.scope.session.sessionId===scope.session.sessionId;
   const result=local.get(localKey(scope,taskId));
   const localState=running?'COLLECTING':result?.state==='COMPLETED'?'COMPLETED':result?.state==='UPLOAD_UNKNOWN'?'UPLOAD_UNKNOWN':result?.state==='FINISH_UNKNOWN'?'FINISH_UNKNOWN':result?.state==='STOPPED'?'STOPPED':result?.state==='FAILED'?'FAILED':'INTERRUPTED';
   return {state:'STATUS',taskId,localState,serverStatus:current.status,stopConfirmed:current.stop_confirmed,recordsUsed:current.records_used,
-   recoverable:!running && !!batch && !['CANCELED','CANCELLING','SUCCEEDED'].includes(current.status)};
+   recoverable:!running && batches.length===1 && !['CANCELED','CANCELLING','SUCCEEDED'].includes(current.status)};
  }
  const controller={
   canStart(){return !opening&&!active&&!shuttingDown&&!stopUnconfirmed;},
@@ -136,7 +136,9 @@ export function createForegroundCollectionController(options:Options) {
     const strategy=strategyViewSchema.parse(response.data),snapshot=strategy.snapshot,c=snapshot.configuration;
     if(strategy.state!=='CONFIRMED'||!strategy.is_current||!strategy.profile_current||strategy.confirmed_at===null||strategy.revoked_at!==null||
       strategy.profile_version_id!==profileId||snapshot.profile_version_id!==profileId||strategy.strategy_version_id!==strategyId||snapshot.strategy_version_id!==strategyId||
-      c.mode!=='monitor'||c.schedule?.policyVersion!==1||snapshot.platforms.length!==targets.length||targets.some((target,index)=>target.platform!==snapshot.platforms[index])||
+      c.mode!=='monitor'||c.schedule?.policyVersion!==1||snapshot.max_records>100||snapshot.max_runtime_seconds>900||
+      c.source!=='search'||c.research!==null||c.links.length||c.exclusions.length||c.keywords.some(k=>k!==k.trim()||k.includes(','))||
+      snapshot.platforms.length!==targets.length||targets.some((target,index)=>target.platform!==snapshot.platforms[index])||
       targets.some(target=>!nativeLoginPlatformSchema.safeParse(target.platform).success||target.access_mode!=='PLATFORM_ACCOUNT'))throw new Error();
     for(const target of targets)await account(scope,target);
     return true;
@@ -156,7 +158,7 @@ export function createForegroundCollectionController(options:Options) {
     if(strategy.state!=='CONFIRMED'||!strategy.is_current||!strategy.profile_current||strategy.confirmed_at===null||strategy.revoked_at!==null||
       strategy.profile_version_id!==start.profile_version_id||strategy.strategy_version_id!==start.strategy_version_id||snapshot.profile_version_id!==start.profile_version_id||
       snapshot.strategy_version_id!==start.strategy_version_id||strategy.configuration_sha256!==start.configuration_sha256||createHash('sha256').update(canonical(snapshot)).digest('hex')!==start.configuration_sha256||
-      c.mode!=='monitor'||c.schedule?.policyVersion!==1||c.source!=='search'||c.research!==null||c.links.length||c.exclusions.length||
+      c.mode!=='monitor'||c.schedule?.policyVersion!==1||snapshot.max_records>100||snapshot.max_runtime_seconds>900||c.source!=='search'||c.research!==null||c.links.length||c.exclusions.length||c.keywords.some(k=>k!==k.trim()||k.includes(','))||
       snapshot.platforms.length!==targets.length||targets.some((target,index)=>target.platform!==snapshot.platforms[index]||target.access_mode!=='PLATFORM_ACCOUNT'||!nativeLoginPlatformSchema.safeParse(target.platform).success))throw new Error();
     const bindings=[];for(const target of targets)bindings.push(await account(scope,target));
     const firstSessions=options.sessions(scope);const submitted=await firstSessions.execution.submit(scope.session,start);guard(scope);if(submitted.state!=='RECORDED')return submitted;
@@ -168,13 +170,14 @@ export function createForegroundCollectionController(options:Options) {
     current.done=(async()=>{
       let activeScope:DeviceWorkerScope|undefined=scope;scope=undefined;
       try{for(let index=0;index<targets.length;index++){
-        if(cancelled)break;if(index>0){const opened=await open();if(opened.session.userId!==current.userId||opened.device.deviceId!==current.scope.device.deviceId||opened.device.credentialVersion!==current.scope.device.credentialVersion){opened.close();break;}activeScope=opened;}
-        const binding=index===0?bindings[index]:await account(activeScope!,targets[index]);const sessions=index===0?firstSessions:options.sessions(activeScope!);
+        if(cancelled)break;if(index>0){const opened=await open();if(cancelled||!opened.session.isCurrent()||opened.session.userId!==current.userId||opened.session.sessionId!==current.scope.session.sessionId||opened.device.deviceId!==current.scope.device.deviceId||opened.device.credentialVersion!==current.scope.device.credentialVersion){opened.close();break;}activeScope=opened;}
+        const binding=index===0?bindings[index]:await account(activeScope!,targets[index]);if(cancelled||!activeScope!.session.isCurrent()){activeScope!.close();activeScope=undefined;break;}const sessions=index===0?firstSessions:options.sessions(activeScope!);
         const driver=(options.driverFactory??createPythonCollectionDriver)({pythonExecutable:configuration.pythonExecutable,projectRoot:configuration.projectRoot,runtimePath:configuration.runtimePath,
           profilePath:path.join(configuration.profileRoot,binding.profileId),outputRoot:configuration.outputRoot,allowMonitor:true,
           binding:{...activeScope!.device,...targets[index],expectedAccountPublicId:binding.accountPublicId}});
         currentWorker=(options.workerFactory??createCollectionWorker)({...sessions,driver});
         const value=await currentWorker.run({scope:activeScope!,start,startReceipt:receipt,strategy,platformRunId:receipt.platform_runs[index].platform_run_id,allowMonitor:true});
+        if(value.state==='FAILED'&&value.error==='SOURCE_STOP_FAILED')stopUnconfirmed=true;
         local.set(localKey(current.scope,receipt.task_id),value);activeScope=undefined;if(value.state!=='COMPLETED'||!value.taskCompleted&&index===targets.length-1)break;
       }}catch{activeScope?.close();}finally{if(active===current)active=null;}
     })();
@@ -247,7 +250,8 @@ export function createForegroundCollectionController(options:Options) {
    try{
     scope=await open();
     if(command.action==='RECOVER'){
-     await task(scope,command.taskId);const batch=await batchFor(scope,command.taskId);guard(scope);if(!batch)return {state:'NOT_FOUND'};
+     await task(scope,command.taskId);const batches=await batchesFor(scope,command.taskId);guard(scope);if(!batches.length)return {state:'NOT_FOUND'};
+     if(batches.length!==1)throw new Error();const batch=batches[0];
      if(batch.execution.device_id!==scope.device.deviceId || batch.execution.credential_version!==scope.device.credentialVersion)throw new Error();
      const sessions=options.sessions(scope);
      const uploaded=await sessions.candidates.recover(scope.session,{platformRunId:batch.execution.platform_run_id,requestId:batch.request_id},command.retry??false);guard(scope);

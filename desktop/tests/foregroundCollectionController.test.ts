@@ -97,3 +97,18 @@ it('keeps a verified sibling capability when another one platform profile read f
  f.resolveAccount.mockResolvedValue({profileId:id(30),accountPublicId:'studio_2026'});
  expect(await f.controller.execute({action:'CAPABILITIES'})).toEqual({state:'AVAILABLE',bindings:[{mode:'three-platform-foreground-v1',platform:'DOUYIN',connectionId:id(50),connectionVersion:3,deviceId:id(2),accountPublicId:'studio_2026'}]});
 });
+
+it('STATUS accepts multiple platform candidate batches but keeps recovery conservative',async()=>{
+ const f=fixture();(f.candidatesJournal.list as any).mockResolvedValue(['a','b']);
+ (f.candidatesJournal.read as any).mockImplementation(async(_scope:any,key:string)=>({request_id:id(key==='a'?70:71),execution:{task_id:id(6)}}));
+ expect(await f.controller.execute({action:'STATUS',taskId:id(6)})).toMatchObject({state:'STATUS',recordsUsed:0,recoverable:false});
+});
+
+it('monitor source stop failure latches the same foreground slot',async()=>{
+ const f=fixture();const c:any=f.strategy.snapshot.configuration;c.mode='monitor';c.schedule={kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1};
+ const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.strategy.configuration_sha256=hash;
+ (f.scope.transport.requestExecution as any).mockImplementation(async(input:any)=>input.operation==='monitor.support'?{ok:true,status:200,data:{schema_version:'monitor-runtime-support-v1',mode:'three-platform-monitor-v1'}}:{ok:false,status:400,error:'unexpected'});
+ const start={schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:hash,targets:f.command.targets};
+ expect(await f.controller.startMonitor(start)).toMatchObject({state:'RECORDED'});f.finish({state:'FAILED',error:'SOURCE_STOP_FAILED',taskCompleted:false});await new Promise(resolve=>setImmediate(resolve));
+ expect(f.controller.canStart()).toBe(false);await expect(f.controller.shutdown()).rejects.toThrow('SOURCE_STOP_FAILED');
+});
