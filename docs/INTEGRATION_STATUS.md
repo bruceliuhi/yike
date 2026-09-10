@@ -238,6 +238,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 执行签名回执 HTTP PostgreSQL 复核：在独立身份数据库运行 `tests/test_execution_signing_payload_http_postgres.py`，**11 passed**。覆盖签名载荷、请求完整性、回执关联、预算和受限 PostgreSQL HTTP 往返；不代表真实平台执行或发送。
 
+2026-09-10 Pilot 运行时 HTTP 复核：同时注入身份与研究策略数据库，运行 `tests/test_pilot_runtime_http_postgres.py`，**2 passed**。覆盖普通 CLI 启动、实际 HTTP 路由、受限应用数据库选择与任务执行边界；来源/模型仍为合成输入，不代表真实平台采集或发送。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
