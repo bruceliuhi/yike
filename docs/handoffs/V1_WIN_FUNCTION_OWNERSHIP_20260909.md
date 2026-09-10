@@ -4,6 +4,8 @@
 
 ## 分工调整
 
+2026-09-10 Win认领原始批次恢复（base e520850）：独占新desktop `main/candidateJournal.ts`、`candidateSession.ts`、`shared/candidateReceipt.ts`及对应测试，现candidate-upload-live集成测试接真实磁盘恢复。先落原文再上传，重启只查原复合键，不增任意IPC或来源开关；Mac保留映射/候选执行后端/回复。运行时Windows路径与私有目录仍是后续worker缺口，不将该存储片冒充真实采集；main通知，非Mac ACK。
+
 2026-09-10 Win进程清理工程片已完成：复用入口 `app.collector.run_supervised_process` 的Windows分支以私有启动门和原生Job管理本次树，取消/超时/回调异常/父退出均清理；保留原退出码与中文原文输出，POSIX原路径不变。真实Windows专项证据为原生Job12项通过（未改字节复用）及最终supervisor10项通过/2.10s，旧入口平台断言1项和POSIX清理2项定向通过。实际RED包括killpg不可用、venv转发器逃逸、GBK输出和审核发现的异常回收遗漏；最后两条回收反例先失败再修复，非作者复现确认P2关闭。一次整批SPEC→架构/代码/质量审核及该差量复审PASS，绑定base `56bf984`、冻结树 `a628c91c318a0a8148c32199c28edba12cd433e0`，随后仅文档变更。未跑全量/数据库/真实平台或构包，现安装包仍绑定1a47178；本片不是来源worker或安装验收。Win继续运行时路径/私有目录、worker和持久批次；Mac仍保留来源映射/发送回复后端，本main交接不等于Mac ACK，父卡和Goal保持IN_PROGRESS。
 
 2026-09-10 Win开始精简版Windows进程清理批次（base c08fd03）：独占新 `app/windows_process_job.py`、现 `app/collector.py` 的Windows supervisor分支及两个Windows专项测试。复用Job Object管理受控树；不改Mac来源映射/发送回复/候选后端，不重新构包。后续路径/私有目录、worker/批次恢复按同一精简目标接续；本段只认领，不标完成或Mac ACK。
