@@ -17,9 +17,12 @@ from urllib.parse import urlsplit
 if __package__:
     from .platform_login_worker import valid_account, read_douyin_self_account
 else:
-    # Installed host invokes this file directly, with the runtime as cwd.
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from platform_login_worker import valid_account, read_douyin_self_account
+    # Direct script/spec loading must not put app/config.py ahead of runtime config.
+    from importlib.util import spec_from_file_location, module_from_spec
+    _login_spec = spec_from_file_location('yike_collection_login', Path(__file__).with_name('platform_login_worker.py'))
+    _login = module_from_spec(_login_spec)
+    _login_spec.loader.exec_module(_login)
+    valid_account, read_douyin_self_account = _login.valid_account, _login.read_douyin_self_account
 
 _ACCOUNT = re.compile(r'[A-Za-z0-9]{8,32}')
 _HREF = re.compile(r'(?:https://www\.xiaohongshu\.com)?/user/profile/([A-Za-z0-9]{8,32})')

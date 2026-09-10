@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -130,7 +131,7 @@ def test_installed_main_status_cleanup_with_controlled_source_and_http(tmp_path,
     """Real installed start/client/main, fixture browser and search body; no external network."""
     installed = Path(os.environ.get('YIKE_SOURCE_INSTALLED_CHECK',
         'C:/Users/bruce/AI/意客AI2026/.runtime/windows-installed-xhs-20260910-02'))
-    python = installed / '.venv/Scripts/python.exe'
+    python = installed / ('.venv/Scripts/python.exe' if sys.platform == 'win32' else '.venv/bin/python')
     if not python.is_file(): pytest.skip('Operator installed runtime unavailable; never downloads')
     worker = Path(module().__file__).resolve()
     script = '''import importlib.util, json, os, socket, sys
@@ -203,7 +204,9 @@ print(json.dumps({'exit': code, 'events': events}))
     environment = _minimal_child_environment(YIKE_PROFILE_PATH=str(tmp_path),
         YIKE_EXPECTED_ACCOUNT_PUBLIC_ID=ACCOUNT, PYTHONDONTWRITEBYTECODE='1',
         TEMP=str(tmp_path), TMP=str(tmp_path), MPLCONFIGDIR=str(tmp_path))
-    measured = ['.yike-windows-install.json', 'main.py', 'media_platform/xhs/core.py', 'media_platform/xhs/client.py']
+    measured = ['main.py', 'media_platform/xhs/core.py', 'media_platform/xhs/client.py']
+    # POSIX exercises the pinned source only, never Windows installation proof.
+    if sys.platform == 'win32': measured.append('.yike-windows-install.json')
     before = {name: (installed / name).read_bytes() for name in measured}
     proc = subprocess.run([str(python), '-X', 'utf8', '-c', script, str(worker), mode, *arguments(tmp_path)],
         cwd=installed, env=environment, capture_output=True, timeout=30)
