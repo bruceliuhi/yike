@@ -17,7 +17,9 @@ def three_platform_collection_policy(platform, access_mode, configuration):
         return False
     return (parsed.source == 'search' and parsed.mode == 'once'
             and parsed.schedule is None and parsed.research is None
-            and not parsed.exclusions and not parsed.links
+            # Confirmed exclusions are applied to validated source records by
+            # the native driver, not sent as platform search operators.
+            and not parsed.links
             and bool(parsed.keywords)
             and all(term == term.strip() and ',' not in term for term in parsed.keywords))
 

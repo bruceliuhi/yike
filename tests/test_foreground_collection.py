@@ -17,7 +17,7 @@ def test_supported_normal_xhs_once_search_configuration():
     assert foreground_collection_policy('XIAOHONGSHU','PLATFORM_ACCOUNT',config()) is True
 
 
-@pytest.mark.parametrize('key,value',[('source','links'),('links',['https://example.org']),('exclusions',['招聘']),('mode','monitor'),('schedule',{}),('research',{}),('keywords',['设计,搭建']),('keywords',[]),('keywords',[' 设计']),('keywords',['\n']),('extra',True)])
+@pytest.mark.parametrize('key,value',[('source','links'),('links',['https://example.org']),('exclusions',['']),('mode','monitor'),('schedule',{}),('research',{}),('keywords',['设计,搭建']),('keywords',[]),('keywords',[' 设计']),('keywords',['\n']),('extra',True)])
 def test_unsupported_configuration_is_never_enabled(key,value):
     value_config=config();value_config[key]=value
     assert foreground_collection_policy('XIAOHONGSHU','PLATFORM_ACCOUNT',value_config) is False
@@ -60,7 +60,7 @@ def test_monitor_policy_is_explicit_versioned_and_preserves_once():
     from pilot.foreground_collection import three_platform_monitor_policy, three_platform_collection_policy
     schedule = dict(kind='daily', times=['09:30'], interval=2, start='09:00', end='18:00',
                     timezone='Asia/Shanghai', policyVersion=1)
-    value = config() | {'mode': 'monitor', 'schedule': schedule}
+    value = config() | {'mode': 'monitor', 'schedule': schedule, 'exclusions': ['招聘', '免费教程']}
     original = deepcopy(value)
     assert configured_collection_policy({'YIKE_PILOT_COLLECTION_MODE': 'three-platform-monitor-v1'}) is three_platform_monitor_policy
     for platform in ('XIAOHONGSHU', 'DOUYIN', 'BILIBILI'):
@@ -71,4 +71,15 @@ def test_monitor_policy_is_explicit_versioned_and_preserves_once():
     for replacement in (None, schedule | {'policyVersion': True}, {k: v for k, v in schedule.items() if k != 'policyVersion'}):
         assert not three_platform_monitor_policy('XIAOHONGSHU', 'PLATFORM_ACCOUNT', value | {'schedule': replacement})
     assert not three_platform_monitor_policy('PUBLIC_WEB', 'PUBLIC_ANONYMOUS', value)
-    assert not three_platform_monitor_policy('XIAOHONGSHU', 'PLATFORM_ACCOUNT', value | {'exclusions': ['招聘']})
+    assert not three_platform_monitor_policy('XIAOHONGSHU', 'PLATFORM_ACCOUNT', value | {'exclusions': ['']})
+
+
+def test_confirmed_exclusions_are_supported_without_mutating_strategy():
+    from copy import deepcopy
+    from pilot.foreground_collection import three_platform_collection_policy
+    value = config() | {'exclusions': ['招聘', 'FREE', 'cafe\u0301']}
+    original = deepcopy(value)
+    for platform in ('XIAOHONGSHU', 'DOUYIN', 'BILIBILI'):
+        assert three_platform_collection_policy(platform, 'PLATFORM_ACCOUNT', value)
+    assert foreground_collection_policy('XIAOHONGSHU', 'PLATFORM_ACCOUNT', value)
+    assert value == original
