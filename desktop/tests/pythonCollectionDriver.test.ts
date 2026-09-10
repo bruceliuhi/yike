@@ -79,6 +79,14 @@ it('rejects conflicting duplicate evidence even when every version is excluded',
   f.respond(1, [{...record('搭建'), body: '原文 已修改'}]);
   expect(await outcome).toBe('SOURCE_DRIVER_CONFLICT'); await run.stop();
 });
+it('returns a successful empty result when raw excluded records exhaust the budget without replacement collection', async () => {
+  const f = fixture(); f.input.snapshot.configuration.keywords = ['设计', '搭建', '布展'];
+  f.input.snapshot.configuration.exclusions = ['原文']; f.input.maxRecords = 2;
+  const run = f.driver.start(f.input); await tick(); expect(f.request(0).max_records).toBe(1);
+  f.respond(0, [record()]); await tick(); expect(f.request(1).max_records).toBe(1);
+  f.respond(1, [record('搭建', '66c21234abcdef0123456789')]);
+  await expect(run.completed).resolves.toEqual([]); expect(spawn).toHaveBeenCalledTimes(2); await run.stop();
+});
 it('EOF cancellation waits for host cleanup/close and does not start next query', async () => {
   const f = fixture(); const run = f.driver.start(f.input); const outcome = run.completed.catch(e => e.message); await tick();
   f.abort.abort(); let stopped = false; const stop = run.stop().then(() => {stopped = true;}); await tick();

@@ -88,6 +88,7 @@ describe('bounded foreground start prerequisites', () => {
   it('allows only the matched registered foreground search binding', () => {
     const ready = attachForegroundBinding([row()], {state:'AVAILABLE',bindings:[binding]});
     expect(startBlockers({...draft,platforms:[...draft.platforms]}, profiles, ready, true)).toEqual([]);
+    expect(startBlockers({...draft,platforms:[...draft.platforms],exclusions:[{id:'exclude',value:'别的',origin:'manual',edited:false}]}, profiles, ready, true)).toEqual([]);
     expect(startBlockers({...draft,platforms:[...draft.platforms]}, profiles, [row()], true).length).toBeGreaterThan(0);
   });
   it('allows one exact video-platform foreground search binding',()=>{
@@ -97,12 +98,11 @@ describe('bounded foreground start prerequisites', () => {
     const ready=attachForegroundBinding([videoRow],{state:'AVAILABLE',bindings:[videoBinding]});
     expect(startBlockers(videoDraft,profiles,ready,true)).toEqual([]);
   });
-  it.each(['links','exclusions','research','monitor','otherplatform','bindingchanged'])(
+  it.each(['links','research','monitor','otherplatform','bindingchanged'])(
     'blocks unsupported foreground scope %s', field => {
       const current = structuredClone({...draft,platforms:[...draft.platforms]});
       const ready = attachForegroundBinding([row()], {state:'AVAILABLE',bindings:[binding]});
       if (field==='links') current.links='https://example.com';
-      if (field==='exclusions') current.exclusions=[{id:'exclude',value:'别的',origin:'manual',edited:false}];
       if (field==='research') (current as any).research={};
       if (field==='monitor') current.mode='monitor';
       if (field==='otherplatform') current.platforms.push('web' as 'xhs');
