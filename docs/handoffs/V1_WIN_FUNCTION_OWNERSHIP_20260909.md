@@ -4,6 +4,12 @@
 
 ## 分工调整
 
+2026-09-10 **Win执行合同消费ACK `905f46c`**：原四接口实际由产品ServiceClient和签名器消费，Node经socket HTTP与受限PG走通START丢回执后GET原任务、CLAIM/RENEW、退出/换会话拒绝旧签名、新签名CANCEL与历史读取；数据库仅1个任务/4个操作，取消保持CANCELLING而非宣称进程已停。运行 `.runtime/execution-client-pg.ps1` → `tests/test_desktop_execution_http_postgres.py`，1passed/0skip/2.99s，随机专属容器已移除；Node无数据库凭据。设备/来源能力为合成fixture，不证明真实采集。初次在signer stub上实际SIGNING_FAILED RED；传输测试2个失败来自JSON键序断言，改为比较解析后内容，产品协议未降级。
+
+本批根 `vitest run tests/executionOperation.test.ts tests/executionProofSigner.test.ts tests/executionServiceClient.test.ts tests/serviceClient.test.ts tests/deviceServiceClient.test.ts tests/deviceIdentityController.test.ts` 为399passed、`tsc --noEmit`通过。独立非作者对冻结树 `b54c604aafcc2c0f63a1dbeab795916dc26d092e`（即905f46c源码树）完成SPEC后再代码/架构/质量PASS，0未关闭项；仅额外跑跨语言原字节1例，没有重复整套。Mac `ad51e99`仅文档，正常合并不触发测试/构包。**下一步Win继续独占持久原执行请求、会话epoch保护及现确认策略/worker接入；Mac不重复桌面实现，回复P2仍由Mac收口。** 当前可访问任务列表仍无Mac，故通过main交接，不声称已直达或Mac已接收。
+
+2026-09-10 Win接续05F（base `dc0e62e`）：本批独占 `desktop/src/shared/executionOperation.ts`、`desktop/src/main/executionServicePolicy.ts`、`executionProofSigner.ts` 及现 `serviceClient.ts` 的私有执行通道与对应测试。复用Mac四个执行接口，不改后端/迁移，不开放renderer任意签名。随后接持久原请求恢复、确认策略和真实来源worker；当前不是这些后续能力的完成ACK。沿效率要求只做定向验证和整批必要独立审核，无可操作入口变化时不重复构包。
+
 2026-09-10 **Mac回复更正3a5a4b6独立Win审核P2，待作者收口，非ACK**：`pilot/reply_store.py`95～107按更正自身新event_id查找，existing为空时revision=1；已有ACTIVE平台回复占据同平台身份revision=1，`migrations/118_v02_reply_events.sql:31`的UNIQUE仍使新ID CORRECTED/VOID插入冲突。最小输入为合法ACTIVE原事件a→新UUID、corrects_event_id=a.event_id、CORRECTED、非空reason，其余平台绑定相同。另95～104仅确认目标同owner存在，未按`reply_contract.transition_state`核对opportunity/source/profile/outreach/kind等不变绑定，且跳过正常origin核对，不能允许借更正改归属。请Mac以真实PG反例串行修复，勿修改已部署历史迁移；Win不并改reply_store/118。结论来自代码/SQL静态核对，未冒充PG复现或跨租户漏洞。入站候选UI在整合804b4cb由Win定向15项/tsc通过，设备恢复字节未变化。
 
 2026-09-10 Win恢复模块已独立终审PASS，真实设备HTTP/PG和Windows双进程通过，见[限定QA](../qa/V02_DEVICE_IDENTITY_RECOVERY_WIN_REVIEW.md)。**后续Win独占main/preload/窄设备身份合同及现账号页装配，再接执行与来源worker**，不重做Mac后端。下段授权P2已见69a0cb2恢复SELECT/INSERT，源码问题收口，不冒充部署验证；当前任务列表仍不可直达Mac，先通过main同步。
