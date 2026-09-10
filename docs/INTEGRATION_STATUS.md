@@ -216,6 +216,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 搜索建议 PostgreSQL 复核：清理旧测试角色及其数据库对象后，使用固定 `win_search_suggestion` 数据库，由套件重新创建 `suggestion_app` 受限角色，`tests/test_search_suggestions_postgres.py` **63 passed**。覆盖迁移、RLS、配额、幂等、并发、失败持久化与 HTTP/Node 路径；该结果仅适用于一次性本机测试容器，不代表生产数据库或真实模型服务。
 
+2026-09-10 研究策略 PostgreSQL 复核：清理旧 `strategy_app` 角色及其数据库对象，并安装锁定的 desktop Node 依赖后，使用固定 `win_research_strategy` 数据库按套件自有流程运行，`tests/test_research_strategies_postgres.py` **49 passed**。覆盖策略版本、确认/撤销、RLS、HTTP 和 Node 客户端往返；该结果仅适用于一次性本机测试容器，不代表生产部署或真实模型服务。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
