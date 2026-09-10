@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from psycopg import sql
 from psycopg.types.json import Jsonb
 
 from pilot.auth import issue_token
@@ -21,7 +22,7 @@ from tests.test_reply_contract import platform_event, manual_event
 from tests.test_outreach_context_http_postgres import context
 from tests.test_contact_drafts_http_postgres import body as draft_body, rehash, save
 from tests.test_outreach_queue_http_postgres import sign, confirm
-from tests.test_device_credentials_postgres import bind
+from tests.test_device_credentials_postgres import bind, challenge, complete
 from pilot.auth import verify_token_claims
 from pilot.device_credentials import DeviceCredentialStore
 from nacl.signing import SigningKey
@@ -180,6 +181,37 @@ def test_sync_context_rejects_valid_other_device_and_corrupt_root_without_writes
     assert env.client.post('/api/ui/replies/sync-context',json=request).status_code==409
     with env.admin.connect() as conn:
         assert conn.execute('SELECT count(*) FROM pilot_outreach_results').fetchone()==before
+
+
+@pytest.mark.parametrize('env',['POST'],indirect=True)
+def test_sync_context_rejects_confirmation_saved_under_a_different_request_id(env):
+    confirmation,claim,_sent,_key,_frozen=xhs_sent(env)
+    request=dict(requestId=confirmation['requestId'],deviceId=claim['deviceId'],credentialVersion=1)
+    with env.admin.connect() as conn:
+        payload=conn.execute('SELECT request_payload FROM pilot_outreach_queue WHERE request_id=%s',
+            (confirmation['requestId'],)).fetchone()[0]
+        conn.execute(sql.SQL('ALTER TABLE pilot_outreach_queue DROP CONSTRAINT IF EXISTS {}').format(
+            sql.Identifier('pilot_outreach_queue_check')))
+        payload['requestId']=str(uuid4())
+        conn.execute("SET LOCAL session_replication_role='replica'")
+        conn.execute('UPDATE pilot_outreach_queue SET request_payload=%s,request_sha256=%s WHERE request_id=%s',
+            (Jsonb(payload),_hash(payload),confirmation['requestId']))
+    assert env.client.post('/api/ui/replies/sync-context',json=request).status_code==409
+
+
+@pytest.mark.parametrize('env',['POST'],indirect=True)
+def test_sync_context_uses_current_key_after_same_device_credential_rotation(env):
+    confirmation,claim,sent,key,frozen=xhs_sent(env)
+    claims=verify_token_claims(env.client.headers['Authorization'].removeprefix('Bearer '),SECRET)
+    identity=SimpleNamespace(service=DeviceCredentialStore(env.app),claims=claims,device=claim['deviceId'])
+    new_key=SigningKey.generate()
+    assert complete(identity,challenge(identity,'ROTATE',1,new_key),new_key,key)['credential_version']==2
+    response=env.client.post('/api/ui/replies/sync-context',json=dict(
+        requestId=confirmation['requestId'],deviceId=claim['deviceId'],credentialVersion=2))
+    assert response.status_code==200,response.text
+    assert response.json()['context']==frozen
+    assert response.json()['rootCommentId']==sent['outcome']['proof']['externalId']
+    assert response.json()['credentialVersion']==2
 
 
 def test_evidence_row_projects_stored_revision():

@@ -124,18 +124,19 @@ class SignedReplyStore:
                 raise ReplyStoreError('reply_sync_origin_invalid',409) from None
             context=_sync_context(row[1],tenant,claims.user_id)
             proof=result.outcome.proof if result.outcome else None
-            expected=(value.requestId,value.deviceId,value.credentialVersion,context['contextSha256'])
+            expected=(value.requestId,value.deviceId,context['contextSha256'])
             confirmation_context={'binding':context['binding'],'deviceId':context['connection']['deviceId'],
                 'connectionId':context['connection']['connectionId'],
                 'connectionVersion':context['connection']['connectionVersion']}
             if (row[3]!=_hash(confirmation.model_dump()) or row[5]!=_hash(claim.model_dump())
                     or row[8]!=_hash(result.model_dump())
+                    or confirmation.requestId!=value.requestId
                     or confirmation.context.model_dump()!=confirmation_context
                     or confirmation.contextSha256!=context['contextSha256']
-                    or confirmation.credentialVersion!=value.credentialVersion
-                    or (claim.requestId,claim.deviceId,claim.credentialVersion,claim.contextSha256)!=expected
+                    or confirmation.credentialVersion!=claim.credentialVersion
+                    or (claim.requestId,claim.deviceId,claim.contextSha256)!=expected
                     or claim.action!='CLAIM' or claim.claimId!=row[4]
-                    or (result.requestId,result.deviceId,result.credentialVersion,result.contextSha256)!=expected
+                    or (result.requestId,result.deviceId,result.contextSha256)!=expected
                     or result.action!='RESULT' or result.claimId!=row[4]
                     or result.outcome is None or result.outcome.status!='SENT'
                     or proof is None or proof.kind!='ACCEPTED'
