@@ -43,12 +43,19 @@ def signing_payload(tenant, claims, value):
 
 
 def receipt(row):
-    return dict(requestId=row[0], state=row[1], deliveryConfirmed=False)
+    result=dict(requestId=row[0], state=row[1], deliveryConfirmed=row[1]=='SENT', dispatchAllowed=False)
+    if row[1] in ('SENT','FAILED'):
+        result['evidenceAuthority']='DEVICE_ATTESTED_PLATFORM_RECEIPT'
+    if row[1]=='FAILED':
+        result['confirmedNotDelivered']=True
+    return result
 
 
 class OutreachQueueStore:
-    def __init__(self, database, drafts, execution):
+    def __init__(self, database, drafts, execution, allowed_platforms=()):
         self.database, self.drafts, self.execution = database, drafts, execution
+        from pilot.outreach_dispatch import OutreachDispatch
+        self.dispatch = OutreachDispatch(self, allowed_platforms)
 
     def _lock(self, cursor, claims):
         tenant = self.drafts._active(cursor, claims)
@@ -93,7 +100,8 @@ class OutreachQueueStore:
                 raise DraftError('channel_check_expired')
             binding = value.context.binding
             cursor.execute('SELECT 1 FROM pilot_outreach_queue WHERE tenant_id=%s '
-                'AND owner_user_id=%s AND opportunity_id=%s AND channel=%s AND state=\'QUEUED\'',
+                'AND owner_user_id=%s AND opportunity_id=%s AND channel=%s '
+                "AND state NOT IN ('CANCELLED','FAILED')",
                 (tenant,claims.user_id,binding.opportunityId,binding.channel))
             if cursor.fetchone() is not None:
                 raise DraftError('outreach_already_pending')
@@ -113,10 +121,13 @@ class OutreachQueueStore:
             row = self._row(cursor, tenant, claims.user_id, request_id)
             if row is None:
                 raise DraftError('outreach_request_not_found',404)
+            if cancel and row[1] not in ('QUEUED','CANCELLED'):
+                raise DraftError('outreach_already_claimed')
             if cancel and row[1] == 'QUEUED':
                 cursor.execute('UPDATE pilot_outreach_queue SET state=\'CANCELLED\' '
                     'WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s AND state=\'QUEUED\' '
                     'RETURNING request_id,state', (tenant,claims.user_id,request_id))
                 row = cursor.fetchone()
+            result=self.dispatch.decorate(cursor,tenant,claims.user_id,receipt(row))
             self.drafts._active(cursor, claims)
-            return receipt(row)
+            return result

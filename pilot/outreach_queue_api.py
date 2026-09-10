@@ -9,6 +9,7 @@ from pilot.device_keys import decode_canonical
 from pilot.execution_contract import ExecutionRuntimeError
 from pilot.connection_versions import ConnectionOperationError
 from pilot.outreach_queue import Confirmation
+from pilot.outreach_dispatch import DispatchRequest
 
 
 class Preparation(_Input):
@@ -23,6 +24,14 @@ class Envelope(Preparation):
     def canonical_signature(cls, value):
         decode_canonical(value, 64)
         return value
+
+
+class DispatchPreparation(_Input):
+    request: DispatchRequest
+
+
+class DispatchEnvelope(Envelope):
+    request: DispatchRequest
 
 
 def register_outreach_queue_api(router, service, identity, require_session_https):
@@ -75,3 +84,15 @@ def register_outreach_queue_api(router, service, identity, require_session_https
     @router.post('/outreach/queue/{request_id}/cancel')
     async def cancel(request_id: str, request: Request):
         return await call(service.original if service else None, current(request), request_id, True)
+
+    @router.post('/outreach/dispatch/signing-payload')
+    async def prepare_dispatch(request: Request):
+        claims = current(request)
+        value = await body(request, DispatchPreparation)
+        return await call(service.dispatch.prepare, claims, value.request.model_dump())
+
+    @router.post('/outreach/dispatch')
+    async def dispatch(request: Request):
+        claims = current(request)
+        value = await body(request, DispatchEnvelope)
+        return await call(service.dispatch.apply, claims, value.request.model_dump(), value.signature)

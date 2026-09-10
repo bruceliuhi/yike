@@ -68,6 +68,10 @@ def build_runtime_app(
     )
     replies = ReplyEventStore(database)
     drafts = ContactDraftStore(database)
+    outreach_platforms = frozenset(filter(None, (v.strip() for v in
+        environment.get('YIKE_PILOT_OUTREACH_PLATFORMS','').split(','))))
+    if outreach_platforms - {'BILIBILI','DOUYIN','XIAOHONGSHU','ZHIHU'}:
+        raise RuntimeError('invalid_outreach_platform_configuration')
     return build_app(
         store,
         auth_secret=auth_secret,
@@ -78,5 +82,5 @@ def build_runtime_app(
         research_strategies=strategies,
         reply_store=replies,
         contact_drafts=drafts,
-        outreach_queue=OutreachQueueStore(database, drafts, runtime),
+        outreach_queue=OutreachQueueStore(database, drafts, runtime, outreach_platforms),
     )

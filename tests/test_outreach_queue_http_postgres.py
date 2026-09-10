@@ -23,10 +23,10 @@ from tests.test_outreach_context_http_postgres import prepared, context
 @pytest.fixture(scope='module')
 def databases(draft_databases):
     admin,app=draft_databases
-    path=Path(__file__).parents[1]/'deploy'/'grant_outreach_queue.sql'
     with admin.connect() as conn:
         conn.execute("SELECT set_config('yike.app_role',%s,true)",(app.role,))
-        conn.execute(path.read_text())
+        for name in ('grant_outreach_queue.sql','grant_outreach_dispatch.sql'):
+            conn.execute((Path(__file__).parents[1]/'deploy'/name).read_text())
     return admin,app
 
 
