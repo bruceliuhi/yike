@@ -20,3 +20,12 @@ Base `86e5c02`。沿已批准08回复/跟进范围，接已有认证evidence API
 ## Task 3 — existing RelatedReplies（根代理）
 
 已有商机选择/只读来源页组件复用。在已核对非样例目标且普通replyEvidence可用时优先展示证据面板：当前通道回复/来源标签/读状态（UNKNOWN明确未知）/原请求/原时间；完整追加历史另放details，人工证据分别标记。无目标时请选商机，未接服务时旧路径保持。认证/空间/目标改变时清理，刷新只GET。测试错域、重复修订折叠、错误不变空、换身份迟到隔离和实际普通service固定路由。最终类型检查，独立审核后main。
+
+## 本批交付与证据
+
+- 后端 `bbe6add`：投影与三个查询统一返回数据库 revision，未改签名字节或迁移。[后端证据](reply-evidence-backend-report.md)：纯投影先 KeyError RED 后 1 PASS；HTTP/PG 4 SKIP，缺少 fixture URL，不算实际数据库通过。
+- 客户端 `c9118d9`：严格证据 DTO、固定 GET/数组原样传输，接已有跟进页真实目标分支，原身份门控与迟到响应隔离、最高版本显示及可展开原历史。来源与空/错状态独立，不新增外部动作。
+- 新 DTO/UI 用例先因模块不存在 RED。四个定向文件（replyEvidence、reply-evidence-panel、client、followup-reply-entry）首次 67 PASS / 1 FAIL；唯一失败是测试在异步首次调用前切换身份，原一次性 pending mock 留给新身份。核对 boundedRequest 微任务调用后，用 waitFor 等首次调用再切换；只重跑受影响 UI 文件 4 PASS，其余文件 63 PASS 复用，集合不相加。
+- `tsc --noEmit` PASS，`git diff --check` PASS。未跑全仓测试、重复构包、真实私信或实际生产访问。独立审核结果待下文更新，未将代码候选当完整08或产品完成。
+- 独立审核`c9118d9` NO-GO，发现P1：普通session/token/SMS只投影user而没有accountScope，手造session的UI用例漏掉实际入口。修复`f989307`由认证registry的tenant_id生成scope，三个认证入口和客户端统一传递；scope version沿现有contact snapshot固定v1，不从回复内容反推租户。新增普通service三种登录→RelatedReplies商机核对→证据GET用例，3项RED后GREEN；后端会话字段断言1项RED后GREEN。修复后受影响HTTP/session/phone两文件59 PASS（合成store，非实际PG/短信），客户端panel+client两文件45 PASS，tsc PASS；这些含前述复跑，不相加。手机号PG断言同步更新，因已知fixture缺失不重复运行。最终仅复审P1增量。
+- 最终独立增量审核GO：`f989307b00bd8f80ca18a01df4a7a2ed7928d8f8`，原P1闭合、无新增P1/P2；reviewer只读静态核查，未重跑测试/构包。整批其余审核复用`c9118d9`结论。08与完整Goal继续进行，下一步是原运行时Windows新候选及真实收发/回复同步联验，不重复开发已接只读证据入口。

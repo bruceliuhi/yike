@@ -2,6 +2,16 @@
 
 状态：`SIGNED_ORIGIN_API_IMPLEMENTED / REAL_PLATFORM_REPLY_SYNC_UNVERIFIED`
 
+## 08B 普通客户端证据读取（2026-09-12）
+
+`GET /api/ui/opportunities/{id}/replies/evidence` 的数组每项为 `{event, verification, revision}`；revision 是保存行的数据库整数版本，不在 renderer 从时间推导。事件签名字节不变。平台记录以来源、原发送请求、平台、公开回复 ID 为身份，最高 revision 表示当前记录（包括更正/撤销），完整历史保留；人工登记单独标识。
+
+普通客户端使用固定只读 `replies.evidence` 操作，只传 opportunityId；服务端按认证用户/RLS取数，界面另核对用户、客户空间和商机。现有跟进页优先显示证据列表，刷新只读取保存证据，非平台私信同步。空列表不表示平台无回复；错误不转为空；UNKNOWN 已读明确未知。设备证据不是服务器独立平台核验，旧操作员登记和人工跟进不可当设备采集。页面不提供新发送或改已读操作；画像变更不丢弃原画像历史。
+
+会话GET、token交换、SMS登录的认证响应补`account_scope:{id,version:1}`，id来自认证SessionIdentity的租户查询，version沿现有单空间v1快照合同；普通客户端映射为accountScope。不得使用证据中的tenant_id反推可信身份，或把请求输入当客户空间。旧无scope会话可保持原基础登录，但证据读取必须拒绝缺失scope。
+
+实现及限定验证见[本批记录](../superpowers/plans/2026-09-12-reply-evidence-client.md)。未完成真实平台回复同步、实际收发联验或08父卡验收。
+
 ## 08 新发送来源接入（2026-09-10）
 
 普通runtime已接`POST /api/ui/replies/signing-payload`（`{request}`）和`POST /api/ui/replies/signed`（`{request,signature}`）。request为`{deviceId,credentialVersion,claimId,contextSha256,event}`，event仍是原PlatformReplyEvent。设备Ed25519签服务返回的UTF-8字节，独立域`yike-platform-reply-v1`绑定当前会话；准备签名不轮询平台。
