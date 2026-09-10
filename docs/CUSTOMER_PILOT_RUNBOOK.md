@@ -96,9 +96,9 @@ uv run --frozen yike-pilot-import \
 
 ## 备份与恢复演练
 
-**2026-09-09安全阻断：以下旧脚本的HMAC错误使用密钥文件路径字面值，未读取文件秘密，已独立复现且尚未修复。禁止将当前侧车作为可信完整性依据或据此放行CP-06。保留既有备份，不自动删除、转换或恢复；修复及历史备份处理规则经独立审核后，再在隔离环境重新演练。证据见[Win复核第12节](qa/WIN_CROSS_REVIEW_20260909.md)。**
+**2026-09-12源码修复：旧脚本的HMAC错误使用密钥文件路径字面值，未读取文件秘密，历史缺陷见[Win复核第12节](qa/WIN_CROSS_REVIEW_20260909.md)。新脚本仅创建/接受V2认证侧车，具体源码与独立审核见[修复记录](superpowers/plans/2026-09-12-backup-auth-v2.md)。旧备份必须保留但不可信，禁止自动删除、转换、重签或恢复；它们不能作为CP-06放行证据。**
 
-以下为历史调用方式，不是当前生产执行或验收批准。目标环境使用独立、受限的备份路径：
+以下命令仅适用于新V2备份，不是目标生产环境执行批准。需要Python 3.10+、OpenSSL、PostgreSQL客户端；目标环境使用独立、受限的备份路径：
 
 ```bash
 export YIKE_PILOT_DATABASE_URL='postgresql://<non-superuser>:<password>@<private-db>:5432/<database>'
@@ -109,4 +109,10 @@ scripts/backup_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump.enc
 CONFIRM_RESTORE=YES scripts/restore_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump.enc
 ```
 
-恢复前必须选定隔离数据库并人工确认；数据库目标实际取自`YIKE_PILOT_DATABASE_URL`，`CONFIRM_RESTORE=YES`不是自动识别生产库的保护。加密passphrase通过仓库外、非空且仅所有者可读的文件传入，不写入日志；当前`.enc.mac`的路径密钥缺陷意味着即使比较通过也不能证明可信，不能沿用此前“认证备份”的通过结论。修复后的演练结果、格式/算法及回滚镜像SHA须另写入目标环境验收记录。
+恢复前必须选定隔离数据库并人工确认；数据库目标实际取自`YIKE_PILOT_DATABASE_URL`，`CONFIRM_RESTORE=YES`不是自动识别生产库的保护。passphrase来自仓库外、属当前用户且仅所有者可读的普通文件，禁止末级符号链接；文件上限64KiB、第一行1–512字节且非空白，无NUL/CR，与OpenSSL file密码源一致。建议使用密钥管理生成的随机高熵秘密。秘密不会作为命令参数或日志输出；改变文件路径不改变认证key，改变内容会认证失败。
+
+新`.enc.mac`为`YIKE-BACKUP-MAC-V2\n`加32字节HMAC-SHA256。独立认证key从秘密内容和domain+密文头通过PBKDF2-HMAC-SHA256/200000次派生；加密继续AES256CBC/PBKDF2/200000次。每次操作先固定一个600权限的私有秘密快照，加密与认证（或认证与解密）只使用这个快照，避免原密钥文件轮换造成不一致。临时秘密快照与备份目标不得位于仓库内，不要把TMPDIR指向仓库；退出时精确清理本次秘密文件。
+
+恢复先复制密文到私有目录，对该快照认证成功后解密同一快照，再执行pg_restore。新备份通过精确目标的os.link不覆盖发布；遇既有文件、目录或链接都不能改写/写入其内部。缺失/旧版/错误长度/篡改侧车均拒绝。
+
+旧备份不执行“补一个V2侧车”来升级信任。应从已独立核实的正常数据库重新生成V2备份；若必须救援旧备份，另行人工核实来源、选择隔离目标并审批，当前脚本不提供降级开关。新源码测试仅使用fixture pg_dump/pg_restore，不证明真实数据库恢复；目标环境恢复演练和回滚镜像SHA仍须写入CP-06记录。
