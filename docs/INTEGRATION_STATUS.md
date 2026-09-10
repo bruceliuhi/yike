@@ -254,6 +254,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 CP-06 正向预检复核：使用仓外 0600 临时运行环境、PostgreSQL URL、禁用开发登录及 digest 固定镜像，`scripts/cp06_validate_env.sh` 返回 `cp06-preflight: pass`；临时文件已删除。该结果只证明配置门禁可满足，不代表镜像发布、服务部署、备份恢复或真实客户验收完成。
 
+2026-09-10 Mac 可分发候选：在 `4764cf7` 上执行 `npm run make:mac` 成功，生成 `desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip`，SHA-256 `eb7894f69e8f735b3b7b96ef4c582620e59f86e95b8ab5e1888004e02c47a912`。该包可用于 Mac 可见验收；未证明 Windows 安装、真实平台采集/触达、生产部署或客户 UAT。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
