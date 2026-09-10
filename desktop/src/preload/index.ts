@@ -4,6 +4,7 @@ import {EXECUTION_COMMAND_CHANNEL, type DesktopExecutionCommand} from '../shared
 import {PLATFORM_CONNECTION_CHANNEL, type PlatformConnectionCommand} from '../shared/platformConnection';
 import {FOREGROUND_COLLECTION_CHANNEL,type ForegroundCollectionCommand} from '../shared/foregroundCollection';
 import {NATIVE_OUTREACH_CHANNEL,type NativeOutreachCommand} from '../shared/nativeOutreach';
+import {NATIVE_REPLY_CHANNEL,type NativeReplyCommand} from '../shared/nativeReply';
 import {PORTABLE_RUNTIME_STATUS_CHANNEL} from '../shared/portableRuntime';
 
 import {
@@ -28,6 +29,7 @@ const api: YikeDesktopApi = Object.freeze({
   foregroundCollectionCommand: (command: ForegroundCollectionCommand) => ipcRenderer.invoke(FOREGROUND_COLLECTION_CHANNEL, command),
   platformConnectionCommand: (command: PlatformConnectionCommand) => ipcRenderer.invoke(PLATFORM_CONNECTION_CHANNEL, command),
   nativeOutreachCommand: (command: NativeOutreachCommand) => ipcRenderer.invoke(NATIVE_OUTREACH_CHANNEL, command),
+  nativeReplyCommand: (command: NativeReplyCommand) => ipcRenderer.invoke(NATIVE_REPLY_CHANNEL, command),
   requestApi: (request: ApiRequest) => ipcRenderer.invoke(REQUEST_API_CHANNEL, request),
   openExternal: (url: string) => ipcRenderer.invoke(OPEN_EXTERNAL_CHANNEL, url),
   copyText: (text: string) => ipcRenderer.invoke(COPY_TEXT_CHANNEL, text),

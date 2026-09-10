@@ -15,6 +15,7 @@ import {
 } from "../../../shared/replyEvidence";
 import type { Opportunity } from "../../domain/models";
 import { isSample } from "../Opportunities";
+import { NativeReplySync } from "./NativeReplySync";
 
 const sources = {
   DEVICE_ATTESTED_PLATFORM_REPLY: "设备提交的平台证据",
@@ -138,6 +139,12 @@ export function ReplyEvidencePanel({
           <Notice>
             这里只展示已保存的证据，不代表已完成平台同步；设备提交证据并非服务器独立平台核验。
           </Notice>
+          <NativeReplySync
+            session={session}
+            opportunity={opportunity}
+            evidence={resource.data.history}
+            onSynced={resource.reload}
+          />
           {!resource.data.history.length ? (
             <Empty
               title="暂无保存的回复证据"
