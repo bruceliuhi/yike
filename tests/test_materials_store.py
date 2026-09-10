@@ -1,5 +1,6 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
@@ -139,6 +140,33 @@ def test_concurrent_parse_replay_calls_model_once(env):
         receipts = list(pool.map(lambda _: mutate(store, env, request), range(2)))
     assert receipts[0] == receipts[1]
     assert model.calls == 1
+
+
+def test_paused_model_does_not_block_same_session_read(env):
+    entered, release = Event(), Event()
+
+    class PausedModel(Model):
+        def extract(self, text):
+            self.calls += 1
+            entered.set()
+            assert release.wait(3)
+            return self.result
+
+    model = PausedModel({"fields": {"service": "制造企业"},
+                         "evidence": [{"field": "service", "quote": "制造企业"}]})
+    store = MaterialStore(env.db, model)
+    saved = mutate(store, env, save_request(env.profiles[0]))["record"]
+    request = {"requestId": str(uuid4()), "profileVersionId": env.profiles[0],
+               "change": {"kind": "parse", "materialId": saved["id"], "expectedVersion": 1}}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        parsing = pool.submit(mutate, store, env, request)
+        assert entered.wait(1)
+        reading = pool.submit(store.list, env.claims[0], env.profiles[0])
+        try:
+            assert reading.result(timeout=1)[0]["version"] == 1
+        finally:
+            release.set()
+        assert parsing.result(timeout=3)["record"]["status"] == "REVIEW_REQUIRED"
 
 
 def test_parse_confirm_impact_revoke_and_remove_preserve_history(env):

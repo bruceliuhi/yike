@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -49,10 +50,24 @@ class MaterialStore:
             raise MaterialError("invalid_session", 401) from None
 
     @staticmethod
-    def _lock(cursor, tenant, owner, profile=None):
-        lock = int.from_bytes(hashlib.sha256(
+    def _lock_id(tenant, owner):
+        return int.from_bytes(hashlib.sha256(
             f"materials-v1\0{tenant}\0{owner}".encode()).digest()[:8], "big", signed=True)
-        cursor.execute("SELECT pg_advisory_xact_lock(%s)", (lock,))
+
+    @contextmanager
+    def _owner_lock(self, tenant, owner):
+        """Serialize owner writes without holding a business/session transaction."""
+        with self.database.connect() as connection:
+            # RoleDatabase performs SET ROLE first, which opens a transaction.
+            # Finish it before switching to autocommit/session-lock mode.
+            connection.commit()
+            connection.autocommit = True
+            lock = self._lock_id(tenant, owner)
+            connection.execute("SELECT pg_advisory_lock(%s)", (lock,))
+            try:
+                yield
+            finally:
+                connection.execute("SELECT pg_advisory_unlock(%s)", (lock,))
 
     @staticmethod
     def _profile(cursor, tenant, profile):
@@ -72,11 +87,11 @@ class MaterialStore:
         return row[1]
 
     @staticmethod
-    def _latest(cursor, tenant, owner, profile, material, *, lock=False):
+    def _latest(cursor, tenant, owner, profile, material):
         query = ("SELECT material_version,record,removed FROM pilot_material_revisions "
                  "WHERE tenant_id=%s AND owner_user_id=%s AND profile_version_id=%s AND material_id=%s "
                  "ORDER BY material_version DESC LIMIT 1")
-        # The profile-scoped advisory lock serializes writers. Revisions stay
+        # The owner-scoped advisory lock serializes writers. Revisions stay
         # immutable, so SELECT FOR UPDATE would require an unnecessary UPDATE grant.
         cursor.execute(query, (tenant, owner, profile, material))
         return cursor.fetchone()
@@ -119,23 +134,25 @@ class MaterialStore:
             raise MaterialError("invalid_material_request", 422) from None
         with self.database.connect() as conn, conn.cursor() as cursor:
             tenant = self._active(cursor, claims)
-            self._lock(cursor, tenant, claims.user_id, request.profileVersionId)
-            self._profile(cursor, tenant, request.profileVersionId)
-            latest = self._latest(cursor, tenant, claims.user_id, request.profileVersionId, request.materialId, lock=True)
-            if latest is None or latest[2]:
-                raise MaterialError("material_not_found", 404)
-            if latest[0] != request.version:
-                raise MaterialError("material_version_conflict")
-            token = secrets.token_urlsafe(32)
-            expiry = datetime.now(UTC) + timedelta(minutes=5)
-            cursor.execute("INSERT INTO pilot_material_impact_tokens "
-                "(tenant_id,owner_user_id,profile_version_id,material_id,material_version,action,token_sha256,expires_at) "
-                "VALUES(%s,%s,%s,%s,%s,%s,%s,%s)", (tenant, claims.user_id, request.profileVersionId,
-                request.materialId, request.version, request.action, hashlib.sha256(token.encode()).hexdigest(), expiry))
-            self._active(cursor, claims)
-            return {"profileVersionId": request.profileVersionId, "materialId": request.materialId,
-                    "version": request.version, "action": request.action, "token": token,
-                    "expiresAt": _time(expiry), "references": []}
+        with self._owner_lock(tenant, claims.user_id):
+            with self.database.connect() as conn, conn.cursor() as cursor:
+                tenant = self._active(cursor, claims)
+                self._profile(cursor, tenant, request.profileVersionId)
+                latest = self._latest(cursor, tenant, claims.user_id, request.profileVersionId, request.materialId)
+                if latest is None or latest[2]:
+                    raise MaterialError("material_not_found", 404)
+                if latest[0] != request.version:
+                    raise MaterialError("material_version_conflict")
+                token = secrets.token_urlsafe(32)
+                expiry = datetime.now(UTC) + timedelta(minutes=5)
+                cursor.execute("INSERT INTO pilot_material_impact_tokens "
+                    "(tenant_id,owner_user_id,profile_version_id,material_id,material_version,action,token_sha256,expires_at) "
+                    "VALUES(%s,%s,%s,%s,%s,%s,%s,%s)", (tenant, claims.user_id, request.profileVersionId,
+                    request.materialId, request.version, request.action, hashlib.sha256(token.encode()).hexdigest(), expiry))
+                self._active(cursor, claims)
+                return {"profileVersionId": request.profileVersionId, "materialId": request.materialId,
+                        "version": request.version, "action": request.action, "token": token,
+                        "expiresAt": _time(expiry), "references": []}
 
     def mutate(self, claims, raw):
         try:
@@ -146,13 +163,14 @@ class MaterialStore:
         request_sha = _digest(raw_request)
         with self.database.connect() as conn, conn.cursor() as cursor:
             tenant = self._active(cursor, claims)
-            self._lock(cursor, tenant, claims.user_id, request.profileVersionId)
-            self._active(cursor, claims)  # catches logout while extraction was outside the transaction
-            self._profile(cursor, tenant, request.profileVersionId)
-            original = self._original(cursor, tenant, claims.user_id, request.requestId, request_sha)
-            if original is not None:
-                return original
-            latest = self._latest(cursor, tenant, claims.user_id, request.profileVersionId, request.change.materialId, lock=True)
+        with self._owner_lock(tenant, claims.user_id):
+            with self.database.connect() as conn, conn.cursor() as cursor:
+                tenant = self._active(cursor, claims)
+                self._profile(cursor, tenant, request.profileVersionId)
+                original = self._original(cursor, tenant, claims.user_id, request.requestId, request_sha)
+                if original is not None:
+                    return original
+                latest = self._latest(cursor, tenant, claims.user_id, request.profileVersionId, request.change.materialId)
             extraction = None
             if request.change.kind == "parse" and latest is not None and not latest[2] and latest[0] == request.change.expectedVersion:
                 try:
@@ -161,20 +179,26 @@ class MaterialStore:
                     extraction = validate_extraction(self.model.extract(latest[1]["text"]), latest[1]["text"])
                 except Exception:
                     extraction = None
+            with self.database.connect() as conn, conn.cursor() as cursor:
+                tenant = self._active(cursor, claims)
+                self._profile(cursor, tenant, request.profileVersionId)
+                original = self._original(cursor, tenant, claims.user_id, request.requestId, request_sha)
+                if original is not None:
+                    return original
+                latest = self._latest(cursor, tenant, claims.user_id, request.profileVersionId, request.change.materialId)
+                try:
+                    receipt = self._apply(cursor, tenant, claims.user_id, request, latest, extraction)
+                except MaterialError as error:
+                    receipt = {"requestId": request.requestId, "profileVersionId": request.profileVersionId,
+                               "materialId": request.change.materialId, "kind": request.change.kind,
+                               "status": "FAILED", "confirmedNoChange": True,
+                               "message": FAILURE_MESSAGES.get(error.code, "资料操作未执行，请刷新后重试。")}
+                cursor.execute("INSERT INTO pilot_material_operations "
+                    "(tenant_id,owner_user_id,profile_version_id,request_id,material_id,kind,request_sha256,receipt) "
+                    "VALUES(%s,%s,%s,%s,%s,%s,%s,%s::jsonb)", (tenant, claims.user_id, request.profileVersionId,
+                    request.requestId, request.change.materialId, request.change.kind, request_sha, _json(receipt)))
                 self._active(cursor, claims)
-            try:
-                receipt = self._apply(cursor, tenant, claims.user_id, request, latest, extraction)
-            except MaterialError as error:
-                receipt = {"requestId": request.requestId, "profileVersionId": request.profileVersionId,
-                           "materialId": request.change.materialId, "kind": request.change.kind,
-                           "status": "FAILED", "confirmedNoChange": True,
-                           "message": FAILURE_MESSAGES.get(error.code, "资料操作未执行，请刷新后重试。")}
-            cursor.execute("INSERT INTO pilot_material_operations "
-                "(tenant_id,owner_user_id,profile_version_id,request_id,material_id,kind,request_sha256,receipt) "
-                "VALUES(%s,%s,%s,%s,%s,%s,%s,%s::jsonb)", (tenant, claims.user_id, request.profileVersionId,
-                request.requestId, request.change.materialId, request.change.kind, request_sha, _json(receipt)))
-            self._active(cursor, claims)
-            return receipt
+                return receipt
 
     def _apply(self, cursor, tenant, owner, request, latest, extraction):
         change = request.change
