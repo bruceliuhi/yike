@@ -210,6 +210,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 执行运行时复核：在全新一次性 PostgreSQL 数据库 `yike_mac_20260910_try` 上，由执行套件自行迁移并创建动态 `NOSUPERUSER/NOBYPASSRLS` 角色，`tests/test_execution_runtime_postgres.py` **42 passed**。此前复用旧库触发 `v02-identity-execution` checksum mismatch，已确认不能将旧库状态当作当前 schema 证据；本结果仅覆盖执行运行时套件，不代表其他 PG 套件或生产部署完成。
 
+2026-09-10 搜索建议 PostgreSQL 复核：清理旧测试角色及其数据库对象后，使用固定 `win_search_suggestion` 数据库，由套件重新创建 `suggestion_app` 受限角色，`tests/test_search_suggestions_postgres.py` **63 passed**。覆盖迁移、RLS、配额、幂等、并发、失败持久化与 HTTP/Node 路径；该结果仅适用于一次性本机测试容器，不代表生产数据库或真实模型服务。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
