@@ -7,9 +7,11 @@ from pilot.material_contract import MaterialError, MaterialRequest, MaterialImpa
 
 
 def register_material_api(router, service, identity, require_session_https):
-    def current(request):
+    async def current(request):
         require_session_https(request)
-        claims = identity(request).claims
+        # Session validation reads PostgreSQL and can wait on revocation locks.
+        # Never stall the shared ASGI event loop on synchronous identity I/O.
+        claims = (await run_in_threadpool(identity, request)).claims
         if claims is None:
             raise HTTPException(401, detail={'code': 'invalid_session'})
         if service is None:
@@ -37,22 +39,22 @@ def register_material_api(router, service, identity, require_session_https):
 
     @router.get('/materials')
     async def materials(request: Request, profileVersionId: str):
-        claims = current(request)
+        claims = await current(request)
         return await call(service.list, claims, profileVersionId)
 
     @router.post('/materials/mutate')
     async def mutate(request: Request):
-        claims = current(request)
+        claims = await current(request)
         return await call(service.mutate, claims, await body(request, MaterialRequest))
 
     @router.get('/materials/operation')
     async def operation(request: Request, profileVersionId: str, requestId: str):
-        claims = current(request)
+        claims = await current(request)
         return await call(service.operation, claims, profileVersionId, requestId)
 
     @router.post('/materials/impact')
     async def impact(request: Request):
-        claims = current(request)
+        claims = await current(request)
         value = await body(request, MaterialImpactRequest)
         return await call(service.impact, claims, value['profileVersionId'], value['materialId'],
                           value['version'], value['action'])

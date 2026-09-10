@@ -1,5 +1,6 @@
 """HTTP boundaries on a synthetic service; durable store is tested separately."""
 from types import SimpleNamespace
+import asyncio
 from uuid import uuid4
 
 from fastapi import APIRouter, FastAPI
@@ -70,3 +71,17 @@ def test_untrusted_body_is_bounded_strict_and_not_dispatched():
 
 def test_unavailable_service_does_not_pretend_empty():
     assert client(None).get('/materials', params={'profileVersionId': PROFILE}).status_code == 501
+
+
+def test_database_identity_check_does_not_run_on_asgi_event_loop():
+    def identity(_):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return SimpleNamespace(claims='synthetic-claims')
+        raise AssertionError('database identity must be off the event loop')
+    app = FastAPI()
+    router = APIRouter()
+    register_material_api(router, Service(), identity, lambda _: None)
+    app.include_router(router)
+    assert TestClient(app).get('/materials', params={'profileVersionId': PROFILE}).json() == []
