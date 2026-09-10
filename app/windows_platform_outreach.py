@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from contextlib import redirect_stderr, redirect_stdout
 import hmac, json, os, re, socket, sys, threading, time
+from datetime import datetime
 from pathlib import Path
 
 from app.collector import _minimal_child_environment, run_supervised_process
@@ -43,17 +44,36 @@ def _first(stream):
     value['runtime_path'],value['profile_path'],value['output_path']=_paths(value['runtime_path'],value['profile_path'],value['output_path'])
     return value
 def _second(stream):
-    return _operation(_frame(stream))
+    value = _frame(stream)
+    if isinstance(value, dict) and value.get('action') == 'READ_REPLIES':
+        if set(value) != _SECOND or value.get('schema_version') != SCHEMA:
+            raise ValueError()
+        return _read_operation({'readReplies': value.get('operation')})
+    return _operation(value)
 def _operation(value):
     if not isinstance(value,dict) or set(value)!=_SECOND or value['schema_version']!=SCHEMA or value['action']!='EXECUTE' or not isinstance(value['operation'],dict) or set(value['operation'])!={'requestId','claimId','dispatchBefore'}: raise ValueError()
     if not all(isinstance(value['operation'][k],str) and value['operation'][k].isprintable() for k in value['operation']): raise ValueError()
     return value['operation']
+def _read_operation(value):
+    if not isinstance(value,dict) or set(value)!={'readReplies'} or not isinstance(value['readReplies'],dict): raise ValueError()
+    read=value['readReplies']
+    if set(read)!={'rootCommentId','claimedAt'}: raise ValueError()
+    root,claimed=read['rootCommentId'],read['claimedAt']
+    if not isinstance(root,str) or not re.fullmatch(r'[0-9a-f]{24}',root): raise ValueError()
+    if not isinstance(claimed,str) or not claimed.isprintable(): raise ValueError()
+    try: parsed=datetime.fromisoformat(claimed)
+    except ValueError: raise ValueError() from None
+    if parsed.tzinfo is None or parsed.utcoffset() is None: raise ValueError()
+    return value
+def _internal_operation(value):
+    if isinstance(value,dict) and set(value)=={'readReplies'}: return _read_operation(value)
+    return _operation({'schema_version':SCHEMA,'action':'EXECUTE','operation':value})
 def _wire(value): return (json.dumps(value,ensure_ascii=False,allow_nan=False,separators=(',',':'))+'\n').encode()
 
 class _Input:
     """Only this daemon reads remaining stdin; supervisor callbacks never wait."""
     def __init__(self, stream):
-        self.lock=threading.Lock(); self.ready=False; self.seen=False
+        self.lock=threading.RLock(); self.ready=False; self.seen=False; self.read_seen=False
         self.pending=None; self.cancelled=threading.Event()
         threading.Thread(target=self._read,args=(stream,),daemon=True).start()
     def _read(self,stream):
@@ -62,7 +82,7 @@ class _Input:
                 operation=_second(stream)
                 with self.lock:
                     if not self.ready or self.seen: raise ValueError()
-                    self.seen=True; self.pending=operation
+                    self.seen=True; self.pending=operation; self.read_seen=set(operation)=={'readReplies'}
         except Exception:
             self.cancelled.set()
     def announce(self, emit, observation):
@@ -75,6 +95,9 @@ class _Input:
             if self.cancelled.is_set(): return None
             value=self.pending; self.pending=None
             return value
+    def is_read(self):
+        with self.lock:
+            return self.read_seen
 
 def run_outreach(**request):
     """Windows-only runtime owner; context/token travel only over its loopback socket."""
@@ -105,22 +128,26 @@ def run_outreach(**request):
             if state['phase']=='OPERATION' and not state['send'] and not tail:
                 operation=request.get('take_operation',lambda:None)()
                 if operation is not None:
-                    _operation({'schema_version':SCHEMA,'action':'EXECUTE','operation':operation})
+                    _internal_operation(operation)
                     queue({'operation':operation}); state['phase']='RESULT'
+                    state['read_mode']=set(operation)=={'readReplies'}
             if state['send'] and not tail:
                 try:
                     sent=conn.send(state['send']); state['send']=state['send'][sent:]
                 except BlockingIOError: pass
             if not state['eof']:
-                try: data=conn.recv(131073-len(state['buffer']))
+                frame_limit=512*1024 if state.get('read_mode') and state['phase']=='RESULT' else 131072
+                try: data=conn.recv(frame_limit+1-len(state['buffer']))
                 except BlockingIOError: data=None
                 if data==b'': state['eof']=True
                 if data:
                     state['received']+=len(data)
-                    if state['received']>3*131072: raise ValueError()
+                    total_limit=512*1024+32768 if state.get('read_mode') else 3*131072
+                    if state['received']>total_limit: raise ValueError()
                     state['buffer']+=data
             # A partial unauthenticated frame is bounded too, not only JSON.
-            if len(state['buffer'])>131072: raise ValueError()
+            frame_limit=512*1024 if state.get('read_mode') and state['phase']=='RESULT' else 131072
+            if len(state['buffer'])>frame_limit: raise ValueError()
             for _ in range(3):
                 if b'\n' not in state['buffer']: break
                 raw,state['buffer']=state['buffer'].split(b'\n',1)
@@ -173,7 +200,8 @@ def main(stdin=None,stdout=None):
     def emit(value):
         nonlocal written
         data=_wire(value)
-        if written+len(data)>32768: raise ValueError()
+        limit=512*1024+32768 if 'inputs' in locals() and inputs.is_read() else 32768
+        if written+len(data)>limit: raise ValueError()
         stdout.write(data); stdout.flush(); written+=len(data)
     with open(os.devnull,'w',encoding='utf-8') as quiet,redirect_stdout(quiet),redirect_stderr(quiet):
         try:
