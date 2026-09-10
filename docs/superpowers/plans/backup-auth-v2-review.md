@@ -17,3 +17,13 @@ The helper derives the authentication key from private secret contents with a se
 ## Evidence boundary
 
 This was a static review of the frozen diff, full scripts/helper, specification and affected tests. No implementation change, test rerun, database operation or production action was performed. Reused implementer evidence: three RED reproductions, real OpenSSL plus fixture-PG script set 6 PASS, subsequently added snapshot case 1 PASS, bash syntax and diff checks passing. These are not real PostgreSQL restoration, production recovery or CP-06 completion evidence.
+
+## Incremental re-review
+
+GO for source `e389ee9dbd80d53b1b867fb8f38190d90a4ece44`, reviewing only the changes since `2342d01` and reusing the remaining original review conclusions. Both P2 findings are closed; no new actionable P1/P2 finding in this delta.
+
+- Backup validates and captures one exclusive mode-0600 secret snapshot before encryption; encryption and MAC creation both use that snapshot. Restore likewise uses one snapshot for verification and decryption. Original-file rotation no longer changes the secret between those operations, and EXIT cleanup owns the snapshot.
+- Publication now uses exact-destination `os.link` rather than ln's directory operand semantics. Existing destination files, directories and symlinks cause failure without publishing inside or overwriting them; partial backup cleanup retains the inode ownership check.
+- The helper resolves and rejects an in-repository snapshot destination before reading/writing secret content. Backup also rejects an in-repository destination before creating its temporary output directory.
+
+Reused fix-report evidence: affected backup-script file 12 PASS / 9.36 seconds, bash syntax, Python compile and diff checks exit 0. No reviewer test rerun or implementation modification. This closes the source-review blockers only; real PostgreSQL restoration, production recovery and CP-06 acceptance remain unverified.
