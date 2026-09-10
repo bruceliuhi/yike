@@ -28,6 +28,8 @@ import {createExecutionJournal} from './executionJournal';
 import {EXECUTION_COMMAND_CHANNEL,desktopExecutionCommandSchema} from '../shared/desktopExecution';
 import {FOREGROUND_COLLECTION_CHANNEL} from '../shared/foregroundCollection';
 import {createForegroundCollectionController} from './foregroundCollectionController';
+import {MONITOR_COLLECTION_CHANNEL} from '../shared/monitorCollection';
+import {createMonitorCollectionController} from './monitorCollectionController';
 import {createCandidateJournal} from './candidateJournal';
 import {createCandidateSession} from './candidateSession';
 import {GET_DEVICE_IDENTITY_STATUS_CHANNEL, PREPARE_DEVICE_IDENTITY_CHANNEL} from '../shared/deviceIdentity';
@@ -57,6 +59,7 @@ let quitting = false;
 let startupFailed = false;
 let platformConnection:ReturnType<typeof createPlatformConnectionController>|null=null;
 let foregroundCollection:ReturnType<typeof createForegroundCollectionController>|null=null;
+let monitorCollection:ReturnType<typeof createMonitorCollectionController>|null=null;
 let nativeOutreach:ReturnType<typeof createNativeOutreachController>|null=null;
 let nativeReplies:ReturnType<typeof createNativeReplyController>|null=null;
 let portableBootstrap:ReturnType<typeof createPortableBootstrap>|null=null;
@@ -209,6 +212,7 @@ async function startApplication(): Promise<void> {
       configuration:{...loginConfiguration,outputRoot},executionJournal,candidateJournal,
       sessions:scope=>({execution:createExecutionSession({serviceOrigin:baseUrl,transport:scope.transport,vault,journal:executionJournal}),
         candidates:createCandidateSession({serviceOrigin:baseUrl,transport:scope.transport,vault,journal:candidateJournal})})});
+    monitorCollection=createMonitorCollectionController({identity,foreground:foregroundCollection});
     nativeOutreach=createNativeOutreachController({serviceOrigin:baseUrl,identity,store:profileStore,vault,
       journal:createOutreachConsumptionJournal({directory:path.join(app.getPath('userData'),'outreach-consumption'),protection}),
       outbox:createOutreachResultOutbox({directory:path.join(app.getPath('userData'),'outreach-results'),protection}),
@@ -256,6 +260,9 @@ async function startApplication(): Promise<void> {
   });
   ipcMain.handle(FOREGROUND_COLLECTION_CHANNEL,(event,command:unknown)=>{
     trustedSender(event);return foregroundCollection?foregroundCollection.execute(command):{state:'UNAVAILABLE'};
+  });
+  ipcMain.handle(MONITOR_COLLECTION_CHANNEL,(event,command:unknown)=>{
+    trustedSender(event);return monitorCollection?monitorCollection.execute(command):{state:'UNAVAILABLE'};
   });
   ipcMain.handle(GET_DEVICE_IDENTITY_STATUS_CHANNEL, event => {
     trustedSender(event);
@@ -316,9 +323,9 @@ async function startApplication(): Promise<void> {
 
 app.on('before-quit', event => {
   quitting = true;
-  if((platformConnection || foregroundCollection || nativeOutreach || nativeReplies || portableBootstrap) && !platformStopped) {
+  if((platformConnection || foregroundCollection || monitorCollection || nativeOutreach || nativeReplies || portableBootstrap) && !platformStopped) {
     event.preventDefault();
-    if(!platformShutdown)platformShutdown=Promise.allSettled([platformConnection?.shutdown(),foregroundCollection?.shutdown(),nativeOutreach?.stop(),nativeReplies?.stop(),portableBootstrap?.stop(),runtimeStartup]).then(results=>{
+    if(!platformShutdown)platformShutdown=Promise.allSettled([monitorCollection?.shutdown(),platformConnection?.shutdown(),foregroundCollection?.shutdown(),nativeOutreach?.stop(),nativeReplies?.stop(),portableBootstrap?.stop(),runtimeStartup]).then(results=>{
       if(results.some(r=>r.status==='rejected'))throw new Error('PLATFORM_STOP_UNCONFIRMED');
       platformStopped=true;app.quit();
     }).catch(()=>{

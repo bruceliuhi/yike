@@ -18,6 +18,7 @@ export interface YikeDesktopApi {
   prepareDeviceIdentity?(options?: import('./deviceIdentity').DeviceIdentityRetry): Promise<import('./deviceIdentity').DeviceIdentityStatus>;
   executionCommand?(command: import('./desktopExecution').DesktopExecutionCommand): Promise<import('./desktopExecution').DesktopExecutionResult>;
   foregroundCollectionCommand?(command: import('./foregroundCollection').ForegroundCollectionCommand): Promise<import('./foregroundCollection').ForegroundCollectionResult>;
+  monitorCollectionCommand?(command: import('./monitorCollection').MonitorCollectionCommand): Promise<import('./monitorCollection').MonitorCollectionResult>;
   platformConnectionCommand?(command: import('./platformConnection').PlatformConnectionCommand): Promise<import('./platformConnection').PlatformConnectionResult>;
   nativeOutreachCommand?(command: import('./nativeOutreach').NativeOutreachCommand): Promise<import('./nativeOutreach').NativeOutreachResult>;
   nativeReplyCommand?(command: import('./nativeReply').NativeReplyCommand): Promise<import('./nativeReply').NativeReplyResult>;

@@ -10,6 +10,7 @@ import {nativeLoginPlatformSchema,validNativeAccount} from '../shared/platformAc
 type Input = Parameters<CollectionDriver['start']>[0];
 interface Options {
   pythonExecutable: string; projectRoot: string; runtimePath: string; profilePath: string; outputRoot: string;
+  allowMonitor?:boolean;
   binding: {deviceId: string; credentialVersion: number; expectedAccountPublicId?: string} & Input['target'];
 }
 const SCHEMA = 'windows-source-host-v1';
@@ -101,7 +102,8 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
         if (expectedAccount !== undefined && (!nativePlatform.success || typeof expectedAccount !== 'string' ||
             !validNativeAccount(nativePlatform.data,expectedAccount))) throw failure();
         if (lease.operation !== 'CLAIM' && lease.operation !== 'RENEW') throw failure();
-        if (c.mode !== 'once' || c.schedule !== null || c.source !== 'search' || c.links.length || c.exclusions.length || c.research !== null ||
+        const approvedMode=c.mode==='once' && c.schedule===null || owned.allowMonitor===true && c.mode==='monitor' && c.schedule?.policyVersion===1;
+        if (!approvedMode || c.source !== 'search' || c.links.length || c.exclusions.length || c.research !== null ||
             c.keywords.some(q => q !== q.trim() || q.includes(',')) ||
             !integer(maxRecords, 100) || !integer(snapshot.max_records, 10000) || maxRecords > snapshot.max_records ||
             !integer(snapshot.max_runtime_seconds, 86400) || !snapshot.platforms.includes(target.platform) ||

@@ -124,6 +124,63 @@ export function createForegroundCollectionController(options:Options) {
    recoverable:!running && !!batch && !['CANCELED','CANCELLING','SUCCEEDED'].includes(current.status)};
  }
  const controller={
+  canStart(){return !opening&&!active&&!shuttingDown&&!stopUnconfirmed;},
+  async stop(taskId?:string){const current=active;if(!current||taskId&&current.taskId!==taskId)return;current.worker.cancel();await current.done;},
+  async validateMonitorBinding(profileId:string,strategyId:string,targets:NonNullable<import('../shared/executionOperation').ExecutionOperation['targets']>):Promise<boolean>{
+   let scope:DeviceWorkerScope|undefined;
+   try{
+    scope=await open();const support=await scope.transport.requestExecution({operation:'monitor.support'});guard(scope);
+    if(!support.ok||supportSchema.safeParse({schema_version:'foreground-collection-support-v1',mode:support.data&&typeof support.data==='object'&&'mode' in support.data&&support.data.mode==='three-platform-monitor-v1'?'three-platform-foreground-v1':null}).data?.mode)throw new Error();
+    if(!await (options.probe??probeCollectionRuntime)(configuration))throw new Error();
+    const response=await identity.requestApi({operation:'strategies.get',payload:{strategy_version_id:strategyId}});guard(scope);if(!response.ok)throw new Error();
+    const strategy=strategyViewSchema.parse(response.data),snapshot=strategy.snapshot,c=snapshot.configuration;
+    if(strategy.state!=='CONFIRMED'||!strategy.is_current||!strategy.profile_current||strategy.confirmed_at===null||strategy.revoked_at!==null||
+      strategy.profile_version_id!==profileId||snapshot.profile_version_id!==profileId||strategy.strategy_version_id!==strategyId||snapshot.strategy_version_id!==strategyId||
+      c.mode!=='monitor'||c.schedule?.policyVersion!==1||snapshot.platforms.length!==targets.length||targets.some((target,index)=>target.platform!==snapshot.platforms[index])||
+      targets.some(target=>!nativeLoginPlatformSchema.safeParse(target.platform).success||target.access_mode!=='PLATFORM_ACCOUNT'))throw new Error();
+    for(const target of targets)await account(scope,target);
+    return true;
+   }catch{return false;}finally{scope?.close();}
+  },
+  async startMonitor(raw:unknown):Promise<DesktopExecutionResult>{
+   const parsed=executionOperationSchema.safeParse(raw);if(!parsed.success||parsed.data.operation!=='START')return {state:'INVALID_REQUEST'};
+   if(opening||active)return {state:'BUSY'};if(shuttingDown||stopUnconfirmed)return {state:'SERVICE_UNAVAILABLE'};
+   opening=true;openingDone=new Promise(resolve=>{finishOpening=resolve;});let scope:DeviceWorkerScope|undefined,handedOff=false;
+   try{
+    const start=parsed.data,targets=start.targets!;scope=await open();
+    const monitorSupport=await scope.transport.requestExecution({operation:'monitor.support'});guard(scope);
+    if(!monitorSupport.ok||!monitorSupport.data||typeof monitorSupport.data!=='object'||(monitorSupport.data as any).schema_version!=='monitor-runtime-support-v1'||(monitorSupport.data as any).mode!=='three-platform-monitor-v1')throw new Error();
+    if(!await (options.probe??probeCollectionRuntime)(configuration))throw new Error();guard(scope);
+    const strategyResponse=await identity.requestApi({operation:'strategies.get',payload:{strategy_version_id:start.strategy_version_id}});guard(scope);if(!strategyResponse.ok)throw new Error();
+    const strategy=strategyViewSchema.parse(strategyResponse.data),snapshot=strategy.snapshot,c=snapshot.configuration;
+    if(strategy.state!=='CONFIRMED'||!strategy.is_current||!strategy.profile_current||strategy.confirmed_at===null||strategy.revoked_at!==null||
+      strategy.profile_version_id!==start.profile_version_id||strategy.strategy_version_id!==start.strategy_version_id||snapshot.profile_version_id!==start.profile_version_id||
+      snapshot.strategy_version_id!==start.strategy_version_id||strategy.configuration_sha256!==start.configuration_sha256||createHash('sha256').update(canonical(snapshot)).digest('hex')!==start.configuration_sha256||
+      c.mode!=='monitor'||c.schedule?.policyVersion!==1||c.source!=='search'||c.research!==null||c.links.length||c.exclusions.length||
+      snapshot.platforms.length!==targets.length||targets.some((target,index)=>target.platform!==snapshot.platforms[index]||target.access_mode!=='PLATFORM_ACCOUNT'||!nativeLoginPlatformSchema.safeParse(target.platform).success))throw new Error();
+    const bindings=[];for(const target of targets)bindings.push(await account(scope,target));
+    const firstSessions=options.sessions(scope);const submitted=await firstSessions.execution.submit(scope.session,start);guard(scope);if(submitted.state!=='RECORDED')return submitted;
+    const receipt=parseExecutionReceipt(submitted.receipt,start);if(receipt.operation!=='START'||receipt.platform_runs.length!==targets.length||receipt.platform_runs.some((run,index)=>run.platform!==targets[index].platform))throw new Error();
+    const history=await options.executionJournal.list(journalScope(scope));guard(scope);if(history.some(r=>r.task_id===receipt.task_id&&r.operation!=='START'))return submitted;
+    let currentWorker:ReturnType<typeof createCollectionWorker>|null=null,cancelled=false;
+    const composite={cancel(){cancelled=true;currentWorker?.cancel();}} as ReturnType<typeof createCollectionWorker>;
+    const current:Active={taskId:receipt.task_id,userId:scope.session.userId,scope,worker:composite,done:Promise.resolve()};active=current;handedOff=true;
+    current.done=(async()=>{
+      let activeScope:DeviceWorkerScope|undefined=scope;scope=undefined;
+      try{for(let index=0;index<targets.length;index++){
+        if(cancelled)break;if(index>0){const opened=await open();if(opened.session.userId!==current.userId||opened.device.deviceId!==current.scope.device.deviceId||opened.device.credentialVersion!==current.scope.device.credentialVersion){opened.close();break;}activeScope=opened;}
+        const binding=index===0?bindings[index]:await account(activeScope!,targets[index]);const sessions=index===0?firstSessions:options.sessions(activeScope!);
+        const driver=(options.driverFactory??createPythonCollectionDriver)({pythonExecutable:configuration.pythonExecutable,projectRoot:configuration.projectRoot,runtimePath:configuration.runtimePath,
+          profilePath:path.join(configuration.profileRoot,binding.profileId),outputRoot:configuration.outputRoot,allowMonitor:true,
+          binding:{...activeScope!.device,...targets[index],expectedAccountPublicId:binding.accountPublicId}});
+        currentWorker=(options.workerFactory??createCollectionWorker)({...sessions,driver});
+        const value=await currentWorker.run({scope:activeScope!,start,startReceipt:receipt,strategy,platformRunId:receipt.platform_runs[index].platform_run_id,allowMonitor:true});
+        local.set(localKey(current.scope,receipt.task_id),value);activeScope=undefined;if(value.state!=='COMPLETED'||!value.taskCompleted&&index===targets.length-1)break;
+      }}catch{activeScope?.close();}finally{if(active===current)active=null;}
+    })();
+    return submitted;
+   }catch{return {state:'SERVICE_UNAVAILABLE'};}finally{if(!handedOff)scope?.close();opening=false;finishOpening?.();finishOpening=null;openingDone=null;}
+  },
   // Main calls this only after an explicitly approved original START recovery.
   async resumeStart(requestId:string):Promise<DesktopExecutionResult>{
    let scope:DeviceWorkerScope|undefined;

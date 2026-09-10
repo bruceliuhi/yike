@@ -175,6 +175,16 @@ it('does not silently execute deferred monitoring strategies as a one-shot colle
   expect(result).toMatchObject({state: 'FAILED', error: 'COLLECTION_WORKER_INVALID_INPUT'});
 });
 
+it('executes one server-reserved monitor iteration only with main-only authorization', async () => {
+  const f = fixture(); f.strategy.snapshot.configuration.mode = 'monitor';
+  (f.strategy.snapshot.configuration as any).schedule = {kind: 'interval', times: [], interval: 1,
+    start: '09:00', end: '18:00', timezone: 'Asia/Shanghai', policyVersion: 1};
+  f.start.configuration_sha256 = f.strategy.configuration_sha256 = createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');
+  const done=f.instance.run({scope:f.scope,start:f.start,startReceipt:f.receipt,strategy:f.strategy,platformRunId:id(8),allowMonitor:true});
+  await tick(); expect(f.execution.submit.mock.calls[0][1]).toMatchObject({operation:'CLAIM'});
+  f.instance.cancel();await tick();expect(await done).toMatchObject({state:'STOPPED'});
+});
+
 it('FINISH follows physical source stop and recorded upload with the exact original tuple', async () => {
   const f = fixture(); const physical = deferred<void>(); const upload = deferred<any>();
   f.stopped.mockImplementation(() => physical.promise); f.candidates.submit.mockImplementation(() => upload.promise);

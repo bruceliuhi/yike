@@ -43,7 +43,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
   return {
     cancel() {cancelActive?.();},
     async run(input: {scope: DeviceWorkerScope; start: unknown; startReceipt: unknown; strategy: unknown;
-      platformRunId: string}): Promise<CollectionWorkerResult> {
+      platformRunId: string;allowMonitor?:boolean}): Promise<CollectionWorkerResult> {
       if (cancelActive) return {state: 'BUSY', taskCompleted: false};
       const {scope} = input;
       const abort = new AbortController();
@@ -79,8 +79,10 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
         const start = executionOperationSchema.parse(input.start);
         const receipt = parseExecutionReceipt(input.startReceipt, start);
         const strategy = strategyViewSchema.parse(input.strategy);
-        if (start.operation !== 'START' || receipt.operation !== 'START' ||
-            strategy.snapshot.configuration.mode !== 'once' || strategy.snapshot.configuration.schedule !== null ||
+        const configuration=strategy.snapshot.configuration;
+        const approvedMode=configuration.mode==='once' && configuration.schedule===null || input.allowMonitor===true &&
+          configuration.mode==='monitor' && configuration.schedule?.policyVersion===1;
+        if (start.operation !== 'START' || receipt.operation !== 'START' || !approvedMode ||
             strategy.state !== 'CONFIRMED' || !strategy.is_current || !strategy.profile_current ||
             strategy.revoked_at !== null || strategy.confirmed_at === null ||
             strategy.profile_version_id !== start.profile_version_id || strategy.strategy_version_id !== start.strategy_version_id ||

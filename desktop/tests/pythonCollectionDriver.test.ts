@@ -137,3 +137,10 @@ it.each([['DOUYIN','douyin.account-1'],['BILIBILI','123456789']] as const)
  expect(f.request(0)).toMatchObject({platform,expected_account_public_id:account});f.respond(0);await tick();f.respond(1);
  await run.completed;await run.stop();
 });
+it('allows one policyVersion 1 monitor iteration only when main marks the driver binding',async()=>{
+ const f=fixture();f.input.snapshot.configuration.mode='monitor';f.input.snapshot.configuration.schedule={kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1};
+ const run=createPythonCollectionDriver({...f.options,allowMonitor:true}).start(f.input);await tick();expect(spawn).toHaveBeenCalledTimes(1);
+ f.respond(0);await tick();f.respond(1);await run.completed;await run.stop();
+ const g=fixture();g.input.snapshot.configuration.mode='monitor';g.input.snapshot.configuration.schedule={kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1};
+ const rejected=g.driver.start(g.input);await expect(rejected.completed).rejects.toThrow('SOURCE_DRIVER_INVALID_INPUT');expect(g.children).toHaveLength(0);
+});
