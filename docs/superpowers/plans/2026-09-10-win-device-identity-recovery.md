@@ -59,7 +59,7 @@ Win独占上述desktop新模块、vault最小扩展及自有验收；Mac设备/�
 
 ## Chunk 2 执行细化：既有设备页正常入口
 
-沿已批准的主进程持钥/现有设备页设计，不新增平台能力或使用授权含义。设备身份与商业授权/平台连接分开；既有管理服务仍管理其原授权，不能把 BIND 冒充购买或平台登录。
+沿已批准的主进程持钥/现有设备页设计，不新增平台能力或使用授权含义。设备身份与商业授权/平台连接分开；既有管理服务仍管理其原授权，不能把 BIND 冒充购买或平台登录。实现核对后保留原 bind/解绑管理入口，在同一设备区域添加“本机身份”行并复用现 Modal 组件，避免原管理 BOUND 驱动本机证明或取消已有管理操作；独立 identity 弹窗不改变页面布局框架。
 
 - [ ] Task4：新增 `desktop/src/shared/deviceIdentity.ts`（严格 `{retryRegistration?,retryProof?}`，受限结果/状态 schema、固定两频道）；新增 `desktop/src/main/deviceIdentityController.ts` 及测试。factory `{service, identityFactory}` 让原 coordinator 使用拦截401的专用 transport；`requestApi(unknown)`代理原固定API，login/loginPhone/logout进入即生成新UUID并清空本机结果，所有401只失效自己的代次。auth操作在途时prepare不排到旧身份上，返回BUSY。`prepare(unknown)`先严格解析快照选项，再通过真实session.get严格取得 authenticated:true/user_id；用户名1～256码点/无控制字符/边界空白，永远不接受renderer身份或路径。新的同user登录也必须新证明；每异步完成检查代次，串行忙碌防重，异常固定FAILED。`getStatus()`只读本机最近观察，初始NOT_PREPARED，非实时授权；退出立即清空。coordinator READY严格解析，只传deviceId/credentialVersion，其他状态只传固定code，无签名/密钥。
 - [ ] Task5：root修改main.ts固定userData子目录（device-keys / device-identity）与safeStorage，构造真实journal/vault/coordinator/controller；三个handler均trustedSender，普通API改走controller，不改变runtime NOT_READY，不暴露requestDevice。preload只增加getDeviceIdentityStatus/prepareDeviceIdentity固定频道，类型合同新增可选方法兼容旧包，现preload始终提供；定向测试含冻结入口/原签名不可达/main实际装配与恶意来源拒绝。

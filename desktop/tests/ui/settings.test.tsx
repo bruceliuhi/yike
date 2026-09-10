@@ -51,6 +51,20 @@ function mount(overrides: Partial<YikeService> = {}) {
 }
 
 describe("设备与授权", () => {
+  it("正常本机身份入口使用专用核验，不借管理接口绑定或冒称平台连接", async () => {
+    const identity={getStatus:vi.fn().mockResolvedValue({state:'NOT_PREPARED'}),prepare:vi.fn().mockResolvedValue({state:'READY',deviceId:'12345678-1234-1234-1234-123456789abc',credentialVersion:1})};
+    mount({deviceIdentity:identity});
+    const button=await screen.findByRole('button',{name:'核验本机身份'});
+    fireEvent.click(button);
+    const modal=screen.getByRole('dialog',{name:'核验本机设备身份'});
+    const checkbox=within(modal).getByRole('checkbox',{name:'确认在当前账号下核验本机设备'});
+    await waitFor(()=>expect((checkbox as HTMLInputElement).disabled).toBe(false));
+    fireEvent.click(checkbox);
+    fireEvent.click(within(modal).getByRole('button',{name:'核验本机设备'}));
+    await within(modal).findByText('上次身份核验通过');
+    expect(identity.prepare).toHaveBeenCalledExactlyOnceWith({});
+    expect(within(modal).getByText(/不代表平台已连接或使用授权已激活/)).toBeTruthy();
+  });
   it("会话变化立即卸载设置页时，退出仍会清草稿并导航", async () => {
     sessionStorage.setItem("yike.ui.draft.v1.test", "draft-only");
     const service = {

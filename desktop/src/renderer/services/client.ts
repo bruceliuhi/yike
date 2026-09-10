@@ -1,4 +1,5 @@
 import { ServiceError, type YikeService } from "./contracts";
+import { desktopDeviceIdentity } from './deviceIdentity';
 import {
   EMPTY_PROFILE,
   type Followup,
@@ -237,6 +238,7 @@ function unavailable(name: string): never {
 }
 const candidateReads = createCandidateReviewService(request);
 export const service: YikeService = {
+  get deviceIdentity() { return desktopDeviceIdentity(bridge()); },
   candidateReview: candidateReads,
   researchStrategies: createResearchStrategiesService(request),
   rawCandidateEvidence: candidateReads.getRawEvidence,

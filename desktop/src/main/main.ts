@@ -1,5 +1,5 @@
 import {
-  app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, protocol, screen, session, shell,
+  app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, protocol, safeStorage, screen, session, shell,
   type IpcMainInvokeEvent, type WebContents
 } from 'electron';
 import squirrelStartup from 'electron-squirrel-startup';
@@ -17,6 +17,11 @@ import {
 import {createServiceClient, configuredService} from './serviceClient';
 import {validatedExternalUrl, validClipboardText} from './servicePolicy';
 import {createExportHandler, writeExportFile} from './exportService';
+import {createDeviceIdentityJournal} from './deviceIdentityJournal';
+import {createDeviceKeyVault} from './deviceKeyVault';
+import {createDeviceIdentitySession} from './deviceIdentitySession';
+import {createDeviceIdentityController} from './deviceIdentityController';
+import {GET_DEVICE_IDENTITY_STATUS_CHANNEL, PREPARE_DEVICE_IDENTITY_CHANNEL} from '../shared/deviceIdentity';
 
 protocol.registerSchemesAsPrivileged([
   {scheme: 'yike', privileges: {standard: true, secure: true, supportFetchAPI: true}}
@@ -136,6 +141,26 @@ async function startApplication(): Promise<void> {
     fetch: (url, options) => serviceSession.fetch(url, options),
     clearSession: () => serviceSession.clearStorageData()
   });
+  const protection = {
+    isEncryptionAvailable: () => safeStorage.isEncryptionAvailable() &&
+      (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'),
+    encryptString: (value: string) => safeStorage.encryptString(value),
+    decryptString: (value: Buffer) => safeStorage.decryptString(value)
+  };
+  const journal = createDeviceIdentityJournal({directory: path.join(app.getPath('userData'), 'device-identity'), protection});
+  const vault = createDeviceKeyVault({directory: path.join(app.getPath('userData'), 'device-keys'), protection});
+  const identity = createDeviceIdentityController({service, identityFactory: transport => {
+    if (baseUrl === null) throw new Error('SERVICE_NOT_CONFIGURED');
+    return createDeviceIdentitySession({serviceOrigin:baseUrl, deviceLabel:'意客AI Windows客户端',transport,journal,vault});
+  }});
+  ipcMain.handle(GET_DEVICE_IDENTITY_STATUS_CHANNEL, event => {
+    trustedSender(event);
+    return identity.getStatus();
+  });
+  ipcMain.handle(PREPARE_DEVICE_IDENTITY_CHANNEL, (event, input: unknown) => {
+    trustedSender(event);
+    return identity.prepare(input);
+  });
   ipcMain.handle(GET_RUNTIME_STATUS_CHANNEL, event => {
     trustedSender(event);
     return DESKTOP_RUNTIME_NOT_READY;
@@ -146,7 +171,7 @@ async function startApplication(): Promise<void> {
   });
   ipcMain.handle(REQUEST_API_CHANNEL, (event, request: unknown) => {
     trustedSender(event);
-    return service.request(request);
+    return identity.requestApi(request);
   });
   ipcMain.handle(OPEN_EXTERNAL_CHANNEL, async (event, input: unknown) => {
     trustedSender(event);

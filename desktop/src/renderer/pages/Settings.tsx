@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DeviceIdentityPanel } from './settings/DeviceIdentityPanel';
 import { useApp } from "../app/context";
 import { clearLocalDrafts, useAction, useResource } from "../app/hooks";
 import { accountSchema } from "../domain/management";
@@ -26,6 +27,7 @@ import {
 } from "../components/ui";
 
 type SettingsDialog =
+  | "identity"
   | "bind"
   | "export"
   | "backup"
@@ -34,6 +36,7 @@ type SettingsDialog =
   | "update"
   | null;
 const dialogTitles: Record<Exclude<SettingsDialog, null>, string> = {
+  identity: "核验本机设备身份",
   bind: "绑定本机设备",
   export: "客户数据导出",
   backup: "备份与恢复",
@@ -53,6 +56,7 @@ export function SettingsPage() {
   const [codeError, setCodeError] = useState("");
   const [activationSent, setActivationSent] = useState(false);
   const management = service.management ?? unavailableManagement;
+  const deviceIdentity = service.deviceIdentity;
   const account = useResource(
     async () =>
       accountSchema.parse(await managementRequest(() => management.account())),
@@ -228,6 +232,11 @@ export function SettingsPage() {
       </section>
       <section className="settings-section">
         <h2>设备管理</h2>
+        {deviceIdentity && session.authenticated && <div className="settings-row">
+          <span>本机身份</span>
+          <span className="muted">独立于平台连接与使用授权</span>
+          <Button onClick={()=>setDialog('identity')}>核验本机身份</Button>
+        </div>}
         <div className="settings-row">
           <span>运行环境</span>
           <span>{platformName}</span>
@@ -333,6 +342,9 @@ export function SettingsPage() {
             </>
           }
         >
+          {dialog === 'identity' && deviceIdentity && session.authenticated && <DeviceIdentityPanel
+            api={deviceIdentity} scope={JSON.stringify([session.userId,session.accountScope])}
+          />}
           {dialog === "bind" && (
             <ManagementAction
               account={account.data}

@@ -26,3 +26,9 @@
 Win 继续真实 session.get 派生身份、登录/退出即时失效、窄 IPC、userData/safeStorage 与现有账号页面装配，再接执行签名和来源 worker。Mac 保留设备/执行/回复后端，避免重复开发。原文证据、多找类似、短句建联和真实发现→判断→确认联系→跟进仍为首发目标。
 
 Mac `69a0cb2` 来件中会话撤销 GRANT 已恢复 SELECT/INSERT，源码层关闭此前多授 UPDATE/DELETE 的 P2；此处只做差异核对，不代签新的部署/RLS 测试。普通产品入口、实际平台、确认收发、安装发行及 UAT 未完成，05D/F 与 Goal 继续。
+
+## 普通设备入口（基线3c4da16，2026-09-10）
+
+入口：账号与授权→设备与使用授权→核验本机身份。复用原页面/Modal，原商业绑定/解绑保留；明确确认后主进程从真实session.get派生身份，使用固定userData与safeStorage。退出/重新登录进入即失效；未知先核对原请求，重试再次确认。上次身份核验通过不代表平台、使用授权或runtime就绪。
+
+验证：root页面/服务/preload/main及旧管理回归7文件35项/tsc通过；作者controller最初51有效RED、异步补强2RED、严格合同6RED，最终93项/tsc通过。根增强controller→真实HTTP→受限PG **1 passed/0 skip，2.62s**，原登记/BIND/PROVE、防重与退出迟到均核对，专用容器已移除；本次增强测试首次通过，不伪造RED。独立SPEC与整批代码/架构/质量最终PASS；两项严格合同修正独立6项通过，先前UI/main独立20项不重复运行。源码最终shared C347C59E/controller9E8F3A92（完整摘要在Git对应文件可算）。后续只构建本批一次候选，实际平台/收发/客户UAT仍未完成。
