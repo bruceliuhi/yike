@@ -22,5 +22,6 @@ export type NativeOutreachCommand=z.infer<typeof nativeOutreachCommandSchema>;
 export type NativeOutreachError='INVALID_REQUEST'|'BUSY'|'SESSION_CHANGED'|'DEVICE_NOT_READY'|'FLOW_EXPIRED'|
   'DRAFT_CHANGED'|'CONNECTION_CHANGED'|'CHANNEL_UNVERIFIED'|'CONFIRMATION_UNCONFIRMED'|'SOURCE_STOP_FAILED'|'OUTREACH_FAILED';
 export type NativeOutreachResult={state:'PREPARED';flowId:string;binding:NativeOutreachBinding;context:OutreachContext}|
+  {state:'NOT_SUBMITTED';binding:NativeOutreachBinding;error:NativeOutreachError}|
   {state:'FAILED';error:NativeOutreachError}|{state:'CANCELLED'}|
   {state:'RESULT';binding:NativeOutreachBinding;result:Awaited<ReturnType<ReturnType<typeof createOutreachDispatchSession>['dispatch']>>};

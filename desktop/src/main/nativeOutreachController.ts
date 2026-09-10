@@ -30,7 +30,7 @@ const rowsSchema=z.object({items:z.array(connectionRegistryRowSchema).max(10000)
 const queuedSchema=z.object({requestId:uuid,state:z.literal('QUEUED'),deliveryConfirmed:z.literal(false),dispatchAllowed:z.literal(false)}).strict();
 const cancelledSchema=z.object({requestId:uuid,state:z.literal('CANCELLED'),deliveryConfirmed:z.literal(false),dispatchAllowed:z.literal(false)}).strict();
 type Flow={id:string;scope:DeviceWorkerScope;context:OutreachContext;profileId:string;input:OutreachConfirmation['context'];
-  binding:NativeOutreachBinding;expires:number;abort:AbortController;driver:NativeOutreachDriver|null;used:boolean;
+  binding:NativeOutreachBinding;expires:number;abort:AbortController;driver:NativeOutreachDriver|null;used:boolean;applyStarted:boolean;cancelledByUser:boolean;
   timer:ReturnType<typeof setInterval>|null;stopping:Promise<void>|null};
 class Failure extends Error {constructor(readonly code:NativeOutreachError){super(code);}}
 function fail(code:NativeOutreachError):never {throw new Failure(code);}
@@ -41,6 +41,8 @@ function freeze<T>(value:T):T {if(value && typeof value==='object'){for(const v 
 export function createNativeOutreachController(options:NativeOutreachControllerOptions) {
   const now=options.now??Date.now;
   let active:Flow|null=null,busy=false,closed=false,poisoned=false;
+  // One body-free timeout proof, valid only for the same still-current original session/device.
+  let expired:{id:string;binding:NativeOutreachBinding;session:DeviceWorkerScope['session'];device:DeviceWorkerScope['device']}|null=null;
   function scopeGuard(scope:DeviceWorkerScope) {
     const status=options.identity.getStatus();
     if(closed || !scope.signal || scope.signal.aborted || !scope.session.isCurrent() || status.state!=='READY' ||
@@ -130,7 +132,7 @@ export function createNativeOutreachController(options:NativeOutreachControllerO
     const prepared=await request(f.scope,'outreach.confirmation.prepare',{request:value});guard(f);
     const signed=signOutreachConfirmation({key,prepared,expected:{serviceOrigin:options.serviceOrigin,userId:f.scope.session.userId,tenantId:f.binding.tenantId,request:value}});
     let receipt:unknown;
-    try {receipt=await request(f.scope,'outreach.confirmation.apply',signed);guard(f);}catch{fail('CONFIRMATION_UNCONFIRMED');}
+    try {f.applyStarted=true;receipt=await request(f.scope,'outreach.confirmation.apply',signed);guard(f);}catch{fail('CONFIRMATION_UNCONFIRMED');}
     const queued=queuedSchema.safeParse(receipt);
     if(!queued.success || queued.data.requestId!==f.binding.requestId)fail('CONFIRMATION_UNCONFIRMED');
     const channel:NativeOutreachChannel={
@@ -156,6 +158,7 @@ export function createNativeOutreachController(options:NativeOutreachControllerO
       if(poisoned)return failed('SOURCE_STOP_FAILED');if(closed)return failed('SESSION_CHANGED');
       if(command.action==='CANCEL'){
         if(!active || active.id!==command.flowId)return failed('INVALID_REQUEST');
+        active.cancelledByUser=true;
         try{await stopFlow(active);return {state:'CANCELLED'};}catch{return failed('SOURCE_STOP_FAILED');}
       }
       if(busy)return failed('BUSY');busy=true;
@@ -167,14 +170,34 @@ export function createNativeOutreachController(options:NativeOutreachControllerO
           scope={...opened.scope,session:{...opened.scope.session},device:{...opened.scope.device}};scopeGuard(scope);
           const prepared=await facts(scope,command.draft);scopeGuard(scope);
           const f:Flow={id:randomUUID(),scope,...prepared,binding:freeze({tenantId:prepared.context.accountScope.id,requestId:command.requestId,
-            claimId:randomUUID(),contextSha256:prepared.context.contextSha256}),expires:now()+120000,abort:new AbortController(),driver:null,used:false,timer:null,stopping:null};
+            claimId:randomUUID(),contextSha256:prepared.context.contextSha256}),expires:now()+120000,abort:new AbortController(),driver:null,used:false,applyStarted:false,cancelledByUser:false,timer:null,stopping:null};
           active=f;scope=undefined;
-          f.timer=setInterval(()=>{try{guard(f);}catch{void stopFlow(f).catch(()=>{});}},100);f.timer.unref?.();
+          f.timer=setInterval(()=>{try{guard(f);}catch(error){
+            const timedOut=error instanceof Failure && error.code==='FLOW_EXPIRED' && !f.used;
+            void stopFlow(f).then(()=>{
+              if(timedOut && !f.applyStarted && !f.cancelledByUser)expired={id:f.id,binding:f.binding,session:f.scope.session,device:f.scope.device};
+            }).catch(()=>{});
+          }},100);f.timer.unref?.();
           return {state:'PREPARED',flowId:f.id,binding:f.binding,context:f.context};
         }
         if(command.action==='CONFIRM'){
-          const f=active;if(!f || f.id!==command.flowId || f.used)return failed('INVALID_REQUEST');f.used=true;
-          try{return await confirm(f);}finally{await stopFlow(f).catch(()=>{});}
+          const f=active;
+          if(!f || f.id!==command.flowId || f.used){
+            if(expired?.id===command.flowId){
+              const proof=expired;expired=null;const device=options.identity.getStatus();
+              if(proof.session.isCurrent() && device.state==='READY' && device.deviceId===proof.device.deviceId &&
+                device.credentialVersion===proof.device.credentialVersion)return {state:'NOT_SUBMITTED',binding:proof.binding,error:'FLOW_EXPIRED'};
+            }
+            return failed('INVALID_REQUEST');
+          }
+          f.used=true;
+          try{return await confirm(f);}
+          catch(error){
+            // Only this exact flow can prove no submission; uncertainty after apply starts stays sticky.
+            await stopFlow(f);
+            if(!f.applyStarted && !f.cancelledByUser)return {state:'NOT_SUBMITTED',binding:f.binding,error:error instanceof Failure?error.code:'OUTREACH_FAILED'};
+            throw error;
+          }finally{await stopFlow(f).catch(()=>{});}
         }
         if(active)return failed('BUSY');
         if(command.action==='CANCEL_QUEUED'){

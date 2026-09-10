@@ -22,7 +22,7 @@ function fixture(){
   const record={version:1 as const,scope:{serviceOrigin,userId,deviceId,platform:'XIAOHONGSHU' as const},flowId:randomUUID(),profileId,state:'RESOLVED' as const,registration,verification};
   const row={connection_id:connectionId,device_id:deviceId,account_public_id:draft.accountId,platform:'XIAOHONGSHU',status:'CONNECTED',connection_version:2,connected_at:new Date().toISOString(),disconnected_at:null};
   const pair=generateKeyPairSync('ed25519'),key={scope:{serviceOrigin,userId,deviceId},publicKey:pair.publicKey.export({format:'jwk'}).x!,privateKey:pair.privateKey.export({format:'pem',type:'pkcs8'}).toString()};
-  let queued=false,current=true,consumed=false,now=Date.now(),badReceipt=false,corruptDigest=false,clean=true,changedDraft=false;
+  let queued=false,current=true,consumed=false,now=Date.now(),badReceipt=false,corruptDigest=false,clean=true,changedDraft=false,loseApply=false;
   const calls:any[]=[],outbox=new Map<string,any>();let original:any;
   const payload=(request:any,protocol:string)=>canonical({protocol,tenant_id:tenantId,user_id:userId,session_digest:'c'.repeat(64),request});
   const service=createServiceClient({baseUrl:serviceOrigin,clearSession:async()=>{},fetch:async(url,opts)=>{
@@ -34,6 +34,7 @@ function fixture(){
       expect(verify(null,Buffer.from(payload(body.request,'yike-outreach-confirmation-v1')),pair.publicKey,Buffer.from(body.signature,'base64url'))).toBe(true);
       expect(Object.keys(body.request.context).sort()).toEqual(['binding','connectionId','connectionVersion','deviceId']);
       queued=true;original=body.request;data={requestId:badReceipt?randomUUID():original.requestId,state:'QUEUED',deliveryConfirmed:false,dispatchAllowed:false};
+      if(loseApply)throw Error('synthetic lost response');
     } else if(path==='/api/ui/outreach/dispatch/signing-payload')data={signing_payload:payload(body.request,'yike-outreach-dispatch-v1')};
     else if(path==='/api/ui/outreach/dispatch'){
       expect(queued).toBe(true);expect(verify(null,Buffer.from(payload(body.request,'yike-outreach-dispatch-v1')),pair.publicKey,Buffer.from(body.signature,'base64url'))).toBe(true);
@@ -51,7 +52,7 @@ function fixture(){
   const controller=createNativeOutreachController({serviceOrigin,identity,store:{read:async()=>record},vault:{read:async()=>key},driver,now:()=>now,
     journal:{consumed:async()=>consumed,consume:async()=>{const created=!consumed;consumed=true;return {created};}},outbox:{read:async(_s,r)=>outbox.get(r)??null,put:async(_s,r)=>{outbox.set(r.requestId,r);return r;}}});
   const prepare=()=>controller.execute({action:'PREPARE',requestId:randomUUID(),draft});
-  return {controller,prepare,driver,run,calls,context,profileId,row,record,service,connection,setBadReceipt:()=>{badReceipt=true;},setDigest:()=>{corruptDigest=true;},setUnclean:()=>{clean=false;},setChanged:()=>{changedDraft=true;},expire:()=>{now+=120001;},logout:()=>{current=false;}};
+  return {controller,prepare,driver,run,calls,context,profileId,row,record,service,connection,setBadReceipt:()=>{badReceipt=true;},setDigest:()=>{corruptDigest=true;},setLoseApply:()=>{loseApply=true;},setUnclean:()=>{clean=false;},setChanged:()=>{changedDraft=true;},expire:()=>{now+=120001;},logout:()=>{current=false;}};
 }
 describe('private native confirmation controller (synthetic fixtures, no external sending)',()=>{
   it('freezes original profile and public context, checks only after consent, queues then dispatches once',async()=>{
@@ -66,18 +67,46 @@ describe('private native confirmation controller (synthetic fixtures, no externa
   });
   it.each(['setBadReceipt','setDigest'] as const)('never claims after an unconfirmed or altered 122 response: %s',async change=>{
     const f=fixture();try {const p=await f.prepare();if(p.state!=='PREPARED')throw Error();f[change]();
-      expect(await f.controller.execute({action:'CONFIRM',flowId:p.flowId,humanConfirmed:true})).toMatchObject({state:'FAILED'});
+      expect(await f.controller.execute({action:'CONFIRM',flowId:p.flowId,humanConfirmed:true})).toMatchObject({state:change==='setDigest'?'NOT_SUBMITTED':'FAILED'});
       expect(f.calls.some(c=>c.path.includes('/dispatch'))).toBe(false);expect(f.run.execute).not.toHaveBeenCalled();
     }finally{await f.controller.stop();}
   });
   it.each(['expire','logout','setChanged'] as const)('rejects a changed or expired preparation: %s',async change=>{
     const f=fixture();try {const p=await f.prepare();if(p.state!=='PREPARED')throw Error();f[change]();
-      expect(await f.controller.execute({action:'CONFIRM',flowId:p.flowId,humanConfirmed:true})).toMatchObject({state:'FAILED'});
+      expect(await f.controller.execute({action:'CONFIRM',flowId:p.flowId,humanConfirmed:true})).toMatchObject({state:'NOT_SUBMITTED',binding:p.binding});
       expect(f.run.execute).not.toHaveBeenCalled();expect(f.driver).not.toHaveBeenCalled();
     }finally{await f.controller.stop();}
   });
   it('rejects current connection/version mismatch against the original VERIFY receipt',async()=>{
     const f=fixture();try {f.row.connection_version=3;expect(await f.prepare()).toMatchObject({state:'FAILED'});expect(f.driver).not.toHaveBeenCalled();}finally{await f.controller.stop();}
+  });
+  it('reports an original check failure as NOT_SUBMITTED only after confirmed cleanup',async()=>{
+    const f=fixture();try {const p=await f.prepare();if(p.state!=='PREPARED')throw Error();
+      f.run.check.mockRejectedValueOnce(Error('synthetic channel failure'));
+      expect(await f.controller.execute({action:'CONFIRM',flowId:p.flowId,humanConfirmed:true})).toMatchObject({state:'NOT_SUBMITTED',binding:p.binding});
+      expect(f.run.stop).toHaveBeenCalledTimes(1);expect(f.calls.some(c=>c.path==='/api/ui/outreach/queue')).toBe(false);
+      expect(await f.controller.execute({action:'CONFIRM',flowId:p.flowId,humanConfirmed:true})).toMatchObject({state:'FAILED'});
+    }finally{await f.controller.stop();}
+  });
+  it('retains ambiguity after apply response loss even when local cleanup succeeded',async()=>{
+    const f=fixture();try {const p=await f.prepare();if(p.state!=='PREPARED')throw Error();f.setLoseApply();
+      expect(await f.controller.execute({action:'CONFIRM',flowId:p.flowId,humanConfirmed:true})).toMatchObject({state:'FAILED',error:'CONFIRMATION_UNCONFIRMED'});
+      expect(f.run.stop).toHaveBeenCalledTimes(1);expect(f.calls.some(c=>c.path.includes('/dispatch'))).toBe(false);
+    }finally{await f.controller.stop();}
+  });
+  it('never labels unconfirmed cleanup NOT_SUBMITTED',async()=>{
+    const f=fixture();const p=await f.prepare();if(p.state!=='PREPARED')throw Error();f.setUnclean();f.run.check.mockRejectedValueOnce(Error('synthetic check failure'));
+    expect(await f.controller.execute({action:'CONFIRM',flowId:p.flowId,humanConfirmed:true})).toMatchObject({state:'FAILED',error:'SOURCE_STOP_FAILED'});
+    await expect(f.controller.stop()).rejects.toThrow('SOURCE_STOP_FAILED');
+  });
+  it('retains one original timeout proof after the timer cleans an unused flow',async()=>{
+    vi.useFakeTimers();const f=fixture();try{const p=await f.prepare();if(p.state!=='PREPARED')throw Error();f.expire();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(await f.controller.execute({action:'CONFIRM',flowId:randomUUID(),humanConfirmed:true})).toMatchObject({state:'FAILED'});
+      expect(await f.controller.execute({action:'CONFIRM',flowId:p.flowId,humanConfirmed:true})).toEqual({state:'NOT_SUBMITTED',binding:p.binding,error:'FLOW_EXPIRED'});
+      expect(await f.controller.execute({action:'CONFIRM',flowId:p.flowId,humanConfirmed:true})).toMatchObject({state:'FAILED'});
+      expect(f.calls.some(c=>c.path==='/api/ui/outreach/queue')).toBe(false);
+    }finally{await f.controller.stop();vi.useRealTimers();}
   });
   it('cancellation never queues, recovery never claims, and failed cleanup poisons new flows',async()=>{
     const f=fixture();const p=await f.prepare();if(p.state!=='PREPARED')throw Error();
