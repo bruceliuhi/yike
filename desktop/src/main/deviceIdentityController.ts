@@ -22,6 +22,7 @@ export type AuthenticatedSessionResult<T> = {ok: true; value: T} |
 export type DeviceWorkerScope = {
   session: DeviceIdentitySessionInput;
   device: {deviceId: string; credentialVersion: number};
+  signal?: AbortSignal;
   transport: {
     requestExecution(input: unknown): Promise<ApiResult>;
     requestCandidate(input: unknown): Promise<ApiResult>;
@@ -54,12 +55,15 @@ export function createDeviceIdentityController({service, identityFactory}: Devic
   let authPending = 0;
   let preparing = false;
   let activeAuthenticatedEpoch: string | null = null;
+  const workerScopes = new Set<AbortController>();
   function observe(value: DeviceIdentityStatus): DeviceIdentityStatus {
     status = {...value};
     return {...status};
   }
   function invalidate(value: DeviceIdentityStatus, expectedEpoch = epoch) {
     if (expectedEpoch !== epoch) return;
+    for (const workerScope of workerScopes) workerScope.abort();
+    workerScopes.clear();
     epoch = randomUUID();
     userId = null;
     observe(value);
@@ -100,8 +104,9 @@ export function createDeviceIdentityController({service, identityFactory}: Devic
       const opened = await controller.withAuthenticatedSession(async session => {
         if (status.state !== 'READY') return null;
         const requestEpoch = session.sessionId;
-        let closed = false;
-        const current = () => !closed && requestEpoch === epoch;
+        const workerScope = new AbortController();
+        workerScopes.add(workerScope);
+        const current = () => !workerScope.signal.aborted && requestEpoch === epoch;
         async function request(family: 'requestExecution' | 'requestCandidate' | 'requestConnection' | 'requestOutreach', input: unknown): Promise<ApiResult> {
           if (!current()) return {ok: false, status: 0, error: 'SESSION_CHANGED'};
           const send = service[family];
@@ -116,13 +121,17 @@ export function createDeviceIdentityController({service, identityFactory}: Devic
         const scope: DeviceWorkerScope = {
           session: {...session, isCurrent: current},
           device: {deviceId: status.deviceId, credentialVersion: status.credentialVersion},
+          signal: workerScope.signal,
           transport: {
             requestExecution: input => request('requestExecution', input),
             requestCandidate: input => request('requestCandidate', input),
             requestConnection: input => request('requestConnection', input),
             requestOutreach: input => request('requestOutreach', input),
           },
-          close() {closed = true;},
+          close() {
+            workerScope.abort();
+            workerScopes.delete(workerScope);
+          },
         };
         return scope;
       });

@@ -4,9 +4,15 @@ import {createServer} from 'node:http';
 import {createServiceClient} from '../src/main/serviceClient';
 import {createOutreachDispatchSession} from '../src/main/outreachDispatchSession';
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(accept => {resolve = accept;});
+  return {promise, resolve};
+}
+
 const canonical=(value:any):string=>value && typeof value==='object' && !Array.isArray(value)
   ? '{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonical(value[k])).join(',')+'}' : JSON.stringify(value);
-async function fixture(){
+async function fixture(options:{omitScopeSignal?:boolean}={}){
   const userId=randomUUID(),tenantId=randomUUID(),deviceId=randomUUID(),sessionId=randomUUID(),requestId=randomUUID(),claimId=randomUUID(),opportunityId=randomUUID();
   const snapshot={schemaVersion:'outreach-context-v1',binding:{opportunityId,channel:'dm',requestId:randomUUID(),contentHash:'a'.repeat(64)},ownerUserId:userId,
     accountScope:{id:tenantId,version:1},profileVersionId:randomUUID(),draft:{opportunityId,channel:'dm',content:'需求还在吗？',savedContent:'需求还在吗？',version:1,accountId:'account-1',recipient:'buyer-1'},
@@ -36,11 +42,16 @@ async function fixture(){
   const serviceOrigin='http://127.0.0.1:'+address.port;
   const service=createServiceClient({baseUrl:serviceOrigin,fetch,clearSession:async()=>{}});
   const key={scope:{serviceOrigin,userId,deviceId},publicKey:pair.publicKey.export({format:'jwk'}).x!,privateKey:pair.privateKey.export({format:'pem',type:'pkcs8'}).toString()};
+  let scopeAbort:AbortController;
   const close=vi.fn();const channel={check:vi.fn(async()=>({status:'AVAILABLE',contextSha256,deviceId,connectionId:context.connection.connectionId,connectionVersion:1,accountPublicId:'account-1',recipientId:'buyer-1',checkedAt:new Date().toISOString()})),
-    execute:vi.fn(async()=>({status:'SENT',confirmed:true,proof:{kind:'ACCEPTED',externalId:'fixture-receipt',sha256:'c'.repeat(64),observedAt:new Date().toISOString()}}))};
-  const controller=createOutreachDispatchSession({serviceOrigin,identity:{openWorkerScope:async()=>({ok:true as const,scope:{session:{userId,sessionId,isCurrent:()=>current},device:{deviceId,credentialVersion:1},transport:{requestOutreach:service.requestOutreach},close}})},
+    execute:vi.fn(async(_context:unknown,_operation:unknown,_signal:AbortSignal)=>({status:'SENT',confirmed:true,proof:{kind:'ACCEPTED',externalId:'fixture-receipt',sha256:'c'.repeat(64),observedAt:new Date().toISOString()}}))};
+  const controller=createOutreachDispatchSession({serviceOrigin,identity:{openWorkerScope:async()=>{
+    const openedScope=new AbortController();scopeAbort=openedScope;
+    return {ok:true as const,scope:{session:{userId,sessionId,isCurrent:()=>current},device:{deviceId,credentialVersion:1},
+      ...(!options.omitScopeSignal?{signal:openedScope.signal}:{}),transport:{requestOutreach:service.requestOutreach},close:()=>{openedScope.abort();close();}}};
+  }},
     vault:{read:async()=>key},journal:{consumed:async()=>consumed,consume:async()=>{if(consumed)return{created:false};consumed=true;return{created:true};}},channel});
-  return {controller,binding,channel,calls,service,close,setFailResult:()=>{failResult=true;},changeOnClaim:()=>{changeOnClaim=true;},
+  return {controller,binding,channel,calls,service,close,invalidateScope:()=>scopeAbort.abort(),setFailResult:()=>{failResult=true;},changeOnClaim:()=>{changeOnClaim=true;},
     dispose:()=>new Promise<void>((resolve,reject)=>{server.close(error=>error?reject(error):resolve());server.closeAllConnections();})};
 }
 describe('private outreach session over real HTTP with synthetic platform/server fixtures',()=>{
@@ -69,12 +80,32 @@ describe('private outreach session over real HTTP with synthetic platform/server
       expect(f.calls).toHaveLength(2);expect(f.channel.execute).not.toHaveBeenCalled();expect(f.close).toHaveBeenCalled();
     } finally {await f.dispose();}
   });
+  it('fails closed before transport or native action when an outreach scope has no cancellation signal',async()=>{
+    const f=await fixture({omitScopeSignal:true});try {
+      expect(await f.controller.dispatch(f.binding,new AbortController().signal)).toMatchObject({state:'UNKNOWN',reason:'DEVICE_SCOPE_UNAVAILABLE'});
+      expect(f.calls).toEqual([]);expect(f.channel.execute).not.toHaveBeenCalled();expect(f.close).toHaveBeenCalledTimes(1);
+    } finally {await f.dispose();}
+  });
   it('a late native receipt survives session loss as pending, without another HTTP write',async()=>{
     const f=await fixture();try {
       const abort=new AbortController();
       f.channel.execute.mockImplementationOnce(async()=>{abort.abort();return{status:'SENT',confirmed:true,proof:{kind:'ACCEPTED',externalId:'fixture-late',sha256:'c'.repeat(64),observedAt:new Date().toISOString()}};});
       expect(await f.controller.dispatch(f.binding,abort.signal)).toMatchObject({state:'RESULT_PENDING',outcome:{status:'SENT'}});
       expect(f.calls).toHaveLength(2);expect(f.channel.execute).toHaveBeenCalledTimes(1);
+    } finally {await f.dispose();}
+  });
+  it('aborts a driver waiting inside execute before it can click when the worker scope is invalidated',async()=>{
+    const f=await fixture();try {
+      const entered=deferred<void>(),release=deferred<void>();let clicked=false;
+      f.channel.execute.mockImplementationOnce(async(_context,_operation,signal)=>{
+        entered.resolve();await release.promise;
+        if(signal.aborted)throw new Error('cancelled before click');
+        clicked=true;return{status:'SENT',confirmed:true,proof:{kind:'ACCEPTED',externalId:'fixture-click',sha256:'c'.repeat(64),observedAt:new Date().toISOString()}};
+      });
+      const dispatch=f.controller.dispatch(f.binding,new AbortController().signal);
+      await entered.promise;f.invalidateScope();release.resolve();
+      expect(await dispatch).toMatchObject({state:'UNKNOWN'});
+      expect(clicked).toBe(false);
     } finally {await f.dispose();}
   });
 });

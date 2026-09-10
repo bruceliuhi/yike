@@ -37,7 +37,7 @@ function fixture(candidateAvailable = true) {
   });
   return {state, controller};
 }
-type ReadyScope = DeviceWorkerScope & {transport:{requestOutreach(input:unknown):Promise<ApiResult>}};
+type ReadyScope = DeviceWorkerScope & {signal:AbortSignal;transport:{requestOutreach(input:unknown):Promise<ApiResult>}};
 async function open(f: ReturnType<typeof fixture>): Promise<ReadyScope> {
   expect(await f.controller.prepare()).toEqual(ready);
   const result = await f.controller.openWorkerScope();
@@ -131,9 +131,11 @@ describe('bounded main-only device worker scope', () => {
 
   it.each(['session.login', 'session.loginPhone', 'session.logout'])('invalidates on %s entry, including pending same-user login', async operation => {
     const f = fixture(); const old = await open(f); const pending = deferred<ApiResult>();
+    expect(old.signal.aborted).toBe(false);
     f.state.publicHandler = async () => pending.promise;
     const change = f.controller.requestApi({operation});
     expect(old.session.isCurrent()).toBe(false);
+    expect(old.signal.aborted).toBe(true);
     for (const family of families) expect(await old.transport[family]({})).toEqual(changed);
     expect(f.state.privateCalls).toEqual([]);
     expect(await f.controller.openWorkerScope()).toEqual({ok: false, state: 'BUSY'});
@@ -153,8 +155,10 @@ describe('bounded main-only device worker scope', () => {
 
   it('close is idempotent and blocks both families without changing another scope', async () => {
     const f = fixture(); const old = await open(f); const other = await f.controller.openWorkerScope();
+    expect(old.signal.aborted).toBe(false);
     expect(other.ok).toBe(true); old.close(); old.close();
     expect(old.session.isCurrent()).toBe(false);
+    expect(old.signal.aborted).toBe(true);
     for (const family of families) expect(await old.transport[family]({})).toEqual(changed);
     expect(f.state.privateCalls).toEqual([]);
     if (other.ok) expect(other.scope.session.isCurrent()).toBe(true);

@@ -11,7 +11,7 @@ import {signOutreachDispatch} from './outreachDispatchSigner';
 const uuid=z.string().uuid();
 const bindingSchema=z.object({tenantId:uuid,requestId:uuid,claimId:uuid,contextSha256:z.string().regex(/^[a-f0-9]{64}$/)}).strict();
 type Binding=z.infer<typeof bindingSchema>;
-type Scope=Pick<DeviceWorkerScope,'session'|'device'|'close'> & {transport:Pick<DeviceWorkerScope['transport'],'requestOutreach'>};
+type Scope=Pick<DeviceWorkerScope,'session'|'device'|'signal'|'close'> & {transport:Pick<DeviceWorkerScope['transport'],'requestOutreach'>};
 const receiptSchema=z.object({requestId:uuid,state:z.enum(['QUEUED','UNKNOWN','SENT','FAILED','CANCELLED']),
   dispatchAllowed:z.literal(false),deliveryConfirmed:z.boolean(),claimId:uuid.optional(),
   dispatchBefore:z.string().datetime({offset:true}).optional(),resultId:uuid.optional(),
@@ -37,11 +37,13 @@ export function createOutreachDispatchSession(options:{serviceOrigin:string;
       if(signal.aborted)return unknown('CANCELLED');
       const opened=await options.identity.openWorkerScope();if(!opened.ok)return unknown('DEVICE_NOT_READY');
       scope=opened.scope;
+      if(!scope.signal)return unknown('DEVICE_SCOPE_UNAVAILABLE');
       // Snapshot identity and credentials so an async caller cannot retarget this action.
       const original=scope,session={...scope.session},device={...scope.device};
+      const executionSignal=AbortSignal.any([signal,scope.signal]);
       const expected=Object.freeze({...binding,serviceOrigin:options.serviceOrigin,userId:session.userId,
         sessionId:session.sessionId,deviceId:device.deviceId});
-      const current=()=>session.isCurrent() && !signal.aborted;
+      const current=()=>session.isCurrent() && !executionSignal.aborted;
       const guard=()=>{if(!current())throw new Error('SESSION_CHANGED');};
       const request=async(operation:string,payload:unknown)=>{
         guard();if(!original.transport.requestOutreach)throw new Error('TRANSPORT_UNAVAILABLE');
@@ -68,7 +70,7 @@ export function createOutreachDispatchSession(options:{serviceOrigin:string;
       }
       const grant=await signed({...common,action:'CLAIM'});guard();
       const consumer=createOutreachConsumer({journal:options.journal,channel:options.channel,isCurrent:()=>current()});
-      const consumed=await consumer.consume(expected,grant,signal);
+      const consumed=await consumer.consume(expected,grant,executionSignal);
       if(consumed.state!=='RESULT_READY')return unknown(consumed.reason);
       // Retain a valid native fact when logout, transport failure or a bad ACK prevents reporting.
       pending={state:'RESULT_PENDING',serverAccepted:false,requestId:binding.requestId,claimId:binding.claimId,resultId:randomUUID(),outcome:consumed.outcome};
