@@ -37,6 +37,8 @@ Chunk1代码`eb43216`：独立SPEC、代码/架构/质量均PASS，根代理342�
 
 ## Chunk 2: 本机持久恢复与产品装配（后续，不用Chunk1代签）
 
+现按[本机身份恢复细化计划](2026-09-10-win-device-identity-recovery.md)执行；其中模块、正常产品装配及真实验收分段记录，以下四项仍按完整要求判定。
+
 - [ ] 接续文件`desktop/src/main/deviceIdentitySession.ts`及专项tests：固定服务origin/已认证user，登记原UUID与标签先fsync；原登记GET后再读identity并比对本地vault公钥。404不证明在途POST未提交，显式重试用同UUID/标签；不按名称领设备。新建密钥必须落盘后才BIND，已有公钥不同/撤销/保护不可用停止，不自动覆盖/轮换。
 - [ ] 主进程流程原BIND/PROVE request在挑战前持久化，复用signer签服务端原字节；未知先GET窄回执，不重放跨会话旧completion。当前会话变化后任何晚到结果不变成可执行身份；先处理退出/取消再接新的用户。
 - [ ] 在`desktop/src/main/main.ts`正常装配vault、持久记录和会话协调，仅向已有UI暴露窄“本机准备/查询状态”入口，不导出公私钥、挑战正文、签名或任意文件路径。按现有连接流程显示未知/失败/撤销，未安装平台仍不假报已连接。

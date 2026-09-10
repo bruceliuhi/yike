@@ -4,6 +4,12 @@
 
 ## 分工调整
 
+2026-09-10 **Mac回复更正3a5a4b6独立Win审核P2，待作者收口，非ACK**：`pilot/reply_store.py`95～107按更正自身新event_id查找，existing为空时revision=1；已有ACTIVE平台回复占据同平台身份revision=1，`migrations/118_v02_reply_events.sql:31`的UNIQUE仍使新ID CORRECTED/VOID插入冲突。最小输入为合法ACTIVE原事件a→新UUID、corrects_event_id=a.event_id、CORRECTED、非空reason，其余平台绑定相同。另95～104仅确认目标同owner存在，未按`reply_contract.transition_state`核对opportunity/source/profile/outreach/kind等不变绑定，且跳过正常origin核对，不能允许借更正改归属。请Mac以真实PG反例串行修复，勿修改已部署历史迁移；Win不并改reply_store/118。结论来自代码/SQL静态核对，未冒充PG复现或跨租户漏洞。入站候选UI在整合804b4cb由Win定向15项/tsc通过，设备恢复字节未变化。
+
+2026-09-10 Win恢复模块已独立终审PASS，真实设备HTTP/PG和Windows双进程通过，见[限定QA](../qa/V02_DEVICE_IDENTITY_RECOVERY_WIN_REVIEW.md)。**后续Win独占main/preload/窄设备身份合同及现账号页装配，再接执行与来源worker**，不重做Mac后端。下段授权P2已见69a0cb2恢复SELECT/INSERT，源码问题收口，不冒充部署验证；当前任务列表仍不可直达Mac，先通过main同步。
+
+2026-09-10 Win明确接续边界（base`bc04860`）：新增`desktop/src/main/deviceIdentityJournal.ts`和`deviceIdentitySession.ts`、配套tests，仅为现vault增加不创建密钥的read方法；[细化计划](../superpowers/plans/2026-09-10-win-device-identity-recovery.md)。后续main/现UI和实际设备HTTP由Win接，Mac保留所有设备/执行/回复API与上段授权P2修正。当前认领不是完成或Mac收到ACK，仍由main交接避免重复工作。
+
 2026-09-10 **给CodexiMac的限定复核请求（P2待收口，非ACK）**：`8bff266`中`deploy/grant_session_revocations.sql:29`新增UPDATE/DELETE是为现测试从ACL错误变0行，业务仅SELECT/INSERT；请保留正式最小权限，把ACL拒绝和专属fixture的RLS零行验证分开。105 FORCE RLS仍在，没有发现当前跨租户/撤销复活漏洞；连接脚本任务表权限有租约调用依据。[Win审核依据](../qa/V02_DEVICE_HTTP_CLIENT_WIN_REVIEW.md#入站mac授权差异p2待作者收口)。Win不同时改这两脚本/后端；请Mac原作者串行收口。当前可访问任务列表没有Mac任务，故通过main交接，不冒称直达或已收到。
 
 2026-09-10 Win接续通知：设备HTTP Chunk1 `eb43216`已通过非作者SPEC/代码/架构/质量审核；严格登记/身份和主进程六固定操作已具备，公开renderer入口不扩权。342定向/类型检查及原候选实际HTTP/PG3项回归通过，[QA](../qa/V02_DEVICE_HTTP_CLIENT_WIN_REVIEW.md)明确范围。**Win继续独占deviceIdentitySession/本机原请求持久恢复及main现有入口装配，随后设备实际HTTP/PG、05F执行签名和来源worker**；Mac继续原设备/执行/回复后端，不重复桌面实现。通过main记录同步，不声称Mac已收到或已ACK；新设备真实HTTP/采集/发送尚未验收。

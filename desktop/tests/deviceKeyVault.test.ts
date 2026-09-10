@@ -84,6 +84,73 @@ afterEach(async () => {
 });
 
 describe('main-process device key vault', () => {
+  it('reads a missing key without creating a directory or generating ciphertext', async () => {
+    const fixture = await setup();
+    const encrypt = vi.spyOn(fixture.protection, 'encryptString');
+    expect(await fixture.vault.read(scope)).toBeNull();
+    expect(await readdir(fixture.root)).toEqual([]);
+    expect(encrypt).not.toHaveBeenCalled();
+  });
+
+  it('read reopens an existing key without replacing or encrypting it again', async () => {
+    const fixture = await setup();
+    const key = await fixture.vault.getOrCreate(scope);
+    const filename = await keyFile(fixture.directory);
+    const before = await readFile(filename);
+    const encrypt = vi.spyOn(fixture.protection, 'encryptString');
+    expect(await createDeviceKeyVault(fixture).read(scope)).toEqual(key);
+    expect(await readFile(filename)).toEqual(before);
+    expect(encrypt).not.toHaveBeenCalled();
+  });
+
+  it('read shares scope snapshot and serialization with a concurrent creator', async () => {
+    const fixture = await setup();
+    const supplied = {...scope};
+    const create = fixture.vault.getOrCreate(scope);
+    const read = createDeviceKeyVault(fixture).read(supplied);
+    supplied.userId = 'later account';
+    expect(await read).toEqual(await create);
+    expect(await readdir(fixture.directory)).toHaveLength(1);
+  });
+
+  it('read rejects invalid scope or unavailable OS protection without creating files', async () => {
+    const fixture = await setup();
+    await expect(fixture.vault.read({...scope, deviceId: '../other'})).rejects.toThrow(/^DEVICE_KEY_INVALID_SCOPE$/);
+    vi.spyOn(fixture.protection, 'isEncryptionAvailable').mockReturnValue(false);
+    await expect(fixture.vault.read(scope)).rejects.toThrow(/^DEVICE_KEY_PROTECTION_UNAVAILABLE$/);
+    expect(await readdir(fixture.root)).toEqual([]);
+  });
+
+  it('read preserves an existing corrupt key and never regenerates it', async () => {
+    const fixture = await setup();
+    await fixture.vault.getOrCreate(scope);
+    const filename = await keyFile(fixture.directory);
+    const corrupt = Buffer.from('damaged ciphertext');
+    await writeFile(filename, corrupt);
+    const encrypt = vi.spyOn(fixture.protection, 'encryptString');
+    await expect(fixture.vault.read(scope)).rejects.toThrow(/^DEVICE_KEY_PROTECTION_FAILED$/);
+    expect(await readFile(filename)).toEqual(corrupt);
+    expect(encrypt).not.toHaveBeenCalled();
+  });
+
+  it('read refuses a non-directory vault path without changing it', async () => {
+    const fixture = await setup();
+    await writeFile(fixture.directory, 'preserve');
+    await expect(fixture.vault.read(scope)).rejects.toThrow(/^DEVICE_KEY_STORAGE_FAILED$/);
+    expect(await readFile(fixture.directory, 'utf8')).toBe('preserve');
+  });
+
+  it('read does not use complete ciphertext until its flush succeeds', async () => {
+    const fixture = await setup();
+    const key = await fixture.vault.getOrCreate(scope);
+    const filename = await keyFile(fixture.directory);
+    const before = await readFile(filename);
+    fileFaults.syncFailures = 1;
+    await expect(fixture.vault.read(scope)).rejects.toThrow(/^DEVICE_KEY_STORAGE_FAILED$/);
+    expect(await fixture.vault.read(scope)).toEqual(key);
+    expect(await readFile(filename)).toEqual(before);
+  });
+
   it('persists an encrypted Ed25519 key and reads the same material in a new vault instance', async () => {
     const fixture = await setup();
     const key = await fixture.vault.getOrCreate(scope);

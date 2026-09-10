@@ -123,16 +123,34 @@ export function createDeviceKeyVault(options: {directory: string; protection: De
   }
   const directory = path.resolve(options.directory);
   const protection = options.protection;
+  function requireProtection(): void {
+    let available = false;
+    try { available = protection.isEncryptionAvailable() === true; }
+    catch { /* Fixed error only; OS messages can contain sensitive paths. */ }
+    if (!available) throw new Error('DEVICE_KEY_PROTECTION_UNAVAILABLE');
+  }
   return {
+    async read(input: DeviceKeyScope): Promise<DeviceKeyMaterial | null> {
+      const scope = parseScope(input);
+      const digest = createHash('sha256').update(JSON.stringify(scope)).digest('hex');
+      const filename = path.join(directory, `${digest}.key`);
+      return serialized(filename, async () => {
+        requireProtection();
+        try {
+          if (!(await lstat(directory)).isDirectory()) throw new Error();
+        } catch (error) {
+          if (hasCode(error, 'ENOENT')) return null;
+          throw new Error('DEVICE_KEY_STORAGE_FAILED');
+        }
+        return readExisting(filename, scope, protection);
+      });
+    },
     async getOrCreate(input: DeviceKeyScope): Promise<DeviceKeyMaterial> {
       const scope = parseScope(input); // Snapshot before awaiting: callers cannot switch identity mid-write.
       const digest = createHash('sha256').update(JSON.stringify(scope)).digest('hex');
       const filename = path.join(directory, `${digest}.key`);
       return serialized(filename, async () => {
-        let available = false;
-        try { available = protection.isEncryptionAvailable() === true; }
-        catch { /* Fixed error only; OS messages can contain sensitive paths. */ }
-        if (!available) throw new Error('DEVICE_KEY_PROTECTION_UNAVAILABLE');
+        requireProtection();
         try {
           await mkdir(directory, {recursive: true, mode: 0o700});
           if (!(await lstat(directory)).isDirectory()) throw new Error();
