@@ -24,6 +24,12 @@
 
 根代理独立负责 Python `pilot/foreground_collection.py` 与其测试，以及文档/整合。双方不要改对方文件。提交前通知根代理；仅 add 本任务显式文件，不 amend、不推送。最终提供源码 SHA、精确测试命令/结果及边界。
 
-## 执行状态
+## 实施与验证
 
-进行中。独立只读审查已确认多层排除词拒绝；尚未修复或验收。
+源码：Python `65c574f`；TS `54e577bf87fe3b8ab8c05ccb77fdd89afd0d6428`；补齐旧断言/空结果用例后的候选 `8ec10057a28c24aa2ebf49a583eb720704323cd1`。普通任务中的合法排除词现可通过既有单次/受控监控入口，原生 driver 执行上述过滤。后端只准入合法配置，不声称平台支持负关键词搜索。
+
+- Python：`python -m pytest tests/test_foreground_collection.py -q`，初始 2 failed/18 passed，修复后 20 passed。
+- TS：`vitest run tests/pythonCollectionDriver.test.ts tests/foregroundCollectionController.test.ts tests/ui/task-domain.test.ts tests/ui/task-wizard.test.tsx`，87 passed。先出现缺实现失败及测试 API 命名错误，修正后通过。
+- 补测：`pythonCollectionDriver.test.ts -t "returns a successful empty result"`，1 passed/30 未选；`foregroundCollectionRenderer.test.ts`，22 passed。后者修正遗留“不支持排除词”的过时断言，不重跑无关集合。
+- `tsc --noEmit` 通过；`vite build --config vite.renderer.config.ts` 在 `8ec1005` 一次通过，仅 renderer 构建，不是 Windows 安装包。
+- 独立审核：非作者 `collection_exclusions_final_review` 对完整 `490f56e..8ec1005` 给出规格/代码/架构质量 GO，无阻断；复用上述定向证据，未重复测试或构包。本批不重复 PostgreSQL/迁移/全量套件，无平台/模型/客户数据操作，不替代真实来源、Windows、生产或跨行业 UAT。完整 Goal 保持进行中。
