@@ -26,5 +26,5 @@ BEGIN
     EXECUTE format('GRANT SELECT, INSERT, UPDATE ON TABLE public.pilot_devices TO %I', target_role);
     EXECUTE format('GRANT SELECT, INSERT, UPDATE ON TABLE public.pilot_platform_connections TO %I', target_role);
     EXECUTE format('GRANT SELECT, INSERT ON TABLE public.pilot_execution_events TO %I', target_role);
-    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.pilot_session_revocations TO %I', target_role);
+    EXECUTE format('GRANT SELECT, INSERT ON TABLE public.pilot_session_revocations TO %I', target_role);
 END $$;
