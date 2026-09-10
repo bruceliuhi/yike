@@ -41,6 +41,7 @@ import { CandidateOriginalEvidence } from "./opportunities/CandidateOriginalEvid
 import { CandidateAssessmentDetails } from "./opportunities/CandidateAssessmentDetails";
 import { CandidateSourceVerification } from "./opportunities/CandidateSourceVerification";
 import { CandidateRequestHistory } from "./opportunities/CandidateRequestHistory";
+import type { CandidateRequestOperation } from "../domain/candidateRequestOperation";
 import type { CandidateAssessmentDto, CandidateReviewResultDto, SourceVerificationRequest } from "../../shared/candidateReviewApi";
 import { CANDIDATE_PLATFORM_LABELS } from "../services/candidateReview";
 import { PendingCandidateReviews } from "./opportunities/PendingCandidateReviews";
@@ -1021,6 +1022,22 @@ function CandidateWorkbench() {
   const rows = unsafeSample ? [] : resource.data?.items || [];
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
+  const verifiedCandidateIds = rows.map((row) => row.id);
+  const scopedReviewRecords = taskId
+    ? reviewLedger.records.filter((record) =>
+        verifiedCandidateIds.includes(record.candidateId),
+      )
+    : reviewLedger.records;
+  const scopedRequestOperations = taskId
+    ? requests.operations.filter((operation) =>
+        verifiedCandidateIds.includes(operation.candidateId),
+      )
+    : requests.operations;
+  const hasUnscopedHistory = Boolean(
+    taskId &&
+      (scopedReviewRecords.length !== reviewLedger.records.length ||
+        scopedRequestOperations.length !== requests.operations.length),
+  );
   const selected = rows.find((row) => row.id === selectedId) || rows[0];
   const original = useResource(
     (signal) =>
@@ -1571,10 +1588,12 @@ function CandidateWorkbench() {
           reviewRequestId: operation.requestId,
           page: 1,
           pageSize: 1,
+          ...(taskId ? { taskId } : {}),
         }),
       );
       if (!current()) return;
       const latest =
+        page.taskId === (taskId || undefined) &&
         page.items.length === 1 &&
         page.items[0].id === operation.candidateId &&
         !candidateSample(page.items[0])
@@ -1731,6 +1750,36 @@ function CandidateWorkbench() {
           : `原请求${result.status === "PROCESSING" ? "仍在处理" : "结果未知"}，未重新提交。`,
       );
   };
+  const reconcileRequest = async (operation: CandidateRequestOperation) => {
+    const scope = scopeRef.current;
+    const result = await requests.reconcile(operation.key);
+    if (!live.current || scopeRef.current !== scope || !result) return;
+    if (taskId) {
+      try {
+        const page = await candidateTimeout(
+          service.candidates({
+            ids: [operation.candidateId],
+            taskId,
+            page: 1,
+            pageSize: 1,
+          }),
+        );
+        if (
+          !live.current ||
+          scopeRef.current !== scope ||
+          page.taskId !== taskId ||
+          page.items.length !== 1 ||
+          page.items[0].id !== operation.candidateId ||
+          candidateSample(page.items[0])
+        )
+          return;
+      } catch (e) {
+        if (live.current && scopeRef.current === scope) setError(errorMessage(e));
+        return;
+      }
+    }
+    showRecovered(result);
+  };
   const currentBlockers = selected ? blockers(selected, "INCLUDE") : [];
   return (
     <>
@@ -1740,7 +1789,7 @@ function CandidateWorkbench() {
         back={() => navigate(taskId ? `/collection?task=${taskId}` : "/collection")}
       />
       {taskId && <Notice action={<Button variant="ghost" onClick={()=>navigate(`/collection?task=${taskId}`)}>返回采集任务</Button>}>
-        本任务发现过的线索 · 当前最新版本。重复观察按线索去重，不等同于采集入库记录数；历史任务发现的原文请在来源证据中核对。
+        本任务发现过的线索 · 当前最新版本。重复观察按线索去重，不等同于采集入库记录数；来源证据仅展示有限条观察，可能包含其他任务且不一定覆盖全部历史原文。
       </Notice>}
       {taskId && task.error && <Notice tone="warning">任务名称读取未完成；线索范围仍按当前任务编号核验。</Notice>}
       <Tabs
@@ -1822,19 +1871,35 @@ function CandidateWorkbench() {
         <>
           {!sample && (
             <PendingCandidateReviews
-              records={reviewLedger.records}
+              records={scopedReviewRecords}
               visibleIds={selected ? [selected.id] : []}
               busy={!!busy}
               onReconcile={(operation) => void reconcileOperation(operation)}
             />
           )}
-          {!sample && requests.available && requests.operations.length > 0 && (
+          {!sample && requests.available && scopedRequestOperations.length > 0 && (
             <CandidateRequestHistory
-              operations={requests.operations}
+              operations={scopedRequestOperations}
               busy={requests.busy || !!busy}
-              onReconcile={(key) => void requests.reconcile(key).then(showRecovered)}
+              onReconcile={(key) => {
+                const operation = scopedRequestOperations.find(
+                  (record) => record.key === key,
+                );
+                if (operation) void reconcileRequest(operation);
+              }}
               onRetry={setRetryKey}
             />
+          )}
+          {!sample && hasUnscopedHistory && (
+            <Notice
+              action={
+                <Button variant="ghost" onClick={() => navigate("/candidates")}>
+                  前往全部线索核对
+                </Button>
+              }
+            >
+              其他任务或当前筛选外的原请求仍已保留，请前往全部线索核对。
+            </Notice>
           )}
           {!sample && requests.error && (
             <Notice tone="error">{requests.error}</Notice>
