@@ -10,6 +10,7 @@ from pilot.candidate_assessment_model import AssessmentModelError, OpenAICompati
 from pilot.candidate_ingestion import CandidateIngestionStore
 from pilot.candidate_review import CandidateReviewStore
 from pilot.contact_drafts import ContactDraftStore
+from pilot.outreach_queue import OutreachQueueStore
 from pilot.db import PilotDatabase
 from pilot.execution_runtime import ExecutionRuntime
 from pilot.foreground_collection import configured_collection_policy
@@ -66,6 +67,7 @@ def build_runtime_app(
         strategy_snapshot_reader=strategies.read_snapshot,
     )
     replies = ReplyEventStore(database)
+    drafts = ContactDraftStore(database)
     return build_app(
         store,
         auth_secret=auth_secret,
@@ -75,5 +77,6 @@ def build_runtime_app(
         candidate_review=review,
         research_strategies=strategies,
         reply_store=replies,
-        contact_drafts=ContactDraftStore(database),
+        contact_drafts=drafts,
+        outreach_queue=OutreachQueueStore(database, drafts, runtime),
     )

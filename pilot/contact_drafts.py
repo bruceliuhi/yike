@@ -238,62 +238,66 @@ class ContactDraftStore:
         Everything used by a subsequent native channel check is server-resolved;
         this read never creates a confirmation or authorizes platform execution.
         """
-        request = OutreachContextInput.model_validate(raw)
         with self.database.connect() as conn, conn.cursor() as cursor:
-            tenant = self._active(cursor, claims)
-            self._lock_owner(cursor, tenant, claims.user_id)
-            original = self._original(cursor, tenant, claims.user_id, request.binding)
-            if original is None:
-                raise DraftError('draft_request_not_found', 404)
-            snapshot = DraftSnapshot.model_validate(original['snapshot'])
-            draft = snapshot.draft
-            cursor.execute('SELECT request_id FROM pilot_contact_drafts '
-                'WHERE tenant_id=%s AND owner_user_id=%s AND opportunity_id=%s AND channel=%s '
-                'ORDER BY draft_version DESC LIMIT 1',
-                (tenant, claims.user_id, draft.opportunityId, draft.channel))
-            if cursor.fetchone() != (request.binding.requestId,):
-                raise DraftError('draft_version_conflict')
-            cursor.execute('SELECT platform FROM pilot_platform_connections '
-                'WHERE tenant_id=%s AND connection_id=%s', (tenant, request.connectionId))
-            platform_row = cursor.fetchone()
-            if platform_row is None:
-                raise DraftError('connection_unavailable')
-            # Match execution's device/connection -> profile lock order.
-            connection = ConnectionOperationStore(self.database).lock_current(cursor, claims,
-                device_id=request.deviceId, connection_id=request.connectionId,
-                connection_version=request.connectionVersion, platform=platform_row[0])
-            if draft.accountId != connection['account_public_id']:
-                raise DraftError('outreach_account_changed')
-            facts, proof = self._current_facts(cursor, tenant, snapshot)
-            source = proof['snapshot']['source']
-            if source['platform'] != connection['platform']:
-                raise DraftError('outreach_account_changed')
-            if source['kind'] not in ('POST','COMMENT') or source['platform']=='PUBLIC_WEB':
-                raise DraftError('outreach_target_unavailable')
-            try:
-                _validate_url(source['public_url'], source['platform'])
-                author = _opaque(source['author_public_id'])
-                post_id = _opaque(source['external_source_id'])
-                comment_id = _opaque(source['external_comment_id']) if source['kind']=='COMMENT' else None
-            except (ValueError, TypeError):
-                raise DraftError('outreach_target_unavailable') from None
-            if draft.recipient and draft.recipient != author:
-                raise DraftError('outreach_recipient_changed')
-            result = dict(schemaVersion='outreach-context-v1', binding=request.binding.model_dump(),
-                ownerUserId=claims.user_id, accountScope={'id':tenant,'version':1},
-                profileVersionId=snapshot.profileVersionId, draft=draft.model_dump(),
-                source={'sourceId':facts[9],'evidenceVersion':source['version_id'],
-                    'evidenceSha256':proof['snapshot_sha256'],'platform':source['platform'],
-                    'kind':source['kind'],'url':source['public_url'],'excerpt':source['body']},
-                target={'action': 'DIRECT_MESSAGE' if draft.channel=='dm' else
-                        ('COMMENT_REPLY' if source['kind']=='COMMENT' else 'POST_COMMENT'),
-                    'authorPublicId':author,'postId':post_id,'commentId':comment_id},
-                connection={'deviceId':request.deviceId,'connectionId':connection['connection_id'],
-                    'connectionVersion':connection['connection_version'],
-                    'accountPublicId':connection['account_public_id'],'platform':connection['platform']},
-                channelCapability={'status':'UNVERIFIED','reason':'CHANNEL_CHECK_REQUIRED'},
-                authorization='NOT_GRANTED')
-            result['contextSha256'] = hashlib.sha256(json.dumps(result,ensure_ascii=False,
-                sort_keys=True,separators=(',',':'),allow_nan=False).encode()).hexdigest()
-            self._active(cursor, claims)
-            return result
+            return self.context_in_transaction(cursor, claims, raw)
+
+    def context_in_transaction(self, cursor, claims, raw):
+        """Same-cursor revalidation for durable human confirmation."""
+        request = OutreachContextInput.model_validate(raw)
+        tenant = self._active(cursor, claims)
+        self._lock_owner(cursor, tenant, claims.user_id)
+        original = self._original(cursor, tenant, claims.user_id, request.binding)
+        if original is None:
+            raise DraftError('draft_request_not_found', 404)
+        snapshot = DraftSnapshot.model_validate(original['snapshot'])
+        draft = snapshot.draft
+        cursor.execute('SELECT request_id FROM pilot_contact_drafts '
+            'WHERE tenant_id=%s AND owner_user_id=%s AND opportunity_id=%s AND channel=%s '
+            'ORDER BY draft_version DESC LIMIT 1',
+            (tenant, claims.user_id, draft.opportunityId, draft.channel))
+        if cursor.fetchone() != (request.binding.requestId,):
+            raise DraftError('draft_version_conflict')
+        cursor.execute('SELECT platform FROM pilot_platform_connections '
+            'WHERE tenant_id=%s AND connection_id=%s', (tenant, request.connectionId))
+        platform_row = cursor.fetchone()
+        if platform_row is None:
+            raise DraftError('connection_unavailable')
+        # Match execution's device/connection -> profile lock order.
+        connection = ConnectionOperationStore(self.database).lock_current(cursor, claims,
+            device_id=request.deviceId, connection_id=request.connectionId,
+            connection_version=request.connectionVersion, platform=platform_row[0])
+        if draft.accountId != connection['account_public_id']:
+            raise DraftError('outreach_account_changed')
+        facts, proof = self._current_facts(cursor, tenant, snapshot)
+        source = proof['snapshot']['source']
+        if source['platform'] != connection['platform']:
+            raise DraftError('outreach_account_changed')
+        if source['kind'] not in ('POST','COMMENT') or source['platform']=='PUBLIC_WEB':
+            raise DraftError('outreach_target_unavailable')
+        try:
+            _validate_url(source['public_url'], source['platform'])
+            author = _opaque(source['author_public_id'])
+            post_id = _opaque(source['external_source_id'])
+            comment_id = _opaque(source['external_comment_id']) if source['kind']=='COMMENT' else None
+        except (ValueError, TypeError):
+            raise DraftError('outreach_target_unavailable') from None
+        if draft.recipient and draft.recipient != author:
+            raise DraftError('outreach_recipient_changed')
+        result = dict(schemaVersion='outreach-context-v1', binding=request.binding.model_dump(),
+            ownerUserId=claims.user_id, accountScope={'id':tenant,'version':1},
+            profileVersionId=snapshot.profileVersionId, draft=draft.model_dump(),
+            source={'sourceId':facts[9],'evidenceVersion':source['version_id'],
+                'evidenceSha256':proof['snapshot_sha256'],'platform':source['platform'],
+                'kind':source['kind'],'url':source['public_url'],'excerpt':source['body']},
+            target={'action': 'DIRECT_MESSAGE' if draft.channel=='dm' else
+                    ('COMMENT_REPLY' if source['kind']=='COMMENT' else 'POST_COMMENT'),
+                'authorPublicId':author,'postId':post_id,'commentId':comment_id},
+            connection={'deviceId':request.deviceId,'connectionId':connection['connection_id'],
+                'connectionVersion':connection['connection_version'],
+                'accountPublicId':connection['account_public_id'],'platform':connection['platform']},
+            channelCapability={'status':'UNVERIFIED','reason':'CHANNEL_CHECK_REQUIRED'},
+            authorization='NOT_GRANTED')
+        result['contextSha256'] = hashlib.sha256(json.dumps(result,ensure_ascii=False,
+            sort_keys=True,separators=(',',':'),allow_nan=False).encode()).hexdigest()
+        self._active(cursor, claims)
+        return result
