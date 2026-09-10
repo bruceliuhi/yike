@@ -347,7 +347,7 @@ it("recovers a lost decision outside the current filter using only the original 
   await screen.findByText("没有符合条件的线索");
   const history = screen.getByRole("region", { name: "候选原请求记录" });
   const includeRecord =
-    within(history).getByText(/INCLUDE · PENDING/).parentElement!;
+    within(history).getByText(/确认入库 · 结果待确认/).parentElement!;
   fireEvent.click(
     within(includeRecord).getByRole("button", { name: "核对原请求" }),
   );
@@ -385,7 +385,7 @@ it("does not adopt a late judgment after leaving and returning to the same filte
   mount({ assessmentGate: gate });
   await ready();
   fireEvent.click(screen.getByRole("button", { name: /按画像.*判断/ }));
-  await screen.findByText(/ASSESS · PENDING/);
+  await screen.findByText(/画像判断 · 结果待确认/);
   fireEvent.change(screen.getByRole("textbox", { name: "搜索原始线索" }), {
     target: { value: "nothing" },
   });
@@ -395,7 +395,7 @@ it("does not adopt a late judgment after leaving and returning to the same filte
   });
   await ready();
   finish();
-  await screen.findByText(/ASSESS · RECORDED/);
+  await screen.findByText(/画像判断 · 已取得回执/);
   expect(screen.queryByText("您希望什么时候完成采购？")).toBeNull();
 });
 
@@ -413,7 +413,7 @@ it("unknown assessment locks ordinary writes and exposes only explicit original-
   const { transport } = mount({ assessmentUnknown: true });
   await ready();
   fireEvent.click(screen.getByRole("button", { name: /按画像.*判断/ }));
-  await screen.findByText(/ASSESS · UNKNOWN/);
+  await screen.findByText(/画像判断 · 结果未知/);
   expect(
     (screen.getByRole("button", { name: /按画像.*判断/ }) as HTMLButtonElement)
       .disabled,
@@ -432,7 +432,7 @@ it("rejects judgment from a different strategy even when the five-field request 
   mount({ wrongStrategy: true });
   await ready();
   fireEvent.click(screen.getByRole("button", { name: /按画像.*判断/ }));
-  await screen.findByText(/ASSESS · RECORDED/);
+  await screen.findByText(/画像判断 · 已取得回执/);
   expect(screen.queryByText("您希望什么时候完成采购？")).toBeNull();
   expect(screen.getByText(/判断结果与当前画像或来源不一致/)).toBeTruthy();
 });
@@ -512,7 +512,7 @@ it.each(["verification", "decision"] as const)(
     }
     await screen.findByText(
       new RegExp(
-        `${kind === "decision" ? "INCLUDE" : "VERIFY_SOURCE"} · PENDING`,
+        `${kind === "decision" ? "确认入库" : "来源核验"} · 结果待确认`,
       ),
     );
     Object.assign(row, {
@@ -532,7 +532,7 @@ it.each(["verification", "decision"] as const)(
     finish();
     await screen.findByText(
       new RegExp(
-        `${kind === "decision" ? "INCLUDE" : "VERIFY_SOURCE"} · RECORDED`,
+        `${kind === "decision" ? "确认入库" : "来源核验"} · 已取得回执`,
       ),
     );
     expect(
