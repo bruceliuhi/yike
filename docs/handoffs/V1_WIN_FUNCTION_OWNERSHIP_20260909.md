@@ -4,6 +4,8 @@
 
 ## 分工调整
 
+2026-09-10 Win原始批次恢复工程片完成：主进程 `candidateJournal` 保存服务/用户/原platform_run_id+request_id下不可变且受保护的完整原文，`candidateSession` 先落盘再签名上传，重建对象后默认仅GET原回执；404只在明确retry时重签同一批次，坏回执/会话变化不冒充成功。回执核对原四ID、观察数/序号/ID，原文/null/顺序不变；文件损坏和部分写入保留，4MiB信封/8MiB密文/1000键上限明确失败。根回执23项、session22项，helper真实磁盘journal36项通过；类型检查通过，实际Node→HTTP→受限PG **1passed/0skip/3.94s** 验证丢回执→磁盘factory重建→原GET、单份原文/一次计量与换会话拒旧签名，专属临时库已清理。整批非作者SPEC→架构/代码/质量PASS，base `d4f3097`、冻结树 `28b9333091ff06df0a00ff729cad46c696e6a6ff`；审核只补时间解析探针、不重跑整套。RED来自未实现接口；中间session遗漏guard导出已修，两个大Buffer测试断言超时改为等价逐字节比较，未放宽产品。设备/来源/保护适配为合成测试，不是Electron safeStorage或真实平台/安装证据。未构包、未装配worker/任意IPC，旧包仍绑定1a47178；Win继续Windows运行时与worker/现身份epoch接线，Mac后端/映射/回复所有权不变，main交接非Mac ACK，父卡和Goal仍IN_PROGRESS。
+
 2026-09-10 Win认领原始批次恢复（base e520850）：独占新desktop `main/candidateJournal.ts`、`candidateSession.ts`、`shared/candidateReceipt.ts`及对应测试，现candidate-upload-live集成测试接真实磁盘恢复。先落原文再上传，重启只查原复合键，不增任意IPC或来源开关；Mac保留映射/候选执行后端/回复。运行时Windows路径与私有目录仍是后续worker缺口，不将该存储片冒充真实采集；main通知，非Mac ACK。
 
 2026-09-10 Win进程清理工程片已完成：复用入口 `app.collector.run_supervised_process` 的Windows分支以私有启动门和原生Job管理本次树，取消/超时/回调异常/父退出均清理；保留原退出码与中文原文输出，POSIX原路径不变。真实Windows专项证据为原生Job12项通过（未改字节复用）及最终supervisor10项通过/2.10s，旧入口平台断言1项和POSIX清理2项定向通过。实际RED包括killpg不可用、venv转发器逃逸、GBK输出和审核发现的异常回收遗漏；最后两条回收反例先失败再修复，非作者复现确认P2关闭。一次整批SPEC→架构/代码/质量审核及该差量复审PASS，绑定base `56bf984`、冻结树 `a628c91c318a0a8148c32199c28edba12cd433e0`，随后仅文档变更。未跑全量/数据库/真实平台或构包，现安装包仍绑定1a47178；本片不是来源worker或安装验收。Win继续运行时路径/私有目录、worker和持久批次；Mac仍保留来源映射/发送回复后端，本main交接不等于Mac ACK，父卡和Goal保持IN_PROGRESS。
