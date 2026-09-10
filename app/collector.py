@@ -60,6 +60,7 @@ _YIKE_ENV_ALLOWLIST = (
     "TERM",
     "TMPDIR",
     "USER",
+    "USERNAME",  # Windows getpass/aiomysql initialization; never inherit all env.
     "WAYLAND_DISPLAY",
     "WINDIR",
     "XAUTHORITY",
@@ -72,6 +73,8 @@ def _minimal_child_environment(**runtime_values: str) -> dict[str, str]:
         for name in _YIKE_ENV_ALLOWLIST
         if name in os.environ
     }
+    if sys.platform == "win32":
+        environment["PATHEXT"] = ".EXE"  # PyExecJS discovers the governed Node binary.
     environment.update(runtime_values)
     return environment
 

@@ -1,0 +1,3 @@
+# These byte-pinned inputs must match their manifests on Windows and POSIX.
+/vendor/mediacrawler.lock text eol=lf
+/vendor/patches/mediacrawler/*.patch text eol=lf
