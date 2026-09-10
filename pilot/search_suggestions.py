@@ -32,7 +32,7 @@ _ERRORS = {
 _TERMINAL_ERRORS = {"invalid_suggestion_result": "FAILED", "suggestion_provider_rejected": "FAILED",
                     "suggestion_result_unknown": "UNKNOWN", "dispatch_failed": "FAILED"}
 _PUBLIC_FIELDS = ("request_id", "draft_id", "draft_revision", "profile_version_id", "profile_sha256",
-                  "rule_version", "model_provider", "model_name", "state", "result", "usage", "error_code",
+                  "rule_version", "model_provider", "model_name", "disclosure_policy_version", "state", "result", "usage", "error_code",
                   "created_at", "updated_at")
 _INTERNAL_FIELDS = _PUBLIC_FIELDS + ("request_sha256", "origin_session_key", "origin_session_expires_at")
 
@@ -200,14 +200,53 @@ class SearchSuggestionStore:
             return receipt
 
     @_safe_database_errors
-    def reserve(self, claims: TokenClaims, request: SearchSuggestionRequest, *, provider: str, model: str) -> tuple[dict, str | None]:
+    def replay_receipt(self, claims: TokenClaims, request: SearchSuggestionRequest, disclosure: dict) -> dict | None:
+        try:
+            request = SearchSuggestionRequest.model_validate(request)
+        except ValidationError:
+            raise SearchSuggestionStoreError("invalid_request") from None
+        fingerprint = _digest({"request": request.model_dump(), "disclosure": disclosure})
+        with self._transaction() as cursor:
+            tenant = self._active(cursor, claims)
+            row = self._row(cursor, tenant, claims.user_id, request.request_id)
+            if row is None:
+                return None
+            if row["request_sha256"] != fingerprint:
+                raise SearchSuggestionStoreError("request_conflict")
+            receipt = self._safe(cursor, tenant, row)
+            self._active(cursor, claims)
+            return receipt
+
+    @_safe_database_errors
+    def preview(self, claims: TokenClaims, profile_version_id: str, *, provider: str, model: str) -> dict:
+        self._request_id(profile_version_id)
+        if (type(provider) is not str or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}", provider)
+                or type(model) is not str or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,199}", model)):
+            raise SearchSuggestionStoreError("invalid_suggestion_configuration")
+        with self._transaction() as cursor:
+            tenant = self._active(cursor, claims)
+            profile = self._profile(cursor, tenant, profile_version_id, lock=False)
+            self._active(cursor, claims)
+            if not profile or profile["status"] != "CONFIRMED" or profile["description"] is None:
+                raise SearchSuggestionStoreError("profile_unavailable")
+            return {"profile_version_id": profile_version_id, "profile_sha256": profile["sha256"],
+                    "description": profile["description"], "model_provider": provider, "model_name": model,
+                    "disclosure_policy_version": "profile-description-v1"}
+
+    @_safe_database_errors
+    def reserve(self, claims: TokenClaims, request: SearchSuggestionRequest, *, provider: str, model: str,
+                disclosure: dict | None = None) -> tuple[dict, str | None]:
         try:
             request = SearchSuggestionRequest.model_validate(request)
         except ValidationError:
             request = None
         if request is None:
             raise SearchSuggestionStoreError("invalid_request")
-        fingerprint = _digest(request.model_dump())
+        if disclosure is not None and (type(disclosure) is not dict or set(disclosure) != {
+                "accepted", "profile_sha256", "model_provider", "model_name", "policy_version"}):
+            raise SearchSuggestionStoreError("invalid_request")
+        fingerprint = _digest(request.model_dump() if disclosure is None else
+                              {"request": request.model_dump(), "disclosure": disclosure})
         with self._transaction() as cursor:
             tenant = self._active(cursor, claims)
             lock_id = int.from_bytes(hashlib.sha256(tenant.encode()).digest()[:4], "big", signed=True)
@@ -228,6 +267,9 @@ class SearchSuggestionStore:
             self._active(cursor, claims)
             if not profile or profile["status"] != "CONFIRMED" or profile["description"] is None:
                 raise SearchSuggestionStoreError("profile_unavailable")
+            if disclosure is not None and disclosure != {"accepted": True, "profile_sha256": profile["sha256"],
+                    "model_provider": provider, "model_name": model, "policy_version": "profile-description-v1"}:
+                raise SearchSuggestionStoreError("request_conflict")
             cursor.execute("WITH wall AS MATERIALIZED (SELECT clock_timestamp() AS now) "
                 "SELECT count(*),COALESCE(bool_or(created_at > wall.now-interval '2 seconds'),false) "
                 "FROM pilot_search_suggestion_quota_events,wall WHERE tenant_id=%s AND created_at > wall.now-interval '1 hour'",
@@ -239,17 +281,39 @@ class SearchSuggestionStore:
                 raise SearchSuggestionStoreError("suggestion_rate_limited")
             self._active(cursor, claims)
             cursor.execute("INSERT INTO pilot_search_suggestion_requests(tenant_id,owner_user_id,request_id,draft_id,draft_revision,"
-                "profile_version_id,request_sha256,profile_sha256,origin_session_key,origin_session_expires_at,rule_version,model_provider,model_name) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                "profile_version_id,request_sha256,profile_sha256,origin_session_key,origin_session_expires_at,rule_version,model_provider,model_name,disclosure_policy_version) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 (tenant, claims.user_id, request.request_id, request.draft_id, request.draft_revision,
                  request.profile_version_id, fingerprint, profile["sha256"], claims.revocation_key,
-                 claims.expires_at, RULE_VERSION, provider, model))
+                 claims.expires_at, RULE_VERSION, provider, model,
+                 disclosure["policy_version"] if disclosure is not None else None))
             cursor.execute("INSERT INTO pilot_search_suggestion_quota_events(tenant_id,quota_event_id) VALUES (%s,%s)",
                            (tenant, str(uuid4())))
             row = self._row(cursor, tenant, claims.user_id, request.request_id)
             receipt = self._safe(cursor, tenant, row)
             self._active(cursor, claims)
             return receipt, profile["description"]
+
+    @_safe_database_errors
+    def prepare_dispatch(self, claims: TokenClaims, request_id: str) -> str:
+        """Recheck the originating session and immutable profile immediately before disclosure."""
+        self._request_id(request_id)
+        with self._transaction() as cursor:
+            tenant = self._active(cursor, claims)
+            row = self._row(cursor, tenant, claims.user_id, request_id, lock=True)
+            self._active(cursor, claims)
+            if row is None:
+                raise SearchSuggestionStoreError("request_not_found")
+            if claims.revocation_key != row["origin_session_key"] or claims.expires_at != row["origin_session_expires_at"]:
+                raise SearchSuggestionStoreError("request_session_mismatch")
+            if row["state"] != "PENDING" or row["disclosure_policy_version"] != "profile-description-v1":
+                raise SearchSuggestionStoreError("request_conflict")
+            profile = self._profile(cursor, tenant, row["profile_version_id"], lock=True)
+            self._active(cursor, claims)
+            if (not profile or profile["status"] != "CONFIRMED" or profile["description"] is None
+                    or profile["sha256"] != row["profile_sha256"]):
+                raise SearchSuggestionStoreError("profile_unavailable")
+            return profile["description"]
 
     @_safe_database_errors
     def finish(self, claims: TokenClaims, request_id: str, *, content=None, usage=None, error=None) -> dict:

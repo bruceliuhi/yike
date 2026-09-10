@@ -13,6 +13,8 @@ from uuid import uuid4
 import psycopg
 from psycopg import sql
 import pytest
+from fastapi import APIRouter, FastAPI
+from fastapi.testclient import TestClient
 
 from pilot.auth import issue_token, verify_token_claims
 from pilot.db import PilotDatabase
@@ -23,10 +25,11 @@ from tests.test_search_suggestions import implementation, body
 
 ROOT = Path(__file__).parents[1]
 MIGRATION = ROOT / "migrations/110_v02_search_suggestions.sql"
+CONSENT_MIGRATION = ROOT / "migrations/128_v02_search_suggestion_consent.sql"
 GRANT = ROOT / "deploy/grant_search_suggestions.sql"
 DESCRIPTION = "我们为食品工厂提供不锈钢输送设备，支持现场测量和定制交付。"
 SAFE_FIELDS = {"request_id", "draft_id", "draft_revision", "profile_version_id", "profile_sha256",
-               "rule_version", "model_provider", "model_name", "state", "result", "usage",
+               "rule_version", "model_provider", "model_name", "disclosure_policy_version", "state", "result", "usage",
                "error_code", "created_at", "updated_at", "profile_current"}
 
 
@@ -64,6 +67,8 @@ def databases():
         conn.execute(sql.SQL("GRANT SELECT,INSERT ON pilot_session_revocations TO {}").format(sql.Identifier(app_parts.username)))
         if MIGRATION.exists():
             conn.execute(MIGRATION.read_text(encoding="utf-8"))
+        if CONSENT_MIGRATION.exists():
+            conn.execute(CONSENT_MIGRATION.read_text(encoding="utf-8"))
         if GRANT.exists():
             conn.execute("SELECT set_config('yike.app_role', %s, true)", (app_parts.username,))
             conn.execute(GRANT.read_text(encoding="utf-8"))
@@ -110,6 +115,57 @@ def age_quota(env, seconds=3):
     with env.admin.connect() as conn:
         conn.execute("UPDATE pilot_search_suggestion_quota_events SET created_at=clock_timestamp()-(%s * interval '1 second') WHERE tenant_id=%s",
                      (seconds, env.tenant))
+
+
+def disclosure(env):
+    digest = hashlib.sha256(json.dumps({"description": DESCRIPTION}, ensure_ascii=False,
+        sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return {"accepted": True, "profile_sha256": digest,
+            "model_provider": "openai-compatible", "model_name": "synthetic-model-v1",
+            "policy_version": "profile-description-v1"}
+
+
+def test_consent_snapshot_is_atomic_replay_bound_and_immutable(env):
+    req = request(env)
+    receipt, description = store(env).reserve(env.claims, req, provider="openai-compatible",
+        model="synthetic-model-v1", disclosure=disclosure(env))
+    assert description == DESCRIPTION and receipt["disclosure_policy_version"] == "profile-description-v1"
+    assert store(env).reserve(env.claims, req, provider="openai-compatible",
+        model="synthetic-model-v1", disclosure=disclosure(env)) == (receipt, None)
+    changed = disclosure(env) | {"policy_version": "changed"}
+    with pytest.raises(implementation().SearchSuggestionStoreError, match="request_conflict"):
+        store(env).reserve(env.claims, req, provider="openai-compatible",
+            model="synthetic-model-v1", disclosure=changed)
+    with env.admin.connect() as conn, pytest.raises(psycopg.Error):
+        conn.execute("UPDATE pilot_search_suggestion_requests SET disclosure_policy_version=NULL WHERE tenant_id=%s AND request_id=%s",
+                     (env.tenant, req.request_id))
+
+
+def test_restricted_postgres_http_consent_and_original_request_restore(env):
+    from pilot.search_suggestion_api import register_search_suggestion_api
+    from pilot.search_suggestion_service import SearchSuggestionService
+
+    class SyntheticModel:
+        provider, model, available = "openai-compatible", "synthetic-model-v1", True
+        def generate(self, *, description): return result(), None
+        def close(self, timeout_seconds=5): return True
+
+    service = SearchSuggestionService(store(env), SyntheticModel())
+    app, router = FastAPI(), APIRouter()
+    register_search_suggestion_api(router, service, lambda request: SimpleNamespace(claims=env.claims), lambda request: None)
+    app.include_router(router)
+    client = TestClient(app)
+    preview = client.get(f"/search-suggestions/preview?profileVersionId={env.profile['version_id']}")
+    assert preview.status_code == 200
+    req = body(profile_version_id=env.profile["version_id"])
+    consent = {"accepted": True, "profile_sha256": preview.json()["profile_sha256"],
+        "model_provider": preview.json()["model_provider"], "model_name": preview.json()["model_name"],
+        "policy_version": preview.json()["disclosure_policy_version"]}
+    submitted = client.post("/search-suggestions", json=req | {"disclosure": consent})
+    assert submitted.status_code == 200 and submitted.json()["state"] == "PENDING"
+    service.close()
+    restored = SearchSuggestionService(store(env)).get_receipt(env.claims, req["request_id"])
+    assert restored["request_id"] == req["request_id"] and restored["disclosure_policy_version"] == "profile-description-v1"
 
 
 def test_migration_and_grant_exist(databases):
