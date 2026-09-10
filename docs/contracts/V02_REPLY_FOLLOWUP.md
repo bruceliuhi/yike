@@ -2,6 +2,14 @@
 
 状态：`SIGNED_ORIGIN_API_IMPLEMENTED / REAL_PLATFORM_REPLY_SYNC_UNVERIFIED`
 
+## 08 原生公开回复来源（2026-09-12）
+
+只读`POST /api/ui/replies/sync-context`接受`{requestId,deviceId,credentialVersion}`，从当前认证owner的原队列/claim/SENT result核对全部hash与绑定，返回`{schemaVersion:'reply-sync-context-v1',context,claimId,claimedAt,rootCommentId,deviceId,credentialVersion}`。仅XHS POST_COMMENT且根回执ID为24位lowerhex；UNKNOWN/FAILED、另一设备/用户、原件损坏拒绝。该接口不签发发送授权、不依赖最新稿/画像仍有效、不接受调用者指定tenant/root/context。
+
+原生XHS频道新增只读`read_replies(context, root_comment_id, claimed_at)`；context/根ID/领取时间必须来自服务端本人原发送结果，不能由页面临时评论ID或最新草稿替代。实际页面须核对原帖作者、当前账号，以及根评论作者为自己且正文等于原savedContent；只取该根下原买方的直接公开回复。最多3页×10条/15秒，分页未结束返回PARTIAL，错误不返回空成功；读状态固定UNKNOWN，不标远端已读。API客户端惰性复用同隔离浏览器，临时xsec_token只在该请求内存使用，不导出或记录。
+
+当前为原请求定位/reader接续批，**私有worker、main设备签名上报及客户页同步按钮尚未装配**；普通客户端仍只能查看已保存证据。该批不启用后台监控、私信扫描或外部发送。实现/审核证据集中于[本批记录](../superpowers/plans/2026-09-12-xhs-reply-source.md)，真实平台输入及Windows仍需单独验收。
+
 ## 08B 普通客户端证据读取（2026-09-12）
 
 `GET /api/ui/opportunities/{id}/replies/evidence` 的数组每项为 `{event, verification, revision}`；revision 是保存行的数据库整数版本，不在 renderer 从时间推导。事件签名字节不变。平台记录以来源、原发送请求、平台、公开回复 ID 为身份，最高 revision 表示当前记录（包括更正/撤销），完整历史保留；人工登记单独标识。
