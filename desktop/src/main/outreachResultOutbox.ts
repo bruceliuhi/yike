@@ -173,6 +173,7 @@ async function directoryReady(
 async function syncDirectory(directory: string) {
   if (process.platform === "win32") return;
   let handle;
+  let failed = false;
   try {
     handle = await open(
       directory,
@@ -181,10 +182,19 @@ async function syncDirectory(directory: string) {
     if (!(await handle.stat()).isDirectory()) throw new Error();
     await handle.sync();
   } catch {
-    return fail("STORAGE_FAILED");
+    failed = true;
   } finally {
-    await handle?.close();
+    try {
+      await handle?.close();
+    } catch {
+      failed = true;
+    }
   }
+  if (failed) fail("STORAGE_FAILED");
+}
+async function syncResultDirectories(directory: string) {
+  await syncDirectory(directory);
+  await syncDirectory(path.dirname(directory));
 }
 function same(left: OutreachResultRecord, right: OutreachResultRecord) {
   return JSON.stringify(left) === JSON.stringify(right);
@@ -319,7 +329,9 @@ export function createOutreachResultOutbox(options: {
           requestId.data,
           protection,
         );
-        return record ? copy(record) : null;
+        if (!record) return null;
+        await syncResultDirectories(directory);
+        return copy(record);
       });
     },
     async put(inputScope, inputRecord) {
@@ -337,6 +349,7 @@ export function createOutreachResultOutbox(options: {
         );
         if (existing) {
           if (!same(existing, record)) fail("CONFLICT");
+          await syncResultDirectories(directory);
           return copy(existing);
         }
         let bytes: Buffer;
@@ -367,6 +380,7 @@ export function createOutreachResultOutbox(options: {
             );
             if (concurrent) {
               if (!same(concurrent, record)) fail("CONFLICT");
+              await syncResultDirectories(directory);
               return copy(concurrent);
             }
           }
@@ -379,8 +393,7 @@ export function createOutreachResultOutbox(options: {
           } finally {
             await handle.close();
           }
-          await syncDirectory(directory);
-          await syncDirectory(path.dirname(directory));
+          await syncResultDirectories(directory);
         } catch {
           return fail("STORAGE_FAILED");
         }

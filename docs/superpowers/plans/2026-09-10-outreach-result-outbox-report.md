@@ -27,3 +27,10 @@
 - 仅将测试 fixture 的两个事实布尔值收窄为 `true as const`，没有修改生产约束或使用宽泛 cast 遮掩错误。
 - 修后命令：`/Users/xingheimac/.nvm/versions/node/v24.19.0/bin/node ./node_modules/typescript/bin/tsc --noEmit`，退出码 `0`、无输出。
 - 修正前已完成的 outbox 运行测试仍为 `9 passed`；本次为纯类型收窄，按分工未重复运行该专项。
+
+## 整批审核差量修复
+
+- 审核发现：新建记录的目录同步失败会保留密文并正确报错，但后续 `read` 或相同记录 `put` 曾只同步文件便返回，可能把目录同步持续失败的记录错误升级为 durable。
+- 修复后，读取既有记录、幂等写入、排他创建并发命中和首次新建的所有成功返回路径，在 POSIX 上均须先成功同步 outbox 目录及其父目录；目录打开、同步或关闭异常统一返回 `OUTREACH_RESULT_STORAGE_FAILED`。Windows 继续保留既有的目录同步跳过边界。
+- RED 证据：仅注入目录同步失败时，首次 `put` 按预期失败，但原实现的后续 `read` 错误返回记录；定向结果 `1 failed, 1 passed`。
+- GREEN 证据：同一故障持续期间，首次 `put`、后续 `read` 和幂等 `put` 均失败关闭；清除故障后读取原 `resultId`，密文字节未覆盖。两个定向场景 `2 passed`，随后 outbox 专项完整复核 `10 passed`。

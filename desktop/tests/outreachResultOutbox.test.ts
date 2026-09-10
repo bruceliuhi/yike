@@ -21,7 +21,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DeviceKeyProtection } from "../src/main/deviceKeyVault";
 import type { OutreachResultRecord } from "../src/main/outreachResultOutbox";
 
-const faults = vi.hoisted(() => ({ denyCreate: false, failSync: false }));
+const faults = vi.hoisted(() => ({
+  denyCreate: false,
+  failSync: false,
+  failDirectorySync: false,
+}));
 vi.mock("node:fs/promises", async (importOriginal) => {
   const original = await importOriginal<typeof import("node:fs/promises")>();
   return {
@@ -33,6 +37,8 @@ vi.mock("node:fs/promises", async (importOriginal) => {
         sync = handle.sync.bind(handle);
       handle.sync = async () => {
         if (faults.failSync) throw new Error("/private/sync");
+        if (faults.failDirectorySync && (await handle.stat()).isDirectory())
+          throw new Error("/private/directory-sync");
         return sync();
       };
       return handle;
@@ -139,7 +145,11 @@ async function oneFile(directory: string) {
 }
 afterEach(async () => {
   vi.restoreAllMocks();
-  Object.assign(faults, { denyCreate: false, failSync: false });
+  Object.assign(faults, {
+    denyCreate: false,
+    failSync: false,
+    failDirectorySync: false,
+  });
   for (const root of roots.splice(0))
     await rm(root, { recursive: true, force: true });
 });
@@ -335,5 +345,27 @@ describe("immutable encrypted outreach result outbox", () => {
     );
     faults.failSync = false;
     expect(await f.create(f).read(scope, input.requestId)).toEqual(input);
+  });
+  it("keeps existing results non-durable while directory synchronization fails", async () => {
+    if (process.platform === "win32") return;
+    const f = await setup();
+    const input = record();
+    faults.failDirectorySync = true;
+    await expect(f.outbox.put(scope, input)).rejects.toThrow(
+      /^OUTREACH_RESULT_STORAGE_FAILED$/,
+    );
+    const filename = await oneFile(f.directory);
+    const bytes = await readFile(filename);
+    await expect(f.outbox.read(scope, input.requestId)).rejects.toThrow(
+      /^OUTREACH_RESULT_STORAGE_FAILED$/,
+    );
+    await expect(f.outbox.put(scope, input)).rejects.toThrow(
+      /^OUTREACH_RESULT_STORAGE_FAILED$/,
+    );
+    expect(await readFile(filename)).toEqual(bytes);
+    faults.failDirectorySync = false;
+    const restored = await f.outbox.read(scope, input.requestId);
+    expect(restored?.resultId).toBe(input.resultId);
+    expect(await readFile(filename)).toEqual(bytes);
   });
 });
