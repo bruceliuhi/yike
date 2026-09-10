@@ -32,6 +32,7 @@ import {
 import { requireOutreach } from "../services/outreach";
 import { OutreachQueue } from "./OutreachQueue";
 import { ContactEditor } from "./outreach/ContactEditor";
+import { NativeSendConfirmation, nativeOutreachCommand } from "./outreach/NativeSendConfirmation";
 import { sortContactRows, type ContactSort } from "../domain/contactList";
 import { PUBLIC_SAMPLE, isSample } from "./Opportunities";
 
@@ -247,7 +248,19 @@ function OutreachWorkspace() {
   );
 }
 
-export function SendConfirmation({
+export function SendConfirmation(props: {
+  row: Opportunity;
+  draft: ContactDraft;
+  connection?: PlatformConnection;
+  onClose: () => void;
+}) {
+  const { session } = useApp();
+  if (nativeOutreachCommand() && props.row.platform === "xhs" && props.draft.channel === "comment" && !isSample(props.row))
+    return <NativeSendConfirmation key={JSON.stringify([session.userId,session.accountScope,props.row.id,props.draft.channel])} {...props} fingerprint={JSON.stringify([contactFingerprint(props.draft,props.row,props.connection),props.connection?.platform,props.connection?.registration])} />;
+  return <LegacySendConfirmation {...props} />;
+}
+
+function LegacySendConfirmation({
   row,
   draft,
   connection,

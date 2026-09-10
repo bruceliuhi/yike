@@ -29,6 +29,8 @@ import { EvidencePanel, isSample } from "../Opportunities";
 import { ContactNotes } from "./ContactNotes";
 import { ShortCoachPanel } from "./ShortCoachPanel";
 import { useContactDraftSave } from "./useContactDraftSave";
+import { nativeOutreachLedgerKey, useNativeOutreachRecord } from "./nativeOutreachLedger";
+import { nativeOutreachCommand } from "./NativeSendConfirmation";
 import "./short-coach.css";
 
 function initialDraft(
@@ -75,6 +77,8 @@ export function ContactEditor({
     }),
   );
   const draft = sample ? initialDraft(row, channel) : drafts[channel];
+  const native = !sample && row.platform === "xhs" && channel === "comment" && !!nativeOutreachCommand();
+  const nativeRecord = useNativeOutreachRecord(native ? nativeOutreachLedgerKey(session,row.id,channel) : null);
   const [purposes, setPurposes] = useLocalDraft<
     Record<"comment" | "dm", CoachPurpose>
   >(
@@ -119,9 +123,9 @@ export function ContactEditor({
     (c) =>
       c.status === "CONNECTED" &&
       c.accountId &&
-      c.capabilities.some((v) =>
+      ((native && c.platform === "xhs") || c.capabilities.some((v) =>
         ["send", channel, "send_" + channel].includes(v),
-      ),
+      )),
   );
   const connection = available.find((c) => c.accountId === draft.accountId);
   const dirty = draft.content !== draft.savedContent;
@@ -336,6 +340,10 @@ export function ContactEditor({
           </details>
         )}
         {saving.error && <Notice tone="error">{saving.error}</Notice>}
+        {native && nativeRecord.record && route.query.get("confirm") !== "send" && <Notice tone="warning">
+          {nativeRecord.record.state === "SENT" ? "此商机评论已确认发送，修改草稿不会解除首联保护。" : "原生发送结果待核对；原请求已保留，不能重复发送。"}
+          <Button onClick={() => navigate("/outreach?opportunity=" + encodeURIComponent(row.id) + "&channel=" + channel + "&confirm=send")}>查看原发送记录</Button>
+        </Notice>}
         {!!saving.pending.length && (
           <div className="draft-save-recovery">
             <Notice tone="warning">
