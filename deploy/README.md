@@ -1,5 +1,7 @@
 # 意客 AI 应用镜像
 
+监控计划基础（迁移126）：迁移后以受信发布作业设置既有 `yike.app_role` 并执行 [监控计划授权](grant_monitor_plans.sql)，另需原画像/策略/会话权限。普通runtime仅保存计划、暂停/恢复和历史回执，不启动采集；`ACTIVE + NOT_CONNECTED` 不能作为监控已运行。尚无周期执行器/新客户端入口，本记录不是生产部署。[接口与证据](../docs/superpowers/plans/2026-09-11-monitor-plans.md)。
+
 本文件是现有 `pilot/` 服务端的部署子手册。当前开发目标与进度见 [V0.2 实施任务书](../docs/V02_IMPLEMENTATION_TASKBOOK.md)；缺少生产环境只影响相应部署验收，不阻止其他研发。下面的 Linux Web 镜像不是 Windows 客户端或平台采集执行器，不得把管理员连接、应用数据库连接或服务端签名密钥打入桌面安装包。
 
 这是应用容器骨架，不是生产上线证明。目标环境仍须单独提供私网 PostgreSQL、反向代理 HTTPS、日志脱敏、备份恢复和回滚记录。应用已关闭 Uvicorn 原始访问日志，并仅记录不含查询参数的 method/path/status。先由受信发布作业运行 `uv run --frozen yike-pilot-migrate`，再以非 owner 应用角色启动 `yike-pilot-web`；Web 进程不会执行迁移。
