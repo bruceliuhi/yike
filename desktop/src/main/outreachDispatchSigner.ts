@@ -21,7 +21,7 @@ const payloadSchema = z.object({
   session_digest: digest, request: dispatchRequestSchema,
 }).strict();
 
-function canonicalJson(value: unknown): string {
+export function canonicalJson(value: unknown): string {
   if (typeof value === 'string') {
     for (const character of value) {
       const point = character.codePointAt(0)!;
@@ -37,6 +37,19 @@ function canonicalJson(value: unknown): string {
   throw new Error();
 }
 
+/** Private pure Ed25519 primitive shared by the two bounded signing protocols. Never exposed through IPC. */
+export function signCanonicalOutreachPayload(key:DeviceKeyMaterial,expected:{serviceOrigin:string;userId:string;deviceId:string},payload:string):string {
+  if(key.scope.serviceOrigin!==expected.serviceOrigin || key.scope.userId!==expected.userId || key.scope.deviceId!==expected.deviceId ||
+    typeof key.privateKey!=='string' || key.privateKey.length>4096)throw new Error('OUTREACH_SIGNING_FAILED');
+  const privateKey=createPrivateKey(key.privateKey);
+  if(privateKey.asymmetricKeyType!=='ed25519' || privateKey.export({format:'pem',type:'pkcs8'})!==key.privateKey)throw new Error('OUTREACH_SIGNING_FAILED');
+  const publicKey=createPublicKey(privateKey);
+  if(publicKey.export({format:'jwk'}).x!==key.publicKey)throw new Error('OUTREACH_SIGNING_FAILED');
+  const bytes=Buffer.from(payload,'utf8'),signature=sign(null,bytes,privateKey);
+  if(signature.length!==64 || !verify(null,bytes,publicKey,signature))throw new Error('OUTREACH_SIGNING_FAILED');
+  return executionSignatureSchema.parse(signature.toString('base64url'));
+}
+
 /** Main process only: validate and sign the server's complete canonical dispatch bytes. */
 export function signOutreachDispatch(input: {
   readonly key: DeviceKeyMaterial;
@@ -50,16 +63,7 @@ export function signOutreachDispatch(input: {
     const payload = payloadSchema.parse(JSON.parse(prepared.signing_payload));
     if (canonicalJson(payload) !== prepared.signing_payload || payload.user_id !== expected.userId ||
         payload.tenant_id !== expected.tenantId || canonicalJson(payload.request) !== canonicalJson(expected.request)) throw new Error();
-    const {key} = input;
-    if (key.scope.serviceOrigin !== expected.serviceOrigin || key.scope.userId !== expected.userId ||
-        key.scope.deviceId !== expected.request.deviceId || typeof key.privateKey !== 'string' || key.privateKey.length > 4096) throw new Error();
-    const privateKey = createPrivateKey(key.privateKey);
-    if (privateKey.asymmetricKeyType !== 'ed25519' || privateKey.export({format: 'pem', type: 'pkcs8'}) !== key.privateKey) throw new Error();
-    const publicKey = createPublicKey(privateKey);
-    if (publicKey.export({format: 'jwk'}).x !== key.publicKey) throw new Error();
-    const bytes = Buffer.from(prepared.signing_payload, 'utf8');
-    const signature = sign(null, bytes, privateKey);
-    if (signature.length !== 64 || !verify(null, bytes, publicKey, signature)) throw new Error();
-    return {request: expected.request, signature: executionSignatureSchema.parse(signature.toString('base64url'))};
+    return {request:expected.request,signature:signCanonicalOutreachPayload(input.key,
+      {...expected,deviceId:expected.request.deviceId},prepared.signing_payload)};
   } catch { throw new Error('OUTREACH_DISPATCH_SIGNING_FAILED'); }
 }
