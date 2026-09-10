@@ -41,7 +41,7 @@ import {createNativeOutreachController} from './nativeOutreachController';
 import {createPlatformOutreachDriver} from './platformOutreachDriver';
 import {createOutreachConsumptionJournal} from './outreachConsumptionJournal';
 import {createOutreachResultOutbox} from './outreachResultOutbox';
-import {createPortableBootstrap} from './portableBootstrap';
+import {createPortableBootstrap,publishedPortableStatus} from './portableBootstrap';
 import {PORTABLE_RUNTIME_STATUS_CHANNEL} from '../shared/portableRuntime';
 import type {PlatformLoginDriverOptions} from './platformLoginDriver';
 declare const __YIKE_PORTABLE_PIN__:{sha256:string;resourceName:string}|null;
@@ -59,6 +59,7 @@ let nativeOutreach:ReturnType<typeof createNativeOutreachController>|null=null;
 let portableBootstrap:ReturnType<typeof createPortableBootstrap>|null=null;
 let runtimeStartup:Promise<void>|null=null;
 let runtimeSetupFailed=false;
+let runtimeInitializationFinished=false;
 let platformShutdown:Promise<void>|null=null;
 let platformStopped=false;
 
@@ -219,7 +220,7 @@ async function startApplication(): Promise<void> {
     else runtimeSetupFailed=true;
   }
   ipcMain.handle(PORTABLE_RUNTIME_STATUS_CHANNEL,event=>{
-    trustedSender(event);return runtimeSetupFailed?{state:'FAILED'}:portableBootstrap?.status()??{state:'NOT_REQUIRED'};
+    trustedSender(event);return publishedPortableStatus(portableBootstrap?.status()??{state:'NOT_REQUIRED'},runtimeInitializationFinished,runtimeSetupFailed);
   });
   ipcMain.handle(NATIVE_OUTREACH_CHANNEL,(event,command:unknown)=>{
     trustedSender(event);
@@ -296,6 +297,7 @@ async function startApplication(): Promise<void> {
   createMainWindow();
   if(portableBootstrap)runtimeStartup=portableBootstrap.start().then(async configuration=>{
     if(configuration&&!quitting)await attachPlatformRuntime(configuration);
+    runtimeInitializationFinished=true;
   }).catch(()=>{runtimeSetupFailed=true;});
   app.on('activate', () => {
     if (!quitting && !startupFailed && BrowserWindow.getAllWindows().length === 0) createMainWindow();

@@ -6,6 +6,10 @@ import type {PlatformLoginDriverOptions} from './platformLoginDriver';
 import type {PortableRuntimeStatus} from '../shared/portableRuntime';
 type Options={resourcesPath:string;userData:string;pin:{sha256:string;resourceName:string};
   verify?:typeof verifyPortablePayload;spawn?:typeof nodeSpawn;prepareParent?:(path:string)=>Promise<unknown>};
+/** UI readiness includes main controller attachment, not merely copied runtime bytes. */
+export function publishedPortableStatus(status:PortableRuntimeStatus,attached:boolean,failed:boolean):PortableRuntimeStatus{
+  return failed?{state:'FAILED'}:status.state==='READY'&&!attached?{state:'PREPARING'}:status;
+}
 export function createPortableBootstrap(options:Options){
   let status:PortableRuntimeStatus={state:'PREPARING'},run:Promise<PlatformLoginDriverOptions|null>|null=null;
   const abort=new AbortController();let child:ChildProcess|null=null,closed=true,stopped=false;
