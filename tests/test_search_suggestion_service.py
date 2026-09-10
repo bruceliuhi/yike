@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import re
 import threading
 from uuid import uuid4
 
@@ -43,6 +44,7 @@ class FakeStore:
         self.finishes = []
         self.description = "设备定制"
         self.sha = "a" * 64
+        self.rejects = []
 
     def preview(self, claims, profile_version_id, *, provider, model):
         return {"profile_version_id": profile_version_id, "profile_sha256": self.sha,
@@ -73,6 +75,18 @@ class FakeStore:
             from pilot.search_suggestions import SearchSuggestionStoreError
             raise SearchSuggestionStoreError("request_conflict")
         return old[1]
+
+    def reject(self, claims, request, disclosure, reason):
+        if (disclosure.get("accepted") is not True
+                or not re.fullmatch(r"[a-f0-9]{64}", disclosure.get("profile_sha256", ""))
+                or disclosure.get("policy_version") != "profile-description-v1"):
+            from pilot.search_suggestions import SearchSuggestionStoreError
+            raise SearchSuggestionStoreError("invalid_request")
+        self.rejects.append(reason)
+        receipt = {"request_id": request.request_id, "state": "NOT_SUBMITTED",
+                   "error_code": reason}
+        self.rows[request.request_id] = ((request.model_dump(), disclosure), receipt)
+        return receipt
 
     def prepare_dispatch(self, claims, request_id):
         return self.description
@@ -110,7 +124,7 @@ def test_preview_does_not_call_model_and_submit_replays_original():
     service.close()
 
 
-@pytest.mark.parametrize("change", ["accepted", "profile_sha256", "model_provider", "model_name", "policy_version"])
+@pytest.mark.parametrize("change", ["accepted", "profile_sha256", "policy_version"])
 def test_submit_requires_exact_server_preview_disclosure(change):
     from pilot.search_suggestion_service import SearchSuggestionService, SearchSuggestionServiceError
     service = SearchSuggestionService(FakeStore(), FakeModel())
@@ -119,6 +133,18 @@ def test_submit_requires_exact_server_preview_disclosure(change):
     body["disclosure"][change] = False if change == "accepted" else "changed"
     with pytest.raises(SearchSuggestionServiceError, match="disclosure_mismatch"):
         service.submit(Claims(), body)
+    service.close()
+
+
+@pytest.mark.parametrize("change", ["model_provider", "model_name"])
+def test_submit_records_canonical_configuration_mismatch(change):
+    from pilot.search_suggestion_service import SearchSuggestionService
+    store = FakeStore()
+    service = SearchSuggestionService(store, FakeModel())
+    body = payload(service.preview(Claims(), str(uuid4())))
+    body["disclosure"][change] = "changed"
+    receipt = service.submit(Claims(), body)
+    assert receipt["state"] == "NOT_SUBMITTED" and receipt["error_code"] == "disclosure_mismatch"
     service.close()
 
 
@@ -133,6 +159,32 @@ def test_unconfigured_service_still_reads_receipts_but_never_generates():
         service.preview(Claims(), str(uuid4()))
 
 
+def test_submit_persists_valid_unavailable_request_without_generating():
+    from pilot.search_suggestion_service import SearchSuggestionService
+    store, model = FakeStore(), FakeModel()
+    preview = store.preview(Claims(), str(uuid4()), provider=model.provider, model=model.model)
+    body = payload(preview)
+    model.closed = True
+    receipt = SearchSuggestionService(store, model).submit(Claims(), body)
+    assert receipt["state"] == "NOT_SUBMITTED"
+    assert receipt["error_code"] == "capability_unavailable"
+    assert store.rejects == ["capability_unavailable"] and model.calls == 0
+
+
+def test_busy_request_is_recoverable_and_never_reserved():
+    from pilot.search_suggestion_service import SearchSuggestionService
+    store, model = FakeStore(), FakeModel()
+    service = SearchSuggestionService(store, model)
+    preview = service.preview(Claims(), str(uuid4()))
+    assert service._capacity.acquire(blocking=False)
+    assert service._capacity.acquire(blocking=False)
+    assert service._capacity.acquire(blocking=False)
+    assert service._capacity.acquire(blocking=False)
+    receipt = service.submit(Claims(), payload(preview))
+    assert receipt["state"] == "NOT_SUBMITTED"
+    assert store.rejects == ["suggestion_busy"] and model.calls == 0
+
+
 def test_close_rejects_admission_and_marks_cancelled_queue_dispatch_failed():
     from pilot.search_suggestion_service import SearchSuggestionService, SearchSuggestionServiceError
     gate = threading.Event()
@@ -142,8 +194,8 @@ def test_close_rejects_admission_and_marks_cancelled_queue_dispatch_failed():
     for body in bodies:
         service.submit(Claims(), body)
     assert service.close(timeout_seconds=0) is False
-    with pytest.raises(SearchSuggestionServiceError, match="capability_unavailable"):
-        service.submit(Claims(), payload(previews[0]))
+    rejected = service.submit(Claims(), payload(previews[0]))
+    assert rejected["state"] == "NOT_SUBMITTED" and rejected["error_code"] == "capability_unavailable"
     gate.set()
     service.close(timeout_seconds=2)
     assert any(getattr(outcome.get("error"), "code", outcome.get("error")) == "dispatch_failed"

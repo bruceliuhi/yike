@@ -26,6 +26,7 @@ from pilot.sessions import PilotSessionRegistry
 _ERRORS = {
     "invalid_request": 422, "invalid_session": 401, "request_not_found": 404,
     "request_conflict": 409, "request_session_mismatch": 409, "profile_unavailable": 409,
+    "disclosure_mismatch": 409,
     "suggestion_rate_limited": 429, "suggestion_quota_exceeded": 429,
     "invalid_suggestion_configuration": 500, "suggestion_store_unavailable": 503,
 }
@@ -35,6 +36,11 @@ _PUBLIC_FIELDS = ("request_id", "draft_id", "draft_revision", "profile_version_i
                   "rule_version", "model_provider", "model_name", "disclosure_policy_version", "state", "result", "usage", "error_code",
                   "created_at", "updated_at")
 _INTERNAL_FIELDS = _PUBLIC_FIELDS + ("request_sha256", "origin_session_key", "origin_session_expires_at")
+_REJECTION_REASONS = {"capability_unavailable", "disclosure_mismatch", "profile_unavailable",
+                      "suggestion_busy", "suggestion_rate_limited", "suggestion_quota_exceeded"}
+_REJECTION_FIELDS = ("request_id", "draft_id", "draft_revision", "profile_version_id", "profile_sha256",
+    "rule_version", "model_provider", "model_name", "disclosure_policy_version", "reason", "created_at",
+    "request_sha256", "origin_session_key", "origin_session_expires_at")
 
 
 class SearchSuggestionStoreError(Exception):
@@ -159,6 +165,26 @@ class SearchSuggestionStore:
         return dict(zip(_INTERNAL_FIELDS, row)) if row else None
 
     @staticmethod
+    def _rejection(cursor, tenant: str, user: str, request_id: str, *, lock: bool = False) -> dict | None:
+        cursor.execute("SELECT " + ",".join(_REJECTION_FIELDS) + " FROM pilot_search_suggestion_rejections "
+            "WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s",
+            (tenant, user, request_id))
+        row = cursor.fetchone()
+        return dict(zip(_REJECTION_FIELDS, row)) if row else None
+
+    @staticmethod
+    def _rejection_receipt(row: dict) -> dict:
+        receipt = {key: row[key] for key in _PUBLIC_FIELDS if key not in {"state", "result", "usage", "error_code", "updated_at"}}
+        receipt.update(state="NOT_SUBMITTED", result=None, usage=None, error_code=row["reason"],
+                       created_at=row["created_at"].isoformat(), updated_at=row["created_at"].isoformat(),
+                       profile_current=False)
+        return receipt
+
+    @staticmethod
+    def _lock(cursor, tenant: str) -> None:
+        cursor.execute("SELECT pg_advisory_xact_lock(11001,hashtext(%s))", (tenant,))
+
+    @staticmethod
     def _profile(cursor, tenant: str, version_id: str, *, lock: bool) -> dict | None:
         cursor.execute("SELECT profile_id FROM business_profile_versions WHERE tenant_id=%s AND profile_version_id=%s",
                        (tenant, version_id))
@@ -194,8 +220,12 @@ class SearchSuggestionStore:
             tenant = self._active(cursor, claims)
             row = self._row(cursor, tenant, claims.user_id, request_id)
             if row is None:
-                raise SearchSuggestionStoreError("request_not_found")
-            receipt = self._safe(cursor, tenant, row)
+                rejection = self._rejection(cursor, tenant, claims.user_id, request_id)
+                if rejection is None:
+                    raise SearchSuggestionStoreError("request_not_found")
+                receipt = self._rejection_receipt(rejection)
+            else:
+                receipt = self._safe(cursor, tenant, row)
             self._active(cursor, claims)
             return receipt
 
@@ -210,12 +240,64 @@ class SearchSuggestionStore:
             tenant = self._active(cursor, claims)
             row = self._row(cursor, tenant, claims.user_id, request.request_id)
             if row is None:
-                return None
+                rejection = self._rejection(cursor, tenant, claims.user_id, request.request_id)
+                if rejection is None:
+                    return None
+                if rejection["request_sha256"] != fingerprint:
+                    raise SearchSuggestionStoreError("request_conflict")
+                receipt = self._rejection_receipt(rejection)
+                self._active(cursor, claims)
+                return receipt
             if row["request_sha256"] != fingerprint:
                 raise SearchSuggestionStoreError("request_conflict")
             receipt = self._safe(cursor, tenant, row)
             self._active(cursor, claims)
             return receipt
+
+    @_safe_database_errors
+    def reject(self, claims: TokenClaims, request: SearchSuggestionRequest, disclosure: dict, reason: str) -> dict:
+        try:
+            request = SearchSuggestionRequest.model_validate(request)
+        except ValidationError:
+            raise SearchSuggestionStoreError("invalid_request") from None
+        if (type(disclosure) is not dict or set(disclosure) != {"accepted", "profile_sha256", "model_provider",
+                "model_name", "policy_version"} or disclosure.get("accepted") is not True
+                or not re.fullmatch(r"[a-f0-9]{64}", disclosure.get("profile_sha256", ""))
+                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}", disclosure.get("model_provider", ""))
+                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,199}", disclosure.get("model_name", ""))
+                or disclosure.get("policy_version") != "profile-description-v1" or reason not in _REJECTION_REASONS):
+            raise SearchSuggestionStoreError("invalid_request")
+        fingerprint = _digest({"request": request.model_dump(), "disclosure": disclosure})
+        with self._transaction() as cursor:
+            tenant = self._active(cursor, claims)
+            self._lock(cursor, tenant)
+            self._active(cursor, claims)
+            actual = self._row(cursor, tenant, claims.user_id, request.request_id, lock=True)
+            if actual is not None:
+                if actual["request_sha256"] != fingerprint:
+                    raise SearchSuggestionStoreError("request_conflict")
+                receipt = self._safe(cursor, tenant, actual)
+                self._active(cursor, claims)
+                return receipt
+            rejection = self._rejection(cursor, tenant, claims.user_id, request.request_id, lock=True)
+            if rejection is not None:
+                if rejection["request_sha256"] != fingerprint:
+                    raise SearchSuggestionStoreError("request_conflict")
+                receipt = self._rejection_receipt(rejection)
+                self._active(cursor, claims)
+                return receipt
+            self._active(cursor, claims)
+            cursor.execute("INSERT INTO pilot_search_suggestion_rejections(tenant_id,owner_user_id,request_id,draft_id,"
+                "draft_revision,profile_version_id,request_sha256,profile_sha256,origin_session_key,"
+                "origin_session_expires_at,rule_version,model_provider,model_name,disclosure_policy_version,reason) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (tenant, claims.user_id, request.request_id, request.draft_id, request.draft_revision,
+                 request.profile_version_id, fingerprint, disclosure["profile_sha256"], claims.revocation_key,
+                 claims.expires_at, RULE_VERSION, disclosure["model_provider"], disclosure["model_name"],
+                 disclosure["policy_version"], reason))
+            rejection = self._rejection(cursor, tenant, claims.user_id, request.request_id)
+            self._active(cursor, claims)
+            return self._rejection_receipt(rejection)
 
     @_safe_database_errors
     def preview(self, claims: TokenClaims, profile_version_id: str, *, provider: str, model: str) -> dict:
@@ -249,8 +331,7 @@ class SearchSuggestionStore:
                               {"request": request.model_dump(), "disclosure": disclosure})
         with self._transaction() as cursor:
             tenant = self._active(cursor, claims)
-            lock_id = int.from_bytes(hashlib.sha256(tenant.encode()).digest()[:4], "big", signed=True)
-            cursor.execute("SELECT pg_advisory_xact_lock(11001,%s)", (lock_id,))
+            self._lock(cursor, tenant)
             self._active(cursor, claims)
             previous = self._row(cursor, tenant, claims.user_id, request.request_id, lock=True)
             self._active(cursor, claims)
@@ -260,6 +341,11 @@ class SearchSuggestionStore:
                 receipt = self._safe(cursor, tenant, previous)
                 self._active(cursor, claims)
                 return receipt, None
+            rejection = self._rejection(cursor, tenant, claims.user_id, request.request_id, lock=True)
+            if rejection:
+                if rejection["request_sha256"] != fingerprint:
+                    raise SearchSuggestionStoreError("request_conflict")
+                return self._rejection_receipt(rejection), None
             if (type(provider) is not str or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}", provider)
                     or type(model) is not str or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,199}", model)):
                 raise SearchSuggestionStoreError("invalid_suggestion_configuration")
@@ -269,7 +355,7 @@ class SearchSuggestionStore:
                 raise SearchSuggestionStoreError("profile_unavailable")
             if disclosure is not None and disclosure != {"accepted": True, "profile_sha256": profile["sha256"],
                     "model_provider": provider, "model_name": model, "policy_version": "profile-description-v1"}:
-                raise SearchSuggestionStoreError("request_conflict")
+                raise SearchSuggestionStoreError("disclosure_mismatch")
             cursor.execute("WITH wall AS MATERIALIZED (SELECT clock_timestamp() AS now) "
                 "SELECT count(*),COALESCE(bool_or(created_at > wall.now-interval '2 seconds'),false) "
                 "FROM pilot_search_suggestion_quota_events,wall WHERE tenant_id=%s AND created_at > wall.now-interval '1 hour'",

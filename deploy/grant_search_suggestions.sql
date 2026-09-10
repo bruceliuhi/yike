@@ -18,20 +18,22 @@ BEGIN
     END IF;
     IF EXISTS (SELECT 1 FROM pg_class WHERE oid IN (
         'public.pilot_search_suggestion_requests'::regclass, 'public.pilot_search_suggestion_quota_events'::regclass,
+        'public.pilot_search_suggestion_rejections'::regclass,
         'public.pilot_users'::regclass, 'public.pilot_session_revocations'::regclass,
         'public.business_profiles'::regclass, 'public.business_profile_versions'::regclass
     ) AND pg_has_role(target_oid,relowner,'MEMBER')) THEN
         RAISE EXCEPTION 'application role must not own suggestion or identity/profile tables';
     END IF;
-    EXECUTE format('REVOKE ALL ON public.pilot_search_suggestion_requests,public.pilot_search_suggestion_quota_events FROM %I',target_role);
+    EXECUTE format('REVOKE ALL ON public.pilot_search_suggestion_requests,public.pilot_search_suggestion_quota_events,public.pilot_search_suggestion_rejections FROM %I',target_role);
     EXECUTE format('GRANT SELECT,INSERT,UPDATE ON public.pilot_search_suggestion_requests TO %I',target_role);
     EXECUTE format('GRANT SELECT,INSERT ON public.pilot_search_suggestion_quota_events TO %I',target_role);
+    EXECUTE format('GRANT SELECT,INSERT ON public.pilot_search_suggestion_rejections TO %I',target_role);
     -- NOINHERIT suppresses current ACLs but does not prevent SET ROLE. MEMBER
     -- covers the transitive membership closure on PG15/16; conservatively reject
     -- excess parent ACLs even where a newer server disables SET on a membership.
     FOR reachable_role IN SELECT rolname FROM pg_roles
         WHERE oid=target_oid OR pg_has_role(target_oid,oid,'MEMBER') LOOP
-        FOREACH relation_name IN ARRAY ARRAY['public.pilot_search_suggestion_requests','public.pilot_search_suggestion_quota_events'] LOOP
+        FOREACH relation_name IN ARRAY ARRAY['public.pilot_search_suggestion_requests','public.pilot_search_suggestion_quota_events','public.pilot_search_suggestion_rejections'] LOOP
             FOREACH forbidden_privilege IN ARRAY ARRAY['DELETE','TRUNCATE','REFERENCES','TRIGGER'] LOOP
                 IF has_table_privilege(reachable_role,relation_name,forbidden_privilege) THEN
                     RAISE EXCEPTION 'application role has excess reachable suggestion privileges';
@@ -44,6 +46,9 @@ BEGIN
         END LOOP;
         IF has_any_column_privilege(reachable_role,'public.pilot_search_suggestion_quota_events','UPDATE') THEN
             RAISE EXCEPTION 'application role has excess reachable quota privileges';
+        END IF;
+        IF has_any_column_privilege(reachable_role,'public.pilot_search_suggestion_rejections','UPDATE') THEN
+            RAISE EXCEPTION 'application role has excess reachable rejection privileges';
         END IF;
     END LOOP;
 END $$;

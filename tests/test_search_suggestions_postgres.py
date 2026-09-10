@@ -26,6 +26,7 @@ from tests.test_search_suggestions import implementation, body
 ROOT = Path(__file__).parents[1]
 MIGRATION = ROOT / "migrations/110_v02_search_suggestions.sql"
 CONSENT_MIGRATION = ROOT / "migrations/128_v02_search_suggestion_consent.sql"
+REJECTION_MIGRATION = ROOT / "migrations/129_v02_search_suggestion_rejections.sql"
 GRANT = ROOT / "deploy/grant_search_suggestions.sql"
 DESCRIPTION = "我们为食品工厂提供不锈钢输送设备，支持现场测量和定制交付。"
 SAFE_FIELDS = {"request_id", "draft_id", "draft_revision", "profile_version_id", "profile_sha256",
@@ -69,6 +70,8 @@ def databases():
             conn.execute(MIGRATION.read_text(encoding="utf-8"))
         if CONSENT_MIGRATION.exists():
             conn.execute(CONSENT_MIGRATION.read_text(encoding="utf-8"))
+        if REJECTION_MIGRATION.exists():
+            conn.execute(REJECTION_MIGRATION.read_text(encoding="utf-8"))
         if GRANT.exists():
             conn.execute("SELECT set_config('yike.app_role', %s, true)", (app_parts.username,))
             conn.execute(GRANT.read_text(encoding="utf-8"))
@@ -171,6 +174,89 @@ def test_restricted_postgres_http_consent_and_original_request_restore(env):
 def test_migration_and_grant_exist(databases):
     assert MIGRATION.is_file(), "missing search suggestion migration 110"
     assert GRANT.is_file(), "missing search suggestion least-privilege grant"
+    assert REJECTION_MIGRATION.is_file(), "missing search suggestion rejection migration 129"
+    admin, app = databases
+    with admin.connect() as conn:
+        assert conn.execute("SELECT relrowsecurity AND relforcerowsecurity FROM pg_class "
+                            "WHERE oid='pilot_search_suggestion_rejections'::regclass").fetchone()[0]
+    with app.connect() as conn:
+        assert conn.execute("SELECT has_table_privilege(current_user,'pilot_search_suggestion_rejections','SELECT') "
+                            "AND has_table_privilege(current_user,'pilot_search_suggestion_rejections','INSERT')").fetchone()[0]
+        assert not conn.execute("SELECT has_table_privilege(current_user,'pilot_search_suggestion_rejections','UPDATE') "
+                                "OR has_table_privilege(current_user,'pilot_search_suggestion_rejections','DELETE')").fetchone()[0]
+
+
+def test_rejection_is_durable_owner_isolated_and_prevents_later_reserve(env):
+    req = request(env)
+    before = counts(env)
+    receipt = store(env).reject(env.claims, req, disclosure(env), "capability_unavailable")
+    assert receipt["state"] == "NOT_SUBMITTED" and receipt["error_code"] == "capability_unavailable"
+    assert receipt["result"] is receipt["usage"] is None and receipt["profile_current"] is False
+    assert counts(env) == before
+    assert store(env).get_receipt(env.claims, req.request_id) == receipt
+    assert store(env).reserve(env.claims, req, provider="openai-compatible", model="synthetic-model-v1",
+                              disclosure=disclosure(env)) == (receipt, None)
+    with pytest.raises(implementation().SearchSuggestionStoreError, match="request_not_found"):
+        store(env).get_receipt(env.other_claims, req.request_id)
+    changed = implementation().SearchSuggestionRequest(**(req.model_dump() | {"draft_revision": 2}))
+    with pytest.raises(implementation().SearchSuggestionStoreError, match="request_conflict"):
+        store(env).replay_receipt(env.claims, changed, disclosure(env))
+
+
+def test_restricted_http_post_and_get_restore_not_submitted_without_quota(env):
+    from pilot.search_suggestion_api import register_search_suggestion_api
+    from pilot.search_suggestion_service import SearchSuggestionService
+
+    class UnavailableModel:
+        provider, model, available = "openai-compatible", "synthetic-model-v1", False
+
+    service = SearchSuggestionService(store(env), UnavailableModel())
+    app, router = FastAPI(), APIRouter()
+    register_search_suggestion_api(router, service, lambda request: SimpleNamespace(claims=env.claims), lambda request: None)
+    app.include_router(router)
+    client = TestClient(app)
+    req = body(profile_version_id=env.profile["version_id"])
+    before = counts(env)
+    submitted = client.post("/search-suggestions", json=req | {"disclosure": disclosure(env)})
+    restored = client.get(f"/search-suggestions/{req['request_id']}")
+    assert submitted.status_code == restored.status_code == 200
+    assert submitted.json() == restored.json()
+    assert set(restored.json()) == SAFE_FIELDS and restored.json()["state"] == "NOT_SUBMITTED"
+    assert counts(env) == before
+
+
+def test_reject_after_acceptance_returns_actual_fact_and_old_insert_cannot_cross_tombstone(env):
+    accepted = request(env)
+    actual, _ = store(env).reserve(env.claims, accepted, provider="openai-compatible",
+        model="synthetic-model-v1", disclosure=disclosure(env))
+    assert store(env).reject(env.claims, accepted, disclosure(env), "suggestion_busy") == actual
+    rejected = request(env)
+    store(env).reject(env.claims, rejected, disclosure(env), "suggestion_busy")
+    with env.admin.connect() as conn, pytest.raises(psycopg.Error) as raised:
+        conn.execute("INSERT INTO pilot_search_suggestion_requests(tenant_id,owner_user_id,request_id,draft_id,draft_revision,"
+            "profile_version_id,request_sha256,profile_sha256,origin_session_key,origin_session_expires_at,rule_version,"
+            "model_provider,model_name,disclosure_policy_version) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            (env.tenant, env.user, rejected.request_id, rejected.draft_id, rejected.draft_revision,
+             rejected.profile_version_id, "b" * 64, disclosure(env)["profile_sha256"], env.claims.revocation_key,
+             env.claims.expires_at, "search-suggestion-v1", "openai-compatible", "synthetic-model-v1",
+             "profile-description-v1"))
+    assert raised.value.sqlstate == "YS002"
+
+
+def test_parallel_reject_and_reserve_leave_one_durable_fact(env):
+    req = request(env)
+    consent = disclosure(env)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        rejected = pool.submit(store(env).reject, env.claims, req, consent, "suggestion_busy")
+        accepted = pool.submit(store(env).reserve, env.claims, req, provider="openai-compatible",
+                               model="synthetic-model-v1", disclosure=consent)
+        outcomes = [rejected.result(timeout=5), accepted.result(timeout=5)[0]]
+    assert outcomes[0] == outcomes[1]
+    with env.admin.connect() as conn:
+        facts = [conn.execute(f"SELECT count(*) FROM {table} WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s",
+                    (env.tenant, env.user, req.request_id)).fetchone()[0]
+                 for table in ("pilot_search_suggestion_requests", "pilot_search_suggestion_rejections")]
+    assert sum(facts) == 1
 
 
 def test_reserve_persists_before_return_and_replays_without_description_or_config_change(env):

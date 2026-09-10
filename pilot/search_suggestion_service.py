@@ -78,22 +78,48 @@ class SearchSuggestionService:
         replay = self.store.replay_receipt(claims, request, disclosure)
         if replay is not None:
             return replay
-        provider, model_name = self._configured()
-        if (not disclosure["accepted"] or disclosure["model_provider"] != provider
-                or disclosure["model_name"] != model_name or disclosure["policy_version"] != POLICY_VERSION):
+        if not disclosure["accepted"] or disclosure["policy_version"] != POLICY_VERSION:
             raise SearchSuggestionServiceError("disclosure_mismatch")
-        preview = self.store.preview(claims, submission.profile_version_id, provider=provider, model=model_name)
+        provider = getattr(self.model, "provider", None)
+        model_name = getattr(self.model, "model", None)
+        if not self.available:
+            error = SearchSuggestionServiceError("capability_unavailable")
+            return self._reject(claims, request, disclosure, error.code, original=error)
+        if disclosure["model_provider"] != provider or disclosure["model_name"] != model_name:
+            error = SearchSuggestionServiceError("disclosure_mismatch")
+            return self._reject(claims, request, disclosure, error.code, original=error)
+        try:
+            preview = self.store.preview(claims, submission.profile_version_id, provider=provider, model=model_name)
+        except SearchSuggestionStoreError as error:
+            if error.code == "profile_unavailable":
+                return self._reject(claims, request, disclosure, error.code, original=error)
+            raise
         if disclosure["profile_sha256"] != preview["profile_sha256"]:
-            raise SearchSuggestionServiceError("disclosure_mismatch")
+            error = SearchSuggestionServiceError("disclosure_mismatch")
+            return self._reject(claims, request, disclosure, error.code, original=error)
+        rejection_reason = None
         with self._condition:
             if not self._accepting or not getattr(self.model, "available", False):
-                raise SearchSuggestionServiceError("capability_unavailable")
-            if not self._capacity.acquire(blocking=False):
-                raise SearchSuggestionServiceError("suggestion_busy") from None
-            self._admitting += 1
+                rejection_reason = "capability_unavailable"
+            elif not self._capacity.acquire(blocking=False):
+                rejection_reason = "suggestion_busy"
+            else:
+                self._admitting += 1
+        if rejection_reason is not None:
+            error = SearchSuggestionServiceError(rejection_reason)
+            return self._reject(claims, request, disclosure, rejection_reason, original=error)
         try:
             receipt, description = self.store.reserve(claims, request, provider=provider,
                 model=model_name, disclosure=disclosure)
+        except SearchSuggestionStoreError as error:
+            self._capacity.release()
+            with self._condition:
+                self._admitting -= 1
+                self._condition.notify_all()
+            if error.code in {"profile_unavailable", "disclosure_mismatch", "suggestion_rate_limited",
+                              "suggestion_quota_exceeded"}:
+                return self._reject(claims, request, disclosure, error.code, original=error)
+            raise
         except Exception:
             self._capacity.release()
             with self._condition:
@@ -122,6 +148,14 @@ class SearchSuggestionService:
             self._admitting -= 1
             self._condition.notify_all()
         return receipt
+
+    def _reject(self, claims, request, disclosure, reason, original=None):
+        try:
+            return self.store.reject(claims, request, disclosure, reason)
+        except Exception:
+            if original is not None:
+                raise original
+            raise SearchSuggestionServiceError(reason)
 
     def _cancel_finish(self, claims, request_id):
         try:
