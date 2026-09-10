@@ -3,6 +3,9 @@ from __future__ import annotations
 import os
 import stat
 import subprocess
+import hashlib
+import hmac
+import sys
 from pathlib import Path
 
 
@@ -90,3 +93,76 @@ def test_restore_rejects_tampered_backup_before_pg_restore(tmp_path: Path) -> No
     assert rejected.returncode != 0
     assert "integrity" in (rejected.stderr + rejected.stdout).lower()
     assert not restored.exists()
+
+
+def _case(tmp_path):
+    secret = _secret_file(tmp_path)
+    restored = tmp_path / 'restored.dump'
+    bindir = _fake_pg_tools(tmp_path, restored)
+    backup = tmp_path / 'pilot.dump.enc'
+    env = {**os.environ, 'PATH': f"{bindir}:{os.environ['PATH']}",
+           'YIKE_PILOT_DATABASE_URL': 'postgresql://example.invalid/pilot',
+           'YIKE_PILOT_BACKUP_PASSPHRASE_FILE': str(secret), 'CONFIRM_RESTORE': 'YES'}
+    def run(script):
+        return subprocess.run(['bash', str(ROOT / 'scripts' / script), str(backup)],
+                              env=env, capture_output=True, text=True)
+    assert run('backup_pilot.sh').returncode == 0
+    return secret, restored, backup, env, run
+
+
+def test_v2_auth_uses_secret_contents_and_survives_secret_relocation(tmp_path):
+    secret, restored, backup, env, run = _case(tmp_path)
+    mac = Path(str(backup) + '.mac').read_bytes()
+    assert mac.startswith(b'YIKE-BACKUP-MAC-V2\n')
+    relocated = tmp_path / 'relocated-secret'
+    relocated.write_bytes(secret.read_bytes()); relocated.chmod(0o600)
+    env['YIKE_PILOT_BACKUP_PASSPHRASE_FILE'] = str(relocated)
+    result = run('restore_pilot.sh')
+    assert result.returncode == 0, result.stderr
+    assert restored.read_bytes() == b'pilot-dump-fixture'
+
+
+def test_changed_secret_fails_integrity_before_restore(tmp_path):
+    secret, restored, backup, env, run = _case(tmp_path)
+    secret.write_text('different-secret\n')
+    result = run('restore_pilot.sh')
+    assert result.returncode != 0
+    assert 'integrity' in result.stderr.lower()
+    assert not restored.exists()
+
+
+def test_legacy_path_mac_is_rejected_even_when_forged_to_match_ciphertext(tmp_path):
+    secret, restored, backup, env, run = _case(tmp_path)
+    # This is exactly the old publicly derivable key; a valid old ciphertext
+    # plus this forged sidecar must not enter decryption or pg_restore.
+    Path(str(backup)+'.mac').write_bytes(hmac.new(
+        f'file:{secret}'.encode(), backup.read_bytes(), hashlib.sha256).digest())
+    result = run('restore_pilot.sh')
+    assert result.returncode != 0
+    assert 'integrity' in result.stderr.lower()
+    assert not restored.exists()
+
+
+def test_backup_does_not_overwrite_existing_ciphertext_or_sidecar(tmp_path):
+    secret, restored, backup, env, run = _case(tmp_path)
+    before = (backup.read_bytes(), Path(str(backup)+'.mac').read_bytes())
+    assert run('backup_pilot.sh').returncode != 0
+    assert before == (backup.read_bytes(), Path(str(backup)+'.mac').read_bytes())
+
+
+def test_restore_decrypts_verified_private_snapshot_not_changed_original(tmp_path):
+    secret, restored, backup, env, run = _case(tmp_path)
+    wrapper = tmp_path / 'bin' / 'python3'
+    # Mutate only this fixture's original after successful authentication. The
+    # restore must use its already-authenticated private ciphertext snapshot.
+    wrapper.write_text('#!' + sys.executable + '\nimport os,subprocess,sys\n'
+        + 'from pathlib import Path\n'
+        + 'code=subprocess.call([' + repr(sys.executable) + ']+sys.argv[1:])\n'
+        + 'if code==0 and sys.argv[2]=="verify": Path(os.environ["TEST_ORIGINAL_BACKUP"]).write_bytes(b"changed")\n'
+        + 'raise SystemExit(code)\n')
+    wrapper.chmod(0o700)
+    env['TEST_ORIGINAL_BACKUP'] = str(backup)
+    result = run('restore_pilot.sh')
+    assert result.returncode == 0, result.stderr
+    assert backup.read_bytes() == b'changed'
+    assert restored.read_bytes() == b'pilot-dump-fixture'

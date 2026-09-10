@@ -46,14 +46,23 @@ if [[ -e "$mac_path" ]]; then
   echo "refusing to overwrite existing backup MAC: $mac_path" >&2
   exit 2
 fi
-created=1
-mac_tmp="${mac_path}.tmp.$$"
-trap 'if (( created )); then rm -f -- "$backup_path" "$mac_tmp" "$mac_path"; fi' EXIT
+temp_dir="$(mktemp -d "$(dirname -- "$backup_path")/.yike-backup.XXXXXX")"
+published_backup=0
+complete=0
+cleanup() {
+  if (( ! complete && published_backup )) && [[ "$backup_path" -ef "$temp_dir/pilot.dump.enc" ]]; then
+    rm -f -- "$backup_path"
+  fi
+  rm -f -- "$temp_dir/pilot.dump.enc" "$temp_dir/pilot.dump.enc.mac"
+  rmdir -- "$temp_dir"
+}
+trap cleanup EXIT
 pg_dump --format=custom --no-owner "$YIKE_PILOT_DATABASE_URL" \
-  | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass "file:$passphrase_file" -out "$backup_path"
-openssl dgst -sha256 -mac HMAC -macopt "key:file:$passphrase_file" -binary "$backup_path" > "$mac_tmp"
-mv -- "$mac_tmp" "$mac_path"
-chmod 600 "$mac_path"
-created=0
-trap - EXIT
+  | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass "file:$passphrase_file" -out "$temp_dir/pilot.dump.enc"
+python3 "$script_dir/backup_auth.py" create "$temp_dir/pilot.dump.enc" "$passphrase_file" "$temp_dir/pilot.dump.enc.mac"
+# Link publication is no-clobber even if a target appeared after the precheck.
+ln -- "$temp_dir/pilot.dump.enc" "$backup_path"
+published_backup=1
+ln -- "$temp_dir/pilot.dump.enc.mac" "$mac_path"
+complete=1
 echo "authenticated encrypted backup created: $backup_path (MAC: $mac_path)"

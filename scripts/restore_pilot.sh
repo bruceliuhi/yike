@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/.." && pwd)"
@@ -46,12 +47,10 @@ if [[ ! "$passphrase_mode" =~ ^[0-9]+$ ]] || (( 10#$passphrase_mode % 100 != 0 )
   exit 2
 fi
 temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/yike-pilot-restore.XXXXXX")"
-trap 'rm -rf "$temp_dir"' EXIT
-openssl dgst -sha256 -mac HMAC -macopt "key:file:$passphrase_file" -binary "$backup_path" > "$temp_dir/backup.mac"
-if ! cmp -s "$temp_dir/backup.mac" "$mac_path"; then
-  echo "backup integrity verification failed: $backup_path" >&2
-  exit 1
-fi
-openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass "file:$passphrase_file" -in "$backup_path" -out "$temp_dir/pilot.dump"
+trap 'rm -f -- "$temp_dir/backup.enc" "$temp_dir/pilot.dump"; rmdir -- "$temp_dir"' EXIT
+# Authenticate and decrypt the same private snapshot, not a mutable source path.
+cp -- "$backup_path" "$temp_dir/backup.enc"
+python3 "$script_dir/backup_auth.py" verify "$temp_dir/backup.enc" "$passphrase_file" "$mac_path"
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass "file:$passphrase_file" -in "$temp_dir/backup.enc" -out "$temp_dir/pilot.dump"
 pg_restore --clean --if-exists --no-owner --dbname="$YIKE_PILOT_DATABASE_URL" "$temp_dir/pilot.dump"
 echo "authenticated encrypted backup restored: $backup_path"
