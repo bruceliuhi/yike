@@ -5,6 +5,7 @@ import type {ReplyEvidence} from '../../../shared/replyEvidence';
 import {nativeReplyResultSchema,type NativeReplyError} from '../../../shared/nativeReply';
 import type {YikeDesktopApi} from '../../../shared/contracts';
 import {nativeOutreachLedgerKey,readNativeOutreachRecord} from '../outreach/nativeOutreachLedger';
+import {isSample} from '../opportunities/OpportunityEvidence';
 
 const errors:Record<NativeReplyError,string>={
   INVALID_REQUEST:'原请求无效，无法同步。',BUSY:'已有原生回复同步正在进行，请稍后再试。',SESSION_CHANGED:'登录身份已变化，请刷新后重试。',
@@ -17,7 +18,7 @@ export function NativeReplySync({session,opportunity,evidence,onSynced}:{session
   const scope=`${session.authenticated}:${session.userId ?? ''}:${session.accountScope?.id ?? ''}:${session.accountScope?.version ?? ''}:${opportunity.id}`;
   const generation=useRef(0),[running,setRunning]=useState<string|null>(null),[message,setMessage]=useState('');
   useEffect(()=>{generation.current+=1;setRunning(null);setMessage('');return()=>{generation.current+=1;};},[scope]);
-  const eligible=session.authenticated && !!session.userId && !!session.accountScope && !opportunity.sample && opportunity.platform==='xhs';
+  const eligible=session.authenticated && !!session.userId && !!session.accountScope && !isSample(opportunity) && opportunity.platform==='xhs';
   const requests=useMemo(()=>{
     if(!eligible)return [];
     const values:string[]=[];

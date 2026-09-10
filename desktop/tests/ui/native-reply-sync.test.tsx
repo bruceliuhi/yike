@@ -17,7 +17,10 @@ function saveOriginal(state:'PENDING'|'SENT'='PENDING'){
 function evidence(replyRequestId=requestId):ReplyEvidence {
   return {revision:1,event:{schema_version:'reply-event-v1',event_id:id(),user_id:session.userId!,tenant_id:session.accountScope!.id,
     opportunity_id:opportunity.id,source_id:id(),outreach_request_id:replyRequestId,profile_version_id:id(),state:'ACTIVE',observed_at:'2026-09-12T01:00:00Z',
-    corrects_event_id:null,reason:null,kind:'PLATFORM_REPLY',platform:'XIAOHONGSHU',channel:'comment',external_reply_id:'r1',sender_public_id:'buyer',body:'reply',received_at:'2026-09-12T00:59:00Z',read_state:'UNKNOWN',read_at:null},verification:{authority:'DEVICE_ATTESTED_PLATFORM_REPLY'}};
+    corrects_event_id:null,reason:null,kind:'PLATFORM_REPLY',platform:'XIAOHONGSHU',channel:'comment',external_reply_id:'r1',sender_public_id:'buyer',body:'reply',received_at:'2026-09-12T00:59:00Z',read_state:'UNKNOWN',read_at:null},verification:{
+      authority:'DEVICE_ATTESTED_PLATFORM_REPLY',schemaVersion:'device-reply-attestation-v1',deviceId:id(),credentialVersion:1,claimId:id(),
+      contextSha256:'b'.repeat(64),requestSha256:'c'.repeat(64),replyEventSha256:'d'.repeat(64),verifiedAt:'2026-09-12T01:00:00Z',
+    }};
 }
 beforeEach(()=>{
   localStorage.clear();requestId=id();session={authenticated:true,userId:id(),accountScope:{id:id(),version:1}};

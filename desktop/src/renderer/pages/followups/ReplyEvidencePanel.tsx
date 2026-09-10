@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApp } from "../../app/context";
 import { useResource } from "../../app/hooks";
 import { boundedRequest } from "../../app/boundedRequest";
@@ -94,6 +94,11 @@ export function ReplyEvidencePanel({
 }) {
   const { service, session } = useApp();
   const [showHistory, setShowHistory] = useState(false);
+  const syncScope = `${session.authenticated}:${session.userId || ""}:${session.accountScope?.id || ""}:${session.accountScope?.version || ""}:${opportunity.id}`;
+  const [syncSource, setSyncSource] = useState<{
+    scope: string;
+    evidence: ReplyEvidence[];
+  } | null>(null);
   const resource = useResource(
     async (signal) => {
       if (
@@ -127,6 +132,11 @@ export function ReplyEvidencePanel({
       opportunity,
     ],
   );
+  useEffect(() => {
+    if (resource.data)
+      setSyncSource({ scope: syncScope, evidence: resource.data.history });
+  }, [resource.data, syncScope]);
+  const syncEvidence = syncSource?.scope === syncScope ? syncSource.evidence : null;
   return (
     <section>
       <ResourceStatus
@@ -134,17 +144,19 @@ export function ReplyEvidencePanel({
         error={resource.error}
         onRetry={resource.reload}
       />
+      {syncEvidence && (
+        <NativeReplySync
+          session={session}
+          opportunity={opportunity}
+          evidence={syncEvidence}
+          onSynced={resource.reload}
+        />
+      )}
       {!resource.loading && !resource.error && resource.data && (
         <>
           <Notice>
             这里只展示已保存的证据，不代表已完成平台同步；设备提交证据并非服务器独立平台核验。
           </Notice>
-          <NativeReplySync
-            session={session}
-            opportunity={opportunity}
-            evidence={resource.data.history}
-            onSynced={resource.reload}
-          />
           {!resource.data.history.length ? (
             <Empty
               title="暂无保存的回复证据"

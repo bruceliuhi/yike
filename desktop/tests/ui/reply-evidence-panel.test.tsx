@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ReplyEvidencePanel } from "../../src/renderer/pages/followups/ReplyEvidencePanel";
 import { RelatedReplies } from "../../src/renderer/pages/followups/RelatedReplies";
 import { service as realService } from "../../src/renderer/services/client";
 import { PUBLIC_SAMPLE } from "../../src/renderer/pages/Opportunities";
+import { nativeOutreachLedgerKey, writeNativeOutreachRecord } from "../../src/renderer/pages/outreach/nativeOutreachLedger";
 let app: any;
 vi.mock("../../src/renderer/app/context", () => ({ useApp: () => app }));
 const id = () => crypto.randomUUID();
@@ -49,6 +50,7 @@ function fixture() {
 }
 afterEach(() => {
   cleanup();
+  localStorage.clear();
   delete (window as any).yikeDesktop;
 });
 it.each(['session', 'token', 'sms'])('ordinary %s identity reaches selected opportunity evidence', async (method) => {
@@ -83,6 +85,26 @@ it("keeps failures distinct from an empty platform inbox", async () => {
   render(<ReplyEvidencePanel opportunity={f.opportunity} />);
   expect(await screen.findByText("读取失败")).toBeTruthy();
   expect(screen.queryByText("暂无保存的回复证据")).toBeNull();
+});
+it("keeps the native sync result visible while its evidence reload is pending", async () => {
+  const f = fixture(), requestId = id();
+  f.opportunity.platform = "xhs";
+  writeNativeOutreachRecord(nativeOutreachLedgerKey(app.session, f.opportunity.id, "comment"), {
+    state: "PENDING",
+    binding: {tenantId: app.session.accountScope.id, requestId, claimId: id(), contextSha256: "a".repeat(64)},
+  });
+  let finishReload!: (rows: unknown[]) => void;
+  app.service.replyEvidence
+    .mockResolvedValueOnce([])
+    .mockReturnValueOnce(new Promise((resolve) => { finishReload = resolve; }));
+  const nativeReplyCommand = vi.fn().mockResolvedValue({state: "SYNCED", requestId, coverage: "PARTIAL", observed: 2, recorded: 1});
+  Object.defineProperty(window, "yikeDesktop", {configurable: true, value: {nativeReplyCommand}});
+  render(<ReplyEvidencePanel opportunity={f.opportunity} />);
+  fireEvent.click(await screen.findByRole("button", {name: `同步原请求 ${requestId}`}));
+  expect(await screen.findByText("部分范围读取：2 条；保存并核实：1 条（包含去重结果）。")).toBeTruthy();
+  expect(app.service.replyEvidence).toHaveBeenCalledTimes(2);
+  expect(screen.getByText("部分范围读取：2 条；保存并核实：1 条（包含去重结果）。")).toBeTruthy();
+  await act(async () => finishReload([]));
 });
 it("ignores the previous account late response after switching identity", async () => {
   const f = fixture();
