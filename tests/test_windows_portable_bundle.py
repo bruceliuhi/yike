@@ -20,6 +20,17 @@ def test_portable_builder_exists():
     assert callable(implementation().build_portable_bundle)
 
 
+@pytest.mark.skipif(os.name == 'nt', reason='non-Windows rejection boundary')
+def test_non_windows_rejected_without_creating_output(tmp_path):
+    api = implementation()
+    output = tmp_path / 'not-created'
+    with pytest.raises(api.PortableBundleError, match='PORTABLE_WINDOWS_REQUIRED'):
+        api.build_portable_bundle(project_root=tmp_path, installed_runtime=tmp_path,
+            python_home=tmp_path, host_site_packages=tmp_path, destination=output,
+            git_executable=tmp_path / 'git.exe')
+    assert not output.exists()
+
+
 def put(root, name, data=b'fixture'):
     path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(data); return path
 
@@ -37,6 +48,8 @@ def distribution(root, name, version='1.0', files=None):
 
 @pytest.fixture
 def fixture(tmp_path, monkeypatch):
+    if os.name != 'nt':
+        pytest.skip('requires native Windows paths and private directory ACLs')
     api = implementation(); inventory = importlib.import_module('app.windows_portable_inventory')
     project, runtime, python, host = [tmp_path / name for name in ('project', 'installed', 'python-home', 'host-site')]
     for directory in (project, runtime, python, host): directory.mkdir()
@@ -171,6 +184,7 @@ def test_browser_version_must_match_governed_receipt(fixture, monkeypatch):
 
 
 @pytest.mark.parametrize(('package','version','external'), [('fonttools','4.58.4','share/man/man1/ttx.1'), ('greenlet','3.5.3','include/site/python3.11/greenlet/greenlet.h')])
+@pytest.mark.skipif(os.name != 'nt', reason='requires native Windows file validation')
 def test_fixed_wheel_data_outside_site_packages_is_preserved(tmp_path, package, version, external):
     from app.windows_portable_inventory import package_files
     site = tmp_path / 'venv/Lib/site-packages'
@@ -189,6 +203,7 @@ def test_fixed_wheel_data_outside_site_packages_is_preserved(tmp_path, package, 
     ('greenlet','3.5.3','../../include/site/python3.12/greenlet/greenlet.h','runtime/.venv/Lib/site-packages'),
     ('fonttools','4.58.4','../../share/man/man1/ttx.1','host/site-packages'),
 ])
+@pytest.mark.skipif(os.name != 'nt', reason='requires native Windows file validation')
 def test_external_wheel_path_exceptions_are_exact(tmp_path, package, version, path, target):
     from app.windows_portable_inventory import PortableBundleError, package_files
     site = tmp_path/'venv/Lib/site-packages'; distribution(site, package, version)
