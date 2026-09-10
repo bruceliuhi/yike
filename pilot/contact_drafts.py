@@ -253,8 +253,6 @@ class ContactDraftStore:
                 (tenant, claims.user_id, draft.opportunityId, draft.channel))
             if cursor.fetchone() != (request.binding.requestId,):
                 raise DraftError('draft_version_conflict')
-            if draft.accountId != request.connectionId:
-                raise DraftError('outreach_account_changed')
             cursor.execute('SELECT platform FROM pilot_platform_connections '
                 'WHERE tenant_id=%s AND connection_id=%s', (tenant, request.connectionId))
             platform_row = cursor.fetchone()
@@ -264,6 +262,8 @@ class ContactDraftStore:
             connection = ConnectionOperationStore(self.database).lock_current(cursor, claims,
                 device_id=request.deviceId, connection_id=request.connectionId,
                 connection_version=request.connectionVersion, platform=platform_row[0])
+            if draft.accountId != connection['account_public_id']:
+                raise DraftError('outreach_account_changed')
             facts, proof = self._current_facts(cursor, tenant, snapshot)
             source = proof['snapshot']['source']
             if source['platform'] != connection['platform']:

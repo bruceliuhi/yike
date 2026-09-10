@@ -26,7 +26,8 @@ def connected(env, user=None):
 def prepared(env,channel='dm',user=None):
     connection=connected(env,user)
     value=body(env,channel=channel)
-    value['snapshot']['draft'].update(accountId=connection['connectionId'],recipient='comment-author')
+    # The client stores public account ID; registry.connectionId is a different ID.
+    value['snapshot']['draft'].update(accountId='our-account',recipient='comment-author')
     rehash(value)
     assert save(env,value).status_code==200
     return dict(binding=value['binding'],**connection),value
@@ -57,7 +58,7 @@ def test_resolves_demand_author_not_parent_or_blogger_without_granting_send(env,
         assert conn.execute('SELECT count(*) FROM pilot_outreach_confirmations WHERE opportunity_id=%s',(env.opp,)).fetchone()==(0,)
 
 
-@pytest.mark.parametrize('change',['connection-version','connection','device','source','profile','recipient','draft'])
+@pytest.mark.parametrize('change',['connection-version','connection','device','source','profile','recipient','account','draft'])
 def test_changed_facts_and_wrong_recipient_fail_closed(env,change):
     request,value=prepared(env)
     with env.admin.connect() as conn:
@@ -66,14 +67,15 @@ def test_changed_facts_and_wrong_recipient_fail_closed(env,change):
         elif change=='device': conn.execute("UPDATE pilot_devices SET status='REVOKED' WHERE device_id=%s",(request['deviceId'],))
         elif change=='source': conn.execute("UPDATE pilot_sources SET health='BLOCKED' WHERE source_id=%s",(env.source,))
         elif change=='profile': conn.execute("UPDATE business_profile_versions SET status='REVOKED' WHERE profile_version_id=%s",(env.profile,))
-    if change in ('recipient','draft'):
+    if change in ('recipient','account','draft'):
         updated=copy.deepcopy(value)
         updated['previousRequestId']=value['binding']['requestId']
         updated['binding']['requestId']=str(uuid4())
         updated['snapshot']['draft'].update(version=3,savedContent=value['snapshot']['draft']['content'])
         if change=='recipient': updated['snapshot']['draft']['recipient']='parent-author'
+        if change=='account': updated['snapshot']['draft']['accountId']=request['connectionId']
         rehash(updated); assert save(env,updated).status_code==200
-        if change=='recipient': request['binding']=updated['binding']
+        if change in ('recipient','account'): request['binding']=updated['binding']
     assert context(env,request).status_code==409
 
 
