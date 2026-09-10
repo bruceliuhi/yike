@@ -228,6 +228,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 候选入库 PostgreSQL 复核：使用独立身份数据库的管理员/受限角色运行 `tests/test_candidate_ingestion_postgres.py`，**23 passed**。覆盖签名提交、原子回执、版本历史、租户隔离、预算/租约与失败关闭；不代表真实平台采集或生产部署完成。
 
+2026-09-10 候选人工复核 PostgreSQL 复核：在受限身份数据库按候选入库套件创建授权后，运行 `tests/test_candidate_review_postgres.py` 与 `tests/test_candidate_review_http_postgres.py`，**58 passed**。覆盖模型评估边界、来源核验、人工复核、配额、RLS、HTTP 与回滚；模型为本地合成边界服务，不代表真实模型质量、平台采集或客户 UAT。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
