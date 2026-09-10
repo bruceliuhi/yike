@@ -154,6 +154,14 @@ async def login_platform(*, platform, output_path: Path) -> dict:
                     if url.scheme != 'https' or url.netloc != 'www.douyin.com' or url.path != '/user/self':
                         raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
                     label = crawler.context_page.get_by_text(_DY_HANDLE)
+                    try:
+                        # goto/load may precede SPA account-header rendering.
+                        await label.wait_for(state='visible', timeout=10000)
+                    except Exception:
+                        raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED') from None
+                    url = urlsplit(crawler.context_page.url)
+                    if url.scheme != 'https' or url.netloc != 'www.douyin.com' or url.path != '/user/self':
+                        raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
                     if await label.count() != 1 or not await label.is_visible():
                         raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
                     match = _DY_HANDLE.fullmatch(await label.inner_text())

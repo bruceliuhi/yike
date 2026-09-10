@@ -32,16 +32,21 @@ def test_host_selects_platform_and_validates_its_terminal(monkeypatch, platform,
 def test_fixed_video_login_identity_and_cleanup(tmp_path, monkeypatch, platform):
     events = []
     state = NS(pongs=[False, True], nav={'isLogin': True, 'mid': 123456},
-        text='抖音号： studio_2026.test', count=1, visible=True, foreign=False, close_error=False)
+        text='抖音号： studio_2026.test', count=1, visible=True, foreign=False, close_error=False, ready=False)
     class Clock:
         current = datetime(2026, 9, 12, tzinfo=timezone.utc)
         @classmethod
         def now(cls, tz): return cls.current
     monkeypatch.setattr(worker, 'datetime', Clock)
     class Locator:
-        async def count(self): return state.count
+        async def wait_for(self, *, state: str, timeout):
+            assert state == 'visible' and 0 < timeout <= 10000
+            await asyncio.sleep(0)
+            mark_ready()
+        async def count(self): return state.count if state.ready else 0
         async def is_visible(self): return state.visible
         async def inner_text(self): return state.text
+    def mark_ready(): state.ready = True
     class Page:
         url = ''
         async def goto(self, url):
@@ -87,6 +92,7 @@ def test_fixed_video_login_identity_and_cleanup(tmp_path, monkeypatch, platform)
         out = tmp_path / str(len(list(tmp_path.iterdir())))
         out.mkdir()
         state.pongs = [False, True]
+        state.ready = False
         return asyncio.run(worker.login_platform(platform=platform, output_path=out))
     result = run()
     assert result['account_public_id'] == ('123456' if platform == 'BILIBILI' else 'studio_2026.test')
