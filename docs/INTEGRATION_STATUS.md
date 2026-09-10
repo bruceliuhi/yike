@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-10 签名回复关联新发送来源
+
+`9df9d69`独立审核GO；普通runtime接设备签名回复→122/123原claim→商机，历史/人工/设备证明分开，原UNKNOWN发送不自动变成功。同回复后续轮询复用首次事实及canonical event_id；124不改旧payload摘要。[单一证据](superpowers/plans/2026-09-10-signed-reply-origin.md#本批验证)保留失败和补验。Win须消费返回ID及证据列表，尚无ACK；Mac继续本机消费/真实通道，不将测试回复计为真实客户成果。
+
 ## 2026-09-10 单次领取与结果台账
 
 `04a4017`独立审核GO。普通runtime已接一次派发许可、签名结果、UNKNOWN不重派及原请求恢复，123/最小授权就绪；[单一证据记录](superpowers/plans/2026-09-10-outreach-dispatch-ledger.md#本批验证)保留原失败与定向补验。本机持久消费/真实通道、Win消费ACK及旧回复origin桥接未完成，不宣称端到端最多发送一次。Mac继续这条主链，不重测本批无变化字节。

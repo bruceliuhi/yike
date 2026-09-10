@@ -16,6 +16,8 @@ V02-01A/104 与 V02-01B/105 升级必须严格按“迁移→显式最小授权�
 
 如需候选 ASSESS，从仓库外服务器配置同时提供 `YIKE_PILOT_ASSESSMENT_BASE_URL`、`YIKE_PILOT_ASSESSMENT_API_KEY`、`YIKE_PILOT_ASSESSMENT_MODEL`；三项全无仍可启动，部分或非法配置明确失败。启动与只读接口不探测模型。完整配置规则见[正常装配契约](../docs/contracts/V02_NORMAL_RUNTIME_COMPOSITION.md)。真实来源 policy 未接通时 START 仍不可用，短信/建议/平台收发能力仍关闭，不把 Web 存活或数据库可连当作全链就绪。
 
+124签名回复来源：先迁移再启动新版，复用[回复事件授权](grant_reply_events.sql)的表级SELECT/INSERT、旧117授权及上述设备/队列/领取读取权限，不另授UPDATE/DELETE。新增证明列不改旧payload哈希；签名入口/证据列表见[回复合同](../docs/contracts/V02_REPLY_FOLLOWUP.md#08-新发送来源接入2026-09-10)。普通runtime仅记录设备提交并验签的观察，不自动读取私人会话、不自动回复或标记平台已读；真实连接器和客户端另验。
+
 该镜像不安装项目wheel，因此Dockerfile另将已有两份版本化分析规则显式复制到`pilot/_assessment_rules/`，与wheel约定相同；不能遗漏后依赖开发目录补读。发行布局回归不代表已完成实际Linux镜像运行，目标环境仍按下述生产门禁验收。
 
 ## 构建与运行

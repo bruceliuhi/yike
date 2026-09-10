@@ -24,7 +24,7 @@ proof含externalId（不透明平台结果ID）、sha256（核验回执摘要）
 
 同resultId同内容返回原历史，异内容409；UNKNOWN可到SENT/FAILED，终态不反转。历史UNKNOWN重放不等于当前态，当前态查原queue；GET带claimId/dispatchBefore，永远不重新授权。仅SENT的deliveryConfirmed为true，FAILED另有confirmedNotDelivered:true。
 
-旧renderer `send(draft,confirmationToken)`和117回复origin尚未接此协议，不能把dispatchAllowed映成SENT或伪造117整数来源版本。下一步本机消费/真实渠道、原队列回复关联须显式接入。[本批记录](../superpowers/plans/2026-09-10-outreach-dispatch-ledger.md#本批验证)统一保留证据。以下122段描述其首次交付，当前状态和接口增量以上文为准。
+旧renderer `send(draft,confirmationToken)`尚未接此协议，不能把dispatchAllowed映成SENT。原队列回复关联现已通过[124签名回复增量](V02_REPLY_FOLLOWUP.md#08-新发送来源接入2026-09-10)显式接入，不伪造117整数来源版本；本机消费/真实渠道仍未验。[123本批记录](../superpowers/plans/2026-09-10-outreach-dispatch-ledger.md#本批验证)保留历史证据。以下122段描述其首次交付，当前状态和接口增量以上文为准。
 
 ## 07B 人工确认队列（2026-09-10）
 
