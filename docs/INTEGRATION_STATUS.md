@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-11 小红书实际页面适配
+
+07B新增主帖评论页面适配及现有受控runtime生命周期接入；只读实测发现去参直达404，已改用作者主页精确点击原帖。源码/定向证据/审核见[本批记录](superpowers/plans/2026-09-11-xhs-comment-driver.md)。下一步Mac完成Windows受监督两阶段进程桥，Win接main/UI；当前没有开放发送入口，未实际外发、未部署，父卡继续IN_PROGRESS。
+
 ## 2026-09-10 结果落盘与重启补交
 
 07B补充加密结果outbox→重启仅补原RESULT；原设备当前密钥可重放同一结果，历史事实不改写。接口/边界见[合同](contracts/V02_OUTREACH_CHANNELS.md#07b-结果持久恢复2026-09-10)，版本/验证/审核集中于[本批记录](superpowers/plans/2026-09-10-outreach-result-recovery.md#本批验证)。Mac下一步接真实driver，Win按新增outbox依赖装配main/UI；尚无客户端ACK或实际发送，不将底层恢复能力当产品上线。

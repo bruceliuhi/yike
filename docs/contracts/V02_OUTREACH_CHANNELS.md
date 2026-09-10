@@ -2,6 +2,12 @@
 
 状态：`CONTEXT_QUEUE_AND_DISPATCH_LEDGER_IMPLEMENTED / REAL_PLATFORM_SEND_UNVERIFIED`
 
+## 07B 小红书页面执行接续（2026-09-11）
+
+`app.xhs_comment_channel.XhsPostCommentChannel`实现同一Playwright页的`check(context)`/`execute(context, operation)`；`app.platform_outreach_runtime.open_xhs_comment_channel`复用已安装受控runtime，打开作者公开主页并点击准确原帖后yield该对象。只支持主帖评论；其他渠道未被宣称可用。原帖去参数直达失败、正常主页点击重开及本批验证集中见[记录](../superpowers/plans/2026-09-11-xhs-comment-driver.md)。
+
+下一步Mac接既有Windows Job监督器和TS `NativeOutreachChannel`桥：main按原connection/profile映射持有独占profile；同一个存活worker先CHECK，只在现有consumer已持久消费许可后收到原operation才EXECUTE一次；取消、会话切换和进程异常不得重发。结果先保存原outbox，清理失败不能抹掉平台回执。此批未安装该进程桥或开放IPC，Win不得直接从renderer调用Python发送方法；真实平台收发/Windows仍待验。
+
 ## 07B 结果持久恢复（2026-09-10）
 
 本批将`createOutreachResultOutbox({directory,protection})`作为`createOutreachDispatchSession`必需的`outbox`依赖，可信主进程固定目录与OS保护器，保存加密回执元数据而非正文/凭据。当前实现与独立审核以[单一证据](../superpowers/plans/2026-09-10-outreach-result-recovery.md#本批验证)为准，更新下方历史“outbox尚无”的状态。
