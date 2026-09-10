@@ -105,6 +105,8 @@ def _verify_relocated_bundle(destination, tmp_path):
     for executable, modules in (
         (destination / 'host/python.exe', [
             'app.windows_collection_host', 'app.windows_platform_login', 'app.windows_source_probe',
+            'app.windows_platform_outreach', 'app.platform_outreach_worker',
+            'app.platform_outreach_runtime', 'app.xhs_comment_channel',
             'app.windows_process_job', 'pydantic', 'pydantic_core', 'idna',
         ]),
         (destination / 'runtime/.venv/Scripts/python.exe', ['playwright', 'pydantic', 'idna']),
