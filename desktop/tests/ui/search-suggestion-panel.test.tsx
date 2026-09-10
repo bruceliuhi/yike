@@ -36,6 +36,31 @@ describe("controlled search suggestion panel", () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
+  it("restores a definite rejection and requires explicit ending plus fresh disclosure, never auto POST", async () => {
+    const denied = (request: SuggestionRequest): SuggestionReceipt => ({ ...receipt(request),
+      state: "NOT_SUBMITTED", profile_current: false, result: null, usage: null, error_code: "suggestion_quota_exceeded" });
+    const service = { preview: vi.fn().mockResolvedValue(preview), submit: vi.fn(async (r: SuggestionRequest) => denied(r)),
+      getReceipt: vi.fn(async (r: SuggestionRequest) => denied(r)) };
+    const view = render(<SearchSuggestionPanel {...props(service)} />);
+    fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
+    await screen.findByText(preview.description);
+    fireEvent.click(screen.getByRole("button", { name: "我已核对，发送并生成" }));
+    expect(await screen.findByText(/服务端已确认未受理/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "合并新增建议" })).toBeNull();
+    view.unmount();
+    render(<SearchSuggestionPanel {...props(service)} />);
+    await waitFor(() => expect(service.getReceipt).toHaveBeenCalledOnce());
+    expect(service.submit).toHaveBeenCalledOnce();
+    fireEvent.click(await screen.findByRole("button", { name: "结束未受理请求" }));
+    expect(service.submit).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
+    await screen.findByText(preview.description);
+    expect(service.submit).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "我已核对，发送并生成" }));
+    await waitFor(() => expect(service.submit).toHaveBeenCalledTimes(2));
+    expect(service.submit.mock.calls[1][0].request_id).not.toBe(service.submit.mock.calls[0][0].request_id);
+  });
+
   it("does not send on mount and submits once only after full disclosure confirmation", async () => {
     const service = { preview: vi.fn().mockResolvedValue(preview),
       submit: vi.fn(async (request: SuggestionRequest) => receipt(request)), getReceipt: vi.fn() };

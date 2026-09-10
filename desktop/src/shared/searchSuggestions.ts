@@ -25,18 +25,23 @@ const resultSchema = z.object({
 }).strict();
 const usageSchema = z.object({prompt_tokens:count,completion_tokens:count,total_tokens:count}).strict()
   .refine(value=>value.prompt_tokens+value.completion_tokens===value.total_tokens);
+export const suggestionNonAdmissionReasons = ['capability_unavailable','disclosure_mismatch','profile_unavailable',
+  'suggestion_busy','suggestion_rate_limited','suggestion_quota_exceeded'] as const;
+const generationFailures = ['invalid_suggestion_result','suggestion_provider_rejected','profile_changed','dispatch_failed'] as const;
 export const suggestionReceiptSchema = z.object({
   ...binding,profile_sha256:sha,model_provider:provider,model_name:model,
   disclosure_policy_version:policy,rule_version:z.literal('search-suggestion-v1'),profile_current:z.boolean(),
-  state:z.enum(['PENDING','SUCCEEDED','FAILED','UNKNOWN']),result:resultSchema.nullable(),usage:usageSchema.nullable(),
-  error_code:z.enum(['invalid_suggestion_result','suggestion_provider_rejected','profile_changed','dispatch_failed','suggestion_result_unknown']).nullable(),
+  state:z.enum(['PENDING','SUCCEEDED','FAILED','UNKNOWN','NOT_SUBMITTED']),result:resultSchema.nullable(),usage:usageSchema.nullable(),
+  error_code:z.enum([...generationFailures,'suggestion_result_unknown',...suggestionNonAdmissionReasons]).nullable(),
   created_at:z.string().datetime({offset:true}),updated_at:z.string().datetime({offset:true}),
 }).strict().refine(value=>{
   if(value.state==='SUCCEEDED') return value.result!==null&&value.error_code===null;
   if(value.result!==null||value.usage!==null) return false;
   if(value.state==='PENDING') return value.error_code===null;
   if(value.state==='UNKNOWN') return value.error_code==='suggestion_result_unknown';
-  return value.error_code!==null&&value.error_code!=='suggestion_result_unknown';
+  if(value.state==='NOT_SUBMITTED') return value.profile_current===false&&
+    suggestionNonAdmissionReasons.some(reason=>reason===value.error_code);
+  return generationFailures.some(reason=>reason===value.error_code);
 });
 
 export type SuggestionRequest = z.infer<typeof suggestionRequestSchema>;

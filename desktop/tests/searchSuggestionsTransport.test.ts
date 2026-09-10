@@ -43,6 +43,15 @@ describe('governed suggestion transport',()=>{
     const result=await createSearchSuggestionsService(vi.fn().mockResolvedValue({...receipt(),profile_current:false})).getReceipt(request);
     expect(result.profile_current).toBe(false);
   });
+  it('accepts only a bound non-admission fact, without model result or usage',async()=>{
+    const denied={...receipt(),state:'NOT_SUBMITTED',profile_current:false,result:null,usage:null,error_code:'suggestion_quota_exceeded'};
+    const service=createSearchSuggestionsService(vi.fn().mockResolvedValue(denied));
+    expect((await service.getReceipt(request)).state).toBe('NOT_SUBMITTED');
+    for(const invalid of [{...denied,request_id:request.draft_id},{...denied,result:receipt().result},
+      {...denied,profile_current:true},{...denied,error_code:'suggestion_result_unknown'},
+      {...denied,state:'FAILED'}])
+      await expect(createSearchSuggestionsService(vi.fn().mockResolvedValue(invalid)).getReceipt(request)).rejects.toThrow();
+  });
   it('forwards read cancellation and does not dispatch an already cancelled submit',async()=>{
     const transport=vi.fn().mockResolvedValue(receipt()); const service=createSearchSuggestionsService(transport);
     const abort=new AbortController();

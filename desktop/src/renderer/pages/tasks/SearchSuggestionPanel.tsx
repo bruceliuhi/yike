@@ -16,7 +16,12 @@ import {
 const REQUEST_MS = 10_000;
 const TOTAL_WAIT_MS = 45_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const terminal = (receipt: SuggestionReceipt) => receipt.state === "SUCCEEDED" || receipt.state === "FAILED";
+const terminal = (receipt: SuggestionReceipt) => receipt.state === "SUCCEEDED" || receipt.state === "FAILED" || receipt.state === "NOT_SUBMITTED";
+const rejectionReasons: Record<string,string> = {
+  capability_unavailable:"建议服务当前不可用", disclosure_mismatch:"业务介绍或模型配置已变化，需要重新核对",
+  profile_unavailable:"所选画像当前不可用，请重新确认", suggestion_busy:"建议服务正忙，请稍后再试",
+  suggestion_rate_limited:"提交过于频繁，请稍后再试", suggestion_quota_exceeded:"本小时建议生成额度已用完，请稍后再试",
+};
 const sameRequest = (receipt: SuggestionReceipt, request: SuggestionRequest) =>
   receipt.request_id === request.request_id && receipt.draft_id === request.draft_id &&
   receipt.profile_version_id === request.profile_version_id && receipt.draft_revision === request.draft_revision &&
@@ -215,8 +220,14 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
     {record && record.scope.userId === props.scope?.userId && record.scope.accountScopeId === props.scope?.accountScopeId &&
       record.scope.accountScopeVersion === props.scope?.accountScopeVersion && <Notice tone={record.receipt?.state === "FAILED" ? "warning" : "info"}>
       原请求 {record.request.request_id} · {record.receipt?.state || "回执待核对"}
+      {record.receipt?.state === "NOT_SUBMITTED" && <p>
+        服务端已确认未受理，未调用模型。{rejectionReasons[record.receipt.error_code || ""]}
+        。结束原请求后，可重新核对业务介绍并决定是否生成；不会自动重试。
+      </p>}
       {!currentBinding() && " · 历史草稿/画像，只读核对"}
-      {record.receipt && terminal(record.receipt) && <Button variant="ghost" onClick={finish}>结束原请求</Button>}
+      {record.receipt && terminal(record.receipt) && <Button variant="ghost" onClick={finish}>
+        {record.receipt.state === "NOT_SUBMITTED" ? "结束未受理请求" : "结束原请求"}
+      </Button>}
     </Notice>}
     {preview && previewBinding === viewBinding && <Modal title="确认发送业务介绍" onClose={() => { setPreview(null); setPreviewBinding(""); }} footer={<>
       <Button onClick={() => setPreview(null)}>暂不发送</Button>
