@@ -4,6 +4,12 @@
 
 ## 分工调整
 
+2026-09-10 **Win05F恢复 `f92db9d` 可接续**：`executionJournal`按服务/用户/原UUID保存OS保护的完整操作，不存签名/会话摘要/私钥，损坏或部分写入不覆盖；历史记录不删除，列表1000条上限超出整体失败，不伪装完整空列表。`executionSession`先落盘再发，已有操作只查原回执，404仅在明确原请求retry时重新准备签名；FAILED/KEY_MISSING不表示历史POST未执行。`executionReceipt`绑定原操作/平台顺序/租约及代次，历史回执不续租。下一步Win独占现main会话epoch装配、窄执行入口和确认策略/worker；Mac保留执行/回复后端，无新增API或迁移。
+
+本批证据：6文件309项（session/journal/receipt/proofSigner/serviceClient/deviceIdentityJournal）通过；非作者发现最终return缺epoch守卫，以双microtask反例RED复现，修复后session17项和类型检查通过。冻结树 `e6cf5cddf7c8a3244b698e428a911710167a6779` 即 `f92db9d` 源码树，经独立SPEC后代码/架构/质量PASS，0未关闭项；独立仅复跑竞态1例。复用 `.runtime/execution-client-pg.ps1` 调用 `tests/test_desktop_execution_http_postgres.py`，最终1passed/0skip/2.96s：真实磁盘factory重建→GET丢START原任务→CLAIM/RENEW→换会话拒旧签名→CANCEL，数据库1任务4操作，本地4原记录；随机专属容器已移除。保护适配/设备和来源能力仍为合成fixture，不是Windows safeStorage/安装/真实采集证据。Mac纯文档 `4764cf7` 正常保留，不触发重测/构包，现有Windows包仍绑定 `e5774b6`。
+
+2026-09-10 Win恢复接续（base `e461520`）：独占新 `desktop/src/main/executionJournal.ts`、`executionSession.ts`、`desktop/src/shared/executionReceipt.ts` 与配套tests；复用已接执行HTTP/设备vault，保存不可变原操作后才发出请求，重启先查原UUID，404不自动重发。随后接现main会话epoch和确认策略入口；不改Mac执行/回复API和迁移、不提前开启来源。定向测试及单次整批独立审核，内部模块不重复构包。
+
 2026-09-10 **Win执行合同消费ACK `905f46c`**：原四接口实际由产品ServiceClient和签名器消费，Node经socket HTTP与受限PG走通START丢回执后GET原任务、CLAIM/RENEW、退出/换会话拒绝旧签名、新签名CANCEL与历史读取；数据库仅1个任务/4个操作，取消保持CANCELLING而非宣称进程已停。运行 `.runtime/execution-client-pg.ps1` → `tests/test_desktop_execution_http_postgres.py`，1passed/0skip/2.99s，随机专属容器已移除；Node无数据库凭据。设备/来源能力为合成fixture，不证明真实采集。初次在signer stub上实际SIGNING_FAILED RED；传输测试2个失败来自JSON键序断言，改为比较解析后内容，产品协议未降级。
 
 本批根 `vitest run tests/executionOperation.test.ts tests/executionProofSigner.test.ts tests/executionServiceClient.test.ts tests/serviceClient.test.ts tests/deviceServiceClient.test.ts tests/deviceIdentityController.test.ts` 为399passed、`tsc --noEmit`通过。独立非作者对冻结树 `b54c604aafcc2c0f63a1dbeab795916dc26d092e`（即905f46c源码树）完成SPEC后再代码/架构/质量PASS，0未关闭项；仅额外跑跨语言原字节1例，没有重复整套。Mac `ad51e99`仅文档，正常合并不触发测试/构包。**下一步Win继续独占持久原执行请求、会话epoch保护及现确认策略/worker接入；Mac不重复桌面实现，回复P2仍由Mac收口。** 当前可访问任务列表仍无Mac，故通过main交接，不声称已直达或Mac已接收。
