@@ -132,3 +132,37 @@ Task4产品写入口现已安装；**Task5实际Node→HTTP→受限PostgreSQL�
 最终合入产品字节在Windows Edge以1440×1000/960×600复验原文与确认弹窗，960重新执行取消→重新勾选→提交丢回执→筛选外GET恢复：事件恰好一次ASSESS、VERIFY、INCLUDE、GET_REQUEST，成功后无旧未知提示，scrollWidth=960。原文读取失败场景只LIST/RAW、无摘要替代且不能纳入。截图与页面/事件记录见[candidate-p07-win](candidate-p07-win/README.md)。全部是明确标识的TEST内存传输，未调用实际平台、模型或客户库。
 
 自己的源码/文档diff检查和凭据扫描通过。合入Mac历史验收日志与刻意空白fixture的diff check报告原有尾随空白，原证据按字节保留，未替别人清洗历史记录。
+
+## Task5 Windows 实际客户端 HTTP 与 PostgreSQL 接收
+
+日期2026-09-10，产品基线`ca1f28a`。新增`tests/test_desktop_candidate_review_http_postgres.py`与`desktop/tests/integration/candidate-review-live.test.ts`，没有修改生产API、授权或客户端行为。不是重复纯DTO/mock验证：实际renderer service经过主进程固定ServiceClient、Origin/session队列、socket HTTP、共享build_app、受限PG与真实已确认策略；平台原始输入和模型输出为合成边界，原始上传复用签名执行/候选链。
+
+### 实际检查
+
+- Node24读取当前候选与本人COMMENT原文/父上下文→显式ASSESS→人工OPEN核验→INCLUDE。实际服务成功提交后，仅在fetch边界丢弃回执；GET原请求恢复正确`sourceVerificationId`，没有恢复时自动POST。另显式原ID重放和新ID重复纳入，数据库仅1商机、2决策记录、1分析、1核验，模型调用1次。
+- 实际P11服务读取固定原文、本人作者与父作者、逐字引用、画像/来源版本；原发布时间与观察时间刻意不同，Node比对raw当前观察ID、观察/接收时间，Python再核对原始版本/观察数据库行和固定证据摘要。核验ID在原决策回执持久化中验证，不强行加入本来不含私有核验ID的共享P11快照。
+- 同租户其他用户看不到私有候选/原文/原请求，不能写候选；共享P11投影仍按既定租户权限可读。其他租户不可读P11。退出后的读取、写入和原请求恢复均401；跨租户写入按既定先校验画像顺序返回`409 profile_unavailable`，同租户非owner为`404 candidate_not_found`。
+- 独立新数据库案例分别经真实签名上传改变来源，或确认新版画像；旧来源核验和旧INCLUDE均409，未新增商机/复核记录，不再次调用模型。
+- 子Node仅允许系统运行环境及本轮HTTP测试值，不含数据库URL/管理员连接/服务端secret。token不进argv/日志，失败输出脱敏；HTTP线程和Node进程均有退出界限。受限角色明确非superuser/BYPASSRLS，候选review表RLS实际有效。
+
+### 失败、审核与最终执行
+
+无环境时Python3 skipped、Node1 skipped只证明门禁，不算联调通过。首次真实运行**1 failed/2 passed**：主流程走到跨租户拒绝写入，测试误期待404，实际服务先校验租户画像而返回409。核对`CandidateReviewStore._capture`后修正精确状态/错误码，未放宽生产拒绝或断言为任意失败。初始TS类型名拼写与raw绑定字段拼写在运行前类型/源码核对修正，不计产品RED。
+
+独立SPEC发现时间来源覆盖P2：原夹具发布时间与观察时间相同，不能抓混用。补独立时间和raw/P11/数据库三方精确比对后SPEC复审PASS，代码/架构/质量另审PASS、0 Critical/Important/Minor。审核绑定Python SHA256 `55041f5868edc91e051cb3d149c3d736e186c68d626861c573d885e7a01db5d6`、Node SHA256 `69816dc2cbce91adbaec29c73a2d6b22d90959d795c8a37db486a56b0eea2080`。这是新验收代码，不把对已有产品补覆盖冒称新产品TDD实现。
+
+根代理重建一次性PostgreSQL16隔离库，最终**3 passed/0 skipped，9.26s**；其中父Python实际执行5次Node子用例（flow一次、两个prepare/stale各两次），不相加成8项独立测试。`EXACT_TEMP_POSTGRES_REMOVAL_CONFIRMED`确认本轮专用容器已移除。Node24相关**20文件613 passed/0 skipped，8.64s**；类型退出0，生产排除构建4788 transformed/4787 graph modules、manifestHarnessReferences=0、failures=[]、existingAsarChecked=false。此前Task4的1423项不是本轮全量重跑。
+
+可复验入口（专用PG、应用角色和Node24路径通过私有进程环境配置，不填写凭据到命令行）：
+
+```text
+python -X utf8 -m pytest -q -p no:cacheprovider --tb=short -r s tests/test_desktop_candidate_review_http_postgres.py
+```
+
+使用既有`YIKE_IDENTITY_TEST_DATABASE_URL`/`YIKE_IDENTITY_TEST_APP_DATABASE_URL`测试fixture与`YIKE_CANDIDATE_LIVE_NODE_BINARY`。没有专用环境会明确skip，不以skip作为门禁通过；不得指向生产库。
+
+### Windows运行环境修复与边界
+
+本机Docker原未启动；启动后Computer Use读取错误：`dockerInference`运行时套接字无法访问。正常退出失败后经官方`docker desktop stop --force`停止异常进程，确认停止后把专用run目录移至同级`run.before-candidate-review-20260910`保留，再启动成功，服务端28.3.2。未恢复出厂、删除镜像/业务卷或停止恢复后的其他业务容器。备份为本机运行文件，不入Git。测试结束只清理精确创建的临时PG。
+
+Task1～5限定客户端工程接收已具备证据，Mac原核验ID字段修复取得Win实际消费ACK。**05G整卡、真实来源/收费模型、确认联系/回复、Windows安装发行、生产及客户试用仍未完成，整体Goal不关闭。** 后续Win继续已分配的设备HTTP/原请求恢复与来源worker，再接确认联系和回复；不把这次测试接收当产品可上线。

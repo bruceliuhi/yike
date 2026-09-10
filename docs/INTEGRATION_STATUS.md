@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-10 Win 候选实际 HTTP/PG 接收
+
+基线`ca1f28a`，现P07产品service→主进程固定ServiceClient→socket HTTP→受限PostgreSQL实际通过：原文/逐字引用、显式分析、人工来源核验、INCLUDE丢回执原请求恢复、防重、P11固定原文和三类时间、跨用户/退出拒绝、来源/画像版本失效。根3案例实际PG通过，20文件613相关回归、类型/生产TEST排除通过；独立规格及代码/架构/质量PASS。Mac原`sourceVerificationId`修复已取得Win实际消费ACK，详见[Task5 QA](qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task5-windows-实际客户端-http-与-postgresql-接收)。平台/模型输入合成，不代表真实获客或上线；Win继续设备HTTP/来源worker，05G父卡及Goal保持IN_PROGRESS。
+
 ## 2026-09-10 Win P07 原文证据与人工闭环
 
 Win在既有P07完成原文/父上下文/来源时间版本、四维判断逐字引用、显式判断、人工来源核验、固定核验ID的确认入库及筛选外原请求恢复。产品写入口已安装，不自动模型调用或发送。独立SPEC与代码/质量复审PASS，根20文件612项通过；Windows Edge双视口为TEST隔离界面验证，非真实服务/客户验收。详见[05G QA](qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task4-p07-原文证据与完整人工流程)。Win继续Task5真实Node→HTTP→PG，不重复Mac后端/设备/回复工作；05G和Goal仍IN_PROGRESS。

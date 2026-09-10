@@ -53,7 +53,7 @@ Task2独立SPEC/代码/架构/质量通过，198相关及115策略/原文/确认
 - [x] RED→GREEN：现 raw-candidate GET 的严格当前候选/版本/观察解析，bind candidateId/profile/strategy/version；COMMENT 当前本人正文/作者与原帖标题/父评论分开。不同版本拒绝混合；界面刷新提示及展示由Task4接。raw的profile_version_id就是复核profileId，无法从raw单独证明numeric profileVersion，不伪造该字段。
 - [x] 新 scope 保留 ASSESS/VERIFY_SOURCE/INCLUDE/EXCLUDE 原 requestId、action、candidateId、绑定/确认摘要及必要 opaque 核验/重试 ID，不写原文/人工依据/凭据。先持久化再 POST；失败不派发，其他账户隔离，清草稿/退出不清记录。旧 candidate-reviews scope 完全保留并只读检查旧未决。实现/测试仅基础hook，实际页面写服务仍等Task4安装。
 - [x] 结果未知、错回执、401/404/5xx保留；GET 原请求只读取，不自动调用模型或换 UUID。已查询的 FAILED/UNKNOWN 分析仅在用户显式确认后新 requestId+retryOf；PROCESSING不能发新请求；未知人工核验/决策先核对原请求，不能盲重试。按实际producer，requestId一直是用户原请求，invocationRequestId指实际模型调用；额外保存opaque invocationId，重试指它而不是错误的别名。慢hash期间同候选记录任何变化均使该次确认失效。
-- [ ] 新 INCLUDE 确认摘要覆盖 sourceVerificationId；旧缺字段回执不假装匹配新确认。Mac最小字段补齐后通过真实 HTTP 验证；若尚未交付保留该精确接收缺口，不以客户端推断替代。
+- [x] 新 INCLUDE 确认摘要覆盖 sourceVerificationId；旧缺字段回执不假装匹配新确认。Mac最小字段补齐后已在Task5通过实际产品客户端→HTTP→PG验证原核验ID，非客户端推断。
 
 ### Task 4: 复用 P07 的完整人工流程
 
@@ -73,7 +73,9 @@ Task4源码`90c1feb`，保留Mac`81adccb`正常合入`5614d71`。最终扩大回
 
 **Files:** Create `tests/test_desktop_candidate_review_http_postgres.py`, `desktop/tests/integration/candidate-review-live.test.ts`；QA `docs/qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md`，更新唯一任务书及 Win/Mac 交接。
 
-- [ ] 复用已验一次性 PG/112/113/115/真实策略 fixture，只有模型输出/平台原始输入合成；实际产品 client list→ASSESS→verify→INCLUDE→原请求→opportunity固定证据，跨用户/退出拒绝、重复不多商机、丢回执恢复、来源/画像版本变化拒绝。测试不改变生产 grants/store/API。
-- [ ] 子 Node 不含数据库 URL/管理员连接，测试 token 仅私有 env、不在 argv/log；精确移除本轮临时容器。没有实际服务完整执行不宣称05G已接收。
-- [ ] 最终相关批次/类型/构建/生产TEST排除/凭据扫描及非作者整片复核；正常整合main并按新来件影响检查，不强推、不计别人的测试为本轮结果。
-- [ ] 更新当前实现/尚缺真实来源和模型/确认收发/Windows发行/UAT边界；整体 Goal 继续，三个首发亮点与原产品范围不缩减。
+- [x] 复用已验一次性 PG/112/113/115/真实策略 fixture，只有模型输出/平台原始输入合成；实际产品 client list→ASSESS→verify→INCLUDE→原请求→opportunity固定证据，跨用户/退出拒绝、重复不多商机、丢回执恢复、来源/画像版本变化拒绝。测试不改变生产 grants/store/API。
+- [x] 子 Node 不含数据库 URL/管理员连接，测试 token 仅私有 env、不在 argv/log；实际执行后精确移除本轮临时容器。仅05G限定客户端工程接收，不称父任务或客户能力完成。
+- [ ] 最终相关批次/类型/构建/生产TEST排除/凭据扫描及非作者整片复核；正常整合main并按新来件影响检查，不强推、不计别人的测试为本轮结果。当前相关613项、实际PG3案例、类型/构建及独立SPEC/质量已通过，最终提交整合后勾选。
+- [x] 更新当前实现/尚缺真实来源和模型/确认收发/Windows发行/UAT边界；整体 Goal 继续，三个首发亮点与原产品范围不缩减。
+
+Task5基于`ca1f28a`，3实际HTTP/PG案例通过，独立时间来源P2已关闭；[QA](../../qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task5-windows-实际客户端-http-与-postgresql-接收)保留首次断言失败、实际权限错误码及所有验证边界。

@@ -240,6 +240,8 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 
 ### CodexWin Goal 启动与当前认领
 
+2026-09-10 Win05G Task5真实客户端接收已执行：Node24产品service→固定ServiceClient→socket HTTP→受限PG，3案例passed/0skip；原核验ID、入库防重/丢回执恢复、P11固定原文与时间归属、跨用户/退出及版本失效均有数据库结果。独立规格/代码/架构/质量PASS，根613相关回归与类型/构建通过，见[QA](qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task5-windows-实际客户端-http-与-postgresql-接收)。Task1～5限定客户端工程完成，原`sourceVerificationId`服务缺口取得Win实际ACK；**父05G/PH-F06仍IN_PROGRESS，真实平台/模型与客户整链未验。Win接续已有设备HTTP/原登记恢复与来源worker职责**，不重复Mac后端/设备接口/回复在途实现。通过main同步分工和版本，不冒称Mac直达消息。
+
 2026-09-10 Win05G Task4已将“原文证据”及完整人工流程接入现P07：正文/父上下文/时间版本、判断逐字引用、显式ASSESS、人工核验、固定核验ID的确认纳入/排除、原请求恢复。独立复审PASS，根612相关测试通过，Windows Edge两视口采用TEST隔离；这些不代表真实后端或客户试用通过。**Win下一片独占Task5实际Node→HTTP→受限PG接收与P11固定原文核对**，不改Mac在途后端/设备/回复实现。详见[QA](qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task4-p07-原文证据与完整人工流程)，05G/PH-F06/Goal保持IN_PROGRESS；下列较早记录按其版本保留。
 
 2026-09-10 Win05G原始证据/恢复基础基于`b1b2cba`完成限定切片：真实只读原文保留COMMENT主体/父上下文、未知时间和版本/观察；新版opaque恢复覆盖四动作、原请求与invocation别名、明确重试、旧未决保护及慢hash并发CAS。两片均独立SPEC/代码/架构/质量PASS，根14文件546项、类型、生产TEST排除通过，[QA](qa/V02-05G_CANDIDATE_CLIENT_WIN_REVIEW.md#task3-原始证据与操作恢复基础)保留全部反例。**Win接续现P07显式判断/人工核验/确认入库，再做真实HTTP/PG与Windows界面接收**；写服务尚未装入产品，不把hook可用写成客户流程已通。Mac后端/设备与收发所有权不变，05G/PH-F06/整体Goal继续IN_PROGRESS。
