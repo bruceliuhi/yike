@@ -136,7 +136,9 @@ def _record(platform: str, raw: object, collector_version: str, query: str | Non
     comment_id = _aliases(comment, comment_fields, converter)
     if source_id is None or comment_id is None:
         raise CandidateMappingError() from None
-    comment_source = _aliases(comment, source_fields, _numeric_id)
+    # XHS comment.id identifies the comment, not its containing note.
+    comment_source_fields = ("note_id", "source_id") if platform == "XIAOHONGSHU" else source_fields
+    comment_source = _aliases(comment, comment_source_fields, converter)
     if comment_source is not None and comment_source != source_id:
         raise CandidateMappingError() from None
 
@@ -171,7 +173,7 @@ def _record(platform: str, raw: object, collector_version: str, query: str | Non
     parent_time = _aliases(comment, ("parent_create_time", "parent_published_at"), _time)
     parent_url = _aliases(comment, ("parent_comment_url", "parent_url"))
     parent_author = comment.get("parent_author_public_id")
-    parent_source = _aliases(comment, parent_source_fields, _numeric_id)
+    parent_source = _aliases(comment, parent_source_fields, converter)
     parent = None
     if parent_id is None:
         if any(value is not None for value in (parent_body, parent_time, parent_url, parent_author, parent_source)):

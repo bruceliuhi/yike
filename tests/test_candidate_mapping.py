@@ -478,3 +478,83 @@ def test_trusted_now_is_required_and_not_replaced_with_wall_clock():
     with pytest.raises(ValueError, match="^now must be timezone-aware$"):
         build(now=datetime(2026, 9, 9))
     assert_contract_error([raw()], "INVALID_SOURCE_TIME", now=datetime(2026, 8, 1, tzinfo=timezone.utc))
+
+
+def xhs_raw():
+    # Synthetic values with the actual 24-character hexadecimal source shape.
+    return {
+        "content": {"note_id": "66c01234abcdef0123456789", "title": " 原标题 e\u0301 "},
+        "comment": {
+            "comment_id": "66c11234abcdef0123456789", "content": BODY,
+            "collected_at": "2026-09-09T02:00:00Z",
+        },
+    }
+
+
+@pytest.mark.parametrize("fields", [
+    ("note_id",), ("source_id",), ("note_id", "source_id"),
+    ("parent_note_id",), ("parent_source_id",), ("parent_note_id", "parent_source_id"),
+    ("note_id", "source_id", "parent_note_id", "parent_source_id"),
+])
+def test_xhs_hex_source_references_preserve_exact_comment_and_parent_evidence(fields):
+    record = xhs_raw()
+    note_id = record["content"]["note_id"]
+    parent_id = "66c21234abcdef0123456789"
+    record["comment"].update({field: note_id for field in fields})
+    record["comment"].update(parent_comment_id=parent_id, parent_content=BODY)
+    before = deepcopy(record)
+    item = build([record], "XIAOHONGSHU").records[0]
+    assert item.external_source_id == note_id
+    assert item.external_comment_id == record["comment"]["comment_id"]
+    assert item.body == BODY and item.title == record["content"]["title"]
+    assert item.parent.external_comment_id == parent_id and item.parent.body == BODY
+    assert item.parent.published_at is None and item.published_at is None
+    assert item.public_url == f"https://www.xiaohongshu.com/explore/{note_id}?comment_id={item.external_comment_id}"
+    assert record == before
+
+
+@pytest.mark.parametrize("include_canonical", [False, True])
+def test_xhs_comment_id_alias_is_not_mistaken_for_its_note_id(include_canonical):
+    record = xhs_raw()
+    comment_id = record["comment"]["comment_id"]
+    record["comment"].update(id=comment_id, note_id=record["content"]["note_id"])
+    if not include_canonical:
+        record["comment"].pop("comment_id")
+    record["content"]["id"] = record["content"]["note_id"]
+    assert build([record], "XIAOHONGSHU").records[0].external_comment_id == comment_id
+
+
+@pytest.mark.parametrize("scope,fields", [
+    ("content", ("note_id", "source_id")),
+    ("content", ("note_id", "id")),
+    ("comment", ("comment_id", "id")),
+    ("comment", ("note_id", "source_id")),
+    ("comment", ("parent_note_id", "parent_source_id")),
+    ("comment", ("parent_comment_id", "parent_id")),
+])
+def test_xhs_conflicting_semantic_id_aliases_are_rejected(scope, fields):
+    record = xhs_raw()
+    record["comment"]["parent_comment_id"] = "66c21234abcdef0123456789"
+    record[scope].update({fields[0]: "66c01234abcdef0123456789",
+                          fields[1]: "66c31234abcdef0123456789"})
+    assert_mapping_error([record], "XIAOHONGSHU")
+
+
+@pytest.mark.parametrize("field", ["note_id", "source_id", "parent_note_id", "parent_source_id"])
+@pytest.mark.parametrize("bad", ["66c31234abcdef0123456789", " 66c01234abcdef0123456789",
+                                  "66c01234abcdef0123456789 ", True, 1.0])
+def test_xhs_source_references_reject_cross_source_and_noncanonical_values(field, bad):
+    record = xhs_raw()
+    record["comment"].update(parent_comment_id="66c21234abcdef0123456789", **{field: bad})
+    assert_mapping_error([record], "XIAOHONGSHU")
+
+
+@pytest.mark.parametrize("platform,fields", [
+    ("DOUYIN", ("aweme_id", "parent_aweme_id")),
+    ("BILIBILI", ("video_id", "parent_video_id")),
+])
+@pytest.mark.parametrize("index", [0, 1])
+def test_numeric_platform_source_references_still_reject_xhs_hex_ids(platform, fields, index):
+    record = raw(platform)
+    record["comment"].update(parent_comment_id="201", **{fields[index]: "66c01234abcdef0123456789"})
+    assert_mapping_error([record], platform)
