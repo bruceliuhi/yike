@@ -41,6 +41,10 @@ const outcomeSchema=z.discriminatedUnion('status',[
 export type OutreachContext=z.infer<typeof contextSchema>;
 export type OutreachExpected=z.infer<typeof expectedSchema>;
 export type NativeOutreachOutcome=z.infer<typeof outcomeSchema>;
+// Shared by the private process adapter; these parsers confer no authorization.
+export const parseNativeOutreachContext=(value:unknown)=>contextSchema.parse(value);
+export const parseNativeOutreachObservation=(value:unknown)=>checkSchema.parse(value);
+export const parseNativeOutreachOutcome=(value:unknown)=>outcomeSchema.parse(value);
 export interface NativeOutreachChannel {
   /** Read-only, actual original account/target/channel check; never send here. */
   check(context:Readonly<OutreachContext>,signal:AbortSignal):Promise<unknown>;
