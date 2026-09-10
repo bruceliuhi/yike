@@ -252,6 +252,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 固定 Mac 验收候选：在 `dc0e62e` 上执行桌面类型检查、生产 renderer 构建和 `npm run package:dev`，均通过；产物为 `desktop/out/意客AI-darwin-arm64/意客AI.app`，ASAR SHA-256 `b534830606316667fb485cc79d9d56d821662c4b5637e8b29ae6aec1f543cca9`。该包仅作为后续可见验收固定输入，不代表 Windows 实机、真实平台采集/发送/回流或客户 UAT 完成。
 
+2026-09-10 CP-06 正向预检复核：使用仓外 0600 临时运行环境、PostgreSQL URL、禁用开发登录及 digest 固定镜像，`scripts/cp06_validate_env.sh` 返回 `cp06-preflight: pass`；临时文件已删除。该结果只证明配置门禁可满足，不代表镜像发布、服务部署、备份恢复或真实客户验收完成。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
