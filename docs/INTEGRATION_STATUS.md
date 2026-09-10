@@ -232,6 +232,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 机会证据 PostgreSQL 复核：在同一受限身份数据库运行 `tests/test_opportunity_evidence_postgres.py`，**8 passed**。覆盖证据快照、来源绑定、摘要哈希、晋级边界、RLS 与跨租户约束；数据为合成来源，不代表真实项目机会或商业转化。
 
+2026-09-10 连接版本 PostgreSQL 复核：在独立身份数据库使用管理员/受限角色运行 `tests/test_connection_versions_postgres.py`，**40 passed**。覆盖连接版本递增、撤销/重连、租户隔离、RLS 与权限边界；不代表真实平台账号已连接。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
