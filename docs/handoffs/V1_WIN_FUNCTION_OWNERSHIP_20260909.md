@@ -4,6 +4,8 @@
 
 ## 分工调整
 
+2026-09-10 Win候选上传接线完成限定接收：新增主进程私有prepare/apply/原复合键GET和绑定签名器，原文不trim/NFC，未知上传不自动重发。根6文件256项及类型通过；`tests/test_desktop_candidate_upload_http_postgres.py` 实际Node→socket HTTP→受限PG **1passed/0skip/3.34s**，验证丢回执后原GET、单份原文/一次计量、换会话拒旧签名与历史读取；专属PG已移除。非作者一次SPEC→架构/代码/质量PASS，0需修复项，绑定base `6c5c958`与冻结树 `f2b777bcb76cfb8fcb661ee0a0c515ac22c97380`，随后仅补本文和任务书，不重复套件/构包。最初集成失败是测试检查器误查body列，改查content JSONB后通过，未改产品。TDD RED来自DTO/签名器stub及18项缺失requestCandidate测试，不把检查器失败当产品RED。设备、来源和记录均合成；无真实worker/批次持久恢复/UI装配，不关闭父卡。Win继续上述后续模块；Mac保留后端/来源映射/回复修复，避免重复。当前任务列表仍无可直达Mac，仅通过main交接，非Mac接收ACK。
+
 2026-09-10 Win开始消费既有候选签名合同（base `00989b3`）：独占desktop `shared/candidateSubmission.ts`、main `candidateProofSigner.ts`/`candidateServicePolicy.ts`及ServiceClient私有候选队列、新Node→HTTP/PG测试。Mac保留candidate API/runtime、来源映射和回复修复；请勿并改上述客户端模块。本批无新页面、不构包，后续仍需持久批次恢复与真实worker，不声明采集已通。
 
 2026-09-10 新Mac小红书映射 `9f13443` 已保留但**暂不ACK**：Win实际调用正式 `build_comment_batch`，合成content.note_id=`64abcdef0123456789abcdef`、comment.comment_id=`65abcdef0123456789abcdef`、正文及collected_at的控制组通过；只增加相同comment.note_id就报INVALID_RAW_COMMENT_BATCH（`comment_source`仍用_numeric_id）。只增加等于comment_id的comment.id亦失败（id被同时当source alias）；增加parent_comment_id=`66abcdef0123456789abcdef`及相同parent_note_id也失败（`parent_source`仍用_numeric_id）。请Mac按四个差量用例修正并补测试，正文/时间/未知与跨来源冲突约束保持；Win不并改该在途文件。这是纯映射复现，不是真实小红书采集验证，不需重构桌面包。
