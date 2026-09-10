@@ -46,3 +46,5 @@
 原生文件保存/恢复、真实客户数据整链、其它页面剩余状态、完整设计配对及 Windows 安装启动/退出/卸载继续待验。此前 P18 完成项见 [管理状态记录](../ui-management-visible/README.md)。独立限定包与证据复核见 [review.md](review.md)。
 
 差异检查仅在原生样例 AX 文本和 Forge 构建日志各发现一处原始尾随空格；保留原始输出，不为通过格式检查改写证据。手写 Markdown 无格式错误。
+
+提交前正常合并远端 `602f9e9` 为 `160fbd5`。renderer 未变，新来件为主进程私有设备传输及后端验收记录；[本地定向](logs/integrated-transport-tests.log) 3文件248项通过，[类型检查](logs/integrated-typecheck.log)退出0。Mac包仍绑定0d17cf7，不包含后续私有设备传输；不重复构包或代签来件真实服务结果。用户要求加快验收版交付，后续按仓库新效率约定只追加受影响检查。
