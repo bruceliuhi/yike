@@ -59,4 +59,4 @@ Electron 从绑定摘要的离线 payload 异步安装到客户私有新目录�
 
 基线`7085f2a`。代码已接原生确认/触达，但旧HOST_FILES没有4个触达模块，新构建也会遗漏；旧host探针未导入它们，不能证明新功能可随包运行。Mac仅串行补本次触达必需的4个固定文件与host导入探针，同时更新原搬迁验收的导入集合；不改Win安装器/ACL/Job/依赖版本，不复制整个产品仓库。
 
-新增`tests/test_portable_outreach_imports.py`将真实HOST_FILES复制到隔离项目目录，以`-I -B`子进程实际导入4个模块并核对所有app/pilot/connectors来源。先RED复现`ModuleNotFoundError: app.windows_platform_outreach`，补清单后1项PASS；不是mock导入，也不是Windows二进制/Chromium验收。没有重跑全套或重新生成1GB运行包。旧`90f5eca4...`产物不含这些模块，仍仅作为原采集包历史证据；触达版必须由新源码生成新清单，再按原真实搬迁流程验收，不能复用旧摘要宣称支持触达。独立审核待收口。
+新增`tests/test_portable_outreach_imports.py`将真实HOST_FILES复制到隔离项目目录，以`-I -B`子进程实际导入4个模块并核对所有app/pilot/connectors来源。先RED复现`ModuleNotFoundError: app.windows_platform_outreach`，补清单后1项PASS；不是mock导入，也不是Windows二进制/Chromium验收。没有重跑全套或重新生成1GB运行包。旧`90f5eca4...`产物不含这些模块，仍仅作为原采集包历史证据；触达版必须由新源码生成新清单，再按原真实搬迁流程验收，不能复用旧摘要宣称支持触达。独立代码/依赖闭包/探针兼容审核在`433a479001070e3d640686c65abc5ba8a3a996d0`结论GO、0阻断，审核不重跑测试或构包。
