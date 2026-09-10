@@ -88,7 +88,17 @@ async def open_xhs_comment_channel(context, *, cancelled, now=None):
                 guard()
                 await link.click(timeout=5000)
                 guard()
-                options = {'cancelled': cancelled}
+                # Lazy: normal CHECK/EXECUTE must not request comments or create
+                # an API client. Only the readonly reply method invokes this.
+                async def read_sub_comments(**kwargs):
+                    guard()
+                    if getattr(crawler, 'xhs_client', None) is None:
+                        crawler.xhs_client = await crawler.create_xhs_client(None)
+                    guard()
+                    result = await crawler.xhs_client.get_note_sub_comments(**kwargs)
+                    guard()
+                    return result
+                options = {'cancelled': cancelled, 'read_sub_comments': read_sub_comments}
                 if now is not None:
                     options['now'] = now
                 channel = XhsPostCommentChannel(crawler.context_page, **options)

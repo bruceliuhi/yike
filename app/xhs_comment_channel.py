@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 import json
 import re
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs
 from uuid import UUID
 
 
@@ -95,10 +95,11 @@ def _snapshot(raw):
 
 
 class XhsPostCommentChannel:
-    def __init__(self, page, *, cancelled=lambda: False, now=None):
+    def __init__(self, page, *, cancelled=lambda: False, now=None, read_sub_comments=None):
         self.page = page
         self.cancelled = cancelled
         self.now = now or (lambda: datetime.now(UTC))
+        self.read_sub_comments = read_sub_comments
         self._checked = None
         self._consumed = False
 
@@ -163,6 +164,67 @@ class XhsPostCommentChannel:
         if await author.count() != 1 or not await author.is_visible(timeout=500) or await text.count() != 1 or not await text.is_visible(timeout=500): return False
         return (_profile_id(await author.get_attribute("href", timeout=500)) == value["connection"]["accountPublicId"] and
                 (await text.inner_text(timeout=500)).strip() == value["draft"]["savedContent"])
+
+    async def read_replies(self, context, root_comment_id, claimed_at):
+        """Bounded public direct replies to a previously confirmed own comment.
+
+        The owner supplies root/claim from the authenticated original receipt.
+        This does not grant execution, change read state, or read private chats.
+        """
+        try:
+            async with asyncio.timeout(15):
+                value, _ = _snapshot(context)
+                if not isinstance(root_comment_id, str) or not _PUBLIC_ID.fullmatch(root_comment_id): raise ValueError()
+                claim = datetime.fromisoformat(claimed_at)
+                if claim.tzinfo is None or claim > _utc(self.now()) + timedelta(seconds=5): raise ValueError()
+                if not callable(self.read_sub_comments): raise ValueError()
+
+                async def guard():
+                    if self.cancelled(): raise ValueError()
+                    await self._identity(value, require_blank=True)
+                    if not await self._receipt_matches(root_comment_id, value) or self.cancelled(): raise ValueError()
+
+                await guard()
+                tokens = parse_qs(urlsplit(self.page.url).query, keep_blank_values=True).get('xsec_token', [])
+                if len(tokens) != 1 or not tokens[0] or len(tokens[0]) > 2048 or not tokens[0].isprintable(): raise ValueError()
+                cursor, cursors, seen, items = '', {''}, {}, []
+                for _page in range(3):
+                    await guard()
+                    raw = await self.read_sub_comments(note_id=value['target']['postId'], root_comment_id=root_comment_id,
+                        xsec_token=tokens[0], num=10, cursor=cursor)
+                    await guard()
+                    observed = _utc(self.now())
+                    if not isinstance(raw, dict) or len(_canonical(raw).encode()) > 131072: raise ValueError()
+                    rows, more = raw.get('comments'), raw.get('has_more')
+                    if not isinstance(rows, list) or len(rows) > 10 or type(more) is not bool: raise ValueError()
+                    for row in rows:
+                        if not isinstance(row, dict) or row.get('note_id', value['target']['postId']) != value['target']['postId']: raise ValueError()
+                        public_id, user, target = row.get('id'), row.get('user_info'), row.get('target_comment')
+                        if not isinstance(public_id, str) or not _PUBLIC_ID.fullmatch(public_id) or not isinstance(user, dict): raise ValueError()
+                        if not isinstance(user.get('user_id'), str) or not _PUBLIC_ID.fullmatch(user['user_id']): raise ValueError()
+                        # Some platform records omit target: no direct-reply evidence.
+                        if target is not None and not isinstance(target, dict): raise ValueError()
+                        facts = (user['user_id'], (target or {}).get('id'), row.get('content'), row.get('create_time'))
+                        if public_id in seen:
+                            if seen[public_id] != facts: raise ValueError()
+                            continue
+                        seen[public_id] = facts
+                        if user['user_id'] != value['target']['authorPublicId'] or not target or target.get('id') != root_comment_id: continue
+                        body, created = row.get('content'), row.get('create_time')
+                        if not isinstance(body, str) or not body.strip() or len(body) > 8000 or type(created) is not int: raise ValueError()
+                        received = _utc(created)
+                        if received < claim - timedelta(seconds=5) or received > observed + timedelta(seconds=5): raise ValueError()
+                        # A future platform timestamp cannot be sent to the stricter event contract.
+                        if received > observed: raise ValueError()
+                        items.append(dict(externalReplyId=public_id, senderPublicId=user['user_id'], body=body,
+                            receivedAt=received.isoformat(), observedAt=observed.isoformat(), readState='UNKNOWN'))
+                    if not more: return dict(status='COMPLETE', items=items)
+                    cursor = raw.get('cursor')
+                    if not isinstance(cursor, str) or not cursor or len(cursor) > 1024 or not cursor.isprintable() or cursor in cursors: raise ValueError()
+                    cursors.add(cursor)
+                return dict(status='PARTIAL', items=items)
+        except Exception:
+            raise RuntimeError('REPLY_SOURCE_UNAVAILABLE') from None
 
     async def _click_or_abort(self, button, deadline, timeout):
         async def stopped():

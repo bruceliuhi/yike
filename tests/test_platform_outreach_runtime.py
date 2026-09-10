@@ -46,6 +46,13 @@ def harness(monkeypatch):
             return page
 
     class Crawler:
+        async def create_xhs_client(self, proxy):
+            assert proxy is None
+            events.append('create_api')
+            async def read(**kwargs):
+                events.append(('read_sub_comments', kwargs))
+                return {'comments': [], 'has_more': False, 'cursor': ''}
+            return SimpleNamespace(get_note_sub_comments=read)
         async def launch_browser(self, chromium, proxy, agent, headless):
             assert (chromium, proxy, agent, headless) == ('chromium', None, None, False)
             events.append('launch')
@@ -64,9 +71,10 @@ def harness(monkeypatch):
             events.append('playwright_close')
 
     class Channel:
-        def __init__(self, own_page, *, cancelled, now=None):
+        def __init__(self, own_page, *, cancelled, now=None, read_sub_comments=None):
             assert own_page is page
             self.page = own_page
+            self.read_sub_comments = read_sub_comments
         async def check(self, context):
             events.append('check')
             if state.fail_check:
@@ -95,6 +103,19 @@ def test_runtime_reuses_governed_browser_and_checks_before_yield(harness):
     assert h.events.count('launch') == 1
     assert ('goto', 'https://www.xiaohongshu.com/user/profile/' + 'b' * 24) in h.events
     assert h.events.index('open_original_note') < h.events.index('check')
+
+
+def test_reply_client_is_lazy_and_owned_by_same_runtime(harness):
+    h = harness
+    async def run():
+        async with h.module.open_xhs_comment_channel(h.context, cancelled=lambda: False) as channel:
+            assert 'create_api' not in h.events
+            request = dict(note_id='a' * 24, root_comment_id='c' * 24, xsec_token='synthetic-transient', num=10, cursor='')
+            assert await channel.read_sub_comments(**request) == {'comments': [], 'has_more': False, 'cursor': ''}
+            await channel.read_sub_comments(**request)
+        assert h.events.count('create_api') == 1
+        assert h.events[-2:] == ['close', 'playwright_close']
+    asyncio.run(run())
 
 
 @pytest.mark.parametrize('failure', ['cancelled', 'check', 'close', 'unsafe_url', 'missing_link'])
