@@ -15,11 +15,13 @@ const source = readFileSync(new URL('../../src/main/deviceKeyVault.ts', import.m
 const signingSources = Object.fromEntries(['main/deviceProofSigner.ts', 'shared/deviceProof.ts'].map(name => [name,
   createHash('sha256').update(readFileSync(new URL(`../../src/${name}`, import.meta.url))).digest('hex')
 ]));
+const journalSourceSha256 = createHash('sha256').update(readFileSync(new URL('../../src/main/deviceIdentityJournal.ts', import.meta.url))).digest('hex');
 const root = mkdtempSync(path.join(os.tmpdir(), 'yike-native-device-vault-'));
 const bundle = await rolldown({
   input: {
     vault: fileURLToPath(new URL('../../src/main/deviceKeyVault.ts', import.meta.url)),
-    proof: fileURLToPath(new URL('../../src/main/deviceProofSigner.ts', import.meta.url))
+    proof: fileURLToPath(new URL('../../src/main/deviceProofSigner.ts', import.meta.url)),
+    journal: fileURLToPath(new URL('../../src/main/deviceIdentityJournal.ts', import.meta.url))
   },
   platform: 'node', external: id => id.startsWith('node:')
 });
@@ -33,7 +35,7 @@ const environment = Object.fromEntries(Object.entries(process.env)
   .filter(([key]) => inheritedSystemKeys.has(key.toLowerCase())));
 const runs = [];
 for (let index = 0; index < 2; index++) {
-  const child = spawnSync(executable, [fileURLToPath(new URL('deviceKeyVault.cjs', import.meta.url)), root], {
+  const child = spawnSync(executable, [fileURLToPath(new URL('deviceKeyVault.cjs', import.meta.url)), root, String(index)], {
     env: environment, encoding: 'utf8', windowsHide: true, timeout: 30_000, maxBuffer: 256 * 1024
   });
   if (child.error || child.status !== 0) throw new Error('NATIVE_DEVICE_VAULT_PROCESS_FAILED');
@@ -41,20 +43,24 @@ for (let index = 0; index < 2; index++) {
   if (!result) throw new Error('NATIVE_DEVICE_VAULT_RESULT_MISSING');
   const value = JSON.parse(result.slice('YIKE_NATIVE_RESULT='.length));
   if (value.platform !== 'win32' || value.electron !== require('electron/package.json').version ||
-      ['available', 'osRoundtrip', 'reopened', 'realSignature'].some(field => value[field] !== true) ||
-      !/^[a-f0-9]{64}$/.test(value.publicKeySha256 ?? '') || !/^[a-f0-9]{64}$/.test(value.ciphertextSha256 ?? '')) {
+      ['available', 'osRoundtrip', 'reopened', 'realSignature', 'readOnlyKey', 'journalPersisted'].some(field => value[field] !== true) ||
+      !/^[a-f0-9]{64}$/.test(value.publicKeySha256 ?? '') || !/^[a-f0-9]{64}$/.test(value.ciphertextSha256 ?? '') ||
+      !/^[a-f0-9]{64}$/.test(value.journalCiphertextSha256 ?? '') ||
+      !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value.registrationId ?? '')) {
     throw new Error('NATIVE_DEVICE_VAULT_RESULT_INVALID');
   }
   runs.push(value);
 }
-if (runs[0].publicKeySha256 !== runs[1].publicKeySha256 || runs[0].ciphertextSha256 !== runs[1].ciphertextSha256) {
+if (runs[0].publicKeySha256 !== runs[1].publicKeySha256 || runs[0].ciphertextSha256 !== runs[1].ciphertextSha256 ||
+    runs[0].registrationId !== runs[1].registrationId || runs[0].journalCiphertextSha256 !== runs[1].journalCiphertextSha256) {
   throw new Error('NATIVE_DEVICE_VAULT_RESTART_CHANGED_KEY');
 }
 const report = {
   sourceSha256: createHash('sha256').update(source).digest('hex'),
   signingSources,
+  journalSourceSha256,
   root, runs, restartedProcessSameKey: true,
-  boundary: 'Isolated Windows safeStorage and key persistence only; no product login, HTTP, platform or installer acceptance.'
+  boundary: 'Isolated Windows safeStorage, read-only keys and identity-journal restart only; no product login, HTTP, platform, power-loss or installer acceptance.'
 };
 writeFileSync(path.join(root, 'result.json'), JSON.stringify(report, null, 2), {flag: 'wx'});
 console.log(JSON.stringify(report, null, 2));

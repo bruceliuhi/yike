@@ -240,6 +240,10 @@ CP-06 保留私网 PostgreSQL/非超级用户 RLS/ACL、并发确认、管理员
 
 ### CodexWin Goal 启动与当前认领
 
+2026-09-10 Win设备身份恢复Chunk1完成限定工程接收：持久原登记/证明、已绑定密钥只读找回、BIND/PROVE及会话代次检查已实现并独立SPEC/代码/架构/质量PASS；463定向、真实Node→HTTP→受限PG 1项、Windows双进程safeStorage通过，各自范围见[简要QA](qa/V02_DEVICE_IDENTITY_RECOVERY_WIN_REVIEW.md)。**Win下一步独占main/preload/窄设备身份合同与现有账号页装配**，Mac保留设备/执行/回复后端；源码层已看到69a0cb2恢复撤销表最小GRANT，不重复修补。普通产品入口尚未接，05D/F与Goal不标完成；原文证据、多找类似和短句建联保留首发。
+
+2026-09-10 Win在`bc04860`接续[本机身份恢复细化计划](superpowers/plans/2026-09-10-win-device-identity-recovery.md)：独占`deviceIdentityJournal/deviceIdentitySession`及专项测试、vault只读找回接口；复用现HTTP/签名/OS保护，不改Mac后端。先完成持久原请求与当前会话协调，再接正常main/现UI及真实设备HTTP/Windows；Chunk1模块和后续产品装配分别验收，不以依赖注入夹具冒充产品已接通。原文证据/多找类似/短句建联继续为首发要求。
+
 2026-09-10 Win对Mac入站`8bff266`独立复核有**P2待Mac收口**：正式`grant_session_revocations.sql`不应仅为让测试返回0行而添加业务不用的UPDATE/DELETE；保留SELECT/INSERT，测试区分ACL拒绝与RLS拒绝。当前105 FORCE RLS未变，无已证实越权/撤销复活；[发现与依据](qa/V02_DEVICE_HTTP_CLIENT_WIN_REVIEW.md#入站mac授权差异p2待作者收口)。Win未改Mac脚本、未替Mac登记认领/修复ACK；自身设备客户端继续，不以此停止可执行研发。
 
 2026-09-10 Win设备HTTP Chunk1代码`eb43216`：严格登记/身份协议、主进程六固定操作共用登录/退出队列，独立SPEC/代码/架构/质量PASS，342定向与类型检查通过；原候选实际Node→HTTP→受限PG3项回归通过，见[设备HTTP QA](qa/V02_DEVICE_HTTP_CLIENT_WIN_REVIEW.md)。**Win继续认领同计划Chunk2本机持久原请求恢复、当前会话BIND/PROVE、已有产品入口和设备真实HTTP接收**；Mac设备/执行/回复后端所有权不变。05D/05F、真实来源与整体Goal仍IN_PROGRESS，传输模块不冒充设备已连接。
