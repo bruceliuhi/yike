@@ -222,6 +222,28 @@ describe("platform selection state names", () => {
 });
 
 describe("task wizard service boundary", () => {
+  it("uses the controlled suggestion disclosure path without legacy auto-generation", async () => {
+    const versionId = "33333333-3333-4333-8333-333333333333";
+    context.service.profiles = vi.fn().mockResolvedValue([{ ...profiles[0], id: versionId }]);
+    context.session.accountScope = { id: "space-a", version: 1 };
+    context.service.searchSuggestions = {
+      preview: vi.fn().mockResolvedValue({
+        profile_version_id: versionId, profile_sha256: "a".repeat(64), description: "完整业务介绍",
+        model_provider: "controlled-provider", model_name: "controlled-model",
+        disclosure_policy_version: "profile-description-v1",
+      }),
+      submit: vi.fn(), getReceipt: vi.fn(),
+    };
+    seed({ profileId: versionId, terms: [], exclusions: [] });
+    render(<TaskWizardPage />);
+    await screen.findByText("已确认版本 v1");
+    expect(context.service.suggest).not.toHaveBeenCalled();
+    expect(context.service.searchSuggestions.preview).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
+    expect((await screen.findAllByText("完整业务介绍")).length).toBe(2);
+    expect(context.service.searchSuggestions.submit).not.toHaveBeenCalled();
+  });
+
   it("does not regenerate a saved empty draft on entry or remount", async () => {
     seed({ terms: [], exclusions: [], savedAt: "2026-09-09T00:00:00Z" });
     const view = render(<TaskWizardPage />);

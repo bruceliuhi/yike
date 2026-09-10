@@ -59,6 +59,7 @@ import { parseUsageQuote, usageQuoteCurrent, usageQuoteRequest, usageReservation
 import { scheduleContractBlocker, schedulePolicyDescription, scheduleWindowLabel } from "../domain/schedule";
 import {useMonitorCollection} from './tasks/useMonitorCollection';
 import {monitorCreateCommand} from '../domain/monitorCollection';
+import { SearchSuggestionPanel } from "./tasks/SearchSuggestionPanel";
 
 export { matchesCreatedTask } from "../domain/taskOperations";
 
@@ -338,6 +339,7 @@ export function TaskWizardPage() {
   };
   useEffect(() => {
     if (
+      !service.searchSuggestions &&
       selectedProfile &&
       step === 1 &&
       !draft.savedAt &&
@@ -354,6 +356,27 @@ export function TaskWizardPage() {
       void generate(true);
     }
   }, [draft.id, selectedProfile?.id, selectedProfile?.version, step]);
+  const applyControlledSuggestion = (
+    receipt: import("../../shared/searchSuggestions").SuggestionReceipt,
+    mode: "append" | "replace_unedited",
+  ) => {
+    if (!receipt.result) return false;
+    const next = applySuggestion(current.current, {
+      profileId: receipt.profile_version_id,
+      requestId: receipt.request_id,
+      keywords: receipt.result.keywords,
+      exclusions: receipt.result.exclusions,
+    }, mode);
+    if (next.terms.length > 20 || next.exclusions.length > 20) {
+      setSuggestionError("合并后词项超过20个，请先删除部分词项再合并。");
+      return false;
+    }
+    setDraft(next);
+    setManualConditionOrigin(null);
+    setSuggestionError("");
+    setVerified(null);
+    return true;
+  };
   const acceptSuggestion = (mode: "append" | "replace_unedited") => {
     if (!preview) return;
     const next = applySuggestion(current.current, preview, mode);
@@ -668,7 +691,20 @@ export function TaskWizardPage() {
             </section>
             <DemandSettings value={draft.research} onChange={research => update({ research })} />
             <section className="form-section">
-              <div className="search-heading">
+              {service.searchSuggestions ? <SearchSuggestionPanel
+                service={service.searchSuggestions}
+                scope={session.authenticated && session.userId && session.accountScope ? {
+                  userId: session.userId,
+                  accountScopeId: session.accountScope.id,
+                  accountScopeVersion: session.accountScope.version,
+                } : null}
+                draftId={draft.id}
+                draftRevision={draft.revision}
+                profileVersionId={draft.profileId}
+                profileConfirmed={!!selectedProfile}
+                hasTerms={draft.terms.length > 0}
+                onApply={applyControlledSuggestion}
+              /> : <div className="search-heading">
                 <div>
                   <h2>搜索条件</h2>
                   <Badge tone="blue">
@@ -686,7 +722,7 @@ export function TaskWizardPage() {
                     {draft.terms.length ? "重新生成" : "生成建议"}
                   </Button>
                 )}
-              </div>
+              </div>}
               <Field
                 label="搜索关键词"
                 className="horizontal-field"
