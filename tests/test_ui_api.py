@@ -126,7 +126,7 @@ def test_session_checks_signed_and_provisioned_identity_and_logs_out(setup):
     assert "set-cookie" not in unknown.headers
     token = issue_token("user-1", "test-secret")
     login = client.post("/api/ui/session", json={"token": token})
-    assert login.json() == {"authenticated": True, "user_id": "user-1"}
+    assert login.json() == {"authenticated": True, "user_id": "user-1", "account_scope": {"id": "tenant-1", "version": 1}}
     cookie = login.headers["set-cookie"].lower()
     assert all(item in cookie for item in ("httponly", "secure", "samesite=strict", "max-age=3600"))
     assert token not in login.text

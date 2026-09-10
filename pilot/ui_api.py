@@ -171,7 +171,7 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
     @router.get("/session")
     def session(request: Request):
         current = identity(request)
-        return {"authenticated": True, "user_id": current.user_id}
+        return current.public_view()
 
     @router.post("/session")
     def exchange_session(body: SessionInput, request: Request, response: Response):
@@ -181,7 +181,7 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
             "pilot_session", body.token.strip(), httponly=True,
             secure=request.url.scheme == "https", samesite="strict", max_age=3600,
         )
-        return {"authenticated": True, "user_id": current.user_id}
+        return current.public_view()
 
     @router.delete("/session")
     def logout(request: Request, response: Response):

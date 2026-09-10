@@ -86,7 +86,7 @@ def test_phone_login_sets_only_http_only_cookie_and_existing_session_can_logout(
     client = client_for(auth, sender)
     response = client.post("/api/ui/auth/sms-session", json={"phone": PHONE, "code": CODE})
     assert response.status_code == 200
-    assert response.json() == {"authenticated": True, "user_id": "user-1"}
+    assert response.json() == {"authenticated": True, "user_id": "user-1", "account_scope": {"id": "tenant-1", "version": 1}}
     cookie = response.headers["set-cookie"]
     assert "HttpOnly" in cookie and "Secure" in cookie and "SameSite=strict" in cookie
     assert auth.calls == [("consume", PHONE, CODE)]

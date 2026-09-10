@@ -2,6 +2,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { ReplyEvidencePanel } from "../../src/renderer/pages/followups/ReplyEvidencePanel";
+import { RelatedReplies } from "../../src/renderer/pages/followups/RelatedReplies";
 import { service as realService } from "../../src/renderer/services/client";
 import { PUBLIC_SAMPLE } from "../../src/renderer/pages/Opportunities";
 let app: any;
@@ -49,6 +50,22 @@ function fixture() {
 afterEach(() => {
   cleanup();
   delete (window as any).yikeDesktop;
+});
+it.each(['session', 'token', 'sms'])('ordinary %s identity reaches selected opportunity evidence', async (method) => {
+  const f = fixture();
+  const requestApi = vi.fn(async (request: any) => ({ok: true, status: 200, data:
+    request.operation === 'replies.evidence' ? [f.row] : {
+      authenticated: true, user_id: f.row.event.user_id,
+      account_scope: {id: f.row.event.tenant_id, version: 1},
+    }}));
+  (window as any).yikeDesktop = {requestApi};
+  const session = method === 'session' ? await realService.session() : method === 'token'
+    ? await realService.loginToken!('test-token') : await realService.login('13800000000', '123456');
+  app = {session, service: {...realService, opportunity: vi.fn(async () => f.opportunity)}};
+  render(<RelatedReplies opportunityId={f.opportunity.id} choices={[f.opportunity]} choicesLoading={false} choicesError=""
+    onReloadChoices={vi.fn()} onSelect={vi.fn()} onResolved={vi.fn()} records={[]} recordsLoading={false} recordsError="" onCorrect={vi.fn()} onChanged={vi.fn()} />);
+  expect(await screen.findByText('想先看案例')).toBeTruthy();
+  expect(requestApi).toHaveBeenCalledWith({operation: 'replies.evidence', payload: {opportunityId: f.opportunity.id}});
 });
 it("shows original evidence and unknown read state without presenting an action to send or mark read", async () => {
   const f = fixture();

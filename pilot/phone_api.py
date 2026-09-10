@@ -86,7 +86,7 @@ def register_phone_api(router, store, phone_auth, sender: SmsSender | None,
         token = issue_token(user_id, auth_secret)
         # Resolve tenant/session with the normal restricted app connection.
         current = authenticate_session(store, token, auth_secret)
-        response = JSONResponse({"authenticated": True, "user_id": current.user_id})
+        response = JSONResponse(current.public_view())
         response.set_cookie("pilot_session", token, httponly=True,
                             secure=request.url.scheme == "https", samesite="strict", max_age=3600)
         return response

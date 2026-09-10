@@ -8,6 +8,7 @@ import {
   type Opportunity,
   type Profile,
   type ProfileFields,
+  type Session,
 } from "../domain/models";
 import type { YikeDesktopApi, ApiOperation } from "../../shared/contracts";
 import { decodeLibraryFacts } from "../domain/opportunityLibrary";
@@ -36,6 +37,18 @@ function list(value: unknown): JsonRecord[] {
       "数据读取未完成，请重试。当前不能确认列表为空。",
     );
   return value as JsonRecord[];
+}
+function readSession(r: JsonRecord): Session {
+  const result: Session = {authenticated: r.authenticated === true, userId: text(r.user_id)};
+  if (r.account_scope !== undefined) {
+    const scope = record(r.account_scope);
+    if (!result.authenticated || !result.userId ||
+        typeof scope.id !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(scope.id) ||
+        scope.version !== 1 || Object.keys(scope).some(key => key !== 'id' && key !== 'version'))
+      throw new ServiceError('INVALID_SERVICE_RESPONSE', '客户空间尚未核实，请重新登录。');
+    result.accountScope = {id: scope.id, version: scope.version};
+  }
+  return result;
 }
 function serviceFailure(status: number, body: unknown): ServiceError {
   const details = record(record(body).detail);
@@ -275,11 +288,11 @@ export const service: YikeService = {
   reviewCandidate: async () => unavailable("候选判断与人工复核"),
   session: async () => {
     const r = await request("session.get", "/session");
-    return { authenticated: r.authenticated === true, userId: text(r.user_id) };
+    return readSession(r);
   },
   loginToken: async (token) => {
     const r = await request("session.login", "/session", "POST", { token });
-    return { authenticated: r.authenticated === true, userId: text(r.user_id) };
+    return readSession(r);
   },
   logout: async () => {
     await request("session.logout", "/session", "DELETE");
@@ -296,7 +309,7 @@ export const service: YikeService = {
     });
     if (r.authenticated !== true || typeof r.user_id !== "string" || !r.user_id.trim())
       throw new ServiceError("INVALID_SERVICE_RESPONSE", "登录状态尚未核实，请稍后重试。");
-    return {authenticated: true, userId: r.user_id};
+    return readSession(r);
   },
   profiles: async () =>
     list((await request("profiles.list", "/profiles")).items).map(mapProfile),

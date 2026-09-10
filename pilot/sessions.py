@@ -15,6 +15,12 @@ class SessionIdentity:
     tenant_id: str
     claims: TokenClaims | None = field(default=None, repr=False)
 
+    def public_view(self) -> dict:
+        # Same fixed scope contract as contact snapshots. Tenant comes only
+        # from the authenticated registry, never from client/resource input.
+        return {"authenticated": True, "user_id": self.user_id,
+                "account_scope": {"id": str(self.tenant_id), "version": 1}}
+
 
 class PilotSessionRegistry:
     def __init__(self, database: PilotDatabase):

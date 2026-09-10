@@ -42,7 +42,8 @@ def test_phone_to_cookie_to_logout_with_real_database(env):
     client = TestClient(build_app(store, auth_secret="synthetic-http-session-secret",
         phone_auth=PhoneAuthStore(app, b"x" * 32), sms_sender=sink), base_url="https://pilot.example")
     response = client.post("/api/ui/auth/sms-session", json={"phone": phone, "code": sink.calls[1][1]})
-    assert response.json() == {"authenticated": True, "user_id": user}
+    assert response.json() == {"authenticated": True, "user_id": user,
+                               "account_scope": {"id": str(store._tenant_for_user(user)), "version": 1}}
     assert client.get("/api/ui/session").json()["user_id"] == user
     assert client.get("/api/ui/profiles").status_code == 200
     old_cookie = client.cookies.get("pilot_session")
