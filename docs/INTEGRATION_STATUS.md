@@ -242,6 +242,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 已确认策略复核 PostgreSQL 验证：使用独立研究策略与身份数据库运行 `tests/test_confirmed_strategy_review_postgres.py`，**35 passed**。覆盖策略确认、复核绑定、撤销/重启、RLS、租户隔离及执行前约束；不代表真实平台采集或发送。
 
+2026-09-10 Pilot 专用数据库权限与导入原子性复核：使用独立 `yike_mac_pilot_20260910` PostgreSQL 数据库及受限 `pilot_app` 角色运行 `tests/test_pilot_contracts.py` 与 `tests/test_import_atomicity.py`，**11 passed**。该结果补足此前将身份库角色误用于 Pilot 套件的环境问题，证明受限角色下的权限/原子性合同可执行；仍不代表真实平台采集、真实发送、生产部署或客户 UAT。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
