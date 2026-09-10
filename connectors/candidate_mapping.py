@@ -16,6 +16,7 @@ from pilot.candidate_contract import CandidateBatch, validate_candidate_batch
 
 _NUMERIC_ID = re.compile(r"[1-9][0-9]{0,19}")
 _BVID = re.compile(r"BV1[1-9A-HJ-NP-Za-km-z]{9}")
+_XHS_ID = re.compile(r"[A-Za-z0-9]{8,32}")
 _UTC_TIME = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")
 _NORMALIZER_VERSION = "raw-comment-candidate-v1"
 
@@ -113,6 +114,14 @@ def _record(platform: str, raw: object, collector_version: str, query: str | Non
         parent_source_fields = ("parent_aweme_id",)
         author_fields = ("sec_uid", "user_id", "uid")
         source_url_field = "aweme_url"
+    elif platform == "XIAOHONGSHU":
+        source_fields = ("note_id", "source_id", "id")
+        comment_fields = ("comment_id", "id")
+        body_fields = ("content", "text", "body")
+        parent_fields = ("parent_comment_id", "parent_id")
+        parent_source_fields = ("parent_note_id", "parent_source_id")
+        author_fields = ("user_id", "sec_uid", "uid")
+        source_url_field = "note_url"
     else:
         source_fields = ("video_id", "aid")
         comment_fields = ("comment_id", "rpid")
@@ -122,8 +131,9 @@ def _record(platform: str, raw: object, collector_version: str, query: str | Non
         author_fields = ("mid", "user_id")
         source_url_field = "video_url"
 
-    source_id = _aliases(content, source_fields, _numeric_id)
-    comment_id = _aliases(comment, comment_fields, _numeric_id)
+    converter = (lambda value: value if isinstance(value, str) and _XHS_ID.fullmatch(value) else (_numeric_id(value))) if platform == "XIAOHONGSHU" else _numeric_id
+    source_id = _aliases(content, source_fields, converter)
+    comment_id = _aliases(comment, comment_fields, converter)
     if source_id is None or comment_id is None:
         raise CandidateMappingError() from None
     comment_source = _aliases(comment, source_fields, _numeric_id)
@@ -133,12 +143,15 @@ def _record(platform: str, raw: object, collector_version: str, query: str | Non
     if platform == "DOUYIN":
         source_url = f"https://www.douyin.com/video/{source_id}"
         suffix = "?comment_id="
-    else:
+    elif platform == "BILIBILI":
         bvid = content.get("bvid")
         if bvid is not None and (not isinstance(bvid, str) or not _BVID.fullmatch(bvid)):
             raise CandidateMappingError() from None
         source_url = f"https://www.bilibili.com/video/{bvid if bvid is not None else 'av' + source_id}"
         suffix = "#reply"
+    else:
+        source_url = f"https://www.xiaohongshu.com/explore/{source_id}"
+        suffix = "?comment_id="
     if content.get(source_url_field) is not None:
         _checked_url(content[source_url_field], source_url)
     provided_url = _aliases(comment, ("comment_url", "url"))
@@ -153,7 +166,7 @@ def _record(platform: str, raw: object, collector_version: str, query: str | Non
     _aliases(content, ("create_time", "published_at"), _time)
     published_at = _aliases(comment, ("create_time", "published_at"), _time)
     observed_at = _time(comment.get("collected_at"))
-    parent_id = _aliases(comment, parent_fields, lambda value: _numeric_id(value, parent=True))
+    parent_id = _aliases(comment, parent_fields, (lambda value: value if isinstance(value, str) and _XHS_ID.fullmatch(value) else _numeric_id(value, parent=True)) if platform == "XIAOHONGSHU" else lambda value: _numeric_id(value, parent=True))
     parent_body = _aliases(comment, ("parent_content", "parent_body"))
     parent_time = _aliases(comment, ("parent_create_time", "parent_published_at"), _time)
     parent_url = _aliases(comment, ("parent_comment_url", "parent_url"))
@@ -202,7 +215,7 @@ def build_comment_batch(
     Execution remains a claim; this function grants no capability or authority.
     Raw records are neither changed nor logged, and no I/O is performed.
     """
-    if not isinstance(platform, str) or platform not in ("DOUYIN", "BILIBILI"):
+    if not isinstance(platform, str) or platform not in ("XIAOHONGSHU", "DOUYIN", "BILIBILI"):
         raise CandidateMappingError() from None
     if not isinstance(raw_records, list) or len(raw_records) > 100:
         raise CandidateMappingError() from None
