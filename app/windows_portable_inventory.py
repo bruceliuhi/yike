@@ -26,6 +26,13 @@ HOST_FILES = ('app/__init__.py', 'app/collector.py', 'app/collectors/__init__.py
     'pilot/__init__.py', 'pilot/candidate_contract.py')
 PRIVATE_PARTS = {'browser_data', 'cookies', 'login data', 'history', 'local state', 'preferences', '.git',
                  '.yike-install-cache', '.env', '.env.local', '.env.production'}
+# These two governed wheels install non-code data outside site-packages.
+# Match package, locked version and raw RECORD spelling before any normalization.
+EXTERNAL_WHEEL_FILES = {
+    ('fonttools', '4.58.4', '../../share/man/man1/ttx.1'): 'share/man/man1/ttx.1',
+    ('greenlet', '3.5.3', '../../include/site/python3.11/greenlet/greenlet.h'):
+        'include/site/python3.11/greenlet/greenlet.h',
+}
 
 
 class PortableBundleError(RuntimeError):
@@ -167,10 +174,15 @@ def package_files(site, expected, target, guard=lambda: None):
             path, fingerprint, size = row
             # Console-script launchers embed build-machine paths and are never used.
             if re.fullmatch(r'\.\./\.\./Scripts/[A-Za-z0-9_.-]+(?:\.exe|\.py)', path): continue
-            path = relative(path)
-            if '__pycache__' in PurePosixPath(path).parts or path.endswith(('.pyc', '.pyo')): continue
-            if path.endswith('.pth') or Path(path).name == 'direct_url.json': fail('PORTABLE_DEPENDENCY_INVALID')
-            entry = file(site / path, target + '/' + path, guard)
+            external = EXTERNAL_WHEEL_FILES.get((name, distribution.version, path))
+            if external is not None:
+                if target != 'runtime/.venv/Lib/site-packages': fail('PORTABLE_FILE_REJECTED')
+                entry = file(site.parent.parent / external, 'runtime/.venv/' + external, guard)
+            else:
+                path = relative(path)
+                if '__pycache__' in PurePosixPath(path).parts or path.endswith(('.pyc', '.pyo')): continue
+                if path.endswith('.pth') or Path(path).name == 'direct_url.json': fail('PORTABLE_DEPENDENCY_INVALID')
+                entry = file(site / path, target + '/' + path, guard)
             if fingerprint:
                 if not fingerprint.startswith('sha256='): fail('PORTABLE_DEPENDENCY_INVALID')
                 expected_digest = base64.urlsafe_b64decode(fingerprint[7:] + '=' * (-len(fingerprint[7:]) % 4)).hex()

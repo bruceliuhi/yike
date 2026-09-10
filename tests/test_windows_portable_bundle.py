@@ -170,10 +170,29 @@ def test_browser_version_must_match_governed_receipt(fixture, monkeypatch):
     assert not (options['destination'] / 'bundle-manifest.json').exists()
 
 
-@pytest.mark.parametrize(('package','external'), [('fonttools','share/man/man1/ttx.1'), ('greenlet','include/site/python3.11/greenlet/greenlet.h')])
-def test_fixed_wheel_data_outside_site_packages_is_preserved(tmp_path, package, external):
+@pytest.mark.parametrize(('package','version','external'), [('fonttools','4.58.4','share/man/man1/ttx.1'), ('greenlet','3.5.3','include/site/python3.11/greenlet/greenlet.h')])
+def test_fixed_wheel_data_outside_site_packages_is_preserved(tmp_path, package, version, external):
     from app.windows_portable_inventory import package_files
     site = tmp_path / 'venv/Lib/site-packages'
-    distribution(site, package, files={'../../'+external: b'wheel data'})
-    entries = package_files(site, {package:'1.0'}, 'runtime/.venv/Lib/site-packages')
+    distribution(site, package, version, files={'../../'+external: b'wheel data'})
+    entries = package_files(site, {package:version}, 'runtime/.venv/Lib/site-packages')
     assert any(entry.path == 'runtime/.venv/'+external for entry in entries)
+
+
+@pytest.mark.parametrize(('package','version','path','target'), [
+    ('fonttools','4.58.4','../../share/man/man1/ttx.1.bak','runtime/.venv/Lib/site-packages'),
+    ('fonttools','4.58.4','../../share/man/man1/../man1/ttx.1','runtime/.venv/Lib/site-packages'),
+    ('fonttools','4.58.4','../../share/man/man1/Cookies','runtime/.venv/Lib/site-packages'),
+    ('fonttools','4.58.4','../../share/man/man1/TTX.1','runtime/.venv/Lib/site-packages'),
+    ('fonttools','4.58.5','../../share/man/man1/ttx.1','runtime/.venv/Lib/site-packages'),
+    ('greenlet','3.5.3','../../share/man/man1/ttx.1','runtime/.venv/Lib/site-packages'),
+    ('greenlet','3.5.3','../../include/site/python3.12/greenlet/greenlet.h','runtime/.venv/Lib/site-packages'),
+    ('fonttools','4.58.4','../../share/man/man1/ttx.1','host/site-packages'),
+])
+def test_external_wheel_path_exceptions_are_exact(tmp_path, package, version, path, target):
+    from app.windows_portable_inventory import PortableBundleError, package_files
+    site = tmp_path/'venv/Lib/site-packages'; distribution(site, package, version)
+    record = site/f'{package}-{version}.dist-info/RECORD'
+    with record.open('a') as stream: stream.write(f'{path},sha256=invalid,10\n')
+    with pytest.raises(PortableBundleError, match='PORTABLE_FILE_REJECTED'):
+        package_files(site, {package:version}, target)

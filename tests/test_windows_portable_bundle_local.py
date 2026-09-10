@@ -31,7 +31,16 @@ def test_real_portable_bundle_has_no_developer_python_dependency(tmp_path):
     inputs = {key: Path(os.environ[name]) for key, name in _INPUTS.items()}
     destination = inputs['destination']
     assert not destination.exists(), 'this integration test never overwrites an artifact'
+    relocated = destination.with_name(destination.name + '-relocated')
+    assert not relocated.exists(), 'this integration test never overwrites a relocated artifact'
     result = build_portable_bundle(project_root=Path(__file__).resolve().parents[1], **inputs)
+    # Move the generated tree, not just its interpreter's cwd. All paths must remain
+    # usable after the original build destination itself has disappeared.
+    assert destination.resolve().parent == relocated.resolve().parent
+    assert destination.name.startswith('portable-') and relocated != destination
+    destination.rename(relocated)
+    assert not destination.exists()
+    destination = relocated
     manifest = json.loads((destination / 'bundle-manifest.json').read_text(encoding='utf-8'))
     assert result == manifest
     assert manifest['schema_version'] == 'YIKE_WINDOWS_PORTABLE_BUNDLE_V1'
@@ -57,6 +66,8 @@ def test_real_portable_bundle_has_no_developer_python_dependency(tmp_path):
     # _pth must win without relying on another installed interpreter or site hook.
     env = {key: value for key, value in os.environ.items() if key in ('SystemRoot', 'WINDIR')}
     env.update(PATH=str(Path(os.environ['SystemRoot']) / 'System32'),
+               TEMP=str(tmp_path), TMP=str(tmp_path), MPLCONFIGDIR=str(tmp_path),
+               PLAYWRIGHT_BROWSERS_PATH=str(destination / 'runtime/.venv/playwright-browsers'),
                PYTHONHOME=str(tmp_path / 'nonexistent-home'),
                PYTHONPATH=str(tmp_path / 'untrusted-site'),
                PYTHONUSERBASE=str(tmp_path / 'untrusted-user-site'))
@@ -83,5 +94,21 @@ def test_real_portable_bundle_has_no_developer_python_dependency(tmp_path):
         for name in [*observed['paths'], *observed['modules'].values()]:
             assert Path(name).resolve().is_relative_to(destination.resolve())
 
+    from app.collector import run_supervised_process
+    from app.windows_runtime_install import _BROWSER_PROBE
+    executable = str(destination / manifest['entries']['runtime_python'])
+    for arguments, cwd, expected in (
+        ([str(destination / 'runtime/main.py'), '--help'], destination / 'runtime', ('xhs', 'dy', 'bili')),
+        (['-c', _BROWSER_PROBE], tmp_path,
+         ('YIKE_BUNDLED_CHROMIUM_LOCAL_OK ' + manifest['probes']['chromium']['browser_version'],)),
+    ):
+        completed = run_supervised_process([executable, '-B', '-X', 'utf8', *arguments],
+                                          cwd=cwd, env=env, timeout_seconds=60)
+        assert not completed.cancelled and not completed.timed_out and completed.returncode == 0
+        assert all(value in completed.stdout for value in expected)
+
     # Probes and the independent imports must not silently mutate frozen payload bytes.
     assert not list(destination.rglob('__pycache__'))
+    for item in manifest['files']:
+        with (destination / item['path']).open('rb') as handle:
+            assert hashlib.file_digest(handle, 'sha256').hexdigest() == item['sha256']
