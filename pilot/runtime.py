@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from pilot.candidate_assessment_model import AssessmentModelError, OpenAICompatibleCandidateAssessmentModel
 from pilot.candidate_ingestion import CandidateIngestionStore
 from pilot.candidate_review import CandidateReviewStore
+from pilot.contact_drafts import ContactDraftStore
 from pilot.db import PilotDatabase
 from pilot.execution_runtime import ExecutionRuntime
 from pilot.foreground_collection import configured_collection_policy
@@ -74,4 +75,5 @@ def build_runtime_app(
         candidate_review=review,
         research_strategies=strategies,
         reply_store=replies,
+        contact_drafts=ContactDraftStore(database),
     )

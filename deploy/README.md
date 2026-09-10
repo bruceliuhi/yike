@@ -8,6 +8,8 @@ V02-01A/104 与 V02-01B/105 升级必须严格按“迁移→显式最小授权�
 
 正常 Web 入口现装配已确认策略、执行历史、候选入库和复核服务，使用同一个受限应用 DB；部署前还须按已接收迁移分别运行 [执行授权](grant_execution_runtime.sql)、[候选授权](grant_candidate_ingestion.sql)、[复核授权](grant_candidate_review.sql)、[策略授权](grant_research_strategies.sql)和[原文证据授权](grant_opportunity_evidence.sql)。普通启动不自动补权限，非空管理员 DB 环境变量将导致启动拒绝；该检查不验证应用 URL 的实际角色。
 
+人工草稿服务已接普通 Web runtime：迁移121后，管理员须以同一 `yike.app_role` 运行 [草稿授权](grant_contact_drafts.sql)，只授新表SELECT/INSERT；读取机会/画像/来源及其锁权限沿用上述授权。原UUID查回执和最新草稿接口见[07B接线计划](../docs/superpowers/plans/2026-09-10-contact-draft-persistence.md)。保存不代表发送，当前outreach能力仍关闭；本说明不是生产部署验收。
+
 如需候选 ASSESS，从仓库外服务器配置同时提供 `YIKE_PILOT_ASSESSMENT_BASE_URL`、`YIKE_PILOT_ASSESSMENT_API_KEY`、`YIKE_PILOT_ASSESSMENT_MODEL`；三项全无仍可启动，部分或非法配置明确失败。启动与只读接口不探测模型。完整配置规则见[正常装配契约](../docs/contracts/V02_NORMAL_RUNTIME_COMPOSITION.md)。真实来源 policy 未接通时 START 仍不可用，短信/建议/平台收发能力仍关闭，不把 Web 存活或数据库可连当作全链就绪。
 
 该镜像不安装项目wheel，因此Dockerfile另将已有两份版本化分析规则显式复制到`pilot/_assessment_rules/`，与wheel约定相同；不能遗漏后依赖开发目录补读。发行布局回归不代表已完成实际Linux镜像运行，目标环境仍按下述生产门禁验收。
