@@ -62,4 +62,14 @@ describe("search suggestion durable request storage", () => {
     expect(clearSearchSuggestion(scope, record.request.request_id)).toBe(true);
     expect(loadSearchSuggestion(scope)).toEqual({ kind: "empty" });
   });
+
+  it("does not overwrite a different unresolved original request", () => {
+    saveSearchSuggestion(record);
+    const replacement: SearchSuggestionRecord = {
+      ...record,
+      request: { ...record.request, request_id: "44444444-4444-4444-8444-444444444444" },
+    };
+    expect(() => saveSearchSuggestion(replacement)).toThrow(/已有未结束|原请求/);
+    expect(loadSearchSuggestion(scope)).toEqual({ kind: "record", record });
+  });
 });

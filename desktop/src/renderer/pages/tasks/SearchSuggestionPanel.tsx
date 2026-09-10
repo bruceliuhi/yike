@@ -41,6 +41,7 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
   const [previewBinding, setPreviewBinding] = useState("");
   const [record, setRecord] = useState<SearchSuggestionRecord | null>(null);
   const [error, setError] = useState("");
+  const [storageBlocked, setStorageBlocked] = useState(false);
   const [busy, setBusy] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const generation = useRef(0);
@@ -95,10 +96,10 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
     controller.current?.abort();
     controller.current = new AbortController();
     const cleanupEffect = () => { generation.current++; controller.current?.abort(); };
-    setPreview(null); setPreviewBinding(""); setRecord(null); setError(""); setBusy(false);
+    setPreview(null); setPreviewBinding(""); setRecord(null); setError(""); setStorageBlocked(false); setBusy(false);
     if (!props.scope) return cleanupEffect;
     const loaded = loadSearchSuggestion(props.scope);
-    if (loaded.kind === "error") { setError(loaded.message); return cleanupEffect; }
+    if (loaded.kind === "error") { setStorageBlocked(true); setError(loaded.message); return cleanupEffect; }
     if (loaded.kind === "empty") return cleanupEffect;
     setRecord(loaded.record);
     setBusy(true);
@@ -115,6 +116,12 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
     if (!props.scope) { setError("请先登录有效客户工作空间。手工搜索词仍可继续编辑。"); return; }
     if (!props.profileConfirmed || !UUID.test(props.profileVersionId) || !UUID.test(props.draftId)) {
       setError("请选择已确认画像并使用有效草稿后再生成。手工搜索词仍可继续编辑。"); return;
+    }
+    const durable = loadSearchSuggestion(props.scope);
+    if (storageBlocked || durable.kind === "error") {
+      setStorageBlocked(true);
+      setError(durable.kind === "error" ? durable.message : "搜索建议本机存储异常，不能发送新请求。");
+      return;
     }
     if (recordInScope && record) {
       const id = generation.current;
@@ -148,7 +155,7 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
         policy_version: preview.disclosure_policy_version },
     };
     const base: SearchSuggestionRecord = { schemaVersion: 1, scope: props.scope, request, receipt: null };
-    try { persist(base); } catch (reason) { setError(errorMessage(reason)); return; }
+    try { persist(base); } catch (reason) { setStorageBlocked(true); setError(errorMessage(reason)); return; }
     const id = generation.current;
     setPreview(null); setPreviewBinding(""); setBusy(true); setError("");
     try {
@@ -189,7 +196,11 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
   };
   const finish = () => {
     if (!record || !props.scope || !record.receipt || !terminal(record.receipt)) return;
-    if (clearSearchSuggestion(props.scope, record.request.request_id)) { setRecord(null); setError(""); }
+    generation.current++;
+    controller.current?.abort();
+    controller.current = new AbortController();
+    setBusy(false);
+    if (clearSearchSuggestion(props.scope, record.request.request_id)) { setRecord(null); setError(""); setStorageBlocked(false); }
     else setError("未能安全结束原搜索建议记录。");
   };
 

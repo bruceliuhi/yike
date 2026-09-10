@@ -77,6 +77,14 @@ export function loadSearchSuggestion(scope: SearchSuggestionScope): SearchSugges
 export function saveSearchSuggestion(record: SearchSuggestionRecord): void {
   const key = searchSuggestionStorageKey(record.scope);
   const raw = JSON.stringify(record);
+  const existing = loadSearchSuggestion(record.scope);
+  if (existing.kind === "error")
+    throw new Error(`${existing.message} 已保留原字节，不能覆盖或发送新请求。`);
+  if (existing.kind === "empty" && record.receipt !== null)
+    throw new Error("原搜索建议记录已结束，迟到回执不能重建原请求。");
+  if (existing.kind === "record" &&
+      JSON.stringify(existing.record.request) !== JSON.stringify(record.request))
+    throw new Error("已有未结束的搜索建议原请求，不能被另一请求覆盖。");
   try {
     localStorage.setItem(key, raw);
     const stored = localStorage.getItem(key);

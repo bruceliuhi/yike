@@ -109,4 +109,37 @@ describe("controlled search suggestion panel", () => {
     await act(async () => finish(receipt(original)));
     expect(input.onApply).not.toHaveBeenCalled();
   });
+
+  it("does not POST or replace bytes when storage becomes corrupt before confirmation", async () => {
+    const key = "yike.search-suggestion.v1.user-a.space-a.1";
+    const service = { preview: vi.fn().mockResolvedValue(preview), submit: vi.fn(), getReceipt: vi.fn() };
+    render(<SearchSuggestionPanel {...props(service)} />);
+    fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
+    await screen.findByText(preview.description);
+    localStorage.setItem(key, "corrupt-original-bytes");
+    fireEvent.click(screen.getByRole("button", { name: "我已核对，发送并生成" }));
+    expect(await screen.findByText(/损坏|原请求/)).toBeTruthy();
+    expect(service.submit).not.toHaveBeenCalled();
+    expect(localStorage.getItem(key)).toBe("corrupt-original-bytes");
+  });
+
+  it("does not apply a late adopting GET after keeping current and ending", async () => {
+    let finishGet!: (value: SuggestionReceipt) => void;
+    let original!: SuggestionRequest;
+    const service = { preview: vi.fn().mockResolvedValue(preview),
+      submit: vi.fn(async (request: SuggestionRequest) => { original = request; return receipt(request); }),
+      getReceipt: vi.fn(() => new Promise<SuggestionReceipt>(resolve => { finishGet = resolve; })) };
+    const input = props(service);
+    render(<SearchSuggestionPanel {...input} />);
+    fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
+    await screen.findByText(preview.description);
+    fireEvent.click(screen.getByRole("button", { name: "我已核对，发送并生成" }));
+    await screen.findByText("设备预测性维护");
+    fireEvent.click(screen.getByRole("button", { name: "合并新增建议" }));
+    await waitFor(() => expect(service.getReceipt).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole("button", { name: "保留当前并结束" }));
+    await act(async () => finishGet(receipt(original)));
+    expect(input.onApply).not.toHaveBeenCalled();
+    expect(localStorage.length).toBe(0);
+  });
 });
