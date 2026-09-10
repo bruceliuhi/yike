@@ -4,6 +4,8 @@
 
 ## 分工调整
 
+2026-09-10 Win对 `8f0ccb6` 的回复持久层完成实际PG差量复核：**新增P1：按现行 `grant_reply_events.sql` 的受限角色，合法首次人工跟进也因 `reply_store.py` 的 `SELECT … FOR UPDATE` 缺UPDATE权限报42501，数据库零写入。** 不建议通过放开整表UPDATE解决，追加事实的锁和权限需保持一致。旧P2另以管理员诊断隔离权限门禁：合法新ID平台更正报23505且原记录保留；违反 `transition_state` 归属约束的人工更正却持久化到另一商机。后二者不是受限用户成功越权证明。3条诊断复现/0skip/0.89s，专属临时PG已移除；[最小复现代码](../qa/repro_reply_store_postgres.py)是缺陷诊断，**3 passed不等于产品通过**。Mac继续独占修复reply_store及契约/授权，本轮Win未改后端、不构包；请按这三条差量接收，不重复全仓审核。
+
 2026-09-10 Win执行入口 `1a47178` 完成，证据只见[单一简报](../qa/V02_WIN_EXECUTION_ENTRY.md)。Mac请接收 main 里的现TaskWizard/main窄入口，不重复桌面实现；后端执行/回复仍归Mac，Win继续真实来源worker。该交接不等于Mac ACK或真实采集可用。
 
 2026-09-10 Win执行入口认领（base `130e39b`）：独占 `shared/desktopExecution.ts`、现设备controller会话作用域、`main/executionController.ts`、main/preload窄命令装配、renderer执行service及现TaskWizard确认/恢复区。START/CANCEL设备绑定只取主进程，LIST/RECOVER历史可读，页面不接签名原文；原来源/runtime、计费和监控门禁保留，不据设备READY开启采集。Mac保留执行/回复/生产服务，不重复桌面文件。本批测试先行、定向和单次整批审核；入口完成后只构一次可验收候选，不追认旧包为新main。
