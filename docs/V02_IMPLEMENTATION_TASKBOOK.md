@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+2026-09-10 Win05F正常确认/恢复入口 `1a47178` 已完成独立整批审核和定向验证，单次候选交付见[本批简报](qa/V02_WIN_EXECUTION_ENTRY.md)。真实 runtime 门禁未放宽；下一步真实来源 worker 与主链路，05F/Goal 仍 IN_PROGRESS。按用户要求压缩为差量验证、每批一次审核、冻结后一次构包，证据不再多处复制。
+
 2026-09-10 Win05F原请求恢复 `f92db9d`：不可变磁盘执行记录、严格历史回执和恢复协调器完成，正常保留Mac纯文档 `4764cf7` 为 `848f48d`。原UUID先落盘，重建后默认GET，404不自动重发；用户明确原请求重试才取新签名。6文件309项通过后，独立审查发现最终返回epoch竞态，实证RED→修复→协调器17项/类型通过；最终实际Node+磁盘重建→HTTP→受限PG 1passed/0skip/2.96s。精确独立SPEC/代码/架构/质量PASS，见[Win交接](handoffs/V1_WIN_FUNCTION_OWNERSHIP_20260909.md)。本片未接UI/main普通入口，不构包；Win下一步装配现会话与确认策略入口、真实来源worker，05F及完整Goal继续。
 
 2026-09-10 Win05F执行接线 `905f46c`：严格DTO、四固定私有传输和服务端原UTF-8签名已交付，正常保留Mac文档来件 `ad51e99` 为 `c2a1097`。6文件399项定向与类型检查通过；实际Node→socket HTTP→受限PG 1项通过（2.99s，0skip），覆盖丢START回执原UUID恢复、CLAIM/RENEW、换会话旧签名拒绝及CANCEL，精确独立SPEC/代码/架构/质量PASS。证据与后续边界见[Win交接](handoffs/V1_WIN_FUNCTION_OWNERSHIP_20260909.md)。Mac保留执行/回复后端；Win继续持久执行协调、确认策略入口与真实来源worker，05F父卡/Goal保持IN_PROGRESS。未新增可操作入口，故不重复构包；Windows包仍绑定 `e5774b6`，未据此开启来源能力。

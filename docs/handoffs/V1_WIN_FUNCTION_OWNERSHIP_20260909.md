@@ -4,6 +4,8 @@
 
 ## 分工调整
 
+2026-09-10 Win执行入口 `1a47178` 完成，证据只见[单一简报](../qa/V02_WIN_EXECUTION_ENTRY.md)。Mac请接收 main 里的现TaskWizard/main窄入口，不重复桌面实现；后端执行/回复仍归Mac，Win继续真实来源worker。该交接不等于Mac ACK或真实采集可用。
+
 2026-09-10 Win执行入口认领（base `130e39b`）：独占 `shared/desktopExecution.ts`、现设备controller会话作用域、`main/executionController.ts`、main/preload窄命令装配、renderer执行service及现TaskWizard确认/恢复区。START/CANCEL设备绑定只取主进程，LIST/RECOVER历史可读，页面不接签名原文；原来源/runtime、计费和监控门禁保留，不据设备READY开启采集。Mac保留执行/回复/生产服务，不重复桌面文件。本批测试先行、定向和单次整批审核；入口完成后只构一次可验收候选，不追认旧包为新main。
 
 2026-09-10 **Win05F恢复 `f92db9d` 可接续**：`executionJournal`按服务/用户/原UUID保存OS保护的完整操作，不存签名/会话摘要/私钥，损坏或部分写入不覆盖；历史记录不删除，列表1000条上限超出整体失败，不伪装完整空列表。`executionSession`先落盘再发，已有操作只查原回执，404仅在明确原请求retry时重新准备签名；FAILED/KEY_MISSING不表示历史POST未执行。`executionReceipt`绑定原操作/平台顺序/租约及代次，历史回执不续租。下一步Win独占现main会话epoch装配、窄执行入口和确认策略/worker；Mac保留执行/回复后端，无新增API或迁移。
