@@ -25,7 +25,14 @@ function record(value: unknown): JsonRecord {
     : {};
 }
 function list(value: unknown): JsonRecord[] {
-  return Array.isArray(value) ? value.map(record) : [];
+  if (!Array.isArray(value) || value.some(item =>
+    item === null || typeof item !== "object" || Array.isArray(item) || Object.keys(item).length === 0,
+  ))
+    throw new ServiceError(
+      "INVALID_SERVICE_RESPONSE",
+      "数据读取未完成，请重试。当前不能确认列表为空。",
+    );
+  return value as JsonRecord[];
 }
 function serviceFailure(status: number, body: unknown): ServiceError {
   const details = record(record(body).detail);
@@ -324,11 +331,16 @@ export const service: YikeService = {
       mapFollowup,
     ),
   addFollowup: async (id, status, note) => {
-    await request("followups.add", "/followups", "POST", {
+    const receipt = await request("followups.add", "/followups", "POST", {
       opportunity_id: id,
       status,
       note,
     });
+    if (!validProfileIdentifier(receipt.followup_id))
+      throw new ServiceError(
+        "INVALID_SERVICE_RESPONSE",
+        "保存回执不完整，结果尚未确认。输入与原请求保护已保留，请核对已有登记，不要重复保存。",
+      );
   },
   connections: async () => decodeConnectionRegistry(await request("connections.list", "/connections")),
   connect: async () => unavailable("平台登录"),

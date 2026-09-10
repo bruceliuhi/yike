@@ -248,6 +248,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 最新主线回归：在 `c0f0fcc`（含回复历史追加修复）上运行 `uv run --frozen pytest -q`，结果 **2110 passed / 488 skipped in 54.41s**。这是锁定代码的本地全量回归；跳过项仍主要依赖真实 PostgreSQL、平台账号、Windows 实机、生产环境或外部回复，不能升级为 M3 完成。
 
+2026-09-10 回复事件 PostgreSQL 受限角色探针：在一次性 `yike_mac_pilot_20260910` 数据库核对 `pilot_reply_events` 已启用并强制 RLS，`pilot_app` 为 `NOSUPERUSER/NOBYPASSRLS`，具备最小 SELECT/INSERT 权限，当前事件表为空。该探针验证迁移与角色边界，不代表回复事件业务写入、并发、回流或生产部署已完成。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。

@@ -12,6 +12,7 @@ from pilot.candidate_review import CandidateReviewStore
 from pilot.db import PilotDatabase
 from pilot.execution_runtime import ExecutionRuntime
 from pilot.research_strategies import ResearchStrategyStore
+from pilot.reply_store import ReplyEventStore
 from pilot.store import PilotStore
 from pilot.web import build_app
 
@@ -61,6 +62,7 @@ def build_runtime_app(
         strategy_resolver=strategies.resolve,
         strategy_snapshot_reader=strategies.read_snapshot,
     )
+    replies = ReplyEventStore(database)
     return build_app(
         store,
         auth_secret=auth_secret,
@@ -69,4 +71,5 @@ def build_runtime_app(
         candidate_ingestion=ingestion,
         candidate_review=review,
         research_strategies=strategies,
+        reply_store=replies,
     )
