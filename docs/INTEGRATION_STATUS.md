@@ -1,5 +1,11 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-10 Mac 接收 Win 已实测运行包来件
+
+当前接收 `d9ebbb7`，生成器/库存生产字节保持 Win `e2b75ce`；Windows生成、搬迁和独立审核证据复用[Win单一记录](superpowers/plans/2026-09-10-win-portable-runtime.md#本批交付与验证2026-09-10-恢复后)，Mac未重构或重跑Windows。Mac同时进行的库存替代实现已保留在本地 `codex/v02-full-scope@431cd4a`，被该实机来件取代，不再合并或重复接续；原脏工作树未改动。
+
+仅接入 `ebf03ec` 的宿主测试条件修正：Windows原测试仍执行，Mac拒绝路径/无输出用例实际通过；本机定向 **2 passed / 27 skipped**，跳过均不计为Windows成功。非作者 `portable_host_gate_review` 对 `d9ebbb7..ebf03ec` 规格/质量GO、无阻断，不触发重复产品验收。下一步Win保留客户Electron bootstrap/平台客户端，Mac接续06/07触达后端；当前普通运行时仍未装配触达确认服务，真实收发与完整Goal继续未完成。
+
 ## 2026-09-10 用户恢复：上一批 WIP 收口
 
 用户明确要求完成未完成部分后提交 Gitee。本批已修复离线运行包两项失败、实际生成并搬迁复验同一 payload，回复持久层修复完成独立审核；源码版本、运行入口、定向证据及 PG 环境失败统一见[本批交付记录](superpowers/plans/2026-09-10-win-portable-runtime.md#本批交付与验证2026-09-10-恢复后)。接收并保留 `8f8da34` 的完整 V0.2 目标文档和回复修复；回复两文件字节一致，不重复修改。此记录为 Win 已恢复并完成本批的实际接收通知，Mac 本地未提交改动未触碰；客户 Electron bootstrap、真实平台收发和产品整体验收仍未完成，不把本批提交当产品上线。
