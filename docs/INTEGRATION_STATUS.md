@@ -234,11 +234,15 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 连接版本 PostgreSQL 复核：在独立身份数据库使用管理员/受限角色运行 `tests/test_connection_versions_postgres.py`，**40 passed**。覆盖连接版本递增、撤销/重连、租户隔离、RLS 与权限边界；不代表真实平台账号已连接。
 
-2026-09-10 会话撤销 PostgreSQL 修复与复核：受限角色此前因缺少表级更新/删除权限，无法让 RLS 返回“0 行”而提前报权限错误；补齐 `grant_session_revocations.sql` 最小表级权限后，`tests/test_session_revocation_postgres.py` **27 passed**，覆盖撤销、租户隔离、RLS 与登出失效。
+2026-09-10 桌面机会 HTTP PostgreSQL 复核：同时注入研究策略、身份和 Pilot 受限数据库连接，运行 `tests/test_desktop_opportunity_http_postgres.py`，**1 passed**。覆盖桌面客户端读取机会、证据与跟进状态的 HTTP 往返；数据为合成输入，不代表真实平台线索或客户 UAT。
 
-2026-09-10 候选提交签名 HTTP 复核：在独立身份数据库运行 `tests/test_candidate_submission_signing_http_postgres.py`，**23 passed**。覆盖 ASGI 请求、Ed25519 签名、候选入库、执行预算与受限 PostgreSQL 往返；来源仍为合成数据，不代表真实平台采集或发送。
+2026-09-10 执行签名回执 HTTP PostgreSQL 复核：在独立身份数据库运行 `tests/test_execution_signing_payload_http_postgres.py`，**11 passed**。覆盖签名载荷、请求完整性、回执关联、预算和受限 PostgreSQL HTTP 往返；不代表真实平台执行或发送。
 
-2026-09-10 手机号认证 PostgreSQL 复核：修正一次性测试容器中 `identity_app` 的临时口令后，运行 `tests/test_phone_auth_postgres.py` 与 `tests/test_phone_login_postgres.py`，**12 passed**。覆盖验证码限流、单次消费、失败计数、并发、RLS、Cookie 会话与登出撤销；短信发送仍为合成 sink，不代表真实短信供应商或生产认证。
+2026-09-10 Pilot 运行时 HTTP 复核：同时注入身份与研究策略数据库，运行 `tests/test_pilot_runtime_http_postgres.py`，**2 passed**。覆盖普通 CLI 启动、实际 HTTP 路由、受限应用数据库选择与任务执行边界；来源/模型仍为合成输入，不代表真实平台采集或发送。
+
+2026-09-10 已确认策略复核 PostgreSQL 验证：使用独立研究策略与身份数据库运行 `tests/test_confirmed_strategy_review_postgres.py`，**35 passed**。覆盖策略确认、复核绑定、撤销/重启、RLS、租户隔离及执行前约束；不代表真实平台采集或发送。
+
+2026-09-10 Pilot 专用数据库权限与导入原子性复核：使用独立 `yike_mac_pilot_20260910` PostgreSQL 数据库及受限 `pilot_app` 角色运行 `tests/test_pilot_contracts.py` 与 `tests/test_import_atomicity.py`，**11 passed**。该结果补足此前将身份库角色误用于 Pilot 套件的环境问题，证明受限角色下的权限/原子性合同可执行；仍不代表真实平台采集、真实发送、生产部署或客户 UAT。
 
 ## 后续 AI 必须遵守
 

@@ -1,0 +1,189 @@
+- note: TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
+- generic "TEST 场景"
+- link "跳到主要内容":
+  - /url: "#main-content"
+- complementary:
+  - button "意客AI商机工作台":
+    - strong: 意客AI
+    - generic: 商机工作空间
+  - navigation "主导航":
+    - button "商机工作台":
+      - generic: 商机工作台
+    - generic: 发现商机
+    - button "业务画像":
+      - generic: 业务画像
+    - button "线索采集":
+      - generic: 线索采集
+    - button "监控任务":
+      - generic: 监控任务
+    - generic: 推进商机
+    - button "商机库":
+      - generic: 商机库
+    - button "触达中心":
+      - generic: 触达中心
+    - button "跟进记录":
+      - generic: 跟进记录
+  - button "账号与授权":
+    - generic: 账号与授权
+  - button "客户工作空间":
+    - generic: 客户工作空间
+- banner:
+  - button "收起导航":
+  - button "返回上级":
+  - generic: 线索采集 / 原始线索
+  - generic: V0.2
+- main:
+  - button "返回":
+    - text: 返回
+  - heading "原始线索" [level=1]
+  - generic: 先核对原文与画像，再确认是否进入客户商机库。
+  - tablist:
+    - tab "待复核线索" [selected]
+    - tab "公开研究样例"
+  - group "来源":
+    - generic: 来源
+    - combobox "候选来源筛选":
+      - option "全部" [selected]
+      - option "小红书"
+      - option "抖音"
+      - option "B站"
+      - option "知乎"
+      - option "公开网站"
+  - group "复核状态":
+    - generic: 复核状态
+    - combobox "候选复核状态筛选":
+      - option "全部"
+      - option "待复核" [selected]
+      - option "已入库"
+      - option "已排除"
+      - option "重复候选"
+  - textbox "搜索原始线索":
+    - /placeholder: 搜索需求或需求方
+  - region "原始线索列表":
+    - generic: 共 1 条线索
+    - button "批量确认入库（0）" [disabled]
+    - checkbox "选择本页待复核候选"
+    - text: 选择本页待复核候选
+    - checkbox "选择候选TEST 原帖标题，不是评论人的采购意向"
+    - button "查看候选TEST 原帖标题，不是评论人的采购意向":
+      - heading "TEST 原帖标题，不是评论人的采购意向" [level=3]
+      - paragraph:
+        - generic: 公开网站
+        - text: · 2026/9/9 16:00:00
+      - generic: 待复核
+    - generic: 共 1 条
+    - button "上一页" [disabled]
+    - generic: 1 / 1
+    - button "下一页" [disabled]
+  - complementary "候选证据与人工复核":
+    - heading "线索复核" [level=2]
+    - generic: 待复核
+    - heading "TEST 原帖标题，不是评论人的采购意向" [level=2]
+    - paragraph: TEST 评论作者
+    - generic: 发布来源
+    - strong:
+      - generic: 公开网站
+    - generic: 发布时间
+    - strong: 2026/9/9 16:00:00
+    - heading "原始内容与证据" [level=3]
+    - button "刷新当前版本"
+    - button "查看原文":
+      - text: 查看原文
+    - region "候选原文证据":
+      - heading "原文证据" [level=3]
+      - paragraph: 采集留存原文，尚未完成人工来源核验；不代表来源当前可访问或已授权联系。
+      - region "当前原文":
+        - heading "评论原文" [level=4]
+        - generic "评论原文": TEST 合成评论：采购输送设备，需要报价。 原文保留空格🙂
+        - term: 评论公开作者
+        - definition: TEST 评论作者
+        - term: 来源发布时间
+        - definition:
+          - time: 2026-09-09T08:00:00Z
+        - term: 来源链接
+        - definition: https://example.com/posts/TEST-1#comment-2
+        - term: 原帖／容器标题（上下文）
+        - definition: TEST 原帖标题，不是评论人的采购意向
+        - paragraph: 原帖标题和父评论仅作上下文，不代表当前评论者本人的采购需求；不同作者不视为同一人。
+        - region "父评论上下文":
+          - heading "父评论上下文" [level=4]
+          - generic "父评论原文": 父评论上下文，不属于当前作者
+          - term: 父评论公开作者
+          - definition: 父评论作者
+          - term: 父评论发布时间
+          - definition:
+            - time: 2026-09-09T00:00:00Z
+          - term: 父评论 ID
+          - definition: parent-comment-1
+          - term: 父评论链接
+          - definition: https://example.com/posts/TEST-1#parent-comment-1
+        - term: 来源平台
+        - definition: 公开网站（PUBLIC_WEB）
+        - term: 来源类型
+        - definition: 评论（COMMENT）
+        - term: 采集端观察时间
+        - definition:
+          - time: 2026-09-09T09:00:00Z
+        - term: 服务器接收时间
+        - definition:
+          - time: 2026-09-09T09:00:01Z
+        - term: 候选修订
+        - definition: "2"
+        - term: 来源版本 ID
+        - definition: 22222222-2222-4222-8222-222222222222
+        - term: 内容版本摘要
+        - definition: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      - generic "观察历史（1 / 1）"
+    - paragraph
+    - status:
+      - generic: 原文可访问性尚未核实，暂不能确认入库。打开链接不会自动解除此限制。
+    - group "目标业务画像 *":
+      - generic: 目标业务画像 *
+      - combobox "候选目标业务画像":
+        - option "选择已确认画像"
+        - option "版本 3 · TEST 输送设备" [selected]
+    - button "按画像重新判断"
+    - region "AI 判断详情":
+      - heading "AI 判断" [level=3]
+      - paragraph: 尚无 AI 判断，请先查看原文，再显式发起判断；不会自动生成等级或联系草稿。
+    - region "人工来源核验":
+      - heading "人工来源核验" [level=3]
+      - status:
+        - generic: “已打开”仅是你的人工核对声明，不是平台验证或发送授权。仅点击回源链接不会保存核验；未核实的信息请如实记录。
+      - generic "本次核验绑定（当前版本）"
+      - group "记录本次亲自核对的结果":
+        - generic: 记录本次亲自核对的结果
+        - group "来源状态 *":
+          - generic: 来源状态 *
+          - combobox "来源状态":
+            - option "已打开"
+            - option "访问受阻"
+            - option "已过期"
+            - option "未核实" [selected]
+        - group "打开方式 *":
+          - generic: 打开方式 *
+          - combobox "打开方式":
+            - option "直接打开" [selected]
+            - option "平台内定位"
+        - group "联系路径 *":
+          - generic: 联系路径 *
+          - combobox "联系路径":
+            - option "评论"
+            - option "私信"
+            - option "公开联系信息"
+            - option "无可核实联系路径" [selected]
+        - group "定位描述 *":
+          - generic: 定位描述 *
+          - textbox "定位描述"
+          - generic: 填写实际打开地址或平台内定位步骤；没有核实到的情况请明确说明。
+        - group "原文逐字摘录 *":
+          - generic: 原文逐字摘录 *
+          - textbox "原文逐字摘录"
+          - generic: 保留实际看到的原文；无法查看时如实写明，不补造原文。
+        - checkbox "我已亲自核对上述来源信息，并确认这是当前版本的核验结果"
+        - text: 我已亲自核对上述来源信息，并确认这是当前版本的核验结果
+        - button "保存来源核验" [disabled]
+    - paragraph: 绑定已确认画像后获取证据判断；服务未返回前不会生成结论。
+    - paragraph: 需要按当前画像和来源重新判断；请补齐五项复核依据；来源尚未核实可访问；需要当前版本24小时内的人工来源核验和联系路径
+    - button "排除" [disabled]
+    - button "确认入库" [disabled]

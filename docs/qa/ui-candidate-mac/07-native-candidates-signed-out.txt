@@ -1,0 +1,80 @@
+Window: "线索采集 / 原始线索 · 意客AI", App: YikeAI.
+0 标准窗口 线索采集 / 原始线索 · 意客AI, Secondary Actions: Raise
+	1 container 线索采集 / 原始线索 · 意客AI
+		2 container
+			3 HTML 内容 线索采集 / 原始线索 · 意客AI, URL: yike://app/index.html#/candidates
+				4 container
+					5 link Description: 跳到主要内容, Value: yike://app/index.html#main-content
+					6 按钮 意客AI商机工作台
+						7 文本 意客AI
+						8 文本 商机工作空间
+					9 container 主导航
+						10 按钮 商机工作台
+							11 图像
+							12 文本 商机工作台
+						13 文本 发现商机
+						14 按钮 业务画像
+							15 图像
+							16 文本 业务画像
+						17 按钮 线索采集
+							18 图像
+							19 文本 线索采集
+						20 按钮 监控任务
+							21 图像
+							22 文本 监控任务
+						23 文本 推进商机
+						24 按钮 商机库
+							25 图像
+							26 文本 商机库
+						27 按钮 触达中心
+							28 图像
+							29 文本 触达中心
+						30 按钮 跟进记录
+							31 图像
+							32 文本 跟进记录
+					33 按钮 账号与授权
+						34 图像
+						35 文本 账号与授权
+					36 按钮 本机工作空间
+						37 图像
+						38 文本 本机工作空间
+					39 按钮 收起导航
+						40 图像
+					41 按钮 返回上级
+						42 图像
+					43 text 线索采集 / 原始线索 V0.2
+					44 按钮 登录
+						45 图像
+						46 文本 登录
+					47 container
+						48 按钮 返回
+							49 图像
+							50 文本 返回
+						51 标题 原始线索, Value: 1
+							52 文本 原始线索
+						53 文本 先核对原文与画像，再确认是否进入客户商机库。
+					54 标签组
+						55 标签 (selected) 待复核线索, Value: 1
+						56 标签 (settable, integer) 公开研究样例, Value: 0
+					57 container 来源
+						58 文本 来源
+						59 弹出式按钮 Description: 候选来源筛选, Value: 全部
+							60 (selected) 全部
+					61 container 复核状态
+						62 文本 复核状态
+						63 弹出式按钮 Description: 候选复核状态筛选, Value: 待复核
+							64 (selected) 待复核
+					65 图像
+					66 文本栏 (settable) Description: 搜索原始线索, Placeholder: 搜索需求或需求方
+					67 标题 登录后查看原始线索, Value: 3
+						68 文本 登录后查看原始线索
+					69 按钮 登录
+	70 关闭按钮
+	71 全屏幕按钮 Help: 此按钮也可以执行缩放窗口的操作, Secondary Actions: 缩放窗口
+	72 最小化按钮
+73 menu bar
+	74 意客AI
+	75 File
+	76 Edit
+	77 显示
+	78 Window

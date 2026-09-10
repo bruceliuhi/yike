@@ -40,6 +40,7 @@ import { useCandidateRequests } from "./opportunities/useCandidateRequests";
 import { CandidateOriginalEvidence } from "./opportunities/CandidateOriginalEvidence";
 import { CandidateAssessmentDetails } from "./opportunities/CandidateAssessmentDetails";
 import { CandidateSourceVerification } from "./opportunities/CandidateSourceVerification";
+import { CandidateRequestHistory } from "./opportunities/CandidateRequestHistory";
 import type { CandidateAssessmentDto, CandidateReviewResultDto, SourceVerificationRequest } from "../../shared/candidateReviewApi";
 import { CANDIDATE_PLATFORM_LABELS } from "../services/candidateReview";
 import { PendingCandidateReviews } from "./opportunities/PendingCandidateReviews";
@@ -1813,42 +1814,12 @@ function CandidateWorkbench() {
             />
           )}
           {!sample && requests.available && requests.operations.length > 0 && (
-            <section aria-label="候选原请求记录" className="card">
-              <h3>原请求核对</h3>
-              <p className="muted">
-                记录不受当前筛选影响；只读核对不会重新调用模型或重复入库。
-              </p>
-              {requests.operations.map((operation) => (
-                <div key={operation.key} className="action-row">
-                  <span>
-                    {operation.action} · {operation.state} ·{" "}
-                    {operation.requestId}
-                  </span>
-                  <Button
-                    disabled={requests.busy || !!busy}
-                    onClick={() =>
-                      void requests.reconcile(operation.key).then(showRecovered)
-                    }
-                  >
-                    核对原请求
-                  </Button>
-                  {operation.action === "ASSESS" &&
-                    ["FAILED", "UNKNOWN"].includes(operation.state) &&
-                    !requests.operations.some(
-                      (child) =>
-                        child.retryOf[0] ===
-                        (operation.invocationId ?? operation.requestId),
-                    ) && (
-                      <Button
-                        disabled={requests.busy || !!busy}
-                        onClick={() => setRetryKey(operation.key)}
-                      >
-                        确认后重新判断
-                      </Button>
-                    )}
-                </div>
-              ))}
-            </section>
+            <CandidateRequestHistory
+              operations={requests.operations}
+              busy={requests.busy || !!busy}
+              onReconcile={(key) => void requests.reconcile(key).then(showRecovered)}
+              onRetry={setRetryKey}
+            />
           )}
           {!sample && requests.error && (
             <Notice tone="error">{requests.error}</Notice>
