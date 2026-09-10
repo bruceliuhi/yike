@@ -56,14 +56,17 @@ def databases(execution_databases):
 
 
 @pytest.fixture
-def env(databases):
+def env(databases,request):
     admin,app=databases; store=PilotStore(admin)
     tenants=[store.provision_tenant('synthetic-drafts') for _ in range(2)]
     users=[store.provision_user(t,f'{uuid4()}@example.invalid') for t in (tenants[0],tenants[0],tenants[1])]
     profile=store.save_profile(users[0],{'description':'synthetic'})['version_id']
     store.confirm_profile(users[0],profile)
     opp,source=str(uuid4()),str(uuid4())
-    raw,assessment,observation,verification=inputs()
+    raw,assessment,observation,verification=inputs(kind=getattr(request,'param','COMMENT'))
+    if raw['raw']['kind']!='COMMENT':
+        assessment['businessMatch']['citations'][1]={'field':'title','quote':'食品工厂  扩产'}
+        assessment['urgency']['citations']=[{'field':'body','quote':'月底前'}]
     raw['binding']['profileId']=profile; assessment['profileId']=profile
     raw['raw']['profile_version_id']=profile
     verification['binding']['profileId']=profile

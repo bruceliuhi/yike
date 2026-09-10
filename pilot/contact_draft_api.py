@@ -3,7 +3,7 @@ from fastapi import HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 
 from app.model_contract import strict_json_object
-from pilot.contact_drafts import DraftError, DraftSaveBinding, DraftSaveInput
+from pilot.contact_drafts import DraftError, DraftSaveBinding, DraftSaveInput, OutreachContextInput
 
 
 def register_contact_draft_api(router, service, identity, require_session_https):
@@ -46,6 +46,12 @@ def register_contact_draft_api(router, service, identity, require_session_https)
         claims = current(request)
         binding = await body(request, DraftSaveBinding)
         return await call(service.operation, claims, binding.model_dump())
+
+    @router.post('/outreach/context')
+    async def context(request: Request):
+        claims = current(request)
+        value = await body(request, OutreachContextInput)
+        return await call(service.context, claims, value.model_dump())
 
     @router.get('/opportunities/{opportunity_id}/contact-drafts/{channel}')
     async def latest(opportunity_id: str, channel: str, request: Request):
