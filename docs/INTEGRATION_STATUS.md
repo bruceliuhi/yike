@@ -218,6 +218,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 研究策略 PostgreSQL 复核：清理旧 `strategy_app` 角色及其数据库对象，并安装锁定的 desktop Node 依赖后，使用固定 `win_research_strategy` 数据库按套件自有流程运行，`tests/test_research_strategies_postgres.py` **49 passed**。覆盖策略版本、确认/撤销、RLS、HTTP 和 Node 客户端往返；该结果仅适用于一次性本机测试容器，不代表生产部署或真实模型服务。
 
+2026-09-10 设备凭据 PostgreSQL 复核：使用全新 `yike_mac_identity_20260910` 数据库、管理员与独立受限 `identity_app_mac` 角色运行 `tests/test_device_credentials_postgres.py`，**28 passed**。覆盖挑战、Ed25519 签名、轮换、撤销、并发与 HTTP 安全路径；不代表真实平台账号或 Windows 实机已接通。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
