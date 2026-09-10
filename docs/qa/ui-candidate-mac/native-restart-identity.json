@@ -1,0 +1,7 @@
+{
+  "candidate": "0d17cf708e371fd61e502d168b8bd67d308f69e1",
+  "process": "29140 /Users/bruce/Developer/work/yike-ai-product-design/desktop/out/candidate-mac-0d17cf7/意客AI.app/Contents/MacOS/YikeAI",
+  "app": "/Users/bruce/Developer/work/yike-ai-product-design/desktop/out/candidate-mac-0d17cf7/意客AI.app",
+  "asarSha256": "750ea0f759c10a6786ba2544e05c01f49af945211d4622854f59e3c75901698e",
+  "note": "Actual same-package restart after normal quit; no client service configured, no customer writes."
+}

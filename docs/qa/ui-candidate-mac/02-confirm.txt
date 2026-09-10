@@ -1,0 +1,299 @@
+- note: TEST 隔离视觉验收 · 内存夹具 · 禁止采集 / 发送 / 客户库写入
+- generic "TEST 场景"
+- link "跳到主要内容":
+  - /url: "#main-content"
+- complementary:
+  - button "意客AI商机工作台":
+    - strong: 意客AI
+    - generic: 商机工作空间
+  - navigation "主导航":
+    - button "商机工作台":
+      - generic: 商机工作台
+    - generic: 发现商机
+    - button "业务画像":
+      - generic: 业务画像
+    - button "线索采集":
+      - generic: 线索采集
+    - button "监控任务":
+      - generic: 监控任务
+    - generic: 推进商机
+    - button "商机库":
+      - generic: 商机库
+    - button "触达中心":
+      - generic: 触达中心
+    - button "跟进记录":
+      - generic: 跟进记录
+  - button "账号与授权":
+    - generic: 账号与授权
+  - button "客户工作空间":
+    - generic: 客户工作空间
+- banner:
+  - button "收起导航":
+  - button "返回上级":
+  - generic: 线索采集 / 原始线索
+  - generic: V0.2
+- main:
+  - button "返回":
+    - text: 返回
+  - heading "原始线索" [level=1]
+  - generic: 先核对原文与画像，再确认是否进入客户商机库。
+  - tablist:
+    - tab "待复核线索" [selected]
+    - tab "公开研究样例"
+  - group "来源":
+    - generic: 来源
+    - combobox "候选来源筛选":
+      - option "全部" [selected]
+      - option "小红书"
+      - option "抖音"
+      - option "B站"
+      - option "知乎"
+      - option "公开网站"
+  - group "复核状态":
+    - generic: 复核状态
+    - combobox "候选复核状态筛选":
+      - option "全部"
+      - option "待复核" [selected]
+      - option "已入库"
+      - option "已排除"
+      - option "重复候选"
+  - textbox "搜索原始线索":
+    - /placeholder: 搜索需求或需求方
+  - region "候选原请求记录":
+    - heading "原请求核对" [level=3]
+    - paragraph: 记录不受当前筛选影响；只读核对不会重新调用模型或重复入库。
+    - generic: ASSESS · RECORDED · 4afcbf27-aea8-4576-bbc5-82f03dcf3ca9
+    - button "核对原请求"
+    - generic: VERIFY_SOURCE · RECORDED · 8dd49bd6-540e-4664-a4d1-e9140a570d4c
+    - button "核对原请求"
+  - region "原始线索列表":
+    - generic: 共 1 条线索
+    - button "批量确认入库（0）" [disabled]
+    - checkbox "选择本页待复核候选"
+    - text: 选择本页待复核候选
+    - checkbox "选择候选TEST 原帖标题，不是评论人的采购意向"
+    - button "查看候选TEST 原帖标题，不是评论人的采购意向":
+      - heading "TEST 原帖标题，不是评论人的采购意向" [level=3]
+      - paragraph:
+        - generic: 公开网站
+        - text: · 2026/9/9 16:00:00
+      - generic: 待复核
+    - generic: 共 1 条
+    - button "上一页" [disabled]
+    - generic: 1 / 1
+    - button "下一页" [disabled]
+  - complementary "候选证据与人工复核":
+    - heading "线索复核" [level=2]
+    - generic: 待复核
+    - heading "TEST 原帖标题，不是评论人的采购意向" [level=2]
+    - paragraph: TEST 评论作者
+    - generic: 发布来源
+    - strong:
+      - generic: 公开网站
+    - generic: 发布时间
+    - strong: 2026/9/9 16:00:00
+    - heading "原始内容与证据" [level=3]
+    - button "刷新当前版本"
+    - button "查看原文":
+      - text: 查看原文
+    - region "候选原文证据":
+      - heading "原文证据" [level=3]
+      - paragraph: 采集留存原文，尚未完成人工来源核验；不代表来源当前可访问或已授权联系。
+      - region "当前原文":
+        - heading "评论原文" [level=4]
+        - generic "评论原文": TEST 合成评论：采购输送设备，需要报价。 原文保留空格🙂
+        - term: 评论公开作者
+        - definition: TEST 评论作者
+        - term: 来源发布时间
+        - definition:
+          - time: 2026-09-09T08:00:00Z
+        - term: 来源链接
+        - definition: https://example.com/posts/TEST-1#comment-2
+        - term: 原帖／容器标题（上下文）
+        - definition: TEST 原帖标题，不是评论人的采购意向
+        - paragraph: 原帖标题和父评论仅作上下文，不代表当前评论者本人的采购需求；不同作者不视为同一人。
+        - region "父评论上下文":
+          - heading "父评论上下文" [level=4]
+          - generic "父评论原文": 父评论上下文，不属于当前作者
+          - term: 父评论公开作者
+          - definition: 父评论作者
+          - term: 父评论发布时间
+          - definition:
+            - time: 2026-09-09T00:00:00Z
+          - term: 父评论 ID
+          - definition: parent-comment-1
+          - term: 父评论链接
+          - definition: https://example.com/posts/TEST-1#parent-comment-1
+        - term: 来源平台
+        - definition: 公开网站（PUBLIC_WEB）
+        - term: 来源类型
+        - definition: 评论（COMMENT）
+        - term: 采集端观察时间
+        - definition:
+          - time: 2026-09-09T09:00:00Z
+        - term: 服务器接收时间
+        - definition:
+          - time: 2026-09-09T09:00:01Z
+        - term: 候选修订
+        - definition: "2"
+        - term: 来源版本 ID
+        - definition: 22222222-2222-4222-8222-222222222222
+        - term: 内容版本摘要
+        - definition: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      - generic "观察历史（1 / 1）"
+    - paragraph
+    - group "目标业务画像 *":
+      - generic: 目标业务画像 *
+      - combobox "候选目标业务画像":
+        - option "选择已确认画像"
+        - option "版本 3 · TEST 输送设备" [selected]
+    - button "按画像重新判断"
+    - region "AI 判断详情":
+      - heading "AI 判断" [level=3]
+      - paragraph: 以下为 AI 分析，不是原文事实或发送授权，仍需人工核实。
+      - generic: TEST 需要核实的采购线索
+      - term: 商机等级
+      - definition: A
+      - region "业务匹配":
+        - heading "业务匹配" [level=4]
+        - paragraph: 高（HIGH）
+        - paragraph: 逐字出处支持
+        - list:
+          - generic: 本人正文 · body
+          - blockquote: 采购输送设备
+      - region "需求意向":
+        - heading "需求意向" [level=4]
+        - paragraph: 高（HIGH）
+        - paragraph: 逐字出处支持
+        - list:
+          - generic: 本人正文 · body
+          - blockquote: 采购输送设备
+      - region "紧迫度":
+        - heading "紧迫度" [level=4]
+        - paragraph: 高（HIGH）
+        - paragraph: 逐字出处支持
+        - list:
+          - generic: 本人正文 · body
+          - blockquote: 采购输送设备
+      - region "可行动性":
+        - heading "可行动性" [level=4]
+        - paragraph: 高（HIGH）
+        - paragraph: 逐字出处支持
+        - list:
+          - generic: 本人正文 · body
+          - blockquote: 采购输送设备
+      - term: 匹配依据
+      - definition: 匹配运输设备
+      - term: 行动信号
+      - definition: 采购输送设备
+      - term: 潜在价值
+      - definition: 需要报价
+      - term: 风险与反证
+      - definition: 预算未核实
+      - term: 待核实与未知
+      - definition: 联系人未知
+      - region "评论草稿（未发送）":
+        - heading "评论草稿（未发送）" [level=4]
+        - paragraph: 您希望什么时候完成采购？
+      - region "私信草稿（未发送）":
+        - heading "私信草稿（未发送）" [level=4]
+        - paragraph: 方便了解设备规格吗？
+      - paragraph: 草稿仅供阅读，不会自动填入人工证据，也不会自动发送。
+      - generic "判断元数据"
+    - region "人工来源核验":
+      - heading "人工来源核验" [level=3]
+      - status:
+        - generic: “已打开”仅是你的人工核对声明，不是平台验证或发送授权。仅点击回源链接不会保存核验；未核实的信息请如实记录。
+      - generic "本次核验绑定（当前版本）"
+      - heading "当前版本核验记录" [level=4]
+      - term: 核验 ID
+      - definition: c33139ab-9ee7-40c4-b5cb-f8d7573d2ad3
+      - term: 原请求 ID
+      - definition: 8dd49bd6-540e-4664-a4d1-e9140a570d4c
+      - term: 核验人
+      - definition: TEST-owner
+      - term: 核验时间
+      - definition: 2026-09-09T23:56:15.690Z
+      - term: 来源状态
+      - definition: 已打开
+      - term: 打开方式
+      - definition: 直接打开
+      - term: 联系路径
+      - definition: 评论
+      - term: 已保存定位描述
+      - definition: TEST 隔离验收：当前评论位置；不代表实际打开外部平台
+      - term: 已保存逐字摘录
+      - definition: 采购输送设备，需要报价。
+      - generic "查看核验记录绑定"
+      - group "记录本次亲自核对的结果":
+        - generic: 记录本次亲自核对的结果
+        - group "来源状态 *":
+          - generic: 来源状态 *
+          - combobox "来源状态":
+            - option "已打开" [selected]
+            - option "访问受阻"
+            - option "已过期"
+            - option "未核实"
+        - group "打开方式 *":
+          - generic: 打开方式 *
+          - combobox "打开方式":
+            - option "直接打开" [selected]
+            - option "平台内定位"
+        - group "联系路径 *":
+          - generic: 联系路径 *
+          - combobox "联系路径":
+            - option "评论" [selected]
+            - option "私信"
+            - option "公开联系信息"
+            - option "无可核实联系路径"
+        - group "定位描述 *":
+          - generic: 定位描述 *
+          - textbox "定位描述": TEST 隔离验收：当前评论位置；不代表实际打开外部平台
+          - generic: 填写实际打开地址或平台内定位步骤；没有核实到的情况请明确说明。
+        - group "原文逐字摘录 *":
+          - generic: 原文逐字摘录 *
+          - textbox "原文逐字摘录": 采购输送设备，需要报价。
+          - generic: 保留实际看到的原文；无法查看时如实写明，不补造原文。
+        - checkbox "我已亲自核对上述来源信息，并确认这是当前版本的核验结果"
+        - text: 我已亲自核对上述来源信息，并确认这是当前版本的核验结果
+        - button "保存来源核验" [disabled]
+    - paragraph: 判断建议 · 画像版本 3 · 2026/9/10 07:56:15 · 待人工校对
+    - group "匹配理由 *":
+      - generic: 匹配理由 *
+      - textbox "候选匹配理由": 匹配运输设备
+    - group "行动信号 *":
+      - generic: 行动信号 *
+      - textbox "候选行动信号": 采购输送设备
+    - group "价值判断 *":
+      - generic: 价值判断 *
+      - textbox "候选价值判断": 需要报价
+    - group "风险 *":
+      - generic: 风险 *
+      - textbox "候选风险": 预算未核实
+    - group "未知项与待核实事项 *":
+      - generic: 未知项与待核实事项 *
+      - textbox "候选未知项与待核实事项": 联系人未知
+    - paragraph: 五项依据可人工修改，确认后才进入客户商机库。
+    - button "排除"
+    - button "确认入库"
+  - dialog "确认候选入库":
+    - heading "确认候选入库" [level=2]
+    - button "关闭确认候选入库" [active]:
+    - heading "TEST 原帖标题，不是评论人的采购意向" [level=3]
+    - paragraph: 画像版本 3 · 来源版本 22222222-2222-4222-8222-222222222222
+    - paragraph: 本次来源核验 ID：c33139ab-9ee7-40c4-b5cb-f8d7573d2ad3
+    - term: 匹配理由
+    - definition: 匹配运输设备
+    - term: 行动信号
+    - definition: 采购输送设备
+    - term: 价值判断
+    - definition: 需要报价
+    - term: 风险
+    - definition: 预算未核实
+    - term: 未知项与待核实事项
+    - definition: 联系人未知
+    - checkbox "我已逐条核对原始证据、画像与以上复核依据"
+    - text: 我已逐条核对原始证据、画像与以上复核依据
+    - paragraph: 复核人、时间和最终结果由客户服务记录。批量操作逐条提交，任一结果未知即停止后续提交。
+    - button "取消"
+    - button "确认入库" [disabled]
