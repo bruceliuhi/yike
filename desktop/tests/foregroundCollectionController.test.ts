@@ -56,6 +56,22 @@ it('simultaneous recover calls are serialized before opening their scopes',async
  expect(await Promise.race([second,Promise.resolve('pending')])).toEqual({state:'BUSY'});
  release({ok:true,scope:f.scope});await first;
 });
+it('queues scope opening so status reads cannot compete with another foreground opening',async()=>{
+ const f=fixture();let release!:()=>void,preparing=false;
+ const firstOpening=new Promise<void>(resolve=>release=resolve);
+ (f.identity.openWorkerScope as any).mockImplementation(async()=>{
+  if(preparing)return {ok:false,state:'BUSY'};
+  preparing=true;await firstOpening;preparing=false;return {ok:true,scope:f.scope};
+ });
+ const first=f.controller.execute({action:'STATUS',taskId:id(6)});
+ const second=f.controller.execute({action:'STATUS',taskId:id(6)});
+ await new Promise(resolve=>setImmediate(resolve));
+ const callsBeforeRelease=f.identity.openWorkerScope.mock.calls.length;
+ release();const results=await Promise.all([first,second]);
+ expect(callsBeforeRelease).toBe(1);
+ expect(results.every(result=>result.state==='STATUS')).toBe(true);
+ await f.controller.shutdown();
+});
 it('a prior physical stop failure blocks another browser and is still reported at shutdown',async()=>{
  const f=fixture();await f.controller.start(f.command);f.finish({state:'FAILED',error:'SOURCE_STOP_FAILED',taskCompleted:false});
  await new Promise(resolve=>setImmediate(resolve));

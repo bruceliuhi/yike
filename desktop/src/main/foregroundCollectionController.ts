@@ -47,6 +47,7 @@ export function createForegroundCollectionController(options:Options) {
  const {identity,serviceOrigin,configuration}=options;
  let opening=false,shuttingDown=false,stopUnconfirmed=false;
  let openingDone:Promise<void>|null=null,finishOpening:(()=>void)|null=null;
+ let scopeOpening:Promise<void>=Promise.resolve();
  let capabilityPending:Promise<ForegroundCollectionResult>|null=null;
  type Active={taskId:string;userId:string;scope:DeviceWorkerScope;worker:ReturnType<typeof createCollectionWorker>;done:Promise<void>};
  let active:Active|null=null;
@@ -58,6 +59,15 @@ export function createForegroundCollectionController(options:Options) {
   if(shuttingDown || !scope.session.isCurrent() || status.state!=='READY' || status.deviceId!==scope.device.deviceId || status.credentialVersion!==scope.device.credentialVersion)throw new Error('COLLECTION_UNAVAILABLE');
  }
  async function open(){
+  // STATUS/capability reads share the identity controller's short opening
+  // mutex with the next platform. Queue only acquisition, not source work.
+  const previous=scopeOpening;let release!:()=>void;
+  scopeOpening=new Promise<void>(resolve=>{release=resolve;});
+  await previous;
+  try{if(shuttingDown)throw new Error('COLLECTION_UNAVAILABLE');return await openScope();}
+  finally{release();}
+ }
+ async function openScope(){
   const result=await identity.openWorkerScope();if(!result.ok)throw new Error('COLLECTION_UNAVAILABLE');
   const original=result.scope;
   const scope={...original,session:{...original.session,isCurrent:()=>{
