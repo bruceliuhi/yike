@@ -6,6 +6,8 @@
 
 ## 当前执行范围：完整 V0.2 全量推进（2026-09-10）
 
+07B本机组件`74b4d52`已实现许可核验、实际文件持久防重和单次动作控制；[验证/审核](superpowers/plans/2026-09-10-native-outreach-consumption.md#本批验证)为单一记录。06B/07B继续IN_PROGRESS：Mac接真实渠道及私有传输，Win07C消费主进程组件/结果展示（尚无ACK），不能因组件测试通过开启发送或标整卡完成。遵循用户省token要求，只做受影响定向检查和整批独立审核，不重构无变化产物。
+
 08新发送来源回复`9df9d69`已独立审核GO，普通runtime接原claim/context设备签名与证据列表，保留原事件/人工/旧117历史，不自动更改发送状态。[证据及原失败](superpowers/plans/2026-09-10-signed-reply-origin.md#本批验证)集中维护；Win08B按[新回复合同](contracts/V02_REPLY_FOLLOWUP.md#08-新发送来源接入2026-09-10)消费canonical event_id及证明来源，尚无ACK。下一步仍是06B本机通道/持久消费许可、07C/08B客户端及真实收发联验；父卡/Goal继续IN_PROGRESS。
 
 07B领取/结果后端`04a4017`独立审核GO，证据复用[123记录](superpowers/plans/2026-09-10-outreach-dispatch-ledger.md#本批验证)。Win07C的本机消费/真实渠道和显示尚未ACK，设备许可不等于平台已发送；08新原请求关联增量见上方。

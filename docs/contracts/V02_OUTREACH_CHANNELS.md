@@ -2,6 +2,16 @@
 
 状态：`CONTEXT_QUEUE_AND_DISPATCH_LEDGER_IMPLEMENTED / REAL_PLATFORM_SEND_UNVERIFIED`
 
+## 07B 本机许可消费组件（2026-09-10）
+
+`74b4d52`新增私有主进程组件`outreachConsumer.ts`和`outreachConsumptionJournal.ts`；验证与审核记录集中于[本批计划](../superpowers/plans/2026-09-10-native-outreach-consumption.md#本批验证)。尚未注册main/IPC或安装真实发送器，不代表Win已消费。
+
+固定主进程适配器负责构造`OutreachExpected`（serviceOrigin/userId/tenantId/deviceId/sessionId/requestId/claimId/contextSha256），仅传入认证私有transport的首次123 grant，不能接受renderer自报身份或注入driver。控制器重算完整context摘要、核对账号/收件人/来源/动作及有效期；`NativeOutreachChannel.check`必须只读核验实际原账号与目标，返回绑定context摘要、device/connection/version/account/recipient和5秒内checkedAt。`execute`仍须在固定隔离profile的动作点检查取消及账号。
+
+日志目录由主进程固定在可信应用数据根内（不接受renderer路径、祖先目录须可信），保护器使用OS保护存储。消费以serviceOrigin/userId/tenantId/requestId为唯一键，加密记录claim/device/context摘要，排他创建并同步文件；POSIX同步目录和父目录，Windows文件同步仍需实机验收。正文/登录态不入日志。损坏、保护失败或部分写入均停止，永不自动删除消费记录。跨会话/重建控制器不能重发；用户删日志与通用断电保证不在此证明内。
+
+`RESULT_READY`仅为待签名提交的设备结果，始终`serverAccepted:false`；异常或不明确结果保留UNKNOWN，不猜测未投递。有效的晚到回执仍保留原request/claim；需由后续私有transport提交123 RESULT并按原请求恢复，当前没有自动重试或外部发送入口。
+
 ## 07B 单次领取与结果（2026-09-10）
 
 123增量新增普通runtime接口`POST /api/ui/outreach/dispatch/signing-payload`（`{request}`）及`POST /api/ui/outreach/dispatch`（`{request,signature}`）。沿用设备Ed25519，独立域`yike-outreach-dispatch-v1`绑定当前会话；直接签服务返回的规范UTF-8字节。

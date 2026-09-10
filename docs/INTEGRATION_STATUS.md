@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-10 本机一次消费组件
+
+`74b4d52`补充实际文件持久消费和主进程控制器，异常不重发、跨会话重建防重；[单一验证记录](superpowers/plans/2026-09-10-native-outreach-consumption.md#本批验证)集中维护。尚未接私有transport/main/IPC、真实渠道或Win界面，不是平台收发完成。下一步按[接入合同](contracts/V02_OUTREACH_CHANNELS.md#07b-本机许可消费组件2026-09-10)装配真实链路，不重复开发日志，不重复无变化全量测试/构包。
+
 ## 2026-09-10 签名回复关联新发送来源
 
 `9df9d69`独立审核GO；普通runtime接设备签名回复→122/123原claim→商机，历史/人工/设备证明分开，原UNKNOWN发送不自动变成功。同回复后续轮询复用首次事实及canonical event_id；124不改旧payload摘要。[单一证据](superpowers/plans/2026-09-10-signed-reply-origin.md#本批验证)保留失败和补验。Win须消费返回ID及证据列表，尚无ACK；Mac继续本机消费/真实通道，不将测试回复计为真实客户成果。
