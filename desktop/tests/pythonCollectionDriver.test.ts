@@ -49,16 +49,35 @@ it('fixed private spawn, no inherited secret, sequential query budgets and untou
   f.respond(1, [record('搭建', '66c21234abcdef0123456789')]);
   expect(await run.completed).toEqual([record(), record('搭建', '66c21234abcdef0123456789')]); await run.stop();
 });
-it.each(['connection', 'exclusions', 'research', 'links', 'comma', 'budget'])('rejects unsupported/mismatched %s before spawn', async kind => {
+it.each(['connection', 'research', 'links', 'comma', 'budget'])('rejects unsupported/mismatched %s before spawn', async kind => {
   const f = fixture(); const c = f.input.snapshot.configuration;
   if (kind === 'connection') f.input.target.connection_version = 2;
-  if (kind === 'exclusions') c.exclusions = ['招聘'];
   if (kind === 'research') c.research = {};
   if (kind === 'links') c.links = ['https://example.org'];
   if (kind === 'comma') c.keywords = ['设计,搭建'];
   if (kind === 'budget') f.input.maxRecords = 101;
   const run = f.driver.start(f.input); await expect(run.completed).rejects.toThrow('SOURCE_DRIVER_INVALID_INPUT'); await run.stop();
   expect(spawn).not.toHaveBeenCalled();
+});
+it('filters POST title/body and COMMENT body with literal NFC case-folding, without parent matching or budget refill', async () => {
+  const f = fixture(); f.input.snapshot.configuration.keywords = ['设计'];
+  f.input.snapshot.configuration.exclusions = ['CAFÉ', '招聘']; f.input.maxRecords = 4;
+  const run = f.driver.start(f.input); await tick(); expect(f.request(0).max_records).toBe(4);
+  const base = record();
+  const postTitle = {...base, kind: 'POST', external_comment_id: null, title: 'cafe\u0301 项目', body: '保留正文'};
+  const postBody = {...base, kind: 'POST', external_source_id: '66c21234abcdef0123456789', external_comment_id: null, title: '项目', body: '正在招聘'};
+  const commentBody = {...base, external_comment_id: '66c31234abcdef0123456789', body: 'CaFé 咨询'};
+  const parentOnly = {...base, external_comment_id: '66c41234abcdef0123456789', body: '真实需求', parent: {
+    external_comment_id: '66c51234abcdef0123456789', body: '招聘信息', author_public_id: null, published_at: null, public_url: null}};
+  f.respond(0, [postTitle, postBody, commentBody, parentOnly]);
+  expect(await run.completed).toEqual([parentOnly]); expect(spawn).toHaveBeenCalledTimes(1); await run.stop();
+});
+it('rejects conflicting duplicate evidence even when every version is excluded', async () => {
+  const f = fixture(); f.input.snapshot.configuration.exclusions = ['原文'];
+  const run = f.driver.start(f.input); const outcome = run.completed.catch(error => error.message); await tick();
+  f.respond(0, [record()]); await tick();
+  f.respond(1, [{...record('搭建'), body: '原文 已修改'}]);
+  expect(await outcome).toBe('SOURCE_DRIVER_CONFLICT'); await run.stop();
 });
 it('EOF cancellation waits for host cleanup/close and does not start next query', async () => {
   const f = fixture(); const run = f.driver.start(f.input); const outcome = run.completed.catch(e => e.message); await tick();

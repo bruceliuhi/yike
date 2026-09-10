@@ -9,6 +9,7 @@ import {
   removeTerm,
   taskErrors,
   taskFingerprint,
+  startBlockers,
 } from "../../src/renderer/domain/task";
 describe("task draft invariants", () => {
   const suggestion: Suggestion = {
@@ -65,5 +66,17 @@ describe("task draft invariants", () => {
     expect(taskFingerprint(d)).not.toBe(
       taskFingerprint({ ...d, terms: [makeTerm("买方需求")] }),
     );
+  });
+  it("allows confirmed exclusions through native once and monitor collection paths", () => {
+    const connection = {platform: 'xhs', accountId: 'a1', status: 'CONNECTED', capabilities: ['search'],
+      registration: {deviceId: 'd1', connectionId: 'c1', version: 1, connectedAt: '2026-09-10T00:00:00Z', disconnectedAt: null},
+      foregroundBinding: {mode: 'three-platform-foreground-v1', platform: 'XIAOHONGSHU', connectionId: 'c1', connectionVersion: 1,
+        deviceId: 'd1', accountPublicId: '66c01234abcdef0123456789'}} as any;
+    const profile = {id: 'p1', version: 1, status: 'CONFIRMED'} as any;
+    const once = {...newTaskDraft(), name: '任务', profileId: 'p1', profileVersion: 1, terms: [makeTerm('采购')], exclusions: [makeTerm('招聘')],
+      platforms: ['xhs'], accounts: {xhs: 'a1'}} as any;
+    expect(startBlockers(once, [profile], [connection], true)).not.toContain(expect.stringContaining('排除词'));
+    const monitor = {...once, mode: 'monitor', schedule: {...newTaskDraft('monitor').schedule}};
+    expect(startBlockers(monitor, [profile], [connection], true, true)).not.toContain(expect.stringContaining('排除词'));
   });
 });

@@ -24,7 +24,9 @@ function fixture(){
  return {controller:createForegroundCollectionController(options),options,identity,scope,requests,strategy,command,startReceipt,execution,executionJournal,candidatesJournal,worker,driverFactory,resolveAccount,probe,finish:(value:any={state:'COMPLETED',taskCompleted:true})=>resolveRun(value),invalidate:()=>current=false};
 }
 it('launches one bound background worker after fresh strategy, account, runtime and persisted START',async()=>{
- const f=fixture();expect(await f.controller.start(f.command)).toMatchObject({state:'RECORDED',receipt:f.startReceipt});
+ const f=fixture();(f.strategy.snapshot.configuration as any).exclusions=['招聘'];
+ const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.strategy.configuration_sha256=hash;f.command.configurationSha256=hash;
+ expect(await f.controller.start(f.command)).toMatchObject({state:'RECORDED',receipt:f.startReceipt});
  expect(f.worker.run).toHaveBeenCalledTimes(1);expect(f.worker.run.mock.calls[0][0]).toMatchObject({startReceipt:f.startReceipt,platformRunId:id(8),strategy:f.strategy});
  expect(f.driverFactory).toHaveBeenCalledWith(expect.objectContaining({profilePath:'C:\\profiles\\'+id(30),binding:expect.objectContaining({expectedAccountPublicId:'66c01234abcdef0123456789',connection_id:id(5)})}));f.finish();await f.controller.shutdown();
 });
@@ -105,7 +107,7 @@ it('STATUS accepts multiple platform candidate batches but keeps recovery conser
 });
 
 it('monitor source stop failure latches the same foreground slot',async()=>{
- const f=fixture();const c:any=f.strategy.snapshot.configuration;c.mode='monitor';c.schedule={kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1};
+ const f=fixture();const c:any=f.strategy.snapshot.configuration;c.mode='monitor';c.exclusions=['招聘'];c.schedule={kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1};
  const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.strategy.configuration_sha256=hash;
  (f.scope.transport.requestExecution as any).mockImplementation(async(input:any)=>input.operation==='monitor.support'?{ok:true,status:200,data:{schema_version:'monitor-runtime-support-v1',mode:'three-platform-monitor-v1'}}:{ok:false,status:400,error:'unexpected'});
  const start={schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:hash,targets:f.command.targets};

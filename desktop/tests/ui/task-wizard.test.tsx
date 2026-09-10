@@ -428,6 +428,7 @@ describe("task wizard service boundary", () => {
       });
     });
     render(<TaskWizardPage />);
+    expect(screen.getByText("结果返回本机后再过滤；评论只匹配评论自身正文，不匹配父帖。")).toBeTruthy();
     await waitFor(() => expect(context.service.suggest).toHaveBeenCalledOnce());
     addKeyword("人工输入");
     await act(async () =>

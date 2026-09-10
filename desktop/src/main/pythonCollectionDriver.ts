@@ -17,6 +17,11 @@ const SCHEMA = 'windows-source-host-v1';
 const MAX_FRAME = 4 * 1024 * 1024;
 const failure = (code = 'SOURCE_DRIVER_FAILED') => new Error(code);
 const integer = (n: number, max: number) => Number.isInteger(n) && n >= 1 && n <= max;
+const folded = (value: string) => value.normalize('NFC').toLowerCase();
+function excluded(record: CandidateSubmission['records'][number], exclusions: string[]): boolean {
+  const fields = record.kind === 'POST' ? [record.title, record.body] : record.kind === 'COMMENT' ? [record.body] : [];
+  return fields.some(field => field !== null && exclusions.some(term => folded(field).includes(term)));
+}
 
 /** Main-owned paths and account binding only. This adapter grants no capability. */
 export function createPythonCollectionDriver(options: Options): CollectionDriver {
@@ -103,7 +108,7 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
             !validNativeAccount(nativePlatform.data,expectedAccount))) throw failure();
         if (lease.operation !== 'CLAIM' && lease.operation !== 'RENEW') throw failure();
         const approvedMode=c.mode==='once' && c.schedule===null || owned.allowMonitor===true && c.mode==='monitor' && c.schedule?.policyVersion===1;
-        if (!approvedMode || c.source !== 'search' || c.links.length || c.exclusions.length || c.research !== null ||
+        if (!approvedMode || c.source !== 'search' || c.links.length || c.research !== null ||
             c.keywords.some(q => q !== q.trim() || q.includes(',')) ||
             !integer(maxRecords, 100) || !integer(snapshot.max_records, 10000) || maxRecords > snapshot.max_records ||
             !integer(snapshot.max_runtime_seconds, 86400) || !snapshot.platforms.includes(target.platform) ||
@@ -124,6 +129,7 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
       let spent = 0;
       const seen = new Map<string, string>();
       const queries = snapshot.configuration.keywords;
+      const exclusions = snapshot.configuration.exclusions.map(folded);
       for (let index = 0; index < queries.length && spent < maxRecords; index++) {
         if (cancelled) throw failure(timedOut ? 'SOURCE_DRIVER_TIMED_OUT' : 'SOURCE_DRIVER_CANCELLED');
         const seconds = Math.ceil((deadline - performance.now()) / 1000);
@@ -148,7 +154,7 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
           const {observed_at: _observed, query: _query, ...evidence} = record;
           const content = JSON.stringify(evidence);
           if (seen.has(key)) {if (seen.get(key) !== content) throw failure('SOURCE_DRIVER_CONFLICT');}
-          else {seen.set(key, content); records.push(record);}
+          else {seen.set(key, content); if (!excluded(record, exclusions)) records.push(record);}
         }
       }
       return records;

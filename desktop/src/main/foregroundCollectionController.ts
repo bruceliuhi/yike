@@ -138,7 +138,7 @@ export function createForegroundCollectionController(options:Options) {
     if(strategy.state!=='CONFIRMED'||!strategy.is_current||!strategy.profile_current||strategy.confirmed_at===null||strategy.revoked_at!==null||
       strategy.profile_version_id!==profileId||snapshot.profile_version_id!==profileId||strategy.strategy_version_id!==strategyId||snapshot.strategy_version_id!==strategyId||
       c.mode!=='monitor'||c.schedule?.policyVersion!==1||snapshot.max_records>100||snapshot.max_runtime_seconds>900||
-      c.source!=='search'||c.research!==null||c.links.length||c.exclusions.length||c.keywords.some(k=>k!==k.trim()||k.includes(','))||
+      c.source!=='search'||c.research!==null||c.links.length||c.keywords.some(k=>k!==k.trim()||k.includes(','))||
       snapshot.platforms.length!==targets.length||targets.some((target,index)=>target.platform!==snapshot.platforms[index])||
       targets.some(target=>!nativeLoginPlatformSchema.safeParse(target.platform).success||target.access_mode!=='PLATFORM_ACCOUNT'))throw new Error();
     for(const target of targets)await account(scope,target);
@@ -159,7 +159,7 @@ export function createForegroundCollectionController(options:Options) {
     if(strategy.state!=='CONFIRMED'||!strategy.is_current||!strategy.profile_current||strategy.confirmed_at===null||strategy.revoked_at!==null||
       strategy.profile_version_id!==start.profile_version_id||strategy.strategy_version_id!==start.strategy_version_id||snapshot.profile_version_id!==start.profile_version_id||
       snapshot.strategy_version_id!==start.strategy_version_id||strategy.configuration_sha256!==start.configuration_sha256||createHash('sha256').update(canonical(snapshot)).digest('hex')!==start.configuration_sha256||
-      c.mode!=='monitor'||c.schedule?.policyVersion!==1||snapshot.max_records>100||snapshot.max_runtime_seconds>900||c.source!=='search'||c.research!==null||c.links.length||c.exclusions.length||c.keywords.some(k=>k!==k.trim()||k.includes(','))||
+      c.mode!=='monitor'||c.schedule?.policyVersion!==1||snapshot.max_records>100||snapshot.max_runtime_seconds>900||c.source!=='search'||c.research!==null||c.links.length||c.keywords.some(k=>k!==k.trim()||k.includes(','))||
       snapshot.platforms.length!==targets.length||targets.some((target,index)=>target.platform!==snapshot.platforms[index]||target.access_mode!=='PLATFORM_ACCOUNT'||!nativeLoginPlatformSchema.safeParse(target.platform).success))throw new Error();
     const bindings=[];for(const target of targets)bindings.push(await account(scope,target));
     const firstSessions=options.sessions(scope);const submitted=await firstSessions.execution.submit(scope.session,start);guard(scope);if(submitted.state!=='RECORDED')return submitted;
@@ -215,7 +215,7 @@ export function createForegroundCollectionController(options:Options) {
      snapshot.profile_version_id!==command.profileVersionId || snapshot.strategy_version_id!==command.strategyVersionId ||
      strategy.configuration_sha256!==command.configurationSha256 || createHash('sha256').update(canonical(snapshot)).digest('hex')!==command.configurationSha256 ||
      snapshot.platforms.length!==1 || snapshot.platforms[0]!==target.platform || snapshot.max_records>100 || snapshot.max_runtime_seconds>900 ||
-     c.mode!=='once' || c.source!=='search' || c.schedule!==null || c.research!==null || c.links.length || c.exclusions.length || c.keywords.some(k=>k!==k.trim() || k.includes(',')))throw new Error();
+     c.mode!=='once' || c.source!=='search' || c.schedule!==null || c.research!==null || c.links.length || c.keywords.some(k=>k!==k.trim() || k.includes(',')))throw new Error();
     const start=executionOperationSchema.parse({schema_version:'execution-runtime-v1',operation:'START',request_id:command.requestId,
      device_id:scope.device.deviceId,credential_version:scope.device.credentialVersion,profile_version_id:command.profileVersionId,strategy_version_id:command.strategyVersionId,
      configuration_sha256:command.configurationSha256,targets:command.targets});

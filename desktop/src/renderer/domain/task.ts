@@ -207,9 +207,9 @@ export function startBlockers(
     const nativeMonitor = nativeMonitorReady && draft.mode === 'monitor' && hasForegroundBinding(connection) &&
       draft.platforms.every(p => ['xhs','douyin','bilibili'].includes(p));
     if (connection.registration && ((!nativeMonitor && (draft.platforms.length !== 1 || draft.mode !== 'once')) ||
-        draft.source !== 'search' || draft.exclusions.length > 0 ||
+        draft.source !== 'search' ||
         draft.links.trim() !== '' || draft.research))
-      blockers.push('本机受控采集仅支持单个平台的单次关键词搜索，暂不支持排除词、链接、研究或监控。');
+      blockers.push('本机受控采集仅支持已开放平台的关键词搜索，暂不支持链接或研究。');
     if (connection.registration && draft.executionLimits &&
         ((draft.executionLimits.max_records ?? 0) > 100 || (draft.executionLimits.max_runtime_seconds ?? 0) > 900))
       blockers.push('本机受控采集每次最多 100 条记录、900 秒，请调低执行上限。');
