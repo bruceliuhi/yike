@@ -33,3 +33,7 @@ TDD：先最小正确绑定且主评论空白检查，以及取消/错账号零�
 ## 本批验证
 
 页面模块专项见[短报告](2026-09-11-xhs-comment-driver-report.md)，根不重复运行。runtime最初因缺模块出现fixture setup errors，单独缺入口断言RED后实现；改为作者主页导航的RED明确捕获旧版仍直达/explore，修后最终6项行为测试通过（已移除临时存在性断言）。途中测试替身`now`必填与生产可选不一致，已校正替身后再验证导航失败。命令：`/tmp/yike-main-merge.PZkSlU/.venv/bin/python -m pytest -q tests/test_platform_outreach_runtime.py`，6 passed。合成Playwright边界只证明控制流程，不证明平台发送。未安装新依赖、未构包或全量回归。独立审核与代码版本待收口记录。
+
+`c8203e9`整批独立审核NO-GO：P1取消回调未中断Playwright待点击动作；P1刷新读回未确认评论及证据节点可见/顶层作用域。差量修复中：取消/过期时关闭此执行器独占page以终止pending动作，不以仅取消Python Future替代；刷新后必须在原noteContainer内唯一可见顶层评论及其作者/正文中核对。[Playwright官方page.close文档](https://playwright.dev/python/docs/api/class-page#page-close)说明默认不运行beforeunload，等待页面关闭，并使进行中的操作中断；本批不据此声称已做真实Windows取消实验。已发生动作不能因清理失败降为未发送，仍按UNKNOWN/已确认晚回执记录，禁止重试。
+
+最终代码`352a95723cb9acd1fd4bf67e22da9a995528be66`独立差量复核GO，两项P1关闭，无新增阻断。修复模块8 passed，runtime 6 passed原证据复用；未重复构包/全量测试。审核结论只覆盖代码候选；真实发送、Windows进程桥/main/UI、部署及跨行业UAT均未被证明。Task 1/2本批适配完成，父卡与完整Goal继续IN_PROGRESS，下一批接既有监督器与consumer的同页CHECK/EXECUTE进程桥。
