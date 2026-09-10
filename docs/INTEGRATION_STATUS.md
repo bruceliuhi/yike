@@ -236,6 +236,8 @@ R3 候选 `10ab8b6` 的更新验证为桌面 216 passed、UI API/试用页 62 pa
 
 2026-09-10 会话撤销 PostgreSQL 修复与复核：受限角色此前因缺少表级更新/删除权限，无法让 RLS 返回“0 行”而提前报权限错误；补齐 `grant_session_revocations.sql` 最小表级权限后，`tests/test_session_revocation_postgres.py` **27 passed**，覆盖撤销、租户隔离、RLS 与登出失效。
 
+2026-09-10 候选提交签名 HTTP 复核：在独立身份数据库运行 `tests/test_candidate_submission_signing_http_postgres.py`，**23 passed**。覆盖 ASGI 请求、Ed25519 签名、候选入库、执行预算与受限 PostgreSQL 往返；来源仍为合成数据，不代表真实平台采集或发送。
+
 ## 后续 AI 必须遵守
 
 1. 先读 `AUTHORITY.md`、本文件和 `docs/V02_IMPLEMENTATION_TASKBOOK.md`。
