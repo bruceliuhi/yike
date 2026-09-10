@@ -170,19 +170,25 @@ class XhsPostCommentChannel:
                 await asyncio.sleep(.01)
         click_task = asyncio.create_task(button.click(timeout=timeout))
         stop_task = asyncio.create_task(stopped())
-        done, _ = await asyncio.wait((click_task, stop_task), return_when=asyncio.FIRST_COMPLETED)
-        if click_task in done:
-            stop_task.cancel()
-            await asyncio.gather(stop_task, return_exceptions=True)
-            await click_task
-            return True
         try:
+            done, _ = await asyncio.wait((click_task, stop_task), return_when=asyncio.FIRST_COMPLETED)
+            if click_task in done:
+                await click_task
+                return True
             await asyncio.wait_for(self.page.close(run_before_unload=False), timeout=1)
+            return False
+        except asyncio.CancelledError:
+            # Worker EOF cancels the owner task, not only our callback. Closing
+            # the actual page must precede cancelling the local click Future.
+            try:
+                await asyncio.wait_for(self.page.close(run_before_unload=False), timeout=1)
+            except Exception:
+                pass  # The runtime/Job still owns physical cleanup; no receipt.
+            raise
         finally:
-            await asyncio.gather(click_task, return_exceptions=True)
+            click_task.cancel()
             stop_task.cancel()
-            await asyncio.gather(stop_task, return_exceptions=True)
-        return False
+            await asyncio.gather(click_task, stop_task, return_exceptions=True)
 
     async def execute(self, context, operation):
         if self._consumed: return dict(_UNKNOWN)

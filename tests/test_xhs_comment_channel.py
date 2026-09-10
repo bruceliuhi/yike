@@ -168,6 +168,21 @@ def test_cancellation_closes_page_and_aborts_pending_click():
     asyncio.run(run())
 
 
+def test_external_task_cancel_closes_pending_click_without_waiting_for_runtime_cleanup():
+    async def run():
+        now = datetime(2026, 9, 11, 10, tzinfo=UTC); value = context(); page = Page(pending_click=True)
+        channel = XhsPostCommentChannel(page, cancelled=lambda: False, now=lambda: now)
+        await channel.check(value)
+        task = asyncio.create_task(channel.execute(value, operation(now)))
+        await page.click_started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError): await task
+        # Runtime cleanup has not run: the channel must close the page itself.
+        assert page.closed and page.clicks == 0
+        assert not [t for t in asyncio.all_tasks() if t is not asyncio.current_task() and not t.done()]
+    asyncio.run(run())
+
+
 def test_reload_receipt_outside_top_level_note_scope_is_unknown():
     class OutsideReceiptPage(Page):
         async def reload(self, **kwargs):

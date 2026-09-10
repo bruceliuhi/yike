@@ -64,7 +64,10 @@ def test_duplicate_or_early_execute_is_not_run(tmp_path, monkeypatch):
 
 
 OP={'requestId':'r','claimId':'c','dispatchBefore':'z'}
-OBS={'status':'AVAILABLE','identity':{'account':'synthetic'},'target':{'postId':'synthetic'}}
+OBS={'status':'AVAILABLE','contextSha256':'a'*64,
+     'deviceId':'00000000-0000-4000-8000-000000000001',
+     'connectionId':'00000000-0000-4000-8000-000000000002','connectionVersion':1,
+     'accountPublicId':'a'*24,'recipientId':'b'*24,'checkedAt':'2026-09-11T10:00:00+00:00'}
 
 
 @pytest.mark.parametrize('cleanup_failure', [False,'worker','supervisor','private'])
