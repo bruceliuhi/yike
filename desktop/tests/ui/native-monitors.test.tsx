@@ -19,6 +19,18 @@ beforeEach(()=>{
 });
 afterEach(()=>cleanup());
 describe('monitor page real service wiring',()=>{
+ it('unlocks a definitive pre-submit BUSY without treating a missing receipt as success',async()=>{
+  const execute=vi.mocked(context.service.monitorCollection!.execute);
+  execute.mockImplementation(async c=>c.action==='LIST'?{state:'LIST',supported:true,plans:[base],serverTime:null} as any:{state:'BUSY'});
+  render(<NativeMonitorPlans/>);await screen.findByText('本机未接管');
+  fireEvent.click(screen.getByRole('button',{name:'暂停计划'}));fireEvent.click(screen.getByRole('button',{name:'确认执行'}));
+  await waitFor(()=>expect(execute.mock.calls.some(([c])=>c.action==='SET_STATE')).toBe(true));
+  await waitFor(()=>expect(screen.queryByRole('button',{name:'核对原请求'})).toBeNull());
+  expect((screen.getByRole('button',{name:'暂停计划'}) as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(screen.getByRole('button',{name:'暂停计划'}));fireEvent.click(screen.getByRole('button',{name:'确认执行'}));
+  await waitFor(()=>expect(execute.mock.calls.filter(([c])=>c.action==='SET_STATE')).toHaveLength(2));
+  expect(execute.mock.calls.filter(([c])=>c.action==='RECEIPT')).toHaveLength(0);
+ });
  it('does not auto attach from a list; confirms pause and retains unknown original request across remount',async()=>{
   const execute=vi.mocked(context.service.monitorCollection!.execute);
   execute.mockImplementation(async c=>c.action==='LIST'?{state:'LIST',supported:true,plans:[base],serverTime:null} as any:

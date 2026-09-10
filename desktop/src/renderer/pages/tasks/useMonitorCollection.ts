@@ -3,7 +3,7 @@ import {useApp} from '../../app/context';
 import {useOperationLedger} from '../../app/operationLedger';
 import {boundedRequest} from '../../app/boundedRequest';
 import {useTaskScope} from './useTaskScope';
-import {monitorCollectionCommandSchema,type MonitorCollectionCommand,type MonitorCollectionResult} from '../../../shared/monitorCollection';
+import {monitorCollectionCommandSchema,MONITOR_COLLECTION_ERROR_MESSAGES,type MonitorCollectionCommand,type MonitorCollectionResult} from '../../../shared/monitorCollection';
 
 type Write=Extract<MonitorCollectionCommand,{action:'CREATE'|'SET_STATE'}>;
 type Listing=Extract<MonitorCollectionResult,{state:'LIST'}>;
@@ -43,8 +43,17 @@ export function useMonitorCollection(){
     return {...old,[key!]:'PENDING'};
    });
    const result=await call(command);
-   if(key && (result.state==='RECORDED' || write && ['CONFLICT','INVALID_REQUEST'].includes(result.state)))
+   // Only the original mutation's explicit pre-write rejection releases its guard.
+   // UNKNOWN, thrown IPC errors, session changes and receipt NOT_FOUND stay guarded.
+   const notSubmitted=!!write && ['CONFLICT','INVALID_REQUEST','BUSY','DEVICE_NOT_READY','UNAVAILABLE'].includes(result.state);
+   if(key && (result.state==='RECORDED' || notSubmitted))
     setLedger(old=>{const next={...old};delete next[key];return next;});
+   if(notSubmitted){
+    await refresh();
+    const reason=result.state in MONITOR_COLLECTION_ERROR_MESSAGES?MONITOR_COLLECTION_ERROR_MESSAGES[result.state as keyof typeof MONITOR_COLLECTION_ERROR_MESSAGES]:'当前条件不满足。';
+    show({error:`${reason} 本次变更未提交，可在处理后重新确认。`});
+    return result;
+   }
    if(!['RECORDED','ATTACHED'].includes(result.state)){
     show({error:result.state==='CONFLICT'?'计划已变化或账号不匹配，请刷新后重新核对。':'操作结果尚未确认；请核对原请求与最新计划，不要重复创建。'});
    }
