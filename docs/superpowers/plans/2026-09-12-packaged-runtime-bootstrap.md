@@ -28,3 +28,11 @@ Base `28e063a`。执行既有Windows离线交付设计的接续，不增加下�
 ## Task 3 — existing main/UI组合（根代理）
 
 提取现main控制器装配函数复用开发/正式配置；创建窗口后开始bootstrap，READY后才装配，不自动平台登录或执行采集。退出等待bootstrap停止。原Settings平台连接区展示准备/失败/可用提示，失败建议重启核对或联系支持，不给盲修复按钮；其他平台页面现有布局不重构。最终定向测试+类型检查、独立整批审核、normal push main。未实机的门禁继续开放待办、不标产品上线。
+
+## 本批交付与证据
+
+- Python安装器`dca099c`，Node构建绑定/校验/启动及现UI`0de4493`，开发start兼容修正`d8649eb`。Python17通过/25明确Windows跳过，详见[实现报告](packaged-runtime-installer-report.md)；Mac只验证实际磁盘复制/摘要与注入ACL，不宣称WindowsACL。
+- Node新增模块测试最初因缺实现失败；完整payload正例最初被Mac临时路径的`/var`链接拒绝，测试改用真实路径，未放宽生产校验。新增5文件15项通过；随后构建正例及无物理close退出门禁补充2文件7项通过，集合不累加。原preload精确API名单先失败，增加只读状态方法的固定调用断言后通过。
+- 独立整批审核在`d8649eb`发现1项P2：runtime READY早于main装配完成，UI停止轮询后会漏报迟到失败。`9678c4557143e20365ddd5687077056a8642c495`将main公开READY延后至装配完成；定向状态门禁1项RED→GREEN，最终类型检查通过。独立差量终审 **GO、P2关闭、无新增阻断**，不重跑全套或构包。
+- 旧运行包缺本安装器及触达代码，必须由干净新版本生成新payload，并显式提供`YIKE_PORTABLE_BUNDLE_PATH`（末级ASCII目录名）及`YIKE_PORTABLE_BUNDLE_SHA256`用于Windows package/make。新摘要/资源名编译进main；正式客户不读取这些环境变量。开发`electron-forge start`不要求payload。未执行真实Windows构包/搬迁/安装重启或平台动作。
+- 下一验收：Win生成含本安装器的新payload→保留全量清单/探针→显式绑定一次正式候选→真实首次安装/取消/重启/受控平台连接。服务端/跨行业UAT门禁继续；本批是源码接线完成，不是客户正式可用或产品上线。

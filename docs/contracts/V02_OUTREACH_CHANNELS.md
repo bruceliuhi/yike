@@ -4,6 +4,8 @@
 
 ## 07B 小红书页面执行接续（2026-09-11）
 
+2026-09-12正式包接线已推进至源码候选`9678c45`，见[bootstrap记录](../superpowers/plans/2026-09-12-packaged-runtime-bootstrap.md#本批交付与证据)。这更新下方历史“开发配置/正式包未接”的实现状态；尚无新Windows包或实机证明，实际外发许可仍默认关闭。
+
 `app.xhs_comment_channel.XhsPostCommentChannel`实现同一Playwright页的`check(context)`/`execute(context, operation)`；`app.platform_outreach_runtime.open_xhs_comment_channel`复用已安装受控runtime，打开作者公开主页并点击准确原帖后yield该对象。只支持主帖评论；其他渠道未被宣称可用。原帖去参数直达失败、正常主页点击重开及本批验证集中见[记录](../superpowers/plans/2026-09-11-xhs-comment-driver.md)。
 
 进程桥增量见[单一记录](../superpowers/plans/2026-09-11-outreach-process-bridge.md)：`createPlatformOutreachDriver({...loginDriverPaths,profileId,connection})` 为每次派发构造一个单用 `NativeOutreachChannel`；Python固定入口 `app.windows_platform_outreach` 复用Job监督器，正文仅经带一次性鉴权的本机socket传入同一worker/page，CHECK后等待原EXECUTE，不阻塞监督循环。取消/会话切换/异常不得重发，明确回执不因后置清理失败消失。
