@@ -85,6 +85,43 @@ beforeEach(() => {
   } as unknown as AppContextValue;
 });
 afterEach(cleanup);
+function recoverySetup() {
+  context.route=parseRoute(`#/collection?task=${id}`);
+  const status={state:'STATUS',taskId:id,localState:'INTERRUPTED',serverStatus:'RUNNING',stopConfirmed:false,recordsUsed:2,recoverable:true};
+  context.service.foregroundCollection={execute:vi.fn().mockResolvedValue(status)} as any;
+  const receipt={schema_version:'execution-runtime-v1',operation:'START',request_id:id,task_id:id,run_id:id,status:'PENDING',stop_confirmed:false,
+    platform_runs:[{platform_run_id:id,platform:'BILIBILI',status:'PENDING'}]};
+  vi.mocked(context.service.execution!.execute).mockImplementation(async(c:any)=>c.action==='LIST'?{state:'LIST',requests:[]}:{state:'RECORDED',receipt} as any);
+  return status;
+}
+it('recovers only original uploads and explicitly confirms original START continuation',async()=>{
+  recoverySetup();render(<NativeCollectionTasks/>);
+  await screen.findByRole('button',{name:'查询本机采集状态'});
+  fireEvent.click(screen.getByRole('button',{name:'查询本机采集状态'}));
+  const recover=await screen.findByRole('button',{name:'核对原上传'});
+  fireEvent.click(recover);expect(context.service.foregroundCollection!.execute).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole('button',{name:'确认核对'}));
+  await waitFor(()=>expect(context.service.foregroundCollection!.execute).toHaveBeenCalledWith({action:'RECOVER',taskId:id,humanConfirmed:true,retry:true}));
+  await waitFor(()=>expect(screen.queryByRole('button',{name:'确认核对'})).toBeNull());
+  fireEvent.click(screen.getByRole('button',{name:'继续未执行平台'}));
+  expect(context.service.execution!.execute).not.toHaveBeenCalledWith(expect.objectContaining({retry:true}));
+  fireEvent.click(screen.getByRole('button',{name:'确认继续'}));
+  await waitFor(()=>expect(context.service.execution!.execute).toHaveBeenCalledWith({action:'RECOVER',requestId:id,retry:false}));
+  await waitFor(()=>expect(context.service.execution!.execute).toHaveBeenCalledWith({action:'RECOVER',requestId:id,retry:true,humanConfirmed:true}));
+});
+it('never retries a missing original receipt or after device identity changes',async()=>{
+  recoverySetup();render(<NativeCollectionTasks/>);
+  await screen.findByRole('button',{name:'查询本机采集状态'});fireEvent.click(screen.getByRole('button',{name:'查询本机采集状态'}));
+  fireEvent.click(await screen.findByRole('button',{name:'继续未执行平台'}));
+  vi.mocked(context.service.execution!.execute).mockResolvedValue({state:'NOT_FOUND'});
+  fireEvent.click(screen.getByRole('button',{name:'确认继续'}));
+  await screen.findByText(/原启动回执尚未核实/);
+  expect(context.service.execution!.execute).not.toHaveBeenCalledWith(expect.objectContaining({retry:true}));
+  vi.mocked(context.service.deviceIdentity!.getStatus).mockResolvedValue({state:'READY',deviceId:other,credentialVersion:1} as any);
+  fireEvent.click(screen.getByRole('button',{name:'确认继续'}));
+  await screen.findByText(/设备身份已变化/);
+  expect(context.service.execution!.execute).not.toHaveBeenCalledWith(expect.objectContaining({retry:true}));
+});
 it("loads real server rows, paginates without execution and routes to exact task", async () => {
   render(<NativeCollectionTasks />);
   await screen.findByRole("button", { name: "制造企业需求" });

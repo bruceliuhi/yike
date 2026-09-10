@@ -191,6 +191,14 @@ export function startBlockers(
       p.status === "CONFIRMED",
   );
   if (!profile) blockers.push("请选择并确认真实业务画像版本。");
+  const nativeSelections = draft.platforms.map(platform => connections.find(c => c.platform === platform &&
+    c.accountId === draft.accounts[platform] && hasForegroundBinding(c)));
+  const multiOnce = draft.mode === 'once' && draft.platforms.length > 1 && nativeSelections.every(c =>
+    c?.foregroundBinding?.mode === 'three-platform-foreground-v1') &&
+    new Set(nativeSelections.map(c => c?.registration?.deviceId)).size === 1;
+  if (nativeSelections.some(Boolean) && draft.executionLimits &&
+      (draft.executionLimits.max_records ?? 0) < draft.platforms.length)
+    blockers.push('共享记录上限不能小于所选平台数。');
   for (const platform of draft.platforms) {
     const name = PLATFORMS.find((p) => p.id === platform)?.name || platform;
     const connection = connections.find(
@@ -206,7 +214,7 @@ export function startBlockers(
     }
     const nativeMonitor = nativeMonitorReady && draft.mode === 'monitor' && hasForegroundBinding(connection) &&
       draft.platforms.every(p => ['xhs','douyin','bilibili'].includes(p));
-    if (connection.registration && ((!nativeMonitor && (draft.platforms.length !== 1 || draft.mode !== 'once')) ||
+    if (connection.registration && ((!nativeMonitor && !multiOnce && (draft.platforms.length !== 1 || draft.mode !== 'once')) ||
         draft.source !== 'search' ||
         draft.links.trim() !== '' || draft.research))
       blockers.push('本机受控采集仅支持已开放平台的关键词搜索，暂不支持链接或研究。');

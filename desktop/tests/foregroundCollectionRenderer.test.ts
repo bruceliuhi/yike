@@ -98,6 +98,18 @@ describe('bounded foreground start prerequisites', () => {
     const ready=attachForegroundBinding([videoRow],{state:'AVAILABLE',bindings:[videoBinding]});
     expect(startBlockers(videoDraft,profiles,ready,true)).toEqual([]);
   });
+  it('allows a same-device native multi-platform task with a shared sufficient budget',()=>{
+    const xhs={...row(),foregroundBinding:{...binding,mode:'three-platform-foreground-v1' as const},capabilities:['search' as const]};
+    const video={...row(),platform:'douyin' as const,accountId:'douyin.account-1',capabilities:['search' as const],
+      registration:{...row().registration!,connectionId:other},foregroundBinding:{...binding,mode:'three-platform-foreground-v1' as const,
+        platform:'DOUYIN' as const,accountPublicId:'douyin.account-1',connectionId:other}};
+    const multi={...draft,platforms:['xhs','douyin'],accounts:{xhs:'account01',douyin:'douyin.account-1'},executionLimits:{max_records:2,max_runtime_seconds:600}} as any;
+    expect(startBlockers(multi,profiles,[xhs,video],true)).toEqual([]);
+    expect(startBlockers({...multi,executionLimits:{...multi.executionLimits,max_records:1}},profiles,[xhs,video],true).join(' ')).toContain('平台数');
+    expect(startBlockers(multi,profiles,[{...xhs,foregroundBinding:binding},video],true).length).toBeGreaterThan(0);
+    const otherDevice={...video,registration:{...video.registration,deviceId:other},foregroundBinding:{...video.foregroundBinding,deviceId:other}};
+    expect(startBlockers(multi,profiles,[xhs,otherDevice],true).length).toBeGreaterThan(0);
+  });
   it.each(['links','research','monitor','otherplatform','bindingchanged'])(
     'blocks unsupported foreground scope %s', field => {
       const current = structuredClone({...draft,platforms:[...draft.platforms]});

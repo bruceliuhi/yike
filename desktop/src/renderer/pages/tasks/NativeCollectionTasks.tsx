@@ -16,6 +16,7 @@ import { useDesktopExecution } from "./useDesktopExecution";
 import { DesktopExecutionRequests } from "./DesktopExecutionRequests";
 import { deviceIdentityStatusSchema } from "../../../shared/deviceIdentity";
 import { foregroundCollectionResultSchema } from "../../../shared/foregroundCollection";
+import { desktopExecutionResultSchema } from "../../../shared/desktopExecution";
 import type { TaskFeedItem, TaskFeedPage } from "../../../shared/taskFeed";
 const statusLabels = {
   PENDING: "待执行",
@@ -66,6 +67,8 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
   const [error, setError] = useState(""),
     [checking, setChecking] = useState(false),
     [checkLocal, setCheckLocal] = useState(false);
+  const [recovery, setRecovery] = useState<{kind:'upload'|'continue'; item:TaskFeedItem; identity:object; credentialVersion:number}|null>(null);
+  const [recoveryNotice, setRecoveryNotice] = useState('');
   const data = useResource(
     async (signal) => {
       if (!session.authenticated) throw new Error("请先登录，再查看采集任务。");
@@ -128,6 +131,53 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
     !checking &&
     !cancels.length &&
     (item?.status === "PENDING" || item?.status === "RUNNING");
+  const canRecover = sameDevice && !!service.foregroundCollection && !checking && !execution.busy &&
+    !data.loading && !data.error && !local.loading && !local.error && local.data?.state==='STATUS' &&
+    local.data.localState!=='COLLECTING' && ['PENDING','RUNNING'].includes(item!.status) &&
+    ['PENDING','RUNNING'].includes(local.data.serverStatus);
+  function chooseRecovery(kind:'upload'|'continue') {
+    if(canRecover && item && device.data?.state==='READY')
+      setRecovery({kind,item:structuredClone(item),identity:scope.identity,credentialVersion:device.data.credentialVersion});
+  }
+  async function confirmRecovery() {
+    const selected=recovery;
+    if(!canRecover || !selected || selected.identity!==scope.identity || selected.item.task_id!==item?.task_id)return;
+    setChecking(true);setError('');setRecoveryNotice('');
+    const wait = <T,>(operation:()=>Promise<T>) => boundedRequest(operation,{timeoutMessage:'恢复请求等待超时，请核对原请求，不要重新采集。'});
+    try {
+      const current=deviceIdentityStatusSchema.parse(await wait(()=>service.deviceIdentity!.getStatus()));
+      if(!scope.current())return;
+      if(current.state!=='READY'||current.deviceId!==selected.item.device_id||current.credentialVersion!==selected.credentialVersion)
+        throw new Error('设备身份已变化，请刷新后重新确认。');
+      const fresh=await wait(()=>service.taskFeed!.get(selected.item.task_id));
+      if(!scope.current())return;
+      if(fresh.task_id!==selected.item.task_id||fresh.run_id!==selected.item.run_id||fresh.device_id!==current.deviceId||
+        fresh.start_request_id!==selected.item.start_request_id||!['PENDING','RUNNING'].includes(fresh.status))
+        throw new Error('任务状态已变化，请刷新后重新确认。');
+      if(selected.kind==='upload') {
+        const result=foregroundCollectionResultSchema.parse(await wait(()=>service.foregroundCollection!.execute({action:'RECOVER',taskId:fresh.task_id,humanConfirmed:true,retry:true})));
+        if(!scope.current())return;
+        if(result.state!=='STATUS'||result.taskId!==fresh.task_id)throw new Error('原上传结果尚未核实，请查询本机状态。');
+        setRecoveryNotice('已核对原上传；没有重新采集，整项任务是否完成以最新状态为准。');
+      } else {
+        if(fresh.mode!=='once'||!service.execution)throw new Error('当前任务不支持手工续接。');
+        const original=desktopExecutionResultSchema.parse(await wait(()=>service.execution!.execute({action:'RECOVER',requestId:fresh.start_request_id,retry:false})));
+        if(!scope.current())return;
+        if(original.state!=='RECORDED'||original.receipt.operation!=='START'||original.receipt.request_id!==fresh.start_request_id||
+          original.receipt.task_id!==fresh.task_id||original.receipt.run_id!==fresh.run_id||
+          original.receipt.platform_runs.length!==fresh.platform_runs.length||original.receipt.platform_runs.some((p,i)=>
+            p.platform_run_id!==fresh.platform_runs[i].platform_run_id||p.platform!==fresh.platform_runs[i].platform))
+          throw new Error('原启动回执尚未核实，不会创建新的采集请求。');
+        const result=desktopExecutionResultSchema.parse(await wait(()=>service.execution!.execute({action:'RECOVER',requestId:fresh.start_request_id,retry:true,humanConfirmed:true})));
+        if(!scope.current())return;
+        if(result.state!=='RECORDED'||result.receipt.operation!=='START'||JSON.stringify(result.receipt)!==JSON.stringify(original.receipt))
+          throw new Error('续接结果尚未核实，请查询本机状态，不要创建替代任务。');
+        setRecoveryNotice('已核对原启动请求；本机仅在原记录证明尚未执行时继续，不会重采已执行平台。请查看最新本机状态。');
+      }
+      setRecovery(null);void data.reload();void local.reload();
+    } catch(e) {if(scope.current())setError(e instanceof Error?e.message:'恢复尚未核实，请查询原请求。');}
+    finally {if(scope.current())setChecking(false);}
+  }
   async function confirmCancel() {
     const selected = confirmation;
     if (
@@ -189,6 +239,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
       />
       <ResourceStatus loading={data.loading} error={data.error} />
       {error && <Notice tone="warning">{error}</Notice>}
+      {recoveryNotice && <Notice>{recoveryNotice}</Notice>}
       {page && (
         <section className="panel" aria-label="真实采集任务">
           {!page.items.length ? (
@@ -346,6 +397,12 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
                   </Notice>
                 )
               )}
+              {local.data?.state==='STATUS' && (
+                <div className="task-footer">
+                  <Button disabled={!canRecover||!local.data.recoverable} onClick={()=>chooseRecovery('upload')}>核对原上传</Button>
+                  {item.mode==='once' && service.execution && <Button disabled={!canRecover} onClick={()=>chooseRecovery('continue')}>继续未执行平台</Button>}
+                </div>
+              )}
             </>
           )}
           <details>
@@ -403,6 +460,11 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
           </p>
         </Confirm>
       )}
+      {recovery?.identity===scope.identity && <Confirm title={recovery.kind==='upload'?'核对原上传':'继续未执行平台'}
+        confirmText={recovery.kind==='upload'?'确认核对':'确认继续'} loading={checking}
+        onCancel={()=>setRecovery(null)} onConfirm={()=>void confirmRecovery()}>
+        <p>{recovery.kind==='upload'?'仅核对原上传及完成记录，不打开平台重新采集。':'重新核对原任务与账号，仅继续有证据证明从未执行的平台；未知或已执行的平台不会重采。'}</p>
+      </Confirm>}
     </>
   );
 }
