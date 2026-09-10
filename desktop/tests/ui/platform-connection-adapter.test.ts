@@ -29,6 +29,36 @@ it('OPEN then repeated CHECK uses one flow and never grants source capabilities'
     {action: 'CHECK', platform: 'XIAOHONGSHU', flowId: flow(1)},
   ]);
 });
+it.each([
+  ['douyin', 'DOUYIN', 'owner.handle-1'],
+  ['bilibili', 'BILIBILI', '1234567890'],
+] as const)('keeps the selected %s platform on OPEN, CHECK and CANCEL', async (platform, native, accountId) => {
+  const {api, invoke} = await fixture();
+  const nativeRow = {...row, platform: native, account_public_id: accountId};
+  invoke.mockResolvedValueOnce({state:'OPENED',flowId:flow(1)})
+    .mockResolvedValueOnce({state:'CONNECTED',flowId:flow(1),connection:nativeRow as never})
+    .mockResolvedValueOnce({state:'CANCELLED',flowId:flow(1)});
+  await api.connect(platform);
+  expect((await api.checkConnection(platform)).accountId).toBe(accountId);
+  await api.cancelConnection(platform);
+  expect(invoke.mock.calls.map(([command]) => command)).toEqual([
+    {action:'OPEN',platform:native},
+    {action:'CHECK',platform:native,flowId:flow(1)},
+    {action:'CANCEL',platform:native,flowId:flow(1)},
+  ]);
+});
+
+it('a late older platform OPEN is cancelled with its captured platform', async () => {
+  const {api, invoke} = await fixture(); let finish!:(value:PlatformConnectionResult)=>void;
+  invoke.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}))
+    .mockResolvedValueOnce({state:'OPENED',flowId:flow(2)})
+    .mockResolvedValue({state:'CANCELLED',flowId:flow(1)});
+  const old=api.connect('douyin').catch(error=>error.name);
+  await vi.waitFor(()=>expect(invoke).toHaveBeenCalledTimes(1));
+  await api.connect('bilibili'); finish({state:'OPENED',flowId:flow(1)});
+  expect(await old).toBe('AbortError');
+  expect(invoke).toHaveBeenLastCalledWith({action:'CANCEL',platform:'DOUYIN',flowId:flow(1)});
+});
 it('aborting a pending OPEN cancels its late flow without touching a newer flow', async () => {
   const {api, invoke} = await fixture();
   let finish!: (value: PlatformConnectionResult) => void;
@@ -80,7 +110,7 @@ it('without a flow check is strictly a current registry read, not OPEN or VERIFY
 });
 it('unsupported or missing native service and malformed responses stay unavailable', async () => {
   const {api, invoke} = await fixture();
-  await expect(api.connect('douyin')).rejects.toThrow('尚未接通');
+  await expect(api.connect('zhihu')).rejects.toThrow('尚未接通');
   expect(invoke).not.toHaveBeenCalled();
   invoke.mockResolvedValueOnce({state: 'SERVICE_UNAVAILABLE'});
   await expect(api.connect('xhs')).rejects.toThrow('未配置');

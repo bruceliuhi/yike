@@ -7,7 +7,7 @@ const NOW=Date.parse('2026-09-10T05:00:00Z');
 function deferred<T>() {let resolve!:(v:T)=>void,reject!:(e:unknown)=>void;const promise=new Promise<T>((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 const cleanups:Array<()=>Promise<void>>=[];
 afterEach(async()=>{for(const fn of cleanups.splice(0))await fn();vi.useRealTimers();});
-function fixture() {
+function fixture(platform:'XIAOHONGSHU'|'DOUYIN'|'BILIBILI'='XIAOHONGSHU', accountId=account) {
  let current=true,deviceVersion=1,now=NOW,record:any=null,row:any=null,mode='',applied=0,flowId='';
  const opened=deferred<void>(),completed=deferred<{account_public_id:string;checked_at:string}>();
  const calls:any[]=[],saved:any[]=[],receipts=new Map();
@@ -22,10 +22,11 @@ function fixture() {
   if(input.operation==='connections.current')return {ok:true,status:200,data:{items:row?[row]:[]}};
   if(input.operation==='connections.receipt')return receipts.has(input.payload.request_id)?{ok:true,status:200,data:receipts.get(input.payload.request_id)}:{ok:false,status:404,error:'not_found'};
   const op=input.payload;expect(saved.some(x=>x.request_id===op.request_id)).toBe(true);applied++;
-  row={connection_id:id(5),device_id:id(1),account_public_id:account,platform:'XIAOHONGSHU',status:op.action==='REGISTER'?'UNVERIFIED':'CONNECTED',connection_version:op.expected_connection_version+1,connected_at:'2026-09-10T05:00:00Z',disconnected_at:null};
+  row={connection_id:id(5),device_id:id(1),account_public_id:accountId,platform,status:op.action==='REGISTER'?'UNVERIFIED':'CONNECTED',connection_version:op.expected_connection_version+1,connected_at:'2026-09-10T05:00:00Z',disconnected_at:null};
   const receipt={request_id:op.request_id,device_id:op.device_id,action:op.action,state:'SUCCEEDED',connection_id:row.connection_id,connection_version:row.connection_version,connection_status:row.status,error_code:null};
   receipts.set(op.request_id,receipt);
   if(op.action==='VERIFY'&&mode==='disconnect')row={...row,status:'DISCONNECTED',connection_version:row.connection_version+1};
+  if(op.action==='VERIFY'&&mode==='wrong-platform')row={...row,platform:platform==='DOUYIN'?'XIAOHONGSHU':'DOUYIN'};
   if(op.action==='REGISTER'&&mode==='unknown'){mode='';return {ok:false,status:0,error:'SERVICE_UNAVAILABLE'};}
   if(op.action==='REGISTER'&&mode==='logout')current=false;
   return {ok:true,status:200,data:receipt};
@@ -34,13 +35,24 @@ function fixture() {
  const login={start:vi.fn(()=>({opened:opened.promise,completed:completed.promise,stop}))};
  const controller=createPlatformConnectionController({serviceOrigin:'https://pilot.example',identity,store,login,now:()=>now});
  cleanups.push(()=>controller.shutdown());
- async function openFlow() {const p=controller.execute({action:'OPEN',platform:'XIAOHONGSHU'});opened.resolve();const result=await p;if('flowId' in result)flowId=result.flowId;return result;}
- async function authenticate() {await openFlow();completed.resolve({account_public_id:account,checked_at:'2026-09-10T05:00:00Z'});await Promise.resolve();}
- const check=()=>controller.execute({action:'CHECK',platform:'XIAOHONGSHU',flowId});
+ async function openFlow() {const p=controller.execute({action:'OPEN',platform});opened.resolve();const result=await p;if('flowId' in result)flowId=result.flowId;return result;}
+ async function authenticate() {await openFlow();completed.resolve({account_public_id:accountId,checked_at:'2026-09-10T05:00:00Z'});await Promise.resolve();}
+ const check=()=>controller.execute({action:'CHECK',platform,flowId});
  return {controller,identity,login,store,transport,opened,completed,calls,saved,stop,close,openFlow,authenticate,check,receipts,
   setMode:(s:string)=>mode=s,setCurrent:(b:boolean)=>current=b,setDeviceVersion:(v:number)=>deviceVersion=v,setNow:(v:number)=>now=v,
   getFlowId:()=>flowId,getRecord:()=>record,getRow:()=>row,setRow:(r:any)=>row=r,applied:()=>applied};
 }
+it.each([['DOUYIN','owner.handle-1'],['BILIBILI','1234567890']] as const)('binds REGISTER, VERIFY and current row to %s',async(platform,accountId)=>{
+ const f=fixture(platform,accountId);await f.authenticate();const result=await f.check();expect(result.state).toBe('CONNECTED');
+ expect(f.login.start).toHaveBeenCalledWith({profileId:expect.any(String),platform});
+ expect(f.saved).toEqual(expect.arrayContaining([expect.objectContaining({action:'REGISTER',platform,account_public_id:accountId}),expect.objectContaining({action:'VERIFY',platform,account_public_id:accountId})]));
+ expect((await f.controller.execute({action:'CHECK',platform:'XIAOHONGSHU',flowId:f.getFlowId()})).state).toBe('INVALID_REQUEST');
+ expect((await f.controller.execute({action:'CANCEL',platform:'XIAOHONGSHU',flowId:f.getFlowId()})).state).toBe('INVALID_REQUEST');
+});
+it('rejects a CONNECTED row from another platform',async()=>{
+ const f=fixture('DOUYIN','owner.handle-1');await f.authenticate();f.setMode('wrong-platform');
+ expect(await f.check()).toEqual({state:'FAILED',error:'CURRENT_CONNECTION_CHANGED'});
+});
 it('does not report OPENED before real login progress or write registration before authentication',async()=>{
  const f=fixture();let resolved=false;const p=f.controller.execute({action:'OPEN',platform:'XIAOHONGSHU'}).then((r:any)=>{resolved=true;return r;});
  await Promise.resolve();await Promise.resolve();expect(resolved).toBe(false);expect(f.calls).toEqual([]);

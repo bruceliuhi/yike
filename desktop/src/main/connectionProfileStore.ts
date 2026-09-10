@@ -6,9 +6,10 @@ import path from 'node:path';
 import type {DeviceKeyProtection} from './deviceKeyVault';
 import {deviceUuidSchema as uuid} from '../shared/deviceRegistration';
 import {connectionOperationSchema, type ConnectionOperation} from '../shared/connectionOperation';
+import {nativeLoginPlatformSchema} from '../shared/platformAccount';
 const scopeSchema = z.object({serviceOrigin: z.string().max(2048).refine(s => {
   try {const u=new URL(s); return u.origin===s && !u.username && !u.password && (u.protocol==='https:' || u.protocol==='http:' && ['localhost','127.0.0.1','[::1]'].includes(u.hostname));} catch {return false;}
-}), userId:z.string().min(1).refine(s => s.trim()===s && Array.from(s).length<=256 && !/[\p{Cc}\p{Cs}]/u.test(s)), deviceId:uuid, platform:z.literal('XIAOHONGSHU')}).strict();
+}), userId:z.string().min(1).refine(s => s.trim()===s && Array.from(s).length<=256 && !/[\p{Cc}\p{Cs}]/u.test(s)), deviceId:uuid, platform:nativeLoginPlatformSchema}).strict();
 export type ConnectionProfileScope = z.infer<typeof scopeSchema>;
 const recordSchema=z.object({version:z.literal(1),scope:scopeSchema,flowId:uuid,profileId:uuid,state:z.enum(['PENDING','RESOLVED']),
   registration:connectionOperationSchema.nullable(),verification:connectionOperationSchema.nullable()}).strict();

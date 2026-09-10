@@ -2,6 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {platformConnectionCommandSchema, platformConnectionResultSchema, connectionRegistryRowSchema,
   type PlatformConnectionResult, type ConnectionRegistryRow} from '../shared/platformConnection';
+import {validNativeAccount, type NativeLoginPlatform} from '../shared/platformAccount';
 import {parseConnectionReceipt, type ConnectionOperation} from '../shared/connectionOperation';
 import type {createDeviceIdentityController, DeviceWorkerScope} from './deviceIdentityController';
 import type {createConnectionProfileStore, ConnectionProfileScope, ConnectionProfileRecord} from './connectionProfileStore';
@@ -12,10 +13,10 @@ export interface PlatformConnectionControllerOptions {
   serviceOrigin:string;
   identity:Pick<ReturnType<typeof createDeviceIdentityController>,'openWorkerScope'|'getStatus'>;
   store:ReturnType<typeof createConnectionProfileStore>;
-  login:{start(input:{profileId:string;signal?:AbortSignal}):LoginRun};
+  login:{start(input:{profileId:string;platform?:NativeLoginPlatform;signal?:AbortSignal}):LoginRun};
   now?:()=>number;
 }
-type Flow={id:string;record:ConnectionProfileRecord;scope:DeviceWorkerScope;profileScope:ConnectionProfileScope;run:LoginRun;
+type Flow={id:string;platform:NativeLoginPlatform;record:ConnectionProfileRecord;scope:DeviceWorkerScope;profileScope:ConnectionProfileScope;run:LoginRun;
   observation:Observation|null;loginFailed:boolean;cancelled:boolean;checking:boolean;
   timer:ReturnType<typeof setInterval>|null;stopping:Promise<void>|null};
 const rowsSchema=z.object({items:z.array(connectionRegistryRowSchema).max(10000)}).strict();
@@ -76,7 +77,7 @@ export function createPlatformConnectionController({serviceOrigin,identity,store
     if(f.loginFailed){await stop(f);return failed();}
     if(!f.observation)return {state:'WAITING_LOGIN',flowId:f.id};
     const observation=f.observation,checked=Date.parse(observation.checked_at);
-    if(!/^[A-Za-z0-9]{8,32}$/.test(observation.account_public_id) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(observation.checked_at) || !Number.isFinite(checked))throw new Error('INVALID_LOGIN_OBSERVATION');
+    if(!validNativeAccount(f.platform,observation.account_public_id) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(observation.checked_at) || !Number.isFinite(checked))throw new Error('INVALID_LOGIN_OBSERVATION');
     if(now()-checked>120000 || checked-now()>5000)return failed('LOGIN_EXPIRED');
     const record=await store.read(f.profileScope);guard(f);
     if(!record || record.flowId!==f.record.flowId)throw new Error('CONNECTION_PROFILE_CHANGED');
@@ -85,10 +86,10 @@ export function createPlatformConnectionController({serviceOrigin,identity,store
     let registration=record.registration;
     if(!registration) {
       const rows=await readRows(f);
-      const matches=rows.filter(r=>r.device_id===f.scope.device.deviceId && r.platform==='XIAOHONGSHU' && r.account_public_id===observation.account_public_id);
+      const matches=rows.filter(r=>r.device_id===f.scope.device.deviceId && r.platform===f.platform && r.account_public_id===observation.account_public_id);
       if(matches.length>1)throw new Error('AMBIGUOUS_CONNECTION');
       registration=await persist(f,{request_id:randomUUID(),action:'REGISTER',device_id:f.scope.device.deviceId,connection_id:null,
-        expected_connection_version:matches[0]?.connection_version??0,platform:'XIAOHONGSHU',account_public_id:observation.account_public_id,
+        expected_connection_version:matches[0]?.connection_version??0,platform:f.platform,account_public_id:observation.account_public_id,
         session_ref:`vault://platform/${record.profileId}`});
     }
     const registered=await submitOrRecover(f,registration);
@@ -99,7 +100,7 @@ export function createPlatformConnectionController({serviceOrigin,identity,store
     const verified=await submitOrRecover(f,verification);
     const rows=await readRows(f);
     const connection=rows.find(r=>r.connection_id===verified.connection_id && r.device_id===f.scope.device.deviceId &&
-      r.platform==='XIAOHONGSHU' && r.account_public_id===observation.account_public_id && r.connection_version===verified.connection_version && r.status==='CONNECTED');
+      r.platform===f.platform && r.account_public_id===observation.account_public_id && r.connection_version===verified.connection_version && r.status==='CONNECTED');
     // The historical receipt is not current authority. Version also fences changes to the private session_ref.
     f.record=await store.resolve(f.profileScope,f.record.flowId);guardFresh(f);
     return connection?{state:'CONNECTED',flowId:f.id,connection}:failed('CURRENT_CONNECTION_CHANGED');
@@ -118,13 +119,13 @@ export function createPlatformConnectionController({serviceOrigin,identity,store
           const captured=await identity.openWorkerScope();
           if(!captured.ok)return captured.state==='FAILED'?failed():{state:captured.state};
           openedScope=captured.scope;
-          const profileScope:ConnectionProfileScope={serviceOrigin,userId:openedScope.session.userId,deviceId:openedScope.device.deviceId,platform:'XIAOHONGSHU'};
+          const profileScope:ConnectionProfileScope={serviceOrigin,userId:openedScope.session.userId,deviceId:openedScope.device.deviceId,platform:command.platform};
           const record=await store.open(profileScope);
           if(shuttingDown || !openedScope.session.isCurrent()){openedScope.close();return {state:'SESSION_CHANGED'};}
           const device=identity.getStatus();
           if(device.state!=='READY' || device.deviceId!==openedScope.device.deviceId || device.credentialVersion!==openedScope.device.credentialVersion){openedScope.close();return {state:'SESSION_CHANGED'};}
-          const run=login.start({profileId:record.profileId});
-          const f:Flow={id:randomUUID(),record,scope:openedScope,profileScope,run,observation:null,loginFailed:false,cancelled:false,checking:false,timer:null,stopping:null};
+          const run=login.start({profileId:record.profileId,platform:command.platform});
+          const f:Flow={id:randomUUID(),platform:command.platform,record,scope:openedScope,profileScope,run,observation:null,loginFailed:false,cancelled:false,checking:false,timer:null,stopping:null};
           active=f;
           void run.completed.then(value=>{if(current(f))f.observation=value;},()=>{f.loginFailed=true;});
           f.timer=setInterval(()=>{if(!current(f))void stop(f).catch(()=>{});},100);f.timer.unref?.();
@@ -136,7 +137,7 @@ export function createPlatformConnectionController({serviceOrigin,identity,store
         } finally {opening=false;}
       }
       const f=active;
-      if(!f || command.flowId!==f.id)return {state:'INVALID_REQUEST'};
+      if(!f || command.flowId!==f.id || command.platform!==f.platform)return {state:'INVALID_REQUEST'};
       if(command.action==='CANCEL') {
         try {await stop(f);if(active===f)active=null;return {state:'CANCELLED',flowId:command.flowId};}
         catch {return failed('SOURCE_STOP_FAILED');}

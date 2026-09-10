@@ -22,6 +22,12 @@ it('scopes profile references by server, user and device and serializes opens',a
   const f=await fixture(); const [a,b]=await Promise.all([f.store.open(scope),f.store.open(scope)]); expect(a.flowId).toBe(b.flowId);
   for (const change of [{userId:'other'},{deviceId:id(9)},{serviceOrigin:'https://other.example'}]) expect((await f.store.open({...scope,...change})).profileId).not.toBe(a.profileId);
 });
+it('separates protected profile scopes for the same textual account across platforms',async () => {
+  const f=await fixture(); const xhs=await f.store.open(scope);
+  const douyinScope={...scope,platform:'DOUYIN' as const}; const douyin=await f.store.open(douyinScope);
+  expect(douyin.profileId).not.toBe(xhs.profileId);
+  expect((await readdir(f.directory)).filter(name=>name.endsWith('.profile'))).toHaveLength(2);
+});
 it('rejects rewriting an original operation or binding another profile',async () => {
   const f=await fixture(); const r=await f.store.open(scope); const op=operation(r); await f.store.setOperation(scope,r.flowId,op);
   await expect(f.store.setOperation(scope,r.flowId,{...op,request_id:id(8)})).rejects.toThrow();

@@ -20,14 +20,18 @@ it('fixed commands accept only platform and opaque flow control', async () => {
       expect(schema.safeParse({...value, ...extra}).success).toBe(false);
   }
   expect(schema.safeParse({action: 'CHECK', platform: 'XIAOHONGSHU'}).success).toBe(false);
-  expect(schema.safeParse({action: 'OPEN', platform: 'DOUYIN'}).success).toBe(false);
+  for (const platform of ['XIAOHONGSHU', 'DOUYIN', 'BILIBILI'])
+    expect(schema.safeParse({action: 'OPEN', platform}).success).toBe(true);
+  expect(schema.safeParse({action: 'OPEN', platform: 'ZHIHU'}).success).toBe(false);
 });
 it('strict results never carry private material or upgrade other rows into a new connection', async () => {
   const {platformConnectionResultSchema: schema, connectionRegistryRowSchema} = await api();
   expect(schema.parse({state: 'CONNECTED', flowId, connection: row})).toEqual({state: 'CONNECTED', flowId, connection: row});
   expect(connectionRegistryRowSchema.safeParse({...row, platform: 'DOUYIN'}).success).toBe(true);
-  for (const change of [{platform: 'DOUYIN'}, {status: 'UNVERIFIED'}, {cookie: 'private'}])
+  for (const change of [{status: 'UNVERIFIED'}, {cookie: 'private'}])
     expect(schema.safeParse({state: 'CONNECTED', flowId, connection: {...row, ...change}}).success).toBe(false);
+  for (const platform of ['DOUYIN', 'BILIBILI'])
+    expect(schema.safeParse({state: 'CONNECTED', flowId, connection: {...row, platform}}).success).toBe(true);
   for (const state of ['OPENED', 'WAITING_LOGIN', 'UNKNOWN', 'CANCELLED'])
     expect(schema.safeParse({state, flowId}).success).toBe(true);
   expect(schema.safeParse({state: 'FAILED', error: 'SOURCE_STOP_FAILED'}).success).toBe(true);

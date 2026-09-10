@@ -1,7 +1,8 @@
 import {z} from 'zod';
+import {nativeLoginPlatformSchema} from './platformAccount';
 
 export const PLATFORM_CONNECTION_CHANNEL = 'desktop:platform-connection-command';
-const platform = z.literal('XIAOHONGSHU');
+const platform = nativeLoginPlatformSchema;
 const flowId = z.string().uuid();
 const id = z.string().min(1).max(256).refine(value => value.trim() === value && !/[\p{Cc}\p{Cf}\p{Cs}]/u.test(value));
 const timestamp = z.string().datetime({offset: true});
@@ -25,7 +26,7 @@ export type ConnectionRegistryRow = z.infer<typeof connectionRegistryRowSchema>;
 export const platformConnectionResultSchema = z.union([
   z.strictObject({state: z.enum(['OPENED', 'WAITING_LOGIN', 'UNKNOWN', 'CANCELLED']), flowId}),
   z.strictObject({state: z.literal('CONNECTED'), flowId, connection: connectionRegistryRowSchema
-    .refine(row => row.status === 'CONNECTED' && row.platform === 'XIAOHONGSHU')}),
+    .refine(row => row.status === 'CONNECTED' && nativeLoginPlatformSchema.safeParse(row.platform).success)}),
   z.strictObject({state: z.literal('FAILED'), error: z.enum(['CONNECTION_FAILED', 'SOURCE_STOP_FAILED',
     'LOGIN_EXPIRED', 'ACCOUNT_MISMATCH', 'CURRENT_CONNECTION_CHANGED'])}),
   z.strictObject({state: z.enum(['INVALID_REQUEST', 'SESSION_CHANGED', 'SIGNED_OUT',

@@ -54,6 +54,25 @@ it('uses a fixed six-field request and secret-free spawn, holds stdin and waits 
   await run.stop();
 });
 
+it.each([
+  ['DOUYIN', 'owner.handle-1'],
+  ['BILIBILI', '1234567890'],
+] as const)('sends %s and accepts only its account identity', async (platform, account_public_id) => {
+  const f = await fixture(); const run = f.driver.start({profileId, platform}); await tick();
+  expect(JSON.parse(f.children[0].stdin.read().toString()).platform).toBe(platform);
+  f.frame(opened); f.frame({...authenticated, account_public_id}); f.close();
+  expect(await run.completed).toMatchObject({account_public_id});
+});
+
+it.each([
+  ['DOUYIN', 'bad handle'],
+  ['BILIBILI', 'abc12345'],
+] as const)('rejects an invalid %s terminal account', async (platform, account_public_id) => {
+  const f = await fixture(); const run = f.driver.start({profileId, platform}); await tick();
+  f.frame(opened); f.frame({...authenticated, account_public_id}); f.close();
+  await expect(run.completed).rejects.toThrow('SOURCE_HOST_FAILED');
+});
+
 it.each(['badProfile','missingRoot','relative','overlap'])('rejects %s configuration before spawning', async kind => {
   const f = await fixture(kind === 'relative' ? {runtimePath: 'relative'} : kind === 'overlap' ? {outputRoot: 'C:\\private\\profiles'} : {});
   if (kind === 'missingRoot') vi.mocked(lstatSync).mockImplementation(() => {throw new Error('private path');});

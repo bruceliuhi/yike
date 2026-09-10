@@ -2,6 +2,7 @@ import {spawn, type ChildProcessWithoutNullStreams} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {lstatSync} from 'node:fs';
 import {win32 as path} from 'node:path';
+import {nativeLoginPlatformSchema, validNativeAccount, type NativeLoginPlatform} from '../shared/platformAccount';
 
 export interface PlatformLoginDriverOptions {
   pythonExecutable: string;
@@ -70,8 +71,9 @@ function validatePaths(options: PlatformLoginDriverOptions, profileId: string): 
 export function createPlatformLoginDriver(options: PlatformLoginDriverOptions) {
   const owned = {...options};
   const launch = owned.spawn ?? spawn;
-  return {start(input: {profileId: string; signal?: AbortSignal}): PlatformLoginRun {
+  return {start(input: {profileId: string; platform?: NativeLoginPlatform; signal?: AbortSignal}): PlatformLoginRun {
     const {profileId, signal} = input;
+    const platform = input.platform ?? 'XIAOHONGSHU';
     let child: ChildProcessWithoutNullStreams | null = null;
     let settled = false, sawOpened = false, unknownCleanup = false;
     let cancelled = signal?.aborted ?? false, timedOut = false;
@@ -122,9 +124,10 @@ export function createPlatformLoginDriver(options: PlatformLoginDriverOptions) {
       let wire: Buffer;
       try {
         validatePaths(owned, profileId);
+        nativeLoginPlatformSchema.parse(platform);
         wire = Buffer.from(JSON.stringify({schema_version: SCHEMA, runtime_path: owned.runtimePath,
           profile_path: path.join(owned.profileRoot, profileId), output_path: path.join(owned.outputRoot, randomUUID()),
-          platform: 'XIAOHONGSHU', timeout_seconds: 180}) + '\n', 'utf8');
+          platform, timeout_seconds: 180}) + '\n', 'utf8');
         if (wire.length > 65536) throw failure('PLATFORM_LOGIN_INPUT_INVALID');
       } catch {settle(failure('PLATFORM_LOGIN_INPUT_INVALID')); return;}
       const env: NodeJS.ProcessEnv = {PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1'};
@@ -156,7 +159,7 @@ export function createPlatformLoginDriver(options: PlatformLoginDriverOptions) {
             if (frame.state === 'OPENED' && keys === 'schema_version,state' && !sawOpened) {
               sawOpened = true; resolveOpened();
             } else if (frame.state === 'AUTHENTICATED' && sawOpened && keys === 'account_public_id,checked_at,schema_version,state') {
-              if (!/^[A-Za-z0-9]{8,32}$/.test(frame.account_public_id) ||
+              if (!validNativeAccount(platform, frame.account_public_id) ||
                   !/^(?!0000)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(frame.checked_at) ||
                   new Date(frame.checked_at).toISOString() !== frame.checked_at.replace('Z', '.000Z')) throw failure('SOURCE_HOST_FAILED');
               terminal = frame;

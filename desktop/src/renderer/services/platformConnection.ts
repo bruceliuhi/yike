@@ -4,10 +4,12 @@ import {platformConnectionResultSchema, type PlatformConnectionCommand,
 import type {PlatformConnection} from '../domain/models';
 import {decodeConnectionRegistry} from './connectionRegistry';
 import {ServiceError} from './contracts';
+import type {NativeLoginPlatform} from '../../shared/platformAccount';
 
 type Bridge = Pick<YikeDesktopApi, 'platformConnectionCommand'>;
 type Invoke = (command: PlatformConnectionCommand) => Promise<PlatformConnectionResult>;
-type Flow = {id: string; invoke: Invoke};
+type Flow = {id: string; platform: NativeLoginPlatform; invoke: Invoke};
+const nativePlatforms = {xhs:'XIAOHONGSHU',douyin:'DOUYIN',bilibili:'BILIBILI'} as const;
 const cancelled = () => new DOMException('平台连接等待已取消。', 'AbortError');
 const unavailable = () => new ServiceError('SERVICE_UNAVAILABLE', '本机平台登录尚未配置或暂不可用，请检查客户端与设备状态。');
 function failure(result: PlatformConnectionResult): ServiceError {
@@ -37,6 +39,7 @@ export function createPlatformConnectionService(
 ) {
   let generation = 0;
   let active: Flow | null = null;
+  let pendingPlatform: NativeLoginPlatform | null = null;
   function invokeForCurrentBridge(): Invoke {
     const owner = bridge();
     if (!owner?.platformConnectionCommand) throw unavailable();
@@ -50,16 +53,18 @@ export function createPlatformConnectionService(
     };
   }
   async function cancelFlow(flow: Flow): Promise<void> {
-    const result = await flow.invoke({action: 'CANCEL', platform: 'XIAOHONGSHU', flowId: flow.id});
+    const result = await flow.invoke({action: 'CANCEL', platform: flow.platform, flowId: flow.id});
     if (result.state === 'CANCELLED' && result.flowId === flow.id) return;
     if (result.state === 'SESSION_CHANGED' || result.state === 'SIGNED_OUT') return;
     throw failure(result);
   }
   return {
     async connect(platform: string, signal?: AbortSignal): Promise<void> {
-      if (platform !== 'xhs') throw new ServiceError('CAPABILITY_UNAVAILABLE', '该平台登录尚未接通，当前未创建连接。');
+      const nativePlatform = nativePlatforms[platform as keyof typeof nativePlatforms];
+      if (!nativePlatform) throw new ServiceError('CAPABILITY_UNAVAILABLE', '该平台登录尚未接通，当前未创建连接。');
       signal?.throwIfAborted();
       const request = ++generation;
+      pendingPlatform = nativePlatform;
       const previous = active;
       active = null;
       let aborted = false;
@@ -70,26 +75,28 @@ export function createPlatformConnectionService(
         if (previous) await cancelFlow(previous);
         if (!current()) throw cancelled();
         const invoke = invokeForCurrentBridge();
-        const result = await invoke({action: 'OPEN', platform: 'XIAOHONGSHU'});
+        const result = await invoke({action: 'OPEN', platform: nativePlatform});
         if (!current()) {
           if ('flowId' in result) {
             // A late OPEN belongs to its original bridge/flow, never the newer flow.
-            await cancelFlow({id: result.flowId, invoke}).catch(() => {});
+            await cancelFlow({id: result.flowId, platform: nativePlatform, invoke}).catch(() => {});
           }
           throw cancelled();
         }
         if (result.state !== 'OPENED' && result.state !== 'WAITING_LOGIN' && result.state !== 'UNKNOWN')
           throw failure(result);
-        active = {id: result.flowId, invoke};
+        active = {id: result.flowId, platform: nativePlatform, invoke};
         if (result.state !== 'OPENED') throw failure(result);
       } finally {
+        if (request === generation) pendingPlatform = null;
         // UI aborts its previous request before CHECK. An already-opened flow is
         // cancelled only by explicit modal/session lifecycle cancellation.
         signal?.removeEventListener('abort', abort);
       }
     },
     async checkConnection(platform: string): Promise<PlatformConnection> {
-      const flow = platform === 'xhs' ? active : null;
+      const nativePlatform = nativePlatforms[platform as keyof typeof nativePlatforms];
+      const flow = nativePlatform && active?.platform === nativePlatform ? active : null;
       if (!flow) {
         const request = generation;
         const rows = (await readConnections()).filter(row => row.platform === platform);
@@ -97,7 +104,7 @@ export function createPlatformConnectionService(
         if (rows.length !== 1) throw new ServiceError('CONNECTION_NOT_UNIQUE', '无法确认唯一的当前连接记录，请刷新列表并核对账号。');
         return rows[0];
       }
-      const result = await flow.invoke({action: 'CHECK', platform: 'XIAOHONGSHU', flowId: flow.id});
+      const result = await flow.invoke({action: 'CHECK', platform: flow.platform, flowId: flow.id});
       if (active !== flow) throw cancelled();
       if ('flowId' in result && result.flowId !== flow.id)
         throw new ServiceError('INVALID_SERVICE_RESPONSE', '连接响应尚未确认，请核对当前窗口后重试。');
@@ -106,11 +113,14 @@ export function createPlatformConnectionService(
       throw failure(result);
     },
     async cancelConnection(platform: string): Promise<void> {
-      if (platform !== 'xhs') return;
+      const nativePlatform = nativePlatforms[platform as keyof typeof nativePlatforms];
+      if (!nativePlatform) return;
+      if ((active?.platform ?? pendingPlatform) !== nativePlatform) return;
       generation++;
+      pendingPlatform = null;
       const flow = active;
       active = null;
-      if (flow) await cancelFlow(flow);
+      if (flow?.platform === nativePlatform) await cancelFlow(flow);
     },
   };
 }
