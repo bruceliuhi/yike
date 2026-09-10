@@ -7,7 +7,7 @@ export function probeCollectionRuntime(options:{pythonExecutable:string;projectR
     let child:ChildProcessWithoutNullStreams;
     const env:NodeJS.ProcessEnv={PYTHONUTF8:'1',PYTHONIOENCODING:'utf-8'};
     for(const key of ['SystemRoot','WINDIR','USERNAME'])if(process.env[key])env[key]=process.env[key];
-    try {child=(options.spawn??spawn)(options.pythonExecutable,['-X','utf8','-m','app.windows_source_probe'],{cwd:options.projectRoot,shell:false,windowsHide:true,stdio:['pipe','pipe','pipe'],env});}
+    try {child=(options.spawn??spawn)(options.pythonExecutable,['-B','-X','utf8','-m','app.windows_source_probe'],{cwd:options.projectRoot,shell:false,windowsHide:true,stdio:['pipe','pipe','pipe'],env});}
     catch {resolve(false);return;}
     let settled=false,invalid=false,bytes=0;const chunks:Buffer[]=[];
     const finish=(ok:boolean)=>{if(settled)return;settled=true;clearTimeout(timer);resolve(ok);};

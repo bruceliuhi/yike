@@ -130,7 +130,7 @@ export function createPlatformLoginDriver(options: PlatformLoginDriverOptions) {
       const env: NodeJS.ProcessEnv = {PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1'};
       for (const key of ['SystemRoot', 'WINDIR', 'USERNAME']) if (process.env[key]) env[key] = process.env[key];
       try {
-        child = launch(owned.pythonExecutable, ['-X', 'utf8', '-m', 'app.windows_platform_login'],
+        child = launch(owned.pythonExecutable, ['-B', '-X', 'utf8', '-m', 'app.windows_platform_login'],
           {cwd: owned.projectRoot, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], env});
       } catch {unknownCleanup = true; settle(failure('SOURCE_HOST_FAILED')); return;}
       const active = child;

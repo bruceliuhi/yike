@@ -138,7 +138,7 @@ def login_windows_platform(*, runtime_path, profile_path, output_path, platform,
                 if _marker(marker) != _OPENED: raise ValueError()
                 on_opened()
                 opened = True
-            command = [str(python), '-X', 'utf8', str(Path(__file__).with_name('platform_login_worker.py').resolve())]
+            command = [str(python), '-B', '-X', 'utf8', str(Path(__file__).with_name('platform_login_worker.py').resolve())]
             if stopped := interrupted(): return stopped
             result = run_supervised_process(command, cwd=runtime_path, env=env,
                 timeout_seconds=timeout_seconds - (time.monotonic() - started),

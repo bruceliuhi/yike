@@ -6,7 +6,7 @@ afterEach(()=>vi.useRealTimers());
 function fixture(){const child=Object.assign(new EventEmitter(),{stdin:new PassThrough(),stdout:new PassThrough(),stderr:new PassThrough(),kill:vi.fn()});const spawn=vi.fn(()=>child);const result=probeCollectionRuntime({pythonExecutable:'C:/private/python.exe',projectRoot:'C:/product',runtimePath:'C:/runtime',spawn:spawn as unknown as typeof import('node:child_process').spawn});return {child,spawn,result};}
 it('probes only the fixed private runtime host and waits actual close before READY',async()=>{
  const f=fixture();await Promise.resolve();let done=false;void f.result.then(()=>done=true);
- expect(f.spawn).toHaveBeenCalledWith('C:/private/python.exe',['-X','utf8','-m','app.windows_source_probe'],expect.objectContaining({cwd:'C:/product',shell:false,windowsHide:true}));
+ expect(f.spawn).toHaveBeenCalledWith('C:/private/python.exe',['-B','-X','utf8','-m','app.windows_source_probe'],expect.objectContaining({cwd:'C:/product',shell:false,windowsHide:true}));
  expect(f.child.stdin.read().toString()).toBe(JSON.stringify({schema_version:'windows-source-probe-v1',runtime_path:'C:/runtime'})+'\n');
  f.child.stdout.write('{"schema_version":"windows-source-probe-v1","state":"READY"}\n');await Promise.resolve();expect(done).toBe(false);f.child.emit('close',0,null);expect(await f.result).toBe(true);
 });

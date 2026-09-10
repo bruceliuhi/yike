@@ -49,7 +49,8 @@ def test_fixed_command_environment_and_no_data(source, monkeypatch):
     assert result['state'] == 'COLLECTED' and result['records'] == []
     assert result['task_completed'] is False
     command, options = source.calls[0]
-    assert command[:4] == [sys.executable, '-X', 'utf8', str(source.args['runtime_path'] / 'main.py')]
+    # Portable _pth ignores PYTHONDONTWRITEBYTECODE; use an explicit child flag.
+    assert command[:5] == [sys.executable, '-B', '-X', 'utf8', str(source.args['runtime_path'] / 'main.py')]
     assert '--keywords=中文 é😀' in command
     assert command[command.index('--crawler_max_notes_count') + 1] == '5'
     assert command[command.index('--max_comments_count_singlenotes') + 1] == '4'
@@ -72,7 +73,8 @@ def test_expected_xhs_account_selects_fixed_project_wrapper_and_public_env(sourc
     result = source.api.collect_windows_source(**(source.args | {'platform': 'XIAOHONGSHU'}), expected_account_public_id=expected)
     assert result['state'] == 'COLLECTED'
     command, kwargs = source.calls[0]
-    assert command[3] == str(Path(source.api.__file__).with_name('platform_collection_worker.py').resolve())
+    assert command[:4] == [sys.executable, '-B', '-X', 'utf8']
+    assert command[4] == str(Path(source.api.__file__).with_name('platform_collection_worker.py').resolve())
     assert kwargs['env']['YIKE_EXPECTED_ACCOUNT_PUBLIC_ID'] == expected
     assert kwargs['env']['PYTHONDONTWRITEBYTECODE'] == '1'
     assert kwargs['cwd'] == source.args['runtime_path']

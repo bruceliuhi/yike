@@ -46,7 +46,7 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
         if (frame.length > 65536) {reject(failure('SOURCE_DRIVER_INVALID_INPUT')); return;}
         const env: NodeJS.ProcessEnv = {PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1'};
         for (const key of ['SystemRoot', 'WINDIR', 'USERNAME']) if (process.env[key]) env[key] = process.env[key];
-        const active = spawn(owned.pythonExecutable, ['-X', 'utf8', '-m', 'app.windows_collection_host'],
+        const active = spawn(owned.pythonExecutable, ['-B', '-X', 'utf8', '-m', 'app.windows_collection_host'],
           {cwd: owned.projectRoot, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], env});
         child = active;
         let bytes = 0, invalid = false, settled = false;

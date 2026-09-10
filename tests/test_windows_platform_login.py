@@ -63,7 +63,8 @@ def test_fixed_worker_launch_environment_private_profile_and_opened_once(source,
     assert result['state'] == 'AUTHENTICATED' and result['account_public_id'] == ACCOUNT
     assert source.opened == [True]
     command, kw = source.calls[0]
-    assert command == [sys.executable, '-X', 'utf8', str(Path(source.api.__file__).with_name('platform_login_worker.py').resolve())]
+    # Portable _pth ignores PYTHONDONTWRITEBYTECODE; the flag must reach the child.
+    assert command == [sys.executable, '-B', '-X', 'utf8', str(Path(source.api.__file__).with_name('platform_login_worker.py').resolve())]
     assert kw['cwd'] == source.args['runtime_path']
     assert kw['env']['YIKE_PROFILE_PATH'] == str(source.args['profile_path'])
     assert 'DATABASE_URL' not in kw['env'] and 'YIKE_SESSION_TOKEN' not in kw['env']

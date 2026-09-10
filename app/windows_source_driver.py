@@ -173,7 +173,7 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
             # rather than spending the entire budget on first-comment-only posts.
             max_contents = min(5, max_records)
             comments_per_content = max_records // max_contents
-            command = [str(python), '-X', 'utf8', str(entrypoint), '--platform', code,
+            command = [str(python), '-B', '-X', 'utf8', str(entrypoint), '--platform', code,
                        '--lt', 'qrcode', '--type', 'search', '--keywords=' + query,
                        '--get_comment', 'yes', '--get_sub_comment', 'yes', '--headless', 'no',
                        '--save_data_option', 'jsonl', '--save_data_path=' + str(output_path),

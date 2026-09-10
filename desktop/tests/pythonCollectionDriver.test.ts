@@ -37,7 +37,7 @@ it('fixed private spawn, no inherited secret, sequential query budgets and untou
   const f = fixture(); const run = f.driver.start(f.input); await tick();
   expect(spawn).toHaveBeenCalledTimes(1);
   const [exe, args, options] = vi.mocked(spawn).mock.calls[0];
-  expect(exe).toBe(f.options.pythonExecutable); expect(args).toEqual(['-X', 'utf8', '-m', 'app.windows_collection_host']);
+  expect(exe).toBe(f.options.pythonExecutable); expect(args).toEqual(['-B', '-X', 'utf8', '-m', 'app.windows_collection_host']);
   expect(options).toMatchObject({cwd: f.options.projectRoot, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe']});
   expect(options!.env).not.toHaveProperty('DATABASE_URL'); expect(options!.env).not.toHaveProperty('YIKE_AUTH_TOKEN');
   const first = f.request(0); expect(first).toMatchObject({schema_version, platform: 'XIAOHONGSHU', query: '设计', max_records: 2,

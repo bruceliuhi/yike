@@ -37,7 +37,7 @@ it('uses a fixed six-field request and secret-free spawn, holds stdin and waits 
   vi.stubEnv('DATABASE_URL', 'secret'); vi.stubEnv('YIKE_AUTH_TOKEN', 'secret'); vi.stubEnv('PYTHONPATH', 'untrusted');
   const f = await fixture(); const run = f.driver.start({profileId}); await tick();
   expect(f.spawn).toHaveBeenCalledTimes(1);
-  expect(f.spawn.mock.calls[0]).toEqual([f.options.pythonExecutable, ['-X', 'utf8', '-m', 'app.windows_platform_login'],
+  expect(f.spawn.mock.calls[0]).toEqual([f.options.pythonExecutable, ['-B', '-X', 'utf8', '-m', 'app.windows_platform_login'],
     expect.objectContaining({cwd: f.options.projectRoot, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe']})]);
   const env = (f.spawn.mock.calls[0] as any)[2].env;
   for (const key of ['DATABASE_URL', 'YIKE_AUTH_TOKEN', 'PYTHONPATH', 'PATH']) expect(env).not.toHaveProperty(key);
