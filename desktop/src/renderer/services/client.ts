@@ -80,6 +80,10 @@ function serviceFailure(status: number, body: unknown): ServiceError {
   };
   const codes: Record<string, string> = {
     phone_auth_failed: "验证码无效或已过期，请重新核对或获取验证码。",
+    trial_required: "请展开试用开通，输入管理员发给你的试用码。",
+    trial_invalid: "试用码无效或不属于此手机号，请核对管理员发放的信息。",
+    trial_expired: "试用已到期或已停用，请联系管理员。",
+    trial_already_used: "该账号已激活，请收起试用开通后使用短信验证码登录。",
     SERVICE_NOT_CONFIGURED: "客户服务尚未连接；可以先准备本机草稿。",
     SERVICE_UNAVAILABLE: "客户服务暂时不可用，请稍后重试。",
     NETWORK_ERROR: "网络连接失败，当前输入已保留。",

@@ -36,6 +36,14 @@ def _unavailable():
 
 
 def _auth_error(error: PhoneAuthError):
+    trial_messages = {
+        'trial_required': '请展开试用开通，输入管理员发给你的试用码。',
+        'trial_invalid': '试用码无效或不属于此手机号，请核对管理员发放的信息。',
+        'trial_expired': '试用已到期或已停用，请联系管理员。',
+        'trial_already_used': '该账号已激活，请收起试用开通后使用短信验证码登录。',
+    }
+    if error.code in trial_messages:
+        return HTTPException(403, detail={'code':error.code,'message':trial_messages[error.code]})
     if error.code == "auth_rate_limited":
         return HTTPException(429, detail={"code": "auth_rate_limited",
                                           "message": "操作过于频繁，请稍后重试。"})
@@ -77,10 +85,11 @@ def register_phone_api(router, store, phone_auth, sender: SmsSender | None,
     @router.post("/auth/sms-session")
     def login_phone(body: PhoneSessionInput, request: Request):
         require_https(request)
-        if not available or body.trial_code:
+        if not available or (body.trial_code and not callable(getattr(phone_auth, 'consume_trial', None))):
             raise _unavailable()
         try:
-            user_id = phone_auth.consume(body.phone, body.code)
+            user_id = (phone_auth.consume_trial(body.phone, body.code, body.trial_code)
+                       if body.trial_code else phone_auth.consume(body.phone, body.code))
         except PhoneAuthError as error:
             raise _auth_error(error) from None
         token = issue_token(user_id, auth_secret)
