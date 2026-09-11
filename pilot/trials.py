@@ -35,7 +35,7 @@ class TrialPhoneAuthStore(PhoneAuthStore):
             if deadline <= now or not hmac.compare_digest(digest, self._digest('trial', trial_code)):
                 raise PhoneAuthError('trial_invalid')
             connection.execute(
-                "UPDATE pilot_trial_accounts SET activated_at=%s,expires_at=%s::timestamptz + %s * interval '1 day' WHERE user_id=%s",
+                "UPDATE pilot_trial_accounts SET activated_at=%s,expires_at=%s::timestamptz + %s * interval '24 hours' WHERE user_id=%s",
                 (now, now, days, user_id),
             )
 
