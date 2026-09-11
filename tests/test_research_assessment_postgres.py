@@ -2,6 +2,7 @@
 import copy
 import time
 from uuid import uuid4
+from types import SimpleNamespace
 
 import pytest
 
@@ -11,13 +12,49 @@ from pilot.candidate_review_contract import CandidateReviewError
 from pilot.research_assessment import ResearchAssessmentRunner
 from pilot.research_candidates import ResearchCandidateStore
 from tests.test_candidate_assessment_model import CONTENT, assessment
-from tests.test_candidate_review_postgres import review_payload
+from tests.test_candidate_review_postgres import (review_payload, material_reference_env,
+    _attach_material_reference, _revoke_attached)
 from tests.test_candidate_review_postgres import (databases, env, execution_databases,
     execution_env, raw_databases, raw_env)
 from tests.test_confirmed_strategy_review_postgres import real_strategy_env
 from tests.test_research_candidates_postgres import topic
 from tests.test_research_resources_postgres import started, store as resource_store
 from tests.test_execution_runtime_postgres import apply, operation
+
+
+def test_revoke_during_permit_admission_never_discloses_to_model(real_strategy_env, material_reference_env):
+    from pilot.auth import issue_token, verify_token_claims
+    from tests.test_execution_runtime_postgres import SECRET
+    from tests.test_research_strategies_postgres import prepare_body, confirm_body
+    env = real_strategy_env
+    material, source, ready = _attach_material_reference(env)
+    pending = env.strategies.prepare(env.claims, prepare_body(env))
+    env.confirmed = env.strategies.confirm(env.claims, confirm_body(pending))
+    env.snapshot = env.confirmed['snapshot']
+    resources, execution, binding, origin = _source(env)
+    # A second authenticated session can revoke material while the first holds
+    # task/profile locks. Only the network boundary is synthetic.
+    other = SimpleNamespace(**(vars(env) | {'claims': verify_token_claims(
+        issue_token(env.claims.user_id, SECRET), SECRET)}))
+    model = BoundedModel()
+    class RevokeAtAdmission(ResearchAssessmentRunner):
+        def _admission(self, snapshot):
+            original = super()._admission(snapshot)
+            def admit(cursor, tenant, event):
+                assert _revoke_attached(other, material, source, ready)['status'] == 'SUCCEEDED'
+                return original(cursor, tenant, event)
+            return admit
+    service = _review(env, model, RevokeAtAdmission(resources))
+    payload = review_payload(binding)
+    with pytest.raises(CandidateReviewError):
+        service.assess_research(env.claims, payload, **origin)
+    assert model.calls == 0
+    recovered = service.assess_research(env.claims, payload, **origin)
+    assert recovered['kind'] != 'assessment' and model.calls == 0
+    with env.admin.connect() as conn:
+        events = conn.execute("SELECT status FROM pilot_research_resource_events WHERE tenant_id=%s "
+            "AND task_id=%s AND resource='MODEL_CALL'", (env.tenant,execution['task_id'])).fetchall()
+    assert events == [('UNKNOWN',)]
 
 
 class BoundedModel:

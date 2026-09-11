@@ -62,8 +62,10 @@ class ResearchAssessmentRunner:
                 and event["task_id"] == research["taskId"] and event["run_id"] == research["runId"])
         return admit
 
-    def assess(self, claims, request, snapshot, model, *, review_deadline, **kwargs):
-        if not callable(getattr(model, "assess_before", None)):
+    def assess(self, claims, request, snapshot, model, *, review_deadline,
+               before_dispatch, **kwargs):
+        if (not callable(getattr(model, "assess_before", None))
+                or not callable(before_dispatch)):
             raise AssessmentModelError("invalid_assessment_configuration", 500)
         research = snapshot["research"]
         action_id = str(uuid5(NAMESPACE_URL, "yike:research-assessment:" + ":".join((
@@ -75,6 +77,10 @@ class ResearchAssessmentRunner:
 
         def invoke(deadline):
             effective_deadline = min(deadline, review_deadline)
+            # The permit transaction is committed. Recheck disclosure
+            # qualification immediately before the external effect without
+            # keeping any database transaction open across the model call.
+            before_dispatch()
             value, usage = model.assess_before(effective_deadline, **kwargs)
             value = value.model_dump() if hasattr(value, "model_dump") else value
             grounded = validate_assessment(value, description=snapshot["description"],

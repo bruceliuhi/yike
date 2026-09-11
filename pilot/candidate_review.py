@@ -168,7 +168,7 @@ class CandidateReviewStore(CandidateIngestionStore):
              snapshot_key,invocation_id,attempt,status,now,now+timedelta(seconds=90) if attempt else None,
              _json(payload),_json(snapshot),_json(result)))
 
-    def _prepare_assessment_dispatch(self, claims, request, snapshot):
+    def _prepare_assessment_dispatch(self, claims, request, snapshot, *, mark_failed=True):
         """Recheck current qualification after reservation, before model disclosure."""
         try:
             with self.database.connect() as connection, connection.cursor() as cursor:
@@ -179,6 +179,8 @@ class CandidateReviewStore(CandidateIngestionStore):
                     raise CandidateReviewError('candidate_conflict',409)
                 self._active(cursor, claims)
         except CandidateReviewError:
+            if not mark_failed:
+                raise
             with self.database.connect() as connection, connection.cursor() as cursor:
                 tenant = self._active(cursor, claims)
                 _lock(cursor,11301,[tenant,claims.user_id,request.requestId])
@@ -284,7 +286,9 @@ class CandidateReviewStore(CandidateIngestionStore):
                 kwargs['industry_strategy'] = deepcopy(industry_strategy)
             if 'research' in snapshot:
                 value, usage = self.research_assessment.assess(
-                    claims, request, snapshot, model, review_deadline=review_deadline, **kwargs)
+                    claims, request, snapshot, model, review_deadline=review_deadline,
+                    before_dispatch=lambda: self._prepare_assessment_dispatch(
+                        claims, request, snapshot, mark_failed=False), **kwargs)
             else:
                 value, usage = model.assess(**kwargs)
             value = value.model_dump() if hasattr(value,'model_dump') else value
