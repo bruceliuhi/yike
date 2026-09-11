@@ -1,5 +1,6 @@
 """Authenticated HTTP facade for confirmed research usage quotations."""
 from fastapi import HTTPException, Request, Response
+import psycopg
 from starlette.concurrency import run_in_threadpool
 
 from app.model_contract import strict_json_object
@@ -15,7 +16,10 @@ def register_research_quote_api(router, service, identity, require_session_https
     @router.post("/research-usage/quote")
     async def quote(request: Request, response: Response):
         require_session_https(request)
-        current = await run_in_threadpool(identity, request)
+        try:
+            current = await run_in_threadpool(identity, request)
+        except psycopg.Error:
+            raise _error(503, "quote_unavailable") from None
         if not isinstance(current.claims, TokenClaims):
             raise _error(401, "invalid_session")
         if service is None:

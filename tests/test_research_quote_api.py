@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.testclient import TestClient
+import psycopg
 
 from pilot.auth import TokenClaims
 from pilot.research_quote import ResearchQuoteError
@@ -84,3 +85,32 @@ def test_quote_api_rejects_non_token_claims_and_sanitizes_unknown_service_error(
         def quote(self, *_): raise ResearchQuoteError("private_detail", 418)
     response = client(Broken()).post("/api/ui/research-usage/quote", json=body())
     assert (response.status_code, response.json()) == (503, {"detail": {"code": "quote_unavailable"}})
+
+
+def test_quote_api_maps_only_identity_database_failure_without_private_detail():
+    from pilot.research_quote_api import register_research_quote_api
+    for service in (Service(), None):
+        app, router = FastAPI(), APIRouter(prefix="/api/ui")
+        def database_failure(_request):
+            raise psycopg.OperationalError("private-postgresql-dsn")
+        register_research_quote_api(router, service, database_failure, lambda _: None)
+        app.include_router(router)
+        response = TestClient(app).post("/api/ui/research-usage/quote", json=body())
+        assert response.status_code == 503
+        assert response.json() == {"detail": {"code": "quote_unavailable"}}
+        assert response.headers["cache-control"] == "no-store"
+        assert "private-postgresql-dsn" not in response.text
+
+
+def test_quote_api_preserves_identity_http_rejections():
+    from pilot.research_quote_api import register_research_quote_api
+    for status in (401, 403):
+        app, router = FastAPI(), APIRouter(prefix="/api/ui")
+        def rejected(_request, status=status):
+            raise HTTPException(status, detail={"code": "identity_rejected"},
+                headers={"Cache-Control": "no-store"})
+        register_research_quote_api(router, Service(), rejected, lambda _: None)
+        app.include_router(router)
+        response = TestClient(app).post("/api/ui/research-usage/quote", json=body())
+        assert response.status_code == status
+        assert response.json() == {"detail": {"code": "identity_rejected"}}
