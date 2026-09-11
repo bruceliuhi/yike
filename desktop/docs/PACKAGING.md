@@ -6,7 +6,7 @@
 
 - 使用 Node.js `>=24.15.0 <25` 和提交的 `package-lock.json`，从 `desktop/` 执行命令；最低版本与锁定 jsdom 的要求对齐。
 - `npm ci` 会安装固定版本的 Electron。需要能够访问依赖和 Electron 二进制下载源。
-- 不将访问凭证、数据库连接、管理员密钥或环境文件打入安装包。正式服务地址由启动进程环境固定配置。
+- 不将访问凭证、数据库连接、管理员密钥或环境文件打入安装包。构包时设置 `YIKE_RELEASE_SERVICE_URL` 为已部署的公开HTTPS origin；它被编译入main，正式客户端忽略启动环境中的 `YIKE_SERVICE_URL`。`make` 缺配置或配置非法直接失败。
 - 本轮没有配置代码签名、macOS 公证或自动更新发布；未经对应平台验收的产物称为候选包。
 
 ## macOS arm64
@@ -28,14 +28,14 @@ node scripts/run-packaged-smoke.mjs 'out/意客AI-darwin-arm64/意客AI.app/Cont
 - `out/意客AI-darwin-arm64/意客AI.app`
 - `out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip`
 
-可以从 Finder 打开 `.app`，也可以通过下述方式为本次进程配置真实 HTTPS 服务。示例域名必须替换为实际部署的服务域名；不要把凭证写进命令或启动脚本。
+在执行上述make前，设置实际已部署的HTTPS origin；以下示例必须替换，不能作为可用服务：
 
 ```sh
-YIKE_SERVICE_URL=https://customer.example \
-  './out/意客AI-darwin-arm64/意客AI.app/Contents/MacOS/YikeAI'
+export YIKE_RELEASE_SERVICE_URL=https://customer.example
+# 然后执行 npm run make:mac；Windows使用相同环境变量和原固定payload构包流程。
 ```
 
-需在所有旧实例退出后重新启动；已运行的单实例不会因再次启动而改变服务地址。普通 Finder 启动不自动继承终端变量。面向客户的受管理启动配置和正式域名仍需随实际交付确认。
+客户从Finder或Windows快捷方式启动即可使用包内地址，不需要设置终端变量；更换正式服务需重新构包。`package:dev` 无地址可用于界面检查，但不算可交付版本。当前用户确认服务未部署、域名未定；不能拿空地址旧包作登录/采集验收。
 
 浏览器联调应将生产 renderer bundle 挂在同一 FastAPI origin 的 `/app`，让 `/api/ui` 请求保持同源。Vite 的跨端口开发代理目前不支持写入联调：`changeOrigin` 只修改目标 Host，浏览器原始 Origin 会被服务端校验拒绝。不要通过关闭服务端 Origin 检查来绕过；本轮浏览器同源验收不等同于验证了 Vite 代理写入。
 
@@ -88,7 +88,7 @@ Squirrel.Windows 的官方构建宿主为 Windows，或安装 Mono 和 Wine 的 
 
 ## 服务连接和会话边界
 
-- `YIKE_SERVICE_URL` 只接受 HTTPS origin，禁止账号密码、路径前缀、查询参数和片段。未配置或不合法时返回 `SERVICE_NOT_CONFIGURED`。
+- 正式包内 `YIKE_RELEASE_SERVICE_URL` 只接受HTTPS origin，禁止账号密码、路径前缀、查询参数和片段；包内缺失或非法时不可连接。`YIKE_SERVICE_URL` 只用于未打包开发进程，不能把正式客户端重定向到另一服务。
 - 只有未打包的开发进程，同时显式设置 `YIKE_ALLOW_LOOPBACK_HTTP=1`，才接受 `http://localhost`、`http://127.0.0.1` 或 IPv6 loopback。已打包客户端不接受 HTTP，即使设置此开关。
 - 服务地址不能从 renderer 修改。renderer 只提交固定 operation 和经过主进程校验的 payload，不能传路径、请求头、租户或管理员凭证。
 - 独立、无 `persist:` 前缀的 Electron session 保存内存 Cookie；客户端退出后不保留登录 Cookie。登录 token 只在请求时使用，不落盘。
