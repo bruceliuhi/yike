@@ -273,9 +273,36 @@ class ResearchStrategyConfiguration(_Frozen):
         return self
 
 
+class _IndustryTaskStrategy(_Frozen):
+    version: Literal["industry-task-strategy-v1"]
+    sourceTypes: tuple[Literal[
+        "SOCIAL_POST", "COMMENT", "PROCUREMENT", "COMPANY_UPDATE", "INDUSTRY_SITE",
+    ], ...] = Field(min_length=1, max_length=5)
+    intentSignals: tuple[str, ...] = Field(min_length=1, max_length=5)
+    counterSignals: tuple[str, ...] = Field(max_length=5)
+
+    @field_validator("sourceTypes", "intentSignals", "counterSignals", mode="before")
+    @classmethod
+    def freeze_arrays(cls, value):
+        return tuple(value) if type(value) is list else value
+
+    @field_validator("sourceTypes", "intentSignals", "counterSignals")
+    @classmethod
+    def valid_distinct_values(cls, values):
+        for value in values:
+            _visible_text(value, 160)
+        _distinct(tuple(_term_key(value) for value in values))
+        return values
+
+
+class _IndustryResearchStrategyConfiguration(ResearchStrategyConfiguration):
+    # Required only on this shape so legacy bytes and digests remain unchanged.
+    industryStrategy: _IndustryTaskStrategy
+
+
 class _StrategyScope(_Frozen):
     profile_version_id: str
-    configuration: ResearchStrategyConfiguration
+    configuration: _IndustryResearchStrategyConfiguration | ResearchStrategyConfiguration
     platforms: tuple[Platform, ...] = Field(min_length=1, max_length=5)
     max_records: int = Field(ge=1, le=10000)
     max_runtime_seconds: int = Field(ge=1, le=86400)
