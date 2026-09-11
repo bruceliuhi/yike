@@ -18,7 +18,8 @@ _NUMERIC_ID = re.compile(r"[1-9][0-9]{0,19}")
 _XHS_ID = re.compile(r"[A-Za-z0-9]{8,32}")
 _PLATFORMS = {"DOUYIN": ("douyin", "aweme_id", "cid"),
               "BILIBILI": ("bili", "video_id", "rpid"),
-              "XIAOHONGSHU": ("xhs", "note_id", "id")}
+              "XIAOHONGSHU": ("xhs", "note_id", "id"),
+              "ZHIHU": ("zhihu", "content_id", "comment_id")}
 _FILENAME = re.compile(r"search_(contents|comments)_[^/\\:]+\.jsonl")
 _REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
 
@@ -83,6 +84,11 @@ def _id(value: object, platform: str = "DOUYIN") -> str:
 def _source_id(row: dict, platform: str) -> str:
     field = _PLATFORMS[platform][1]
     source = _id(row.get(field), platform)
+    if platform == "ZHIHU":
+        kind = row.get("content_type")
+        if kind not in ("answer", "article", "zvideo"):
+            raise CollectionOutputError()
+        return f"{kind}:{source}"
     if platform == "BILIBILI" and row.get("aid") is not None and _id(row["aid"]) != source:
         raise CollectionOutputError()
     if platform == "XIAOHONGSHU" and row.get("source_id") is not None and _id(row["source_id"], platform) != source:
@@ -197,6 +203,25 @@ def _read(output_dir: Path, platform: str, max_records: int) -> list[dict]:
                 raise CollectionOutputError()
     if any(source not in contents for source, _ in comments):
         raise CollectionOutputError()
+    if platform == "ZHIHU":
+        # Main posts carry their own observation. A comment-only legacy reader
+        # would silently discard buyer demand expressed in an answer/article.
+        posts = []
+        observed_contents = {}
+        for source, row in contents.items():
+            observed_contents[source] = _with_observation(row)
+            body = row.get("content_text")
+            if not isinstance(body, str):
+                raise CollectionOutputError()
+            if not body.strip():
+                if row["content_type"] != "zvideo":
+                    raise CollectionOutputError()
+                continue
+            posts.append({"content": observed_contents[source]})
+        result = posts + [{"content": observed_contents[source], "comment": row} for source, row in comments]
+        if len(result) > max_records:
+            raise CollectionOutputError()
+        return result
     return [{"content": contents[source], "comment": row} for source, row in comments]
 
 
