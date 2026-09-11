@@ -19,7 +19,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from pilot.auth import InvalidPilotToken, TokenClaims
 from pilot.db import PilotDatabase
-from pilot.search_suggestion_model import RULE_VERSION, SearchSuggestionError, validate_suggestion
+from pilot.search_suggestion_model import (RULE_VERSION, SearchSuggestionError,
+                                           serialize_suggestion, validate_suggestion)
 from pilot.sessions import PilotSessionRegistry
 
 
@@ -445,7 +446,7 @@ class SearchSuggestionStore:
                 else:
                     error_code = "invalid_suggestion_result"
                     try:
-                        validated = validate_suggestion(content, description=profile["description"]).model_dump()
+                        validated = serialize_suggestion(validate_suggestion(content, description=profile["description"]))
                     except SearchSuggestionError:
                         pass
                     if validated is not None:

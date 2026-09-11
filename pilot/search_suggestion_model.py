@@ -12,7 +12,7 @@ import json
 import math
 import re
 import unicodedata
-from typing import Annotated, ClassVar, Protocol, Self
+from typing import Annotated, ClassVar, Literal, Protocol, Self
 from urllib.parse import urlsplit
 
 import httpx
@@ -60,6 +60,38 @@ def _key(value: str) -> str:
 
 Term = Annotated[str, Field(min_length=1, max_length=80)]
 Quote = Annotated[str, Field(min_length=1, max_length=300)]
+StrategyText = Annotated[str, Field(min_length=1, max_length=160)]
+
+
+class IndustrySearchStrategy(BaseModel):
+    model_config = ConfigDict(strict=True, frozen=True, extra="forbid", revalidate_instances="always")
+
+    version: Literal["industry-search-strategy-v1"]
+    buyerRole: Annotated[str, Field(min_length=1, max_length=120)] | None
+    salesMotion: Annotated[str, Field(min_length=1, max_length=120)] | None
+    sourceTypes: Annotated[list[Literal[
+        "SOCIAL_POST", "COMMENT", "PROCUREMENT", "COMPANY_UPDATE", "INDUSTRY_SITE",
+    ]], Field(min_length=1, max_length=5)]
+    intentSignals: Annotated[list[StrategyText], Field(min_length=1, max_length=5)]
+    counterSignals: Annotated[list[StrategyText], Field(max_length=5)]
+    basis: Annotated[list[Quote], Field(min_length=1, max_length=8)]
+
+    @field_validator("buyerRole", "salesMotion")
+    @classmethod
+    def valid_optional_text(cls, value: str | None) -> str | None:
+        return _text(value) if value is not None else None
+
+    @field_validator("sourceTypes", "intentSignals", "counterSignals", "basis")
+    @classmethod
+    def valid_unique_values(cls, values: list[str]) -> list[str]:
+        seen = set()
+        for value in values:
+            _text(value)
+            normalized = _key(value)
+            if normalized in seen:
+                raise ValueError("duplicate strategy value")
+            seen.add(normalized)
+        return values
 
 
 class SuggestionContent(BaseModel):
@@ -71,6 +103,14 @@ class SuggestionContent(BaseModel):
     evidence: Annotated[list[Quote], Field(min_length=1, max_length=8,
         description="Exact nonempty quotes copied verbatim from the confirmed description.")]
     unknowns: Annotated[list[Quote], Field(max_length=8)]
+    strategy: IndustrySearchStrategy | None = None
+
+    @field_validator("strategy")
+    @classmethod
+    def strategy_must_be_object_when_present(cls, value: IndustrySearchStrategy | None) -> IndustrySearchStrategy:
+        if value is None:
+            raise ValueError("strategy must be an object when present")
+        return value
 
     @field_validator("keywords", "exclusions")
     @classmethod
@@ -115,6 +155,14 @@ class SuggestionContent(BaseModel):
         return self
 
 
+class RequiredIndustrySearchStrategy(IndustrySearchStrategy):
+    """Distinct named schema used only for current model output."""
+
+
+class _RequiredStrategySuggestionContent(SuggestionContent):
+    strategy: RequiredIndustrySearchStrategy
+
+
 def _validate_description(description: str) -> None:
     try:
         if type(description) is not str or not 1 <= len(description) <= 8000:
@@ -128,16 +176,28 @@ def _validate_description(description: str) -> None:
     raise SearchSuggestionError("invalid_suggestion_input", 400)
 
 
-def validate_suggestion(payload: object, *, description: str) -> SuggestionContent:
+def validate_suggestion(payload: object, *, description: str, _require_strategy: bool = False) -> SuggestionContent:
     """Validate without normalizing the stored profile, terms, or exact quotes."""
     _validate_description(description)
     try:
         result = SuggestionContent.model_validate(payload)
-        if all(quote in description for quote in result.evidence):
+        strategy = result.strategy
+        grounded_strategy = (strategy is None or (
+            all(value is None or value in description for value in (strategy.buyerRole, strategy.salesMotion))
+            and all(quote in description for quote in strategy.basis)
+        ))
+        if (not _require_strategy or strategy is not None) and grounded_strategy and all(
+                quote in description for quote in result.evidence):
             return result
     except (ValidationError, ValueError, UnicodeError):
         pass
     raise SearchSuggestionError("invalid_suggestion_result", 502)
+
+
+def serialize_suggestion(content: SuggestionContent) -> dict:
+    """Persist optional nested additions without rewriting legacy result shape."""
+    serialized = content.model_dump(exclude_unset=True)
+    return SuggestionContent.model_validate(serialized).model_dump(exclude_unset=True)
 
 
 class SearchSuggestionModel(Protocol):
@@ -155,6 +215,12 @@ _SYSTEM_PROMPT = """你为已确认的跨行业企业业务画像生成可编辑
 不得补造地域、资质、期限、采购意图、真实机会、平台支持、平台搜索结果、权限、费用或授权。
 这些是待用户编辑确认的搜索候选，不是已发现商机，不启动采集或联系，也不自报APPROVED。
 缺失事实写入unknowns，不为凑数量编造；keywords为1至20个单行词组，exclusions为0至20个。
+分别从产品或业务问题、买方角色、交易/交付方式构思词组。项目服务、制造贸易、本地生活、
+软件数字服务、零售品牌仅是方法举例，不是行业允许名单；允许画像描述其它业务。
+strategy必须使用industry-search-strategy-v1：buyerRole和salesMotion只可逐字引用画像，缺失填null；
+basis全部逐字引用画像。sourceTypes仅建议内容类型，不代表平台支持、连接权限或已执行搜索；
+intentSignals是待寻找信号而非已经存在的采购事实，counterSignals是建议排除的反例。
+rationale须解释sourceTypes为何适合，unknowns列出画像缺失信息，不得虚构补齐。
 避免同组重复或会过滤任一keyword的排除词；搜索词不能包含手机号、邮箱、网址或已知私密名称。
 每个词组最多80字符；rationale为1至1200字符；evidence为1至8条、每条最多300字符；
 unknowns为0至8条、每条最多300字符。只返回符合指定JSON schema的对象，不用Markdown围栏。
@@ -207,7 +273,7 @@ def _parse_result(raw: bytes, description: str) -> tuple[SuggestionContent, dict
             or type(message.get("content")) is not str or message.get("refusal") is not None
             or message.get("tool_calls") not in (None, []) or message.get("function_call") is not None):
         raise ValueError("invalid result message")
-    result = validate_suggestion(_json_object(message["content"]), description=description)
+    result = validate_suggestion(_json_object(message["content"]), description=description, _require_strategy=True)
     return result, _usage(response.get("usage"))
 
 
@@ -273,7 +339,7 @@ class OpenAICompatibleSearchSuggestionModel:
             ],
             "response_format": {"type": "json_schema", "json_schema": {
                 "name": "search_suggestion", "strict": True,
-                "schema": SuggestionContent.model_json_schema(),
+                "schema": _RequiredStrategySuggestionContent.model_json_schema(),
             }},
         }
         error_code, error_status = "suggestion_result_unknown", 504
