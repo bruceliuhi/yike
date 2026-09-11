@@ -1,5 +1,25 @@
 # 101.200.137.138 部署与测试交付
 
+## 模型已部署：b40cc3b（2026-09-11）
+
+当前customer源码冻结 `b40cc3b357b0ac05dc2a0bf2cb946c5d725a0d38`，不是下文历史056e258。ops仍使用056e258镜像及已验的浏览器来源代理热修，未随customer重启。下面历史记录保留各次时点。
+
+- 两批模型补丁经非作者GO；最终Turbo补丁原提交bd384b9，主线cherry-pick为b40cc3b。主线程定向34 passed、1项需独立DB的用例skipped，不重复全仓或侧任务400项。四个有界请求适配固定方舟型号，不改本地严格解析、超时、重试与主执行链。
+- 两组显式 `ASSESSMENT` / `SEARCH_SUGGESTION` 配置均为北京Ark v3与 `doubao-seed-2-1-turbo-260628`，只从用户已批准的本机ARK_API_KEY经SSH stdin装配；不把来源env整份复制。旧SMS/PHONE等所有键逐字保持，新增恰好6项；ops没有模型凭据。实际应用日志未发现已配置secret/API key/DB URL明文。
+- 新Linux amd64镜像仅构建一次，源归档SHA256 `dcb5afdb472ebb872465df35351a35321215133c8547319ff9f5945eb13dcf84`，镜像归档 `7391ca3858d5c8714fae92ed0e84e8fb2e615e17436e9eeeaa8ca6fc5bd57dd6`，传输后逐字校验。运行image ID `sha256:0ba5b0b91912ca4a1365da5c7b51e87dc7e7223028c0442623709eabd8570897`，私有registry不可变引用 `127.0.0.1:18750/yike/server@sha256:7354ec43ba9e1ebb6038dd346fbaa44d12e1f055ffc71dfe79eeb86f7cb22487`。
+- 切换前完成认证加密DB备份 `backups/yike-before-b40cc3b.dump.enc`＋MAC；保留旧env与发布坐标。该版本相对056e258的schema/grants无差异，不重复迁移。受审一次性helper目录 `/tmp/yike-ark-release.C62CKy`；远端同字节hash已核验，独立整批和追加单次探针GO。
+- 先启动loopback18788只读、非root、受资源限制的候选：ready、短信/模型能力、实际受限DB权限和模型装配通过；实际产品 `ProcessSearchSuggestionModel` 以固定合成描述走真实方舟，**11.3秒、10个关键词，严格解析通过**。不读取客户资料、不写业务库，仅一次请求。该证据不覆盖生产真实客户的全部四类模型路径，也不证明线索质量。
+- 通过后停止候选，原子切换env、启动正式customer。两次CP-06配置门禁通过；正式ready、短信/搜索建议available、受限DB和装配复查通过，healthy、重启0。没有触发回滚；备份成功不是本次恢复演练。发布事实在服务器 `testdata/model-b40cc3b-deployment.json`。
+- 本线程未发SMS或建客户。用户另行授权的本人手机号真实SMS/试用验证由侧任务独占执行：其回传已通过正常ops唯一创建待激活72小时trial，一次HTTP200/challenge ACCEPTED后用户未收到短信；只读QuerySendDetails得到唯一记录21:39:43提交/21:40:08回执、`SendStatus=2 / ErrCode=PORT_NOT_REGISTERED`。这是侧任务的实际查询回传，不是root重复发送/查询；短信投递失败，未消费/激活，不能算登录通过。供应商端处理待确认，保留trial与私有配置、不重复发码/建客户。不得继续使用此前“客户数0”快照推断当前数量。
+
+### 同版Mac客户端有限验收
+
+`b40cc3b`以Node24.19.0、相同package-lock依赖，设置构建期HTTPS地址后一次 `make:mac` 成功。Vite原有未来配置/弃用警告保留，未掩盖。归档检查40项资源、无.env/私钥文件；ASAR SHA256 `5eb88e8fb6322d54831faefe47a9b49bce88045719700c0a3ec41cc4352e1d4d`，ZIP SHA256 `a30b414ae1415248801df8ada58862137069b9c6555391fadefe093eef1895ec`。
+
+实际 `.app/Contents/MacOS/YikeAI` 以独立空user-data启动（不是开发预览或仅require ASAR）：原生bridge返回serviceConfigured=true，真实HTTPS匿名session返回401；可点击登录并看到手机号、短信验证码、获取验证码按钮，未点发码。[真实包登录界面](pilot-b40/mac-sms-login.png)。临时诊断进程已退出，没有操作用户既有会话。
+
+本地ZIP：`/tmp/yike-v02-scope.Pwf9Fs/desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip`。Mac包仅用于服务/界面体验，**没有Windows便携平台执行器，也未做公证/分发安装验收**；不作为普通客户完整采集、触达或Windows安装包。下一步仍需冻结SHA的Windows构包与真实用户链路，不能称完整邀请试用版已完成。
+
 ## 浏览器登录来源修复（2026-09-11，54ec435）
 
 用户反馈 `/ops/login`“请求来源不匹配”。用独立 Chrome 上下文真实填表复现：旧页面 `Referrer-Policy: no-referrer` 导致浏览器 POST `Origin: null`，被现有严格来源检查拒绝。此前 HTTP 验收手工指定 Origin，未覆盖真实浏览器行为；不能以该检查代表浏览器已验收。
