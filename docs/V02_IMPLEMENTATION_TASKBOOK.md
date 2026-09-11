@@ -1,6 +1,6 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
-公开来源接续（2026-09-11）：下一纵向工作是[固定板块来源与确认/执行合同](superpowers/specs/2026-09-11-public-node-discovery-design.md)，补当前只读首页最新帖的覆盖限制。QNA官方接口一次实际读取返回10条原文记录，只证明接口可读取，不是10条商机或产品已接通。新增来源仍未实现/部署，搜贝研究不借此扩权，Mac原生支持仍待用户决定；完整V0.2/Windows/真实客户验收继续。`6b7ada0` 已修确认页对普通公开来源的单次/定时抽样描述，不改变执行能力；最终审核记录见该设计末尾。
+公开来源接续（2026-09-11）：`566e810` 已实现[固定板块来源与确认/执行合同](superpowers/specs/2026-09-11-public-node-discovery-design.md)：用户可在新模式授权目录中选择最新主题或问与答，贯穿草稿/模板、确认、普通执行、候选及定时抽样。旧模式不扩权，搜贝研究仍只接最新索引。一次实际 QNA driver→HTTP→隔离PG返回9条原始记录，不是9条商机；重复采集的合成整链验证复用候选/版本并增加观察。[定向验证与发布边界](superpowers/plans/2026-09-11-public-node-discovery.md#evidence)。尚未部署/构包，不变更下面邀请候选。Mac原生支持仍待用户决定；Windows环境不可用，完整V0.2/真实客户验收继续。
 
 R4研究资源记录接续：`ed74a0f` 已独立整批 GO。进度页新增同一只读快照的 OPEN/DRAINING/UNCERTAIN/RECORDED、超期许可及 asOf；区分许可与实际调用，时间变化不引起重复推进。[11项真实PG＋16项前端/类型检查及边界](superpowers/plans/2026-09-11-research-resource-closeout.md#evidence)。本批只合 main、不部署/构包，不变更下面邀请候选；搜贝仍 null/PENDING，计量规则和财务结算未完成，不能以本子项关闭 R4/完整Goal。
 
