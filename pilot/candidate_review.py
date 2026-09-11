@@ -147,6 +147,27 @@ class CandidateReviewStore(CandidateIngestionStore):
              snapshot_key,invocation_id,attempt,status,now,now+timedelta(seconds=90) if attempt else None,
              _json(payload),_json(snapshot),_json(result)))
 
+    def _prepare_assessment_dispatch(self, claims, request, snapshot):
+        """Recheck current qualification after reservation, before model disclosure."""
+        try:
+            with self.database.connect() as connection, connection.cursor() as cursor:
+                tenant = self._active(cursor, claims)
+                current = self._capture(cursor, tenant, claims, request, require_material_references=True)
+                if any(current[key] != snapshot[key] for key in ('binding','description','content','strategy')):
+                    raise CandidateReviewError('candidate_conflict',409)
+                self._active(cursor, claims)
+        except CandidateReviewError:
+            with self.database.connect() as connection, connection.cursor() as cursor:
+                tenant = self._active(cursor, claims)
+                _lock(cursor,11301,[tenant,claims.user_id,request.requestId])
+                failed = dict(kind='failure',requestId=request.requestId,candidateId=request.candidateId,
+                              status='FAILED',code='profile_unavailable')
+                cursor.execute("UPDATE pilot_candidate_review_requests SET status='FAILED',result=%s::jsonb "
+                               "WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s AND status='PROCESSING'",
+                               (_json(failed),tenant,claims.user_id,request.requestId))
+                self._active(cursor, claims)
+            raise
+
     def review(self, claims, payload):
         request = validate_payload(payload)
         if request.action=='ASSESS': return self._assess(claims,request,payload)
@@ -203,6 +224,7 @@ class CandidateReviewStore(CandidateIngestionStore):
             self._insert_request(cursor,tenant,claims,request,payload,snapshot,result,action='ASSESS',status='PROCESSING',snapshot_key=snapshot_key,attempt=attempt)
             self._active(cursor,claims)
         # Reservation is committed before crossing the only model/network boundary.
+        self._prepare_assessment_dispatch(claims, request, snapshot)
         failure = None
         try:
             value, usage = model.assess(description=snapshot['description'],content=deepcopy(snapshot['content']))
@@ -271,7 +293,8 @@ class CandidateReviewStore(CandidateIngestionStore):
                 tenant = self._active(cursor,claims)
                 previous = self._replay(cursor,tenant,claims,request,payload)
                 if previous is not None: return previous
-                snapshot = self._capture(cursor,tenant,claims,request,require_strategy=request.action=='INCLUDE')
+                snapshot = self._capture(cursor,tenant,claims,request,require_strategy=request.action=='INCLUDE',
+                    require_material_references=request.action=='INCLUDE')
                 bound = _hash(snapshot['binding'])
                 cursor.execute('''SELECT a.content,r.snapshot FROM pilot_candidate_assessments a
                     JOIN pilot_candidate_review_requests r USING(tenant_id,owner_user_id,request_id)
@@ -446,6 +469,13 @@ class CandidateReviewStore(CandidateIngestionStore):
                 snapshot = dict(raw=raw,binding=b)
                 matching = [r for r in requests if r['snapshot']['binding']==b and r['snapshot']['description']==profile.get('description')]
                 valid = profile_status=='CONFIRMED' and not raw['ambiguous']
+                material_valid = True
+                if valid:
+                    from pilot.material_references import assert_references_valid
+                    try:
+                        assert_references_valid(cursor, tenant, b['profileId'])
+                    except ValueError:
+                        material_valid = False
                 if valid and matching:
                     try:
                         resolved = self.strategy_snapshot_reader(cursor,claims,b['profileId'],raw['strategy_version_id']) if self.strategy_snapshot_reader else None
@@ -474,7 +504,7 @@ class CandidateReviewStore(CandidateIngestionStore):
                     candidate.update(historical=True,currentBindingValid=historical_valid,
                                      assessmentStale=not historical_valid)
                 else:
-                    assessment_request = next((r for r in matching if r['action']=='ASSESS'),None) if valid else None
+                    assessment_request = next((r for r in matching if r['action']=='ASSESS'),None) if valid and material_valid else None
                     review = next((r for r in matching if r['action'] in ('INCLUDE','EXCLUDE')),None) if valid else None
                     check = next((r for r in matching if r['action']=='VERIFY_SOURCE'),None) if valid else None
                     verification = check['result'] if check else None

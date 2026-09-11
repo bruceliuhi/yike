@@ -116,17 +116,17 @@ def resolve_references(cursor, *, tenant: str, owner: str, description: str,
                                                                    item["materialVersion"], item["extractionId"])
             if type(version) is not int or isinstance(version, bool) or not 1 <= version <= 2147483647:
                 raise ValueError("invalid material version")
-            cursor.execute("SELECT owner_user_id,record FROM pilot_material_revisions WHERE tenant_id=%s "
-                           "AND owner_user_id=%s AND profile_version_id=%s AND material_id=%s "
-                           "AND material_version=%s AND NOT removed",
-                           (tenant, owner, source_profile, material_id, version))
+            cursor.execute("SELECT owner_user_id,material_version,record,removed FROM pilot_material_revisions "
+                           "WHERE tenant_id=%s AND owner_user_id=%s AND profile_version_id=%s AND material_id=%s "
+                           "ORDER BY material_version DESC LIMIT 1",
+                           (tenant, owner, source_profile, material_id))
             source = cursor.fetchone()
             if source is None:
                 raise ValueError("material source unavailable")
-            source_owner, record = source
+            source_owner, latest_version, record, removed = source
             extraction = record.get("extraction") or {}
             evidence = extraction.get("evidence") or []
-            if (record.get("status") != "READY" or extraction.get("id") != extraction_id
+            if (latest_version != version or removed or record.get("status") != "READY" or extraction.get("id") != extraction_id
                     or extraction.get("fields", {}).get(field) is None
                     or not any(e.get("field") == field and e.get("quote") for e in evidence)):
                 raise ValueError("material source unavailable")

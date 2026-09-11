@@ -223,7 +223,8 @@ class SearchSuggestionStore:
         for key in ("created_at", "updated_at"):
             receipt[key] = receipt[key].isoformat()
         receipt["profile_current"] = bool(profile and profile["status"] == "CONFIRMED"
-            and profile["description"] is not None and profile["sha256"] == row["profile_sha256"])
+            and profile["description"] is not None and profile["references_valid"]
+            and profile["sha256"] == row["profile_sha256"])
         return receipt
 
     @_safe_database_errors

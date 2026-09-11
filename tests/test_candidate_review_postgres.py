@@ -376,6 +376,100 @@ def test_model_network_gap_rechecks_current_authority(env,change):
     with env.admin.connect() as conn:
         assert conn.execute('SELECT count(*) FROM pilot_candidate_assessments WHERE tenant_id=%s',(env.tenant,)).fetchone()[0]==0
 
+
+def _attach_material_reference(env):
+    from pilot.materials import MaterialStore
+    from pilot.material_references import insert_references, profile_content_digest, resolve_references
+    from pilot.store import PilotStore
+    from tests.test_materials_store import Model, save_request
+
+    with env.db.connect() as conn:
+        role = conn.execute('SELECT current_user').fetchone()[0]
+    with env.admin.connect() as conn:
+        conn.execute("SELECT set_config('yike.app_role',%s,true)", (role,))
+        conn.execute((Path(__file__).parents[1] / 'deploy/grant_materials.sql').read_text())
+    source = PilotStore(env.admin).save_profile(env.users[0], {'description':'candidate material source'})['version_id']
+    material = MaterialStore(env.db, Model({'fields':{'service':DESCRIPTION},
+        'evidence':[{'field':'service','quote':'不锈钢  输送设备'}]}))
+    saved = material.mutate(env.claims, save_request(source, text=DESCRIPTION))['record']
+    parsed = material.mutate(env.claims, {'requestId':str(uuid4()),'profileVersionId':source,
+        'change':{'kind':'parse','materialId':saved['id'],'expectedVersion':1}})['record']
+    ready = material.mutate(env.claims, {'requestId':str(uuid4()),'profileVersionId':source,
+        'change':{'kind':'confirm','materialId':saved['id'],'expectedVersion':2,
+                  'extractionId':parsed['extraction']['id'],'fields':{'service':DESCRIPTION}}})['record']
+    description='\n'.join([f'服务内容：{json.dumps(DESCRIPTION,ensure_ascii=False)}','目标客户：""',
+        '服务地区：""','项目偏好：""','排除项：""'])
+    request=[{'field':'service','sourceProfileVersionId':source,'materialId':ready['id'],
+              'materialVersion':ready['version'],'extractionId':ready['extraction']['id']}]
+    with env.admin.connect() as conn:
+        conn.execute("SELECT set_config('yike.tenant_id',%s,true),set_config('yike.user_id',%s,true)",
+                     (env.tenant,env.users[0]))
+        refs=resolve_references(conn.cursor(),tenant=env.tenant,owner=env.users[0],description=description,
+                                base_profile_version_id=None,requested=request)
+        payload={'synthetic_strategy':env.snapshot,'description':description}
+        conn.execute('UPDATE business_profile_versions SET payload=%s::jsonb,content_sha256=%s WHERE tenant_id=%s AND profile_version_id=%s',
+                     (json.dumps(payload),profile_content_digest(payload,refs),env.tenant,env.profile))
+        insert_references(conn.cursor(),tenant=env.tenant,target_profile_version_id=env.profile,references=refs)
+    return material,source,ready
+
+
+def _revoke_attached(env, material, source, ready):
+    impact=material.impact(env.claims,source,ready['id'],ready['version'],'revoke')
+    return material.mutate(env.claims, {'requestId':str(uuid4()),'profileVersionId':source,
+        'change':{'kind':'revoke','materialId':ready['id'],'expectedVersion':ready['version'],
+                  'impactToken':impact['token']}})
+
+
+@pytest.fixture
+def material_reference_env(env):
+    yield env
+    with env.admin.connect() as conn:
+        conn.execute('ALTER TABLE pilot_material_revisions DISABLE TRIGGER pilot_material_revisions_immutable')
+        conn.execute('ALTER TABLE pilot_material_operations DISABLE TRIGGER pilot_material_operations_immutable')
+        for table in ('pilot_material_profile_references','pilot_material_impact_tokens',
+                      'pilot_material_operations','pilot_material_revisions'):
+            conn.execute(f'DELETE FROM {table} WHERE tenant_id=%s',(env.tenant,))
+        conn.execute('ALTER TABLE pilot_material_revisions ENABLE TRIGGER pilot_material_revisions_immutable')
+        conn.execute('ALTER TABLE pilot_material_operations ENABLE TRIGGER pilot_material_operations_immutable')
+
+
+def test_revoked_profile_reference_blocks_assessment_include_and_marks_current_assessment_stale(material_reference_env):
+    env=material_reference_env
+    material,source,ready=_attach_material_reference(env)
+    service,b = store(env),seed(env)
+    assessed=service.review(env.claims,review_payload(b))
+    check=service.verify_source(env.claims,verification_payload(b))
+    assert _revoke_attached(env,material,source,ready)['status']=='SUCCEEDED'
+    include=review_payload(b,'INCLUDE',assessmentId=assessed['assessment']['id'],
+        sourceVerificationId=check['id'],humanConfirmed=True,evidence=assessment()['evidence'],reason='合成纳入')
+    with pytest.raises(CandidateIngestionError,match='profile_conflict'):
+        service.review(env.claims,include)
+    assert service.get_request(env.claims,assessed['requestId'])['assessment']==assessed['assessment']
+    current=service.list_candidates(env.claims)['items'][0]
+    assert current['assessmentStale'] is True and 'assessment' not in current
+    assert current['sourceVerification']['id']==check['id']
+    excluded=service.review(env.claims,review_payload(b,'EXCLUDE',assessmentId=assessed['assessment']['id'],
+        humanConfirmed=True,evidence=assessment()['evidence'],reason='合成排除'))
+    assert excluded['receipt']['outcome']=='EXCLUDED'
+
+
+def test_revocation_after_assessment_reservation_prevents_model_dispatch(material_reference_env):
+    env=material_reference_env
+    material,source,ready=_attach_material_reference(env)
+    model=BoundaryModel()
+    service,b=store(env,model),seed(env)
+    original=service._prepare_assessment_dispatch
+    def revoke_then_prepare(claims,request,snapshot):
+        _revoke_attached(env,material,source,ready)
+        return original(claims,request,snapshot)
+    service._prepare_assessment_dispatch=revoke_then_prepare
+    request=review_payload(b)
+    with pytest.raises(CandidateIngestionError,match='profile_conflict'):
+        service.review(env.claims,request)
+    assert model.calls==0
+    receipt=service.get_request(env.claims,request['requestId'])
+    assert receipt['status']=='FAILED' and receipt['code']=='profile_unavailable'
+
 def test_unknown_explicit_retries_and_call_quota(env):
     model=BoundaryModel()
     def unknown(**kwargs):

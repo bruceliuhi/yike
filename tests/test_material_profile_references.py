@@ -6,7 +6,7 @@ import pytest
 from tests.test_materials_store import database, env, save_request, mutate, Model
 from pilot.materials import MaterialStore
 from pilot.store import PilotStore
-from pilot.search_suggestions import SearchSuggestionStore, SearchSuggestionStoreError
+from pilot.search_suggestions import SearchSuggestionRequest, SearchSuggestionStore, SearchSuggestionStoreError
 from uuid import uuid4
 
 
@@ -125,3 +125,75 @@ def test_impact_binds_reference_snapshot_and_revoke_invalidates_qualification_no
         suggestions.preview(env.claims[0], target["version_id"], provider="synthetic", model="synthetic")
     with pytest.raises(ValueError, match="reference"):
         store.confirm_profile(env.users[0], target["version_id"])
+
+
+@pytest.mark.parametrize("action", ["revoke", "remove", "save"])
+def test_historical_ready_revision_cannot_be_used_as_a_new_source(env, action):
+    materials, source, ready = _ready(env)
+    if action in {"revoke", "remove"}:
+        impact = materials.impact(env.claims[0], source, ready["id"], ready["version"], action)
+        change = {"kind": action, "materialId": ready["id"], "expectedVersion": ready["version"],
+                  "impactToken": impact["token"]}
+    else:
+        change = {"kind": "save", "materialId": ready["id"], "expectedVersion": ready["version"],
+                  "input": {"name": "新版", "text": "知识库实施已调整。", "purpose": "产品介绍",
+                            "visibility": "internal"}}
+    assert mutate(materials, env, {"requestId": str(uuid4()), "profileVersionId": source,
+                                   "change": change})["status"] == "SUCCEEDED"
+    with pytest.raises(ValueError, match="source unavailable"):
+        PilotStore(env.admin).save_profile(env.users[0],
+            {"description": DESCRIPTION.replace("上海", "北京")}, material_references=[{
+                "field": "service", "sourceProfileVersionId": source, "materialId": ready["id"],
+                "materialVersion": ready["version"], "extractionId": ready["extraction"]["id"]}])
+
+
+def _suggestion_request(profile):
+    return SearchSuggestionRequest(request_id=str(uuid4()), draft_id=str(uuid4()),
+                                   profile_version_id=profile, draft_revision=0)
+
+
+def _suggestion_result():
+    return {"keywords": ["知识库实施 采购"], "exclusions": ["招聘"],
+            "rationale": "根据知识库实施服务寻找采购表达。", "evidence": ["知识库实施"],
+            "unknowns": ["预算未知"]}
+
+
+def test_completed_and_pending_suggestions_lose_current_eligibility_after_revoke(env):
+    materials, source, ready = _ready(env)
+    profiles = PilotStore(env.admin)
+    target = profiles.save_profile(env.users[0], {"description": DESCRIPTION}, material_references=[{
+        "field": "service", "sourceProfileVersionId": source, "materialId": ready["id"],
+        "materialVersion": ready["version"], "extractionId": ready["extraction"]["id"]}])
+    profiles.confirm_profile(env.users[0], target["version_id"])
+    suggestions = SearchSuggestionStore(env.admin)
+    preview = suggestions.preview(env.claims[0], target["version_id"], provider="synthetic", model="synthetic")
+    disclosure = {"accepted": True, "profile_sha256": preview["profile_sha256"],
+                  "model_provider": "synthetic", "model_name": "synthetic",
+                  "policy_version": "profile-description-v1"}
+    completed = _suggestion_request(target["version_id"])
+    _, description = suggestions.reserve(env.claims[0], completed, provider="synthetic", model="synthetic",
+                                         disclosure=disclosure)
+    assert description == DESCRIPTION
+    assert suggestions.finish(env.claims[0], completed.request_id, content=_suggestion_result(),
+                              usage={"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2})["state"] == "SUCCEEDED"
+    pending = _suggestion_request(target["version_id"])
+    # Avoid the intentional two-second rate guard without weakening production policy.
+    with env.admin.connect() as connection:
+        connection.execute("UPDATE pilot_search_suggestion_quota_events SET created_at=created_at-interval '3 seconds' "
+                           "WHERE tenant_id=%s", (env.tenant,))
+    suggestions.reserve(env.claims[0], pending, provider="synthetic", model="synthetic", disclosure=disclosure)
+    impact = materials.impact(env.claims[0], source, ready["id"], ready["version"], "revoke")
+    mutate(materials, env, {"requestId": str(uuid4()), "profileVersionId": source,
+        "change": {"kind": "revoke", "materialId": ready["id"], "expectedVersion": ready["version"],
+                   "impactToken": impact["token"]}})
+    historical = suggestions.get_receipt(env.claims[0], completed.request_id)
+    assert historical["state"] == "SUCCEEDED" and historical["result"] == _suggestion_result()
+    assert historical["profile_current"] is False
+    replay, disclosed = suggestions.reserve(env.claims[0], completed, provider="synthetic", model="synthetic",
+                                            disclosure=disclosure)
+    assert replay["profile_current"] is False and disclosed is None
+    with pytest.raises(SearchSuggestionStoreError, match="profile_unavailable"):
+        suggestions.prepare_dispatch(env.claims[0], pending.request_id)
+    finished = suggestions.finish(env.claims[0], pending.request_id, content=_suggestion_result(),
+                                  usage={"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2})
+    assert finished["state"] == "FAILED" and finished["result"] is None
