@@ -258,3 +258,34 @@ def test_ops_credentials_forbidden_in_customer_runtime(name):
     from pilot.runtime import build_runtime_app
     with pytest.raises(RuntimeError,match='ops_credentials_forbidden'):
         build_runtime_app(None,auth_secret='synthetic-session',environment={name:'synthetic-secret'})
+
+
+@pytest.mark.parametrize('month,day', [(3,7),(10,31)])
+def test_trial_is_72_elapsed_hours_across_dst(env,monkeypatch,month,day):
+    from contextlib import contextmanager
+    from datetime import datetime, UTC
+    from types import SimpleNamespace
+    admin, _, _, auth, phone, invite=env
+    code=otp(auth,phone)
+    original=auth._connection
+    # Only substitute the trusted clock input. Activation executes its actual
+    # SQL against PostgreSQL in a DST-observing session, not a fake store.
+    fixed=datetime(2026,month,day,17,tzinfo=UTC)
+    @contextmanager
+    def at_boundary(phone_hash,peer_hash=''):
+        with original(phone_hash,peer_hash) as c:
+            c.execute("SET LOCAL TIME ZONE 'America/New_York'")
+            def execute(query,params=None):
+                if query == 'SELECT clock_timestamp()':
+                    return SimpleNamespace(fetchone=lambda:(fixed,))
+                return c.execute(query,params)
+            # Keep OTP/deadline eligible at the injected boundary.
+            c.execute("UPDATE pilot_phone_challenges SET expires_at=%s::timestamptz+interval '5 minutes' WHERE phone_hash=%s",(fixed,phone_hash))
+            yield SimpleNamespace(execute=execute)
+    with admin.connect() as c:
+        c.execute("UPDATE pilot_trial_accounts SET redeem_before=%s::timestamptz+interval '30 days' WHERE user_id=%s",(fixed,invite['user_id']))
+    monkeypatch.setattr(auth,'_connection',at_boundary)
+    auth.consume_trial(phone,code,invite['code'])
+    with admin.connect() as c:
+        activated,expires=c.execute('SELECT activated_at,expires_at FROM pilot_trial_accounts WHERE user_id=%s',(invite['user_id'],)).fetchone()
+    assert expires.timestamp()-activated.timestamp() == 72*3600
