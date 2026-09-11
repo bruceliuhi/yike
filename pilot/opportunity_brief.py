@@ -201,7 +201,10 @@ class OpportunityBriefService:
                 raise OpportunityBriefError("snapshot_too_large", 503)
             by_opportunity = {row["opportunity_id"]: row for row in opportunities}
             current_followups = {row["opportunity_id"] for row in followups if row["has_active_contact"]}
-            contact = []
+            zone = ZoneInfo(query["timezone"])
+            local_start = datetime.combine(date.fromisoformat(query["businessDate"]), datetime.min.time(), zone).astimezone(UTC)
+            local_end = _next_day(now, zone)
+            contact = []; changes=[]
             for row in opportunities:
                 if row["included_by_user_id"] != claims.user_id or row["payload"] is None:
                     continue
@@ -211,6 +214,17 @@ class OpportunityBriefService:
                 except OpportunityEvidenceError:
                     raise OpportunityBriefError("brief_store_unavailable", 503) from None
                 snapshot = view["snapshot"]
+                from pilot.source_content_changes import load_source_content_changes,SourceContentChangeError
+                try: projected=load_source_content_changes(cursor,tenant=tenant,owner=claims.user_id,evidence=snapshot,now=now)
+                except SourceContentChangeError as error:
+                    raise OpportunityBriefError("snapshot_too_large" if "limit" in str(error) else "brief_store_unavailable",503) from None
+                today=[change for change in projected["changes"]
+                    if local_start<=datetime.fromisoformat(change["detectedAt"].replace("Z","+00:00"))<local_end]
+                if today:
+                    change=max(today,key=lambda item:(item["detectedAt"],item["id"]))
+                    changes.append(self._item("changes",row,query,change["id"],change["toObservationId"],
+                        change["to"]["quote"],"VERIFIED_CHANGE",change["detectedAt"],
+                        "库内观察到来源正文不同；观察时间已保留，真实编辑时间未知，需求含义仍需人工复核。"))
                 cursor.execute("""SELECT v.receipt FROM pilot_candidate_review_requests included
                     JOIN pilot_candidate_source_verifications v ON v.tenant_id=included.tenant_id
                      AND v.owner_user_id=included.owner_user_id AND v.binding_hash=included.binding_hash
@@ -243,9 +257,6 @@ class OpportunityBriefService:
                 followup.append(self._item("followup", row, query, record["record_id"], str(record["revision"]),
                                            record["next_step"] or record["note"], "MANUAL_FOLLOWUP", record["recorded_at"],
                                            record["next_step"] or "按已登记计划跟进。"))
-            zone = ZoneInfo(query["timezone"])
-            local_start = datetime.combine(date.fromisoformat(query["businessDate"]), datetime.min.time(), zone).astimezone(UTC)
-            local_end = _next_day(now, zone)
             cursor.execute("""SELECT t.task_id,r.run_id,max(done.created_at) AS completed_at
                 FROM pilot_collection_tasks t JOIN pilot_collection_runs r USING(tenant_id,owner_user_id,task_id)
                 JOIN pilot_execution_operations done ON done.tenant_id=t.tenant_id AND done.owner_user_id=t.owner_user_id
@@ -273,7 +284,7 @@ class OpportunityBriefService:
                 "coverage":coverage, "lastCompletedCheckAt":_iso(max(completed)) if completed else None,
                 "checkedScope":["库内已核验机会与有效跟进"] if has_facts else [], "uncheckedScope":unchecked,
                 "runs":runs, "groups":{"contact":{"items":contact,"total":len(contact)},
-                "changes":{"items":[],"total":0}, "followup":{"items":followup,"total":len(followup)}}}
+                "changes":{"items":changes,"total":len(changes)}, "followup":{"items":followup,"total":len(followup)}}}
             return result
 
     @staticmethod

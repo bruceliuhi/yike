@@ -373,30 +373,17 @@ class OpportunityResearchService:
         binding=self._binding(binding)
         with self._snapshot(claims) as (cursor,tenant,now):
             evidence=self._recognized(cursor,tenant,claims,binding); source=evidence["source"]
-            cursor.execute("""SELECT v.version_id,v.content,min(o.observed_at),min(o.received_at) FROM pilot_candidate_sources s
-                JOIN pilot_candidate_versions v USING(tenant_id,owner_user_id,source_id)
-                LEFT JOIN pilot_candidate_observations o USING(tenant_id,owner_user_id,source_id,version_id)
-                WHERE s.tenant_id=%s AND s.owner_user_id=%s AND s.platform=%s AND s.kind=%s
-                  AND s.external_source_id IS NOT DISTINCT FROM %s AND s.external_comment_id IS NOT DISTINCT FROM %s
-                GROUP BY v.version_id,v.content,v.received_at ORDER BY min(o.observed_at) NULLS LAST,v.received_at,v.version_id LIMIT 101""",
-                (tenant,claims.user_id,source["platform"],source["kind"],source["external_source_id"],source["external_comment_id"]))
-            rows=cursor.fetchall(); anchor=next((i for i,r in enumerate(rows) if str(r[0])==binding["evidenceVersion"]),None)
-            if anchor is None: raise OpportunityResearchError("evidence_unavailable",409)
-            rows=rows[:anchor+1]
-            if len(rows)>100: raise OpportunityResearchError("record_limit_exceeded",409)
-            versions=[]
-            for i,(vid,content,observed,received) in enumerate(rows):
-                versions.append({"id":str(vid),"ordinal":i+1,"previousVersionId":None if i==0 else str(rows[i-1][0]),
-                    "sourceUrl":content["public_url"],"content":content["body"],"publishedAt":content.get("published_at"),
-                    "observedAt":_iso(observed),"access":"AVAILABLE" if str(vid)==binding["evidenceVersion"] else "UNKNOWN"})
+            from pilot.source_content_changes import load_source_content_changes,SourceContentChangeError
+            try: projection=load_source_content_changes(cursor,tenant=tenant,owner=claims.user_id,evidence=evidence,now=now)
+            except SourceContentChangeError as error:
+                raise OpportunityResearchError("record_limit_exceeded" if "limit" in str(error) else "evidence_unavailable",409) from None
             cursor.execute("SELECT count(*) FROM pilot_followups WHERE tenant_id=%s AND opportunity_id=%s",
                            (tenant,binding["opportunityId"]))
             contact_count=cursor.fetchone()[0]
-            gaps=[]
-            if len(versions)>1: gaps.append("尚无可验证的结构化变更差异。")
+            gaps=projection["gaps"]
             if contact_count: gaps.append("历史人工跟进缺少可验证登记人，未投影为联系事件。")
-            return {"schemaVersion":1,"binding":binding,**self._window(now,[binding,[(v["id"],v["ordinal"]) for v in versions]]),
-                "versions":versions,"changes":[],"contacts":[],"gaps":gaps}
+            identity=[binding,projection["anchorObservationId"],projection["observations"],projection["versions"],projection["changes"]]
+            return {"schemaVersion":2,"binding":binding,**self._window(now,identity),**projection,"contacts":[]}
 
     def similar(self,claims,binding,request_id):
         binding=self._binding(binding)
