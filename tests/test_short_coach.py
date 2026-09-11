@@ -1,5 +1,6 @@
 import hashlib
 import json
+import copy
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -64,6 +65,19 @@ def test_suggestion_uses_utf16_offsets_and_rejects_two_questions_or_fake_quote()
         build_suggestion(raw, {"content": "预算多少？时间呢？", "question": "预算多少？", "quote": "预算可聊"})
     with pytest.raises(ValueError):
         build_suggestion(raw, {"content": "您好，请问预算范围？", "question": "请问预算范围？", "quote": "不存在"})
+    with pytest.raises(ValueError):
+        build_suggestion(raw, {"content": "您好？预算范围", "question": "预算范围", "quote": "预算可聊"})
+
+
+def test_source_observation_compares_at_client_millisecond_precision():
+    from pilot.short_coach import _same_millisecond
+    assert _same_millisecond("2026-09-11T01:02:03.456789Z", "2026-09-11T01:02:03.456Z")
+    assert not _same_millisecond("2026-09-11T01:02:03.457001Z", "2026-09-11T01:02:03.456Z")
+
+
+def test_http_body_limit_matches_96kib_client_boundary():
+    from pilot.short_coach_api import MAX_REQUEST_BYTES
+    assert MAX_REQUEST_BYTES == 96 * 1024
 
 
 def test_restricted_postgres_real_inclusion_generate_replay_and_owner(real_strategy_env):
@@ -102,6 +116,15 @@ def test_restricted_postgres_real_inclusion_generate_replay_and_owner(real_strat
         colleague=verify_token_claims(issue_token(env.users[2],SECRET),SECRET)
         with pytest.raises(ShortCoachError):
             service.generate(colleague,raw|{"disclosure":disclosure})
+        same_tenant=verify_token_claims(issue_token(env.users[1],SECRET),SECRET)
+        limited=copy.deepcopy(raw); limited["binding"]["requestId"]=str(uuid4())
+        limited_preview=service.preview(same_tenant,limited)
+        with env.admin.connect() as conn:
+            conn.execute("UPDATE pilot_short_coach_daily_quota SET call_count=50 WHERE tenant_id=%s",(env.tenant,))
+        with pytest.raises(ShortCoachError,match="short_coach_quota_exceeded"):
+            service.generate(same_tenant,limited|{"disclosure":{"accepted":True,**limited_preview}})
+        assert model.calls==1
     finally:
         with env.admin.connect() as conn:
             conn.execute("DELETE FROM pilot_short_coach_requests WHERE tenant_id=ANY(%s)",(env.tenants,))
+            conn.execute("DELETE FROM pilot_short_coach_daily_quota WHERE tenant_id=ANY(%s)",(env.tenants,))

@@ -6,7 +6,7 @@ from starlette.concurrency import run_in_threadpool
 from pilot.auth import TokenClaims
 from pilot.short_coach import CoachInput, GenerateInput, ShortCoachError
 
-MAX_REQUEST_BYTES=32*1024
+MAX_REQUEST_BYTES=96*1024
 def _error(status,code): return HTTPException(status,detail={"code":code,"message":code},headers={"Cache-Control":"no-store"})
 def _unique(pairs):
     result={}

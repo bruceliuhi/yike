@@ -10,13 +10,20 @@ CREATE TABLE IF NOT EXISTS pilot_short_coach_requests (
  CHECK((state='PROCESSING' AND result IS NULL AND error_code IS NULL) OR
        (state='SUCCEEDED' AND jsonb_typeof(result)='object' AND error_code IS NULL) OR
        (state='FAILED' AND result IS NULL AND error_code='short_coach_failed')));
-CREATE UNIQUE INDEX IF NOT EXISTS pilot_short_coach_one_processing_per_tenant
- ON pilot_short_coach_requests(tenant_id) WHERE state='PROCESSING';
+DROP INDEX IF EXISTS pilot_short_coach_one_processing_per_tenant;
+CREATE TABLE IF NOT EXISTS pilot_short_coach_daily_quota (
+ tenant_id TEXT NOT NULL REFERENCES pilot_tenants(tenant_id), quota_day DATE NOT NULL,
+ call_count INTEGER NOT NULL CHECK(call_count BETWEEN 1 AND 50), PRIMARY KEY(tenant_id,quota_day));
 ALTER TABLE pilot_short_coach_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pilot_short_coach_requests FORCE ROW LEVEL SECURITY;
+ALTER TABLE pilot_short_coach_daily_quota ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pilot_short_coach_daily_quota FORCE ROW LEVEL SECURITY;
 DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_policies WHERE tablename='pilot_short_coach_requests' AND policyname='short_coach_owner') THEN
  CREATE POLICY short_coach_owner ON pilot_short_coach_requests USING(tenant_id=current_setting('yike.tenant_id',true) AND owner_user_id=current_setting('yike.user_id',true))
  WITH CHECK(tenant_id=current_setting('yike.tenant_id',true) AND owner_user_id=current_setting('yike.user_id',true)); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_policies WHERE tablename='pilot_short_coach_daily_quota' AND policyname='short_coach_tenant_quota') THEN
+ CREATE POLICY short_coach_tenant_quota ON pilot_short_coach_daily_quota USING(tenant_id=current_setting('yike.tenant_id',true))
+ WITH CHECK(tenant_id=current_setting('yike.tenant_id',true)); END IF; END $$;
 CREATE OR REPLACE FUNCTION pilot_short_coach_transition_guard() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
  IF TG_OP='INSERT' AND NEW.state<>'PROCESSING' THEN RAISE EXCEPTION USING ERRCODE='YC001'; END IF;
  IF TG_OP='UPDATE' AND (OLD.state<>'PROCESSING' OR NEW.state='PROCESSING' OR ROW(NEW.tenant_id,NEW.owner_user_id,NEW.request_id,NEW.opportunity_id,NEW.request_hash,NEW.model_provider,NEW.model_name,NEW.created_at) IS DISTINCT FROM ROW(OLD.tenant_id,OLD.owner_user_id,OLD.request_id,OLD.opportunity_id,OLD.request_hash,OLD.model_provider,OLD.model_name,OLD.created_at)) THEN RAISE EXCEPTION USING ERRCODE='YC001'; END IF;
