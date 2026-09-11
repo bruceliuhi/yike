@@ -1,6 +1,12 @@
 # 意客 AI 应用镜像
 
-确认策略估算增量（2026-09-11）：新版增加`POST /api/ui/research-usage/quote`，无迁移或新增数据库权限。只有受信组装同时提供显式计量规则、签名密钥和真实研究执行能力才能签出估算；当前默认`research_quotes=None`返回501，不提供生产启用开关，不用普通采集能力代替研究能力。新客户端必须配套新API，现有66745ef不含本批；未部署、未收费。[估算实施与边界](../docs/superpowers/plans/2026-09-11-confirmed-research-quote.md)。
+研究客户端/运行时增量（2026-09-11，`e26d664`）：新增迁移137与`grant_research_runtime.sql`，已纳入完整`grant_runtime.sql`。客户端与API须配套升级；研究原请求/推进/完成不可回退普通采集执行。研究默认未装配，接口返回501；本批未部署或收费。[唯一实施证据](../docs/superpowers/plans/2026-09-11-native-research-client.md#实施证据)。
+
+受信配置明确设置以下五项时才组装研究服务：`YIKE_PILOT_RESEARCH_MODE=public-v2ex-v1`、`YIKE_PILOT_RESEARCH_RULE_VERSION`、`YIKE_PILOT_RESEARCH_SOURCE_MILLI`、`YIKE_PILOT_RESEARCH_MINUTE_MILLI`、`YIKE_PILOT_RESEARCH_MODEL_CALL_MILLI`。后三项为运营批准的正整数规则参数（1至1000000），**没有默认价格/换算值，不复制测试参数到生产**。同时须有完整既有`YIKE_PILOT_ASSESSMENT_*`受控模型配置与至少32字节auth secret；缺项/无效配置直接拒绝启动。签报价密钥由auth secret通过独立HMAC域派生，不新增明文密钥配置；轮换auth secret使尚未使用的报价失效，已存历史回执不重签。
+
+该模式只启用固定V2EX最新主题研究，客户端仍要求既有已核验公开来源/本机设备绑定；它不自动打开普通采集模式、多平台研究、持续云端调度或发送。当前实际用量仅展示可信事件数量，`actualSoubei:null / settlementState:PENDING`，没有余额扣款或结算。任何生产启用仍需对应批准及部署验收，不因代码支持配置便视为已开放。
+
+此前只读估算合同及限制保留见[估算实施记录](../docs/superpowers/plans/2026-09-11-confirmed-research-quote.md)；原文中的“无启用配置/未装配”描述旧版本，不覆盖上方显式配置新实现。
 
 相似研究来源合同增量（2026-09-11）：客户端与服务端须配套升级，新版确认策略可包含`research.provenance`，旧客户端严格解析器不认识该字段。无新迁移；来源核验依赖既有机会、证据和复核读取权限，整体升级使用下述完整授权入口，不只执行早期策略授权。现有32c9c0c镜像候选不包含本增量；本批未构包或部署，也未开放research执行或收费。技术范围见[来源绑定记录](../docs/superpowers/plans/2026-09-11-similar-research-provenance.md)。
 
