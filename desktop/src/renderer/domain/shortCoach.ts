@@ -186,14 +186,16 @@ export function readCoachSuggestion(
   if(originalRefs===undefined ? refs!==undefined : !refs ||
       (originalRefs.length>0 ? refs.length===0||refs.length>originalRefs.length : refs.length!==0))
     throw new Error('建议资料出处缺失或与本次选材不一致，不能应用。');
-  const used = new Set<number>();
-  for(const ref of refs||[]){
-    const index=(originalRefs||[]).findIndex((original,i)=>!used.has(i)&&
+  const matches = (refs||[]).map(ref=>(originalRefs||[]).flatMap((original,index)=>
+      data.content.includes(ref.quote)&&
       original.sourceProfileVersionId===ref.sourceProfileVersionId&&original.materialId===ref.materialId&&
-      original.materialVersion===ref.materialVersion&&original.extractionId===ref.extractionId&&original.quote.includes(ref.quote));
-    if(index<0||!data.content.includes(ref.quote))throw new Error('建议引用不属于所选资料或建议正文，不能应用。');
-    used.add(index);
+      original.materialVersion===ref.materialVersion&&original.extractionId===ref.extractionId&&original.quote.includes(ref.quote)?[index]:[]));
+  // At most three excerpts. Overlapping quotes need a complete matching, not
+  // the first greedy source, which can wrongly reject a valid shortened set.
+  function matchesDistinctSources(at:number,used:number[]):boolean{
+    return at===matches.length||matches[at].some(index=>!used.includes(index)&&matchesDistinctSources(at+1,[...used,index]));
   }
+  if(!matchesDistinctSources(0,[]))throw new Error('建议引用不属于所选资料或建议正文，不能应用。');
   if (
     JSON.stringify(data.binding) !==
     JSON.stringify(coachBindingSchema.parse(input.binding))

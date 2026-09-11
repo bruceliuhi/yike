@@ -46,6 +46,11 @@ it('carries canonical references, binds consent hash and rejects invalid output 
   expect(()=>readCoachSuggestion({...result(v),materialReferences:refs},v)).toThrow();
  }
  expect(()=>readCoachSuggestion(result(v),legacy)).toThrow();
+ const overlapping=await makeCoachInput(row,{...draft,content:draft.content+'支持私有部署和数据导入',
+  materialReferences:[ref,{...ref,quote:'支持私有部署和数据导入'}]},'requirement',uuid(7),scope);
+ const subset={...result(overlapping),content:'支持私有部署和权限管理，方便聊吗？',question:'方便聊吗？',
+  materialReferences:[{...ref,quote:'支持私有部署'},{...ref,quote:'权限管理'}]};
+ expect(readCoachSuggestion(subset,overlapping).materialReferences).toEqual(subset.materialReferences);
 });
 it('enforces material policy in the actual service before model dispatch',async()=>{
  const v=await input(),p=await preview(v),transport=vi.fn(async()=>p);
