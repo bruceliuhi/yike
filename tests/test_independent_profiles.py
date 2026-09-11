@@ -1,14 +1,17 @@
 import os
+from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from psycopg import sql
 
 from pilot.auth import issue_token
 from pilot.db import PilotDatabase
 from pilot.runtime import build_runtime_app
 from pilot.store import PilotStore
+from tests.test_device_credentials_postgres import RoleDatabase
 from pilot.ui_api import ProfileInput
 
 
@@ -95,23 +98,42 @@ def test_profile_input_entity_choice_is_strict_and_mutually_exclusive():
 
 def test_ordinary_http_save_list_confirm_and_explicit_entity_receipts(env):
     secret = "synthetic-independent-profile-http"
-    http = TestClient(build_runtime_app(env.database, auth_secret=secret),
-                      base_url="https://synthetic.invalid")
-    http.headers["Authorization"] = "Bearer " + issue_token(env.user, secret)
-    created = http.post("/api/ui/profiles", json={"description": "HTTP 初版", "newBusiness": {
-        "requestId": str(uuid4()), "name": "  HTTP 业务  "}})
-    assert created.status_code == 200, created.text
-    first = created.json()
-    assert first["profile_id"] and first["profile_name"] == "HTTP 业务"
-    listed = http.get("/api/ui/profiles")
-    assert listed.status_code == 200
-    assert any(item["profile_id"] == first["profile_id"] and item["profile_name"] == "HTTP 业务"
-               for item in listed.json()["items"])
-    confirmed = http.post(f"/api/ui/profiles/{first['version_id']}/confirm")
-    assert confirmed.status_code == 200
-    assert confirmed.json()["profile_id"] == first["profile_id"]
-    second = http.post("/api/ui/profiles", json={"description": "HTTP 二版",
-        "profileEntityId": first["profile_id"]})
-    assert second.status_code == 200
-    assert second.json()["profile_id"] == first["profile_id"]
-    assert second.json()["profile_name"] == "HTTP 业务"
+    role = "independent_profile_http_" + uuid4().hex
+    root = Path(__file__).parents[1]
+    try:
+        with env.database.connect() as connection:
+            identifier = sql.Identifier(role)
+            connection.execute(sql.SQL("CREATE ROLE {} NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEROLE").format(identifier))
+            connection.execute(sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(identifier))
+            connection.execute(sql.SQL("GRANT SELECT ON pilot_users,pilot_tenants,business_profiles,business_profile_versions,pilot_tasks TO {}").format(identifier))
+            connection.execute(sql.SQL("GRANT INSERT ON business_profiles,business_profile_versions,pilot_tasks TO {}").format(identifier))
+            connection.execute(sql.SQL("GRANT UPDATE(name) ON business_profiles TO {}").format(identifier))
+            connection.execute(sql.SQL("GRANT UPDATE(status,approved_at) ON business_profile_versions TO {}").format(identifier))
+            connection.execute("SELECT set_config('yike.app_role',%s,true)", (role,))
+            connection.execute((root / "deploy/grant_session_revocations.sql").read_text())
+            connection.execute((root / "deploy/grant_materials.sql").read_text())
+        restricted = RoleDatabase(env.database, role)
+        http = TestClient(build_runtime_app(restricted, auth_secret=secret),
+                          base_url="https://synthetic.invalid")
+        http.headers["Authorization"] = "Bearer " + issue_token(env.user, secret)
+        created = http.post("/api/ui/profiles", json={"description": "HTTP 初版", "newBusiness": {
+            "requestId": str(uuid4()), "name": "  HTTP 业务  "}})
+        assert created.status_code == 200, created.text
+        first = created.json()
+        assert first["profile_id"] and first["profile_name"] == "HTTP 业务"
+        listed = http.get("/api/ui/profiles")
+        assert listed.status_code == 200
+        assert any(item["profile_id"] == first["profile_id"] and item["profile_name"] == "HTTP 业务"
+                   for item in listed.json()["items"])
+        confirmed = http.post(f"/api/ui/profiles/{first['version_id']}/confirm")
+        assert confirmed.status_code == 200
+        assert confirmed.json()["profile_id"] == first["profile_id"]
+        second = http.post("/api/ui/profiles", json={"description": "HTTP 二版",
+            "profileEntityId": first["profile_id"]})
+        assert second.status_code == 200
+        assert second.json()["profile_id"] == first["profile_id"]
+        assert second.json()["profile_name"] == "HTTP 业务"
+    finally:
+        with env.database.connect() as connection:
+            connection.execute(sql.SQL("DROP OWNED BY {}").format(sql.Identifier(role)))
+            connection.execute(sql.SQL("DROP ROLE {}").format(sql.Identifier(role)))
