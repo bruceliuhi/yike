@@ -13,6 +13,7 @@ import subprocess
 import threading
 import time
 from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
 
 import pytest
 import uvicorn
@@ -27,6 +28,18 @@ from tests.test_execution_runtime_postgres import SECRET
 from tests.test_research_strategies_postgres import prepare_body, configuration
 
 ROOT = Path(__file__).parents[1]
+
+
+@pytest.fixture(scope='module', autouse=True)
+def isolated_public_database_guard():
+    # Run before the imported module-scoped migration/grant fixtures.
+    urls = [os.environ.get(name) for name in (
+        'YIKE_IDENTITY_TEST_DATABASE_URL', 'YIKE_IDENTITY_TEST_APP_DATABASE_URL')]
+    if not all(urls):
+        pytest.skip('dedicated public-flow PostgreSQL required')
+    for value in urls:
+        url = urlsplit(value)
+        assert url.hostname == '127.0.0.1' and url.path == '/yike_public_flow', 'dedicated local public-flow database required'
 
 
 def test_public_community_client_through_ordinary_runtime(real_strategy_env):
