@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {opportunityBriefQueryWire} from '../shared/opportunityBrief';
 import {contactDraftSaveSchema,contactDraftOperationSchema,contactDraftLatestSchema} from '../shared/contactDrafts';
 import {coachInputSchema,coachGenerateSchema} from '../shared/shortCoach';
 import {followupWireBinding,followupMutationWire,followupRepliesWire} from '../shared/structuredFollowup';
@@ -15,6 +16,7 @@ const identifier = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-][A-Za-z0-9_.:
 const text = z.string().max(8000).refine(value => value.trim().length > 0);
 const phone = z.string().length(11).regex(/^1[0-9]{10}$/);
 const schemas = {
+  'opportunityBrief.query': opportunityBriefQueryWire,
   'shortCoach.preview': coachInputSchema,
   'followup.list': empty,
   'followup.replies': followupRepliesWire,
@@ -82,6 +84,7 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
   const {operation, payload} = request.data;
   const parsed = schemas[operation].safeParse(payload);
   if (!parsed.success) return null;
+  if (operation === 'opportunityBrief.query' && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 16 * 1024) return null;
   if (operation.startsWith('shortCoach.') && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 96 * 1024) return null;
   if (operation.startsWith('followup.') && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 32 * 1024) return null;
   if (operation === 'contactDrafts.save' && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 96 * 1024) return null;
@@ -90,6 +93,7 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
   if (operation.startsWith('strategies.') && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 128 * 1024) return null;
   const data = parsed.data as Record<string, string> | undefined;
   switch (operation) {
+    case 'opportunityBrief.query': return {path:'/api/ui/opportunity-brief/query',method:'POST',body:JSON.stringify(parsed.data),logout:false};
     case 'shortCoach.preview':
     case 'shortCoach.generate': return {path:`/api/ui/short-coach/${operation.slice('shortCoach.'.length)}`,method:'POST',body:JSON.stringify(parsed.data),logout:false,timeoutMs:25_000};
     case 'followup.list': return {path:'/api/ui/followup-workspace',method:'GET',logout:false};

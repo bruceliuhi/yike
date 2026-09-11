@@ -9,6 +9,7 @@
 ## Global Constraints
 
 - 完整请求/响应严格遵循 docs/UI_OPPORTUNITY_BRIEF_CONTRACT.md 与 desktop/src/renderer/domain/opportunityBrief.ts。身份从已认证 claims 派生并等值核对，scopeVersion=1；画像为本人可访问 CONFIRMED 版本。UUID、业务日、IANA 时区严格校验，非法或未知不能转空成功。只支持请求时区的当前业务日，旧/未来日期明确409而非冒充历史快照。
+- 普通 Profile.id/请求 profileId 是数据库 profile_version_id（不是 profile_id 实体ID），同时核对整数 profileVersion；遵循现有 mapProfile 和 P02 请求，不重定义字段。
 - 只读、无外部网络、无新表。日期边界按 ZoneInfo 当地日历计算（包含 DST），到期不跨下一业务日且最多5分钟；同一读取时间绑定全部时间字段。会话读取前后重验，数据使用 REPEATABLE READ READ ONLY 与现有 tenant/owner RLS。不得客户端直连数据库。
 - contact 只选原 INCLUDE 本人已核验的固定 evidence、有逐字需求依据且当前未排除/关闭/已联系的商机；不得单凭画像匹配或任意source_status造高意向。校验 evidence_view 哈希与对象/画像，当前候选或策略负面变化不能沿用旧推荐。按更新时间稳定排序，同组每商机最多一项。依据指向真实人工纳入/来源核验记录及版本，不虚构核验时刻。
 - followup 读取最新 ACTIVE 结构化记录（按创建者归属）；nextFollowupAt 在业务日结束前且状态非LOST/WON，保留逾期；同商机取最新仍有效计划，后续记录清空计划、关闭或撤销不能继续提示旧到期。只有 created/recorded真实记录时间作为登记依据，不能把用户填的未来计划称为核验。旧无owner/计划记录不猜到期。

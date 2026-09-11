@@ -147,7 +147,7 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
                     phone_auth=None, sms_sender=None, execution_runtime=None, candidate_ingestion=None,
                     candidate_review=None, research_strategies=None, reply_store=None, contact_drafts=None,
                     outreach_queue=None, materials=None, monitor_plans=None, monitor_runtime=None,
-                    search_suggestions=None, short_coach=None, structured_followups=None) -> None:
+                    search_suggestions=None, short_coach=None, structured_followups=None, opportunity_brief=None) -> None:
     # The enclosing pilot app retains its same-Origin middleware and security
     # headers. This router deliberately does not install a permissive CORS rule.
     router = APIRouter(prefix="/api/ui", route_class=_UiRoute)
@@ -354,6 +354,8 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
     register_short_coach_api(router, short_coach, identity, require_session_https)
     from pilot.followup_api import register_followup_api
     register_followup_api(router, structured_followups, identity, require_session_https)
+    from pilot.opportunity_brief_api import register_opportunity_brief_api
+    register_opportunity_brief_api(router, opportunity_brief, identity, require_session_https)
     from pilot.material_api import register_material_api
     register_material_api(router, materials, identity, require_session_https)
     from pilot.search_suggestion_api import register_search_suggestion_api

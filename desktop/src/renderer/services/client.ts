@@ -26,6 +26,7 @@ import {createSearchCoverageService} from './searchCoverage';
 import {createContactDraftService} from './contactDrafts';
 import {createShortCoachService} from './shortCoachClient';
 import {createStructuredFollowupService} from './structuredFollowup';
+import {createOpportunityBriefService} from './opportunityBriefClient';
 
 type JsonRecord = Record<string, unknown>;
 function bridge(): YikeDesktopApi | undefined {
@@ -275,6 +276,7 @@ function unavailable(name: string): never {
 const candidateReads = createCandidateReviewService(request);
 const platformConnections = createPlatformConnectionService(bridge, () => service.connections());
 export const service: YikeService = {
+  opportunityBrief:createOpportunityBriefService(requestRaw,()=>service.session()),
   followup:createStructuredFollowupService(requestRaw,()=>service.session()),
   shortCoach: createShortCoachService(requestRaw,()=>service.session()),
   contactDrafts: createContactDraftService(requestRaw,()=>service.session()),

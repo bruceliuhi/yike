@@ -51,6 +51,7 @@ export const API_OPERATIONS = [
   'taskFeed.list', 'taskFeed.get',
   'research.list', 'research.timeline', 'research.similar',
   'coverage.query',
+  'opportunityBrief.query',
   'contactDrafts.save', 'contactDrafts.operation', 'contactDrafts.latest',
   'shortCoach.preview', 'shortCoach.generate',
   'followup.list', 'followup.replies', 'followup.mutate', 'followup.operation',
