@@ -1,0 +1,777 @@
+diff --git a/main.py b/main.py
+index 78a8195..df0487d 100644
+--- a/main.py
++++ b/main.py
+@@ -19,6 +19,7 @@
+ 
+ import sys
+ import io
++import json
+ import os
+ from pathlib import Path
+ 
+@@ -73,13 +74,23 @@ class CrawlerFactory:
+ 
+ 
+ crawler: Optional[AbstractCrawler] = None
+-def _has_comment_output() -> bool:
+-    platform_dir = {"bili": "bili", "dy": "douyin", "xhs": "xhs"}[config.PLATFORM]
++def _has_candidate_output() -> bool:
++    platform_dir = {"bili": "bili", "dy": "douyin", "xhs": "xhs", "zhihu":"zhihu"}[config.PLATFORM]
+     data_dir = Path(config.SAVE_DATA_PATH) / platform_dir / "jsonl"
+-    for path in data_dir.glob("search_comments_*.jsonl"):
+-        with path.open(encoding="utf-8") as source:
+-            if any(line.strip() for line in source):
+-                return True
++    patterns=("search_comments_*.jsonl",) if config.PLATFORM!='zhihu' else (
++        "search_contents_*.jsonl","search_comments_*.jsonl")
++    for pattern in patterns:
++        for path in data_dir.glob(pattern):
++          with path.open(encoding="utf-8") as source:
++            for line in source:
++                if not line.strip(): continue
++                if config.PLATFORM!='zhihu' or pattern.startswith('search_comments_'):
++                    return True
++                item=json.loads(line)
++                if type(item) is not dict: raise ValueError('invalid zhihu output')
++                body=item.get('content_text')
++                if type(body) is not str: raise ValueError('invalid zhihu output')
++                if body.strip(): return True
+     return False
+ 
+ 
+@@ -130,7 +141,7 @@ async def main() -> None:
+         write_terminal(
+             config.SAVE_DATA_PATH,
+             config.PLATFORM,
+-            "SUCCEEDED" if _has_comment_output() else "SUCCEEDED_NO_DATA",
++            "SUCCEEDED" if _has_candidate_output() else "SUCCEEDED_NO_DATA",
+             None,
+         )
+     except asyncio.CancelledError:
+diff --git a/media_platform/zhihu/client.py b/media_platform/zhihu/client.py
+index 073928f..205e460 100644
+--- a/media_platform/zhihu/client.py
++++ b/media_platform/zhihu/client.py
+@@ -23,18 +23,22 @@ import json
+ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
+ from urllib.parse import urlencode
+ 
+-import httpx
+ from httpx import Response
+ from playwright.async_api import BrowserContext, Page
+ from tools.httpx_util import make_async_client
+ from tenacity import retry, stop_after_attempt, wait_fixed
+ 
+ import config
++import math
++import re
+ from base.base_crawler import AbstractApiClient
+ from constant import zhihu as zhihu_constant
+ from model.m_zhihu import ZhihuComment, ZhihuContent, ZhihuCreator
+ from proxy.proxy_mixin import ProxyRefreshMixin
+ from tools import utils
++from tools.yike_runtime import (YikeNetworkFailed, YikePlatformAuthRequired,
++    YikePlatformPermissionDenied, YikePlatformRateLimited,
++    YikePlatformResponseChanged, YikePlatformVerificationRequired)
+ 
+ if TYPE_CHECKING:
+     from proxy.proxy_ip_pool import ProxyIpPool
+@@ -61,6 +65,7 @@ class ZhiHuClient(AbstractApiClient, ProxyRefreshMixin):
+         self.default_headers = headers
+         self.cookie_urls = ["https://www.zhihu.com"]
+         self.cookie_dict = cookie_dict
++        self.playwright_page = playwright_page
+         self._extractor = ZhihuExtractor()
+         # Initialize proxy pool (from ProxyRefreshMixin)
+         self.init_proxy_pool(proxy_ip_pool)
+@@ -73,16 +78,16 @@ class ZhiHuClient(AbstractApiClient, ProxyRefreshMixin):
+         Returns:
+ 
+         """
++        await self.update_cookies(self.playwright_page.context)
+         d_c0 = self.cookie_dict.get("d_c0")
+         if not d_c0:
+-            raise Exception("d_c0 not found in cookies")
++            raise YikePlatformAuthRequired()
+         sign_res = sign(url, self.default_headers["cookie"])
+         headers = self.default_headers.copy()
+         headers['x-zst-81'] = sign_res["x-zst-81"]
+         headers['x-zse-96'] = sign_res["x-zse-96"]
+         return headers
+ 
+-    @retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
+     async def request(self, method, url, **kwargs) -> Union[str, Any]:
+         """
+         Wrapper for httpx common request method with response handling
+@@ -94,35 +99,47 @@ class ZhiHuClient(AbstractApiClient, ProxyRefreshMixin):
+         Returns:
+ 
+         """
+-        # Check if proxy is expired before each request
+-        await self._refresh_proxy_if_expired()
+-
+-        # return response.text
+         return_response = kwargs.pop('return_response', False)
+-
+-        async with make_async_client(proxy=self.proxy) as client:
+-            response = await client.request(method, url, timeout=self.timeout, **kwargs)
+-
+-        if response.status_code != 200:
+-            utils.logger.error(f"[ZhiHuClient.request] Requset Url: {url}, Request error: {response.text}")
+-            if response.status_code == 403:
+-                raise ForbiddenError(response.text)
+-            elif response.status_code == 404:  # Content without comments also returns 404
+-                return {}
+-
+-            raise DataFetchError(response.text)
+-
+-        if return_response:
+-            return response.text
++        headers={k:v for k,v in kwargs.pop('headers',self.default_headers).items() if k.lower() != 'cookie'}
++        if kwargs.pop('timeout', 10000) != 10000 or kwargs:
++            raise YikePlatformResponseChanged()
++        from urllib.parse import urlsplit
++        parsed=urlsplit(url)
++        if (method != 'GET' or parsed.scheme != 'https' or parsed.netloc != 'www.zhihu.com'
++                or parsed.fragment or any(ord(c) < 32 for c in url)
++                or not re.fullmatch(r'/api/v4/(?:me|search_v3|comment_v5/(?:(?:answers|articles|zvideos)/[1-9][0-9]*/root_comment|comment/[1-9][0-9]*/child_comment))', parsed.path)):
++            raise YikePlatformResponseChanged()
++        response=None
+         try:
+-            data: Dict = response.json()
+-            if data.get("error"):
+-                utils.logger.error(f"[ZhiHuClient.request] Request error: {data}")
+-                raise DataFetchError(data.get("error", {}).get("message"))
++            response=await self.playwright_page.request.fetch(url,method=method,
++                headers=headers,max_redirects=0,timeout=10000)
++            status=response.status
++            error={401:YikePlatformAuthRequired,403:YikePlatformPermissionDenied,
++                429:YikePlatformRateLimited}.get(status)
++            if error: raise error()
++            if status==404: raise YikePlatformResponseChanged()
++            if status>=500: raise YikeNetworkFailed()
++            if status!=200: raise YikePlatformResponseChanged()
++            raw=await response.body()
++            if len(raw)>1024*1024: raise YikePlatformResponseChanged()
++            if return_response: return raw.decode('utf-8')
++            def pairs(items):
++                result={}
++                for key,value in items:
++                    if key in result: raise ValueError()
++                    result[key]=value
++                return result
++            data=json.loads(raw,object_pairs_hook=pairs,
++                parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
++            if type(data) is not dict or data.get('error') is not None:
++                raise YikePlatformResponseChanged()
+             return data
+-        except json.JSONDecodeError:
+-            utils.logger.error(f"[ZhiHuClient.request] Request error: {response.text}")
+-            raise DataFetchError(response.text)
++        except (YikePlatformAuthRequired,YikePlatformPermissionDenied,YikePlatformRateLimited,
++                YikePlatformVerificationRequired,YikePlatformResponseChanged,YikeNetworkFailed): raise
++        except (ValueError,UnicodeError,TypeError): raise YikePlatformResponseChanged() from None
++        except Exception: raise YikeNetworkFailed() from None
++        finally:
++            if response is not None: await response.dispose()
+ 
+     async def get(self, uri: str, params=None, **kwargs) -> Union[Response, Dict, str]:
+         """
+@@ -148,18 +165,14 @@ class ZhiHuClient(AbstractApiClient, ProxyRefreshMixin):
+ 
+         """
+         utils.logger.info("[ZhiHuClient.pong] Begin to pong zhihu...")
+-        ping_flag = False
+         try:
+             res = await self.get_current_user_info()
+-            if res.get("uid") and res.get("name"):
+-                ping_flag = True
+-                utils.logger.info("[ZhiHuClient.pong] Ping zhihu successfully")
+-            else:
+-                utils.logger.error(f"[ZhiHuClient.pong] Ping zhihu failed, response data: {res}")
+-        except Exception as e:
+-            utils.logger.error(f"[ZhiHuClient.pong] Ping zhihu failed: {e}, and try to login again...")
+-            ping_flag = False
+-        return ping_flag
++            uid=res.get('uid') if type(res) is dict else None
++            if type(uid) not in (str,int) or isinstance(uid,bool) or not re.fullmatch(r'[1-9][0-9]{0,19}', str(uid)):
++                raise YikePlatformResponseChanged()
++            return True
++        except YikePlatformAuthRequired:
++            return False
+ 
+     async def update_cookies(self, browser_context: BrowserContext, urls: Optional[list[str]] = None):
+         """
+@@ -183,8 +196,7 @@ class ZhiHuClient(AbstractApiClient, ProxyRefreshMixin):
+         Returns:
+ 
+         """
+-        params = {"include": "email,is_active,is_bind_phone"}
+-        return await self.get("/api/v4/me", params)
++        return await self.request("GET", "https://www.zhihu.com/api/v4/me", headers={})
+ 
+     async def get_note_by_keyword(
+         self,
+@@ -225,8 +237,18 @@ class ZhiHuClient(AbstractApiClient, ProxyRefreshMixin):
+             "vertical": note_type.value,
+         }
+         search_res = await self.get(uri, params)
+-        utils.logger.info(f"[ZhiHuClient.get_note_by_keyword] Search result: {search_res}")
+-        return self._extractor.extract_contents_from_search(search_res)
++        if type(search_res.get('data')) is not list or any(type(item) is not dict for item in search_res['data']):
++            raise YikePlatformResponseChanged()
++        paging=search_res.get('paging')
++        if type(paging) is not dict or type(paging.get('is_end')) is not bool:
++            raise YikePlatformResponseChanged()
++        if not paging['is_end'] and (not isinstance(paging.get('next'),str) or not paging['next']):
++            raise YikePlatformResponseChanged()
++        result=self._extractor.extract_contents_from_search(search_res)
++        # One bounded search page, not a claim of platform-wide exhaustion.
++        if len(result)>page_size or (search_res['data'] and not result):
++            raise YikePlatformResponseChanged()
++        return result
+ 
+     async def get_root_comments(
+         self,
+@@ -290,6 +312,7 @@ class ZhiHuClient(AbstractApiClient, ProxyRefreshMixin):
+         content: ZhihuContent,
+         crawl_interval: float = 1.0,
+         callback: Optional[Callable] = None,
++        max_count: int = 100,
+     ) -> List[ZhihuComment]:
+         """
+         Get all root-level comments for a specified post, this method will retrieve all comment information under a post
+@@ -301,33 +324,51 @@ class ZhiHuClient(AbstractApiClient, ProxyRefreshMixin):
+         Returns:
+ 
+         """
+-        result: List[ZhihuComment] = []
+-        is_end: bool = False
+-        offset: str = ""
+-        prev_offset: str = ""
+-        limit: int = 10
+-        while not is_end:
+-            prev_offset = offset
+-            root_comment_res = await self.get_root_comments(content.content_id, content.content_type, offset, limit)
+-            if not root_comment_res:
+-                break
+-            paging_info = root_comment_res.get("paging", {})
+-            is_end = paging_info.get("is_end")
+-            offset = self._extractor.extract_offset(paging_info)
+-            comments = self._extractor.extract_comments(content, root_comment_res.get("data"))
+-
+-            if not comments:
+-                break
+-
+-            if prev_offset == offset:
+-                break
+-
+-            if callback:
+-                await callback(comments)
+-
+-            result.extend(comments)
+-            await self.get_comments_all_sub_comments(content, comments, crawl_interval=crawl_interval, callback=callback)
++        if type(max_count) is not int or not 0<=max_count<=100: raise YikePlatformResponseChanged()
++        if type(crawl_interval) not in (int,float) or not math.isfinite(crawl_interval) or not 0 <= crawl_interval <= 60:
++            raise YikePlatformResponseChanged()
++        result=[]; seen=set(); offset=''; ended=False
++        cursors=set()
++
++        def parse(response, previous):
++            if type(response) is not dict or type(response.get('data')) is not list or type(response.get('paging')) is not dict:
++                raise YikePlatformResponseChanged()
++            paging=response['paging']; is_end=paging.get('is_end')
++            if type(is_end) is not bool or any(type(item) is not dict for item in response['data']):
++                raise YikePlatformResponseChanged()
++            next_offset=self._extractor.extract_offset(paging)
++            if not is_end and (not response['data'] or not next_offset or next_offset==previous): raise YikePlatformResponseChanged()
++            comments=self._extractor.extract_comments(content,response['data'])
++            if len(comments)!=len(response['data']): raise YikePlatformResponseChanged()
++            return comments,is_end,next_offset
++
++        while len(result)<max_count and not ended:
++            if offset in cursors: raise YikePlatformResponseChanged()
++            cursors.add(offset)
+             await asyncio.sleep(crawl_interval)
++            response=await self.get_root_comments(content.content_id,content.content_type,offset,min(10,max_count-len(result)))
++            comments,ended,next_offset=parse(response,offset)
++            if len(comments)>max_count-len(result): raise YikePlatformResponseChanged()
++            for item in comments:
++                if item.comment_id in seen: raise YikePlatformResponseChanged()
++                seen.add(item.comment_id)
++            if callback and comments: await callback(comments)
++            result.extend(comments); offset=next_offset
++            if not config.ENABLE_GET_SUB_COMMENTS: continue
++            for parent in comments:
++                child_offset=''; child_end=parent.sub_comment_count==0; child_cursors=set()
++                while len(result)<max_count and not child_end:
++                    if child_offset in child_cursors: raise YikePlatformResponseChanged()
++                    child_cursors.add(child_offset)
++                    await asyncio.sleep(crawl_interval)
++                    child=await self.get_child_comments(parent.comment_id,child_offset,min(10,max_count-len(result)))
++                    children,child_end,next_child=parse(child,child_offset)
++                    if len(children)>max_count-len(result): raise YikePlatformResponseChanged()
++                    for item in children:
++                        if item.comment_id in seen: raise YikePlatformResponseChanged()
++                        seen.add(item.comment_id)
++                    if callback and children: await callback(children)
++                    result.extend(children); child_offset=next_child
+         return result
+ 
+     async def get_comments_all_sub_comments(
+diff --git a/media_platform/zhihu/core.py b/media_platform/zhihu/core.py
+index 7b21e3b..0cc40cc 100644
+--- a/media_platform/zhihu/core.py
++++ b/media_platform/zhihu/core.py
+@@ -59,7 +59,7 @@ class ZhihuCrawler(AbstractCrawler):
+         self.index_url = "https://www.zhihu.com"
+         self.cookie_urls = [self.index_url]
+         # self.user_agent = utils.get_user_agent()
+-        self.user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
++        self.user_agent = None
+         self._extractor = ZhihuExtractor()
+         self.cdp_manager = None
+         self.ip_proxy_pool = None  # Proxy IP pool for automatic proxy refresh
+@@ -70,41 +70,18 @@ class ZhihuCrawler(AbstractCrawler):
+         Returns:
+ 
+         """
+-        playwright_proxy_format, httpx_proxy_format = None, None
+-        if config.ENABLE_IP_PROXY:
+-            self.ip_proxy_pool = await create_ip_pool(
+-                config.IP_PROXY_POOL_COUNT, enable_validate_ip=True
+-            )
+-            ip_proxy_info: IpInfoModel = await self.ip_proxy_pool.get_proxy()
+-            playwright_proxy_format, httpx_proxy_format = utils.format_proxy_info(
+-                ip_proxy_info
+-            )
+-
++        if (config.CRAWLER_TYPE!='search' or config.ENABLE_IP_PROXY or config.ENABLE_CDP_MODE
++                or ',' in config.KEYWORDS or not config.KEYWORDS or config.KEYWORDS!=config.KEYWORDS.strip()
++                or not 1<=config.CRAWLER_MAX_NOTES_COUNT<=5
++                or not 1<=config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES<=100):
++            raise ValueError('invalid governed zhihu configuration')
+         async with async_playwright() as playwright:
+-            # Choose launch mode based on configuration
+-            if config.ENABLE_CDP_MODE:
+-                utils.logger.info("[ZhihuCrawler] Launching browser in CDP mode")
+-                self.browser_context = await self.launch_browser_with_cdp(
+-                    playwright,
+-                    playwright_proxy_format,
+-                    self.user_agent,
+-                    headless=config.CDP_HEADLESS,
+-                )
+-            else:
+-                utils.logger.info("[ZhihuCrawler] Launching browser in standard mode")
+-                # Launch a browser context.
+-                chromium = playwright.chromium
+-                self.browser_context = await self.launch_browser(
+-                    chromium, None, self.user_agent, headless=config.HEADLESS
+-                )
+-                # stealth.min.js is a js script to prevent the website from detecting the crawler.
+-                await self.browser_context.add_init_script(path="libs/stealth.min.js")
+-
++          try:
++            self.browser_context = await self.launch_browser(
++                playwright.chromium, None, None, headless=False)
+             self.context_page = await self.browser_context.new_page()
+             await self.context_page.goto(self.index_url, wait_until="domcontentloaded")
+-
+-            # Create a client to interact with the zhihu website.
+-            self.zhihu_client = await self.create_zhihu_client(httpx_proxy_format)
++            self.zhihu_client = await self.create_zhihu_client(None)
+             if not await self.zhihu_client.pong():
+                 login_obj = ZhiHuLogin(
+                     login_type=config.LOGIN_TYPE,
+@@ -118,87 +95,33 @@ class ZhihuCrawler(AbstractCrawler):
+                     browser_context=self.browser_context,
+                     urls=self.cookie_urls,
+                 )
+-
+-            # Zhihu's search API requires opening the search page first to access cookies, homepage alone won't work
+-            utils.logger.info(
+-                "[ZhihuCrawler.start] Zhihu navigating to search page to get search page cookies, this process takes about 5 seconds"
+-            )
+-            await self.context_page.goto(
+-                f"{self.index_url}/search?q=python&search_source=Guess&utm_content=search_hot&type=content"
+-            )
+-            await asyncio.sleep(5)
+-            await self.zhihu_client.update_cookies(
+-                browser_context=self.browser_context,
+-                urls=self.cookie_urls,
+-            )
+-
++                if not await self.zhihu_client.pong():
++                    from tools.yike_runtime import YikePlatformAuthRequired
++                    raise YikePlatformAuthRequired()
+             crawler_type_var.set(config.CRAWLER_TYPE)
+-            if config.CRAWLER_TYPE == "search":
+-                # Search for notes and retrieve their comment information.
+-                await self.search()
+-            elif config.CRAWLER_TYPE == "detail":
+-                # Get the information and comments of the specified post
+-                await self.get_specified_notes()
+-            elif config.CRAWLER_TYPE == "creator":
+-                # Get creator's information and their notes and comments
+-                await self.get_creators_and_notes()
+-            else:
+-                pass
+-
+-            utils.logger.info("[ZhihuCrawler.start] Zhihu Crawler finished ...")
++            await self.search()
++          finally:
++            await self.close()
+ 
+     async def search(self) -> None:
+         """Search for notes and retrieve their comment information."""
+         utils.logger.info("[ZhihuCrawler.search] Begin search zhihu keywords")
+-        zhihu_limit_count = 20  # zhihu limit page fixed value
+-        if config.CRAWLER_MAX_NOTES_COUNT < zhihu_limit_count:
+-            config.CRAWLER_MAX_NOTES_COUNT = zhihu_limit_count
+-        start_page = config.START_PAGE
+-        for keyword in config.KEYWORDS.split(","):
+-            source_keyword_var.set(keyword)
+-            utils.logger.info(
+-                f"[ZhihuCrawler.search] Current search keyword: {keyword}"
+-            )
+-            page = 1
+-            while (
+-                page - start_page + 1
+-            ) * zhihu_limit_count <= config.CRAWLER_MAX_NOTES_COUNT:
+-                if page < start_page:
+-                    utils.logger.info(f"[ZhihuCrawler.search] Skip page {page}")
+-                    page += 1
+-                    continue
+-
+-                try:
+-                    utils.logger.info(
+-                        f"[ZhihuCrawler.search] search zhihu keyword: {keyword}, page: {page}"
+-                    )
+-                    content_list: List[ZhihuContent] = (
+-                        await self.zhihu_client.get_note_by_keyword(
+-                            keyword=keyword,
+-                            page=page,
+-                        )
+-                    )
+-                    utils.logger.info(
+-                        f"[ZhihuCrawler.search] Search contents :{content_list}"
+-                    )
+-                    if not content_list:
+-                        utils.logger.info("No more content!")
+-                        break
+-
+-                    # Sleep after page navigation
+-                    await asyncio.sleep(config.CRAWLER_MAX_SLEEP_SEC)
+-                    utils.logger.info(f"[ZhihuCrawler.search] Sleeping for {config.CRAWLER_MAX_SLEEP_SEC} seconds after page {page-1}")
+-
+-                    page += 1
+-                    for content in content_list:
+-                        await zhihu_store.update_zhihu_content(content)
+-
+-                    await self.batch_get_content_comments(content_list)
+-                except DataFetchError:
+-                    utils.logger.error("[ZhihuCrawler.search] Search content error")
+-                    return
+-
+-    async def batch_get_content_comments(self, content_list: List[ZhihuContent]):
++        keyword=config.KEYWORDS; source_keyword_var.set(keyword)
++        total=config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES
++        content_limit=min(config.CRAWLER_MAX_NOTES_COUNT,total)
++        content_list=await self.zhihu_client.get_note_by_keyword(keyword=keyword,page=1,page_size=content_limit)
++        if len(content_list)>content_limit: raise ValueError('zhihu content budget exceeded')
++        posts=0; seen=set()
++        for content in content_list:
++            key=(content.content_type,content.content_id)
++            if key in seen: raise ValueError('duplicate zhihu source')
++            seen.add(key)
++            if content.content_text.strip(): posts+=1
++            await zhihu_store.update_zhihu_content(content)
++        if posts>total: raise ValueError('zhihu candidate budget exceeded')
++        await self.batch_get_content_comments(content_list,total-posts)
++
++    async def batch_get_content_comments(self, content_list: List[ZhihuContent], remaining: int):
+         """
+         Batch get content comments
+         Args:
+@@ -213,17 +136,14 @@ class ZhihuCrawler(AbstractCrawler):
+             )
+             return
+ 
+-        semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
+-        task_list: List[Task] = []
++        semaphore = asyncio.Semaphore(1)
+         for content_item in content_list:
+-            task = asyncio.create_task(
+-                self.get_comments(content_item, semaphore), name=content_item.content_id
+-            )
+-            task_list.append(task)
+-        await asyncio.gather(*task_list)
++            if remaining<=0: break
++            used=await self.get_comments(content_item,semaphore,remaining)
++            remaining-=used
+ 
+     async def get_comments(
+-        self, content_item: ZhihuContent, semaphore: asyncio.Semaphore
++        self, content_item: ZhihuContent, semaphore: asyncio.Semaphore, remaining: int
+     ):
+         """
+         Get note comments with keyword filtering and quantity limitation
+@@ -240,14 +160,12 @@ class ZhihuCrawler(AbstractCrawler):
+             )
+ 
+             # Sleep before fetching comments
+-            await asyncio.sleep(config.CRAWLER_MAX_SLEEP_SEC)
+-            utils.logger.info(f"[ZhihuCrawler.get_comments] Sleeping for {config.CRAWLER_MAX_SLEEP_SEC} seconds before fetching comments for content {content_item.content_id}")
+-
+-            await self.zhihu_client.get_note_all_comments(
++            comments=await self.zhihu_client.get_note_all_comments(
+                 content=content_item,
+-                crawl_interval=config.CRAWLER_MAX_SLEEP_SEC,
+                 callback=zhihu_store.batch_update_zhihu_note_comments,
++                max_count=remaining,
+             )
++            return len(comments)
+ 
+     async def get_creators_and_notes(self) -> None:
+         """
+@@ -406,10 +324,9 @@ class ZhihuCrawler(AbstractCrawler):
+             headers={
+                 "accept": "*/*",
+                 "accept-language": "zh-CN,zh;q=0.9",
+-                "cookie": cookie_str,
+                 "priority": "u=1, i",
+-                "referer": "https://www.zhihu.com/search?q=python&time_interval=a_year&type=content",
+-                "user-agent": self.user_agent,
++                "referer": self.index_url,
++                "user-agent": await self.context_page.evaluate("navigator.userAgent"),
+                 "x-api-version": "3.0.91",
+                 "x-app-za": "OS=Web",
+                 "x-requested-with": "fetch",
+@@ -432,28 +349,11 @@ class ZhihuCrawler(AbstractCrawler):
+         utils.logger.info(
+             "[ZhihuCrawler.launch_browser] Begin create browser context ..."
+         )
+-        if config.SAVE_LOGIN_STATE:
+-            # feat issue #14
+-            # we will save login state to avoid login every time
+-            user_data_dir = os.path.join(
+-                os.getcwd(), "browser_data", config.USER_DATA_DIR % config.PLATFORM
+-            )  # type: ignore
+-            browser_context = await chromium.launch_persistent_context(
+-                user_data_dir=user_data_dir,
+-                accept_downloads=True,
+-                headless=headless,
+-                proxy=playwright_proxy,  # type: ignore
+-                viewport={"width": 1920, "height": 1080},
+-                user_agent=user_agent,
+-                channel="chrome",  # Use system Chrome stable version
+-            )
+-            return browser_context
+-        else:
+-            browser = await chromium.launch(headless=headless, proxy=playwright_proxy, channel="chrome")  # type: ignore
+-            browser_context = await browser.new_context(
+-                viewport={"width": 1920, "height": 1080}, user_agent=user_agent
+-            )
+-            return browser_context
++        profile=os.environ.get('YIKE_PROFILE_PATH')
++        if (not profile or not os.path.isabs(profile) or not os.path.isdir(profile) or os.path.islink(profile) or playwright_proxy is not None
++                or user_agent is not None or headless is not False): raise ValueError('invalid governed browser')
++        return await chromium.launch_persistent_context(user_data_dir=profile,
++            accept_downloads=False,headless=False,viewport={"width":1920,"height":1080})
+ 
+     async def launch_browser_with_cdp(
+         self,
+@@ -465,35 +365,11 @@ class ZhihuCrawler(AbstractCrawler):
+         """
+         Launch browser using CDP mode
+         """
+-        try:
+-            self.cdp_manager = CDPBrowserManager()
+-            browser_context = await self.cdp_manager.launch_and_connect(
+-                playwright=playwright,
+-                playwright_proxy=playwright_proxy,
+-                user_agent=user_agent,
+-                headless=headless,
+-            )
+-
+-            # Display browser information
+-            browser_info = await self.cdp_manager.get_browser_info()
+-            utils.logger.info(f"[ZhihuCrawler] CDP browser info: {browser_info}")
+-
+-            return browser_context
+-
+-        except Exception as e:
+-            utils.logger.error(f"[ZhihuCrawler] CDP mode launch failed, falling back to standard mode: {e}")
+-            # Fall back to standard mode
+-            chromium = playwright.chromium
+-            return await self.launch_browser(
+-                chromium, playwright_proxy, user_agent, headless
+-            )
++        raise ValueError('CDP is unavailable in governed Zhihu runtime')
+ 
+     async def close(self):
+-        """Close browser context"""
+-        # Special handling if using CDP mode
+-        if self.cdp_manager:
+-            await self.cdp_manager.cleanup()
+-            self.cdp_manager = None
+-        else:
+-            await self.browser_context.close()
+-        utils.logger.info("[ZhihuCrawler.close] Browser context closed ...")
++        """Do not report success before context cleanup completes."""
++        context = getattr(self, 'browser_context', None)
++        if context is not None:
++            await context.close()
++            self.browser_context = None
+diff --git a/media_platform/zhihu/login.py b/media_platform/zhihu/login.py
+index ca8210b..7256845 100644
+--- a/media_platform/zhihu/login.py
++++ b/media_platform/zhihu/login.py
+@@ -20,105 +20,41 @@
+ 
+ # -*- coding: utf-8 -*-
+ import asyncio
+-import functools
+-import sys
+ from typing import Optional
+-
+ from playwright.async_api import BrowserContext, Page
+-from tenacity import (RetryError, retry, retry_if_result, stop_after_attempt,
+-                      wait_fixed)
+-
+-import config
+ from base.base_crawler import AbstractLogin
+-from tools import utils
++from tools.yike_runtime import YikePlatformAuthRequired, YikePlatformResponseChanged
++from .client import ZhiHuClient
+ 
+ 
+ class ZhiHuLogin(AbstractLogin):
++    """User completes login in the original visible browser; no QR or cookie export."""
+ 
+-    def __init__(self,
+-                 login_type: str,
+-                 browser_context: BrowserContext,
+-                 context_page: Page,
+-                 login_phone: Optional[str] = "",
+-                 cookie_str: str = ""
+-                 ):
+-        config.LOGIN_TYPE = login_type
+-        self.browser_context = browser_context
++    def __init__(self, login_type: str, browser_context: BrowserContext,
++                 context_page: Page, login_phone: Optional[str] = "", cookie_str: str = ""):
++        self.login_type = login_type
+         self.context_page = context_page
+-        self.login_phone = login_phone
+-        self.cookie_str = cookie_str
++        self.browser_context = browser_context
+ 
+-    @retry(stop=stop_after_attempt(600), wait=wait_fixed(1), retry=retry_if_result(lambda value: value is False))
+     async def check_login_state(self) -> bool:
+-        """
+-        Check if the current login status is successful and return True otherwise return False
+-        Returns:
+-
+-        """
+-        current_cookie = await self.browser_context.cookies()
+-        _, cookie_dict = utils.convert_cookies(current_cookie)
+-        current_web_session = cookie_dict.get("z_c0")
+-        if current_web_session:
+-            return True
+-        return False
++        client = ZhiHuClient(headers={}, playwright_page=self.context_page, cookie_dict={})
++        return await client.pong()
+ 
+     async def begin(self):
+-        """Start login zhihu"""
+-        utils.logger.info("[ZhiHu.begin] Begin login zhihu ...")
+-        if config.LOGIN_TYPE == "qrcode":
+-            await self.login_by_qrcode()
+-        elif config.LOGIN_TYPE == "phone":
+-            await self.login_by_mobile()
+-        elif config.LOGIN_TYPE == "cookie":
+-            await self.login_by_cookies()
+-        else:
+-            raise ValueError("[ZhiHu.begin]I nvalid Login Type Currently only supported qrcode or phone or cookies ...")
+-
+-    async def login_by_mobile(self):
+-        """Login zhihu by mobile"""
+-        # todo implement login by mobile
++        if self.login_type != "qrcode":
++            raise YikePlatformResponseChanged()
++        await self.login_by_qrcode()
+ 
+     async def login_by_qrcode(self):
+-        """login zhihu website and keep webdriver login state"""
+-        utils.logger.info("[ZhiHu.login_by_qrcode] Begin login zhihu by qrcode ...")
+-        qrcode_img_selector = "canvas.Qrcode-qrcode"
+-        # find login qrcode
+-        base64_qrcode_img = await utils.find_qrcode_img_from_canvas(
+-            self.context_page,
+-            canvas_selector=qrcode_img_selector
+-        )
+-        if not base64_qrcode_img:
+-            utils.logger.info("[ZhiHu.login_by_qrcode] login failed , have not found qrcode please check ....")
+-            if not base64_qrcode_img:
+-                sys.exit()
+-
+-        # show login qrcode
+-        # fix issue #12
+-        # we need to use partial function to call show_qrcode function and run in executor
+-        # then current asyncio event loop will not be blocked
+-        partial_show_qrcode = functools.partial(utils.show_qrcode, base64_qrcode_img)
+-        asyncio.get_running_loop().run_in_executor(executor=None, func=partial_show_qrcode)
+-
+-        utils.logger.info(f"[ZhiHu.login_by_qrcode] waiting for scan code login, remaining time is 120s")
+-        try:
+-            await self.check_login_state()
++        for attempt in range(120):
++            if await self.check_login_state():
++                return
++            if attempt < 119:
++                await asyncio.sleep(1)
++        raise YikePlatformAuthRequired()
+ 
+-        except RetryError:
+-            utils.logger.info("[ZhiHu.login_by_qrcode] Login zhihu failed by qrcode login method ...")
+-            sys.exit()
+-
+-        wait_redirect_seconds = 5
+-        utils.logger.info(
+-            f"[ZhiHu.login_by_qrcode] Login successful then wait for {wait_redirect_seconds} seconds redirect ...")
+-        await asyncio.sleep(wait_redirect_seconds)
++    async def login_by_mobile(self):
++        raise YikePlatformResponseChanged()
+ 
+     async def login_by_cookies(self):
+-        """login zhihu website by cookies"""
+-        utils.logger.info("[ZhiHu.login_by_cookies] Begin login zhihu by cookie ...")
+-        for key, value in utils.convert_str_cookie_to_dict(self.cookie_str).items():
+-            await self.browser_context.add_cookies([{
+-                'name': key,
+-                'value': value,
+-                'domain': ".zhihu.com",
+-                'path': "/"
+-            }])
++        raise YikePlatformResponseChanged()
+diff --git a/store/zhihu/__init__.py b/store/zhihu/__init__.py
+index 5b74963..fc51067 100644
+--- a/store/zhihu/__init__.py
++++ b/store/zhihu/__init__.py
+@@ -81,7 +81,6 @@ async def update_zhihu_content(content_item: ZhihuContent):
+     content_item.source_keyword = source_keyword_var.get()
+     local_db_item = content_item.model_dump()
+     local_db_item.update({"last_modify_ts": utils.get_current_timestamp()})
+-    utils.logger.info(f"[store.zhihu.update_zhihu_content] zhihu content: {local_db_item}")
+     await ZhihuStoreFactory.create_store().store_content(local_db_item)
+ 
+ 
+@@ -113,7 +112,6 @@ async def update_zhihu_content_comment(comment_item: ZhihuComment):
+     """
+     local_db_item = comment_item.model_dump()
+     local_db_item.update({"last_modify_ts": utils.get_current_timestamp()})
+-    utils.logger.info(f"[store.zhihu.update_zhihu_note_comment] zhihu content comment:{local_db_item}")
+     await ZhihuStoreFactory.create_store().store_comment(local_db_item)
+ 
+ 
