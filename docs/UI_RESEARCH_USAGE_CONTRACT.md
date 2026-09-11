@@ -2,6 +2,8 @@
 
 2026-09-09，用户要求用“搜贝”统一衡量研究用量，并授权其余 R4 图继续开发。本文属于既有 V0.2 的任务配置、执行和客户端子卡合同，不是新增版本或收费承诺。
 
+2026-09-11确认版本增量：正式估算请求必须带`strategyBinding`（策略UUID、画像UUID、服务端configurationSha256），响应另含`ruleSha256`；本机configurationHash仅作编辑标识，不能代替服务端确认摘要。实际服务通过固定`researchUsage.quote`/`POST /api/ui/research-usage/quote`传输，先确认策略再估算。实现与限定证据见[实施记录](superpowers/plans/2026-09-11-confirmed-research-quote.md)；默认组装尚缺研究执行能力与获批规则，仍返回不可用，不代表已经能启动研究。
+
 ## 客户表达
 
 - 任务显示预计消耗、最多使用、实际消耗；未估算显示待估算，未启动显示尚未启动，未知不显示为 0。

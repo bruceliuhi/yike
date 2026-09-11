@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+确认策略用量估算接续：8626329/81d06bc已实现正式客户端确认版本请求、只读服务端上限估算、规则摘要与短期签名凭证。[本批实施与限定证据](superpowers/plans/2026-09-11-confirmed-research-quote.md#实施证据)：客户端51项+tsc，后端限定113项含受限PG2项；2386ccc关闭唯一审核P2，API差量7通过，非作者整批GO。无默认生产规则，运行时未装配研究能力，正式接口仍不可用；下一步接预算许可/原子START/实际资源事件及结算后再启用。不将估算组件、配置后的合成测试或主线提交称作研究已可用。
+
 相似研究来源接续：18c37b7已补客户端真实草稿→策略PREPARE/CONFIRM的provenance合同及同事务来源资格；原机会撤销后拒绝继续采用，历史记录保留。[限定实施证据](superpowers/plans/2026-09-11-similar-research-provenance.md#实施证据)：客户端50项、Python合同205项、受限PG8项及tsc通过；906129f修复唯一审核P2，另6项错误映射通过，非作者整批GO。下段“来源仍拒绝”为本批之前的诊断，现仅coverageProvenance继续拒绝；research实际启动、可信估算/预留/计量仍未接，不解除保护、不关闭R4或Goal。
 
 研究启动接续：已核实相似/补查provenance仍被策略转换与服务端合同拒绝，不能当成已入确认快照；本机taskFingerprint又不含executionLimits，不能单独作为用量绑定。后续按[研究启动绑定设计](superpowers/specs/2026-09-11-research-runtime-binding-design.md)先补完整来源与服务端快照，再接估算、同事务预留/START和实际计量；不删除现有research启动保护，不设生产搜贝换算。核查中同时修复公开monitor草稿PREPARE阻断，`f3faebe`独立GO，[真实草稿链路证据](superpowers/plans/2026-09-11-public-community-monitor.md#后续真实草稿路径阻断修复)取代仅用现成策略的间接证据。完整Goal继续。

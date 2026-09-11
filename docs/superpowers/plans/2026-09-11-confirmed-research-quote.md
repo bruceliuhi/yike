@@ -9,7 +9,7 @@
 ## Global Constraints
 
 - 正式POST `/api/ui/research-usage/quote`，固定桌面operation `researchUsage.quote`。请求精确字段：contractVersion:1、requestId规范UUID、userId、accountScopeId、accountScopeVersion:1、draftId非空最长512、revision正整数最多1000000、configurationHash小写SHA256、maxSoubei正整数最多1000000、strategyBinding:{strategyVersionId规范UUID,profileVersionId规范UUID,configurationSha256小写SHA256}。configurationHash为客户端编辑标识，仅原样绑定；服务端权威为strategyBinding。
-- 响应回显全部请求，另quoteId规范UUID、ruleVersion非空最长512、ruleSha256小写SHA256、authorizationToken非空最长8192、estimatedSoubei非负不超过maxSoubei、generatedAt/expiresAt带时区ISO、basis非空最多2000。有效期固定300秒。token仅内存，不进日志/草稿/账本；它不是START授权的替代。
+- 所有身份及规则版本文本原样非空、无首尾空白，拒绝Cc/Cf/Cs/Zl/Zp。响应回显全部请求，另quoteId规范UUID、ruleVersion非空最长512、ruleSha256小写SHA256、authorizationToken非空最长8192、estimatedSoubei非负不超过maxSoubei、generatedAt/expiresAt带时区ISO、basis非空最多2000。有效期固定300秒。token仅内存，不进日志/草稿/账本；它不是START授权的替代。
 - 服务端规则是显式不可变`ResearchQuoteRule(ruleVersion, sourceMilli, minuteMilli, modelCallMilli)`，每项正整数≤1000000；无默认比例或环境自动启用。以`ceil((sources*sourceMilli + minutes*minuteMilli + modelCalls*modelCallMilli)/1000)`算资源上限估算，不称实际消耗预测，不用min截成客户上限；超上限409 usage_limit_exceeded。规则摘要使用规范JSON SHA256，签名HMAC-SHA256域分隔，密钥至少32字节，只由受信组装传入，不输出。
 - `ResearchQuoteService(database, strategies, rule=None, signing_secret=None, research_capability=None)`。quote无业务写：认证活跃session，再独立RR READ ONLY、可信user/tenant scoped读`strategies.read_snapshot`；确认策略绑定的draft/revision需从同快照读当前版本行核对。精确核对user/scope、profile、配置摘要、maxSoubei、mode once和research存在。签名绑定完整响应（除token）、规则摘要/生效时间，verify函数拒绝篡改/过期/规则变化，用于后续原子START再核资格。
 - research_capability由受信调用者对已确认snapshot判断，不从请求传入；缺rule/key/capability或返回非True时501 capability_unavailable。默认runtime仍None，不添加开启开关或伪执行器；仅注册新API和实际客户端服务，缺能力明确报错。测试显式合成规则/能力不代表生产可用。
@@ -22,19 +22,27 @@ Files：新增`pilot/research_quote.py`、`pilot/research_quote_api.py`，修改
 
 Interfaces：`ResearchQuoteService.quote(claims, raw_request) -> dict`；`verify(authorization_token, now=...) -> dict`返回已校验的完整非token响应用于后续START绑定（本批无START）；`register_research_quote_api(router, service, identity, require_session_https)`。build_app/register_ui_api增加可选research_quotes=None参数传递。
 
-- [ ] RED：`assert service.quote(claims, request)["strategyBinding"] == request["strategyBinding"]`，带真实确认策略的受限PG；无模块先用find_spec断言正常失败，不以import错误作业务RED。
-- [ ] 实现严格请求/规则、只读当前资格、上限计算和签名verify。旧服务无research或来源失效不能估算；当前确认快照必须与draft/revision匹配，不用客户端自报配置算费。输出basis说明是上限、未预留。
-- [ ] 定向测试：上限数学/超上限、签名改字节/过期/规则改变、缺能力；真实PG确认→quote，跨user/tenant/hash/draft/revision/max拒绝、撤销来源/策略拒绝、只读业务表行数不变。API认证/Origin/HTTPS/no-store/严格体/不可用服务。只跑新测试及受影响接口，不构包/全量。
-- [ ] 报告实际命令与RED/GREEN到`/tmp/yike-confirmed-quote-backend-report.md`；保留自建专用PG供root审核后停止，不触碰其他容器/服务器。root统一提交。
+- [x] RED：核心6项因实现缺失失败，API4项因注册缺失失败，随后以真实确认策略受限PG验证。
+- [x] 实现严格请求/规则、只读当前资格、上限计算和签名verify。旧服务无research或来源失效不能估算；当前确认快照必须与draft/revision匹配，不用客户端自报配置算费。输出basis说明是上限、未预留。
+- [x] 定向测试：上限数学/超上限、签名改字节/过期/规则改变、缺能力；真实PG确认→quote，跨user/tenant/服务端hash/draft/revision/max拒绝、撤销来源/策略拒绝、只读业务表行数不变。API认证/Origin/HTTPS/no-store/严格体/不可用服务。只跑新测试及受影响接口，不构包/全量。
+- [x] 报告实际命令与RED/GREEN到`/tmp/yike-confirmed-quote-backend-report.md`；自建专用PG供root审核后停止，不触碰其他容器/服务器。root统一提交。
 
 ## Task 2：正式客户端确认版本估算链（root）
 
 Files：新增`desktop/src/shared/researchUsage.ts`，修改现有domain/services/researchUsage、shared/contracts、main/servicePolicy、services/client、useUsageQuote、TaskWizard，以及定向tests。
 
-- [ ] RED：`validatedOperation({operation:'researchUsage.quote',payload:request})`解析固定POST；缺strategyBinding拒绝；真实服务不发送整个draft。hook未确认不得调用，确认后请求带服务端SHA与执行上限，修改limits使迟到quote失效。
-- [ ] 实现严格wire schema与服务；domain保留旧TEST字段，新增深比较strategyBinding与必须规则SHA核验；hook接确认状态，使用现有确认前重核，不改变旧START账本。
-- [ ] 最后确认区提供同一估算动作，复制现有按钮样式而非改版；保存/恢复不保存token。定向Vitest+tsc，纯模拟UI不当实机/服务器证据。
+- [x] RED：`validatedOperation({operation:'researchUsage.quote',payload:request})`解析固定POST；缺strategyBinding拒绝；真实服务不发送整个draft。hook未确认不得调用，确认后请求带服务端SHA与执行上限，修改limits使迟到quote失效。
+- [x] 实现严格wire schema与服务；domain保留旧TEST字段，新增深比较strategyBinding与必须规则SHA核验；hook接确认状态，使用现有确认前重核，不改变旧START账本。
+- [x] 复用最后确认区原有估算动作，不改版；保存/恢复不保存token。定向Vitest+tsc，纯模拟UI不当实机/服务器证据。
 
 ## 验收与后续
 
 本批两任务统一非作者审核，修复只看差量。正式默认服务缺研究执行能力仍不可估算，不能宣称可用完整研究；下一批接预算许可及原子START/资源事件，并实际启用同一服务后验收。价格及生产搜贝规则仍未获批准；本批无部署、外发、真实平台或Windows验收。
+
+## 实施证据
+
+- 客户端8626329：正式固定传输、实际TaskWizard确认→服务估算、服务端摘要及执行上限编辑失效已接。先5个RED；标签/文本边界另2个RED。定向5文件51通过及tsc通过（confirmed-research-quote、r4-research-usage、strategy-confirmation、servicePolicy、serviceClient）。3项旧TEST启动夹具使用过时的泛web能力导致失败，改为明确合成B站连接仅验证历史用量回执，未放宽公开网站研究START限制。此证据是JS与模拟UI，不是实机或真实平台。
+- 后端81d06bc：只读已确认快照、规则摘要、HMAC凭证及API已实现；既有业务表无新增行。初始核心6RED、API4RED；root预审后修正512字符/Unicode合同、读后session及tenant再核、签名时间窗口、TokenClaims/query/错误白名单。最终限定6文件113通过，含真实受限PG2项；数据库内来源和规则为合成，非实网、收费或模型执行。临时库与服务运行库完全分离。
+- 正式默认research_quotes=None，未添加启用环境开关或生产换算比例；API具备身份/HTTPS/Origin边界后返回501。quote凭证校验不代替后续START的当前身份、设备、策略、来源和预算再核。当前服务66745ef及现有Mac包都未包含本批；不重构包、不声称上线。
+- 独立整批审核发现唯一P2：API首次identity数据库异常被原通用路由降为500。2386ccc精确映射503/no-store，保留HTTP401/403；定向API先1失败/6通过，修复后7通过，不重复113项。本批下一步继续原子START/资源事件/结算，不关闭R4或完整Goal。
+- 非作者对2386ccc差量复核后给整批限定GO，无剩余P1/P2；不重复构包。已合并Mac侧04ac64e（独立审核的登录提示修复与UAT记录），不把旧Mac包或服务器追认为本批报价能力。
