@@ -54,6 +54,8 @@ Windows全量35失败主要包括：构包临时目录权限/旧expectedCommit�
 
 ## 未完成与下一步
 
+后续测试共因批次 `8718c0a` 已独立GO：[分组证据](../superpowers/plans/2026-09-11-http-recovery-reconciliation.md#后续旧夹具与接口期待共因)。仅测试依赖/期待修正，不更改本文件历史失败总数或部署SHA；最后本机curl仍无法解析yike.xingheai.net。没有新增服务器部署证据。
+
 2026-09-11 CodexiMac 接续：三项原来原因未明的 HTTP／恢复失败已在 `b8c2679` 定位并完成限定修复与独立 GO，详见[三项接续证据](../superpowers/plans/2026-09-11-http-recovery-reconciliation.md)。其中短句 API 是生产缺陷，另外两项为测试权限/期待漂移。Mac 的 6 项通过不改写上面 Win 原始失败总数；**现有服务器镜像未包含短句 API 修复，须按新 SHA 重构部署**，不是客户端纯变更免构包情形。
 
 - DNS管理员添加 **A记录：`yike` → `101.200.137.138`**。生效后为该域名单独签证书、配置受信HTTPS反代并实测Cookie/同源策略；不得复用只覆盖主域/www的旧证书。

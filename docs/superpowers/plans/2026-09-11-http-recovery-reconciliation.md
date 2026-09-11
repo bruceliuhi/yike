@@ -59,3 +59,5 @@
 | 锁清单、XHS 应用后文件哈希、真实搜索子进程三个选择器 | 3 passed，1.25s，0 skipped；最初两项 RED，XHS 起初未指定本机源而跳过，后以固定源补验并最终合并验证 |
 
 真实 PostgreSQL 16 使用本批独立 tmpfs 容器与三个专用测试库，未操作既有数据库或生产服务。本批不跑全仓、不构包；没有真实平台或模型请求、Windows 安装、HTTPS 或客户证据。仍需接续同版本部署/Windows及跨行业真实闭环，不以修正测试替代完整产品目标。
+
+独立非作者复核绑定 `8718c0a29cf499e6a051b0a4508eed5e4d9743ce`，`material_reference_architecture` 结论 GO，无阻断 P1/P2，未重跑测试。本批临时容器已停止，tmpfs测试数据销毁，既有库不变。同期本机对 `https://yike.xingheai.net/healthz` 的限时只读请求返回 curl 6（无法解析主机）；这是本机观测，不是权威 DNS 管理记录，不证明服务端健康变化。
