@@ -19,7 +19,7 @@
 
 ### Task 1: 官方SMS适配器及正式runtime接线
 
-**Files:** 新增 `pilot/aliyun_sms.py`、`tests/test_aliyun_sms.py`、`deploy/ALIYUN_SMS.md`；修改 `pyproject.toml`、`uv.lock`、`pilot/runtime.py`、`tests/test_runtime_composition.py`（按实际已有命名定位）、`deploy` 当前示例配置与任务书。先只新增adapter独立文件，等ops候选精确审核/合入后接runtime，不碰其未提交clone。
+**Files:** 新增 `pilot/aliyun_sms.py`、`tests/test_aliyun_sms.py`、`tests/test_aliyun_runtime.py`、`tests/test_aliyun_runtime_postgres.py`、`tests/test_aliyun_sdk_transport.py`、`deploy/ALIYUN_SMS.md`；修改 `pyproject.toml`、`uv.lock`、`pilot/runtime.py`、文档入口与任务书；复用相邻 `tests/test_pilot_runtime.py` 回归。先只新增adapter独立文件，等ops候选精确审核/合入后接runtime，不碰其未提交clone。
 
 **Interfaces:**
 
@@ -43,4 +43,11 @@ def configured_sms_sender(environment: Mapping[str,str]) -> AliyunSmsSender | No
 
 ## Evidence
 
-实施中，尚无生产发送或收码证据。
+代码候选 `a284196` 已获非作者独立整批 GO，无阻塞或可行动代码缺陷；已合入独立审核GO的运营基础 `dba5db1`。前四项工程工作完成，第五项真实配置与收码验收仍待完成。未发送真实短信、未配置生产私有凭据、未部署；完整Goal继续。
+
+- Adapter：初始缺模块，严格配置/响应追加RED 20 failed→50 passed；锁文件、compileall、diff-check通过。仅使用官方SDK并固定依赖，无手写签名。
+- SDK调试泄漏防护：实际SDK会在进程 `DEBUG=sdk` 时打印请求；新增RED 5 failed→5 passed，配置、初始化与每次发送均拒绝该模式，不改全局环境。
+- 实际runtime接线RED两失败（忽略发送配置/缺认证密钥未拒绝），接好后 `test_aliyun_runtime.py + test_pilot_runtime.py + test_phone_api.py` 合计39 passed / 9.19s。配置完整才提供能力，构造不发送；独立phone密钥与注入冲突有门禁。
+- 新建隔离PG真实受限角色：`test_aliyun_runtime_postgres.py` 1 passed / 1.95s，正式runtime→OTP预留→adapter→供应商受理替身→实际手机号/权益事务→正常画像接口→停用→旧会话拒绝。SDK只调用一次，不是手机送达证据。
+- `test_aliyun_sdk_transport.py` 2 passed / 0.64s；只替换底层requests.Session.send，真实已安装SDK执行签名、序列化与响应解析。核对固定HTTPS、单号码/变量、TLS、5/10秒超时、ReadTimeout后无重试。SDK依赖发出两个datetime.utcnow弃用警告，未隐藏，不影响断言。
+- 未重复全套测试、构包或已审核ops测试。下一步独立审核与正式配置/收码验收，不恢复临时后四位入口。
