@@ -9,6 +9,7 @@ SELECT set_config('yike.app_role', :'app_role', true);
 \ir grant_device_credentials.sql
 \ir grant_connection_operations.sql
 \ir grant_phone_login.sql
+\ir grant_trials.sql
 \ir grant_search_suggestions.sql
 \ir grant_execution_runtime.sql
 \ir grant_candidate_ingestion.sql

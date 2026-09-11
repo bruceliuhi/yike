@@ -97,6 +97,7 @@ export function LoginPage() {
         throw new Error("登录会话尚未建立或已失效，请核对凭证后重试。");
       if (!mounted.current) return;
       setCode("");
+      setTrial("");
       setToken("");
       navigate("/workbench");
     });
@@ -188,7 +189,8 @@ export function LoginPage() {
           </Field>
           {smsError && <Notice tone="error">{smsError}</Notice>}
           {trialOpen && (
-            <Field label="试用码" required error={errors.trial}>
+            <Field label="试用码" required error={errors.trial}
+              hint="由管理员单独发放；首次短信验证并激活后开始计时，后续登录无需再填。">
               <input
                 aria-label="试用码"
                 autoComplete="off"

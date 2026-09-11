@@ -89,14 +89,25 @@ def build_runtime_app(
     auth_secret: str,
     dev_login: bool = False,
     environment: Mapping[str, str] | None = None,
+    sms_sender=None,
 ) -> FastAPI:
     environment = os.environ if environment is None else environment
     if environment.get("YIKE_PILOT_ADMIN_DATABASE_URL", "").strip():
         raise RuntimeError("admin_database_url_forbidden_in_web_runtime")
+    if any(environment.get(key, '').strip() for key in
+           ('YIKE_OPS_DATABASE_URL','YIKE_OPS_PHONE_ENCRYPTION_KEY','YIKE_OPS_PASSWORD')):
+        raise RuntimeError('ops_credentials_forbidden_in_web_runtime')
 
     model = _assessment_model(environment)
     research_config = research_configuration(environment, model=model, auth_secret=auth_secret)
     store = PilotStore(database)
+    # Sender is trusted deployment composition, never an HTTP-supplied URL.
+    # A missing provider stays unavailable; a phone secret alone sends no SMS.
+    from pilot.trials import TrialPhoneAuthStore
+    phone_secret = environment.get('YIKE_PILOT_PHONE_AUTH_SECRET','')
+    if sms_sender is not None and not phone_secret:
+        raise RuntimeError('phone_auth_configuration_required')
+    phone_auth = TrialPhoneAuthStore(database,phone_secret.encode()) if phone_secret else None
     strategies = ResearchStrategyStore(database)
     runtime = ExecutionRuntime(database, strategy_resolver=strategies.resolve,
                                capability_check=configured_collection_policy(environment))
@@ -134,6 +145,8 @@ def build_runtime_app(
         store,
         auth_secret=auth_secret,
         dev_login=dev_login,
+        phone_auth=phone_auth,
+        sms_sender=sms_sender,
         execution_runtime=runtime,
         candidate_ingestion=ingestion,
         candidate_review=review,

@@ -59,7 +59,7 @@ class PilotSessionRegistry:
             raise PermissionError("pilot user is not provisioned")
         cursor.execute(
             "SELECT EXISTS(SELECT 1 FROM pilot_session_revocations WHERE user_id=%s AND revocation_key=%s), "
-            "extract(epoch FROM clock_timestamp()) >= %s",
+            "extract(epoch FROM clock_timestamp()) >= %s OR NOT public.pilot_trial_allowed()",
             (claims.user_id, claims.revocation_key, claims.expires_at),
         )
         revoked, expired = cursor.fetchone()
