@@ -49,6 +49,7 @@ export const API_OPERATIONS = [
   'profiles.list', 'profiles.save', 'profiles.confirm',
   'connections.list',
   'taskFeed.list', 'taskFeed.get',
+  'research.list', 'research.timeline', 'research.similar',
   'opportunities.list', 'opportunities.get', 'followups.list', 'followups.add',
   'replies.evidence',
   'strategies.prepare', 'strategies.confirm', 'strategies.revoke', 'strategies.receipt', 'strategies.get',

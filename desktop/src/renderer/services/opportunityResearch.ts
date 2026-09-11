@@ -7,8 +7,12 @@ import type {
 import {
   hasResearchScope,
   parseResearchCollection,
+  parseResearchTimeline,
+  parseSimilarResearch,
 } from "../domain/opportunityResearch";
 import type { Session } from "../domain/models";
+import type {ApiOperation} from '../../shared/contracts';
+import {researchTimelineRequestSchema,researchSimilarRequestSchema} from '../../shared/opportunityResearchApi';
 /** Optional, authenticated R4 research reads. No production adapter is implied.
  * The server derives tenant identity and verifies profile/source versions.
  * These methods never import, classify, execute research, send, or charge.
@@ -24,6 +28,29 @@ export interface OpportunityResearchService {
     requestId: string,
     signal?: AbortSignal,
   ): Promise<SimilarResearchPlan>;
+}
+type Transport=(operation:ApiOperation,path:string,method?:string,payload?:unknown,signal?:AbortSignal)=>Promise<unknown>;
+const checkAbort=(signal?:AbortSignal)=>{if(signal?.aborted)throw new DOMException('请求已取消。','AbortError');};
+/** Only immutable database reads and a free preview. No model or platform call. */
+export function createOpportunityResearchService(transport:Transport,session:()=>Promise<Session>):OpportunityResearchService{
+ return {
+  async list(signal){
+   checkAbort(signal);const current=await session();checkAbort(signal);
+   if(!current.authenticated||!current.userId||!hasResearchScope(current.accountScope))throw new Error('当前账户空间尚未核验。');
+   const raw=await transport('research.list','/opportunity-research','GET',undefined,signal);checkAbort(signal);
+   return parseResearchCollection(raw,current.userId,Date.now(),current.accountScope);
+  },
+  async timeline(binding,signal){
+   const payload=researchTimelineRequestSchema.parse({binding});checkAbort(signal);
+   const raw=await transport('research.timeline','/opportunity-research/timeline','POST',payload,signal);checkAbort(signal);
+   return parseResearchTimeline(raw,binding);
+  },
+  async similar(binding,requestId,signal){
+   const payload=researchSimilarRequestSchema.parse({binding,requestId});checkAbort(signal);
+   const raw=await transport('research.similar','/opportunity-research/similar','POST',payload,signal);checkAbort(signal);
+   return parseSimilarResearch(raw,binding,requestId);
+  },
+ };
 }
 export async function readResearchRecord(
   service: OpportunityResearchService,

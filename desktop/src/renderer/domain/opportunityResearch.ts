@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Opportunity, PlatformId, Session } from "./models";
 import { explicitInstant } from "./opportunityLibrary";
 import { parseOpportunitySourceEvidence } from "./opportunitySourceEvidence";
+import {researchBindingSchema} from '../../shared/opportunityResearchApi';
 
 const id = z.string().trim().min(1).max(512);
 const text = z.string().trim().min(1).max(8000);
@@ -26,16 +27,7 @@ const accountScopeSchema = z
     version: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   })
   .strict();
-const bindingSchema = z
-  .object({
-    userId: id,
-    opportunityId: id,
-    profileVersionId: id,
-    sourceUrl: url,
-    evidenceVersion: id,
-    accountScope: accountScopeSchema,
-  })
-  .strict();
+const bindingSchema = researchBindingSchema;
 export type ResearchBinding = z.infer<typeof bindingSchema>;
 /** The scope must originate in the current authenticated Session, never a reply. */
 export function hasResearchScope(
@@ -122,7 +114,7 @@ const opportunitySchema = z
     intentStatus: id,
     comment: z.string().max(40000),
     dm: z.string().max(40000),
-    sourceEvidenceVersion: id,
+    sourceEvidenceVersion: id.optional(),
     sourceObservedAt: z.string().optional(),
     sample: z.literal(false).optional(),
     libraryFacts: z.unknown().optional(),
@@ -203,11 +195,18 @@ export function parseResearchCollection(
         invalid("原文证据响应不完整，请重新读取。");
       }
     }
-    const sourceKey = JSON.stringify([row.profileVersionId, row.url]);
+    // Different comments often share the post URL. Only a captured source
+    // identity or immutable version identifies evidence; legacy IDs do not.
+    const captured=row.sourceEvidence as Opportunity['sourceEvidence'];
+    const source=captured?.status==='CAPTURED'?captured.snapshot.source:null;
+    const sourceKey = JSON.stringify([row.profileVersionId, source
+      ? [source.platform,source.kind,source.external_source_id,source.external_comment_id,source.public_url]
+      : [row.url,row.sourceEvidenceVersion ?? row.id]]);
     if (row.id === "sample" || seen.has(row.id) || sources.has(sourceKey))
       invalid();
     seen.add(row.id);
     sources.add(sourceKey);
+    if(!row.sourceEvidenceVersion && (c.category!=='UNASSESSED'||c.evidence.length||c.review.status==='RECOGNIZED'))invalid();
     if (c.category !== "UNASSESSED" && !c.evidence.length) invalid();
     if (
       c.review.status === "RECOGNIZED" &&
@@ -230,7 +229,7 @@ const sourceVersionSchema = z
     ordinal: z.number().int().positive(),
     previousVersionId: id.nullable(),
     sourceUrl: url,
-    content: text,
+    content: z.string().min(1).max(40000).refine(value=>value.trim().length>0),
     publishedAt: instant.nullable(),
     observedAt: instant.nullable(),
     access: z.enum(["AVAILABLE", "FAILED", "UNKNOWN"]),

@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {suggestionPreviewRequestSchema,suggestionRequestSchema,suggestionReceiptRequestSchema} from '../shared/searchSuggestions';
 import {taskFeedQuerySchema,taskFeedGetSchema} from '../shared/taskFeed';
+import {researchTimelineRequestSchema,researchSimilarRequestSchema} from '../shared/opportunityResearchApi';
 import {prepareStrategySchema, confirmStrategySchema, revokeStrategySchema, strategyUuidSchema} from '../shared/researchStrategies';
 import {candidateBindingSchema, candidateQuerySchema, candidateReviewRequestSchema, sourceVerificationRequestSchema, candidateRequestIdSchema, type CandidateQueryInput} from '../shared/candidateReviewApi';
 import {materialImpactRequestSchema, materialListRequestSchema, materialMutationRequestSchema, materialOperationRequestSchema} from '../shared/materialsApi';
@@ -10,6 +11,9 @@ const identifier = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-][A-Za-z0-9_.:
 const text = z.string().max(8000).refine(value => value.trim().length > 0);
 const phone = z.string().length(11).regex(/^1[0-9]{10}$/);
 const schemas = {
+  'research.list': empty,
+  'research.timeline': researchTimelineRequestSchema,
+  'research.similar': researchSimilarRequestSchema,
   'suggestions.preview': suggestionPreviewRequestSchema,
   'suggestions.submit': suggestionRequestSchema,
   'suggestions.receipt': suggestionReceiptRequestSchema,
@@ -69,6 +73,9 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
   if (operation.startsWith('strategies.') && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 128 * 1024) return null;
   const data = parsed.data as Record<string, string> | undefined;
   switch (operation) {
+    case 'research.list': return {path:'/api/ui/opportunity-research',method:'GET',logout:false};
+    case 'research.timeline':
+    case 'research.similar': return {path:`/api/ui/opportunity-research/${operation.slice('research.'.length)}`,method:'POST',body:JSON.stringify(parsed.data),logout:false};
     case 'taskFeed.list': {
       const params=new URLSearchParams();
       for(const [key,value] of Object.entries(parsed.data!))params.set(key,String(value));
