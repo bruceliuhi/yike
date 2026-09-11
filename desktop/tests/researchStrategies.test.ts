@@ -78,6 +78,13 @@ function prepareRequest(): PrepareStrategyRequest {
   });
 }
 
+function origin() {
+  return {requestId:PREPARE_ID,suggestionId:`suggestion_${'e'.repeat(64)}`,userId:'user-1',
+    opportunityId:'opportunity-1',profileVersionId:PROFILE_ID,sourceUrl:'https://example.com/buyer',
+    evidenceVersion:'version-1',accountScope:{id:'tenant-1',version:1},
+    originalScope:'原始范围',additionalScope:'同类需求'};
+}
+
 /** Synthetic complete receipt fixture. Cross-language receipts belong to the live test. */
 function preparedReceipt(
   state: StrategyReceipt["state"] = "DRAFT",
@@ -156,6 +163,35 @@ function strategyView(): StrategyView {
 }
 
 describe("research strategy shared contract", () => {
+  it.each([false,true])('preserves similar-research origin through actual preparation and receipt parsing, public=%s',publicSource=>{
+    const source=draft();if(publicSource){source.platforms=['web'];source.source='search';source.links='';source.mode='once';}
+    source.research!.provenance=origin();const before=structuredClone(source);
+    const request=strategyPrepareRequest(source,PREPARE_ID,{max_records:250,max_runtime_seconds:900});
+    expect(request.configuration.research!.provenance).toEqual(origin());
+    const receipt=preparedReceipt();receipt.snapshot.configuration=request.configuration;receipt.snapshot.platforms=request.platforms;
+    expect(parseStrategyReceipt(receipt,request).snapshot.configuration.research!.provenance).toEqual(origin());
+    source.research!.provenance!.accountScope!.id='changed';
+    expect(request.configuration.research!.provenance!.accountScope.id).toBe('tenant-1');
+    expect(before.research!.provenance).toEqual(origin());
+  });
+
+  it('rejects mismatched or malformed origins without dropping their fields',()=>{
+    for(const change of [{accountScope:undefined},{accountScope:{id:'tenant-1',version:2}},
+      {profileVersionId:STRATEGY_ID},{requestId:'not-uuid'},{suggestionId:'invented'},
+      {sourceUrl:'https://name:password@example.com/buyer'},{extra:true},{originalScope:'bad\u0000'}]){
+      const source=draft();source.research!.provenance={...origin(),...change} as any;
+      expect(()=>strategyPrepareRequest(source,PREPARE_ID,{max_records:250,max_runtime_seconds:900})).toThrow();
+    }
+  });
+
+  it('omits absent provenance exactly and includes every origin field in the configuration',()=>{
+    const plain=prepareRequest();expect(plain.configuration.research).not.toHaveProperty('provenance');
+    for(const field of ['opportunityId','evidenceVersion','originalScope','additionalScope'] as const){
+      const source=draft();source.research!.provenance={...origin(),[field]:`${origin()[field]}-changed`};
+      const request=strategyPrepareRequest(source,PREPARE_ID,{max_records:250,max_runtime_seconds:900});
+      expect(request.configuration.research!.provenance![field]).toBe(`${origin()[field]}-changed`);
+    }
+  });
   it("accepts public domain names beginning with fc/fd without allowing private IPv6 literals", () => {
     const request = prepareRequest();
     for (const link of ["https://fc.example.com/a", "https://fd.example.com/a"]) {

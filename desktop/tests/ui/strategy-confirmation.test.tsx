@@ -125,6 +125,18 @@ async function confirmSnapshot() {
 }
 
 describe("TaskWizard strategy confirmation with the actual controller", () => {
+  it('prepares and confirms a similar-research origin while keeping research execution blocked',async()=>{
+    draft.research={version:1,demandTypes:['INQUIRY'],maxSoubei:100,limits:{sources:10,minutes:5,modelCalls:5},
+      stopAtAnyLimit:true,evidenceOrder:'SOURCE_MATCH_CONTEXT',provenance:{requestId:crypto.randomUUID(),
+       suggestionId:`suggestion_${'e'.repeat(64)}`,userId:context.session.userId!,opportunityId:'synthetic-opportunity',
+       profileVersionId:draft.profileId,sourceUrl:'https://example.com/buyer',evidenceVersion:'synthetic-evidence',
+       accountScope:{id:'synthetic-tenant',version:1},originalScope:'设备采购',additionalScope:'同类设备需求'}};
+    persistDraft();render(<TaskWizardPage/>);
+    await confirmSnapshot();
+    expect(fake.api.prepare.mock.calls[0][0].configuration.research!.provenance).toEqual(draft.research.provenance);
+    expect(context.service.startTask).not.toHaveBeenCalled();
+    expect(button('确认并启动').disabled).toBe(true);
+  });
   it('creates a native monitor only after strategy confirmation, without a once START', async()=>{
     const account='5cbef3a50000000016026b8f',device=crypto.randomUUID(),connection=crypto.randomUUID();
     draft={...draft,mode:'monitor',exclusions:[],links:'',accounts:{xhs:account},

@@ -14,6 +14,8 @@ PROFILE = "11111111-1111-4111-8111-111111111111"
 STRATEGY = "22222222-2222-4222-8222-222222222222"
 REQUEST = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 DRAFT = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+OPPORTUNITY = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+SUGGESTION = "suggestion_" + "d" * 64
 
 
 @pytest.fixture
@@ -34,6 +36,69 @@ def config():
                       limits=dict(sources=20, minutes=30, modelCalls=10),
                       stopAtAnyLimit=True, evidenceOrder="SOURCE_MATCH_CONTEXT"),
     )
+
+
+def provenance():
+    return dict(requestId=REQUEST, suggestionId=SUGGESTION, userId="user-1",
+                opportunityId=OPPORTUNITY, profileVersionId=PROFILE,
+                sourceUrl="https://example.com/公开需求", evidenceVersion="42",
+                accountScope={"id": "tenant-1", "version": 1},
+                originalScope="食品工厂输送设备", additionalScope="相似行业采购需求")
+
+
+def test_research_provenance_round_trips_and_legacy_remains_byte_compatible(contract):
+    legacy = contract.ResearchStrategyConfiguration.model_validate(config())
+    assert legacy.model_dump(mode="json") == config()
+    assert "provenance" not in legacy.model_dump(mode="json")["research"]
+    current = config()
+    current["research"]["provenance"] = provenance()
+    model = contract.ResearchStrategyConfiguration.model_validate(current)
+    assert model.model_dump(mode="json") == current
+    assert snapshot(contract, current)["configuration"]["research"]["provenance"] == provenance()
+    assert contract.ResearchStrategyConfiguration.model_validate(model).model_dump(mode="json") == current
+
+
+@pytest.mark.parametrize("change", [
+    {"missing": "requestId"}, {"extra": ("verified", True)},
+    {"set": ("requestId", "bad")}, {"set": ("suggestionId", "suggestion_" + "A" * 64)},
+    {"set": ("sourceUrl", "https://user:secret@example.com/a")},
+    {"set": ("originalScope", "bad\nvalue")}, {"set": ("accountScope", {"id": "tenant-1", "version": 2})},
+])
+def test_research_provenance_is_strict_and_complete(contract, change):
+    value = provenance()
+    if "missing" in change:
+        del value[change["missing"]]
+    elif "extra" in change:
+        value[change["extra"][0]] = change["extra"][1]
+    else:
+        value[change["set"][0]] = change["set"][1]
+    data = config()
+    data["research"]["provenance"] = value
+    with pytest.raises(ValidationError):
+        contract.ResearchStrategyConfiguration.model_validate(data)
+
+
+def test_research_provenance_explicit_null_is_rejected(contract):
+    data = config()
+    data["research"]["provenance"] = None
+    with pytest.raises(ValidationError):
+        contract.ResearchStrategyConfiguration.model_validate(data)
+
+
+def test_research_provenance_direct_model_injection_is_not_hidden(contract):
+    model = contract.ResearchStrategyConfiguration.model_validate(config())
+    vars(model.research)["provenance"] = {"verified": True}
+    assert "provenance" not in model.research.__pydantic_fields_set__
+    with pytest.raises(ValidationError):
+        contract.ResearchStrategyConfiguration.model_validate(model)
+
+
+def test_research_provenance_source_url_uses_2048_character_contract(contract):
+    data = config()
+    value = provenance()
+    value["sourceUrl"] = "https://example.com/" + "a" * 580
+    data["research"]["provenance"] = value
+    assert contract.ResearchStrategyConfiguration.model_validate(data).model_dump(mode="json") == data
 
 
 def schedule():

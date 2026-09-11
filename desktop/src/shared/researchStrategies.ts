@@ -189,6 +189,19 @@ const researchLimitsSchema = exactObject({
   minutes: boundedInteger(1_000_000),
   modelCalls: boundedInteger(1_000_000),
 });
+const researchOriginSchema = exactObject({
+  requestId: strategyUuidSchema,
+  suggestionId: z.string().regex(/^suggestion_[0-9a-f]{64}$/),
+  userId: boundedVisibleText(512),
+  opportunityId: boundedVisibleText(512),
+  profileVersionId: boundedVisibleText(512),
+  sourceUrl: boundedVisibleText(2048).refine(isPlainPublicUrl),
+  evidenceVersion: boundedVisibleText(512),
+  accountScope: exactObject({id:boundedVisibleText(512),version:z.literal(1)}),
+  // These labels retain the user's suggestion context; they are not source evidence.
+  originalScope: z.string().refine(value=>Array.from(value).length<=8000&&validUnicode(value)),
+  additionalScope: z.string().refine(value=>Array.from(value).length<=8000&&validUnicode(value)),
+});
 const researchSchema = exactObject({
   version: z.literal(1, { error: INVALID_STRATEGY_DATA }),
   demandTypes: z
@@ -207,6 +220,7 @@ const researchSchema = exactObject({
   evidenceOrder: z.literal("SOURCE_MATCH_CONTEXT", {
     error: INVALID_STRATEGY_DATA,
   }),
+  provenance: researchOriginSchema.optional(),
 });
 const termsSchema = z
   .array(boundedVisibleText(80), { error: INVALID_STRATEGY_DATA })

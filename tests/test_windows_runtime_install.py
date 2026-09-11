@@ -76,7 +76,7 @@ def install_fixture(tmp_path, monkeypatch):
     git.touch()
     uv.touch()
     state = SimpleNamespace(calls=[], checked=[], stages=[], failure=None, bad_probe=False, cancelled=False,
-                            version='0.11.6', wrong_source=False, acl_failure=False)
+                            version='0.11.6', wrong_source=False, acl_failure=False, changed='main.py\n')
     destination = tmp_path / '中文 runtime with spaces'
 
     def create(path):
@@ -102,7 +102,7 @@ def install_fixture(tmp_path, monkeypatch):
         if 'rev-parse' in command:
             output = '0' * 40 if state.wrong_source else module.PIN
         if '--name-only' in command:
-            output = 'main.py\n'
+            output = state.changed
         if 'sync' in command:
             python = destination / module.WINDOWS_PYTHON
             python.parent.mkdir(parents=True)
@@ -153,6 +153,37 @@ def test_frozen_copy_install_only_publishes_receipt_after_probes(install_fixture
     assert probe['env']['PATHEXT'] == '.EXE'
     assert Path(probe['env']['TEMP']).is_relative_to(destination)
     assert state.stages[-1] == 'INSTALLED_LOCAL_PROBE_ONLY'
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows provisioner')
+@pytest.mark.parametrize('tampered', [False, True])
+def test_governed_unchanged_file_is_still_hash_verified(install_fixture, tampered):
+    module, state, destination, install = install_fixture
+    lock_path = destination.parent / 'project/vendor/mediacrawler.lock'
+    lock = json.loads(lock_path.read_text())
+    # Current Zhihu governance also pins upstream files not changed by a patch.
+    lock['patched_files']['uv.lock'] = ('0' * 64 if tampered else
+                                      lock['runtime_environment']['lock_sha256'])
+    lock['patched_tree_sha256'] = module._signature(sorted(lock['patched_files'].items()))
+    lock_path.write_text(json.dumps(lock))
+    if tampered:
+        with pytest.raises(module.RuntimeInstallError, match='^patched_file_checksum_mismatch$'):
+            install()
+        assert not (destination / '.yike-windows-install.json').exists()
+        assert not any('sync' in command for command, _ in state.calls)
+    else:
+        assert install()['local_probe'] == 'PASSED'
+        assert (destination / '.yike-windows-install.json').is_file()
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows provisioner')
+def test_ungoverned_changed_file_is_rejected_before_dependencies(install_fixture):
+    module, state, destination, install = install_fixture
+    state.changed = 'main.py\nunapproved.py\n'
+    with pytest.raises(module.RuntimeInstallError, match='^patched_file_set_mismatch$'):
+        install()
+    assert not (destination / '.yike-windows-install.json').exists()
+    assert not any('sync' in command for command, _ in state.calls)
 
 
 @pytest.mark.skipif(os.name != 'nt', reason='Windows provisioner')

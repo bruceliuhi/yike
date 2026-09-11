@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+相似研究来源接续：18c37b7已补客户端真实草稿→策略PREPARE/CONFIRM的provenance合同及同事务来源资格；原机会撤销后拒绝继续采用，历史记录保留。[限定实施证据](superpowers/plans/2026-09-11-similar-research-provenance.md#实施证据)：客户端50项、Python合同205项、受限PG8项及tsc通过；906129f修复唯一审核P2，另6项错误映射通过，非作者整批GO。下段“来源仍拒绝”为本批之前的诊断，现仅coverageProvenance继续拒绝；research实际启动、可信估算/预留/计量仍未接，不解除保护、不关闭R4或Goal。
+
 研究启动接续：已核实相似/补查provenance仍被策略转换与服务端合同拒绝，不能当成已入确认快照；本机taskFingerprint又不含executionLimits，不能单独作为用量绑定。后续按[研究启动绑定设计](superpowers/specs/2026-09-11-research-runtime-binding-design.md)先补完整来源与服务端快照，再接估算、同事务预留/START和实际计量；不删除现有research启动保护，不设生产搜贝换算。核查中同时修复公开monitor草稿PREPARE阻断，`f3faebe`独立GO，[真实草稿链路证据](superpowers/plans/2026-09-11-public-community-monitor.md#后续真实草稿路径阻断修复)取代仅用现成策略的间接证据。完整Goal继续。
 
 部署更新：用户改用 `yike.tuokexing.net`，CodexWin已实际升级服务器至本轮最终冻结的 `66745ef` 并接通HTTPS，短句API修复及公开监控代码已入运行镜像，未自动打开新渠道。最终33项部署冒烟与62项监控差量验证通过；[唯一当前记录](qa/SERVER_137138_DEPLOYMENT.md)。不再重复旧“待服务器升级/域名未解析”准备；模型/短信、Windows新包与真实闭环仍待验，“多找类似”研究启动缺口仍按下段推进。

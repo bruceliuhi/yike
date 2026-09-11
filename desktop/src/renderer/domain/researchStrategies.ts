@@ -47,13 +47,12 @@ export function strategyPrepareRequest(
     if (industryStrategyError(draft)) throw new Error(INVALID_DRAFT);
     const publicSource = draft.platforms.includes('web');
     if (publicSource && ((draft.mode !== 'once' && !(draft.mode === 'monitor' && draft.schedule.policyVersion === 1)) ||
-        draft.source !== 'search' || draft.links.trim() || draft.research))
+        draft.source !== 'search' || draft.links.trim()))
       throw new Error(INVALID_DRAFT);
-    if (
-      draft.research !== undefined &&
-        (owns(draft.research, "provenance") ||
-          owns(draft.research, "coverageProvenance"))
-    )
+    if (draft.research !== undefined &&
+        (owns(draft.research, "coverageProvenance") ||
+          (owns(draft.research, "provenance") &&
+           draft.research.provenance?.profileVersionId !== draft.profileId)))
       throw new Error(INVALID_DRAFT);
     const research = draft.research
       ? {
@@ -67,6 +66,7 @@ export function strategyPrepareRequest(
           },
           stopAtAnyLimit: draft.research.stopAtAnyLimit,
           evidenceOrder: draft.research.evidenceOrder,
+          ...(owns(draft.research, 'provenance') ? {provenance:structuredClone(draft.research.provenance)} : {}),
         }
       : null;
     return prepareStrategySchema.parse({
