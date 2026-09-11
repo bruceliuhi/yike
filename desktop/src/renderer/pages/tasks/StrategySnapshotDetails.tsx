@@ -41,7 +41,7 @@ export function StrategySnapshotDetails({ receipt }: { receipt: StrategyReceipt 
         <p>{config.industryStrategy.sourceTypes.map(type=>industrySourceLabels[type]).join('、')}</p>
         <p>购买信号</p><ul>{config.industryStrategy.intentSignals.map(value=><li key={value}>{value}</li>)}</ul>
         <p>排除反例</p><ul>{config.industryStrategy.counterSignals.map(value=><li key={value}>{value}</li>)}</ul>
-        <p>已绑定本次任务快照，尚未用于自动评分或内容筛选；不代表已发现买方事实。</p>
+        <p>已绑定本次任务快照，发起候选AI判断时作为研究条件使用，不自动过滤采集内容；不代表已发现买方事实，旧历史判断不会自动重跑。</p>
       </dd></div>}
       <div><dt>执行时长上限</dt><dd>{snapshot.max_runtime_seconds} 秒</dd></div>
       <div><dt>策略标识</dt><dd>{snapshot.strategy_version_id}</dd></div>

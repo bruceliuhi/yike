@@ -59,7 +59,7 @@ it('displays the final server snapshot rules without claiming automatic scoring'
     configuration_sha256:'b'.repeat(64),request_id:id,state:'DRAFT',recorded_at:'2026-09-11T00:00:00Z',
     snapshot:{...request,configuration:{...request.configuration,industryStrategy:config},strategy_version_id:id}} as unknown as StrategyReceipt}/>);
   expect(screen.getByText('正在选供应商')).toBeTruthy();
-  expect(screen.getByText(/尚未用于自动评分或内容筛选/)).toBeTruthy();
+  expect(screen.getByText(/发起候选AI判断时作为研究条件使用/)).toBeTruthy();
 });
 
 it('rechecks the original receipt before separately adopting strategy and keeps keyword adoption available',async()=>{

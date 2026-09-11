@@ -24,6 +24,7 @@
 ```python
 def assess(self, *, description: str, content: dict, industry_strategy: dict | None = None): ...
 industry_strategy_version = 'industry-task-strategy-v1' # 当前适配器声明其理解能力
+rule_version = 'candidate-assessment-v1/ai-project-lead-research-1.0.0/industry-task-strategy-v1'
 ```
 strategy内容严格复用已存在的IndustryTaskStrategy格式（version/sourceTypes/intentSignals/counterSignals），不要再定义平行宽松schema。模型输入新键为industry_strategy；仅存在有效策略时加，旧无策略不发null。固定worker允许旧精确键集合或加一个industry_strategy键；未知/空null/无效策略在网络前拒绝。HTTP用户消息中的行业策略是分析条件而非指令，结果的引用field枚举不变。
 
@@ -35,7 +36,7 @@ strategy内容严格复用已存在的IndustryTaskStrategy格式（version/sourc
 
 ### Task 2: 客户端使用说明（root）
 
-**Files:** desktop/src/renderer/pages/Opportunities.tsx、tasks/IndustryTaskStrategyEditor.tsx、tasks/StrategySnapshotDetails.tsx；desktop/tests/ui/industry-task-strategy.test.tsx（更新状态期望），必要新增短文案组件与定向render测试。
+**Files:** desktop/src/renderer/pages/Opportunities.tsx、tasks/IndustryTaskStrategyEditor.tsx、tasks/StrategySnapshotDetails.tsx；desktop/tests/ui/industry-task-strategy.test.tsx（更新状态期望）、candidate-live-review.test.tsx（原不隐式调用用例补披露断言）；复用页面，不新增组件。
 
 - [ ] 候选判断按钮附近说明：点击会把当前候选所属任务已确认的行业规则（如有）、画像和候选原文发给配置模型；不会自动联系。重试仍沿用原确认/核对链，不新增自动分析。
 - [ ] 行业编辑/快照说明改为“发起候选AI判断时作为研究条件使用，不自动过滤采集内容”；不能说已有线索提升或每条旧历史结果已用新策略。

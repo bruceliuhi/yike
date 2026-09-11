@@ -11,7 +11,7 @@ export function IndustryTaskStrategyEditor({value,profileId,onChange}:{
   };
   return <section className="form-section" aria-label="本任务行业策略">
     <h2>本任务行业策略</h2>
-    <p className="field-hint">保存研究方向，随最终任务快照确认；尚未用于自动评分或内容筛选。内容方向不代表平台权限或已发现需求。</p>
+    <p className="field-hint">保存研究方向，随最终任务快照确认；发起候选AI判断时作为研究条件使用，不自动过滤采集内容。内容方向不代表平台权限或已发现需求。</p>
     {!config?<><p>可先生成建议并单独采用，也可以手动设置；留空不影响原搜索条件。</p>
       <Button disabled={!profileId} onClick={()=>onChange({profileId,configuration:{version:'industry-task-strategy-v1',
         sourceTypes:['SOCIAL_POST','COMMENT'],intentSignals:[''],counterSignals:[]}})}>手动设置行业策略</Button></>:<>

@@ -215,6 +215,7 @@ async function ready() {
 it("selects the bound profile and reads full original evidence without an implicit model call", async () => {
   const { transport, raw } = mount();
   await ready();
+  expect(screen.getByText(/该候选所属任务已确认的行业策略/)).toBeTruthy();
   expect(
     (
       screen.getByRole("combobox", {
