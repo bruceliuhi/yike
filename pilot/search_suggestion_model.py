@@ -16,7 +16,8 @@ from typing import Annotated, ClassVar, Literal, Protocol, Self
 from urllib.parse import urlsplit
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import (BaseModel, ConfigDict, Field, ValidationError, field_validator,
+                      model_serializer, model_validator)
 
 
 RULE_VERSION = "search-suggestion-v1"
@@ -104,6 +105,13 @@ class SuggestionContent(BaseModel):
         description="Exact nonempty quotes copied verbatim from the confirmed description.")]
     unknowns: Annotated[list[Quote], Field(max_length=8)]
     strategy: IndustrySearchStrategy | None = None
+
+    @model_serializer(mode="wrap")
+    def omit_absent_legacy_strategy(self, handler):
+        serialized = handler(self)
+        if "strategy" not in self.model_fields_set:
+            serialized.pop("strategy", None)
+        return serialized
 
     @field_validator("strategy")
     @classmethod

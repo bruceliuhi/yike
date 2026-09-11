@@ -30,6 +30,14 @@ def content():
     }
 
 
+def adapter_content():
+    return content() | {"strategy": {
+        "version": "industry-search-strategy-v1", "buyerRole": None, "salesMotion": None,
+        "sourceTypes": ["PROCUREMENT"], "intentSignals": ["正在寻找设备供应商"],
+        "counterSignals": ["同行服务广告"], "basis": ["食品工厂"],
+    }}
+
+
 def test_module_exists_with_versioned_public_contract():
     implementation = module()
     assert implementation.RULE_VERSION == "search-suggestion-v1"
@@ -181,7 +189,7 @@ def envelope(payload=None, *, usage=None):
     return {
         "id": "synthetic-response", "object": "chat.completion", "model": "provider-details-ignored",
         "choices": [{"index": 0, "finish_reason": "stop", "message": {
-            "role": "assistant", "content": json.dumps(content() if payload is None else payload, ensure_ascii=False),
+            "role": "assistant", "content": json.dumps(adapter_content() if payload is None else payload, ensure_ascii=False),
             "refusal": None,
         }}],
         "usage": usage,
@@ -222,9 +230,13 @@ def test_adapter_sends_each_industry_description_as_data_with_fixed_request_cont
         "keywords": ["门店库存管理系统 寻找服务商"], "exclusions": ["求职"],
         "rationale": "根据库存软件和集成能力，建议寻找采购需求。",
         "evidence": ["小型零售门店", "库存软件与报表集成"], "unknowns": ["未说明服务地域"],
+        "strategy": {"version": "industry-search-strategy-v1", "buyerRole": None,
+            "salesMotion": None, "sourceTypes": ["SOCIAL_POST"],
+            "intentSignals": ["正在寻找库存软件服务商"], "counterSignals": ["软件求职"],
+            "basis": ["小型零售门店", "库存软件与报表集成"]},
     }
     descriptions = [DESCRIPTION, software_description]
-    payloads = [content(), software_payload]
+    payloads = [adapter_content(), software_payload]
     requests = []
 
     def handle(request):
@@ -241,7 +253,7 @@ def test_adapter_sends_each_industry_description_as_data_with_fixed_request_cont
         strict_schema = body["response_format"]["json_schema"]
         assert strict_schema["strict"] is True
         assert strict_schema["schema"]["additionalProperties"] is False
-        assert set(strict_schema["schema"]["required"]) == set(content())
+        assert set(strict_schema["schema"]["required"]) == set(adapter_content())
         messages = body["messages"]
         assert [message["role"] for message in messages] == ["system", "user"]
         assert descriptions[index] not in messages[0]["content"]
@@ -397,7 +409,7 @@ def test_provider_reported_zero_usage_is_not_invented():
 def test_response_size_boundary_accepts_exactly_256_kib():
     body = json.dumps(envelope(), ensure_ascii=False).encode("utf-8")
     body += b" " * (256 * 1024 - len(body))
-    assert run_response(httpx.Response(200, content=body))[0].model_dump() == content()
+    assert run_response(httpx.Response(200, content=body))[0].model_dump() == adapter_content()
 
 
 def test_response_limit_applies_while_stream_is_read_without_content_length():
