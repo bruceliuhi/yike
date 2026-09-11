@@ -11,6 +11,7 @@ current author's own text. The model intentionally receives no raw kind or IDs.
 from __future__ import annotations
 
 import asyncio
+import copy
 import hashlib
 import ipaddress
 import json
@@ -23,6 +24,7 @@ import time
 import unicodedata
 from contextlib import nullcontext
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from importlib.resources import files
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal, Protocol
@@ -310,6 +312,7 @@ production shortcut: that in-process path cannot interrupt native OS DNS.
     rule_version: str = field(init=False)
     rule_sha256: str = field(init=False)
     _system_prompt: str = field(init=False, repr=False)
+    _invocation_deadline_monotonic: float | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         valid = False
@@ -368,9 +371,22 @@ production shortcut: that in-process path cannot interrupt native OS DNS.
         return self._assess_in_child(description=description, content=content,
                                      industry_strategy=industry_strategy)
 
+    def assess_before(self, deadline: datetime, **kwargs) -> tuple[AssessmentContent, dict | None]:
+        """Assess with a per-invocation timeout bounded by a trusted permit."""
+        if not isinstance(deadline, datetime) or deadline.tzinfo is None or deadline.utcoffset() is None:
+            raise AssessmentModelError("assessment_result_unknown", 504)
+        remaining = (deadline.astimezone(UTC) - datetime.now(UTC)).total_seconds()
+        if remaining <= 0:
+            raise AssessmentModelError("assessment_result_unknown", 504)
+        invocation = copy.copy(self)
+        object.__setattr__(invocation, "timeout_seconds", min(self.timeout_seconds, remaining))
+        object.__setattr__(invocation, "_invocation_deadline_monotonic", time.monotonic() + remaining)
+        return invocation.assess(**kwargs)
+
     def _assess_in_child(self, *, description: str, content: dict,
                          industry_strategy: dict | None = None) -> tuple[AssessmentContent, dict | None]:
-        deadline = time.monotonic() + self.timeout_seconds
+        deadline = min(time.monotonic() + self.timeout_seconds,
+            self._invocation_deadline_monotonic or float("inf"))
         request = {"base_url": self.base_url, "api_key": self.api_key, "model": self.model,
             "timeout_seconds": self.timeout_seconds, "description": description, "content": content,
             "rule_version": self.rule_version, "rule_sha256": self.rule_sha256}
@@ -431,7 +447,8 @@ production shortcut: that in-process path cannot interrupt native OS DNS.
         return asyncio.run(self._request(body, description=description, content=content))
 
     async def _request(self, body: dict, *, description: str, content: dict) -> tuple[AssessmentContent, dict | None]:
-        deadline = asyncio.get_running_loop().time() + self.timeout_seconds
+        deadline = min(asyncio.get_running_loop().time() + self.timeout_seconds,
+            self._invocation_deadline_monotonic or float("inf"))
         error = "assessment_result_unknown"
         result = None
         try:

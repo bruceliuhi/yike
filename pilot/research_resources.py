@@ -57,7 +57,8 @@ class ResearchResourceStore:
         return rows, tuple(runtime._target(dict(platform=row[0], access_mode=row[1],
             connection_id=row[2], connection_version=row[3])) for row in rows)
 
-    def begin(self, claims, *, task_id, run_id, action_id, resource, input_sha256):
+    def begin(self, claims, *, task_id, run_id, action_id, resource, input_sha256,
+              _admission=None):
         task_id, run_id, action_id = map(canonical_uuid, (task_id, run_id, action_id))
         if type(resource) is not str or resource not in _RESOURCES:
             raise ExecutionRuntimeError("invalid_request", 422)
@@ -114,6 +115,20 @@ class ResearchResourceStore:
                 now, deadline = cursor.fetchone()
                 if now >= deadline:
                     raise ExecutionRuntimeError("task_unavailable", 409)
+                if _admission is not None:
+                    if not callable(_admission):
+                        raise ExecutionRuntimeError("invalid_request", 422)
+                    try:
+                        admitted = _admission(cursor, tenant, dict(task_id=task_id, run_id=run_id,
+                            action_id=action_id, resource=resource, input_sha256=input_sha256,
+                            reservation_id=str(reservation[0]), deadline=deadline,
+                            strategy_snapshot=json.loads(json.dumps(snapshot))))
+                    except ExecutionRuntimeError:
+                        raise
+                    except Exception:
+                        raise ExecutionRuntimeError("resource_unavailable", 503) from None
+                    if admitted is not True:
+                        raise ExecutionRuntimeError("request_conflict", 409)
                 cursor.execute("SELECT count(*) FROM pilot_research_resource_events WHERE tenant_id=%s "
                     "AND owner_user_id=%s AND reservation_id=%s AND resource=%s",
                     (tenant, claims.user_id, reservation[0], resource))

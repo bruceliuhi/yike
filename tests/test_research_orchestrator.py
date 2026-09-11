@@ -48,7 +48,8 @@ def setup_sequence(count=2):
     def assess(_claims, payload, **origin):
         effects.append((deepcopy(payload), origin))
         result = dict(kind='assessment', requestId=payload['requestId'], candidateId=payload['candidateId'],
-            assessment={'id': str(uuid4()), 'sendingAuthorized': False, 'effectiveDecision': 'REVIEW'})
+            assessment={'id': str(uuid4()), 'sendingAuthorized': False, 'effectiveDecision': 'REVIEW',
+                **{key:payload[key] for key in ('candidateId','candidateRevision','sourceVersionId','profileId')}})
         requests[payload['requestId']] = result
         return result
 
@@ -145,3 +146,13 @@ def test_other_run_and_platform_are_denied_before_read():
     env.task_value['platform_runs'].append({'platform':'XIAOHONGSHU'})
     with pytest.raises(ExecutionRuntimeError): env.execute()
     assert not env.reads
+
+
+def test_unrelated_prior_request_cannot_count_as_this_receipts_analysis():
+    env = setup_sequence(1)
+    env.execute()
+    next(iter(env.requests.values()))['assessment']['sourceVersionId'] = str(uuid4())
+    result = env.execute()
+    assert result['phase'] == 'STOPPED'
+    assert result['analyzed_originals'] == 0
+    assert result['stop_code'] == 'request_conflict'

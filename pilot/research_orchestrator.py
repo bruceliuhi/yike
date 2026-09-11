@@ -53,10 +53,16 @@ class ResearchOrchestrator:
                         continue
                     review = self.reviews.assess_research(claims, payload, task_id=task_id,
                         run_id=run_id, observation_id=item['observation_id'])
-                result['review_results'].append(review)
                 if review['kind'] != 'assessment':
+                    result['review_results'].append(review)
                     result.update(phase='STOPPED', stop_code='assessment_not_ready')
                     return result
+                expected_binding = dict(candidateId=item['candidate_id'], candidateRevision=item['revision'],
+                    sourceVersionId=item['version_id'], profileId=task['profile_version_id'])
+                if (review.get('requestId') != request_id or review.get('candidateId') != item['candidate_id']
+                        or any(review['assessment'].get(key) != value for key, value in expected_binding.items())):
+                    raise ExecutionRuntimeError('request_conflict', 409)
+                result['review_results'].append(review)
                 result['analyzed_originals'] += 1
             except (CandidateIngestionError, ExecutionRuntimeError) as error:
                 # A revoked caller must not receive even earlier partial data.

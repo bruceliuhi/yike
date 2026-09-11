@@ -7,11 +7,14 @@ from pilot.execution_contract import ExecutionRuntimeError, canonical_uuid
 
 
 def run_resource(store, claims, *, task_id, run_id, action_id, resource, input_sha256, action,
-                 on_success=None):
+                 on_success=None, _admission=None):
     if not callable(action) or (on_success is not None and not callable(on_success)):
         raise ExecutionRuntimeError('invalid_request', 422)
     binding = dict(task_id=task_id, run_id=run_id, action_id=action_id)
-    admitted = store.begin(claims, **binding, resource=resource, input_sha256=input_sha256)
+    begin_kwargs = dict(**binding, resource=resource, input_sha256=input_sha256)
+    if _admission is not None:
+        begin_kwargs['_admission'] = _admission
+    admitted = store.begin(claims, **begin_kwargs)
     event = admitted['event']
     if (type(admitted['created']) is not bool
             or any(event.get(key) != value for key, value in binding.items())

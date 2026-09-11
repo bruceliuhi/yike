@@ -13,6 +13,7 @@ from pilot.candidate_assessment_model import AssessmentModelError, validate_asse
 from pilot.candidate_review_contract import CandidateReviewError, binding, validate_payload
 from pilot.execution_runtime import ConfirmedExecutionStrategy
 from pilot.execution_contract import ExecutionRuntimeError
+from pilot.execution_contract import canonical_uuid
 from pilot.opportunity_evidence import build_evidence, canonical_json, evidence_digest
 from pilot.store import PilotStore
 from pilot.research_strategy_contract import IndustryTaskStrategy
@@ -40,14 +41,20 @@ def _strategy_error(error):
     return CandidateReviewError('strategy_conflict',409)
 
 
+def _research_matches(captured, expected):
+    return type(captured) is dict and all(captured.get(key) == value for key, value in expected.items())
+
+
 class CandidateReviewStore(CandidateIngestionStore):
     def __init__(self, database, *, model=None, strategy_resolver=None,
-                 strategy_snapshot_reader=None, max_daily_calls=20):
+                 strategy_snapshot_reader=None, max_daily_calls=20,
+                 research_assessment=None):
         super().__init__(database)
         if type(max_daily_calls) is not int or not 1 <= max_daily_calls <= 10000:
             raise ValueError('invalid assessment quota')
         self.model, self.strategy_resolver = model, strategy_resolver
         self.strategy_snapshot_reader = strategy_snapshot_reader
+        self.research_assessment = research_assessment
         self.max_daily_calls = max_daily_calls
 
     def _request(self, cursor, tenant, user, request_id):
@@ -74,13 +81,16 @@ class CandidateReviewStore(CandidateIngestionStore):
             self._active(cursor,claims)
             return result
 
-    def _replay(self, cursor, tenant, claims, request, payload):
+    def _replay(self, cursor, tenant, claims, request, payload, *, expected_research=None):
         _lock(cursor,11301,[tenant,claims.user_id,request.requestId])
         # Waiting for another attempt must not let an expired session replay data.
         self._active(cursor,claims)
         previous = self._request(cursor,tenant,claims.user_id,request.requestId)
         if previous:
             if previous['fingerprint'] != _hash(payload): raise CandidateReviewError('request_conflict',409)
+            if expected_research is not None and not _research_matches(
+                    previous['snapshot'].get('research'), expected_research):
+                raise CandidateReviewError('candidate_conflict',409)
             result = self._result(cursor,previous)
             self._active(cursor,claims)
             return result
@@ -115,11 +125,13 @@ class CandidateReviewStore(CandidateIngestionStore):
         raw = _primitive(_row(cursor))
         current = dict(candidateId=raw['candidate_id'],candidateRevision=raw['revision'],sourceVersionId=raw['version_id'],profileId=raw['profile_version_id'],profileVersion=version)
         if binding(request)!=current or raw['ambiguous']: raise CandidateReviewError('candidate_conflict',409)
-        cursor.execute('''SELECT t.configuration_sha256,t.configuration_snapshot FROM pilot_candidate_observations o
+        cursor.execute('''SELECT t.configuration_sha256,t.configuration_snapshot,b.task_id,b.run_id,
+                o.observation_id,b.request_id,b.execution_context
+            FROM pilot_candidate_observations o
             JOIN pilot_candidate_batches b USING(tenant_id,owner_user_id,platform_run_id,request_id)
             JOIN pilot_collection_tasks t USING(tenant_id,owner_user_id,task_id)
             WHERE o.tenant_id=%s AND o.owner_user_id=%s AND o.observation_id=%s''', (tenant,claims.user_id,raw['current_observation_id']))
-        stored_hash, stored_strategy = cursor.fetchone()
+        stored_hash, stored_strategy, task_id, run_id, observation_id, source_action_id, execution_context = cursor.fetchone()
         if strategy is not None:
             snapshot = asdict(strategy)
             declared_hash = snapshot.pop('configuration_sha256')
@@ -136,8 +148,15 @@ class CandidateReviewStore(CandidateIngestionStore):
             content['title'] = None
             content['parent'] = dict(title=body['title'],body=(body.get('parent') or {}).get('body'))
         self._active(cursor,claims)
-        return dict(binding=current, raw=raw, description=profile.get('description'), content=content,
-                    strategy=stored_strategy, strategyHash=stored_hash)
+        captured = dict(binding=current, raw=raw, description=profile.get('description'), content=content,
+                        strategy=stored_strategy, strategyHash=stored_hash)
+        if type(stored_strategy.get('configuration', {}).get('research')) is dict:
+            if type(execution_context) is not dict or execution_context.get('kind') != 'research-resource-v1':
+                raise CandidateReviewError('candidate_conflict',409)
+            captured['research'] = dict(taskId=str(task_id), runId=str(run_id),
+                observationId=str(observation_id), sourceActionId=str(source_action_id),
+                ownerUserId=claims.user_id, context=execution_context)
+        return captured
 
     def _insert_request(self, cursor, tenant, claims, request, payload, snapshot, result, *, action,
                         status='SUCCEEDED', snapshot_key=None, invocation_id=None, attempt=0, now=None):
@@ -155,7 +174,8 @@ class CandidateReviewStore(CandidateIngestionStore):
             with self.database.connect() as connection, connection.cursor() as cursor:
                 tenant = self._active(cursor, claims)
                 current = self._capture(cursor, tenant, claims, request, require_material_references=True)
-                if any(current[key] != snapshot[key] for key in ('binding','description','content','strategy')):
+                keys = ('binding','description','content','strategy') + (('research',) if 'research' in snapshot else ())
+                if any(current[key] != snapshot[key] for key in keys):
                     raise CandidateReviewError('candidate_conflict',409)
                 self._active(cursor, claims)
         except CandidateReviewError:
@@ -175,14 +195,33 @@ class CandidateReviewStore(CandidateIngestionStore):
         if request.action=='ASSESS': return self._assess(claims,request,payload)
         return self._decide(claims,request,payload)
 
-    def _assess(self, claims, request, payload):
+    def assess_research(self, claims, payload, *, task_id, run_id, observation_id):
+        request = validate_payload(payload)
+        if request.action != 'ASSESS':
+            raise CandidateReviewError('invalid_request',422)
+        try:
+            expected = dict(taskId=canonical_uuid(task_id), runId=canonical_uuid(run_id),
+                observationId=canonical_uuid(observation_id), ownerUserId=claims.user_id)
+        except ExecutionRuntimeError:
+            raise CandidateReviewError('invalid_request',422) from None
+        return self._assess(claims, request, payload, expected_research=expected)
+
+    def _assess(self, claims, request, payload, *, expected_research=None):
         model = self.model
         with self.database.connect() as connection, connection.cursor() as cursor:
             tenant = self._active(cursor,claims)
-            previous = self._replay(cursor,tenant,claims,request,payload)
+            previous = self._replay(cursor,tenant,claims,request,payload,
+                                    expected_research=expected_research)
             if previous is not None: return previous
             if model is None: raise CandidateReviewError('capability_unavailable',501)
             snapshot = self._capture(cursor,tenant,claims,request,require_material_references=True)
+            if expected_research is not None and 'research' not in snapshot:
+                raise CandidateReviewError('candidate_conflict',409)
+            if 'research' in snapshot:
+                if (self.research_assessment is None or expected_research is None
+                        or not _research_matches(snapshot['research'], expected_research)):
+                    raise CandidateReviewError('capability_unavailable' if self.research_assessment is None
+                                               else 'candidate_conflict', 501 if self.research_assessment is None else 409)
             try:
                 validate_assessment_input(description=snapshot['description'],content=snapshot['content'])
                 metadata = {name:getattr(model,name) for name in ('provider','model','rule_version','rule_sha256')}
@@ -192,6 +231,8 @@ class CandidateReviewStore(CandidateIngestionStore):
                 industry_strategy = None if raw_industry_strategy is None else IndustryTaskStrategy.model_validate(
                     raw_industry_strategy).model_dump(mode='json')
                 if industry_strategy is not None and getattr(model,'industry_strategy_version',None)!=industry_strategy['version']:
+                    raise ValueError
+                if 'research' in snapshot and not callable(getattr(model,'assess_before',None)):
                     raise ValueError
             except (AssessmentModelError,AttributeError,ValidationError,TypeError,ValueError):
                 raise CandidateReviewError('assessment_unavailable',503) from None
@@ -229,7 +270,10 @@ class CandidateReviewStore(CandidateIngestionStore):
                 WHERE pilot_candidate_call_quota.reserved_calls<%s RETURNING reserved_calls''', (tenant,day,self.max_daily_calls))
             if cursor.fetchone() is None: raise CandidateReviewError('assessment_quota_exhausted',429)
             result = dict(kind='pending',requestId=request.requestId,candidateId=request.candidateId,status='PROCESSING')
-            self._insert_request(cursor,tenant,claims,request,payload,snapshot,result,action='ASSESS',status='PROCESSING',snapshot_key=snapshot_key,attempt=attempt)
+            reserved_at = _now(cursor)
+            review_deadline = reserved_at + timedelta(seconds=90)
+            self._insert_request(cursor,tenant,claims,request,payload,snapshot,result,action='ASSESS',
+                                 status='PROCESSING',snapshot_key=snapshot_key,attempt=attempt,now=reserved_at)
             self._active(cursor,claims)
         # Reservation is committed before crossing the only model/network boundary.
         self._prepare_assessment_dispatch(claims, request, snapshot)
@@ -238,7 +282,11 @@ class CandidateReviewStore(CandidateIngestionStore):
             kwargs = dict(description=snapshot['description'],content=deepcopy(snapshot['content']))
             if industry_strategy is not None:
                 kwargs['industry_strategy'] = deepcopy(industry_strategy)
-            value, usage = model.assess(**kwargs)
+            if 'research' in snapshot:
+                value, usage = self.research_assessment.assess(
+                    claims, request, snapshot, model, review_deadline=review_deadline, **kwargs)
+            else:
+                value, usage = model.assess(**kwargs)
             value = value.model_dump() if hasattr(value,'model_dump') else value
             content = validate_assessment(value,description=snapshot['description'],content=snapshot['content']).model_dump()
         except AssessmentModelError as error:
@@ -250,7 +298,8 @@ class CandidateReviewStore(CandidateIngestionStore):
                 tenant = self._active(cursor,claims)
                 _lock(cursor,11301,[tenant,claims.user_id,request.requestId])
                 current = self._capture(cursor,tenant,claims,request,require_material_references=True)
-                if any(current[key]!=snapshot[key] for key in ('binding','description','content','strategy')):
+                keys = ('binding','description','content','strategy') + (('research',) if 'research' in snapshot else ())
+                if any(current[key]!=snapshot[key] for key in keys):
                     raise CandidateReviewError('candidate_conflict',409)
                 row = self._request(cursor,tenant,claims.user_id,request.requestId)
                 if row['status']!='PROCESSING': return self._result(cursor,row)
