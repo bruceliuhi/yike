@@ -44,3 +44,13 @@ generate POST `/short-coach/generate` 请求同CoachInput加 `disclosure:{accept
 ## Task 3: 收尾
 
 - [ ] 整批独立review＋修复差量；唯一证据更新本计划/合同/任务书，正常推送main、核对SHA、清理本轮临时资源。完整Goal不以此片完成。
+
+## 实施与验证
+
+2026-09-11 实现已落地：后端 `5b150cc` / `d42348a` / `c56def5`，普通客户端与runtime `1610eac`，审核修复 `2519ac8`。上方条目是原计划，不作为额外重跑清单；本节为实际接收记录。
+
+- 已接完整输入预览和显式模型确认，普通IPC/HTTP生成、原请求去重、UTF-16原文引用、人工比较采用。迁移130及最小授权见部署说明。无模型返回不可用，不构造假建议；PROCESSING不自动重发，进程退出不会永久封锁租户的新请求。
+- 界面/adapter先RED后 `37 passed`（仅两文件）；类型检查通过。后台专项 `9 passed`，包含受限PG原纳入链、跨owner限额、毫秒时间和受控模型字段；不是实际模型质量验收。
+- 普通Node客户端→真实HTTP/runtime→受限PG→合成模型：`tests/test_short_coach_client_postgres.py` 两项通过，内层Node一项实际运行未跳过，确认同请求重放仅一次模型调用。初跑暴露响应微秒时间不兼容，改为毫秒后通过。模型、来源均合成，不代表真实平台或业务线索。
+- 一次renderer构建通过（483ms），没有重打Windows/Electron包或跑全量。独立整批审核发现一个P1：reserve事务提交异常漏进程锁；`2519ac8`以外层资源清理覆盖提交及生成，专项故障注入 `1 passed, 2 deselected`，不因提交结果未知调用模型。
+- 独立审核对 `2519ac8` 差量复核GO，无未关闭Critical/Important/Minor。尚未实际外发模型、自动发送、部署或完成Windows/客户UAT；完整V0.2 Goal继续ACTIVE。此批不证明内容质量、回复率或商业可售。

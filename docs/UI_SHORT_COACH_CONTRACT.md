@@ -1,6 +1,6 @@
 # P12 短句教练与草稿保存交接合同
 
-适用 R4 前端。普通客户端 `contactDrafts` 已接真实认证HTTP保存/查询，版本与限定证据见[客户端接入记录](superpowers/plans/2026-09-11-contact-draft-client.md)；`shortCoach` 模型服务仍未接通，不代表平台发送或生产上线。缺少结构化生成服务时明确提示未接通，既有 `generateContact(): Promise<string>` 生成路径保留，但其结果不会被包装成已核验证据。
+适用 R4 前端。普通客户端 `contactDrafts` 已接真实认证HTTP保存/查询，见[客户端接入记录](superpowers/plans/2026-09-11-contact-draft-client.md)。`shortCoach` 已接配置模型适配器、预览确认及结构化建议，限定验证见[接入记录](superpowers/plans/2026-09-11-short-coach-service.md#实施与验证)；未配置模型仍明确不可用，不代表已调用真实模型、平台发送或生产上线。既有 `generateContact(): Promise<string>` 路径保留，但其结果不会被包装成已核验证据。
 
 ## 实现入口
 
@@ -10,6 +10,8 @@
 - 请求生命周期：[useShortCoach](../desktop/src/renderer/pages/outreach/useShortCoach.ts)、[useContactDraftSave](../desktop/src/renderer/pages/outreach/useContactDraftSave.ts)。
 
 ## 生成与应用
+
+普通服务先 `preview(input)` 返回原输入摘要及实际模型标识，界面展示完整公开原文、当前人工草稿与模型名称；明确确认后以同一请求加 `disclosure` 调用生成。服务端核对已保存原文、画像及来源当前状态，只把原文/草稿/channel/purpose交给模型，不带账号、收件对象或资料库。取消停止客户端等待，不自动重试；同原请求最多调用一次，重放只返回旧结果或明确状态。安全上限为每租户UTC自然日50次新调用，失败计入，不是价格或搜贝。建议有效期5分钟，承诺仍需人工复核。
 
 `generate({binding, content, sourceText}, signal?)` 返回结构化 `CoachSuggestion`。`binding` 必须原样对应当前客户空间 ID/版本、请求 ID、商机、已确认画像版本、来源证据版本/URL/观察时间、评论或私信用途、草稿版本与 SHA-256、教练目的。
 
