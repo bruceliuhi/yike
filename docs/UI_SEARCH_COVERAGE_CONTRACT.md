@@ -4,6 +4,8 @@
 
 ## 接入与身份
 
+2026-09-11 接线边界：普通客户端及真实采集任务详情已接现有运行、上传观察与原文版本的只读服务，版本和审核见[唯一实施记录](superpowers/plans/2026-09-11-search-coverage-service.md#实施与验证)。当前方向是每个平台的已确认关键词集合，不宣称逐关键词/页码已经穷尽。窗口为任务授权创建/截止区间，不是实际在线时长；原内容计数仅含持久上传观察，重复项指同来源重复观察（含版本变化），来源示例最多20条，数字统计不截断。无可信逐词结束、筛选聚合或搜贝规则的项继续未知，不以 FINISH 推断 COMPLETE。
+
 可选能力为 `YikeService.searchCoverage?: SearchCoverageService`，仅有 `query(request, signal?)` 读取方法。完整类型与校验分别位于 [服务接口](../desktop/src/renderer/services/searchCoverage.ts) 和 [数据合同](../desktop/src/renderer/domain/searchCoverage.ts)。生产适配缺失时，P09 明确提示尚未接通；原平台状态、执行记录和任务配置仍可查看。
 
 请求携带 `contractVersion=1`、独立 `requestId`、`taskId`、`profileId/profileVersion` 和 `expectedScope`。后者必须来自可信 `Session.userId/accountScope.id/accountScope.version`；缺失或无效不能请求此新能力。客户端字段仅用于一致性校验，服务端必须从认证会话确定账户和授权，不能据请求任意切换租户。

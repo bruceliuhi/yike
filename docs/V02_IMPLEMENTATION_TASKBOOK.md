@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+R4搜索覆盖接续：真实采集详情已接原任务窗口、历史画像版本及入库观察/来源统计，未查范围与未知筛选分别表达；版本、审核和定向证据见[唯一记录](superpowers/plans/2026-09-11-search-coverage-service.md#实施与验证)。搜贝换算尚未定义，不开放research启动；后续接完整执行/计量及真实平台、Windows、生产/UAT，不重复创建已有上传账本或把FINISH当全量搜索完成。
+
 R4机会研究接续：已接只读分类、原文版本和“多找类似”本机草稿；首次审核修复与当前增量复核状态见[唯一记录](superpowers/plans/2026-09-11-opportunity-research-service.md#实施与验证)。后续必须接可信研究计量及执行，不能删掉当前执行护栏；真实平台、Windows、生产/UAT及完整Goal仍未完成。
 
 三平台HTTP/数据库接续：原生controller到真实HTTP/受限PostgreSQL已贯通同一任务三平台、丢响应恢复及不重复采集；联验发现并修复STATUS与平台切换的身份获取竞争。[本批唯一记录](superpowers/plans/2026-09-11-multiplatform-http-acceptance.md#实施与验证)保留定向证据及审核状态。来源仍为合成数据，真实平台、Windows、生产和UAT继续待验，完整Goal不标完成。

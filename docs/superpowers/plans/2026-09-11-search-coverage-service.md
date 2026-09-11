@@ -41,3 +41,17 @@
 ## 本轮顺序判断
 
 搜贝未定义换算，不能直接开放类似研究启动。只读审计也确认 source batch/observation 和运行硬截止已有事实，重复创建原始账本会增加负担。因此先接已批准搜索覆盖可见入口，复用这些计量基础；没有缩减或宣告完成研究执行与完整Goal。
+
+## 实施与验证
+
+客户端/普通任务详情 `40baea2`；服务端 `33c6622`、截止与终态语义修复 `025f65d`。独立代码/架构/质量审核 **GO**，绑定 `025f65dda05a48edfdb35ea128c64cfdd94676d5`，无阻断项。
+
+- 入口：线索采集 → 真实任务详情 → 搜索覆盖。使用原任务画像数字版本，不从最新画像猜版本；仍能取消任务、查询本机状态和恢复原上传。
+- 只读快照按平台展示授权窗口、已确认方向、已接收原内容/独立来源/重复观察和最多20份原文示例。没有完整范围、筛选或搜贝依据时显示未知；不会因任务完成就称全网查完，也不因访问未知说没有需求。
+- 受影响5个前端测试文件 **40 passed / 3.45s**；类型检查通过；一次 renderer build **通过 / 326ms**。API注册专项 **1 passed**（仅证明认证/no-store/没有store调用）。初始3个缺适配反例、原任务详情缺入口、API404均先失败后修复。
+- PostgreSQL/Feed专项 **7 passed / 5.81s**。实际使用受限角色、确认策略和签名 START/CLAIM/两批 ingest/FINISH；内含普通 Node24 client → HTTP/session → PostgreSQL，核对 **3次观察、2个独立来源、1次重复观察**、精确原文、画像/身份拒绝和退出失效，无 skip。来源与平台策略为合成输入，不是实际社媒采集。
+- 命令：配置一次性测试库 `YIKE_IDENTITY_TEST_DATABASE_URL` / `YIKE_IDENTITY_TEST_APP_DATABASE_URL` 与 `YIKE_DEVICE_LIVE_NODE_BINARY`，运行 `python -m pytest -q tests/test_search_coverage_postgres.py tests/test_execution_feed_postgres.py`。无需平台登录，不记录凭据，不重跑全量套件。
+
+本批不包含搜贝兑换、quote/reserve/run/settle、逐关键词结束凭证、筛选全量聚合、Windows、真实平台或生产/UAT验收；完整Goal继续ACTIVE。后续复用现有事实与本入口，不重建原始上传账本。
+
+非阻断遗留：旧任务缺历史策略关联时目前返回 `task_not_found`，尚未细化成计划中的 `evidence_unavailable`；同样拒绝伪造证据，不影响有完整记录的正常路径。后续统一缺证据提示时处理，本轮不为该提示重复构包或测试。
