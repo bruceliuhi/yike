@@ -18,6 +18,8 @@ import { deviceIdentityStatusSchema } from "../../../shared/deviceIdentity";
 import { foregroundCollectionResultSchema } from "../../../shared/foregroundCollection";
 import { desktopExecutionResultSchema } from "../../../shared/desktopExecution";
 import type { TaskFeedItem, TaskFeedPage } from "../../../shared/taskFeed";
+import {SearchCoverage} from './SearchCoverage';
+const coveragePlatforms={XIAOHONGSHU:'xhs',DOUYIN:'douyin',BILIBILI:'bilibili',ZHIHU:'zhihu',PUBLIC_WEB:'web'} as const;
 const statusLabels = {
   PENDING: "待执行",
   RUNNING: "运行中",
@@ -303,6 +305,12 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
             </Button>
           </div>
         </section>
+      )}
+      {item && (
+        <SearchCoverage run={{id:item.task_id,profileId:item.profile_version_id,
+          profileVersion:item.profile_version,platforms:item.platform_runs.map(row=>coveragePlatforms[row.platform])}}
+          refreshKey={JSON.stringify([item.status,item.records_used,item.platform_runs])}
+          returnPath={`/collection?task=${encodeURIComponent(item.task_id)}`}/>
       )}
       {item && (
         <section className="panel" aria-label="真实采集详情">

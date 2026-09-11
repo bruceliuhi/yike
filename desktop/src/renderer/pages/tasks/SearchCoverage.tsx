@@ -58,9 +58,11 @@ function CoverageView({
   run,
   onPlan,
   onRefresh,
+  returnPath,
 }: {
   snapshot: CoverageSnapshot;
-  run: TaskRun;
+  run: Pick<TaskRun, 'id'>;
+  returnPath?: string;
   onRefresh: () => void;
   onPlan?: (request: CoveragePlanRequest) => void | Promise<void>;
 }) {
@@ -107,7 +109,7 @@ function CoverageView({
       "/connections?" +
         new URLSearchParams({
           connect: current.platform,
-          returnTo: `/monitors/${encodeURIComponent(run.id)}`,
+          returnTo: returnPath || `/monitors/${encodeURIComponent(run.id)}`,
         }),
     );
   return (
@@ -357,9 +359,13 @@ function CoverageView({
 export function SearchCoverage({
   run,
   onPlan,
+  refreshKey,
+  returnPath,
 }: {
-  run: TaskRun;
+  run: Pick<TaskRun, 'id' | 'profileId' | 'profileVersion' | 'platforms' | 'updatedAt'>;
   onPlan?: (request: CoveragePlanRequest) => void | Promise<void>;
+  refreshKey?: string;
+  returnPath?: string;
 }) {
   const { service, session } = useApp();
   const state = useResource(async () => {
@@ -411,6 +417,7 @@ export function SearchCoverage({
     run.profileId,
     run.profileVersion,
     run.updatedAt,
+    refreshKey,
     run.platforms.join(","),
   ]);
   return (
@@ -437,6 +444,7 @@ export function SearchCoverage({
           run={run}
           onPlan={onPlan}
           onRefresh={state.reload}
+          returnPath={returnPath}
         />
       )}
     </section>

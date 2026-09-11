@@ -369,6 +369,9 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
     register_opportunity_research_api(router,
         OpportunityResearchService(store, supported_platforms=research_platforms),
         identity, require_session_https)
+    from pilot.search_coverage import SearchCoverageService
+    from pilot.search_coverage_api import register_search_coverage_api
+    register_search_coverage_api(router, SearchCoverageService(store), identity, require_session_https)
     from pilot.outreach_queue_api import register_outreach_queue_api
     register_outreach_queue_api(router, outreach_queue, identity, require_session_https)
     from pilot.phone_api import register_phone_api

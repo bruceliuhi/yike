@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { explicitInstant } from "./opportunityLibrary";
+import {searchCoverageQuerySchema} from '../../shared/searchCoverage';
+export {searchCoverageQuerySchema} from '../../shared/searchCoverage';
 
 const id = z
   .string()
@@ -139,18 +141,6 @@ const usageSchema = z
       "SETTLED",
       "UNKNOWN",
     ]),
-  })
-  .strict();
-export const searchCoverageQuerySchema = z
-  .object({
-    contractVersion: z.literal(1),
-    requestId: id,
-    taskId: id,
-    profileId: id,
-    profileVersion: revision,
-    expectedScope: z
-      .object({ userId: id, accountScopeId: id, scopeVersion: revision })
-      .strict(),
   })
   .strict();
 const snapshotSchema = z

@@ -36,6 +36,7 @@ export const taskFeedItemSchema = z
     run_id: uuid,
     device_id: uuid,
     profile_version_id: uuid,
+    profile_version: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
     strategy_version_id: uuid,
     start_request_id: uuid,
     name: z.string().min(1).max(60).nullable(),

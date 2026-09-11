@@ -13,6 +13,7 @@ import { NativeCollectionTasks } from "../../src/renderer/pages/tasks/NativeColl
 import type { AppContextValue } from "../../src/renderer/app/context";
 import { parseRoute } from "../../src/renderer/domain/routes";
 import { clearLocalDrafts } from "../../src/renderer/app/hooks";
+import {coverageFixture} from './r4-search-coverage-fixtures';
 let context: AppContextValue;
 vi.mock("../../src/renderer/app/context", () => ({ useApp: () => context }));
 const id = "11111111-1111-4111-8111-111111111111",
@@ -85,6 +86,20 @@ beforeEach(() => {
   } as unknown as AppContextValue;
 });
 afterEach(cleanup);
+it('shows coverage for the real task using its original numeric profile version',async()=>{
+ context.route=parseRoute(`#/collection?task=${id}`);
+ vi.mocked(context.service.taskFeed!.get).mockResolvedValue({...item,profile_version:3} as any);
+ context.service.searchCoverage={query:vi.fn(async query=>{
+  const snapshot=coverageFixture(query);
+  return {...snapshot,screening:'UNKNOWN' as const,units:[{...snapshot.units[0],platform:'bilibili' as const,
+   stopReason:'UNKNOWN' as const,explanation:'已上传记录可核对，未检查范围仍保留。'}]};
+ })};
+ render(<NativeCollectionTasks/>);
+ await screen.findByText('已上传记录可核对，未检查范围仍保留。');
+ expect(context.service.searchCoverage!.query).toHaveBeenCalledWith(expect.objectContaining({
+  taskId:id,profileId:id,profileVersion:3,expectedScope:{userId:'user',accountScopeId:id,scopeVersion:1},
+ }),expect.any(AbortSignal));
+});
 function recoverySetup() {
   context.route=parseRoute(`#/collection?task=${id}`);
   const status={state:'STATUS',taskId:id,localState:'INTERRUPTED',serverStatus:'RUNNING',stopConfirmed:false,recordsUsed:2,recoverable:true};

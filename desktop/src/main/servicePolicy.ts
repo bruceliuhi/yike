@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {searchCoverageQuerySchema} from '../shared/searchCoverage';
 import {suggestionPreviewRequestSchema,suggestionRequestSchema,suggestionReceiptRequestSchema} from '../shared/searchSuggestions';
 import {taskFeedQuerySchema,taskFeedGetSchema} from '../shared/taskFeed';
 import {researchTimelineRequestSchema,researchSimilarRequestSchema} from '../shared/opportunityResearchApi';
@@ -11,6 +12,7 @@ const identifier = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-][A-Za-z0-9_.:
 const text = z.string().max(8000).refine(value => value.trim().length > 0);
 const phone = z.string().length(11).regex(/^1[0-9]{10}$/);
 const schemas = {
+  'coverage.query': searchCoverageQuerySchema,
   'research.list': empty,
   'research.timeline': researchTimelineRequestSchema,
   'research.similar': researchSimilarRequestSchema,
@@ -74,6 +76,7 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
   const data = parsed.data as Record<string, string> | undefined;
   switch (operation) {
     case 'research.list': return {path:'/api/ui/opportunity-research',method:'GET',logout:false};
+    case 'coverage.query': return {path:'/api/ui/search-coverage',method:'POST',body:JSON.stringify(parsed.data),logout:false};
     case 'research.timeline':
     case 'research.similar': return {path:`/api/ui/opportunity-research/${operation.slice('research.'.length)}`,method:'POST',body:JSON.stringify(parsed.data),logout:false};
     case 'taskFeed.list': {

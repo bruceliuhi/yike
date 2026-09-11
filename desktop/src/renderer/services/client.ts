@@ -22,6 +22,7 @@ import { createMaterialsService } from "./materials";
 import { createSearchSuggestionsService } from "./searchSuggestions";
 import { createTaskFeedService } from './taskFeed';
 import { createOpportunityResearchService } from './opportunityResearch';
+import {createSearchCoverageService} from './searchCoverage';
 
 type JsonRecord = Record<string, unknown>;
 function bridge(): YikeDesktopApi | undefined {
@@ -272,6 +273,7 @@ const platformConnections = createPlatformConnectionService(bridge, () => servic
 export const service: YikeService = {
   taskFeed: createTaskFeedService(requestRaw),
   opportunityResearch: createOpportunityResearchService(requestRaw,()=>service.session()),
+  searchCoverage: createSearchCoverageService(requestRaw,()=>service.session()),
   materials: createMaterialsService(requestRaw),
   searchSuggestions: createSearchSuggestionsService(requestRaw),
   replyEvidence:(opportunityId,signal)=>requestRaw('replies.evidence',`/opportunities/${encodeURIComponent(opportunityId)}/replies/evidence`,'GET',{opportunityId},signal),
