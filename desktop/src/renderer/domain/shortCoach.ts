@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { ContactDraft, Opportunity } from "./models";
 import { explicitInstant } from "./opportunityLibrary";
+import {draftSaveBindingSchema,draftSnapshotSchema} from '../../shared/contactDrafts';
+export {draftSaveBindingSchema,draftSnapshotSchema} from '../../shared/contactDrafts';
 
 const id = z.string().trim().min(1).max(128);
 const body = z
@@ -217,39 +219,12 @@ export function readCoachSuggestion(
   return data;
 }
 
-export const draftSaveBindingSchema = z
-  .object({
-    opportunityId: id,
-    channel: z.enum(["comment", "dm"]),
-    requestId: id,
-    contentHash: hash,
-  })
-  .strict();
 export type DraftSaveBinding = z.infer<typeof draftSaveBindingSchema>;
-const contactDraftSchema = z
-  .object({
-    opportunityId: id,
-    channel: z.enum(["comment", "dm"]),
-    content: body,
-    savedContent: z.string().max(8000),
-    version: z.number().int().min(1),
-    accountId: z.string().max(512),
-    recipient: z.string().max(512),
-    confirmedFingerprint: z.string().optional(),
-  })
-  .strict();
-export const draftSnapshotSchema = z
-  .object({
-    draft: contactDraftSchema,
-    accountScope: accountScopeSchema.nullable(),
-    profileVersionId: z.string().max(128),
-    sourceEvidenceVersion: z.string().max(128).nullable(),
-  })
-  .strict();
 export type DraftSnapshot = z.infer<typeof draftSnapshotSchema>;
 export interface DraftSaveInput {
   binding: DraftSaveBinding;
   snapshot: DraftSnapshot;
+  previousRequestId?: string | null;
 }
 export const draftSaveReceiptSchema = z
   .object({

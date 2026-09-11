@@ -23,6 +23,7 @@ import { createSearchSuggestionsService } from "./searchSuggestions";
 import { createTaskFeedService } from './taskFeed';
 import { createOpportunityResearchService } from './opportunityResearch';
 import {createSearchCoverageService} from './searchCoverage';
+import {createContactDraftService} from './contactDrafts';
 
 type JsonRecord = Record<string, unknown>;
 function bridge(): YikeDesktopApi | undefined {
@@ -221,10 +222,11 @@ export function mapOpportunity(r: JsonRecord): Opportunity {
       invalidEvidenceResponse();
     }
   }
+  const captured = sourceEvidence?.status === 'CAPTURED' ? sourceEvidence.snapshot : undefined;
   return {
     ...(sourceEvidence === undefined ? {} : { sourceEvidence }),
-    sourceObservedAt: text(r.source_observed_at) || undefined,
-    sourceEvidenceVersion: text(r.source_evidence_version) || undefined,
+    sourceObservedAt: text(r.source_observed_at) || (captured ? new Date(captured.observation.observed_at).toISOString() : undefined),
+    sourceEvidenceVersion: text(r.source_evidence_version) || captured?.source.version_id,
     libraryFacts: decodeLibraryFacts(r.library_facts),
     id: text(r.opportunity_id),
     title: text(r.title),
@@ -271,6 +273,7 @@ function unavailable(name: string): never {
 const candidateReads = createCandidateReviewService(request);
 const platformConnections = createPlatformConnectionService(bridge, () => service.connections());
 export const service: YikeService = {
+  contactDrafts: createContactDraftService(requestRaw,()=>service.session()),
   taskFeed: createTaskFeedService(requestRaw),
   opportunityResearch: createOpportunityResearchService(requestRaw,()=>service.session()),
   searchCoverage: createSearchCoverageService(requestRaw,()=>service.session()),

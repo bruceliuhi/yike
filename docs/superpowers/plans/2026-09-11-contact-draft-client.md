@@ -38,3 +38,7 @@ Files: `pages/outreach/ContactEditor.tsx`, `useContactDraftSave.ts`，必要新�
 - [ ] 改动相关测试、类型、一次renderer构建；逐项说明真实与合成边界。
 - [ ] 整批独立代码/架构/质量审核，修复后仅差量复核。
 - [ ] 更新本记录与任务书简短入口，fetch后正常推送 `HEAD:main`，不强推、不改其他工作区。
+
+### 实际联验发现
+
+普通商机详情缺少旧式顶层证据version/time，现仅在旧字段缺失时从已验证CAPTURED快照取值，不升级sourceStatus。真实纳入流程另遗失来源健康状态：已确认OPEN的来源经通用导入仍为UNVERIFIED，使后端草稿拒绝全部新纳入机会。修复限定在 `_decide(INCLUDE)` 的新建分支，已有严格同版本核验和人工确认后才将UNVERIFIED初态写为OPEN；不改显式负面健康、不复活旧纳入，不放宽草稿门禁或修改通用导入可信度。沿用现有列授权，无新迁移。

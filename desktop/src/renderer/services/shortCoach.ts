@@ -23,4 +23,5 @@ export interface ShortCoachService {
 export interface ContactDraftService {
   save(input: DraftSaveInput): Promise<DraftSaveReceipt>;
   operation(binding: DraftSaveBinding): Promise<DraftSaveReceipt>;
+  latest?(opportunityId: string, channel: "comment" | "dm", signal?: AbortSignal): Promise<DraftSaveReceipt | null>;
 }

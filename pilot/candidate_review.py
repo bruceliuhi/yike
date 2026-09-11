@@ -298,6 +298,21 @@ class CandidateReviewStore(CandidateIngestionStore):
                         reviewed_by=claims.user_id,reviewed_at=now,draft_comment=assessed['draftComment'],draft_dm=assessed['draftDm'])
                     opportunity = PilotStore(self.database)._import_opportunity(connection,tenant,request.profileId,
                         'candidate:'+_hash([request.profileId,raw['source_identity']]),data)
+                    if opportunity['created']:
+                        # This branch already required the exact current OPEN
+                        # verification, dated source and explicit human INCLUDE.
+                        # Carry that fact into the newly imported source; the
+                        # generic importer remains UNVERIFIED. Never overwrite
+                        # an explicit negative health or revive an old inclusion.
+                        cursor.execute("UPDATE pilot_sources SET health='OPEN' WHERE tenant_id=%s "
+                            "AND health='UNVERIFIED' AND source_id=(SELECT source_id FROM pilot_opportunities "
+                            "WHERE tenant_id=%s AND opportunity_id=%s)",
+                            (tenant,tenant,opportunity['opportunity_id']))
+                        cursor.execute("UPDATE pilot_opportunities SET source_status='OPEN' WHERE tenant_id=%s "
+                            "AND opportunity_id=%s AND source_status='UNVERIFIED' AND EXISTS "
+                            "(SELECT 1 FROM pilot_sources s WHERE s.tenant_id=pilot_opportunities.tenant_id "
+                            "AND s.source_id=pilot_opportunities.source_id AND s.health='OPEN')",
+                            (tenant,opportunity['opportunity_id']))
                     outcome = 'IMPORTED' if opportunity['created'] else 'ALREADY_IMPORTED'
                 else:
                     outcome='EXCLUDED'

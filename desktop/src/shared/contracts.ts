@@ -51,6 +51,7 @@ export const API_OPERATIONS = [
   'taskFeed.list', 'taskFeed.get',
   'research.list', 'research.timeline', 'research.similar',
   'coverage.query',
+  'contactDrafts.save', 'contactDrafts.operation', 'contactDrafts.latest',
   'opportunities.list', 'opportunities.get', 'followups.list', 'followups.add',
   'replies.evidence',
   'strategies.prepare', 'strategies.confirm', 'strategies.revoke', 'strategies.receipt', 'strategies.get',
