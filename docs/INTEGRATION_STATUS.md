@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-11 业务资料用于联系草稿
+
+原编辑器已接明确选材、原文片段和出处保存/重开；服务端核对本人最新READY/external版本，撤销影响包含草稿，发送前补最终签名资格核对。源码 `e1cf7d9` 在三项P2修复后独立差量GO，[唯一证据及部署授权依赖](superpowers/plans/2026-09-11-material-contact-references.md#实施与验证)。本批为人工选材的真实引用链；资料感知模型改写仍待接，带引用草稿不调用旧教练。未构包或真实外发，旧候选不追认新功能，完整V0.2继续。
+
 ## 2026-09-11 Windows payload 与客户端同源门禁
 
 `c834408`阻止旧payload混入新客户端：清单源码SHA须与实际Git HEAD一致，当前工作树须干净，缺来源拒绝。9项定向检查及TypeScript通过，独立整批GO；[唯一证据](superpowers/plans/2026-09-11-portable-source-binding.md#实施与验证)。没有执行Windows构包或安装，完整V0.2继续。

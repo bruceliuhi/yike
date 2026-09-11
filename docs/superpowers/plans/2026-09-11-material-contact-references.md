@@ -60,4 +60,13 @@ if hasattr(snapshot.draft, 'materialReferences'):
 
 ## 实施与验证
 
-执行中。
+源码 `e1cf7d9b3899c395b5bd322bd57c982f7557ba5f` 完成上述本批链路；模型资料感知改写、实际平台与完整交付继续未完成。主干推送以远端SHA核验为准。
+
+- 客户端 `f878102`：原编辑器可带入本人当前画像 READY/external 证据片段，保存/重开保留出处、版本、摘要；引用变化使确认失效。带引用的旧短句教练暂停，不假装模型已支持引用。main/native严格校验相同引用结构，有引用时必须通过最终签名VALIDATE才能消费并执行。
+- 后端 `2aeb8ec`：真实最新资料资格、草稿影响及token、保存/context/CLAIM/VALIDATE接通；锁顺序统一，旧无引用格式和历史回执保留；XHS原生严格context接收引用，不是实际平台发送证据。更新 `grant_contact_drafts.sql` 与 `grant_materials.sql` 的相互只读依赖，部署须应用最新授权脚本；无新迁移。
+- 初次独立整批NO-GO三项P2：草稿head截断前未筛目标导致影响遗漏、VALIDATE未复核平台allowlist、画像和草稿合计影响超过100但仍返回成功。`e1cf7d9`集中修复，独立差量GO，全部关闭。首次结论保留于工作树私有Git ledger的 `sdd/material-draft-final-review.md`；其他AI可依据提交与本记录，不依赖私有路径执行。
+- 定向验证：UI选材/跨身份2项RED→GREEN；consumer引用资格3项RED→GREEN；签名与真实回环HTTP链2项通过（服务/平台为合成夹具）。五个受影响客户端文件70通过/1跳过/1新测试断言失败；该失败为同步Zod异常误用异步断言，修正断言后仅该项通过，原70项证据复用；TypeScript通过。没有把跳过计为成功。
+- 后端真实受限PG/HTTP 11项通过（4.53秒），采用实际MaterialStore save→parse→confirm结构；中途修正flat资料结构和XHS严格字段不兼容。复审3个反例先3失败（1.92秒），修复后三新例+三直接相关例6通过（4.14秒）；包含102个无关heads后的引用、CLAIM后撤销、平台关闭、100+1合并影响拒绝。跨owner/tenant由查询身份条件与RLS静态审核，本批没有另做新隔离反例。完整命令保留私有实施报告；没有重跑全仓、构包或外部模型。
+- 无Windows新包、真实平台发送、实际客户资料/模型质量、生产/UAT证据；旧Windows候选不冒充包含本批代码。自有测试PG已停止移除。完整V0.2 Goal继续。
+
+测试边界补充：100+1合并上限场景采用合成引用resolver验证受控拒绝，不是101条真实业务引用端到端验收；102个无关heads截断场景使用实际PG记录与查询。
