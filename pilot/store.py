@@ -12,6 +12,9 @@ from pilot.auth import InvalidPilotToken, TokenClaims
 from pilot.connection_versions import ConnectionOperationError, MAX_VERSION
 from pilot.db import PilotDatabase
 from pilot.identity import validate_connection_input, validate_execution_event
+from pilot.material_references import (assert_references_valid, insert_references,
+                                       profile_content_digest, read_references,
+                                       reference_source_owners, resolve_references)
 from pilot.opportunity_evidence import evidence_view
 from pilot.sessions import PilotSessionRegistry
 
@@ -61,22 +64,36 @@ class PilotStore:
                     raise PermissionError("authenticated pilot user is not mapped to a tenant")
                 return row[0]
 
-    def save_profile(self, user_id: str, payload: dict) -> dict:
+    def save_profile(self, user_id: str, payload: dict, *, base_profile_version_id=None,
+                     material_references=None) -> dict:
         if not isinstance(payload, dict) or not any(isinstance(value, str) and value.strip() for value in payload.values()):
             raise ValueError("profile description is required")
         tenant_id = self._tenant_for_user(user_id)
         profile_id = self._profile_id(tenant_id)
         content = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        digest = hashlib.sha256(content.encode()).hexdigest()
         with self.database.connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute("SELECT set_config('yike.user_id', %s, false)", (user_id,))
+                # Every material owner lock is ordered and precedes the profile row lock.
+                from pilot.materials import MaterialStore
+                owners = reference_source_owners(cursor, tenant=tenant_id, requester=user_id,
+                                                  requested=material_references or [])
+                for source_owner in sorted(owners):
+                    cursor.execute("SELECT pg_advisory_xact_lock(%s)",
+                                   (MaterialStore._lock_id(tenant_id, source_owner),))
+                managed_references = material_references is not None
+                resolved = resolve_references(cursor, tenant=tenant_id, owner=user_id,
+                    description=payload.get("description", ""), base_profile_version_id=base_profile_version_id,
+                    requested=material_references or []) if material_references else []
+                digest = profile_content_digest(payload, resolved, managed=managed_references)
                 cursor.execute("INSERT INTO business_profiles(profile_id, tenant_id) VALUES (%s, %s) ON CONFLICT DO NOTHING", (profile_id, tenant_id))
                 cursor.execute("SELECT profile_id FROM business_profiles WHERE tenant_id=%s AND profile_id=%s FOR UPDATE", (tenant_id, profile_id))
                 cursor.execute("SELECT profile_version_id, version, status FROM business_profile_versions WHERE tenant_id=%s AND profile_id=%s AND content_sha256=%s", (tenant_id, profile_id, digest))
                 existing = cursor.fetchone()
                 if existing is not None:
-                    return {"profile_id": profile_id, "version_id": existing[0], "version": existing[1], "status": existing[2]}
+                    return {"profile_id": profile_id, "version_id": existing[0], "version": existing[1],
+                            "status": existing[2], "material_references": read_references(cursor, tenant_id, existing[0])}
                 cursor.execute("SELECT COALESCE(MAX(version), 0) + 1 FROM business_profile_versions WHERE tenant_id=%s AND profile_id=%s", (tenant_id, profile_id))
                 version = cursor.fetchone()[0]
                 version_id = str(uuid4())
@@ -84,7 +101,10 @@ class PilotStore:
                     "INSERT INTO business_profile_versions(profile_version_id, tenant_id, profile_id, version, payload, content_sha256) VALUES (%s,%s,%s,%s,%s::jsonb,%s)",
                     (version_id, tenant_id, profile_id, version, content, digest),
                 )
-        return {"profile_id": profile_id, "version_id": version_id, "version": version, "status": "DRAFT"}
+                insert_references(cursor, tenant=tenant_id, target_profile_version_id=version_id, references=resolved)
+                references = read_references(cursor, tenant_id, version_id)
+        return {"profile_id": profile_id, "version_id": version_id, "version": version,
+                "status": "DRAFT", "material_references": references}
 
     def confirm_profile(self, user_id: str, version_id: str) -> None:
         tenant_id = self._tenant_for_user(user_id)
@@ -102,6 +122,7 @@ class PilotStore:
                 if current is None:
                     raise KeyError("draft profile version not found in tenant")
                 status = current[0]
+                assert_references_valid(cursor, tenant_id, version_id)
                 if status == "CONFIRMED":
                     return
                 if status != "DRAFT":
@@ -116,7 +137,23 @@ class PilotStore:
     def get_profile_version(self, user_id: str, version_id: str) -> dict:
         tenant_id = self._tenant_for_user(user_id)
         row = self._fetchone(tenant_id, "SELECT profile_version_id, version, payload, status FROM business_profile_versions WHERE tenant_id=%s AND profile_version_id=%s", (tenant_id, version_id))
-        return {"version_id": row["profile_version_id"], "version": row["version"], "payload": row["payload"], "status": row["status"]}
+        with self.database.connect() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+            references = read_references(cursor, tenant_id, version_id)
+        return {"version_id": row["profile_version_id"], "version": row["version"], "payload": row["payload"],
+                "status": row["status"], "material_references": references}
+
+    def list_profiles(self, user_id: str) -> list[dict]:
+        tenant_id = self._tenant_for_user(user_id)
+        with self.database.connect() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+            cursor.execute("SELECT profile_id,profile_version_id AS version_id,version,payload,status "
+                           "FROM business_profile_versions WHERE tenant_id=%s ORDER BY version DESC", (tenant_id,))
+            columns = [column.name for column in cursor.description]
+            rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            for row in rows:
+                row["material_references"] = read_references(cursor, tenant_id, row["version_id"])
+            return rows
 
     def import_opportunity(self, user_id: str, profile_version_id: str, import_key: str, data: dict) -> dict:
         tenant_id = self._tenant_for_user(user_id)

@@ -9,6 +9,9 @@ BEGIN
     EXECUTE format('GRANT SELECT,INSERT ON public.%I TO %I',item,target_role);
   END LOOP;
   EXECUTE format('GRANT UPDATE(consumed_at) ON public.pilot_material_impact_tokens TO %I',target_role);
+  EXECUTE format('REVOKE ALL ON public.pilot_material_profile_references FROM %I',target_role);
+  EXECUTE format('GRANT SELECT,INSERT ON public.pilot_material_profile_references TO %I',target_role);
+  EXECUTE format('GRANT UPDATE(valid,invalidated_at,invalidation_reason) ON public.pilot_material_profile_references TO %I',target_role);
   IF has_table_privilege(target_oid,'public.pilot_material_revisions','UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES')
      OR has_table_privilege(target_oid,'public.pilot_material_operations','UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES')
      OR has_any_column_privilege(target_oid,'public.pilot_material_revisions','UPDATE,REFERENCES')

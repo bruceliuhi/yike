@@ -11,7 +11,7 @@ from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from pilot.auth import InvalidPilotToken
 from pilot.candidate_api import register_candidate_api
@@ -23,6 +23,7 @@ from pilot.device_keys import DeviceKeyError
 from pilot.execution_api import register_execution_api
 from pilot.execution_contract import ExecutionRuntimeError
 from pilot.identity import IdentityValidationError
+from pilot.outreach_contract import canonical_uuid
 from pilot.sessions import SessionIdentity, authenticate_session, revoke_session_tokens
 
 
@@ -36,6 +37,8 @@ class SessionInput(_Input):
 
 class ProfileInput(_Input):
     description: str = Field(min_length=1, max_length=8_000)
+    baseProfileVersionId: str | None = None
+    materialReferences: list[dict] | None = Field(default=None, max_length=5)
 
     @field_validator("description")
     @classmethod
@@ -43,6 +46,41 @@ class ProfileInput(_Input):
         if not value.strip():
             raise ValueError("description is required")
         return value
+
+    @field_validator("baseProfileVersionId")
+    @classmethod
+    def valid_base_profile_version(cls, value):
+        return canonical_uuid(value) if value is not None else value
+
+    @field_validator("materialReferences")
+    @classmethod
+    def valid_references(cls, value):
+        if value is None:
+            return value
+        allowed_fields = {"service", "customer", "regions", "preference", "exclusions"}
+        seen = set()
+        for item in value:
+            if type(item) is not dict or item.get("field") not in allowed_fields or item["field"] in seen:
+                raise ValueError("invalid material references")
+            seen.add(item["field"])
+            keys = set(item)
+            if keys == {"field", "referenceId"}:
+                canonical_uuid(item["referenceId"])
+            elif keys == {"field", "sourceProfileVersionId", "materialId", "materialVersion", "extractionId"}:
+                if any(not isinstance(item[key], str) or not item[key].strip() for key in
+                       ("sourceProfileVersionId", "materialId", "extractionId")):
+                    raise ValueError("invalid material reference")
+                if type(item["materialVersion"]) is not int or not 1 <= item["materialVersion"] <= 2147483647:
+                    raise ValueError("invalid material reference")
+            else:
+                raise ValueError("invalid material reference")
+        return value
+
+    @model_validator(mode="after")
+    def inheritance_has_base(self):
+        if any("referenceId" in item for item in (self.materialReferences or [])) and not self.baseProfileVersionId:
+            raise ValueError("base profile version required")
+        return self
 
 
 class FollowupInput(_Input):
@@ -253,6 +291,8 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
     @router.get("/profiles")
     def profiles(request: Request):
         current = identity(request)
+        if hasattr(store, "list_profiles"):
+            return {"items": store.list_profiles(current.user_id)}
         # PilotStore has version lookup but no list method. Keep this read in the
         # facade, with the same server-derived tenant setting and SQL predicate.
         with store.database.connect() as connection:
@@ -271,7 +311,11 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
     def save_profile(body: ProfileInput, request: Request):
         current = identity(request)
         try:
-            result = store.save_profile(current.user_id, {"description": body.description})
+            if body.baseProfileVersionId is None and body.materialReferences is None:
+                result = store.save_profile(current.user_id, {"description": body.description})
+            else:
+                result = store.save_profile(current.user_id, {"description": body.description},
+                    base_profile_version_id=body.baseProfileVersionId, material_references=body.materialReferences)
         except ValueError as error:
             raise _error(400, "invalid_profile", "业务描述无效。") from error
         if result["status"] == "REVOKED":

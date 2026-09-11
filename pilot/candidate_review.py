@@ -83,7 +83,7 @@ class CandidateReviewStore(CandidateIngestionStore):
             self._active(cursor,claims)
             return result
 
-    def _capture(self, cursor, tenant, claims, request, *, require_strategy=True):
+    def _capture(self, cursor, tenant, claims, request, *, require_strategy=True, require_material_references=False):
         cursor.execute('SELECT profile_id FROM business_profile_versions WHERE tenant_id=%s AND profile_version_id=%s', (tenant,request.profileId))
         parent = cursor.fetchone()
         if not parent: raise CandidateReviewError('profile_unavailable',409)
@@ -91,6 +91,12 @@ class CandidateReviewStore(CandidateIngestionStore):
         cursor.execute('SELECT version,status,payload FROM business_profile_versions WHERE tenant_id=%s AND profile_version_id=%s FOR UPDATE', (tenant,request.profileId))
         version, status, profile = cursor.fetchone()
         if status!='CONFIRMED' or version!=request.profileVersion: raise CandidateReviewError('profile_conflict',409)
+        if require_material_references:
+            from pilot.material_references import assert_references_valid
+            try:
+                assert_references_valid(cursor, tenant, request.profileId)
+            except ValueError:
+                raise CandidateReviewError('profile_conflict',409) from None
         # Read immutable candidate scope before the resolver, lock raw only after it.
         cursor.execute('SELECT strategy_version_id FROM pilot_candidate_projections WHERE tenant_id=%s AND owner_user_id=%s AND candidate_id=%s', (tenant,claims.user_id,request.candidateId))
         scope = cursor.fetchone()
@@ -153,7 +159,7 @@ class CandidateReviewStore(CandidateIngestionStore):
             previous = self._replay(cursor,tenant,claims,request,payload)
             if previous is not None: return previous
             if model is None: raise CandidateReviewError('capability_unavailable',501)
-            snapshot = self._capture(cursor,tenant,claims,request)
+            snapshot = self._capture(cursor,tenant,claims,request,require_material_references=True)
             try:
                 validate_assessment_input(description=snapshot['description'],content=snapshot['content'])
                 metadata = {name:getattr(model,name) for name in ('provider','model','rule_version','rule_sha256')}
@@ -210,7 +216,7 @@ class CandidateReviewStore(CandidateIngestionStore):
             with self.database.connect() as connection, connection.cursor() as cursor:
                 tenant = self._active(cursor,claims)
                 _lock(cursor,11301,[tenant,claims.user_id,request.requestId])
-                current = self._capture(cursor,tenant,claims,request)
+                current = self._capture(cursor,tenant,claims,request,require_material_references=True)
                 if any(current[key]!=snapshot[key] for key in ('binding','description','content','strategy')):
                     raise CandidateReviewError('candidate_conflict',409)
                 row = self._request(cursor,tenant,claims.user_id,request.requestId)

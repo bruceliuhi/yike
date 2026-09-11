@@ -106,9 +106,9 @@ def _usage(value: object) -> dict | None:
     return {name: value[name] for name in names}
 
 
-def _profile_content(payload: object, expected_digest: str) -> str | None:
+def _profile_content(payload: object) -> str | None:
     try:
-        if type(payload) is not dict or _digest(payload) != expected_digest:
+        if type(payload) is not dict:
             return None
         description = payload.get("description")
         if type(description) is not str or not 1 <= len(description) <= 8000:
@@ -202,7 +202,20 @@ class SearchSuggestionStore:
         row = cursor.fetchone()
         if row is None:
             return None
-        return {"sha256": row[1], "description": _profile_content(row[0], row[1]), "status": row[2]}
+        from pilot.material_references import profile_content_digest
+        cursor.execute("SELECT field_name,source_owner_user_id,source_profile_version_id,material_id,material_version,"
+                       "extraction_id,adopted_value_sha256,valid FROM pilot_material_profile_references "
+                       "WHERE tenant_id=%s AND target_profile_version_id=%s ORDER BY field_name", (tenant, version_id))
+        reference_rows = cursor.fetchall()
+        refs = [{"field_name": a, "source_owner_user_id": b, "source_profile_version_id": c,
+                 "material_id": d, "material_version": e, "extraction_id": f,
+                 "adopted_value_sha256": g} for a, b, c, d, e, f, g, _valid in reference_rows]
+        valid = all(item[-1] for item in reference_rows)
+        description = _profile_content(row[0])
+        managed = bool(refs) or profile_content_digest(row[0], [], managed=False) != row[1]
+        if description is None or profile_content_digest(row[0], refs, managed=managed) != row[1]:
+            description = None
+        return {"sha256": row[1], "description": description, "status": row[2], "references_valid": valid}
 
     def _safe(self, cursor, tenant: str, row: dict) -> dict:
         profile = self._profile(cursor, tenant, row["profile_version_id"], lock=False)
@@ -309,7 +322,7 @@ class SearchSuggestionStore:
             tenant = self._active(cursor, claims)
             profile = self._profile(cursor, tenant, profile_version_id, lock=False)
             self._active(cursor, claims)
-            if not profile or profile["status"] != "CONFIRMED" or profile["description"] is None:
+            if not profile or profile["status"] != "CONFIRMED" or profile["description"] is None or not profile["references_valid"]:
                 raise SearchSuggestionStoreError("profile_unavailable")
             return {"profile_version_id": profile_version_id, "profile_sha256": profile["sha256"],
                     "description": profile["description"], "model_provider": provider, "model_name": model,
@@ -351,7 +364,7 @@ class SearchSuggestionStore:
                 raise SearchSuggestionStoreError("invalid_suggestion_configuration")
             profile = self._profile(cursor, tenant, request.profile_version_id, lock=True)
             self._active(cursor, claims)
-            if not profile or profile["status"] != "CONFIRMED" or profile["description"] is None:
+            if not profile or profile["status"] != "CONFIRMED" or profile["description"] is None or not profile["references_valid"]:
                 raise SearchSuggestionStoreError("profile_unavailable")
             if disclosure is not None and disclosure != {"accepted": True, "profile_sha256": profile["sha256"],
                     "model_provider": provider, "model_name": model, "policy_version": "profile-description-v1"}:
@@ -396,7 +409,7 @@ class SearchSuggestionStore:
                 raise SearchSuggestionStoreError("request_conflict")
             profile = self._profile(cursor, tenant, row["profile_version_id"], lock=True)
             self._active(cursor, claims)
-            if (not profile or profile["status"] != "CONFIRMED" or profile["description"] is None
+            if (not profile or profile["status"] != "CONFIRMED" or profile["description"] is None or not profile["references_valid"]
                     or profile["sha256"] != row["profile_sha256"]):
                 raise SearchSuggestionStoreError("profile_unavailable")
             return profile["description"]
@@ -419,7 +432,7 @@ class SearchSuggestionStore:
             profile = self._profile(cursor, tenant, row["profile_version_id"], lock=True)
             self._active(cursor, claims)
             state, error_code, validated, measured = "FAILED", "profile_changed", None, None
-            if (profile and profile["status"] == "CONFIRMED" and profile["description"] is not None
+            if (profile and profile["status"] == "CONFIRMED" and profile["description"] is not None and profile["references_valid"]
                     and profile["sha256"] == row["profile_sha256"]):
                 if error is not None:
                     error_code = error.code if isinstance(error, SearchSuggestionError) else error

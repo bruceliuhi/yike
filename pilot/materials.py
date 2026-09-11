@@ -167,16 +167,27 @@ class MaterialStore:
                     raise MaterialError("material_not_found", 404)
                 if latest[0] != request.version:
                     raise MaterialError("material_version_conflict")
+                from pilot.material_references import material_impacts, material_reference_snapshot_sha
+                try:
+                    references = material_impacts(cursor, tenant=tenant, owner=claims.user_id,
+                        source_profile_version_id=request.profileVersionId, material_id=request.materialId,
+                        material_version=request.version)
+                except ValueError:
+                    raise MaterialError("material_impact_too_large") from None
+                snapshot_sha = material_reference_snapshot_sha(cursor, tenant=tenant, owner=claims.user_id,
+                    source_profile_version_id=request.profileVersionId, material_id=request.materialId,
+                    material_version=request.version)
                 token = secrets.token_urlsafe(32)
                 expiry = datetime.now(UTC) + timedelta(minutes=5)
                 cursor.execute("INSERT INTO pilot_material_impact_tokens "
-                    "(tenant_id,owner_user_id,profile_version_id,material_id,material_version,action,token_sha256,expires_at) "
-                    "VALUES(%s,%s,%s,%s,%s,%s,%s,%s)", (tenant, claims.user_id, request.profileVersionId,
-                    request.materialId, request.version, request.action, hashlib.sha256(token.encode()).hexdigest(), expiry))
+                    "(tenant_id,owner_user_id,profile_version_id,material_id,material_version,action,token_sha256,expires_at,reference_snapshot_sha256) "
+                    "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)", (tenant, claims.user_id, request.profileVersionId,
+                    request.materialId, request.version, request.action, hashlib.sha256(token.encode()).hexdigest(), expiry,
+                    snapshot_sha))
                 self._active(cursor, claims)
                 return {"profileVersionId": request.profileVersionId, "materialId": request.materialId,
                         "version": request.version, "action": request.action, "token": token,
-                        "expiresAt": _time(expiry), "references": []}
+                        "expiresAt": _time(expiry), "references": references}
 
     def mutate(self, claims, raw):
         try:
@@ -283,6 +294,11 @@ class MaterialStore:
             "(tenant_id,owner_user_id,profile_version_id,material_id,material_version,record,removed) "
             "VALUES(%s,%s,%s,%s,%s,%s::jsonb,%s)", (tenant, owner, request.profileVersionId,
             change.materialId, version, _json(record), removed))
+        if latest is not None and latest[1].get("status") == "READY" and change.kind in ("save", "revoke", "remove"):
+            from pilot.material_references import invalidate_material_references
+            invalidate_material_references(cursor, tenant=tenant, owner=owner,
+                source_profile_version_id=request.profileVersionId, material_id=change.materialId,
+                material_version=old_version, reason="material_" + change.kind)
         receipt = {"requestId": request.requestId, "profileVersionId": request.profileVersionId,
                    "materialId": change.materialId, "kind": change.kind, "status": "SUCCEEDED"}
         if change.kind != "remove":
@@ -292,10 +308,14 @@ class MaterialStore:
     @staticmethod
     def _consume_impact(cursor, tenant, owner, profile, change):
         digest = hashlib.sha256(change.impactToken.encode()).hexdigest()
+        from pilot.material_references import material_reference_snapshot_sha
+        snapshot_sha = material_reference_snapshot_sha(cursor, tenant=tenant, owner=owner,
+            source_profile_version_id=profile, material_id=change.materialId,
+            material_version=change.expectedVersion)
         cursor.execute("UPDATE pilot_material_impact_tokens SET consumed_at=clock_timestamp() "
             "WHERE tenant_id=%s AND owner_user_id=%s AND profile_version_id=%s AND material_id=%s "
             "AND material_version=%s AND action=%s AND token_sha256=%s AND consumed_at IS NULL "
-            "AND expires_at>clock_timestamp() RETURNING 1", (tenant, owner, profile, change.materialId,
-            change.expectedVersion, change.kind, digest))
+            "AND expires_at>clock_timestamp() AND reference_snapshot_sha256=%s RETURNING 1", (tenant, owner, profile, change.materialId,
+            change.expectedVersion, change.kind, digest, snapshot_sha))
         if cursor.fetchone() is None:
             raise MaterialError("material_impact_invalid")
