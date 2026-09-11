@@ -14,6 +14,8 @@
 
 ### 同版Mac客户端有限验收
 
+短信后续合并记录（侧任务回传）：用户另行授权第二指定号码单次测试，正常ops唯一预登记待激活trial并退出，只有一次sms-code请求。QuerySendDetails的唯一记录21:45:10提交/21:45:32回执，仍为 `SendStatus=2 / PORT_NOT_REGISTERED`。两号码均未读取/提交OTP、未激活，等待进程已结束；未重复发码/创建客户或改生产配置。侧任务已核对[官方签名FAQ](https://help.aliyun.com/zh/sms/user-guide/sms-signature-faq)，归因为端口企业实名报备待处理；这是侧任务查询回传，root未重复查询。后续先处理供应商报备，再按新授权测试，保留现有trial，不通过改认证绕过。
+
 `b40cc3b`以Node24.19.0、相同package-lock依赖，设置构建期HTTPS地址后一次 `make:mac` 成功。Vite原有未来配置/弃用警告保留，未掩盖。归档检查40项资源、无.env/私钥文件；ASAR SHA256 `5eb88e8fb6322d54831faefe47a9b49bce88045719700c0a3ec41cc4352e1d4d`，ZIP SHA256 `a30b414ae1415248801df8ada58862137069b9c6555391fadefe093eef1895ec`。
 
 实际 `.app/Contents/MacOS/YikeAI` 以独立空user-data启动（不是开发预览或仅require ASAR）：原生bridge返回serviceConfigured=true，真实HTTPS匿名session返回401；可点击登录并看到手机号、短信验证码、获取验证码按钮，未点发码。[真实包登录界面](pilot-b40/mac-sms-login.png)。临时诊断进程已退出，没有操作用户既有会话。
