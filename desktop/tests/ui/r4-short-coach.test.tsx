@@ -29,6 +29,7 @@ import type {
 } from "../../src/renderer/domain/shortCoach";
 import type { YikeService } from "../../src/renderer/services/contracts";
 import { ServiceError } from "../../src/renderer/services/contracts";
+import {coachInputHash} from '../../src/shared/shortCoach';
 let context: AppContextValue;
 vi.mock("../../src/renderer/app/context", () => ({ useApp: () => context }));
 const row = {
@@ -139,6 +140,40 @@ async function mount() {
   return view;
 }
 describe("R4 structured short coach", () => {
+  const preview=async(input:CoachInput)=>({inputHash:await coachInputHash(input),modelProvider:'configured-provider',modelName:'configured-model',policyVersion:'short-coach-public-draft-v1' as const});
+  it('previews exact disclosure and only calls the model after explicit confirmation',async()=>{
+    context.service.shortCoach!.preview=vi.fn(preview);
+    await mount();fireEvent.click(screen.getByRole('button',{name:'生成短句建议'}));
+    const modal=await screen.findByRole('dialog',{name:'确认模型生成'});
+    expect(within(modal).getByText('configured-provider · configured-model')).toBeTruthy();
+    expect(within(modal).getByText(row.excerpt)).toBeTruthy();
+    expect(context.service.shortCoach!.generate).not.toHaveBeenCalled();
+    fireEvent.click(within(modal).getByRole('button',{name:'确认并生成'}));
+    await screen.findByRole('dialog',{name:'短句建议与当前草稿'});
+    const passed=vi.mocked(context.service.shortCoach!.generate).mock.calls[0][0];
+    expect(passed.disclosure).toEqual({accepted:true,...await preview(passed)});
+    expect(content().value).toBe(row.comment);
+  });
+  it('does not generate after cancel or manual change during disclosure',async()=>{
+    context.service.shortCoach!.preview=vi.fn(preview);
+    await mount();fireEvent.click(screen.getByRole('button',{name:'生成短句建议'}));
+    let modal=await screen.findByRole('dialog',{name:'确认模型生成'});
+    fireEvent.click(within(modal).getByRole('button',{name:'取消'}));
+    expect(context.service.shortCoach!.generate).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button',{name:'生成短句建议'}));
+    modal=await screen.findByRole('dialog',{name:'确认模型生成'});
+    fireEvent.change(content(),{target:{value:'刚修改的新草稿'}});
+    fireEvent.click(within(modal).getByRole('button',{name:'确认并生成'}));
+    await screen.findByText(/草稿已变化，请重新预览/);
+    expect(context.service.shortCoach!.generate).not.toHaveBeenCalled();
+    expect(content().value).toBe('刚修改的新草稿');
+  });
+  it('keeps disclosure failures out of the generation path',async()=>{
+    context.service.shortCoach!.preview=vi.fn().mockRejectedValue(new Error('模型未配置'));
+    await mount();fireEvent.click(screen.getByRole('button',{name:'生成短句建议'}));
+    await screen.findByText('模型未配置');
+    expect(context.service.shortCoach!.generate).not.toHaveBeenCalled();
+  });
   it("keeps edits during generation, compares complete text, verifies evidence and only then replaces", async () => {
     let resolve!: (value: CoachSuggestion) => void;
     vi.mocked(context.service.shortCoach!.generate).mockImplementation(

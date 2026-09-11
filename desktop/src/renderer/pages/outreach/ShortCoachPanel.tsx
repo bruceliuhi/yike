@@ -38,7 +38,7 @@ export function ShortCoachPanel({
             variant="ghost"
             disabled={!session.authenticated || coach.busy}
             onClick={() =>
-              draft.content.trim() && service.shortCoach && !problem
+              draft.content.trim() && service.shortCoach && !service.shortCoach.preview && !problem
                 ? setConfirmGenerate(true)
                 : void coach.generate()
             }
@@ -118,6 +118,19 @@ export function ShortCoachPanel({
           }}
         >
           <p>当前人工内容完整保留。新建议先预览，不会自动覆盖或发送。</p>
+        </Confirm>
+      )}
+      {coach.preview && coach.input && (
+        <Confirm title="确认模型生成" confirmText="确认并生成" onCancel={coach.dismiss}
+          onConfirm={() => void coach.confirmGenerate()}>
+          <p>将把以下公开原文与当前草稿交给配置模型，生成结果先预览，不会自动保存或发送。</p>
+          <p>{coach.preview.modelProvider} · {coach.preview.modelName}</p>
+          <details open>
+            <summary>本次发送的内容</summary>
+            <h3>公开原文</h3><pre className="draft-preview">{coach.input.sourceText}</pre>
+            <h3>当前草稿</h3><pre className="draft-preview">{coach.input.content || '空草稿'}</pre>
+          </details>
+          <p>不附带账号、收件对象、资料库或登录信息。取消不会调用模型。</p>
         </Confirm>
       )}
       {showEvidence && (

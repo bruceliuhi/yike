@@ -42,6 +42,7 @@ class PilotDatabase:
         ("v02-monitor-runtime", migration_path.with_name("127_v02_monitor_runtime.sql")),
         ("v02-search-suggestion-consent", migration_path.with_name("128_v02_search_suggestion_consent.sql")),
         ("v02-search-suggestion-rejections", migration_path.with_name("129_v02_search_suggestion_rejections.sql")),
+        ("v02-short-coach", migration_path.with_name("130_v02_short_coach.sql")),
     )
 
     def __init__(self, url: str):

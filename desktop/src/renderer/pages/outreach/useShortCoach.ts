@@ -12,6 +12,7 @@ import {
   type CoachSuggestion,
 } from "../../domain/shortCoach";
 import { errorMessage } from "../../services/contracts";
+import type {CoachPreview} from '../../services/shortCoach';
 
 export function useShortCoach(
   row: Opportunity,
@@ -36,8 +37,9 @@ export function useShortCoach(
   const lock = useRef(false);
   const [state, setState] = useState<{
     scope: string;
-    phase: "idle" | "loading" | "ready" | "applying" | "error";
+    phase: "idle" | "loading" | "preview" | "ready" | "applying" | "error";
     input?: CoachInput;
+    preview?: CoachPreview;
     candidate?: CoachSuggestion;
     error: string;
   }>({ scope, phase: "idle", error: "" });
@@ -95,7 +97,7 @@ export function useShortCoach(
     state.scope === scope
       ? state
       : { scope, phase: "idle" as const, error: "" };
-  const generate = async () => {
+  const generate = async (approved?:{input:CoachInput;preview:CoachPreview}) => {
     if (
       lock.current ||
       !current() ||
@@ -117,6 +119,10 @@ export function useShortCoach(
       });
       return;
     }
+    if(approved&&(approved.input.content!==live.current.draft.content||approved.input.binding.draftVersion!==live.current.draft.version)){
+      setState({scope,phase:'error',error:'草稿已变化，请重新预览后再确认。'});
+      return;
+    }
     const generation = ++request.current;
     lock.current = true;
     const controller = new AbortController();
@@ -125,7 +131,7 @@ export function useShortCoach(
     try {
       const result = await boundedRequest(
         async (signal) => {
-          const input = await makeCoachInput(
+          const input = approved?.input ?? await makeCoachInput(
             row,
             draft,
             purpose,
@@ -133,9 +139,12 @@ export function useShortCoach(
             session.accountScope!,
           );
           if (!current() || signal.aborted) throw new RequestCancelled();
+          if(service.shortCoach!.preview&&!approved){
+            return {input,preview:await service.shortCoach!.preview(input,signal)};
+          }
           return {
             input,
-            raw: await service.shortCoach!.generate(input, signal),
+            raw: await service.shortCoach!.generate(approved?{...input,disclosure:{...approved.preview,accepted:true}}:input, signal),
           };
         },
         {
@@ -150,6 +159,10 @@ export function useShortCoach(
         controller.signal.aborted
       )
         return;
+      if('preview' in result&&result.preview){
+        setState({scope,phase:'preview',input:result.input,preview:result.preview,error:''});
+        return;
+      }
       const candidate = readCoachSuggestion(result.raw, result.input);
       setState({
         scope,
@@ -228,7 +241,8 @@ export function useShortCoach(
   return {
     ...shown,
     adopted: adoptedCurrent,
-    generate,
+    generate: () => generate(),
+    confirmGenerate: () => shown.input&&shown.preview ? generate({input:shown.input,preview:shown.preview}) : undefined,
     applyCandidate,
     busy: shown.phase === "loading" || shown.phase === "applying",
     cancel: () => abort.current?.abort(),

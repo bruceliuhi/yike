@@ -87,7 +87,7 @@ def build_suggestion(raw,result):
           {"kind":"ONE_QUESTION","status":"SUPPORTED","message":"短句仅含一个问题。","quoteIds":[]},
           {"kind":"PROMISE","status":"NEEDS_REVIEW","message":"服务承诺须人工复核。","quoteIds":[]},
           {"kind":"LENGTH","status":"SUPPORTED","message":"短句不超过120个字符。","quoteIds":[]}],
-        "createdAt":now.isoformat().replace("+00:00","Z"),"expiresAt":(now+timedelta(minutes=5)).isoformat().replace("+00:00","Z")}
+        "createdAt":now.isoformat(timespec="milliseconds").replace("+00:00","Z"),"expiresAt":(now+timedelta(minutes=5)).isoformat(timespec="milliseconds").replace("+00:00","Z")}
 
 class ShortCoachService:
     def __init__(self,database,model=None):

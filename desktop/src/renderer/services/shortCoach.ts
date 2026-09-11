@@ -5,6 +5,8 @@ import type {
   DraftSaveInput,
   DraftSaveReceipt,
 } from "../domain/shortCoach";
+import type {CoachPreview,CoachDisclosure} from '../../shared/shortCoach';
+export type {CoachPreview,CoachDisclosure} from '../../shared/shortCoach';
 
 /** Optional authenticated structured service. No adapter to the legacy string
  * generator: evidence anchors and request identity must come from the service.
@@ -13,7 +15,8 @@ import type {
  * separately verified material snapshot before extending this input contract.
  */
 export interface ShortCoachService {
-  generate(input: CoachInput, signal?: AbortSignal): Promise<CoachSuggestion>;
+  preview?(input: CoachInput, signal?: AbortSignal): Promise<CoachPreview>;
+  generate(input: CoachInput & {disclosure?:CoachDisclosure}, signal?: AbortSignal): Promise<CoachSuggestion>;
 }
 /** The server must authorize the opportunity, compare source/profile/draft
  * versions and persist the original request id atomically with the saved draft.
