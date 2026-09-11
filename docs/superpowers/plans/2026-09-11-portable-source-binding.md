@@ -13,4 +13,8 @@
 
 ## 实施与验证
 
-执行中。Windows旧候选23d1793保留历史，当前新增画像/策略/模型功能需要同源新payload，不追认旧包。
+源码 `c8344082b3e483b7c8d86b54017725d0c95ad2a4`：上述实现及交接更新完成，推送状态以远端核验为准。Windows旧候选23d1793保留历史，当前新增画像/策略/模型功能需要同源新payload，不追认旧包。
+
+- RED：9项中6失败、3通过，复现错误SHA、脏工作树、无Git来源被旧实现接受；修复后同组9通过（1.03秒），TypeScript与diff检查通过。未跑全量、未make。
+- 独立非作者整批审核GO，绑定base `6d50331` → source `c834408`，无阻断发现；静态核对Forge/jiti和Vite加载器保留原模块路径，未重复测试。审核记录在本工作树私有Git ledger的 `sdd/portable-source-binding-final-review.md`，不将机器私有路径作为其他AI的执行依赖。
+- 固定候选更新为上述源码SHA；后续纯文档提交不要求重构包。尚无本次Win ACK、payload、Setup、安装/平台/生产/UAT证据；完整V0.2未完成。

@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-11 Windows payload 与客户端同源门禁
+
+`c834408`阻止旧payload混入新客户端：清单源码SHA须与实际Git HEAD一致，当前工作树须干净，缺来源拒绝。9项定向检查及TypeScript通过，独立整批GO；[唯一证据](superpowers/plans/2026-09-11-portable-source-binding.md#实施与验证)。没有执行Windows构包或安装，完整V0.2继续。
+
 ## 2026-09-11 行业策略进入候选模型
 
 `64ed5c1`已把候选所属已确认任务规则传入实际模型适配器/固定worker，严格独立于原文；缺能力预留前拒绝，客户端明确发送内容，旧请求兼容。独立整批GO，[唯一验证](superpowers/plans/2026-09-11-industry-strategy-assessment.md#实施与验证)。取代下方“模型消费待接”的历史状态；真实模型语义质量/平台效果仍未证明，不代表完整V0.2或上线。
@@ -26,7 +30,7 @@
 
 ## 当前 Windows 接续入口
 
-CodexWin 按[固定候选交接](handoffs/WIN_V02_CURRENT_CANDIDATE.md)从 `23d1793` 生成新 payload 并只构包一次，再用同包验收安装/重开和授权业务流程。旧 payload/Setup 不能代表当前功能；尚无本次 Win ACK、新包或实机通过记录。本次仅整合可执行交接，不重复测试或改变完整 V0.2 范围。
+CodexWin 按[固定候选交接](handoffs/WIN_V02_CURRENT_CANDIDATE.md)从 `c834408` 生成新 payload 并只构包一次，再用同包验收安装/重开和授权业务流程。旧 payload/Setup 不能代表当前功能；尚无本次 Win ACK、新包或实机通过记录。本次仅整合可执行交接，不重复测试或改变完整 V0.2 范围。
 
 ## 2026-09-11 首页机会简报
 
