@@ -6,6 +6,8 @@ import hashlib
 import json
 from uuid import UUID
 
+import psycopg
+
 from pilot.auth import InvalidPilotToken
 from pilot.sessions import PilotSessionRegistry
 
@@ -41,6 +43,8 @@ class SearchCoverageService:
                 return self.sessions.require_active(cursor, claims)
         except (InvalidPilotToken, PermissionError):
             raise SearchCoverageError("invalid_session", 401) from None
+        except psycopg.Error:
+            raise SearchCoverageError("coverage_unavailable", 503) from None
 
     @classmethod
     def _request(cls, value):
@@ -134,7 +138,7 @@ class SearchCoverageService:
                     units = [self._unit(task, _row_from(cursor, row)) for row in cursor.fetchall()]
         except SearchCoverageError:
             raise
-        except Exception:
+        except psycopg.Error:
             raise SearchCoverageError("coverage_unavailable", 503) from None
         self._active(claims)
         generated = task["generated_at"]
@@ -165,7 +169,7 @@ class SearchCoverageService:
         raw, independent = row["raw_contents"], row["independent_sources"]
         if row["status"] == "PENDING" and raw == 0:
             coverage, stop = "NOT_STARTED", "NOT_EXECUTED"
-        elif task["deadline_at"] <= task["generated_at"]:
+        elif row["status"] == "RUNNING" and task["deadline_at"] <= task["generated_at"]:
             coverage, stop = "PARTIAL", "LIMIT_REACHED"
         elif row["status"] == "RUNNING":
             coverage, stop = "RUNNING", "NONE"
@@ -184,7 +188,7 @@ class SearchCoverageService:
                 "counts": {"requests": None, "rawContents": raw, "duplicates": raw-independent,
                            "independentSources": independent, "newCandidates": None,
                            "confirmedOpportunities": None, "pendingReviews": None},
-                "countingBasis": "本平台运行 observation_id 条目数及 source_id 去重数；原文示例最多20条。不是平台浏览总量、买方数；筛选统计未知。",
+                "countingBasis": "本平台运行 observation_id 条目数及 source_id 去重数；重复项指同来源多次观察（含版本变化），不是相同正文数量；原文示例最多20条。不是平台浏览总量、买方数；筛选统计未知。",
                 "exclusions": [], "evidence": evidence, "recovery": "UNKNOWN"}
 
 

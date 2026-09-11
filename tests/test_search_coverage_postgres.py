@@ -1,5 +1,5 @@
 """Restricted PostgreSQL coverage snapshots; all source content is synthetic."""
-from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 import os
 from pathlib import Path
 import shutil
@@ -118,6 +118,19 @@ def test_feed_uses_historical_profile_number(real_strategy_env):
     begun, _ = claimed(env)
     item = env.runtime.get_task_feed_item(env.claims, begun["task_id"])
     assert item["profile_version"] == env.profile_number
+
+
+def test_deadline_only_marks_a_still_running_direction_as_expired():
+    from pilot.search_coverage import SearchCoverageService
+
+    now = datetime.now(UTC)
+    task = {"generated_at": now, "deadline_at": now - timedelta(seconds=1),
+            "configuration_snapshot": {"configuration": {"keywords": ["synthetic"]}}}
+    base = {"platform_run_id": str(uuid4()), "platform": "PUBLIC_WEB",
+            "raw_contents": 1, "independent_sources": 1, "evidence": []}
+    assert SearchCoverageService._unit(SearchCoverageService, task, base | {"status": "RUNNING"})["stopReason"] == "LIMIT_REACHED"
+    assert SearchCoverageService._unit(SearchCoverageService, task, base | {"status": "SUCCEEDED"})["stopReason"] == "UNKNOWN"
+    assert SearchCoverageService._unit(SearchCoverageService, task, base | {"status": "CANCELED"})["stopReason"] == "CANCELED"
 
 
 def _run_node_http(env, task_id, *, raw, sources, body):
