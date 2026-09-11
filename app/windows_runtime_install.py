@@ -189,7 +189,9 @@ def install_runtime(destination: Path, *, git_executable: Path, uv_executable: P
             git('apply', '--check', '--unidiff-zero', '--whitespace=error-all', patch)
             git('apply', '--index', '--unidiff-zero', patch)
         changed = set(git('diff', 'HEAD', '--name-only', '--').splitlines())
-        if changed != set(lock['patched_files']):
+        # Governance may additionally pin unchanged upstream dependencies.
+        # Reject every ungoverned change; verify all pinned bytes below.
+        if not changed.issubset(lock['patched_files']):
             raise RuntimeInstallError('patched_file_set_mismatch')
         for name, digest in lock['patched_files'].items():
             if _digest(_within(destination, name)) != digest:
