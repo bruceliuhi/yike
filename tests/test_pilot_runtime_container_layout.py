@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SUPPORTED_LITERAL_COPIES = {
     ("pyproject.toml", "uv.lock", "./"),
     ("pilot", "./pilot"),
+    ("app/__init__.py", "app/model_contract.py", "./app/"),
     ("migrations", "./migrations"),
     ("static", "./static"),
     (

@@ -61,3 +61,7 @@
 真实 PostgreSQL 16 使用本批独立 tmpfs 容器与三个专用测试库，未操作既有数据库或生产服务。本批不跑全仓、不构包；没有真实平台或模型请求、Windows 安装、HTTPS 或客户证据。仍需接续同版本部署/Windows及跨行业真实闭环，不以修正测试替代完整产品目标。
 
 独立非作者复核绑定 `8718c0a29cf499e6a051b0a4508eed5e4d9743ce`，`material_reference_architecture` 结论 GO，无阻断 P1/P2，未重跑测试。本批临时容器已停止，tmpfs测试数据销毁，既有库不变。同期本机对 `https://yike.xingheai.net/healthz` 的限时只读请求返回 curl 6（无法解析主机）；这是本机观测，不是权威 DNS 管理记录，不证明服务端健康变化。
+
+### 镜像布局夹具接续（基线0bb4402）
+
+当前Mac实测该布局测试在构造应用之前失败：固定COPY白名单遗漏现Dockerfile已有的 `app/__init__.py app/model_contract.py ./app/`。仅补精确三元组，保留其他未知COPY拒绝、隔离子进程导入/无网络启动与规则摘要断言；不修改生产镜像。修正后 `python -m pytest -q tests/test_pilot_runtime_container_layout.py tests/test_deploy_contracts.py` 为5 passed / 1.09s、0 skipped，diff check通过。此为Mac测试夹具修正，不覆盖Windows原WinError10106或其他全量失败；沿用32c9c0c服务候选，不重新构包。
