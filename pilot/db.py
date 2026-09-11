@@ -45,6 +45,7 @@ class PilotDatabase:
         ("v02-short-coach", migration_path.with_name("130_v02_short_coach.sql")),
         ("v02-structured-followups", migration_path.with_name("131_v02_structured_followups.sql")),
         ("v02-material-profile-references", migration_path.with_name("132_v02_material_profile_references.sql")),
+        ("v02-research-execution", migration_path.with_name("133_v02_research_execution.sql")),
     )
 
     def __init__(self, url: str):

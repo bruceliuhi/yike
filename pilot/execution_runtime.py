@@ -234,6 +234,22 @@ class ExecutionRuntime:
             return result
 
     def apply(self, claims, request: ExecutionOperation, signature: str) -> dict:
+        return self._apply(claims, request, signature, research_hook=None)
+
+    def apply_research(self, claims, request: ExecutionOperation, signature: str, research_hook) -> dict:
+        if not callable(research_hook):
+            raise ExecutionRuntimeError('capability_unavailable', 503)
+        return self._apply(claims, request, signature, research_hook=research_hook)
+
+    @staticmethod
+    def _research_row(cursor, tenant, user, *, request_id=None, task_id=None):
+        field, value = ('request_id', request_id) if request_id is not None else ('task_id', task_id)
+        cursor.execute(f'SELECT receipt FROM pilot_research_reservations WHERE tenant_id=%s '
+            f'AND owner_user_id=%s AND {field}=%s', (tenant, user, value))
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+    def _apply(self, claims, request: ExecutionOperation, signature: str, research_hook) -> dict:
         request = _operation(request)
         fingerprint = _hash(request.model_dump(mode='json', exclude={'request_id'}))
         with self.database.connect() as connection, connection.cursor() as cursor:
@@ -245,7 +261,13 @@ class ExecutionRuntime:
             if previous:
                 if previous[0] != fingerprint: raise ExecutionRuntimeError('request_conflict')
                 self._active(cursor, claims)
-                return previous[1]  # Historical receipt is not a renewed authorization.
+                research = self._research_row(cursor, tenant, claims.user_id, request_id=request.request_id)
+                if research_hook is None:
+                    if research is not None: raise ExecutionRuntimeError('capability_unavailable', 409)
+                    return previous[1]  # Historical receipt is not a renewed authorization.
+                if research is None:
+                    raise ExecutionRuntimeError('request_conflict', 409)
+                return research_hook(cursor, tenant, request, previous[1], research)
             if request.operation == 'FINISH':
                 # Same immutable upload lock and order as CandidateIngestionStore:
                 # sessions -> execution request -> upload -> device/key -> task.
@@ -255,9 +277,16 @@ class ExecutionRuntime:
                 self._active(cursor, claims)
             key = self._key(cursor, claims, tenant, request.device_id, request.credential_version)
             self._signature(key, signature, execution_signing_payload(tenant_id=tenant, claims=claims, operation=request))
+            reservation = None
             if request.operation == 'START':
-                result = self._start(cursor, claims, tenant, request)
+                result, snapshot = self._start(cursor, claims, tenant, request)
+                is_research = type(snapshot['configuration'].get('research')) is dict
+                if research_hook is None and is_research:
+                    raise ExecutionRuntimeError('capability_unavailable', 409)
+                reservation = research_hook(cursor, tenant, request, result, None, snapshot) if research_hook else None
             else:
+                if research_hook is not None:
+                    raise ExecutionRuntimeError('invalid_request', 422)
                 result = self._mutate(cursor, claims, tenant, request)
             result.update(schema_version='execution-runtime-v1', request_id=request.request_id, operation=request.operation)
             self._active(cursor, claims)
@@ -274,7 +303,7 @@ class ExecutionRuntime:
                     platform = next(p for p in platforms if p['platform_run_id']==result['platform_run_id'])
                     self._lease(platform, request.credential_version, result['lease_id'], result['execution_generation'], now,
                                 status='SUCCEEDED' if finishing else 'RUNNING')
-            return result
+            return reservation if reservation is not None else result
 
     def _start(self, cursor, claims, tenant, request):
         for target in sorted(request.targets, key=lambda t: (t.platform, t.connection_id or '')):
@@ -307,7 +336,8 @@ class ExecutionRuntime:
             platforms.append(dict(platform_run_id=platform_id, platform=target.platform, status='PENDING'))
         if occurrence_id is not None:
             self.monitor_runtime.link_start(cursor, claims, tenant, occurrence_id, task_id, run_id)
-        return dict(task_id=task_id, run_id=run_id, status='PENDING', stop_confirmed=False, platform_runs=platforms)
+        return (dict(task_id=task_id, run_id=run_id, status='PENDING', stop_confirmed=False,
+            platform_runs=platforms), snapshot)
 
     def _peek_task(self, cursor, tenant, user, task_id):
         cursor.execute('SELECT * FROM pilot_collection_tasks WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s',
@@ -365,6 +395,10 @@ class ExecutionRuntime:
 
     def _mutate(self, cursor, claims, tenant, request):
         peek = self._peek_task(cursor, tenant, claims.user_id, request.task_id)
+        research_task = type(peek.get('configuration_snapshot', {}).get('configuration', {}).get('research')) is dict
+        if request.operation != 'CANCEL' and (research_task or self._research_row(
+                cursor, tenant, claims.user_id, task_id=request.task_id) is not None):
+            raise ExecutionRuntimeError('capability_unavailable', 409)
         if peek['device_id'] != request.device_id: raise ExecutionRuntimeError('device_unavailable', 404)
         if peek['status'] == 'SUCCEEDED': raise ExecutionRuntimeError('task_finished')
         if request.operation != 'CANCEL':
@@ -473,6 +507,9 @@ class ExecutionRuntime:
         if signature is not None:
             self._signature(key, signature, submission_signing_payload(tenant_id=tenant, claims=claims, batch=batch))
         peek = self._peek_task(cursor, tenant, claims.user_id, ex.task_id)
+        research_task = type(peek.get('configuration_snapshot', {}).get('configuration', {}).get('research')) is dict
+        if research_task or self._research_row(cursor, tenant, claims.user_id, task_id=ex.task_id) is not None:
+            raise ExecutionRuntimeError('capability_unavailable', 409)
         if peek['status'] in ('CANCELLING','CANCELED'): raise ExecutionRuntimeError('task_cancelled')
         if (peek['profile_version_id'], peek['strategy_version_id']) != (batch.profile_version_id, batch.strategy_version_id):
             raise ExecutionRuntimeError('execution_conflict')

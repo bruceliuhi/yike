@@ -51,6 +51,7 @@ def real_strategy_env(env):
         yield env
     finally:
         with env.admin.connect() as conn:
+            conn.execute('DELETE FROM pilot_research_reservations WHERE tenant_id=ANY(%s)', (env.tenants,))
             for table in ('pilot_research_strategy_operations','pilot_research_strategy_versions','pilot_research_strategy_drafts'):
                 conn.execute(f'DELETE FROM {table} WHERE tenant_id=ANY(%s)', (env.tenants,))
 
