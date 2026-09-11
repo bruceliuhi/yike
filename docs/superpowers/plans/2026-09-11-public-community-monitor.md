@@ -48,3 +48,5 @@ Files: `desktop/src/shared/foregroundCollection.ts`、`desktop/src/main/{foregro
 ### 后续真实草稿路径阻断修复
 
 继续沿研究入口核对时发现：`strategyPrepareRequest`仍限制PUBLIC_WEB只能once，导致新建公开monitor草稿在PREPARE前失败。上一批controller/target测试使用现成策略，未覆盖这个转换步骤；上述GO不能作为该步骤已可用的证据。现补真实draft→strategyPrepareRequest→monitorCreateCommand的public-only及混合两例，先复现2失败/2通过，再只扩展转换函数至policy1 monitor，保留旧binding、research、links和其他周期拒绝。3个定向文件30项通过，tsc通过；无新后端或镜像输入，不重跑PG/构包。差量仍须独立审核。
+
+`private_dispatch_review`已对`66745ef..f3faebe`独立差量GO，核对真实TaskWizard→PREPARE→确认→CREATE而非仅targetbuilder，未发现阻断；未重复测试或构包。实际平台和发布验收仍未完成。
