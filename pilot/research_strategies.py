@@ -360,6 +360,8 @@ class ResearchStrategyStore:
         except StrategyStoreError as error:
             if error.code=='invalid_session':
                 error_code,error_status='invalid_session',401
+            elif error.code=='strategy_store_unavailable':
+                error_code,error_status='strategy_store_unavailable',503
         except psycopg.errors.SerializationFailure:
             # The list owner exposes its deterministic snapshot-conflict boundary.
             raise
@@ -395,6 +397,8 @@ class ResearchStrategyStore:
         except StrategyStoreError as error:
             if error.code=='invalid_session':
                 error_code,error_status='invalid_session',401
+            elif error.code=='strategy_store_unavailable':
+                error_code,error_status='strategy_store_unavailable',503
         except psycopg.Error:
             error_code,error_status='strategy_store_unavailable',503
         raise ExecutionRuntimeError(error_code,error_status)

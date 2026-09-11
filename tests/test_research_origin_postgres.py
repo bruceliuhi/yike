@@ -23,6 +23,31 @@ def test_legacy_configuration_returns_before_any_origin_query():
         {"research": {"version": 1}})
 
 
+@pytest.mark.parametrize("projection", ["read_snapshot", "resolve"])
+@pytest.mark.parametrize("code,status,expected", [
+    ("invalid_session", 401, ("invalid_session", 401)),
+    ("strategy_store_unavailable", 503, ("strategy_store_unavailable", 503)),
+    ("research_origin_unavailable", 409, ("strategy_conflict", 409)),
+])
+def test_origin_errors_map_safely_in_runtime_projection(
+        real_strategy_env, monkeypatch, projection, code, status, expected):
+    env = real_strategy_env
+    def unavailable(*_args, **_kwargs):
+        raise StrategyStoreError(code, status)
+    monkeypatch.setattr("pilot.research_strategies.validate_research_origin", unavailable)
+    if projection == "read_snapshot":
+        with snapshot_cursor(env) as cursor:
+            with pytest.raises(ExecutionRuntimeError) as caught:
+                env.strategies.read_snapshot(cursor, env.claims, env.profile,
+                    env.confirmed["strategy_version_id"])
+    else:
+        with env.db.connect() as conn, conn.cursor() as cursor:
+            with pytest.raises(ExecutionRuntimeError) as caught:
+                env.strategies.resolve(cursor, env.claims, env.profile,
+                    env.confirmed["strategy_version_id"])
+    assert (caught.value.code, caught.value.status) == expected
+
+
 def _provenance(env, suggestion):
     return {"requestId": suggestion["requestId"], "suggestionId": suggestion["suggestionId"],
         **suggestion["binding"], "originalScope": suggestion["originalScope"],
