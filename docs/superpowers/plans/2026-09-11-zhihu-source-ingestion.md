@@ -21,20 +21,30 @@
 **Files:** 新connectors/zhihu_mapping.py；connectors/candidate_mapping.py仅ZHIHU路由；tests/test_zhihu_candidate_mapping.py。
 **Interface:** `map_zhihu_record(raw, collector_version, query) -> dict`返回既有CandidateRecord shape，失败复用CandidateMappingError（避免循环：子模块内部局部import或由调用方统一转固定错误）。build_comment_batch仍调用validate_candidate_batch(payload,now=now)。只接受上文精确字段关系，未知身份/null；raw不修改、不记录。
 
-- [ ] RED：回答/文章同ID区分；原文及评论body/时间独立；匿名hash不冒作者；错误URL/类型/关联/父ID/未来时间拒绝；视频无正文不造POST。
-- [ ] 最小实现独立mapper与dispatch，不修改其它平台解析规则或启用采集器。
-- [ ] 固定Python运行新文件及旧mapper中平台拒绝/关键兼容目标，不全套；提交自身文件，私有sdd报告。
+- [x] RED：回答/文章同ID区分；原文及评论body/时间独立；匿名hash不冒作者；错误URL/类型/关联/父ID/未来时间拒绝；视频无正文不造POST。
+- [x] 最小实现独立mapper与dispatch，不修改其它平台解析规则或启用采集器。
+- [x] 固定Python运行新mapper及reader到正式DTO联验，不全套；旧mapper分支未修改，由独立审核核对，不将其声明为重新实跑。提交自身文件，私有sdd报告。
 
 ## Task 2: 停写JSONL到候选对象（root）
 
 **Files:** app/collection_output.py；新tests/test_zhihu_collection_output.py；旧test_collection_output.py仅更新ZHIHU不再属于拒绝列表。
 **Interface:** `read_collection_output(path,'ZHIHU',max_records)`沿用签名，返回上述完整有界rawlist。按(type,id)关联；源内容及评论last_modify_ts分别进入collected_at；其它平台不变。
 
-- [ ] RED：真实固定字段的两类同ID主帖/评论、孤儿/冲突、合计上限、无正文视频、未知时间、路径/文件安全复用。
-- [ ] 最小分支扩展读取器，不复制文件系统安全层；独立内容键，先完整校验再返回。
-- [ ] 一次新reader→真实mapper→CandidateBatch合成联验和受影响原reader定向检查，不启动PG/平台/构包。
+- [x] RED：真实固定字段的两类同ID主帖/评论、孤儿/冲突、合计上限、无正文视频、未知时间、路径/文件安全复用。
+- [x] 最小分支扩展读取器，不复制文件系统安全层；独立内容键，先完整校验再返回。
+- [x] 新reader→真实mapper→CandidateBatch合成联验和受影响原reader定向检查；固定Windows HOST_FILES包含新mapper，仅静态清单验证，不启动PG/平台/构包。
 
 ## Task 3: 独立审核与接续
 
-- [ ] 非作者审核base到完整源码；有具体问题才加最窄反例，一波修复后差量审核。
-- [ ] 唯一证据写此计划，更新任务书短链接并正常推送main核SHA。知乎仍未启用；后续必须完成固定依赖受控patch、同context本人身份核验、登录和四平台opt-in策略、客户端/monitor接线与真实平台验收；不省略公开网站来源或完整Goal其它门禁。
+- [x] 非作者审核base到完整源码，复用定向证据，无阻断发现。
+- [x] 唯一证据写此计划，更新任务书短链接，主线推送结果以任务最终回执为准。知乎仍未启用；后续必须完成固定依赖受控patch、同context本人身份核验、登录和四平台opt-in策略、客户端/monitor接线与真实平台验收；不省略公开网站来源或完整Goal其它门禁。
+
+## 实施与验证
+
+基线 `e8ddd70`，计划 `ce1e76d`，reader `edab35f`，mapper `cc519b5`，Windows固定清单 `e9e755c`。
+
+- 新reader初始3失败/7通过；实现后9通过/1联验暂未选中（0.04s）。原reader受影响文件77通过/1Windows原生junction检查跳过（0.20s）。
+- 新mapper初始因模块缺失无法收集；初次合并reader联验19通过。预接线补测暴露6失败：空视频评论被拒、bool/浮点误判未知、非字符串类型泄露异常；修复后新mapper+reader包含正式CandidateBatch联验共25通过（0.15s）。
+- 固定Windows打包清单遗漏新模块的断言先失败，补一行后仅该项1通过（0.03s）；没有执行构包。Python编译与diff-check通过；没有全量测试、PG或前端测试。
+- 独立整批审核 `e9e755c43a02c069f6f4a30099130fbe4dee1b04` GO，包含固定portable清单；无阻断发现，没有重复测试或构包。全部输入是基于本地固定依赖字段的合成数据；无真实知乎账号/浏览器/网络/平台、生产、Windows运行或客户验收。商业代码授权已由AUTHORITY确认，不重复索取；平台访问权限仍独立按运行门禁处理。
+- 后续执行接线参考私有sdd/zhihu-source-feasibility.md。旧三平台执行模式、开关、账号及服务端授权不变；本批不能用于宣称知乎已可搜索或发送。
