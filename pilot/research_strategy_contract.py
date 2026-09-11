@@ -273,7 +273,7 @@ class ResearchStrategyConfiguration(_Frozen):
         return self
 
 
-class _IndustryTaskStrategy(_Frozen):
+class IndustryTaskStrategy(_Frozen):
     version: Literal["industry-task-strategy-v1"]
     sourceTypes: tuple[Literal[
         "SOCIAL_POST", "COMMENT", "PROCUREMENT", "COMPANY_UPDATE", "INDUSTRY_SITE",
@@ -297,7 +297,7 @@ class _IndustryTaskStrategy(_Frozen):
 
 class _IndustryResearchStrategyConfiguration(ResearchStrategyConfiguration):
     # Required only on this shape so legacy bytes and digests remain unchanged.
-    industryStrategy: _IndustryTaskStrategy
+    industryStrategy: IndustryTaskStrategy
 
 
 class _StrategyScope(_Frozen):

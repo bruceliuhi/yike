@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import hashlib
 from uuid import uuid4
 from psycopg.errors import SerializationFailure
+from pydantic import ValidationError
 
 from pilot.candidate_ingestion import CandidateIngestionError, CandidateIngestionStore, _json, _row, _primitive, _id
 from pilot.candidate_assessment_model import AssessmentModelError, validate_assessment, validate_assessment_input
@@ -14,6 +15,7 @@ from pilot.execution_runtime import ConfirmedExecutionStrategy
 from pilot.execution_contract import ExecutionRuntimeError
 from pilot.opportunity_evidence import build_evidence, canonical_json, evidence_digest
 from pilot.store import PilotStore
+from pilot.research_strategy_contract import IndustryTaskStrategy
 
 
 def _hash(value):
@@ -185,7 +187,13 @@ class CandidateReviewStore(CandidateIngestionStore):
                 validate_assessment_input(description=snapshot['description'],content=snapshot['content'])
                 metadata = {name:getattr(model,name) for name in ('provider','model','rule_version','rule_sha256')}
                 if any(type(value) is not str or not value or len(value)>200 for value in metadata.values()): raise ValueError
-            except (AssessmentModelError,AttributeError,ValueError):
+                configuration = snapshot['strategy']['configuration']
+                raw_industry_strategy = configuration.get('industryStrategy')
+                industry_strategy = None if raw_industry_strategy is None else IndustryTaskStrategy.model_validate(
+                    raw_industry_strategy).model_dump(mode='json')
+                if industry_strategy is not None and getattr(model,'industry_strategy_version',None)!=industry_strategy['version']:
+                    raise ValueError
+            except (AssessmentModelError,AttributeError,ValidationError,TypeError,ValueError):
                 raise CandidateReviewError('assessment_unavailable',503) from None
             snapshot['model'] = metadata
             # Same-content observations do not change the snapshot cache key.
@@ -227,7 +235,10 @@ class CandidateReviewStore(CandidateIngestionStore):
         self._prepare_assessment_dispatch(claims, request, snapshot)
         failure = None
         try:
-            value, usage = model.assess(description=snapshot['description'],content=deepcopy(snapshot['content']))
+            kwargs = dict(description=snapshot['description'],content=deepcopy(snapshot['content']))
+            if industry_strategy is not None:
+                kwargs['industry_strategy'] = deepcopy(industry_strategy)
+            value, usage = model.assess(**kwargs)
             value = value.model_dump() if hasattr(value,'model_dump') else value
             content = validate_assessment(value,description=snapshot['description'],content=snapshot['content']).model_dump()
         except AssessmentModelError as error:

@@ -17,13 +17,22 @@ def main() -> None:
         if len(raw) > _PIPE_LIMIT:
             raise ValueError("bounded input required")
         payload = _read_json(raw.decode("utf-8"))
-        if set(payload) != {"base_url", "api_key", "model", "timeout_seconds", "description", "content", "rule_version", "rule_sha256"}:
+        legacy = {"base_url", "api_key", "model", "timeout_seconds", "description", "content", "rule_version", "rule_sha256"}
+        if set(payload) not in (legacy, legacy | {"industry_strategy"}):
             raise ValueError("invalid worker input")
         model = OpenAICompatibleCandidateAssessmentModel(**{key: payload[key]
             for key in ("base_url", "api_key", "model", "timeout_seconds")})
         if payload["rule_version"] != model.rule_version or payload["rule_sha256"] != model.rule_sha256:
             raise AssessmentModelError("assessment_rules_unavailable", 503)
-        result, usage = model._assess_in_process(description=payload["description"], content=payload["content"])
+        if "industry_strategy" in payload:
+            from pilot.research_strategy_contract import IndustryTaskStrategy
+            if payload["industry_strategy"] is None:
+                raise ValueError("invalid industry strategy")
+            strategy = IndustryTaskStrategy.model_validate(payload["industry_strategy"]).model_dump(mode="json")
+        else:
+            strategy = None
+        result, usage = model._assess_in_process(description=payload["description"], content=payload["content"],
+                                                 industry_strategy=strategy)
         reply = {"assessment": result.model_dump(), "usage": usage,
                  "rule_version": model.rule_version, "rule_sha256": model.rule_sha256}
     except AssessmentModelError as error:
