@@ -39,6 +39,7 @@ def test_one_fixed_public_read_persists_original_candidates_and_recovery(real_st
     assert response.status_code == 200
     listing = response.json()
     assert receipt is not None and listing["total"] == receipt["accepted_count"]
+    assert listing['total'] > 0, 'no persisted evidence; HTTP/client path is inconclusive'
     evidence = []
     for item in listing["items"]:
         response = client.get('/api/ui/raw-candidates/' + item['candidate_id'])

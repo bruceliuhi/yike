@@ -1,9 +1,10 @@
 # R4研究启动：来源、估算和执行绑定
 
-状态：V0.2内自主细化；2026-09-11用户授权允许实施。相似来源进入确认策略已实现于18c37b7，限定证据及审核见[来源记录](../plans/2026-09-11-similar-research-provenance.md)。确认版本只读估算组件与客户端接线已实现于8626329/81d06bc，2386ccc复核GO，见[估算记录](../plans/2026-09-11-confirmed-research-quote.md)。原子START/资源预留及客户端私有传输已实现，a18aa9a差量复审GO，见[启动记录](../plans/2026-09-11-atomic-research-start.md#实施证据)。内部资源许可、动作事件及固定公开读取已实现于8fb768f/f12e12d，限定测试/实网读取与审核见[资源记录](../plans/2026-09-11-research-resource-permits.md#实施证据)。运行时仍未装配完整研究worker及规则，页面未启用；原文持久化/结构化研究与结算尚未完成。本文不是搜贝比例、价格或生产启用批准。
+状态：V0.2内自主细化；2026-09-11用户授权允许实施。相似来源进入确认策略已实现于18c37b7，限定证据及审核见[来源记录](../plans/2026-09-11-similar-research-provenance.md)。确认版本只读估算组件与客户端接线已实现于8626329/81d06bc，2386ccc复核GO，见[估算记录](../plans/2026-09-11-confirmed-research-quote.md)。原子START/资源预留及客户端私有传输已实现，a18aa9a差量复审GO，见[启动记录](../plans/2026-09-11-atomic-research-start.md#实施证据)。内部资源许可、动作事件及固定公开读取已实现于8fb768f/f12e12d，限定测试/实网读取与审核见[资源记录](../plans/2026-09-11-research-resource-permits.md#实施证据)。运行时仍未装配完整研究worker及规则，页面未启用；固定公开源原文已接候选库，完整研究编排/结构化分析与结算尚未完成。本文不是搜贝比例、价格或生产启用批准。
 
 ## 当前证据与决定
 
+- `7cc9cad/6084df4`接固定公开读取原文→现有候选库/详情，以独立research资源上下文替代伪造普通lease；同事务终结事件与写入原文，恢复不重抓。[限定证据与审核](../plans/2026-09-11-research-candidate-evidence.md#实施证据)。这只完成固定公开源原文留存，研究编排/结构化分析和页面启动仍待接。
 - 普通`services/client.ts`已装配确认版本的researchUsage估算请求；研究启动尚未装配，TaskWizard继续拒绝research启动。保护不能先删除。
 - 原诊断中`strategyPrepareRequest`与Python/共享TS合同均拒绝来源；18c37b7已接相似研究provenance及服务端当前资格核验，coverageProvenance仍拒绝。服务端升级前仍不能使用新来源合同；不将本批当成研究启动完成。
 - 本机`configurationHash(taskFingerprint)`没有executionLimits，不能成为搜贝估算/预留唯一依据。已有服务端`configuration_sha256`覆盖完整确认策略和执行上限；必须复用它，并继续核对本机草稿版本、账号选择与可信账户空间。
