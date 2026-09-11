@@ -1,11 +1,11 @@
 # R4研究启动：来源、估算和执行绑定
 
-状态：V0.2内自主细化；2026-09-11用户授权允许实施，尚未实现。本文不是搜贝比例、价格或生产启用批准。
+状态：V0.2内自主细化；2026-09-11用户授权允许实施。相似来源进入确认策略已实现于18c37b7，限定证据及审核见[实施记录](../plans/2026-09-11-similar-research-provenance.md)；其余步骤尚未实现。本文不是搜贝比例、价格或生产启用批准。
 
 ## 当前证据与决定
 
 - 普通`services/client.ts`未装配researchUsage或研究启动；TaskWizard主动拒绝research。保护不能先删除。
-- `strategyPrepareRequest`显式拒绝`provenance`/`coverageProvenance`；Python与共享TS的research schema也没有这些字段。来源目前只保存在本机草稿，不能声称服务端确认快照已经保留。
+- 原诊断中`strategyPrepareRequest`与Python/共享TS合同均拒绝来源；18c37b7已接相似研究provenance及服务端当前资格核验，coverageProvenance仍拒绝。服务端升级前仍不能使用新来源合同；不将本批当成研究启动完成。
 - 本机`configurationHash(taskFingerprint)`没有executionLimits，不能成为搜贝估算/预留唯一依据。已有服务端`configuration_sha256`覆盖完整确认策略和执行上限；必须复用它，并继续核对本机草稿版本、账号选择与可信账户空间。
 - 采用“完善原策略合同→确认策略后估算→同事务预留和START→真实资源事件→结算/恢复”的路线。拒绝两种捷径：把research去掉当普通once跑，或只让估算按钮返回数字。二者都无法兑现用户确认的研究范围与上限。
 

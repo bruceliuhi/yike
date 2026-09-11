@@ -40,5 +40,7 @@ Files：`desktop/src/shared/researchStrategies.ts`、`desktop/src/renderer/domai
 
 - 后端先验RED：合同1失败/8通过；真实数据库首次未配置而7项跳过，不计通过。随后专用tmpfs PostgreSQL及既有受限应用角色下，`pytest -q tests/test_research_origin_postgres.py` 8通过；`pytest -q tests/test_research_strategy_contract.py` 205通过，py_compile和diff检查通过。来源为合成测试数据，非实网或真实采购验证；覆盖同cursor画像锁路径，但未额外做双线程时序测试。
 - 同requestId的有来源PREPARE/CONFIRM重放也重新核验来源，历史GET保留原回执。旧无来源策略不访问机会表、序列化不增加键。未构包、未部署、未调用模型；后续仍缺可信估算、原子启动与实际计量。
+- 独立审核18c37b7发现一项P2：新来源存储异常503在resolve/read_snapshot被旧错误映射降为配置冲突409。906129f最小修复保留401/503，真实来源资格仍映射409。定向受限PG先2失败，再以`-k origin_errors_map_safely`验证两投影×三类错误，6通过/8未选择；复用原8项来源链证据，不把故障注入计作真实存储损坏演练。
+- 非作者差量复核906129f后给整批限定GO：唯一P2关闭，无剩余P1/P2；不重复整批测试。该结论只覆盖来源合同与确认/读取资格，不覆盖研究执行、真实平台或发布验收。
 - 客户端先验RED：来源转换2失败/18通过；TaskWizard来源准备按钮1失败；公开来源research转换另1失败。对应最小修改后4文件50项通过及tsc通过。测试覆盖真正的草稿→PREPARE→receipt与普通TaskWizard确认，不只用现成策略fixture；公开research准备不授权普通desktopStart执行，coverage补查仍拒绝。
 - 测试文件：`researchStrategies.test.ts`、`ui/strategy-confirmation.test.tsx`、`monitorCollectionDomain.test.ts`、`publicCollectionRenderer.test.ts`。以上为JS/模拟UI证据，不证明后端、平台、模型或Windows成功。

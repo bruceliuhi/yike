@@ -11,7 +11,7 @@ psql "$YIKE_PILOT_ADMIN_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
 
 发布端需要同版本 `deploy/` 文件及 psql；镜像仍仅包含服务运行代码。整体部署优先使用此入口，下文逐版本说明保留溯源。基础画像权限缺失会出现 readyz200 但画像500；本机真实空库、镜像 HTTP 保存/确认与跨租户检查见[空库记录](../docs/qa/EMPTY_DATABASE_DEPLOYMENT_20260911.md)，不等于所有业务或生产已验收。
 
-2026-09-11镜像启动修复：只加入服务端依赖的`app/__init__.py`和`app/model_contract.py`，其余本地采集器继续排除。首次amd64构建和原CMD非root启动见[历史镜像记录](../docs/qa/SERVICE_IMAGE_STARTUP_20260911.md)。当前服务器内网部署为6832482；包含短句修复的32c9c0c候选已在Mac构建并导出，尚未部署。实际版本、候选摘要及HTTPS等未通过项统一见[服务器交付记录](../docs/qa/SERVER_137138_DEPLOYMENT.md)，不重复构建相同产品字节。
+2026-09-11镜像启动修复：只加入服务端依赖的`app/__init__.py`和`app/model_contract.py`，其余本地采集器继续排除。首次amd64构建和原CMD非root启动见[历史镜像记录](../docs/qa/SERVICE_IMAGE_STARTUP_20260911.md)。最新Win交付记录已更新至66745ef及yike.tuokexing.net HTTPS；6832482和Mac的32c9c0c候选为历史版本。实际版本、候选摘要及仍缺的模型/客户端/真实业务项统一见[服务器交付记录](../docs/qa/SERVER_137138_DEPLOYMENT.md)，本批未远程复测，不重复构建相同产品字节。
 
 四平台接线：在原执行/策略/连接及监控迁移授权基础上，显式设置 `YIKE_PILOT_COLLECTION_MODE=four-platform-foreground-v1` 可开放小红书、抖音、B站、知乎的单次搜索；`four-platform-monitor-v1` 同时开放原policy1监控。旧xhs/three模式不新增知乎权限。客户端与固定源须包含[四平台接线](../docs/superpowers/plans/2026-09-11-four-platform-client.md#实施与验证)及0003补丁，仍要逐账号核验、同设备串行共享预算和确认接管。设置配置不是实际平台成功。服务器已有内网服务，但公开HTTPS、同源码Windows包及真实账号验收仍待完成，实际状态以服务器交付记录为准。
 
