@@ -64,6 +64,11 @@ def validate_business_day(day, timezone, now):
 
 
 def _iso(value):
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            raise OpportunityBriefError("brief_store_unavailable", 503) from None
     return value.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
@@ -142,6 +147,13 @@ class OpportunityBriefService:
                   WHERE included.tenant_id=o.tenant_id AND included.owner_user_id=e.included_by_user_id
                    AND included.request_id=e.include_request_id AND later.action='EXCLUDE'
                    AND later.status='SUCCEEDED' AND later.created_at>included.created_at) AS later_excluded
+                ,EXISTS(SELECT 1 FROM pilot_research_strategy_versions strategy
+                  JOIN pilot_research_strategy_drafts draft ON draft.tenant_id=strategy.tenant_id
+                   AND draft.owner_user_id=strategy.owner_user_id AND draft.draft_id=strategy.draft_id
+                  WHERE strategy.tenant_id=o.tenant_id AND strategy.owner_user_id=e.included_by_user_id
+                   AND strategy.strategy_version_id=e.payload->'assessment'->>'strategy_version_id'
+                   AND strategy.state='CONFIRMED' AND draft.current_version_id=strategy.strategy_version_id
+                   AND draft.current_revision=strategy.draft_revision) AS strategy_current
                 FROM pilot_opportunities o LEFT JOIN pilot_opportunity_evidence e USING(tenant_id,opportunity_id)
                 WHERE o.tenant_id=%s AND o.profile_version_id=%s ORDER BY o.updated_at DESC,o.opportunity_id LIMIT 1001""",
                            (tenant, profile_version_id))
@@ -173,6 +185,7 @@ class OpportunityBriefService:
                 snapshot = view["snapshot"]
                 if (row["source_status"] != "OPEN" or row["intent_status"] in {"CONTACTED", "CLOSED"}
                         or row["legacy_contact"] or row["opportunity_id"] in current_followups or row["later_excluded"]
+                        or not row["strategy_current"]
                         or row["latest_source_hash"] != snapshot["source"]["content_sha256"]):
                     continue
                 citations = snapshot["assessment"].get("citations") or []
@@ -180,7 +193,7 @@ class OpportunityBriefService:
                 checked = snapshot["verification"]["checked_at"]
                 contact.append(self._item("contact", row, query, row["include_request_id"],
                                           snapshot["source"]["version_id"], excerpt, "REVIEWED_DEMAND", checked,
-                                          "人工已核验并纳入，且来源需求仍有效。"))
+                                          "人工核验时来源开放并已纳入。"))
             followup = []
             end = _next_day(now, ZoneInfo(query["timezone"]))
             for record in followups:
@@ -195,23 +208,25 @@ class OpportunityBriefService:
             zone = ZoneInfo(query["timezone"])
             local_start = datetime.combine(date.fromisoformat(query["businessDate"]), datetime.min.time(), zone).astimezone(UTC)
             local_end = _next_day(now, zone)
-            cursor.execute("""SELECT t.task_id,r.run_id,p.platform_run_id,p.platform,p.status,
-                (SELECT max(created_at) FROM pilot_execution_operations x WHERE x.tenant_id=t.tenant_id
-                 AND x.owner_user_id=t.owner_user_id AND x.task_id=t.task_id AND x.run_id=r.run_id AND x.operation='FINISH') completed_at
+            cursor.execute("""SELECT t.task_id,r.run_id,max(done.created_at) AS completed_at
                 FROM pilot_collection_tasks t JOIN pilot_collection_runs r USING(tenant_id,owner_user_id,task_id)
-                JOIN pilot_collection_platform_runs p USING(tenant_id,owner_user_id,task_id,run_id)
-                WHERE t.tenant_id=%s AND t.owner_user_id=%s AND t.profile_version_id=%s AND p.status='SUCCEEDED'
-                  AND EXISTS(SELECT 1 FROM pilot_execution_operations done WHERE done.tenant_id=t.tenant_id
-                    AND done.owner_user_id=t.owner_user_id AND done.task_id=t.task_id AND done.run_id=r.run_id
-                    AND done.operation='FINISH' AND done.created_at >= %s AND done.created_at < %s)
-                ORDER BY completed_at DESC NULLS LAST,t.task_id,p.platform_run_id LIMIT 101""",
+                JOIN pilot_execution_operations done ON done.tenant_id=t.tenant_id AND done.owner_user_id=t.owner_user_id
+                  AND done.task_id=t.task_id AND done.run_id=r.run_id AND done.operation='FINISH'
+                WHERE t.tenant_id=%s AND t.owner_user_id=%s AND t.profile_version_id=%s
+                  AND done.created_at >= %s AND done.created_at < %s
+                  AND EXISTS(SELECT 1 FROM pilot_collection_platform_runs p WHERE p.tenant_id=t.tenant_id
+                    AND p.owner_user_id=t.owner_user_id AND p.task_id=t.task_id AND p.run_id=r.run_id AND p.status='SUCCEEDED')
+                GROUP BY t.task_id,r.run_id ORDER BY completed_at DESC,t.task_id,r.run_id LIMIT 101""",
                            (tenant, claims.user_id, profile_version_id, local_start, local_end))
             runs_raw = self._rows(cursor)
             if len(runs_raw) > 100:
                 raise OpportunityBriefError("snapshot_too_large", 503)
             runs = [{"taskId":r["task_id"], "runId":r["run_id"], "windowId":r["run_id"]} for r in runs_raw]
             completed = [r["completed_at"] for r in runs_raw if r["completed_at"] is not None]
-            has_facts = bool(contact or followup or runs)
+            has_facts = bool(runs or followups or any(
+                row["included_by_user_id"] == claims.user_id and row["payload"] is not None
+                for row in opportunities
+            ))
             coverage = "PARTIAL" if has_facts else "NOT_CHECKED"
             unchecked = (["原帖需求变化尚未核验", "真实未覆盖来源尚未检查"] if has_facts else ["尚无本人该画像的可读事实或已完成任务"])
             identity = query | {"generatedAt": _iso(now)}
@@ -229,4 +244,4 @@ class OpportunityBriefService:
                 "opportunityVersion":_iso(row["updated_at"]), "title":row["title"], "reason":reason,
                 "profileId":query["profileId"], "profileVersion":query["profileVersion"], "sample":False,
                 "validity":"VALID", "basis":{"recordId":record_id,"version":version,"excerpt":excerpt,
-                "kind":kind,"verifiedAt":_iso(verified_at) if hasattr(verified_at, "astimezone") else verified_at}}
+                "kind":kind,"verifiedAt":_iso(verified_at)}}
