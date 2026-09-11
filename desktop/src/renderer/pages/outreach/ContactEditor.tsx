@@ -201,12 +201,32 @@ export function ContactEditor({
     const submitted = snapshot.draft;
     setDrafts((old) => ({
       ...old,
-      [submitted.channel]: {
-        ...old[submitted.channel],
-        savedContent: submitted.content,
-        version: Math.max(old[submitted.channel].version, submitted.version),
-        confirmedFingerprint: undefined,
-      },
+      [submitted.channel]: (() => {
+        const current = old[submitted.channel];
+        const initial = initialDraft(row, submitted.channel);
+        const sameEditableValues =
+          current.content === submitted.content &&
+          current.version === submitted.version &&
+          current.accountId === submitted.accountId &&
+          current.recipient === submitted.recipient;
+        const untouchedInitial =
+          current.content === initial.content &&
+          current.savedContent === initial.savedContent &&
+          current.version === initial.version &&
+          current.accountId === initial.accountId &&
+          current.recipient === initial.recipient;
+        if (untouchedInitial && !sameEditableValues)
+          return { ...submitted, confirmedFingerprint: undefined };
+        return {
+          ...current,
+          savedContent: submitted.content,
+          version: sameEditableValues
+            ? submitted.version
+            : Math.max(current.version, submitted.version) +
+              (current.version <= submitted.version ? 1 : 0),
+          confirmedFingerprint: undefined,
+        };
+      })(),
     }));
     setPersistence((old) => ({
       ...old,

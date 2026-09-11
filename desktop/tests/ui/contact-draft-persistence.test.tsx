@@ -6,6 +6,7 @@ import type { AppContextValue } from "../../src/renderer/app/context";
 import { clearLocalDrafts } from "../../src/renderer/app/hooks";
 import type { DraftSaveInput, DraftSaveReceipt } from "../../src/renderer/domain/shortCoach";
 import { parseRoute } from "../../src/renderer/domain/routes";
+import { operationLedgerKey } from "../../src/renderer/app/operationLedger";
 import { PUBLIC_SAMPLE } from "../../src/renderer/pages/Opportunities";
 import { ContactEditor } from "../../src/renderer/pages/outreach/ContactEditor";
 import type { YikeService } from "../../src/renderer/services/contracts";
@@ -158,5 +159,70 @@ describe("ordinary client contact draft persistence", () => {
     await act(async () => resolve(receipt("comment", "stale-request")));
     expect(content().value).toBe("初始评论");
     expect(screen.queryByRole("button", { name: "采用已保存草稿" })).toBeNull();
+  });
+
+  it("keeps edits after UNKNOWN recovery and advances the next version above the saved snapshot", async () => {
+    context.service.contactDrafts!.latest = undefined;
+    vi.mocked(context.service.contactDrafts!.save)
+      .mockRejectedValueOnce(new Error("结果未知"))
+      .mockImplementationOnce(async (input) => ({
+        binding: input.binding,
+        status: "SUCCEEDED",
+        confirmed: true,
+        snapshot: { ...input.snapshot, draft: { ...input.snapshot.draft, savedContent: input.snapshot.draft.content } },
+      }));
+    const view = render(<ContactEditor row={row} renderConfirmation={() => null} />);
+    for (const value of ["v2", "v3", "v4", "原保存v5"])
+      fireEvent.change(content(), { target: { value } });
+    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+    await screen.findByText("结果未知");
+    const original = vi.mocked(context.service.contactDrafts!.save).mock.calls[0][0];
+    expect(original.snapshot.draft.version).toBe(5);
+    view.unmount();
+    clearLocalDrafts();
+    render(<ContactEditor row={row} renderConfirmation={() => null} />);
+    fireEvent.change(content(), { target: { value: "恢复后人工v2" } });
+    vi.mocked(context.service.contactDrafts!.operation).mockResolvedValue({
+      binding: original.binding,
+      status: "SUCCEEDED",
+      confirmed: true,
+      snapshot: { ...original.snapshot, draft: { ...original.snapshot.draft, savedContent: original.snapshot.draft.content } },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "核对原保存请求" }));
+    await waitFor(() => expect(context.service.contactDrafts!.operation).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem(operationLedgerKey("contact-draft-saves", context.session.userId!)) || "{}")).toEqual({}),
+    );
+    expect(content().value).toBe("恢复后人工v2");
+    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+    await waitFor(() => expect(context.service.contactDrafts!.save).toHaveBeenCalledTimes(2));
+    const next = vi.mocked(context.service.contactDrafts!.save).mock.calls[1][0];
+    expect(next.previousRequestId).toBe(original.binding.requestId);
+    expect(next.snapshot.draft.version).toBe(6);
+  });
+
+  it("adopts the complete successful snapshot when UNKNOWN recovery finds an untouched initial draft", async () => {
+    context.service.contactDrafts!.latest = undefined;
+    vi.mocked(context.service.contactDrafts!.save).mockRejectedValueOnce(new Error("结果未知"));
+    const view = render(<ContactEditor row={row} renderConfirmation={() => null} />);
+    for (const value of ["v2", "v3", "v4", "原保存v5"])
+      fireEvent.change(content(), { target: { value } });
+    fireEvent.change(screen.getByRole("textbox", { name: "收件对象" }), { target: { value: "原对象" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+    await screen.findByText("结果未知");
+    const original = vi.mocked(context.service.contactDrafts!.save).mock.calls[0][0];
+    view.unmount();
+    clearLocalDrafts();
+    render(<ContactEditor row={row} renderConfirmation={() => null} />);
+    vi.mocked(context.service.contactDrafts!.operation).mockResolvedValue({
+      binding: original.binding,
+      status: "SUCCEEDED",
+      confirmed: true,
+      snapshot: { ...original.snapshot, draft: { ...original.snapshot.draft, savedContent: original.snapshot.draft.content } },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "核对原保存请求" }));
+    await waitFor(() => expect(content().value).toBe("原保存v5"));
+    expect((screen.getByRole("textbox", { name: "收件对象" }) as HTMLInputElement).value).toBe("原对象");
+    expect(JSON.parse(localStorage.getItem(operationLedgerKey("contact-draft-saves", context.session.userId!)) || "{}")).toEqual({});
   });
 });
