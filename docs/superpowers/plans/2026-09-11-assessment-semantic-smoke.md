@@ -16,7 +16,28 @@
 
 ## 执行（根串行，最后一次独立审核）
 
-- [ ] 新增 `tests/test_assessment_semantic_live_optin.py`，默认无外部调用；六例输入及预期先冻结。显式开启后每例调用现有 `assess(description,content,industry_strategy)` 一次，以实际结果检查，失败不自动重试。
-- [ ] 先验证无opt-in六例全部跳过；再以已授权本机密钥仅在进程环境装配，执行一次六例实际worker检查，记录全部结果及用量是否可得。不得让 pytest 失败打印密钥或原provider包。
-- [ ] 若发现问题，先以现有模型合同测试复现，再做有边界的最小修复；不通过删反例或放宽标准制造通过。若属随机模型表现，保留结论，不无限重试。
-- [ ] 非作者审核用例、运行边界、结果解读与必要修复；更新唯一任务书、正常推main，不部署或构包。
+- [x] 新增 `tests/test_assessment_semantic_live_optin.py`，默认无外部调用；六例输入及预期先冻结。显式开启后每例调用现有 `assess(description,content,industry_strategy)` 一次，以实际结果检查，失败不自动重试。
+- [x] 先验证无opt-in六例全部跳过；再以已授权本机密钥仅在进程环境装配，执行一次六例实际worker检查，记录全部结果及用量是否可得。不得让 pytest 失败打印密钥或原provider包。
+- [x] 本次没有语义检查失败；不修改运行规则或放宽预期。首次用例把COMMENT写成SOCIAL_COMMENT，在任何模型调用前按实际枚举修正并补离线合同检查。
+- [x] 非作者审核用例、运行边界及结果解读，更新唯一任务书；本批提交按正常快进推main，不部署或构包。
+
+## Evidence
+
+测试源码 `f6a95a6`，基线 `51f635a`。未更改生产模型/Skill/采集或发送代码。
+
+- 默认命令 `python -m pytest -q tests/test_assessment_semantic_live_optin.py`：1 passed / 6 skipped in 0.16s；实网检查默认关闭。
+- 明确 opt-in 后，同文件执行 `pytest -q -s --tb=no`：**7 passed in 94.98s**，其中1个离线合同检查、6次实际模型调用；未用重试插件或重跑失败，当前worker30秒边界不变。批准的密钥仅由仓库外一次性helper读入子进程环境，不入文件/报告/argv。
+- 模型 `doubao-seed-2-1-turbo-260628`；规则摘要 `45f24d725e8e7203ee935c11a8198b1c01f66fbac890cd7f950d74347bd14eb0`；六次provider有效token合计39,466，不是费用/搜贝或成本估算。
+
+| 冻结合成用例 | 业务匹配 / 意向 | 决策 / 等级 | token |
+|---|---|---|---:|
+| AI开发采购 | HIGH / HIGH | REVIEW / S | 6,652 |
+| 展台搭建采购 | HIGH / HIGH | REVIEW / S | 6,563 |
+| 同行广告 | LOW / LOW | EXCLUDE / null | 6,481 |
+| 全职招聘 | LOW / LOW | EXCLUDE / null | 6,612 |
+| 评论仅夸父帖 | HIGH / LOW | OBSERVE / null | 6,698 |
+| AI需求＋展台画像 | LOW / HIGH | EXCLUDE / null | 6,460 |
+
+全部结果经过现有结构/逐字引用校验；没有直接发送建议。只说明当前模型在这六个固定合成样本上未触发预先设定的误判条件，不能宣传100%准确、真实获客已有效或所有维度语义均已验证；草稿吸引力/回复率不在本检查结论内。跨行业真实样本盲标、持续供给和客户试用仍缺证据。本批不扩人工标注为已完成UAT，也不因本检查通过继续调提示词。
+
+非作者 `public_scope_review` 对 `f6a95a68d978f6a0e5bdcbebb8a3f66a4a597d8e` 用例/计划、既有adapter边界和本次实际结果独立审核PASS，无阻断。复用既有调用结果，未重复运行模型。报告 `/tmp/yike-assessment-semantic-review.md`；本节及上表保存可移植结论。

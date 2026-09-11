@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+候选判断语义接续（2026-09-11）：`f6a95a6` 新增显式opt-in小样本检查；当前批准的Turbo模型对AI采购、展台采购、广告、招聘、父帖意图误借及错业务画像六个冻结合成用例完成实际调用，7 passed（1离线＋6实网），无重试。[逐例结果及限制](superpowers/plans/2026-09-11-assessment-semantic-smoke.md#evidence)。未修改生产规则，不是准确率/客户UAT；04/10继续真实样本盲标、供给质量和客户流程验收，不重复这组六例来制造通过率。
+
 公开来源接续（2026-09-11）：`566e810` 已实现[固定板块来源与确认/执行合同](superpowers/specs/2026-09-11-public-node-discovery-design.md)：用户可在新模式授权目录中选择最新主题或问与答，贯穿草稿/模板、确认、普通执行、候选及定时抽样。旧模式不扩权，搜贝研究仍只接最新索引。一次实际 QNA driver→HTTP→隔离PG返回9条原始记录，不是9条商机；重复采集的合成整链验证复用候选/版本并增加观察。[定向验证与发布边界](superpowers/plans/2026-09-11-public-node-discovery.md#evidence)。尚未部署/构包，不变更下面邀请候选。Mac原生支持仍待用户决定；Windows环境不可用，完整V0.2/真实客户验收继续。
 
 R4研究资源记录接续：`ed74a0f` 已独立整批 GO。进度页新增同一只读快照的 OPEN/DRAINING/UNCERTAIN/RECORDED、超期许可及 asOf；区分许可与实际调用，时间变化不引起重复推进。[11项真实PG＋16项前端/类型检查及边界](superpowers/plans/2026-09-11-research-resource-closeout.md#evidence)。本批只合 main、不部署/构包，不变更下面邀请候选；搜贝仍 null/PENDING，计量规则和财务结算未完成，不能以本子项关闭 R4/完整Goal。
