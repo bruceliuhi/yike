@@ -536,7 +536,7 @@ class ExecutionRuntime:
                 } for p in sorted(platforms, key=lambda p: p['target_order'])])
 
     _FEED_SQL = """
-        SELECT t.task_id,t.device_id,t.profile_version_id,t.strategy_version_id,
+        SELECT t.task_id,t.device_id,t.profile_version_id,v.version AS profile_version,t.strategy_version_id,
                t.configuration_snapshot,t.created_at,t.deadline_at,t.status,t.max_records,
                r.run_id,o.request_id AS start_request_id,
                jsonb_agg(jsonb_build_object(
@@ -546,6 +546,8 @@ class ExecutionRuntime:
           FROM pilot_collection_tasks t
           JOIN pilot_collection_runs r
             ON r.tenant_id=t.tenant_id AND r.owner_user_id=t.owner_user_id AND r.task_id=t.task_id
+          JOIN business_profile_versions v
+            ON v.tenant_id=t.tenant_id AND v.profile_version_id=t.profile_version_id
           JOIN pilot_execution_operations o
             ON o.tenant_id=t.tenant_id AND o.owner_user_id=t.owner_user_id
            AND o.task_id=t.task_id AND o.operation='START'
@@ -590,7 +592,8 @@ class ExecutionRuntime:
         platforms = row['platform_runs']
         return dict(
             task_id=row['task_id'], run_id=row['run_id'], device_id=row['device_id'],
-            profile_version_id=row['profile_version_id'], strategy_version_id=row['strategy_version_id'],
+            profile_version_id=row['profile_version_id'], profile_version=row['profile_version'],
+            strategy_version_id=row['strategy_version_id'],
             start_request_id=row['start_request_id'], name=name, mode=mode,
             created_at=row['created_at'].isoformat(), deadline_at=row['deadline_at'].isoformat(),
             status=row['status'], max_records=row['max_records'],
@@ -611,7 +614,7 @@ class ExecutionRuntime:
             elif cursor is not None:
                 sql += ' AND (t.created_at,t.task_id)<(%s,%s)'
                 parameters.extend(cursor)
-            sql += (' GROUP BY t.tenant_id,t.owner_user_id,t.task_id,r.run_id,o.request_id '
+            sql += (' GROUP BY t.tenant_id,t.owner_user_id,t.task_id,r.run_id,o.request_id,v.version '
                     'ORDER BY t.created_at DESC,t.task_id DESC')
             if limit is not None:
                 sql += ' LIMIT %s'

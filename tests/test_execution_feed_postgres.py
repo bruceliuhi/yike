@@ -36,6 +36,7 @@ def test_feed_aggregates_start_identity_counts_and_cancel_state(env):
         "run_id": begun["run_id"],
         "device_id": env.device,
         "profile_version_id": env.profile,
+        "profile_version": 1,
         "strategy_version_id": env.snapshot["strategy_version_id"],
         "start_request_id": request.request_id,
         "name": "线索任务",
