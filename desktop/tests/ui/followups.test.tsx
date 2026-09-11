@@ -54,6 +54,16 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe("manual followup facts", () => {
+  it('keeps old manual history visible after structured service is connected',async()=>{
+    context.route=parseRoute('#/followups?tab=all');
+    context.service.followup={list:vi.fn().mockResolvedValue({records:[],members:[],legacyRecords:[{
+      id:'legacy-id',opportunityId:'real-followup',title:'历史登记商机',status:'CONTACTED',note:'旧记录不能消失',
+      createdAt:'2026-09-01T01:00:00.000Z',kind:'manual'}]}),replies:vi.fn().mockResolvedValue([]),mutate:vi.fn(),operation:vi.fn()};
+    render(<FollowupsPage/>);
+    await screen.findByText('历史登记商机');
+    expect(screen.queryByRole('button',{name:'纠正记录'})).toBeNull();
+    expect(context.service.followups).not.toHaveBeenCalled();
+  });
   it("allows only customer opportunities and retains the note on save failure", async () => {
     render(<FollowupsPage />);
     await within(

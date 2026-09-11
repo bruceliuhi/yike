@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {contactDraftSaveSchema,contactDraftOperationSchema,contactDraftLatestSchema} from '../shared/contactDrafts';
 import {coachInputSchema,coachGenerateSchema} from '../shared/shortCoach';
+import {followupWireBinding,followupMutationWire,followupRepliesWire} from '../shared/structuredFollowup';
 import {searchCoverageQuerySchema} from '../shared/searchCoverage';
 import {suggestionPreviewRequestSchema,suggestionRequestSchema,suggestionReceiptRequestSchema} from '../shared/searchSuggestions';
 import {taskFeedQuerySchema,taskFeedGetSchema} from '../shared/taskFeed';
@@ -15,6 +16,10 @@ const text = z.string().max(8000).refine(value => value.trim().length > 0);
 const phone = z.string().length(11).regex(/^1[0-9]{10}$/);
 const schemas = {
   'shortCoach.preview': coachInputSchema,
+  'followup.list': empty,
+  'followup.replies': followupRepliesWire,
+  'followup.mutate': followupMutationWire,
+  'followup.operation': followupWireBinding,
   'shortCoach.generate': coachGenerateSchema,
   'contactDrafts.save': contactDraftSaveSchema,
   'contactDrafts.operation': contactDraftOperationSchema,
@@ -78,6 +83,7 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
   const parsed = schemas[operation].safeParse(payload);
   if (!parsed.success) return null;
   if (operation.startsWith('shortCoach.') && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 96 * 1024) return null;
+  if (operation.startsWith('followup.') && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 32 * 1024) return null;
   if (operation === 'contactDrafts.save' && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 96 * 1024) return null;
   if (operation === 'suggestions.submit' && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 32 * 1024) return null;
   if (operation === 'materials.mutate' && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 32 * 1024) return null;
@@ -86,6 +92,10 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
   switch (operation) {
     case 'shortCoach.preview':
     case 'shortCoach.generate': return {path:`/api/ui/short-coach/${operation.slice('shortCoach.'.length)}`,method:'POST',body:JSON.stringify(parsed.data),logout:false,timeoutMs:25_000};
+    case 'followup.list': return {path:'/api/ui/followup-workspace',method:'GET',logout:false};
+    case 'followup.replies': return {path:`/api/ui/followup-workspace/replies${data!.opportunityId?`?opportunityId=${encodeURIComponent(data!.opportunityId)}`:''}`,method:'GET',logout:false};
+    case 'followup.mutate':
+    case 'followup.operation': return {path:`/api/ui/followup-workspace/${operation.slice('followup.'.length)}`,method:'POST',body:JSON.stringify(parsed.data),logout:false};
     case 'contactDrafts.save': return {path:'/api/ui/contact-drafts',method:'POST',body:JSON.stringify(parsed.data),logout:false};
     case 'contactDrafts.operation': return {path:'/api/ui/contact-drafts/operation',method:'POST',body:JSON.stringify(parsed.data),logout:false};
     case 'contactDrafts.latest': return {path:`/api/ui/opportunities/${encodeURIComponent(data!.opportunityId)}/contact-drafts/${data!.channel}`,method:'GET',logout:false};

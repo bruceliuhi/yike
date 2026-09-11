@@ -51,7 +51,7 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False,
               phone_auth=None, sms_sender=None, execution_runtime=None, candidate_ingestion=None,
               candidate_review=None, research_strategies=None, reply_store=None, contact_drafts=None,
               outreach_queue=None, materials=None, monitor_plans=None, monitor_runtime=None,
-              search_suggestions=None, short_coach=None) -> FastAPI:
+              search_suggestions=None, short_coach=None, structured_followups=None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app):
         try:
@@ -306,6 +306,7 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False,
                     phone_auth=phone_auth, sms_sender=sms_sender, execution_runtime=execution_runtime,
                     contact_drafts=contact_drafts,
                     short_coach=short_coach,
+                    structured_followups=structured_followups,
                     materials=materials,
                     search_suggestions=search_suggestions,
                     monitor_plans=monitor_plans,

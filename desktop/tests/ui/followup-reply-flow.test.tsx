@@ -100,7 +100,7 @@ it("marks a matched reply read without first manufacturing a manual record", asy
   const { service, records } = mount();
   await screen.findByText("TEST合成渠道回复");
   fireEvent.click(screen.getByRole("button", { name: "标为已读" }));
-  await screen.findByText("已读");
+  await screen.findByText("已读（仅意客内）");
   expect(records).toHaveLength(0);
   expect(service.followup.mutate).toHaveBeenCalledOnce();
   expect(service.followup.mutate.mock.calls[0][0].binding).toMatchObject({

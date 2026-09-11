@@ -16,7 +16,7 @@ import {
 } from "../components/ui";
 import {
   legacyRecord,
-  readSnapshot,
+  readFollowupWorkspace,
   FOLLOWUP_LABELS,
   type FollowupRecord,
   type FollowupView,
@@ -90,7 +90,7 @@ function FollowupWorkspace() {
         members: [] as { id: string; name: string }[],
       };
     if (service.followup)
-      return readSnapshot(
+      return readFollowupWorkspace(
         await boundedRequest(() => service.followup!.list(), {
           timeoutMessage: "跟进记录读取超时，请刷新重试。",
         }),

@@ -56,6 +56,7 @@ export function RelatedReplies({
 }) {
   const { service, session } = useApp();
   const [tab, setTab] = useState("platform");
+  const [showEvidence,setShowEvidence]=useState(false);
   const [voidRecord, setVoidRecord] = useState<FollowupRecord>();
   const [reason, setReason] = useState("");
   const preflight = useAction();
@@ -204,7 +205,7 @@ export function RelatedReplies({
       ) : tab === "platform" ? (
         !session.authenticated ? (
           <Empty title="登录后查看回复" />
-        ) : service.replyEvidence ? (
+        ) : service.replyEvidence && !service.followup ? (
           target.data && target.data.id === opportunityId && !isSample(target.data) ? (
             <ReplyEvidencePanel
               key={`${session.userId}:${session.accountScope?.id}:${session.accountScope?.version}:${opportunityId}`}
@@ -218,6 +219,17 @@ export function RelatedReplies({
           />
         ) : (
           <>
+            {service.replyEvidence && target.data && (
+              <>
+                <Button variant="ghost" onClick={()=>setShowEvidence(v=>!v)}>
+                  {showEvidence?'收起原始回复证据':'查看原始回复证据与同步'}
+                </Button>
+                {showEvidence && <ReplyEvidencePanel
+                  key={`${session.userId}:${session.accountScope?.id}:${session.accountScope?.version}:${opportunityId}`}
+                  opportunity={target.data}
+                />}
+              </>
+            )}
             <ResourceStatus
               loading={resource.loading}
               error={resource.error}
@@ -230,7 +242,7 @@ export function RelatedReplies({
                   {resource.data.map((reply) => (
                     <article key={reply.id}>
                       <Badge tone={reply.read ? "neutral" : "blue"}>
-                        {reply.read ? "已读" : "未读"}
+                        {reply.read ? "已读" : "未读"}（仅意客内）
                       </Badge>{" "}
                       <Badge>
                         <PlatformLabel platform={reply.platform} size={16} />

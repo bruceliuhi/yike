@@ -12,6 +12,7 @@ from pilot.candidate_review import CandidateReviewStore
 from pilot.contact_drafts import ContactDraftStore
 from pilot.short_coach import ShortCoachService
 from pilot.short_coach_model import ShortCoachModel
+from pilot.followup_service import FollowupService
 from pilot.materials import MaterialStore
 from pilot.material_model import MaterialExtractionModel
 from pilot.monitor_plans import MonitorPlanStore
@@ -119,6 +120,7 @@ def build_runtime_app(
         reply_store=replies,
         contact_drafts=drafts,
         short_coach=ShortCoachService(database, model=ShortCoachModel(model) if model is not None else None),
+        structured_followups=FollowupService(database, reply_store=replies),
         materials=MaterialStore(database, model=MaterialExtractionModel(model) if model is not None else None),
         search_suggestions=SearchSuggestionService(SearchSuggestionStore(database), model=_suggestion_model(environment)),
         outreach_queue=queue,

@@ -53,6 +53,7 @@ export const API_OPERATIONS = [
   'coverage.query',
   'contactDrafts.save', 'contactDrafts.operation', 'contactDrafts.latest',
   'shortCoach.preview', 'shortCoach.generate',
+  'followup.list', 'followup.replies', 'followup.mutate', 'followup.operation',
   'opportunities.list', 'opportunities.get', 'followups.list', 'followups.add',
   'replies.evidence',
   'strategies.prepare', 'strategies.confirm', 'strategies.revoke', 'strategies.receipt', 'strategies.get',

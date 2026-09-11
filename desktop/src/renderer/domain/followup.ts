@@ -64,6 +64,8 @@ export type LinkedReply = z.infer<typeof replySchema>;
 export const snapshotSchema = z.object({
   records: z.array(followupRecordSchema),
   members: z.array(z.object({ id, name: z.string().min(1) })),
+  legacyRecords: z.array(z.object({id,opportunityId:id,title:z.string(),
+    status:z.enum(['CONTACTED','REPLIED','MEETING','QUOTED','LOST','WON']),note:z.string(),createdAt:time,kind:z.literal('manual')})).optional(),
 });
 export type FollowupSnapshot = z.infer<typeof snapshotSchema>;
 function uniqueIds(rows: { id: string }[]) {
@@ -75,7 +77,12 @@ export function readSnapshot(value: unknown) {
   if (!result.success) throw new Error("跟进数据格式不完整，请刷新重试。");
   uniqueIds(result.data.records);
   uniqueIds(result.data.members);
+  uniqueIds([...result.data.records,...(result.data.legacyRecords??[])]);
   return result.data;
+}
+export function readFollowupWorkspace(value:unknown){
+ const snapshot=readSnapshot(value);
+ return {...snapshot,records:[...snapshot.records,...(snapshot.legacyRecords??[]).map(legacyRecord)] as FollowupView[]};
 }
 export function readReplies(value: unknown, opportunityId?: string) {
   const result = z.array(replySchema).safeParse(value);

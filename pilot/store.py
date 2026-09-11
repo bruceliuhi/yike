@@ -215,15 +215,20 @@ class PilotStore:
         with self.database.connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
+                cursor.execute("SELECT set_config('yike.user_id', %s, true)", (user_id,))
                 cursor.execute(
                     "SELECT o.opportunity_id, o.title, o.buyer, o.intent_status, o.source_status, o.summary, o.updated_at, o.public_excerpt, o.match_reason, o.action_signal, o.value_judgment, o.risk, p.status AS profile_status, "
                     "s.platform AS source_platform, s.public_url, s.published_at, "
-                    "(SELECT f.status FROM pilot_followups f WHERE f.tenant_id=o.tenant_id AND f.opportunity_id=o.opportunity_id "
-                    "ORDER BY f.created_at DESC, f.followup_id DESC LIMIT 1) AS latest_followup_status "
+                    "(SELECT f.status FROM (SELECT status,created_at,followup_id AS record_id FROM pilot_followups "
+                    "WHERE tenant_id=o.tenant_id AND opportunity_id=o.opportunity_id UNION ALL "
+                    "SELECT status,created_at,record_id FROM (SELECT DISTINCT ON (record_id) record_id,revision,status,state,created_at "
+                    "FROM pilot_structured_followup_revisions WHERE tenant_id=o.tenant_id AND owner_user_id=%s "
+                    "AND opportunity_id=o.opportunity_id ORDER BY record_id,revision DESC) current_records WHERE state='ACTIVE') f "
+                    "ORDER BY f.created_at DESC, f.record_id DESC LIMIT 1) AS latest_followup_status "
                     "FROM pilot_opportunities o JOIN business_profile_versions p ON p.tenant_id=o.tenant_id AND p.profile_version_id=o.profile_version_id "
                     "JOIN pilot_sources s ON s.tenant_id=o.tenant_id AND s.source_id=o.source_id "
                     "WHERE o.tenant_id=%s ORDER BY o.created_at DESC",
-                    (tenant_id,),
+                    (user_id,tenant_id),
                 )
                 columns = [d.name for d in cursor.description]
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
