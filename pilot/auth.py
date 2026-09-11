@@ -18,10 +18,15 @@ class TokenClaims:
     user_id: str
     expires_at: int
     revocation_key: str
+    auth_source: str = 'legacy'
 
 
-def issue_token(user_id: str, secret: str, *, ttl_seconds: int = 3600, now: int | None = None) -> str:
+def issue_token(user_id: str, secret: str, *, ttl_seconds: int = 3600, now: int | None = None, auth_source: str = 'legacy') -> str:
+    if auth_source not in {'legacy','sms','temporary_access'}:
+        raise ValueError('invalid authentication source')
     payload = {"sub": user_id, "exp": (now if now is not None else int(time.time())) + ttl_seconds, "jti": secrets.token_urlsafe(24)}
+    if auth_source != 'legacy':
+        payload['auth_source'] = auth_source
     raw = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).rstrip(b"=")
     signature = hmac.new(secret.encode(), raw, hashlib.sha256).digest()
     return raw.decode() + "." + base64.urlsafe_b64encode(signature).rstrip(b"=").decode()
@@ -56,6 +61,9 @@ def verify_token_claims(token: str, secret: str, *, now: int | None = None) -> T
             raise InvalidPilotToken("invalid pilot token")
         # Hash the exact verified signed bytes, not a re-serialized JSON object
         # or the signature spelling (which can have equivalent base64 padding).
-        return TokenClaims(user_id, expires_at, hashlib.sha256(raw).hexdigest())
+        source = payload.get('auth_source', 'legacy')
+        if source not in {'legacy','sms','temporary_access'}:
+            raise InvalidPilotToken('invalid pilot token')
+        return TokenClaims(user_id, expires_at, hashlib.sha256(raw).hexdigest(), source)
     except (ValueError, TypeError, KeyError, json.JSONDecodeError, base64.binascii.Error) as error:
         raise InvalidPilotToken("invalid pilot token") from error

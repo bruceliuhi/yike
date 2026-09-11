@@ -143,6 +143,22 @@ def build_ops_app(store: OpsStore, *, password: str, origin: str) -> FastAPI:
         return page('确认停用','<h1>确认停用试用？</h1><p>停用后，该客户已有登录会话也将失效；此操作不删除客户数据。</p>'
                     f'<form method="post" action="/ops/revoke">{hidden(csrf_for(token))}<input type="hidden" name="trial_id" value="{escape(trial_id,quote=True)}"><button class="danger">确认停用</button> <a href="/ops/users">取消</a></form>',csrf_for(token))
 
+    @app.get('/ops/access')
+    def confirm_access(request: Request, trial_id: str):
+        token = identity(request)
+        return page('签发临时登录访问码','<h1>签发临时登录访问码？</h1><p>客户只输入此码登录，无需短信。首次登录起固定72小时，后续登录或改发不延期。</p>'
+                    '<p>这不是手机号验证。需人工私下分发；原短信试用码或原临时码立即失效，不创建新客户。已激活的短信试用不能转换。</p>'
+                    f'<form method="post" action="/ops/access">{hidden(csrf_for(token))}<input type="hidden" name="trial_id" value="{escape(trial_id,quote=True)}"><button>确认签发临时访问码</button> <a href="/ops/users">取消</a></form>',csrf_for(token))
+
+    @app.post('/ops/access')
+    def issue_access(request: Request, trial_id: str = Form(...,max_length=36), csrf: str = Form('')):
+        token = authorize(request,csrf)
+        try:
+            result = store.issue_access(trial_id)
+        except OpsError:
+            return page('无法签发','<h1>无法签发</h1><p>账号已停用、试用已结束或不支持转换，请检查客户状态。</p><a href="/ops/users">返回客户列表</a>',csrf_for(token),400)
+        return page('临时登录访问码已生成',f'<h1>临时登录访问码已生成</h1><p>仅本次展示，请私下分发；无需短信，不代表手机号已验证。</p><p class="code">{escape(result["code"])}</p><p>首次登录起72小时，再次登录或改发不延期。</p><a href="/ops/users">返回客户列表</a>',csrf_for(token))
+
     @app.post('/ops/revoke')
     def revoke(request: Request, trial_id: str = Form(...,max_length=36), csrf: str = Form('')):
         authorize(request,csrf)

@@ -20,6 +20,7 @@ BEGIN
     EXECUTE format('GRANT USAGE ON SCHEMA public TO %I',target_role);
     EXECUTE format('GRANT SELECT,INSERT ON public.pilot_tenants,public.pilot_users,public.pilot_phone_bindings,public.pilot_trial_accounts TO %I',target_role);
     EXECUTE format('GRANT UPDATE(revoked_at,code_hash,redeem_before) ON public.pilot_trial_accounts TO %I',target_role);
+    EXECUTE format('GRANT UPDATE(credential_kind,access_code_hash,access_issued_at,days) ON public.pilot_trial_accounts TO %I',target_role);
     EXECUTE format('GRANT SELECT,INSERT,DELETE ON public.pilot_ops_sessions TO %I',target_role);
     FOREACH relation IN ARRAY ARRAY['pilot_tenants','pilot_users','pilot_phone_bindings','pilot_trial_accounts','pilot_ops_sessions'] LOOP
       EXECUTE format('DROP POLICY IF EXISTS ops_operator ON public.%I',relation);

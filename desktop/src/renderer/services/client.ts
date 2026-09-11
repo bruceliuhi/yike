@@ -80,6 +80,9 @@ function serviceFailure(status: number, body: unknown): ServiceError {
   };
   const codes: Record<string, string> = {
     phone_auth_failed: "验证码无效或已过期，请重新核对或获取验证码。",
+    access_auth_failed: "临时访问码无效、已到期或已停用，请联系管理员核对。",
+    SESSION_PERSIST_FAILED: "登录状态未能安全保存，请重新登录；若仍失败请联系支持。",
+    SESSION_CLEAR_FAILED: "本机旧会话未能完整清除，请关闭客户端并联系支持；当前不能确认已退出。",
     trial_required: "请展开试用开通，输入管理员发给你的试用码。",
     trial_invalid: "试用码无效或不属于此手机号，请核对管理员发放的信息。",
     trial_expired: "试用已到期或已停用，请联系管理员。",
@@ -338,6 +341,12 @@ export const service: YikeService = {
   },
   logout: async () => {
     await request("session.logout", "/session", "DELETE");
+  },
+  loginAccess: async (access_code) => {
+    const r = await request('session.loginAccess', '/auth/access-session', 'POST', {access_code});
+    if (r.authenticated !== true || typeof r.user_id !== 'string' || !r.user_id.trim())
+      throw new ServiceError('INVALID_SERVICE_RESPONSE', '登录状态尚未核实，请稍后重试。');
+    return readSession(r);
   },
   requestCode: async (phone) => {
     const r = await request("session.requestCode", "/auth/sms-code", "POST", {phone});

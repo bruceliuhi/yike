@@ -195,6 +195,7 @@ _CAPABILITIES = {
     "opportunities": True,
     "manual_followups": True,
     "sms_login": False,
+    "access_login": False,
     "platform_connections": False,
     "task_execution": False,
     "search_suggestions": False,
@@ -204,7 +205,7 @@ _CAPABILITIES = {
 
 
 def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = False,
-                    phone_auth=None, sms_sender=None, execution_runtime=None, candidate_ingestion=None,
+                    phone_auth=None, sms_sender=None, access_auth=None, execution_runtime=None, candidate_ingestion=None,
                     candidate_review=None, research_strategies=None, reply_store=None, contact_drafts=None,
                     outreach_queue=None, materials=None, monitor_plans=None, monitor_runtime=None,
                     search_suggestions=None, short_coach=None, structured_followups=None, opportunity_brief=None,
@@ -459,4 +460,6 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
     capabilities_state = dict(_CAPABILITIES)
     capabilities_state["sms_login"] = register_phone_api(
         router, store, phone_auth, sms_sender, auth_secret, require_session_https)
+    from pilot.access_api import register_access_api
+    capabilities_state['access_login'] = register_access_api(router, store, access_auth, auth_secret, require_session_https)
     app.include_router(router)

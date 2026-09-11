@@ -67,13 +67,14 @@ class OpsStore:
         with self.database.connect() as c:
             rows = c.execute(
                 'SELECT u.user_id,t.name,u.created_at,a.trial_id,a.phone_ciphertext,a.days,'
-                'a.activated_at,a.expires_at,a.revoked_at,a.redeem_before,clock_timestamp() '
+                'a.activated_at,a.expires_at,a.revoked_at,a.redeem_before,clock_timestamp(),a.credential_kind,b.phone_verified_at '
                 'FROM pilot_users u JOIN pilot_tenants t ON t.tenant_id=u.tenant_id '
                 'LEFT JOIN pilot_trial_accounts a ON a.user_id=u.user_id '
+                'LEFT JOIN pilot_phone_bindings b ON b.user_id=u.user_id '
                 'ORDER BY u.created_at DESC,u.user_id LIMIT 50 OFFSET %s', (offset,)
             ).fetchall()
         result=[]
-        for user,name,created,trial,encrypted,days,activated,expires,revoked,deadline,now in rows:
+        for user,name,created,trial,encrypted,days,activated,expires,revoked,deadline,now,kind,verified in rows:
             phone = None
             if encrypted is not None:
                 try:
@@ -86,7 +87,7 @@ class OpsStore:
             state = '未登记试用' if trial is None else '已停用' if revoked else '已到期' if (expires and expires<=now) or (not activated and deadline<=now) else '试用中' if activated else '待激活'
             result.append(dict(user_id=user,name=name,created_at=created,trial_id=str(trial) if trial else None,
                                phone=phone,days=days,activated_at=activated,expires_at=expires,
-                               redeem_before=deadline,state=state))
+                               redeem_before=deadline,state=state,credential_kind=kind,phone_verified_at=verified))
         return result
 
     def revoke(self, trial_id: str) -> None:
@@ -108,12 +109,31 @@ class OpsStore:
         with self.database.connect() as c:
             row=c.execute(
                 "UPDATE pilot_trial_accounts SET code_hash=%s,redeem_before=clock_timestamp()+interval '30 days' "
-                'WHERE trial_id=%s AND activated_at IS NULL AND revoked_at IS NULL RETURNING user_id,days',
+                "WHERE trial_id=%s AND activated_at IS NULL AND revoked_at IS NULL AND credential_kind='SMS_TRIAL' RETURNING user_id,days",
                 (self.auth._digest('trial',code),trial_id),
             ).fetchone()
             if row is None:
                 raise OpsError('trial_not_reissuable')
         return dict(trial_id=trial_id,user_id=row[0],days=row[1],code=code)
+
+    def issue_access(self, trial_id: str) -> dict:
+        """Explicit operator conversion/rotation, never reuse an SMS invitation."""
+        try:
+            trial_id = str(UUID(trial_id))
+        except (ValueError,TypeError,AttributeError):
+            raise OpsError('invalid_trial') from None
+        code = 'YA-' + secrets.token_urlsafe(24)
+        with self.database.connect() as c:
+            row = c.execute(
+                "UPDATE pilot_trial_accounts SET credential_kind='TEMPORARY_ACCESS',access_code_hash=%s,"
+                "access_issued_at=clock_timestamp(),code_hash=%s,redeem_before=clock_timestamp()+interval '30 days',days=3 "
+                "WHERE trial_id=%s AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>clock_timestamp()) "
+                "AND (activated_at IS NULL OR credential_kind='TEMPORARY_ACCESS') RETURNING user_id",
+                (self.auth._digest('temporary-access-v1',code),self.auth._digest('retired-trial-v1',secrets.token_urlsafe(24)),trial_id),
+            ).fetchone()
+            if row is None:
+                raise OpsError('access_not_issuable')
+        return {'trial_id':trial_id,'user_id':row[0],'code':code}
 
     @staticmethod
     def _session_hash(token: str) -> str:

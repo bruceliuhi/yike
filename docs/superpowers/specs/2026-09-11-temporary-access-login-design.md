@@ -14,6 +14,8 @@
 
 客户 `POST /api/ui/auth/access-session` body `{access_code}`；只走HTTPS、既有Origin约束，返回现有session公有视图和HttpOnly会话cookie。错码/过期/停用统一access_auth_failed，限流auth_rate_limited。无有效配置明确不可用。客户端固定IPC操作 `session.loginAccess`，秘密只在表单内存和受保护HTTPS请求中，持久化仅复用现有安全会话机制。
 
+实现核查补充：现有 Chromium service partition 实为内存会话，不能支持重启保持。沿用内存partition，额外在主进程使用既有 OS safeStorage（禁止 Linux basic_text）加密保存固定服务origin的 HttpOnly/Secure/SameSite=Strict pilot_session，不保存临时访问码。登录前清除旧会话，成功后先安全落盘再回报；失败明确不能保持登录，退出同时清除缓存。启动恢复仍由服务器核验到期/停用，不能以本机记录替代身份。未配置加密不得写明文。
+
 首次激活与码核验在同一锁定事务；再次登录不延长expires_at；签发与认证来源明确记录。正常受限客户权限与 `pilot_trial_allowed` 必须保留，历史会话在到期/停用后不可用。访问码登录会话有效期不得超过剩余试用期限；退出仍走原撤销。
 
 ## 验收

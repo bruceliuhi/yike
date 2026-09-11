@@ -156,7 +156,7 @@ export function createDeviceIdentityController({service, identityFactory}: Devic
       let operation: unknown;
       try { operation = input && typeof input === 'object' ? (input as {operation?: unknown}).operation : undefined; }
       catch { return {ok: false, status: 0, error: 'INVALID_API_REQUEST'}; }
-      const authChange = operation === 'session.login' || operation === 'session.loginPhone' || operation === 'session.logout';
+      const authChange = operation === 'session.login' || operation === 'session.loginPhone' || operation === 'session.loginAccess' || operation === 'session.logout';
       if (authChange) {
         // Invalidate on entry, not receipt: even a pending or rejected login supersedes old work.
         invalidate({state: operation === 'session.logout' ? 'SIGNED_OUT' : 'NOT_PREPARED'});
