@@ -1,4 +1,5 @@
 import { ServiceError, type YikeService } from "./contracts";
+import {profileSaveSchema, savedMaterialReferences} from '../../shared/profileMaterialReferences';
 import { desktopDeviceIdentity } from './deviceIdentity';
 import { desktopExecution } from './desktopExecution';
 import {foregroundCollection, attachForegroundBinding} from './foregroundCollection';
@@ -196,6 +197,8 @@ export function mapProfile(raw: JsonRecord): Profile {
     }
   }
   if (!Object.values(fields).some(Boolean)) fields.service = description;
+  const references=savedMaterialReferences.safeParse(raw.material_references??[]);
+  if(!references.success) invalidProfileResponse();
   return {
     id: raw.version_id,
     ...(raw.profile_id !== undefined
@@ -205,6 +208,7 @@ export function mapProfile(raw: JsonRecord): Profile {
     status: raw.status as Profile["status"],
     fields,
     description,
+    ...(raw.material_references!==undefined?{materialReferences:references.data}:{}),
   };
 }
 function invalidEvidenceResponse(): never {
@@ -334,11 +338,16 @@ export const service: YikeService = {
   },
   profiles: async () =>
     list((await request("profiles.list", "/profiles")).items).map(mapProfile),
-  saveProfile: async (fields) => {
+  saveProfile: async (fields, references) => {
     const description = profileDescription(fields);
-    const r = await request("profiles.save", "/profiles", "POST", {
-      description,
-    });
+    const body=profileSaveSchema.safeParse({description,...references});
+    if(!body.success) throw new ServiceError('INVALID_PROFILE_REFERENCES','资料引用无效，请重新核对后保存。');
+    const r = await request("profiles.save", "/profiles", "POST", body.data);
+    if(body.data.materialReferences!==undefined){
+      const actual=savedMaterialReferences.safeParse(r.material_references);
+      if(!actual.success||actual.data.length!==body.data.materialReferences.length||
+          actual.data.some(ref=>!ref.valid||!body.data.materialReferences!.some(wanted=>wanted.field===ref.field))) invalidProfileResponse();
+    }
     return mapProfile({ ...r, payload: { description } });
   },
   confirmProfile: async (id) =>

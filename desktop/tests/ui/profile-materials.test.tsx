@@ -365,7 +365,7 @@ describe("P04 客户空间资料生命周期", () => {
         name: "填入画像草稿",
       }),
     );
-    expect(view.onApply).toHaveBeenCalledWith({ service: "人工核实后的服务" });
+    expect(view.onApply).toHaveBeenCalledWith({ service: "人工核实后的服务" },expect.objectContaining({id:'material-test',profileVersionId:profile.id,version:4,status:'READY'}));
     expect(api.mutate).toHaveBeenCalledTimes(2);
   });
   it("解析失败保留正文且可重试", async () => {

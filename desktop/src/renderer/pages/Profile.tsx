@@ -29,8 +29,11 @@ import { boundedRequest } from "../app/boundedRequest";
 import { MaterialsWorkspace } from "./profile/MaterialsWorkspace";
 import { LocalMaterialDrafts, type LocalMaterialDraft as Material } from "./profile/LocalMaterialDrafts";
 import { taskDraftOwner } from "../app/taskDraft";
+import {adoptedBindings,bindingOptions,savedBindings,type ReferenceBindings} from './profile/profileReferenceBindings';
 
 interface ProfileEditor {
+  referenceBindings?: ReferenceBindings;
+  baselineReferenceBindings?: ReferenceBindings;
   fields: ProfileFields;
   baseline: ProfileFields;
   versionId: string | null;
@@ -176,7 +179,8 @@ function ProfileWorkspace() {
     JSON.stringify(emptyMaterial()),
   );
   const dirty =
-    JSON.stringify(editor.fields) !== JSON.stringify(editor.baseline);
+    JSON.stringify(editor.fields) !== JSON.stringify(editor.baseline) ||
+    JSON.stringify(editor.referenceBindings??{}) !== JSON.stringify(editor.baselineReferenceBindings??{});
   const materialDirty =
     materialOpen && JSON.stringify(material) !== materialBaseline;
   useUnsavedChanges(dirty || materialDirty);
@@ -189,6 +193,8 @@ function ProfileWorkspace() {
       baseline: { ...profile.fields },
       versionId: profile.id,
       example: false,
+      referenceBindings: savedBindings(profile),
+      baselineReferenceBindings: savedBindings(profile),
     });
     setFieldErrors({});
     action.setError("");
@@ -209,7 +215,12 @@ function ProfileWorkspace() {
   );
   const go = (path: string) => navigate(path);
   const changeField = (key: keyof ProfileFields, value: string) => {
-    setEditor((old) => ({ ...old, fields: { ...old.fields, [key]: value } }));
+    if(editor.referenceBindings?.[key]&&value!==editor.fields[key])notify(`${labels[key]}已改为人工内容，不再继承原资料引用。`, 'info');
+    setEditor((old) => {
+      const bindings={...old.referenceBindings};
+      if(value!==old.fields[key])delete bindings[key];
+      return {...old,fields:{...old.fields,[key]:value},referenceBindings:bindings};
+    });
     setFieldErrors((old) => ({ ...old, [key]: undefined }));
   };
   const validate = () => {
@@ -221,10 +232,17 @@ function ProfileWorkspace() {
   };
   const save = async (forConfirmation = false) => {
     if (!validate()) return;
+    if(Object.values(editor.referenceBindings??{}).some(binding=>!binding?.valid)){
+      action.setError('资料引用已失效，请重新采用有效资料或改为人工内容后保存。');return;
+    }
     const snapshot = { ...editor.fields };
+    const referenceSnapshot=JSON.stringify(editor.referenceBindings??{});
+    const references=bindingOptions(editor.referenceBindings??{},editor.versionId)??
+      (Object.keys(editor.baselineReferenceBindings??{}).length&&editor.versionId?
+        {baseProfileVersionId:editor.versionId,materialReferences:[]}:undefined);
     const originalVersion = editor.versionId;
     const saved = await action.run(() =>
-      boundedRequest(() => service.saveProfile(snapshot), {
+      boundedRequest(() => references?service.saveProfile(snapshot,references):service.saveProfile(snapshot), {
         timeoutMessage:
           "画像保存等待超时，尚未确认保存结果；输入保留，请刷新核对版本。",
       }),
@@ -233,6 +251,7 @@ function ProfileWorkspace() {
       !saved ||
       !currentScope() ||
       activeEditor.current.versionId !== originalVersion ||
+      JSON.stringify(activeEditor.current.referenceBindings??{})!==referenceSnapshot ||
       JSON.stringify(activeEditor.current.fields) !== JSON.stringify(snapshot)
     )
       return;
@@ -241,6 +260,8 @@ function ProfileWorkspace() {
       fields: { ...saved.fields },
       baseline: { ...saved.fields },
       versionId: saved.id,
+      referenceBindings: savedBindings(saved),
+      baselineReferenceBindings: savedBindings(saved),
     }));
     profiles.setData((old) => [
       saved,
@@ -259,6 +280,9 @@ function ProfileWorkspace() {
   };
   const requestConfirm = () => {
     if (!validate()) return;
+    if(Object.values(editor.referenceBindings??{}).some(binding=>!binding?.valid)){
+      action.setError('资料引用已失效，请重新采用有效资料或改为人工内容后保存。');return;
+    }
     if (!dirty && current) {
       setVerified(false);
       setConfirming(current);
@@ -422,6 +446,7 @@ function ProfileWorkspace() {
                       ...old,
                       fields: { ...example },
                       example: true,
+                      referenceBindings: {},
                     }));
                     setFieldErrors({});
                   }}
@@ -535,6 +560,15 @@ function ProfileWorkspace() {
               </div>
             </fieldset>
           </section>
+          {Object.entries(editor.referenceBindings??{}).map(([field,binding])=>binding&&(
+            <Notice key={field} tone={binding.valid?'info':'warning'}>
+              <p>{labels[field as keyof ProfileFields]}：{binding.valid?'已记录资料引用。':'资料引用已失效，请重新采用有效资料或改为人工内容。'}</p>
+              <Button variant="ghost" disabled={action.busy} onClick={()=>{
+                setEditor(old=>{const referenceBindings={...old.referenceBindings};delete referenceBindings[field as keyof ProfileFields];return {...old,referenceBindings};});
+                notify(`${labels[field as keyof ProfileFields]}已改为人工内容，文字保留；保存后仍需确认。`,'info');
+              }}>{labels[field as keyof ProfileFields]}改为人工内容</Button>
+            </Notice>
+          ))}
           <section className="profile-summary">
             <div className="section-heading">
               <h2>画像确认摘要</h2>
@@ -578,10 +612,11 @@ function ProfileWorkspace() {
           localDrafts={materials}
           onEditLocal={openMaterial}
           onRemoveLocal={setDeleteMaterial}
-          onApply={(fields) => {
+          onApply={(fields,record) => {
             setEditor((old) => ({
               ...old,
               fields: { ...old.fields, ...fields },
+              referenceBindings: {...old.referenceBindings,...adoptedBindings(fields,record)},
               example: false,
             }));
             notify("所选提取内容已填入画像草稿，尚未保存或确认。", "info");
@@ -665,7 +700,7 @@ function ProfileWorkspace() {
             setLeaving(null);
             if (target.profile) applyProfile(target.profile);
             else {
-              setEditor((old) => ({ ...old, fields: { ...old.baseline } }));
+              setEditor((old) => ({ ...old, fields: { ...old.baseline },referenceBindings:{...old.baselineReferenceBindings} }));
               if (target.path) navigate(target.path);
             }
           }}

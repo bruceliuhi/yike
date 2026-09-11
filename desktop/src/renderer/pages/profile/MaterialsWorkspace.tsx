@@ -34,7 +34,7 @@ type MaterialsWorkspaceProps = {
   api: MaterialService;
   profile: Profile;
   currentFields: ProfileFields;
-  onApply: (fields: Partial<ProfileFields>) => void;
+  onApply: (fields: Partial<ProfileFields>,record:Material) => void;
   localDrafts?: LocalMaterialDraft[];
   onEditLocal?: (draft: LocalMaterialDraft) => void;
   onRemoveLocal?: (draft: LocalMaterialDraft) => void;
@@ -395,7 +395,7 @@ function ScopedMaterialsWorkspace({api, profile, currentFields, onApply, localDr
           onConfirm={(fields) => {
             if (extraction.mode === "apply") {
               if (!blocked) {
-                onApply(fields);
+                onApply(fields,extraction.record);
                 setExtraction(null);
               }
               return;

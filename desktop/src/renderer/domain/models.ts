@@ -9,6 +9,7 @@ export interface ProfileFields {
   exclusions: string;
 }
 export interface Profile {
+  materialReferences?: import('../../shared/profileMaterialReferences').SavedMaterialReference[];
   /** Version-row ID. Never substitute the stable profile entity ID here. */
   id: string;
   /** Stable entity ID supplied by the service; absent for legacy responses. */

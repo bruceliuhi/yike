@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {profileSaveSchema} from '../shared/profileMaterialReferences';
 import {opportunityBriefQueryWire} from '../shared/opportunityBrief';
 import {contactDraftSaveSchema,contactDraftOperationSchema,contactDraftLatestSchema} from '../shared/contactDrafts';
 import {coachInputSchema,coachGenerateSchema} from '../shared/shortCoach';
@@ -42,7 +43,7 @@ const schemas = {
   'connections.list': empty,
   'taskFeed.list': taskFeedQuerySchema,
   'taskFeed.get': taskFeedGetSchema,
-  'profiles.save': z.object({description: text}).strict(),
+  'profiles.save': profileSaveSchema,
   'profiles.confirm': z.object({version_id: identifier}).strict(),
   'opportunities.list': empty,
   'opportunities.get': z.object({id: identifier}).strict(),

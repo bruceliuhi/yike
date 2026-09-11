@@ -74,7 +74,7 @@ export interface YikeService {
   requestCode(phone: string): Promise<{ retryAfter: number }>;
   login(phone: string, code: string, trial?: string): Promise<Session>;
   profiles(): Promise<Profile[]>;
-  saveProfile(fields: ProfileFields): Promise<Profile>;
+  saveProfile(fields: ProfileFields, references?: import('../../shared/profileMaterialReferences').ProfileReferenceOptions): Promise<Profile>;
   confirmProfile(id: string): Promise<Profile>;
   opportunities(): Promise<Opportunity[]>;
   opportunity(id: string, signal?: AbortSignal): Promise<Opportunity>;
