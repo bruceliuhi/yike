@@ -23,7 +23,7 @@ it.skipIf(!process.env.YIKE_PROFILE_REF_BASE)('persists provenance, invalidates 
   expect(oldImpact.references.length).toBeGreaterThan(0);
   const second=await service.saveProfile({...fields,regions:'北京'},{baseProfileVersionId:first.id,materialReferences:[{field:'service',referenceId:first.materialReferences![0].referenceId}]});
   expect(second.id).not.toBe(first.id);
-  const revoke=(token:string)=>service.materials!.mutate({requestId:crypto.randomUUID(),profileVersionId:source,change:{kind:'revoke',materialId,expectedVersion:materialVersion,impactToken:token}},{});
+  const revoke=(token:string)=>service.materials!.mutate({requestId:crypto.randomUUID(),profileVersionId:source,change:{kind:'revoke',materialId,expectedVersion:materialVersion,impactToken:token}},{signal:new AbortController().signal,onUploadProgress:()=>{}});
   expect(await revoke(oldImpact.token)).toMatchObject({status:'FAILED',confirmedNoChange:true});
   const impact=await service.materials!.impact(source,materialId,materialVersion,'revoke');
   expect(impact.references.length).toBeGreaterThan(oldImpact.references.length);
