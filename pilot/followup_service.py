@@ -45,6 +45,16 @@ def _time(value, nullable=True):
         raise FollowupError("invalid_request", 422) from None
 
 
+def _text(value, *, minimum=0, maximum=500):
+    try:
+        if type(value) is not str or "\x00" in value or not minimum <= len(value) <= maximum:
+            raise ValueError
+        value.encode("utf-8", errors="strict")
+        return value
+    except (ValueError, TypeError, UnicodeError):
+        raise FollowupError("invalid_request", 422) from None
+
+
 def parse_binding(raw):
     keys = {"opportunityId", "profileVersionId", "action", "targetId", "targetRevision", "requestId"}
     if type(raw) is not dict or set(raw) != keys or raw.get("action") not in _ACTIONS:
@@ -54,7 +64,7 @@ def parse_binding(raw):
         result[key] = _uuid(result[key])
     result["targetId"] = _uuid(result["targetId"], empty=True)
     revision = result["targetRevision"]
-    if type(revision) is not int or revision < 0:
+    if type(revision) is not int or not 0 <= revision <= 2_147_483_647:
         raise FollowupError("invalid_request", 422)
     if (result["action"] == "create") != (result["targetId"] == "" and revision == 0):
         raise FollowupError("invalid_request", 422)
@@ -72,11 +82,10 @@ def parse_mutation(raw):
         expected = {"status", "note", "occurredAt", "nextStep", "nextFollowupAt", "ownerId"}
         if type(values) is not dict or set(values) != expected or values["status"] not in _STATUSES:
             raise FollowupError("invalid_request", 422)
-        if type(values["note"]) is not str or not values["note"].strip() or len(values["note"].strip()) > 500:
+        note = _text(values["note"], minimum=1).strip()
+        if not note:
             raise FollowupError("invalid_request", 422)
-        if type(values["nextStep"]) is not str or len(values["nextStep"]) > 500:
-            raise FollowupError("invalid_request", 422)
-        values = dict(values, note=values["note"].strip(), ownerId=_uuid(values["ownerId"]))
+        values = dict(values, note=note, nextStep=_text(values["nextStep"]), ownerId=_uuid(values["ownerId"]))
         occurred = _time(values["occurredAt"])
         if occurred and occurred > datetime.now(UTC):
             raise FollowupError("occurred_at_future", 409)
@@ -84,9 +93,9 @@ def parse_mutation(raw):
     elif values is not None:
         raise FollowupError("invalid_request", 422)
     if binding["action"] in ("correct", "void"):
-        if type(reason) is not str or not reason.strip() or len(reason.strip()) > 500:
+        reason = _text(reason, minimum=1).strip()
+        if not reason:
             raise FollowupError("invalid_request", 422)
-        reason = reason.strip()
     elif reason is not None:
         raise FollowupError("invalid_request", 422)
     return {"binding": binding, **({"values": values} if values is not None else {}), **({"reason": reason} if reason is not None else {})}
@@ -192,19 +201,22 @@ class FollowupService:
             cursor.execute("SELECT 1 FROM pilot_opportunities WHERE tenant_id=%s AND opportunity_id=%s", (tenant, opportunity_id))
             if cursor.fetchone() is None:
                 raise FollowupError("opportunity_not_found", 404)
-            cursor.execute("""SELECT DISTINCT ON (e.event_id) e.payload,e.payload_sha256,e.device_attestation,e.revision,
-                rr.revision AS read_revision,rr.read AS read_value
-                FROM pilot_reply_events e LEFT JOIN LATERAL (SELECT revision,read FROM pilot_followup_reply_reads x
-                  WHERE x.tenant_id=e.tenant_id AND x.owner_user_id=e.owner_user_id AND x.reply_event_id=e.event_id
-                  ORDER BY revision DESC LIMIT 1) rr ON true
-                WHERE e.tenant_id=%s AND e.owner_user_id=%s AND e.opportunity_id=%s
-                  AND e.kind='PLATFORM_REPLY' AND e.device_attestation->>'authority'='DEVICE_ATTESTED_PLATFORM_REPLY'
-                ORDER BY e.event_id,e.revision DESC""", (tenant, claims.user_id, opportunity_id))
-            desc = [c.name for c in cursor.description]
-            result = [self._reply(cursor, dict(zip(desc, row))) for row in cursor.fetchall()]
-            if len(result) > 5000:
-                raise FollowupError("snapshot_too_large", 503)
-            return result
+            return self._replies(cursor, tenant, claims, opportunity_id)
+
+    def _replies(self, cursor, tenant, claims, opportunity_id):
+        cursor.execute("""SELECT DISTINCT ON (e.event_id) e.payload,e.payload_sha256,e.device_attestation,e.revision,
+            rr.revision AS read_revision,rr.read AS read_value
+            FROM pilot_reply_events e LEFT JOIN LATERAL (SELECT revision,read FROM pilot_followup_reply_reads x
+              WHERE x.tenant_id=e.tenant_id AND x.owner_user_id=e.owner_user_id AND x.reply_event_id=e.event_id
+              ORDER BY revision DESC LIMIT 1) rr ON true
+            WHERE e.tenant_id=%s AND e.owner_user_id=%s AND e.opportunity_id=%s
+              AND e.kind='PLATFORM_REPLY' AND e.device_attestation->>'authority'='DEVICE_ATTESTED_PLATFORM_REPLY'
+            ORDER BY e.event_id,e.revision DESC""", (tenant, claims.user_id, opportunity_id))
+        desc = [c.name for c in cursor.description]
+        result = [self._reply(cursor, dict(zip(desc, row))) for row in cursor.fetchall()]
+        if len(result) > 5000:
+            raise FollowupError("snapshot_too_large", 503)
+        return result
 
     def _existing_operation(self, cursor, tenant, claims, binding, digest):
         cursor.execute("SELECT request_sha256,receipt FROM pilot_followup_operations WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s", (tenant, claims.user_id, binding["requestId"]))
@@ -279,7 +291,7 @@ class FollowupService:
 
     def _mark_read(self, cursor, tenant, claims, binding):
         cursor.execute("SELECT pg_advisory_xact_lock(13103,hashtext(%s))", (binding["targetId"],))
-        rows = self.replies(claims, binding["opportunityId"])
+        rows = self._replies(cursor, tenant, claims, binding["opportunityId"])
         reply = next((row for row in rows if row["id"] == binding["targetId"]), None)
         if reply is None:
             raise FollowupError("reply_not_found", 404)
