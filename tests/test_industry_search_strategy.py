@@ -132,3 +132,17 @@ def test_worker_serialization_omits_only_legacy_top_level_strategy(monkeypatch, 
     monkeypatch.setattr(suggestion_worker.sys, "stdout", SimpleNamespace(buffer=output))
     suggestion_worker.main()
     assert json.loads(output.getvalue())["content"] == payload
+
+
+def test_legacy_model_object_survives_validation_and_persistence_handoff():
+    legacy = suggestion(strategy=False)
+    generated = validate_suggestion(legacy, description=DESCRIPTION)
+    revalidated = validate_suggestion(generated, description=DESCRIPTION)
+    assert suggestion_model.serialize_suggestion(revalidated) == legacy
+
+
+def test_explicit_null_strategy_model_object_stays_invalid():
+    forged = suggestion_model.SuggestionContent.model_construct(
+        **suggestion(strategy=False), strategy=None)
+    with pytest.raises(SearchSuggestionError, match="invalid_suggestion_result"):
+        validate_suggestion(forged, description=DESCRIPTION)

@@ -188,7 +188,8 @@ def validate_suggestion(payload: object, *, description: str, _require_strategy:
     """Validate without normalizing the stored profile, terms, or exact quotes."""
     _validate_description(description)
     try:
-        result = SuggestionContent.model_validate(payload)
+        candidate = payload.model_dump() if isinstance(payload, SuggestionContent) else payload
+        result = SuggestionContent.model_validate(candidate)
         strategy = result.strategy
         grounded_strategy = (strategy is None or (
             all(value is None or value in description for value in (strategy.buyerRole, strategy.salesMotion))
