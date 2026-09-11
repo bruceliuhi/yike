@@ -25,7 +25,7 @@ HOST_FILES = ('app/__init__.py', 'app/collector.py', 'app/collectors/__init__.py
     'app/windows_platform_outreach.py', 'app/platform_outreach_worker.py',
     'app/platform_outreach_runtime.py', 'app/xhs_comment_channel.py',
     'connectors/__init__.py', 'connectors/models.py', 'connectors/normalizer.py', 'connectors/platforms.py',
-    'connectors/bilibili.py', 'connectors/douyin.py', 'connectors/candidate_mapping.py',
+    'connectors/bilibili.py', 'connectors/douyin.py', 'connectors/candidate_mapping.py', 'connectors/zhihu_mapping.py',
     'pilot/__init__.py', 'pilot/candidate_contract.py')
 PRIVATE_PARTS = {'browser_data', 'cookies', 'login data', 'history', 'local state', 'preferences', '.git',
                  '.yike-install-cache', '.env', '.env.local', '.env.production'}

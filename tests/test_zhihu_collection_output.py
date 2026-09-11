@@ -10,6 +10,11 @@ from app.collection_output import CollectionOutputError, read_collection_output
 STAMP = 1789000000123
 
 
+def test_portable_host_contains_the_new_mapper_dependency():
+    from app.windows_portable_inventory import HOST_FILES
+    assert "connectors/zhihu_mapping.py" in HOST_FILES
+
+
 def content(kind="answer", identifier="101", **changes):
     url = {"answer": f"https://www.zhihu.com/question/9/answer/{identifier}",
            "article": f"https://zhuanlan.zhihu.com/p/{identifier}",
