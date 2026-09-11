@@ -18,6 +18,7 @@ import { decodeConnectionRegistry } from "./connectionRegistry";
 import { createPlatformConnectionService } from "./platformConnection";
 import { createResearchStrategiesService } from "./researchStrategies";
 import {createResearchUsageService} from './researchUsage';
+import {createResearchRuntimeService} from './researchRuntime';
 import { parseOpportunitySourceEvidence } from "../domain/opportunitySourceEvidence";
 import { createCandidateReviewService, CANDIDATE_PLATFORM_LABELS } from "./candidateReview";
 import { createMaterialsService } from "./materials";
@@ -300,6 +301,7 @@ export const service: YikeService = {
   candidateReview: candidateReads,
   researchStrategies: createResearchStrategiesService(request),
   researchUsage: createResearchUsageService(request),
+  researchRuntime: createResearchRuntimeService(requestRaw),
   rawCandidateEvidence: candidateReads.getRawEvidence,
   verifyContact: async () => unavailable("收件对象与发送条件核验"),
   candidates: async (query = {}, signal) => {

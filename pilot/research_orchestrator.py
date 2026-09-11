@@ -6,15 +6,77 @@ from pilot.execution_contract import ExecutionRuntimeError, canonical_uuid
 
 
 class ResearchOrchestrator:
-    def __init__(self, sources, reviews):
+    def __init__(self, sources, reviews, *, fetcher=None):
         self.sources, self.reviews = sources, reviews
+        self.fetcher = fetcher
+
+    @staticmethod
+    def _source_action(task_id, run_id):
+        return str(uuid5(UUID(run_id), 'research-v2ex-sequence-v1:'+task_id))
+
+    @staticmethod
+    def _review_action(task_id, run_id, item):
+        return str(uuid5(UUID(run_id), 'research-assess-v1:'+task_id+':'+
+            item['candidate_id']+':'+item['version_id']+':'+item['observation_id']))
+
+    def inspect(self, claims, *, task_id, run_id):
+        """Read persisted sequence evidence only; never creates permits or reviews."""
+        task_id, run_id = canonical_uuid(task_id), canonical_uuid(run_id)
+        task = self.sources.resources.runtime.get_task(claims, task_id)
+        if task['run_id'] != run_id or [p['platform'] for p in task['platform_runs']] != ['PUBLIC_WEB']:
+            raise ExecutionRuntimeError('task_unavailable', 409)
+        action = self._source_action(task_id, run_id)
+        try:
+            source_event = self.sources.resources.get(claims, task_id=task_id,
+                run_id=run_id, action_id=action)
+        except ExecutionRuntimeError as error:
+            if (error.code, error.status) != ('request_not_found', 404):
+                raise
+            source_event = None
+        receipt = self.sources.get_receipt(claims, task_id=task_id, run_id=run_id,
+            action_id=action) if source_event and source_event['status'] == 'SUCCEEDED' else None
+        items = receipt.get('items', []) if type(receipt) is dict else []
+        reviews, missing, skipped = [], [], 0
+        for item in items:
+            request_id = self._review_action(task_id, run_id, item)
+            try:
+                review = self.reviews.get_request(claims, request_id)
+            except CandidateIngestionError as error:
+                if (error.code, error.status) != ('request_not_found', 404):
+                    raise
+                payload = self._current_payload(claims, task, receipt, item, request_id)
+                if payload is None:
+                    skipped += 1
+                else:
+                    missing.append((item, payload))
+                continue
+            reviews.append(review)
+        return dict(task=task, source_action=action, source_event=source_event,
+            receipt=receipt, items=items, reviews=reviews, missing=missing, skipped=skipped)
+
+    def advance_one(self, claims, *, task_id, run_id):
+        """Perform at most one new source read or model assessment."""
+        state = self.inspect(claims, task_id=task_id, run_id=run_id)
+        event = state['source_event']
+        if event is None:
+            self.sources.read_public(claims, task_id=task_id, run_id=run_id,
+                action_id=state['source_action'], fetcher=self.fetcher)
+            return self.inspect(claims, task_id=task_id, run_id=run_id)
+        if event['status'] != 'SUCCEEDED' or state['receipt'] is None:
+            return state
+        if state['missing']:
+            item, payload = state['missing'][0]
+            self.reviews.assess_research(claims, payload, task_id=task_id, run_id=run_id,
+                observation_id=item['observation_id'])
+            return self.inspect(claims, task_id=task_id, run_id=run_id)
+        return state
 
     def run(self, claims, *, task_id, run_id, fetcher=None):
         task_id, run_id = canonical_uuid(task_id), canonical_uuid(run_id)
         task = self.sources.resources.runtime.get_task(claims, task_id)
         if task['run_id'] != run_id or [p['platform'] for p in task['platform_runs']] != ['PUBLIC_WEB']:
             raise ExecutionRuntimeError('task_unavailable', 409)
-        source_action = str(uuid5(UUID(run_id), 'research-v2ex-sequence-v1:'+task_id))
+        source_action = self._source_action(task_id, run_id)
         # The source store checks current authority for fresh work and returns
         # persisted history for an old action, even when the task was canceled.
         source = self.sources.read_public(claims, task_id=task_id, run_id=run_id,
@@ -39,8 +101,7 @@ class ResearchOrchestrator:
         for item in receipt['items']:
             # An immutable source receipt, not current UI state, selects the
             # original review identity. There is never an automatic retryOf.
-            request_id = str(uuid5(UUID(run_id), 'research-assess-v1:'+task_id+':'+
-                item['candidate_id']+':'+item['version_id']+':'+item['observation_id']))
+            request_id = self._review_action(task_id, run_id, item)
             try:
                 try:
                     review = self.reviews.get_request(claims, request_id)

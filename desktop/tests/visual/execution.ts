@@ -14,8 +14,10 @@ export function configureExecutionVisual(service:YikeService, draft:TaskDraft) {
   const deviceId = '00000000-0000-0000-0000-000000000009';
   service.execution = {async execute(command) {
     if (command.action==='LIST') return {state:'LIST',requests:structuredClone([...requests.values()])};
+    if(command.action==='RESEARCH_LIST')return {state:'RESEARCH_LIST',requests:[]};
     if (command.action==='RECOVER') return receipts.has(command.requestId)
       ? {state:'RECORDED',receipt:structuredClone(receipts.get(command.requestId)!)} : {state:'UNKNOWN',requestId:command.requestId};
+    if(command.action!=='START'&&command.action!=='CANCEL')return {state:'FAILED',error:'EXECUTION_SESSION_FAILED'};
     const request=executionOperationSchema.parse({schema_version:'execution-runtime-v1',operation:command.action,
       request_id:command.requestId,device_id:deviceId,credential_version:1,
       ...(command.action==='START' ? {profile_version_id:command.profileVersionId,strategy_version_id:command.strategyVersionId,

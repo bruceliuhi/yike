@@ -6,7 +6,7 @@ import type {createExecutionSession} from './executionSession';
 
 export interface ExecutionControllerOptions {
   identity: Pick<ReturnType<typeof createDeviceIdentityController>, 'getStatus' | 'withAuthenticatedSession'>;
-  execution: ReturnType<typeof createExecutionSession>;
+  execution: Pick<ReturnType<typeof createExecutionSession>,'submit'|'recover'|'list'> & Partial<Pick<ReturnType<typeof createExecutionSession>,'submitResearch'|'recoverResearch'|'listResearch'>>;
 }
 const failed = (): DesktopExecutionResult => ({state: 'FAILED', error: 'EXECUTION_SESSION_FAILED'});
 
@@ -20,6 +20,8 @@ export function createExecutionController({identity, execution}: ExecutionContro
       const result = await identity.withAuthenticatedSession<DesktopExecutionResult>(async session => {
         current = session.isCurrent;
         if (command.action === 'LIST') return execution.list(session);
+        if(command.action==='RESEARCH_LIST')return execution.listResearch?execution.listResearch(session):failed();
+        if(command.action==='RESEARCH_RECOVER')return execution.recoverResearch?execution.recoverResearch(session,command.requestId):failed();
         if (command.action === 'RECOVER' && !command.retry) return execution.recover(session, command.requestId, false);
         // Observe READY only after fresh authentication has invalidated any old-user device state.
         const observed = deviceIdentityStatusSchema.safeParse(identity.getStatus());
@@ -30,12 +32,13 @@ export function createExecutionController({identity, execution}: ExecutionContro
         const request = executionOperationSchema.parse({
           schema_version: 'execution-runtime-v1', request_id: command.requestId,
           device_id: observed.data.deviceId, credential_version: observed.data.credentialVersion,
-          operation: command.action,
-          ...(command.action === 'START' ? {
+          operation: command.action==='RESEARCH_START'?'START':command.action,
+          ...(command.action === 'START'||command.action==='RESEARCH_START' ? {
             profile_version_id: command.profileVersionId, strategy_version_id: command.strategyVersionId,
             configuration_sha256: command.configurationSha256, targets: command.targets,
           } : {task_id: command.taskId}),
         });
+        if(command.action==='RESEARCH_START')return execution.submitResearch?execution.submitResearch(session,request,command.reservation,command.authorizationToken):failed();
         return execution.submit(session, request);
       });
       if (result.ok) return current() ? desktopExecutionResultSchema.parse(result.value) : {state: 'SESSION_CHANGED'};

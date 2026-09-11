@@ -23,6 +23,14 @@ from pilot.db import PilotDatabase
 from pilot.execution_runtime import ExecutionRuntime
 from pilot.foreground_collection import configured_collection_policy
 from pilot.research_strategies import ResearchStrategyStore
+from pilot.research_runtime_config import research_configuration, public_research_policy, public_research_snapshot
+from pilot.research_quote import ResearchQuoteService
+from pilot.research_execution import ResearchExecutionService
+from pilot.research_resources import ResearchResourceStore
+from pilot.research_candidates import ResearchCandidateStore
+from pilot.research_assessment import ResearchAssessmentRunner
+from pilot.research_orchestrator import ResearchOrchestrator
+from pilot.research_runtime import ResearchRuntimeService
 from pilot.reply_store import ReplyEventStore
 from pilot.signed_replies import SignedReplyStore
 from pilot.search_suggestion_model import SearchSuggestionError
@@ -87,6 +95,7 @@ def build_runtime_app(
         raise RuntimeError("admin_database_url_forbidden_in_web_runtime")
 
     model = _assessment_model(environment)
+    research_config = research_configuration(environment, model=model, auth_secret=auth_secret)
     store = PilotStore(database)
     strategies = ResearchStrategyStore(database)
     runtime = ExecutionRuntime(database, strategy_resolver=strategies.resolve,
@@ -94,12 +103,25 @@ def build_runtime_app(
     monitor = MonitorRuntime(database, execution_runtime=runtime)
     runtime.monitor_runtime = monitor
     ingestion = CandidateIngestionStore(database, execution_runtime=runtime)
+    research_execution = research_quotes = research_runtime = research_resources = None
+    if research_config is not None:
+        # Do not widen ordinary collection/worker capability when enabling research.
+        research_executor = ExecutionRuntime(database, strategy_resolver=strategies.resolve,
+                                             capability_check=public_research_policy)
+        research_quotes = ResearchQuoteService(database, strategies, research_config.rule,
+            research_config.signing_secret, public_research_snapshot)
+        research_execution = ResearchExecutionService(research_executor, research_quotes)
+        research_resources = ResearchResourceStore(research_executor, rule=research_config.rule,
+                                                   research_capability=public_research_snapshot)
     review = CandidateReviewStore(
         database,
         model=model,
         strategy_resolver=strategies.resolve,
         strategy_snapshot_reader=strategies.read_snapshot,
+        research_assessment=ResearchAssessmentRunner(research_resources) if research_resources else None,
     )
+    if research_resources is not None:
+        research_runtime = ResearchRuntimeService(ResearchOrchestrator(ResearchCandidateStore(research_resources), review))
     replies = ReplyEventStore(database)
     drafts = ContactDraftStore(database)
     outreach_platforms = frozenset(filter(None, (v.strip() for v in
@@ -116,6 +138,9 @@ def build_runtime_app(
         candidate_ingestion=ingestion,
         candidate_review=review,
         research_strategies=strategies,
+        research_quotes=research_quotes,
+        research_execution=research_execution,
+        research_runtime=research_runtime,
         monitor_plans=MonitorPlanStore(database, strategy_resolver=strategies.resolve),
         monitor_runtime=monitor,
         reply_store=replies,

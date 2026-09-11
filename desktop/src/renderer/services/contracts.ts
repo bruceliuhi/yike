@@ -48,6 +48,7 @@ export interface YikeService {
   coveragePlans?: import("./coveragePlan").CoveragePlanService;
   opportunityBrief?: import("./opportunityBrief").OpportunityBriefService;
   researchUsage?: import("./researchUsage").ResearchUsageService;
+  researchRuntime?: import('./researchRuntime').ResearchRuntimeService;
   shortCoach?: import("./shortCoach").ShortCoachService;
   contactDrafts?: import("./shortCoach").ContactDraftService;
   opportunityResearch?: import("./opportunityResearch").OpportunityResearchService;

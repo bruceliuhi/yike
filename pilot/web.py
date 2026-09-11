@@ -52,7 +52,7 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False,
               candidate_review=None, research_strategies=None, reply_store=None, contact_drafts=None,
               outreach_queue=None, materials=None, monitor_plans=None, monitor_runtime=None,
               search_suggestions=None, short_coach=None, structured_followups=None, opportunity_brief=None,
-              research_quotes=None, research_execution=None) -> FastAPI:
+              research_quotes=None, research_execution=None, research_runtime=None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app):
         try:
@@ -316,5 +316,5 @@ def build_app(store, *, auth_secret: str, dev_login: bool = False,
                     outreach_queue=outreach_queue,
                     candidate_ingestion=candidate_ingestion, candidate_review=candidate_review,
                     research_strategies=research_strategies, reply_store=reply_store,
-                    research_quotes=research_quotes, research_execution=research_execution)
+                    research_quotes=research_quotes, research_execution=research_execution, research_runtime=research_runtime)
     return app

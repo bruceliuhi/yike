@@ -5,12 +5,19 @@ import {createHash} from 'node:crypto';
 import {constants} from 'node:fs';
 import {lstat, mkdir, open, opendir} from 'node:fs/promises';
 import path from 'node:path';
+import {researchJournalRecordSchema,type ResearchJournalRecord} from '../shared/desktopExecution';
 
 export interface ExecutionJournalScope {readonly serviceOrigin: string; readonly userId: string}
 export interface ExecutionJournal {
   persist(scope: ExecutionJournalScope, request: ExecutionOperation): Promise<{request: ExecutionOperation; created: boolean}>;
   read(scope: ExecutionJournalScope, requestId: string): Promise<ExecutionOperation | null>;
   list(scope: ExecutionJournalScope): Promise<ExecutionOperation[]>;
+  persistResearch?(scope:ExecutionJournalScope,record:ResearchJournalRecord):Promise<{record:ResearchJournalRecord;created:boolean}>;
+  readResearch?(scope:ExecutionJournalScope,requestId:string):Promise<ResearchJournalRecord|null>;
+  listResearch?(scope:ExecutionJournalScope):Promise<ResearchJournalRecord[]>;
+}
+function parseResearchRecord(value:unknown):ResearchJournalRecord{
+  try{return Object.freeze(researchJournalRecordSchema.parse(value));}catch{return fail('INVALID_RECORD');}
 }
 const MAX_BYTES = 65_536;
 const MAX_LIST_RECORDS = 1000;
@@ -91,6 +98,19 @@ async function readExisting(filename: string, scope: ExecutionJournalScope, requ
     return request;
   } catch {return fail('INVALID_RECORD');}
 }
+async function readResearchExisting(filename:string,scope:ExecutionJournalScope,requestId:string,protection:DeviceKeyProtection):Promise<ResearchJournalRecord|null>{
+  let metadata;try{metadata=await lstat(filename);}catch(error){if(hasCode(error,'ENOENT'))return null;return fail('STORAGE_FAILED');}
+  if(!metadata.isFile()||metadata.isSymbolicLink()||metadata.size<1||metadata.size>MAX_BYTES)fail('INVALID_RECORD');
+  let bytes:Buffer;try{const handle=await open(filename,constants.O_RDWR|(constants.O_NOFOLLOW??0));try{const actual=await handle.stat();
+    if(!actual.isFile()||actual.dev!==metadata.dev||actual.ino!==metadata.ino)throw new Error();const buffer=Buffer.alloc(MAX_BYTES+1);let size=0;
+    while(size<buffer.length){const result=await handle.read(buffer,size,buffer.length-size,size);if(!result.bytesRead)break;size+=result.bytesRead;}
+    if(!size||size>MAX_BYTES)throw new Error();bytes=buffer.subarray(0,size);await handle.sync();}finally{await handle.close();}}catch{return fail('STORAGE_FAILED');}
+  let plain:string;try{plain=protection.decryptString(bytes);}catch{return fail('PROTECTION_FAILED');}
+  try{if(typeof plain!=='string'||Buffer.byteLength(plain)>MAX_BYTES)throw new Error();const raw:unknown=JSON.parse(plain);
+    if(!exact(raw,['version','scope','record'])||raw.version!==2)throw new Error();const savedScope=parseScope(raw.scope);const record=parseResearchRecord(raw.record);
+    if(savedScope.serviceOrigin!==scope.serviceOrigin||savedScope.userId!==scope.userId||record.request.request_id!==requestId||
+      JSON.stringify({version:2,scope:savedScope,record})!==plain)throw new Error();return record;}catch{return fail('INVALID_RECORD');}
+}
 async function serialized<T>(filename: string, action: () => Promise<T>): Promise<T> {
   const key = process.platform === 'win32' ? filename.toLowerCase() : filename;
   const result = (pendingFiles.get(key) ?? Promise.resolve()).then(action);
@@ -106,6 +126,7 @@ export function createExecutionJournal(options: {directory: string; protection: 
   const directory = path.resolve(options.directory); const protection = options.protection;
   const prefix = (scope: ExecutionJournalScope) => createHash('sha256').update(JSON.stringify(scope)).digest('hex') + '-';
   const filename = (scope: ExecutionJournalScope, requestId: string) => path.join(directory, `${prefix(scope)}${requestId}.execution`);
+  const researchFilename=(scope:ExecutionJournalScope,requestId:string)=>path.join(directory,`${prefix(scope)}${requestId}.research-execution`);
   return {
     async persist(inputScope, inputRequest) {
       // Snapshot both inputs before entering the shared file queue.
@@ -169,5 +190,22 @@ export function createExecutionJournal(options: {directory: string; protection: 
       }
       return requests;
     },
+    async persistResearch(inputScope,inputRecord){
+      const scope=parseScope(inputScope);const record=parseResearchRecord(inputRecord);const target=researchFilename(scope,record.request.request_id);
+      function existingResult(existing:ResearchJournalRecord){if(JSON.stringify(existing)!==JSON.stringify(record))fail('CONFLICT');return {record:existing,created:false};}
+      return serialized(target,async()=>{requireProtection(protection);await directoryReady(directory,true);const existing=await readResearchExisting(target,scope,record.request.request_id,protection);
+        if(existing)return existingResult(existing);let bytes:Buffer;try{const encrypted=protection.encryptString(JSON.stringify({version:2,scope,record}));
+          if(!Buffer.isBuffer(encrypted)||!encrypted.length||encrypted.length>MAX_BYTES)throw new Error();bytes=Buffer.from(encrypted);}catch{return fail('PROTECTION_FAILED');}
+        let handle;try{handle=await open(target,'wx',0o600);}catch(error){if(hasCode(error,'EEXIST')){const concurrent=await readResearchExisting(target,scope,record.request.request_id,protection);if(concurrent)return existingResult(concurrent);}return fail('STORAGE_FAILED');}
+        try{try{await handle.writeFile(bytes);await handle.sync();}finally{await handle.close();}}catch{return fail('STORAGE_FAILED');}return {record,created:true};});
+    },
+    async readResearch(inputScope,inputId){const scope=parseScope(inputScope);let requestId:string;try{requestId=deviceUuidSchema.parse(inputId);}catch{return fail('INVALID_RECORD');}
+      const target=researchFilename(scope,requestId);return serialized(target,async()=>{requireProtection(protection);if(!await directoryReady(directory,false))return null;
+        return readResearchExisting(target,scope,requestId,protection);});},
+    async listResearch(inputScope){const scope=parseScope(inputScope);const start=prefix(scope);requireProtection(protection);if(!await directoryReady(directory,false))return [];
+      const ids:string[]=[];try{for await(const entry of await opendir(directory)){if(!entry.name.startsWith(start)||!entry.name.endsWith('.research-execution'))continue;
+        const id=deviceUuidSchema.safeParse(entry.name.slice(start.length,-'.research-execution'.length));if(!id.success)fail('INVALID_RECORD');ids.push(id.data);if(ids.length>MAX_LIST_RECORDS)fail('LIMIT_EXCEEDED');}}
+      catch(error){if(error instanceof JournalError)throw error;return fail('STORAGE_FAILED');}const records:ResearchJournalRecord[]=[];
+      for(const id of ids.sort()){const target=researchFilename(scope,id);const record=await serialized(target,()=>readResearchExisting(target,scope,id,protection));if(!record)fail('STORAGE_FAILED');records.push(record);}return records;},
   };
 }

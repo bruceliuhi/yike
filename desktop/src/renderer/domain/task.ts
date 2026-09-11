@@ -196,6 +196,7 @@ export function startBlockers(
   connections: PlatformConnection[],
   deviceReady: boolean,
   nativeMonitorReady = false,
+  nativeResearchReady = false,
 ): string[] {
   const blockers = Object.values(taskErrors(draft));
   if (draft.research && (!researchSettingsSchema.safeParse(draft.research).success || draft.research.maxSoubei === null))
@@ -210,7 +211,8 @@ export function startBlockers(
   const publicRows=connections.filter(hasPublicSourceBinding);
   const publicSelected=draft.platforms.includes('web');
   const publicMonitor=publicSelected&&draft.mode==='monitor'&&publicRows.length===1&&publicRows[0].publicBinding?.monitorSupported===true;
-  if(publicSelected && (draft.accounts.web || publicRows.length!==1 || !['once','monitor'].includes(draft.mode) || draft.mode==='monitor'&&!publicMonitor || draft.source!=='search' || draft.links.trim() || draft.research))
+  const publicResearch=nativeResearchReady && draft.mode==='once' && draft.platforms.length===1 && publicSelected;
+  if(publicSelected && (draft.accounts.web || publicRows.length!==1 || !['once','monitor'].includes(draft.mode) || draft.mode==='monitor'&&!publicMonitor || draft.source!=='search' || draft.links.trim() || draft.research&&!publicResearch))
     blockers.push(draft.mode==='monitor'?'公开来源尚不具备持续监控能力。':'公开网站仅支持已核对的 V2EX 匿名近期主题关键词采样。');
   if(publicSelected && (!draft.executionLimits || !Number.isInteger(draft.executionLimits.max_records) ||
       !Number.isInteger(draft.executionLimits.max_runtime_seconds) || (draft.executionLimits.max_records??0)<draft.platforms.length ||

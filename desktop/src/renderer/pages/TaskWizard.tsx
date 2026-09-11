@@ -65,6 +65,8 @@ import {monitorCreateCommand} from '../domain/monitorCollection';
 import { SearchSuggestionPanel } from "./tasks/SearchSuggestionPanel";
 import { IndustryTaskStrategyEditor } from './tasks/IndustryTaskStrategyEditor';
 import { adoptIndustryTaskStrategy } from '../domain/industryTaskStrategy';
+import {nativeResearchStartCommand} from '../domain/nativeResearch';
+import {researchRuntimeCapabilitySchema} from '../../shared/researchRuntime';
 
 export { matchesCreatedTask } from "../domain/taskOperations";
 
@@ -81,6 +83,10 @@ export function TaskWizardPage() {
   const strategy = useStrategyConfirmation(draft, executionLimits ?? { max_records: 0, max_runtime_seconds: 0 });
   const usage = useUsageQuote(draft, strategy);
   const desktopExecution = useDesktopExecution(strategy.prepared);
+  const researchCapability = useResource(async signal => session.authenticated && draft.research && service.researchRuntime
+    ? researchRuntimeCapabilitySchema.parse(await service.researchRuntime.capability(signal)) : null,
+    [service,session.authenticated,session.userId,session.accountScope?.id,session.accountScope?.version,!!draft.research]);
+  const nativeResearch = !!draft.research && service.execution?.researchContractVersion===1;
   const monitors = useMonitorCollection();
   const nativeMonitor = draft.mode === 'monitor' && monitors.available;
   const monitorReady = nativeMonitor && monitors.list?.supported === true;
@@ -167,13 +173,13 @@ export function TaskWizardPage() {
     connections.data || [],
     info.data?.deviceReady === true,
     monitorReady,
+    nativeResearch && !!researchCapability.data,
   );
   if (!session.authenticated)
     blockers.unshift("请登录客户工作空间后启动任务。");
   if (strategy.available) {
     if (!service.execution) blockers.push("策略可先确认；签名执行接入尚未完成，当前不会启动采集。");
-    // This protocol has no billing reservation or schedule; keep those original contracts gated.
-    if (service.execution && ((!nativeMonitor && draft.mode !== "once") || draft.research))
+    if (service.execution && ((!nativeMonitor && draft.mode !== "once") || (draft.research && !nativeResearch)))
       blockers.push("当前签名执行仅支持无研究计费的单次任务；研究用量与监控调度接通前不会启动。");
     if (strategyPreparationError) blockers.push(strategyPreparationError);
     if (!strategy.confirmed) blockers.push("请准备策略快照、核对后主动确认本次策略。");
@@ -185,9 +191,11 @@ export function TaskWizardPage() {
     if(nativeMonitor && monitors.list?.plans.some(p=>p.strategyVersionId===strategy.prepared?.strategy_version_id)) blockers.push('该策略已有监控计划，请前往监控任务查看或接管。');
   }
   if (draft.research) {
-    if (!service.researchUsage || service.taskOperations?.researchContractVersion !== 1)
+    if (!service.researchUsage || (nativeResearch ? !researchCapability.data : service.taskOperations?.researchContractVersion !== 1))
       blockers.push("研究用量服务尚未接通，当前可以保存草稿。");
     else if (!usage.valid) blockers.push("请先估算当前配置的搜贝用量，再确认启动。");
+    if(nativeResearch && (draft.mode!=='once' || draft.platforms.length!==1 || draft.platforms[0]!=='web'))
+      blockers.push('研究执行当前仅接通V2EX最新主题的单次公开研究；其他平台研究与持续调度尚未接通。');
   }
   const update = (patch: Partial<TaskDraft>) => {
     setDraft((old) => ({
@@ -451,6 +459,25 @@ export function TaskWizardPage() {
         return;
       }
       if (strategy.available) {
+        if(nativeResearch){
+          if(!usageSnapshot || !strategy.prepared || !strategy.confirmed || !service.researchRuntime || !reviewed)
+            throw new Error('请重新确认策略与本次研究上限。');
+          const prepared=structuredClone(strategy.prepared);
+          const [freshProfiles,freshConnections,freshInfo]=await boundedRequest(()=>Promise.all([
+            service.profiles(),service.connections(),service.info(),
+          ]),{timeoutMessage:'研究启动检查超时，尚未创建任务。'});
+          if(!startScope.current())throw new RequestCancelled();
+          if(publicTaskScope(snapshot,freshConnections)!==publicScope)throw new Error('公开读取范围或执行设备已变化，请重新核对。');
+          const reasons=startBlockers(snapshot,freshProfiles,freshConnections,freshInfo.deviceReady===true,false,true);
+          if(reasons.length)throw new Error(reasons.join(' '));
+          researchRuntimeCapabilitySchema.parse(await boundedRequest(signal=>service.researchRuntime!.capability(signal),
+            {timeoutMessage:'研究执行能力尚未核实，未创建任务。'}));
+          if(!await strategy.recheck() || !startScope.current())throw new Error('当前研究策略尚未重新核实。');
+          const command=await nativeResearchStartCommand(snapshot,prepared,freshConnections,session,usageSnapshot,crypto.randomUUID());
+          if(!startScope.current())throw new RequestCancelled();
+          await desktopExecution.startResearch(command);
+          return;
+        }
         await desktopExecution.start(await validateDesktopStart(crypto.randomUUID()));
         return;
       }
@@ -1287,7 +1314,7 @@ export function TaskWizardPage() {
           {service.execution && !nativeMonitor && <DesktopExecutionRequests
             key={JSON.stringify([session.userId, session.accountScope])}
             execution={desktopExecution}
-            canRetryStart={strategy.available && strategy.confirmed && reviewed && blockers.length === 0 && !resultUnknown && !starting}
+            canRetryStart={!nativeResearch && strategy.available && strategy.confirmed && reviewed && blockers.length === 0 && !resultUnknown && !starting}
             validateStart={validateDesktopStart}
           />}
           {resultUnknown && (

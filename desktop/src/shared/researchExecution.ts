@@ -24,10 +24,11 @@ export const researchReservationBindingSchema = z.object({
   limits: z.object({sources: count, minutes: count, modelCalls: count}).strict(),
 }).strict().refine(value => value.estimated_soubei <= value.max_soubei, 'reservation exceeds confirmed limit');
 export type ResearchReservationBinding = z.infer<typeof researchReservationBindingSchema>;
-const researchStartReceiptSchema = z.object({
+export const researchStartReceiptSchema = z.object({
   schema_version: z.literal('research-execution-v1'), execution: executionReceiptSchema,
   reservation: researchReservationBindingSchema.safeExtend({reservation_id: deviceUuidSchema, status: z.literal('RESERVED')}),
 }).strict();
+export type ResearchStartReceipt=z.infer<typeof researchStartReceiptSchema>;
 
 /** A historical reservation receipt never proves current permission to run or actual consumption. */
 export function parseResearchStartReceipt(raw: unknown, expectedRequest: unknown, expectedBinding: unknown) {

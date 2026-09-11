@@ -19,6 +19,7 @@ import { foregroundCollectionResultSchema } from "../../../shared/foregroundColl
 import { desktopExecutionResultSchema } from "../../../shared/desktopExecution";
 import type { TaskFeedItem, TaskFeedPage } from "../../../shared/taskFeed";
 import {SearchCoverage} from './SearchCoverage';
+import {ResearchProgress} from './ResearchProgress';
 const coveragePlatforms={XIAOHONGSHU:'xhs',DOUYIN:'douyin',BILIBILI:'bilibili',ZHIHU:'zhihu',PUBLIC_WEB:'web'} as const;
 const statusLabels = {
   PENDING: "待执行",
@@ -113,7 +114,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
           entry.command.taskId === taskId)),
   );
   const local = useResource(async () => {
-    if (!checkLocal || !item || !sameDevice || !service.foregroundCollection)
+    if (!checkLocal || !item || item.research || !sameDevice || !service.foregroundCollection)
       return null;
     const result = foregroundCollectionResultSchema.parse(
       await service.foregroundCollection.execute({
@@ -133,7 +134,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
     !checking &&
     !cancels.length &&
     (item?.status === "PENDING" || item?.status === "RUNNING");
-  const canRecover = sameDevice && !!service.foregroundCollection && !checking && !execution.busy &&
+  const canRecover = !item?.research && sameDevice && !!service.foregroundCollection && !checking && !execution.busy &&
     !data.loading && !data.error && !local.loading && !local.error && local.data?.state==='STATUS' &&
     local.data.localState!=='COLLECTING' && ['PENDING','RUNNING'].includes(item!.status) &&
     ['PENDING','RUNNING'].includes(local.data.serverStatus);
@@ -272,7 +273,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
                         </Button>
                       </td>
                       <td>
-                        {row.mode === "monitor"
+                        {row.research ? '公开研究' : row.mode === "monitor"
                           ? "监控轮次"
                           : row.mode === "once"
                             ? "单次采集"
@@ -306,6 +307,8 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
           </div>
         </section>
       )}
+      {item?.research && <ResearchProgress key={item.task_id} taskId={item.task_id} runId={item.run_id}
+        taskStatus={item.status} onTerminal={()=>void data.reload()}/>}
       {item && (
         <SearchCoverage run={{id:item.task_id,profileId:item.profile_version_id,
           profileVersion:item.profile_version,platforms:item.platform_runs.map(row=>coveragePlatforms[row.platform])}}
@@ -326,7 +329,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
           </p>
           <p>
             服务端停止登记：{item.stop_confirmed ? "已确认" : "尚未确认"}
-            ；本机来源是否停止需另行查询。
+            {item.research ? '；已发出研究请求是否结束以研究状态为准。' : '；本机来源是否停止需另行查询。'}
           </p>
           <table className="data-table">
             <thead>
@@ -366,7 +369,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
             >
               取消本次采集
             </Button>
-            <Button
+            {!item.research && <Button
               disabled={
                 !sameDevice ||
                 !service.foregroundCollection ||
@@ -378,7 +381,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
               }}
             >
               查询本机采集状态
-            </Button>
+            </Button>}
             <Button onClick={() => navigate(`/candidates?task=${item.task_id}`)}>
               查看本次发现线索
             </Button>
@@ -388,7 +391,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
               </Button>
             )}
           </div>
-          {checkLocal && (
+          {checkLocal && !item.research && (
             <>
               <ResourceStatus loading={local.loading} error={local.error} />
               {local.data?.state === "STATUS" ? (

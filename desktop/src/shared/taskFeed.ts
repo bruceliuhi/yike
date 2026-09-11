@@ -41,6 +41,7 @@ export const taskFeedItemSchema = z
     start_request_id: uuid,
     name: z.string().min(1).max(60).nullable(),
     mode: z.enum(["once", "monitor"]).nullable(),
+    research: z.literal(true).optional(),
     created_at: z.string().datetime({ offset: true }),
     deadline_at: z.string().datetime({ offset: true }),
     status,

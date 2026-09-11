@@ -7,6 +7,7 @@ import {validStrategyExecutionLimits} from '../../domain/strategyExecutionLimits
 import {ServiceError} from '../../services/contracts';
 import type {ExecutionOperation} from '../../../shared/executionOperation';
 import {parseExecutionReceipt, type ExecutionReceipt} from '../../../shared/executionReceipt';
+import type {ResearchStartReceipt} from '../../../shared/researchExecution';
 import {useEffect, useRef, useState} from 'react';
 import {useApp} from '../../app/context';
 import {boundedRequest} from '../../app/boundedRequest';
@@ -16,16 +17,21 @@ import {foregroundCollectionCommandSchema, foregroundCollectionResultSchema,
   type ForegroundCollectionResult} from '../../../shared/foregroundCollection';
 
 export type DesktopStartCommand = Extract<DesktopExecutionCommand, {action: 'START'}>;
+export type DesktopResearchStartCommand=Extract<DesktopExecutionCommand,{action:'RESEARCH_START'}>;
 export interface DesktopExecutionEntry {
+  kind: 'ORDINARY' | 'RESEARCH';
   requestId: string;
   operation: ExecutionOperation['operation'];
   request?: ExecutionOperation;
-  command?: Exclude<DesktopExecutionCommand, {action: 'LIST' | 'RECOVER'}>;
+  command?: Extract<DesktopExecutionCommand,{action:'START'|'CANCEL'|'RESEARCH_RECOVER'}>;
+  start?: {profileVersionId:string;strategyVersionId:string;configurationSha256:string;targets:DesktopResearchStartCommand['targets']};
   receipt?: ExecutionReceipt;
+  researchReceipt?: ResearchStartReceipt;
   state?: string;
   collection?: ForegroundCollectionResult;
 }
 function startBinding(entry: DesktopExecutionEntry) {
+  if(entry.start)return entry.start;
   if (entry.request?.operation === 'START') return {profileVersionId: entry.request.profile_version_id,
     strategyVersionId: entry.request.strategy_version_id, configurationSha256: entry.request.configuration_sha256,
     targets: entry.request.targets};
@@ -71,19 +77,22 @@ export function useDesktopExecution(prepared: StrategyReceipt | null) {
   };
   const refresh = () => run(async () => {
     show({loaded: false});
-    const result = await call({action: 'LIST'});
+    const [ordinary,research]=await Promise.allSettled([call({action:'LIST'}),call({action:'RESEARCH_LIST'})]);
     if (!scope.current()) return;
-    if (result.state !== 'LIST') throw new Error();
     const entries = new Map(latest.current.entries.map(entry => [entry.requestId, entry]));
-    for (const request of result.requests) entries.set(request.request_id, {...entries.get(request.request_id),
-      requestId: request.request_id, operation: request.operation, request});
+    if(ordinary.status==='fulfilled'&&ordinary.value.state==='LIST')for (const request of ordinary.value.requests) entries.set(request.request_id, {...entries.get(request.request_id),
+      kind:'ORDINARY',requestId: request.request_id, operation: request.operation, request});
+    if(research.status==='fulfilled'&&research.value.state==='RESEARCH_LIST')for(const record of research.value.requests)entries.set(record.request.request_id,{...entries.get(record.request.request_id),
+      kind:'RESEARCH',requestId:record.request.request_id,operation:'START',request:record.request,command:{action:'RESEARCH_RECOVER',requestId:record.request.request_id}});
+    const complete=ordinary.status==='fulfilled'&&ordinary.value.state==='LIST'&&research.status==='fulfilled'&&research.value.state==='RESEARCH_LIST';
+    if(!complete){show({entries:[...entries.values()]});throw new Error();}
     show({loaded: true, entries: [...entries.values()]});
   });
   useEffect(() => { if (api && session.authenticated) void refresh(); }, [scope.identity, api]);
   async function dispatch(entry: DesktopExecutionEntry, command: DesktopExecutionCommand) {
     const result = await call(command);
     if (!scope.current()) return;
-    if (result.state === 'LIST') throw new Error();
+    if (result.state === 'LIST'||result.state==='RESEARCH_LIST') throw new Error();
     if (result.state === 'UNKNOWN' && result.requestId !== entry.requestId) throw new Error();
     if (result.state === 'RECORDED') {
       if (result.receipt.request_id !== entry.requestId || result.receipt.operation !== entry.operation) throw new Error();
@@ -93,6 +102,9 @@ export function useDesktopExecution(prepared: StrategyReceipt | null) {
           (receipt.platform_runs.length !== binding.targets?.length || receipt.platform_runs.some((row, index) => row.platform !== binding.targets![index].platform))) throw new Error();
       if (entry.command?.action === 'CANCEL' && receipt.task_id !== entry.command.taskId) throw new Error();
       save({...entry, state: 'RECORDED', receipt});
+    } else if(result.state==='RESEARCH_RECORDED'){
+      if(entry.kind!=='RESEARCH'||result.receipt.execution.request_id!==entry.requestId)throw new Error();
+      save({...entry,state:'RESEARCH_RECORDED',receipt:result.receipt.execution,researchReceipt:result.receipt});
     } else save({...entry, state: result.state});
   }
   const start = (input: DesktopStartCommand) => run(async () => {
@@ -103,18 +115,34 @@ export function useDesktopExecution(prepared: StrategyReceipt | null) {
       return binding?.strategyVersionId === command.strategyVersionId && binding.configurationSha256 === command.configurationSha256 &&
         binding.profileVersionId === command.profileVersionId;
     })) throw new Error();
-    const entry: DesktopExecutionEntry = {requestId: command.requestId, operation: 'START', command, state: 'UNKNOWN'};
+    const entry: DesktopExecutionEntry = {kind:'ORDINARY',requestId: command.requestId, operation: 'START', command, state: 'UNKNOWN'};
     save(entry); // Retain the UUID before IPC; the main process persists its complete original operation.
     await dispatch(entry, command);
+  });
+  const startResearch=(input:DesktopResearchStartCommand)=>run(async()=>{
+    const command=desktopExecutionCommandSchema.parse(input) as DesktopResearchStartCommand;
+    const binding={profileVersionId:command.profileVersionId,strategyVersionId:command.strategyVersionId,
+      configurationSha256:command.configurationSha256,targets:structuredClone(command.targets)};
+    if(!latest.current.loaded||command.action!=='RESEARCH_START'||latest.current.entries.some(entry=>entry.requestId===command.requestId||
+      startBinding(entry)?.profileVersionId===binding.profileVersionId&&startBinding(entry)?.strategyVersionId===binding.strategyVersionId&&
+      startBinding(entry)?.configurationSha256===binding.configurationSha256))throw new Error();
+    const entry:DesktopExecutionEntry={kind:'RESEARCH',requestId:command.requestId,operation:'START',
+      command:{action:'RESEARCH_RECOVER',requestId:command.requestId},start:binding,state:'UNKNOWN'};
+    save(entry); // Persist only a recovery handle in renderer memory; the token goes directly to native IPC.
+    await dispatch(entry,command);
   });
   const recover = (supplied: DesktopExecutionEntry, retry = false, validate?: () => Promise<DesktopStartCommand>) => run(async () => {
     const entry = latest.current.entries.find(value => value.requestId === supplied.requestId);
     if (!entry || !latest.current.loaded) throw new Error();
+    if(entry.kind==='RESEARCH'){
+      if(retry)retry=false; // Research 404/UNKNOWN is read-only recovery, never authorization to replay START.
+      await dispatch(entry,{action:'RESEARCH_RECOVER',requestId:entry.requestId});return;
+    }
     if (retry && entry.operation === 'START') {
       if (!validate) throw new Error();
       const command = desktopExecutionCommandSchema.parse(await validate()) as DesktopStartCommand;
       if (!scope.current() || command.action !== 'START' || command.requestId !== entry.requestId ||
-          JSON.stringify(startBinding({requestId: command.requestId, operation: 'START', command})) !== JSON.stringify(startBinding(entry))) throw new Error();
+          JSON.stringify(startBinding({kind:'ORDINARY',requestId: command.requestId, operation: 'START', command})) !== JSON.stringify(startBinding(entry))) throw new Error();
     } else if (retry && entry.operation !== 'CANCEL') throw new Error();
     await dispatch(entry, {action: 'RECOVER', requestId: entry.requestId, ...(retry ? {retry: true, humanConfirmed: true} : {})});
   });
@@ -123,7 +151,7 @@ export function useDesktopExecution(prepared: StrategyReceipt | null) {
     if (latest.current.entries.some(value => value.operation === 'CANCEL' &&
         (value.request?.task_id === taskId || value.command?.action === 'CANCEL' && value.command.taskId === taskId))) throw new Error();
     const command = desktopExecutionCommandSchema.parse({action: 'CANCEL', requestId: crypto.randomUUID(), taskId, humanConfirmed: true}) as Extract<DesktopExecutionCommand, {action: 'CANCEL'}>;
-    const pending: DesktopExecutionEntry = {requestId: command.requestId, operation: 'CANCEL', command, state: 'UNKNOWN'};
+    const pending: DesktopExecutionEntry = {kind:'ORDINARY',requestId: command.requestId, operation: 'CANCEL', command, state: 'UNKNOWN'};
     save(pending);
     await dispatch(pending, command);
   };
@@ -154,7 +182,7 @@ export function useDesktopExecution(prepared: StrategyReceipt | null) {
     return prepared && binding?.strategyVersionId === prepared.strategy_version_id &&
       binding.configurationSha256 === prepared.configuration_sha256 && binding.profileVersionId === prepared.profile_version_id;
   });
-  return {...shown, blocksStart, refresh, start, recover, cancel, cancelTask,
+  return {...shown, blocksStart, refresh, start, startResearch,recover, cancel, cancelTask,
     collectionAvailable:!!collectionApi,
     collectionStatus:(entry:DesktopExecutionEntry) => collection(entry, false),
     recoverCollection:(entry:DesktopExecutionEntry, confirmed:boolean) => collection(entry, true, confirmed)};

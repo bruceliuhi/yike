@@ -10,6 +10,9 @@ import {strategyPrepareRequest} from '../../src/renderer/domain/researchStrategi
 import type {StrategyReceipt} from '../../src/shared/researchStrategies';
 import {executionOperationSchema, type ExecutionOperation} from '../../src/shared/executionOperation';
 import type {DesktopExecutionCommand, DesktopExecutionResult} from '../../src/shared/desktopExecution';
+import {defaultResearchSettings} from '../../src/renderer/domain/researchUsage';
+import {RESEARCH_RUNTIME_SOURCE_LABEL} from '../../src/shared/researchRuntime';
+import {taskDraftOwner} from '../../src/renderer/app/taskDraft';
 
 let context: AppContextValue;
 let prepared: StrategyReceipt;
@@ -38,11 +41,12 @@ beforeEach(() => {
   requests = [];
   execute = vi.fn(async command => {
     if (command.action === 'LIST') return {state: 'LIST', requests};
+    if(command.action==='RESEARCH_LIST')return {state:'RESEARCH_LIST',requests:[]};
     if (command.action === 'START') requests.push(executionOperationSchema.parse({schema_version: 'execution-runtime-v1',
       request_id: command.requestId, operation: 'START', device_id: draft.profileId, credential_version: 1,
       profile_version_id: command.profileVersionId, strategy_version_id: command.strategyVersionId,
       configuration_sha256: command.configurationSha256, targets: command.targets}));
-    return {state: 'UNKNOWN', requestId: command.requestId};
+    return 'requestId' in command?{state: 'UNKNOWN', requestId: command.requestId}:{state:'FAILED',error:'EXECUTION_SESSION_FAILED'};
   });
   context = {service: {execution: {execute}, profiles: vi.fn().mockResolvedValue([{id: draft.profileId, version: 1,
     status: 'CONFIRMED', description: '', fields: {...EMPTY_PROFILE, service: '合成服务'}}]),
@@ -60,7 +64,7 @@ async function review() {
 describe('original TaskWizard signed execution entry', () => {
   it('shows bounded public scope and refuses a changed device after explicit confirmation',async()=>{
     render(<TaskWizardPage />);await review();
-    expect(screen.getByText(/V2EX近期主题，有界采样/)).toBeTruthy();
+    expect(screen.getByText(/V2EX近期主题有界抽样/)).toBeTruthy();
     const start=screen.getByRole('button',{name:'确认并启动'}) as HTMLButtonElement;
     await waitFor(()=>expect(start.disabled).toBe(false));
     vi.mocked(context.service.connections).mockResolvedValue([{platform:'web',status:'CONNECTED',capabilities:['search'],publicBinding:{sourceId:'v2ex-latest-v1',deviceId:crypto.randomUUID()}}]);
@@ -124,15 +128,16 @@ describe('original TaskWizard signed execution entry', () => {
     render(<TaskWizardPage />); await review();
     await screen.findByText(/执行响应未核实，原请求已保留/);
     expect((screen.getByRole('button', {name: '确认并启动'}) as HTMLButtonElement).disabled).toBe(true);
-    expect(execute.mock.calls.every(([command]) => command.action === 'LIST')).toBe(true);
+    expect(execute.mock.calls.every(([command]) => command.action === 'LIST'||command.action==='RESEARCH_LIST')).toBe(true);
   });
   it('labels PENDING accurately and requires separate explicit task cancellation confirmation', async () => {
     execute.mockImplementation(async command => {
       if (command.action === 'LIST') return {state: 'LIST', requests: []};
+      if(command.action==='RESEARCH_LIST')return {state:'RESEARCH_LIST',requests:[]};
       if (command.action === 'START') return {state: 'RECORDED', receipt: {schema_version: 'execution-runtime-v1',
         request_id: command.requestId, operation: 'START', task_id: draft.profileId, run_id: crypto.randomUUID(), status: 'PENDING',
         stop_confirmed: false, platform_runs: [{platform: 'PUBLIC_WEB', platform_run_id: crypto.randomUUID(), status: 'PENDING'}]}};
-      return {state: 'UNKNOWN', requestId: command.requestId};
+      return 'requestId' in command?{state: 'UNKNOWN', requestId: command.requestId}:{state:'FAILED',error:'EXECUTION_SESSION_FAILED'};
     });
     render(<TaskWizardPage />); await review();
     const start = screen.getByRole('button', {name: '确认并启动'}) as HTMLButtonElement;
@@ -146,5 +151,30 @@ describe('original TaskWizard signed execution entry', () => {
     await waitFor(() => expect(execute.mock.calls.filter(([value]) => value.action === 'CANCEL')).toHaveLength(1));
     fireEvent.click(cancel);
     expect(execute.mock.calls.filter(([value]) => value.action === 'CANCEL')).toHaveLength(1);
+  });
+  it('uses actual confirmed quote helper to issue one native RESEARCH_START without persisting its token',async()=>{
+    draft={...draft,research:{...defaultResearchSettings(),maxSoubei:20,limits:{sources:2,minutes:3,modelCalls:4}}};
+    const strategyRequest=strategyPrepareRequest(draft,prepared.request_id,{max_records:10,max_runtime_seconds:60});
+    prepared={...prepared,draft_revision:draft.revision,snapshot:{...prepared.snapshot,configuration:strategyRequest.configuration,platforms:strategyRequest.platforms}};
+    const calls:DesktopExecutionCommand[]=[];execute=vi.fn(async command=>{calls.push(structuredClone(command));if(command.action==='LIST')return {state:'LIST',requests:[]};
+      if(command.action==='RESEARCH_LIST')return {state:'RESEARCH_LIST',requests:[]};return 'requestId'in command?{state:'UNKNOWN',requestId:command.requestId}:{state:'FAILED',error:'EXECUTION_SESSION_FAILED'};});
+    context={...context,session:{...context.session,accountScope:{id:crypto.randomUUID(),version:1}},service:{...context.service,execution:{researchContractVersion:1,execute},researchRuntime:{capability:vi.fn(async()=>({contractVersion:1 as const,sourceScope:'V2EX_LATEST_INDEX' as const,
+      sourceLabel:RESEARCH_RUNTIME_SOURCE_LABEL,maxFreshEffectsPerAdvance:1 as const,settlementState:'PENDING' as const})),status:vi.fn(),advance:vi.fn()},
+      researchUsage:{requiresConfirmedStrategy:true,quote:vi.fn(async input=>({...input,quoteId:crypto.randomUUID(),ruleVersion:'test-v1',ruleSha256:'c'.repeat(64),authorizationToken:'abc.def',
+        estimatedSoubei:5,generatedAt:new Date(Date.now()-1000).toISOString(),expiresAt:new Date(Date.now()+60_000).toISOString(),basis:'TEST only'}))}}};
+    sessionStorage.setItem('yike.ui.draft.v1.task.'+taskDraftOwner(context.session.userId,context.session.accountScope),JSON.stringify(draft));render(<TaskWizardPage/>);
+    fireEvent.click(await screen.findByRole('button',{name:'重新估算'}));await screen.findByText('5 搜贝 · test-v1');await review();
+    const start=screen.getByRole('button',{name:'确认并启动'}) as HTMLButtonElement;await waitFor(()=>expect(start.disabled).toBe(false));fireEvent.click(start);
+    await waitFor(()=>expect(calls.some(command=>command.action==='RESEARCH_START')).toBe(true));const research=calls.find(command=>command.action==='RESEARCH_START')!;
+    expect(research).toMatchObject({action:'RESEARCH_START',authorizationToken:'abc.def',reservation:{limits:{sources:2,minutes:3,modelCalls:4}}});
+    for(const storage of [localStorage,sessionStorage])for(let index=0;index<storage.length;index++)
+      expect(storage.getItem(storage.key(index)!)).not.toContain('abc.def');
+  });
+  it('blocks native research when the explicit backend capability is unavailable',async()=>{
+    draft={...draft,research:{...defaultResearchSettings(),maxSoubei:20}};sessionStorage.setItem('yike.ui.draft.v1.task.'+context.session.userId,JSON.stringify(draft));
+    context={...context,service:{...context.service,execution:{researchContractVersion:1,execute},researchRuntime:undefined}};
+    render(<TaskWizardPage/>);await screen.findByText(/研究用量服务尚未接通/);
+    expect((screen.getByRole('button',{name:'确认并启动'}) as HTMLButtonElement).disabled).toBe(true);
+    expect(execute.mock.calls.some(([command])=>command.action==='RESEARCH_START')).toBe(false);
   });
 });

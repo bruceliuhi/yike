@@ -29,16 +29,44 @@ class Service:
         return {"schema_version": "research-execution-v1", "execution": {}, "reservation": {}}
 
 
-def client(service=...):
+def client(service=..., runtime=None):
     from pilot.research_execution_api import register_research_execution_api
     app, router = FastAPI(), APIRouter(prefix="/api/ui")
     register_research_execution_api(
         router, None if service is ... else service,
         lambda _: SimpleNamespace(claims=TokenClaims("u", 253402300799, "a" * 64)),
-        lambda _: None,
+        lambda _: None, runtime=runtime,
     )
     app.include_router(router)
     return TestClient(app)
+
+
+class Runtime:
+    def __init__(self): self.calls = []
+    def capability(self, claims):
+        self.calls.append(("capability", claims))
+        return {"contractVersion": 1}
+    def status(self, claims, task_id):
+        self.calls.append(("status", claims, task_id)); return {"taskId": task_id}
+    def advance(self, claims, task_id, run_id):
+        self.calls.append(("advance", claims, task_id, run_id)); return {"runId": run_id}
+
+
+def test_runtime_routes_are_authenticated_strict_and_read_only_by_method():
+    runtime, task_id, run_id = Runtime(), str(uuid4()), str(uuid4())
+    assert client(Service(), runtime).get("/api/ui/research-execution/capability").json() == {
+        "contractVersion": 1}
+    assert client(Service(), runtime).get("/api/ui/research-execution/tasks/" + task_id).json() == {
+        "taskId": task_id}
+    response = client(Service(), runtime).post(
+        "/api/ui/research-execution/tasks/" + task_id + "/advance", json={"runId": run_id})
+    assert response.json() == {"runId": run_id}
+    assert runtime.calls[-1][0] == "advance"
+    assert client(Service(), runtime).post(
+        "/api/ui/research-execution/tasks/" + task_id + "/advance",
+        json={"runId": run_id, "userId": "forbidden"}).status_code == 422
+    assert client(Service(), runtime).get(
+        "/api/ui/research-execution/tasks/" + task_id + "?runId=" + run_id).status_code == 422
 
 
 def envelope(**changes):

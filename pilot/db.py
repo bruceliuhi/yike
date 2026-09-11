@@ -48,6 +48,7 @@ class PilotDatabase:
         ("v02-research-execution", migration_path.with_name("133_v02_research_execution.sql")),
         ("v02-research-resources", migration_path.with_name("134_v02_research_resources.sql")),
         ("v02-research-candidate-binding", migration_path.with_name("135_v02_research_candidate_binding.sql")),
+        ("v02-research-runtime", migration_path.with_name("137_v02_research_runtime.sql")),
     )
 
     def __init__(self, url: str):

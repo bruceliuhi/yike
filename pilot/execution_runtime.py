@@ -632,6 +632,7 @@ class ExecutionRuntime:
             profile_version_id=row['profile_version_id'], profile_version=row['profile_version'],
             strategy_version_id=row['strategy_version_id'],
             start_request_id=row['start_request_id'], name=name, mode=mode,
+            **({'research': True} if type(configuration.get('research')) is dict else {}),
             created_at=row['created_at'].isoformat(), deadline_at=row['deadline_at'].isoformat(),
             status=row['status'], max_records=row['max_records'],
             records_used=sum(item['records_used'] for item in platforms),

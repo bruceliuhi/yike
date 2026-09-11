@@ -12,6 +12,7 @@ import {researchTimelineRequestSchema,researchSimilarRequestSchema} from '../sha
 import {prepareStrategySchema, confirmStrategySchema, revokeStrategySchema, strategyUuidSchema} from '../shared/researchStrategies';
 import {candidateBindingSchema, candidateQuerySchema, candidateReviewRequestSchema, sourceVerificationRequestSchema, candidateRequestIdSchema, type CandidateQueryInput} from '../shared/candidateReviewApi';
 import {materialImpactRequestSchema, materialListRequestSchema, materialMutationRequestSchema, materialOperationRequestSchema} from '../shared/materialsApi';
+import {researchRuntimeAdvanceRequestSchema,researchRuntimeStatusRequestSchema} from '../shared/researchRuntime';
 
 const empty = z.object({}).strict().optional();
 const identifier = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-][A-Za-z0-9_.:-]*$/);
@@ -19,6 +20,9 @@ const text = z.string().max(8000).refine(value => value.trim().length > 0);
 const phone = z.string().length(11).regex(/^1[0-9]{10}$/);
 const schemas = {
   'researchUsage.quote': researchUsageRequestSchema,
+  'researchRuntime.capability':empty,
+  'researchRuntime.status':researchRuntimeStatusRequestSchema,
+  'researchRuntime.advance':researchRuntimeAdvanceRequestSchema,
   'opportunityBrief.query': opportunityBriefQueryWire,
   'shortCoach.preview': coachInputSchema,
   'followup.list': empty,
@@ -78,7 +82,7 @@ export interface ServiceOperation {
   method: 'GET' | 'POST' | 'DELETE';
   body?: string;
   logout: boolean;
-  timeoutMs?: 25_000;
+  timeoutMs?: 25_000 | 75_000;
 }
 
 export function validatedOperation(input: unknown): ServiceOperation | null {
@@ -97,6 +101,10 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
   const data = parsed.data as Record<string, string> | undefined;
   switch (operation) {
     case 'researchUsage.quote': return {path:'/api/ui/research-usage/quote',method:'POST',body:JSON.stringify(parsed.data),logout:false};
+    case 'researchRuntime.capability':return {path:'/api/ui/research-execution/capability',method:'GET',logout:false};
+    case 'researchRuntime.status':return {path:`/api/ui/research-execution/tasks/${data!.taskId}`,method:'GET',logout:false};
+    case 'researchRuntime.advance':return {path:`/api/ui/research-execution/tasks/${data!.taskId}/advance`,method:'POST',
+      body:JSON.stringify({runId:data!.runId}),logout:false,timeoutMs:75_000};
     case 'opportunityBrief.query': return {path:'/api/ui/opportunity-brief/query',method:'POST',body:JSON.stringify(parsed.data),logout:false};
     case 'shortCoach.preview':
     case 'shortCoach.generate': return {path:`/api/ui/short-coach/${operation.slice('shortCoach.'.length)}`,method:'POST',body:JSON.stringify(parsed.data),logout:false,timeoutMs:25_000};

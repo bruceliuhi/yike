@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {act, cleanup, renderHook, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {useDesktopExecution, type DesktopStartCommand} from '../../src/renderer/pages/tasks/useDesktopExecution';
+import {useDesktopExecution, type DesktopResearchStartCommand, type DesktopStartCommand} from '../../src/renderer/pages/tasks/useDesktopExecution';
 import {executionOperationSchema} from '../../src/shared/executionOperation';
 import type {StrategyReceipt} from '../../src/shared/researchStrategies';
 import type {AppContextValue} from '../../src/renderer/app/context';
@@ -23,18 +23,37 @@ const prepared = {profile_version_id: profileId, strategy_version_id: strategyId
 const receipt = {schema_version: 'execution-runtime-v1' as const, request_id: requestId, operation: 'START' as const,
   task_id: taskId, run_id: profileId, status: 'PENDING' as const, stop_confirmed: false as const,
   platform_runs: [{platform: 'PUBLIC_WEB' as const, platform_run_id: strategyId, status: 'PENDING' as const}]};
+const researchCommand:DesktopResearchStartCommand={action:'RESEARCH_START',humanConfirmed:true,requestId,profileVersionId:profileId,strategyVersionId:strategyId,
+  configurationSha256:'a'.repeat(64),targets:command.targets,reservation:{quote_id:taskId,strategy_version_id:strategyId,profile_version_id:profileId,
+    configuration_sha256:'a'.repeat(64),rule_version:'test-v1',rule_sha256:'b'.repeat(64),estimated_soubei:1,max_soubei:2,limits:{sources:1,minutes:1,modelCalls:1}},authorizationToken:'abc.def'};
 let execute: ReturnType<typeof vi.fn<(command: DesktopExecutionCommand) => Promise<DesktopExecutionResult>>>;
 beforeEach(() => {
-  execute = vi.fn(async value => value.action === 'LIST' ? {state: 'LIST', requests: []} : {state: 'UNKNOWN', requestId: value.requestId});
+  execute = vi.fn(async value => value.action === 'LIST' ? {state: 'LIST', requests: []} : value.action==='RESEARCH_LIST'
+    ?{state:'RESEARCH_LIST',requests:[]}:'requestId' in value?{state: 'UNKNOWN', requestId: value.requestId}:{state:'FAILED',error:'EXECUTION_SESSION_FAILED'});
   context = {service: {execution: {execute}}, session: {authenticated: true, userId: 'user'}, sessionReady: true} as unknown as AppContextValue;
 });
 afterEach(() => {cleanup(); vi.useRealTimers();});
 
 describe('desktop execution original-request safety', () => {
+  it('keeps research token only in the invocation and recovers listed original without retry',async()=>{let stored:any=null;
+    execute.mockImplementation(async value=>{if(value.action==='LIST')return {state:'LIST',requests:[]};if(value.action==='RESEARCH_LIST')return {state:'RESEARCH_LIST',requests:stored?[stored]:[]};
+      if(value.action==='RESEARCH_START'){stored={record_version:2,record_type:'RESEARCH_START',request:{...request},reservation:value.reservation};return {state:'UNKNOWN',requestId:value.requestId};}
+      if(value.action==='RESEARCH_RECOVER')return {state:'UNKNOWN',requestId:value.requestId};return {state:'FAILED',error:'EXECUTION_SESSION_FAILED'};});
+    const hook=renderHook(()=>useDesktopExecution(prepared));await waitFor(()=>expect(hook.result.current.loaded).toBe(true));
+    await act(async()=>{await hook.result.current.startResearch(researchCommand);});const entry=hook.result.current.entries[0];
+    expect(entry.kind).toBe('RESEARCH');expect(JSON.stringify(entry)).not.toContain('abc.def');expect(entry.command).toEqual({action:'RESEARCH_RECOVER',requestId});
+    await act(async()=>{await hook.result.current.startResearch({...researchCommand,requestId:crypto.randomUUID()});});
+    expect(execute.mock.calls.filter(([value])=>value.action==='RESEARCH_START')).toHaveLength(1);
+    hook.unmount();const reopened=renderHook(()=>useDesktopExecution(prepared));await waitFor(()=>expect(reopened.result.current.entries).toHaveLength(1));
+    await act(async()=>{await reopened.result.current.recover(reopened.result.current.entries[0],true);});
+    expect(execute).toHaveBeenLastCalledWith({action:'RESEARCH_RECOVER',requestId});
+    expect(execute.mock.calls.filter(([value])=>value.action==='RESEARCH_START')).toHaveLength(1);
+  });
   it('cancels a listed task without a local START receipt, preserves unknown and reloads the same cancel', async () => {
     let stored: ReturnType<typeof executionOperationSchema.parse> | undefined;
     execute.mockImplementation(async value => {
       if(value.action==='LIST')return {state:'LIST',requests:stored?[stored]:[]};
+      if(value.action==='RESEARCH_LIST')return {state:'RESEARCH_LIST',requests:[]};
       if(value.action==='CANCEL')stored=executionOperationSchema.parse({schema_version:'execution-runtime-v1',
         operation:'CANCEL',request_id:value.requestId,device_id:profileId,credential_version:1,task_id:value.taskId});
       return {state:'UNKNOWN',requestId:value.requestId};
@@ -59,16 +78,17 @@ describe('desktop execution original-request safety', () => {
     const hook = renderHook(() => useDesktopExecution(prepared));
     await waitFor(() => expect(execute).toHaveBeenCalledWith({action: 'LIST'}));
     await act(async () => {await hook.result.current.start(command);});
-    expect(execute).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(2);
     await act(async () => {finish({state: 'FAILED', error: 'EXECUTION_SESSION_FAILED'});});
     expect(hook.result.current.loaded).toBe(false);
     await act(async () => {await hook.result.current.start(command);});
-    expect(execute).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(2);
   });
   it('keeps original UUID on unknown START and discovers it after remount without another START', async () => {
     let stored = false;
     execute.mockImplementation(async value => {
       if (value.action === 'LIST') return {state: 'LIST', requests: stored ? [request] : []};
+      if(value.action==='RESEARCH_LIST')return {state:'RESEARCH_LIST',requests:[]};
       stored = true;
       return {state: 'UNKNOWN', requestId: value.requestId};
     });
@@ -87,14 +107,14 @@ describe('desktop execution original-request safety', () => {
     expect(execute.mock.calls.filter(([value]) => value.action === 'START')).toHaveLength(1);
   });
   it('permits explicit START retry only after current configuration authorization, with same UUID', async () => {
-    execute.mockResolvedValueOnce({state: 'LIST', requests: [request]});
+    execute.mockImplementationOnce(async value=>value.action==='LIST'?{state:'LIST',requests:[request]}:{state:'RESEARCH_LIST',requests:[]});
     const hook = renderHook(() => useDesktopExecution(prepared));
     await waitFor(() => expect(hook.result.current.loaded).toBe(true));
     const entry = hook.result.current.entries[0];
     await act(async () => {await hook.result.current.recover(entry, true);});
-    expect(execute).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(2);
     await act(async () => {await hook.result.current.recover(entry, true, async () => ({...command, configurationSha256: 'b'.repeat(64)}));});
-    expect(execute).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(2);
     await act(async () => {await hook.result.current.recover(entry, true, async () => command);});
     expect(execute).toHaveBeenLastCalledWith({action: 'RECOVER', requestId, retry: true, humanConfirmed: true});
   });
@@ -119,6 +139,7 @@ describe('desktop execution original-request safety', () => {
     let cancellation: ReturnType<typeof executionOperationSchema.parse> | null = null;
     execute.mockImplementation(async value => {
       if (value.action === 'LIST') return {state: 'LIST', requests: cancellation ? [request, cancellation] : [request]};
+      if(value.action==='RESEARCH_LIST')return {state:'RESEARCH_LIST',requests:[]};
       if (value.action === 'RECOVER') return {state: 'RECORDED', receipt};
       if (value.action === 'CANCEL') cancellation = executionOperationSchema.parse({schema_version: 'execution-runtime-v1',
         operation: 'CANCEL', request_id: value.requestId, device_id: profileId, credential_version: 1, task_id: value.taskId});

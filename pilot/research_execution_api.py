@@ -25,11 +25,21 @@ class ResearchStartEnvelope(BaseModel):
         return self
 
 
+class ResearchAdvanceEnvelope(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", hide_input_in_errors=True)
+    runId: str
+
+    @model_validator(mode="after")
+    def canonical(self):
+        self.runId = canonical_uuid(self.runId)
+        return self
+
+
 def _error(status, code):
     return HTTPException(status, detail={"code": code}, headers={"Cache-Control": "no-store"})
 
 
-def register_research_execution_api(router, service, identity, require_session_https):
+def register_research_execution_api(router, service, identity, require_session_https, runtime=None):
     def authenticate(request):
         require_session_https(request)
         try:
@@ -76,5 +86,59 @@ def register_research_execution_api(router, service, identity, require_session_h
             result = await run_in_threadpool(service.get_receipt, claims, canonical_uuid(request_id))
         except ExecutionRuntimeError as error:
             raise _error(error.status, error.code) from None
+        response.headers["Cache-Control"] = "no-store"
+        return result
+
+    @router.get("/research-execution/capability")
+    async def capability(request: Request, response: Response):
+        claims = await run_in_threadpool(authenticate, request)
+        if runtime is None:
+            raise _error(501, "capability_unavailable")
+        if request.query_params:
+            raise _error(422, "invalid_request")
+        try:
+            result = await run_in_threadpool(runtime.capability, claims)
+        except ExecutionRuntimeError as error:
+            raise _error(error.status, error.code) from None
+        response.headers["Cache-Control"] = "no-store"
+        return result
+
+    @router.get("/research-execution/tasks/{task_id}")
+    async def runtime_status(task_id: str, request: Request, response: Response):
+        claims = await run_in_threadpool(authenticate, request)
+        if runtime is None:
+            raise _error(501, "capability_unavailable")
+        if request.query_params:
+            raise _error(422, "invalid_request")
+        try:
+            result = await run_in_threadpool(runtime.status, claims, canonical_uuid(task_id))
+        except ExecutionRuntimeError as error:
+            raise _error(error.status, error.code) from None
+        response.headers["Cache-Control"] = "no-store"
+        return result
+
+    @router.post("/research-execution/tasks/{task_id}/advance")
+    async def advance(task_id: str, request: Request, response: Response):
+        claims = await run_in_threadpool(authenticate, request)
+        if runtime is None:
+            raise _error(501, "capability_unavailable")
+        if request.query_params:
+            raise _error(422, "invalid_request")
+        if request.headers.get("content-type", "").split(";")[0].strip().lower() != "application/json":
+            raise _error(415, "json_required")
+        raw = bytearray()
+        async for chunk in request.stream():
+            if len(raw) + len(chunk) > 4096:
+                raise _error(413, "request_too_large")
+            raw.extend(chunk)
+        try:
+            value = ResearchAdvanceEnvelope.model_validate(
+                strict_json_object(raw.decode("utf-8", errors="strict")))
+            result = await run_in_threadpool(runtime.advance, claims,
+                canonical_uuid(task_id), value.runId)
+        except ExecutionRuntimeError as error:
+            raise _error(error.status, error.code) from None
+        except (ValueError, TypeError, UnicodeError):
+            raise _error(422, "invalid_request") from None
         response.headers["Cache-Control"] = "no-store"
         return result
