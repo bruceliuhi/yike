@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import unicodedata
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -16,6 +18,7 @@ from pilot.material_references import (assert_references_valid, insert_reference
                                        profile_content_digest, read_references,
                                        reference_source_owners, resolve_references)
 from pilot.opportunity_evidence import evidence_view
+from pilot.outreach_contract import canonical_uuid
 from pilot.sessions import PilotSessionRegistry
 
 
@@ -65,11 +68,24 @@ class PilotStore:
                 return row[0]
 
     def save_profile(self, user_id: str, payload: dict, *, base_profile_version_id=None,
-                     material_references=None) -> dict:
+                     material_references=None, profile_entity_id=None, new_business=None) -> dict:
         if not isinstance(payload, dict) or not any(isinstance(value, str) and value.strip() for value in payload.values()):
             raise ValueError("profile description is required")
         tenant_id = self._tenant_for_user(user_id)
-        profile_id = self._profile_id(tenant_id)
+        if profile_entity_id is not None and new_business is not None:
+            raise ValueError("profile entity choice is mutually exclusive")
+        creating = new_business is not None
+        profile_name = "默认业务画像"
+        if creating:
+            if type(new_business) is not dict or set(new_business) != {"requestId", "name"}:
+                raise ValueError("invalid new business")
+            request_id = canonical_uuid(new_business["requestId"])
+            profile_name = self._profile_name(new_business["name"])
+            profile_id = hashlib.sha256(f"{tenant_id}:business:{request_id}".encode()).hexdigest()[:32]
+        elif profile_entity_id is not None:
+            profile_id = self._profile_entity_id(profile_entity_id)
+        else:
+            profile_id = self._profile_id(tenant_id)
         content = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         with self.database.connect() as connection:
             with connection.cursor() as cursor:
@@ -87,13 +103,29 @@ class PilotStore:
                     description=payload.get("description", ""), base_profile_version_id=base_profile_version_id,
                     requested=material_references or []) if material_references else []
                 digest = profile_content_digest(payload, resolved, managed=managed_references)
-                cursor.execute("INSERT INTO business_profiles(profile_id, tenant_id) VALUES (%s, %s) ON CONFLICT DO NOTHING", (profile_id, tenant_id))
-                cursor.execute("SELECT profile_id FROM business_profiles WHERE tenant_id=%s AND profile_id=%s FOR UPDATE", (tenant_id, profile_id))
+                if creating:
+                    cursor.execute("INSERT INTO business_profiles(profile_id,tenant_id,name) VALUES(%s,%s,%s) ON CONFLICT DO NOTHING",
+                                   (profile_id,tenant_id,profile_name))
+                elif profile_entity_id is None:
+                    cursor.execute("INSERT INTO business_profiles(profile_id, tenant_id) VALUES (%s, %s) ON CONFLICT DO NOTHING", (profile_id, tenant_id))
+                cursor.execute("SELECT name FROM business_profiles WHERE tenant_id=%s AND profile_id=%s FOR UPDATE", (tenant_id, profile_id))
+                entity = cursor.fetchone()
+                if entity is None:
+                    raise KeyError("profile entity not found in tenant")
+                if creating and entity[0] != profile_name:
+                    raise ValueError("new business request name conflict")
+                profile_name = entity[0]
+                if base_profile_version_id is not None:
+                    cursor.execute("SELECT 1 FROM business_profile_versions WHERE tenant_id=%s AND profile_id=%s AND profile_version_id=%s",
+                                   (tenant_id,profile_id,base_profile_version_id))
+                    if cursor.fetchone() is None:
+                        raise ValueError("base profile version belongs to another entity")
                 cursor.execute("SELECT profile_version_id, version, status FROM business_profile_versions WHERE tenant_id=%s AND profile_id=%s AND content_sha256=%s", (tenant_id, profile_id, digest))
                 existing = cursor.fetchone()
                 if existing is not None:
                     return {"profile_id": profile_id, "version_id": existing[0], "version": existing[1],
-                            "status": existing[2], "material_references": read_references(cursor, tenant_id, existing[0])}
+                            "profile_name": profile_name, "status": existing[2],
+                            "material_references": read_references(cursor, tenant_id, existing[0])}
                 cursor.execute("SELECT COALESCE(MAX(version), 0) + 1 FROM business_profile_versions WHERE tenant_id=%s AND profile_id=%s", (tenant_id, profile_id))
                 version = cursor.fetchone()[0]
                 version_id = str(uuid4())
@@ -103,7 +135,7 @@ class PilotStore:
                 )
                 insert_references(cursor, tenant=tenant_id, target_profile_version_id=version_id, references=resolved)
                 references = read_references(cursor, tenant_id, version_id)
-        return {"profile_id": profile_id, "version_id": version_id, "version": version,
+        return {"profile_id": profile_id, "profile_name": profile_name, "version_id": version_id, "version": version,
                 "status": "DRAFT", "material_references": references}
 
     def confirm_profile(self, user_id: str, version_id: str) -> None:
@@ -136,19 +168,23 @@ class PilotStore:
 
     def get_profile_version(self, user_id: str, version_id: str) -> dict:
         tenant_id = self._tenant_for_user(user_id)
-        row = self._fetchone(tenant_id, "SELECT profile_version_id, version, payload, status FROM business_profile_versions WHERE tenant_id=%s AND profile_version_id=%s", (tenant_id, version_id))
+        row = self._fetchone(tenant_id, "SELECT v.profile_id,p.name AS profile_name,v.profile_version_id,v.version,v.payload,v.status "
+            "FROM business_profile_versions v JOIN business_profiles p ON p.tenant_id=v.tenant_id AND p.profile_id=v.profile_id "
+            "WHERE v.tenant_id=%s AND v.profile_version_id=%s", (tenant_id, version_id))
         with self.database.connect() as connection, connection.cursor() as cursor:
             cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
             references = read_references(cursor, tenant_id, version_id)
-        return {"version_id": row["profile_version_id"], "version": row["version"], "payload": row["payload"],
+        return {"profile_id": row["profile_id"], "profile_name": row["profile_name"],
+                "version_id": row["profile_version_id"], "version": row["version"], "payload": row["payload"],
                 "status": row["status"], "material_references": references}
 
     def list_profiles(self, user_id: str) -> list[dict]:
         tenant_id = self._tenant_for_user(user_id)
         with self.database.connect() as connection, connection.cursor() as cursor:
             cursor.execute("SELECT set_config('yike.tenant_id', %s, false)", (tenant_id,))
-            cursor.execute("SELECT profile_id,profile_version_id AS version_id,version,payload,status "
-                           "FROM business_profile_versions WHERE tenant_id=%s ORDER BY version DESC", (tenant_id,))
+            cursor.execute("SELECT v.profile_id,p.name AS profile_name,v.profile_version_id AS version_id,v.version,v.payload,v.status "
+                           "FROM business_profile_versions v JOIN business_profiles p ON p.tenant_id=v.tenant_id AND p.profile_id=v.profile_id "
+                           "WHERE v.tenant_id=%s ORDER BY p.created_at DESC,v.version DESC", (tenant_id,))
             columns = [column.name for column in cursor.description]
             rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
             for row in rows:
@@ -615,3 +651,20 @@ class PilotStore:
     @staticmethod
     def _profile_id(tenant_id: str) -> str:
         return hashlib.sha256((tenant_id + ":default-profile").encode()).hexdigest()[:32]
+
+    @staticmethod
+    def _profile_entity_id(value: str) -> str:
+        if type(value) is not str:
+            raise ValueError("invalid profile entity id")
+        if re.fullmatch(r"[0-9a-f]{32}", value):
+            return value
+        return canonical_uuid(value)
+
+    @staticmethod
+    def _profile_name(value: str) -> str:
+        if type(value) is not str:
+            raise ValueError("invalid profile name")
+        value = value.strip()
+        if not 1 <= len(value) <= 100 or any(unicodedata.category(ch).startswith("C") for ch in value):
+            raise ValueError("invalid profile name")
+        return value

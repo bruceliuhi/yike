@@ -25,6 +25,7 @@ from pilot.execution_contract import ExecutionRuntimeError
 from pilot.identity import IdentityValidationError
 from pilot.outreach_contract import canonical_uuid
 from pilot.sessions import SessionIdentity, authenticate_session, revoke_session_tokens
+from pilot.store import PilotStore
 
 
 class _Input(BaseModel):
@@ -39,6 +40,8 @@ class ProfileInput(_Input):
     description: str = Field(min_length=1, max_length=8_000)
     baseProfileVersionId: str | None = None
     materialReferences: list[dict] | None = Field(default=None, max_length=5)
+    profileEntityId: str | None = None
+    newBusiness: dict | None = None
 
     @field_validator("description")
     @classmethod
@@ -51,6 +54,23 @@ class ProfileInput(_Input):
     @classmethod
     def valid_base_profile_version(cls, value):
         return canonical_uuid(value) if value is not None else value
+
+    @field_validator("profileEntityId")
+    @classmethod
+    def valid_profile_entity(cls, value):
+        if value is None:
+            return value
+        return PilotStore._profile_entity_id(value)
+
+    @field_validator("newBusiness")
+    @classmethod
+    def valid_new_business(cls, value):
+        if value is None:
+            return value
+        if type(value) is not dict or set(value) != {"requestId", "name"}:
+            raise ValueError("invalid new business")
+        return {"requestId": canonical_uuid(value["requestId"]),
+                "name": PilotStore._profile_name(value["name"])}
 
     @field_validator("materialReferences")
     @classmethod
@@ -80,6 +100,8 @@ class ProfileInput(_Input):
     def inheritance_has_base(self):
         if any("referenceId" in item for item in (self.materialReferences or [])) and not self.baseProfileVersionId:
             raise ValueError("base profile version required")
+        if self.profileEntityId is not None and self.newBusiness is not None:
+            raise ValueError("profile entity choice is mutually exclusive")
         return self
 
 
@@ -311,11 +333,15 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
     def save_profile(body: ProfileInput, request: Request):
         current = identity(request)
         try:
-            if body.baseProfileVersionId is None and body.materialReferences is None:
+            if (body.baseProfileVersionId is None and body.materialReferences is None
+                    and body.profileEntityId is None and body.newBusiness is None):
                 result = store.save_profile(current.user_id, {"description": body.description})
             else:
                 result = store.save_profile(current.user_id, {"description": body.description},
-                    base_profile_version_id=body.baseProfileVersionId, material_references=body.materialReferences)
+                    base_profile_version_id=body.baseProfileVersionId, material_references=body.materialReferences,
+                    profile_entity_id=body.profileEntityId, new_business=body.newBusiness)
+        except KeyError as error:
+            raise _error(404, "profile_not_found", "未找到该业务画像。") from error
         except ValueError as error:
             raise _error(400, "invalid_profile", "业务描述无效。") from error
         if result["status"] == "REVOKED":
