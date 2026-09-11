@@ -17,6 +17,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY pilot ./pilot
+COPY app/__init__.py app/model_contract.py ./app/
 COPY migrations ./migrations
 COPY static ./static
 COPY skills/ai-project-lead-research-v1/SKILL.md ./pilot/_assessment_rules/SKILL.md

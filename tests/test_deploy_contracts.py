@@ -1,7 +1,36 @@
 from pathlib import Path
+import os
+import shlex
+import shutil
+import subprocess
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_image_copy_layout_can_import_current_service_entrypoint(tmp_path):
+    """Use Docker COPY inputs without falling back to the source checkout."""
+    for line in (ROOT / 'deploy/Dockerfile').read_text().splitlines():
+        if not line.startswith('COPY '):
+            continue
+        parts=shlex.split(line)
+        destination=tmp_path / parts[-1].removeprefix('./')
+        for name in parts[1:-1]:
+            source=ROOT/name
+            if source.is_dir():
+                shutil.copytree(source,destination,dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__'))
+            else:
+                target=destination/source.name if parts[-1].endswith('/') else destination
+                target.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copyfile(source,target)
+    script=('import sys;from pathlib import Path;sys.path.insert(0,sys.argv[1]);'
+            'import pilot.cli,app.model_contract;'
+            'assert Path(pilot.cli.__file__).resolve().is_relative_to(Path(sys.argv[1]).resolve()), "pilot missing from image";'
+            'assert Path(app.model_contract.__file__).resolve().is_relative_to(Path(sys.argv[1]).resolve()), "app.model_contract missing from image"')
+    result=subprocess.run([sys.executable,'-I','-c',script,str(tmp_path)],cwd=tmp_path,
+        env={'PATH':os.environ.get('PATH','')},capture_output=True,text=True,timeout=20)
+    assert result.returncode==0,result.stderr
 
 
 def test_build_context_excludes_runtime_and_secret_material() -> None:
@@ -15,7 +44,8 @@ def test_build_context_excludes_runtime_and_secret_material() -> None:
     assert "cookies" in ignore
     assert "tests" in ignore
     assert "docs" in ignore
-    assert "app" in ignore
+    assert "app/**" in ignore
+    assert {line for line in ignore if line.startswith('!app/')} == {'!app/__init__.py','!app/model_contract.py'}
 
 
 def test_production_image_does_not_sync_dependencies_at_runtime() -> None:
@@ -23,6 +53,7 @@ def test_production_image_does_not_sync_dependencies_at_runtime() -> None:
 
     assert 'CMD ["/app/.venv/bin/python", "-c", "from pilot.cli import web; web()"]' in dockerfile
     assert "COPY app ./app" not in dockerfile
+    assert "COPY app/__init__.py app/model_contract.py ./app/" in dockerfile
     assert "uv sync --frozen --no-dev --no-install-project" in dockerfile
     assert "uv sync --frozen --no-dev\n" not in dockerfile
     assert "COPY static ./static" in dockerfile

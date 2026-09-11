@@ -14,4 +14,6 @@ profiles
 cookies
 tests
 docs
-app
+app/**
+!app/__init__.py
+!app/model_contract.py
