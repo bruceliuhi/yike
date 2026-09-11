@@ -1,5 +1,7 @@
 # 意客 AI 应用镜像
 
+结构化跟进（迁移131）：先迁移，再在管理员部署连接中将 `yike.app_role` 设为既有受限应用角色，执行 [结构化授权](grant_structured_followups.sql)，最后启动新runtime。机会列表的有效跟进状态也读取新表，因此不能省略该授权。新表只SELECT/INSERT且FORCE RLS、修订不可改；旧人工表只读保留。回复已读仅意客内记录，不改原平台/设备签名；无定时通知。接口/版本/限定联验见[唯一记录](../docs/superpowers/plans/2026-09-11-structured-followup-service.md#实施与验证)，本说明不是部署执行记录。
+
 短句教练（迁移130）：先迁移，再以既有受限 `yike.app_role` 执行 [短句授权](grant_short_coach.sql)，最后启动runtime。复用 `YIKE_PILOT_ASSESSMENT_*` 三项模型配置；无配置不能生成，不隐式外发。用户先看完整原文/人工草稿与模型披露，再确认单次调用。每天每租户50次为服务端安全上限而非收费；失败计入，原请求不重发，旧PROCESSING不能当失败重跑。模型子进程20秒截止，客户端25秒HTTP等待。当前联验只有合成来源和受控模型，不是生产部署；见[唯一记录](../docs/superpowers/plans/2026-09-11-short-coach-service.md#实施与验证)。
 
 搜索建议未受理恢复（迁移129）：在原110＋128基础上完成129，并重新执行新版[建议请求授权](grant_search_suggestions.sql)，才启动本批runtime。新表按租户/用户FORCE RLS且只授SELECT/INSERT，拒绝与受理不能双写；旧请求仍从原接口只读恢复。没有迁移/授权时，不把读取异常或404解释为未受理。本说明是部署要求，不是实际生产执行记录；[版本与验收](../docs/superpowers/plans/2026-09-11-search-suggestion-rejection.md#实施与验证)。

@@ -6,7 +6,7 @@ import type {
   FollowupReceipt,
 } from "../domain/followup";
 import { ServiceError } from "./contracts";
-/** Optional authenticated service. Production facade remains the manual fallback. */
+/** Authenticated structured service; older facades may retain the manual fallback. */
 export interface FollowupService {
   list(): Promise<FollowupSnapshot>;
   replies(opportunityId?: string): Promise<LinkedReply[]>;
