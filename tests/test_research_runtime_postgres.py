@@ -82,6 +82,7 @@ def test_one_fresh_effect_per_advance_and_read_only_status(runtime_env):
     assert len(after_model_two["candidateIds"]) == 2
     assert after_model_two["usage"]["actualSoubei"] is None
     assert after_model_two["usage"]["settlementState"] == "PENDING"
+    assert after_model_two["usage"]["resourceCloseout"] == {"state": "RECORDED", "overduePermits": 0}
 
     assert runtime.status(env.claims, task_id) == after_model_two
     assert runtime.advance(env.claims, task_id, run_id) == after_model_two

@@ -20,6 +20,15 @@ beforeEach(()=>{
 });
 afterEach(cleanup);
 function view(){return render(<ResearchProgress taskId={taskId} runId={runId} taskStatus="PENDING"/>);}
+it('shows recorded resources separately from financial settlement',async()=>{
+  status.mockResolvedValue({...queued,phase:'COMPLETED',canAdvance:false,newActionsBlocked:true,
+    usage:{...queued.usage,resourceCloseout:{state:'RECORDED',overduePermits:0}}});
+  view();
+  await screen.findByText(/本次查询：资源记录已收齐/);
+  expect(screen.getByText(/不代表搜贝已结算或余额已释放/)).toBeTruthy();
+  expect(screen.getByText(/来源许可：0/)).toBeTruthy();
+  expect(advance).not.toHaveBeenCalled();
+});
 it('reads without work until asked, then advances serially to honest completion',async()=>{
   const sourced={...queued,phase:'RUNNING',acceptedOriginals:1,usage:{...queued.usage,sourceReads:{...counts,issued:1,succeeded:1}}};
   const completed={...sourced,phase:'COMPLETED',analyzedOriginals:1,canAdvance:false,newActionsBlocked:true,
