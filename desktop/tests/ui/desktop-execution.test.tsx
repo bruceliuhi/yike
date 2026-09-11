@@ -6,6 +6,9 @@ import {executionOperationSchema} from '../../src/shared/executionOperation';
 import type {StrategyReceipt} from '../../src/shared/researchStrategies';
 import type {AppContextValue} from '../../src/renderer/app/context';
 import type {DesktopExecutionCommand, DesktopExecutionResult} from '../../src/shared/desktopExecution';
+import {createDeviceIdentityController} from '../../src/main/deviceIdentityController';
+import {createExecutionSession} from '../../src/main/executionSession';
+import {createExecutionController} from '../../src/main/executionController';
 
 let context: AppContextValue;
 vi.mock('../../src/renderer/app/context', () => ({useApp: () => context}));
@@ -30,11 +33,35 @@ let execute: ReturnType<typeof vi.fn<(command: DesktopExecutionCommand) => Promi
 beforeEach(() => {
   execute = vi.fn(async value => value.action === 'LIST' ? {state: 'LIST', requests: []} : value.action==='RESEARCH_LIST'
     ?{state:'RESEARCH_LIST',requests:[]}:'requestId' in value?{state: 'UNKNOWN', requestId: value.requestId}:{state:'FAILED',error:'EXECUTION_SESSION_FAILED'});
-  context = {service: {execution: {execute}}, session: {authenticated: true, userId: 'user'}, sessionReady: true} as unknown as AppContextValue;
+  context = {service: {execution: {researchContractVersion:1,execute}}, session: {authenticated: true, userId: 'user'}, sessionReady: true} as unknown as AppContextValue;
 });
 afterEach(() => {cleanup(); vi.useRealTimers();});
 
 describe('desktop execution original-request safety', () => {
+  it('serially loads both journals through the real identity, controller, and session locks',async()=>{
+    const researchRequest={...request,request_id:taskId};
+    const researchRecord={record_version:2 as const,record_type:'RESEARCH_START' as const,request:researchRequest,reservation:{quote_id:requestId,
+      strategy_version_id:strategyId,profile_version_id:profileId,configuration_sha256:'a'.repeat(64),rule_version:'test-v1',rule_sha256:'b'.repeat(64),
+      estimated_soubei:1,max_soubei:2,limits:{sources:1,minutes:1,modelCalls:1}}};
+    const journal={persist:vi.fn(),read:vi.fn(),list:vi.fn(async()=>[request]),persistResearch:vi.fn(),readResearch:vi.fn(),listResearch:vi.fn(async()=>[researchRecord])};
+    const identity=createDeviceIdentityController({service:{request:vi.fn(async()=>({ok:true as const,status:200,data:{authenticated:true,user_id:'user'}})),requestDevice:vi.fn(async()=>({ok:true as const,status:200,data:{}}))},
+      identityFactory:()=>({prepare:vi.fn(async()=>({state:'FAILED' as const,error:'DEVICE_IDENTITY_FAILED' as const}))})});
+    const session=createExecutionSession({serviceOrigin:'http://127.0.0.1:8000',journal:journal as any,vault:{read:vi.fn(async()=>null)},transport:{requestExecution:vi.fn()}});
+    const bridge=createExecutionController({identity,execution:session});
+    context={...context,service:{...context.service,execution:{researchContractVersion:1,execute:bridge.execute}}};
+    const hook=renderHook(()=>useDesktopExecution(null));
+    await waitFor(()=>expect(hook.result.current.loaded).toBe(true));
+    expect(journal.list).toHaveBeenCalledTimes(1);expect(journal.listResearch).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.entries.map(entry=>entry.kind).sort()).toEqual(['ORDINARY','RESEARCH']);
+    expect(JSON.stringify(hook.result.current.entries)).not.toContain('authorizationToken');expect(hook.result.current.error).toBe('');
+  });
+  it('loads an old bridge without probing research or falling ordinary START back to another command',async()=>{
+    context={...context,service:{...context.service,execution:{execute}}};
+    const hook=renderHook(()=>useDesktopExecution(prepared));await waitFor(()=>expect(hook.result.current.loaded).toBe(true));
+    expect(execute.mock.calls.map(([value])=>value.action)).toEqual(['LIST']);
+    await act(async()=>{await hook.result.current.start(command);});
+    expect(execute.mock.calls.map(([value])=>value.action)).toEqual(['LIST','START']);
+  });
   it('keeps research token only in the invocation and recovers listed original without retry',async()=>{let stored:any=null;
     execute.mockImplementation(async value=>{if(value.action==='LIST')return {state:'LIST',requests:[]};if(value.action==='RESEARCH_LIST')return {state:'RESEARCH_LIST',requests:stored?[stored]:[]};
       if(value.action==='RESEARCH_START'){stored={record_version:2,record_type:'RESEARCH_START',request:{...request},reservation:value.reservation};return {state:'UNKNOWN',requestId:value.requestId};}
@@ -78,8 +105,9 @@ describe('desktop execution original-request safety', () => {
     const hook = renderHook(() => useDesktopExecution(prepared));
     await waitFor(() => expect(execute).toHaveBeenCalledWith({action: 'LIST'}));
     await act(async () => {await hook.result.current.start(command);});
-    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute).toHaveBeenCalledTimes(1);
     await act(async () => {finish({state: 'FAILED', error: 'EXECUTION_SESSION_FAILED'});});
+    await waitFor(()=>expect(execute).toHaveBeenCalledWith({action:'RESEARCH_LIST'}));
     expect(hook.result.current.loaded).toBe(false);
     await act(async () => {await hook.result.current.start(command);});
     expect(execute).toHaveBeenCalledTimes(2);

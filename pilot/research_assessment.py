@@ -63,7 +63,7 @@ class ResearchAssessmentRunner:
         return admit
 
     def assess(self, claims, request, snapshot, model, *, review_deadline,
-               before_dispatch, **kwargs):
+               before_dispatch, _admission=None, **kwargs):
         if (not callable(getattr(model, "assess_before", None))
                 or not callable(before_dispatch)):
             raise AssessmentModelError("invalid_assessment_configuration", 500)
@@ -87,9 +87,14 @@ class ResearchAssessmentRunner:
                                            content=snapshot["content"]).model_dump()
             return {"assessment": grounded, "usage": usage}
 
+        snapshot_admission = self._admission(snapshot)
+        def admission(cursor, tenant, event):
+            return snapshot_admission(cursor, tenant, event) and (
+                _admission is None or _admission(cursor, tenant, event))
+
         result = run_resource(self.resources, claims, task_id=research["taskId"],
             run_id=research["runId"], action_id=action_id, resource="MODEL_CALL",
-            input_sha256=digest, action=invoke, _admission=self._admission(snapshot))
+            input_sha256=digest, action=invoke, _admission=admission)
         if result["event"]["status"] != "SUCCEEDED" or result["result"] is None:
             raise AssessmentModelError("assessment_result_unknown", 504)
         return result["result"]["assessment"], result["result"]["usage"]

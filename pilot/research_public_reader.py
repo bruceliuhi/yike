@@ -93,8 +93,10 @@ def _public_topics(payload):
                 observed_count=len(topics), topics=topics)
 
 
-def read_public_index(store, claims, *, task_id, run_id, action_id, fetcher=None, on_success=None):
+def read_public_index(store, claims, *, task_id, run_id, action_id, fetcher=None,
+                      on_success=None, _admission=None):
     fetcher = _fetch_index if fetcher is None else fetcher
     return run_resource(store, claims, task_id=task_id, run_id=run_id, action_id=action_id,
         resource='SOURCE_READ', input_sha256=_INPUT_SHA,
-        action=lambda deadline: _public_topics(fetcher(deadline)), on_success=on_success)
+        action=lambda deadline: _public_topics(fetcher(deadline)), on_success=on_success,
+        _admission=_admission)

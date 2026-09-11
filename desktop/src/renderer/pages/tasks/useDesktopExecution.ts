@@ -77,14 +77,18 @@ export function useDesktopExecution(prepared: StrategyReceipt | null) {
   };
   const refresh = () => run(async () => {
     show({loaded: false});
-    const [ordinary,research]=await Promise.allSettled([call({action:'LIST'}),call({action:'RESEARCH_LIST'})]);
+    const ordinary=await Promise.resolve().then(()=>call({action:'LIST'})).then(value=>({status:'fulfilled' as const,value}),reason=>({status:'rejected' as const,reason}));
+    const research=api?.researchContractVersion===1
+      ?await Promise.resolve().then(()=>call({action:'RESEARCH_LIST'})).then(value=>({status:'fulfilled' as const,value}),reason=>({status:'rejected' as const,reason}))
+      :null;
     if (!scope.current()) return;
     const entries = new Map(latest.current.entries.map(entry => [entry.requestId, entry]));
     if(ordinary.status==='fulfilled'&&ordinary.value.state==='LIST')for (const request of ordinary.value.requests) entries.set(request.request_id, {...entries.get(request.request_id),
       kind:'ORDINARY',requestId: request.request_id, operation: request.operation, request});
-    if(research.status==='fulfilled'&&research.value.state==='RESEARCH_LIST')for(const record of research.value.requests)entries.set(record.request.request_id,{...entries.get(record.request.request_id),
+    if(research?.status==='fulfilled'&&research.value.state==='RESEARCH_LIST')for(const record of research.value.requests)entries.set(record.request.request_id,{...entries.get(record.request.request_id),
       kind:'RESEARCH',requestId:record.request.request_id,operation:'START',request:record.request,command:{action:'RESEARCH_RECOVER',requestId:record.request.request_id}});
-    const complete=ordinary.status==='fulfilled'&&ordinary.value.state==='LIST'&&research.status==='fulfilled'&&research.value.state==='RESEARCH_LIST';
+    const complete=ordinary.status==='fulfilled'&&ordinary.value.state==='LIST'&&
+      (research===null||research.status==='fulfilled'&&research.value.state==='RESEARCH_LIST');
     if(!complete){show({entries:[...entries.values()]});throw new Error();}
     show({loaded: true, entries: [...entries.values()]});
   });

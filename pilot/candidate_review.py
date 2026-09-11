@@ -197,7 +197,8 @@ class CandidateReviewStore(CandidateIngestionStore):
         if request.action=='ASSESS': return self._assess(claims,request,payload)
         return self._decide(claims,request,payload)
 
-    def assess_research(self, claims, payload, *, task_id, run_id, observation_id):
+    def assess_research(self, claims, payload, *, task_id, run_id, observation_id,
+                        _admission=None):
         request = validate_payload(payload)
         if request.action != 'ASSESS':
             raise CandidateReviewError('invalid_request',422)
@@ -206,9 +207,11 @@ class CandidateReviewStore(CandidateIngestionStore):
                 observationId=canonical_uuid(observation_id), ownerUserId=claims.user_id)
         except ExecutionRuntimeError:
             raise CandidateReviewError('invalid_request',422) from None
-        return self._assess(claims, request, payload, expected_research=expected)
+        return self._assess(claims, request, payload, expected_research=expected,
+                            _admission=_admission)
 
-    def _assess(self, claims, request, payload, *, expected_research=None):
+    def _assess(self, claims, request, payload, *, expected_research=None,
+                _admission=None):
         model = self.model
         with self.database.connect() as connection, connection.cursor() as cursor:
             tenant = self._active(cursor,claims)
@@ -288,7 +291,8 @@ class CandidateReviewStore(CandidateIngestionStore):
                 value, usage = self.research_assessment.assess(
                     claims, request, snapshot, model, review_deadline=review_deadline,
                     before_dispatch=lambda: self._prepare_assessment_dispatch(
-                        claims, request, snapshot, mark_failed=False), **kwargs)
+                        claims, request, snapshot, mark_failed=False),
+                    _admission=_admission, **kwargs)
             else:
                 value, usage = model.assess(**kwargs)
             value = value.model_dump() if hasattr(value,'model_dump') else value

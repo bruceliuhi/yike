@@ -88,6 +88,31 @@ def test_one_fresh_effect_per_advance_and_read_only_status(runtime_env):
     assert reads == ["read"] and model.calls == 2
 
 
+def test_terminal_commit_failure_recovers_without_repeating_effect(runtime_env, monkeypatch):
+    from tests.test_candidate_review_postgres import BoundaryModel
+    env = runtime_env
+    execution, _ = started(env)
+    reads = []
+    runtime = _runtime(env, fetcher=lambda _: reads.append("read") or [], model=BoundaryModel())
+    complete = runtime._complete
+    def crash(*args):
+        raise RuntimeError("synthetic terminal write failure")
+    monkeypatch.setattr(runtime, "_complete", crash)
+    task, run = execution["task_id"], execution["run_id"]
+    with pytest.raises(RuntimeError, match="synthetic terminal"):
+        runtime.advance(env.claims, task, run)
+    # Until atomic terminal commit, the client must not report a completed task.
+    assert runtime.status(env.claims, task)["phase"] != "COMPLETED"
+    with env.admin.connect() as connection:
+        connection.execute("UPDATE pilot_research_runtime SET lease_expires_at=clock_timestamp()-interval '1 second' "
+            "WHERE tenant_id=%s AND task_id=%s AND current_owner IS NOT NULL", (env.tenant, task))
+    monkeypatch.setattr(runtime, "_complete", complete)
+    result = runtime.advance(env.claims, task, run)
+    assert result["phase"] == "COMPLETED"
+    assert runtime.execution.get_task(env.claims, task)["status"] == "SUCCEEDED"
+    assert reads == ["read"]
+
+
 def test_unknown_model_effect_is_visible_and_never_retried(runtime_env):
     from pilot.execution_contract import ExecutionRuntimeError
     from tests.test_candidate_assessment_model import CONTENT

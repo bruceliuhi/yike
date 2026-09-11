@@ -54,20 +54,21 @@ class ResearchOrchestrator:
         return dict(task=task, source_action=action, source_event=source_event,
             receipt=receipt, items=items, reviews=reviews, missing=missing, skipped=skipped)
 
-    def advance_one(self, claims, *, task_id, run_id):
+    def advance_one(self, claims, *, task_id, run_id, _admission=None):
         """Perform at most one new source read or model assessment."""
         state = self.inspect(claims, task_id=task_id, run_id=run_id)
         event = state['source_event']
         if event is None:
             self.sources.read_public(claims, task_id=task_id, run_id=run_id,
-                action_id=state['source_action'], fetcher=self.fetcher)
+                action_id=state['source_action'], fetcher=self.fetcher,
+                _admission=_admission)
             return self.inspect(claims, task_id=task_id, run_id=run_id)
         if event['status'] != 'SUCCEEDED' or state['receipt'] is None:
             return state
         if state['missing']:
             item, payload = state['missing'][0]
             self.reviews.assess_research(claims, payload, task_id=task_id, run_id=run_id,
-                observation_id=item['observation_id'])
+                observation_id=item['observation_id'], _admission=_admission)
             return self.inspect(claims, task_id=task_id, run_id=run_id)
         return state
 

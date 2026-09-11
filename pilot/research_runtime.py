@@ -81,16 +81,19 @@ class ResearchRuntimeService:
         pending = usage["sourceReads"]["pending"] + usage["modelCalls"]["pending"] > 0
         unknown = usage["sourceReads"]["unknown"] + usage["modelCalls"]["unknown"] > 0
         failed = usage["sourceReads"]["failed"] + usage["modelCalls"]["failed"] > 0
-        complete = accepted is not None and analyzed + state["skipped"] == accepted and not pending
+        review_unknown = any(item.get("kind") == "pending" for item in state["reviews"])
+        review_failed = any(item.get("kind") == "failure" for item in state["reviews"])
+        complete = task_status == "SUCCEEDED" and run_status == "SUCCEEDED"
         leased = bool(coordinator and coordinator[2] is not None
             and coordinator[3] is not None and coordinator[3] > now)
         durable_stopped = bool(coordinator and coordinator[4] == "STOPPED")
         phase = "CANCELED" if canceled else "COMPLETED" if complete else \
-            "STOPPED" if unknown or failed or durable_stopped else \
+            "STOPPED" if unknown or failed or review_unknown or review_failed or durable_stopped else \
             "RUNNING" if event is not None or leased else "QUEUED"
         stop = "effect_unknown" if unknown else "effect_failed" if failed else \
+            "assessment_unknown" if review_unknown else "assessment_failed" if review_failed else \
             coordinator[5] if durable_stopped else None
-        blocked = (canceled or complete or unknown or failed or pending or durable_stopped
+        blocked = (canceled or complete or unknown or failed or pending or review_unknown or review_failed or durable_stopped
             or (leased and not ignore_active_lease))
         return {"contractVersion": 1, "taskId": task_id, "runId": run_id,
             "phase": phase, "sourceScope": SOURCE_SCOPE, "sourceLabel": SOURCE_LABEL,
@@ -117,7 +120,7 @@ class ResearchRuntimeService:
                 raise ExecutionRuntimeError("request_conflict", 409)
             if row[2] is not None and row[3] > now:
                 already_running = True
-            elif row[4] in ("STOPPED", "COMPLETED"):
+            elif row[4] == "STOPPED" or row[4] == "COMPLETED" and task[0] == "SUCCEEDED":
                 already_running = True
             elif task[0] in ("CANCELLING", "CANCELED") or task[2] in ("CANCELLING", "CANCELED"):
                 already_running = True
@@ -135,7 +138,8 @@ class ResearchRuntimeService:
             if before["newActionsBlocked"]:
                 state = None
             else:
-                state = self.orchestrator.advance_one(claims, task_id=task_id, run_id=run_id)
+                state = self.orchestrator.advance_one(claims, task_id=task_id, run_id=run_id,
+                    _admission=self._admission(claims, task_id, run_id, generation))
             result = self._dto(claims, task_id, state=state)
         except Exception as error:
             stop_code = error.code if isinstance(error, (ExecutionRuntimeError,
@@ -144,10 +148,27 @@ class ResearchRuntimeService:
             if isinstance(error, CandidateIngestionError):
                 raise ExecutionRuntimeError(error.code, error.status) from None
             raise
-        self._release(claims, task_id, generation, result["phase"], result["stopCode"])
-        if result["phase"] == "COMPLETED":
+        sequence_complete = (result["acceptedOriginals"] is not None
+            and result["analyzedOriginals"] + result["skippedOriginals"] == result["acceptedOriginals"]
+            and not result["effectsPending"] and result["phase"] not in ("STOPPED", "CANCELED"))
+        if sequence_complete:
             self._complete(claims, task_id, run_id, generation)
+        else:
+            self._release(claims, task_id, generation, result["phase"], result["stopCode"])
         return self._dto(claims, task_id)
+
+    def _admission(self, claims, task_id, run_id, generation):
+        def admit(cursor, tenant, event):
+            # Runs while the resource admission already holds task authority locks.
+            row = self._coordinator(cursor, tenant, claims.user_id, task_id, lock=True)
+            cursor.execute("SELECT clock_timestamp()")
+            now = cursor.fetchone()[0]
+            if (event["task_id"] != task_id or event["run_id"] != run_id or row is None
+                    or row[0] != run_id or row[1] != generation or row[2] != self.owner
+                    or row[3] is None or row[3] <= now or row[4] != "RUNNING"):
+                raise ExecutionRuntimeError("lease_conflict", 409)
+            return True
+        return admit
 
     def _release(self, claims, task_id, generation, phase, stop_code):
         with self.database.connect() as connection, connection.cursor() as cursor:
@@ -163,7 +184,9 @@ class ResearchRuntimeService:
         with self.database.connect() as connection, connection.cursor() as cursor:
             tenant, task = self._identity(cursor, claims, task_id, run_id, lock=True)
             row = self._coordinator(cursor, tenant, claims.user_id, task_id, lock=True)
-            if row is None or row[1] != generation or row[4] != "COMPLETED":
+            if (row is None or row[0] != run_id or row[1] != generation
+                    or row[2] != self.owner or row[4] != "RUNNING"
+                    or row[3] is None or row[3] <= self.execution._now(cursor)):
                 raise ExecutionRuntimeError("lease_conflict", 409)
             if task[0] in ("CANCELLING", "CANCELED") or task[2] in ("CANCELLING", "CANCELED"):
                 raise ExecutionRuntimeError("task_cancelled", 409)
@@ -171,3 +194,9 @@ class ResearchRuntimeService:
                 cursor.execute(f"UPDATE {table} SET status='SUCCEEDED' WHERE tenant_id=%s "
                     "AND owner_user_id=%s AND task_id=%s AND status IN ('PENDING','RUNNING')",
                     (tenant, claims.user_id, task_id))
+            # One terminal transaction: a failed commit cannot strand a COMPLETED
+            # coordinator with PENDING tasks. A new owner can finalize stored effects.
+            cursor.execute("UPDATE pilot_research_runtime SET current_owner=NULL,lease_expires_at=NULL,"
+                "phase='COMPLETED',stop_code=NULL,updated_at=clock_timestamp() "
+                "WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s AND generation=%s",
+                (tenant, claims.user_id, task_id, generation))

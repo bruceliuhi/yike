@@ -249,10 +249,12 @@ class ResearchCandidateStore:
         except psycopg.Error:
             raise ExecutionRuntimeError("resource_unavailable", 503) from None
 
-    def read_public(self, claims, *, task_id, run_id, action_id, fetcher=None):
+    def read_public(self, claims, *, task_id, run_id, action_id, fetcher=None,
+                    _admission=None):
         result = read_public_index(self.resources, claims, task_id=task_id, run_id=run_id,
             action_id=action_id, fetcher=fetcher, on_success=lambda event, value, digest:
-                self.commit_index(claims, event=event, result=value, output_sha256=digest))
+                self.commit_index(claims, event=event, result=value, output_sha256=digest),
+            _admission=_admission)
         receipt = self.get_receipt(claims, task_id=task_id, run_id=run_id, action_id=action_id)
         if result["event"]["status"] == "SUCCEEDED" and receipt is None:
             raise ExecutionRuntimeError("resource_unavailable", 503)
