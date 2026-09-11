@@ -83,6 +83,19 @@ afterEach(() => {
 });
 
 describe("ordinary client contact draft persistence", () => {
+  it("does not resave an unchanged restored draft but enables saving after a routing edit", async () => {
+    render(<ContactEditor row={row} renderConfirmation={() => null} />);
+    await waitFor(() => expect(content().value).toBe("云端评论"));
+    const save = screen.getByRole("button", { name: "保存草稿" }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    fireEvent.click(save);
+    expect(context.service.contactDrafts!.save).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByRole("textbox", { name: "收件对象" }), {
+      target: { value: "新对象" },
+    });
+    expect(save.disabled).toBe(false);
+  });
+
   it("restores each channel including routing and advances its own predecessor", async () => {
     vi.mocked(context.service.contactDrafts!.save).mockImplementation(async (input: DraftSaveInput) => ({
       ...receipt(input.binding.channel, input.binding.requestId, input.snapshot.draft.version),

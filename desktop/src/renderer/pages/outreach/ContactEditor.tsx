@@ -505,6 +505,7 @@ export function ContactEditor({
               saving.blocked ||
               !latest.complete ||
               !!latest.candidate ||
+              (persisted.known && !dirty) ||
               action.busy
             }
             loading={saving.busy}
