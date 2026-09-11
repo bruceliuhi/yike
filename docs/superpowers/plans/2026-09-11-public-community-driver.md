@@ -17,3 +17,13 @@
 5. 非作者独立审核后合入 main，下一片接匿名能力结构与普通TaskWizard→START→现有worker→候选详情。后续再接周期监控、站点扩展及实际质量验证，不能以驱动单测标 MP-03/Goal 完成。
 
 账号平台链不修改；本片不启用服务器 capability、不发送消息、不创建假账号、不迁移数据库、不重新构包。
+
+## 实施与限定验证
+
+源码 `f0f0f8474472ed14073739e1567d0af8f3822a94` 已实现独立 driver。先记录缺少实现的14项 RED；补实现后14项通过及 TypeScript 检查通过，再补响应体停滞截止反例，最终15项全部通过（0.231秒）。未跑全量业务测试或构包。
+
+非作者 `material_reference_architecture` 对该完整源码 SHA 独立审核 GO，无本片阻断 P1/P2；只审核独立驱动，不替 TaskWizard、服务端策略或 MP-03 整体验收。审核未重复测试或联网。
+
+一次实际 Node 运行（Vite SSR 仅负责载入 TypeScript，未替换 fetch）调用同一驱动，关键词为“AI／需求”、检查上限100，返回11条有原始发布时间的 PAGE 记录。该探针使用本机构造的执行形状，不是服务端真实 START/CLAIM，也未调用客户数据库、发送平台消息或验证客户登录。结果是未判定的来源记录，不能称为11条商机或用户流程已通过；正文与用户资料未写入验证文档。
+
+下一片文件接线：`shared/foregroundCollection.ts` 区分匿名能力与账号 binding；`foregroundCollectionController.ts` 按 PUBLIC_ANONYMOUS 跳过账号 profile/Python 探测，仍使用原设备 scope 和 worker；`domain/task.ts` 与 TaskWizard 展示确切站点范围、无需账号但必须确认来源；后端显式新 policy 才开放，旧模式不变。`pilot/ui_api.py:research_platforms` 当前把 PUBLIC_WEB 误作为 access_mode，应在接线时改成协议规定的 PUBLIC_ANONYMOUS 并定向验收。复用既有执行、上传、恢复和人工复核，不另造执行协议。
