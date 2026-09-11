@@ -20,9 +20,9 @@ it('fixed commands accept only platform and opaque flow control', async () => {
       expect(schema.safeParse({...value, ...extra}).success).toBe(false);
   }
   expect(schema.safeParse({action: 'CHECK', platform: 'XIAOHONGSHU'}).success).toBe(false);
-  for (const platform of ['XIAOHONGSHU', 'DOUYIN', 'BILIBILI'])
+  for (const platform of ['XIAOHONGSHU', 'DOUYIN', 'BILIBILI', 'ZHIHU'])
     expect(schema.safeParse({action: 'OPEN', platform}).success).toBe(true);
-  expect(schema.safeParse({action: 'OPEN', platform: 'ZHIHU'}).success).toBe(false);
+  expect(schema.safeParse({action: 'OPEN', platform: 'PUBLIC_WEB'}).success).toBe(false);
 });
 it('strict results never carry private material or upgrade other rows into a new connection', async () => {
   const {platformConnectionResultSchema: schema, connectionRegistryRowSchema} = await api();
