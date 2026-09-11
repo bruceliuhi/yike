@@ -16,6 +16,7 @@ from typing import Annotated, ClassVar, Literal, Protocol, Self
 from urllib.parse import urlsplit
 
 import httpx
+from pilot.provider_schema import provider_json_schema
 from pydantic import (BaseModel, ConfigDict, Field, ValidationError, field_validator,
                       model_serializer, model_validator)
 
@@ -348,7 +349,8 @@ class OpenAICompatibleSearchSuggestionModel:
             ],
             "response_format": {"type": "json_schema", "json_schema": {
                 "name": "search_suggestion", "strict": True,
-                "schema": _RequiredStrategySuggestionContent.model_json_schema(),
+                "schema": provider_json_schema(
+                    _RequiredStrategySuggestionContent.model_json_schema(), base_url=self.base_url),
             }},
         }
         error_code, error_status = "suggestion_result_unknown", 504

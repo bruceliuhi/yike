@@ -456,7 +456,7 @@ def test_default_transport_disables_retries(monkeypatch):
     monkeypatch.setattr(httpx, "HTTPTransport", transport_factory)
     model = adapter()
     result, usage = model.generate(description=DESCRIPTION)
-    assert result.model_dump() == content()
+    assert result.model_dump() == adapter_content()
     assert usage is None
     assert len(calls) == 1
     assert transport_options == [{"retries": 0}]

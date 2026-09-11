@@ -33,6 +33,7 @@ from urllib.parse import urlsplit
 import httpx
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
 from pilot.research_strategy_contract import IndustryTaskStrategy
+from pilot.provider_schema import provider_json_schema
 
 
 _ERRORS = {
@@ -443,7 +444,8 @@ production shortcut: that in-process path cannot interrupt native OS DNS.
             {"role": "system", "content": self._system_prompt},
             {"role": "user", "content": json.dumps(user, ensure_ascii=False)},
         ], "response_format": {"type": "json_schema", "json_schema": {
-            "name": "candidate_assessment", "strict": True, "schema": AssessmentContent.model_json_schema()}}}
+            "name": "candidate_assessment", "strict": True, "schema": provider_json_schema(
+                AssessmentContent.model_json_schema(), base_url=self.base_url)}}}
         return asyncio.run(self._request(body, description=description, content=content))
 
     async def _request(self, body: dict, *, description: str, content: dict) -> tuple[AssessmentContent, dict | None]:
