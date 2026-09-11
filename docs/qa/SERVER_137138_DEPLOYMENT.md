@@ -1,5 +1,41 @@
 # 101.200.137.138 部署与测试交付
 
+## 当前部署：66745ef ＋ yike.tuokexing.net HTTPS（2026-09-11）
+
+本轮记录提交期间main新增公开社区监控服务代码，最终发布窗口固定到 `66745efa0e382beb3337a8ac01da23dc6cf59922`，已完成第二次差量升级。下节001741f是本轮中间版本及首次HTTPS接通证据，不是当前运行版本；后续来件不自动追认为本候选。
+
+记录合入时再接收`f3faebe/54bae32`，仅客户端策略转换、测试和文档变化；全部Dockerfile输入及部署脚本与66745ef无差量，因此复用当前服务镜像，不重复构包。客户端修复不代表已经交付新Windows包，镜像revision仍如实为66745ef。
+
+- 当前入口：[HTTPS登录页](https://yike.tuokexing.net/session)。保留下节已验证的新域名、证书、续期及隔离配置；仍为短期token登录。
+- 当前镜像 `127.0.0.1:18750/yike/server@sha256:d693c6acf3b3d169b7414c44f49b5bcdfbf420720f46dff7bc59009ef1639964`，ID `sha256:363c99adc3256b3d69568922096f4e4c09457be2504eec310ee3bdce6a281a40`；实际OCI revision与66745ef完整SHA一致，healthy、重启0。
+- 原字节源码归档SHA256 `9b34d1160ef3792308da6932a4505f4b8023e919a8b0addd5b10c728ca2a71a9`，本机与服务器一致。
+- 新增公开监控代码复用其独立审核证据；在目标服务器执行策略、runtime API、前台采集及真实隔离PG多轮监控定向测试，**62 passed / 无跳过**。专用测试库`yike_public_monitor`与运行库分离，测试PG已停止。合成多轮输入不是实际平台监控；运行配置继续`four-platform-monitor-v1`，未自动打开新公开社区模式。
+- 31迁移/受限授权、cp06预检、18788候选ready后切换18787均通过。最终版本重新执行**33项部署冒烟全部通过**（范围及合成导入边界同下节）；本机公网TLS校验的health/ready均200，最终容器权限、端口、秘密配置与日志检查通过。
+- 升级前V2认证备份`/opt/yike-ai2026/backups/yike-before-66745ef.dump.enc`及`.mac`、`ops/release-before-66745ef.json`保留；需要应用回退可显式选择上一健康001741f完整SHA，旧镜像保留。本次无schema差量，未实际回退或恢复覆盖运行库。
+- 最终原始证据：服务器`/opt/yike-ai2026/testdata/https-66745ef-smoke.json`、`https-66745ef-smoke.log`、`upgrade-66745ef-delta.xml`，本机同名副本在既有`.runtime/deployment-137138-20260911/`。临时软件包下载代理与SSH隧道已关闭。
+
+仍缺意客专用模型与短信配置、同源Windows新包、真实平台收发与客户试用，以及任务书列明的“多找类似”正式研究启动功能。此次是新版服务部署与HTTPS可访问，不代表完整产品上线；不重复全量测试、不覆盖历史失败记录。
+
+## 本轮中间版本：001741f 与首次 HTTPS 接通
+
+用户明确要求更新至最新版本，并更换域名为 `yike.tuokexing.net`。两端DNS实查均指向101.200.137.138；本机main同步后固定 `001741f785098e6f323a8807a78899df9b1515ce`，**服务端已更新，公网HTTPS已接通**。下方6832482及旧域名未解析状态均为历史证据，不再是当前部署状态。
+
+- 入口：[HTTPS登录页](https://yike.tuokexing.net/session)。浏览器已实际打开，显示“登录意客 AI”和短期令牌输入框；当前为token登录，不是短信登录或新Windows客户端交付。
+- 镜像 `127.0.0.1:18750/yike/server@sha256:9e79bd3a70ef0bbd74a2939925d16493bbc940e151cf92784e4d776c911fb389`；ID `sha256:4d11fe7303b0c3f26c04f539b0c488fca19c654b907d4cda2a7cf0e79afe65f9`。实际OCI revision为001741f完整SHA，healthy，重启计数0。
+- 新原字节归档SHA256 `50d9a781c3f69617af30bac05f51ff94b65818873d7261217ffe75ef8084685e`，本地与远端一致。相对6832482的服务代码差量是已审核的短句API省略字段修复；镜像已包含该修复，未再使用Mac临时路径作为远端产物。
+- 31迁移及受限授权重复验证通过；启动前cp06预检通过。先在loopback18788隔离启动候选，ready通过后停止候选并切换原18787服务。数据库、服务秘密、账号隔离和关闭外发/模型的原配置保留。
+- 新增独立Nginx站点 `/www/server/panel/vhost/nginx/yike.tuokexing.net.conf`，无default_server；80仅ACME挑战与308 HTTPS跳转，443代理到loopback18787，覆盖Host/XFP/XFF，access日志仅路径、不含query/认证头/Cookie。错误日志使用crit级别，不将其称为通用脱敏器。未改其他业务站点；两次新站点阶段切换均先nginx -t，再graceful reload。
+- Let's Encrypt证书SAN仅新域名，有效期截至2026-12-10；certbot.timer已启用并运行，webroot `/www/wwwroot/yike-acme`；续期hook只匹配本证书，检查Nginx配置后reload。独立非作者审核三份站点/续期配置通过。限定该证书的certbot续期dry-run成功；首次遇非交互随机延迟，停止该次演练后按本机版本支持的`--no-random-sleep-on-renew`重跑，未改其他证书或全局续期设置。
+- 本机外网curl及服务器CP06 HTTPS探测均health/ready200；TLS证书校验未关闭。首次在reload命令后立即探测曾遇旧证书名称不匹配；不改证书或绕过验证，稍后相同命令与外网探测通过，记录为切换时序瞬态。
+- **33项部署冒烟通过**：真实公网HTTPS会话、Secure/HttpOnly/SameSite Cookie及纯Cookie鉴权、伪造XFP被覆盖、同源允许/跨源拒绝、画像保存确认、列表/原文证据/草稿、跨租户隔离、资料与跟进、注销撤销等。包括管理员合成导入去重和loopback明文登录拒绝检查，不能写成33项均为HTTP或真实获客。无真实平台/模型请求；主测试token已注销撤销，跨租户测试token有效期600秒。
+- 新版部署布局及短句接口定向测试：**8 passed / 1 deselected**；未配置真实PG/Node联验的ordinary_client场景未重跑，其已绑定Mac证据仍单独保留，不将取消选择写成通过。没有重跑原全仓、没有抹掉下方历史失败。
+- 升级前生成V2认证加密备份 `/opt/yike-ai2026/backups/yike-before-001741f.dump.enc`及`.mac`；旧健康镜像及 `/opt/yike-ai2026/ops/release-before-001741f.json`保留。无schema差量，需要应用回退时用既有start_application.sh显式指定6832482完整SHA；本轮未执行实际降级或恢复覆盖运行库。
+- 原始新证据：服务器 `/opt/yike-ai2026/testdata/https-001741f-smoke.json`、`upgrade-001741f-delta.xml`，本机同名文件在原`.runtime/deployment-137138-20260911/`。最终实际容器权限、loopback端口、无管理员URL与构建代理变量、秘密文件权限、应用/新站点日志哨兵检查通过。
+
+仍缺意客专用模型与短信配置、同源Windows新包、真实平台收发与客户试用；“多找类似”正式research启动也是任务书已识别的功能缺口。此次完成服务升级和HTTPS入口，不代表完整产品上线或全量测试全绿。
+
+## 首次部署历史（6832482）
+
 2026-09-11，执行方 CodexWin。**服务端已在目标服务器隔离运行；公网 HTTPS、Windows 新包与完整真实业务验收未完成，不能标产品上线。**
 
 ## 当前版本与入口

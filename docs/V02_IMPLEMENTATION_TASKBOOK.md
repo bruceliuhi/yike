@@ -4,6 +4,8 @@
 
 研究启动接续：已核实相似/补查provenance仍被策略转换与服务端合同拒绝，不能当成已入确认快照；本机taskFingerprint又不含executionLimits，不能单独作为用量绑定。后续按[研究启动绑定设计](superpowers/specs/2026-09-11-research-runtime-binding-design.md)先补完整来源与服务端快照，再接估算、同事务预留/START和实际计量；不删除现有research启动保护，不设生产搜贝换算。核查中同时修复公开monitor草稿PREPARE阻断，`f3faebe`独立GO，[真实草稿链路证据](superpowers/plans/2026-09-11-public-community-monitor.md#后续真实草稿路径阻断修复)取代仅用现成策略的间接证据。完整Goal继续。
 
+部署更新：用户改用 `yike.tuokexing.net`，CodexWin已实际升级服务器至本轮最终冻结的 `66745ef` 并接通HTTPS，短句API修复及公开监控代码已入运行镜像，未自动打开新渠道。最终33项部署冒烟与62项监控差量验证通过；[唯一当前记录](qa/SERVER_137138_DEPLOYMENT.md)。不再重复旧“待服务器升级/域名未解析”准备；模型/短信、Windows新包与真实闭环仍待验，“多找类似”研究启动缺口仍按下段推进。
+
 2026-09-11授权接续：用户已明确允许在已批准V0.2内自行细化方案并开发，按`AUTHORITY.md`执行，不再逐片等待技术设计确认。本批推进[公开社区定时抽样](superpowers/plans/2026-09-11-public-community-monitor.md#实施与验证)，旧公开单次模式保留，新模式显式启用；限定技术证据、审核和未验项集中在该记录，不关闭MP-03或完整Goal。无需再次批准此技术增量，但该授权不批准搜贝换算、收费或外部部署。
 
 业务闭环核对（基线`d2e40e6`，非作者独立确认）：R4“多找类似”已生成带来源的本机research草稿，但正式`services/client.ts`未装配`researchUsage`/研究启动服务，`TaskWizard.tsx`仍明确拒绝research启动，`pilot/opportunity_research.py`用量返回UNKNOWN。这是实际功能缺口，不只是缺模型凭据或HTTPS；不能将草稿交接写成扩搜已完成。下一功能优先补[研究用量合同](UI_RESEARCH_USAGE_CONTRACT.md)的真实估算、原子预留/启动与资源事件结算；搜贝换算规则尚待用户确认，当前未实现、未移除保护、未开放收费。现有资料/画像/策略、复核、小红书评论及结构化跟进接线不重复开发，真实平台/Windows/客户证据仍单独待验。
