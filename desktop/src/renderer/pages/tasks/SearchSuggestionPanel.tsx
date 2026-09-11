@@ -40,6 +40,8 @@ export interface SearchSuggestionPanelProps {
   profileConfirmed: boolean;
   hasTerms: boolean;
   onApply(receipt: SuggestionReceipt, mode: "append" | "replace_unedited"): boolean;
+  onApplyStrategy?(receipt: SuggestionReceipt): boolean;
+  hasStrategy?: boolean;
 }
 
 export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
@@ -181,7 +183,7 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
     setBusy(false); setPreview(null); setPreviewBinding("");
     setError("已停止本地等待；这不表示模型请求或费用已撤销。原请求仍保留供核对。");
   };
-  const apply = async (mode: "append" | "replace_unedited") => {
+  const apply = async (mode: "append" | "replace_unedited" | "strategy") => {
     if (!record || !props.scope || busy) return;
     const id = generation.current; setBusy(true); setError("");
     try {
@@ -195,6 +197,10 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
         throw new Error("原结果已过期或不属于当前草稿/画像，只能只读核对，不能采用。");
       if (!receipt.result || receipt.result.keywords.length > 20 || receipt.result.exclusions.length > 20)
         throw new Error("搜索建议词项无效或超过20个，未修改当前草稿。");
+      if(mode==='strategy') {
+        if(!props.onApplyStrategy?.(receipt))setError('当前已有任务策略或结果不适用；保留原策略，请先在表单核对或明确移除。');
+        return; // Keep the receipt so keyword adoption remains a separate explicit action.
+      }
       if (props.onApply(receipt, mode) && clearSearchSuggestion(props.scope, record.request.request_id))
         setRecord(null);
     } catch (reason) { if (id === generation.current) setError(errorMessage(reason)); }
@@ -250,7 +256,9 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
           <div><dt>画像中的销售方式</dt><dd>{result.strategy.salesMotion??'画像未说明'}</dd></div>
         </dl>
         <h4>建议查看的内容类型</h4><ul>{result.strategy.sourceTypes.map(type=><li key={type}>{sourceTypeLabels[type]}</li>)}</ul>
-        <p className="muted">内容类型不代表平台已接入。采用操作只更新搜索词，不会开启新平台、增加预算或自动联系。</p>
+        <p className="muted">内容类型不代表平台已接入。词项合并/替换只更新搜索词；任务策略需单独采用，不会开启新平台、增加预算或自动联系。</p>
+        {props.onApplyStrategy&&<Button disabled={busy||props.hasStrategy||!currentBinding()||!record?.receipt?.profile_current}
+          onClick={()=>void apply('strategy')}>{props.hasStrategy?'已有任务策略，请在表单编辑':'采用任务策略'}</Button>}
         <h4>寻找这些购买信号</h4><ul>{result.strategy.intentSignals.map((value,index)=><li key={index}>{value}</li>)}</ul>
         <h4>留意这些反例</h4>{result.strategy.counterSignals.length?<ul>{result.strategy.counterSignals.map((value,index)=><li key={index}>{value}</li>)}</ul>:<p>暂未提出，仍需人工判断。</p>}
         <h4>策略的画像依据</h4><ul>{result.strategy.basis.map((value,index)=><li key={index}>{value}</li>)}</ul>

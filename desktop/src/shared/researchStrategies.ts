@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { industryTaskStrategySchema } from './industryTaskStrategy';
 
 const INVALID_STRATEGY_DATA = "Invalid research strategy data.";
 const FORBIDDEN_UNICODE = /[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}]/u;
@@ -235,6 +236,7 @@ export const strategyConfigurationSchema = exactObject({
   mode: z.enum(["once", "monitor"], { error: INVALID_STRATEGY_DATA }),
   schedule: scheduleSchema.nullable(),
   research: researchSchema.nullable(),
+  industryStrategy: industryTaskStrategySchema.optional(),
 })
   .superRefine((configuration, context) => {
     if (

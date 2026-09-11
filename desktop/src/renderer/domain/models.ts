@@ -40,6 +40,7 @@ export interface StrategyExecutionLimitsDraft {
   max_runtime_seconds: number | null;
 }
 export interface TaskDraft {
+  industryStrategy?: import('./industryTaskStrategy').IndustryStrategyDraft;
   research?: import("./researchUsage").ResearchSettings;
   executionLimits?: StrategyExecutionLimitsDraft;
   templateSourceDraftIds?: string[];

@@ -1,5 +1,6 @@
 import type { StrategyReceipt } from "../../../shared/researchStrategies";
 import { DEMAND_TYPES } from "../../domain/researchUsage";
+import { industrySourceLabels } from '../../../shared/industryTaskStrategy';
 
 const platforms = { XIAOHONGSHU: "小红书", DOUYIN: "抖音", BILIBILI: "B站", ZHIHU: "知乎", PUBLIC_WEB: "公开网站" };
 
@@ -36,6 +37,12 @@ export function StrategySnapshotDetails({ receipt }: { receipt: StrategyReceipt 
         <p>补证顺序：原文与发布时间 → 需求依据与目标匹配 → 联系上下文（{research.evidenceOrder}）</p>
       </>}</dd></div>
       <div><dt>执行记录上限</dt><dd>{snapshot.max_records} 条</dd></div>
+      {config.industryStrategy&&<div><dt>行业任务策略</dt><dd>
+        <p>{config.industryStrategy.sourceTypes.map(type=>industrySourceLabels[type]).join('、')}</p>
+        <p>购买信号</p><ul>{config.industryStrategy.intentSignals.map(value=><li key={value}>{value}</li>)}</ul>
+        <p>排除反例</p><ul>{config.industryStrategy.counterSignals.map(value=><li key={value}>{value}</li>)}</ul>
+        <p>已绑定本次任务快照，尚未用于自动评分或内容筛选；不代表已发现买方事实。</p>
+      </dd></div>}
       <div><dt>执行时长上限</dt><dd>{snapshot.max_runtime_seconds} 秒</dd></div>
       <div><dt>策略标识</dt><dd>{snapshot.strategy_version_id}</dd></div>
       <div><dt>配置摘要</dt><dd>{receipt.configuration_sha256}</dd></div>

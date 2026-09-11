@@ -3,6 +3,7 @@ import { useLocalDraft } from "./hooks";
 import { newTaskDraft, type TaskDraft } from "../domain/models";
 import { defaultResearchSettings, researchDraftSchema } from "../domain/researchUsage";
 import { scheduleSchema } from "../domain/schedule";
+import { industryStrategyDraftSchema } from '../domain/industryTaskStrategy';
 const term = z.object({
   id: z.string(),
   value: z.string(),
@@ -14,6 +15,7 @@ const executionLimitsDraftSchema = z.object({
   max_runtime_seconds: z.number().finite().nullable(),
 });
 export const taskDraftSchema = z.object({
+  industryStrategy: industryStrategyDraftSchema.optional(),
   research: researchDraftSchema.optional(),
   executionLimits: executionLimitsDraftSchema.optional(),
   templateSourceDraftIds: z

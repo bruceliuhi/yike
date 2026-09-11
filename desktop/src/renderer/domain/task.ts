@@ -7,6 +7,7 @@ import {
   type PlatformConnection,
 } from "./models";
 import { researchSettingsSchema } from "./researchUsage";
+import { industryStrategyError } from './industryTaskStrategy';
 import {foregroundBindingSchema} from '../../shared/foregroundCollection';
 
 export function hasForegroundBinding(connection: PlatformConnection): boolean {
@@ -103,6 +104,8 @@ export function applySuggestion(
 }
 export function taskErrors(draft: TaskDraft): Record<string, string> {
   const errors: Record<string, string> = {};
+  const industryError=industryStrategyError(draft);
+  if(industryError)errors.industryStrategy=industryError;
   if (!draft.name.trim()) errors.name = "请填写任务名称。";
   else if (draft.name.length > 60) errors.name = "任务名称不能超过60个字。";
   if (!draft.platforms.length) errors.platforms = "至少选择一个目标平台。";
@@ -251,5 +254,6 @@ export function taskFingerprint(draft: TaskDraft): string {
     source: draft.source,
     links: draft.links,
     ...(draft.research ? { research: draft.research } : {}),
+    ...(draft.industryStrategy ? { industryStrategy: draft.industryStrategy } : {}),
   });
 }

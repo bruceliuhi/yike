@@ -1,4 +1,5 @@
 import type { PlatformId, TaskDraft } from "./models";
+import { industryStrategyError } from './industryTaskStrategy';
 import {
   confirmStrategySchema,
   prepareStrategySchema,
@@ -43,6 +44,7 @@ export function strategyPrepareRequest(
   limits: { max_records: number; max_runtime_seconds: number },
 ): PrepareStrategyRequest {
   try {
+    if (industryStrategyError(draft)) throw new Error(INVALID_DRAFT);
     if (
       draft.research !== undefined &&
         (owns(draft.research, "provenance") ||
@@ -98,6 +100,7 @@ export function strategyPrepareRequest(
             : {}),
         },
         research,
+        ...(draft.industryStrategy ? {industryStrategy: draft.industryStrategy.configuration} : {}),
       },
       platforms: draft.platforms.map(platformName),
       max_records: limits.max_records,

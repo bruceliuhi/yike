@@ -60,6 +60,8 @@ import { scheduleContractBlocker, schedulePolicyDescription, scheduleWindowLabel
 import {useMonitorCollection} from './tasks/useMonitorCollection';
 import {monitorCreateCommand} from '../domain/monitorCollection';
 import { SearchSuggestionPanel } from "./tasks/SearchSuggestionPanel";
+import { IndustryTaskStrategyEditor } from './tasks/IndustryTaskStrategyEditor';
+import { adoptIndustryTaskStrategy } from '../domain/industryTaskStrategy';
 
 export { matchesCreatedTask } from "../domain/taskOperations";
 
@@ -375,6 +377,12 @@ export function TaskWizardPage() {
     setManualConditionOrigin(null);
     setSuggestionError("");
     setVerified(null);
+    return true;
+  };
+  const applyControlledStrategy = (receipt: import('../../shared/searchSuggestions').SuggestionReceipt) => {
+    const next=adoptIndustryTaskStrategy(current.current,receipt);
+    if(next===current.current)return false;
+    setDraft(next);setVerified(null);setErrors({});
     return true;
   };
   const acceptSuggestion = (mode: "append" | "replace_unedited") => {
@@ -704,6 +712,8 @@ export function TaskWizardPage() {
                 profileConfirmed={!!selectedProfile}
                 hasTerms={draft.terms.length > 0}
                 onApply={applyControlledSuggestion}
+                onApplyStrategy={applyControlledStrategy}
+                hasStrategy={!!draft.industryStrategy}
               /> : <div className="search-heading">
                 <div>
                   <h2>搜索条件</h2>
@@ -764,6 +774,8 @@ export function TaskWizardPage() {
                 <Notice tone="error">{errors.conflicts}</Notice>
               )}
             </section>
+            <IndustryTaskStrategyEditor value={draft.industryStrategy} profileId={draft.profileId}
+              onChange={industryStrategy=>update({industryStrategy})}/>
             <section className="form-section">
               <h2>采集范围</h2>
               <Field
