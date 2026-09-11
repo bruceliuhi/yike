@@ -24,9 +24,9 @@ Own新增 `pilot/opportunity_brief.py`, `pilot/opportunity_brief_api.py`, `tests
 
 接口 `OpportunityBriefService(database).query(claims, raw)`，返回严格BriefSnapshot；`register_opportunity_brief_api(router, service, identity, require_session_https)`，固定 POST `/opportunity-brief/query`（根router已有/api/ui）。请求≤16KiB，拒绝重复JSON键/未知字段；缺服务501。函数名与签名是Root接线边界。
 
-- [ ] 新增缺服务 RED：实际认证API当前不存在/类缺失。实现请求验证、受限只读一致快照和真实facts投影，不用mock替代PG成功。
+- [x] 新增缺服务 RED：实际认证API当前不存在/类缺失。实现请求验证、受限只读一致快照和真实facts投影，不用mock替代PG成功。
 - [ ] 定向测试业务日/时区错误、精确身份/画像、跨owner/tenant、空库NOT_CHECKED、人工verified INCLUDE后contact、已有联系/负面结论不重复推荐、到期/未来计划及清空/纠正/撤销/关闭历史、无变化依据明确未核验、无任意读请求写库/模型调用。参考 tests/test_confirmed_strategy_review_postgres.py 与 tests/test_opportunity_evidence_postgres.py 的真实受限fixture。
-- [ ] 只运行本片新增测试和py_compile，自查并提交own路径，不amend/push。报告失败→通过、范围及剩余缺口。
+- [x] 只运行本片新增测试和py_compile，自查并提交own路径，不amend/push。报告失败→通过、范围及剩余缺口。
 
 ## Task 2: 普通客户端及联合接收（Root）
 
@@ -34,6 +34,22 @@ Own新增 `pilot/opportunity_brief.py`, `pilot/opportunity_brief_api.py`, `tests
 
 Root将新服务接 pilot/runtime.py、web.py、ui_api.py；无迁移。既有P02布局与错误状态复用，不放新TEST数据。
 
-- [ ] 新 `desktop/tests/opportunityBriefClient.test.ts` 先写不存在adapter RED；验证精确固定路由、同query响应、错日期/账户响应拒绝、途中切号/取消、501错误不转空。
-- [ ] 一个实际ordinary Node→HTTP→受限PG场景，合成真实纳入→主页query→保存实际跟进→刷新contact移出/followup出现→纠正清空计划→刷新移出，依据记录/版本可回查；已有组件只跑最相关文件，类型检查及至多一次renderer构建。
-- [ ] 一次整批独立审核，修复只差量；只本计划记完整证据，契约/任务书短引用。核对main同步，清理本轮资源。真实平台/Windows/生产/跨行业UAT和变化/计量等缺口不隐藏。
+- [x] 新 `desktop/tests/opportunityBriefClient.test.ts` 先写不存在adapter RED；验证精确固定路由、同query响应、错日期/账户响应拒绝、途中切号/取消、501错误不转空。
+- [x] 一个实际ordinary Node→HTTP→受限PG场景，合成真实纳入→主页query→保存实际跟进→刷新contact移出/followup出现→纠正清空计划→刷新移出，依据记录/版本可回查；已有组件只跑最相关文件，类型检查及至多一次renderer构建。
+- [x] 一次整批独立审核，修复只差量；只本计划记完整证据，契约/任务书短引用。真实平台/Windows/生产/跨行业UAT和变化/计量等缺口不隐藏。接收后正常推送main并核对SHA、清理本轮资源，执行结果以Git和进程实态为准。
+
+## 实施与验证
+
+候选 `847c150`，后台 `fe2b118`＋接线修正 `42fab92`。整批独立审核 NO-GO，要求一批修复：后续负面来源核验撤下推荐、较晚VOID不得抹掉旧有效联系事实、只认自身需求引用、长文本符合简报字段长度、沿用原 `window:<run_id>` 标识。修复只跑对应差量并复审，不重审旧通过范围。
+
+- 普通首页已接固定认证简报 API，无新表、无模型/采集/发送动作。按当前业务日和所选画像版本读取，联系后移出推荐，有效到期计划进入跟进，清空/撤销不复活旧计划；原帖变化明确未核验。
+- 新适配器缺模块 RED 后 **3 passed**；现有P02组件 **11 passed，3.02s**；类型检查通过，单次renderer构建通过（474ms）。首次UI命令误用不存在的配置文件，在执行测试前失败；改用现有默认配置后通过，未修改产品规避失败。
+- 后台新增纯验证及受限PG检查最终 **6 passed，3.75s**，范围见专属测试：纳入证据、错身份/画像、EXCLUDE/策略撤销、旧跟进撤销等。不是全套数据库或真实平台验证。
+- 普通 Node→实际HTTP→受限PostgreSQL **1 passed，3.34s**，内部Node **1 passed、未跳过**。真实合成纳入后首页展示→登记到期跟进→首页推荐移出/跟进出现→纠正清空计划→跟进移出→退出后拒读。没有管理员制造成功的新业务写入。
+- 联验先后暴露并修正画像实体ID/版本ID混用，以及原证据微秒时间不符合前端毫秒合同。诊断断言曾被fetch错误脱敏隐藏，已放回测试外层；未放宽生产验证或错误脱敏。多平台task/run去重及负面策略失效同时按既有合同补齐，未声称实际完成全平台检查。
+
+所有业务来源仍为合成测试输入，不是实际平台回复、需求质量、客户或盈利证据；本批未操作生产、未构Windows/Electron包。当前依赖既有迁移及受限授权（含131），不新增迁移；完整V0.2及原帖变化、搜贝计量、真实平台/Windows/生产/跨行业UAT继续保留。
+
+审核修复 `6110d6b`：补后续核验、有效联系存在性、本人原文引用选择、UTF-16有界展示和原window标识。相关两份后台测试 **8 passed，4.92s**（含前批覆盖，不与6项相加），py_compile及diff检查通过。差量复审关闭四项，原需求引用项仍NO-GO：仅紧迫性/可操作性引用也能入选；0.23s纯内存反例证明“欢迎留言交流”不是需求依据。改为只认自身原文intent引用，缺失不推荐。未重跑Node/HTTP、组件、类型或构建。
+
+最终 `b72b031fc091b600e0b705f97466528321e80f90` 仅修正剩余引用筛选，新回归 **1 passed，0.10s**；独立差量复审 **GO**，原五项 Important 全部关闭。代码增量可接收，非真实平台或整版验收。Task1列出的完整日期/空库/运行边界清单仍保留为发布验收要求，不能仅以本批少量合成场景宣称穷尽；本轮按用户要求采用定向而非全量验证。
