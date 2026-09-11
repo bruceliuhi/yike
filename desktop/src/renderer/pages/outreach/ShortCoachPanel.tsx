@@ -7,6 +7,7 @@ import { coachSourceProblem, type CoachPurpose } from "../../domain/shortCoach";
 import { useShortCoach } from "./useShortCoach";
 import { AdoptedCoachSummary } from "./AdoptedCoachSummary";
 import "./short-coach.css";
+import type {DraftMaterialReference} from '../../../shared/contactDrafts';
 
 export function ShortCoachPanel({
   row,
@@ -17,7 +18,7 @@ export function ShortCoachPanel({
   row: Opportunity;
   draft: ContactDraft;
   purpose: CoachPurpose;
-  onApply: (content: string) => void;
+  onApply: (content: string, materialReferences?: DraftMaterialReference[]) => void;
 }) {
   const { service, session } = useApp();
   const sample = row.sample === true || row.id === "sample";
@@ -120,17 +121,21 @@ export function ShortCoachPanel({
           <p>当前人工内容完整保留。新建议先预览，不会自动覆盖或发送。</p>
         </Confirm>
       )}
-      {coach.preview && coach.input && (
+      {coach.phase === 'preview' && coach.preview && coach.input && (
         <Confirm title="确认模型生成" confirmText="确认并生成" onCancel={coach.dismiss}
           onConfirm={() => void coach.confirmGenerate()}>
-          <p>将把以下公开原文与当前草稿交给配置模型，生成结果先预览，不会自动保存或发送。</p>
+          <p>将把以下公开原文、当前草稿{coach.input.materialReferences?.length ? '及选定业务资料片段' : ''}交给配置模型，生成结果先预览，不会自动保存或发送。</p>
           <p>{coach.preview.modelProvider} · {coach.preview.modelName}</p>
           <details open>
             <summary>本次发送的内容</summary>
             <h3>公开原文</h3><pre className="draft-preview">{coach.input.sourceText}</pre>
             <h3>当前草稿</h3><pre className="draft-preview">{coach.input.content || '空草稿'}</pre>
+            {!!coach.input.materialReferences?.length && <>
+              <h3>选定业务资料片段</h3>
+              {coach.input.materialReferences.map((ref,index)=><blockquote className="coach-quote" key={index}>{ref.quote}</blockquote>)}
+            </>}
           </details>
-          <p>不附带账号、收件对象、资料库或登录信息。取消不会调用模型。</p>
+          <p>不附带账号、收件对象、其他资料库内容或登录信息。取消不会调用模型。</p>
         </Confirm>
       )}
       {showEvidence && (
@@ -203,6 +208,12 @@ export function ShortCoachPanel({
               </small>
             </blockquote>
           ))}
+          {!!coach.candidate.materialReferences?.length && <>
+            <h3>实际采用的业务资料</h3>
+            {coach.candidate.materialReferences.map((ref,index)=><blockquote className="coach-quote" key={index}>
+              <p>{ref.quote}</p><small>资料 {ref.materialId} · 版本 {ref.materialVersion}</small>
+            </blockquote>)}
+          </>}
           {!!coach.candidate.checks.length && (
             <>
               <h3>建议检查</h3>
@@ -223,7 +234,7 @@ export function ShortCoachPanel({
             </>
           )}
           <p className="field-hint">
-            应用前重新核对来源版本；替换后需保存并重新确认发送。
+            应用前重新核对来源和选定资料版本；替换后需保存并重新确认发送。
           </p>
           {coach.error && <Notice tone="error">{coach.error}</Notice>}
         </Modal>

@@ -412,12 +412,12 @@ export function ContactEditor({
         {action.error && <Notice tone="error">{action.error}</Notice>}
         <ContactMaterialQuotes key={JSON.stringify([session.userId,session.accountScope,row.id,row.profileVersionId,channel])}
           row={row} draft={draft} onChange={edit} disabled={sample||!session.authenticated||saving.busy||saving.blocked}/>
-        {draft.materialReferences?.length ? <Notice>当前短句教练尚不支持资料出处改写；请核对原文后人工编辑，出处会随草稿保留。</Notice> : <ShortCoachPanel
+        <ShortCoachPanel
           row={row}
           draft={draft}
           purpose={purposes[channel]}
-          onApply={(content) => edit({ content })}
-        />}
+          onApply={(content, materialReferences) => edit({ content, materialReferences })}
+        />
         {!sample && (
           <details className="contact-routing">
             <summary>

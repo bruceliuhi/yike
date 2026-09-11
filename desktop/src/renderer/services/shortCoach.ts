@@ -10,9 +10,9 @@ export type {CoachPreview,CoachDisclosure} from '../../shared/shortCoach';
 
 /** Optional authenticated structured service. No adapter to the legacy string
  * generator: evidence anchors and request identity must come from the service.
- * This bounded first implementation consumes the opportunity's public excerpt;
- * internal material text is not sent. Authorized material citations require a
- * separately verified material snapshot before extending this input contract.
+ * Selected material excerpts require server qualification and explicit model
+ * disclosure. Other library text is not sent; output references bind only the
+ * excerpts actually used, and must be requalified before adoption.
  */
 export interface ShortCoachService {
   preview?(input: CoachInput, signal?: AbortSignal): Promise<CoachPreview>;

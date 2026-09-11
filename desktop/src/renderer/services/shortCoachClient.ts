@@ -1,5 +1,5 @@
 import type {ApiOperation} from '../../shared/contracts';
-import {coachInputHash,coachInputSchema,coachGenerateSchema,coachPreviewSchema} from '../../shared/shortCoach';
+import {coachInputHash,coachInputSchema,coachGenerateSchema,coachPreviewSchema,coachPolicy} from '../../shared/shortCoach';
 import {readCoachSuggestion,textDigest,type CoachInput} from '../domain/shortCoach';
 import type {Session} from '../domain/models';
 import type {ShortCoachService} from './shortCoach';
@@ -26,7 +26,7 @@ export function createShortCoachService(transport:Transport,session:()=>Promise<
    const input=coachInputSchema.parse(raw),before=await validate(input,signal);
    const hash=await coachInputHash(input);await unchanged(input,before,signal);
    const preview=coachPreviewSchema.parse(await transport('shortCoach.preview','/short-coach/preview','POST',input,signal));
-   if(preview.inputHash!==hash)throw new Error('模型预览与当前原文或草稿不一致。');
+   if(preview.inputHash!==hash||preview.policyVersion!==coachPolicy(input))throw new Error('模型预览与当前原文、草稿或资料授权不一致。');
    await unchanged(input,before,signal);return preview;
   },
   async generate(raw,signal){

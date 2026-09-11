@@ -60,6 +60,12 @@ export function AdoptedCoachSummary({
               </small>
             </blockquote>
           ))}
+          {!!candidate.materialReferences?.length && <>
+            <h3>采用时的业务资料出处</h3>
+            {candidate.materialReferences.map((ref,index)=><blockquote className="coach-quote" key={index}>
+              <p>{ref.quote}</p><small>资料 {ref.materialId} · 版本 {ref.materialVersion}</small>
+            </blockquote>)}
+          </>}
           <p className="field-hint">
             这是本次建议的原文引用与检查记录，不代表此后发生了新的审核。有效至{" "}
             {new Date(candidate.expiresAt).toLocaleString("zh-CN")}。

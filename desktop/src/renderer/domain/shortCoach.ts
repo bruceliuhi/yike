@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ContactDraft, Opportunity } from "./models";
 import { explicitInstant } from "./opportunityLibrary";
-import {draftSaveBindingSchema,draftSnapshotSchema} from '../../shared/contactDrafts';
+import {draftSaveBindingSchema,draftSnapshotSchema,draftMaterialReferencesSchema,type DraftMaterialReference} from '../../shared/contactDrafts';
 export {draftSaveBindingSchema,draftSnapshotSchema} from '../../shared/contactDrafts';
 
 const id = z.string().trim().min(1).max(128);
@@ -57,6 +57,7 @@ export interface CoachInput {
   binding: CoachBinding;
   content: string;
   sourceText: string;
+  materialReferences?: DraftMaterialReference[];
 }
 const quoteSchema = z
   .object({
@@ -74,6 +75,7 @@ export const coachSuggestionSchema = z
     binding: coachBindingSchema,
     content: body,
     question: body,
+    materialReferences: draftMaterialReferencesSchema.optional(),
     context: z
       .object({ summary: body, quoteIds: z.array(id).min(1).max(12) })
       .strict(),
@@ -167,7 +169,11 @@ export async function makeCoachInput(
     draftHash: await textDigest(draft.content),
     purpose,
   });
-  return { binding, content: draft.content, sourceText: row.excerpt };
+  const materialReferences = draft.materialReferences === undefined ? undefined : draftMaterialReferencesSchema.parse(draft.materialReferences);
+  if(materialReferences?.some(ref=>!draft.content.includes(ref.quote)))
+    throw new Error('草稿中的资料引用已变化，请先核对出处。');
+  return { binding, content: draft.content, sourceText: row.excerpt,
+    ...(materialReferences===undefined?{}:{materialReferences}) };
 }
 export function readCoachSuggestion(
   value: unknown,
@@ -175,6 +181,19 @@ export function readCoachSuggestion(
   now = Date.now(),
 ) {
   const data = coachSuggestionSchema.parse(value);
+  const refs = data.materialReferences;
+  const originalRefs = input.materialReferences === undefined ? undefined : draftMaterialReferencesSchema.parse(input.materialReferences);
+  if(originalRefs===undefined ? refs!==undefined : !refs ||
+      (originalRefs.length>0 ? refs.length===0||refs.length>originalRefs.length : refs.length!==0))
+    throw new Error('建议资料出处缺失或与本次选材不一致，不能应用。');
+  const used = new Set<number>();
+  for(const ref of refs||[]){
+    const index=(originalRefs||[]).findIndex((original,i)=>!used.has(i)&&
+      original.sourceProfileVersionId===ref.sourceProfileVersionId&&original.materialId===ref.materialId&&
+      original.materialVersion===ref.materialVersion&&original.extractionId===ref.extractionId&&original.quote.includes(ref.quote));
+    if(index<0||!data.content.includes(ref.quote))throw new Error('建议引用不属于所选资料或建议正文，不能应用。');
+    used.add(index);
+  }
   if (
     JSON.stringify(data.binding) !==
     JSON.stringify(coachBindingSchema.parse(input.binding))

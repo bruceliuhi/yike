@@ -13,12 +13,13 @@ import {
 } from "../../domain/shortCoach";
 import { errorMessage } from "../../services/contracts";
 import type {CoachPreview} from '../../services/shortCoach';
+import type {DraftMaterialReference} from '../../../shared/contactDrafts';
 
 export function useShortCoach(
   row: Opportunity,
   draft: ContactDraft,
   purpose: CoachPurpose,
-  apply: (content: string) => void,
+  apply: (content: string, materialReferences?: DraftMaterialReference[]) => void,
 ) {
   const { service, session } = useApp();
   const scope = JSON.stringify([
@@ -55,6 +56,7 @@ export function useShortCoach(
     adopted.service === service &&
     adopted.version === draft.version &&
     adopted.candidate.content === draft.content &&
+    JSON.stringify(adopted.candidate.materialReferences) === JSON.stringify(draft.materialReferences) &&
     Date.parse(adopted.candidate.expiresAt) > Date.now()
       ? adopted.candidate
       : null;
@@ -119,7 +121,8 @@ export function useShortCoach(
       });
       return;
     }
-    if(approved&&(approved.input.content!==live.current.draft.content||approved.input.binding.draftVersion!==live.current.draft.version)){
+    if(approved&&(approved.input.content!==live.current.draft.content||approved.input.binding.draftVersion!==live.current.draft.version||
+      JSON.stringify(approved.input.materialReferences)!==JSON.stringify(live.current.draft.materialReferences))){
       setState({scope,phase:'error',error:'草稿已变化，请重新预览后再确认。'});
       return;
     }
@@ -139,6 +142,8 @@ export function useShortCoach(
             session.accountScope!,
           );
           if (!current() || signal.aborted) throw new RequestCancelled();
+          if(input.materialReferences?.length&&!service.shortCoach!.preview)
+            throw new Error('当前服务无法核验资料授权，请保留草稿，不会发送资料给模型。');
           if(service.shortCoach!.preview&&!approved){
             return {input,preview:await service.shortCoach!.preview(input,signal)};
           }
@@ -169,6 +174,7 @@ export function useShortCoach(
         phase: "ready",
         input: result.input,
         candidate,
+        preview: approved?.preview,
         error: "",
       });
     } catch (error) {
@@ -196,7 +202,7 @@ export function useShortCoach(
       return;
     const candidate = shown.candidate,
       input = shown.input;
-    const atDraft = { version: draft.version, content: draft.content };
+    const atDraft = { version: draft.version, content: draft.content, references: JSON.stringify(draft.materialReferences) };
     lock.current = true;
     const generation = ++request.current;
     const controller = new AbortController();
@@ -204,6 +210,8 @@ export function useShortCoach(
     setState({ ...shown, phase: "applying", error: "" });
     try {
       readCoachSuggestion(candidate, input);
+      if(JSON.stringify(input.materialReferences)!==atDraft.references)
+        throw new Error('资料绑定已变化，请重新生成建议；当前草稿已保留。');
       const fresh = await boundedRequest(() => service.opportunity(row.id), {
         signal: controller.signal,
         timeoutMessage: "引用核对超时，尚未替换当前草稿。",
@@ -222,13 +230,24 @@ export function useShortCoach(
         throw new Error(
           "原文或画像版本已变化，请刷新证据并重新生成；当前文字已保留。",
         );
+      if(input.materialReferences?.length){
+        if(!service.shortCoach?.preview||!shown.preview)throw new Error('缺少资料授权核验，尚未替换当前草稿。');
+        const qualified=await boundedRequest(signal=>service.shortCoach!.preview!(input,signal),{
+          signal:controller.signal,timeoutMessage:'资料核对超时，尚未替换当前草稿。',
+        });
+        if(!current()||generation!==request.current||controller.signal.aborted)return;
+        if(qualified.inputHash!==shown.preview.inputHash||qualified.modelProvider!==shown.preview.modelProvider||
+          qualified.modelName!==shown.preview.modelName||qualified.policyVersion!==shown.preview.policyVersion)
+          throw new Error('资料或模型授权已变化，请重新预览生成；当前文字已保留。');
+      }
       readCoachSuggestion(candidate, input);
       if (
         live.current.draft.version !== atDraft.version ||
-        live.current.draft.content !== atDraft.content
+        live.current.draft.content !== atDraft.content ||
+        JSON.stringify(live.current.draft.materialReferences) !== atDraft.references
       )
         throw new Error("核对期间你又修改了草稿，请重新比较后再决定替换。");
-      apply(candidate.content);
+      apply(candidate.content, candidate.materialReferences);
       setAdopted({ scope, service, version: atDraft.version + 1, candidate });
       setState({ scope, phase: "idle", error: "" });
     } catch (error) {
