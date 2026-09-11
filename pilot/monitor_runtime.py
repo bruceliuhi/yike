@@ -36,15 +36,20 @@ class MonitorRuntime:
 
     @_safe
     def support(self, claims):
-        from pilot.foreground_collection import three_platform_monitor_policy, four_platform_monitor_policy, four_platform_public_monitor_policy
+        from pilot.foreground_collection import (three_platform_monitor_policy, four_platform_monitor_policy,
+                                                four_platform_public_monitor_policy, four_platform_public_sampling_monitor_policy)
         runtime = self.execution_runtime
         with self.database.connect() as connection, connection.cursor() as cursor:
             runtime._active(cursor, claims)
-            return self._authorized(cursor, claims, dict(
+            result = dict(
                 schema_version='monitor-runtime-support-v1',
                 mode={three_platform_monitor_policy:'three-platform-monitor-v1',
                       four_platform_monitor_policy:'four-platform-monitor-v1',
-                      four_platform_public_monitor_policy:'four-platform-monitor-v1'}.get(runtime.capability_check)))
+                      four_platform_public_monitor_policy:'four-platform-monitor-v1',
+                      four_platform_public_sampling_monitor_policy:'four-platform-monitor-v1'}.get(runtime.capability_check))
+            if runtime.capability_check is four_platform_public_sampling_monitor_policy:
+                result['public_source'] = 'v2ex-latest-v1'
+            return self._authorized(cursor, claims, result)
 
     def _authorized(self, cursor, claims, response):
         self.execution_runtime._active(cursor, claims)
@@ -144,9 +149,18 @@ class MonitorRuntime:
             for target in sorted(request.targets, key=lambda item: (item.platform, item.connection_id or "")):
                 runtime._connection(cursor, claims, request.device_id, target)
             snapshot = runtime._strategy(cursor, claims, tenant, profile, strategy_id, digest, request.targets)
+            from pilot.foreground_collection import (four_platform_monitor_policy,
+                                                    four_platform_public_monitor_policy,
+                                                    four_platform_public_sampling_monitor_policy)
+            platforms = ("XIAOHONGSHU", "DOUYIN", "BILIBILI")
+            if runtime.capability_check in (four_platform_monitor_policy, four_platform_public_monitor_policy,
+                                            four_platform_public_sampling_monitor_policy):
+                platforms += ("ZHIHU",)
+            if runtime.capability_check is four_platform_public_sampling_monitor_policy:
+                platforms += ("PUBLIC_WEB",)
             if (snapshot["configuration"].get("mode") != "monitor"
                     or snapshot["configuration"].get("schedule", {}).get("policyVersion") != 1
-                    or any(target.platform not in ("XIAOHONGSHU", "DOUYIN", "BILIBILI") for target in request.targets)):
+                    or any(target.platform not in platforms for target in request.targets)):
                 raise ExecutionRuntimeError("capability_unavailable", 501)
             cursor.execute("SELECT profile_version_id,strategy_version_id,configuration_sha256,schedule,state,revision,next_due_at "
                            "FROM pilot_monitor_plans WHERE tenant_id=%s AND owner_user_id=%s AND plan_id=%s FOR UPDATE",

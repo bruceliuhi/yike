@@ -6,7 +6,7 @@ import {executionOperationSchema} from '../shared/executionOperation';
 import {parseExecutionReceipt} from '../shared/executionReceipt';
 import {strategyViewSchema} from '../shared/researchStrategies';
 import {connectionRegistryRowSchema} from '../shared/platformConnection';
-import {foregroundCollectionCommandSchema,foregroundModeSchema,supportsForegroundPlatform,monitorForegroundMode,type ForegroundCollectionResult} from '../shared/foregroundCollection';
+import {foregroundCollectionCommandSchema,foregroundModeSchema,supportsForegroundPlatform,monitorForegroundMode,monitorSupportSchema,type ForegroundCollectionResult} from '../shared/foregroundCollection';
 import {deviceUuidSchema as uuid} from '../shared/deviceRegistration';
 import type {createDeviceIdentityController,DeviceWorkerScope} from './deviceIdentityController';
 import type {ExecutionJournal} from './executionJournal';
@@ -35,7 +35,7 @@ interface Options {
  resolveAccount?:typeof resolveCollectionAccount;probe?:typeof probeCollectionRuntime;
 }
 const supportSchema=z.object({schema_version:z.literal('foreground-collection-support-v1'),mode:foregroundModeSchema.nullable(),
- public_source:z.literal('v2ex-latest-v1').optional()}).strict();
+ public_source:z.literal('v2ex-latest-v1').optional(),public_monitor:z.literal(true).optional()}).strict();
 const rowsSchema=z.object({items:z.array(connectionRegistryRowSchema).max(10000)}).strict();
 const stateSchema=z.enum(['PENDING','RUNNING','CANCELLING','CANCELED','SUCCEEDED']);
 const taskSchema=z.object({task_id:uuid,run_id:uuid,status:stateSchema,stop_confirmed:z.boolean(),profile_version_id:uuid,strategy_version_id:uuid,
@@ -98,7 +98,7 @@ export function createForegroundCollectionController(options:Options) {
   let scope:DeviceWorkerScope|undefined;
   try{
    scope=await open();const support=await supported(scope),mode=support.mode!;
-   const publicBinding=support.public_source?{sourceId:support.public_source,deviceId:scope.device.deviceId}:undefined;
+   const publicBinding=support.public_source?{sourceId:support.public_source,deviceId:scope.device.deviceId,...(support.public_monitor===true?{monitorSupported:true as const}:{})}:undefined;
    const publicOnly=():ForegroundCollectionResult=>publicBinding?{state:'AVAILABLE',bindings:[],publicBinding}:{state:'UNAVAILABLE'};
    try{await nativeReady(scope);}catch{guard(scope);return publicOnly();}
    // Public readiness is independent of the native account registry, but not
@@ -165,8 +165,11 @@ export function createForegroundCollectionController(options:Options) {
     const sessions=index===(input.startIndex??0)?input.firstSessions:options.sessions(activeScope!);
     let driver:ReturnType<typeof createPublicCommunityDriver>;
     if(anonymous){
-     if(input.allowMonitor || input.strategy.snapshot.configuration.publicSource!=='v2ex-latest-v1')throw new Error();
-     if(index>(input.startIndex??0) && (await supported(activeScope!)).public_source!=='v2ex-latest-v1')throw new Error();
+     if(input.strategy.snapshot.configuration.publicSource!=='v2ex-latest-v1')throw new Error();
+     if(index>(input.startIndex??0)){const live=input.allowMonitor
+      ?await activeScope!.transport.requestExecution({operation:'monitor.support'}):await activeScope!.transport.requestExecution({operation:'execution.support'});
+      guard(activeScope!);const parsed=input.allowMonitor?monitorSupportSchema.safeParse(live.ok?live.data:null):supportSchema.safeParse(live.ok?live.data:null);
+      if(!parsed.success||parsed.data.public_source!=='v2ex-latest-v1')throw new Error();}
      if(cancelled||!activeScope!.session.isCurrent()){activeScope!.close();activeScope=undefined;break;}
      publicDriver??=(options.publicDriverFactory??createPublicCommunityDriver)();driver=publicDriver;
     }else{
@@ -194,9 +197,11 @@ export function createForegroundCollectionController(options:Options) {
    let scope:DeviceWorkerScope|undefined;
    try{
     scope=await open();const support=await scope.transport.requestExecution({operation:'monitor.support'});guard(scope);
-    const mode=monitorForegroundMode(support.ok?support.data:null);
-    if(!support.ok||!mode||targets.some(target=>!supportsForegroundPlatform(mode,target.platform)))throw new Error();
-    await nativeReady(scope);
+    const parsedSupport=monitorSupportSchema.safeParse(support.ok?support.data:null),mode=monitorForegroundMode(support.ok?support.data:null);
+    if(!support.ok||!parsedSupport.success||!mode||targets.some(target=>target.platform==='PUBLIC_WEB'
+      ?target.access_mode!=='PUBLIC_ANONYMOUS'||target.connection_id!==null||target.connection_version!==null||parsedSupport.data.public_source!=='v2ex-latest-v1'
+      :!supportsForegroundPlatform(mode,target.platform)))throw new Error();
+    if(targets.some(target=>target.platform!=='PUBLIC_WEB'))await nativeReady(scope);
     const response=await identity.requestApi({operation:'strategies.get',payload:{strategy_version_id:strategyId}});guard(scope);if(!response.ok)throw new Error();
     const strategy=strategyViewSchema.parse(response.data),snapshot=strategy.snapshot,c=snapshot.configuration;
     if(strategy.state!=='CONFIRMED'||!strategy.is_current||!strategy.profile_current||strategy.confirmed_at===null||strategy.revoked_at!==null||
@@ -204,8 +209,9 @@ export function createForegroundCollectionController(options:Options) {
       c.mode!=='monitor'||c.schedule?.policyVersion!==1||snapshot.max_records<targets.length||snapshot.max_records>100||snapshot.max_runtime_seconds>900||
       c.source!=='search'||c.research!==null||c.links.length||c.keywords.some(k=>k!==k.trim()||k.includes(','))||
       snapshot.platforms.length!==targets.length||targets.some((target,index)=>target.platform!==snapshot.platforms[index])||
-      targets.some(target=>!nativeLoginPlatformSchema.safeParse(target.platform).success||target.access_mode!=='PLATFORM_ACCOUNT'))throw new Error();
-    for(const target of targets)await account(scope,target);
+      targets.some(target=>target.platform==='PUBLIC_WEB'?c.publicSource!==parsedSupport.data.public_source:
+       !nativeLoginPlatformSchema.safeParse(target.platform).success||target.access_mode!=='PLATFORM_ACCOUNT'))throw new Error();
+    for(const target of targets)if(target.platform!=='PUBLIC_WEB')await account(scope,target);
     return true;
    }catch{return false;}finally{scope?.close();}
   },
@@ -216,17 +222,20 @@ export function createForegroundCollectionController(options:Options) {
    try{
     const start=parsed.data,targets=start.targets!;scope=await open();
     const monitorSupport=await scope.transport.requestExecution({operation:'monitor.support'});guard(scope);
-    const mode=monitorForegroundMode(monitorSupport.ok?monitorSupport.data:null);
-    if(!monitorSupport.ok||!mode||targets.some(target=>!supportsForegroundPlatform(mode,target.platform)))throw new Error();
-    await nativeReady(scope);
+    const parsedSupport=monitorSupportSchema.safeParse(monitorSupport.ok?monitorSupport.data:null),mode=monitorForegroundMode(monitorSupport.ok?monitorSupport.data:null);
+    if(!monitorSupport.ok||!parsedSupport.success||!mode||start.device_id!==scope.device.deviceId||start.credential_version!==scope.device.credentialVersion||targets.some(target=>target.platform==='PUBLIC_WEB'
+      ?target.access_mode!=='PUBLIC_ANONYMOUS'||target.connection_id!==null||target.connection_version!==null||parsedSupport.data.public_source!=='v2ex-latest-v1'
+      :!supportsForegroundPlatform(mode,target.platform)))throw new Error();
+    if(targets.some(target=>target.platform!=='PUBLIC_WEB'))await nativeReady(scope);
     const strategyResponse=await identity.requestApi({operation:'strategies.get',payload:{strategy_version_id:start.strategy_version_id}});guard(scope);if(!strategyResponse.ok)throw new Error();
     const strategy=strategyViewSchema.parse(strategyResponse.data),snapshot=strategy.snapshot,c=snapshot.configuration;
     if(strategy.state!=='CONFIRMED'||!strategy.is_current||!strategy.profile_current||strategy.confirmed_at===null||strategy.revoked_at!==null||
       strategy.profile_version_id!==start.profile_version_id||strategy.strategy_version_id!==start.strategy_version_id||snapshot.profile_version_id!==start.profile_version_id||
       snapshot.strategy_version_id!==start.strategy_version_id||strategy.configuration_sha256!==start.configuration_sha256||createHash('sha256').update(canonical(snapshot)).digest('hex')!==start.configuration_sha256||
       c.mode!=='monitor'||c.schedule?.policyVersion!==1||snapshot.max_records<targets.length||snapshot.max_records>100||snapshot.max_runtime_seconds>900||c.source!=='search'||c.research!==null||c.links.length||c.keywords.some(k=>k!==k.trim()||k.includes(','))||
-      snapshot.platforms.length!==targets.length||targets.some((target,index)=>target.platform!==snapshot.platforms[index]||target.access_mode!=='PLATFORM_ACCOUNT'||!nativeLoginPlatformSchema.safeParse(target.platform).success))throw new Error();
-    const bindings=[];for(const target of targets)bindings.push(await account(scope,target));
+      snapshot.platforms.length!==targets.length||targets.some((target,index)=>target.platform!==snapshot.platforms[index]||
+       (target.platform==='PUBLIC_WEB'?c.publicSource!==parsedSupport.data.public_source:target.access_mode!=='PLATFORM_ACCOUNT'||!nativeLoginPlatformSchema.safeParse(target.platform).success)))throw new Error();
+    const bindings=[];for(const target of targets)bindings.push(target.platform==='PUBLIC_WEB'?null:await account(scope,target));
     const firstSessions=options.sessions(scope);const submitted=await firstSessions.execution.submit(scope.session,start);guard(scope);if(submitted.state!=='RECORDED')return submitted;
     const receipt=parseExecutionReceipt(submitted.receipt,start);if(receipt.operation!=='START'||receipt.platform_runs.length!==targets.length||receipt.platform_runs.some((run,index)=>run.platform!==targets[index].platform))throw new Error();
     const history=await options.executionJournal.list(journalScope(scope));guard(scope);if(history.some(r=>r.task_id===receipt.task_id&&r.operation!=='START'))return submitted;

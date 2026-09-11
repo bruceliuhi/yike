@@ -13,7 +13,7 @@ export function supportsForegroundPlatform(mode:unknown,platform:unknown):boolea
   mode==='three-platform-foreground-v1' && platform!=='ZHIHU' || mode==='xhs-foreground-v1' && platform==='XIAOHONGSHU');
 }
 export const monitorSupportSchema=z.object({schema_version:z.literal('monitor-runtime-support-v1'),
- mode:z.enum(['three-platform-monitor-v1','four-platform-monitor-v1']).nullable()}).strict();
+ mode:z.enum(['three-platform-monitor-v1','four-platform-monitor-v1']).nullable(),public_source:z.literal('v2ex-latest-v1').optional()}).strict();
 export function monitorForegroundMode(value:unknown) {
  const parsed=monitorSupportSchema.safeParse(value);
  return !parsed.success || parsed.data.mode===null ? null : parsed.data.mode==='four-platform-monitor-v1'
@@ -23,7 +23,7 @@ export const foregroundBindingSchema=z.object({mode:foregroundModeSchema,platfor
  connectionId:uuid,connectionVersion:z.number().int().min(1).max(2147483647),deviceId:uuid,accountPublicId:z.string().min(1).max(64)}).strict()
  .superRefine((value,ctx)=>{if(!supportsForegroundPlatform(value.mode,value.platform) || !validNativeAccount(value.platform,value.accountPublicId))
   ctx.addIssue({code:'custom',message:'invalid foreground account binding'});});
-export const publicSourceBindingSchema=z.object({sourceId:z.literal('v2ex-latest-v1'),deviceId:uuid}).strict();
+export const publicSourceBindingSchema=z.object({sourceId:z.literal('v2ex-latest-v1'),deviceId:uuid,monitorSupported:z.literal(true).optional()}).strict();
 export type PublicSourceBinding=z.infer<typeof publicSourceBindingSchema>;
 const foregroundBindingsSchema=z.array(foregroundBindingSchema).max(4).superRefine((values,ctx)=>{
  if(new Set(values.map(value=>value.platform)).size!==values.length)ctx.addIssue({code:'custom',message:'duplicate foreground platform'});

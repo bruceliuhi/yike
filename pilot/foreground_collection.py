@@ -48,6 +48,8 @@ def configured_collection_policy(environment):
         return four_platform_monitor_policy
     if mode == 'four-platform-public-monitor-v1':
         return four_platform_public_monitor_policy
+    if mode == 'four-platform-public-sampling-monitor-v1':
+        return four_platform_public_sampling_monitor_policy
     raise RuntimeError('invalid_collection_configuration')
 
 
@@ -77,6 +79,13 @@ def four_platform_public_monitor_policy(platform, access_mode, configuration):
             and all(term == term.strip() and ',' not in term for term in parsed.keywords))
 
 
+def four_platform_public_sampling_monitor_policy(platform, access_mode, configuration):
+    """Periodic latest-topic samples; never promises historical/full-site coverage."""
+    if platform != 'PUBLIC_WEB':
+        return four_platform_monitor_policy(platform, access_mode, configuration)
+    return _monitor_policy(platform, access_mode, configuration, four_platform_public_monitor_policy)
+
+
 def _monitor_policy(platform, access_mode, configuration, collection_policy):
     try:
         parsed = ResearchStrategyConfiguration.model_validate(configuration)
@@ -98,10 +107,13 @@ def foreground_collection_support(runtime, claims):
         mode = 'xhs-foreground-v1' if runtime.capability_check is foreground_collection_policy else None
         if runtime.capability_check in (three_platform_collection_policy, three_platform_monitor_policy):
             mode = 'three-platform-foreground-v1'
-        if runtime.capability_check in (four_platform_collection_policy, four_platform_monitor_policy, four_platform_public_monitor_policy):
+        if runtime.capability_check in (four_platform_collection_policy, four_platform_monitor_policy,
+                                       four_platform_public_monitor_policy, four_platform_public_sampling_monitor_policy):
             mode = 'four-platform-foreground-v1'
         runtime._active(cursor, claims)
         result = {'schema_version':'foreground-collection-support-v1', 'mode':mode}
-        if runtime.capability_check is four_platform_public_monitor_policy:
+        if runtime.capability_check in (four_platform_public_monitor_policy, four_platform_public_sampling_monitor_policy):
             result['public_source'] = 'v2ex-latest-v1'
+        if runtime.capability_check is four_platform_public_sampling_monitor_policy:
+            result['public_monitor'] = True
         return result

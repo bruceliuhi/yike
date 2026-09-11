@@ -10,7 +10,7 @@ import { researchSettingsSchema } from "./researchUsage";
 import { industryStrategyError } from './industryTaskStrategy';
 import {foregroundBindingSchema,publicSourceBindingSchema} from '../../shared/foregroundCollection';
 
-export const PUBLIC_SOURCE_SCOPE='V2EX近期主题，有界采样，不覆盖历史/全站/评论，不支持持续监控';
+export const PUBLIC_SOURCE_SCOPE='V2EX近期主题有界抽样，不覆盖历史/全站/评论';
 export function hasPublicSourceBinding(connection: PlatformConnection): boolean {
   return connection.platform==='web' && connection.status==='CONNECTED' &&
     !connection.accountId && !connection.accountName && !connection.registration && !connection.foregroundBinding &&
@@ -209,8 +209,9 @@ export function startBlockers(
   if (!profile) blockers.push("请选择并确认真实业务画像版本。");
   const publicRows=connections.filter(hasPublicSourceBinding);
   const publicSelected=draft.platforms.includes('web');
-  if(publicSelected && (draft.accounts.web || publicRows.length!==1 || draft.mode!=='once' || draft.source!=='search' || draft.links.trim() || draft.research))
-    blockers.push('公开网站仅支持已核对的 V2EX 匿名近期主题单次关键词采样。');
+  const publicMonitor=publicSelected&&draft.mode==='monitor'&&publicRows.length===1&&publicRows[0].publicBinding?.monitorSupported===true;
+  if(publicSelected && (draft.accounts.web || publicRows.length!==1 || !['once','monitor'].includes(draft.mode) || draft.mode==='monitor'&&!publicMonitor || draft.source!=='search' || draft.links.trim() || draft.research))
+    blockers.push(draft.mode==='monitor'?'公开来源尚不具备持续监控能力。':'公开网站仅支持已核对的 V2EX 匿名近期主题关键词采样。');
   if(publicSelected && (!draft.executionLimits || !Number.isInteger(draft.executionLimits.max_records) ||
       !Number.isInteger(draft.executionLimits.max_runtime_seconds) || (draft.executionLimits.max_records??0)<draft.platforms.length ||
       (draft.executionLimits.max_runtime_seconds??0)<1 || (draft.executionLimits.max_records??0)>100 || (draft.executionLimits.max_runtime_seconds??0)>900))
@@ -241,7 +242,7 @@ export function startBlockers(
       continue;
     }
     const nativeMonitor = nativeMonitorReady && draft.mode === 'monitor' && hasForegroundBinding(connection) &&
-      draft.platforms.every(p => ['xhs','douyin','bilibili','zhihu'].includes(p));
+      draft.platforms.every(p => ['xhs','douyin','bilibili','zhihu','web'].includes(p)) && (!publicSelected||publicMonitor);
     if (connection.registration && ((!nativeMonitor && !multiOnce && (draft.platforms.length !== 1 || draft.mode !== 'once')) ||
         draft.source !== 'search' ||
         draft.links.trim() !== '' || draft.research))
@@ -256,7 +257,7 @@ export function startBlockers(
       );
     if (
       draft.mode === "monitor" &&
-      !nativeMonitor && !connection.capabilities.includes("monitor")
+      !(platform==='web'?publicMonitor:nativeMonitor) && !connection.capabilities.includes("monitor")
     )
       blockers.push(`${name} 尚不具备持续监控能力。`);
   }

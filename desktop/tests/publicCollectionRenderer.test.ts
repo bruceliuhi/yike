@@ -23,6 +23,7 @@ describe('bounded public source renderer contract',()=>{
  it('accepts public-only and same-device mixed bindings',()=>{
   expect(foregroundCollectionResultSchema.safeParse({state:'AVAILABLE',bindings:[],publicBinding}).success).toBe(true);
   expect(foregroundCollectionResultSchema.safeParse({state:'AVAILABLE',bindings:[native],publicBinding}).success).toBe(true);
+  expect(foregroundCollectionResultSchema.safeParse({state:'AVAILABLE',bindings:[],publicBinding:{...publicBinding,monitorSupported:true}}).success).toBe(true);
  });
  it.each([undefined,{...publicBinding,sourceId:'other'},{...publicBinding,accountId:'fake'},{...publicBinding,connectionId:id}])('rejects missing or widened public scope %j',value=>{
   expect(foregroundCollectionResultSchema.safeParse({state:'AVAILABLE',bindings:[],...(value?{publicBinding:value}:{})}).success).toBe(false);

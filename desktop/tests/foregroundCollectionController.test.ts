@@ -54,6 +54,13 @@ it('offers explicitly supported public source without Python, accounts or regist
  expect(await f.controller.execute({action:'CAPABILITIES'})).toEqual({state:'AVAILABLE',bindings:[],publicBinding:{sourceId:'v2ex-latest-v1',deviceId:id(2)}});
  expect(f.probe).not.toHaveBeenCalled();expect(f.resolveAccount).not.toHaveBeenCalled();expect(f.scope.transport.requestConnection).not.toHaveBeenCalled();
 });
+it('advertises public monitor only from the explicit foreground support flag',async()=>{
+ const f=publicFixture();const read=f.scope.transport.requestExecution.getMockImplementation()!;
+ f.scope.transport.requestExecution.mockImplementation(async input=>input.operation==='execution.support'
+  ?{ok:true,status:200,data:{schema_version:'foreground-collection-support-v1',mode:'four-platform-foreground-v1',public_source:'v2ex-latest-v1',public_monitor:true}}
+  :read(input));
+ expect(await f.controller.execute({action:'CAPABILITIES'})).toMatchObject({state:'AVAILABLE',publicBinding:{sourceId:'v2ex-latest-v1',deviceId:id(2),monitorSupported:true}});
+});
 it('starts public-only source with confirmed source hash and existing persisted execution, not native runtime',async()=>{
  const f=publicFixture();expect(await f.controller.start(f.command)).toMatchObject({state:'RECORDED'});
  expect(f.worker.run).toHaveBeenCalledWith(expect.objectContaining({platformRunId:id(8),platformMaxRecords:50,strategy:f.strategy}));
@@ -326,6 +333,60 @@ it('monitor source stop failure latches the same foreground slot',async()=>{
  f.finish({state:'FAILED',error:'SOURCE_STOP_FAILED',taskCompleted:false});await new Promise(resolve=>setImmediate(resolve));
  expect(f.controller.canStart()).toBe(false);await expect(f.controller.stop(id(6))).rejects.toThrow('SOURCE_STOP_FAILED');
  await expect(f.controller.shutdown()).rejects.toThrow('SOURCE_STOP_FAILED');
+});
+
+it('validates and starts public-only monitor without native runtime or account probing',async()=>{
+ const f=publicFixture();const c:any=f.strategy.snapshot.configuration;c.mode='monitor';c.schedule={kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1};
+ const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.strategy.configuration_sha256=hash;
+ const read=f.scope.transport.requestExecution.getMockImplementation()!;
+ f.scope.transport.requestExecution.mockImplementation(async input=>input.operation==='monitor.support'
+  ?{ok:true,status:200,data:{schema_version:'monitor-runtime-support-v1',mode:'four-platform-monitor-v1',public_source:'v2ex-latest-v1'}}:read(input));
+ const start={schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:hash,targets:f.command.targets};
+ expect(await f.controller.validateMonitorBinding(id(3),id(4),start.targets as any)).toBe(true);
+ expect(await f.controller.startMonitor(start)).toMatchObject({state:'RECORDED'});
+ expect(f.worker.run).toHaveBeenCalledWith(expect.objectContaining({allowMonitor:true}));
+ expect(f.probe).not.toHaveBeenCalled();expect(f.resolveAccount).not.toHaveBeenCalled();
+ f.finish();await f.controller.shutdown();
+});
+
+it('runs public monitor through the real controller-worker-driver CLAIM/upload/FINISH path',async()=>{
+ const f=publicFixture();const c:any=f.strategy.snapshot.configuration;c.mode='monitor';c.schedule={kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1};
+ const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.strategy.configuration_sha256=hash;
+ const base=f.scope.transport.requestExecution.getMockImplementation()!;f.scope.transport.requestExecution.mockImplementation(async input=>input.operation==='monitor.support'
+  ?{ok:true,status:200,data:{schema_version:'monitor-runtime-support-v1',mode:'four-platform-monitor-v1',public_source:'v2ex-latest-v1'}}:base(input));
+ const fetcher=vi.fn(async()=>new Response(JSON.stringify([{id:12,title:'设计需求',content:'需要企业系统设计',created:Math.floor(Date.now()/1000)-60,url:'https://www.v2ex.com/t/12',member:{id:9}}]),{headers:{'content-type':'application/json'}}));
+ const candidates={submit:vi.fn(async()=>({state:'RECORDED'}))};let done:Promise<unknown>|undefined;
+ f.execution.submit.mockImplementation(async(_s:any,r:any)=>{f.requests.push(r);if(r.operation==='START')return {state:'RECORDED',receipt:f.startReceipt} as any;
+  const common={schema_version:'execution-runtime-v1',request_id:r.request_id,operation:r.operation,task_id:id(6),run_id:id(7),platform_run_id:id(8),lease_id:id(90),execution_generation:1};
+  return {state:'RECORDED',receipt:r.operation==='FINISH'?{...common,status:'SUCCEEDED',stop_confirmed:true,upload_request_id:r.upload_request_id,records_used:1}:{...common,status:'RUNNING',stop_confirmed:false,lease_expires_at:new Date(Date.now()+120000).toISOString(),deadline_at:new Date(Date.now()+600000).toISOString()}} as any;});
+ const controller=createForegroundCollectionController({...f.options,publicDriverFactory:()=>createPublicCommunityDriver({fetch:fetcher}),sessions:()=>({execution:f.execution,candidates}),workerFactory:(options:any)=>{const worker=createCollectionWorker(options);return {...worker,run:(input:any)=>done=worker.run(input)};}});
+ const start={schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:hash,targets:f.command.targets};
+ expect(await controller.startMonitor(start)).toMatchObject({state:'RECORDED'});expect(await done).toMatchObject({state:'COMPLETED',taskCompleted:true});
+ expect(fetcher).toHaveBeenCalledTimes(1);expect(candidates.submit).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({platform:'PUBLIC_WEB',records:[expect.objectContaining({external_source_id:'12'})]}));
+ await controller.shutdown();
+});
+
+it('serializes same-device native and public monitor targets through the shared slot',async()=>{
+ const f=publicFixture(true);f.controller.configureNativeRuntime(f.nativeConfiguration);const c:any=f.strategy.snapshot.configuration;c.mode='monitor';c.schedule={kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1};
+ const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.strategy.configuration_sha256=hash;
+ const read=f.scope.transport.requestExecution.getMockImplementation()!;f.scope.transport.requestExecution.mockImplementation(async input=>input.operation==='monitor.support'
+  ?{ok:true,status:200,data:{schema_version:'monitor-runtime-support-v1',mode:'four-platform-monitor-v1',public_source:'v2ex-latest-v1'}}:read(input));
+ const start={schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:hash,targets:f.command.targets};
+ expect(await f.controller.startMonitor(start)).toMatchObject({state:'RECORDED'});expect(f.worker.run).toHaveBeenCalledTimes(1);
+ f.finish({state:'COMPLETED',taskCompleted:false});await new Promise(resolve=>setImmediate(resolve));await new Promise(resolve=>setImmediate(resolve));
+ expect(f.worker.run).toHaveBeenCalledTimes(2);expect(f.worker.run.mock.calls[1][0]).toMatchObject({platformRunId:id(9),allowMonitor:true});
+ expect(f.publicDriverFactory).toHaveBeenCalledTimes(1);f.finish();await f.controller.shutdown();
+});
+
+it('rejects old, source-mismatched and wrong-device public monitor support before START',async()=>{
+ for(const kind of ['old','source','device'] as const){const f=publicFixture();const c:any=f.strategy.snapshot.configuration;c.mode='monitor';c.schedule={kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1};
+  const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.strategy.configuration_sha256=hash;
+  const read=f.scope.transport.requestExecution.getMockImplementation()!;f.scope.transport.requestExecution.mockImplementation(async input=>input.operation==='monitor.support'
+   ?{ok:true,status:200,data:{schema_version:'monitor-runtime-support-v1',mode:'four-platform-monitor-v1',...(kind==='old'?{}:{public_source:kind==='source'?'other':'v2ex-latest-v1'})}}:read(input));
+  const start={schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:kind==='device'?id(99):id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:hash,targets:f.command.targets};
+  expect(await f.controller.validateMonitorBinding(id(3),id(4),start.targets as any)).toBe(kind==='device');
+  expect(await f.controller.startMonitor(start)).toEqual({state:'SERVICE_UNAVAILABLE'});expect(f.execution.submit).not.toHaveBeenCalled();
+ }
 });
 
 it.each(['three-platform-foreground-v1','xhs-foreground-v1'])('rejects Zhihu before START in %s',async mode=>{

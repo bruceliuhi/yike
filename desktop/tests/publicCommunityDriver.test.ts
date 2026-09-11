@@ -9,6 +9,7 @@ function input() {return {snapshot:{profile_version_id:id(1),strategy_version_id
   lease:{schema_version:'execution-runtime-v1',operation:'CLAIM',request_id:id(3),task_id:id(4),run_id:id(5),platform_run_id:id(6),status:'RUNNING',stop_confirmed:false,
     lease_id:id(7),execution_generation:1,lease_expires_at:new Date(now+120000).toISOString(),deadline_at:new Date(now+60000).toISOString()},
   maxRecords:5,signal:new AbortController().signal} as any;}
+function monitorInput() {const value=input();value.snapshot.configuration.mode='monitor';value.snapshot.configuration.schedule={kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1};return value;}
 const topic=(n=12,body='  AI 系统需求\n保留原文 ')=>({id:n,title:'询问方案',content:body,created:Math.floor(now/1000)-600,
   last_touched:Math.floor(now/1000),deleted:0,member:{id:9},url:`https://www.v2ex.com/t/${n}#reply0`});
 function driver(fetcher:typeof fetch) {
@@ -40,6 +41,28 @@ it.each(['account','monitor','links','budget','source','missing_source'])('rejec
   if(kind==='missing_source')delete value.snapshot.configuration.publicSource;
   const run=driver(fetcher).start(value);
   await expect(run.completed).rejects.toThrow('PUBLIC_SOURCE_INVALID_INPUT');await run.stop();expect(fetcher).not.toHaveBeenCalled();
+});
+it('allows monitor only through the explicit per-start authority while preserving one driver cooldown',async()=>{
+  const fetcher=vi.fn(async()=>new Response(JSON.stringify([topic()]),{headers:{'content-type':'application/json'}}));
+  const reader=driver(fetcher);
+  const denied=reader.start(monitorInput());await expect(denied.completed).rejects.toThrow('PUBLIC_SOURCE_INVALID_INPUT');await denied.stop();
+  const allowed=reader.start({...monitorInput(),allowMonitor:true});expect(await allowed.completed).toHaveLength(1);await allowed.stop();
+  const second=reader.start({...monitorInput(),allowMonitor:true});await expect(second.completed).rejects.toThrow('PUBLIC_SOURCE_RATE_LIMITED');await second.stop();
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it('uses the same cooldown-bearing driver for later monitor rounds',async()=>{
+  let clock=now;const fetcher=vi.fn(async()=>new Response(JSON.stringify([topic()]),{headers:{'content-type':'application/json'}}));
+  const reader=module!.createPublicCommunityDriver({fetch:fetcher,now:()=>clock});
+  const first=reader.start({...monitorInput(),allowMonitor:true});expect(await first.completed).toHaveLength(1);await first.stop();
+  clock+=60000;const next=monitorInput();next.lease.lease_expires_at=new Date(clock+120000).toISOString();next.lease.deadline_at=new Date(clock+60000).toISOString();
+  const second=reader.start({...next,allowMonitor:true});expect(await second.completed).toHaveLength(1);await second.stop();
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
+it('does not let a monitor bypass cooldown established by an earlier once sample on the same driver',async()=>{
+  const fetcher=vi.fn(async()=>new Response(JSON.stringify([topic()]),{headers:{'content-type':'application/json'}}));const reader=driver(fetcher);
+  const once=reader.start(input());expect(await once.completed).toHaveLength(1);await once.stop();
+  const monitor=reader.start({...monitorInput(),allowMonitor:true});await expect(monitor.completed).rejects.toThrow('PUBLIC_SOURCE_RATE_LIMITED');await monitor.stop();
+  expect(fetcher).toHaveBeenCalledTimes(1);
 });
 it('spaces requests to the same public source even after failed fetch, without retry',async()=>{
   const fetcher=vi.fn(async()=>new Response('{}',{status:429,headers:{'content-type':'application/json'}}));

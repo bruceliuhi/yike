@@ -42,6 +42,7 @@ export function NativeMonitorPlans(){
     if(view.configuration_sha256!==plan.configurationSha256 || view.profile_version_id!==plan.profileVersionId)throw new Error('计划策略已变化，请刷新。');
     const targets=monitorTargets(view,connections);
     const accounts=targets.map(target=>{
+     if(target.platform==='PUBLIC_WEB')return '公开社区：V2EX近期主题定时抽样，不覆盖历史/全站';
      const row=connections.find(c=>c.registration?.connectionId===target.connection_id)!;
      return `${row.platform}：${row.accountId}`;
     });
@@ -97,7 +98,8 @@ export function NativeMonitorPlans(){
    <p>{selected.schedule.kind==='daily'?`每天 ${selected.schedule.times.join('、')}`:`每 ${selected.schedule.interval} 小时 · ${selected.schedule.start}–${selected.schedule.end}`} · 时区 {selected.schedule.timezone}</p>
    <p className="field-hint">{schedulePolicyDescription(selected.schedule).slice(0,2).join(' ')}</p>
    <p>下次到期：{selected.nextDueAt?formatDate(selected.nextDueAt):'暂停期间不安排'}</p>
-   {details.data&&<p>平台：{details.data.snapshot.platforms.join('、')}；搜索词：{details.data.snapshot.configuration.keywords.join('、')}</p>}
+   {details.data&&<><p>平台：{details.data.snapshot.platforms.join('、')}；搜索词：{details.data.snapshot.configuration.keywords.join('、')}</p>
+    {details.data.snapshot.platforms.includes('PUBLIC_WEB')&&<p className="field-hint">公开来源为 V2EX 近期主题定时抽样，不覆盖历史或全站；列表消失不表示需求关闭。</p>}</>}
    <ResourceStatus loading={details.loading} error={details.error}/>
    {selected.lastError&&<Notice tone="warning">{hints[selected.lastError]||`本机需要处理：${selected.lastError}，请核对账号与原执行记录。`}</Notice>}
    <div className="task-footer">{actions(selected)}<Button onClick={()=>navigate('/opportunities')}>查看商机库</Button></div>

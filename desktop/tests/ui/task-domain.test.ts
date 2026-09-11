@@ -79,4 +79,16 @@ describe("task draft invariants", () => {
     const monitor = {...once, mode: 'monitor', schedule: {...newTaskDraft('monitor').schedule}};
     expect(startBlockers(monitor, [profile], [connection], true, true)).not.toContain(expect.stringContaining('排除词'));
   });
+  it('allows only explicitly monitor-enabled public bindings for public and mixed monitors',()=>{
+    const profile={id:'p1',version:1,status:'CONFIRMED'} as any;
+    const device='11111111-1111-4111-8111-111111111111',connection='22222222-2222-4222-8222-222222222222';
+    const account='66c01234abcdef0123456789';
+    const native={platform:'xhs',accountId:account,status:'CONNECTED',capabilities:['search'],registration:{deviceId:device,connectionId:connection,version:1,connectedAt:'2026-09-10T00:00:00Z',disconnectedAt:null},foregroundBinding:{mode:'four-platform-foreground-v1',platform:'XIAOHONGSHU',connectionId:connection,connectionVersion:1,deviceId:device,accountPublicId:account}} as any;
+    const publicRow={platform:'web',accountId:null,accountName:null,status:'CONNECTED',capabilities:['search'],publicBinding:{sourceId:'v2ex-latest-v1',deviceId:device,monitorSupported:true}} as any;
+    const draft={...newTaskDraft('monitor'),name:'监控',profileId:'p1',profileVersion:1,terms:[makeTerm('采购')],platforms:['web'],accounts:{},executionLimits:{max_records:10,max_runtime_seconds:60}} as any;
+    expect(startBlockers(draft,[profile],[publicRow],true,true)).toEqual([]);
+    expect(startBlockers({...draft,platforms:['xhs','web'],accounts:{xhs:account}},[profile],[native,publicRow],true,true)).toEqual([]);
+    expect(startBlockers(draft,[profile],[{...publicRow,publicBinding:{sourceId:'v2ex-latest-v1',deviceId:device}}],true,true).some(x=>x.includes('持续监控'))).toBe(true);
+    expect(startBlockers({...draft,platforms:['xhs','web'],accounts:{xhs:account}},[profile],[native,{...publicRow,publicBinding:{...publicRow.publicBinding,deviceId:'33333333-3333-4333-8333-333333333333'}}],true,true).some(x=>x.includes('同一本机'))).toBe(true);
+  });
 });

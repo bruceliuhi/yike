@@ -128,6 +128,47 @@ def test_support_keeps_legacy_modes_and_only_new_policy_adds_public_source():
         'schema_version': 'foreground-collection-support-v1', 'mode': 'four-platform-foreground-v1'}
 
 
+def sampling_monitor_policy():
+    return collection.configured_collection_policy({
+        'YIKE_PILOT_COLLECTION_MODE': 'four-platform-public-sampling-monitor-v1'})
+
+
+def test_public_monitor_is_separately_opted_in_and_preserves_confirmed_snapshot():
+    value = config() | {'publicSource': 'v2ex-latest-v1', 'mode': 'monitor', 'schedule': schedule()}
+    original = deepcopy(value)
+    policy = sampling_monitor_policy()
+    assert policy('PUBLIC_WEB', 'PUBLIC_ANONYMOUS', value)
+    assert value == original
+    assert not public_policy()('PUBLIC_WEB', 'PUBLIC_ANONYMOUS', value)
+    assert policy('PUBLIC_WEB', 'PUBLIC_ANONYMOUS', config() | {'publicSource': 'v2ex-latest-v1'})
+    for platform in ('XIAOHONGSHU', 'DOUYIN', 'BILIBILI', 'ZHIHU'):
+        assert policy(platform, 'PLATFORM_ACCOUNT', value)
+        assert not policy(platform, 'PUBLIC_ANONYMOUS', value)
+    assert not policy('PUBLIC_WEB', 'PLATFORM_ACCOUNT', value)
+
+
+@pytest.mark.parametrize('change', [
+    {'schedule': None}, {'schedule': schedule() | {'policyVersion': 2}},
+    {'publicSource': None}, {'publicSource': 'other'}, {'source': 'links'},
+    {'links': ['https://example.org']}, {'research': {}}, {'keywords': []},
+    {'keywords': ['需求,服务']}, {'keywords': [' 需求']}, {'extra': True},
+])
+def test_public_monitor_rejects_unsupported_scope(change):
+    value = config() | {'publicSource': 'v2ex-latest-v1', 'mode': 'monitor', 'schedule': schedule()}
+    assert not sampling_monitor_policy()('PUBLIC_WEB', 'PUBLIC_ANONYMOUS', value | change)
+
+
+def test_public_monitor_support_distinguishes_once_and_periodic_sampling():
+    value, calls = runtime(sampling_monitor_policy())
+    assert collection.foreground_collection_support(value, 'claims') == {
+        'schema_version': 'foreground-collection-support-v1', 'mode': 'four-platform-foreground-v1',
+        'public_source': 'v2ex-latest-v1', 'public_monitor': True}
+    assert MonitorRuntime(value.database, value).support('claims') == {
+        'schema_version': 'monitor-runtime-support-v1', 'mode': 'four-platform-monitor-v1',
+        'public_source': 'v2ex-latest-v1'}
+    assert len(calls) == 4
+
+
 def test_ui_research_capability_lookup_uses_the_real_anonymous_access_mode(monkeypatch):
     from pilot.ui_api import register_ui_api
     from tests.test_ui_api import FakeStore

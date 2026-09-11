@@ -23,7 +23,7 @@ export interface CollectionDriver {
   // Synchronous handle creation guarantees there is always a stop handle once
   // any source process starts. The driver owns raw output preservation/cleanup.
   start(input: {snapshot: StrategyView['snapshot']; target: NonNullable<ExecutionOperation['targets']>[number];
-    lease: Lease; maxRecords: number; signal: AbortSignal}): {completed: Promise<unknown[]>; stop(): Promise<void>};
+    lease: Lease; maxRecords: number; signal: AbortSignal;allowMonitor?:boolean}): {completed: Promise<unknown[]>; stop(): Promise<void>};
 }
 export interface CollectionWorkerOptions {
   execution: Pick<ReturnType<typeof createExecutionSession>, 'submit'>;
@@ -136,7 +136,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
         lease = claimed;
         const maxRecords = input.platformMaxRecords??Math.min(strategy.snapshot.max_records, 100);
         process = driver.start({snapshot: structuredClone(strategy.snapshot), target: structuredClone(target),
-          lease: structuredClone(lease), maxRecords, signal: abort.signal});
+          lease: structuredClone(lease), maxRecords, signal: abort.signal,...(input.allowMonitor===true?{allowMonitor:true}:{})});
         timer = setInterval(() => {
           if (!scope.session.isCurrent()) stop('SESSION_CHANGED');
           if (performance.now() >= leaseDeadline) stop('LEASE_EXPIRED');

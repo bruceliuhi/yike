@@ -47,7 +47,8 @@ export function createPublicCommunityDriver(options:{fetch?:typeof fetch;now?:()
   // This local cooldown does not promise a quota across devices sharing an IP.
   let nextRequestAt=0;
   return {start(original) {
-    const input=structuredClone({snapshot:original.snapshot,target:original.target,lease:original.lease,maxRecords:original.maxRecords});
+    const input=structuredClone({snapshot:original.snapshot,target:original.target,lease:original.lease,maxRecords:original.maxRecords,
+      ...(original.allowMonitor===true?{allowMonitor:true as const}:{})});
     const abort=new AbortController();
     let cancelled=original.signal.aborted,timedOut=false,finished=false;
     let timer:ReturnType<typeof setTimeout>|undefined;
@@ -61,8 +62,10 @@ export function createPublicCommunityDriver(options:{fetch?:typeof fetch;now?:()
           const {snapshot,target,maxRecords}=input;
           configuration=strategyConfigurationSchema.parse(snapshot.configuration);
           const lease=executionReceiptSchema.parse(input.lease);
-          if((lease.operation!=='CLAIM'&&lease.operation!=='RENEW')||lease.execution_generation!==1||
-              configuration.source!=='search'||configuration.mode!=='once'||configuration.schedule!==null||
+          const approvedMode=configuration.mode==='once'&&configuration.schedule===null || input.allowMonitor===true&&
+            configuration.mode==='monitor'&&configuration.schedule?.policyVersion===1;
+          if((lease.operation!=='CLAIM'&&lease.operation!=='RENEW')||lease.execution_generation!==1||!approvedMode||
+              configuration.source!=='search'||
               configuration.links.length||configuration.research!==null||configuration.publicSource!=='v2ex-latest-v1'||
               target.platform!=='PUBLIC_WEB'||target.access_mode!=='PUBLIC_ANONYMOUS'||target.connection_id!==null||target.connection_version!==null||
               !snapshot.platforms.includes('PUBLIC_WEB')||!positive(maxRecords,100)||!positive(snapshot.max_records,10000)||maxRecords>snapshot.max_records||

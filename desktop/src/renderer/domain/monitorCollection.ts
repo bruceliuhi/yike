@@ -1,7 +1,7 @@
 import {strategyReceiptSchema,strategyViewSchema,type StrategyReceipt,type StrategyView} from '../../shared/researchStrategies';
 import {monitorCollectionCommandSchema,type MonitorCollectionCommand} from '../../shared/monitorCollection';
 import {strategyPrepareRequest} from './researchStrategies';
-import {hasForegroundBinding} from './task';
+import {hasForegroundBinding,hasPublicSourceBinding} from './task';
 import {validStrategyExecutionLimits} from './strategyExecutionLimits';
 import type {TaskDraft,PlatformConnection} from './models';
 
@@ -12,6 +12,11 @@ export function monitorTargets(view:StrategyView,connections:PlatformConnection[
  const codes={XIAOHONGSHU:'xhs',DOUYIN:'douyin',BILIBILI:'bilibili',ZHIHU:'zhihu'} as const;
  const devices=new Set<string>();
  const targets=snapshot.platforms.map(platform=>{
+  if(platform==='PUBLIC_WEB'){
+   const rows=connections.filter(row=>hasPublicSourceBinding(row)&&row.publicBinding?.monitorSupported===true);
+   if(rows.length!==1||snapshot.configuration.publicSource!=='v2ex-latest-v1')throw new Error('V2EX近期主题持续监控尚未接通。');
+   devices.add(rows[0].publicBinding!.deviceId);return {platform:'PUBLIC_WEB' as const,access_mode:'PUBLIC_ANONYMOUS' as const,connection_id:null,connection_version:null};
+  }
   if(!(platform in codes))throw new Error('该平台的持续监控尚未接通。');
   const code=codes[platform as keyof typeof codes];
   const rows=connections.filter(row=>row.platform===code && hasForegroundBinding(row) && (!accounts || row.accountId===accounts[code]));
