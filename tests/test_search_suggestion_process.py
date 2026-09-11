@@ -14,7 +14,10 @@ import pytest
 
 DESCRIPTION = "我们为制造企业提供设备维修与预防性维护。"
 CONTENT = dict(keywords=["设备维修服务"], exclusions=[], rationale="业务介绍明确提供设备维护。",
-               evidence=["设备维修与预防性维护"], unknowns=["服务地区尚未明确"])
+               evidence=["设备维修与预防性维护"], unknowns=["服务地区尚未明确"],
+               strategy={"version":"industry-search-strategy-v1","buyerRole":"制造企业","salesMotion":None,
+                         "sourceTypes":["PROCUREMENT"],"intentSignals":["正在寻找设备维修服务商"],
+                         "counterSignals":["设备维修服务广告"],"basis":["制造企业","设备维修与预防性维护"]})
 USAGE = dict(prompt_tokens=10, completion_tokens=20, total_tokens=30)
 
 

@@ -243,7 +243,11 @@ def test_no_data_uses_xhs_directory(runtime, tmp_path):
 
 def test_applied_patch_hashes_match_lock(source):
     lock=json.loads((ROOT/'vendor/mediacrawler.lock').read_text())
-    assert len(lock['patches']) == 2
+    assert [patch['path'] for patch in lock['patches']] == [
+        'vendor/patches/mediacrawler/0001-yike-controlled-runtime.patch',
+        'vendor/patches/mediacrawler/0002-yike-xhs-runtime.patch',
+        'vendor/patches/mediacrawler/0003-yike-zhihu-runtime.patch',
+    ]
     for path,digest in lock['patched_files'].items():
         assert hashlib.sha256((source/path).read_bytes()).hexdigest() == digest, path
 

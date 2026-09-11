@@ -244,7 +244,7 @@ def test_http_human_check_and_review_import_exact_words_with_durable_original_re
     detail = client.get("/api/ui/opportunities/" + oid)
     assert detail.status_code == 200, detail.text
     opportunity = detail.json()["opportunity"]
-    assert opportunity["source_status"] == "UNVERIFIED"
+    assert opportunity["source_status"] == "OPEN"
     assert opportunity["match_reason"] == evidence["matchReason"]
     assert opportunity["draft_comment"] == assessment()["draftComment"]
     assert opportunity["draft_dm"] == assessment()["draftDm"]

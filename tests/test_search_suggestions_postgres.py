@@ -75,6 +75,8 @@ def databases():
         if GRANT.exists():
             conn.execute("SELECT set_config('yike.app_role', %s, true)", (app_parts.username,))
             conn.execute(GRANT.read_text(encoding="utf-8"))
+            # Runtime also installs material-reference permissions after migration 132.
+            conn.execute((ROOT / "deploy/grant_materials.sql").read_text(encoding="utf-8"))
     return admin, app
 
 

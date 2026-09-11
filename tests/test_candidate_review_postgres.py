@@ -26,7 +26,8 @@ TABLES = ('pilot_candidate_reviews', 'pilot_candidate_source_verifications',
 def databases(raw_databases):
     admin, db = raw_databases
     grants = [Path(__file__).parents[1] / 'deploy' / name for name in (
-        'grant_candidate_review.sql', 'grant_opportunity_evidence.sql')]
+        'grant_candidate_review.sql', 'grant_opportunity_evidence.sql',
+        'grant_materials.sql', 'grant_structured_followups.sql')]
     if all(grant.exists() for grant in grants):
         with db.connect() as conn:
             role = conn.execute('SELECT current_user').fetchone()[0]
@@ -197,7 +198,7 @@ def test_signed_raw_assess_verify_include_and_legacy_read(env):
     assert included['receipt']['reviewedBy'] == env.claims.user_id
     assert included['candidate']['status'] == 'IMPORTED'
     opportunity = env.store.get_opportunity(env.claims.user_id, included['receipt']['opportunityId'])
-    assert opportunity['source_status'] == 'UNVERIFIED'
+    assert opportunity['source_status'] == 'OPEN'
     assert opportunity['public_excerpt'] == CONTENT['body']
     assert store(env).get_request(env.claims, decision['requestId']) == included
     page = service.list_candidates(env.claims)

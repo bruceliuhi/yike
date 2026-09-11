@@ -5,6 +5,7 @@ same isolated test database with distinct roles. No URL is logged or persisted.
 The test runner must discard the database afterwards; tenant names are unique.
 """
 import os
+from pathlib import Path
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -55,6 +56,10 @@ def stores():
             "pilot_source_observations, pilot_opportunities, pilot_opportunity_evidence, "
             "pilot_followups TO {}"
         ).format(sql.Identifier(app_identity[0])))
+        # Profile save/read now qualifies material references; use the existing release grant.
+        connection.execute("SELECT set_config('yike.app_role', %s, true)", (app_identity[0],))
+        connection.execute((Path(__file__).parents[1] / "deploy/grant_materials.sql").read_text(encoding="utf-8"))
+        connection.execute((Path(__file__).parents[1] / "deploy/grant_structured_followups.sql").read_text(encoding="utf-8"))
     return PilotStore(admin_database), PilotStore(app_database)
 
 

@@ -183,6 +183,7 @@ def test_same_second_tokens_are_independent_and_repeated_logout_is_idempotent(se
         for headers in (credentials(bearer=second), credentials(cookie=second)):
             assert client.get("/api/ui/session", headers=headers).json() == {
                 "authenticated": True, "user_id": sessions.users[0],
+                "account_scope": {"id": sessions.tenants[0], "version": 1},
             }
         assert client.post("/api/ui/session", json={"token": second}).status_code == 200
     assert len(revocations_for(sessions, sessions.users[0])) == 1

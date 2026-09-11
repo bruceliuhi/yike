@@ -135,7 +135,7 @@ def test_shared_http_actual_strategy_signed_review_and_revocation_chain(real_str
     assert fixed["assessment"]["id"] == assessed["assessment"]["id"]
     assert any(c["field"] == "source.body" for c in fixed["assessment"]["citations"])
     assert not any(c["field"] == "profile.description" for c in fixed["assessment"]["citations"])
-    assert detail_response.json()["opportunity"]["source_status"] == "UNVERIFIED"
+    assert detail_response.json()["opportunity"]["source_status"] == "OPEN"
     colleague = {"Authorization": "Bearer " + issue_token(env.users[1], SECRET)}
     assert client.get(detail_path, headers=colleague).json()["opportunity"]["source_evidence"] == evidence
     assert client.get("/api/ui/candidates", headers=colleague).json()["total"] == 0
