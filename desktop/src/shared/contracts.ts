@@ -57,7 +57,7 @@ export const API_OPERATIONS = [
   'followup.list', 'followup.replies', 'followup.mutate', 'followup.operation',
   'opportunities.list', 'opportunities.get', 'followups.list', 'followups.add',
   'replies.evidence',
-  'strategies.prepare', 'strategies.confirm', 'strategies.revoke', 'strategies.receipt', 'strategies.get',
+  'strategies.prepare', 'strategies.confirm', 'strategies.revoke', 'strategies.receipt', 'strategies.get', 'researchUsage.quote',
   'candidates.list', 'candidates.review', 'candidates.verifySource', 'candidates.request', 'candidates.rawEvidence',
   'materials.list', 'materials.mutate', 'materials.operation', 'materials.impact',
   'suggestions.preview', 'suggestions.submit', 'suggestions.receipt',

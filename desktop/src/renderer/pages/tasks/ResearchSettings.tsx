@@ -81,7 +81,7 @@ export function ResearchSettingsPanel({
         <Badge tone="blue">搜贝</Badge>
       </div>
       <div className="usage-estimate">
-        <span>预计消耗</span>
+        <span>{quote?.strategyBinding ? '资源上限估算' : '预计消耗'}</span>
         <strong>
           {quote
             ? `${quote.estimatedSoubei} 搜贝`

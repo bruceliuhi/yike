@@ -63,7 +63,7 @@ export function TaskConfirmationSummary({
                   </dd>
                 </div>
                 <div>
-                  <dt>预计消耗</dt>
+                  <dt>{usage?.strategyBinding ? '资源上限估算' : '预计消耗'}</dt>
                   <dd>
                     {usage
                       ? `${usage.estimatedSoubei} 搜贝 · ${usage.ruleVersion}`

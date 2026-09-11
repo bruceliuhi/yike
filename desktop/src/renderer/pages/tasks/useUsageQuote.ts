@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../../app/context";
 import { boundedRequest, RequestCancelled } from "../../app/boundedRequest";
 import { taskFingerprint } from "../../domain/task";
-import { configurationHash } from "../../domain/taskOperations";
+import { configurationHash, hashText } from "../../domain/taskOperations";
+import type {StrategyReceipt} from '../../../shared/researchStrategies';
 import type { TaskDraft } from "../../domain/models";
 import {
   parseUsageQuote,
@@ -12,10 +13,14 @@ import {
 } from "../../domain/researchUsage";
 import { errorMessage } from "../../services/contracts";
 
-export function useUsageQuote(draft: TaskDraft) {
+interface ConfirmedStrategy {confirmed: boolean; prepared: StrategyReceipt | null; recheck(): Promise<boolean>}
+export function useUsageQuote(draft: TaskDraft, strategy?: ConfirmedStrategy) {
   const { service, session } = useApp();
   const key = JSON.stringify([
     taskFingerprint(draft),
+    draft.executionLimits,
+    service.researchUsage?.requiresConfirmedStrategy ? [strategy?.confirmed, strategy?.prepared?.strategy_version_id,
+      strategy?.prepared?.configuration_sha256] : null,
     session.userId,
     session.authenticated,
     session.accountScope,
@@ -68,10 +73,22 @@ export function useUsageQuote(draft: TaskDraft) {
     try {
       if (!service.researchUsage)
         throw new Error("用量估算服务尚未接通，草稿可以继续编辑和保存。");
+      const prepared = strategy?.prepared;
+      const requiresStrategy = service.researchUsage.requiresConfirmedStrategy === true;
+      if (requiresStrategy && (!strategy?.confirmed || !prepared || prepared.draft_id !== draft.id ||
+          prepared.draft_revision !== draft.revision || prepared.profile_version_id !== draft.profileId ||
+          prepared.snapshot.max_records !== draft.executionLimits?.max_records ||
+          prepared.snapshot.max_runtime_seconds !== draft.executionLimits?.max_runtime_seconds || !await strategy.recheck()))
+        throw new Error('请先核对并确认当前研究策略，再估算用量。');
+      if (!current()) return;
+      const binding = requiresStrategy && prepared ? {strategyVersionId: prepared.strategy_version_id,
+        profileVersionId: prepared.profile_version_id, configurationSha256: prepared.configuration_sha256} : undefined;
+      const localHash = await configurationHash(draft);
       const input = usageQuoteRequest(
         draft,
         session,
-        await configurationHash(draft),
+        binding ? await hashText(JSON.stringify([localHash, draft.executionLimits, binding])) : localHash,
+        binding,
       );
       if (!current()) return;
       const raw = await boundedRequest(
@@ -99,7 +116,8 @@ export function useUsageQuote(draft: TaskDraft) {
   };
   return {
     ...visible,
-    valid: usageQuoteCurrent(visible.quote, draft, session),
+    valid: usageQuoteCurrent(visible.quote, draft, session) &&
+      (!service.researchUsage?.requiresConfirmedStrategy || strategy?.confirmed === true),
     estimate,
     cancel: () => controller.current?.abort(),
   };

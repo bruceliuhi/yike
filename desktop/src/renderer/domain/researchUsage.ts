@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Session, TaskDraft } from "./models";
 import { coverageProvenanceSchema } from "./coverageProvenance";
+import {confirmedResearchBindingSchema, type ConfirmedResearchBinding} from '../../shared/researchUsage';
 
 const id = z.string().trim().min(1).max(512);
 const count = z.number().int().positive().max(1000000);
@@ -75,6 +76,7 @@ export interface UsageQuoteRequest {
   revision: number;
   configurationHash: string;
   maxSoubei: number;
+  strategyBinding?: ConfirmedResearchBinding;
 }
 const quoteSchema = z
   .object({
@@ -88,7 +90,9 @@ const quoteSchema = z
     configurationHash: z.string().regex(/^[a-f0-9]{64}$/),
     quoteId: id,
     ruleVersion: id,
-    authorizationToken: id,
+    authorizationToken: z.string().min(1).max(8192),
+    strategyBinding: confirmedResearchBindingSchema.optional(),
+    ruleSha256: z.string().length(64).regex(/^[a-f0-9]{64}$/).optional(),
     maxSoubei: count,
     estimatedSoubei: z.number().finite().nonnegative().max(1000000),
     generatedAt: z.string().datetime({ offset: true }),
@@ -127,6 +131,7 @@ export function usageQuoteRequest(
   draft: TaskDraft,
   session: Session,
   configurationHash: string,
+  strategyBinding?: ConfirmedResearchBinding,
 ): UsageQuoteRequest {
   if (
     !session.authenticated ||
@@ -137,6 +142,8 @@ export function usageQuoteRequest(
   )
     throw new Error("账户用量范围尚未确认，请重新登录后核对。");
   const research = researchSettingsSchema.parse(draft.research);
+  if (strategyBinding && confirmedResearchBindingSchema.parse(strategyBinding).profileVersionId !== draft.profileId)
+    throw new Error('确认策略与当前业务画像不一致，请重新确认。');
   if (research.maxSoubei === null)
     throw new Error("请设置本次最多使用的搜贝数。");
   if (research.provenance && research.provenance.userId !== session.userId)
@@ -169,6 +176,7 @@ export function usageQuoteRequest(
       .regex(/^[a-f0-9]{64}$/)
       .parse(configurationHash),
     maxSoubei: research.maxSoubei,
+    ...(strategyBinding ? {strategyBinding: structuredClone(strategyBinding)} : {}),
   };
 }
 export function parseUsageQuote(
@@ -180,10 +188,13 @@ export function parseUsageQuote(
   if (!result.success)
     throw new Error("用量估算缺少可核验的计量规则，请重试。");
   const quote = result.data;
+  const {strategyBinding: expectedStrategy, ...expectedFlat} = expected;
   if (
-    Object.entries(expected).some(
+    Object.entries(expectedFlat).some(
       ([key, value]) => quote[key as keyof UsageQuote] !== value,
-    )
+    ) || (expectedStrategy ? (!quote.ruleSha256 || !quote.strategyBinding ||
+      Object.entries(expectedStrategy).some(([key,value]) => quote.strategyBinding![key as keyof ConfirmedResearchBinding] !== value))
+      : quote.strategyBinding !== undefined)
   )
     throw new Error("估算与当前账户、任务或用量上限不一致，请重新估算。");
   if (

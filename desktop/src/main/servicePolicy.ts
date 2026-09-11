@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {researchUsageRequestSchema} from '../shared/researchUsage';
 import {profileSaveSchema} from '../shared/profileMaterialReferences';
 import {opportunityBriefQueryWire} from '../shared/opportunityBrief';
 import {contactDraftSaveSchema,contactDraftOperationSchema,contactDraftLatestSchema} from '../shared/contactDrafts';
@@ -17,6 +18,7 @@ const identifier = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-][A-Za-z0-9_.:
 const text = z.string().max(8000).refine(value => value.trim().length > 0);
 const phone = z.string().length(11).regex(/^1[0-9]{10}$/);
 const schemas = {
+  'researchUsage.quote': researchUsageRequestSchema,
   'opportunityBrief.query': opportunityBriefQueryWire,
   'shortCoach.preview': coachInputSchema,
   'followup.list': empty,
@@ -94,6 +96,7 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
   if (operation.startsWith('strategies.') && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 128 * 1024) return null;
   const data = parsed.data as Record<string, string> | undefined;
   switch (operation) {
+    case 'researchUsage.quote': return {path:'/api/ui/research-usage/quote',method:'POST',body:JSON.stringify(parsed.data),logout:false};
     case 'opportunityBrief.query': return {path:'/api/ui/opportunity-brief/query',method:'POST',body:JSON.stringify(parsed.data),logout:false};
     case 'shortCoach.preview':
     case 'shortCoach.generate': return {path:`/api/ui/short-coach/${operation.slice('shortCoach.'.length)}`,method:'POST',body:JSON.stringify(parsed.data),logout:false,timeoutMs:25_000};

@@ -76,10 +76,10 @@ export function TaskWizardPage() {
     session.accountScope,
   );
   const [, setLibrary] = useTaskLibrary(session.userId, session.accountScope);
-  const usage = useUsageQuote(draft);
   const executionLimits = validStrategyExecutionLimits(draft.executionLimits);
   // Invalid/incomplete values never become suggested authority or leave this client.
   const strategy = useStrategyConfirmation(draft, executionLimits ?? { max_records: 0, max_runtime_seconds: 0 });
+  const usage = useUsageQuote(draft, strategy);
   const desktopExecution = useDesktopExecution(strategy.prepared);
   const monitors = useMonitorCollection();
   const nativeMonitor = draft.mode === 'monitor' && monitors.available;
@@ -1252,7 +1252,10 @@ export function TaskWizardPage() {
           <StrategyConfirmationPanel strategy={strategy} reviewed={reviewed} onReviewedChange={checked => setVerified(checked ? reviewKey : null)}
             disabled={starting} preparationError={strategyPreparationError} />
           {draft.research && <Notice action={<Button disabled={starting} onClick={usage.busy ? usage.cancel : () => void usage.estimate()}>{usage.busy ? "取消估算" : "重新估算"}</Button>}>
-            {usage.error || (usage.quote ? `预计 ${usage.quote.estimatedSoubei} 搜贝，最多 ${usage.quote.maxSoubei} 搜贝；确认后按本次规则执行。` : "请完成用量估算，再核对配置并启动。")}
+            {usage.error || (usage.quote ? usage.quote.strategyBinding
+              ? `资源上限估算 ${usage.quote.estimatedSoubei} 搜贝，最多 ${usage.quote.maxSoubei} 搜贝；未预留，也不是实际消耗预测。`
+              : `预计 ${usage.quote.estimatedSoubei} 搜贝，最多 ${usage.quote.maxSoubei} 搜贝；确认后按本次规则执行。`
+              : "请完成用量估算，再核对配置并启动。")}
           </Notice>}
           {blockers.length > 0 && (
             <details className="task-start-blockers">

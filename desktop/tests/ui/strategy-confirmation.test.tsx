@@ -4,6 +4,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TaskWizardPage } from "../../src/renderer/pages/TaskWizard";
 import { clearLocalDrafts } from "../../src/renderer/app/hooks";
+import {taskDraftOwner} from '../../src/renderer/app/taskDraft';
+import {createResearchUsageService} from '../../src/renderer/services/researchUsage';
 import { operationLedgerKey } from "../../src/renderer/app/operationLedger";
 import { newTaskDraft, EMPTY_PROFILE, type TaskDraft } from "../../src/renderer/domain/models";
 import { makeTerm } from "../../src/renderer/domain/task";
@@ -125,6 +127,32 @@ async function confirmSnapshot() {
 }
 
 describe("TaskWizard strategy confirmation with the actual controller", () => {
+  it('estimates the actual confirmed strategy through the real quote service without persisting its token', async () => {
+    context.session.accountScope={id:'TEST-space',version:1};
+    draft.research={version:1,demandTypes:['INQUIRY'],maxSoubei:100,limits:{sources:10,minutes:5,modelCalls:5},
+      stopAtAnyLimit:true,evidenceOrder:'SOURCE_MATCH_CONTEXT'};
+    const transport=vi.fn(async(_operation,_path,_method,request:any)=>({...request,
+      quoteId:crypto.randomUUID(),ruleVersion:'TEST-only',ruleSha256:'c'.repeat(64),authorizationToken:'TEST-no-persistence-token',
+      estimatedSoubei:10,generatedAt:new Date(Date.now()-1000).toISOString(),expiresAt:new Date(Date.now()+60000).toISOString(),
+      basis:'TEST 资源上限估算，不是实际消耗，未预留'}));
+    context.service.researchUsage=createResearchUsageService(transport);
+    sessionStorage.setItem('yike.ui.draft.v1.task.'+taskDraftOwner(context.session.userId,context.session.accountScope),JSON.stringify(draft));
+    render(<TaskWizardPage/>);
+    fireEvent.click(button('重新估算'));
+    await screen.findByText(/请先核对并确认当前研究策略/);
+    expect(transport).not.toHaveBeenCalled();
+    await confirmSnapshot();
+    fireEvent.click(button('重新估算'));
+    await waitFor(()=>expect(transport).toHaveBeenCalledOnce());
+    await screen.findByText(/资源上限估算 10 搜贝/);
+    const prepared=fake.receipts.get(fake.api.prepare.mock.calls[0][0].request_id)!;
+    expect(transport.mock.calls[0][3].strategyBinding).toEqual({strategyVersionId:prepared.strategy_version_id,
+      profileVersionId:prepared.profile_version_id,configurationSha256:prepared.configuration_sha256});
+    expect(JSON.stringify(localStorage)).not.toContain('TEST-no-persistence-token');
+    expect(JSON.stringify(sessionStorage)).not.toContain('TEST-no-persistence-token');
+    expect(button('确认并启动').disabled).toBe(true);
+    expect(context.service.startTask).not.toHaveBeenCalled();
+  });
   it('prepares and confirms a similar-research origin while keeping research execution blocked',async()=>{
     draft.research={version:1,demandTypes:['INQUIRY'],maxSoubei:100,limits:{sources:10,minutes:5,modelCalls:5},
       stopAtAnyLimit:true,evidenceOrder:'SOURCE_MATCH_CONTEXT',provenance:{requestId:crypto.randomUUID(),

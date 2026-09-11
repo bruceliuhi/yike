@@ -65,7 +65,10 @@ beforeEach(() => {
     profileId: "TEST-profile",
     profileVersion: 1,
     terms: [makeTerm("公开询价")],
-    platforms: ["web"],
+    // This fixture tests the historical usage/start receipt protocol, not the
+    // public V2EX collector (which deliberately cannot execute research).
+    platforms: ["bilibili"],
+    accounts: {bilibili: "TEST-account"},
     research: { ...defaultResearchSettings(), maxSoubei: 50 },
   };
   context = {
@@ -81,7 +84,8 @@ beforeEach(() => {
       ]),
       connections: vi.fn().mockResolvedValue([
         {
-          platform: "web",
+          platform: "bilibili",
+          accountId: "TEST-account",
           status: "CONNECTED",
           capabilities: ["search", "read"],
         },
@@ -365,7 +369,7 @@ describe("R4 usage bindings and recovered start protection", () => {
         name: draft.name,
         mode: "once",
         status: "PENDING",
-        platforms: ["web"],
+        platforms: ["bilibili"],
       },
     };
     expect(() =>
