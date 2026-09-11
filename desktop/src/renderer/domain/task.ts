@@ -12,7 +12,7 @@ import {foregroundBindingSchema} from '../../shared/foregroundCollection';
 
 export function hasForegroundBinding(connection: PlatformConnection): boolean {
   const parsed = foregroundBindingSchema.safeParse(connection.foregroundBinding);
-  const platform={xhs:'XIAOHONGSHU',douyin:'DOUYIN',bilibili:'BILIBILI'} as const;
+  const platform={xhs:'XIAOHONGSHU',douyin:'DOUYIN',bilibili:'BILIBILI',zhihu:'ZHIHU'} as const;
   if (!parsed.success || !connection.registration || !(connection.platform in platform) ||
       parsed.data.platform!==platform[connection.platform as keyof typeof platform] || connection.status !== 'CONNECTED') return false;
   const binding = parsed.data, registration = connection.registration;
@@ -197,8 +197,9 @@ export function startBlockers(
   const nativeSelections = draft.platforms.map(platform => connections.find(c => c.platform === platform &&
     c.accountId === draft.accounts[platform] && hasForegroundBinding(c)));
   const multiOnce = draft.mode === 'once' && draft.platforms.length > 1 && nativeSelections.every(c =>
-    c?.foregroundBinding?.mode === 'three-platform-foreground-v1') &&
-    new Set(nativeSelections.map(c => c?.registration?.deviceId)).size === 1;
+    ['three-platform-foreground-v1','four-platform-foreground-v1'].includes(c?.foregroundBinding?.mode ?? '')) &&
+    new Set(nativeSelections.map(c => c?.registration?.deviceId)).size === 1 &&
+    new Set(nativeSelections.map(c => c?.foregroundBinding?.mode)).size === 1;
   if (nativeSelections.some(Boolean) && draft.executionLimits &&
       (draft.executionLimits.max_records ?? 0) < draft.platforms.length)
     blockers.push('共享记录上限不能小于所选平台数。');
@@ -216,7 +217,7 @@ export function startBlockers(
       continue;
     }
     const nativeMonitor = nativeMonitorReady && draft.mode === 'monitor' && hasForegroundBinding(connection) &&
-      draft.platforms.every(p => ['xhs','douyin','bilibili'].includes(p));
+      draft.platforms.every(p => ['xhs','douyin','bilibili','zhihu'].includes(p));
     if (connection.registration && ((!nativeMonitor && !multiOnce && (draft.platforms.length !== 1 || draft.mode !== 'once')) ||
         draft.source !== 'search' ||
         draft.links.trim() !== '' || draft.research))

@@ -9,7 +9,7 @@ import type {NativeLoginPlatform} from '../../shared/platformAccount';
 type Bridge = Pick<YikeDesktopApi, 'platformConnectionCommand'>;
 type Invoke = (command: PlatformConnectionCommand) => Promise<PlatformConnectionResult>;
 type Flow = {id: string; platform: NativeLoginPlatform; invoke: Invoke};
-const nativePlatforms = {xhs:'XIAOHONGSHU',douyin:'DOUYIN',bilibili:'BILIBILI'} as const;
+const nativePlatforms = {xhs:'XIAOHONGSHU',douyin:'DOUYIN',bilibili:'BILIBILI',zhihu:'ZHIHU'} as const;
 const cancelled = () => new DOMException('平台连接等待已取消。', 'AbortError');
 const unavailable = () => new ServiceError('SERVICE_UNAVAILABLE', '本机平台登录尚未配置或暂不可用，请检查客户端与设备状态。');
 function failure(result: PlatformConnectionResult): ServiceError {

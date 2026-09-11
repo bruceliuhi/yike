@@ -7,11 +7,23 @@ export const foregroundCollectionCommandSchema=z.discriminatedUnion('action',[
  z.object({action:z.literal('STATUS'),taskId:uuid}).strict(),
  z.object({action:z.literal('RECOVER'),taskId:uuid,humanConfirmed:z.literal(true),retry:z.boolean().optional()}).strict(),
 ]);
-export const foregroundBindingSchema=z.object({mode:z.enum(['xhs-foreground-v1','three-platform-foreground-v1']),platform:nativeLoginPlatformSchema,
+export const foregroundModeSchema=z.enum(['xhs-foreground-v1','three-platform-foreground-v1','four-platform-foreground-v1']);
+export function supportsForegroundPlatform(mode:unknown,platform:unknown):boolean {
+ return nativeLoginPlatformSchema.safeParse(platform).success && (mode==='four-platform-foreground-v1' ||
+  mode==='three-platform-foreground-v1' && platform!=='ZHIHU' || mode==='xhs-foreground-v1' && platform==='XIAOHONGSHU');
+}
+export const monitorSupportSchema=z.object({schema_version:z.literal('monitor-runtime-support-v1'),
+ mode:z.enum(['three-platform-monitor-v1','four-platform-monitor-v1']).nullable()}).strict();
+export function monitorForegroundMode(value:unknown) {
+ const parsed=monitorSupportSchema.safeParse(value);
+ return !parsed.success || parsed.data.mode===null ? null : parsed.data.mode==='four-platform-monitor-v1'
+  ? 'four-platform-foreground-v1' as const : 'three-platform-foreground-v1' as const;
+}
+export const foregroundBindingSchema=z.object({mode:foregroundModeSchema,platform:nativeLoginPlatformSchema,
  connectionId:uuid,connectionVersion:z.number().int().min(1).max(2147483647),deviceId:uuid,accountPublicId:z.string().min(1).max(64)}).strict()
- .superRefine((value,ctx)=>{if(value.mode==='xhs-foreground-v1' && value.platform!=='XIAOHONGSHU' || !validNativeAccount(value.platform,value.accountPublicId))
+ .superRefine((value,ctx)=>{if(!supportsForegroundPlatform(value.mode,value.platform) || !validNativeAccount(value.platform,value.accountPublicId))
   ctx.addIssue({code:'custom',message:'invalid foreground account binding'});});
-const foregroundBindingsSchema=z.array(foregroundBindingSchema).min(1).max(3).superRefine((values,ctx)=>{
+const foregroundBindingsSchema=z.array(foregroundBindingSchema).min(1).max(4).superRefine((values,ctx)=>{
  if(new Set(values.map(value=>value.platform)).size!==values.length)ctx.addIssue({code:'custom',message:'duplicate foreground platform'});
  if(new Set(values.map(value=>value.mode)).size!==1)ctx.addIssue({code:'custom',message:'mixed foreground mode'});
 });

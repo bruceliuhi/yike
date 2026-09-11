@@ -119,12 +119,12 @@ it('concurrent capability reads share one probe and bind only the protected curr
  expect(results[0]).toEqual(results[1]);expect(results[0]).toMatchObject({state:'AVAILABLE',bindings:[{connectionId:id(5),deviceId:id(2)}]});
  expect(f.probe).toHaveBeenCalledTimes(1);expect(f.options.store.read).toHaveBeenCalledTimes(1);
 });
-it.each(['DOUYIN','BILIBILI'] as const)('starts selected %s target only in three-platform server mode',async platform=>{
+it.each(['DOUYIN','BILIBILI','ZHIHU'] as const)('starts selected %s target only in its explicit server mode',async platform=>{
  const f=fixture();const account=platform==='DOUYIN'?'douyin.account-1':'123456789';
  f.command.targets[0].platform=platform as any;f.strategy.snapshot.platforms=[platform] as any;
  const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.command.configurationSha256=hash;f.strategy.configuration_sha256=hash;
  f.scope.transport.requestExecution.mockImplementation(async(input:any)=>({ok:true,status:200,data:input.operation==='execution.support'
-  ?{schema_version:'foreground-collection-support-v1',mode:'three-platform-foreground-v1'}
+  ?{schema_version:'foreground-collection-support-v1',mode:platform==='ZHIHU'?'four-platform-foreground-v1':'three-platform-foreground-v1'}
   :{task_id:id(6),run_id:id(7),status:'PENDING',stop_confirmed:false,profile_version_id:id(3),strategy_version_id:id(4),max_records:50,records_used:0,deadline_at:'2099-09-10T00:10:00Z',platform_runs:[{platform_run_id:id(8),platform,status:'PENDING',execution_generation:0,records_used:0}]}}));
  f.resolveAccount.mockResolvedValue({profileId:id(30),accountPublicId:account});
  f.startReceipt.platform_runs[0].platform=platform as any;
@@ -222,4 +222,28 @@ it('monitor source stop failure latches the same foreground slot',async()=>{
  f.finish({state:'FAILED',error:'SOURCE_STOP_FAILED',taskCompleted:false});await new Promise(resolve=>setImmediate(resolve));
  expect(f.controller.canStart()).toBe(false);await expect(f.controller.stop(id(6))).rejects.toThrow('SOURCE_STOP_FAILED');
  await expect(f.controller.shutdown()).rejects.toThrow('SOURCE_STOP_FAILED');
+});
+
+it.each(['three-platform-foreground-v1','xhs-foreground-v1'])('rejects Zhihu before START in %s',async mode=>{
+ const f=fixture();f.command.targets[0].platform='ZHIHU';
+ f.scope.transport.requestExecution.mockResolvedValue({ok:true,status:200,data:{schema_version:'foreground-collection-support-v1',mode}} as any);
+ expect(await f.controller.start(f.command)).toEqual({state:'SERVICE_UNAVAILABLE'});
+ expect(f.execution.submit).not.toHaveBeenCalled();expect(f.driverFactory).not.toHaveBeenCalled();
+});
+it.each(['three-platform-monitor-v1','four-platform-monitor-v1'])('Zhihu monitor dispatch respects %s',async mode=>{
+ const f=fixture();f.command.targets[0].platform='ZHIHU';f.strategy.snapshot.platforms=['ZHIHU'];f.startReceipt.platform_runs[0].platform='ZHIHU';
+ const c:any=f.strategy.snapshot.configuration;c.mode='monitor';c.schedule={kind:'daily',times:['09:30'],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1};
+ const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.strategy.configuration_sha256=hash;
+ f.scope.transport.requestExecution.mockResolvedValue({ok:true,status:200,data:{schema_version:'monitor-runtime-support-v1',mode}} as any);
+ f.resolveAccount.mockResolvedValue({profileId:id(30),accountPublicId:'123456'});
+ const start={schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:hash,targets:f.command.targets};
+ expect(await f.controller.validateMonitorBinding(id(3),id(4),start.targets as any)).toBe(mode==='four-platform-monitor-v1');
+ if(mode==='four-platform-monitor-v1'){
+  expect(await f.controller.startMonitor(start)).toMatchObject({state:'RECORDED'});
+  expect(f.driverFactory).toHaveBeenCalledWith(expect.objectContaining({allowMonitor:true,binding:expect.objectContaining({platform:'ZHIHU',expectedAccountPublicId:'123456'})}));
+  f.finish();await f.controller.shutdown();
+ }else{
+  expect(await f.controller.startMonitor(start)).toEqual({state:'SERVICE_UNAVAILABLE'});
+  expect(f.execution.submit).not.toHaveBeenCalled();expect(f.driverFactory).not.toHaveBeenCalled();
+ }
 });

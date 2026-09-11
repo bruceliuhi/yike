@@ -9,7 +9,7 @@ export function monitorTargets(view:StrategyView,connections:PlatformConnection[
  const strategy=strategyViewSchema.parse(view),snapshot=strategy.snapshot;
  if(strategy.state!=='CONFIRMED' || !strategy.is_current || !strategy.profile_current || !strategy.confirmed_at || strategy.revoked_at ||
   snapshot.configuration.mode!=='monitor' || snapshot.configuration.schedule?.policyVersion!==1 || snapshot.configuration.research!==null)throw new Error('当前监控策略尚未确认或已失效。');
- const codes={XIAOHONGSHU:'xhs',DOUYIN:'douyin',BILIBILI:'bilibili'} as const;
+ const codes={XIAOHONGSHU:'xhs',DOUYIN:'douyin',BILIBILI:'bilibili',ZHIHU:'zhihu'} as const;
  const devices=new Set<string>();
  const targets=snapshot.platforms.map(platform=>{
   if(!(platform in codes))throw new Error('该平台的持续监控尚未接通。');

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import {monitorSupportSchema as supportSchema} from "../shared/foregroundCollection";
 import {
   executionOperationSchema,
   type ExecutionOperation,
@@ -47,12 +48,7 @@ const receiptSchema = z
     recorded_at: z.string().datetime({ offset: true }),
   })
   .strict();
-const supportSchema = z
-  .object({
-    schema_version: z.literal("monitor-runtime-support-v1"),
-    mode: z.literal("three-platform-monitor-v1").nullable(),
-  })
-  .strict();
+
 const occurrenceSchema = z
   .object({
     id: uuid,

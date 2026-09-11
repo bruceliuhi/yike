@@ -6,7 +6,7 @@ import {executionOperationSchema} from '../shared/executionOperation';
 import {parseExecutionReceipt} from '../shared/executionReceipt';
 import {strategyViewSchema} from '../shared/researchStrategies';
 import {connectionRegistryRowSchema} from '../shared/platformConnection';
-import {foregroundCollectionCommandSchema,type ForegroundCollectionResult} from '../shared/foregroundCollection';
+import {foregroundCollectionCommandSchema,foregroundModeSchema,supportsForegroundPlatform,monitorForegroundMode,type ForegroundCollectionResult} from '../shared/foregroundCollection';
 import {deviceUuidSchema as uuid} from '../shared/deviceRegistration';
 import type {createDeviceIdentityController,DeviceWorkerScope} from './deviceIdentityController';
 import type {ExecutionJournal} from './executionJournal';
@@ -32,7 +32,7 @@ interface Options {
  workerFactory?:typeof createCollectionWorker; driverFactory?:typeof createPythonCollectionDriver;
  resolveAccount?:typeof resolveCollectionAccount;probe?:typeof probeCollectionRuntime;
 }
-const supportSchema=z.object({schema_version:z.literal('foreground-collection-support-v1'),mode:z.enum(['xhs-foreground-v1','three-platform-foreground-v1']).nullable()}).strict();
+const supportSchema=z.object({schema_version:z.literal('foreground-collection-support-v1'),mode:foregroundModeSchema.nullable()}).strict();
 const rowsSchema=z.object({items:z.array(connectionRegistryRowSchema).max(10000)}).strict();
 const stateSchema=z.enum(['PENDING','RUNNING','CANCELLING','CANCELED','SUCCEEDED']);
 const taskSchema=z.object({task_id:uuid,run_id:uuid,status:stateSchema,stop_confirmed:z.boolean(),profile_version_id:uuid,strategy_version_id:uuid,
@@ -93,10 +93,10 @@ export function createForegroundCollectionController(options:Options) {
    scope=await open();const mode=await supported(scope);
    const response=await scope.transport.requestConnection({operation:'connections.current'});guard(scope);if(!response.ok)throw new Error();
    const rows=rowsSchema.parse(response.data).items;if(new Set(rows.map(row=>row.connection_id)).size!==rows.length)throw new Error();
-   const platforms:NativeLoginPlatform[]=['XIAOHONGSHU','DOUYIN','BILIBILI'];
+   const platforms:NativeLoginPlatform[]=['XIAOHONGSHU','DOUYIN','BILIBILI','ZHIHU'];
    const bindings=[];
    for(const platform of platforms){
-    if(mode==='xhs-foreground-v1' && platform!=='XIAOHONGSHU')continue;
+    if(!supportsForegroundPlatform(mode,platform))continue;
     try{
      const record=await options.store.read({serviceOrigin,userId:scope.session.userId,deviceId:scope.device.deviceId,platform});guard(scope);
      if(record?.state!=='RESOLVED')continue;
@@ -167,7 +167,8 @@ export function createForegroundCollectionController(options:Options) {
    let scope:DeviceWorkerScope|undefined;
    try{
     scope=await open();const support=await scope.transport.requestExecution({operation:'monitor.support'});guard(scope);
-    if(!support.ok||supportSchema.safeParse({schema_version:'foreground-collection-support-v1',mode:support.data&&typeof support.data==='object'&&'mode' in support.data&&support.data.mode==='three-platform-monitor-v1'?'three-platform-foreground-v1':null}).data?.mode)throw new Error();
+    const mode=monitorForegroundMode(support.ok?support.data:null);
+    if(!support.ok||!mode||targets.some(target=>!supportsForegroundPlatform(mode,target.platform)))throw new Error();
     if(!await (options.probe??probeCollectionRuntime)(configuration))throw new Error();
     const response=await identity.requestApi({operation:'strategies.get',payload:{strategy_version_id:strategyId}});guard(scope);if(!response.ok)throw new Error();
     const strategy=strategyViewSchema.parse(response.data),snapshot=strategy.snapshot,c=snapshot.configuration;
@@ -188,7 +189,8 @@ export function createForegroundCollectionController(options:Options) {
    try{
     const start=parsed.data,targets=start.targets!;scope=await open();
     const monitorSupport=await scope.transport.requestExecution({operation:'monitor.support'});guard(scope);
-    if(!monitorSupport.ok||!monitorSupport.data||typeof monitorSupport.data!=='object'||(monitorSupport.data as any).schema_version!=='monitor-runtime-support-v1'||(monitorSupport.data as any).mode!=='three-platform-monitor-v1')throw new Error();
+    const mode=monitorForegroundMode(monitorSupport.ok?monitorSupport.data:null);
+    if(!monitorSupport.ok||!mode||targets.some(target=>!supportsForegroundPlatform(mode,target.platform)))throw new Error();
     if(!await (options.probe??probeCollectionRuntime)(configuration))throw new Error();guard(scope);
     const strategyResponse=await identity.requestApi({operation:'strategies.get',payload:{strategy_version_id:start.strategy_version_id}});guard(scope);if(!strategyResponse.ok)throw new Error();
     const strategy=strategyViewSchema.parse(strategyResponse.data),snapshot=strategy.snapshot,c=snapshot.configuration;
@@ -226,7 +228,7 @@ export function createForegroundCollectionController(options:Options) {
     const command=parsed.data;
     if(command.targets.some(target=>!nativeLoginPlatformSchema.safeParse(target.platform).success||target.access_mode!=='PLATFORM_ACCOUNT'))throw new Error();
     scope=await open();const mode=await supported(scope);
-    if(mode==='xhs-foreground-v1'&&(command.targets.length!==1||command.targets[0].platform!=='XIAOHONGSHU'))throw new Error();
+    if(command.targets.some(target=>!supportsForegroundPlatform(mode,target.platform)))throw new Error();
     const bindings=[];for(const target of command.targets)bindings.push(await account(scope,target));
     const response=await identity.requestApi({operation:'strategies.get',payload:{strategy_version_id:command.strategyVersionId}});guard(scope);if(!response.ok)throw new Error();
     const strategy=strategyViewSchema.parse(response.data),snapshot=strategy.snapshot,c=snapshot.configuration;

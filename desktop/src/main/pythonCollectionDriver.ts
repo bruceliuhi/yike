@@ -112,7 +112,7 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
             c.keywords.some(q => q !== q.trim() || q.includes(',')) ||
             !integer(maxRecords, 100) || !integer(snapshot.max_records, 10000) || maxRecords > snapshot.max_records ||
             !integer(snapshot.max_runtime_seconds, 86400) || !snapshot.platforms.includes(target.platform) ||
-            !['XIAOHONGSHU', 'DOUYIN', 'BILIBILI'].includes(target.platform) || target.access_mode !== 'PLATFORM_ACCOUNT' ||
+            !nativeLoginPlatformSchema.safeParse(target.platform).success || target.access_mode !== 'PLATFORM_ACCOUNT' ||
             (['platform', 'access_mode', 'connection_id', 'connection_version'] as const).some(k => target[k] !== owned.binding[k])) throw failure();
         for (const value of [owned.pythonExecutable, owned.projectRoot, owned.runtimePath, owned.profilePath, owned.outputRoot])
           if (!/^[A-Za-z]:[\\/]/.test(value) || !path.isAbsolute(value) || /[\p{Cc}\p{Cf}\p{Cs}]/u.test(value)) throw failure();
