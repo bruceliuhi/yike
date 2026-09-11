@@ -36,14 +36,15 @@ class MonitorRuntime:
 
     @_safe
     def support(self, claims):
-        from pilot.foreground_collection import three_platform_monitor_policy, four_platform_monitor_policy
+        from pilot.foreground_collection import three_platform_monitor_policy, four_platform_monitor_policy, four_platform_public_monitor_policy
         runtime = self.execution_runtime
         with self.database.connect() as connection, connection.cursor() as cursor:
             runtime._active(cursor, claims)
             return self._authorized(cursor, claims, dict(
                 schema_version='monitor-runtime-support-v1',
                 mode={three_platform_monitor_policy:'three-platform-monitor-v1',
-                      four_platform_monitor_policy:'four-platform-monitor-v1'}.get(runtime.capability_check)))
+                      four_platform_monitor_policy:'four-platform-monitor-v1',
+                      four_platform_public_monitor_policy:'four-platform-monitor-v1'}.get(runtime.capability_check)))
 
     def _authorized(self, cursor, claims, response):
         self.execution_runtime._active(cursor, claims)

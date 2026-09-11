@@ -440,7 +440,7 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
         return [client for server, client in (
             ('XIAOHONGSHU', 'xhs'), ('DOUYIN', 'douyin'), ('BILIBILI', 'bilibili'),
             ('ZHIHU', 'zhihu'), ('PUBLIC_WEB', 'web'),
-        ) if check(server, 'PUBLIC_WEB' if server == 'PUBLIC_WEB' else 'PLATFORM_ACCOUNT', configuration)]
+        ) if check(server, 'PUBLIC_ANONYMOUS' if server == 'PUBLIC_WEB' else 'PLATFORM_ACCOUNT', configuration)]
 
     register_opportunity_research_api(router,
         OpportunityResearchService(store, supported_platforms=research_platforms),

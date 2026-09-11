@@ -10,7 +10,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator, model_serializer
 
 from pilot.candidate_contract import _validate_url
 from pilot.execution_contract import Platform
@@ -231,6 +231,16 @@ class ResearchStrategyConfiguration(_Frozen):
     mode: Literal["once", "monitor"]
     schedule: _VersionedSchedule | _Schedule | None
     research: _Research | None
+    publicSource: Literal["v2ex-latest-v1"] | None = None
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_configuration(self, handler):
+        result = handler(self)
+        # Apply to nested model_dump/json too, without dropping legacy null
+        # schedule/research fields or changing any old confirmed snapshot hash.
+        if self.publicSource is None:
+            result.pop("publicSource", None)
+        return result
 
     @field_validator("name")
     @classmethod
