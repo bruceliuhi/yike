@@ -15,7 +15,7 @@ import sys
 from urllib.parse import urlsplit
 
 if __package__:
-    from .platform_login_worker import valid_account, read_douyin_self_account
+    from .platform_login_worker import valid_account, read_douyin_self_account, read_zhihu_self_account
 else:
     # Direct script/spec loading must not put app/config.py ahead of runtime config.
     from importlib.util import spec_from_file_location, module_from_spec
@@ -23,6 +23,7 @@ else:
     _login = module_from_spec(_login_spec)
     _login_spec.loader.exec_module(_login)
     valid_account, read_douyin_self_account = _login.valid_account, _login.read_douyin_self_account
+    read_zhihu_self_account = _login.read_zhihu_self_account
 
 _ACCOUNT = re.compile(r'[A-Za-z0-9]{8,32}')
 _HREF = re.compile(r'(?:https://www\.xiaohongshu\.com)?/user/profile/([A-Za-z0-9]{8,32})')
@@ -118,7 +119,7 @@ async def _bilibili_self_account(page):
 
 @contextmanager
 def install_video_account_guard(crawler_type, client_type, auth_error, expected, platform, *, error_types=None):
-    if platform not in ('BILIBILI', 'DOUYIN') or not valid_account(platform, expected): raise ValueError()
+    if platform not in ('BILIBILI', 'DOUYIN', 'ZHIHU') or not valid_account(platform, expected): raise ValueError()
     original_search, original_request = crawler_type.search, client_type.request
     marker = '_yike_collection_account_guard'
 
@@ -130,7 +131,7 @@ def install_video_account_guard(crawler_type, client_type, auth_error, expected,
         return result
 
     async def search(crawler, *args, **kwargs):
-        client = crawler.bili_client if platform == 'BILIBILI' else crawler.dy_client
+        client = getattr(crawler, {'BILIBILI':'bili_client','DOUYIN':'dy_client','ZHIHU':'zhihu_client'}[platform])
         if client.playwright_page is not crawler.context_page or hasattr(client, marker): raise auth_error()
         own_page = None
         failed = None
@@ -139,6 +140,7 @@ def install_video_account_guard(crawler_type, client_type, auth_error, expected,
             if failed: raise failed()
             try:
                 account = (await _bilibili_self_account(crawler.context_page) if platform == 'BILIBILI'
+                    else await read_zhihu_self_account(crawler.context_page) if platform == 'ZHIHU'
                     else await read_douyin_self_account(own_page))
                 if account != expected: raise ValueError()
             except Exception as error:
@@ -163,8 +165,12 @@ def install_video_account_guard(crawler_type, client_type, auth_error, expected,
         crawler_type.search, client_type.request = original_search, original_request
 
 
+def install_zhihu_account_guard(crawler_type, client_type, auth_error, expected, *, error_types=None):
+    return install_video_account_guard(crawler_type,client_type,auth_error,expected,'ZHIHU',error_types=error_types)
+
+
 def _fixed_arguments(arguments, platform='XIAOHONGSHU'):
-    code = {'XIAOHONGSHU': 'xhs', 'BILIBILI': 'bili', 'DOUYIN': 'dy'}.get(platform)
+    code = {'XIAOHONGSHU': 'xhs', 'BILIBILI': 'bili', 'DOUYIN': 'dy', 'ZHIHU':'zhihu'}.get(platform)
     if code is None: raise ValueError()
     fixed = {'--platform': code, '--lt': 'qrcode', '--type': 'search',
         '--get_comment': 'yes', '--get_sub_comment': 'yes', '--headless': 'no',
@@ -211,6 +217,10 @@ def main():
             from media_platform.bilibili.core import BilibiliCrawler
             from media_platform.bilibili.client import BilibiliClient
             guard = install_video_account_guard(BilibiliCrawler, BilibiliClient, YikePlatformAuthRequired, expected, platform, error_types=error_types)
+        elif platform == 'ZHIHU':
+            from media_platform.zhihu.core import ZhihuCrawler
+            from media_platform.zhihu.client import ZhiHuClient
+            guard = install_zhihu_account_guard(ZhihuCrawler,ZhiHuClient,YikePlatformAuthRequired,expected,error_types=error_types)
         else:
             from media_platform.douyin.core import DouYinCrawler
             from media_platform.douyin.client import DouYinClient

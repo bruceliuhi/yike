@@ -21,7 +21,8 @@ _HOME = 'https://www.xiaohongshu.com'
 _SELF = "xpath=//a[contains(@href, '/user/profile/') and .//span[text()='我']]"
 _HREF = re.compile(r'(?:https://www\.xiaohongshu\.com)?/user/profile/([A-Za-z0-9]{8,32})')
 _ACCOUNTS = {'XIAOHONGSHU': r'[A-Za-z0-9]{8,32}',
-    'BILIBILI': r'[1-9][0-9]{0,19}', 'DOUYIN': r'[A-Za-z0-9_.-]{1,64}'}
+    'BILIBILI': r'[1-9][0-9]{0,19}', 'DOUYIN': r'[A-Za-z0-9_.-]{1,64}',
+    'ZHIHU': r'[1-9][0-9]{0,19}'}
 _DY_SELF = 'https://www.douyin.com/user/self'
 _DY_HANDLE = re.compile(r'^抖音号[：:]\s*([A-Za-z0-9_.-]{1,64})\s*$')
 _CODES = {'PLATFORM_AUTH_REQUIRED', 'PLATFORM_PERMISSION_DENIED',
@@ -80,6 +81,9 @@ def _load_video_runtime(platform):
     elif platform == 'DOUYIN':
         from media_platform.douyin.core import DouYinCrawler as Crawler, async_playwright
         from media_platform.douyin.login import DouYinLogin as Login
+    elif platform == 'ZHIHU':
+        from media_platform.zhihu.core import ZhihuCrawler as Crawler, async_playwright
+        from media_platform.zhihu.login import ZhiHuLogin as Login
     else:
         raise ValueError()
     from tools.yike_runtime import classify_error
@@ -137,6 +141,41 @@ async def read_douyin_self_account(page):
     return match.group(1)
 
 
+async def read_zhihu_self_account(page):
+    """Only the current context's official self endpoint; never return its profile."""
+    if not _official_page(page.url, 'www.zhihu.com'):
+        raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
+    try:
+        response = await page.request.get('https://www.zhihu.com/api/v4/me', max_redirects=0, timeout=10000)
+    except Exception:
+        raise _LoginError('COLLECTION_NETWORK_FAILED') from None
+    try:
+        code = {401:'PLATFORM_AUTH_REQUIRED',403:'PLATFORM_PERMISSION_DENIED',429:'PLATFORM_RATE_LIMITED'}.get(response.status)
+        if code: raise _LoginError(code)
+        if response.status >= 500: raise _LoginError('COLLECTION_NETWORK_FAILED')
+        if response.status != 200: raise _LoginError('PLATFORM_RESPONSE_CHANGED')
+        raw = await response.body()
+        if len(raw) > 65536: raise ValueError()
+        def pairs(items):
+            result = {}
+            for key,value in items:
+                if key in result: raise ValueError()
+                result[key] = value
+            return result
+        data = json.loads(raw, object_pairs_hook=pairs)
+        if not isinstance(data,dict) or data.get('error'): raise ValueError()
+        uid = data.get('uid')
+        if type(uid) not in (int,str) or not valid_account('ZHIHU',str(uid)):
+            raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
+        if not _official_page(page.url,'www.zhihu.com'):
+            raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
+        return str(uid)
+    except (ValueError,TypeError,UnicodeError):
+        raise _LoginError('PLATFORM_RESPONSE_CHANGED') from None
+    finally:
+        await response.dispose()
+
+
 async def login_platform(*, platform, output_path: Path) -> dict:
     if platform == 'XIAOHONGSHU':
         return await login_xhs(output_path=output_path)
@@ -147,7 +186,8 @@ async def login_platform(*, platform, output_path: Path) -> dict:
     try:
         runtime = _load_video_runtime(platform)
         crawler = runtime.Crawler()
-        home = 'https://www.bilibili.com' if platform == 'BILIBILI' else 'https://www.douyin.com'
+        home = {'BILIBILI':'https://www.bilibili.com','DOUYIN':'https://www.douyin.com',
+            'ZHIHU':'https://www.zhihu.com'}[platform]
         async with runtime.async_playwright() as playwright:
             try:
                 options = {} if platform == 'BILIBILI' else {'user_agent': None}
@@ -161,6 +201,9 @@ async def login_platform(*, platform, output_path: Path) -> dict:
                 if platform == 'BILIBILI':
                     crawler.user_agent = await crawler.context_page.evaluate('navigator.userAgent')
                     client = crawler.bili_client = await crawler.create_bilibili_client(None)
+                    pong_args = {}
+                elif platform == 'ZHIHU':
+                    client = crawler.zhihu_client = await crawler.create_zhihu_client(None)
                     pong_args = {}
                 else:
                     client = crawler.dy_client = await crawler.create_douyin_client(None)
@@ -178,6 +221,8 @@ async def login_platform(*, platform, output_path: Path) -> dict:
                     if not isinstance(own, dict) or own.get('isLogin') is not True or type(mid) not in (str, int):
                         raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
                     account = str(mid)
+                elif platform == 'ZHIHU':
+                    account = await read_zhihu_self_account(crawler.context_page)
                 else:
                     # Only the signed-in self route; never arbitrary creator URLs.
                     account = await read_douyin_self_account(crawler.context_page)

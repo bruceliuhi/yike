@@ -118,6 +118,13 @@ def verify_installed_runtime(runtime_path: Path) -> Path:
         raise WindowsSourceError('source_runtime_invalid') from None
 
 
+def _collection_limits(platform, max_records):
+    max_contents = min(5, max_records)
+    # Zhihu emits POST as well as COMMENT; its governed source applies one
+    # shared output budget instead of the legacy per-content comment limit.
+    return max_contents, max_records if platform == 'ZHIHU' else max_records // max_contents
+
+
 def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_path: Path,
                            platform: str, query: str, max_records: int, timeout_seconds: int,
                            cancel_requested=None, expected_account_public_id=None) -> dict:
@@ -126,11 +133,11 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
         raise WindowsSourceError('windows_required')
     started = time.monotonic()
     try:
-        if (platform not in ('DOUYIN', 'BILIBILI', 'XIAOHONGSHU') or type(max_records) is not int or not 1 <= max_records <= 100
+        if (platform not in ('DOUYIN', 'BILIBILI', 'XIAOHONGSHU', 'ZHIHU') or type(max_records) is not int or not 1 <= max_records <= 100
                 or type(timeout_seconds) is not int or not 1 <= timeout_seconds <= 900
                 or not isinstance(query, str) or not 1 <= len(query) <= 80 or canonical_single_keyword(query) != query):
             raise WindowsSourceError('source_input_invalid')
-        if expected_account_public_id is not None and not valid_account(platform, expected_account_public_id):
+        if (platform == 'ZHIHU' or expected_account_public_id is not None) and not valid_account(platform, expected_account_public_id):
             raise WindowsSourceError('source_input_invalid')
         paths = [Path(p) for p in (runtime_path, profile_path, output_path)]
         if any(not p.is_absolute() or p.drive.startswith('\\') for p in paths):
@@ -158,7 +165,7 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
             temporary = output_path / '.temporary'
             temporary.mkdir()
             (temporary / 'matplotlib').mkdir()
-            code = {'BILIBILI': 'bili', 'DOUYIN': 'dy', 'XIAOHONGSHU': 'xhs'}[platform]
+            code = {'BILIBILI': 'bili', 'DOUYIN': 'dy', 'XIAOHONGSHU': 'xhs', 'ZHIHU':'zhihu'}[platform]
             environment = _minimal_child_environment(
                 YIKE_PROFILE_PATH=str(profile_path),
                 PLAYWRIGHT_BROWSERS_PATH=str(runtime_path / '.venv/playwright-browsers'),
@@ -172,8 +179,7 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
                 environment['PYTHONDONTWRITEBYTECODE'] = '1'
             # Sample several comments per post (including replies when available)
             # rather than spending the entire budget on first-comment-only posts.
-            max_contents = min(5, max_records)
-            comments_per_content = max_records // max_contents
+            max_contents, comments_per_content = _collection_limits(platform, max_records)
             command = [str(python), '-B', '-X', 'utf8', str(entrypoint), '--platform', code,
                        '--lt', 'qrcode', '--type', 'search', '--keywords=' + query,
                        '--get_comment', 'yes', '--get_sub_comment', 'yes', '--headless', 'no',

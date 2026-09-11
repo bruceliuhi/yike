@@ -60,7 +60,9 @@ def _request(stdin) -> dict:
         raise ValueError()
     if payload['schema_version'] != SCHEMA_VERSION:
         raise ValueError()
-    if payload['platform'] not in ('DOUYIN', 'BILIBILI', 'XIAOHONGSHU'):
+    if payload['platform'] not in ('DOUYIN', 'BILIBILI', 'XIAOHONGSHU', 'ZHIHU'):
+        raise ValueError()
+    if payload['platform'] == 'ZHIHU' and 'expected_account_public_id' not in payload:
         raise ValueError()
     if 'expected_account_public_id' in payload:
         expected = payload['expected_account_public_id']
