@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone, timedelta
+from contextlib import ExitStack
 import hashlib, json, re, threading
 from typing import Annotated, Literal
 from uuid import uuid4
@@ -130,6 +131,9 @@ class ShortCoachService:
         with self.database.connect() as conn,conn.cursor() as cursor: self._facts(cursor,claims,value)
         return self.preview_unverified(value.model_dump())
     def generate(self,claims,raw):
+        with ExitStack() as cleanup:
+            return self._generate(claims,raw,cleanup)
+    def _generate(self,claims,raw,cleanup):
         try: value=GenerateInput.model_validate(raw)
         except Exception: raise ShortCoachError("invalid_request") from None
         provider,name=self._configured(); expected=self.preview_unverified(value.model_dump(exclude={"disclosure"}))
@@ -148,27 +152,21 @@ class ShortCoachService:
                 if old[6] < datetime.now(timezone.utc)-timedelta(minutes=5): raise ShortCoachError("short_coach_result_expired")
                 return old[2]
             if not self._call_lock.acquire(blocking=False): raise ShortCoachError("short_coach_processing")
-            try:
-                cursor.execute("INSERT INTO pilot_short_coach_daily_quota(tenant_id,quota_day,call_count) VALUES(%s,(clock_timestamp() AT TIME ZONE 'UTC')::date,1) "
-                    "ON CONFLICT(tenant_id,quota_day) DO UPDATE SET call_count=pilot_short_coach_daily_quota.call_count+1 "
-                    "WHERE pilot_short_coach_daily_quota.call_count<50 RETURNING call_count",(tenant,))
-                if cursor.fetchone() is None: raise ShortCoachError("short_coach_quota_exceeded")
-                cursor.execute("INSERT INTO pilot_short_coach_requests(tenant_id,owner_user_id,request_id,opportunity_id,request_hash,model_provider,model_name,state) VALUES(%s,%s,%s,%s,%s,%s,%s,'PROCESSING')",
-                    (tenant,claims.user_id,b.requestId,b.opportunityId,request_hash,provider,name))
-            except Exception:
-                self._call_lock.release()
-                raise
+            cleanup.callback(self._call_lock.release)
+            cursor.execute("INSERT INTO pilot_short_coach_daily_quota(tenant_id,quota_day,call_count) VALUES(%s,(clock_timestamp() AT TIME ZONE 'UTC')::date,1) "
+                "ON CONFLICT(tenant_id,quota_day) DO UPDATE SET call_count=pilot_short_coach_daily_quota.call_count+1 "
+                "WHERE pilot_short_coach_daily_quota.call_count<50 RETURNING call_count",(tenant,))
+            if cursor.fetchone() is None: raise ShortCoachError("short_coach_quota_exceeded")
+            cursor.execute("INSERT INTO pilot_short_coach_requests(tenant_id,owner_user_id,request_id,opportunity_id,request_hash,model_provider,model_name,state) VALUES(%s,%s,%s,%s,%s,%s,%s,'PROCESSING')",
+                (tenant,claims.user_id,b.requestId,b.opportunityId,request_hash,provider,name))
         try:
-            try:
-                result=build_suggestion(value.model_dump(exclude={"disclosure"}),self.model.generate(sourceText=value.sourceText,content=value.content,channel=b.channel,purpose=b.purpose))
-                state,error="SUCCEEDED",None
-            except Exception:
-                result,state,error=None,"FAILED","short_coach_failed"
-            with self.database.connect() as conn,conn.cursor() as cursor:
-                self.sessions.require_active(cursor,claims); self._facts(cursor,claims,value)
-                cursor.execute("UPDATE pilot_short_coach_requests SET state=%s,result=%s::jsonb,error_code=%s,updated_at=clock_timestamp() WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s AND state='PROCESSING'",
-                    (state,None if result is None else json.dumps(result,ensure_ascii=False),error,tenant,claims.user_id,b.requestId))
-            if result is None: raise ShortCoachError(error,502)
-            return result
-        finally:
-            self._call_lock.release()
+            result=build_suggestion(value.model_dump(exclude={"disclosure"}),self.model.generate(sourceText=value.sourceText,content=value.content,channel=b.channel,purpose=b.purpose))
+            state,error="SUCCEEDED",None
+        except Exception:
+            result,state,error=None,"FAILED","short_coach_failed"
+        with self.database.connect() as conn,conn.cursor() as cursor:
+            self.sessions.require_active(cursor,claims); self._facts(cursor,claims,value)
+            cursor.execute("UPDATE pilot_short_coach_requests SET state=%s,result=%s::jsonb,error_code=%s,updated_at=clock_timestamp() WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s AND state='PROCESSING'",
+                (state,None if result is None else json.dumps(result,ensure_ascii=False),error,tenant,claims.user_id,b.requestId))
+        if result is None: raise ShortCoachError(error,502)
+        return result

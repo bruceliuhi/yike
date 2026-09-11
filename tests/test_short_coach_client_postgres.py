@@ -20,6 +20,30 @@ from tests.test_desktop_opportunity_http_postgres import _node_environment
 from tests.test_execution_runtime_postgres import SECRET
 
 
+def test_reservation_commit_failure_releases_process_slot_without_model_call():
+    from types import SimpleNamespace
+    import pytest
+    from tests.test_short_coach import coach_input
+    class Cursor:
+        def __enter__(self):return self
+        def __exit__(self,*args):pass
+        def execute(self,query,*args):self.query=query
+        def fetchone(self):return (1,) if 'RETURNING' in self.query else None
+    class Connection:
+        def __enter__(self):return self
+        def __exit__(self,kind,*args):
+            if kind is None:raise ConnectionError('synthetic commit failure')
+        def cursor(self):return Cursor()
+    model=SimpleNamespace(available=True,provider='synthetic',model='coach-v1',
+        generate=lambda **_:pytest.fail('model dispatched before committed reservation'))
+    service=ShortCoachService(SimpleNamespace(connect=Connection),model)
+    raw=coach_input();service._facts=lambda *_:raw['binding']['accountScope']['id']
+    value=raw|{'disclosure':{'accepted':True,**service.preview_unverified(raw)}}
+    for _ in range(2):
+        with pytest.raises(ConnectionError):service.generate(SimpleNamespace(user_id='synthetic'),value)
+        assert not service._call_lock.locked()
+
+
 def test_runtime_keeps_unconfigured_short_coach_unavailable():
     db=object()
     app=build_runtime_app(db,auth_secret=SECRET,environment={})
