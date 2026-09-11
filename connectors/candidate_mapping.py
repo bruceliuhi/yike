@@ -217,10 +217,15 @@ def build_comment_batch(
     Execution remains a claim; this function grants no capability or authority.
     Raw records are neither changed nor logged, and no I/O is performed.
     """
-    if not isinstance(platform, str) or platform not in ("XIAOHONGSHU", "DOUYIN", "BILIBILI"):
+    if not isinstance(platform, str) or platform not in ("XIAOHONGSHU", "DOUYIN", "BILIBILI", "ZHIHU"):
         raise CandidateMappingError() from None
     if not isinstance(raw_records, list) or len(raw_records) > 100:
         raise CandidateMappingError() from None
+    if platform == "ZHIHU":
+        from connectors.zhihu_mapping import map_zhihu_record
+        records = [map_zhihu_record(raw, collector_version, query) for raw in raw_records]
+    else:
+        records = [_record(platform, raw, collector_version, query) for raw in raw_records]
     payload = {
         "schema_version": "candidate-upload-v1",
         "request_id": request_id,
@@ -228,6 +233,6 @@ def build_comment_batch(
         "profile_version_id": profile_version_id,
         "strategy_version_id": strategy_version_id,
         "execution": execution,
-        "records": [_record(platform, raw, collector_version, query) for raw in raw_records],
+        "records": records,
     }
     return validate_candidate_batch(payload, now=now)
