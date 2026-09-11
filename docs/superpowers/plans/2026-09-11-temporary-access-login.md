@@ -38,4 +38,11 @@
 
 ## Evidence
 
-待实际执行后登记，不提前声明上线。
+2026-09-11 实现候选 `159cb48`（尚未部署）：
+
+- 后端新测试在隔离 PostgreSQL 上 `tests/test_temporary_access.py`：12 passed；包含原子激活、重登不延期、旧码拒绝、撤销竞态和租户隔离。根任务使用 `YIKE_OPS_TEST_DATABASE_URL` 复验 12 passed；未提供此变量的两次运行均为 skipped，不计成功。
+- 后端一次受影响回归为 107 passed / 7 failed。7 项为原 revocation fixture 期待 UPDATE/DELETE 返回零行，而现有生产最小授权先拒绝语句的已知差异；没有为测试扩大权限，不能写成全绿。
+- 桌面五份定向测试 164 passed，类型检查通过；最终文案调整后两份登录测试 36 passed。普通重启的认证持久化使用操作系统加密会话缓存，不保存访问码。
+- 实际浏览器 1280×720 临时码表单可见，无手机号/OTP字段；此项没有执行网络登录，不等于真实客户验收。
+- 非作者 `platform_query_full_review` 对 `33a2b53..159cb48061edafa436d3e282705a4dcec5fc6218` 整批只读审核为 GO，无阻塞 P1/P2；核对用途/隔离/期限/固定 IPC/加密缓存和迁移授权。main 推送、生产迁移/升级和新包验收仍待完成，代码 GO 不代替实际包重启或客户验收。
+- 用户确认暂无 Windows 环境；Windows 安装、运行及会话恢复仍未验收，不以 Mac 结果代替。
