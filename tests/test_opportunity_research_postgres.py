@@ -14,6 +14,7 @@ import pytest
 import uvicorn
 
 from pilot.auth import issue_token
+import pilot.opportunity_research as opportunity_research
 from pilot.opportunity_research import OpportunityResearchError, OpportunityResearchService
 from pilot.web import build_app
 from tests.test_candidate_assessment_model import assessment
@@ -35,6 +36,23 @@ def bound(env, opportunity_id, source_version, url):
     return {"userId":env.claims.user_id,"opportunityId":opportunity_id,
         "profileVersionId":env.profile,"sourceUrl":url,"evidenceVersion":source_version,
         "accountScope":{"id":env.tenant,"version":1}}
+
+
+def test_same_source_across_strategies_uses_first_projection_but_keeps_sibling_comment():
+    observed=datetime(2026,9,11,8,tzinfo=UTC)
+    def item(candidate_id, strategy_id, comment_id):
+        raw={"candidate_id":candidate_id,"strategy_version_id":strategy_id,
+            "profile_version_id":"profile-1","platform":"XIAOHONGSHU","kind":"COMMENT",
+            "external_source_id":"post-1","external_comment_id":comment_id,
+            "latest_observed_at":observed,"version_id":"source-version-1",
+            "content":{"public_url":"https://www.xiaohongshu.com/explore/66c01234abcdef0123456789"}}
+        return raw,{"opportunity":{"id":candidate_id},"classification":{"category":"UNASSESSED"}}
+    rows=opportunity_research._deduplicate_candidates([
+        item("candidate-newest","strategy-b","comment-1"),
+        item("candidate-older","strategy-a","comment-1"),
+        item("candidate-sibling","strategy-a","comment-2"),
+    ])
+    assert [row["opportunity"]["id"] for row in rows]==["candidate-newest","candidate-sibling"]
 
 
 def run_node_http(env, opportunity_id, review):

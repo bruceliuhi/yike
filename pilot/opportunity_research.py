@@ -59,6 +59,18 @@ def _claims(claims):
         raise OpportunityResearchError("invalid_session",401)
 
 
+def _deduplicate_candidates(items):
+    selected={}
+    for raw,projected in items:
+        content=raw["content"]
+        source_key=(raw["profile_version_id"],raw["platform"],raw["kind"],raw["external_source_id"],
+            raw["external_comment_id"],content["public_url"])
+        # The query supplies latest_observed_at DESC, candidate_id ASC. Keep its
+        # first projection for one source/profile; comment identity separates replies.
+        selected.setdefault(source_key,projected)
+    return list(selected.values())
+
+
 class OpportunityResearchService:
     def __init__(self, store, *, supported_platforms):
         self.database = getattr(store, "database", store)
@@ -160,6 +172,7 @@ class OpportunityResearchService:
             if len(candidates)>1000 or len(opportunities)>1000:
                 raise OpportunityResearchError("record_limit_exceeded",409)
             records=[]
+            candidate_records=[]
             imported={str(row[0]) for row in opportunities}
             captured_sources=set()
             for opportunity_row in opportunities:
@@ -226,9 +239,11 @@ class OpportunityResearchService:
                     choice=assessment.get("effectiveDecision") or assessment.get("decision")
                     if choice=="OBSERVE":
                         category,kind,reason="OBSERVATION",assessment.get("purchaseType") or "CHANGE",assessment.get("summary") or "有待持续观察的业务变化。"
-                records.append({"opportunity":self._candidate_opportunity(raw,raw["profile_status"]),
+                projected={"opportunity":self._candidate_opportunity(raw,raw["profile_status"]),
                     "classification":{"category":category,"type":kind,"reason":reason,
-                        "ruleVersion":"candidate-review-v1","evidence":evidence,"review":review}})
+                        "ruleVersion":"candidate-review-v1","evidence":evidence,"review":review}}
+                candidate_records.append((raw,projected))
+            records.extend(_deduplicate_candidates(candidate_records))
             for row in opportunities:
                 names=("opportunity_id","title","buyer","summary","contact_path","public_excerpt","match_reason",
                     "action_signal","value","risk","reviewed_by","reviewed_at","profile_version_id","profile_status",
