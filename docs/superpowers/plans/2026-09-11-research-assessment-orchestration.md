@@ -18,6 +18,7 @@ Owner implementation agent. Files: pilot/candidate_review.py, new pilot/research
 
 - [ ] RED new default research deny and configured confirmed-start/source/assessment test, then minimal implementation.
 - [ ] Adapter API: ResearchAssessmentRunner(resources), CandidateReviewStore(..., research_assessment=None). Internal adapter receives claims, request, captured snapshot, model and minimal kwargs; returns existing value,usage tuple. Capture research provenance in snapshot only for research configurations; ordinary snapshot semantics unchanged. Expose no client-selected task budget.
+- Internal `assess_research(claims,payload,*,task_id,run_id,observation_id)` binds the orchestrator's exact persisted receipt to capture/admission; it also checks original stored provenance on replay. These arguments are not public request fields. They prevent an observation switching to another task between sequence selection and dispatch from changing which budget is charged.
 - [ ] Admission hook and grounded digest, no-repeat, source/current-binding check, cancel/limit/replay tests. Same request alias cache uses no additional permit. Model adapter offers assess_before(deadline, **kwargs); unsupported model fails closed before fresh quota.
 - [ ] Report exact files, RED/GREEN and limitations; no commit. Root integrates.
 
