@@ -13,6 +13,7 @@ import psycopg
 
 from pilot.auth import InvalidPilotToken, TokenClaims
 from pilot.opportunity_evidence import OpportunityEvidenceError, evidence_view
+from pilot.research_strategy_contract import configuration_digest
 from pilot.sessions import PilotSessionRegistry
 
 
@@ -44,6 +45,11 @@ def _iso(value):
 def _stable(prefix, value):
     raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return prefix + hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _digest(value):
+    raw=json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(",", ":"),allow_nan=False)
+    return hashlib.sha256(raw.encode()).hexdigest()
 
 
 def _claims(claims):
@@ -111,11 +117,11 @@ class OpportunityResearchService:
         for dimension in ("businessMatch","intent","urgency","actionability"):
             for item in (assessment.get(dimension) or {}).get("citations",[]):
                 field, quote = item.get("field"), item.get("quote")
-                if field == "profile.description" or not isinstance(quote,str) or not quote or quote in seen:
+                # Raw candidates have no CAPTURED structured evidence in this DTO.
+                # Only body quotes can be checked against opportunity.excerpt.
+                if field != "body" or not isinstance(quote,str) or not quote or quote in seen:
                     continue
-                addressed = source.get("body") if field == "body" else source.get("title")
-                if field == "parent.body": addressed = (source.get("parent") or {}).get("body")
-                if field == "parent.title": addressed = source.get("container_title") or source.get("title")
+                addressed = source.get("body")
                 if isinstance(addressed,str) and quote in addressed:
                     result.append({"sourceUrl":source["public_url"],"evidenceVersion":version,"quote":quote})
                     seen.add(quote)
@@ -125,15 +131,20 @@ class OpportunityResearchService:
         with self._snapshot(claims) as (cursor,tenant,now):
             cursor.execute("""SELECT p.candidate_id,p.profile_version_id,p.strategy_version_id,p.version_id,p.revision,
                 p.latest_observed_at,p.ambiguous,s.platform,s.kind,s.external_source_id,s.external_comment_id,
-                v.content,pv.status,
-                (SELECT r.result FROM pilot_candidate_review_requests r
+                v.content,pv.status,pv.version,pv.payload,pv.content_sha256,rs.snapshot,rs.configuration_sha256,
+                rs.state,rs.draft_revision,d.current_revision,d.current_version_id,
+                COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.created_at DESC,r.request_id DESC)
+                 FROM pilot_candidate_review_requests r
                  WHERE r.tenant_id=p.tenant_id AND r.owner_user_id=p.owner_user_id
-                   AND r.candidate_id=p.candidate_id AND r.status='SUCCEEDED'
-                 ORDER BY r.created_at DESC,r.request_id DESC LIMIT 1)
+                   AND r.candidate_id=p.candidate_id AND r.status='SUCCEEDED' AND r.invocation_id IS NULL),'[]'::jsonb)
                 FROM pilot_candidate_projections p
                 JOIN pilot_candidate_sources s USING(tenant_id,owner_user_id,source_id)
                 JOIN pilot_candidate_versions v USING(tenant_id,owner_user_id,source_id,version_id)
                 JOIN business_profile_versions pv ON pv.tenant_id=p.tenant_id AND pv.profile_version_id=p.profile_version_id
+                LEFT JOIN pilot_research_strategy_versions rs ON rs.tenant_id=p.tenant_id AND rs.owner_user_id=p.owner_user_id
+                  AND rs.strategy_version_id=p.strategy_version_id
+                LEFT JOIN pilot_research_strategy_drafts d ON d.tenant_id=rs.tenant_id AND d.owner_user_id=rs.owner_user_id
+                  AND d.draft_id=rs.draft_id
                 WHERE p.tenant_id=%s AND p.owner_user_id=%s ORDER BY p.latest_observed_at DESC,p.candidate_id
                 LIMIT 1001""",(tenant,claims.user_id))
             candidates = cursor.fetchall()
@@ -146,6 +157,8 @@ class OpportunityResearchService:
                 LEFT JOIN pilot_opportunity_evidence e USING(tenant_id,opportunity_id)
                 WHERE o.tenant_id=%s ORDER BY o.created_at DESC,o.opportunity_id LIMIT 1001""",(tenant,))
             opportunities = cursor.fetchall()
+            if len(candidates)>1000 or len(opportunities)>1000:
+                raise OpportunityResearchError("record_limit_exceeded",409)
             records=[]
             imported={str(row[0]) for row in opportunities}
             captured_sources=set()
@@ -162,25 +175,46 @@ class OpportunityResearchService:
                         source["external_comment_id"],source["public_url"]))
             for row in candidates:
                 names=("candidate_id","profile_version_id","strategy_version_id","version_id","revision","latest_observed_at",
-                    "ambiguous","platform","kind","external_source_id","external_comment_id","content","profile_status","result")
-                raw=dict(zip(names,row)); decision=raw.pop("result")
+                    "ambiguous","platform","kind","external_source_id","external_comment_id","content","profile_status","profile_version",
+                    "profile_payload","profile_sha256","strategy_snapshot","configuration_sha256","strategy_state",
+                    "strategy_revision","draft_revision","current_strategy_id","requests")
+                raw=dict(zip(names,row)); requests=raw.pop("requests")
                 content=raw["content"]
                 if (raw["profile_version_id"],raw["platform"],raw["kind"],raw["external_source_id"],
                         raw["external_comment_id"],content["public_url"]) in captured_sources:
                     continue
-                if decision and (decision.get("receipt") or {}).get("opportunityId") in imported:
+                b={"candidateId":str(raw["candidate_id"]),"candidateRevision":raw["revision"],
+                    "sourceVersionId":str(raw["version_id"]),"profileId":raw["profile_version_id"],
+                    "profileVersion":raw["profile_version"]}
+                valid=(raw["profile_status"]=="CONFIRMED" and not raw["ambiguous"]
+                    and isinstance(raw["profile_payload"],dict) and _digest(raw["profile_payload"])==raw["profile_sha256"])
+                snapshot=raw["strategy_snapshot"]
+                try:
+                    valid=valid and (raw["strategy_state"]=="CONFIRMED" and raw["current_strategy_id"]==raw["strategy_version_id"]
+                        and raw["draft_revision"]==raw["strategy_revision"]
+                        and configuration_digest(snapshot)==raw["configuration_sha256"]
+                        and snapshot["profile_version_id"]==raw["profile_version_id"]
+                        and snapshot["strategy_version_id"]==raw["strategy_version_id"]
+                        and raw["platform"] in snapshot["platforms"])
+                except (KeyError,TypeError,ValueError): valid=False
+                matching=[r for r in requests if valid and (r.get("snapshot") or {}).get("binding")==b
+                    and (r.get("snapshot") or {}).get("description")==raw["profile_payload"].get("description")
+                    and (r.get("snapshot") or {}).get("strategy")==snapshot]
+                assessment_request=next((r for r in matching if r["action"]=="ASSESS"),None)
+                review_request=next((r for r in matching if r["action"] in ("INCLUDE","EXCLUDE")),None)
+                verification_request=next((r for r in matching if r["action"]=="VERIFY_SOURCE"),None)
+                decision=(review_request or assessment_request or {}).get("result")
+                if review_request and ((review_request.get("result") or {}).get("receipt") or {}).get("opportunityId") in imported:
                     continue
                 category, kind, reason, evidence, review = "UNASSESSED","","尚无当前有效分类证据。",[],{"status":"PENDING","reviewer":"","reviewedAt":None}
                 candidate=(decision or {}).get("candidate") or {}
-                current=(candidate.get("sourceVersionId")==str(raw["version_id"])
-                    and candidate.get("profileId")==raw["profile_version_id"]
-                    and candidate.get("revision")==raw["revision"])
-                assessment=candidate.get("assessment") or (decision or {}).get("assessment") or {}
+                current=bool(valid and matching)
+                assessment=(assessment_request or {}).get("result",{}).get("assessment") or candidate.get("assessment") or {}
                 source_for_quotes={"body":raw["content"]["body"],"title":raw["content"].get("title"),
                     "parent":raw["content"].get("parent"),"container_title":raw["content"].get("title"),
                     "public_url":raw["content"]["public_url"]}
                 evidence=self._quotes(assessment,source_for_quotes,str(raw["version_id"]))
-                if decision and decision.get("kind") == "decision" and current:
+                if review_request and decision and decision.get("kind") == "decision" and current:
                     receipt=decision.get("receipt") or {}; candidate=decision.get("candidate") or {}
                     if receipt.get("action")=="EXCLUDE" and candidate.get("sourceVersionId")==str(raw["version_id"]):
                         category,kind,reason="EXCLUDED","EXCLUDE",receipt.get("review",{}).get("reason") or "人工排除"
@@ -188,7 +222,7 @@ class OpportunityResearchService:
                             "reviewedAt":receipt.get("reviewedAt")}
                         if not evidence:
                             category,kind,reason,review="UNASSESSED","","排除记录缺少可引用原文，待补证据。",{"status":"NEEDS_EVIDENCE","reviewer":"","reviewedAt":None}
-                elif decision and decision.get("kind") == "assessment" and current and evidence:
+                elif assessment_request and current and evidence:
                     choice=assessment.get("effectiveDecision") or assessment.get("decision")
                     if choice=="OBSERVE":
                         category,kind,reason="OBSERVATION",assessment.get("purchaseType") or "CHANGE",assessment.get("summary") or "有待持续观察的业务变化。"
@@ -223,7 +257,7 @@ class OpportunityResearchService:
                 if version: opportunity["sourceEvidenceVersion"]=version
                 opportunity["sourceEvidence"] = valid if valid else {"status":"UNAVAILABLE","reason":"NOT_CAPTURED"}
                 if valid:
-                    evidence=[{"sourceUrl":source["public_url"],"evidenceVersion":version,"quote":q["quote"]}
+                    evidence=[{"sourceUrl":source["public_url"],"evidenceVersion":version,"quote":q["quote"],"field":q["field"]}
                               for q in snapshot["assessment"]["citations"]]
                     classification={"category":"OPPORTUNITY","type":"HUMAN_INCLUDED","reason":item["match_reason"] or "人工认可并导入。",
                         "ruleVersion":snapshot["assessment"]["rule_version"],"evidence":evidence,
@@ -282,6 +316,44 @@ class OpportunityResearchService:
         if owner!=claims.user_id: raise OpportunityResearchError("recognition_required",409)
         return evidence
 
+    @staticmethod
+    def _current_recognition(cursor,tenant,claims,binding,evidence,now):
+        source=evidence["source"]
+        cursor.execute("""SELECT p.revision,p.version_id,p.ambiguous,p.strategy_version_id,v.version,
+            COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.created_at DESC,r.request_id DESC)
+              FROM pilot_candidate_review_requests r WHERE r.tenant_id=p.tenant_id
+                AND r.owner_user_id=p.owner_user_id AND r.candidate_id=p.candidate_id
+                AND r.status='SUCCEEDED' AND r.invocation_id IS NULL),'[]'::jsonb)
+            FROM pilot_candidate_sources s JOIN pilot_candidate_projections p USING(tenant_id,owner_user_id,source_id)
+            JOIN business_profile_versions v ON v.tenant_id=p.tenant_id AND v.profile_version_id=p.profile_version_id
+            WHERE s.tenant_id=%s AND s.owner_user_id=%s AND s.platform=%s AND s.kind=%s
+              AND s.external_source_id IS NOT DISTINCT FROM %s AND s.external_comment_id IS NOT DISTINCT FROM %s
+              AND p.profile_version_id=%s AND p.strategy_version_id=%s""",
+            (tenant,claims.user_id,source["platform"],source["kind"],source["external_source_id"],
+             source["external_comment_id"],binding["profileVersionId"],evidence["assessment"]["strategy_version_id"]))
+        rows=cursor.fetchall()
+        if len(rows)!=1: raise OpportunityResearchError("recognition_required",409)
+        revision,version,ambiguous,strategy_id,profile_version,requests=rows[0]
+        if ambiguous or str(version)!=binding["evidenceVersion"] or strategy_id!=evidence["assessment"]["strategy_version_id"]:
+            raise OpportunityResearchError("recognition_required",409)
+        current={"candidateId":None,"candidateRevision":revision,"sourceVersionId":str(version),
+            "profileId":binding["profileVersionId"],"profileVersion":profile_version}
+        reviews=[r for r in requests if r["action"] in ("INCLUDE","EXCLUDE")]
+        checks=[r for r in requests if r["action"]=="VERIFY_SOURCE"]
+        review=next((r for r in reviews if all((r.get("snapshot") or {}).get("binding",{}).get(k)==v
+            for k,v in current.items() if k!="candidateId")),None)
+        check=next((r for r in checks if all((r.get("snapshot") or {}).get("binding",{}).get(k)==v
+            for k,v in current.items() if k!="candidateId")),None)
+        receipt=((review or {}).get("result") or {}).get("receipt") or {}
+        verification=(check or {}).get("result") or {}
+        try:
+            checked=datetime.fromisoformat(verification["checkedAt"].replace("Z","+00:00"))
+        except (KeyError,ValueError,TypeError):
+            raise OpportunityResearchError("recognition_required",409) from None
+        if (not review or review["action"]!="INCLUDE" or receipt.get("opportunityId")!=binding["opportunityId"]
+                or not check or verification.get("status")!="OPEN" or checked>now or now-checked>timedelta(hours=24)):
+            raise OpportunityResearchError("recognition_required",409)
+
     def timeline(self,claims,binding):
         binding=self._binding(binding)
         with self._snapshot(claims) as (cursor,tenant,now):
@@ -317,6 +389,7 @@ class OpportunityResearchService:
             raise OpportunityResearchError("invalid_request",422)
         with self._snapshot(claims) as (cursor,tenant,now):
             evidence=self._recognized(cursor,tenant,claims,binding)
+            self._current_recognition(cursor,tenant,claims,binding,evidence,now)
             profile_id=binding["profileVersionId"]
             cursor.execute("SELECT version,status FROM business_profile_versions WHERE tenant_id=%s AND profile_version_id=%s",(tenant,profile_id))
             profile=cursor.fetchone()
@@ -343,9 +416,15 @@ class OpportunityResearchService:
             source=evidence["source"]
             haystack="\n".join(filter(None,(source.get("title"),source.get("container_title"),source.get("body"),
                 (source.get("parent") or {}).get("body"))))
-            keywords=[term for term in (configuration.get("keywords") or []) if term.casefold() in haystack.casefold()][:20]
+            keywords=[]
+            folded=haystack.casefold()
+            for term in configuration.get("keywords") or []:
+                pieces=[term] if term.casefold() in folded else [piece for piece in term.split() if len(piece)>=2 and piece.casefold() in folded]
+                for piece in pieces:
+                    if piece not in keywords: keywords.append(piece)
+            keywords=keywords[:20]
             if not keywords: raise OpportunityResearchError("strategy_unavailable",409)
-            quotes=[{"sourceUrl":source["public_url"],"evidenceVersion":source["version_id"],"quote":q["quote"]}
+            quotes=[{"sourceUrl":source["public_url"],"evidenceVersion":source["version_id"],"quote":q["quote"],"field":q["field"]}
                     for q in evidence["assessment"]["citations"]][:20]
             if not quotes: raise OpportunityResearchError("evidence_unavailable",409)
             suggestion=_stable("suggestion_",[request_id,binding,keywords,configuration.get("exclusions",[]),platforms])
