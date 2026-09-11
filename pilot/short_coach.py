@@ -112,7 +112,7 @@ def build_suggestion(raw,result):
     if material:
         material_quotes=result["materialQuotes"]
         if type(material_quotes) is not list or not 1<=len(material_quotes)<=len(value.materialReferences): raise ValueError
-        used=set()
+        used=set(); output_references=[]
         for item in material_quotes:
             if type(item) is not dict or set(item)!={"referenceIndex","quote"}: raise ValueError
             index,adopted=item["referenceIndex"],item["quote"]
@@ -120,7 +120,11 @@ def build_suggestion(raw,result):
                     or type(adopted) is not str or not adopted or "\0" in adopted
                     or adopted not in value.materialReferences[index].quote or adopted not in content): raise ValueError
             used.add(index)
-            suggestion["materialReferences"].append(value.materialReferences[index].model_copy(update={"quote":adopted}).model_dump())
+            output_references.append(ContactMaterialReference.model_validate(
+                value.materialReferences[index].model_dump() | {"quote":adopted}).model_dump())
+        identities=[json.dumps(ref,ensure_ascii=False,sort_keys=True,separators=(",",":")) for ref in output_references]
+        if len(set(identities))!=len(identities): raise ValueError
+        suggestion["materialReferences"]=output_references
     return suggestion
 
 class ShortCoachService:

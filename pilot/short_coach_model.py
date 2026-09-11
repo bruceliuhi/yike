@@ -105,7 +105,7 @@ class ShortCoachModel:
                         if type(item) is not dict or set(item)!={"referenceIndex","quote"}: raise ValueError
                         index,quote=item["referenceIndex"],item["quote"]
                         if (type(index) is not int or index in used or not 0<=index<len(payload["materialQuotes"])
-                                or type(quote) is not str or not quote or "\0" in quote
+                                or type(quote) is not str or not quote.strip() or "\0" in quote
                                 or quote not in payload["materialQuotes"][index]["quote"] or quote not in result["content"]): raise ValueError
                         used.add(index)
                 return result

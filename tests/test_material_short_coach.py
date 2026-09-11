@@ -88,6 +88,43 @@ def test_material_result_uses_only_selected_grounded_substrings_and_rebuilds_ref
                 "quote": "需求", "materialQuotes": invalid})
 
 
+def test_shortened_material_output_rejects_whitespace_quote():
+    raw = material_input([material_reference(quote="案例 原文")])
+    raw["content"] = "参考案例 原文，请问预算范围？"
+    raw["binding"]["draftHash"] = hashlib.sha256(raw["content"].encode()).hexdigest()
+    with pytest.raises(ValueError):
+        build_suggestion(raw, {"content": "您好 请问预算范围？", "question": "请问预算范围？",
+            "quote": "需求", "materialQuotes": [{"referenceIndex": 0, "quote": " "}]})
+
+
+def test_shortened_material_output_rejects_duplicate_final_references():
+    identity = material_reference(quote="案例 原文")
+    raw = material_input([identity, identity | {"quote": "案例 介绍"}])
+    raw["content"] = "参考案例 原文和案例 介绍，请问预算范围？"
+    raw["binding"]["draftHash"] = hashlib.sha256(raw["content"].encode()).hexdigest()
+    with pytest.raises(ValueError):
+        build_suggestion(raw, {"content": "基于案例，请问预算范围？", "question": "请问预算范围？",
+            "quote": "需求", "materialQuotes": [{"referenceIndex": 0, "quote": "案例"},
+                {"referenceIndex": 1, "quote": "案例"}]})
+
+
+def test_real_adapter_rejects_blank_material_quote():
+    from pilot.candidate_assessment_model import OpenAICompatibleCandidateAssessmentModel
+    from pilot.short_coach_model import ShortCoachModel, ShortCoachModelError
+    async def handler(_request):
+        return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {"role": "assistant",
+            "content": json.dumps({"content": "您好 请问预算？", "question": "请问预算？", "quote": "需求",
+                "materialQuotes": [{"referenceIndex": 0, "quote": " "}]}),
+            "refusal": None, "tool_calls": None, "function_call": None}}]})
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    model = ShortCoachModel(OpenAICompatibleCandidateAssessmentModel(base_url="http://localhost:9999",
+        api_key="synthetic", model="coach-v1"), http_client=client)
+    with pytest.raises(ShortCoachModelError):
+        model.generate(sourceText="需求", content="草稿", channel="dm", purpose="materials",
+            materialQuotes=[{"referenceIndex": 0, "quote": "案例 原文"}])
+    asyncio.run(client.aclose())
+
+
 def test_real_adapter_sends_only_numbered_quotes_and_requires_strict_material_result():
     from pilot.candidate_assessment_model import OpenAICompatibleCandidateAssessmentModel
     from pilot.short_coach_model import ShortCoachModel, ShortCoachModelError
