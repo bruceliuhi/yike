@@ -10,7 +10,7 @@
 
 ## 需求与约束
 
-- 用户提供模板 `SMS_512095645`、签名“北京星河卓越科技有限公司”；模板完整内容/变量名与六位验证码兼容性仍待确认，不默认猜变量或实际发送。
+- 用户截图确认模板 `SMS_512095645` 审核通过且状态正常、签名“北京星河卓越科技有限公司”，内容为“验证码为：${code}，您正在注册成为平台会员，感谢您的支持！”。唯一变量 `code` 为数字，部署时明确配置 `YIKE_SMS_CODE_PARAMETER=code`；仍未实际发送或完成手机收码验收。模板为注册措辞，后续若要单独登录文案应使用另一个正式获批模板，不自行修改供应商模板。
 - 固定 HTTPS `dysmsapi.aliyuncs.com`，固定 SendSms，单个国内号码/单个6位ASCII验证码；不用外部输入控制endpoint、模板或签名。不批量发送。
 - `YIKE_SMS_PROVIDER=aliyun` 显式启用，完整配置 `YIKE_SMS_SIGN_NAME`、`YIKE_SMS_TEMPLATE_CODE`、`YIKE_SMS_CODE_PARAMETER`、`ALIBABA_CLOUD_ACCESS_KEY_ID`、`ALIBABA_CLOUD_ACCESS_KEY_SECRET`，可选 `ALIBABA_CLOUD_SECURITY_TOKEN`；另需既有 `YIKE_PILOT_PHONE_AUTH_SECRET`。只通过服务端私有env配置，不把ops专用凭据带到runtime。
 - 无provider默认不装配；未知provider或已启用但缺字段拒绝启动。仅提供模板/签名不启动网络调用。模板参数仅支持本次OTP单变量；若实际模板要求额外参数，先按真实模板扩展，不吞缺项。

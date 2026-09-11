@@ -39,6 +39,7 @@ from pilot.search_suggestion_service import SearchSuggestionService
 from pilot.search_suggestions import SearchSuggestionStore
 from pilot.store import PilotStore
 from pilot.web import build_app
+from pilot.aliyun_sms import configured_sms_sender
 
 
 _ASSESSMENT_CONFIGURATION = (
@@ -97,6 +98,12 @@ def build_runtime_app(
     if any(environment.get(key, '').strip() for key in
            ('YIKE_OPS_DATABASE_URL','YIKE_OPS_PHONE_ENCRYPTION_KEY','YIKE_OPS_PASSWORD')):
         raise RuntimeError('ops_credentials_forbidden_in_web_runtime')
+
+    configured_sender = configured_sms_sender(environment)
+    if sms_sender is not None and configured_sender is not None:
+        raise RuntimeError('conflicting_sms_configuration')
+    if sms_sender is None:
+        sms_sender = configured_sender
 
     model = _assessment_model(environment)
     research_config = research_configuration(environment, model=model, auth_secret=auth_secret)
