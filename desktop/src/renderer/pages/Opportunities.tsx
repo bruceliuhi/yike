@@ -48,7 +48,7 @@ import { PendingCandidateReviews } from "./opportunities/PendingCandidateReviews
 import { ResearchLibrary } from "./opportunities/ResearchLibrary";
 import { EvidenceTimeline } from "./opportunities/EvidenceTimeline";
 import { ResearchDraftHandoff } from "./opportunities/ResearchDraftHandoff";
-import { hasResearchScope } from "../domain/opportunityResearch";
+import { hasResearchScope, researchQuoteLabel } from "../domain/opportunityResearch";
 import { readResearchRecord } from "../services/opportunityResearch";
 import { parseOpportunitySourceEvidence } from "../domain/opportunitySourceEvidence";
 import {
@@ -706,6 +706,7 @@ function OpportunityDetail({ id }: { id: string }) {
               <p>{classification!.reason}</p>
               {classification!.evidence.map((quote, i) => (
                 <blockquote className="evidence-quote" key={i}>
+                  {quote.field && <div className="muted text-small">{researchQuoteLabel(quote)}</div>}
                   {quote.quote}
                 </blockquote>
               ))}

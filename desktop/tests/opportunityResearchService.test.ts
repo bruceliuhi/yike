@@ -2,7 +2,8 @@ import {describe,it,expect,vi} from 'vitest';
 import {createOpportunityResearchService} from '../src/renderer/services/opportunityResearch';
 import {validatedOperation} from '../src/main/servicePolicy';
 import {collection,binding,timeline,similar as exampleSimilar} from './ui/r4-opportunity-research-fixtures';
-import {parseResearchCollection,parseResearchTimeline,researchBinding} from '../src/renderer/domain/opportunityResearch';
+import {parseResearchCollection,parseResearchTimeline,researchBinding,researchQuoteMatches} from '../src/renderer/domain/opportunityResearch';
+import {capturedEvidenceFixture} from './fixtures/opportunitySourceEvidence';
 
 const session=()=>Promise.resolve({authenticated:true,userId:binding.userId,accountScope:binding.accountScope});
 const similar={...exampleSimilar,requestId:'00000000-0000-4000-8000-000000000001'};
@@ -68,5 +69,17 @@ describe('connected opportunity research reads',()=>{
   const raw=structuredClone(timeline);
   raw.versions[0].content=` \n${raw.versions[0].content} e\u0301😀\t `;
   expect(parseResearchTimeline(raw,binding).versions[0].content).toBe(raw.versions[0].content);
+ });
+ it.each(['source.container_title','source.parent.body'] as const)('accepts retained %s without pretending it is the buyer body',field=>{
+  const raw=structuredClone(collection),row=raw.records[0].opportunity;
+  const captured=capturedEvidenceFixture({opportunityId:row.id,profileVersionId:row.profileVersionId}) as any;
+  const source=captured.snapshot.source;
+  row.sourceEvidence=captured;row.url=source.public_url;row.sourceEvidenceVersion=source.version_id;row.excerpt=source.body;
+  const quote={sourceUrl:row.url,evidenceVersion:source.version_id,field,quote:field==='source.container_title'?source.container_title:source.parent.body};
+  raw.records[0].classification.evidence=[quote];
+  expect(parseResearchCollection(raw,binding.userId,Date.now(),binding.accountScope).records).toHaveLength(1);
+  expect(researchQuoteMatches(row,quote)).toBe(true);
+  expect(researchQuoteMatches({...row,sourceEvidence:undefined},quote)).toBe(false);
+  expect(researchQuoteMatches(row,{...quote,quote:'not in the source'})).toBe(false);
  });
 });

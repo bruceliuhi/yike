@@ -24,6 +24,8 @@ import {
   hasResearchScope,
   parseSimilarResearch,
   researchBinding,
+  researchQuoteMatches,
+  researchQuoteLabel,
   sameResearchBinding,
   type SimilarDraftHandoff,
   type SimilarResearchPlan,
@@ -69,7 +71,7 @@ export function SimilarResearchDrawer({
       { timeoutMessage: "相似研究建议读取超时，请重试。" },
     );
     const plan = parseSimilarResearch(raw, binding, requestId);
-    if (plan.evidence.some((q) => !row.excerpt.includes(q.quote)))
+    if (plan.evidence.some((q) => !researchQuoteMatches(row,q)))
       throw new Error("建议引用与当前原文不匹配，请刷新机会证据。");
     const profile = profiles.find(
       (p) =>
@@ -316,7 +318,7 @@ function SimilarForm({
           freshPlan.recognition?.reviewer ||
         freshRecord.classification.review.reviewedAt !==
           freshPlan.recognition?.reviewedAt ||
-        freshPlan.evidence.some((q) => !freshRow.excerpt.includes(q.quote)) ||
+        freshPlan.evidence.some((q) => !researchQuoteMatches(freshRow,q)) ||
         semanticPlan(freshPlan) !== semanticPlan(plan) ||
         platforms.some((p) => !freshPlan.supportedPlatforms.includes(p))
       )
@@ -387,6 +389,7 @@ function SimilarForm({
               <summary>查看依据原文 · {plan.evidence.length} 处</summary>
               {plan.evidence.map((q, i) => (
                 <blockquote key={i} className="evidence-quote">
+                  {q.field && <div className="muted text-small">{researchQuoteLabel(q)}</div>}
                   {q.quote}
                 </blockquote>
               ))}

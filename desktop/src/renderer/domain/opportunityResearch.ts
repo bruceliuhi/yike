@@ -63,9 +63,27 @@ export function sameResearchBinding(a: ResearchBinding, b: ResearchBinding) {
   );
 }
 const quoteSchema = z
-  .object({ sourceUrl: url, evidenceVersion: id, quote: text })
+  .object({
+    sourceUrl: url, evidenceVersion: id, quote: text,
+    field: z.enum(['source.title', 'source.body', 'source.container_title', 'source.parent.body']).optional(),
+  })
   .strict();
 export type ResearchQuote = z.infer<typeof quoteSchema>;
+export function researchQuoteMatches(row: Opportunity, quote: ResearchQuote): boolean {
+  if (quote.sourceUrl !== row.url || quote.evidenceVersion !== row.sourceEvidenceVersion) return false;
+  if (!quote.field) return row.excerpt.includes(quote.quote);
+  const captured = row.sourceEvidence;
+  if (captured?.status !== 'CAPTURED') return quote.field === 'source.body' && row.excerpt.includes(quote.quote);
+  const source = captured.snapshot.source;
+  if (source.version_id !== quote.evidenceVersion || source.public_url !== quote.sourceUrl) return false;
+  const addressed = quote.field === 'source.title' ? source.title : quote.field === 'source.body' ? source.body :
+    quote.field === 'source.container_title' ? source.container_title : source.parent?.body;
+  return typeof addressed === 'string' && addressed.includes(quote.quote);
+}
+export function researchQuoteLabel(quote: ResearchQuote): string {
+  return quote.field === 'source.title' ? '原帖标题' : quote.field === 'source.container_title' ? '所属帖子标题' :
+    quote.field === 'source.parent.body' ? '上级评论（上下文）' : '来源正文';
+}
 export const RESEARCH_CATEGORIES = {
   OPPORTUNITY: "明确需求",
   OBSERVATION: "观察池",
@@ -217,7 +235,7 @@ export function parseResearchCollection(
       if (
         q.sourceUrl !== row.url ||
         q.evidenceVersion !== row.sourceEvidenceVersion ||
-        !row.excerpt.includes(q.quote)
+        !researchQuoteMatches(row as Opportunity, q)
       )
         invalid();
   }
