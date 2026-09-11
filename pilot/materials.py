@@ -176,6 +176,8 @@ class MaterialStore:
                     drafts = draft_impacts(cursor, tenant=tenant, owner=claims.user_id,
                         source_profile_version_id=request.profileVersionId, material_id=request.materialId,
                         material_version=request.version)
+                    if len(references) + len(drafts) > 100:
+                        raise ValueError("material impact exceeds display limit")
                 except ValueError:
                     raise MaterialError("material_impact_too_large") from None
                 snapshot_sha = material_reference_snapshot_sha(cursor, tenant=tenant, owner=claims.user_id,

@@ -49,8 +49,10 @@ def draft_impacts(cursor, *, tenant, owner, source_profile_version_id, material_
     cursor.execute("SELECT request_id,opportunity_id,channel,draft_version,payload FROM ("
         "SELECT DISTINCT ON (opportunity_id,channel) request_id,opportunity_id,channel,draft_version,payload "
         "FROM pilot_contact_drafts WHERE tenant_id=%s AND owner_user_id=%s "
-        "ORDER BY opportunity_id,channel,draft_version DESC) heads LIMIT 101",
-        (tenant, owner))
+        "ORDER BY opportunity_id,channel,draft_version DESC) heads "
+        "WHERE payload #> '{snapshot,draft,materialReferences}' @> %s::jsonb LIMIT 101",
+        (tenant, owner, json.dumps([{"sourceProfileVersionId": source_profile_version_id,
+            "materialId": material_id, "materialVersion": material_version}], separators=(",", ":"))))
     matches = []
     for request_id, opportunity_id, channel, version, payload in cursor.fetchall():
         refs = ((payload.get("snapshot") or {}).get("draft") or {}).get("materialReferences", [])

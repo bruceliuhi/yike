@@ -188,6 +188,8 @@ class OutreachDispatch:
         current = self.queue.drafts.context_in_transaction(cursor,claims,confirmation.context.model_dump())
         if current['contextSha256'] != value.contextSha256:
             raise DraftError('outreach_context_changed')
+        if current['source']['platform'] not in self.allowed_platforms:
+            raise DraftError('outreach_dispatch_unavailable',501)
         return {'state':'QUALIFIED','requestId':value.requestId,'claimId':value.claimId,
                 'contextSha256':value.contextSha256,'dispatchBefore':claim[2].isoformat()}
 

@@ -1,7 +1,7 @@
 """Restricted PostgreSQL material-to-draft qualification; all data synthetic."""
 import json
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -213,3 +213,70 @@ def test_revoke_after_claim_makes_final_validate_fail_closed_and_keeps_unknown(e
     validate = claim | {"action": "VALIDATE", "resultId": None, "outcome": None}
     assert dispatch(env, validate, key).status_code == 409
     assert env.client.get("/api/ui/outreach/queue/" + queued_request["requestId"]).json()["state"] == "UNKNOWN"
+
+
+def test_draft_impact_finds_target_after_more_than_101_unrelated_latest_heads(env):
+    from pilot.contact_material_references import draft_impacts
+    rows = []
+    prefix = uuid4().hex
+    with env.admin.connect() as connection:
+        for index in range(102):
+            opportunity = f"a-{prefix}-{index:03d}"
+            source = f"source-{prefix}-{index:03d}"
+            connection.execute("INSERT INTO pilot_sources(source_id,tenant_id,platform,external_id,public_url,health) VALUES(%s,%s,'BILIBILI',%s,%s,'OPEN')",
+                (source, env.tenant, source, f"https://www.bilibili.com/video/BV{index:010d}"))
+            connection.execute("INSERT INTO pilot_opportunities(opportunity_id,tenant_id,profile_version_id,source_id,import_key,title,buyer,summary,contact_path,draft_comment,draft_dm,source_status) VALUES(%s,%s,%s,%s,%s,'synthetic','synthetic','synthetic','comment','','','OPEN')",
+                (opportunity, env.tenant, env.profile, source, opportunity))
+            request_id = f"unrelated-request-{index:03d}"
+            payload = {"previousRequestId": None, "binding": {"opportunityId": opportunity,
+                "channel": "dm", "requestId": request_id, "contentHash": "a" * 64},
+                "snapshot": {"draft": {"opportunityId": opportunity, "channel": "dm", "content": "x",
+                    "savedContent": "x", "version": 1, "accountId": "", "recipient": ""},
+                    "accountScope": None, "profileVersionId": env.profile,
+                    "sourceEvidenceVersion": env.evidence_version}}
+            connection.execute("INSERT INTO pilot_contact_drafts(tenant_id,owner_user_id,request_id,opportunity_id,channel,draft_version,content_hash,payload) VALUES(%s,%s,%s,%s,'dm',1,%s,%s::jsonb)",
+                (env.tenant, env.users[0], request_id, opportunity, "a" * 64, json.dumps(payload)))
+        target = with_references(env, [reference(env)])
+        target_hex = "f" + prefix[1:12] + "4" + prefix[13:16] + "8" + prefix[17:]
+        target_opportunity = str(UUID(hex=target_hex))
+        target_source = "source-target-" + prefix
+        target["binding"]["opportunityId"] = target_opportunity
+        target["snapshot"]["draft"]["opportunityId"] = target_opportunity
+        target["snapshot"]["draft"]["savedContent"] = target["snapshot"]["draft"]["content"]
+        target["binding"]["contentHash"] = snapshot_digest(DraftSnapshot.model_validate(target["snapshot"]))
+        connection.execute("INSERT INTO pilot_sources(source_id,tenant_id,platform,external_id,public_url,health) VALUES(%s,%s,'BILIBILI',%s,%s,'OPEN')",
+            (target_source, env.tenant, target_source, "https://www.bilibili.com/video/BVtarget00001"))
+        connection.execute("INSERT INTO pilot_opportunities(opportunity_id,tenant_id,profile_version_id,source_id,import_key,title,buyer,summary,contact_path,draft_comment,draft_dm,source_status) VALUES(%s,%s,%s,%s,%s,'synthetic','synthetic','synthetic','comment','','','OPEN')",
+            (target_opportunity, env.tenant, env.profile, target_source, target_opportunity))
+        connection.execute("INSERT INTO pilot_contact_drafts(tenant_id,owner_user_id,request_id,opportunity_id,channel,draft_version,content_hash,payload) VALUES(%s,%s,%s,%s,'dm',2,%s,%s::jsonb)",
+            (env.tenant, env.users[0], target["binding"]["requestId"], target_opportunity,
+             target["binding"]["contentHash"], json.dumps(target, ensure_ascii=False)))
+        rows = draft_impacts(connection.cursor(), tenant=env.tenant, owner=env.users[0],
+            source_profile_version_id=env.profile, material_id="external-material", material_version=3)
+    assert len(rows) == 1 and rows[0][1] == target_opportunity
+
+
+def test_validate_reuses_current_platform_allowlist_without_hiding_unknown(env):
+    value, claim, key = queued(env)
+    permit = dispatch(env, claim, key)
+    assert permit.status_code == 200 and permit.json()["state"] == "UNKNOWN"
+    original = env.client
+    env.client = TestClient(build_runtime_app(env.app, auth_secret="synthetic-draft-test-secret",
+        environment={}), base_url="https://pilot.example")
+    env.client.headers.update(original.headers)
+    validate = claim | {"action": "VALIDATE", "resultId": None, "outcome": None}
+    assert dispatch(env, validate, key).status_code == 501
+    assert env.client.get("/api/ui/outreach/queue/" + value["requestId"]).json()["state"] == "UNKNOWN"
+
+
+def test_combined_profile_and_draft_impacts_over_100_fail_before_token(env, monkeypatch):
+    import pilot.material_references as profile_refs
+    import pilot.contact_material_references as draft_refs
+    ready = seed_material(env)
+    claims = verify_token_claims(env.client.headers["Authorization"].removeprefix("Bearer "),
+                                 "synthetic-draft-test-secret")
+    monkeypatch.setattr(profile_refs, "material_impacts", lambda *a, **k: [{"kind": "profile"}] * 100)
+    monkeypatch.setattr(draft_refs, "draft_impacts", lambda *a, **k: [("request",)] )
+    with pytest.raises(MaterialError) as error:
+        MaterialStore(env.app).impact(claims, env.profile, ready["id"], ready["version"], "revoke")
+    assert error.value.code == "material_impact_too_large"
