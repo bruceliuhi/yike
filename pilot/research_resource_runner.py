@@ -6,8 +6,9 @@ import json
 from pilot.execution_contract import ExecutionRuntimeError, canonical_uuid
 
 
-def run_resource(store, claims, *, task_id, run_id, action_id, resource, input_sha256, action):
-    if not callable(action):
+def run_resource(store, claims, *, task_id, run_id, action_id, resource, input_sha256, action,
+                 on_success=None):
+    if not callable(action) or (on_success is not None and not callable(on_success)):
         raise ExecutionRuntimeError('invalid_request', 422)
     binding = dict(task_id=task_id, run_id=run_id, action_id=action_id)
     admitted = store.begin(claims, **binding, resource=resource, input_sha256=input_sha256)
@@ -38,8 +39,13 @@ def run_resource(store, claims, *, task_id, run_id, action_id, resource, input_s
         # The issued unit stays occupied; nothing here refunds or retries it.
         status, digest, result = 'UNKNOWN', None, None
     try:
-        finished = store.finish(claims, **binding, permit_id=event['permit_id'],
-                                status=status, output_sha256=digest)
+        if status == 'SUCCEEDED' and on_success is not None:
+            # Trusted internal completion owns the event + evidence transaction.
+            # A failed/uncertain commit must not fall back to a second finish.
+            finished = on_success(event, result, digest)
+        else:
+            finished = store.finish(claims, **binding, permit_id=event['permit_id'],
+                                    status=status, output_sha256=digest)
     except Exception:
         raise ExecutionRuntimeError('resource_unavailable', 503) from None
     return dict(event=finished, result=result, replayed=False)

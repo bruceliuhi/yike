@@ -42,7 +42,7 @@ type Content = z.infer<typeof content>;
 const currentVersion = z.object({
   ...contentShape, version_id: uuid, content_version: digest,
 }).strict().readonly();
-const executionContext = z.object({
+const collectionExecutionContext = z.object({
   device_id: candidateRequestIdSchema,
   task_id: candidateRequestIdSchema,
   run_id: candidateRequestIdSchema,
@@ -54,6 +54,21 @@ const executionContext = z.object({
   connection_id: candidateRequestIdSchema.nullable(),
   connection_version: executionVersion.nullable(),
 }).strict().readonly();
+const sampleCount = z.number().int().min(0).max(100);
+const researchExecutionContext = z.object({
+  kind: z.literal('research-resource-v1'),
+  device_id: uuid, task_id: uuid, run_id: uuid, platform_run_id: uuid,
+  credential_version: executionVersion,
+  access_mode: z.literal('PUBLIC_ANONYMOUS'),
+  connection_id: z.null(), connection_version: z.null(),
+  reservation_id: uuid, action_id: uuid, permit_id: uuid,
+  research_generation: z.literal(1), resource: z.literal('SOURCE_READ'),
+  input_sha256: digest, output_sha256: digest,
+  observed_count: sampleCount, accepted_count: sampleCount,
+  skipped_invalid_count: sampleCount, skipped_budget_count: sampleCount,
+}).strict().readonly().refine((value) => value.observed_count ===
+  value.accepted_count + value.skipped_invalid_count + value.skipped_budget_count);
+const executionContext = z.union([collectionExecutionContext, researchExecutionContext]);
 const observation = z.object({
   observation_id: uuid,
   version_id: uuid,
@@ -77,6 +92,8 @@ const observation = z.object({
   const execution = item.execution_context;
   return item.task_id === execution.task_id && item.run_id === execution.run_id &&
     item.platform_run_id === execution.platform_run_id &&
+    (!('kind' in execution) || (item.request_id === execution.action_id &&
+      item.record_index < execution.accepted_count)) &&
     (execution.access_mode === "PLATFORM_ACCOUNT"
       ? execution.connection_id !== null && execution.connection_version !== null
       : item.platform === "PUBLIC_WEB" && execution.connection_id === null && execution.connection_version === null);

@@ -114,3 +114,48 @@ def test_expired_permit_does_not_begin_network_action():
     outcome = run_resource(store, None, **kwargs(), action=lambda _: called.append(True))
     assert called == []
     assert outcome['event']['status'] == 'UNKNOWN'
+
+
+def test_success_completion_receives_canonical_result_instead_of_normal_finish():
+    store, request, completed = MemoryEvents(), kwargs(), []
+    store.fail_finish = True
+    value = {'source': '原文'}
+    def complete(event, result, digest):
+        assert event == store.event and event['status'] == 'ISSUED'
+        assert result == value and result is not value
+        assert digest == hashlib.sha256(json.dumps(value, ensure_ascii=False,
+            sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        completed.append(result)
+        store.event.update(status='SUCCEEDED', output_sha256=digest,
+                           finished_at=datetime.now(UTC).isoformat())
+        return deepcopy(store.event)
+    outcome = run_resource(store, None, **request, action=lambda _: value, on_success=complete)
+    assert outcome['event']['status'] == 'SUCCEEDED'
+    assert completed == [value]
+    assert run_resource(store, None, **request, action=lambda _: pytest.fail('refetched'),
+                        on_success=complete)['replayed'] is True
+    assert completed == [value]
+
+
+def test_failure_does_not_call_success_completion():
+    def fail(_):
+        raise ValueError('source_failed')
+    outcome = run_resource(MemoryEvents(), None, **kwargs(), action=fail,
+        on_success=lambda *_: pytest.fail('failed source was committed'))
+    assert outcome['event']['status'] == 'UNKNOWN'
+
+
+def test_completion_failure_leaves_original_issued_without_fallback_finish():
+    store = MemoryEvents()
+    def fail(*_):
+        raise ValueError('sentinel-private-commit')
+    with pytest.raises(ExecutionRuntimeError, match='resource_unavailable'):
+        run_resource(store, None, **kwargs(), action=lambda _: {'ok': True}, on_success=fail)
+    assert store.event['status'] == 'ISSUED'
+
+
+def test_invalid_completion_is_rejected_before_admission():
+    store = MemoryEvents()
+    with pytest.raises(ExecutionRuntimeError, match='invalid_request'):
+        run_resource(store, None, **kwargs(), action=lambda _: None, on_success=True)
+    assert store.event is None

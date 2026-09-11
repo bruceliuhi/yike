@@ -60,6 +60,21 @@ def test_denied_permit_never_calls_public_source():
     assert calls == []
 
 
+def test_public_reader_forwards_validated_result_to_atomic_completion():
+    store, calls = MemoryEvents(), []
+    def complete(event, result, digest):
+        assert result['topics'][0]['url'] == 'https://www.v2ex.com/t/17'
+        assert 'member' not in result['topics'][0]
+        calls.append(result['observed_count'])
+        return store.finish(None, **{key: event[key] for key in
+            ('task_id', 'run_id', 'action_id', 'permit_id')},
+            status='SUCCEEDED', output_sha256=digest)
+    result = read_public_index(store, None, **binding(), fetcher=lambda _: [topic()],
+                               on_success=complete)
+    assert result['event']['status'] == 'SUCCEEDED'
+    assert calls == [1]
+
+
 @pytest.mark.parametrize('status,headers,body', [
     (302, {'location': 'http://127.0.0.1/secret'}, b'[]'),
     (429, {'content-type': 'application/json'}, b'[]'),
