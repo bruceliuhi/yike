@@ -38,3 +38,24 @@
 - [ ] 客户端请求协议通过定向测试；现有类似草稿/详情/列表组件测试复用，若有新接线失败只修真实差异，不重写页面或降低绑定检查。
 - [ ] 运行新增后端场景、受影响TS文件、tsc及一次renderer构建；数据源保持合成、无真实外发。整批独立代码/架构/质量审核；修复只差量复查。
 - [ ] 更新任务书/整合状态链接与本计划证据，正常推送main并核对SHA；完整Goal及平台/Windows/部署/UAT仍未完成。
+
+## 接线中核对的边界
+
+旧机会没有可证明的固定版本，DTO允许缺sourceEvidenceVersion但只限UNASSESSED/无引用/非认可；不能生成researchBinding。保留原租户机会可见性，原始候选及其版本仍owner-private。同帖不同评论按真实来源身份区分，不能按URL去重。首轮反例发现timeline解析器trim原文，已修保留原字符串。
+
+本批`similar`请求使用UUID（页面已使用crypto.randomUUID），与其它只读binding字段的普通ID区别。建议来自原机会对应确认策略和引用，预览免费且不调用模型，不能包装成新模型研究结果。
+
+**未完成的后续执行依赖：** 现有类似草稿包含research搜贝/资源设置，foreground执行链仍明确拒绝未接可信计量的research配置。本批兑现只读建议和本机草稿，不删除该护栏，不声称类似研究已实际运行；下一阶段须把可信计量/执行限制接上，与原平台/Windows/生产/UAT共同保留在完整Goal。
+
+## 实施与验证
+
+候选接线 `178ebc2`、后端 `7f36543`；独立审核首次 NO-GO，修复提交 `910713a`（字段引用校验）与 `04eab63`（当前事实有效性及真实持久化流程）。首轮增量复核还发现同源多策略重复，补 `b26e39e`：按真实来源和画像取最新观察首项，保留不同评论。独立最终差量审核 **GO**，绑定 `b26e39e70b18d252f55aebb7ec9b1b3490b7acd5`；仅代码接收，不是上线结论。
+
+- 真实 ASSESS、人工复核、来源核验分开读取，避免后一次核验覆盖分类；画像/策略/来源版本变化、后续排除或核验过期不可继续生成有效类似建议。历史证据仍可查看。
+- CAPTURED 标题/上级评论引用按原字段核对并标明上下文；不拼进买方正文。原始行超 1000 明确报错，不先截断再假称完整。
+- 前端改动相关 4 文件 **81 passed**；`tsc --noEmit` 与增量 renderer build 通过。前面未改动的固定路由、旧客户端证据复用，不重复全量测试/构包。
+- 后端 3 个专项文件 **8 passed / 6.01s**，包含无 skip 的 Node 24 普通客户端 → HTTP → 受限角色 PostgreSQL。测试使用真实签名 ingest → ASSESS → VERIFY_SOURCE → INCLUDE；来源/模型仍是合成数据。旧管理员/replica fixture 已删除，其初次 7 passed 不作实际约束验收。
+- 去重修复仅跑新增两策略同源 helper 反例与已有实际 INCLUDE/HTTP 场景：**2 passed / 3.12s**。后者含 Node 实链，前者不是实际多策略采集证明；不与前述重叠测试相加。
+- Python 命令：配置一次性测试库的 `YIKE_IDENTITY_TEST_DATABASE_URL`、`YIKE_IDENTITY_TEST_APP_DATABASE_URL` 与 Node 路径后，`python -m pytest -q tests/test_opportunity_research_api.py tests/test_opportunity_research_composition.py tests/test_opportunity_research_postgres.py`。不记录凭据，不操作共享测试库。
+
+本批没有实际平台、模型外发、计费执行、Windows、部署或客户 UAT 证据，完整 V0.2 Goal 继续 ACTIVE。
