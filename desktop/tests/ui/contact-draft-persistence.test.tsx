@@ -1,0 +1,162 @@
+// @vitest-environment jsdom
+import { webcrypto } from "node:crypto";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AppContextValue } from "../../src/renderer/app/context";
+import { clearLocalDrafts } from "../../src/renderer/app/hooks";
+import type { DraftSaveInput, DraftSaveReceipt } from "../../src/renderer/domain/shortCoach";
+import { parseRoute } from "../../src/renderer/domain/routes";
+import { PUBLIC_SAMPLE } from "../../src/renderer/pages/Opportunities";
+import { ContactEditor } from "../../src/renderer/pages/outreach/ContactEditor";
+import type { YikeService } from "../../src/renderer/services/contracts";
+
+let context: AppContextValue;
+vi.mock("../../src/renderer/app/context", () => ({ useApp: () => context }));
+
+const row = {
+  ...PUBLIC_SAMPLE,
+  id: "TEST-persisted-draft",
+  sample: false,
+  sourceStatus: "OPEN",
+  profileStatus: "CONFIRMED",
+  profileVersionId: "profile-v1",
+  sourceEvidenceVersion: "source-v1",
+  sourceObservedAt: "2026-09-11T00:00:00Z",
+  comment: "初始评论",
+  dm: "初始私信",
+};
+
+function receipt(channel: "comment" | "dm", requestId: string, version = 4): DraftSaveReceipt {
+  const content = channel === "comment" ? "云端评论" : "云端私信";
+  return {
+    binding: { opportunityId: row.id, channel, requestId, contentHash: "a".repeat(64) },
+    status: "SUCCEEDED",
+    confirmed: true,
+    snapshot: {
+      accountScope: { id: "space-a", version: 1 },
+      profileVersionId: row.profileVersionId,
+      sourceEvidenceVersion: row.sourceEvidenceVersion,
+      draft: {
+        opportunityId: row.id,
+        channel,
+        content,
+        savedContent: content,
+        version,
+        accountId: "account-a",
+        recipient: "recipient-a",
+      },
+    },
+  };
+}
+
+const content = () => screen.getByRole("textbox", { name: "沟通内容" }) as HTMLTextAreaElement;
+
+beforeEach(() => {
+  vi.stubGlobal("crypto", webcrypto);
+  sessionStorage.clear();
+  localStorage.clear();
+  clearLocalDrafts();
+  const latest = vi.fn(async (_id: string, channel: "comment" | "dm") =>
+    receipt(channel, channel === "comment" ? "saved-comment" : "saved-dm"),
+  );
+  context = {
+    session: { authenticated: true, userId: crypto.randomUUID(), accountScope: { id: "space-a", version: 1 } },
+    route: parseRoute("#/outreach?opportunity=" + row.id),
+    navigate: vi.fn(),
+    notify: vi.fn(),
+    refreshSession: vi.fn(),
+    service: {
+      connections: vi.fn().mockResolvedValue([{ platform: "xhs", status: "CONNECTED", accountId: "account-a", accountName: "账号A", capabilities: ["comment", "dm"] }]),
+      opportunity: vi.fn().mockResolvedValue(row),
+      copy: vi.fn(),
+      generateContact: vi.fn(),
+      saveContact: vi.fn(),
+      contactDrafts: { latest, save: vi.fn(), operation: vi.fn() },
+    } as unknown as YikeService,
+  };
+});
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+describe("ordinary client contact draft persistence", () => {
+  it("restores each channel including routing and advances its own predecessor", async () => {
+    vi.mocked(context.service.contactDrafts!.save).mockImplementation(async (input: DraftSaveInput) => ({
+      ...receipt(input.binding.channel, input.binding.requestId, input.snapshot.draft.version),
+      binding: input.binding,
+      snapshot: {
+        ...input.snapshot,
+        draft: {
+          ...input.snapshot.draft,
+          savedContent: input.snapshot.draft.content,
+        },
+      },
+    }));
+    render(<ContactEditor row={row} renderConfirmation={() => null} />);
+    await waitFor(() => expect(content().value).toBe("云端评论"));
+    expect((screen.getByRole("textbox", { name: "收件对象" }) as HTMLInputElement).value).toBe("recipient-a");
+    fireEvent.change(content(), { target: { value: "评论新修改" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+    await waitFor(() => expect(context.service.contactDrafts!.save).toHaveBeenCalledOnce());
+    expect(vi.mocked(context.service.contactDrafts!.save).mock.calls[0][0]).toMatchObject({ previousRequestId: "saved-comment" });
+
+    fireEvent.click(screen.getByRole("tab", { name: "私信草稿" }));
+    await waitFor(() => expect(content().value).toBe("云端私信"));
+    expect(vi.mocked(context.service.contactDrafts!.latest!).mock.calls.map((call) => call.slice(0, 2))).toEqual([
+      [row.id, "comment"],
+      [row.id, "dm"],
+    ]);
+  });
+
+  it("never overwrites typing with a late read and only adopts it explicitly", async () => {
+    let resolve!: (value: DraftSaveReceipt | null) => void;
+    vi.mocked(context.service.contactDrafts!.latest!).mockImplementation(() => new Promise((done) => { resolve = done; }));
+    render(<ContactEditor row={row} renderConfirmation={() => null} />);
+    await waitFor(() => expect(context.service.contactDrafts!.latest).toHaveBeenCalledOnce());
+    fireEvent.change(content(), { target: { value: "读取期间人工编辑" } });
+    await act(async () => resolve(receipt("comment", "late-request")));
+    expect(content().value).toBe("读取期间人工编辑");
+    fireEvent.click(await screen.findByRole("button", { name: "采用已保存草稿" }));
+    expect(content().value).toBe("云端评论");
+  });
+
+  it("does not use latest as an implicit predecessor for an old local cache", async () => {
+    const key = `yike.ui.draft.v1.contact:${context.session.userId}:${row.id}:${JSON.stringify(context.session.accountScope)}`;
+    sessionStorage.setItem(key, JSON.stringify({
+      comment: { ...receipt("comment", "ignored").snapshot!.draft, content: "旧本机草稿", savedContent: "旧服务草稿", version: 7 },
+      dm: { opportunityId: row.id, channel: "dm", content: row.dm, savedContent: row.dm, version: 1, accountId: "", recipient: "" },
+    }));
+    render(<ContactEditor row={row} renderConfirmation={() => null} />);
+    expect(content().value).toBe("旧本机草稿");
+    const adopt = await screen.findByRole("button", { name: "采用已保存草稿" });
+    expect((screen.getByRole("button", { name: "保存草稿" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(adopt);
+    expect(content().value).toBe("云端评论");
+  });
+
+  it("blocks saving after a failed latest read, allows retry, and does not invent a predecessor", async () => {
+    vi.mocked(context.service.contactDrafts!.latest!)
+      .mockRejectedValueOnce(new Error("读取失败"))
+      .mockResolvedValueOnce(null);
+    render(<ContactEditor row={row} renderConfirmation={() => null} />);
+    await screen.findByText("读取失败");
+    expect((screen.getByRole("button", { name: "保存草稿" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "重新读取已保存草稿" }));
+    await waitFor(() => expect(context.service.contactDrafts!.latest).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect((screen.getByRole("button", { name: "保存草稿" }) as HTMLButtonElement).disabled).toBe(false));
+  });
+
+  it("discards late reads after account scope or source changes", async () => {
+    let resolve!: (value: DraftSaveReceipt | null) => void;
+    vi.mocked(context.service.contactDrafts!.latest!).mockImplementation(() => new Promise((done) => { resolve = done; }));
+    const view = render(<ContactEditor row={row} renderConfirmation={() => null} />);
+    await waitFor(() => expect(context.service.contactDrafts!.latest).toHaveBeenCalledOnce());
+    context = { ...context, session: { ...context.session, accountScope: { id: "space-b", version: 1 } } };
+    view.rerender(<ContactEditor row={{ ...row, sourceEvidenceVersion: "source-v2" }} renderConfirmation={() => null} />);
+    await act(async () => resolve(receipt("comment", "stale-request")));
+    expect(content().value).toBe("初始评论");
+    expect(screen.queryByRole("button", { name: "采用已保存草稿" })).toBeNull();
+  });
+});

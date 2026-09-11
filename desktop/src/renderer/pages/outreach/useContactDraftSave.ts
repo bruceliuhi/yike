@@ -18,7 +18,7 @@ import { errorMessage, ServiceError } from "../../services/contracts";
 export function useContactDraftSave(
   row: Opportunity,
   draft: ContactDraft,
-  onSaved: (snapshot: DraftSnapshot) => void,
+  onSaved: (snapshot: DraftSnapshot, binding?: DraftSaveBinding) => void,
 ) {
   const { service, session, notify } = useApp();
   const [entries, setEntries] = useOperationLedger(
@@ -81,7 +81,7 @@ export function useContactDraftSave(
         receipt.snapshot.sourceEvidenceVersion ===
           (row.sourceEvidenceVersion || null)
       )
-        onSaved(receipt.snapshot);
+        onSaved(receipt.snapshot, receipt.binding);
       notify("原草稿保存已确认完成，请核对当前内容。", "success");
     } else if (receipt.status === "FAILED")
       throw new Error("服务已确认原草稿未保存，输入已保留，可核对后重新保存。");
@@ -110,7 +110,7 @@ export function useContactDraftSave(
       }
     }
   };
-  const save = () =>
+  const save = (previousRequestId?: string | null) =>
     run(async () => {
       const snapshot = draftSnapshot(row, draft, session.accountScope);
       const contentHash = await boundedRequest(() => snapshotDigest(snapshot), {
@@ -132,7 +132,7 @@ export function useContactDraftSave(
       try {
         if (service.contactDrafts) {
           const receipt = await boundedRequest(
-            () => service.contactDrafts!.save({ binding, snapshot }),
+            () => service.contactDrafts!.save({ binding, snapshot, previousRequestId }),
             {
               timeoutMessage:
                 "草稿保存结果未确认，当前文字已保留，请核对原操作。",

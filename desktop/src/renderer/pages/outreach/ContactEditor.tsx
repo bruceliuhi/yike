@@ -24,11 +24,16 @@ import type {
   PlatformConnection,
 } from "../../domain/models";
 import { errorMessage } from "../../services/contracts";
-import { COACH_PURPOSES, type CoachPurpose } from "../../domain/shortCoach";
+import {
+  COACH_PURPOSES,
+  type CoachPurpose,
+  type DraftSaveReceipt,
+} from "../../domain/shortCoach";
 import { EvidencePanel, isSample } from "../Opportunities";
 import { ContactNotes } from "./ContactNotes";
 import { ShortCoachPanel } from "./ShortCoachPanel";
 import { useContactDraftSave } from "./useContactDraftSave";
+import { useLatestContactDraft } from "./useLatestContactDraft";
 import { nativeOutreachLedgerKey, useNativeOutreachRecord } from "./nativeOutreachLedger";
 import { nativeOutreachCommand } from "./NativeSendConfirmation";
 import "./short-coach.css";
@@ -52,6 +57,15 @@ interface DraftSet {
   comment: ContactDraft;
   dm: ContactDraft;
 }
+interface DraftPersistence {
+  known: boolean;
+  previousRequestId: string | null;
+  savedAccountId: string;
+  savedRecipient: string;
+  profileVersionId: string;
+  sourceEvidenceVersion: string | null;
+}
+type DraftPersistenceSet = Record<"comment" | "dm", DraftPersistence>;
 
 export function ContactEditor({
   row,
@@ -77,6 +91,29 @@ export function ContactEditor({
     }),
   );
   const draft = sample ? initialDraft(row, channel) : drafts[channel];
+  const persistenceKey = `contact-persistence:${session.userId || "public"}:${row.id}${session.accountScope ? ":" + JSON.stringify(session.accountScope) : ""}`;
+  const [persistence, setPersistence] = useLocalDraft<DraftPersistenceSet>(
+    persistenceKey,
+    () => ({
+      comment: {
+        known: false,
+        previousRequestId: null,
+        savedAccountId: "",
+        savedRecipient: "",
+        profileVersionId: row.profileVersionId,
+        sourceEvidenceVersion: row.sourceEvidenceVersion || null,
+      },
+      dm: {
+        known: false,
+        previousRequestId: null,
+        savedAccountId: "",
+        savedRecipient: "",
+        profileVersionId: row.profileVersionId,
+        sourceEvidenceVersion: row.sourceEvidenceVersion || null,
+      },
+    }),
+  );
+  const persisted = persistence[channel];
   const native = !sample && row.platform === "xhs" && channel === "comment" && !!nativeOutreachCommand();
   const nativeRecord = useNativeOutreachRecord(native ? nativeOutreachLedgerKey(session,row.id,channel) : null);
   const [purposes, setPurposes] = useLocalDraft<
@@ -128,10 +165,23 @@ export function ContactEditor({
       )),
   );
   const connection = available.find((c) => c.accountId === draft.accountId);
-  const dirty = draft.content !== draft.savedContent;
+  const dirty =
+    draft.content !== draft.savedContent ||
+    draft.accountId !== persisted.savedAccountId ||
+    draft.recipient !== persisted.savedRecipient ||
+    (persisted.known &&
+      (persisted.profileVersionId !== row.profileVersionId ||
+        persisted.sourceEvidenceVersion !== (row.sourceEvidenceVersion || null)));
   const otherChannel = channel === "comment" ? "dm" : "comment";
+  const otherPersisted = persistence[otherChannel];
   const otherDirty =
-    drafts[otherChannel].content !== drafts[otherChannel].savedContent;
+    drafts[otherChannel].content !== drafts[otherChannel].savedContent ||
+    drafts[otherChannel].accountId !== otherPersisted.savedAccountId ||
+    drafts[otherChannel].recipient !== otherPersisted.savedRecipient ||
+    (otherPersisted.known &&
+      (otherPersisted.profileVersionId !== row.profileVersionId ||
+        otherPersisted.sourceEvidenceVersion !==
+          (row.sourceEvidenceVersion || null)));
   // Switching purposes keeps both local texts; saving one must not silently
   // remove the exit guard for unsaved edits in the other purpose.
   useUnsavedChanges(!sample && (dirty || otherDirty));
@@ -147,18 +197,63 @@ export function ContactEditor({
       },
     }));
   };
-  const saving = useContactDraftSave(row, draft, (snapshot) => {
+  const saving = useContactDraftSave(row, draft, (snapshot, binding) => {
     const submitted = snapshot.draft;
     setDrafts((old) => ({
       ...old,
       [submitted.channel]: {
         ...old[submitted.channel],
         savedContent: submitted.content,
+        version: Math.max(old[submitted.channel].version, submitted.version),
         confirmedFingerprint: undefined,
+      },
+    }));
+    setPersistence((old) => ({
+      ...old,
+      [submitted.channel]: {
+        known: true,
+        previousRequestId: binding?.requestId ?? old[submitted.channel].previousRequestId,
+        savedAccountId: submitted.accountId,
+        savedRecipient: submitted.recipient,
+        profileVersionId: snapshot.profileVersionId,
+        sourceEvidenceVersion: snapshot.sourceEvidenceVersion,
       },
     }));
     setSavedEpoch((value) => value + 1);
   });
+  const applyLatest = (receipt: DraftSaveReceipt, automatic: boolean) => {
+    const snapshot = receipt.snapshot!;
+    const restored = snapshot.draft;
+    const sameEvidence =
+      snapshot.profileVersionId === row.profileVersionId &&
+      snapshot.sourceEvidenceVersion === (row.sourceEvidenceVersion || null);
+    setDrafts((old) => ({
+      ...old,
+      [channel]: {
+        ...restored,
+        version: automatic || sameEvidence
+          ? restored.version
+          : Math.max(old[channel].version, restored.version) + 1,
+        confirmedFingerprint: undefined,
+      },
+    }));
+    setPersistence((old) => ({
+      ...old,
+      [channel]: {
+        known: true,
+        previousRequestId: receipt.binding.requestId,
+        savedAccountId: restored.accountId,
+        savedRecipient: restored.recipient,
+        profileVersionId: snapshot.profileVersionId,
+        sourceEvidenceVersion: snapshot.sourceEvidenceVersion,
+      },
+    }));
+  };
+  const pristineInitial = (() => {
+    const initial = initialDraft(row, channel);
+    return !persisted.known && JSON.stringify(draft) === JSON.stringify(initial);
+  })();
+  const latest = useLatestContactDraft(row, channel, pristineInitial, applyLatest);
   const generate = async () => {
     if (sample || !session.authenticated) return;
     setPendingRegenerate(false);
@@ -340,6 +435,19 @@ export function ContactEditor({
           </details>
         )}
         {saving.error && <Notice tone="error">{saving.error}</Notice>}
+        {!sample && latest.loading && <p className="field-hint">正在读取已保存草稿…</p>}
+        {!sample && latest.error && (
+          <Notice tone="error">
+            {latest.error}
+            <Button onClick={latest.retry}>重新读取已保存草稿</Button>
+          </Notice>
+        )}
+        {!sample && latest.candidate && (
+          <Notice tone="warning">
+            已读取到本人保存的草稿；本机已有编辑或来源版本已变化，当前内容未覆盖。
+            <Button onClick={latest.adopt}>采用已保存草稿</Button>
+          </Notice>
+        )}
         {native && nativeRecord.record && route.query.get("confirm") !== "send" && <Notice tone="warning">
           {nativeRecord.record.state === "SENT" ? "此商机评论已确认发送，修改草稿不会解除首联保护。" : "原生发送结果待核对；原请求已保留，不能重复发送。"}
           <Button onClick={() => navigate("/outreach?opportunity=" + encodeURIComponent(row.id) + "&channel=" + channel + "&confirm=send")}>查看原发送记录</Button>
@@ -375,10 +483,12 @@ export function ContactEditor({
               !session.authenticated ||
               !draft.content.trim() ||
               saving.blocked ||
+              !latest.complete ||
+              !!latest.candidate ||
               action.busy
             }
             loading={saving.busy}
-            onClick={() => void saving.save()}
+            onClick={() => void saving.save(persisted.known ? persisted.previousRequestId : undefined)}
           >
             保存草稿
           </Button>
@@ -389,6 +499,8 @@ export function ContactEditor({
               !draft.content.trim() ||
               dirty ||
               saving.blocked ||
+              !latest.complete ||
+              !!latest.candidate ||
               saving.busy
             }
             onClick={() =>
