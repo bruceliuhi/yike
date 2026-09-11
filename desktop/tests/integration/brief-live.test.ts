@@ -11,6 +11,8 @@ it.skipIf(!process.env.YIKE_BRIEF_LIVE_BASE)('reads verified contact then reflec
  const client=createServiceClient({baseUrl:base,clearSession:async()=>{cookie='';},fetch:async(url,options)=>{
   expect(new URL(url).origin).toBe(base);const headers=new Headers(options.headers);if(cookie)headers.set('Cookie',cookie);
   const response=await fetch(url,{...options,headers});
+  if(!response.ok){const body=await response.clone().json().catch(()=>null);const code=body?.detail?.code??body?.code;
+   console.info('BRIEF_HTTP_FAILURE',response.status,typeof code==='string'&&/^[a-z_]+$/i.test(code)?code:'unclassified');}
   if(new URL(url).pathname==='/api/ui/opportunity-brief/query'&&response.ok){
    const payload=await response.clone().json();
    basisTimes=(Object.values(payload.groups) as {items:{basis:{verifiedAt:string}}[]}[]).flatMap(group=>group.items.map(item=>item.basis.verifiedAt));

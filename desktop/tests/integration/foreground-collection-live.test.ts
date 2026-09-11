@@ -97,7 +97,11 @@ it.skipIf(!names.some(name => process.env[`YIKE_FOREGROUND_LIVE_${name}`]))(
       const savedKey = {platformRunId: committedReceipt.platform_run_id, requestId: committedReceipt.request_id};
       const saved = await candidateJournal().read(journalScope, savedKey); expect(saved?.records).toEqual(records);
       await first.shutdown(); const restored = controller();
-      expect(await restored.start(command)).toEqual(begun); expect(driverStarts).toBe(1);
+      // A committed CLAIM is not a pending source: START must refuse to launch it again.
+      // Recover the original immutable upload below instead of relaxing the generation guard.
+      expect(await restored.start(command)).toEqual({state: 'SERVICE_UNAVAILABLE'});
+      expect(executionWrites).toEqual(['START', 'CLAIM']);
+      expect([driverStarts, driverStops, candidateWrites, candidatePrepares]).toEqual([1, 1, 1, 1]);
       expect(await restored.execute({action: 'RECOVER', taskId, humanConfirmed: true, retry: false})).toMatchObject({state: 'STATUS',
         localState: 'COMPLETED', serverStatus: 'SUCCEEDED', stopConfirmed: true, recordsUsed: 1, recoverable: false});
       expect(executionWrites).toEqual(['START', 'CLAIM', 'FINISH']);

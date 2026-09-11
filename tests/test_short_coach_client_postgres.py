@@ -20,6 +20,41 @@ from tests.test_desktop_opportunity_http_postgres import _node_environment
 from tests.test_execution_runtime_postgres import SECRET
 
 
+def test_http_coach_body_preserves_absent_references_and_rejects_explicit_null():
+    import asyncio
+    import json
+    import pytest
+    from fastapi import HTTPException
+    from starlette.requests import Request
+    from types import SimpleNamespace
+    from pilot.short_coach import CoachInput, GenerateInput
+    from pilot.short_coach_api import _body
+    from tests.test_short_coach import coach_input
+
+    async def parse(raw, schema):
+        async def receive():
+            return {'type':'http.request','body':json.dumps(raw).encode(),'more_body':False}
+        request=Request({'type':'http','headers':[(b'content-type',b'application/json')]},receive)
+        return await _body(request,schema)
+
+    raw=coach_input()
+    model=SimpleNamespace(available=True,provider='synthetic',model='coach-v1')
+    disclosure={'accepted':True,**ShortCoachService(None,model).preview_unverified(raw)}
+    for schema,value in ((CoachInput,raw),(GenerateInput,raw|{'disclosure':disclosure})):
+        parsed=asyncio.run(parse(value,schema))
+        assert 'materialReferences' not in parsed
+        assert schema.model_validate(parsed).materialReferences is None
+        for references in ([],[{'sourceProfileVersionId':raw['binding']['profileVersionId'],
+                'materialId':'synthetic-material','materialVersion':1,'extractionId':'synthetic-extraction',
+                'quote':raw['content'][:2]}]):
+            explicit=asyncio.run(parse(value|{'materialReferences':references},schema))
+            assert explicit['materialReferences']==tuple(references)
+            assert len(schema.model_validate(explicit).materialReferences)==len(references)
+        with pytest.raises(HTTPException) as failure:
+            asyncio.run(parse(value|{'materialReferences':None},schema))
+        assert failure.value.status_code==422
+
+
 def test_reservation_commit_failure_releases_process_slot_without_model_call():
     from types import SimpleNamespace
     import pytest

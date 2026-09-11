@@ -20,7 +20,7 @@ async def _body(request, schema):
     async for chunk in request.stream():
         if len(raw)+len(chunk)>MAX_REQUEST_BYTES: raise _error(413,"request_too_large")
         raw.extend(chunk)
-    try: return schema.model_validate(json.loads(raw.decode(),object_pairs_hook=_unique,parse_constant=lambda _x:(_ for _ in ()).throw(ValueError()))).model_dump()
+    try: return schema.model_validate(json.loads(raw.decode(),object_pairs_hook=_unique,parse_constant=lambda _x:(_ for _ in ()).throw(ValueError()))).model_dump(exclude_unset=True)
     except (ValueError,TypeError,UnicodeError,ValidationError,RecursionError): raise _error(422,"invalid_request") from None
 def register_short_coach_api(router,service,identity,require_session_https):
     def claims(request):

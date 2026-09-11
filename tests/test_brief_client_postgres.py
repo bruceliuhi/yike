@@ -22,7 +22,10 @@ def test_homepage_brief_contact_to_planned_followup(real_strategy_env):
     with env.admin.connect() as conn:
         conn.execute("SELECT set_config('yike.app_role',%s,true)",(env.db.role,))
         conn.execute((root/'deploy/grant_structured_followups.sql').read_text())
+        conn.execute((root/'deploy/grant_materials.sql').read_text())
     *_,opp=include(env,service=real_review(env))
+    from pilot.store import PilotStore
+    assert PilotStore(env.db).list_profiles(env.claims.user_id)
     app=build_runtime_app(env.db,auth_secret=SECRET,dev_login=True,environment={})
     token=issue_token(env.claims.user_id,SECRET)
     with socket.socket() as listener:

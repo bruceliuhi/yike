@@ -12,6 +12,8 @@ it.skipIf(!process.env.YIKE_COACH_LIVE_BASE)('confirms exact ordinary client inp
   expect(new URL(url).origin).toBe(base);paths.push(new URL(url).pathname);
   const headers=new Headers(options.headers);if(cookie)headers.set('Cookie',cookie);
   const response=await fetch(url,{...options,headers});
+  if(!response.ok){const body=await response.clone().json().catch(()=>null);const code=body?.detail?.code??body?.code;
+   console.info('COACH_HTTP_FAILURE',response.status,typeof code==='string'&&/^[a-z_]+$/i.test(code)?code:'unclassified');}
   const session=response.headers.getSetCookie().find(v=>v.startsWith('pilot_session='));if(session)cookie=session.split(';',1)[0];
   expect(response.headers.get('cache-control')).toBe('no-store');return response;
  }});
