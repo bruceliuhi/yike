@@ -14,6 +14,7 @@ export interface Profile {
   id: string;
   /** Stable entity ID supplied by the service; absent for legacy responses. */
   profileEntityId?: string;
+  businessName?: string;
   version: number;
   status: "DRAFT" | "CONFIRMED" | "REVOKED";
   fields: ProfileFields;

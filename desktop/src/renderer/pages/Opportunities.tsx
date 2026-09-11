@@ -2234,7 +2234,7 @@ function CandidateWorkbench() {
                             {confirmedProfiles.map((profile) => (
                               <option key={profile.id} value={profile.id}>
                                 版本 {profile.version} ·{" "}
-                                {profile.fields.service || "业务画像"}
+                                {profile.businessName || profile.fields.service || "业务画像"}
                               </option>
                             ))}
                           </select>

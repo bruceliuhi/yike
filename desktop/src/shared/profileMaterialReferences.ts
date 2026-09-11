@@ -10,10 +10,14 @@ export const savedMaterialReferences=z.array(z.object({field:profileMaterialFiel
   .max(5).refine(values=>new Set(values.map(value=>value.field)).size===values.length);
 export const profileSaveSchema=z.object({
   description:z.string().max(8000).refine(value=>!!value.trim()),
+  profileEntityId:z.string().regex(/^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/).optional(),
+  newBusiness:z.object({requestId:z.string().uuid(),name:z.string().trim().min(1).max(100)
+    .refine(value=>!/[\x00-\x1f\x7f]/.test(value))}).strict().optional(),
   baseProfileVersionId:z.string().uuid().optional(),
   materialReferences:z.array(profileMaterialReference).max(5)
     .refine(values=>new Set(values.map(value=>value.field)).size===values.length).optional(),
-}).strict().refine(value=>!value.materialReferences?.some(ref=>'referenceId' in ref)||!!value.baseProfileVersionId);
+}).strict().refine(value=>!value.materialReferences?.some(ref=>'referenceId' in ref)||!!value.baseProfileVersionId)
+  .refine(value=>!(value.profileEntityId&&value.newBusiness));
 export type ProfileMaterialReference=z.infer<typeof profileMaterialReference>;
 export type SavedMaterialReference=z.infer<typeof savedMaterialReferences>[number];
-export type ProfileReferenceOptions=Pick<z.infer<typeof profileSaveSchema>,'baseProfileVersionId'|'materialReferences'>;
+export type ProfileReferenceOptions=Omit<z.infer<typeof profileSaveSchema>,'description'>;

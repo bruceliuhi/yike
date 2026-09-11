@@ -179,7 +179,8 @@ export function mapProfile(raw: JsonRecord): Profile {
     !Number.isSafeInteger(raw.version) ||
     (raw.version as number) <= 0 ||
     !profileStatuses.includes(raw.status as (typeof profileStatuses)[number]) ||
-    (raw.profile_id !== undefined && !validProfileIdentifier(raw.profile_id))
+    (raw.profile_id !== undefined && !validProfileIdentifier(raw.profile_id)) ||
+    (raw.profile_name !== undefined && (typeof raw.profile_name !== 'string' || !raw.profile_name.trim() || raw.profile_name.length>100 || /[\x00-\x1f\x7f]/.test(raw.profile_name)))
   )
     invalidProfileResponse();
   const description = text(record(raw.payload).description);
@@ -205,6 +206,7 @@ export function mapProfile(raw: JsonRecord): Profile {
       ? { profileEntityId: raw.profile_id }
       : {}),
     version: raw.version as number,
+    ...(raw.profile_name!==undefined?{businessName:raw.profile_name as string}:{}),
     status: raw.status as Profile["status"],
     fields,
     description,
@@ -341,8 +343,10 @@ export const service: YikeService = {
   saveProfile: async (fields, references) => {
     const description = profileDescription(fields);
     const body=profileSaveSchema.safeParse({description,...references});
-    if(!body.success) throw new ServiceError('INVALID_PROFILE_REFERENCES','资料引用无效，请重新核对后保存。');
+    if(!body.success) throw new ServiceError('INVALID_PROFILE_REFERENCES','业务选择、名称或资料引用无效，请重新核对后保存。');
     const r = await request("profiles.save", "/profiles", "POST", body.data);
+    if(body.data.profileEntityId && r.profile_id!==body.data.profileEntityId) invalidProfileResponse();
+    if(body.data.newBusiness && (!validProfileIdentifier(r.profile_id)||r.profile_name!==body.data.newBusiness.name)) invalidProfileResponse();
     if(body.data.materialReferences!==undefined){
       const actual=savedMaterialReferences.safeParse(r.material_references);
       if(!actual.success||actual.data.length!==body.data.materialReferences.length||

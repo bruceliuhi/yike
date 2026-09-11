@@ -671,7 +671,7 @@ export function TaskWizardPage() {
                   <option value="">选择业务画像</option>
                   {confirmed.map((p) => (
                     <option value={p.id} key={p.id}>
-                      {p.fields.service || "业务画像"} · v{p.version}
+                      {p.businessName || p.fields.service || "业务画像"} · v{p.version}
                     </option>
                   ))}
                 </select>

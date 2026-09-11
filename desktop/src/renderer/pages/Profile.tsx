@@ -32,6 +32,8 @@ import { taskDraftOwner } from "../app/taskDraft";
 import {adoptedBindings,bindingOptions,savedBindings,type ReferenceBindings} from './profile/profileReferenceBindings';
 
 interface ProfileEditor {
+  profileEntityId?: string;
+  newBusiness?: {requestId:string;name:string};
   referenceBindings?: ReferenceBindings;
   baselineReferenceBindings?: ReferenceBindings;
   fields: ProfileFields;
@@ -165,6 +167,7 @@ function ProfileWorkspace() {
   const [leaving, setLeaving] = useState<{
     path?: string;
     profile?: Profile;
+    newBusiness?: boolean;
   } | null>(null);
   const [materialOpen, setMaterialOpen] = useState(false);
   const [material, setMaterial] = useState(emptyMaterial);
@@ -179,6 +182,7 @@ function ProfileWorkspace() {
     JSON.stringify(emptyMaterial()),
   );
   const dirty =
+    !!editor.newBusiness ||
     JSON.stringify(editor.fields) !== JSON.stringify(editor.baseline) ||
     JSON.stringify(editor.referenceBindings??{}) !== JSON.stringify(editor.baselineReferenceBindings??{});
   const materialDirty =
@@ -189,6 +193,7 @@ function ProfileWorkspace() {
   activeEditor.current = editor;
   const applyProfile = (profile: Profile) => {
     setEditor({
+      profileEntityId:profile.profileEntityId,
       fields: { ...profile.fields },
       baseline: { ...profile.fields },
       versionId: profile.id,
@@ -199,10 +204,16 @@ function ProfileWorkspace() {
     setFieldErrors({});
     action.setError("");
   };
+  const startBusiness = () => {
+    setEditor({fields:{...EMPTY_PROFILE},baseline:{...EMPTY_PROFILE},versionId:null,example:false,
+      newBusiness:{requestId:crypto.randomUUID(),name:''},referenceBindings:{},baselineReferenceBindings:{}});
+    setFieldErrors({});action.setError('');
+  };
   useEffect(() => {
     if (
       profiles.data?.length &&
       !editor.versionId &&
+      !editor.newBusiness &&
       !Object.values(editor.fields).some(Boolean)
     )
       applyProfile(profiles.data[0]);
@@ -232,6 +243,12 @@ function ProfileWorkspace() {
   };
   const save = async (forConfirmation = false) => {
     if (!validate()) return;
+    if(editor.newBusiness&&!editor.newBusiness.name.trim()){
+      action.setError('请填写业务名称。');return;
+    }
+    if(editor.versionId&&!editor.profileEntityId&&!current){
+      action.setError('请先重新读取当前画像，再保存修改。');return;
+    }
     if(Object.values(editor.referenceBindings??{}).some(binding=>!binding?.valid)){
       action.setError('资料引用已失效，请重新采用有效资料或改为人工内容后保存。');return;
     }
@@ -241,8 +258,11 @@ function ProfileWorkspace() {
       (Object.keys(editor.baselineReferenceBindings??{}).length&&editor.versionId?
         {baseProfileVersionId:editor.versionId,materialReferences:[]}:undefined);
     const originalVersion = editor.versionId;
+    const businessSnapshot=JSON.stringify([editor.profileEntityId,editor.newBusiness]);
+    const entity=editor.profileEntityId??current?.profileEntityId;
+    const options={...references,...(editor.newBusiness?{newBusiness:editor.newBusiness}:entity?{profileEntityId:entity}:{})};
     const saved = await action.run(() =>
-      boundedRequest(() => references?service.saveProfile(snapshot,references):service.saveProfile(snapshot), {
+      boundedRequest(() => Object.keys(options).length?service.saveProfile(snapshot,options):service.saveProfile(snapshot), {
         timeoutMessage:
           "画像保存等待超时，尚未确认保存结果；输入保留，请刷新核对版本。",
       }),
@@ -251,6 +271,7 @@ function ProfileWorkspace() {
       !saved ||
       !currentScope() ||
       activeEditor.current.versionId !== originalVersion ||
+      JSON.stringify([activeEditor.current.profileEntityId,activeEditor.current.newBusiness])!==businessSnapshot ||
       JSON.stringify(activeEditor.current.referenceBindings??{})!==referenceSnapshot ||
       JSON.stringify(activeEditor.current.fields) !== JSON.stringify(snapshot)
     )
@@ -260,6 +281,8 @@ function ProfileWorkspace() {
       fields: { ...saved.fields },
       baseline: { ...saved.fields },
       versionId: saved.id,
+      profileEntityId:saved.profileEntityId,
+      newBusiness:undefined,
       referenceBindings: savedBindings(saved),
       baselineReferenceBindings: savedBindings(saved),
     }));
@@ -428,6 +451,9 @@ function ProfileWorkspace() {
             <div className="section-heading">
               <h2>业务描述</h2>
               <div className="inline-actions">
+                <Button variant="ghost" disabled={action.busy||profiles.loading} onClick={()=>dirty?setLeaving({newBusiness:true}):startBusiness()}>
+                  新建业务画像
+                </Button>
                 {editor.example && <Badge tone="blue">填写示例 · 未确认</Badge>}
                 <Badge
                   tone={
@@ -474,12 +500,17 @@ function ProfileWorkspace() {
                   {!editor.versionId && <option value="">本机新草稿</option>}
                   {profiles.data.map((p) => (
                     <option key={p.id} value={p.id}>
-                      版本 {p.version} · {statusLabel(p.status)}
+                      {p.businessName||p.fields.service||'业务画像'} · 版本 {p.version} · {statusLabel(p.status)}
                     </option>
                   ))}
                 </select>
               </Field>
             )}
+            {editor.newBusiness&&<Field label="业务名称" required>
+              <input aria-label="业务名称" maxLength={100} disabled={action.busy}
+                placeholder="例如：制造业软件、教育业务"
+                value={editor.newBusiness.name} onChange={event=>setEditor(old=>({...old,newBusiness:old.newBusiness?{...old.newBusiness,name:event.target.value}:undefined}))}/>
+            </Field>}
             {current?.status === "CONFIRMED" && (
               <Notice>
                 修改后需保存并重新确认；已有任务仍保留原画像版本。
@@ -699,6 +730,7 @@ function ProfileWorkspace() {
             const target = leaving;
             setLeaving(null);
             if (target.profile) applyProfile(target.profile);
+            else if(target.newBusiness)startBusiness();
             else {
               setEditor((old) => ({ ...old, fields: { ...old.baseline },referenceBindings:{...old.baselineReferenceBindings} }));
               if (target.path) navigate(target.path);
