@@ -16,6 +16,7 @@ import {
 const REQUEST_MS = 10_000;
 const TOTAL_WAIT_MS = 45_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const sourceTypeLabels = {SOCIAL_POST:'需求主帖',COMMENT:'讨论评论',PROCUREMENT:'采购公告',COMPANY_UPDATE:'企业公开动态',INDUSTRY_SITE:'行业网站'};
 const terminal = (receipt: SuggestionReceipt) => receipt.state === "SUCCEEDED" || receipt.state === "FAILED" || receipt.state === "NOT_SUBMITTED";
 const rejectionReasons: Record<string,string> = {
   capability_unavailable:"建议服务当前不可用", disclosure_mismatch:"业务介绍或模型配置已变化，需要重新核对",
@@ -233,7 +234,7 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
       <Button onClick={() => setPreview(null)}>暂不发送</Button>
       <Button variant="primary" onClick={() => void submit()}>我已核对，发送并生成</Button>
     </>}>
-      <p>以下完整业务介绍将发送给受控模型，用于生成搜索关键词、排除词与建议原因；不会自动采集或发送。</p>
+      <p>以下完整业务介绍将发送给受控模型，用于生成搜索关键词、排除词与行业策略建议；不会自动采集或发送。</p>
       <h3>完整业务介绍</h3><p style={{ whiteSpace: "pre-wrap" }}>{preview.description}</p>
       <p className="muted">模型：{preview.model_provider} / {preview.model_name} · 披露规则 {preview.disclosure_policy_version}</p>
     </Modal>}
@@ -242,6 +243,19 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
       <Button onClick={() => void apply("replace_unedited")} disabled={!currentBinding() || !record?.receipt?.profile_current}>替换未修改的建议</Button>
       <Button variant="primary" onClick={() => void apply("append")} disabled={!currentBinding() || !record?.receipt?.profile_current}>合并新增建议</Button>
     </>}>
+      {result.strategy&&<section aria-label="行业搜索策略">
+        <h3>行业搜索策略</h3><Badge tone="blue">策略建议，尚未执行</Badge>
+        <dl className="detail-list">
+          <div><dt>画像中的买方角色</dt><dd>{result.strategy.buyerRole??'画像未说明'}</dd></div>
+          <div><dt>画像中的销售方式</dt><dd>{result.strategy.salesMotion??'画像未说明'}</dd></div>
+        </dl>
+        <h4>建议查看的内容类型</h4><ul>{result.strategy.sourceTypes.map(type=><li key={type}>{sourceTypeLabels[type]}</li>)}</ul>
+        <p className="muted">内容类型不代表平台已接入。采用操作只更新搜索词，不会开启新平台、增加预算或自动联系。</p>
+        <h4>寻找这些购买信号</h4><ul>{result.strategy.intentSignals.map((value,index)=><li key={index}>{value}</li>)}</ul>
+        <h4>留意这些反例</h4>{result.strategy.counterSignals.length?<ul>{result.strategy.counterSignals.map((value,index)=><li key={index}>{value}</li>)}</ul>:<p>暂未提出，仍需人工判断。</p>}
+        <h4>策略的画像依据</h4><ul>{result.strategy.basis.map((value,index)=><li key={index}>{value}</li>)}</ul>
+        <p className="muted">策略版本：{result.strategy.version}</p>
+      </section>}
       <h3>搜索关键词</h3><div className="suggestion-list">{result.keywords.map(v => <span key={v}>{v}</span>)}</div>
       <h3>排除词</h3><div className="suggestion-list">{result.exclusions.map(v => <span key={v}>{v}</span>)}</div>
       <h3>建议原因</h3><p>{result.rationale}</p>

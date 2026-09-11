@@ -7,6 +7,17 @@ const model = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,199}$/);
 const policy = z.literal('profile-description-v1');
 const bounded = (max:number) => z.string().min(1).max(max).refine(value=>value.trim().length>0);
 const count = z.number().int().min(0).max(2147483647);
+const strategyText = (max:number) => z.string().refine(value=>Array.from(value).length<=max &&
+  /[^\p{C}\p{M}\p{Z}\s]/u.test(value) && !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\p{Cs}]/u.test(value));
+const signalList = (minimum:number) => z.array(strategyText(160)).min(minimum).max(5)
+  .refine(values=>new Set(values.map(value=>value.trim().replace(/\s+/g,' ').toLowerCase())).size===values.length);
+export const industrySearchStrategySchema = z.object({
+  version:z.literal('industry-search-strategy-v1'),
+  buyerRole:strategyText(120).nullable(),salesMotion:strategyText(120).nullable(),
+  sourceTypes:z.array(z.enum(['SOCIAL_POST','COMMENT','PROCUREMENT','COMPANY_UPDATE','INDUSTRY_SITE'])).min(1).max(5)
+    .refine(values=>new Set(values).size===values.length),
+  intentSignals:signalList(1),counterSignals:signalList(0),basis:z.array(strategyText(300)).min(1).max(8),
+}).strict();
 const binding = {request_id:uuid,draft_id:uuid,profile_version_id:uuid,draft_revision:count};
 
 export const suggestionPreviewRequestSchema = z.object({profile_version_id:uuid}).strict();
@@ -22,6 +33,7 @@ export const suggestionPreviewSchema = z.object({
 const resultSchema = z.object({
   keywords:z.array(bounded(80)).min(1).max(20),exclusions:z.array(bounded(80)).max(20),
   rationale:bounded(1200),evidence:z.array(bounded(300)).min(1).max(8),unknowns:z.array(bounded(300)).max(8),
+  strategy:industrySearchStrategySchema.optional(),
 }).strict();
 const usageSchema = z.object({prompt_tokens:count,completion_tokens:count,total_tokens:count}).strict()
   .refine(value=>value.prompt_tokens+value.completion_tokens===value.total_tokens);
