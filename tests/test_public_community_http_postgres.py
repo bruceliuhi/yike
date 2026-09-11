@@ -1,0 +1,113 @@
+"""Opt-in real socket HTTP/PG/client chain; only explicit NETWORK=1 reads V2EX.
+
+Users, local dev login and key provisioning are controlled fixtures. No model,
+outreach, customer-data or production/Windows acceptance is claimed here.
+"""
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import socket
+import subprocess
+import threading
+import time
+from urllib.request import Request, urlopen
+
+import pytest
+import uvicorn
+
+from pilot.auth import issue_token
+from pilot.runtime import build_runtime_app
+from tests.test_desktop_opportunity_http_postgres import _node_environment
+from tests.test_confirmed_strategy_http_postgres import (
+    databases, env, execution_databases, execution_env, raw_databases, raw_env, real_strategy_env,
+)
+from tests.test_execution_runtime_postgres import SECRET
+from tests.test_research_strategies_postgres import prepare_body, configuration
+
+ROOT = Path(__file__).parents[1]
+
+
+def test_public_community_client_through_ordinary_runtime(real_strategy_env):
+    env = real_strategy_env
+    node = os.environ.get('YIKE_DEVICE_LIVE_NODE_BINARY') or shutil.which('node')
+    if not node:
+        pytest.fail('Node 24 required for requested integration check')
+    # Full normal runtime, actual policy/resolver and production grant manifest.
+    # The fixture connection assumes a restricted role, never forwarded to Node.
+    with env.db.connect() as conn:
+        role = conn.execute('SELECT current_user').fetchone()[0]
+        assert conn.execute('SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname=current_user').fetchone() == (False,)
+    with env.admin.connect() as conn:
+        conn.execute("SELECT set_config('yike.app_role',%s,true)", (role,))
+        manifest = (ROOT / 'deploy/grant_runtime.sql').read_text()
+        for line in manifest.splitlines():
+            if line.startswith('\\ir '):
+                conn.execute((ROOT / 'deploy' / line.split()[1]).read_text())
+    prepare = prepare_body(env, configuration=configuration(publicSource='v2ex-latest-v1',
+        keywords=['AI', '的'], exclusions=[]), platforms=['PUBLIC_WEB'], max_records=100)
+    token, seed = issue_token(env.claims.user_id, SECRET), env.key.encode().hex()
+    app = build_runtime_app(env.db, auth_secret=SECRET, dev_login=True,
+        environment={'YIKE_PILOT_COLLECTION_MODE': 'four-platform-public-monitor-v1'})
+    network = os.environ.get('YIKE_PUBLIC_COMMUNITY_NETWORK') == '1'
+    child_env = _node_environment()
+    child_env['NO_COLOR'] = '1'
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(('127.0.0.1', 0)); listener.listen(64)
+        base = f'http://127.0.0.1:{listener.getsockname()[1]}'
+        server = uvicorn.Server(uvicorn.Config(app, log_level='critical', access_log=False, lifespan='off'))
+        thread = threading.Thread(target=server.run, kwargs={'sockets': [listener]}, daemon=True)
+        thread.start()
+        try:
+            deadline = time.monotonic() + 10
+            while not server.started and thread.is_alive() and time.monotonic() < deadline:
+                time.sleep(0.02)
+            assert server.started and thread.is_alive()
+            child_env.update(YIKE_PUBLIC_LIVE_BASE=base, YIKE_PUBLIC_LIVE_USER=env.claims.user_id,
+                YIKE_PUBLIC_LIVE_TOKEN=token, YIKE_PUBLIC_LIVE_SEED=seed, YIKE_PUBLIC_LIVE_DEVICE=env.device,
+                YIKE_PUBLIC_LIVE_PROFILE=env.profile, YIKE_PUBLIC_LIVE_PREPARE=json.dumps(prepare),
+                YIKE_PUBLIC_LIVE_NETWORK='1' if network else '0')
+            assert not any('DATABASE' in key.upper() or key.upper().startswith('POSTGRES_') for key in child_env)
+            child = subprocess.run([node, 'node_modules/vitest/vitest.mjs', 'run',
+                'tests/integration/public-community-live.test.ts', '--maxWorkers=1'],
+                cwd=ROOT / 'desktop', env=child_env, capture_output=True, text=True,
+                encoding='utf-8', errors='replace', timeout=90)
+            output = re.sub(r'\x1b\[[0-9;]*m', '', child.stdout + child.stderr)
+            for private in (token, seed):
+                output = output.replace(private, '[redacted]')
+            # Source bodies are not printed by the child, even on assertions.
+            assert child.returncode == 0, output
+            assert '1 passed' in output and 'skipped' not in output.lower(), output
+            markers = [line.split('PUBLIC_COMMUNITY_RESULT ', 1)[1] for line in output.splitlines()
+                       if 'PUBLIC_COMMUNITY_RESULT ' in line]
+            assert len(markers) == 1, 'missing bounded client result'
+            result = json.loads(markers[0])
+            assert result['mode'] == ('network' if network else 'fixture')
+            assert 1 <= result['records'] <= 100 and result['sourceReads'] == 1
+            # Ordinary read API must keep candidates private to their owner.
+            for user in (env.users[1], env.users[2]):
+                request = Request(base + '/api/ui/candidates', headers={
+                    'Authorization': 'Bearer ' + issue_token(user, SECRET)})
+                with urlopen(request, timeout=5) as response:
+                    assert json.load(response)['total'] == 0
+        finally:
+            server.should_exit = True
+            thread.join(timeout=10)
+            assert not thread.is_alive()
+    with env.admin.connect() as conn:
+        count = result['records']
+        for table in ('pilot_candidate_sources', 'pilot_candidate_versions', 'pilot_candidate_observations'):
+            assert conn.execute(f'SELECT count(*) FROM {table} WHERE tenant_id=%s', (env.tenant,)).fetchone()[0] == count
+        assert conn.execute('SELECT count(*) FROM pilot_candidate_batches WHERE tenant_id=%s', (env.tenant,)).fetchone()[0] == 1
+        assert conn.execute('SELECT status,records_used FROM pilot_collection_platform_runs WHERE task_id=%s',
+                            (result['taskId'],)).fetchone() == ('SUCCEEDED', count)
+        operations = conn.execute('SELECT operation FROM pilot_execution_operations WHERE tenant_id=%s', (env.tenant,)).fetchall()
+        assert sorted(row[0] for row in operations) == ['CLAIM', 'FINISH', 'START']
+        assert conn.execute('SELECT count(*) FROM pilot_platform_connections WHERE tenant_id=%s', (env.tenant,)).fetchone()[0] == 0
+        assert conn.execute('SELECT count(*) FROM pilot_opportunities WHERE tenant_id=%s', (env.tenant,)).fetchone()[0] == 0
+        assert conn.execute("SELECT bool_and(collector_version='v2ex-latest-v1') FROM pilot_candidate_observations WHERE tenant_id=%s",
+                            (env.tenant,)).fetchone()[0] is True
+    current = env.runtime.get_task(env.claims, result['taskId'])
+    assert current['status'] == 'SUCCEEDED' and current['stop_confirmed'] is True and current['records_used'] == count
+    print('PUBLIC_COMMUNITY_CHECK ' + json.dumps(result, sort_keys=True))
