@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 当前 Windows 接续入口
+
+CodexWin 按[固定候选交接](handoffs/WIN_V02_CURRENT_CANDIDATE.md)从 `23d1793` 生成新 payload 并只构包一次，再用同包验收安装/重开和授权业务流程。旧 payload/Setup 不能代表当前功能；尚无本次 Win ACK、新包或实机通过记录。本次仅整合可执行交接，不重复测试或改变完整 V0.2 范围。
+
 ## 2026-09-11 首页机会简报
 
 已接普通P02的认证只读服务、画像版本/业务日核对、已核验需求及结构化到期跟进；[唯一记录](superpowers/plans/2026-09-11-opportunity-brief-service.md#实施与验证)说明限定版本、审核与数据联验。原帖变化、实际平台、Windows、生产/UAT仍待验；不将PARTIAL简报当全网搜索完成。
