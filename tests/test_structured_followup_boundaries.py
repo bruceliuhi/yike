@@ -50,6 +50,11 @@ def test_owner_tenant_member_and_profile_boundaries(boundary_env):
     other_tenant = verify_token_claims(issue_token(env.users[2], SECRET), SECRET)
     assert env.followups.list(same_tenant)["records"] == []
     assert env.followups.list(other_tenant)["records"] == []
+    members = env.followups.list(claims)["members"]
+    assert env.users[1] in [member["id"] for member in members]
+    assigned = env.followups.mutate(claims, {"binding": binding(env), "values": values(env, ownerId=env.users[1])})
+    assert assigned["record"]["ownerId"] == env.users[1]
+    assert env.followups.list(same_tenant)["records"] == []
     with pytest.raises(FollowupError, match="followup_not_found"):
         env.followups.mutate(same_tenant, {"binding": binding(env, "void", created["record"]["id"], 1), "reason": "无权"})
     with pytest.raises(FollowupError, match="opportunity_not_found"):
@@ -100,6 +105,28 @@ def test_signed_reply_projection_app_read_and_original_request_replay(boundary_e
     with env.admin.connect() as conn:
         after = conn.execute("SELECT payload,payload_sha256,device_attestation FROM pilot_reply_events WHERE event_id=%s ORDER BY revision", (reply_id,)).fetchall()
     assert after == before
+
+
+@pytest.mark.parametrize("state", ["VOID", "CORRECTED"])
+def test_signed_reply_control_history_is_not_projected_as_live(boundary_env, state):
+    import copy
+    from datetime import UTC, datetime
+
+    env = boundary_env
+    claims = verify_token_claims(env.client.headers["Authorization"].removeprefix("Bearer "), SECRET)
+    _queue, signed_request, key = setup(env)
+    saved = record(env, signed_request, key)
+    assert saved.status_code == 200, saved.text
+    control = copy.deepcopy(signed_request)
+    control["event"].update(event_id=str(uuid4()), state=state,
+        corrects_event_id=saved.json()["event"]["event_id"], reason="合成历史控制事件",
+        observed_at=datetime.now(UTC).isoformat())
+    changed = record(env, control, key)
+    assert changed.status_code == 200, changed.text
+    assert env.followups.replies(claims, env.opp) == []
+    with env.admin.connect() as conn:
+        assert conn.execute("SELECT count(*) FROM pilot_reply_events WHERE event_id=ANY(%s)",
+            ([saved.json()["event"]["event_id"], control["event"]["event_id"]],)).fetchone() == (2,)
 
 
 @pytest.mark.parametrize("change", [

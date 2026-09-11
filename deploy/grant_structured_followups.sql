@@ -1,8 +1,9 @@
-DO $$ DECLARE target TEXT:=NULLIF(current_setting('yike.app_role',true),''); oid OID; item TEXT; BEGIN
+DO $$ DECLARE target TEXT:=NULLIF(current_setting('yike.app_role',true),''); oid OID; owner_oid OID; item TEXT; BEGIN
  SELECT r.oid INTO oid FROM pg_roles r WHERE rolname=target AND NOT rolsuper AND NOT rolbypassrls AND NOT rolcreaterole AND NOT rolcreatedb AND NOT rolreplication;
  IF oid IS NULL THEN RAISE EXCEPTION 'safe yike.app_role required'; END IF;
  FOREACH item IN ARRAY ARRAY['pilot_structured_followup_revisions','pilot_followup_reply_reads','pilot_followup_operations'] LOOP
-  IF pg_has_role(oid,(item::regclass)::oid,'MEMBER') THEN RAISE EXCEPTION 'application role owns followup table'; END IF;
+  SELECT relowner INTO owner_oid FROM pg_class WHERE pg_class.oid=item::regclass;
+  IF pg_has_role(oid,owner_oid,'MEMBER') THEN RAISE EXCEPTION 'application role owns followup table'; END IF;
   EXECUTE format('GRANT SELECT,INSERT ON %I TO %I',item,target);
   IF has_table_privilege(oid,item,'UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES') OR has_any_column_privilege(oid,item,'UPDATE,REFERENCES') THEN RAISE EXCEPTION 'excess followup privileges'; END IF;
  END LOOP;

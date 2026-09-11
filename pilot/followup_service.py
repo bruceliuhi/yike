@@ -176,7 +176,7 @@ class FollowupService:
                 raise FollowupError("snapshot_too_large", 503)
             return {"records": rows, "members": members, "legacyRecords": legacy}
 
-    def _reply(self, cursor, row):
+    def _verified_reply(self, row):
         try:
             verified = evidence_row((row["payload"], row["payload_sha256"], row["device_attestation"], row["revision"]))
         except ReplyStoreError as error:
@@ -184,6 +184,9 @@ class FollowupService:
         event = verified["event"]
         if verified["verification"].get("authority") != "DEVICE_ATTESTED_PLATFORM_REPLY" or event["kind"] != "PLATFORM_REPLY":
             raise FollowupError("stored_reply_attestation_invalid", 503)
+        return event
+
+    def _reply(self, row, event):
         revision = row["read_revision"] or row["revision"]
         read = bool(row["read_value"]) if row["read_revision"] else event["read_state"] == "READ"
         return {"id": event["event_id"], "revision": revision, "opportunityId": event["opportunity_id"],
@@ -213,7 +216,12 @@ class FollowupService:
               AND e.kind='PLATFORM_REPLY' AND e.device_attestation->>'authority'='DEVICE_ATTESTED_PLATFORM_REPLY'
             ORDER BY e.event_id,e.revision DESC""", (tenant, claims.user_id, opportunity_id))
         desc = [c.name for c in cursor.description]
-        result = [self._reply(cursor, dict(zip(desc, row))) for row in cursor.fetchall()]
+        rows = [dict(zip(desc, row)) for row in cursor.fetchall()]
+        verified = [(row, self._verified_reply(row)) for row in rows]
+        controlled = {event["corrects_event_id"] for _, event in verified
+                      if event["state"] in ("CORRECTED", "VOID") and event["corrects_event_id"]}
+        result = [self._reply(row, event) for row, event in verified
+                  if event["state"] == "ACTIVE" and event["event_id"] not in controlled]
         if len(result) > 5000:
             raise FollowupError("snapshot_too_large", 503)
         return result
@@ -260,7 +268,7 @@ class FollowupService:
         return row
 
     def _insert_record(self, cursor, tenant, claims, record_id, revision, binding, values, title, state="ACTIVE", corrects=None, reason=None, created=None):
-        cursor.execute("SELECT 1 FROM pilot_users WHERE tenant_id=%s AND user_id=%s", (tenant, values["ownerId"]))
+        cursor.execute("SELECT 1 FROM yike_followup_members() WHERE user_id=%s", (values["ownerId"],))
         if cursor.fetchone() is None:
             raise FollowupError("member_not_found", 409)
         created = created or datetime.now(UTC)
