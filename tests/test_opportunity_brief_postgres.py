@@ -13,7 +13,8 @@ from tests.test_candidate_review_postgres import (
 )
 from tests.test_confirmed_strategy_review_postgres import real_strategy_env
 from tests.test_opportunity_evidence_postgres import include
-from tests.test_candidate_review_postgres import SECRET, assessment, review_payload
+from tests.test_candidate_review_postgres import SECRET, assessment, review_payload, verification_payload
+from tests.test_confirmed_strategy_review_postgres import real_review
 from tests.test_research_strategies_postgres import revoke_body
 
 
@@ -58,6 +59,8 @@ def test_contact_disappears_after_real_exclude_or_strategy_revoke_and_is_owner_s
     request = _request(env)
     brief = OpportunityBriefService(env.db)
     assert brief.query(env.claims, request)["groups"]["contact"]["total"] == 1
+    service.verify_source(env.claims, verification_payload(binding, status="BLOCKED"))
+    assert brief.query(env.claims, request | {"requestId":str(uuid4())})["groups"]["contact"]["total"] == 0
     excluded = service.review(env.claims, review_payload(binding, "EXCLUDE",
         assessmentId=assessed["assessment"]["id"], humanConfirmed=True,
         evidence=assessment()["evidence"], reason="需求已不适合"))
@@ -87,8 +90,12 @@ def test_latest_void_followup_does_not_revive_older_due_plan(real_strategy_env):
     due = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     if due <= datetime.now(UTC):
         due = datetime.now(UTC)
-    record_id = str(uuid4())
+    contacted_id, record_id = str(uuid4()), str(uuid4())
     with env.admin.connect() as connection:
+        connection.execute("""INSERT INTO pilot_structured_followup_revisions
+          (tenant_id,owner_user_id,record_id,revision,opportunity_id,profile_version_id,status,note,next_step,assignee_user_id,state)
+          VALUES(%s,%s,%s,1,%s,%s,'CONTACTED','已经真实联系','',%s,'ACTIVE')""",
+          (env.tenant,env.claims.user_id,contacted_id,opportunity_id,env.profile,env.claims.user_id))
         connection.execute("""INSERT INTO pilot_structured_followup_revisions
           (tenant_id,owner_user_id,record_id,revision,opportunity_id,profile_version_id,status,note,next_step,next_followup_at,assignee_user_id,state)
           VALUES(%s,%s,%s,1,%s,%s,'CONTACTED','已联系','今天复核',%s,%s,'ACTIVE')""",
@@ -103,10 +110,28 @@ def test_latest_void_followup_does_not_revive_older_due_plan(real_strategy_env):
           (env.tenant,env.claims.user_id,record_id,opportunity_id,env.profile,due,env.claims.user_id))
         connection.execute("ALTER TABLE pilot_structured_followup_revisions ENABLE TRIGGER pilot_structured_followup_revisions_immutable")
     assert brief.query(env.claims, request | {"requestId":str(uuid4())})["groups"]["followup"]["total"] == 0
+    assert brief.query(env.claims, request | {"requestId":str(uuid4())})["groups"]["contact"]["total"] == 0
     with env.admin.connect() as connection:
         connection.execute("ALTER TABLE pilot_structured_followup_revisions DISABLE TRIGGER pilot_structured_followup_revisions_immutable")
         connection.execute("DELETE FROM pilot_structured_followup_revisions WHERE tenant_id=%s", (env.tenant,))
         connection.execute("ALTER TABLE pilot_structured_followup_revisions ENABLE TRIGGER pilot_structured_followup_revisions_immutable")
+
+
+def test_include_without_literal_own_demand_citation_is_not_recommended(real_strategy_env):
+    env = real_strategy_env
+    service = real_review(env)
+    value = assessment()
+    value["intent"]["citations"] = []
+    value["intent"]["level"] = "UNKNOWN"
+    value["urgency"]["citations"] = []
+    value["urgency"]["level"] = "UNKNOWN"
+    value["actionability"]["citations"] = []
+    value["actionability"]["level"] = "UNKNOWN"
+    service.model.assess = lambda **_: (value, None)
+    include(env, service=service)
+    result = OpportunityBriefService(env.db).query(env.claims, _request(env))
+    assert result["coverage"] == "PARTIAL"
+    assert result["groups"]["contact"]["total"] == 0
 
 
 def _request(env):

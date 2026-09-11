@@ -42,3 +42,18 @@ def test_only_current_business_day_is_supported():
     validate_business_day("2026-09-11", "Asia/Shanghai", now)
     with pytest.raises(OpportunityBriefError, match="business_date_conflict"):
         validate_business_day("2026-09-10", "Asia/Shanghai", now)
+
+
+def test_projection_bounds_title_and_literal_own_demand_excerpt():
+    from pilot.opportunity_brief import _clip, _demand_excerpt, _window_id
+    body = "需" * 5000
+    snapshot = {"source":{"body":body}, "assessment":{"citations":[
+        {"dimension":"businessMatch","field":"source.title","quote":"匹配"},
+        {"dimension":"intent","field":"source.body","quote":body},
+    ]}}
+    assert _clip("题" * 301, 300) == "题" * 300
+    assert _clip("😀" * 151, 300) == "😀" * 150
+    assert _demand_excerpt(snapshot) == "需" * 4000
+    snapshot["assessment"]["citations"] = snapshot["assessment"]["citations"][:1]
+    assert _demand_excerpt(snapshot) is None
+    assert _window_id("run-id") == "window:run-id"

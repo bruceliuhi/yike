@@ -83,6 +83,31 @@ def _next_day(now, zone):
     return datetime.combine(tomorrow, datetime.min.time(), zone).astimezone(UTC)
 
 
+def _clip(value, maximum):
+    """Bound display text without altering the retained evidence record."""
+    units = 0
+    for index, character in enumerate(value):
+        units += 2 if ord(character) > 0xFFFF else 1
+        if units > maximum:
+            return value[:index]
+    return value
+
+
+def _demand_excerpt(snapshot):
+    source_body = snapshot["source"]["body"]
+    for citation in snapshot["assessment"].get("citations") or []:
+        quote = citation.get("quote")
+        if (citation.get("dimension") in {"intent", "urgency", "actionability"}
+                and citation.get("field") == "source.body" and isinstance(quote, str)
+                and quote and quote in source_body):
+            return _clip(quote, 4000)
+    return None
+
+
+def _window_id(run_id):
+    return "window:" + run_id
+
+
 class OpportunityBriefService:
     def __init__(self, database):
         self.database = database
@@ -166,13 +191,16 @@ class OpportunityBriefService:
                   FROM pilot_structured_followup_revisions
                   WHERE tenant_id=%s AND owner_user_id=%s AND profile_version_id=%s
                   ORDER BY record_id,revision DESC)
-                SELECT DISTINCT ON(opportunity_id) * FROM latest
+                SELECT DISTINCT ON(opportunity_id) latest.*,
+                  EXISTS(SELECT 1 FROM latest active WHERE active.opportunity_id=latest.opportunity_id
+                    AND active.state='ACTIVE') AS has_active_contact
+                FROM latest
                 ORDER BY opportunity_id,recorded_at DESC,record_id DESC""", (tenant, claims.user_id, profile_version_id))
             followups = self._rows(cursor)
             if len(followups) > 1000:
                 raise OpportunityBriefError("snapshot_too_large", 503)
             by_opportunity = {row["opportunity_id"]: row for row in opportunities}
-            current_followups = {row["opportunity_id"]: row for row in followups if row["state"] == "ACTIVE"}
+            current_followups = {row["opportunity_id"] for row in followups if row["has_active_contact"]}
             contact = []
             for row in opportunities:
                 if row["included_by_user_id"] != claims.user_id or row["payload"] is None:
@@ -183,16 +211,26 @@ class OpportunityBriefService:
                 except OpportunityEvidenceError:
                     raise OpportunityBriefError("brief_store_unavailable", 503) from None
                 snapshot = view["snapshot"]
+                cursor.execute("""SELECT v.receipt FROM pilot_candidate_review_requests included
+                    JOIN pilot_candidate_source_verifications v ON v.tenant_id=included.tenant_id
+                     AND v.owner_user_id=included.owner_user_id AND v.binding_hash=included.binding_hash
+                    WHERE included.tenant_id=%s AND included.owner_user_id=%s AND included.request_id=%s
+                    ORDER BY v.checked_at DESC,v.verification_id DESC LIMIT 1""",
+                    (tenant, claims.user_id, row["include_request_id"]))
+                verification_row = cursor.fetchone()
+                latest_verification = verification_row[0] if verification_row else None
+                demand_excerpt = _demand_excerpt(snapshot)
                 if (row["source_status"] != "OPEN" or row["intent_status"] in {"CONTACTED", "CLOSED"}
                         or row["legacy_contact"] or row["opportunity_id"] in current_followups or row["later_excluded"]
                         or not row["strategy_current"]
-                        or row["latest_source_hash"] != snapshot["source"]["content_sha256"]):
+                        or row["latest_source_hash"] != snapshot["source"]["content_sha256"]
+                        or not latest_verification or latest_verification.get("status") != "OPEN"
+                        or latest_verification.get("contactMethod") not in {"COMMENT", "DM", "PUBLIC_CONTACT"}
+                        or demand_excerpt is None):
                     continue
-                citations = snapshot["assessment"].get("citations") or []
-                excerpt = citations[0]["quote"] if citations else snapshot["source"]["body"]
                 checked = snapshot["verification"]["checked_at"]
                 contact.append(self._item("contact", row, query, row["include_request_id"],
-                                          snapshot["source"]["version_id"], excerpt, "REVIEWED_DEMAND", checked,
+                                          snapshot["source"]["version_id"], demand_excerpt, "REVIEWED_DEMAND", checked,
                                           "人工核验时来源开放并已纳入。"))
             followup = []
             end = _next_day(now, ZoneInfo(query["timezone"]))
@@ -221,7 +259,7 @@ class OpportunityBriefService:
             runs_raw = self._rows(cursor)
             if len(runs_raw) > 100:
                 raise OpportunityBriefError("snapshot_too_large", 503)
-            runs = [{"taskId":r["task_id"], "runId":r["run_id"], "windowId":r["run_id"]} for r in runs_raw]
+            runs = [{"taskId":r["task_id"], "runId":r["run_id"], "windowId":_window_id(r["run_id"])} for r in runs_raw]
             completed = [r["completed_at"] for r in runs_raw if r["completed_at"] is not None]
             has_facts = bool(runs or followups or any(
                 row["included_by_user_id"] == claims.user_id and row["payload"] is not None
@@ -241,7 +279,7 @@ class OpportunityBriefService:
     @staticmethod
     def _item(group, row, query, record_id, version, excerpt, kind, verified_at, reason):
         return {"id":_stable("obi_", [group, record_id, version]), "opportunityId":row["opportunity_id"],
-                "opportunityVersion":_iso(row["updated_at"]), "title":row["title"], "reason":reason,
+                "opportunityVersion":_iso(row["updated_at"]), "title":_clip(row["title"], 300), "reason":_clip(reason, 4000),
                 "profileId":query["profileId"], "profileVersion":query["profileVersion"], "sample":False,
-                "validity":"VALID", "basis":{"recordId":record_id,"version":version,"excerpt":excerpt,
+                "validity":"VALID", "basis":{"recordId":record_id,"version":version,"excerpt":_clip(excerpt, 4000),
                 "kind":kind,"verifiedAt":_iso(verified_at)}}
