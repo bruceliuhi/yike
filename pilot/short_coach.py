@@ -7,7 +7,6 @@ from typing import Annotated, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, AfterValidator, model_validator
-import psycopg
 
 from pilot.auth import TokenClaims
 from pilot.outreach_contract import canonical_uuid
