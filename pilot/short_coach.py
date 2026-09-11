@@ -8,17 +8,20 @@ from typing import Annotated, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, AfterValidator, model_validator
+from pilot.contact_material_references import ContactMaterialReference, qualify
 
 from pilot.auth import TokenClaims
 from pilot.outreach_contract import canonical_uuid
 from pilot.sessions import PilotSessionRegistry
 
 POLICY_VERSION="short-coach-public-draft-v1"
+MATERIAL_POLICY_VERSION="short-coach-material-draft-v1"
 
 class ShortCoachError(Exception):
     _status={"invalid_request":422,"invalid_session":401,"capability_unavailable":501,
         "disclosure_mismatch":409,"short_coach_request_conflict":409,"short_coach_processing":409,
-        "short_coach_failed":502,"short_coach_quota_exceeded":429,"short_coach_result_expired":409}
+        "short_coach_failed":502,"short_coach_quota_exceeded":429,"short_coach_result_expired":409,
+        "short_coach_material_unavailable":409}
     def __init__(self,code,status=None): self.code,self.status=code,status or self._status.get(code,409); super().__init__(code)
 
 def _text(value):
@@ -38,6 +41,14 @@ class CoachBinding(_Strict):
     purpose:Literal["requirement","materials","scope"]
 class CoachInput(_Strict):
     binding:CoachBinding; content:Text; sourceText:Text=Field(min_length=1)
+    materialReferences:tuple[ContactMaterialReference,...]|None=Field(default=None,max_length=3)
+    @model_validator(mode="before")
+    @classmethod
+    def reference_presence(cls,value):
+        if type(value) is dict and "materialReferences" in value and value["materialReferences"] is None: raise ValueError
+        if type(value) is dict and type(value.get("materialReferences")) is list:
+            value=dict(value); value["materialReferences"]=tuple(value["materialReferences"])
+        return value
     @model_validator(mode="after")
     def bound(self):
         if hashlib.sha256(self.content.encode()).hexdigest()!=self.binding.draftHash: raise ValueError("draft hash")
@@ -47,10 +58,13 @@ class CoachInput(_Strict):
             d=datetime.fromisoformat(self.binding.sourceObservedAt.replace("Z","+00:00"))
             if d.tzinfo is None: raise ValueError
         except Exception: raise ValueError("source binding") from None
+        if self.materialReferences is not None:
+            identities=[json.dumps(ref.model_dump(),ensure_ascii=False,sort_keys=True,separators=(",",":")) for ref in self.materialReferences]
+            if len(set(identities))!=len(identities) or any(ref.quote not in self.content for ref in self.materialReferences): raise ValueError
         return self
 class Disclosure(_Strict):
     accepted:Literal[True]; inputHash:str=Field(pattern=r"^[a-f0-9]{64}$")
-    modelProvider:str; modelName:str; policyVersion:Literal[POLICY_VERSION]
+    modelProvider:str; modelName:str; policyVersion:Literal[POLICY_VERSION,MATERIAL_POLICY_VERSION]
 class GenerateInput(CoachInput): disclosure:Disclosure
 
 def _hash(value):
@@ -58,6 +72,8 @@ def _hash(value):
     fields=[b.accountScope.id,b.accountScope.version,b.requestId,b.opportunityId,b.profileVersionId,
         b.sourceEvidenceVersion,b.sourceUrl,b.sourceObservedAt,b.channel,b.draftVersion,b.draftHash,b.purpose,
         value.content,value.sourceText]
+    if "materialReferences" in value.model_fields_set:
+        fields.append([ref.model_dump() for ref in value.materialReferences])
     return hashlib.sha256(json.dumps(fields,ensure_ascii=False,separators=(",",":"),allow_nan=False).encode()).hexdigest()
 
 def _utf16_offset(text,index): return len(text[:index].encode("utf-16-le"))//2
@@ -71,7 +87,9 @@ def _same_millisecond(left, right):
 
 def build_suggestion(raw,result):
     value=CoachInput.model_validate(raw); source=value.sourceText
-    if type(result) is not dict or set(result)!={"content","question","quote"}: raise ValueError
+    material=bool(value.materialReferences)
+    expected={"content","question","quote","materialQuotes"} if material else {"content","question","quote"}
+    if type(result) is not dict or set(result)!=expected: raise ValueError
     content,question,quote=(result[k] for k in ("content","question","quote"))
     if not all(type(v) is str and v and "\0" not in v for v in (content,question,quote)): raise ValueError
     for item in (content,question,quote): item.encode("utf-8")
@@ -82,31 +100,54 @@ def build_suggestion(raw,result):
     qid=str(uuid4()); now=datetime.now(timezone.utc); b=value.binding
     quotes=[{"id":qid,"text":quote,"start":_utf16_offset(source,start),"end":_utf16_offset(source,start+len(quote)),
         "sourceUrl":b.sourceUrl,"sourceEvidenceVersion":b.sourceEvidenceVersion}]
-    return {"suggestionId":str(uuid4()),"binding":b.model_dump(),"content":content,"question":question,
+    suggestion={"suggestionId":str(uuid4()),"binding":b.model_dump(),"content":content,"question":question,
         "context":{"summary":"建议仅依据当前公开原文与人工草稿。","quoteIds":[qid]},"quotes":quotes,
         "checks":[{"kind":"CONTEXT","status":"SUPPORTED","message":"上下文有原文引用。","quoteIds":[qid]},
           {"kind":"ONE_QUESTION","status":"SUPPORTED","message":"短句仅含一个问题。","quoteIds":[]},
           {"kind":"PROMISE","status":"NEEDS_REVIEW","message":"服务承诺须人工复核。","quoteIds":[]},
           {"kind":"LENGTH","status":"SUPPORTED","message":"短句不超过120个字符。","quoteIds":[]}],
         "createdAt":now.isoformat(timespec="milliseconds").replace("+00:00","Z"),"expiresAt":(now+timedelta(minutes=5)).isoformat(timespec="milliseconds").replace("+00:00","Z")}
+    if "materialReferences" in value.model_fields_set:
+        suggestion["materialReferences"]=[]
+    if material:
+        material_quotes=result["materialQuotes"]
+        if type(material_quotes) is not list or not 1<=len(material_quotes)<=len(value.materialReferences): raise ValueError
+        used=set()
+        for item in material_quotes:
+            if type(item) is not dict or set(item)!={"referenceIndex","quote"}: raise ValueError
+            index,adopted=item["referenceIndex"],item["quote"]
+            if (type(index) is not int or index in used or not 0<=index<len(value.materialReferences)
+                    or type(adopted) is not str or not adopted or "\0" in adopted
+                    or adopted not in value.materialReferences[index].quote or adopted not in content): raise ValueError
+            used.add(index)
+            suggestion["materialReferences"].append(value.materialReferences[index].model_copy(update={"quote":adopted}).model_dump())
+    return suggestion
 
 class ShortCoachService:
     def __init__(self,database,model=None):
         self.database,self.model=database,model
         self.sessions=PilotSessionRegistry(database) if database else None
         self._call_lock=threading.Lock()
-    def _configured(self):
+    def _configured(self,value=None):
         if self.model is None or not getattr(self.model,"available",False): raise ShortCoachError("capability_unavailable")
         provider,name=getattr(self.model,"provider",None),getattr(self.model,"model",None)
         if (type(provider) is not str or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}",provider)
                 or type(name) is not str or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,199}",name)):
             raise ShortCoachError("capability_unavailable")
+        if value is not None and value.materialReferences and getattr(self.model,"material_reference_version",None)!=MATERIAL_POLICY_VERSION:
+            raise ShortCoachError("capability_unavailable")
         return provider,name
     def preview_unverified(self,raw):
-        value=CoachInput.model_validate(raw); provider,name=self._configured()
-        return {"inputHash":_hash(value),"modelProvider":provider,"modelName":name,"policyVersion":POLICY_VERSION}
+        value=CoachInput.model_validate(raw); provider,name=self._configured(value)
+        return {"inputHash":_hash(value),"modelProvider":provider,"modelName":name,
+            "policyVersion":MATERIAL_POLICY_VERSION if value.materialReferences else POLICY_VERSION}
     def _facts(self,cursor,claims,value):
         tenant=self.sessions.require_active(cursor,claims)
+        if value.materialReferences:
+            from pilot.materials import MaterialStore
+            cursor.execute("SELECT pg_advisory_xact_lock(%s)",(MaterialStore._lock_id(tenant,claims.user_id),))
+            try: qualify(cursor,tenant=tenant,owner=claims.user_id,references=value.materialReferences)
+            except ValueError: raise ShortCoachError("short_coach_material_unavailable") from None
         if value.binding.accountScope.id!=tenant: raise ShortCoachError("invalid_session",403)
         cursor.execute("SELECT o.profile_version_id,o.source_status,o.intent_status,p.status,s.health,e.payload,e.payload_sha256 "
             "FROM pilot_opportunities o JOIN business_profile_versions p ON p.tenant_id=o.tenant_id AND p.profile_version_id=o.profile_version_id "
@@ -129,14 +170,14 @@ class ShortCoachService:
         try: value=CoachInput.model_validate(raw)
         except Exception: raise ShortCoachError("invalid_request") from None
         with self.database.connect() as conn,conn.cursor() as cursor: self._facts(cursor,claims,value)
-        return self.preview_unverified(value.model_dump())
+        return self.preview_unverified(value.model_dump(exclude_unset=True))
     def generate(self,claims,raw):
         with ExitStack() as cleanup:
             return self._generate(claims,raw,cleanup)
     def _generate(self,claims,raw,cleanup):
         try: value=GenerateInput.model_validate(raw)
         except Exception: raise ShortCoachError("invalid_request") from None
-        provider,name=self._configured(); expected=self.preview_unverified(value.model_dump(exclude={"disclosure"}))
+        provider,name=self._configured(value); expected=self.preview_unverified(value.model_dump(exclude={"disclosure"},exclude_unset=True))
         if value.disclosure.model_dump()!={"accepted":True,**expected}: raise ShortCoachError("disclosure_mismatch")
         request_hash=expected["inputHash"]; b=value.binding
         with self.database.connect() as conn,conn.cursor() as cursor:
@@ -160,12 +201,24 @@ class ShortCoachService:
             cursor.execute("INSERT INTO pilot_short_coach_requests(tenant_id,owner_user_id,request_id,opportunity_id,request_hash,model_provider,model_name,state) VALUES(%s,%s,%s,%s,%s,%s,%s,'PROCESSING')",
                 (tenant,claims.user_id,b.requestId,b.opportunityId,request_hash,provider,name))
         try:
-            result=build_suggestion(value.model_dump(exclude={"disclosure"}),self.model.generate(sourceText=value.sourceText,content=value.content,channel=b.channel,purpose=b.purpose))
+            kwargs=dict(sourceText=value.sourceText,content=value.content,channel=b.channel,purpose=b.purpose)
+            if value.materialReferences:
+                kwargs["materialQuotes"]=[{"referenceIndex":index,"quote":ref.quote} for index,ref in enumerate(value.materialReferences)]
+            result=build_suggestion(value.model_dump(exclude={"disclosure"},exclude_unset=True),self.model.generate(**kwargs))
             state,error="SUCCEEDED",None
         except Exception:
             result,state,error=None,"FAILED","short_coach_failed"
+        try:
+            with self.database.connect() as conn,conn.cursor() as cursor:
+                self.sessions.require_active(cursor,claims); self._facts(cursor,claims,value)
+        except ShortCoachError as qualification_error:
+            with self.database.connect() as conn,conn.cursor() as cursor:
+                self.sessions.require_active(cursor,claims)
+                cursor.execute("UPDATE pilot_short_coach_requests SET state='FAILED',result=NULL,error_code=%s,updated_at=clock_timestamp() WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s AND state='PROCESSING'",
+                    ("short_coach_failed",tenant,claims.user_id,b.requestId))
+            raise
         with self.database.connect() as conn,conn.cursor() as cursor:
-            self.sessions.require_active(cursor,claims); self._facts(cursor,claims,value)
+            self.sessions.require_active(cursor,claims)
             cursor.execute("UPDATE pilot_short_coach_requests SET state=%s,result=%s::jsonb,error_code=%s,updated_at=clock_timestamp() WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s AND state='PROCESSING'",
                 (state,None if result is None else json.dumps(result,ensure_ascii=False),error,tenant,claims.user_id,b.requestId))
         if result is None: raise ShortCoachError(error,502)
