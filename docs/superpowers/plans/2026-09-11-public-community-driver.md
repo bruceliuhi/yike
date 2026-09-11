@@ -35,3 +35,19 @@
 主Agent复核命令：`python -m pytest -q tests/test_public_collection_policy.py tests/test_foreground_collection.py tests/test_research_strategy_contract.py tests/test_monitor_runtime_api.py`，242 passed / 0.79s，另有diff check通过。测试使用合成配置和接口替身，不是PostgreSQL、平台或客户端端到端验收；未重复构包或全量测试。
 
 非作者 `material_reference_architecture` 对该源码SHA只读独立审核Ready to merge: Yes，无阻断P1/P2。默认环境配置未修改。**现客户端严格support schema尚不接受新增public_source，部署不得启用新模式，直到客户端协议、确认、执行接线完成并验证。** 本次只提交默认未启用的后端能力，不代表普通用户已能采集公开社区或MP-03已完成。
+
+### 客户端接线（当前工作片）
+
+沿用上述批准方案，新增匿名 `publicBinding`，不创建虚构账号或连接记录。客户端只有从已认证设备scope取得显式来源能力，才把公开网站显示为V2EX近期主题；用户确认的配置包含固定publicSource，来源/设备变化须重新核对。只允许单次关键词采样、共享上限100条/900秒，不开放历史、全站、评论及公开社区持续监控。既有四账号平台与匿名来源可同设备串行，共享记录预算。
+
+主进程在服务配置就绪时创建同一foreground controller，不再等待Python/profile；原生bootstrap随后只安装native配置，不重建正在运行的controller。匿名来源复用原START、CLAIM、候选上传、FINISH和原请求恢复；已领取过的来源不可重采，取消发生在平台间时不启动下一个来源。来源driver逐任务核验确认标识，单一controller内共享60秒请求冷却，失败也不立即重试；不是跨设备/IP全局配额保证。
+
+同时修正新建单次任务把定时配置带入确认快照的问题：新once准备为schedule:null，monitor保持原计划；旧已保存快照与哈希不改写，不兼容旧草稿须重新准备并主动确认。界面复用现有任务向导和策略确认区，不重做设计。
+
+本片验收以来源/设备确认、独立于native运行时、混合共享预算、取消与复核证据传输为重点。组合测试中的服务回执和来源响应为替身，不能写成真实HTTP、PostgreSQL、平台或客户端到端验收。默认部署模式仍不修改；只有配套客户端/服务端版本通过真实业务验证后才能发布该能力，旧客户端不能消费新增support字段。
+
+源码 `148ddba46169b1f5eb18fcbc048a88fd53863186` 已通过非作者 `material_reference_architecture` 绑定SHA的独立审核，Ready to merge: Yes，无阻断P1/P2。主Agent最终运行12个定向文件211 passed（6.53秒），TypeScript `tsc --noEmit` 与diff check通过，未构包或运行全量测试。测试文件为foregroundCollectionController、publicCommunityDriver、collectionWorker、monitorCollectionController、portableBootstrap、publicCollectionRenderer、foregroundCollectionRenderer、researchStrategies，以及ui下strategy-confirmation、task-desktop-execution、task-wizard、task-domain。
+
+包含真实controller→worker→driver组合，在替身边界验证START→CLAIM→读取→上传原文及来源→FINISH的顺序；另验证renderer新native单次配置可被controller接受、public/mixed设备确认、平台间取消、缺source但重算hash仍拒绝、60秒冷却。最初controller新增用例3项失败后实现通过；新增来源冷却用例先失败后通过，renderer与once新配置亦有RED→GREEN。没有把这些替身回执算作真实数据库或平台证据。
+
+下一片优先复用现有空库部署/执行HTTP测试设施，在隔离真实服务与PostgreSQL验证配套版本的确认、START、候选入库/详情与拒绝边界；再接Windows、真实平台及跨行业效果。不重复实现已接UI/执行协议，不回头构建无域名的正式包。完整Goal与MP-03保持进行中。
