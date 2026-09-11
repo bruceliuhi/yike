@@ -1,0 +1,232 @@
+"""Read-only, evidence-backed projection for the R4 homepage brief."""
+from __future__ import annotations
+
+from contextlib import contextmanager
+from datetime import UTC, date, datetime, timedelta
+import hashlib
+import json
+from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+import psycopg
+
+from pilot.auth import InvalidPilotToken, TokenClaims
+from pilot.opportunity_evidence import OpportunityEvidenceError, evidence_view
+from pilot.sessions import PilotSessionRegistry
+
+
+class OpportunityBriefError(ValueError):
+    def __init__(self, code, status=422):
+        self.code, self.status = code, status
+        super().__init__(code)
+
+
+def _uuid(value):
+    try:
+        if type(value) is not str or str(UUID(value)) != value.lower():
+            raise ValueError
+        return value.lower()
+    except (ValueError, AttributeError):
+        raise OpportunityBriefError("invalid_request") from None
+
+
+def parse_query(raw):
+    keys = {"contractVersion", "requestId", "userId", "accountScopeId", "scopeVersion",
+            "profileId", "profileVersion", "businessDate", "timezone"}
+    if type(raw) is not dict or set(raw) != keys or raw["contractVersion"] != 1 or raw["scopeVersion"] != 1:
+        raise OpportunityBriefError("invalid_request")
+    result = dict(raw)
+    for key in ("requestId", "userId", "accountScopeId", "profileId"):
+        result[key] = _uuid(result[key])
+    if type(result["profileVersion"]) is not int or not 1 <= result["profileVersion"] <= 2_147_483_647:
+        raise OpportunityBriefError("invalid_request")
+    try:
+        if type(result["businessDate"]) is not str or date.fromisoformat(result["businessDate"]).isoformat() != result["businessDate"]:
+            raise ValueError
+        if type(result["timezone"]) is not str or not 1 <= len(result["timezone"]) <= 100:
+            raise ValueError
+        ZoneInfo(result["timezone"])
+    except (ValueError, TypeError, ZoneInfoNotFoundError):
+        raise OpportunityBriefError("invalid_request") from None
+    return result
+
+
+def validate_identity(claims, query, tenant):
+    if not isinstance(claims, TokenClaims):
+        raise OpportunityBriefError("invalid_session", 401)
+    if claims.user_id != query["userId"] or tenant != query["accountScopeId"]:
+        raise OpportunityBriefError("identity_conflict", 409)
+
+
+def validate_business_day(day, timezone, now):
+    if now.astimezone(ZoneInfo(timezone)).date().isoformat() != day:
+        raise OpportunityBriefError("business_date_conflict", 409)
+
+
+def _iso(value):
+    return value.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _stable(prefix, value):
+    raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return prefix + hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _next_day(now, zone):
+    local = now.astimezone(zone)
+    tomorrow = local.date() + timedelta(days=1)
+    return datetime.combine(tomorrow, datetime.min.time(), zone).astimezone(UTC)
+
+
+class OpportunityBriefService:
+    def __init__(self, database):
+        self.database = database
+        self.sessions = PilotSessionRegistry(database)
+
+    def _active(self, cursor, claims):
+        try:
+            return self.sessions.require_active(cursor, claims)
+        except (InvalidPilotToken, PermissionError):
+            raise OpportunityBriefError("invalid_session", 401) from None
+
+    @contextmanager
+    def _snapshot(self, claims):
+        try:
+            with self.database.connect() as auth, auth.cursor() as auth_cursor:
+                tenant = self._active(auth_cursor, claims)
+                with self.database.connect() as conn, conn.cursor() as cursor:
+                    cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                    cursor.execute("SELECT set_config('yike.user_id',%s,true),set_config('yike.tenant_id',%s,true)",
+                                   (claims.user_id, tenant))
+                    cursor.execute("SELECT clock_timestamp()")
+                    now = cursor.fetchone()[0]
+                    yield cursor, tenant, now
+                self._active(auth_cursor, claims)
+        except OpportunityBriefError:
+            raise
+        except psycopg.errors.SerializationFailure:
+            raise OpportunityBriefError("snapshot_changed", 409) from None
+        except psycopg.Error:
+            raise OpportunityBriefError("brief_store_unavailable", 503) from None
+
+    @staticmethod
+    def _rows(cursor):
+        names = [column.name for column in cursor.description]
+        return [dict(zip(names, row)) for row in cursor.fetchall()]
+
+    def query(self, claims, raw):
+        query = parse_query(raw)
+        with self._snapshot(claims) as (cursor, tenant, now):
+            validate_identity(claims, query, tenant)
+            validate_business_day(query["businessDate"], query["timezone"], now)
+            cursor.execute("""SELECT profile_version_id FROM business_profile_versions
+                WHERE tenant_id=%s AND profile_version_id=%s AND version=%s AND status='CONFIRMED'""",
+                           (tenant, query["profileId"], query["profileVersion"]))
+            profile = cursor.fetchone()
+            if profile is None:
+                raise OpportunityBriefError("profile_unavailable", 409)
+            profile_version_id = profile[0]
+            cursor.execute("""SELECT o.opportunity_id,o.title,o.profile_version_id,o.source_status,o.intent_status,
+                o.updated_at,e.include_request_id,e.included_by_user_id,e.payload,e.payload_sha256,
+                EXISTS(SELECT 1 FROM pilot_followups f WHERE f.tenant_id=o.tenant_id AND f.opportunity_id=o.opportunity_id) AS legacy_contact,
+                (SELECT cv.content_version FROM pilot_candidate_review_requests included
+                  JOIN pilot_candidate_projections cp ON cp.tenant_id=included.tenant_id
+                   AND cp.owner_user_id=included.owner_user_id AND cp.candidate_id=included.candidate_id
+                  JOIN pilot_candidate_versions cv ON cv.tenant_id=cp.tenant_id AND cv.owner_user_id=cp.owner_user_id
+                   AND cv.source_id=cp.source_id AND cv.version_id=cp.version_id
+                  WHERE included.tenant_id=o.tenant_id AND included.owner_user_id=e.included_by_user_id
+                   AND included.request_id=e.include_request_id) latest_source_hash,
+                EXISTS(SELECT 1 FROM pilot_candidate_review_requests included
+                  JOIN pilot_candidate_review_requests later ON later.tenant_id=included.tenant_id
+                   AND later.owner_user_id=included.owner_user_id AND later.candidate_id=included.candidate_id
+                  WHERE included.tenant_id=o.tenant_id AND included.owner_user_id=e.included_by_user_id
+                   AND included.request_id=e.include_request_id AND later.action='EXCLUDE'
+                   AND later.status='SUCCEEDED' AND later.created_at>included.created_at) AS later_excluded
+                FROM pilot_opportunities o LEFT JOIN pilot_opportunity_evidence e USING(tenant_id,opportunity_id)
+                WHERE o.tenant_id=%s AND o.profile_version_id=%s ORDER BY o.updated_at DESC,o.opportunity_id LIMIT 1001""",
+                           (tenant, profile_version_id))
+            opportunities = self._rows(cursor)
+            if len(opportunities) > 1000:
+                raise OpportunityBriefError("snapshot_too_large", 503)
+            cursor.execute("""WITH latest AS (
+                  SELECT DISTINCT ON(record_id) record_id,revision,opportunity_id,profile_version_id,status,note,
+                    next_step,next_followup_at,state,created_at,recorded_at
+                  FROM pilot_structured_followup_revisions
+                  WHERE tenant_id=%s AND owner_user_id=%s AND profile_version_id=%s
+                  ORDER BY record_id,revision DESC)
+                SELECT DISTINCT ON(opportunity_id) * FROM latest
+                ORDER BY opportunity_id,recorded_at DESC,record_id DESC""", (tenant, claims.user_id, profile_version_id))
+            followups = self._rows(cursor)
+            if len(followups) > 1000:
+                raise OpportunityBriefError("snapshot_too_large", 503)
+            by_opportunity = {row["opportunity_id"]: row for row in opportunities}
+            current_followups = {row["opportunity_id"]: row for row in followups if row["state"] == "ACTIVE"}
+            contact = []
+            for row in opportunities:
+                if row["included_by_user_id"] != claims.user_id or row["payload"] is None:
+                    continue
+                try:
+                    view = evidence_view(row["payload"], row["payload_sha256"], opportunity_id=row["opportunity_id"],
+                                         profile_version_id=row["profile_version_id"])
+                except OpportunityEvidenceError:
+                    raise OpportunityBriefError("brief_store_unavailable", 503) from None
+                snapshot = view["snapshot"]
+                if (row["source_status"] != "OPEN" or row["intent_status"] in {"CONTACTED", "CLOSED"}
+                        or row["legacy_contact"] or row["opportunity_id"] in current_followups or row["later_excluded"]
+                        or row["latest_source_hash"] != snapshot["source"]["content_sha256"]):
+                    continue
+                citations = snapshot["assessment"].get("citations") or []
+                excerpt = citations[0]["quote"] if citations else snapshot["source"]["body"]
+                checked = snapshot["verification"]["checked_at"]
+                contact.append(self._item("contact", row, query, row["include_request_id"],
+                                          snapshot["source"]["version_id"], excerpt, "REVIEWED_DEMAND", checked,
+                                          "人工已核验并纳入，且来源需求仍有效。"))
+            followup = []
+            end = _next_day(now, ZoneInfo(query["timezone"]))
+            for record in followups:
+                row = by_opportunity.get(record["opportunity_id"])
+                if (row is None or record["profile_version_id"] != profile_version_id or record["state"] != "ACTIVE"
+                        or record["status"] in {"LOST", "WON"} or record["next_followup_at"] is None
+                        or record["next_followup_at"] >= end):
+                    continue
+                followup.append(self._item("followup", row, query, record["record_id"], str(record["revision"]),
+                                           record["next_step"] or record["note"], "MANUAL_FOLLOWUP", record["recorded_at"],
+                                           record["next_step"] or "按已登记计划跟进。"))
+            zone = ZoneInfo(query["timezone"])
+            local_start = datetime.combine(date.fromisoformat(query["businessDate"]), datetime.min.time(), zone).astimezone(UTC)
+            local_end = _next_day(now, zone)
+            cursor.execute("""SELECT t.task_id,r.run_id,p.platform_run_id,p.platform,p.status,
+                (SELECT max(created_at) FROM pilot_execution_operations x WHERE x.tenant_id=t.tenant_id
+                 AND x.owner_user_id=t.owner_user_id AND x.task_id=t.task_id AND x.run_id=r.run_id AND x.operation='FINISH') completed_at
+                FROM pilot_collection_tasks t JOIN pilot_collection_runs r USING(tenant_id,owner_user_id,task_id)
+                JOIN pilot_collection_platform_runs p USING(tenant_id,owner_user_id,task_id,run_id)
+                WHERE t.tenant_id=%s AND t.owner_user_id=%s AND t.profile_version_id=%s AND p.status='SUCCEEDED'
+                  AND EXISTS(SELECT 1 FROM pilot_execution_operations done WHERE done.tenant_id=t.tenant_id
+                    AND done.owner_user_id=t.owner_user_id AND done.task_id=t.task_id AND done.run_id=r.run_id
+                    AND done.operation='FINISH' AND done.created_at >= %s AND done.created_at < %s)
+                ORDER BY completed_at DESC NULLS LAST,t.task_id,p.platform_run_id LIMIT 101""",
+                           (tenant, claims.user_id, profile_version_id, local_start, local_end))
+            runs_raw = self._rows(cursor)
+            if len(runs_raw) > 100:
+                raise OpportunityBriefError("snapshot_too_large", 503)
+            runs = [{"taskId":r["task_id"], "runId":r["run_id"], "windowId":r["run_id"]} for r in runs_raw]
+            completed = [r["completed_at"] for r in runs_raw if r["completed_at"] is not None]
+            has_facts = bool(contact or followup or runs)
+            coverage = "PARTIAL" if has_facts else "NOT_CHECKED"
+            unchecked = (["原帖需求变化尚未核验", "真实未覆盖来源尚未检查"] if has_facts else ["尚无本人该画像的可读事实或已完成任务"])
+            identity = query | {"generatedAt": _iso(now)}
+            result = query | {"snapshotId": _stable("obs_", identity), "audience":"CUSTOMER",
+                "generatedAt":_iso(now), "expiresAt":_iso(min(now + timedelta(minutes=5), end)),
+                "coverage":coverage, "lastCompletedCheckAt":_iso(max(completed)) if completed else None,
+                "checkedScope":["库内已核验机会与有效跟进"] if has_facts else [], "uncheckedScope":unchecked,
+                "runs":runs, "groups":{"contact":{"items":contact,"total":len(contact)},
+                "changes":{"items":[],"total":0}, "followup":{"items":followup,"total":len(followup)}}}
+            return result
+
+    @staticmethod
+    def _item(group, row, query, record_id, version, excerpt, kind, verified_at, reason):
+        return {"id":_stable("obi_", [group, record_id, version]), "opportunityId":row["opportunity_id"],
+                "opportunityVersion":_iso(row["updated_at"]), "title":row["title"], "reason":reason,
+                "profileId":query["profileId"], "profileVersion":query["profileVersion"], "sample":False,
+                "validity":"VALID", "basis":{"recordId":record_id,"version":version,"excerpt":excerpt,
+                "kind":kind,"verifiedAt":_iso(verified_at) if hasattr(verified_at, "astimezone") else verified_at}}
