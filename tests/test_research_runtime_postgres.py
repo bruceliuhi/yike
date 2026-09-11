@@ -4,9 +4,14 @@ from datetime import UTC, datetime
 from uuid import uuid4
 import pytest
 from tests.test_confirmed_strategy_review_postgres import real_strategy_env
-from tests.test_research_resources_postgres import started, store
+from tests.test_research_resources_postgres import started, started_again, store
 from tests.test_candidate_review_postgres import (databases, env, execution_databases,
     execution_env, raw_databases, raw_env)
+
+
+def _stable(value):
+    return value | {"usage": value["usage"] | {"resourceCloseout":
+        value["usage"]["resourceCloseout"] | {"asOf": None}}}
 
 
 def _runtime(env, *, fetcher, model):
@@ -66,6 +71,7 @@ def test_one_fresh_effect_per_advance_and_read_only_status(runtime_env):
 
     queued = runtime.status(env.claims, task_id)
     assert queued["phase"] == "QUEUED" and queued["canAdvance"] is True
+    assert queued["usage"]["resourceCloseout"]["state"] == "OPEN"
     assert reads == [] and model.calls == 0
 
     after_source = runtime.advance(env.claims, task_id, run_id)
@@ -82,10 +88,12 @@ def test_one_fresh_effect_per_advance_and_read_only_status(runtime_env):
     assert len(after_model_two["candidateIds"]) == 2
     assert after_model_two["usage"]["actualSoubei"] is None
     assert after_model_two["usage"]["settlementState"] == "PENDING"
-    assert after_model_two["usage"]["resourceCloseout"] == {"state": "RECORDED", "overduePermits": 0}
+    closeout = after_model_two["usage"]["resourceCloseout"]
+    assert closeout["state"] == "RECORDED" and closeout["overduePermits"] == 0
+    assert datetime.fromisoformat(closeout["asOf"]).tzinfo is not None
 
-    assert runtime.status(env.claims, task_id) == after_model_two
-    assert runtime.advance(env.claims, task_id, run_id) == after_model_two
+    assert _stable(runtime.status(env.claims, task_id)) == _stable(after_model_two)
+    assert _stable(runtime.advance(env.claims, task_id, run_id)) == _stable(after_model_two)
     assert reads == ["read"] and model.calls == 2
 
 
@@ -137,7 +145,8 @@ def test_unknown_model_effect_is_visible_and_never_retried(runtime_env):
     assert stopped["stopCode"] == "effect_unknown"
     assert stopped["effectsPending"] is False and stopped["newActionsBlocked"] is True
     assert stopped["usage"]["modelCalls"]["unknown"] == 1
-    assert runtime.advance(env.claims, task_id, run_id) == stopped
+    assert stopped["usage"]["resourceCloseout"]["state"] == "UNCERTAIN"
+    assert _stable(runtime.advance(env.claims, task_id, run_id)) == _stable(stopped)
     assert model.calls == 1
 
 
@@ -209,6 +218,76 @@ def test_durable_stop_reason_and_active_lease_prevent_client_spin(runtime_env, m
     leased = runtime.status(env.claims, task_id)
     assert leased["phase"] == "RUNNING"
     assert leased["canAdvance"] is False and leased["newActionsBlocked"] is True
+    assert leased["usage"]["resourceCloseout"]["state"] == "DRAINING"
+
+
+def test_resource_closeout_tracks_cancelled_inflight_expiry_and_late_finish(runtime_env):
+    from tests.test_candidate_review_postgres import BoundaryModel
+    from tests.test_execution_runtime_postgres import apply, operation
+    env = runtime_env
+    execution, reservation = started(env)
+    runtime = _runtime(env, fetcher=lambda _: [], model=BoundaryModel())
+    resource_store = store(env)
+    issued = resource_store.begin(env.claims, task_id=execution["task_id"], run_id=execution["run_id"],
+        action_id=str(uuid4()), resource="SOURCE_READ", input_sha256="a" * 64)["event"]
+    assert runtime.status(env.claims, execution["task_id"])["usage"]["resourceCloseout"]["state"] == "DRAINING"
+    apply(env, operation(env, "CANCEL", execution))
+    assert runtime.status(env.claims, execution["task_id"])["usage"]["resourceCloseout"]["state"] == "DRAINING"
+    resource_store.finish(env.claims, task_id=execution["task_id"], run_id=execution["run_id"],
+        action_id=issued["action_id"], permit_id=issued["permit_id"], status="FAILED")
+    action_id, permit_id = str(uuid4()), str(uuid4())
+    with env.admin.connect() as connection:
+        connection.execute("INSERT INTO pilot_research_resource_events(tenant_id,owner_user_id,reservation_id,task_id,run_id,"
+            "action_id,permit_id,resource,input_sha256,issued_at,deadline_at) VALUES(%s,%s,%s,%s,%s,%s,%s,'SOURCE_READ',"
+            "%s,clock_timestamp()-interval '2 seconds',clock_timestamp()-interval '1 second')", (env.tenant,
+             env.claims.user_id, reservation["reservation_id"], execution["task_id"], execution["run_id"],
+             action_id, permit_id, "c" * 64))
+    overdue = runtime.status(env.claims, execution["task_id"])["usage"]["resourceCloseout"]
+    assert overdue["state"] == "UNCERTAIN" and overdue["overduePermits"] == 1
+    with env.admin.connect() as connection:
+        assert connection.execute("SELECT status,finished_at FROM pilot_research_resource_events "
+            "WHERE tenant_id=%s AND action_id=%s", (env.tenant, action_id)).fetchone() == ("ISSUED", None)
+    resource_store.finish(env.claims, task_id=execution["task_id"], run_id=execution["run_id"],
+        action_id=action_id, permit_id=permit_id, status="FAILED")
+    recorded = runtime.status(env.claims, execution["task_id"])["usage"]["resourceCloseout"]
+    assert recorded["state"] == "RECORDED" and recorded["overduePermits"] == 0
+
+
+def test_resource_closeout_unknown_and_stopped_nonterminal_are_never_recorded(runtime_env):
+    from tests.test_candidate_review_postgres import BoundaryModel
+    env = runtime_env
+    execution, _ = started(env)
+    runtime = _runtime(env, fetcher=lambda _: [], model=BoundaryModel())
+    issued = store(env).begin(env.claims, task_id=execution["task_id"], run_id=execution["run_id"],
+        action_id=str(uuid4()), resource="MODEL_CALL", input_sha256="b" * 64)["event"]
+    store(env).finish(env.claims, task_id=execution["task_id"], run_id=execution["run_id"],
+        action_id=issued["action_id"], permit_id=issued["permit_id"], status="UNKNOWN")
+    assert runtime.status(env.claims, execution["task_id"])["usage"]["resourceCloseout"]["state"] == "UNCERTAIN"
+    other, _ = started_again(env)
+    with env.admin.connect() as connection:
+        connection.execute("INSERT INTO pilot_research_runtime(tenant_id,owner_user_id,task_id,run_id,phase,stop_code) "
+            "VALUES(%s,%s,%s,%s,'STOPPED','synthetic_stop')", (env.tenant, env.claims.user_id,
+             other["task_id"], other["run_id"]))
+    assert runtime.status(env.claims, other["task_id"])["usage"]["resourceCloseout"]["state"] == "OPEN"
+
+
+def test_resource_closeout_database_inputs_share_one_read_only_repeatable_snapshot(runtime_env, monkeypatch):
+    from tests.test_candidate_review_postgres import BoundaryModel
+    env = runtime_env
+    execution, _ = started(env)
+    runtime = _runtime(env, fetcher=lambda _: [], model=BoundaryModel())
+    observed = []
+    original = runtime._usage
+    def inspect_transaction(cursor, *args):
+        cursor.execute("SHOW transaction_isolation")
+        isolation = cursor.fetchone()[0]
+        cursor.execute("SHOW transaction_read_only")
+        observed.append((isolation, cursor.fetchone()[0]))
+        return original(cursor, *args)
+    monkeypatch.setattr(runtime, "_usage", inspect_transaction)
+    result = runtime.status(env.claims, execution["task_id"])
+    assert observed == [("repeatable read", "on")]
+    assert datetime.fromisoformat(result["usage"]["resourceCloseout"]["asOf"]).tzinfo is not None
 
 
 def test_actual_runtime_app_authenticated_http_start_advance_and_status(runtime_env, monkeypatch):
@@ -276,7 +355,7 @@ def test_actual_runtime_app_authenticated_http_start_advance_and_status(runtime_
             json={"runId": run_id}, headers=headers)
         assert second.status_code == 200 and second.json()["phase"] == "COMPLETED"
         status = client.get(f"/api/ui/research-execution/tasks/{task_id}", headers=headers)
-        assert status.status_code == 200 and status.json() == second.json()
+        assert status.status_code == 200 and _stable(status.json()) == _stable(second.json())
         feed = client.get(f"/api/ui/execution-task-feed/{task_id}", headers=headers)
         assert feed.status_code == 200 and feed.json()["item"]["research"] is True
     assert len(model_calls) == 1

@@ -8,12 +8,12 @@
 
 ## 合同
 
-既有状态 DTO 的 usage 增加可选 `resourceCloseout`：`{state, overduePermits}`。旧服务缺字段时客户端显示尚未提供，不猜测已收齐；旧客户端严格 DTO 不兼容新字段，未来发布必须绑定同版服务与客户端，当前不部署。
+既有状态 DTO 的 usage 增加可选 `resourceCloseout`：`{state, overduePermits, asOf}`，asOf 为本次数据库一致性快照的 UTC 时间。旧服务缺字段时客户端显示尚未提供，不猜测已收齐；旧客户端严格 DTO 不兼容新字段，未来发布必须绑定同版服务与客户端，当前不部署。客户端比较是否取得新进度时忽略仅 asOf 的变化，不因此重复推进。
 
 - `OPEN`：仍可继续的任务，暂无未决异常。
 - `DRAINING`：有未过期的 ISSUED 或执行租约，尚在等待回执/执行者退出。
 - `UNCERTAIN`：有 UNKNOWN、过期仍 ISSUED 或待确认分析结果；超时不推断外部执行结束，不重试、不扣减、不释放。
-- `RECORDED`：研究序列完成、已取消或持久停止，且无未决事件、分析结果或执行者租约。仅表示当前资源记录已收齐，不表示研究成功、商机有效、搜贝结算或余额释放。
+- `RECORDED`：task 和 run 均为真正终态，且无未决事件、分析结果或执行者租约。仅 coordinator.STOPPED 或 CANCELLING 不能证明终态。仅表示当前资源记录已收齐，不表示研究成功、商机有效、搜贝结算或余额释放。
 
 `overduePermits` 是数据库时刻下已到 deadline 的 ISSUED 数量，不另加进 unknown，原五项计数恒等式不变。不会修改原事件，迟到 finish 仍按原许可幂等落库。
 

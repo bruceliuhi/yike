@@ -7,6 +7,12 @@ import {researchRuntimeStatusSchema,type ResearchRuntimeStatus} from '../../../s
 import {useTaskScope} from './useTaskScope';
 
 const phases={QUEUED:'已创建，待推进',RUNNING:'研究进行中',STOPPED:'研究已停止',CANCELED:'已取消新动作',COMPLETED:'研究序列已完成'};
+const resourceStates={OPEN:'资源记录仍开放',DRAINING:'等待回执或执行者退出',UNCERTAIN:'资源结果仍待核实',RECORDED:'资源记录已收齐'};
+function progressKey(value:ResearchRuntimeStatus){
+  const closeout=value.usage.resourceCloseout;
+  return JSON.stringify({...value,usage:{...value.usage,
+    resourceCloseout:closeout?{...closeout,asOf:undefined}:undefined}});
+}
 export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:string;runId:string;taskStatus:string;onTerminal?:()=>void}) {
   const {service,navigate}=useApp(),scope=useTaskScope(JSON.stringify([taskId,runId,taskStatus]));
   const controller=useRef<AbortController|null>(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
@@ -33,13 +39,13 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
       data.setData(value);
       // One source plus at most 100 original analyses. No background or infinite retry loop.
       for(let step=0;step<101 && value.canAdvance && !value.newActionsBlocked;step++){
-        const previous=JSON.stringify(value);
+        const previous=progressKey(value);
         value=parse(await boundedRequest(signal=>service.researchRuntime!.advance(taskId,runId,signal),{
           signal:abort.signal,timeoutMs:80_000,timeoutMessage:'研究推进等待超时。',
         }));
         if(!current())return;
         data.setData(value);
-        if(JSON.stringify(value)===previous){setMessage('暂未取得新进度，本轮已停下。请稍后查询原任务，不会循环重试。');break;}
+        if(progressKey(value)===previous){setMessage('暂未取得新进度，本轮已停下。请稍后查询原任务，不会循环重试。');break;}
       }
       if(current() && ['COMPLETED','CANCELED'].includes(value.phase))callback.current?.();
     } catch {
@@ -61,9 +67,17 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
       <p>{value.sourceLabel}</p><p>{phases[value.phase]}</p>
       <p>入库原文：{value.acceptedOriginals??'尚未确认'} · 已分析：{value.analyzedOriginals} · 已跳过：{value.skippedOriginals}</p>
       <p className="muted">这些是原文与分析进度，不是已确认的商机数量；请打开候选逐条核对出处与购买意向。</p>
-      <p>来源请求：{value.usage.sourceReads.issued} · 模型请求：{value.usage.modelCalls.issued} · 实际搜贝待结算</p>
+      {(['sourceReads','modelCalls'] as const).map(resource=>{
+        const counts=value.usage[resource];
+        return <p key={resource}>{resource==='sourceReads'?'来源许可':'模型许可'}：{counts.issued} · 成功 {counts.succeeded} · 失败 {counts.failed} · 待回执 {counts.pending} · 未知 {counts.unknown}</p>;
+      })}
+      {value.usage.resourceCloseout?<>
+        <p>本次查询：{resourceStates[value.usage.resourceCloseout.state]} · 超期未核实：{value.usage.resourceCloseout.overduePermits}</p>
+        <p className="muted">记录截至：{new Date(value.usage.resourceCloseout.asOf).toLocaleString('zh-CN')}。仅表示本次快照，不代表搜贝已结算或余额已释放。</p>
+      </>:<p className="muted">服务尚未提供资源收口状态，不能判断记录是否收齐。</p>}
+      <p className="muted">许可不等于实际外部调用或费用；实际搜贝待结算。</p>
       {(value.effectsPending || value.usage.sourceReads.unknown+value.usage.modelCalls.unknown>0) &&
-        <Notice tone="warning">已有请求仍在处理或结果未知。不会自动重做，取消也不代表已发出的请求被撤回。</Notice>}
+        <Notice tone="warning">已有许可尚未收到结果，或结果未知。不会自动重做，取消也不代表已发出的请求被撤回。</Notice>}
       {value.stopCode && <p>停止原因：{value.stopCode}</p>}
     </>}
     {message && <Notice tone="warning">{message}</Notice>}

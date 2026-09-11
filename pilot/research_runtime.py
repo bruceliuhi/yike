@@ -49,27 +49,32 @@ class ResearchRuntimeService:
             (" FOR UPDATE" if lock else ""), (tenant, user, task_id))
         return cursor.fetchone()
 
-    def _usage(self, cursor, tenant, user, task_id, run_id):
-        cursor.execute("SELECT resource,status,count(*) FROM pilot_research_resource_events "
+    def _usage(self, cursor, tenant, user, task_id, run_id, as_of):
+        cursor.execute("SELECT resource,status,count(*),count(*) FILTER (WHERE status='ISSUED' AND deadline_at<=%s) "
+            "FROM pilot_research_resource_events "
             "WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s AND run_id=%s "
-            "GROUP BY resource,status", (tenant, user, task_id, run_id))
+            "GROUP BY resource,status", (as_of, tenant, user, task_id, run_id))
         counters = {resource: {key: 0 for key in ("issued","pending","succeeded","failed","unknown")}
             for resource in ("SOURCE_READ", "MODEL_CALL")}
         names = {"ISSUED": "pending", "SUCCEEDED": "succeeded", "FAILED": "failed", "UNKNOWN": "unknown"}
-        for resource, status, count in cursor.fetchall():
+        overdue = 0
+        for resource, status, count, expired in cursor.fetchall():
             counters[resource][names[status]] = count
             counters[resource]["issued"] += count
+            overdue += expired
         return {"sourceReads": counters["SOURCE_READ"], "modelCalls": counters["MODEL_CALL"],
-            "actualSoubei": None, "settlementState": "PENDING"}
+            "actualSoubei": None, "settlementState": "PENDING"}, overdue
 
     def _dto(self, claims, task_id, *, state=None, ignore_active_lease=False):
-        with self.database.connect() as connection, connection.cursor() as cursor:
-            tenant, task = self._identity(cursor, claims, task_id)
-            run_id = task[1]
-            coordinator = self._coordinator(cursor, tenant, claims.user_id, task_id)
-            usage = self._usage(cursor, tenant, claims.user_id, task_id, run_id)
-            cursor.execute("SELECT clock_timestamp()")
-            now = cursor.fetchone()[0]
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                cursor.execute("SELECT clock_timestamp()")
+                now = cursor.fetchone()[0]
+                tenant, task = self._identity(cursor, claims, task_id)
+                run_id = task[1]
+                coordinator = self._coordinator(cursor, tenant, claims.user_id, task_id)
+                usage, overdue = self._usage(cursor, tenant, claims.user_id, task_id, run_id, now)
         if state is None:
             state = self.orchestrator.inspect(claims, task_id=task_id, run_id=run_id)
         event, receipt = state["source_event"], state["receipt"]
@@ -95,6 +100,11 @@ class ResearchRuntimeService:
             coordinator[5] if durable_stopped else None
         blocked = (canceled or complete or unknown or failed or pending or review_unknown or review_failed or durable_stopped
             or (leased and not ignore_active_lease))
+        terminal = task_status in ("SUCCEEDED", "CANCELED") and run_status in ("SUCCEEDED", "CANCELED")
+        closeout = "UNCERTAIN" if unknown or overdue or review_unknown else \
+            "DRAINING" if pending or leased else "RECORDED" if terminal else "OPEN"
+        usage["resourceCloseout"] = {"state": closeout, "overduePermits": overdue,
+            "asOf": now.isoformat()}
         return {"contractVersion": 1, "taskId": task_id, "runId": run_id,
             "phase": phase, "sourceScope": SOURCE_SCOPE, "sourceLabel": SOURCE_LABEL,
             "acceptedOriginals": accepted, "analyzedOriginals": analyzed,

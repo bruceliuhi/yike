@@ -20,9 +20,23 @@ export const researchRuntimeStatusSchema = z.object({
   sourceLabel:z.literal(RESEARCH_RUNTIME_SOURCE_LABEL),acceptedOriginals:nonnegative.nullable(),analyzedOriginals:nonnegative,
   skippedOriginals:nonnegative,candidateIds:z.array(deviceUuidSchema).max(100),canAdvance:z.boolean(),stopCode:z.string().min(1).max(128).nullable(),
   newActionsBlocked:z.boolean(),effectsPending:z.boolean(),usage:z.object({sourceReads:effectCountsSchema,modelCalls:effectCountsSchema,
+    resourceCloseout:z.object({state:z.enum(['OPEN','DRAINING','UNCERTAIN','RECORDED']),overduePermits:nonnegative,
+      asOf:z.string().datetime({offset:true})}).strict().optional(),
     actualSoubei:z.null(),settlementState:z.literal('PENDING')}).strict(),
 }).strict().refine(value=>new Set(value.candidateIds).size===value.candidateIds.length,'duplicate candidate IDs')
-  .refine(value=>value.acceptedOriginals===null||value.analyzedOriginals+value.skippedOriginals<=value.acceptedOriginals,'original counts exceed accepted');
+  .refine(value=>value.acceptedOriginals===null||value.analyzedOriginals+value.skippedOriginals<=value.acceptedOriginals,'original counts exceed accepted')
+  .refine(value=>{
+    const closeout=value.usage.resourceCloseout;if(!closeout)return true;
+    const pending=value.usage.sourceReads.pending+value.usage.modelCalls.pending;
+    const unknown=value.usage.sourceReads.unknown+value.usage.modelCalls.unknown;
+    if(closeout.overduePermits>pending||value.effectsPending!==(pending>0))return false;
+    if((unknown>0||closeout.overduePermits>0)&&closeout.state!=='UNCERTAIN')return false;
+    if(closeout.state==='UNCERTAIN'&&(value.canAdvance||!value.newActionsBlocked))return false;
+    if(closeout.state==='OPEN'&&pending>0)return false;
+    if(closeout.state==='RECORDED'&&(pending>0||unknown>0||value.canAdvance||!value.newActionsBlocked||
+      !['STOPPED','CANCELED','COMPLETED'].includes(value.phase)))return false;
+    return true;
+  },'incoherent resource closeout');
 export type ResearchRuntimeStatus=z.infer<typeof researchRuntimeStatusSchema>;
 export const researchRuntimeStatusRequestSchema=z.object({taskId:deviceUuidSchema}).strict();
 export const researchRuntimeAdvanceRequestSchema=z.object({taskId:deviceUuidSchema,runId:deviceUuidSchema}).strict();

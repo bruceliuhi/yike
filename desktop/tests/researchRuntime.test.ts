@@ -13,12 +13,22 @@ const status=()=>({contractVersion:1,taskId:id(1),runId:id(2),phase:'RUNNING',so
 
 describe('strict research runtime wire contract',()=>{
   it('accepts nonfinancial resource snapshots and rejects false closure',()=>{
-    const running={...status(),usage:{...status().usage,resourceCloseout:{state:'OPEN',overduePermits:0}}};
+    const closeout={state:'OPEN',overduePermits:0,asOf:'2026-09-11T14:00:00.000Z'};
+    const running={...status(),usage:{...status().usage,resourceCloseout:closeout}};
     expect(researchRuntimeStatusSchema.safeParse(running).success).toBe(true);
     expect(researchRuntimeStatusSchema.safeParse({...running,usage:{...running.usage,
-      resourceCloseout:{state:'RECORDED',overduePermits:0}}}).success).toBe(false);
+      resourceCloseout:{...closeout,state:'RECORDED'}}}).success).toBe(false);
     expect(researchRuntimeStatusSchema.safeParse({...running,usage:{...running.usage,
-      resourceCloseout:{state:'OPEN',overduePermits:1}}}).success).toBe(false);
+      resourceCloseout:{...closeout,overduePermits:1}}}).success).toBe(false);
+    expect(researchRuntimeStatusSchema.safeParse({...running,usage:{...running.usage,
+      resourceCloseout:{...closeout,state:'UNCERTAIN'}}}).success).toBe(false);
+    expect(researchRuntimeStatusSchema.safeParse({...running,usage:{...running.usage,
+      resourceCloseout:{...closeout,asOf:'invalid'}}}).success).toBe(false);
+    const done={...running,phase:'COMPLETED',canAdvance:false,newActionsBlocked:true,
+      usage:{...running.usage,resourceCloseout:{...closeout,state:'RECORDED'}}};
+    expect(researchRuntimeStatusSchema.safeParse(done).success).toBe(true);
+    expect(researchRuntimeStatusSchema.safeParse({...done,usage:{...done.usage,
+      modelCalls:{issued:1,pending:1,succeeded:0,failed:0,unknown:0}}}).success).toBe(false);
   });
   it('accepts only the fixed capability and coherent status DTO',()=>{
     expect(researchRuntimeCapabilitySchema.parse({contractVersion:1,sourceScope:'V2EX_LATEST_INDEX',

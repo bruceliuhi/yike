@@ -22,12 +22,37 @@ afterEach(cleanup);
 function view(){return render(<ResearchProgress taskId={taskId} runId={runId} taskStatus="PENDING"/>);}
 it('shows recorded resources separately from financial settlement',async()=>{
   status.mockResolvedValue({...queued,phase:'COMPLETED',canAdvance:false,newActionsBlocked:true,
-    usage:{...queued.usage,resourceCloseout:{state:'RECORDED',overduePermits:0}}});
+    usage:{...queued.usage,resourceCloseout:{state:'RECORDED',overduePermits:0,asOf:'2026-09-11T14:00:00Z'}}});
   view();
   await screen.findByText(/本次查询：资源记录已收齐/);
   expect(screen.getByText(/不代表搜贝已结算或余额已释放/)).toBeTruthy();
   expect(screen.getByText(/来源许可：0/)).toBeTruthy();
   expect(advance).not.toHaveBeenCalled();
+});
+it('old services do not imply recorded or settled resources',async()=>{
+  view();await screen.findByText(/服务尚未提供资源收口状态/);
+  expect(screen.queryByText(/本次查询：资源记录已收齐/)).toBeNull();
+  expect(advance).not.toHaveBeenCalled();
+});
+it.each(['OPEN','DRAINING','UNCERTAIN'] as const)('shows %s with explicit permit outcomes',async(state)=>{
+  const unresolved=state==='UNCERTAIN',pending=state==='OPEN'?0:1;
+  status.mockResolvedValue({...queued,canAdvance:state==='OPEN',newActionsBlocked:state!=='OPEN',effectsPending:pending>0,
+    usage:{...queued.usage,sourceReads:{...counts,issued:pending,pending},
+      resourceCloseout:{state,overduePermits:unresolved?1:0,asOf:'2026-09-11T14:00:00Z'}}});
+  view();await screen.findByText(/本次查询：/);
+  expect(screen.getByText(/来源许可：/)).toBeTruthy();
+  expect(screen.getAllByText(/待回执/).length).toBeGreaterThan(0);
+  if(unresolved)expect(screen.getByText(/超期未核实：1/)).toBeTruthy();
+  expect(advance).not.toHaveBeenCalled();
+});
+it('a newer snapshot timestamp alone never triggers repeated advances',async()=>{
+  const snapshot={...queued,usage:{...queued.usage,resourceCloseout:{state:'OPEN',overduePermits:0,asOf:'2026-09-11T14:00:00Z'}}};
+  status.mockResolvedValue(snapshot);
+  advance.mockResolvedValue({...snapshot,usage:{...snapshot.usage,resourceCloseout:{...snapshot.usage.resourceCloseout,asOf:'2026-09-11T14:00:01Z'}}});
+  view();await screen.findByText('V2EX最新主题 · 公开单源研究');
+  fireEvent.click(screen.getByRole('button',{name:'继续研究'}));
+  await screen.findByText(/暂未取得新进度/);
+  expect(advance).toHaveBeenCalledTimes(1);
 });
 it('reads without work until asked, then advances serially to honest completion',async()=>{
   const sourced={...queued,phase:'RUNNING',acceptedOriginals:1,usage:{...queued.usage,sourceReads:{...counts,issued:1,succeeded:1}}};
