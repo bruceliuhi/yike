@@ -11,6 +11,7 @@ import type {MonitorCollectionCommand,MonitorCollectionPlan} from '../../../shar
 import {boundedRequest} from '../../app/boundedRequest';
 import {useTaskDraft,useTaskLibrary} from '../../app/taskDraft';
 import {newTaskDraft} from '../../domain/models';
+import {publicSourceScope} from '../../../shared/publicSources';
 
 const localLabels={DETACHED:'本机未接管',ATTACHED:'已接管，等待到期',RUNNING:'轮次处理中',STOPPING:'正在停止',STOP_UNCONFIRMED:'来源停止待核实'};
 const hints:Record<string,string>={SKIPPED_BUSY:'采集器忙碌，本次到期已跳过，不补跑。',SKIPPED_OFFLINE:'离线错过的时段已跳过。',
@@ -43,7 +44,7 @@ export function NativeMonitorPlans(){
     if(view.configuration_sha256!==plan.configurationSha256 || view.profile_version_id!==plan.profileVersionId)throw new Error('计划策略已变化，请刷新。');
     const targets=monitorTargets(view,connections);
     const accounts=targets.map(target=>{
-     if(target.platform==='PUBLIC_WEB')return '公开社区：V2EX近期主题定时抽样，不覆盖历史/全站';
+     if(target.platform==='PUBLIC_WEB')return `公开社区：${publicSourceScope(view.snapshot.configuration.publicSource)}；按已确认周期抽样`;
      const row=connections.find(c=>c.registration?.connectionId===target.connection_id)!;
      return `${row.platform}：${row.accountId}`;
     });
@@ -102,7 +103,7 @@ export function NativeMonitorPlans(){
    <p className="field-hint">{schedulePolicyDescription(selected.schedule).slice(0,2).join(' ')}</p>
    <p>下次到期：{selected.nextDueAt?formatDate(selected.nextDueAt):'暂停期间不安排'}</p>
    {details.data&&<><p>平台：{details.data.snapshot.platforms.join('、')}；搜索词：{details.data.snapshot.configuration.keywords.join('、')}</p>
-    {details.data.snapshot.platforms.includes('PUBLIC_WEB')&&<p className="field-hint">公开来源为 V2EX 近期主题定时抽样，不覆盖历史或全站；列表消失不表示需求关闭。</p>}</>}
+    {details.data.snapshot.platforms.includes('PUBLIC_WEB')&&<p className="field-hint">{publicSourceScope(details.data.snapshot.configuration.publicSource)}；按已确认周期抽样，列表消失不表示需求关闭。</p>}</>}
    <ResourceStatus loading={details.loading} error={details.error}/>
    {selected.lastError&&<Notice tone="warning">{hints[selected.lastError]||`本机需要处理：${selected.lastError}，请核对账号与原执行记录。`}</Notice>}
    <div className="task-footer">{actions(selected)}<Button onClick={()=>navigate('/opportunities')}>查看商机库</Button></div>

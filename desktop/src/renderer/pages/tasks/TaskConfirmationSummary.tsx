@@ -8,6 +8,8 @@ import {
 import "./confirmation.css";
 import { DEMAND_TYPES, type UsageQuote } from "../../domain/researchUsage";
 import { schedulePolicyDescription, scheduleWindowLabel } from "../../domain/schedule";
+import {hasPublicSourceBinding} from '../../domain/task';
+import {allowsPublicSource,DEFAULT_PUBLIC_SOURCE,publicSourceScope} from '../../../shared/publicSources';
 
 export function TaskConfirmationSummary({
   draft,
@@ -237,7 +239,9 @@ export function TaskConfirmationSummary({
                   : "待核验";
                 const webReady =
                   id === "web" &&
-                  readyConnection?.capabilities.includes("collect");
+                  !!readyConnection && hasPublicSourceBinding(readyConnection) &&
+                  allowsPublicSource(draft.publicSource ?? DEFAULT_PUBLIC_SOURCE,
+                    readyConnection.publicBinding?.sourceId,readyConnection.publicBinding?.sourceIds);
                 return (
                   <tr key={id}>
                     <td>
@@ -277,7 +281,7 @@ export function TaskConfirmationSummary({
                             : status}
                       </Badge>
                     </td>
-                    <td>{source}</td>
+                    <td>{id === 'web' ? publicSourceScope(draft.publicSource) : source}</td>
                   </tr>
                 );
               })}

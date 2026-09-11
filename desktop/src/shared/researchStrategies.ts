@@ -1,4 +1,5 @@
 import { z } from "zod";
+import {publicSourceIdSchema} from './publicSources';
 import { industryTaskStrategySchema } from './industryTaskStrategy';
 
 const INVALID_STRATEGY_DATA = "Invalid research strategy data.";
@@ -259,10 +260,12 @@ export const strategyConfigurationSchema = exactObject({
   schedule: scheduleSchema.nullable(),
   research: researchSchema.nullable(),
   industryStrategy: industryTaskStrategySchema.optional(),
-  publicSource: z.literal('v2ex-latest-v1').optional(),
+  publicSource: publicSourceIdSchema.optional(),
   platformQueries: platformQueriesSchema.optional(),
 })
   .superRefine((configuration, context) => {
+    if(configuration.publicSource==='v2ex-qna-v1' && configuration.research!==null)
+      context.addIssue({code:'custom',message:INVALID_STRATEGY_DATA});
     if (configuration.platformQueries && (configuration.source!=='search' || configuration.research!==null || configuration.links.length>0 ||
         configuration.platformQueries.items.some(item=>item.keywords.some(keyword=>configuration.exclusions.some(
           exclusion=>normalizedTerm(keyword).includes(normalizedTerm(exclusion)))))))

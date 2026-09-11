@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {deviceUuidSchema as uuid} from './deviceRegistration';
 import {nativeLoginPlatformSchema,validNativeAccount} from './platformAccount';
+import {publicSourceIdsSchema,validPublicSourceCatalog} from './publicSources';
 export const FOREGROUND_COLLECTION_CHANNEL='desktop:foreground-collection';
 export const foregroundCollectionCommandSchema=z.discriminatedUnion('action',[
  z.object({action:z.literal('CAPABILITIES')}).strict(),
@@ -13,7 +14,8 @@ export function supportsForegroundPlatform(mode:unknown,platform:unknown):boolea
   mode==='three-platform-foreground-v1' && platform!=='ZHIHU' || mode==='xhs-foreground-v1' && platform==='XIAOHONGSHU');
 }
 export const monitorSupportSchema=z.object({schema_version:z.literal('monitor-runtime-support-v1'),
- mode:z.enum(['three-platform-monitor-v1','four-platform-monitor-v1']).nullable(),public_source:z.literal('v2ex-latest-v1').optional()}).strict();
+ mode:z.enum(['three-platform-monitor-v1','four-platform-monitor-v1']).nullable(),public_source:z.literal('v2ex-latest-v1').optional(),
+ public_sources:publicSourceIdsSchema.optional()}).strict().refine(value=>validPublicSourceCatalog(value.public_source,value.public_sources));
 export function monitorForegroundMode(value:unknown) {
  const parsed=monitorSupportSchema.safeParse(value);
  return !parsed.success || parsed.data.mode===null ? null : parsed.data.mode==='four-platform-monitor-v1'
@@ -23,7 +25,8 @@ export const foregroundBindingSchema=z.object({mode:foregroundModeSchema,platfor
  connectionId:uuid,connectionVersion:z.number().int().min(1).max(2147483647),deviceId:uuid,accountPublicId:z.string().min(1).max(64)}).strict()
  .superRefine((value,ctx)=>{if(!supportsForegroundPlatform(value.mode,value.platform) || !validNativeAccount(value.platform,value.accountPublicId))
   ctx.addIssue({code:'custom',message:'invalid foreground account binding'});});
-export const publicSourceBindingSchema=z.object({sourceId:z.literal('v2ex-latest-v1'),deviceId:uuid,monitorSupported:z.literal(true).optional()}).strict();
+export const publicSourceBindingSchema=z.object({sourceId:z.literal('v2ex-latest-v1'),sourceIds:publicSourceIdsSchema.optional(),deviceId:uuid,monitorSupported:z.literal(true).optional()})
+ .strict().refine(value=>validPublicSourceCatalog(value.sourceId,value.sourceIds));
 export type PublicSourceBinding=z.infer<typeof publicSourceBindingSchema>;
 const foregroundBindingsSchema=z.array(foregroundBindingSchema).max(4).superRefine((values,ctx)=>{
  if(new Set(values.map(value=>value.platform)).size!==values.length)ctx.addIssue({code:'custom',message:'duplicate foreground platform'});

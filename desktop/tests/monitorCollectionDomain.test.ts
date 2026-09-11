@@ -23,6 +23,15 @@ it('rejects old public bindings and mixed devices',()=>{
  expect(()=>monitorTargets(view(['PUBLIC_WEB']),[publicRow(id(10),false)])).toThrow('持续监控尚未接通');
  expect(()=>monitorTargets(view(['BILIBILI','PUBLIC_WEB']),[nativeRow,publicRow(id(12))])).toThrow('同一台当前设备');
 });
+it('keeps QNA monitor selection and rejects legacy capability without falling back',()=>{
+ const strategy=view(['PUBLIC_WEB']);
+ strategy.snapshot.configuration.publicSource='v2ex-qna-v1';
+ expect(()=>monitorTargets(strategy,[publicRow()])).toThrow();
+ const row=publicRow();
+ row.publicBinding.sourceIds=['v2ex-latest-v1','v2ex-qna-v1'];
+ expect(monitorTargets(strategy,[row])).toHaveLength(1);
+ expect(strategy.snapshot.configuration.publicSource).toBe('v2ex-qna-v1');
+});
 
 it.each([false,true])('prepares the actual public monitor draft before CREATE, mixed=%s',mixed=>{
  const draft:TaskDraft={id:id(3),revision:1,name:'监控',profileId:id(1),profileVersion:1,

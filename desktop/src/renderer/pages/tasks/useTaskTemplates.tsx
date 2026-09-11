@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useApp } from "../../app/context";
 import { useLocalDraft } from "../../app/hooks";
 import { taskDraftOwner, useTaskDraft } from "../../app/taskDraft";
-import { defaultResearchSettings } from "../../domain/researchUsage";
 import { useOperationLedger } from "../../app/operationLedger";
 import {
   Button,
@@ -105,7 +104,6 @@ export function useTaskTemplates() {
     try {
       assertClear(template.sourceDraftIds);
       const next = draftFromTemplate(template);
-      next.research ??= defaultResearchSettings();
       setDraft(next);
       navigate(
         next.mode === "monitor" ? "/tasks/new?mode=monitor" : "/tasks/new",

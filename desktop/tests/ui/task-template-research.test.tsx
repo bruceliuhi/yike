@@ -171,3 +171,22 @@ it("keeps the configured limits through the real P05 save-template/create action
   expect(context.navigate).toHaveBeenCalledWith("/tasks/new");
   expect(context.service.startTask).not.toHaveBeenCalled();
 });
+
+it("preserves an ordinary QNA template without enabling research", async () => {
+  context.session.userId = "TEST-qna-template-user";
+  const source = configuredDraft();
+  source.mode = "once";
+  source.platforms = ["web"];
+  source.publicSource = "v2ex-qna-v1";
+  delete source.research;
+  expect(taskDraftSchema.safeParse(source).success).toBe(true);
+  sessionStorage.setItem(storedKey("task-library"), JSON.stringify([source]));
+  render(<TasksPage />);
+  fireEvent.click(await screen.findByRole("button", { name: "保存为模板" }));
+  fireEvent.click(screen.getByRole("button", { name: "保存模板" }));
+  fireEvent.click(await screen.findByRole("button", { name: "从模板新建" }));
+  const created = JSON.parse(sessionStorage.getItem(storedKey("task"))!);
+  expect(created.publicSource).toBe("v2ex-qna-v1");
+  expect(created.research).toBeUndefined();
+  expect(context.service.startTask).not.toHaveBeenCalled();
+});

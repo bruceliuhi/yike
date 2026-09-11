@@ -37,7 +37,8 @@ class MonitorRuntime:
     @_safe
     def support(self, claims):
         from pilot.foreground_collection import (three_platform_monitor_policy, four_platform_monitor_policy,
-                                                four_platform_public_monitor_policy, four_platform_public_sampling_monitor_policy)
+                                                four_platform_public_monitor_policy, four_platform_public_sampling_monitor_policy,
+                                                four_platform_public_node_monitor_policy)
         runtime = self.execution_runtime
         with self.database.connect() as connection, connection.cursor() as cursor:
             runtime._active(cursor, claims)
@@ -46,9 +47,13 @@ class MonitorRuntime:
                 mode={three_platform_monitor_policy:'three-platform-monitor-v1',
                       four_platform_monitor_policy:'four-platform-monitor-v1',
                       four_platform_public_monitor_policy:'four-platform-monitor-v1',
-                      four_platform_public_sampling_monitor_policy:'four-platform-monitor-v1'}.get(runtime.capability_check))
+                      four_platform_public_sampling_monitor_policy:'four-platform-monitor-v1',
+                      four_platform_public_node_monitor_policy:'four-platform-monitor-v1'}.get(runtime.capability_check))
             if runtime.capability_check is four_platform_public_sampling_monitor_policy:
                 result['public_source'] = 'v2ex-latest-v1'
+            if runtime.capability_check is four_platform_public_node_monitor_policy:
+                result['public_source'] = 'v2ex-latest-v1'
+                result['public_sources'] = ['v2ex-latest-v1', 'v2ex-qna-v1']
             return self._authorized(cursor, claims, result)
 
     def _authorized(self, cursor, claims, response):
@@ -151,12 +156,15 @@ class MonitorRuntime:
             snapshot = runtime._strategy(cursor, claims, tenant, profile, strategy_id, digest, request.targets)
             from pilot.foreground_collection import (four_platform_monitor_policy,
                                                     four_platform_public_monitor_policy,
-                                                    four_platform_public_sampling_monitor_policy)
+                                                    four_platform_public_sampling_monitor_policy,
+                                                    four_platform_public_node_monitor_policy)
             platforms = ("XIAOHONGSHU", "DOUYIN", "BILIBILI")
             if runtime.capability_check in (four_platform_monitor_policy, four_platform_public_monitor_policy,
-                                            four_platform_public_sampling_monitor_policy):
+                                            four_platform_public_sampling_monitor_policy,
+                                            four_platform_public_node_monitor_policy):
                 platforms += ("ZHIHU",)
-            if runtime.capability_check is four_platform_public_sampling_monitor_policy:
+            if runtime.capability_check in (four_platform_public_sampling_monitor_policy,
+                                            four_platform_public_node_monitor_policy):
                 platforms += ("PUBLIC_WEB",)
             if (snapshot["configuration"].get("mode") != "monitor"
                     or snapshot["configuration"].get("schedule", {}).get("policyVersion") != 1

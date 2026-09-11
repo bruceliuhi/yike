@@ -13,6 +13,7 @@ import {useApp} from '../../app/context';
 import {boundedRequest} from '../../app/boundedRequest';
 import {useTaskScope} from './useTaskScope';
 import {hasForegroundBinding,hasPublicSourceBinding} from '../../domain/task';
+import {allowsPublicSource,DEFAULT_PUBLIC_SOURCE} from '../../../shared/publicSources';
 import {foregroundCollectionCommandSchema, foregroundCollectionResultSchema,
   type ForegroundCollectionResult} from '../../../shared/foregroundCollection';
 
@@ -207,7 +208,7 @@ export function desktopStartCommand(draft: TaskDraft, prepared: StrategyReceipt,
       const accountId = draft.accounts[platform];
       if (platform === 'web') {
         const matches=connections.filter(hasPublicSourceBinding);
-        if(accountId || matches.length!==1 || draft.source!=='search' || draft.links.trim() ||
+        if(accountId || matches.length!==1 || !allowsPublicSource(draft.publicSource??DEFAULT_PUBLIC_SOURCE,matches[0].publicBinding?.sourceId,matches[0].publicBinding?.sourceIds) || draft.source!=='search' || draft.links.trim() ||
           limits.max_records>100 || limits.max_records<draft.platforms.length || limits.max_runtime_seconds>900)throw new Error();
         devices.add(matches[0].publicBinding!.deviceId);
         return {platform:'PUBLIC_WEB' as const,access_mode:'PUBLIC_ANONYMOUS' as const,connection_id:null,connection_version:null};

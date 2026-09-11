@@ -15,6 +15,7 @@ import {createCandidateSession} from '../../src/main/candidateSession';
 import {prepareStrategySchema,strategyReceiptSchema,strategyViewSchema} from '../../src/shared/researchStrategies';
 import {candidateSubmissionSchema,type CandidateSubmission} from '../../src/shared/candidateSubmission';
 import type {CandidateReceipt} from '../../src/shared/candidateReceipt';
+import {publicSourceIdSchema,PUBLIC_SOURCES} from '../../src/shared/publicSources';
 
 const names=['BASE','USER','TOKEN','SEED','DEVICE','PROFILE','PREPARE','NETWORK'] as const;
 it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP public collection signs, uploads and finishes without recollection',async()=>{
@@ -24,7 +25,8 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
  expect(process.versions.node.split('.')[0]).toBe('24');
  const base=env.BASE!,network=env.NETWORK==='1';expect(new URL(base).hostname==='127.0.0.1').toBe(true);
  const prepare=prepareStrategySchema.parse(JSON.parse(env.PREPARE!));
- expect(prepare.profile_version_id===env.PROFILE&&prepare.configuration.publicSource==='v2ex-latest-v1').toBe(true);
+ const sourceId=publicSourceIdSchema.parse(process.env.YIKE_PUBLIC_LIVE_SOURCE??'v2ex-latest-v1');
+ expect(prepare.profile_version_id===env.PROFILE&&prepare.configuration.publicSource===sourceId).toBe(true);
  const privateKey=createPrivateKey({format:'der',type:'pkcs8',key:Buffer.concat([Buffer.from('302e020100300506032b657004220420','hex'),Buffer.from(env.SEED!,'hex')])});
  const key={scope:{serviceOrigin:base,userId:env.USER!,deviceId:env.DEVICE!},privateKey:privateKey.export({format:'pem',type:'pkcs8'}).toString(),publicKey:createPublicKey(privateKey).export({format:'jwk'}).x!};
  const secret=randomBytes(32),protection={isEncryptionAvailable:()=>true,
@@ -38,7 +40,8 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
  const operations:string[]=[],controllers:ReturnType<typeof createForegroundCollectionController>[]=[];
  const diagnostics=channel('undici:request:create');
  const observe=(message:unknown)=>{const request=(message as {request?:{origin?:string;path?:string}}).request;
-  if(String(request?.origin)==='https://www.v2ex.com'&&request?.path==='/api/topics/latest.json')sourceReads++;};
+  const endpoint=new URL(PUBLIC_SOURCES[sourceId].endpoint);
+  if(String(request?.origin)===endpoint.origin&&request?.path===endpoint.pathname+endpoint.search)sourceReads++;};
  if(network)diagnostics.subscribe(observe);
  const client=createServiceClient({baseUrl:base,clearSession:async()=>{cookie='';},fetch:async(url,init)=>{
   expect(new URL(url).origin===base).toBe(true);
@@ -46,18 +49,19 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
   const response=await fetch(url,{...init,headers});
   const session=response.headers.getSetCookie().find(value=>value.startsWith('pilot_session='));if(session)cookie=session.split(';',1)[0];
   if(init.method==='POST'&&url.endsWith('/execution-operations'))operations.push(JSON.parse(String(init.body)).request.operation);
-  if(init.method==='POST'&&url.endsWith('/candidate-batches')){candidateWrites++;expect(driverStops===1).toBe(true);
+  if(init.method==='POST'&&url.endsWith('/candidate-batches')){candidateWrites++;expect(driverStops===candidateWrites).toBe(true);
    if(response.ok)accepted=await response.clone().json() as CandidateReceipt;}
   return response;
  }});
  const identity=createDeviceIdentityController({service:client,identityFactory:()=>({prepare:async()=>({state:'READY' as const,deviceId:env.DEVICE!,credentialVersion:1})})});
  const forbidden=()=>{throw new Error('native runtime must not run');};
- const publicDriver=createPublicCommunityDriver(network?{}:{fetch:async()=>{sourceReads++;return new Response(JSON.stringify([{id:987654321,title:'AI 合成采样',content:'需要 AI 的企业服务，仅为合成验证。',created:Math.floor(Date.now()/1000)-60,url:'https://www.v2ex.com/t/987654321',member:{id:123}}]),{headers:{'content-type':'application/json'}});}});
+ const fixtureCreated=Math.floor(Date.now()/1000)-60;
+ const makeDriver=()=>createPublicCommunityDriver(network?{}:{fetch:async()=>{sourceReads++;return new Response(JSON.stringify([{id:987654321,title:'AI 合成采样',content:'需要 AI 的企业服务，仅为合成验证。',created:fixtureCreated,url:'https://www.v2ex.com/t/987654321',member:{id:123},node:{name:'qna'}}]),{headers:{'content-type':'application/json'}});}});
  function controller(){const value=createForegroundCollectionController({serviceOrigin:base,identity,configuration:null,
   store:{read:async()=>null},executionJournal:executionJournal(),candidateJournal:candidateJournal(),probe:forbidden,resolveAccount:forbidden,driverFactory:forbidden,
   sessions:scope=>({execution:createExecutionSession({serviceOrigin:base,transport:scope.transport,journal:executionJournal(),vault:{read:async()=>key}}),
    candidates:createCandidateSession({serviceOrigin:base,transport:scope.transport,journal:candidateJournal(),vault:{read:async()=>key}})}),
-  publicDriverFactory:()=>({start(input){driverStarts++;const handle=publicDriver.start(input);return {completed:handle.completed.then(value=>{records=candidateSubmissionSchema.shape.records.parse(value);return value;}),async stop(){driverStops++;await handle.stop();}};}})});
+  publicDriverFactory:()=>{const reader=makeDriver();return {start(input){driverStarts++;const handle=reader.start(input);return {completed:handle.completed.then(value=>{records=candidateSubmissionSchema.shape.records.parse(value);return value;}),async stop(){driverStops++;await handle.stop();}};}};}});
   controllers.push(value);return value;}
  try{
   expect((await identity.requestApi({operation:'session.login',payload:{token:env.TOKEN}})).ok).toBe(true);
@@ -70,7 +74,9 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
   const currentResponse=await identity.requestApi({operation:'strategies.get',payload:{strategy_version_id:prepared.strategy_version_id}});expect(currentResponse.ok).toBe(true);
   if(!currentResponse.ok)throw new Error('strategy read failed');
   const current=strategyViewSchema.parse(currentResponse.data);expect(current.state==='CONFIRMED'&&current.is_current&&current.profile_current).toBe(true);
-  const first=controller();expect(await first.execute({action:'CAPABILITIES'})).toEqual({state:'AVAILABLE',bindings:[],publicBinding:{sourceId:'v2ex-latest-v1',deviceId:env.DEVICE}});
+  const first=controller();const capability=await first.execute({action:'CAPABILITIES'});
+  expect(capability).toMatchObject({state:'AVAILABLE',bindings:[],publicBinding:{sourceId:'v2ex-latest-v1',deviceId:env.DEVICE}});
+  if(sourceId==='v2ex-qna-v1')expect(capability).toMatchObject({publicBinding:{sourceIds:['v2ex-latest-v1','v2ex-qna-v1'],monitorSupported:true}});
   const command={action:'START',humanConfirmed:true,requestId:randomUUID(),profileVersionId:env.PROFILE!,strategyVersionId:prepared.strategy_version_id,configurationSha256:prepared.configuration_sha256,
    targets:[{platform:'PUBLIC_WEB',access_mode:'PUBLIC_ANONYMOUS',connection_id:null,connection_version:null}]} as const;
   const begun=await first.start(command);expect(begun.state).toBe('RECORDED');
@@ -97,7 +103,19 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
   }
   await first.shutdown();const restored=controller();await restored.start(command);
   expect([sourceReads,driverStarts,candidateWrites]).toEqual([1,1,1]);
-  console.log('PUBLIC_COMMUNITY_RESULT '+JSON.stringify({mode:network?'network':'fixture',records:records.length,taskId,sourceReads}));
+  let tasks=1;
+  if(!network){
+   // New ordinary task after a simulated process restart; synthetic I/O only.
+   // Same-process cross-source cooldown is covered by publicCommunityDriver.test.
+   const originalItems=accepted!.items;await restored.shutdown();const next=controller();
+   const repeated=await next.start({...command,requestId:randomUUID()});
+   if(repeated.state!=='RECORDED'||repeated.receipt.operation!=='START')throw new Error('second START not recorded');
+   const repeatId=repeated.receipt.task_id;expect(repeatId).not.toBe(taskId);
+   await vi.waitFor(async()=>{expect(await next.execute({action:'STATUS',taskId:repeatId})).toMatchObject({localState:'COMPLETED',serverStatus:'SUCCEEDED',recordsUsed:records.length});},{timeout:10000,interval:100});
+   expect(accepted!.items.map(x=>[x.candidate_id,x.version_id])).toEqual(originalItems.map(x=>[x.candidate_id,x.version_id]));
+   expect([sourceReads,driverStarts,driverStops,candidateWrites]).toEqual([2,2,2,2]);tasks=2;
+  }
+  console.log('PUBLIC_COMMUNITY_RESULT '+JSON.stringify({mode:network?'network':'fixture',records:records.length,taskId,sourceReads,tasks,sourceId,collectorVersion:records[0].collector_version}));
  }finally{
   if(network)diagnostics.unsubscribe(observe);
   for(const controller of controllers)await controller.shutdown();

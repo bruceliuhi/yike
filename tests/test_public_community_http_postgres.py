@@ -14,6 +14,7 @@ import threading
 import time
 from urllib.request import Request, urlopen
 from urllib.parse import urlsplit
+from uuid import uuid4
 
 import pytest
 import uvicorn
@@ -25,7 +26,7 @@ from tests.test_confirmed_strategy_http_postgres import (
     databases, env, execution_databases, execution_env, raw_databases, raw_env, real_strategy_env,
 )
 from tests.test_execution_runtime_postgres import SECRET
-from tests.test_research_strategies_postgres import prepare_body, configuration
+from tests.test_research_strategies_postgres import prepare_body, confirm_body, configuration
 
 ROOT = Path(__file__).parents[1]
 
@@ -42,7 +43,32 @@ def isolated_public_database_guard():
         assert url.hostname == '127.0.0.1' and url.path == '/yike_public_flow', 'dedicated local public-flow database required'
 
 
-def test_public_community_client_through_ordinary_runtime(real_strategy_env):
+def test_real_pg_prepare_confirm_get_preserves_qna_and_source_change_digest(real_strategy_env):
+    env = real_strategy_env
+    request = prepare_body(env, configuration=configuration(
+        publicSource='v2ex-qna-v1', keywords=['企业软件'], exclusions=[]))
+    qna_draft = env.strategies.prepare(env.claims, request)
+    qna = env.strategies.confirm(env.claims, confirm_body(qna_draft))
+    stored = env.strategies.get_strategy(env.claims, qna['strategy_version_id'])
+    assert stored['snapshot']['configuration']['publicSource'] == 'v2ex-qna-v1'
+    assert stored['configuration_sha256'] == qna['configuration_sha256']
+
+    latest_draft = env.strategies.prepare(env.claims, request | {
+        'request_id': str(uuid4()),
+        'draft_revision': request['draft_revision'] + 1,
+        'configuration': configuration(
+            publicSource='v2ex-latest-v1', keywords=['企业软件'], exclusions=[]),
+    })
+    assert latest_draft['configuration_sha256'] != qna['configuration_sha256']
+    assert latest_draft['snapshot']['configuration']['publicSource'] == 'v2ex-latest-v1'
+
+
+@pytest.mark.parametrize(('selected_source', 'expected_collector'), [
+    ('v2ex-latest-v1', 'v2ex-latest-v1'),
+    ('v2ex-qna-v1', 'v2ex-qna-v1'),
+])
+def test_public_community_client_through_ordinary_runtime(
+        real_strategy_env, selected_source, expected_collector):
     env = real_strategy_env
     node = os.environ.get('YIKE_DEVICE_LIVE_NODE_BINARY') or shutil.which('node')
     if not node:
@@ -58,11 +84,11 @@ def test_public_community_client_through_ordinary_runtime(real_strategy_env):
         for line in manifest.splitlines():
             if line.startswith('\\ir '):
                 conn.execute((ROOT / 'deploy' / line.split()[1]).read_text())
-    prepare = prepare_body(env, configuration=configuration(publicSource='v2ex-latest-v1',
+    prepare = prepare_body(env, configuration=configuration(publicSource=selected_source,
         keywords=['AI', '的'], exclusions=[]), platforms=['PUBLIC_WEB'], max_records=100)
     token, seed = issue_token(env.claims.user_id, SECRET), env.key.encode().hex()
     app = build_runtime_app(env.db, auth_secret=SECRET, dev_login=True,
-        environment={'YIKE_PILOT_COLLECTION_MODE': 'four-platform-public-monitor-v1'})
+        environment={'YIKE_PILOT_COLLECTION_MODE': 'four-platform-public-node-monitor-v1'})
     network = os.environ.get('YIKE_PUBLIC_COMMUNITY_NETWORK') == '1'
     child_env = _node_environment()
     child_env['NO_COLOR'] = '1'
@@ -80,6 +106,7 @@ def test_public_community_client_through_ordinary_runtime(real_strategy_env):
             child_env.update(YIKE_PUBLIC_LIVE_BASE=base, YIKE_PUBLIC_LIVE_USER=env.claims.user_id,
                 YIKE_PUBLIC_LIVE_TOKEN=token, YIKE_PUBLIC_LIVE_SEED=seed, YIKE_PUBLIC_LIVE_DEVICE=env.device,
                 YIKE_PUBLIC_LIVE_PROFILE=env.profile, YIKE_PUBLIC_LIVE_PREPARE=json.dumps(prepare),
+                YIKE_PUBLIC_LIVE_SOURCE=selected_source,
                 YIKE_PUBLIC_LIVE_NETWORK='1' if network else '0')
             assert not any('DATABASE' in key.upper() or key.upper().startswith('POSTGRES_') for key in child_env)
             child = subprocess.run([node, 'node_modules/vitest/vitest.mjs', 'run',
@@ -97,7 +124,12 @@ def test_public_community_client_through_ordinary_runtime(real_strategy_env):
             assert len(markers) == 1, 'missing bounded client result'
             result = json.loads(markers[0])
             assert result['mode'] == ('network' if network else 'fixture')
-            assert 1 <= result['records'] <= 100 and result['sourceReads'] == 1
+            assert result['sourceId'] == selected_source
+            assert result['collectorVersion'] == expected_collector
+            assert 1 <= result['records'] <= 100
+            expected_tasks = 1 if network else 2
+            assert result['tasks'] == expected_tasks
+            assert result['sourceReads'] == expected_tasks
             # Ordinary read API must keep candidates private to their owner.
             for user in (env.users[1], env.users[2]):
                 request = Request(base + '/api/ui/candidates', headers={
@@ -109,18 +141,21 @@ def test_public_community_client_through_ordinary_runtime(real_strategy_env):
             thread.join(timeout=10)
             assert not thread.is_alive()
     with env.admin.connect() as conn:
-        count = result['records']
-        for table in ('pilot_candidate_sources', 'pilot_candidate_versions', 'pilot_candidate_observations'):
+        count, tasks = result['records'], result['tasks']
+        for table in ('pilot_candidate_sources', 'pilot_candidate_versions'):
             assert conn.execute(f'SELECT count(*) FROM {table} WHERE tenant_id=%s', (env.tenant,)).fetchone()[0] == count
-        assert conn.execute('SELECT count(*) FROM pilot_candidate_batches WHERE tenant_id=%s', (env.tenant,)).fetchone()[0] == 1
+        assert conn.execute('SELECT count(*) FROM pilot_candidate_observations WHERE tenant_id=%s',
+                            (env.tenant,)).fetchone()[0] == count * tasks
+        assert conn.execute('SELECT count(*) FROM pilot_candidate_batches WHERE tenant_id=%s',
+                            (env.tenant,)).fetchone()[0] == tasks
         assert conn.execute('SELECT status,records_used FROM pilot_collection_platform_runs WHERE task_id=%s',
                             (result['taskId'],)).fetchone() == ('SUCCEEDED', count)
         operations = conn.execute('SELECT operation FROM pilot_execution_operations WHERE tenant_id=%s', (env.tenant,)).fetchall()
-        assert sorted(row[0] for row in operations) == ['CLAIM', 'FINISH', 'START']
+        assert sorted(row[0] for row in operations) == sorted(['CLAIM', 'FINISH', 'START'] * tasks)
         assert conn.execute('SELECT count(*) FROM pilot_platform_connections WHERE tenant_id=%s', (env.tenant,)).fetchone()[0] == 0
         assert conn.execute('SELECT count(*) FROM pilot_opportunities WHERE tenant_id=%s', (env.tenant,)).fetchone()[0] == 0
-        assert conn.execute("SELECT bool_and(collector_version='v2ex-latest-v1') FROM pilot_candidate_observations WHERE tenant_id=%s",
-                            (env.tenant,)).fetchone()[0] is True
+        assert conn.execute("SELECT bool_and(collector_version=%s) FROM pilot_candidate_observations WHERE tenant_id=%s",
+                            (expected_collector, env.tenant)).fetchone()[0] is True
     current = env.runtime.get_task(env.claims, result['taskId'])
     assert current['status'] == 'SUCCEEDED' and current['stop_confirmed'] is True and current['records_used'] == count
     print('PUBLIC_COMMUNITY_CHECK ' + json.dumps(result, sort_keys=True))

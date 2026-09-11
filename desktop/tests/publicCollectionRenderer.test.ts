@@ -7,6 +7,8 @@ import {newTaskDraft,EMPTY_PROFILE} from '../src/renderer/domain/models';
 import {startBlockers} from '../src/renderer/domain/task';
 import {strategyPrepareRequest} from '../src/renderer/domain/researchStrategies';
 import {desktopStartCommand} from '../src/renderer/pages/tasks/useDesktopExecution';
+import {taskDraftSchema} from '../src/renderer/app/taskDraft';
+import {draftFromTemplate,templateFromDraft} from '../src/renderer/pages/tasks/localTemplates';
 const id='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222';
 const publicBinding={sourceId:'v2ex-latest-v1',deviceId:id} as const;
 const native={mode:'four-platform-foreground-v1',platform:'XIAOHONGSHU',connectionId:id,connectionVersion:1,deviceId:id,accountPublicId:'account01'} as const;
@@ -20,6 +22,21 @@ function receipt(value:ReturnType<typeof draft>){
    configuration:request.configuration,platforms:request.platforms,...value.executionLimits}} as const;
 }
 describe('bounded public source renderer contract',()=>{
+ it('preserves explicit node selection in drafts/templates and requires a matching live source catalog',()=>{
+  const value={...draft(),publicSource:'v2ex-qna-v1' as const};
+  const expanded={...publicBinding,sourceIds:['v2ex-latest-v1','v2ex-qna-v1']};
+  const capability=foregroundCollectionResultSchema.parse({state:'AVAILABLE',bindings:[],publicBinding:expanded});
+  const rows=attachForegroundBinding([],capability);
+  expect(taskDraftSchema.parse(value)).toHaveProperty('publicSource','v2ex-qna-v1');
+  expect(draftFromTemplate(templateFromDraft(value,value.name))).toHaveProperty('publicSource','v2ex-qna-v1');
+  expect(strategyPrepareRequest(value,id,value.executionLimits).configuration.publicSource).toBe('v2ex-qna-v1');
+  expect(startBlockers(value,profiles,rows,true)).toEqual([]);
+  expect(startBlockers(value,profiles,attachForegroundBinding([],{state:'AVAILABLE',bindings:[],publicBinding}),true)).toContain('所选公开板块当前不可用，请重新核对来源；不会自动切换板块。');
+  expect(()=>desktopStartCommand(value,receipt(draft()),rows,other)).toThrow();
+ });
+ it.each([[],['v2ex-qna-v1'],['v2ex-latest-v1','v2ex-latest-v1'],['v2ex-latest-v1','other']].map(sourceIds=>({sourceIds})))('rejects inconsistent source catalog %j',({sourceIds})=>{
+  expect(foregroundCollectionResultSchema.safeParse({state:'AVAILABLE',bindings:[],publicBinding:{...publicBinding,sourceIds}}).success).toBe(false);
+ });
  it('accepts public-only and same-device mixed bindings',()=>{
   expect(foregroundCollectionResultSchema.safeParse({state:'AVAILABLE',bindings:[],publicBinding}).success).toBe(true);
   expect(foregroundCollectionResultSchema.safeParse({state:'AVAILABLE',bindings:[native],publicBinding}).success).toBe(true);

@@ -61,14 +61,14 @@ def public_monitor_env():
     strategies = ResearchStrategyStore(db)
     schedule = dict(kind='interval', times=[], interval=1, start='00:00', end='23:59', timezone='UTC', policyVersion=1)
     prepared = strategies.prepare(claims, prepare_body(env, configuration=configuration(
-        mode='monitor', schedule=schedule, publicSource='v2ex-latest-v1', keywords=['企业软件'], exclusions=[])))
+        mode='monitor', schedule=schedule, publicSource='v2ex-qna-v1', keywords=['企业软件'], exclusions=[])))
     confirmed = strategies.confirm(claims, confirm_body(prepared))
     env.snapshot = confirmed['snapshot']
     env.plans = MonitorPlanStore(db, strategy_resolver=strategies.resolve)
     env.plan = env.plans.create(claims, dict(schema_version='monitor-plans-v1', request_id=str(uuid4()),
         profile_version_id=profile, strategy_version_id=confirmed['strategy_version_id'], human_confirmed=True))['plan']
     env.execution = ExecutionRuntime(db, strategy_resolver=strategies.resolve,
-        capability_check=configured_collection_policy({'YIKE_PILOT_COLLECTION_MODE': 'four-platform-public-sampling-monitor-v1'}))
+        capability_check=configured_collection_policy({'YIKE_PILOT_COLLECTION_MODE': 'four-platform-public-node-monitor-v1'}))
     env.monitor = MonitorRuntime(db, env.execution)
     env.execution.monitor_runtime = env.monitor
     env.target = dict(platform='PUBLIC_WEB', access_mode='PUBLIC_ANONYMOUS', connection_id=None, connection_version=None)
@@ -87,7 +87,7 @@ def test_public_monitor_three_rounds_preserve_versions_observations_and_idempote
     session = str(uuid4())
     current_policy = env.execution.capability_check
     env.execution.capability_check = configured_collection_policy(
-        {'YIKE_PILOT_COLLECTION_MODE': 'four-platform-public-monitor-v1'})
+        {'YIKE_PILOT_COLLECTION_MODE': 'four-platform-public-sampling-monitor-v1'})
     with pytest.raises(ExecutionRuntimeError, match='capability_unavailable'):
         env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
     env.execution.capability_check = current_policy

@@ -1,6 +1,7 @@
 import {platformSearchKeywords,type StrategyReceipt} from "../../../shared/researchStrategies";
 import { DEMAND_TYPES } from "../../domain/researchUsage";
 import { industrySourceLabels } from '../../../shared/industryTaskStrategy';
+import {PUBLIC_SOURCES} from '../../../shared/publicSources';
 
 const platforms = { XIAOHONGSHU: "小红书", DOUYIN: "抖音", BILIBILI: "B站", ZHIHU: "知乎", PUBLIC_WEB: "公开网站" };
 
@@ -20,7 +21,7 @@ export function StrategySnapshotDetails({ receipt }: { receipt: StrategyReceipt 
       <div><dt>本次来源</dt><dd>{config.publicSource
         ? config.mode === "once" ? "本次近期主题筛选" : "近期主题定时抽样"
         : config.source === "search" ? "关键词搜索" : "指定内容链接"}</dd></div>
-      {config.publicSource && <div><dt>公开来源标识</dt><dd>{config.publicSource} · V2EX近期主题，{config.mode === "once" ? "本次筛选" : "定时抽样"}，不覆盖历史/全站/评论</dd></div>}
+      {config.publicSource && <div><dt>公开来源标识</dt><dd>{config.publicSource} · {PUBLIC_SOURCES[config.publicSource].label} · V2EX近期主题，{config.mode === "once" ? "本次筛选" : "定时抽样"}，不覆盖历史/全站/评论</dd></div>}
       <div><dt>搜索关键词</dt><dd>{config.keywords.join("、") || "无"}{config.source !== "search" && "（保留但本次不执行）"}</dd></div>
       {config.platformQueries && snapshot.platforms.map(platform=><div key={platform}>
         <dt>{platforms[platform]}实际搜索词</dt><dd>{platformSearchKeywords(config,platform).join('、')}（按本次已确认配置执行）</dd>

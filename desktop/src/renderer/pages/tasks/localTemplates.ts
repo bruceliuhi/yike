@@ -32,6 +32,7 @@ const conditions = taskDraftSchema.pick({
   exclusions: true,
   removed: true,
   source: true,
+  publicSource: true,
   links: true,
   platforms: true,
   accounts: true,

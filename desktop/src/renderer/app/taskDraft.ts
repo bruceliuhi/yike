@@ -4,6 +4,7 @@ import { newTaskDraft, type TaskDraft } from "../domain/models";
 import { defaultResearchSettings, researchDraftSchema } from "../domain/researchUsage";
 import { scheduleSchema } from "../domain/schedule";
 import { industryStrategyDraftSchema } from '../domain/industryTaskStrategy';
+import {publicSourceIdSchema} from '../../shared/publicSources';
 const term = z.object({
   id: z.string(),
   value: z.string(),
@@ -15,6 +16,7 @@ const executionLimitsDraftSchema = z.object({
   max_runtime_seconds: z.number().finite().nullable(),
 });
 export const taskDraftSchema = z.object({
+  publicSource: publicSourceIdSchema.optional(),
   platformTerms: z.object({xhs:z.array(term).optional(),douyin:z.array(term).optional(),
     bilibili:z.array(term).optional(),zhihu:z.array(term).optional()}).strict().optional(),
   industryStrategy: industryStrategyDraftSchema.optional(),

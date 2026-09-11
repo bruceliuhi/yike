@@ -353,7 +353,7 @@ class ResearchStrategyConfiguration(_Frozen):
     mode: Literal["once", "monitor"]
     schedule: _VersionedSchedule | _Schedule | None
     research: _Research | None
-    publicSource: Literal["v2ex-latest-v1"] | None = None
+    publicSource: Literal["v2ex-latest-v1", "v2ex-qna-v1"] | None = None
     platformQueries: _PlatformQueries | None = None
 
     @model_serializer(mode="wrap")

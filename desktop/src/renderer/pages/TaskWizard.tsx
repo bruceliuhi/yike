@@ -11,6 +11,7 @@ import {
 import { useOperationLedger } from "../app/operationLedger";
 import { useTaskDraft, useTaskLibrary } from "../app/taskDraft";
 import {PlatformSearchTerms} from './tasks/PlatformSearchTerms';
+import {PublicSourceSelector} from './tasks/PublicSourceSelector';
 import {
   Badge,
   Button,
@@ -35,7 +36,6 @@ import {
   hasForegroundBinding,
   hasPublicSourceBinding,
   publicTaskScope,
-  PUBLIC_SOURCE_SCOPE,
   taskErrors,
   taskFingerprint,
 } from "../domain/task";
@@ -195,7 +195,7 @@ export function TaskWizardPage() {
     if (!service.researchUsage || (nativeResearch ? !researchCapability.data : service.taskOperations?.researchContractVersion !== 1))
       blockers.push("研究用量服务尚未接通，当前可以保存草稿。");
     else if (!usage.valid) blockers.push("请先估算当前配置的搜贝用量，再确认启动。");
-    if(nativeResearch && (draft.mode!=='once' || draft.platforms.length!==1 || draft.platforms[0]!=='web'))
+    if(nativeResearch && (draft.mode!=='once' || draft.platforms.length!==1 || draft.platforms[0]!=='web' || draft.publicSource!==undefined&&draft.publicSource!=='v2ex-latest-v1'))
       blockers.push('研究执行当前仅接通V2EX最新主题的单次公开研究；其他平台研究与持续调度尚未接通。');
   }
   const update = (patch: Partial<TaskDraft>) => {
@@ -1189,7 +1189,7 @@ export function TaskWizardPage() {
                     </td>
                     <td>
                       {id === "web" ? (
-                        <span>{connections.data?.some(hasPublicSourceBinding) ? PUBLIC_SOURCE_SCOPE : '公开页面读取范围需由执行服务确认'}</span>
+                        <PublicSourceSelector draft={draft} connections={connections.data??[]} onChange={publicSource=>update({publicSource})}/>
                       ) : (
                         <select
                           aria-label={`${platformLabel(id)}执行账号`}

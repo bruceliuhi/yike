@@ -88,7 +88,7 @@ export function strategyPrepareRequest(
           .map((link) => link.trim())
           .filter((link) => link.length > 0),
         mode: draft.mode,
-        ...(publicSource ? {publicSource:'v2ex-latest-v1' as const} : {}),
+        ...(publicSource ? {publicSource:draft.publicSource??'v2ex-latest-v1' as const} : {}),
         schedule: draft.mode === 'once' ? null : {
           kind: draft.schedule.kind,
           times: [...draft.schedule.times],

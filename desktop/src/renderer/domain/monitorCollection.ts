@@ -4,6 +4,7 @@ import {strategyPrepareRequest} from './researchStrategies';
 import {hasForegroundBinding,hasPublicSourceBinding} from './task';
 import {validStrategyExecutionLimits} from './strategyExecutionLimits';
 import type {TaskDraft,PlatformConnection} from './models';
+import {allowsPublicSource} from '../../shared/publicSources';
 
 export function monitorTargets(view:StrategyView,connections:PlatformConnection[],accounts?:TaskDraft['accounts']){
  const strategy=strategyViewSchema.parse(view),snapshot=strategy.snapshot;
@@ -14,7 +15,7 @@ export function monitorTargets(view:StrategyView,connections:PlatformConnection[
  const targets=snapshot.platforms.map(platform=>{
   if(platform==='PUBLIC_WEB'){
    const rows=connections.filter(row=>hasPublicSourceBinding(row)&&row.publicBinding?.monitorSupported===true);
-   if(rows.length!==1||snapshot.configuration.publicSource!=='v2ex-latest-v1')throw new Error('V2EX近期主题持续监控尚未接通。');
+   if(rows.length!==1||!allowsPublicSource(snapshot.configuration.publicSource,rows[0].publicBinding?.sourceId,rows[0].publicBinding?.sourceIds))throw new Error('所选公开板块持续监控尚未接通。');
    devices.add(rows[0].publicBinding!.deviceId);return {platform:'PUBLIC_WEB' as const,access_mode:'PUBLIC_ANONYMOUS' as const,connection_id:null,connection_version:null};
   }
   if(!(platform in codes))throw new Error('该平台的持续监控尚未接通。');

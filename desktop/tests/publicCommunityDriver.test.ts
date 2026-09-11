@@ -17,6 +17,21 @@ function driver(fetcher:typeof fetch) {
   return module!.createPublicCommunityDriver({fetch:fetcher,now:()=>now});
 }
 afterEach(()=>{vi.useRealTimers();});
+it('reads only the confirmed QNA node with its own provenance and shared source cooldown',async()=>{
+  const fetcher=vi.fn(async()=>new Response(JSON.stringify([{...topic(),node:{name:'qna'}}]),{headers:{'content-type':'application/json'}}));
+  const reader=driver(fetcher),value=input();value.snapshot.configuration.publicSource='v2ex-qna-v1';
+  const run=reader.start(value);
+  expect(await run.completed).toMatchObject([{external_source_id:'12',body:topic().content,collector_version:'v2ex-qna-v1'}]);await run.stop();
+  expect(fetcher.mock.calls[0]).toMatchObject(['https://www.v2ex.com/api/topics/show.json?node_name=qna',{redirect:'error',credentials:'omit'}]);
+  const next=reader.start(input());await expect(next.completed).rejects.toThrow('PUBLIC_SOURCE_RATE_LIMITED');await next.stop();
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it.each([undefined,{name:'jobs'}])('rejects unverified QNA node %j instead of relabeling its records',async node=>{
+  const fetcher=vi.fn(async()=>new Response(JSON.stringify([{...topic(),node}]),{headers:{'content-type':'application/json'}}));
+  const value=input();value.snapshot.configuration.publicSource='v2ex-qna-v1';
+  const run=driver(fetcher).start(value);await expect(run.completed).rejects.toThrow('PUBLIC_SOURCE_FAILED');await run.stop();
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
 it('preserves original evidence and anonymous identity using one fixed public request',async()=>{
   const fetcher=vi.fn(async()=>new Response(JSON.stringify([topic()]),{headers:{'content-type':'application/json'}}));
   const run=driver(fetcher).start(input());

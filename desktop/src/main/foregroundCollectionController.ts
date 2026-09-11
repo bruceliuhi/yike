@@ -21,6 +21,7 @@ import {createPublicCommunityDriver} from './publicCommunityDriver';
 import {resolveCollectionAccount} from './collectionAccountBinding';
 import {probeCollectionRuntime} from './collectionRuntimeProbe';
 import {nativeLoginPlatformSchema,type NativeLoginPlatform} from '../shared/platformAccount';
+import {allowsPublicSource,publicSourceIdSchema,publicSourceIdsSchema,validPublicSourceCatalog} from '../shared/publicSources';
 
 interface Options {
  serviceOrigin:string;
@@ -35,7 +36,8 @@ interface Options {
  resolveAccount?:typeof resolveCollectionAccount;probe?:typeof probeCollectionRuntime;
 }
 const supportSchema=z.object({schema_version:z.literal('foreground-collection-support-v1'),mode:foregroundModeSchema.nullable(),
- public_source:z.literal('v2ex-latest-v1').optional(),public_monitor:z.literal(true).optional()}).strict();
+ public_source:z.literal('v2ex-latest-v1').optional(),public_sources:publicSourceIdsSchema.optional(),public_monitor:z.literal(true).optional()})
+ .strict().refine(value=>validPublicSourceCatalog(value.public_source,value.public_sources));
 const rowsSchema=z.object({items:z.array(connectionRegistryRowSchema).max(10000)}).strict();
 const stateSchema=z.enum(['PENDING','RUNNING','CANCELLING','CANCELED','SUCCEEDED']);
 const taskSchema=z.object({task_id:uuid,run_id:uuid,status:stateSchema,stop_confirmed:z.boolean(),profile_version_id:uuid,strategy_version_id:uuid,
@@ -98,7 +100,7 @@ export function createForegroundCollectionController(options:Options) {
   let scope:DeviceWorkerScope|undefined;
   try{
    scope=await open();const support=await supported(scope),mode=support.mode!;
-   const publicBinding=support.public_source?{sourceId:support.public_source,deviceId:scope.device.deviceId,...(support.public_monitor===true?{monitorSupported:true as const}:{})}:undefined;
+   const publicBinding=support.public_source?{sourceId:support.public_source,...(support.public_sources?{sourceIds:support.public_sources}:{}),deviceId:scope.device.deviceId,...(support.public_monitor===true?{monitorSupported:true as const}:{})}:undefined;
    const publicOnly=():ForegroundCollectionResult=>publicBinding?{state:'AVAILABLE',bindings:[],publicBinding}:{state:'UNAVAILABLE'};
    try{await nativeReady(scope);}catch{guard(scope);return publicOnly();}
    // Public readiness is independent of the native account registry, but not
@@ -165,11 +167,11 @@ export function createForegroundCollectionController(options:Options) {
     const sessions=index===(input.startIndex??0)?input.firstSessions:options.sessions(activeScope!);
     let driver:ReturnType<typeof createPublicCommunityDriver>;
     if(anonymous){
-     if(input.strategy.snapshot.configuration.publicSource!=='v2ex-latest-v1')throw new Error();
+     if(!publicSourceIdSchema.safeParse(input.strategy.snapshot.configuration.publicSource).success)throw new Error();
      if(index>(input.startIndex??0)){const live=input.allowMonitor
       ?await activeScope!.transport.requestExecution({operation:'monitor.support'}):await activeScope!.transport.requestExecution({operation:'execution.support'});
       guard(activeScope!);const parsed=input.allowMonitor?monitorSupportSchema.safeParse(live.ok?live.data:null):supportSchema.safeParse(live.ok?live.data:null);
-      if(!parsed.success||parsed.data.public_source!=='v2ex-latest-v1')throw new Error();}
+      if(!parsed.success||!allowsPublicSource(input.strategy.snapshot.configuration.publicSource,parsed.data.public_source,parsed.data.public_sources))throw new Error();}
      if(cancelled||!activeScope!.session.isCurrent()){activeScope!.close();activeScope=undefined;break;}
      publicDriver??=(options.publicDriverFactory??createPublicCommunityDriver)();driver=publicDriver;
     }else{
@@ -209,7 +211,7 @@ export function createForegroundCollectionController(options:Options) {
       c.mode!=='monitor'||c.schedule?.policyVersion!==1||snapshot.max_records<targets.length||snapshot.max_records>100||snapshot.max_runtime_seconds>900||
       c.source!=='search'||c.research!==null||c.links.length||c.keywords.some(k=>k!==k.trim()||k.includes(','))||
       snapshot.platforms.length!==targets.length||targets.some((target,index)=>target.platform!==snapshot.platforms[index])||
-      targets.some(target=>target.platform==='PUBLIC_WEB'?c.publicSource!==parsedSupport.data.public_source:
+      targets.some(target=>target.platform==='PUBLIC_WEB'?!allowsPublicSource(c.publicSource,parsedSupport.data.public_source,parsedSupport.data.public_sources):
        !nativeLoginPlatformSchema.safeParse(target.platform).success||target.access_mode!=='PLATFORM_ACCOUNT'))throw new Error();
     for(const target of targets)if(target.platform!=='PUBLIC_WEB')await account(scope,target);
     return true;
@@ -234,7 +236,7 @@ export function createForegroundCollectionController(options:Options) {
       snapshot.strategy_version_id!==start.strategy_version_id||strategy.configuration_sha256!==start.configuration_sha256||createHash('sha256').update(canonical(snapshot)).digest('hex')!==start.configuration_sha256||
       c.mode!=='monitor'||c.schedule?.policyVersion!==1||snapshot.max_records<targets.length||snapshot.max_records>100||snapshot.max_runtime_seconds>900||c.source!=='search'||c.research!==null||c.links.length||c.keywords.some(k=>k!==k.trim()||k.includes(','))||
       snapshot.platforms.length!==targets.length||targets.some((target,index)=>target.platform!==snapshot.platforms[index]||
-       (target.platform==='PUBLIC_WEB'?c.publicSource!==parsedSupport.data.public_source:target.access_mode!=='PLATFORM_ACCOUNT'||!nativeLoginPlatformSchema.safeParse(target.platform).success)))throw new Error();
+       (target.platform==='PUBLIC_WEB'?!allowsPublicSource(c.publicSource,parsedSupport.data.public_source,parsedSupport.data.public_sources):target.access_mode!=='PLATFORM_ACCOUNT'||!nativeLoginPlatformSchema.safeParse(target.platform).success)))throw new Error();
     const bindings=[];for(const target of targets)bindings.push(target.platform==='PUBLIC_WEB'?null:await account(scope,target));
     const firstSessions=options.sessions(scope);const submitted=await firstSessions.execution.submit(scope.session,start);guard(scope);if(submitted.state!=='RECORDED')return submitted;
     const receipt=parseExecutionReceipt(submitted.receipt,start);if(receipt.operation!=='START'||receipt.platform_runs.length!==targets.length||receipt.platform_runs.some((run,index)=>run.platform!==targets[index].platform))throw new Error();
@@ -278,7 +280,7 @@ export function createForegroundCollectionController(options:Options) {
      snapshot.platforms.length!==command.targets.length || command.targets.some((target,index)=>snapshot.platforms[index]!==target.platform) ||
      snapshot.max_records<command.targets.length || snapshot.max_records>100 || snapshot.max_runtime_seconds>900 ||
      c.mode!=='once' || c.source!=='search' || c.schedule!==null || c.research!==null || c.links.length || c.keywords.some(k=>k!==k.trim() || k.includes(',')) ||
-     hasPublic && c.publicSource!==support.public_source || !hasPublic && c.publicSource!==undefined)throw new Error();
+     hasPublic && !allowsPublicSource(c.publicSource,support.public_source,support.public_sources) || !hasPublic && c.publicSource!==undefined)throw new Error();
     const start=executionOperationSchema.parse({schema_version:'execution-runtime-v1',operation:'START',request_id:command.requestId,
      device_id:scope.device.deviceId,credential_version:scope.device.credentialVersion,profile_version_id:command.profileVersionId,strategy_version_id:command.strategyVersionId,
      configuration_sha256:command.configurationSha256,targets:command.targets});

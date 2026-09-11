@@ -50,6 +50,8 @@ def configured_collection_policy(environment):
         return four_platform_public_monitor_policy
     if mode == 'four-platform-public-sampling-monitor-v1':
         return four_platform_public_sampling_monitor_policy
+    if mode == 'four-platform-public-node-monitor-v1':
+        return four_platform_public_node_monitor_policy
     raise RuntimeError('invalid_collection_configuration')
 
 
@@ -86,6 +88,27 @@ def four_platform_public_sampling_monitor_policy(platform, access_mode, configur
     return _monitor_policy(platform, access_mode, configuration, four_platform_public_monitor_policy)
 
 
+def four_platform_public_node_monitor_policy(platform, access_mode, configuration):
+    """Fixed V2EX latest/QNA samples; no arbitrary public URL or research reader."""
+    if platform != 'PUBLIC_WEB':
+        return four_platform_monitor_policy(platform, access_mode, configuration)
+    return _monitor_policy(platform, access_mode, configuration, _public_node_collection_policy)
+
+
+def _public_node_collection_policy(platform, access_mode, configuration):
+    if platform != 'PUBLIC_WEB' or access_mode != 'PUBLIC_ANONYMOUS':
+        return False
+    try:
+        parsed = ResearchStrategyConfiguration.model_validate(configuration)
+    except (ValidationError, ValueError, TypeError, RecursionError):
+        return False
+    return (parsed.publicSource in ('v2ex-latest-v1', 'v2ex-qna-v1')
+            and parsed.source == 'search' and parsed.mode == 'once'
+            and parsed.schedule is None and parsed.research is None
+            and not parsed.links and bool(parsed.keywords)
+            and all(term == term.strip() and ',' not in term for term in parsed.keywords))
+
+
 def _monitor_policy(platform, access_mode, configuration, collection_policy):
     try:
         parsed = ResearchStrategyConfiguration.model_validate(configuration)
@@ -108,12 +131,17 @@ def foreground_collection_support(runtime, claims):
         if runtime.capability_check in (three_platform_collection_policy, three_platform_monitor_policy):
             mode = 'three-platform-foreground-v1'
         if runtime.capability_check in (four_platform_collection_policy, four_platform_monitor_policy,
-                                       four_platform_public_monitor_policy, four_platform_public_sampling_monitor_policy):
+                                       four_platform_public_monitor_policy, four_platform_public_sampling_monitor_policy,
+                                       four_platform_public_node_monitor_policy):
             mode = 'four-platform-foreground-v1'
         runtime._active(cursor, claims)
         result = {'schema_version':'foreground-collection-support-v1', 'mode':mode}
         if runtime.capability_check in (four_platform_public_monitor_policy, four_platform_public_sampling_monitor_policy):
             result['public_source'] = 'v2ex-latest-v1'
         if runtime.capability_check is four_platform_public_sampling_monitor_policy:
+            result['public_monitor'] = True
+        if runtime.capability_check is four_platform_public_node_monitor_policy:
+            result['public_source'] = 'v2ex-latest-v1'
+            result['public_sources'] = ['v2ex-latest-v1', 'v2ex-qna-v1']
             result['public_monitor'] = True
         return result
