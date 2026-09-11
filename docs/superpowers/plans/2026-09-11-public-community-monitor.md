@@ -31,7 +31,7 @@ Files: `desktop/src/shared/foregroundCollection.ts`、`desktop/src/main/{foregro
 - [x] 写RED：旧公开binding不能监控；新绑定可生成PUBLIC_ANONYMOUS/null连接目标；同设备public-only和混合可执行，不同设备/来源失配/旧support拒绝。
 - [x] support严格识别上述增量；普通CAPABILITIES传monitorSupported；monitor validate/start按PUBLIC_ANONYMOUS分支验证配置和当前服务声明，跳过native探测但不跳过设备/策略；驱动通过显式allowMonitor复用同一实例。非monitor路径不能滥用该开关。
 - [x] 贯通现有创建/接管/轮次路径与来源文案。测试真实controller-worker-driver组合（模拟外部HTTP，仅技术证据），覆盖两轮、取消、恢复不重采、旧模式和原生回归；明确新来源/变化/重复按既有候选账本统计，不自行新增乐观计数。
-- [ ] 目标Vitest与tsc通过后由非作者审核整批差量，root串行提交并推main；不自行push、不改后端文件/数据库、不另建页面。
+- [x] 目标Vitest与tsc通过，非作者审核整批差量；root统一提交到main，客户端Agent不自行push、不改后端文件/数据库、不另建页面。
 
 ## 本批完成条件
 
@@ -43,3 +43,4 @@ Files: `desktop/src/shared/foregroundCollection.ts`、`desktop/src/main/{foregro
 - 隔离临时PostgreSQL使用完整迁移/授权清单、NOLOGIN/NOSUPERUSER/NOBYPASSRLS运行角色。`tests/test_public_monitor_postgres.py`一项三轮链路通过：真实策略确认→监控预留→设备签名START/CLAIM→候选入库→FINISH→回读；旧公开单次policy拒绝同一monitor。合成输入得到2条来源、3个正文版本、5次观察、3个批次、0个平台连接、0条商机，回执重放不新增观察，原始发布时间不刷新。
 - 上述PG测试仅在专用loopback临时库执行，测试推进到期窗口，不证明真实1小时平台调度；无外网读取、真实模型、生产身份或Windows证据。新mode默认关闭，部署必须配套新客户端与新服务镜像；32c9c0c旧候选不包含本批代码。
 - 客户端先验RED为5项预期失败/68通过；实现后7文件96项通过，`tsc --noEmit`通过。定向文件：`publicCommunityDriver`、`foregroundCollectionController`、`publicCollectionRenderer`、`monitorCollectionController`、`monitorCollectionRenderer`、`monitorCollectionDomain`及`ui/task-domain`。含真实controller-worker-driver的模拟HTTP/CLAIM/upload/FINISH、混合串行、旧声明拒绝、同实例单次→监控冷却、两轮驱动及已有取消/恢复反例。没有重新运行全量测试或构包；客户窗口与真实平台另验。
+- 非作者`release_candidate_review`对`001741f..a656c60540f8ae78b2e9863436cb1491e9497dff`给出限定GO，无阻断P1/P2；核对创建/接管入口、资格/快照/预留、旧模式/原生兼容、恢复不重采、同实例冷却及重复观察边界。独立仅复测policy36项（通过）及差量格式；未重复整组客户端/PG、构包或实网。不代表生产发布许可，后续产品代码改动须复审差量。
