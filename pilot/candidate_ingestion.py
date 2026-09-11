@@ -40,6 +40,54 @@ def _id(value, *, opaque=False):
     if not valid: raise CandidateIngestionError('invalid_request', 422)
 
 
+def _persist_records(cursor, *, tenant, user, platform, profile_version_id,
+                     strategy_version_id, platform_run_id, request_id, records,
+                     received):
+    """Persist validated records inside the caller's existing transaction."""
+    items = []
+    for index, record in sorted(records, key=lambda item: source_identity(item[1], platform)):
+        identity = source_identity(record, platform)
+        source_lock = int.from_bytes(hashlib.sha256(_json([tenant,user,identity]).encode()).digest()[:4], 'big', signed=True)
+        cursor.execute('SELECT pg_advisory_xact_lock(11202,%s)', (source_lock,))
+        cursor.execute('SELECT source_id FROM pilot_candidate_sources WHERE tenant_id=%s AND owner_user_id=%s AND source_identity=%s', (tenant,user,identity))
+        source = cursor.fetchone()
+        source_id = str(source[0]) if source else str(uuid4())
+        if source is None:
+            cursor.execute('INSERT INTO pilot_candidate_sources(tenant_id,owner_user_id,source_id,source_identity,platform,kind,external_source_id,external_comment_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
+                (tenant,user,source_id,identity,platform,record.kind,record.external_source_id,record.external_comment_id))
+        digest = content_version(record)
+        cursor.execute('SELECT version_id FROM pilot_candidate_versions WHERE tenant_id=%s AND owner_user_id=%s AND source_id=%s AND content_version=%s', (tenant,user,source_id,digest))
+        version = cursor.fetchone()
+        version_id = str(version[0]) if version else str(uuid4())
+        if version is None:
+            content = record.model_dump(mode='json', include={'public_url','title','author_public_id','body','published_at','parent'})
+            cursor.execute('INSERT INTO pilot_candidate_versions(tenant_id,owner_user_id,source_id,version_id,content_version,content,received_at) VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s)',
+                (tenant,user,source_id,version_id,digest,_json(content),received))
+        scope = (tenant,user,profile_version_id,strategy_version_id,source_id)
+        cursor.execute('SELECT * FROM pilot_candidate_projections WHERE tenant_id=%s AND owner_user_id=%s AND profile_version_id=%s AND strategy_version_id=%s AND source_id=%s FOR UPDATE', scope)
+        candidate = _row(cursor)
+        observation_id = str(uuid4())
+        observed = datetime.fromisoformat(record.observed_at.replace('Z','+00:00'))
+        if candidate is None:
+            candidate_id, revision = str(uuid4()), 1
+            cursor.execute('INSERT INTO pilot_candidate_projections(tenant_id,owner_user_id,profile_version_id,strategy_version_id,source_id,candidate_id,version_id,current_observation_id,revision,latest_observed_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                (*scope,candidate_id,version_id,observation_id,revision,observed))
+        else:
+            candidate_id, revision = str(candidate['candidate_id']),candidate['revision']
+            different = str(candidate['version_id']) != version_id
+            if observed > candidate['latest_observed_at']:
+                revision += int(different or candidate['ambiguous'])
+                cursor.execute('UPDATE pilot_candidate_projections SET version_id=%s,current_observation_id=%s,revision=%s,latest_observed_at=%s,ambiguous=false WHERE tenant_id=%s AND owner_user_id=%s AND candidate_id=%s',
+                    (version_id,observation_id,revision,observed,tenant,user,candidate_id))
+            elif observed == candidate['latest_observed_at'] and different and not candidate['ambiguous']:
+                revision += 1
+                cursor.execute('UPDATE pilot_candidate_projections SET ambiguous=true,revision=%s WHERE tenant_id=%s AND owner_user_id=%s AND candidate_id=%s', (revision,tenant,user,candidate_id))
+        cursor.execute('INSERT INTO pilot_candidate_observations(tenant_id,owner_user_id,observation_id,candidate_id,source_id,version_id,platform_run_id,request_id,record_index,observed_at,received_at,query,collector_version,normalizer_version) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+            (tenant,user,observation_id,candidate_id,source_id,version_id,platform_run_id,request_id,index,observed,received,record.query,record.collector_version,record.normalizer_version))
+        items.append(dict(index=index,candidate_id=candidate_id,version_id=version_id,observation_id=observation_id,revision=revision))
+    return sorted(items,key=lambda item:item['index'])
+
+
 class CandidateIngestionStore:
     def __init__(self, database, execution_runtime=None):
         self.database, self.execution_runtime = database, execution_runtime
@@ -81,50 +129,14 @@ class CandidateIngestionStore:
             authority = self.execution_runtime.lock_submission(cursor,claims,batch=batch,signature=signature)
             cursor.execute('SELECT clock_timestamp()')
             received = cursor.fetchone()[0]
-            items = []
-            for index, record in sorted(enumerate(batch.records), key=lambda item: source_identity(item[1],batch.platform)):
-                identity = source_identity(record,batch.platform)
-                source_lock = int.from_bytes(hashlib.sha256(_json([tenant,claims.user_id,identity]).encode()).digest()[:4], 'big', signed=True)
-                cursor.execute('SELECT pg_advisory_xact_lock(11202,%s)', (source_lock,))
-                cursor.execute('SELECT source_id FROM pilot_candidate_sources WHERE tenant_id=%s AND owner_user_id=%s AND source_identity=%s', (tenant,claims.user_id,identity))
-                source = cursor.fetchone()
-                source_id = str(source[0]) if source else str(uuid4())
-                if source is None:
-                    cursor.execute('INSERT INTO pilot_candidate_sources(tenant_id,owner_user_id,source_id,source_identity,platform,kind,external_source_id,external_comment_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
-                        (tenant,claims.user_id,source_id,identity,batch.platform,record.kind,record.external_source_id,record.external_comment_id))
-                digest = content_version(record)
-                cursor.execute('SELECT version_id FROM pilot_candidate_versions WHERE tenant_id=%s AND owner_user_id=%s AND source_id=%s AND content_version=%s', (tenant,claims.user_id,source_id,digest))
-                version = cursor.fetchone()
-                version_id = str(version[0]) if version else str(uuid4())
-                if version is None:
-                    content = record.model_dump(mode='json', include={'public_url','title','author_public_id','body','published_at','parent'})
-                    cursor.execute('INSERT INTO pilot_candidate_versions(tenant_id,owner_user_id,source_id,version_id,content_version,content,received_at) VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s)',
-                        (tenant,claims.user_id,source_id,version_id,digest,_json(content),received))
-                scope = (tenant,claims.user_id,batch.profile_version_id,batch.strategy_version_id,source_id)
-                cursor.execute('SELECT * FROM pilot_candidate_projections WHERE tenant_id=%s AND owner_user_id=%s AND profile_version_id=%s AND strategy_version_id=%s AND source_id=%s FOR UPDATE', scope)
-                candidate = _row(cursor)
-                observation_id = str(uuid4())
-                observed = datetime.fromisoformat(record.observed_at.replace('Z','+00:00'))
-                if candidate is None:
-                    candidate_id, revision = str(uuid4()), 1
-                    cursor.execute('INSERT INTO pilot_candidate_projections(tenant_id,owner_user_id,profile_version_id,strategy_version_id,source_id,candidate_id,version_id,current_observation_id,revision,latest_observed_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
-                        (*scope,candidate_id,version_id,observation_id,revision,observed))
-                else:
-                    candidate_id, revision = str(candidate['candidate_id']),candidate['revision']
-                    different = str(candidate['version_id']) != version_id
-                    if observed > candidate['latest_observed_at']:
-                        revision += int(different or candidate['ambiguous'])
-                        cursor.execute('UPDATE pilot_candidate_projections SET version_id=%s,current_observation_id=%s,revision=%s,latest_observed_at=%s,ambiguous=false WHERE tenant_id=%s AND owner_user_id=%s AND candidate_id=%s',
-                            (version_id,observation_id,revision,observed,tenant,claims.user_id,candidate_id))
-                    elif observed == candidate['latest_observed_at'] and different and not candidate['ambiguous']:
-                        revision += 1
-                        cursor.execute('UPDATE pilot_candidate_projections SET ambiguous=true,revision=%s WHERE tenant_id=%s AND owner_user_id=%s AND candidate_id=%s', (revision,tenant,claims.user_id,candidate_id))
-                cursor.execute('INSERT INTO pilot_candidate_observations(tenant_id,owner_user_id,observation_id,candidate_id,source_id,version_id,platform_run_id,request_id,record_index,observed_at,received_at,query,collector_version,normalizer_version) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
-                    (tenant,claims.user_id,observation_id,candidate_id,source_id,version_id,ex.platform_run_id,batch.request_id,index,observed,received,record.query,record.collector_version,record.normalizer_version))
-                items.append(dict(index=index,candidate_id=candidate_id,version_id=version_id,observation_id=observation_id,revision=revision))
+            items = _persist_records(cursor, tenant=tenant, user=claims.user_id,
+                platform=batch.platform, profile_version_id=batch.profile_version_id,
+                strategy_version_id=batch.strategy_version_id,
+                platform_run_id=ex.platform_run_id, request_id=batch.request_id,
+                records=enumerate(batch.records), received=received)
             receipt = dict(schema_version='candidate-receipt-v1',request_id=batch.request_id,
                 platform_run_id=authority['platform_run_id'],task_id=authority['task_id'],run_id=authority['run_id'],
-                accepted_count=len(batch.records),received_at=received.isoformat(),items=sorted(items,key=lambda item:item['index']))
+                accepted_count=len(batch.records),received_at=received.isoformat(),items=items)
             cursor.execute('UPDATE pilot_collection_platform_runs SET records_used=records_used+%s WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s AND run_id=%s AND platform_run_id=%s',
                 (len(batch.records),tenant,claims.user_id,authority['task_id'],authority['run_id'],authority['platform_run_id']))
             cursor.execute('INSERT INTO pilot_candidate_batches(tenant_id,owner_user_id,platform_run_id,request_id,task_id,run_id,fingerprint,accepted_count,received_at,receipt,platform,profile_version_id,strategy_version_id,execution_context) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s::jsonb)',
