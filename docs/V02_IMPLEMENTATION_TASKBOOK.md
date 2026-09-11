@@ -1,6 +1,6 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
-MP-03公开社区接续：`f0f0f84`实现固定官方匿名 V2EX 近期主题 CollectionDriver，非作者独立GO，15项定向通过；一次真实网络探针返回11条未判断PAGE记录，不是商机/客户执行。当前capability与普通入口仍未开放；下一片接匿名能力、TaskWizard确认范围→既有worker/候选/复核，兼修PUBLIC_ANONYMOUS能力参数，不重写上传/执行协议。[唯一计划与证据](superpowers/plans/2026-09-11-public-community-driver.md#实施与限定验证)。四账号平台、周期监控、Windows/生产与跨行业UAT继续按完整Goal执行，不把单站有界采样当全网或MP-03完成。
+MP-03公开社区接续：`f0f0f84`实现固定官方匿名 V2EX 近期主题 CollectionDriver；`f1fbe80`补显式后端来源开关、确认快照绑定与PUBLIC_ANONYMOUS参数修正，非作者独立GO，本次四个定向文件242项通过。默认配置未改，客户端严格协议尚未接纳新字段，部署不得提前启用新模式；下一片接匿名能力、TaskWizard确认范围→既有worker/候选/复核，不重写上传/执行协议。[唯一计划与证据](superpowers/plans/2026-09-11-public-community-driver.md#实施与限定验证)。此前网络探针的11条PAGE记录不是商机或客户执行。四账号平台、周期监控、Windows/生产与跨行业UAT继续按完整Goal执行，不把单站有界采样当全网或MP-03完成。
 
 发布接续：正式包HTTPS配置`5f54d4a`已独立GO；镜像启动修复`2d6b79b`及[镜像证据](qa/SERVICE_IMAGE_STARTUP_20260911.md)保留。复用镜像进行真实空库迁移发现画像权限缺失（readyz200但画像500）；`d83a281`补首次部署基础授权及同事务完整入口，独立GO，真实PG定向2项通过，镜像HTTP画像保存/确认与跨租户读取通过，[唯一空库记录](qa/EMPTY_DATABASE_DEPLOYMENT_20260911.md)。用户授权部署101.200.137.138，服务未部署、域名未定；本机默认SSH key存在但被拒绝。恢复合法访问后只读盘点、独立部署/数据库/HTTPS，并接同版本Windows真实业务验收；不重复空配置构包，不把本机镜像或画像检查当生产/完整Goal完成。
 

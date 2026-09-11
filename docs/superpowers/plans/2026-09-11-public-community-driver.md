@@ -26,4 +26,12 @@
 
 一次实际 Node 运行（Vite SSR 仅负责载入 TypeScript，未替换 fetch）调用同一驱动，关键词为“AI／需求”、检查上限100，返回11条有原始发布时间的 PAGE 记录。该探针使用本机构造的执行形状，不是服务端真实 START/CLAIM，也未调用客户数据库、发送平台消息或验证客户登录。结果是未判定的来源记录，不能称为11条商机或用户流程已通过；正文与用户资料未写入验证文档。
 
-下一片文件接线：`shared/foregroundCollection.ts` 区分匿名能力与账号 binding；`foregroundCollectionController.ts` 按 PUBLIC_ANONYMOUS 跳过账号 profile/Python 探测，仍使用原设备 scope 和 worker；`domain/task.ts` 与 TaskWizard 展示确切站点范围、无需账号但必须确认来源；后端显式新 policy 才开放，旧模式不变。`pilot/ui_api.py:research_platforms` 当前把 PUBLIC_WEB 误作为 access_mode，应在接线时改成协议规定的 PUBLIC_ANONYMOUS 并定向验收。复用既有执行、上传、恢复和人工复核，不另造执行协议。
+下一片文件接线：`shared/foregroundCollection.ts` 区分匿名能力与账号 binding；`foregroundCollectionController.ts` 按 PUBLIC_ANONYMOUS 跳过账号 profile/Python 探测，仍使用原设备 scope 和 worker；`domain/task.ts` 与 TaskWizard 展示确切站点范围、无需账号但必须确认来源。复用既有执行、上传、恢复和人工复核，不另造执行协议。
+
+### 后端策略接续（2026-09-11）
+
+源码 `f1fbe80b0d973475c6d351e6aeca32b1c0a8dee2` 增加显式 `four-platform-public-monitor-v1` 策略：PUBLIC_WEB仅允许PUBLIC_ANONYMOUS、确认配置中的 `publicSource=v2ex-latest-v1`、单次搜索及无schedule/research/links。旧四账号平台和监控行为保持；公开社区监控仍不开放。新字段缺省时序列化不增加null字段，保留旧确认快照及哈希；`research_platforms` 的访问模式已修正为PUBLIC_ANONYMOUS。
+
+主Agent复核命令：`python -m pytest -q tests/test_public_collection_policy.py tests/test_foreground_collection.py tests/test_research_strategy_contract.py tests/test_monitor_runtime_api.py`，242 passed / 0.79s，另有diff check通过。测试使用合成配置和接口替身，不是PostgreSQL、平台或客户端端到端验收；未重复构包或全量测试。
+
+非作者 `material_reference_architecture` 对该源码SHA只读独立审核Ready to merge: Yes，无阻断P1/P2。默认环境配置未修改。**现客户端严格support schema尚不接受新增public_source，部署不得启用新模式，直到客户端协议、确认、执行接线完成并验证。** 本次只提交默认未启用的后端能力，不代表普通用户已能采集公开社区或MP-03已完成。
