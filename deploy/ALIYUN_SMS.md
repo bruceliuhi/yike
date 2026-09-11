@@ -38,6 +38,6 @@ YIKE_SMS_CODE_PARAMETER=code
 4. 记录供应商受理、实际收到、输入成功、首次权益激活、后续登录、退出/过期拒绝的结果，绑定服务器SHA、客户端版本与时间；不记录完整号码、码或Cookie。
 5. 撤销测试trial时核对旧会话失效。若需关闭短信，移除provider启用项并按原部署流程重启；不切换为假验证码。
 
-目前未完成真实短信发送/手机收码或生产验收，配置和运行以本批实施证据为准。
+2026-09-11：本批源码056e258与正式SMS配置已部署到既有HTTPS服务，36项迁移/授权和候选、正式受限DB检查通过，公网能力为available；[唯一部署事实与未验项](../docs/qa/SERVER_137138_DEPLOYMENT.md#当前部署056e258正式短信配置已装配2026-09-11)。未完成真实短信发送/手机收码或客户验收；ops尚未部署，Web `/session` 仍为token入口，不表示任意手机号已可自助开通。
 
 依据：[SendSms官方接口](https://help.aliyun.com/zh/sms/developer-reference/api-dysmsapi-2017-05-25-sendsms)、[官方SDK接入](https://help.aliyun.com/zh/sms/developer-reference/how-to-use-api-quickly)。

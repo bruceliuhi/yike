@@ -1,6 +1,22 @@
 # 101.200.137.138 部署与测试交付
 
-## 当前部署：66745ef ＋ yike.tuokexing.net HTTPS（2026-09-11）
+## 当前部署：056e258，正式短信配置已装配（2026-09-11）
+
+用户通过独立任务提供目标服务器PEM及阿里云密钥文件并授权配置。CodexiMac接手唯一生产写入后，实际升级到 `056e2588677ef66f2734d6635a4170e00d8c76dd`。下方66745ef是上一健康版本，不再是当前运行源码。本批未启动新的产品研究功能、未创建客户、未调用发送验证码接口、未启用模型或运营服务；**短信装配不等于实际收码或产品上线**。
+
+- 当前服务镜像：`127.0.0.1:18750/yike/server@sha256:9f5cdfdc483802e176bdb11d4dcfa6b091026d0e4153689ea373076a2a98f335`；image ID `sha256:73a30903958e6b9b13092b2b603099b5841805948780733405a48903ee46714d`，实际OCI revision匹配上述完整SHA，架构amd64。仅构建一次，使用Git原字节源码与锁文件，未重跑旧全套测试或构建Windows。
+- 原字节源码归档SHA256：`df37a379722e4c47c59c5d2b05d5f647578e1b09b13770957225356d149741d3`；导出镜像归档SHA256：`48b25d11ca3658c69389313d868cb026998f19223b5c5b10b418e3d06915bc05`。本机与服务器文件摘要逐一一致，载入后核对revision；registry digest与本机构建的OCI index digest不是同一种对象，不混写。
+- 已生成认证加密备份 `/opt/yike-ai2026/backups/yike-before-056e258.dump.enc` 及 `.mac`，保留旧镜像、`ops/release-before-056e258.json` 和私有旧runtime配置。该次未实际恢复或回退，不复用历史恢复结果冒充本次演练。
+- 在独立迁移容器中执行本版本**36项迁移**和完整 `grant_runtime.sql` 清单；真实数据库返回 `MIGRATIONS_AND_RESTRICTED_GRANTS_OK 36`。管理员凭据仅进入该离线迁移进程，不进入Web；迁移锁等待5秒、单语句120秒上限。schema与授权分两个事务；如果授权失败不能声称schema也已回滚。此轮两阶段均成功。
+- 用户阿里云凭据只在内存解析并经已验证SSH stdin传输，无秘密argv、工具输出或本机副本。服务器候选私有env模式0600，原7项运行配置逐项保持相同。此前手机号认证密钥不存在且 `pilot_phone_bindings` 为0，才生成独立phone认证密钥；没有更换原会话签名密钥。固定签名/模板/变量按 [短信手册](../../deploy/ALIYUN_SMS.md) 装配，不设置 `DEBUG=sdk`。
+- 候选loopback18788通过 `/readyz` 与 `sms_login.available=true` 后，再用候选自身真实 `yike_app` 连接执行phone/trial表零行读取、试用gate、激活列UPDATE权限及手机号密文无SELECT权限检查；全部通过后才切正式18787。正式服务再次通过同样检查。两次cp06预检通过，候选容器停止后自动移除；只替换本项目app容器，数据库和其他项目容器未变更。
+- 最终容器healthy、重启0、非root、只读根文件系统、loopback绑定。核对运行环境没有管理员/ops凭据，检查实际容器日志未包含四项认证/SMS秘密。公网TLS验证开启的 `/healthz`、`/readyz`、`/api/ui/capabilities`、`/session` 均200；本机外网也回读 `sms_login.available=true`。此能力布尔值只证明适配器已装配，不能证明RAM发送权限、供应商受理或手机号归属。
+- 现有 `/session` 仍是Web短期token入口；本次没有改成网页短信表单，也没有交付匹配的Windows新包。客户短信表单属于客户端；普通客户首次trial须另经运营开通，不能宣传任何手机号现在均可自助注册。
+- 发布助手经非作者整批审核，四项发现（空密钥处理、残留候选、回退就绪、真实表权限检查）修复后GO。独立报告与助手在本机 `/tmp/yike-sms-release.HhqvWR/`；服务器redacted事实记录 `/opt/yike-ai2026/testdata/sms-056e258-deployment.json`，源码/镜像位于本项目artifacts及releases目录。
+
+**接续：** 独立运营服务部署与真实测试手机号开通、用户本人实际收码/首次激活/后续登录；已获授权的火山方舟模型仍需通过产品适配器实测后配置。当前线上模型配置已只读确认为空；不能根据“有API key”标模型可用。Windows、真实平台采集/触达/回复、多源研究和跨行业客户UAT继续保持未完成。完整Goal保持进行中。
+
+## 上一部署：66745ef ＋ yike.tuokexing.net HTTPS（2026-09-11）
 
 本轮记录提交期间main新增公开社区监控服务代码，最终发布窗口固定到 `66745efa0e382beb3337a8ac01da23dc6cf59922`，已完成第二次差量升级。下节001741f是本轮中间版本及首次HTTPS接通证据，不是当前运行版本；后续来件不自动追认为本候选。
 
