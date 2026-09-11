@@ -60,7 +60,7 @@ def _persist_records(cursor, *, tenant, user, platform, profile_version_id,
         version = cursor.fetchone()
         version_id = str(version[0]) if version else str(uuid4())
         if version is None:
-            content = record.model_dump(mode='json', include={'public_url','title','author_public_id','body','published_at','parent'})
+            content = record.model_dump(mode='json', include={'public_url','title','author_public_id','body','published_at','parent','source_context'}, exclude_none=True)
             cursor.execute('INSERT INTO pilot_candidate_versions(tenant_id,owner_user_id,source_id,version_id,content_version,content,received_at) VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s)',
                 (tenant,user,source_id,version_id,digest,_json(content),received))
         scope = (tenant,user,profile_version_id,strategy_version_id,source_id)

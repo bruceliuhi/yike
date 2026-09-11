@@ -64,6 +64,7 @@ function fieldLabel(
   field: CapturedEvidence["snapshot"]["assessment"]["citations"][number]["field"],
   kind: CapturedEvidence["snapshot"]["source"]["kind"],
 ) {
+  if(field.startsWith('source.author_updates.'))return `作者回复 ${Number(field.split('.')[2])+1}`;
   switch (field) {
     case "source.title":
       return "来源标题";
@@ -124,6 +125,11 @@ export function FixedSourceEvidence({
           {bodyExpanded ? "收起原文" : "展开完整原文"}
         </Button>
       )}
+      {source.author_updates!==undefined&&<section aria-label="留存作者回复">
+        <h4>作者后续更新</h4>
+        <p className="muted">{source.source_read_scope==='AUTHOR_REPLIES_COUNT_MATCHED_SUPPLEMENTS_UNREAD'?'本次API回复计数相符':'回复读取不全'}；附言未读，不代表来源整体完整。</p>
+        {source.author_updates.map((body,index)=><div key={index} className="fixed-evidence-body">{body}</div>)}
+      </section>}
 
       <dl className="detail-list fixed-evidence-source-facts">
         <Fact label="来源平台">{platformLabels[source.platform]}</Fact>

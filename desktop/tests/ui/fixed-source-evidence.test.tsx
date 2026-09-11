@@ -6,6 +6,15 @@ import { FixedSourceEvidence } from "../../src/renderer/pages/opportunities/Fixe
 import { capturedEvidenceFixture } from "../fixtures/opportunitySourceEvidence";
 
 afterEach(cleanup);
+it('shows retained author updates and incomplete reading in the included opportunity',()=>{
+ const raw:any=capturedEvidenceFixture();Object.assign(raw.snapshot.source,{platform:'PUBLIC_WEB',kind:'PAGE',external_comment_id:null,container_title:null,parent:null,author_updates:['请提供作品'],source_read_scope:'AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD'});
+ raw.snapshot.assessment.citations=[{dimension:'intent',field:'source.author_updates.0',quote:'提供作品'}];
+ const evidence=parseOpportunitySourceEvidence(raw,{opportunityId:'TEST-o',profileVersionId:'TEST-p'});
+ if(evidence.status!=='CAPTURED')throw new Error('invalid fixture');
+ render(<FixedSourceEvidence evidence={evidence} onOpen={vi.fn()}/>);
+ expect(screen.getByText('请提供作品')).toBeTruthy();expect(screen.getByText(/附言未读/)).toBeTruthy();
+ expect(screen.getByText(/作者回复 1/)).toBeTruthy();
+});
 
 function captured() {
   const evidence = parseOpportunitySourceEvidence(capturedEvidenceFixture(), {

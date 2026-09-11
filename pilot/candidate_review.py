@@ -45,6 +45,21 @@ def _research_matches(captured, expected):
     return type(captured) is dict and all(captured.get(key) == value for key, value in expected.items())
 
 
+def _model_content(kind, body):
+    content = dict(title=body['title'], body=body['body'], parent=None)
+    if body.get('parent'):
+        content['parent'] = dict(title=None, body=body['parent'].get('body'))
+    if kind == 'COMMENT':
+        content['title'] = None
+        content['parent'] = dict(title=body['title'], body=(body.get('parent') or {}).get('body'))
+    if body.get('source_context'):
+        context = body['source_context']
+        content['author_updates'] = [item['body'] for item in context['author_replies']]
+        content['source_read_scope'] = ('AUTHOR_REPLIES_COUNT_MATCHED_SUPPLEMENTS_UNREAD'
+            if context['replies_complete'] else 'AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD')
+    return content
+
+
 class CandidateReviewStore(CandidateIngestionStore):
     def __init__(self, database, *, model=None, strategy_resolver=None,
                  strategy_snapshot_reader=None, max_daily_calls=20,
@@ -141,12 +156,7 @@ class CandidateReviewStore(CandidateIngestionStore):
                     or raw['platform'] not in snapshot['platforms']):
                 raise CandidateReviewError('strategy_conflict',409)
         body = raw['content']
-        content = dict(title=body['title'],body=body['body'],parent=None)
-        if body.get('parent'):
-            content['parent'] = dict(title=None,body=body['parent'].get('body'))
-        if raw['kind']=='COMMENT':
-            content['title'] = None
-            content['parent'] = dict(title=body['title'],body=(body.get('parent') or {}).get('body'))
+        content = _model_content(raw['kind'], body)
         self._active(cursor,claims)
         captured = dict(binding=current, raw=raw, description=profile.get('description'), content=content,
                         strategy=stored_strategy, strategyHash=stored_hash)
@@ -342,7 +352,8 @@ class CandidateReviewStore(CandidateIngestionStore):
             if previous is not None: return previous
             snapshot = self._capture(cursor,tenant,claims,request,require_strategy=False)
             content = snapshot['content']
-            if request.status=='OPEN' and not any(request.excerpt in (text or '') for text in (content['title'],content['body'])):
+            source_texts = [content['title'], content['body'], *content.get('author_updates', [])]
+            if request.status=='OPEN' and not any(request.excerpt in (text or '') for text in source_texts):
                 raise CandidateReviewError('source_excerpt_mismatch',422)
             now = _now(cursor)
             receipt = dict(kind='sourceVerification',id=str(uuid4()),requestId=request.requestId,candidateId=request.candidateId,

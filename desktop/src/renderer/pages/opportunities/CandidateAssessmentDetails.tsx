@@ -86,7 +86,7 @@ export function CandidateAssessmentDetails({
                 {assessment[key].citations.map((citation, index) => (
                   <li key={`${citation.field}:${index}`}>
                     <span className="muted">
-                      {citationFields[citation.field]} · {citation.field}
+                      {citation.field.startsWith('author_updates.')?`作者回复 ${Number(citation.field.split('.')[1])+1}`:citationFields[citation.field as keyof typeof citationFields]} · {citation.field}
                     </span>
                     <blockquote className="candidate-evidence-text">
                       {citation.quote}

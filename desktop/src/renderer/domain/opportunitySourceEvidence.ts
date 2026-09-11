@@ -1,4 +1,5 @@
 import { z } from "zod";
+import {authorUpdateBodySchema} from '../../shared/publicAuthorContext';
 
 const FIXED_ERROR = "INVALID_OPPORTUNITY_SOURCE_EVIDENCE";
 const MAX_RESPONSE_BYTES = 2_097_152;
@@ -106,9 +107,13 @@ const sourceSchema = z
     author_public_id: nullableText,
     published_at: timestamp.nullable(),
     parent: parentSchema.nullable(),
+    author_updates:z.array(authorUpdateBodySchema).max(100).refine(v=>v.reduce((n,t)=>n+Array.from(t).length,0)<=20000).optional(),
+    source_read_scope:z.enum(['AUTHOR_REPLIES_COUNT_MATCHED_SUPPLEMENTS_UNREAD','AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD']).optional(),
   })
   .strict()
   .superRefine((source, context) => {
+    if((source.author_updates===undefined)!==(source.source_read_scope===undefined)||source.author_updates!==undefined&&
+       (source.kind!=='PAGE'||source.platform!=='PUBLIC_WEB'||source.author_public_id===null||source.external_source_id===null))context.addIssue({code:'custom'});
     if (source.kind === "COMMENT") {
       if (source.external_comment_id === null || source.title !== null)
         context.addIssue({ code: "custom" });
@@ -129,12 +134,12 @@ const citationSchema = z
       "urgency",
       "actionability",
     ]),
-    field: z.enum([
+    field: z.union([z.enum([
       "source.title",
       "source.body",
       "source.container_title",
       "source.parent.body",
-    ]),
+    ]),z.string().regex(/^source\.author_updates\.(?:0|[1-9][0-9]?)$/)]),
     quote: text,
   })
   .strict();
@@ -177,6 +182,7 @@ function citationText(
   source: z.infer<typeof sourceSchema>,
   field: z.infer<typeof citationSchema>["field"],
 ): string | null {
+  if(field.startsWith('source.author_updates.'))return source.author_updates?.[Number(field.split('.')[2])]??null;
   switch (field) {
     case "source.title":
       return source.title;
@@ -187,6 +193,7 @@ function citationText(
     case "source.parent.body":
       return source.parent?.body ?? null;
   }
+  return null;
 }
 
 const snapshotSchema = z

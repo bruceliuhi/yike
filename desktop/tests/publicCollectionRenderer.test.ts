@@ -22,14 +22,14 @@ function receipt(value:ReturnType<typeof draft>){
    configuration:request.configuration,platforms:request.platforms,...value.executionLimits}} as const;
 }
 describe('bounded public source renderer contract',()=>{
- it('preserves explicit node selection in drafts/templates and requires a matching live source catalog',()=>{
-  const value={...draft(),publicSource:'v2ex-qna-v1' as const};
-  const expanded={...publicBinding,sourceIds:['v2ex-latest-v1','v2ex-qna-v1']};
+ it.each(['v2ex-qna-v1','v2ex-outsourcing-authors-v1'] as const)('preserves %s in drafts/templates and requires a matching live source catalog',source=>{
+  const value={...draft(),publicSource:source};
+  const expanded={...publicBinding,sourceIds:['v2ex-latest-v1',source]};
   const capability=foregroundCollectionResultSchema.parse({state:'AVAILABLE',bindings:[],publicBinding:expanded});
   const rows=attachForegroundBinding([],capability);
-  expect(taskDraftSchema.parse(value)).toHaveProperty('publicSource','v2ex-qna-v1');
-  expect(draftFromTemplate(templateFromDraft(value,value.name))).toHaveProperty('publicSource','v2ex-qna-v1');
-  expect(strategyPrepareRequest(value,id,value.executionLimits).configuration.publicSource).toBe('v2ex-qna-v1');
+  expect(taskDraftSchema.parse(value)).toHaveProperty('publicSource',source);
+  expect(draftFromTemplate(templateFromDraft(value,value.name))).toHaveProperty('publicSource',source);
+  expect(strategyPrepareRequest(value,id,value.executionLimits).configuration.publicSource).toBe(source);
   expect(startBlockers(value,profiles,rows,true)).toEqual([]);
   expect(startBlockers(value,profiles,attachForegroundBinding([],{state:'AVAILABLE',bindings:[],publicBinding}),true)).toContain('所选公开板块当前不可用，请重新核对来源；不会自动切换板块。');
   expect(()=>desktopStartCommand(value,receipt(draft()),rows,other)).toThrow();

@@ -4,6 +4,8 @@
 
 选择：不把回复拼进主帖冒充原文，不仅加关键词；新增显式固定来源 `v2ex-outsourcing-authors-v1`，在新模式 `four-platform-public-project-monitor-v1` 下开放。旧模式允许源保持不变；搜贝research仍仅latest。复用普通once/monitor/确认/上传/人工复核链。
 
+新模式保留 `v2ex-latest-v1` 为默认源，授权目录为 latest、qna、outsourcing-authors 三项；前两项复用旧策略，不改变旧服务返回值。能力接口的原生执行 mode 仍返回既有 four-platform-foreground/monitor 枚举，新来源通过 public_sources 显式协商，不靠客户端推断。
+
 ## 唯一跨端合同
 
 CandidateRecord新增可选（不可null）`source_context`，旧记录缺省不添加字段，不改变旧内容hash：
@@ -15,6 +17,8 @@ CandidateRecord新增可选（不可null）`source_context`，旧记录缺省不
 只允许PUBLIC_WEB/PAGE且author_public_id、external_source_id非空，normalizer_version为`v2ex-author-page-v1`；context是采集器声明，不是人工已核验。replies_expected为0..2147483647整数或null；replies_read为0..100整数；complete仅当expected非null且等于read；supplements_read只能false。author_replies最多100项且不超过read，id为正十进制安全整数文本、唯一；body沿用非空Unicode/控制字符规则，单条最多20000字符、总和最多20000；published_at沿用UTC秒，不能晚于观察或早于主帖发布时间。不保存非作者正文。回复列表按API顺序，不假设顺序即时间。
 
 内容版本保存context；作者回复/覆盖变化形成新版本，旧hash保持。候选原文详情显示作者更新和API回复读取计数，明确附言未读；缺context的旧公开来源显示仅主帖、后续更新未核。历史版本校验包含context及其时间。
+
+既有商机来源变化视图目前只生成正文变化事件。本片对后续context变化在既有gaps明确提示重新核验，保留版本，不伪造正文差异或自动关闭机会；作者更新专属变化事件/首页主动提醒尚未实现，不据本片宣布完整监控验收。
 
 模型最小content投影新增可选`author_updates`（字符串数组，按author_replies顺序）和可选`source_read_scope`（固定`AUTHOR_REPLIES_COUNT_MATCHED_SUPPLEMENTS_UNREAD`或`AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD`），二者同时出现；不传作者ID、时间或URL。引用field扩为`author_updates.0`..`author_updates.99`；逐字引用校验保留，作者回复可作为intent/urgency本人的依据。读取范围不能作为采购引用；complete只表示本次API计数匹配，绝不称来源整体完整或已人工核实。模型不得推翻用户历史排除，既有独立复核/发送授权不变。
 

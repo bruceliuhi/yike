@@ -3,6 +3,7 @@ import {candidateSubmissionSchema,type CandidateSubmission} from '../shared/cand
 import {strategyConfigurationSchema} from '../shared/researchStrategies';
 import {executionReceiptSchema} from '../shared/executionReceipt';
 import {PUBLIC_SOURCES,publicSourceIdSchema,type PublicSourceId} from '../shared/publicSources';
+import {sourceContextSchema} from '../shared/publicAuthorContext';
 
 const BYTE_LIMIT=1024*1024;
 const fail=(code='PUBLIC_SOURCE_FAILED')=>new Error(code);
@@ -19,6 +20,7 @@ function recordsFrom(value:unknown,keywords:string[],exclusions:string[],maximum
   for(const topic of value.slice(0,maximum)) {
     if(!topic||typeof topic!=='object'||!positive(topic.id)||seen.has(topic.id))throw fail();
     if(sourceId==='v2ex-qna-v1'&&topic.node?.name!=='qna')throw fail();
+    if(sourceId==='v2ex-outsourcing-authors-v1'&&topic.node?.name!=='outsourcing')throw fail();
     seen.add(topic.id);
     if(topic.deleted===1||topic.deleted===true)continue;
     if(topic.deleted!==0 && topic.deleted!==false && topic.deleted!==undefined)throw fail();
@@ -39,6 +41,22 @@ function recordsFrom(value:unknown,keywords:string[],exclusions:string[],maximum
       collector_version:sourceId,normalizer_version:'v2ex-page-v1',query});
   }
   return candidateSubmissionSchema.shape.records.parse(records);
+}
+
+function authorContext(topic:any,value:unknown,observed:number){
+  if(!positive(topic.member?.id)||!Array.isArray(value)||value.length>100)throw fail();
+  const expected=topic.replies===undefined?null:topic.replies;
+  if(expected!==null&&(!Number.isSafeInteger(expected)||expected<0||expected>2147483647))throw fail();
+  const seen=new Set<number>();const replies=[];
+  for(const reply of value){
+    if(!reply||typeof reply!=='object'||!positive(reply.id)||seen.has(reply.id)||reply.topic_id!==topic.id||
+      !positive(reply.member?.id)||reply.member_id!==undefined&&reply.member_id!==reply.member.id||
+      !positive(reply.created)||reply.created<topic.created||reply.created*1000>observed||typeof reply.content!=='string')throw fail();
+    seen.add(reply.id);
+    if(reply.member.id===topic.member.id)replies.push({id:String(reply.id),body:reply.content,published_at:timestamp(reply.created*1000)});
+  }
+  return sourceContextSchema.parse({schema_version:'v2ex-author-context-v1',replies_expected:expected,replies_read:value.length,
+    replies_complete:expected!==null&&expected===value.length,supplements_read:false,author_replies:replies});
 }
 
 /** Main-owned fixed anonymous source, explicitly opted in by a confirmed task. */
@@ -81,25 +99,41 @@ export function createPublicCommunityDriver(options:{fetch?:typeof fetch;now?:()
         nextRequestAt=now()+60000;
         timer=setTimeout(()=>{timedOut=true;abort.abort();},Math.max(1,deadline-now()));
         try {
-          const response=await fetcher(endpoint,{method:'GET',redirect:'error',credentials:'omit',signal:abort.signal,
+          let totalBytes=0;
+          const readJSON=async(address:string):Promise<unknown>=>{
+          if(abort.signal.aborted||now()>=deadline)throw fail();
+          const response=await fetcher(address,{method:'GET',redirect:'error',credentials:'omit',signal:abort.signal,
             headers:{Accept:'application/json','User-Agent':'YikeAI/0.2 (public community reader)'}});
-          if(response.status!==200||response.redirected||response.url && response.url!==endpoint||
+          if(response.status!==200||response.redirected||response.url && response.url!==address||
               !/^application\/json(?:\s*;|$)/i.test(response.headers.get('content-type')??'')||!response.body) {
             await response.body?.cancel();throw fail();
           }
           const length=response.headers.get('content-length');
-          if(length!==null&&(!/^\d+$/.test(length)||Number(length)>BYTE_LIMIT)) {await response.body.cancel();throw fail();}
-          const reader=response.body.getReader(),chunks:Uint8Array[]=[];let bytes=0;
+          if(length!==null&&(!/^\d+$/.test(length)||Number(length)>BYTE_LIMIT-totalBytes)) {await response.body.cancel();throw fail();}
+          const reader=response.body.getReader(),chunks:Uint8Array[]=[];
           try {
             while(true) {
               if(abort.signal.aborted||now()>=deadline)throw fail();
               const next=await reader.read();if(next.done)break;
-              bytes+=next.value.byteLength;if(bytes>BYTE_LIMIT)throw fail();chunks.push(next.value);
+              totalBytes+=next.value.byteLength;if(totalBytes>BYTE_LIMIT)throw fail();chunks.push(next.value);
             }
           }finally {await reader.cancel().catch(()=>{});reader.releaseLock();}
           if(abort.signal.aborted||now()>=deadline)throw fail();
           const body=new TextDecoder('utf-8',{fatal:true}).decode(Buffer.concat(chunks));
-          return recordsFrom(JSON.parse(body),configuration.keywords,configuration.exclusions,input.maxRecords,now(),sourceId);
+          return JSON.parse(body);
+          };
+          const payload=await readJSON(endpoint),project=sourceId==='v2ex-outsourcing-authors-v1';
+          const records=recordsFrom(payload,configuration.keywords,configuration.exclusions,project?Math.min(3,input.maxRecords):input.maxRecords,now(),sourceId);
+          if(project){
+            for(const record of records){
+              const topic=(payload as any[]).find(item=>String(item.id)===record.external_source_id);
+              if(!positive(topic?.member?.id))throw fail();
+              const replies=await readJSON(`https://www.v2ex.com/api/replies/show.json?topic_id=${topic.id}`);
+              record.observed_at=timestamp(now());
+              record.source_context=authorContext(topic,replies,now());record.normalizer_version='v2ex-author-page-v1';
+            }
+          }
+          return candidateSubmissionSchema.shape.records.parse(records);
         }catch {
           throw fail(cancelled?'PUBLIC_SOURCE_CANCELLED':timedOut?'PUBLIC_SOURCE_TIMED_OUT':'PUBLIC_SOURCE_FAILED');
         }

@@ -37,5 +37,6 @@ export function attachForegroundBinding(rows: PlatformConnection[], result: Fore
   if(!result.publicBinding)return attached;
   if(!foregroundCollectionResultSchema.safeParse(result).success)return rows;
   return [...attached.filter(row=>row.platform!=='web'),{platform:'web',status:'CONNECTED',capabilities:['search'],
-    publicBinding:result.publicBinding,reason:PUBLIC_SOURCE_SCOPE}];
+    publicBinding:result.publicBinding,reason:result.publicBinding.sourceIds?.includes('v2ex-outsourcing-authors-v1')?
+      '支持按已确认板块有界读取；作者回复、未读范围以所选来源和实际回执为准。':PUBLIC_SOURCE_SCOPE}];
 }

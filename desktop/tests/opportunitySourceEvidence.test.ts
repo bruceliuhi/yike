@@ -7,6 +7,12 @@ import { capturedEvidenceFixture } from "./fixtures/opportunitySourceEvidence";
 
 const expected = { opportunityId: "TEST-o", profileVersionId: "TEST-p" };
 const fixedError = "INVALID_OPPORTUNITY_SOURCE_EVIDENCE";
+it('preserves author-update citations in a captured opportunity without promoting them to the main body',()=>{
+ const raw:any=capturedEvidenceFixture();Object.assign(raw.snapshot.source,{platform:'PUBLIC_WEB',kind:'PAGE',external_comment_id:null,container_title:null,parent:null,author_updates:['请提供作品'],source_read_scope:'AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD'});
+ raw.snapshot.assessment.citations=[{dimension:'intent',field:'source.author_updates.0',quote:'提供作品'}];
+ expect(parseOpportunitySourceEvidence(raw,expected)).toEqual(raw);
+ raw.snapshot.assessment.citations[0].field='source.author_updates.1';rejects(raw);
+});
 
 type PathPart = string | number;
 type MutableObject = Record<string, unknown>;

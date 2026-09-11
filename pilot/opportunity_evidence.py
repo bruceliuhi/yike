@@ -26,6 +26,7 @@ _SOURCE_FIELDS = {
     "version_id", "content_sha256", "title", "container_title", "body",
     "author_public_id", "published_at", "parent",
 }
+_AUTHOR_SOURCE_FIELDS = _SOURCE_FIELDS | {"author_updates", "source_read_scope"}
 _PARENT_FIELDS = {
     "external_comment_id", "body", "author_public_id", "published_at", "public_url",
 }
@@ -88,6 +89,15 @@ def _text(value, *, nullable=False):
     return value
 
 
+def _author_update_text(value):
+    value = _text(value)
+    if len(value) > 20000 or not value.strip():
+        raise ValueError
+    if any((ord(char) < 32 and char not in "\t\n\r") or 127 <= ord(char) <= 159 for char in value):
+        raise ValueError
+    return value
+
+
 def _timestamp(value, *, nullable=False):
     if value is None and nullable:
         return None
@@ -127,7 +137,7 @@ def _public_source(raw):
         }
     title = _text(content.get("title"), nullable=True)
     body = _text(content["body"])
-    return {
+    result = {
         "platform": _text(raw["platform"]),
         "kind": kind,
         "external_source_id": _text(raw.get("external_source_id"), nullable=True),
@@ -142,12 +152,27 @@ def _public_source(raw):
         "published_at": _timestamp(content.get("published_at"), nullable=True),
         "parent": public_parent,
     }
+    context = content.get("source_context")
+    if context is not None:
+        context = _mapping(context)
+        replies = context["author_replies"]
+        if type(replies) is not list:
+            raise ValueError
+        result["author_updates"] = [_text(_mapping(item)["body"]) for item in replies]
+        result["source_read_scope"] = ("AUTHOR_REPLIES_COUNT_MATCHED_SUPPLEMENTS_UNREAD"
+            if context["replies_complete"] is True else "AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD")
+    return result
 
 
 def _citation_text(source, field):
     if field == "source.parent.body":
         parent = source["parent"]
         return None if parent is None else parent["body"]
+    match = re.fullmatch(r"source\.author_updates\.([0-9]|[1-9][0-9])", field)
+    if match:
+        updates = source.get("author_updates", [])
+        index = int(match.group(1))
+        return updates[index] if index < len(updates) else None
     return source[field.removeprefix("source.")]
 
 
@@ -167,7 +192,8 @@ def _public_assessment(assessment, source):
             if field == "profile.description":
                 omitted += 1
                 continue
-            public_field = _CITATION_FIELDS.get(field)
+            public_field = (_CITATION_FIELDS.get(field) or
+                ("source." + field if re.fullmatch(r"author_updates\.(?:[0-9]|[1-9][0-9])", field) else None))
             if public_field is None:
                 raise ValueError
             addressed = _citation_text(source, public_field)
@@ -267,7 +293,7 @@ def _validate_public_payload(payload, *, opportunity_id, profile_version_id):
     observation = _mapping(payload["observation"])
     assessment = _mapping(payload["assessment"])
     verification = _mapping(payload["verification"])
-    if set(source) != _SOURCE_FIELDS or set(observation) != _OBSERVATION_FIELDS:
+    if set(source) not in (_SOURCE_FIELDS, _AUTHOR_SOURCE_FIELDS) or set(observation) != _OBSERVATION_FIELDS:
         raise ValueError
     if set(assessment) != _ASSESSMENT_FIELDS or set(verification) != _VERIFICATION_FIELDS:
         raise ValueError
@@ -280,6 +306,17 @@ def _validate_public_payload(payload, *, opportunity_id, profile_version_id):
     for key in ("external_source_id", "external_comment_id", "title", "container_title", "author_public_id"):
         _text(source[key], nullable=True)
     _timestamp(source["published_at"], nullable=True)
+    if "author_updates" in source:
+        if (source["platform"] != "PUBLIC_WEB" or source["kind"] != "PAGE"
+                or source["external_source_id"] is None or source["author_public_id"] is None
+                or type(source["author_updates"]) is not list or len(source["author_updates"]) > 100
+                or source["source_read_scope"] not in {
+                    "AUTHOR_REPLIES_COUNT_MATCHED_SUPPLEMENTS_UNREAD",
+                    "AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD"}):
+            raise ValueError
+        updates = [_author_update_text(update) for update in source["author_updates"]]
+        if sum(len(update) for update in updates) > 20000:
+            raise ValueError
     if not _DIGEST.fullmatch(_text(source["content_sha256"])):
         raise ValueError
     parent = source["parent"]
@@ -317,7 +354,9 @@ def _validate_public_payload(payload, *, opportunity_id, profile_version_id):
     for citation in assessment["citations"]:
         if type(citation) is not dict or set(citation) != {"dimension", "field", "quote"}:
             raise ValueError
-        if citation["dimension"] not in _DIMENSIONS or citation["field"] not in _CITATION_FIELDS.values():
+        if (citation["dimension"] not in _DIMENSIONS
+                or (citation["field"] not in _CITATION_FIELDS.values()
+                    and not re.fullmatch(r"source\.author_updates\.(?:[0-9]|[1-9][0-9])", citation["field"]))):
             raise ValueError
         quote = _text(citation["quote"])
         addressed = _citation_text(source, citation["field"])

@@ -39,6 +39,7 @@ function OriginalContent({
     | "published_at"
     | "parent"
     | "public_url"
+    | "source_context"
   >;
   kind: Candidate["kind"];
 }) {
@@ -64,6 +65,15 @@ function OriginalContent({
           {content.title ?? "未知"}
         </Fact>
       </dl>
+      {content.source_context ? <section aria-label="作者后续更新">
+        <h4>作者后续更新</h4>
+        <p className="muted">接口回复已读 {content.source_context.replies_read} / {content.source_context.replies_expected??'未知'}；
+          {content.source_context.replies_complete?'本次计数相符，不代表来源整体完整':'回复读取不全'}。附言未读，仍需人工核验。</p>
+        {content.source_context.author_replies.map(reply=><article key={reply.id}>
+          <p>回复 ID {reply.id} · <EvidenceTime value={reply.published_at}/></p>
+          <div className="candidate-evidence-text">{reply.body}</div>
+        </article>)}
+      </section> : kind==='PAGE'?<p className="muted">未留存作者后续更新；请打开来源核实。</p>:null}
       {kind === "COMMENT" ? (
         <>
           <p className="muted">

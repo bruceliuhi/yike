@@ -54,13 +54,13 @@ afterEach(cleanup);
 it("describes public once and monitor snapshots as bounded recent-topic filtering while retaining native keyword search", () => {
   const once = render(<StrategySnapshotDetails receipt={receipt("once")} />);
   expect(screen.getByText("本次近期主题筛选")).toBeTruthy();
-  expect(screen.getByText(/V2EX近期主题，本次筛选，不覆盖历史\/全站\/评论/)).toBeTruthy();
+  expect(screen.getByText(/V2EX最新主题.*不覆盖历史\/全站\/评论.*本次筛选/)).toBeTruthy();
   expect(screen.queryByText(/不支持持续监控/)).toBeNull();
   once.unmount();
 
   const monitor = render(<StrategySnapshotDetails receipt={receipt("monitor")} />);
   expect(screen.getByText("近期主题定时抽样")).toBeTruthy();
-  expect(screen.getByText(/V2EX近期主题，定时抽样，不覆盖历史\/全站\/评论/)).toBeTruthy();
+  expect(screen.getByText(/V2EX最新主题.*不覆盖历史\/全站\/评论.*定时抽样/)).toBeTruthy();
   expect(screen.queryByText(/不支持持续监控/)).toBeNull();
   monitor.unmount();
 
@@ -68,4 +68,10 @@ it("describes public once and monitor snapshots as bounded recent-topic filterin
   expect(screen.getByText("关键词搜索")).toBeTruthy();
   expect(screen.queryByText(/近期主题/)).toBeNull();
   expect(screen.getByText(/非当前执行许可/)).toBeTruthy();
+});
+it('shows explicit project request bounds and unread supplements',()=>{
+ const value=receipt('once');value.snapshot.configuration.publicSource='v2ex-outsourcing-authors-v1';
+ render(<StrategySnapshotDetails receipt={strategyReceiptSchema.parse(value)}/>);
+ expect(screen.getByText(/最多3篇\/4次请求，附言未读/)).toBeTruthy();
+ expect(screen.queryByText(/不覆盖历史\/全站\/评论/)).toBeNull();
 });

@@ -214,7 +214,7 @@ def test_rules_use_both_versioned_files_and_cross_industry_contract():
     implementation = module()
     assert hasattr(implementation, "load_assessment_rules"), "missing packaged rule loader"
     version, digest, prompt = implementation.load_assessment_rules()
-    assert version == "candidate-assessment-v1/ai-project-lead-research-1.0.0/industry-task-strategy-v1"
+    assert version == "candidate-assessment-v2/ai-project-lead-research-1.0.0/industry-task-strategy-v1/author-context-v1"
     root = Path(__file__).resolve().parents[1]
     for path in ("SKILL.md", "references/qualification-and-evidence.md"):
         assert (root / "skills/ai-project-lead-research-v1" / path).read_text() in prompt

@@ -144,6 +144,60 @@ class ParentContext(_Frozen):
         if value is not None: _parse_time(value)
         return value
 
+class AuthorReply(_Frozen):
+    id: str
+    body: str
+    published_at: str
+
+    @field_validator("id")
+    @classmethod
+    def reply_id(cls, value):
+        if (not isinstance(value, str) or not re.fullmatch(r"[1-9][0-9]*", value)
+                or int(value) > 9007199254740991):
+            raise ValueError("invalid reply identifier")
+        return value
+
+    @field_validator("body")
+    @classmethod
+    def body_text(cls, value): return _text(value, 1, 20000, blank=False)
+
+    @field_validator("published_at")
+    @classmethod
+    def time_shape(cls, value):
+        _parse_time(value)
+        return value
+
+class SourceContext(_Frozen):
+    schema_version: Literal["v2ex-author-context-v1"]
+    replies_expected: StrictInt | None = Field(ge=0, le=2147483647)
+    replies_read: StrictInt = Field(ge=0, le=100)
+    replies_complete: bool
+    supplements_read: Literal[False]
+    author_replies: tuple[AuthorReply, ...] = Field(max_length=100)
+
+    @field_validator("supplements_read", mode="before")
+    @classmethod
+    def exact_false(cls, value):
+        if type(value) is not bool or value is not False:
+            raise ValueError("supplements must be unread")
+        return value
+
+    @field_validator("author_replies", mode="before")
+    @classmethod
+    def freeze_replies(cls, value): return tuple(value) if type(value) is list else value
+
+    @model_validator(mode="after")
+    def relations(self):
+        if self.replies_complete != (self.replies_expected is not None and self.replies_expected == self.replies_read):
+            raise ValueError("invalid reply completeness")
+        if len(self.author_replies) > self.replies_read:
+            raise ValueError("invalid author reply count")
+        if len({item.id for item in self.author_replies}) != len(self.author_replies):
+            raise ValueError("duplicate author reply")
+        if sum(len(item.body) for item in self.author_replies) > 20000:
+            raise ValueError("author replies too large")
+        return self
+
 class CandidateRecord(_Frozen):
     kind: Literal["POST", "COMMENT", "PAGE"]
     external_source_id: str | None
@@ -158,6 +212,7 @@ class CandidateRecord(_Frozen):
     collector_version: str
     normalizer_version: str
     query: str | None
+    source_context: SourceContext | None = None
 
     @field_validator("external_source_id", "external_comment_id")
     @classmethod
@@ -188,6 +243,11 @@ class CandidateRecord(_Frozen):
         if (self.kind == "COMMENT") != (self.external_comment_id is not None): raise ValueError("invalid record relation")
         if self.parent is not None and self.kind != "COMMENT": raise ValueError("invalid record relation")
         if self.parent is not None and self.parent.external_comment_id == self.external_comment_id: raise ValueError("invalid record relation")
+        if self.source_context is None and "source_context" in self.__pydantic_fields_set__:
+            raise ValueError("source context cannot be null")
+        if self.source_context is not None and (self.kind != "PAGE" or not self.external_source_id
+                or not self.author_public_id or self.normalizer_version != "v2ex-author-page-v1"):
+            raise ValueError("invalid source context relation")
         return self
 
 class CandidateBatch(_Frozen):
@@ -214,12 +274,18 @@ def source_identity(record: CandidateRecord, platform: str) -> str:
     return _digest(value)
 
 def content_version(record: CandidateRecord) -> str:
-    return _digest({"public_url":record.public_url, "title":record.title, "author_public_id":record.author_public_id,
+    value = {"public_url":record.public_url, "title":record.title, "author_public_id":record.author_public_id,
         "body":record.body, "published_at":record.published_at,
-        "parent":None if record.parent is None else record.parent.model_dump(mode="json")})
+        "parent":None if record.parent is None else record.parent.model_dump(mode="json")}
+    if record.source_context is not None:
+        value["source_context"] = record.source_context.model_dump(mode="json")
+    return _digest(value)
 
 def batch_fingerprint(batch: CandidateBatch) -> str:
     value=batch.model_dump(mode="json"); value.pop("request_id")
+    for dumped, record in zip(value["records"], batch.records):
+        if record.source_context is None and "source_context" not in record.__pydantic_fields_set__:
+            dumped.pop("source_context", None)
     return _digest(value)
 
 def replay_decision(stored_fingerprint: str | None, incoming_fingerprint: str) -> str:
@@ -255,11 +321,17 @@ def validate_candidate_batch(payload: object, *, now: datetime) -> CandidateBatc
                 parent_data = raw.get("parent")
                 if isinstance(parent_data, dict) and parent_data.get("published_at") is not None:
                     _parse_time(parent_data["published_at"])
+                source_context = raw.get("source_context")
+                if isinstance(source_context, dict) and isinstance(source_context.get("author_replies"), list):
+                    for reply in source_context["author_replies"]:
+                        if isinstance(reply, dict) and reply.get("published_at") is not None:
+                            _parse_time(reply["published_at"])
             except ValueError:
                 raise CandidateContractError("INVALID_SOURCE_TIME") from None
         try: item=CandidateRecord.model_validate(raw)
         except ValidationError: raise CandidateContractError("INVALID_RECORD") from None
         if item.kind == "PAGE" and platform != "PUBLIC_WEB": raise CandidateContractError("INVALID_RECORD") from None
+        if item.source_context is not None and platform != "PUBLIC_WEB": raise CandidateContractError("INVALID_RECORD") from None
         if item.external_source_id is None and platform != "PUBLIC_WEB": raise CandidateContractError("INVALID_RECORD") from None
         try:
             _validate_url(item.public_url, platform)
@@ -268,6 +340,11 @@ def validate_candidate_batch(payload: object, *, now: datetime) -> CandidateBatc
         observed=_parse_time(item.observed_at); published=_parse_time(item.published_at) if item.published_at else None
         parent_time=_parse_time(item.parent.published_at) if item.parent and item.parent.published_at else None
         if observed>trusted_now or (published and published>observed) or (parent_time and parent_time>(published or observed)):
+            raise CandidateContractError("INVALID_SOURCE_TIME") from None
+        if item.source_context is not None and any(
+                (reply_time := _parse_time(reply.published_at)) > observed
+                or (published is not None and reply_time < published)
+                for reply in item.source_context.author_replies):
             raise CandidateContractError("INVALID_SOURCE_TIME") from None
         records.append(item)
     data=dict(payload); data["execution"]=execution; data["records"]=tuple(records)
