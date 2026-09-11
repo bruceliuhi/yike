@@ -10,7 +10,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, AfterValidator, model_validator
 from pilot.contact_material_references import ContactMaterialReference, qualify
 
-from pilot.auth import TokenClaims
+from pilot.auth import InvalidPilotToken, TokenClaims
 from pilot.outreach_contract import canonical_uuid
 from pilot.sessions import PilotSessionRegistry
 
@@ -174,6 +174,14 @@ class ShortCoachService:
     def generate(self,claims,raw):
         with ExitStack() as cleanup:
             return self._generate(claims,raw,cleanup)
+    def _terminal_failure(self,tenant,owner,request_id,request_hash,provider,name):
+        with self.database.connect() as conn,conn.cursor() as cursor:
+            # This is an audit-only completion of the exact request admitted
+            # before model work. It grants no read/result access after logout.
+            cursor.execute("SELECT set_config('yike.user_id',%s,true),set_config('yike.tenant_id',%s,true)",(owner,tenant))
+            cursor.execute("UPDATE pilot_short_coach_requests SET state='FAILED',result=NULL,error_code='short_coach_failed',updated_at=clock_timestamp() "
+                "WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s AND request_hash=%s AND model_provider=%s AND model_name=%s AND state='PROCESSING'",
+                (tenant,owner,request_id,request_hash,provider,name))
     def _generate(self,claims,raw,cleanup):
         try: value=GenerateInput.model_validate(raw)
         except Exception: raise ShortCoachError("invalid_request") from None
@@ -210,16 +218,14 @@ class ShortCoachService:
             result,state,error=None,"FAILED","short_coach_failed"
         try:
             with self.database.connect() as conn,conn.cursor() as cursor:
-                self.sessions.require_active(cursor,claims); self._facts(cursor,claims,value)
-        except ShortCoachError as qualification_error:
-            with self.database.connect() as conn,conn.cursor() as cursor:
-                self.sessions.require_active(cursor,claims)
-                cursor.execute("UPDATE pilot_short_coach_requests SET state='FAILED',result=NULL,error_code=%s,updated_at=clock_timestamp() WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s AND state='PROCESSING'",
-                    ("short_coach_failed",tenant,claims.user_id,b.requestId))
-            raise
-        with self.database.connect() as conn,conn.cursor() as cursor:
-            self.sessions.require_active(cursor,claims)
-            cursor.execute("UPDATE pilot_short_coach_requests SET state=%s,result=%s::jsonb,error_code=%s,updated_at=clock_timestamp() WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s AND state='PROCESSING'",
-                (state,None if result is None else json.dumps(result,ensure_ascii=False),error,tenant,claims.user_id,b.requestId))
+                self._facts(cursor,claims,value)
+                # Qualification locks and publication share this transaction,
+                # so a material mutation cannot enter between them.
+                cursor.execute("UPDATE pilot_short_coach_requests SET state=%s,result=%s::jsonb,error_code=%s,updated_at=clock_timestamp() WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s AND state='PROCESSING'",
+                    (state,None if result is None else json.dumps(result,ensure_ascii=False),error,tenant,claims.user_id,b.requestId))
+        except (ShortCoachError,InvalidPilotToken,PermissionError) as qualification_error:
+            self._terminal_failure(tenant,claims.user_id,b.requestId,request_hash,provider,name)
+            if isinstance(qualification_error,ShortCoachError): raise
+            raise ShortCoachError("invalid_session",401) from None
         if result is None: raise ShortCoachError(error,502)
         return result

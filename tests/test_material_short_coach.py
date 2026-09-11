@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 from pathlib import Path
+from contextlib import contextmanager
 
 from pilot.short_coach import CoachInput, ShortCoachError, ShortCoachService, build_suggestion
 from tests.test_short_coach import coach_input
@@ -112,7 +113,7 @@ def test_restricted_pg_material_generate_replay_revoke_and_mid_call_failure(mate
     from tests.test_opportunity_evidence_postgres import include
     from tests.test_pilot_runtime import _route_service
     from tests.test_execution_runtime_postgres import SECRET
-    from pilot.auth import issue_token
+    from pilot.auth import issue_token, verify_token_claims
     from pilot.runtime import build_runtime_app
     env = material_coach_env; root = Path(__file__).parents[1]
     with env.admin.connect() as connection:
@@ -162,8 +163,10 @@ def test_restricted_pg_material_generate_replay_revoke_and_mid_call_failure(mate
     app = build_runtime_app(env.db, auth_secret=SECRET, environment={})
     service = _route_service(app, "/api/ui/short-coach/preview", ShortCoachService)
     service.model = GroundedModel()
+    token = issue_token(env.claims.user_id, SECRET)
+    client_claims = verify_token_claims(token, SECRET)
     client = TestClient(app, base_url="https://pilot.example.invalid",
-        headers={"Authorization": "Bearer " + issue_token(env.claims.user_id, SECRET)})
+        headers={"Authorization": "Bearer " + token})
     preview = client.post("/api/ui/short-coach/preview", json=raw)
     assert preview.status_code == 200, preview.text
     disclosure = {"accepted": True, **preview.json()}
@@ -200,3 +203,56 @@ def test_restricted_pg_material_generate_replay_revoke_and_mid_call_failure(mate
     with env.admin.connect() as connection:
         assert connection.execute("SELECT state,error_code FROM pilot_short_coach_requests WHERE request_id=%s",
             (second["binding"]["requestId"],)).fetchone() == ("FAILED", "short_coach_failed")
+
+    materials4, ready4 = ready_material("coach-case-" + uuid4().hex)
+    fourth = request_for(ready4); tracking = {"facts_cursor": None, "published": False}
+    class TrackingCursor:
+        def __init__(self, inner): self.inner = inner
+        def __enter__(self): self.inner.__enter__(); return self
+        def __exit__(self, *args): return self.inner.__exit__(*args)
+        def execute(self, query, params=None):
+            if query.startswith("UPDATE pilot_short_coach_requests SET state=%s"):
+                assert self is tracking["facts_cursor"]
+                tracking["published"] = True
+            self.inner.execute(query, params); return self
+        def fetchone(self): return self.inner.fetchone()
+    class TrackingConnection:
+        def __init__(self, inner): self.inner = inner
+        def __enter__(self): self.inner.__enter__(); return self
+        def __exit__(self, *args): return self.inner.__exit__(*args)
+        def cursor(self): return TrackingCursor(self.inner.cursor())
+    class TrackingDatabase:
+        @contextmanager
+        def connect(self):
+            with env.db.connect() as connection:
+                yield TrackingConnection(connection)
+    tracked = ShortCoachService(TrackingDatabase(), GroundedModel())
+    original_facts = tracked._facts
+    def tracked_facts(cursor, claims, value):
+        result = original_facts(cursor, claims, value)
+        tracking["facts_cursor"] = cursor
+        return result
+    tracked._facts = tracked_facts
+    disclosure4 = {"accepted": True, **tracked.preview(env.claims, fourth)}
+    tracked.generate(env.claims, fourth | {"disclosure": disclosure4})
+    assert tracking["published"] is True
+
+    materials3, ready3 = ready_material("coach-case-" + uuid4().hex)
+    third = request_for(ready3); entered3, release3 = Event(), Event()
+    class LogoutPausedModel(GroundedModel):
+        def generate(self, **kwargs):
+            entered3.set(); assert release3.wait(3); return super().generate(**kwargs)
+    service.model = LogoutPausedModel()
+    preview3 = client.post("/api/ui/short-coach/preview", json=third)
+    disclosure3 = {"accepted": True, **preview3.json()}
+    from pilot.sessions import PilotSessionRegistry
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        running = pool.submit(client.post, "/api/ui/short-coach/generate", json=third | {"disclosure": disclosure3})
+        assert entered3.wait(2)
+        PilotSessionRegistry(env.db).revoke([client_claims])
+        release3.set()
+        failed = running.result(timeout=4)
+        assert failed.status_code == 401
+    with env.admin.connect() as connection:
+        assert connection.execute("SELECT state,result,error_code FROM pilot_short_coach_requests WHERE request_id=%s",
+            (third["binding"]["requestId"],)).fetchone() == ("FAILED", None, "short_coach_failed")
