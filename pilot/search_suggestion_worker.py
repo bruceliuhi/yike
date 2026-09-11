@@ -8,7 +8,8 @@ import sys
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from pilot.search_suggestion_model import OpenAICompatibleSearchSuggestionModel, SearchSuggestionError
+from pilot.search_suggestion_model import (OpenAICompatibleSearchSuggestionModel,
+                                           SearchSuggestionError, serialize_suggestion)
 
 
 def main() -> None:
@@ -24,7 +25,7 @@ def main() -> None:
         if type(configuration) is not dict or set(configuration) != {"base_url", "api_key", "model", "timeout_seconds"}:
             raise ValueError("invalid configuration")
         result, usage = OpenAICompatibleSearchSuggestionModel(**configuration).generate(description=body["description"])
-        reply = {"content": result.model_dump(), "usage": usage}
+        reply = {"content": serialize_suggestion(result), "usage": usage}
     except SearchSuggestionError as error:
         reply = {"error": error.code}
     except Exception:

@@ -1,11 +1,14 @@
 """Offline strategy contract and transport checks; no model network or quality claim."""
 from copy import deepcopy
+from io import BytesIO
 import json
+from types import SimpleNamespace
 
 import httpx
 import pytest
 
 import pilot.search_suggestion_model as suggestion_model
+import pilot.search_suggestion_worker as suggestion_worker
 from pilot.search_suggestion_model import (
     OpenAICompatibleSearchSuggestionModel,
     SearchSuggestionError,
@@ -107,3 +110,25 @@ def test_current_adapter_rejects_legacy_response_without_strategy():
     finally:
         client.close()
     assert (raised.value.code, raised.value.status) == ("invalid_suggestion_result", 502)
+
+
+@pytest.mark.parametrize("has_strategy", [False, True])
+def test_worker_serialization_omits_only_legacy_top_level_strategy(monkeypatch, has_strategy):
+    payload = suggestion(strategy=has_strategy)
+    result = validate_suggestion(payload, description=DESCRIPTION)
+
+    class Model:
+        def __init__(self, **configuration):
+            pass
+
+        def generate(self, *, description):
+            return result, None
+
+    input_body = {"configuration": {"base_url": "https://model.invalid", "api_key": "x",
+        "model": "x", "timeout_seconds": 1}, "description": DESCRIPTION}
+    output = BytesIO()
+    monkeypatch.setattr(suggestion_worker, "OpenAICompatibleSearchSuggestionModel", Model)
+    monkeypatch.setattr(suggestion_worker.sys, "stdin", SimpleNamespace(buffer=BytesIO(json.dumps(input_body).encode())))
+    monkeypatch.setattr(suggestion_worker.sys, "stdout", SimpleNamespace(buffer=output))
+    suggestion_worker.main()
+    assert json.loads(output.getvalue())["content"] == payload
