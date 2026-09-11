@@ -19,7 +19,7 @@ psql "$YIKE_PILOT_ADMIN_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
 
 搜索建议未受理恢复（迁移129）：在原110＋128基础上完成129，并重新执行新版[建议请求授权](grant_search_suggestions.sql)，才启动本批runtime。新表按租户/用户FORCE RLS且只授SELECT/INSERT，拒绝与受理不能双写；旧请求仍从原接口只读恢复。没有迁移/授权时，不把读取异常或404解释为未受理。本说明是部署要求，不是实际生产执行记录；[版本与验收](../docs/superpowers/plans/2026-09-11-search-suggestion-rejection.md#实施与验证)。
 
-公开社区受控验收配置：后端 `f1fbe80` 与客户端 `148ddba` 或其后兼容版本配套时，`YIKE_PILOT_COLLECTION_MODE=four-platform-public-monitor-v1` 可在原四账号平台之外显式开放 V2EX 近期主题匿名单次采样；不是全网/历史检索，不开放公开社区监控。新增 support 字段不兼容旧客户端，必须配套升级；默认配置未改。本机服务身份与设备绑定仍必须就绪，匿名来源不要求原生 Python 或平台登录，混合任务仍要验证各原生账号。当前只有限定源码/组合测试证据，生产启用前须完成真实服务/候选入库/客户端详情验收；[范围与接续](../docs/superpowers/plans/2026-09-11-public-community-driver.md#客户端接线当前工作片)。
+公开社区受控验收配置：后端 `f1fbe80` 与客户端 `148ddba` 或其后兼容版本配套时，`YIKE_PILOT_COLLECTION_MODE=four-platform-public-monitor-v1` 可在原四账号平台之外显式开放 V2EX 近期主题匿名单次采样；不是全网/历史检索，不开放公开社区监控。新增 support 字段不兼容旧客户端，必须配套升级；默认配置未改。本机服务身份与设备绑定仍必须就绪，匿名来源不要求原生 Python 或平台登录，混合任务仍要验证各原生账号。已完成隔离真实HTTP/PG、一次实际来源读取及候选原文接口回读；测试登录/设备装配不替代生产身份、HTTPS、Electron窗口或Windows验收，生产启用仍需这些门禁；[范围与接续](../docs/superpowers/plans/2026-09-11-public-community-driver.md#真实http与postgresql接续2026-09-11)。
 
 持续监控（迁移126/127）：执行 [轮次授权](grant_monitor_runtime.sql)，复用原执行/策略/连接授权。仅显式 `YIKE_PILOT_COLLECTION_MODE=three-platform-monitor-v1` 开放 policy1 监控；每次 START 仍必须有原预留和设备签名，旧模式不扩大权限。客户端源码已接“新建监控→确认策略和账号→本机接管→周期执行→暂停/原请求核对”，三个原生平台串行共用采集槽。必须保持客户端在线；关闭后不补跑，重新打开需确认账号后接管，不能仅切环境变量就宣传持续采集。`/api/ui/monitor-runtime/support` 只报告部署能力，不证明本机环境或平台成功；`pulse.can_start=false` 维持在线并明确跳过忙碌时段。无外部发送。本批尚无新的 Windows 包/真实平台或生产验收证据，入口与版本见[客户端单一记录](../docs/superpowers/plans/2026-09-11-monitor-client.md)。
 

@@ -51,3 +51,21 @@
 包含真实controller→worker→driver组合，在替身边界验证START→CLAIM→读取→上传原文及来源→FINISH的顺序；另验证renderer新native单次配置可被controller接受、public/mixed设备确认、平台间取消、缺source但重算hash仍拒绝、60秒冷却。最初controller新增用例3项失败后实现通过；新增来源冷却用例先失败后通过，renderer与once新配置亦有RED→GREEN。没有把这些替身回执算作真实数据库或平台证据。
 
 下一片优先复用现有空库部署/执行HTTP测试设施，在隔离真实服务与PostgreSQL验证配套版本的确认、START、候选入库/详情与拒绝边界；再接Windows、真实平台及跨行业效果。不重复实现已接UI/执行协议，不回头构建无域名的正式包。完整Goal与MP-03保持进行中。
+
+### 真实HTTP与PostgreSQL接续（2026-09-11）
+
+验收脚本 `7891cc8f640d1c1d30b0dcd339df7366c8e49aed` 复用现有隔离fixture；生产代码仍为 `148ddba`，本片没有修改运行逻辑。独立临时PostgreSQL 16使用tmpfs及仅loopback端口，与现有三个PG容器隔离。运行真实迁移、完整grant_runtime清单与受限角色（非superuser/非bypassrls），以普通 `build_runtime_app` 启动真实Uvicorn socket；不使用TestClient、替换策略resolver或伪造服务回执。
+
+Node 24运行实际service client、执行/候选签名与加密journal、foreground controller、worker及公开driver。经真实HTTP准备/确认策略、读取来源能力，完成START→CLAIM→候选上传→FINISH，再经候选列表与rawEvidence接口逐条核对原文、发布时间、来源版本及观察归属。重建controller后原START不重复读取来源；同租户其他用户及外租户候选列表均为空，未创建平台账号、模型评估、商机或外部消息。
+
+限定结果：
+
+- 合成来源模式：最终1 passed / 3.62秒；使用同一driver，仅其fetch返回1条明确合成PAGE。
+- 显式 `YIKE_PUBLIC_COMMUNITY_NETWORK=1`：默认global fetch一次读取固定V2EX端点，36条未判定PAGE实际入库并逐条接口回读，1 passed / 6.00秒。关键词“AI／的”仅用于技术链路取样，不是有效商机筛选；36条不能计作高意向线索。未重试外网请求。
+- TypeScript检查及diff check通过。初次运行曾因Node测试尚未落盘而失败，不是产品缺陷；随后tsc发现测试ApiResult缺少显式收窄，补4处固定脱敏失败分支后用合成来源重验。真实网络运行的成功路径和生产代码未改变，未为测试类型修正再次请求平台。
+
+复现入口为 `tests/test_public_community_http_postgres.py`；要求独立测试库的两个YIKE_IDENTITY_TEST数据库变量和Node24位置，凭据只在进程环境传递，不写文档或仓库。`71867b8`增加迁移fixture之前的专用本机库限制：两URL必须指向127.0.0.1上的yike_public_flow，避免误连其他库。只有显式NETWORK=1才访问外网；默认全量测试未配置独立数据库时跳过，跳过不算验收。本轮指定运行均没有跳过。
+
+证据边界：服务使用测试用户、临时dev login令牌和已注册设备fixture；Node端identity prepare及加密保护器是测试装配，数据库连接以SET ROLE验证权限。没有验证生产登录、真实OS keychain、HTTPS、Electron窗口渲染、Windows安装或客户使用；不得将接口回读称为Windows界面验收。下一步接同版本普通客户端窗口/Windows与部署验收，并继续公开来源持续监控、更多站点及实际行业需求质量验证。
+
+非作者 `material_reference_architecture` 分别对网络验收脚本`7891cc8`和最终专用库保护`71867b8`只读审核GO，无阻断P1/P2，未重复网络或测试。全授权脚本内容真实执行，但不新增psql元命令入口验收成绩。临时服务已退出、专用tmpfs PG容器已移除，本轮候选/测试账号及临时加密日志均已删除，不可恢复；现有三个PG容器与用户数据未操作。仓库仅保留脚本与脱敏统计，不保存真实帖子正文或认证信息。
