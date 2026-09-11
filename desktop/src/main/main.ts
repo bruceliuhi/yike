@@ -15,7 +15,8 @@ import {
   APP_URL, isTrustedRendererDocument, isTrustedRuntimeSender,
   mainWindowOptions, rendererAssetForUrl
 } from './windowPolicy';
-import {createServiceClient, configuredService} from './serviceClient';
+import {createServiceClient} from './serviceClient';
+import {clientServiceConfiguration} from './clientServiceConfiguration';
 import {validatedExternalUrl, validClipboardText} from './servicePolicy';
 import {createExportHandler, writeExportFile} from './exportService';
 import {createDeviceIdentityJournal} from './deviceIdentityJournal';
@@ -49,6 +50,7 @@ import {createPortableBootstrap,publishedPortableStatus} from './portableBootstr
 import {PORTABLE_RUNTIME_STATUS_CHANNEL} from '../shared/portableRuntime';
 import type {PlatformLoginDriverOptions} from './platformLoginDriver';
 declare const __YIKE_PORTABLE_PIN__:{sha256:string;resourceName:string}|null;
+declare const __YIKE_RELEASE_SERVICE_URL__:string|null;
 
 protocol.registerSchemesAsPrivileged([
   {scheme: 'yike', privileges: {standard: true, secure: true, supportFetchAPI: true}}
@@ -170,9 +172,10 @@ async function startApplication(): Promise<void> {
   const serviceSession = session.fromPartition('yike-service'); // No persist: prefix: cookies stay in memory.
   serviceSession.setPermissionCheckHandler(() => false);
   serviceSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-  const baseUrl = configuredService(process.env.YIKE_SERVICE_URL, {
-    packaged: app.isPackaged,
-    allowLoopbackHttp: process.env.YIKE_ALLOW_LOOPBACK_HTTP === '1'
+  const baseUrl = clientServiceConfiguration({
+    packaged:app.isPackaged,
+    bundled:typeof __YIKE_RELEASE_SERVICE_URL__==='undefined'?null:__YIKE_RELEASE_SERVICE_URL__,
+    env:process.env
   });
   const service = createServiceClient({
     baseUrl,

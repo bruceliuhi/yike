@@ -4,6 +4,9 @@ import {MakerZIP} from '@electron-forge/maker-zip';
 import {AsciiStagingSquirrelMaker} from './build/asciiStagingSquirrel';
 import {resolve} from 'node:path';
 import {portableBuildInput} from './build/portableBuild';
+import {releaseServiceBuildInput} from './build/releaseService';
+// Fail before doing a release build that would leave the customer unable to connect.
+releaseServiceBuildInput(process.env,process.argv.includes('make'));
 // Forge start is the existing explicit developer path, never a distributable.
 const portable=process.argv.includes('start')?null:portableBuildInput(process.env,process.platform);
 
