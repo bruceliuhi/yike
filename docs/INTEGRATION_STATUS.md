@@ -2,7 +2,7 @@
 
 ## 2026-09-11 知乎原文与评论数据适配
 
-固定知乎JSONL可输出回答/文章原帖及评论，并经真实CandidateBatch校验；内容类型+ID防串源，发布时间独立，匿名hash不冒充公开作者。Windows固定host清单纳入新mapper。[唯一版本与限定证据](superpowers/plans/2026-09-11-zhihu-source-ingestion.md#实施与验证)。知乎登录/采集执行能力仍未启用，下一步补受控runtime、本人账号核验与任务/监控接线；不将合成解析当真实来源或完整V0.2验收。
+固定知乎JSONL的POST/COMMENT数据契约已接受控runtime、原生登录/本人账号核验和共享预算，源码`0cbe2a9`非作者整批GO；[唯一版本与限定证据](superpowers/plans/2026-09-11-zhihu-controlled-runtime.md#实施与验证)。客户端知乎能力仍未启用，下一步直接接普通任务/监控、服务配置及同版本Windows实际搜索→入库→详情验收。不将合成解析/接口检查当真实来源、旧包升级或完整V0.2完成。
 
 ## 2026-09-11 同来源后续变化
 

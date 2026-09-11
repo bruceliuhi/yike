@@ -21,22 +21,39 @@
 
 Files: 新vendor/patches/mediacrawler/0003-yike-zhihu-runtime.patch；新tests/test_zhihu_governed_runtime.py；私有临时源副本。Root负责lock/main仓原生host模块。
 
-- [ ] 在新的mktemp目录基于固定commit+已有0001/0002建立私有编辑副本；不改已有/tmp/yike-three-platform-runtime.n5Nouc。修改用apply_patch，最后生成差量并用apply_patch写入仓库patch。
-- [ ] 仅治理media_platform/zhihu/{core,client,login}.py、必要store/zhihu/__init__.py与main.py。固定类/签名供root后续import，禁止旧creator/detail/CDP路径回退。AbstractCrawler/ApiClient/Login必须可实例化。
-- [ ] 最小验证：有正文无评论为成功；内容+评论总预算、子评论累计、未知shape与停滞、401/403/429/404/network不会静默无数据、关闭异常不成功；实际新源模块导入、标准browser参数、受注入profile及无stdout原文。用合成page/request和固定提取器，定向一次，不PG/真实平台/构包。
-- [ ] 提供临时路径、最终修改文件hash清单及新patch路径，提交自身patch/tests。Root从独立新副本顺序重放3patch核对lock，测试不双跑。
+- [x] 在新的mktemp目录基于固定commit+已有0001/0002建立私有编辑副本；不改已有/tmp/yike-three-platform-runtime.n5Nouc。修改用apply_patch，最后生成差量并用apply_patch写入仓库patch。
+- [x] 仅治理media_platform/zhihu/{core,client,login}.py、必要store/zhihu/__init__.py与main.py。固定类/签名供root后续import，禁止旧creator/detail/CDP路径回退。AbstractCrawler/ApiClient/Login必须可实例化。
+- [x] 最小验证：有正文无评论为成功；内容+评论总预算、子评论累计、未知shape与停滞、401/403/429/404/network不会静默无数据、关闭异常不成功；实际新源模块导入、标准browser参数、受注入profile及无stdout原文。用合成page/request和固定提取器，定向一次，不PG/真实平台/构包。
+- [x] 提供临时路径、最终修改文件hash清单及新patch路径，提交自身patch/tests。Root从独立新副本顺序重放3patch核对lock，测试不双跑。
 
 ## Task 2: 原生登录/源账号边界（root）
 
 Files: app/platform_login_worker.py、platform_collection_worker.py、windows_collection_host.py、windows_source_driver.py；tests/test_zhihu_native_guard.py；vendor/mediacrawler.lock。
 
-- [ ] RED：知乎合法uid/非法uid、同context本人不符/响应后切号锁存、正式限流终止、固定CLI/host平台路由及旧三平台不扩大配置。
-- [ ] 增加固定知乎runtime import；read_zhihu_self_account(page)使用同context GET https://www.zhihu.com/api/v4/me、max_redirects0/timeout10000、受限body/错误分类，仅返回uid；不请求email/phone等include字段，不日志响应。
-- [ ] 登录使用现有privatehost OPENED/有界等待/物理cleanup规则；成功必须最后本人核验并关闭。新install_zhihu_account_guard封装search/request前后同page核验，任何失败锁存，即使源吞错误也不可成功，恢复原类方法。
-- [ ] 宿主仅明确ZHIHU参数支持，不改后台mode或UI可用性；CLI --platform zhihu，query/预算/visible/profile校验沿用。期望账号必经worker，无无护栏fallback。
-- [ ] lock追加0003与新/变更文件摘要，旧patch/依赖version不改；独立重放确认所有patches与文件匹配。精确受影响测试和治理检查，不构包。
+- [x] RED：知乎合法uid/非法uid、同context本人不符/响应后切号锁存、正式限流终止、固定CLI/host平台路由及旧三平台不扩大配置。
+- [x] 增加固定知乎runtime import；read_zhihu_self_account(page)使用同context GET https://www.zhihu.com/api/v4/me、max_redirects0/timeout10000、受限body/错误分类，仅返回uid；不请求email/phone等include字段，不日志响应。
+- [x] 登录使用现有privatehost OPENED/有界等待/物理cleanup规则；成功必须最后本人核验并关闭。新install_zhihu_account_guard封装search/request前后同page核验，任何失败锁存，即使源吞错误也不可成功，恢复原类方法。
+- [x] 宿主仅明确ZHIHU参数支持，不改后台mode或UI可用性；CLI --platform zhihu，query/预算/visible/profile校验沿用。期望账号必经worker，无无护栏fallback。
+- [x] lock追加0003与新/变更文件摘要，旧patch/依赖version不改；独立重放确认所有patches与文件匹配。精确受影响测试和治理检查，不构包。
 
 ## Task 3: 整批审核/交接
 
-- [ ] 一次非作者完整review，必要问题一波修复仅差量复审；唯一证据写本文件、任务书短链接，正常推main核SHA。
-- [ ] 记录仍须四平台opt-in前后端/monitor、安装payload和真实平台/Windows/UAT；不追认旧包支持知乎，不把本源模块当完整V0.2上线。
+- [x] 一次非作者完整review，必要问题一波修复仅差量复审；唯一证据写本文件、任务书短链接，正常推main核SHA。
+- [x] 记录仍须四平台opt-in前后端/monitor、安装payload和真实平台/Windows/UAT；不追认旧包支持知乎，不把本源模块当完整V0.2上线。
+
+## 实施与验证
+
+- 源码 `31256e1`：原生登录、本人账号核验、受控host和总预算；`0cbe2a9`：复用固定知乎提取器/模型/存储与API，追加0003补丁及lock。初版辅助实现进程容量错误，root接收现有文件后修复，未重做采集机制。
+- 本批只做定向验证：原生相关95 passed（1.03s），新增预算1 passed（0.10s）；独立解释器源检查1 passed（5.38s），包含HTTP错误、根子评论累计、游标、真实context请求边界、登录方式、浏览器参数和关闭异常。测试是合成输入，不代表知乎实测。
+- 三层补丁在独立固定commit副本成功重放；既有文件无漂移，新文件与受测字节一致，lock加载通过。保留固定help/model及存储摘要。前期测试脚本非ASCII bytes语法与临时目录工作路径错误已纠正，不算产品通过证据。不跑全套、数据库、真实平台或构包。
+- 搜索当前是一个关键词的一页有界样本，最多5个内容、POST和COMMENT合计最多请求预算；不是全网穷尽。未知结构/无法提取的非空页不伪报无数据，评论按原接口节流。
+- 非作者整批审核：`0cbe2a9ee6241262289b45549e16f9568e4e4c3f` GO，无阻断P1/P2，未重复测试或构包。服务端和桌面四平台能力尚未打开。
+
+## 下一里程碑：可操作验收版本，不继续孤立适配
+
+1. 复用原三平台登录、任务和监控流程接入知乎显式能力；定向验证改动路径，不重建公共采集机制。
+2. 解决普通安装启动的客户服务配置：当前main仍只读 `YIKE_SERVICE_URL`，双击无环境配置时不可登录服务。真实HTTPS地址和测试账号须来自授权配置，不猜地址或降低认证要求。
+3. 按同一源码生成Windows运行payload与安装包一次，在真实授权账号完成搜索→原帖/评论→正式候选入库→普通客户端打开详情；缺真实条件集中说明，不用mock替代。
+4. Mac包仅用于适用的界面/服务验证，当前正式原生执行器是Windows，不追认Mac包已具备采集。协议正式内容和部署门禁仍须落实，自动更新增强不挡阶段试用。
+
+本里程碑调整交付优先级，不取消完整V0.2其它功能及最终上线门禁。
