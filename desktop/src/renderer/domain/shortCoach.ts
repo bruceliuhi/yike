@@ -281,6 +281,7 @@ export function snapshotDigest(snapshot: DraftSnapshot) {
       profileVersionId,
       sourceEvidenceVersion,
       accountScope,
+      ...(draft.materialReferences === undefined ? [] : [draft.materialReferences]),
     ]),
   );
 }

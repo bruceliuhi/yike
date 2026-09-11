@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {draftMaterialReferencesSchema} from './contactDrafts';
 import type {OutreachContext} from '../main/outreachConsumer';
 import type {createOutreachDispatchSession} from '../main/outreachDispatchSession';
 
@@ -6,7 +7,7 @@ export const NATIVE_OUTREACH_CHANNEL='desktop:native-outreach';
 const uuid=z.string().uuid(),sha=z.string().regex(/^[a-f0-9]{64}$/);
 export const nativeOutreachDraftSchema=z.object({opportunityId:uuid,channel:z.enum(['comment','dm']),
   content:z.string().min(1).max(8000),savedContent:z.string().max(8000),version:z.number().int().min(1).max(2147483647),
-  accountId:z.string().min(1).max(512),recipient:z.string().max(512)}).strict();
+  accountId:z.string().min(1).max(512),recipient:z.string().max(512),materialReferences:draftMaterialReferencesSchema.optional()}).strict();
 export const nativeOutreachBindingSchema=z.object({tenantId:uuid,requestId:uuid,claimId:uuid,contextSha256:sha}).strict();
 export type NativeOutreachBinding=z.infer<typeof nativeOutreachBindingSchema>;
 export const nativeOutreachCommandSchema=z.discriminatedUnion('action',[

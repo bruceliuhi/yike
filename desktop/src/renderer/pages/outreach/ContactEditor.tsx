@@ -36,6 +36,7 @@ import { useContactDraftSave } from "./useContactDraftSave";
 import { useLatestContactDraft } from "./useLatestContactDraft";
 import { nativeOutreachLedgerKey, useNativeOutreachRecord } from "./nativeOutreachLedger";
 import { nativeOutreachCommand } from "./NativeSendConfirmation";
+import {ContactMaterialQuotes} from './ContactMaterialQuotes';
 import "./short-coach.css";
 
 function initialDraft(
@@ -58,6 +59,7 @@ interface DraftSet {
   dm: ContactDraft;
 }
 interface DraftPersistence {
+  savedMaterialReferences?: string;
   known: boolean;
   previousRequestId: string | null;
   savedAccountId: string;
@@ -166,6 +168,7 @@ export function ContactEditor({
   );
   const connection = available.find((c) => c.accountId === draft.accountId);
   const dirty =
+    JSON.stringify(draft.materialReferences) !== persisted.savedMaterialReferences ||
     draft.content !== draft.savedContent ||
     draft.accountId !== persisted.savedAccountId ||
     draft.recipient !== persisted.savedRecipient ||
@@ -175,6 +178,7 @@ export function ContactEditor({
   const otherChannel = channel === "comment" ? "dm" : "comment";
   const otherPersisted = persistence[otherChannel];
   const otherDirty =
+    JSON.stringify(drafts[otherChannel].materialReferences) !== otherPersisted.savedMaterialReferences ||
     drafts[otherChannel].content !== drafts[otherChannel].savedContent ||
     drafts[otherChannel].accountId !== otherPersisted.savedAccountId ||
     drafts[otherChannel].recipient !== otherPersisted.savedRecipient ||
@@ -205,11 +209,13 @@ export function ContactEditor({
         const current = old[submitted.channel];
         const initial = initialDraft(row, submitted.channel);
         const sameEditableValues =
+          JSON.stringify(current.materialReferences) === JSON.stringify(submitted.materialReferences) &&
           current.content === submitted.content &&
           current.version === submitted.version &&
           current.accountId === submitted.accountId &&
           current.recipient === submitted.recipient;
         const untouchedInitial =
+          current.materialReferences === undefined &&
           current.content === initial.content &&
           current.savedContent === initial.savedContent &&
           current.version === initial.version &&
@@ -234,6 +240,7 @@ export function ContactEditor({
         known: true,
         previousRequestId: binding?.requestId ?? old[submitted.channel].previousRequestId,
         savedAccountId: submitted.accountId,
+        savedMaterialReferences: JSON.stringify(submitted.materialReferences),
         savedRecipient: submitted.recipient,
         profileVersionId: snapshot.profileVersionId,
         sourceEvidenceVersion: snapshot.sourceEvidenceVersion,
@@ -263,6 +270,7 @@ export function ContactEditor({
         known: true,
         previousRequestId: receipt.binding.requestId,
         savedAccountId: restored.accountId,
+        savedMaterialReferences: JSON.stringify(restored.materialReferences),
         savedRecipient: restored.recipient,
         profileVersionId: snapshot.profileVersionId,
         sourceEvidenceVersion: snapshot.sourceEvidenceVersion,
@@ -402,12 +410,14 @@ export function ContactEditor({
         />
         <p className="character-count">{Array.from(draft.content).length} 字</p>
         {action.error && <Notice tone="error">{action.error}</Notice>}
-        <ShortCoachPanel
+        <ContactMaterialQuotes key={JSON.stringify([session.userId,session.accountScope,row.id,row.profileVersionId,channel])}
+          row={row} draft={draft} onChange={edit} disabled={sample||!session.authenticated||saving.busy||saving.blocked}/>
+        {draft.materialReferences?.length ? <Notice>当前短句教练尚不支持资料出处改写；请核对原文后人工编辑，出处会随草稿保留。</Notice> : <ShortCoachPanel
           row={row}
           draft={draft}
           purpose={purposes[channel]}
           onApply={(content) => edit({ content })}
-        />
+        />}
         {!sample && (
           <details className="contact-routing">
             <summary>

@@ -36,6 +36,7 @@ if hasattr(snapshot.draft, 'materialReferences'):
 
 - [ ] 定向RED：有效external引用保存且回执/最新读取保留原文出处，hash变化；internal/旧版/撤销/他人/跨租户/quote不匹配均不能新增保存；无字段老草稿保持原hash/payload。复用现有受限PG和机会fixture，不调用平台/外部模型。
 - [ ] 最小实现：保存前从真实身份解析author、资料最新记录并校验；引用资格并入现有发送context及最后发送前检查，不能只有前端保护。对同一资料owner使用与资料变更兼容的锁顺序，短事务，不跨网络持锁。原请求读取保留历史成功回执，不伪装资料当前仍有效。
+- [ ] 已定位CLAIM后仍有渠道核验等待：新增现有签名协议动作 `VALIDATE`（与CLAIM同字段，resultId/outcome为null），只核对现有UNKNOWN的精确claim/context/device/session/key和原deadline，不重新CLAIM、不延长许可、不修改结果。返回严格 `{state:'QUALIFIED',requestId,claimId,contextSha256,dispatchBefore}`。服务端在短事务内重新运行引用/草稿/连接资格。客户端有非空引用的执行，在渠道check后、journal.consume及execute前调用此动作并精确比对；失败保留UNKNOWN、不外发。此处是最终资格确认的时点，之后已进入执行的网络动作无法原子撤回；不能承诺撤回已发许可。统一锁顺序 material owner→draft owner→device/connection→profile，queue入口也先取material；历史RESULT和UNKNOWN查询不因来源撤销被阻止。
 - [ ] 在现有material impact和token引用摘要中加入实际最新草稿的引用身份/请求ID/quote摘要；新草稿引用使旧token失效。撤销/改版/移除后新保存/确认/尚未执行触达失败，但不删除旧草稿。避免额外索引表；如实际并发路径要求额外结构先报告，不自扩。
 - [ ] 定向PG：新引用使旧impact token失效；撤销可看到draft影响；撤销后发送准备/最终执行核对拒绝而历史可恢复。跟随现有发送状态机，不重发未知结果。
 - [ ] 运行新增及必要旧摘要/确认测试，记录命令和RED/GREEN；独立提交后短报告。不make、不部署。
@@ -47,6 +48,7 @@ if hasattr(snapshot.draft, 'materialReferences'):
 - [ ] RED：允许外用且READY的资料证据可单独选择带入；internal不显示可用项、来源加载失败可重试；每次只明确采用一段，不自动保存/生成/发送。采用后保存接口保留refs，重新读取不丢失；修改/解除引用使草稿待保存、确认失效。
 - [ ] 基于现有details/Field/Button增加“引用业务资料”，列出当前画像本人资料的证据片段；服务缺失时不造假入口。已有不同sourceProfile引用保留可读身份，不自动扫其他资料正文。身份/画像/渠道切换及迟到回执不得串入另一草稿。
 - [ ] 新 `draftMaterialReferenceSchema` 与Python同字段同边界；可选refs加入ContactDraft及所有原生strict schemas。摘要算法仅有字段时追加数组，renderer/main/Python相同；保存恢复/脏状态/发送fingerprint核对包含refs。
+- [ ] 根代理同步 `outreachDispatchProtocol.ts` 的VALIDATE签名字段，`outreachDispatchSession.ts`提供最终资格校验回调，`outreachConsumer.ts`有非空引用时强制调用、回调缺失失败。保留无引用旧执行、持久consume防重及迟到RESULT记录，不用来源撤销伪造未发送。
 - [ ] 草稿显示引用片段及版本；明确“移除引用片段”同时移除所选逐字片段和该引用，不偷偷把失效引用洗成人工事实。编辑导致片段不再匹配时提示，必须重新选用或明确移除引用后才能保存。其余人工文字保留。
 - [ ] 有资料引用时，当前短句教练提示暂不支持有出处改写，不发模型请求；后续同一完整Goal接入引用感知模型，不把原帖quote当资料证据。不得静默清除refs以启用旧coach。
 - [ ] 只跑新增UI/共享hash/原生引用边界与必要TypeScript，不全量、不构包。

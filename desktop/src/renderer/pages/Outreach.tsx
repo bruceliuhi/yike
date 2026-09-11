@@ -54,6 +54,7 @@ export function contactFingerprint(
     draft.savedContent,
     draft.accountId,
     draft.recipient,
+    draft.materialReferences,
     connection?.status || "",
     connection?.accountId || "",
     connection?.capabilities || [],

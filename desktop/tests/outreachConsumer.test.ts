@@ -7,6 +7,7 @@ import {createOutreachConsumer} from '../src/main/outreachConsumer';
 import {createOutreachConsumptionJournal} from '../src/main/outreachConsumptionJournal';
 
 function canonical(value:unknown):string {
+  if(Array.isArray(value))return '['+value.map(canonical).join(',')+']';
   if(value && typeof value==='object' && !Array.isArray(value)) return '{'+Object.entries(value).sort(([a],[b])=>a<b?-1:a>b?1:0).map(([k,v])=>JSON.stringify(k)+':'+canonical(v)).join(',')+'}';
   return JSON.stringify(value);
 }
@@ -33,6 +34,19 @@ function fixture(){
 }
 
 describe('native outreach consumer (synthetic platform driver)',()=>{
+  it.each(['missing','rejected','valid'] as const)('material references require final qualification: %s',async(mode)=>{
+    const f=fixture(),{contextSha256:_old,...c}=f.grant.context;
+    const context={...c,draft:{...c.draft,materialReferences:[{sourceProfileVersionId:c.profileVersionId,materialId:'m',materialVersion:4,extractionId:'e',quote:c.draft.content}]}};
+    const contextSha256=createHash('sha256').update(canonical(context)).digest('hex');
+    const expected={...f.expected,contextSha256},grant={...f.grant,context:{...context,contextSha256}};
+    f.channel.check.mockImplementation(async()=>({...f.observation(),contextSha256}));
+    const qualify=vi.fn(async()=>{expect(f.channel.check).toHaveBeenCalledOnce();expect(f.journal.consume).not.toHaveBeenCalled();
+      if(mode==='rejected')throw new Error('revoked');return {state:'QUALIFIED',requestId:expected.requestId,claimId:expected.claimId,contextSha256,dispatchBefore:grant.dispatchBefore};});
+    const consumer=createOutreachConsumer({journal:f.journal,channel:f.channel,isCurrent:f.current,...(mode==='missing'?{}:{qualify})});
+    const result=await consumer.consume(expected,grant,new AbortController().signal);
+    if(mode==='valid'){expect(result.state).toBe('RESULT_READY');expect(qualify).toHaveBeenCalledOnce();expect(f.channel.execute).toHaveBeenCalledOnce();}
+    else {expect(result).toMatchObject({state:'UNKNOWN',reason:'MATERIAL_UNVERIFIED'});expect(f.channel.execute).not.toHaveBeenCalled();expect(f.journal.consume).not.toHaveBeenCalled();}
+  });
   it('a reconstructed consumer with the real disk journal cannot repeat an uncertain action',async()=>{
     const directory=await mkdtemp(join(tmpdir(),'yike-consumer-integration-')),key=randomBytes(32);
     const protection={isEncryptionAvailable:()=>true,

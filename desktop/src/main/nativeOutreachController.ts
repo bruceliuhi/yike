@@ -88,7 +88,7 @@ export function createNativeOutreachController(options:NativeOutreachControllerO
     if(row.connection_id!==receipt.connection_id || row.connection_version!==receipt.connection_version)fail('CONNECTION_CHANGED');
     const latest=latestSchema.parse(await request(scope,'outreach.draft.latest',{opportunityId:draft.opportunityId,channel:draft.channel}));
     const s=latest.snapshot,d=s.draft,b=latest.binding;
-    const digest=createHash('sha256').update(JSON.stringify([d.opportunityId,d.channel,d.version,d.content,d.accountId,d.recipient,s.profileVersionId,s.sourceEvidenceVersion,s.accountScope])).digest('hex');
+    const digest=createHash('sha256').update(JSON.stringify([d.opportunityId,d.channel,d.version,d.content,d.accountId,d.recipient,s.profileVersionId,s.sourceEvidenceVersion,s.accountScope,...(d.materialReferences===undefined?[]:[d.materialReferences])])).digest('hex');
     if(!same(d,draft) || d.content!==d.savedContent || !d.content.trim() || b.opportunityId!==d.opportunityId || b.channel!==d.channel || b.contentHash!==digest)fail('DRAFT_CHANGED');
     const input={binding:b,deviceId:scope.device.deviceId,connectionId:row.connection_id,connectionVersion:row.connection_version};
     const context=parseNativeOutreachContext(await request(scope,'outreach.context',input));

@@ -37,6 +37,10 @@ const common = {
 };
 
 export const dispatchRequestSchema = z.discriminatedUnion('action', [
+  z.object({action: z.literal('VALIDATE'), ...common,
+    resultId: z.null().optional().transform(() => null),
+    outcome: z.null().optional().transform(() => null),
+  }).strict(),
   z.object({action: z.literal('CLAIM'), ...common,
     resultId: z.null().optional().transform(() => null),
     outcome: z.null().optional().transform(() => null),

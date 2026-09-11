@@ -15,12 +15,13 @@ function deferred<T>() {
   return {promise, resolve};
 }
 
-const canonical=(value:any):string=>value && typeof value==='object' && !Array.isArray(value)
+const canonical=(value:any):string=>Array.isArray(value)?'['+value.map(canonical).join(',')+']':value && typeof value==='object'
   ? '{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonical(value[k])).join(',')+'}' : JSON.stringify(value);
-async function fixture(options:{omitScopeSignal?:boolean}={}){
+async function fixture(options:{omitScopeSignal?:boolean;material?:boolean;rejectQualification?:boolean}={}){
   const userId=randomUUID(),tenantId=randomUUID(),deviceId=randomUUID(),sessionId=randomUUID(),requestId=randomUUID(),claimId=randomUUID(),opportunityId=randomUUID();
   const snapshot={schemaVersion:'outreach-context-v1',binding:{opportunityId,channel:'dm',requestId:randomUUID(),contentHash:'a'.repeat(64)},ownerUserId:userId,
-    accountScope:{id:tenantId,version:1},profileVersionId:randomUUID(),draft:{opportunityId,channel:'dm',content:'需求还在吗？',savedContent:'需求还在吗？',version:1,accountId:'account-1',recipient:'buyer-1'},
+    accountScope:{id:tenantId,version:1},profileVersionId:randomUUID(),draft:{opportunityId,channel:'dm',content:'需求还在吗？',savedContent:'需求还在吗？',version:1,accountId:'account-1',recipient:'buyer-1',
+      ...(options.material?{materialReferences:[{sourceProfileVersionId:randomUUID(),materialId:'m',materialVersion:4,extractionId:'e',quote:'需求还在吗？'}]}:{})},
     source:{sourceId:randomUUID(),evidenceVersion:randomUUID(),evidenceSha256:'b'.repeat(64),platform:'BILIBILI',kind:'POST',url:'https://www.bilibili.com/video/BV1demo/',excerpt:'synthetic demand'},
     target:{action:'DIRECT_MESSAGE',authorPublicId:'buyer-1',postId:'BV1demo',commentId:null},connection:{deviceId,connectionId:randomUUID(),connectionVersion:1,accountPublicId:'account-1',platform:'BILIBILI'},
     channelCapability:{status:'UNVERIFIED',reason:'CHANNEL_CHECK_REQUIRED'},authorization:'NOT_GRANTED'};
@@ -40,6 +41,10 @@ async function fixture(options:{omitScopeSignal?:boolean}={}){
     if(body.request.action==='CLAIM'){
       if(changeOnClaim)current=false;
       const data=claimed?receipt():{...receipt(),dispatchAllowed:true,context};claimed=true;res.end(JSON.stringify(data));return;
+    }
+    if(body.request.action==='VALIDATE'){
+      if(options.rejectQualification){res.statusCode=409;res.end('{}');return;}
+      res.end(JSON.stringify({state:'QUALIFIED',requestId,claimId,contextSha256,dispatchBefore:deadline}));return;
     }
     if(failResult){res.statusCode=503;res.end('{}');return;}
     state=body.request.outcome.status;res.end(JSON.stringify({...receipt(),resultId:body.request.resultId}));
@@ -67,6 +72,15 @@ async function fixture(options:{omitScopeSignal?:boolean}={}){
     dispose:async()=>{await new Promise<void>((resolve,reject)=>{server.close(error=>error?reject(error):resolve());server.closeAllConnections();});await rm(directory,{recursive:true,force:true});}};
 }
 describe('private outreach session over real HTTP with synthetic platform/server fixtures',()=>{
+  it.each([false,true])('material final qualification crosses signed HTTP, denied=%s',async rejectQualification=>{
+    const f=await fixture({material:true,rejectQualification});try{
+      const result=await f.controller.dispatch(f.binding,new AbortController().signal);
+      expect(f.applied.map(v=>v.action)).toEqual(rejectQualification?['CLAIM','VALIDATE']:['CLAIM','VALIDATE','RESULT']);
+      expect(f.channel.check).toHaveBeenCalledOnce();
+      expect(f.channel.execute).toHaveBeenCalledTimes(rejectQualification?0:1);
+      expect(result.state).toBe(rejectQualification?'UNKNOWN':'RESULT_RECORDED');
+    }finally{await f.dispose();}
+  });
   it('claims, consumes once, signs a result and only then reports server recording',async()=>{
     const f=await fixture();try {
       expect(await f.controller.dispatch(f.binding,new AbortController().signal)).toMatchObject({state:'RESULT_RECORDED',receipt:{state:'SENT',dispatchAllowed:false}});

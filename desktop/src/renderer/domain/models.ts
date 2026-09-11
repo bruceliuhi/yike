@@ -135,6 +135,7 @@ export interface MaterialDraft {
   updatedAt: string;
 }
 export interface ContactDraft {
+  materialReferences?: import('../../shared/contactDrafts').DraftMaterialReference[];
   opportunityId: string;
   channel: "comment" | "dm";
   content: string;

@@ -77,7 +77,8 @@ export function createOutreachDispatchSession(options:{serviceOrigin:string;
       }
       if(!pending){
         const grant=await signed({...common,action:'CLAIM'});guard();
-        const consumer=createOutreachConsumer({journal:options.journal,channel:options.channel,isCurrent:()=>current()});
+        const consumer=createOutreachConsumer({journal:options.journal,channel:options.channel,isCurrent:()=>current(),
+          qualify:async()=>{guard();return signed({...common,action:'VALIDATE'});}});
         const consumed=await consumer.consume(expected,grant,executionSignal);
         if(consumed.state!=='RESULT_READY')return unknown(consumed.reason);
         // CLAIM already records UNKNOWN. No fact should occupy the final-result slot.

@@ -83,6 +83,40 @@ afterEach(() => {
 });
 
 describe("ordinary client contact draft persistence", () => {
+  it("adopts an external material quote without sending and saves its provenance", async () => {
+    const profileVersionId=crypto.randomUUID();
+    const source={id:'material-1',profileVersionId,version:4,name:'产品说明',text:'支持产品资料检索。',purpose:'产品介绍',visibility:'external',status:'READY',updatedAt:'2026-09-11T00:00:00Z',extraction:{id:'extract-1',materialVersion:4,fields:{service:'资料检索'},evidence:[{field:'service',quote:'支持产品资料检索。'}]}};
+    context.service.materials={list:vi.fn().mockResolvedValue([source,{...source,id:'private',name:'内部成本',visibility:'internal'}])} as never;
+    vi.mocked(context.service.contactDrafts!.latest!).mockResolvedValue(null);
+    vi.mocked(context.service.contactDrafts!.save).mockImplementation(async input=>({binding:input.binding,snapshot:{...input.snapshot,draft:{...input.snapshot.draft,savedContent:input.snapshot.draft.content}},status:'SUCCEEDED',confirmed:true}));
+    render(<ContactEditor row={{...row,profileVersionId}} renderConfirmation={()=>null}/>);
+    fireEvent.click(await screen.findByRole('button',{name:'带入资料片段'}));
+    expect(content().value).toContain(source.text);
+    expect(screen.queryByText('内部成本')).toBeNull();
+    expect(context.service.contactDrafts!.save).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button',{name:'保存草稿'}));
+    await waitFor(()=>expect(context.service.contactDrafts!.save).toHaveBeenCalledTimes(1));
+    const saved=vi.mocked(context.service.contactDrafts!.save).mock.calls[0][0];
+    expect(saved.snapshot.draft).toMatchObject({materialReferences:[{sourceProfileVersionId:profileVersionId,materialId:'material-1',materialVersion:4,extractionId:'extract-1',quote:source.text}]});
+    await waitFor(()=>expect((screen.getByRole('button',{name:'保存草稿'}) as HTMLButtonElement).disabled).toBe(true));
+    fireEvent.click(screen.getByRole('button',{name:'移除引用片段'}));
+    expect(content().value).toBe('初始评论\n');
+    expect((screen.getByRole('button',{name:'保存草稿'}) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("does not use material responses from a previous account", async () => {
+    let resolve!:(value:unknown)=>void;
+    context.service.materials={list:vi.fn(()=>new Promise(r=>{resolve=r;}))} as never;
+    vi.mocked(context.service.contactDrafts!.latest!).mockResolvedValue(null);
+    const profileVersionId=crypto.randomUUID();
+    const view=render(<ContactEditor row={{...row,profileVersionId}} renderConfirmation={()=>null}/>);
+    await waitFor(()=>expect(context.service.materials!.list).toHaveBeenCalled());
+    context={...context,session:{...context.session,authenticated:false,userId:'other'}};
+    view.rerender(<ContactEditor row={{...row,profileVersionId}} renderConfirmation={()=>null}/>);
+    await act(async()=>resolve([{id:'late',profileVersionId,version:4,name:'过期私有资料',text:'旧账号原文',visibility:'external',status:'READY',extraction:{id:'e',materialVersion:4,evidence:[{field:'service',quote:'旧账号原文'}]}}]));
+    expect(screen.queryByText('旧账号原文')).toBeNull();
+    expect(screen.queryByRole('button',{name:'带入资料片段'})).toBeNull();
+  });
   it("does not resave an unchanged restored draft but enables saving after a routing edit", async () => {
     render(<ContactEditor row={row} renderConfirmation={() => null} />);
     await waitFor(() => expect(content().value).toBe("云端评论"));

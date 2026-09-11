@@ -2,6 +2,7 @@
  * This module neither exposes IPC nor installs a platform sender. */
 import {createHash} from 'node:crypto';
 import {z} from 'zod';
+import {draftMaterialReferencesSchema} from '../shared/contactDrafts';
 import type {OutreachConsumptionJournal} from './outreachConsumptionJournal';
 
 const uuid=z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
@@ -16,7 +17,7 @@ const contextSchema=z.object({
   binding:z.object({opportunityId:uuid,channel,requestId:uuid,contentHash:sha}).strict(),
   ownerUserId:uuid,accountScope:z.object({id:uuid,version:z.literal(1)}).strict(),profileVersionId:uuid,
   draft:z.object({opportunityId:uuid,channel,content:z.string().min(1).max(8000),savedContent:z.string().max(8000),
-    version,accountId:opaque,recipient:z.string().max(512)}).strict(),
+    version,accountId:opaque,recipient:z.string().max(512),materialReferences:draftMaterialReferencesSchema.optional()}).strict(),
   source:z.object({sourceId:uuid,evidenceVersion:uuid,evidenceSha256:sha,platform,kind:z.enum(['POST','COMMENT']),
     url:z.string().min(1).max(2048),excerpt:z.string().max(20000)}).strict(),
   target:z.object({action:z.enum(['DIRECT_MESSAGE','POST_COMMENT','COMMENT_REPLY']),authorPublicId:opaque,
@@ -51,7 +52,7 @@ export interface NativeOutreachChannel {
   /** Fixed isolated profile; driver must check cancellation/account at action point. */
   execute(context:Readonly<OutreachContext>,operation:Readonly<{requestId:string;claimId:string;dispatchBefore:string}>,signal:AbortSignal):Promise<unknown>;
 }
-type Reason='INVALID_GRANT'|'SESSION_CHANGED'|'CANCELLED'|'PERMIT_EXPIRED'|'CHANNEL_UNVERIFIED'|'ALREADY_CONSUMED'|'CONSUMPTION_UNAVAILABLE'|'EXECUTION_UNKNOWN'|'RESULT_INVALID';
+type Reason='INVALID_GRANT'|'SESSION_CHANGED'|'CANCELLED'|'PERMIT_EXPIRED'|'CHANNEL_UNVERIFIED'|'MATERIAL_UNVERIFIED'|'ALREADY_CONSUMED'|'CONSUMPTION_UNAVAILABLE'|'EXECUTION_UNKNOWN'|'RESULT_INVALID';
 type Result={state:'UNKNOWN';reason:Reason;serverAccepted:false}|{
   state:'RESULT_READY';requestId:string;claimId:string;serverAccepted:false;outcome:NativeOutreachOutcome;
 };
@@ -83,6 +84,7 @@ function safeUrl(context:OutreachContext):boolean {
 }
 
 export function createOutreachConsumer(options:{journal:OutreachConsumptionJournal;channel:NativeOutreachChannel;
+  qualify?(context:Readonly<OutreachContext>,signal:AbortSignal):Promise<unknown>;
   isCurrent(expected:Readonly<OutreachExpected>):boolean;now?:()=>number}) {
   const now=options.now ?? Date.now;
   return {async consume(rawExpected:unknown,rawGrant:unknown,signal:AbortSignal):Promise<Result>{
@@ -125,6 +127,16 @@ export function createOutreachConsumer(options:{journal:OutreachConsumptionJourn
           !Number.isFinite(age) || age < -5_000 || age>5_000)fail('CHANNEL_UNVERIFIED');
       }
       guard();checkFresh();
+      if(c.draft.materialReferences?.length){
+        try {
+          if(!options.qualify)fail('MATERIAL_UNVERIFIED');
+          const qualified=z.object({state:z.literal('QUALIFIED'),requestId:uuid,claimId:uuid,
+            contextSha256:sha,dispatchBefore:time}).strict().parse(await options.qualify(c,signal));
+          if(qualified.requestId!==expected.requestId||qualified.claimId!==expected.claimId||
+            qualified.contextSha256!==expected.contextSha256||qualified.dispatchBefore!==grant.dispatchBefore)fail('MATERIAL_UNVERIFIED');
+        }catch{fail('MATERIAL_UNVERIFIED');}
+        guard();checkFresh();
+      }
       let created:boolean;
       try {created=(await options.journal.consume(scope,{requestId:expected.requestId,claimId:expected.claimId,
         contextSha256:expected.contextSha256,deviceId:expected.deviceId})).created;}

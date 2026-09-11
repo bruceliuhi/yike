@@ -45,7 +45,7 @@ export function NativeSendConfirmation({row,draft,connection,onClose,fingerprint
       if(!z.string().uuid().safeParse(value.flowId).success || binding.requestId!==requestId || binding.tenantId!==session.accountScope?.id ||
         c.ownerUserId!==session.userId || c.accountScope.id!==binding.tenantId || c.contextSha256!==binding.contextSha256 ||
         c.source.platform!=='XIAOHONGSHU' || c.connection.platform!=='XIAOHONGSHU' || c.connection.accountPublicId!==snapshot.draft.accountId ||
-        c.profileVersionId!==row.profileVersionId || draftFields.some(k=>c.draft[k]!==snapshot.draft[k]))throw new Error('确认信息与当前草稿或身份不一致，请返回重新准备。');
+        c.profileVersionId!==row.profileVersionId || JSON.stringify(c.draft.materialReferences)!==JSON.stringify(snapshot.draft.materialReferences) || draftFields.some(k=>c.draft[k]!==snapshot.draft[k]))throw new Error('确认信息与当前草稿或身份不一致，请返回重新准备。');
       setPrepared({...value,binding});setChecked(false);
     }catch(e){if(current()){setError(e instanceof Error && (Object.values(messages).includes(e.message)||e.message===fallback||e.message.startsWith('确认信息与'))?e.message:fallback);if(active.current){cancel(active.current);active.current=null;}}}
     finally {working.current=false;if(current())setBusy(false);}

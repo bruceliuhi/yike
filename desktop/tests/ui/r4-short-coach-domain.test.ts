@@ -64,6 +64,17 @@ function response(input: CoachInput): CoachSuggestion {
 }
 beforeEach(() => vi.stubGlobal("crypto", webcrypto));
 describe("R4 short coach evidence contract", () => {
+  it('binds exact material provenance while preserving the legacy snapshot digest',async()=>{
+    const snapshot=draftSnapshot(row,draft);
+    const legacy=await snapshotDigest(snapshot);
+    const ref={sourceProfileVersionId:'11111111-1111-4111-8111-111111111111',materialId:'m',materialVersion:4,extractionId:'e',quote:draft.content};
+    const withRef={...snapshot,draft:{...snapshot.draft,materialReferences:[ref]}};
+    expect(await snapshotDigest(withRef)).not.toBe(legacy);
+    expect(await snapshotDigest({...snapshot,draft:{...snapshot.draft,materialReferences:[]}})).not.toBe(legacy);
+    expect(await snapshotDigest({...withRef,draft:{...withRef.draft,materialReferences:[{...ref,materialVersion:5}]}})).not.toBe(await snapshotDigest(withRef));
+    expect(await snapshotDigest(draftSnapshot(row,draft))).toBe(legacy);
+    expect(()=>snapshotDigest({...withRef,draft:{...withRef.draft,materialReferences:[ref,ref]}})).toThrow();
+  });
   it("accepts exact source anchors and identity without a cost/count default", async () => {
     const input = await makeCoachInput(row, draft, "scope", "TEST-request", {
       id: "TEST-space",

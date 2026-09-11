@@ -2,6 +2,14 @@ import {z} from 'zod';
 
 const id=z.string().trim().min(1).max(128);
 const body=z.string().min(1).max(8000).refine(value=>!!value.trim()&&!value.includes('\0'));
+export const draftMaterialReferenceSchema=z.object({
+ sourceProfileVersionId:z.string().uuid(),materialId:z.string().min(1).max(200),
+ materialVersion:z.number().int().min(1).max(2147483647),extractionId:z.string().min(1).max(200),
+ quote:z.string().min(1).max(2000).refine(v=>!!v.trim()&&!v.includes('\0')),
+}).strict();
+export const draftMaterialReferencesSchema=z.array(draftMaterialReferenceSchema).max(3)
+ .refine(refs=>new Set(refs.map(r=>JSON.stringify(r))).size===refs.length);
+export type DraftMaterialReference=z.infer<typeof draftMaterialReferenceSchema>;
 export const draftSaveBindingSchema=z.object({
  opportunityId:id,channel:z.enum(['comment','dm']),requestId:id,
  contentHash:z.string().regex(/^[a-f0-9]{64}$/),
@@ -10,6 +18,7 @@ export const contactDraftSchema=z.object({
  opportunityId:id,channel:z.enum(['comment','dm']),content:body,
  savedContent:z.string().max(8000),version:z.number().int().min(1),
  accountId:z.string().max(512),recipient:z.string().max(512),confirmedFingerprint:z.string().optional(),
+ materialReferences:draftMaterialReferencesSchema.optional(),
 }).strict();
 export const draftSnapshotSchema=z.object({
  draft:contactDraftSchema,
