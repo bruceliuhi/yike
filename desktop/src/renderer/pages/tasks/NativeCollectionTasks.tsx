@@ -20,6 +20,7 @@ import { desktopExecutionResultSchema } from "../../../shared/desktopExecution";
 import type { TaskFeedItem, TaskFeedPage } from "../../../shared/taskFeed";
 import {SearchCoverage} from './SearchCoverage';
 import {ResearchProgress} from './ResearchProgress';
+import {newTaskDraft} from '../../domain/models';
 const coveragePlatforms={XIAOHONGSHU:'xhs',DOUYIN:'douyin',BILIBILI:'bilibili',ZHIHU:'zhihu',PUBLIC_WEB:'web'} as const;
 const statusLabels = {
   PENDING: "待执行",
@@ -60,8 +61,8 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
   const { service, session, navigate } = useApp(),
     scope = useTaskScope(taskId),
     execution = useDesktopExecution(null);
-  const [library] = useTaskLibrary(),
-    [, setDraft] = useTaskDraft();
+  const [library] = useTaskLibrary(session.userId,session.accountScope),
+    [, setDraft] = useTaskDraft(session.userId,'once',session.accountScope);
   const [cursor, setCursor] = useState<string>();
   const [confirmation, setConfirmation] = useState<{
     identity: object;
@@ -233,6 +234,9 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
               }}
             >
               刷新任务
+            </Button>
+            <Button onClick={()=>{setDraft(newTaskDraft('once'));navigate('/tasks/new');}}>
+              新建普通采集
             </Button>
             <Button variant="primary" onClick={() => navigate("/tasks/new")}>
               新建采集

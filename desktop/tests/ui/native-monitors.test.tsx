@@ -3,6 +3,10 @@
 import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import {afterEach,beforeEach,describe,it,expect,vi} from 'vitest';
 import {NativeMonitorPlans} from '../../src/renderer/pages/tasks/NativeMonitorPlans';
+import {TasksPage} from '../../src/renderer/pages/Tasks';
+import {taskDraftOwner} from '../../src/renderer/app/taskDraft';
+import {newTaskDraft} from '../../src/renderer/domain/models';
+import {defaultResearchSettings} from '../../src/renderer/domain/researchUsage';
 import type {AppContextValue} from '../../src/renderer/app/context';
 import {parseRoute} from '../../src/renderer/domain/routes';
 import {clearLocalDrafts} from '../../src/renderer/app/hooks';
@@ -19,6 +23,17 @@ beforeEach(()=>{
 });
 afterEach(()=>cleanup());
 describe('monitor page real service wiring',()=>{
+ it('creates a fresh ordinary monitoring draft from the production monitor route',async()=>{
+  context.session.accountScope={id,version:1};
+  const key='yike.ui.draft.v1.task.'+taskDraftOwner(context.session.userId,context.session.accountScope);
+  const previous={...newTaskDraft('monitor'),research:defaultResearchSettings()};
+  sessionStorage.setItem(key,JSON.stringify(previous));render(<TasksPage/>);
+  fireEvent.click(await screen.findByRole('button',{name:'新建普通监控'}));
+  const draft=JSON.parse(sessionStorage.getItem(key)!);
+  expect(draft.id).not.toBe(previous.id);expect(draft.research).toBeUndefined();expect(draft.mode).toBe('monitor');
+  expect(context.navigate).toHaveBeenCalledWith('/tasks/new?mode=monitor');
+  expect(vi.mocked(context.service.monitorCollection!.execute).mock.calls.every(([c])=>c.action==='LIST')).toBe(true);
+ });
  it('unlocks a definitive pre-submit BUSY without treating a missing receipt as success',async()=>{
   const execute=vi.mocked(context.service.monitorCollection!.execute);
   execute.mockImplementation(async c=>c.action==='LIST'?{state:'LIST',supported:true,plans:[base],serverTime:null} as any:{state:'BUSY'});

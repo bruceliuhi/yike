@@ -177,6 +177,13 @@ class SearchCoverageService:
             coverage, stop = "PARTIAL", "CANCELED" if row["status"] == "CANCELED" else "UNKNOWN"
         configuration = task["configuration_snapshot"].get("configuration", {})
         keywords = configuration.get("keywords") if type(configuration) is dict else None
+        platform_queries = configuration.get("platformQueries") if type(configuration) is dict else None
+        items = platform_queries.get("items") if type(platform_queries) is dict else None
+        if type(items) is list:
+            override = next((item for item in items
+                             if type(item) is dict and item.get("platform") == row["platform"]), None)
+            if type(override) is dict and isinstance(override.get("keywords"), list) and override["keywords"]:
+                keywords = override["keywords"]
         scope = "已确认关键词：" + "、".join(keywords) if isinstance(keywords, list) and keywords else "已确认的平台方向（未记录逐关键词范围）"
         evidence = [{key: str(value) if key in ("id", "sourceId", "sourceVersionId") else value
                      for key, value in item.items()} for item in row["evidence"][:20]]

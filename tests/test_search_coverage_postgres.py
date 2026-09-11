@@ -133,6 +133,30 @@ def test_deadline_only_marks_a_still_running_direction_as_expired():
     assert SearchCoverageService._unit(SearchCoverageService, task, base | {"status": "CANCELED"})["stopReason"] == "CANCELED"
 
 
+@pytest.mark.parametrize(("platform", "expected"), [
+    ("XIAOHONGSHU", "已确认关键词：找搭建团队"),
+    ("BILIBILI", "已确认关键词：展台设计报价"),
+    ("DOUYIN", "已确认关键词：通用需求"),
+])
+def test_unit_scope_uses_platform_override_with_global_fallback(platform, expected):
+    from pilot.search_coverage import SearchCoverageService
+
+    now = datetime.now(UTC)
+    task = {"generated_at": now, "deadline_at": now + timedelta(minutes=1),
+            "configuration_snapshot": {"configuration": {
+                "keywords": ["通用需求"],
+                "platformQueries": {"version": "platform-queries-v1", "items": [
+                    {"platform": "XIAOHONGSHU", "keywords": ["找搭建团队"]},
+                    {"platform": "BILIBILI", "keywords": ["展台设计报价"]},
+                ]},
+            }}}
+    row = {"platform_run_id": str(uuid4()), "platform": platform, "status": "PENDING",
+           "raw_contents": 0, "independent_sources": 0, "evidence": []}
+    unit = SearchCoverageService._unit(SearchCoverageService, task, row)
+    assert unit["scope"] == expected
+    assert "未记录逐关键词" in unit["explanation"]
+
+
 def _run_node_http(env, task_id, *, raw, sources, body):
     node = os.environ.get("YIKE_DEVICE_LIVE_NODE_BINARY") or shutil.which("node")
     if not node:

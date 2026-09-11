@@ -10,6 +10,7 @@ import {strategyViewSchema} from '../../../shared/researchStrategies';
 import type {MonitorCollectionCommand,MonitorCollectionPlan} from '../../../shared/monitorCollection';
 import {boundedRequest} from '../../app/boundedRequest';
 import {useTaskDraft,useTaskLibrary} from '../../app/taskDraft';
+import {newTaskDraft} from '../../domain/models';
 
 const localLabels={DETACHED:'本机未接管',ATTACHED:'已接管，等待到期',RUNNING:'轮次处理中',STOPPING:'正在停止',STOP_UNCONFIRMED:'来源停止待核实'};
 const hints:Record<string,string>={SKIPPED_BUSY:'采集器忙碌，本次到期已跳过，不补跑。',SKIPPED_OFFLINE:'离线错过的时段已跳过。',
@@ -66,7 +67,9 @@ export function NativeMonitorPlans(){
   <PageHeader title={selected?(details.data?.snapshot.configuration.name||'监控详情'):'监控任务'}
    description="按已确认周期发现需求。客户端关闭不采集，重新打开后请确认本机账号再接管；不会补跑历史。"
    back={id?()=>navigate('/monitors'):undefined}
-   extra={<><Button onClick={()=>void monitor.refresh()}>刷新监控</Button><Button variant="primary" onClick={()=>navigate('/tasks/new?mode=monitor')}>新建监控</Button></>}/>
+   extra={<><Button onClick={()=>void monitor.refresh()}>刷新监控</Button>
+    <Button onClick={()=>{setDraft(newTaskDraft('monitor'));navigate('/tasks/new?mode=monitor');}}>新建普通监控</Button>
+    <Button variant="primary" onClick={()=>navigate('/tasks/new?mode=monitor')}>新建监控</Button></>}/>
   {(monitor.error||error)&&<Notice tone="warning">{error||monitor.error}</Notice>}
   {monitor.list&&!monitor.list.supported&&<Notice tone="warning">当前服务或本机执行环境尚未开放持续监控，已保存计划仍可查看。</Notice>}
   {!monitor.list&&!monitor.error&&<Notice>正在读取监控计划…</Notice>}

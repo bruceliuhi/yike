@@ -10,6 +10,10 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, it, expect, vi } from "vitest";
 import { NativeCollectionTasks } from "../../src/renderer/pages/tasks/NativeCollectionTasks";
+import {TasksPage} from '../../src/renderer/pages/Tasks';
+import {taskDraftOwner} from '../../src/renderer/app/taskDraft';
+import {newTaskDraft} from '../../src/renderer/domain/models';
+import {defaultResearchSettings} from '../../src/renderer/domain/researchUsage';
 import type { AppContextValue } from "../../src/renderer/app/context";
 import { parseRoute } from "../../src/renderer/domain/routes";
 import { clearLocalDrafts } from "../../src/renderer/app/hooks";
@@ -86,6 +90,17 @@ beforeEach(() => {
   } as unknown as AppContextValue;
 });
 afterEach(cleanup);
+it('creates a fresh ordinary draft from the production task-feed route in the current account scope',async()=>{
+ const key='yike.ui.draft.v1.task.'+taskDraftOwner(context.session.userId,context.session.accountScope);
+ const previous={...newTaskDraft(),research:defaultResearchSettings()};
+ sessionStorage.setItem(key,JSON.stringify(previous));
+ render(<TasksPage/>);
+ fireEvent.click(await screen.findByRole('button',{name:'新建普通采集'}));
+ const draft=JSON.parse(sessionStorage.getItem(key)!);
+ expect(draft.id).not.toBe(previous.id);expect(draft.research).toBeUndefined();expect(draft.mode).toBe('once');
+ expect(context.navigate).toHaveBeenCalledWith('/tasks/new');
+ expect(vi.mocked(context.service.execution!.execute).mock.calls.every(([c])=>c.action==='LIST')).toBe(true);
+});
 it('shows coverage for the real task using its original numeric profile version',async()=>{
  context.route=parseRoute(`#/collection?task=${id}`);
  vi.mocked(context.service.taskFeed!.get).mockResolvedValue({...item,profile_version:3} as any);
