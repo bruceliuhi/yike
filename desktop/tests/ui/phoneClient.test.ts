@@ -2,6 +2,7 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {service} from '../../src/renderer/services/client';
 import type {YikeDesktopApi} from '../../src/shared/contracts';
+import {validatedOperation} from '../../src/main/servicePolicy';
 
 const host = window as unknown as {yikeDesktop?: YikeDesktopApi};
 afterEach(() => { delete host.yikeDesktop; vi.unstubAllGlobals(); });
@@ -13,6 +14,21 @@ function bridge(data: unknown) {
 }
 
 describe('phone login fixed transport', () => {
+  it('uses a separate bounded temporary access endpoint without phone or token exposure', async () => {
+    const call=bridge({authenticated:true,user_id:'test-access-user'});
+    await expect(service.loginAccess!('YKA-synthetic-only')).resolves.toEqual({authenticated:true,userId:'test-access-user'});
+    expect(call).toHaveBeenCalledWith({operation:'session.loginAccess',payload:{access_code:'YKA-synthetic-only'}});
+    expect(validatedOperation({operation:'session.loginAccess',payload:{access_code:'YKA-synthetic-only'}})).toMatchObject({
+      path:'/api/ui/auth/access-session',method:'POST',body:JSON.stringify({access_code:'YKA-synthetic-only'})});
+    for(const payload of [{access_code:''},{access_code:'x'.repeat(129)},{access_code:'test',phone:'19900000001'}])
+      expect(validatedOperation({operation:'session.loginAccess',payload})).toBeNull();
+  });
+  it('explains invalid temporary credentials and rejects an unverified login response',async()=>{
+    host.yikeDesktop={requestApi:vi.fn().mockResolvedValue({ok:false,status:401,error:'access_auth_failed'})} as unknown as YikeDesktopApi;
+    await expect(service.loginAccess!('YKA-synthetic')).rejects.toThrow('临时访问码无效、已到期或已停用，请联系管理员核对。');
+    bridge({authenticated:true});
+    await expect(service.loginAccess!('YKA-synthetic')).rejects.toMatchObject({code:'INVALID_SERVICE_RESPONSE'});
+  });
   it.each([
     ['trial_required', '请展开试用开通，输入管理员发给你的试用码。'],
     ['trial_invalid', '试用码无效或不属于此手机号，请核对管理员发放的信息。'],

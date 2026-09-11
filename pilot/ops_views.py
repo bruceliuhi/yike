@@ -45,10 +45,14 @@ def users_view(rows, offset, csrf):
     content=[]
     for row in rows:
         action = f'<a href="/ops/revoke?trial_id={escape(row["trial_id"])}">停用</a>' if row['trial_id'] and row['state'] != '已停用' else '—'
-        if row['trial_id'] and not row['activated_at'] and row['state'] != '已停用':
+        if row['trial_id'] and not row['activated_at'] and row['state'] != '已停用' and row.get('credential_kind') != 'TEMPORARY_ACCESS':
             action += f' · <a href="/ops/reissue?trial_id={escape(row["trial_id"])}">重发码</a>'
+        if row['trial_id'] and row['state'] != '已停用' and (not row['activated_at'] or (row.get('credential_kind') == 'TEMPORARY_ACCESS' and row['state'] != '已到期')):
+            action += f' · <a href="/ops/access?trial_id={escape(row["trial_id"])}">签发/改发临时登录码</a>'
         phone = escape(row['phone']) if row['phone'] else '未留存可还原手机号'
-        verified = '已短信验证' if row['activated_at'] else '未短信验证' if row['trial_id'] else '历史账号'
+        verified = '已短信验证' if row.get('phone_verified_at') else '未短信验证'
+        if row.get('credential_kind') == 'TEMPORARY_ACCESS':
+            verified += ' · 临时访问'
         content.append(f'<tr><td>{escape(row["name"])}<small>{escape(row["user_id"])}</small></td>'
                        f'<td>{phone}<small>{verified}</small></td><td>{escape(row["state"])}</td>'
                        f'<td>{date(row["activated_at"])}</td><td>{date(row["expires_at"])}</td><td>{action}</td></tr>')

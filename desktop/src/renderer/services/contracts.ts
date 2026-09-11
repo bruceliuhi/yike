@@ -71,6 +71,7 @@ export interface YikeService {
   reviewCandidate(review: CandidateReview): Promise<CandidateReviewResult>;
   session(): Promise<Session>;
   loginToken(token: string): Promise<Session>;
+  loginAccess?(code: string): Promise<Session>;
   logout(): Promise<void>;
   requestCode(phone: string): Promise<{ retryAfter: number }>;
   login(phone: string, code: string, trial?: string): Promise<Session>;

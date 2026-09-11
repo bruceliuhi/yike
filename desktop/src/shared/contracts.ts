@@ -45,7 +45,7 @@ export type SaveExportResult =
 
 export const API_OPERATIONS = [
   'session.get', 'session.login', 'session.logout',
-  'session.requestCode', 'session.loginPhone',
+  'session.requestCode', 'session.loginPhone', 'session.loginAccess',
   'profiles.list', 'profiles.save', 'profiles.confirm',
   'connections.list',
   'taskFeed.list', 'taskFeed.get',

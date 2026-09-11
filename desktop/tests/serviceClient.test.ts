@@ -3,6 +3,23 @@ import {createServiceClient} from '../src/main/serviceClient';
 import {candidateBinding, assessmentRequestFixture, verificationRequestFixture} from './fixtures/candidateReviewApi';
 
 describe('fixed service transport', () => {
+  it('awaits encrypted session persistence after authentication and clears stale credentials first',async()=>{
+    const order:string[]=[];
+    const client=createServiceClient({baseUrl:'https://customer.example',
+      beforeAuthentication:async()=>{order.push('clear-old');},
+      fetch:async()=>{order.push('login');return Response.json({authenticated:true,user_id:'test-user'});},
+      persistSession:async()=>{order.push('persist');},clearSession:async()=>{order.push('clear');}});
+    expect(await client.request({operation:'session.loginAccess',payload:{access_code:'YKA-synthetic'}})).toMatchObject({ok:true});
+    expect(order).toEqual(['clear-old','login','persist']);
+  });
+  it('fails closed if the new session cannot be persisted',async()=>{
+    const clearSession=vi.fn(async()=>{});
+    const client=createServiceClient({baseUrl:'https://customer.example',clearSession,
+      fetch:async()=>Response.json({authenticated:true,user_id:'test-user'}),
+      persistSession:async()=>{throw new Error('private-path');}});
+    expect(await client.request({operation:'session.loginAccess',payload:{access_code:'YKA-synthetic'}})).toMatchObject({ok:false,error:'SESSION_PERSIST_FAILED'});
+    expect(clearSession).toHaveBeenCalledOnce();
+  });
   it('reads raw candidate evidence by a strict candidate UUID without caller URLs', async () => {
     const fetch = vi.fn(async () => Response.json({}));
     const client = createServiceClient({baseUrl:'https://customer.example',fetch,clearSession:async()=>{}});

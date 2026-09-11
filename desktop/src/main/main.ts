@@ -16,6 +16,7 @@ import {
   mainWindowOptions, rendererAssetForUrl
 } from './windowPolicy';
 import {createServiceClient} from './serviceClient';
+import {createServiceSessionVault} from './serviceSessionVault';
 import {clientServiceConfiguration} from './clientServiceConfiguration';
 import {validatedExternalUrl, validClipboardText} from './servicePolicy';
 import {createExportHandler, writeExportFile} from './exportService';
@@ -169,7 +170,9 @@ async function startApplication(): Promise<void> {
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   session.defaultSession.on('will-download', event => event.preventDefault());
-  const serviceSession = session.fromPartition('yike-service'); // No persist: prefix: cookies stay in memory.
+  // Chromium cookies stay in memory; only the fixed customer cookie is saved
+  // in our OS-encrypted vault, never in an unprotected persistent partition.
+  const serviceSession = session.fromPartition('yike-service');
   serviceSession.setPermissionCheckHandler(() => false);
   serviceSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   const baseUrl = clientServiceConfiguration({
@@ -177,17 +180,35 @@ async function startApplication(): Promise<void> {
     bundled:typeof __YIKE_RELEASE_SERVICE_URL__==='undefined'?null:__YIKE_RELEASE_SERVICE_URL__,
     env:process.env
   });
-  const service = createServiceClient({
-    baseUrl,
-    fetch: (url, options) => serviceSession.fetch(url, options),
-    clearSession: () => serviceSession.clearStorageData()
-  });
   const protection = {
     isEncryptionAvailable: () => safeStorage.isEncryptionAvailable() &&
       (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'),
     encryptString: (value: string) => safeStorage.encryptString(value),
     decryptString: (value: Buffer) => safeStorage.decryptString(value)
   };
+  const sessionVault=baseUrl?.startsWith('https:')?createServiceSessionVault({
+    directory:path.join(app.getPath('userData'),'service-session'),origin:baseUrl,protection}):null;
+  if(sessionVault&&baseUrl){
+    try{
+      const saved=await sessionVault.read();
+      if(saved)await serviceSession.cookies.set({url:baseUrl,name:'pilot_session',value:saved.value,
+        path:'/',secure:true,httpOnly:true,sameSite:'strict',expirationDate:saved.expiresAt});
+    }catch{console.error('YIKE_SESSION_RESTORE_UNAVAILABLE');} // Continue to the login screen; never expose OS details.
+  }
+  async function clearCustomerSession(){
+    try{await sessionVault?.clear();}finally{await serviceSession.clearStorageData();}
+  }
+  const service = createServiceClient({
+    baseUrl,
+    fetch: (url, options) => serviceSession.fetch(url, options),
+    clearSession: clearCustomerSession,
+    beforeAuthentication:clearCustomerSession,
+    persistSession:sessionVault&&baseUrl?async()=>{
+      const cookies=await serviceSession.cookies.get({url:baseUrl,name:'pilot_session'});
+      if(cookies.length!==1)throw new Error('SESSION_PERSIST_FAILED');
+      await sessionVault.save(cookies[0]);
+    }:undefined,
+  });
   const journal = createDeviceIdentityJournal({directory: path.join(app.getPath('userData'), 'device-identity'), protection});
   const vault = createDeviceKeyVault({directory: path.join(app.getPath('userData'), 'device-keys'), protection});
   const identity = createDeviceIdentityController({service, identityFactory: transport => {

@@ -92,7 +92,7 @@ def register_phone_api(router, store, phone_auth, sender: SmsSender | None,
                        if body.trial_code else phone_auth.consume(body.phone, body.code))
         except PhoneAuthError as error:
             raise _auth_error(error) from None
-        token = issue_token(user_id, auth_secret)
+        token = issue_token(user_id, auth_secret, auth_source='sms')
         # Resolve tenant/session with the normal restricted app connection.
         current = authenticate_session(store, token, auth_secret)
         response = JSONResponse(current.public_view())

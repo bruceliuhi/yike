@@ -115,6 +115,8 @@ def build_runtime_app(
     if sms_sender is not None and not phone_secret:
         raise RuntimeError('phone_auth_configuration_required')
     phone_auth = TrialPhoneAuthStore(database,phone_secret.encode()) if phone_secret else None
+    from pilot.access_auth import AccessAuthStore
+    access_auth = AccessAuthStore(database,phone_secret.encode()) if phone_secret else None
     strategies = ResearchStrategyStore(database)
     runtime = ExecutionRuntime(database, strategy_resolver=strategies.resolve,
                                capability_check=configured_collection_policy(environment))
@@ -153,6 +155,7 @@ def build_runtime_app(
         auth_secret=auth_secret,
         dev_login=dev_login,
         phone_auth=phone_auth,
+        access_auth=access_auth,
         sms_sender=sms_sender,
         execution_runtime=runtime,
         candidate_ingestion=ingestion,

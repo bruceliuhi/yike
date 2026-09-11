@@ -27,6 +27,8 @@ interface ServiceClientOptions {
   baseUrl: string | null;
   fetch: Fetcher;
   clearSession: () => Promise<void>;
+  beforeAuthentication?: () => Promise<void>;
+  persistSession?: () => Promise<void>;
   timeoutMs?: number;
   maxResponseBytes?: number;
 }
@@ -87,7 +89,13 @@ export function createServiceClient(options: ServiceClientOptions): {
     if (options.baseUrl === null) return {ok: false, status: 0, error: 'SERVICE_NOT_CONFIGURED'};
     const abort = new AbortController();
     const timeout = setTimeout(() => abort.abort(), options.timeoutMs ?? operation.timeoutMs ?? 12_000);
+    const authenticating=operation.method==='POST'&&[
+      '/api/ui/session','/api/ui/auth/sms-session','/api/ui/auth/access-session',
+    ].includes(operation.path);
     try {
+      if(authenticating&&options.beforeAuthentication){
+        try{await options.beforeAuthentication();}catch{return {ok:false,status:0,error:'SESSION_CLEAR_FAILED'};}
+      }
       const response = await options.fetch(options.baseUrl + operation.path, {
         method: operation.method,
         headers: {
@@ -103,6 +111,16 @@ export function createServiceClient(options: ServiceClientOptions): {
         return {ok: false, status: response.status, error: 'SERVICE_REDIRECT_REJECTED'};
       }
       const data = await boundedJson(response, options.maxResponseBytes ?? 2_097_152);
+      if(response.ok&&authenticating&&options.persistSession){
+        try{
+          if(!data||typeof data!=='object'||!('authenticated' in data)||data.authenticated!==true||
+            !('user_id' in data)||typeof data.user_id!=='string'||!data.user_id.trim())throw new Error();
+          await options.persistSession();
+        }catch{
+          try{await options.clearSession();}catch{return {ok:false,status:0,error:'SESSION_CLEAR_FAILED'};}
+          return {ok:false,status:0,error:'SESSION_PERSIST_FAILED'};
+        }
+      }
       return response.ok ? {ok: true, status: response.status, data} : {
         ok: false, status: response.status, error: responseError(data, response.status)
       };

@@ -110,7 +110,7 @@ describe('main device identity controller', () => {
     expect(f.state.prepares[0].session.isCurrent()).toBe(false);
   });
 
-  it.each([login, {operation: 'session.loginPhone', payload: {phone: '13800138000', code: '123456'}}, logout])('invalidates immediately on $operation, even when the next login is the same user', async request => {
+  it.each([login, {operation: 'session.loginPhone', payload: {phone: '13800138000', code: '123456'}}, {operation:'session.loginAccess',payload:{access_code:'YKA-synthetic-only'}}, logout])('invalidates immediately on $operation, even when the next login is the same user', async request => {
     const f = fixture(); expect(await f.controller.prepare()).toEqual(ready);
     const old = f.state.prepares[0].session;
     const pendingAuth = deferred<ApiResult>(); f.state.publicHandler = async () => pendingAuth.promise;

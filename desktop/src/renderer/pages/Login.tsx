@@ -16,6 +16,8 @@ export function LoginPage() {
   const [trialOpen, setTrialOpen] = useState(false);
   const [tokenOpen, setTokenOpen] = useState(false);
   const [token, setToken] = useState("");
+  const [accessOpen, setAccessOpen] = useState(false);
+  const [accessCode, setAccessCode] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [cooldown, setCooldown] = useState(0);
   const [information, setInformation] = useState<string | null>(null);
@@ -99,6 +101,7 @@ export function LoginPage() {
       setCode("");
       setTrial("");
       setToken("");
+      setAccessCode('');
       navigate("/workbench");
     });
   };
@@ -126,6 +129,13 @@ export function LoginPage() {
     setErrors({});
     await performLogin(() => service.loginToken(token.trim()));
   };
+  const submitAccess = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!accessCode.trim()) { setErrors({access:'请输入管理员发放的临时访问码。'}); return; }
+    if (!service.loginAccess) { login.setError('临时访问码服务尚未接通，请联系支持。'); return; }
+    setErrors({});
+    await performLogin(() => service.loginAccess!(accessCode.trim()));
+  };
   return (
     <main className="login-layout">
       <section className="login-brand" aria-label="意客 AI">
@@ -139,7 +149,21 @@ export function LoginPage() {
       <section className="login-panel" aria-labelledby="login-title">
         <h2 id="login-title">欢迎使用意客AI</h2>
         <p className="page-description">登录后开启商机发现与跟进工作</p>
-        <form onSubmit={submit} noValidate>
+        {service.loginAccess && <Button variant="ghost" aria-expanded={accessOpen} disabled={login.busy}
+          onClick={()=>{setAccessOpen(!accessOpen);setAccessCode('');setCode('');setTrial('');setToken('');setTokenOpen(false);setErrors({});login.setError('');}}>
+          {accessOpen?'返回短信登录':'临时访问码登录'}
+        </Button>}
+        {accessOpen ? <form onSubmit={submitAccess} noValidate>
+          <Field label="临时访问码" required error={errors.access}
+            hint="仅限受邀客户。首次成功登录起试用3天；再次登录不会延长。">
+            <input aria-label="临时访问码" type="password" autoComplete="off" maxLength={128}
+              placeholder="粘贴管理员发给你的临时访问码" value={accessCode} disabled={login.busy}
+              onChange={event=>{setAccessCode(event.target.value);setErrors({});}}/>
+          </Field>
+          {login.error && <Notice tone="error">{login.error}</Notice>}
+          <Button type="submit" variant="primary" className="login-submit" loading={login.busy}>使用临时码进入</Button>
+          <p className="field-hint">无需短信或设置密码。请勿转发访问码；试用到期或停用后请联系管理员。</p>
+        </form> : <form onSubmit={submit} noValidate>
           <Field label="手机号码" required error={errors.phone}>
             <input
               aria-label="手机号码"
@@ -228,8 +252,8 @@ export function LoginPage() {
           >
             {trialOpen ? <CaretUp /> : <CaretDown />}首次使用，输入试用码开通
           </Button>
-        </form>
-        <div className="login-token">
+        </form>}
+        {!accessOpen && <div className="login-token">
           <Button
             variant="ghost"
             aria-expanded={tokenOpen}
@@ -271,7 +295,7 @@ export function LoginPage() {
               </Button>
             </form>
           )}
-        </div>
+        </div>}
         <footer className="login-footer">
           {["用户协议", "隐私政策", "联系支持"].map((title) => (
             <Button
