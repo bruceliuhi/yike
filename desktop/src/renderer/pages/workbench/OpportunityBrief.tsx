@@ -125,7 +125,7 @@ function BriefRows({
                     : item.basis.kind === "CHANNEL_FOLLOWUP"
                       ? "真实通道记录"
                       : item.basis.kind === "VERIFIED_CHANGE"
-                        ? "已核验变化"
+                        ? "留存原文对比"
                         : "已人工复核需求"}{" "}
                   · {time(item.basis.verifiedAt, snapshot.timezone)}（
                   {snapshot.timezone}）

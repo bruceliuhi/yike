@@ -205,5 +205,5 @@ export function briefTarget(kind: BriefGroup, item: BriefItem) {
   if (item.validity !== "VALID") return null;
   return kind === "followup"
     ? `/followups?tab=todo&opportunity=${encodeURIComponent(item.opportunityId)}`
-    : `/opportunities/${encodeURIComponent(item.opportunityId)}`;
+    : `/opportunities/${encodeURIComponent(item.opportunityId)}${kind==='changes'?'?tab=changes':''}`;
 }

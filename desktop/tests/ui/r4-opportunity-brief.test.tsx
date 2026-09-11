@@ -73,6 +73,9 @@ it("renders three groups, their source basis and exact existing destinations wit
   );
   fireEvent.click(screen.getByRole("tab", { name: /重要变化/ }));
   expect(screen.getByText("TEST 重要变化")).toBeTruthy();
+  expect(screen.getByText(/留存原文对比/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:'查看机会证据'}));
+  expect(context.navigate).toHaveBeenLastCalledWith('/opportunities/TEST-opportunity?tab=changes');
   fireEvent.click(screen.getByRole("tab", { name: /待跟进/ }));
   fireEvent.click(screen.getByRole("button", { name: "查看该商机跟进" }));
   expect(context.navigate).toHaveBeenLastCalledWith(

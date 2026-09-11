@@ -59,6 +59,10 @@ export function EvidenceTimeline({
       </Notice>
     );
   const data = resource.data;
+  const entries = data?.schemaVersion===2 ? data.observations.map(observation=>({
+    key:observation.id,version:data.versions.find(v=>v.id===observation.versionId)!,
+    observedAt:observation.observedAt,receivedAt:observation.receivedAt,anchor:observation.id===data.anchorObservationId,
+  })) : data?.versions.map(version=>({key:version.id,version,observedAt:version.observedAt,receivedAt:null,anchor:false})) ?? [];
   const stale = Boolean(data && Date.parse(data.expiresAt) <= now);
   return (
     <section className="research-timeline">
@@ -97,12 +101,15 @@ export function EvidenceTimeline({
         </>
       ) : data && !resource.loading && !resource.error && !stale ? (
         <>
-          <ol className="research-version-list">
-            {data.versions.map((v) => (
-              <li key={v.id}>
+          {data.schemaVersion===2&&<p className="field-hint">纳入依据保持原样；下方显示本账号同一来源的留存观察，不代表已重新核验需求。</p>}
+          <ol className="research-version-list" aria-label="原文观察记录">
+            {entries.map(({key,version:v,observedAt,receivedAt,anchor}) => (
+              <li key={key}>
                 <h3>原文版本 v{v.ordinal}</h3>
+                {anchor&&<Badge>纳入商机时的依据</Badge>}
                 <p>发布于 {time(v.publishedAt)}</p>
-                <p className="muted">系统观察时间　{time(v.observedAt)}</p>
+                <p className="muted">系统观察时间　{time(observedAt)}</p>
+                {receivedAt&&<p className="muted">系统收到证据　{time(receivedAt)}</p>}
                 {v.access !== "AVAILABLE" && (
                   <Badge tone="orange">
                     {v.access === "FAILED" ? "本次访问失败" : "访问状态待核验"}
@@ -117,18 +124,23 @@ export function EvidenceTimeline({
               </li>
             ))}
           </ol>
-          {data.versions.length === 1 && (
+          {data.schemaVersion===1 && data.versions.length === 1 && (
             <p className="muted">尚无后续原文版本</p>
           )}
+          {data.schemaVersion===2&&!data.changes.length&&<p className="muted">本次已读取范围内，尚无可确定方向的纳入后正文变化。</p>}
           {data.changes.length > 0 && (
             <section>
               <h3>有证据的变化</h3>
               {data.changes.map((change) => (
                 <article className="research-change" key={change.id}>
                   <h3>{change.label}</h3>
-                  <p className="muted">
+                  {'detectedAt' in change&&data.schemaVersion===2 ? <>
+                    <p className="muted">实际编辑时间未知；不能由此判断需求已关闭或预算已确认。</p>
+                    <p className="muted">后次观察时间　{time(data.observations.find(o=>o.id===change.toObservationId)?.observedAt)}</p>
+                    <p className="muted">系统收到证据　{time(change.detectedAt)}</p>
+                  </> : <p className="muted">
                     实际变化时间　{time(change.occurredAt)}
-                  </p>
+                  </p>}
                   <div className="research-diff">
                     <div>
                       <span>变化前 · {change.from.evidenceVersion}</span>

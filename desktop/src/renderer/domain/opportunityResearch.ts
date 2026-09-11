@@ -289,13 +289,57 @@ const timelineSchema = z
     gaps: z.array(text).max(30),
   })
   .strict();
-export type ResearchTimeline = z.infer<typeof timelineSchema>;
+const timelineV2Schema = timelineSchema.extend({
+  schemaVersion: z.literal(2),
+  anchorObservationId: id,
+  observations: z.array(z.object({id,versionId:id,observedAt:instant,receivedAt:instant}).strict()).min(1).max(200),
+  changes: z.array(changeSchema.extend({
+    kind:z.literal('CONTENT'),occurredAt:z.null(),fromObservationId:id,toObservationId:id,detectedAt:instant,
+  })).max(200),
+});
+const timelineWireSchema=z.discriminatedUnion('schemaVersion',[timelineSchema,timelineV2Schema]);
+export type ResearchTimeline = z.infer<typeof timelineWireSchema>;
+function validateObservationChanges(data:z.infer<typeof timelineV2Schema>){
+  const versions=new Map(data.versions.map(v=>[v.id,v]));
+  const observations=new Map<string,typeof data.observations[number]>();
+  const groups:{at:number;ids:Set<string>;bodies:Set<string>}[]=[];
+  const firstVersions:string[]=[];
+  for(const observation of data.observations){
+    const at=Date.parse(observation.observedAt),received=Date.parse(observation.receivedAt);
+    const version=versions.get(observation.versionId);
+    if(!version||observations.has(observation.id)||at>Date.parse(data.generatedAt)||received>Date.parse(data.generatedAt)||
+      (groups.length&&at<groups.at(-1)!.at))invalid();
+    observations.set(observation.id,observation);
+    if(!firstVersions.includes(observation.versionId))firstVersions.push(observation.versionId);
+    if(!groups.length||groups.at(-1)!.at!==at)groups.push({at,ids:new Set(),bodies:new Set()});
+    groups.at(-1)!.ids.add(observation.id);groups.at(-1)!.bodies.add(version.content);
+  }
+  if(firstVersions.length!==versions.size||data.versions.some((v,i)=>v.id!==firstVersions[i]||v.ordinal!==i+1))invalid();
+  const anchor=observations.get(data.anchorObservationId);
+  if(!anchor||anchor.versionId!==data.binding.evidenceVersion)invalid();
+  const anchorAt=Date.parse(anchor.observedAt),expected=new Set<number>();
+  for(let i=1;i<groups.length;i++){
+    const before=groups[i-1],after=groups[i];
+    if(before.at>=anchorAt&&after.at>anchorAt&&before.bodies.size===1&&after.bodies.size===1&&
+      [...before.bodies][0]!==[...after.bodies][0])expected.add(i);
+  }
+  for(const change of data.changes){
+    const from=observations.get(change.fromObservationId),to=observations.get(change.toObservationId);
+    const group=groups.findIndex(item=>item.ids.has(change.toObservationId));
+    if(!from||!to||!expected.has(group)||!groups[group-1]?.ids.has(change.fromObservationId)||
+      from.versionId!==change.from.evidenceVersion||to.versionId!==change.to.evidenceVersion||
+      Date.parse(change.detectedAt)!==Math.max(Date.parse(from.receivedAt),Date.parse(to.receivedAt))||
+      [change.from,change.to].some(q=>q.field!==undefined&&q.field!=='source.body'))invalid();
+    expected.delete(group);
+  }
+  if(expected.size)invalid();
+}
 export function parseResearchTimeline(
   raw: unknown,
   binding: ResearchBinding,
   now = Date.now(),
 ): ResearchTimeline {
-  const result = timelineSchema.safeParse(raw);
+  const result = timelineWireSchema.safeParse(raw);
   if (!result.success || !sameResearchBinding(result.data.binding, binding))
     invalid();
   const data = result.data;
@@ -313,14 +357,15 @@ export function parseResearchTimeline(
       invalid();
     versions.set(v.id, v);
   });
-  if (data.versions.at(-1)?.id !== binding.evidenceVersion) invalid();
+  if(data.schemaVersion===2)validateObservationChanges(data);
+  else if (data.versions.at(-1)?.id !== binding.evidenceVersion) invalid();
   const ids = new Set<string>();
   for (const change of data.changes) {
     if (ids.has(change.id)) invalid();
     ids.add(change.id);
     const before = versions.get(change.from.evidenceVersion),
       after = versions.get(change.to.evidenceVersion);
-    if (!before || !after || before.ordinal >= after.ordinal) invalid();
+    if (!before || !after || (data.schemaVersion===1&&before.ordinal >= after.ordinal)) invalid();
     for (const q of [change.from, change.to])
       if (
         q.sourceUrl !== binding.sourceUrl ||
