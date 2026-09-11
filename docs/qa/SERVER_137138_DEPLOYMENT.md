@@ -54,6 +54,17 @@ Windows全量35失败主要包括：构包临时目录权限/旧expectedCommit�
 
 ## 未完成与下一步
 
+### Mac 更新镜像候选（2026-09-11，未部署）
+
+为交付已审短句 API 修复，CodexiMac 从干净 Gitee `main@32c9c0c8af3cea5148375e9a8dcba3d4cc0fe701` 的 Git 原字节归档构建一次 Linux/amd64 候选；没有重新构建 Windows，也没有操作远端服务器。相对服务器 `6832482`，运行代码差量仅为 `pilot/short_coach_api.py` 的 `model_dump(exclude_unset=True)`，其他镜像输入未变。上方服务器版本仍然有效，不追认候选为已部署。
+
+- 本机镜像：`yike-service-candidate:32c9c0c`；Docker image ID / OCI index digest 为 `sha256:a897e3b28891154bc9d8637025fa0005077b3957f64ac867140844d143dbd1c0`，amd64 manifest 为 `sha256:e53877da3d8f49cc10f91ce6ee9bdca84896f9a0f0b9adf2b313ac74a8377ed9`，config digest 为 `sha256:3d9e052a944be4ff9a217662c22ce4d04c85ada16183cbb37d8e7ec14cc9db51`。这些是本机构建产物标识，尚无目标 registry 可用引用。
+- OCI revision 为上述完整源码 SHA；源码归档 `/tmp/yike-release-32c9c0c.riVbCD/source.tar`，SHA256 `900945d54f3601d4c469072afd8211a215024e083f11a289289cfe4270c52f92`。
+- 已导出约99MiB镜像 `/tmp/yike-release-32c9c0c.riVbCD/yike-service-32c9c0c.tar`，SHA256 `190c8d50fccfb50d5947a4ab511a229511bc9a47250089afc95f5c0569cbdca7`。文件仅在本机临时目录，未上传Gitee或服务器；迁移到另一台机器前须传输并重新核对摘要，不能把本机路径当远端路径。
+- 原 CMD、uid10001、无源码挂载、只读根文件系统、`network=none`、cap-drop ALL、no-new-privileges 下实际启动，重启次数0。容器内HTTP：healthz200；未接数据库的readyz503；未认证会话401；文档404；携带合成token的开发登录入口404。两次初始探测未提供正确的必需token参数，返回422；核对路由后修正探测，未修改产品或重启容器。
+- 镜像内 `short_coach_api.py` SHA256 `24327ebe0d307950148ba9c3b691c405f01e856ec627b4bd496611f473815913` 与固定源码一致，包含修复；`app.model_contract` 从镜像自身加载。镜像内实际调用HTTP body解析器：CoachInput/GenerateInput两种schema均保留省略引用并可二次验证，显式null仍422；首轮探测漏Content-Type被415拒绝，补齐请求头后通过，没有调用模型/数据库。原业务回归复用 `b8c2679` 的限定验收，不重复全量测试。
+- 该验证没有数据库、HTTPS、真实模型、客户端或平台收发，不能替代服务就绪或升级验收。下次有权操作服务器的一方可选择校验后加载此导出镜像，或从固定源码构建；沿原独占registry、预检、数据库与受限启动流程，先验证新版再切换，并保留原健康镜像用于回退。
+
 后续测试共因批次 `8718c0a` 已独立GO：[分组证据](../superpowers/plans/2026-09-11-http-recovery-reconciliation.md#后续旧夹具与接口期待共因)。仅测试依赖/期待修正，不更改本文件历史失败总数或部署SHA；最后本机curl仍无法解析yike.xingheai.net。没有新增服务器部署证据。
 
 2026-09-11 CodexiMac 接续：三项原来原因未明的 HTTP／恢复失败已在 `b8c2679` 定位并完成限定修复与独立 GO，详见[三项接续证据](../superpowers/plans/2026-09-11-http-recovery-reconciliation.md)。其中短句 API 是生产缺陷，另外两项为测试权限/期待漂移。Mac 的 6 项通过不改写上面 Win 原始失败总数；**现有服务器镜像未包含短句 API 修复，须按新 SHA 重构部署**，不是客户端纯变更免构包情形。

@@ -9,9 +9,9 @@ psql "$YIKE_PILOT_ADMIN_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
 
 发布端需要同版本 `deploy/` 文件及 psql；镜像仍仅包含服务运行代码。整体部署优先使用此入口，下文逐版本说明保留溯源。基础画像权限缺失会出现 readyz200 但画像500；本机真实空库、镜像 HTTP 保存/确认与跨租户检查见[空库记录](../docs/qa/EMPTY_DATABASE_DEPLOYMENT_20260911.md)，不等于所有业务或生产已验收。
 
-2026-09-11镜像启动修复：只加入服务端依赖的`app/__init__.py`和`app/model_contract.py`，其余本地采集器继续排除。一次amd64构建和原CMD非root启动通过，healthz200、无数据库时readyz503；[唯一镜像与版本记录](../docs/qa/SERVICE_IMAGE_STARTUP_20260911.md)。当前尚未部署，不将此镜像用于未核对架构/资源的服务器，也不重复构建相同产品字节。
+2026-09-11镜像启动修复：只加入服务端依赖的`app/__init__.py`和`app/model_contract.py`，其余本地采集器继续排除。首次amd64构建和原CMD非root启动见[历史镜像记录](../docs/qa/SERVICE_IMAGE_STARTUP_20260911.md)。当前服务器内网部署为6832482；包含短句修复的32c9c0c候选已在Mac构建并导出，尚未部署。实际版本、候选摘要及HTTPS等未通过项统一见[服务器交付记录](../docs/qa/SERVER_137138_DEPLOYMENT.md)，不重复构建相同产品字节。
 
-四平台接线：在原执行/策略/连接及监控迁移授权基础上，显式设置 `YIKE_PILOT_COLLECTION_MODE=four-platform-foreground-v1` 可开放小红书、抖音、B站、知乎的单次搜索；`four-platform-monitor-v1` 同时开放原policy1监控。旧xhs/three模式不新增知乎权限。客户端与固定源须包含[四平台接线](../docs/superpowers/plans/2026-09-11-four-platform-client.md#实施与验证)及0003补丁，仍要逐账号核验、同设备串行共享预算和确认接管。设置配置不是实际平台成功。2026-09-11用户确认服务未部署，尚无可交付的真实HTTPS服务地址；部署准备、同源码Windows包及真实账号验收继续待完成。
+四平台接线：在原执行/策略/连接及监控迁移授权基础上，显式设置 `YIKE_PILOT_COLLECTION_MODE=four-platform-foreground-v1` 可开放小红书、抖音、B站、知乎的单次搜索；`four-platform-monitor-v1` 同时开放原policy1监控。旧xhs/three模式不新增知乎权限。客户端与固定源须包含[四平台接线](../docs/superpowers/plans/2026-09-11-four-platform-client.md#实施与验证)及0003补丁，仍要逐账号核验、同设备串行共享预算和确认接管。设置配置不是实际平台成功。服务器已有内网服务，但公开HTTPS、同源码Windows包及真实账号验收仍待完成，实际状态以服务器交付记录为准。
 
 结构化跟进（迁移131）：先迁移，再在管理员部署连接中将 `yike.app_role` 设为既有受限应用角色，执行 [结构化授权](grant_structured_followups.sql)，最后启动新runtime。机会列表的有效跟进状态也读取新表，因此不能省略该授权。新表只SELECT/INSERT且FORCE RLS、修订不可改；旧人工表只读保留。回复已读仅意客内记录，不改原平台/设备签名；无定时通知。接口/版本/限定联验见[唯一记录](../docs/superpowers/plans/2026-09-11-structured-followup-service.md#实施与验证)，本说明不是部署执行记录。
 
