@@ -13,14 +13,14 @@ export const researchStartEnvelopeSchema = z.object({
 }).strict();
 
 const count = z.number().int().min(1).max(1_000_000);
-const sha = z.string().regex(/^[a-f0-9]{64}$/);
+const sha = z.string().length(64).regex(/^[a-f0-9]{64}$/);
 /** Non-secret metadata suitable for subsequent receipt recovery, not a START credential. */
 export const researchReservationBindingSchema = z.object({
   quote_id: deviceUuidSchema, strategy_version_id: deviceUuidSchema, profile_version_id: deviceUuidSchema,
   configuration_sha256: sha,
   rule_version: z.string().refine(value => value.length > 0 && Array.from(value).length <= 512 && value === value.trim()
     && !/[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}]/u.test(value)),
-  rule_sha256: sha, estimated_soubei: z.number().int().nonnegative().max(1_000_000), max_soubei: count,
+  rule_sha256: sha, estimated_soubei: count, max_soubei: count,
   limits: z.object({sources: count, minutes: count, modelCalls: count}).strict(),
 }).strict().refine(value => value.estimated_soubei <= value.max_soubei, 'reservation exceeds confirmed limit');
 export type ResearchReservationBinding = z.infer<typeof researchReservationBindingSchema>;

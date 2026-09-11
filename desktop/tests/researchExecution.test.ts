@@ -50,6 +50,7 @@ describe('main-only research START transport', () => {
       {...valid, extra: true}, {...valid, signature: 'A'.repeat(85)},
       {...valid, authorization_token: ''}, {...valid, authorization_token: 'a'.repeat(8193)},
       {...valid, authorization_token: 'secret\n'},
+      {...valid, authorization_token: valid.authorization_token + '\n'},
       {...valid, request: {...valid.request, authorization_token: 'untrusted'}},
       {...valid, request: executionOperationSchema.parse({schema_version: 'execution-runtime-v1',
         request_id: id(1), operation: 'CANCEL', device_id: id(2), credential_version: 1, task_id: id(5)})},
@@ -108,7 +109,8 @@ describe('bound research receipt', () => {
 
   it('rejects invalid values even if the expectation repeats them', () => {
     for (const patch of [{rule_version: '\nsecret'}, {rule_version: 'x'.repeat(513)},
-      {estimated_soubei: 6.5}, {estimated_soubei: 11}, {max_soubei: 0}, {max_soubei: 1000001},
+      {rule_sha256: 'b'.repeat(64) + '\n'},
+      {estimated_soubei: 0}, {estimated_soubei: 6.5}, {estimated_soubei: 11}, {max_soubei: 0}, {max_soubei: 1000001},
       {limits: {sources: 0, minutes: 5, modelCalls: 10}},
       {limits: {sources: 20, minutes: 5, modelCalls: true}},
       {limits: {sources: 20, minutes: 5, modelCalls: 10, extra: 1}}]) {
