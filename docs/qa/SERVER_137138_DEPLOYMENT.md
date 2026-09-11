@@ -1,5 +1,17 @@
 # 101.200.137.138 部署与测试交付
 
+## 临时访问码已部署：fbf9f94（2026-09-11）
+
+当前 customer 与独立 ops 均为 `fbf9f942df0c2be2189a98a930948f9f9b104b1b`。此节取代下文各历史时点的“当前版本”；仅解除短信投递期间的受邀登录代码阻塞，不代表客户已激活或完整产品验收。
+
+- 用户批准显式临时访问码；代码 `159cb48` 经非作者整批 GO，后续 `fbf9f94` 仅登记证据。隔离 PG 新测试 12 passed；桌面定向 164 passed＋类型检查，末次文案后登录 36 passed。旧后端回归仍记录 107 passed / 7 个已知 fixture 权限差异，不称全绿。[实现与边界](../superpowers/plans/2026-09-11-temporary-access-login.md#evidence)。
+- 一次 Linux amd64 构建、一次 Mac arm64 构包。部署镜像不可变引用 `127.0.0.1:18750/yike/server@sha256:9bfcee5099a914e7ad9358fa3d35eaeb0c4e84bc08da7f6a95352c5514eb95ab`，OCI revision 与上述源码一致。
+- 切换前认证加密备份 `backups/yike-before-fbf9f94.dump.enc`＋MAC；受信一次性容器执行含 138 的 37 项迁移及 runtime/ops 最小 grants。未更换密码、PHONE/SMS、模型配置或代理策略。临时码不反推手机号验证，不自动转换既有 trial。
+- 独立部署脚本审查首次发现 ops 停止/创建间的回滚空窗，修复后差量 GO；最终脚本 SHA256 `930a4dc6d06f1fb7b5fdb3e556cb238b870076ad66f5a8272c6aa06ce8d28994`。先 loopback18788 候选，再 customer18787，最后 ops18789；三次 ready 通过，CP-06 配置检查通过。两个正式容器实际 revision 一致、running、重启0。未触发回滚，不能当恢复演练。
+- 公网 HTTPS capabilities 实测 `access_login / sms_login / search_suggestions` 均 available；没有调用发短信、模型或平台执行接口。旧 customer 镜像和旧 ops 停机容器 `yike-ai2026-ops-before-fbf9f94` 保留供回滚，未删除客户数据。
+- 同版 Mac ZIP SHA256 `99b439b9d80f525af40a78408245726023c1aa35661a43e9630a43398b1a6ebb`；实际包以空隔离用户目录启动，固定 HTTPS 已配置、匿名 session401，临时码表单无需手机号/OTP。首次检查脚本误用旧标签而超时，修正选择器后通过，产品字节未变、未重构包。图与脚本保留在 `/tmp/yike-access-release.HLSFSw/`，仅 UI/匿名接通证据。
+- **未验：** 此部署过程没有签发码、客户激活、实际 OS 会话重启恢复或真实平台收发。后续由已授权侧任务经正常 ops 明确签发，不通过 SQL 自动改发；第一次客户登录才开始72小时。用户暂无 Windows 环境，Windows 构包/安装/运行仍未验。完整 Goal 保持 ACTIVE。
+
 ## 模型已部署：b40cc3b（2026-09-11）
 
 当前customer源码冻结 `b40cc3b357b0ac05dc2a0bf2cb946c5d725a0d38`，不是下文历史056e258。ops仍使用056e258镜像及已验的浏览器来源代理热修，未随customer重启。下面历史记录保留各次时点。
