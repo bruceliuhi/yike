@@ -320,8 +320,15 @@ export const service: YikeService = {
     return readSession(r);
   },
   loginToken: async (token) => {
-    const r = await request("session.login", "/session", "POST", { token });
-    return readSession(r);
+    try {
+      const r = await request("session.login", "/session", "POST", { token });
+      return readSession(r);
+    } catch (error) {
+      if (error instanceof ServiceError && error.status === 401)
+        throw new ServiceError(error.code,
+          "访问凭证无效或已过期，请核对或向服务方获取新的短期凭证。", error.status);
+      throw error;
+    }
   },
   logout: async () => {
     await request("session.logout", "/session", "DELETE");

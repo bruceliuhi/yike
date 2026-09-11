@@ -13,6 +13,18 @@ function bridge(data: unknown) {
 }
 
 describe('phone login fixed transport', () => {
+  it('explains rejected access credentials without changing ordinary session errors', async () => {
+    host.yikeDesktop = {requestApi: vi.fn().mockResolvedValue({ok: false, status: 401, error: 'authentication_required'})} as unknown as YikeDesktopApi;
+    await expect(service.loginToken('invalid-uat-credential')).rejects.toMatchObject({
+      code: 'authentication_required', status: 401,
+      message: '访问凭证无效或已过期，请核对或向服务方获取新的短期凭证。',
+    });
+    await expect(service.session()).rejects.toThrow('请先登录，再访问客户工作空间。');
+  });
+  it('does not describe network failures as invalid credentials', async () => {
+    host.yikeDesktop = {requestApi: vi.fn().mockResolvedValue({ok: false, status: 0, error: 'SERVICE_UNAVAILABLE'})} as unknown as YikeDesktopApi;
+    await expect(service.loginToken('invalid-uat-credential')).rejects.toThrow('客户服务暂时不可用，请稍后重试。');
+  });
   it('shows an actionable phone-proof error on the login page', async () => {
     host.yikeDesktop = {requestApi: vi.fn().mockResolvedValue({ok: false, status: 401, error: 'phone_auth_failed'})} as unknown as YikeDesktopApi;
     await expect(service.login('19900000001', '123456')).rejects.toThrow('验证码无效或已过期，请重新核对或获取验证码。');
