@@ -1,6 +1,6 @@
 # 桌面构建与验收
 
-此目录交付 Electron 客户端和固定业务 API 桥接。它不包含采集 sidecar、平台连接器或消息发送服务；短信登录已有客户端/服务契约，真实供应商接通状态仍以身份交接为准。`getRuntimeStatus()` 仍返回 `LOCAL_SERVICE_UNAVAILABLE`，不能用打包成功证明这些业务已接通。UI 和服务端实际范围见 [R4 验收](../../docs/qa/ui-r4/README.md)及实施任务书，R3 保留历史。
+当前交付 Electron 客户端、固定业务 API 桥接与Windows便携平台运行时接线。正式Windows包必须携带与源码SHA绑定的portable payload；Mac包不含该执行器。旧 `getRuntimeStatus()` 的兼容返回不能代表新原生运行时状态，以实际bootstrap、平台连接和任务API为准；构包成功仍不证明采集或发送成功。当前固定构包/实机流程以[Windows候选交接](../../docs/handoffs/WIN_V02_CURRENT_CANDIDATE.md)为准；真实短信供应商投递和平台验收分别记录，不能以配置完成替代。
 
 ## 构建前提
 
