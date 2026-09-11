@@ -2,6 +2,18 @@
 from copy import deepcopy
 
 
+def bounded_generation_options(*, base_url: str, model: str) -> dict:
+    """Measured policy for Yike's short, one-shot structured tasks only.
+
+    Do not apply this to an Agent/research conversation or untested providers.
+    Exact model pin prevents silently changing future model behavior.
+    """
+    if (base_url.rstrip('/') == 'https://ark.cn-beijing.volces.com/api/v3'
+            and model == 'doubao-seed-2-1-turbo-260628'):
+        return {'thinking': {'type': 'disabled'}}
+    return {}
+
+
 def provider_json_schema(schema: dict, *, base_url: str) -> dict:
     """Adapt only the verified Ark endpoint, never mutate the original schema.
 

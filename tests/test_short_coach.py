@@ -67,6 +67,9 @@ def test_suggestion_uses_utf16_offsets_and_rejects_two_questions_or_fake_quote()
         build_suggestion(raw, {"content": "您好，请问预算范围？", "question": "请问预算范围？", "quote": "不存在"})
     with pytest.raises(ValueError):
         build_suggestion(raw, {"content": "您好？预算范围", "question": "预算范围", "quote": "预算可聊"})
+    # Recorded integration failure: valid JSON alone must not count as usable.
+    with pytest.raises(ValueError):
+        build_suggestion(raw, {"content": "想了解预算范围。", "question": "想了解预算范围？", "quote": "预算可聊"})
 
 
 def test_source_observation_compares_at_client_millisecond_precision():

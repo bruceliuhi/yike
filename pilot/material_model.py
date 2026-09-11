@@ -21,6 +21,7 @@ import httpx
 from app.model_contract import strict_json_object
 from pilot.candidate_assessment_model import OpenAICompatibleCandidateAssessmentModel
 from pilot.material_contract import validate_extraction
+from pilot.provider_schema import bounded_generation_options
 
 
 _LIMIT = 64 * 1024
@@ -113,6 +114,7 @@ class MaterialExtractionModel:
                     'POST', self.config.base_url.rstrip('/') + '/chat/completions',
                     headers={'Authorization': f'Bearer {self.config.api_key}'},
                     json={'model': self.config.model, 'max_tokens': 2048,
+                          **bounded_generation_options(base_url=self.config.base_url, model=self.config.model),
                           'response_format': {'type': 'json_object'}, 'messages': [
                               {'role': 'system', 'content': _PROMPT},
                               {'role': 'user', 'content': json.dumps({'text': text}, ensure_ascii=False)}]},

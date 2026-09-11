@@ -16,7 +16,7 @@ from typing import Annotated, ClassVar, Literal, Protocol, Self
 from urllib.parse import urlsplit
 
 import httpx
-from pilot.provider_schema import provider_json_schema
+from pilot.provider_schema import provider_json_schema, bounded_generation_options
 from pydantic import (BaseModel, ConfigDict, Field, ValidationError, field_validator,
                       model_serializer, model_validator)
 
@@ -342,6 +342,7 @@ class OpenAICompatibleSearchSuggestionModel:
         _validate_description(description)
         request_body = {
             "model": self.model,
+            **bounded_generation_options(base_url=self.base_url, model=self.model),
             "max_tokens": 2048,
             "messages": [
                 {"role": "system", "content": _SYSTEM_PROMPT},

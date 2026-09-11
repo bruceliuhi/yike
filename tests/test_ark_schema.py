@@ -117,3 +117,45 @@ def test_real_adapters_send_compatible_schema_and_keep_strict_local_limits(kind,
         assert len(calls) == 1
     finally:
         if kind == 'suggestion': client.close()
+
+
+@pytest.mark.parametrize('kind', ['assessment', 'suggestion', 'material', 'coach'])
+@pytest.mark.parametrize('endpoint,model_id,expected', [
+    (ARK, 'doubao-seed-2-1-turbo-260628', {'type': 'disabled'}),
+    (ARK, 'unselected-model', None),
+    ('https://model.example/v1', 'doubao-seed-2-1-turbo-260628', None),
+])
+def test_selected_ark_model_uses_bounded_nonthinking_requests(kind, endpoint, model_id, expected):
+    from pilot.material_model import MaterialExtractionModel
+    from pilot.short_coach_model import ShortCoachModel
+    from test_material_model import TEXT, RESULT
+
+    payload = (assessment() if kind == 'assessment' else adapter_content() if kind == 'suggestion'
+               else RESULT if kind == 'material' else
+               {'content': '请问预算？', 'question': '请问预算？', 'quote': '预算'})
+    calls = []
+    def handle(request):
+        calls.append(json.loads(request.content))
+        return httpx.Response(200, json=envelope(payload))
+
+    if kind == 'suggestion':
+        with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+            result, _ = OpenAICompatibleSearchSuggestionModel(base_url=endpoint,
+                api_key='synthetic', model=model_id, http_client=client).generate(description=SD)
+            assert result.model_dump() == payload
+    else:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+        config = OpenAICompatibleCandidateAssessmentModel(base_url=endpoint,
+            api_key='synthetic', model=model_id, http_client=client if kind == 'assessment' else None)
+        if kind == 'assessment':
+            result, _ = config.assess(description=AD, content=CONTENT)
+            assert result.model_dump() == payload
+        elif kind == 'material':
+            assert MaterialExtractionModel(config, http_client=client).extract(TEXT) == payload
+        else:
+            assert ShortCoachModel(config, http_client=client).generate(sourceText='需要预算',
+                content='', channel='comment', purpose='requirement') == payload
+    assert len(calls) == 1
+    assert calls[0].get('thinking') == expected
+    assert calls[0]['max_tokens'] == {'assessment': 4096, 'suggestion': 2048,
+                                    'material': 2048, 'coach': 512}[kind]

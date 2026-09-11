@@ -33,7 +33,7 @@ from urllib.parse import urlsplit
 import httpx
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
 from pilot.research_strategy_contract import IndustryTaskStrategy
-from pilot.provider_schema import provider_json_schema
+from pilot.provider_schema import provider_json_schema, bounded_generation_options
 
 
 _ERRORS = {
@@ -440,7 +440,8 @@ production shortcut: that in-process path cannot interrupt native OS DNS.
         user = {"description": description, "content": content}
         if industry_strategy is not None:
             user["industry_strategy"] = industry_strategy
-        body = {"model": self.model, "max_tokens": 4096, "messages": [
+        body = {"model": self.model, "max_tokens": 4096,
+            **bounded_generation_options(base_url=self.base_url, model=self.model), "messages": [
             {"role": "system", "content": self._system_prompt},
             {"role": "user", "content": json.dumps(user, ensure_ascii=False)},
         ], "response_format": {"type": "json_schema", "json_schema": {
