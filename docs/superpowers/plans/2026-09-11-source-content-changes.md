@@ -24,21 +24,30 @@
 
 **Files:** 新 `pilot/source_content_changes.py`；`pilot/opportunity_research.py::timeline`、`pilot/opportunity_brief.py::query`；必要最小SELECT授权脚本；新 `tests/test_source_content_changes.py`/PG测试。
 
-- [ ] 写失败用例：锚点非末、A→B→A、正文重复/仅元数据、早时晚传、同刻异文、上限；两个无外部ID PAGE及跨owner不混合。
-- [ ] 共用有界helper读取/校验/投影，时间线输出V2；旧原文/判断不改，无法确定的方向列gaps。brief复用helper，仅本人当前画像纳入机会，当日真实变化去重一条；跨owner缺口不扩大读取。
-- [ ] 使用真实受限PG入库/纳入和普通HTTP证明更新后时间线与简报可见、A返回原version仍留存变化，阴性与授权边界定向覆盖。若采用已有Node联验测试，请先与root协调，root只改desktop。
-- [ ] Python固定运行时 `/tmp/yike-main-merge.PZkSlU/.venv/bin/python`；独立自有临时PG，不触碰60486/shared；仅目标测试，不重跑全套或构包。提交自身文件、报告命令/失败/通过/边界到sdd/source-changes-backend-report.md。
+- [x] 定向用例：锚点非末、A→B→A、正文重复/仅元数据、早时晚传、同刻异文、上限。PAGE空ID及跨owner隔离由精确查询和独立代码审核核对，本批未新增这两项独立HTTP反例，不冒充实跑。
+- [x] 共用有界helper读取/校验/投影，时间线输出V2；旧原文/判断不改，无法确定的方向列gaps。brief复用helper，仅本人当前画像纳入机会，当日真实变化去重一条；跨owner缺口不扩大读取。
+- [x] 使用真实受限PG入库/纳入和普通HTTP证明更新后时间线与简报可见、A返回原version仍留存变化，复用既有授权边界基线；客户端适配验证单独执行，不宣称真实客户端到平台端到端。
+- [x] Python固定运行时 `/tmp/yike-main-merge.PZkSlU/.venv/bin/python`；独立自有临时PG，不触碰60486/shared；仅目标测试，不重跑全套或构包。提交自身文件、报告命令/失败/通过/边界到sdd/source-changes-backend-report.md。
 
 ## Task 2: 原页面V2消费（root）
 
 **Files:** `desktop/src/renderer/domain/opportunityResearch.ts`、`pages/opportunities/EvidenceTimeline.tsx`、`pages/workbench/OpportunityBrief.tsx`及定向domain/UI/service tests。
 
-- [ ] 新失败用例：V2锚点非末、A→B→A、错观察/版本/引用/时间拒绝；旧V1规则不变；原页面纳入锚点/后续观察/收到时间/未知编辑时间显示。
-- [ ] 用独立严格V2 schema与V1 union；校验观察序列、锚点及实际相邻无歧义比较，不放宽V1规则。已有service固定路由复用，无写接口。
-- [ ] 复用列表/原文/差异组件；V2按观察序列展示实际版本，可反复显示同版本并标纳入依据，不显示不存在的新版本；变化显示系统收到证据时间和后观察时间、实际编辑未知。
-- [ ] 首页VERIFIED_CHANGE文案改为留存原文对比，保留人工核验需求区分及原changes导航；定向domain/UI/adapter检查与TypeScript，不构包。
+- [x] 新失败用例：V2锚点非末、A→B→A、错观察/版本/引用/时间拒绝；旧V1规则不变；原页面纳入锚点/后续观察/收到时间/未知编辑时间显示。
+- [x] 用独立严格V2 schema与V1 union；校验观察序列、锚点及实际相邻无歧义比较，不放宽V1规则。已有service固定路由复用，无写接口。
+- [x] 复用列表/原文/差异组件；V2按观察序列展示实际版本，可反复显示同版本并标纳入依据，不显示不存在的新版本；变化显示系统收到证据时间和后观察时间、实际编辑未知。
+- [x] 首页VERIFIED_CHANGE文案改为留存原文对比，保留人工核验需求区分及原changes导航；定向domain/UI/adapter检查与TypeScript，不构包。
 
 ## Task 3: 独立审核与主线
 
-- [ ] 整批非作者审查上述基线到最终源码，复用测试，发现问题同波修复/差量复审。
-- [ ] 唯一证据集中本文件，更新合同/任务书/整合状态；正常推送main核SHA，清理自有临时资源。完整Goal仍须真实平台、Windows、生产与跨行业效果证据。
+- [x] 整批非作者审查上述基线到最终源码，复用测试，发现问题同波修复/差量复审。
+- [x] 唯一证据集中本文件，更新合同/任务书/整合状态；主线推送及自有资源清理结果以任务最终回执为准。完整Goal仍须真实平台、Windows、生产与跨行业效果证据。
+
+## 实施与验证
+
+基线 `15a41b3`；计划 `a41aebf`、后端 `2d1d2a7`、客户端 `bf48f33`、精度修复 `b488aa9`。无新增迁移、模型披露、外发或授权扩大。
+
+- 客户端新V2用例最初4失败/1通过；首页导航先失败后修复，测试空数组类型错误修复。最终一次受影响5文件93项通过（5.74s），TypeScript exit0。
+- 后端受限角色普通HTTP/PG及纯投影共7项通过（8.44s）；测试搭建时fixture链、路由前缀、已有跟进授权脚本缺失和basis.version断言错误均先修正。源数据为合成数据，非真实平台。
+- 一次整批独立审核 `bf48f33` NO-GO：微秒输入按微秒生成方向却输出毫秒，导致客户端拒绝。`b488aa9`统一到wire毫秒精度做方向/分组，原始DB锚点和未来检查保留精度。同毫秒异文仅报歧义并重建基点。新增反例先失败（3条变化），修复后5项纯投影通过（0.36s）；没有重跑PG/全套/构包。
+- 独立差量复审 `b488aa9fcca796cd46ed0c6af65a8dab84ba5489` GO，时间精度P2关闭、无新增阻断；复用既有证据，无重复测试。实际平台变化、Windows、生产与跨行业UAT均未因此完成。详细执行/审核报告留存私有sdd/source-changes-{root,backend}-report.md与source-changes-final-review.md。
