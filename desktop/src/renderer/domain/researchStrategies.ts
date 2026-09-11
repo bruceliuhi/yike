@@ -45,6 +45,9 @@ export function strategyPrepareRequest(
 ): PrepareStrategyRequest {
   try {
     if (industryStrategyError(draft)) throw new Error(INVALID_DRAFT);
+    const publicSource = draft.platforms.includes('web');
+    if (publicSource && (draft.mode !== 'once' || draft.source !== 'search' || draft.links.trim() || draft.research))
+      throw new Error(INVALID_DRAFT);
     if (
       draft.research !== undefined &&
         (owns(draft.research, "provenance") ||
@@ -82,7 +85,8 @@ export function strategyPrepareRequest(
           .map((link) => link.trim())
           .filter((link) => link.length > 0),
         mode: draft.mode,
-        schedule: {
+        ...(publicSource ? {publicSource:'v2ex-latest-v1' as const} : {}),
+        schedule: draft.mode === 'once' ? null : {
           kind: draft.schedule.kind,
           times: [...draft.schedule.times],
           interval: draft.schedule.interval,

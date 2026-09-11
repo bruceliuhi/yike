@@ -47,9 +47,9 @@ function draft(): TaskDraft {
     source: "links",
     links:
       "  https://example.com/公开需求?a=1,2;3  \r\n\rhttps://example.org/path  \n  ",
-    platforms: ["xhs", "douyin", "bilibili", "zhihu", "web"],
+    platforms: ["xhs", "douyin", "bilibili", "zhihu"],
     accounts: { xhs: "account-xhs", douyin: "account-douyin" },
-    mode: "once",
+    mode: "monitor",
     schedule: {
       kind: "interval",
       times: ["08:00", "19:30"],
@@ -202,11 +202,11 @@ describe("research strategy shared contract", () => {
           "https://example.com/公开需求?a=1,2;3",
           "https://example.org/path",
         ],
-        mode: "once",
+        mode: "monitor",
         schedule: before.schedule,
         research: before.research,
       },
-      platforms: ["XIAOHONGSHU", "DOUYIN", "BILIBILI", "ZHIHU", "PUBLIC_WEB"],
+      platforms: ["XIAOHONGSHU", "DOUYIN", "BILIBILI", "ZHIHU"],
       max_records: 250,
       max_runtime_seconds: 900,
     });
@@ -289,7 +289,7 @@ describe("research strategy shared contract", () => {
   it("enforces exact required nullable fields and rejects extras without echoing them", () => {
     const request = prepareRequest();
     expect(strategyConfigurationSchema.safeParse(request.configuration).success).toBe(true);
-    expect(strategyConfigurationSchema.safeParse({ ...request.configuration, schedule: null }).success).toBe(true);
+    expect(strategyConfigurationSchema.safeParse({ ...request.configuration, mode:'once', schedule: null }).success).toBe(true);
     const { schedule: _schedule, ...missingSchedule } = request.configuration;
     expect(strategyConfigurationSchema.safeParse(missingSchedule).success).toBe(false);
     const extra = strategyConfigurationSchema.safeParse({

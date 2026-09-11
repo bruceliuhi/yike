@@ -4,7 +4,7 @@ const module = await import('../src/main/publicCommunityDriver').catch(() => nul
 const now = Date.parse('2026-09-11T10:00:00Z');
 const id = (n:number) => `00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 function input() {return {snapshot:{profile_version_id:id(1),strategy_version_id:id(2),platforms:['PUBLIC_WEB'],max_records:5,max_runtime_seconds:60,
-  configuration:{schema_version:'research-strategy-v1',name:'社区',source:'search',keywords:['AI'],exclusions:['招聘'],links:[],mode:'once',schedule:null,research:null}},
+  configuration:{schema_version:'research-strategy-v1',name:'社区',source:'search',keywords:['AI'],exclusions:['招聘'],links:[],mode:'once',schedule:null,research:null,publicSource:'v2ex-latest-v1'}},
   target:{platform:'PUBLIC_WEB',access_mode:'PUBLIC_ANONYMOUS',connection_id:null,connection_version:null},
   lease:{schema_version:'execution-runtime-v1',operation:'CLAIM',request_id:id(3),task_id:id(4),run_id:id(5),platform_run_id:id(6),status:'RUNNING',stop_confirmed:false,
     lease_id:id(7),execution_generation:1,lease_expires_at:new Date(now+120000).toISOString(),deadline_at:new Date(now+60000).toISOString()},
@@ -30,14 +30,23 @@ it('bounded sampling consumes excluded topics without extending the source budge
   const run=driver(fetcher).start({...input(),maxRecords:2});
   expect(await run.completed).toMatchObject([{external_source_id:'2'}]);await run.stop();
 });
-it.each(['account','monitor','links','budget'])('rejects unsupported %s before networking',async kind=>{
+it.each(['account','monitor','links','budget','source','missing_source'])('rejects unsupported %s before networking',async kind=>{
   const fetcher=vi.fn();const value=input();
   if(kind==='account')value.target.connection_id=id(99);
   if(kind==='monitor')value.snapshot.configuration.mode='monitor';
   if(kind==='links')value.snapshot.configuration.links=['https://example.org'];
   if(kind==='budget')value.maxRecords=6;
+  if(kind==='source')value.snapshot.configuration.publicSource='other';
+  if(kind==='missing_source')delete value.snapshot.configuration.publicSource;
   const run=driver(fetcher).start(value);
   await expect(run.completed).rejects.toThrow('PUBLIC_SOURCE_INVALID_INPUT');await run.stop();expect(fetcher).not.toHaveBeenCalled();
+});
+it('spaces requests to the same public source even after failed fetch, without retry',async()=>{
+  const fetcher=vi.fn(async()=>new Response('{}',{status:429,headers:{'content-type':'application/json'}}));
+  const reader=driver(fetcher);
+  const first=reader.start(input());await expect(first.completed).rejects.toThrow('PUBLIC_SOURCE_FAILED');await first.stop();
+  const second=reader.start(input());await expect(second.completed).rejects.toThrow('PUBLIC_SOURCE_RATE_LIMITED');await second.stop();
+  expect(fetcher).toHaveBeenCalledTimes(1);
 });
 it.each([429,302])('HTTP %s never becomes an empty successful result or retries',async status=>{
   const fetcher=vi.fn(async()=>new Response('{}',{status,headers:{'content-type':'application/json'}}));

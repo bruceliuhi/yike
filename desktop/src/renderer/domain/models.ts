@@ -70,6 +70,7 @@ export interface PlatformConnection {
   reason?: string;
   /** Current main-process capability bound to this exact server registration. */
   foregroundBinding?: import('../../shared/foregroundCollection').ForegroundBinding;
+  publicBinding?: import('../../shared/foregroundCollection').PublicSourceBinding;
   /** Server registration identity. It is not an execution capability or a session credential. */
   registration?: {
     connectionId: string;

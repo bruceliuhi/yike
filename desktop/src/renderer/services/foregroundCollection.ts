@@ -2,7 +2,7 @@ import type {YikeDesktopApi} from '../../shared/contracts';
 import {foregroundCollectionCommandSchema, foregroundCollectionResultSchema,
   type ForegroundCollectionCommand, type ForegroundCollectionResult} from '../../shared/foregroundCollection';
 import type {PlatformConnection} from '../domain/models';
-import {hasForegroundBinding} from '../domain/task';
+import {hasForegroundBinding,PUBLIC_SOURCE_SCOPE} from '../domain/task';
 import {ServiceError} from './contracts';
 
 export interface ForegroundCollectionService {
@@ -32,6 +32,10 @@ export function attachForegroundBinding(rows: PlatformConnection[], result: Fore
   const matched=new Map<PlatformConnection,typeof result.bindings[number]>();
   for(const binding of result.bindings){const matching=rows.filter(row=>hasForegroundBinding({...row,foregroundBinding:binding}));
     if(matching.length!==1)return rows;matched.set(matching[0],binding);}
-  return rows.map(row=>{const binding=matched.get(row);return binding?{...row,foregroundBinding:binding,capabilities:['search'],
+  const attached=rows.map(row=>{const binding=matched.get(row);return binding?{...row,foregroundBinding:binding,capabilities:['search'],
     reason:'本机受控采集支持已核对，仅限当前账号的单次搜索；不代表采集成功。'}:row;});
+  if(!result.publicBinding)return attached;
+  if(!foregroundCollectionResultSchema.safeParse(result).success)return rows;
+  return [...attached.filter(row=>row.platform!=='web'),{platform:'web',status:'CONNECTED',capabilities:['search'],
+    publicBinding:result.publicBinding,reason:PUBLIC_SOURCE_SCOPE}];
 }

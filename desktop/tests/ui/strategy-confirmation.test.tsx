@@ -171,7 +171,7 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
     expect(request).toMatchObject({ draft_id: draft.id, draft_revision: draft.revision,
       profile_version_id: draft.profileId, ...draft.executionLimits,
       configuration: { name: draft.name, source: draft.source, links: [draft.links], keywords: ["设备采购"],
-        exclusions: ["招聘"], mode: "once", schedule: draft.schedule, research: null }, platforms: ["XIAOHONGSHU"] });
+        exclusions: ["招聘"], mode: "once", schedule: null, research: null }, platforms: ["XIAOHONGSHU"] });
     expect(fake.api.confirm.mock.calls[0][0]).toMatchObject({ human_confirmed: true,
       strategy_version_id: receipt.strategy_version_id, configuration_sha256: receipt.configuration_sha256 });
     expect(context.service.startTask).not.toHaveBeenCalled();
@@ -179,7 +179,7 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
   });
 
   it.each(["search", "links"] as const)("shows all bound fields read-only, including inactive inputs for %s", async source => {
-    draft = { ...draft, source, research: { version: 1, demandTypes: ["INQUIRY", "COMPARISON", "REPLACEMENT", "CHANGE"],
+    draft = { ...draft, source, mode:'monitor', research: { version: 1, demandTypes: ["INQUIRY", "COMPARISON", "REPLACEMENT", "CHANGE"],
       maxSoubei: 211, limits: { sources: 43, minutes: 17, modelCalls: 29 }, stopAtAnyLimit: true, evidenceOrder: "SOURCE_MATCH_CONTEXT" },
       schedule: { kind: "interval", times: ["08:13", "19:27"], interval: 2.5,
         start: "07:21", end: "22:49", timezone: "Asia/Shanghai", policyVersion: 1 } };
@@ -202,7 +202,7 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
       expect(text).toMatch(demand);
     expect(text).toMatch(/stopAtAnyLimit|任一.*上限|任一.*停止/);
     expect(document.body.textContent).toContain("保留但本次不执行");
-    expect(document.body.textContent).toContain("本次不调度");
+    expect(text).toContain("持续监控");
     expect(context.service.startTask).not.toHaveBeenCalled();
   });
 

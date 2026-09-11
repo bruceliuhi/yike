@@ -237,6 +237,7 @@ export const strategyConfigurationSchema = exactObject({
   schedule: scheduleSchema.nullable(),
   research: researchSchema.nullable(),
   industryStrategy: industryTaskStrategySchema.optional(),
+  publicSource: z.literal('v2ex-latest-v1').optional(),
 })
   .superRefine((configuration, context) => {
     if (

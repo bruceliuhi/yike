@@ -32,6 +32,9 @@ import {
   removeTerm,
   startBlockers,
   hasForegroundBinding,
+  hasPublicSourceBinding,
+  publicTaskScope,
+  PUBLIC_SOURCE_SCOPE,
   taskErrors,
   taskFingerprint,
 } from "../domain/task";
@@ -151,9 +154,10 @@ export function TaskWizardPage() {
       }」，你的修改已保留。请按新画像复核，或重新生成后选择应用方式。`
     : "";
   const fingerprint = taskFingerprint(draft);
-  const startScope = useTaskScope(JSON.stringify([fingerprint, draft.executionLimits]));
+  const publicScope = publicTaskScope(draft,connections.data || []);
+  const startScope = useTaskScope(JSON.stringify([fingerprint, draft.executionLimits,publicScope]));
   const reviewKey = strategy.available
-    ? strategy.prepared ? JSON.stringify([fingerprint, draft.executionLimits, strategy.prepared.request_id,
+    ? strategy.prepared ? JSON.stringify([fingerprint, draft.executionLimits,publicScope, strategy.prepared.request_id,
       strategy.prepared.strategy_version_id, strategy.prepared.configuration_sha256, strategy.prepared.profile_sha256]) : null
     : fingerprint;
   const reviewed = reviewKey !== null && verified === reviewKey;
@@ -411,6 +415,8 @@ export function TaskWizardPage() {
       service.profiles(), service.connections(), service.info(),
     ]), {timeoutMessage: "启动条件检查超时，尚未创建任务，请重新检查。"});
     if (!startScope.current()) throw new RequestCancelled();
+    if(publicTaskScope(snapshot,freshConnections)!==publicScope)
+      throw new Error('公开读取范围或执行设备已变化，请重新载入并核对，尚未启动。');
     // A selected web account must also have its own checked runtime capability.
     const capabilityConnections = snapshot.accounts.web ? freshConnections.filter(row =>
       row.platform !== "web" || row.accountId === snapshot.accounts.web) : freshConnections;
@@ -1098,7 +1104,7 @@ export function TaskWizardPage() {
                       }
                     >
                       {connection?.status === "CONNECTED"
-                        ? "已连接"
+                        ? (hasPublicSourceBinding(connection) ? '匿名范围已就绪' : '已连接')
                         : connection?.status === "EXPIRED"
                           ? "登录已失效"
                           : connection?.status === "UNVERIFIED"
@@ -1154,7 +1160,7 @@ export function TaskWizardPage() {
                     </td>
                     <td>
                       {id === "web" ? (
-                        <span>公开页面读取范围需由执行服务确认</span>
+                        <span>{connections.data?.some(hasPublicSourceBinding) ? PUBLIC_SOURCE_SCOPE : '公开页面读取范围需由执行服务确认'}</span>
                       ) : (
                         <select
                           aria-label={`${platformLabel(id)}执行账号`}

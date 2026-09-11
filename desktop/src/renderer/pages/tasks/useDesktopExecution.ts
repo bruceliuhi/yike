@@ -11,7 +11,7 @@ import {useEffect, useRef, useState} from 'react';
 import {useApp} from '../../app/context';
 import {boundedRequest} from '../../app/boundedRequest';
 import {useTaskScope} from './useTaskScope';
-import {hasForegroundBinding} from '../../domain/task';
+import {hasForegroundBinding,hasPublicSourceBinding} from '../../domain/task';
 import {foregroundCollectionCommandSchema, foregroundCollectionResultSchema,
   type ForegroundCollectionResult} from '../../../shared/foregroundCollection';
 
@@ -173,12 +173,17 @@ export function desktopStartCommand(draft: TaskDraft, prepared: StrategyReceipt,
     const devices = new Set<string>();
     const targets = draft.platforms.map(platform => {
       const accountId = draft.accounts[platform];
-      if (platform === 'web' && !accountId) return {platform: 'PUBLIC_WEB' as const, access_mode: 'PUBLIC_ANONYMOUS' as const,
-        connection_id: null, connection_version: null};
+      if (platform === 'web') {
+        const matches=connections.filter(hasPublicSourceBinding);
+        if(accountId || matches.length!==1 || draft.source!=='search' || draft.links.trim() ||
+          limits.max_records>100 || limits.max_records<draft.platforms.length || limits.max_runtime_seconds>900)throw new Error();
+        devices.add(matches[0].publicBinding!.deviceId);
+        return {platform:'PUBLIC_WEB' as const,access_mode:'PUBLIC_ANONYMOUS' as const,connection_id:null,connection_version:null};
+      }
       const foreground = connections.some(row => row.platform === platform && hasForegroundBinding(row));
       const matches = connections.filter(row => row.platform === platform && row.accountId === accountId &&
         row.status === 'CONNECTED' && row.registration && row.registration.disconnectedAt === null &&
-        (!foreground || hasForegroundBinding(row)));
+        (!(foreground || draft.platforms.includes('web')) || hasForegroundBinding(row)));
       if (!accountId || matches.length !== 1) throw new Error();
       const registration = matches[0].registration!;
       devices.add(deviceUuidSchema.parse(registration.deviceId));

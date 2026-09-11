@@ -23,12 +23,18 @@ export const foregroundBindingSchema=z.object({mode:foregroundModeSchema,platfor
  connectionId:uuid,connectionVersion:z.number().int().min(1).max(2147483647),deviceId:uuid,accountPublicId:z.string().min(1).max(64)}).strict()
  .superRefine((value,ctx)=>{if(!supportsForegroundPlatform(value.mode,value.platform) || !validNativeAccount(value.platform,value.accountPublicId))
   ctx.addIssue({code:'custom',message:'invalid foreground account binding'});});
-const foregroundBindingsSchema=z.array(foregroundBindingSchema).min(1).max(4).superRefine((values,ctx)=>{
+export const publicSourceBindingSchema=z.object({sourceId:z.literal('v2ex-latest-v1'),deviceId:uuid}).strict();
+export type PublicSourceBinding=z.infer<typeof publicSourceBindingSchema>;
+const foregroundBindingsSchema=z.array(foregroundBindingSchema).max(4).superRefine((values,ctx)=>{
  if(new Set(values.map(value=>value.platform)).size!==values.length)ctx.addIssue({code:'custom',message:'duplicate foreground platform'});
- if(new Set(values.map(value=>value.mode)).size!==1)ctx.addIssue({code:'custom',message:'mixed foreground mode'});
+ if(values.length && new Set(values.map(value=>value.mode)).size!==1)ctx.addIssue({code:'custom',message:'mixed foreground mode'});
 });
 export const foregroundCollectionResultSchema=z.discriminatedUnion('state',[
- z.object({state:z.literal('AVAILABLE'),bindings:foregroundBindingsSchema}).strict(),
+ z.object({state:z.literal('AVAILABLE'),bindings:foregroundBindingsSchema,publicBinding:publicSourceBindingSchema.optional()}).strict().superRefine((value,ctx)=>{
+  if(!value.bindings.length&&!value.publicBinding)ctx.addIssue({code:'custom',message:'missing collection binding'});
+  if(value.publicBinding&&value.bindings.some(binding=>binding.deviceId!==value.publicBinding!.deviceId))
+   ctx.addIssue({code:'custom',message:'mixed collection devices'});
+ }),
  z.object({state:z.enum(['UNAVAILABLE','BUSY','SESSION_CHANGED','INVALID_REQUEST','NOT_FOUND'])}).strict(),
  z.object({state:z.literal('STATUS'),taskId:uuid,localState:z.enum(['COLLECTING','INTERRUPTED','UPLOAD_UNKNOWN','FINISH_UNKNOWN','COMPLETED','STOPPED','FAILED']),
   serverStatus:z.enum(['PENDING','RUNNING','CANCELLING','CANCELED','SUCCEEDED']),stopConfirmed:z.boolean(),recordsUsed:z.number().int().min(0),recoverable:z.boolean()}).strict(),

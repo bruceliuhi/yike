@@ -200,6 +200,15 @@ async function startApplication(): Promise<void> {
   const execution = baseUrl === null ? null : createExecutionController({identity,
     execution: createExecutionSession({serviceOrigin: baseUrl, transport: identity, vault,
       journal: executionJournal})});
+  if(baseUrl!==null){
+    // Anonymous sources need the service/device identity, not a Python browser
+    // runtime. Keep this instance across late native bootstrap completion.
+    foregroundCollection=createForegroundCollectionController({serviceOrigin:baseUrl,identity,store:profileStore,
+      configuration:null,executionJournal,candidateJournal,
+      sessions:scope=>({execution:createExecutionSession({serviceOrigin:baseUrl,transport:scope.transport,vault,journal:executionJournal}),
+        candidates:createCandidateSession({serviceOrigin:baseUrl,transport:scope.transport,vault,journal:candidateJournal})})});
+    monitorCollection=createMonitorCollectionController({identity,foreground:foregroundCollection});
+  }
   const loginConfiguration=platformLoginConfiguration({env:process.env,packaged:app.isPackaged,platform:process.platform,userData:app.getPath('userData')});
   async function attachPlatformRuntime(loginConfiguration:PlatformLoginDriverOptions) {
     if(baseUrl===null||quitting)return;
@@ -211,11 +220,7 @@ async function startApplication(): Promise<void> {
     platformConnection=createPlatformConnectionController({serviceOrigin:baseUrl,identity,
       store:profileStore,
       login:createPlatformLoginDriver(loginConfiguration)});
-    foregroundCollection=createForegroundCollectionController({serviceOrigin:baseUrl,identity,store:profileStore,
-      configuration:{...loginConfiguration,outputRoot},executionJournal,candidateJournal,
-      sessions:scope=>({execution:createExecutionSession({serviceOrigin:baseUrl,transport:scope.transport,vault,journal:executionJournal}),
-        candidates:createCandidateSession({serviceOrigin:baseUrl,transport:scope.transport,vault,journal:candidateJournal})})});
-    monitorCollection=createMonitorCollectionController({identity,foreground:foregroundCollection});
+    foregroundCollection?.configureNativeRuntime({...loginConfiguration,outputRoot});
     nativeOutreach=createNativeOutreachController({serviceOrigin:baseUrl,identity,store:profileStore,vault,
       journal:createOutreachConsumptionJournal({directory:path.join(app.getPath('userData'),'outreach-consumption'),protection}),
       outbox:createOutreachResultOutbox({directory:path.join(app.getPath('userData'),'outreach-results'),protection}),

@@ -18,6 +18,7 @@ export function StrategySnapshotDetails({ receipt }: { receipt: StrategyReceipt 
       <div><dt>草稿版本</dt><dd>{receipt.draft_id} · 修订 {receipt.draft_revision}</dd></div>
       <div><dt>画像版本标识</dt><dd>{snapshot.profile_version_id}</dd></div>
       <div><dt>本次来源</dt><dd>{config.source === "search" ? "关键词搜索" : "指定内容链接"}</dd></div>
+      {config.publicSource && <div><dt>公开来源标识</dt><dd>{config.publicSource} · V2EX近期主题，有界采样，不覆盖历史/全站/评论，不支持持续监控</dd></div>}
       <div><dt>搜索关键词</dt><dd>{config.keywords.join("、") || "无"}{config.source !== "search" && "（保留但本次不执行）"}</dd></div>
       <div><dt>排除词</dt><dd>{config.exclusions.join("、") || "无"}</dd></div>
       <div><dt>内容链接</dt><dd>{config.links.join("\n") || "无"}{config.source !== "links" && "（保留但本次不执行）"}</dd></div>

@@ -1,6 +1,10 @@
 import {expect,it,vi} from 'vitest';
 import {createHash} from 'node:crypto';
 import {createForegroundCollectionController} from '../src/main/foregroundCollectionController';
+import {createCollectionWorker} from '../src/main/collectionWorker';
+import {createPublicCommunityDriver} from '../src/main/publicCommunityDriver';
+import {newTaskDraft} from '../src/renderer/domain/models';
+import {strategyPrepareRequest} from '../src/renderer/domain/researchStrategies';
 const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 function canonical(v:any):string{return Array.isArray(v)?'['+v.map(canonical).join(',')+']':v&&typeof v==='object'?'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canonical(v[k])).join(',')+'}':JSON.stringify(v);}
 function batch(platform:string,platformRunId:string,requestId:string,connectionId:string){return {schema_version:'candidate-upload-v1',request_id:requestId,platform,
@@ -26,6 +30,106 @@ function fixture(){
   sessions:()=>({execution,candidates:{recover:candidateRecover}}),workerFactory:()=>worker,driverFactory,resolveAccount,probe};
  return {controller:createForegroundCollectionController(options),options,identity,scope,requests,strategy,command,startReceipt,execution,executionJournal,candidatesJournal,candidateRecover,worker,driverFactory,resolveAccount,probe,finish:(value:any={state:'COMPLETED',taskCompleted:true})=>resolveRun(value),invalidate:()=>current=false};
 }
+function publicFixture(mixed=false){
+ const f=fixture(),nativeConfiguration=f.options.configuration;
+ f.options.configuration=null;
+ const publicTarget={platform:'PUBLIC_WEB',access_mode:'PUBLIC_ANONYMOUS',connection_id:null,connection_version:null};
+ f.command.targets=(mixed?[f.command.targets[0],publicTarget]:[publicTarget]) as any;
+ f.strategy.snapshot.platforms=f.command.targets.map(t=>t.platform);
+ (f.strategy.snapshot.configuration as any).publicSource='v2ex-latest-v1';
+ const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');
+ f.strategy.configuration_sha256=hash;f.command.configurationSha256=hash;
+ f.startReceipt.platform_runs=f.command.targets.map((t,i)=>({platform_run_id:id(8+i),platform:t.platform,status:'PENDING'}));
+ const read=f.scope.transport.requestExecution.getMockImplementation()!;
+ f.scope.transport.requestExecution.mockImplementation(async input=>{
+  const response=await read(input);
+  if(input.operation==='execution.support')return {...response,data:{schema_version:'foreground-collection-support-v1',mode:'four-platform-foreground-v1',public_source:'v2ex-latest-v1'}} as any;
+  return {...response,data:{...response.data,platform_runs:f.startReceipt.platform_runs.map(r=>({...r,execution_generation:0,records_used:0}))}} as any;
+ });
+ const publicDriverFactory=vi.fn(()=>({start:vi.fn()}));f.options.publicDriverFactory=publicDriverFactory;
+ return {...f,nativeConfiguration,publicDriverFactory,controller:createForegroundCollectionController(f.options)};
+}
+it('offers explicitly supported public source without Python, accounts or registry reads',async()=>{
+ const f=publicFixture();f.probe.mockResolvedValue(false);f.scope.transport.requestConnection.mockRejectedValue(new Error());
+ expect(await f.controller.execute({action:'CAPABILITIES'})).toEqual({state:'AVAILABLE',bindings:[],publicBinding:{sourceId:'v2ex-latest-v1',deviceId:id(2)}});
+ expect(f.probe).not.toHaveBeenCalled();expect(f.resolveAccount).not.toHaveBeenCalled();expect(f.scope.transport.requestConnection).not.toHaveBeenCalled();
+});
+it('starts public-only source with confirmed source hash and existing persisted execution, not native runtime',async()=>{
+ const f=publicFixture();expect(await f.controller.start(f.command)).toMatchObject({state:'RECORDED'});
+ expect(f.worker.run).toHaveBeenCalledWith(expect.objectContaining({platformRunId:id(8),platformMaxRecords:50,strategy:f.strategy}));
+ expect(f.publicDriverFactory).toHaveBeenCalledTimes(1);expect(f.probe).not.toHaveBeenCalled();expect(f.resolveAccount).not.toHaveBeenCalled();expect(f.driverFactory).not.toHaveBeenCalled();
+ f.finish();await f.controller.shutdown();
+});
+it.each(['source','support','session','claimed'])('refuses public %s mismatch before any source driver starts',async fault=>{
+ const f=publicFixture();
+ if(fault==='source'){
+  delete (f.strategy.snapshot.configuration as any).publicSource;
+  const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');
+  f.strategy.configuration_sha256=hash;f.command.configurationSha256=hash;
+ }
+ if(fault==='support')f.scope.transport.requestExecution.mockResolvedValue({ok:true,status:200,data:{schema_version:'foreground-collection-support-v1',mode:'four-platform-foreground-v1'}} as any);
+ if(fault==='session')f.invalidate();
+ if(fault==='claimed')f.requests.push({operation:'CLAIM',task_id:id(6),platform_run_id:id(8),request_id:id(99)});
+ expect(await f.controller.start(f.command)).not.toMatchObject({state:'RECORDED'});
+ expect(f.publicDriverFactory).not.toHaveBeenCalled();expect(f.worker.run).not.toHaveBeenCalled();
+});
+it('late native setup preserves the same active controller and serial mixed source budget',async()=>{
+ const f=publicFixture(true);
+ expect(await f.controller.start(f.command)).toMatchObject({state:'SERVICE_UNAVAILABLE'});
+ f.controller.configureNativeRuntime(f.nativeConfiguration);
+ expect(await f.controller.start(f.command)).toMatchObject({state:'RECORDED'});
+ expect(f.worker.run.mock.calls[0][0]).toMatchObject({platformRunId:id(8),platformMaxRecords:25});
+ f.controller.configureNativeRuntime(f.nativeConfiguration);
+ expect(f.controller.canStart()).toBe(false);
+ f.finish({state:'COMPLETED',taskCompleted:false});await new Promise(r=>setImmediate(r));
+ expect(f.worker.run.mock.calls[1][0]).toMatchObject({platformRunId:id(9),platformMaxRecords:25});
+ expect(f.resolveAccount).toHaveBeenCalledTimes(1);expect(f.publicDriverFactory).toHaveBeenCalledTimes(1);
+ f.finish();await f.controller.shutdown();
+});
+it('runs the actual controller, worker and public driver through CLAIM, evidence upload and FINISH',async()=>{
+ const f=publicFixture(),events:string[]=[];let done:Promise<unknown>|undefined;
+ const fetcher=vi.fn(async()=>{events.push('FETCH');return new Response(JSON.stringify([{id:12,title:'设计需求',content:'需要企业系统设计',
+  created:Math.floor(Date.now()/1000)-60,url:'https://www.v2ex.com/t/12',member:{id:9}}]),{headers:{'content-type':'application/json'}});});
+ const candidates={submit:vi.fn(async(_s:any,_batch:any)=>{events.push('UPLOAD');return {state:'RECORDED'};})};
+ f.execution.submit.mockImplementation(async(_s:any,r:any)=>{
+  events.push(r.operation);f.requests.push(r);
+  if(r.operation==='START')return {state:'RECORDED',receipt:f.startReceipt} as any;
+  const common={schema_version:'execution-runtime-v1',request_id:r.request_id,operation:r.operation,task_id:id(6),run_id:id(7),
+   platform_run_id:id(8),lease_id:id(90),execution_generation:1};
+  return {state:'RECORDED',receipt:r.operation==='FINISH'?{...common,status:'SUCCEEDED',stop_confirmed:true,upload_request_id:r.upload_request_id,records_used:1}
+   :{...common,status:'RUNNING',stop_confirmed:false,lease_expires_at:new Date(Date.now()+120000).toISOString(),deadline_at:new Date(Date.now()+600000).toISOString()}} as any;
+ });
+ const controller=createForegroundCollectionController({...f.options,
+  publicDriverFactory:()=>createPublicCommunityDriver({fetch:fetcher}),sessions:()=>({execution:f.execution,candidates}),
+  workerFactory:(options:any)=>{const worker=createCollectionWorker(options);return {...worker,run:(input:any)=>done=worker.run(input)};}});
+ expect(await controller.start(f.command)).toMatchObject({state:'RECORDED'});
+ expect(await done).toMatchObject({state:'COMPLETED',taskCompleted:true});
+ expect(events).toEqual(['START','CLAIM','FETCH','UPLOAD','FINISH']);
+ expect(candidates.submit.mock.calls[0][1]).toMatchObject({platform:'PUBLIC_WEB',profile_version_id:id(3),strategy_version_id:id(4),
+  execution:{access_mode:'PUBLIC_ANONYMOUS',connection_id:null,connection_version:null,device_id:id(2)},
+  records:[{kind:'PAGE',body:'需要企业系统设计',public_url:'https://www.v2ex.com/t/12',collector_version:'v2ex-latest-v1'}]});
+ expect(f.resolveAccount).not.toHaveBeenCalled();expect(f.probe).not.toHaveBeenCalled();await controller.shutdown();
+});
+it('cancelling between native and public targets prevents the delayed public launch',async()=>{
+ const f=publicFixture(true);f.controller.configureNativeRuntime(f.nativeConfiguration);
+ const read=f.scope.transport.requestExecution.getMockImplementation()!;let release!:()=>void,entered!:()=>void;
+ const ready=new Promise<void>(resolve=>entered=resolve),hold=new Promise<void>(resolve=>release=resolve);let supportReads=0;
+ f.scope.transport.requestExecution.mockImplementation(async input=>{
+  if(input.operation==='execution.support'&&++supportReads===2){entered();await hold;}return read(input);
+ });
+ expect(await f.controller.start(f.command)).toMatchObject({state:'RECORDED'});f.finish({state:'COMPLETED',taskCompleted:false});
+ await ready;f.controller.cancel(id(6));release();await f.controller.stop(id(6));
+ expect(f.publicDriverFactory).not.toHaveBeenCalled();expect(f.worker.run).toHaveBeenCalledTimes(1);await f.controller.shutdown();
+});
+it('accepts a new native once configuration prepared by the ordinary renderer',async()=>{
+ const f=fixture(),draft={...newTaskDraft(),id:id(10),revision:1,name:'设计需求',profileId:id(3),profileVersion:1,
+  platforms:['xhs' as const],accounts:{xhs:'66c01234abcdef0123456789'},terms:[{id:'term',value:'设计',origin:'manual' as const,edited:false}]};
+ const prepared=strategyPrepareRequest(draft,id(1),{max_records:50,max_runtime_seconds:600});
+ f.strategy.snapshot.configuration=prepared.configuration as any;
+ f.strategy.configuration_sha256=f.command.configurationSha256=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');
+ expect(await f.controller.start(f.command)).toMatchObject({state:'RECORDED'});
+ expect(f.worker.run).toHaveBeenCalledTimes(1);f.finish();await f.controller.shutdown();
+});
 it('launches one bound background worker after fresh strategy, account, runtime and persisted START',async()=>{
  const f=fixture();(f.strategy.snapshot.configuration as any).exclusions=['招聘'];
  const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.strategy.configuration_sha256=hash;f.command.configurationSha256=hash;

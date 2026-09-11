@@ -17,6 +17,7 @@ import type {createConnectionProfileStore} from './connectionProfileStore';
 import type {PlatformLoginDriverOptions} from './platformLoginDriver';
 import {createCollectionWorker,type CollectionWorkerResult} from './collectionWorker';
 import {createPythonCollectionDriver} from './pythonCollectionDriver';
+import {createPublicCommunityDriver} from './publicCommunityDriver';
 import {resolveCollectionAccount} from './collectionAccountBinding';
 import {probeCollectionRuntime} from './collectionRuntimeProbe';
 import {nativeLoginPlatformSchema,type NativeLoginPlatform} from '../shared/platformAccount';
@@ -27,12 +28,14 @@ interface Options {
  store:Pick<ReturnType<typeof createConnectionProfileStore>,'read'>;
  executionJournal:Pick<ExecutionJournal,'list'|'read'>;
  candidateJournal:Pick<CandidateJournal,'list'|'read'>;
- configuration:PlatformLoginDriverOptions;
+ configuration:PlatformLoginDriverOptions|null;
  sessions(scope:DeviceWorkerScope):{execution:ReturnType<typeof createExecutionSession>;candidates:ReturnType<typeof createCandidateSession>};
  workerFactory?:typeof createCollectionWorker; driverFactory?:typeof createPythonCollectionDriver;
+ publicDriverFactory?:typeof createPublicCommunityDriver;
  resolveAccount?:typeof resolveCollectionAccount;probe?:typeof probeCollectionRuntime;
 }
-const supportSchema=z.object({schema_version:z.literal('foreground-collection-support-v1'),mode:foregroundModeSchema.nullable()}).strict();
+const supportSchema=z.object({schema_version:z.literal('foreground-collection-support-v1'),mode:foregroundModeSchema.nullable(),
+ public_source:z.literal('v2ex-latest-v1').optional()}).strict();
 const rowsSchema=z.object({items:z.array(connectionRegistryRowSchema).max(10000)}).strict();
 const stateSchema=z.enum(['PENDING','RUNNING','CANCELLING','CANCELED','SUCCEEDED']);
 const taskSchema=z.object({task_id:uuid,run_id:uuid,status:stateSchema,stop_confirmed:z.boolean(),profile_version_id:uuid,strategy_version_id:uuid,
@@ -44,7 +47,9 @@ function canonical(v:unknown):string{return Array.isArray(v)?'['+v.map(canonical
 
 /** Single foreground run. Existing immutable CLAIM/upload journals are restart markers, not new authority. */
 export function createForegroundCollectionController(options:Options) {
- const {identity,serviceOrigin,configuration}=options;
+ const {identity,serviceOrigin}=options;
+ let configuration=options.configuration?structuredClone(options.configuration):null;
+ let publicDriver:ReturnType<typeof createPublicCommunityDriver>|null=null;
  let opening=false,shuttingDown=false,stopUnconfirmed=false;
  let openingDone:Promise<void>|null=null,finishOpening:(()=>void)|null=null;
  let scopeOpening:Promise<void>=Promise.resolve();
@@ -81,8 +86,10 @@ export function createForegroundCollectionController(options:Options) {
   guard(scope);const response=await scope.transport.requestExecution({operation:'execution.support'});guard(scope);
   if(!response.ok)throw new Error('COLLECTION_UNAVAILABLE');const support=supportSchema.safeParse(response.data);
   if(!support.success || support.data.mode===null)throw new Error('COLLECTION_UNAVAILABLE');
-  if(!await (options.probe??probeCollectionRuntime)(configuration))throw new Error('COLLECTION_UNAVAILABLE');guard(scope);
-  return support.data.mode;
+  return support.data;
+ }
+ async function nativeReady(scope:DeviceWorkerScope){
+  if(!configuration || !await (options.probe??probeCollectionRuntime)(configuration))throw new Error('COLLECTION_UNAVAILABLE');guard(scope);
  }
  async function account(scope:DeviceWorkerScope,target:unknown,extra:object={}){
   guard(scope);const value=await (options.resolveAccount??resolveCollectionAccount)({serviceOrigin,scope,store:options.store,target,...extra});guard(scope);return value;
@@ -90,7 +97,13 @@ export function createForegroundCollectionController(options:Options) {
  async function capabilities():Promise<ForegroundCollectionResult>{
   let scope:DeviceWorkerScope|undefined;
   try{
-   scope=await open();const mode=await supported(scope);
+   scope=await open();const support=await supported(scope),mode=support.mode!;
+   const publicBinding=support.public_source?{sourceId:support.public_source,deviceId:scope.device.deviceId}:undefined;
+   const publicOnly=():ForegroundCollectionResult=>publicBinding?{state:'AVAILABLE',bindings:[],publicBinding}:{state:'UNAVAILABLE'};
+   try{await nativeReady(scope);}catch{guard(scope);return publicOnly();}
+   // Public readiness is independent of the native account registry, but not
+   // of the authenticated service/device scope above.
+   try{
    const response=await scope.transport.requestConnection({operation:'connections.current'});guard(scope);if(!response.ok)throw new Error();
    const rows=rowsSchema.parse(response.data).items;if(new Set(rows.map(row=>row.connection_id)).size!==rows.length)throw new Error();
    const platforms:NativeLoginPlatform[]=['XIAOHONGSHU','DOUYIN','BILIBILI','ZHIHU'];
@@ -108,7 +121,8 @@ export function createForegroundCollectionController(options:Options) {
      bindings.push({mode,platform,connectionId:row.connection_id,connectionVersion:row.connection_version,deviceId:row.device_id,accountPublicId:row.account_public_id});
     }catch{guard(scope);}
    }
-   return bindings.length?{state:'AVAILABLE',bindings}:{state:'UNAVAILABLE'};
+   return bindings.length||publicBinding?{state:'AVAILABLE',bindings,...(publicBinding?{publicBinding}:{})}:{state:'UNAVAILABLE'};
+   }catch{guard(scope);return publicOnly();}
   }catch{return {state:'UNAVAILABLE'};}finally{scope?.close();}
  }
  async function task(scope:DeviceWorkerScope,taskId:string){
@@ -145,12 +159,22 @@ export function createForegroundCollectionController(options:Options) {
   current.done=(async()=>{let activeScope:DeviceWorkerScope|undefined=input.scope;
    try{for(let index=input.startIndex??0;index<input.targets.length;index++){
     if(cancelled)break;if(index>(input.startIndex??0)){const opened=await open();if(cancelled||!opened.session.isCurrent()||opened.session.userId!==current.userId||opened.session.sessionId!==current.scope.session.sessionId||opened.device.deviceId!==current.scope.device.deviceId||opened.device.credentialVersion!==current.scope.device.credentialVersion){opened.close();break;}activeScope=opened;}
-    const binding=index===(input.startIndex??0)?input.bindings[index]:await account(activeScope!,input.targets[index]);
+    const anonymous=input.targets[index].platform==='PUBLIC_WEB';
+    const binding=anonymous?null:index===(input.startIndex??0)?input.bindings[index]:await account(activeScope!,input.targets[index]);
     if(cancelled||!activeScope!.session.isCurrent()){activeScope!.close();activeScope=undefined;break;}
     const sessions=index===(input.startIndex??0)?input.firstSessions:options.sessions(activeScope!);
-    const driver=(options.driverFactory??createPythonCollectionDriver)({pythonExecutable:configuration.pythonExecutable,projectRoot:configuration.projectRoot,runtimePath:configuration.runtimePath,
-     profilePath:path.join(configuration.profileRoot,binding.profileId),outputRoot:configuration.outputRoot,allowMonitor:input.allowMonitor,
-     binding:{...activeScope!.device,...input.targets[index],expectedAccountPublicId:binding.accountPublicId}});
+    let driver:ReturnType<typeof createPublicCommunityDriver>;
+    if(anonymous){
+     if(input.allowMonitor || input.strategy.snapshot.configuration.publicSource!=='v2ex-latest-v1')throw new Error();
+     if(index>(input.startIndex??0) && (await supported(activeScope!)).public_source!=='v2ex-latest-v1')throw new Error();
+     if(cancelled||!activeScope!.session.isCurrent()){activeScope!.close();activeScope=undefined;break;}
+     publicDriver??=(options.publicDriverFactory??createPublicCommunityDriver)();driver=publicDriver;
+    }else{
+     if(!configuration)throw new Error();
+     driver=(options.driverFactory??createPythonCollectionDriver)({pythonExecutable:configuration.pythonExecutable,projectRoot:configuration.projectRoot,runtimePath:configuration.runtimePath,
+      profilePath:path.join(configuration.profileRoot,binding.profileId),outputRoot:configuration.outputRoot,allowMonitor:input.allowMonitor,
+      binding:{...activeScope!.device,...input.targets[index],expectedAccountPublicId:binding.accountPublicId}});
+    }
     currentWorker=(options.workerFactory??createCollectionWorker)({...sessions,driver});
     const value=await currentWorker.run({scope:activeScope!,start:input.start,startReceipt:input.receipt,strategy:input.strategy,
      platformRunId:input.receipt.platform_runs[index].platform_run_id,allowMonitor:input.allowMonitor,platformMaxRecords:allocated[index]});
@@ -160,6 +184,9 @@ export function createForegroundCollectionController(options:Options) {
    finally{if(active===current)active=null;}})();
  }
  const controller={
+  // Bootstrap may finish during an anonymous run. Install native paths once,
+  // never replace the controller/journals or mutate a running native binding.
+  configureNativeRuntime(value:PlatformLoginDriverOptions){if(!configuration&&!shuttingDown)configuration=structuredClone(value);},
   canStart(){return !opening&&!active&&!shuttingDown&&!stopUnconfirmed;},
   async stop(taskId?:string){const current=active;if(!current||taskId&&current.taskId!==taskId){if(stopUnconfirmed)throw new Error('SOURCE_STOP_FAILED');return;}
    current.worker.cancel();await current.done;if(stopUnconfirmed)throw new Error('SOURCE_STOP_FAILED');},
@@ -169,7 +196,7 @@ export function createForegroundCollectionController(options:Options) {
     scope=await open();const support=await scope.transport.requestExecution({operation:'monitor.support'});guard(scope);
     const mode=monitorForegroundMode(support.ok?support.data:null);
     if(!support.ok||!mode||targets.some(target=>!supportsForegroundPlatform(mode,target.platform)))throw new Error();
-    if(!await (options.probe??probeCollectionRuntime)(configuration))throw new Error();
+    await nativeReady(scope);
     const response=await identity.requestApi({operation:'strategies.get',payload:{strategy_version_id:strategyId}});guard(scope);if(!response.ok)throw new Error();
     const strategy=strategyViewSchema.parse(response.data),snapshot=strategy.snapshot,c=snapshot.configuration;
     if(strategy.state!=='CONFIRMED'||!strategy.is_current||!strategy.profile_current||strategy.confirmed_at===null||strategy.revoked_at!==null||
@@ -191,7 +218,7 @@ export function createForegroundCollectionController(options:Options) {
     const monitorSupport=await scope.transport.requestExecution({operation:'monitor.support'});guard(scope);
     const mode=monitorForegroundMode(monitorSupport.ok?monitorSupport.data:null);
     if(!monitorSupport.ok||!mode||targets.some(target=>!supportsForegroundPlatform(mode,target.platform)))throw new Error();
-    if(!await (options.probe??probeCollectionRuntime)(configuration))throw new Error();guard(scope);
+    await nativeReady(scope);
     const strategyResponse=await identity.requestApi({operation:'strategies.get',payload:{strategy_version_id:start.strategy_version_id}});guard(scope);if(!strategyResponse.ok)throw new Error();
     const strategy=strategyViewSchema.parse(strategyResponse.data),snapshot=strategy.snapshot,c=snapshot.configuration;
     if(strategy.state!=='CONFIRMED'||!strategy.is_current||!strategy.profile_current||strategy.confirmed_at===null||strategy.revoked_at!==null||
@@ -226,10 +253,13 @@ export function createForegroundCollectionController(options:Options) {
    opening=true;openingDone=new Promise(resolve=>{finishOpening=resolve;});let scope:DeviceWorkerScope|undefined,handedOff=false;
    try{
     const command=parsed.data;
-    if(command.targets.some(target=>!nativeLoginPlatformSchema.safeParse(target.platform).success||target.access_mode!=='PLATFORM_ACCOUNT'))throw new Error();
-    scope=await open();const mode=await supported(scope);
-    if(command.targets.some(target=>!supportsForegroundPlatform(mode,target.platform)))throw new Error();
-    const bindings=[];for(const target of command.targets)bindings.push(await account(scope,target));
+    scope=await open();const support=await supported(scope);
+    const hasPublic=command.targets.some(target=>target.platform==='PUBLIC_WEB');
+    if(command.targets.some(target=>target.platform==='PUBLIC_WEB'
+     ?support.public_source!=='v2ex-latest-v1'||target.access_mode!=='PUBLIC_ANONYMOUS'||target.connection_id!==null||target.connection_version!==null
+     :!supportsForegroundPlatform(support.mode,target.platform)||target.access_mode!=='PLATFORM_ACCOUNT'))throw new Error();
+    if(command.targets.some(target=>target.platform!=='PUBLIC_WEB'))await nativeReady(scope);
+    const bindings=[];for(const target of command.targets)bindings.push(target.platform==='PUBLIC_WEB'?null:await account(scope,target));
     const response=await identity.requestApi({operation:'strategies.get',payload:{strategy_version_id:command.strategyVersionId}});guard(scope);if(!response.ok)throw new Error();
     const strategy=strategyViewSchema.parse(response.data),snapshot=strategy.snapshot,c=snapshot.configuration;
     if(strategy.state!=='CONFIRMED' || !strategy.is_current || !strategy.profile_current || strategy.confirmed_at===null || strategy.revoked_at!==null ||
@@ -238,7 +268,8 @@ export function createForegroundCollectionController(options:Options) {
      strategy.configuration_sha256!==command.configurationSha256 || createHash('sha256').update(canonical(snapshot)).digest('hex')!==command.configurationSha256 ||
      snapshot.platforms.length!==command.targets.length || command.targets.some((target,index)=>snapshot.platforms[index]!==target.platform) ||
      snapshot.max_records<command.targets.length || snapshot.max_records>100 || snapshot.max_runtime_seconds>900 ||
-     c.mode!=='once' || c.source!=='search' || c.schedule!==null || c.research!==null || c.links.length || c.keywords.some(k=>k!==k.trim() || k.includes(',')))throw new Error();
+     c.mode!=='once' || c.source!=='search' || c.schedule!==null || c.research!==null || c.links.length || c.keywords.some(k=>k!==k.trim() || k.includes(',')) ||
+     hasPublic && c.publicSource!==support.public_source || !hasPublic && c.publicSource!==undefined)throw new Error();
     const start=executionOperationSchema.parse({schema_version:'execution-runtime-v1',operation:'START',request_id:command.requestId,
      device_id:scope.device.deviceId,credential_version:scope.device.credentialVersion,profile_version_id:command.profileVersionId,strategy_version_id:command.strategyVersionId,
      configuration_sha256:command.configurationSha256,targets:command.targets});

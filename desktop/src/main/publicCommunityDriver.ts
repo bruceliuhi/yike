@@ -40,9 +40,12 @@ function recordsFrom(value:unknown,keywords:string[],exclusions:string[],maximum
   return candidateSubmissionSchema.shape.records.parse(records);
 }
 
-/** Main-owned fixed anonymous source. Not wired/enabled as a customer capability yet. */
+/** Main-owned fixed anonymous source, explicitly opted in by a confirmed task. */
 export function createPublicCommunityDriver(options:{fetch?:typeof fetch;now?:()=>number}={}):CollectionDriver {
   const fetcher=options.fetch??globalThis.fetch,now=options.now??Date.now;
+  // One instance is shared across this controller's tasks, including failures.
+  // This local cooldown does not promise a quota across devices sharing an IP.
+  let nextRequestAt=0;
   return {start(original) {
     const input=structuredClone({snapshot:original.snapshot,target:original.target,lease:original.lease,maxRecords:original.maxRecords});
     const abort=new AbortController();
@@ -60,7 +63,7 @@ export function createPublicCommunityDriver(options:{fetch?:typeof fetch;now?:()
           const lease=executionReceiptSchema.parse(input.lease);
           if((lease.operation!=='CLAIM'&&lease.operation!=='RENEW')||lease.execution_generation!==1||
               configuration.source!=='search'||configuration.mode!=='once'||configuration.schedule!==null||
-              configuration.links.length||configuration.research!==null||
+              configuration.links.length||configuration.research!==null||configuration.publicSource!=='v2ex-latest-v1'||
               target.platform!=='PUBLIC_WEB'||target.access_mode!=='PUBLIC_ANONYMOUS'||target.connection_id!==null||target.connection_version!==null||
               !snapshot.platforms.includes('PUBLIC_WEB')||!positive(maxRecords,100)||!positive(snapshot.max_records,10000)||maxRecords>snapshot.max_records||
               !positive(snapshot.max_runtime_seconds,86400))throw fail();
@@ -68,6 +71,8 @@ export function createPublicCommunityDriver(options:{fetch?:typeof fetch;now?:()
           if(!Number.isFinite(deadline)||deadline<=now())throw fail();
         }catch {throw fail('PUBLIC_SOURCE_INVALID_INPUT');}
         if(cancelled)throw fail('PUBLIC_SOURCE_CANCELLED');
+        if(now()<nextRequestAt)throw fail('PUBLIC_SOURCE_RATE_LIMITED');
+        nextRequestAt=now()+60000;
         timer=setTimeout(()=>{timedOut=true;abort.abort();},Math.max(1,deadline-now()));
         try {
           const response=await fetcher(ENDPOINT,{method:'GET',redirect:'error',credentials:'omit',signal:abort.signal,

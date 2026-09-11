@@ -8,7 +8,20 @@ import {
 } from "./models";
 import { researchSettingsSchema } from "./researchUsage";
 import { industryStrategyError } from './industryTaskStrategy';
-import {foregroundBindingSchema} from '../../shared/foregroundCollection';
+import {foregroundBindingSchema,publicSourceBindingSchema} from '../../shared/foregroundCollection';
+
+export const PUBLIC_SOURCE_SCOPE='V2EX近期主题，有界采样，不覆盖历史/全站/评论，不支持持续监控';
+export function hasPublicSourceBinding(connection: PlatformConnection): boolean {
+  return connection.platform==='web' && connection.status==='CONNECTED' &&
+    !connection.accountId && !connection.accountName && !connection.registration && !connection.foregroundBinding &&
+    publicSourceBindingSchema.safeParse(connection.publicBinding).success;
+}
+export function publicTaskScope(draft: TaskDraft, connections: PlatformConnection[]): string | null {
+  if (!draft.platforms.includes('web')) return null;
+  return JSON.stringify(draft.platforms.map(platform=>connections.filter(c=>c.platform===platform &&
+    (platform==='web' ? hasPublicSourceBinding(c) : c.accountId===draft.accounts[platform] && hasForegroundBinding(c)))
+    .map(c=>c.publicBinding ?? c.foregroundBinding)));
+}
 
 export function hasForegroundBinding(connection: PlatformConnection): boolean {
   const parsed = foregroundBindingSchema.safeParse(connection.foregroundBinding);
@@ -194,12 +207,22 @@ export function startBlockers(
       p.status === "CONFIRMED",
   );
   if (!profile) blockers.push("请选择并确认真实业务画像版本。");
-  const nativeSelections = draft.platforms.map(platform => connections.find(c => c.platform === platform &&
+  const publicRows=connections.filter(hasPublicSourceBinding);
+  const publicSelected=draft.platforms.includes('web');
+  if(publicSelected && (draft.accounts.web || publicRows.length!==1 || draft.mode!=='once' || draft.source!=='search' || draft.links.trim() || draft.research))
+    blockers.push('公开网站仅支持已核对的 V2EX 匿名近期主题单次关键词采样。');
+  if(publicSelected && (!draft.executionLimits || !Number.isInteger(draft.executionLimits.max_records) ||
+      !Number.isInteger(draft.executionLimits.max_runtime_seconds) || (draft.executionLimits.max_records??0)<draft.platforms.length ||
+      (draft.executionLimits.max_runtime_seconds??0)<1 || (draft.executionLimits.max_records??0)>100 || (draft.executionLimits.max_runtime_seconds??0)>900))
+    blockers.push('公开采样需明确共享记录上限（至少所选平台数、最多100条）与运行时长（1至900秒）。');
+  const nativeSelections = draft.platforms.filter(platform=>platform!=='web').map(platform => connections.find(c => c.platform === platform &&
     c.accountId === draft.accounts[platform] && hasForegroundBinding(c)));
   const multiOnce = draft.mode === 'once' && draft.platforms.length > 1 && nativeSelections.every(c =>
     ['three-platform-foreground-v1','four-platform-foreground-v1'].includes(c?.foregroundBinding?.mode ?? '')) &&
     new Set(nativeSelections.map(c => c?.registration?.deviceId)).size === 1 &&
     new Set(nativeSelections.map(c => c?.foregroundBinding?.mode)).size === 1;
+  if(publicSelected && nativeSelections.some(c=>!c || c.foregroundBinding?.deviceId!==publicRows[0]?.publicBinding?.deviceId))
+    blockers.push('公开来源与账号采集必须绑定同一本机设备。');
   if (nativeSelections.some(Boolean) && draft.executionLimits &&
       (draft.executionLimits.max_records ?? 0) < draft.platforms.length)
     blockers.push('共享记录上限不能小于所选平台数。');
@@ -208,6 +231,7 @@ export function startBlockers(
     const connection = connections.find(
       (c) =>
         c.platform === platform &&
+        (platform !== 'web' || hasPublicSourceBinding(c)) &&
         (!c.registration || hasForegroundBinding(c)) &&
         c.status === "CONNECTED" &&
         (platform === "web" || c.accountId === draft.accounts[platform]),

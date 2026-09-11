@@ -46,7 +46,7 @@ beforeEach(() => {
   });
   context = {service: {execution: {execute}, profiles: vi.fn().mockResolvedValue([{id: draft.profileId, version: 1,
     status: 'CONFIRMED', description: '', fields: {...EMPTY_PROFILE, service: '合成服务'}}]),
-    connections: vi.fn().mockResolvedValue([{platform: 'web', status: 'CONNECTED', capabilities: ['search']}]),
+    connections: vi.fn().mockResolvedValue([{platform: 'web', status: 'CONNECTED', capabilities: ['search'],publicBinding:{sourceId:'v2ex-latest-v1',deviceId:draft.profileId}}]),
     info: vi.fn().mockResolvedValue({version: 'test', platform: 'test', deviceReady: true}), startTask: vi.fn()},
     session: {authenticated: true, userId: crypto.randomUUID()}, sessionReady: true,
     route: parseRoute('#/tasks/new?step=confirm'), navigate: vi.fn(), notify: vi.fn()} as unknown as AppContextValue;
@@ -58,6 +58,16 @@ async function review() {
   fireEvent.click(screen.getByRole('checkbox', {name: '我已核对以上画像版本、搜索条件、账号与运行设置'}));
 }
 describe('original TaskWizard signed execution entry', () => {
+  it('shows bounded public scope and refuses a changed device after explicit confirmation',async()=>{
+    render(<TaskWizardPage />);await review();
+    expect(screen.getByText(/V2EX近期主题，有界采样/)).toBeTruthy();
+    const start=screen.getByRole('button',{name:'确认并启动'}) as HTMLButtonElement;
+    await waitFor(()=>expect(start.disabled).toBe(false));
+    vi.mocked(context.service.connections).mockResolvedValue([{platform:'web',status:'CONNECTED',capabilities:['search'],publicBinding:{sourceId:'v2ex-latest-v1',deviceId:crypto.randomUUID()}}]);
+    fireEvent.click(start);
+    await screen.findByText(/公开读取范围或执行设备已变化/);
+    expect(requests).toHaveLength(0);
+  });
   it('makes only the exact foreground registered account selectable without removing its registration', async () => {
     draft.platforms=['xhs']; draft.accounts={};
     context.route=parseRoute('#/tasks/new?step=connect');
