@@ -97,7 +97,7 @@ def _demand_excerpt(snapshot):
     source_body = snapshot["source"]["body"]
     for citation in snapshot["assessment"].get("citations") or []:
         quote = citation.get("quote")
-        if (citation.get("dimension") in {"intent", "urgency", "actionability"}
+        if (citation.get("dimension") == "intent"
                 and citation.get("field") == "source.body" and isinstance(quote, str)
                 and quote and quote in source_body):
             return _clip(quote, 4000)

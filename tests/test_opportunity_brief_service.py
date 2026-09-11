@@ -56,4 +56,9 @@ def test_projection_bounds_title_and_literal_own_demand_excerpt():
     assert _demand_excerpt(snapshot) == "需" * 4000
     snapshot["assessment"]["citations"] = snapshot["assessment"]["citations"][:1]
     assert _demand_excerpt(snapshot) is None
+    snapshot["assessment"]["citations"] = [
+        {"dimension":"urgency","field":"source.body","quote":"需"},
+        {"dimension":"actionability","field":"source.body","quote":"需"},
+    ]
+    assert _demand_excerpt(snapshot) is None
     assert _window_id("run-id") == "window:run-id"
