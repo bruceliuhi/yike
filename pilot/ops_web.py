@@ -49,7 +49,9 @@ def build_ops_app(store: OpsStore, *, password: str, origin: str) -> FastAPI:
                 # Do not emit DB parameters, form bodies or decrypted phone data.
                 response = PlainTextResponse('运营服务暂不可用，请稍后重试。', 503)
         response.headers.update({
-            'cache-control':'no-store', 'referrer-policy':'no-referrer',
+            # no-referrer makes browser form POST Origin null, defeating our
+            # strict same-origin check. Do not leak referrers to other sites.
+            'cache-control':'no-store', 'referrer-policy':'same-origin',
             'x-content-type-options':'nosniff', 'x-frame-options':'DENY',
             'content-security-policy':"default-src 'none'; style-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
         })
