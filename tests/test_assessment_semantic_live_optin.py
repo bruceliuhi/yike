@@ -9,8 +9,9 @@ import os
 import pytest
 
 from pilot.candidate_assessment_model import (
-    AssessmentModelError, OpenAICompatibleCandidateAssessmentModel,
+    AssessmentModelError, OpenAICompatibleCandidateAssessmentModel, validate_assessment_input,
 )
+from pilot.research_strategy_contract import IndustryTaskStrategy
 
 AI_PROFILE = "我们承接企业知识库、智能客服和业务Agent定制开发，项目预算通常3万元以上，不做人员招聘或驻场派遣。"
 BOOTH_PROFILE = "我们提供上海及周边展会的展台设计、搭建与撤展服务，承接36平方米以上项目，不开发软件。"
@@ -27,6 +28,16 @@ CASES = [
      "parent": {"title": "急找知识库开发团队", "body": AI_BUYER}}, False),
     ("same_buyer_wrong_business", BOOTH_PROFILE, {"title": "找企业AI开发团队", "body": AI_BUYER, "parent": None}, False),
 ]
+STRATEGY = {"version": "industry-task-strategy-v1", "sourceTypes": ["SOCIAL_POST", "COMMENT"],
+    "intentSignals": ["本人明确寻找服务商或索要方案报价"],
+    "counterSignals": ["同行广告", "招聘个人", "仅讨论学习且没有本人采购动作", "需求与本企业服务不匹配"]}
+
+
+def test_semantic_smoke_fixtures_match_actual_contract_without_network():
+    IndustryTaskStrategy.model_validate(STRATEGY)
+    assert len(CASES) == len({case[0] for case in CASES}) == 6
+    for _, description, content, _ in CASES:
+        validate_assessment_input(description=description, content=content)
 
 
 @pytest.mark.skipif(os.environ.get("YIKE_ASSESSMENT_LIVE") != "1", reason="explicit paid-model opt-in required")
@@ -41,9 +52,7 @@ def test_synthetic_buyer_boundaries_with_actual_adapter(case_id, description, co
     )
     try:
         result, usage = model.assess(description=description, content=content,
-            industry_strategy={"version": "industry-task-strategy-v1", "sourceTypes": ["SOCIAL_POST", "SOCIAL_COMMENT"],
-                "intentSignals": ["本人明确寻找服务商或索要方案报价"],
-                "counterSignals": ["同行广告", "招聘个人", "仅讨论学习且没有本人采购动作", "需求与本企业服务不匹配"]})
+            industry_strategy=STRATEGY)
     except AssessmentModelError as error:
         print(json.dumps({"case": case_id, "status": "ERROR", "code": error.code}))
         pytest.fail(error.code, pytrace=False)
