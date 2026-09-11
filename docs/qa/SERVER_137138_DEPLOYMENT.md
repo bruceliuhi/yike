@@ -11,6 +11,7 @@
 - 运行镜像：`127.0.0.1:18750/yike/server@sha256:0d5070df372a600a8af638a2a52c9dcffa8c5d2ed0c9134e01bee89cdb9ff2e6`。
 - 镜像ID：`sha256:3f550f25be32180eccbff35aee8152050fbbfa707540422a29c166d701707154`；实际 OCI revision 与上述源码一致。
 - 最终源码归档 SHA256：`e2d2ad2b929a660df5ed0788eb65183084c5ef4fd3a2281e97962b98e2b7dfaf`。使用 `git -c core.autocrlf=false archive --output=...`，本地/服务器摘要一致。
+- 提交记录时另接收 `148ddba/f007a7c` 客户端公开来源接线，已同步至本机main。比较其全部镜像输入与6832482无字节差异，故不重复构建；镜像revision仍如实保留6832482。客户端变更单独复测，不追认现有Windows包。
 
 ## 已完成的目标服务器验证
 
@@ -37,6 +38,7 @@
 | 6832482 Linux新来件部署/策略/空库授权 | 29 passed | 使用隔离真实PG，部署COPY布局已通过 |
 | 6832482 Windows公开来源driver / TypeScript | 15 passed / 类型检查通过 | 模拟fetch，无真实V2EX请求，未接为客户能力 |
 | 6832482 Windows部署布局测试 | 1 failed，另26 passed | 清空子进程SystemRoot导致WinError10106；Linux同测试通过，保留Windows测试环境问题 |
+| 573f553（含148ddba）公开来源客户端接线 | 6文件108 passed，类型检查通过 | 两workers，7.97秒；不覆盖旧全量35失败，不是实际平台搜索 |
 
 剩余93项：85项旧fixture未补132材料引用权限；5项合同期待漂移（0003补丁、strategy结构、account_scope、OPEN来源状态）；3项尚需定位的真实HTTP/恢复联验失败：`test_brief_client_postgres`、`test_short_coach_client_postgres`、`test_desktop_foreground_collection_http_postgres`。不能把后3项继续归为缺Vitest，也没有修改断言或放宽生产权限以使其变绿。
 
