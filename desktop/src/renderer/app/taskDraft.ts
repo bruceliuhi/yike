@@ -15,6 +15,8 @@ const executionLimitsDraftSchema = z.object({
   max_runtime_seconds: z.number().finite().nullable(),
 });
 export const taskDraftSchema = z.object({
+  platformTerms: z.object({xhs:z.array(term).optional(),douyin:z.array(term).optional(),
+    bilibili:z.array(term).optional(),zhihu:z.array(term).optional()}).strict().optional(),
   industryStrategy: industryStrategyDraftSchema.optional(),
   research: researchDraftSchema.optional(),
   executionLimits: executionLimitsDraftSchema.optional(),

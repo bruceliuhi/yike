@@ -238,6 +238,14 @@ const linksSchema = z
   .max(100, { error: INVALID_STRATEGY_DATA })
   .refine(distinct, { error: INVALID_STRATEGY_DATA });
 
+export const platformQueriesSchema = exactObject({
+  version: z.literal('platform-queries-v1'),
+  items: z.array(exactObject({
+    platform: z.enum(['XIAOHONGSHU','DOUYIN','BILIBILI','ZHIHU']),
+    keywords: termsSchema.refine(values=>values.length>0 && values.every(value=>value===value.trim() && !value.includes(','))),
+  })).min(1).max(4).refine(items=>distinct(items.map(item=>item.platform))),
+});
+
 export const strategyConfigurationSchema = exactObject({
   schema_version: z.literal("research-strategy-v1", {
     error: INVALID_STRATEGY_DATA,
@@ -252,8 +260,13 @@ export const strategyConfigurationSchema = exactObject({
   research: researchSchema.nullable(),
   industryStrategy: industryTaskStrategySchema.optional(),
   publicSource: z.literal('v2ex-latest-v1').optional(),
+  platformQueries: platformQueriesSchema.optional(),
 })
   .superRefine((configuration, context) => {
+    if (configuration.platformQueries && (configuration.source!=='search' || configuration.research!==null || configuration.links.length>0 ||
+        configuration.platformQueries.items.some(item=>item.keywords.some(keyword=>configuration.exclusions.some(
+          exclusion=>normalizedTerm(keyword).includes(normalizedTerm(exclusion)))))))
+      context.addIssue({code:'custom',message:INVALID_STRATEGY_DATA});
     if (
       (configuration.source === "search" && configuration.keywords.length === 0) ||
       (configuration.source === "links" && configuration.links.length === 0) ||
@@ -291,7 +304,8 @@ export const prepareStrategySchema = exactObject({
   draft_id: strategyUuidSchema,
   draft_revision: boundedInteger(2_147_483_647),
   ...strategyScopeShape,
-});
+}).refine(scope=>!scope.configuration.platformQueries || scope.configuration.platformQueries.items.every(
+  item=>scope.platforms.includes(item.platform)),{error:INVALID_STRATEGY_DATA});
 export const confirmStrategySchema = exactObject({
   ...operationShape,
   strategy_version_id: strategyUuidSchema,
@@ -310,7 +324,8 @@ const snapshotSchema = exactObject({
   platforms: platformsSchema,
   max_records: boundedInteger(10_000),
   max_runtime_seconds: boundedInteger(86_400),
-});
+}).refine(scope=>!scope.configuration.platformQueries || scope.configuration.platformQueries.items.every(
+  item=>scope.platforms.includes(item.platform)),{error:INVALID_STRATEGY_DATA});
 const receiptBindingShape = {
   strategy_version_id: strategyUuidSchema,
   draft_id: strategyUuidSchema,
@@ -345,6 +360,10 @@ export const strategyViewSchema = exactObject({
 });
 
 export type StrategyConfiguration = z.infer<typeof strategyConfigurationSchema>;
+/** Call only after strict configuration/scope validation. Overrides replace common terms. */
+export function platformSearchKeywords(configuration: StrategyConfiguration, platform: string): string[] {
+  return configuration.platformQueries?.items.find(item=>item.platform===platform)?.keywords ?? configuration.keywords;
+}
 export type PrepareStrategyRequest = z.infer<typeof prepareStrategySchema>;
 export type ConfirmStrategyRequest = z.infer<typeof confirmStrategySchema>;
 export type RevokeStrategyRequest = z.infer<typeof revokeStrategySchema>;

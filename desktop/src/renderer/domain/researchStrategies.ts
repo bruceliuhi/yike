@@ -1,4 +1,5 @@
 import type { PlatformId, TaskDraft } from "./models";
+import {platformQueries} from './platformSearchTerms';
 import { industryStrategyError } from './industryTaskStrategy';
 import {
   confirmStrategySchema,
@@ -45,6 +46,7 @@ export function strategyPrepareRequest(
 ): PrepareStrategyRequest {
   try {
     if (industryStrategyError(draft)) throw new Error(INVALID_DRAFT);
+    const queries=platformQueries(draft);
     const publicSource = draft.platforms.includes('web');
     if (publicSource && ((draft.mode !== 'once' && !(draft.mode === 'monitor' && draft.schedule.policyVersion === 1)) ||
         draft.source !== 'search' || draft.links.trim()))
@@ -106,6 +108,7 @@ export function strategyPrepareRequest(
         },
         research,
         ...(draft.industryStrategy ? {industryStrategy: draft.industryStrategy.configuration} : {}),
+        ...(queries ? {platformQueries:queries} : {}),
       },
       platforms: draft.platforms.map(platformName),
       max_records: limits.max_records,

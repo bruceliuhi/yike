@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 import {win32 as path} from 'node:path';
 import type {CollectionDriver} from './collectionWorker';
 import {candidateSubmissionSchema, type CandidateSubmission} from '../shared/candidateSubmission';
-import {strategyConfigurationSchema} from '../shared/researchStrategies';
+import {platformSearchKeywords, strategyConfigurationSchema} from '../shared/researchStrategies';
 import {executionReceiptSchema} from '../shared/executionReceipt';
 import {nativeLoginPlatformSchema,validNativeAccount} from '../shared/platformAccount';
 
@@ -99,6 +99,8 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
       const input = structuredClone({snapshot: original.snapshot, target: original.target, lease: original.lease, maxRecords: original.maxRecords});
       const {snapshot, target, maxRecords} = input;
       let mapping: Omit<CandidateSubmission, 'schema_version' | 'platform' | 'records'>;
+      let queries: string[];
+      let exclusions: string[];
       try {
         const c = strategyConfigurationSchema.parse(snapshot.configuration);
         const lease = executionReceiptSchema.parse(input.lease);
@@ -110,10 +112,13 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
         const approvedMode=c.mode==='once' && c.schedule===null || owned.allowMonitor===true && c.mode==='monitor' && c.schedule?.policyVersion===1;
         if (!approvedMode || c.source !== 'search' || c.links.length || c.research !== null ||
             c.keywords.some(q => q !== q.trim() || q.includes(',')) ||
+            c.platformQueries?.items.some(item => !snapshot.platforms.includes(item.platform)) ||
             !integer(maxRecords, 100) || !integer(snapshot.max_records, 10000) || maxRecords > snapshot.max_records ||
             !integer(snapshot.max_runtime_seconds, 86400) || !snapshot.platforms.includes(target.platform) ||
             !nativeLoginPlatformSchema.safeParse(target.platform).success || target.access_mode !== 'PLATFORM_ACCOUNT' ||
             (['platform', 'access_mode', 'connection_id', 'connection_version'] as const).some(k => target[k] !== owned.binding[k])) throw failure();
+        queries = platformSearchKeywords(c, target.platform);
+        exclusions = c.exclusions.map(folded);
         for (const value of [owned.pythonExecutable, owned.projectRoot, owned.runtimePath, owned.profilePath, owned.outputRoot])
           if (!/^[A-Za-z]:[\\/]/.test(value) || !path.isAbsolute(value) || /[\p{Cc}\p{Cf}\p{Cs}]/u.test(value)) throw failure();
         const batch = candidateSubmissionSchema.parse({schema_version: 'candidate-upload-v1', request_id: randomUUID(), platform: target.platform,
@@ -128,8 +133,6 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
       const records: CandidateSubmission['records'] = [];
       let spent = 0;
       const seen = new Map<string, string>();
-      const queries = snapshot.configuration.keywords;
-      const exclusions = snapshot.configuration.exclusions.map(folded);
       for (let index = 0; index < queries.length && spent < maxRecords; index++) {
         if (cancelled) throw failure(timedOut ? 'SOURCE_DRIVER_TIMED_OUT' : 'SOURCE_DRIVER_CANCELLED');
         const seconds = Math.ceil((deadline - performance.now()) / 1000);

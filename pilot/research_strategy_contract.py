@@ -67,11 +67,12 @@ def _raw_fields(value: object, depth: int = 0) -> object:
     if isinstance(value, BaseModel):
         # __dict__ also retains forbidden keys inserted by model_copy(update=...).
         fields = dict(vars(value))
-        # Optional provenance is absent, rather than explicit null, on legacy
+        # Optional additions are absent, rather than explicit null, on legacy
         # model instances. Preserve that distinction during revalidation.
-        if ("provenance" in type(value).model_fields and fields.get("provenance") is None
-                and "provenance" not in value.__pydantic_fields_set__):
-            fields.pop("provenance", None)
+        for optional_field in ("provenance", "platformQueries"):
+            if (optional_field in type(value).model_fields and fields.get(optional_field) is None
+                    and optional_field not in value.__pydantic_fields_set__):
+                fields.pop(optional_field, None)
         fields.update(value.__pydantic_extra__ or {})
         return _raw_fields(fields, depth + 1)
     if type(value) is dict:
@@ -306,6 +307,42 @@ class _Research(_Frozen):
         return _distinct(value)
 
 
+class _PlatformQueryItem(_Frozen):
+    platform: Literal["XIAOHONGSHU", "DOUYIN", "BILIBILI", "ZHIHU"]
+    keywords: tuple[str, ...] = Field(min_length=1, max_length=20)
+
+    @field_validator("keywords", mode="before")
+    @classmethod
+    def freeze_keywords(cls, value):
+        return tuple(value) if type(value) is list else value
+
+    @field_validator("keywords")
+    @classmethod
+    def check_keywords(cls, value):
+        for item in value:
+            _visible_text(item, 80)
+            if item != item.strip() or "," in item:
+                raise ValueError("invalid platform keyword")
+        _distinct(tuple(_term_key(item) for item in value))
+        return value
+
+
+class _PlatformQueries(_Frozen):
+    version: Literal["platform-queries-v1"]
+    items: tuple[_PlatformQueryItem, ...] = Field(min_length=1, max_length=4)
+
+    @field_validator("items", mode="before")
+    @classmethod
+    def freeze_items(cls, value):
+        return tuple(value) if type(value) is list else value
+
+    @field_validator("items")
+    @classmethod
+    def distinct_platforms(cls, value):
+        _distinct(tuple(item.platform for item in value))
+        return value
+
+
 class ResearchStrategyConfiguration(_Frozen):
     schema_version: Literal["research-strategy-v1"]
     name: str
@@ -317,6 +354,7 @@ class ResearchStrategyConfiguration(_Frozen):
     schedule: _VersionedSchedule | _Schedule | None
     research: _Research | None
     publicSource: Literal["v2ex-latest-v1"] | None = None
+    platformQueries: _PlatformQueries | None = None
 
     @model_serializer(mode="wrap")
     def preserve_legacy_configuration(self, handler):
@@ -325,6 +363,8 @@ class ResearchStrategyConfiguration(_Frozen):
         # schedule/research fields or changing any old confirmed snapshot hash.
         if self.publicSource is None:
             result.pop("publicSource", None)
+        if self.platformQueries is None:
+            result.pop("platformQueries", None)
         return result
 
     @field_validator("name")
@@ -354,6 +394,8 @@ class ResearchStrategyConfiguration(_Frozen):
 
     @model_validator(mode="after")
     def relations_and_size(self):
+        if self.platformQueries is None and "platformQueries" in self.__pydantic_fields_set__:
+            raise ValueError("platform queries cannot be null")
         if self.source == "search" and not self.keywords:
             raise ValueError("search requires keywords")
         if self.source == "links" and not self.links:
@@ -361,6 +403,13 @@ class ResearchStrategyConfiguration(_Frozen):
         if any(_term_key(exclusion) in _term_key(keyword)
                for keyword in self.keywords for exclusion in self.exclusions):
             raise ValueError("keyword conflicts with exclusion")
+        if self.platformQueries is not None:
+            if self.source != "search" or self.research is not None or self.links:
+                raise ValueError("platform queries require plain search")
+            if any(_term_key(exclusion) in _term_key(keyword)
+                   for item in self.platformQueries.items
+                   for keyword in item.keywords for exclusion in self.exclusions):
+                raise ValueError("platform keyword conflicts with exclusion")
         if self.mode == "monitor" and self.schedule is None:
             raise ValueError("monitor requires schedule")
         if len(_json(self.model_dump(mode="json")).encode("utf-8")) > _MAX_CONFIGURATION_BYTES:
@@ -416,6 +465,14 @@ class _StrategyScope(_Frozen):
     @classmethod
     def distinct_platforms(cls, value):
         return _distinct(value)
+
+    @model_validator(mode="after")
+    def platform_queries_are_selected(self):
+        if (self.configuration.platformQueries is not None and
+                any(item.platform not in self.platforms
+                    for item in self.configuration.platformQueries.items)):
+            raise ValueError("platform query is outside selected platforms")
+        return self
 
 
 class _Operation(_Frozen):

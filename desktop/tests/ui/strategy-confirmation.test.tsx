@@ -127,6 +127,18 @@ async function confirmSnapshot() {
 }
 
 describe("TaskWizard strategy confirmation with the actual controller", () => {
+  it('prepares and shows exact platform overrides in the bound server snapshot',async()=>{
+    draft.links='';draft.platforms=['xhs','bilibili'];
+    draft.platformTerms={xhs:[makeTerm('找搭建团队')],bilibili:[makeTerm('展台设计报价')]};
+    persistDraft();render(<TaskWizardPage/>);
+    const receipt=await prepareSnapshot();
+    expect(fake.api.prepare.mock.calls[0][0].configuration.platformQueries).toEqual({version:'platform-queries-v1',items:[
+      {platform:'XIAOHONGSHU',keywords:['找搭建团队']},{platform:'BILIBILI',keywords:['展台设计报价']}]});
+    expect(receipt.snapshot.configuration.platformQueries?.items).toHaveLength(2);
+    expect(screen.getByText('小红书实际搜索词')).toBeTruthy();
+    expect(screen.getByText('B站实际搜索词')).toBeTruthy();
+    expect(fake.api.confirm).not.toHaveBeenCalled();
+  });
   it('estimates the actual confirmed strategy through the real quote service without persisting its token', async () => {
     context.session.accountScope={id:'TEST-space',version:1};
     draft.research={version:1,demandTypes:['INQUIRY'],maxSoubei:100,limits:{sources:10,minutes:5,modelCalls:5},

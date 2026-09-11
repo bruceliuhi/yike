@@ -658,6 +658,10 @@ function LegacyTasksPage({onCoveragePlan}:{onCoveragePlan?:(request:CoveragePlan
     setDraft({ ...newTaskDraft(mode), research: defaultResearchSettings() });
     navigate(monitor ? "/tasks/new?mode=monitor" : "/tasks/new");
   };
+  const createPlain = () => {
+    setDraft(newTaskDraft(mode));
+    navigate(monitor ? "/tasks/new?mode=monitor" : "/tasks/new");
+  };
   const edit = (draft: TaskDraft, confirm = false) => {
     const latest =
       currentDraft.id === draft.id && currentDraft.revision >= draft.revision
@@ -773,10 +777,13 @@ function LegacyTasksPage({onCoveragePlan}:{onCoveragePlan?:(request:CoveragePlan
             : "配置采集范围，筛选值得推进的需求。"
         }
         extra={
+          <>
+          <Button onClick={createPlain}>{monitor ? "新建普通监控" : "新建普通采集"}</Button>
           <Button variant="primary" onClick={create}>
             <Plus />
             {monitor ? "新建监控任务" : "新建获客任务"}
           </Button>
+          </>
         }
       />
       <Tabs

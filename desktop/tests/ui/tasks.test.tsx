@@ -72,6 +72,15 @@ beforeEach(() => {
   };
 });
 afterEach(cleanup);
+it.each([['/collection','新建普通采集','once'],['/monitors','新建普通监控','monitor']])(
+  'creates an explicit plain task from %s without converting a research request',async(route,label,mode)=>{
+    context.route=parseRoute('#'+route);render(<TasksPage/>);
+    fireEvent.click(await screen.findByRole('button',{name:label}));
+    const created=JSON.parse(sessionStorage.getItem('yike.ui.draft.v1.task.'+context.session.userId)!);
+    expect(created.mode).toBe(mode);expect(created.research).toBeUndefined();
+    expect(created.id).toBeTruthy();expect(created.executionLimits).toBeUndefined();
+    expect(context.service.taskAction).not.toHaveBeenCalled();
+  });
 function saveLibrary(): TaskDraft[] {
   const drafts = [
     {

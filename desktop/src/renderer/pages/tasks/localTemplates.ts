@@ -28,6 +28,7 @@ const conditions = taskDraftSchema.pick({
   profileId: true,
   profileVersion: true,
   terms: true,
+  platformTerms: true,
   exclusions: true,
   removed: true,
   source: true,

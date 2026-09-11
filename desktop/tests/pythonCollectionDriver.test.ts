@@ -49,13 +49,39 @@ it('fixed private spawn, no inherited secret, sequential query budgets and untou
   f.respond(1, [record('搭建', '66c21234abcdef0123456789')]);
   expect(await run.completed).toEqual([record(), record('搭建', '66c21234abcdef0123456789')]); await run.stop();
 });
-it.each(['connection', 'research', 'links', 'comma', 'budget'])('rejects unsupported/mismatched %s before spawn', async kind => {
+it.each([
+  ['XIAOHONGSHU', ['找搭建团队']],
+  ['BILIBILI', ['展台设计报价']],
+  ['DOUYIN', ['设计', '搭建']],
+] as const)('uses the confirmed platform-specific queries for %s with global fallback', async (platform, expected) => {
+  const f = fixture();
+  f.input.target.platform = platform;
+  f.input.snapshot.platforms = ['XIAOHONGSHU', 'BILIBILI', 'DOUYIN'];
+  f.input.snapshot.configuration.platformQueries = {version: 'platform-queries-v1', items: [
+    {platform: 'XIAOHONGSHU', keywords: ['找搭建团队']},
+    {platform: 'BILIBILI', keywords: ['展台设计报价']},
+  ]};
+  const binding = {...f.options.binding, platform};
+  const run = createPythonCollectionDriver({...f.options, binding} as any).start(f.input);
+  for (let index = 0; index < expected.length; index++) {
+    await tick();
+    expect(f.request(index).query).toBe(expected[index]);
+    f.respond(index, [], {});
+  }
+  await expect(run.completed).resolves.toEqual([]);
+  expect(spawn).toHaveBeenCalledTimes(expected.length);
+  await run.stop();
+});
+it.each(['connection', 'research', 'links', 'comma', 'budget', 'platformScope'])('rejects unsupported/mismatched %s before spawn', async kind => {
   const f = fixture(); const c = f.input.snapshot.configuration;
   if (kind === 'connection') f.input.target.connection_version = 2;
   if (kind === 'research') c.research = {};
   if (kind === 'links') c.links = ['https://example.org'];
   if (kind === 'comma') c.keywords = ['设计,搭建'];
   if (kind === 'budget') f.input.maxRecords = 101;
+  if (kind === 'platformScope') f.input.snapshot.configuration.platformQueries = {version: 'platform-queries-v1', items: [
+    {platform: 'BILIBILI', keywords: ['展台设计报价']},
+  ]};
   const run = f.driver.start(f.input); await expect(run.completed).rejects.toThrow('SOURCE_DRIVER_INVALID_INPUT'); await run.stop();
   expect(spawn).not.toHaveBeenCalled();
 });

@@ -8,6 +8,7 @@ import {
 } from "./models";
 import { researchSettingsSchema } from "./researchUsage";
 import { industryStrategyError } from './industryTaskStrategy';
+import { platformTermsError } from './platformSearchTerms';
 import {foregroundBindingSchema,publicSourceBindingSchema} from '../../shared/foregroundCollection';
 
 export const PUBLIC_SOURCE_SCOPE='V2EX近期主题有界抽样，不覆盖历史/全站/评论';
@@ -117,6 +118,8 @@ export function applySuggestion(
 }
 export function taskErrors(draft: TaskDraft): Record<string, string> {
   const errors: Record<string, string> = {};
+  const queryError=platformTermsError(draft);
+  if(queryError)errors.platformTerms=queryError;
   const industryError=industryStrategyError(draft);
   if(industryError)errors.industryStrategy=industryError;
   if (!draft.name.trim()) errors.name = "请填写任务名称。";
@@ -283,5 +286,6 @@ export function taskFingerprint(draft: TaskDraft): string {
     links: draft.links,
     ...(draft.research ? { research: draft.research } : {}),
     ...(draft.industryStrategy ? { industryStrategy: draft.industryStrategy } : {}),
+    ...(draft.platformTerms!==undefined ? {platformTerms:draft.platformTerms} : {}),
   });
 }

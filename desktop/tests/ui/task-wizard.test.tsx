@@ -222,6 +222,27 @@ describe("platform selection state names", () => {
 });
 
 describe("task wizard service boundary", () => {
+  it('edits platform-specific words in the real wizard and restores their saved draft',async()=>{
+    seed({platforms:['xhs','bilibili']});
+    const view=render(<TaskWizardPage/>);
+    await screen.findByText('已确认版本 v1');
+    fireEvent.click(screen.getByText('按平台设置搜索词'));
+    fireEvent.click(screen.getByRole('button',{name:'小红书单独设置'}));
+    const group=screen.getByRole('group',{name:'小红书搜索词'});
+    fireEvent.click(within(group).getByRole('button',{name:'人工需求'}));
+    const editor=within(group).getByRole('textbox',{name:'修改人工需求'});
+    fireEvent.change(editor,{target:{value:'有没有搭建公司'}});
+    fireEvent.keyDown(editor,{key:'Enter'});
+    expect(currentDraft().platformTerms?.xhs?.map(term=>term.value)).toEqual(['有没有搭建公司']);
+    expect(currentDraft().terms.map(term=>term.value)).toEqual(['人工需求']);
+    fireEvent.click(screen.getByRole('button',{name:'保存草稿'}));
+    view.unmount();render(<TaskWizardPage/>);
+    fireEvent.click(screen.getByText('按平台设置搜索词'));
+    expect(screen.getByRole('button',{name:'有没有搭建公司'})).toBeTruthy();
+    fireEvent.click(screen.getByRole('button',{name:'小红书恢复通用词'}));
+    expect(currentDraft().platformTerms).toBeUndefined();
+    expect(context.service.startTask).not.toHaveBeenCalled();
+  });
   it("uses the controlled suggestion disclosure path without legacy auto-generation", async () => {
     const versionId = "33333333-3333-4333-8333-333333333333";
     context.service.profiles = vi.fn().mockResolvedValue([{ ...profiles[0], id: versionId }]);

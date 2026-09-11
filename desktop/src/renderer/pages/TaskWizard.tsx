@@ -10,6 +10,7 @@ import {
 } from "../app/boundedRequest";
 import { useOperationLedger } from "../app/operationLedger";
 import { useTaskDraft, useTaskLibrary } from "../app/taskDraft";
+import {PlatformSearchTerms} from './tasks/PlatformSearchTerms';
 import {
   Badge,
   Button,
@@ -806,6 +807,7 @@ export function TaskWizardPage() {
               {errors.conflicts && (
                 <Notice tone="error">{errors.conflicts}</Notice>
               )}
+              <PlatformSearchTerms draft={draft} onChange={platformTerms=>update({platformTerms})}/>
             </section>
             <IndustryTaskStrategyEditor value={draft.industryStrategy} profileId={draft.profileId}
               onChange={industryStrategy=>update({industryStrategy})}/>

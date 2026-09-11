@@ -1,5 +1,6 @@
 """Real isolated PostgreSQL strategy authority; synthetic source policy only."""
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 from dataclasses import replace
 import importlib
 import importlib.util
@@ -150,6 +151,29 @@ def test_prepare_confirm_resolve_and_restart_receipts(env):
     view = service(env).get_strategy(env.claims, draft['strategy_version_id'])
     assert set(view) == (RECEIPT_FIELDS - {'request_id','operation','recorded_at'}) | {'created_at','confirmed_at','revoked_at','is_current','profile_current'}
     assert view['state'] == 'CONFIRMED' and view['is_current'] and view['profile_current']
+
+
+def test_platform_queries_survive_prepare_confirm_resolve_and_change_digest(env):
+    queries = {'version': 'platform-queries-v1', 'items': [
+        {'platform': 'XIAOHONGSHU', 'keywords': ['找搭建团队']},
+        {'platform': 'BILIBILI', 'keywords': ['展台设计报价']},
+    ]}
+    request = prepare_body(env, configuration=configuration(platformQueries=queries),
+                           platforms=['XIAOHONGSHU', 'BILIBILI'])
+    pending = prepare(env, request)
+    receipt = service(env).confirm(env.claims, confirm_body(pending))
+    assert receipt['snapshot']['configuration']['platformQueries'] == queries
+    assert resolve(env, receipt).configuration['platformQueries'] == queries
+
+    changed_queries = deepcopy(queries)
+    changed_queries['items'][1]['keywords'] = ['展台设计预算']
+    newer = prepare(env, request | {
+        'request_id': str(uuid4()), 'draft_revision': 2,
+        'configuration': configuration(platformQueries=changed_queries),
+    })
+    assert newer['configuration_sha256'] != receipt['configuration_sha256']
+    confirmed_newer = service(env).confirm(env.claims, confirm_body(newer))
+    assert resolve(env, confirmed_newer).configuration['platformQueries'] == changed_queries
 
 
 @pytest.mark.parametrize('change', ['body','operation'])

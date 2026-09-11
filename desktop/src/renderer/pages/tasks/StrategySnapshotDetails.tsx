@@ -1,4 +1,4 @@
-import type { StrategyReceipt } from "../../../shared/researchStrategies";
+import {platformSearchKeywords,type StrategyReceipt} from "../../../shared/researchStrategies";
 import { DEMAND_TYPES } from "../../domain/researchUsage";
 import { industrySourceLabels } from '../../../shared/industryTaskStrategy';
 
@@ -20,6 +20,9 @@ export function StrategySnapshotDetails({ receipt }: { receipt: StrategyReceipt 
       <div><dt>本次来源</dt><dd>{config.source === "search" ? "关键词搜索" : "指定内容链接"}</dd></div>
       {config.publicSource && <div><dt>公开来源标识</dt><dd>{config.publicSource} · V2EX近期主题，有界采样，不覆盖历史/全站/评论，不支持持续监控</dd></div>}
       <div><dt>搜索关键词</dt><dd>{config.keywords.join("、") || "无"}{config.source !== "search" && "（保留但本次不执行）"}</dd></div>
+      {config.platformQueries && snapshot.platforms.map(platform=><div key={platform}>
+        <dt>{platforms[platform]}实际搜索词</dt><dd>{platformSearchKeywords(config,platform).join('、')}（按本次已确认配置执行）</dd>
+      </div>)}
       <div><dt>排除词</dt><dd>{config.exclusions.join("、") || "无"}</dd></div>
       <div><dt>内容链接</dt><dd>{config.links.join("\n") || "无"}{config.source !== "links" && "（保留但本次不执行）"}</dd></div>
       <div><dt>平台顺序</dt><dd>{snapshot.platforms.map(id => platforms[id]).join(" → ")}</dd></div>
