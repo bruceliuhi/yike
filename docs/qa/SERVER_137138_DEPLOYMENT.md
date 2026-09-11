@@ -1,5 +1,15 @@
 # 101.200.137.138 部署与测试交付
 
+## 浏览器登录来源修复（2026-09-11，54ec435）
+
+用户反馈 `/ops/login`“请求来源不匹配”。用独立 Chrome 上下文真实填表复现：旧页面 `Referrer-Policy: no-referrer` 导致浏览器 POST `Origin: null`，被现有严格来源检查拒绝。此前 HTTP 验收手工指定 Origin，未覆盖真实浏览器行为；不能以该检查代表浏览器已验收。
+
+- 源码改为 `same-origin`，缺失/null/跨站 Origin 仍拒绝，CSRF校验不变；新增定向测试先RED后GREEN（1 passed）。独立审核精确提交 `54ec4350de6f7d2c212e61fb4e0b0f3bfc017f14` GO。
+- 当前运行镜像仍056e258。本次仅通过受审 `deploy/ops_browser_origin_hotfix.py` 原子更新既有ops两条Nginx location的响应头；父站点和原include均有精确SHA前置，备份 `ops/ops-locations-before-browser-origin.conf`，语法检查成功后graceful reload。显式保留HSTS，未变更客户服务、数据库、凭据或其他站点。
+- 修复后include SHA256 `c2bca2c2185be3b86737d807f2219a3ddc995d65c59e191946998a24ae49af67`。下一次镜像包含源码修复后该代理策略等价，不得将旧镜像标为已升级。
+- 公网真实Chrome重新GET登录页、从本机私有文件内存读取密码并真实点击提交：浏览器自然产生同站Origin，进入 `/ops/users`；未手工添加登录Origin。随后退出测试会话，确认受保护页重新拒绝访问。未输出密码/手机号、未创建客户、未发送短信。
+- 已打开旧登录页面须重新GET页面后再提交，避免沿用旧的document策略。
+
 ## 运营入口已部署：/ops（2026-09-11，复用056e258镜像）
 
 在下节客户短信服务已升级且健康的基础上，CodexiMac部署独立运营服务，入口 [运营后台](https://yike.tuokexing.net/ops)。没有重新构建相同字节镜像，也未改客户服务端口/环境。当前客户与ops运行代码均为056e258；main新增方舟兼容源码b18ed12尚未部署或配置模型。
