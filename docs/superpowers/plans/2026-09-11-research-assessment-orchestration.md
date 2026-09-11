@@ -28,16 +28,17 @@ Owner root. New pilot/research_orchestrator.py and tests/test_research_orchestra
 
 ## Task 3: Review and integration
 
-- [ ] One nonauthor commit-bound full-batch review; fix directed findings and delta-review.
-- [ ] Record evidence below, taskbook pointer, push main, verify remote/local parity; stop owned test PG.
+- [x] One nonauthor commit-bound full-batch review; fix directed findings and delta-review.
+- [x] Record evidence below and taskbook pointer. Root pushes main and records actual remote/local parity in the handoff; stop owned test PG.
 
 ## 实施证据
 
-基线273430d；方案effe145，内部顺序编排4cdfd87，随后整合受控评估、原请求绑定防护。当前等待整批非作者审核，未推送主线；本片不开放普通客户端研究、生产规则或对外触达。
+基线273430d；方案effe145，内部顺序编排4cdfd87，受控评估/原请求绑定a0a944e，最终权限修复bac5df1。非作者整批初审发现1项P1，已定向复现、修复并获得bac5df1差量GO，无新增阻断；本片不开放普通客户端研究、生产规则或对外触达。
 
 - 独立只读架构检查确认复用现有 `_assess`，不另建模型结果合同；候选来源校验与许可同事务，模型与数据库事务分离。采用保守分事务恢复：模型事件SUCCEEDED只证明有效模型结果曾完成，后续评估提交仍可能UNKNOWN，不重调同action。
 - 编排正例先以NOT_IMPLEMENTED行为RED；内部恢复收到不属于该候选版本的结果也先RED。实现后15项顺序策略测试通过（0.16s），覆盖精确receipt、版本/观察/任务变化、空原文、停止、失败与恢复。不把这些单元双替身称为真实存储。
 - 研究评估/deadline新增10项通过（15.35s），含受限PG真实确认任务/来源/评估存储；已有模型/resource runner兼容195项通过（4.44s）；普通review/cache选定3项通过（2.98s），非全产品回归。测试中修正二次topic夹具published_at漂移导致的正确ambiguous，不降低生产判定。
 - root独立整合：`tests/test_research_orchestrator_postgres.py`在最终修改后1项通过（3.04s）。实际确认START→来源事件→2条原文持久化→2次MODEL_CALL→现有复核列表，原请求恢复无第二次读取/模型；均为合成来源与模型边界、真实专用受限PG。两条仍是UNVERIFIED/PENDING_REVIEW，不能算已核验商机或客户验收。
 - 模型使用调用专属浅复制和绝对monotonic截止，不重载规则文件、不改变共享实例；剩余任务许可、评估90秒期限与原模型时限共同约束。当前未加入新迁移/权限；136保留给独立短信登录/试用权益侧任务。
+- 审核P1：许可前的策略检查虽会检查资料引用，但后续等待任务/候选锁时另一会话仍可撤销资料。修复在许可提交后、模型调用紧前增加调用专属最终资格核对，不跨模型持有事务。受限PG通过第二个同owner会话实际调用MaterialStore撤销，在旧a0a944e复现模型仍调用1次的RED（2.90s）；bac5df1修复后新窗口测试、同原文缓存和整链路共3项通过（8.92s）。撤销后模型调用0，资源保留UNKNOWN，原请求恢复不重调；未重跑全套/构包/外部网络。独立审核只复核修复差量后GO，保留初审失败不抹除。
 - 仍待用户启动/结果接线、完整研究来源规划、结算、真实模型、Windows/生产与跨行业用户证据；完整Goal保持active。
