@@ -1,9 +1,12 @@
 import {z} from 'zod';
 import {executionOperationSchema, executionSignatureSchema} from '../shared/executionOperation';
 import {deviceUuidSchema} from '../shared/deviceRegistration';
+import {researchStartEnvelopeSchema} from '../shared/researchExecution';
 import type {ServiceOperation} from './servicePolicy';
 
 const privateExecutionSchema = z.discriminatedUnion('operation', [
+  z.object({operation: z.literal('researchExecution.start'), payload: researchStartEnvelopeSchema}).strict(),
+  z.object({operation: z.literal('researchExecution.receipt'), payload: z.object({request_id: deviceUuidSchema}).strict()}).strict(),
   z.object({operation:z.literal('monitor.support')}).strict(),
   z.object({operation:z.literal('monitor.list')}).strict(),
   z.object({operation:z.literal('monitor.create'),payload:z.object({schema_version:z.literal('monitor-plans-v1'),request_id:deviceUuidSchema,
@@ -29,6 +32,12 @@ export function validatedExecutionOperation(input: unknown): ServiceOperation | 
   if (!parsed.success) return null;
   const request = parsed.data;
   switch (request.operation) {
+    case 'researchExecution.start': return {
+      path: '/api/ui/research-execution/start', method: 'POST', body: JSON.stringify(request.payload), logout: false,
+    };
+    case 'researchExecution.receipt': return {
+      path: `/api/ui/research-execution/operations/${request.payload.request_id}`, method: 'GET', logout: false,
+    };
     case 'monitor.support':return {path:'/api/ui/monitor-runtime/support',method:'GET',logout:false};
     case 'monitor.list':return {path:'/api/ui/monitor-plans',method:'GET',logout:false};
     case 'monitor.create':return {path:'/api/ui/monitor-plans',method:'POST',body:JSON.stringify(request.payload),logout:false};

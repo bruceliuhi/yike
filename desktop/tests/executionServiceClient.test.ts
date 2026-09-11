@@ -8,6 +8,12 @@ const operation = {schema_version: 'execution-runtime-v1', request_id: id, devic
   strategy_version_id: null, configuration_sha256: null, targets: null,
   platform_run_id: null, lease_id: null, execution_generation: null};
 const routes = [
+  {operation: 'researchExecution.start', payload: {request: {...operation, operation: 'START', task_id: null,
+    profile_version_id: id, strategy_version_id: id, configuration_sha256: 'a'.repeat(64),
+    targets: [{platform: 'PUBLIC_WEB', access_mode: 'PUBLIC_ANONYMOUS', connection_id: null, connection_version: null}]},
+    signature: 'A'.repeat(86), authorization_token: 'c3ludGhldGlj.AA'},
+    path: '/api/ui/research-execution/start', method: 'POST'},
+  {operation: 'researchExecution.receipt', payload: {request_id: id}, path: `/api/ui/research-execution/operations/${id}`, method: 'GET'},
   {operation:'monitor.support',path:'/api/ui/monitor-runtime/support',method:'GET'},
   {operation:'monitor.list',path:'/api/ui/monitor-plans',method:'GET'},
   {operation:'monitor.create',payload:{schema_version:'monitor-plans-v1',request_id:id,profile_version_id:id,strategy_version_id:id,human_confirmed:true},path:'/api/ui/monitor-plans',method:'POST'},
