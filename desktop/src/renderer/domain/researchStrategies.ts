@@ -46,7 +46,8 @@ export function strategyPrepareRequest(
   try {
     if (industryStrategyError(draft)) throw new Error(INVALID_DRAFT);
     const publicSource = draft.platforms.includes('web');
-    if (publicSource && (draft.mode !== 'once' || draft.source !== 'search' || draft.links.trim() || draft.research))
+    if (publicSource && ((draft.mode !== 'once' && !(draft.mode === 'monitor' && draft.schedule.policyVersion === 1)) ||
+        draft.source !== 'search' || draft.links.trim() || draft.research))
       throw new Error(INVALID_DRAFT);
     if (
       draft.research !== undefined &&

@@ -44,3 +44,7 @@ Files: `desktop/src/shared/foregroundCollection.ts`、`desktop/src/main/{foregro
 - 上述PG测试仅在专用loopback临时库执行，测试推进到期窗口，不证明真实1小时平台调度；无外网读取、真实模型、生产身份或Windows证据。新mode默认关闭，部署必须配套新客户端与新服务镜像；32c9c0c旧候选不包含本批代码。
 - 客户端先验RED为5项预期失败/68通过；实现后7文件96项通过，`tsc --noEmit`通过。定向文件：`publicCommunityDriver`、`foregroundCollectionController`、`publicCollectionRenderer`、`monitorCollectionController`、`monitorCollectionRenderer`、`monitorCollectionDomain`及`ui/task-domain`。含真实controller-worker-driver的模拟HTTP/CLAIM/upload/FINISH、混合串行、旧声明拒绝、同实例单次→监控冷却、两轮驱动及已有取消/恢复反例。没有重新运行全量测试或构包；客户窗口与真实平台另验。
 - 非作者`release_candidate_review`对`001741f..a656c60540f8ae78b2e9863436cb1491e9497dff`给出限定GO，无阻断P1/P2；核对创建/接管入口、资格/快照/预留、旧模式/原生兼容、恢复不重采、同实例冷却及重复观察边界。独立仅复测policy36项（通过）及差量格式；未重复整组客户端/PG、构包或实网。不代表生产发布许可，后续产品代码改动须复审差量。
+
+### 后续真实草稿路径阻断修复
+
+继续沿研究入口核对时发现：`strategyPrepareRequest`仍限制PUBLIC_WEB只能once，导致新建公开monitor草稿在PREPARE前失败。上一批controller/target测试使用现成策略，未覆盖这个转换步骤；上述GO不能作为该步骤已可用的证据。现补真实draft→strategyPrepareRequest→monitorCreateCommand的public-only及混合两例，先复现2失败/2通过，再只扩展转换函数至policy1 monitor，保留旧binding、research、links和其他周期拒绝。3个定向文件30项通过，tsc通过；无新后端或镜像输入，不重跑PG/构包。差量仍须独立审核。
