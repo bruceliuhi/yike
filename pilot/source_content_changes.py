@@ -14,6 +14,12 @@ def _iso(value):
     return value.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00","Z")
 
 
+def _wire_time(value):
+    if isinstance(value,str): value=datetime.fromisoformat(value.replace("Z","+00:00"))
+    value=value.astimezone(UTC)
+    return value.replace(microsecond=(value.microsecond//1000)*1000)
+
+
 def _stable(prefix,value):
     return prefix+hashlib.sha256(json.dumps(value,ensure_ascii=False,sort_keys=True,
         separators=(",",":"),default=str).encode()).hexdigest()
@@ -39,7 +45,7 @@ def _quote(body,other):
 def project_source_content_changes(rows, *, anchor_observation_id, anchor_version_id,
                                    anchor_observed_at, anchor_received_at, source_url, anchor_body, now=None):
     if len(rows)>200: raise SourceContentChangeError("observation limit")
-    ordered=sorted(rows,key=lambda row:(row["observed_at"],row["received_at"],str(row["observation_id"])))
+    ordered=sorted(rows,key=lambda row:(_wire_time(row["observed_at"]),_wire_time(row["received_at"]),str(row["observation_id"])))
     if now is not None and any(row["observed_at"]>now or row["received_at"]>now for row in ordered):
         raise SourceContentChangeError("future observation")
     anchor=next((row for row in ordered if str(row["observation_id"])==anchor_observation_id),None)
@@ -60,9 +66,10 @@ def project_source_content_changes(rows, *, anchor_observation_id, anchor_versio
         "observedAt":_iso(row["observed_at"]),"receivedAt":_iso(row["received_at"])} for row in ordered]
     groups=[]
     for row in ordered:
-        if not groups or groups[-1][0]!=row["observed_at"]: groups.append((row["observed_at"],[row]))
+        observed=_wire_time(row["observed_at"])
+        if not groups or groups[-1][0]!=observed: groups.append((observed,[row]))
         else: groups[-1][1].append(row)
-    changes=[]; gaps=[]; baseline=None; anchor_time=anchor["observed_at"]
+    changes=[]; gaps=[]; baseline=None; anchor_time=_wire_time(anchor["observed_at"])
     for observed,group in groups:
         bodies={row["content"]["body"] for row in group}
         if len(bodies)!=1:

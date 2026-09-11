@@ -61,6 +61,20 @@ def test_same_observed_time_different_body_is_gap_and_resets_direction():
     assert result["gaps"]==["同一观察时间存在不同正文，无法确定变化方向。"]
 
 
+def test_same_wire_millisecond_different_body_is_ambiguous_and_resets_direction():
+    anchor=row("anchor","vA","正文A",0)
+    anchor["observed_at"]+=timedelta(microseconds=100)
+    later=row("later","vB","正文B",0)
+    later["observed_at"]+=timedelta(microseconds=200)
+    clear=row("clear","vC","正文C",1)
+    following=row("following","vD","正文D",2)
+    result=project([anchor,later,clear,following])
+    assert [item["observedAt"] for item in result["observations"][:2]]==[
+        "2026-09-11T00:00:00.000Z","2026-09-11T00:00:00.000Z"]
+    assert [(item["fromObservationId"],item["toObservationId"]) for item in result["changes"]]==[("clear","following")]
+    assert result["gaps"]==["同一观察时间存在不同正文，无法确定变化方向。"]
+
+
 def test_observation_and_real_version_limits_fail_closed():
     with pytest.raises(SourceContentChangeError): project([row(f"o{i}","v", "A",i) for i in range(201)])
     with pytest.raises(SourceContentChangeError): project([row(f"o{i}",f"v{i}",str(i),i) for i in range(101)])
