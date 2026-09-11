@@ -3,8 +3,11 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from fastapi.testclient import TestClient
 
+from pilot.auth import issue_token
 from pilot.db import PilotDatabase
+from pilot.runtime import build_runtime_app
 from pilot.store import PilotStore
 from pilot.ui_api import ProfileInput
 
@@ -88,3 +91,27 @@ def test_profile_input_entity_choice_is_strict_and_mutually_exclusive():
             ProfileInput(description="内容", profileEntityId=invalid)
     with pytest.raises(ValueError):
         ProfileInput(description="内容", newBusiness={"requestId": request_id, "name": "bad\x00name"})
+
+
+def test_ordinary_http_save_list_confirm_and_explicit_entity_receipts(env):
+    secret = "synthetic-independent-profile-http"
+    http = TestClient(build_runtime_app(env.database, auth_secret=secret),
+                      base_url="https://synthetic.invalid")
+    http.headers["Authorization"] = "Bearer " + issue_token(env.user, secret)
+    created = http.post("/api/ui/profiles", json={"description": "HTTP 初版", "newBusiness": {
+        "requestId": str(uuid4()), "name": "  HTTP 业务  "}})
+    assert created.status_code == 200, created.text
+    first = created.json()
+    assert first["profile_id"] and first["profile_name"] == "HTTP 业务"
+    listed = http.get("/api/ui/profiles")
+    assert listed.status_code == 200
+    assert any(item["profile_id"] == first["profile_id"] and item["profile_name"] == "HTTP 业务"
+               for item in listed.json()["items"])
+    confirmed = http.post(f"/api/ui/profiles/{first['version_id']}/confirm")
+    assert confirmed.status_code == 200
+    assert confirmed.json()["profile_id"] == first["profile_id"]
+    second = http.post("/api/ui/profiles", json={"description": "HTTP 二版",
+        "profileEntityId": first["profile_id"]})
+    assert second.status_code == 200
+    assert second.json()["profile_id"] == first["profile_id"]
+    assert second.json()["profile_name"] == "HTTP 业务"
