@@ -41,7 +41,9 @@ class ResearchExecutionService:
             except ResearchQuoteError as error:
                 raise ExecutionRuntimeError(error.code, error.status) from None
             binding = quote.get("strategyBinding")
-            limits = snapshot.get("configuration", {}).get("research", {}).get("limits")
+            configuration = snapshot.get("configuration")
+            research = configuration.get("research") if type(configuration) is dict else None
+            limits = research.get("limits") if type(research) is dict else None
             platforms = snapshot.get("platforms")
             if (quote.get("userId") != claims.user_id
                     or quote.get("accountScopeId") != tenant
@@ -54,7 +56,7 @@ class ResearchExecutionService:
                     or set(platforms) != {target.platform for target in operation.targets}
                     or len(platforms) != len(operation.targets)
                     or type(limits) is not dict
-                    or quote.get("maxSoubei") != snapshot["configuration"]["research"].get("maxSoubei")
+                    or quote.get("maxSoubei") != research.get("maxSoubei")
                     or quote.get("estimatedSoubei", 0) > quote.get("maxSoubei", -1)):
                 raise ExecutionRuntimeError("strategy_conflict", 409)
             cursor.execute("SELECT draft_id,draft_revision FROM pilot_research_strategy_versions "

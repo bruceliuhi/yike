@@ -8,16 +8,28 @@ from uuid import uuid4
 
 import pytest
 
+from pilot.auth import issue_token, verify_token_claims
 from pilot.execution_contract import ExecutionRuntimeError
 from pilot.execution_runtime import execution_signing_payload
 from pilot.research_execution import ResearchExecutionService
 from pilot.research_quote import ResearchQuoteRule, ResearchQuoteService
-from tests.test_execution_runtime_postgres import apply, batch, guard, operation, start
+from tests.test_execution_runtime_postgres import SECRET, apply, batch, guard, operation, start
 from tests.test_research_quote_postgres import _confirmed_research, _request
 from tests.test_confirmed_strategy_review_postgres import real_strategy_env
 from tests.test_candidate_review_postgres import databases, env, execution_databases, execution_env, raw_databases, raw_env
 from tests.test_research_origin_postgres import _provenance, _research_config
-from tests.test_research_strategies_postgres import revoke_body
+from tests.test_research_strategies_postgres import configuration, confirm_body, prepare_body, revoke_body
+
+
+WRITE_TABLES = ("pilot_research_reservations", "pilot_execution_operations",
+    "pilot_collection_platform_runs", "pilot_collection_runs", "pilot_collection_tasks")
+
+
+def write_counts(env):
+    with env.admin.connect() as connection:
+        return {table: connection.execute(
+            f"SELECT count(*) FROM {table} WHERE tenant_id=%s", (env.tenant,)).fetchone()[0]
+            for table in WRITE_TABLES}
 
 
 def services(env):
@@ -224,3 +236,87 @@ def test_research_entry_rejects_historical_ordinary_start(env):
     with pytest.raises(ExecutionRuntimeError, match="request_conflict"):
         service.start(env.claims, request, signed_start(env, request), "not-a-quote")
     assert env.runtime.get_receipt(env.claims, request.request_id) == ordinary
+
+
+def test_source_revoked_after_quote_rejects_fresh_start_without_writes(real_strategy_env):
+    env = real_strategy_env
+    review, candidate, assessed, check, _, confirmed = _confirmed_research(env)
+    env.snapshot = confirmed["snapshot"]
+    quote_service, service = services(env)
+    request = start(env)
+    quote = quote_service.quote(env.claims, _request(env, confirmed))
+    from tests.test_candidate_review_postgres import assessment, review_payload
+    review.review(env.claims, review_payload(candidate, "EXCLUDE",
+        assessmentId=assessed["assessment"]["id"], sourceVerificationId=check["id"],
+        humanConfirmed=True, evidence=assessment()["evidence"], reason="撤销来源认可"))
+    before = write_counts(env)
+    with pytest.raises(ExecutionRuntimeError, match="strategy_conflict"):
+        service.start(env.claims, request, signed_start(env, request), quote["authorizationToken"])
+    assert write_counts(env) == before
+
+
+def test_start_and_get_are_isolated_from_second_user_and_tenant(real_strategy_env):
+    env = real_strategy_env
+    _, _, _, _, _, confirmed = _confirmed_research(env)
+    env.snapshot = confirmed["snapshot"]
+    quote_service, service = services(env)
+    request = start(env)
+    quote = quote_service.quote(env.claims, _request(env, confirmed))
+    receipt = service.start(env.claims, request, signed_start(env, request), quote["authorizationToken"])
+    before = write_counts(env)
+    for user in (env.users[1], env.users[2]):
+        stranger = verify_token_claims(issue_token(user, SECRET), SECRET)
+        with pytest.raises(ExecutionRuntimeError) as start_error:
+            service.start(stranger, request, signed_start(env, request), quote["authorizationToken"])
+        assert start_error.value.code in {"device_unavailable", "request_conflict"}
+        with pytest.raises(ExecutionRuntimeError) as get_error:
+            service.get_receipt(stranger, request.request_id)
+        assert (get_error.value.code, get_error.value.status) == ("request_not_found", 404)
+    assert service.get_receipt(env.claims, request.request_id) == receipt
+    assert write_counts(env) == before
+
+
+def test_same_request_rejects_a_second_valid_quote_and_cancel_read_remain_available(real_strategy_env):
+    env = real_strategy_env
+    _, _, _, _, _, confirmed = _confirmed_research(env)
+    env.snapshot = confirmed["snapshot"]
+    quote_service, service = services(env)
+    request = start(env)
+    first = quote_service.quote(env.claims, _request(env, confirmed))
+    second = quote_service.quote(env.claims, _request(env, confirmed) | {"requestId": str(uuid4())})
+    receipt = service.start(env.claims, request, signed_start(env, request), first["authorizationToken"])
+    before = write_counts(env)
+    with pytest.raises(ExecutionRuntimeError, match="request_conflict"):
+        service.start(env.claims, request, signed_start(env, request), second["authorizationToken"])
+    assert write_counts(env) == before
+    cancelled = apply(env, operation(env, "CANCEL", receipt["execution"]))
+    assert cancelled["status"] == "CANCELED" and cancelled["stop_confirmed"] is True
+    assert env.runtime.get_task(env.claims, receipt["execution"]["task_id"])["status"] == "CANCELED"
+    assert service.get_receipt(env.claims, request.request_id) == receipt
+
+
+def test_fresh_research_snapshot_through_ordinary_entry_rolls_back(real_strategy_env):
+    env = real_strategy_env
+    _, _, _, _, _, confirmed = _confirmed_research(env)
+    env.snapshot = confirmed["snapshot"]
+    request = start(env)
+    before = write_counts(env)
+    with pytest.raises(ExecutionRuntimeError, match="capability_unavailable"):
+        apply(env, request)
+    assert write_counts(env) == before
+
+
+def test_normal_strategy_with_unrelated_valid_research_quote_is_fixed_conflict_and_rollback(real_strategy_env):
+    env = real_strategy_env
+    _, _, _, _, _, research = _confirmed_research(env)
+    quote_service, service = services(env)
+    quote = quote_service.quote(env.claims, _request(env, research))
+    pending = env.strategies.prepare(env.claims, prepare_body(env,
+        configuration=configuration(research=None)))
+    normal = env.strategies.confirm(env.claims, confirm_body(pending))
+    env.snapshot = normal["snapshot"]
+    request = start(env)
+    before = write_counts(env)
+    with pytest.raises(ExecutionRuntimeError, match="strategy_conflict"):
+        service.start(env.claims, request, signed_start(env, request), quote["authorizationToken"])
+    assert write_counts(env) == before
