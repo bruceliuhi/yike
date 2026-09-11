@@ -2,6 +2,8 @@
 
 本模块独立部署，入口 `/ops`。代码集成不代表生产已部署，也不代表短信供应商已接通。
 
+2026-09-11接续：056e258独立ops与客户SMS服务已部署，真实管理员HTTPS登录、列表/开通表单、Origin/CSRF和退出检查通过；[当前事实与未验项](../docs/qa/SERVER_137138_DEPLOYMENT.md#运营入口已部署ops2026-09-11复用056e258镜像)。未创建客户或发送SMS，不代表真实试用激活或完整客户端已交付。下方“未配置”说明保留其代码批次边界，当前以该部署记录为准。
+
 ## 运营流程
 
 1. 运营登录后台，登记客户名称、完整手机号，生成专属试用码；默认激活后 3 天，可选 1–30 天。
@@ -18,6 +20,8 @@
 先备份、迁移全部 schema（含 136）并运行既有 `deploy/grant_runtime.sql`；先升级客户服务（含共享 trial 会话 gate），再启动运营服务和生成客户，不能把旧客户服务与新运营签发混用。迁移 owner 仍属于受信离线路径。
 
 由可信数据库管理员创建**独立** `yike_ops` LOGIN 角色，使用部署系统秘密管理设置其密码，属性为 NOSUPERUSER NOBYPASSRLS NOCREATEROLE NOCREATEDB NOREPLICATION；不继承客户运行角色或 schema owner。不把密码写入 SQL/Git/命令行历史。
+
+若业务数据库已撤销 `PUBLIC CONNECT`，还须为该角色单独授予**当前业务库**的 `CONNECT`，不能恢复公共连接权限。当前部署库为 `yike`，对应 `GRANT CONNECT ON DATABASE yike TO yike_ops`；其他环境使用已核验的库名。表授权成功不证明数据库可连接。用实际运营连接构造 `OpsStore` 验证通过后才能公开入口；若角色和密钥已生成但此检查失败，保留它们并修正缺失权限，不能重跑初始化或轮换密钥。
 
 ```sh
 psql "$YIKE_PILOT_ADMIN_DATABASE_URL" -X -v ON_ERROR_STOP=1 \

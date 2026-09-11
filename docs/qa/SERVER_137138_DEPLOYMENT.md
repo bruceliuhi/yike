@@ -1,5 +1,20 @@
 # 101.200.137.138 部署与测试交付
 
+## 运营入口已部署：/ops（2026-09-11，复用056e258镜像）
+
+在下节客户短信服务已升级且健康的基础上，CodexiMac部署独立运营服务，入口 [运营后台](https://yike.tuokexing.net/ops)。没有重新构建相同字节镜像，也未改客户服务端口/环境。当前客户与ops运行代码均为056e258；main新增方舟兼容源码b18ed12尚未部署或配置模型。
+
+- 新增专属 `yike_ops` 角色，无superuser/BYPASSRLS/CREATEDB/CREATEROLE/REPLICATION或继承关系，独立DB连接和管理员密码。仅共享原手机号HMAC密钥，不共享客户DB连接凭据、短信AccessKey或模型凭据；手机号加密密钥只进入ops。
+- 第一次初始化已创建角色和0600配置，但真实连接验证失败。只读诊断发现 `has_database_privilege('yike_ops','yike','CONNECT')=false`，错误分类为permission denied；生产库此前已撤销PUBLIC CONNECT。只向该既有角色补授当前 `yike` 库CONNECT，**未重新生成/轮换任何密钥**，随后真实OpsStore构造通过，schema_create=false、profile_select=false、ciphertext_select=true。此遗漏已补入部署手册，不通过恢复PUBLIC权限解决。
+- 独立容器 `yike-ai2026-ops`，镜像ID与下节一致，非root、只读根文件系统、drop-all、no-new-privileges、512MiB/0.5CPU、单worker、loopback18789；仅信任实查Docker网关172.28.0.1。客户服务继续healthy，ops重启0。没有数据库管理员凭据进入ops。
+- 仅修改既有意客HTTPS站点，新增 `/ops/login` 与 `/ops` 子路径代理；实际Host透传、固定HTTPS协议、8KiB请求上限、独立限速、关闭access日志/请求及响应缓冲/代理缓存，避免解密手机号响应落入Nginx临时文件。`nginx -t` 成功后graceful reload；其他站点文件未修改。原站点备份 `ops/yike-before-ops-056e258.conf` 保留，未实际执行回退。
+- 数据库认证加密备份 `backups/yike-before-ops-056e258.dump.enc` 和`.mac`、独立ops配置认证加密备份 `backups/ops-config-056e258.env.enc` 和`.mac` 均已生成。ops私有目录0700、文件0600，原手机号密钥与客户进程逐字一致；未宣称完成离站备份或本次恢复演练。
+- 公网HTTP验收：初次在reload后立即执行时首屏断言失败，未保存该次状态码，不推断具体原因；外网只读复核200后，原验收脚本完整通过，未重启/重新发布。使用一个真实管理员会话验证登录、未登录拒绝、客户列表和开通表单200、Secure/HttpOnly/SameSite cookie、跨Origin及错误CSRF拒绝、退出和旧会话失效。没有生成试用客户或触发SMS；最后trial、phone binding和残留ops测试session均为0。
+- 仅将管理员登录信息经SSH传入本机私有文件，未输出密码、Cookie、DSN或加密密钥。文件路径由当前任务私下交给用户，不写入仓库内容。真实容器日志未发现所检查的四项ops/phone秘密，两个进程的凭据隔离检查通过。
+- 非作者部署审核修复Nginx响应缓冲落盘问题后GO；CONNECT最小增量、Host透传和密钥单行检查另经差量GO。助手与报告位于本机 `/tmp/yike-ops-release.DIwqZa/`；服务器脱敏事实记录 `/opt/yike-ai2026/testdata/ops-056e258-deployment.json`。审核与只读HTTP不等于真实客户开通/短信激活或浏览器全流程验收。
+
+**下一步：** 先完成已授权模型选型/适配与客户端交付，再由用户本人登记真实测试手机号并在客户端收码验证。后台开放不表示整产品已可收费上线；当前未对外邀请、发码或创建客户。更晚的实测模型选择以实际配置记录为准，不默认启用此前仅用于探测的Flash250615。
+
 ## 当前部署：056e258，正式短信配置已装配（2026-09-11）
 
 用户通过独立任务提供目标服务器PEM及阿里云密钥文件并授权配置。CodexiMac接手唯一生产写入后，实际升级到 `056e2588677ef66f2734d6635a4170e00d8c76dd`。下方66745ef是上一健康版本，不再是当前运行源码。本批未启动新的产品研究功能、未创建客户、未调用发送验证码接口、未启用模型或运营服务；**短信装配不等于实际收码或产品上线**。
