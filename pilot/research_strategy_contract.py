@@ -25,10 +25,12 @@ _ERROR_STATUSES = {
     "draft_conflict": 409,
     "strategy_conflict": 409,
     "profile_unavailable": 409,
+    "research_origin_unavailable": 409,
     "strategy_store_unavailable": 503,
 }
 _HHMM = re.compile(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
+_SUGGESTION_ID = re.compile(r"suggestion_[0-9a-f]{64}")
 _MAX_CONFIGURATION_BYTES = 65536
 _PositiveLimit = Annotated[int, Field(ge=1, le=1000000)]
 
@@ -65,6 +67,11 @@ def _raw_fields(value: object, depth: int = 0) -> object:
     if isinstance(value, BaseModel):
         # __dict__ also retains forbidden keys inserted by model_copy(update=...).
         fields = dict(vars(value))
+        # Optional provenance is absent, rather than explicit null, on legacy
+        # model instances. Preserve that distinction during revalidation.
+        if ("provenance" in type(value).model_fields and fields.get("provenance") is None
+                and "provenance" not in value.__pydantic_fields_set__):
+            fields.pop("provenance", None)
         fields.update(value.__pydantic_extra__ or {})
         return _raw_fields(fields, depth + 1)
     if type(value) is dict:
@@ -187,6 +194,69 @@ class _ResearchLimits(_Frozen):
     modelCalls: _PositiveLimit
 
 
+class _AccountScope(_Frozen):
+    id: str
+    version: Literal[1]
+
+    @field_validator("id")
+    @classmethod
+    def check_id(cls, value):
+        return _visible_text(value, 512)
+
+    @field_validator("version", mode="before")
+    @classmethod
+    def exact_version(cls, value):
+        if type(value) is not int or value != 1:
+            raise ValueError("invalid account scope version")
+        return value
+
+
+class _ResearchProvenance(_Frozen):
+    requestId: str
+    suggestionId: str
+    userId: str
+    opportunityId: str
+    profileVersionId: str
+    sourceUrl: str
+    evidenceVersion: str
+    accountScope: _AccountScope
+    originalScope: str = Field(max_length=8000)
+    additionalScope: str = Field(max_length=8000)
+
+    @field_validator("requestId")
+    @classmethod
+    def check_request(cls, value):
+        return _uuid(value)
+
+    @field_validator("suggestionId")
+    @classmethod
+    def check_suggestion(cls, value):
+        if type(value) is not str or not _SUGGESTION_ID.fullmatch(value):
+            raise ValueError("invalid suggestion identifier")
+        return value
+
+    @field_validator("userId", "opportunityId", "profileVersionId", "evidenceVersion")
+    @classmethod
+    def check_identity(cls, value):
+        return _visible_text(value, 512)
+
+    @field_validator("sourceUrl")
+    @classmethod
+    def check_source_url(cls, value):
+        if type(value) is not str or len(value) > 2048:
+            raise ValueError("invalid source URL")
+        _validate_url(value, "PUBLIC_WEB")
+        return value
+
+    @field_validator("originalScope", "additionalScope")
+    @classmethod
+    def check_scope(cls, value):
+        if type(value) is not str:
+            raise ValueError("invalid scope")
+        _check_string(value)
+        return value
+
+
 class _Research(_Frozen):
     version: Literal[1]
     demandTypes: tuple[Literal["INQUIRY", "COMPARISON", "REPLACEMENT", "CHANGE"], ...] = Field(
@@ -195,6 +265,21 @@ class _Research(_Frozen):
     limits: _ResearchLimits
     stopAtAnyLimit: Literal[True]
     evidenceOrder: Literal["SOURCE_MATCH_CONTEXT"]
+    provenance: _ResearchProvenance | None = None
+
+    @field_validator("provenance", mode="before")
+    @classmethod
+    def reject_explicit_null_provenance(cls, value):
+        if value is None:
+            raise ValueError("provenance cannot be null")
+        return value
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_research(self, handler):
+        result = handler(self)
+        if self.provenance is None:
+            result.pop("provenance", None)
+        return result
 
     @field_validator("version", mode="before")
     @classmethod

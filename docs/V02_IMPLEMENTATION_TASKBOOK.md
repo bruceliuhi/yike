@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+相似研究来源接续：已补客户端真实草稿→策略PREPARE/CONFIRM的provenance合同及同事务来源资格；原机会撤销后拒绝继续采用，历史记录保留。[限定实施证据](superpowers/plans/2026-09-11-similar-research-provenance.md#实施证据)：客户端50项、Python合同205项、受限PG8项及tsc通过，待本批独立审核。下段“来源仍拒绝”为本批之前的诊断，现仅coverageProvenance继续拒绝；research实际启动、可信估算/预留/计量仍未接，不解除保护、不关闭R4或Goal。
+
 研究启动接续：已核实相似/补查provenance仍被策略转换与服务端合同拒绝，不能当成已入确认快照；本机taskFingerprint又不含executionLimits，不能单独作为用量绑定。后续按[研究启动绑定设计](superpowers/specs/2026-09-11-research-runtime-binding-design.md)先补完整来源与服务端快照，再接估算、同事务预留/START和实际计量；不删除现有research启动保护，不设生产搜贝换算。核查中同时修复公开monitor草稿PREPARE阻断，`f3faebe`独立GO，[真实草稿链路证据](superpowers/plans/2026-09-11-public-community-monitor.md#后续真实草稿路径阻断修复)取代仅用现成策略的间接证据。完整Goal继续。
 
 2026-09-11授权接续：用户已明确允许在已批准V0.2内自行细化方案并开发，按`AUTHORITY.md`执行，不再逐片等待技术设计确认。本批推进[公开社区定时抽样](superpowers/plans/2026-09-11-public-community-monitor.md#实施与验证)，旧公开单次模式保留，新模式显式启用；限定技术证据、审核和未验项集中在该记录，不关闭MP-03或完整Goal。无需再次批准此技术增量，但该授权不批准搜贝换算、收费或外部部署。

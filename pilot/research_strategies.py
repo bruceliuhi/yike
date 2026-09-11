@@ -20,6 +20,7 @@ from pilot.execution_contract import ExecutionRuntimeError
 from pilot.execution_runtime import ConfirmedExecutionStrategy
 from pilot.research_strategy_contract import (PrepareStrategyRequest, ConfirmStrategyRequest,
     RevokeStrategyRequest, StrategyStoreError, strategy_snapshot, configuration_digest)
+from pilot.research_origin import validate_research_origin
 from pilot.sessions import PilotSessionRegistry
 
 
@@ -210,11 +211,20 @@ class ResearchStrategyStore:
         with self.database.connect() as connection,connection.cursor() as cursor:
             tenant,fingerprint,previous=self._operation(cursor,claims,request,'PREPARE')
             if previous is not None:
+                provenance=(((previous.get('snapshot') or {}).get('configuration') or {}).get('research') or {}).get('provenance')
+                if provenance is not None:
+                    row,profile,_=self._locked_version(cursor,claims,tenant,previous['strategy_version_id'])
+                    if not self._profile_current(row,profile):
+                        raise StrategyStoreError('profile_unavailable')
+                    validate_research_origin(cursor,self.database,claims,tenant,row['profile_version_id'],
+                        row['snapshot']['configuration'])
                 return previous
             profile=self._profile(cursor,claims,tenant,request.profile_version_id)
             self._active(cursor,claims)
             if not profile or not profile['valid']:
                 raise StrategyStoreError('profile_unavailable')
+            validate_research_origin(cursor,self.database,claims,tenant,request.profile_version_id,
+                request.configuration.model_dump(mode='json'))
             version_id=str(uuid4())
             snapshot=strategy_snapshot(request.profile_version_id,version_id,request.configuration,
                 request.platforms,request.max_records,request.max_runtime_seconds)
@@ -251,6 +261,13 @@ class ResearchStrategyStore:
         with self.database.connect() as connection,connection.cursor() as cursor:
             tenant,fingerprint,previous=self._operation(cursor,claims,request,'CONFIRM')
             if previous is not None:
+                provenance=(((previous.get('snapshot') or {}).get('configuration') or {}).get('research') or {}).get('provenance')
+                if provenance is not None:
+                    row,profile,_=self._locked_version(cursor,claims,tenant,previous['strategy_version_id'])
+                    if not self._profile_current(row,profile):
+                        raise StrategyStoreError('profile_unavailable')
+                    validate_research_origin(cursor,self.database,claims,tenant,row['profile_version_id'],
+                        row['snapshot']['configuration'])
                 return previous
             row,profile,draft=self._locked_version(cursor,claims,tenant,request.strategy_version_id)
             if (not self._current(row,draft) or row['state'] not in ('DRAFT','CONFIRMED')
@@ -258,6 +275,8 @@ class ResearchStrategyStore:
                 raise StrategyStoreError('strategy_conflict')
             if not self._profile_current(row,profile):
                 raise StrategyStoreError('profile_unavailable')
+            validate_research_origin(cursor,self.database,claims,tenant,row['profile_version_id'],
+                row['snapshot']['configuration'])
             if row['state']=='DRAFT':
                 cursor.execute("UPDATE pilot_research_strategy_versions SET state='CONFIRMED' "
                     'WHERE tenant_id=%s AND owner_user_id=%s AND strategy_version_id=%s',
@@ -335,6 +354,8 @@ class ResearchStrategyStore:
             profile=self._profile_state(cursor.fetchone(),self._profile_references(cursor,tenant,profile_version_id))
             if not self._current(row,draft) or not self._profile_current(row,profile) or not self._intact(row):
                 raise StrategyStoreError('strategy_conflict')
+            validate_research_origin(cursor,self.database,claims,tenant,row['profile_version_id'],
+                row['snapshot']['configuration'])
             return json.loads(_json(row['snapshot'])) | {'configuration_sha256':row['configuration_sha256']}
         except StrategyStoreError as error:
             if error.code=='invalid_session':
@@ -365,6 +386,8 @@ class ResearchStrategyStore:
             if (row['profile_version_id']!=profile_version_id or row['state']!='CONFIRMED'
                     or not self._current(row,draft) or not self._profile_current(row,profile) or not self._intact(row)):
                 raise StrategyStoreError('strategy_conflict')
+            validate_research_origin(cursor,self.database,claims,tenant,row['profile_version_id'],
+                row['snapshot']['configuration'])
             self._active(cursor,claims)
             snapshot=row['snapshot']
             return ConfirmedExecutionStrategy(**(snapshot | {'platforms':tuple(snapshot['platforms']),

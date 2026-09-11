@@ -62,4 +62,12 @@ describe('bounded public source renderer contract',()=>{
   const sha=(x:unknown)=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
   const {publicSource,...without}=web;expect(sha(web)).not.toBe(sha(without));
  });
+ it('may prepare research intent but cannot use the ordinary public driver to execute it',()=>{
+  const value={...draft(),research:{version:1 as const,demandTypes:['INQUIRY' as const],maxSoubei:100,
+   limits:{sources:10,minutes:5,modelCalls:5},stopAtAnyLimit:true as const,evidenceOrder:'SOURCE_MATCH_CONTEXT' as const}};
+  const rows=attachForegroundBinding([],{state:'AVAILABLE',bindings:[],publicBinding});
+  expect(receipt(value).snapshot.configuration.research).toEqual(value.research);
+  expect(()=>desktopStartCommand(value,receipt(value),rows,other)).toThrow();
+  expect(startBlockers(value,profiles,rows,true).length).toBeGreaterThan(0);
+ });
 });
