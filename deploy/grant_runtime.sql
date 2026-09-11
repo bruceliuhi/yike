@@ -15,6 +15,7 @@ SELECT set_config('yike.app_role', :'app_role', true);
 \ir grant_candidate_review.sql
 \ir grant_research_strategies.sql
 \ir grant_research_execution.sql
+\ir grant_research_resources.sql
 \ir grant_opportunity_evidence.sql
 \ir grant_device_registration.sql
 \ir grant_reply_events.sql

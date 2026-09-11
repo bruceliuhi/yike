@@ -29,7 +29,7 @@ from tests.test_device_keys import encoded
 from tests.test_execution_contract import start_body
 
 SECRET = 'synthetic-execution-test-key'
-TABLES = ('pilot_research_reservations', 'pilot_execution_operations', 'pilot_collection_platform_runs',
+TABLES = ('pilot_research_resource_events', 'pilot_research_reservations', 'pilot_execution_operations', 'pilot_collection_platform_runs',
           'pilot_collection_runs', 'pilot_collection_tasks')
 
 
@@ -59,7 +59,7 @@ def databases():
         conn.execute("SELECT set_config('yike.app_role',%s,true)", (role,))
         for filename in ('grant_session_revocations.sql', 'grant_device_credentials.sql',
                          'grant_connection_operations.sql', 'grant_execution_runtime.sql',
-                         'grant_research_execution.sql'):
+                         'grant_research_execution.sql', 'grant_research_resources.sql'):
             grant = (Path(__file__).parents[1] / 'deploy' / filename).read_text()
             conn.execute(grant)
             conn.execute(grant)
