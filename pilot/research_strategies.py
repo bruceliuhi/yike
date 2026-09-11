@@ -96,15 +96,29 @@ class ResearchStrategyStore:
         return dict(zip(_VERSION_FIELDS,row)) if row else None
 
     @staticmethod
-    def _profile_state(row):
+    def _profile_state(row,reference_rows=()):
         if row is None:
             return None
         valid=False
         try:
-            valid=type(row[0]) is dict and _digest(row[0])==row[1] and row[2]=='CONFIRMED'
+            from pilot.material_references import profile_content_digest
+            references=[{'field_name':a,'source_owner_user_id':b,'source_profile_version_id':c,
+                'material_id':d,'material_version':e,'extraction_id':f,'adopted_value_sha256':g}
+                for a,b,c,d,e,f,g,_valid in reference_rows]
+            # An empty managed set is deliberately distinct from legacy payload-only hashes.
+            managed=bool(references) or profile_content_digest(row[0],[],managed=False)!=row[1]
+            valid=(type(row[0]) is dict and row[2]=='CONFIRMED' and all(item[-1] for item in reference_rows)
+                and profile_content_digest(row[0],references,managed=managed)==row[1])
         except (ValueError,TypeError,UnicodeError,RecursionError):
             pass
         return {'sha256':row[1],'valid':valid}
+
+    @staticmethod
+    def _profile_references(cursor,tenant,version):
+        cursor.execute('SELECT field_name,source_owner_user_id,source_profile_version_id,material_id,material_version,'
+            'extraction_id,adopted_value_sha256,valid FROM pilot_material_profile_references '
+            'WHERE tenant_id=%s AND target_profile_version_id=%s ORDER BY field_name',(tenant,version))
+        return cursor.fetchall()
 
     def _profile(self,cursor,claims,tenant,version):
         cursor.execute('SELECT profile_id FROM business_profile_versions WHERE tenant_id=%s AND profile_version_id=%s',
@@ -121,7 +135,7 @@ class ResearchStrategyStore:
             'WHERE tenant_id=%s AND profile_id=%s AND profile_version_id=%s FOR UPDATE',(tenant,parent[0],version))
         row=cursor.fetchone()
         self._active(cursor,claims)
-        return self._profile_state(row)
+        return self._profile_state(row,self._profile_references(cursor,tenant,version))
 
     def _draft(self,cursor,claims,tenant,draft_id):
         cursor.execute('SELECT current_revision,current_version_id FROM pilot_research_strategy_drafts '
@@ -318,7 +332,7 @@ class ResearchStrategyStore:
             cursor.execute('SELECT v.payload,v.content_sha256,v.status FROM business_profile_versions v '
                 'JOIN business_profiles p ON p.tenant_id=v.tenant_id AND p.profile_id=v.profile_id '
                 'WHERE v.tenant_id=%s AND v.profile_version_id=%s',(tenant,profile_version_id))
-            profile=self._profile_state(cursor.fetchone())
+            profile=self._profile_state(cursor.fetchone(),self._profile_references(cursor,tenant,profile_version_id))
             if not self._current(row,draft) or not self._profile_current(row,profile) or not self._intact(row):
                 raise StrategyStoreError('strategy_conflict')
             return json.loads(_json(row['snapshot'])) | {'configuration_sha256':row['configuration_sha256']}
