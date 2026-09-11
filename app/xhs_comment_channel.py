@@ -42,6 +42,21 @@ def _keys(value, names):
     return isinstance(value, dict) and set(value) == set(names)
 
 
+def _material_references(draft):
+    if "materialReferences" not in draft:
+        return True
+    references = draft["materialReferences"]
+    names = ("sourceProfileVersionId", "materialId", "materialVersion", "extractionId", "quote")
+    return (isinstance(references, list) and len(references) <= 3 and
+            all(_keys(item, names) and _uuid(item["sourceProfileVersionId"]) and
+                isinstance(item["materialId"], str) and 1 <= len(item["materialId"]) <= 200 and item["materialId"].strip() and "\0" not in item["materialId"] and
+                isinstance(item["materialVersion"], int) and not isinstance(item["materialVersion"], bool) and 1 <= item["materialVersion"] <= 2_147_483_647 and
+                isinstance(item["extractionId"], str) and 1 <= len(item["extractionId"]) <= 200 and item["extractionId"].strip() and "\0" not in item["extractionId"] and
+                isinstance(item["quote"], str) and 1 <= len(item["quote"]) <= 2000 and item["quote"].strip() and "\0" not in item["quote"]
+                for item in references) and
+            len({_canonical(item) for item in references}) == len(references))
+
+
 def _note_url(value, expected):
     if not isinstance(value, str) or "\\" in value or not value.isprintable(): return False
     parsed = urlsplit(value)
@@ -67,7 +82,9 @@ def _snapshot(raw):
             _keys(value, ("schemaVersion", "binding", "ownerUserId", "accountScope", "profileVersionId", "draft", "source", "target", "connection", "channelCapability", "authorization", "contextSha256")) and
             _keys(value["binding"], ("opportunityId", "channel", "requestId", "contentHash")) and
             _keys(value["accountScope"], ("id", "version")) and
-            _keys(draft, ("opportunityId", "channel", "content", "savedContent", "version", "accountId", "recipient")) and
+            set(draft) in ({"opportunityId", "channel", "content", "savedContent", "version", "accountId", "recipient"},
+                           {"opportunityId", "channel", "content", "savedContent", "version", "accountId", "recipient", "materialReferences"}) and
+            _material_references(draft) and
             _keys(source, ("sourceId", "evidenceVersion", "evidenceSha256", "platform", "kind", "url", "excerpt")) and
             _keys(target, ("action", "authorPublicId", "postId", "commentId")) and
             _keys(connection, ("deviceId", "connectionId", "connectionVersion", "accountPublicId", "platform")) and

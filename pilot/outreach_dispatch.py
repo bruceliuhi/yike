@@ -54,7 +54,7 @@ class Outcome(_Input):
 
 
 class DispatchRequest(_Input):
-    action: Literal['CLAIM','RESULT']
+    action: Literal['CLAIM','VALIDATE','RESULT']
     requestId: Id
     claimId: Id
     deviceId: Id
@@ -65,7 +65,7 @@ class DispatchRequest(_Input):
 
     @model_validator(mode='after')
     def shape(self):
-        if self.action=='CLAIM':
+        if self.action in ('CLAIM','VALIDATE'):
             if self.resultId is not None or self.outcome is not None:
                 raise ValueError('claim cannot report result')
         elif self.resultId is None or self.outcome is None:
@@ -127,6 +127,8 @@ class OutreachDispatch:
             claim=self._claim_row(cursor,tenant,claims.user_id,value.requestId)
             if value.action=='CLAIM':
                 result=self._claim(cursor,claims,tenant,value,digest,confirmation,row,claim)
+            elif value.action=='VALIDATE':
+                result=self._validate(cursor,claims,tenant,value,confirmation,row,claim)
             else:
                 result=self._result(cursor,claims,tenant,value,digest,row,claim)
             q.drafts._active(cursor,claims)
@@ -168,6 +170,26 @@ class OutreachDispatch:
             (tenant,claims.user_id,value.requestId))
         return dict(receipt((value.requestId,'UNKNOWN')),dispatchAllowed=True,
             claimId=value.claimId,dispatchBefore=deadline.isoformat(),context=current)
+
+    def _validate(self,cursor,claims,tenant,value,confirmation,row,claim):
+        if claim is None or claim[0] != value.claimId or row[3] != 'UNKNOWN':
+            raise DraftError('outreach_original_claim_required')
+        if value.credentialVersion != confirmation.credentialVersion:
+            raise DraftError('outreach_confirmation_changed')
+        cursor.execute('SELECT payload FROM pilot_outreach_claims WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s',
+                       (tenant,claims.user_id,value.requestId))
+        original = DispatchRequest.model_validate(cursor.fetchone()[0])
+        if (original.action != 'CLAIM' or original.claimId != value.claimId or original.deviceId != value.deviceId
+                or original.credentialVersion != value.credentialVersion or original.contextSha256 != value.contextSha256):
+            raise DraftError('outreach_claim_binding_conflict')
+        now = self.queue.execution._now(cursor)
+        if now >= claim[2]:
+            raise DraftError('outreach_confirmation_expired')
+        current = self.queue.drafts.context_in_transaction(cursor,claims,confirmation.context.model_dump())
+        if current['contextSha256'] != value.contextSha256:
+            raise DraftError('outreach_context_changed')
+        return {'state':'QUALIFIED','requestId':value.requestId,'claimId':value.claimId,
+                'contextSha256':value.contextSha256,'dispatchBefore':claim[2].isoformat()}
 
     def _result(self,cursor,claims,tenant,value,digest,row,claim):
         if claim is None or claim[0]!=value.claimId:

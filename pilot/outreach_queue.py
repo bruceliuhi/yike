@@ -59,6 +59,7 @@ class OutreachQueueStore:
 
     def _lock(self, cursor, claims):
         tenant = self.drafts._active(cursor, claims)
+        self.drafts._lock_material_owner(cursor, tenant, claims.user_id)
         # Same owner fence as draft CAS, before device -> connection -> profile.
         self.drafts._lock_owner(cursor, tenant, claims.user_id)
         return tenant

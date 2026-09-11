@@ -168,8 +168,12 @@ class MaterialStore:
                 if latest[0] != request.version:
                     raise MaterialError("material_version_conflict")
                 from pilot.material_references import material_impacts, material_reference_snapshot_sha
+                from pilot.contact_material_references import draft_impacts, draft_snapshot_sha
                 try:
                     references = material_impacts(cursor, tenant=tenant, owner=claims.user_id,
+                        source_profile_version_id=request.profileVersionId, material_id=request.materialId,
+                        material_version=request.version)
+                    drafts = draft_impacts(cursor, tenant=tenant, owner=claims.user_id,
                         source_profile_version_id=request.profileVersionId, material_id=request.materialId,
                         material_version=request.version)
                 except ValueError:
@@ -177,6 +181,9 @@ class MaterialStore:
                 snapshot_sha = material_reference_snapshot_sha(cursor, tenant=tenant, owner=claims.user_id,
                     source_profile_version_id=request.profileVersionId, material_id=request.materialId,
                     material_version=request.version)
+                snapshot_sha = hashlib.sha256((snapshot_sha + draft_snapshot_sha(cursor, tenant=tenant,
+                    owner=claims.user_id, source_profile_version_id=request.profileVersionId,
+                    material_id=request.materialId, material_version=request.version)).encode()).hexdigest()
                 token = secrets.token_urlsafe(32)
                 expiry = datetime.now(UTC) + timedelta(minutes=5)
                 cursor.execute("INSERT INTO pilot_material_impact_tokens "
@@ -187,7 +194,8 @@ class MaterialStore:
                 self._active(cursor, claims)
                 return {"profileVersionId": request.profileVersionId, "materialId": request.materialId,
                         "version": request.version, "action": request.action, "token": token,
-                        "expiresAt": _time(expiry), "references": references}
+                        "expiresAt": _time(expiry), "references": references + [
+                            {"kind":"draft","label":"联系草稿"} for _ in drafts]}
 
     def mutate(self, claims, raw):
         try:
@@ -309,9 +317,13 @@ class MaterialStore:
     def _consume_impact(cursor, tenant, owner, profile, change):
         digest = hashlib.sha256(change.impactToken.encode()).hexdigest()
         from pilot.material_references import material_reference_snapshot_sha
+        from pilot.contact_material_references import draft_snapshot_sha
         snapshot_sha = material_reference_snapshot_sha(cursor, tenant=tenant, owner=owner,
             source_profile_version_id=profile, material_id=change.materialId,
             material_version=change.expectedVersion)
+        snapshot_sha = hashlib.sha256((snapshot_sha + draft_snapshot_sha(cursor, tenant=tenant, owner=owner,
+            source_profile_version_id=profile, material_id=change.materialId,
+            material_version=change.expectedVersion)).encode()).hexdigest()
         cursor.execute("UPDATE pilot_material_impact_tokens SET consumed_at=clock_timestamp() "
             "WHERE tenant_id=%s AND owner_user_id=%s AND profile_version_id=%s AND material_id=%s "
             "AND material_version=%s AND action=%s AND token_sha256=%s AND consumed_at IS NULL "

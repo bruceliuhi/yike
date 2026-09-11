@@ -5,7 +5,8 @@ import hashlib
 import json
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, AfterValidator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, AfterValidator, field_validator, model_validator
+from pilot.contact_material_references import ContactMaterialReference, qualify
 
 from pilot.auth import TokenClaims
 from pilot.candidate_contract import _opaque, _validate_url
@@ -55,13 +56,35 @@ class Draft(_Input):
     recipient: str = Field(max_length=512)
 
 
+class ReferencedDraft(Draft):
+    materialReferences: tuple[ContactMaterialReference, ...] = Field(max_length=3)
+
+    @field_validator('materialReferences', mode='before')
+    @classmethod
+    def freeze_references(cls, value):
+        return tuple(value) if type(value) is list else value
+
+    @field_validator('materialReferences')
+    @classmethod
+    def distinct_references(cls, value):
+        if len(set(json.dumps(item.model_dump(),ensure_ascii=False,sort_keys=True,separators=(',',':')) for item in value)) != len(value):
+            raise ValueError('duplicate material reference')
+        return value
+
+    @model_validator(mode='after')
+    def quotes_are_adopted(self):
+        if any(reference.quote not in self.content for reference in self.materialReferences):
+            raise ValueError('material quote absent from draft')
+        return self
+
+
 class AccountScope(_Input):
     id: Id
     version: Annotated[int, Field(ge=1, le=1)]
 
 
 class DraftSnapshot(_Input):
-    draft: Draft
+    draft: ReferencedDraft | Draft
     accountScope: AccountScope | None
     profileVersionId: Id
     sourceEvidenceVersion: Id
@@ -73,6 +96,8 @@ def snapshot_digest(snapshot: DraftSnapshot) -> str:
     fields = [d.opportunityId, d.channel, d.version, d.content, d.accountId,
               d.recipient, snapshot.profileVersionId, snapshot.sourceEvidenceVersion,
               None if snapshot.accountScope is None else snapshot.accountScope.model_dump()]
+    if hasattr(d, 'materialReferences'):
+        fields.append([ref.model_dump() for ref in d.materialReferences])
     return hashlib.sha256(json.dumps(fields, ensure_ascii=False,
         separators=(',', ':'), allow_nan=False).encode('utf-8')).hexdigest()
 
@@ -124,6 +149,19 @@ class ContactDraftStore:
         lock = int.from_bytes(hashlib.sha256(
             f'contact-drafts-v1\0{tenant}\0{owner}'.encode()).digest()[:8], 'big', signed=True)
         cursor.execute('SELECT pg_advisory_xact_lock(%s)', (lock,))
+
+    @staticmethod
+    def _lock_material_owner(cursor, tenant, owner):
+        from pilot.materials import MaterialStore
+        cursor.execute('SELECT pg_advisory_xact_lock(%s)', (MaterialStore._lock_id(tenant, owner),))
+
+    @staticmethod
+    def _qualify_materials(cursor, tenant, owner, draft):
+        if hasattr(draft, 'materialReferences'):
+            try:
+                qualify(cursor, tenant=tenant, owner=owner, references=draft.materialReferences)
+            except ValueError:
+                raise DraftError('draft_material_unavailable') from None
 
     @staticmethod
     def _current_facts(cursor, tenant, snapshot):
@@ -200,12 +238,14 @@ class ContactDraftStore:
         draft = snapshot.draft
         with self.database.connect() as conn, conn.cursor() as cursor:
             tenant = self._active(cursor, claims)
+            self._lock_material_owner(cursor, tenant, claims.user_id)
             # Two different sessions of the same owner must serialize too.
             self._lock_owner(cursor, tenant, claims.user_id)
             self._active(cursor, claims)
             prior = self._original(cursor, tenant, claims.user_id, binding)
             if prior is not None:
                 return prior
+            self._qualify_materials(cursor, tenant, claims.user_id, draft)
             facts, _proof = self._current_facts(cursor, tenant, snapshot)
             cursor.execute('SELECT payload,content_hash FROM pilot_contact_drafts '
                 'WHERE tenant_id=%s AND owner_user_id=%s AND opportunity_id=%s AND channel=%s '
@@ -245,12 +285,14 @@ class ContactDraftStore:
         """Same-cursor revalidation for durable human confirmation."""
         request = OutreachContextInput.model_validate(raw)
         tenant = self._active(cursor, claims)
+        self._lock_material_owner(cursor, tenant, claims.user_id)
         self._lock_owner(cursor, tenant, claims.user_id)
         original = self._original(cursor, tenant, claims.user_id, request.binding)
         if original is None:
             raise DraftError('draft_request_not_found', 404)
         snapshot = DraftSnapshot.model_validate(original['snapshot'])
         draft = snapshot.draft
+        self._qualify_materials(cursor, tenant, claims.user_id, draft)
         cursor.execute('SELECT request_id FROM pilot_contact_drafts '
             'WHERE tenant_id=%s AND owner_user_id=%s AND opportunity_id=%s AND channel=%s '
             'ORDER BY draft_version DESC LIMIT 1',
