@@ -1,5 +1,7 @@
 # Temporary invited login implementation plan
 
+状态更新：用户后续提供已通过阿里云模板 SMS_512095645 与签名；本计划暂停，尚未写入生产代码。改为正式SMS适配器，不启动迁移138或后四位入口。下面清单仅保留设计历史。
+
 > **For agentic workers:** Use superpowers:subagent-driven-development. Root alone stages/commits/pushes. User asks targeted validation and one whole-batch independent review, not repeated builds.
 
 **Goal:** 短信尚未申请完成时，受邀新体验客户可从正式客户端登录并进入原业务工作台。
