@@ -41,11 +41,12 @@ it("accepts a persisted followup ID without changing the submitted facts", async
   expect(request).toHaveBeenCalledExactlyOnceWith({operation: "followups.add", payload: {opportunity_id: "TEST-opp", status: "CONTACTED", note: "TEST note"}});
 });
 
-it("keeps the entered followup and prevents a second POST after an invalid successful HTTP receipt", async () => {
+it("legacy followup keeps entered facts and prevents a second POST after an invalid successful HTTP receipt", async () => {
   const request = respond({});
   const opportunity = {...PUBLIC_SAMPLE, id: "TEST-opp", profileVersionId: "TEST-profile", sample: false, title: "TEST 真实入口商机"};
   context = {
-    service: {...service, opportunities: vi.fn().mockResolvedValue([opportunity]), opportunity: vi.fn().mockResolvedValue(opportunity), followups: vi.fn().mockResolvedValue([])},
+    // Deliberately test the legacy facade; structured followup has its own receipt suite.
+    service: {...service, followup: undefined, opportunities: vi.fn().mockResolvedValue([opportunity]), opportunity: vi.fn().mockResolvedValue(opportunity), followups: vi.fn().mockResolvedValue([])},
     session: {authenticated: true, userId: crypto.randomUUID()}, route: parseRoute("#/followups?add=1"),
     navigate: vi.fn(), notify: vi.fn(), refreshSession: vi.fn(),
   };
@@ -61,13 +62,15 @@ it("keeps the entered followup and prevents a second POST after an invalid succe
   expect(context.navigate).not.toHaveBeenCalled();
   expect(context.notify).not.toHaveBeenCalledWith("跟进事实已保存。", "success");
   fireEvent.click(screen.getByRole("button", {name: "保存记录"}));
-  expect(request).toHaveBeenCalledTimes(1);
+  expect(request).toHaveBeenCalledExactlyOnceWith({operation: "followups.add", payload: {
+    opportunity_id: opportunity.id, status: "CONTACTED", note: "TEST 不能丢失的人工记录",
+  }});
 });
 
-it("shows a read error and permits retry instead of claiming there are no followups", async () => {
+it("legacy followup shows a read error and permits retry instead of claiming there are no followups", async () => {
   const request = respond({});
   context = {
-    service: {...service, opportunities: vi.fn().mockResolvedValue([])},
+    service: {...service, followup: undefined, opportunities: vi.fn().mockResolvedValue([])},
     session: {authenticated: true, userId: crypto.randomUUID()}, route: parseRoute("#/followups?tab=all"),
     navigate: vi.fn(), notify: vi.fn(), refreshSession: vi.fn(),
   };
@@ -77,4 +80,5 @@ it("shows a read error and permits retry instead of claiming there are no follow
   fireEvent.click(screen.getByRole("button", {name: "重试"}));
   await waitFor(() => expect(screen.queryByText("数据读取未完成，请重试。当前不能确认列表为空。")).toBeNull());
   expect(request).toHaveBeenCalledTimes(2);
+  expect(request.mock.calls.every(([input]) => input.operation === "followups.list")).toBe(true);
 });

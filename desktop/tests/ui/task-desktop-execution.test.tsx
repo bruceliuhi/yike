@@ -64,7 +64,7 @@ async function review() {
 describe('original TaskWizard signed execution entry', () => {
   it('shows bounded public scope and refuses a changed device after explicit confirmation',async()=>{
     render(<TaskWizardPage />);await review();
-    expect(screen.getByText(/V2EX近期主题有界抽样/)).toBeTruthy();
+    expect(screen.getByText('V2EX最新主题 · 近期主题有界抽样，不覆盖历史/全站/评论')).toBeTruthy();
     const start=screen.getByRole('button',{name:'确认并启动'}) as HTMLButtonElement;
     await waitFor(()=>expect(start.disabled).toBe(false));
     vi.mocked(context.service.connections).mockResolvedValue([{platform:'web',status:'CONNECTED',capabilities:['search'],publicBinding:{sourceId:'v2ex-latest-v1',deviceId:crypto.randomUUID()}}]);

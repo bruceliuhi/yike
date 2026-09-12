@@ -25,9 +25,11 @@ it('real client no-flow check uses only current registration GET and preserves U
   expect((await service.checkConnection('xhs')).status).toBe('UNVERIFIED');
   expect(requestApi).toHaveBeenCalledExactlyOnceWith({operation: 'connections.list', payload: undefined});
 });
-it('missing native capability never falls through into browser login or service mutation', async () => {
+it.each(['xhs','douyin','bilibili','zhihu'])('missing %s native capability never falls through into browser login or service mutation', async (platform) => {
   const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
-  await expect(service.connect('xhs')).rejects.toThrow('未配置');
-  await expect(service.connect('douyin')).rejects.toThrow('尚未接通');
+  const requestApi = vi.fn();
+  host.yikeDesktop = {requestApi} as unknown as YikeDesktopApi;
+  await expect(service.connect(platform)).rejects.toMatchObject({code: 'SERVICE_UNAVAILABLE'});
   expect(fetch).not.toHaveBeenCalled();
+  expect(requestApi).not.toHaveBeenCalled();
 });

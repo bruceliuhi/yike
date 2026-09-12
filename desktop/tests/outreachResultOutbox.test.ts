@@ -291,7 +291,7 @@ describe("immutable encrypted outreach result outbox", () => {
       );
     expect(await readdir(f.root)).toEqual([]);
   });
-  it("rejects record and directory symlinks without following them", async () => {
+  it("rejects record symlinks without following them", async (context) => {
     const f = await setup(),
       input = record();
     await f.outbox.put(scope, input);
@@ -300,11 +300,28 @@ describe("immutable encrypted outreach result outbox", () => {
       target = path.join(f.root, "target");
     await writeFile(target, bytes);
     await rm(filename);
-    await symlink(target, filename);
+    try {
+      await symlink(target, filename);
+    } catch (error) {
+      if (process.platform === "win32" && (error as NodeJS.ErrnoException).code === "EPERM") {
+        context.skip("Windows file symlink privilege unavailable; non-file and junction coverage runs separately");
+        return;
+      }
+      throw error;
+    }
     await expect(f.outbox.read(scope, input.requestId)).rejects.toThrow(
       /^OUTREACH_RESULT_INVALID_RECORD$/,
     );
     expect(await readFile(target)).toEqual(bytes);
+  });
+  it("rejects non-file records and directory junctions without modifying their targets", async () => {
+    const f = await setup(), input = record();
+    await f.outbox.put(scope, input);
+    const filename = await oneFile(f.directory), bytes = await readFile(filename);
+    await rm(filename);
+    await mkdir(filename);
+    await expect(f.outbox.read(scope, input.requestId)).rejects.toThrow(/^OUTREACH_RESULT_INVALID_RECORD$/);
+    await expect(f.outbox.put(scope, input)).rejects.toThrow(/^OUTREACH_RESULT_INVALID_RECORD$/);
     const linked = path.join(f.root, "linked");
     await symlink(
       f.directory,
@@ -314,6 +331,10 @@ describe("immutable encrypted outreach result outbox", () => {
     await expect(
       f.create({ ...f, directory: linked }).put(scope, record()),
     ).rejects.toThrow(/^OUTREACH_RESULT_STORAGE_FAILED$/);
+    expect(await readdir(f.directory)).toEqual([path.basename(filename)]);
+    expect(await readdir(filename)).toEqual([]);
+    // The prior encrypted bytes are not interpreted as a valid non-file record.
+    expect(bytes.length).toBeGreaterThan(0);
   });
   it("uses fixed failures for unavailable protection, encryption and persistent storage faults", async () => {
     const f = await setup(),

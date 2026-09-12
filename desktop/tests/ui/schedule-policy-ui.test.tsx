@@ -15,7 +15,8 @@ const info = {version: "0.2.0", platform: "test", serviceConfigured: true, devic
 let key: string;
 const currentDraft = (): TaskDraft => JSON.parse(sessionStorage.getItem(key)!);
 function seed(legacy = false) {
-  const draft = {...newTaskDraft("monitor"), name: "TEST 日程", profileId: "TEST-profile", profileVersion: 1, terms: [makeTerm("TEST 需求")], platforms: ["web"] as TaskDraft["platforms"], savedAt: "2026-09-09T00:00:00Z"};
+  // Exercise the legacy schedule adapter, not the separately gated native public reader.
+  const draft = {...newTaskDraft("monitor"), name: "TEST 日程", profileId: "TEST-profile", profileVersion: 1, terms: [makeTerm("TEST 需求")], platforms: ["xhs"] as TaskDraft["platforms"], accounts: {xhs: "TEST-account"}, savedAt: "2026-09-09T00:00:00Z"};
   draft.schedule = {...draft.schedule, kind: "interval", start: "22:00", end: "02:00", timezone: "America/New_York"};
   if (legacy) delete draft.schedule.policyVersion;
   sessionStorage.setItem(key, JSON.stringify(draft)); return draft;
@@ -38,7 +39,7 @@ beforeEach(() => {
   context = {
     service: {
       profiles: vi.fn().mockResolvedValue([{id: "TEST-profile", version: 1, status: "CONFIRMED", description: "TEST", fields: {...EMPTY_PROFILE, service: "TEST 服务"}}]),
-      connections: vi.fn().mockResolvedValue([{platform: "web", status: "CONNECTED", capabilities: ["search", "read", "monitor"]}]),
+      connections: vi.fn().mockResolvedValue([{platform: "xhs", accountId: "TEST-account", status: "CONNECTED", capabilities: ["search", "read", "monitor"]}]),
       info: vi.fn().mockResolvedValue(info), suggest: vi.fn().mockRejectedValue(new Error("TEST 未接通")),
       startTask: vi.fn(async (draft: TaskDraft) => ({id: "TEST-created", name: draft.name, mode: draft.mode, platforms: draft.platforms, status: "PENDING"})),
     } as unknown as YikeService,

@@ -8,7 +8,7 @@ export function configureStrategyVisual(service: YikeService): TaskDraft {
   const draft = { ...newTaskDraft(), name: "TEST 跨行业设备需求研究", profileId: crypto.randomUUID(), profileVersion: 1,
     terms: [{ id: "TEST-term", value: "设备采购", origin: "manual" as const, edited: true }],
     exclusions: [{ id: "TEST-exclusion", value: "招聘", origin: "manual" as const, edited: true }],
-    platforms: ["web" as const], links: "https://example.com/TEST-original-evidence-not-a-customer",
+    platforms: ["web" as const], links: "",
     executionLimits: { max_records: 37, max_runtime_seconds: 913 },
     research: { ...defaultResearchSettings(), maxSoubei: 200 } };
   service.profiles = async () => [{ id: draft.profileId, version: 1, status: "CONFIRMED", description: "TEST 合成画像",
