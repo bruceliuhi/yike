@@ -46,6 +46,25 @@ def test_search_gateway_client_roundtrip_separate_model_quota_and_close():
     assert service.closed
 
 
+def test_search_gateway_client_roundtrips_maximum_multilingual_result():
+    from pilot.search_tool_client import SearchToolClient
+    service=SearchService()
+    title='求' * 1000
+    snippet='🌏' * 2000
+    date_hint='今' * 200
+    service.search=lambda query:observation(query)|{'results':[
+        dict(url=f'https://example.com/{index}',title=title,snippet=snippet,
+             date_hint=date_hint,rank=index+1) for index in range(10)
+    ]}
+    with bridge(service) as gateway:
+        result=SearchToolClient(url=gateway.search_url,token=gateway.token).search('中文 maximal')
+        assert result['status']=='SEARCHED'
+        assert len(result['results'])==10
+        assert result['results'][-1]['title']==title
+        assert result['results'][-1]['snippet']==snippet
+        assert result['results'][-1]['date_hint']==date_hint
+
+
 @pytest.mark.parametrize('case',['disabled','auth','fields','expired'])
 def test_search_gateway_admission(case):
     service=SearchService()

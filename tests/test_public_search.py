@@ -64,10 +64,19 @@ def _install_worker_http(monkeypatch, payload, *, status=200, content_length=Non
 
 def test_normalize_query_contract():
     assert normalize_query(" 中文 \t  需求 \n") == "中文 需求"
-    for value in ("", "   ", "x" * 513, "ok\x00bad", 123):
+    for value in ("", "   ", "x" * 513, "ok\x00bad", "bad\ud800query", 123):
         with pytest.raises(ValueError) as error:
             normalize_query(value)  # type: ignore[arg-type]
         assert str(error.value) == "invalid_query"
+
+
+def test_non_utf8_query_is_rejected_before_spawning(monkeypatch):
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: pytest.fail("must not spawn"))
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=1,
+                                  deadline=time.monotonic() + 30)
+    assert session.search("bad\ud800query") == {
+        "status": "FAILED", "code": "invalid_query", "replayed": False,
+    }
 
 
 def test_worker_posts_fixed_request_and_normalizes_deduplicates_and_caps(monkeypatch):
@@ -442,3 +451,34 @@ def test_real_fixture_process_timeout_is_killed_and_reaped(monkeypatch):
     session = PublicSearchSession(api_key="synthetic-key", max_searches=1, deadline=time.monotonic() + 0.05)
     assert session.search("q") == {"status": "FAILED", "code": "timeout", "replayed": False}
     assert children[0].poll() is not None
+
+
+def test_real_fixture_process_communicate_error_is_killed_and_reaped(monkeypatch):
+    real_popen = subprocess.Popen
+    children = []
+
+    def broken_communicate_process(*args, **kwargs):
+        child = real_popen([sys.executable, "-c", "import time; time.sleep(30)"],
+                           stdin=kwargs["stdin"], stdout=kwargs["stdout"],
+                           stderr=kwargs["stderr"], text=kwargs["text"], env=kwargs["env"])
+        children.append(child)
+
+        def fail_communicate(*_args, **_kwargs):
+            raise UnicodeEncodeError("utf-8", "\ud800", 0, 1, "surrogate")
+
+        child.communicate = fail_communicate
+        return child
+
+    monkeypatch.setattr(subprocess, "Popen", broken_communicate_process)
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=1,
+                                  deadline=time.monotonic() + 30)
+    try:
+        assert session.search("encodable query") == {
+            "status": "FAILED", "code": "unavailable", "replayed": False,
+        }
+        assert children[0].poll() is not None
+        assert not session._active
+    finally:
+        if children and children[0].poll() is None:
+            children[0].kill()
+            children[0].wait()

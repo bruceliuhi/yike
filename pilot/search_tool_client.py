@@ -7,6 +7,8 @@ import httpx
 
 from pilot.public_search import normalize_query, valid_search_result
 
+_MAX_RESPONSE_BYTES = 1024 * 1024
+
 
 class SearchToolClient:
     def __init__(self, *, url: str, token: str):
@@ -41,7 +43,7 @@ class SearchToolClient:
                     chunks, size = [], 0
                     for chunk in response.iter_bytes():
                         size += len(chunk)
-                        if size > 128_000:
+                        if size > _MAX_RESPONSE_BYTES:
                             return failure | {'code':'invalid_search_result'}
                         chunks.append(chunk)
                 result = json.loads(b''.join(chunks))

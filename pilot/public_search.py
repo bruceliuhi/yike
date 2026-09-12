@@ -32,8 +32,9 @@ def normalize_query(query: str) -> str:
         normalized = " ".join(query.split())
         if not 1 <= len(normalized) <= 512:
             raise ValueError
+        normalized.encode("utf-8")
         return normalized
-    except (TypeError, ValueError):
+    except (TypeError, UnicodeEncodeError, ValueError):
         raise ValueError("invalid_query") from None
 
 
@@ -198,6 +199,7 @@ class PublicSearchSession:
             return _failure("unavailable")
         finally:
             if process is not None:
+                _stop(process)
                 with self._active_lock:
                     self._active.discard(process)
 
