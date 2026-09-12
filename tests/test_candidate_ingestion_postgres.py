@@ -4,6 +4,7 @@ import importlib.util
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -49,9 +50,30 @@ def service(env):
     return CandidateIngestionStore(env.db, env.runtime)
 
 def payload(env, begun, lease, **changes):
-    value = batch(env, begun, lease).model_dump(mode='json')
+    # Preserve absent optional context; explicit null is deliberately invalid.
+    # Unlike exclude_none, this retains required nullable wire fields.
+    value = batch(env, begun, lease).model_dump(mode='json', exclude_unset=True)
     value.update(changes)
     return value
+
+def test_synthetic_payload_preserves_absent_context_and_required_null_fields():
+    from datetime import UTC, datetime
+    from pilot.candidate_contract import CandidateContractError
+
+    fixture_env = SimpleNamespace(profile='profile-1', device='device-1',
+        snapshot={'strategy_version_id': 'strategy-1'})
+    value = payload(fixture_env, {'task_id': 'task-1', 'run_id': 'run-1'},
+        {'platform_run_id': 'platform-run-1', 'lease_id': 'lease-1',
+         'execution_generation': 1})
+    record = value['records'][0]
+    assert 'source_context' not in record
+    assert 'parent' in record and record['parent'] is None
+    assert 'published_at' in record and record['published_at'] is None
+    assert validate_candidate_batch(value, now=datetime.now(UTC)).records[0].body == 'synthetic observation'
+    record['source_context'] = None
+    with pytest.raises(CandidateContractError, match='INVALID_RECORD'):
+        validate_candidate_batch(value, now=datetime.now(UTC))
+
 
 def submit(env, store, value, claims=None):
     from datetime import UTC, datetime
