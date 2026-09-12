@@ -120,6 +120,16 @@ def test_valid_zero_result_search_is_observed_but_not_a_verified_read(worker,tmp
     assert result['reads']==[]
 
 
+def test_replayed_search_event_does_not_inflate_observed_search_facts(worker,tmp_path):
+    original=search_event()
+    replayed=copy.deepcopy(original)
+    replayed['item']['id']='search_2'
+    replayed['item']['result']['structured_content']['replayed']=True
+    result=run_research(worker,tmp_path,[original,replayed,read_event(),*final_events()])
+    assert result['status']=='COMPLETED'
+    assert result['searches']==[original['item']['result']['structured_content']]
+
+
 @pytest.mark.parametrize('change',['schema','foreign_read','conflict'])
 def test_search_events_fail_closed(worker,tmp_path,change):
     searched=search_event(); events=[]
@@ -256,6 +266,16 @@ def test_research_instructions_require_search_then_read(worker,tmp_path):
 def test_research_rejects_secret_substrings_in_public_description(worker,tmp_path,description):
     result=run_research(worker,tmp_path,description=description)
     assert result['status']=='FAILED' and result['code']=='invalid_configuration'
+    assert worker._test_search_sessions==[]
+
+
+def test_research_none_search_key_fails_as_research_without_read_mode_fallback(worker,tmp_path):
+    result=worker.run_public_research_mission('公开研究',
+        codex_binary=executable(tmp_path),python_binary=sys.executable,
+        api_key='synthetic-provider-secret',search_api_key=None,model='test-model')
+    assert result['status']=='FAILED' and result['code']=='invalid_configuration'
+    assert set(result)=={'status','code','reads','read_failures','summary','usage','provider_calls',
+                         'searches','search_failures'}
     assert worker._test_search_sessions==[]
 
 

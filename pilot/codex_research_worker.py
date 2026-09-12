@@ -156,7 +156,9 @@ class _ReadEvents:
         if value['status'] == 'FAILED':
             self.search_failures.append({'query':query,'code':value['code']})
         elif item['status'] == 'completed':
-            if not any(record == value for record in self.searches):
+            semantic = {key:result for key,result in value.items() if key != 'replayed'}
+            if not any({key:result for key,result in record.items() if key != 'replayed'} == semantic
+                       for record in self.searches):
                 self.searches.append(value)
                 try:
                     self.search_urls.update(normalize_public_url(result['url'])
@@ -301,7 +303,7 @@ def run_public_read_mission(description: str, *, codex_binary: str, python_binar
     """
     return _run_mission(description,codex_binary=codex_binary,python_binary=python_binary,
                         api_key=api_key,model=model,max_reads=max_reads,max_requests=max_requests,
-                        max_seconds=max_seconds,cancelled=cancelled)
+                        max_seconds=max_seconds,cancelled=cancelled,search_enabled=False)
 
 
 def run_public_research_mission(description: str, *, codex_binary: str, python_binary: str,
@@ -313,13 +315,12 @@ def run_public_research_mission(description: str, *, codex_binary: str, python_b
     return _run_mission(description,codex_binary=codex_binary,python_binary=python_binary,
                         api_key=api_key,model=model,search_api_key=search_api_key,
                         max_searches=max_searches,max_reads=max_reads,max_requests=max_requests,
-                        max_seconds=max_seconds,cancelled=cancelled)
+                        max_seconds=max_seconds,cancelled=cancelled,search_enabled=True)
 
 
 def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                  max_reads, max_requests, max_seconds, cancelled,
-                 search_api_key=None, max_searches=None):
-    search_enabled = search_api_key is not None
+                 search_enabled, search_api_key=None, max_searches=None):
     events = _ReadEvents(search_enabled=search_enabled)
     calls, status, code, token = [], 'FAILED', 'invalid_configuration', ''
     valid = (os.name == 'posix' and type(description) is str and 1 <= len(description.strip()) <= 4000
