@@ -23,6 +23,11 @@ it('rejects old public bindings and mixed devices',()=>{
  expect(()=>monitorTargets(view(['PUBLIC_WEB']),[publicRow(id(10),false)])).toThrow('持续监控尚未接通');
  expect(()=>monitorTargets(view(['BILIBILI','PUBLIC_WEB']),[nativeRow,publicRow(id(12))])).toThrow('同一台当前设备');
 });
+it('requires renderer-advertised Bilibili read capability for link monitor targets',()=>{
+ const strategy=view(['BILIBILI']);strategy.snapshot.configuration={...strategy.snapshot.configuration,source:'links',keywords:[],links:['https://www.bilibili.com/video/BV1d54y1g7db'],publicSource:undefined};
+ expect(()=>monitorTargets(strategy,[nativeRow])).toThrow();
+ expect(monitorTargets(strategy,[{...nativeRow,capabilities:['search','read']}])).toHaveLength(1);
+});
 it('keeps QNA monitor selection and rejects legacy capability without falling back',()=>{
  const strategy=view(['PUBLIC_WEB']);
  strategy.snapshot.configuration.publicSource='v2ex-qna-v1';

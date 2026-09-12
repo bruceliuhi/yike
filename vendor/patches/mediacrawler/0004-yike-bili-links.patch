@@ -1,0 +1,106 @@
+diff --git a/media_platform/bilibili/core.py b/media_platform/bilibili/core.py
+index 7c10308..e10c05f 100644
+--- a/media_platform/bilibili/core.py
++++ b/media_platform/bilibili/core.py
+@@ -51,0 +52,2 @@ from tools.yike_runtime import (
++    require_int_field,
++    require_mapping_field,
+@@ -52,0 +55 @@ from tools.yike_runtime import (
++    require_nonempty_string_field,
+@@ -117,15 +120,2 @@ class BilibiliCrawler(AbstractCrawler):
+-            elif config.CRAWLER_TYPE == "detail":
+-                # Get the information and comments of the specified post
+-                await self.get_specified_videos(config.BILI_SPECIFIED_ID_LIST)
+-            elif config.CRAWLER_TYPE == "creator":
+-                if config.CREATOR_MODE:
+-                    for creator_url in config.BILI_CREATOR_ID_LIST:
+-                        try:
+-                            creator_info = parse_creator_info_from_url(creator_url)
+-                            utils.logger.info(f"[BilibiliCrawler.start] Parsed creator ID: {creator_info.creator_id} from {creator_url}")
+-                            await self.get_creator_videos(int(creator_info.creator_id))
+-                        except ValueError as e:
+-                            utils.logger.error(f"[BilibiliCrawler.start] Failed to parse creator URL: {e}")
+-                            continue
+-                else:
+-                    await self.get_all_creator_details(config.BILI_CREATOR_ID_LIST)
++            elif config.CRAWLER_TYPE in {"detail", "creator"}:
++                await self.collect_links()
+@@ -379,0 +370,65 @@ class BilibiliCrawler(AbstractCrawler):
++    async def collect_links(self):
++        """Collect one governed Bilibili video or one bounded creator page."""
++        creator_id: Optional[int] = None
++        if config.CRAWLER_TYPE == "detail":
++            if len(config.BILI_SPECIFIED_ID_LIST) != 1:
++                raise ValueError("Bilibili detail link mode requires exactly one video")
++            requested_bvids = [
++                parse_video_info_from_url(config.BILI_SPECIFIED_ID_LIST[0]).video_id
++            ]
++        elif config.CRAWLER_TYPE == "creator":
++            if len(config.BILI_CREATOR_ID_LIST) != 1:
++                raise ValueError("Bilibili creator link mode requires exactly one creator")
++            creator_id = int(
++                parse_creator_info_from_url(config.BILI_CREATOR_ID_LIST[0]).creator_id
++            )
++            max_contents = min(5, max(1, config.CRAWLER_MAX_NOTES_COUNT))
++            creator_page = await self.bili_client.get_creator_videos(
++                creator_id, 1, max_contents
++            )
++            creator_list = require_mapping_field(creator_page, "list")
++            listed_videos = require_mapping_list_field(creator_list, "vlist")
++            requested_bvids = []
++            seen_bvids = set()
++            for listed_video in listed_videos:
++                bvid = require_nonempty_string_field(listed_video, "bvid")
++                if bvid in seen_bvids:
++                    continue
++                seen_bvids.add(bvid)
++                requested_bvids.append(bvid)
++                if len(requested_bvids) == max_contents:
++                    break
++        else:
++            raise ValueError("Bilibili link collection requires detail or creator mode")
++
++        video_details = []
++        for requested_bvid in requested_bvids:
++            video_detail = await self.bili_client.get_video_info(
++                aid=0, bvid=requested_bvid
++            )
++            view = require_mapping_field(video_detail, "View")
++            if require_nonempty_string_field(view, "bvid") != requested_bvid:
++                raise YikePlatformResponseChanged()
++            if require_int_field(view, "aid") <= 0:
++                raise YikePlatformResponseChanged()
++            owner = require_mapping_field(view, "owner")
++            owner_mid = require_int_field(owner, "mid")
++            if creator_id is not None and owner_mid != creator_id:
++                raise YikePlatformResponseChanged()
++            video_details.append(video_detail)
++
++        for video_detail in video_details:
++            await bilibili_store.update_bilibili_video(video_detail)
++
++        comment_limit = max(0, config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES)
++        if not config.ENABLE_GET_COMMENTS or comment_limit == 0:
++            return
++        for video_detail in video_details:
++            await self.bili_client.get_video_all_comments(
++                video_id=video_detail["View"]["aid"],
++                crawl_interval=config.CRAWLER_MAX_SLEEP_SEC,
++                is_fetch_sub_comments=config.ENABLE_GET_SUB_COMMENTS,
++                callback=bilibili_store.batch_update_bilibili_video_comments,
++                max_count=comment_limit,
++            )
++
+diff --git a/main.py b/main.py
+index df0487d..624bd1b 100644
+--- a/main.py
++++ b/main.py
+@@ -80,2 +80,6 @@ def _has_candidate_output() -> bool:
+-    patterns=("search_comments_*.jsonl",) if config.PLATFORM!='zhihu' else (
+-        "search_contents_*.jsonl","search_comments_*.jsonl")
++    if config.PLATFORM == "bili" and config.CRAWLER_TYPE in {"detail", "creator"}:
++        patterns = (f"{config.CRAWLER_TYPE}_contents_*.jsonl",)
++    elif config.PLATFORM != "zhihu":
++        patterns = ("search_comments_*.jsonl",)
++    else:
++        patterns = ("search_contents_*.jsonl", "search_comments_*.jsonl")

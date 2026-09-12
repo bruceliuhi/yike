@@ -247,6 +247,7 @@ def test_applied_patch_hashes_match_lock(source):
         'vendor/patches/mediacrawler/0001-yike-controlled-runtime.patch',
         'vendor/patches/mediacrawler/0002-yike-xhs-runtime.patch',
         'vendor/patches/mediacrawler/0003-yike-zhihu-runtime.patch',
+        'vendor/patches/mediacrawler/0004-yike-bili-links.patch',
     ]
     for path,digest in lock['patched_files'].items():
         assert hashlib.sha256((source/path).read_bytes()).hexdigest() == digest, path

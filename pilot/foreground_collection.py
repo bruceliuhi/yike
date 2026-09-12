@@ -2,6 +2,7 @@
 from pydantic import ValidationError
 
 from pilot.research_strategy_contract import ResearchStrategyConfiguration
+from pilot.native_collection_links import plan_native_collection_links, validate_bili_collection_target
 
 
 def foreground_collection_policy(platform, access_mode, configuration):
@@ -54,6 +55,8 @@ def configured_collection_policy(environment):
         return four_platform_public_node_monitor_policy
     if mode == 'four-platform-public-project-monitor-v1':
         return four_platform_public_project_monitor_policy
+    if mode == 'four-platform-public-bili-links-monitor-v1':
+        return four_platform_public_bili_links_monitor_policy
     raise RuntimeError('invalid_collection_configuration')
 
 
@@ -102,6 +105,31 @@ def four_platform_public_project_monitor_policy(platform, access_mode, configura
     if platform != 'PUBLIC_WEB':
         return four_platform_monitor_policy(platform, access_mode, configuration)
     return _monitor_policy(platform, access_mode, configuration, _public_project_collection_policy)
+
+
+def four_platform_public_bili_links_monitor_policy(platform, access_mode, configuration):
+    """Opt-in native links; the four-platform search and public catalogs remain."""
+    try:
+        parsed = ResearchStrategyConfiguration.model_validate(configuration)
+    except (ValidationError, ValueError, TypeError, RecursionError):
+        return False
+    if parsed.source != 'links':
+        return four_platform_public_project_monitor_policy(platform, access_mode, configuration)
+    return _monitor_policy(platform, access_mode, configuration, _bili_link_collection_policy)
+
+
+def _bili_link_collection_policy(platform, access_mode, configuration):
+    if platform != 'BILIBILI' or access_mode != 'PLATFORM_ACCOUNT':
+        return False
+    try:
+        parsed = ResearchStrategyConfiguration.model_validate(configuration)
+        if parsed.source != 'links' or parsed.mode != 'once' or parsed.schedule is not None or parsed.research is not None:
+            return False
+        for target in plan_native_collection_links(['BILIBILI'], list(parsed.links)):
+            validate_bili_collection_target(target)
+        return True
+    except (ValidationError, ValueError, TypeError, RecursionError):
+        return False
 
 
 def _public_project_collection_policy(platform, access_mode, configuration):
@@ -161,6 +189,9 @@ def foreground_collection_support(runtime, claims):
             mode = 'four-platform-foreground-v1'
         runtime._active(cursor, claims)
         result = {'schema_version':'foreground-collection-support-v1', 'mode':mode}
+        if runtime.capability_check is four_platform_public_bili_links_monitor_policy:
+            result['mode'] = 'four-platform-public-bili-links-monitor-v1'
+            result['native_links'] = ['BILIBILI']
         if runtime.capability_check in (four_platform_public_monitor_policy, four_platform_public_sampling_monitor_policy):
             result['public_source'] = 'v2ex-latest-v1'
         if runtime.capability_check is four_platform_public_sampling_monitor_policy:
@@ -169,7 +200,7 @@ def foreground_collection_support(runtime, claims):
             result['public_source'] = 'v2ex-latest-v1'
             result['public_sources'] = ['v2ex-latest-v1', 'v2ex-qna-v1']
             result['public_monitor'] = True
-        if runtime.capability_check is four_platform_public_project_monitor_policy:
+        if runtime.capability_check in (four_platform_public_project_monitor_policy, four_platform_public_bili_links_monitor_policy):
             result['public_source'] = 'v2ex-latest-v1'
             result['public_sources'] = ['v2ex-latest-v1', 'v2ex-qna-v1', 'v2ex-outsourcing-authors-v1']
             result['public_monitor'] = True

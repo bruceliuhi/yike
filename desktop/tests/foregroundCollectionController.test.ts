@@ -158,6 +158,35 @@ it('accepts a new native once configuration prepared by the ordinary renderer',a
  expect(await f.controller.start(f.command)).toMatchObject({state:'RECORDED'});
  expect(f.worker.run).toHaveBeenCalledTimes(1);f.finish();await f.controller.shutdown();
 });
+it.each(['once','monitor'] as const)('starts confirmed Bilibili links only with explicit %s support',async mode=>{
+ const f=fixture();f.command.targets[0]={platform:'BILIBILI',access_mode:'PLATFORM_ACCOUNT',connection_id:id(5),connection_version:2};
+ f.strategy.snapshot.platforms=['BILIBILI'];f.startReceipt.platform_runs[0].platform='BILIBILI';
+ const c:any=f.strategy.snapshot.configuration;c.source='links';c.keywords=[];c.links=['https://www.bilibili.com/video/BV1d54y1g7db'];c.mode=mode;
+ if(mode==='monitor')c.schedule={kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1};
+ const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.strategy.configuration_sha256=hash;f.command.configurationSha256=hash;
+ f.resolveAccount.mockResolvedValue({profileId:id(30),accountPublicId:'123456'});
+ const support=mode==='monitor'?{schema_version:'monitor-runtime-support-v1',mode:'four-platform-public-bili-links-monitor-v1',native_links:['BILIBILI']}
+  :{schema_version:'foreground-collection-support-v1',mode:'four-platform-public-bili-links-monitor-v1',native_links:['BILIBILI']};
+ f.scope.transport.requestExecution.mockImplementation(async(input:any)=>input.operation.endsWith('support')?{ok:true,status:200,data:support}:{ok:true,status:200,data:{task_id:id(6),run_id:id(7),status:'PENDING',stop_confirmed:false,profile_version_id:id(3),strategy_version_id:id(4),max_records:50,records_used:0,deadline_at:'2099-09-10T00:10:00Z',platform_runs:[{platform_run_id:id(8),platform:'BILIBILI',status:'PENDING',execution_generation:0,records_used:0}]}});
+ const start={schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:hash,targets:f.command.targets};
+ const result=mode==='once'?await f.controller.start(f.command):await f.controller.startMonitor(start);
+ expect(result).toMatchObject({state:'RECORDED'});expect(f.driverFactory).toHaveBeenCalledWith(expect.objectContaining({allowMonitor:mode==='monitor'||undefined,binding:expect.objectContaining({platform:'BILIBILI',expectedAccountPublicId:'123456'})}));
+ f.finish();await f.controller.shutdown();
+});
+it('does not submit the same Bilibili link snapshot without the explicit server declaration',async()=>{
+ const f=fixture();f.command.targets[0]={platform:'BILIBILI',access_mode:'PLATFORM_ACCOUNT',connection_id:id(5),connection_version:2};
+ f.strategy.snapshot.platforms=['BILIBILI'];const c:any=f.strategy.snapshot.configuration;c.source='links';c.keywords=[];c.links=['https://www.bilibili.com/video/BV1d54y1g7db'];
+ const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.strategy.configuration_sha256=hash;f.command.configurationSha256=hash;
+ f.scope.transport.requestExecution.mockResolvedValue({ok:true,status:200,data:{schema_version:'foreground-collection-support-v1',mode:'four-platform-foreground-v1'}} as any);
+ expect(await f.controller.start(f.command)).toEqual({state:'SERVICE_UNAVAILABLE'});expect(f.execution.submit).not.toHaveBeenCalled();expect(f.driverFactory).not.toHaveBeenCalled();
+});
+it('advertises Bilibili link eligibility only from the exact support response and bound account',async()=>{
+ const f=fixture();const bili={connection_id:id(5),device_id:id(2),platform:'BILIBILI',account_public_id:'123456',connection_version:2,status:'CONNECTED',connected_at:'2026-09-10T00:00:00Z',disconnected_at:null};
+ f.scope.transport.requestConnection.mockResolvedValue({ok:true,status:200,data:{items:[bili]}} as any);
+ f.scope.transport.requestExecution.mockResolvedValue({ok:true,status:200,data:{schema_version:'foreground-collection-support-v1',mode:'four-platform-public-bili-links-monitor-v1',native_links:['BILIBILI']}} as any);
+ f.resolveAccount.mockResolvedValue({profileId:id(30),accountPublicId:'123456'});
+ expect(await f.controller.execute({action:'CAPABILITIES'})).toMatchObject({state:'AVAILABLE',linkPlatforms:['BILIBILI'],bindings:[{platform:'BILIBILI'}]});
+});
 it('launches one bound background worker after fresh strategy, account, runtime and persisted START',async()=>{
  const f=fixture();(f.strategy.snapshot.configuration as any).exclusions=['招聘'];
  const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.strategy.configuration_sha256=hash;f.command.configurationSha256=hash;

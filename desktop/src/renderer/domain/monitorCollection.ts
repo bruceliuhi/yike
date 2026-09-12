@@ -21,7 +21,8 @@ export function monitorTargets(view:StrategyView,connections:PlatformConnection[
   if(!(platform in codes))throw new Error('该平台的持续监控尚未接通。');
   const code=codes[platform as keyof typeof codes];
   const rows=connections.filter(row=>row.platform===code && hasForegroundBinding(row) && (!accounts || row.accountId===accounts[code]));
-  if(rows.length!==1)throw new Error('请先连接并核对每个平台的本机账号。');
+  if(rows.length!==1||snapshot.configuration.source==='links'&&(platform!=='BILIBILI'||!rows[0].capabilities.includes('read')))
+    throw new Error('请先连接并核对每个平台的本机账号。');
   const row=rows[0].registration!;devices.add(row.deviceId);
   return {platform:platform as keyof typeof codes,access_mode:'PLATFORM_ACCOUNT' as const,connection_id:row.connectionId,connection_version:row.version};
  });

@@ -49,6 +49,13 @@ describe('foreground renderer boundary', () => {
     expect(attachForegroundBinding([original], {state:'UNAVAILABLE'})).toEqual([original]);
     expect(attachForegroundBinding([original, original], {state:'AVAILABLE', bindings:[binding]})).toEqual([original,original]);
   });
+  it('adds Bilibili link reading only from the explicit main capability',()=>{
+    const bili={...row(),platform:'bilibili' as const,accountId:'123456'};
+    const biliBinding={...binding,mode:'four-platform-public-bili-links-monitor-v1' as const,platform:'BILIBILI' as const,accountPublicId:'123456'};
+    const ready=attachForegroundBinding([bili],{state:'AVAILABLE',bindings:[biliBinding],linkPlatforms:['BILIBILI']});
+    expect(ready[0].capabilities).toEqual(['search','read']);
+    expect(attachForegroundBinding([bili],{state:'AVAILABLE',bindings:[biliBinding]})[0].capabilities).toEqual(['search']);
+  });
   it.each(['connection','version','device','account','platform','status','disconnected','unregistered'])(
     'does not authorize a mismatched %s row', field => {
       const value = row();
@@ -120,7 +127,17 @@ describe('bounded foreground start prerequisites', () => {
       if (field==='otherplatform') current.platforms.push('web' as 'xhs');
       if (field==='bindingchanged') ready[0].registration!.version=3;
       expect(startBlockers(current, profiles, ready, true).length).toBeGreaterThan(0);
-    });
+  });
+  it('allows only explicitly advertised Bilibili link once and monitor tasks',()=>{
+    const bili={...row(),platform:'bilibili' as const,accountId:'123456'};
+    const biliBinding={...binding,mode:'four-platform-public-bili-links-monitor-v1' as const,platform:'BILIBILI' as const,accountPublicId:'123456'};
+    const linked=attachForegroundBinding([bili],{state:'AVAILABLE',bindings:[biliBinding],linkPlatforms:['BILIBILI']});
+    const links={...draft,source:'links' as const,links:'https://www.bilibili.com/video/BV1d54y1g7db',terms:[],platforms:['bilibili'] as const,accounts:{bilibili:'123456'},executionLimits:{max_records:1,max_runtime_seconds:60}};
+    expect(startBlockers({...links,platforms:[...links.platforms]},profiles,linked,true,true)).toEqual([]);
+    expect(startBlockers({...links,platforms:[...links.platforms],mode:'monitor',schedule:{...links.schedule,policyVersion:1}},profiles,linked,true,true)).toEqual([]);
+    const old=attachForegroundBinding([bili],{state:'AVAILABLE',bindings:[biliBinding]});
+    expect(startBlockers({...links,platforms:[...links.platforms]},profiles,old,true,true).length).toBeGreaterThan(0);
+  });
   it.each([{max_records:101,max_runtime_seconds:600},{max_records:50,max_runtime_seconds:901}])(
     'explains the bounded source limit %j', limits => {
       const ready=attachForegroundBinding([row()],{state:'AVAILABLE',bindings:[binding]});

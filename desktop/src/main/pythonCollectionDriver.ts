@@ -6,17 +6,20 @@ import {candidateSubmissionSchema, type CandidateSubmission} from '../shared/can
 import {platformSearchKeywords, strategyConfigurationSchema} from '../shared/researchStrategies';
 import {executionReceiptSchema} from '../shared/executionReceipt';
 import {nativeLoginPlatformSchema,validNativeAccount} from '../shared/platformAccount';
+import {planNativeCollectionLinks,type NativeCollectionLink} from '../shared/nativeCollectionLinks';
 
 type Input = Parameters<CollectionDriver['start']>[0];
 interface Options {
   pythonExecutable: string; projectRoot: string; runtimePath: string; profilePath: string; outputRoot: string;
   allowMonitor?:boolean;
+  allowNativeLinks?:true;
   binding: {deviceId: string; credentialVersion: number; expectedAccountPublicId?: string} & Input['target'];
 }
 const SCHEMA = 'windows-source-host-v1';
 const MAX_FRAME = 4 * 1024 * 1024;
 const failure = (code = 'SOURCE_DRIVER_FAILED') => new Error(code);
 const integer = (n: number, max: number) => Number.isInteger(n) && n >= 1 && n <= max;
+const executableBiliLink=(item:NativeCollectionLink)=>item.kind==='creator'||/^BV1[1-9A-HJ-NP-Za-km-z]{9}$/.test(item.external_id);
 const folded = (value: string) => value.normalize('NFC').toLowerCase();
 function excluded(record: CandidateSubmission['records'][number], exclusions: string[]): boolean {
   const fields = record.kind === 'POST' ? [record.title, record.body] : record.kind === 'COMMENT' ? [record.body] : [];
@@ -99,7 +102,7 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
       const input = structuredClone({snapshot: original.snapshot, target: original.target, lease: original.lease, maxRecords: original.maxRecords});
       const {snapshot, target, maxRecords} = input;
       let mapping: Omit<CandidateSubmission, 'schema_version' | 'platform' | 'records'>;
-      let queries: string[];
+      let work: Array<{query:string|null;nativeLink?:NativeCollectionLink}>;
       let exclusions: string[];
       try {
         const c = strategyConfigurationSchema.parse(snapshot.configuration);
@@ -110,14 +113,17 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
             !validNativeAccount(nativePlatform.data,expectedAccount))) throw failure();
         if (lease.operation !== 'CLAIM' && lease.operation !== 'RENEW') throw failure();
         const approvedMode=c.mode==='once' && c.schedule===null || owned.allowMonitor===true && c.mode==='monitor' && c.schedule?.policyVersion===1;
-        if (!approvedMode || c.source !== 'search' || c.links.length || c.research !== null ||
-            c.keywords.some(q => q !== q.trim() || q.includes(',')) ||
+        const linkPlan=c.source==='links'&&c.research===null&&owned.allowNativeLinks===true&&target.platform==='BILIBILI'
+          ?planNativeCollectionLinks(snapshot.platforms,c.links):null;
+        if (!approvedMode || c.research !== null ||
+            c.source==='search'&&(c.links.length>0||c.keywords.some(q => q !== q.trim() || q.includes(','))) ||
+            c.source==='links'&&(!linkPlan||expectedAccount===undefined||linkPlan.some(item=>item.platform!=='BILIBILI'||!executableBiliLink(item))||maxRecords<linkPlan.length) ||
             c.platformQueries?.items.some(item => !snapshot.platforms.includes(item.platform)) ||
             !integer(maxRecords, 100) || !integer(snapshot.max_records, 10000) || maxRecords > snapshot.max_records ||
             !integer(snapshot.max_runtime_seconds, 86400) || !snapshot.platforms.includes(target.platform) ||
             !nativeLoginPlatformSchema.safeParse(target.platform).success || target.access_mode !== 'PLATFORM_ACCOUNT' ||
             (['platform', 'access_mode', 'connection_id', 'connection_version'] as const).some(k => target[k] !== owned.binding[k])) throw failure();
-        queries = platformSearchKeywords(c, target.platform);
+        work = linkPlan?linkPlan.map(nativeLink=>({query:null,nativeLink})):platformSearchKeywords(c,target.platform).map(query=>({query}));
         exclusions = c.exclusions.map(folded);
         for (const value of [owned.pythonExecutable, owned.projectRoot, owned.runtimePath, owned.profilePath, owned.outputRoot])
           if (!/^[A-Za-z]:[\\/]/.test(value) || !path.isAbsolute(value) || /[\p{Cc}\p{Cf}\p{Cs}]/u.test(value)) throw failure();
@@ -133,15 +139,15 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
       const records: CandidateSubmission['records'] = [];
       let spent = 0;
       const seen = new Map<string, string>();
-      for (let index = 0; index < queries.length && spent < maxRecords; index++) {
+      for (let index = 0; index < work.length && spent < maxRecords; index++) {
         if (cancelled) throw failure(timedOut ? 'SOURCE_DRIVER_TIMED_OUT' : 'SOURCE_DRIVER_CANCELLED');
         const seconds = Math.ceil((deadline - performance.now()) / 1000);
         if (seconds < 1) throw failure('SOURCE_DRIVER_TIMED_OUT');
-        const query = queries[index];
-        const cap = Math.ceil((maxRecords - spent) / (queries.length - index));
+        const {query,nativeLink}=work[index];
+        const cap = Math.ceil((maxRecords - spent) / (work.length - index));
         let result: unknown;
         try {result = await invoke({schema_version: SCHEMA, runtime_path: owned.runtimePath, profile_path: owned.profilePath,
-          output_path: path.join(owned.outputRoot, randomUUID()), platform: target.platform, query, max_records: cap,
+          output_path: path.join(owned.outputRoot, randomUUID()), platform: target.platform, query, ...(nativeLink?{native_link:nativeLink}:{}), max_records: cap,
           ...(owned.binding.expectedAccountPublicId === undefined ? {} : {expected_account_public_id: owned.binding.expectedAccountPublicId}),
           timeout_seconds: seconds, mapping: {...mapping, request_id: randomUUID()}});}
         catch (error) {if (timedOut) throw failure('SOURCE_DRIVER_TIMED_OUT'); throw error;}

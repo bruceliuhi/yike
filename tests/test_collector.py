@@ -512,6 +512,7 @@ def test_lock_declares_hashed_ordered_governance_patchset():
         "vendor/patches/mediacrawler/0001-yike-controlled-runtime.patch",
         "vendor/patches/mediacrawler/0002-yike-xhs-runtime.patch",
         "vendor/patches/mediacrawler/0003-yike-zhihu-runtime.patch",
+        "vendor/patches/mediacrawler/0004-yike-bili-links.patch",
     ]
     for patch in lock["patches"]:
         payload = (PROJECT_ROOT / patch["path"]).read_bytes()

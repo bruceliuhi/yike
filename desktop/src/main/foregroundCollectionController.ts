@@ -6,7 +6,7 @@ import {executionOperationSchema} from '../shared/executionOperation';
 import {parseExecutionReceipt} from '../shared/executionReceipt';
 import {strategyViewSchema} from '../shared/researchStrategies';
 import {connectionRegistryRowSchema} from '../shared/platformConnection';
-import {foregroundCollectionCommandSchema,foregroundModeSchema,supportsForegroundPlatform,monitorForegroundMode,monitorSupportSchema,type ForegroundCollectionResult} from '../shared/foregroundCollection';
+import {foregroundCollectionCommandSchema,foregroundModeSchema,nativeLinkPlatformsSchema,supportsForegroundPlatform,monitorForegroundMode,monitorSupportSchema,type ForegroundCollectionResult} from '../shared/foregroundCollection';
 import {deviceUuidSchema as uuid} from '../shared/deviceRegistration';
 import type {createDeviceIdentityController,DeviceWorkerScope} from './deviceIdentityController';
 import type {ExecutionJournal} from './executionJournal';
@@ -22,6 +22,7 @@ import {resolveCollectionAccount} from './collectionAccountBinding';
 import {probeCollectionRuntime} from './collectionRuntimeProbe';
 import {nativeLoginPlatformSchema,type NativeLoginPlatform} from '../shared/platformAccount';
 import {allowsPublicSource,publicSourceIdSchema,publicSourceIdsSchema,validPublicSourceCatalog} from '../shared/publicSources';
+import {planNativeCollectionLinks} from '../shared/nativeCollectionLinks';
 
 interface Options {
  serviceOrigin:string;
@@ -36,8 +37,9 @@ interface Options {
  resolveAccount?:typeof resolveCollectionAccount;probe?:typeof probeCollectionRuntime;
 }
 const supportSchema=z.object({schema_version:z.literal('foreground-collection-support-v1'),mode:foregroundModeSchema.nullable(),
- public_source:z.literal('v2ex-latest-v1').optional(),public_sources:publicSourceIdsSchema.optional(),public_monitor:z.literal(true).optional()})
- .strict().refine(value=>validPublicSourceCatalog(value.public_source,value.public_sources));
+ public_source:z.literal('v2ex-latest-v1').optional(),public_sources:publicSourceIdsSchema.optional(),public_monitor:z.literal(true).optional(),native_links:nativeLinkPlatformsSchema.optional()})
+ .strict().refine(value=>validPublicSourceCatalog(value.public_source,value.public_sources))
+ .refine(value=>(value.mode==='four-platform-public-bili-links-monitor-v1')===(value.native_links!==undefined));
 const rowsSchema=z.object({items:z.array(connectionRegistryRowSchema).max(10000)}).strict();
 const stateSchema=z.enum(['PENDING','RUNNING','CANCELLING','CANCELED','SUCCEEDED']);
 const taskSchema=z.object({task_id:uuid,run_id:uuid,status:stateSchema,stop_confirmed:z.boolean(),profile_version_id:uuid,strategy_version_id:uuid,
@@ -46,6 +48,13 @@ const taskSchema=z.object({task_id:uuid,run_id:uuid,status:stateSchema,stop_conf
   execution_generation:z.number().int().min(0),records_used:z.number().int().min(0)}).strict()).min(1).max(5)}).strict();
 function canonical(v:unknown):string{return Array.isArray(v)?'['+v.map(canonical).join(',')+']':v&&typeof v==='object'
  ?'{'+Object.entries(v).sort(([a],[b])=>a<b?-1:a>b?1:0).map(([k,x])=>JSON.stringify(k)+':'+canonical(x)).join(',')+'}':JSON.stringify(v);}
+function nativeLinkScope(snapshot:any,targets:any[],declared:readonly string[]|undefined):boolean {
+ try{return snapshot.configuration.source==='links'&&snapshot.configuration.research===null&&declared?.length===1&&declared[0]==='BILIBILI'&&
+  targets.length===1&&targets[0].platform==='BILIBILI'&&targets[0].access_mode==='PLATFORM_ACCOUNT'&&
+  planNativeCollectionLinks(snapshot.platforms,snapshot.configuration.links).every(item=>item.platform==='BILIBILI'&&
+   (item.kind==='creator'||/^BV1[1-9A-HJ-NP-Za-km-z]{9}$/.test(item.external_id)))&&
+  snapshot.max_records>=snapshot.configuration.links.length;}catch{return false;}
+}
 
 /** Single foreground run. Existing immutable CLAIM/upload journals are restart markers, not new authority. */
 export function createForegroundCollectionController(options:Options) {
@@ -123,7 +132,8 @@ export function createForegroundCollectionController(options:Options) {
      bindings.push({mode,platform,connectionId:row.connection_id,connectionVersion:row.connection_version,deviceId:row.device_id,accountPublicId:row.account_public_id});
     }catch{guard(scope);}
    }
-   return bindings.length||publicBinding?{state:'AVAILABLE',bindings,...(publicBinding?{publicBinding}:{})}:{state:'UNAVAILABLE'};
+   const linkPlatforms=support.native_links&&bindings.some(binding=>binding.platform==='BILIBILI')?support.native_links:undefined;
+   return bindings.length||publicBinding?{state:'AVAILABLE',bindings,...(publicBinding?{publicBinding}:{}),...(linkPlatforms?{linkPlatforms}:{})}:{state:'UNAVAILABLE'};
    }catch{guard(scope);return publicOnly();}
   }catch{return {state:'UNAVAILABLE'};}finally{scope?.close();}
  }
@@ -153,7 +163,7 @@ export function createForegroundCollectionController(options:Options) {
   if(!Number.isInteger(total)||total<count)throw new Error();const base=Math.floor(total/count),extra=total%count;
   return Array.from({length:count},(_,index)=>base+(index<extra?1:0));
  }
- function launchSequence(input:{scope:DeviceWorkerScope;start:any;receipt:any;strategy:any;targets:any[];bindings:any[];firstSessions:any;allowMonitor?:boolean;startIndex?:number}){
+ function launchSequence(input:{scope:DeviceWorkerScope;start:any;receipt:any;strategy:any;targets:any[];bindings:any[];firstSessions:any;allowMonitor?:boolean;allowNativeLinks?:true;startIndex?:number}){
   let currentWorker:ReturnType<typeof createCollectionWorker>|null=null,cancelled=false;
   const composite={cancel(){cancelled=true;currentWorker?.cancel();}} as ReturnType<typeof createCollectionWorker>;
   const current:Active={taskId:input.receipt.task_id,userId:input.scope.session.userId,scope:input.scope,worker:composite,done:Promise.resolve()};
@@ -178,6 +188,7 @@ export function createForegroundCollectionController(options:Options) {
      if(!configuration)throw new Error();
      driver=(options.driverFactory??createPythonCollectionDriver)({pythonExecutable:configuration.pythonExecutable,projectRoot:configuration.projectRoot,runtimePath:configuration.runtimePath,
       profilePath:path.join(configuration.profileRoot,binding.profileId),outputRoot:configuration.outputRoot,allowMonitor:input.allowMonitor,
+      ...(input.allowNativeLinks?{allowNativeLinks:true as const}:{}),
       binding:{...activeScope!.device,...input.targets[index],expectedAccountPublicId:binding.accountPublicId}});
     }
     currentWorker=(options.workerFactory??createCollectionWorker)({...sessions,driver});
@@ -206,10 +217,11 @@ export function createForegroundCollectionController(options:Options) {
     if(targets.some(target=>target.platform!=='PUBLIC_WEB'))await nativeReady(scope);
     const response=await identity.requestApi({operation:'strategies.get',payload:{strategy_version_id:strategyId}});guard(scope);if(!response.ok)throw new Error();
     const strategy=strategyViewSchema.parse(response.data),snapshot=strategy.snapshot,c=snapshot.configuration;
+    const links=nativeLinkScope(snapshot,targets,parsedSupport.data.native_links);
     if(strategy.state!=='CONFIRMED'||!strategy.is_current||!strategy.profile_current||strategy.confirmed_at===null||strategy.revoked_at!==null||
       strategy.profile_version_id!==profileId||snapshot.profile_version_id!==profileId||strategy.strategy_version_id!==strategyId||snapshot.strategy_version_id!==strategyId||
       c.mode!=='monitor'||c.schedule?.policyVersion!==1||snapshot.max_records<targets.length||snapshot.max_records>100||snapshot.max_runtime_seconds>900||
-      c.source!=='search'||c.research!==null||c.links.length||c.keywords.some(k=>k!==k.trim()||k.includes(','))||
+      c.research!==null||!links&&(c.source!=='search'||c.links.length>0||c.keywords.some(k=>k!==k.trim()||k.includes(',')))||
       snapshot.platforms.length!==targets.length||targets.some((target,index)=>target.platform!==snapshot.platforms[index])||
       targets.some(target=>target.platform==='PUBLIC_WEB'?!allowsPublicSource(c.publicSource,parsedSupport.data.public_source,parsedSupport.data.public_sources):
        !nativeLoginPlatformSchema.safeParse(target.platform).success||target.access_mode!=='PLATFORM_ACCOUNT'))throw new Error();
@@ -231,17 +243,18 @@ export function createForegroundCollectionController(options:Options) {
     if(targets.some(target=>target.platform!=='PUBLIC_WEB'))await nativeReady(scope);
     const strategyResponse=await identity.requestApi({operation:'strategies.get',payload:{strategy_version_id:start.strategy_version_id}});guard(scope);if(!strategyResponse.ok)throw new Error();
     const strategy=strategyViewSchema.parse(strategyResponse.data),snapshot=strategy.snapshot,c=snapshot.configuration;
+    const links=nativeLinkScope(snapshot,targets,parsedSupport.data.native_links);
     if(strategy.state!=='CONFIRMED'||!strategy.is_current||!strategy.profile_current||strategy.confirmed_at===null||strategy.revoked_at!==null||
       strategy.profile_version_id!==start.profile_version_id||strategy.strategy_version_id!==start.strategy_version_id||snapshot.profile_version_id!==start.profile_version_id||
       snapshot.strategy_version_id!==start.strategy_version_id||strategy.configuration_sha256!==start.configuration_sha256||createHash('sha256').update(canonical(snapshot)).digest('hex')!==start.configuration_sha256||
-      c.mode!=='monitor'||c.schedule?.policyVersion!==1||snapshot.max_records<targets.length||snapshot.max_records>100||snapshot.max_runtime_seconds>900||c.source!=='search'||c.research!==null||c.links.length||c.keywords.some(k=>k!==k.trim()||k.includes(','))||
+      c.mode!=='monitor'||c.schedule?.policyVersion!==1||snapshot.max_records<targets.length||snapshot.max_records>100||snapshot.max_runtime_seconds>900||c.research!==null||!links&&(c.source!=='search'||c.links.length>0||c.keywords.some(k=>k!==k.trim()||k.includes(',')))||
       snapshot.platforms.length!==targets.length||targets.some((target,index)=>target.platform!==snapshot.platforms[index]||
        (target.platform==='PUBLIC_WEB'?!allowsPublicSource(c.publicSource,parsedSupport.data.public_source,parsedSupport.data.public_sources):target.access_mode!=='PLATFORM_ACCOUNT'||!nativeLoginPlatformSchema.safeParse(target.platform).success)))throw new Error();
     const bindings=[];for(const target of targets)bindings.push(target.platform==='PUBLIC_WEB'?null:await account(scope,target));
     const firstSessions=options.sessions(scope);const submitted=await firstSessions.execution.submit(scope.session,start);guard(scope);if(submitted.state!=='RECORDED')return submitted;
     const receipt=parseExecutionReceipt(submitted.receipt,start);if(receipt.operation!=='START'||receipt.platform_runs.length!==targets.length||receipt.platform_runs.some((run,index)=>run.platform!==targets[index].platform))throw new Error();
     const history=await options.executionJournal.list(journalScope(scope));guard(scope);if(history.some(r=>r.task_id===receipt.task_id&&r.operation!=='START'))return submitted;
-    launchSequence({scope,start,receipt,strategy,targets,bindings,firstSessions,allowMonitor:true});scope=undefined;handedOff=true;
+    launchSequence({scope,start,receipt,strategy,targets,bindings,firstSessions,allowMonitor:true,...(links?{allowNativeLinks:true as const}:{})});scope=undefined;handedOff=true;
     return submitted;
    }catch{return {state:'SERVICE_UNAVAILABLE'};}finally{if(!handedOff)scope?.close();opening=false;finishOpening?.();finishOpening=null;openingDone=null;}
   },
@@ -273,13 +286,14 @@ export function createForegroundCollectionController(options:Options) {
     const bindings=[];for(const target of command.targets)bindings.push(target.platform==='PUBLIC_WEB'?null:await account(scope,target));
     const response=await identity.requestApi({operation:'strategies.get',payload:{strategy_version_id:command.strategyVersionId}});guard(scope);if(!response.ok)throw new Error();
     const strategy=strategyViewSchema.parse(response.data),snapshot=strategy.snapshot,c=snapshot.configuration;
+    const links=nativeLinkScope(snapshot,command.targets,support.native_links);
     if(strategy.state!=='CONFIRMED' || !strategy.is_current || !strategy.profile_current || strategy.confirmed_at===null || strategy.revoked_at!==null ||
      strategy.profile_version_id!==command.profileVersionId || strategy.strategy_version_id!==command.strategyVersionId ||
      snapshot.profile_version_id!==command.profileVersionId || snapshot.strategy_version_id!==command.strategyVersionId ||
      strategy.configuration_sha256!==command.configurationSha256 || createHash('sha256').update(canonical(snapshot)).digest('hex')!==command.configurationSha256 ||
      snapshot.platforms.length!==command.targets.length || command.targets.some((target,index)=>snapshot.platforms[index]!==target.platform) ||
      snapshot.max_records<command.targets.length || snapshot.max_records>100 || snapshot.max_runtime_seconds>900 ||
-     c.mode!=='once' || c.source!=='search' || c.schedule!==null || c.research!==null || c.links.length || c.keywords.some(k=>k!==k.trim() || k.includes(',')) ||
+     c.mode!=='once' || c.schedule!==null || c.research!==null || !links&&(c.source!=='search'||c.links.length>0||c.keywords.some(k=>k!==k.trim() || k.includes(','))) ||
      hasPublic && !allowsPublicSource(c.publicSource,support.public_source,support.public_sources) || !hasPublic && c.publicSource!==undefined)throw new Error();
     const start=executionOperationSchema.parse({schema_version:'execution-runtime-v1',operation:'START',request_id:command.requestId,
      device_id:scope.device.deviceId,credential_version:scope.device.credentialVersion,profile_version_id:command.profileVersionId,strategy_version_id:command.strategyVersionId,
@@ -313,7 +327,7 @@ export function createForegroundCollectionController(options:Options) {
       if(verified.operation!=='FINISH'||verified.run_id!==receipt.run_id||verified.platform_run_id!==run.platform_run_id)throw new Error();
      }else if(run.status!=='PENDING'||run.execution_generation!==0||run.records_used!==0||runOps.length||runBatches.length)throw new Error();
     }
-    launchSequence({scope,start,receipt,strategy,targets:command.targets,bindings,firstSessions:sessions,startIndex});scope=undefined;handedOff=true;
+    launchSequence({scope,start,receipt,strategy,targets:command.targets,bindings,firstSessions:sessions,startIndex,...(links?{allowNativeLinks:true as const}:{})});scope=undefined;handedOff=true;
     return result;
    }catch{return {state:'SERVICE_UNAVAILABLE'};}finally{if(!handedOff)scope?.close();opening=false;finishOpening?.();finishOpening=null;openingDone=null;}
   },

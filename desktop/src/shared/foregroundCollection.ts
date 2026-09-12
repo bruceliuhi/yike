@@ -8,18 +8,22 @@ export const foregroundCollectionCommandSchema=z.discriminatedUnion('action',[
  z.object({action:z.literal('STATUS'),taskId:uuid}).strict(),
  z.object({action:z.literal('RECOVER'),taskId:uuid,humanConfirmed:z.literal(true),retry:z.boolean().optional()}).strict(),
 ]);
-export const foregroundModeSchema=z.enum(['xhs-foreground-v1','three-platform-foreground-v1','four-platform-foreground-v1']);
+export const foregroundModeSchema=z.enum(['xhs-foreground-v1','three-platform-foreground-v1','four-platform-foreground-v1','four-platform-public-bili-links-monitor-v1']);
 export function supportsForegroundPlatform(mode:unknown,platform:unknown):boolean {
- return nativeLoginPlatformSchema.safeParse(platform).success && (mode==='four-platform-foreground-v1' ||
+ return nativeLoginPlatformSchema.safeParse(platform).success && (mode==='four-platform-foreground-v1' || mode==='four-platform-public-bili-links-monitor-v1' ||
   mode==='three-platform-foreground-v1' && platform!=='ZHIHU' || mode==='xhs-foreground-v1' && platform==='XIAOHONGSHU');
 }
+export const nativeLinkPlatformsSchema=z.tuple([z.literal('BILIBILI')]);
 export const monitorSupportSchema=z.object({schema_version:z.literal('monitor-runtime-support-v1'),
- mode:z.enum(['three-platform-monitor-v1','four-platform-monitor-v1']).nullable(),public_source:z.literal('v2ex-latest-v1').optional(),
- public_sources:publicSourceIdsSchema.optional()}).strict().refine(value=>validPublicSourceCatalog(value.public_source,value.public_sources));
+ mode:z.enum(['three-platform-monitor-v1','four-platform-monitor-v1','four-platform-public-bili-links-monitor-v1']).nullable(),public_source:z.literal('v2ex-latest-v1').optional(),
+ public_sources:publicSourceIdsSchema.optional(),native_links:nativeLinkPlatformsSchema.optional()}).strict()
+ .refine(value=>validPublicSourceCatalog(value.public_source,value.public_sources))
+ .refine(value=>(value.mode==='four-platform-public-bili-links-monitor-v1')===(value.native_links!==undefined));
 export function monitorForegroundMode(value:unknown) {
  const parsed=monitorSupportSchema.safeParse(value);
  return !parsed.success || parsed.data.mode===null ? null : parsed.data.mode==='four-platform-monitor-v1'
-  ? 'four-platform-foreground-v1' as const : 'three-platform-foreground-v1' as const;
+  ? 'four-platform-foreground-v1' as const : parsed.data.mode==='four-platform-public-bili-links-monitor-v1'
+    ? 'four-platform-public-bili-links-monitor-v1' as const : 'three-platform-foreground-v1' as const;
 }
 export const foregroundBindingSchema=z.object({mode:foregroundModeSchema,platform:nativeLoginPlatformSchema,
  connectionId:uuid,connectionVersion:z.number().int().min(1).max(2147483647),deviceId:uuid,accountPublicId:z.string().min(1).max(64)}).strict()
@@ -33,8 +37,9 @@ const foregroundBindingsSchema=z.array(foregroundBindingSchema).max(4).superRefi
  if(values.length && new Set(values.map(value=>value.mode)).size!==1)ctx.addIssue({code:'custom',message:'mixed foreground mode'});
 });
 export const foregroundCollectionResultSchema=z.discriminatedUnion('state',[
- z.object({state:z.literal('AVAILABLE'),bindings:foregroundBindingsSchema,publicBinding:publicSourceBindingSchema.optional()}).strict().superRefine((value,ctx)=>{
+ z.object({state:z.literal('AVAILABLE'),bindings:foregroundBindingsSchema,publicBinding:publicSourceBindingSchema.optional(),linkPlatforms:nativeLinkPlatformsSchema.optional()}).strict().superRefine((value,ctx)=>{
   if(!value.bindings.length&&!value.publicBinding)ctx.addIssue({code:'custom',message:'missing collection binding'});
+  if(value.linkPlatforms&&!value.bindings.some(binding=>binding.platform==='BILIBILI'&&binding.mode==='four-platform-public-bili-links-monitor-v1'))ctx.addIssue({code:'custom',message:'missing link binding'});
   if(value.publicBinding&&value.bindings.some(binding=>binding.deviceId!==value.publicBinding!.deviceId))
    ctx.addIssue({code:'custom',message:'mixed collection devices'});
  }),

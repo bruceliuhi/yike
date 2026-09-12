@@ -10,7 +10,7 @@ from typing import Literal
 from urllib.parse import parse_qsl, unquote, urlsplit
 
 import idna
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError, field_validator, model_validator, model_serializer
 
 _OPAQUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 _TIME = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
@@ -213,6 +213,13 @@ class CandidateRecord(_Frozen):
     normalizer_version: str
     query: str | None
     source_context: SourceContext | None = None
+
+    @model_serializer(mode='wrap')
+    def preserve_absent_source_context(self, handler):
+        value = handler(self)
+        if self.source_context is None and 'source_context' not in self.__pydantic_fields_set__:
+            value.pop('source_context', None)
+        return value
 
     @field_validator("external_source_id", "external_comment_id")
     @classmethod

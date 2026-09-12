@@ -20,6 +20,7 @@ from app.repository import canonical_single_keyword
 from app.windows_source_driver import collect_windows_source
 from app.platform_login_worker import valid_account
 from connectors.candidate_mapping import build_comment_batch
+from pilot.native_collection_links import validate_bili_collection_target
 
 
 SCHEMA_VERSION = 'windows-source-host-v1'
@@ -56,7 +57,8 @@ def _request(stdin) -> dict:
         raise ValueError()
     payload = json.loads(frame.decode('utf-8'), object_pairs_hook=_unique_pairs,
                          parse_constant=_reject_constant)
-    if not isinstance(payload, dict) or set(payload) not in (_FIELDS, _FIELDS | {'expected_account_public_id'}):
+    if (not isinstance(payload, dict) or not _FIELDS <= set(payload)
+            or set(payload) - _FIELDS - {'expected_account_public_id', 'native_link'}):
         raise ValueError()
     if payload['schema_version'] != SCHEMA_VERSION:
         raise ValueError()
@@ -72,9 +74,14 @@ def _request(stdin) -> dict:
             or type(payload['timeout_seconds']) is not int or not 1 <= payload['timeout_seconds'] <= 900):
         raise ValueError()
     query = payload['query']
-    if not isinstance(query, str) or not 1 <= len(query) <= 80 or canonical_single_keyword(query) != query:
-        raise ValueError()
-    query.encode('utf-8')
+    if 'native_link' in payload:
+        validate_bili_collection_target(payload['native_link'])
+        if payload['platform'] != 'BILIBILI' or query is not None or 'expected_account_public_id' not in payload:
+            raise ValueError()
+    else:
+        if not isinstance(query, str) or not 1 <= len(query) <= 80 or canonical_single_keyword(query) != query:
+            raise ValueError()
+        query.encode('utf-8')
     for key in ('runtime_path', 'profile_path', 'output_path'):
         value = payload[key]
         if not isinstance(value, str) or not value or not value.isprintable():
@@ -107,6 +114,8 @@ def _watch_input(stdin, cancelled: threading.Event) -> None:
 
 def _collect(payload: dict, cancelled: threading.Event) -> dict:
     binding = {'expected_account_public_id': payload['expected_account_public_id']} if 'expected_account_public_id' in payload else {}
+    if 'native_link' in payload:
+        binding['native_link'] = payload['native_link']
     result = collect_windows_source(**{key: payload[key] for key in (
         'runtime_path', 'profile_path', 'output_path', 'platform', 'query',
         'max_records', 'timeout_seconds')}, cancel_requested=cancelled.is_set, **binding)
@@ -115,6 +124,8 @@ def _collect(payload: dict, cancelled: threading.Event) -> dict:
         return _failure('COLLECTION_CANCELLED', 'CANCELLED')
     state = result.get('state')
     if state == 'COLLECTED':
+        if 'native_link' in payload and result.get('query') is not None:
+            raise ValueError()
         if not isinstance(result['records'], list) or len(result['records']) > payload['max_records']:
             raise ValueError()
         batch = build_comment_batch(raw_records=result['records'], platform=payload['platform'],

@@ -20,7 +20,7 @@ _PLATFORMS = {"DOUYIN": ("douyin", "aweme_id", "cid"),
               "BILIBILI": ("bili", "video_id", "rpid"),
               "XIAOHONGSHU": ("xhs", "note_id", "id"),
               "ZHIHU": ("zhihu", "content_id", "comment_id")}
-_FILENAME = re.compile(r"search_(contents|comments)_[^/\\:]+\.jsonl")
+_FILENAME = re.compile(r"(search|detail|creator)_(contents|comments)_[^/\\:]+\.jsonl")
 _REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
 
 
@@ -129,10 +129,12 @@ def _content_identity(row: dict, platform: str, source: str) -> str:
     return json.dumps(canonical, sort_keys=True, ensure_ascii=False, allow_nan=False)
 
 
-def _read(output_dir: Path, platform: str, max_records: int) -> list[dict]:
+def _read(output_dir: Path, platform: str, max_records: int, collection_mode: str) -> list[dict]:
     if (not isinstance(output_dir, Path) or ".." in output_dir.parts
             or not isinstance(platform, str) or platform not in _PLATFORMS
-            or type(max_records) is not int or not 1 <= max_records <= 100):
+            or type(max_records) is not int or not 1 <= max_records <= 100
+            or collection_mode not in ('search', 'detail', 'creator')
+            or (collection_mode != 'search' and platform != 'BILIBILI')):
         raise CollectionOutputError()
     root = output_dir.absolute()
     leaf = root / _PLATFORMS[platform][0] / "jsonl"
@@ -151,7 +153,11 @@ def _read(output_dir: Path, platform: str, max_records: int) -> list[dict]:
                 raise CollectionOutputError()
             match = _FILENAME.fullmatch(entry.name)
             if match:
-                files.append((path, match[1], info))
+                if match[1] != collection_mode:
+                    if collection_mode != 'search':
+                        raise CollectionOutputError()
+                    continue
+                files.append((path, match[2], info))
     if sum(info.st_size for _, _, info in files) > _MAX_BYTES:
         raise CollectionOutputError()
 
@@ -203,6 +209,13 @@ def _read(output_dir: Path, platform: str, max_records: int) -> list[dict]:
                 raise CollectionOutputError()
     if any(source not in contents for source, _ in comments):
         raise CollectionOutputError()
+    if collection_mode != 'search':
+        observed = {source: _with_observation(row) for source, row in contents.items()}
+        result = [{'content': row} for row in observed.values()]
+        result += [{'content': observed[source], 'comment': row} for source, row in comments]
+        if len(result) > max_records:
+            raise CollectionOutputError()
+        return result
     if platform == "ZHIHU":
         # Main posts carry their own observation. A comment-only legacy reader
         # would silently discard buyer demand expressed in an answer/article.
@@ -225,13 +238,13 @@ def _read(output_dir: Path, platform: str, max_records: int) -> list[dict]:
     return [{"content": contents[source], "comment": row} for source, row in comments]
 
 
-def read_collection_output(output_dir: Path, platform: str, max_records: int) -> list[dict]:
+def read_collection_output(output_dir: Path, platform: str, max_records: int, *, collection_mode: str = 'search') -> list[dict]:
     """Return complete ID-matched records or one sanitized error, never a prefix.
 
     The caller must stop its writer and validate the private tree before calling.
     This reader grants no execution, upload or source-verification authority.
     """
     try:
-        return _read(output_dir, platform, max_records)
+        return _read(output_dir, platform, max_records, collection_mode)
     except (OSError, ValueError, TypeError, OverflowError, RecursionError):
         raise CollectionOutputError() from None

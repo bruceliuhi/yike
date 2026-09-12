@@ -108,3 +108,15 @@ def plan_native_collection_links(platforms: object, links: object) -> tuple[dict
         return targets
     except ValueError:
         raise ValueError('INVALID_NATIVE_LINK_SCOPE') from None
+
+
+def validate_bili_collection_target(value: object) -> dict:
+    """Execution subset: exact canonical descriptor and mapper-compatible BV ID."""
+    if type(value) is not dict or set(value) != {'platform', 'kind', 'external_id', 'canonical_url'}:
+        _invalid()
+    target = parse_native_collection_link(value['canonical_url'])
+    if value != target or target['platform'] != 'BILIBILI':
+        _invalid()
+    if target['kind'] == 'detail' and not re.fullmatch(r'BV1[1-9A-HJ-NP-Za-km-z]{9}', target['external_id']):
+        _invalid()
+    return target

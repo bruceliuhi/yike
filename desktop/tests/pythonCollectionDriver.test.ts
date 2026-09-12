@@ -49,6 +49,38 @@ it('fixed private spawn, no inherited secret, sequential query budgets and untou
   f.respond(1, [record('搭建', '66c21234abcdef0123456789')]);
   expect(await run.completed).toEqual([record(), record('搭建', '66c21234abcdef0123456789')]); await run.stop();
 });
+it('runs every confirmed Bilibili link with null query, canonical target, identity, and one shared budget', async () => {
+  const f = fixture();
+  const links = [
+    'https://www.bilibili.com/video/BV1d54y1g7db',
+    'https://space.bilibili.com/123456',
+  ];
+  f.input.target.platform = 'BILIBILI';
+  f.input.snapshot.platforms = ['BILIBILI'];
+  f.input.snapshot.max_records = f.input.maxRecords = 3;
+  Object.assign(f.input.snapshot.configuration, {source: 'links', keywords: [], links});
+  const driver = createPythonCollectionDriver({...f.options, allowNativeLinks:true, binding: {...f.options.binding,
+    platform: 'BILIBILI', expectedAccountPublicId: '123456'}} as any);
+  const run = driver.start(f.input); await tick();
+  expect(f.request(0)).toMatchObject({platform:'BILIBILI',query:null,max_records:2,expected_account_public_id:'123456',
+    native_link:{platform:'BILIBILI',kind:'detail',external_id:'BV1d54y1g7db',canonical_url:links[0]}});
+  f.respond(0, [{...record(),kind:'POST',external_comment_id:null,public_url:links[0],query:null}]); await tick();
+  expect(f.request(1)).toMatchObject({query:null,max_records:2,native_link:{platform:'BILIBILI',kind:'creator',external_id:'123456',canonical_url:links[1]}});
+  f.respond(1, [{...record(),external_source_id:'BV1d54y1g7db',external_comment_id:'1',public_url:links[0],query:null}]);
+  await expect(run.completed).resolves.toHaveLength(2); await run.stop();
+});
+it('rejects Bilibili links before spawn when the shared record budget cannot cover every target', async () => {
+  const f=fixture();f.input.target.platform='BILIBILI';f.input.snapshot.platforms=['BILIBILI'];f.input.maxRecords=1;
+  Object.assign(f.input.snapshot.configuration,{source:'links',keywords:[],links:['https://www.bilibili.com/video/BV1d54y1g7db','https://space.bilibili.com/123456']});
+  const run=createPythonCollectionDriver({...f.options,binding:{...f.options.binding,platform:'BILIBILI',expectedAccountPublicId:'123456'}} as any).start(f.input);
+  await expect(run.completed).rejects.toThrow('SOURCE_DRIVER_INVALID_INPUT');expect(spawn).not.toHaveBeenCalled();await run.stop();
+});
+it('rejects a parser-recognized but mapper-incompatible Bilibili BV before spawn',async()=>{
+  const f=fixture();f.input.target.platform='BILIBILI';f.input.snapshot.platforms=['BILIBILI'];
+  Object.assign(f.input.snapshot.configuration,{source:'links',keywords:[],links:['https://www.bilibili.com/video/BV0d54y1g7db']});
+  const run=createPythonCollectionDriver({...f.options,allowNativeLinks:true,binding:{...f.options.binding,platform:'BILIBILI',expectedAccountPublicId:'123456'}} as any).start(f.input);
+  await expect(run.completed).rejects.toThrow('SOURCE_DRIVER_INVALID_INPUT');expect(spawn).not.toHaveBeenCalled();await run.stop();
+});
 it.each([
   ['XIAOHONGSHU', ['找搭建团队']],
   ['BILIBILI', ['展台设计报价']],

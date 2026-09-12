@@ -11,8 +11,17 @@ import { industryStrategyError } from './industryTaskStrategy';
 import { platformTermsError } from './platformSearchTerms';
 import {foregroundBindingSchema,publicSourceBindingSchema} from '../../shared/foregroundCollection';
 import {allowsPublicSource,DEFAULT_PUBLIC_SOURCE,publicSourceIdSchema} from '../../shared/publicSources';
+import {planNativeCollectionLinks} from '../../shared/nativeCollectionLinks';
 
 export const PUBLIC_SOURCE_SCOPE='V2EX近期主题有界抽样，不覆盖历史/全站/评论';
+function biliLinkCount(draft:TaskDraft):number|null {
+ try {
+  const platforms=draft.platforms.map(platform=>({bilibili:'BILIBILI'} as const)[platform as 'bilibili']);
+  const links=draft.links.split(/\r\n|\n|\r/u).map(value=>value.trim()).filter(Boolean);
+  const planned=planNativeCollectionLinks(platforms,links);
+  return planned.every(item=>item.platform==='BILIBILI'&&(item.kind==='creator'||/^BV1[1-9A-HJ-NP-Za-km-z]{9}$/.test(item.external_id)))?planned.length:null;
+ } catch {return null;}
+}
 export function hasPublicSourceBinding(connection: PlatformConnection): boolean {
   return connection.platform==='web' && connection.status==='CONNECTED' &&
     !connection.accountId && !connection.accountName && !connection.registration && !connection.foregroundBinding &&
@@ -230,7 +239,7 @@ export function startBlockers(
   const nativeSelections = draft.platforms.filter(platform=>platform!=='web').map(platform => connections.find(c => c.platform === platform &&
     c.accountId === draft.accounts[platform] && hasForegroundBinding(c)));
   const multiOnce = draft.mode === 'once' && draft.platforms.length > 1 && nativeSelections.every(c =>
-    ['three-platform-foreground-v1','four-platform-foreground-v1'].includes(c?.foregroundBinding?.mode ?? '')) &&
+    ['three-platform-foreground-v1','four-platform-foreground-v1','four-platform-public-bili-links-monitor-v1'].includes(c?.foregroundBinding?.mode ?? '')) &&
     new Set(nativeSelections.map(c => c?.registration?.deviceId)).size === 1 &&
     new Set(nativeSelections.map(c => c?.foregroundBinding?.mode)).size === 1;
   if(publicSelected && nativeSelections.some(c=>!c || c.foregroundBinding?.deviceId!==publicRows[0]?.publicBinding?.deviceId))
@@ -254,9 +263,14 @@ export function startBlockers(
     }
     const nativeMonitor = nativeMonitorReady && draft.mode === 'monitor' && hasForegroundBinding(connection) &&
       draft.platforms.every(p => ['xhs','douyin','bilibili','zhihu','web'].includes(p)) && (!publicSelected||publicMonitor);
-    if (connection.registration && ((!nativeMonitor && !multiOnce && (draft.platforms.length !== 1 || draft.mode !== 'once')) ||
-        draft.source !== 'search' ||
-        draft.links.trim() !== '' || draft.research))
+    const linkCount=biliLinkCount(draft);
+    const nativeLinks=draft.source==='links'&&platform==='bilibili'&&connection.capabilities.includes('read')&&linkCount!==null&&
+      draft.platforms.length===1&&!draft.research&&!!draft.executionLimits&&
+      (draft.executionLimits.max_records??0)>=linkCount&&
+      (draft.mode==='once'||draft.mode==='monitor'&&nativeMonitor);
+    if (connection.registration && ((!nativeMonitor && !multiOnce && !nativeLinks && (draft.platforms.length !== 1 || draft.mode !== 'once')) ||
+        draft.source !== 'search' && !nativeLinks ||
+        draft.links.trim() !== '' && !nativeLinks || draft.research))
       blockers.push('本机受控采集仅支持已开放平台的关键词搜索，暂不支持链接或研究。');
     if (connection.registration && draft.executionLimits &&
         ((draft.executionLimits.max_records ?? 0) > 100 || (draft.executionLimits.max_runtime_seconds ?? 0) > 900))

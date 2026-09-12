@@ -99,9 +99,34 @@ def _checked_url(value: object, expected: str) -> str:
     return value
 
 
+def _bili_post_record(content: object, collector_version: str, query: str | None) -> dict:
+    if not isinstance(content, Mapping):
+        raise CandidateMappingError()
+    source_id = _aliases(content, ('video_id', 'aid'), _numeric_id)
+    if source_id is None:
+        raise CandidateMappingError()
+    bvid = content.get('bvid')
+    if bvid is not None and (not isinstance(bvid, str) or not _BVID.fullmatch(bvid)):
+        raise CandidateMappingError()
+    url = f"https://www.bilibili.com/video/{bvid if bvid is not None else 'av' + source_id}"
+    if content.get('video_url') is not None:
+        _checked_url(content['video_url'], url)
+    title = _title(content)
+    body = content.get('desc')
+    if body is None or (isinstance(body, str) and not body.strip()):
+        body = title  # A title-only video is source text, not a generated summary.
+    return dict(kind='POST', external_source_id=source_id, external_comment_id=None,
+        public_url=url, title=title, body=body, author_public_id=_author(content, ('mid', 'user_id')),
+        published_at=_aliases(content, ('create_time', 'published_at'), _time),
+        observed_at=_time(content.get('collected_at')), parent=None,
+        collector_version=collector_version, normalizer_version='raw-bili-post-candidate-v1', query=query)
+
+
 def _record(platform: str, raw: object, collector_version: str, query: str | None) -> dict:
     if not isinstance(raw, Mapping):
         raise CandidateMappingError() from None
+    if platform == 'BILIBILI' and set(raw) == {'content'}:
+        return _bili_post_record(raw['content'], collector_version, query)
     content, comment = raw.get("content"), raw.get("comment")
     if not isinstance(content, Mapping) or not isinstance(comment, Mapping):
         raise CandidateMappingError() from None

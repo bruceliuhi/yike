@@ -118,7 +118,12 @@ def verify_installed_runtime(runtime_path: Path) -> Path:
         raise WindowsSourceError('source_runtime_invalid') from None
 
 
-def _collection_limits(platform, max_records):
+def _collection_limits(platform, max_records, collection_mode='search'):
+    if collection_mode != 'search':
+        if platform != 'BILIBILI' or collection_mode not in ('detail', 'creator'):
+            raise WindowsSourceError('source_input_invalid')
+        contents = 1 if collection_mode == 'detail' else min(5, max(1, max_records // 2))
+        return contents, max(0, (max_records - contents) // contents)
     max_contents = min(5, max_records)
     # Zhihu emits POST as well as COMMENT; its governed source applies one
     # shared output budget instead of the legacy per-content comment limit.
@@ -126,16 +131,24 @@ def _collection_limits(platform, max_records):
 
 
 def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_path: Path,
-                           platform: str, query: str, max_records: int, timeout_seconds: int,
-                           cancel_requested=None, expected_account_public_id=None) -> dict:
+                           platform: str, query: str | None, max_records: int, timeout_seconds: int,
+                           cancel_requested=None, expected_account_public_id=None, native_link=None) -> dict:
     from app.collection_output import read_collection_output, CollectionOutputError
+    from pilot.native_collection_links import validate_bili_collection_target
     if sys.platform != 'win32':
         raise WindowsSourceError('windows_required')
     started = time.monotonic()
     try:
         if (platform not in ('DOUYIN', 'BILIBILI', 'XIAOHONGSHU', 'ZHIHU') or type(max_records) is not int or not 1 <= max_records <= 100
-                or type(timeout_seconds) is not int or not 1 <= timeout_seconds <= 900
-                or not isinstance(query, str) or not 1 <= len(query) <= 80 or canonical_single_keyword(query) != query):
+                or type(timeout_seconds) is not int or not 1 <= timeout_seconds <= 900):
+            raise WindowsSourceError('source_input_invalid')
+        mode = 'search'
+        if native_link is not None:
+            target = validate_bili_collection_target(native_link)
+            if platform != 'BILIBILI' or query is not None or not valid_account(platform, expected_account_public_id):
+                raise WindowsSourceError('source_input_invalid')
+            mode = target['kind']
+        elif not isinstance(query, str) or not 1 <= len(query) <= 80 or canonical_single_keyword(query) != query:
             raise WindowsSourceError('source_input_invalid')
         if (platform == 'ZHIHU' or expected_account_public_id is not None) and not valid_account(platform, expected_account_public_id):
             raise WindowsSourceError('source_input_invalid')
@@ -179,9 +192,11 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
                 environment['PYTHONDONTWRITEBYTECODE'] = '1'
             # Sample several comments per post (including replies when available)
             # rather than spending the entire budget on first-comment-only posts.
-            max_contents, comments_per_content = _collection_limits(platform, max_records)
+            max_contents, comments_per_content = _collection_limits(platform, max_records, mode)
+            selector = '--keywords=' + query if mode == 'search' else (
+                ('--specified_id=' if mode == 'detail' else '--creator_id=') + target['canonical_url'])
             command = [str(python), '-B', '-X', 'utf8', str(entrypoint), '--platform', code,
-                       '--lt', 'qrcode', '--type', 'search', '--keywords=' + query,
+                       '--lt', 'qrcode', '--type', mode, selector,
                        '--get_comment', 'yes', '--get_sub_comment', 'yes', '--headless', 'no',
                        '--save_data_option', 'jsonl', '--save_data_path=' + str(output_path),
                        '--crawler_max_notes_count', str(max_contents), '--max_comments_count_singlenotes', str(comments_per_content),
@@ -212,13 +227,14 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
                     progress['schema_version'] != 'YIKE_MEDIACRAWLER_PROGRESS_V1' or progress['platform'] != code or
                     progress['state'] != 'RUNNING' or type(progress['sequence']) is not int or progress['sequence'] < 1):
                 raise ValueError()
-            records = read_collection_output(output_path, platform, max_records)
+            records = (read_collection_output(output_path, platform, max_records) if mode == 'search' else
+                read_collection_output(output_path, platform, max_records, collection_mode=mode))
             if bool(records) != (pair[0] == 'SUCCEEDED'):
                 raise ValueError()
             if stopped := interrupted():
                 return stopped
             return {'state': 'COLLECTED', 'records': records, 'output_path': str(output_path),
-                    'query': query, 'collector_version': 'mediacrawler-' + PIN, 'task_completed': False}
+                    'query': query, 'collector_version': 'mediacrawler-' + PIN + ('' if mode == 'search' else '-bili-links-v1'), 'task_completed': False}
     except WindowsSourceError:
         raise
     except (OSError, ValueError, TypeError, RuntimeError, CollectionOutputError):

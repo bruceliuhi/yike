@@ -32,8 +32,8 @@ export function attachForegroundBinding(rows: PlatformConnection[], result: Fore
   const matched=new Map<PlatformConnection,typeof result.bindings[number]>();
   for(const binding of result.bindings){const matching=rows.filter(row=>hasForegroundBinding({...row,foregroundBinding:binding}));
     if(matching.length!==1)return rows;matched.set(matching[0],binding);}
-  const attached=rows.map(row=>{const binding=matched.get(row);return binding?{...row,foregroundBinding:binding,capabilities:['search'],
-    reason:'本机受控采集支持已核对，仅限当前账号的单次搜索；不代表采集成功。'}:row;});
+  const attached=rows.map(row=>{const binding=matched.get(row);const links=binding?.platform==='BILIBILI'&&result.linkPlatforms?.includes('BILIBILI');return binding?{...row,foregroundBinding:binding,capabilities:links?['search','read']:['search'],
+    reason:links?'本机受控采集支持已核对，可按已确认的B站内容／作者链接有界读取；不代表采集成功。':'本机受控采集支持已核对，仅限当前账号的单次搜索；不代表采集成功。'}:row;});
   if(!result.publicBinding)return attached;
   if(!foregroundCollectionResultSchema.safeParse(result).success)return rows;
   return [...attached.filter(row=>row.platform!=='web'),{platform:'web',status:'CONNECTED',capabilities:['search'],
