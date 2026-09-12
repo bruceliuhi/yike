@@ -389,7 +389,15 @@ class ResearchStrategyConfiguration(_Frozen):
     @classmethod
     def check_links(cls, value):
         for item in value:
-            _validate_url(item, "PUBLIC_WEB")
+            try:
+                _validate_url(item, "PUBLIC_WEB")
+            except ValueError:
+                # Public XHS reopen parameters are not account credentials.
+                # Only exact native routes/parameters get this narrow exception;
+                # candidate evidence and generic public URL policy stay strict.
+                from pilot.native_collection_links import parse_native_collection_link
+                if parse_native_collection_link(item)['platform'] != 'XIAOHONGSHU':
+                    raise ValueError('invalid source url') from None
         return _distinct(value)
 
     @model_validator(mode="after")
@@ -488,6 +496,13 @@ class _Operation(_Frozen):
 class PrepareStrategyRequest(_Operation, _StrategyScope):
     draft_id: str
     draft_revision: int = Field(ge=1, le=2147483647)
+
+    @model_validator(mode="after")
+    def native_link_scope(self):
+        if self.configuration.source == 'links' and self.configuration.research is None:
+            from pilot.native_collection_links import plan_native_collection_links
+            plan_native_collection_links(self.platforms, self.configuration.links)
+        return self
 
     @field_validator("draft_id")
     @classmethod

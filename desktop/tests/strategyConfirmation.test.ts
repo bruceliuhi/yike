@@ -1,9 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { newTaskDraft } from "../src/renderer/domain/models";
 import { strategyPrepareRequest } from "../src/renderer/domain/researchStrategies";
 import type { StrategyReceipt, ConfirmStrategyRequest } from "../src/shared/researchStrategies";
 import * as strategyConfirmation from "../src/renderer/domain/strategyConfirmation";
+import { validatedOperation } from "../src/main/servicePolicy";
+
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value !== null && typeof value === "object") return `{${Object.entries(value)
+    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+    .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`).join(",")}}`;
+  return JSON.stringify(value);
+}
+
+function digest(value: unknown): string {
+  return createHash("sha256").update(canonical(value)).digest("hex");
+}
 
 async function implementation() {
   return strategyConfirmation;
@@ -29,6 +42,40 @@ function fixture() {
 }
 
 describe("strategy confirmation records and recovery", () => {
+  it("recovers a legacy plain-link pending record without reopening it as a new action", async () => {
+    const api = await implementation();
+    const { request: current, receipt: currentReceipt, context } = fixture();
+    const { publicSource: _publicSource, ...configuration } = current.configuration;
+    const request = {
+      ...current,
+      configuration: { ...configuration, source: "links" as const, keywords: [], links: ["https://example.com/legacy"] },
+      platforms: ["BILIBILI" as const],
+    };
+    const receipt = {
+      ...currentReceipt,
+      snapshot: { ...currentReceipt.snapshot, configuration: request.configuration, platforms: request.platforms },
+    };
+    const record = {
+      version: 1 as const,
+      draft_id: request.draft_id,
+      context,
+      prepare: { request_id: request.request_id, request_sha256: digest(request), state: "PENDING" as const },
+      binding: null,
+      confirm: null,
+      revoke: null,
+    };
+
+    expect(await api.recoverStrategyReceipt(receipt, record)).toEqual(receipt);
+    expect((await api.recordStrategyReceipt(record, receipt)).prepare.state).toBe("RECORDED");
+    const changed = structuredClone(receipt);
+    changed.snapshot.configuration.links = ["https://example.com/tampered"];
+    await expect(api.recoverStrategyReceipt(changed, record)).rejects.toThrow();
+
+    await expect(api.newStrategyRecord(request, context)).rejects.toThrow();
+    await expect(api.strategyRetryRequest(record, request)).rejects.toThrow();
+    expect(validatedOperation({ operation: "strategies.prepare", payload: request })).toBeNull();
+  });
+
   it("hashes strict original requests independent of object key order, without normalizing values", async () => {
     const api = await implementation();
     const { request } = fixture();

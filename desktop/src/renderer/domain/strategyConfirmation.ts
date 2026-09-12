@@ -2,7 +2,7 @@ import { z } from "zod";
 import { hashText } from "./taskOperations";
 import { parseStrategyReceipt } from "./researchStrategies";
 import {
-  prepareStrategySchema, confirmStrategySchema, revokeStrategySchema, strategyReceiptSchema, strategyUuidSchema,
+  prepareStrategyRecordSchema, prepareStrategySchema, confirmStrategySchema, revokeStrategySchema, strategyReceiptSchema, strategyUuidSchema,
   type PrepareStrategyRequest, type ConfirmStrategyRequest, type RevokeStrategyRequest, type StrategyReceipt,
 } from "../../shared/researchStrategies";
 
@@ -45,7 +45,7 @@ export function validStrategyEntry(key: string, value: string): boolean {
   } catch { return false; }
 }
 function parseRequest(value: unknown): { name: OperationName; request: StrategyRequest } {
-  const prepared = prepareStrategySchema.safeParse(value);
+  const prepared = prepareStrategyRecordSchema.safeParse(value);
   if (prepared.success) return { name: "PREPARE", request: prepared.data };
   const confirmed = confirmStrategySchema.safeParse(value);
   if (confirmed.success) return { name: "CONFIRM", request: confirmed.data };
@@ -88,6 +88,8 @@ export async function beginStrategyMutation(record: StrategyRecord, name: "CONFI
 export async function strategyRetryRequest(record: StrategyRecord, request: StrategyRequest): Promise<StrategyRequest> {
   const r = parseStrategyRecord(record);
   const expected = parseRequest(request);
+  if (expected.name === "PREPARE" && !prepareStrategySchema.safeParse(expected.request).success)
+    throw new Error(FAILURE);
   const original = r[slot[expected.name]];
   if (original?.state !== "PENDING" || original.request_id !== expected.request.request_id
     || original.request_sha256 !== await strategyRequestDigest(expected.request)) throw new Error(FAILURE);
@@ -100,7 +102,7 @@ export async function recoverStrategyReceipt(raw: unknown, record: StrategyRecor
     const receipt = strategyReceiptSchema.parse(raw);
     const original = r[slot[receipt.operation]];
     if (!original || original.request_id !== receipt.request_id || r.draft_id !== receipt.draft_id) throw new Error(FAILURE);
-    const prepare: PrepareStrategyRequest = prepareStrategySchema.parse({ schema_version: "strategy-confirmation-v1",
+    const prepare: PrepareStrategyRequest = prepareStrategyRecordSchema.parse({ schema_version: "strategy-confirmation-v1",
       request_id: r.prepare.request_id, draft_id: receipt.draft_id, draft_revision: receipt.draft_revision,
       profile_version_id: receipt.profile_version_id, configuration: receipt.snapshot.configuration,
       platforms: receipt.snapshot.platforms, max_records: receipt.snapshot.max_records,
