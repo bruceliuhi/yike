@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,
+  act,
   fireEvent,
   render,
   screen,
@@ -51,6 +52,96 @@ function mount(overrides: Partial<YikeService> = {}) {
 }
 
 describe("设备与授权", () => {
+  it.each(['READY', 'NOT_PREPARED'] as const)('直接显示只读本机状态 %s 且不误当商业绑定', async state => {
+    const identity={getStatus:vi.fn().mockResolvedValue(state==='READY'?
+      {state,deviceId:'12345678-1234-1234-1234-123456789abc',credentialVersion:1}:{state}),prepare:vi.fn()};
+    mount({deviceIdentity:identity,management:undefined});
+    await screen.findByText(state==='READY'?'上次身份核验通过':'尚未核验本机身份');
+    expect(screen.getByText('未取得商业设备绑定状态')).toBeTruthy();
+    expect(screen.queryByText('尚未完成绑定核验')).toBeNull();
+    expect(screen.getByText(/本机身份核验无需输入授权码/)).toBeTruthy();
+    expect(identity.prepare).not.toHaveBeenCalled();
+  });
+  it('坏身份DTO不显示成功或秘密，也不自动核验', async () => {
+    const identity={getStatus:vi.fn().mockResolvedValue({state:'READY',deviceId:'secret',privateKey:'private-key'}),prepare:vi.fn()};
+    mount({deviceIdentity:identity});
+    await screen.findByText('本机身份状态读取失败，请打开核验入口重查。');
+    expect(screen.queryByText('上次身份核验通过')).toBeNull();
+    expect(document.body.textContent).not.toContain('private-key');
+    expect(identity.prepare).not.toHaveBeenCalled();
+  });
+  it('关闭身份弹窗后刷新外层只读状态', async () => {
+    const identity={getStatus:vi.fn().mockResolvedValue({state:'NOT_PREPARED'}),prepare:vi.fn()};
+    mount({deviceIdentity:identity});
+    await screen.findByText('尚未核验本机身份');
+    fireEvent.click(screen.getByRole('button',{name:'核验本机身份'}));
+    const modal=screen.getByRole('dialog',{name:'核验本机设备身份'});
+    await within(modal).findByText('尚未核验本机身份');
+    identity.getStatus.mockResolvedValue({state:'READY',deviceId:'12345678-1234-1234-1234-123456789abc',credentialVersion:1});
+    fireEvent.click(within(modal).getByRole('button',{name:'关闭核验本机设备身份'}));
+    await screen.findByText('上次身份核验通过');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(identity.prepare).not.toHaveBeenCalled();
+  });
+  it('切换账号时不接受上一账号迟到的READY', async () => {
+    let resolveOld!: (value:unknown)=>void;
+    const identity={getStatus:vi.fn().mockImplementationOnce(()=>new Promise(r=>{resolveOld=r;}))
+      .mockResolvedValue({state:'NOT_PREPARED'}),prepare:vi.fn()};
+    const service={...baseService,deviceIdentity:identity,
+      info:vi.fn().mockResolvedValue({version:'test',platform:'win32',serviceConfigured:true}),
+      session:vi.fn().mockResolvedValueOnce({authenticated:true,userId:'a'})
+        .mockResolvedValue({authenticated:true,userId:'b'})};
+    function Harness(){const {refreshSession}=useApp();return <>
+      <button onClick={()=>void refreshSession()}>切换测试账号</button><SettingsPage/></>;}
+    render(<AppProvider service={service}><Harness/></AppProvider>);
+    await waitFor(()=>expect(identity.getStatus).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button',{name:'切换测试账号'}));
+    await screen.findByText('尚未核验本机身份');
+    await act(async()=>resolveOld({state:'READY',deviceId:'12345678-1234-1234-1234-123456789abc',credentialVersion:1}));
+    expect(screen.queryByText('上次身份核验通过')).toBeNull();
+    expect(identity.prepare).not.toHaveBeenCalled();
+  });
+  it.each([{id:'space-b',version:1},{id:'space-a',version:2}])('同账号切换空间作用域 %j 不接受旧READY', async accountScope => {
+    let resolveOld!: (value:unknown)=>void;
+    const identity={getStatus:vi.fn().mockImplementationOnce(()=>new Promise(r=>{resolveOld=r;}))
+      .mockResolvedValue({state:'NOT_PREPARED'}),prepare:vi.fn()};
+    const service={...baseService,deviceIdentity:identity,
+      info:vi.fn().mockResolvedValue({version:'test',platform:'win32',serviceConfigured:true}),
+      session:vi.fn().mockResolvedValueOnce({authenticated:true,userId:'a',accountScope:{id:'space-a',version:1}})
+        .mockResolvedValue({authenticated:true,userId:'a',accountScope})};
+    function Harness(){const {refreshSession}=useApp();return <>
+      <button onClick={()=>void refreshSession()}>切换测试空间</button><SettingsPage/></>;}
+    render(<AppProvider service={service}><Harness/></AppProvider>);
+    await waitFor(()=>expect(identity.getStatus).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button',{name:'切换测试空间'}));
+    await screen.findByText('尚未核验本机身份');
+    await act(async()=>resolveOld({state:'READY',deviceId:'12345678-1234-1234-1234-123456789abc',credentialVersion:1}));
+    expect(screen.queryByText('上次身份核验通过')).toBeNull();
+    expect(identity.prepare).not.toHaveBeenCalled();
+  });
+  it('复用身份桥切换服务不接受旧READY', async () => {
+    let resolveOld!: (value:unknown)=>void;
+    const identity={getStatus:vi.fn().mockImplementationOnce(()=>new Promise(r=>{resolveOld=r;}))
+      .mockResolvedValue({state:'NOT_PREPARED'}),prepare:vi.fn()};
+    const service={...baseService,deviceIdentity:identity,
+      info:vi.fn().mockResolvedValue({version:'test',platform:'win32',serviceConfigured:true}),
+      session:vi.fn().mockResolvedValue({authenticated:true,userId:'a',accountScope:{id:'space-a',version:1}})};
+    const view=render(<AppProvider service={service}><SettingsPage/></AppProvider>);
+    await waitFor(()=>expect(identity.getStatus).toHaveBeenCalledOnce());
+    view.rerender(<AppProvider service={{...service}}><SettingsPage/></AppProvider>);
+    await screen.findByText('尚未核验本机身份');
+    await act(async()=>resolveOld({state:'READY',deviceId:'12345678-1234-1234-1234-123456789abc',credentialVersion:1}));
+    expect(screen.queryByText('上次身份核验通过')).toBeNull();
+    expect(identity.prepare).not.toHaveBeenCalled();
+  });
+  it('未登录不读取或核验本机身份', async () => {
+    const identity={getStatus:vi.fn(),prepare:vi.fn()};
+    mount({deviceIdentity:identity,session:vi.fn().mockResolvedValue({authenticated:false})});
+    await screen.findByText('0.2.0-test');
+    expect(screen.queryByRole('button',{name:'核验本机身份'})).toBeNull();
+    expect(identity.getStatus).not.toHaveBeenCalled();
+    expect(identity.prepare).not.toHaveBeenCalled();
+  });
   it("正常本机身份入口使用专用核验，不借管理接口绑定或冒称平台连接", async () => {
     const identity={getStatus:vi.fn().mockResolvedValue({state:'NOT_PREPARED'}),prepare:vi.fn().mockResolvedValue({state:'READY',deviceId:'12345678-1234-1234-1234-123456789abc',credentialVersion:1})};
     mount({deviceIdentity:identity});

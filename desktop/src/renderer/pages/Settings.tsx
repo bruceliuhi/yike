@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { DeviceIdentityPanel } from './settings/DeviceIdentityPanel';
+import { DeviceIdentityPanel, deviceIdentityLabels } from './settings/DeviceIdentityPanel';
+import { deviceIdentityStatusSchema } from '../../shared/deviceIdentity';
 import { useApp } from "../app/context";
 import { clearLocalDrafts, useAction, useResource } from "../app/hooks";
 import { accountSchema } from "../domain/management";
@@ -79,6 +80,11 @@ export function SettingsPage() {
     OFFLINE: "已绑定 · 离线",
   };
   const [dialog, setDialog] = useState<SettingsDialog>(null);
+  const identityObservation = useResource(async () => {
+    if (!deviceIdentity || !session.authenticated) return null;
+    return deviceIdentityStatusSchema.parse(await deviceIdentity.getStatus());
+  }, [service, deviceIdentity, session.authenticated, session.userId,
+    session.accountScope?.id, session.accountScope?.version, dialog === 'identity']);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const platform = info.data?.platform;
@@ -234,9 +240,16 @@ export function SettingsPage() {
         <h2>设备管理</h2>
         {deviceIdentity && session.authenticated && <div className="settings-row">
           <span>本机身份</span>
-          <span className="muted">独立于平台连接与使用授权</span>
+          <span className="muted" role="status">{identityObservation.loading
+            ? '正在读取本机身份状态…'
+            : identityObservation.error || !identityObservation.data
+              ? '本机身份状态读取失败，请打开核验入口重查。'
+              : deviceIdentityLabels[identityObservation.data.state]}</span>
           <Button onClick={()=>setDialog('identity')}>核验本机身份</Button>
         </div>}
+        {deviceIdentity && session.authenticated && <p className="muted">
+          本机身份核验无需输入授权码；该状态独立于平台连接和商业使用授权，执行前仍需服务端核验。
+        </p>}
         <div className="settings-row">
           <span>运行环境</span>
           <span>{platformName}</span>
@@ -248,11 +261,11 @@ export function SettingsPage() {
           </Button>
         </div>
         <div className="settings-row">
-          <span>设备状态</span>
+          <span>商业绑定状态</span>
           <span>
             {account.data
               ? `${account.data.device.name} · ${deviceLabels[account.data.device.status]}`
-              : "尚未完成绑定核验"}
+              : "未取得商业设备绑定状态"}
           </span>
         </div>
         <div className="settings-row">

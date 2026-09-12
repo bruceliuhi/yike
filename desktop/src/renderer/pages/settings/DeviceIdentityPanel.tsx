@@ -4,7 +4,7 @@ import {boundedRequest} from '../../app/boundedRequest';
 import {Button, Notice} from '../../components/ui';
 import type {DeviceIdentityApi} from '../../services/deviceIdentity';
 export type {DeviceIdentityApi} from '../../services/deviceIdentity';
-const labels: Record<DeviceIdentityStatus['state'], string> = {
+export const deviceIdentityLabels: Readonly<Record<DeviceIdentityStatus['state'], string>> = {
   NOT_PREPARED:'尚未核验本机身份', READY:'上次身份核验通过',
   REGISTRATION_UNKNOWN:'设备登记结果未知', PROOF_UNKNOWN:'设备证明结果未知',
   REVOKED:'本机身份已撤销，请联系支持', KEY_MISSING:'本机密钥缺失，请联系支持',
@@ -42,7 +42,7 @@ export function DeviceIdentityPanel({api, scope}: {api: DeviceIdentityApi; scope
     finally {if(id === generation.current){pending.current=false;setBusy(false);}}
   }
   return <section aria-label="本机设备身份">
-    <p role="status">{labels[status.state]}</p>
+    <p role="status">{deviceIdentityLabels[status.state]}</p>
     <p className="muted">此处仅核验本机设备身份，不代表平台已连接或使用授权已激活。状态为最近一次观察，执行前仍需服务端授权。</p>
     {status.state === 'READY' && <p className="muted">本机编号：{status.deviceId}</p>}
     {unknown && <Notice>请先核对原请求；核对不会重复登记，重试需再次明确确认。</Notice>}
