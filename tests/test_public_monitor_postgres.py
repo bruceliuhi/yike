@@ -146,8 +146,8 @@ def test_public_author_context_round_trips_and_creates_content_version(public_mo
             body='合成项目主帖', published_at='2025-12-31T00:00:00Z',
             observed_at=f'2026-01-0{request_index}T00:00:00Z',
             normalizer_version='v2ex-author-page-v1',
-            source_context={'schema_version':'v2ex-author-context-v1', 'replies_expected':1,
-                'replies_read':1, 'replies_complete':True, 'supplements_read':False,
+            source_context={'schema_version':'v2ex-author-context-v1', 'replies_expected':None,
+                'replies_read':1, 'replies_complete':False, 'supplements_read':False,
                 'author_replies':[{'id':'18012619', 'body':update,
                     'published_at':'2025-12-31T01:00:00Z'}]})
         receipt = submit(env, store, value)
@@ -155,5 +155,14 @@ def test_public_author_context_round_trips_and_creates_content_version(public_mo
         versions.append(receipt['items'][0]['version_id'])
     assert versions[0] != versions[1]
     detail = store.get_candidate(env.claims, candidate_id)
-    assert detail['candidate']['current_version']['source_context']['author_replies'][0]['body'].endswith('请勿再联系')
-    assert detail['observations']['items'][1]['content']['source_context']['author_replies'][0]['body'] == '项目已结束'
+    current = detail['candidate']['current_version']
+    assert set(current) == {'public_url','title','author_public_id','body','published_at','parent',
+                            'source_context','version_id','content_version'}
+    assert current['title'] is None and current['parent'] is None
+    assert current['source_context']['replies_expected'] is None
+    assert current['source_context']['author_replies'][0]['body'].endswith('请勿再联系')
+    historical = detail['observations']['items'][1]['content']
+    assert set(historical) == {'public_url','title','author_public_id','body','published_at','parent','source_context'}
+    assert historical['title'] is None and historical['parent'] is None
+    assert historical['source_context']['replies_expected'] is None
+    assert historical['source_context']['author_replies'][0]['body'] == '项目已结束'

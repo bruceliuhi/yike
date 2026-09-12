@@ -151,10 +151,12 @@ def test_inclusion_evidence_preserves_and_revalidates_author_update_citations():
     deepcopy(CONTENT) | {"source_read_scope": "AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD"},
     deepcopy(CONTENT) | {"author_updates": ["x"] * 101, "source_read_scope": "AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD"},
     deepcopy(CONTENT) | {"author_updates": ["x"], "source_read_scope": "COMPLETE"},
+    deepcopy(CONTENT) | {"author_updates": [None], "source_read_scope": "AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD"},
 ])
 def test_model_projection_requires_bounded_paired_author_fields(content):
+    from pilot.candidate_assessment_model import validate_assessment_input
     with pytest.raises(AssessmentModelError):
-        validate_assessment(assessment(), description="提供软件开发服务", content=content)
+        validate_assessment_input(description=DESCRIPTION, content=content)
 
 
 def test_missing_dynamic_author_citation_is_a_safe_model_error():

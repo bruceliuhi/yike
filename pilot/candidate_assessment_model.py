@@ -133,6 +133,7 @@ def validate_assessment_input(*, description: str, content: dict) -> None:
         if "author_updates" in content:
             updates = content["author_updates"]
             if (type(updates) is not list or len(updates) > 100
+                    or any(type(item) is not str for item in updates)
                     or content["source_read_scope"] not in (
                         "AUTHOR_REPLIES_COUNT_MATCHED_SUPPLEMENTS_UNREAD",
                         "AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD")):
