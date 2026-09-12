@@ -369,10 +369,15 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
     @router.get("/opportunities/{opportunity_id}")
     def opportunity(opportunity_id: str, request: Request):
         current = identity(request)
+        from pilot.candidate_review_api import _evidence_version
+        extended = _evidence_version(request)
         try:
             result = store.get_opportunity(current.user_id, opportunity_id)
         except KeyError as error:
             raise _error(404, "opportunity_not_found", "未找到该机会。") from error
+        verification = (result.get('source_evidence',{}).get('snapshot') or {}).get('verification',{})
+        if verification.get('demandEvidence') and not extended:
+            raise _error(409,'client_upgrade_required','该商机包含人工需求补证，请升级客户端后查看。')
         return {"opportunity": result, "followups": store.list_followups(current.user_id, opportunity_id)}
 
     @router.get("/followups")

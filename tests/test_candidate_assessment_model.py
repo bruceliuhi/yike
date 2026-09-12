@@ -144,6 +144,35 @@ def test_parent_context_is_allowed_but_never_sufficient_for_personal_intent():
     assert validate(value).intent.level == "HIGH"
 
 
+def test_unattributed_page_keeps_business_analysis_but_requires_unknown_personal_dimensions():
+    content = copy.deepcopy(CONTENT) | {"author_updates": [], "source_read_scope": "UNATTRIBUTED_PAGE"}
+    value = assessment()
+    for key in ("intent", "urgency"):
+        value[key] = {"level": "UNKNOWN", "reason": "页面可见行动但作者归属未知", "citations": []}
+    assert validate(value, content=content).decision == value["decision"]
+    with pytest.raises(module().AssessmentModelError, match="invalid_assessment_result"):
+        validate(assessment(), content=content)
+
+
+def test_human_page_requires_personal_excerpt_citations_not_background():
+    content = copy.deepcopy(CONTENT) | {"author_updates": [CONTENT["body"]],
+        "source_read_scope": "HUMAN_CONFIRMED_EXCERPT"}
+    value = assessment()
+    for key in ("intent", "urgency"):
+        for citation in value[key]["citations"]:
+            citation["field"] = "author_updates.0"
+    assert validate(value, content=content).intent.level == "HIGH"
+    with pytest.raises(module().AssessmentModelError, match="invalid_assessment_result"):
+        validate(assessment(), content=content)
+
+
+@pytest.mark.parametrize("scope,updates", [("FAKE_SCOPE", []), ("UNATTRIBUTED_PAGE", ["原文"]),
+    ("HUMAN_CONFIRMED_EXCERPT", []), ("HUMAN_CONFIRMED_EXCERPT", ["一", "二"])])
+def test_page_scope_and_author_fields_must_match(scope, updates):
+    with pytest.raises(module().AssessmentModelError, match="invalid_assessment_input"):
+        validate(content=copy.deepcopy(CONTENT) | {"source_read_scope": scope, "author_updates": updates})
+
+
 @pytest.mark.parametrize("decision", ["OBSERVE", "EXCLUDE"])
 def test_observe_exclude_do_not_manufacture_grades(decision):
     value = assessment() | {"decision": decision}
@@ -244,7 +273,7 @@ def test_rules_use_both_versioned_files_and_cross_industry_contract():
     implementation = module()
     assert hasattr(implementation, "load_assessment_rules"), "missing packaged rule loader"
     version, digest, prompt = implementation.load_assessment_rules()
-    assert version == "candidate-assessment-v2/ai-project-lead-research-1.0.0/industry-task-strategy-v1/author-context-v1"
+    assert version == "candidate-assessment-v2/ai-project-lead-research-1.0.0/industry-task-strategy-v1/author-context-v2"
     root = Path(__file__).resolve().parents[1]
     for path in ("SKILL.md", "references/qualification-and-evidence.md"):
         assert (root / "skills/ai-project-lead-research-v1" / path).read_text() in prompt
