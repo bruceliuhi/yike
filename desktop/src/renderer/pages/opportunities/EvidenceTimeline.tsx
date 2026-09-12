@@ -59,9 +59,10 @@ export function EvidenceTimeline({
       </Notice>
     );
   const data = resource.data;
-  const entries = data?.schemaVersion===2 ? data.observations.map(observation=>({
-    key:observation.id,version:data.versions.find(v=>v.id===observation.versionId)!,
-    observedAt:observation.observedAt,receivedAt:observation.receivedAt,anchor:observation.id===data.anchorObservationId,
+  const observedData = data && data.schemaVersion!==1 ? data : null;
+  const entries = observedData ? observedData.observations.map(observation=>({
+    key:observation.id,version:observedData.versions.find(v=>v.id===observation.versionId)!,
+    observedAt:observation.observedAt,receivedAt:observation.receivedAt,anchor:observation.id===observedData.anchorObservationId,
   })) : data?.versions.map(version=>({key:version.id,version,observedAt:version.observedAt,receivedAt:null,anchor:false})) ?? [];
   const stale = Boolean(data && Date.parse(data.expiresAt) <= now);
   return (
@@ -101,7 +102,7 @@ export function EvidenceTimeline({
         </>
       ) : data && !resource.loading && !resource.error && !stale ? (
         <>
-          {data.schemaVersion===2&&<p className="field-hint">纳入依据保持原样；下方显示本账号同一来源的留存观察，不代表已重新核验需求。</p>}
+          {data.schemaVersion!==1&&<p className="field-hint">纳入依据保持原样；下方显示本账号同一来源的留存观察，不代表已重新核验需求。</p>}
           <ol className="research-version-list" aria-label="原文观察记录">
             {entries.map(({key,version:v,observedAt,receivedAt,anchor}) => (
               <li key={key}>
@@ -120,6 +121,15 @@ export function EvidenceTimeline({
                   <blockquote className="evidence-quote">
                     {v.content}
                   </blockquote>
+                  {'sourceContext' in v&&v.sourceContext&&<>
+                    <h4>该次留存的作者回复</h4>
+                    <p className="muted">已读取 {v.sourceContext.replies_read} 条回复；{v.sourceContext.replies_complete?'读取数量与当时标注一致':'读取范围不完整'}，附言未读取。</p>
+                    {v.sourceContext.author_replies.map(reply=><div key={reply.id}>
+                      <p className="muted">回复 {reply.id} · 原标注发布时间 {time(reply.published_at)}</p>
+                      <blockquote className="evidence-quote">{reply.body}</blockquote>
+                    </div>)}
+                    {!v.sourceContext.author_replies.length&&<p className="muted">该次范围内未读到作者本人回复。</p>}
+                  </>}
                 </details>
               </li>
             ))}
@@ -127,14 +137,14 @@ export function EvidenceTimeline({
           {data.schemaVersion===1 && data.versions.length === 1 && (
             <p className="muted">尚无后续原文版本</p>
           )}
-          {data.schemaVersion===2&&!data.changes.length&&<p className="muted">本次已读取范围内，尚无可确定方向的纳入后正文变化。</p>}
+          {data.schemaVersion!==1&&!data.changes.length&&<p className="muted">本次已读取范围内，尚无可确定方向的纳入后正文变化。</p>}
           {data.changes.length > 0 && (
             <section>
               <h3>有证据的变化</h3>
               {data.changes.map((change) => (
                 <article className="research-change" key={change.id}>
                   <h3>{change.label}</h3>
-                  {'detectedAt' in change&&data.schemaVersion===2 ? <>
+                  {'detectedAt' in change&&data.schemaVersion!==1 ? <>
                     <p className="muted">实际编辑时间未知；不能由此判断需求已关闭或预算已确认。</p>
                     <p className="muted">后次观察时间　{time(data.observations.find(o=>o.id===change.toObservationId)?.observedAt)}</p>
                     <p className="muted">系统收到证据　{time(change.detectedAt)}</p>
@@ -150,6 +160,27 @@ export function EvidenceTimeline({
                       <span>变化后 · {change.to.evidenceVersion}</span>
                       <blockquote>{change.to.quote}</blockquote>
                     </div>
+                  </div>
+                </article>
+              ))}
+            </section>
+          )}
+          {data.schemaVersion===3&&data.authorChanges.length>0&&(
+            <section aria-label="作者回复变化">
+              <h3>作者回复变化</h3>
+              <p className="muted">仅比较已留存的作者本人回复；首次读到不等于刚发布，也不代表需求已核验。</p>
+              {data.authorChanges.map(change=>(
+                <article className="research-change" key={change.id}>
+                  <h3>{change.label}</h3>
+                  <p className="muted">回复编号 {change.replyId} · 实际编辑时间未知</p>
+                  <p className="muted">后次观察时间　{time(data.observations.find(o=>o.id===change.toObservationId)?.observedAt)}</p>
+                  <p className="muted">系统收到证据　{time(change.detectedAt)}</p>
+                  <div className="research-diff">
+                    <div>
+                      {change.from?<><span>前次留存 · {change.from.evidenceVersion}</span><blockquote>{change.from.quote}</blockquote></>:
+                        <p className="muted">此前留存范围内未读到该回复</p>}
+                    </div>
+                    <div><span>本次留存 · {change.to.evidenceVersion}</span><blockquote>{change.to.quote}</blockquote></div>
                   </div>
                 </article>
               ))}

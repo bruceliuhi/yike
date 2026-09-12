@@ -26,7 +26,7 @@ describe('connected opportunity research reads',()=>{
   expect(await service.timeline(binding)).toEqual(timeline);
   expect(await service.similar(binding,similar.requestId)).toEqual(similar);
   expect(transport.mock.calls.map(call=>call.slice(0,4))).toEqual([
-   ['research.timeline','/opportunity-research/timeline','POST',{binding}],
+   ['research.timeline','/opportunity-research/timeline','POST',{binding,timelineSchemaVersion:3}],
    ['research.similar','/opportunity-research/similar','POST',{binding,requestId:similar.requestId}],
   ]);
   transport.mockResolvedValue({...similar,requestId:'another-request'});

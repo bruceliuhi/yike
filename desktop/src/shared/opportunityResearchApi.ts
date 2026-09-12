@@ -7,5 +7,5 @@ export const researchBindingSchema=z.object({
  userId:id,opportunityId:id,profileVersionId:id,sourceUrl,evidenceVersion:id,
  accountScope:z.object({id,version:z.number().int().positive().max(Number.MAX_SAFE_INTEGER)}).strict(),
 }).strict();
-export const researchTimelineRequestSchema=z.object({binding:researchBindingSchema}).strict();
+export const researchTimelineRequestSchema=z.object({binding:researchBindingSchema,timelineSchemaVersion:z.literal(3).optional()}).strict();
 export const researchSimilarRequestSchema=z.object({binding:researchBindingSchema,requestId:z.string().uuid()}).strict();

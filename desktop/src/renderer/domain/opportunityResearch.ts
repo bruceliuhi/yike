@@ -3,6 +3,7 @@ import type { Opportunity, PlatformId, Session } from "./models";
 import { explicitInstant } from "./opportunityLibrary";
 import { parseOpportunitySourceEvidence } from "./opportunitySourceEvidence";
 import {researchBindingSchema} from '../../shared/opportunityResearchApi';
+import {authorChangeSchema,authorVersionFields,validateAuthorChanges} from './authorChanges';
 
 const id = z.string().trim().min(1).max(512);
 const text = z.string().trim().min(1).max(8000);
@@ -297,9 +298,14 @@ const timelineV2Schema = timelineSchema.extend({
     kind:z.literal('CONTENT'),occurredAt:z.null(),fromObservationId:id,toObservationId:id,detectedAt:instant,
   })).max(200),
 });
-const timelineWireSchema=z.discriminatedUnion('schemaVersion',[timelineSchema,timelineV2Schema]);
+const timelineV3Schema=timelineV2Schema.extend({
+  schemaVersion:z.literal(3),
+  versions:z.array(sourceVersionSchema.extend(authorVersionFields)).min(1).max(100),
+  authorChanges:z.array(authorChangeSchema).max(200),
+});
+const timelineWireSchema=z.discriminatedUnion('schemaVersion',[timelineSchema,timelineV2Schema,timelineV3Schema]);
 export type ResearchTimeline = z.infer<typeof timelineWireSchema>;
-function validateObservationChanges(data:z.infer<typeof timelineV2Schema>){
+function validateObservationChanges(data:Omit<z.infer<typeof timelineV2Schema>,'schemaVersion'>){
   const versions=new Map(data.versions.map(v=>[v.id,v]));
   const observations=new Map<string,typeof data.observations[number]>();
   const groups:{at:number;ids:Set<string>;bodies:Set<string>}[]=[];
@@ -357,8 +363,9 @@ export function parseResearchTimeline(
       invalid();
     versions.set(v.id, v);
   });
-  if(data.schemaVersion===2)validateObservationChanges(data);
+  if(data.schemaVersion!==1)validateObservationChanges(data);
   else if (data.versions.at(-1)?.id !== binding.evidenceVersion) invalid();
+  if(data.schemaVersion===3)validateAuthorChanges(data);
   const ids = new Set<string>();
   for (const change of data.changes) {
     if (ids.has(change.id)) invalid();

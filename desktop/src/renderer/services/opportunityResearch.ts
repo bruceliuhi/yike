@@ -13,6 +13,7 @@ import {
 import type { Session } from "../domain/models";
 import type {ApiOperation} from '../../shared/contracts';
 import {researchTimelineRequestSchema,researchSimilarRequestSchema} from '../../shared/opportunityResearchApi';
+import {ServiceError} from './contracts';
 /** Optional, authenticated R4 research reads. No production adapter is implied.
  * The server derives tenant identity and verifies profile/source versions.
  * These methods never import, classify, execute research, send, or charge.
@@ -41,8 +42,15 @@ export function createOpportunityResearchService(transport:Transport,session:()=
    return parseResearchCollection(raw,current.userId,Date.now(),current.accountScope);
   },
   async timeline(binding,signal){
-   const payload=researchTimelineRequestSchema.parse({binding});checkAbort(signal);
-   const raw=await transport('research.timeline','/opportunity-research/timeline','POST',payload,signal);checkAbort(signal);
+   const payload=researchTimelineRequestSchema.parse({binding,timelineSchemaVersion:3});checkAbort(signal);
+   let raw:unknown;
+   try{raw=await transport('research.timeline','/opportunity-research/timeline','POST',payload,signal);}
+   catch(error){
+    checkAbort(signal);
+    if(!(error instanceof ServiceError)||error.status!==422||error.code!=='invalid_request')throw error;
+    raw=await transport('research.timeline','/opportunity-research/timeline','POST',{binding},signal);
+   }
+   checkAbort(signal);
    return parseResearchTimeline(raw,binding);
   },
   async similar(binding,requestId,signal){

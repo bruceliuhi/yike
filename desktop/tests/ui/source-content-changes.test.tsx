@@ -53,7 +53,7 @@ it('consumes the actual fixed-route service response without changing the frozen
  const raw=snapshot(),transport=vi.fn(async()=>raw);
  const api=createOpportunityResearchService(transport,async()=>({authenticated:true,userId:binding.userId,accountScope:binding.accountScope}));
  expect((await api.timeline(binding)).changes[1].to.evidenceVersion).toBe(binding.evidenceVersion);
- expect(transport.mock.calls[0]).toEqual(['research.timeline','/opportunity-research/timeline','POST',{binding},undefined]);
+ expect(transport.mock.calls[0]).toEqual(['research.timeline','/opportunity-research/timeline','POST',{binding,timelineSchemaVersion:3},undefined]);
 });
 it('shows inclusion anchor, repeated original version and separate observation/receipt/edit time',async()=>{
  const raw=snapshot();context={session:{authenticated:true,userId:binding.userId,accountScope:binding.accountScope},
