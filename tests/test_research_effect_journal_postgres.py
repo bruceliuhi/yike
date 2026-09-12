@@ -206,6 +206,22 @@ def test_invalid_provider_result_is_unknown_and_stops_dispatcher(journal_env):
     assert calls==['io'] and counts(env)==(1,1)
 
 
+def test_committed_finish_with_lost_ack_never_retries_effect_or_finish(journal_env,monkeypatch):
+    env=journal_env; gateway=dispatcher(env); calls=[]; finishes=[]
+    original=env.journal.finish
+    def lost_ack(claims,**kwargs):
+        original(claims,**kwargs)  # The actual PG commit succeeded before transport uncertainty.
+        finishes.append('committed')
+        raise ConnectionError('synthetic lost acknowledgement')
+    monkeypatch.setattr(env.journal,'finish',lost_ack)
+    for _ in range(2):
+        with pytest.raises(EffectDispatchError):
+            dispatch_effect(gateway,kind='SEARCH',payload={'query':'企业知识库 找团队'},
+                deadline=time.monotonic()+30,perform=lambda _deadline:calls.append('io') or result())
+    assert calls==['io'] and finishes==['committed']
+    assert states(env)==[('SUCCEEDED','SUCCEEDED')] and counts(env)==(1,1)
+
+
 def test_issued_hook_failure_rolls_back_both_records(journal_env,monkeypatch):
     env=journal_env; original=env.resources.begin
     def failing(claims,**kwargs):
