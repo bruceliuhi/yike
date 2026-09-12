@@ -37,7 +37,7 @@ it('renders each planned source receipt and continues past the first empty sourc
   await waitFor(()=>expect(advance).toHaveBeenCalledTimes(2));
   expect(screen.getByText(/入库原文：尚未确认/)).toBeTruthy();
   expect(screen.queryByText('研究序列已完成')).toBeNull();
-  release(done);await screen.findByText('研究序列已完成');
+  release(done);await screen.findByText('本轮研究已完成');
   expect(advance).toHaveBeenCalledTimes(2);
 });
 it.each([
@@ -49,13 +49,15 @@ it.each([
   expect(screen.queryByText(RESEARCH_RUNTIME_SOURCE_LABEL)).toBeNull();
   expect(advance).not.toHaveBeenCalled();
 });
-it('shows recorded resources separately from financial settlement',async()=>{
+it('shows recorded resources separately from financial settlement inside closed details',async()=>{
   status.mockResolvedValue({...queued,phase:'COMPLETED',canAdvance:false,newActionsBlocked:true,
     usage:{...queued.usage,resourceCloseout:{state:'RECORDED',overduePermits:0,asOf:'2026-09-11T14:00:00Z'}}});
   view();
+  const summary=await screen.findByText('执行明细');
+  expect(summary.closest('details')?.open).toBe(false);
   await screen.findByText(/本次查询：资源记录已收齐/);
   expect(screen.getByText(/不代表搜贝已结算或余额已释放/)).toBeTruthy();
-  expect(screen.getByText(/来源许可：0/)).toBeTruthy();
+  expect(screen.getByText(/来源许可：0/).closest('details')).toBe(summary.closest('details'));
   expect(advance).not.toHaveBeenCalled();
 });
 it('old services do not imply recorded or settled resources',async()=>{
@@ -95,7 +97,7 @@ it('reads without work until asked, then advances serially to honest completion'
   await waitFor(()=>expect(advance).toHaveBeenCalledTimes(1));
   expect((screen.getByRole('button',{name:'继续研究'}) as HTMLButtonElement).disabled).toBe(true);
   release(sourced);
-  await screen.findByText('研究序列已完成');
+  await screen.findByText('本轮研究已完成');
   expect(advance).toHaveBeenCalledTimes(2);
   expect(screen.getByText(/不是已确认的商机数量/)).toBeTruthy();
   expect(screen.getByText(/实际搜贝待结算/)).toBeTruthy();
@@ -124,4 +126,44 @@ it('leaving the page prevents later completions from advancing again',async()=>{
   await waitFor(()=>expect(advance).toHaveBeenCalledTimes(1));rendered.unmount();
   release({...queued,phase:'RUNNING',acceptedOriginals:1});
   await Promise.resolve();expect(advance).toHaveBeenCalledTimes(1);
+});
+it('keeps cautious status and risk outside details while raw unknown code stays inside',async()=>{
+  status.mockResolvedValue({...queued,phase:'CANCELED',canAdvance:false,newActionsBlocked:true,stopCode:'future_code',effectsPending:true,
+    usage:{...queued.usage,sourceReads:{...counts,issued:1,pending:1},resourceCloseout:{state:'DRAINING',overduePermits:0,asOf:'2026-09-11T14:00:00Z'}}});
+  view();
+  const title=await screen.findByText('已停止新增研究');
+  const summary=screen.getByText('执行明细');
+  const details=summary.closest('details');
+  expect(details?.open).toBe(false);
+  expect(title.closest('details')).toBeNull();
+  expect(screen.getByText(/尚有请求或执行记录待核实/).closest('details')).toBeNull();
+  expect(screen.getByText(/停止原因：future_code/).closest('details')).toBe(details);
+  fireEvent.click(summary);
+  expect(details?.open).toBe(true);
+  expect(advance).not.toHaveBeenCalled();
+});
+it('shows an unknown-effect stop reason as a primary action without resending',async()=>{
+  status.mockResolvedValue({...queued,phase:'STOPPED',canAdvance:false,newActionsBlocked:true,stopCode:'effect_unknown',effectsPending:true,
+    usage:{...queued.usage,modelCalls:{...counts,issued:1,unknown:1}}});
+  view();
+  const explanation=await screen.findByText('已有请求的结果尚未核实。');
+  expect(explanation.closest('details')).toBeNull();
+  expect(screen.getByText(/核实已有请求，不要重新发送/).closest('details')).toBeNull();
+  expect(advance).not.toHaveBeenCalled();
+});
+it('shows zero versus unknown completion honestly and preserves candidate navigation',async()=>{
+  status.mockResolvedValue({...queued,phase:'COMPLETED',acceptedOriginals:0,canAdvance:false,newActionsBlocked:true});
+  view();await screen.findByText('本轮没有取得可供分析的原文，不代表没有市场需求。');
+  expect(screen.getByText(/新任务/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:'查看原文与分析'}));
+  expect(context.navigate).toHaveBeenCalledWith(`/candidates?task=${taskId}`);
+  cleanup();
+  status.mockResolvedValue({...queued,phase:'COMPLETED',acceptedOriginals:null,canAdvance:false,newActionsBlocked:true});
+  view();await screen.findByText(/原文数量尚未确认/);
+  expect(screen.getAllByText(/查询原研究状态/).length).toBeGreaterThan(0);
+});
+it('does not infer unsupported all-web capability from the source label',async()=>{
+  view();await screen.findByText(RESEARCH_RUNTIME_SOURCE_LABEL);
+  expect(screen.queryByText(/全网|所有网站|后台持续/)).toBeNull();
+  expect(advance).not.toHaveBeenCalled();
 });
