@@ -7,6 +7,7 @@ import json
 import math
 import re
 from typing import Any
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 from pilot.execution_contract import ExecutionRuntimeError, canonical_uuid
 from pilot.open_web_reader import PublicReadError, normalize_public_url, valid_page_evidence
@@ -36,6 +37,37 @@ _PUBLIC_TOOLS = {
     ("mcp__yike_public", "read_public_page"),
 }
 _ALIASES = {_alias(*pair): pair for pair in _PUBLIC_TOOLS}
+_ASSIGNMENT_KEY = re.compile(
+    r"(?i)(?:\\?[\"']([a-z][a-z0-9_ -]{0,63})\\?[\"']|\b([a-z][a-z0-9_ -]{0,63})\b)\s*[:=]"
+)
+_PUBLIC_URL = re.compile(r"(?i)https?:(?:\\?/){2}[^\s\"'<>]+")
+
+
+def _normalized_field_name(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", value.lower())
+
+
+def _sensitive_field_name(value: str) -> bool:
+    normalized = _normalized_field_name(value)
+    return normalized in _SENSITIVE_KEYS or (
+        normalized.startswith("x") and normalized[1:] in _SENSITIVE_KEYS)
+
+
+def _string_contains_secret(value: str) -> bool:
+    # Decode URL escapes once and JSON slash escapes without expanding the input.
+    decoded = unquote(value).replace(r"\/", "/")
+    if any(_sensitive_field_name(match.group(1) or match.group(2))
+           for match in _ASSIGNMENT_KEY.finditer(decoded)):
+        return True
+    for match in _PUBLIC_URL.finditer(decoded):
+        try:
+            query = urlsplit(match.group(0)).query
+            if any(_sensitive_field_name(key) for key, _value in parse_qsl(
+                    query, keep_blank_values=True, max_num_fields=100)):
+                return True
+        except ValueError:
+            return True
+    return _SECRET.search(decoded) is not None
 
 
 def _invalid_input() -> None:
@@ -55,14 +87,12 @@ def _canonical(value: Any, *, result: bool = False) -> tuple[Any, bytes]:
     def safe_key(key: str) -> bool:
         if not safe_text(key):
             return False
-        normalized = re.sub(r"[^a-z0-9]", "", key.lower())
-        return normalized not in _SENSITIVE_KEYS and not (
-            normalized.startswith("x") and normalized[1:] in _SENSITIVE_KEYS)
+        return not _sensitive_field_name(key)
 
     def plain(item: Any) -> bool:
         kind = type(item)
         if item is None or kind in (str, bool, int):
-            return kind is not str or safe_text(item)
+            return kind is not str or safe_text(item) and not _string_contains_secret(item)
         if kind is float:
             return math.isfinite(item)
         if kind is list:

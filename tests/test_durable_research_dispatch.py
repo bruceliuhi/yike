@@ -121,6 +121,27 @@ def test_finish_failure_has_no_fallback_finish():
     assert len([x for x in journal.events if x[0] == "finish"]) == 1
 
 
+def test_success_finish_rejects_valid_acknowledgement_for_a_different_result():
+    journal = Journal()
+    actual = search_result()
+    substituted = actual | {"omitted_count": 2}
+    original_finish = journal.finish
+
+    def finish(*args, **kwargs):
+        acknowledged = original_finish(*args, **kwargs)
+        acknowledged["result"] = substituted
+        acknowledged["output_sha256"] = hashlib.sha256(__import__('json').dumps(
+            substituted, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+            allow_nan=False).encode()).hexdigest()
+        return acknowledged
+
+    journal.finish = finish
+    with pytest.raises(EffectDispatchError, match="^effect_unavailable$"):
+        dispatcher(journal)("SEARCH", {"query": "buyer"}, time.monotonic()+10,
+                            lambda _: actual)
+    assert len([x for x in journal.events if x[0] == "finish"]) == 1
+
+
 def test_success_replay_is_validated_without_perform_or_finish():
     journal = Journal(); result = search_result()
     payload = {"query": "buyer"}; _, digest = effect_input("SEARCH", payload, BINDING)

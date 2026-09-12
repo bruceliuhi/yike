@@ -24,10 +24,11 @@ def model_payload():
                        "parameters": {"type": "object"}}], "stream": True}
 
 
-def model_result(*, name="search_public_web", namespace="mcp__yike_public", usage=None):
+def model_result(*, name="search_public_web", namespace="mcp__yike_public", usage=None,
+                 arguments='{"query":"buyer"}'):
     usage = {"input_tokens": 3, "output_tokens": 2, "total_tokens": 5} if usage is None else usage
     item = {"type": "function_call", "namespace": namespace, "name": name,
-            "arguments": '{"query":"buyer"}', "call_id": "c1"}
+            "arguments": arguments, "call_id": "c1"}
     events = [
         ("response.output_item.done", {"type": "response.output_item.done", "item": item}),
         ("response.completed", {"type": "response.completed", "response": {
@@ -101,9 +102,39 @@ def test_usage_token_counters_are_not_mistaken_for_credentials():
     assert effect_input("MODEL", payload, binding())[0] == payload
 
 
+@pytest.mark.parametrize("content", [
+    "source https://example.com/post?sessionid=synthetic-only",
+    "source https://example.com/post?%74%6f%6b%65%6e=synthetic-only",
+    '{"password":"synthetic-only"}',
+    r'{\"refresh_token\":\"synthetic-only\"}',
+])
+def test_model_input_rejects_credentials_embedded_in_original_string_content(content):
+    payload = {"model": "m", "input": [{"role": "user", "content": content}],
+               "tools": [], "stream": True}
+    with pytest.raises(ExecutionRuntimeError, match="^invalid_effect_input$"):
+        effect_input("MODEL", payload, binding())
+
+
+def test_model_input_allows_safe_public_urls_and_ordinary_token_words():
+    payload = {"model": "m", "input": [{"role": "user", "content":
+               "Count tokens at https://example.com/post?topic=tokenization"}],
+               "tools": [], "stream": True,
+               "metadata": {"input_tokens": 3, "output_tokens": 2, "total_tokens": 5}}
+    assert effect_input("MODEL", payload, binding())[0] == payload
+
+
 def test_valid_model_restored_function_calls_are_unchanged():
     result = model_result()
     assert effect_result("MODEL", model_payload(), result) == result
+
+
+@pytest.mark.parametrize("arguments", [
+    '{"query":"https://example.com/post?sessionid=synthetic-only"}',
+    r'{\"query\":\"https:\/\/example.com\/post?%72%65%66%72%65%73%68_%74%6f%6b%65%6e=synthetic-only\"}',
+])
+def test_model_result_rejects_credentials_in_restored_function_arguments(arguments):
+    with pytest.raises(ExecutionRuntimeError, match="^invalid_effect_result$"):
+        effect_result("MODEL", model_payload(), model_result(arguments=arguments))
 
 
 @pytest.mark.parametrize("result", [

@@ -118,8 +118,11 @@ class DurableResearchDispatcher:
                     status="SUCCEEDED", result=result)
                 checked = self._entry(finished, sequence=sequence, kind=kind, payload=clean,
                                       digest=digest, require_result=True)
+                result_digest = canonical_effect_sha256(result)
                 if checked["status"] != "SUCCEEDED" or checked["permit_id"] != entry["permit_id"] \
-                        or checked["action_id"] != entry["action_id"]:
+                        or checked["action_id"] != entry["action_id"] \
+                        or checked["output_sha256"] != result_digest \
+                        or checked["result"] != result:
                     self._fail()
                 return copy.deepcopy(checked["result"])
             except EffectDispatchError:
