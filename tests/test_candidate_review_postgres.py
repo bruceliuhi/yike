@@ -167,7 +167,7 @@ def test_task_filter_hides_other_owner_and_tenant_tasks(env, user_index):
             strategy_version_id,configuration_sha256,configuration_snapshot,
             max_records,max_runtime_seconds,created_at,deadline_at,status)
             VALUES(%s,%s,%s,%s,%s,'foreign-strategy',%s,'{}'::jsonb,
-                1,600,clock_timestamp(),clock_timestamp()+interval '600 seconds','PENDING')''',
+                1,600,statement_timestamp(),statement_timestamp()+interval '600 seconds','PENDING')''',
             (tenant,user,task_id,device,profile,'a' * 64))
     with pytest.raises(CandidateIngestionError, match='task_not_found') as error:
         store(env).list_candidates(env.claims, task_id=task_id)

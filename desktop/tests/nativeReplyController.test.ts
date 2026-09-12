@@ -1,6 +1,7 @@
 import {expect,it,vi} from 'vitest';
 import {createHash,generateKeyPairSync,randomUUID,verify} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 import {createNativeReplyController} from '../src/main/nativeReplyController';
 import {canonicalJson} from '../src/main/outreachDispatchSigner';
 const hash=(x:unknown)=>createHash('sha256').update(canonicalJson(x)).digest('hex');
@@ -62,7 +63,7 @@ it.skipIf(!process.env.YIKE_REPLY_PYTHON)('preserves real Python reply contract 
  expect(await f.controller.execute(f.command)).toMatchObject({state:'SYNCED'});
  const canonical=execFileSync(process.env.YIKE_REPLY_PYTHON!,['-c',
   'import sys,json; from pilot.reply_contract import PlatformReplyEvent; print(json.dumps(PlatformReplyEvent.model_validate(json.load(sys.stdin)).model_dump(),ensure_ascii=False,sort_keys=True,separators=(",",":")))'],
-  {cwd:process.cwd().endsWith('/desktop')?'..':process.cwd(),input:JSON.stringify(f.events[0]),encoding:'utf8'}).trim();
+  {cwd:fileURLToPath(new URL('../../',import.meta.url)),input:JSON.stringify(f.events[0]),encoding:'utf8'}).trim();
  expect(canonical).toBe(canonicalJson(f.events[0]));await f.controller.stop();
 });
 it.each(['owner','opportunity','digest','connection','profile'] as const)('rejects mismatched %s before any browser opens',async kind=>{
