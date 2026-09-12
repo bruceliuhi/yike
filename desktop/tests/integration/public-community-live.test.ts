@@ -177,4 +177,4 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
   const cleanup=path.resolve(directory);if(path.dirname(cleanup)!==path.resolve(tmpdir())||!path.basename(cleanup).startsWith('yike-public-live-'))throw new Error('unsafe fixture cleanup');
   await rm(cleanup,{recursive:true,force:true});
  }
-},45000);
+},process.env.YIKE_PUBLIC_LIVE_ASSESS_SOURCE_ID?120_000:45_000);

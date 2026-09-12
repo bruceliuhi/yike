@@ -150,7 +150,7 @@ def test_public_community_client_through_ordinary_runtime(
             child = subprocess.run([node, 'node_modules/vitest/vitest.mjs', 'run',
                 'tests/integration/public-community-live.test.ts', '--maxWorkers=1'],
                 cwd=ROOT / 'desktop', env=child_env, capture_output=True, text=True,
-                encoding='utf-8', errors='replace', timeout=90)
+                encoding='utf-8', errors='replace', timeout=150 if assess_mode else 90)
             output = re.sub(r'\x1b\[[0-9;]*m', '', child.stdout + child.stderr)
             for private in (token, seed):
                 output = output.replace(private, '[redacted]')

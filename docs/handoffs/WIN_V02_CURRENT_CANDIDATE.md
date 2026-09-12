@@ -1,5 +1,7 @@
 # CodexWin：完整 V0.2 当前候选接续
 
+Mac必要客户端修复（2026-09-12，非新包验收）：`fb28f4b292d10bf9601a4e3435e864a360a6cc9a` 修复普通AI判断12秒提前超时，仅ASSESS75秒、人工/GET仍12秒，无重试；[本地复现、慢provider整链及独立GO](../superpowers/plans/2026-09-12-public-assessment-http.md#实施与失败驱动修复)。下次计划内构包需固定包含此修复的main版本，并登记新摘要；旧a56aab2包仍可继续登录/平台连接验收，但不能据其AI判断超时判定模型不可用，也不能标新修复已交付。本批不要求重跑安装全套或重部署无差量服务。
+
 2026-09-12 当前Windows固定候选为 `a56aab299f3c256e77b065c0347589eadb1d2dc9`：已修复1119985的Setup中文文档名冲突，一次同源payload/构包，真实安装、卸载重装、启动、环境恢复和单实例通过。安装版已留在“账号与授权”页，下一步是用户正常登录及真实平台闭环，不重复构包。customer保持已验 `1119985`，此次仅Windows构建输入变化，无服务差量。[本次产物、实机结果及失败](../qa/WINDOWS_SYNC_20260912.md)为唯一当前接续，候选未签名、不等于上线。下方fbf9f94冻结和WAITING状态均为Mac交接历史。
 
 状态：`WAITING_FOR_WINDOWS_ENVIRONMENT / NOT_EXECUTED`。2026-09-11 用户明确确认暂时没有可用 Windows 环境；此单由 CodexiMac 准备，不代表 Win 已接收、启动或通过。完整 V0.2 Goal 不变，服务端非依赖工作继续，不用 Mac 或模拟结果代替 Windows 实机验收。
