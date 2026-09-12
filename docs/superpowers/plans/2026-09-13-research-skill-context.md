@@ -39,7 +39,7 @@ def compile_research_context(value: dict) -> dict:
 - [x] `_command` accepts optional rule instructions; append exact compiled rule text after existing budget/tool boundaries; `_execute` receives description+clearlydelimited contextJSON. Return binding only explicitcontext mode even failure/cancel.
 - [x] Targeted GREEN workerfile; once wheel content parity check in tmpdirectory; do not rebuilddesktop.
 - [x] One bounded real profile-driven research if prerequisitesavailable; record lineage/time/gradeunknown honestly, no artificial datedlead success.
-- [ ] Independent wholebatch review and deltafix ifneeded; merge latestremote preservingWinchanges, pushmain, record evidence once. Frontend progress alignment remains linked companion work, notclaimedimplementedhere.
+- [x] Independent wholebatch review and deltafix; merged remote `916df9c` preserving Win changes. Main push/parity is recorded in the handoff after this commit. Frontend progress alignment remains linked companion work, not claimed implemented here.
 
 ## Evidence
 

@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+原本地 Skill 实际接线（2026-09-13）：代码 `bb3b61e` 独立整批及修复差量 Ready to merge；新内部研究入口可接固定四份原规则＋宿主业务画像、时效、排除和部分历史，返回宿主版本指纹，个人 Skill 不变。定向 compiler/worker 84 passed、bridge 29 passed；[唯一实施、初次失败及真实证据](superpowers/plans/2026-09-13-research-skill-context.md#evidence)。真实执行绑定 `f783b3b`：3 次搜索、2 篇原文、4 次模型调用、63.67 秒，**0 条合格线索**（DIY咨询/招聘）；只证明加载与续接，不证明恢复原本地效果。已保留来件 `916df9c` 的 Windows/平台登录修复；本批没有部署、构包或发送。下一步将内部快照接现有客户任务/许可/证据事务，同步研究进度体验，并完成同证据预算的业务判断对照与有效产出验证；公开页面缺评论深读不能替代授权连接器。完整 Goal ACTIVE。下方“未加载规则”为基线历史状态。
+
 CodexWin小红书登录顺序（2026-09-13）：匿名页面不再先调用不稳定selfinfo来阻塞本人登录；等待后才创建当前client并严格核验，未知响应/错误域/歧义账号仍拒绝。去重137项有最终通过证据，独立GO；[唯一计划与实机边界](superpowers/plans/2026-09-13-xhs-login-order.md#evidence)。匿名实机已到USER_LOGIN_WAIT且未先pong；停止后档案立即核验偶发拒绝、稍后原样通过，仍待定位。当前2a85dbc安装包未变，未实际平台认证，不追认完整取消/采集或发布通过。
 
 CodexWin登录反馈修复（2026-09-13）：已补真正只读STATUS与弹窗有界观察，后台失败不继续等待，LOGIN_READY仅提示本人检查；不自动CHECK/REGISTER/VERIFY，原取消/物理停止门禁保留。去重105项有最终通过证据及类型检查，独立整批/夹具差量GO；[唯一计划、首次失败与边界](superpowers/plans/2026-09-13-platform-login-status.md#evidence)。尚未纳入当前2a85dbc安装版，不追认真实小红书已修；下一步仍是实际平台响应根因及同批一次构包复验，完整Goal ACTIVE。
