@@ -23,6 +23,8 @@ import {
 } from "../../domain/candidateRequestOperation";
 
 const UNKNOWN = "原请求尚未核实，请先核对；不会自动重复判断、核验或入库。";
+// Leave room for the native ASSESS transport's 75-second bound; other UI reads/writes stay at 30s.
+const ASSESSMENT_TIMEOUT_MS = 90_000;
 const requestSchema = z.union([
   candidateReviewRequestSchema,
   sourceVerificationRequestSchema,
@@ -171,13 +173,13 @@ export function useCandidateRequests(variant = "") {
     )
       throw new Error(UNKNOWN);
   }
-  async function call<T>(operation: (signal: AbortSignal) => Promise<T>) {
+  async function call<T>(operation: (signal: AbortSignal) => Promise<T>, timeoutMs?: number) {
     return boundedRequest(
       (signal) => {
         if (!scope.current()) throw new Error(UNKNOWN);
         return operation(signal);
       },
-      { timeoutMessage: UNKNOWN },
+      { timeoutMessage: UNKNOWN, timeoutMs },
     );
   }
   async function settle(original: CandidateRequestOperation, raw: unknown) {
@@ -231,7 +233,7 @@ export function useCandidateRequests(variant = "") {
         return "action" in request
           ? api!.review(request, signal)
           : api!.verifySource(request, signal);
-      });
+      }, "action" in request && request.action === "ASSESS" ? ASSESSMENT_TIMEOUT_MS : undefined);
       return (await settle(op, raw)).result;
     });
   const reconcile = (key: string) =>
@@ -284,7 +286,7 @@ export function useCandidateRequests(variant = "") {
       const raw = await call((signal) => {
         checkLegacy(request.candidateId);
         return api!.review(request, signal);
-      });
+      }, ASSESSMENT_TIMEOUT_MS);
       return (await settle(op, raw)).result;
     });
   return {
