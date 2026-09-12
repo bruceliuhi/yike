@@ -86,6 +86,7 @@ realProcessTest('real fixed module maps untouched source evidence and Node consu
   const run = f.driver.start(f.input);
   try {
     const records = await run.completed;
+    if(!Array.isArray(records))throw new Error('legacy array expected');
     expect(records).toHaveLength(1);
     expect(records[0]).toMatchObject({kind: 'COMMENT', external_source_id: '101', external_comment_id: '202',
       public_url: 'https://www.bilibili.com/video/av101#reply202', title: ' 原标题 ',

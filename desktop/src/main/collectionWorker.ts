@@ -6,6 +6,8 @@ import {executionOperationSchema, type ExecutionOperation} from '../shared/execu
 import {parseExecutionReceipt, type ExecutionReceipt} from '../shared/executionReceipt';
 import {strategyViewSchema, type StrategyView} from '../shared/researchStrategies';
 import {candidateSubmissionSchema, type CandidateSubmission} from '../shared/candidateSubmission';
+import {nativeProgressBatchSchema,matchesNativeBatch,type NativeProgressBatch} from '../shared/nativeSearchProgress';
+import {platformSearchKeywords} from '../shared/researchStrategies';
 
 type Lease = Extract<ExecutionReceipt, {operation: 'CLAIM' | 'RENEW'}>;
 type RecoveryKey = {platformRunId: string; requestId: string};
@@ -23,7 +25,7 @@ export interface CollectionDriver {
   // Synchronous handle creation guarantees there is always a stop handle once
   // any source process starts. The driver owns raw output preservation/cleanup.
   start(input: {snapshot: StrategyView['snapshot']; target: NonNullable<ExecutionOperation['targets']>[number];
-    lease: Lease; maxRecords: number; signal: AbortSignal;allowMonitor?:boolean}): {completed: Promise<unknown[]>; stop(): Promise<void>};
+    lease: Lease; maxRecords: number; signal: AbortSignal;allowMonitor?:boolean}): {completed: Promise<unknown[]|{records:unknown[];nativeProgress:NativeProgressBatch}>; stop(): Promise<void>};
 }
 export interface CollectionWorkerOptions {
   execution: Pick<ReturnType<typeof createExecutionSession>, 'submit'>;
@@ -43,7 +45,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
   return {
     cancel() {cancelActive?.();},
     async run(input: {scope: DeviceWorkerScope; start: unknown; startReceipt: unknown; strategy: unknown;
-      platformRunId: string;allowMonitor?:boolean;allowPublicSampling?:true;platformMaxRecords?:number}): Promise<CollectionWorkerResult> {
+      platformRunId: string;allowMonitor?:boolean;allowPublicSampling?:true;allowNativeProgress?:true;platformMaxRecords?:number}): Promise<CollectionWorkerResult> {
       if (cancelActive) return {state: 'BUSY', taskCompleted: false};
       const {scope} = input;
       const abort = new AbortController();
@@ -98,6 +100,8 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
         if (input.allowPublicSampling !== undefined && (input.allowPublicSampling !== true || input.allowMonitor !== true ||
             configuration.mode !== 'monitor' || target.platform !== 'PUBLIC_WEB' || target.access_mode !== 'PUBLIC_ANONYMOUS' ||
             configuration.source !== 'search' || configuration.publicSource === undefined)) throw new Error();
+        if(input.allowNativeProgress!==undefined&&(input.allowNativeProgress!==true||input.allowPublicSampling!==undefined||input.allowMonitor!==true||
+          configuration.mode!=='monitor'||configuration.source!=='search'||target.platform!=='BILIBILI'||target.access_mode!=='PLATFORM_ACCOUNT'))throw new Error();
         validInput = true;
         if (!scope.session.isCurrent()) stop('SESSION_CHANGED');
         if (reason) return stoppedResult();
@@ -106,6 +110,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
           device_id: start.device_id, credential_version: start.credential_version,
           task_id: receipt.task_id, platform_run_id: input.platformRunId,
           ...(kind === 'CLAIM' && input.allowPublicSampling === true ? {public_sampling_version:1} : {}),
+          ...(kind === 'CLAIM' && input.allowNativeProgress === true ? {native_progress_version:1} : {}),
           ...(lease ? {lease_id: lease.lease_id, execution_generation: lease.execution_generation} : {}),
         });
         let leaseDeadline = 0;
@@ -138,6 +143,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
         if (!claimed) return {state: 'LEASE_UNKNOWN', requestId: requestId!, taskCompleted: false};
         if (claimed.execution_generation !== 1) return {state:'LEASE_UNKNOWN',requestId:claimed.request_id,taskCompleted:false};
         lease = claimed;
+        if(claimed.native_progress&&JSON.stringify(claimed.native_progress.queries.map(q=>q.query))!==JSON.stringify(platformSearchKeywords(configuration,target.platform)))throw new Error();
         const maxRecords = input.platformMaxRecords??Math.min(strategy.snapshot.max_records, 100);
         process = driver.start({snapshot: structuredClone(strategy.snapshot), target: structuredClone(target),
           lease: structuredClone(lease), maxRecords, signal: abort.signal,...(input.allowMonitor===true?{allowMonitor:true}:{})});
@@ -161,7 +167,15 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
         if (!scope.session.isCurrent()) stop('SESSION_CHANGED');
         if (performance.now() >= leaseDeadline) stop('LEASE_EXPIRED');
         if (reason) return stoppedResult();
-        if (!Array.isArray(outcome.records) || outcome.records.length > maxRecords) throw new Error();
+        const source=outcome.records;
+        let records:unknown[],nativeProgress:NativeProgressBatch|undefined;
+        if(claimed.native_progress){
+          if(Array.isArray(source)||!source||Object.keys(source).sort().join(',')!=='nativeProgress,records')throw new Error();
+          nativeProgress=nativeProgressBatchSchema.parse(source.nativeProgress);
+          if(!matchesNativeBatch(nativeProgress,claimed.native_progress,claimed.request_id))throw new Error();
+          records=source.records;
+        }else{if(!Array.isArray(source))throw new Error();records=source;}
+        if (!Array.isArray(records) || records.length > maxRecords) throw new Error();
         // Renew at most once before upload if less than a normal minute remains.
         // After upload even a full record budget must proceed directly to FINISH.
         if (leaseDeadline - performance.now() < 60_000) {
@@ -174,7 +188,8 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
           platform: target.platform, profile_version_id: start.profile_version_id, strategy_version_id: start.strategy_version_id,
           execution: {device_id: start.device_id, credential_version: start.credential_version, task_id: receipt.task_id,
             run_id: receipt.run_id, platform_run_id: input.platformRunId, lease_id: lease.lease_id, execution_generation: lease.execution_generation,
-            access_mode: target.access_mode, connection_id: target.connection_id, connection_version: target.connection_version}, records: outcome.records});
+            access_mode: target.access_mode, connection_id: target.connection_id, connection_version: target.connection_version}, records,
+          ...(nativeProgress?{native_progress:nativeProgress}:{})});
         recoveryKey = {platformRunId: input.platformRunId, requestId: batch.request_id};
         const uploaded = await Promise.race([
           candidates.submit(scope.session, batch).catch(() => null), stopped.then(() => null)]);

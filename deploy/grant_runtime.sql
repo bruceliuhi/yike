@@ -29,6 +29,7 @@ SELECT set_config('yike.app_role', :'app_role', true);
 \ir grant_materials.sql
 \ir grant_monitor_plans.sql
 \ir grant_monitor_runtime.sql
+\ir grant_native_search_progress.sql
 \ir grant_short_coach.sql
 \ir grant_structured_followups.sql
 COMMIT;

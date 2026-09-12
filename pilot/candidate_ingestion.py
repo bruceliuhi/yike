@@ -130,6 +130,11 @@ class CandidateIngestionStore:
                 return previous[1]
             if self.execution_runtime is None: raise CandidateIngestionError('capability_unavailable',501)
             authority = self.execution_runtime.lock_submission(cursor,claims,batch=batch,signature=signature)
+            from pilot.native_search_progress import commit_native_search_progress
+            native_progress = commit_native_search_progress(
+                cursor, tenant_id=tenant, owner_user_id=claims.user_id, batch=batch,
+                capability_check=self.execution_runtime.capability_check,
+            )
             cursor.execute('SELECT clock_timestamp()')
             received = cursor.fetchone()[0]
             items = _persist_records(cursor, tenant=tenant, user=claims.user_id,
@@ -140,6 +145,8 @@ class CandidateIngestionStore:
             receipt = dict(schema_version='candidate-receipt-v1',request_id=batch.request_id,
                 platform_run_id=authority['platform_run_id'],task_id=authority['task_id'],run_id=authority['run_id'],
                 accepted_count=len(batch.records),received_at=received.isoformat(),items=items)
+            if native_progress is not None:
+                receipt['native_progress'] = native_progress
             cursor.execute('UPDATE pilot_collection_platform_runs SET records_used=records_used+%s WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s AND run_id=%s AND platform_run_id=%s',
                 (len(batch.records),tenant,claims.user_id,authority['task_id'],authority['run_id'],authority['platform_run_id']))
             cursor.execute('INSERT INTO pilot_candidate_batches(tenant_id,owner_user_id,platform_run_id,request_id,task_id,run_id,fingerprint,accepted_count,received_at,receipt,platform,profile_version_id,strategy_version_id,execution_context) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s::jsonb)',

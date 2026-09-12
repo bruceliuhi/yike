@@ -45,6 +45,7 @@ export const executionOperationSchema = z.object({
   execution_generation: versionSchema.nullable().default(null),
   upload_request_id: opaqueSchema.nullable().optional(),
   public_sampling_version: z.literal(1).optional(),
+  native_progress_version: z.literal(1).optional(),
 }).strict().superRefine((request, context) => {
   const applicable = applicableFields[request.operation];
   for (const field of conditionalFields) {
@@ -61,6 +62,10 @@ export const executionOperationSchema = z.object({
     context.addIssue({code: 'custom', path: ['public_sampling_version'], message: 'sampling is CLAIM-only'});
   }
   if (request.public_sampling_version === undefined) delete request.public_sampling_version;
+  if (request.native_progress_version !== undefined && (request.operation !== 'CLAIM' || request.public_sampling_version !== undefined)) {
+    context.addIssue({code:'custom',path:['native_progress_version'],message:'exclusive CLAIM-only progress'});
+  }
+  if (request.native_progress_version === undefined) delete request.native_progress_version;
 });
 
 export type ExecutionOperation = z.infer<typeof executionOperationSchema>;

@@ -32,6 +32,23 @@ function record(query = '设计', comment = '66c11234abcdef0123456789') {return 
 beforeEach(() => {vi.clearAllMocks(); vi.useFakeTimers();});
 afterEach(() => {vi.useRealTimers(); vi.unstubAllEnvs();});
 const tick = () => vi.advanceTimersByTimeAsync(0);
+it('negotiated Bilibili monitor passes frozen query cursor and returns empty records plus true progress',async()=>{
+  const f=fixture();f.input.target.platform='BILIBILI';f.input.snapshot.platforms=['BILIBILI'];
+  Object.assign(f.input.snapshot.configuration,{mode:'monitor',schedule:{kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1}});
+  const cursor={page:1,consumed_ids:['1','2'],refresh_next:false};
+  const states=['设计','搭建'].map(query=>({query,revision:1,base_batch_request_id:id(30),cursor}));
+  f.input.lease.native_progress={schema_version:'native-search-progress-v1',adapter_version:'bili-search-items-v1',plan_id:id(40),queries:states};
+  const run=createPythonCollectionDriver({...f.options,allowMonitor:true,binding:{...f.options.binding,platform:'BILIBILI',expectedAccountPublicId:'123'}}).start(f.input);
+  const deltas=[];
+  for(let i=0;i<2;i++){
+    await tick();expect(f.request(i).native_progress).toEqual({schema_version:'native-search-progress-v1',adapter_version:'bili-search-items-v1',...states[i]});
+    const delta={query:states[i].query,revision:1,base_batch_request_id:id(30),before:cursor,after:{page:2,consumed_ids:[],refresh_next:true},
+      page_ids:['1','2','3'],processed_ids:['3'],has_more:true,comments_scope:'BOUNDED_SAMPLE'};
+    deltas.push(delta);f.respond(i,[],{native_progress:delta});
+  }
+  await expect(run.completed).resolves.toEqual({records:[],nativeProgress:{schema_version:'native-search-progress-v1',adapter_version:'bili-search-items-v1',claim_request_id:id(1),queries:deltas}});
+  await run.stop();
+});
 it('fixed private spawn, no inherited secret, sequential query budgets and untouched formal evidence', async () => {
   vi.stubEnv('DATABASE_URL', 'secret'); vi.stubEnv('YIKE_AUTH_TOKEN', 'secret');
   const f = fixture(); const run = f.driver.start(f.input); await tick();

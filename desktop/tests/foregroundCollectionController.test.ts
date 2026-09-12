@@ -49,6 +49,31 @@ function publicFixture(mixed=false){
  const publicDriverFactory=vi.fn(()=>({start:vi.fn()}));f.options.publicDriverFactory=publicDriverFactory;
  return {...f,nativeConfiguration,publicDriverFactory,controller:createForegroundCollectionController(f.options)};
 }
+it.each([false,true])('native Bilibili monitor negotiates progress=%s and dispatches CLAIM through real worker',async enabled=>{
+ const f=fixture();f.command.targets[0].platform='BILIBILI';f.startReceipt.platform_runs[0].platform='BILIBILI';f.strategy.snapshot.platforms=['BILIBILI'];
+ Object.assign(f.strategy.snapshot.configuration,{mode:'monitor',schedule:{kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1}});
+ f.strategy.configuration_sha256=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');
+ f.resolveAccount.mockResolvedValue({profileId:id(30),accountPublicId:'123'});
+ f.scope.transport.requestExecution.mockImplementation(async(input:any)=>({ok:true,status:200,data:input.operation==='monitor.support'
+  ?{schema_version:'monitor-runtime-support-v1',mode:'four-platform-monitor-v1'}
+  :{schema_version:'foreground-collection-support-v1',mode:'four-platform-foreground-v1',...(input.progressVersion===1&&enabled?{native_progress:['BILIBILI']}:{})}} as any));
+ const cursor={page:1,consumed_ids:[],refresh_next:false};
+ f.execution.submit.mockImplementation(async(_s:any,r:any)=>{f.requests.push(r);if(r.operation==='START')return {state:'RECORDED',receipt:f.startReceipt};
+  const common={schema_version:'execution-runtime-v1',request_id:r.request_id,operation:r.operation,task_id:id(6),run_id:id(7),platform_run_id:id(8),lease_id:id(90),execution_generation:1};
+  return {state:'RECORDED',receipt:r.operation==='FINISH'?{...common,status:'SUCCEEDED',stop_confirmed:true,upload_request_id:r.upload_request_id,records_used:0}
+   :{...common,status:'RUNNING',stop_confirmed:false,lease_expires_at:new Date(Date.now()+120000).toISOString(),deadline_at:new Date(Date.now()+600000).toISOString(),
+    ...(r.native_progress_version===1?{native_progress:{schema_version:'native-search-progress-v1',adapter_version:'bili-search-items-v1',plan_id:id(99),queries:[{query:'设计',revision:0,base_batch_request_id:null,cursor}]}}:{})}} as any;});
+ const candidates={submit:vi.fn(async()=>({state:'RECORDED'}))};let done:Promise<unknown>|undefined;
+ const driver={start:vi.fn((input:any)=>({stop:async()=>{},completed:Promise.resolve(enabled?{records:[],nativeProgress:{schema_version:'native-search-progress-v1',adapter_version:'bili-search-items-v1',claim_request_id:input.lease.request_id,
+   queries:[{query:'设计',revision:0,base_batch_request_id:null,before:cursor,after:{...cursor,refresh_next:true},page_ids:[],processed_ids:[],has_more:false,comments_scope:'BOUNDED_SAMPLE'}]}}:[])}))};
+ const controller=createForegroundCollectionController({...f.options,driverFactory:()=>driver,sessions:()=>({execution:f.execution,candidates}),workerFactory:(options:any)=>{const worker=createCollectionWorker(options);return {...worker,run:(input:any)=>done=worker.run(input)};}});
+ expect(await controller.startMonitor({schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:f.strategy.configuration_sha256,targets:f.command.targets})).toMatchObject({state:'RECORDED'});
+ expect(await done).toMatchObject({state:'COMPLETED'});
+ expect(f.scope.transport.requestExecution).toHaveBeenCalledWith({operation:'execution.support',progressVersion:1});
+ expect(f.requests.find(r=>r.operation==='CLAIM').native_progress_version).toBe(enabled?1:undefined);
+ expect((candidates.submit.mock.calls[0] as any)[1].native_progress!==undefined).toBe(enabled);
+ await controller.shutdown();
+});
 it.each((['v2ex-qna-v1','v2ex-outsourcing-authors-v1'] as const).flatMap(source=>(['once','monitor'] as const).map(mode=>({source,mode}))))('$source $mode requires a live catalog and preserves its selected source on dispatch',async({source,mode})=>{
  const f=publicFixture(),c:any=f.strategy.snapshot.configuration;
  c.publicSource=source;c.mode=mode;

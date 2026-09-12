@@ -44,11 +44,16 @@ def register_execution_api(router, runtime, identity, require_session_https):
             query = list(request.query_params.multi_items())
             if not query:
                 return result
-            if query != [('sampling_version', '1')]:
-                raise ExecutionRuntimeError('invalid_request', 422)
-            if result.get('public_monitor') is True:
-                return result | {'public_sampling': 'committed-round-v1'}
-            return result
+            if query == [('sampling_version', '1')]:
+                if result.get('public_monitor') is True:
+                    return result | {'public_sampling': 'committed-round-v1'}
+                return result
+            if query == [('native_progress_version', '1')]:
+                from pilot.native_search_progress import native_search_progress_supported
+                if native_search_progress_supported(service.capability_check):
+                    return result | {'native_progress': ['BILIBILI']}
+                return result
+            raise ExecutionRuntimeError('invalid_request', 422)
         return run(request, supported)
 
     @router.post("/execution-signing-payload")

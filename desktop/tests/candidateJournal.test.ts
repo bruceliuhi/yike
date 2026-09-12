@@ -50,6 +50,15 @@ async function setup() {
   const options = {directory: path.join(root, 'journal'), protection: protection()};
   return {...options, root, journal: createCandidateJournal(options)};
 }
+it('encrypted journal preserves original native progress for replay without rerunning source',async()=>{
+ const f=await setup(),batch=recoveryBatch();batch.platform='BILIBILI';batch.execution.access_mode='PLATFORM_ACCOUNT';batch.execution.connection_id=id(5);batch.execution.connection_version=1;batch.records=[];
+ const cursor={page:1,consumed_ids:[],refresh_next:false};
+ batch.native_progress={schema_version:'native-search-progress-v1',adapter_version:'bili-search-items-v1',claim_request_id:id(99),queries:[{
+  query:'设备',revision:0,base_batch_request_id:null,before:cursor,after:{...cursor,refresh_next:true},page_ids:[],processed_ids:[],has_more:false,comments_scope:'BOUNDED_SAMPLE'}]};
+ await f.journal.persist(scope,batch);
+ const reopened=createCandidateJournal({directory:f.directory,protection:f.protection});
+ expect(await reopened.read(scope,key(batch))).toEqual(batch);
+});
 async function oneFile(directory: string) {
   const files = await readdir(directory); expect(files).toHaveLength(1);
   expect(files[0]).toMatch(/^[0-9a-f]{64}-[0-9a-f]{64}\.candidate$/);

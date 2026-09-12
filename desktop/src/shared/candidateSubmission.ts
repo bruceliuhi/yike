@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import {sourceContextSchema,validAuthorTimes} from './publicAuthorContext';
+import {nativeProgressBatchSchema} from './nativeSearchProgress';
 const opaque = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/);
 const version = z.number().int().min(1).max(2_147_483_647);
 function unicode(value: string): boolean {
@@ -30,8 +31,9 @@ export const candidateSubmissionSchema = z.object({schema_version: z.literal('ca
   platform: z.enum(['XIAOHONGSHU', 'DOUYIN', 'BILIBILI', 'ZHIHU', 'PUBLIC_WEB']), profile_version_id: opaque, strategy_version_id: opaque,
   execution: z.object({device_id: opaque, task_id: opaque, run_id: opaque, platform_run_id: opaque, lease_id: opaque, credential_version: version, execution_generation: version,
     access_mode: z.enum(['PLATFORM_ACCOUNT', 'PUBLIC_ANONYMOUS']), connection_id: opaque.nullable(), connection_version: version.nullable().default(null)}).strict(),
-  records: z.array(record).max(100)}).strict().refine(value => {
+  records: z.array(record).max(100),native_progress:nativeProgressBatchSchema.optional()}).strict().refine(value => {
     const execution = value.execution;
+    if(value.native_progress!==undefined&&(value.platform!=='BILIBILI'||execution.access_mode!=='PLATFORM_ACCOUNT'))return false;
     if (execution.access_mode === 'PLATFORM_ACCOUNT') {
       if (execution.connection_id === null || execution.connection_version === null) return false;
     } else if (value.platform !== 'PUBLIC_WEB' || execution.connection_id !== null || execution.connection_version !== null) return false;

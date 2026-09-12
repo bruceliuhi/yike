@@ -23,6 +23,18 @@ function fixture() {
 }
 function rejected(input: any) {expect(() => signCandidateSubmission(input)).toThrowError(/^CANDIDATE_PROOF_SIGNING_FAILED$/);}
 describe('main-only candidate proof signing', () => {
+  it('binds native progress even with zero records; tampering with CLAIM invalidates signature',()=>{
+    const input=fixture(),cursor={page:1,consumed_ids:[],refresh_next:false};
+    input.expected.batch.platform='BILIBILI';input.expected.batch.execution.access_mode='PLATFORM_ACCOUNT';
+    input.expected.batch.execution.connection_id='connection-1';input.expected.batch.execution.connection_version=1;input.expected.batch.records=[];
+    input.expected.batch.native_progress={schema_version:'native-search-progress-v1',adapter_version:'bili-search-items-v1',claim_request_id:'00000000-0000-4000-8000-000000000099',queries:[{
+      query:'设备',revision:0,base_batch_request_id:null,before:cursor,after:{...cursor,refresh_next:true},page_ids:[],processed_ids:[],has_more:false,comments_scope:'BOUNDED_SAMPLE'}]};
+    const {request_id:_,...hashed}=input.expected.batch;
+    input.prepared.batch_fingerprint=createHash('sha256').update(canonical(hashed)).digest('hex');
+    input.prepared.signing_payload=canonical({...JSON.parse(input.prepared.signing_payload),batch_fingerprint:input.prepared.batch_fingerprint});
+    expect(signCandidateSubmission(input).batch.native_progress).toEqual(input.expected.batch.native_progress);
+    input.expected.batch.native_progress.claim_request_id='00000000-0000-4000-8000-000000000098';rejected(input);
+  });
   it.each([true,false])('signs boolean author read scope without dropping evidence (matched=%s)', matched => {
     const input=fixture();
     input.expected.batch.records[0]={...input.expected.batch.records[0],kind:'PAGE',external_source_id:'12',

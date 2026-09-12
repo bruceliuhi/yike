@@ -7,6 +7,7 @@ import {platformSearchKeywords, strategyConfigurationSchema} from '../shared/res
 import {executionReceiptSchema} from '../shared/executionReceipt';
 import {nativeLoginPlatformSchema,validNativeAccount} from '../shared/platformAccount';
 import {planNativeCollectionLinks,type NativeCollectionLink} from '../shared/nativeCollectionLinks';
+import {nativeQueryDeltaSchema,matchesNativeDelta,type NativeProgressBatch,type NativeProgressClaim} from '../shared/nativeSearchProgress';
 
 type Input = Parameters<CollectionDriver['start']>[0];
 interface Options {
@@ -50,7 +51,7 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
       }, 30_000);
     }
     signal.addEventListener('abort', requestStop, {once: true});
-    function invoke(payload: object): Promise<unknown> {
+    function invoke(payload: object,progress=false): Promise<{records:unknown;native_progress?:unknown}> {
       return new Promise((resolve, reject) => {
         const frame = Buffer.from(JSON.stringify(payload) + '\n', 'utf8');
         if (frame.length > 65536) {reject(failure('SOURCE_DRIVER_INVALID_INPUT')); return;}
@@ -61,11 +62,11 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
         child = active;
         let bytes = 0, invalid = false, settled = false;
         const chunks: Buffer[] = [];
-        const settle = (error?: Error, value?: unknown) => {
+        const settle = (error?: Error, value?: {records:unknown;native_progress?:unknown}) => {
           if (settled) return;
           settled = true; child = null; finishForced = null;
           if (forceTimer) clearTimeout(forceTimer); forceTimer = undefined;
-          if (error) reject(error); else resolve(value);
+          if (error) reject(error); else resolve(value!);
         };
         finishForced = () => settle(failure('SOURCE_STOP_FAILED'));
         active.stdout.on('data', (chunk: Buffer) => {
@@ -84,7 +85,7 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
             const result = JSON.parse(text);
             if (!result || result.schema_version !== SCHEMA) throw failure();
             const keys = Object.keys(result).sort().join(',');
-            if (result.state === 'COLLECTED' && keys === 'records,schema_version,state') settle(undefined, result.records);
+            if (result.state === 'COLLECTED' && keys === (progress?'native_progress,records,schema_version,state':'records,schema_version,state')) settle(undefined, result);
             else if (['CANCELLED', 'TIMED_OUT', 'BLOCKED_INPUT', 'FAILED'].includes(result.state) &&
                 (keys === 'schema_version,state' || keys === 'error_code,schema_version,state' &&
                  typeof result.error_code === 'string' && /^[A-Z_]{1,80}$/.test(result.error_code))) {
@@ -104,6 +105,7 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
       let mapping: Omit<CandidateSubmission, 'schema_version' | 'platform' | 'records'>;
       let work: Array<{query:string|null;nativeLink?:NativeCollectionLink}>;
       let exclusions: string[];
+      let nativeClaim:NativeProgressClaim|undefined;
       try {
         const c = strategyConfigurationSchema.parse(snapshot.configuration);
         const lease = executionReceiptSchema.parse(input.lease);
@@ -124,6 +126,9 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
             !nativeLoginPlatformSchema.safeParse(target.platform).success || target.access_mode !== 'PLATFORM_ACCOUNT' ||
             (['platform', 'access_mode', 'connection_id', 'connection_version'] as const).some(k => target[k] !== owned.binding[k])) throw failure();
         work = linkPlan?linkPlan.map(nativeLink=>({query:null,nativeLink})):platformSearchKeywords(c,target.platform).map(query=>({query}));
+        nativeClaim=lease.native_progress;
+        if(nativeClaim&&(lease.operation!=='CLAIM'||c.mode!=='monitor'||owned.allowMonitor!==true||c.source!=='search'||target.platform!=='BILIBILI'||expectedAccount===undefined||
+          JSON.stringify(nativeClaim.queries.map(q=>q.query))!==JSON.stringify(work.map(q=>q.query))))throw failure();
         exclusions = c.exclusions.map(folded);
         for (const value of [owned.pythonExecutable, owned.projectRoot, owned.runtimePath, owned.profilePath, owned.outputRoot])
           if (!/^[A-Za-z]:[\\/]/.test(value) || !path.isAbsolute(value) || /[\p{Cc}\p{Cf}\p{Cs}]/u.test(value)) throw failure();
@@ -137,6 +142,7 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
       const deadline = performance.now() + Math.min(snapshot.max_runtime_seconds, 900) * 1000;
       deadlineTimer = setTimeout(() => {timedOut = true; requestStop();}, Math.min(snapshot.max_runtime_seconds, 900) * 1000);
       const records: CandidateSubmission['records'] = [];
+      const deltas:NativeProgressBatch['queries']=[];
       let spent = 0;
       const seen = new Map<string, string>();
       for (let index = 0; index < work.length && spent < maxRecords; index++) {
@@ -145,17 +151,20 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
         if (seconds < 1) throw failure('SOURCE_DRIVER_TIMED_OUT');
         const {query,nativeLink}=work[index];
         const cap = Math.ceil((maxRecords - spent) / (work.length - index));
-        let result: unknown;
+        const state=nativeClaim?.queries[index];
+        let result: {records:unknown;native_progress?:unknown};
         try {result = await invoke({schema_version: SCHEMA, runtime_path: owned.runtimePath, profile_path: owned.profilePath,
           output_path: path.join(owned.outputRoot, randomUUID()), platform: target.platform, query, ...(nativeLink?{native_link:nativeLink}:{}), max_records: cap,
           ...(owned.binding.expectedAccountPublicId === undefined ? {} : {expected_account_public_id: owned.binding.expectedAccountPublicId}),
-          timeout_seconds: seconds, mapping: {...mapping, request_id: randomUUID()}});}
+          ...(state?{native_progress:{schema_version:nativeClaim!.schema_version,adapter_version:nativeClaim!.adapter_version,...state}}:{}),
+          timeout_seconds: seconds, mapping: {...mapping, request_id: randomUUID()}},!!state);}
         catch (error) {if (timedOut) throw failure('SOURCE_DRIVER_TIMED_OUT'); throw error;}
         if (cancelled) throw failure(timedOut ? 'SOURCE_DRIVER_TIMED_OUT' : 'SOURCE_DRIVER_CANCELLED');
         let parsed: CandidateSubmission['records'];
         try {
-          parsed = candidateSubmissionSchema.parse({...mapping, schema_version: 'candidate-upload-v1', platform: target.platform, records: result}).records;
+          parsed = candidateSubmissionSchema.parse({...mapping, schema_version: 'candidate-upload-v1', platform: target.platform, records: result.records}).records;
           if (parsed.length > cap || parsed.some(r => r.query !== query)) throw failure();
+          if(state){const delta=nativeQueryDeltaSchema.parse(result.native_progress);if(!matchesNativeDelta(delta,state,cap))throw failure();deltas.push(delta);}
         } catch {throw failure();}
         spent += parsed.length;
         for (const record of parsed) {
@@ -166,7 +175,8 @@ export function createPythonCollectionDriver(options: Options): CollectionDriver
           else {seen.set(key, content); if (!excluded(record, exclusions)) records.push(record);}
         }
       }
-      return records;
+      return nativeClaim?{records,nativeProgress:{schema_version:nativeClaim.schema_version,adapter_version:nativeClaim.adapter_version,
+        claim_request_id:input.lease.request_id,queries:deltas}}:records;
     }).finally(() => {
       signal.removeEventListener('abort', requestStop);
       if (deadlineTimer) clearTimeout(deadlineTimer);

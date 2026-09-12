@@ -96,6 +96,31 @@ it('rejects a public sampling grant on a native once task before CLAIM',async()=
   expect(f.execution.submit).not.toHaveBeenCalled();expect(f.driver.start).not.toHaveBeenCalled();
 });
 
+it('native progress is CLAIM-only and survives RENEW into the original signed empty batch',async()=>{
+  const f=fixture();Object.assign(f.strategy.snapshot.configuration,{mode:'monitor',schedule:{kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1}});
+  f.start.configuration_sha256=f.strategy.configuration_sha256=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');
+  const cursor={page:1,consumed_ids:[],refresh_next:false};
+  const state={query:'展台',revision:0,base_batch_request_id:null,cursor};
+  const submit=f.execution.submit.getMockImplementation()!;
+  f.execution.submit.mockImplementation(async(session,request)=>{const value=await submit(session,request);
+    if(request.operation==='CLAIM')value.receipt.native_progress={schema_version:'native-search-progress-v1',adapter_version:'bili-search-items-v1',plan_id:id(80),queries:[state]};return value;});
+  f.candidates.submit.mockResolvedValue({state:'RECORDED'} as any);
+  const done=f.instance.run({scope:f.scope,start:f.start,startReceipt:f.receipt,strategy:f.strategy,platformRunId:id(8),allowMonitor:true,allowNativeProgress:true});
+  await tick(60000);
+  const claim=f.execution.submit.mock.calls[0][1];expect(claim.native_progress_version).toBe(1);
+  expect(f.execution.submit.mock.calls[1][1]).not.toHaveProperty('native_progress_version');
+  const progress={schema_version:'native-search-progress-v1',adapter_version:'bili-search-items-v1',claim_request_id:claim.request_id,
+    queries:[{query:'展台',revision:0,base_batch_request_id:null,before:cursor,after:{...cursor,refresh_next:true},page_ids:[],processed_ids:[],has_more:false,comments_scope:'BOUNDED_SAMPLE'}]};
+  f.output.resolve({records:[],nativeProgress:progress} as any);await tick();
+  expect(await done).toMatchObject({state:'COMPLETED'});
+  expect(f.candidates.submit.mock.calls[0][1]).toMatchObject({records:[],native_progress:progress});
+});
+it('native progress cannot be granted to a one-shot task',async()=>{
+ const f=fixture();expect(await f.instance.run({scope:f.scope,start:f.start,startReceipt:f.receipt,strategy:f.strategy,platformRunId:id(8),allowNativeProgress:true}))
+  .toMatchObject({state:'FAILED',error:'COLLECTION_WORKER_INVALID_INPUT'});
+ expect(f.execution.submit).not.toHaveBeenCalled();expect(f.driver.start).not.toHaveBeenCalled();
+});
+
 it.each(['cancel', 'session', 'renew'])('stops and awaits driver on %s without uploading or restarting', async kind => {
   const f = fixture(); const stopping = deferred<void>(); f.stopped.mockImplementation(() => stopping.promise);
   const done = f.run(); await tick();

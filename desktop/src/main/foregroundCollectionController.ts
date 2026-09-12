@@ -38,9 +38,10 @@ interface Options {
 }
 const supportSchema=z.object({schema_version:z.literal('foreground-collection-support-v1'),mode:foregroundModeSchema.nullable(),
  public_source:z.literal('v2ex-latest-v1').optional(),public_sources:publicSourceIdsSchema.optional(),public_monitor:z.literal(true).optional(),native_links:nativeLinkPlatformsSchema.optional(),
- public_sampling:z.literal('committed-round-v1').optional()})
+ public_sampling:z.literal('committed-round-v1').optional(),native_progress:z.tuple([z.literal('BILIBILI')]).optional()})
  .strict().refine(value=>validPublicSourceCatalog(value.public_source,value.public_sources))
  .refine(value=>value.public_sampling===undefined||value.public_monitor===true&&value.public_source!==undefined)
+ .refine(value=>value.native_progress===undefined||supportsForegroundPlatform(value.mode,'BILIBILI'))
  .refine(value=>(value.mode==='four-platform-public-bili-links-monitor-v1')===(value.native_links!==undefined));
 const rowsSchema=z.object({items:z.array(connectionRegistryRowSchema).max(10000)}).strict();
 const stateSchema=z.enum(['PENDING','RUNNING','CANCELLING','CANCELED','SUCCEEDED']);
@@ -94,9 +95,9 @@ export function createForegroundCollectionController(options:Options) {
   }}};
   try{guard(scope);return scope;}catch(error){scope.close();throw error;}
  }
- async function supported(scope:DeviceWorkerScope,samplingVersion?:1){
+ async function supported(scope:DeviceWorkerScope,samplingVersion?:1,progressVersion?:1){
   if(stopUnconfirmed)throw new Error('SOURCE_STOP_FAILED');
-  guard(scope);const response=await scope.transport.requestExecution({operation:'execution.support',...(samplingVersion?{samplingVersion}:{})});guard(scope);
+  guard(scope);const response=await scope.transport.requestExecution({operation:'execution.support',...(samplingVersion?{samplingVersion}:{}),...(progressVersion?{progressVersion}:{})});guard(scope);
   if(!response.ok)throw new Error('COLLECTION_UNAVAILABLE');const support=supportSchema.safeParse(response.data);
   if(!support.success || support.data.mode===null)throw new Error('COLLECTION_UNAVAILABLE');
   return support.data;
@@ -165,7 +166,7 @@ export function createForegroundCollectionController(options:Options) {
   if(!Number.isInteger(total)||total<count)throw new Error();const base=Math.floor(total/count),extra=total%count;
   return Array.from({length:count},(_,index)=>base+(index<extra?1:0));
  }
- function launchSequence(input:{scope:DeviceWorkerScope;start:any;receipt:any;strategy:any;targets:any[];bindings:any[];firstSessions:any;allowMonitor?:boolean;allowPublicSampling?:true;allowNativeLinks?:true;startIndex?:number}){
+ function launchSequence(input:{scope:DeviceWorkerScope;start:any;receipt:any;strategy:any;targets:any[];bindings:any[];firstSessions:any;allowMonitor?:boolean;allowPublicSampling?:true;allowNativeProgress?:true;allowNativeLinks?:true;startIndex?:number}){
   let currentWorker:ReturnType<typeof createCollectionWorker>|null=null,cancelled=false;
   const composite={cancel(){cancelled=true;currentWorker?.cancel();}} as ReturnType<typeof createCollectionWorker>;
   const current:Active={taskId:input.receipt.task_id,userId:input.scope.session.userId,scope:input.scope,worker:composite,done:Promise.resolve()};
@@ -196,7 +197,8 @@ export function createForegroundCollectionController(options:Options) {
     currentWorker=(options.workerFactory??createCollectionWorker)({...sessions,driver});
     const value=await currentWorker.run({scope:activeScope!,start:input.start,startReceipt:input.receipt,strategy:input.strategy,
      platformRunId:input.receipt.platform_runs[index].platform_run_id,allowMonitor:input.allowMonitor,platformMaxRecords:allocated[index],
-     ...(anonymous&&input.allowPublicSampling?{allowPublicSampling:true as const}:{})});
+     ...(anonymous&&input.allowPublicSampling?{allowPublicSampling:true as const}:{}),
+     ...(input.targets[index].platform==='BILIBILI'&&input.allowNativeProgress?{allowNativeProgress:true as const}:{})});
     if(value.state==='FAILED'&&value.error==='SOURCE_STOP_FAILED')stopUnconfirmed=true;
     local.set(localKey(current.scope,current.taskId),value);activeScope=undefined;if(value.state!=='COMPLETED')break;
    }}catch{activeScope?.close();local.set(localKey(current.scope,current.taskId),{state:'FAILED',error:'COLLECTION_WORKER_FAILED',taskCompleted:false});}
@@ -254,6 +256,11 @@ export function createForegroundCollectionController(options:Options) {
       snapshot.platforms.length!==targets.length||targets.some((target,index)=>target.platform!==snapshot.platforms[index]||
        (target.platform==='PUBLIC_WEB'?!allowsPublicSource(c.publicSource,parsedSupport.data.public_source,parsedSupport.data.public_sources):target.access_mode!=='PLATFORM_ACCOUNT'||!nativeLoginPlatformSchema.safeParse(target.platform).success)))throw new Error();
     let allowPublicSampling:true|undefined;
+    let allowNativeProgress:true|undefined;
+    if(c.source==='search'&&targets.some(target=>target.platform==='BILIBILI')){
+     const progress=await supported(scope,undefined,1);
+     if(progress.native_progress?.includes('BILIBILI'))allowNativeProgress=true;
+    }
     if(targets.some(target=>target.platform==='PUBLIC_WEB')){
      const sampling=await supported(scope,1);
      if(!allowsPublicSource(c.publicSource,sampling.public_source,sampling.public_sources))throw new Error();
@@ -263,7 +270,7 @@ export function createForegroundCollectionController(options:Options) {
     const firstSessions=options.sessions(scope);const submitted=await firstSessions.execution.submit(scope.session,start);guard(scope);if(submitted.state!=='RECORDED')return submitted;
     const receipt=parseExecutionReceipt(submitted.receipt,start);if(receipt.operation!=='START'||receipt.platform_runs.length!==targets.length||receipt.platform_runs.some((run,index)=>run.platform!==targets[index].platform))throw new Error();
     const history=await options.executionJournal.list(journalScope(scope));guard(scope);if(history.some(r=>r.task_id===receipt.task_id&&r.operation!=='START'))return submitted;
-    launchSequence({scope,start,receipt,strategy,targets,bindings,firstSessions,allowMonitor:true,...(allowPublicSampling?{allowPublicSampling}:{}),...(links?{allowNativeLinks:true as const}:{})});scope=undefined;handedOff=true;
+    launchSequence({scope,start,receipt,strategy,targets,bindings,firstSessions,allowMonitor:true,...(allowPublicSampling?{allowPublicSampling}:{}),...(allowNativeProgress?{allowNativeProgress}:{}),...(links?{allowNativeLinks:true as const}:{})});scope=undefined;handedOff=true;
     return submitted;
    }catch{return {state:'SERVICE_UNAVAILABLE'};}finally{if(!handedOff)scope?.close();opening=false;finishOpening?.();finishOpening=null;openingDone=null;}
   },

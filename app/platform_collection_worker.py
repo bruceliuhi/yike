@@ -5,7 +5,7 @@ performs a separate browser preflight or modifies the installed runtime files.
 """
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 import json
 import os
 from pathlib import Path
@@ -15,6 +15,7 @@ import sys
 from urllib.parse import urlsplit
 
 if __package__:
+    from .bili_search_progress import install_bili_search_progress
     from .platform_login_worker import valid_account, read_douyin_self_account, read_zhihu_self_account
     from pilot.native_collection_links import parse_native_collection_link, validate_bili_collection_target
 else:
@@ -30,6 +31,10 @@ else:
     _links_spec.loader.exec_module(_links)
     parse_native_collection_link = _links.parse_native_collection_link
     validate_bili_collection_target = _links.validate_bili_collection_target
+    _progress_spec = spec_from_file_location('yike_bili_search_progress', Path(__file__).with_name('bili_search_progress.py'))
+    _progress = module_from_spec(_progress_spec)
+    _progress_spec.loader.exec_module(_progress)
+    install_bili_search_progress = _progress.install_bili_search_progress
 
 _ACCOUNT = re.compile(r'[A-Za-z0-9]{8,32}')
 _HREF = re.compile(r'(?:https://www\.xiaohongshu\.com)?/user/profile/([A-Za-z0-9]{8,32})')
@@ -238,6 +243,8 @@ def main():
         platform = os.environ.get('YIKE_COLLECTION_PLATFORM', 'XIAOHONGSHU')
         if not valid_account(platform, expected): raise ValueError()
         mode = _fixed_arguments(sys.argv[1:], platform)
+        progress = os.environ.get('YIKE_NATIVE_SEARCH_PROGRESS')
+        if progress is not None and (platform != 'BILIBILI' or mode != 'search' or len(progress.encode('utf-8')) > 4096): raise ValueError()
         runtime = Path.cwd()
         sys.path.insert(0, str(runtime))
         from tools.yike_runtime import YikePlatformAuthRequired, _EXPLICIT_TERMINALS
@@ -259,7 +266,13 @@ def main():
             from media_platform.douyin.core import DouYinCrawler
             from media_platform.douyin.client import DouYinClient
             guard = install_video_account_guard(DouYinCrawler, DouYinClient, YikePlatformAuthRequired, expected, platform, error_types=error_types)
-        with guard:
+        with ExitStack() as stack:
+            if progress is not None:
+                from media_platform.bilibili import core
+                from tools.yike_runtime import YikePlatformResponseChanged
+                # Install first: the account guard must wrap the new search too.
+                stack.enter_context(install_bili_search_progress(core,json.loads(progress),YikePlatformResponseChanged))
+            stack.enter_context(guard)
             runpy.run_path(str(runtime / 'main.py'), run_name='__main__')
         return 0
     except Exception:

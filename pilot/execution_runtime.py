@@ -46,9 +46,15 @@ def _raw_model(value):
         if isinstance(value, CandidateRecord) and value.source_context is None \
                 and 'source_context' not in value.__pydantic_fields_set__:
             raw.pop('source_context', None)
+        if isinstance(value, CandidateBatch) and value.native_progress is None \
+                and 'native_progress' not in value.__pydantic_fields_set__:
+            raw.pop('native_progress', None)
         if isinstance(value, ExecutionOperation) and value.public_sampling_version is None \
                 and 'public_sampling_version' not in value.__pydantic_fields_set__:
             raw.pop('public_sampling_version', None)
+        if isinstance(value, ExecutionOperation) and value.native_progress_version is None \
+                and 'native_progress_version' not in value.__pydantic_fields_set__:
+            raw.pop('native_progress_version', None)
         return raw
     if isinstance(value, (tuple, list)):
         return [_raw_model(item) for item in value]
@@ -465,6 +471,12 @@ class ExecutionRuntime:
                 raise ExecutionRuntimeError('capability_unavailable', 409)
             result['public_sampling'] = committed_public_sampling_round(
                 cursor, tenant_id=tenant, owner_user_id=claims.user_id, task=task, platform=platform)
+        if request.native_progress_version is not None:
+            from pilot.native_search_progress import claim_native_search_progress
+            result['native_progress'] = claim_native_search_progress(
+                cursor, tenant_id=tenant, owner_user_id=claims.user_id,
+                task=task, platform=platform, capability_check=self.capability_check,
+            )
         return result
 
     @staticmethod

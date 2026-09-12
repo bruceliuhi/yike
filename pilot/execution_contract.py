@@ -69,6 +69,7 @@ class ExecutionOperation(_Frozen):
     execution_generation: int | None = Field(default=None, ge=1, le=MAX_VERSION)
     upload_request_id: str | None = None
     public_sampling_version: int | None = None
+    native_progress_version: int | None = None
 
     @model_serializer(mode='wrap')
     def compatible_serialization(self, handler):
@@ -77,9 +78,11 @@ class ExecutionOperation(_Frozen):
             value.pop('upload_request_id', None)
         if self.public_sampling_version is None:
             value.pop('public_sampling_version', None)
+        if self.native_progress_version is None:
+            value.pop('native_progress_version', None)
         return value
 
-    @field_validator('public_sampling_version', mode='before')
+    @field_validator('public_sampling_version', 'native_progress_version', mode='before')
     @classmethod
     def sampling_version(cls, value):
         if value is not None and (type(value) is not int or value != 1):
@@ -119,7 +122,14 @@ class ExecutionOperation(_Frozen):
         if ('public_sampling_version' in self.__pydantic_fields_set__
                 and self.public_sampling_version is None):
             raise ExecutionRuntimeError('invalid_request', 422)
+        if ('native_progress_version' in self.__pydantic_fields_set__
+                and self.native_progress_version is None):
+            raise ExecutionRuntimeError('invalid_request', 422)
         if self.public_sampling_version is not None and self.operation != 'CLAIM':
+            raise ExecutionRuntimeError('invalid_request', 422)
+        if self.native_progress_version is not None and self.operation != 'CLAIM':
+            raise ExecutionRuntimeError('invalid_request', 422)
+        if self.public_sampling_version is not None and self.native_progress_version is not None:
             raise ExecutionRuntimeError('invalid_request', 422)
         if self.targets and len({target.platform for target in self.targets}) != len(self.targets):
             raise ExecutionRuntimeError('invalid_request', 422)

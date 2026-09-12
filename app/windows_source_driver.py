@@ -132,9 +132,10 @@ def _collection_limits(platform, max_records, collection_mode='search'):
 
 def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_path: Path,
                            platform: str, query: str | None, max_records: int, timeout_seconds: int,
-                           cancel_requested=None, expected_account_public_id=None, native_link=None) -> dict:
+                           cancel_requested=None, expected_account_public_id=None, native_link=None, native_progress=None) -> dict:
     from app.collection_output import read_collection_output, CollectionOutputError
     from pilot.native_collection_links import validate_bili_collection_target
+    from app.bili_search_progress import checked_input, checked_delta, MARKER
     if sys.platform != 'win32':
         raise WindowsSourceError('windows_required')
     started = time.monotonic()
@@ -152,6 +153,10 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
             raise WindowsSourceError('source_input_invalid')
         if (platform == 'ZHIHU' or expected_account_public_id is not None) and not valid_account(platform, expected_account_public_id):
             raise WindowsSourceError('source_input_invalid')
+        if native_progress is not None:
+            if platform != 'BILIBILI' or mode != 'search' or not valid_account(platform,expected_account_public_id):
+                raise WindowsSourceError('source_input_invalid')
+            native_progress = checked_input(native_progress,query)
         paths = [Path(p) for p in (runtime_path, profile_path, output_path)]
         if any(not p.is_absolute() or p.drive.startswith('\\') for p in paths):
             raise WindowsSourceError('source_input_invalid')
@@ -190,6 +195,8 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
                 environment['YIKE_EXPECTED_ACCOUNT_PUBLIC_ID'] = expected_account_public_id
                 environment['YIKE_COLLECTION_PLATFORM'] = platform
                 environment['PYTHONDONTWRITEBYTECODE'] = '1'
+            if native_progress is not None:
+                environment['YIKE_NATIVE_SEARCH_PROGRESS'] = json.dumps(native_progress,ensure_ascii=False,separators=(',',':'))
             # Sample several comments per post (including replies when available)
             # rather than spending the entire budget on first-comment-only posts.
             max_contents, comments_per_content = _collection_limits(platform, max_records, mode)
@@ -233,8 +240,9 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
                 raise ValueError()
             if stopped := interrupted():
                 return stopped
+            delta = {} if native_progress is None else {'native_progress':checked_delta(_json(output_path / MARKER),native_progress,max_contents)}
             return {'state': 'COLLECTED', 'records': records, 'output_path': str(output_path),
-                    'query': query, 'collector_version': 'mediacrawler-' + PIN + ('' if mode == 'search' else '-bili-links-v1'), 'task_completed': False}
+                    'query': query, 'collector_version': 'mediacrawler-' + PIN + ('-bili-search-items-v1' if native_progress is not None else '' if mode == 'search' else '-bili-links-v1'), 'task_completed': False, **delta}
     except WindowsSourceError:
         raise
     except (OSError, ValueError, TypeError, RuntimeError, CollectionOutputError):

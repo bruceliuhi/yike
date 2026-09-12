@@ -53,3 +53,15 @@
 ## 收口
 
 - [ ] 所有产品字节冻结，完整批次独立review；只修具体P0/P1/P2并差量复核；更新唯一证据和taskbook，正常合main/远端SHA回读。未通过整链前不得广告可用或合入半接线能力。
+
+## Evidence
+
+2026-09-12，代码待整批独立审核；未部署/构包/真实平台/外发。
+
+- 来源初次RED为adapter缺失（12 failed），之后新源/host链24 passed，包含固定MediaCrawler pin＋仓库patch重建后的真实详情/评论方法与新adapter和账号guard组合。源/host/三平台guard/portable受影响组151 passed、32条件skip（非Windows/无已安装runtime）；后补真实隔离Python进程验证HOST_FILES导入闭包，先因漏带execution_contract RED，再修复GREEN。
+- 客户端新模块、driver/CLAIM和controller组合先RED；受影响9文件446 passed、tsc通过。新增严格ID末尾/once拒绝后最小差量37 passed；旧签名固定fingerprint回归在上述受影响组内，没有重跑全仓或构包。
+- 后端真实受限PG/本机认证HTTPS产物：`/tmp/yike-native-progress-http.json`（合成账户与业务数据；不含token/signature/signing_payload）。正式桌面`nativeSearchProgress.http.test.ts`消费两次CLAIM、一批candidate回执及Python signing fingerprint，1 passed。运行时设`YIKE_NATIVE_PROGRESS_HTTP_ARTIFACT`为该产物路径；无产物时明确skip，不视为跨语言链路已验。
+- Windows固定HOST_FILES补齐adapter、cursor、DTO及执行合同；未改vendor pin/patch，不给旧包背书。cursor只代表搜索条目＋有界评论样本，不代表完整评论树、平台全集或有用商机产量。
+- 预算分层按同日spec补充：服务端不能从过滤后batch倒推每query cap；受控driver/host保留过滤前分配，服务端验证前缀、每query上界及真实租约/任务围栏。
+
+后台最终测试、审核结论与主线提交在整批冻结后补入本节；其它原生平台cursor、公开index外复查、多源研究与真实用户闭环继续，完整Goal保持ACTIVE。

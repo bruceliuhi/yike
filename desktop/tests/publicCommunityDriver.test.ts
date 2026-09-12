@@ -45,6 +45,7 @@ it('does not restart the shared deadline for author replies',async()=>{
 it('reads bounded author replies separately from original body and keeps unread supplements explicit',async()=>{
  const fetcher=vi.fn(async(url:any)=>String(url).includes('replies/show')?jsonResponse([reply(8),reply()]):jsonResponse([projectTopic()]));
  const reader=driver(fetcher),run=reader.start(projectInput());const records=await run.completed;await run.stop();
+ if(!Array.isArray(records))throw new Error('legacy array expected');
  expect(records[0]).toMatchObject({body:topic().content,normalizer_version:'v2ex-author-page-v1',source_context:{schema_version:'v2ex-author-context-v1',replies_expected:2,replies_read:2,replies_complete:true,supplements_read:false,author_replies:[{id:'29',body:'已结束，请勿继续联系',published_at:'2026-09-11T09:58:20Z'}]}});
  expect(fetcher.mock.calls.map(c=>c[0])).toEqual(['https://www.v2ex.com/api/topics/show.json?node_name=outsourcing','https://www.v2ex.com/api/replies/show.json?topic_id=12']);
  const next=reader.start(input());await expect(next.completed).rejects.toThrow('PUBLIC_SOURCE_RATE_LIMITED');await next.stop();

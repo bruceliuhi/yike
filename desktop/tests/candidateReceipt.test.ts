@@ -1,6 +1,16 @@
 import {expect, it} from 'vitest';
 import {parseCandidateReceipt} from '../src/shared/candidateReceipt';
 import {recoveryBatch, recoveryReceipt, id} from './candidateRecoveryFixtures';
+it('native cursor echo is exact, including on zero candidate recovery',()=>{
+ const batch=recoveryBatch();batch.platform='BILIBILI';batch.execution.access_mode='PLATFORM_ACCOUNT';batch.execution.connection_id=id(5);batch.execution.connection_version=1;batch.records=[];
+ const cursor={page:1,consumed_ids:[],refresh_next:false};
+ batch.native_progress={schema_version:'native-search-progress-v1',adapter_version:'bili-search-items-v1',claim_request_id:id(99),queries:[{
+  query:'设备',revision:0,base_batch_request_id:null,before:cursor,after:{...cursor,refresh_next:true},page_ids:[],processed_ids:[],has_more:false,comments_scope:'BOUNDED_SAMPLE'}]};
+ const old=recoveryReceipt(batch);expect(()=>parseCandidateReceipt(old,batch)).toThrow();
+ const response={...old,native_progress:structuredClone(batch.native_progress)};
+ expect(parseCandidateReceipt(response,batch).native_progress).toEqual(batch.native_progress);
+ response.native_progress.claim_request_id=id(98);expect(()=>parseCandidateReceipt(response,batch)).toThrow();
+});
 it('binds an immutable receipt with microsecond timestamp to the original batch', () => {
   const batch = recoveryBatch(); const raw = recoveryReceipt(batch);
   expect(parseCandidateReceipt(raw, batch)).toEqual(raw);

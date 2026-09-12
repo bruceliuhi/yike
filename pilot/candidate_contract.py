@@ -265,6 +265,15 @@ class CandidateBatch(_Frozen):
     strategy_version_id: str
     execution: ExecutionContextClaim
     records: tuple[CandidateRecord, ...] = Field(max_length=100)
+    native_progress: object | None = None
+
+    @model_serializer(mode='wrap')
+    def preserve_absent_native_progress(self, handler):
+        value = handler(self)
+        if self.native_progress is None and 'native_progress' not in self.__pydantic_fields_set__:
+            value.pop('native_progress', None)
+        return value
+
     @field_validator("request_id", "profile_version_id", "strategy_version_id")
     @classmethod
     def ids(cls, value): return _opaque(value)
@@ -355,6 +364,16 @@ def validate_candidate_batch(payload: object, *, now: datetime) -> CandidateBatc
             raise CandidateContractError("INVALID_SOURCE_TIME") from None
         records.append(item)
     data=dict(payload); data["execution"]=execution; data["records"]=tuple(records)
+    if "native_progress" in payload:
+        if payload["native_progress"] is None:
+            raise CandidateContractError("INVALID_BATCH") from None
+        if platform != "BILIBILI" or execution.access_mode != "PLATFORM_ACCOUNT":
+            raise CandidateContractError("INVALID_BATCH") from None
+        try:
+            from pilot.native_search_progress import validate_native_batch_progress
+            data["native_progress"] = validate_native_batch_progress(payload["native_progress"])
+        except ValueError:
+            raise CandidateContractError("INVALID_BATCH") from None
     try: parsed=CandidateBatch.model_validate(data)
     except ValidationError: raise CandidateContractError("INVALID_BATCH") from None
     seen={}

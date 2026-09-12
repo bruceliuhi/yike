@@ -10,6 +10,8 @@
 
 本批cursor的含义是“搜索结果条目及其有界评论样本”，**不是完整评论树读取进度**。每条进度明确`comments_scope:BOUNDED_SAMPLE`，旧条目的评论深翻另接，不以搜索页推进宣称评论已穷尽。主帖/评论证据语义、候选条数和FINISH不改变。
 
+预算校验分层：客户端按过滤前源记录数动态分配每query cap，受控host验证`processed_ids <= min(5, cap)`。服务端验证前缀、最多5项、任务预算和CLAIM/head围栏；它看不到被排除的记录，不能以最终上传数量倒推每query cap，也不把设备签名误称独立采集证明。
+
 ## 固定协议
 
 适配器`bili-search-items-v1`；schema `native-search-progress-v1`；仅BILIBILI/PLATFORM_ACCOUNT/已确认monitor/search允许。真实账号仍必须同浏览器校验。无协商、单次和links保持旧路径。
