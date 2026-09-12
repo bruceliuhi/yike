@@ -13,7 +13,7 @@ uv run --frozen --extra research python -m pilot.research_tools --max-reads 5 --
 
 第二条命令启动标准 MCP stdio 服务，供父级研究 Harness 通过 stdin/stdout 使用，终端等待输入是正常状态。不会监听 HTTP 端口，不读取平台 Cookie、Codex 登录态、业务数据库或模型密钥。宿主应使用独立环境启动，不把主服务凭据传给工具进程。
 
-只有 `read_public_page({"url":"https://example.com/"})`：返回实际提取的标题/原文、读取时间、文本SHA256、读取范围 `PUBLIC_PAGE_TEXT` 与 `UNREVIEWED` 标识。读取不是事实核验或需求判断，不自动提取/断言作者和发布日期。工具没有搜索、登录、写库、审批或发送能力。
+默认只有 `read_public_page({"url":"https://example.com/"})`：返回实际提取的标题/原文、读取时间、文本SHA256、读取范围 `PUBLIC_PAGE_TEXT` 与 `UNREVIEWED` 标识。读取不是事实核验或需求判断，不自动提取/断言作者和发布日期。宿主明确启用下述搜索模式后增加搜索工具；两种模式均没有登录、写库、审批或发送能力。
 
 `max-reads`（1–100）与 `max-seconds`（1–1800）由宿主指定，工具参数不能修改。尝试前计数，同URL成功/失败本进程内缓存重放；多个请求串行处理。进程重启后的持久去重和任务预算仍必须接现有账本，不能依靠此缓存结算搜贝。
 
@@ -60,4 +60,46 @@ uv run --frozen --extra dev --extra research pytest -q tests/test_open_web_reade
 
 协议测试使用官方SDK真实会话和stdio子进程；网络替身仅用于可重复的故障/边界测试，不算真实需求。未安装research依赖时协议测试显式跳过。
 
-后台优先接Codex开源Harness与国产模型API，但工具协议不依赖模型品牌。已确认通过的运行与失败记录集中在[本批证据](superpowers/plans/2026-09-12-open-web-research.md#evidence)。后续仍须完成实际搜索工具、Skill多轮研究、现有签名任务/许可/证据事务、客户进度和真实效果验证；不得用本工具取代这些交付。
+后台优先接Codex开源Harness与国产模型API，但工具协议不依赖模型品牌。旧读取工具证据集中在[读取批次](superpowers/plans/2026-09-12-open-web-research.md#evidence)。后续仍须完成 Skill 多轮业务研究、现有签名任务/许可/证据事务、客户进度和真实效果验证；不得用本工具取代这些交付。
+
+### 自主搜索后读取
+
+新增内部 `run_public_research_mission`，参数沿用只读入口并增加宿主内存中的 `search_api_key`、`max_searches`（默认3）。默认最多5次读取、8次模型请求、120秒。模型只能调用 `search_public_web` 和 `read_public_page`，搜索使用固定 Serper 服务；搜索进程通过私有 stdin 接收供应商密钥，MCP 只持有临时本机端口与随机令牌。
+
+```python
+from pilot.codex_research_worker import run_public_research_mission
+
+result = run_public_research_mission(
+    confirmed_public_mission,
+    codex_binary=approved_codex_path,
+    python_binary=research_python_path,
+    api_key=model_secret_from_host,
+    model=approved_model,
+    search_api_key=search_secret_from_host,
+    max_searches=2, max_reads=2, max_requests=6, max_seconds=90,
+    cancelled=host_cancelled,
+)
+```
+
+结果新增 `searches` / `search_failures`，索引摘要、索引日期提示和原文证据分开。搜索模式只允许读取本轮实际命中 URL；同查询缓存不会算新发现。搜索空结果与搜索失败分开；无实际原文不得完成，返回 `no_verified_searches` 或 `no_verified_reads` 等固定错误码。读取边界仍如上，不额外支持跳转、JS或登录。
+
+COMPLETED 仅表示执行器正常结束并取得搜索和原文，不表示近期、匹配、已复核或可联系。任务时效、行业判断、持久许可、客户隔离与证据入库仍需通过产品链路接入。一次真实成功及前次失败集中在[搜索批次证据](superpowers/plans/2026-09-12-public-search-research.md#evidence)，不得把这些旧帖作为新线索推给客户。
+
+## 与原本地 Skill 对照（2026-09-13）
+
+用户明确要求参考效果较好的本地研究方法。本轮完整读取本地 `ai-project-lead-research` 及三份引用、`yike-opportunity-research` 及交接引用；与仓库规则实际 diff，不根据名称推断加载。
+
+仓库 `skills/ai-project-lead-research-v1` 已保存主要本地规则：入口仅增加版本/输入输出约定；搜索覆盖与评估两份引用逐字相同；资格引用仅增加事实/推断分开说明。**不是规则丢失，而是执行链没有完整使用。** `candidate_assessment_model.py` 加载入口与资格规则供候选判断，`codex_research_worker.py` 目前仅生成工具/预算指令，不加载搜索覆盖、评估或任务历史。
+
+| 原方法 | 新通用执行器当前差距 | 接续要求 |
+| --- | --- | --- |
+| 买方业务问题→交付物→寻源动作，使用原文新词 | 有买方/社区偏好，未加载覆盖规则 | 版本化加载研究规则；行业词由确认画像驱动，不限定AI术语 |
+| 主帖、需求评论、失败替换、在手渠道项目四条路径 | 当前只搜索索引及读匿名页面 | 通用工具与专用连接器分工；未展开评论就不报告已覆盖 |
+| 广告多/旧帖多/同作者集中时换假设或入口 | 有界调用但无持久覆盖/损耗记录 | 确切查询、实际独立来源、失败与下一假设进入运行记录；预算不允许时停止并保留下一方向 |
+| 作者原始日期/本人更新、关闭反证和最小联系路径 | 实际原文与摘要分开，但缺业务资格流程 | 沿已确认策略执行时效/采购形态/排除检查；索引时间不是需求时间 |
+| 历史排除、同项目多来源合并、研究等级与操作状态分开 | 新入口无客户历史与持久去重上下文 | 复用现有客户账本，未知不报净新增；有业务行动但缺操作证据留待复核 |
+| 一个原帖细节＋一个容易回答的问题 | 本批没有新草稿流程 | 复用既有短草稿/确认机制，不由通用搜索直接发送 |
+
+移植原则：不直接让服务端读取个人 Skill 目录，不把本地30–60分钟建议覆盖宿主实际预算，不将自用AI画像、旧政府/招标排除项写成全行业硬规则，也不把研究状态 SEND_READY 当用户发送批准。全行业通用判断参考本地 `yike-opportunity-research`；正式采购窗口规则只在对应策略允许且有原始文件时采用。
+
+下一批优先把研究规则与已确认画像/时间/排除反馈接入，而非新增搜索供应商。先做同一证据快照与同一预算的行为对照（旧帖、广告、匿名无预算、有需求评论、已关闭/已联系），再做一次有界真实研究。前后异时真实查询不称因果A/B；工具链成功与销售认可分别统计。原本地 Skill 保持不变，便于对照和直接使用。

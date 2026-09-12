@@ -1,0 +1,484 @@
+from __future__ import annotations
+
+import io
+import json
+import subprocess
+import sys
+import threading
+import time
+from datetime import datetime
+
+import pytest
+
+from pilot import public_search_worker as worker
+from pilot.public_search import PublicSearchSession, normalize_query, valid_search_result
+
+
+def _searched(query="中文 需求", **changes):
+    value = {
+        "status": "SEARCHED",
+        "query": query,
+        "observed_at": "2026-09-12T01:02:03+00:00",
+        "read_scope": "SEARCH_RESULTS",
+        "results": [],
+        "omitted_count": 0,
+        "replayed": False,
+    }
+    value.update(changes)
+    return value
+
+
+def _install_worker_http(monkeypatch, payload, *, status=200, content_length=None):
+    body = json.dumps(payload, ensure_ascii=False).encode()
+    seen = {}
+
+    class Response:
+        def __init__(self):
+            self.status = status
+
+        def getheader(self, name):
+            if name.lower() == "content-length":
+                return str(len(body) if content_length is None else content_length)
+            return None
+
+        def read(self, amount):
+            seen["read_amount"] = amount
+            return body
+
+    class Connection:
+        def __init__(self, host, port, timeout, context):
+            seen["connection"] = (host, port, timeout, context is not None)
+
+        def request(self, method, path, body, headers):
+            seen["request"] = (method, path, body, headers)
+
+        def getresponse(self):
+            return Response()
+
+        def close(self):
+            seen["closed"] = True
+
+    monkeypatch.setattr(worker.http.client, "HTTPSConnection", Connection)
+    return seen
+
+
+def test_normalize_query_contract():
+    assert normalize_query(" 中文 \t  需求 \n") == "中文 需求"
+    for value in ("", "   ", "x" * 513, "ok\x00bad", "bad\ud800query", 123):
+        with pytest.raises(ValueError) as error:
+            normalize_query(value)  # type: ignore[arg-type]
+        assert str(error.value) == "invalid_query"
+
+
+def test_non_utf8_query_is_rejected_before_spawning(monkeypatch):
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: pytest.fail("must not spawn"))
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=1,
+                                  deadline=time.monotonic() + 30)
+    assert session.search("bad\ud800query") == {
+        "status": "FAILED", "code": "invalid_query", "replayed": False,
+    }
+
+
+def test_worker_posts_fixed_request_and_normalizes_deduplicates_and_caps(monkeypatch):
+    organic = [
+        {"link": "https://Example.com:443/a#frag", "title": " A   title ", "snippet": " S  text ", "date": " yesterday ", "position": 7},
+        {"link": "https://example.com/a", "title": "duplicate", "position": 2},
+        {"link": "http://unsafe.example/", "title": "unsafe"},
+    ] + [{"link": f"https://example.com/{index}", "position": 0} for index in range(20)]
+    seen = _install_worker_http(monkeypatch, {"organic": organic})
+    result = worker.search_request({"query": "中文 需求", "api_key": "SECRET", "timeout_seconds": 4})
+
+    assert seen["connection"][:3] == ("google.serper.dev", 443, 4)
+    method, path, body, headers = seen["request"]
+    assert (method, path) == ("POST", "/search")
+    assert isinstance(body, bytes)
+    assert json.loads(body) == {"q": "中文 需求", "num": 10, "hl": "zh-cn"}
+    assert headers["X-API-KEY"] == "SECRET"
+    assert len(result["results"]) == 10
+    assert result["results"][0] == {"url": "https://example.com/a", "title": "A title", "snippet": "S text", "date_hint": "yesterday", "rank": 7}
+    assert result["results"][1]["rank"] == 4
+    assert result["omitted_count"] == len(organic) - 10
+    assert result["read_scope"] == "SEARCH_RESULTS"
+    assert datetime.fromisoformat(result["observed_at"]).utcoffset() is not None
+    assert "SECRET" not in json.dumps(result)
+
+
+def test_worker_nullable_hints_and_empty_organic(monkeypatch):
+    _install_worker_http(monkeypatch, {"organic": [{"link": "https://example.com/"}]})
+    item = worker.search_request({"query": "q", "api_key": "k", "timeout_seconds": 2})["results"][0]
+    assert item == {"url": "https://example.com/", "title": None, "snippet": None, "date_hint": None, "rank": 1}
+
+    _install_worker_http(monkeypatch, {"organic": []})
+    assert worker.search_request({"query": "q", "api_key": "k", "timeout_seconds": 2})["results"] == []
+
+
+def test_worker_excludes_reader_incompatible_or_credential_urls(monkeypatch):
+    _install_worker_http(monkeypatch, {"organic": [
+        {"link": "https://example.com/?access_token=secret"},
+        {"link": "https://example.com/" + "x" * 2049},
+        {"link": "https://safe.example/ok"},
+    ]})
+    result = worker.search_request({"query": "q", "api_key": "k", "timeout_seconds": 2})
+    assert [item["url"] for item in result["results"]] == ["https://safe.example/ok"]
+    assert result["omitted_count"] == 2
+
+
+@pytest.mark.parametrize("payload", [{}, {"organic": None}, {"organic": {}}, {"organic": ["bad"]}])
+def test_worker_malformed_organic_is_not_an_empty_search(monkeypatch, payload):
+    _install_worker_http(monkeypatch, payload)
+    with pytest.raises(worker.WorkerError) as error:
+        worker.search_request({"query": "q", "api_key": "k", "timeout_seconds": 2})
+    assert error.value.code == "invalid_search_result"
+
+
+@pytest.mark.parametrize("status,code", [(401, "auth_failed"), (403, "auth_failed"), (429, "rate_limited"), (500, "unavailable")])
+def test_worker_maps_http_status_without_provider_data(monkeypatch, status, code):
+    _install_worker_http(monkeypatch, {"error": "SECRET provider detail"}, status=status)
+    with pytest.raises(worker.WorkerError) as error:
+        worker.search_request({"query": "q", "api_key": "k", "timeout_seconds": 2})
+    assert error.value.code == code and "provider" not in str(error.value)
+
+
+def test_valid_search_result_enforces_exact_schema_and_bounded_fields():
+    item = {"url": "https://example.com/", "title": None, "snippet": None, "date_hint": None, "rank": 1}
+    assert valid_search_result(_searched(results=[item]), "中文 需求")
+    invalid = [
+        _searched(extra=True),
+        _searched(query="other"),
+        _searched(read_scope="READ"),
+        _searched(observed_at="2026-09-12T01:02:03"),
+        _searched(results=[item | {"title": "x" * 1001}]),
+        _searched(results=[item | {"snippet": "x" * 2001}]),
+        _searched(results=[item | {"date_hint": "x" * 201}]),
+        _searched(results=[item | {"rank": 0}]),
+        _searched(results=[item] * 11),
+        _searched(omitted_count=-1),
+    ]
+    assert all(not valid_search_result(value, "中文 需求") for value in invalid)
+    assert valid_search_result({"status": "FAILED", "code": "timeout", "replayed": False}, "中文 需求")
+    assert not valid_search_result({"status": "FAILED", "code": "secret provider error", "replayed": False}, "中文 需求")
+    assert not valid_search_result({"status": "FAILED", "code": [], "replayed": False}, "中文 需求")
+
+
+def test_session_caches_canonical_query_and_fixed_failures(monkeypatch):
+    calls = []
+
+    class Process:
+        returncode = 0
+
+        def communicate(self, data, timeout):
+            request = json.loads(data)
+            calls.append(request)
+            return json.dumps({"ok": False, "code": "rate_limited"}), ""
+
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: Process())
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=2, deadline=time.monotonic() + 30)
+    first = session.search(" 中文   需求 ")
+    second = session.search("中文 需求")
+    assert first == {"status": "FAILED", "code": "rate_limited", "replayed": False}
+    assert second == {"status": "FAILED", "code": "rate_limited", "replayed": True}
+    assert len(calls) == 1
+
+
+def test_session_success_process_contract_and_key_only_on_stdin(monkeypatch):
+    seen = {}
+
+    class Process:
+        returncode = 0
+
+        def communicate(self, data, timeout):
+            seen["stdin"] = json.loads(data)
+            return json.dumps({"ok": True, "result": _searched()}), ""
+
+    def popen(argv, **kwargs):
+        seen["argv"] = argv
+        seen["kwargs"] = kwargs
+        return Process()
+
+    monkeypatch.setattr(subprocess, "Popen", popen)
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=1, deadline=time.monotonic() + 30)
+    result = session.search(" 中文   需求 ")
+    assert result["query"] == "中文 需求" and result["replayed"] is False
+    assert seen["argv"][1] == "-I" and "synthetic-key" not in " ".join(seen["argv"])
+    assert seen["kwargs"]["env"] == {} and seen["kwargs"]["stderr"] is subprocess.DEVNULL
+    assert seen["stdin"]["api_key"] == "synthetic-key"
+
+
+def test_parent_rejects_non_exact_or_key_echoing_worker_output(monkeypatch):
+    outputs = iter([
+        {"ok": False, "code": "auth_failed", "detail": "synthetic-key"},
+        {"ok": True, "result": _searched(results=[{
+            "url": "https://user:synthetic-key@example.com/", "title": None,
+            "snippet": None, "date_hint": None, "rank": 1,
+        }])},
+    ])
+
+    class Process:
+        returncode = 0
+
+        def communicate(self, data, timeout):
+            return json.dumps(next(outputs)), ""
+
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: Process())
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=2, deadline=time.monotonic() + 30)
+    for query in ("one", "two"):
+        result = session.search(query)
+        assert result == {"status": "FAILED", "code": "invalid_search_result", "replayed": False}
+        assert "synthetic-key" not in json.dumps(result)
+
+
+def test_parent_rejects_nonzero_exit_non_boolean_ok_and_secret_in_query_or_result(monkeypatch):
+    replies = iter([
+        (1, {"ok": True, "result": _searched(query="exit")}),
+        (0, {"ok": 1, "result": _searched(query="scalar")}),
+        (0, {"ok": True, "result": _searched(query="provider", results=[{
+            "url": "https://example.com/", "title": "contains synthetic-key",
+            "snippet": None, "date_hint": None, "rank": 1,
+        }])}),
+    ])
+
+    class Process:
+        def __init__(self):
+            self.returncode = 0
+
+        def communicate(self, data, timeout):
+            self.returncode, response = next(replies)
+            return json.dumps(response), ""
+
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: Process())
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=4, deadline=time.monotonic() + 30)
+    assert session.search("do not expose synthetic-key") == {"status": "FAILED", "code": "invalid_query", "replayed": False}
+    assert session.search("exit")["code"] == "unavailable"
+    assert session.search("scalar")["code"] == "invalid_search_result"
+    assert session.search("provider")["code"] == "invalid_search_result"
+
+
+def test_cached_nested_results_are_not_mutable_by_callers(monkeypatch):
+    item = {"url": "https://example.com/", "title": "original", "snippet": None, "date_hint": None, "rank": 1}
+
+    class Process:
+        returncode = 0
+
+        def communicate(self, data, timeout):
+            return json.dumps({"ok": True, "result": _searched(query="q", results=[item])}), ""
+
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: Process())
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=1, deadline=time.monotonic() + 30)
+    first = session.search("q")
+    first["results"][0]["title"] = "mutated"
+    assert session.search("q")["results"][0]["title"] == "original"
+
+
+def test_different_queries_are_serialized(monkeypatch):
+    active = 0
+    maximum = 0
+    guard = threading.Lock()
+    release = threading.Event()
+    both_created = threading.Event()
+    created = 0
+
+    class Process:
+        returncode = 0
+
+        def communicate(self, data, timeout):
+            nonlocal active, maximum
+            query = json.loads(data)["query"]
+            with guard:
+                active += 1
+                maximum = max(maximum, active)
+            release.wait(0.1)
+            with guard:
+                active -= 1
+            return json.dumps({"ok": True, "result": _searched(query=query)}), ""
+
+    def popen(*args, **kwargs):
+        nonlocal created
+        created += 1
+        if created == 2:
+            both_created.set()
+        return Process()
+
+    monkeypatch.setattr(subprocess, "Popen", popen)
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=2, deadline=time.monotonic() + 30)
+    threads = [threading.Thread(target=session.search, args=(query,)) for query in ("one", "two")]
+    for thread in threads:
+        thread.start()
+    time.sleep(0.03)
+    release.set()
+    for thread in threads:
+        thread.join(2)
+    assert maximum == 1
+
+
+def test_close_or_deadline_rejects_late_worker_success(monkeypatch):
+    entered = threading.Event()
+    release = threading.Event()
+
+    class Process:
+        returncode = 0
+
+        def communicate(self, data, timeout):
+            entered.set()
+            release.wait(1)
+            return json.dumps({"ok": True, "result": _searched(query="q")}), ""
+
+        def kill(self):
+            pass
+
+        def wait(self):
+            self.returncode = -9
+
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: Process())
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=1, deadline=time.monotonic() + 30)
+    output = []
+    thread = threading.Thread(target=lambda: output.append(session.search("q")))
+    thread.start()
+    assert entered.wait(1)
+    session.close()
+    release.set()
+    thread.join(2)
+    assert output == [{"status": "FAILED", "code": "closed", "replayed": False}]
+
+
+def test_deadline_rejects_late_worker_success(monkeypatch):
+    class Process:
+        returncode = 0
+
+        def communicate(self, data, timeout):
+            time.sleep(0.02)
+            return json.dumps({"ok": True, "result": _searched(query="q")}), ""
+
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: Process())
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=1, deadline=time.monotonic() + 0.01)
+    assert session.search("q") == {"status": "FAILED", "code": "deadline_exceeded", "replayed": False}
+
+
+def test_search_limit_deadline_and_close_are_strict_failures(monkeypatch):
+    class Process:
+        returncode = 0
+
+        def communicate(self, data, timeout):
+            query = json.loads(data)["query"]
+            return json.dumps({"ok": True, "result": _searched(query=query)}), ""
+
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: Process())
+    session = PublicSearchSession(api_key="k", max_searches=1, deadline=time.monotonic() + 30)
+    assert session.search("one")["status"] == "SEARCHED"
+    assert session.search("two") == {"status": "FAILED", "code": "search_limit_reached", "replayed": False}
+    session.close()
+    session.close()
+    assert session.search("three") == {"status": "FAILED", "code": "closed", "replayed": False}
+    expired = PublicSearchSession(api_key="k", max_searches=1, deadline=time.monotonic() - 1)
+    assert expired.search("q") == {"status": "FAILED", "code": "deadline_exceeded", "replayed": False}
+
+
+def test_concurrent_same_query_consumes_one_attempt(monkeypatch):
+    calls = 0
+    entered = threading.Event()
+    release = threading.Event()
+
+    class Process:
+        returncode = 0
+
+        def communicate(self, data, timeout):
+            nonlocal calls
+            calls += 1
+            entered.set()
+            assert release.wait(2)
+            return json.dumps({"ok": True, "result": _searched(query="same")}), ""
+
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: Process())
+    session = PublicSearchSession(api_key="k", max_searches=1, deadline=time.monotonic() + 30)
+    results = []
+    threads = [threading.Thread(target=lambda: results.append(session.search("same"))) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    assert entered.wait(2)
+    release.set()
+    for thread in threads:
+        thread.join(2)
+    assert calls == 1
+    assert sorted(value["replayed"] for value in results) == [False, True]
+
+
+def test_close_prevents_spawn_race_and_reaps_real_child(monkeypatch):
+    real_popen = subprocess.Popen
+    spawned = threading.Event()
+    release = threading.Event()
+    children = []
+
+    def barrier_popen(*args, **kwargs):
+        child = real_popen([sys.executable, "-c", "import time; time.sleep(30)"])
+        children.append(child)
+        spawned.set()
+        assert release.wait(2)
+        return child
+
+    monkeypatch.setattr(subprocess, "Popen", barrier_popen)
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=2, deadline=time.monotonic() + 5)
+    result = []
+    search_thread = threading.Thread(target=lambda: result.append(session.search("q")))
+    search_thread.start()
+    assert spawned.wait(2)
+    close_thread = threading.Thread(target=session.close)
+    close_thread.start()
+    time.sleep(0.05)
+    assert close_thread.is_alive()
+    release.set()
+    search_thread.join(3)
+    close_thread.join(3)
+    try:
+        assert children[0].poll() is not None
+        assert session.search("new") == {"status": "FAILED", "code": "closed", "replayed": False}
+    finally:
+        if children[0].poll() is None:
+            children[0].kill()
+            children[0].wait()
+
+
+def test_real_fixture_process_timeout_is_killed_and_reaped(monkeypatch):
+    real_popen = subprocess.Popen
+    children = []
+
+    def sleeping_process(*args, **kwargs):
+        child = real_popen([sys.executable, "-c", "import time; time.sleep(30)"],
+                           stdin=kwargs["stdin"], stdout=kwargs["stdout"],
+                           stderr=kwargs["stderr"], text=kwargs["text"], env=kwargs["env"])
+        children.append(child)
+        return child
+
+    monkeypatch.setattr(subprocess, "Popen", sleeping_process)
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=1, deadline=time.monotonic() + 0.05)
+    assert session.search("q") == {"status": "FAILED", "code": "timeout", "replayed": False}
+    assert children[0].poll() is not None
+
+
+def test_real_fixture_process_communicate_error_is_killed_and_reaped(monkeypatch):
+    real_popen = subprocess.Popen
+    children = []
+
+    def broken_communicate_process(*args, **kwargs):
+        child = real_popen([sys.executable, "-c", "import time; time.sleep(30)"],
+                           stdin=kwargs["stdin"], stdout=kwargs["stdout"],
+                           stderr=kwargs["stderr"], text=kwargs["text"], env=kwargs["env"])
+        children.append(child)
+
+        def fail_communicate(*_args, **_kwargs):
+            raise UnicodeEncodeError("utf-8", "\ud800", 0, 1, "surrogate")
+
+        child.communicate = fail_communicate
+        return child
+
+    monkeypatch.setattr(subprocess, "Popen", broken_communicate_process)
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=1,
+                                  deadline=time.monotonic() + 30)
+    try:
+        assert session.search("encodable query") == {
+            "status": "FAILED", "code": "unavailable", "replayed": False,
+        }
+        assert children[0].poll() is not None
+        assert not session._active
+    finally:
+        if children and children[0].poll() is None:
+            children[0].kill()
+            children[0].wait()
