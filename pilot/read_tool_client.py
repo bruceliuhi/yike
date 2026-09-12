@@ -1,7 +1,8 @@
 """Strict MCP-to-host client for the literal-loopback public-read route."""
 import json
 import threading
-from datetime import datetime, timedelta, timezone
+import time
+from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
 import httpx
@@ -26,26 +27,30 @@ class ReadToolClient:
         self._url,self._token=url,token
 
     def read(self,url,*,deadline):
+        cutoff = None
         try:
             normalized=normalize_public_url(url)
             if not isinstance(deadline,datetime) or deadline.tzinfo is None or deadline.utcoffset() is None:
                 raise PublicReadError("invalid_url")
-            remaining=(deadline.astimezone(timezone.utc)-datetime.now(timezone.utc)).total_seconds()
+            wall_now = datetime.now(timezone.utc)
+            remaining=(deadline.astimezone(timezone.utc)-wall_now).total_seconds()
             if remaining<=0: raise PublicReadError("timeout")
             timeout=min(21.0,remaining)
-            expires_at = min(
-                deadline.astimezone(timezone.utc),
-                datetime.now(timezone.utc) + timedelta(seconds=timeout),
-            )
+            cutoff = time.monotonic() + timeout
 
             def reject_if_expired():
-                if datetime.now(timezone.utc) >= expires_at:
+                if time.monotonic() >= cutoff:
                     raise PublicReadError("timeout")
 
             with httpx.Client(timeout=timeout,trust_env=False,follow_redirects=False) as client:
-                timer=threading.Timer(timeout,client.close); timer.daemon=True; timer.start()
+                reject_if_expired()
+                request_timeout = cutoff - time.monotonic()
+                if request_timeout <= 0:
+                    raise PublicReadError("timeout")
+                timer=threading.Timer(request_timeout,client.close); timer.daemon=True; timer.start()
                 try:
-                    with client.stream("POST",self._url,headers={"Authorization":"Bearer "+self._token},json={"url":normalized}) as response:
+                    reject_if_expired()
+                    with client.stream("POST",self._url,headers={"Authorization":"Bearer "+self._token},json={"url":normalized},timeout=request_timeout) as response:
                         if response.status_code!=200: raise PublicReadError("unavailable")
                         chunks=[]; size=0
                         for chunk in response.iter_bytes():
@@ -66,4 +71,7 @@ class ReadToolClient:
             reject_if_expired()
             return value["evidence"]
         except PublicReadError: raise
-        except Exception: raise PublicReadError("unavailable") from None
+        except Exception:
+            if cutoff is not None and time.monotonic() >= cutoff:
+                raise PublicReadError("timeout") from None
+            raise PublicReadError("unavailable") from None
