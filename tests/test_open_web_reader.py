@@ -14,7 +14,10 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from pilot import open_web_reader_worker as worker
-from pilot.open_web_reader import PublicReadError, normalize_public_url, read_public_page
+from pilot.open_web_reader import (
+    PublicPageReader, PublicReadError, normalize_public_url, read_public_page,
+    valid_page_evidence,
+)
 
 
 class FakeSocket:
@@ -160,13 +163,50 @@ def test_body_and_decoded_text_bounds(monkeypatch, payload):
 @pytest.mark.parametrize("payload", [
     response(b"\xff", "text/plain; charset=utf-8"),
     response(b"hello", "text/plain; charset=latin-1"),
-    response(b"%PDF", "application/pdf"),
 ])
 def test_invalid_utf8_charset_and_content_are_unsupported(monkeypatch, payload):
     install_transport(monkeypatch, payload)
     with pytest.raises(worker.WorkerError) as error:
         worker.read_request({"url": "https://example.com/", "timeout_seconds": 2})
     assert error.value.code == "unsupported_content"
+
+
+@pytest.mark.parametrize("status,mime,code", [
+    ("404 Not Found", "text/html", "not_found"),
+    ("410 Gone", "text/html", "not_found"),
+    ("401 Unauthorized", "text/html", "access_restricted"),
+    ("403 Forbidden", "text/html", "access_restricted"),
+    ("429 Too Many Requests", "text/html", "rate_limited"),
+    ("200 OK", "application/pdf", "unsupported_media_type"),
+])
+def test_precise_http_and_mime_failures(monkeypatch, status, mime, code):
+    install_transport(monkeypatch, response(b"body", mime, status))
+    with pytest.raises(worker.WorkerError) as error:
+        worker.read_request({"url": "https://example.com/", "timeout_seconds": 2})
+    assert error.value.code == code
+
+
+@pytest.mark.parametrize('mime',[None,'','; charset=utf-8','not-a-media-type',
+                               'application//pdf','application/pdf garbage','*/pdf'])
+def test_missing_or_malformed_mime_is_hard_failure(monkeypatch,mime):
+    payload=(b'HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nbody'
+             if mime is None else response(b'body',mime))
+    install_transport(monkeypatch,payload)
+    with pytest.raises(worker.WorkerError) as error:
+        worker.read_request({'url':'https://example.com/','timeout_seconds':2})
+    assert error.value.code=='unsupported_content'
+
+
+@pytest.mark.parametrize("code", ["not_found", "unsupported_media_type", "access_restricted", "rate_limited"])
+def test_parent_preserves_precise_worker_errors(monkeypatch, code):
+    class Process:
+        returncode = 0
+        def communicate(self, data, timeout):
+            return json.dumps({"ok": False, "code": code}), ""
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: Process())
+    with pytest.raises(PublicReadError) as error:
+        read_public_page("https://example.com/", deadline=datetime.now(timezone.utc)+timedelta(seconds=2))
+    assert error.value.code == code
 
 
 def test_parent_requires_aware_deadline():
@@ -314,3 +354,35 @@ def test_cancel_reaps_already_registered_real_harmless_child(monkeypatch):
         if child.poll() is None:
             child.kill()
             child.wait()
+
+
+def test_valid_page_evidence_enforces_exact_nonempty_evidence():
+    value = {"url": "https://example.com/", "title": None, "text": "ok", "observed_at": "2026-09-12T01:02:03+00:00", "content_sha256": hashlib.sha256(b"ok").hexdigest(), "read_scope": "PUBLIC_PAGE_TEXT"}
+    assert valid_page_evidence(value, value["url"])
+    assert not valid_page_evidence(value | {"text": " "}, value["url"])
+    assert not valid_page_evidence(value | {"extra": True}, value["url"])
+
+
+def test_page_reader_close_isolated_from_other_and_legacy_scopes(monkeypatch):
+    import pilot.open_web_reader as module
+    created = []
+
+    class Process:
+        returncode = 0
+        def communicate(self, data, timeout):
+            result = {"url": json.loads(data)["url"], "title": None, "text": "ok", "observed_at": "2026-09-12T01:02:03Z", "content_sha256": hashlib.sha256(b"ok").hexdigest(), "read_scope": "PUBLIC_PAGE_TEXT"}
+            return json.dumps({"ok": True, "result": result}), ""
+
+    def popen(*args, **kwargs):
+        process = Process(); created.append(process); return process
+
+    monkeypatch.setattr(subprocess, "Popen", popen)
+    monkeypatch.setattr(module, "_READS_STOPPED", False)
+    first, second = PublicPageReader(), PublicPageReader()
+    first.close(); first.close()
+    with pytest.raises(PublicReadError) as error:
+        first.read("https://example.com/", deadline=datetime.now(timezone.utc) + timedelta(seconds=2))
+    assert error.value.code == "timeout"
+    assert second.read("https://example.com/", deadline=datetime.now(timezone.utc) + timedelta(seconds=2))["text"] == "ok"
+    assert read_public_page("https://example.com/", deadline=datetime.now(timezone.utc) + timedelta(seconds=2))["text"] == "ok"
+    assert len(created) == 2

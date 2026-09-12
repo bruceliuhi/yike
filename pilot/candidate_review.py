@@ -18,6 +18,8 @@ from pilot.opportunity_evidence import build_evidence, canonical_json, evidence_
 from pilot.store import PilotStore
 from pilot.research_strategy_contract import IndustryTaskStrategy
 from pilot.candidate_model_usage import CandidateModelUsageStore, validated_usage
+from pilot.candidate_demand_evidence import (current_evidence, evidence_date, project_content,
+    validate_evidence, snapshot_basis, same_evidence, evidence_binding, same_snapshot)
 
 
 def _hash(value):
@@ -62,6 +64,10 @@ def _model_content(kind, body):
 
 
 class CandidateReviewStore(CandidateIngestionStore):
+    _projection_sql = CandidateIngestionStore._projection_sql.replace(
+        'v.content\n', 'v.content,o.collector_version,o.normalizer_version\n') + '''
+        JOIN pilot_candidate_observations o ON o.tenant_id=p.tenant_id
+            AND o.owner_user_id=p.owner_user_id AND o.observation_id=p.current_observation_id'''
     def __init__(self, database, *, model=None, strategy_resolver=None,
                  strategy_snapshot_reader=None, max_daily_calls=20,
                  research_assessment=None):
@@ -77,6 +83,13 @@ class CandidateReviewStore(CandidateIngestionStore):
     def _request(self, cursor, tenant, user, request_id):
         cursor.execute('SELECT * FROM pilot_candidate_review_requests WHERE tenant_id=%s AND owner_user_id=%s AND request_id=%s', (tenant,user,request_id))
         return _row(cursor)
+
+    def _verification(self, cursor, tenant, user, bound):
+        cursor.execute('''SELECT receipt FROM pilot_candidate_source_verifications
+            WHERE tenant_id=%s AND owner_user_id=%s AND binding_hash=%s
+            ORDER BY checked_at DESC,verification_id DESC LIMIT 1''', (tenant,user,_hash(bound)))
+        row = cursor.fetchone()
+        return row[0] if row else None
 
     def _result(self, cursor, row):
         # Aliases always point to an invocation, never another alias.
@@ -171,6 +184,12 @@ class CandidateReviewStore(CandidateIngestionStore):
         self._active(cursor,claims)
         captured = dict(binding=current, raw=raw, description=profile.get('description'), content=content,
                         strategy=stored_strategy, strategyHash=stored_hash)
+        latest, now = self._verification(cursor,tenant,claims.user_id,current), _now(cursor)
+        verification = current_evidence(raw,latest,now)
+        captured['content'] = project_content(content,raw,verification)
+        captured.update(evidence_binding(raw,latest,now))
+        if verification:
+            captured['demandVerification'] = verification
         if type(stored_strategy.get('configuration', {}).get('research')) is dict:
             if type(execution_context) is not dict or execution_context.get('kind') != 'research-resource-v1':
                 raise CandidateReviewError('candidate_conflict',409)
@@ -195,15 +214,13 @@ class CandidateReviewStore(CandidateIngestionStore):
             with self.database.connect() as connection, connection.cursor() as cursor:
                 tenant = self._active(cursor, claims)
                 current = self._capture(cursor, tenant, claims, request, require_material_references=True)
-                keys = ('binding','description','content','strategy') + (('research',) if 'research' in snapshot else ())
-                if any(current[key] != snapshot[key] for key in keys):
+                if not same_snapshot(current,snapshot):
                     raise CandidateReviewError('candidate_conflict',409)
                 self._active(cursor, claims)
                 if 'research' not in snapshot:
                     return self.model_usage.dispatch(cursor, tenant_id=tenant,
                         owner_user_id=claims.user_id, request_id=request.requestId,
-                        snapshot_key=_hash({key:snapshot[key] for key in
-                            ('binding','description','content','strategy','model')}))
+                        snapshot_key=_hash(snapshot_basis(snapshot)))
         except CandidateReviewError:
             if not mark_failed:
                 raise
@@ -248,11 +265,16 @@ class CandidateReviewStore(CandidateIngestionStore):
             snapshot = self._capture(cursor,tenant,claims,request,require_material_references=True)
             if expected_research is not None and 'research' not in snapshot:
                 raise CandidateReviewError('candidate_conflict',409)
-            if 'research' in snapshot:
-                if (self.research_assessment is None or expected_research is None
+            if expected_research is not None:
+                if (self.research_assessment is None
                         or not _research_matches(snapshot['research'], expected_research)):
                     raise CandidateReviewError('capability_unavailable' if self.research_assessment is None
                                                else 'candidate_conflict', 501 if self.research_assessment is None else 409)
+            elif 'research' in snapshot:
+                # Explicit authenticated human analysis of frozen, visible evidence.
+                # Keep provenance, but do not revive a finished research run or permit.
+                snapshot['humanResearchAssessment'] = True
+                snapshot['sourceResearch'] = snapshot.pop('research')
             try:
                 validate_assessment_input(description=snapshot['description'],content=snapshot['content'])
                 metadata = {name:getattr(model,name) for name in ('provider','model','rule_version','rule_sha256')}
@@ -263,13 +285,13 @@ class CandidateReviewStore(CandidateIngestionStore):
                     raw_industry_strategy).model_dump(mode='json')
                 if industry_strategy is not None and getattr(model,'industry_strategy_version',None)!=industry_strategy['version']:
                     raise ValueError
-                if 'research' in snapshot and not callable(getattr(model,'assess_before',None)):
+                if expected_research is not None and not callable(getattr(model,'assess_before',None)):
                     raise ValueError
             except (AssessmentModelError,AttributeError,ValidationError,TypeError,ValueError):
                 raise CandidateReviewError('assessment_unavailable',503) from None
             snapshot['model'] = metadata
             # Same-content observations do not change the snapshot cache key.
-            snapshot_key = _hash({key:snapshot[key] for key in ('binding','description','content','strategy','model')})
+            snapshot_key = _hash(snapshot_basis(snapshot))
             _lock(cursor,11302,[tenant,claims.user_id,snapshot_key])
             cursor.execute('''SELECT * FROM pilot_candidate_review_requests WHERE tenant_id=%s AND owner_user_id=%s
                 AND snapshot_key=%s AND attempt>0 ORDER BY attempt DESC LIMIT 1''', (tenant,claims.user_id,snapshot_key))
@@ -314,7 +336,7 @@ class CandidateReviewStore(CandidateIngestionStore):
             kwargs = dict(description=snapshot['description'],content=deepcopy(snapshot['content']))
             if industry_strategy is not None:
                 kwargs['industry_strategy'] = deepcopy(industry_strategy)
-            if 'research' in snapshot:
+            if expected_research is not None:
                 value, usage = self.research_assessment.assess(
                     claims, request, snapshot, model, review_deadline=review_deadline,
                     before_dispatch=lambda: self._prepare_assessment_dispatch(
@@ -337,8 +359,7 @@ class CandidateReviewStore(CandidateIngestionStore):
                 tenant = self._active(cursor,claims)
                 _lock(cursor,11301,[tenant,claims.user_id,request.requestId])
                 current = self._capture(cursor,tenant,claims,request,require_material_references=True)
-                keys = ('binding','description','content','strategy') + (('research',) if 'research' in snapshot else ())
-                if any(current[key]!=snapshot[key] for key in keys):
+                if not same_snapshot(current,snapshot):
                     raise CandidateReviewError('candidate_conflict',409)
                 row = self._request(cursor,tenant,claims.user_id,request.requestId)
                 if row['status']!='PROCESSING': return self._result(cursor,row)
@@ -352,6 +373,8 @@ class CandidateReviewStore(CandidateIngestionStore):
                         **snapshot['model'],strategyVersionId=snapshot['strategy']['strategy_version_id'],
                         effectiveDecision='REVIEW' if content['decision']=='SEND_READY' else content['decision'],
                         sendingAuthorized=False)
+                    if snapshot.get('demandVerification'):
+                        assessed['demandEvidenceId'] = snapshot['demandEvidenceBinding']['id']
                     cursor.execute('INSERT INTO pilot_candidate_assessments(tenant_id,owner_user_id,assessment_id,request_id,binding_hash,content) VALUES(%s,%s,%s,%s,%s,%s::jsonb)',
                                    (tenant,claims.user_id,assessed['id'],request.requestId,_hash(snapshot['binding']),_json(assessed)))
                     result = dict(kind='assessment',requestId=request.requestId,candidateId=request.candidateId,assessment=assessed)
@@ -377,10 +400,14 @@ class CandidateReviewStore(CandidateIngestionStore):
             if request.status=='OPEN' and not any(request.excerpt in (text or '') for text in source_texts):
                 raise CandidateReviewError('source_excerpt_mismatch',422)
             now = _now(cursor)
+            demand = request.demandEvidence.model_dump() if request.demandEvidence is not None else None
+            if demand is not None:
+                validate_evidence(snapshot['raw'],demand,request.status,now)
             receipt = dict(kind='sourceVerification',id=str(uuid4()),requestId=request.requestId,candidateId=request.candidateId,
                 status=request.status,method='HUMAN_REOPENED',checkedBy=claims.user_id,checkedAt=now.isoformat(),
                 openingMethod=request.openingMethod,locator=request.locator,excerpt=request.excerpt,
                 contactMethod=request.contactMethod,binding=snapshot['binding'])
+            if demand is not None: receipt['demandEvidence'] = demand
             self._insert_request(cursor,tenant,claims,request,payload,snapshot,receipt,action='VERIFY_SOURCE',now=now)
             cursor.execute('INSERT INTO pilot_candidate_source_verifications(tenant_id,owner_user_id,verification_id,request_id,binding_hash,checked_at,receipt) VALUES(%s,%s,%s,%s,%s,%s,%s::jsonb)',
                 (tenant,claims.user_id,receipt['id'],request.requestId,_hash(snapshot['binding']),now,_json(receipt)))
@@ -403,7 +430,7 @@ class CandidateReviewStore(CandidateIngestionStore):
                 assessment_row = cursor.fetchone()
                 if not assessment_row: raise CandidateReviewError('assessment_conflict',409)
                 assessed, original = assessment_row
-                if any(original[key]!=snapshot[key] for key in ('description','content','strategy')):
+                if not same_evidence(original,snapshot) or any(original[key]!=snapshot[key] for key in ('description','content','strategy')):
                     raise CandidateReviewError('assessment_conflict',409)
                 now, opportunity = _now(cursor), None
                 if request.action=='INCLUDE':
@@ -414,15 +441,17 @@ class CandidateReviewStore(CandidateIngestionStore):
                             or now-check[1]>timedelta(hours=24) or check[1]>now):
                         raise CandidateReviewError('source_verification_required',409)
                     published = snapshot['raw']['content']['published_at']
-                    if published is None: raise CandidateReviewError('source_date_unknown',409)
-                    published = datetime.fromisoformat(published.replace('Z','+00:00'))
+                    demand = (snapshot.get('demandVerification') or {}).get('demandEvidence')
+                    if published is None and demand is None: raise CandidateReviewError('source_date_unknown',409)
+                    published = (evidence_date(demand) if published is None else
+                        datetime.fromisoformat(published.replace('Z','+00:00')))
                     if not timedelta(0)<=now-published<=timedelta(days=60): raise CandidateReviewError('source_expired',409)
                     raw, words = snapshot['raw'], request.evidence.model_dump()
                     source = raw['content']
                     data = dict(source_platform=raw['platform'],source_external_id='candidate:'+raw['source_identity'],
                         public_url=source['public_url'],source_published_at=published,title=source['title'] or source['body'][:120],
-                        buyer=source['author_public_id'] or '',summary=assessed['summary'],contact_path=check[2]['contactMethod'],
-                        public_excerpt=source['body'],match_reason=words['matchReason'],action_signal=words['actionSignal'],
+                        buyer=demand['authorLocator'] if demand else source['author_public_id'] or '',summary=assessed['summary'],contact_path=check[2]['contactMethod'],
+                        public_excerpt=demand['demandExcerpt'] if demand else source['body'],match_reason=words['matchReason'],action_signal=words['actionSignal'],
                         value_judgment=words['value'],risk=words['risk']+'\n待确认：'+words['unknowns'],
                         reviewed_by=claims.user_id,reviewed_at=now,draft_comment=assessed['draftComment'],draft_dm=assessed['draftDm'])
                     opportunity = PilotStore(self.database)._import_opportunity(connection,tenant,request.profileId,
@@ -450,7 +479,8 @@ class CandidateReviewStore(CandidateIngestionStore):
                         'candidateRevision','sourceVersionId','profileId','profileVersion','assessmentId','evidence','reason')})
                 receipt['review']['sourceVerificationId'] = request.sourceVerificationId
                 if opportunity: receipt['opportunityId']=opportunity['opportunity_id']
-                candidate = self._candidate(snapshot,assessed=assessed,receipt=receipt)
+                candidate = self._candidate(snapshot,assessed=assessed,receipt=receipt,
+                    verification=snapshot.get('demandVerification'))
                 result = dict(kind='decision',requestId=request.requestId,candidate=candidate,receipt=receipt)
                 self._insert_request(cursor,tenant,claims,request,payload,snapshot,result,action=request.action,now=now)
                 cursor.execute('INSERT INTO pilot_candidate_reviews(tenant_id,owner_user_id,request_id,binding_hash,assessment_id,verification_id,opportunity_id,result) VALUES(%s,%s,%s,%s,%s,%s,%s,%s::jsonb)',
@@ -600,15 +630,19 @@ class CandidateReviewStore(CandidateIngestionStore):
                     original = next((r for r in requests if r['request_id']==review_request_id and r['action'] in ('INCLUDE','EXCLUDE')),None)
                     if original is None: continue
                     candidate = dict(original['result']['candidate'])
-                    historical_valid = valid and original in matching
+                    current_binding = evidence_binding(raw,self._verification(cursor,tenant,claims.user_id,b),now)
+                    historical_valid = valid and original in matching and same_evidence(original['snapshot'],current_binding)
                     candidate.update(historical=True,currentBindingValid=historical_valid,
                                      assessmentStale=not historical_valid)
                 else:
-                    assessment_request = next((r for r in matching if r['action']=='ASSESS'),None) if valid and material_valid else None
                     review = next((r for r in matching if r['action'] in ('INCLUDE','EXCLUDE')),None) if valid else None
-                    check = next((r for r in matching if r['action']=='VERIFY_SOURCE'),None) if valid else None
-                    verification = check['result'] if check else None
-                    if verification and now-datetime.fromisoformat(verification['checkedAt'])>timedelta(hours=24):
+                    verification = self._verification(cursor,tenant,claims.user_id,b) if valid else None
+                    evidence = current_evidence(raw,verification,now)
+                    current_binding = evidence_binding(raw,verification,now)
+                    assessment_request = next((r for r in matching if r['action']=='ASSESS'
+                        and same_evidence(r['snapshot'],current_binding)
+                        and r['snapshot']['content']==project_content(_model_content(raw['kind'],raw['content']),raw,evidence)),None) if valid and material_valid else None
+                    if verification and not timedelta(0)<=now-datetime.fromisoformat(verification['checkedAt'])<=timedelta(hours=24):
                         verification=verification | {'status':'EXPIRED'}
                     candidate = self._candidate(snapshot,assessed=assessment_request['result']['assessment'] if assessment_request else None,
                         receipt=review['result']['receipt'] if review else None,verification=verification,valid=valid)

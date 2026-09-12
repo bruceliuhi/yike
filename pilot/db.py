@@ -53,6 +53,10 @@ class PilotDatabase:
         ("v02-temporary-access", migration_path.with_name("138_v02_temporary_access.sql")),
         ("v02-candidate-model-usage", migration_path.with_name("139_v02_candidate_model_usage.sql")),
         ("v02-native-search-progress", migration_path.with_name("140_v02_native_search_progress.sql")),
+        ("v02-customer-research-context", migration_path.with_name("141_v02_customer_research_context.sql")),
+        ("v02-research-effect-journal", migration_path.with_name("142_v02_research_effect_journal.sql")),
+        ("v02-known-read-outcomes", migration_path.with_name("143_v02_known_read_outcomes.sql")),
+        ("v02-research-page-selection", migration_path.with_name("144_v02_research_page_selection.sql")),
     )
 
     def __init__(self, url: str):

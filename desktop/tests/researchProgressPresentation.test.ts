@@ -28,6 +28,16 @@ it('distinguishes zero, positive, and unconfirmed completed originals',()=>{
   expect(unknown.nextStep).toContain('查询原研究状态');
 });
 
+it('distinguishes pages read from selected candidates without declaring all pages background',()=>{
+  const input=value({contractVersion:4,phase:'COMPLETED',acceptedOriginals:0,
+    discovery:{searches:{...counts,issued:1,succeeded:1},reads:{...counts,issued:3,succeeded:3},unpublishedOriginals:3}});
+  const shown=researchProgressPresentation(input);
+  expect(shown.explanation).toBe('已读取 3 篇公开页面，本轮没有选入待分析候选；不代表没有市场需求。');
+  expect(shown.explanation).not.toContain('全部为背景');
+  expect(researchProgressPresentation({...input,discovery:{...input.discovery!,reads:{...counts}}}).explanation)
+    .toBe('本轮没有取得可供分析的原文，不代表没有市场需求。');
+});
+
 it.each([
   ['effect_unknown','已有请求的结果尚未核实。'],['assessment_unknown','已有请求的结果尚未核实。'],
   ['effect_failed','本轮读取或分析未完成。'],['assessment_failed','本轮读取或分析未完成。'],
@@ -36,6 +46,7 @@ it.each([
   ['lease_conflict','执行状态发生变化，请查询原任务。'],['future_code','研究已停止，请查看执行明细。'],
   ['constructor','研究已停止，请查看执行明细。'],['toString','研究已停止，请查看执行明细。'],
   ['__proto__','研究已停止，请查看执行明细。'],
+  ['research_selection_invalid','已读取的原文保留，但逐页筛选未完成；不能据此判断没有机会。'],
 ] as const)('maps stop code %s without exposing the code',(stopCode,explanation)=>{
   const shown=researchProgressPresentation(value({phase:'STOPPED',stopCode,newActionsBlocked:true,canAdvance:false}));
   expect(shown.explanation).toBe(explanation);

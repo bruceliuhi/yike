@@ -102,7 +102,7 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
   const data = parsed.data as Record<string, string> | undefined;
   switch (operation) {
     case 'researchUsage.quote': return {path:'/api/ui/research-usage/quote',method:'POST',body:JSON.stringify(parsed.data),logout:false};
-    case 'researchRuntime.capability':return {path:'/api/ui/research-execution/capability'+(data?.sourcePlanVersion?'?source_plan_version=1':data?.sourceCatalogVersion?'?source_catalog_version=1':''),method:'GET',logout:false};
+    case 'researchRuntime.capability':return {path:'/api/ui/research-execution/capability'+(data?.dynamicResearchVersion?'?dynamic_research_version=1':data?.sourcePlanVersion?'?source_plan_version=1':data?.sourceCatalogVersion?'?source_catalog_version=1':''),method:'GET',logout:false};
     case 'researchRuntime.status':return {path:`/api/ui/research-execution/tasks/${data!.taskId}`,method:'GET',logout:false};
     case 'researchRuntime.advance':return {path:`/api/ui/research-execution/tasks/${data!.taskId}/advance`,method:'POST',
       body:JSON.stringify({runId:data!.runId}),logout:false,timeoutMs:75_000};
@@ -147,14 +147,15 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
       for (const [key,value] of Object.entries(parsed.data as CandidateQueryInput)) {
         if (value !== undefined) params.set(key,Array.isArray(value)?value.join(','):String(value));
       }
+      params.set('evidenceVersion','1');
       const query = params.toString();
       return {path:'/api/ui/candidates'+(query?'?'+query:''),method:'GET',logout:false};
     }
-    case 'candidates.review': return {path:'/api/ui/candidate-reviews',method:'POST',body:JSON.stringify(data),logout:false,
+    case 'candidates.review': return {path:'/api/ui/candidate-reviews?evidenceVersion=1',method:'POST',body:JSON.stringify(data),logout:false,
       ...(data!.action === 'ASSESS' ? {timeoutMs:75_000 as const} : {})};
     case 'candidates.rawEvidence': return {path:`/api/ui/raw-candidates/${encodeURIComponent(data!.candidateId)}`,method:'GET',logout:false};
-    case 'candidates.verifySource': return {path:'/api/ui/candidate-source-verifications',method:'POST',body:JSON.stringify(data),logout:false};
-    case 'candidates.request': return {path:`/api/ui/candidate-review-requests/${encodeURIComponent(data!.requestId)}`,method:'GET',logout:false};
+    case 'candidates.verifySource': return {path:'/api/ui/candidate-source-verifications?evidenceVersion=1',method:'POST',body:JSON.stringify(data),logout:false};
+    case 'candidates.request': return {path:`/api/ui/candidate-review-requests/${encodeURIComponent(data!.requestId)}?evidenceVersion=1`,method:'GET',logout:false};
     case 'strategies.prepare': return {path: '/api/ui/research-strategies/prepare', method: 'POST', body: JSON.stringify(data), logout: false};
     case 'strategies.confirm': return {path: '/api/ui/research-strategies/confirm', method: 'POST', body: JSON.stringify(data), logout: false};
     case 'strategies.revoke': return {path: '/api/ui/research-strategies/revoke', method: 'POST', body: JSON.stringify(data), logout: false};
@@ -171,7 +172,7 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
     case 'profiles.save': return {path: '/api/ui/profiles', method: 'POST', body: JSON.stringify(data), logout: false};
     case 'profiles.confirm': return {path: `/api/ui/profiles/${encodeURIComponent(data!.version_id)}/confirm`, method: 'POST', logout: false};
     case 'opportunities.list': return {path: '/api/ui/opportunities', method: 'GET', logout: false};
-    case 'opportunities.get': return {path: `/api/ui/opportunities/${encodeURIComponent(data!.id)}`, method: 'GET', logout: false};
+    case 'opportunities.get': return {path: `/api/ui/opportunities/${encodeURIComponent(data!.id)}?evidenceVersion=1`, method: 'GET', logout: false};
     case 'followups.list': return {path: '/api/ui/followups', method: 'GET', logout: false};
     case 'followups.add': return {path: '/api/ui/followups', method: 'POST', body: JSON.stringify(data), logout: false};
     case 'capabilities.get': return {path: '/api/ui/capabilities', method: 'GET', logout: false};

@@ -9,6 +9,7 @@ import pytest
 from pilot.candidate_ingestion import CandidateIngestionStore
 from pilot.candidate_review import CandidateReviewStore
 from pilot.candidate_review_contract import CandidateReviewError
+from pilot.execution_contract import ExecutionRuntimeError
 from pilot.research_assessment import ResearchAssessmentRunner
 from pilot.research_candidates import ResearchCandidateStore
 from tests.test_candidate_assessment_model import CONTENT, assessment
@@ -72,12 +73,12 @@ class BoundedModel:
         return assessment(), {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}
 
 
-def _source(env):
+def _source(env, *, identity=17):
     execution, _ = started(env)
     resources = resource_store(env)
     receipt = ResearchCandidateStore(resources).read_public(
         env.claims, task_id=execution["task_id"], run_id=execution["run_id"],
-        action_id=str(uuid4()), fetcher=lambda _deadline: [topic(
+        action_id=str(uuid4()), fetcher=lambda _deadline: [topic(identity=identity,
             title=CONTENT["title"], content=CONTENT["body"], created=1_700_000_000)]
     )["receipt"]
     item = receipt["items"][0]
@@ -209,3 +210,30 @@ def test_resource_block_never_invokes_model(real_strategy_env, blocked):
     result = _review(env, model, ResearchAssessmentRunner(resources)).assess_research(
         env.claims, review_payload(binding), **origin)
     assert result["status"] == "UNKNOWN" and model.calls == 0
+
+
+def test_host_admission_is_rechecked_after_permit_before_model_dispatch(real_strategy_env):
+    env = real_strategy_env
+    resources, execution, binding, origin = _source(env, identity=uuid4().int % 1_000_000_000)
+    model = BoundedModel()
+    model.model = "bounded-predispatch-" + str(uuid4())
+    admissions = []
+
+    def admission(_cursor, _tenant, event):
+        admissions.append(event.get("status", "PRE_ISSUE"))
+        if len(admissions) == 2:
+            raise ExecutionRuntimeError("runtime_shutdown", 503)
+        return True
+
+    result = _review(env, model, ResearchAssessmentRunner(resources)).assess_research(
+        env.claims, review_payload(binding), **origin, _admission=admission
+    )
+    assert result["status"] == "UNKNOWN"
+    assert admissions == ["PRE_ISSUE", "ISSUED"]
+    assert model.calls == 0
+    with env.admin.connect() as connection:
+        assert connection.execute(
+            "SELECT status FROM pilot_research_resource_events WHERE tenant_id=%s "
+            "AND task_id=%s AND resource='MODEL_CALL'",
+            (env.tenant, execution["task_id"]),
+        ).fetchall() == [("UNKNOWN",)]

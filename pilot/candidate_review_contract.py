@@ -1,5 +1,7 @@
 """Strict P07 inputs; actor, clock and strategy are never caller fields."""
 from typing import Annotated, Literal
+from datetime import date
+import re
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, AfterValidator
 from pilot.candidate_ingestion import CandidateIngestionError, _id
 
@@ -26,6 +28,20 @@ Text = Annotated[str, Field(min_length=1,max_length=2000), AfterValidator(_text)
 
 class Strict(BaseModel):
     model_config = ConfigDict(strict=True, extra='forbid', frozen=True)
+
+def _day(value):
+    if not re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}', value):
+        raise ValueError('calendar date required')
+    date.fromisoformat(value)
+    return value
+
+class DemandEvidence(Strict):
+    schemaVersion: Literal['human-demand-evidence-v1']
+    authorLocator: Annotated[str, Field(min_length=1,max_length=256), AfterValidator(_text)]
+    authorExcerpt: Text
+    demandExcerpt: Text
+    publishedDate: Annotated[str, AfterValidator(_day)]
+    dateExcerpt: Text
 
 class Binding(Strict):
     candidateId: UUIDText
@@ -63,6 +79,7 @@ class Verification(Binding):
     locator: Text
     excerpt: Text
     contactMethod: Literal['COMMENT','DM','PUBLIC_CONTACT','NONE']
+    demandEvidence: DemandEvidence | None = None
 
 def validate_payload(value, *, verification=False):
     try:
@@ -70,6 +87,8 @@ def validate_payload(value, *, verification=False):
             raise ValueError
         cls = Verification if verification else Assess if value.get('action')=='ASSESS' else Decision
         result = cls.model_validate(value)
+        if isinstance(result,Verification) and 'demandEvidence' in value and result.demandEvidence is None:
+            raise ValueError
         if isinstance(result,Decision):
             result.reason.encode('utf-8')
             if '\x00' in result.reason or (result.action=='EXCLUDE' and not result.reason.strip()):

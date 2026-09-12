@@ -24,6 +24,7 @@
   gap: 0.75rem;
 }
 .candidate-source-verification select,
+.candidate-source-verification input[type="date"],
 .candidate-source-verification textarea {
   width: 100%;
   min-width: 0;

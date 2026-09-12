@@ -29,6 +29,25 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
     return parse(await service.researchRuntime.status(taskId,signal));
   }
   const data=useResource(read,[scope.identity,service]);
+  const dynamic=data.data?.contractVersion===4;
+  // Observation only: never retry advance when a job already owns the server lease.
+  useEffect(()=>{
+    if(!dynamic||data.data?.phase!=='RUNNING')return;
+    const abort=new AbortController();let timer:ReturnType<typeof setTimeout>;
+    async function poll(){
+      try{
+        const next=await boundedRequest(read,{signal:abort.signal,timeoutMessage:'研究状态查询超时。'});
+        if(abort.signal.aborted||!scope.current())return;
+        data.setData(next);
+        if(['COMPLETED','CANCELED'].includes(next.phase))callback.current?.();
+        if(next.phase==='RUNNING')timer=setTimeout(poll,2000);
+      }catch{
+        if(!abort.signal.aborted&&scope.current())setMessage('自动查询暂时中断，请查询原研究状态；不会重新启动任务。');
+      }
+    }
+    timer=setTimeout(poll,2000);
+    return ()=>{abort.abort();clearTimeout(timer);};
+  },[dynamic,data.data?.phase,scope.identity,service]);
   useEffect(()=>{controller.current=null;setBusy(false);setMessage('');
     return ()=>{controller.current?.abort();};},[scope.identity]);
   async function run() {
@@ -39,6 +58,15 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
       let value=await boundedRequest(read,{signal:abort.signal,timeoutMessage:'研究状态未核实。'});
       if(!current())return;
       data.setData(value);
+      if(value.contractVersion===4){
+        if(value.canAdvance&&!value.newActionsBlocked){
+          value=parse(await boundedRequest(signal=>service.researchRuntime!.advance(taskId,runId,signal),{
+            signal:abort.signal,timeoutMessage:'研究启动回执尚未核实。'}));
+          if(current())data.setData(value);
+        }
+        if(current()&&['COMPLETED','CANCELED'].includes(value.phase))callback.current?.();
+        return;
+      }
       // At most three sources plus 100 original analyses; no background/infinite retry loop.
       const maxSteps=100+(value.sourceProgress?.length??1);
       for(let step=0;step<maxSteps && value.canAdvance && !value.newActionsBlocked;step++){
@@ -71,6 +99,10 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
       <p>{value.sourceLabel}</p>
       <h3>{presentation!.title}</h3>
       <p>{presentation!.explanation}</p>
+      {value.discovery&&<>
+        <p>搜索完成：{value.discovery.searches.succeeded} · 原文读取完成：{value.discovery.reads.succeeded} · 未入候选原文：{value.discovery.unpublishedOriginals}</p>
+        <p className="muted">搜索摘要不计原文；超长、超出上限或尚待入库的原文不计候选。需要登录或展开评论的来源需另行授权补查。</p>
+      </>}
       {value.sourceProgress&&<table aria-label="逐来源研究进度">
         <thead><tr><th>来源</th><th>状态</th><th>入库 / 配额</th></tr></thead>
         <tbody>{value.sourceProgress.map(row=><tr key={row.sourceId}>
@@ -99,11 +131,11 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
     {message && <Notice tone="warning">{message}</Notice>}
     <div className="task-footer">
       <Button variant="primary" disabled={busy || data.loading || !!data.error || !value?.canAdvance || value.newActionsBlocked}
-        onClick={()=>void run()}>继续研究</Button>
-      <Button disabled={!busy} onClick={()=>{controller.current?.abort();setMessage('已停止本页后续推进，已发出的请求仍需查询结果。');}}>停止本页推进</Button>
+        onClick={()=>void run()}>{dynamic?'开始研究':'继续研究'}</Button>
+      {!dynamic&&<Button disabled={!busy} onClick={()=>{controller.current?.abort();setMessage('已停止本页后续推进，已发出的请求仍需查询结果。');}}>停止本页推进</Button>}
       <Button disabled={busy||data.loading} onClick={()=>void data.reload()}>查询原研究状态</Button>
       <Button onClick={()=>navigate(`/candidates?task=${taskId}`)}>查看原文与分析</Button>
     </div>
-    <p className="field-hint">点击继续后按已确认上限逐步处理；离开页面停止后续推进。取消整个任务请使用下方取消按钮。</p>
+    <p className="field-hint">{dynamic?'离开页面不会停止服务端研究；页面仅查询进度。取消整个任务请使用下方取消按钮。':'点击继续后按已确认上限逐步处理；离开页面停止后续推进。取消整个任务请使用下方取消按钮。'}</p>
   </section>;
 }

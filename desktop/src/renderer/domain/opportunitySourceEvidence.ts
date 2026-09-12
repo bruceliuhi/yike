@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {authorUpdateBodySchema} from '../../shared/publicAuthorContext';
+import {humanDemandEvidenceSchema} from '../../shared/candidateReviewApi';
 
 const FIXED_ERROR = "INVALID_OPPORTUNITY_SOURCE_EVIDENCE";
 const MAX_RESPONSE_BYTES = 2_097_152;
@@ -108,12 +109,13 @@ const sourceSchema = z
     published_at: timestamp.nullable(),
     parent: parentSchema.nullable(),
     author_updates:z.array(authorUpdateBodySchema).max(100).refine(v=>v.reduce((n,t)=>n+Array.from(t).length,0)<=20000).optional(),
-    source_read_scope:z.enum(['AUTHOR_REPLIES_COUNT_MATCHED_SUPPLEMENTS_UNREAD','AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD']).optional(),
+    source_read_scope:z.enum(['AUTHOR_REPLIES_COUNT_MATCHED_SUPPLEMENTS_UNREAD','AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD','HUMAN_CONFIRMED_EXCERPT']).optional(),
   })
   .strict()
   .superRefine((source, context) => {
     if((source.author_updates===undefined)!==(source.source_read_scope===undefined)||source.author_updates!==undefined&&
-       (source.kind!=='PAGE'||source.platform!=='PUBLIC_WEB'||source.author_public_id===null||source.external_source_id===null))context.addIssue({code:'custom'});
+       (source.kind!=='PAGE'||source.platform!=='PUBLIC_WEB'||
+         source.source_read_scope!=='HUMAN_CONFIRMED_EXCERPT'&&(source.author_public_id===null||source.external_source_id===null)))context.addIssue({code:'custom'});
     if (source.kind === "COMMENT") {
       if (source.external_comment_id === null || source.title !== null)
         context.addIssue({ code: "custom" });
@@ -175,6 +177,9 @@ const verificationSchema = z
     checked_at: timestamp,
     opening_method: z.enum(["DIRECT", "IN_PLATFORM"]),
     contact_method: z.enum(["COMMENT", "DM", "PUBLIC_CONTACT"]),
+    demandEvidence: humanDemandEvidenceSchema.optional(),
+    demandEvidenceId: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/).optional(),
+    checkedBy: text.refine(v => Array.from(v).length <= 256 && v.trim() === v && !/[\x00-\x1f]/.test(v)).optional(),
   })
   .strict();
 
@@ -208,7 +213,16 @@ const snapshotSchema = z
   })
   .strict()
   .superRefine((snapshot, context) => {
+    const human = snapshot.source.source_read_scope === 'HUMAN_CONFIRMED_EXCERPT';
+    const proof = snapshot.verification.demandEvidence;
+    if (human !== (proof !== undefined) || human !== (snapshot.verification.demandEvidenceId !== undefined) ||
+        human !== (snapshot.verification.checkedBy !== undefined)) context.addIssue({code:'custom'});
+    if (proof && (snapshot.source.author_updates?.length !== 1 || snapshot.source.author_updates[0] !== proof.demandExcerpt ||
+        [proof.authorExcerpt,proof.demandExcerpt,proof.dateExcerpt].some(quote =>
+          ![snapshot.source.title ?? '',snapshot.source.body].some(value => value.includes(quote))))) context.addIssue({code:'custom'});
     for (const [index, citation] of snapshot.assessment.citations.entries()) {
+      // The server assessment requires personal evidence for non-UNKNOWN intent.
+      // This flattened snapshot omits levels and may also cite exact background.
       const addressed = citationText(snapshot.source, citation.field);
       if (addressed === null || !addressed.includes(citation.quote))
         context.addIssue({

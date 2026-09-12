@@ -40,6 +40,30 @@ def research_source(source_id):
         kind, source_id, scope, label, version, node)
 
 
+def research_entry_hints() -> str:
+    """Render advisory public entries from the closed source catalog."""
+    entries = [f"- {source_id}: {public_url}" for source_id, public_url in
+               zip(SOURCE_IDS, research_public_entry_urls(), strict=True)]
+    return "\n".join((
+        "## 仓库来源入口提示（仅供有权限的研究选择）",
+        "仅在客户行业与技术社区匹配时考虑以下入口；这些示例不代表穷尽来源，也不授予页面读取或证据资格：",
+        *entries,
+        "latest/recent 最新主题混有广告和非买方内容，必须核对真实需求主体与行动信号。",
+        "qna 是问题讨论，不得据此假定存在付费意愿。",
+        "outsourcing 可含报价或项目需求，但必须核对作者身份、原文时间、当前状态和合作条款。",
+        "节点页不同于标签页；不得把 tag/外包 与 go/outsourcing 的覆盖范围混为一谈。",
+        "目录仅是建议；只有出现在实际宿主 active JSON 列表中的精确 URL 才可直接读取。未提供 active 列表时，页面须由搜索结果或成功读页链接发现；猜测链接不获得权限。",
+        "遇到登录要求、访问限制或风控时不得登录或重试，应如实记录覆盖缺口。",
+    ))
+
+
+def research_public_entry_urls() -> tuple[str, ...]:
+    """Return the public HTML entry corresponding to each closed catalog source."""
+    return tuple("https://www.v2ex.com/recent" if research_source(source_id).node is None else
+                 "https://www.v2ex.com/go/" + research_source(source_id).node
+                 for source_id in SOURCE_IDS)
+
+
 def source_from_snapshot(snapshot):
     from pilot.research_runtime_config import public_research_snapshot
     if not public_research_snapshot(snapshot):

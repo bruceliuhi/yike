@@ -42,10 +42,20 @@ function mount(
     verified?: boolean;
     assessmentUnknown?: boolean;
     wrongStrategy?: boolean;
+    dynamic?: boolean;
   } = {},
 ) {
   vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-09-10T03:00:00Z"));
   const raw = rawEvidenceFixture();
+  if (options.dynamic) {
+    Object.assign(raw.candidate, {kind:"PAGE",external_source_id:null,external_comment_id:null});
+    const content = { ...raw.candidate.current_version, parent:null,author_public_id:null,
+      body:"TEST采购人 2026年9月10日 需要设备报价" };
+    raw.candidate.current_version = content;
+    const {version_id:_id,content_version:_version,...stored} = content;
+    Object.assign(raw.observations.items[0], {content:stored,
+      normalizer_version:"dynamic-public-read-v1",collector_version:"public-web-agent-v1"});
+  }
   if (options.published) {
     raw.candidate.current_version.published_at = "2026-09-09T01:00:00Z";
     raw.observations.items[0].content.published_at =
@@ -85,7 +95,7 @@ function mount(
         return raw;
       }
       if (operation === "candidates.request")
-        return receipts.get(decodeURIComponent(_path.split("/").pop()!));
+        return receipts.get(decodeURIComponent(_path.split("?")[0].split("/").pop()!));
       expect(
         localStorage.getItem(
           "yike.ui.operation.v1.candidate-request-operations.TEST-live-user",
@@ -100,6 +110,7 @@ function mount(
           locator: input.locator,
           excerpt: input.excerpt,
           contactMethod: input.contactMethod,
+          ...(input.demandEvidence ? {demandEvidence: input.demandEvidence} : {}),
         };
         receipts.set(input.requestId, result);
         Object.assign(row, {
@@ -128,6 +139,7 @@ function mount(
           candidateId: row.id,
           assessment: {
             ...assessmentFixture(),
+            ...(row.sourceVerification?.demandEvidence ? {demandEvidenceId:row.sourceVerification.id} : {}),
             ...(options.wrongStrategy
               ? { strategyVersionId: "99999999-9999-4999-8999-999999999999" }
               : {}),
@@ -327,6 +339,27 @@ it("a valid OPEN verification does not invent an unknown original publication da
       .disabled,
   ).toBe(true);
   expect(document.body.textContent).toContain("本人发布时间未知");
+});
+
+it("dynamic page proof enables inclusion only after an explicit new assessment", async () => {
+  const {transport} = mount({assessed:true,dynamic:true});
+  await ready();
+  const form = screen.getByRole("region", {name:"人工来源核验"});
+  fireEvent.change(within(form).getByLabelText("来源状态"),{target:{value:"OPEN"}});
+  fireEvent.click(await within(form).findByRole("checkbox",{name:"确认需求发言人和时间"}));
+  for (const [name,value] of Object.entries({"定位描述":"原网页TEST第2楼", "原文逐字摘录":"需要设备报价",
+    "需求作者定位":"TEST第2楼", "原文作者标记":"TEST采购人", "本人需求摘录":"需要设备报价",
+    "需求日期":"2026-09-10", "原文时间表示":"2026年9月10日", "联系路径":"COMMENT"})) {
+    fireEvent.change(within(form).getByLabelText(name),{target:{value}});
+  }
+  fireEvent.click(within(form).getByRole("checkbox",{name:/我已亲自核对/}));
+  fireEvent.click(within(form).getByRole("button",{name:"保存来源核验"}));
+  await within(form).findByText("当前版本核验记录");
+  expect((screen.getByRole("button",{name:"确认入库"}) as HTMLButtonElement).disabled).toBe(true);
+  expect(transport.mock.calls.filter(c=>c[3]?.action==='ASSESS')).toHaveLength(0);
+  fireEvent.click(screen.getByRole("button",{name:"按画像重新判断"}));
+  await waitFor(()=>expect((screen.getByRole("button",{name:"确认入库"}) as HTMLButtonElement).disabled).toBe(false));
+  expect(transport.mock.calls.filter(c=>c[3]?.action==='ASSESS')).toHaveLength(1);
 });
 
 it("recovers a lost decision outside the current filter using only the original GET", async () => {

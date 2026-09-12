@@ -258,7 +258,7 @@ describe("real client transport boundaries", () => {
     vi.stubGlobal("fetch", request);
     await service.opportunity("o1");
     expect(request).toHaveBeenCalledWith(
-      "/api/ui/opportunities/o1",
+      "/api/ui/opportunities/o1?evidenceVersion=1",
       expect.objectContaining({
         method: "GET",
         body: undefined,
@@ -346,7 +346,7 @@ describe("fixed original evidence in the ordinary opportunity client", () => {
     } }), { headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetcher);
     await service.opportunity("TEST-o", controller.signal);
-    expect(fetcher).toHaveBeenCalledWith("/api/ui/opportunities/TEST-o", expect.objectContaining({
+    expect(fetcher).toHaveBeenCalledWith("/api/ui/opportunities/TEST-o?evidenceVersion=1", expect.objectContaining({
       signal: controller.signal, method: "GET", body: undefined,
     }));
   });

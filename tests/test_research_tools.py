@@ -54,6 +54,23 @@ def test_protocol_read_unknown_domains_and_replay():
     run(scenario())
 
 
+def test_seeded_exact_entry_can_read_before_search_but_nearby_url_cannot():
+    calls = []
+    entry = 'https://www.v2ex.com/go/outsourcing'
+    def reader(url, **_):
+        calls.append(url)
+        return page(url)
+    async def scenario():
+        async with create_connected_server_and_client_session(build(
+                reader=reader, searcher=lambda query: None, entry_urls=[entry])) as session:
+            accepted = await session.call_tool('read_public_page', {'url':entry})
+            denied = await session.call_tool('read_public_page', {'url':entry + '/nearby'})
+            assert accepted.structuredContent['status'] == 'READ'
+            assert denied.structuredContent['code'] == 'invalid_url'
+            assert calls == [entry]
+    run(scenario())
+
+
 @pytest.mark.parametrize('arguments', [
     {}, {'url':8}, {'url':'https://public.example/', 'max_reads':100},
     {'url':'https://localhost/'}, {'url':'https://public.example/?api_key=PRIVATE'},
@@ -221,6 +238,25 @@ def test_serve_timeout_cancels_active_reader(monkeypatch):
     monkeypatch.setattr(module, 'cancel_active_reads', lambda: events.append('cancel'))
     run(module._serve(Server(), max_seconds=0.01))
     assert events == ['cancel']
+
+
+@pytest.mark.parametrize('environment',[
+    {'YIKE_PUBLIC_READ_URL':'http://127.0.0.1:4321/v1/public-read'},
+    {'YIKE_PUBLIC_READ_TOKEN':'synthetic-token'},
+    {'YIKE_PUBLIC_READ_URL':'https://external.example/read','YIKE_PUBLIC_READ_TOKEN':'synthetic-token'},
+    {'YIKE_PUBLIC_ENTRY_URLS':'['},
+    {'YIKE_PUBLIC_ENTRY_URLS':'["https://www.v2ex.com/recent"]'},
+])
+def test_invalid_host_read_configuration_never_falls_back(monkeypatch,environment):
+    import pilot.research_tools as module
+    for key in ('YIKE_PUBLIC_SEARCH_URL','YIKE_PUBLIC_SEARCH_TOKEN','YIKE_PUBLIC_READ_URL',
+                'YIKE_PUBLIC_READ_TOKEN','YIKE_PUBLIC_ENTRY_URLS'):
+        monkeypatch.delenv(key,raising=False)
+    for key,value in environment.items(): monkeypatch.setenv(key,value)
+    monkeypatch.setattr(sys,'argv',['research_tools','--max-reads','1','--max-seconds','1'])
+    monkeypatch.setattr(module,'build_server',lambda **_:pytest.fail('must not start local reader'))
+    with pytest.raises(SystemExit) as error: module.main()
+    assert error.value.code==2
 
 
 def test_real_stdio_deadline_does_not_flush_blocked_unread_output_pipe():

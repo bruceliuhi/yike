@@ -208,7 +208,8 @@ export function createCandidateReviewService(
             Array.isArray(value) ? value.join(",") : String(value),
           );
       }
-      const suffix = search.size ? `?${search}` : "";
+      search.set("evidenceVersion", "1");
+      const suffix = `?${search}`;
       return dispatch(
         "candidates.list",
         `/candidates${suffix}`,
@@ -223,7 +224,7 @@ export function createCandidateReviewService(
       const payload = validate(candidateReviewRequestSchema, input);
       return dispatch(
         "candidates.review",
-        "/candidate-reviews",
+        "/candidate-reviews?evidenceVersion=1",
         "POST",
         payload,
         (raw) =>
@@ -239,7 +240,7 @@ export function createCandidateReviewService(
       const payload = validate(sourceVerificationRequestSchema, input);
       return dispatch(
         "candidates.verifySource",
-        "/candidate-source-verifications",
+        "/candidate-source-verifications?evidenceVersion=1",
         "POST",
         payload,
         (raw) => {
@@ -258,7 +259,7 @@ export function createCandidateReviewService(
       const context = recoveryExpectation(requestId, expected);
       return dispatch(
         "candidates.request",
-        `/candidate-review-requests/${encodeURIComponent(context.requestId)}`,
+        `/candidate-review-requests/${encodeURIComponent(context.requestId)}?evidenceVersion=1`,
         "GET",
         { requestId: context.requestId },
         (raw) => parseCandidateReviewResult(raw, context),

@@ -23,7 +23,7 @@ describe("candidate review service fixed transport boundary", () => {
     const page={...pageFixture(),taskId};
     const request=vi.fn().mockResolvedValue(page),api=createCandidateReviewService(request);
     expect(await api.list({taskId})).toEqual(page);
-    expect(request.mock.calls[0].slice(0,4)).toEqual(['candidates.list',`/candidates?taskId=${taskId}`,'GET',{taskId}]);
+    expect(request.mock.calls[0].slice(0,4)).toEqual(['candidates.list',`/candidates?taskId=${taskId}&evidenceVersion=1`,'GET',{taskId}]);
     for(const bad of [pageFixture(),{...page,taskId:'22222222-2222-4222-8222-222222222222'}]){
       request.mockResolvedValue(bad);await expect(api.list({taskId})).rejects.toThrow();
     }
@@ -62,7 +62,7 @@ describe("candidate review service fixed transport boundary", () => {
     expect(result).toEqual(raw);
     expect(request).toHaveBeenCalledExactlyOnceWith(
       "candidates.list",
-      "/candidates",
+      "/candidates?evidenceVersion=1",
       "GET",
       {},
       undefined,
@@ -99,7 +99,7 @@ describe("candidate review service fixed transport boundary", () => {
       });
       expect(request).toHaveBeenCalledExactlyOnceWith(
         "candidates.list",
-        `/candidates?${search}`,
+        `/candidates?${search}&evidenceVersion=1`,
         "GET",
         payload,
         undefined,
@@ -116,7 +116,7 @@ describe("candidate review service fixed transport boundary", () => {
     });
     expect(request).toHaveBeenCalledExactlyOnceWith(
       "candidates.list",
-      "/candidates",
+      "/candidates?evidenceVersion=1",
       "GET",
       {},
       undefined,
@@ -139,7 +139,7 @@ describe("candidate review service fixed transport boundary", () => {
       raw,
     );
     expect(request.mock.calls[0][1]).toBe(
-      `/candidates?page=1&pageSize=1&ids=${candidateBinding.candidateId}&reviewRequestId=TEST.include%3A1`,
+      `/candidates?page=1&pageSize=1&ids=${candidateBinding.candidateId}&reviewRequestId=TEST.include%3A1&evidenceVersion=1`,
     );
     expect(request.mock.calls[0][3]).toEqual(query);
   });
@@ -157,7 +157,7 @@ describe("candidate review service fixed transport boundary", () => {
     ).toEqual(raw);
     expect(request).toHaveBeenCalledExactlyOnceWith(
       "candidates.review",
-      "/candidate-reviews",
+      "/candidate-reviews?evidenceVersion=1",
       "POST",
       input,
       controller.signal,
@@ -177,7 +177,7 @@ describe("candidate review service fixed transport boundary", () => {
     ).toEqual(raw);
     expect(request).toHaveBeenCalledExactlyOnceWith(
       "candidates.verifySource",
-      "/candidate-source-verifications",
+      "/candidate-source-verifications?evidenceVersion=1",
       "POST",
       input,
       controller.signal,
@@ -206,7 +206,7 @@ describe("candidate review service fixed transport boundary", () => {
     ).toEqual(raw);
     expect(request).toHaveBeenCalledExactlyOnceWith(
       "candidates.request",
-      "/candidate-review-requests/TEST.assess%3A1",
+      "/candidate-review-requests/TEST.assess%3A1?evidenceVersion=1",
       "GET",
       { requestId: input.requestId },
       controller.signal,

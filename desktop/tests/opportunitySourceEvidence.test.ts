@@ -7,6 +7,23 @@ import { capturedEvidenceFixture } from "./fixtures/opportunitySourceEvidence";
 
 const expected = { opportunityId: "TEST-o", profileVersionId: "TEST-p" };
 const fixedError = "INVALID_OPPORTUNITY_SOURCE_EVIDENCE";
+it('preserves human demand provenance without inventing raw author or timestamp',()=>{
+ const raw:any=capturedEvidenceFixture();
+ const proof={schemaVersion:'human-demand-evidence-v1',authorLocator:'TEST第2楼',authorExcerpt:'TEST买方',
+   demandExcerpt:'需要报价',publishedDate:'2026-09-10',dateExcerpt:'2026-09-10'};
+ Object.assign(raw.snapshot.source,{platform:'PUBLIC_WEB',kind:'PAGE',external_source_id:null,external_comment_id:null,
+   container_title:null,parent:null,author_public_id:null,published_at:null,
+   body:'TEST买方 2026-09-10 需要报价',author_updates:[proof.demandExcerpt],source_read_scope:'HUMAN_CONFIRMED_EXCERPT'});
+ Object.assign(raw.snapshot.verification,{demandEvidence:proof,demandEvidenceId:'66666666-6666-4666-8666-666666666666',checkedBy:'TEST-owner'});
+ raw.snapshot.assessment.citations=[{dimension:'intent',field:'source.author_updates.0',quote:'需要报价'}];
+ expect(parseOpportunitySourceEvidence(raw,expected)).toEqual(raw);
+ const missing=structuredClone(raw);delete missing.snapshot.verification.demandEvidence;rejects(missing);
+ const wrong=structuredClone(raw);wrong.snapshot.source.author_updates=['第三方报价'];rejects(wrong);
+ const mixed=structuredClone(raw);
+ mixed.snapshot.assessment.citations.push({dimension:'intent',field:'source.body',quote:'需要报价'});
+ expect(parseOpportunitySourceEvidence(mixed,expected)).toEqual(mixed);
+ const wrongQuote=structuredClone(mixed);wrongQuote.snapshot.assessment.citations[1].quote='伪造背景';rejects(wrongQuote);
+});
 it('preserves author-update citations in a captured opportunity without promoting them to the main body',()=>{
  const raw:any=capturedEvidenceFixture();Object.assign(raw.snapshot.source,{platform:'PUBLIC_WEB',kind:'PAGE',external_comment_id:null,container_title:null,parent:null,author_updates:['请提供作品'],source_read_scope:'AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD'});
  raw.snapshot.assessment.citations=[{dimension:'intent',field:'source.author_updates.0',quote:'提供作品'}];

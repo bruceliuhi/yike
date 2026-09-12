@@ -13,6 +13,7 @@ from pathlib import Path
 
 from pilot.open_web_reader import PublicReadError, normalize_public_url
 from pilot.public_search_worker import _safe_url
+from pilot.research_effects import dispatch_effect
 
 _WORKER = Path(__file__).with_name("public_search_worker.py")
 _MAX_OUTPUT_BYTES = 1024 * 1024
@@ -96,16 +97,20 @@ def _stop(process: subprocess.Popen) -> None:
 
 
 class PublicSearchSession:
-    def __init__(self, *, api_key: str, max_searches: int, deadline: float):
+    def __init__(self, *, api_key: str, max_searches: int, deadline: float,
+                 effect_dispatcher=None):
         if type(api_key) is not str or not api_key or len(api_key) > 8192 or any(ord(c) < 32 or ord(c) == 127 for c in api_key):
             raise ValueError("invalid_api_key")
         if type(max_searches) is not int or not 1 <= max_searches <= 10:
             raise ValueError("invalid_max_searches")
         if type(deadline) not in (int, float) or not math.isfinite(deadline) or deadline - time.monotonic() > 1800:
             raise ValueError("invalid_deadline")
+        if effect_dispatcher is not None and not callable(effect_dispatcher):
+            raise ValueError("invalid_effect_dispatcher")
         self._api_key = api_key
         self._max_searches = max_searches
         self._deadline = float(deadline)
+        self._effect_dispatcher = effect_dispatcher
         self._condition = threading.Condition()
         self._operation_lock = threading.Lock()
         self._active_lock = threading.Lock()
@@ -145,15 +150,28 @@ class PublicSearchSession:
             elif time.monotonic() >= self._deadline:
                 result = _failure("deadline_exceeded")
             else:
-                result = self._run(normalized)
+                try:
+                    result = dispatch_effect(
+                        self._effect_dispatcher,
+                        kind="SEARCH",
+                        payload={"query": normalized},
+                        deadline=self._deadline,
+                        perform=lambda effective_deadline: self._run(
+                            normalized, deadline=effective_deadline),
+                    )
+                    if not valid_search_result(result, normalized):
+                        result = _failure("invalid_search_result")
+                except Exception:
+                    result = _failure("unavailable")
         with self._condition:
             self._cache[normalized] = deepcopy(result)
             self._inflight.remove(normalized)
             self._condition.notify_all()
         return deepcopy(result)
 
-    def _run(self, query: str) -> dict:
-        remaining = self._deadline - time.monotonic()
+    def _run(self, query: str, *, deadline: float | None = None) -> dict:
+        effective_deadline = self._deadline if deadline is None else min(self._deadline, deadline)
+        remaining = effective_deadline - time.monotonic()
         if remaining <= 0:
             return _failure("deadline_exceeded")
         timeout = min(20.0, remaining)
@@ -173,7 +191,7 @@ class PublicSearchSession:
                 closed = self._closed
             if closed:
                 return _failure("closed")
-            if time.monotonic() >= self._deadline:
+            if time.monotonic() >= effective_deadline:
                 return _failure("deadline_exceeded")
             if process.returncode != 0:
                 return _failure("unavailable")
@@ -202,6 +220,20 @@ class PublicSearchSession:
                 _stop(process)
                 with self._active_lock:
                     self._active.discard(process)
+
+    def allows_read(self, url: str) -> bool:
+        try:
+            normalized = normalize_public_url(url)
+        except PublicReadError:
+            return False
+        with self._condition:
+            if self._closed:
+                return False
+            return any(
+                value.get("status") == "SEARCHED"
+                and any(item.get("url") == normalized for item in value.get("results", []))
+                for value in self._cache.values()
+            )
 
     def close(self):
         with self._active_lock:

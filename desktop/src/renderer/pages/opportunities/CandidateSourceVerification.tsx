@@ -4,6 +4,7 @@ import {
   type CandidateReviewBinding,
   type CandidateSourceVerificationDto,
   type SourceVerificationRequest,
+  type HumanDemandEvidence,
 } from "../../../shared/candidateReviewApi";
 import { useUnsavedChanges } from "../../app/hooks";
 import { Button, Field, Notice } from "../../components/ui";
@@ -13,6 +14,7 @@ export interface CandidateSourceVerificationProps {
   binding: CandidateReviewBinding;
   verification?: CandidateSourceVerificationDto;
   disabled?: boolean;
+  allowDemandEvidence?: boolean;
   onSubmit: (request: SourceVerificationRequest) => Promise<unknown>;
   onChange?: () => void;
 }
@@ -73,6 +75,7 @@ function VerificationForm({
   binding,
   verification,
   disabled = false,
+  allowDemandEvidence = false,
   onSubmit,
   onChange,
 }: CandidateSourceVerificationProps) {
@@ -84,6 +87,12 @@ function VerificationForm({
     contactMethod: "NONE",
   });
   const [confirmed, setConfirmed] = useState(false);
+  const [includeDemand, setIncludeDemand] = useState(false);
+  const [demand, setDemand] = useState<HumanDemandEvidence>({
+    schemaVersion: "human-demand-evidence-v1", authorLocator: "", authorExcerpt: "",
+    demandExcerpt: "", publishedDate: "", dateExcerpt: "",
+  });
+  const usesDemand = allowDemandEvidence && fields.status === "OPEN" && includeDemand;
   const [edited, setEdited] = useState(false);
   const [submittedId, setSubmittedId] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -116,17 +125,29 @@ function VerificationForm({
     onChange?.();
   }
 
+  function changeDemand(key: keyof HumanDemandEvidence, value: string) {
+    if (disabled || lock.current) return;
+    setDemand(previous => ({ ...previous, [key]: value }));
+    setConfirmed(false);
+    setEdited(true);
+    setSubmittedId(undefined);
+    setError("");
+    onChange?.();
+  }
+
   async function submit() {
     if (disabled || lock.current || !confirmed) return;
     const parsed = sourceVerificationRequestSchema.safeParse({
       ...binding,
       ...fields,
+      ...(usesDemand ? { demandEvidence: demand } : {}),
       requestId: crypto.randomUUID(),
       humanConfirmed: true,
     });
     if (!parsed.success) {
       setError(
-        "请填写有效的定位描述和原文逐字摘录（各不超过 2000 字），并确认当前核验信息。",
+        usesDemand ? "请填写有效的定位描述和逐字摘录（各不超过 2000 字）；补证需填写作者定位（不超过 256 字）及有效需求日期。" :
+          "请填写有效的定位描述和原文逐字摘录（各不超过 2000 字），并确认当前核验信息。",
       );
       return;
     }
@@ -192,7 +213,15 @@ function VerificationForm({
             <dd className="candidate-verification-verbatim">
               {verification.excerpt}
             </dd>
+            {verification.demandEvidence ? <>
+              <dt>人工确认需求作者</dt><dd>{verification.demandEvidence.authorLocator}</dd>
+              <dt>人工确认需求日期（北京时间，日精度）</dt><dd>{verification.demandEvidence.publishedDate}</dd>
+              <dt>本人需求摘录</dt><dd className="candidate-verification-verbatim">{verification.demandEvidence.demandExcerpt}</dd>
+              <dt>原文作者标记</dt><dd>{verification.demandEvidence.authorExcerpt}</dd>
+              <dt>原文时间表示</dt><dd>{verification.demandEvidence.dateExcerpt}</dd>
+            </> : null}
           </dl>
+          {currentReceipt && verification.demandEvidence ? <Notice>已保存人工补证。请按此补证重新判断；系统不会自动发起分析或发送。</Notice> : null}
           {!currentReceipt ? (
             <Notice tone="warning">
               此记录不能用作当前版本核验，请重新核对。
@@ -289,6 +318,29 @@ function VerificationForm({
               onChange={(event) => change("excerpt", event.target.value)}
             />
           </Field>
+          {allowDemandEvidence && fields.status === "OPEN" ? <>
+            <label className="candidate-verification-confirm">
+              <input type="checkbox" checked={includeDemand} onChange={event => {
+                if (disabled || lock.current) return;
+                setIncludeDemand(event.target.checked);
+                setConfirmed(false); setEdited(true); setSubmittedId(undefined); setError(""); onChange?.();
+              }} />
+              确认需求发言人和时间
+            </label>
+            {usesDemand ? <div>
+              <Notice>仅摘录同一原文中需求作者本人的发言及时间，不使用其他评论者或采集时间。这是人工确认，不是机器核实。</Notice>
+              {([
+                ["authorLocator", "需求作者定位"], ["authorExcerpt", "原文作者标记"],
+                ["demandExcerpt", "本人需求摘录"], ["publishedDate", "需求日期"],
+                ["dateExcerpt", "原文时间表示"],
+              ] as const).map(([key, label]) => <Field key={key} label={label} required>
+                {key === "publishedDate" ? <input type="date" aria-label={label} value={demand[key]}
+                  onChange={event => changeDemand(key, event.target.value)} /> :
+                  <textarea aria-label={label} rows={key === "demandExcerpt" ? 3 : 2} value={demand[key]}
+                    onChange={event => changeDemand(key, event.target.value)} />}
+              </Field>)}
+            </div> : null}
+          </> : null}
           <label className="candidate-verification-confirm">
             <input
               type="checkbox"
@@ -300,6 +352,7 @@ function VerificationForm({
               }}
             />
             我已亲自核对上述来源信息，并确认这是当前版本的核验结果
+            {usesDemand ? "，且补证发言和日期属于同一需求作者本人" : ""}
           </label>
           {error ? <Notice tone="error">{error}</Notice> : null}
           <Button

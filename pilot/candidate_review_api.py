@@ -8,13 +8,14 @@ from starlette.concurrency import run_in_threadpool
 from app.model_contract import strict_json_object
 from pilot.device_keys import uuid_string
 from pilot.source_capabilities import resolve_platform
+from pilot.candidate_demand_evidence import legacy_projection
 
 MAX_BODY_BYTES = 64 * 1024
 _REQUEST = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}\Z")
 _INTEGER = re.compile(r"[1-9][0-9]{0,8}\Z")
 _BINDING = {"candidateId", "candidateRevision", "sourceVersionId", "profileId", "profileVersion", "requestId"}
 _REVIEW_FIELDS = _BINDING | {"action", "assessmentId", "evidence", "reason", "humanConfirmed", "sourceVerificationId", "retryOf"}
-_SOURCE_FIELDS = _BINDING | {"humanConfirmed", "status", "openingMethod", "locator", "excerpt", "contactMethod"}
+_SOURCE_FIELDS = _BINDING | {"humanConfirmed", "status", "openingMethod", "locator", "excerpt", "contactMethod", "demandEvidence"}
 
 
 def _invalid():
@@ -24,6 +25,19 @@ def _invalid():
 def _request_id(value):
     if not _REQUEST.fullmatch(value):
         raise _invalid()
+
+
+def _evidence_version(request, *, list_query=False):
+    query = request.query_params
+    if (len(query.getlist('evidenceVersion')) > 1
+            or ('evidenceVersion' in query and query['evidenceVersion'] != '1')
+            or (not list_query and set(query) - {'evidenceVersion'})):
+        raise _invalid()
+    return query.get('evidenceVersion') == '1'
+
+
+def _view(result, extended):
+    return result if extended else legacy_projection(result)
 
 
 async def _body(request, *, verification):
@@ -60,20 +74,23 @@ def register_candidate_review_api(router, service, identity, require_session_htt
     @router.post("/candidate-reviews")
     async def review(request: Request):
         claims = await run_in_threadpool(current, request)
+        extended = _evidence_version(request)
         payload = await _body(request, verification=False)
-        return await run_in_threadpool(service.review, claims, payload)
+        return _view(await run_in_threadpool(service.review, claims, payload),extended)
 
     @router.post("/candidate-source-verifications")
     async def verify_source(request: Request):
         claims = await run_in_threadpool(current, request)
+        extended = _evidence_version(request)
         payload = await _body(request, verification=True)
-        return await run_in_threadpool(service.verify_source, claims, payload)
+        return _view(await run_in_threadpool(service.verify_source, claims, payload),extended)
 
     @router.get("/candidate-review-requests/{request_id}")
     def receipt(request_id: str, request: Request):
         claims = current(request)
         _request_id(request_id)
-        return service.get_request(claims, request_id)
+        extended = _evidence_version(request)
+        return _view(service.get_request(claims, request_id),extended)
 
     @router.get("/candidate-review-requests/{request_id}/model-usage")
     def model_usage(request_id: str, request: Request):
@@ -86,8 +103,9 @@ def register_candidate_review_api(router, service, identity, require_session_htt
     @router.get("/candidates")
     def candidates(request: Request):
         claims = current(request)
+        extended = _evidence_version(request,list_query=True)
         query = request.query_params
-        if (set(query) - {"query", "platform", "status", "ids", "reviewRequestId", "taskId", "page", "pageSize"}
+        if (set(query) - {"query", "platform", "status", "ids", "reviewRequestId", "taskId", "page", "pageSize", "evidenceVersion"}
                 or any(len(query.getlist(key)) != 1 for key in query)):
             raise _invalid()
         page, size = query.get("page", "1"), query.get("pageSize", "20")
@@ -121,4 +139,4 @@ def register_candidate_review_api(router, service, identity, require_session_htt
             review_request_id=original, page=int(page), page_size=int(size))
         if task_id is not None:
             arguments["task_id"] = task_id
-        return service.list_candidates(claims, **arguments)
+        return _view(service.list_candidates(claims, **arguments),extended)

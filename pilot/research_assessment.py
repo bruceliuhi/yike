@@ -4,11 +4,16 @@ from __future__ import annotations
 from datetime import UTC, datetime
 import hashlib
 import json
+import logging
+import time
 from uuid import NAMESPACE_URL, uuid5
 
 from pilot.candidate_assessment_model import AssessmentModelError, validate_assessment
 from pilot.execution_contract import ExecutionRuntimeError
 from pilot.research_resource_runner import run_resource
+from pilot.research_resources import _event
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _json(value):
@@ -74,17 +79,52 @@ class ResearchAssessmentRunner:
             "research", "binding", "description", "content", "strategy", "model")}
         material["modelInput"] = kwargs
         digest = hashlib.sha256(_json(material).encode()).hexdigest()
+        observed_error = None
+        started = time.monotonic()
 
         def invoke(deadline):
+            nonlocal observed_error
             effective_deadline = min(deadline, review_deadline)
             # The permit transaction is committed. Recheck disclosure
             # qualification immediately before the external effect without
             # keeping any database transaction open across the model call.
             before_dispatch()
-            value, usage = model.assess_before(effective_deadline, **kwargs)
-            value = value.model_dump() if hasattr(value, "model_dump") else value
-            grounded = validate_assessment(value, description=snapshot["description"],
-                                           content=snapshot["content"]).model_dump()
+            if _admission is not None:
+                with self.resources.runtime.database.connect() as connection, \
+                        connection.cursor() as cursor:
+                    tenant = self.resources.runtime._active(cursor, claims)
+                    row = self.resources._select(
+                        cursor, tenant, claims.user_id, research["taskId"],
+                        research["runId"], action_id
+                    )
+                    current = _event(row) if row is not None else None
+                    if (current is None or current["status"] != "ISSUED"
+                            or _admission(cursor, tenant, current) is not True):
+                        raise ExecutionRuntimeError("request_conflict", 409)
+                    # Host admission may lock coordinator and all durable
+                    # effects. Lock and re-read this permit afterwards to keep
+                    # that global order and close the unlocked-read race.
+                    row = self.resources._select(
+                        cursor, tenant, claims.user_id, research["taskId"],
+                        research["runId"], action_id, lock=True
+                    )
+                    if row is None or _event(row)["status"] != "ISSUED":
+                        raise ExecutionRuntimeError("request_conflict", 409)
+                    self.resources.runtime._active(cursor, claims)
+            try:
+                usage = None
+                value, usage = model.assess_before(effective_deadline, **kwargs)
+                value = value.model_dump() if hasattr(value, "model_dump") else value
+                grounded = validate_assessment(value, description=snapshot["description"],
+                                               content=snapshot["content"]).model_dump()
+            except AssessmentModelError as error:
+                # Revalidate even typed adapter errors; never log exception text.
+                observed_error = AssessmentModelError(error.code, error.status,
+                    usage=error.usage, diagnostic=getattr(error, 'diagnostic', None))
+                if observed_error.usage is None and usage is not None:
+                    observed_error = AssessmentModelError(error.code, error.status,
+                        usage=usage, diagnostic=observed_error.diagnostic)
+                raise
             return {"assessment": grounded, "usage": usage}
 
         snapshot_admission = self._admission(snapshot)
@@ -96,5 +136,19 @@ class ResearchAssessmentRunner:
             run_id=research["runId"], action_id=action_id, resource="MODEL_CALL",
             input_sha256=digest, action=invoke, _admission=admission)
         if result["event"]["status"] != "SUCCEEDED" or result["result"] is None:
-            raise AssessmentModelError("assessment_result_unknown", 504)
+            if observed_error is not None:
+                _LOGGER.warning(_json({
+                    'event': 'research_assessment_failure',
+                    'task_id': research['taskId'], 'run_id': research['runId'],
+                    'request_id': request.requestId, 'action_id': action_id,
+                    'model_error': observed_error.code,
+                    'diagnostic': observed_error.diagnostic,
+                    'elapsed_ms': max(0, int((time.monotonic()-started)*1000)),
+                    'usage_reported': observed_error.usage is not None,
+                }))
+            # The resource remains UNKNOWN and occupied. Measured usage is not
+            # a success receipt, and is not permission to retry or refund.
+            raise AssessmentModelError("assessment_result_unknown", 504,
+                usage=observed_error.usage if observed_error is not None else None,
+                diagnostic=observed_error.diagnostic if observed_error is not None else None)
         return result["result"]["assessment"], result["result"]["usage"]

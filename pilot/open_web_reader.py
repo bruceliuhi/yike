@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 import threading
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qsl, quote, urlsplit, urlunsplit
@@ -15,7 +16,8 @@ from pilot.candidate_contract import _normalize_host, _validate_url
 
 _MAX_SECONDS = 20.0
 _WORKER = Path(__file__).with_name("open_web_reader_worker.py")
-_CODES = {"invalid_url", "unavailable", "unsupported_content", "too_large", "timeout"}
+_CODES = {"invalid_url", "unavailable", "unsupported_content", "too_large", "timeout",
+          "not_found", "unsupported_media_type", "access_restricted", "rate_limited"}
 _RESULT_KEYS = {"url", "title", "text", "observed_at", "content_sha256", "read_scope"}
 _UTC_TIME = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
 _CREDENTIAL_QUERY_KEYS = {
@@ -58,6 +60,58 @@ def cancel_active_reads() -> None:
         _stop_process(process)
 
 
+@dataclass
+class _ReadScope:
+    lock: threading.Lock = field(default_factory=threading.Lock)
+    active: set[subprocess.Popen] = field(default_factory=set)
+    stopped: bool = False
+
+
+def valid_page_evidence(value, url: str) -> bool:
+    """Validate exact, internally consistent public-page evidence."""
+    try:
+        if type(value) is not dict or set(value) not in (_RESULT_KEYS, _RESULT_KEYS | {"links"}):
+            return False
+        links = value.get("links", [])
+        if (type(links) is not list or len(links) > 50
+                or any(type(link) is not str or normalize_public_url(link) != link for link in links)
+                or len(set(links)) != len(links)):
+            return False
+        observed = datetime.fromisoformat(value["observed_at"])
+        text, title = value["text"], value["title"]
+        return (
+            value["url"] == url
+            and value["read_scope"] == "PUBLIC_PAGE_TEXT"
+            and type(text) is str and 1 <= len(text) <= 60_000 and bool(text.strip())
+            and (title is None or type(title) is str and len(title) <= 1000)
+            and observed.tzinfo is not None
+            and observed <= datetime.now(timezone.utc)
+            and value["content_sha256"] == hashlib.sha256(text.encode("utf-8")).hexdigest()
+        )
+    except (KeyError, ValueError, TypeError, UnicodeError, PublicReadError):
+        return False
+
+
+def _sanitize_page_links(value):
+    """Only the trusted reader boundary may turn raw hrefs into navigation hints."""
+    if "links" not in value:
+        return value
+    raw_links = value["links"]
+    if type(raw_links) is not list or len(raw_links) > 50:
+        raise ValueError("invalid_links")
+    links = []
+    for href in raw_links:
+        if type(href) is not str:
+            raise ValueError("invalid_links")
+        try:
+            url = normalize_public_url(href)
+        except PublicReadError:
+            continue
+        if url != value["url"] and url not in links:
+            links.append(url)
+    return value | {"links": links}
+
+
 def normalize_public_url(url: str) -> str:
     """Validate and normalize an anonymous HTTPS/default-443 URL."""
     try:
@@ -83,7 +137,7 @@ def normalize_public_url(url: str) -> str:
         raise PublicReadError("invalid_url") from None
 
 
-def read_public_page(url: str, *, deadline: datetime) -> dict:
+def _read_public_page(url: str, *, deadline: datetime, lock, active, stopped) -> dict:
     """Read one public page before an aware caller-provided deadline."""
     if not isinstance(deadline, datetime) or deadline.tzinfo is None or deadline.utcoffset() is None:
         raise PublicReadError("invalid_url")
@@ -94,8 +148,8 @@ def read_public_page(url: str, *, deadline: datetime) -> dict:
     timeout = min(_MAX_SECONDS, remaining)
     # Spawning and registration share one short critical section. It contains
     # no DNS/network/worker I/O, so cancellation cannot miss an OS child.
-    with _ACTIVE_LOCK:
-        if _READS_STOPPED:
+    with lock:
+        if stopped():
             raise PublicReadError("timeout")
         try:
             process = subprocess.Popen(
@@ -109,7 +163,7 @@ def read_public_page(url: str, *, deadline: datetime) -> dict:
             )
         except OSError:
             raise PublicReadError("unavailable") from None
-        _ACTIVE_PROCESSES.add(process)
+        active.add(process)
     try:
         stdout, _stderr = process.communicate(
             json.dumps({"url": normalized, "timeout_seconds": timeout}, separators=(",", ":")),
@@ -124,8 +178,8 @@ def read_public_page(url: str, *, deadline: datetime) -> dict:
             raise PublicReadError("unavailable") from None
         raise
     finally:
-        with _ACTIVE_LOCK:
-            _ACTIVE_PROCESSES.discard(process)
+        with lock:
+            active.discard(process)
     if process.returncode != 0 or len(stdout.encode("utf-8")) > 300_000:
         raise PublicReadError("unavailable")
     try:
@@ -133,8 +187,9 @@ def read_public_page(url: str, *, deadline: datetime) -> dict:
         if message.get("ok") is not True:
             raise PublicReadError(message.get("code", "unavailable"))
         result = message["result"]
-        if type(result) is not dict or set(result) != _RESULT_KEYS:
+        if type(result) is not dict or set(result) not in (_RESULT_KEYS, _RESULT_KEYS | {"links"}):
             raise ValueError
+        result = _sanitize_page_links(result)
         text = result["text"]
         title = result["title"]
         observed_at = result["observed_at"]
@@ -147,8 +202,39 @@ def read_public_page(url: str, *, deadline: datetime) -> dict:
         digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
         if result["content_sha256"] != digest:
             raise ValueError
+        if not valid_page_evidence(result, normalized):
+            raise ValueError
         return result
     except PublicReadError:
         raise
     except (KeyError, TypeError, ValueError, json.JSONDecodeError):
         raise PublicReadError("unavailable") from None
+
+
+def read_public_page(url: str, *, deadline: datetime) -> dict:
+    """Read using the legacy process-global cancellation scope."""
+    return _read_public_page(
+        url, deadline=deadline, lock=_ACTIVE_LOCK, active=_ACTIVE_PROCESSES,
+        stopped=lambda: _READS_STOPPED,
+    )
+
+
+class PublicPageReader:
+    """A page reader whose workers and cancellation are mission-owned."""
+    def __init__(self):
+        self._scope = _ReadScope()
+
+    def read(self, url: str, *, deadline: datetime) -> dict:
+        scope = self._scope
+        return _read_public_page(
+            url, deadline=deadline, lock=scope.lock, active=scope.active,
+            stopped=lambda: scope.stopped,
+        )
+
+    def close(self) -> None:
+        scope = self._scope
+        with scope.lock:
+            scope.stopped = True
+            processes = tuple(scope.active)
+        for process in processes:
+            _stop_process(process)

@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 from uuid import UUID
+from pilot.candidate_review_contract import DemandEvidence
 
 
 SCHEMA_VERSION = "opportunity-source-evidence-v1"
@@ -39,6 +40,7 @@ _ASSESSMENT_FIELDS = {
 _VERIFICATION_FIELDS = {
     "method", "status_at_capture", "checked_at", "opening_method", "contact_method",
 }
+_HUMAN_VERIFICATION_FIELDS = _VERIFICATION_FIELDS | {'demandEvidence','demandEvidenceId','checkedBy'}
 
 
 class OpportunityEvidenceError(ValueError):
@@ -255,10 +257,16 @@ def build_evidence(*, opportunity_id, snapshot, assessment, observation, verific
             raise ValueError
 
         source = _public_source(raw)
+        demand = verification.get('demandEvidence')
+        if demand is not None:
+            DemandEvidence.model_validate(demand)
+            _bound(assessment.get('demandEvidenceId'),verification['id'])
+            source['author_updates'] = [demand['demandExcerpt']]
+            source['source_read_scope'] = 'HUMAN_CONFIRMED_EXCERPT'
         public_assessment = _public_assessment(assessment, source)
         if verification["method"] != "HUMAN_REOPENED" or verification["status"] != "OPEN":
             raise ValueError
-        return {
+        result = {
             "schema_version": SCHEMA_VERSION,
             "opportunity_id": opportunity_id,
             "captured_at": _timestamp(captured_at),
@@ -277,6 +285,10 @@ def build_evidence(*, opportunity_id, snapshot, assessment, observation, verific
                 "contact_method": _text(verification["contactMethod"]),
             },
         }
+        if demand is not None:
+            result['verification'].update(demandEvidence=demand,
+                demandEvidenceId=_text(verification['id']), checkedBy=_text(verification['checkedBy']))
+        return result
     except (KeyError, ValueError, TypeError, UnicodeError, RecursionError):
         pass
     raise OpportunityEvidenceError("invalid_opportunity_evidence") from None
@@ -295,7 +307,7 @@ def _validate_public_payload(payload, *, opportunity_id, profile_version_id):
     verification = _mapping(payload["verification"])
     if set(source) not in (_SOURCE_FIELDS, _AUTHOR_SOURCE_FIELDS) or set(observation) != _OBSERVATION_FIELDS:
         raise ValueError
-    if set(assessment) != _ASSESSMENT_FIELDS or set(verification) != _VERIFICATION_FIELDS:
+    if set(assessment) != _ASSESSMENT_FIELDS or set(verification) not in (_VERIFICATION_FIELDS,_HUMAN_VERIFICATION_FIELDS):
         raise ValueError
     if source["kind"] not in {"POST", "COMMENT", "PAGE"}:
         raise ValueError
@@ -306,13 +318,23 @@ def _validate_public_payload(payload, *, opportunity_id, profile_version_id):
     for key in ("external_source_id", "external_comment_id", "title", "container_title", "author_public_id"):
         _text(source[key], nullable=True)
     _timestamp(source["published_at"], nullable=True)
+    human = 'demandEvidence' in verification
+    if human:
+        demand = DemandEvidence.model_validate(verification['demandEvidence']).model_dump()
+        _text(verification['demandEvidenceId'])
+        _text(verification['checkedBy'])
+        if (source['kind'] != 'PAGE' or source.get('source_read_scope') != 'HUMAN_CONFIRMED_EXCERPT'
+                or source.get('author_updates') != [demand['demandExcerpt']]
+                or any(not any(demand[key] in text for text in (source['body'], source['title'] or ''))
+                    for key in ('authorExcerpt','demandExcerpt','dateExcerpt'))):
+            raise ValueError
     if "author_updates" in source:
         if (source["platform"] != "PUBLIC_WEB" or source["kind"] != "PAGE"
-                or source["external_source_id"] is None or source["author_public_id"] is None
+                or (not human and (source["external_source_id"] is None or source["author_public_id"] is None))
                 or type(source["author_updates"]) is not list or len(source["author_updates"]) > 100
                 or source["source_read_scope"] not in {
                     "AUTHOR_REPLIES_COUNT_MATCHED_SUPPLEMENTS_UNREAD",
-                    "AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD"}):
+                    "AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD", *(['HUMAN_CONFIRMED_EXCERPT'] if human else [])}):
             raise ValueError
         updates = [_author_update_text(update) for update in source["author_updates"]]
         if sum(len(update) for update in updates) > 20000:

@@ -40,6 +40,11 @@ def final_events():
             {'type':'turn.completed','usage':{'input_tokens':100,'output_tokens':12,'cached_input_tokens':0}}]
 
 
+def final_events_with(text):
+    return [{'type':'item.completed','item':{'id':'item_2','type':'agent_message','text':text}},
+            {'type':'turn.completed','usage':{'input_tokens':1,'output_tokens':1}}]
+
+
 @pytest.fixture
 def worker(monkeypatch):
     import pilot.codex_research_worker as module
@@ -244,6 +249,78 @@ def test_research_process_gets_only_temporary_search_bridge_credentials(worker,t
     assert 'search_public_web' in serialized and 'read_public_page' in serialized
 
 
+@pytest.mark.parametrize('dispatcher',[None,False,{},'not-callable'])
+def test_explicit_invalid_effect_dispatcher_fails_before_any_start(worker,tmp_path,dispatcher):
+    checks=[]
+    result=run_research(worker,tmp_path,effect_dispatcher=dispatcher,
+                        cancelled=lambda:checks.append(True))
+    assert result['status']=='FAILED' and result['code']=='invalid_configuration'
+    assert worker._test_search_sessions==[] and checks==[]
+    assert len(result)==9
+
+
+def test_controlled_worker_passes_shared_gate_and_host_read_credentials(worker,tmp_path,monkeypatch):
+    captured={}; services=[]
+    class Search:
+        def __init__(self, **kwargs): captured['search']=kwargs
+        def allows_read(self,url): return url=='https://new-source.example/project'
+        def close(self): captured['search_closed']=True
+    class Read:
+        def __init__(self, **kwargs):
+            captured['read']=kwargs; services.append(self); self.closed=False
+        def close(self): self.closed=True
+    class Bridge:
+        base_url='http://127.0.0.1:1/v1'
+        search_url=base_url+'/public-search'; read_url=base_url+'/public-read'
+        token='synthetic-local-token'; records=[]
+        def __init__(self, **kwargs): captured['bridge']=kwargs
+        def __enter__(self): return self
+        def __exit__(self,*exc): pass
+    monkeypatch.setattr(worker,'PublicSearchSession',Search)
+    monkeypatch.setattr(worker,'PublicReadSession',Read,raising=False)
+    monkeypatch.setattr(worker,'ResponsesBridge',Bridge)
+    cancel=[False]; effects=[]
+    def dispatcher(kind,payload,deadline,perform):
+        effects.append(kind); return perform(deadline)
+    capture=tmp_path/'controlled-config.json'
+    extra=f"open({str(capture)!r},'w').write(json.dumps(dict(argv=sys.argv,env=dict(os.environ))))\n"
+    result=run_research(worker,tmp_path,[search_event(),read_event(),*final_events()],
+        extra=extra,effect_dispatcher=dispatcher,cancelled=lambda:cancel[0])
+    assert result['status']=='COMPLETED' and len(result)==9
+    gate=captured['search']['effect_dispatcher']
+    assert gate is captured['read']['effect_dispatcher'] is captured['bridge']['effect_dispatcher']
+    assert captured['read']['allowed_url']('https://new-source.example/project')
+    assert captured['bridge']['read_service'] is services[0]
+    assert services[0].closed and captured['search_closed']
+    data=capture.read_text()
+    assert 'YIKE_PUBLIC_READ_URL=http://127.0.0.1:1/v1/public-read' in data
+    assert 'YIKE_PUBLIC_READ_TOKEN=synthetic-local-token' in data
+    assert 'synthetic-provider-secret' not in data and 'synthetic-search-secret' not in data
+    # Shared wrapper must stop delayed effects if cancellation changes after admission.
+    from pilot.research_effects import EffectDispatchError
+    cancel[0]=True
+    with pytest.raises(EffectDispatchError): gate('READ',{},time.monotonic()+1,lambda _: {})
+    assert effects==[]
+
+
+def test_controlled_reader_closes_when_bridge_setup_fails(worker,tmp_path,monkeypatch):
+    readers=[]
+    class Search:
+        def __init__(self, **kwargs): pass
+        def allows_read(self,url): return False
+        def close(self): pass
+    class Reader:
+        def __init__(self, **kwargs): self.closed=False; readers.append(self)
+        def close(self): self.closed=True
+    def broken_bridge(**kwargs): raise RuntimeError('private failure')
+    monkeypatch.setattr(worker,'PublicSearchSession',Search)
+    monkeypatch.setattr(worker,'PublicReadSession',Reader,raising=False)
+    monkeypatch.setattr(worker,'ResponsesBridge',broken_bridge)
+    result=run_research(worker,tmp_path,effect_dispatcher=lambda *args: {})
+    assert result['code']=='runtime_unavailable'
+    assert len(readers)==1 and readers[0].closed
+
+
 def test_research_instructions_require_search_then_read(worker,tmp_path):
     capture=tmp_path/'research-config.json'
     extra=("config=next(value for value in sys.argv if value.startswith('model_instructions_file='))\n"
@@ -273,6 +350,85 @@ def test_research_instructions_require_search_then_read(worker,tmp_path):
     assert 'synthetic-search-secret' not in data['instructions']
 
 
+def test_seeded_event_accepts_exact_read_without_search_and_rejects_ungranted(worker):
+    entry='https://www.v2ex.com/go/outsourcing'
+    events=worker._ReadEvents(search_enabled=True,entry_urls=[entry])
+    accepted=read_event()
+    accepted['item']['arguments']['url']=entry
+    accepted['item']['result']['structured_content']['evidence']['url']=entry
+    events.accept(accepted)
+    assert len(events.reads)==1 and events.searches==[]
+    nearby=worker._ReadEvents(search_enabled=True,entry_urls=[entry])
+    denied=copy.deepcopy(accepted)
+    denied['item']['arguments']['url']=entry+'/nearby'
+    denied['item']['result']['structured_content']['evidence']['url']=entry+'/nearby'
+    with pytest.raises(worker._InvalidOutput):
+        nearby.accept(denied)
+
+
+def test_seeded_controlled_worker_transports_entries_and_completes_without_search(
+        worker,tmp_path,monkeypatch):
+    entry='https://www.v2ex.com/go/outsourcing'
+    context=research_context()
+    context['history']=[dict(project_key='known',description='known',state='KNOWN',source_urls=[entry])]
+    capture=tmp_path/'seed-config.json'
+    class Search:
+        def __init__(self, **kwargs): pass
+        def allows_read(self,url): return False
+        def close(self): pass
+    captured={}
+    class Read:
+        def __init__(self, **kwargs): captured['allowed_url']=kwargs['allowed_url']
+        def close(self): pass
+    class Bridge:
+        base_url='http://127.0.0.1:1/v1'
+        search_url=base_url+'/public-search'; read_url=base_url+'/public-read'
+        token='synthetic-local-token'; records=[]
+        def __init__(self, **kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self,*exc): pass
+    monkeypatch.setattr(worker,'PublicSearchSession',Search)
+    monkeypatch.setattr(worker,'PublicReadSession',Read)
+    monkeypatch.setattr(worker,'ResponsesBridge',Bridge)
+    extra=("config=next(value for value in sys.argv if value.startswith('model_instructions_file='))\n"
+           "instructions=open(json.loads(config.split('=',1)[1])).read()\n"
+           f"open({str(capture)!r},'w').write(json.dumps(dict(argv=sys.argv,env=dict(os.environ),instructions=instructions)))\n")
+    event=read_event()
+    event['item']['arguments']['url']=entry
+    event['item']['result']['structured_content']['evidence']['url']=entry
+    result=run_research(worker,tmp_path,[event,*final_events()],extra=extra,
+        research_context=context,effect_dispatcher=lambda kind,payload,deadline,perform:perform(deadline))
+    data=json.loads(capture.read_text())
+    assert result['status']=='COMPLETED' and result['searches']==[] and len(result['reads'])==1
+    serialized=json.dumps(data['argv'])
+    assert 'YIKE_PUBLIC_ENTRY_URLS=' in serialized and 'https://www.v2ex.com/recent' in serialized
+    expected=['https://www.v2ex.com/recent','https://www.v2ex.com/go/qna',entry]
+    assert json.dumps(expected,separators=(',',':')) in data['instructions']
+    assert captured['allowed_url'](entry) and not captured['allowed_url'](entry+'/nearby')
+    assert 'search_public_web first' not in data['instructions']
+
+
+def test_negative_catalog_entry_is_only_advisory_and_absent_from_active_guidance(worker):
+    blocked='https://www.v2ex.com/go/outsourcing'
+    context=research_context()
+    context['history']=[dict(project_key='blocked',description='blocked',state='EXCLUDED',
+                             source_urls=[blocked])]
+    from pilot.research_context import compile_research_context
+    compiled=compile_research_context(context)
+    assert blocked not in compiled['entry_urls']
+    runtime=worker._research_instructions(max_searches=2,max_reads=4,max_requests=5,
+                                          entry_urls=compiled['entry_urls'])
+    active=runtime.split('The exact trusted entries are: ',1)[1].split('.',1)[0]
+    assert blocked not in active
+    assert 'neither action is forced' in runtime
+
+
+def test_uncontrolled_context_keeps_legacy_first_search_instruction(worker):
+    runtime=worker._research_instructions(max_searches=2,max_reads=4,max_requests=5)
+    assert 'using search_public_web first, then read_public_page' in runtime
+    assert 'host-provided trusted entry' not in runtime
+
+
 def test_read_only_instructions_remain_exactly_unchanged(worker,tmp_path):
     capture=tmp_path/'read-config.json'
     extra=("config=next(value for value in sys.argv if value.startswith('model_instructions_file='))\n"
@@ -297,12 +453,16 @@ def research_context():
             source_urls=['https://example.com/known'])])
 
 
-def test_profile_research_loads_original_rules_and_bound_context_in_real_process(worker,tmp_path):
+@pytest.mark.parametrize('version',[1,2])
+def test_profile_research_loads_original_rules_and_bound_context_in_real_process(worker,tmp_path,version):
     capture=tmp_path/'profile-config.json'
     extra=("config=next(value for value in sys.argv if value.startswith('model_instructions_file='))\n"
            "instructions=open(json.loads(config.split('=',1)[1])).read()\n"
            f"open({str(capture)!r},'w').write(json.dumps(dict(argv=sys.argv,env=dict(os.environ),prompt=sys.stdin.read(),instructions=instructions)))\n")
     context=research_context()
+    if version==2:
+        from tests.test_research_context import projected_v2
+        context=projected_v2()
     result=run_research(worker,tmp_path,[search_event(),read_event(),*final_events()],
         extra=extra,research_context=context)
     from pilot.research_context import compile_research_context
@@ -310,7 +470,12 @@ def test_profile_research_loads_original_rules_and_bound_context_in_real_process
     data=json.loads(capture.read_text())
     assert result['status']=='COMPLETED'
     assert result['research_binding']==compiled['binding']
-    assert compiled['instructions'] in data['instructions']
+    assert data['instructions'].endswith(compiled['instructions'])
+    assert 'v2ex-latest-v1' in data['instructions']
+    assert 'https://www.v2ex.com/recent' in data['instructions']
+    assert '/api/' not in compiled['instructions']
+    assert result['research_binding']['rule_sha256']==hashlib.sha256(
+        compiled['instructions'].encode('utf-8')).hexdigest()
     assert compiled['context_json'] in data['prompt']
     assert '研究公开需求。' in data['prompt']
     assert context['seller_description'] not in json.dumps(data['argv'],ensure_ascii=False)
@@ -374,9 +539,53 @@ def test_research_context_rejects_actual_credential_encoded_by_url_normalization
     assert secret not in json.dumps(result)
 
 
-def test_research_context_keeps_original_description_limit(worker,tmp_path):
+def test_research_context_v1_keeps_original_description_limit(worker,tmp_path):
     result=run_research(worker,tmp_path,description='字'*4001,research_context=research_context())
     assert result['code']=='invalid_configuration' and worker._test_search_sessions==[]
+
+
+def test_context_v2_delivers_full_8000_character_multiline_profile_to_real_process(
+        worker,tmp_path):
+    from pilot.research_context import compile_research_context
+    from tests.test_research_context import projected_v2
+    seller='甲\n'+'乙'*7998
+    context=projected_v2(seller_description=seller)
+    compiled=compile_research_context(context)
+    capture=tmp_path/'long-v2-context.json'
+    extra=(f"open({str(capture)!r},'w').write(json.dumps(dict(prompt=sys.stdin.read())))\n")
+    result=run_research(worker,tmp_path,[search_event(),read_event(),*final_events()],
+        description=seller,research_context=context,extra=extra)
+    data=json.loads(capture.read_text())
+    assert result['status']=='COMPLETED'
+    assert result['research_binding']==compiled['binding']
+    assert data['prompt'].startswith(seller+'\n\nHOST_RESEARCH_CONTEXT_JSON')
+    assert compiled['context_json'] in data['prompt']
+    assert data['prompt'].count(seller)==1
+    assert len(seller)==8000 and seller.endswith('乙')
+
+
+def test_contextual_final_message_allows_512_kib_but_legacy_keeps_16000(worker,tmp_path):
+    from tests.test_research_context import projected_v2
+    large='x'*17000
+    contextual=run_research(worker,tmp_path,[search_event(),read_event(),*final_events_with(large)],
+                            research_context=projected_v2())
+    legacy=run_research(worker,tmp_path,[search_event(),read_event(),*final_events_with(large)])
+    assert contextual['status']=='COMPLETED' and contextual['summary']==large
+    assert legacy['status']=='FAILED' and legacy['code']=='invalid_runtime_output'
+
+
+def test_context_v2_long_description_requires_exact_verified_seller_profile(worker,tmp_path):
+    from tests.test_research_context import projected_v2
+    context=projected_v2(seller_description='甲\n'+'乙'*7998)
+    result=run_research(worker,tmp_path,description='丙'*8000,research_context=context)
+    assert result['code']=='invalid_configuration' and worker._test_search_sessions==[]
+
+
+def test_context_v2_non_string_description_fails_without_start_or_exception(worker,tmp_path):
+    from tests.test_research_context import projected_v2
+    result=run_research(worker,tmp_path,description=None,research_context=projected_v2())
+    assert result['status']=='FAILED' and result['code']=='invalid_configuration'
+    assert result['research_binding'] is None and worker._test_search_sessions==[]
 
 
 def test_research_rule_failure_never_starts_or_downgrades(worker,tmp_path,monkeypatch):

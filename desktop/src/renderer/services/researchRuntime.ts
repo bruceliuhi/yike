@@ -18,7 +18,8 @@ export function createResearchRuntimeService(transport:Transport):ResearchRuntim
   }
   return {
     async capability(signal){
-      const options=[{query:'?source_plan_version=1',payload:{sourcePlanVersion:1},maxVersion:3},
+      const options=[{query:'?dynamic_research_version=1',payload:{dynamicResearchVersion:1},maxVersion:4},
+        {query:'?source_plan_version=1',payload:{sourcePlanVersion:1},maxVersion:3},
         {query:'?source_catalog_version=1',payload:{sourceCatalogVersion:1},maxVersion:2},
         {query:'',payload:undefined,maxVersion:1}] as const;
       for(const [index,option] of options.entries()){
@@ -28,7 +29,7 @@ export function createResearchRuntimeService(transport:Transport):ResearchRuntim
         catch(error){
           signal?.throwIfAborted();
           // Only exact, read-only version negotiation. Never retry START or an effect.
-          if(index<2 && error instanceof ServiceError && error.status===422 && error.code==='invalid_request')continue;
+          if(index<options.length-1 && error instanceof ServiceError && error.status===422 && error.code==='invalid_request')continue;
           throw error;
         }
         signal?.throwIfAborted();

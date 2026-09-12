@@ -1,5 +1,41 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-13 可信入口已真实直读，筛选校验待诊断
+
+`fc16383`独立Spec/Quality PASS，actual0搜索/2原文/3研究模型完成目录→链接原帖，随后客户任务在绑定/筛选校验处停止，未发布候选。[唯一代码、失败与下一动作](superpowers/plans/2026-09-13-research-trusted-entries.md#evidence)。不是全链完成或新合格商机；下一批补安全固定原因诊断，利用已保存原文定位，不再搜索已知目录来获取读取许可。个人Skill未改；无部署、构包、登录或发送，完整Goal ACTIVE。
+
+## 2026-09-13 研究材料/候选分离与真实入口缺口
+
+`9cda1fc`接入逐页证据化筛选、零候选背景回执及客户端状态说明，两项P2已修复并独立差量PASS；[唯一实现、限定测试及真实失败证据](superpowers/plans/2026-09-13-research-page-selection.md#evidence)。新真实两页任务在搜索/读取入口处STOPPED，未执行筛选；已知URL仍须由搜索结果或成功读页链接授予权限，入口提示本身不授予。下一步版本绑定的可信种子读取，不删除安全门禁、不重试旧任务或把0READ当无需求。个人Skill未改；未部署/构包/外发，完整Goal ACTIVE。
+
+## 2026-09-13 本地 Skill 对照与条件化来源入口
+
+代码`eca3fec`复用既有目录为动态研究加入条件化公开入口提示，区分项目节点与同名标签，不新增连接器或读页权限；编译规则完整字节绑定版本/hash，旧任务须新绑定。独立Spec/Quality PASS，定向140项通过；[唯一实施证据](superpowers/plans/2026-09-13-research-entry-hints.md#evidence)。[本地Skill对照](research/LOCAL_SKILL_PRODUCT_COMPARISON_20260913.md)确认搜索/评估规则相同，差距主要在入口、阅读深度和选择性候选发布。没有新实网/部署/构包/外联；当前可交接新线索仍0，下一步材料/候选分离与同条件真实质量验证。
+
+## 2026-09-13 实网导航验证与本地节点对照
+
+`fbb4d79`新实际任务确认合法导航拒绝可继续；后在LINUX DO访问限制处停止，非完成/新商机。另以本地Skill无额外模型调用读取V2EX项目节点2页40标题/2原帖，区别了劳务外包标签和项目节点；已知标定项目待补证、模糊MCP需求观察。[唯一实际证据及下一动作](superpowers/plans/2026-09-13-research-denied-navigation.md#new-real-task-after-the-correction-then-local-skill-source-comparison)。本次仅证据/当前队列更新，不重跑代码测试或构包，不变更生产。
+
+## 2026-09-13 合法导航拒绝的事件兼容
+
+代码`d40fce0`仅把MCP精确的未发现URL拒绝记为失败尝试，不误报协议损坏，也不授予读取或证据权限。[限定验证与真实失败](superpowers/plans/2026-09-13-research-denied-navigation.md)。新实网入口研究仅1搜索/0读取后中断，合格新增0；原触发事件不明，不声称已恢复该真实任务。后续先加强安全事件形状诊断，不重复UNKNOWN或继续付费盲试；未部署/构包/外联。
+
+## 2026-09-13 研究额度拒绝不再错误关闭所有资源
+
+代码`ae7abc6`只处理journal签发前确定的资源额度拒绝；后续MODEL等仍正常校验全部权限/代次/剩余额度，未知与已发出请求不重试。[唯一真实失败、PG复现及验证](superpowers/plans/2026-09-13-research-admission-limit.md)。当前没有新合格商机或新的真实任务成功证据；下一步选择近期买方原文，分开研究读页与推荐候选。未部署、构包或外联。
+
+## 2026-09-13 普通判断错误诊断与用量保留
+
+`bd64b0f`独立Spec/Quality PASS，修复ResearchAssessmentRunner丢弃固定模型错误/已测usage；日志不含异常正文、业务正文或密钥，UNKNOWN及确认重试边界不变。[唯一验证与缺口](superpowers/plans/2026-09-13-assessment-safe-diagnostics.md#evidence)。未重试旧任务或新调模型，旧真实UNKNOWN根因仍未证明；下轮新任务观察实际错误、改善买方入口，不重复本批测试/构包。
+
+## 2026-09-13 本地Skill导航能力恢复
+
+`d6b6b17`独立差量Spec/Quality PASS：安全公开链接接入三处任务URL门禁，搜索预留READ尝试且不锁死共享余额。[唯一计划、初次失败、真实运行和审核](superpowers/plans/2026-09-13-research-navigation.md#evidence)。实际读器列表→链接→详情验证通过；真实客户接口探针（合成身份/价格、真实模型/搜索/读器）读到供方文章且后续判断UNKNOWN，仍无合格线索，不能宣传已恢复原Skill获客效果。下一步买方入口选择与判断失败的安全诊断；未部署/构包/外发。
+
+## 2026-09-13 通用网页人工本人证据闭环
+
+`c770137`接入混合网页范围、六字段人工本人/日期补证、显式普通重判及不可变商机证据；客户端同步补证/入库门禁和HTTP协商。首审过期回执与混合引用两项P2已一起修复，独立差量Spec/Quality PASS。[唯一实施与受限PG/HTTP/TS/隔离页面证据](superpowers/plans/2026-09-13-page-demand-evidence.md#evidence)。个人Skill未改；下一步同条件对照旧Skill的判断与新真实线索供给，不能把本批合成数据测试、renderer构建解释成生产或获客效果已提升。
+
 ## 2026-09-12 公开已发现旧帖复查
 
 `2c2803b`独立整批GO：V2EX项目作者源监控新增同计划旧帖轮流复查，与新帖发现交替；已保存来源滑出index后仍可重读正文及有界作者回复。“已找到团队”等失去关键词的更新不丢弃，暂不可读不推断关闭；结果随原文原子保存，旧服务保留v1。[唯一实施与限定证据](superpowers/plans/2026-09-12-public-source-revisit.md#evidence)。未部署/构包/真实平台或外发；其它原生游标、完整评论与多源研究仍待接续，不标完整Goal完成。

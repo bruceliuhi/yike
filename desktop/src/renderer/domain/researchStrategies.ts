@@ -71,6 +71,7 @@ export function strategyPrepareRequest(
           evidenceOrder: draft.research.evidenceOrder,
           ...(owns(draft.research, 'provenance') ? {provenance:structuredClone(draft.research.provenance)} : {}),
           ...(owns(draft.research, 'sourcePlan') ? {sourcePlan:structuredClone(draft.research.sourcePlan)} : {}),
+          ...(owns(draft.research, 'dynamicScope') ? {dynamicScope:structuredClone(draft.research.dynamicScope)} : {}),
         }
       : null;
     return prepareStrategySchema.parse({

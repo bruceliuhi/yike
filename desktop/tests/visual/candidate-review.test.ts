@@ -12,6 +12,21 @@ function setup(mode = "live") {
 }
 
 describe("TEST-only P07 candidate review adapter transport", () => {
+  it("offers synthetic dynamic page evidence without changing its unknown raw author/date", async () => {
+    const {service} = setup("dynamic");
+    const raw = await service.rawCandidateEvidence!({...rawEvidenceBinding});
+    expect(raw.candidate.kind).toBe("PAGE");
+    expect(raw.candidate.current_version.published_at).toBeNull();
+    expect(raw.observations.items[0].normalizer_version).toBe("dynamic-public-read-v1");
+    const proof = {schemaVersion:"human-demand-evidence-v1",authorLocator:"TEST采购人，第2楼",
+      authorExcerpt:"TEST采购人",demandExcerpt:"采购输送设备，需要报价。",
+      publishedDate:new Date(Date.now()-86_400_000).toISOString().slice(0,10),dateExcerpt:"TEST原文日期"};
+    const receipt = await service.candidateReview!.verifySource({...verificationRequestFixture(),demandEvidence:proof});
+    expect(receipt.demandEvidence).toEqual(proof);
+    expect(await service.candidateReview!.review(assessmentRequestFixture())).toMatchObject({
+      kind:"assessment",assessment:{demandEvidenceId:receipt.id},
+    });
+  });
   it("requires an explicit isolated P07/populated scenario and refuses unsafe combinations", () => {
     const harness = createVisualService();
     expect(configureCandidateReviewVisual(harness.service, new URLSearchParams("scenario=P07"), harness.record)).toBe(false);

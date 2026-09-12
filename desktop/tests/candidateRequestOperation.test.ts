@@ -69,6 +69,17 @@ function frozen<T>(value: T): T {
 }
 
 describe("opaque candidate request records", () => {
+  it("binds every human proof field in original-request recovery without storing the text", async () => {
+    const demandEvidence = {schemaVersion:"human-demand-evidence-v1",authorLocator:"TEST第2楼",
+      authorExcerpt:"TEST买方",demandExcerpt:"需要报价",publishedDate:"2026-09-10",dateExcerpt:"2026年9月10日"};
+    const request = {...verificationRequestFixture(),demandEvidence};
+    const op = await newCandidateRequestOperation(request,scope);
+    expect(candidateRequestEntry(op).value).not.toContain("TEST买方");
+    const result = {...verificationFixture(),demandEvidence};
+    expect((await recoverCandidateRequestResult(result,op)).result).toEqual(result);
+    await expect(recoverCandidateRequestResult({...result,demandEvidence:{...demandEvidence,publishedDate:"2026-09-09"}},op)).rejects.toThrow(failure);
+    await expect(recoverCandidateRequestResult(verificationFixture(),op)).rejects.toThrow(failure);
+  });
   it.each([
     ["ASSESS", assessmentRequestFixture()],
     ["VERIFY_SOURCE", verificationRequestFixture()],
