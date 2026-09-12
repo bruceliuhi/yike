@@ -69,9 +69,9 @@ it("describes public once and monitor snapshots as bounded recent-topic filterin
   expect(screen.queryByText(/近期主题/)).toBeNull();
   expect(screen.getByText(/非当前执行许可/)).toBeTruthy();
 });
-it('shows explicit project request bounds and unread supplements',()=>{
+it('shows bounded project sources, supported old-topic revisit and unread supplements',()=>{
  const value=receipt('once');value.snapshot.configuration.publicSource='v2ex-outsourcing-authors-v1';
  render(<StrategySnapshotDetails receipt={strategyReceiptSchema.parse(value)}/>);
- expect(screen.getByText(/最多3篇\/4次请求，附言未读/)).toBeTruthy();
+ expect(screen.getByText(/最多3篇；支持的监控可轮流复查已发现旧帖，附言未读，不覆盖全站历史/)).toBeTruthy();
  expect(screen.queryByText(/不覆盖历史\/全站\/评论/)).toBeNull();
 });

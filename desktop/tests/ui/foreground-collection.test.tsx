@@ -44,7 +44,7 @@ describe('existing task request foreground controls', () => {
     const research={record_version:2 as const,record_type:'RESEARCH_START' as const,request:researchRequest,reservation:{quote_id:taskId,
       strategy_version_id:requestId,profile_version_id:requestId,configuration_sha256:'a'.repeat(64),rule_version:'test-v1',
       rule_sha256:'b'.repeat(64),estimated_soubei:1,max_soubei:2,limits:{sources:1,minutes:1,modelCalls:1}}};
-    context={...context,service:{...context.service,execution:{execute:vi.fn(async (command:any):Promise<any>=>command.action==='LIST'?{state:'LIST',requests:[]}:
+    context={...context,service:{...context.service,execution:{researchContractVersion:1,execute:vi.fn(async (command:any):Promise<any>=>command.action==='LIST'?{state:'LIST',requests:[]}:
       command.action==='RESEARCH_LIST'?{state:'RESEARCH_LIST',requests:[research]}:'requestId'in command?{state:'UNKNOWN',requestId:command.requestId}:{state:'FAILED',error:'EXECUTION_SESSION_FAILED'})}}};
     render(<Harness/>);await screen.findByText(/公开单源研究启动/);expect(screen.queryByRole('checkbox',{name:/重试此原启动请求/})).toBeNull();
     expect(screen.queryByRole('button',{name:'读取当前采集状态'})).toBeNull();fireEvent.click(screen.getByRole('button',{name:'恢复原研究请求'}));

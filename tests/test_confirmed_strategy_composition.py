@@ -67,7 +67,7 @@ def test_shared_app_keeps_strategy_service_optional_and_authenticates_first():
     capabilities = client.get(f"{PREFIX}/capabilities").json()["capabilities"]
     assert capabilities["task_execution"] == {"available": False}
     assert set(capabilities) == {
-        "pilot_token_session", "profiles", "opportunities", "manual_followups", "sms_login",
+        "pilot_token_session", "profiles", "opportunities", "manual_followups", "sms_login", "access_login",
         "platform_connections", "task_execution", "search_suggestions", "outreach", "replies",
     }
 

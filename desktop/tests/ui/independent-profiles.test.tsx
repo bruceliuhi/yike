@@ -19,6 +19,7 @@ function mount(){
 }
 it('edits the selected named business without falling back to the default entity',async()=>{
   const service=mount();await screen.findByRole('option',{name:'软件业务 · 版本 1 · 已确认'});
+  await screen.findByDisplayValue('北京');
   fireEvent.change(screen.getByLabelText('服务地区',{selector:'input'}),{target:{value:'上海'}});
   fireEvent.click(screen.getByRole('button',{name:'保存草稿'}));
   await waitFor(()=>expect(service.saveProfile).toHaveBeenCalledWith({...first.fields,regions:'上海'},{profileEntityId:a}));

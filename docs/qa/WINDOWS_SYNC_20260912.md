@@ -1,5 +1,13 @@
 # Windows 最新主干接续（2026-09-12）
 
+## 7599e93候选与后续main同步（2026-09-12 22:39）
+
+- 登录启动修复已提交推送 `7599e93`，随后保留本机测试修改、快进到 `36a3f99`。新来件复用其独立审核，在Windows追加7文件 **51 passed**、类型检查通过，后端source-plan单元 **14 passed**；公开计划实网效果未验，未纳入下述固定候选。
+- 固定7599e93桌面全量原始结果 **3986 passed / 4 failed / 31 pending（4021项）**，保留 `.runtime/windows-full-7599e93.json`。四处失败分别为Windows文件URL根路径、research能力夹具、画像加载时序、旧公开来源文案断言；测试修正后定向 **21 passed**、类型检查通过，独立GO。不写成全量重新通过，31项未执行仍保留。
+- 后端全量初跑受CRLF归档、旧环境缺SDK/uv、旧宽授权夹具影响，中止时 **1669 passed / 38 failed / 69 errors / 24 skipped**，原XML保留。改用LF归档及独立锁依赖环境后关键批 **165 passed / 2 failed**；其中旧git历史测试在实际本机仓库 **1 passed**，授权边界改用生产形状受限测试角色，连接3模块 **69 passed**。HTTP/PG/备份/部署/采集定向批 **145 passed / 1 failed**；失败为精确capabilities集合漏掉已存在access_login，修正后该模块 **3 passed**。PG夹具改为同语句时间消除600秒等值微差，生产约束未动；两处独立GO。不相加重复样本、不宣称剩余全仓已验。
+- 新固定LF工作树 `.worktrees/win-release-7599e93`、全新治理runtime `.runtime/windows-runtime-7599e93`；payload真实构建/搬迁测试 **1 passed / 0 skipped，178.28秒**，清理旧pytest临时目录权限警告保留。应用编译完成；Squirrel两次长路径和一次包装器cwd图标失败后，复用同一11231文件并全量摘要核对，改用短临时/输出目录继续制作安装器，不重复编译。此时旧安装版仍1f597f6，新包实机升级/登录窗口验证未完成。
+- customer7599e93已实际部署，备份/37→39升级/受限权限/旧服务兼容/内外网ready通过，详见[部署记录](SERVER_137138_DEPLOYMENT.md)。生产配置及ops不变，无模型或平台外发；用户账号、旧runtime/profile保留。
+
 ## 同步0fe86ac与登录启动阻断（本批尚未入包）
 
 - 按用户要求快进main到 `0fe86ac70344bd4f10f56f4d651e48dd0a33c8d5`，保留本地测试/记录。安装版仍1f597f6、customer仍5fb7d65，不追认新源码已部署。
