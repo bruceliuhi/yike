@@ -182,10 +182,10 @@ def test_compiles_ai_and_non_ai_service_contexts_with_host_binding():
     ))
     expected_keys = {"rule_version", "rule_sha256", "context_sha256",
                      "profile_version_id", "strategy_version_id"}
-    assert set(ai) == {"instructions", "context_json", "binding"}
+    assert set(ai) == {"instructions", "context_json", "binding", "entry_urls"}
     assert set(ai["binding"]) == expected_keys
     assert ai["binding"]["rule_version"] == (
-        "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1")
+        "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1/trusted-entries-v1")
     assert ai["binding"]["profile_version_id"] == context()["profile_version_id"]
     assert len(ai["binding"]["rule_sha256"]) == 64
     assert len(ai["binding"]["context_sha256"]) == 64
@@ -211,9 +211,48 @@ def test_catalog_entry_hints_are_public_conditional_and_complete():
     assert "/api/" not in hints
     assert "节点页不同于标签页" in hints
     assert "仅在客户行业与技术社区匹配时" in hints
-    assert "搜索或已发现链接" in hints
+    assert "搜索结果或成功读页链接" in hints
     assert "不得登录或重试" in hints
     assert "不代表穷尽" in hints
+
+
+def test_compiler_derives_catalog_and_known_history_but_exact_negative_wins():
+    known = "https://example.com/known-entry"
+    blocked = "https://example.com/blocked-entry"
+    prose_only = "https://example.com/prose-only"
+    value = context(
+        seller_description="服务说明 " + prose_only,
+        query_seeds=[prose_only],
+        history=[
+            {"project_key":"known", "description":"已知", "state":"KNOWN",
+             "source_urls":[known, blocked]},
+            {"project_key":"closed", "description":"关闭", "state":"CLOSED",
+             "source_urls":[blocked]},
+        ],
+    )
+    compiled = compile_research_context(value)
+    assert compiled["entry_urls"] == (
+        "https://www.v2ex.com/recent",
+        "https://www.v2ex.com/go/qna",
+        "https://www.v2ex.com/go/outsourcing",
+        known,
+    )
+    assert blocked not in compiled["entry_urls"] and prose_only not in compiled["entry_urls"]
+    assert compiled["binding"]["rule_version"].endswith("/trusted-entries-v1")
+    detached = compiled["entry_urls"]
+    value["history"][0]["source_urls"].append("https://example.com/later")
+    assert detached == compiled["entry_urls"]
+
+
+def test_compiler_entry_order_is_stable_and_capped_at_twenty():
+    history = [{"project_key":f"known-{index}", "description":"已知", "state":"KNOWN",
+                "source_urls":[f"https://example.com/known-{index}"]}
+               for index in range(20)]
+    entries = compile_research_context(context(history=history))["entry_urls"]
+    assert len(entries) == 20
+    assert entries[:3] == ("https://www.v2ex.com/recent", "https://www.v2ex.com/go/qna",
+                           "https://www.v2ex.com/go/outsourcing")
+    assert entries[-1] == "https://example.com/known-16"
 
 
 def test_changed_entry_hints_change_only_rule_binding(monkeypatch):
@@ -318,7 +357,7 @@ def test_page_selection_contract_is_versioned_and_participates_in_rule_hash():
     from pilot.research_page_selection import SELECTION_INSTRUCTIONS
     result = compile_research_context(context())
     assert result["instructions"].endswith(SELECTION_INSTRUCTIONS)
-    assert result["binding"]["rule_version"].endswith("/page-selection-v1")
+    assert "/page-selection-v1/" in result["binding"]["rule_version"]
     assert result["binding"]["rule_sha256"] == hashlib.sha256(
         result["instructions"].encode("utf-8")
     ).hexdigest()

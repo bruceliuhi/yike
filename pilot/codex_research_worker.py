@@ -16,6 +16,7 @@ from pilot.open_web_reader import PublicReadError, normalize_public_url
 from pilot.public_search import PublicSearchSession, normalize_query, valid_search_result
 from pilot.public_read_session import PublicReadSession
 from pilot.research_effects import EffectDispatchError
+from pilot.research_entry_urls import validate_entry_urls
 from pilot.research_tools import _valid_page
 from pilot.responses_bridge import ResponsesBridge
 
@@ -48,8 +49,19 @@ _RESEARCH_INSTRUCTIONS = (
 )
 
 
-def _research_instructions(*, max_searches, max_reads, max_requests):
-    return (_RESEARCH_INSTRUCTIONS + ' The host permits at most '
+def _research_instructions(*, max_searches, max_reads, max_requests, entry_urls=()):
+    base = (_RESEARCH_INSTRUCTIONS.replace(
+        'using search_public_web first, then',
+        'using either a host-provided trusted entry read or search_public_web, then')
+        if entry_urls else _RESEARCH_INSTRUCTIONS)
+    entry_guidance = (' You may read a relevant host-provided trusted entry first or search for a new source; '
+                      'neither action is forced. The exact trusted entries are: '
+                      + json.dumps(list(entry_urls),ensure_ascii=False,separators=(',',':')) + '.'
+                      if entry_urls else '')
+    strategy_guidance = (' Begin with one relevant trusted entry or a targeted community or '
+                         'buyer-source query;' if entry_urls else
+                         ' Start with a targeted community or buyer-source query;')
+    return (base + entry_guidance + ' The host permits at most '
             f'{max_searches} distinct searches and at most {max_reads} original-page reads. The '
             f'host allows at most {max_requests} model requests; finish the final answer before '
             'exhausting that request budget. Prioritize first-person buyer posts with concrete '
@@ -57,8 +69,8 @@ def _research_instructions(*, max_searches, max_reads, max_requests):
             'advertisements, and auto-translated pages as weak discovery leads, not verified buyer '
             'evidence; read an original source before drawing conclusions. '
             'Use buyer language (seeking a team, asking for quotes, a concrete business problem), '
-            'not only product category terms. Start with a targeted community or buyer-source '
-            'query; if results are vendor-heavy, switch to community-native listings instead of '
+            'not only product category terms.' + strategy_guidance +
+            ' if results are vendor-heavy, switch to community-native listings instead of '
             'repeating broad commercial queries. Read a relevant result early, then follow its '
             'returned links to original posts or relevant author context. Links are navigation '
             'hints, not verified evidence or permission to log in. Do not force irrelevant reads. '
@@ -73,11 +85,12 @@ class _InvalidOutput(Exception):
 
 
 class _ReadEvents:
-    def __init__(self, search_enabled=False):
+    def __init__(self, search_enabled=False, entry_urls=()):
         self.reads, self.failures, self.seen = [], [], {}
         self.searches, self.search_failures = [], []
         self.search_enabled = search_enabled
-        self.search_urls = set()
+        self.entry_urls = validate_entry_urls(entry_urls)
+        self.search_urls = set(self.entry_urls)
         self.summary, self.usage, self.done, self.failed = '', None, False, False
         self.max_message_chars = 16_000
         self.max_message_bytes = None
@@ -208,10 +221,10 @@ class _ReadEvents:
 
 def _command(root, *, codex_binary, python_binary, model, bridge, max_reads, max_seconds,
              max_requests, search_enabled=False, max_searches=None, research_instructions=None,
-             controlled=False):
+             controlled=False, entry_urls=()):
     instructions = root / 'instructions.md'
     instruction_text = (_research_instructions(max_searches=max_searches,max_reads=max_reads,
-                        max_requests=max_requests) if search_enabled else _INSTRUCTIONS)
+                        max_requests=max_requests,entry_urls=entry_urls) if search_enabled else _INSTRUCTIONS)
     if research_instructions is not None:
         instruction_text += '\n\n' + research_instructions
     instructions.write_text(instruction_text, encoding='utf-8')
@@ -241,6 +254,9 @@ def _command(root, *, codex_binary, python_binary, model, bridge, max_reads, max
         'mcp_servers.yike_public.enabled_tools':(
             ['search_public_web','read_public_page'] if search_enabled else ['read_public_page']),
     }
+    if entry_urls:
+        config['mcp_servers.yike_public.args'].insert(1,
+            'YIKE_PUBLIC_ENTRY_URLS='+json.dumps(list(entry_urls),separators=(',',':')))
     for name in ('shell_tool','unified_exec','apps','plugins','remote_plugin','hooks',
                  'browser_use','browser_use_external','browser_use_full_cdp_access','computer_use',
                  'memories','multi_agent','multi_agent_v2','image_generation','sleep_tool',
@@ -320,7 +336,7 @@ def _execute(command, env, description, deadline, cancelled, events, cwd):
                     events.accept(json.loads(line.decode('utf-8')))
         if process.returncode != 0 or events.failed or not events.done:
             return 'FAILED','runtime_failed'
-        if events.search_enabled and not events.searches:
+        if events.search_enabled and not events.searches and not events.entry_urls:
             return 'FAILED','no_verified_searches'
         if not events.reads:
             return 'FAILED','no_verified_reads'
@@ -384,7 +400,7 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                  search_enabled, search_api_key=None, max_searches=None,
                  research_context=_NO_RESEARCH_CONTEXT,effect_dispatcher=_NO_EFFECT_DISPATCHER):
     events = _ReadEvents(search_enabled=search_enabled)
-    calls, status, code, token = [], 'FAILED', 'invalid_configuration', ''
+    calls, status, code, token, entries = [], 'FAILED', 'invalid_configuration', '', ()
     controlled = effect_dispatcher is not _NO_EFFECT_DISPATCHER
     valid = (os.name == 'posix' and type(description) is str and 1 <= len(description.strip()) <= 8000
              and type(api_key) is str and 1 <= len(api_key) <= 4096 and not any(c.isspace() for c in api_key)
@@ -421,6 +437,9 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                     valid = False
             if valid:
                 compiled = prepared
+                entries = (validate_entry_urls(prepared['entry_urls'])
+                           if controlled and search_enabled else ())
+                events = _ReadEvents(search_enabled=search_enabled,entry_urls=entries)
                 events.max_message_chars = 512 * 1024
                 events.max_message_bytes = 512 * 1024
         except ResearchContextError as error:
@@ -461,7 +480,8 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                             bridge_args['search_service'] = search_service
                         if controlled:
                             read_service = PublicReadSession(max_reads=max_reads,deadline=deadline,
-                                allowed_url=search_service.allows_read,**dispatch_args)
+                                allowed_url=lambda url: (url in entries
+                                    or search_service.allows_read(url)),**dispatch_args)
                             bridge_args.update(read_service=read_service,**dispatch_args)
                         bridge = ResponsesBridge(**bridge_args)
                         with bridge:
@@ -471,6 +491,7 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                                                max_seconds=max_seconds,max_requests=max_requests,
                                                search_enabled=search_enabled,max_searches=max_searches,
                                                controlled=controlled,
+                                               entry_urls=entries,
                                                research_instructions=compiled['instructions'] if compiled else None)
                             mission = description
                             if compiled is not None:

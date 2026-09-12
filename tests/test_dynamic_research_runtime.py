@@ -260,6 +260,37 @@ def test_all_background_completes_without_candidate_assessment(dynamic_env):
         runtime.shutdown(timeout_seconds=2)
 
 
+def test_trusted_entry_only_runtime_has_durable_read_and_zero_search_receipts(dynamic_env):
+    env = dynamic_env
+    entry = 'https://www.v2ex.com/go/outsourcing'
+    def mission(_description, **kwargs):
+        from pilot.research_context import compile_research_context
+        assert entry in compile_research_context(kwargs['research_context'])['entry_urls']
+        value = read_result()
+        value['evidence']['url'] = entry
+        dispatch_effect(kwargs['effect_dispatcher'], kind='READ', payload={'url':entry},
+            deadline=time.monotonic()+20, perform=lambda _:value)
+        return mission_completed(kwargs, [value['evidence']], background=True)
+    runtime = service(env, mission)
+    try:
+        runtime.advance(env.claims, env.execution['task_id'], env.execution['run_id'])
+        final = wait_terminal(runtime, env)
+        assert final['phase'] == 'COMPLETED'
+        assert final['discovery']['searches']['issued'] == 0
+        assert final['discovery']['reads']['succeeded'] == 1
+        assert final['acceptedOriginals'] == final['analyzedOriginals'] == 0
+        assert env.reviews.model.calls == 0
+        with env.admin.connect() as connection:
+            assert connection.execute(
+                "SELECT count(*) FROM pilot_research_effect_journal WHERE task_id=%s AND kind='SEARCH'",
+                (env.execution['task_id'],)).fetchone()[0] == 0
+            assert connection.execute(
+                "SELECT count(*) FROM pilot_candidate_batches WHERE task_id=%s",
+                (env.execution['task_id'],)).fetchone()[0] == 1
+    finally:
+        runtime.shutdown(timeout_seconds=2)
+
+
 def test_invalid_complete_selection_stops_before_any_publication(dynamic_env):
     env = dynamic_env
     def mission(_description, **kwargs):

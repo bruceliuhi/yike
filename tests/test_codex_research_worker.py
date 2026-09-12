@@ -350,6 +350,64 @@ def test_research_instructions_require_search_then_read(worker,tmp_path):
     assert 'synthetic-search-secret' not in data['instructions']
 
 
+def test_seeded_event_accepts_exact_read_without_search_and_rejects_ungranted(worker):
+    entry='https://www.v2ex.com/go/outsourcing'
+    events=worker._ReadEvents(search_enabled=True,entry_urls=[entry])
+    accepted=read_event()
+    accepted['item']['arguments']['url']=entry
+    accepted['item']['result']['structured_content']['evidence']['url']=entry
+    events.accept(accepted)
+    assert len(events.reads)==1 and events.searches==[]
+    nearby=worker._ReadEvents(search_enabled=True,entry_urls=[entry])
+    denied=copy.deepcopy(accepted)
+    denied['item']['arguments']['url']=entry+'/nearby'
+    denied['item']['result']['structured_content']['evidence']['url']=entry+'/nearby'
+    with pytest.raises(worker._InvalidOutput):
+        nearby.accept(denied)
+
+
+def test_seeded_controlled_worker_transports_entries_and_completes_without_search(
+        worker,tmp_path,monkeypatch):
+    entry='https://www.v2ex.com/go/outsourcing'
+    context=research_context()
+    context['history']=[dict(project_key='known',description='known',state='KNOWN',source_urls=[entry])]
+    capture=tmp_path/'seed-config.json'
+    class Search:
+        def __init__(self, **kwargs): pass
+        def allows_read(self,url): return False
+        def close(self): pass
+    captured={}
+    class Read:
+        def __init__(self, **kwargs): captured['allowed_url']=kwargs['allowed_url']
+        def close(self): pass
+    class Bridge:
+        base_url='http://127.0.0.1:1/v1'
+        search_url=base_url+'/public-search'; read_url=base_url+'/public-read'
+        token='synthetic-local-token'; records=[]
+        def __init__(self, **kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self,*exc): pass
+    monkeypatch.setattr(worker,'PublicSearchSession',Search)
+    monkeypatch.setattr(worker,'PublicReadSession',Read)
+    monkeypatch.setattr(worker,'ResponsesBridge',Bridge)
+    extra=("config=next(value for value in sys.argv if value.startswith('model_instructions_file='))\n"
+           "instructions=open(json.loads(config.split('=',1)[1])).read()\n"
+           f"open({str(capture)!r},'w').write(json.dumps(dict(argv=sys.argv,env=dict(os.environ),instructions=instructions)))\n")
+    event=read_event()
+    event['item']['arguments']['url']=entry
+    event['item']['result']['structured_content']['evidence']['url']=entry
+    result=run_research(worker,tmp_path,[event,*final_events()],extra=extra,
+        research_context=context,effect_dispatcher=lambda kind,payload,deadline,perform:perform(deadline))
+    data=json.loads(capture.read_text())
+    assert result['status']=='COMPLETED' and result['searches']==[] and len(result['reads'])==1
+    serialized=json.dumps(data['argv'])
+    assert 'YIKE_PUBLIC_ENTRY_URLS=' in serialized and 'https://www.v2ex.com/recent' in serialized
+    expected=['https://www.v2ex.com/recent','https://www.v2ex.com/go/qna',entry]
+    assert json.dumps(expected,separators=(',',':')) in data['instructions']
+    assert captured['allowed_url'](entry) and not captured['allowed_url'](entry+'/nearby')
+    assert 'search_public_web first' not in data['instructions']
+
+
 def test_read_only_instructions_remain_exactly_unchanged(worker,tmp_path):
     capture=tmp_path/'read-config.json'
     extra=("config=next(value for value in sys.argv if value.startswith('model_instructions_file='))\n"

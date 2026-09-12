@@ -25,6 +25,7 @@ from pilot.open_web_reader import (
     valid_page_evidence,
 )
 from pilot.public_search import normalize_query, valid_search_result
+from pilot.research_entry_urls import decode_entry_urls_json, validate_entry_urls
 
 
 def _failure(code):
@@ -34,14 +35,16 @@ def _failure(code):
 _valid_page = valid_page_evidence  # Preserve the existing internal validator import.
 
 
-def build_server(*, max_reads: int, max_seconds: int, reader=read_public_page, searcher=None):
+def build_server(*, max_reads: int, max_seconds: int, reader=read_public_page, searcher=None,
+                 entry_urls=()):
     if (type(max_reads) is not int or not 1 <= max_reads <= 100
             or type(max_seconds) is not int or not 1 <= max_seconds <= 1800
             or not callable(reader) or searcher is not None and not callable(searcher)):
         raise ValueError('invalid_tool_limits')
+    entries = validate_entry_urls(entry_urls)
     expires = monotonic() + max_seconds
     cache = {}
-    discovered = set()
+    discovered = set(entries)
     used = 0
     lock = anyio.Lock()
     server = Server('yike-public-research', version='1.0.0', instructions=(
@@ -172,6 +175,8 @@ def main():
     parser.add_argument('--max-seconds', type=int, required=True)
     args = parser.parse_args()
     try:
+        entry_raw = os.environ.get('YIKE_PUBLIC_ENTRY_URLS')
+        entries = decode_entry_urls_json(entry_raw) if entry_raw is not None else ()
         searcher = None
         search_url = os.environ.get('YIKE_PUBLIC_SEARCH_URL')
         search_token = os.environ.get('YIKE_PUBLIC_SEARCH_TOKEN')
@@ -184,8 +189,10 @@ def main():
         if read_url is not None or read_token is not None:
             from pilot.read_tool_client import ReadToolClient
             reader = ReadToolClient(url=read_url,token=read_token).read
+        if entries and (searcher is None or read_url is None or read_token is None):
+            raise ValueError('invalid_entry_urls')
         server = build_server(max_reads=args.max_reads, max_seconds=args.max_seconds,
-                              searcher=searcher,reader=reader)
+                              searcher=searcher,reader=reader,entry_urls=entries)
     except ValueError:
         parser.error('invalid_tool_limits')
     def hard_stop():

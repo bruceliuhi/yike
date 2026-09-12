@@ -10,15 +10,16 @@ from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pilot.open_web_reader import PublicReadError, normalize_public_url
-from pilot.research_source_catalog import research_entry_hints
+from pilot.research_entry_urls import validate_entry_urls
+from pilot.research_source_catalog import research_entry_hints, research_public_entry_urls
 from pilot.research_page_selection import SELECTION_INSTRUCTIONS
 from pilot.research_strategy_contract import (
     StrategyStoreError, configuration_digest, strategy_snapshot as validate_strategy_snapshot,
 )
 
 
-_RULE_VERSION = "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1"
-_RULE_VERSION_V2 = "opportunity-research-context-v2/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1"
+_RULE_VERSION = "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1/trusted-entries-v1"
+_RULE_VERSION_V2 = "opportunity-research-context-v2/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1/trusted-entries-v1"
 _RULE_FILES = (
     "SKILL.md",
     "references/evaluation.md",
@@ -250,6 +251,17 @@ reference_time、timezone 与 max_age_days 限定作者原文时间；搜索索�
     return "".join(sections)
 
 
+def _entry_urls(validated: dict) -> tuple[str, ...]:
+    blocked = {url for item in validated["history"] if item["state"] != "KNOWN"
+               for url in item["source_urls"]}
+    ordered = list(research_public_entry_urls()) + [
+        url for item in validated["history"] if item["state"] == "KNOWN"
+        for url in item["source_urls"]
+    ]
+    return validate_entry_urls(tuple(dict.fromkeys(
+        url for url in ordered if url not in blocked))[:20])
+
+
 def compile_research_context(value: dict) -> dict:
     """Validate and bind a context snapshot to the exact repository rules."""
     validated = _validate(value)
@@ -279,6 +291,7 @@ def compile_research_context(value: dict) -> dict:
         "instructions": instructions,
         "context_json": context_json,
         "binding": dict(binding),
+        "entry_urls": _entry_urls(validated),
     }
 
 

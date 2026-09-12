@@ -118,11 +118,18 @@ def test_history_is_same_business_owner_scoped_known_not_draft_contact(context_e
     env=context_env
     seed(env,public_url='https://example.com/known',title='制造设备方案',body='具体需求原文')
     execution=dynamic_start(env)
-    parsed=json.loads(load(env,execution)['context_json'])
+    compiled=load(env,execution)
+    parsed=json.loads(compiled['context_json'])
     assert parsed['history_scope']=='PARTIAL'
     assert len(parsed['history'])==1
     assert parsed['history'][0]['state']=='KNOWN'
     assert parsed['history'][0]['source_urls']==['https://example.com/known']
+    assert compiled['entry_urls'] == (
+        'https://www.v2ex.com/recent',
+        'https://www.v2ex.com/go/qna',
+        'https://www.v2ex.com/go/outsourcing',
+        'https://example.com/known',
+    )
 
 
 def test_profile_revocation_blocks_existing_context(context_env):
