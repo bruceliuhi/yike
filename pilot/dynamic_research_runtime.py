@@ -18,9 +18,9 @@ _COUNTER = ("issued", "pending", "succeeded", "failed", "unknown")
 
 
 def _discovery_limits(sources):
-    # SEARCH and READ consume the same confirmed source allowance.
-    searches = min(10, max(1, sources // 3))
-    return searches, sources - searches
+    # Per-kind ceilings reserve one attempt of the other kind, not fixed pots.
+    # Their sum is NOT a grant: the durable SOURCE_READ ledger owns the total.
+    return min(10, sources - 1), sources - 1
 
 
 def _stop_code(value, fallback):

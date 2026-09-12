@@ -114,9 +114,43 @@ def test_codex_event_acceptance_follows_only_verified_page_links():
         events.accept(unknown)
 
 
-@pytest.mark.parametrize('sources,expected', [(2,(1,1)), (3,(1,2)), (8,(2,6)), (100,(10,90))])
+@pytest.mark.parametrize('sources,expected', [(2,(1,1)), (3,(2,2)), (8,(7,7)), (100,(10,99))])
 def test_customer_source_budget_reserves_original_reads(sources, expected):
     from pilot import dynamic_research_runtime
     allocation = getattr(dynamic_research_runtime, '_discovery_limits', None)
     assert callable(allocation), 'missing search/read budget allocation'
     assert allocation(sources) == expected
+
+
+@pytest.mark.parametrize('read_after', [2, 7])
+def test_read_then_community_search_can_use_remaining_shared_allowance(read_after):
+    from pilot.dynamic_research_runtime import _discovery_limits
+    from pilot.public_search import PublicSearchSession
+    from pilot.research_effects import EffectDispatchError
+    searches, reads = _discovery_limits(8)
+    actions = []
+    def bounded(kind, payload, deadline, perform):
+        if len(actions) >= 8:
+            raise EffectDispatchError()
+        actions.append(kind)
+        return perform(deadline)
+    search = PublicSearchSession(api_key='synthetic-navigation', max_searches=searches,
+        deadline=time.monotonic()+60, effect_dispatcher=bounded)
+    search._run = lambda query, **kwargs: (
+        copy.deepcopy(search_event()['item']['result']['structured_content']) | {'query': query})
+    host = PublicReadSession(max_reads=reads, deadline=time.monotonic()+60,
+        allowed_url=lambda url: True, effect_dispatcher=bounded, reader=Reader())
+    try:
+        for i in range(7):
+            if i == read_after:
+                assert host.read(INDEX, deadline=time.monotonic()+20)['status'] == 'READ'
+            assert search.search(f'community {i}')['status'] == 'SEARCHED'
+        if read_after == 7:
+            assert host.read(INDEX, deadline=time.monotonic()+20)['status'] == 'READ'
+        assert len(actions) == 8 and actions.count('READ') == 1
+        assert host.read(POST, deadline=time.monotonic()+20)['status'] == 'FAILED'
+        assert search.search('ninth source')['status'] == 'FAILED'
+        assert len(actions) == 8
+    finally:
+        search.close()
+        host.close()

@@ -63,7 +63,9 @@ def _research_instructions(*, max_searches, max_reads, max_requests):
             'returned links to original posts or relevant author context. Links are navigation '
             'hints, not verified evidence or permission to log in. Do not force irrelevant reads. '
             'Keep time and model calls for reading and the final summary; never spend the whole '
-            'mission on search. If evidence is insufficient, report that explicitly.')
+            'mission on search. Per-tool ceilings are not separate grants: the shared source '
+            'allowance in the host context always prevails. If evidence is insufficient, report '
+            'that explicitly.')
 
 
 class _InvalidOutput(Exception):
