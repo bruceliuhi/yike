@@ -70,6 +70,7 @@ export function strategyPrepareRequest(
           stopAtAnyLimit: draft.research.stopAtAnyLimit,
           evidenceOrder: draft.research.evidenceOrder,
           ...(owns(draft.research, 'provenance') ? {provenance:structuredClone(draft.research.provenance)} : {}),
+          ...(owns(draft.research, 'sourcePlan') ? {sourcePlan:structuredClone(draft.research.sourcePlan)} : {}),
         }
       : null;
     return prepareStrategySchema.parse({

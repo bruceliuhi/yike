@@ -11,6 +11,7 @@ import { schedulePolicyDescription, scheduleWindowLabel } from "../../domain/sch
 import {hasPublicSourceBinding} from '../../domain/task';
 import {allowsPublicSource,DEFAULT_PUBLIC_SOURCE,publicSourceScope} from '../../../shared/publicSources';
 import {researchSourceScope} from '../../../shared/researchRuntime';
+import {researchSources,researchRecordAllotments,researchIndexLabel,RESEARCH_PLAN_LABEL} from '../../../shared/researchSourcePlan';
 
 export function TaskConfirmationSummary({
   draft,
@@ -241,8 +242,8 @@ export function TaskConfirmationSummary({
                 const webReady =
                   id === "web" &&
                   !!readyConnection && hasPublicSourceBinding(readyConnection) &&
-                  allowsPublicSource(draft.publicSource ?? DEFAULT_PUBLIC_SOURCE,
-                    readyConnection.publicBinding?.sourceId,readyConnection.publicBinding?.sourceIds);
+                  researchSources(draft.publicSource ?? DEFAULT_PUBLIC_SOURCE,draft.research?.sourcePlan).every(source=>allowsPublicSource(source,
+                    readyConnection.publicBinding?.sourceId,readyConnection.publicBinding?.sourceIds));
                 return (
                   <tr key={id}>
                     <td>
@@ -282,7 +283,7 @@ export function TaskConfirmationSummary({
                             : status}
                       </Badge>
                     </td>
-                    <td>{id === 'web' ? draft.research ? researchSourceScope(draft.publicSource) : publicSourceScope(draft.publicSource) : source}</td>
+                    <td>{id === 'web' ? draft.research?.sourcePlan ? RESEARCH_PLAN_LABEL : draft.research ? researchSourceScope(draft.publicSource) : publicSourceScope(draft.publicSource) : source}</td>
                   </tr>
                 );
               })}
@@ -290,6 +291,15 @@ export function TaskConfirmationSummary({
           </table>
         </div>
         {!draft.platforms.length && <p className="muted">尚未选择平台。</p>}
+        {draft.research?.sourcePlan&&<>
+          <table aria-label="已确认来源配额">
+            <thead><tr><th>读取顺序与来源</th><th>记录配额</th></tr></thead>
+            <tbody>{researchRecordAllotments(draft.executionLimits?.max_records??0,draft.research.sourcePlan.sources).map((row,index)=><tr key={row.sourceId}>
+              <td>{index+1}. {researchIndexLabel(row.sourceId)}</td><td>{row.recordLimit} 条</td>
+            </tr>)}</tbody>
+          </table>
+          <p className="field-hint">各来源共享总上限，空来源配额不转移；仅读取索引主题，未读评论与作者回复。不同来源可能出现同一原文，不等于更多买方。</p>
+        </>}
       </section>
     </>
   );

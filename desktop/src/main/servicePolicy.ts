@@ -102,7 +102,7 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
   const data = parsed.data as Record<string, string> | undefined;
   switch (operation) {
     case 'researchUsage.quote': return {path:'/api/ui/research-usage/quote',method:'POST',body:JSON.stringify(parsed.data),logout:false};
-    case 'researchRuntime.capability':return {path:'/api/ui/research-execution/capability'+(data?.sourceCatalogVersion?'?source_catalog_version=1':''),method:'GET',logout:false};
+    case 'researchRuntime.capability':return {path:'/api/ui/research-execution/capability'+(data?.sourcePlanVersion?'?source_plan_version=1':data?.sourceCatalogVersion?'?source_catalog_version=1':''),method:'GET',logout:false};
     case 'researchRuntime.status':return {path:`/api/ui/research-execution/tasks/${data!.taskId}`,method:'GET',logout:false};
     case 'researchRuntime.advance':return {path:`/api/ui/research-execution/tasks/${data!.taskId}/advance`,method:'POST',
       body:JSON.stringify({runId:data!.runId}),logout:false,timeoutMs:75_000};

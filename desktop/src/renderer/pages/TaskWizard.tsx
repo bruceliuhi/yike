@@ -67,7 +67,7 @@ import { SearchSuggestionPanel } from "./tasks/SearchSuggestionPanel";
 import { IndustryTaskStrategyEditor } from './tasks/IndustryTaskStrategyEditor';
 import { adoptIndustryTaskStrategy } from '../domain/industryTaskStrategy';
 import {nativeResearchStartCommand} from '../domain/nativeResearch';
-import {researchRuntimeCapabilitySchema,researchAllowsSource} from '../../shared/researchRuntime';
+import {researchRuntimeCapabilitySchema,researchAllowsSelection} from '../../shared/researchRuntime';
 
 export { matchesCreatedTask } from "../domain/taskOperations";
 
@@ -174,7 +174,7 @@ export function TaskWizardPage() {
     connections.data || [],
     info.data?.deviceReady === true,
     monitorReady,
-    nativeResearch && researchAllowsSource(researchCapability.data,draft.publicSource),
+    nativeResearch && researchAllowsSelection(researchCapability.data,draft.publicSource,draft.research?.sourcePlan),
   );
   if (!session.authenticated)
     blockers.unshift("请登录客户工作空间后启动任务。");
@@ -195,7 +195,7 @@ export function TaskWizardPage() {
     if (!service.researchUsage || (nativeResearch ? !researchCapability.data : service.taskOperations?.researchContractVersion !== 1))
       blockers.push("研究用量服务尚未接通，当前可以保存草稿。");
     else if (!usage.valid) blockers.push("请先估算当前配置的搜贝用量，再确认启动。");
-    if(nativeResearch && (draft.mode!=='once' || draft.platforms.length!==1 || draft.platforms[0]!=='web' || !researchAllowsSource(researchCapability.data,draft.publicSource)))
+    if(nativeResearch && (draft.mode!=='once' || draft.platforms.length!==1 || draft.platforms[0]!=='web' || !researchAllowsSelection(researchCapability.data,draft.publicSource,draft.research?.sourcePlan)))
       blockers.push('所选板块尚未核实研究能力；当前仅支持已接通V2EX板块的单次索引研究，不含其他平台或持续调度。');
   }
   const update = (patch: Partial<TaskDraft>) => {
@@ -473,7 +473,7 @@ export function TaskWizardPage() {
           if(reasons.length)throw new Error(reasons.join(' '));
           const freshResearch=researchRuntimeCapabilitySchema.parse(await boundedRequest(signal=>service.researchRuntime!.capability(signal),
             {timeoutMessage:'研究执行能力尚未核实，未创建任务。'}));
-          if(!researchAllowsSource(freshResearch,snapshot.publicSource))throw new Error('所选板块研究能力已变化，请重新核对；未创建任务。');
+          if(!researchAllowsSelection(freshResearch,snapshot.publicSource,snapshot.research?.sourcePlan))throw new Error('所选板块研究能力已变化，请重新核对；未创建任务。');
           if(!await strategy.recheck() || !startScope.current())throw new Error('当前研究策略尚未重新核实。');
           const command=await nativeResearchStartCommand(snapshot,prepared,freshConnections,session,usageSnapshot,crypto.randomUUID());
           if(!startScope.current())throw new RequestCancelled();
@@ -1190,7 +1190,9 @@ export function TaskWizardPage() {
                     </td>
                     <td>
                       {id === "web" ? (
-                        <PublicSourceSelector draft={draft} connections={connections.data??[]} researchCapability={researchCapability.data} onChange={publicSource=>update({publicSource})}/>
+                        <PublicSourceSelector draft={draft} connections={connections.data??[]} researchCapability={researchCapability.data} onChange={publicSource=>update({publicSource})}
+                          onPlanChange={(publicSource,sourcePlan)=>{if(!draft.research)return;const {sourcePlan:previous,...research}=draft.research;
+                            update({publicSource,research:{...research,...(sourcePlan?{sourcePlan}:{})}});}}/>
                       ) : (
                         <select
                           aria-label={`${platformLabel(id)}执行账号`}

@@ -153,16 +153,20 @@ describe('original TaskWizard signed execution entry', () => {
     expect(execute.mock.calls.filter(([value]) => value.action === 'CANCEL')).toHaveLength(1);
   });
   it.each([
-    {source:'v2ex-latest-v1',changed:false},{source:'v2ex-qna-v1',changed:false},
-    {source:'v2ex-outsourcing-authors-v1',changed:false},{source:'v2ex-qna-v1',changed:true},
-  ] as const)('starts selected $source only while its fresh capability remains available ($changed)',async({source,changed})=>{
-    draft={...draft,publicSource:source,research:{...defaultResearchSettings(),maxSoubei:20,limits:{sources:2,minutes:3,modelCalls:4}}};
+    {source:'v2ex-latest-v1',changed:false,plan:false},{source:'v2ex-qna-v1',changed:false,plan:false},
+    {source:'v2ex-outsourcing-authors-v1',changed:false,plan:false},{source:'v2ex-qna-v1',changed:true,plan:false},
+    {source:'v2ex-qna-v1',changed:false,plan:true},{source:'v2ex-qna-v1',changed:true,plan:true},
+    {source:'v2ex-qna-v1',changed:'binding',plan:true},
+  ] as const)('starts selected $source only while its fresh capability remains available ($changed, plan $plan)',async({source,changed,plan})=>{
+    draft={...draft,publicSource:source,research:{...defaultResearchSettings(),maxSoubei:20,limits:{sources:2,minutes:3,modelCalls:4},
+      ...(plan?{sourcePlan:{version:1 as const,sources:[source,'v2ex-outsourcing-authors-v1' as const]}}:{})}};
     const strategyRequest=strategyPrepareRequest(draft,prepared.request_id,{max_records:10,max_runtime_seconds:60});
     prepared={...prepared,draft_revision:draft.revision,snapshot:{...prepared.snapshot,configuration:strategyRequest.configuration,platforms:strategyRequest.platforms}};
     const calls:DesktopExecutionCommand[]=[];execute=vi.fn(async command=>{calls.push(structuredClone(command));if(command.action==='LIST')return {state:'LIST',requests:[]};
       if(command.action==='RESEARCH_LIST')return {state:'RESEARCH_LIST',requests:[]};return 'requestId'in command?{state:'UNKNOWN',requestId:command.requestId}:{state:'FAILED',error:'EXECUTION_SESSION_FAILED'};});
     const legacy:ResearchRuntimeCapability={contractVersion:1,sourceScope:'V2EX_LATEST_INDEX',sourceLabel:RESEARCH_RUNTIME_SOURCE_LABEL,maxFreshEffectsPerAdvance:1,settlementState:'PENDING'};
-    const capability=vi.fn<()=>Promise<ResearchRuntimeCapability>>().mockResolvedValue(source==='v2ex-latest-v1'?legacy:{contractVersion:2,sourceScope:'V2EX_SELECTED_INDEX',sourceLabel:'V2EX定向板块 · 单源索引研究',
+    const capability=vi.fn<()=>Promise<ResearchRuntimeCapability>>().mockResolvedValue(plan?{contractVersion:3,sourceScope:'V2EX_INDEX_PLAN',sourceLabel:'V2EX多板块 · 有界来源计划',
+      sourceIds:['v2ex-latest-v1','v2ex-qna-v1','v2ex-outsourcing-authors-v1'],maxPlannedSources:3,maxFreshEffectsPerAdvance:1,settlementState:'PENDING'}:source==='v2ex-latest-v1'?legacy:{contractVersion:2,sourceScope:'V2EX_SELECTED_INDEX',sourceLabel:'V2EX定向板块 · 单源索引研究',
       sourceIds:['v2ex-latest-v1','v2ex-qna-v1','v2ex-outsourcing-authors-v1'],maxFreshEffectsPerAdvance:1,settlementState:'PENDING'});
     vi.mocked(context.service.connections).mockResolvedValue([{platform:'web',status:'CONNECTED',capabilities:['search'],publicBinding:{sourceId:'v2ex-latest-v1',sourceIds:['v2ex-latest-v1','v2ex-qna-v1','v2ex-outsourcing-authors-v1'],deviceId:draft.profileId}}]);
     context={...context,session:{...context.session,accountScope:{id:crypto.randomUUID(),version:1}},service:{...context.service,execution:{researchContractVersion:1,execute},researchRuntime:{capability,status:vi.fn(),advance:vi.fn()},
@@ -170,13 +174,17 @@ describe('original TaskWizard signed execution entry', () => {
         estimatedSoubei:5,generatedAt:new Date(Date.now()-1000).toISOString(),expiresAt:new Date(Date.now()+60_000).toISOString(),basis:'TEST only'}))}}};
     sessionStorage.setItem('yike.ui.draft.v1.task.'+taskDraftOwner(context.session.userId,context.session.accountScope),JSON.stringify(draft));render(<TaskWizardPage/>);
     fireEvent.click(await screen.findByRole('button',{name:'重新估算'}));await screen.findByText('5 搜贝 · test-v1');await review();
-    if(source==='v2ex-qna-v1')expect(screen.getByText('V2EX问与答 · 单源索引研究（未读评论）')).toBeTruthy();
+    if(plan){expect(screen.getByRole('table',{name:'已确认来源配额'})).toBeTruthy();
+      expect(prepared.snapshot.configuration.research?.sourcePlan?.sources).toEqual([source,'v2ex-outsourcing-authors-v1']);}
+    if(source==='v2ex-qna-v1'&&!plan)expect(screen.getByText('V2EX问与答 · 单源索引研究（未读评论）')).toBeTruthy();
     if(source==='v2ex-outsourcing-authors-v1')expect(screen.getByText('V2EX项目外包 · 单源索引研究（未读作者回复）')).toBeTruthy();
     const start=screen.getByRole('button',{name:'确认并启动'}) as HTMLButtonElement;await waitFor(()=>expect(start.disabled).toBe(false));
-    if(changed)capability.mockResolvedValue(legacy);
+    if(changed==='binding')vi.mocked(context.service.connections).mockResolvedValue([{platform:'web',status:'CONNECTED',capabilities:['search'],
+      publicBinding:{sourceId:'v2ex-latest-v1',sourceIds:['v2ex-latest-v1','v2ex-qna-v1'],deviceId:draft.profileId}}]);
+    else if(changed)capability.mockResolvedValue(legacy);
     fireEvent.click(start);
     if(changed){
-      await screen.findByText(/所选板块研究能力已变化/);
+      await screen.findByText(changed==='binding'?/公开读取范围或执行设备已变化/:/所选板块研究能力已变化/);
       expect(calls.some(command=>command.action==='RESEARCH_START')).toBe(false);
       return;
     }

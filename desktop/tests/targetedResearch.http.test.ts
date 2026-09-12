@@ -12,7 +12,7 @@ it.skipIf(!artifact)('replays the actual baseline capability rejection as one re
   expect(records.legacyNegotiated.baseline).toBe('8da6d87496481958ada3558efffae0f27b776677');
   const main=createServiceClient({baseUrl:'https://synthetic.example',clearSession:async()=>{},fetch:async(url,options)=>{
     expect(options.method).toBe('GET');expect(options.body).toBeUndefined();paths.push(url);
-    const reply=url.endsWith('?source_catalog_version=1')?records.legacyNegotiated:
+    const reply=url.includes('?')?records.legacyNegotiated:
       {status:200,body:records['v2ex-qna-v1'].legacyCapability};
     return new Response(JSON.stringify(reply.body),{status:reply.status,headers:{'Content-Type':'application/json'}});
   }});
@@ -24,7 +24,8 @@ it.skipIf(!artifact)('replays the actual baseline capability rejection as one re
   const capability=await renderer.capability();
   expect(capability.contractVersion).toBe(1);
   expect(researchAllowsSource(capability,'v2ex-qna-v1')).toBe(false);
-  expect(paths).toEqual(['https://synthetic.example/api/ui/research-execution/capability?source_catalog_version=1',
+  expect(paths).toEqual(['https://synthetic.example/api/ui/research-execution/capability?source_plan_version=1',
+    'https://synthetic.example/api/ui/research-execution/capability?source_catalog_version=1',
     'https://synthetic.example/api/ui/research-execution/capability']);
 });
 it.skipIf(!artifact)('desktop consumes actual node research DTOs through the formal service and fixed IPC route',async()=>{
@@ -56,7 +57,7 @@ it.skipIf(!artifact)('desktop consumes actual node research DTOs through the for
     expect(completed.usage.modelCalls.succeeded).toBe(1);
     expect(completed.sourceScope).toBe(source==='v2ex-qna-v1'?'V2EX_QNA_INDEX':'V2EX_OUTSOURCING_INDEX');
     expect(seen).toEqual([
-      'https://synthetic.example/api/ui/research-execution/capability?source_catalog_version=1',
+      'https://synthetic.example/api/ui/research-execution/capability?source_plan_version=1',
       `https://synthetic.example/api/ui/research-execution/tasks/${queued.taskId}`,
       `https://synthetic.example/api/ui/research-execution/tasks/${queued.taskId}/advance`,
       `https://synthetic.example/api/ui/research-execution/tasks/${queued.taskId}/advance`,

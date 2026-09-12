@@ -18,19 +18,26 @@ export function createResearchRuntimeService(transport:Transport):ResearchRuntim
   }
   return {
     async capability(signal){
-      signal?.throwIfAborted();
-      let raw:unknown;
-      try{raw=await transport('researchRuntime.capability','/research-execution/capability?source_catalog_version=1','GET',{sourceCatalogVersion:1},signal);}
-      catch(error){
+      const options=[{query:'?source_plan_version=1',payload:{sourcePlanVersion:1},maxVersion:3},
+        {query:'?source_catalog_version=1',payload:{sourceCatalogVersion:1},maxVersion:2},
+        {query:'',payload:undefined,maxVersion:1}] as const;
+      for(const [index,option] of options.entries()){
         signal?.throwIfAborted();
-        if(!(error instanceof ServiceError)||error.status!==422||error.code!=='invalid_request')throw error;
-        // Capability negotiation is read-only. Never retry START or an effect.
-        raw=await transport('researchRuntime.capability','/research-execution/capability','GET',undefined,signal);
-        if(researchRuntimeCapabilitySchema.parse(raw).contractVersion!==1)
+        let raw:unknown;
+        try{raw=await transport('researchRuntime.capability','/research-execution/capability'+option.query,'GET',option.payload,signal);}
+        catch(error){
+          signal?.throwIfAborted();
+          // Only exact, read-only version negotiation. Never retry START or an effect.
+          if(index<2 && error instanceof ServiceError && error.status===422 && error.code==='invalid_request')continue;
+          throw error;
+        }
+        signal?.throwIfAborted();
+        const parsed=researchRuntimeCapabilitySchema.parse(raw);
+        if(parsed.contractVersion>option.maxVersion)
           throw new ServiceError('INVALID_SERVICE_RESPONSE','研究能力协商结果不一致。');
+        return parsed;
       }
-      signal?.throwIfAborted();
-      return researchRuntimeCapabilitySchema.parse(raw);
+      throw new ServiceError('INVALID_SERVICE_RESPONSE','研究能力协商未完成。');
     },
     async status(taskId,signal){const payload=researchRuntimeStatusRequestSchema.parse({taskId});
       return bound(await transport('researchRuntime.status',`/research-execution/tasks/${taskId}`,'GET',payload,signal),taskId);},

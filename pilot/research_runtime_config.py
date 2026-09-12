@@ -53,5 +53,9 @@ def public_research_policy(platform, access_mode, configuration):
 
 
 def public_research_snapshot(snapshot):
-    return (type(snapshot) is dict and snapshot.get("platforms") == ["PUBLIC_WEB"]
+    valid = (type(snapshot) is dict and snapshot.get("platforms") == ["PUBLIC_WEB"]
         and public_research_policy("PUBLIC_WEB", "PUBLIC_ANONYMOUS", snapshot.get("configuration")))
+    if valid and (plan := snapshot['configuration']['research'].get('sourcePlan')):
+        total = snapshot.get('max_records')
+        return type(total) is int and len(plan['sources']) <= total <= 100
+    return valid

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {publicSourceIdSchema} from './publicSources';
+import {researchSourcePlanSchema} from './researchSourcePlan';
 import { industryTaskStrategySchema } from './industryTaskStrategy';
 import { planNativeCollectionLinks } from './nativeCollectionLinks';
 
@@ -223,6 +224,7 @@ const researchSchema = exactObject({
     error: INVALID_STRATEGY_DATA,
   }),
   provenance: researchOriginSchema.optional(),
+  sourcePlan: researchSourcePlanSchema.optional(),
 });
 const termsSchema = z
   .array(boundedVisibleText(80), { error: INVALID_STRATEGY_DATA })
@@ -265,6 +267,11 @@ export const strategyConfigurationSchema = exactObject({
   platformQueries: platformQueriesSchema.optional(),
 })
   .superRefine((configuration, context) => {
+    const plan=configuration.research?.sourcePlan;
+    if(plan && (configuration.publicSource!==plan.sources[0] || configuration.source!=='search' ||
+        configuration.mode!=='once' || configuration.schedule!==null || configuration.links.length>0 ||
+        configuration.research!.limits.sources<plan.sources.length))
+      context.addIssue({code:'custom',message:INVALID_STRATEGY_DATA});
     if (configuration.platformQueries && (configuration.source!=='search' || configuration.research!==null || configuration.links.length>0 ||
         configuration.platformQueries.items.some(item=>item.keywords.some(keyword=>configuration.exclusions.some(
           exclusion=>normalizedTerm(keyword).includes(normalizedTerm(exclusion)))))))
@@ -307,6 +314,7 @@ export const prepareStrategyRecordSchema = exactObject({
   draft_revision: boundedInteger(2_147_483_647),
   ...strategyScopeShape,
 }).superRefine((scope, context) => {
+  if(!validSourcePlanScope(scope))context.addIssue({code:'custom',message:INVALID_STRATEGY_DATA});
   if (scope.configuration.platformQueries && !scope.configuration.platformQueries.items.every(
     item=>scope.platforms.includes(item.platform)))
     context.addIssue({code:'custom',message:INVALID_STRATEGY_DATA});
@@ -338,7 +346,8 @@ const snapshotSchema = exactObject({
   platforms: platformsSchema,
   max_records: boundedInteger(10_000),
   max_runtime_seconds: boundedInteger(86_400),
-}).refine(scope=>!scope.configuration.platformQueries || scope.configuration.platformQueries.items.every(
+}).refine(validSourcePlanScope,{error:INVALID_STRATEGY_DATA})
+  .refine(scope=>!scope.configuration.platformQueries || scope.configuration.platformQueries.items.every(
   item=>scope.platforms.includes(item.platform)),{error:INVALID_STRATEGY_DATA});
 const receiptBindingShape = {
   strategy_version_id: strategyUuidSchema,
@@ -374,6 +383,10 @@ export const strategyViewSchema = exactObject({
 });
 
 export type StrategyConfiguration = z.infer<typeof strategyConfigurationSchema>;
+function validSourcePlanScope(scope:{configuration:StrategyConfiguration;platforms:string[];max_records:number}){
+  const plan=scope.configuration.research?.sourcePlan;
+  return !plan || (scope.platforms.length===1 && scope.platforms[0]==='PUBLIC_WEB' && scope.max_records>=plan.sources.length&&scope.max_records<=100);
+}
 /** Call only after strict configuration/scope validation. Overrides replace common terms. */
 export function platformSearchKeywords(configuration: StrategyConfiguration, platform: string): string[] {
   return configuration.platformQueries?.items.find(item=>item.platform===platform)?.keywords ?? configuration.keywords;

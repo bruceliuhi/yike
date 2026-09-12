@@ -36,3 +36,21 @@ it('does not offer a research source when execution binding omits it',()=>{
   const select=screen.getByLabelText('公开来源板块') as HTMLSelectElement;
   expect([...select.options].find(option=>option.value==='v2ex-qna-v1')?.disabled).toBe(true);
 });
+it('selects ordered additional sources, preserves selections when changing primary and on old capability',()=>{
+  const multi={...catalog,contractVersion:3,sourceScope:'V2EX_INDEX_PLAN',sourceLabel:'V2EX多板块 · 有界来源计划',maxPlannedSources:3};
+  const onChange=vi.fn(),onPlanChange=vi.fn();
+  const current=draft();
+  const view=render(<PublicSourceSelector draft={current} connections={connections} onChange={onChange} onPlanChange={onPlanChange} researchCapability={multi}/>);
+  expect(screen.getByRole('checkbox',{name:/同时研究.*项目外包/}).getAttribute('aria-label')).not.toContain('作者回复');
+  fireEvent.click(screen.getByRole('checkbox',{name:/同时研究.*项目外包/}));
+  expect(onPlanChange).toHaveBeenLastCalledWith('v2ex-qna-v1',{version:1,sources:['v2ex-qna-v1','v2ex-outsourcing-authors-v1']});
+  const selected={...current,research:{...current.research,sourcePlan:{version:1 as const,sources:['v2ex-qna-v1','v2ex-outsourcing-authors-v1'] as ('v2ex-qna-v1'|'v2ex-outsourcing-authors-v1')[]}}};
+  view.rerender(<PublicSourceSelector draft={selected} connections={connections} onChange={onChange} onPlanChange={onPlanChange} researchCapability={multi}/>);
+  fireEvent.change(screen.getByLabelText('公开来源板块'),{target:{value:'v2ex-latest-v1'}});
+  expect(onPlanChange).toHaveBeenLastCalledWith('v2ex-latest-v1',{version:1,sources:['v2ex-latest-v1','v2ex-qna-v1','v2ex-outsourcing-authors-v1']});
+  onPlanChange.mockClear();
+  view.rerender(<PublicSourceSelector draft={selected} connections={connections} onChange={onChange} onPlanChange={onPlanChange} researchCapability={catalog}/>);
+  expect((screen.getByRole('checkbox',{name:/同时研究.*项目外包/}) as HTMLInputElement).disabled).toBe(true);
+  expect((screen.getByRole('checkbox',{name:/同时研究.*项目外包/}) as HTMLInputElement).checked).toBe(true);
+  expect(onPlanChange).not.toHaveBeenCalled();
+});

@@ -1,6 +1,7 @@
 """Closed research index catalog; never accepts caller supplied URLs."""
 from dataclasses import dataclass
 import hashlib
+from uuid import UUID, uuid5
 
 from pilot.execution_contract import ExecutionRuntimeError
 
@@ -44,3 +45,31 @@ def source_from_snapshot(snapshot):
     if not public_research_snapshot(snapshot):
         raise ExecutionRuntimeError('strategy_conflict', 409)
     return research_source(snapshot['configuration']['publicSource'])
+
+
+def planned_sources(snapshot):
+    source = source_from_snapshot(snapshot)
+    plan = snapshot['configuration']['research'].get('sourcePlan')
+    return tuple(research_source(value) for value in plan['sources']) if plan else (source,)
+
+
+def source_plan_action(task_id, run_id, source_id):
+    research_source(source_id)
+    return str(uuid5(UUID(run_id), 'research-source-plan-v1:' + task_id + ':' + source_id))
+
+
+def source_record_limits(snapshot):
+    sources = planned_sources(snapshot)
+    total = snapshot['max_records']
+    q, remainder = divmod(total, len(sources))
+    return tuple(q + (index < remainder) for index in range(len(sources)))
+
+
+def source_for_action(snapshot, task_id, run_id, action_id):
+    sources = planned_sources(snapshot)
+    if 'sourcePlan' not in snapshot['configuration']['research']:
+        return sources[0]
+    for source in sources:
+        if source_plan_action(task_id, run_id, source.source_id) == action_id:
+            return source
+    raise ExecutionRuntimeError('request_conflict', 409)

@@ -20,6 +20,26 @@ beforeEach(()=>{
 });
 afterEach(cleanup);
 function view(){return render(<ResearchProgress taskId={taskId} runId={runId} taskStatus="PENDING"/>);}
+it('renders each planned source receipt and continues past the first empty source',async()=>{
+  const sourceProgress=[{sourceId:'v2ex-qna-v1',phase:'NOT_STARTED',acceptedOriginals:null,recordLimit:5},
+    {sourceId:'v2ex-outsourcing-authors-v1',phase:'NOT_STARTED',acceptedOriginals:null,recordLimit:5}];
+  const plan={...queued,contractVersion:3,sourceScope:'V2EX_INDEX_PLAN',sourceLabel:'V2EX多板块 · 有界来源计划',sourceProgress};
+  const first={...plan,phase:'RUNNING',sourceProgress:[{...sourceProgress[0],phase:'SUCCEEDED',acceptedOriginals:0},sourceProgress[1]],
+    usage:{...queued.usage,sourceReads:{...counts,issued:1,succeeded:1}}};
+  const done={...first,phase:'COMPLETED',acceptedOriginals:0,canAdvance:false,newActionsBlocked:true,
+    sourceProgress:first.sourceProgress.map(source=>({...source,phase:'SUCCEEDED',acceptedOriginals:0})),
+    usage:{...queued.usage,sourceReads:{...counts,issued:2,succeeded:2}}};
+  status.mockResolvedValue(plan);
+  let release!:(value:unknown)=>void;
+  advance.mockResolvedValueOnce(first).mockImplementationOnce(()=>new Promise(resolve=>{release=resolve;}));
+  view();await screen.findByRole('table',{name:'逐来源研究进度'});
+  fireEvent.click(screen.getByRole('button',{name:'继续研究'}));
+  await waitFor(()=>expect(advance).toHaveBeenCalledTimes(2));
+  expect(screen.getByText(/入库原文：尚未确认/)).toBeTruthy();
+  expect(screen.queryByText('研究序列已完成')).toBeNull();
+  release(done);await screen.findByText('研究序列已完成');
+  expect(advance).toHaveBeenCalledTimes(2);
+});
 it.each([
   ['V2EX_QNA_INDEX','V2EX问与答 · 单源索引研究（未读评论）'],
   ['V2EX_OUTSOURCING_INDEX','V2EX项目外包 · 单源索引研究（未读作者回复）'],

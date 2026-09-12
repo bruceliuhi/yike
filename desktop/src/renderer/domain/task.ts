@@ -11,6 +11,7 @@ import { industryStrategyError } from './industryTaskStrategy';
 import { platformTermsError } from './platformSearchTerms';
 import {foregroundBindingSchema,publicSourceBindingSchema} from '../../shared/foregroundCollection';
 import {allowsPublicSource,DEFAULT_PUBLIC_SOURCE,publicSourceIdSchema} from '../../shared/publicSources';
+import {researchSourcePlanSchema} from '../../shared/researchSourcePlan';
 import {planNativeCollectionLinks} from '../../shared/nativeCollectionLinks';
 
 export const PUBLIC_SOURCE_SCOPE='V2EX近期主题有界抽样，不覆盖历史/全站/评论';
@@ -226,7 +227,12 @@ export function startBlockers(
   const publicRows=connections.filter(hasPublicSourceBinding);
   const publicSelected=draft.platforms.includes('web');
   const selectedPublicSource=draft.publicSource??DEFAULT_PUBLIC_SOURCE;
-  if(publicSelected && (publicRows.length!==1 || !allowsPublicSource(selectedPublicSource,publicRows[0].publicBinding?.sourceId,publicRows[0].publicBinding?.sourceIds)))
+  const sourcePlan=researchSourcePlanSchema.safeParse(draft.research?.sourcePlan);
+  const sources=sourcePlan.success?sourcePlan.data.sources:[selectedPublicSource];
+  if(sourcePlan.success && (sources[0]!==selectedPublicSource || (draft.research?.limits.sources??0)<sources.length ||
+      (draft.executionLimits?.max_records??0)<sources.length || draft.mode!=='once'||draft.platforms.length!==1||!publicSelected))
+    blockers.push('多来源计划需核对主来源、来源预算及每源记录配额，仅支持公开单次研究。');
+  if(publicSelected && (publicRows.length!==1 || !sources.every(source=>allowsPublicSource(source,publicRows[0].publicBinding?.sourceId,publicRows[0].publicBinding?.sourceIds))))
     blockers.push('所选公开板块当前不可用，请重新核对来源；不会自动切换板块。');
   const publicMonitor=publicSelected&&draft.mode==='monitor'&&publicRows.length===1&&publicRows[0].publicBinding?.monitorSupported===true;
   const publicResearch=nativeResearchReady && draft.mode==='once' && draft.platforms.length===1 && publicSelected;

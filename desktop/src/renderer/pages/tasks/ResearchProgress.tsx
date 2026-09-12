@@ -5,9 +5,11 @@ import {boundedRequest} from '../../app/boundedRequest';
 import {Button,Notice,ResourceStatus} from '../../components/ui';
 import {researchRuntimeStatusSchema,type ResearchRuntimeStatus} from '../../../shared/researchRuntime';
 import {useTaskScope} from './useTaskScope';
+import {researchIndexLabel} from '../../../shared/researchSourcePlan';
 
 const phases={QUEUED:'已创建，待推进',RUNNING:'研究进行中',STOPPED:'研究已停止',CANCELED:'已取消新动作',COMPLETED:'研究序列已完成'};
 const resourceStates={OPEN:'资源记录仍开放',DRAINING:'等待回执或执行者退出',UNCERTAIN:'资源结果仍待核实',RECORDED:'资源记录已收齐'};
+const sourcePhases={NOT_STARTED:'未开始',PENDING:'等待回执',SUCCEEDED:'已入库',FAILED:'失败',UNKNOWN:'结果待核实'};
 function progressKey(value:ResearchRuntimeStatus){
   const closeout=value.usage.resourceCloseout;
   return JSON.stringify({...value,usage:{...value.usage,
@@ -37,8 +39,9 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
       let value=await boundedRequest(read,{signal:abort.signal,timeoutMessage:'研究状态未核实。'});
       if(!current())return;
       data.setData(value);
-      // One source plus at most 100 original analyses. No background or infinite retry loop.
-      for(let step=0;step<101 && value.canAdvance && !value.newActionsBlocked;step++){
+      // At most three sources plus 100 original analyses; no background/infinite retry loop.
+      const maxSteps=100+(value.sourceProgress?.length??1);
+      for(let step=0;step<maxSteps && value.canAdvance && !value.newActionsBlocked;step++){
         const previous=progressKey(value);
         value=parse(await boundedRequest(signal=>service.researchRuntime!.advance(taskId,runId,signal),{
           signal:abort.signal,timeoutMs:80_000,timeoutMessage:'研究推进等待超时。',
@@ -65,6 +68,13 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
     <ResourceStatus loading={data.loading} error={data.error}/>
     {value && <>
       <p>{value.sourceLabel}</p><p>{phases[value.phase]}</p>
+      {value.sourceProgress&&<table aria-label="逐来源研究进度">
+        <thead><tr><th>来源</th><th>状态</th><th>入库 / 配额</th></tr></thead>
+        <tbody>{value.sourceProgress.map(row=><tr key={row.sourceId}>
+          <td>{researchIndexLabel(row.sourceId)}</td><td>{sourcePhases[row.phase]}</td>
+          <td>{row.acceptedOriginals??'待确认'} / {row.recordLimit}</td>
+        </tr>)}</tbody>
+      </table>}
       <p>入库原文：{value.acceptedOriginals??'尚未确认'} · 已分析：{value.analyzedOriginals} · 已跳过：{value.skippedOriginals}</p>
       <p className="muted">这些是原文与分析进度，不是已确认的商机数量；请打开候选逐条核对出处与购买意向。</p>
       {(['sourceReads','modelCalls'] as const).map(resource=>{

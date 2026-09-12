@@ -21,9 +21,15 @@ class ResearchRuntimeService:
         self.owner = str(uuid4())
         self.lease_seconds = lease_seconds
 
-    def capability(self, claims, *, source_catalog_version=None):
+    def capability(self, claims, *, source_catalog_version=None, source_plan_version=None):
         with self.database.connect() as connection, connection.cursor() as cursor:
             self.execution._active(cursor, claims)
+        if source_plan_version is not None:
+            if type(source_plan_version) is not int or source_plan_version != 1 or source_catalog_version is not None:
+                raise ExecutionRuntimeError('invalid_request', 422)
+            return {'contractVersion': 3, 'sourceScope': 'V2EX_INDEX_PLAN',
+                'sourceLabel': 'V2EX多板块 · 有界来源计划', 'sourceIds': list(SOURCE_IDS),
+                'maxPlannedSources': 3, 'maxFreshEffectsPerAdvance': 1, 'settlementState': 'PENDING'}
         if source_catalog_version is not None:
             if type(source_catalog_version) is not int or source_catalog_version != 1:
                 raise ExecutionRuntimeError('invalid_request', 422)
@@ -86,6 +92,9 @@ class ResearchRuntimeService:
             state = self.orchestrator.inspect(claims, task_id=task_id, run_id=run_id)
         event, receipt = state["source_event"], state["receipt"]
         accepted = receipt.get("accepted_count") if type(receipt) is dict else None
+        progress = state.get('source_progress')
+        if progress is not None:
+            accepted = sum(p['acceptedOriginals'] for p in progress) if all(p['phase'] == 'SUCCEEDED' for p in progress) else None
         analyzed = sum(item.get("kind") == "assessment" for item in state["reviews"])
         candidate_ids = list(dict.fromkeys(item["candidate_id"] for item in state["items"]))[:100]
         task_status, run_status = task[0], task[2]
@@ -101,7 +110,7 @@ class ResearchRuntimeService:
         durable_stopped = bool(coordinator and coordinator[4] == "STOPPED")
         phase = "CANCELED" if canceled else "COMPLETED" if complete else \
             "STOPPED" if unknown or failed or review_unknown or review_failed or durable_stopped else \
-            "RUNNING" if event is not None or leased else "QUEUED"
+            "RUNNING" if event is not None or leased or (progress and any(p['phase'] != 'NOT_STARTED' for p in progress)) else "QUEUED"
         stop = "effect_unknown" if unknown else "effect_failed" if failed else \
             "assessment_unknown" if review_unknown else "assessment_failed" if review_failed else \
             coordinator[5] if durable_stopped else None
@@ -113,12 +122,16 @@ class ResearchRuntimeService:
         usage["resourceCloseout"] = {"state": closeout, "overduePermits": overdue,
             "asOf": now.isoformat()}
         source = source_from_snapshot(state['strategy_snapshot'])
-        return {"contractVersion": source.version, "taskId": task_id, "runId": run_id,
+        result = {"contractVersion": source.version, "taskId": task_id, "runId": run_id,
             "phase": phase, "sourceScope": source.scope, "sourceLabel": source.label,
             "acceptedOriginals": accepted, "analyzedOriginals": analyzed,
             "skippedOriginals": state["skipped"], "candidateIds": candidate_ids,
             "canAdvance": not blocked, "stopCode": stop, "newActionsBlocked": blocked,
             "effectsPending": pending, "usage": usage}
+        if progress is not None:
+            result.update(contractVersion=3, sourceScope='V2EX_INDEX_PLAN',
+                sourceLabel='V2EX多板块 · 有界来源计划', sourceProgress=progress)
+        return result
 
     def status(self, claims, task_id):
         return self._dto(claims, canonical_uuid(task_id))

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Session, TaskDraft } from "./models";
 import { coverageProvenanceSchema } from "./coverageProvenance";
+import {researchSourcePlanSchema} from '../../shared/researchSourcePlan';
 import {confirmedResearchBindingSchema, type ConfirmedResearchBinding} from '../../shared/researchUsage';
 
 const id = z.string().trim().min(1).max(512);
@@ -25,6 +26,7 @@ export const researchSettingsSchema = z
       .strict(),
     stopAtAnyLimit: z.literal(true),
     evidenceOrder: z.literal("SOURCE_MATCH_CONTEXT"),
+    sourcePlan: researchSourcePlanSchema.optional(),
     coverageProvenance: coverageProvenanceSchema.optional(),
     provenance: z
       .object({

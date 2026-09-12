@@ -14,7 +14,8 @@ from pilot.candidate_ingestion import _persist_records
 from pilot.execution_contract import ExecutionRuntimeError, canonical_uuid
 from pilot.research_public_reader import read_public_index
 from pilot.research_resources import _event
-from pilot.research_source_catalog import research_source, source_from_snapshot
+from pilot.research_source_catalog import (research_source, source_from_snapshot, source_for_action,
+    planned_sources, source_record_limits)
 
 
 _SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -136,7 +137,8 @@ class ResearchCandidateStore:
             with self.runtime.database.connect() as connection, connection.cursor() as cursor:
                 tenant = self.runtime._active(cursor, claims)
                 task, run, platforms = self.runtime._locks(cursor, claims, tenant, event["task_id"])
-                source = source_from_snapshot(task['configuration_snapshot'])
+                snapshot = task['configuration_snapshot']
+                source = source_for_action(snapshot, event['task_id'], event['run_id'], event['action_id'])
                 if event['input_sha256'] != source.input_sha:
                     raise ExecutionRuntimeError('request_conflict', 409)
                 cursor.execute("SELECT clock_timestamp()")
@@ -185,6 +187,9 @@ class ResearchCandidateStore:
                     raise ExecutionRuntimeError("request_conflict", 409)
 
                 remaining = max(0, task["max_records"] - sum(p["records_used"] for p in platforms))
+                if 'sourcePlan' in snapshot['configuration']['research']:
+                    index = planned_sources(snapshot).index(source)
+                    remaining = min(remaining, source_record_limits(snapshot)[index])
                 selected = valid[:remaining]
                 context = dict(kind="research-resource-v1", device_id=task["device_id"],
                     task_id=task["task_id"], run_id=run["run_id"],
@@ -267,7 +272,8 @@ class ResearchCandidateStore:
 
     def read_public(self, claims, *, task_id, run_id, action_id, fetcher=None,
                     _admission=None):
-        source = source_from_snapshot(self.task_snapshot(claims, task_id=task_id, run_id=run_id))
+        snapshot = self.task_snapshot(claims, task_id=task_id, run_id=run_id)
+        source = source_for_action(snapshot, task_id, run_id, action_id)
         result = read_public_index(self.resources, claims, task_id=task_id, run_id=run_id,
             source_id=source.source_id,
             action_id=action_id, fetcher=fetcher, on_success=lambda event, value, digest:

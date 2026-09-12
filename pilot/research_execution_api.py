@@ -95,11 +95,11 @@ def register_research_execution_api(router, service, identity, require_session_h
         if runtime is None:
             raise _error(501, "capability_unavailable")
         catalog = list(request.query_params.multi_items())
-        if catalog and catalog != [('source_catalog_version', '1')]:
+        if catalog and catalog not in ([('source_catalog_version', '1')], [('source_plan_version', '1')]):
             raise _error(422, "invalid_request")
         try:
             result = await run_in_threadpool(runtime.capability, claims,
-                **({'source_catalog_version': 1} if catalog else {}))
+                **({catalog[0][0]: 1} if catalog else {}))
         except ExecutionRuntimeError as error:
             raise _error(error.status, error.code) from None
         response.headers["Cache-Control"] = "no-store"

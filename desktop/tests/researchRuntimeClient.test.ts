@@ -7,10 +7,12 @@ const taskId='11111111-1111-4111-8111-111111111111',runId='22222222-2222-4222-82
 const counts={issued:0,pending:0,succeeded:0,failed:0,unknown:0};
 const legacy={contractVersion:1,sourceScope:RESEARCH_RUNTIME_SOURCE_SCOPE,sourceLabel:RESEARCH_RUNTIME_SOURCE_LABEL,
   maxFreshEffectsPerAdvance:1,settlementState:'PENDING'};
-it('negotiates catalog with one read-only precise legacy fallback',async()=>{
-  const transport=vi.fn().mockRejectedValueOnce(new ServiceError('invalid_request','legacy',422)).mockResolvedValueOnce(legacy);
+it('negotiates plan then catalog with bounded precise legacy fallbacks',async()=>{
+  const transport=vi.fn().mockRejectedValueOnce(new ServiceError('invalid_request','legacy',422))
+    .mockRejectedValueOnce(new ServiceError('invalid_request','legacy',422)).mockResolvedValueOnce(legacy);
   expect(await createResearchRuntimeService(transport).capability()).toEqual(legacy);
   expect(transport.mock.calls).toEqual([
+    ['researchRuntime.capability','/research-execution/capability?source_plan_version=1','GET',{sourcePlanVersion:1},undefined],
     ['researchRuntime.capability','/research-execution/capability?source_catalog_version=1','GET',{sourceCatalogVersion:1},undefined],
     ['researchRuntime.capability','/research-execution/capability','GET',undefined,undefined],
   ]);

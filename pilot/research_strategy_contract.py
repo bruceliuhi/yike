@@ -69,7 +69,7 @@ def _raw_fields(value: object, depth: int = 0) -> object:
         fields = dict(vars(value))
         # Optional additions are absent, rather than explicit null, on legacy
         # model instances. Preserve that distinction during revalidation.
-        for optional_field in ("provenance", "platformQueries"):
+        for optional_field in ("provenance", "platformQueries", "sourcePlan"):
             if (optional_field in type(value).model_fields and fields.get(optional_field) is None
                     and optional_field not in value.__pydantic_fields_set__):
                 fields.pop(optional_field, None)
@@ -258,6 +258,28 @@ class _ResearchProvenance(_Frozen):
         return value
 
 
+class _SourcePlan(_Frozen):
+    version: Literal[1]
+    sources: tuple[Literal['v2ex-latest-v1', 'v2ex-qna-v1', 'v2ex-outsourcing-authors-v1'], ...] = Field(min_length=2, max_length=3)
+
+    @field_validator('version', mode='before')
+    @classmethod
+    def exact_version(cls, value):
+        if type(value) is not int or value != 1:
+            raise ValueError('invalid source plan version')
+        return value
+
+    @field_validator('sources', mode='before')
+    @classmethod
+    def freeze_sources(cls, value):
+        return tuple(value) if type(value) is list else value
+
+    @field_validator('sources')
+    @classmethod
+    def distinct_sources(cls, value):
+        return _distinct(value)
+
+
 class _Research(_Frozen):
     version: Literal[1]
     demandTypes: tuple[Literal["INQUIRY", "COMPARISON", "REPLACEMENT", "CHANGE"], ...] = Field(
@@ -267,8 +289,9 @@ class _Research(_Frozen):
     stopAtAnyLimit: Literal[True]
     evidenceOrder: Literal["SOURCE_MATCH_CONTEXT"]
     provenance: _ResearchProvenance | None = None
+    sourcePlan: _SourcePlan | None = None
 
-    @field_validator("provenance", mode="before")
+    @field_validator("provenance", "sourcePlan", mode="before")
     @classmethod
     def reject_explicit_null_provenance(cls, value):
         if value is None:
@@ -280,6 +303,8 @@ class _Research(_Frozen):
         result = handler(self)
         if self.provenance is None:
             result.pop("provenance", None)
+        if self.sourcePlan is None:
+            result.pop('sourcePlan', None)
         return result
 
     @field_validator("version", mode="before")
@@ -402,6 +427,11 @@ class ResearchStrategyConfiguration(_Frozen):
 
     @model_validator(mode="after")
     def relations_and_size(self):
+        if self.research is not None and self.research.sourcePlan is not None:
+            sources = self.research.sourcePlan.sources
+            if (self.publicSource != sources[0] or self.source != 'search' or self.mode != 'once'
+                    or self.schedule is not None or self.links or self.research.limits.sources < len(sources)):
+                raise ValueError('invalid source plan scope')
         if self.platformQueries is None and "platformQueries" in self.__pydantic_fields_set__:
             raise ValueError("platform queries cannot be null")
         if self.source == "search" and not self.keywords:
@@ -476,6 +506,10 @@ class _StrategyScope(_Frozen):
 
     @model_validator(mode="after")
     def platform_queries_are_selected(self):
+        research = self.configuration.research
+        if research is not None and research.sourcePlan is not None:
+            if self.platforms != ('PUBLIC_WEB',) or not len(research.sourcePlan.sources) <= self.max_records <= 100:
+                raise ValueError('invalid source plan budget or platforms')
         if (self.configuration.platformQueries is not None and
                 any(item.platform not in self.platforms
                     for item in self.configuration.platformQueries.items)):

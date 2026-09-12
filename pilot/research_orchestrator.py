@@ -3,6 +3,7 @@ from uuid import UUID, uuid5
 
 from pilot.candidate_ingestion import CandidateIngestionError
 from pilot.execution_contract import ExecutionRuntimeError, canonical_uuid
+from pilot.research_source_catalog import planned_sources, source_plan_action, source_record_limits
 
 
 class ResearchOrchestrator:
@@ -25,6 +26,9 @@ class ResearchOrchestrator:
         task = self.sources.resources.runtime.get_task(claims, task_id)
         if task['run_id'] != run_id or [p['platform'] for p in task['platform_runs']] != ['PUBLIC_WEB']:
             raise ExecutionRuntimeError('task_unavailable', 409)
+        snapshot = self.sources.task_snapshot(claims, task_id=task_id, run_id=run_id)
+        if 'sourcePlan' in snapshot['configuration']['research']:
+            return self._inspect_plan(claims, task, snapshot, task_id, run_id)
         action = self._source_action(task_id, run_id)
         try:
             source_event = self.sources.resources.get(claims, task_id=task_id,
@@ -54,6 +58,49 @@ class ResearchOrchestrator:
         return dict(task=task, source_action=action, source_event=source_event,
             strategy_snapshot=self.sources.task_snapshot(claims, task_id=task_id, run_id=run_id),
             receipt=receipt, items=items, reviews=reviews, missing=missing, skipped=skipped)
+
+    def _inspect_plan(self, claims, task, snapshot, task_id, run_id):
+        progress, receipts, events, actions = [], [], [], []
+        for source, limit in zip(planned_sources(snapshot), source_record_limits(snapshot)):
+            action = source_plan_action(task_id, run_id, source.source_id)
+            try:
+                event = self.sources.resources.get(claims, task_id=task_id, run_id=run_id, action_id=action)
+            except ExecutionRuntimeError as error:
+                if (error.code, error.status) != ('request_not_found', 404):
+                    raise
+                event = None
+            receipt = self.sources.get_receipt(claims, task_id=task_id, run_id=run_id, action_id=action) if event and event['status'] == 'SUCCEEDED' else None
+            if event and (event['input_sha256'] != source.input_sha or event['resource'] != 'SOURCE_READ'):
+                raise ExecutionRuntimeError('request_conflict', 409)
+            if event and event['status'] == 'SUCCEEDED' and (type(receipt) is not dict
+                    or receipt.get('request_id') != action or receipt.get('task_id') != task_id
+                    or receipt.get('run_id') != run_id or type(receipt.get('accepted_count')) is not int
+                    or not 0 <= receipt['accepted_count'] <= limit
+                    or len(receipt.get('items', [])) != receipt['accepted_count']):
+                raise ExecutionRuntimeError('resource_unavailable', 503)
+            progress.append(dict(sourceId=source.source_id, recordLimit=limit,
+                phase='NOT_STARTED' if event is None else 'PENDING' if event['status'] == 'ISSUED' else event['status'],
+                acceptedOriginals=receipt['accepted_count'] if receipt else None))
+            receipts.append(receipt); events.append(event); actions.append(action)
+        items, reviews, missing, skipped = [], [], [], 0
+        for receipt in receipts:
+            for item in receipt['items'] if receipt else []:
+                items.append(item)
+                request_id = self._review_action(task_id, run_id, item)
+                try:
+                    reviews.append(self.reviews.get_request(claims, request_id))
+                except CandidateIngestionError as error:
+                    if (error.code, error.status) != ('request_not_found', 404):
+                        raise
+                    payload = self._current_payload(claims, task, receipt, item, request_id)
+                    if payload is None:
+                        skipped += 1
+                    else:
+                        missing.append((item, payload))
+        index = next((i for i, p in enumerate(progress) if p['phase'] != 'SUCCEEDED'), len(progress)-1)
+        return dict(task=task, strategy_snapshot=snapshot, source_action=actions[index],
+            source_event=events[index], receipt=receipts[index], items=items, reviews=reviews,
+            missing=missing, skipped=skipped, source_progress=progress)
 
     def advance_one(self, claims, *, task_id, run_id, _admission=None):
         """Perform at most one new source read or model assessment."""
