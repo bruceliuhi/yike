@@ -369,12 +369,16 @@ def research_context():
             source_urls=['https://example.com/known'])])
 
 
-def test_profile_research_loads_original_rules_and_bound_context_in_real_process(worker,tmp_path):
+@pytest.mark.parametrize('version',[1,2])
+def test_profile_research_loads_original_rules_and_bound_context_in_real_process(worker,tmp_path,version):
     capture=tmp_path/'profile-config.json'
     extra=("config=next(value for value in sys.argv if value.startswith('model_instructions_file='))\n"
            "instructions=open(json.loads(config.split('=',1)[1])).read()\n"
            f"open({str(capture)!r},'w').write(json.dumps(dict(argv=sys.argv,env=dict(os.environ),prompt=sys.stdin.read(),instructions=instructions)))\n")
     context=research_context()
+    if version==2:
+        from tests.test_research_context import projected_v2
+        context=projected_v2()
     result=run_research(worker,tmp_path,[search_event(),read_event(),*final_events()],
         extra=extra,research_context=context)
     from pilot.research_context import compile_research_context
