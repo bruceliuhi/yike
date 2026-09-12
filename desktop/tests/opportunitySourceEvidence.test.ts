@@ -19,7 +19,10 @@ it('preserves human demand provenance without inventing raw author or timestamp'
  expect(parseOpportunitySourceEvidence(raw,expected)).toEqual(raw);
  const missing=structuredClone(raw);delete missing.snapshot.verification.demandEvidence;rejects(missing);
  const wrong=structuredClone(raw);wrong.snapshot.source.author_updates=['第三方报价'];rejects(wrong);
- const body=structuredClone(raw);body.snapshot.assessment.citations[0].field='source.body';rejects(body);
+ const mixed=structuredClone(raw);
+ mixed.snapshot.assessment.citations.push({dimension:'intent',field:'source.body',quote:'需要报价'});
+ expect(parseOpportunitySourceEvidence(mixed,expected)).toEqual(mixed);
+ const wrongQuote=structuredClone(mixed);wrongQuote.snapshot.assessment.citations[1].quote='伪造背景';rejects(wrongQuote);
 });
 it('preserves author-update citations in a captured opportunity without promoting them to the main body',()=>{
  const raw:any=capturedEvidenceFixture();Object.assign(raw.snapshot.source,{platform:'PUBLIC_WEB',kind:'PAGE',external_comment_id:null,container_title:null,parent:null,author_updates:['请提供作品'],source_read_scope:'AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD'});

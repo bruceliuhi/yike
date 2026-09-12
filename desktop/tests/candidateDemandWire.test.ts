@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 import { parseCandidatePage, parseCandidateReviewResult } from "../src/shared/candidateReviewApi";
 import { parseOpportunitySourceEvidence } from "../src/renderer/domain/opportunitySourceEvidence";
+import { currentDemandDate } from "../src/renderer/domain/candidateDemandEvidence";
 
 // Produced by the real restricted-PG HTTP test with explicitly synthetic source/model input.
 // Opt in to cross-language verification; absence is not evidence of an integration pass.
@@ -23,4 +24,9 @@ it.skipIf(!wirePath)("accepts actual Python HTTP receipts in the shipped TS pars
   expect(snapshot.source.published_at).toBeNull();
   expect(snapshot.source.author_updates).toEqual([wire.check.demandEvidence.demandExcerpt]);
   expect(wire.assessed.assessment.demandEvidenceId).toBe(wire.check.id);
+  expect(wire.assessed.assessment.intent.citations.map((c: {field:string})=>c.field)).toEqual(["author_updates.0","body"]);
+  const expired = parseCandidatePage(wire.expired_page).items[0];
+  expect(expired.sourceVerification?.status).toBe("EXPIRED");
+  expect(expired.sourceVerification?.demandEvidence).toEqual(wire.check.demandEvidence);
+  expect(currentDemandDate(expired,undefined,Date.now())).toBeNull();
 });

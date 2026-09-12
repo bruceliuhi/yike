@@ -54,11 +54,13 @@ describe("human demand evidence contract (synthetic)", () => {
     expect(sourceVerificationRequestSchema.safeParse({ ...verificationRequestFixture(),
       demandEvidence: { ...proof, ...change } }).success).toBe(false);
   });
-  it.each(["BLOCKED", "EXPIRED", "UNVERIFIED"])("rejects proof attached to %s", (status) => {
+  it.each(["BLOCKED", "EXPIRED", "UNVERIFIED"])("rejects %s proof writes but preserves server-projected expiry reads", (status) => {
     expect(sourceVerificationRequestSchema.safeParse({ ...verificationRequestFixture(), status,
       demandEvidence: proof }).success).toBe(false);
-    expect(() => parseCandidateReviewResult({ ...verificationFixture(), status, demandEvidence: proof },
-      { requestId: verificationRequestFixture().requestId })).toThrow();
+    const parseReceipt = () => parseCandidateReviewResult({ ...verificationFixture(), status, demandEvidence: proof },
+      { requestId: verificationRequestFixture().requestId });
+    if (status === "EXPIRED") expect(parseReceipt().kind).toBe("sourceVerification");
+    else expect(parseReceipt).toThrow();
   });
   it("accepts a valid leap day and counts Unicode code points", () => {
     expect(sourceVerificationRequestSchema.safeParse({ ...verificationRequestFixture(), demandEvidence: {
@@ -75,5 +77,9 @@ describe("human demand evidence contract (synthetic)", () => {
     expect(currentDemandDate({ ...candidate, revision: 3 }, candidate.assessment, now)).toBeNull();
     expect(currentDemandDate(candidate, candidate.assessment, now + 86_400_000)).toBeNull();
     expect(currentDemandDate({ ...candidate, sourceVerification: undefined }, candidate.assessment, now)).toBeNull();
+    const expired = {...candidate, sourceStatus:"EXPIRED" as const,
+      sourceVerification:{...candidate.sourceVerification!,status:"EXPIRED" as const}};
+    expect(parseCandidatePage({...pageFixture(),items:[expired]}).items[0].sourceVerification?.demandEvidence).toEqual(proof);
+    expect(currentDemandDate(expired,candidate.assessment,now)).toBeNull();
   });
 });

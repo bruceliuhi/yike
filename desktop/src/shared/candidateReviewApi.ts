@@ -231,7 +231,9 @@ const verification = z
   })
   .strict()
   .refine((v) => v.candidateId === v.binding.candidateId &&
-    (v.demandEvidence === undefined || v.status === "OPEN"));
+    // Reads retain the immutable supplement when the server projects its expiry.
+    // New writes still require OPEN; expired receipts cannot authorize inclusion.
+    (v.demandEvidence === undefined || v.status === "OPEN" || v.status === "EXPIRED"));
 export type CandidateSourceVerificationDto = z.infer<typeof verification>;
 const reviewSnapshot = z
   .object({

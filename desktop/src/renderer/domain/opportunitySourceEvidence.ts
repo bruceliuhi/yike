@@ -221,8 +221,8 @@ const snapshotSchema = z
         [proof.authorExcerpt,proof.demandExcerpt,proof.dateExcerpt].some(quote =>
           ![snapshot.source.title ?? '',snapshot.source.body].some(value => value.includes(quote))))) context.addIssue({code:'custom'});
     for (const [index, citation] of snapshot.assessment.citations.entries()) {
-      if (human && ['intent','urgency'].includes(citation.dimension) && citation.field !== 'source.author_updates.0')
-        context.addIssue({code:'custom',path:['assessment','citations',index]});
+      // The server assessment requires personal evidence for non-UNKNOWN intent.
+      // This flattened snapshot omits levels and may also cite exact background.
       const addressed = citationText(snapshot.source, citation.field);
       if (addressed === null || !addressed.includes(citation.quote))
         context.addIssue({
