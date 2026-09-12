@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-12 Windows安装阻断已修复并实装
+
+`a56aab2`已推main：修复旧Squirrel对中文文档ZIP路径的冲突，独立差量GO。一次新候选构建、真实安装/卸载重装/启动/运行环境恢复/单实例通过，[唯一Windows记录](qa/WINDOWS_SYNC_20260912.md)包含摘要及未验项。仅构建输入变化，customer保持`1119985`且公网health/ready通过；不重复部署。新版已安装并留待用户正常登录、连接平台，真实业务闭环与签名仍未完成；旧候选不追认。
+
 ## 2026-09-12 CodexWin 最新主干与服务器接续
 
 已同步Gitee并推送测试修复 `1119985`，customer部署到同一固定SHA，HTTPS health/ready通过，ops保持原健康容器。[当前部署](qa/SERVER_137138_DEPLOYMENT.md)与[Windows候选记录](qa/WINDOWS_SYNC_20260912.md)集中版本、失败及未验项。本机Windows环境可用，已开始同源构包/实机验收；旧“待Windows环境”仅为历史状态，不代表本次登录、真实采集/发送或客户验收已完成。
