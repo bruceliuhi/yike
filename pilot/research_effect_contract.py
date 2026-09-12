@@ -61,7 +61,10 @@ def _string_contains_secret(value: str) -> bool:
         return True
     for match in _PUBLIC_URL.finditer(decoded):
         try:
-            query = urlsplit(match.group(0)).query
+            parsed = urlsplit(match.group(0))
+            if parsed.username is not None or parsed.password is not None:
+                return True
+            query = parsed.query
             if any(_sensitive_field_name(key) for key, _value in parse_qsl(
                     query, keep_blank_values=True, max_num_fields=100)):
                 return True

@@ -104,6 +104,7 @@ def test_usage_token_counters_are_not_mistaken_for_credentials():
 
 @pytest.mark.parametrize("content", [
     "source https://example.com/post?sessionid=synthetic-only",
+    "source https://user:synthetic@public.example/post",
     "source https://example.com/post?%74%6f%6b%65%6e=synthetic-only",
     '{"password":"synthetic-only"}',
     r'{\"refresh_token\":\"synthetic-only\"}',

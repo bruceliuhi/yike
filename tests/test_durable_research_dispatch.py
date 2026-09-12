@@ -142,6 +142,22 @@ def test_success_finish_rejects_valid_acknowledgement_for_a_different_result():
     assert len([x for x in journal.events if x[0] == "finish"]) == 1
 
 
+def test_success_finish_cannot_mutate_submitted_result_into_a_different_acknowledgement():
+    journal = Journal()
+    actual = search_result()
+    original_finish = journal.finish
+
+    def finish(*args, **kwargs):
+        kwargs["result"]["omitted_count"] = 2
+        return original_finish(*args, **kwargs)
+
+    journal.finish = finish
+    with pytest.raises(EffectDispatchError, match="^effect_unavailable$"):
+        dispatcher(journal)("SEARCH", {"query": "buyer"}, time.monotonic()+10,
+                            lambda _: actual)
+    assert len([x for x in journal.events if x[0] == "finish"]) == 1
+
+
 def test_success_replay_is_validated_without_perform_or_finish():
     journal = Journal(); result = search_result()
     payload = {"query": "buyer"}; _, digest = effect_input("SEARCH", payload, BINDING)

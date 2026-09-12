@@ -113,16 +113,17 @@ class DurableResearchDispatcher:
                     except BaseException:
                         pass
                     self._fail()
+                expected_result = copy.deepcopy(result)
+                result_digest = canonical_effect_sha256(expected_result)
                 finished = self._journal.finish(self._claims, task_id=self._task_id,
                     run_id=self._run_id, sequence=sequence, permit_id=entry["permit_id"],
-                    status="SUCCEEDED", result=result)
+                    status="SUCCEEDED", result=copy.deepcopy(expected_result))
                 checked = self._entry(finished, sequence=sequence, kind=kind, payload=clean,
                                       digest=digest, require_result=True)
-                result_digest = canonical_effect_sha256(result)
                 if checked["status"] != "SUCCEEDED" or checked["permit_id"] != entry["permit_id"] \
                         or checked["action_id"] != entry["action_id"] \
                         or checked["output_sha256"] != result_digest \
-                        or checked["result"] != result:
+                        or checked["result"] != expected_result:
                     self._fail()
                 return copy.deepcopy(checked["result"])
             except EffectDispatchError:
