@@ -69,7 +69,7 @@ BEGIN
               AND jsonb_typeof(selection->'reason')='string'
               AND jsonb_typeof(selection->'quote')='string'
               AND char_length(selection->>'quote') BETWEEN 1 AND 400
-              AND btrim(selection->>'quote')<>''
+              AND translate(selection->>'quote', U&'\0009\000a\000b\000c\000d\001c\001d\001e\001f\0020\0085\00a0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200a\2028\2029\202f\205f\3000', '')<>''
               AND (context->>'observed_count')::INTEGER=1
               AND (context->>'observed_count')::INTEGER=(context->>'accepted_count')::INTEGER
                 +(context->>'skipped_invalid_count')::INTEGER+(context->>'skipped_budget_count')::INTEGER

@@ -106,3 +106,10 @@ def test_duplicate_durable_version_can_differ_in_nonidentity_metadata():
     item = evidence()
     duplicate = item | {"title": "另一次读取标题", "observed_at": "later"}
     assert len(parse_page_selection(payload([decision(item)]), [item, duplicate])) == 1
+
+
+def test_oversized_json_integer_uses_fixed_selection_error_without_relaxing_interpreter_limit():
+    raw = ('{"schema_version":"research-page-selection-v1","summary":'
+           + '1' * 5000 + ',"pages":[]}')
+    with pytest.raises(ExecutionRuntimeError, match="research_selection_invalid"):
+        parse_page_selection(raw, [])

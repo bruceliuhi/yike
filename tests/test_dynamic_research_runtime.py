@@ -282,6 +282,30 @@ def test_invalid_complete_selection_stops_before_any_publication(dynamic_env):
         runtime.shutdown(timeout_seconds=2)
 
 
+def test_oversized_json_integer_stops_as_selection_invalid_before_publication(dynamic_env):
+    from pilot.research_context import compile_research_context
+    env = dynamic_env
+    def mission(_description, **kwargs):
+        value = read_result()
+        dispatch_effect(kwargs["effect_dispatcher"], kind="READ",
+            payload={"url": value["evidence"]["url"]}, deadline=time.monotonic()+20,
+            perform=lambda _: value)
+        return {"status": "COMPLETED", "code": None,
+                "research_binding": compile_research_context(kwargs["research_context"])["binding"],
+                "summary": ('{"schema_version":"research-page-selection-v1","summary":'
+                            + '1' * 5000 + ',"pages":[]}')}
+    runtime = service(env, mission)
+    try:
+        runtime.advance(env.claims, env.execution["task_id"], env.execution["run_id"])
+        final = wait_terminal(runtime, env)
+        assert final["phase"] == "STOPPED" and final["stopCode"] == "research_selection_invalid"
+        with env.admin.connect() as connection:
+            assert connection.execute("SELECT count(*) FROM pilot_candidate_batches WHERE tenant_id=%s",
+                                      (env.tenant,)).fetchone()[0] == 0
+    finally:
+        runtime.shutdown(timeout_seconds=2)
+
+
 def test_known_failed_read_then_positive_completes_with_actual_v4_client_contract(dynamic_env):
     from pilot.public_read_session import PublicReadSession
     from pilot.open_web_reader import PublicReadError

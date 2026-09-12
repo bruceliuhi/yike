@@ -201,6 +201,50 @@ def test_database_trigger_rejects_malformed_persisted_selection(journal_env, pat
             """, (env.tenant, path, value))
 
 
+def test_database_trigger_matches_python_all_unicode_whitespace_and_accepts_text_quote(journal_env):
+    import psycopg
+    whitespace = "\u0009\u000a\u000b\u000c\u000d\u001c\u001d\u001e\u001f\u0020\u0085\u00a0\u1680" \
+                 "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a" \
+                 "\u2028\u2029\u202f\u205f\u3000"
+    assert len(whitespace) == 29 and all(char.isspace() for char in whitespace)
+    env = journal_env
+    read = read_result(text="前 文后")
+    successful_read(env, value=read)
+    publish(env, selection=selection(read["evidence"], "BACKGROUND", "IRRELEVANT", quote="前"))
+    statement = """
+        WITH removed AS (
+          DELETE FROM pilot_candidate_batches WHERE tenant_id=%s
+          RETURNING tenant_id,owner_user_id,platform_run_id,request_id,task_id,run_id,
+            fingerprint,accepted_count,received_at,receipt,platform,profile_version_id,
+            strategy_version_id,execution_context
+        )
+        INSERT INTO pilot_candidate_batches(
+          tenant_id,owner_user_id,platform_run_id,request_id,task_id,run_id,fingerprint,
+          accepted_count,received_at,receipt,platform,profile_version_id,strategy_version_id,
+          execution_context)
+        SELECT tenant_id,owner_user_id,platform_run_id,request_id,task_id,run_id,fingerprint,
+          accepted_count,received_at,receipt,platform,profile_version_id,strategy_version_id,
+          jsonb_set(execution_context,'{page_selection,quote}',to_jsonb(%s::text))
+        FROM removed
+    """
+    for char in whitespace:
+        with pytest.raises(psycopg.errors.RaiseException, match="research candidate binding mismatch"):
+            with env.admin.connect() as connection:
+                connection.execute(
+                    "ALTER TABLE pilot_research_effect_journal DISABLE TRIGGER pilot_research_effect_guard"
+                )
+                connection.execute(
+                    "UPDATE pilot_research_effect_journal SET result=jsonb_set(result,"
+                    "'{evidence,text}',to_jsonb(%s::text)) WHERE tenant_id=%s",
+                    ("前" + char + "后", env.tenant),
+                )
+                connection.execute(statement, (env.tenant, char))
+                connection.execute("SET CONSTRAINTS ALL IMMEDIATE")
+    with env.admin.connect() as connection:
+        connection.execute(statement, (env.tenant, " 文"))
+        connection.execute("SET CONSTRAINTS ALL IMMEDIATE")
+
+
 def test_search_journal_entry_cannot_be_published_as_original(journal_env):
     env = journal_env
     begun = env.journal.begin(

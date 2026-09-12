@@ -83,7 +83,7 @@ def parse_page_selection(summary: str, evidences: list[dict]) -> list[dict]:
         if len(summary.encode("utf-8")) > 512 * 1024:
             _invalid()
         root = json.loads(summary, object_pairs_hook=_object, parse_constant=_reject_constant)
-    except (json.JSONDecodeError, UnicodeError, RecursionError, TypeError):
+    except (ValueError, UnicodeError, RecursionError, TypeError):
         _invalid()
     if type(root) is not dict or set(root) != _ROOT_KEYS or root.get("schema_version") != SCHEMA_VERSION:
         _invalid()
