@@ -8,6 +8,14 @@
 
 原3b23658 payload准备通过1项真实搬迁测试，但发现此阻断后未制作安装器；保留该产物，不混入修复后的新候选。下一步固定本次修复SHA，只构建一份同源Windows包。服务端与当前5fb7d65无产品差量，不重复部署；真实登录/平台/外发/签名/客户验收仍未完成。
 
+### 已构建并覆盖升级：1f597f6
+
+- 固定源码 `1f597f61a2886d84aff844dd5103b72dff585f30` 已推Gitee main，干净LF工作树 `.worktrees/win-release-1f597f6`。与上一5fb7d65的产品差量仅主进程ASSESS75秒、页面ASSESS90秒。customer保持5fb7d65，实际revision/healthy/重启0及公网 `/healthz`、`/readyz` 通过；首次误查不存在的 `/health` 返回404，改用已有部署合同端点确认，不改服务。
+- 新payload `.runtime/portable-release-1f597f6-relocated`，清单SHA256 `6072ca57d74006e1143060d289be458938080e3d7f5845e2988d998d0042eccb`；真实搬迁/独立Python/Chromium检查 **1 passed / 0 skipped，200.13秒**，原始 `.runtime/portable-release-1f597f6-test.xml`。
+- 一次Forge make exit0，ASAR结构与40项renderer资源通过，SHA256 `cd4ffe72db1974252d16b6196a5c7bc69355d348b37671e0255b538fe60f9b25`。安装器路径 `.worktrees/win-release-1f597f6/desktop/out/make/squirrel.windows/x64/YikeAI-Setup.exe`，642,811,904字节，SHA256 `54d3f14f77c0c0194ecc49d4227adb787ad90afc70b14b2b7a468163bc140ad7`；nupkg 646,499,070字节，SHA256 `e3c0c0a23b63ea564a835d5b738a385a52b658fa0b090aa22da562b4a3bd8060`。仍NotSigned，Vite未来配置兼容警告未作为本次阻断。
+- 正常Alt+F4退出已核对的旧5fb7d65安装版，确认主进程结束及旧ASAR一致后，Setup默认路径覆盖升级exit0。安装后的ASAR/payload清单与上述摘要相同，卸载登记为意客AI/0.2.0。用户数据和历史runtime均保留；未重复卸载重装全套。
+- computer-use实际打开新安装版首页，转入账号与授权，首次准备最终显示“本机运行环境已准备好”；新runtime清单创建/修改时间18:06:05，摘要与冻结清单一致。启动工具仍因MSIX映射路径报告无窗口，重新枚举后定位实际安装进程，未重复启动。新包重开未重复验，沿用旧版同字节运行机制证据，不冒充本版已登录会话恢复。真实登录与平台业务未执行，安装版留在账号页等待用户本人完成登录/平台认证，完整Goal未完成。
+
 ## Setup 实装阻断与修复接续
 
 Gitee 再次同步至 `0b5bcbd`，无新增提交。对 `1119985` 候选执行真实 Setup 安装，文件解压完成，但卸载登记失败：旧 .NET `System.IO.Packaging.Package` 把文档站中文 ZIP 文件名解码成重复问号路径。只读打开实际 nupkg 同样复现；此前“make exit0/ZIP可读”不能代表安装成功。

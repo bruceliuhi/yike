@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-12 最新Windows候选1f597f6
+
+Gitee main已纳入判断页面超时修复，固定 `1f597f6` 已实际构包、覆盖升级和启动READY；[唯一Windows记录](qa/WINDOWS_SYNC_20260912.md#已构建并覆盖升级1f597f6)集中62项定向/类型/独立GO及产物。customer继续5fb7d65，服务代码无差不部署。真实登录/平台/批准外发/签名/客户验收仍未完成；下方5fb7d65为上一Windows包，不覆盖新判断修复。
+
 ## 2026-09-12 同源服务器与Windows候选5fb7d65
 
 customer已部署固定 `5fb7d65`，HTTPS/ready及运行隔离通过，ops与配置不变；Windows同SHA新payload、Setup构建及实际覆盖升级、首次/重开READY通过。版本/首次归档换行失败/未验边界分别集中于[部署记录](qa/SERVER_137138_DEPLOYMENT.md)与[Windows记录](qa/WINDOWS_SYNC_20260912.md)。下方1119985/a56aab2为上一候选。真实用户登录、平台原文→判断→批准联系→回复、签名和客户验收仍未完成，Goal保持ACTIVE。
