@@ -10,9 +10,13 @@ from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pilot.open_web_reader import PublicReadError, normalize_public_url
+from pilot.research_strategy_contract import (
+    StrategyStoreError, configuration_digest, strategy_snapshot as validate_strategy_snapshot,
+)
 
 
 _RULE_VERSION = "opportunity-research-context-v1/ai-project-lead-research-1.0.0"
+_RULE_VERSION_V2 = "opportunity-research-context-v2/ai-project-lead-research-1.0.0"
 _RULE_FILES = (
     "SKILL.md",
     "references/evaluation.md",
@@ -26,6 +30,7 @@ _CONTEXT_KEYS = {
     "seller_description", "reference_time", "timezone", "max_age_days",
     "query_seeds", "intent_signals", "exclusions", "history_scope", "history",
 }
+_CONTEXT_V2_KEYS = _CONTEXT_KEYS | {"profile_sha256", "strategy_snapshot"}
 _HISTORY_KEYS = {"project_key", "description", "state", "source_urls"}
 _SECRET = re.compile(
     r"(?i)(?:\b(?:api[_ -]?key|access[_ -]?token|authorization|password|secret)\b\s*[:=]\s*\S+"
@@ -47,14 +52,15 @@ def _invalid() -> None:
     raise ResearchContextError("invalid_research_context")
 
 
-def _text(value: object, minimum: int, maximum: int) -> str:
+def _text(value: object, minimum: int, maximum: int, *, multiline: bool = False) -> str:
     if type(value) is not str or not minimum <= len(value) <= maximum or not value.strip():
         _invalid()
     try:
         value.encode("utf-8")
     except UnicodeEncodeError:
         _invalid()
-    if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in value):
+    allowed = {9, 10, 13} if multiline else set()
+    if any((ord(char) < 32 and ord(char) not in allowed) or 127 <= ord(char) <= 159 for char in value):
         _invalid()
     if _SECRET.search(value):
         _invalid()
@@ -70,8 +76,8 @@ def _uuid(value: object) -> str:
     return value
 
 
-def _list(value: object, *, minimum: int = 0) -> list[str]:
-    if type(value) is not list or not minimum <= len(value) <= 20:
+def _list(value: object, *, minimum: int = 0, maximum: int = 20) -> list[str]:
+    if type(value) is not list or not minimum <= len(value) <= maximum:
         _invalid()
     return [_text(item, 1, 160) for item in value]
 
@@ -99,13 +105,21 @@ def _url(value: object) -> str:
 
 
 def _validate(value: object) -> dict:
-    if type(value) is not dict or set(value) != _CONTEXT_KEYS:
+    if type(value) is not dict:
         _invalid()
-    if type(value["schema_version"]) is not str or value["schema_version"] != "research-context-v1":
+    version = value.get("schema_version")
+    if version == "research-context-v1":
+        if set(value) != _CONTEXT_KEYS:
+            _invalid()
+    elif version == "research-context-v2":
+        if set(value) != _CONTEXT_V2_KEYS:
+            _invalid()
+    else:
         _invalid()
     profile_id = _uuid(value["profile_version_id"])
     strategy_id = _uuid(value["strategy_version_id"])
-    seller = _text(value["seller_description"], 1, 4000)
+    seller = _text(value["seller_description"], 1, 8000 if version.endswith("v2") else 4000,
+                   multiline=version.endswith("v2"))
     timezone_name = _text(value["timezone"], 1, 128)
     reference_time = _reference_time(value["reference_time"], timezone_name)
     maximum_age = value["max_age_days"]
@@ -113,7 +127,7 @@ def _validate(value: object) -> dict:
         _invalid()
     seeds = _list(value["query_seeds"])
     signals = _list(value["intent_signals"], minimum=1)
-    exclusions = _list(value["exclusions"])
+    exclusions = _list(value["exclusions"], maximum=25 if version == "research-context-v2" else 20)
     scope = value["history_scope"]
     history_value = value["history"]
     if type(scope) is not str or scope not in {"NONE", "PARTIAL", "COMPLETE"} or type(history_value) is not list \
@@ -135,8 +149,8 @@ def _validate(value: object) -> dict:
             "state": state,
             "source_urls": [_url(url) for url in urls],
         })
-    return {
-        "schema_version": "research-context-v1",
+    validated = {
+        "schema_version": version,
         "profile_version_id": profile_id,
         "strategy_version_id": strategy_id,
         "seller_description": seller,
@@ -149,6 +163,46 @@ def _validate(value: object) -> dict:
         "history_scope": scope,
         "history": history,
     }
+    if version == "research-context-v2":
+        profile_sha = value["profile_sha256"]
+        if type(profile_sha) is not str or not re.fullmatch(r"[0-9a-f]{64}", profile_sha):
+            _invalid()
+        raw_snapshot = value["strategy_snapshot"]
+        if type(raw_snapshot) is not dict:
+            _invalid()
+        try:
+            normalized = validate_strategy_snapshot(
+                raw_snapshot.get("profile_version_id"), raw_snapshot.get("strategy_version_id"),
+                raw_snapshot.get("configuration"), raw_snapshot.get("platforms"),
+                raw_snapshot.get("max_records"), raw_snapshot.get("max_runtime_seconds"))
+        except StrategyStoreError:
+            _invalid()
+        if normalized != raw_snapshot or normalized["profile_version_id"] != profile_id \
+                or normalized["strategy_version_id"] != strategy_id:
+            _invalid()
+        configuration = normalized["configuration"]
+        research = configuration.get("research")
+        dynamic = research.get("dynamicScope") if type(research) is dict else None
+        if (configuration.get("publicSource") != "public-web-agent-v1"
+                or normalized["platforms"] != ["PUBLIC_WEB"] or dynamic is None):
+            _invalid()
+        industry = configuration.get("industryStrategy")
+        projected_signals = (industry["intentSignals"] if industry is not None else [
+            _DEMAND_SIGNALS[item] for item in research["demandTypes"]])
+        projected_exclusions = configuration["exclusions"] + (
+            industry["counterSignals"] if industry is not None else [])
+        if (value["query_seeds"] != configuration["keywords"]
+                or value["intent_signals"] != projected_signals
+                or value["exclusions"] != projected_exclusions
+                or value["timezone"] != dynamic["timezone"]
+                or value["max_age_days"] != dynamic["maxAgeDays"]):
+            _invalid()
+        snapshot_json = _canonical_json(normalized)
+        if _SECRET.search(snapshot_json):
+            _invalid()
+        validated["profile_sha256"] = profile_sha
+        validated["strategy_snapshot"] = normalized
+    return validated
 
 
 def _canonical_json(value: object) -> str:
@@ -198,19 +252,75 @@ def compile_research_context(value: dict) -> dict:
     """Validate and bind a context snapshot to the exact repository rules."""
     validated = _validate(value)
     context_json = _canonical_json(validated)
-    if len(context_json.encode("utf-8")) > 32 * 1024:
+    maximum = 512 * 1024 if validated["schema_version"] == "research-context-v2" else 32 * 1024
+    if len(context_json.encode("utf-8")) > maximum:
         _invalid()
     documents, rule_sha = _load_rules()
     context_sha = hashlib.sha256(context_json.encode("utf-8")).hexdigest()
     binding = {
-        "rule_version": _RULE_VERSION,
+        "rule_version": (_RULE_VERSION_V2 if validated["schema_version"] == "research-context-v2"
+                         else _RULE_VERSION),
         "rule_sha256": rule_sha,
         "context_sha256": context_sha,
         "profile_version_id": validated["profile_version_id"],
         "strategy_version_id": validated["strategy_version_id"],
     }
+    if validated["schema_version"] == "research-context-v2":
+        binding.update({
+            "schema_version": "research-context-v2",
+            "profile_sha256": validated["profile_sha256"],
+            "configuration_sha256": configuration_digest(validated["strategy_snapshot"]),
+        })
     return {
         "instructions": _instructions(documents),
         "context_json": context_json,
         "binding": dict(binding),
     }
+
+
+_DEMAND_SIGNALS = {
+    "INQUIRY": "询问方案、价格或寻找供应商",
+    "COMPARISON": "比较方案或供应商并准备选型",
+    "REPLACEMENT": "替换现有供应商或系统",
+    "CHANGE": "明确业务变化并寻找外部解决方案",
+}
+
+
+def project_research_context_v2(*, seller_description, profile_sha256,
+                                strategy_snapshot: dict, reference_time,
+                                history_scope, history) -> dict:
+    """Project a confirmed dynamic strategy into strict context-v2 data."""
+    try:
+        if type(strategy_snapshot) is not dict:
+            _invalid()
+        normalized = validate_strategy_snapshot(
+            strategy_snapshot.get("profile_version_id"), strategy_snapshot.get("strategy_version_id"),
+            strategy_snapshot.get("configuration"), strategy_snapshot.get("platforms"),
+            strategy_snapshot.get("max_records"), strategy_snapshot.get("max_runtime_seconds"))
+        if normalized != strategy_snapshot:
+            _invalid()
+        configuration = normalized["configuration"]
+        research = configuration.get("research")
+        dynamic = research.get("dynamicScope") if type(research) is dict else None
+        if configuration.get("publicSource") != "public-web-agent-v1" or dynamic is None:
+            _invalid()
+        industry = configuration.get("industryStrategy")
+        signals = (industry["intentSignals"] if industry is not None else
+                   [_DEMAND_SIGNALS[item] for item in research["demandTypes"]])
+        exclusions = configuration["exclusions"] + (
+            industry["counterSignals"] if industry is not None else [])
+        projected = {
+            "schema_version": "research-context-v2",
+            "profile_version_id": normalized["profile_version_id"],
+            "strategy_version_id": normalized["strategy_version_id"],
+            "seller_description": seller_description,
+            "profile_sha256": profile_sha256,
+            "strategy_snapshot": normalized,
+            "reference_time": reference_time,
+            "timezone": dynamic["timezone"], "max_age_days": dynamic["maxAgeDays"],
+            "query_seeds": configuration["keywords"], "intent_signals": signals,
+            "exclusions": exclusions, "history_scope": history_scope, "history": history,
+        }
+        return _validate(projected)
+    except (KeyError, TypeError, StrategyStoreError):
+        _invalid()

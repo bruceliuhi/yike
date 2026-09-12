@@ -38,6 +38,59 @@ def config():
     )
 
 
+def dynamic_config(**changes):
+    value = config()
+    value["links"] = []
+    value["publicSource"] = "public-web-agent-v1"
+    value["research"]["dynamicScope"] = {
+        "version": 1, "maxAgeDays": 60, "timezone": "Asia/Shanghai",
+    }
+    value.update(changes)
+    return value
+
+
+def test_dynamic_scope_round_trips_without_rewriting_legacy_bytes(contract):
+    legacy = snapshot(contract)
+    legacy_bytes = contract._json(legacy)
+    current = dynamic_config()
+    assert contract.ResearchStrategyConfiguration.model_validate(current).model_dump(mode="json") == current
+    assert snapshot(contract, current, platforms=["PUBLIC_WEB"])["configuration"] == current
+    assert contract._json(snapshot(contract)) == legacy_bytes
+
+
+@pytest.mark.parametrize("change", [
+    {"publicSource": "v2ex-latest-v1"},
+    {"source": "links"}, {"mode": "monitor", "schedule": None},
+    {"links": ["https://example.com/a"]},
+    {"platformQueries": {"version": "platform-queries-v1", "items": [
+        {"platform": "ZHIHU", "keywords": ["采购"]}]}},
+])
+def test_dynamic_scope_rejects_mismatched_or_combined_configuration(contract, change):
+    value = dynamic_config(**change)
+    with pytest.raises(ValidationError):
+        contract.ResearchStrategyConfiguration.model_validate(value)
+
+
+@pytest.mark.parametrize("scope", [
+    None,
+    {"version": True, "maxAgeDays": 60, "timezone": "Asia/Shanghai"},
+    {"version": 1, "maxAgeDays": True, "timezone": "Asia/Shanghai"},
+    {"version": 1, "maxAgeDays": 0, "timezone": "Asia/Shanghai"},
+    {"version": 1, "maxAgeDays": 366, "timezone": "Asia/Shanghai"},
+    {"version": 1, "maxAgeDays": 60, "timezone": "No/Such"},
+])
+def test_dynamic_scope_rejects_null_bool_bounds_and_bad_timezone(contract, scope):
+    value = dynamic_config()
+    value["research"]["dynamicScope"] = scope
+    with pytest.raises(ValidationError):
+        contract.ResearchStrategyConfiguration.model_validate(value)
+
+
+def test_dynamic_scope_requires_public_web_only_at_snapshot_boundary(contract):
+    with pytest.raises(contract.StrategyStoreError, match="invalid_request"):
+        snapshot(contract, dynamic_config(), platforms=["PUBLIC_WEB", "ZHIHU"])
+
+
 def provenance():
     return dict(requestId=REQUEST, suggestionId=SUGGESTION, userId="user-1",
                 opportunityId=OPPORTUNITY, profileVersionId=PROFILE,
