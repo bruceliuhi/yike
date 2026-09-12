@@ -16,6 +16,8 @@ from typing import Any
 
 import httpx
 
+from pilot.public_search import normalize_query, valid_search_result
+
 
 _UPSTREAM = "https://ark.cn-beijing.volces.com/api/v3/responses"
 _MAX_BYTES = 2 * 1024 * 1024
@@ -44,7 +46,7 @@ class _Server(ThreadingHTTPServer):
 class ResponsesBridge:
     def __init__(self, *, api_key: str, model: str, max_requests: int,
                  deadline: float, allowed_tools: tuple[tuple[str, str], ...],
-                 transport=None):
+                 transport=None, search_service=None):
         if not isinstance(api_key, str) or not api_key or not isinstance(model, str) or not model:
             raise BridgeError("invalid_config")
         if type(max_requests) is not int or not 1 <= max_requests <= 20:
@@ -54,6 +56,10 @@ class ResponsesBridge:
             raise BridgeError("invalid_config")
         if not isinstance(allowed_tools, tuple):
             raise BridgeError("invalid_config")
+        if search_service is not None and not all(callable(getattr(search_service, name, None))
+                                                  for name in ("search", "close")):
+            raise BridgeError("invalid_config")
+        self._search_service = search_service
         self._api_key = api_key
         self._model = model
         self._max_requests = max_requests
@@ -127,6 +133,7 @@ class ResponsesBridge:
         self._server = _Server(("127.0.0.1", 0), Handler)
         port = self._server.server_address[1]
         self.base_url = f"http://127.0.0.1:{port}/v1"
+        self.search_url = self.base_url + "/public-search" if self._search_service is not None else None
         self._closed = False
         self._thread = threading.Thread(target=self._server.serve_forever, name="responses-bridge", daemon=True)
         self._thread.start()
@@ -142,6 +149,8 @@ class ResponsesBridge:
                 connection.close()
             except OSError:
                 pass
+        if self._search_service is not None:
+            self._search_service.close()
         if self._client is not None:
             self._client.close()
         if self._server is not None:
@@ -166,7 +175,8 @@ class ResponsesBridge:
             pass
 
     def _handle(self, handler):
-        if handler.path != "/v1/responses":
+        is_search = handler.path == "/v1/public-search" and self._search_service is not None
+        if handler.path != "/v1/responses" and not is_search:
             self._send(handler, 404, {"error": {"code": "not_found"}})
             return
         if handler.headers.get("Authorization") != "Bearer " + self.token:
@@ -195,8 +205,11 @@ class ResponsesBridge:
             return
         try:
             payload = json.loads(raw)
+            if is_search:
+                self._search(handler, payload)
+                return
             outbound = self._outbound(payload)
-        except (ValueError, TypeError, KeyError, BridgeError):
+        except (ValueError, TypeError, KeyError, RecursionError, BridgeError):
             self._send(handler, 400, {"error": {"code": "invalid_request"}})
             return
         now = time.monotonic()
@@ -231,6 +244,25 @@ class ResponsesBridge:
             handler.wfile.write(body)
         except (BrokenPipeError, ConnectionResetError):
             pass
+
+    def _search(self, handler, payload):
+        if type(payload) is not dict or set(payload) != {"query"}:
+            raise BridgeError("invalid_request")
+        query = normalize_query(payload["query"])
+        with self._state_lock:
+            unavailable = self._closed or time.monotonic() >= self._deadline
+        if unavailable:
+            self._send(handler, 408, {"error": {"code": "deadline_exceeded"}})
+            return
+        try:
+            value = self._search_service.search(query)
+            if not valid_search_result(value, query):
+                value = {"status":"FAILED", "code":"invalid_search_result", "replayed":False}
+            if self._closed or time.monotonic() >= self._deadline:
+                value = {"status":"FAILED", "code":"deadline_exceeded", "replayed":False}
+        except Exception:
+            value = {"status":"FAILED", "code":"unavailable", "replayed":False}
+        self._send(handler, 200, value)
 
     def _outbound(self, payload: Any) -> dict:
         if not isinstance(payload, dict) or not isinstance(payload.get("tools", []), list) or not isinstance(payload.get("input", []), list):
