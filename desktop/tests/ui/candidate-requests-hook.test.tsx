@@ -450,7 +450,66 @@ describe("explicit candidate requests with durable recovery", () => {
       transport.mock.calls.filter((call) => call[2] === "POST"),
     ).toHaveLength(2);
   });
-  it("retains a real 30-second timeout and ignores eventual response without issuing a retry", async () => {
+  it.each(['submit', 'explicit-retry'])("keeps a 45-second assessment visible through %s without duplicate dispatch", async kind => {
+    vi.useFakeTimers();
+    const hook = renderHook(() => useCandidateRequests());
+    const unknown = {kind: 'pending', status: 'UNKNOWN', requestId: assessmentRequestFixture().requestId,
+      candidateId: candidateBinding.candidateId};
+    if (kind === 'explicit-retry') {
+      transport.mockResolvedValueOnce(unknown);
+      await act(async () => { await hook.result.current.submit(assessmentRequestFixture()); });
+      transport.mockResolvedValueOnce(unknown); // Fresh original-request GET, not a repeated POST.
+    }
+    let signal: AbortSignal | undefined;
+    transport.mockImplementationOnce(async (_operation, _path, _method, input, suppliedSignal) => {
+      signal = suppliedSignal;
+      return new Promise(resolve => setTimeout(() => resolve({kind: 'assessment',
+        requestId: (input as {requestId: string}).requestId, candidateId: candidateBinding.candidateId,
+        assessment: assessmentFixture()}), 45_000));
+    });
+    let pending!: Promise<unknown>;
+    act(() => { pending = kind === 'submit'
+      ? hook.result.current.submit(assessmentRequestFixture())
+      : hook.result.current.retryAssessment(hook.result.current.operations[0].key, true); });
+    await act(async () => { await vi.waitFor(() => expect(signal).toBeDefined()); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_001); });
+    expect(hook.result.current.busy).toBe(true);
+    expect(hook.result.current.error).toBeNull();
+    expect(signal!.aborted).toBe(false);
+    await act(async () => { await vi.advanceTimersByTimeAsync(14_999); await pending; });
+    expect(hook.result.current.result?.kind).toBe('assessment');
+    expect(hook.result.current.operations.at(-1)!.state).toBe('RECORDED');
+    expect(transport.mock.calls.map(call => call[2])).toEqual(kind === 'submit' ? ['POST'] : ['POST', 'GET', 'POST']);
+    const dispatched = transport.mock.calls.at(-1)![3] as { requestId: string; retryOf?: string };
+    expect(hook.result.current.operations).toHaveLength(kind === 'submit' ? 1 : 2);
+    expect(hook.result.current.operations.at(-1)!.requestId).toBe(dispatched.requestId);
+    if (kind === 'explicit-retry') {
+      expect(dispatched.requestId).not.toBe(assessmentRequestFixture().requestId);
+      expect(dispatched.retryOf).toBe(assessmentRequestFixture().requestId);
+    } else {
+      expect(dispatched.requestId).toBe(assessmentRequestFixture().requestId);
+      expect(dispatched.retryOf).toBeUndefined();
+    }
+  });
+  it.each(['human', 'verification', 'receipt'])("retains the existing 30-second UI bound for %s", async kind => {
+    vi.useFakeTimers();
+    const hook = renderHook(() => useCandidateRequests());
+    if (kind === 'receipt') await act(async () => { await hook.result.current.submit(assessmentRequestFixture()); });
+    let signal: AbortSignal | undefined;
+    transport.mockImplementationOnce(async (_operation, _path, _method, _input, suppliedSignal) => {
+      signal = suppliedSignal;
+      return new Promise(() => {});
+    });
+    let pending!: Promise<unknown>;
+    act(() => { pending = kind === 'receipt' ? hook.result.current.reconcile(hook.result.current.operations[0].key)
+      : hook.result.current.submit(kind === 'human' ? decisionRequestFixture() : verificationRequestFixture()); });
+    await act(async () => { await vi.waitFor(() => expect(signal).toBeDefined()); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_001); await pending; });
+    expect(signal!.aborted).toBe(true);
+    expect(hook.result.current.error).toBeTruthy();
+    expect(transport.mock.calls.map(call => call[2])).toEqual(kind === 'receipt' ? ['POST', 'GET'] : ['POST']);
+  });
+  it("retains a 90-second assessment UI timeout and ignores eventual response without issuing a retry", async () => {
     vi.useFakeTimers();
     let release!: () => void;
     transport.mockImplementationOnce(
@@ -474,7 +533,11 @@ describe("explicit candidate requests with durable recovery", () => {
       await vi.waitFor(() => expect(release).toBeTypeOf("function"));
     });
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(30_001);
+      await vi.advanceTimersByTimeAsync(89_900);
+    });
+    expect(hook.result.current.busy).toBe(true);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(101);
       await pending;
     });
     expect(hook.result.current.operations[0].state).toBe("PENDING");
