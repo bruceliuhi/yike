@@ -32,6 +32,149 @@ def test_journal_exists():
     assert importlib.util.find_spec('pilot.research_effect_journal') is not None
 
 
+def known_failure():
+    return {'status':'FAILED','code':'not_found','replayed':False}
+
+
+def test_known_failed_read_atomic_finish_replay_and_next_url(journal_env):
+    env=journal_env; payload={'url':'https://example.com/missing'}
+    entry=begin(env,kind='READ',payload=payload)['entry']
+    final=finish(env,entry,'FAILED',known_failure())
+    assert final['result']==known_failure() and final['output_sha256']
+    assert states(env)==[('FAILED','FAILED')]
+    assert finish(env,entry,'FAILED',known_failure())==final
+    assert begin(env,kind='READ',payload=payload)=={'created':False,'entry':final}
+    with pytest.raises(ExecutionRuntimeError):
+        begin(env,sequence=2,kind='READ',payload=payload)
+    assert counts(env)==(1,1)
+    assert begin(env,sequence=2,kind='READ',payload={'url':'https://example.com/other'})['created']
+
+
+def test_deferred_one_sided_failed_hash_rolls_back(journal_env):
+    env=journal_env; entry=begin(env,kind='READ',payload={'url':'https://example.com/missing'})['entry']
+    updated=[]
+    with pytest.raises(psycopg.Error):
+        with env.db.connect() as connection:
+            env.runtime._active(connection.cursor(),env.claims)
+            connection.execute("UPDATE pilot_research_resource_events SET status='FAILED',output_sha256=%s "
+                'WHERE permit_id=%s',('b'*64,entry['permit_id']))
+            updated.append(True)  # Must fail at commit, not before journal can be updated.
+    assert updated==[True]
+    assert states(env)==[('ISSUED','ISSUED')]
+
+
+@pytest.mark.parametrize('change',['cancel','profile','lease'])
+def test_known_read_replay_and_next_remain_authority_bound(journal_env,change):
+    env=journal_env; payload={'url':'https://example.com/missing'}
+    entry=begin(env,kind='READ',payload=payload)['entry']
+    finish(env,entry,'FAILED',known_failure())
+    if change=='cancel': apply(env,operation(env,'CANCEL',env.execution))
+    else:
+        with env.admin.connect() as connection:
+            if change=='profile': connection.execute("UPDATE business_profile_versions SET status='REVOKED' WHERE profile_version_id=%s",(env.profile,))
+            else: connection.execute("UPDATE pilot_research_runtime SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE tenant_id=%s",(env.tenant,))
+    with pytest.raises(ExecutionRuntimeError): begin(env,kind='READ',payload=payload)
+    with pytest.raises(ExecutionRuntimeError): begin(env,sequence=2)
+    assert counts(env)==(1,1)
+
+
+@pytest.mark.parametrize('status',['FAILED','UNKNOWN'])
+def test_legacy_read_failure_still_blocks_next_effect(journal_env,status):
+    env=journal_env
+    entry=begin(env,kind='READ',payload={'url':'https://example.com/missing'})['entry']
+    finish(env,entry,status)
+    with pytest.raises(ExecutionRuntimeError): begin(env,sequence=2)
+    assert counts(env)==(1,1)
+
+
+def test_normal_resource_finish_cannot_write_failed_hash(journal_env):
+    env=journal_env; entry=begin(env,kind='READ',payload={'url':'https://example.com/missing'})['entry']
+    with pytest.raises(ExecutionRuntimeError,match='invalid_request'):
+        env.resources.finish(env.claims,task_id=entry['task_id'],run_id=entry['run_id'],
+            action_id=entry['action_id'],permit_id=entry['permit_id'],status='FAILED',output_sha256='b'*64)
+    assert states(env)==[('ISSUED','ISSUED')]
+
+
+@pytest.mark.parametrize('kind,patch',[
+    ('SEARCH',{}),('MODEL',{}),('READ',{'extra':True}),
+    ('READ',{'code':'access_restricted'}),('READ',{'code':'unavailable'}),
+    ('READ',{'replayed':True}),
+])
+def test_journal_rejects_wrong_kind_or_nonexact_failed_result(journal_env,kind,patch):
+    env=journal_env
+    payload=model_payload() if kind=='MODEL' else {'url':'https://example.com/missing'} if kind=='READ' else None
+    entry=begin(env,kind=kind,payload=payload)['entry']
+    with pytest.raises(ExecutionRuntimeError): finish(env,entry,'FAILED',known_failure()|patch)
+    assert states(env)==[('ISSUED','ISSUED')]
+
+
+def test_known_failed_receipt_replay_has_no_io_and_new_sequence_same_url_closes(journal_env):
+    env=journal_env; calls=[]; payload={'url':'https://example.com/missing'}
+    first=dispatcher(env)
+    assert first('READ',payload,time.monotonic()+20,lambda _:calls.append('READ') or known_failure())==known_failure()
+    replay=dispatcher(env)
+    assert replay('READ',payload,time.monotonic()+20,lambda _:pytest.fail('replay I/O'))==known_failure()
+    with pytest.raises(EffectDispatchError):
+        replay('READ',payload,time.monotonic()+20,lambda _:pytest.fail('new-sequence retry'))
+    with pytest.raises(EffectDispatchError):
+        replay('SEARCH',{'query':'另一个来源'},time.monotonic()+20,lambda _:pytest.fail('closed dispatcher'))
+    assert calls==['READ'] and counts(env)==(1,1)
+
+
+def test_known_failure_committed_ack_loss_never_repeats(journal_env,monkeypatch):
+    env=journal_env; gateway=dispatcher(env); calls=[]; finishes=[]; original=env.journal.finish
+    def lose(*args,**kwargs):
+        original(*args,**kwargs); finishes.append(True)
+        raise ConnectionError('synthetic acknowledgement loss')
+    monkeypatch.setattr(env.journal,'finish',lose)
+    with pytest.raises(EffectDispatchError):
+        gateway('READ',{'url':'https://example.com/missing'},time.monotonic()+20,
+            lambda _:calls.append('READ') or known_failure())
+    with pytest.raises(EffectDispatchError):
+        gateway('READ',{'url':'https://example.com/other'},time.monotonic()+20,
+            lambda _:pytest.fail('no I/O after uncertain finish'))
+    assert calls==['READ'] and finishes==[True] and states(env)==[('FAILED','FAILED')]
+
+
+@pytest.mark.parametrize('tamper',['resource','action_id','input_sha256','output_sha256','status','run_id','result','payload','context'])
+def test_prior_failure_predicate_binds_complete_receipt(journal_env,tamper):
+    from pilot.research_resources import _event
+    import copy
+    env=journal_env; entry=begin(env,kind='READ',payload={'url':'https://example.com/missing'})['entry']
+    entry=finish(env,entry,'FAILED',known_failure())
+    with env.db.connect() as connection:
+        cursor=connection.cursor(); tenant=env.runtime._active(cursor,env.claims)
+        event=_event(env.resources._select(cursor,tenant,env.claims.user_id,entry['task_id'],entry['run_id'],entry['action_id']))
+    assert env.journal.prior_effect_valid(entry,event)
+    bad=copy.deepcopy(entry)
+    if tamper=='result': bad['result']['extra']=True
+    elif tamper=='payload': bad['payload']['url']='https://example.com/other'
+    elif tamper=='context': bad['context_binding']['context_sha256']='f'*64
+    elif tamper=='resource': event['resource']='MODEL_CALL'
+    elif tamper=='status': event['status']='SUCCEEDED'
+    else: event[tamper]='a'*64 if tamper.endswith('sha256') else str(uuid4())
+    assert not env.journal.prior_effect_valid(bad,event)
+
+
+def test_corrupt_paired_digest_blocks_new_effect_and_dynamic_stop(journal_env):
+    from pilot.dynamic_research_runtime import DynamicResearchRuntimeService
+    from types import SimpleNamespace
+    env=journal_env; entry=begin(env,kind='READ',payload={'url':'https://example.com/missing'})['entry']
+    # Synthetic corrupt storage: shape and two-table pairing match, content digest does not.
+    with env.db.connect() as connection:
+        cursor=connection.cursor(); tenant=env.runtime._active(cursor,env.claims)
+        cursor.execute("UPDATE pilot_research_resource_events SET status='FAILED',output_sha256=%s WHERE permit_id=%s",('b'*64,entry['permit_id']))
+        cursor.execute("UPDATE pilot_research_effect_journal SET status='FAILED',result=%s::jsonb,output_sha256=%s WHERE permit_id=%s",
+            (json.dumps(known_failure()),'b'*64,entry['permit_id']))
+    with pytest.raises(ExecutionRuntimeError): begin(env,sequence=2)
+    with pytest.raises(ExecutionRuntimeError): begin(env,kind='READ',payload=entry['payload'])
+    with env.db.connect() as connection:
+        cursor=connection.cursor(); tenant=env.runtime._active(cursor,env.claims)
+        assert DynamicResearchRuntimeService._effect_stop(SimpleNamespace(journal=env.journal),cursor,tenant,
+            env.claims.user_id,entry['task_id'],entry['run_id'])=='effect_failed'
+    assert counts(env)==(1,1)
+
+
 @pytest.fixture
 def journal_env(context_env):
     from pilot.research_effect_journal import ResearchEffectJournal

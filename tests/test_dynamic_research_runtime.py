@@ -221,6 +221,62 @@ def test_public_read_session_publishes_through_actual_durable_customer_journal(d
         runtime.shutdown(timeout_seconds=2)
 
 
+def test_known_failed_read_then_positive_completes_with_actual_v4_client_contract(dynamic_env):
+    from pilot.public_read_session import PublicReadSession
+    from pilot.open_web_reader import PublicReadError
+    import json
+    import shutil
+    import subprocess
+    from tests.test_desktop_opportunity_http_postgres import _node_environment
+
+    env=dynamic_env; page=read_result()['evidence']; missing='https://example.com/missing'; reads=[]
+    class Reader:
+        def read(self,url,*,deadline):
+            reads.append(url)
+            if url==missing: raise PublicReadError('not_found')
+            return page
+        def close(self): pass
+    def mission(_description,**kwargs):
+        deadline=time.monotonic()+20
+        dispatcher=kwargs['effect_dispatcher']
+        value=search_result('企业知识库 找团队')
+        value['results'].append(dict(url=missing,title='不存在的测试来源',snippet=None,date_hint=None,rank=2))
+        dispatch_effect(dispatcher,kind='SEARCH',payload={'query':value['query']},deadline=deadline,perform=lambda _:value)
+        session=PublicReadSession(max_reads=2,deadline=deadline,
+            allowed_url=lambda url:url in (missing,page['url']),effect_dispatcher=dispatcher,reader=Reader())
+        try:
+            failed=session.read(missing,deadline=deadline)
+            assert failed=={'status':'FAILED','code':'not_found','replayed':False}
+            assert session.read(missing,deadline=deadline)==failed|{'replayed':True}
+            assert session.read(page['url'],deadline=deadline)['status']=='READ'
+        finally: session.close()
+        return {'status':'COMPLETED','code':None}
+    runtime=service(env,mission)
+    try:
+        runtime.advance(env.claims,env.execution['task_id'],env.execution['run_id'])
+        final=wait_terminal(runtime,env)
+        assert final['phase']=='COMPLETED', final
+        assert final['acceptedOriginals']==final['analyzedOriginals']==1
+        assert final['discovery']['reads']==dict(issued=2,pending=0,succeeded=1,failed=1,unknown=0)
+        assert final['usage']['sourceReads']['issued']==3
+        assert final['usage']['sourceReads']['failed']==1
+        assert final['usage']['resourceCloseout']['state']=='RECORDED'
+        assert reads==[missing,page['url']]
+        assert final['discovery']['unpublishedOriginals']==0
+        with env.admin.connect() as connection:
+            assert connection.execute('SELECT j.status,count(*) FROM pilot_candidate_batches b '
+                'JOIN pilot_research_effect_journal j ON j.action_id=b.request_id '
+                'AND j.tenant_id=b.tenant_id WHERE b.tenant_id=%s GROUP BY j.status',(env.tenant,)).fetchall()==[('SUCCEEDED',1)]
+        child_env=_node_environment()
+        child_env['YIKE_KNOWN_READ_TEST_STATUS']=json.dumps(final)
+        result=subprocess.run([shutil.which('node'),'node_modules/vitest/vitest.mjs','run',
+            'tests/knownReadOutcomeCompatibility.test.ts','--maxWorkers=1'],cwd=ROOT/'desktop',
+            env=child_env,capture_output=True,text=True,timeout=30)
+        assert result.returncode==0, result.stdout+result.stderr
+        assert '1 passed' in result.stdout and 'skipped' not in result.stdout
+    finally: runtime.shutdown(timeout_seconds=2)
+
+
 def test_capability_is_explicit_v4_and_fixed_capabilities_are_unchanged(dynamic_env):
     env = dynamic_env
     runtime = service(env, successful_mission([]))
@@ -311,6 +367,22 @@ def test_signed_dynamic_task_launches_once_and_finishes_persisted_path(dynamic_e
         assert calls == ["mission"]
     finally:
         runtime.shutdown(timeout_seconds=2)
+
+
+@pytest.mark.parametrize('stop',['effect_unknown','effect_pending'])
+def test_status_uses_strict_journal_stop_even_without_resource_counter(dynamic_env,monkeypatch,stop):
+    env=dynamic_env; runtime=service(env,successful_mission([]))
+    try:
+        runtime.advance(env.claims,env.execution['task_id'],env.execution['run_id'])
+        assert wait_terminal(runtime,env)['phase']=='COMPLETED'
+        # The strict journal reader can see a corrupt/unpaired row that resource
+        # counters alone cannot represent. Status must consume that same verdict.
+        monkeypatch.setattr(runtime,'_effect_stop',lambda *args,**kwargs:stop)
+        status=runtime.status(env.claims,env.execution['task_id'])
+        assert status['phase']=='STOPPED'
+        assert status['stopCode']==stop
+        assert status['usage']['resourceCloseout']['state']==('UNCERTAIN' if stop=='effect_unknown' else 'DRAINING')
+    finally: runtime.shutdown(timeout_seconds=2)
 
 
 def test_expired_running_lease_stops_as_worker_lost_without_relaunch(dynamic_env):

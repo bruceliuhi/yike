@@ -68,6 +68,37 @@ def test_created_effect_performs_then_finishes_before_returning():
     assert journal.events[0][1]["sequence"] == 1
 
 
+def test_known_failure_finishes_failed_then_allows_different_effect():
+    journal = Journal(); use = dispatcher(journal)
+    result = {"status": "FAILED", "code": "not_found", "replayed": False}
+    assert use("READ", {"url": "https://example.com/"}, time.monotonic()+10, lambda _: result) == result
+    assert journal.events[-1][1]["status"] == "FAILED"
+    assert use("SEARCH", {"query": "buyer"}, time.monotonic()+10, lambda _: search_result())["status"] == "SEARCHED"
+
+
+@pytest.mark.parametrize("mode", ["lost", "substituted", "status"])
+def test_known_failure_ack_uncertainty_closes_without_second_finish(mode):
+    journal = Journal(); original = journal.finish; use = dispatcher(journal)
+    def finish(*args, **kwargs):
+        acknowledged = original(*args, **kwargs)
+        if mode == "lost":
+            raise RuntimeError("lost ack")
+        if mode == "status":
+            acknowledged["status"] = "SUCCEEDED"
+        else:
+            from pilot.research_effect_contract import canonical_effect_sha256
+            acknowledged["result"] = acknowledged["result"] | {"code": "too_large"}
+            acknowledged["output_sha256"] = canonical_effect_sha256(acknowledged["result"])
+        return acknowledged
+    journal.finish = finish
+    with pytest.raises(EffectDispatchError):
+        use("READ", {"url": "https://example.com/"}, time.monotonic()+10,
+            lambda _: {"status": "FAILED", "code": "not_found", "replayed": False})
+    assert len([e for e in journal.events if e[0] == "finish"]) == 1
+    with pytest.raises(EffectDispatchError):
+        use("SEARCH", {"query": "buyer"}, time.monotonic()+10, lambda _: pytest.fail("no subsequent I/O"))
+
+
 def test_dispatch_is_serial_and_sequence_increases():
     journal = Journal(); gate = threading.Event(); entered = threading.Event(); order = []
     use = dispatcher(journal)

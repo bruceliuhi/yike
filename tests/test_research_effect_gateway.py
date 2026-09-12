@@ -63,10 +63,12 @@ asyncio.run(main())
 '''
 
 
-@pytest.mark.parametrize('deny_read',[False,True])
+@pytest.mark.parametrize('deny_read',[False,True,'known','access_restricted','rate_limited'])
 def test_actual_worker_bridge_and_mcp_stdio_share_host_gate(tmp_path,monkeypatch,deny_read):
     from pilot import codex_research_worker as worker
-    from pilot.open_web_reader import PublicPageReader
+    from pilot.open_web_reader import PublicPageReader, PublicReadError
+    from pilot.durable_research_dispatch import DurableResearchDispatcher
+    from tests.test_durable_research_dispatch import Journal, TASK, RUN, OWNER, BINDING
     from pilot.public_search import PublicSearchSession
     from pilot.responses_bridge import ResponsesBridge
     from pilot.research_effect_contract import effect_input, effect_result
@@ -81,39 +83,57 @@ def test_actual_worker_bridge_and_mcp_stdio_share_host_gate(tmp_path,monkeypatch
         return ResponsesBridge(**kwargs,transport=httpx.MockTransport(provider))
     def search(self,query,*,deadline=None):
         io.append('SEARCH')
+        urls = [URL, URL+'/other'] if isinstance(deny_read,str) else [URL]
         return dict(status='SEARCHED',query=query,observed_at=datetime.now(UTC).isoformat(),
-            read_scope='SEARCH_RESULTS',results=[dict(url=URL,title='测试索引',snippet=None,
-            date_hint=None,rank=1)],omitted_count=0,replayed=False)
+            read_scope='SEARCH_RESULTS',results=[dict(url=url,title='测试索引',snippet=None,
+            date_hint=None,rank=i) for i,url in enumerate(urls,1)],omitted_count=0,replayed=False)
     def read(self,url,*,deadline):
         io.append('READ'); text='仅用于协议测试的文本，不是真实商机。'
+        if deny_read == 'known' and url == URL:
+            raise PublicReadError('not_found')
+        if deny_read in ('access_restricted','rate_limited') and url == URL:
+            raise PublicReadError(deny_read)
         return dict(url=url,title='测试原文',text=text,observed_at=datetime.now(UTC).isoformat(),
             content_sha256=hashlib.sha256(text.encode()).hexdigest(),read_scope='PUBLIC_PAGE_TEXT')
+    journal = Journal()
+    durable = DurableResearchDispatcher(journal, object(), task_id=TASK, run_id=RUN,
+        generation=3, coordinator_owner=OWNER, context_binding=BINDING)
     def dispatch(kind,payload,deadline,perform):
         effects.append(kind)
-        if kind=='READ' and deny_read: raise RuntimeError('private-denial')
-        clean, _ = effect_input(kind, payload, binding())
-        return effect_result(kind, clean, perform(deadline))
+        if kind=='READ' and deny_read is True: raise RuntimeError('private-denial')
+        return durable(kind,payload,deadline,perform)
     monkeypatch.setattr(worker,'ResponsesBridge',bridge)
     monkeypatch.setattr(PublicSearchSession,'_run',search)
     monkeypatch.setattr(PublicPageReader,'read',read)
     executable=tmp_path/'codex-fixture'
-    executable.write_text('#!'+sys.executable+'\n'+_CODEX_FIXTURE)
+    script = _CODEX_FIXTURE
+    if isinstance(deny_read,str):
+        script = script.replace("            ]):", "                ('read_public_page',{'url':'https://buyer-fixture.example/project/other'}),\n            ]):")
+    executable.write_text('#!'+sys.executable+'\n'+script)
     executable.chmod(0o700)
     result=worker.run_public_research_mission('本地协议验证，不是真实买方研究',
         codex_binary=str(executable),python_binary=sys.executable,
         api_key='synthetic-provider-key',search_api_key='synthetic-search-key',
         model='test-model',max_seconds=15,effect_dispatcher=dispatch)
-    assert effects==['MODEL','SEARCH','READ']
-    assert io==(['MODEL','SEARCH'] if deny_read else ['MODEL','SEARCH','READ'])
+    assert effects==(['MODEL','SEARCH','READ','READ'] if isinstance(deny_read,str) else ['MODEL','SEARCH','READ'])
+    expected_io = ['MODEL','SEARCH'] if deny_read is True else ['MODEL','SEARCH','READ'] if deny_read in ('access_restricted','rate_limited') else effects
+    assert io==expected_io
     assert len(result)==9
     assert len(result['searches'])==1 and result['searches'][0]['query']==QUERY
     assert 'private-denial' not in json.dumps(result)
-    if deny_read:
+    if deny_read is True or deny_read in ('access_restricted','rate_limited'):
         assert result['status']=='FAILED' and result['code']=='no_verified_reads'
         assert result['reads']==[]
+        if isinstance(deny_read,str):
+            assert result['read_failures'][0]['code']==deny_read
+            assert [e[1]['status'] for e in journal.events if e[0]=='finish']==['SUCCEEDED','SUCCEEDED','UNKNOWN']
     else:
         assert result['status']=='COMPLETED' and len(result['reads'])==1
         assert result['reads'][0]['review_status']=='UNREVIEWED'
+        if deny_read == 'known':
+            assert result['reads'][0]['evidence']['url'] == URL+'/other'
+            assert result['read_failures'] == [{'url': URL, 'code': 'not_found'}]*2
+            assert [e[1]['status'] for e in journal.events if e[0]=='finish'] == ['SUCCEEDED','SUCCEEDED','FAILED','SUCCEEDED']
 
 
 def test_host_read_denies_url_before_successful_search(monkeypatch):

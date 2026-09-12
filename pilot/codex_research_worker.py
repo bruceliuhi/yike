@@ -25,6 +25,7 @@ _NO_EFFECT_DISPATCHER = object()
 _TOOLS = (('mcp__yike_public', 'read_public_page'),)
 _RESEARCH_TOOLS = (('mcp__yike_public', 'search_public_web'), *_TOOLS)
 _READ_ERRORS = {'invalid_url','unavailable','unsupported_content','too_large','timeout',
+                'not_found','unsupported_media_type','access_restricted','rate_limited',
                 'invalid_arguments','deadline_exceeded','read_limit_reached','invalid_read_result','unknown_tool'}
 _USAGE_FIELDS = {'input_tokens','output_tokens','cached_input_tokens',
                  'cache_write_input_tokens','reasoning_output_tokens'}

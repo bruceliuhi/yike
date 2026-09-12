@@ -9,8 +9,10 @@ from pilot.open_web_reader import (
     PublicPageReader, PublicReadError, normalize_public_url, valid_page_evidence,
 )
 from pilot.research_effects import dispatch_effect
+from pilot.research_effect_contract import is_known_read_failure
 
 _FAILURE_CODES = {"invalid_url", "unavailable", "unsupported_content", "too_large", "timeout",
+                  "not_found", "unsupported_media_type", "access_restricted", "rate_limited",
                   "invalid_read_result", "deadline_exceeded", "read_limit_reached", "closed"}
 
 
@@ -72,8 +74,10 @@ class PublicReadSession:
                 self._used += 1
                 self._cache[normalized] = _failure("unavailable")
                 effective = min(self._deadline, float(deadline), now+20.0)
+            hard_read_error = None
             try:
                 def perform(action_deadline):
+                    nonlocal hard_read_error
                     try:
                         evidence = self._reader.read(
                             normalized,
@@ -86,6 +90,13 @@ class PublicReadSession:
                         return {"status": "READ", "evidence": evidence,
                                 "review_status": "UNREVIEWED", "replayed": False}
                     except PublicReadError as error:
+                        failure = _failure(error.code)
+                        if is_known_read_failure("READ", {"url": normalized}, failure):
+                            return failure
+                        # Keep a concrete hard-error diagnostic across the closed durable
+                        # dispatcher; never use this path to turn a lost known-result ACK
+                        # into a continuable response.
+                        hard_read_error = failure["code"]
                         return {"_read_error": error.code}
 
                 raw = dispatch_effect(
@@ -99,6 +110,8 @@ class PublicReadSession:
                     result = _failure("deadline_exceeded")
                 elif type(raw) is dict and set(raw) == {"_read_error"}:
                     result = _failure(raw["_read_error"])
+                elif is_known_read_failure("READ", {"url": normalized}, raw):
+                    result = deepcopy(raw)
                 elif (type(raw) is not dict
                       or set(raw) != {"status", "evidence", "review_status", "replayed"}
                       or raw["status"] != "READ" or raw["review_status"] != "UNREVIEWED"
@@ -110,7 +123,7 @@ class PublicReadSession:
             except PublicReadError as error:
                 result = _failure(error.code)
             except Exception:
-                result = _failure("unavailable")
+                result = _failure(hard_read_error or "unavailable")
             with self._lock:
                 self._cache[normalized] = deepcopy(result)
             return deepcopy(result)

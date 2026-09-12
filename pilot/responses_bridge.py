@@ -25,6 +25,7 @@ _UPSTREAM = "https://ark.cn-beijing.volces.com/api/v3/responses"
 _MAX_BYTES = 2 * 1024 * 1024
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9_-]+")
 _READ_FAILURE_CODES = {"invalid_url", "unavailable", "unsupported_content", "too_large", "timeout",
+                       "not_found", "unsupported_media_type", "access_restricted", "rate_limited",
                        "invalid_read_result", "deadline_exceeded", "read_limit_reached", "closed"}
 
 

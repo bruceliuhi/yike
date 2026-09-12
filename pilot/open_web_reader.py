@@ -16,7 +16,8 @@ from pilot.candidate_contract import _normalize_host, _validate_url
 
 _MAX_SECONDS = 20.0
 _WORKER = Path(__file__).with_name("open_web_reader_worker.py")
-_CODES = {"invalid_url", "unavailable", "unsupported_content", "too_large", "timeout"}
+_CODES = {"invalid_url", "unavailable", "unsupported_content", "too_large", "timeout",
+          "not_found", "unsupported_media_type", "access_restricted", "rate_limited"}
 _RESULT_KEYS = {"url", "title", "text", "observed_at", "content_sha256", "read_scope"}
 _UTC_TIME = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
 _CREDENTIAL_QUERY_KEYS = {

@@ -325,27 +325,39 @@ class DynamicResearchRuntimeService:
             )
             return cursor.fetchone()[0] < limits["modelCalls"]
 
-    @staticmethod
-    def _effect_stop(cursor, tenant, user, task_id, run_id, *,
+    def _effect_stop(self, cursor, tenant, user, task_id, run_id, *,
                      allowed_pending_action=None, lock=False):
+        from pilot.research_effect_journal import _FIELDS as journal_fields, _entry
+        from pilot.research_resources import _FIELDS as resource_fields, _event
         suffix = " ORDER BY action_id FOR UPDATE" if lock else ""
         cursor.execute(
-            "SELECT action_id,resource,status FROM pilot_research_resource_events "
+            "SELECT "+','.join(resource_fields)+" FROM pilot_research_resource_events "
             "WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s AND run_id=%s" + suffix,
             (tenant, user, task_id, run_id),
         )
-        statuses = []
-        for action_id, resource, status in cursor.fetchall():
-            if (action_id == allowed_pending_action and resource == "MODEL_CALL"
-                    and status == "ISSUED"):
-                continue
-            statuses.append(status)
+        events = {event['action_id']: event for event in map(_event, cursor.fetchall())}
         cursor.execute(
-            "SELECT action_id,status FROM pilot_research_effect_journal WHERE tenant_id=%s "
+            "SELECT "+','.join(journal_fields)+" FROM pilot_research_effect_journal WHERE tenant_id=%s "
             "AND owner_user_id=%s AND task_id=%s AND run_id=%s" + suffix,
             (tenant, user, task_id, run_id),
         )
-        statuses.extend(status for _, status in cursor.fetchall())
+        entries = [_entry(row) for row in cursor.fetchall()]
+        statuses = []
+        for entry in entries:
+            event = events.pop(entry['action_id'],None)
+            if event is not None and self.journal.prior_effect_valid(entry,event):
+                continue
+            statuses.append(entry['status'])
+            if event is not None:
+                statuses.append(event['status'])
+            # A corrupt/unpaired successful receipt is not positive completion evidence.
+            if entry['status']=='SUCCEEDED':
+                statuses.append('FAILED')
+        for event in events.values():
+            if (event['action_id']==allowed_pending_action and event['resource']=='MODEL_CALL'
+                    and event['status']=='ISSUED'):
+                continue
+            statuses.append(event['status'])
         if "UNKNOWN" in statuses:
             return "effect_unknown"
         if "FAILED" in statuses:
@@ -506,6 +518,7 @@ class DynamicResearchRuntimeService:
                 usage, overdue = self.fixed._usage(
                     cursor, tenant, claims.user_id, task_id, run_id, now
                 )
+                effect_stop = self._effect_stop(cursor,tenant,claims.user_id,task_id,run_id)
                 cursor.execute(
                     "SELECT kind,status,count(*) FROM pilot_research_effect_journal "
                     "WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s AND run_id=%s "
@@ -552,9 +565,11 @@ class DynamicResearchRuntimeService:
                     or run_status in ("CANCELLING", "CANCELED")
                     or coordinator is not None and coordinator[4] == "CANCELED")
         complete = task_status == "SUCCEEDED" and run_status == "SUCCEEDED"
-        pending = usage["sourceReads"]["pending"] + usage["modelCalls"]["pending"] > 0
-        failed = usage["sourceReads"]["failed"] + usage["modelCalls"]["failed"] > 0
-        unknown = usage["sourceReads"]["unknown"] + usage["modelCalls"]["unknown"] > 0
+        pending = (effect_stop == "effect_pending"
+                   or usage["sourceReads"]["pending"] + usage["modelCalls"]["pending"] > 0)
+        failed = effect_stop == "effect_failed"
+        unknown = (effect_stop == "effect_unknown"
+                   or usage["sourceReads"]["unknown"] + usage["modelCalls"]["unknown"] > 0)
         active = bool(coordinator and coordinator[4] == "RUNNING"
                       and coordinator[2] is not None and coordinator[3] > now)
         durable_stop = bool(coordinator and coordinator[4] == "STOPPED")

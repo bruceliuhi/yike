@@ -9,7 +9,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 from pilot.execution_contract import canonical_uuid
-from pilot.research_effect_contract import canonical_effect_sha256, effect_input, effect_result
+from pilot.research_effect_contract import (
+    canonical_effect_sha256, effect_input, effect_result, known_read_failure,
+    is_known_read_failure,
+)
 from pilot.research_effects import EffectDispatchError
 
 
@@ -59,7 +62,12 @@ class DurableResearchDispatcher:
             if parsed.tzinfo is None or parsed.utcoffset() is None:
                 self._fail()
             if require_result:
-                validated = effect_result(kind, payload, entry["result"])
+                if entry["status"] == "FAILED":
+                    validated = known_read_failure(kind, payload, entry["result"])
+                elif entry["status"] == "SUCCEEDED":
+                    validated = effect_result(kind, payload, entry["result"])
+                else:
+                    self._fail()
                 if entry["output_sha256"] != canonical_effect_sha256(validated):
                     self._fail()
             return entry
@@ -89,7 +97,7 @@ class DurableResearchDispatcher:
                 entry = self._entry(began["entry"], sequence=sequence, kind=kind,
                                     payload=clean, digest=digest)
                 if not began["created"]:
-                    if entry["status"] != "SUCCEEDED":
+                    if entry["status"] not in ("SUCCEEDED", "FAILED"):
                         self._fail()
                     return copy.deepcopy(self._entry(
                         entry, sequence=sequence, kind=kind, payload=clean,
@@ -102,7 +110,9 @@ class DurableResearchDispatcher:
                 if wall_remaining <= 0 or effective <= time.monotonic():
                     self._fail()
                 try:
-                    result = effect_result(kind, clean, perform(effective))
+                    raw = perform(effective)
+                    negative = is_known_read_failure(kind, clean, raw)
+                    result = known_read_failure(kind, clean, raw) if negative else effect_result(kind, clean, raw)
                     if time.monotonic() >= effective or time.monotonic() >= float(deadline):
                         raise EffectDispatchError()
                 except BaseException:
@@ -115,12 +125,13 @@ class DurableResearchDispatcher:
                     self._fail()
                 expected_result = copy.deepcopy(result)
                 result_digest = canonical_effect_sha256(expected_result)
+                status = "FAILED" if negative else "SUCCEEDED"
                 finished = self._journal.finish(self._claims, task_id=self._task_id,
                     run_id=self._run_id, sequence=sequence, permit_id=entry["permit_id"],
-                    status="SUCCEEDED", result=copy.deepcopy(expected_result))
+                    status=status, result=copy.deepcopy(expected_result))
                 checked = self._entry(finished, sequence=sequence, kind=kind, payload=clean,
                                       digest=digest, require_result=True)
-                if checked["status"] != "SUCCEEDED" or checked["permit_id"] != entry["permit_id"] \
+                if checked["status"] != status or checked["permit_id"] != entry["permit_id"] \
                         or checked["action_id"] != entry["action_id"] \
                         or checked["output_sha256"] != result_digest \
                         or checked["result"] != expected_result:

@@ -8,7 +8,7 @@ import psycopg
 from pilot.customer_research_context import CustomerResearchContextStore
 from pilot.execution_contract import ExecutionRuntimeError, canonical_uuid
 from pilot.research_context import ResearchContextError, compile_research_context
-from pilot.research_effect_contract import effect_input, effect_result, canonical_effect_sha256
+from pilot.research_effect_contract import effect_input, effect_result, canonical_effect_sha256, known_read_failure
 from pilot.research_resources import _event
 from pilot.research_quote import ResearchQuoteRule
 
@@ -123,12 +123,18 @@ class ResearchEffectJournal:
             nonlocal deadline
             self._context(cursor,tenant,claims.user_id,task_id,run_id,binding,event['strategy_snapshot'])
             lease=self._coordinator(cursor,tenant,claims.user_id,task_id,run_id,generation,owner)
-            cursor.execute('SELECT count(*),count(*) FILTER (WHERE status=\'SUCCEEDED\'),max(sequence) '
+            cursor.execute('SELECT '+','.join(_FIELDS)+' '
                 'FROM pilot_research_effect_journal WHERE tenant_id=%s AND owner_user_id=%s '
-                'AND task_id=%s AND run_id=%s',(tenant,claims.user_id,task_id,run_id))
-            count,succeeded,maximum=cursor.fetchone()
-            if count!=sequence-1 or succeeded!=count or (maximum or 0)!=count:
+                'AND task_id=%s AND run_id=%s ORDER BY sequence',(tenant,claims.user_id,task_id,run_id))
+            previous=[_entry(row) for row in cursor.fetchall()]
+            if [entry['sequence'] for entry in previous]!=list(range(1,sequence)):
                 raise ExecutionRuntimeError('request_conflict',409)
+            for entry in previous:
+                row=self.resources._select(cursor,tenant,claims.user_id,task_id,run_id,entry['action_id'])
+                if (row is None or entry['context_binding']!=binding
+                        or not self.prior_effect_valid(entry,_event(row))
+                        or kind=='READ' and entry['status']=='FAILED' and entry['payload']==payload):
+                    raise ExecutionRuntimeError('request_conflict',409)
             deadline=min(lease,event['deadline'])
             return True
 
@@ -156,9 +162,8 @@ class ResearchEffectJournal:
                         or entry['action_id']!=action_id or entry['permit_id']!=grant['event']['permit_id']):
                     raise ExecutionRuntimeError('request_conflict',409)
                 self._matching_event(entry,_event(event_row))
-                if entry['status']=='SUCCEEDED':
-                    validated=effect_result(kind,payload,entry['result'])
-                    if canonical_effect_sha256(validated)!=entry['output_sha256']:
+                if entry['status']=='SUCCEEDED' or entry['status']=='FAILED' and entry['result'] is not None:
+                    if not self.prior_effect_valid(entry,_event(event_row)):
                         raise ExecutionRuntimeError('request_conflict',409)
                 self.runtime._active(cursor,claims)
                 return dict(created=grant['created'],entry=entry)
@@ -169,17 +174,37 @@ class ResearchEffectJournal:
 
     @staticmethod
     def _matching_event(entry,event):
-        if (entry['permit_id']!=event['permit_id'] or entry['input_sha256']!=event['input_sha256']
+        if (any(entry[key]!=event[key] for key in ('task_id','run_id','action_id','permit_id'))
+                or entry['input_sha256']!=event['input_sha256']
                 or entry['status']!=event['status'] or entry['output_sha256']!=event['output_sha256']
                 or event['resource']!=('MODEL_CALL' if entry['kind']=='MODEL' else 'SOURCE_READ')
                 or datetime.fromisoformat(entry['deadline_at'])>datetime.fromisoformat(event['deadline_at'])):
             raise ExecutionRuntimeError('request_conflict',409)
 
+    @classmethod
+    def prior_effect_valid(cls,entry,event):
+        """Strict paired final receipt check shared by admission and supervisor."""
+        try:
+            cls._matching_event(entry,event)
+            _,_,action_id=_scope(entry['task_id'],entry['run_id'],entry['sequence'])
+            payload,digest=effect_input(entry['kind'],entry['payload'],entry['context_binding'])
+            if entry['action_id']!=action_id or entry['input_sha256']!=digest:
+                return False
+            if entry['status']=='SUCCEEDED':
+                result=effect_result(entry['kind'],payload,entry['result'])
+            elif entry['status']=='FAILED':
+                result=known_read_failure(entry['kind'],payload,entry['result'])
+            else:
+                return False
+            return canonical_effect_sha256(result)==entry['output_sha256']
+        except (ExecutionRuntimeError,KeyError,TypeError,ValueError):
+            return False
+
     def finish(self,claims,*,task_id,run_id,sequence,permit_id,status,result=None):
         task_id,run_id,action_id=_scope(task_id,run_id,sequence)
         permit_id=canonical_uuid(permit_id)
         if type(status) is not str or status not in ('SUCCEEDED','FAILED','UNKNOWN') \
-                or (status!='SUCCEEDED' and result is not None):
+                or (status=='UNKNOWN' and result is not None):
             raise ExecutionRuntimeError('invalid_request',422)
         try:
             with self.runtime.database.connect() as connection,connection.cursor() as cursor:
@@ -190,6 +215,8 @@ class ResearchEffectJournal:
                     raise ExecutionRuntimeError('request_not_found',404)
                 self._matching_event(entry,_event(event_row))
                 output=effect_result(entry['kind'],entry['payload'],result) if status=='SUCCEEDED' else None
+                if status=='FAILED' and result is not None:
+                    output=known_read_failure(entry['kind'],entry['payload'],result)
                 digest=canonical_effect_sha256(output) if output is not None else None
                 if entry['status']!='ISSUED':
                     if entry['status']!=status or entry['output_sha256']!=digest or entry['result']!=output:

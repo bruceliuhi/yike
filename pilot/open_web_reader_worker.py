@@ -111,7 +111,7 @@ def _decode(body: bytes, content_type: str) -> tuple[str, str | None]:
     media_type, *parameters = content_type.split(";")
     media_type = media_type.strip().lower()
     if media_type not in {"text/html", "text/plain"}:
-        raise WorkerError("unsupported_content")
+        raise WorkerError("unsupported_media_type")
     charset = "utf-8"
     for parameter in parameters:
         key, separator, value = parameter.partition("=")
@@ -183,6 +183,12 @@ def read_request(request: dict) -> dict:
         tls.sendall(request_bytes)
         response = http.client.HTTPResponse(tls, method="GET")
         response.begin()
+        if response.status in (404, 410):
+            raise WorkerError("not_found")
+        if response.status in (401, 403):
+            raise WorkerError("access_restricted")
+        if response.status == 429:
+            raise WorkerError("rate_limited")
         if response.status != 200:
             raise WorkerError("unavailable")
         if response.getheader("Content-Encoding") not in (None, "identity"):

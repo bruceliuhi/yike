@@ -17,6 +17,41 @@ def binding():
     return compile_research_context(projected_v2())["binding"]
 
 
+@pytest.mark.parametrize("code", ["not_found", "unsupported_media_type", "too_large"])
+def test_known_read_failure_is_separate_copied_exact_contract(code):
+    from pilot import research_effect_contract as contract
+    result = {"status": "FAILED", "code": code, "replayed": False}
+    validator = getattr(contract, "known_read_failure", None)
+    assert callable(validator)
+    actual = validator("READ", {"url": "https://example.com/"}, result)
+    assert actual == result and actual is not result
+    assert contract.is_known_read_failure("READ", {"url": "https://example.com/"}, result)
+    with pytest.raises(ExecutionRuntimeError):
+        effect_result("READ", {"url": "https://example.com/"}, result)
+
+
+@pytest.mark.parametrize("kind,payload,patch", [
+    ("MODEL", {"url": "https://example.com/"}, {}),
+    ("SEARCH", {"url": "https://example.com/"}, {}),
+    ("READ", {"url": "https://example.com/#fragment"}, {}),
+    ("READ", {"url": "https://example.com/", "extra": True}, {}),
+    ("READ", {"url": "https://example.com/"}, {"extra": True}),
+    ("READ", {"url": "https://example.com/"}, {"code": "unavailable"}),
+    ("READ", {"url": "https://example.com/"}, {"code": "access_restricted"}),
+    ("READ", {"url": "https://example.com/"}, {"code": "rate_limited"}),
+    ("READ", {"url": "https://example.com/"}, {"replayed": True}),
+    ("READ", {"url": "https://example.com/"}, {"replayed": 0}),
+])
+def test_known_read_failure_rejects_unvalidated_outcomes(kind, payload, patch):
+    from pilot import research_effect_contract as contract
+    validator = getattr(contract, "known_read_failure", None)
+    assert callable(validator)
+    result = {"status": "FAILED", "code": "not_found", "replayed": False} | patch
+    with pytest.raises(ExecutionRuntimeError, match="^invalid_effect_result$"):
+        validator(kind, payload, result)
+    assert not contract.is_known_read_failure(kind, payload, result)
+
+
 def model_payload():
     alias = _alias("mcp__yike_public", "search_public_web")
     return {"model": "public-model", "input": [{"role": "user", "content": "find buyers"}],

@@ -57,6 +57,40 @@ def test_failure_is_cached_and_close_blocks_late_success():
     assert session.read("https://other.example/",deadline=time.monotonic()+10)["code"] == "closed"
 
 
+@pytest.mark.parametrize('code',['access_restricted','rate_limited','unsupported_content','timeout'])
+def test_durable_hard_failure_keeps_reason_but_blocks_subsequent_io(code):
+    from tests.test_durable_research_dispatch import Journal, dispatcher as durable_dispatcher
+    journal=Journal(); reader=Reader()
+    def fail(url,*,deadline):
+        reader.calls.append(url)
+        raise PublicReadError(code)
+    reader.read=fail
+    session=PublicReadSession(max_reads=2,deadline=time.monotonic()+30,allowed_url=lambda _:True,
+        effect_dispatcher=durable_dispatcher(journal),reader=reader)
+    assert session.read('https://example.com/',deadline=time.monotonic()+10)['code']==code
+    assert session.read('https://example.com/other',deadline=time.monotonic()+10)['status']=='FAILED'
+    assert reader.calls==['https://example.com/']
+    assert journal.events[-1][1]['status']=='UNKNOWN'
+
+
+def test_known_read_ack_loss_is_not_reported_as_continuable_result():
+    from tests.test_durable_research_dispatch import Journal, dispatcher as durable_dispatcher
+    journal=Journal(); reader=Reader(); original=journal.finish
+    def lose(*args,**kwargs):
+        original(*args,**kwargs)
+        raise ConnectionError('synthetic ACK loss')
+    journal.finish=lose
+    def fail(url,*,deadline):
+        reader.calls.append(url)
+        raise PublicReadError('not_found')
+    reader.read=fail
+    session=PublicReadSession(max_reads=2,deadline=time.monotonic()+30,allowed_url=lambda _:True,
+        effect_dispatcher=durable_dispatcher(journal),reader=reader)
+    assert session.read('https://example.com/',deadline=time.monotonic()+10)['code']=='unavailable'
+    assert session.read('https://example.com/other',deadline=time.monotonic()+10)['code']=='unavailable'
+    assert reader.calls==['https://example.com/']
+
+
 @pytest.mark.parametrize("kwargs", [
     dict(max_reads=0, deadline=time.monotonic()+1, allowed_url=lambda u:True, effect_dispatcher=dispatcher),
     dict(max_reads=1, deadline=float("inf"), allowed_url=lambda u:True, effect_dispatcher=dispatcher),
