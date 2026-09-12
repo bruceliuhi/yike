@@ -58,6 +58,7 @@ def runtime():
             return Context()
         async def create_xhs_client(self, proxy):
             assert proxy is None
+            events.append('client-created')
             return Client()
         async def close(self):
             events.append('browser-close')
@@ -88,16 +89,67 @@ def test_pong_authenticated_reads_only_unique_self_navigation_after_browser_open
     result = run(tmp_path, runtime, monkeypatch)
     assert result['state'] == 'AUTHENTICATED' and result['account_public_id'] == ACCOUNT
     assert result['checked_at'].endswith('Z')
-    assert runtime.events == ['browser-open', 'home', 'self-account-read', 'self-navigation', 'browser-close', 'playwright-close']
+    assert runtime.events == ['browser-open', 'home', 'self-navigation', 'client-created', 'self-account-read', 'self-navigation', 'browser-close', 'playwright-close']
     assert json.loads((tmp_path / '.yike-login-opened.json').read_text()) == {
         'schema_version': 'windows-platform-login-v1', 'state': 'OPENED'}
     assert 'secret' not in str(result)
 
 
 def test_logged_out_uses_existing_user_login_refresh_then_rechecks_self(tmp_path, runtime, monkeypatch):
-    runtime.state.pong = [False, True]
+    runtime.state.count = 0
+    runtime.state.pong = [True]
+    async def user_login(self):
+        assert 'client-created' not in runtime.events
+        assert 'self-account-read' not in runtime.events
+        runtime.events.append('user-login')
+        runtime.state.count = 1
+    monkeypatch.setattr(runtime.api.XiaoHongShuLogin, 'begin', user_login)
     assert run(tmp_path, runtime, monkeypatch)['state'] == 'AUTHENTICATED'
-    assert runtime.events[2:6] == ['self-account-read', 'user-login', 'refresh', 'self-account-read']
+    assert runtime.events[2:7] == ['self-navigation', 'user-login', 'client-created', 'self-account-read', 'self-navigation']
+
+
+def test_invisible_self_link_waits_for_user_before_requesting_account(tmp_path, runtime, monkeypatch):
+    runtime.state.visible = False
+    async def user_login(self):
+        assert 'self-account-read' not in runtime.events
+        runtime.events.append('user-login')
+        runtime.state.visible = True
+    monkeypatch.setattr(runtime.api.XiaoHongShuLogin, 'begin', user_login)
+    assert run(tmp_path, runtime, monkeypatch)['state'] == 'AUTHENTICATED'
+    assert runtime.events.index('user-login') < runtime.events.index('client-created')
+
+
+@pytest.mark.parametrize('after_login', ['false-pong', 'foreign-page', 'missing-self', 'response-error'])
+def test_user_wait_does_not_bypass_post_login_verification(tmp_path, runtime, monkeypatch, after_login):
+    runtime.state.count = 0
+    async def user_login(self):
+        assert 'self-account-read' not in runtime.events
+        runtime.events.append('user-login')
+        runtime.state.count = 0 if after_login == 'missing-self' else 1
+        if after_login == 'foreign-page': runtime.state.url = 'https://evil.example/'
+        if after_login == 'false-pong': runtime.state.pong = [False]
+    monkeypatch.setattr(runtime.api.XiaoHongShuLogin, 'begin', user_login)
+    if after_login == 'response-error':
+        create = runtime.api.XiaoHongShuCrawler.create_xhs_client
+        async def client(self, proxy):
+            value = await create(self, proxy)
+            async def pong():
+                raise module()._LoginError('PLATFORM_RESPONSE_CHANGED')
+            value.pong = pong
+            return value
+        monkeypatch.setattr(runtime.api.XiaoHongShuCrawler, 'create_xhs_client', client)
+    result = run(tmp_path, runtime, monkeypatch)
+    assert result['state'] != 'AUTHENTICATED' and 'account_public_id' not in result
+    assert 'user-login' in runtime.events
+    assert runtime.events[-2:] == ['browser-close', 'playwright-close']
+    if after_login == 'foreign-page': assert 'client-created' not in runtime.events
+    if after_login == 'response-error': assert result['error_code'] == 'PLATFORM_RESPONSE_CHANGED'
+
+
+def test_ambiguous_self_links_never_choose_an_account_or_start_login(tmp_path, runtime, monkeypatch):
+    runtime.state.count = 2
+    assert run(tmp_path, runtime, monkeypatch)['error_code'] == 'PLATFORM_ACCOUNT_UNVERIFIED'
+    assert 'client-created' not in runtime.events and 'user-login' not in runtime.events
 
 
 @pytest.mark.parametrize('change', [dict(count=0), dict(count=2), dict(visible=False),
@@ -121,8 +173,8 @@ def test_canonical_official_absolute_self_href_is_accepted(tmp_path, runtime, mo
 @pytest.mark.parametrize('kind', ['close', 'login', 'pong-false'])
 def test_failed_login_or_cleanup_never_authenticates(tmp_path, runtime, monkeypatch, kind):
     if kind == 'close': runtime.state.close_error = True
-    elif kind == 'login': runtime.state.pong = [False]; runtime.state.login_error = True
-    else: runtime.state.pong = [False, False]
+    elif kind == 'login': runtime.state.count = 0; runtime.state.login_error = True
+    else: runtime.state.pong = [False]
     result = run(tmp_path, runtime, monkeypatch)
     assert result['state'] != 'AUTHENTICATED' and 'account_public_id' not in result
     if kind == 'close': assert result['error_code'] == 'SOURCE_HOST_FAILED'
@@ -181,7 +233,7 @@ from media_platform.xhs import client as client_module
 import httpx
 events = []
 class Locator:
-    async def count(self): return 1
+    async def count(self): return 1 if 'user-login' in events else 0
     async def is_visible(self): return True
     async def get_attribute(self, key): return '/user/profile/66c01234abcdef0123456789'
 class Page:
@@ -218,7 +270,8 @@ class Transport:
     async def request(self, method, url, **kw):
         assert method == 'GET' and url == 'https://edith.xiaohongshu.com/api/sns/web/v1/user/selfinfo'
         events.append('self-http')
-        return httpx.Response(200, json={'success': True, 'code': 0, 'data': {'result': {'success': events.count('self-http') == 2}}})
+        assert 'user-login' in events
+        return httpx.Response(200, json={'success': True, 'code': 0, 'data': {'result': {'success': True}}})
 client_module.make_async_client = lambda **kw: Transport()
 client_module.sign_with_xhshow = lambda **kw: {'x-s':'fixture', 'x-t':'fixture', 'x-s-common':'fixture', 'x-b3-traceid':'fixture'}
 runtime.async_playwright = Playwright
@@ -226,8 +279,8 @@ worker._load_runtime = lambda: runtime
 result = asyncio.run(worker.login_xhs(output_path=Path(sys.argv[2])))
 assert result['state'] == 'AUTHENTICATED', result
 assert result['account_public_id'] == '66c01234abcdef0123456789'
-assert events.count('self-http') == 2 and events.count('user-login') == 1
-assert events.count('cookies-in-memory') == 2
+assert events.count('self-http') == 1 and events.count('user-login') == 1
+assert events.count('cookies-in-memory') == 1
 assert events[-2:] == ['context-closed', 'playwright-closed']
 print(json.dumps({'state': result['state'], 'events': events}))
 '''

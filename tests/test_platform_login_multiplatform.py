@@ -146,6 +146,7 @@ def test_host_threads_platform_through_private_child_and_terminal(tmp_path, monk
     monkeypatch.setattr(host, '_exclusive_paths', lambda paths: nullcontext())
     monkeypatch.setattr(host, 'verify_installed_runtime', lambda path: tmp_path / 'python')
     monkeypatch.setattr(host, 'verify_private_tree', lambda path: None)
+    monkeypatch.setattr(host, 'verify_browser_profile_tree', lambda path: None)
     def private(path):
         path.mkdir()
         return path

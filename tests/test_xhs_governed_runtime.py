@@ -234,11 +234,11 @@ def test_raw_store_unicode_null_timestamp_and_no_tokens(runtime):
 
 def test_no_data_uses_xhs_directory(runtime, tmp_path):
     runtime.g['config'].SAVE_DATA_PATH=str(tmp_path)
-    ns=runtime.load('main.py', names=['_has_comment_output'])
-    assert ns['_has_comment_output']() is False
+    ns=runtime.load('main.py', names=['_has_candidate_output'])
+    assert ns['_has_candidate_output']() is False
     d=tmp_path/'xhs/jsonl'; d.mkdir(parents=True)
     (d/'search_comments_fixture.jsonl').write_text('{"comment_id":"c"}\n')
-    assert ns['_has_comment_output']() is True
+    assert ns['_has_candidate_output']() is True
 
 
 def test_applied_patch_hashes_match_lock(source):
