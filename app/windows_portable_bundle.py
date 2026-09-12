@@ -103,7 +103,14 @@ def build_portable_bundle(*, project_root, installed_runtime, python_home, host_
                     with entry.source.open('rb') as source:
                         while block := source.read(1024*1024): guard(); value.update(block)
                     if value.hexdigest() != sha1: fail('PORTABLE_SOURCE_INVALID')
-                files.append(entry)
+                # The pinned documentation site is not executable payload. Keep
+                # docs/hit_stopwords.txt and docs/STZHONGS.TTF: runtime config
+                # references them. Still verify every original blob above, and
+                # never omit governed patches or license/notice files.
+                documentation = name.startswith('docs/') and (
+                    name.endswith('.md') or name.startswith(('docs/static/', 'docs/.vitepress/')))
+                if not documentation or name in lock['patched_files']:
+                    files.append(entry)
             names = {entry.path for entry in files}
             for name, expected in lock['patched_files'].items():
                 if 'runtime/'+name not in names:
@@ -136,6 +143,10 @@ def build_portable_bundle(*, project_root, installed_runtime, python_home, host_
                 files.extend(tree(runtime/'.venv/playwright-browsers'/directory, 'runtime/.venv/playwright-browsers/'+directory, guard))
             # Case-insensitive collision rejection applies to all Windows output paths.
             if len({entry.path.lower() for entry in files}) != len(files): fail('PORTABLE_FILE_REJECTED')
+            # Squirrel's legacy .NET Package reader corrupts Unicode ZIP names
+            # during uninstall registration. Fail before publishing, rather than
+            # silently dropping or renaming a future required runtime resource.
+            if any(not entry.path.isascii() for entry in files): fail('PORTABLE_SQUIRREL_NON_ASCII_PATH')
             guard(); output = create_private_directory(output)
             directories = {output}
             def parent(path):

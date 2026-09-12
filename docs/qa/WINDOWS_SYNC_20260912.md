@@ -1,5 +1,15 @@
 # Windows 最新主干接续（2026-09-12）
 
+## Setup 实装阻断与修复接续
+
+Gitee 再次同步至 `0b5bcbd`，无新增提交。对 `1119985` 候选执行真实 Setup 安装，文件解压完成，但卸载登记失败：旧 .NET `System.IO.Packaging.Package` 把文档站中文 ZIP 文件名解码成重复问号路径。只读打开实际 nupkg 同样复现；此前“make exit0/ZIP可读”不能代表安装成功。
+
+修复仅影响构建：仍核验全部固定源 blob，分发时排除未打治理补丁的 `docs/*.md`、`docs/static/`、`docs/.vitepress/` 文档站文件；保留运行配置引用的 `hit_stopwords.txt`、`STZHONGS.TTF`、代码、根许可证/NOTICE及依赖。任何其他非ASCII载荷路径在创建输出前失败关闭，不静默删改代码/资源。真实WindowsBase读包回归及3个非ASCII源/补丁/依赖拒绝场景先 **4 failed**，修复后整文件 **30 passed / 1 skipped**（仅非Windows拒绝分支）。本轮尚未生成修复后候选或通过重新安装。
+
+非作者 `win_test_review` 本批差量 GO，无阻断项，确认固定PIN运行引用及patch保留逻辑；未重跑同字节测试，不把fixture探针当实际运行验收。
+
+旧 `%LOCALAPPDATA%/YikeAI/dev-runtimes` 已确认是本任务历史开发探针，完整搬至 `.runtime/legacy-dev-runtimes-before-1119985` 留存，未删除。失败安装文件及日志保留；正式用户数据 `%APPDATA%/yike-ai-desktop` 未清理。仍待实际用户登录及平台连接；不读取验证码、Cookie或用模拟登录替代。
+
 主干从 `04ac64e` 快进到 `11a640b`，保留并接续本机六项测试文件修改。服务器经实际 SSH 核对仍为 `fbf9f942df0c2be2189a98a930948f9f9b104b1b`、healthy；同步源码不等于新版已部署。
 
 本批仅修测试：IPC 异步拒绝断言、重建采集 START 的失败关闭期待、Windows 文件 URL/路径、发送前真实保存草稿回调。文件符号链接测试在 Windows 创建返回 EPERM 时单独跳过；非文件拒绝、目录 junction 防写和跨进程一次性消费仍强制运行。未改变产品安全逻辑。

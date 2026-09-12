@@ -6,7 +6,9 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
+import zipfile
 
 import pytest
 
@@ -76,7 +78,7 @@ def fixture(tmp_path, monkeypatch):
     git = put(tmp_path, 'git.exe')
     lock = {'patchset_sha256': '1'*64, 'patched_tree_sha256': '2'*64, 'patched_files': {},
             'patches': [{'path': 'vendor/patches/mediacrawler/one.patch'}]}
-    state = SimpleNamespace(calls=[], fail=None, cancelled=False)
+    state = SimpleNamespace(calls=[], fail=None, cancelled=False, source=source, lock=lock)
     monkeypatch.setattr(api, 'verify_installed_runtime', lambda path: path / '.venv/Scripts/python.exe')
     monkeypatch.setattr(api, 'load_governance', lambda _: {'lock': lock, 'lock_sha256': '3'*64})
     def run(command, **kwargs):
@@ -98,6 +100,55 @@ def fixture(tmp_path, monkeypatch):
     options = dict(project_root=project, installed_runtime=runtime, python_home=python,
                    host_site_packages=host, destination=tmp_path / 'new payload', git_executable=git)
     return api, state, options
+
+
+def test_runtime_documentation_does_not_break_legacy_squirrel_package_reader(fixture, tmp_path):
+    api, state, options = fixture
+    documentation = ('docs/项目代码结构.md', 'docs/项目架构文档.md',
+                     'docs/static/images/修改代理密钥.png', 'docs/.vitepress/config.mjs')
+    resources = ('docs/hit_stopwords.txt', 'docs/STZHONGS.TTF', 'NOTICE')
+    for name in (*documentation, *resources):
+        state.source[name] = b'governed resource'
+        put(options['installed_runtime'], name, state.source[name])
+    manifest = api.build_portable_bundle(**options)
+    # Squirrel uses the legacy .NET Framework Package reader for uninstall
+    # registration, not Python's Unicode-aware zipfile reader. Reproduce that
+    # exact boundary with a tiny package containing the real output inventory.
+    package = tmp_path / 'fixture.nupkg'
+    with zipfile.ZipFile(package, 'w', zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr('[Content_Types].xml',
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="md" ContentType="text/plain"/></Types>')
+        for item in manifest['files']:
+            archive.write(options['destination'] / item['path'], 'lib/net45/' + item['path'])
+    result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command',
+        'Add-Type -AssemblyName WindowsBase; try { '
+        '$p = [IO.Packaging.Package]::Open($env:YIKE_TEST_NUPKG, [IO.FileMode]::Open, [IO.FileAccess]::Read); '
+        'try { @($p.GetParts()).Count } finally { $p.Close() } '
+        '} catch { $_.Exception.GetBaseException().Message; exit 1 }'],
+        env={**os.environ, 'YIKE_TEST_NUPKG': str(package)}, capture_output=True, timeout=30)
+    assert result.returncode == 0, result.stdout.decode(errors='replace')
+    paths = {item['path'] for item in manifest['files']}
+    assert not any('runtime/' + name in paths for name in documentation)
+    for name in ('main.py', 'LICENSE', *resources):
+        assert (options['destination'] / 'runtime' / name).read_bytes() == state.source[name]
+    for name in documentation:
+        assert (options['installed_runtime'] / name).read_bytes() == state.source[name]
+
+
+@pytest.mark.parametrize('origin', ['runtime', 'patched-runtime', 'dependency'])
+def test_unexpected_non_ascii_payload_path_fails_before_output_not_silently_dropped(fixture, origin):
+    api, state, options = fixture
+    name = '模块.py'
+    if origin == 'dependency':
+        distribution(options['host_site_packages'], 'idna', files={'idna/' + name: b'required'})
+    else:
+        put(options['installed_runtime'], name, b'required')
+        if origin == 'runtime': state.source[name] = b'required'
+        else: state.lock['patched_files'][name] = hashlib.sha256(b'required').hexdigest()
+    with pytest.raises(api.PortableBundleError, match='PORTABLE_SQUIRREL_NON_ASCII_PATH'):
+        api.build_portable_bundle(**options)
+    assert not options['destination'].exists()
 
 
 def test_new_layout_is_relative_isolated_complete_and_secrets_never_enter_manifest(fixture):
