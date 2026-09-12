@@ -227,13 +227,21 @@ def test_withdrawal_does_not_revive_pre_supplement_cached_judgment(env):
     assert 'demandEvidenceId' not in latest['assessment']
 
 
-def test_http_pg_supplement_assess_include_and_old_shape_read(env):
+def test_http_pg_supplement_assess_include_and_old_shape_read(journal_env):
     from fastapi import FastAPI,APIRouter
     from fastapi.testclient import TestClient
     from types import SimpleNamespace
     from pilot.candidate_review_api import register_candidate_review_api
-    b,declaration,_ = setup_page(env)
-    service = store(env,PageModel())
+    from pilot.candidate_review import CandidateReviewStore
+    env = journal_env
+    day = datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat()
+    declaration = evidence(publishedDate=day,dateExcerpt=day)
+    successful_read(env,value=read_result(text=CONTENT['body']+'\n小王 '+day,title=CONTENT['title']))
+    item = publish(env)['items'][0]
+    b = dict(candidateId=item['candidate_id'],candidateRevision=item['revision'],sourceVersionId=item['version_id'],
+        profileId=env.profile,profileVersion=env.profile_number)
+    service = CandidateReviewStore(env.db,model=PageModel(),strategy_resolver=env.strategies.resolve,
+        strategy_snapshot_reader=env.strategies.read_snapshot)
     app,router = FastAPI(),APIRouter()
     register_candidate_review_api(router,service,lambda _:SimpleNamespace(claims=env.claims),lambda _:None)
     app.include_router(router)
@@ -243,6 +251,8 @@ def test_http_pg_supplement_assess_include_and_old_shape_read(env):
     assert check.status_code == 200
     assessed = client.post('/candidate-reviews?evidenceVersion=1',json=review_payload(b))
     assert assessed.status_code == 200
+    from uuid import UUID
+    assert str(UUID(assessed.json()['assessment']['strategyVersionId'])) == env.snapshot['strategy_version_id']
     decision = client.post('/candidate-reviews?evidenceVersion=1',json=include(b,assessed.json(),check.json()))
     assert decision.status_code == 200 and decision.json()['receipt']['outcome'] == 'IMPORTED'
     current = client.get('/candidates?evidenceVersion=1').json()['items'][0]
