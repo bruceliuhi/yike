@@ -1,0 +1,317 @@
+"""A per-task, loopback-only adapter for the Responses protocol."""
+
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+import re
+import secrets
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Any
+
+import httpx
+
+
+_UPSTREAM = "https://ark.cn-beijing.volces.com/api/v3/responses"
+_MAX_BYTES = 2 * 1024 * 1024
+_SAFE_NAME = re.compile(r"[^A-Za-z0-9_-]+")
+
+
+class BridgeError(Exception):
+    """Bridge configuration error whose message is always a fixed safe code."""
+
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+
+
+def _alias(namespace: str, name: str) -> str:
+    stem = _SAFE_NAME.sub("_", f"{namespace}__{name}").strip("_") or "tool"
+    digest = hashlib.sha256(f"{namespace}\0{name}".encode()).hexdigest()[:12]
+    return f"{stem[:50]}_{digest}"
+
+
+class _Server(ThreadingHTTPServer):
+    daemon_threads = True
+    allow_reuse_address = False
+
+
+class ResponsesBridge:
+    def __init__(self, *, api_key: str, model: str, max_requests: int,
+                 deadline: float, allowed_tools: tuple[tuple[str, str], ...],
+                 transport=None):
+        if not isinstance(api_key, str) or not api_key or not isinstance(model, str) or not model:
+            raise BridgeError("invalid_config")
+        if type(max_requests) is not int or not 1 <= max_requests <= 20:
+            raise BridgeError("invalid_config")
+        if not isinstance(deadline, (int, float)) or deadline > time.monotonic() + 1800:
+            raise BridgeError("invalid_config")
+        if not isinstance(allowed_tools, tuple):
+            raise BridgeError("invalid_config")
+        self._api_key = api_key
+        self._model = model
+        self._max_requests = max_requests
+        self._deadline = float(deadline)
+        self._transport = transport
+        self._by_pair: dict[tuple[str, str], str] = {}
+        self._by_alias: dict[str, tuple[str, str]] = {}
+        for pair in allowed_tools:
+            if (not isinstance(pair, tuple) or len(pair) != 2
+                    or not all(isinstance(value, str) and value for value in pair)
+                    or pair in self._by_pair):
+                raise BridgeError("invalid_tools")
+            alias = _alias(*pair)
+            if alias in self._by_alias:
+                raise BridgeError("tool_alias_collision")
+            self._by_pair[pair] = alias
+            self._by_alias[alias] = pair
+        self._gate = threading.Lock()
+        self._state_lock = threading.Lock()
+        self._count = 0
+        self._records: list[dict] = []
+        self._closed = True
+        self._server = None
+        self._thread = None
+        self._client = None
+
+    @property
+    def records(self) -> list[dict]:
+        with self._state_lock:
+            return copy.deepcopy(self._records)
+
+    def __enter__(self):
+        if not self._closed:
+            raise BridgeError("already_started")
+        self.token = secrets.token_urlsafe(32)
+        transport = self._transport if self._transport is not None else httpx.HTTPTransport(retries=0)
+        self._client = httpx.Client(transport=transport, trust_env=False, follow_redirects=False)
+        bridge = self
+
+        class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def do_POST(self):
+                bridge._handle(self)
+
+            def do_GET(self):
+                bridge._send(self, 405, {"error": {"code": "method_not_allowed"}})
+
+            def do_PUT(self):
+                bridge._send(self, 405, {"error": {"code": "method_not_allowed"}})
+
+            do_DELETE = do_PATCH = do_OPTIONS = do_GET
+
+            def log_message(self, *_):
+                return
+
+        self._server = _Server(("127.0.0.1", 0), Handler)
+        port = self._server.server_address[1]
+        self.base_url = f"http://127.0.0.1:{port}/v1"
+        self._closed = False
+        self._thread = threading.Thread(target=self._server.serve_forever, name="responses-bridge", daemon=True)
+        self._thread.start()
+        return self
+
+    def __exit__(self, *_exc):
+        with self._state_lock:
+            self._closed = True
+        if self._client is not None:
+            self._client.close()
+        if self._server is not None:
+            self._server.shutdown()
+            self._server.server_close()
+        if self._thread is not None:
+            self._thread.join(timeout=2)
+        self._api_key = ""
+        self.token = ""
+
+    @staticmethod
+    def _send(handler, status: int, value: dict):
+        body = json.dumps(value, separators=(",", ":")).encode()
+        try:
+            handler.send_response(status)
+            handler.send_header("content-type", "application/json")
+            handler.send_header("content-length", str(len(body)))
+            handler.send_header("connection", "close")
+            handler.end_headers()
+            handler.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
+    def _handle(self, handler):
+        if handler.path != "/v1/responses":
+            self._send(handler, 404, {"error": {"code": "not_found"}})
+            return
+        if handler.headers.get("Authorization") != "Bearer " + self.token:
+            self._send(handler, 401, {"error": {"code": "unauthorized"}})
+            return
+        if not handler.headers.get("content-type", "").lower().startswith("application/json"):
+            self._send(handler, 400, {"error": {"code": "invalid_request"}})
+            return
+        try:
+            length = int(handler.headers.get("content-length", "-1"))
+        except ValueError:
+            length = -1
+        if length < 0:
+            self._send(handler, 400, {"error": {"code": "invalid_request"}})
+            return
+        if length > _MAX_BYTES:
+            self._send(handler, 413, {"error": {"code": "request_too_large"}})
+            return
+        raw = handler.rfile.read(length)
+        try:
+            payload = json.loads(raw)
+            outbound = self._outbound(payload)
+        except (ValueError, TypeError, KeyError, BridgeError):
+            self._send(handler, 400, {"error": {"code": "invalid_request"}})
+            return
+        now = time.monotonic()
+        with self._state_lock:
+            if self._closed or now >= self._deadline:
+                self._send(handler, 408, {"error": {"code": "deadline_exceeded"}})
+                return
+            if self._count >= self._max_requests:
+                self._send(handler, 429, {"error": {"code": "request_limit"}})
+                return
+            self._count += 1
+            ordinal = self._count
+        started = time.monotonic()
+        status, code, body, usage = self._forward(outbound)
+        record = {"ordinal": ordinal, "status": "ok" if status == 200 else "error",
+                  "code": code, "usage": usage,
+                  "elapsed_seconds": round(time.monotonic() - started, 6)}
+        with self._state_lock:
+            self._records.append(record)
+        if status != 200:
+            self._send(handler, status, {"error": {"code": code}})
+            return
+        try:
+            handler.send_response(200)
+            handler.send_header("content-type", "text/event-stream")
+            handler.send_header("content-length", str(len(body)))
+            handler.send_header("connection", "close")
+            handler.end_headers()
+            handler.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
+    def _outbound(self, payload: Any) -> dict:
+        if not isinstance(payload, dict) or not isinstance(payload.get("tools", []), list) or not isinstance(payload.get("input", []), list):
+            raise BridgeError("invalid_request")
+        result = dict(payload)
+        result["model"] = self._model
+        reasoning = result.get("reasoning")
+        if reasoning is not None:
+            if not isinstance(reasoning, dict):
+                raise BridgeError("invalid_request")
+            reasoning = dict(reasoning)
+            reasoning.pop("summary", None)
+            result["reasoning"] = reasoning
+        tools = []
+        for tool in result.get("tools", []):
+            if not isinstance(tool, dict) or tool.get("type") != "function":
+                raise BridgeError("invalid_request")
+            pair = (tool.get("namespace"), tool.get("name"))
+            alias = self._by_pair.get(pair)
+            if alias is None:
+                raise BridgeError("invalid_request")
+            item = dict(tool); item["name"] = alias; item.pop("namespace", None)
+            tools.append(item)
+        result["tools"] = tools
+        inputs = []
+        for source in result.get("input", []):
+            if not isinstance(source, dict):
+                inputs.append(source)
+                continue
+            item = dict(source)
+            if item.get("type") == "function_call":
+                pair = (item.get("namespace"), item.get("name"))
+                alias = self._by_pair.get(pair)
+                if alias is None:
+                    raise BridgeError("invalid_request")
+                item["name"] = alias; item.pop("namespace", None)
+            inputs.append(item)
+        result["input"] = inputs
+        return result
+
+    def _forward(self, payload: dict):
+        with self._gate:
+            remaining = self._deadline - time.monotonic()
+            with self._state_lock:
+                closed = self._closed
+            if closed or remaining <= 0:
+                return 408, "deadline_exceeded", b"", None
+            try:
+                with self._client.stream("POST", _UPSTREAM,
+                                         headers={"authorization": "Bearer " + self._api_key,
+                                                  "content-type": "application/json"},
+                                         json=payload, timeout=min(20.0, remaining)) as response:
+                    if response.status_code != 200:
+                        return 502, "provider_error", b"", None
+                    if "text/event-stream" not in response.headers.get("content-type", "").lower():
+                        return 502, "provider_error", b"", None
+                    chunks = []
+                    size = 0
+                    for chunk in response.iter_bytes():
+                        size += len(chunk)
+                        if size > _MAX_BYTES:
+                            return 502, "provider_error", b"", None
+                        chunks.append(chunk)
+                body, usage = self._inbound(b"".join(chunks))
+                with self._state_lock:
+                    closed = self._closed
+                if closed or time.monotonic() >= self._deadline:
+                    return 408, "deadline_exceeded", b"", None
+                return 200, "ok", body, usage
+            except Exception:
+                return 502, "provider_error", b"", None
+
+    def _restore_item(self, source: Any):
+        if not isinstance(source, dict):
+            raise BridgeError("provider_error")
+        item = dict(source)
+        if item.get("type") == "function_call":
+            pair = self._by_alias.get(item.get("name"))
+            if pair is None:
+                raise BridgeError("provider_error")
+            item["namespace"], item["name"] = pair
+        return item
+
+    def _inbound(self, raw: bytes):
+        text = raw.decode("utf-8")
+        blocks = text.replace("\r\n", "\n").split("\n\n")
+        output = []
+        completed = False
+        usage = None
+        for block in blocks:
+            if not block:
+                continue
+            lines = block.splitlines()
+            data_lines = [line[5:].lstrip() for line in lines if line.startswith("data:")]
+            if not data_lines:
+                raise BridgeError("provider_error")
+            event = json.loads("\n".join(data_lines))
+            if not isinstance(event, dict) or not isinstance(event.get("type"), str):
+                raise BridgeError("provider_error")
+            if "item" in event:
+                event = dict(event); event["item"] = self._restore_item(event["item"])
+            if event["type"] == "response.completed":
+                response = event.get("response")
+                if not isinstance(response, dict) or response.get("status") != "completed" or not isinstance(response.get("output", []), list):
+                    raise BridgeError("provider_error")
+                response = dict(response)
+                response["output"] = [self._restore_item(item) for item in response.get("output", [])]
+                usage = copy.deepcopy(response.get("usage")) if isinstance(response.get("usage"), dict) else None
+                event = dict(event); event["response"] = response
+                completed = True
+            event_name = next((line[6:].strip() for line in lines if line.startswith("event:")), event["type"])
+            output.append(f"event: {event_name}\ndata: {json.dumps(event, separators=(',', ':'))}\n\n")
+        if not completed:
+            raise BridgeError("provider_error")
+        body = "".join(output).encode()
+        if len(body) > _MAX_BYTES:
+            raise BridgeError("provider_error")
+        return body, usage
