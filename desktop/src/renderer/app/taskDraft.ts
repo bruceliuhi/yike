@@ -4,7 +4,7 @@ import { newTaskDraft, type TaskDraft } from "../domain/models";
 import { defaultResearchSettings, researchDraftSchema } from "../domain/researchUsage";
 import { scheduleSchema } from "../domain/schedule";
 import { industryStrategyDraftSchema } from '../domain/industryTaskStrategy';
-import {publicSourceIdSchema} from '../../shared/publicSources';
+import {researchSelectionSchema as publicSourceIdSchema} from '../../shared/dynamicResearch';
 const term = z.object({
   id: z.string(),
   value: z.string(),

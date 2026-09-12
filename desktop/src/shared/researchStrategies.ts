@@ -1,5 +1,5 @@
 import { z } from "zod";
-import {publicSourceIdSchema} from './publicSources';
+import {DYNAMIC_RESEARCH_SOURCE,dynamicScopeSchema,researchSelectionSchema} from './dynamicResearch';
 import {researchSourcePlanSchema} from './researchSourcePlan';
 import { industryTaskStrategySchema } from './industryTaskStrategy';
 import { planNativeCollectionLinks } from './nativeCollectionLinks';
@@ -225,6 +225,7 @@ const researchSchema = exactObject({
   }),
   provenance: researchOriginSchema.optional(),
   sourcePlan: researchSourcePlanSchema.optional(),
+  dynamicScope: dynamicScopeSchema.optional(),
 });
 const termsSchema = z
   .array(boundedVisibleText(80), { error: INVALID_STRATEGY_DATA })
@@ -263,10 +264,16 @@ export const strategyConfigurationSchema = exactObject({
   schedule: scheduleSchema.nullable(),
   research: researchSchema.nullable(),
   industryStrategy: industryTaskStrategySchema.optional(),
-  publicSource: publicSourceIdSchema.optional(),
+  publicSource: researchSelectionSchema.optional(),
   platformQueries: platformQueriesSchema.optional(),
 })
   .superRefine((configuration, context) => {
+    const dynamic=configuration.research?.dynamicScope;
+    if(dynamic ? (configuration.publicSource!==DYNAMIC_RESEARCH_SOURCE||configuration.source!=='search'||
+      configuration.mode!=='once'||configuration.schedule!==null||configuration.links.length>0||
+      configuration.research?.sourcePlan!==undefined||configuration.research?.provenance!==undefined||configuration.platformQueries!==undefined)
+      : configuration.publicSource===DYNAMIC_RESEARCH_SOURCE)
+      context.addIssue({code:'custom',message:INVALID_STRATEGY_DATA});
     const plan=configuration.research?.sourcePlan;
     if(plan && (configuration.publicSource!==plan.sources[0] || configuration.source!=='search' ||
         configuration.mode!=='once' || configuration.schedule!==null || configuration.links.length>0 ||
@@ -384,6 +391,7 @@ export const strategyViewSchema = exactObject({
 
 export type StrategyConfiguration = z.infer<typeof strategyConfigurationSchema>;
 function validSourcePlanScope(scope:{configuration:StrategyConfiguration;platforms:string[];max_records:number}){
+  if(scope.configuration.research?.dynamicScope)return scope.platforms.length===1&&scope.platforms[0]==='PUBLIC_WEB';
   const plan=scope.configuration.research?.sourcePlan;
   return !plan || (scope.platforms.length===1 && scope.platforms[0]==='PUBLIC_WEB' && scope.max_records>=plan.sources.length&&scope.max_records<=100);
 }

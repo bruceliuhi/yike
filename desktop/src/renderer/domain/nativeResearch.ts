@@ -3,20 +3,25 @@ import {configurationHash,hashText} from './taskOperations';
 import {parseUsageQuote,usageQuoteRequest,type UsageQuote} from './researchUsage';
 import {strategyPrepareRequest} from './researchStrategies';
 import {hasPublicSourceBinding} from './task';
-import {allowsPublicSource,DEFAULT_PUBLIC_SOURCE} from '../../shared/publicSources';
+import {allowsPublicSource,DEFAULT_PUBLIC_SOURCE,publicSourceIdSchema} from '../../shared/publicSources';
 import {researchSources} from '../../shared/researchSourcePlan';
+import {DYNAMIC_RESEARCH_SOURCE,dynamicLimitsValid} from '../../shared/dynamicResearch';
+import {researchAllowsSelection} from '../../shared/researchRuntime';
 import {validStrategyExecutionLimits} from './strategyExecutionLimits';
 import {strategyReceiptSchema,type StrategyReceipt} from '../../shared/researchStrategies';
 import {desktopExecutionCommandSchema,type DesktopExecutionCommand} from '../../shared/desktopExecution';
 
 export async function nativeResearchStartCommand(draft:TaskDraft,prepared:StrategyReceipt,
-  connections:PlatformConnection[],session:Session,quote:UsageQuote,requestId:string) {
+  connections:PlatformConnection[],session:Session,quote:UsageQuote,requestId:string,dynamicCapability?:unknown) {
   const limits=validStrategyExecutionLimits(draft.executionLimits),receipt=strategyReceiptSchema.parse(prepared);
   const publicRows=connections.filter(hasPublicSourceBinding);
+  const dynamic=draft.publicSource===DYNAMIC_RESEARCH_SOURCE;
+  const allowed=dynamic?researchAllowsSelection(dynamicCapability,DYNAMIC_RESEARCH_SOURCE)&&!!draft.research?.dynamicScope&&dynamicLimitsValid(draft.research.limits)
+    :publicRows.length===1&&researchSources(publicSourceIdSchema.parse(draft.publicSource??DEFAULT_PUBLIC_SOURCE),draft.research?.sourcePlan)
+      .every(source=>allowsPublicSource(source,publicRows[0].publicBinding?.sourceId,publicRows[0].publicBinding?.sourceIds));
   if(!limits || !draft.research || draft.mode!=='once' || draft.platforms.length!==1 || draft.platforms[0]!=='web' ||
-    draft.accounts.web || publicRows.length!==1 || !researchSources(draft.publicSource??DEFAULT_PUBLIC_SOURCE,draft.research.sourcePlan)
-      .every(source=>allowsPublicSource(source,publicRows[0].publicBinding?.sourceId,publicRows[0].publicBinding?.sourceIds)) || limits.max_records>100 || limits.max_runtime_seconds>900)
-    throw new Error('研究执行仅支持已核实的V2EX所选板块单次索引研究，请核对范围。');
+    draft.accounts.web || !allowed || limits.max_records>100 || limits.max_runtime_seconds>(dynamic?1800:900))
+    throw new Error(dynamic?'请核对公开网页自主研究能力、时效和执行上限。':'研究执行仅支持已核实的V2EX所选板块单次索引研究，请核对范围。');
   const expected=strategyPrepareRequest(draft,receipt.request_id,limits);
   if(receipt.draft_id!==draft.id || receipt.draft_revision!==draft.revision || receipt.profile_version_id!==draft.profileId ||
     JSON.stringify(receipt.snapshot.configuration)!==JSON.stringify(expected.configuration) ||

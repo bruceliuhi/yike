@@ -8,6 +8,7 @@ import {
   type UsageQuote,
 } from "../../domain/researchUsage";
 import "./research-settings.css";
+import {dynamicLimitsValid} from '../../../shared/dynamicResearch';
 
 export function DemandSettings({
   value,
@@ -115,6 +116,15 @@ export function ResearchSettingsPanel({
         </div>
       </Field>
       <p className="field-hint">达到上限暂停，扩大范围需再次确认。</p>
+      {value.dynamicScope&&<>
+        <Field label="需求时间窗口">
+          <input type="number" aria-label="需求时间窗口（天）" min={1} max={365} step={1} value={value.dynamicScope.maxAgeDays}
+            onChange={event=>onChange({...value,dynamicScope:{...value.dynamicScope!,maxAgeDays:Number(event.target.value)}})}/>
+        </Field>
+        <p className="field-hint">近 {value.dynamicScope.maxAgeDays} 天 · {value.dynamicScope.timezone}。依据需求作者原文时间；未核实日期的内容不能冒充近期商机。</p>
+        <p className="field-hint">搜索和读取共用来源上限（2–100次）；最多10次独立搜索、30分钟、最多20次模型调用（规划和判断合计）。至少预留一次判断额度，不保证固定候选数量。</p>
+        {!dynamicLimitsValid(value.limits)&&<Notice tone="warning">当前上限超出自主研究能力，请调整来源、时长或模型调用次数；系统不会静默调低。</Notice>}
+      </>}
       <dl className="usage-status">
         <div>
           <dt>已使用</dt>
@@ -134,7 +144,7 @@ export function ResearchSettingsPanel({
         </summary>
         {(
           [
-            ["sources", "独立来源上限", "条"],
+            ["sources", value.dynamicScope?"搜索与读取合计上限":"独立来源上限", value.dynamicScope?"次":"条"],
             ["minutes", "运行时长上限", "分钟"],
             ["modelCalls", "模型调用上限", "次"],
           ] as const
@@ -144,8 +154,8 @@ export function ResearchSettingsPanel({
               <input
                 type="number"
                 aria-label={label}
-                min={1}
-                max={1000000}
+                min={value.dynamicScope&&key!=='minutes'?2:1}
+                max={value.dynamicScope?{sources:100,minutes:30,modelCalls:20}[key]:1000000}
                 step={1}
                 value={value.limits[key]}
                 onChange={(event) =>

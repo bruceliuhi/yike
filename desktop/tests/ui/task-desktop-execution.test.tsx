@@ -13,6 +13,7 @@ import type {DesktopExecutionCommand, DesktopExecutionResult} from '../../src/sh
 import {defaultResearchSettings} from '../../src/renderer/domain/researchUsage';
 import {RESEARCH_RUNTIME_SOURCE_LABEL,type ResearchRuntimeCapability} from '../../src/shared/researchRuntime';
 import {taskDraftOwner} from '../../src/renderer/app/taskDraft';
+import {dynamicCapability} from '../fixtures/dynamicResearch';
 
 let context: AppContextValue;
 let prepared: StrategyReceipt;
@@ -192,6 +193,30 @@ describe('original TaskWizard signed execution entry', () => {
     expect(research).toMatchObject({action:'RESEARCH_START',authorizationToken:'abc.def',reservation:{limits:{sources:2,minutes:3,modelCalls:4}}});
     for(const storage of [localStorage,sessionStorage])for(let index=0;index<storage.length;index++)
       expect(storage.getItem(storage.key(index)!)).not.toContain('abc.def');
+  });
+  it.each([false,true])('starts dynamic research without local public binding and rechecks service availability (%s)',async(changed)=>{
+    draft={...draft,publicSource:'public-web-agent-v1',research:{...defaultResearchSettings(),maxSoubei:20,
+      limits:{sources:20,minutes:15,modelCalls:20},dynamicScope:{version:1,maxAgeDays:60,timezone:'Asia/Shanghai'}}};
+    const request=strategyPrepareRequest(draft,prepared.request_id,{max_records:10,max_runtime_seconds:60});
+    prepared={...prepared,snapshot:{...prepared.snapshot,configuration:request.configuration}};
+    const capability=vi.fn().mockResolvedValue(dynamicCapability);
+    vi.mocked(context.service.connections).mockResolvedValue([]);
+    context={...context,session:{...context.session,accountScope:{id:crypto.randomUUID(),version:1}},service:{...context.service,
+      execution:{researchContractVersion:1,execute},researchRuntime:{capability,status:vi.fn(),advance:vi.fn()},
+      researchUsage:{requiresConfirmedStrategy:true,quote:vi.fn(async input=>({...input,quoteId:crypto.randomUUID(),ruleVersion:'test-v1',ruleSha256:'c'.repeat(64),
+        authorizationToken:'abc.def',estimatedSoubei:5,generatedAt:new Date(Date.now()-1000).toISOString(),
+        expiresAt:new Date(Date.now()+60_000).toISOString(),basis:'TEST only'}))}}};
+    sessionStorage.setItem('yike.ui.draft.v1.task.'+taskDraftOwner(context.session.userId,context.session.accountScope),JSON.stringify(draft));
+    render(<TaskWizardPage/>);
+    fireEvent.click(await screen.findByRole('button',{name:'重新估算'}));await screen.findByText('5 搜贝 · test-v1');await review();
+    expect(screen.queryByText(/关键词仅筛选本次近期主题样本/)).toBeNull();
+    const start=screen.getByRole('button',{name:'确认并启动'}) as HTMLButtonElement;
+    await waitFor(()=>expect(start.disabled).toBe(false));
+    if(changed)capability.mockResolvedValue({contractVersion:1,sourceScope:'V2EX_LATEST_INDEX',sourceLabel:RESEARCH_RUNTIME_SOURCE_LABEL,
+      maxFreshEffectsPerAdvance:1,settlementState:'PENDING'});
+    fireEvent.click(start);
+    if(changed){await screen.findByText(/所选板块研究能力已变化/);expect(execute.mock.calls.some(([c])=>c.action==='RESEARCH_START')).toBe(false);}
+    else await waitFor(()=>expect(execute.mock.calls.some(([c])=>c.action==='RESEARCH_START')).toBe(true));
   });
   it('blocks native research when the explicit backend capability is unavailable',async()=>{
     draft={...draft,research:{...defaultResearchSettings(),maxSoubei:20}};sessionStorage.setItem('yike.ui.draft.v1.task.'+context.session.userId,JSON.stringify(draft));

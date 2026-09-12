@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Session, TaskDraft } from "./models";
 import { coverageProvenanceSchema } from "./coverageProvenance";
 import {researchSourcePlanSchema} from '../../shared/researchSourcePlan';
+import {dynamicScopeSchema} from '../../shared/dynamicResearch';
 import {confirmedResearchBindingSchema, type ConfirmedResearchBinding} from '../../shared/researchUsage';
 
 const id = z.string().trim().min(1).max(512);
@@ -27,6 +28,7 @@ export const researchSettingsSchema = z
     stopAtAnyLimit: z.literal(true),
     evidenceOrder: z.literal("SOURCE_MATCH_CONTEXT"),
     sourcePlan: researchSourcePlanSchema.optional(),
+    dynamicScope: dynamicScopeSchema.optional(),
     coverageProvenance: coverageProvenanceSchema.optional(),
     provenance: z
       .object({
@@ -48,6 +50,7 @@ export const researchSettingsSchema = z
 export type ResearchSettings = z.infer<typeof researchSettingsSchema>;
 /** In-progress inputs may be incomplete; never discard a whole draft while a user edits a number. */
 export const researchDraftSchema = researchSettingsSchema.extend({
+  dynamicScope:z.object({version:z.literal(1),maxAgeDays:z.number().finite(),timezone:z.string()}).strict().optional(),
   demandTypes: z
     .array(z.enum(["INQUIRY", "COMPARISON", "REPLACEMENT", "CHANGE"]))
     .max(4),

@@ -1,8 +1,9 @@
 import {z} from 'zod';
 import {deviceUuidSchema} from './deviceRegistration';
-import {DEFAULT_PUBLIC_SOURCE,type PublicSourceId} from './publicSources';
+import {DEFAULT_PUBLIC_SOURCE} from './publicSources';
 import {publicSourceIdSchema} from './publicSources';
 import {RESEARCH_PLAN_LABEL,RESEARCH_PLAN_SCOPE,researchSourcePlanSchema,type ResearchSourcePlan} from './researchSourcePlan';
+import {DYNAMIC_RESEARCH_SOURCE,DYNAMIC_RESEARCH_LABEL,type ResearchSelection} from './dynamicResearch';
 
 export const RESEARCH_RUNTIME_CONTRACT_VERSION = 1 as const;
 export const RESEARCH_RUNTIME_SOURCE_SCOPE = 'V2EX_LATEST_INDEX' as const;
@@ -21,26 +22,32 @@ const sourceCatalogSchema=z.object({contractVersion:z.literal(2),sourceScope:z.l
   maxFreshEffectsPerAdvance:z.literal(1),settlementState:z.literal('PENDING')}).strict();
 const sourcePlanCapabilitySchema=sourceCatalogSchema.extend({contractVersion:z.literal(3),sourceScope:z.literal(RESEARCH_PLAN_SCOPE),
   sourceLabel:z.literal(RESEARCH_PLAN_LABEL),maxPlannedSources:z.literal(3)});
-export const researchRuntimeCapabilitySchema=z.union([legacyCapabilitySchema,sourceCatalogSchema,sourcePlanCapabilitySchema]);
+const dynamicCapabilitySchema=z.object({contractVersion:z.literal(4),sourceScope:z.literal('PUBLIC_WEB_AGENT'),
+  sourceLabel:z.literal(DYNAMIC_RESEARCH_LABEL),sourceIds:z.tuple([z.literal('v2ex-latest-v1'),z.literal('v2ex-qna-v1'),
+    z.literal('v2ex-outsourcing-authors-v1'),z.literal(DYNAMIC_RESEARCH_SOURCE)]),maxPlannedSources:z.literal(3),
+  executionMode:z.literal('SERVER_BACKGROUND'),limits:z.object({maxSearches:z.literal(10),maxSources:z.literal(100),
+    maxModelCalls:z.literal(20),maxMinutes:z.literal(30),maxRuntimeSeconds:z.literal(1800)}).strict(),settlementState:z.literal('PENDING')}).strict();
+export const researchRuntimeCapabilitySchema=z.union([legacyCapabilitySchema,sourceCatalogSchema,sourcePlanCapabilitySchema,dynamicCapabilitySchema]);
 export type ResearchRuntimeCapability=z.infer<typeof researchRuntimeCapabilitySchema>;
 export function researchAllowsSource(capability:unknown,source:unknown=DEFAULT_PUBLIC_SOURCE){
   const parsed=researchRuntimeCapabilitySchema.safeParse(capability);
   return parsed.success && (parsed.data.contractVersion===1 ? source===DEFAULT_PUBLIC_SOURCE
     : parsed.data.sourceIds.some(id=>id===source));
 }
-export function researchAllowsSelection(capability:unknown,source:PublicSourceId=DEFAULT_PUBLIC_SOURCE,plan?:ResearchSourcePlan){
+export function researchAllowsSelection(capability:unknown,source:ResearchSelection=DEFAULT_PUBLIC_SOURCE,plan?:ResearchSourcePlan){
   if(plan===undefined)return researchAllowsSource(capability,source);
   const parsed=researchSourcePlanSchema.safeParse(plan),service=researchRuntimeCapabilitySchema.safeParse(capability);
-  return parsed.success && service.success && service.data.contractVersion===3 && parsed.data.sources[0]===source &&
+  return parsed.success && service.success && [3,4].includes(service.data.contractVersion) && parsed.data.sources[0]===source &&
     parsed.data.sources.every(id=>researchAllowsSource(service.data,id));
 }
-export function researchSourceScope(source:PublicSourceId=DEFAULT_PUBLIC_SOURCE){
+export function researchSourceScope(source:ResearchSelection=DEFAULT_PUBLIC_SOURCE){
+  if(source===DYNAMIC_RESEARCH_SOURCE)return DYNAMIC_RESEARCH_LABEL;
   if(source==='v2ex-qna-v1')return 'V2EX问与答 · 单源索引研究（未读评论）' as const;
   if(source==='v2ex-outsourcing-authors-v1')return 'V2EX项目外包 · 单源索引研究（未读作者回复）' as const;
   return RESEARCH_RUNTIME_SOURCE_LABEL;
 }
-export const researchRuntimeCapabilityRequestSchema=z.object({sourceCatalogVersion:z.literal(1).optional(),sourcePlanVersion:z.literal(1).optional()})
-  .strict().refine(value=>!(value.sourceCatalogVersion&&value.sourcePlanVersion)).optional();
+export const researchRuntimeCapabilityRequestSchema=z.object({sourceCatalogVersion:z.literal(1).optional(),sourcePlanVersion:z.literal(1).optional(),dynamicResearchVersion:z.literal(1).optional()})
+  .strict().refine(value=>Object.values(value).filter(v=>v!==undefined).length<=1).optional();
 
 const sourceProgressSchema=z.array(z.object({sourceId:publicSourceIdSchema,
   phase:z.enum(['NOT_STARTED','PENDING','SUCCEEDED','FAILED','UNKNOWN']),acceptedOriginals:nonnegative.nullable(),
@@ -49,21 +56,35 @@ const sourceProgressSchema=z.array(z.object({sourceId:publicSourceIdSchema,
   .min(2).max(3).refine(rows=>new Set(rows.map(row=>row.sourceId)).size===rows.length&&rows.reduce((sum,row)=>sum+row.recordLimit,0)<=100);
 
 export const researchRuntimeStatusSchema = z.object({
-  contractVersion:z.union([z.literal(1),z.literal(2),z.literal(3)]),taskId:deviceUuidSchema,runId:deviceUuidSchema,
-  phase:z.enum(['QUEUED','RUNNING','STOPPED','CANCELED','COMPLETED']),sourceScope:z.enum([RESEARCH_RUNTIME_SOURCE_SCOPE,'V2EX_QNA_INDEX','V2EX_OUTSOURCING_INDEX',RESEARCH_PLAN_SCOPE]),
-  sourceLabel:z.enum([RESEARCH_RUNTIME_SOURCE_LABEL,'V2EX问与答 · 单源索引研究（未读评论）','V2EX项目外包 · 单源索引研究（未读作者回复）',RESEARCH_PLAN_LABEL]),acceptedOriginals:nonnegative.nullable(),analyzedOriginals:nonnegative,
+  contractVersion:z.union([z.literal(1),z.literal(2),z.literal(3),z.literal(4)]),taskId:deviceUuidSchema,runId:deviceUuidSchema,
+  phase:z.enum(['QUEUED','RUNNING','STOPPED','CANCELED','COMPLETED']),sourceScope:z.enum([RESEARCH_RUNTIME_SOURCE_SCOPE,'V2EX_QNA_INDEX','V2EX_OUTSOURCING_INDEX',RESEARCH_PLAN_SCOPE,'PUBLIC_WEB_AGENT']),
+  sourceLabel:z.enum([RESEARCH_RUNTIME_SOURCE_LABEL,'V2EX问与答 · 单源索引研究（未读评论）','V2EX项目外包 · 单源索引研究（未读作者回复）',RESEARCH_PLAN_LABEL,DYNAMIC_RESEARCH_LABEL]),acceptedOriginals:nonnegative.nullable(),analyzedOriginals:nonnegative,
   sourceProgress:sourceProgressSchema.optional(),
+  executionMode:z.literal('SERVER_BACKGROUND').optional(),
+  discovery:z.object({searches:effectCountsSchema,reads:effectCountsSchema,unpublishedOriginals:nonnegative}).strict().optional(),
   skippedOriginals:nonnegative,candidateIds:z.array(deviceUuidSchema).max(100),canAdvance:z.boolean(),stopCode:z.string().min(1).max(128).nullable(),
   newActionsBlocked:z.boolean(),effectsPending:z.boolean(),usage:z.object({sourceReads:effectCountsSchema,modelCalls:effectCountsSchema,
     resourceCloseout:z.object({state:z.enum(['OPEN','DRAINING','UNCERTAIN','RECORDED']),overduePermits:nonnegative,
       asOf:z.string().datetime({offset:true})}).strict().optional(),
     actualSoubei:z.null(),settlementState:z.literal('PENDING')}).strict(),
-}).strict().refine(value=>value.contractVersion===3
+}).strict().refine(value=>value.contractVersion===4
+  ? value.sourceScope==='PUBLIC_WEB_AGENT'&&value.sourceLabel===DYNAMIC_RESEARCH_LABEL&&value.sourceProgress===undefined&&
+    value.executionMode==='SERVER_BACKGROUND'&&value.discovery!==undefined&&value.acceptedOriginals!==null
+  : value.executionMode===undefined&&value.discovery===undefined&&value.sourceScope!=='PUBLIC_WEB_AGENT'&&(value.contractVersion===3
   ? value.sourceScope===RESEARCH_PLAN_SCOPE&&value.sourceLabel===RESEARCH_PLAN_LABEL&&value.sourceProgress!==undefined
   : value.sourceProgress===undefined&&value.sourceScope!==RESEARCH_PLAN_SCOPE&&(value.sourceScope===RESEARCH_RUNTIME_SOURCE_SCOPE
   ? value.contractVersion===1&&value.sourceLabel===RESEARCH_RUNTIME_SOURCE_LABEL
-  : value.contractVersion===2&&value.sourceLabel===researchSourceScope(value.sourceScope==='V2EX_QNA_INDEX'?'v2ex-qna-v1':'v2ex-outsourcing-authors-v1')),
+  : value.contractVersion===2&&value.sourceLabel===researchSourceScope(value.sourceScope==='V2EX_QNA_INDEX'?'v2ex-qna-v1':'v2ex-outsourcing-authors-v1'))),
   'incoherent research source scope')
+  .refine(value=>{
+    if(value.contractVersion!==4)return true;
+    const d=value.discovery!;
+    if(Object.keys(value.usage.sourceReads).some(key=>{const k=key as keyof typeof d.searches;
+      return d.searches[k]+d.reads[k]!==value.usage.sourceReads[k];}))return false;
+    if(value.acceptedOriginals!+d.unpublishedOriginals>d.reads.succeeded)return false;
+    if(value.phase==='QUEUED')return value.canAdvance&&!value.newActionsBlocked&&!value.effectsPending;
+    return !value.canAdvance&&value.newActionsBlocked;
+  },'incoherent dynamic research progress')
   .refine(value=>{
     if(!value.sourceProgress)return true;
     const allSucceeded=value.sourceProgress.every(row=>row.phase==='SUCCEEDED');

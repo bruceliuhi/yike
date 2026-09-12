@@ -8,12 +8,14 @@ import {configurationHash,hashText} from '../src/renderer/domain/taskOperations'
 import {strategyPrepareRequest} from '../src/renderer/domain/researchStrategies';
 import type {StrategyReceipt} from '../src/shared/researchStrategies';
 import type {PublicSourceId} from '../src/shared/publicSources';
+import {dynamicCapability} from './fixtures/dynamicResearch';
 
 const id=(n:number)=>`10000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
-async function fixture(source?:PublicSourceId,sources?:PublicSourceId[]){
+async function fixture(source?:PublicSourceId|'public-web-agent-v1',sources?:PublicSourceId[]){
   const draft:TaskDraft={...newTaskDraft(),id:id(1),profileId:id(2),name:'合成公开研究',platforms:['web'],accounts:{},mode:'once',
     terms:[{id:id(3),value:'采购',origin:'manual',edited:false}],executionLimits:{max_records:10,max_runtime_seconds:60},
-    research:{...defaultResearchSettings(),maxSoubei:20,limits:{sources:2,minutes:3,modelCalls:4},...(sources?{sourcePlan:{version:1,sources}}:{})},...(source?{publicSource:source}:{})};
+    research:{...defaultResearchSettings(),maxSoubei:20,limits:{sources:2,minutes:3,modelCalls:4},...(sources?{sourcePlan:{version:1,sources}}:{}),
+      ...(source==='public-web-agent-v1'?{dynamicScope:{version:1,maxAgeDays:60,timezone:'Asia/Shanghai'}}:{})},...(source?{publicSource:source}:{})};
   const strategyRequest=strategyPrepareRequest(draft,id(4),{max_records:10,max_runtime_seconds:60});const prepared:StrategyReceipt={schema_version:'strategy-confirmation-v1',request_id:id(4),operation:'PREPARE',
     strategy_version_id:id(5),draft_id:draft.id,draft_revision:draft.revision,profile_version_id:draft.profileId,profile_sha256:'a'.repeat(64),configuration_sha256:'b'.repeat(64),
     state:'DRAFT',recorded_at:'2026-09-11T00:00:00Z',snapshot:{strategy_version_id:id(5),profile_version_id:draft.profileId,configuration:strategyRequest.configuration,
@@ -29,6 +31,15 @@ async function fixture(source?:PublicSourceId,sources?:PublicSourceId[]){
 }
 beforeEach(()=>vi.stubGlobal('crypto',webcrypto));afterEach(()=>vi.unstubAllGlobals());
 describe('native research command binding',()=>{
+  it('starts dynamic only with fresh server capability and unchanged confirmed scope, without a fake connector',async()=>{
+    const f=await fixture('public-web-agent-v1');
+    await expect(nativeResearchStartCommand(f.draft,f.prepared,[],f.session,f.quote,id(9))).rejects.toThrow();
+    const command=await nativeResearchStartCommand(f.draft,f.prepared,[],f.session,f.quote,id(9),dynamicCapability);
+    expect(command.targets).toEqual([{platform:'PUBLIC_WEB',access_mode:'PUBLIC_ANONYMOUS',connection_id:null,connection_version:null}]);
+    expect(f.prepared.snapshot.configuration.research?.dynamicScope?.maxAgeDays).toBe(60);
+    const changed=structuredClone(f.draft);changed.research!.dynamicScope!.maxAgeDays=30;
+    await expect(nativeResearchStartCommand(changed,f.prepared,[],f.session,f.quote,id(9),dynamicCapability)).rejects.toThrow();
+  });
   it('binds the entire confirmed plan and rejects a missing secondary public binding',async()=>{
     const sources:PublicSourceId[]=['v2ex-latest-v1','v2ex-qna-v1'];
     const f=await fixture(sources[0],sources);
