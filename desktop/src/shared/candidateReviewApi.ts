@@ -140,13 +140,13 @@ export type SourceVerificationRequest = z.infer<
 
 const citation = z
   .object({
-    field: z.enum([
+    field: z.union([z.enum([
       "title",
       "body",
       "parent.title",
       "parent.body",
       "profile.description",
-    ]),
+    ]),z.string().regex(/^author_updates\.(?:0|[1-9][0-9]?)$/)]),
     quote: modelText(8000),
   })
   .strict();
@@ -198,7 +198,7 @@ const assessment = z
       [a.intent, a.urgency].every(
         (d) =>
           d.level === "UNKNOWN" ||
-          d.citations.some((c) => c.field === "title" || c.field === "body"),
+          d.citations.some((c) => c.field === "title" || c.field === "body" || /^author_updates\.(?:0|[1-9][0-9]?)$/.test(c.field)),
       ),
   );
 export type CandidateAssessmentDto = z.infer<typeof assessment>;

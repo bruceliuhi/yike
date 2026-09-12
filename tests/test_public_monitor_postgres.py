@@ -130,3 +130,39 @@ def test_public_monitor_three_rounds_preserve_versions_observations_and_idempote
     assert detail['candidate']['current_version']['body'] == '企业软件需求一更新'
     assert detail['candidate']['current_version']['published_at'].startswith('2026-01-01T00:00:00')
     assert detail['observations']['total'] == 3
+
+
+def test_public_author_context_round_trips_and_creates_content_version(public_monitor_env):
+    env = public_monitor_env
+    store = CandidateIngestionStore(env.db, env.execution)
+    begun, _, lease = begin_and_claim(env, str(uuid4()))
+    versions = []
+    candidate_id = None
+    for request_index, update in enumerate(("项目已结束", "项目已结束，请勿再联系"), start=1):
+        value = payload(env, begun, lease)
+        value['request_id'] = f'author-context-{request_index}'
+        value['records'][0].update(kind='PAGE', external_source_id='1232232',
+            public_url='https://www.v2ex.com/t/1232232', author_public_id='author-1',
+            body='合成项目主帖', published_at='2025-12-31T00:00:00Z',
+            observed_at=f'2026-01-0{request_index}T00:00:00Z',
+            normalizer_version='v2ex-author-page-v1',
+            source_context={'schema_version':'v2ex-author-context-v1', 'replies_expected':None,
+                'replies_read':1, 'replies_complete':False, 'supplements_read':False,
+                'author_replies':[{'id':'18012619', 'body':update,
+                    'published_at':'2025-12-31T01:00:00Z'}]})
+        receipt = submit(env, store, value)
+        candidate_id = receipt['items'][0]['candidate_id']
+        versions.append(receipt['items'][0]['version_id'])
+    assert versions[0] != versions[1]
+    detail = store.get_candidate(env.claims, candidate_id)
+    current = detail['candidate']['current_version']
+    assert set(current) == {'public_url','title','author_public_id','body','published_at','parent',
+                            'source_context','version_id','content_version'}
+    assert current['title'] is None and current['parent'] is None
+    assert current['source_context']['replies_expected'] is None
+    assert current['source_context']['author_replies'][0]['body'].endswith('请勿再联系')
+    historical = detail['observations']['items'][1]['content']
+    assert set(historical) == {'public_url','title','author_public_id','body','published_at','parent','source_context'}
+    assert historical['title'] is None and historical['parent'] is None
+    assert historical['source_context']['replies_expected'] is None
+    assert historical['source_context']['author_replies'][0]['body'] == '项目已结束'

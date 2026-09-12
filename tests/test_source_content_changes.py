@@ -53,6 +53,18 @@ def test_repeat_body_metadata_and_early_late_upload_do_not_create_post_anchor_ch
     assert result["changes"][0]["detectedAt"]==(BASE+timedelta(minutes=20)).isoformat(timespec="milliseconds").replace("+00:00","Z")
 
 
+def test_author_context_only_version_is_retained_with_explicit_summary_gap():
+    first=row("anchor","vA","正文A",0)
+    second=row("context","vContext","正文A",10)
+    second["content"]["source_context"]={"schema_version":"v2ex-author-context-v1",
+        "replies_expected":1,"replies_read":1,"replies_complete":True,"supplements_read":False,
+        "author_replies":[{"id":"1","body":"项目已结束","published_at":"2026-09-11T00:05:00Z"}]}
+    result=project([first,second])
+    assert [item["id"] for item in result["versions"]] == ["vA", "vContext"]
+    assert result["changes"] == []
+    assert result["gaps"] == ["作者回复或读取范围发生变化，请重新查看原文；本视图尚未生成作者更新的定向变化记录。"]
+
+
 def test_same_observed_time_different_body_is_gap_and_resets_direction():
     rows=[row("anchor","vA","正文A",0),row("tie1","vB","正文B",10,11),
         row("tie2","vC","正文C",10,12),row("clear","vD","正文D",20),row("next","vE","正文E",30)]

@@ -70,6 +70,10 @@ def project_source_content_changes(rows, *, anchor_observation_id, anchor_versio
         if not groups or groups[-1][0]!=observed: groups.append((observed,[row]))
         else: groups[-1][1].append(row)
     changes=[]; gaps=[]; baseline=None; anchor_time=_wire_time(anchor["observed_at"])
+    anchor_context=anchor["content"].get("source_context")
+    if any(_wire_time(row["observed_at"])>anchor_time
+            and row["content"].get("source_context") != anchor_context for row in ordered):
+        gaps.append("作者回复或读取范围发生变化，请重新查看原文；本视图尚未生成作者更新的定向变化记录。")
     for observed,group in groups:
         bodies={row["content"]["body"] for row in group}
         if len(bodies)!=1:

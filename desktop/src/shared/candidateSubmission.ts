@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {sourceContextSchema,validAuthorTimes} from './publicAuthorContext';
 const opaque = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/);
 const version = z.number().int().min(1).max(2_147_483_647);
 function unicode(value: string): boolean {
@@ -20,9 +21,11 @@ const parent = z.object({external_comment_id: text(256), body: text(20000).nulla
   published_at: time.nullable().default(null), public_url: sourceUrl.nullable().default(null)}).strict();
 const record = z.object({kind: z.enum(['POST', 'COMMENT', 'PAGE']), external_source_id: text(256).nullable(), external_comment_id: text(256).nullable(), public_url: sourceUrl,
   title: text(512).nullable(), author_public_id: text(256).nullable(), body: text(20000), published_at: time.nullable(), observed_at: time, parent: parent.nullable(),
-  collector_version: opaque, normalizer_version: opaque, query: text(500).nullable()}).strict().refine(value =>
+  collector_version: opaque, normalizer_version: opaque, query: text(500).nullable(),source_context:sourceContextSchema.optional()}).strict().refine(value =>
   (value.kind === 'COMMENT') === (value.external_comment_id !== null) &&
-  (value.parent === null || value.kind === 'COMMENT' && value.parent.external_comment_id !== value.external_comment_id));
+  (value.parent === null || value.kind === 'COMMENT' && value.parent.external_comment_id !== value.external_comment_id) &&
+  (!value.source_context || value.kind==='PAGE'&&value.external_source_id!==null&&value.author_public_id!==null&&value.normalizer_version==='v2ex-author-page-v1')&&
+  validAuthorTimes(value.source_context,value.published_at,value.observed_at));
 export const candidateSubmissionSchema = z.object({schema_version: z.literal('candidate-upload-v1'), request_id: opaque,
   platform: z.enum(['XIAOHONGSHU', 'DOUYIN', 'BILIBILI', 'ZHIHU', 'PUBLIC_WEB']), profile_version_id: opaque, strategy_version_id: opaque,
   execution: z.object({device_id: opaque, task_id: opaque, run_id: opaque, platform_run_id: opaque, lease_id: opaque, credential_version: version, execution_generation: version,
@@ -32,6 +35,6 @@ export const candidateSubmissionSchema = z.object({schema_version: z.literal('ca
     if (execution.access_mode === 'PLATFORM_ACCOUNT') {
       if (execution.connection_id === null || execution.connection_version === null) return false;
     } else if (value.platform !== 'PUBLIC_WEB' || execution.connection_id !== null || execution.connection_version !== null) return false;
-    return value.records.every(item => value.platform === 'PUBLIC_WEB' || item.kind !== 'PAGE' && item.external_source_id !== null);
+    return value.records.every(item => value.platform === 'PUBLIC_WEB' || item.kind !== 'PAGE' && item.external_source_id !== null && item.source_context===undefined);
   });
 export type CandidateSubmission = z.infer<typeof candidateSubmissionSchema>;

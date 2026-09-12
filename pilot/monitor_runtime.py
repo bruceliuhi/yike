@@ -38,7 +38,7 @@ class MonitorRuntime:
     def support(self, claims):
         from pilot.foreground_collection import (three_platform_monitor_policy, four_platform_monitor_policy,
                                                 four_platform_public_monitor_policy, four_platform_public_sampling_monitor_policy,
-                                                four_platform_public_node_monitor_policy)
+                                                four_platform_public_node_monitor_policy, four_platform_public_project_monitor_policy)
         runtime = self.execution_runtime
         with self.database.connect() as connection, connection.cursor() as cursor:
             runtime._active(cursor, claims)
@@ -49,6 +49,10 @@ class MonitorRuntime:
                       four_platform_public_monitor_policy:'four-platform-monitor-v1',
                       four_platform_public_sampling_monitor_policy:'four-platform-monitor-v1',
                       four_platform_public_node_monitor_policy:'four-platform-monitor-v1'}.get(runtime.capability_check))
+            if runtime.capability_check is four_platform_public_project_monitor_policy:
+                result['mode'] = 'four-platform-monitor-v1'
+                result['public_source'] = 'v2ex-latest-v1'
+                result['public_sources'] = ['v2ex-latest-v1', 'v2ex-qna-v1', 'v2ex-outsourcing-authors-v1']
             if runtime.capability_check is four_platform_public_sampling_monitor_policy:
                 result['public_source'] = 'v2ex-latest-v1'
             if runtime.capability_check is four_platform_public_node_monitor_policy:

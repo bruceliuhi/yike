@@ -281,6 +281,38 @@ def test_view_returns_fresh_verified_data_and_rejects_corruption_safely():
         assert caught.value.__context__ is None
 
 
+def test_author_update_evidence_view_rechecks_public_page_identity_and_text_bounds():
+    snapshot, assessment, observation, verification = inputs(kind="PAGE")
+    raw = snapshot["raw"]
+    raw.update(platform="PUBLIC_WEB", external_source_id="1232232", external_comment_id=None)
+    raw["content"].update(public_url="https://www.v2ex.com/t/1232232", author_public_id="author-1",
+        source_context={"schema_version":"v2ex-author-context-v1", "replies_expected":1,
+            "replies_read":1, "replies_complete":True, "supplements_read":False,
+            "author_replies":[{"id":"1", "body":"项目已结束", "published_at":"2026-09-09T08:30:00Z"}]})
+    raw["content_version"] = hashlib.sha256(json.dumps(raw["content"], ensure_ascii=False,
+        sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    assessment["businessMatch"]["citations"][1] = {"field":"title", "quote":"食品工厂  扩产"}
+    assessment["urgency"]["citations"] = [{"field":"author_updates.0", "quote":"已结束"}]
+    payload = build_evidence(opportunity_id=OPPORTUNITY_ID, snapshot=snapshot, assessment=assessment,
+        observation=observation, verification=verification, captured_at="2026-09-09T09:30:00+00:00")
+    assert evidence_view(payload, evidence_digest(payload), opportunity_id=OPPORTUNITY_ID,
+        profile_version_id=PROFILE_ID)["status"] == "CAPTURED"
+    for mutate in (
+        lambda source: source.update(platform="BILIBILI"),
+        lambda source: source.update(kind="POST"),
+        lambda source: source.update(external_source_id=None),
+        lambda source: source.update(author_public_id=None),
+        lambda source: source.update(author_updates=["x\x00"]),
+        lambda source: source.update(author_updates=["x" * 20001]),
+        lambda source: source.update(author_updates=["x" * 10001, "y" * 10000]),
+    ):
+        invalid = copy.deepcopy(payload)
+        mutate(invalid["source"])
+        with pytest.raises(OpportunityEvidenceError, match="corrupt_opportunity_evidence"):
+            evidence_view(invalid, evidence_digest(invalid), opportunity_id=OPPORTUNITY_ID,
+                profile_version_id=PROFILE_ID)
+
+
 @pytest.mark.parametrize(
     "mutate",
     [

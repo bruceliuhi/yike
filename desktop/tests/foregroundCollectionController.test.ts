@@ -49,24 +49,25 @@ function publicFixture(mixed=false){
  const publicDriverFactory=vi.fn(()=>({start:vi.fn()}));f.options.publicDriverFactory=publicDriverFactory;
  return {...f,nativeConfiguration,publicDriverFactory,controller:createForegroundCollectionController(f.options)};
 }
-it.each(['once','monitor'] as const)('QNA %s requires a live catalog and preserves its selected source on dispatch',async mode=>{
+it.each((['v2ex-qna-v1','v2ex-outsourcing-authors-v1'] as const).flatMap(source=>(['once','monitor'] as const).map(mode=>({source,mode}))))('$source $mode requires a live catalog and preserves its selected source on dispatch',async({source,mode})=>{
  const f=publicFixture(),c:any=f.strategy.snapshot.configuration;
- c.publicSource='v2ex-qna-v1';c.mode=mode;
+ c.publicSource=source;c.mode=mode;
  if(mode==='monitor')c.schedule={kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1};
  const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.strategy.configuration_sha256=hash;f.command.configurationSha256=hash;
+ const sourceIds=source==='v2ex-outsourcing-authors-v1'?['v2ex-latest-v1','v2ex-qna-v1',source]:['v2ex-latest-v1',source];
  const read=f.scope.transport.requestExecution.getMockImplementation()!;let expanded=false;
  f.scope.transport.requestExecution.mockImplementation(async input=>{
-  if(input.operation==='monitor.support')return {ok:true,status:200,data:{schema_version:'monitor-runtime-support-v1',mode:'four-platform-monitor-v1',public_source:'v2ex-latest-v1',...(expanded?{public_sources:['v2ex-latest-v1','v2ex-qna-v1']}:{})}} as any;
-  const response=await read(input);return input.operation==='execution.support'?{...response,data:{...response.data,...(expanded?{public_sources:['v2ex-latest-v1','v2ex-qna-v1'],public_monitor:true}:{})}} as any:response;
+  if(input.operation==='monitor.support')return {ok:true,status:200,data:{schema_version:'monitor-runtime-support-v1',mode:'four-platform-monitor-v1',public_source:'v2ex-latest-v1',...(expanded?{public_sources:sourceIds}:{})}} as any;
+  const response=await read(input);return input.operation==='execution.support'?{...response,data:{...response.data,...(expanded?{public_sources:sourceIds,public_monitor:true}:{})}} as any:response;
  });
  const start={schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:hash,targets:f.command.targets};
  const run=()=>mode==='once'?f.controller.start(f.command):f.controller.startMonitor(start);
  expect(await run()).toEqual({state:'SERVICE_UNAVAILABLE'});expect(f.execution.submit).not.toHaveBeenCalled();
  expanded=true;
- expect(await f.controller.execute({action:'CAPABILITIES'})).toMatchObject({publicBinding:{sourceIds:['v2ex-latest-v1','v2ex-qna-v1']}});
+ expect(await f.controller.execute({action:'CAPABILITIES'})).toMatchObject({publicBinding:{sourceIds}});
  if(mode==='monitor')expect(await f.controller.validateMonitorBinding(id(3),id(4),start.targets as any)).toBe(true);
  expect(await run()).toMatchObject({state:'RECORDED'});
- expect(f.worker.run.mock.calls[0][0].strategy.snapshot.configuration.publicSource).toBe('v2ex-qna-v1');
+ expect(f.worker.run.mock.calls[0][0].strategy.snapshot.configuration.publicSource).toBe(source);
  f.finish();await f.controller.shutdown();
 });
 it('offers explicitly supported public source without Python, accounts or registry reads',async()=>{

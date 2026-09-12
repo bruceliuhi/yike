@@ -11,6 +11,13 @@ import { rawEvidenceBinding, rawEvidenceFixture, rawObservationFixture } from ".
 import { assessmentFixture } from "../fixtures/candidateReviewApi";
 
 afterEach(cleanup);
+it('labels an author-update model citation independently from the main body',()=>{
+ const fixture=assessmentFixture();fixture.intent.citations=[{field:'author_updates.0',quote:'已经结束'}];
+ const result=parseCandidateReviewResult({kind:'assessment',requestId:'TEST.author:1',candidateId:fixture.candidateId,assessment:fixture},{requestId:'TEST.author:1'});
+ if(result.kind!=='assessment')throw new Error('wrong result');
+ render(<CandidateAssessmentDetails assessment={result.assessment}/>);
+ expect(screen.getByText('作者回复 1 · author_updates.0')).toBeVisible();
+});
 
 function assessment() {
   const fixture = assessmentFixture();

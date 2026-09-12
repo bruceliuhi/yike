@@ -4,6 +4,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {channel} from 'node:diagnostics_channel';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
+import {isDeepStrictEqual} from 'node:util';
 import {createServiceClient} from '../../src/main/serviceClient';
 import {createDeviceIdentityController} from '../../src/main/deviceIdentityController';
 import {createForegroundCollectionController} from '../../src/main/foregroundCollectionController';
@@ -16,6 +17,7 @@ import {prepareStrategySchema,strategyReceiptSchema,strategyViewSchema} from '..
 import {candidateSubmissionSchema,type CandidateSubmission} from '../../src/shared/candidateSubmission';
 import type {CandidateReceipt} from '../../src/shared/candidateReceipt';
 import {publicSourceIdSchema,PUBLIC_SOURCES} from '../../src/shared/publicSources';
+import {parseRawCandidateEvidence} from '../../src/shared/rawCandidateEvidence';
 
 const names=['BASE','USER','TOKEN','SEED','DEVICE','PROFILE','PREPARE','NETWORK'] as const;
 it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP public collection signs, uploads and finishes without recollection',async()=>{
@@ -26,6 +28,7 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
  const base=env.BASE!,network=env.NETWORK==='1';expect(new URL(base).hostname==='127.0.0.1').toBe(true);
  const prepare=prepareStrategySchema.parse(JSON.parse(env.PREPARE!));
  const sourceId=publicSourceIdSchema.parse(process.env.YIKE_PUBLIC_LIVE_SOURCE??'v2ex-latest-v1');
+ const project=sourceId==='v2ex-outsourcing-authors-v1';
  expect(prepare.profile_version_id===env.PROFILE&&prepare.configuration.publicSource===sourceId).toBe(true);
  const privateKey=createPrivateKey({format:'der',type:'pkcs8',key:Buffer.concat([Buffer.from('302e020100300506032b657004220420','hex'),Buffer.from(env.SEED!,'hex')])});
  const key={scope:{serviceOrigin:base,userId:env.USER!,deviceId:env.DEVICE!},privateKey:privateKey.export({format:'pem',type:'pkcs8'}).toString(),publicKey:createPublicKey(privateKey).export({format:'jwk'}).x!};
@@ -35,13 +38,14 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
  const directory=await mkdtemp(path.join(tmpdir(),'yike-public-live-'));
  const executionJournal=()=>createExecutionJournal({directory:path.join(directory,'execution'),protection});
  const candidateJournal=()=>createCandidateJournal({directory:path.join(directory,'candidate'),protection});
- let cookie='',sourceReads=0,driverStarts=0,driverStops=0,candidateWrites=0;
+ let cookie='',sourceReads=0,replyReads=0,driverStarts=0,driverStops=0,candidateWrites=0;
  let records:CandidateSubmission['records']=[],accepted:CandidateReceipt|undefined;
  const operations:string[]=[],controllers:ReturnType<typeof createForegroundCollectionController>[]=[];
  const diagnostics=channel('undici:request:create');
  const observe=(message:unknown)=>{const request=(message as {request?:{origin?:string;path?:string}}).request;
   const endpoint=new URL(PUBLIC_SOURCES[sourceId].endpoint);
-  if(String(request?.origin)===endpoint.origin&&request?.path===endpoint.pathname+endpoint.search)sourceReads++;};
+  if(String(request?.origin)===endpoint.origin&&request?.path===endpoint.pathname+endpoint.search)sourceReads++;
+  if(String(request?.origin)===endpoint.origin&&request?.path?.startsWith('/api/replies/show.json?topic_id='))replyReads++;};
  if(network)diagnostics.subscribe(observe);
  const client=createServiceClient({baseUrl:base,clearSession:async()=>{cookie='';},fetch:async(url,init)=>{
   expect(new URL(url).origin===base).toBe(true);
@@ -56,7 +60,12 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
  const identity=createDeviceIdentityController({service:client,identityFactory:()=>({prepare:async()=>({state:'READY' as const,deviceId:env.DEVICE!,credentialVersion:1})})});
  const forbidden=()=>{throw new Error('native runtime must not run');};
  const fixtureCreated=Math.floor(Date.now()/1000)-60;
- const makeDriver=()=>createPublicCommunityDriver(network?{}:{fetch:async()=>{sourceReads++;return new Response(JSON.stringify([{id:987654321,title:'AI 合成采样',content:'需要 AI 的企业服务，仅为合成验证。',created:fixtureCreated,url:'https://www.v2ex.com/t/987654321',member:{id:123},node:{name:'qna'}}]),{headers:{'content-type':'application/json'}});}});
+ const makeDriver=()=>createPublicCommunityDriver(network?{}:{fetch:async(url)=>{
+  if(String(url).includes('/api/replies/show.json?')){replyReads++;return new Response(JSON.stringify([
+   {id:101,topic_id:987654321,member:{id:123},created:fixtureCreated+1,content:'合成作者更新：项目已结束'},
+   {id:102,topic_id:987654321,member:{id:456},created:fixtureCreated+2,content:'合成第三方回复，不应保存'},
+  ]),{headers:{'content-type':'application/json'}});}
+  sourceReads++;return new Response(JSON.stringify([{id:987654321,title:'AI 合成采样',content:'需要 AI 的企业服务，仅为合成验证。',created:fixtureCreated,url:'https://www.v2ex.com/t/987654321',member:{id:123},replies:2,node:{name:project?'outsourcing':'qna'}}]),{headers:{'content-type':'application/json'}});}});
  function controller(){const value=createForegroundCollectionController({serviceOrigin:base,identity,configuration:null,
   store:{read:async()=>null},executionJournal:executionJournal(),candidateJournal:candidateJournal(),probe:forbidden,resolveAccount:forbidden,driverFactory:forbidden,
   sessions:scope=>({execution:createExecutionSession({serviceOrigin:base,transport:scope.transport,journal:executionJournal(),vault:{read:async()=>key}}),
@@ -77,6 +86,7 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
   const first=controller();const capability=await first.execute({action:'CAPABILITIES'});
   expect(capability).toMatchObject({state:'AVAILABLE',bindings:[],publicBinding:{sourceId:'v2ex-latest-v1',deviceId:env.DEVICE}});
   if(sourceId==='v2ex-qna-v1')expect(capability).toMatchObject({publicBinding:{sourceIds:['v2ex-latest-v1','v2ex-qna-v1'],monitorSupported:true}});
+  if(project)expect(capability).toMatchObject({publicBinding:{sourceIds:['v2ex-latest-v1','v2ex-qna-v1',sourceId],monitorSupported:true}});
   const command={action:'START',humanConfirmed:true,requestId:randomUUID(),profileVersionId:env.PROFILE!,strategyVersionId:prepared.strategy_version_id,configurationSha256:prepared.configuration_sha256,
    targets:[{platform:'PUBLIC_WEB',access_mode:'PUBLIC_ANONYMOUS',connection_id:null,connection_version:null}]} as const;
   const begun=await first.start(command);expect(begun.state).toBe('RECORDED');
@@ -85,6 +95,8 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
   await vi.waitFor(async()=>{expect(await first.execute({action:'STATUS',taskId})).toMatchObject({localState:'COMPLETED',serverStatus:'SUCCEEDED',stopConfirmed:true,recordsUsed:records.length});},{timeout:30000,interval:100});
   expect(records.length>0).toBe(true);if(!network)expect(records.length).toBe(1);
   expect([sourceReads,driverStarts,driverStops,candidateWrites]).toEqual([1,1,1,1]);expect(operations).toEqual(['START','CLAIM','FINISH']);
+  expect(replyReads).toBe(project?records.length:0);
+  if(project)expect(records.length).toBeLessThanOrEqual(3);
   expect(accepted?.items.length===records.length).toBe(true);
   const listing=await identity.requestApi({operation:'candidates.list',payload:{taskId,page:1,pageSize:100}});expect(listing.ok).toBe(true);
   if(!listing.ok)throw new Error('candidate list failed');
@@ -94,15 +106,22 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
    expect(items.some(row=>row.id===item.candidate_id)).toBe(true);
    const response=await identity.requestApi({operation:'candidates.rawEvidence',payload:{candidateId:item.candidate_id}});expect(response.ok).toBe(true);
    if(!response.ok)throw new Error('candidate evidence read failed');
-   const data=response.data as {candidate:{profile_version_id:string;strategy_version_id:string;current_version:Record<string,unknown>};observations:{items:Record<string,any>[]}};
+   const raw=response.data as {candidate:{revision:number}};
+   const data=parseRawCandidateEvidence(response.data,{candidateId:item.candidate_id,
+    candidateRevision:raw.candidate.revision,sourceVersionId:item.version_id,profileId:env.PROFILE!,
+    strategyVersionId:prepared.strategy_version_id,platform:'PUBLIC_WEB'});
    const record=records[item.index],content=data.candidate.current_version;
    expect(data.candidate.profile_version_id===env.PROFILE&&data.candidate.strategy_version_id===prepared.strategy_version_id).toBe(true);
-   expect(['body','title','public_url','author_public_id'].every(field=>content[field]===record[field as keyof typeof record])).toBe(true);
+   expect((['body','title','public_url','author_public_id'] as const).every(field=>content[field]===record[field])).toBe(true);
+   expect(isDeepStrictEqual(content.source_context,record.source_context)).toBe(true);
+   if(sourceId==='v2ex-outsourcing-authors-v1')expect(content.source_context).toBeDefined();
+   if(project&&!network)expect(content.source_context).toMatchObject({replies_read:2,replies_complete:true,author_replies:[{id:'101',body:'合成作者更新：项目已结束'}]});
    expect(Date.parse(String(content.published_at))===Date.parse(record.published_at!)).toBe(true);
    expect(data.observations.items.some(o=>o.version_id===item.version_id&&o.task_id===taskId&&o.collector_version===record.collector_version&&o.normalizer_version===record.normalizer_version&&o.query===record.query)).toBe(true);
   }
   await first.shutdown();const restored=controller();await restored.start(command);
   expect([sourceReads,driverStarts,candidateWrites]).toEqual([1,1,1]);
+  expect(replyReads).toBe(project?records.length:0);
   let tasks=1;
   if(!network){
    // New ordinary task after a simulated process restart; synthetic I/O only.
@@ -115,7 +134,9 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
    expect(accepted!.items.map(x=>[x.candidate_id,x.version_id])).toEqual(originalItems.map(x=>[x.candidate_id,x.version_id]));
    expect([sourceReads,driverStarts,driverStops,candidateWrites]).toEqual([2,2,2,2]);tasks=2;
   }
-  console.log('PUBLIC_COMMUNITY_RESULT '+JSON.stringify({mode:network?'network':'fixture',records:records.length,taskId,sourceReads,tasks,sourceId,collectorVersion:records[0].collector_version}));
+  expect(replyReads).toBe(project?records.length*tasks:0);
+  console.log('PUBLIC_COMMUNITY_RESULT '+JSON.stringify({mode:network?'network':'fixture',records:records.length,taskId,sourceReads,replyReads,tasks,sourceId,collectorVersion:records[0].collector_version,
+   ...(project?{authorContext:records.map(r=>({id:r.external_source_id,read:r.source_context!.replies_read,expected:r.source_context!.replies_expected,authorReplies:r.source_context!.author_replies.length,matched:r.source_context!.replies_complete}))}:{})}));
  }finally{
   if(network)diagnostics.unsubscribe(observe);
   for(const controller of controllers)await controller.shutdown();

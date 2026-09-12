@@ -1,4 +1,5 @@
 import {afterEach, expect, it, vi} from 'vitest';
+import {candidateSubmissionSchema} from '../src/shared/candidateSubmission';
 
 const module = await import('../src/main/publicCommunityDriver').catch(() => null);
 const now = Date.parse('2026-09-11T10:00:00Z');
@@ -17,6 +18,50 @@ function driver(fetcher:typeof fetch) {
   return module!.createPublicCommunityDriver({fetch:fetcher,now:()=>now});
 }
 afterEach(()=>{vi.useRealTimers();});
+const projectInput=()=>{const value=input();value.snapshot.configuration.publicSource='v2ex-outsourcing-authors-v1';return value;};
+const projectTopic=()=>({...topic(),node:{name:'outsourcing'},replies:2});
+const reply=(author=9)=>({id:20+author,topic_id:12,member:{id:author},member_id:author,created:Math.floor(now/1000)-100,content:author===9?'已结束，请勿继续联系':'我可以做'});
+const jsonResponse=(value:unknown)=>new Response(JSON.stringify(value),{headers:{'content-type':'application/json'}});
+it('shares the byte budget across topic and reply responses',async()=>{
+ const body=JSON.stringify([projectTopic()])+' '.repeat(600000);
+ const fetcher=vi.fn(async(url:any)=>String(url).includes('replies/show')?
+  new Response('[]'+' '.repeat(500000),{headers:{'content-type':'application/json'}}):
+  new Response(body,{headers:{'content-type':'application/json'}}));
+ const run=driver(fetcher).start(projectInput());
+ await expect(run.completed).rejects.toThrow('PUBLIC_SOURCE_FAILED');await run.stop();
+ expect(fetcher).toHaveBeenCalledTimes(2);
+});
+it('does not restart the shared deadline for author replies',async()=>{
+ vi.useFakeTimers();
+ const fetcher=vi.fn(async(url:any,init:any)=>{
+  if(!String(url).includes('replies/show')){await new Promise(resolve=>setTimeout(resolve,15000));return jsonResponse([projectTopic()]);}
+  return new Response(new ReadableStream({start(controller){init.signal.addEventListener('abort',()=>controller.error(new Error('timeout')),{once:true});}}),{headers:{'content-type':'application/json'}});
+ });
+ const run=driver(fetcher).start(projectInput());
+ const rejected=expect(run.completed).rejects.toThrow('PUBLIC_SOURCE_TIMED_OUT');
+ await vi.advanceTimersByTimeAsync(20000);await rejected;await run.stop();
+ expect(fetcher).toHaveBeenCalledTimes(2);
+});
+it('reads bounded author replies separately from original body and keeps unread supplements explicit',async()=>{
+ const fetcher=vi.fn(async(url:any)=>String(url).includes('replies/show')?jsonResponse([reply(8),reply()]):jsonResponse([projectTopic()]));
+ const reader=driver(fetcher),run=reader.start(projectInput());const records=await run.completed;await run.stop();
+ expect(records[0]).toMatchObject({body:topic().content,normalizer_version:'v2ex-author-page-v1',source_context:{schema_version:'v2ex-author-context-v1',replies_expected:2,replies_read:2,replies_complete:true,supplements_read:false,author_replies:[{id:'29',body:'已结束，请勿继续联系',published_at:'2026-09-11T09:58:20Z'}]}});
+ expect(fetcher.mock.calls.map(c=>c[0])).toEqual(['https://www.v2ex.com/api/topics/show.json?node_name=outsourcing','https://www.v2ex.com/api/replies/show.json?topic_id=12']);
+ const next=reader.start(input());await expect(next.completed).rejects.toThrow('PUBLIC_SOURCE_RATE_LIMITED');await next.stop();
+});
+it('keeps count mismatch partial and inspects at most three source topics without refill',async()=>{
+ const topics=[1,2,3,4].map(n=>({...projectTopic(),...topic(n,n===1?'招聘AI':'AI开发'),node:{name:'outsourcing'},replies:2}));
+ const fetcher=vi.fn(async(url:any)=>String(url).includes('replies/show')?jsonResponse([]):jsonResponse(topics));
+ const run=driver(fetcher).start(projectInput());const records=candidateSubmissionSchema.shape.records.parse(await run.completed);await run.stop();
+ expect(records.map(r=>r.external_source_id)).toEqual(['2','3']);
+ expect(records[0]).toHaveProperty('source_context.replies_complete',false);expect(fetcher).toHaveBeenCalledTimes(3);
+});
+it.each(['topic','member','duplicate','future','before_topic','missing_author'])('rejects invalid author-context evidence: %s',async kind=>{
+ const t:any=projectTopic(),r:any=reply();if(kind==='topic')r.topic_id=99;if(kind==='member')r.member_id=99;
+ if(kind==='future')r.created=now/1000+1;if(kind==='before_topic')r.created=t.created-1;if(kind==='missing_author')delete t.member;
+ const fetcher=vi.fn(async(url:any)=>String(url).includes('replies/show')?jsonResponse(kind==='duplicate'?[r,r]:[r]):jsonResponse([t]));
+ const run=driver(fetcher).start(projectInput());await expect(run.completed).rejects.toThrow('PUBLIC_SOURCE_FAILED');await run.stop();
+});
 it('reads only the confirmed QNA node with its own provenance and shared source cooldown',async()=>{
   const fetcher=vi.fn(async()=>new Response(JSON.stringify([{...topic(),node:{name:'qna'}}]),{headers:{'content-type':'application/json'}}));
   const reader=driver(fetcher),value=input();value.snapshot.configuration.publicSource='v2ex-qna-v1';

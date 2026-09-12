@@ -20,14 +20,14 @@ const preparedSchema = z.object({signing_payload: z.string().min(2).max(MAX_PAYL
 const payloadSchema = z.object({protocol: z.literal('yike-candidate-submission-v1'), tenant_id: identity, user_id: identity,
   session_digest: digest, request_id: opaque, batch_fingerprint: digest}).strict();
 
-// Fixed ASCII model keys and bounded integers: Python ensure_ascii=False, sorted compact JSON.
+// Fixed ASCII model keys, booleans and bounded integers: Python ensure_ascii=False, sorted compact JSON.
 // Deliberately not NFC normalization or RFC 8785; original codepoints and record order matter.
 function canonicalJson(value: unknown): string {
   if (typeof value === 'string') {
     for (const character of value) {const point = character.codePointAt(0)!; if (point >= 0xd800 && point <= 0xdfff) throw new Error();}
     return JSON.stringify(value);
   }
-  if (value === null || typeof value === 'number' && Number.isSafeInteger(value)) return JSON.stringify(value);
+  if (value === null || typeof value === 'boolean' || typeof value === 'number' && Number.isSafeInteger(value)) return JSON.stringify(value);
   if (Array.isArray(value)) return '[' + value.map(canonicalJson).join(',') + ']';
   if (typeof value === 'object' && value !== null) return '{' + Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
     .map(([key, item]) => JSON.stringify(key) + ':' + canonicalJson(item)).join(',') + '}';
