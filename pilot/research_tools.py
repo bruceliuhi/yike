@@ -9,7 +9,6 @@ import argparse
 import asyncio
 from contextlib import redirect_stderr
 from datetime import UTC, datetime, timedelta
-import hashlib
 import json
 import os
 import sys
@@ -23,6 +22,7 @@ from mcp.types import CallToolResult, TextContent, Tool, ToolAnnotations
 
 from pilot.open_web_reader import (
     PublicReadError, cancel_active_reads, normalize_public_url, read_public_page,
+    valid_page_evidence,
 )
 from pilot.public_search import normalize_query, valid_search_result
 
@@ -31,20 +31,7 @@ def _failure(code):
     return dict(status='FAILED', code=code, replayed=False)
 
 
-def _valid_page(value, url):
-    try:
-        if type(value) is not dict or set(value) != {
-                'url','title','text','observed_at','content_sha256','read_scope'}:
-            return False
-        observed = datetime.fromisoformat(value['observed_at'])
-        text, title = value['text'], value['title']
-        return (value['url'] == url and value['read_scope'] == 'PUBLIC_PAGE_TEXT'
-                and type(text) is str and 1 <= len(text) <= 60_000 and bool(text.strip())
-                and (title is None or type(title) is str and len(title) <= 1000)
-                and observed.tzinfo is not None and observed <= datetime.now(UTC)
-                and value['content_sha256'] == hashlib.sha256(text.encode('utf-8')).hexdigest())
-    except (ValueError, TypeError, UnicodeError):
-        return False
+_valid_page = valid_page_evidence  # Preserve the existing internal validator import.
 
 
 def build_server(*, max_reads: int, max_seconds: int, reader=read_public_page, searcher=None):
@@ -188,7 +175,14 @@ def main():
         if search_url is not None or search_token is not None:
             from pilot.search_tool_client import SearchToolClient
             searcher = SearchToolClient(url=search_url,token=search_token).search
-        server = build_server(max_reads=args.max_reads, max_seconds=args.max_seconds, searcher=searcher)
+        reader = read_public_page
+        read_url = os.environ.get('YIKE_PUBLIC_READ_URL')
+        read_token = os.environ.get('YIKE_PUBLIC_READ_TOKEN')
+        if read_url is not None or read_token is not None:
+            from pilot.read_tool_client import ReadToolClient
+            reader = ReadToolClient(url=read_url,token=read_token).read
+        server = build_server(max_reads=args.max_reads, max_seconds=args.max_seconds,
+                              searcher=searcher,reader=reader)
     except ValueError:
         parser.error('invalid_tool_limits')
     def hard_stop():

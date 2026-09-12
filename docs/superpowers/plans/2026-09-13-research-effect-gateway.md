@@ -78,4 +78,8 @@ class ReadToolClient:
 
 ## Evidence
 
-Pending. This is a prerequisite of the full customer dynamic-research path, not its completion. Full goal ACTIVE.
+- Task 1: `9ae11ae` dispatcher then `e591d2a` model/search/read bridge. RED missing hooks; later saved callback and post-action deadline tests failed before fixes. Owned suite **109 passed in 19.25s**. Report `/tmp/yike-effect-dispatch-report.md`.
+- Task 2: `b2ccb82` instance-owned page reader, read session/client and common evidence validator. RED absent reader API; owned suite **55 passed in 0.24s**. Report `/tmp/yike-host-page-report.md`.
+- Root: explicit invalid dispatch and controlled worker/config RED **9 failed**; wiring GREEN **9 passed**. Combined root suite `tests/test_codex_research_worker.py tests/test_research_tools.py tests/test_research_effect_gateway.py`: **86 passed in 24.81s**. Fixture corrections preserved the pre-existing rule rejecting out-of-search read events; no production parser relaxation. Existing 7/9-field results and context binding remain unchanged.
+- Protocol test uses a fixture Codex executable, generated MCP config, real loopback bridge and real MCP stdio. Model/search/page external boundaries use local fixtures. Success calls each gate once despite repeated query/read; denied READ performs no page action; host rejects undiscovered and failed-search URLs. Fixture results remain UNREVIEWED, never buyer evidence.
+- Whole-batch independent review pending. No provider calls, keys, PostgreSQL, desktop build, deployment, external messages or customer success claimed. This is the gateway prerequisite, not durable permission/journal/customer integration. Full goal ACTIVE.
