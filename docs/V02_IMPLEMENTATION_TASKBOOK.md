@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+研究材料/候选分离（2026-09-13，代码`9cda1fc`）：严格逐页决策绑定实际READ，背景原文保留但不占候选名额/普通判断调用；两项P2合批修复后独立Spec/Quality PASS。[唯一代码、定向验证与真实失败证据](superpowers/plans/2026-09-13-research-page-selection.md#evidence)。新真实两页任务4搜索/4模型、0READ，因搜索未返回指定入口且入口不在读页许可中，STOPPED/no_verified_reads；**未到筛选阶段、无新增线索，不宣称恢复原Skill效果。下一批优先接版本绑定的可信公开种子入口，而非继续搜索同一URL；再验证真实筛选与净新增供给。** 未部署/构包/外联，完整Goal ACTIVE。
+
 本地Skill入口接续（2026-09-13，代码`eca3fec`）：既有来源目录加入动态研究的条件化提示，不改客户策略/连接器/权限/预算；规则完整编译文本含提示参与hash，旧保存上下文拒绝静默续跑。定向140项及独立Spec/Quality PASS，[唯一证据](superpowers/plans/2026-09-13-research-entry-hints.md#evidence)。[逐文件及实际路径对照](research/LOCAL_SKILL_PRODUCT_COMPARISON_20260913.md)已记录；本批无新实网结果，SEND_READY仍0。**下一步区分研究材料与候选，再用固定画像/预算/历史的新任务验证真实价值；入口提示接入不能宣称恢复原Skill效果。** 未部署/构包/外联，完整Goal ACTIVE。
 
 近期入口真实接续（2026-09-13，绑定`fbb4d79`）：新任务2搜索/1读取/5模型成功，合法invalid_url拒绝未再触发格式中断；随后LINUX DO access_restricted按当前保护停止、无绕过。原文入库/判断0、无新合格机会。[唯一实网及本地Skill对照记录](superpowers/plans/2026-09-13-research-denied-navigation.md#new-real-task-after-the-correction-then-local-skill-source-comparison)。额外本地已知项目节点2页40标题/2原帖，已知工业标定B+/REVIEW、MCP模糊需求OBSERVE，均非新增SEND_READY。**下一步是项目节点与同名标签的入口识别、带入已知访问限制、研究页与候选分离，不是继续泛词付费盲试。** 没有产品代码变化/部署/外联，完整Goal ACTIVE。
