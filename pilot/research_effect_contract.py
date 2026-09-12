@@ -17,9 +17,15 @@ from pilot.responses_bridge import BridgeError, ResponsesBridge, _alias
 _MAX_BYTES = 2 * 1024 * 1024
 _HEX = re.compile(r"^[0-9a-f]{64}$")
 _SECRET = re.compile(
-    r"(?i)(?:\b(?:api[_ -]?key|access[_ -]?token|authorization|password|secret|cookie|session)\b\s*[:=]\s*\S+"
+    r"(?i)(?:\b(?:api[_ -]?key|access[_ -]?token|authorization|password|secret|cookie|session|xsec[_ -]?token)\b\s*[:=]\s*\S+"
     r"|\bbearer\s+\S+|\bsk-[A-Za-z0-9_-]{16,})"
 )
+_SENSITIVE_KEYS = {
+    "apikey", "accesskey", "accesskeyid", "secretkey", "secretaccesskey",
+    "clientsecret", "credential", "credentials", "authorization", "auth",
+    "token", "accesstoken", "refreshtoken", "idtoken", "password", "passwd",
+    "pwd", "cookie", "session", "sessionid", "signature", "sig", "xsectoken",
+}
 _BINDING_KEYS = {
     "schema_version", "rule_version", "rule_sha256", "context_sha256",
     "profile_version_id", "strategy_version_id", "profile_sha256",
@@ -41,17 +47,29 @@ def _invalid_result() -> None:
 
 
 def _canonical(value: Any, *, result: bool = False) -> tuple[Any, bytes]:
+    def safe_text(item: str) -> bool:
+        return not any(
+            ord(char) < 32 and char not in "\t\n\r" or 127 <= ord(char) <= 159
+            for char in item)
+
+    def safe_key(key: str) -> bool:
+        if not safe_text(key):
+            return False
+        normalized = re.sub(r"[^a-z0-9]", "", key.lower())
+        return normalized not in _SENSITIVE_KEYS and not (
+            normalized.startswith("x") and normalized[1:] in _SENSITIVE_KEYS)
+
     def plain(item: Any) -> bool:
         kind = type(item)
         if item is None or kind in (str, bool, int):
-            return not (kind is str and any(
-                ord(char) < 32 and char not in "\t\n\r" or 127 <= ord(char) <= 159
-                for char in item))
+            return kind is not str or safe_text(item)
         if kind is float:
             return math.isfinite(item)
         if kind is list:
             return all(plain(child) for child in item)
-        return kind is dict and all(type(key) is str and plain(child) for key, child in item.items())
+        return kind is dict and all(
+            type(key) is str and safe_key(key) and plain(child)
+            for key, child in item.items())
     try:
         if not plain(value):
             raise ValueError

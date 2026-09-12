@@ -82,6 +82,25 @@ def test_effect_input_rejects_secrets_controls_and_oversize(payload):
         effect_input("SEARCH", payload, binding())
 
 
+@pytest.mark.parametrize("payload", [
+    {"model": "m", "input": [{"role": "user", "password": "synthetic-value"}],
+     "tools": [], "stream": True},
+    {"model": "m", "input": [{"role": "user", "content":
+     "source https://example.com/post?xsec_token=synthetic-value"}], "tools": [], "stream": True},
+    {"model": "m", "input": [{"role": "user", "bad\x00key": "value"}],
+     "tools": [], "stream": True},
+])
+def test_model_input_rejects_sensitive_keys_embedded_tokens_and_control_keys(payload):
+    with pytest.raises(ExecutionRuntimeError, match="^invalid_effect_input$"):
+        effect_input("MODEL", payload, binding())
+
+
+def test_usage_token_counters_are_not_mistaken_for_credentials():
+    payload = model_payload() | {"metadata": {
+        "input_tokens": 3, "output_tokens": 2, "total_tokens": 5}}
+    assert effect_input("MODEL", payload, binding())[0] == payload
+
+
 def test_valid_model_restored_function_calls_are_unchanged():
     result = model_result()
     assert effect_result("MODEL", model_payload(), result) == result
