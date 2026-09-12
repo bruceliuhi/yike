@@ -12,12 +12,21 @@ const positive=(value:unknown,max=Number.MAX_SAFE_INTEGER):value is number=>
 const fold=(value:string)=>value.normalize('NFC').toLowerCase();
 const timestamp=(value:number)=>new Date(value).toISOString().replace(/\.\d{3}Z$/,'Z');
 
-function recordsFrom(value:unknown,keywords:string[],exclusions:string[],maximum:number,observed:number,sourceId:PublicSourceId):CandidateSubmission['records'] {
+function sampledTopics(value:any[],maximum:number,round?:number):any[] {
+  if(round===undefined||value.length<=maximum)return value.slice(0,maximum);
+  const tail=value.length-1;
+  if(maximum===1)return [value[round%2===0?0:1+Math.floor(round/2)%tail]];
+  const start=round*(maximum-1)%tail;
+  return [value[0],...Array.from({length:maximum-1},(_,index)=>value[1+(start+index)%tail])];
+}
+
+function recordsFrom(value:unknown,keywords:string[],exclusions:string[],maximum:number,observed:number,sourceId:PublicSourceId,round?:number):CandidateSubmission['records'] {
   if(!Array.isArray(value)||value.length>100)throw fail();
   const records:CandidateSubmission['records']=[],seen=new Set<number>();
   // The budget bounds inspected topics, not just matches. This is a recent
-  // endpoint sample: it does not exhaust history or refill excluded records.
-  for(const topic of value.slice(0,maximum)) {
+  // endpoint sample: rotation covers the current index, not off-index history.
+  // Sampling is before filtering and never refills excluded records.
+  for(const topic of sampledTopics(value,maximum,round)) {
     if(!topic||typeof topic!=='object'||!positive(topic.id)||seen.has(topic.id))throw fail();
     if(sourceId==='v2ex-qna-v1'&&topic.node?.name!=='qna')throw fail();
     if(sourceId==='v2ex-outsourcing-authors-v1'&&topic.node?.name!=='outsourcing')throw fail();
@@ -77,7 +86,7 @@ export function createPublicCommunityDriver(options:{fetch?:typeof fetch;now?:()
       try {
         let configuration:ReturnType<typeof strategyConfigurationSchema.parse>;
         let sourceId:PublicSourceId,endpoint:string;
-        let deadline:number;
+        let deadline:number,round:number|undefined;
         try {
           const {snapshot,target,maxRecords}=input;
           configuration=strategyConfigurationSchema.parse(snapshot.configuration);
@@ -91,6 +100,11 @@ export function createPublicCommunityDriver(options:{fetch?:typeof fetch;now?:()
               target.platform!=='PUBLIC_WEB'||target.access_mode!=='PUBLIC_ANONYMOUS'||target.connection_id!==null||target.connection_version!==null||
               !snapshot.platforms.includes('PUBLIC_WEB')||!positive(maxRecords,100)||!positive(snapshot.max_records,10000)||maxRecords>snapshot.max_records||
               !positive(snapshot.max_runtime_seconds,86400))throw fail();
+          if(lease.public_sampling!==undefined){
+            if(lease.operation!=='CLAIM'||input.allowMonitor!==true||configuration.mode!=='monitor'||
+                lease.public_sampling.source_id!==sourceId)throw fail();
+            round=lease.public_sampling.round;
+          }
           deadline=Math.min(Date.parse(lease.deadline_at),Date.parse(lease.lease_expires_at),now()+snapshot.max_runtime_seconds*1000,now()+20000);
           if(!Number.isFinite(deadline)||deadline<=now())throw fail();
         }catch {throw fail('PUBLIC_SOURCE_INVALID_INPUT');}
@@ -123,7 +137,7 @@ export function createPublicCommunityDriver(options:{fetch?:typeof fetch;now?:()
           return JSON.parse(body);
           };
           const payload=await readJSON(endpoint),project=sourceId==='v2ex-outsourcing-authors-v1';
-          const records=recordsFrom(payload,configuration.keywords,configuration.exclusions,project?Math.min(3,input.maxRecords):input.maxRecords,now(),sourceId);
+          const records=recordsFrom(payload,configuration.keywords,configuration.exclusions,project?Math.min(3,input.maxRecords):input.maxRecords,now(),sourceId,round);
           if(project){
             for(const record of records){
               const topic=(payload as any[]).find(item=>String(item.id)===record.external_source_id);

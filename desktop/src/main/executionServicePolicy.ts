@@ -17,7 +17,7 @@ const privateExecutionSchema = z.discriminatedUnion('operation', [
   z.object({operation:z.literal('monitor.pulse'),payload:z.object({schema_version:z.literal('monitor-runtime-v1'),plan_id:deviceUuidSchema,
     device_id:deviceUuidSchema,monitor_session_id:deviceUuidSchema,credential_version:z.number().int().min(1).max(2_147_483_647),
     targets:executionOperationSchema.shape.targets.unwrap().unwrap(),can_start:z.boolean()}).strict()}).strict(),
-  z.object({operation:z.literal('execution.support')}).strict(),
+  z.object({operation:z.literal('execution.support'),samplingVersion:z.literal(1).optional()}).strict(),
   z.object({operation: z.literal('execution.prepare'), payload: z.object({request: executionOperationSchema}).strict()}).strict(),
   z.object({operation: z.literal('execution.apply'), payload: z.object({
     request: executionOperationSchema, signature: executionSignatureSchema,
@@ -44,7 +44,7 @@ export function validatedExecutionOperation(input: unknown): ServiceOperation | 
     case 'monitor.state':return {path:'/api/ui/monitor-plans/state',method:'POST',body:JSON.stringify(request.payload),logout:false};
     case 'monitor.receipt':return {path:`/api/ui/monitor-plan-operations/${request.payload.request_id}`,method:'GET',logout:false};
     case 'monitor.pulse':return {path:'/api/ui/monitor-runtime/pulse',method:'POST',body:JSON.stringify(request.payload),logout:false};
-    case 'execution.support': return {path:'/api/ui/execution-support',method:'GET',logout:false};
+    case 'execution.support': return {path:'/api/ui/execution-support'+(request.samplingVersion===1?'?sampling_version=1':''),method:'GET',logout:false};
     case 'execution.prepare': return {
       path: '/api/ui/execution-signing-payload', method: 'POST', body: JSON.stringify(request.payload), logout: false,
     };

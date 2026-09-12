@@ -70,6 +70,32 @@ it('renewal uses a new operation id and the same lease without repeating collect
   f.instance.cancel(); await tick(); expect(await done).toMatchObject({state: 'STOPPED', reason: 'CANCELLED'});
 });
 
+it('public sampling opts in on CLAIM, freezes driver progress across RENEW and uploads an empty batch',async()=>{
+  const f=fixture();f.start.targets=[{platform:'PUBLIC_WEB',access_mode:'PUBLIC_ANONYMOUS',connection_id:null,connection_version:null}];
+  f.receipt.platform_runs[0].platform='PUBLIC_WEB';f.strategy.snapshot.platforms=['PUBLIC_WEB'];
+  Object.assign(f.strategy.snapshot.configuration,{mode:'monitor',publicSource:'v2ex-latest-v1',
+    schedule:{kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1}});
+  f.start.configuration_sha256=f.strategy.configuration_sha256=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');
+  const submit=f.execution.submit.getMockImplementation()!;
+  f.execution.submit.mockImplementation(async(session,request)=>{const result=await submit(session,request);
+    if(request.operation==='CLAIM')result.receipt.public_sampling={schema_version:'public-sampling-round-v1',plan_id:id(80),source_id:'v2ex-latest-v1',round:2};
+    return result;});
+  f.candidates.submit.mockResolvedValue({state:'RECORDED'} as any);
+  const done=f.instance.run({scope:f.scope,start:f.start,startReceipt:f.receipt,strategy:f.strategy,platformRunId:id(8),allowMonitor:true,allowPublicSampling:true});
+  await tick(60000);
+  expect(f.execution.submit.mock.calls[0][1]).toHaveProperty('public_sampling_version',1);
+  expect(f.execution.submit.mock.calls[1][1]).not.toHaveProperty('public_sampling_version');
+  expect(f.driver.start).toHaveBeenCalledTimes(1);expect(f.driver.start.mock.calls[0][0].lease.public_sampling.round).toBe(2);
+  f.output.resolve([]);await tick();expect(await done).toMatchObject({state:'COMPLETED',taskCompleted:true});
+  expect(f.candidates.submit.mock.calls[0][1]).toMatchObject({platform:'PUBLIC_WEB',records:[]});
+});
+
+it('rejects a public sampling grant on a native once task before CLAIM',async()=>{
+  const f=fixture();expect(await f.instance.run({scope:f.scope,start:f.start,startReceipt:f.receipt,strategy:f.strategy,
+    platformRunId:id(8),allowPublicSampling:true})).toMatchObject({state:'FAILED',error:'COLLECTION_WORKER_INVALID_INPUT'});
+  expect(f.execution.submit).not.toHaveBeenCalled();expect(f.driver.start).not.toHaveBeenCalled();
+});
+
 it.each(['cancel', 'session', 'renew'])('stops and awaits driver on %s without uploading or restarting', async kind => {
   const f = fixture(); const stopping = deferred<void>(); f.stopped.mockImplementation(() => stopping.promise);
   const done = f.run(); await tick();

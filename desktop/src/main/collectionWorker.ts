@@ -43,7 +43,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
   return {
     cancel() {cancelActive?.();},
     async run(input: {scope: DeviceWorkerScope; start: unknown; startReceipt: unknown; strategy: unknown;
-      platformRunId: string;allowMonitor?:boolean;platformMaxRecords?:number}): Promise<CollectionWorkerResult> {
+      platformRunId: string;allowMonitor?:boolean;allowPublicSampling?:true;platformMaxRecords?:number}): Promise<CollectionWorkerResult> {
       if (cancelActive) return {state: 'BUSY', taskCompleted: false};
       const {scope} = input;
       const abort = new AbortController();
@@ -95,6 +95,9 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
         const index = receipt.platform_runs.findIndex(run => run.platform_run_id === input.platformRunId);
         const target = start.targets![index];
         if (index < 0 || !target || !strategy.snapshot.platforms.includes(target.platform)) throw new Error();
+        if (input.allowPublicSampling !== undefined && (input.allowPublicSampling !== true || input.allowMonitor !== true ||
+            configuration.mode !== 'monitor' || target.platform !== 'PUBLIC_WEB' || target.access_mode !== 'PUBLIC_ANONYMOUS' ||
+            configuration.source !== 'search' || configuration.publicSource === undefined)) throw new Error();
         validInput = true;
         if (!scope.session.isCurrent()) stop('SESSION_CHANGED');
         if (reason) return stoppedResult();
@@ -102,6 +105,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
           schema_version: 'execution-runtime-v1', request_id: randomUUID(), operation: kind,
           device_id: start.device_id, credential_version: start.credential_version,
           task_id: receipt.task_id, platform_run_id: input.platformRunId,
+          ...(kind === 'CLAIM' && input.allowPublicSampling === true ? {public_sampling_version:1} : {}),
           ...(lease ? {lease_id: lease.lease_id, execution_generation: lease.execution_generation} : {}),
         });
         let leaseDeadline = 0;
