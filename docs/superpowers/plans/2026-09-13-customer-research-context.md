@@ -65,4 +65,13 @@ class CustomerResearchContextStore:
 
 ## Evidence
 
-Pending implementation. Full goal ACTIVE; gateway completed in prior batch, do not repeat its tests/builds.
+Implementation candidate: contract `5d7d20b` + fail-closed legacy-input delta `179aec2`; store/migration/worker tests `e738ded`; history tests `2cd319b` + assertion strengthening `03d104a`. Independent whole-batch review pending; not deployed or customer-capability enabled. Full goal ACTIVE.
+
+- Initial missing-store RED; restricted PG then exposed ambiguous source join and missing candidate-id on reviews, fixed by explicit source identity join and review-request link. Initial six tests passed. Direct forged-profile-hash regression then failed and the unpublished migration guard was strengthened against actual profile hash/description.
+- Final root `.venv/bin/pytest -q tests/test_customer_research_context_postgres.py --tb=short`: **13 passed in 11.17s**, real disposable PostgreSQL with restricted runtime role. Covers exact 8000-character multiline input, fixed task reference, concurrent single-row replay, immutable snapshots, owner/tenant/run boundaries, cancellation, profile/strategy/material revocation, tampering, rollback and zero effect consumption.
+- Contract `.venv/bin/pytest -q tests/test_research_strategy_contract.py tests/test_research_context.py`: **270 passed in 0.52s** after reproducing/fixing raw TypeError for a legacy snapshot embedded in v2; four research/industry combinations now reject with fixed error.
+- History `.venv/bin/pytest -q tests/test_research_history_postgres.py -x`: **3 passed in 15.90s**, separate disposable PG database. Actual synthetic persisted candidate/review/followup/outreach rows distinguish successful EXCLUDE, manual CONTACTED/WON/latest VOID, SENT vs UNKNOWN/QUEUED; source dedupe/cap30/stable order, exact unsafe-key retention without URL, tenant/owner and real second-business exclusion. This is not evidence of real external contact.
+- Actual fixture-process v1/v2 stdin/instructions/binding test: **2 passed** within 268-test root run before unrelated fail-closed contract delta. Customer text not in argv/env and provider credentials not in capture; no real model or search calls.
+- One parallel fixture setup deadlock occurred when two migrations shared a disposable DB; isolated databases removed that test-environment conflict. New migration tested from empty DB and replayed by fixtures. No deployed migration was edited.
+
+Remaining next: same-PG per-effect permits/action journal and coordinator-generation admission, supervisor/API/candidate evidence/customer UI vertical, then same-evidence/same-budget Skill behavior comparison and real cross-day useful opportunities. Rule loading/these checks do not prove the original local research quality was restored.
