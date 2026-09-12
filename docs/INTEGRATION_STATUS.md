@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-12 同源服务器与Windows候选5fb7d65
+
+customer已部署固定 `5fb7d65`，HTTPS/ready及运行隔离通过，ops与配置不变；Windows同SHA新payload、Setup构建及实际覆盖升级、首次/重开READY通过。版本/首次归档换行失败/未验边界分别集中于[部署记录](qa/SERVER_137138_DEPLOYMENT.md)与[Windows记录](qa/WINDOWS_SYNC_20260912.md)。下方1119985/a56aab2为上一候选。真实用户登录、平台原文→判断→批准联系→回复、签名和客户验收仍未完成，Goal保持ACTIVE。
+
 ## 2026-09-12 Windows安装阻断已修复并实装
 
 `a56aab2`已推main：修复旧Squirrel对中文文档ZIP路径的冲突，独立差量GO。一次新候选构建、真实安装/卸载重装/启动/运行环境恢复/单实例通过，[唯一Windows记录](qa/WINDOWS_SYNC_20260912.md)包含摘要及未验项。仅构建输入变化，customer保持`1119985`且公网health/ready通过；不重复部署。新版已安装并留待用户正常登录、连接平台，真实业务闭环与签名仍未完成；旧候选不追认。

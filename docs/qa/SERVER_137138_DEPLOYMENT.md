@@ -1,5 +1,14 @@
 # 101.200.137.138 部署与测试交付
 
+## 当前 customer：5fb7d65（2026-09-12）
+
+固定 `5fb7d6529d723912046f7511e163f5a1a908f87c` 已实际部署至 `https://yike.tuokexing.net`。作者上下文服务差量复用其独立GO及已记录的原文/HTTP/受限PG证据；配置、ops容器及原模式不变，不自动开放新来源或搜贝研究，不触发短信/模型/外发。
+
+- 正确源码归档SHA256 `c45c3dd57d92e188d53c4299f72ee3e8b66da9f89294fd306a48c2695fa64df7`，全部2473文件与Git原blob逐字一致，两端传输摘要一致。首次归档受Windows core.autocrlf影响，迁移比较在切换前失败；未写数据库或切生产。首次CRLF归档、未部署镜像及 `releases/5fb7d65-crlf-first` 保留，不把它作为正式源。通过显式 `git -c core.autocrlf=false archive` 修正来源，未放宽比较。
+- Docker固定文件构建，镜像ID `sha256:1d2990ac8f859a8ff3583cc1cee892bfc0487241d5166d661fbc6dfbc2045359`，不可变引用 `127.0.0.1:18750/yike/server@sha256:d978acd52b1a717bc6cb42627a61d71d3f3678e661683d3b5b2af5f07673e5d1`。依赖直连慢速的本次构建容器已确认后停止，改用原有两域限定TLS隧道；构建后隧道关闭，正式容器无代理变量。
+- 部署脚本SHA256 `e2608f62356d885651f6ede2b73ab850d163582306bc85306dc78134e2701511`，仅更新已审前版脚本的版本/备份/候选名称，`deploy_plan_review` 独立GO。迁移、deploy、锁文件实际相同，不重跑迁移或改角色。切换前备份 `backups/yike-before-5fb7d65.dump.enc`＋MAC与 `ops/release-before-5fb7d65.json` 保留；候选18788、正式18787 ready及CP06通过。旧1119985可回退，本次没有触发恢复覆盖运行库。
+- 实际运行revision相符、healthy、重启0、非root、只读、loopback端口、数据库不公开；日志未出现检查到的运行秘密值。公网TLS验证开启的health/ready均200。原始 `build-5fb7d65.log`、`build-5fb7d65-proxy.log`、`deploy-5fb7d65.log` 保留首次失败；最终为 `build-lf-5fb7d65.log`、`deploy-lf-5fb7d65.log`。同源客户端见[Windows记录](WINDOWS_SYNC_20260912.md)。真实登录/平台/发送与客户效果仍未验，不是对外上线结论。
+
 ## 当前 customer：1119985（2026-09-12）
 
 CodexWin 已从 Gitee 同步并冻结 `1119985b3dc4d85d908d76b3d18c35a9928ab827`，实际升级 customer；ops 产品输入无变化，继续运行 fbf9f94 原容器。入口仍为 `https://yike.tuokexing.net`。此节替代下方 customer 当前版本表述，不改变其历史证据。
