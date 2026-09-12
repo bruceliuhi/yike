@@ -100,6 +100,18 @@ def test_none_scope_requires_empty_history_and_complete_allows_history():
     assert '"history_scope":"COMPLETE"' in complete["context_json"]
 
 
+def test_aware_utc_reference_time_is_valid_with_business_timezone():
+    result = compile_research_context(context(
+        reference_time="2026-09-13T01:30:00Z", timezone="Asia/Shanghai"))
+    assert '"reference_time":"2026-09-13T01:30:00Z"' in result["context_json"]
+
+
+def test_source_urls_use_anonymous_https_normalization():
+    item = context()["history"][0] | {"source_urls": ["https://EXAMPLE.com"]}
+    result = compile_research_context(context(history=[item]))
+    assert '"source_urls":["https://example.com/"]' in result["context_json"]
+
+
 def test_rejects_context_over_32_kib_and_credential_material():
     large = context(
         query_seeds=[f"{index:02d}" + "词" * 158 for index in range(20)],

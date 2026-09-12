@@ -6,11 +6,10 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlsplit
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pilot.candidate_contract import _normalize_host, _validate_url
+from pilot.open_web_reader import PublicReadError, normalize_public_url
 
 
 _RULE_VERSION = "opportunity-research-context-v1/ai-project-lead-research-1.0.0"
@@ -85,8 +84,7 @@ def _reference_time(value: object, timezone_name: object) -> str:
         zone = ZoneInfo(timezone_name)
         if instant.tzinfo is None or instant.utcoffset() is None:
             _invalid()
-        if instant.utcoffset() != instant.astimezone(zone).utcoffset():
-            _invalid()
+        instant.astimezone(zone)
     except (ValueError, OverflowError, ZoneInfoNotFoundError):
         _invalid()
     return value
@@ -95,16 +93,9 @@ def _reference_time(value: object, timezone_name: object) -> str:
 def _url(value: object) -> str:
     value = _text(value, 1, 2048)
     try:
-        _validate_url(value, "PUBLIC_WEB")
-        parts = urlsplit(value)
-        host = _normalize_host(parts.hostname or "")
-        if (parts.scheme != "https" or parts.port is not None or parts.fragment
-                or parts.username is not None or parts.password is not None
-                or parts.hostname != host):
-            _invalid()
-    except (ValueError, UnicodeError):
+        return normalize_public_url(value)
+    except PublicReadError:
         _invalid()
-    return value
 
 
 def _validate(value: object) -> dict:
