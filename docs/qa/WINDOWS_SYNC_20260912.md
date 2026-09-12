@@ -4,11 +4,23 @@
 
 Gitee 再次同步至 `0b5bcbd`，无新增提交。对 `1119985` 候选执行真实 Setup 安装，文件解压完成，但卸载登记失败：旧 .NET `System.IO.Packaging.Package` 把文档站中文 ZIP 文件名解码成重复问号路径。只读打开实际 nupkg 同样复现；此前“make exit0/ZIP可读”不能代表安装成功。
 
-修复仅影响构建：仍核验全部固定源 blob，分发时排除未打治理补丁的 `docs/*.md`、`docs/static/`、`docs/.vitepress/` 文档站文件；保留运行配置引用的 `hit_stopwords.txt`、`STZHONGS.TTF`、代码、根许可证/NOTICE及依赖。任何其他非ASCII载荷路径在创建输出前失败关闭，不静默删改代码/资源。真实WindowsBase读包回归及3个非ASCII源/补丁/依赖拒绝场景先 **4 failed**，修复后整文件 **30 passed / 1 skipped**（仅非Windows拒绝分支）。本轮尚未生成修复后候选或通过重新安装。
+修复仅影响构建：仍核验全部固定源 blob，分发时排除未打治理补丁的 `docs/*.md`、`docs/static/`、`docs/.vitepress/` 文档站文件；保留运行配置引用的 `hit_stopwords.txt`、`STZHONGS.TTF`、代码、根许可证/NOTICE及依赖。任何其他非ASCII载荷路径在创建输出前失败关闭，不静默删改代码/资源。真实WindowsBase读包回归及3个非ASCII源/补丁/依赖拒绝场景先 **4 failed**，修复后整文件 **30 passed / 1 skipped**（仅非Windows拒绝分支）。修复后的实际候选及安装证据如下，不追认旧包。
 
 非作者 `win_test_review` 本批差量 GO，无阻断项，确认固定PIN运行引用及patch保留逻辑；未重跑同字节测试，不把fixture探针当实际运行验收。
 
 旧 `%LOCALAPPDATA%/YikeAI/dev-runtimes` 已确认是本任务历史开发探针，完整搬至 `.runtime/legacy-dev-runtimes-before-1119985` 留存，未删除。失败安装文件及日志保留；正式用户数据 `%APPDATA%/yike-ai-desktop` 未清理。仍待实际用户登录及平台连接；不读取验证码、Cookie或用模拟登录替代。
+
+### 修复后固定候选 a56aab2
+
+- 源码 `a56aab299f3c256e77b065c0347589eadb1d2dc9`，干净LF工作树 `.worktrees/win-release-a56aab2`，已推Gitee main。与当前customer `1119985` 的服务/迁移/锁/桌面业务代码无差量，不重复部署；本轮公网 health/ready 均200。
+- payload `.runtime/portable-release-a56aab2-relocated`，清单SHA256 `4099eebef08f6d54bf480a5458fdca350b285effd48f94ffcaf9d56102e3eebb`。真实构建/搬迁/独立Python/Chromium探针 **1 passed / 0 skipped，133.72秒**；原始 `.runtime/portable-release-a56aab2-test.xml`。最终非ASCII文件路径0，停用词和字体仍在；原输入不改。
+- 一次Forge make成功；ASAR结构及40项renderer资源通过，SHA256 `3cb96091131e79a72eda110047973259665a356c418b3b1ef8ae5099aab241fb`。产物在工作树 `desktop/out/make/squirrel.windows/x64`：Setup **642,809,856字节**，SHA256 `72e921f640eb643beb5b654cf08e4cfeb452a2863294410f766b540cf57dd484`；nupkg **646,496,223字节**，SHA256 `0092701def95adf73f6dfc6fa92e79e272509604b0a39f42d3063f1bfc9e25a0`。实际旧.NET Package reader成功枚举11197 parts。仍 `NotSigned`，当前用户证书存储无可用带私钥代码签名证书。
+- 失败旧安装完整搬至 `.runtime/failed-install-1119985`；新版使用普通默认安装路径及默认TEMP，真实Setup于17:04:23–17:04:39完成、exit0，卸载登记显示“意客AI / 0.2.0”，桌面与开始菜单快捷方式存在。安装后ASAR与payload清单摘要完全一致。从安装启动器打开真实首页成功；CUA首次因启动器转交到版本子目录而报未发现窗口，经重新枚举定位真实进程，不重复启动。
+- computer-use实际观察首次准备至READY；正常Alt+F4退出并核实主进程退出。随后仅对本轮已核对摘要的安装版执行真实卸载（exit0，注册项移除），使用同一Setup重装（exit0，注册项恢复）；旧Squirrel自己的`.dead`残留由正常重装处理，不手动清理用户目录。工作空间中该runtime清单始终保持17:05:21创建/修改时间及原摘要。重装后重开再次READY，安装ASAR保持原摘要；再启动一个真实进程迅速exit0，原主进程保留，未产生第二业务实例。Windows的CUA返回MSIX映射路径，进程盘点/摘要与实际 `%LOCALAPPDATA%/YikeAI/app-0.2.0` 一致，不误认旧工作树窗口。
+
+当前可操作入口：桌面“意客AI”快捷方式或上述Setup；安装版已留在“账号与授权”页。**未通过项：**真实产品登录/已登录重启、平台连接/采集/原文→判断→批准联系→回复跟进、签名、客户验收。原文代码已有实现但本次未实际采集或发送，完整Goal保持ACTIVE。不能把安装验收写成正式上线。
+
+## 上一固定候选1119985（保留历史证据）
 
 主干从 `04ac64e` 快进到 `11a640b`，保留并接续本机六项测试文件修改。服务器经实际 SSH 核对仍为 `fbf9f942df0c2be2189a98a930948f9f9b104b1b`、healthy；同步源码不等于新版已部署。
 
