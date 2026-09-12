@@ -40,7 +40,7 @@
 
 - [x] Root verifies actual v4 status containing one known failed and one successful read is accepted by existing desktop schema. Use existing integration test helper; fixture output is not real provider evidence.
 - [x] Independent reviewer examines fixed full batch from base to final code SHA and both Spec/Quality verdicts. No repeated full suite; one fixer handles all material findings, one delta review.
-- [ ] Record concise evidence here, update taskbook/tools pointer, fetch/merge only if remote changed, merge accepted branch into main, push and verify exact remote parity. No production/Windows/real-user claims; no unchanged client rebuild.
+- [x] Record concise evidence here, update taskbook/tools pointer, fetch/merge only if remote changed, merge accepted branch into main, push and verify exact remote parity. No production/Windows/real-user claims; no unchanged client rebuild.
 - [x] Stop only owned disposable DB/processes. Next real experiment uses a different buyer-source hypothesis and diagnostics for precise failure codes, never old UNKNOWN replay. Continue to actual opportunity quality and authorized comment depth; full Goal remains active.
 
 ## Evidence
@@ -60,4 +60,4 @@ Full local implementation/test evidence: `/tmp/yike-known-read-outcomes-implemen
 
 The sole initial P2 was malformed/missing MIME being treated as explicitly unsupported. `e32df5a` adds a narrow type/subtype guard; invalid MIME remains a hard failure, valid PDF remains known-negative. RED10 failed/1 passed; correction21 passed (0.21s). Root independently ran the 11 malformed/actual-decoder continuation cases: 11 passed,62 deselected (0.26s). Whole-batch and one delta review accepted final code; no further material issue. Reviewer report `/tmp/yike-known-read-outcomes-final-review.md`.
 
-Owned disposable container `yike-known-read-pg-20260913` stopped and auto-removal verified; other environments untouched. No active batch processes, build, provider call or production change. Main merge/push verification follows this documentation commit; full product Goal remains ACTIVE.
+Owned disposable container `yike-known-read-pg-20260913` stopped and auto-removal verified; other environments untouched. No active batch processes, build, provider call or production change. Accepted branch fast-forward merged into main and pushed: `28b0fa0f248e0d0f9088417d6bf955d0e0194bc2`, clean local/origin/live SHA parity verified. This final closeout is documentation-only; full product Goal remains ACTIVE.
