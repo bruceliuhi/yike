@@ -104,3 +104,14 @@ index df0487d..624bd1b 100644
 +        patterns = ("search_comments_*.jsonl",)
 +    else:
 +        patterns = ("search_contents_*.jsonl", "search_comments_*.jsonl")
+diff --git a/store/bilibili/__init__.py b/store/bilibili/__init__.py
+index b5eb921..9e843fa 100644
+--- a/store/bilibili/__init__.py
++++ b/store/bilibili/__init__.py
+@@ -59,0 +60,3 @@ async def update_bilibili_video(video_item: Dict):
++    video_description = video_item_view.get("desc", "")
++    if config.CRAWLER_TYPE not in {"detail", "creator"}:
++        video_description = video_description[:500]
+@@ -64 +67 @@ async def update_bilibili_video(video_item: Dict):
+-        "desc": video_item_view.get("desc", "")[:500],
++        "desc": video_description,

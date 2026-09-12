@@ -36,10 +36,10 @@
     },
     {
       "path": "vendor/patches/mediacrawler/0004-yike-bili-links.patch",
-      "sha256": "c1fa68891c3bc945d5eea40886aed1ab5a8e4ad31d72d04fee9952829a0bf3c1"
+      "sha256": "17e2ff72ec6ade64a19aad090f09b734bc987f840d3d281cacffc292968fac43"
     }
   ],
-  "patchset_sha256": "0287142b44255029b745b5864c31596fd2aabd6cf47204c1cb3350d1a729dc2f",
+  "patchset_sha256": "1b10eb2f70a56295486bb6732208243d69abf06d094076d9a699d21fe8c71e29",
   "patched_files": {
     "config/base_config.py": "7c5a9da4b9715fb7f2eec8ab9470a67b3ee47601f4c368168fa8352f3048b46a",
     "main.py": "6182f39ef93b54c3b84553417eb4155b18c089d18871631be653665a8d0f9045",
@@ -57,13 +57,14 @@
     "media_platform/zhihu/help.py": "6ab7e2b9d0550a1b4bb62b3f12c3383b9b8ad5b956a32a5c894d142b273436df",
     "media_platform/zhihu/login.py": "70624fde03481cc9f870b686e73c60422c60b7c93a8564b2873ddb872c9b4559",
     "model/m_zhihu.py": "ebbd64e1b2968c01a5cbc85f135277c76f25617c237114151802cb5841d14e42",
+    "store/bilibili/__init__.py": "00e1576adc97de30585281c283f492c9ad432e257b52b7a2e565ab7a492b42b4",
     "store/xhs/__init__.py": "77efcb60be3d60dd7a488740ee7d1cad6eab50ffe2f02f2c648bc9e85b26c3ef",
     "store/zhihu/__init__.py": "df5d70790a0462c1bcf835b362c10101941902ad088699b635de6e21ce9654cb",
     "store/zhihu/_store_impl.py": "e804d1882679bfe3741155b33afcb9ed1e247bb63079aefc0251e3c29f4321f5",
     "tools/crawler_util.py": "1bb27bdd68faf24df13c2bd32db441953c759c84c7dc6adf30659af605381a2d",
     "tools/yike_runtime.py": "1c0a3d89d84d90c88df99cb05aecdd1f63049f465e323b7246da805cdbb1c976"
   },
-  "patched_tree_sha256": "78d701e54d4fc2d76a1ef3b1939148b5ac7d9f3f57019355f187504f9be0076e",
+  "patched_tree_sha256": "435005ced3b5e5e4311e55993d1dc4a31eb6ea3d178900dc9c5d5caef3cd4971",
   "runtime_environment": {
     "uv_version": "0.11.6",
     "lock_path": "uv.lock",

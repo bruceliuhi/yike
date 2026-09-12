@@ -72,7 +72,7 @@ it('runs every confirmed Bilibili link with null query, canonical target, identi
 it('rejects Bilibili links before spawn when the shared record budget cannot cover every target', async () => {
   const f=fixture();f.input.target.platform='BILIBILI';f.input.snapshot.platforms=['BILIBILI'];f.input.maxRecords=1;
   Object.assign(f.input.snapshot.configuration,{source:'links',keywords:[],links:['https://www.bilibili.com/video/BV1d54y1g7db','https://space.bilibili.com/123456']});
-  const run=createPythonCollectionDriver({...f.options,binding:{...f.options.binding,platform:'BILIBILI',expectedAccountPublicId:'123456'}} as any).start(f.input);
+  const run=createPythonCollectionDriver({...f.options,allowNativeLinks:true,binding:{...f.options.binding,platform:'BILIBILI',expectedAccountPublicId:'123456'}} as any).start(f.input);
   await expect(run.completed).rejects.toThrow('SOURCE_DRIVER_INVALID_INPUT');expect(spawn).not.toHaveBeenCalled();await run.stop();
 });
 it('rejects a parser-recognized but mapper-incompatible Bilibili BV before spawn',async()=>{

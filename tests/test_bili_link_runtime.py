@@ -102,12 +102,16 @@ def runtime(source):
             creator_id=value.rstrip("/").rsplit("/", 1)[-1]
         ),
         bilibili_store=NS(),
+        source_keyword_var=NS(get=lambda: "offline-link"),
+        anonymize_user_id=lambda value: "anonymous-hash",
+        mask_nickname=lambda value: "masked",
         utils=NS(
             logger=NS(
                 info=lambda *args: None,
                 error=lambda *args: None,
                 warning=lambda *args: None,
-            )
+            ),
+            get_current_timestamp=lambda: 1789000000000,
         ),
     )
 
@@ -157,6 +161,51 @@ def _view(bvid, aid, owner_mid=42):
             "stat": {},
         }
     }
+
+
+@pytest.mark.parametrize("mode", ["detail", "creator"])
+def test_link_store_preserves_description_tail_beyond_search_preview(runtime, mode):
+    critical_tail = "预算三十万，要求十月十五日前交付"
+    description = "前置背景" * 130 + critical_tail
+    item = _view("BV1abc123xyz", 101)
+    item["View"].update(
+        title="长视频说明",
+        desc=description,
+        pubdate=1789000000,
+        pic="https://offline.invalid/cover",
+    )
+    sink = NS(store_content=AsyncMock())
+    runtime.g["BiliStoreFactory"] = NS(create_store=lambda: sink)
+    runtime.g["config"].CRAWLER_TYPE = mode
+    loaded = runtime.load(
+        "store/bilibili/__init__.py", names=["update_bilibili_video"]
+    )
+
+    run(loaded["update_bilibili_video"](item))
+
+    saved = sink.store_content.await_args.kwargs["content_item"]
+    assert saved["desc"] == description
+    assert saved["desc"].endswith(critical_tail)
+
+
+def test_search_store_keeps_existing_500_character_description_preview(runtime):
+    critical_tail = "搜索模式尾部不应进入旧摘要"
+    description = "搜索背景" * 130 + critical_tail
+    item = _view("BV1abc123xyz", 101)
+    item["View"].update(title="搜索结果", desc=description, pubdate=1789000000, pic="")
+    sink = NS(store_content=AsyncMock())
+    runtime.g["BiliStoreFactory"] = NS(create_store=lambda: sink)
+    runtime.g["config"].CRAWLER_TYPE = "search"
+    loaded = runtime.load(
+        "store/bilibili/__init__.py", names=["update_bilibili_video"]
+    )
+
+    run(loaded["update_bilibili_video"](item))
+
+    saved = sink.store_content.await_args.kwargs["content_item"]
+    assert saved["desc"] == description[:500]
+    assert len(saved["desc"]) == 500
+    assert critical_tail not in saved["desc"]
 
 
 def test_detail_saves_only_the_requested_view_and_zero_comments_make_no_request(runtime):
