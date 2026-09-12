@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+公开采样接续（2026-09-12）：`cf28724`独立整批GO，正式monitor→CLAIM→driver→batch链已接已入库批次轮数和最新＋尾部轮换；作者回复仍复查，未上传不推进，未知完成不伪装成功。[唯一验证/边界](superpowers/plans/2026-09-12-public-sample-rotation.md#evidence)。这只解决当前公开index的反复前部抽样，不关闭“跨轮来源游标”整项；原生平台持久进度、index外旧帖公平复查、多源研究/覆盖补查及完整真实客户闭环继续，未部署或重新构包。
+
 作者变化接续（2026-09-12）：`4fd29dc`独立差量GO，时间线V3已接留存作者回复新增/修改和每日简报；旧请求V2不变，无可比上下文只展示原始留存不编造事件。新增raw机会按owner隔离，历史无raw导入保持tenant共享；初审长尾引文P2已修复。[唯一实施/失败/测试证据](superpowers/plans/2026-09-12-author-change-timeline.md#evidence)。未部署/构包/实际平台或外发；下方作者专属事件“待实现”为历史状态，下一代码批优先跨轮来源游标，之后多源研究/覆盖补查；真实周期、Windows新版本及客户闭环仍未验，完整Goal ACTIVE。
 
 监控来源接续（2026-09-12）：`d9e44b3`独立GO，修复project/bili_links部署模式的pulse仍以旧名单拒绝PUBLIC_WEB/知乎的问题；不是新增平台，原capability/连接/确认策略/签名START不变。[真实PG RED8项、最终11项与未验边界](superpowers/plans/2026-09-12-monitor-source-activation.md#evidence)。未部署或构包；下一步作者本人更新→时间线/简报（须V3协商保旧V2），跨轮游标与真实周期验证仍待完成，不以预约启动通过宣布监控整卡完成。
