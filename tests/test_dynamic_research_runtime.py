@@ -1,0 +1,522 @@
+"""Bounded dynamic supervisor with real PostgreSQL authority and synthetic effects."""
+from datetime import UTC, datetime, timedelta
+import hashlib
+from pathlib import Path
+import sys
+import threading
+import time
+from uuid import uuid4
+
+import pytest
+
+from pilot.dynamic_research_config import DynamicResearchAgentConfiguration
+from pilot.execution_contract import ExecutionRuntimeError
+from pilot.research_effects import dispatch_effect
+from tests.test_candidate_assessment_model import CONTENT
+from tests.test_candidate_review_postgres import BoundaryModel
+from tests.test_customer_research_context_postgres import (
+    context_env,
+    dynamic_start,
+    real_strategy_env,
+    databases,
+    env,
+    execution_databases,
+    execution_env,
+    raw_databases,
+    raw_env,
+)
+from tests.test_execution_runtime_postgres import apply, operation
+from tests.test_research_runtime_postgres import _grant_runtime
+
+
+ROOT = Path(__file__).parents[1]
+
+
+class ResearchModel(BoundaryModel):
+    def assess_before(self, _deadline, **kwargs):
+        return self.assess(**kwargs)
+
+
+def agent_configuration():
+    return DynamicResearchAgentConfiguration(
+        codex_binary="/bin/sh",
+        python_binary=sys.executable,
+        api_key="synthetic-provider-key",
+        model="synthetic/model-v1",
+        search_api_key="synthetic-search-key",
+    )
+
+
+@pytest.fixture
+def dynamic_env(context_env):
+    from pilot.candidate_review import CandidateReviewStore
+    from pilot.dynamic_research_candidates import DynamicResearchCandidateStore
+    from pilot.research_assessment import ResearchAssessmentRunner
+    from pilot.research_candidates import ResearchCandidateStore
+    from pilot.research_effect_journal import ResearchEffectJournal
+    from pilot.research_orchestrator import ResearchOrchestrator
+    from pilot.research_resources import ResearchResourceStore
+    from pilot.research_runtime import ResearchRuntimeService
+    from tests.test_research_resources_postgres import RULE
+
+    env = context_env
+    _grant_runtime(env)
+    with env.db.connect() as connection:
+        role = connection.execute("SELECT current_user").fetchone()[0]
+    with env.admin.connect() as connection:
+        connection.execute("SELECT set_config('yike.app_role',%s,true)", (role,))
+        connection.execute((ROOT / "deploy/grant_research_effect_journal.sql").read_text())
+    env.execution = dynamic_start(env)
+    resources = ResearchResourceStore(
+        env.runtime,
+        rule=RULE,
+        research_capability=lambda snapshot: snapshot["configuration"].get("publicSource")
+        == "public-web-agent-v1",
+    )
+    reviews = CandidateReviewStore(
+        env.db,
+        model=ResearchModel(),
+        strategy_resolver=env.strategies.resolve,
+        strategy_snapshot_reader=env.strategies.read_snapshot,
+        research_assessment=ResearchAssessmentRunner(resources),
+    )
+    fixed = ResearchRuntimeService(
+        ResearchOrchestrator(ResearchCandidateStore(resources), reviews)
+    )
+    journal = ResearchEffectJournal(resources)
+    env.resources = resources
+    env.reviews = reviews
+    env.fixed = fixed
+    env.journal = journal
+    env.candidates = DynamicResearchCandidateStore(journal)
+    yield env
+    with env.admin.connect() as connection:
+        connection.execute(
+            "DELETE FROM pilot_research_effect_journal WHERE tenant_id=%s", (env.tenant,)
+        )
+        connection.execute(
+            "DELETE FROM pilot_research_runtime WHERE tenant_id=%s", (env.tenant,)
+        )
+
+
+def search_result(query):
+    return {
+        "status": "SEARCHED",
+        "query": query,
+        "observed_at": datetime.now(UTC).isoformat(),
+        "read_scope": "SEARCH_RESULTS",
+        "results": [{
+            "url": "https://example.com/buyer",
+            "title": "客户需求",
+            "snippet": "仅用于发现，不是候选原文",
+            "date_hint": None,
+            "rank": 1,
+        }],
+        "omitted_count": 0,
+        "replayed": False,
+    }
+
+
+def read_result():
+    text = CONTENT["body"]
+    return {
+        "status": "READ",
+        "evidence": {
+            "url": "https://example.com/buyer",
+            "title": CONTENT["title"],
+            "text": text,
+            "observed_at": datetime.now(UTC).isoformat(),
+            "content_sha256": hashlib.sha256(text.encode()).hexdigest(),
+            "read_scope": "PUBLIC_PAGE_TEXT",
+        },
+        "review_status": "UNREVIEWED",
+        "replayed": False,
+    }
+
+
+def successful_mission(calls):
+    def mission(_description, **kwargs):
+        calls.append("mission")
+        dispatcher = kwargs["effect_dispatcher"]
+        query = "企业知识库 找团队"
+        deadline = time.monotonic() + 20
+        dispatch_effect(
+            dispatcher,
+            kind="SEARCH",
+            payload={"query": query},
+            deadline=deadline,
+            perform=lambda _deadline: search_result(query),
+        )
+        dispatch_effect(
+            dispatcher,
+            kind="READ",
+            payload={"url": "https://example.com/buyer"},
+            deadline=deadline,
+            perform=lambda _deadline: read_result(),
+        )
+        return {"status": "COMPLETED", "code": None}
+    return mission
+
+
+def service(env, mission, **kwargs):
+    from pilot.dynamic_research_runtime import DynamicResearchRuntimeService
+
+    dynamic = DynamicResearchRuntimeService(
+        env.fixed,
+        journal=env.journal,
+        candidates=env.candidates,
+        agent=agent_configuration(),
+        mission=mission,
+        **kwargs,
+    )
+    env.fixed.dynamic = dynamic
+    return dynamic
+
+
+def wait_terminal(runtime, env, timeout=8):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        value = runtime.status(env.claims, env.execution["task_id"])
+        if value["phase"] != "RUNNING":
+            return value
+        time.sleep(0.02)
+    pytest.fail("dynamic supervisor did not reach a terminal or stopped state")
+
+
+def test_capability_is_explicit_v4_and_fixed_capabilities_are_unchanged(dynamic_env):
+    env = dynamic_env
+    runtime = service(env, successful_mission([]))
+    try:
+        assert env.fixed.capability(env.claims) == {
+            "contractVersion": 1,
+            "sourceScope": "V2EX_LATEST_INDEX",
+            "sourceLabel": "V2EX最新主题 · 公开单源研究",
+            "maxFreshEffectsPerAdvance": 1,
+            "settlementState": "PENDING",
+        }
+        assert env.fixed.capability(env.claims, dynamic_research_version=1) == {
+            "contractVersion": 4,
+            "sourceScope": "PUBLIC_WEB_AGENT",
+            "sourceLabel": "公开网页自主研究",
+            "sourceIds": [
+                "v2ex-latest-v1",
+                "v2ex-qna-v1",
+                "v2ex-outsourcing-authors-v1",
+                "public-web-agent-v1",
+            ],
+            "maxPlannedSources": 3,
+            "executionMode": "SERVER_BACKGROUND",
+            "limits": {
+                "maxSearches": 10,
+                "maxSources": 100,
+                "maxModelCalls": 20,
+                "maxMinutes": 30,
+                "maxRuntimeSeconds": 1800,
+            },
+            "settlementState": "PENDING",
+        }
+        with pytest.raises(ExecutionRuntimeError, match="invalid_request"):
+            env.fixed.capability(
+                env.claims, source_catalog_version=1, dynamic_research_version=1
+            )
+    finally:
+        runtime.shutdown(timeout_seconds=2)
+
+
+def test_persisted_dynamic_task_fails_closed_when_worker_is_not_configured(dynamic_env):
+    env = dynamic_env
+    task_id, run_id = env.execution["task_id"], env.execution["run_id"]
+    for action in (
+        lambda: env.fixed.status(env.claims, task_id),
+        lambda: env.fixed.advance(env.claims, task_id, run_id),
+    ):
+        with pytest.raises(ExecutionRuntimeError) as caught:
+            action()
+        assert (caught.value.code, caught.value.status) == (
+            "capability_unavailable", 501
+        )
+    with env.admin.connect() as connection:
+        assert connection.execute(
+            "SELECT count(*) FROM pilot_research_runtime WHERE task_id=%s", (task_id,),
+        ).fetchone()[0] == 0
+
+
+def test_signed_dynamic_task_launches_once_and_finishes_persisted_path(dynamic_env):
+    env = dynamic_env
+    calls = []
+    runtime = service(env, successful_mission(calls))
+    task_id, run_id = env.execution["task_id"], env.execution["run_id"]
+    try:
+        queued = env.fixed.status(env.claims, task_id)
+        assert queued["phase"] == "QUEUED" and queued["canAdvance"] is True
+        assert queued["acceptedOriginals"] == 0
+        running = env.fixed.advance(env.claims, task_id, run_id)
+        assert running["phase"] in ("RUNNING", "COMPLETED")
+        env.fixed.advance(env.claims, task_id, run_id)
+        done = wait_terminal(runtime, env)
+        assert done["phase"] == "COMPLETED"
+        assert done["acceptedOriginals"] == 1
+        assert done["analyzedOriginals"] == 1
+        assert done["skippedOriginals"] == 0
+        assert len(done["candidateIds"]) == 1
+        assert done["discovery"] == {
+            "searches": {"issued": 1, "pending": 0, "succeeded": 1,
+                         "failed": 0, "unknown": 0},
+            "reads": {"issued": 1, "pending": 0, "succeeded": 1,
+                      "failed": 0, "unknown": 0},
+            "unpublishedOriginals": 0,
+        }
+        assert done["usage"]["sourceReads"]["succeeded"] == 2
+        assert calls == ["mission"]
+        assert env.fixed.status(env.claims, task_id)["phase"] == "COMPLETED"
+        assert env.fixed.advance(env.claims, task_id, run_id)["phase"] == "COMPLETED"
+        assert calls == ["mission"]
+    finally:
+        runtime.shutdown(timeout_seconds=2)
+
+
+def test_expired_running_lease_stops_as_worker_lost_without_relaunch(dynamic_env):
+    env = dynamic_env
+    calls = []
+    runtime = service(env, successful_mission(calls))
+    task_id, run_id = env.execution["task_id"], env.execution["run_id"]
+    try:
+        with env.admin.connect() as connection:
+            connection.execute(
+                "INSERT INTO pilot_research_runtime(tenant_id,owner_user_id,task_id,run_id,"
+                "generation,current_owner,lease_expires_at,phase) VALUES "
+                "(%s,%s,%s,%s,1,%s,clock_timestamp()-interval '1 second','RUNNING')",
+                (env.tenant, env.claims.user_id, task_id, run_id,
+                 "10000000-0000-4000-8000-000000000009"),
+            )
+        stopped = runtime.status(env.claims, task_id)
+        assert stopped["phase"] == "STOPPED"
+        assert stopped["stopCode"] == "worker_lost"
+        assert stopped["canAdvance"] is False and stopped["newActionsBlocked"] is True
+        assert runtime.advance(env.claims, task_id, run_id)["stopCode"] == "worker_lost"
+        assert calls == []
+    finally:
+        runtime.shutdown(timeout_seconds=2)
+
+
+def test_cancelled_worker_keeps_journal_facts_but_cannot_publish_or_complete(dynamic_env):
+    env = dynamic_env
+    entered = threading.Event()
+    release = threading.Event()
+
+    def mission(_description, **kwargs):
+        dispatcher = kwargs["effect_dispatcher"]
+        deadline = time.monotonic() + 20
+        dispatch_effect(
+            dispatcher,
+            kind="READ",
+            payload={"url": "https://example.com/buyer"},
+            deadline=deadline,
+            perform=lambda _deadline: read_result(),
+        )
+        entered.set()
+        release.wait(5)
+        return {"status": "COMPLETED", "code": None}
+
+    runtime = service(env, mission)
+    task_id, run_id = env.execution["task_id"], env.execution["run_id"]
+    try:
+        runtime.advance(env.claims, task_id, run_id)
+        assert entered.wait(3)
+        apply(env, operation(env, "CANCEL", env.execution))
+        release.set()
+        stopped = wait_terminal(runtime, env)
+        assert stopped["phase"] == "CANCELED"
+        with env.admin.connect() as connection:
+            assert connection.execute(
+                "SELECT count(*) FROM pilot_research_effect_journal WHERE tenant_id=%s "
+                "AND kind='READ' AND status='SUCCEEDED'", (env.tenant,)
+            ).fetchone()[0] == 1
+            assert connection.execute(
+                "SELECT count(*) FROM pilot_candidate_batches WHERE tenant_id=%s",
+                (env.tenant,),
+            ).fetchone()[0] == 0
+            statuses = connection.execute(
+                "SELECT status FROM pilot_collection_tasks WHERE task_id=%s", (task_id,)
+            ).fetchone()[0]
+        assert statuses == "CANCELED"
+    finally:
+        release.set()
+        runtime.shutdown(timeout_seconds=2)
+
+
+def test_lost_lease_keeps_admitted_read_but_blocks_late_publication(dynamic_env):
+    env = dynamic_env
+    entered = threading.Event()
+    release = threading.Event()
+
+    def mission(_description, **kwargs):
+        dispatch_effect(
+            kwargs["effect_dispatcher"], kind="READ",
+            payload={"url": "https://example.com/buyer"},
+            deadline=time.monotonic() + 20,
+            perform=lambda _deadline: read_result(),
+        )
+        entered.set()
+        release.wait(5)
+        return {"status": "COMPLETED", "code": None}
+
+    runtime = service(env, mission)
+    task_id, run_id = env.execution["task_id"], env.execution["run_id"]
+    try:
+        runtime.advance(env.claims, task_id, run_id)
+        assert entered.wait(3)
+        with env.admin.connect() as connection:
+            connection.execute(
+                "UPDATE pilot_research_runtime SET lease_expires_at="
+                "clock_timestamp()-interval '1 second' WHERE task_id=%s", (task_id,),
+            )
+        release.set()
+        stopped = wait_terminal(runtime, env)
+        assert stopped["phase"] == "STOPPED"
+        assert stopped["stopCode"] == "worker_lost"
+        with env.admin.connect() as connection:
+            assert connection.execute(
+                "SELECT count(*) FROM pilot_research_effect_journal WHERE task_id=%s "
+                "AND kind='READ' AND status='SUCCEEDED'", (task_id,),
+            ).fetchone()[0] == 1
+            assert connection.execute(
+                "SELECT count(*) FROM pilot_candidate_batches WHERE task_id=%s", (task_id,),
+            ).fetchone()[0] == 0
+    finally:
+        release.set()
+        runtime.shutdown(timeout_seconds=2)
+
+
+def test_worker_failure_before_first_effect_is_durable_and_never_relaunched(dynamic_env):
+    env = dynamic_env
+    calls = []
+
+    def dies(_description, **_kwargs):
+        calls.append("mission")
+        raise RuntimeError("synthetic process death")
+
+    runtime = service(env, dies)
+    task_id, run_id = env.execution["task_id"], env.execution["run_id"]
+    try:
+        runtime.advance(env.claims, task_id, run_id)
+        stopped = wait_terminal(runtime, env)
+        assert stopped["phase"] == "STOPPED"
+        assert stopped["stopCode"] == "advance_failed"
+        assert stopped["discovery"]["searches"]["issued"] == 0
+        assert runtime.advance(env.claims, task_id, run_id)["stopCode"] == "advance_failed"
+        assert calls == ["mission"]
+    finally:
+        runtime.shutdown(timeout_seconds=2)
+
+
+def test_assessment_budget_exhaustion_keeps_published_candidate_pending(dynamic_env):
+    env = dynamic_env
+    task_id, run_id = env.execution["task_id"], env.execution["run_id"]
+    for _ in range(10):
+        action_id = str(uuid4())
+        granted = env.resources.begin(
+            env.claims, task_id=task_id, run_id=run_id, action_id=action_id,
+            resource="MODEL_CALL", input_sha256="a" * 64,
+        )["event"]
+        env.resources.finish(
+            env.claims, task_id=task_id, run_id=run_id, action_id=action_id,
+            permit_id=granted["permit_id"], status="SUCCEEDED",
+            output_sha256="b" * 64,
+        )
+    runtime = service(env, successful_mission([]))
+    try:
+        runtime.advance(env.claims, task_id, run_id)
+        stopped = wait_terminal(runtime, env)
+        assert stopped["phase"] == "STOPPED"
+        assert stopped["stopCode"] == "resource_limit_exceeded"
+        assert stopped["acceptedOriginals"] == 1
+        assert stopped["analyzedOriginals"] == 0
+        assert len(stopped["candidateIds"]) == 1
+    finally:
+        runtime.shutdown(timeout_seconds=2)
+
+
+def test_capacity_rejection_happens_before_persisted_coordinator_election(dynamic_env):
+    env = dynamic_env
+    entered = threading.Event()
+    release = threading.Event()
+
+    def blocked(_description, **_kwargs):
+        entered.set()
+        release.wait(5)
+        return {"status": "FAILED", "code": "synthetic_stop"}
+
+    runtime = service(env, blocked, max_workers=1)
+    first = env.execution
+    second = dynamic_start(env)
+    try:
+        runtime.advance(env.claims, first["task_id"], first["run_id"])
+        assert entered.wait(3)
+        with env.admin.connect() as connection:
+            lease, now, deadline, created, minutes = connection.execute(
+                "SELECT c.lease_expires_at,clock_timestamp(),t.deadline_at,t.created_at,"
+                "q.minute_limit FROM pilot_research_runtime c JOIN pilot_collection_tasks t "
+                "USING(tenant_id,owner_user_id,task_id) JOIN pilot_research_reservations q "
+                "USING(tenant_id,owner_user_id,task_id,run_id) WHERE c.task_id=%s",
+                (first["task_id"],),
+            ).fetchone()
+        assert lease <= min(deadline, created + timedelta(minutes=minutes),
+                            now + timedelta(seconds=1800))
+        with pytest.raises(ExecutionRuntimeError, match="worker_capacity_exceeded"):
+            runtime.advance(env.claims, second["task_id"], second["run_id"])
+        with env.admin.connect() as connection:
+            assert connection.execute(
+                "SELECT count(*) FROM pilot_research_runtime WHERE task_id=%s",
+                (second["task_id"],),
+            ).fetchone()[0] == 0
+        release.set()
+        assert wait_terminal(runtime, env, timeout=3)["phase"] == "STOPPED"
+        runtime.advance(env.claims, second["task_id"], second["run_id"])
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            with env.admin.connect() as connection:
+                count = connection.execute(
+                    "SELECT count(*) FROM pilot_research_runtime WHERE task_id=%s",
+                    (second["task_id"],),
+                ).fetchone()[0]
+            if count:
+                break
+            time.sleep(0.02)
+        assert count == 1
+    finally:
+        release.set()
+        runtime.shutdown(timeout_seconds=2)
+
+
+def test_shutdown_blocks_new_actions_under_current_authority(dynamic_env):
+    env = dynamic_env
+    runtime = service(env, successful_mission([]))
+    assert runtime.shutdown(timeout_seconds=2)
+    with pytest.raises(ExecutionRuntimeError, match="runtime_shutdown"):
+        runtime.advance(
+            env.claims, env.execution["task_id"], env.execution["run_id"]
+        )
+
+
+def test_shutdown_cancels_active_worker_and_persists_non_relaunchable_stop(dynamic_env):
+    env = dynamic_env
+    entered = threading.Event()
+
+    def mission(_description, **kwargs):
+        entered.set()
+        deadline = time.monotonic() + 3
+        while not kwargs["cancelled"]() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        return {"status": "CANCELLED", "code": "cancelled"}
+
+    runtime = service(env, mission)
+    task_id, run_id = env.execution["task_id"], env.execution["run_id"]
+    runtime.advance(env.claims, task_id, run_id)
+    assert entered.wait(2)
+    assert runtime.shutdown(timeout_seconds=2)
+    stopped = runtime.status(env.claims, task_id)
+    assert stopped["phase"] == "STOPPED"
+    assert stopped["stopCode"] == "runtime_shutdown"
+    with pytest.raises(ExecutionRuntimeError, match="runtime_shutdown"):
+        runtime.advance(env.claims, task_id, run_id)

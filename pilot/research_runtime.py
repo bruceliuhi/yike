@@ -14,18 +14,29 @@ SOURCE_LABEL = "V2EX最新主题 · 公开单源研究"
 
 
 class ResearchRuntimeService:
-    def __init__(self, orchestrator, *, lease_seconds=120):
+    def __init__(self, orchestrator, *, lease_seconds=120, dynamic=None):
         self.orchestrator = orchestrator
         self.database = orchestrator.sources.resources.runtime.database
         self.execution = orchestrator.sources.resources.runtime
         self.owner = str(uuid4())
         self.lease_seconds = lease_seconds
+        self.dynamic = dynamic
 
-    def capability(self, claims, *, source_catalog_version=None, source_plan_version=None):
+    def capability(self, claims, *, source_catalog_version=None, source_plan_version=None,
+                   dynamic_research_version=None):
         with self.database.connect() as connection, connection.cursor() as cursor:
             self.execution._active(cursor, claims)
+        selected = sum(value is not None for value in (
+            source_catalog_version, source_plan_version, dynamic_research_version))
+        if selected > 1:
+            raise ExecutionRuntimeError('invalid_request', 422)
+        if dynamic_research_version is not None:
+            if (type(dynamic_research_version) is not int
+                    or dynamic_research_version != 1 or self.dynamic is None):
+                raise ExecutionRuntimeError('invalid_request', 422)
+            return self.dynamic.capability()
         if source_plan_version is not None:
-            if type(source_plan_version) is not int or source_plan_version != 1 or source_catalog_version is not None:
+            if type(source_plan_version) is not int or source_plan_version != 1:
                 raise ExecutionRuntimeError('invalid_request', 422)
             return {'contractVersion': 3, 'sourceScope': 'V2EX_INDEX_PLAN',
                 'sourceLabel': 'V2EX多板块 · 有界来源计划', 'sourceIds': list(SOURCE_IDS),
@@ -134,10 +145,19 @@ class ResearchRuntimeService:
         return result
 
     def status(self, claims, task_id):
-        return self._dto(claims, canonical_uuid(task_id))
+        task_id = canonical_uuid(task_id)
+        if self._dynamic_task(claims, task_id):
+            if self.dynamic is None:
+                raise ExecutionRuntimeError("capability_unavailable", 501)
+            return self.dynamic.status(claims, task_id)
+        return self._dto(claims, task_id)
 
     def advance(self, claims, task_id, run_id):
         task_id, run_id = canonical_uuid(task_id), canonical_uuid(run_id)
+        if self._dynamic_task(claims, task_id):
+            if self.dynamic is None:
+                raise ExecutionRuntimeError("capability_unavailable", 501)
+            return self.dynamic.advance(claims, task_id, run_id)
         already_running = False
         with self.database.connect() as connection, connection.cursor() as cursor:
             tenant, task = self._identity(cursor, claims, task_id, run_id, lock=True)
@@ -187,6 +207,21 @@ class ResearchRuntimeService:
         else:
             self._release(claims, task_id, generation, result["phase"], result["stopCode"])
         return self._dto(claims, task_id)
+
+    def _dynamic_task(self, claims, task_id):
+        with self.database.connect() as connection, connection.cursor() as cursor:
+            tenant = self.execution._active(cursor, claims)
+            cursor.execute("SELECT configuration_snapshot FROM pilot_collection_tasks "
+                "WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s",
+                (tenant, claims.user_id, task_id))
+            row = cursor.fetchone()
+            if row is None:
+                raise ExecutionRuntimeError("task_not_found", 404)
+            configuration = row[0].get("configuration", {})
+            result = (type(configuration) is dict
+                and configuration.get("publicSource") == "public-web-agent-v1")
+            self.execution._active(cursor, claims)
+            return result
 
     def _admission(self, claims, task_id, run_id, generation):
         def admit(cursor, tenant, event):
