@@ -14,7 +14,12 @@ ENDPOINT_HOST = "google.serper.dev"
 MAX_BODY_BYTES = 1024 * 1024
 MAX_INPUT_BYTES = 16 * 1024
 _CODES = {"unavailable", "auth_failed", "rate_limited", "timeout", "too_large", "invalid_search_result"}
-_CREDENTIAL_KEYS = {"apikey", "accesskey", "secretkey", "authorization", "auth", "token", "password", "cookie", "session", "signature"}
+_CREDENTIAL_KEYS = {
+    "apikey", "accesskey", "accesskeyid", "secretkey", "secretaccesskey",
+    "clientsecret", "credential", "credentials", "authorization", "auth",
+    "token", "accesstoken", "refreshtoken", "idtoken", "password", "passwd",
+    "pwd", "cookie", "session", "sessionid", "signature", "sig",
+}
 
 
 class WorkerError(RuntimeError):
@@ -33,7 +38,7 @@ def _text(value, limit: int):
 
 
 def _safe_url(value):
-    if type(value) is not str or len(value) > 8192:
+    if type(value) is not str or len(value) > 2048:
         return None
     try:
         parts = urlsplit(value)
@@ -95,7 +100,8 @@ def search_request(request: dict) -> dict:
     connection = None
     try:
         connection = http.client.HTTPSConnection(ENDPOINT_HOST, 443, timeout=timeout, context=ssl.create_default_context())
-        payload = json.dumps({"q": query, "num": 10, "hl": "zh-cn"}, ensure_ascii=False, separators=(",", ":"))
+        payload = json.dumps({"q": query, "num": 10, "hl": "zh-cn"}, ensure_ascii=False,
+                             separators=(",", ":")).encode("utf-8")
         connection.request("POST", "/search", payload, {
             "Content-Type": "application/json", "Accept": "application/json",
             "X-API-KEY": api_key, "Connection": "close", "User-Agent": "YikePublicSearch/1",

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+from copy import deepcopy
 import subprocess
 import sys
 import threading
@@ -10,6 +11,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from pilot.open_web_reader import PublicReadError, normalize_public_url
 from pilot.public_search_worker import _safe_url
 
 _WORKER = Path(__file__).with_name("public_search_worker.py")
@@ -39,7 +41,8 @@ def valid_search_result(value: dict, query: str) -> bool:
     if type(value) is not dict or type(value.get("replayed")) is not bool:
         return False
     if value.get("status") == "FAILED":
-        return set(value) == {"status", "code", "replayed"} and value.get("code") in _FAILURE_CODES
+        code = value.get("code")
+        return set(value) == {"status", "code", "replayed"} and type(code) is str and code in _FAILURE_CODES
     if set(value) != _SEARCH_KEYS or value.get("status") != "SEARCHED" or value.get("query") != query:
         return False
     if value.get("read_scope") != "SEARCH_RESULTS" or type(value.get("omitted_count")) is not int or value["omitted_count"] < 0:
@@ -58,7 +61,11 @@ def valid_search_result(value: dict, query: str) -> bool:
         if type(item) is not dict or set(item) != _ITEM_KEYS:
             return False
         url = item.get("url")
-        if type(url) is not str or _safe_url(url) != url or url in urls:
+        try:
+            safe_url = type(url) is str and len(url) <= 2048 and _safe_url(url) == url and normalize_public_url(url) == url
+        except PublicReadError:
+            safe_url = False
+        if not safe_url or url in urls:
             return False
         urls.add(url)
         for key, limit in (("title", 1000), ("snippet", 2000), ("date_hint", 200)):
@@ -99,6 +106,7 @@ class PublicSearchSession:
         self._max_searches = max_searches
         self._deadline = float(deadline)
         self._condition = threading.Condition()
+        self._operation_lock = threading.Lock()
         self._active_lock = threading.Lock()
         self._active: set[subprocess.Popen] = set()
         self._cache: dict[str, dict] = {}
@@ -111,11 +119,15 @@ class PublicSearchSession:
             normalized = normalize_query(query)
         except ValueError:
             return _failure("invalid_query")
+        if self._api_key in normalized:
+            return _failure("invalid_query")
         with self._condition:
             while normalized in self._inflight:
                 self._condition.wait()
             if normalized in self._cache:
-                return self._cache[normalized] | {"replayed": True}
+                replay = deepcopy(self._cache[normalized])
+                replay["replayed"] = True
+                return replay
             if self._closed:
                 return _failure("closed")
             if time.monotonic() >= self._deadline:
@@ -124,12 +136,20 @@ class PublicSearchSession:
                 return _failure("search_limit_reached")
             self._attempts += 1
             self._inflight.add(normalized)
-        result = self._run(normalized)
+        with self._operation_lock:
+            with self._active_lock:
+                closed = self._closed
+            if closed:
+                result = _failure("closed")
+            elif time.monotonic() >= self._deadline:
+                result = _failure("deadline_exceeded")
+            else:
+                result = self._run(normalized)
         with self._condition:
-            self._cache[normalized] = result
+            self._cache[normalized] = deepcopy(result)
             self._inflight.remove(normalized)
             self._condition.notify_all()
-        return result
+        return deepcopy(result)
 
     def _run(self, query: str) -> dict:
         remaining = self._deadline - time.monotonic()
@@ -148,6 +168,14 @@ class PublicSearchSession:
             payload = json.dumps({"query": query, "api_key": self._api_key, "timeout_seconds": timeout},
                                  ensure_ascii=False, separators=(",", ":"))
             stdout, _stderr = process.communicate(payload, timeout=timeout)
+            with self._active_lock:
+                closed = self._closed
+            if closed:
+                return _failure("closed")
+            if time.monotonic() >= self._deadline:
+                return _failure("deadline_exceeded")
+            if process.returncode != 0:
+                return _failure("unavailable")
             if len(stdout.encode("utf-8")) > _MAX_OUTPUT_BYTES:
                 return _failure("too_large")
             message = json.loads(stdout)
@@ -155,7 +183,12 @@ class PublicSearchSession:
                 return _failure("invalid_search_result")
             if message.get("ok") is False:
                 return _failure(message.get("code"))
-            candidate = {"status": "SEARCHED", **message.get("result", {}), "replayed": False}
+            if message.get("ok") is not True:
+                return _failure("invalid_search_result")
+            worker_result = message.get("result", {})
+            if self._api_key in json.dumps(worker_result, ensure_ascii=False):
+                return _failure("invalid_search_result")
+            candidate = {"status": "SEARCHED", **worker_result, "replayed": False}
             return candidate if valid_search_result(candidate, query) else _failure("invalid_search_result")
         except subprocess.TimeoutExpired:
             if process is not None:
