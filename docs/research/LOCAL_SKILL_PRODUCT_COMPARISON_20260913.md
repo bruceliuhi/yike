@@ -8,6 +8,8 @@
 
 ## 可定位的差距
 
+最新实测：`fc16383`补了版本绑定的可信目录/同客户KNOWN历史入口，独立代码复核通过；新实际任务**0搜索、2成功原文读取**，已能目录→原帖导航，不再依赖搜索重复命中。但随后绑定/筛选校验停止，候选0，未证明恢复研究质量；最终模型摘要未保存，具体拒绝原因未知。[真实结果与安全诊断下一步](../superpowers/plans/2026-09-13-research-trusted-entries.md#new-real-task--direct-entry-and-navigation-succeeded-result-validation-stopped)。下段入口缺口为上一批时点，不能继续当成当前仍未接通，也不能将读页成功升级为商机产出。
+
 2026-09-13 接续：`9cda1fc`已实现证据绑定的材料/候选筛选，独立代码复核通过，但本次真实两页任务未到筛选阶段：四次搜索未返回目标链接，已知入口不在当前读页许可中，两次读取被拒，最终`STOPPED/no_verified_reads`、原文0。[完整证据及下一动作](../superpowers/plans/2026-09-13-research-page-selection.md#new-known-source-real-probe--stopped-not-selection-validation)。因此下表“选择性发布尚未完成”是此前基线；代码已接通，不代表实际效果已验证。新增明确差距是**本地能使用已知公开入口，产品提示里的入口却仍需搜索结果再次命中才能读**。下一步接安全、版本绑定的可信种子入口，保留来源权限和预算，不继续堆词盲试。
 
 | 环节 | 本地研究实践 | 当前产品证据与缺口 |

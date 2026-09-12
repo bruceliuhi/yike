@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+可信入口实际接续（2026-09-13，代码`fc16383`）：编译派生的目录/同客户KNOWN历史入口绑定到模型提示、MCP、宿主和事件门禁；两项审核问题合批修复，独立Spec/Quality PASS。[唯一实现、限定测试及真实结果](superpowers/plans/2026-09-13-research-trusted-entries.md#evidence)。新实际任务0搜索/2原文/3研究模型成功，目录→原帖导航已过；随后STOPPED/research_selection_invalid、入库/判断0。**当前卡点已从读不到入口推进到结果绑定/筛选校验；原始最终摘要未捕获，具体原因未知。下一批先补安全诊断并复用保留原文，不重搜旧页、不放宽证据或宣称效果恢复。** 无部署/构包/外联，完整Goal ACTIVE。
+
 研究材料/候选分离（2026-09-13，代码`9cda1fc`）：严格逐页决策绑定实际READ，背景原文保留但不占候选名额/普通判断调用；两项P2合批修复后独立Spec/Quality PASS。[唯一代码、定向验证与真实失败证据](superpowers/plans/2026-09-13-research-page-selection.md#evidence)。新真实两页任务4搜索/4模型、0READ，因搜索未返回指定入口且入口不在读页许可中，STOPPED/no_verified_reads；**未到筛选阶段、无新增线索，不宣称恢复原Skill效果。下一批优先接版本绑定的可信公开种子入口，而非继续搜索同一URL；再验证真实筛选与净新增供给。** 未部署/构包/外联，完整Goal ACTIVE。
 
 本地Skill入口接续（2026-09-13，代码`eca3fec`）：既有来源目录加入动态研究的条件化提示，不改客户策略/连接器/权限/预算；规则完整编译文本含提示参与hash，旧保存上下文拒绝静默续跑。定向140项及独立Spec/Quality PASS，[唯一证据](superpowers/plans/2026-09-13-research-entry-hints.md#evidence)。[逐文件及实际路径对照](research/LOCAL_SKILL_PRODUCT_COMPARISON_20260913.md)已记录；本批无新实网结果，SEND_READY仍0。**下一步区分研究材料与候选，再用固定画像/预算/历史的新任务验证真实价值；入口提示接入不能宣称恢复原Skill效果。** 未部署/构包/外联，完整Goal ACTIVE。
