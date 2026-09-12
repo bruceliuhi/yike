@@ -8,12 +8,16 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from pilot.execution_contract import canonical_uuid
+from pilot.execution_contract import ExecutionRuntimeError, canonical_uuid
 from pilot.research_effect_contract import (
     canonical_effect_sha256, effect_input, effect_result, known_read_failure,
     is_known_read_failure,
 )
 from pilot.research_effects import EffectDispatchError
+
+
+class _AdmissionLimitReached(EffectDispatchError):
+    """Trusted journal rejected before issuing a permit; no effect occurred."""
 
 
 class DurableResearchDispatcher:
@@ -86,11 +90,20 @@ class DurableResearchDispatcher:
                 clean, digest = effect_input(kind, payload, self._binding)
                 self._sequence += 1
                 sequence = self._sequence
-                began = self._journal.begin(
-                    self._claims, task_id=self._task_id, run_id=self._run_id,
-                    sequence=sequence, generation=self._generation,
-                    coordinator_owner=self._owner, context_binding=self._binding,
-                    kind=kind, payload=clean)
+                try:
+                    began = self._journal.begin(
+                        self._claims, task_id=self._task_id, run_id=self._run_id,
+                        sequence=sequence, generation=self._generation,
+                        coordinator_owner=self._owner, context_binding=self._binding,
+                        kind=kind, payload=clean)
+                except ExecutionRuntimeError as error:
+                    if error.code != "resource_limit_exceeded":
+                        raise
+                    # ResourceStore raises this before inserting either record.
+                    # Reuse the unissued sequence; other resources still require
+                    # fresh authority/limit checks. Never recover I/O/ACK errors.
+                    self._sequence -= 1
+                    raise _AdmissionLimitReached() from None
                 if type(began) is not dict or set(began) != {"created", "entry"} \
                         or type(began["created"]) is not bool:
                     self._fail()
@@ -137,6 +150,8 @@ class DurableResearchDispatcher:
                         or checked["result"] != expected_result:
                     self._fail()
                 return copy.deepcopy(checked["result"])
+            except _AdmissionLimitReached:
+                raise
             except EffectDispatchError:
                 self._closed = True
                 raise

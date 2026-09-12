@@ -277,6 +277,31 @@ def test_source_budget_exhaustion_has_no_extra_journal(journal_env):
     assert counts(env)==(10,10)
 
 
+@pytest.mark.parametrize('cancel_after_limit', [False, True])
+def test_source_admission_limit_keeps_other_resource_admission_authoritative(journal_env, cancel_after_limit):
+    env=journal_env; gateway=dispatcher(env)
+    for _ in range(10):
+        gateway('SEARCH', {'query':'企业知识库 找团队'}, time.monotonic()+30, lambda _:result())
+    for _ in range(2):
+        with pytest.raises(EffectDispatchError):
+            gateway('SEARCH', {'query':'另一查询'}, time.monotonic()+30,
+                    lambda _:pytest.fail('exhausted source must never perform'))
+    assert counts(env)==(10,10)
+    if cancel_after_limit:
+        apply(env,operation(env,'CANCEL',env.execution))
+        with pytest.raises(EffectDispatchError):
+            gateway('MODEL',model_payload(),time.monotonic()+30,
+                    lambda _:pytest.fail('cancellation must still block'))
+        assert counts(env)==(10,10)
+    else:
+        assert gateway('MODEL',model_payload(),time.monotonic()+30,
+                       lambda _:model_result())==model_result()
+        assert counts(env)==(11,11)
+        with env.admin.connect() as connection:
+            assert connection.execute('SELECT sequence,kind FROM pilot_research_effect_journal '
+                'WHERE tenant_id=%s ORDER BY sequence DESC LIMIT 1',(env.tenant,)).fetchone()==(11,'MODEL')
+
+
 @pytest.mark.parametrize('change',['capability','rule'])
 def test_replay_requires_current_resource_authority(journal_env,change):
     env=journal_env; finish(env,begin(env)['entry'])

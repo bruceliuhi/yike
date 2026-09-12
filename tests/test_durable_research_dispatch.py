@@ -68,6 +68,30 @@ def test_created_effect_performs_then_finishes_before_returning():
     assert journal.events[0][1]["sequence"] == 1
 
 
+@pytest.mark.parametrize('phase', ['begin', 'perform', 'finish'])
+def test_resource_limit_is_recoverable_only_before_journal_admission(phase):
+    from pilot.execution_contract import ExecutionRuntimeError
+    journal=Journal(); use=dispatcher(journal)
+    original_begin=journal.begin; original_finish=journal.finish
+    def denied(*args, **kwargs):
+        raise ExecutionRuntimeError('resource_limit_exceeded',409)
+    if phase=='begin': journal.begin=denied
+    if phase=='finish': journal.finish=denied
+    with pytest.raises(EffectDispatchError):
+        use('SEARCH',{'query':'buyer'},time.monotonic()+10,
+            denied if phase=='perform' else lambda _:search_result())
+    journal.begin=original_begin; journal.finish=original_finish
+    if phase=='begin':
+        expected=search_result()
+        assert use('SEARCH',{'query':'buyer'},time.monotonic()+10,
+                   lambda _:expected)==expected
+        assert journal.events[-2][1]['sequence']==1
+    else:
+        with pytest.raises(EffectDispatchError):
+            use('SEARCH',{'query':'buyer'},time.monotonic()+10,
+                lambda _:pytest.fail('uncertain effect must keep dispatcher closed'))
+
+
 def test_known_failure_finishes_failed_then_allows_different_effect():
     journal = Journal(); use = dispatcher(journal)
     result = {"status": "FAILED", "code": "not_found", "replayed": False}
