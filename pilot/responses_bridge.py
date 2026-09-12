@@ -330,6 +330,10 @@ class ResponsesBridge:
         if not isinstance(payload, dict) or not isinstance(payload.get("tools", []), list) or not isinstance(payload.get("input", []), list):
             raise BridgeError("invalid_request")
         result = dict(payload)
+        # Codex transport telemetry is not model context. Do not forward or
+        # journal its session identifiers; business input stays untouched and
+        # continues through the existing sensitive-data admission checks.
+        result.pop("client_metadata", None)
         result["model"] = self._model
         reasoning = result.get("reasoning")
         if reasoning is not None:

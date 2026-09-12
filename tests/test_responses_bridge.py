@@ -119,6 +119,48 @@ def test_assistant_history_supplies_required_status_without_changing_text_or_pha
     assert messages==original
 
 
+def test_codex_client_metadata_is_removed_before_durable_admission_and_provider():
+    from pilot.research_effect_contract import effect_input
+    from tests.test_research_effect_contract import binding
+    admitted, forwarded = [], []
+    def dispatcher(kind, payload, deadline, perform):
+        clean, _ = effect_input(kind, payload, binding())
+        admitted.append(clean)
+        return perform(deadline)
+    def provider(req):
+        forwarded.append(json.loads(req.content))
+        return httpx.Response(200, headers={'content-type':'text/event-stream'}, content=sse(
+            ('response.completed', {'type':'response.completed', 'response':{
+                'status':'completed', 'output':[]}})))
+    payload = {'stream':True, 'tools':[], 'input':[{'role':'user', 'content':'找企业知识库采购'}],
+               'client_metadata':{'session_id':'synthetic-codex-session',
+                   'x-codex-turn-metadata':'{"session_id":"synthetic-codex-session"}'}}
+    original = json.loads(json.dumps(payload))
+    with ResponsesBridge(api_key=KEY, model='test-model', max_requests=1,
+            deadline=monotonic()+10, allowed_tools=(), effect_dispatcher=dispatcher,
+            transport=httpx.MockTransport(provider)) as bridge:
+        response = request(bridge, payload)
+    assert response.status_code == 200
+    assert len(admitted) == len(forwarded) == 1
+    assert admitted[0] == forwarded[0]
+    assert 'client_metadata' not in forwarded[0]
+    assert forwarded[0]['input'] == original['input'] and payload == original
+
+
+def test_business_session_credentials_are_not_removed_or_allowed_by_metadata_filter():
+    from pilot.execution_contract import ExecutionRuntimeError
+    from pilot.research_effect_contract import effect_input
+    from tests.test_research_effect_contract import binding
+    with ResponsesBridge(api_key=KEY, model='test-model', max_requests=1,
+            deadline=monotonic()+10, allowed_tools=()) as bridge:
+        payload = {'stream':True, 'tools':[], 'input':[{'role':'user',
+            'content':'{"session_id":"synthetic-private-session"}'}]}
+        outbound = bridge._outbound(payload)
+        assert outbound['input'] == payload['input']
+        with pytest.raises(ExecutionRuntimeError, match='^invalid_effect_input$'):
+            effect_input('MODEL', outbound, binding())
+
+
 def test_model_effect_dispatch_receives_normalized_outbound_and_shortened_deadline():
     seen = {}
     host_deadline = monotonic() + 10
