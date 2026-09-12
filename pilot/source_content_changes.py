@@ -56,6 +56,13 @@ def _author_quote(body):
     return quote
 
 
+def _author_modified_quote(body, other):
+    try:
+        return _quote(body, other)
+    except SourceContentChangeError:
+        return _author_quote(body)
+
+
 def _author_signature(row, *, author_expected=False):
     """Return a comparable author snapshot, or a reason it is not trustworthy."""
     content=row["content"]; context=content.get("source_context")
@@ -130,14 +137,16 @@ def _project_author_changes(groups, *, anchor_observation_id, anchor_time, sourc
             kind="OBSERVED_NEW" if before is None else "MODIFIED"
             identity=[anchor_observation_id,str(previous["observation_id"]),str(current["observation_id"]),
                       str(previous["version_id"]),str(current["version_id"]),reply_id,kind]
-            reference=lambda row,body:{"sourceUrl":source_url,"evidenceVersion":str(row["version_id"]),
-                                       "quote":_author_quote(body)}
+            reference=lambda row,quote:{"sourceUrl":source_url,"evidenceVersion":str(row["version_id"]),
+                                        "quote":quote}
+            before_quote=None if before is None else _author_modified_quote(before,after)
+            after_quote=_author_quote(after) if before is None else _author_modified_quote(after,before)
             changes.append({"id":_stable("oac_",identity),"replyId":reply_id,"kind":kind,
                 "label":"首次观察到作者回复" if kind=="OBSERVED_NEW" else "观察到作者回复正文变化",
                 "fromObservationId":str(previous["observation_id"]),"toObservationId":str(current["observation_id"]),
                 "detectedAt":_iso(max(_wire_time(previous["received_at"]),_wire_time(current["received_at"]))),
-                "occurredAt":None,"from":None if before is None else reference(previous,before),
-                "to":reference(current,after)})
+                "occurredAt":None,"from":None if before_quote is None else reference(previous,before_quote),
+                "to":reference(current,after_quote)})
             if len(changes)>200: raise SourceContentChangeError("author change limit")
         baseline=(current,snapshot)
     return changes,gaps

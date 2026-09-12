@@ -113,6 +113,44 @@ def test_opt_in_projects_new_modified_once_and_enriches_versions():
     assert project(rows)["authorChanges"] == result["authorChanges"]
 
 
+def test_modified_long_tail_quotes_show_the_actual_change_without_splitting_emoji():
+    before = "A" * 9000 + "🙂项目仍开放"
+    after = "A" * 9000 + "🙂项目已关闭"
+    result = project([
+        row("o0", "v0", 2, source_context=context(reply("10", before))),
+        row("o1", "v1", 4, source_context=context(reply("10", after))),
+    ])
+
+    event = result["authorChanges"][0]
+    assert event["kind"] == "MODIFIED"
+    assert "项目仍开放" in event["from"]["quote"]
+    assert "项目已关闭" in event["to"]["quote"]
+    for quote, body in ((event["from"]["quote"], before), (event["to"]["quote"], after)):
+        assert quote and quote.strip() and quote in body
+        assert len(quote.encode("utf-16-le")) // 2 <= 8000
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "changed_side", "changed_text"),
+    [
+        ("A" * 9000, "A" * 9000 + "🙂新增说明", "to", "🙂新增说明"),
+        ("A" * 9000 + "🙂删除说明", "A" * 9000, "from", "🙂删除说明"),
+    ],
+)
+def test_modified_append_or_delete_quotes_keep_the_changed_tail(before, after, changed_side, changed_text):
+    result = project([
+        row("o0", "v0", 2, source_context=context(reply("10", before))),
+        row("o1", "v1", 4, source_context=context(reply("10", after))),
+    ])
+
+    event = result["authorChanges"][0]
+    assert changed_text in event[changed_side]["quote"]
+    for side, body in (("from", before), ("to", after)):
+        quote = event[side]["quote"]
+        assert quote and quote.strip() and quote in body
+        assert len(quote.encode("utf-16-le")) // 2 <= 8000
+
+
 def test_default_projection_is_exact_legacy_shape_and_gap():
     rows = [row("o0", "v0", 2, source_context=context()),
             row("o1", "v1", 4, source_context=context(reply("10", "新回复")))]

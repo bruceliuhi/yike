@@ -53,4 +53,5 @@
 - 客户端新增测试先5 failed/1 passed；旧无作者上下文UI补充先RED，再保留可展开作者证据。Node24运行 `vitest run tests/ui/author-source-changes.test.tsx tests/ui/source-content-changes.test.tsx tests/opportunityResearchService.test.ts`：23 passed / 2.42s；tsc --noEmit退出0。旧请求形状断言随V3更新，旧响应解析不放宽。
 - 简报旧标签断言定向RED后改为正式新文案；`vitest run tests/ui/r4-opportunity-brief.test.tsx -t 'renders three groups'`：1 passed / 10未选中；未重跑无差量用例。
 - root实际使用Vite SSR加载正式 `parseResearchTimeline`，离线读取后端成功PG/认证HTTP用例保存的原始JSON，以generatedAt检查当时快照：V3、2版本、1作者事件通过，退出0。没有手工重构DTO，不宣称一次真实浏览器端到端。
+- 独立初审 `503bf50` 发现P2：长回复尾部修改时前后引文只取相同开头，简报遗漏变化内容。root复现后，MODIFIED改用既有首差异窗口，OBSERVED_NEW不变；长尾替换/emoji追加/删除3项先RED后GREEN，纯回归22 passed / 1 PG跳过 / 1未选中，不重复PG组。root独立反例确认两段逐字引用均显示变化，各1003 UTF16单元；空白窗口保持非空片段回退，未推断业务状态。
 - 全部新增功能未部署/构包/真实平台执行/外发，无Windows新包或客户UAT证据；既有Windows候选不能追认本批。完整Goal保持ACTIVE。
