@@ -183,14 +183,15 @@ def _validate(value: object) -> dict:
         configuration = normalized["configuration"]
         research = configuration.get("research")
         dynamic = research.get("dynamicScope") if type(research) is dict else None
+        if (configuration.get("publicSource") != "public-web-agent-v1"
+                or normalized["platforms"] != ["PUBLIC_WEB"] or dynamic is None):
+            _invalid()
         industry = configuration.get("industryStrategy")
         projected_signals = (industry["intentSignals"] if industry is not None else [
             _DEMAND_SIGNALS[item] for item in research["demandTypes"]])
         projected_exclusions = configuration["exclusions"] + (
             industry["counterSignals"] if industry is not None else [])
-        if (configuration.get("publicSource") != "public-web-agent-v1"
-                or normalized["platforms"] != ["PUBLIC_WEB"]
-                or value["query_seeds"] != configuration["keywords"]
+        if (value["query_seeds"] != configuration["keywords"]
                 or value["intent_signals"] != projected_signals
                 or value["exclusions"] != projected_exclusions
                 or value["timezone"] != dynamic["timezone"]

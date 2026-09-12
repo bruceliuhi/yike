@@ -95,6 +95,27 @@ def test_v2_uses_fixed_demand_fallback_without_industry_strategy():
     compile_research_context(value)
 
 
+@pytest.mark.parametrize(("with_research", "with_industry"), [
+    (False, False), (False, True), (True, False), (True, True),
+])
+def test_v2_rejects_valid_legacy_snapshot_without_dynamic_scope_fail_closed(
+        with_research, with_industry):
+    configuration = deepcopy(dynamic_snapshot()["configuration"])
+    configuration.pop("publicSource")
+    if with_research:
+        configuration["research"].pop("dynamicScope")
+    else:
+        configuration["research"] = None
+    if not with_industry:
+        configuration.pop("industryStrategy")
+    legacy = strategy_snapshot(
+        context()["profile_version_id"], context()["strategy_version_id"],
+        configuration, ["PUBLIC_WEB"], 20, 600,
+    )
+    value = projected_v2(strategy_snapshot=legacy)
+    assert_error(value)
+
+
 def test_v2_preserves_8000_multiline_profile_and_v1_limits_remain_unchanged():
     seller = "甲\n" + "乙" * 7998
     assert compile_research_context(projected_v2(seller_description=seller))["context_json"]
