@@ -107,7 +107,7 @@ def runtime_databases():
         for filename in ("grant_session_revocations.sql", "grant_device_credentials.sql",
                          "grant_connection_operations.sql", "grant_execution_runtime.sql",
                          "grant_research_strategies.sql", "grant_monitor_plans.sql",
-                         "grant_monitor_runtime.sql"):
+                         "grant_monitor_runtime.sql", "grant_research_execution.sql"):
             connection.execute((root / "deploy" / filename).read_text())
     yield admin, RoleDatabase(admin, role)
     with admin.connect() as connection:

@@ -165,14 +165,20 @@ class MonitorRuntime:
             from pilot.foreground_collection import (four_platform_monitor_policy,
                                                     four_platform_public_monitor_policy,
                                                     four_platform_public_sampling_monitor_policy,
-                                                    four_platform_public_node_monitor_policy)
+                                                    four_platform_public_node_monitor_policy,
+                                                    four_platform_public_project_monitor_policy,
+                                                    four_platform_public_bili_links_monitor_policy)
             platforms = ("XIAOHONGSHU", "DOUYIN", "BILIBILI")
             if runtime.capability_check in (four_platform_monitor_policy, four_platform_public_monitor_policy,
                                             four_platform_public_sampling_monitor_policy,
-                                            four_platform_public_node_monitor_policy):
+                                            four_platform_public_node_monitor_policy,
+                                            four_platform_public_project_monitor_policy,
+                                            four_platform_public_bili_links_monitor_policy):
                 platforms += ("ZHIHU",)
             if runtime.capability_check in (four_platform_public_sampling_monitor_policy,
-                                            four_platform_public_node_monitor_policy):
+                                            four_platform_public_node_monitor_policy,
+                                            four_platform_public_project_monitor_policy,
+                                            four_platform_public_bili_links_monitor_policy):
                 platforms += ("PUBLIC_WEB",)
             if (snapshot["configuration"].get("mode") != "monitor"
                     or snapshot["configuration"].get("schedule", {}).get("policyVersion") != 1
