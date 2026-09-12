@@ -135,16 +135,35 @@ def test_v2_rejects_bad_hash_text_and_projection_mismatches(change):
     assert_error(projected_v2(**change))
 
 
-def test_v2_secret_scans_complete_strategy_and_rejects_oversize():
+def test_v2_secret_scans_complete_strategy():
     value = projected_v2()
     value["strategy_snapshot"]["configuration"]["name"] = "password=synthetic-secret"
     assert_error(value)
-    assert_error(projected_v2(history=[{
+
+
+def test_v2_accepts_large_valid_profile_and_partial_history():
+    value=projected_v2(history=[{
         "project_key": f"project-{index}", "description": "历" * 500,
         "state": "KNOWN", "source_urls": ["https://example.com/" + "x" * 2000] * 3,
     } for index in range(30)], history_scope="PARTIAL",
-        seller_description="甲" * 8000,
-        query_seeds=["查" * 160] * 20))
+        seller_description="甲" * 8000)
+    compiled=compile_research_context(value)
+    assert 250000 < len(compiled['context_json'].encode('utf-8')) < 512*1024
+    assert json.loads(compiled['context_json'])==value
+
+
+def test_v2_byte_guard_precedes_rule_loading_with_injected_encoded_size(monkeypatch):
+    import pilot.research_context as module
+    value=projected_v2()
+    encode=module._canonical_json
+    # Isolate the encoded-size guard; this is not a claim that valid field
+    # maxima naturally exceed the deliberately generous 512 KiB budget.
+    def oversized_context(item):
+        encoded=encode(item)
+        return encoded+' '* (512*1024) if item.get('schema_version')=='research-context-v2' else encoded
+    monkeypatch.setattr(module,'_canonical_json',oversized_context)
+    monkeypatch.setattr(module,'_load_rules',lambda:pytest.fail('oversize must reject before loading rules'))
+    assert_error(value)
 
 
 def assert_error(value, code="invalid_research_context"):
