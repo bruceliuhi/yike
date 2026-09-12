@@ -30,6 +30,30 @@ uv run --frozen --extra research python -m pilot.research_tools --max-reads 5 --
 
 ## 验证与接续
 
+### 内部 Codex 执行入口
+
+`pilot.codex_research_worker.run_public_read_mission` 使用明确指定的 Codex 可执行文件和安装本包的 Python；适用 POSIX 服务端，不是 Windows 客户端执行器。宿主在内存中传入模型密钥、模型名、公开阅读任务和资源上限。当前适配仅固定火山方舟 Responses 地址，不支持调用方指定任意模型服务地址；Qwen 尚未实测或启用。
+
+```python
+from pilot.codex_research_worker import run_public_read_mission
+
+result = run_public_read_mission(
+    "用提供的工具读取 https://example.com/，仅依据原文说明标题。",
+    codex_binary=approved_codex_path,
+    python_binary=research_python_path,
+    api_key=secret_from_host,  # 宿主凭据存储提供；不得写入任务文本或日志
+    model=approved_model,
+    max_reads=1, max_requests=2, max_seconds=60,
+    cancelled=host_cancelled,
+)
+```
+
+内部临时桥接器只监听带随机令牌的本机端口，将 Codex 的命名空间工具协议转换为供应商兼容形式。真实供应商密钥只留在桥接器内存，不进入 Codex 参数、工作目录或工具环境。执行器使用临时工作区、独立 Codex 状态目录、禁用用户配置和无关工具；这不替代正式部署时逐租户容器和网络隔离。
+
+返回 `COMPLETED/FAILED/CANCELLED`、固定错误码、实际 MCP `reads`、`read_failures`、独立模型 `summary`、Token 用量和供应商请求回执。模型自述不生成原文证据；没有成功工具读取则不能完成。失败/取消可保留此前已读取事实，但仍是失败/取消，缺失用量保持未知。不得直接把模型摘要发布为已复核商机。
+
+此入口尚未绑定客户 API、持久任务许可、搜贝账本或数据库证据事务，不能由客户直接调用，也不等于全网搜索已经接通。任务限制是本次执行保护，不是跨任务配额或计费依据。当前实现及真实调用证据见[执行器批次记录](superpowers/plans/2026-09-12-domestic-harness.md#evidence)。
+
 ```sh
 uv run --frozen --extra dev --extra research pytest -q tests/test_open_web_reader.py tests/test_research_tools.py
 ```
