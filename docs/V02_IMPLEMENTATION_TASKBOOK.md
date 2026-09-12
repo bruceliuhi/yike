@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+近期入口真实接续（2026-09-13，绑定`fbb4d79`）：新任务2搜索/1读取/5模型成功，合法invalid_url拒绝未再触发格式中断；随后LINUX DO access_restricted按当前保护停止、无绕过。原文入库/判断0、无新合格机会。[唯一实网及本地Skill对照记录](superpowers/plans/2026-09-13-research-denied-navigation.md#new-real-task-after-the-correction-then-local-skill-source-comparison)。额外本地已知项目节点2页40标题/2原帖，已知工业标定B+/REVIEW、MCP模糊需求OBSERVE，均非新增SEND_READY。**下一步是项目节点与同名标签的入口识别、带入已知访问限制、研究页与候选分离，不是继续泛词付费盲试。** 没有产品代码变化/部署/外联，完整Goal ACTIVE。
+
 拒绝导航接续（2026-09-13，代码`d40fce0`）：新近期社区入口任务只完成1搜索、0读取即STOPPED/effect_unknown，未形成机会，不能评价来源质量。进一步离线复现MCP合法的未发现URL拒绝被事件观察器误当协议损坏；现仅精确FAILED/invalid_url/replayedFalse可记录为失败，不授权URL/成功证据。[唯一原始失败边界、复现与验证](superpowers/plans/2026-09-13-research-denied-navigation.md)。真实原触发事件未保留，**不能将该独立缺陷宣称唯一实网根因**；不重试UNKNOWN。下一新任务先保留安全事件形状诊断，再继续近期买方阅读与选择性候选发布；无部署/构包/外联，完整Goal ACTIVE。
 
 研究额度拒绝接续（2026-09-13，代码`ae7abc6`）：新实网批次6搜索/2旧帖/4模型后异常停止；隔离PG复现确定搜索额度拒绝错误关闭整个调度器。本批仅让journal签发前确定的额度拒绝保留其他资源的正常准入，未签发序号复用；未知/取消/权限/回执失联仍停止。[唯一失败、修复与验证记录](superpowers/plans/2026-09-13-research-admission-limit.md)。旧帖已排除，合格新线索0；未重跑旧任务或新实网、未部署/构包/外联。**下一步近期原生买方来源和选择性候选发布，不能把此修复等同于研究质量恢复。** 完整Goal ACTIVE。

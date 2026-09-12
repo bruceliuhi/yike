@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-13 实网导航验证与本地节点对照
+
+`fbb4d79`新实际任务确认合法导航拒绝可继续；后在LINUX DO访问限制处停止，非完成/新商机。另以本地Skill无额外模型调用读取V2EX项目节点2页40标题/2原帖，区别了劳务外包标签和项目节点；已知标定项目待补证、模糊MCP需求观察。[唯一实际证据及下一动作](superpowers/plans/2026-09-13-research-denied-navigation.md#new-real-task-after-the-correction-then-local-skill-source-comparison)。本次仅证据/当前队列更新，不重跑代码测试或构包，不变更生产。
+
 ## 2026-09-13 合法导航拒绝的事件兼容
 
 代码`d40fce0`仅把MCP精确的未发现URL拒绝记为失败尝试，不误报协议损坏，也不授予读取或证据权限。[限定验证与真实失败](superpowers/plans/2026-09-13-research-denied-navigation.md)。新实网入口研究仅1搜索/0读取后中断，合格新增0；原触发事件不明，不声称已恢复该真实任务。后续先加强安全事件形状诊断，不重复UNKNOWN或继续付费盲试；未部署/构包/外联。
