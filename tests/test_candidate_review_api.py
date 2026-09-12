@@ -36,6 +36,9 @@ class ReviewBoundary:
     def get_request(self, claims, request_id):
         return self._call("request", claims, request_id=request_id)
 
+    def get_model_usage(self, claims, request_id):
+        return self._call("model_usage", claims, request_id=request_id)
+
 
 def client_for(service=None, base_url="https://pilot.example"):
     return TestClient(build_app(FakeStore(), auth_secret=SECRET,
@@ -101,6 +104,19 @@ def test_query_preserves_original_request_and_read_never_reexecutes():
     assert client.get("/api/ui/candidate-review-requests/review:opaque.1", headers=headers()).status_code == 200
     assert service.calls[-1][2] == {"request_id": "review:opaque.1"}
     assert [call[0] for call in service.calls] == ["list", "request"]
+
+
+def test_model_usage_query_is_authenticated_read_only_and_rejects_query_fields():
+    service = ReviewBoundary()
+    client = client_for(service)
+    path = "/api/ui/candidate-review-requests/review:opaque.1/model-usage"
+    response = client.get(path, headers=headers())
+    assert response.status_code == 200
+    assert response.json() == {"boundary_operation": "model_usage"}
+    assert service.calls[-1][0] == "model_usage"
+    assert service.calls[-1][2] == {"request_id": "review:opaque.1"}
+    assert client.get(path + "?include=private", headers=headers()).status_code == 422
+    assert [call[0] for call in service.calls] == ["model_usage"]
 
 
 def test_candidate_query_accepts_and_forwards_task_id():
@@ -169,7 +185,8 @@ def test_invalid_query_rejected(query):
 def test_auth_https_origin_and_revoked_session_cover_all_operations():
     service = ReviewBoundary()
     client = client_for(service)
-    paths = ["/api/ui/candidates", "/api/ui/candidate-review-requests/req"]
+    paths = ["/api/ui/candidates", "/api/ui/candidate-review-requests/req",
+        "/api/ui/candidate-review-requests/req/model-usage"]
     for path in paths:
         assert client.get(path).status_code == 401
     body = binding() | {"action": "ASSESS"}

@@ -17,6 +17,7 @@ from pilot.execution_contract import canonical_uuid
 from pilot.opportunity_evidence import build_evidence, canonical_json, evidence_digest
 from pilot.store import PilotStore
 from pilot.research_strategy_contract import IndustryTaskStrategy
+from pilot.candidate_model_usage import CandidateModelUsageStore, validated_usage
 
 
 def _hash(value):
@@ -70,6 +71,7 @@ class CandidateReviewStore(CandidateIngestionStore):
         self.model, self.strategy_resolver = model, strategy_resolver
         self.strategy_snapshot_reader = strategy_snapshot_reader
         self.research_assessment = research_assessment
+        self.model_usage = CandidateModelUsageStore(database)
         self.max_daily_calls = max_daily_calls
 
     def _request(self, cursor, tenant, user, request_id):
@@ -94,6 +96,15 @@ class CandidateReviewStore(CandidateIngestionStore):
             if row is None: raise CandidateReviewError('request_not_found',404)
             result = self._result(cursor,row)
             self._active(cursor,claims)
+            return result
+
+    def get_model_usage(self, claims, request_id):
+        _id(request_id, opaque=True)
+        with self.database.connect() as connection, connection.cursor() as cursor:
+            tenant = self._active(cursor, claims)
+            result = self.model_usage.get(cursor, tenant_id=tenant,
+                owner_user_id=claims.user_id, request_id=request_id)
+            self._active(cursor, claims)
             return result
 
     def _replay(self, cursor, tenant, claims, request, payload, *, expected_research=None):
@@ -188,6 +199,11 @@ class CandidateReviewStore(CandidateIngestionStore):
                 if any(current[key] != snapshot[key] for key in keys):
                     raise CandidateReviewError('candidate_conflict',409)
                 self._active(cursor, claims)
+                if 'research' not in snapshot:
+                    return self.model_usage.dispatch(cursor, tenant_id=tenant,
+                        owner_user_id=claims.user_id, request_id=request.requestId,
+                        snapshot_key=_hash({key:snapshot[key] for key in
+                            ('binding','description','content','strategy','model')}))
         except CandidateReviewError:
             if not mark_failed:
                 raise
@@ -291,8 +307,9 @@ class CandidateReviewStore(CandidateIngestionStore):
                                  status='PROCESSING',snapshot_key=snapshot_key,attempt=attempt,now=reserved_at)
             self._active(cursor,claims)
         # Reservation is committed before crossing the only model/network boundary.
-        self._prepare_assessment_dispatch(claims, request, snapshot)
+        usage_scope = self._prepare_assessment_dispatch(claims, request, snapshot)
         failure = None
+        usage = None
         try:
             kwargs = dict(description=snapshot['description'],content=deepcopy(snapshot['content']))
             if industry_strategy is not None:
@@ -309,8 +326,12 @@ class CandidateReviewStore(CandidateIngestionStore):
             content = validate_assessment(value,description=snapshot['description'],content=snapshot['content']).model_dump()
         except AssessmentModelError as error:
             failure = 'UNKNOWN' if error.code=='assessment_result_unknown' else 'FAILED'
+            if validated_usage(usage) is None:
+                usage = getattr(error, 'usage', None)
         except Exception:
             failure = 'UNKNOWN'
+        if usage_scope is not None:
+            self.model_usage.finish(usage_scope, outcome=failure or 'SUCCEEDED', usage=usage)
         try:
             with self.database.connect() as connection, connection.cursor() as cursor:
                 tenant = self._active(cursor,claims)

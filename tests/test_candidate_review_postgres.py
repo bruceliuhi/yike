@@ -19,7 +19,7 @@ from pilot.candidate_ingestion import CandidateIngestionError
 from pilot.auth import issue_token, verify_token_claims
 from tests.test_execution_runtime_postgres import SECRET, change_strategy, apply, operation
 
-TABLES = ('pilot_candidate_reviews', 'pilot_candidate_source_verifications',
+TABLES = ('pilot_candidate_model_usage_events', 'pilot_candidate_reviews', 'pilot_candidate_source_verifications',
           'pilot_candidate_assessments', 'pilot_candidate_review_requests', 'pilot_candidate_call_quota')
 
 @pytest.fixture(scope='module')

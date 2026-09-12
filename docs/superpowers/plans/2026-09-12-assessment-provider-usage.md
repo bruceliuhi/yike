@@ -30,20 +30,30 @@ Files: pilot/candidate_assessment_model.py、pilot/candidate_assessment_worker.p
 
 Files: 新migration139；pilot/db.py；deploy/grant_candidate_review.sql；新增pilot/candidate_model_usage.py；pilot/candidate_review.py、pilot/candidate_review_api.py；对应新tests/test_candidate_model_usage_postgres.py与API/必要fixture清理适配。不要修改Task1模型文件或桌面/其他文档。
 
-- [ ] 写真实隔离PG RED：成功usage、None/invalid为UNKNOWN、非法回答仍有usage、缓存/alias仅一DISPATCH+FINISH、retry独立、调用中profile变化/撤销后仍留存但业务结果不得泄露、owner/tenant隔离、超时悬挂UNKNOWN、不可变事件和FK/alias拒绝。
-- [ ] 按Global Constraints新增最小事件表与owner授权，不给UPDATE或DDL权限。迁移可重复应用。复用原请求快照的binding、模型元数据，不复制敏感输入进用量记录。
-- [ ] 原普通调用前持久化DISPATCH、返回后先持久化FINISH再走原业务提交；捕获模型usage包括`getattr(error,'usage',None)`，验证错误不能擦除已返回usage。只追加真实本次事件，未dispatch不伪造FINISH。research分支保持现有流程。
-- [ ] 新只读GET接正式认证，查询不触发模型/重试，不改变原返回合同。验证缺失/他人request和未知参数不会泄露。测试用固定synthetic model边界，真实PG事务/HTTP/权限；不要重跑整仓测试。
-- [ ] 留报告含exact测试命令/结果、已知未验；不commit/push，由root整批冻结审核。
+- [x] 写真实隔离PG RED：成功usage、None/invalid为UNKNOWN、非法回答仍有usage、缓存/alias仅一DISPATCH+FINISH、retry独立、调用中profile变化/撤销后仍留存但业务结果不得泄露、owner/tenant隔离、超时悬挂UNKNOWN、不可变事件和FK/alias拒绝。
+- [x] 按Global Constraints新增最小事件表与owner授权，不给UPDATE或DDL权限。迁移可重复应用。复用原请求快照的binding、模型元数据，不复制敏感输入进用量记录。
+- [x] 原普通调用前持久化DISPATCH、返回后先持久化FINISH再走原业务提交；捕获模型usage包括`getattr(error,'usage',None)`，验证错误不能擦除已返回usage。只追加真实本次事件，未dispatch不伪造FINISH。research分支保持现有流程。
+- [x] 新只读GET接正式认证，查询不触发模型/重试，不改变原返回合同。验证缺失/他人request和未知参数不会泄露。测试用固定synthetic model边界，真实PG事务/HTTP/权限；不要重跑整仓测试。
+- [x] 留报告含exact测试命令/结果、已知未验；不commit/push，由root整批冻结审核。
 
 ## 验收与接续
 
-- [ ] Task1/2整合的真实PG+HTTP及模型worker定向验证；原配额/幂等/资格不可变规则保持。
+- [x] Task1/2整合的真实PG+HTTP及模型worker定向验证；原配额/幂等/资格不可变规则保持。
 - [ ] 固定SHA非作者审核，必要修复后差量复核，正常合main；不因本批再构包/部署。
 - [ ] 文档记录本批实现及仍缺的普通客户端呈现/跨任务汇总、搜贝规则、真实模型生产计量、Windows/平台/跨行业客户验收。完整Goal ACTIVE。
 
 ## Evidence
 
-Task1 新增行为先RED16失败（原异常无usage）；实现后新旧模型边界196通过，5.13秒。追加真实受控子进程→loopback HTTP返回非法回答+合法用量→worker错误帧→parent，确认只请求一次且usage穿透；最终增量17通过，0.93秒。测试使用合成输入及受控模型端点，不是生产模型计费证据。Task2真实PG/HTTP与整批审核尚待收口；不以Task1通过声明计量功能完成。
+Task1 新增行为先RED16失败（原异常无usage）；实现后新旧模型边界196通过，5.13秒。追加真实受控子进程→loopback HTTP返回非法回答+合法用量→worker错误帧→parent，确认只请求一次且usage穿透；最终增量17通过，0.93秒。测试使用合成输入及受控模型端点，不是生产模型计费证据。
 
 接续定向回归：迟到且非法的worker帧仍应记UNKNOWN，新增RED失败后补回父进程最终deadline门禁，已知usage不丢失。真实PG准备又暴露普通候选`_raw_model`把缺省source_context展开成显式null的生产回归；新增RED 1失败/2通过后，仅对原本缺省的CandidateRecord字段保留缺省，继续拒绝显式null和伪造bool，不以修改fixture掩盖问题。最终两份增量测试21 passed（1.10秒）。
+
+Task2实现在隔离PG中验证原调用/别名/显式重试、无合法usage记UNKNOWN、模型超时、调用期间画像撤销/会话撤销、RLS/禁止更新删除、事件幂等和数据库严格数值约束。root交叉检查已运行普通无source_context入库→模型判断→原调用用量及认证HTTP查询的两项增量，`tests/test_candidate_model_usage_postgres.py -k 'success_usage_cache_alias_and_owner_tenant_isolation or authenticated_http_query_reports_original_usage'`：2 passed / 11 deselected，3.61秒；采用实际受限PG、受控loopback provider，查询不二次调用模型。整批独立审核待固定SHA收口，不以通过测试替代它。
+
+Task2 API及PG分别先RED（路由404、缺get_model_usage），实现后首轮42通过。受影响PG/HTTP/API/research组曾115通过/1失败，唯一为新增dispatch参数不兼容旧三参数调用；恢复原签名、由snapshot分流后，最终命令（仅本任务loopback PG环境，不存连接串）：
+
+```sh
+/tmp/yike-aliyun-sdk.DYc7GB/venv/bin/python -m pytest -q tests/test_candidate_model_usage_postgres.py tests/test_candidate_review_api.py tests/test_candidate_review_postgres.py::test_revocation_after_assessment_reservation_prevents_model_dispatch tests/test_research_assessment_postgres.py::test_confirmed_research_assessment_spends_one_model_permit_and_replays
+```
+
+结果51 passed，15.61秒。没有重跑上述较大组来扩大通过数；已验证旧research单许可/重放不双记。SQL同时拒绝字符串、JSON null与bool用量。语法/diff检查通过；原模型组196通过与最终51项是不同阶段和范围，不相加冒充整仓通过。

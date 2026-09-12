@@ -51,6 +51,7 @@ class PilotDatabase:
         ("v02-ops-trials", migration_path.with_name("136_v02_ops_trials.sql")),
         ("v02-research-runtime", migration_path.with_name("137_v02_research_runtime.sql")),
         ("v02-temporary-access", migration_path.with_name("138_v02_temporary_access.sql")),
+        ("v02-candidate-model-usage", migration_path.with_name("139_v02_candidate_model_usage.sql")),
     )
 
     def __init__(self, url: str):

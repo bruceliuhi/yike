@@ -2,7 +2,7 @@
 DO $$ DECLARE target_role TEXT := NULLIF(current_setting('yike.app_role',true),''); target_oid OID; item TEXT; BEGIN
  SELECT oid INTO target_oid FROM pg_roles WHERE rolname=target_role AND NOT rolsuper AND NOT rolbypassrls AND NOT rolcreaterole;
  IF target_oid IS NULL THEN RAISE EXCEPTION 'existing restricted application role is required'; END IF;
- FOREACH item IN ARRAY ARRAY['pilot_candidate_review_requests','pilot_candidate_assessments','pilot_candidate_source_verifications','pilot_candidate_reviews','pilot_candidate_call_quota'] LOOP
+ FOREACH item IN ARRAY ARRAY['pilot_candidate_review_requests','pilot_candidate_assessments','pilot_candidate_source_verifications','pilot_candidate_reviews','pilot_candidate_call_quota','pilot_candidate_model_usage_events'] LOOP
   IF EXISTS(SELECT 1 FROM pg_class WHERE oid=item::regclass AND relowner=target_oid) THEN RAISE EXCEPTION 'application role must not own review tables'; END IF;
   EXECUTE format('REVOKE ALL ON TABLE public.%I FROM %I',item,target_role);
   EXECUTE format('GRANT SELECT,INSERT ON TABLE public.%I TO %I',item,target_role);

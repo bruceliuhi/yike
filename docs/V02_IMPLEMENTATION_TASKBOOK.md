@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+普通判断用量接续（2026-09-12，待本批审核）：provider合法tokens在回答拒绝或迟到时保留；普通ASSESS调用证据独立留存并可受认证查询，缓存/别名不重复计数，未知不填零。同步修复普通候选缺省source_context在执行再校验时误变null的入库回归。[范围、定向证据及审核状态](superpowers/plans/2026-09-12-assessment-provider-usage.md#evidence)。尚不含客户端呈现、跨任务汇总或搜贝/费用；不修改research计量，不以本批关闭R4或完整Goal，未部署/构包。
+
 B站链接执行接续（2026-09-12）：`ab9c6fe`已独立整批GO，把B站视频/作者链接接入确认快照、单次/监控、本人身份检查、固定受控runtime、完整简介+有界评论及候选复核。新mode与native_links声明成对才启用，其他三平台仍仅search；[统一计划/初次P2修复/测试/真实验收边界](superpowers/plans/2026-09-12-bili-link-execution.md#evidence)。未部署或构包，不把候选代码等同用户可用，也不因待平台账号关闭仍可做的代码任务。下段“当前driver仍只search”为上一输入批历史。
 
 当前Windows候选（2026-09-12）：`1f597f6` 已修复ASSESS页面30秒提前结束，62项定向测试＋tsc/独立GO，一次同源构包及真实覆盖升级/启动READY通过。customer保持无产品差量的5fb7d65。[唯一Windows记录](qa/WINDOWS_SYNC_20260912.md#已构建并覆盖升级1f597f6)。下一步真实用户登录/平台认证后的采集→原文→判断→确认联系→跟进；签名及客户验收仍未完成，Goal不关闭，不追认旧包或重跑纯文档检查。

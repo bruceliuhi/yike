@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-12 普通判断用量留存，待本批审核
+
+普通ASSESS正在补齐provider usage穿透、原调用DISPATCH/FINISH独立持久化、owner/tenant隔离及受认证只读查询，缓存与别名读取原调用，不重复计数；资料/会话撤销阻断业务结果，但不抹掉已发生消耗。[本批计划和唯一证据](superpowers/plans/2026-09-12-assessment-provider-usage.md#evidence)。不是搜贝计费，不修改research许可，不改UI，不部署或构包。额外修复`_raw_model`把普通候选缺省source_context变成显式null的实际入库回归，保持伪造字段拒绝。客户端用量展示、跨任务汇总、真实模型生产计量及完整V0.2验收仍未完成；下方“计量代码缺口”应按本批具体范围理解。
+
 ## 2026-09-12 B站链接执行代码，独立审核通过
 
 `ab9c6fe` 独立GO：已接通指定视频／作者主页→同浏览器账号核对→完整简介及有界评论→正式POST/COMMENT候选→既有复核的一次/监控代码路径；新显式mode才开放B站links，旧mode和其余原生平台search不变。顺带修复主线缺失source_context被序列化成null导致候选回读失败的问题，不放宽输入。[唯一计划、初次截断P2和修复证据](superpowers/plans/2026-09-12-bili-link-execution.md#evidence)。未部署、构包、操作账号或外发；不能把下方“driver仍仅search”历史状态沿用到本批，也不能反向追认实际Windows/B站已验。完整Goal ACTIVE，其他三平台链接执行、多源研究、计量等代码项继续。

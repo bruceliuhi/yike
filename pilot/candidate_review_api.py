@@ -75,6 +75,14 @@ def register_candidate_review_api(router, service, identity, require_session_htt
         _request_id(request_id)
         return service.get_request(claims, request_id)
 
+    @router.get("/candidate-review-requests/{request_id}/model-usage")
+    def model_usage(request_id: str, request: Request):
+        claims = current(request)
+        _request_id(request_id)
+        if request.query_params:
+            raise _invalid()
+        return service.get_model_usage(claims, request_id)
+
     @router.get("/candidates")
     def candidates(request: Request):
         claims = current(request)
