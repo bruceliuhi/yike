@@ -74,7 +74,6 @@ def test_rejects_non_plain_object(value):
     lambda v: v.update(max_age_days=0),
     lambda v: v.update(timezone="No/Such"),
     lambda v: v.update(reference_time="2026-09-13T09:30:00"),
-    lambda v: v.update(reference_time="2026-09-13T09:30:00+00:00"),
     lambda v: v.update(seller_description="bad\x00text"),
     lambda v: v.update(seller_description="\ud800"),
     lambda v: v.update(intent_signals=[]),
@@ -100,10 +99,14 @@ def test_none_scope_requires_empty_history_and_complete_allows_history():
     assert '"history_scope":"COMPLETE"' in complete["context_json"]
 
 
-def test_aware_utc_reference_time_is_valid_with_business_timezone():
+@pytest.mark.parametrize("reference_time", [
+    "2026-09-13T01:30:00Z",
+    "2026-09-13T01:30:00+00:00",
+])
+def test_aware_utc_reference_time_is_valid_with_business_timezone(reference_time):
     result = compile_research_context(context(
-        reference_time="2026-09-13T01:30:00Z", timezone="Asia/Shanghai"))
-    assert '"reference_time":"2026-09-13T01:30:00Z"' in result["context_json"]
+        reference_time=reference_time, timezone="Asia/Shanghai"))
+    assert f'"reference_time":"{reference_time}"' in result["context_json"]
 
 
 def test_source_urls_use_anonymous_https_normalization():

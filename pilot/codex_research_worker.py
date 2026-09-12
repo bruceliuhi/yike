@@ -334,6 +334,16 @@ def run_public_research_mission(description: str, *, codex_binary: str, python_b
                         research_context=research_context)
 
 
+def _contains_secret(value, secrets) -> bool:
+    if type(value) is str:
+        return any(secret in value for secret in secrets)
+    if type(value) is list:
+        return any(_contains_secret(item, secrets) for item in value)
+    if type(value) is dict:
+        return any(_contains_secret(item, secrets) for item in value.values())
+    return False
+
+
 def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                  max_reads, max_requests, max_seconds, cancelled,
                  search_enabled, search_api_key=None, max_searches=None,
@@ -360,8 +370,9 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
         try:
             prepared = compile_research_context(research_context)
             # Business scope is data on stdin, never a provider credential or an argv option.
-            if any(type(secret) is str and secret and secret in prepared['context_json']
-                   for secret in (api_key, search_api_key)):
+            secrets = tuple(secret for secret in (api_key, search_api_key)
+                            if type(secret) is str and secret)
+            if _contains_secret(json.loads(prepared['context_json']), secrets):
                 valid = False
             elif valid:
                 compiled = prepared

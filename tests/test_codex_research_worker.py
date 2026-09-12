@@ -339,6 +339,25 @@ def test_research_context_cannot_carry_provider_credentials(worker,tmp_path,secr
     assert secret not in json.dumps(result)
 
 
+@pytest.mark.parametrize('credential_name,secret',[
+    ('api_key','synthetic-provider-"quoted-secret'),
+    ('search_api_key',r'synthetic-search-\escaped-secret'),
+])
+def test_research_context_rejects_json_escaped_actual_credentials_before_start(
+        worker,tmp_path,credential_name,secret):
+    context=research_context();context['history'][0]['description']='历史 '+secret
+    cancellations=[]
+    arguments=dict(codex_binary=executable(tmp_path),python_binary=sys.executable,
+        api_key='synthetic-provider-secret',search_api_key='synthetic-search-secret',
+        model='test-model',research_context=context,cancelled=lambda:cancellations.append(True))
+    arguments[credential_name]=secret
+    result=worker.run_public_research_mission('研究公开需求。',**arguments)
+    assert result['status']=='FAILED' and result['code']=='invalid_configuration'
+    assert result['research_binding'] is None
+    assert worker._test_search_sessions==[] and cancellations==[]
+    assert secret not in json.dumps(result)
+
+
 def test_research_context_keeps_original_description_limit(worker,tmp_path):
     result=run_research(worker,tmp_path,description='字'*4001,research_context=research_context())
     assert result['code']=='invalid_configuration' and worker._test_search_sessions==[]
