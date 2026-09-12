@@ -14,7 +14,10 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from pilot import open_web_reader_worker as worker
-from pilot.open_web_reader import PublicReadError, normalize_public_url, read_public_page
+from pilot.open_web_reader import (
+    PublicPageReader, PublicReadError, normalize_public_url, read_public_page,
+    valid_page_evidence,
+)
 
 
 class FakeSocket:
@@ -314,3 +317,35 @@ def test_cancel_reaps_already_registered_real_harmless_child(monkeypatch):
         if child.poll() is None:
             child.kill()
             child.wait()
+
+
+def test_valid_page_evidence_enforces_exact_nonempty_evidence():
+    value = {"url": "https://example.com/", "title": None, "text": "ok", "observed_at": "2026-09-12T01:02:03+00:00", "content_sha256": hashlib.sha256(b"ok").hexdigest(), "read_scope": "PUBLIC_PAGE_TEXT"}
+    assert valid_page_evidence(value, value["url"])
+    assert not valid_page_evidence(value | {"text": " "}, value["url"])
+    assert not valid_page_evidence(value | {"extra": True}, value["url"])
+
+
+def test_page_reader_close_isolated_from_other_and_legacy_scopes(monkeypatch):
+    import pilot.open_web_reader as module
+    created = []
+
+    class Process:
+        returncode = 0
+        def communicate(self, data, timeout):
+            result = {"url": json.loads(data)["url"], "title": None, "text": "ok", "observed_at": "2026-09-12T01:02:03Z", "content_sha256": hashlib.sha256(b"ok").hexdigest(), "read_scope": "PUBLIC_PAGE_TEXT"}
+            return json.dumps({"ok": True, "result": result}), ""
+
+    def popen(*args, **kwargs):
+        process = Process(); created.append(process); return process
+
+    monkeypatch.setattr(subprocess, "Popen", popen)
+    monkeypatch.setattr(module, "_READS_STOPPED", False)
+    first, second = PublicPageReader(), PublicPageReader()
+    first.close(); first.close()
+    with pytest.raises(PublicReadError) as error:
+        first.read("https://example.com/", deadline=datetime.now(timezone.utc) + timedelta(seconds=2))
+    assert error.value.code == "timeout"
+    assert second.read("https://example.com/", deadline=datetime.now(timezone.utc) + timedelta(seconds=2))["text"] == "ok"
+    assert read_public_page("https://example.com/", deadline=datetime.now(timezone.utc) + timedelta(seconds=2))["text"] == "ok"
+    assert len(created) == 2
