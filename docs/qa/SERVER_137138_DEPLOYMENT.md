@@ -1,5 +1,16 @@
 # 101.200.137.138 部署与测试交付
 
+## 当前 customer：1119985（2026-09-12）
+
+CodexWin 已从 Gitee 同步并冻结 `1119985b3dc4d85d908d76b3d18c35a9928ab827`，实际升级 customer；ops 产品输入无变化，继续运行 fbf9f94 原容器。入口仍为 `https://yike.tuokexing.net`。此节替代下方 customer 当前版本表述，不改变其历史证据。
+
+- 相对 fbf9f94 仅4个服务模块差量：公开节点策略/监控声明、研究资源只读收口。复用各批原独立审核与PG证据；本机按新锁隔离环境的策略/公开节点/研究配置32项通过。首次旧测试环境缺阿里云SDK导致1 failed / 31 passed，补齐隔离锁环境后32 passed；未修改产品以绕过缺依赖。
+- 原字节源码归档 SHA256 `f0f42aadd372d536fbaf69687e48c00915c0af98b640d53199aa66768cc51964`，传输两端核对一致。固定 Dockerfile 构建：首次服务端直连依赖下载过慢，停止本次构建容器后复用缓存、通过仅允许PyPI两域的临时TLS隧道完成；未改变Dockerfile或锁。隧道已关闭，实际运行环境确认无构建代理或管理员数据库URL。
+- 镜像ID `sha256:e78a80a86ad6dae62f5b7eec0dde6d857d665bc58067c6956b3ef48bd8d1d3b2`；不可变发布引用 `127.0.0.1:18750/yike/server@sha256:940c560a89699e25c8b8241d670858c62d28be13735aaa52e4c2b27f6d66a03c`，OCI revision与固定源码一致。运行healthy、重启0、非root、只读根文件系统。
+- 部署助手 SHA256 `ee999f1701749aa869d7e3a9ec70104c0db071c591f1abcf67aa84cd84e83119` 经 win_test_review 非作者独立GO；实际确认 migrations/deploy/依赖文件无差，未重跑迁移或修改角色。先在18788候选验证，再切18787；CP06通过，ready及access/sms/search能力声明通过。原runtime配置摘要和ops容器ID保持相同，未启用新来源或研究模式。
+- 切换前V2认证加密备份 `backups/yike-before-1119985.dump.enc` 与MAC及 `ops/release-before-1119985.json` 保留。旧健康镜像可供回退，本轮未触发回滚或恢复覆盖运行库。公网TLS校验开启的health/ready均200，能力声明回读成功；没有发短信、创建客户或执行平台发送。
+- 本次远端原始记录：`testdata/build-1119985.log`（中止下载）、`build-1119985-proxy.log`、`deploy-1119985.log`。Windows同源候选和受限实机接续集中见[本轮记录](WINDOWS_SYNC_20260912.md)。真实账号登录、平台原文到判断/联系/回复与客户效果仍未通过，完整Goal不关闭。
+
 ## 临时访问码已部署：fbf9f94（2026-09-11）
 
 当前 customer 与独立 ops 均为 `fbf9f942df0c2be2189a98a930948f9f9b104b1b`。此节取代下文各历史时点的“当前版本”；仅解除短信投递期间的受邀登录代码阻塞，不代表客户已激活或完整产品验收。

@@ -1,5 +1,7 @@
 # CodexWin：完整 V0.2 当前候选接续
 
+2026-09-12 CodexWin已实际接收并从最新主干冻结 `1119985b3dc4d85d908d76b3d18c35a9928ab827`，同源payload已生成并搬迁验证通过，customer已部署同SHA；本机Windows可用。[本次产物、实机结果及失败](../qa/WINDOWS_SYNC_20260912.md)为当前接续。下方fbf9f94冻结和WAITING状态保留为Mac交接历史，不再作为本机尚未执行的结论。
+
 状态：`WAITING_FOR_WINDOWS_ENVIRONMENT / NOT_EXECUTED`。2026-09-11 用户明确确认暂时没有可用 Windows 环境；此单由 CodexiMac 准备，不代表 Win 已接收、启动或通过。完整 V0.2 Goal 不变，服务端非依赖工作继续，不用 Mac 或模拟结果代替 Windows 实机验收。
 
 ## 固定一次候选，避免追着文档反复构包
