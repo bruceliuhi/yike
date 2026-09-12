@@ -211,14 +211,32 @@ class DynamicResearchRuntimeService:
                 )
                 return
             entries = self._successful_reads(claims, task_id, run_id, generation)
-            receipts = [self.candidates.publish(
-                claims, task_id=task_id, run_id=run_id,
-                sequence=entry["sequence"], generation=generation,
-                coordinator_owner=self.owner, context_binding=context["binding"],
-            ) for entry in entries]
+            receipts = []
+            for entry in entries:
+                if self._cancelled(claims, task_id, run_id, generation):
+                    self._settle_cancellation(claims, task_id, generation)
+                    return
+                receipts.append(self.candidates.publish(
+                    claims, task_id=task_id, run_id=run_id,
+                    sequence=entry["sequence"], generation=generation,
+                    coordinator_owner=self.owner, context_binding=context["binding"],
+                ))
+            stop = self._durable_stop(claims, task_id, run_id, generation)
+            if stop is not None:
+                self._release_if_owned(claims, task_id, generation, "STOPPED", stop)
+                return
             task = self.execution.get_task(claims, task_id)
             for receipt in receipts:
                 for item in receipt["items"]:
+                    if self._cancelled(claims, task_id, run_id, generation):
+                        self._settle_cancellation(claims, task_id, generation)
+                        return
+                    stop = self._durable_stop(claims, task_id, run_id, generation)
+                    if stop is not None:
+                        self._release_if_owned(
+                            claims, task_id, generation, "STOPPED", stop
+                        )
+                        return
                     if not self._model_slot_available(claims, task_id, run_id, limits):
                         self._release_if_owned(
                             claims, task_id, generation, "STOPPED",
@@ -243,21 +261,33 @@ class DynamicResearchRuntimeService:
                         review = self.fixed.orchestrator.reviews.assess_research(
                             claims, payload, task_id=task_id, run_id=run_id,
                             observation_id=item["observation_id"],
-                            _admission=self.fixed._admission(
+                            _admission=self._assessment_admission(
                                 claims, task_id, run_id, generation
                             ),
                         )
                     if review.get("kind") != "assessment":
+                        if self._cancelled(claims, task_id, run_id, generation):
+                            self._settle_cancellation(claims, task_id, generation)
+                            return
+                        durable = self._durable_stop(
+                            claims, task_id, run_id, generation
+                        )
                         self._release_if_owned(
                             claims, task_id, generation, "STOPPED",
-                            "assessment_unknown" if review.get("kind") == "pending"
-                            else "assessment_failed",
+                            durable or ("assessment_unknown"
+                                if review.get("kind") == "pending"
+                                else "assessment_failed"),
                         )
                         return
             if self._cancelled(claims, task_id, run_id, generation):
                 self._settle_cancellation(claims, task_id, generation)
                 return
-            self.fixed._complete(claims, task_id, run_id, generation)
+            self.fixed._complete(
+                claims, task_id, run_id, generation,
+                _admission=self._completion_admission(
+                    claims, task_id, run_id, generation
+                ),
+            )
         except BaseException as error:
             code = _stop_code(error.code, "advance_failed") if isinstance(
                 error, (ExecutionRuntimeError, CandidateIngestionError)
@@ -294,6 +324,84 @@ class DynamicResearchRuntimeService:
                 "AND resource='MODEL_CALL'", (tenant, claims.user_id, task_id, run_id),
             )
             return cursor.fetchone()[0] < limits["modelCalls"]
+
+    @staticmethod
+    def _effect_stop(cursor, tenant, user, task_id, run_id, *,
+                     allowed_pending_action=None, lock=False):
+        suffix = " ORDER BY action_id FOR UPDATE" if lock else ""
+        cursor.execute(
+            "SELECT action_id,resource,status FROM pilot_research_resource_events "
+            "WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s AND run_id=%s" + suffix,
+            (tenant, user, task_id, run_id),
+        )
+        statuses = []
+        for action_id, resource, status in cursor.fetchall():
+            if (action_id == allowed_pending_action and resource == "MODEL_CALL"
+                    and status == "ISSUED"):
+                continue
+            statuses.append(status)
+        cursor.execute(
+            "SELECT action_id,status FROM pilot_research_effect_journal WHERE tenant_id=%s "
+            "AND owner_user_id=%s AND task_id=%s AND run_id=%s" + suffix,
+            (tenant, user, task_id, run_id),
+        )
+        statuses.extend(status for _, status in cursor.fetchall())
+        if "UNKNOWN" in statuses:
+            return "effect_unknown"
+        if "FAILED" in statuses:
+            return "effect_failed"
+        if "ISSUED" in statuses:
+            return "effect_pending"
+        return None
+
+    def _durable_stop(self, claims, task_id, run_id, generation):
+        if self._shutdown.is_set():
+            return "runtime_shutdown"
+        with self.database.connect() as connection, connection.cursor() as cursor:
+            tenant = self.execution._active(cursor, claims)
+            self.journal._coordinator(
+                cursor, tenant, claims.user_id, task_id, run_id,
+                generation, self.owner,
+            )
+            stop = self._effect_stop(
+                cursor, tenant, claims.user_id, task_id, run_id, lock=True
+            )
+            self.execution._active(cursor, claims)
+            return stop
+
+    def _assessment_admission(self, claims, task_id, run_id, generation):
+        coordinator = self.fixed._admission(claims, task_id, run_id, generation)
+
+        def admit(cursor, tenant, event):
+            coordinator(cursor, tenant, event)
+            if self._shutdown.is_set():
+                raise ExecutionRuntimeError("runtime_shutdown", 503)
+            stop = self._effect_stop(
+                cursor, tenant, claims.user_id, task_id, run_id,
+                allowed_pending_action=event["action_id"], lock=True,
+            )
+            if stop is not None:
+                raise ExecutionRuntimeError(stop, 409)
+            return True
+        return admit
+
+    def _completion_admission(self, claims, task_id, run_id, generation):
+        def admit(cursor, tenant):
+            if self._shutdown.is_set():
+                raise ExecutionRuntimeError("runtime_shutdown", 503)
+            row = self.fixed._coordinator(
+                cursor, tenant, claims.user_id, task_id, lock=True
+            )
+            if (row is None or row[0] != run_id or row[1] != generation
+                    or row[2] != self.owner or row[4] != "RUNNING"):
+                raise ExecutionRuntimeError("lease_conflict", 409)
+            stop = self._effect_stop(
+                cursor, tenant, claims.user_id, task_id, run_id, lock=True
+            )
+            if stop is not None:
+                raise ExecutionRuntimeError(stop, 409)
+            return True
+        return admit
 
     def _cancelled(self, claims, task_id, run_id, generation):
         if self._shutdown.is_set():
@@ -450,12 +558,14 @@ class DynamicResearchRuntimeService:
         active = bool(coordinator and coordinator[4] == "RUNNING"
                       and coordinator[2] is not None and coordinator[3] > now)
         durable_stop = bool(coordinator and coordinator[4] == "STOPPED")
-        phase = ("CANCELED" if canceled else "COMPLETED" if complete else
-                 "STOPPED" if durable_stop or failed or unknown else
-                 "RUNNING" if active or pending else "QUEUED")
-        stop = (_stop_code(coordinator[5], "advance_failed") if durable_stop
-                else "effect_unknown" if unknown
-                else "effect_failed" if failed else None)
+        phase = ("CANCELED" if canceled else
+                 "RUNNING" if active else
+                 "STOPPED" if durable_stop or failed or unknown or complete and pending else
+                 "COMPLETED" if complete else
+                 "RUNNING" if pending else "QUEUED")
+        stop = ("effect_unknown" if unknown else "effect_failed" if failed else
+                "effect_pending" if complete and pending else
+                _stop_code(coordinator[5], "advance_failed") if durable_stop else None)
         closeout = ("UNCERTAIN" if unknown or overdue else "DRAINING"
                     if pending or active else "RECORDED" if complete or canceled
                     else "OPEN")

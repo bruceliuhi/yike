@@ -246,7 +246,9 @@ class ResearchRuntimeService:
             if cursor.rowcount != 1:
                 raise ExecutionRuntimeError("lease_conflict", 409)
 
-    def _complete(self, claims, task_id, run_id, generation):
+    def _complete(self, claims, task_id, run_id, generation, *, _admission=None):
+        if _admission is not None and not callable(_admission):
+            raise ExecutionRuntimeError("invalid_request", 422)
         with self.database.connect() as connection, connection.cursor() as cursor:
             tenant, task = self._identity(cursor, claims, task_id, run_id, lock=True)
             row = self._coordinator(cursor, tenant, claims.user_id, task_id, lock=True)
@@ -256,6 +258,8 @@ class ResearchRuntimeService:
                 raise ExecutionRuntimeError("lease_conflict", 409)
             if task[0] in ("CANCELLING", "CANCELED") or task[2] in ("CANCELLING", "CANCELED"):
                 raise ExecutionRuntimeError("task_cancelled", 409)
+            if _admission is not None and _admission(cursor, tenant) is not True:
+                raise ExecutionRuntimeError("request_conflict", 409)
             for table in ("pilot_collection_platform_runs", "pilot_collection_runs", "pilot_collection_tasks"):
                 cursor.execute(f"UPDATE {table} SET status='SUCCEEDED' WHERE tenant_id=%s "
                     "AND owner_user_id=%s AND task_id=%s AND status IN ('PENDING','RUNNING')",

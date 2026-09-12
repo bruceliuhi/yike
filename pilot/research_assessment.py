@@ -9,6 +9,7 @@ from uuid import NAMESPACE_URL, uuid5
 from pilot.candidate_assessment_model import AssessmentModelError, validate_assessment
 from pilot.execution_contract import ExecutionRuntimeError
 from pilot.research_resource_runner import run_resource
+from pilot.research_resources import _event
 
 
 def _json(value):
@@ -81,6 +82,28 @@ class ResearchAssessmentRunner:
             # qualification immediately before the external effect without
             # keeping any database transaction open across the model call.
             before_dispatch()
+            if _admission is not None:
+                with self.resources.runtime.database.connect() as connection, \
+                        connection.cursor() as cursor:
+                    tenant = self.resources.runtime._active(cursor, claims)
+                    row = self.resources._select(
+                        cursor, tenant, claims.user_id, research["taskId"],
+                        research["runId"], action_id
+                    )
+                    current = _event(row) if row is not None else None
+                    if (current is None or current["status"] != "ISSUED"
+                            or _admission(cursor, tenant, current) is not True):
+                        raise ExecutionRuntimeError("request_conflict", 409)
+                    # Host admission may lock coordinator and all durable
+                    # effects. Lock and re-read this permit afterwards to keep
+                    # that global order and close the unlocked-read race.
+                    row = self.resources._select(
+                        cursor, tenant, claims.user_id, research["taskId"],
+                        research["runId"], action_id, lock=True
+                    )
+                    if row is None or _event(row)["status"] != "ISSUED":
+                        raise ExecutionRuntimeError("request_conflict", 409)
+                    self.resources.runtime._active(cursor, claims)
             value, usage = model.assess_before(effective_deadline, **kwargs)
             value = value.model_dump() if hasattr(value, "model_dump") else value
             grounded = validate_assessment(value, description=snapshot["description"],

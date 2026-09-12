@@ -437,6 +437,189 @@ def test_assessment_budget_exhaustion_keeps_published_candidate_pending(dynamic_
         runtime.shutdown(timeout_seconds=2)
 
 
+@pytest.mark.parametrize("effect_status", ["ISSUED", "FAILED", "UNKNOWN"])
+def test_mission_completion_cannot_override_non_successful_durable_effect(
+        dynamic_env, effect_status):
+    from pilot.research_context import compile_research_context
+
+    env = dynamic_env
+    calls = []
+    runtime = None
+
+    def mission(_description, **kwargs):
+        calls.append("mission")
+        original = read_result()
+        original["evidence"]["url"] = (
+            "https://example.com/buyer/" + effect_status.lower()
+        )
+        dispatch_effect(
+            kwargs["effect_dispatcher"], kind="READ",
+            payload={"url": original["evidence"]["url"]},
+            deadline=time.monotonic() + 20,
+            perform=lambda _deadline: original,
+        )
+        binding = compile_research_context(kwargs["research_context"])["binding"]
+        begun = env.journal.begin(
+            env.claims, task_id=env.execution["task_id"],
+            run_id=env.execution["run_id"], sequence=2, generation=1,
+            coordinator_owner=runtime.owner, context_binding=binding,
+            kind="SEARCH", payload={"query": "第二个受控搜索"},
+        )
+        if effect_status != "ISSUED":
+            env.journal.finish(
+                env.claims, task_id=env.execution["task_id"],
+                run_id=env.execution["run_id"], sequence=2,
+                permit_id=begun["entry"]["permit_id"], status=effect_status,
+            )
+        return {"status": "COMPLETED", "code": None}
+
+    runtime = service(env, mission)
+    task_id, run_id = env.execution["task_id"], env.execution["run_id"]
+    expected_code = {
+        "ISSUED": "effect_pending", "FAILED": "effect_failed",
+        "UNKNOWN": "effect_unknown",
+    }[effect_status]
+    expected_counter = {
+        "ISSUED": "pending", "FAILED": "failed", "UNKNOWN": "unknown",
+    }[effect_status]
+    try:
+        runtime.advance(env.claims, task_id, run_id)
+        stopped = wait_terminal(runtime, env)
+        assert stopped["phase"] == "STOPPED"
+        assert stopped["stopCode"] == expected_code
+        assert stopped["acceptedOriginals"] == 1
+        assert stopped["analyzedOriginals"] == 0
+        assert stopped["discovery"]["searches"][expected_counter] == 1
+        assert stopped["usage"]["sourceReads"][expected_counter] == 1
+        assert stopped["effectsPending"] is (effect_status == "ISSUED")
+        assert calls == ["mission"]
+        with env.admin.connect() as connection:
+            assert connection.execute(
+                "SELECT count(*) FROM pilot_candidate_batches WHERE task_id=%s",
+                (task_id,),
+            ).fetchone()[0] == 1
+            assert connection.execute(
+                "SELECT count(*) FROM pilot_research_resource_events WHERE task_id=%s "
+                "AND resource='MODEL_CALL'", (task_id,),
+            ).fetchone()[0] == 0
+            assert connection.execute(
+                "SELECT t.status,r.status,c.phase FROM pilot_collection_tasks t "
+                "JOIN pilot_collection_runs r USING(tenant_id,owner_user_id,task_id) "
+                "JOIN pilot_research_runtime c USING(tenant_id,owner_user_id,task_id,run_id) "
+                "WHERE t.task_id=%s", (task_id,),
+            ).fetchone() == ("PENDING", "PENDING", "STOPPED")
+        assert runtime.advance(env.claims, task_id, run_id)["stopCode"] == expected_code
+        assert calls == ["mission"]
+    finally:
+        runtime.shutdown(timeout_seconds=2)
+
+
+def test_final_completion_transaction_rejects_new_unknown_effect(dynamic_env, monkeypatch):
+    from pilot.customer_research_context import CustomerResearchContextStore
+
+    env = dynamic_env
+    runtime = service(env, successful_mission([]))
+    task_id, run_id = env.execution["task_id"], env.execution["run_id"]
+    complete = env.fixed._complete
+    injected = []
+
+    def inject_before_transaction(claims, current_task, current_run, generation,
+                                  **kwargs):
+        compiled = CustomerResearchContextStore(env.runtime).load(
+            claims, task_id=current_task, run_id=current_run
+        )
+        begun = env.journal.begin(
+            claims, task_id=current_task, run_id=current_run, sequence=3,
+            generation=generation, coordinator_owner=runtime.owner,
+            context_binding=compiled["binding"], kind="SEARCH",
+            payload={"query": "终态提交前竞态"},
+        )
+        env.journal.finish(
+            claims, task_id=current_task, run_id=current_run, sequence=3,
+            permit_id=begun["entry"]["permit_id"], status="UNKNOWN",
+        )
+        injected.append(True)
+        return complete(
+            claims, current_task, current_run, generation, **kwargs
+        )
+
+    monkeypatch.setattr(env.fixed, "_complete", inject_before_transaction)
+    try:
+        runtime.advance(env.claims, task_id, run_id)
+        stopped = wait_terminal(runtime, env)
+        assert injected == [True]
+        assert stopped["phase"] == "STOPPED"
+        assert stopped["stopCode"] == "effect_unknown"
+        assert stopped["acceptedOriginals"] == 1
+        assert stopped["analyzedOriginals"] == 1
+        with env.admin.connect() as connection:
+            assert connection.execute(
+                "SELECT status FROM pilot_collection_tasks WHERE task_id=%s", (task_id,),
+            ).fetchone()[0] == "PENDING"
+    finally:
+        runtime.shutdown(timeout_seconds=2)
+
+
+def test_shutdown_during_first_assessment_blocks_second_provider_effect(dynamic_env):
+    env = dynamic_env
+    entered = threading.Event()
+    release = threading.Event()
+
+    class BlockingModel(ResearchModel):
+        def __init__(self):
+            super().__init__()
+            self.started = 0
+
+        def assess_before(self, _deadline, **kwargs):
+            self.started += 1
+            entered.set()
+            release.wait(5)
+            return self.assess(**kwargs)
+
+    model = BlockingModel()
+    env.reviews.model = model
+
+    def mission(_description, **kwargs):
+        dispatcher = kwargs["effect_dispatcher"]
+        first = read_result()
+        second = read_result()
+        second["evidence"]["url"] = "https://example.com/second-buyer"
+        for result in (first, second):
+            dispatch_effect(
+                dispatcher, kind="READ", payload={"url": result["evidence"]["url"]},
+                deadline=time.monotonic() + 20,
+                perform=lambda _deadline, value=result: value,
+            )
+        return {"status": "COMPLETED", "code": None}
+
+    runtime = service(env, mission)
+    task_id, run_id = env.execution["task_id"], env.execution["run_id"]
+    try:
+        runtime.advance(env.claims, task_id, run_id)
+        assert entered.wait(3)
+        assert runtime.shutdown(timeout_seconds=0.05) is False
+        release.set()
+        stopped = wait_terminal(runtime, env)
+        assert stopped["phase"] == "STOPPED"
+        assert stopped["stopCode"] == "runtime_shutdown"
+        assert stopped["acceptedOriginals"] == 2
+        assert stopped["analyzedOriginals"] == 1
+        assert model.started == 1 and model.calls == 1
+        with env.admin.connect() as connection:
+            assert connection.execute(
+                "SELECT status FROM pilot_research_resource_events WHERE task_id=%s "
+                "AND resource='MODEL_CALL' ORDER BY issued_at", (task_id,),
+            ).fetchall() == [("SUCCEEDED",)]
+            assert connection.execute(
+                "SELECT status FROM pilot_collection_tasks WHERE task_id=%s", (task_id,),
+            ).fetchone()[0] == "PENDING"
+        with pytest.raises(ExecutionRuntimeError, match="runtime_shutdown"):
+            runtime.advance(env.claims, task_id, run_id)
+    finally:
+        release.set()
+        runtime.shutdown(timeout_seconds=2)
+
+
 def test_capacity_rejection_happens_before_persisted_coordinator_election(dynamic_env):
     env = dynamic_env
     entered = threading.Event()

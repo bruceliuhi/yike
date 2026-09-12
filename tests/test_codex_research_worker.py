@@ -450,9 +450,43 @@ def test_research_context_rejects_actual_credential_encoded_by_url_normalization
     assert secret not in json.dumps(result)
 
 
-def test_research_context_keeps_original_description_limit(worker,tmp_path):
+def test_research_context_v1_keeps_original_description_limit(worker,tmp_path):
     result=run_research(worker,tmp_path,description='字'*4001,research_context=research_context())
     assert result['code']=='invalid_configuration' and worker._test_search_sessions==[]
+
+
+def test_context_v2_delivers_full_8000_character_multiline_profile_to_real_process(
+        worker,tmp_path):
+    from pilot.research_context import compile_research_context
+    from tests.test_research_context import projected_v2
+    seller='甲\n'+'乙'*7998
+    context=projected_v2(seller_description=seller)
+    compiled=compile_research_context(context)
+    capture=tmp_path/'long-v2-context.json'
+    extra=(f"open({str(capture)!r},'w').write(json.dumps(dict(prompt=sys.stdin.read())))\n")
+    result=run_research(worker,tmp_path,[search_event(),read_event(),*final_events()],
+        description=seller,research_context=context,extra=extra)
+    data=json.loads(capture.read_text())
+    assert result['status']=='COMPLETED'
+    assert result['research_binding']==compiled['binding']
+    assert data['prompt'].startswith(seller+'\n\nHOST_RESEARCH_CONTEXT_JSON')
+    assert compiled['context_json'] in data['prompt']
+    assert data['prompt'].count(seller)==1
+    assert len(seller)==8000 and seller.endswith('乙')
+
+
+def test_context_v2_long_description_requires_exact_verified_seller_profile(worker,tmp_path):
+    from tests.test_research_context import projected_v2
+    context=projected_v2(seller_description='甲\n'+'乙'*7998)
+    result=run_research(worker,tmp_path,description='丙'*8000,research_context=context)
+    assert result['code']=='invalid_configuration' and worker._test_search_sessions==[]
+
+
+def test_context_v2_non_string_description_fails_without_start_or_exception(worker,tmp_path):
+    from tests.test_research_context import projected_v2
+    result=run_research(worker,tmp_path,description=None,research_context=projected_v2())
+    assert result['status']=='FAILED' and result['code']=='invalid_configuration'
+    assert result['research_binding'] is None and worker._test_search_sessions==[]
 
 
 def test_research_rule_failure_never_starts_or_downgrades(worker,tmp_path,monkeypatch):

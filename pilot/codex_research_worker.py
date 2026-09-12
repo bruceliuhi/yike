@@ -363,7 +363,7 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
     events = _ReadEvents(search_enabled=search_enabled)
     calls, status, code, token = [], 'FAILED', 'invalid_configuration', ''
     controlled = effect_dispatcher is not _NO_EFFECT_DISPATCHER
-    valid = (os.name == 'posix' and type(description) is str and 1 <= len(description.strip()) <= 4000
+    valid = (os.name == 'posix' and type(description) is str and 1 <= len(description.strip()) <= 8000
              and type(api_key) is str and 1 <= len(api_key) <= 4096 and not any(c.isspace() for c in api_key)
              and api_key not in description and type(model) is str
              and re.fullmatch(r'[A-Za-z0-9_./:-]{1,128}',model)
@@ -389,11 +389,20 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
             if (_contains_secret(research_context, secrets)
                     or _contains_secret(json.loads(prepared['context_json']), secrets)):
                 valid = False
-            elif valid:
+            else:
+                stored_context = json.loads(prepared['context_json'])
+                long_v2 = (stored_context.get('schema_version') == 'research-context-v2'
+                           and description == stored_context.get('seller_description'))
+                if (type(description) is not str
+                        or len(description.strip()) > (8000 if long_v2 else 4000)):
+                    valid = False
+            if valid:
                 compiled = prepared
         except ResearchContextError as error:
             valid = False
             code = error.code
+    elif type(description) is str and len(description.strip()) > 4000:
+        valid = False
     if valid:
         deadline = monotonic() + max_seconds
         def guarded_dispatch(kind,payload,effect_deadline,perform):
