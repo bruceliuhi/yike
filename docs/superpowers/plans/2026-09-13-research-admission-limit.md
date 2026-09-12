@@ -15,3 +15,9 @@ Tests cover repeated denial with no extra records or network work, subsequent MO
 ## Remaining product work
 
 This fixes an unnecessary shutdown, not research quality. Skill rules are already loaded; observed searches still over-select vendor/old results. Native recent-source pivots, selective buyer-candidate publishing, informative limit feedback, real completed research, platform depth and full V0.2 deployment/customer gates remain. No new real provider run, outbound, deployment or desktop build is authorized by this evidence record.
+
+## Verification
+
+Code `ae7abc622c8e260e1322c07117f1388278546353`. Fixed combined restricted PostgreSQL/journal/dispatcher check: 77 passed, one unit fixture failed because it generated two different current timestamps for expected and actual. Corrected to one fixed expected object; delta plus complete dispatcher/gateway check 25 passed in 8.25s. All 59 PostgreSQL cases passed on unchanged product code, including the previously failing limit recovery; no repeated PostgreSQL suite. Providers in these tests are synthetic, not buyer evidence. Owned disposable container `yike-admission-regression-20260913` stopped and confirmed absent.
+
+Independent `admission_limit_review`: Spec PASS / Quality PASS on exact code SHA, no actionable P-level issue; dispatcher/gateway 25 passed in 7.34s, PostgreSQL evidence reused without restart. Reviewer traced the only resource_limit_exceeded raise to pre-INSERT admission; post-grant errors cannot take this recovery path. Report `/tmp/yike-admission-limit-review.md`. No deployment/build/outbound or claim of recovered original task.

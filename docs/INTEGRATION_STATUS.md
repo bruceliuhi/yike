@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-13 研究额度拒绝不再错误关闭所有资源
+
+代码`ae7abc6`只处理journal签发前确定的资源额度拒绝；后续MODEL等仍正常校验全部权限/代次/剩余额度，未知与已发出请求不重试。[唯一真实失败、PG复现及验证](superpowers/plans/2026-09-13-research-admission-limit.md)。当前没有新合格商机或新的真实任务成功证据；下一步选择近期买方原文，分开研究读页与推荐候选。未部署、构包或外联。
+
 ## 2026-09-13 普通判断错误诊断与用量保留
 
 `bd64b0f`独立Spec/Quality PASS，修复ResearchAssessmentRunner丢弃固定模型错误/已测usage；日志不含异常正文、业务正文或密钥，UNKNOWN及确认重试边界不变。[唯一验证与缺口](superpowers/plans/2026-09-13-assessment-safe-diagnostics.md#evidence)。未重试旧任务或新调模型，旧真实UNKNOWN根因仍未证明；下轮新任务观察实际错误、改善买方入口，不重复本批测试/构包。
