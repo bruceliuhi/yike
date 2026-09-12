@@ -156,6 +156,16 @@ def test_url_normalization_uses_candidate_idna_contract_and_ascii_request_target
     )
 
 
+@pytest.mark.parametrize("key", [
+    "API_KEY", "api-key", "x-api-key", "Access_Key", "client_secret",
+    "credential", "Authorization", "password", "access-token",
+])
+def test_url_normalization_rejects_common_credential_query_keys(key):
+    with pytest.raises(PublicReadError) as error:
+        normalize_public_url(f"https://public.example/?{key}=PRIVATE")
+    assert error.value.code == "invalid_url"
+
+
 def test_parent_maps_worker_result_exactly(monkeypatch):
     expected = {"url": "https://example.com/", "title": None, "text": "ok", "observed_at": "2026-09-12T01:02:03Z", "content_sha256": hashlib.sha256(b"ok").hexdigest(), "read_scope": "PUBLIC_PAGE_TEXT"}
 

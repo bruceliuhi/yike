@@ -8,7 +8,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import quote, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, urlsplit, urlunsplit
 
 from pilot.candidate_contract import _normalize_host, _validate_url
 
@@ -17,6 +17,12 @@ _WORKER = Path(__file__).with_name("open_web_reader_worker.py")
 _CODES = {"invalid_url", "unavailable", "unsupported_content", "too_large", "timeout"}
 _RESULT_KEYS = {"url", "title", "text", "observed_at", "content_sha256", "read_scope"}
 _UTC_TIME = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
+_CREDENTIAL_QUERY_KEYS = {
+    "apikey", "accesskey", "accesskeyid", "secretkey", "secretaccesskey",
+    "clientsecret", "credential", "credentials", "authorization", "auth",
+    "token", "accesstoken", "refreshtoken", "idtoken", "password", "passwd",
+    "pwd", "cookie", "session", "sessionid", "signature", "sig",
+}
 
 
 class PublicReadError(RuntimeError):
@@ -32,6 +38,11 @@ def normalize_public_url(url: str) -> str:
         parts = urlsplit(url)
         if parts.scheme.lower() != "https" or parts.port not in (None, 443):
             raise ValueError
+        for key, _value in parse_qsl(parts.query, keep_blank_values=True):
+            normalized_key = re.sub(r"[^a-z0-9]", "", key.lower())
+            if (normalized_key in _CREDENTIAL_QUERY_KEYS
+                    or normalized_key.startswith("x") and normalized_key[1:] in _CREDENTIAL_QUERY_KEYS):
+                raise ValueError
         host = _normalize_host(parts.hostname or "")
         if not host:
             raise ValueError
