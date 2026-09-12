@@ -69,6 +69,8 @@ def test_actual_worker_bridge_and_mcp_stdio_share_host_gate(tmp_path,monkeypatch
     from pilot.open_web_reader import PublicPageReader
     from pilot.public_search import PublicSearchSession
     from pilot.responses_bridge import ResponsesBridge
+    from pilot.research_effect_contract import effect_input, effect_result
+    from tests.test_research_effect_contract import binding
     effects=[]; io=[]
     def provider(request):
         io.append('MODEL')
@@ -89,7 +91,8 @@ def test_actual_worker_bridge_and_mcp_stdio_share_host_gate(tmp_path,monkeypatch
     def dispatch(kind,payload,deadline,perform):
         effects.append(kind)
         if kind=='READ' and deny_read: raise RuntimeError('private-denial')
-        return perform(deadline)
+        clean, _ = effect_input(kind, payload, binding())
+        return effect_result(kind, clean, perform(deadline))
     monkeypatch.setattr(worker,'ResponsesBridge',bridge)
     monkeypatch.setattr(PublicSearchSession,'_run',search)
     monkeypatch.setattr(PublicPageReader,'read',read)

@@ -75,10 +75,16 @@ class PublicReadSession:
             try:
                 def perform(action_deadline):
                     try:
-                        return self._reader.read(
+                        evidence = self._reader.read(
                             normalized,
                             deadline=datetime.now(timezone.utc) + timedelta(
                                 seconds=max(0, action_deadline-time.monotonic())))
+                        if not valid_page_evidence(evidence, normalized):
+                            raise PublicReadError("invalid_read_result")
+                        # Persist the same validated result the MCP caller sees.
+                        # The durable READ contract is an envelope, not a bare page.
+                        return {"status": "READ", "evidence": evidence,
+                                "review_status": "UNREVIEWED", "replayed": False}
                     except PublicReadError as error:
                         return {"_read_error": error.code}
 
@@ -93,11 +99,14 @@ class PublicReadSession:
                     result = _failure("deadline_exceeded")
                 elif type(raw) is dict and set(raw) == {"_read_error"}:
                     result = _failure(raw["_read_error"])
-                elif not valid_page_evidence(raw, normalized):
+                elif (type(raw) is not dict
+                      or set(raw) != {"status", "evidence", "review_status", "replayed"}
+                      or raw["status"] != "READ" or raw["review_status"] != "UNREVIEWED"
+                      or type(raw["replayed"]) is not bool
+                      or not valid_page_evidence(raw["evidence"], normalized)):
                     result = _failure("invalid_read_result")
                 else:
-                    result = {"status": "READ", "evidence": raw,
-                              "review_status": "UNREVIEWED", "replayed": False}
+                    result = deepcopy(raw)
             except PublicReadError as error:
                 result = _failure(error.code)
             except Exception:

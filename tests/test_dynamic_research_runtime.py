@@ -183,6 +183,44 @@ def wait_terminal(runtime, env, timeout=8):
     pytest.fail("dynamic supervisor did not reach a terminal or stopped state")
 
 
+def test_public_read_session_publishes_through_actual_durable_customer_journal(dynamic_env):
+    from pilot.public_read_session import PublicReadSession
+
+    page = read_result()["evidence"]
+    reads = []
+    class Reader:
+        def read(self, url, *, deadline):
+            reads.append(url)
+            return page
+        def close(self):
+            pass
+    def mission(_description, **kwargs):
+        dispatcher = kwargs["effect_dispatcher"]
+        deadline = time.monotonic() + 20
+        dispatch_effect(dispatcher, kind="SEARCH", payload={"query":"企业知识库 找团队"},
+            deadline=deadline, perform=lambda _: search_result("企业知识库 找团队"))
+        session = PublicReadSession(max_reads=1, deadline=deadline,
+            allowed_url=lambda url: url == page["url"], effect_dispatcher=dispatcher, reader=Reader())
+        try:
+            first = session.read(page["url"], deadline=deadline)
+            assert first["status"] == "READ"
+            assert session.read(page["url"], deadline=deadline) == first | {"replayed":True}
+        finally:
+            session.close()
+        return {"status":"COMPLETED", "code":None}
+    runtime = service(dynamic_env, mission)
+    try:
+        runtime.advance(dynamic_env.claims, dynamic_env.execution["task_id"], dynamic_env.execution["run_id"])
+        final = wait_terminal(runtime, dynamic_env)
+        assert final["phase"] == "COMPLETED"
+        assert final["acceptedOriginals"] == final["analyzedOriginals"] == 1
+        assert final["discovery"]["reads"]["succeeded"] == 1
+        assert final["discovery"]["reads"]["unknown"] == 0
+        assert reads == [page["url"]]
+    finally:
+        runtime.shutdown(timeout_seconds=2)
+
+
 def test_capability_is_explicit_v4_and_fixed_capabilities_are_unchanged(dynamic_env):
     env = dynamic_env
     runtime = service(env, successful_mission([]))
