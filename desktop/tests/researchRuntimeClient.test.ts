@@ -1,9 +1,35 @@
 import {expect,it,vi} from 'vitest';
 import {createResearchRuntimeService} from '../src/renderer/services/researchRuntime';
 import {RESEARCH_RUNTIME_SOURCE_LABEL,RESEARCH_RUNTIME_SOURCE_SCOPE} from '../src/shared/researchRuntime';
+import {ServiceError} from '../src/renderer/services/contracts';
 
 const taskId='11111111-1111-4111-8111-111111111111',runId='22222222-2222-4222-8222-222222222222';
 const counts={issued:0,pending:0,succeeded:0,failed:0,unknown:0};
+const legacy={contractVersion:1,sourceScope:RESEARCH_RUNTIME_SOURCE_SCOPE,sourceLabel:RESEARCH_RUNTIME_SOURCE_LABEL,
+  maxFreshEffectsPerAdvance:1,settlementState:'PENDING'};
+it('negotiates catalog with one read-only precise legacy fallback',async()=>{
+  const transport=vi.fn().mockRejectedValueOnce(new ServiceError('invalid_request','legacy',422)).mockResolvedValueOnce(legacy);
+  expect(await createResearchRuntimeService(transport).capability()).toEqual(legacy);
+  expect(transport.mock.calls).toEqual([
+    ['researchRuntime.capability','/research-execution/capability?source_catalog_version=1','GET',{sourceCatalogVersion:1},undefined],
+    ['researchRuntime.capability','/research-execution/capability','GET',undefined,undefined],
+  ]);
+});
+it('never falls back on other failures, invalid DTO or abort',async()=>{
+  for(const error of [new ServiceError('invalid_request','failure',500),new ServiceError('invalid_session','failure',422),new Error('network')]){
+    const transport=vi.fn().mockRejectedValue(error);
+    await expect(createResearchRuntimeService(transport).capability()).rejects.toBe(error);
+    expect(transport).toHaveBeenCalledTimes(1);
+  }
+  const invalid=vi.fn().mockResolvedValue({...legacy,sourceIds:[]});
+  await expect(createResearchRuntimeService(invalid).capability()).rejects.toThrow();
+  expect(invalid).toHaveBeenCalledTimes(1);
+  const abort=new AbortController(),transport=vi.fn().mockImplementation(async()=>{
+    abort.abort();throw new ServiceError('invalid_request','old',422);
+  });
+  await expect(createResearchRuntimeService(transport).capability(abort.signal)).rejects.toThrow();
+  expect(transport).toHaveBeenCalledTimes(1);
+});
 const status={contractVersion:1,taskId,runId,phase:'QUEUED',sourceScope:RESEARCH_RUNTIME_SOURCE_SCOPE,
   sourceLabel:RESEARCH_RUNTIME_SOURCE_LABEL,acceptedOriginals:null,analyzedOriginals:0,skippedOriginals:0,
   candidateIds:[],canAdvance:true,stopCode:null,newActionsBlocked:false,effectsPending:false,

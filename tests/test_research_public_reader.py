@@ -133,3 +133,39 @@ def test_public_payload_cannot_smuggle_other_sources_or_invalid_content(payload)
     result = read_public_index(MemoryEvents(), None, **binding(), fetcher=lambda _: payload)
     assert result['event']['status'] == 'UNKNOWN'
     assert result['result'] is None
+
+
+@pytest.mark.parametrize('source,node', [('v2ex-qna-v1', 'qna'),
+    ('v2ex-outsourcing-authors-v1', 'outsourcing')])
+def test_fixed_node_routing_and_mismatched_node_rejection(monkeypatch, source, node):
+    calls = []
+    def handler(request):
+        calls.append(str(request.url))
+        return httpx.Response(200, json=[topic(node={'name': node})])
+    network(monkeypatch, handler)
+    result = read_public_index(MemoryEvents(), None, **binding(), source_id=source)
+    assert result['event']['status'] == 'SUCCEEDED'
+    assert calls == ['https://www.v2ex.com/api/topics/show.json?node_name=' + node]
+    for supplied in ({'name': 'outsourcing' if node == 'qna' else 'qna'}, None, {'name': node, 'url': 'ignored'}):
+        result = read_public_index(MemoryEvents(), None, **binding(), source_id=source,
+            fetcher=lambda _: [topic(node=supplied)])
+        assert result['event']['status'] == ('SUCCEEDED' if supplied and supplied['name'] == node else 'UNKNOWN')
+    invalid_url = read_public_index(MemoryEvents(), None, **binding(), source_id=source,
+        fetcher=lambda _: [topic(node={'name': node}, url='https://evil.example/t/17')])
+    assert invalid_url['event']['status'] == 'UNKNOWN'
+
+
+def test_catalog_is_closed_immutable_and_keeps_legacy_digest():
+    from dataclasses import FrozenInstanceError
+    from pilot.research_source_catalog import research_source
+    from pilot.research_public_reader import _INPUT_SHA
+    latest = research_source('v2ex-latest-v1')
+    assert latest.endpoint == ENDPOINT and latest.input_sha == _INPUT_SHA
+    assert latest.collector == 'v2ex-latest-v1' and latest.version == 1
+    assert len({research_source(x).input_sha for x in
+        ('v2ex-latest-v1', 'v2ex-qna-v1', 'v2ex-outsourcing-authors-v1')}) == 3
+    with pytest.raises(FrozenInstanceError):
+        latest.endpoint = 'https://evil.example'
+    for invalid in ('https://www.v2ex.com/api/topics/latest.json', 'qna', None, [], True):
+        with pytest.raises(ExecutionRuntimeError, match='invalid_request'):
+            research_source(invalid)

@@ -58,6 +58,38 @@ def test_commit_index_finishes_the_original_issued_event(real_strategy_env):
     assert final["status"] == "SUCCEEDED"
 
 
+def test_node_source_cannot_commit_to_latest_frozen_task(real_strategy_env):
+    from pilot.research_source_catalog import research_source
+    env = real_strategy_env
+    execution, _ = started(env)
+    resources = resource_store(env)
+    issued = resources.begin(env.claims, task_id=execution['task_id'], run_id=execution['run_id'],
+        action_id=str(uuid4()), resource='SOURCE_READ',
+        input_sha256=research_source('v2ex-qna-v1').input_sha)['event']
+    result = _public_topics([topic(node={'name': 'qna'})], 'v2ex-qna-v1')
+    with pytest.raises(ExecutionRuntimeError, match='request_conflict'):
+        ResearchCandidateStore(resources).commit_index(env.claims, event=issued,
+            result=result, output_sha256=canonical_result(result))
+    assert resources.get(env.claims, task_id=execution['task_id'], run_id=execution['run_id'],
+        action_id=issued['action_id'])['status'] == 'ISSUED'
+
+
+def test_latest_source_cannot_commit_to_qna_frozen_task(real_strategy_env):
+    from tests.test_research_quote_postgres import _confirmed_research
+    from tests.test_research_resources_postgres import started_again
+    env = real_strategy_env
+    *_, env.confirmed = _confirmed_research(env, source_id='v2ex-qna-v1')
+    env.snapshot = env.confirmed['snapshot']
+    execution, _ = started_again(env)
+    resources = resource_store(env)
+    issued = resources.begin(env.claims, task_id=execution['task_id'], run_id=execution['run_id'],
+        action_id=str(uuid4()), resource='SOURCE_READ', input_sha256=_INPUT_SHA)['event']
+    result = _public_topics([topic()])
+    with pytest.raises(ExecutionRuntimeError, match='request_conflict'):
+        ResearchCandidateStore(resources).commit_index(env.claims, event=issued,
+            result=result, output_sha256=canonical_result(result))
+
+
 def test_actual_research_start_persists_original_candidate_and_recovers_without_fetch(real_strategy_env):
     env = real_strategy_env
     execution, _ = started(env)

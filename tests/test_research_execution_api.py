@@ -43,9 +43,9 @@ def client(service=..., runtime=None):
 
 class Runtime:
     def __init__(self): self.calls = []
-    def capability(self, claims):
+    def capability(self, claims, *, source_catalog_version=None):
         self.calls.append(("capability", claims))
-        return {"contractVersion": 1}
+        return {"contractVersion": 2 if source_catalog_version == 1 else 1}
     def status(self, claims, task_id):
         self.calls.append(("status", claims, task_id)); return {"taskId": task_id}
     def advance(self, claims, task_id, run_id):
@@ -67,6 +67,18 @@ def test_runtime_routes_are_authenticated_strict_and_read_only_by_method():
         json={"runId": run_id, "userId": "forbidden"}).status_code == 422
     assert client(Service(), runtime).get(
         "/api/ui/research-execution/tasks/" + task_id + "?runId=" + run_id).status_code == 422
+
+
+def test_source_catalog_query_is_exact_and_read_only():
+    runtime = Runtime()
+    http = client(Service(), runtime)
+    path = '/api/ui/research-execution/capability'
+    assert http.get(path + '?source_catalog_version=1').json() == {'contractVersion': 2}
+    for query in ('source_catalog_version=2', 'source_catalog_version=01',
+                  'source_catalog_version=1&source_catalog_version=1', 'x=1',
+                  'source_catalog_version=1&x=1'):
+        assert http.get(path + '?' + query).status_code == 422
+    assert len(runtime.calls) == 1
 
 
 def envelope(**changes):

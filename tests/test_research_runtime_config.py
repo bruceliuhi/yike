@@ -63,7 +63,7 @@ def test_scope_is_explicit_single_source_research_only():
         assert not public_research_policy(platform, mode, config)
     for patch in ({"publicSource": None}, {"research": None}, {"mode": "monitor"}, {"links": ["https://v2ex.com/t/1"]}):
         assert not public_research_policy("PUBLIC_WEB", "PUBLIC_ANONYMOUS", deepcopy(config) | patch)
-    assert not public_research_policy(
+    assert public_research_policy(
         "PUBLIC_WEB", "PUBLIC_ANONYMOUS", deepcopy(config) | {"publicSource": "v2ex-qna-v1"})
     assert not public_research_snapshot({"platforms": ["PUBLIC_WEB", "BILIBILI"], "configuration": config})
 

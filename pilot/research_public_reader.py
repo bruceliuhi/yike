@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from pilot.research_resource_runner import run_resource
+from pilot.research_source_catalog import research_source
 
 ENDPOINT = 'https://www.v2ex.com/api/topics/latest.json'
 _BYTE_LIMIT = 1_048_576
@@ -28,17 +29,18 @@ def _pairs(pairs):
     return result
 
 
-async def _fetch(deadline):
+async def _fetch(deadline, source_id='v2ex-latest-v1'):
+    endpoint = research_source(source_id).endpoint
     remaining = min(20, (deadline - datetime.now(UTC)).total_seconds())
     if remaining <= 0:
         _invalid()
 
     async def read():
         async with httpx.AsyncClient(follow_redirects=False, trust_env=False, timeout=remaining) as client:
-            async with client.stream('GET', ENDPOINT, headers={
+            async with client.stream('GET', endpoint, headers={
                     'Accept': 'application/json', 'Accept-Encoding': 'identity',
                     'User-Agent': 'YikeAI/0.2 (public research reader)'}) as response:
-                if (response.status_code != 200 or str(response.url) != ENDPOINT
+                if (response.status_code != 200 or str(response.url) != endpoint
                         or response.headers.get('content-type', '').split(';')[0].strip().lower() != 'application/json'
                         or response.headers.get('content-encoding', 'identity').lower() != 'identity'):
                     _invalid()
@@ -56,17 +58,21 @@ async def _fetch(deadline):
     return await asyncio.wait_for(read(), timeout=remaining)
 
 
-def _fetch_index(deadline):
-    return asyncio.run(_fetch(deadline))
+def _fetch_index(deadline, source_id='v2ex-latest-v1'):
+    return asyncio.run(_fetch(deadline, source_id))
 
 
-def _public_topics(payload):
+def _public_topics(payload, source_id='v2ex-latest-v1'):
+    descriptor = research_source(source_id)
     if type(payload) is not list or len(payload) > 100:
         _invalid()
     topics, seen = [], set()
     observed = datetime.now(UTC)
     for item in payload:
         if type(item) is not dict:
+            _invalid()
+        if descriptor.node is not None and (type(item.get('node')) is not dict
+                or item['node'].get('name') != descriptor.node):
             _invalid()
         identity = item.get('id')
         if type(identity) is not int or not 1 <= identity <= 9_007_199_254_740_991 or identity in seen:
@@ -89,14 +95,15 @@ def _public_topics(payload):
             _invalid()
         topics.append(dict(id=identity, title=title, content=content, created=created,
                            url=f'https://www.v2ex.com/t/{identity}'))
-    return dict(source_url=ENDPOINT, sample_kind='LATEST_TOPIC_INDEX', observed_at=observed.isoformat(),
+    return dict(source_url=descriptor.endpoint, sample_kind=descriptor.sample_kind, observed_at=observed.isoformat(),
                 observed_count=len(topics), topics=topics)
 
 
 def read_public_index(store, claims, *, task_id, run_id, action_id, fetcher=None,
-                      on_success=None, _admission=None):
-    fetcher = _fetch_index if fetcher is None else fetcher
+                      on_success=None, _admission=None, source_id='v2ex-latest-v1'):
+    descriptor = research_source(source_id)
+    fetcher = (lambda deadline: _fetch_index(deadline, source_id)) if fetcher is None else fetcher
     return run_resource(store, claims, task_id=task_id, run_id=run_id, action_id=action_id,
-        resource='SOURCE_READ', input_sha256=_INPUT_SHA,
-        action=lambda deadline: _public_topics(fetcher(deadline)), on_success=on_success,
+        resource='SOURCE_READ', input_sha256=descriptor.input_sha,
+        action=lambda deadline: _public_topics(fetcher(deadline), source_id), on_success=on_success,
         _admission=_admission)

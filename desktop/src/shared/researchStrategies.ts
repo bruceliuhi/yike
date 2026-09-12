@@ -265,8 +265,6 @@ export const strategyConfigurationSchema = exactObject({
   platformQueries: platformQueriesSchema.optional(),
 })
   .superRefine((configuration, context) => {
-    if(configuration.publicSource!==undefined && configuration.publicSource!==null && configuration.publicSource!=='v2ex-latest-v1' && configuration.research!==null)
-      context.addIssue({code:'custom',message:INVALID_STRATEGY_DATA});
     if (configuration.platformQueries && (configuration.source!=='search' || configuration.research!==null || configuration.links.length>0 ||
         configuration.platformQueries.items.some(item=>item.keywords.some(keyword=>configuration.exclusions.some(
           exclusion=>normalizedTerm(keyword).includes(normalizedTerm(exclusion)))))))

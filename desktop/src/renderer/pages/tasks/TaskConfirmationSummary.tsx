@@ -10,6 +10,7 @@ import { DEMAND_TYPES, type UsageQuote } from "../../domain/researchUsage";
 import { schedulePolicyDescription, scheduleWindowLabel } from "../../domain/schedule";
 import {hasPublicSourceBinding} from '../../domain/task';
 import {allowsPublicSource,DEFAULT_PUBLIC_SOURCE,publicSourceScope} from '../../../shared/publicSources';
+import {researchSourceScope} from '../../../shared/researchRuntime';
 
 export function TaskConfirmationSummary({
   draft,
@@ -281,7 +282,7 @@ export function TaskConfirmationSummary({
                             : status}
                       </Badge>
                     </td>
-                    <td>{id === 'web' ? publicSourceScope(draft.publicSource) : source}</td>
+                    <td>{id === 'web' ? draft.research ? researchSourceScope(draft.publicSource) : publicSourceScope(draft.publicSource) : source}</td>
                   </tr>
                 );
               })}

@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from pilot.candidate_ingestion import CandidateIngestionError
 from pilot.execution_contract import ExecutionRuntimeError, canonical_uuid
+from pilot.research_source_catalog import SOURCE_IDS, source_from_snapshot
 
 
 SOURCE_SCOPE = "V2EX_LATEST_INDEX"
@@ -20,9 +21,15 @@ class ResearchRuntimeService:
         self.owner = str(uuid4())
         self.lease_seconds = lease_seconds
 
-    def capability(self, claims):
+    def capability(self, claims, *, source_catalog_version=None):
         with self.database.connect() as connection, connection.cursor() as cursor:
             self.execution._active(cursor, claims)
+        if source_catalog_version is not None:
+            if type(source_catalog_version) is not int or source_catalog_version != 1:
+                raise ExecutionRuntimeError('invalid_request', 422)
+            return {'contractVersion': 2, 'sourceScope': 'V2EX_SELECTED_INDEX',
+                'sourceLabel': 'V2EX定向板块 · 单源索引研究', 'sourceIds': list(SOURCE_IDS),
+                'maxFreshEffectsPerAdvance': 1, 'settlementState': 'PENDING'}
         return {"contractVersion": 1, "sourceScope": SOURCE_SCOPE,
             "sourceLabel": SOURCE_LABEL, "maxFreshEffectsPerAdvance": 1,
             "settlementState": "PENDING"}
@@ -105,8 +112,9 @@ class ResearchRuntimeService:
             "DRAINING" if pending or leased else "RECORDED" if terminal else "OPEN"
         usage["resourceCloseout"] = {"state": closeout, "overduePermits": overdue,
             "asOf": now.isoformat()}
-        return {"contractVersion": 1, "taskId": task_id, "runId": run_id,
-            "phase": phase, "sourceScope": SOURCE_SCOPE, "sourceLabel": SOURCE_LABEL,
+        source = source_from_snapshot(state['strategy_snapshot'])
+        return {"contractVersion": source.version, "taskId": task_id, "runId": run_id,
+            "phase": phase, "sourceScope": source.scope, "sourceLabel": source.label,
             "acceptedOriginals": accepted, "analyzedOriginals": analyzed,
             "skippedOriginals": state["skipped"], "candidateIds": candidate_ids,
             "canAdvance": not blocked, "stopCode": stop, "newActionsBlocked": blocked,

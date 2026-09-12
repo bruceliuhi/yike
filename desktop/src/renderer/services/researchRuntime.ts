@@ -17,7 +17,21 @@ export function createResearchRuntimeService(transport:Transport):ResearchRuntim
     return result;
   }
   return {
-    async capability(signal){return researchRuntimeCapabilitySchema.parse(await transport('researchRuntime.capability','/research-execution/capability','GET',undefined,signal));},
+    async capability(signal){
+      signal?.throwIfAborted();
+      let raw:unknown;
+      try{raw=await transport('researchRuntime.capability','/research-execution/capability?source_catalog_version=1','GET',{sourceCatalogVersion:1},signal);}
+      catch(error){
+        signal?.throwIfAborted();
+        if(!(error instanceof ServiceError)||error.status!==422||error.code!=='invalid_request')throw error;
+        // Capability negotiation is read-only. Never retry START or an effect.
+        raw=await transport('researchRuntime.capability','/research-execution/capability','GET',undefined,signal);
+        if(researchRuntimeCapabilitySchema.parse(raw).contractVersion!==1)
+          throw new ServiceError('INVALID_SERVICE_RESPONSE','研究能力协商结果不一致。');
+      }
+      signal?.throwIfAborted();
+      return researchRuntimeCapabilitySchema.parse(raw);
+    },
     async status(taskId,signal){const payload=researchRuntimeStatusRequestSchema.parse({taskId});
       return bound(await transport('researchRuntime.status',`/research-execution/tasks/${taskId}`,'GET',payload,signal),taskId);},
     async advance(taskId,runId,signal){const payload=researchRuntimeAdvanceRequestSchema.parse({taskId,runId});

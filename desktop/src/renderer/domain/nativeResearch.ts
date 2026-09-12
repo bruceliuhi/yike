@@ -3,6 +3,7 @@ import {configurationHash,hashText} from './taskOperations';
 import {parseUsageQuote,usageQuoteRequest,type UsageQuote} from './researchUsage';
 import {strategyPrepareRequest} from './researchStrategies';
 import {hasPublicSourceBinding} from './task';
+import {allowsPublicSource,DEFAULT_PUBLIC_SOURCE} from '../../shared/publicSources';
 import {validStrategyExecutionLimits} from './strategyExecutionLimits';
 import {strategyReceiptSchema,type StrategyReceipt} from '../../shared/researchStrategies';
 import {desktopExecutionCommandSchema,type DesktopExecutionCommand} from '../../shared/desktopExecution';
@@ -10,9 +11,11 @@ import {desktopExecutionCommandSchema,type DesktopExecutionCommand} from '../../
 export async function nativeResearchStartCommand(draft:TaskDraft,prepared:StrategyReceipt,
   connections:PlatformConnection[],session:Session,quote:UsageQuote,requestId:string) {
   const limits=validStrategyExecutionLimits(draft.executionLimits),receipt=strategyReceiptSchema.parse(prepared);
+  const publicRows=connections.filter(hasPublicSourceBinding);
   if(!limits || !draft.research || draft.mode!=='once' || draft.platforms.length!==1 || draft.platforms[0]!=='web' ||
-    draft.accounts.web || connections.filter(hasPublicSourceBinding).length!==1 || limits.max_records>100 || limits.max_runtime_seconds>900)
-    throw new Error('研究执行当前仅接通V2EX最新主题的单次公开研究，请核对范围。');
+    draft.accounts.web || publicRows.length!==1 || !allowsPublicSource(draft.publicSource??DEFAULT_PUBLIC_SOURCE,
+      publicRows[0].publicBinding?.sourceId,publicRows[0].publicBinding?.sourceIds) || limits.max_records>100 || limits.max_runtime_seconds>900)
+    throw new Error('研究执行仅支持已核实的V2EX所选板块单次索引研究，请核对范围。');
   const expected=strategyPrepareRequest(draft,receipt.request_id,limits);
   if(receipt.draft_id!==draft.id || receipt.draft_revision!==draft.revision || receipt.profile_version_id!==draft.profileId ||
     JSON.stringify(receipt.snapshot.configuration)!==JSON.stringify(expected.configuration) ||

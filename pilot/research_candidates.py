@@ -12,9 +12,9 @@ from pydantic import ValidationError
 from pilot.candidate_contract import CandidateRecord
 from pilot.candidate_ingestion import _persist_records
 from pilot.execution_contract import ExecutionRuntimeError, canonical_uuid
-from pilot.research_public_reader import (ENDPOINT as _ENDPOINT,
-    _INPUT_SHA as _INPUT_SHA256, read_public_index)
+from pilot.research_public_reader import read_public_index
 from pilot.research_resources import _event
+from pilot.research_source_catalog import research_source, source_from_snapshot
 
 
 _SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -48,7 +48,8 @@ def _validated_event(value):
             or type(value.get("research_generation")) is not int \
             or value["research_generation"] != 1 \
             or value.get("resource") != "SOURCE_READ" \
-            or value.get("input_sha256") != _INPUT_SHA256 \
+            or type(value.get("input_sha256")) is not str \
+            or not _SHA256.fullmatch(value["input_sha256"]) \
             or value.get("status") not in ("ISSUED", "SUCCEEDED"):
         raise ExecutionRuntimeError("invalid_request", 422)
     for key in ("reservation_id", "task_id", "run_id", "action_id", "permit_id"):
@@ -65,7 +66,8 @@ def _validated_event(value):
     return value
 
 
-def _records(result, output_sha256, event, *, now):
+def _records(result, output_sha256, event, *, now, source=None):
+    source = research_source('v2ex-latest-v1') if source is None else source
     if type(output_sha256) is not str or not _SHA256.fullmatch(output_sha256):
         raise ExecutionRuntimeError("invalid_request", 422)
     try:
@@ -77,7 +79,7 @@ def _records(result, output_sha256, event, *, now):
     if type(result) is not dict or set(result) != {
             "source_url", "sample_kind", "observed_at", "observed_count", "topics"}:
         raise ExecutionRuntimeError("invalid_request", 422)
-    if result["source_url"] != _ENDPOINT or result["sample_kind"] != "LATEST_TOPIC_INDEX":
+    if result["source_url"] != source.endpoint or result["sample_kind"] != source.sample_kind:
         raise ExecutionRuntimeError("invalid_request", 422)
     observed = _time(result["observed_at"])
     if not _time(event["issued_at"]) <= observed <= now.astimezone(UTC) \
@@ -107,7 +109,7 @@ def _records(result, output_sha256, event, *, now):
                 public_url=topic["url"], title=topic["title"], author_public_id=None,
                 body=topic["content"],
                 published_at=datetime.fromtimestamp(created, UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                observed_at=observed_text, parent=None, collector_version="v2ex-latest-v1",
+                observed_at=observed_text, parent=None, collector_version=source.collector,
                 normalizer_version="research-v2ex-index-v1", query=None)))
         except (ValidationError, ValueError, OverflowError):
             # A source record is either preserved exactly or omitted. Never truncate it.
@@ -133,9 +135,12 @@ class ResearchCandidateStore:
         try:
             with self.runtime.database.connect() as connection, connection.cursor() as cursor:
                 tenant = self.runtime._active(cursor, claims)
-                cursor.execute("SELECT clock_timestamp()")
-                valid, _ = _records(result, output_sha256, event, now=cursor.fetchone()[0])
                 task, run, platforms = self.runtime._locks(cursor, claims, tenant, event["task_id"])
+                source = source_from_snapshot(task['configuration_snapshot'])
+                if event['input_sha256'] != source.input_sha:
+                    raise ExecutionRuntimeError('request_conflict', 409)
+                cursor.execute("SELECT clock_timestamp()")
+                valid, _ = _records(result, output_sha256, event, now=cursor.fetchone()[0], source=source)
                 if run is None or run["run_id"] != event["run_id"] or len(platforms) != 1:
                     raise ExecutionRuntimeError("request_conflict", 409)
                 platform = platforms[0]
@@ -249,9 +254,22 @@ class ResearchCandidateStore:
         except psycopg.Error:
             raise ExecutionRuntimeError("resource_unavailable", 503) from None
 
+    def task_snapshot(self, claims, *, task_id, run_id):
+        task_id, run_id = map(canonical_uuid, (task_id, run_id))
+        with self.runtime.database.connect() as connection, connection.cursor() as cursor:
+            tenant = self.runtime._active(cursor, claims)
+            task, run, _ = self.runtime._locks(cursor, claims, tenant, task_id)
+            if run is None or run['run_id'] != run_id:
+                raise ExecutionRuntimeError('request_conflict', 409)
+            snapshot = task['configuration_snapshot']
+            source_from_snapshot(snapshot)
+            return snapshot
+
     def read_public(self, claims, *, task_id, run_id, action_id, fetcher=None,
                     _admission=None):
+        source = source_from_snapshot(self.task_snapshot(claims, task_id=task_id, run_id=run_id))
         result = read_public_index(self.resources, claims, task_id=task_id, run_id=run_id,
+            source_id=source.source_id,
             action_id=action_id, fetcher=fetcher, on_success=lambda event, value, digest:
                 self.commit_index(claims, event=event, result=value, output_sha256=digest),
             _admission=_admission)

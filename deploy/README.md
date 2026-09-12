@@ -4,7 +4,9 @@
 
 受信配置明确设置以下五项时才组装研究服务：`YIKE_PILOT_RESEARCH_MODE=public-v2ex-v1`、`YIKE_PILOT_RESEARCH_RULE_VERSION`、`YIKE_PILOT_RESEARCH_SOURCE_MILLI`、`YIKE_PILOT_RESEARCH_MINUTE_MILLI`、`YIKE_PILOT_RESEARCH_MODEL_CALL_MILLI`。后三项为运营批准的正整数规则参数（1至1000000），**没有默认价格/换算值，不复制测试参数到生产**。同时须有完整既有`YIKE_PILOT_ASSESSMENT_*`受控模型配置与至少32字节auth secret；缺项/无效配置直接拒绝启动。签报价密钥由auth secret通过独立HMAC域派生，不新增明文密钥配置；轮换auth secret使尚未使用的报价失效，已存历史回执不重签。
 
-该模式只启用固定V2EX最新主题研究，客户端仍要求既有已核验公开来源/本机设备绑定；它不自动打开普通采集模式、多平台研究、持续云端调度或发送。当前实际用量仅展示可信事件数量，`actualSoubei:null / settlementState:PENDING`，没有余额扣款或结算。任何生产启用仍需对应批准及部署验收，不因代码支持配置便视为已开放。
+该模式支持按已确认策略选择 V2EX 最新主题、问与答或项目外包的单次索引研究，每次仅一个板块；项目外包研究未读作者回复，不能套用普通采集的评论能力。客户端仍要求既有已核验公开来源/本机设备绑定；它不自动打开普通采集模式、多平台研究、持续云端调度或发送。当前实际用量仅展示可信事件数量，`actualSoubei:null / settlementState:PENDING`，没有余额扣款或结算。任何生产启用仍需对应批准及部署验收，不因代码支持配置便视为已开放。
+
+定向板块增量：新客户端用 `GET /research-execution/capability?source_catalog_version=1` 核实目录；旧无参数能力和最新主题任务保持 v1，新增节点任务状态为 v2。仅旧服务精确 422/invalid_request 可退回一次无参数只读查询；此时仍只能创建最新主题研究。查看新版节点研究需配套客户端，不能用旧客户端的解析失败判定原任务未执行。无新迁移；本增量未部署。[设计和验收入口](../docs/superpowers/plans/2026-09-12-targeted-public-research.md)。
 
 此前只读估算合同及限制保留见[估算实施记录](../docs/superpowers/plans/2026-09-11-confirmed-research-quote.md)；原文中的“无启用配置/未装配”描述旧版本，不覆盖上方显式配置新实现。
 

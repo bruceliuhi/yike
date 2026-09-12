@@ -229,7 +229,7 @@ export function startBlockers(
   if(publicSelected && (publicRows.length!==1 || !allowsPublicSource(selectedPublicSource,publicRows[0].publicBinding?.sourceId,publicRows[0].publicBinding?.sourceIds)))
     blockers.push('所选公开板块当前不可用，请重新核对来源；不会自动切换板块。');
   const publicMonitor=publicSelected&&draft.mode==='monitor'&&publicRows.length===1&&publicRows[0].publicBinding?.monitorSupported===true;
-  const publicResearch=nativeResearchReady && draft.mode==='once' && draft.platforms.length===1 && publicSelected && selectedPublicSource===DEFAULT_PUBLIC_SOURCE;
+  const publicResearch=nativeResearchReady && draft.mode==='once' && draft.platforms.length===1 && publicSelected;
   if(publicSelected && (draft.accounts.web || publicRows.length!==1 || !['once','monitor'].includes(draft.mode) || draft.mode==='monitor'&&!publicMonitor || draft.source!=='search' || draft.links.trim() || draft.research&&!publicResearch))
     blockers.push(draft.mode==='monitor'?'公开来源尚不具备持续监控能力。':'公开网站仅支持已核对的 V2EX 匿名近期主题关键词采样。');
   if(publicSelected && (!draft.executionLimits || !Number.isInteger(draft.executionLimits.max_records) ||

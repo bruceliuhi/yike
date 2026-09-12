@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from pilot.research_quote import ResearchQuoteRule
 from pilot.research_strategy_contract import ResearchStrategyConfiguration
+from pilot.research_source_catalog import SOURCE_IDS
 
 
 _NAMES = ("MODE", "RULE_VERSION", "SOURCE_MILLI", "MINUTE_MILLI", "MODEL_CALL_MILLI")
@@ -45,7 +46,7 @@ def public_research_policy(platform, access_mode, configuration):
         parsed = ResearchStrategyConfiguration.model_validate(configuration)
     except (ValidationError, TypeError, ValueError, RecursionError):
         return False
-    return (parsed.publicSource == "v2ex-latest-v1" and parsed.source == "search"
+    return (parsed.publicSource in SOURCE_IDS and parsed.source == "search"
         and parsed.mode == "once" and parsed.schedule is None and parsed.research is not None
         and not parsed.links and bool(parsed.keywords)
         and all(term == term.strip() and "," not in term for term in parsed.keywords))

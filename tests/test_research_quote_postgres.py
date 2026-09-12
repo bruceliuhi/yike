@@ -13,7 +13,7 @@ from tests.test_research_origin_postgres import _provenance, _research_config
 from tests.test_research_strategies_postgres import confirm_body, prepare_body, revoke_body
 
 
-def _confirmed_research(env):
+def _confirmed_research(env, *, source_id='v2ex-latest-v1'):
     review, candidate, assessed, check, _, _, _opportunity = include(env, service=real_review(env))
     detail = env.store.get_opportunity(env.claims.user_id, _opportunity)
     binding = {"userId": env.claims.user_id, "opportunityId": _opportunity,
@@ -24,7 +24,7 @@ def _confirmed_research(env):
     suggestion = OpportunityResearchService(env.db, supported_platforms=lambda _: ("PUBLIC_WEB",)).similar(
         env.claims, binding, str(uuid4()))
     pending = env.strategies.prepare(env.claims, prepare_body(env,
-        configuration=_research_config(env, _provenance(env, suggestion))))
+        configuration=_research_config(env, _provenance(env, suggestion)) | {'publicSource': source_id}))
     return review, candidate, assessed, check, pending, env.strategies.confirm(env.claims, confirm_body(pending))
 
 

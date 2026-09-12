@@ -20,6 +20,15 @@ beforeEach(()=>{
 });
 afterEach(cleanup);
 function view(){return render(<ResearchProgress taskId={taskId} runId={runId} taskStatus="PENDING"/>);}
+it.each([
+  ['V2EX_QNA_INDEX','V2EX问与答 · 单源索引研究（未读评论）'],
+  ['V2EX_OUTSOURCING_INDEX','V2EX项目外包 · 单源索引研究（未读作者回复）'],
+])('renders the actual %s research scope without upgrading it to comment research',async(sourceScope,sourceLabel)=>{
+  status.mockResolvedValue({...queued,contractVersion:2,sourceScope,sourceLabel});
+  view();await screen.findByText(sourceLabel);
+  expect(screen.queryByText(RESEARCH_RUNTIME_SOURCE_LABEL)).toBeNull();
+  expect(advance).not.toHaveBeenCalled();
+});
 it('shows recorded resources separately from financial settlement',async()=>{
   status.mockResolvedValue({...queued,phase:'COMPLETED',canAdvance:false,newActionsBlocked:true,
     usage:{...queued.usage,resourceCloseout:{state:'RECORDED',overduePermits:0,asOf:'2026-09-11T14:00:00Z'}}});

@@ -97,6 +97,91 @@ def test_one_fresh_effect_per_advance_and_read_only_status(runtime_env):
     assert reads == ["read"] and model.calls == 2
 
 
+@pytest.mark.parametrize('source_id,node', [('v2ex-qna-v1', 'qna'),
+    ('v2ex-outsourcing-authors-v1', 'outsourcing')])
+def test_targeted_authenticated_http_to_completion_and_recovery(runtime_env, source_id, node):
+    import json
+    import os
+    from fastapi.testclient import TestClient
+    from pilot.auth import issue_token, verify_token_claims
+    from pilot.web import build_app
+    from pilot.research_source_catalog import research_source
+    from pilot.research_runtime_config import public_research_snapshot, public_research_policy
+    from tests.test_research_quote_postgres import _confirmed_research, _request
+    from tests.test_research_execution_postgres import services, signed_start
+    from tests.test_execution_runtime_postgres import start, SECRET
+    from tests.test_candidate_review_postgres import BoundaryModel
+    from tests.test_research_candidates_postgres import topic
+    from tests.test_candidate_assessment_model import CONTENT
+    from pilot.candidate_ingestion import CandidateIngestionStore
+    env = runtime_env
+    token = issue_token(env.claims.user_id, SECRET)
+    env.claims = verify_token_claims(token, SECRET)
+    _, _, _, _, _, confirmed = _confirmed_research(env, source_id=source_id)
+    env.confirmed, env.snapshot = confirmed, confirmed['snapshot']
+    env.runtime.capability_check = public_research_policy
+    quotes, service = services(env)
+    quotes.research_capability = public_research_snapshot
+    request = start(env)
+    quote = quotes.quote(env.claims, _request(env, confirmed) | {'requestId': request.request_id})
+    reads = []
+    class Model(BoundaryModel):
+        def assess_before(self, deadline, **kwargs):
+            return self.assess(**kwargs)
+    model = Model()
+    runtime = _runtime(env, fetcher=lambda _: reads.append(node) or [topic(1901,
+        node={'name': node}, title=CONTENT['title'], content=CONTENT['body'])], model=model)
+    http = TestClient(build_app(env.store, auth_secret=SECRET, research_execution=service,
+        research_runtime=runtime), base_url='https://pilot.example')
+    headers = {'Authorization': 'Bearer ' + token}
+    capability = http.get('/api/ui/research-execution/capability?source_catalog_version=1', headers=headers)
+    legacy_capability = http.get('/api/ui/research-execution/capability', headers=headers)
+    assert legacy_capability.json() == {'contractVersion': 1, 'sourceScope': 'V2EX_LATEST_INDEX',
+        'sourceLabel': 'V2EX最新主题 · 公开单源研究', 'maxFreshEffectsPerAdvance': 1,
+        'settlementState': 'PENDING'}
+    assert capability.status_code == 200
+    assert capability.json() == {'contractVersion': 2, 'sourceScope': 'V2EX_SELECTED_INDEX',
+        'sourceLabel': 'V2EX定向板块 · 单源索引研究',
+        'sourceIds': ['v2ex-latest-v1', 'v2ex-qna-v1', 'v2ex-outsourcing-authors-v1'],
+        'maxFreshEffectsPerAdvance': 1, 'settlementState': 'PENDING'}
+    begun = http.post('/api/ui/research-execution/start', headers=headers, json={
+        'request': request.model_dump(mode='json'), 'signature': signed_start(env, request),
+        'authorization_token': quote['authorizationToken']})
+    assert begun.status_code == 200, begun.json()
+    execution = begun.json()['execution']
+    task, run = execution['task_id'], execution['run_id']
+    path = '/api/ui/research-execution/tasks/' + task
+    queued = http.get(path, headers=headers)
+    assert queued.status_code == 200 and reads == []
+    assert queued.json()['sourceScope'] == research_source(source_id).scope
+    assert queued.json()['contractVersion'] == 2
+    original = http.post(path + '/advance', headers=headers, json={'runId': run})
+    assert original.status_code == 200 and original.json()['acceptedOriginals'] == 1
+    done = http.post(path + '/advance', headers=headers, json={'runId': run})
+    assert done.status_code == 200 and done.json()['phase'] == 'COMPLETED'
+    assert done.json()['analyzedOriginals'] == 1
+    assert reads == [node] and model.calls == 1
+    inbox = CandidateIngestionStore(env.db)
+    raw = inbox.get_candidate(env.claims, done.json()['candidateIds'][0])
+    assert raw['observations']['items'][0]['execution_context']['input_sha256'] == research_source(source_id).input_sha
+    with env.db.connect() as connection:
+        env.runtime._active(connection.cursor(), env.claims)
+        # Collector is persisted provenance, not merely the display label.
+        rows = connection.execute('SELECT collector_version FROM pilot_candidate_observations WHERE tenant_id=%s AND candidate_id=%s',
+            (env.tenant, done.json()['candidateIds'][0])).fetchall()
+    assert rows == [(source_id,)]
+    recovered_runtime = _runtime(env, fetcher=lambda _: pytest.fail('must not refetch'), model=model)
+    assert _stable(recovered_runtime.status(env.claims, task)) == _stable(done.json())
+    assert _stable(recovered_runtime.advance(env.claims, task, run)) == _stable(done.json())
+    if artifact_path := os.environ.get('YIKE_TARGETED_RESEARCH_HTTP_OUTPUT'):
+        output = Path(artifact_path)
+        evidence = json.loads(output.read_text()) if output.exists() else {}
+        evidence[source_id] = {'capability': capability.json(), 'legacyCapability': legacy_capability.json(), 'queued': queued.json(),
+            'afterSource': original.json(), 'completed': done.json(),
+            'evidenceKind': 'local_authenticated_http_restricted_postgresql_synthetic_source_and_model'}
+        output.write_text(json.dumps(evidence, ensure_ascii=False, indent=2))
+
+
 def test_terminal_commit_failure_recovers_without_repeating_effect(runtime_env, monkeypatch):
     from tests.test_candidate_review_postgres import BoundaryModel
     env = runtime_env

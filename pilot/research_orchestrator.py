@@ -52,6 +52,7 @@ class ResearchOrchestrator:
                 continue
             reviews.append(review)
         return dict(task=task, source_action=action, source_event=source_event,
+            strategy_snapshot=self.sources.task_snapshot(claims, task_id=task_id, run_id=run_id),
             receipt=receipt, items=items, reviews=reviews, missing=missing, skipped=skipped)
 
     def advance_one(self, claims, *, task_id, run_id, _admission=None):
