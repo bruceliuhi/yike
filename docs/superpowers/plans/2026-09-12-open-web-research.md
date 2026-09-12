@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.11–3.12, installed Codex CLI, stdlib, existing Pydantic/candidate contracts; no new provider SDK required.
 
-**Runtime decision hold:** Following the user's customer-delivery clarification, Task 2's concrete Codex subprocess implementation has not started and is on hold pending server-side runtime/provider/tool capability validation. The customer must never require a Codex installation/account/key. This does not pause the overall V02 Goal or authorize replacing its Agent workflow with fixed-site collection. The generic read/evidence boundary remains reusable; no customer feature or production mode has changed.
+**Runtime decision resolved:** User explicitly prefers the open-source Codex Harness, authorizes use of existing domestic-model API keys for compatibility validation, and asks to develop through delivery/launch. Task 2 proceeds with this preference, with actual provider/tool compatibility checked before customer activation. Customers never require Codex installation/account/key. Search and original reading use independent tools, not an assumption of built-in search support. Full V02 Goal and real acceptance standards remain unchanged.
 
 ## Global Constraints
 
@@ -45,6 +45,18 @@
 - [ ] Review final concrete code diff plus test evidence against spec. Fix findings with covering regressions and one delta review.
 - [ ] Update taskbook with actual supported entry, tested boundaries and unimplemented production/customer/UI integration.
 - [ ] Fetch, safely integrate concurrent main changes, then normal push to `yike-ai2026/main`; retain full V02 Goal ACTIVE.
+
+### Task 2A: MCP read tool and domestic-model compatibility (root)
+
+**Files:** create `pilot/research_tools.py`, `tests/test_research_tools.py`; add optional `research=["mcp==1.28.0"]` in pyproject/lock; internal run instructions `docs/RESEARCH_TOOLS.md`.
+
+**Interfaces:** `build_server(*, max_reads: int, max_seconds: int, reader=read_public_page)` exposes only MCP tool `read_public_page(url)`. `python -m pilot.research_tools --max-reads 5 --max-seconds 60` uses stdio. Host limits cannot be supplied/changed in tool arguments; no model/tenant/credential parameter is accepted by the tool.
+
+- [ ] SDK client RED tests: advertised input schema; two noncatalog domains; success/failure replay; read cap, session deadline, concurrent serialization; bad/extra input and callback errors return safe fixed codes.
+- [ ] Implement official low-level SDK server (no custom JSON-RPC), optional dependency, bounded reads and explicit unreviewed output. Default application dependency versions stay fixed.
+- [ ] Run SDK protocol tests, a subprocess stdio initialize/list/rejected-call test, and one anonymous public read as a transport probe, not a lead.
+- [ ] Use a private temporary home/workspace, explicit domestic provider, existing authorized key loaded in-process, and no inherited Codex config/tools to test actual Codex response then MCP call/result continuation. Bound time/calls and report only safe status/usage/known test values; no secret/raw provider diagnostic persistence.
+- [ ] Record compatibility or exact safe failure and next action. No silent provider/model substitution or production activation.
 
 ## Evidence
 
