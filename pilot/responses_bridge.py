@@ -291,7 +291,12 @@ class ResponsesBridge:
             if closed or remaining <= 0:
                 return 408, "deadline_exceeded", b"", None
             cutoff = threading.Event()
-            timer = None
+            def abort_upstream():
+                cutoff.set()
+                self._client.close()
+            timer = threading.Timer(remaining, abort_upstream)
+            timer.daemon = True
+            timer.start()
             try:
                 with self._client.stream("POST", _UPSTREAM,
                                          headers={"authorization": "Bearer " + self._api_key,
@@ -301,10 +306,6 @@ class ResponsesBridge:
                         return 502, "provider_error", b"", None
                     if "text/event-stream" not in response.headers.get("content-type", "").lower():
                         return 502, "provider_error", b"", None
-                    timer = threading.Timer(max(0.0, self._deadline - time.monotonic()),
-                                            lambda: (cutoff.set(), response.close()))
-                    timer.daemon = True
-                    timer.start()
                     chunks = []
                     size = 0
                     for chunk in response.iter_bytes():
@@ -325,8 +326,7 @@ class ResponsesBridge:
                     return 408, "deadline_exceeded", b"", None
                 return 502, "provider_error", b"", None
             finally:
-                if timer is not None:
-                    timer.cancel()
+                timer.cancel()
 
     def _restore_item(self, source: Any):
         if not isinstance(source, dict):

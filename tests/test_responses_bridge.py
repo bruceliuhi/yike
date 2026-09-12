@@ -311,3 +311,33 @@ def test_drip_sse_cannot_extend_absolute_deadline(monkeypatch):
     finally:
         upstream.shutdown(); upstream.server_close(); thread.join(1)
     assert monotonic() - started < .8
+
+
+def test_drip_response_headers_cannot_extend_absolute_deadline(monkeypatch):
+    class DripHeaders(BaseHTTPRequestHandler):
+        def log_message(self, *_):
+            return
+        def do_POST(self):
+            self.rfile.read(int(self.headers["content-length"]))
+            raw = (b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n"
+                   b"Content-Length: 1\r\nConnection: close\r\nX-Drip: 123456789012345\r\n\r\nx")
+            try:
+                for byte in raw:
+                    self.connection.sendall(bytes([byte])); time.sleep(.04)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+    upstream = ThreadingHTTPServer(("127.0.0.1", 0), DripHeaders)
+    thread = threading.Thread(target=upstream.serve_forever, daemon=True); thread.start()
+    monkeypatch.setattr("pilot.responses_bridge._UPSTREAM",
+                        f"http://127.0.0.1:{upstream.server_port}/responses")
+    started = monotonic()
+    try:
+        with ResponsesBridge(api_key=KEY, model="m", max_requests=1, deadline=started+.2,
+                             allowed_tools=ALLOWED, transport=httpx.HTTPTransport(retries=0)) as bridge:
+            response = request(bridge, {"tools": [], "input": []})
+            assert response.status_code == 408
+            elapsed = monotonic() - started
+    finally:
+        upstream.shutdown(); upstream.server_close(); thread.join(1)
+    assert elapsed < .45
