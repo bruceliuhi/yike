@@ -1,5 +1,14 @@
 # Windows 最新主干接续（2026-09-12）
 
+## 固定候选0d9500b已构建并覆盖升级（2026-09-13）
+
+- main合并内部研究来件后固定 `0d9500b29f5f35a6b7d3a7dadef9c508ee640164` 并推送。该候选包含 ed0dab1 登录只读STATUS、916df9c 小红书等待本人登录顺序、948c4f1 档案枚举后文件消失时完整重扫；三批均独立GO。后者仅原生error2的已枚举浏览器后代触发，最多三轮，ACL/根/祖先/硬链接/重解析点及严格runtime/output策略不变。[根因、RED和限定证据](../superpowers/plans/2026-09-13-browser-profile-rescan.md)。来件pilot研究资源接线未进入本地host清单，不追认其客户能力，也未重复部署server（仍2a85dbc）。
+- 本批原生目录检查58通过/1跳过；登录/采集调用方57通过/1跳过（未指定真实runtime opt-in）。文件symlink权限跳过保留；旧两批相同字节沿用原定向证据，不重跑桌面全量。真实匿名官方首页200→USER_LOGIN_WAIT→35秒Job超时物理停止后即时档案核验通过；此轮未采集内部重扫次数，不冒充实际账号登录。
+- 新payload `.runtime/portable-release-0d9500b-relocated`，清单SHA256 `d4ce1becebab38c95b8e8b8fc54af15ff1e7c5d887e990d13d2d53ae1a22e071`。真实构建/搬迁/独立Python与Chromium验证1通过/0跳过，133.82秒，XML `.runtime/portable-release-0d9500b-test.xml`。一次Forge make退出0；625项源码输入前后摘要一致 `4ee67bbc85d863ba6f951aa4710c7e8ebdddda1213e4edf7672f529ee7b3fbe9`，受支持Node24.19.0与短TEMP/SQUIRREL_TEMP。
+- 安装器 `C:/yk0d95/make/squirrel.windows/x64/YikeAI-Setup.exe`，642855424字节，SHA256 `b58cdc08f74d1268fda589fccb93a12b387d6f19ffbcccf9416d085ff447f83c`，仍NotSigned。ASAR结构及40项renderer资源检查通过，SHA256 `79a4716f625ba451451934d83d23b91eca263c316b19dd1a9ab6b7d66034bf53`。Vite未来配置兼容/弃用警告未隐藏，不是本次构建失败。
+- 实际正常退出旧安装版，Setup退出0；新安装ASAR与payload清单均匹配候选，主进程31788。computer-use读到工作台、已登录及本机运行环境已准备好；旧业务草稿完整，按用户提供的AI软件定制/全国线上交付完成画像版本1确认，页面回读已确认。无采集、模型调用或外发。
+- **下一步阻点：** 新进程的设备状态仍为“尚未完成绑定核验”，停在“设备与使用授权”页，需本人核验本机身份。该重启后重复核验体验未改善，不以本批发布通过；新版安装态的平台登录STATUS/本人认证/真实采集→证据→判断→批准发送→跟进仍待验。签名和客户验收未完成，Goal ACTIVE；其他旧工作树实例未动，用户档案/历史runtime均保留。
+
 ## 固定候选2a85dbc实装与主干回归（23:48接续）
 
 - Gitee main实际fetch确认 `2a85dbcb68b121f6e8051ccd72b29954f3f2a655`，干净LF工作树 `.worktrees/win-release-2a85dbc`。625项桌面输入构建前后摘要相同：`e20f0c568dab0da656c78c68b7e0db1ae6e0564378ffaa8babd20a2ee034a237`。本批仅一次完整Forge make，使用短TEMP/TMP/SQUIRREL_TEMP及输出目录。
