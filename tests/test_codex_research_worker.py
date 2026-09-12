@@ -386,7 +386,12 @@ def test_profile_research_loads_original_rules_and_bound_context_in_real_process
     data=json.loads(capture.read_text())
     assert result['status']=='COMPLETED'
     assert result['research_binding']==compiled['binding']
-    assert compiled['instructions'] in data['instructions']
+    assert data['instructions'].endswith(compiled['instructions'])
+    assert 'v2ex-latest-v1' in data['instructions']
+    assert 'https://www.v2ex.com/recent' in data['instructions']
+    assert '/api/' not in compiled['instructions']
+    assert result['research_binding']['rule_sha256']==hashlib.sha256(
+        compiled['instructions'].encode('utf-8')).hexdigest()
     assert compiled['context_json'] in data['prompt']
     assert '研究公开需求。' in data['prompt']
     assert context['seller_description'] not in json.dumps(data['argv'],ensure_ascii=False)

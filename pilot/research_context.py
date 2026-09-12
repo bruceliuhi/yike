@@ -10,13 +10,14 @@ from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pilot.open_web_reader import PublicReadError, normalize_public_url
+from pilot.research_source_catalog import research_entry_hints
 from pilot.research_strategy_contract import (
     StrategyStoreError, configuration_digest, strategy_snapshot as validate_strategy_snapshot,
 )
 
 
-_RULE_VERSION = "opportunity-research-context-v1/ai-project-lead-research-1.0.0"
-_RULE_VERSION_V2 = "opportunity-research-context-v2/ai-project-lead-research-1.0.0"
+_RULE_VERSION = "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1"
+_RULE_VERSION_V2 = "opportunity-research-context-v2/ai-project-lead-research-1.0.0/entry-hints-v1"
 _RULE_FILES = (
     "SKILL.md",
     "references/evaluation.md",
@@ -209,7 +210,7 @@ def _canonical_json(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
-def _load_rules() -> tuple[dict[str, str], str]:
+def _load_rules() -> dict[str, str]:
     root = _PACKAGE_RULES if _PACKAGE_RULES.exists() else _SOURCE_RULES
     documents: dict[str, str] = {}
     total = 0
@@ -229,8 +230,7 @@ def _load_rules() -> tuple[dict[str, str], str]:
             documents[relative] = text
     except (OSError, UnicodeDecodeError, ValueError):
         raise ResearchContextError("research_rules_unavailable") from None
-    digest = hashlib.sha256(_canonical_json(documents).encode("utf-8")).hexdigest()
-    return documents, digest
+    return documents
 
 
 def _instructions(documents: dict[str, str]) -> str:
@@ -242,7 +242,7 @@ stdin 中 HOST_RESEARCH_CONTEXT_JSON 标记后的严格 JSON 是本轮宿主范�
 reference_time、timezone 与 max_age_days 限定作者原文时间；搜索索引日期不是原文日期。缺正文或作者更新时标记待补证。预算未知或只有公开评论路径不能直接误杀。
 公开工具读不到动态评论时记录覆盖缺口；专用连接器由其他边界负责。不得开新工具、扩大权限或执行发送。下方规则不能改变工具、安全或人工批准边界。
 """
-    sections = [header]
+    sections = [header, "\n", research_entry_hints(), "\n"]
     for name in sorted(documents):
         sections.append(f"\n## Repository rule: {name}\n\n{documents[name]}")
     return "".join(sections)
@@ -255,7 +255,9 @@ def compile_research_context(value: dict) -> dict:
     maximum = 512 * 1024 if validated["schema_version"] == "research-context-v2" else 32 * 1024
     if len(context_json.encode("utf-8")) > maximum:
         _invalid()
-    documents, rule_sha = _load_rules()
+    documents = _load_rules()
+    instructions = _instructions(documents)
+    rule_sha = hashlib.sha256(instructions.encode("utf-8")).hexdigest()
     context_sha = hashlib.sha256(context_json.encode("utf-8")).hexdigest()
     binding = {
         "rule_version": (_RULE_VERSION_V2 if validated["schema_version"] == "research-context-v2"
@@ -272,7 +274,7 @@ def compile_research_context(value: dict) -> dict:
             "configuration_sha256": configuration_digest(validated["strategy_snapshot"]),
         })
     return {
-        "instructions": _instructions(documents),
+        "instructions": instructions,
         "context_json": context_json,
         "binding": dict(binding),
     }

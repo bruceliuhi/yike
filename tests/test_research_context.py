@@ -1,4 +1,5 @@
 from copy import deepcopy
+import hashlib
 import json
 from pathlib import Path
 from uuid import UUID
@@ -184,7 +185,7 @@ def test_compiles_ai_and_non_ai_service_contexts_with_host_binding():
     assert set(ai) == {"instructions", "context_json", "binding"}
     assert set(ai["binding"]) == expected_keys
     assert ai["binding"]["rule_version"] == (
-        "opportunity-research-context-v1/ai-project-lead-research-1.0.0")
+        "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1")
     assert ai["binding"]["profile_version_id"] == context()["profile_version_id"]
     assert len(ai["binding"]["rule_sha256"]) == 64
     assert len(ai["binding"]["context_sha256"]) == 64
@@ -192,7 +193,41 @@ def test_compiles_ai_and_non_ai_service_contexts_with_host_binding():
     assert "HOST_RESEARCH_CONTEXT_JSON" in ai["instructions"]
     assert "30–60" in ai["instructions"]
     assert "展台设计搭建" in non_ai["context_json"]
+    assert "仅在客户行业与技术社区匹配时" in non_ai["instructions"]
+    assert non_ai["binding"]["rule_sha256"] == hashlib.sha256(
+        non_ai["instructions"].encode("utf-8")
+    ).hexdigest()
     UUID(ai["binding"]["profile_version_id"])
+
+
+def test_catalog_entry_hints_are_public_conditional_and_complete():
+    from pilot.research_source_catalog import SOURCE_IDS, research_entry_hints
+
+    hints = research_entry_hints()
+    assert all(source_id in hints for source_id in SOURCE_IDS)
+    assert "https://www.v2ex.com/recent" in hints
+    assert "https://www.v2ex.com/go/qna" in hints
+    assert "https://www.v2ex.com/go/outsourcing" in hints
+    assert "/api/" not in hints
+    assert "节点页不同于标签页" in hints
+    assert "仅在客户行业与技术社区匹配时" in hints
+    assert "搜索或已发现链接" in hints
+    assert "不得登录或重试" in hints
+    assert "不代表穷尽" in hints
+
+
+def test_changed_entry_hints_change_only_rule_binding(monkeypatch):
+    import pilot.research_context as module
+
+    baseline = compile_research_context(context())
+    monkeypatch.setattr(module, "research_entry_hints", lambda: "changed advisory hints")
+    changed = compile_research_context(context())
+    assert changed["binding"]["rule_sha256"] != baseline["binding"]["rule_sha256"]
+    assert changed["binding"]["context_sha256"] == baseline["binding"]["context_sha256"]
+    assert changed["context_json"] == baseline["context_json"]
+    assert changed["binding"]["rule_sha256"] == hashlib.sha256(
+        changed["instructions"].encode("utf-8")
+    ).hexdigest()
 
 
 @pytest.mark.parametrize("value", [None, [], "x", 1, True])
