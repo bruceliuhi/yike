@@ -49,10 +49,12 @@ _ERRORS = {
 class AssessmentModelError(Exception):
     """Only fixed safe codes; provider/user text is never a public exception."""
 
-    def __init__(self, code: str, status: int):
+    def __init__(self, code: str, status: int, *, usage=None):
         if type(code) is not str or type(status) is not int or _ERRORS.get(code) != status:
             code, status = "invalid_assessment_result", 502
+            usage = None
         self.code, self.status = code, status
+        self.usage = _validated_usage(usage)
         super().__init__(code)
 
 
@@ -285,18 +287,23 @@ def _read_json(raw: str) -> dict:
 
 def _parse_assessment(raw: bytes, *, description: str, content: dict) -> tuple[AssessmentContent, dict | None]:
     envelope = _read_json(raw.decode("utf-8"))
-    choices = envelope.get("choices")
-    if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict):
-        raise ValueError("one complete choice required")
-    choice = choices[0]
-    message = choice.get("message")
-    if (choice.get("finish_reason") != "stop" or not isinstance(message, dict)
-            or message.get("role") != "assistant" or type(message.get("content")) is not str
-            or message.get("refusal") is not None or message.get("tool_calls") not in (None, [])
-            or message.get("function_call") is not None):
-        raise ValueError("complete plain assistant result required")
-    result = validate_assessment(_read_json(message["content"]), description=description, content=content)
-    return result, _validated_usage(envelope.get("usage"))
+    usage = _validated_usage(envelope.get("usage"))
+    try:
+        choices = envelope.get("choices")
+        if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict):
+            raise ValueError()
+        choice = choices[0]
+        message = choice.get("message")
+        if (choice.get("finish_reason") != "stop" or not isinstance(message, dict)
+                or message.get("role") != "assistant" or type(message.get("content")) is not str
+                or message.get("refusal") is not None or message.get("tool_calls") not in (None, [])
+                or message.get("function_call") is not None):
+            raise ValueError()
+        result = validate_assessment(_read_json(message["content"]), description=description, content=content)
+    except (ValueError, TypeError, UnicodeError, RecursionError, AssessmentModelError):
+        # Rejected text is not a free call. Retain only validated measured fields.
+        raise AssessmentModelError('invalid_assessment_result', 502, usage=usage) from None
+    return result, usage
 
 
 def _validated_usage(usage: object) -> dict | None:
@@ -422,6 +429,7 @@ production shortcut: that in-process path cannot interrupt native OS DNS.
         if len(payload) > _PIPE_LIMIT:
             raise AssessmentModelError("invalid_assessment_input", 400)
         error = AssessmentModelError("assessment_result_unknown", 504)
+        worker_usage = None
         try:
             # Isolated Python imports only our fixed package location. No model
             # credentials/profile enter argv, inherited env, stderr or files.
@@ -431,22 +439,26 @@ production shortcut: that in-process path cannot interrupt native OS DNS.
                     stderr=subprocess.DEVNULL, env=environment, close_fds=True) as child:
                 try:
                     raw, _ = child.communicate(payload, timeout=max(0, deadline - time.monotonic()))
-                    if child.returncode == 0 and time.monotonic() < deadline:
+                    if child.returncode == 0:
                         error = AssessmentModelError("invalid_assessment_result", 502)
                         if len(raw) <= _PIPE_LIMIT:
                             reply = _read_json(raw.decode("utf-8"))
-                            if set(reply) == {"error", "status"}:
-                                error = AssessmentModelError(reply["error"], reply["status"])
+                            if set(reply) in ({"error", "status"}, {"error", "status", "usage"}):
+                                error = AssessmentModelError(reply["error"], reply["status"], usage=reply.get('usage'))
+                                worker_usage = error.usage
+                                if time.monotonic() >= deadline:
+                                    error = AssessmentModelError('assessment_result_unknown', 504, usage=worker_usage)
                             elif (set(reply) == {"assessment", "usage", "rule_version", "rule_sha256"}
                                     and reply["rule_version"] == self.rule_version and reply["rule_sha256"] == self.rule_sha256):
+                                worker_usage = _validated_usage(reply['usage'])
                                 result = validate_assessment(reply["assessment"], description=description, content=content)
                                 if time.monotonic() < deadline:
-                                    return result, _validated_usage(reply["usage"])
-                                error = AssessmentModelError("assessment_result_unknown", 504)
+                                    return result, worker_usage
+                                error = AssessmentModelError("assessment_result_unknown", 504, usage=worker_usage)
                 except subprocess.TimeoutExpired:
                     pass
                 except (ValueError, TypeError, UnicodeError, RecursionError, AssessmentModelError):
-                    error = AssessmentModelError("invalid_assessment_result", 502)
+                    error = AssessmentModelError("invalid_assessment_result", 502, usage=worker_usage)
                 finally:
                     if child.poll() is None:
                         child.kill()
@@ -454,7 +466,7 @@ production shortcut: that in-process path cannot interrupt native OS DNS.
                     # The fixed worker writes at most _PIPE_LIMIT bytes.
                     child.communicate()
         except Exception:
-            error = AssessmentModelError("assessment_result_unknown", 504)
+            error = AssessmentModelError("assessment_result_unknown", 504, usage=worker_usage)
         raise error
 
     def _assess_in_process(self, *, description: str, content: dict,
@@ -478,6 +490,7 @@ production shortcut: that in-process path cannot interrupt native OS DNS.
             self._invocation_deadline_monotonic or float("inf"))
         error = "assessment_result_unknown"
         result = None
+        usage = None
         try:
             owner = (nullcontext(self.http_client) if self.http_client is not None else
                      httpx.AsyncClient(transport=httpx.AsyncHTTPTransport(retries=0), trust_env=False))
@@ -494,7 +507,10 @@ production shortcut: that in-process path cannot interrupt native OS DNS.
                     else:
                         try:
                             result = _parse_assessment(bytes(chunks), description=description, content=content)
-                        except (ValueError, TypeError, UnicodeError, RecursionError, AssessmentModelError):
+                            usage = result[1]
+                        except AssessmentModelError as failure:
+                            usage = failure.usage
+                        except (ValueError, TypeError, UnicodeError, RecursionError):
                             pass
                 elif 400 <= response.status_code < 500:
                     error = "assessment_provider_rejected"
@@ -511,4 +527,4 @@ production shortcut: that in-process path cannot interrupt native OS DNS.
         except Exception:
             # Transport failures may embed keys or private profile/source data.
             error = "assessment_result_unknown"
-        raise AssessmentModelError(error, _ERRORS[error])
+        raise AssessmentModelError(error, _ERRORS[error], usage=usage)

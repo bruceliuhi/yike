@@ -37,6 +37,8 @@ def main() -> None:
                  "rule_version": model.rule_version, "rule_sha256": model.rule_sha256}
     except AssessmentModelError as error:
         reply = {"error": error.code, "status": error.status}
+        if error.usage is not None:
+            reply['usage'] = error.usage
     except (ValueError, TypeError, UnicodeError, RecursionError):
         pass
     except Exception:
