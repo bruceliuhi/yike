@@ -2,6 +2,7 @@ import json
 import socket
 import threading
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from time import monotonic
 
 import httpx
@@ -209,11 +210,15 @@ def test_context_close_disconnects_an_inflight_local_request():
             result.append(None)
     thread = threading.Thread(target=local_request)
     thread.start(); assert entered.wait(1)
+    assert bridge.records == [{"ordinal": 1, "status": "unknown", "code": "in_flight",
+                               "usage": None, "elapsed_seconds": 0.0}]
     started = monotonic(); bridge.__exit__(None, None, None)
     assert monotonic() - started < 1
     release.set(); thread.join(1)
     assert not thread.is_alive()
     assert result == [None] or result[0].status_code != 200
+    assert bridge.records == [{"ordinal": 1, "status": "unknown", "code": "in_flight",
+                               "usage": None, "elapsed_seconds": 0.0}]
 
 
 def test_real_responses_sse_sequence_accepts_final_done_sentinel():
@@ -271,3 +276,38 @@ def test_unallowed_actual_custom_tool_calls_fail_but_output_business_data_is_unt
         rejected = request(bridge, {"tools": [], "input": [
             {"type": "custom_tool_call", "name": "forbidden", "input": "{}"}]})
         assert rejected.status_code == 400
+
+
+def test_drip_sse_cannot_extend_absolute_deadline(monkeypatch):
+    body = sse(("response.completed", {"type": "response.completed", "response": {
+        "status": "completed", "output": []}})) + b"data: [DONE]\n\n"
+
+    class Drip(BaseHTTPRequestHandler):
+        def log_message(self, *_):
+            return
+        def do_POST(self):
+            length = int(self.headers["content-length"])
+            self.rfile.read(length)
+            self.send_response(200)
+            self.send_header("content-type", "text/event-stream")
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            try:
+                for byte in body:
+                    self.wfile.write(bytes([byte])); self.wfile.flush(); time.sleep(.04)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+    upstream = ThreadingHTTPServer(("127.0.0.1", 0), Drip)
+    thread = threading.Thread(target=upstream.serve_forever, daemon=True); thread.start()
+    monkeypatch.setattr("pilot.responses_bridge._UPSTREAM",
+                        f"http://127.0.0.1:{upstream.server_port}/responses")
+    started = monotonic()
+    try:
+        with ResponsesBridge(api_key=KEY, model="m", max_requests=1, deadline=started+.2,
+                             allowed_tools=ALLOWED, transport=httpx.HTTPTransport(retries=0)) as bridge:
+            response = request(bridge, {"tools": [], "input": []})
+            assert response.status_code == 408
+    finally:
+        upstream.shutdown(); upstream.server_close(); thread.join(1)
+    assert monotonic() - started < .8

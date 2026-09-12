@@ -209,13 +209,16 @@ class ResponsesBridge:
                 return
             self._count += 1
             ordinal = self._count
+            self._records.append({"ordinal": ordinal, "status": "unknown", "code": "in_flight",
+                                  "usage": None, "elapsed_seconds": 0.0})
         started = time.monotonic()
         status, code, body, usage = self._forward(outbound)
         record = {"ordinal": ordinal, "status": "ok" if status == 200 else "error",
                   "code": code, "usage": usage,
                   "elapsed_seconds": round(time.monotonic() - started, 6)}
         with self._state_lock:
-            self._records.append(record)
+            if not self._closed:
+                self._records[ordinal - 1] = record
         if status != 200:
             self._send(handler, status, {"error": {"code": code}})
             return
@@ -287,6 +290,8 @@ class ResponsesBridge:
                 closed = self._closed
             if closed or remaining <= 0:
                 return 408, "deadline_exceeded", b"", None
+            cutoff = threading.Event()
+            timer = None
             try:
                 with self._client.stream("POST", _UPSTREAM,
                                          headers={"authorization": "Bearer " + self._api_key,
@@ -296,9 +301,15 @@ class ResponsesBridge:
                         return 502, "provider_error", b"", None
                     if "text/event-stream" not in response.headers.get("content-type", "").lower():
                         return 502, "provider_error", b"", None
+                    timer = threading.Timer(max(0.0, self._deadline - time.monotonic()),
+                                            lambda: (cutoff.set(), response.close()))
+                    timer.daemon = True
+                    timer.start()
                     chunks = []
                     size = 0
                     for chunk in response.iter_bytes():
+                        if cutoff.is_set() or time.monotonic() >= self._deadline:
+                            return 408, "deadline_exceeded", b"", None
                         size += len(chunk)
                         if size > _MAX_BYTES:
                             return 502, "provider_error", b"", None
@@ -310,7 +321,12 @@ class ResponsesBridge:
                     return 408, "deadline_exceeded", b"", None
                 return 200, "ok", body, usage
             except Exception:
+                if cutoff.is_set() or time.monotonic() >= self._deadline:
+                    return 408, "deadline_exceeded", b"", None
                 return 502, "provider_error", b"", None
+            finally:
+                if timer is not None:
+                    timer.cancel()
 
     def _restore_item(self, source: Any):
         if not isinstance(source, dict):
