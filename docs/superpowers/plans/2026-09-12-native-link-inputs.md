@@ -31,7 +31,7 @@
 - [x] 实现 design 中白名单解析；固定错误，不打印输入；XHS 参数在精确原生路由通过后才允许。
 - [x] Python PrepareStrategyRequest after validator 与 TS prepareStrategySchema refinement 对 source=links/research=null 调用计划；snapshot 不套用新准备门禁。Python check_links 对可解析 XHS 签名链接采用狭窄例外，其余仍走旧 URL 校验。
 - [x] 定向验证：pytest tests/test_native_collection_links.py tests/test_research_strategy_contract.py；Vitest nativeCollectionLinks.test.ts researchStrategies.test.ts；tsc --noEmit。
-- [ ] 固定提交后独立审核整批，修复必要问题，更新任务书并正常推送 main。
+- [x] 固定提交后独立审核整批，修复必要问题，更新任务书；按既定流程合入 main。
 
 ## 后续交付接口
 
@@ -50,3 +50,5 @@ TS RED：新测试因模块尚不存在而失败，原 researchStrategies 21 pas
 本输入批没有任何链接采集执行、生产或 Windows 验收证据。
 
 最终独立复核固定 `f695667c16e81208ee9d679c74bb05fc3b48de04`：GO，可合 main；原P2关闭，无新增P1/P2，复用定向测试和类型检查，不重复运行。该结论只覆盖输入与历史恢复，不覆盖后续执行器。远端 `3b23658` 的纯Windows/部署交接已正常合并，未覆盖其同源候选证据；当前固定安装包不因此自动更新。
+
+收尾同步远端 `1f597f6`：Win侧已独立GO的页面ASSESS90秒等待修复，与本批文件不重叠；沿用其62项及类型检查证据，在合并结果仅补实际hook文件25 passed（1.83秒）。这是受控延迟响应，不是实网模型或客户UAT。两端源码正常合并，未在本任务重新部署或构包。
