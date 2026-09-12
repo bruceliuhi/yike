@@ -215,16 +215,25 @@ class OpportunityBriefService:
                     raise OpportunityBriefError("brief_store_unavailable", 503) from None
                 snapshot = view["snapshot"]
                 from pilot.source_content_changes import load_source_content_changes,SourceContentChangeError
-                try: projected=load_source_content_changes(cursor,tenant=tenant,owner=claims.user_id,evidence=snapshot,now=now)
+                try: projected=load_source_content_changes(cursor,tenant=tenant,owner=claims.user_id,evidence=snapshot,now=now,
+                    include_author_changes=True)
                 except SourceContentChangeError as error:
                     raise OpportunityBriefError("snapshot_too_large" if "limit" in str(error) else "brief_store_unavailable",503) from None
-                today=[change for change in projected["changes"]
-                    if local_start<=datetime.fromisoformat(change["detectedAt"].replace("Z","+00:00"))<local_end]
+                evidence_changes=[(change,
+                    "库内观察到来源正文不同；观察时间已保留，真实编辑时间未知，需求含义仍需人工复核。")
+                    for change in projected["changes"]]
+                evidence_changes.extend((change,
+                    ("库内首次观察到作者回复；首次读到不代表刚发布，需求含义仍需人工复核。"
+                     if change["kind"]=="OBSERVED_NEW" else
+                     "库内观察到作者回复正文变化；观察时间已保留，真实编辑时间未知，需求含义仍需人工复核。"))
+                    for change in projected["authorChanges"])
+                today=[item for item in evidence_changes
+                    if local_start<=datetime.fromisoformat(item[0]["detectedAt"].replace("Z","+00:00"))<local_end]
                 if today:
-                    change=max(today,key=lambda item:(item["detectedAt"],item["id"]))
+                    change,reason=max(today,key=lambda item:(item[0]["detectedAt"],item[0]["id"]))
                     changes.append(self._item("changes",row,query,change["id"],change["toObservationId"],
                         change["to"]["quote"],"VERIFIED_CHANGE",change["detectedAt"],
-                        "库内观察到来源正文不同；观察时间已保留，真实编辑时间未知，需求含义仍需人工复核。"))
+                        reason))
                 cursor.execute("""SELECT v.receipt FROM pilot_candidate_review_requests included
                     JOIN pilot_candidate_source_verifications v ON v.tenant_id=included.tenant_id
                      AND v.owner_user_id=included.owner_user_id AND v.binding_hash=included.binding_hash

@@ -26,22 +26,31 @@
 
 **Interfaces:** `project_source_content_changes(..., include_author_changes=False)`与`load_source_content_changes(..., include_author_changes=False)`默认原返回；true按Global Constraints增加版本字段/authorChanges并替换旧泛作者gap。`OpportunityResearchService.timeline(claims,binding,timeline_schema_version=2)`（实际类名以repo为准）仅2/3；HTTP旧请求调用旧两参数形态不破坏现有fake services，新请求传3；简报load传true。
 
-- [ ] RED：有效空作者集合→新回复→同ID修改→重复；不完整范围首次读到仍OBSERVED_NEW，减少只gap；顺序/第三方计数变化无事件；空/错作者/同毫秒冲突/早于锚点不伪造变化；超限失败。
-- [ ] 实现有界纯投影，复用现_source_content_changes时间规范/引用截断；新字段只在opt-in出现，legacy输出不变。稳定ID绑定锚点/前后观察/版本/replyId/kind，内容不放进日志。
-- [ ] API定向RED/GREEN：旧请求V2、新请求V3、错误版本/字段拒绝、身份门禁仍生效。
-- [ ] 真实隔离PG/HTTP覆盖已纳入同来源作者更新后，V3引用命中保留版本、旧V2仍原形状、当日brief仅一次且是对应author事件；另一owner不可见。模型/来源输入合成，数据库/HTTP用真实限制角色。可启动既有自有容器`yike-research-resources-task1-pg`并新建独立DB，不输出密码/URL；保持数据等root核对。
-- [ ] 给root报告：文件、exact命令、RED/GREEN、已知未验及安全复用DB名；不扩测试整仓，不真实provider，不计“已获得客户需求”。
+- [x] RED：有效空作者集合→新回复→同ID修改→重复；不完整范围首次读到仍OBSERVED_NEW，减少只gap；顺序/第三方计数变化无事件；空/错作者/同毫秒冲突/早于锚点不伪造变化；超限失败。
+- [x] 实现有界纯投影，复用现_source_content_changes时间规范/引用截断；新字段只在opt-in出现，legacy输出不变。稳定ID绑定锚点/前后观察/版本/replyId/kind，内容不放进日志。
+- [x] API定向RED/GREEN：旧请求V2、新请求V3、错误版本/字段拒绝、身份门禁仍生效。
+- [x] 真实隔离PG/HTTP覆盖已纳入同来源作者更新后，V3引用命中保留版本、旧V2仍原形状、当日brief仅一次且是对应author事件；另一owner不可见。模型/来源输入合成，数据库/HTTP用真实限制角色。可启动既有自有容器`yike-research-resources-task1-pg`并新建独立DB，不输出密码/URL；保持数据等root核对。
+- [x] 给root报告：文件、exact命令、RED/GREEN、已知未验及安全复用DB名；不扩测试整仓，不真实provider，不计“已获得客户需求”。
 
 ### Task 2: 严格客户端读取与可见时间线（root）
 
 **Files:** `desktop/src/shared/opportunityResearchApi.ts`、`desktop/src/renderer/domain/opportunityResearch.ts`、新`desktop/src/renderer/domain/authorChanges.ts`（需要时）、`desktop/src/renderer/services/opportunityResearch.ts`、`desktop/src/renderer/pages/opportunities/EvidenceTimeline.tsx`、`desktop/src/renderer/pages/workbench/OpportunityBrief.tsx`；对应定向测试。
 
-- [ ] RED：原V1/V2仍可读、V3可读并逐字展示新增/修改；重复/漏事件/错replyId/错引用/跨作者/未来时间拒绝。全量期望事件由留存版本重新计算，不能只检查服务器提供的几个事件。
-- [ ] 添加严格V3 schema与作者验证，保持V2正文校验并重用引用检验。service只对明确旧版422降级一次，取消/超时/401/解析失败不降级。
-- [ ] UI复用既有组件呈现作者前后引文、来源版本、观察/检测时间及新增未知前文，非作者普通时间线不加空壳；每日简报“留存原文对比”改“留存来源证据”。
-- [ ] Node24/Vitest定向及tsc，跑新旧timeline/service/fixed IPC边界。与backend组合至少一份真实HTTP响应交给正式TS parser核验；若可行用现有测试UI harness验证，不拿合成数据当平台结果。
+- [x] RED：原V1/V2仍可读、V3可读并逐字展示新增/修改；重复/漏事件/错replyId/错引用/跨作者/未来时间拒绝。全量期望事件由留存版本重新计算，不能只检查服务器提供的几个事件。
+- [x] 添加严格V3 schema与作者验证，保持V2正文校验并重用引用检验。service只对明确旧版422降级一次，取消/超时/401/解析失败不降级。
+- [x] UI复用既有组件呈现作者前后引文、来源版本、观察/检测时间及新增未知前文，非作者普通时间线不加空壳；每日简报“留存原文对比”改“留存来源证据”。旧观察缺作者上下文时也可展开新观察的原始作者回复，不编造变化。
+- [x] Node24/Vitest定向及tsc，跑新旧timeline/service/fixed IPC边界。与backend组合一份真实认证FastAPI/PG响应交给正式TS parser离线核验；UI功能用jsdom验证，未做浏览器视觉或Windows验收。
 
 ## 验收与交接
 
 - [ ] 根整合/定向交叉验证，固定SHA独立审核；代码与文档正常合main，不重复构包/部署。
 - [ ] 记录版本、实际通过范围、未验平台/Windows/客户闭环；跨轮来源游标继续留在完整Goal，不以作者事件子项完成关闭目标。
+
+## Evidence
+
+- 后端先纯投影RED 11项（缺opt-in参数），API V3请求RED 422；真实PG逐步暴露brief未纳作者事件、raw证据跨owner可见、首次修复误隐藏旧共享机会。最终仅带raw payload的新机会按owner过滤，旧无raw payload导入继续tenant共享；真实回归同时覆盖两者。
+- 后端最终 `uv run --frozen --extra dev pytest -q tests/test_source_author_changes.py tests/test_source_content_changes.py tests/test_opportunity_research_api.py tests/test_opportunity_research_postgres.py`：31 passed / 22.86s。测试凭据仅运行时内存注入，不入仓；自有隔离DB `yike_author_change_task1_20260912`。改动文件compileall与diff-check退出0。合成业务输入，真实受限PG/认证FastAPI，不是真实平台或模型。
+- 客户端新增测试先5 failed/1 passed；旧无作者上下文UI补充先RED，再保留可展开作者证据。Node24运行 `vitest run tests/ui/author-source-changes.test.tsx tests/ui/source-content-changes.test.tsx tests/opportunityResearchService.test.ts`：23 passed / 2.42s；tsc --noEmit退出0。旧请求形状断言随V3更新，旧响应解析不放宽。
+- 简报旧标签断言定向RED后改为正式新文案；`vitest run tests/ui/r4-opportunity-brief.test.tsx -t 'renders three groups'`：1 passed / 10未选中；未重跑无差量用例。
+- root实际使用Vite SSR加载正式 `parseResearchTimeline`，离线读取后端成功PG/认证HTTP用例保存的原始JSON，以generatedAt检查当时快照：V3、2版本、1作者事件通过，退出0。没有手工重构DTO，不宣称一次真实浏览器端到端。
+- 全部新增功能未部署/构包/真实平台执行/外发，无Windows新包或客户UAT证据；既有Windows候选不能追认本批。完整Goal保持ACTIVE。

@@ -250,6 +250,8 @@ class OpportunityResearchService:
                     "draft_comment","draft_dm","source_status","intent_status","updated_at","platform","public_url",
                     "published_at","included_by","payload","payload_sha256")
                 item=dict(zip(names,row)); payload=item["payload"]
+                if payload is not None and item["included_by"]!=claims.user_id:
+                    continue
                 valid=None
                 if payload is not None:
                     try:
@@ -369,12 +371,15 @@ class OpportunityResearchService:
                 or not check or verification.get("status")!="OPEN" or checked>now or now-checked>timedelta(hours=24)):
             raise OpportunityResearchError("recognition_required",409)
 
-    def timeline(self,claims,binding):
+    def timeline(self,claims,binding,timeline_schema_version=2):
+        if type(timeline_schema_version) is not int or timeline_schema_version not in (2,3):
+            raise OpportunityResearchError("invalid_request",422)
         binding=self._binding(binding)
         with self._snapshot(claims) as (cursor,tenant,now):
             evidence=self._recognized(cursor,tenant,claims,binding); source=evidence["source"]
             from pilot.source_content_changes import load_source_content_changes,SourceContentChangeError
-            try: projection=load_source_content_changes(cursor,tenant=tenant,owner=claims.user_id,evidence=evidence,now=now)
+            try: projection=load_source_content_changes(cursor,tenant=tenant,owner=claims.user_id,evidence=evidence,now=now,
+                include_author_changes=timeline_schema_version==3)
             except SourceContentChangeError as error:
                 raise OpportunityResearchError("record_limit_exceeded" if "limit" in str(error) else "evidence_unavailable",409) from None
             cursor.execute("SELECT count(*) FROM pilot_followups WHERE tenant_id=%s AND opportunity_id=%s",
@@ -383,7 +388,8 @@ class OpportunityResearchService:
             gaps=projection["gaps"]
             if contact_count: gaps.append("历史人工跟进缺少可验证登记人，未投影为联系事件。")
             identity=[binding,projection["anchorObservationId"],projection["observations"],projection["versions"],projection["changes"]]
-            return {"schemaVersion":2,"binding":binding,**self._window(now,identity),**projection,"contacts":[]}
+            if timeline_schema_version==3: identity.append(projection["authorChanges"])
+            return {"schemaVersion":timeline_schema_version,"binding":binding,**self._window(now,identity),**projection,"contacts":[]}
 
     def similar(self,claims,binding,request_id):
         binding=self._binding(binding)

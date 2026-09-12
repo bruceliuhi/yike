@@ -25,7 +25,7 @@ def _pairs(pairs):
     return result
 
 
-async def _body(request,fields):
+async def _body(request,fields,*alternative_fields):
     if request.headers.get("content-type","").split(";",1)[0].strip().lower()!="application/json":
         raise _error(415,"json_required")
     raw=bytearray()
@@ -35,7 +35,8 @@ async def _body(request,fields):
     try:
         value=json.loads(raw.decode("utf-8"),object_pairs_hook=_pairs,
             parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
-        if type(value) is not dict or set(value)!=fields: raise ValueError
+        allowed=(fields,)+alternative_fields
+        if type(value) is not dict or set(value) not in allowed: raise ValueError
         json.dumps(value,ensure_ascii=False,allow_nan=False).encode()
         return value
     except (ValueError,TypeError,UnicodeError,RecursionError):
@@ -66,9 +67,14 @@ def register_opportunity_research_api(router,service,identity,require_session_ht
 
     @router.post("/opportunity-research/timeline")
     async def timeline(request:Request,response:Response):
-        claims=await run_in_threadpool(current,request); body=await _body(request,{"binding"})
+        claims=await run_in_threadpool(current,request)
+        body=await _body(request,{"binding"},{"binding","timelineSchemaVersion"})
         response.headers["Cache-Control"]="no-store"
-        return await run_in_threadpool(invoke,service.timeline,claims,body["binding"])
+        if "timelineSchemaVersion" not in body:
+            return await run_in_threadpool(invoke,service.timeline,claims,body["binding"])
+        if type(body["timelineSchemaVersion"]) is not int or body["timelineSchemaVersion"]!=3:
+            raise _error(422,"invalid_request")
+        return await run_in_threadpool(invoke,service.timeline,claims,body["binding"],3)
 
     @router.post("/opportunity-research/similar")
     async def similar(request:Request,response:Response):
