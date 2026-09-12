@@ -1,4 +1,4 @@
-"""Durable internal research resource permits; no HTTP, pricing, or callbacks."""
+"""Durable internal research permits with transaction-local host admission hooks."""
 from __future__ import annotations
 
 import hashlib
@@ -58,11 +58,13 @@ class ResearchResourceStore:
             connection_id=row[2], connection_version=row[3])) for row in rows)
 
     def begin(self, claims, *, task_id, run_id, action_id, resource, input_sha256,
-              _admission=None):
+              _admission=None, _on_issued=None):
         task_id, run_id, action_id = map(canonical_uuid, (task_id, run_id, action_id))
         if type(resource) is not str or resource not in _RESOURCES:
             raise ExecutionRuntimeError("invalid_request", 422)
         input_sha256 = _sha256(input_sha256)
+        if _on_issued is not None and not callable(_on_issued):
+            raise ExecutionRuntimeError("invalid_request", 422)
         try:
             with self.runtime.database.connect() as connection, connection.cursor() as cursor:
                 tenant = self.runtime._active(cursor, claims)
@@ -142,6 +144,13 @@ class ResearchResourceStore:
                     (tenant, claims.user_id, reservation[0], task_id, run_id, action_id, permit_id,
                      resource, input_sha256, now, deadline))
                 event = _event(cursor.fetchone())
+                if _on_issued is not None:
+                    try:
+                        _on_issued(cursor, tenant, json.loads(json.dumps(event)))
+                    except ExecutionRuntimeError:
+                        raise
+                    except Exception:
+                        raise ExecutionRuntimeError("resource_unavailable", 503) from None
                 self.runtime._active(cursor, claims)
                 return {"created": True, "event": event}
         except ExecutionRuntimeError:

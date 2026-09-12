@@ -66,4 +66,15 @@ journal.finish(claims, *, task_id, run_id, sequence, permit_id, status, result=N
 
 ## Evidence
 
-Pending. Full goal ACTIVE; context-v2 foundation97b2d8d is already merged and must not be reimplemented. Next after this batch is the customer supervisor/evidence/UI vertical, not more standalone helper capability claims.
+Implementation candidate, independent review pending. Base `97b2d8d`; contract/dispatcher `419bd0f` plus credential hardening `5d61d38`. Root journal derives action UUID as `uuid5(UUID(run_id), f'{task_id}:{sequence}')`; sequence cannot skip an issued/unknown/failed predecessor. Dispatcher bounds actual I/O by the earlier worker deadline and persisted task/lease ceiling. No automatic worker restart is added.
+
+Observed RED: missing journal module; quoted credential/control-key handling failed three pure cases; successful replay incorrectly bypassed current capability/rule in two PG cases. The latter is fixed by same-transaction current-authority validation before returning the entry, not by changing legacy resource replay behavior. Empty deployment grant verification also exposed missing context/journal grants and a stale test treating the separate ops grant as a runtime grant; context/journal are included, ops remains explicitly separate.
+
+Targeted GREEN (2026-09-13):
+- Agent contract + dispatcher: **32 passed**, pure/fake-journal only; no DB or network claim.
+- Root `tests/test_research_effect_journal_postgres.py`, `tests/test_research_resources_postgres.py`, `tests/test_research_effect_gateway.py`: **48 passed in 55.45s** using an owned disposable PostgreSQL16 database and restricted application role.
+- `tests/test_empty_deployment_grants.py`: **2 passed in 0.50s** with a new non-owner LOGIN role on that isolated DB; complete runtime grant manifest exercised twice, ops never granted.
+
+PG evidence includes atomic issued-hook failure and result rollback, concurrent duplicate admission, current owner/generation/lease/profile/strategy/rule/capability, final-session fence rollback, RLS, SQL forged-entry/immutable-result guards, UNKNOWN occupancy, no sequence gaps, quota exhaustion and post-cancel closeout. Actual `dispatch_effect → DurableResearchDispatcher → ResearchEffectJournal` executes synthetic MODEL→SEARCH→READ: a second DB connection sees the permit and journal before each callback; complete original text and model SSE/usage persist; successful replay causes no additional callback or resource event. These callbacks are synthetic, not external providers or useful customer leads. Existing customer-context material-revocation checks remain inherited through the same loader/strategy path; this batch does not claim a new real-platform material scenario.
+
+No credentials/provider calls, new capability/API, candidate publication, frontend change, Windows build, deployment or external messages. Full goal ACTIVE; next mandatory batch is dynamic customer supervisor + generic candidate evidence + existing UI/API vertical, followed by real same-budget research quality and cross-day evidence. Do not rerun this helper batch as a substitute for that path.

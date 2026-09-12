@@ -1,5 +1,7 @@
 # 意客 AI 应用镜像
 
+内部动态研究基础（2026-09-13）：迁移141/142及`grant_customer_research_context.sql`、`grant_research_effect_journal.sql`已纳入完整runtime授权清单；只增加同客户研究上下文与逐动作持久结果，不开放动态客户capability。`grant_ops.sql`始终是独立运营角色，不能加入客户runtime授权。当前仅隔离PG验证，未应用生产迁移；[实施边界及证据](../docs/superpowers/plans/2026-09-13-durable-research-effects.md#evidence)。
+
 研究客户端/运行时增量（2026-09-11，`e26d664`）：新增迁移137与`grant_research_runtime.sql`，已纳入完整`grant_runtime.sql`。客户端与API须配套升级；研究原请求/推进/完成不可回退普通采集执行。研究默认未装配，接口返回501；本批未部署或收费。[唯一实施证据](../docs/superpowers/plans/2026-09-11-native-research-client.md#实施证据)。
 
 受信配置明确设置以下五项时才组装研究服务：`YIKE_PILOT_RESEARCH_MODE=public-v2ex-v1`、`YIKE_PILOT_RESEARCH_RULE_VERSION`、`YIKE_PILOT_RESEARCH_SOURCE_MILLI`、`YIKE_PILOT_RESEARCH_MINUTE_MILLI`、`YIKE_PILOT_RESEARCH_MODEL_CALL_MILLI`。后三项为运营批准的正整数规则参数（1至1000000），**没有默认价格/换算值，不复制测试参数到生产**。同时须有完整既有`YIKE_PILOT_ASSESSMENT_*`受控模型配置与至少32字节auth secret；缺项/无效配置直接拒绝启动。签报价密钥由auth secret通过独立HMAC域派生，不新增明文密钥配置；轮换auth secret使尚未使用的报价失效，已存历史回执不重签。

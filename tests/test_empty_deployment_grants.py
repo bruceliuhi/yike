@@ -47,9 +47,11 @@ class EmptyDeploymentGrantsTest(unittest.TestCase):
             manifest = (ROOT / "deploy/grant_runtime.sql").read_text()
             names = [line.split()[1] for line in manifest.splitlines() if line.startswith("\\ir ")]
             self.assertEqual(len(names), len(set(names)))
+            # Ops grants intentionally expose operator data and require a separate role.
+            self.assertNotIn("grant_ops.sql", names)
             self.assertEqual(set(names), {
                 path.name for path in (ROOT / "deploy").glob("grant_*.sql")
-                if path.name != "grant_runtime.sql"
+                if path.name not in ("grant_runtime.sql", "grant_ops.sql")
             })
             for name in names:
                 self.admin.execute((ROOT / "deploy" / name).read_text())
