@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-13 普通判断错误诊断与用量保留
+
+`bd64b0f`独立Spec/Quality PASS，修复ResearchAssessmentRunner丢弃固定模型错误/已测usage；日志不含异常正文、业务正文或密钥，UNKNOWN及确认重试边界不变。[唯一验证与缺口](superpowers/plans/2026-09-13-assessment-safe-diagnostics.md#evidence)。未重试旧任务或新调模型，旧真实UNKNOWN根因仍未证明；下轮新任务观察实际错误、改善买方入口，不重复本批测试/构包。
+
 ## 2026-09-13 本地Skill导航能力恢复
 
 `d6b6b17`独立差量Spec/Quality PASS：安全公开链接接入三处任务URL门禁，搜索预留READ尝试且不锁死共享余额。[唯一计划、初次失败、真实运行和审核](superpowers/plans/2026-09-13-research-navigation.md#evidence)。实际读器列表→链接→详情验证通过；真实客户接口探针（合成身份/价格、真实模型/搜索/读器）读到供方文章且后续判断UNKNOWN，仍无合格线索，不能宣传已恢复原Skill获客效果。下一步买方入口选择与判断失败的安全诊断；未部署/构包/外发。
