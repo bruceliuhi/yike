@@ -14,7 +14,7 @@
 - Preserve existing catalog source IDs, endpoint/input hashes, source plans and confirmed strategy snapshots. No new connector.
 - V2EX hints are conditional technology-community examples, not every industry's default source or an exhaustive platform catalog.
 - Hints grant neither URL read permission nor evidence status; existing search/link, authorization, budget, tenant and UNKNOWN boundaries remain authoritative.
-- Bind all delivered research instruction bytes, including hints, to rule_sha256. A changed rule requires fresh context binding; do not silently reinterpret old runs.
+- Bind the complete compiled repository-owned research instruction bytes, including hints, to rule_sha256. The existing worker operational prefix is outside this compiler binding. A changed rule requires fresh context binding; do not silently reinterpret old runs.
 - Tests prove wiring and contracts, not improved lead quality or commercial success.
 
 ## Design decision
@@ -42,8 +42,10 @@ assert result['binding']['rule_sha256'] == hashlib.sha256(
 - [x] Compile instructions once, append hints after host header, compute `sha256(instructions.encode('utf-8')).hexdigest()` for rule binding and return those same bytes. Preserve source document size limits and old catalog hashes; remove only now-unused private document digest computation if appropriate.
 - [x] Run `.venv/bin/python -m pytest -q tests/test_research_context.py tests/test_codex_research_worker.py` plus existing source-catalog unit tests if a separate file exists. Use existing tests for stable connector behavior; no full suite/build/live API calls.
 - [x] Commit the code/tests/plan. Independent reviewer checks exact range against constraints; fix all material findings as one delta batch.
-- [ ] Parent updates taskbook/integration evidence and pushes normal `main` after review. Lead queue remains SEND_READY 0 unless new real evidence exists.
+- [x] Parent updates taskbook/integration evidence after review; normal `main` push is verified by the handoff's remote SHA, not by this checkbox. Lead queue remains SEND_READY 0 unless new real evidence exists.
 
 ## Evidence
 
-Initial RED: the focused 5-test selection failed because the hint renderer and version suffix did not exist and worker instructions lacked the catalog IDs. After the minimal implementation, `.venv/bin/python -m pytest -q tests/test_research_context.py tests/test_codex_research_worker.py tests/test_research_public_reader.py` passed `140 passed in 19.25s`. Independent review remains with the parent task; no live research, deployment, outreach, or new research outcome is claimed.
+Code `eca3fecaa0a69a99f9039c4c30197f6bde40592f`. Initial RED: focused 5-test selection failed because the hint renderer and version suffix did not exist and worker instructions lacked catalog IDs. After implementation, `.venv/bin/python -m pytest -q tests/test_research_context.py tests/test_codex_research_worker.py tests/test_research_public_reader.py` passed 140 in19.25s; tightening the worker assertion then passed the final 140 in18.28s. `git diff --check` passed. These are synthetic wiring/contract tests, not research outcomes.
+
+Independent single-batch Spec/Quality PASS at that exact SHA, no material findings; reused the above test evidence rather than repeating it. Separate read-only base-vs-head probe verified V1/V2 context bytes and binding keys unchanged, only rule version/hash different. Saved-context store rejects old binding as strategy_conflict; use a fresh task/context, never silently resume old rules. Reports: `/tmp/yike-entry-hints-implementation.md` and `/tmp/yike-entry-hints-review.md`. No live research, deployment, outreach or new SEND_READY outcome. Full local comparison and next quality-validation steps: [comparison](../../research/LOCAL_SKILL_PRODUCT_COMPARISON_20260913.md).

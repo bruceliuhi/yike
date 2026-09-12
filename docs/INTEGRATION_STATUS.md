@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-13 本地 Skill 对照与条件化来源入口
+
+代码`eca3fec`复用既有目录为动态研究加入条件化公开入口提示，区分项目节点与同名标签，不新增连接器或读页权限；编译规则完整字节绑定版本/hash，旧任务须新绑定。独立Spec/Quality PASS，定向140项通过；[唯一实施证据](superpowers/plans/2026-09-13-research-entry-hints.md#evidence)。[本地Skill对照](research/LOCAL_SKILL_PRODUCT_COMPARISON_20260913.md)确认搜索/评估规则相同，差距主要在入口、阅读深度和选择性候选发布。没有新实网/部署/构包/外联；当前可交接新线索仍0，下一步材料/候选分离与同条件真实质量验证。
+
 ## 2026-09-13 实网导航验证与本地节点对照
 
 `fbb4d79`新实际任务确认合法导航拒绝可继续；后在LINUX DO访问限制处停止，非完成/新商机。另以本地Skill无额外模型调用读取V2EX项目节点2页40标题/2原帖，区别了劳务外包标签和项目节点；已知标定项目待补证、模糊MCP需求观察。[唯一实际证据及下一动作](superpowers/plans/2026-09-13-research-denied-navigation.md#new-real-task-after-the-correction-then-local-skill-source-comparison)。本次仅证据/当前队列更新，不重跑代码测试或构包，不变更生产。
