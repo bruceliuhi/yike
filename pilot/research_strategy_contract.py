@@ -69,7 +69,7 @@ def _raw_fields(value: object, depth: int = 0) -> object:
         fields = dict(vars(value))
         # Optional additions are absent, rather than explicit null, on legacy
         # model instances. Preserve that distinction during revalidation.
-        for optional_field in ("provenance", "platformQueries", "sourcePlan"):
+        for optional_field in ("provenance", "platformQueries", "sourcePlan", "dynamicScope"):
             if (optional_field in type(value).model_fields and fields.get(optional_field) is None
                     and optional_field not in value.__pydantic_fields_set__):
                 fields.pop(optional_field, None)
@@ -280,6 +280,30 @@ class _SourcePlan(_Frozen):
         return _distinct(value)
 
 
+class _DynamicScope(_Frozen):
+    version: Literal[1]
+    maxAgeDays: int = Field(ge=1, le=365)
+    timezone: str
+
+    @field_validator("version", "maxAgeDays", mode="before")
+    @classmethod
+    def exact_integers(cls, value):
+        if type(value) is not int:
+            raise ValueError("invalid dynamic scope integer")
+        return value
+
+    @field_validator("timezone")
+    @classmethod
+    def check_timezone(cls, value):
+        if type(value) is not str:
+            raise ValueError("invalid timezone")
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError, OSError):
+            raise ValueError("unavailable timezone") from None
+        return value
+
+
 class _Research(_Frozen):
     version: Literal[1]
     demandTypes: tuple[Literal["INQUIRY", "COMPARISON", "REPLACEMENT", "CHANGE"], ...] = Field(
@@ -290,8 +314,9 @@ class _Research(_Frozen):
     evidenceOrder: Literal["SOURCE_MATCH_CONTEXT"]
     provenance: _ResearchProvenance | None = None
     sourcePlan: _SourcePlan | None = None
+    dynamicScope: _DynamicScope | None = None
 
-    @field_validator("provenance", "sourcePlan", mode="before")
+    @field_validator("provenance", "sourcePlan", "dynamicScope", mode="before")
     @classmethod
     def reject_explicit_null_provenance(cls, value):
         if value is None:
@@ -305,6 +330,8 @@ class _Research(_Frozen):
             result.pop("provenance", None)
         if self.sourcePlan is None:
             result.pop('sourcePlan', None)
+        if self.dynamicScope is None:
+            result.pop("dynamicScope", None)
         return result
 
     @field_validator("version", mode="before")
@@ -378,7 +405,7 @@ class ResearchStrategyConfiguration(_Frozen):
     mode: Literal["once", "monitor"]
     schedule: _VersionedSchedule | _Schedule | None
     research: _Research | None
-    publicSource: Literal["v2ex-latest-v1", "v2ex-qna-v1", "v2ex-outsourcing-authors-v1"] | None = None
+    publicSource: Literal["v2ex-latest-v1", "v2ex-qna-v1", "v2ex-outsourcing-authors-v1", "public-web-agent-v1"] | None = None
     platformQueries: _PlatformQueries | None = None
 
     @model_serializer(mode="wrap")
@@ -427,6 +454,15 @@ class ResearchStrategyConfiguration(_Frozen):
 
     @model_validator(mode="after")
     def relations_and_size(self):
+        dynamic = None if self.research is None else self.research.dynamicScope
+        if dynamic is not None:
+            if (self.publicSource != "public-web-agent-v1" or self.source != "search"
+                    or self.mode != "once" or self.schedule is not None or self.links
+                    or self.research.provenance is not None or self.research.sourcePlan is not None
+                    or self.platformQueries is not None):
+                raise ValueError("invalid dynamic research scope")
+        elif self.publicSource == "public-web-agent-v1":
+            raise ValueError("dynamic source requires dynamic scope")
         if self.research is not None and self.research.sourcePlan is not None:
             sources = self.research.sourcePlan.sources
             if (self.publicSource != sources[0] or self.source != 'search' or self.mode != 'once'
@@ -514,6 +550,10 @@ class _StrategyScope(_Frozen):
                 any(item.platform not in self.platforms
                     for item in self.configuration.platformQueries.items)):
             raise ValueError("platform query is outside selected platforms")
+        research = self.configuration.research
+        if (research is not None and research.dynamicScope is not None
+                and self.platforms != ("PUBLIC_WEB",)):
+            raise ValueError("dynamic research requires PUBLIC_WEB only")
         return self
 
 

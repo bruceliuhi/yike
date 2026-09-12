@@ -4,7 +4,10 @@ from uuid import UUID
 
 import pytest
 
-from pilot.research_context import ResearchContextError, compile_research_context
+from pilot.research_context import (
+    ResearchContextError, compile_research_context, project_research_context_v2,
+)
+from pilot.research_strategy_contract import configuration_digest, strategy_snapshot
 
 
 def context(**changes):
@@ -29,6 +32,98 @@ def context(**changes):
     }
     value.update(changes)
     return value
+
+
+def dynamic_snapshot(*, industry=True):
+    configuration = {
+        "schema_version": "research-strategy-v1", "name": "客户动态研究",
+        "source": "search", "keywords": ["机器视觉质检", "工厂知识库"],
+        "exclusions": ["招聘"], "links": [], "mode": "once", "schedule": None,
+        "research": {"version": 1, "demandTypes": ["INQUIRY", "CHANGE"],
+                     "maxSoubei": 100, "limits": {"sources": 20, "minutes": 30, "modelCalls": 10},
+                     "stopAtAnyLimit": True, "evidenceOrder": "SOURCE_MATCH_CONTEXT",
+                     "dynamicScope": {"version": 1, "maxAgeDays": 60, "timezone": "Asia/Shanghai"}},
+        "publicSource": "public-web-agent-v1",
+    }
+    if industry:
+        configuration["industryStrategy"] = {
+            "version": "industry-task-strategy-v1", "sourceTypes": ["PROCUREMENT", "COMPANY_UPDATE"],
+            "intentSignals": ["正在寻找质检供应商"], "counterSignals": ["同行广告"],
+        }
+    return strategy_snapshot(
+        context()["profile_version_id"], context()["strategy_version_id"],
+        configuration, ["PUBLIC_WEB"], 20, 600,
+    )
+
+
+def projected_v2(**changes):
+    snapshot = dynamic_snapshot()
+    value = project_research_context_v2(
+        seller_description="第一行：制造业客户\n第二行：AI 质检与知识库。",
+        profile_sha256="a" * 64, strategy_snapshot=snapshot,
+        reference_time="2026-09-13T09:30:00+08:00", history_scope="NONE", history=[],
+    )
+    value.update(changes)
+    return value
+
+
+def test_projects_and_compiles_complete_dynamic_snapshot_context_v2():
+    value = projected_v2()
+    assert value["schema_version"] == "research-context-v2"
+    assert value["seller_description"].startswith("第一行") and "\n第二行" in value["seller_description"]
+    assert value["strategy_snapshot"] == dynamic_snapshot()
+    assert value["query_seeds"] == ["机器视觉质检", "工厂知识库"]
+    assert value["exclusions"] == ["招聘", "同行广告"]
+    assert value["intent_signals"] == ["正在寻找质检供应商"]
+    result = compile_research_context(value)
+    assert result["binding"]["schema_version"] == "research-context-v2"
+    assert result["binding"]["profile_sha256"] == "a" * 64
+    assert result["binding"]["configuration_sha256"] == configuration_digest(dynamic_snapshot())
+    assert result["binding"]["rule_version"].startswith("opportunity-research-context-v2/")
+    assert compile_research_context(deepcopy(value))["binding"] == result["binding"]
+
+
+def test_v2_uses_fixed_demand_fallback_without_industry_strategy():
+    snapshot = dynamic_snapshot(industry=False)
+    value = project_research_context_v2(
+        seller_description="企业系统实施", profile_sha256="b" * 64,
+        strategy_snapshot=snapshot, reference_time="2026-09-13T09:30:00+08:00",
+        history_scope="NONE", history=[],
+    )
+    assert value["intent_signals"] == [
+        "询问方案、价格或寻找供应商", "明确业务变化并寻找外部解决方案"]
+    compile_research_context(value)
+
+
+def test_v2_preserves_8000_multiline_profile_and_v1_limits_remain_unchanged():
+    seller = "甲\n" + "乙" * 7998
+    assert compile_research_context(projected_v2(seller_description=seller))["context_json"]
+    assert_error(context(seller_description="甲\n乙"))
+    assert_error(context(seller_description="甲" * 4001))
+
+
+@pytest.mark.parametrize("change", [
+    {"profile_sha256": "A" * 64}, {"profile_sha256": "a" * 63},
+    {"seller_description": "bad\x00text"},
+    {"seller_description": "api_key=sk-live-1234567890abcdef"},
+    {"profile_version_id": "33333333-3333-4333-8333-333333333333"},
+    {"max_age_days": 61}, {"timezone": "Etc/UTC"},
+    {"query_seeds": ["伪造查询"]}, {"exclusions": ["伪造排除"]},
+])
+def test_v2_rejects_bad_hash_text_and_projection_mismatches(change):
+    assert_error(projected_v2(**change))
+
+
+def test_v2_secret_scans_complete_strategy_and_rejects_oversize():
+    value = projected_v2()
+    value["strategy_snapshot"]["configuration"]["name"] = "password=synthetic-secret"
+    assert_error(value)
+    assert_error(projected_v2(history=[{
+        "project_key": f"project-{index}", "description": "历" * 500,
+        "state": "KNOWN", "source_urls": ["https://example.com/" + "x" * 2000] * 3,
+    } for index in range(30)], history_scope="PARTIAL",
+        seller_description="甲" * 8000,
+        query_seeds=["查" * 160] * 20))
 
 
 def assert_error(value, code="invalid_research_context"):
