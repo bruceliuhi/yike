@@ -55,7 +55,9 @@ export function researchProgressPresentation(value:ResearchRuntimeStatus):Resear
       nextStep='请“查看原文与分析”并逐条复核。';
     }
   }else{
-    explanation=value.stopCode ? (stopExplanations[value.stopCode]??'研究已停止，请查看执行明细。') : '研究已停止，请查看执行明细。';
+    explanation=value.stopCode&&Object.hasOwn(stopExplanations,value.stopCode)
+      ?stopExplanations[value.stopCode]
+      :'研究已停止，请查看执行明细。';
     nextStep=stoppedNextStep(value.stopCode);
   }
 

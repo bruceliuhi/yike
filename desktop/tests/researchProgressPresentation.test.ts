@@ -34,6 +34,8 @@ it.each([
   ['resource_limit_exceeded','本轮已达到确认的研究用量上限。'],['task_unavailable','当前任务暂时不能继续。'],
   ['capability_unavailable','当前服务暂不支持这项研究。'],['resource_unavailable','研究服务暂时不可用。'],
   ['lease_conflict','执行状态发生变化，请查询原任务。'],['future_code','研究已停止，请查看执行明细。'],
+  ['constructor','研究已停止，请查看执行明细。'],['toString','研究已停止，请查看执行明细。'],
+  ['__proto__','研究已停止，请查看执行明细。'],
 ] as const)('maps stop code %s without exposing the code',(stopCode,explanation)=>{
   const shown=researchProgressPresentation(value({phase:'STOPPED',stopCode,newActionsBlocked:true,canAdvance:false}));
   expect(shown.explanation).toBe(explanation);
