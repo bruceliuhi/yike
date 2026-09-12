@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-12 B站链接执行代码，独立审核通过
+
+`ab9c6fe` 独立GO：已接通指定视频／作者主页→同浏览器账号核对→完整简介及有界评论→正式POST/COMMENT候选→既有复核的一次/监控代码路径；新显式mode才开放B站links，旧mode和其余原生平台search不变。顺带修复主线缺失source_context被序列化成null导致候选回读失败的问题，不放宽输入。[唯一计划、初次截断P2和修复证据](superpowers/plans/2026-09-12-bili-link-execution.md#evidence)。未部署、构包、操作账号或外发；不能把下方“driver仍仅search”历史状态沿用到本批，也不能反向追认实际Windows/B站已验。完整Goal ACTIVE，其他三平台链接执行、多源研究、计量等代码项继续。
+
 ## 2026-09-12 最新Windows候选1f597f6
 
 Gitee main已纳入判断页面超时修复，固定 `1f597f6` 已实际构包、覆盖升级和启动READY；[唯一Windows记录](qa/WINDOWS_SYNC_20260912.md#已构建并覆盖升级1f597f6)集中62项定向/类型/独立GO及产物。customer继续5fb7d65，服务代码无差不部署。真实登录/平台/批准外发/签名/客户验收仍未完成；下方5fb7d65为上一Windows包，不覆盖新判断修复。

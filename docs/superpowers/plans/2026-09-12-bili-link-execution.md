@@ -20,39 +20,48 @@
 - host逐目标必须共享父任务总预算和截止时间，目标数大于分配records预算先拒绝，不默默跳过目标。query=null不伪装关键词；完整原始链接保留已确认任务快照。
 - read_collection_output新增keyword collection_mode='search'；新detail/creator仅B站，读取对应前缀的contents/comments并返回POST（{content}）与COMMENT（{content,comment}），总量<=max_records；其他模式文件不能混作本次成功。旧search语义不变。
 - build_comment_batch对B站{content}新增POST映射，复用严格ID/URL/时间和正式CandidateBatch；其他现有raw COMMENT不变。不开放自报审核／发送权限。B站链接可用裸原生URL，不涉及修改XHS候选URL秘密规则。
-- 固定新部署模式four-platform-public-bili-links-monitor-v1继承project-monitor的所有搜索／公开板块；仅另开B站links。foreground和monitor support响应新增native_links:['BILIBILI']；旧模式不返回。客户端AVAILABLE新增linkPlatforms:['BILIBILI']可选，不能由renderer自报。
+- 固定新部署模式four-platform-public-bili-links-monitor-v1继承project-monitor的所有搜索／公开板块；仅另开B站links。foreground和monitor support响应的mode均为此新值，并必须与native_links:['BILIBILI']成对；旧模式不返回，旧客户端拒绝未知新mode。客户端AVAILABLE新增linkPlatforms:['BILIBILI']可选，不能由renderer自报。
 - 新模式不开research执行，不变更确认发送。Windows/实际平台/UAT必须另取真实证据。现有安装候选不随本批自动重构或追认。
 
 ## Task 1：受控B站运行时（独立runtime Agent）
 
 所有权：新增vendor/patches/mediacrawler/0004-yike-bili-links.patch，更新vendor/mediacrawler.lock及必要配套治理manifest；新增tests/test_bili_link_runtime.py。只编辑独占runtime的必要B站core/main用于生成patch，测试可从应用patch后的实际函数执行，不用全文字符串存在断言冒充运行。
 
-- [ ] 先写离线行为RED：detail/creator实际View身份核对、有界单页、正文保存、comment0不读、评论共享上限、异常不吞、main终态识别对应POST输出。
-- [ ] 实现collect_links，沿用标准可见浏览器和既有client方法。main的成功检测对B站detail/creator含contents，search不变。
-- [ ] 生成追加patch、按真实文件SHA更新治理摘要；目标验证patch从PIN依序可应用、锁校验和离线runtime行为。无安装平台浏览器或请求平台。
+- [x] 先写离线行为RED：detail/creator实际View身份核对、有界单页、正文保存、comment0不读、评论共享上限、异常不吞、main终态识别对应POST输出。
+- [x] 实现collect_links，沿用标准可见浏览器和既有client方法。main的成功检测对B站detail/creator含contents，search不变。
+- [x] 生成追加patch、按真实文件SHA更新治理摘要；目标验证patch从PIN依序可应用、锁校验和离线runtime行为。无安装平台浏览器或请求平台。
 
 ## Task 2：主机及正式候选（CodexiMac）
 
 所有权：app/windows_collection_host.py、app/windows_source_driver.py、app/platform_collection_worker.py、app/collection_output.py、app/windows_portable_inventory.py、connectors/candidate_mapping.py；对应tests/test_windows_collection_host.py、test_windows_source_driver.py、test_platform_collection_worker.py、test_collection_output.py及candidate mapping定向测试。
 
-- [ ] RED固定host目标/身份/模式字段、CLI边界、guard入口和粘滞失败、真实JSONL→POST/COMMENT映射及计数。
-- [ ] 新native_link目标通过上一批纯解析严格核对；portable HOST_FILES加入pilot/native_collection_links.py；worker直接脚本模式使用明确的同项目文件路径加载该纯模块，不从用户PATH发现代码。
-- [ ] 仅实现上面固定模式、预算和输出接口；保留旧query调用字节与行为。旧search全部定向回归。
+- [x] RED固定host目标/身份/模式字段、CLI边界、guard入口和粘滞失败、真实JSONL→POST/COMMENT映射及计数。
+- [x] 新native_link目标通过上一批纯解析严格核对；portable HOST_FILES加入pilot/native_collection_links.py；worker直接脚本模式使用明确的同项目文件路径加载该纯模块，不从用户PATH发现代码。
+- [x] 仅实现上面固定模式、预算和输出接口；保留旧query调用字节与行为。旧search受影响范围定向回归。
 
 ## Task 3：服务端声明与客户端接线（客户端 Agent＋root服务端）
 
 TS所有权：pythonCollectionDriver、foregroundCollectionController、shared foreground/monitor schemas、renderer foreground/monitor/task eligibility及对应tests。Python服务端由root修改pilot/foreground_collection.py和monitor_collection.py等实际support实现及定向tests，接口严格按上方native_links字段。
 
-- [ ] RED：旧支持不启动links，新支持只启动匹配B站；目标query=null/四字段/身份传入host，全目标预算共享且验证结果query=null；一次/monitor可走同一确认链；错误范围未spawn。
-- [ ] renderer仅依据main AVAILABLE linkPlatforms标记B站links支持；其他平台仍搜索；保留完整配置摘要/连接身份/取消/恢复/上传约束。
-- [ ] 新服务器mode继承全部旧搜索与public-source范围，仅新增B站links的once/monitor，无research和匿名native links。
+- [x] RED：旧支持不启动links，新支持只启动匹配B站；目标query=null/四字段/身份传入host，全目标预算共享且验证结果query=null；一次/monitor可走同一确认链；错误范围未spawn。
+- [x] renderer仅依据main AVAILABLE linkPlatforms标记B站links支持；其他平台仍搜索；保留完整配置摘要/连接身份/取消/恢复/上传约束。
+- [x] 新服务器mode继承全部旧搜索与public-source范围，仅新增B站links的once/monitor，无research和匿名native links。
 
 ## 最终验收与边界
 
-- [ ] 相关单元／真实文件边界测试与TS类型检查；尽量复用既有回归，不重复整仓构包/模型样本。
-- [ ] 整批非作者审核绑定SHA；修复后定向复核，正常同步main。
-- [ ] 未有Windows＋真实B站账号读取前，明确“执行代码已接通、真实平台待验”，不声称新增客户机会或正式上线。
+- [x] 相关单元／真实文件边界测试与TS类型检查；尽量复用既有回归，不重复整仓构包/模型样本。
+- [x] 整批非作者审核绑定SHA；修复后定向复核GO，按正常main同步流程收口。
+- [x] 未有Windows＋真实B站账号读取前，明确“执行代码已接通、真实平台待验”，不声称新增客户机会或正式上线。
 
 ## Evidence
 
-尚未实施；上轮输入批28309ac已推main。本批完整功能未完成，不能因局部test通过开放capability。
+初始代码候选 `3165460`：Task 1/2/3 已实现；非作者审核发现1个P2，修复候选为`ab9c6fe`。没有部署或升级现有安装包。上轮输入批28309ac之外，本批新增真正的B站links执行接线，不代表其他三平台links执行已实现。
+
+- Runtime：新0004仅改B站core/main，PIN不变；detail单BV核对、creator单页最多5个不同视频，逐个核对实际View身份，先保存正文再有界评论；0评论预算不请求。RED11失败→GREEN11通过，含vendor定向组26通过；四patch从PIN实际重放，21个文件摘要匹配，patchset `0287142b44255029b745b5864c31596fd2aabd6cf47204c1cb3350d1a729dc2f`。未联网。
+- Host/输出/支持：新行为初次RED10失败8通过，支持模式RED8失败；实现后该组及旧host/policy/output/worker回归188通过4跳过。随后新增真实driver+固定worker参数+JSONL/正式DTO串联（Windows监督器为受控替身，不是Windows验收）及风险吞异常回归；后者先RED1失败4通过，再修复为粘滞失败。
+- 整合发现基线既有CandidateRecord序列化把缺失source_context输出null，正式回读和TS拒绝，旧映射回归2失败。补wrap serializer仅省略原未提供字段，保留显式null拒绝；mapping/contract/worker/新host组485通过3跳过。作者上下文/视频及知乎guard/输出/portable/补丁锁组81通过29跳过（主要Windows条件）。跳过项不能当通过。
+- TS：受影响9文件249通过；后续增量110通过及坏BV执行门禁1通过，类型检查通过。严格BV只约束执行，通用输入识别未变；新mode与native_links成对，其他平台links/research未开放。未重复全量构包或模型调用。
+- 首次独立审核`3165460`为NO-GO，1个P2、无P1：实际store将510字符简介截至500，尾部“需求已取消，请勿联系”丢失，候选无摘录标记。`ab9c6fe`仅对B站detail/creator保存完整View.desc，search仍500；超过正式body的20000字符上限明确拒绝，不默默截断。实际store方法体TDD先2失败12通过、修复后14通过；补丁锁及vendor定向30通过1跳过。新0004及22文件摘要从同PIN重放一致；早期21文件/摘要为修复前历史，当前以vendor锁为准。
+- 审核另指出预算拒绝用例会先被能力开关挡住；补allowNativeLinks后聚焦1通过（其余37未选），证明实际预算分支。B站标题/原始简介不等于视频转写；空简介可用原题，作者哈希不映射成公开联系人。此批不宣称账号可联系或真实项目。
+
+最终独立复核固定`ab9c6fedb176ccdc375bd5c6a8e363d9a1d968a9`为GO，原P2关闭，无剩余P1/P2；复用定向证据，未重复广集。已正常合入远端28872dc的四份Windows候选来件文档，无产品代码冲突；最终主线同步以包含本记录的提交为准。真实Windows/B站账号读取、服务器启用新mode、同源安装候选与客户UAT均未验；完整Goal ACTIVE。
