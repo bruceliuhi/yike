@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+定向公开研究接续（2026-09-12）：`d564cec`独立整批GO。已将现有问与答/项目外包索引接入已确认策略→报价/签名启动→来源绑定入库→判断→完成/恢复；客户端下拉、确认页、启动前能力复核和进度页均贯通。latest v1保留，新节点v2及目录显式协商；失败不换源不重读。[唯一实施/失败/限定证据](superpowers/plans/2026-09-12-targeted-public-research.md#evidence)。这是一个平台内可选单源研究，不是全网、多平台编排或评论深读；未部署/构包/实际平台验证。下一步仍为完整多源研究/覆盖补查、其它原生平台进度与评论深读，以及Windows/生产/真实客户闭环；完整Goal ACTIVE。下方研究“仅最新”是此前版本记录。
+
 公开旧来源复查接续（2026-09-12）：`2c2803b`独立整批GO；项目作者源monitor通过v2协商在新发现轮次间插入1条同计划已发现旧帖，按已提交结果公平轮换；正文失去原关键词也保留作者变化，READ/UNAVAILABLE原文与结果一起签名入库，失败不当完成，旧v1不变。[唯一实施/失败/限定证据](superpowers/plans/2026-09-12-public-source-revisit.md#evidence)。未部署/构包/真实平台；不覆盖全站历史或完整评论。下一步其它原生平台进度、评论深读、多源研究/覆盖补查及真实用户/Windows/生产闭环，完整Goal ACTIVE。
 
 原生搜索进度接续（2026-09-12）：`a64bcda`已独立整批GO；B站search monitor页内aid＋交替首页刷新已贯通受控源、host、客户端CLAIM/签名batch/journal与服务端head原子CAS，空batch可推进，失败不跳页，重放固定。初审两个兼容P2已关闭；[唯一实施/失败/限定证据](superpowers/plans/2026-09-12-native-search-progress.md#evidence)。未部署/构包/真平台；connection-version-only组合尚未单独端到端验证，不关闭跨轮游标整项。下一步按各平台真实分页接其它原生cursor及评论深翻，同时推进公开index外旧帖复查、多源研究/覆盖补查和真实用户闭环；完整Goal ACTIVE。

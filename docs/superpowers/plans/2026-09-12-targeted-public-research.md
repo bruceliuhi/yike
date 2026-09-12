@@ -37,3 +37,16 @@ Files: `desktop/src/shared/researchRuntime.ts`, `desktop/src/shared/researchStra
 - [ ] 冻结产品提交；独立架构/代码/质量审核基线 `8da6d87` 到该提交，不让实现者批准自己。
 - [ ] 阻断项定向修复/复审；唯一实施任务书记实际证据和保留缺口，不创建第二套完成台账。
 - [ ] fetch 核对 main 无冲突后 ff 合并、push、核实本地/远端 SHA；保留 Goal ACTIVE。
+
+## Evidence
+
+产品候选 `d564cec0ec719bf4f17f3ae35eebfa3087a69541`；独立架构/代码/质量整批审核 **GO（仅代码集成）**，无可复现 P0/P1/P2 阻断。审核者未参与实现，检查了来源选择→报价/START→冻结快照→读取/提交→恢复与客户端展示/兼容，并复用上述受限验证，无重复全套构包。Task 1/2 实现与定向验证完成，后续文档提交不改变本产品字节。未部署、未构包、未做真实平台或客户验收。
+
+- 后端初次 RED 4 failed/43 passed：节点 policy、目录 query、节点读取器尚不支持。另有跨来源入库错误类型 RED；补正后双向串源均拒绝且不写候选。测试工具曾出现括号、会话签名绑定和独立脚本 import 问题，修正后重新执行，不计作业务成功。
+- 后端相关联合验证 141 passed（118.52秒，受限 PostgreSQL 包含在内、无 skip）；相邻判断/策略/报价合同 281 passed；末次 reader/config/API 差量 48 passed。运行器只使用自有 `yike-research-resources-task1-pg` 的 `yike_public_sampling_task1`，管理员迁移与非超级用户应用角色分离。
+- 两个新节点均通过已确认策略→真实报价接口→签名 START→固定索引原文入库→模型判断入库→完成；重建 runtime 恢复不重复读取。这里“真实接口”是本地受认证 FastAPI TestClient 与受限 PG；来源及模型内容是合成 fixture，不是实网采集/TLS部署或商业效果。最终导出差量 2 passed/10 deselected。
+- 客户端初次合同 RED 3项、选择/策略 RED 4项；完整向导再发现 domain/task 的 latest-only 阻断3项，修复后定向25 passed。确认页仍错误沿用普通采集的评论范围，经新增3项失败用例修复，末次向导与摘要16 passed；其他对应合同/策略/选择/进度用例通过，`tsc --noEmit`退出0。没有重复全量测试或构包。
+- 实际后端 DTO 脱敏导出 `/tmp/yike-targeted-research-http.json`（21:36:37），SHA256 `780b05f31b6cb5625b31bfb8242a2c74b14cce32d467798f1401b0ff4cb08595`。客户端21:36:45以 `YIKE_TARGETED_RESEARCH_HTTP_ARTIFACT=/tmp/yike-targeted-research-http.json node node_modules/vitest/vitest.mjs run tests/targetedResearch.http.test.ts` 经正式 main service/renderer parser 消费，2 passed；其中回放基线真实 capability handler 的422，确认仅一次无参数只读降级。回放网络不冒充真实平台调用。
+- 后端 `HOST_FILES` 不打包研究服务模块，故无需把新服务端目录模块塞入 Windows host；无新迁移。部署说明已更新，生产启用与收费参数仍需原有批准。
+
+完整多源编排、跨平台研究/覆盖补查、评论深读、其它平台持续游标、Windows新包/生产/真实客户闭环仍未完成；本批不关闭这些任务，也不改变 V02_FULL_SCOPE_ACTIVE。
