@@ -147,7 +147,8 @@ export async function recoverCandidateRequestResult(
       if (result.kind !== "sourceVerification") throw new Error();
       reconstructed = { ...original, humanConfirmed: true,
         status: result.status, openingMethod: result.openingMethod,
-        locator: result.locator, excerpt: result.excerpt, contactMethod: result.contactMethod };
+        locator: result.locator, excerpt: result.excerpt, contactMethod: result.contactMethod,
+        ...(result.demandEvidence === undefined ? {} : {demandEvidence:result.demandEvidence}) };
     } else {
       if (result.kind !== "decision" || result.receipt.action !== op.action) throw new Error();
       const { sourceVerificationId, ...review } = result.receipt.review;

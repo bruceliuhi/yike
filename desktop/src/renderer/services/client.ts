@@ -79,6 +79,7 @@ function serviceFailure(status: number, body: unknown): ServiceError {
     503: "服务暂时不可用，请稍后重试。",
   };
   const codes: Record<string, string> = {
+    client_upgrade_required: "此记录包含新版人工补证，请升级客户端后查看；原文和核验记录仍保留。",
     phone_auth_failed: "验证码无效或已过期，请重新核对或获取验证码。",
     access_auth_failed: "临时访问码无效、已到期或已停用，请联系管理员核对。",
     SESSION_PERSIST_FAILED: "登录状态未能安全保存，请重新登录；若仍失败请联系支持。",
@@ -395,7 +396,7 @@ export const service: YikeService = {
     signal?.throwIfAborted();
     const response = await request(
       "opportunities.get",
-      `/opportunities/${encodeURIComponent(id)}`,
+      `/opportunities/${encodeURIComponent(id)}?evidenceVersion=1`,
       "GET",
       { id },
       signal,

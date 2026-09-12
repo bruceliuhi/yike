@@ -126,8 +126,10 @@ export function FixedSourceEvidence({
         </Button>
       )}
       {source.author_updates!==undefined&&<section aria-label="留存作者回复">
-        <h4>作者后续更新</h4>
-        <p className="muted">{source.source_read_scope==='AUTHOR_REPLIES_COUNT_MATCHED_SUPPLEMENTS_UNREAD'?'本次API回复计数相符':'回复读取不全'}；附言未读，不代表来源整体完整。</p>
+        <h4>{source.source_read_scope==='HUMAN_CONFIRMED_EXCERPT'?'人工确认的本人需求':'作者后续更新'}</h4>
+        {snapshot.verification.demandEvidence ? <p className="muted">
+          {snapshot.verification.demandEvidence.authorLocator} · 需求日期 {snapshot.verification.demandEvidence.publishedDate}（北京时间，日精度，人工声明）；原始页面时间未改写。
+        </p> : <p className="muted">{source.source_read_scope==='AUTHOR_REPLIES_COUNT_MATCHED_SUPPLEMENTS_UNREAD'?'本次API回复计数相符':'回复读取不全'}；附言未读，不代表来源整体完整。</p>}
         {source.author_updates.map((body,index)=><div key={index} className="fixed-evidence-body">{body}</div>)}
       </section>}
 

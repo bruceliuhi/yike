@@ -40,6 +40,31 @@ function receipt() {
 }
 
 describe("candidate human source verification", () => {
+  it("collects optional person/date proof, clears confirmation on edits and resets with identity", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const view = render(<CandidateSourceVerification binding={candidateBinding} allowDemandEvidence onSubmit={onSubmit} />);
+    fill();
+    fireEvent.change(field("来源状态"), {target:{value:"OPEN"}});
+    fireEvent.click(screen.getByRole("checkbox", {name:"确认需求发言人和时间"}));
+    for (const [name,value] of Object.entries({"需求作者定位":"TEST采购人，第2楼", "原文作者标记":"TEST采购人",
+      "本人需求摘录":"采购输送设备", "需求日期":"2026-09-10", "原文时间表示":"2026年9月10日"})) {
+      fireEvent.change(field(name), {target:{value}});
+    }
+    fireEvent.click(checkbox());
+    fireEvent.change(field("需求作者定位"), {target:{value:"TEST采购人，第3楼"}});
+    expect(checkbox().checked).toBe(false);
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.click(checkbox());
+    await act(async () => fireEvent.click(save()));
+    expect(onSubmit).toHaveBeenCalledOnce();
+    expect(onSubmit.mock.calls[0][0].demandEvidence).toEqual({schemaVersion:"human-demand-evidence-v1",
+      authorLocator:"TEST采购人，第3楼",authorExcerpt:"TEST采购人",demandExcerpt:"采购输送设备",
+      publishedDate:"2026-09-10",dateExcerpt:"2026年9月10日"});
+    view.rerender(<CandidateSourceVerification binding={{...candidateBinding,candidateRevision:3}} allowDemandEvidence onSubmit={onSubmit} />);
+    expect(screen.queryByLabelText("本人需求摘录")).toBeNull();
+    expect(checkbox().checked).toBe(false);
+  });
+
   it("requires explicit confirmation and save; never pre-fills or submits inferred source facts", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(

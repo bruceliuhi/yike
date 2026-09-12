@@ -123,16 +123,27 @@ export const candidateReviewRequestSchema = z
 export type CandidateReviewRequest = z.infer<
   typeof candidateReviewRequestSchema
 >;
+export const humanDemandEvidenceSchema = z.object({
+  schemaVersion: z.literal("human-demand-evidence-v1"),
+  authorLocator: text(256).refine((v) => !v.includes("\0")),
+  authorExcerpt: humanText,
+  demandExcerpt: humanText,
+  publishedDate: z.iso.date().refine((v) => !v.startsWith("0000-")),
+  dateExcerpt: humanText,
+}).strict();
+export type HumanDemandEvidence = z.infer<typeof humanDemandEvidenceSchema>;
 const sourceFields = {
   status: sourceStatus,
   openingMethod: z.enum(["DIRECT", "IN_PLATFORM"]),
   locator: humanText,
   excerpt: humanText,
   contactMethod: z.enum(["COMMENT", "DM", "PUBLIC_CONTACT", "NONE"]),
+  demandEvidence: humanDemandEvidenceSchema.optional(),
 };
 export const sourceVerificationRequestSchema = z
   .object({ ...writeBinding, ...sourceFields, humanConfirmed: z.literal(true) })
   .strict()
+  .refine((v) => v.demandEvidence === undefined || v.status === "OPEN")
   .refine(bodyFits);
 export type SourceVerificationRequest = z.infer<
   typeof sourceVerificationRequestSchema
@@ -187,6 +198,7 @@ const assessment = z
     rule_version: text(200),
     rule_sha256: text(200),
     strategyVersionId: uuid,
+    demandEvidenceId: uuid.optional(),
   })
   .strict()
   .refine(
@@ -218,7 +230,8 @@ const verification = z
     binding: candidateBindingSchema,
   })
   .strict()
-  .refine((v) => v.candidateId === v.binding.candidateId);
+  .refine((v) => v.candidateId === v.binding.candidateId &&
+    (v.demandEvidence === undefined || v.status === "OPEN"));
 export type CandidateSourceVerificationDto = z.infer<typeof verification>;
 const reviewSnapshot = z
   .object({

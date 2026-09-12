@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { currentDemandDate } from "../domain/candidateDemandEvidence";
 import {
   ArrowSquareOut,
   Copy,
@@ -1211,7 +1212,10 @@ function CandidateWorkbench() {
         reasons.push("请先成功读取当前版本原文证据");
       const verification = candidate.sourceVerification;
       const now = Date.now(),
-        published = Date.parse(candidate.publishedAt);
+        published = candidate.publishedAt ? Date.parse(candidate.publishedAt) :
+          (currentDemandDate(candidate, draft.assessment, now) ?? NaN);
+      if (verification?.demandEvidence && draft.assessment?.demandEvidenceId !== verification.id)
+        reasons.push("人工补证已更新，请按当前补证重新判断");
       if (
         !Number.isFinite(published) ||
         published > now ||
@@ -2296,6 +2300,13 @@ function CandidateWorkbench() {
                               }
                             />
                             <CandidateSourceVerification
+                              allowDemandEvidence={!!original.data && !original.loading && !original.error &&
+                                original.data.candidate.candidate_id === selected.id &&
+                                original.data.candidate.kind === "PAGE" &&
+                                original.data.observations.items.some(item =>
+                                  item.observation_id === original.data!.candidate.current_observation_id &&
+                                  item.normalizer_version === "dynamic-public-read-v1" &&
+                                  item.collector_version === "public-web-agent-v1")}
                               key={`${candidateIdentity(selected)}:${editor?.profileId}`}
                               binding={{
                                 candidateId: selected.id,
