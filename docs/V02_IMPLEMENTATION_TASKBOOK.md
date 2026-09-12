@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+客户研究上下文接续（2026-09-13）：最终 `86157ea` 独立整批及测试差量 Spec/Quality PASS；显式动态策略/context-v2、8000字多行画像、已确认任务的同PG不可变快照、同客户同业务历史接入内部研究入口，原Skill规则不改。受限PG主链13项、历史3项、合同270项及v1/v2实际夹具进程有定向证据，P3测试证据误称已纠正；[唯一证据与失败记录](superpowers/plans/2026-09-13-customer-research-context.md#evidence)。**下一步是同PG逐动作许可/账本与执行代次，再贯通客户动态任务→原文→判断→复核；新capability仍关闭。** 未公网研究/部署/构包/发送，不证明本地Skill效果恢复或持续有效供给，完整Goal ACTIVE。
+
 内部动态研究控制接续（2026-09-13）：最终代码 `1156c45` 独立整批及同问题差量 READY TO MERGE；原本地 Skill 已加载的研究入口新增逐次 MODEL/SEARCH/READ 宿主控制、成功搜索 URL 白名单、每任务原文读取器及 MCP loopback 读取，显式非法控制器不降级直连。定向 Task1 109、Task2 55、root86通过；原文截止 P2 经过两次差量修复，最终相关20通过，[唯一证据及未完成边界](superpowers/plans/2026-09-13-research-effect-gateway.md#evidence)。没有公网调用、构包或部署；这不是持久许可或恢复本地效果的证明。**下一批必须接 context-v2/客户快照、同PG逐动作许可与journal，再做客户动态策略/任务→证据→复核纵切；不是继续增加固定站点或把内部回调当上线完成。** 可信MODEL重放需绑定输入/工具及已校验结果来源，不能二次盲目别名恢复。完整Goal ACTIVE。
 
 研究进度体验接续（2026-09-13）：`343ec08` 独立整批及差量 Spec/Quality PASS；首屏改为状态解释、实际原文/分析数量、风险和下一步，技术计数折叠；停止/查询/继续语义不变。41项定向检查，Chrome宽窄屏夹具及键盘交互已核验，[唯一证据](superpowers/plans/2026-09-13-research-progress-experience.md#evidence)。无构包/部署/真实客户研究验收。已保留远端Windows profile重扫修复；[下一批客户动态研究接线设计](superpowers/specs/2026-09-13-dynamic-customer-research-integration-design.md)基于独立源码审计：先处理合法画像与上下文不兼容、模型/搜索/读取逐次许可及同PG证据，再贯通客户任务。不是增加固定网站目录或无预算调用入口，完整Goal ACTIVE。
