@@ -4,6 +4,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {channel} from 'node:diagnostics_channel';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
+import {isDeepStrictEqual} from 'node:util';
 import {createServiceClient} from '../../src/main/serviceClient';
 import {createDeviceIdentityController} from '../../src/main/deviceIdentityController';
 import {createForegroundCollectionController} from '../../src/main/foregroundCollectionController';
@@ -112,7 +113,7 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
    const record=records[item.index],content=data.candidate.current_version;
    expect(data.candidate.profile_version_id===env.PROFILE&&data.candidate.strategy_version_id===prepared.strategy_version_id).toBe(true);
    expect((['body','title','public_url','author_public_id'] as const).every(field=>content[field]===record[field])).toBe(true);
-   expect(content.source_context).toEqual(record.source_context);
+   expect(isDeepStrictEqual(content.source_context,record.source_context)).toBe(true);
    if(sourceId==='v2ex-outsourcing-authors-v1')expect(content.source_context).toBeDefined();
    if(project&&!network)expect(content.source_context).toMatchObject({replies_read:2,replies_complete:true,author_replies:[{id:'101',body:'合成作者更新：项目已结束'}]});
    expect(Date.parse(String(content.published_at))===Date.parse(record.published_at!)).toBe(true);
