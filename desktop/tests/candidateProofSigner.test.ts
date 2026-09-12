@@ -23,6 +23,22 @@ function fixture() {
 }
 function rejected(input: any) {expect(() => signCandidateSubmission(input)).toThrowError(/^CANDIDATE_PROOF_SIGNING_FAILED$/);}
 describe('main-only candidate proof signing', () => {
+  it.each([true,false])('signs boolean author read scope without dropping evidence (matched=%s)', matched => {
+    const input=fixture();
+    input.expected.batch.records[0]={...input.expected.batch.records[0],kind:'PAGE',external_source_id:'12',
+      external_comment_id:null,author_public_id:'9',parent:null,normalizer_version:'v2ex-author-page-v1',
+      source_context:{schema_version:'v2ex-author-context-v1',replies_expected:matched?1:null,replies_read:1,
+        replies_complete:matched,supplements_read:false,author_replies:[{id:'29',body:'项目已结束',published_at:'2026-09-09T00:00:00Z'}]}};
+    const {request_id:_,...hashed}=input.expected.batch;
+    input.prepared.batch_fingerprint=createHash('sha256').update(canonical(hashed)).digest('hex');
+    input.prepared.signing_payload=canonical({...JSON.parse(input.prepared.signing_payload),batch_fingerprint:input.prepared.batch_fingerprint});
+    const signed=signCandidateSubmission(input);
+    expect(verify(null,Buffer.from(input.prepared.signing_payload),createPublicKey(input.key.privateKey),Buffer.from(signed.signature,'base64url'))).toBe(true);
+    expect(signed.batch).toEqual(input.expected.batch);
+    input.expected.batch.records[0].source_context!.replies_expected=matched?null:1;
+    input.expected.batch.records[0].source_context!.replies_complete=!matched;
+    rejected(input);
+  });
   it('signs original UTF8 bytes and returns detached normalized batch without input mutation', () => {
     const input = fixture(); const before = structuredClone(input); const signed = signCandidateSubmission(input);
     // Independent Python stdlib json.dumps(ensure_ascii=False, sort_keys=True,

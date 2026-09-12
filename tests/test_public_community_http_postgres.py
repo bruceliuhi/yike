@@ -66,6 +66,7 @@ def test_real_pg_prepare_confirm_get_preserves_qna_and_source_change_digest(real
 @pytest.mark.parametrize(('selected_source', 'expected_collector'), [
     ('v2ex-latest-v1', 'v2ex-latest-v1'),
     ('v2ex-qna-v1', 'v2ex-qna-v1'),
+    ('v2ex-outsourcing-authors-v1', 'v2ex-outsourcing-authors-v1'),
 ])
 def test_public_community_client_through_ordinary_runtime(
         real_strategy_env, selected_source, expected_collector):
@@ -85,10 +86,12 @@ def test_public_community_client_through_ordinary_runtime(
             if line.startswith('\\ir '):
                 conn.execute((ROOT / 'deploy' / line.split()[1]).read_text())
     prepare = prepare_body(env, configuration=configuration(publicSource=selected_source,
-        keywords=['AI', '的'], exclusions=[]), platforms=['PUBLIC_WEB'], max_records=100)
+        keywords=['AI', '的'], exclusions=[]), platforms=['PUBLIC_WEB'],
+        max_records=3 if selected_source == 'v2ex-outsourcing-authors-v1' else 100)
     token, seed = issue_token(env.claims.user_id, SECRET), env.key.encode().hex()
     app = build_runtime_app(env.db, auth_secret=SECRET, dev_login=True,
-        environment={'YIKE_PILOT_COLLECTION_MODE': 'four-platform-public-node-monitor-v1'})
+        environment={'YIKE_PILOT_COLLECTION_MODE': ('four-platform-public-project-monitor-v1'
+            if selected_source == 'v2ex-outsourcing-authors-v1' else 'four-platform-public-node-monitor-v1')})
     network = os.environ.get('YIKE_PUBLIC_COMMUNITY_NETWORK') == '1'
     child_env = _node_environment()
     child_env['NO_COLOR'] = '1'
@@ -130,6 +133,8 @@ def test_public_community_client_through_ordinary_runtime(
             expected_tasks = 1 if network else 2
             assert result['tasks'] == expected_tasks
             assert result['sourceReads'] == expected_tasks
+            assert result['replyReads'] == (result['records'] * expected_tasks
+                if selected_source == 'v2ex-outsourcing-authors-v1' else 0)
             # Ordinary read API must keep candidates private to their owner.
             for user in (env.users[1], env.users[2]):
                 request = Request(base + '/api/ui/candidates', headers={
