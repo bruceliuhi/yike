@@ -13,3 +13,9 @@ Only this exact denial can now be recorded without aborting. It does not enter s
 ## Remaining work
 
 No new buyer opportunity. Research routing/selection quality still unverified; copying more keywords cannot compensate for runtime protocol failures. Preserve exact failure diagnostics in the next new-task probe before any further paid run. Then validate recent native reading and distinguish background/list pages from selected buyer evidence. This small correction is not completion of the full V0.2 product or recovery of the real UNKNOWN.
+
+## Verification
+
+Code `d40fce00f6b7ecd325c8186c8226e8b4042ced25`: initial two cases RED; worker/navigation/gateway78 passed26.94s. Added exact-shape negative cases and fed an actual in-memory MCP denial into the observer; navigation18 passed0.48s. Protocol fixtures are synthetic, not platform collection or real buyer results. No PostgreSQL restart or further real model run after the recorded failed task.
+
+Independent `admission_limit_review`: Spec PASS / Quality PASS, no actionable P-level finding on exact SHA; worker/navigation77 passed18.05s and diff check clean. MCP/host denials confirmed before I/O; successful/ambiguous/altered/replayed unseen frames still invalid. Report `/tmp/yike-denied-navigation-review.md`. No actual-runtime root-cause claim beyond the independently reproduced observer defect.
