@@ -26,6 +26,7 @@ _CREDENTIAL_QUERY_KEYS = {
 }
 _ACTIVE_LOCK = threading.Lock()
 _ACTIVE_PROCESSES: set[subprocess.Popen] = set()
+_READS_STOPPED = False
 
 
 class PublicReadError(RuntimeError):
@@ -49,7 +50,9 @@ def _stop_process(process: subprocess.Popen) -> None:
 
 def cancel_active_reads() -> None:
     """Terminate and reap reader workers owned by this process."""
+    global _READS_STOPPED
     with _ACTIVE_LOCK:
+        _READS_STOPPED = True
         processes = tuple(_ACTIVE_PROCESSES)
     for process in processes:
         _stop_process(process)
@@ -89,19 +92,23 @@ def read_public_page(url: str, *, deadline: datetime) -> dict:
     if remaining <= 0:
         raise PublicReadError("timeout")
     timeout = min(_MAX_SECONDS, remaining)
-    try:
-        process = subprocess.Popen(
-            [sys.executable, "-I", str(_WORKER)],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            encoding="utf-8",
-            env={},
-        )
-    except OSError:
-        raise PublicReadError("unavailable") from None
+    # Spawning and registration share one short critical section. It contains
+    # no DNS/network/worker I/O, so cancellation cannot miss an OS child.
     with _ACTIVE_LOCK:
+        if _READS_STOPPED:
+            raise PublicReadError("timeout")
+        try:
+            process = subprocess.Popen(
+                [sys.executable, "-I", str(_WORKER)],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                encoding="utf-8",
+                env={},
+            )
+        except OSError:
+            raise PublicReadError("unavailable") from None
         _ACTIVE_PROCESSES.add(process)
     try:
         stdout, _stderr = process.communicate(

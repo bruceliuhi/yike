@@ -221,3 +221,23 @@ def test_serve_timeout_cancels_active_reader(monkeypatch):
     monkeypatch.setattr(module, 'cancel_active_reads', lambda: events.append('cancel'))
     run(module._serve(Server(), max_seconds=0.01))
     assert events == ['cancel']
+
+
+def test_real_stdio_deadline_does_not_flush_blocked_unread_output_pipe():
+    process = subprocess.Popen(
+        [sys.executable, '-I', '-m', 'pilot.research_tools', '--max-reads', '1', '--max-seconds', '1'],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    initialize = {'jsonrpc':'2.0','id':1,'method':'initialize','params':{
+        'protocolVersion':'2025-06-18','capabilities':{},
+        'clientInfo':{'name':'test','version':'1'}}}
+    requests = [initialize, {'jsonrpc':'2.0','method':'notifications/initialized'}]
+    requests.extend({'jsonrpc':'2.0','id':index,'method':'tools/list'} for index in range(2, 302))
+    try:
+        process.stdin.write(''.join(json.dumps(item, separators=(',',':')) + '\n' for item in requests))
+        process.stdin.flush()
+        process.wait(timeout=3)
+        assert process.returncode == 0
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()

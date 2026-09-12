@@ -144,12 +144,10 @@ def main():
         parser.error('invalid_tool_limits')
     def hard_stop():
         # stdio's blocking stdin reader is not cancellable on every platform.
-        # Reap bounded reader children before enforcing the process deadline.
+        # Reap bounded reader children, then exit without waiting on protocol
+        # output locks or pipe backpressure.
         cancel_active_reads()
-        try:
-            sys.stdout.flush()
-        finally:
-            os._exit(0)
+        os._exit(0)
     watchdog = threading.Timer(args.max_seconds, hard_stop)
     watchdog.daemon = True
     watchdog.start()

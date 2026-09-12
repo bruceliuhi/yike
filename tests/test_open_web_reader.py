@@ -6,6 +6,9 @@ import json
 import socket
 import ssl
 import subprocess
+import sys
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -254,3 +257,60 @@ def test_spawn_failure_is_fixed_unavailable(monkeypatch):
     with pytest.raises(PublicReadError) as error:
         read_public_page("https://example.com/", deadline=datetime.now(timezone.utc) + timedelta(seconds=2))
     assert error.value.code == "unavailable"
+
+
+def test_cancel_waits_for_spawn_registration_and_reaps_real_child(monkeypatch):
+    import pilot.open_web_reader as module
+    real_popen = subprocess.Popen
+    spawned = threading.Event()
+    release = threading.Event()
+    child_holder = []
+    monkeypatch.setattr(module, "_READS_STOPPED", False)
+
+    def barrier_popen(*_args, **_kwargs):
+        child = real_popen([sys.executable, "-c", "import time; time.sleep(30)"])
+        child_holder.append(child)
+        spawned.set()
+        assert release.wait(2)
+        return child
+
+    monkeypatch.setattr(subprocess, "Popen", barrier_popen)
+    errors = []
+    def run_reader():
+        try:
+            read_public_page("https://example.com/", deadline=datetime.now(timezone.utc) + timedelta(seconds=5))
+        except PublicReadError as error:
+            errors.append(error.code)
+    reader_thread = threading.Thread(target=run_reader)
+    reader_thread.start()
+    assert spawned.wait(2)
+    cancel_thread = threading.Thread(target=module.cancel_active_reads)
+    cancel_thread.start()
+    time.sleep(0.05)
+    assert cancel_thread.is_alive()
+    release.set()
+    reader_thread.join(3)
+    cancel_thread.join(3)
+    assert not reader_thread.is_alive() and not cancel_thread.is_alive()
+    assert child_holder[0].poll() is not None
+    assert errors == ["unavailable"]
+
+
+def test_cancel_reaps_already_registered_real_harmless_child(monkeypatch):
+    import pilot.open_web_reader as module
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    monkeypatch.setattr(module, "_READS_STOPPED", False)
+    with module._ACTIVE_LOCK:
+        module._ACTIVE_PROCESSES.add(child)
+    try:
+        module.cancel_active_reads()
+        assert child.poll() is not None
+        called = []
+        monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: called.append(True))
+        with pytest.raises(PublicReadError) as error:
+            read_public_page("https://example.com/", deadline=datetime.now(timezone.utc) + timedelta(seconds=2))
+        assert error.value.code == "timeout" and called == []
+    finally:
+        if child.poll() is None:
+            child.kill()
+            child.wait()
