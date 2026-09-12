@@ -85,6 +85,7 @@ export interface YikeService {
   connections(): Promise<PlatformConnection[]>;
   connect(platform: string, signal?: AbortSignal): Promise<void>;
   cancelConnection?(platform: string): Promise<void>;
+  connectionLoginStatus?(platform: string): Promise<'WAITING_LOGIN'|'LOGIN_READY'>;
   checkConnection(platform: string): Promise<PlatformConnection>;
   disconnect(platform: string): Promise<void>;
   suggest(

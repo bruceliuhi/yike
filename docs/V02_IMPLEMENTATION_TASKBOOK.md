@@ -1,5 +1,9 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+CodexWin小红书登录顺序（2026-09-13）：匿名页面不再先调用不稳定selfinfo来阻塞本人登录；等待后才创建当前client并严格核验，未知响应/错误域/歧义账号仍拒绝。去重137项有最终通过证据，独立GO；[唯一计划与实机边界](superpowers/plans/2026-09-13-xhs-login-order.md#evidence)。匿名实机已到USER_LOGIN_WAIT且未先pong；停止后档案立即核验偶发拒绝、稍后原样通过，仍待定位。当前2a85dbc安装包未变，未实际平台认证，不追认完整取消/采集或发布通过。
+
+CodexWin登录反馈修复（2026-09-13）：已补真正只读STATUS与弹窗有界观察，后台失败不继续等待，LOGIN_READY仅提示本人检查；不自动CHECK/REGISTER/VERIFY，原取消/物理停止门禁保留。去重105项有最终通过证据及类型检查，独立整批/夹具差量GO；[唯一计划、首次失败与边界](superpowers/plans/2026-09-13-platform-login-status.md#evidence)。尚未纳入当前2a85dbc安装版，不追认真实小红书已修；下一步仍是实际平台响应根因及同批一次构包复验，完整Goal ACTIVE。
+
 自主搜索与前端同步接续（2026-09-13）：最终代码 `16c39f3` 独立整批及差量 PASS；真实调用绑定修复前 `0cc4827`，Codex＋国产模型＋真实搜索完成两轮查询、两篇原文读取，38.80秒，只证明搜索→原文技术链，旧帖不计有效线索。[唯一实施/失败/限定证据](superpowers/plans/2026-09-12-public-search-research.md#evidence)。已按用户要求[对照原本地 Skill](RESEARCH_TOOLS.md#与原本地-skill-对照2026-09-13)：规则包已在仓库，但新搜索执行器未加载覆盖/复盘流程；**下一批优先接研究规则、确认画像/时效/排除反馈和现有许可/证据链，不继续只改关键词。** 同步完成[前端源码体验审查与接续顺序](../design/RESEARCH_EXPERIENCE_ALIGNMENT.md)：保留 R3/R4 八入口，优先研究进度说人话、折叠技术明细，随后同链联调。尚未接客户任务/部署；语音、多轮业务理解仍需真实实现和验收。不是另建纯聊天产品，完整 Goal ACTIVE。
 
 CodexWin实装接续（2026-09-12）：固定main `2a85dbc` 已部署customer并覆盖安装同源Windows候选；桌面回归4017通过/0失败/33跳过，真实Python签名互验另补1通过，不能写为全部实网测试通过。[唯一Windows证据与阻断](qa/WINDOWS_SYNC_20260912.md)、[部署及回退坐标](qa/SERVER_137138_DEPLOYMENT.md)。用户已完成本进程设备核验，抖音/B站原生窗口已出现；小红书新报PLATFORM_RESPONSE_CHANGED、界面未及时显示终态，以及重启重复核验体验继续作为发布前待处理项。未完成平台认证、真实业务闭环、签名及客户验收，完整Goal ACTIVE；下方“未构包/部署”为对应历史提交时点，不追认MCP已在生产运行。

@@ -41,6 +41,8 @@ async function mount(
         new ServiceError("UNAVAILABLE", "平台登录服务尚未接通"),
       ),
     checkConnection: vi.fn(),
+    // This fixture supplies its own OPEN/CHECK; do not inherit the real native flow observer.
+    connectionLoginStatus: vi.fn().mockResolvedValue('WAITING_LOGIN'),
     ...overrides,
   };
   render(

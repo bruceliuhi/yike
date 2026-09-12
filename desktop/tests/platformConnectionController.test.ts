@@ -111,3 +111,46 @@ it('strict renderer commands reject identity, profile paths and claimed status',
  const f=fixture();for(const extra of [{profile_path:'C:/private'},{account_public_id:account},{status:'CONNECTED'},{device_id:id(1)}])expect((await f.controller.execute({action:'OPEN',platform:'XIAOHONGSHU',...extra})).state).toBe('INVALID_REQUEST');
  expect(f.login.start).not.toHaveBeenCalled();
 });
+it('STATUS is local and read-only before and after authentication until explicit CHECK',async()=>{
+ const f=fixture();await f.openFlow();
+ const status=()=>f.controller.execute({action:'STATUS',platform:'XIAOHONGSHU',flowId:f.getFlowId()});
+ expect(await status()).toEqual({state:'WAITING_LOGIN',flowId:f.getFlowId()});
+ f.completed.resolve({account_public_id:account,checked_at:'2026-09-10T05:00:00Z'});await Promise.resolve();
+ expect(await status()).toEqual({state:'LOGIN_READY',flowId:f.getFlowId()});
+ expect(f.calls).toEqual([]);expect(f.saved).toEqual([]);expect(f.store.read).not.toHaveBeenCalled();
+ expect(f.store.resolve).not.toHaveBeenCalled();expect(f.stop).not.toHaveBeenCalled();
+ expect((await f.check()).state).toBe('CONNECTED');
+});
+it.each(['PLATFORM_RESPONSE_CHANGED','PLATFORM_AUTH_REQUIRED','PLATFORM_PERMISSION_DENIED','PLATFORM_VERIFICATION_REQUIRED','PLATFORM_RATE_LIMITED','PLATFORM_ACCOUNT_UNVERIFIED','COLLECTION_NETWORK_FAILED','COLLECTION_PARSE_FAILED','COLLECTION_PROCESS_FAILED','PLATFORM_LOGIN_TIMED_OUT','PLATFORM_LOGIN_CANCELLED','PLATFORM_LOGIN_FAILED'])('STATUS exposes safe terminal %s without writes or stop',async(code)=>{
+ const f=fixture();await f.openFlow();f.completed.reject(new Error(code));await Promise.resolve();
+ expect(await f.controller.execute({action:'STATUS',platform:'XIAOHONGSHU',flowId:f.getFlowId()})).toEqual({state:'FAILED',error:code});
+ expect(f.calls).toEqual([]);expect(f.saved).toEqual([]);expect(f.stop).not.toHaveBeenCalled();
+});
+it.each([{account_public_id:'invalid',checked_at:'2026-09-10T05:00:00Z'},
+ {account_public_id:account,checked_at:'invalid'}, {account_public_id:account,checked_at:'2026-09-10T05:00:06Z'}])('does not declare an invalid worker observation ready',async(value)=>{
+ const f=fixture();await f.openFlow();f.completed.resolve(value);await Promise.resolve();
+ expect((await f.controller.execute({action:'STATUS',platform:'XIAOHONGSHU',flowId:f.getFlowId()})).state).toBe('FAILED');
+ expect(f.calls).toEqual([]);expect(f.saved).toEqual([]);
+});
+it('observing failure never clears unknown physical-stop poisoning',async()=>{
+ const f=fixture();await f.openFlow();f.completed.reject(new Error('SOURCE_HOST_FAILED'));await Promise.resolve();
+ expect(await f.controller.execute({action:'STATUS',platform:'XIAOHONGSHU',flowId:f.getFlowId()})).toEqual({state:'FAILED',error:'CONNECTION_FAILED'});
+ f.stop.mockRejectedValue(new Error('SOURCE_STOP_FAILED'));
+ expect(await f.openFlow()).toEqual({state:'FAILED',error:'SOURCE_STOP_FAILED'});expect(f.login.start).toHaveBeenCalledTimes(1);
+ cleanups.pop();await expect(f.controller.shutdown()).rejects.toThrow('SOURCE_STOP_FAILED');
+});
+it('STATUS redacts unknown worker errors and CHECK retains physical cleanup',async()=>{
+ const f=fixture();await f.openFlow();f.completed.reject(new Error('private-cookie-path'));await Promise.resolve();
+ expect(await f.controller.execute({action:'STATUS',platform:'XIAOHONGSHU',flowId:f.getFlowId()})).toEqual({state:'FAILED',error:'CONNECTION_FAILED'});
+ expect(await f.check()).toEqual({state:'FAILED',error:'CONNECTION_FAILED'});expect(f.stop).toHaveBeenCalledTimes(1);
+});
+it.each(['session','device','expired','wrong-flow','wrong-platform'] as const)('STATUS fences %s without registering',async(change)=>{
+ const f=fixture();await f.authenticate();
+ if(change==='session')f.setCurrent(false);
+ if(change==='device')f.setDeviceVersion(2);
+ if(change==='expired')f.setNow(NOW+121000);
+ const result=await f.controller.execute({action:'STATUS',platform:change==='wrong-platform'?'DOUYIN':'XIAOHONGSHU',flowId:change==='wrong-flow'?id(99):f.getFlowId()});
+ expect(result).toEqual(change==='expired'?{state:'FAILED',error:'LOGIN_EXPIRED'}:
+  {state:change.startsWith('wrong-')?'INVALID_REQUEST':'SESSION_CHANGED'});
+ expect(f.calls).toEqual([]);expect(f.saved).toEqual([]);expect(f.stop).not.toHaveBeenCalled();
+});

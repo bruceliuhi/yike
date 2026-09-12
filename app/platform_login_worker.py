@@ -255,14 +255,23 @@ async def login_xhs(*, output_path: Path) -> dict:
                 await crawler.context_page.goto(_HOME)
                 if not _official_page(crawler.context_page.url):
                     raise _LoginError('PLATFORM_RESPONSE_CHANGED')
-                crawler.xhs_client = await crawler.create_xhs_client(None)
-                if not await crawler.xhs_client.pong():
+                # Anonymous selfinfo responses are not a prerequisite to showing
+                # the user's normal login UI. A visible self link is only a hint;
+                # strict API and unique-account checks still follow below.
+                own_link = crawler.context_page.locator(_SELF)
+                count = await own_link.count()
+                if count > 1:
+                    raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
+                if count == 0 or not await own_link.is_visible():
                     login = runtime.XiaoHongShuLogin(login_type='qrcode',
                         browser_context=crawler.browser_context, context_page=crawler.context_page)
                     await login.begin()
-                    await crawler.xhs_client.update_cookies(crawler.browser_context, urls=crawler.cookie_urls)
-                    if not await crawler.xhs_client.pong():
-                        raise _LoginError('PLATFORM_AUTH_REQUIRED')
+                if not _official_page(crawler.context_page.url):
+                    raise _LoginError('PLATFORM_RESPONSE_CHANGED')
+                # Create only now so headers use the current post-login context.
+                crawler.xhs_client = await crawler.create_xhs_client(None)
+                if not await crawler.xhs_client.pong():
+                    raise _LoginError('PLATFORM_AUTH_REQUIRED')
                 if not _official_page(crawler.context_page.url):
                     raise _LoginError('PLATFORM_RESPONSE_CHANGED')
                 own_link = crawler.context_page.locator(_SELF)

@@ -13,7 +13,7 @@ async function api() {
 it('fixed commands accept only platform and opaque flow control', async () => {
   const {platformConnectionCommandSchema: schema, PLATFORM_CONNECTION_CHANNEL} = await api();
   expect(PLATFORM_CONNECTION_CHANNEL).toBe('desktop:platform-connection-command');
-  for (const action of ['OPEN', 'CHECK', 'CANCEL']) {
+  for (const action of ['OPEN', 'CHECK', 'CANCEL', 'STATUS']) {
     const value = {action, platform: 'XIAOHONGSHU', ...(action === 'OPEN' ? {} : {flowId})};
     expect(schema.parse(value)).toEqual(value);
     for (const extra of [{path: 'private'}, {accountId: 'fake'}, {status: 'CONNECTED'}, {device_id: 'fake'}])
@@ -32,9 +32,10 @@ it('strict results never carry private material or upgrade other rows into a new
     expect(schema.safeParse({state: 'CONNECTED', flowId, connection: {...row, ...change}}).success).toBe(false);
   for (const platform of ['DOUYIN', 'BILIBILI'])
     expect(schema.safeParse({state: 'CONNECTED', flowId, connection: {...row, platform}}).success).toBe(true);
-  for (const state of ['OPENED', 'WAITING_LOGIN', 'UNKNOWN', 'CANCELLED'])
+  for (const state of ['OPENED', 'WAITING_LOGIN', 'LOGIN_READY', 'UNKNOWN', 'CANCELLED'])
     expect(schema.safeParse({state, flowId}).success).toBe(true);
   expect(schema.safeParse({state: 'FAILED', error: 'SOURCE_STOP_FAILED'}).success).toBe(true);
   expect(schema.safeParse({state: 'FAILED', error: 'private error'}).success).toBe(false);
   expect(schema.safeParse({state: 'OPENED', flowId, path: 'private'}).success).toBe(false);
+  expect(schema.safeParse({state: 'LOGIN_READY', flowId, accountId: 'private'}).success).toBe(false);
 });

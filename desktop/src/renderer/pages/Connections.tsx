@@ -61,6 +61,7 @@ export function ConnectionsPage() {
   const [state, setState] = useState<ConnectingState>("idle");
   const [error, setError] = useState("");
   const [opened, setOpened] = useState(false);
+  const [loginReady, setLoginReady] = useState(false);
   const [recoverable, setRecoverable] = useState(false);
   const [result, setResult] = useState<PlatformConnection | null>(null);
   const generation = useRef(0);
@@ -71,6 +72,7 @@ export function ConnectionsPage() {
     setState("idle");
     setError("");
     setOpened(false);
+    setLoginReady(false);
     setRecoverable(false);
     setResult(null);
     return () => {
@@ -88,6 +90,34 @@ export function ConnectionsPage() {
     }, 120_000);
     return () => window.clearTimeout(timer);
   }, [state]);
+  useEffect(() => {
+    if (state !== 'waiting' || !selected || !service.connectionLoginStatus) return;
+    const request = generation.current;
+    const abort = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const current = () => !abort.signal.aborted && generation.current === request;
+    const poll = async () => {
+      if (!current()) return;
+      try {
+        const status = await boundedRequest(() => service.connectionLoginStatus!(selected.id), {
+          signal: abort.signal, timeoutMs: 5000,
+          timeoutMessage: '登录状态读取超时，请核对原生窗口后重新打开。',
+        });
+        if (!current()) return;
+        setLoginReady(status === 'LOGIN_READY');
+        timer = setTimeout(() => void poll(), 1000);
+      } catch (e) {
+        if (!current() || e instanceof RequestCancelled) return;
+        setOpened(false);
+        setLoginReady(false);
+        setRecoverable(false);
+        setState(e instanceof RequestTimeout ? 'timeout' : 'error');
+        setError(errorMessage(e));
+      }
+    };
+    void poll();
+    return () => {abort.abort(); if (timer !== undefined) clearTimeout(timer);};
+  }, [state, selected?.id, service, session.authenticated, session.userId, session.accountScope?.id, session.accountScope?.version]);
   const busy = state === "opening" || state === "checking";
   const close = () => {
     generation.current++;
@@ -120,6 +150,7 @@ export function ConnectionsPage() {
     setState("opening");
     setError("");
     setOpened(false);
+    setLoginReady(false);
     setRecoverable(false);
     setResult(null);
     try {
@@ -191,7 +222,7 @@ export function ConnectionsPage() {
             : state === "error"
               ? "连接未完成"
               : opened
-                ? "等待登录"
+                ? loginReady ? "登录已完成，待检查连接" : "等待登录"
                 : "等待打开登录窗口";
   return (
     <>
@@ -367,7 +398,7 @@ export function ConnectionsPage() {
                 {state === "connected"
                   ? `${result?.accountName || result?.accountId || "账号信息待读取"} · ${result?.capabilities.length ? result.capabilities.join("、") : "暂无通过检查的执行能力"}`
                   : opened
-                    ? `在本机浏览器中完成${selected.name}账号登录。`
+                    ? loginReady ? '请本人点击“我已完成登录，检查连接”，完成当前账号连接核验。' : `在本机浏览器中完成${selected.name}账号登录。`
                     : "点击下方按钮打开平台登录窗口。"}
               </p>
             </div>
