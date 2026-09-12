@@ -1,7 +1,7 @@
 """Strict MCP-to-host client for the literal-loopback public-read route."""
 import json
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
 import httpx
@@ -33,6 +33,15 @@ class ReadToolClient:
             remaining=(deadline.astimezone(timezone.utc)-datetime.now(timezone.utc)).total_seconds()
             if remaining<=0: raise PublicReadError("timeout")
             timeout=min(21.0,remaining)
+            expires_at = min(
+                deadline.astimezone(timezone.utc),
+                datetime.now(timezone.utc) + timedelta(seconds=timeout),
+            )
+
+            def reject_if_expired():
+                if datetime.now(timezone.utc) >= expires_at:
+                    raise PublicReadError("timeout")
+
             with httpx.Client(timeout=timeout,trust_env=False,follow_redirects=False) as client:
                 timer=threading.Timer(timeout,client.close); timer.daemon=True; timer.start()
                 try:
@@ -40,10 +49,13 @@ class ReadToolClient:
                         if response.status_code!=200: raise PublicReadError("unavailable")
                         chunks=[]; size=0
                         for chunk in response.iter_bytes():
+                            reject_if_expired()
                             size+=len(chunk)
                             if size>_MAX_RESPONSE_BYTES: raise PublicReadError("unavailable")
                             chunks.append(chunk)
+                    reject_if_expired()
                     value=json.loads(b"".join(chunks))
+                    reject_if_expired()
                 finally: timer.cancel()
             if type(value) is not dict:
                 raise PublicReadError("unavailable")
@@ -51,6 +63,7 @@ class ReadToolClient:
                 raise PublicReadError(value["code"] if value["code"] in _ALLOWED else "unavailable")
             if set(value)!={"status","evidence","review_status","replayed"} or value["status"]!="READ" or value["review_status"]!="UNREVIEWED" or type(value["replayed"]) is not bool or not valid_page_evidence(value["evidence"],normalized):
                 raise PublicReadError("unavailable")
+            reject_if_expired()
             return value["evidence"]
         except PublicReadError: raise
         except Exception: raise PublicReadError("unavailable") from None

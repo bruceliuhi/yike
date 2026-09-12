@@ -1,4 +1,5 @@
 import hashlib
+import time
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -41,3 +42,48 @@ def test_failure_codes_are_mapped(monkeypatch):
     client=ReadToolClient(url="http://127.0.0.1:1234/v1/public-read",token="token")
     with pytest.raises(PublicReadError) as error: client.read("https://example.com/",deadline=datetime.now(timezone.utc)+timedelta(seconds=2))
     assert error.value.code == "timeout"
+
+
+def test_rejects_evidence_returned_after_absolute_deadline(monkeypatch):
+    original = httpx.Client
+
+    def handler(_request):
+        time.sleep(0.08)
+        return httpx.Response(200, json={
+            "status": "READ", "evidence": raw(),
+            "review_status": "UNREVIEWED", "replayed": False,
+        })
+
+    monkeypatch.setattr(
+        httpx, "Client",
+        lambda **kwargs: original(transport=httpx.MockTransport(handler), **kwargs))
+    client = ReadToolClient(
+        url="http://127.0.0.1:1234/v1/public-read", token="token")
+
+    with pytest.raises(PublicReadError) as error:
+        client.read(
+            "https://example.com/",
+            deadline=datetime.now(timezone.utc) + timedelta(seconds=0.03))
+
+    assert error.value.code == "timeout"
+
+
+def test_client_timeout_is_capped_at_21_seconds(monkeypatch):
+    seen = {}
+    original = httpx.Client
+
+    def make_client(**kwargs):
+        seen["timeout"] = kwargs["timeout"]
+        return original(transport=httpx.MockTransport(lambda _request: httpx.Response(
+            200, json={"status": "READ", "evidence": raw(),
+                       "review_status": "UNREVIEWED", "replayed": False})), **kwargs)
+
+    monkeypatch.setattr(httpx, "Client", make_client)
+    client = ReadToolClient(
+        url="http://127.0.0.1:1234/v1/public-read", token="token")
+
+    client.read(
+        "https://example.com/",
+        deadline=datetime.now(timezone.utc) + timedelta(seconds=60))
+
+    assert seen["timeout"] == 21.0
