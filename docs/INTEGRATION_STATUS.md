@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-12 新模式定时来源误拒绝修复
+
+`d9e44b3`独立GO：project/bili_links两种模式已声明公开来源及知乎，但pulse旧平台名单遗漏造成实际预约失败；现补齐，原来源/连接/确认/签名门禁不动。真实受限PG先RED8项，修复及旧fixture授权接续后最终11项通过；[唯一计划、失败与证据](superpowers/plans/2026-09-12-monitor-source-activation.md#evidence)。未部署/构包/平台实采，不追认现Windows包；下一批作者定向变化需V3显式协商，旧V2保留，代码接点见同计划尾。跨轮游标/真实周期与完整Goal仍未完成。
+
 ## 2026-09-12 普通判断用量留存，独立审核通过
 
 `b1690cf`独立整批GO：普通ASSESS已补provider usage穿透、原调用DISPATCH/FINISH独立持久化、owner/tenant隔离及受认证只读查询，缓存与别名读取原调用，不重复计数；资料/会话撤销阻断业务结果，但不抹掉已发生消耗。[本批计划和唯一证据](superpowers/plans/2026-09-12-assessment-provider-usage.md#evidence)。不是搜贝计费，不修改research许可，不改UI，不部署或构包。额外修复`_raw_model`把普通候选缺省source_context变成显式null的实际入库回归，保持伪造字段拒绝。客户端用量展示、跨任务汇总、真实模型生产计量及完整V0.2验收仍未完成；COMMIT成功但ACK丢失未专项注入实测，下方“计量代码缺口”应按本批具体范围理解。

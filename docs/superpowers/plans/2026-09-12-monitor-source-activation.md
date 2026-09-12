@@ -23,7 +23,7 @@
 - [x] 执行隔离PG定向测试，确认错误为`capability_unavailable`，不改fixture来规避。
 - [x] 只将两种新policy加入pulse中ZHIHU和PUBLIC_WEB的policy集合；原连接/预算/预约/签名校验不动。
 - [x] 重跑新测试、既有monitor运行合同/权限与能力policy定向覆盖，保留RED/GREEN，不做整仓测试。
-- [ ] 固定SHA独立审核，补一处集中证据与任务书接续，正常合并推送main。测试数据库保留数据、停止自有容器；不影响其他worktree/运行实例。
+- [x] 固定SHA独立审核，补一处集中证据与任务书接续，按既定流程合main。测试数据库保留数据、停止自有容器；不影响其他worktree/运行实例。
 
 ## Evidence
 
@@ -37,7 +37,7 @@
 python -m pytest -q --tb=short tests/test_monitor_extended_sources_postgres.py tests/test_monitor_runtime_postgres.py::test_real_pg_reserved_start_claim_and_pause_fence tests/test_monitor_runtime_postgres.py::test_real_pg_inflight_renew_holds_plan_share_lock_against_other_session_pause
 ```
 
-11 passed，9.08秒。首次五文件组额外包含`tests/test_monitor_runtime_postgres.py tests/test_monitor_runtime_api.py tests/test_bili_link_collection_policy.py tests/test_public_node_collection.py`，不重复整组制造总数。实际数据库/受限角色/策略确认/到期预约/签名START已验证；平台采集、实际Windows和生产未执行。独立审核待固定提交。
+11 passed，9.08秒。首次五文件组额外包含`tests/test_monitor_runtime_postgres.py tests/test_monitor_runtime_api.py tests/test_bili_link_collection_policy.py tests/test_public_node_collection.py`，不重复整组制造总数。实际数据库/受限角色/策略确认/到期预约/签名START已验证；平台采集、实际Windows和生产未执行。独立审核固定`d9e44b389e54d32aa0ef1fdf6522d9d42d9e8aa2`：GO，无P1/P2；确认新测试穿过实际受限PG预约/签名START，来源与旧policy不扩权，复用11项证据未重复广集。
 
 ## 下一批已核实的代码接点（不是已实现）
 
