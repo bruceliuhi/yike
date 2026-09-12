@@ -44,7 +44,20 @@ def install_transport(monkeypatch, payload: bytes, addresses=("93.184.216.34",))
         (socket.AF_INET6 if ":" in ip else socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", (ip, 443, 0, 0) if ":" in ip else (ip, 443))
         for ip in addresses
     ])
-    monkeypatch.setattr(worker.socket, "create_connection", lambda address, timeout: seen.setdefault("address", address) and raw)
+    class SocketFactory:
+        def __init__(self, family, socktype, proto):
+            seen["socket"] = (family, socktype, proto)
+        def settimeout(self, value):
+            seen["timeout"] = value
+        def connect(self, address):
+            seen["address"] = address
+        def sendall(self, value):
+            raw.sendall(value)
+        def makefile(self, mode):
+            return raw.makefile(mode)
+        def close(self):
+            raw.close()
+    monkeypatch.setattr(worker.socket, "socket", SocketFactory)
 
     class Context:
         def wrap_socket(self, sock, *, server_hostname):
@@ -65,7 +78,9 @@ def test_html_extraction_hash_and_tls_hostname_with_pinned_ip(monkeypatch):
     assert result["content_sha256"] == hashlib.sha256(b"Hello world").hexdigest()
     assert result["read_scope"] == "PUBLIC_PAGE_TEXT"
     assert result["observed_at"].endswith("Z")
-    assert seen == {"address": ("93.184.216.34", 443), "server_hostname": "never-enumerated.example"}
+    assert seen["socket"] == (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
+    assert seen["address"] == ("93.184.216.34", 443)
+    assert seen["server_hostname"] == "never-enumerated.example"
     assert raw.sent.startswith(b"GET /path?q=1 HTTP/1.1\r\nHost: never-enumerated.example\r\n")
     assert b"Cookie:" not in raw.sent and b"Authorization:" not in raw.sent
 
@@ -73,6 +88,22 @@ def test_html_extraction_hash_and_tls_hostname_with_pinned_ip(monkeypatch):
 def test_plain_text(monkeypatch):
     install_transport(monkeypatch, response(b"plain\ntext", "text/plain"))
     assert worker.read_request({"url": "https://example.com/", "timeout_seconds": 2})["text"] == "plain\ntext"
+
+
+def test_ipv6_connects_to_resolved_sockaddr_without_second_resolution(monkeypatch):
+    _raw, seen = install_transport(monkeypatch, response(b"ok", "text/plain"), ("2606:2800:220:1:248:1893:25c8:1946",))
+    worker.read_request({"url": "https://example.com/", "timeout_seconds": 2})
+    assert seen["socket"][0] == socket.AF_INET6
+    assert seen["address"] == ("2606:2800:220:1:248:1893:25c8:1946", 443, 0, 0)
+
+
+@pytest.mark.parametrize("hidden", [
+    "<div hidden>secret<br>still secret<input></div><p>visible</p>",
+    "<div hidden>secret</span>still secret</div><p>visible</p>",
+])
+def test_hidden_html_is_element_aware_with_void_and_unrelated_closing_tags(monkeypatch, hidden):
+    install_transport(monkeypatch, response(hidden.encode()))
+    assert worker.read_request({"url": "https://example.com/", "timeout_seconds": 2})["text"] == "visible"
 
 
 @pytest.mark.parametrize("addresses", [("127.0.0.1",), ("93.184.216.34", "10.0.0.2")])
@@ -135,7 +166,12 @@ def test_parent_maps_worker_result_exactly(monkeypatch):
             assert request["url"] == expected["url"] and 0 < request["timeout_seconds"] <= 20
             return json.dumps({"ok": True, "result": expected}), ""
 
-    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: Process())
+    def popen(argv, **kwargs):
+        assert argv[1] == "-I"
+        assert kwargs["env"] == {}
+        assert kwargs["stderr"] is subprocess.DEVNULL
+        return Process()
+    monkeypatch.setattr(subprocess, "Popen", popen)
     assert read_public_page(expected["url"], deadline=datetime.now(timezone.utc) + timedelta(seconds=30)) == expected
 
 
@@ -158,3 +194,31 @@ def test_native_dns_timeout_kills_and_reaps_worker(monkeypatch):
         read_public_page("https://example.com/", deadline=datetime.now(timezone.utc) + timedelta(seconds=1))
     assert error.value.code == "timeout"
     assert events[-2:] == ["kill", "wait"]
+
+
+@pytest.mark.parametrize("patch", [
+    {"read_scope": "OTHER"},
+    {"text": 123},
+    {"text": "changed"},
+    {"observed_at": "not-a-time"},
+    {"url": "https://other.example/"},
+])
+def test_parent_rejects_invalid_or_internally_inconsistent_worker_results(monkeypatch, patch):
+    result = {"url": "https://example.com/", "title": None, "text": "ok", "observed_at": "2026-09-12T01:02:03Z", "content_sha256": hashlib.sha256(b"ok").hexdigest(), "read_scope": "PUBLIC_PAGE_TEXT"} | patch
+
+    class Process:
+        returncode = 0
+        def communicate(self, data, timeout):
+            return json.dumps({"ok": True, "result": result}), ""
+
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: Process())
+    with pytest.raises(PublicReadError) as error:
+        read_public_page("https://example.com/", deadline=datetime.now(timezone.utc) + timedelta(seconds=2))
+    assert error.value.code == "unavailable"
+
+
+def test_spawn_failure_is_fixed_unavailable(monkeypatch):
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: (_ for _ in ()).throw(OSError("sensitive path")))
+    with pytest.raises(PublicReadError) as error:
+        read_public_page("https://example.com/", deadline=datetime.now(timezone.utc) + timedelta(seconds=2))
+    assert error.value.code == "unavailable"

@@ -18,6 +18,7 @@ MAX_TEXT_CHARS = 60_000
 MAX_HEADER_BYTES = 64 * 1024
 MAX_TITLE_CHARS = 1000
 _HIDDEN_TAGS = {"script", "style", "noscript", "template", "svg", "canvas"}
+_VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
 
 
 class WorkerError(RuntimeError):
@@ -39,35 +40,44 @@ def _public_address(value: str) -> bool:
 class _VisibleHTML(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
-        self.hidden = 0
+        self.hidden_depth = 0
         self.title_depth = 0
+        self.stack: list[tuple[str, bool, bool]] = []
         self.text_parts: list[str] = []
         self.title_parts: list[str] = []
 
     def handle_starttag(self, tag, attrs):
         values = {key.lower(): (value or "").lower() for key, value in attrs}
         style = values.get("style", "").replace(" ", "")
-        hidden = (tag.lower() in _HIDDEN_TAGS or "hidden" in values
+        tag = tag.lower()
+        hidden = (tag in _HIDDEN_TAGS or "hidden" in values
                   or values.get("aria-hidden") == "true"
                   or "display:none" in style or "visibility:hidden" in style)
-        if hidden or self.hidden:
-            self.hidden += 1
-        if tag.lower() == "title":
+        title = tag == "title"
+        if hidden:
+            self.hidden_depth += 1
+        if title:
             self.title_depth += 1
+        if tag not in _VOID_TAGS:
+            self.stack.append((tag, hidden, title))
 
     def handle_startendtag(self, tag, attrs):
         return
 
     def handle_endtag(self, tag):
-        if tag.lower() == "title" and self.title_depth:
+        tag = tag.lower()
+        if not self.stack or self.stack[-1][0] != tag:
+            return
+        _tag, hidden, title = self.stack.pop()
+        if title:
             self.title_depth -= 1
-        if self.hidden:
-            self.hidden -= 1
+        if hidden:
+            self.hidden_depth -= 1
 
     def handle_data(self, data):
         if self.title_depth:
             self.title_parts.append(data)
-        elif not self.hidden:
+        elif not self.hidden_depth:
             self.text_parts.append(data)
 
 
@@ -143,11 +153,13 @@ def read_request(request: dict) -> dict:
     if not addresses:
         raise WorkerError("unavailable")
     family, _socktype, _proto, address = addresses[0]
-    target = (address, 443, 0, 0) if family == socket.AF_INET6 else (address, 443)
+    target = next(sockaddr for record_family, _kind, _protocol, _name, sockaddr in records
+                  if record_family == family and sockaddr[0] == address)
     raw = tls = None
     try:
-        raw = socket.create_connection(target, timeout=timeout)
+        raw = socket.socket(family, socket.SOCK_STREAM, socket.IPPROTO_TCP)
         raw.settimeout(timeout)
+        raw.connect(target)
         tls = ssl.create_default_context().wrap_socket(raw, server_hostname=host)
         path = parts.path or "/"
         if parts.query:
