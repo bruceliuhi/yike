@@ -30,6 +30,10 @@ uv run --frozen --extra research python -m pilot.research_tools --max-reads 5 --
 
 ## 验证与接续
 
+### 最新实际验证（2026-09-13）
+
+客户动态接线后，真实 Codex/豆包/搜索运行暴露并修复了传输元数据准入和 READ 结果包两个接口错误（`c2169de`、`5c311bb`）。实际记录为 4 次模型成功、9 次搜索成功、首个 READ UNKNOWN、0 候选；第二项修复仅有协议与受限 PG 定向验证，未追认真实研究全链成功。[唯一探针、本地 Skill 小样及后续缺口](qa/DYNAMIC_RESEARCH_REAL_PROBE_20260913.md)。本地样本 0 可交接、2 待核，非严格 A/B；下一步为实际原文入账/判断、阅读优先策略和授权评论深度，而非继续堆固定网站。下方旧阶段“未接客户/未运行”描述保留对应历史边界，不代表最新源码状态。
+
 ### 内部 Codex 执行入口
 
 `pilot.codex_research_worker.run_public_read_mission` 使用明确指定的 Codex 可执行文件和安装本包的 Python；适用 POSIX 服务端，不是 Windows 客户端执行器。宿主在内存中传入模型密钥、模型名、公开阅读任务和资源上限。当前适配仅固定火山方舟 Responses 地址，不支持调用方指定任意模型服务地址；Qwen 尚未实测或启用。
