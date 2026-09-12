@@ -176,7 +176,8 @@ it.skipIf(process.platform !== 'win32').each(['success','cancel'])('actual Node 
     const cwd = join(root, 'project'); fs.mkdirSync(join(cwd, 'app'), {recursive:true});
     const runtimePath = join(root, 'runtime'), profileRoot = join(root, 'profiles'), outputRoot = join(root, 'outputs');
     for (const dir of [runtimePath,profileRoot,outputRoot]) fs.mkdirSync(dir);
-    fs.writeFileSync(join(cwd, 'app/__init__.py'), `__path__.append(${JSON.stringify(join(project, 'app'))})\n`);
+    // Mirror the packaged interpreter's project root without relying on an editable install.
+    fs.writeFileSync(join(cwd, 'app/__init__.py'), `import sys\nsys.path.append(${JSON.stringify(project)})\n__path__.append(${JSON.stringify(join(project, 'app'))})\n`);
     // Real host parser/OPENED+terminal emitter/EOF watcher; replace only its
     // browser-supervisor boundary so this test never opens a platform session.
     fs.writeFileSync(join(cwd, 'app/windows_platform_login.py'), `

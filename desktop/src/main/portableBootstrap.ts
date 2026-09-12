@@ -1,11 +1,13 @@
 import path from 'node:path';
 import {mkdir} from 'node:fs/promises';
+import {realpathSync} from 'node:fs';
 import {spawn as nodeSpawn,type ChildProcess} from 'node:child_process';
 import {verifyPortablePayload} from './portablePayload';
 import type {PlatformLoginDriverOptions} from './platformLoginDriver';
 import type {PortableRuntimeStatus} from '../shared/portableRuntime';
 type Options={resourcesPath:string;userData:string;pin:{sha256:string;resourceName:string};
-  verify?:typeof verifyPortablePayload;spawn?:typeof nodeSpawn;prepareParent?:(path:string)=>Promise<unknown>};
+  verify?:typeof verifyPortablePayload;spawn?:typeof nodeSpawn;prepareParent?:(path:string)=>Promise<unknown>;
+  resolveParent?:(path:string)=>string};
 /** UI readiness includes main controller attachment, not merely copied runtime bytes. */
 export function publishedPortableStatus(status:PortableRuntimeStatus,attached:boolean,failed:boolean):PortableRuntimeStatus{
   return failed?{state:'FAILED'}:status.state==='READY'&&!attached?{state:'PREPARING'}:status;
@@ -22,12 +24,15 @@ export function createPortableBootstrap(options:Options){
       run=(async()=>{
         try {
           if(abort.signal.aborted||!/^[a-f0-9]{64}$/.test(options.pin.sha256)||!/^[A-Za-z0-9_-]{1,100}$/.test(options.pin.resourceName))throw Error();
-          const source=path.join(options.resourcesPath,options.pin.resourceName),parent=path.join(options.userData,'portable-runtimes');
-          const destination=path.join(parent,options.pin.sha256);
+          // Chromium's Windows activation context needs a short physical path.
+          // MSIX redirects logical AppData paths; ordinary realpath does not resolve it.
+          // Keep the complete digest and leave all previous runtimes/profiles untouched.
+          const source=path.join(options.resourcesPath,options.pin.resourceName),parent=path.join(options.userData,'r');
           await (options.verify??verifyPortablePayload)(source,options.pin.sha256,abort.signal);
           if(abort.signal.aborted)throw Error();
           await (options.prepareParent??(p=>mkdir(p,{recursive:true})))(parent);
           if(abort.signal.aborted)throw Error();
+          const destination=path.join((options.resolveParent??realpathSync.native)(parent),options.pin.sha256);
           const env:NodeJS.ProcessEnv={};
           for(const key of ['SystemRoot','WINDIR','USERNAME','TEMP','TMP'])if(process.env[key])env[key]=process.env[key];
           const ok=await new Promise<boolean>((resolve)=>{
