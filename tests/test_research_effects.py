@@ -126,6 +126,28 @@ def test_deadline_elapsed_while_dispatcher_queues_prevents_io():
     assert performed == [] and len(failure) == 1 and str(failure[0]) == "effect_unavailable"
 
 
+def test_saved_perform_is_invalid_after_dispatcher_returns():
+    saved = []
+    performed = []
+
+    def dispatcher(_kind, _payload, _deadline, perform):
+        saved.append(perform)
+        return {"replayed": True}
+
+    assert dispatch_effect(dispatcher, kind="READ", payload={}, deadline=time.monotonic() + 10,
+                           perform=lambda _: performed.append(True) or {}) == {"replayed": True}
+    with pytest.raises(EffectDispatchError, match="^effect_unavailable$"):
+        saved[0](time.monotonic() + 1)
+    assert performed == []
+
+
+def test_effective_deadline_elapsed_during_action_rejects_result():
+    with pytest.raises(EffectDispatchError, match="^effect_unavailable$"):
+        dispatch_effect(lambda _k, _p, _deadline, perform: perform(time.monotonic() + .02),
+                        kind="MODEL", payload={}, deadline=time.monotonic() + 1,
+                        perform=lambda _: time.sleep(.03) or {"late": True})
+
+
 def _capture(target, action):
     try:
         action()
@@ -134,6 +156,7 @@ def _capture(target, action):
 
 
 @pytest.mark.parametrize("payload", [
+    [],
     {"bad": float("nan")},
     {"bad": {1: "non-string key"}},
     {"too_large": "x" * (2 * 1024 * 1024)},

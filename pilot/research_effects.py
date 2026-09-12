@@ -58,27 +58,41 @@ def dispatch_effect(dispatcher, *, kind, payload, deadline, perform):
     try:
         if kind not in _KINDS or not callable(perform) or not _valid_deadline(deadline):
             raise EffectDispatchError()
+        if type(payload) is not dict:
+            raise EffectDispatchError()
         clean_payload = _copy_bounded_json(payload)
         host_deadline = float(deadline)
         if dispatcher is None:
             result = perform(host_deadline)
+            if type(result) is not dict:
+                raise EffectDispatchError()
+            return _copy_bounded_json(result)
         else:
             if not callable(dispatcher):
                 raise EffectDispatchError()
             once_lock = threading.Lock()
             invoked = False
+            active = True
 
             def guarded_perform(effective_deadline: float) -> dict:
                 nonlocal invoked
                 with once_lock:
-                    if invoked:
+                    if not active or invoked:
                         raise EffectDispatchError()
                     invoked = True
                 if not _valid_deadline(effective_deadline, original=host_deadline):
                     raise EffectDispatchError()
-                return perform(float(effective_deadline))
+                value = perform(float(effective_deadline))
+                if (time.monotonic() >= effective_deadline
+                        or time.monotonic() >= host_deadline):
+                    raise EffectDispatchError()
+                return value
 
-            result = dispatcher(kind, clean_payload, host_deadline, guarded_perform)
+            try:
+                result = dispatcher(kind, clean_payload, host_deadline, guarded_perform)
+            finally:
+                with once_lock:
+                    active = False
         if time.monotonic() >= host_deadline:
             raise EffectDispatchError()
         if type(result) is not dict:

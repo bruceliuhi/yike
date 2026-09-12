@@ -269,6 +269,75 @@ def test_cached_nested_results_are_not_mutable_by_callers(monkeypatch):
     assert session.search("q")["results"][0]["title"] == "original"
 
 
+def test_effect_dispatches_search_with_copied_payload_and_shortened_deadline(monkeypatch):
+    host_deadline = time.monotonic() + 30
+    seen = {}
+
+    def dispatcher(kind, payload, deadline, perform):
+        seen.update(kind=kind, payload=payload, deadline=deadline)
+        payload["query"] = "mutated"
+        return perform(deadline - 1)
+
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=1,
+                                  deadline=host_deadline, effect_dispatcher=dispatcher)
+    monkeypatch.setattr(session, "_run", lambda query, *, deadline=None:
+                        seen.update(run=(query, deadline)) or _searched(query=query))
+    assert session.search(" 中文  需求 ")["status"] == "SEARCHED"
+    assert seen == {"kind": "SEARCH", "payload": {"query": "mutated"},
+                    "deadline": host_deadline, "run": ("中文 需求", host_deadline - 1)}
+
+
+def test_effect_denial_is_fixed_cached_failure_and_cache_hit_does_not_dispatch(monkeypatch):
+    calls = 0
+
+    def dispatcher(*_args):
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("private provider detail")
+
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=1,
+                                  deadline=time.monotonic() + 30, effect_dispatcher=dispatcher)
+    monkeypatch.setattr(session, "_run", lambda *_a, **_k: pytest.fail("must not run"))
+    assert session.search("q") == {"status": "FAILED", "code": "unavailable", "replayed": False}
+    assert session.search("q") == {"status": "FAILED", "code": "unavailable", "replayed": True}
+    assert calls == 1
+
+
+def test_invalid_effect_result_is_not_cached_as_success(monkeypatch):
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=1,
+                                  deadline=time.monotonic() + 30,
+                                  effect_dispatcher=lambda *_: {"status": "SEARCHED", "secret": "bad"})
+    monkeypatch.setattr(session, "_run", lambda *_a, **_k: pytest.fail("trusted replay must not run"))
+    assert session.search("q") == {"status": "FAILED", "code": "invalid_search_result", "replayed": False}
+
+
+def test_allows_read_uses_only_successfully_cached_exact_normalized_urls(monkeypatch):
+    item = {"url": "https://example.com/path", "title": None, "snippet": None,
+            "date_hint": None, "rank": 1}
+    session = PublicSearchSession(api_key="synthetic-key", max_searches=2,
+                                  deadline=time.monotonic() + 30)
+    monkeypatch.setattr(session, "_run", lambda query, *, deadline=None:
+                        _searched(query=query, results=[item]) if query == "ok"
+                        else {"status": "FAILED", "code": "unavailable", "replayed": False})
+    assert not session.allows_read("https://example.com/path")
+    session.search("bad")
+    assert not session.allows_read("https://other.example/")
+    session.search("ok")
+    assert session.allows_read("https://example.com/path")
+    assert session.allows_read("https://EXAMPLE.com:443/path#fragment")
+    assert not session.allows_read("https://example.com/other")
+    assert not session.allows_read("not a url")
+    session.close()
+    assert not session.allows_read("https://example.com/path")
+
+
+@pytest.mark.parametrize("dispatcher", [False, 1, "bad"])
+def test_effect_dispatcher_must_be_callable(dispatcher):
+    with pytest.raises(ValueError, match="^invalid_effect_dispatcher$"):
+        PublicSearchSession(api_key="k", max_searches=1, deadline=time.monotonic() + 30,
+                            effect_dispatcher=dispatcher)
+
+
 def test_different_queries_are_serialized(monkeypatch):
     active = 0
     maximum = 0
