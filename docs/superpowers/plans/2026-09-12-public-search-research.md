@@ -50,6 +50,8 @@ run_public_research_mission(description: str, *, codex_binary: str, python_binar
 # oldresultfields + searches:list[SEARCHED], search_failures:list[{query,code}]
 ```
 
+MCP 仍由 `/usr/bin/env -i` 启动；临时 `YIKE_PUBLIC_SEARCH_URL=...` 与 `YIKE_PUBLIC_SEARCH_TOKEN=...` 作为 env 命令赋值参数传入，随后是独立 Python 命令。不使用会被 `env -i` 清掉的 `mcp_servers.yike_public.env`；这里仅含随机临时令牌，绝不含供应商密钥。研究模式指令写明宿主本次搜索、读取、模型请求上限，并要求为最终答复留出预算；优先买方业务行动和社区原生内容，不内置行业或域名允许名单。
+
 - [ ] RED actual JSONL fixtures: real `mcp_tool_call` server yike_public/tool search_public_web/argumentsquery/result.structured_content plus read; invalidsearchschema/foreignurl/duplicateID conflict rejects; modeltext alone notsearch, valid searchzeroresults retained with no_verified_reads. Old read-onlyfixtures keep exact resultshape and originalmission semantics.
 - [ ] RED subprocess config checks: provider andsearchkey absent env/argv/cwd/prompt; onlytemporaryURL/token passedMCP env. New mode allowstwofunctions and instructions explicitly search thenread; oldmode nosearch. Snapshot providerrecords aftercleanup, close search session even onspawn/enter/error/cancel. Reject key substrings inpublicdescription.
 - [ ] Implement shared internal runner conservatively, preserve public oldfunctionsignature. Search events use Task1validator, dedupactualeventIDs; readURLs mustbelongto actualcompletedsearchresults in newmode. Finalcode no_verified_searches if no actualSEARCHED, no_verified_reads if search butno original. Source/modeltext remainseparate, no autonomousretry/leadapproval.
@@ -71,4 +73,13 @@ run_public_research_mission(description: str, *, codex_binary: str, python_binar
 
 ## Evidence
 
-Pending implementation. Existing Serper config key presence checked boolean-only at known siblingproject; validity not yet tested. Prior read-onlyCodex batch f9fc299 remains completed, not rerun.
+代码候选 `0cc4827`，基线 `f9fc299`；独立整批审核进行中。旧只读批次不重复验收。当前没有客户 API、持久预算、数据库证据入库、部署或合格商机交付证明。
+
+- 搜索后端：定向25 passed。执行器：补充 None 模式与重放去重、动态额度指令后37 passed /16.05秒。根集成：20 passed；旧 MCP/桥接受影响回归53 passed /16.98秒。均为协议/实现证据，不是商业效果。
+- 首次整合诊断：2次真实搜索、18个索引候选，两个原文分别 invalid_url/unavailable；模型在额度用尽后仍尝试追加调用，最终 runtime_failed，23.41秒。没有成功原文、没有合格线索。此次工作树仍有并行修复，不绑定为冻结候选验收。由此追加明确额度指令与买方/社区优先策略，保留安全读取限制。
+- 改动后固定 `0cc4827`：2026-09-12 15:57:48–15:58:03 UTC 实际搜索/读取，整次38.80秒，COMPLETED；2次搜索18个候选、2次原文成功、5次真实模型请求，零读取/搜索失败。Codex 自主查询 `V2EX 求开发 AI工具 委托 定制` 与 `V2EX 找人开发 企业知识库 RAG 外包`。这次任务显式偏好 V2EX，是受控社区样本，不证明跨平台覆盖。
+- 实际原文：[行业知识库预算讨论](https://www.v2ex.com/t/1155193)，4343字符，SHA256 `ca41f764d638bed862bfa19f26a0245a8171bd1b6f37ddbdee7ec93ff09dd586`；[AI客服合作/外包帖子](https://www.v2ex.com/t/1197102)，1492字符，SHA256 `94ce8ec83155c1df996066d1698868d06ca9c2c9c927f9414789b38a4bd7a89b`。索引分别提示2025-08-27与2026-03-10，均不能当本轮近期有效线索；未完成作者原始日期与当前开放状态人工复核，不计净新增，不触达。
+- 该次 CLI 用量 input29809、cached input14760、output1062；5个供应商请求分别 input/output为3069/64、4149/66、5304/67、8121/67、9166/798。字段按来源保留，不是人民币费用或已定义搜贝换算。
+- 已验证本地既有 Serper 与 Ark 凭据的本轮真实调用；密钥只在宿主内存读取，没有复制入仓库/参数/日志。Qwen 仍只有配置位置线索，未实际调用，不评选模型优胜者。
+
+接续：将通用执行器接入已确认行业策略、需求时效/排除项、现有许可与证据事务及客户进度；专用登录/评论/监测连接器继续保留。技术链完成不能替代“近期且值得联系”质量门槛。前端同步调整参见本次体验审查，不等待所有后端功能完成才联调。

@@ -13,7 +13,7 @@ uv run --frozen --extra research python -m pilot.research_tools --max-reads 5 --
 
 第二条命令启动标准 MCP stdio 服务，供父级研究 Harness 通过 stdin/stdout 使用，终端等待输入是正常状态。不会监听 HTTP 端口，不读取平台 Cookie、Codex 登录态、业务数据库或模型密钥。宿主应使用独立环境启动，不把主服务凭据传给工具进程。
 
-只有 `read_public_page({"url":"https://example.com/"})`：返回实际提取的标题/原文、读取时间、文本SHA256、读取范围 `PUBLIC_PAGE_TEXT` 与 `UNREVIEWED` 标识。读取不是事实核验或需求判断，不自动提取/断言作者和发布日期。工具没有搜索、登录、写库、审批或发送能力。
+默认只有 `read_public_page({"url":"https://example.com/"})`：返回实际提取的标题/原文、读取时间、文本SHA256、读取范围 `PUBLIC_PAGE_TEXT` 与 `UNREVIEWED` 标识。读取不是事实核验或需求判断，不自动提取/断言作者和发布日期。宿主明确启用下述搜索模式后增加搜索工具；两种模式均没有登录、写库、审批或发送能力。
 
 `max-reads`（1–100）与 `max-seconds`（1–1800）由宿主指定，工具参数不能修改。尝试前计数，同URL成功/失败本进程内缓存重放；多个请求串行处理。进程重启后的持久去重和任务预算仍必须接现有账本，不能依靠此缓存结算搜贝。
 
@@ -60,4 +60,27 @@ uv run --frozen --extra dev --extra research pytest -q tests/test_open_web_reade
 
 协议测试使用官方SDK真实会话和stdio子进程；网络替身仅用于可重复的故障/边界测试，不算真实需求。未安装research依赖时协议测试显式跳过。
 
-后台优先接Codex开源Harness与国产模型API，但工具协议不依赖模型品牌。已确认通过的运行与失败记录集中在[本批证据](superpowers/plans/2026-09-12-open-web-research.md#evidence)。后续仍须完成实际搜索工具、Skill多轮研究、现有签名任务/许可/证据事务、客户进度和真实效果验证；不得用本工具取代这些交付。
+后台优先接Codex开源Harness与国产模型API，但工具协议不依赖模型品牌。旧读取工具证据集中在[读取批次](superpowers/plans/2026-09-12-open-web-research.md#evidence)。后续仍须完成 Skill 多轮业务研究、现有签名任务/许可/证据事务、客户进度和真实效果验证；不得用本工具取代这些交付。
+
+### 自主搜索后读取
+
+新增内部 `run_public_research_mission`，参数沿用只读入口并增加宿主内存中的 `search_api_key`、`max_searches`（默认3）。默认最多5次读取、8次模型请求、120秒。模型只能调用 `search_public_web` 和 `read_public_page`，搜索使用固定 Serper 服务；搜索进程通过私有 stdin 接收供应商密钥，MCP 只持有临时本机端口与随机令牌。
+
+```python
+from pilot.codex_research_worker import run_public_research_mission
+
+result = run_public_research_mission(
+    confirmed_public_mission,
+    codex_binary=approved_codex_path,
+    python_binary=research_python_path,
+    api_key=model_secret_from_host,
+    model=approved_model,
+    search_api_key=search_secret_from_host,
+    max_searches=2, max_reads=2, max_requests=6, max_seconds=90,
+    cancelled=host_cancelled,
+)
+```
+
+结果新增 `searches` / `search_failures`，索引摘要、索引日期提示和原文证据分开。搜索模式只允许读取本轮实际命中 URL；同查询缓存不会算新发现。搜索空结果与搜索失败分开；无实际原文不得完成，返回 `no_verified_searches` 或 `no_verified_reads` 等固定错误码。读取边界仍如上，不额外支持跳转、JS或登录。
+
+COMPLETED 仅表示执行器正常结束并取得搜索和原文，不表示近期、匹配、已复核或可联系。任务时效、行业判断、持久许可、客户隔离与证据入库仍需通过产品链路接入。一次真实成功及前次失败集中在[搜索批次证据](superpowers/plans/2026-09-12-public-search-research.md#evidence)，不得把这些旧帖作为新线索推给客户。
