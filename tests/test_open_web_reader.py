@@ -106,6 +106,28 @@ def test_hidden_html_is_element_aware_with_void_and_unrelated_closing_tags(monke
     assert worker.read_request({"url": "https://example.com/", "timeout_seconds": 2})["text"] == "visible"
 
 
+@pytest.mark.parametrize("html", [
+    "<input hidden><p>Visible</p>",
+    "<div hidden><b>secret</div><p>Visible</p>",
+    "<style/>.secret{display:none}</style><p>Visible</p>",
+    "<script/>alert('secret')</script><p>Visible</p>",
+])
+def test_html_hidden_void_ancestor_close_and_nonvoid_self_close(html):
+    assert worker._decode(html.encode(), "text/html") == ("Visible", None)
+
+
+@pytest.mark.parametrize("payload", [
+    b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 100\r\n\r\npartial",
+    b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\n\r\nA\r\npartial",
+])
+def test_incomplete_content_length_or_chunked_body_is_unavailable(payload):
+    response_object = __import__("http.client").client.HTTPResponse(FakeSocket(payload), method="GET")
+    response_object.begin()
+    with pytest.raises(worker.WorkerError) as error:
+        worker._read_body(response_object)
+    assert error.value.code == "unavailable"
+
+
 @pytest.mark.parametrize("addresses", [("127.0.0.1",), ("93.184.216.34", "10.0.0.2")])
 def test_rejects_private_or_mixed_dns(monkeypatch, addresses):
     install_transport(monkeypatch, response(b"ok", "text/plain"), addresses)

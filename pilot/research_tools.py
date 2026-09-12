@@ -7,9 +7,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from contextlib import redirect_stderr
 from datetime import UTC, datetime, timedelta
 import hashlib
 import json
+import os
+import sys
+import threading
 from time import monotonic
 
 import anyio
@@ -17,7 +21,9 @@ from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import CallToolResult, TextContent, Tool, ToolAnnotations
 
-from pilot.open_web_reader import PublicReadError, normalize_public_url, read_public_page
+from pilot.open_web_reader import (
+    PublicReadError, cancel_active_reads, normalize_public_url, read_public_page,
+)
 
 
 def _failure(code):
@@ -86,7 +92,8 @@ def build_server(*, max_reads: int, max_seconds: int, reader=read_public_page):
             cache[url] = _failure('unavailable')
             deadline = datetime.now(UTC) + timedelta(seconds=min(20, remaining))
             try:
-                value = await anyio.to_thread.run_sync(lambda:reader(url, deadline=deadline))
+                value = await anyio.to_thread.run_sync(
+                    lambda:reader(url, deadline=deadline), abandon_on_cancel=True)
                 if monotonic() >= expires:
                     result = _failure('deadline_exceeded')
                 elif not _valid_page(value, url):
@@ -112,9 +119,18 @@ def build_server(*, max_reads: int, max_seconds: int, reader=read_public_page):
     return server
 
 
-async def _serve(server):
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(read_stream, write_stream, server.create_initialization_options())
+async def _serve(server, *, max_seconds):
+    try:
+        try:
+            async with asyncio.timeout(max_seconds):
+                # Let timeout cancellation cross the transport context so its
+                # stdin/stdout task group is cancelled rather than awaited.
+                async with stdio_server() as (read_stream, write_stream):
+                    await server.run(read_stream, write_stream, server.create_initialization_options())
+        except TimeoutError:
+            pass
+    finally:
+        cancel_active_reads()
 
 
 def main():
@@ -126,7 +142,24 @@ def main():
         server = build_server(max_reads=args.max_reads, max_seconds=args.max_seconds)
     except ValueError:
         parser.error('invalid_tool_limits')
-    asyncio.run(_serve(server))
+    def hard_stop():
+        # stdio's blocking stdin reader is not cancellable on every platform.
+        # Reap bounded reader children before enforcing the process deadline.
+        cancel_active_reads()
+        try:
+            sys.stdout.flush()
+        finally:
+            os._exit(0)
+    watchdog = threading.Timer(args.max_seconds, hard_stop)
+    watchdog.daemon = True
+    watchdog.start()
+    # The SDK may include malformed input values in validation diagnostics.
+    # Suppress process-local stderr only for this CLI protocol boundary.
+    try:
+        with open(os.devnull, 'w') as sink, redirect_stderr(sink):
+            asyncio.run(_serve(server, max_seconds=args.max_seconds))
+    finally:
+        watchdog.cancel()
 
 
 if __name__ == '__main__':

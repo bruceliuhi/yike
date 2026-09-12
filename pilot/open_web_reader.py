@@ -6,6 +6,7 @@ import hashlib
 import re
 import subprocess
 import sys
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qsl, quote, urlsplit, urlunsplit
@@ -23,12 +24,35 @@ _CREDENTIAL_QUERY_KEYS = {
     "token", "accesstoken", "refreshtoken", "idtoken", "password", "passwd",
     "pwd", "cookie", "session", "sessionid", "signature", "sig",
 }
+_ACTIVE_LOCK = threading.Lock()
+_ACTIVE_PROCESSES: set[subprocess.Popen] = set()
 
 
 class PublicReadError(RuntimeError):
     def __init__(self, code: str):
         self.code = code if code in _CODES else "unavailable"
         super().__init__(self.code)
+
+
+def _stop_process(process: subprocess.Popen) -> None:
+    if process.returncode is not None:
+        return
+    try:
+        process.kill()
+    except OSError:
+        pass
+    try:
+        process.wait()
+    except OSError:
+        pass
+
+
+def cancel_active_reads() -> None:
+    """Terminate and reap reader workers owned by this process."""
+    with _ACTIVE_LOCK:
+        processes = tuple(_ACTIVE_PROCESSES)
+    for process in processes:
+        _stop_process(process)
 
 
 def normalize_public_url(url: str) -> str:
@@ -77,22 +101,24 @@ def read_public_page(url: str, *, deadline: datetime) -> dict:
         )
     except OSError:
         raise PublicReadError("unavailable") from None
+    with _ACTIVE_LOCK:
+        _ACTIVE_PROCESSES.add(process)
     try:
         stdout, _stderr = process.communicate(
             json.dumps({"url": normalized, "timeout_seconds": timeout}, separators=(",", ":")),
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait()
+        _stop_process(process)
         raise PublicReadError("timeout") from None
     except BaseException as error:
-        if process.returncode is None:
-            process.kill()
-            process.wait()
+        _stop_process(process)
         if isinstance(error, OSError):
             raise PublicReadError("unavailable") from None
         raise
+    finally:
+        with _ACTIVE_LOCK:
+            _ACTIVE_PROCESSES.discard(process)
     if process.returncode != 0 or len(stdout.encode("utf-8")) > 300_000:
         raise PublicReadError("unavailable")
     try:

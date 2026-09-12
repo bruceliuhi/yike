@@ -5,6 +5,7 @@ import json
 import threading
 import time
 import sys
+import subprocess
 
 import pytest
 pytest.importorskip('mcp', reason='requires the optional research dependency group')
@@ -165,3 +166,58 @@ def test_real_stdio_process_advertises_tool_and_rejects_private_url():
                 result=await session.call_tool('read_public_page', {'url':'https://127.0.0.1/'})
                 assert result.structuredContent['code']=='invalid_url'
     run(scenario())
+
+
+def test_real_stdio_malformed_arguments_do_not_echo_to_stderr():
+    marker = 'REVIEW_SYNTHETIC_SECRET'
+    messages = [
+        {'jsonrpc':'2.0','id':1,'method':'initialize','params':{
+            'protocolVersion':'2025-06-18','capabilities':{},
+            'clientInfo':{'name':'test','version':'1'}}},
+        {'jsonrpc':'2.0','method':'notifications/initialized'},
+        {'jsonrpc':'2.0','id':2,'method':'tools/call','params':{
+            'name':'read_public_page','arguments':marker}},
+    ]
+    process = subprocess.run(
+        [sys.executable, '-I', '-m', 'pilot.research_tools', '--max-reads', '1', '--max-seconds', '5'],
+        input=''.join(json.dumps(item, separators=(',',':')) + '\n' for item in messages),
+        text=True, capture_output=True, timeout=10, check=False)
+    assert process.returncode == 0
+    assert marker not in process.stdout and marker not in process.stderr
+    assert '"id":2' in process.stdout and '"error"' in process.stdout
+
+
+def test_real_stdio_idle_session_exits_at_max_seconds():
+    process = subprocess.Popen(
+        [sys.executable, '-I', '-m', 'pilot.research_tools', '--max-reads', '1', '--max-seconds', '1'],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        process.stdin.write(json.dumps({'jsonrpc':'2.0','id':1,'method':'initialize','params':{
+            'protocolVersion':'2025-06-18','capabilities':{},
+            'clientInfo':{'name':'test','version':'1'}}}) + '\n')
+        process.stdin.flush()
+        process.wait(timeout=3)
+        assert process.returncode == 0
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+
+
+def test_serve_timeout_cancels_active_reader(monkeypatch):
+    import pilot.research_tools as module
+    events = []
+
+    class Server:
+        def create_initialization_options(self): return None
+        async def run(self, *_):
+            await asyncio.Event().wait()
+
+    class Context:
+        async def __aenter__(self): return object(), object()
+        async def __aexit__(self, *_): return None
+
+    monkeypatch.setattr(module, 'stdio_server', lambda: Context())
+    monkeypatch.setattr(module, 'cancel_active_reads', lambda: events.append('cancel'))
+    run(module._serve(Server(), max_seconds=0.01))
+    assert events == ['cancel']

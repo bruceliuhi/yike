@@ -54,25 +54,28 @@ class _VisibleHTML(HTMLParser):
                   or values.get("aria-hidden") == "true"
                   or "display:none" in style or "visibility:hidden" in style)
         title = tag == "title"
-        if hidden:
-            self.hidden_depth += 1
-        if title:
-            self.title_depth += 1
-        if tag not in _VOID_TAGS:
-            self.stack.append((tag, hidden, title))
+        if tag in _VOID_TAGS:
+            return
+        self.stack.append((tag, hidden, title))
+        self.hidden_depth += int(hidden)
+        self.title_depth += int(title)
 
     def handle_startendtag(self, tag, attrs):
-        return
+        # In HTML, the self-closing marker has no effect on non-void elements.
+        # Treat e.g. <script/> as open until its matching end tag.
+        self.handle_starttag(tag, attrs)
 
     def handle_endtag(self, tag):
         tag = tag.lower()
-        if not self.stack or self.stack[-1][0] != tag:
+        matching = next((index for index in range(len(self.stack) - 1, -1, -1)
+                         if self.stack[index][0] == tag), None)
+        if matching is None:
             return
-        _tag, hidden, title = self.stack.pop()
-        if title:
-            self.title_depth -= 1
-        if hidden:
-            self.hidden_depth -= 1
+        # Closing an ancestor also closes omitted descendants conservatively.
+        for _tag, hidden, title in self.stack[matching:]:
+            self.hidden_depth -= int(hidden)
+            self.title_depth -= int(title)
+        del self.stack[matching:]
 
     def handle_data(self, data):
         if self.title_depth:
@@ -83,15 +86,24 @@ class _VisibleHTML(HTMLParser):
 
 def _read_body(response: http.client.HTTPResponse) -> bytes:
     length = response.getheader("Content-Length")
+    expected = None
     if length is not None:
         try:
-            if int(length) > MAX_BODY_BYTES:
+            expected = int(length)
+            if expected < 0:
+                raise ValueError
+            if expected > MAX_BODY_BYTES:
                 raise WorkerError("too_large")
         except ValueError:
             raise WorkerError("unavailable") from None
-    body = response.read(MAX_BODY_BYTES + 1)
+    try:
+        body = response.read(MAX_BODY_BYTES + 1)
+    except http.client.IncompleteRead:
+        raise WorkerError("unavailable") from None
     if len(body) > MAX_BODY_BYTES:
         raise WorkerError("too_large")
+    if expected is not None and len(body) != expected:
+        raise WorkerError("unavailable")
     return body
 
 
