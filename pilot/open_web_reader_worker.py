@@ -110,6 +110,9 @@ def _read_body(response: http.client.HTTPResponse) -> bytes:
 def _decode(body: bytes, content_type: str) -> tuple[str, str | None]:
     media_type, *parameters = content_type.split(";")
     media_type = media_type.strip().lower()
+    # A missing/malformed type is not a confirmed unsupported format.
+    if re.fullmatch(r"[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*", media_type) is None:
+        raise WorkerError("unsupported_content")
     if media_type not in {"text/html", "text/plain"}:
         raise WorkerError("unsupported_media_type")
     charset = "utf-8"

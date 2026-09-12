@@ -186,6 +186,17 @@ def test_precise_http_and_mime_failures(monkeypatch, status, mime, code):
     assert error.value.code == code
 
 
+@pytest.mark.parametrize('mime',[None,'','; charset=utf-8','not-a-media-type',
+                               'application//pdf','application/pdf garbage','*/pdf'])
+def test_missing_or_malformed_mime_is_hard_failure(monkeypatch,mime):
+    payload=(b'HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nbody'
+             if mime is None else response(b'body',mime))
+    install_transport(monkeypatch,payload)
+    with pytest.raises(worker.WorkerError) as error:
+        worker.read_request({'url':'https://example.com/','timeout_seconds':2})
+    assert error.value.code=='unsupported_content'
+
+
 @pytest.mark.parametrize("code", ["not_found", "unsupported_media_type", "access_restricted", "rate_limited"])
 def test_parent_preserves_precise_worker_errors(monkeypatch, code):
     class Process:

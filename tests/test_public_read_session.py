@@ -91,6 +91,34 @@ def test_known_read_ack_loss_is_not_reported_as_continuable_result():
     assert reader.calls==['https://example.com/']
 
 
+@pytest.mark.parametrize('mime',['','; charset=utf-8','not-a-media-type','application/pdf'])
+def test_actual_mime_classification_controls_next_durable_effect(mime):
+    from pilot import open_web_reader_worker as worker
+    from tests.test_durable_research_dispatch import Journal, dispatcher as durable_dispatcher
+    journal=Journal(); reader=Reader()
+    def read(url,*,deadline):
+        reader.calls.append(url)
+        if url.endswith('/first'):
+            try:
+                worker._decode(b'body',mime)
+            except worker.WorkerError as error:
+                raise PublicReadError(error.code) from None
+        return evidence(url)
+    reader.read=read
+    session=PublicReadSession(max_reads=2,deadline=time.monotonic()+30,allowed_url=lambda _:True,
+        effect_dispatcher=durable_dispatcher(journal),reader=reader)
+    first=session.read('https://example.com/first',deadline=time.monotonic()+10)
+    second=session.read('https://example.com/second',deadline=time.monotonic()+10)
+    if mime=='application/pdf':
+        assert first['code']=='unsupported_media_type' and second['status']=='READ'
+        assert len(reader.calls)==2
+        assert [event[1]['status'] for event in journal.events if event[0]=='finish']==['FAILED','SUCCEEDED']
+    else:
+        assert first['code']=='unsupported_content' and second['status']=='FAILED'
+        assert reader.calls==['https://example.com/first']
+        assert [event[1]['status'] for event in journal.events if event[0]=='finish']==['UNKNOWN']
+
+
 @pytest.mark.parametrize("kwargs", [
     dict(max_reads=0, deadline=time.monotonic()+1, allowed_url=lambda u:True, effect_dispatcher=dispatcher),
     dict(max_reads=1, deadline=float("inf"), allowed_url=lambda u:True, effect_dispatcher=dispatcher),
