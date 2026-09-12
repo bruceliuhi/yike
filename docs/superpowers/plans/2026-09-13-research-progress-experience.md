@@ -50,4 +50,10 @@ expect(advance).not.toHaveBeenCalled();
 
 ## Evidence
 
-Pending implementation. Backend remains fixed-source customer runtime; full V0.2 Goal remains ACTIVE.
+Implementation `d417ce2`: pure presentation helper and existing component hierarchy changed, no execution/API changes. RED: helper absent and five UI expectations failed; first GREEN35. Added natural RUNNING/null wording and uncertain next-step regressions RED3 then **38 passed**, typecheck once passed. Independent whole-batch review found one P2: unknown code matching Object prototype properties can yield a nonstring. `343ec08` uses an own-property lookup; regression RED3 for constructor/toString/__proto__, affected helper/UI **41 passed**. Final review delta follows, no repeat full suite/build.
+
+Real Chrome renderer fixture checks on `d417ce2`: five states (queued, unknown, empty, canceled+pending, unknown code) at 1280×900 and 390×900, **10 combinations passed**. Verified native Enter expansion/collapse, counters hidden by default, risks visible, original-status query without advance calls, candidate navigation, no horizontal overflow, no JS errors. Root viewed wide unknown and narrow canceled screenshots. Synthetic state injection used the real component/AppProvider/CSS; this proves rendering and interactions, not backend/real-source/customer UAT. Temporary preview initially loaded context through mixed /tmp and /private/tmp paths causing a duplicate React context; normalized the harness import paths only, no product fix for that fixture error. No before/after visual claim: the first successful capture already used new code.
+
+Chrome delta on `343ec08`: `__proto__` at both widths renders the generic fallback, raw code remains hidden until keyboard expansion, no page errors/overflow/advance calls. These two new combinations specifically cover the fixed failure; prior ten layout cases are not claimed as rerun on the new SHA.
+
+Backend remains fixed-source customer runtime. Independent source audit identified the required integration boundary in [dynamic customer research design](../specs/2026-09-13-dynamic-customer-research-integration-design.md): per-model/search/read permits, real scoped context, same-PG journal and evidence, explicit new capability/strategy semantics. That design is not implemented by this renderer slice. Full V0.2 Goal remains ACTIVE.
