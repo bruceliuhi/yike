@@ -1,6 +1,6 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
-原生搜索进度接续（2026-09-12，IN_PROGRESS）：本批贯通B站search monitor的页内aid与交替首页刷新，源adapter、私有host、客户端CLAIM/签名batch/journal已接；后端head短事务和真实受限PG验证进行中。采用[同日计划](superpowers/plans/2026-09-12-native-search-progress.md)；尚未整批独立审核/合main/部署，不关闭跨轮游标整项。其他原生平台、完整评论深翻、公开index外复查及完整客户闭环仍在全量范围。
+原生搜索进度接续（2026-09-12）：`a64bcda`已独立整批GO；B站search monitor页内aid＋交替首页刷新已贯通受控源、host、客户端CLAIM/签名batch/journal与服务端head原子CAS，空batch可推进，失败不跳页，重放固定。初审两个兼容P2已关闭；[唯一实施/失败/限定证据](superpowers/plans/2026-09-12-native-search-progress.md#evidence)。未部署/构包/真平台；connection-version-only组合尚未单独端到端验证，不关闭跨轮游标整项。下一步按各平台真实分页接其它原生cursor及评论深翻，同时推进公开index外旧帖复查、多源研究/覆盖补查和真实用户闭环；完整Goal ACTIVE。
 
 公开采样接续（2026-09-12）：`cf28724`独立整批GO，正式monitor→CLAIM→driver→batch链已接已入库批次轮数和最新＋尾部轮换；作者回复仍复查，未上传不推进，未知完成不伪装成功。[唯一验证/边界](superpowers/plans/2026-09-12-public-sample-rotation.md#evidence)。这只解决当前公开index的反复前部抽样，不关闭“跨轮来源游标”整项；原生平台持久进度、index外旧帖公平复查、多源研究/覆盖补查及完整真实客户闭环继续，未部署或重新构包。
 

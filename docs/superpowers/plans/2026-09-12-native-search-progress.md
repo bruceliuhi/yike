@@ -56,7 +56,7 @@
 
 ## Evidence
 
-2026-09-12，代码待整批独立审核；未部署/构包/真实平台/外发。
+2026-09-12，产品代码`a64bcdaca1e6b906eaf36afa1f7c6b91e7a1f27f`独立整批GO，仅限本批代码合并；未部署/构包/真实平台/外发。上方checkbox保留原实施计划，不作为验收成绩，实际完成与未验范围以本节为准。
 
 - 来源初次RED为adapter缺失（12 failed），之后新源/host链24 passed，包含固定MediaCrawler pin＋仓库patch重建后的真实详情/评论方法与新adapter和账号guard组合。源/host/三平台guard/portable受影响组151 passed、32条件skip（非Windows/无已安装runtime）；后补真实隔离Python进程验证HOST_FILES导入闭包，先因漏带execution_contract RED，再修复GREEN。
 - 客户端新模块、driver/CLAIM和controller组合先RED；受影响9文件446 passed、tsc通过。新增严格ID末尾/once拒绝后最小差量37 passed；旧签名固定fingerprint回归在上述受影响组内，没有重跑全仓或构包。
@@ -64,4 +64,9 @@
 - Windows固定HOST_FILES补齐adapter、cursor、DTO及执行合同；未改vendor pin/patch，不给旧包背书。cursor只代表搜索条目＋有界评论样本，不代表完整评论树、平台全集或有用商机产量。
 - 预算分层按同日spec补充：服务端不能从过滤后batch倒推每query cap；受控driver/host保留过滤前分配，服务端验证前缀、每query上界及真实租约/任务围栏。
 
-后台最终测试、审核结论与主线提交在整批冻结后补入本节；其它原生平台cursor、公开index外复查、多源研究与真实用户闭环继续，完整Goal保持ACTIVE。
+- 后台最终66 passed（含7项真实受限PG/本机认证HTTPS），最小旧合同237 passed、1 skipped。首次旧合同重跑因测试DSN缺省用户名错误而setup失败，按自有容器实际用户修正后通过；不属于产品修复。connection-version-only切换新scope的独立端到端场景未另跑，不计为完成。
+- 源链最终25 passed，含隔离Python导入闭包；Windows固定清单依赖测试不等于Windows实机运行。各组测试存在重叠，不相加为全仓总数。
+- 独立整批初审绑定`5784ec7`，结论NO-GO：两个P2（最新links-capable部署模式误失search进度广告；上一版服务严格拒绝新协商导致旧monitor被阻断）。`a64bcda`修复后独立差量GO，未关闭P0/P1/P2为0/0/0。审核者未参与实现，报告`/tmp/yike-native-progress-independent-review.md`保留首次失败、修复与最终独立探针。
+- P2定向证据：能力名单新断言先1 failed，修后2 passed，实际links仍拒绝。读取固定基线`f9b4c35`实际handler的认证路由测试1 passed，生成无凭据产物`/tmp/yike-native-progress-legacy-support.json`；正式ServiceClient消费它，controller先1 failed/4 passed，修后全文件68 passed＋tsc。仅明确422/invalid_request允许一次只读旧能力核对，网络/5xx/其它422/会话变化不降级，执行操作与未知结果不自动重试。
+
+主干收口仅补本节、任务书和整合状态；产品字节保持已审核`a64bcda`不变，正常fast-forward后回读远端SHA，不因文档再跑全套或构包。其它原生平台cursor、评论深翻、公开index外复查、多源研究与真实用户闭环继续，完整Goal保持ACTIVE。
