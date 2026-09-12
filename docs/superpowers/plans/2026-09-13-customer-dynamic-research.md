@@ -70,7 +70,7 @@ Dynamic status uses the existing common status fields with `contractVersion:4`, 
 
 - [x] Exercise fresh restricted PG signed customer path with injected provider transport: same task context + per-effect ledger + candidate + assessment + statusv4; repeat/cancel remain no-new-effect. Distinguish fixture from live provider/customer acceptance.
 - [x] Independent whole-batch spec/code review exact commit and diff; fix all important findings and run covering delta tests.
-- [ ] Update this plan evidence and current taskbook only once, fetch/main integration preserving other AI work, minimal merged check, push main and verify exactremote SHA. No production config/keys altered without actual deployment step.
+- [x] Update this plan evidence and current taskbook, integrate without changing other AI work, check merged tree, push main and verify exact remote SHA. Published merge `d2f932ecab0f98b1af1206b71f25e27fe9ee2587` matched local main and Gitee main on 2026-09-13; merged tree equals the accepted feature branch. No production configuration or keys changed. This documentation receipt does not require another candidate build.
 - [ ] Next actual provider/customer small run uses configured server credentials securely, then dedicated comments and cross-industry iteration. No unsupported claim that this batch proves opportunity supply, Windows/production or full Goal completion.
 
 ## Evidence
