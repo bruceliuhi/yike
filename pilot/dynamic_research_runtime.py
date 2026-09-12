@@ -12,6 +12,7 @@ from pilot.customer_research_context import CustomerResearchContextStore
 from pilot.durable_research_dispatch import DurableResearchDispatcher
 from pilot.execution_contract import ExecutionRuntimeError, canonical_uuid
 from pilot.research_runtime_config import dynamic_research_snapshot
+from pilot.research_page_selection import parse_page_selection
 
 
 _COUNTER = ("issued", "pending", "succeeded", "failed", "unknown")
@@ -218,6 +219,16 @@ class DynamicResearchRuntimeService:
                 )
                 return
             entries = self._successful_reads(claims, task_id, run_id, generation)
+            stop = self._durable_stop(claims, task_id, run_id, generation)
+            if stop is not None:
+                self._release_if_owned(claims, task_id, generation, "STOPPED", stop)
+                return
+            if result.get("research_binding") != context["binding"]:
+                raise ExecutionRuntimeError("research_selection_invalid", 409)
+            decisions = parse_page_selection(
+                result.get("summary"), [entry["evidence"] for entry in entries]
+            )
+            by_page = {(item["url"], item["content_sha256"]): item for item in decisions}
             receipts = []
             for entry in entries:
                 if self._cancelled(claims, task_id, run_id, generation):
@@ -227,6 +238,8 @@ class DynamicResearchRuntimeService:
                     claims, task_id=task_id, run_id=run_id,
                     sequence=entry["sequence"], generation=generation,
                     coordinator_owner=self.owner, context_binding=context["binding"],
+                    selection=by_page[(entry["evidence"]["url"],
+                                       entry["evidence"]["content_sha256"])],
                 ))
             stop = self._durable_stop(claims, task_id, run_id, generation)
             if stop is not None:
@@ -315,12 +328,13 @@ class DynamicResearchRuntimeService:
                 generation, self.owner,
             )
             cursor.execute(
-                "SELECT sequence FROM pilot_research_effect_journal WHERE tenant_id=%s "
+                "SELECT sequence,result FROM pilot_research_effect_journal WHERE tenant_id=%s "
                 "AND owner_user_id=%s AND task_id=%s AND run_id=%s AND kind='READ' "
                 "AND status='SUCCEEDED' ORDER BY sequence",
                 (tenant, claims.user_id, task_id, run_id),
             )
-            return [{"sequence": row[0]} for row in cursor.fetchall()]
+            return [{"sequence": row[0], "evidence": row[1]["evidence"]}
+                    for row in cursor.fetchall()]
 
     def _model_slot_available(self, claims, task_id, run_id, limits):
         with self.database.connect() as connection, connection.cursor() as cursor:

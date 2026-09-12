@@ -19,7 +19,7 @@ from tests.test_customer_research_context_postgres import context_env, real_stra
 from tests.test_desktop_opportunity_http_postgres import _node_environment
 from tests.test_dynamic_research_composition import environment
 from tests.test_dynamic_research_config import dynamic_configuration
-from tests.test_dynamic_research_runtime import successful_mission
+from tests.test_dynamic_research_runtime import ResearchModel, successful_mission
 from tests.test_execution_runtime_postgres import SECRET, start
 from tests.test_research_quote_postgres import _request
 from tests.test_research_runtime_postgres import _grant_runtime
@@ -31,7 +31,6 @@ ROOT = Path(__file__).parents[1]
 def test_dynamic_native_customer_path_across_http_and_restricted_pg(context_env, monkeypatch):
     import pilot.runtime as runtime_module
     from pilot.candidate_assessment_model import OpenAICompatibleCandidateAssessmentModel
-    from tests.test_candidate_review_postgres import BoundaryModel
     from pilot.dynamic_research_runtime import DynamicResearchRuntimeService
 
     test_env = context_env
@@ -51,7 +50,7 @@ def test_dynamic_native_customer_path_across_http_and_restricted_pg(context_env,
         calls = 0
         def assess_before(self, _deadline, **kwargs):
             self.calls += 1
-            return BoundaryModel().assess(**kwargs)
+            return ResearchModel().assess_before(_deadline, **kwargs)
     model = SyntheticModel("https://example.invalid/v1", "synthetic-key", "synthetic-model")
     monkeypatch.setattr(runtime_module, "_assessment_model", lambda _environment: model)
     monkeypatch.setattr(runtime_module, "DynamicResearchRuntimeService", lambda *args, **kwargs:

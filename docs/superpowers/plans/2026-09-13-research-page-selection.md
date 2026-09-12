@@ -4,7 +4,7 @@
 
 **Goal:** Keep research background pages out of candidate assessment while preserving source evidence and auditable page decisions.
 
-**Architecture:** Strict final JSON selection is checked against successful durable READs. Existing candidate batch execution_context stores versioned decisions; BACKGROUND creates a zero-item receipt, ASSESS retains ordinary review. No new classifier calls or schema migration.
+**Architecture:** Strict final JSON selection is checked against successful durable READs. Existing candidate batch execution_context stores versioned decisions; BACKGROUND creates a zero-item receipt, ASSESS retains ordinary review. No new classifier calls, tables or columns; migration144 replaces the existing binding trigger so the new 22-key context is evidence-bound while the legacy20 path remains unchanged.
 
 **Tech Stack:** Python, existing Codex worker, PostgreSQL batch journal, pytest.
 
@@ -15,6 +15,8 @@ All exact limits, JSON keys, decision/reason values and authorization boundaries
 ### Task 1: Evidence-bound page selection vertical slice
 
 **Files:** create `pilot/research_page_selection.py`, `tests/test_research_page_selection.py`; modify `pilot/research_context.py`, `pilot/codex_research_worker.py`, `pilot/dynamic_research_runtime.py`, `pilot/dynamic_research_candidates.py` and their focused tests. Adjust existing synthetic dynamic HTTP fixtures only where the new mission result contract requires it.
+
+Also modify `desktop/src/renderer/domain/researchProgressPresentation.ts` and its existing unit tests: dynamic completed/zero-candidate with successful reads must distinguish read pages from selected candidates; the new invalid-selection stop code explains incomplete screening with originals retained. No UI layout/schema/build change.
 
 **Interfaces:** New module exports fixed `SELECTION_INSTRUCTIONS`, strict `parse_page_selection(summary: str, evidences: list[dict]) -> list[dict]` and `validate_page_selection(decision: dict, evidence: dict) -> dict` using `ExecutionRuntimeError('research_selection_invalid',409)`. Parsed decisions use each page's exact schema plus `schema_version: research-page-selection-v1`; module returns detached values. Dynamic candidate `publish` gains keyword-only `selection` with a private omitted sentinel; runtime must always pass validated decisions.
 

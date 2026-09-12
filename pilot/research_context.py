@@ -11,13 +11,14 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pilot.open_web_reader import PublicReadError, normalize_public_url
 from pilot.research_source_catalog import research_entry_hints
+from pilot.research_page_selection import SELECTION_INSTRUCTIONS
 from pilot.research_strategy_contract import (
     StrategyStoreError, configuration_digest, strategy_snapshot as validate_strategy_snapshot,
 )
 
 
-_RULE_VERSION = "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1"
-_RULE_VERSION_V2 = "opportunity-research-context-v2/ai-project-lead-research-1.0.0/entry-hints-v1"
+_RULE_VERSION = "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1"
+_RULE_VERSION_V2 = "opportunity-research-context-v2/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1"
 _RULE_FILES = (
     "SKILL.md",
     "references/evaluation.md",
@@ -245,6 +246,7 @@ reference_time、timezone 与 max_age_days 限定作者原文时间；搜索索�
     sections = [header, "\n", research_entry_hints(), "\n"]
     for name in sorted(documents):
         sections.append(f"\n## Repository rule: {name}\n\n{documents[name]}")
+    sections.append(SELECTION_INSTRUCTIONS)
     return "".join(sections)
 
 

@@ -19,6 +19,7 @@ const stopExplanations:Record<string,string>={
   capability_unavailable:'当前服务暂不支持这项研究。',resource_unavailable:'研究服务暂时不可用。',
   lease_conflict:'执行状态发生变化，请查询原任务。',
   worker_lost:'研究执行进程已中断，已有结果保留，不会自动重跑。',
+  research_selection_invalid:'已读取的原文保留，但逐页筛选未完成；不能据此判断没有机会。',
 };
 
 function stoppedNextStep(code:string|null):string {
@@ -46,7 +47,10 @@ export function researchProgressPresentation(value:ResearchRuntimeStatus):Resear
     nextStep='请查询原任务，核实此前请求及已有结果。';
   }else if(value.phase==='COMPLETED'){
     if(value.acceptedOriginals===0){
-      explanation='本轮没有取得可供分析的原文，不代表没有市场需求。';
+      const pagesRead=value.contractVersion===4?(value.discovery?.reads.succeeded??0):0;
+      explanation=pagesRead>0
+        ?`已读取 ${pagesRead} 篇公开页面，本轮没有选入待分析候选；不代表没有市场需求。`
+        :'本轮没有取得可供分析的原文，不代表没有市场需求。';
       nextStep='请在新任务中调整来源或已确认策略后再研究。';
     }else if(value.acceptedOriginals===null){
       explanation='本轮原文数量尚未确认，不能判断是否取得可供分析的内容。';

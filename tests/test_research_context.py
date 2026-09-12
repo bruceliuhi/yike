@@ -185,7 +185,7 @@ def test_compiles_ai_and_non_ai_service_contexts_with_host_binding():
     assert set(ai) == {"instructions", "context_json", "binding"}
     assert set(ai["binding"]) == expected_keys
     assert ai["binding"]["rule_version"] == (
-        "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1")
+        "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1")
     assert ai["binding"]["profile_version_id"] == context()["profile_version_id"]
     assert len(ai["binding"]["rule_sha256"]) == 64
     assert len(ai["binding"]["context_sha256"]) == 64
@@ -312,6 +312,16 @@ def test_canonical_hash_is_order_independent_and_content_bound():
     copied = deepcopy(first)
     copied["binding"]["profile_version_id"] = "changed"
     assert compile_research_context(original)["binding"] == first["binding"]
+
+
+def test_page_selection_contract_is_versioned_and_participates_in_rule_hash():
+    from pilot.research_page_selection import SELECTION_INSTRUCTIONS
+    result = compile_research_context(context())
+    assert result["instructions"].endswith(SELECTION_INSTRUCTIONS)
+    assert result["binding"]["rule_version"].endswith("/page-selection-v1")
+    assert result["binding"]["rule_sha256"] == hashlib.sha256(
+        result["instructions"].encode("utf-8")
+    ).hexdigest()
 
 
 def test_packaged_rule_directory_is_authoritative_and_missing_fails(monkeypatch, tmp_path):

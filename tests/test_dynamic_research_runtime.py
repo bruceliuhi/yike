@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import threading
 import time
+import json
 from uuid import uuid4
 
 import pytest
@@ -34,7 +35,11 @@ ROOT = Path(__file__).parents[1]
 
 class ResearchModel(BoundaryModel):
     def assess_before(self, _deadline, **kwargs):
-        return self.assess(**kwargs)
+        value, usage = self.assess(**kwargs)
+        if kwargs["content"].get("source_read_scope") == "UNATTRIBUTED_PAGE":
+            value["intent"] = {"level": "UNKNOWN", "reason": "整页未确认本人归属。", "citations": []}
+            value["urgency"] = {"level": "UNKNOWN", "reason": "整页未确认本人归属。", "citations": []}
+        return value, usage
 
 
 def agent_configuration():
@@ -134,6 +139,18 @@ def read_result():
     }
 
 
+def mission_completed(kwargs, evidences, *, background=False):
+    from pilot.research_context import compile_research_context
+    pages = [{"url": page["url"], "content_sha256": page["content_sha256"],
+              "decision": "BACKGROUND" if background else "ASSESS",
+              "reason": "IRRELEVANT" if background else "POSSIBLE_DEMAND",
+              "quote": page["text"][:100]} for page in evidences]
+    return {"status": "COMPLETED", "code": None,
+            "research_binding": compile_research_context(kwargs["research_context"])["binding"],
+            "summary": json.dumps({"schema_version": "research-page-selection-v1",
+                                   "summary": "合成逐页筛选", "pages": pages}, ensure_ascii=False)}
+
+
 def successful_mission(calls):
     def mission(_description, **kwargs):
         calls.append("mission")
@@ -154,7 +171,7 @@ def successful_mission(calls):
             deadline=deadline,
             perform=lambda _deadline: read_result(),
         )
-        return {"status": "COMPLETED", "code": None}
+        return mission_completed(kwargs, [read_result()["evidence"]])
     return mission
 
 
@@ -207,7 +224,7 @@ def test_public_read_session_publishes_through_actual_durable_customer_journal(d
             assert session.read(page["url"], deadline=deadline) == first | {"replayed":True}
         finally:
             session.close()
-        return {"status":"COMPLETED", "code":None}
+        return mission_completed(kwargs, [page])
     runtime = service(dynamic_env, mission)
     try:
         runtime.advance(dynamic_env.claims, dynamic_env.execution["task_id"], dynamic_env.execution["run_id"])
@@ -217,6 +234,50 @@ def test_public_read_session_publishes_through_actual_durable_customer_journal(d
         assert final["discovery"]["reads"]["succeeded"] == 1
         assert final["discovery"]["reads"]["unknown"] == 0
         assert reads == [page["url"]]
+    finally:
+        runtime.shutdown(timeout_seconds=2)
+
+
+def test_all_background_completes_without_candidate_assessment(dynamic_env):
+    env = dynamic_env
+    def mission(_description, **kwargs):
+        value = read_result()
+        dispatch_effect(kwargs["effect_dispatcher"], kind="READ",
+            payload={"url": value["evidence"]["url"]}, deadline=time.monotonic()+20,
+            perform=lambda _: value)
+        return mission_completed(kwargs, [value["evidence"]], background=True)
+    runtime = service(env, mission)
+    try:
+        runtime.advance(env.claims, env.execution["task_id"], env.execution["run_id"])
+        final = wait_terminal(runtime, env)
+        assert final["phase"] == "COMPLETED"
+        assert final["acceptedOriginals"] == final["analyzedOriginals"] == 0
+        assert env.reviews.model.calls == 0
+        with env.admin.connect() as connection:
+            assert connection.execute("SELECT count(*) FROM pilot_candidate_batches WHERE tenant_id=%s",
+                                      (env.tenant,)).fetchone()[0] == 1
+    finally:
+        runtime.shutdown(timeout_seconds=2)
+
+
+def test_invalid_complete_selection_stops_before_any_publication(dynamic_env):
+    env = dynamic_env
+    def mission(_description, **kwargs):
+        value = read_result()
+        dispatch_effect(kwargs["effect_dispatcher"], kind="READ",
+            payload={"url": value["evidence"]["url"]}, deadline=time.monotonic()+20,
+            perform=lambda _: value)
+        result = mission_completed(kwargs, [])
+        return result
+    runtime = service(env, mission)
+    try:
+        runtime.advance(env.claims, env.execution["task_id"], env.execution["run_id"])
+        final = wait_terminal(runtime, env)
+        assert final["phase"] == "STOPPED" and final["stopCode"] == "research_selection_invalid"
+        assert final["acceptedOriginals"] == 0 and env.reviews.model.calls == 0
+        with env.admin.connect() as connection:
+            assert connection.execute("SELECT count(*) FROM pilot_candidate_batches WHERE tenant_id=%s",
+                                      (env.tenant,)).fetchone()[0] == 0
     finally:
         runtime.shutdown(timeout_seconds=2)
 
@@ -250,7 +311,7 @@ def test_known_failed_read_then_positive_completes_with_actual_v4_client_contrac
             assert session.read(missing,deadline=deadline)==failed|{'replayed':True}
             assert session.read(page['url'],deadline=deadline)['status']=='READ'
         finally: session.close()
-        return {'status':'COMPLETED','code':None}
+        return mission_completed(kwargs, [page])
     runtime=service(env,mission)
     try:
         runtime.advance(env.claims,env.execution['task_id'],env.execution['run_id'])
@@ -426,7 +487,7 @@ def test_cancelled_worker_keeps_journal_facts_but_cannot_publish_or_complete(dyn
         )
         entered.set()
         release.wait(5)
-        return {"status": "COMPLETED", "code": None}
+        return mission_completed(kwargs, [read_result()["evidence"]])
 
     runtime = service(env, mission)
     task_id, run_id = env.execution["task_id"], env.execution["run_id"]
@@ -469,7 +530,7 @@ def test_lost_lease_keeps_admitted_read_but_blocks_late_publication(dynamic_env)
         )
         entered.set()
         release.wait(5)
-        return {"status": "COMPLETED", "code": None}
+        return mission_completed(kwargs, [read_result()["evidence"]])
 
     runtime = service(env, mission)
     task_id, run_id = env.execution["task_id"], env.execution["run_id"]
@@ -581,7 +642,7 @@ def test_mission_completion_cannot_override_non_successful_durable_effect(
                 run_id=env.execution["run_id"], sequence=2,
                 permit_id=begun["entry"]["permit_id"], status=effect_status,
             )
-        return {"status": "COMPLETED", "code": None}
+        return mission_completed(kwargs, [original["evidence"]])
 
     runtime = service(env, mission)
     task_id, run_id = env.execution["task_id"], env.execution["run_id"]
@@ -597,7 +658,7 @@ def test_mission_completion_cannot_override_non_successful_durable_effect(
         stopped = wait_terminal(runtime, env)
         assert stopped["phase"] == "STOPPED"
         assert stopped["stopCode"] == expected_code
-        assert stopped["acceptedOriginals"] == 1
+        assert stopped["acceptedOriginals"] == 0
         assert stopped["analyzedOriginals"] == 0
         assert stopped["discovery"]["searches"][expected_counter] == 1
         assert stopped["usage"]["sourceReads"][expected_counter] == 1
@@ -607,7 +668,7 @@ def test_mission_completion_cannot_override_non_successful_durable_effect(
             assert connection.execute(
                 "SELECT count(*) FROM pilot_candidate_batches WHERE task_id=%s",
                 (task_id,),
-            ).fetchone()[0] == 1
+            ).fetchone()[0] == 0
             assert connection.execute(
                 "SELECT count(*) FROM pilot_research_resource_events WHERE task_id=%s "
                 "AND resource='MODEL_CALL'", (task_id,),
@@ -684,7 +745,7 @@ def test_shutdown_during_first_assessment_blocks_second_provider_effect(dynamic_
             self.started += 1
             entered.set()
             release.wait(5)
-            return self.assess(**kwargs)
+            return super().assess_before(_deadline, **kwargs)
 
     model = BlockingModel()
     env.reviews.model = model
@@ -700,7 +761,7 @@ def test_shutdown_during_first_assessment_blocks_second_provider_effect(dynamic_
                 deadline=time.monotonic() + 20,
                 perform=lambda _deadline, value=result: value,
             )
-        return {"status": "COMPLETED", "code": None}
+        return mission_completed(kwargs, [first["evidence"], second["evidence"]])
 
     runtime = service(env, mission)
     task_id, run_id = env.execution["task_id"], env.execution["run_id"]

@@ -79,6 +79,8 @@ class _ReadEvents:
         self.search_enabled = search_enabled
         self.search_urls = set()
         self.summary, self.usage, self.done, self.failed = '', None, False, False
+        self.max_message_chars = 16_000
+        self.max_message_bytes = None
 
     def accept(self, event):
         if type(event) is not dict or type(event.get('type')) is not str:
@@ -102,7 +104,10 @@ class _ReadEvents:
             if type(item) is not dict:
                 raise _InvalidOutput
             if item.get('type') == 'agent_message':
-                if type(item.get('text')) is not str or len(item['text']) > 16_000:
+                if (type(item.get('text')) is not str
+                        or len(item['text']) > self.max_message_chars
+                        or self.max_message_bytes is not None
+                        and len(item['text'].encode('utf-8')) > self.max_message_bytes):
                     raise _InvalidOutput
                 self.summary = item['text']
             elif item.get('type') == 'mcp_tool_call':
@@ -416,6 +421,8 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                     valid = False
             if valid:
                 compiled = prepared
+                events.max_message_chars = 512 * 1024
+                events.max_message_bytes = 512 * 1024
         except ResearchContextError as error:
             valid = False
             code = error.code

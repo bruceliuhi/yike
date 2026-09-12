@@ -40,6 +40,11 @@ def final_events():
             {'type':'turn.completed','usage':{'input_tokens':100,'output_tokens':12,'cached_input_tokens':0}}]
 
 
+def final_events_with(text):
+    return [{'type':'item.completed','item':{'id':'item_2','type':'agent_message','text':text}},
+            {'type':'turn.completed','usage':{'input_tokens':1,'output_tokens':1}}]
+
+
 @pytest.fixture
 def worker(monkeypatch):
     import pilot.codex_research_worker as module
@@ -478,6 +483,16 @@ def test_context_v2_delivers_full_8000_character_multiline_profile_to_real_proce
     assert compiled['context_json'] in data['prompt']
     assert data['prompt'].count(seller)==1
     assert len(seller)==8000 and seller.endswith('乙')
+
+
+def test_contextual_final_message_allows_512_kib_but_legacy_keeps_16000(worker,tmp_path):
+    from tests.test_research_context import projected_v2
+    large='x'*17000
+    contextual=run_research(worker,tmp_path,[search_event(),read_event(),*final_events_with(large)],
+                            research_context=projected_v2())
+    legacy=run_research(worker,tmp_path,[search_event(),read_event(),*final_events_with(large)])
+    assert contextual['status']=='COMPLETED' and contextual['summary']==large
+    assert legacy['status']=='FAILED' and legacy['code']=='invalid_runtime_output'
 
 
 def test_context_v2_long_description_requires_exact_verified_seller_profile(worker,tmp_path):

@@ -1,6 +1,7 @@
 """Dynamic READ journal -> original candidate on restricted PostgreSQL."""
 from datetime import UTC, datetime
 import hashlib
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -36,6 +37,12 @@ def read_result(url="https://example.com/buyer", text=None, *, title="客户需�
         "review_status": "UNREVIEWED",
         "replayed": False,
     }
+
+
+def test_page_selection_trigger_upgrade_is_in_migration_chain():
+    from pilot.db import PilotDatabase
+    assert ("v02-research-page-selection", Path(__file__).parents[1]
+            / "migrations/144_v02_research_page_selection.sql") in PilotDatabase.migration_paths
 
 
 def successful_read(env, *, sequence=1, value=None):
@@ -74,6 +81,13 @@ def publish(env, *, sequence=1, **changes):
         "context_binding": env.compiled["binding"],
     } | changes
     return DynamicResearchCandidateStore(env.journal).publish(env.claims, **arguments)
+
+
+def selection(value, decision="ASSESS", reason="POSSIBLE_DEMAND", quote=None):
+    page = value.get("evidence", value)
+    return {"schema_version": "research-page-selection-v1", "url": page["url"],
+            "content_sha256": page["content_sha256"], "decision": decision,
+            "reason": reason, "quote": quote or page["text"][:12]}
 
 
 def row_counts(env):
@@ -123,6 +137,68 @@ def test_publish_reads_only_stored_success_and_is_idempotent(journal_env):
     assert context["action_id"] == entry["action_id"]
     assert source["author_public_id"] is None
     assert source["published_at"] is None
+
+
+def test_background_selection_persists_zero_item_without_consuming_record(journal_env):
+    env = journal_env; value = read_result(); successful_read(env, value=value)
+    chosen = selection(value["evidence"], "BACKGROUND", "VENDOR_CONTENT")
+    receipt = publish(env, selection=chosen)
+    assert receipt["accepted_count"] == 0 and receipt["items"] == []
+    assert row_counts(env) == {"pilot_candidate_batches": 1, "pilot_candidate_sources": 0,
+                               "pilot_candidate_versions": 0, "pilot_candidate_observations": 0}
+    with env.admin.connect() as connection:
+        context = connection.execute("SELECT execution_context FROM pilot_candidate_batches WHERE tenant_id=%s",
+                                     (env.tenant,)).fetchone()[0]
+        used = connection.execute("SELECT records_used FROM pilot_collection_platform_runs WHERE task_id=%s",
+                                  (env.execution["task_id"],)).fetchone()[0]
+    assert context["page_selection"] == chosen
+    assert context["skipped_background_count"] == 1 and used == 0
+
+
+def test_selection_quote_mismatch_fails_and_conflicting_replay_is_rejected(journal_env):
+    env = journal_env; value = read_result(); successful_read(env, value=value)
+    good = selection(value["evidence"])
+    with pytest.raises(ExecutionRuntimeError, match="research_selection_invalid"):
+        publish(env, selection=good | {"quote": "伪造片段"})
+    publish(env, selection=good)
+    with pytest.raises(ExecutionRuntimeError, match="request_conflict"):
+        publish(env, selection=good | {"decision": "BACKGROUND", "reason": "IRRELEVANT"})
+
+
+def test_legacy_replay_conflicts_with_later_explicit_selection(journal_env):
+    env = journal_env; value = read_result(); successful_read(env, value=value)
+    publish(env)
+    with pytest.raises(ExecutionRuntimeError, match="request_conflict"):
+        publish(env, selection=selection(value["evidence"]))
+
+
+@pytest.mark.parametrize("path,value", [
+    ("{page_selection,quote}", '"伪造片段"'),
+    ("{page_selection,quote}", '" "'),
+    ("{observed_count}", "2"),
+])
+def test_database_trigger_rejects_malformed_persisted_selection(journal_env, path, value):
+    import psycopg
+    env = journal_env; read = read_result(); successful_read(env, value=read)
+    publish(env, selection=selection(read["evidence"], "BACKGROUND", "IRRELEVANT"))
+    with pytest.raises(psycopg.errors.RaiseException, match="research candidate binding mismatch"):
+        with env.admin.connect() as connection:
+            connection.execute("""
+                WITH removed AS (
+                  DELETE FROM pilot_candidate_batches WHERE tenant_id=%s
+                  RETURNING tenant_id,owner_user_id,platform_run_id,request_id,task_id,run_id,
+                    fingerprint,accepted_count,received_at,receipt,platform,profile_version_id,
+                    strategy_version_id,execution_context
+                )
+                INSERT INTO pilot_candidate_batches(
+                  tenant_id,owner_user_id,platform_run_id,request_id,task_id,run_id,fingerprint,
+                  accepted_count,received_at,receipt,platform,profile_version_id,strategy_version_id,
+                  execution_context)
+                SELECT tenant_id,owner_user_id,platform_run_id,request_id,task_id,run_id,fingerprint,
+                  accepted_count,received_at,receipt,platform,profile_version_id,strategy_version_id,
+                  jsonb_set(execution_context,%s::text[],%s::jsonb)
+                FROM removed
+            """, (env.tenant, path, value))
 
 
 def test_search_journal_entry_cannot_be_published_as_original(journal_env):
