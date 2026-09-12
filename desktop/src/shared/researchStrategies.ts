@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {publicSourceIdSchema} from './publicSources';
 import { industryTaskStrategySchema } from './industryTaskStrategy';
+import { planNativeCollectionLinks } from './nativeCollectionLinks';
 
 const INVALID_STRATEGY_DATA = "Invalid research strategy data.";
 const FORBIDDEN_UNICODE = /[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}]/u;
@@ -307,8 +308,18 @@ export const prepareStrategySchema = exactObject({
   draft_id: strategyUuidSchema,
   draft_revision: boundedInteger(2_147_483_647),
   ...strategyScopeShape,
-}).refine(scope=>!scope.configuration.platformQueries || scope.configuration.platformQueries.items.every(
-  item=>scope.platforms.includes(item.platform)),{error:INVALID_STRATEGY_DATA});
+}).superRefine((scope, context) => {
+  if (scope.configuration.platformQueries && !scope.configuration.platformQueries.items.every(
+    item=>scope.platforms.includes(item.platform)))
+    context.addIssue({code:'custom',message:INVALID_STRATEGY_DATA});
+  if (scope.configuration.source === 'links' && scope.configuration.research === null) {
+    try {
+      planNativeCollectionLinks(scope.platforms, scope.configuration.links);
+    } catch {
+      context.addIssue({code:'custom',message:INVALID_STRATEGY_DATA});
+    }
+  }
+});
 export const confirmStrategySchema = exactObject({
   ...operationShape,
   strategy_version_id: strategyUuidSchema,

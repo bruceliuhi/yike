@@ -21,7 +21,9 @@
 
 数字 ID 1–20 位且非零开头；作者 slug 1–128 位。知乎文章统一 canonical_url 为 zhuanlan.zhihu.com；答案 external_id 为 answer:ID、文章 article:ID、视频 zvideo:ID。其他 external_id 为路径 ID。输出固定四字段 platform、kind（detail/creator）、external_id、canonical_url。原始完整输入仍保留在确认快照，不被静默替换。
 
-拒绝 HTTP、凭据、端口、未知主机／路由、片段、路径编码或点段、反斜杠、空白／控制字符、畸形百分号、重复查询参数、登录秘密参数。仅原生 XHS 路由允许公开 xsec_token（1–1024 位 base64url/base64 字符）及 xsec_source（1–80 位字母数字下划线短横线），两者同时存在或同时不存在；canonical_url 保留这两个参数并按固定顺序编码，其余跟踪参数丢弃。没有公开令牌只表示能识别链接，不表示页面可访问。不得因此放宽候选证据 URL、Cookie 或私密信息规则。
+拒绝 HTTP、凭据、端口、未知主机／路由、片段、路径编码或点段、反斜杠、空白／控制字符、畸形百分号、重复查询参数、登录秘密参数。原始 scheme／host 只接受表中精确小写，不通过 URL 自动归一化接受编码主机或默认端口。查询参数必须含等号，键解码后只允许 ASCII 字母数字、下划线、点、短横线；按小写键判重。查询解码采用 UTF-8 严格解码及标准加号转空格，再拒绝空白、反斜杠和 Unicode 控制／格式字符。任意含 token/cookie/session/authorization/signature/password/secret 的键拒绝，以下公开 XHS 参数例外；modal_id 拒绝，避免把作者页浮层中的视频误认为作者范围。
+
+仅原生 XHS 路由允许精确小写键 xsec_token（1–1024 位 base64url/base64 字符）及 xsec_source（1–80 位字母数字下划线短横线），两者同时存在或同时不存在；canonical_url 保留这两个参数并按固定顺序编码，其余跟踪参数丢弃。没有公开令牌只表示能识别链接，不表示页面可访问。不得因此放宽候选证据 URL、Cookie 或私密信息规则。
 
 计划输入为已选平台数组与链接数组，1–4 个互异原生平台、1–100 个链接；每条必须属于已选平台，每个已选平台必须有目标；按 platform＋kind＋external_id 拒绝同目标的不同跟踪／令牌链接，避免重复执行。保持用户输入顺序。纯链接新任务 PREPARE（source=links、research=null）双端执行该校验；历史快照读取与哈希不改写，研究链接和关键词任务沿用旧规则。XHS 签名公开链接在配置校验处使用精确原生解析例外，不开放任意 token。
 

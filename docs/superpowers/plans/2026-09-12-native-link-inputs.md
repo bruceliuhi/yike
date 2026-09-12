@@ -21,16 +21,16 @@
 
 接口：Python parse_native_collection_link(value) -> dict；plan_native_collection_links(platforms, links) -> tuple[dict,...]。TS parseNativeCollectionLink(value: unknown) -> NativeCollectionLink；planNativeCollectionLinks(platforms: readonly string[], links: readonly string[]) -> NativeCollectionLink[]。无导入数据库、运行时或 UI。
 
-- [ ] 创建共用 fixture：每平台内容和作者、知乎三类内容、XHS 双参数／无参数、跟踪参数归一化；反例覆盖短链、主机混淆、路径越界、编码分隔符、重复／秘密参数。
-- [ ] 编写并运行失败测试：逐例精确比对输出；同目标不同 query 拒绝；选错平台、缺少已选平台、超数量拒绝。
+- [x] 创建共用 fixture：每平台内容和作者、知乎三类内容、XHS 双参数／无参数、跟踪参数归一化；反例覆盖短链、主机混淆、路径越界、编码分隔符、重复／秘密参数。
+- [x] 编写并运行失败测试：逐例精确比对输出；同目标不同 query 拒绝；选错平台、缺少已选平台、超数量拒绝。
   ```python
   assert parse_native_collection_link(case['url']) == case['expected']
   with pytest.raises(ValueError, match='^INVALID_NATIVE_LINK_SCOPE$'):
       plan_native_collection_links(['DOUYIN'], ['https://www.bilibili.com/video/BV1d54y1g7db'])
   ```
-- [ ] 实现 design 中白名单解析；固定错误，不打印输入；XHS 参数在精确原生路由通过后才允许。
-- [ ] Python PrepareStrategyRequest after validator 与 TS prepareStrategySchema refinement 对 source=links/research=null 调用计划；snapshot 不套用新准备门禁。Python check_links 对可解析 XHS 签名链接采用狭窄例外，其余仍走旧 URL 校验。
-- [ ] 定向验证：pytest tests/test_native_collection_links.py tests/test_research_strategy_contract.py；Vitest nativeCollectionLinks.test.ts researchStrategies.test.ts；tsc --noEmit。
+- [x] 实现 design 中白名单解析；固定错误，不打印输入；XHS 参数在精确原生路由通过后才允许。
+- [x] Python PrepareStrategyRequest after validator 与 TS prepareStrategySchema refinement 对 source=links/research=null 调用计划；snapshot 不套用新准备门禁。Python check_links 对可解析 XHS 签名链接采用狭窄例外，其余仍走旧 URL 校验。
+- [x] 定向验证：pytest tests/test_native_collection_links.py tests/test_research_strategy_contract.py；Vitest nativeCollectionLinks.test.ts researchStrategies.test.ts；tsc --noEmit。
 - [ ] 固定提交后独立审核整批，修复必要问题，更新任务书并正常推送 main。
 
 ## 后续交付接口
@@ -39,4 +39,8 @@
 
 ## Evidence
 
-尚未执行测试或完成独立审核；尚未支持链接实际采集。
+Python RED：纯链接抖音任务错误接受 B站 URL；合法 XHS 签名公开链接在 PREPARE 被旧 token 检查拒绝（2 failed）；纯规划器的功能存在断言失败（1 setup error）。GREEN：`/tmp/yike-aliyun-sdk.DYc7GB/venv/bin/python -m pytest -q tests/test_native_collection_links.py tests/test_research_strategy_contract.py`，最终共289 passed（84新＋205原契约，0.44秒）。所有输入离线，不读取浏览器、秘密或平台，也没有模型调用。
+
+TS RED：新测试因模块尚不存在而失败，原 researchStrategies 21 passed；GREEN：Node24.19.0 执行 `node_modules/vitest/vitest.mjs run tests/nativeCollectionLinks.test.ts tests/researchStrategies.test.ts`，2 files / 100 tests passed（268ms）。根执行同版 `node_modules/typescript/bin/tsc --noEmit`，exit0 无诊断；`git diff --check` 通过。TS 实现与测试由独立客户端 Agent 完成，最终审核另由非实现者进行。
+
+尚待固定提交独立审核。本输入批没有任何链接采集执行、生产或 Windows 验收证据。
