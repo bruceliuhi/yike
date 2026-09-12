@@ -14,11 +14,14 @@ from time import monotonic
 
 from pilot.open_web_reader import PublicReadError, normalize_public_url
 from pilot.public_search import PublicSearchSession, normalize_query, valid_search_result
+from pilot.public_read_session import PublicReadSession
+from pilot.research_effects import EffectDispatchError
 from pilot.research_tools import _valid_page
 from pilot.responses_bridge import ResponsesBridge
 
 _LIMIT = 2 * 1024 * 1024
 _NO_RESEARCH_CONTEXT = object()
+_NO_EFFECT_DISPATCHER = object()
 _TOOLS = (('mcp__yike_public', 'read_public_page'),)
 _RESEARCH_TOOLS = (('mcp__yike_public', 'search_public_web'), *_TOOLS)
 _READ_ERRORS = {'invalid_url','unavailable','unsupported_content','too_large','timeout',
@@ -181,7 +184,8 @@ class _ReadEvents:
 
 
 def _command(root, *, codex_binary, python_binary, model, bridge, max_reads, max_seconds,
-             max_requests, search_enabled=False, max_searches=None, research_instructions=None):
+             max_requests, search_enabled=False, max_searches=None, research_instructions=None,
+             controlled=False):
     instructions = root / 'instructions.md'
     instruction_text = (_research_instructions(max_searches=max_searches,max_reads=max_reads,
                         max_requests=max_requests) if search_enabled else _INSTRUCTIONS)
@@ -205,7 +209,10 @@ def _command(root, *, codex_binary, python_binary, model, bridge, max_reads, max
         'mcp_servers.yike_public.args':(['-i'] + ([
             'YIKE_PUBLIC_SEARCH_URL='+bridge.search_url,
             'YIKE_PUBLIC_SEARCH_TOKEN='+bridge.token,
-        ] if search_enabled else []) + [python_binary,'-I','-m','pilot.research_tools',
+        ] if search_enabled else []) + ([
+            'YIKE_PUBLIC_READ_URL='+bridge.read_url,
+            'YIKE_PUBLIC_READ_TOKEN='+bridge.token,
+        ] if controlled else []) + [python_binary,'-I','-m','pilot.research_tools',
                                        '--max-reads',str(max_reads),'--max-seconds',str(max_seconds)]),
         'mcp_servers.yike_public.required':True,
         'mcp_servers.yike_public.enabled_tools':(
@@ -325,13 +332,18 @@ def run_public_research_mission(description: str, *, codex_binary: str, python_b
                                 api_key: str, model: str, search_api_key: str,
                                 max_searches: int = 3, max_reads: int = 5,
                                 max_requests: int = 8, max_seconds: int = 120,
-                                cancelled=lambda:False, research_context=_NO_RESEARCH_CONTEXT) -> dict:
-    """Search public sources and read only URLs observed in this mission's searches."""
+                                cancelled=lambda:False, research_context=_NO_RESEARCH_CONTEXT,
+                                effect_dispatcher=_NO_EFFECT_DISPATCHER) -> dict:
+    """Search then read originals; optional host dispatch gates every outbound effect.
+
+    Omitting dispatch preserves internal legacy research. Explicit invalid dispatch
+    fails closed. The host callback alone is not a durable permit or customer API.
+    """
     return _run_mission(description,codex_binary=codex_binary,python_binary=python_binary,
                         api_key=api_key,model=model,search_api_key=search_api_key,
                         max_searches=max_searches,max_reads=max_reads,max_requests=max_requests,
                         max_seconds=max_seconds,cancelled=cancelled,search_enabled=True,
-                        research_context=research_context)
+                        research_context=research_context,effect_dispatcher=effect_dispatcher)
 
 
 def _contains_secret(value, secrets) -> bool:
@@ -347,9 +359,10 @@ def _contains_secret(value, secrets) -> bool:
 def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                  max_reads, max_requests, max_seconds, cancelled,
                  search_enabled, search_api_key=None, max_searches=None,
-                 research_context=_NO_RESEARCH_CONTEXT):
+                 research_context=_NO_RESEARCH_CONTEXT,effect_dispatcher=_NO_EFFECT_DISPATCHER):
     events = _ReadEvents(search_enabled=search_enabled)
     calls, status, code, token = [], 'FAILED', 'invalid_configuration', ''
+    controlled = effect_dispatcher is not _NO_EFFECT_DISPATCHER
     valid = (os.name == 'posix' and type(description) is str and 1 <= len(description.strip()) <= 4000
              and type(api_key) is str and 1 <= len(api_key) <= 4096 and not any(c.isspace() for c in api_key)
              and api_key not in description and type(model) is str
@@ -363,6 +376,7 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
         valid = (valid and type(search_api_key) is str and 1 <= len(search_api_key) <= 4096
                  and not any(c.isspace() for c in search_api_key) and search_api_key not in description
                  and type(max_searches) is int and 1 <= max_searches <= 10)
+    valid = valid and (not controlled or search_enabled and callable(effect_dispatcher))
     compiled = None
     context_requested = research_context is not _NO_RESEARCH_CONTEXT
     if context_requested:
@@ -382,6 +396,14 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
             code = error.code
     if valid:
         deadline = monotonic() + max_seconds
+        def guarded_dispatch(kind,payload,effect_deadline,perform):
+            if cancelled():
+                raise EffectDispatchError()
+            def checked_perform(effective_deadline):
+                if cancelled():
+                    raise EffectDispatchError()
+                return perform(effective_deadline)
+            return effect_dispatcher(kind,payload,effect_deadline,checked_perform)
         try:
             if cancelled():
                 status,code = 'CANCELLED','cancelled'
@@ -391,16 +413,22 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                     (root/'state').mkdir(mode=0o700)
                     (root/'work').mkdir(mode=0o700)
                     search_service = None
+                    read_service = None
                     bridge = None
                     try:
+                        dispatch_args = {'effect_dispatcher':guarded_dispatch} if controlled else {}
                         search_service = (PublicSearchSession(api_key=search_api_key,
-                                          max_searches=max_searches,deadline=deadline)
+                                          max_searches=max_searches,deadline=deadline,**dispatch_args)
                                           if search_enabled else None)
                         bridge_args=dict(api_key=api_key,model=model,max_requests=max_requests,
                                          deadline=deadline,
                                          allowed_tools=_RESEARCH_TOOLS if search_enabled else _TOOLS)
                         if search_enabled:
                             bridge_args['search_service'] = search_service
+                        if controlled:
+                            read_service = PublicReadSession(max_reads=max_reads,deadline=deadline,
+                                allowed_url=search_service.allows_read,**dispatch_args)
+                            bridge_args.update(read_service=read_service,**dispatch_args)
                         bridge = ResponsesBridge(**bridge_args)
                         with bridge:
                             token = bridge.token
@@ -408,6 +436,7 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                                                model=model,bridge=bridge,max_reads=max_reads,
                                                max_seconds=max_seconds,max_requests=max_requests,
                                                search_enabled=search_enabled,max_searches=max_searches,
+                                               controlled=controlled,
                                                research_instructions=compiled['instructions'] if compiled else None)
                             mission = description
                             if compiled is not None:
@@ -421,6 +450,8 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                             calls = bridge.records
                         if search_service is not None:
                             search_service.close()
+                        if read_service is not None:
+                            read_service.close()
         except Exception:
             status,code = 'FAILED','runtime_unavailable'
     summary = events.summary

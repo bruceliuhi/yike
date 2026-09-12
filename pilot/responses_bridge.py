@@ -16,12 +16,16 @@ from typing import Any
 
 import httpx
 
+from pilot.open_web_reader import PublicReadError, normalize_public_url, valid_page_evidence
 from pilot.public_search import normalize_query, valid_search_result
+from pilot.research_effects import dispatch_effect
 
 
 _UPSTREAM = "https://ark.cn-beijing.volces.com/api/v3/responses"
 _MAX_BYTES = 2 * 1024 * 1024
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9_-]+")
+_READ_FAILURE_CODES = {"invalid_url", "unavailable", "unsupported_content", "too_large", "timeout",
+                       "invalid_read_result", "deadline_exceeded", "read_limit_reached", "closed"}
 
 
 class BridgeError(Exception):
@@ -46,7 +50,8 @@ class _Server(ThreadingHTTPServer):
 class ResponsesBridge:
     def __init__(self, *, api_key: str, model: str, max_requests: int,
                  deadline: float, allowed_tools: tuple[tuple[str, str], ...],
-                 transport=None, search_service=None):
+                 transport=None, search_service=None, effect_dispatcher=None,
+                 read_service=None):
         if not isinstance(api_key, str) or not api_key or not isinstance(model, str) or not model:
             raise BridgeError("invalid_config")
         if type(max_requests) is not int or not 1 <= max_requests <= 20:
@@ -59,7 +64,14 @@ class ResponsesBridge:
         if search_service is not None and not all(callable(getattr(search_service, name, None))
                                                   for name in ("search", "close")):
             raise BridgeError("invalid_config")
+        if effect_dispatcher is not None and not callable(effect_dispatcher):
+            raise BridgeError("invalid_config")
+        if read_service is not None and not all(callable(getattr(read_service, name, None))
+                                                for name in ("read", "close")):
+            raise BridgeError("invalid_config")
         self._search_service = search_service
+        self._read_service = read_service
+        self._effect_dispatcher = effect_dispatcher
         self._api_key = api_key
         self._model = model
         self._max_requests = max_requests
@@ -134,6 +146,7 @@ class ResponsesBridge:
         port = self._server.server_address[1]
         self.base_url = f"http://127.0.0.1:{port}/v1"
         self.search_url = self.base_url + "/public-search" if self._search_service is not None else None
+        self.read_url = self.base_url + "/public-read" if self._read_service is not None else None
         self._closed = False
         self._thread = threading.Thread(target=self._server.serve_forever, name="responses-bridge", daemon=True)
         self._thread.start()
@@ -151,6 +164,8 @@ class ResponsesBridge:
                 pass
         if self._search_service is not None:
             self._search_service.close()
+        if self._read_service is not None:
+            self._read_service.close()
         if self._client is not None:
             self._client.close()
         if self._server is not None:
@@ -176,7 +191,8 @@ class ResponsesBridge:
 
     def _handle(self, handler):
         is_search = handler.path == "/v1/public-search" and self._search_service is not None
-        if handler.path != "/v1/responses" and not is_search:
+        is_read = handler.path == "/v1/public-read" and self._read_service is not None
+        if handler.path != "/v1/responses" and not is_search and not is_read:
             self._send(handler, 404, {"error": {"code": "not_found"}})
             return
         if handler.headers.get("Authorization") != "Bearer " + self.token:
@@ -208,6 +224,9 @@ class ResponsesBridge:
             if is_search:
                 self._search(handler, payload)
                 return
+            if is_read:
+                self._read(handler, payload)
+                return
             outbound = self._outbound(payload)
         except (ValueError, TypeError, KeyError, RecursionError, BridgeError):
             self._send(handler, 400, {"error": {"code": "invalid_request"}})
@@ -225,7 +244,18 @@ class ResponsesBridge:
             self._records.append({"ordinal": ordinal, "status": "unknown", "code": "in_flight",
                                   "usage": None, "elapsed_seconds": 0.0})
         started = time.monotonic()
-        status, code, body, usage = self._forward(outbound)
+        try:
+            effect = dispatch_effect(
+                self._effect_dispatcher,
+                kind="MODEL",
+                payload=outbound,
+                deadline=self._deadline,
+                perform=lambda effective_deadline: self._forward_effect(
+                    outbound, deadline=effective_deadline),
+            )
+            status, code, body, usage = self._validate_forward_effect(effect)
+        except Exception:
+            status, code, body, usage = 502, "provider_error", b"", None
         record = {"ordinal": ordinal, "status": "ok" if status == 200 else "error",
                   "code": code, "usage": usage,
                   "elapsed_seconds": round(time.monotonic() - started, 6)}
@@ -262,6 +292,38 @@ class ResponsesBridge:
                 value = {"status":"FAILED", "code":"deadline_exceeded", "replayed":False}
         except Exception:
             value = {"status":"FAILED", "code":"unavailable", "replayed":False}
+        self._send(handler, 200, value)
+
+    def _read(self, handler, payload):
+        if type(payload) is not dict or set(payload) != {"url"} or type(payload["url"]) is not str:
+            raise BridgeError("invalid_request")
+        with self._state_lock:
+            unavailable = self._closed or time.monotonic() >= self._deadline
+        if unavailable:
+            self._send(handler, 408, {"error": {"code": "deadline_exceeded"}})
+            return
+        try:
+            value = self._read_service.read(payload["url"], deadline=self._deadline)
+            valid = False
+            if type(value) is dict and type(value.get("replayed")) is bool:
+                if (set(value) == {"status", "code", "replayed"}
+                        and value.get("status") == "FAILED"
+                        and type(value.get("code")) is str
+                        and value["code"] in _READ_FAILURE_CODES):
+                    valid = True
+                elif (set(value) == {"status", "evidence", "review_status", "replayed"}
+                      and value.get("status") == "READ"
+                      and value.get("review_status") == "UNREVIEWED"):
+                    try:
+                        valid = valid_page_evidence(value["evidence"], normalize_public_url(payload["url"]))
+                    except PublicReadError:
+                        valid = False
+            if not valid:
+                value = {"status": "FAILED", "code": "unavailable", "replayed": False}
+            if self._closed or time.monotonic() >= self._deadline:
+                value = {"status": "FAILED", "code": "deadline_exceeded", "replayed": False}
+        except Exception:
+            value = {"status": "FAILED", "code": "unavailable", "replayed": False}
         self._send(handler, 200, value)
 
     def _outbound(self, payload: Any) -> dict:
@@ -318,9 +380,30 @@ class ResponsesBridge:
         result["input"] = inputs
         return result
 
-    def _forward(self, payload: dict):
+    def _forward_effect(self, payload: dict, *, deadline: float) -> dict:
+        status, code, body, usage = self._forward(payload, deadline=deadline)
+        return {"status": status, "code": code, "body": body.decode("utf-8"), "usage": usage}
+
+    @staticmethod
+    def _validate_forward_effect(value: dict):
+        if type(value) is not dict or set(value) != {"status", "code", "body", "usage"}:
+            raise BridgeError("provider_error")
+        status, code, body, usage = (value["status"], value["code"], value["body"], value["usage"])
+        if (type(status) is not int or type(code) is not str or type(body) is not str
+                or not (usage is None or type(usage) is dict)):
+            raise BridgeError("provider_error")
+        expected = {200: "ok", 408: "deadline_exceeded", 502: "provider_error"}
+        if expected.get(status) != code or (status != 200 and (body or usage is not None)):
+            raise BridgeError("provider_error")
+        raw = body.encode("utf-8")
+        if len(raw) > _MAX_BYTES:
+            raise BridgeError("provider_error")
+        return status, code, raw, copy.deepcopy(usage)
+
+    def _forward(self, payload: dict, *, deadline: float | None = None):
         with self._gate:
-            remaining = self._deadline - time.monotonic()
+            effective_deadline = self._deadline if deadline is None else min(self._deadline, deadline)
+            remaining = effective_deadline - time.monotonic()
             with self._state_lock:
                 closed = self._closed
             if closed or remaining <= 0:
@@ -344,7 +427,7 @@ class ResponsesBridge:
                     chunks = []
                     size = 0
                     for chunk in response.iter_bytes():
-                        if cutoff.is_set() or time.monotonic() >= self._deadline:
+                        if cutoff.is_set() or time.monotonic() >= effective_deadline:
                             return 408, "deadline_exceeded", b"", None
                         size += len(chunk)
                         if size > _MAX_BYTES:
@@ -353,11 +436,11 @@ class ResponsesBridge:
                 body, usage = self._inbound(b"".join(chunks))
                 with self._state_lock:
                     closed = self._closed
-                if closed or time.monotonic() >= self._deadline:
+                if closed or time.monotonic() >= effective_deadline:
                     return 408, "deadline_exceeded", b"", None
                 return 200, "ok", body, usage
             except Exception:
-                if cutoff.is_set() or time.monotonic() >= self._deadline:
+                if cutoff.is_set() or time.monotonic() >= effective_deadline:
                     return 408, "deadline_exceeded", b"", None
                 return 502, "provider_error", b"", None
             finally:

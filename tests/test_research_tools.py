@@ -223,6 +223,22 @@ def test_serve_timeout_cancels_active_reader(monkeypatch):
     assert events == ['cancel']
 
 
+@pytest.mark.parametrize('environment',[
+    {'YIKE_PUBLIC_READ_URL':'http://127.0.0.1:4321/v1/public-read'},
+    {'YIKE_PUBLIC_READ_TOKEN':'synthetic-token'},
+    {'YIKE_PUBLIC_READ_URL':'https://external.example/read','YIKE_PUBLIC_READ_TOKEN':'synthetic-token'},
+])
+def test_invalid_host_read_configuration_never_falls_back(monkeypatch,environment):
+    import pilot.research_tools as module
+    for key in ('YIKE_PUBLIC_SEARCH_URL','YIKE_PUBLIC_SEARCH_TOKEN','YIKE_PUBLIC_READ_URL','YIKE_PUBLIC_READ_TOKEN'):
+        monkeypatch.delenv(key,raising=False)
+    for key,value in environment.items(): monkeypatch.setenv(key,value)
+    monkeypatch.setattr(sys,'argv',['research_tools','--max-reads','1','--max-seconds','1'])
+    monkeypatch.setattr(module,'build_server',lambda **_:pytest.fail('must not start local reader'))
+    with pytest.raises(SystemExit) as error: module.main()
+    assert error.value.code==2
+
+
 def test_real_stdio_deadline_does_not_flush_blocked_unread_output_pipe():
     process = subprocess.Popen(
         [sys.executable, '-I', '-m', 'pilot.research_tools', '--max-reads', '1', '--max-seconds', '1'],

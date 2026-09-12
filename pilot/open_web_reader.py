@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 import threading
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qsl, quote, urlsplit, urlunsplit
@@ -58,6 +59,33 @@ def cancel_active_reads() -> None:
         _stop_process(process)
 
 
+@dataclass
+class _ReadScope:
+    lock: threading.Lock = field(default_factory=threading.Lock)
+    active: set[subprocess.Popen] = field(default_factory=set)
+    stopped: bool = False
+
+
+def valid_page_evidence(value, url: str) -> bool:
+    """Validate exact, internally consistent public-page evidence."""
+    try:
+        if type(value) is not dict or set(value) != _RESULT_KEYS:
+            return False
+        observed = datetime.fromisoformat(value["observed_at"])
+        text, title = value["text"], value["title"]
+        return (
+            value["url"] == url
+            and value["read_scope"] == "PUBLIC_PAGE_TEXT"
+            and type(text) is str and 1 <= len(text) <= 60_000 and bool(text.strip())
+            and (title is None or type(title) is str and len(title) <= 1000)
+            and observed.tzinfo is not None
+            and observed <= datetime.now(timezone.utc)
+            and value["content_sha256"] == hashlib.sha256(text.encode("utf-8")).hexdigest()
+        )
+    except (KeyError, ValueError, TypeError, UnicodeError):
+        return False
+
+
 def normalize_public_url(url: str) -> str:
     """Validate and normalize an anonymous HTTPS/default-443 URL."""
     try:
@@ -83,7 +111,7 @@ def normalize_public_url(url: str) -> str:
         raise PublicReadError("invalid_url") from None
 
 
-def read_public_page(url: str, *, deadline: datetime) -> dict:
+def _read_public_page(url: str, *, deadline: datetime, lock, active, stopped) -> dict:
     """Read one public page before an aware caller-provided deadline."""
     if not isinstance(deadline, datetime) or deadline.tzinfo is None or deadline.utcoffset() is None:
         raise PublicReadError("invalid_url")
@@ -94,8 +122,8 @@ def read_public_page(url: str, *, deadline: datetime) -> dict:
     timeout = min(_MAX_SECONDS, remaining)
     # Spawning and registration share one short critical section. It contains
     # no DNS/network/worker I/O, so cancellation cannot miss an OS child.
-    with _ACTIVE_LOCK:
-        if _READS_STOPPED:
+    with lock:
+        if stopped():
             raise PublicReadError("timeout")
         try:
             process = subprocess.Popen(
@@ -109,7 +137,7 @@ def read_public_page(url: str, *, deadline: datetime) -> dict:
             )
         except OSError:
             raise PublicReadError("unavailable") from None
-        _ACTIVE_PROCESSES.add(process)
+        active.add(process)
     try:
         stdout, _stderr = process.communicate(
             json.dumps({"url": normalized, "timeout_seconds": timeout}, separators=(",", ":")),
@@ -124,8 +152,8 @@ def read_public_page(url: str, *, deadline: datetime) -> dict:
             raise PublicReadError("unavailable") from None
         raise
     finally:
-        with _ACTIVE_LOCK:
-            _ACTIVE_PROCESSES.discard(process)
+        with lock:
+            active.discard(process)
     if process.returncode != 0 or len(stdout.encode("utf-8")) > 300_000:
         raise PublicReadError("unavailable")
     try:
@@ -152,3 +180,32 @@ def read_public_page(url: str, *, deadline: datetime) -> dict:
         raise
     except (KeyError, TypeError, ValueError, json.JSONDecodeError):
         raise PublicReadError("unavailable") from None
+
+
+def read_public_page(url: str, *, deadline: datetime) -> dict:
+    """Read using the legacy process-global cancellation scope."""
+    return _read_public_page(
+        url, deadline=deadline, lock=_ACTIVE_LOCK, active=_ACTIVE_PROCESSES,
+        stopped=lambda: _READS_STOPPED,
+    )
+
+
+class PublicPageReader:
+    """A page reader whose workers and cancellation are mission-owned."""
+    def __init__(self):
+        self._scope = _ReadScope()
+
+    def read(self, url: str, *, deadline: datetime) -> dict:
+        scope = self._scope
+        return _read_public_page(
+            url, deadline=deadline, lock=scope.lock, active=scope.active,
+            stopped=lambda: scope.stopped,
+        )
+
+    def close(self) -> None:
+        scope = self._scope
+        with scope.lock:
+            scope.stopped = True
+            processes = tuple(scope.active)
+        for process in processes:
+            _stop_process(process)

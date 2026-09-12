@@ -2,6 +2,8 @@
 
 2026-09-13；基于 `ae94bf0` 后台源码和独立只读接线审计。状态：**范围内技术设计，尚未实现**。沿已批准 V0.2 自主细化授权执行；不开放未经接通的新 capability，不把本设计当部署或客户验收。
 
+接续：`1156c45` 已完成[内部逐动作宿主网关](../plans/2026-09-13-research-effect-gateway.md#evidence)并获独立审核通过，替代下文描述的 MCP 原文直连基线；仅此子项已实现。context-v2、客户 loader、同PG许可/journal、动态客户合同与纵切仍未实现，不据此开放 capability。后续 journal 的 MODEL replay 必须绑定输入/工具配置和已校验、已恢复工具名的原结果，不能把任意字符串当合法SSE或重复执行别名恢复。
+
 ## 决策与第一条完整用户路径
 
 选择复用 `ResearchExecutionService → ResearchResourceStore → ResearchRuntimeService` 和正式 PostgreSQL、现有候选/判断/复核，不建立第二套客户库。不把整段 `run_public_research_mission` 包成一次 SOURCE_READ，也不另开无预算的 customer→runner 路由。

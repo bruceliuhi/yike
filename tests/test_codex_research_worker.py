@@ -244,6 +244,78 @@ def test_research_process_gets_only_temporary_search_bridge_credentials(worker,t
     assert 'search_public_web' in serialized and 'read_public_page' in serialized
 
 
+@pytest.mark.parametrize('dispatcher',[None,False,{},'not-callable'])
+def test_explicit_invalid_effect_dispatcher_fails_before_any_start(worker,tmp_path,dispatcher):
+    checks=[]
+    result=run_research(worker,tmp_path,effect_dispatcher=dispatcher,
+                        cancelled=lambda:checks.append(True))
+    assert result['status']=='FAILED' and result['code']=='invalid_configuration'
+    assert worker._test_search_sessions==[] and checks==[]
+    assert len(result)==9
+
+
+def test_controlled_worker_passes_shared_gate_and_host_read_credentials(worker,tmp_path,monkeypatch):
+    captured={}; services=[]
+    class Search:
+        def __init__(self, **kwargs): captured['search']=kwargs
+        def allows_read(self,url): return url=='https://new-source.example/project'
+        def close(self): captured['search_closed']=True
+    class Read:
+        def __init__(self, **kwargs):
+            captured['read']=kwargs; services.append(self); self.closed=False
+        def close(self): self.closed=True
+    class Bridge:
+        base_url='http://127.0.0.1:1/v1'
+        search_url=base_url+'/public-search'; read_url=base_url+'/public-read'
+        token='synthetic-local-token'; records=[]
+        def __init__(self, **kwargs): captured['bridge']=kwargs
+        def __enter__(self): return self
+        def __exit__(self,*exc): pass
+    monkeypatch.setattr(worker,'PublicSearchSession',Search)
+    monkeypatch.setattr(worker,'PublicReadSession',Read,raising=False)
+    monkeypatch.setattr(worker,'ResponsesBridge',Bridge)
+    cancel=[False]; effects=[]
+    def dispatcher(kind,payload,deadline,perform):
+        effects.append(kind); return perform(deadline)
+    capture=tmp_path/'controlled-config.json'
+    extra=f"open({str(capture)!r},'w').write(json.dumps(dict(argv=sys.argv,env=dict(os.environ))))\n"
+    result=run_research(worker,tmp_path,[search_event(),read_event(),*final_events()],
+        extra=extra,effect_dispatcher=dispatcher,cancelled=lambda:cancel[0])
+    assert result['status']=='COMPLETED' and len(result)==9
+    gate=captured['search']['effect_dispatcher']
+    assert gate is captured['read']['effect_dispatcher'] is captured['bridge']['effect_dispatcher']
+    assert captured['read']['allowed_url']('https://new-source.example/project')
+    assert captured['bridge']['read_service'] is services[0]
+    assert services[0].closed and captured['search_closed']
+    data=capture.read_text()
+    assert 'YIKE_PUBLIC_READ_URL=http://127.0.0.1:1/v1/public-read' in data
+    assert 'YIKE_PUBLIC_READ_TOKEN=synthetic-local-token' in data
+    assert 'synthetic-provider-secret' not in data and 'synthetic-search-secret' not in data
+    # Shared wrapper must stop delayed effects if cancellation changes after admission.
+    from pilot.research_effects import EffectDispatchError
+    cancel[0]=True
+    with pytest.raises(EffectDispatchError): gate('READ',{},time.monotonic()+1,lambda _: {})
+    assert effects==[]
+
+
+def test_controlled_reader_closes_when_bridge_setup_fails(worker,tmp_path,monkeypatch):
+    readers=[]
+    class Search:
+        def __init__(self, **kwargs): pass
+        def allows_read(self,url): return False
+        def close(self): pass
+    class Reader:
+        def __init__(self, **kwargs): self.closed=False; readers.append(self)
+        def close(self): self.closed=True
+    def broken_bridge(**kwargs): raise RuntimeError('private failure')
+    monkeypatch.setattr(worker,'PublicSearchSession',Search)
+    monkeypatch.setattr(worker,'PublicReadSession',Reader,raising=False)
+    monkeypatch.setattr(worker,'ResponsesBridge',broken_bridge)
+    result=run_research(worker,tmp_path,effect_dispatcher=lambda *args: {})
+    assert result['code']=='runtime_unavailable'
+    assert len(readers)==1 and readers[0].closed
+
+
 def test_research_instructions_require_search_then_read(worker,tmp_path):
     capture=tmp_path/'research-config.json'
     extra=("config=next(value for value in sys.argv if value.startswith('model_instructions_file='))\n"

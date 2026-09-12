@@ -1,9 +1,11 @@
 import json
+import hashlib
 import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from time import monotonic
+from datetime import datetime, timezone
 
 import httpx
 import pytest
@@ -115,6 +117,119 @@ def test_assistant_history_supplies_required_status_without_changing_text_or_pha
         response=request(bridge,{'input':messages,'tools':[],'stream':True})
         assert response.status_code==200
     assert messages==original
+
+
+def test_model_effect_dispatch_receives_normalized_outbound_and_shortened_deadline():
+    seen = {}
+    host_deadline = monotonic() + 10
+
+    def dispatcher(kind, payload, deadline, perform):
+        seen.update(kind=kind, payload=payload, deadline=deadline)
+        return perform(deadline - 1)
+
+    def provider(request):
+        seen["provider"] = json.loads(request.content)
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=sse(
+            ("response.completed", {"type": "response.completed", "response": {
+                "status": "completed", "output": []}})))
+
+    with ResponsesBridge(api_key=KEY, model="forced", max_requests=1, deadline=host_deadline,
+                         allowed_tools=(), effect_dispatcher=dispatcher,
+                         transport=httpx.MockTransport(provider)) as bridge:
+        response = request(bridge, {"model": "ignored", "tools": [], "input": []})
+    assert response.status_code == 200
+    assert seen["kind"] == "MODEL" and seen["deadline"] == host_deadline
+    assert seen["payload"]["model"] == "forced" and seen["provider"] == seen["payload"]
+
+
+def test_model_effect_can_return_trusted_replay_without_provider_io():
+    body = sse(("response.completed", {"type": "response.completed", "response": {
+        "status": "completed", "output": [], "usage": {"total_tokens": 7}}})).decode()
+    replay = {"status": 200, "code": "ok", "body": body,
+              "usage": {"total_tokens": 7}}
+    with ResponsesBridge(api_key=KEY, model="m", max_requests=1, deadline=monotonic()+10,
+                         allowed_tools=(), effect_dispatcher=lambda *_: replay,
+                         transport=httpx.MockTransport(lambda _: pytest.fail("must not call provider"))) as bridge:
+        response = request(bridge, {"tools": [], "input": []})
+        assert response.status_code == 200
+        assert bridge.records[0]["usage"] == {"total_tokens": 7}
+
+
+@pytest.mark.parametrize("effect_result", [
+    None,
+    {"status": 200, "code": "ok", "body": "valid type", "usage": []},
+    {"status": 418, "code": "private", "body": "private", "usage": None},
+    {"status": True, "code": "ok", "body": "", "usage": None},
+    {"status": 502, "code": "provider_error", "body": "private", "usage": None},
+])
+def test_invalid_or_denied_model_effect_is_fixed_error_without_provider(effect_result):
+    dispatcher = (lambda *_: (_ for _ in ()).throw(RuntimeError("private secret"))) \
+        if effect_result is None else (lambda *_: effect_result)
+    with ResponsesBridge(api_key=KEY, model="m", max_requests=1, deadline=monotonic()+10,
+                         allowed_tools=(), effect_dispatcher=dispatcher,
+                         transport=httpx.MockTransport(lambda _: pytest.fail("must not call provider"))) as bridge:
+        response = request(bridge, {"tools": [], "input": []})
+        assert response.status_code == 502
+        assert response.json() == {"error": {"code": "provider_error"}}
+        assert "private" not in response.text + repr(bridge.records)
+
+
+def _page(url="https://example.com/"):
+    text = "public evidence"
+    return {"url": url, "title": "Example", "text": text,
+            "observed_at": datetime.now(timezone.utc).isoformat(),
+            "content_sha256": hashlib.sha256(text.encode()).hexdigest(),
+            "read_scope": "PUBLIC_PAGE_TEXT"}
+
+
+def test_public_read_endpoint_uses_same_admission_and_closes_owned_service():
+    class Reader:
+        def __init__(self): self.calls = []; self.closed = 0
+        def read(self, url, *, deadline):
+            self.calls.append((url, deadline))
+            return {"status": "READ", "evidence": _page(url),
+                    "review_status": "UNREVIEWED", "replayed": False}
+        def close(self): self.closed += 1
+
+    reader = Reader()
+    with ResponsesBridge(api_key=KEY, model="m", max_requests=1, deadline=monotonic()+10,
+                         allowed_tools=(), read_service=reader,
+                         transport=httpx.MockTransport(lambda _: None)) as bridge:
+        assert bridge.read_url == bridge.base_url + "/public-read"
+        assert httpx.get(bridge.read_url, headers={"Authorization": "Bearer " + bridge.token}).status_code == 405
+        assert httpx.post(bridge.read_url, headers={"Authorization": "Bearer wrong"},
+                          json={"url": "https://example.com/"}).status_code == 401
+        assert reader.calls == []
+        response = httpx.post(bridge.read_url, headers={"Authorization": "Bearer " + bridge.token},
+                              json={"url": "https://example.com/"})
+        assert response.status_code == 200 and response.json()["status"] == "READ"
+        assert reader.calls == [("https://example.com/", bridge._deadline)]
+    assert reader.closed == 1
+
+
+def test_public_read_invalid_envelope_fails_closed_and_absent_service_has_no_route():
+    class Reader:
+        def read(self, url, *, deadline): return {"status": "READ", "evidence": {"secret": "private"}, "review_status": "UNREVIEWED", "replayed": False}
+        def close(self): pass
+
+    with ResponsesBridge(api_key=KEY, model="m", max_requests=1, deadline=monotonic()+10,
+                         allowed_tools=(), read_service=Reader(),
+                         transport=httpx.MockTransport(lambda _: None)) as bridge:
+        response = httpx.post(bridge.read_url, headers={"Authorization": "Bearer " + bridge.token},
+                              json={"url": "https://example.com/"})
+        assert response.json() == {"status": "FAILED", "code": "unavailable", "replayed": False}
+        assert "private" not in response.text
+    with ResponsesBridge(api_key=KEY, model="m", max_requests=1, deadline=monotonic()+10,
+                         allowed_tools=(), transport=httpx.MockTransport(lambda _: None)) as bridge:
+        assert bridge.read_url is None
+        assert httpx.post(bridge.base_url + "/public-read").status_code == 404
+
+
+@pytest.mark.parametrize("effect_dispatcher,read_service", [(False, None), (None, object())])
+def test_new_bridge_dependencies_require_callable_interfaces(effect_dispatcher, read_service):
+    with pytest.raises(Exception, match="^invalid_config$"):
+        ResponsesBridge(api_key=KEY, model="m", max_requests=1, deadline=monotonic()+10,
+                        allowed_tools=(), effect_dispatcher=effect_dispatcher, read_service=read_service)
 
 
 @pytest.mark.parametrize("case", ["auth", "path", "method", "malformed", "oversized", "expired"])
