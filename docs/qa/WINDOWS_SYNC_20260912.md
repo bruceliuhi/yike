@@ -2,6 +2,15 @@
 
 ## 7599e93候选与后续main同步（2026-09-12 22:39）
 
+### 实际构包与升级（22:48接续）
+
+- 补齐短 `TEMP/TMP/SQUIRREL_TEMP` 后同字节封装成功；前一次NuGet已通过但Squirrel自身解包长路径失败也保留。原产品只编译一次，封装重试均核对11231文件和固定源前后摘要。Setup `C:/yk7599/make/squirrel.windows/x64/YikeAI-Setup.exe`，642844160字节，SHA256 `b18c32e6ba6425c3eefe34c6e1efc1b9d54b1a235ef7c8e2a9ddc9bf48fed293`；nupkg SHA256 `289e216260eae22a2b485e78042452dc79af8ef953e7e642f58d81b7ac5e0bd3`。仍NotSigned。
+- ASAR结构与40项renderer资源通过，SHA256 `ed74208cded25e7444e56681428d71ec183559608a8940766616187b3de37453`；payload清单SHA256 `54af2bc257f502eb23ba9641b671a0e740e1f3e5ddc3a2c2e970fd0ea8f8cbce`。短目录应用实际首次启动到READY，用户已登录；填写并保存“AI软件定制/有明确AI软件定制开发需求的企业/全国，支持线上交付”画像草稿，未确认或启动采集。
+- 旧1f597f6在登录失败后的退出防护留下无窗口后台进程；实际确认没有任何平台Python/Chromium工作进程后，仅终止原已确认PID19320，未删用户文件。新候选正常退出通过。Setup PID22216 exit0，安装后ASAR及payload完全一致；实际安装版PID27912已登录、READY，runtime清单仍22:44:40，未重复安装。
+- **未解决体验缺口：**新进程设备身份初始NOT_PREPARED，平台页runtime READY会让用户误以为全部就绪。实际首次打开小红书仍返回DEVICE_NOT_READY；CodexWin经正常核验面板完成当前账号本机检查，返回同一设备编号49dc5d0c-28dd-4083-a26c-5d86fbcdf7e1/READY。未绕过身份校验或读取私钥。核验后浏览器/真实登录仍继续验证，不把设备READY写成平台连接通过。
+- **22:57真实平台阻断复现：**核验后安装版确实打开“小红书 - 你的生活兴趣社区 - Google Chrome for Testing”，实际运行的是短物理目录中的Chromium，输出OPENED标记；没有完成用户认证，worker终止标记为BLOCKED_INPUT/PLATFORM_AUTH_REQUIRED。等待结束后所有平台Python/Chromium进程均已退出，但下一次抖音OPEN仍被SOURCE_STOP_FAILED拦住，没有产生抖音worker，不能声称抖音已打开或平台授权通过。
+- 只读安全元数据诊断确认：原小红书profile的 `Default/Cache` 被Chromium增加两个同一应用能力SID的缓存访问ACE，而 `verify_private_tree` 要求每个目录恰好只有用户/SYSTEM/Administrators三项全控ACE，因此profile校验失败；本次输出目录校验通过。没有读取Cookie/账号文件内容，没有修改ACL、删除缓存或跳过安全校验。复现脚本 `.runtime/probe-login-acl-7599e93.py`，原平台结果保留在用户目录；后续需区分浏览器缓存边界与凭据目录，修正错误归类/退出恢复后做定向实机复验。另computer-use的Chrome窗口身份匹配两次返回同名owner冲突，停止该窗口截图操作；窗口标题、进程与OPENED文件可证明浏览器出现，不证明认证页面操作成功。
+
 - 登录启动修复已提交推送 `7599e93`，随后保留本机测试修改、快进到 `36a3f99`。新来件复用其独立审核，在Windows追加7文件 **51 passed**、类型检查通过，后端source-plan单元 **14 passed**；公开计划实网效果未验，未纳入下述固定候选。
 - 固定7599e93桌面全量原始结果 **3986 passed / 4 failed / 31 pending（4021项）**，保留 `.runtime/windows-full-7599e93.json`。四处失败分别为Windows文件URL根路径、research能力夹具、画像加载时序、旧公开来源文案断言；测试修正后定向 **21 passed**、类型检查通过，独立GO。不写成全量重新通过，31项未执行仍保留。
 - 后端全量初跑受CRLF归档、旧环境缺SDK/uv、旧宽授权夹具影响，中止时 **1669 passed / 38 failed / 69 errors / 24 skipped**，原XML保留。改用LF归档及独立锁依赖环境后关键批 **165 passed / 2 failed**；其中旧git历史测试在实际本机仓库 **1 passed**，授权边界改用生产形状受限测试角色，连接3模块 **69 passed**。HTTP/PG/备份/部署/采集定向批 **145 passed / 1 failed**；失败为精确capabilities集合漏掉已存在access_login，修正后该模块 **3 passed**。PG夹具改为同语句时间消除600秒等值微差，生产约束未动；两处独立GO。不相加重复样本、不宣称剩余全仓已验。
