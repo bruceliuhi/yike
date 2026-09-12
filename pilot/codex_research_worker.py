@@ -372,7 +372,8 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
             # Business scope is data on stdin, never a provider credential or an argv option.
             secrets = tuple(secret for secret in (api_key, search_api_key)
                             if type(secret) is str and secret)
-            if _contains_secret(json.loads(prepared['context_json']), secrets):
+            if (_contains_secret(research_context, secrets)
+                    or _contains_secret(json.loads(prepared['context_json']), secrets)):
                 valid = False
             elif valid:
                 compiled = prepared

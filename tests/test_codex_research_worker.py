@@ -358,6 +358,22 @@ def test_research_context_rejects_json_escaped_actual_credentials_before_start(
     assert secret not in json.dumps(result)
 
 
+def test_research_context_rejects_actual_credential_encoded_by_url_normalization_before_start(
+        worker,tmp_path):
+    secret='synthetic-provider-"quoted-secret'
+    context=research_context()
+    context['history'][0]['source_urls']=['https://example.com/history/'+secret]
+    cancellations=[]
+    result=worker.run_public_research_mission('研究公开需求。',
+        codex_binary=executable(tmp_path),python_binary=sys.executable,
+        api_key=secret,search_api_key='synthetic-search-secret',model='test-model',
+        research_context=context,cancelled=lambda:cancellations.append(True))
+    assert result['status']=='FAILED' and result['code']=='invalid_configuration'
+    assert result['research_binding'] is None
+    assert worker._test_search_sessions==[] and cancellations==[]
+    assert secret not in json.dumps(result)
+
+
 def test_research_context_keeps_original_description_limit(worker,tmp_path):
     result=run_research(worker,tmp_path,description='字'*4001,research_context=research_context())
     assert result['code']=='invalid_configuration' and worker._test_search_sessions==[]
