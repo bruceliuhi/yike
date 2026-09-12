@@ -15,7 +15,7 @@
 - [x] `app/windows_private_directory.py` 最小提取遍历入口；新增 `verify_browser_profile_tree`；根 strict，后代允许 spec 中精确例外，其余 fail closed。
 - [x] `app/windows_platform_login.py`、`app/windows_source_driver.py`、`app/windows_platform_outreach.py` 仅 profile 验证改为专用入口；补 login host 实际档案 ACL fixture 回归。
 - [x] 运行三类 host 和私有目录定向测试；只读复核已停止实机档案。独立审核同一批差异，集中修正。
-- [ ] 更新 `docs/qa/WINDOWS_SYNC_20260912.md` 并提交 main；标明尚未构包/实机 UI 回测，不能宣称上线。
+- [x] 更新 `docs/qa/WINDOWS_SYNC_20260912.md` 并提交 main（2a85dbc）；当时标明尚未构包/实机 UI 回测，不宣称上线。后续同源构包、安装、回归及实际平台失败按同一QA记录接续，不追认未通过项。
 
 ## Parallel acceptance task
 

@@ -1,5 +1,25 @@
 # Windows 最新主干接续（2026-09-12）
 
+## 固定候选2a85dbc实装与主干回归（23:48接续）
+
+- Gitee main实际fetch确认 `2a85dbcb68b121f6e8051ccd72b29954f3f2a655`，干净LF工作树 `.worktrees/win-release-2a85dbc`。625项桌面输入构建前后摘要相同：`e20f0c568dab0da656c78c68b7e0db1ae6e0564378ffaa8babd20a2ee034a237`。本批仅一次完整Forge make，使用短TEMP/TMP/SQUIRREL_TEMP及输出目录。
+- 新payload真实构建/搬迁测试 **1 passed / 0 skipped，132.10秒**，XML `.runtime/portable-release-2a85dbc-final-test.xml`。首次Git入口、随后测试venv依赖的hardlink预检拒绝均发生在生成输出前，保留失败XML；改用既有Git/bin/git.exe及经当前锁168项摘要核对的旧host依赖，不放宽门禁。清单SHA256 `a5d62db1d540bf3f7414e5147958b6a217501e4b094be12778b7aac0b49a2558`。
+- Setup `C:/yk2a85/make/squirrel.windows/x64/YikeAI-Setup.exe`，SHA256 `3e8257dd62b6ee77241224f466f81c4b1dc03f6cead57495e4b9aefe8168af7e`；ASAR结构及40项renderer资源通过，SHA256 `3f7124cafad8b086315686f249be4ccda53c06347294e252c2728ccb62407111`。Setup exit0，实际安装ASAR及payload与候选相同，安装进程PID12176，账号已登录；旧画像草稿升级前已实际回查完整。仍NotSigned。
+- 旧7599正常关窗后残留后台进程；确认无其平台Python/Chromium后，仅停止已核实的旧安装版4个进程，未删用户数据或操作旧工作树窗口。新安装版运行环境实际READY。新进程身份仍NOT_PREPARED；用户本人完成核验后，实际弹窗显示“上次身份核验通过”，本机编号保持49dc5d0c-28dd-4083-a26c-5d86fbcdf7e1。每次重启重复核验、外层“尚未完成绑定核验”易混淆的问题仍未修。
+- 当前main桌面完整回归 **4017 passed / 0 failed / 33 skipped，共4050项**，`.runtime/windows-full-2a85dbc.json`，Node24.19.0、maxWorkers2。跳过包含需真实HTTP/PG/账号的场景、负例包optin、文件symlink及非x64分支；不能写全功能通过。其中实际Python确认签名互验已额外指定解释器补 **1 passed**，该定向命令的13项过滤跳过不增加完整回归未验总数；TypeScript通过。服务端差量4模块 **40 passed**，`.runtime/source-plan-release-2a85dbc.xml`。不相加重复样本。
+- **新实机失败：**小红书两次输出目录357b18f4-99d1-4fcb-aec0-b5d97f9c9e55、beaefd6b-cbd4-4f11-9d1e-070e3b17c227均有OPENED标记，随后FAILED/PLATFORM_RESPONSE_CHANGED，未认证、无剩余平台进程；界面仍显示“等待登录”，没有主动同步终态。仅查看安全终态字段，未读取Cookie。正常取消后抖音实际浏览器窗口8652860出现，证明此时没有再被旧SOURCE_STOP_FAILED全局锁死；不能据此宣称全部ACL/平台登录验收完成。
+- 抖音窗口触发Windows的Chrome for Testing网络权限提示，交由用户本人处理，不自动改系统安全设置。CUA尝试只读定位该浏览器仍报同名owner冲突；已停止该窗口自动化，未读取/提交验证码或操作认证。平台认证、真实采集→原文→判断→逐项批准联系→回复、重启后的完整体验、签名及客户验收仍未通过。服务器已同源更新，见[部署记录](SERVER_137138_DEPLOYMENT.md#当前customer2a85dbc2026-09-12-2342)。
+
+23:51补充：用户本人关闭系统权限提示后，抖音最终为BLOCKED_INPUT/PLATFORM_AUTH_REQUIRED，界面显示等待超时，未认证；取消后无平台残留进程。B站实际窗口4000284打开后主动取消，窗口和Python/Chromium退出；随后知乎主窗口395860及附属微信登录窗口47384730出现，从意客AI取消后同样全部关闭，未操作附属认证页。新runtime清单创建/修改时间23:32:25。以上支持跨平台失败/取消后可以继续打开下一平台，不证明三平台认证或业务成功。
+
+### 收尾主干来件 f9fc299：源码已合入，客户候选不变
+
+本轮同步新增内部公开研究 Worker / Responses bridge，产品差量仅两个 pilot 模块及对应测试，不涉及桌面、平台连接器、迁移或部署配置。保留来件独立审核与 POSIX 证据，未将其追认到当前服务器/安装包 `2a85dbc`，不重复构包或部署。
+
+Windows 独立锁定 research wheel 环境追加两模块测试：**26 passed / 2 failed / 21 skipped，14.93秒**，原始 `.runtime/domestic-harness-windows-f9fc299.xml` 保留。21项为云端 Worker 明确仅 POSIX 的模块跳过，不是 Windows 客户端验收通过。两个失败尚未修复：超限请求在本机收到 WinError10053 / httpx.ReadError 而非预期413响应；SSE滴流测试已收到408，但0.8秒断言包含 bridge 与模拟上游 shutdown，实际约1.03秒，需拆开响应与清理耗时进一步核验，不能直接认定真实请求突破截止时间。未修改限制、放宽断言或把失败改成跳过；此内部模块未接客户入口，后续按其 POSIX 运行范围处理，不阻塞优先排查小红书与登录终态显示。
+
+知乎取消操作的浏览器/Python退出已核实；首次坐标点击后弹窗仍可见，随后用新UI状态定位关闭按钮才关闭。尚未区分首次输入未送达和界面问题，不能记为已证明的产品取消缺陷。业务画像草稿“AI软件定制／有明确AI软件定制开发需求的企业／全国，支持线上交付”在新安装版回读完整；尚未确认画像或启动真实采集。
+
 ## 1e554df 同步及浏览器档案核验修复（尚未入安装包）
 
 - main 从 aa50a92 快进到 `1e554df9358bca3fd7b66652e16fffb2a60faa92`；新增公开 reader/MCP 工具在独立锁定 wheel 环境 **65 passed / 0 skipped**。两项超长参数测试最初因 Windows 环境变量32767字符限制产生4个 setup/teardown错误；补短 ids，不改输入/断言。首次editable环境中文pth被GBK解码失败保留，最终使用新建no-editable环境，未污染候选依赖。日志 `.runtime/research-tests-1e554df-20260912/research-tests-wheel-fresh.log`。
