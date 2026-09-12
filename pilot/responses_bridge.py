@@ -303,6 +303,9 @@ class ResponsesBridge:
                 continue
             item = dict(source)
             item_type = item.get("type")
+            if item_type == "message" and item.get("role") == "assistant" and "status" not in item:
+                # Codex history omits this field; Ark requires it on output messages.
+                item["status"] = "completed"
             if isinstance(item_type, str) and item_type.endswith("_call") and item_type != "function_call":
                 raise BridgeError("invalid_request")
             if item.get("type") == "function_call":

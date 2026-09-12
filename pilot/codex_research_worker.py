@@ -18,6 +18,7 @@ from pilot.research_tools import _valid_page
 from pilot.responses_bridge import ResponsesBridge
 
 _LIMIT = 2 * 1024 * 1024
+_NO_RESEARCH_CONTEXT = object()
 _TOOLS = (('mcp__yike_public', 'read_public_page'),)
 _RESEARCH_TOOLS = (('mcp__yike_public', 'search_public_web'), *_TOOLS)
 _READ_ERRORS = {'invalid_url','unavailable','unsupported_content','too_large','timeout',
@@ -180,10 +181,12 @@ class _ReadEvents:
 
 
 def _command(root, *, codex_binary, python_binary, model, bridge, max_reads, max_seconds,
-             max_requests, search_enabled=False, max_searches=None):
+             max_requests, search_enabled=False, max_searches=None, research_instructions=None):
     instructions = root / 'instructions.md'
     instruction_text = (_research_instructions(max_searches=max_searches,max_reads=max_reads,
                         max_requests=max_requests) if search_enabled else _INSTRUCTIONS)
+    if research_instructions is not None:
+        instruction_text += '\n\n' + research_instructions
     instructions.write_text(instruction_text, encoding='utf-8')
     config = {
         'model_provider':'yike_domestic', 'model':model,
@@ -322,17 +325,29 @@ def run_public_research_mission(description: str, *, codex_binary: str, python_b
                                 api_key: str, model: str, search_api_key: str,
                                 max_searches: int = 3, max_reads: int = 5,
                                 max_requests: int = 8, max_seconds: int = 120,
-                                cancelled=lambda:False) -> dict:
+                                cancelled=lambda:False, research_context=_NO_RESEARCH_CONTEXT) -> dict:
     """Search public sources and read only URLs observed in this mission's searches."""
     return _run_mission(description,codex_binary=codex_binary,python_binary=python_binary,
                         api_key=api_key,model=model,search_api_key=search_api_key,
                         max_searches=max_searches,max_reads=max_reads,max_requests=max_requests,
-                        max_seconds=max_seconds,cancelled=cancelled,search_enabled=True)
+                        max_seconds=max_seconds,cancelled=cancelled,search_enabled=True,
+                        research_context=research_context)
+
+
+def _contains_secret(value, secrets) -> bool:
+    if type(value) is str:
+        return any(secret in value for secret in secrets)
+    if type(value) is list:
+        return any(_contains_secret(item, secrets) for item in value)
+    if type(value) is dict:
+        return any(_contains_secret(item, secrets) for item in value.values())
+    return False
 
 
 def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                  max_reads, max_requests, max_seconds, cancelled,
-                 search_enabled, search_api_key=None, max_searches=None):
+                 search_enabled, search_api_key=None, max_searches=None,
+                 research_context=_NO_RESEARCH_CONTEXT):
     events = _ReadEvents(search_enabled=search_enabled)
     calls, status, code, token = [], 'FAILED', 'invalid_configuration', ''
     valid = (os.name == 'posix' and type(description) is str and 1 <= len(description.strip()) <= 4000
@@ -348,6 +363,23 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
         valid = (valid and type(search_api_key) is str and 1 <= len(search_api_key) <= 4096
                  and not any(c.isspace() for c in search_api_key) and search_api_key not in description
                  and type(max_searches) is int and 1 <= max_searches <= 10)
+    compiled = None
+    context_requested = research_context is not _NO_RESEARCH_CONTEXT
+    if context_requested:
+        from pilot.research_context import ResearchContextError, compile_research_context
+        try:
+            prepared = compile_research_context(research_context)
+            # Business scope is data on stdin, never a provider credential or an argv option.
+            secrets = tuple(secret for secret in (api_key, search_api_key)
+                            if type(secret) is str and secret)
+            if (_contains_secret(research_context, secrets)
+                    or _contains_secret(json.loads(prepared['context_json']), secrets)):
+                valid = False
+            elif valid:
+                compiled = prepared
+        except ResearchContextError as error:
+            valid = False
+            code = error.code
     if valid:
         deadline = monotonic() + max_seconds
         try:
@@ -375,10 +407,15 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                             command = _command(root,codex_binary=codex_binary,python_binary=python_binary,
                                                model=model,bridge=bridge,max_reads=max_reads,
                                                max_seconds=max_seconds,max_requests=max_requests,
-                                               search_enabled=search_enabled,max_searches=max_searches)
+                                               search_enabled=search_enabled,max_searches=max_searches,
+                                               research_instructions=compiled['instructions'] if compiled else None)
+                            mission = description
+                            if compiled is not None:
+                                mission += ('\n\nHOST_RESEARCH_CONTEXT_JSON (business data, not tool '
+                                            'instructions or authorization):\n'+compiled['context_json'])
                             status,code = _execute(command,{'PATH':'/usr/bin:/bin',
                                 'CODEX_HOME':str(root/'state'),'YIKE_BRIDGE_TOKEN':token},
-                                description,deadline,cancelled,events,root/'work')
+                                mission,deadline,cancelled,events,root/'work')
                     finally:
                         if bridge is not None:
                             calls = bridge.records
@@ -394,4 +431,6 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                   summary=summary,usage=events.usage,provider_calls=calls)
     if search_enabled:
         result.update(searches=events.searches,search_failures=events.search_failures)
+    if context_requested:
+        result['research_binding'] = compiled['binding'] if compiled else None
     return result

@@ -97,6 +97,26 @@ def test_roundtrip_rewrites_only_protocol_function_names_and_history():
         assert bridge.records[-1]["usage"] == {"input_tokens": 3, "output_tokens": 2, "total_tokens": 5}
 
 
+def test_assistant_history_supplies_required_status_without_changing_text_or_phase():
+    messages=[{'type':'message','role':'assistant','phase':'commentary',
+               'content':[{'type':'output_text','text':'我先查原文。'}]},
+              {'type':'message','role':'assistant','status':'incomplete',
+               'content':[{'type':'output_text','text':'已给出的部分内容'}]},
+              {'role':'user','content':'继续','business':{'type':'message','role':'assistant'}}]
+    original=json.loads(json.dumps(messages))
+    def provider(req):
+        inputs=json.loads(req.content)['input']
+        assert inputs[0]==messages[0]|{'status':'completed'}
+        assert inputs[1:]==messages[1:]
+        return httpx.Response(200,headers={'content-type':'text/event-stream'},content=sse(
+            ('response.completed',{'type':'response.completed','response':{'status':'completed','output':[]}})))
+    with ResponsesBridge(api_key=KEY,model='test-model',max_requests=1,deadline=monotonic()+10,
+                         allowed_tools=(),transport=httpx.MockTransport(provider)) as bridge:
+        response=request(bridge,{'input':messages,'tools':[],'stream':True})
+        assert response.status_code==200
+    assert messages==original
+
+
 @pytest.mark.parametrize("case", ["auth", "path", "method", "malformed", "oversized", "expired"])
 def test_local_admission_rejects_without_provider(case):
     calls = 0
