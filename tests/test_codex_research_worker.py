@@ -408,6 +408,27 @@ def test_seeded_controlled_worker_transports_entries_and_completes_without_searc
     assert 'search_public_web first' not in data['instructions']
 
 
+def test_negative_catalog_entry_is_only_advisory_and_absent_from_active_guidance(worker):
+    blocked='https://www.v2ex.com/go/outsourcing'
+    context=research_context()
+    context['history']=[dict(project_key='blocked',description='blocked',state='EXCLUDED',
+                             source_urls=[blocked])]
+    from pilot.research_context import compile_research_context
+    compiled=compile_research_context(context)
+    assert blocked not in compiled['entry_urls']
+    runtime=worker._research_instructions(max_searches=2,max_reads=4,max_requests=5,
+                                          entry_urls=compiled['entry_urls'])
+    active=runtime.split('The exact trusted entries are: ',1)[1].split('.',1)[0]
+    assert blocked not in active
+    assert 'neither action is forced' in runtime
+
+
+def test_uncontrolled_context_keeps_legacy_first_search_instruction(worker):
+    runtime=worker._research_instructions(max_searches=2,max_reads=4,max_requests=5)
+    assert 'using search_public_web first, then read_public_page' in runtime
+    assert 'host-provided trusted entry' not in runtime
+
+
 def test_read_only_instructions_remain_exactly_unchanged(worker,tmp_path):
     capture=tmp_path/'read-config.json'
     extra=("config=next(value for value in sys.argv if value.startswith('model_instructions_file='))\n"

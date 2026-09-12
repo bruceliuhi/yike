@@ -41,7 +41,7 @@ def decode_entry_urls_json(raw) -> tuple[str, ...]:
         _invalid()
     try:
         value = json.loads(raw)
-    except (json.JSONDecodeError, RecursionError):
+    except (ValueError, RecursionError):
         _invalid()
     if type(value) is not list:
         _invalid()

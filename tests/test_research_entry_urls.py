@@ -34,6 +34,13 @@ def test_transport_is_list_only_bounded_and_detached():
             decode_entry_urls_json(raw)
 
 
+def test_transport_keeps_interpreter_integer_limit_and_fixed_error():
+    from pilot.research_entry_urls import decode_entry_urls_json
+
+    with pytest.raises(ValueError, match="^invalid_entry_urls$"):
+        decode_entry_urls_json('[' + '1' * 5000 + ']')
+
+
 def test_catalog_entries_share_the_hint_projection():
     from pilot.research_source_catalog import research_entry_hints, research_public_entry_urls
 
@@ -44,3 +51,5 @@ def test_catalog_entries_share_the_hint_projection():
     )
     hints = research_entry_hints()
     assert all(url in hints for url in research_public_entry_urls())
+    assert "这些精确入口可直接读取" not in hints
+    assert "实际宿主 active JSON 列表" in hints
