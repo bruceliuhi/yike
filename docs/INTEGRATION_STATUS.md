@@ -1,5 +1,9 @@
 # 当前整合状态（供后续 AI 交接）
 
+## 2026-09-12 最新Windows候选1f597f6
+
+Gitee main已纳入判断页面超时修复，固定 `1f597f6` 已实际构包、覆盖升级和启动READY；[唯一Windows记录](qa/WINDOWS_SYNC_20260912.md#已构建并覆盖升级1f597f6)集中62项定向/类型/独立GO及产物。customer继续5fb7d65，服务代码无差不部署。真实登录/平台/批准外发/签名/客户验收仍未完成；下方5fb7d65为上一Windows包，不覆盖新判断修复。
+
 ## 2026-09-12 原生链接输入批，不是链接采集完成
 
 `f695667` 独立GO；四平台内容／作者原生URL解析与新建任务范围检查已补齐，旧pending恢复兼容问题已修复。唯一[计划和定向证据](superpowers/plans/2026-09-12-native-link-inputs.md#evidence)保留初次NO-GO；没有扩大capability、修改vendor锁、部署或构包。下一步按[执行要求](superpowers/specs/2026-09-12-native-link-collection-design.md#后续批次的执行要求)接受控详情／作者读取，实际driver仍只支持search，不把配置能力当运行能力。与当前5fb7d65邀请候选及真实用户验收并行，完整Goal仍ACTIVE。
