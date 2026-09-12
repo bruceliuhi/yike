@@ -46,7 +46,7 @@
 - [x] 用Task1受限PG真实HTTP响应喂客户端解析器一次，证明同源补证/判断/候选/导入回执可消费；数据是合成反例，模型可边界替代，不称真实线索。
 - [x] 独立审核固定整批diff一次；统一修复material问题，变动覆盖测试后差量review。
 - [x] 必要renderer构建；初次77c080f相关产品源及审核修复后的c770137分别通过，不冒充发行包、Windows实机或生产。
-- [ ] 更新本计划Evidence、任务书当前状态；合并推送main，核对live SHA，清理仅owned PG。
+- [x] 更新本计划Evidence、任务书当前状态；实现及交接记录以`19e6b4f`快进合入并推送main，已核对本地/upstream/live SHA一致。仅本批owned PG已停止并自动移除，隔离visual服务器已停止；其它工作区与共享服务不动。
 
 ## Evidence
 
