@@ -258,20 +258,44 @@ if(value==='stop')process.disconnect();
 
   it.skipIf(!supportsBuildFixture()).each(['dependency-exit', 'version-probe-exit'])('records the actual %s failure stage without running later commands', failure => {
     const value = fixture();
+    // The real build now validates exact source bytes before npm ci. Keep the
+    // synthetic CLI and its write markers outside a clean, committed project.
+    const project = path.join(value.root, 'source-bound project');
+    put(path.join(project, 'package.json'), '{"name":"build-stage-fixture","private":true}\n');
+    put(path.join(project, '.gitignore'), 'out/\n');
+    const gitLocation = spawnSync('where.exe', ['git'], {encoding: 'utf8', windowsHide: true});
+    expect(gitLocation.status).toBe(0);
+    const gitExecutable = gitLocation.stdout.trim().split(/\r?\n/)[0];
+    value.env.PATH += path.delimiter + path.dirname(gitExecutable);
+    const hooks = path.join(value.root, 'empty hooks');
+    mkdirSync(hooks);
+    const git = args => {
+      const result = spawnSync(gitExecutable, ['-c', 'core.autocrlf=false', '-c', `core.hooksPath=${hooks}`,
+        '-c', 'commit.gpgsign=false', ...args], {cwd: project, encoding: 'utf8', windowsHide: true});
+      expect(result.status, result.stderr).toBe(0);
+      return result.stdout.trim();
+    };
+    git(['init']);
+    git(['add', 'package.json', '.gitignore']);
+    git(['-c', 'user.name=TEST fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-m', 'TEST source binding']);
+    const expectedCommit = git(['rev-parse', 'HEAD']);
     const calls = path.join(value.root, 'cli-calls.json');
     put(value.globalCli, failure === 'version-probe-exit' ? 'process.exit(37);' :
       `if(process.argv[2]==='--version')console.log('11.6.2'); else {require('node:fs').writeFileSync(${JSON.stringify(calls)},JSON.stringify(process.argv.slice(2)));process.exit(37);}`);
     const module = new URL('../scripts/windows-build-evidence.mjs', import.meta.url).href;
     const result = spawnSync(value.node, ['--input-type=module', '-e',
-      `import {runWindowsBuild} from ${JSON.stringify(module)}; process.exitCode=runWindowsBuild(${JSON.stringify(value.root)});`],
-    {env: value.env, cwd: value.root, encoding: 'utf8', windowsHide: true, timeout: 15000});
+      `import {runWindowsBuild} from ${JSON.stringify(module)}; process.exitCode=runWindowsBuild(${JSON.stringify(project)},${JSON.stringify(expectedCommit)});`],
+    {env: value.env, cwd: project, encoding: 'utf8', windowsHide: true, timeout: 15000});
     expect(result.status, result.stderr).toBe(1);
-    const directory = path.join(value.root, 'out', 'windows-evidence');
+    const directory = path.join(project, 'out', 'windows-evidence');
     const report = JSON.parse(readFileSync(path.join(directory, readdirSync(directory)[0], 'windows-build.json'), 'utf8'));
     expect(report.outcome).toBe('BUILD_FAILED');
     expect(report.artifacts).toEqual([]);
     if (failure === 'dependency-exit') {
       expect(report.failureCode).toBe('STAGE_FAILED');
+      expect(report.sourceVerification).toMatchObject({status: 'VERIFIED', expectedCommit,
+        before: {commit: expectedCommit, inputCount: 2}, after: {commit: expectedCommit, inputCount: 2}});
+      expect(report.sourceVerification.before.manifestSha256).toBe(report.sourceVerification.after.manifestSha256);
       expect(report.stages[0].status).toBe('PASSED');
       expect(report.stages[1]).toMatchObject({status: 'FAILED', exitCode: 37});
       expect(report.stages.slice(2).every(stage => stage.status === 'NOT_RUN')).toBe(true);

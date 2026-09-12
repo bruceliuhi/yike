@@ -259,7 +259,7 @@ describe("P14 structured followup lists and replies", () => {
     fireEvent.click(await screen.findByRole("button", { name: "TEST商机" }));
     await screen.findByText("TEST真实条件回复");
     expect(screen.getByText("关联发送记录：TEST-send")).toBeTruthy();
-    expect(screen.getByText("未读")).toBeTruthy();
+    expect(screen.getByText("未读（仅意客内）")).toBeTruthy();
     vi.mocked(context.service.followup!.mutate).mockImplementation(
       async (input) => ({
         binding: input.binding,
@@ -278,6 +278,8 @@ describe("P14 structured followup lists and replies", () => {
       action: "mark-read",
       targetId: "TEST-reply",
       targetRevision: 1,
+      opportunityId: opportunity.id,
+      profileVersionId: opportunity.profileVersionId,
     });
   });
   it("shows unmatched replies without enabling writes or inventing an association", async () => {

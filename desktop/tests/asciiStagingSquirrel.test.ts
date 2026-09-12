@@ -11,6 +11,10 @@ import {MakerSquirrel} from '@electron-forge/maker-squirrel';
 import type {MakerOptions} from '@electron-forge/maker-base';
 import config from '../forge.config';
 
+// These tests exercise the real staging adapter/config, not a release build.
+// Source-bound portable inputs are validated independently in portableBuild tests.
+vi.mock('../build/portableBuild', () => ({portableBuildInput: () => null}));
+
 const roots: string[] = [];
 const links: string[] = [];
 const actualTemp = realpathSync(os.tmpdir());

@@ -32,6 +32,7 @@ it('OPEN then repeated CHECK uses one flow and never grants source capabilities'
 it.each([
   ['douyin', 'DOUYIN', 'owner.handle-1'],
   ['bilibili', 'BILIBILI', '1234567890'],
+  ['zhihu', 'ZHIHU', 'zhihu-owner'],
 ] as const)('keeps the selected %s platform on OPEN, CHECK and CANCEL', async (platform, native, accountId) => {
   const {api, invoke} = await fixture();
   const nativeRow = {...row, platform: native, account_public_id: accountId};
@@ -110,7 +111,7 @@ it('without a flow check is strictly a current registry read, not OPEN or VERIFY
 });
 it('unsupported or missing native service and malformed responses stay unavailable', async () => {
   const {api, invoke} = await fixture();
-  await expect(api.connect('zhihu')).rejects.toThrow('尚未接通');
+  await expect(api.connect('unregistered-platform')).rejects.toMatchObject({code: 'CAPABILITY_UNAVAILABLE'});
   expect(invoke).not.toHaveBeenCalled();
   invoke.mockResolvedValueOnce({state: 'SERVICE_UNAVAILABLE'});
   await expect(api.connect('xhs')).rejects.toThrow('未配置');

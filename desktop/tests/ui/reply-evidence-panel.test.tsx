@@ -56,7 +56,7 @@ afterEach(() => {
 it.each(['session', 'token', 'sms'])('ordinary %s identity reaches selected opportunity evidence', async (method) => {
   const f = fixture();
   const requestApi = vi.fn(async (request: any) => ({ok: true, status: 200, data:
-    request.operation === 'replies.evidence' ? [f.row] : {
+    request.operation === 'replies.evidence' ? [f.row] : request.operation === 'followup.replies' ? [] : {
       authenticated: true, user_id: f.row.event.user_id,
       account_scope: {id: f.row.event.tenant_id, version: 1},
     }}));
@@ -66,8 +66,11 @@ it.each(['session', 'token', 'sms'])('ordinary %s identity reaches selected oppo
   app = {session, service: {...realService, opportunity: vi.fn(async () => f.opportunity)}};
   render(<RelatedReplies opportunityId={f.opportunity.id} choices={[f.opportunity]} choicesLoading={false} choicesError=""
     onReloadChoices={vi.fn()} onSelect={vi.fn()} onResolved={vi.fn()} records={[]} recordsLoading={false} recordsError="" onCorrect={vi.fn()} onChanged={vi.fn()} />);
+  expect(session).toMatchObject({authenticated:true,userId:f.row.event.user_id,accountScope:{id:f.row.event.tenant_id,version:1}});
+  fireEvent.click(await screen.findByRole('button', {name:'查看原始回复证据与同步'}));
   expect(await screen.findByText('想先看案例')).toBeTruthy();
   expect(requestApi).toHaveBeenCalledWith({operation: 'replies.evidence', payload: {opportunityId: f.opportunity.id}});
+  expect(requestApi.mock.calls.some(([input]) => /mutate|dispatch|sync|mark-read/.test(input.operation))).toBe(false);
 });
 it("shows original evidence and unknown read state without presenting an action to send or mark read", async () => {
   const f = fixture();

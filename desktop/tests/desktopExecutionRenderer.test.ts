@@ -9,7 +9,7 @@ import type {YikeDesktopApi} from '../src/shared/contracts';
 function fixture() {
   const draft = {...newTaskDraft(), profileId: crypto.randomUUID(), profileVersion: 1, name: '合成执行配置',
     platforms: ['bilibili', 'web'] as const as unknown as ReturnType<typeof newTaskDraft>['platforms'],
-    accounts: {bilibili: 'account'}, terms: [{id: crypto.randomUUID(), value: '采购', origin: 'manual' as const, edited: false}],
+    accounts: {bilibili: '123456'}, terms: [{id: crypto.randomUUID(), value: '采购', origin: 'manual' as const, edited: false}],
     executionLimits: {max_records: 20, max_runtime_seconds: 120}};
   const request = strategyPrepareRequest(draft, crypto.randomUUID(), draft.executionLimits);
   const strategyId = crypto.randomUUID();
@@ -18,9 +18,15 @@ function fixture() {
     profile_sha256: 'a'.repeat(64), configuration_sha256: 'b'.repeat(64), state: 'DRAFT', recorded_at: '2026-09-10T00:00:00Z',
     snapshot: {strategy_version_id: strategyId, profile_version_id: draft.profileId, configuration: request.configuration,
       platforms: request.platforms, max_records: 20, max_runtime_seconds: 120}};
-  const connections: PlatformConnection[] = [{platform: 'bilibili', accountId: 'account', status: 'CONNECTED', capabilities: [],
+  const connections: PlatformConnection[] = [{platform: 'bilibili', accountId: '123456', status: 'CONNECTED', capabilities: ['search'],
     registration: {connectionId: crypto.randomUUID(), deviceId: crypto.randomUUID(), version: 2,
       connectedAt: '2026-09-10T00:00:00Z', disconnectedAt: null}}];
+  const registration = connections[0].registration!;
+  connections[0].foregroundBinding = {mode: 'four-platform-foreground-v1', platform: 'BILIBILI',
+    accountPublicId: '123456', connectionId: registration.connectionId, connectionVersion: registration.version,
+    deviceId: registration.deviceId};
+  connections.push({platform: 'web', status: 'CONNECTED', capabilities: ['search'],
+    publicBinding: {sourceId: 'v2ex-latest-v1', deviceId: registration.deviceId}});
   return {draft, prepared, connections};
 }
 
@@ -72,7 +78,11 @@ describe('desktop execution renderer adapter', () => {
   it.each(['missing', 'ambiguous', 'version', 'device', 'expired', 'mismatch', 'monitor', 'research'])('refuses unsafe execution binding %s', kind => {
     const {draft, prepared, connections} = fixture();
     if (kind === 'missing') connections.length = 0;
-    if (kind === 'ambiguous') connections.push({...connections[0], registration: {...connections[0].registration!, connectionId: crypto.randomUUID()}});
+    if (kind === 'ambiguous') {
+      const connectionId = crypto.randomUUID();
+      connections.push({...connections[0], registration: {...connections[0].registration!, connectionId},
+        foregroundBinding: {...connections[0].foregroundBinding!, connectionId}});
+    }
     if (kind === 'version') connections[0].registration!.version = 0;
     if (kind === 'device') connections[0].registration!.deviceId = 'not-a-device';
     if (kind === 'expired') connections[0].status = 'EXPIRED';
