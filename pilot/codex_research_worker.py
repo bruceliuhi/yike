@@ -132,10 +132,16 @@ class _ReadEvents:
             url = normalize_public_url(arguments['url'])
         except PublicReadError:
             url = None
-        if self.search_enabled and url not in self.search_urls:
-            raise _InvalidOutput
         result = item.get('result')
         value = result.get('structured_content') if type(result) is dict else None
+        if self.search_enabled and url not in self.search_urls:
+            # The tool legitimately rejects undiscovered URLs before any I/O.
+            # Observe that denial without granting the URL or aborting the run.
+            # Successful/ambiguous frames for undiscovered URLs remain invalid.
+            if (type(value) is not dict
+                    or value != {'status':'FAILED','code':'invalid_url','replayed':False}
+                    or value.get('replayed') is not False):
+                raise _InvalidOutput
         if type(value) is not dict:
             if item['status'] == 'failed':
                 self.failures.append({'url':url,'code':'tool_failed'})

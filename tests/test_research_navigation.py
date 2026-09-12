@@ -68,6 +68,13 @@ def test_mcp_host_read_chain_and_replay_keep_mission_bounds():
             await session.call_tool('search_public_web', {'query': '买方需求'})
             before = await session.call_tool('read_public_page', {'url': POST})
             assert before.structuredContent['code'] == 'invalid_url'
+            observer=_ReadEvents(search_enabled=True)
+            observer.accept(search_event())
+            denied=read_event('actual-mcp-denial')
+            denied['item']['arguments']={'url':POST}
+            denied['item']['result']['structured_content']=before.structuredContent
+            observer.accept(denied)
+            assert observer.reads==[] and POST not in observer.search_urls
             first = await session.call_tool('read_public_page', {'url': INDEX})
             assert first.structuredContent['status'] == 'READ'
             second = await session.call_tool('read_public_page', {'url': POST})
@@ -112,6 +119,40 @@ def test_codex_event_acceptance_follows_only_verified_page_links():
     unknown['item']['arguments']['url'] = 'https://other.example/'
     with pytest.raises(_InvalidOutput):
         events.accept(unknown)
+
+
+@pytest.mark.parametrize('status', ['completed', 'failed'])
+def test_denied_undiscovered_read_is_not_evidence_or_a_fatal_protocol_error(status):
+    events=_ReadEvents(search_enabled=True)
+    events.accept(search_event())
+    denied=read_event('denied')
+    denied['item']['status']=status
+    denied['item']['arguments']={'url':POST}
+    denied['item']['result']['structured_content']={
+        'status':'FAILED','code':'invalid_url','replayed':False}
+    events.accept(denied)
+    assert events.failures==[{'url':POST,'code':'invalid_url'}]
+    assert POST not in events.search_urls and events.reads==[]
+    # The successful frame remains inadmissible until a real source supplies it.
+    forged=read_event('forged')
+    forged['item']['arguments']={'url':POST}
+    forged['item']['result']['structured_content']['evidence']['url']=POST
+    with pytest.raises(_InvalidOutput): events.accept(forged)
+    events.accept(read_event('allowed'))
+    assert len(events.reads)==1
+
+
+@pytest.mark.parametrize('patch', [{'replayed':0}, {'replayed':True}, {'code':'unavailable'},
+                                  {'status':'READ'}, {'extra':'untrusted'}])
+def test_undiscovered_read_denial_must_be_exact(patch):
+    events=_ReadEvents(search_enabled=True)
+    events.accept(search_event())
+    denied=read_event('bad-denial')
+    denied['item']['arguments']={'url':POST}
+    denied['item']['result']['structured_content']={
+        'status':'FAILED','code':'invalid_url','replayed':False}|patch
+    with pytest.raises(_InvalidOutput): events.accept(denied)
+    assert events.reads==[] and POST not in events.search_urls
 
 
 @pytest.mark.parametrize('sources,expected', [(2,(1,1)), (3,(2,2)), (8,(7,7)), (100,(10,99))])
