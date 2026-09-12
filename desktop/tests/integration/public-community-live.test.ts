@@ -18,6 +18,8 @@ import {candidateSubmissionSchema,type CandidateSubmission} from '../../src/shar
 import type {CandidateReceipt} from '../../src/shared/candidateReceipt';
 import {publicSourceIdSchema,PUBLIC_SOURCES} from '../../src/shared/publicSources';
 import {parseRawCandidateEvidence} from '../../src/shared/rawCandidateEvidence';
+import {createCandidateReviewService} from '../../src/renderer/services/candidateReview';
+import {ServiceError} from '../../src/renderer/services/contracts';
 
 const names=['BASE','USER','TOKEN','SEED','DEVICE','PROFILE','PREPARE','NETWORK'] as const;
 it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP public collection signs, uploads and finishes without recollection',async()=>{
@@ -29,6 +31,7 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
  const prepare=prepareStrategySchema.parse(JSON.parse(env.PREPARE!));
  const sourceId=publicSourceIdSchema.parse(process.env.YIKE_PUBLIC_LIVE_SOURCE??'v2ex-latest-v1');
  const project=sourceId==='v2ex-outsourcing-authors-v1';
+ const assessSourceId=process.env.YIKE_PUBLIC_LIVE_ASSESS_SOURCE_ID??'';
  expect(prepare.profile_version_id===env.PROFILE&&prepare.configuration.publicSource===sourceId).toBe(true);
  const privateKey=createPrivateKey({format:'der',type:'pkcs8',key:Buffer.concat([Buffer.from('302e020100300506032b657004220420','hex'),Buffer.from(env.SEED!,'hex')])});
  const key={scope:{serviceOrigin:base,userId:env.USER!,deviceId:env.DEVICE!},privateKey:privateKey.export({format:'pem',type:'pkcs8'}).toString(),publicKey:createPublicKey(privateKey).export({format:'jwk'}).x!};
@@ -38,7 +41,8 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
  const directory=await mkdtemp(path.join(tmpdir(),'yike-public-live-'));
  const executionJournal=()=>createExecutionJournal({directory:path.join(directory,'execution'),protection});
  const candidateJournal=()=>createCandidateJournal({directory:path.join(directory,'candidate'),protection});
- let cookie='',sourceReads=0,replyReads=0,driverStarts=0,driverStops=0,candidateWrites=0;
+ let cookie='',sourceReads=0,replyReads=0,driverStarts=0,driverStops=0,candidateWrites=0,assessRequests=0;
+ let assessmentSummary:Record<string,unknown>|undefined;
  let records:CandidateSubmission['records']=[],accepted:CandidateReceipt|undefined;
  const operations:string[]=[],controllers:ReturnType<typeof createForegroundCollectionController>[]=[];
  const diagnostics=channel('undici:request:create');
@@ -53,6 +57,7 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
   const response=await fetch(url,{...init,headers});
   const session=response.headers.getSetCookie().find(value=>value.startsWith('pilot_session='));if(session)cookie=session.split(';',1)[0];
   if(init.method==='POST'&&url.endsWith('/execution-operations'))operations.push(JSON.parse(String(init.body)).request.operation);
+  if(init.method==='POST'&&url.endsWith('/candidate-reviews')){expect(JSON.parse(String(init.body)).action).toBe('ASSESS');assessRequests++;expect(assessRequests).toBe(1);}
   if(init.method==='POST'&&url.endsWith('/candidate-batches')){candidateWrites++;expect(driverStops===candidateWrites).toBe(true);
    if(response.ok)accepted=await response.clone().json() as CandidateReceipt;}
   return response;
@@ -119,6 +124,34 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
    expect(Date.parse(String(content.published_at))===Date.parse(record.published_at!)).toBe(true);
    expect(data.observations.items.some(o=>o.version_id===item.version_id&&o.task_id===taskId&&o.collector_version===record.collector_version&&o.normalizer_version===record.normalizer_version&&o.query===record.query)).toBe(true);
   }
+  if(assessSourceId){
+   const index=records.findIndex(record=>record.external_source_id===assessSourceId);
+   expect(index>=0,'explicit assessment source must be present; do not substitute another topic').toBe(true);
+   const selected=accepted!.items.find(item=>item.index===index)!;
+   const api=createCandidateReviewService(async(operation,_path,_method,payload)=>{
+    const response=await identity.requestApi({operation,payload});
+    if(!response.ok)throw new ServiceError(response.error,'ordinary candidate API failed',response.status);
+    return response.data;
+   });
+   const candidate=(await api.list({ids:[selected.candidate_id],page:1,pageSize:1})).items[0];
+   const assessmentRequest={candidateId:candidate.id,candidateRevision:candidate.revision,
+    sourceVersionId:candidate.sourceVersionId,profileId:candidate.profileId,profileVersion:candidate.profileVersion,
+    requestId:randomUUID(),action:'ASSESS' as const};
+   const result=await api.review(assessmentRequest);
+   expect(result.kind).toBe('assessment');
+   if(result.kind!=='assessment')throw new Error('assessment receipt required');
+   expect(result.assessment.sendingAuthorized).toBe(false);
+   expect(result.assessment.strategyVersionId).toBe(prepared.strategy_version_id);
+   const recovered=await api.getRequest(assessmentRequest.requestId,{request:assessmentRequest});
+   expect(isDeepStrictEqual(result,recovered)).toBe(true);
+   const reopened=(await api.list({ids:[candidate.id],page:1,pageSize:1})).items[0];
+   expect(reopened.assessment?.id).toBe(result.assessment.id);
+   expect(reopened.assessmentStale).toBe(false);
+   expect(reopened.status).toBe('PENDING_REVIEW');expect(reopened.sourceStatus).toBe('UNVERIFIED');
+   expect(reopened.opportunityId).toBeUndefined();expect(assessRequests).toBe(1);
+   assessmentSummary={sourceId:assessSourceId,id:result.assessment.id,decision:result.assessment.effectiveDecision,
+    grade:result.assessment.grade,assessRequests,persisted:true};
+  }
   await first.shutdown();const restored=controller();await restored.start(command);
   expect([sourceReads,driverStarts,candidateWrites]).toEqual([1,1,1]);
   expect(replyReads).toBe(project?records.length:0);
@@ -136,6 +169,7 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
   }
   expect(replyReads).toBe(project?records.length*tasks:0);
   console.log('PUBLIC_COMMUNITY_RESULT '+JSON.stringify({mode:network?'network':'fixture',records:records.length,taskId,sourceReads,replyReads,tasks,sourceId,collectorVersion:records[0].collector_version,
+   ...(assessmentSummary?{assessment:assessmentSummary}:{}),
    ...(project?{authorContext:records.map(r=>({id:r.external_source_id,read:r.source_context!.replies_read,expected:r.source_context!.replies_expected,authorReplies:r.source_context!.author_replies.length,matched:r.source_context!.replies_complete}))}:{})}));
  }finally{
   if(network)diagnostics.unsubscribe(observe);
@@ -143,4 +177,4 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
   const cleanup=path.resolve(directory);if(path.dirname(cleanup)!==path.resolve(tmpdir())||!path.basename(cleanup).startsWith('yike-public-live-'))throw new Error('unsafe fixture cleanup');
   await rm(cleanup,{recursive:true,force:true});
  }
-},45000);
+},process.env.YIKE_PUBLIC_LIVE_ASSESS_SOURCE_ID?120_000:45_000);

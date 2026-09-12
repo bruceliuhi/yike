@@ -8,6 +8,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
+from time import sleep
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -30,11 +31,13 @@ from tests.test_execution_runtime_postgres import SECRET
 
 @pytest.fixture
 def local_provider():
-    state = SimpleNamespace(requests=[], result=assessment(), http_status=200)
+    state = SimpleNamespace(requests=[], result=assessment(), http_status=200, delay_seconds=0)
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
             state.requests.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+            if state.delay_seconds:
+                sleep(state.delay_seconds)
             raw = json.dumps({"choices": [{"finish_reason": "stop", "message": {
                 "role": "assistant", "content": json.dumps(state.result, ensure_ascii=False)}}],
                 "usage": {"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30}}).encode()

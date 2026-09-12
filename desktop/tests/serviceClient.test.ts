@@ -1,8 +1,41 @@
 import {describe, expect, it, vi} from 'vitest';
 import {createServiceClient} from '../src/main/serviceClient';
-import {candidateBinding, assessmentRequestFixture, verificationRequestFixture} from './fixtures/candidateReviewApi';
+import {candidateBinding, assessmentRequestFixture, verificationRequestFixture, decisionRequestFixture} from './fixtures/candidateReviewApi';
 
 describe('fixed service transport', () => {
+  it('lets an explicit assessment receive a 20-second model response without retrying',async()=>{
+    vi.useFakeTimers();
+    try{
+      const fetch=vi.fn((_url:string,options:RequestInit)=>new Promise<Response>((resolve,reject)=>{
+        const timer=setTimeout(()=>resolve(Response.json({kind:'assessment'})),20_000);
+        options.signal!.addEventListener('abort',()=>{clearTimeout(timer);reject(new Error('aborted'));},{once:true});
+      }));
+      const client=createServiceClient({baseUrl:'https://customer.example',fetch,clearSession:async()=>{}});
+      const pending=client.request({operation:'candidates.review',payload:assessmentRequestFixture()});
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(await pending).toMatchObject({ok:true,data:{kind:'assessment'}});
+      expect(fetch).toHaveBeenCalledOnce();
+    }finally{vi.useRealTimers();}
+  });
+  it.each([
+    ['assessment', {operation:'candidates.review',payload:assessmentRequestFixture()},75_000],
+    ['human inclusion', {operation:'candidates.review',payload:decisionRequestFixture()},12_000],
+    ['receipt read', {operation:'candidates.request',payload:{requestId:'TEST:assessment'}},12_000],
+  ])('keeps %s bounded with no automatic retry',async(_name,input,timeout)=>{
+    vi.useFakeTimers();
+    try{
+      const fetch=vi.fn((_url:string,options:RequestInit)=>new Promise<Response>((_resolve,reject)=>{
+        options.signal!.addEventListener('abort',()=>reject(new Error('aborted')),{once:true});
+      }));
+      const client=createServiceClient({baseUrl:'https://customer.example',fetch,clearSession:async()=>{}});
+      let settled=false;
+      const pending=client.request(input).then(value=>{settled=true;return value;});
+      await vi.advanceTimersByTimeAsync(timeout-1);expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await pending).toMatchObject({ok:false,error:'SERVICE_TIMEOUT'});
+      expect(fetch).toHaveBeenCalledOnce();
+    }finally{vi.useRealTimers();}
+  });
   it('awaits encrypted session persistence after authentication and clears stale credentials first',async()=>{
     const order:string[]=[];
     const client=createServiceClient({baseUrl:'https://customer.example',
