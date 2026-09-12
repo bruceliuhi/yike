@@ -151,6 +151,7 @@ def test_batch_native_progress_is_bilibili_account_only():
     "four-platform-public-sampling-monitor-v1",
     "four-platform-public-node-monitor-v1",
     "four-platform-public-project-monitor-v1",
+    "four-platform-public-bili-links-monitor-v1",
 ])
 def test_support_advertises_native_progress_only_for_existing_search_monitor_policies(mode):
     client, _ = _support_client(mode)
@@ -164,11 +165,8 @@ def test_support_advertises_native_progress_only_for_existing_search_monitor_pol
     assert negotiated.json() == legacy | {"native_progress": ["BILIBILI"]}
 
 
-@pytest.mark.parametrize("mode", [
-    "four-platform-foreground-v1",
-    "four-platform-public-bili-links-monitor-v1",
-])
-def test_support_does_not_advertise_native_progress_for_once_or_links(mode):
+def test_support_does_not_advertise_native_progress_for_once():
+    mode = "four-platform-foreground-v1"
     client, _ = _support_client(mode)
 
     legacy = client.get("/api/ui/execution-support", headers=auth_headers()).json()

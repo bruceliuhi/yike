@@ -164,6 +164,7 @@ def validate_native_batch_progress(value) -> NativeSearchBatchProgress:
 def native_search_progress_supported(capability_check) -> bool:
     from pilot.foreground_collection import (
         four_platform_monitor_policy,
+        four_platform_public_bili_links_monitor_policy,
         four_platform_public_monitor_policy,
         four_platform_public_node_monitor_policy,
         four_platform_public_project_monitor_policy,
@@ -173,6 +174,7 @@ def native_search_progress_supported(capability_check) -> bool:
     return capability_check in (
         three_platform_monitor_policy,
         four_platform_monitor_policy,
+        four_platform_public_bili_links_monitor_policy,
         four_platform_public_monitor_policy,
         four_platform_public_sampling_monitor_policy,
         four_platform_public_node_monitor_policy,

@@ -97,9 +97,16 @@ export function createForegroundCollectionController(options:Options) {
  }
  async function supported(scope:DeviceWorkerScope,samplingVersion?:1,progressVersion?:1){
   if(stopUnconfirmed)throw new Error('SOURCE_STOP_FAILED');
-  guard(scope);const response=await scope.transport.requestExecution({operation:'execution.support',...(samplingVersion?{samplingVersion}:{}),...(progressVersion?{progressVersion}:{})});guard(scope);
+  guard(scope);let response=await scope.transport.requestExecution({operation:'execution.support',...(samplingVersion?{samplingVersion}:{}),...(progressVersion?{progressVersion}:{})});guard(scope);
+  const legacyProgress=progressVersion===1&&!response.ok&&response.status===422&&response.error==='invalid_request';
+  if(legacyProgress){
+   // Previous servers explicitly reject unknown query keys. Only this read-only
+   // capability rejection permits one plain read; never retry execution/unknowns.
+   response=await scope.transport.requestExecution({operation:'execution.support'});guard(scope);
+  }
   if(!response.ok)throw new Error('COLLECTION_UNAVAILABLE');const support=supportSchema.safeParse(response.data);
   if(!support.success || support.data.mode===null)throw new Error('COLLECTION_UNAVAILABLE');
+  if(legacyProgress)delete support.data.native_progress;
   return support.data;
  }
  async function nativeReady(scope:DeviceWorkerScope){

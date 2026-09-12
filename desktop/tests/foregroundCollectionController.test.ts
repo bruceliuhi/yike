@@ -3,6 +3,8 @@ import {createHash} from 'node:crypto';
 import {createForegroundCollectionController} from '../src/main/foregroundCollectionController';
 import {createCollectionWorker} from '../src/main/collectionWorker';
 import {createPublicCommunityDriver} from '../src/main/publicCommunityDriver';
+import {createServiceClient} from '../src/main/serviceClient';
+import {readFileSync} from 'node:fs';
 import {newTaskDraft} from '../src/renderer/domain/models';
 import {strategyPrepareRequest} from '../src/renderer/domain/researchStrategies';
 const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
@@ -49,6 +51,31 @@ function publicFixture(mixed=false){
  const publicDriverFactory=vi.fn(()=>({start:vi.fn()}));f.options.publicDriverFactory=publicDriverFactory;
  return {...f,nativeConfiguration,publicDriverFactory,controller:createForegroundCollectionController(f.options)};
 }
+it.each(['legacy','server','network','unknown422','session'])('native negotiation %s uses only explicit old-query rejection to read plain support',async kind=>{
+ const f=fixture();f.command.targets[0].platform='BILIBILI';f.startReceipt.platform_runs[0].platform='BILIBILI';f.strategy.snapshot.platforms=['BILIBILI'];
+ Object.assign(f.strategy.snapshot.configuration,{mode:'monitor',schedule:{kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1}});
+ f.strategy.configuration_sha256=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.resolveAccount.mockResolvedValue({profileId:id(30),accountPublicId:'123'});
+ const stored=process.env.YIKE_NATIVE_PROGRESS_LEGACY_ARTIFACT;
+ const artifact=stored?JSON.parse(readFileSync(stored,'utf8')):{negotiated:{status:422,body:{detail:{code:'invalid_request',message:'invalid_request'}}},plain:{status:200,body:{schema_version:'foreground-collection-support-v1',mode:'four-platform-foreground-v1'}}};
+ const fetcher=vi.fn(async(url:string)=>{
+  if(url.endsWith('/monitor-runtime/support'))return Response.json({schema_version:'monitor-runtime-support-v1',mode:'four-platform-monitor-v1'});
+  if(url.endsWith('?native_progress_version=1')){
+   if(kind==='network')throw new Error('offline');if(kind==='session')f.invalidate();
+   return Response.json(kind==='unknown422'?{detail:{code:'different_error'}}:artifact.negotiated.body,{status:kind==='server'?500:artifact.negotiated.status});
+  }
+  expect(url).toBe('https://pilot.example/api/ui/execution-support');
+  return Response.json(artifact.plain.body,{status:artifact.plain.status});
+ });
+ const transport=createServiceClient({baseUrl:'https://pilot.example',fetch:fetcher,clearSession:async()=>{}});
+ f.scope.transport.requestExecution.mockImplementation(transport.requestExecution as any);
+ const start={schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:f.strategy.configuration_sha256,targets:f.command.targets};
+ expect(await f.controller.startMonitor(start)).toMatchObject({state:kind==='legacy'?'RECORDED':'SERVICE_UNAVAILABLE'});
+ expect(fetcher).toHaveBeenCalledTimes(kind==='legacy'?3:2);
+ if(kind==='legacy'){
+  expect(f.worker.run).toHaveBeenCalledWith(expect.not.objectContaining({allowNativeProgress:true}));f.finish();
+ }else expect(f.execution.submit).not.toHaveBeenCalled();
+ await f.controller.shutdown();
+});
 it.each([false,true])('native Bilibili monitor negotiates progress=%s and dispatches CLAIM through real worker',async enabled=>{
  const f=fixture();f.command.targets[0].platform='BILIBILI';f.startReceipt.platform_runs[0].platform='BILIBILI';f.strategy.snapshot.platforms=['BILIBILI'];
  Object.assign(f.strategy.snapshot.configuration,{mode:'monitor',schedule:{kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1}});

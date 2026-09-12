@@ -26,6 +26,8 @@ Cursor精确字段：`{page:1..1000, consumed_ids:aid字符串数组(ASCII正整
 
 ## 页内推进与刷新
 
+兼容补充：上一版服务实际会以422/`invalid_request`拒绝未知协商query。仅此明确只读拒绝允许再读一次无query的旧能力，并保持不带native flag；网络、5xx、其他422、会话变化和执行未知均不降级/重试。支持链接任务的部署模式仍可运行search，必须广告其search进度能力；实际links任务继续拒绝native progress。
+
 每query仅发一次search page请求，固定page_size=20；由真实响应`numPages`（非负int）及result列表校验has_more。非空页面必须page<=numPages；空页只可在明确无更多页时结束。异常/验证码/限流不转成空成功。
 
 `refresh_next=true`时读page1，忽略续读页内IDs，取前min(5,分配内容预算)项；成功后仅把refresh_next翻false，续读page/IDs不变。
