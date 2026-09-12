@@ -43,7 +43,7 @@
 
 ## Evidence
 
-2026-09-12，实施完成，待独立整批审核；未部署/构包/真实平台/外发。上方checkbox保留原实施步骤，本节是实际证据，不用计划代替完成。
+2026-09-12，产品代码`2c2803bc56adf060df682a6408737a22b31e3f7f`独立整批GO；未部署/构包/真实平台/外发。上方checkbox保留原实施步骤，本节是实际证据，不用计划代替完成。
 
 - 后台初次RED为v2/DTO缺失；首轮22 passed后，补充负例发现伪造lease/run并省略复查结果可在prepare被当作旧协议。改为先按服务端当前CLAIM定位、再核对完整context。最终受限PG/认证HTTPS/API 68 passed；合同/真实旧路由184 passed、2 deselected；纯函数奇偶及其它源4 passed。记录`/tmp/yike-public-revisit-backend-report.md`保留具体命令、夹具错误与边界。
 - 客户端首轮18 failed/9 passed，确认新schema/driver缺失；修正租约截止、Vitest数组参数及轮换顺序夹具后27 passed。worker新v2负例先3 failed，再与controller/reader/签名/加密journal/回执组共435 passed、2 failed（两条旧测试把现已批准v2当非法）。将非法版本改为3；后续源/采样3文件75 passed。上述组有重叠，不累加为全仓成绩。
@@ -53,4 +53,6 @@
 - 基线`031c14a`实际旧handler输出v2 422与v1 200；正式ServiceClient+controller消费`/tmp/yike-public-revisit-legacy-support.json`，1 passed。新版只读协商明确拒绝后退到v1，不重试执行；其它错误/会话变化有单独拒绝测试。类型检查tsc成功。
 - 既有隔离Python进程的HOST_FILES导入测试发现新增DTO依赖未进清单，先1 failed（ModuleNotFoundError），补清单后同测试1 passed；未改变vendor，未给旧Windows包背书。
 
-完整V0.2 Goal ACTIVE。待独立冻结审核后正常合main；其它原生平台游标、完整评论深读、多源研究、生产/Windows及跨行业客户验收继续。
+- 非作者对`031c14a..2c2803b`完整差量做架构/代码/质量审核，未发现确认的P0/P1/P2，GO仅限代码合并。独立核对六轮冻结选择null/101/null/102/null/101、READ两次/UNAVAILABLE一次与原回显，以及旧服务真实422→v1 200；报告`/tmp/yike-public-revisit-independent-review.md`。最终后台产物更新后正式TS parser再次1 passed，不重复其它相同字节套件。
+
+完整V0.2 Goal ACTIVE。合main仅补本记录/任务书/整合摘要，产品字节保持已审核版本；其它原生平台游标、完整评论深读、多源研究、生产/Windows及跨行业客户验收继续。该增量只复查本计划已经发现的项目源，不替代全站历史搜索，也不证明商机产量。
