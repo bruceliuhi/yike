@@ -23,6 +23,26 @@ def sse(*events):
     return "".join(f"event: {kind}\ndata: {json.dumps(data)}\n\n" for kind, data in events).encode()
 
 
+def real_sse(alias):
+    events = [
+        ("response.created", {"type": "response.created", "response": {"status": "in_progress", "output": []}}),
+        ("response.in_progress", {"type": "response.in_progress", "response": {"status": "in_progress"}}),
+        ("response.output_item.added", {"type": "response.output_item.added", "item": {
+            "type": "function_call", "name": alias, "arguments": "", "call_id": "c-real"}}),
+        ("response.function_call_arguments.delta", {"type": "response.function_call_arguments.delta",
+                                                     "delta": '{"url":"https://example.com/"}'}),
+        ("response.function_call_arguments.done", {"type": "response.function_call_arguments.done",
+                                                    "arguments": '{"url":"https://example.com/"}'}),
+        ("response.output_item.done", {"type": "response.output_item.done", "item": {
+            "type": "function_call", "name": alias,
+            "arguments": '{"url":"https://example.com/"}', "call_id": "c-real"}}),
+        ("response.completed", {"type": "response.completed", "response": {"status": "completed", "output": [
+            {"type": "function_call", "name": alias,
+             "arguments": '{"url":"https://example.com/"}', "call_id": "c-real"}]}}),
+    ]
+    return sse(*events) + b"data: [DONE]\n\n"
+
+
 def test_roundtrip_rewrites_only_protocol_function_names_and_history():
     seen = []
     aliases = []
@@ -194,3 +214,36 @@ def test_context_close_disconnects_an_inflight_local_request():
     release.set(); thread.join(1)
     assert not thread.is_alive()
     assert result == [None] or result[0].status_code != 200
+
+
+def test_real_responses_sse_sequence_accepts_final_done_sentinel():
+    def provider(req):
+        alias = json.loads(req.content)["tools"][0]["name"]
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=real_sse(alias))
+    tools = [{"type": "namespace", "name": ALLOWED[0][0], "tools": [
+        {"type": "function", "name": ALLOWED[0][1], "parameters": {"type": "object"}}]}]
+    with ResponsesBridge(api_key=KEY, model="m", max_requests=1, deadline=monotonic()+5,
+                         allowed_tools=ALLOWED, transport=httpx.MockTransport(provider)) as bridge:
+        response = request(bridge, {"stream": True, "tools": tools, "input": []})
+        assert response.status_code == 200
+        assert response.text.endswith("data: [DONE]\n\n")
+        events = [json.loads(line[6:]) for line in response.text.splitlines()
+                  if line.startswith("data: ") and line != "data: [DONE]"]
+        call = next(event["item"] for event in events if event["type"] == "response.output_item.done")
+        assert (call["namespace"], call["name"]) == ALLOWED[0]
+        assert call["arguments"] == '{"url":"https://example.com/"}'
+
+
+@pytest.mark.parametrize("body", [
+    b"data: [DONE]\n\n",
+    sse(("response.failed", {"type": "response.failed", "response": {"status": "failed"}}))
+        + sse(("response.completed", {"type": "response.completed", "response": {"status": "completed", "output": []}})),
+    sse(("response.completed", {"type": "response.completed", "response": {"status": "completed", "output": []}})) * 2,
+    sse(("response.completed", {"type": "response.completed", "response": {"status": "completed", "output": []}}))
+        + sse(("response.in_progress", {"type": "response.in_progress", "response": {"status": "in_progress"}})),
+])
+def test_invalid_terminal_sequences_fail_closed(body):
+    provider = lambda _: httpx.Response(200, headers={"content-type": "text/event-stream"}, content=body)
+    with ResponsesBridge(api_key=KEY, model="m", max_requests=1, deadline=monotonic()+5,
+                         allowed_tools=ALLOWED, transport=httpx.MockTransport(provider)) as bridge:
+        assert request(bridge, {"tools": [], "input": []}).status_code == 502

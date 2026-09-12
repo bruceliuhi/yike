@@ -325,6 +325,7 @@ class ResponsesBridge:
         blocks = text.replace("\r\n", "\n").split("\n\n")
         output = []
         completed = False
+        sentinel = False
         usage = None
         for block in blocks:
             if not block:
@@ -333,8 +334,19 @@ class ResponsesBridge:
             data_lines = [line[5:].lstrip() for line in lines if line.startswith("data:")]
             if not data_lines:
                 raise BridgeError("provider_error")
-            event = json.loads("\n".join(data_lines))
+            data = "\n".join(data_lines)
+            if data == "[DONE]":
+                if not completed or sentinel:
+                    raise BridgeError("provider_error")
+                sentinel = True
+                output.append("data: [DONE]\n\n")
+                continue
+            if completed or sentinel:
+                raise BridgeError("provider_error")
+            event = json.loads(data)
             if not isinstance(event, dict) or not isinstance(event.get("type"), str):
+                raise BridgeError("provider_error")
+            if event["type"] in {"response.failed", "response.incomplete"}:
                 raise BridgeError("provider_error")
             if "item" in event:
                 event = dict(event); event["item"] = self._restore_item(event["item"])
