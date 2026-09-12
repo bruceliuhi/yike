@@ -7,6 +7,7 @@ import importlib.util
 import os
 from pathlib import Path
 import subprocess
+from contextlib import contextmanager
 
 import pytest
 
@@ -349,3 +350,114 @@ def test_browser_hardlink_remains_rejected(tmp_path):
     os.link(path, root / 'alias')
     with pytest.raises(api.WindowsPrivateDirectoryError):
         api.verify_browser_profile_tree(root)
+
+
+def _remove_after_enumeration(monkeypatch, root, *, every_scan=False, after_remove=None):
+    """Control only the race: real enumeration, deletion and native validation."""
+    original = os.scandir
+    scans = []
+
+    @contextmanager
+    def scandir(path):
+        if Path(path) != root:
+            with original(path) as entries:
+                yield entries
+            return
+        scans.append(path)
+        transient = root / 'lockfile'
+        if every_scan:
+            transient.write_bytes(b'test-only transient')
+        with original(path) as entries:
+            snapshot = list(entries)
+        if transient.exists():
+            transient.unlink()
+            if after_remove:
+                after_remove()
+        yield iter(snapshot)
+
+    monkeypatch.setattr(os, 'scandir', scandir)
+    return scans
+
+
+def test_browser_rescans_complete_tree_after_enumerated_file_disappears(tmp_path, monkeypatch):
+    api, root, path = _browser_tree(tmp_path, 'lockfile')
+    stable = root / 'Local State'
+    stable.write_bytes(b'preserved')
+    before = _security(stable)
+    scans = _remove_after_enumeration(monkeypatch, root)
+    api.verify_browser_profile_tree(root)
+    assert len(scans) == 2
+    assert not path.exists()
+    assert stable.read_bytes() == b'preserved' and _security(stable) == before
+
+
+def test_browser_rescan_checks_new_nodes_instead_of_skipping_missing_entry(tmp_path, monkeypatch):
+    api, root, _ = _browser_tree(tmp_path, 'lockfile')
+    bad = root / 'added-after-snapshot'
+    def add_bad_file():
+        bad.write_bytes(b'keep')
+        _security(bad, _security(bad) + '(A;;FA;;;WD)')
+    scans = _remove_after_enumeration(monkeypatch, root, after_remove=add_bad_file)
+    with pytest.raises(api.WindowsPrivateDirectoryError):
+        api.verify_browser_profile_tree(root)
+    assert len(scans) == 2
+    assert bad.read_bytes() == b'keep'
+
+
+def test_browser_continuously_changing_tree_is_bounded_and_rejected(tmp_path, monkeypatch):
+    api, root, _ = _browser_tree(tmp_path, 'lockfile')
+    scans = _remove_after_enumeration(monkeypatch, root, every_scan=True)
+    with pytest.raises(api.WindowsPrivateDirectoryError, match='^windows_private_directory_rejected$'):
+        api.verify_browser_profile_tree(root)
+    assert len(scans) == 3
+
+
+def test_strict_tree_does_not_rescan_missing_enumerated_file(tmp_path, monkeypatch):
+    api, root, _ = _browser_tree(tmp_path, 'lockfile')
+    scans = _remove_after_enumeration(monkeypatch, root)
+    with pytest.raises(api.WindowsPrivateDirectoryError):
+        api.verify_private_tree(root)
+    assert len(scans) == 1
+
+
+def test_browser_missing_root_is_rejected_without_enumeration(tmp_path, monkeypatch):
+    api = _module()
+    def unexpected(*args, **kwargs):
+        pytest.fail('missing root must not enumerate or recover')
+    monkeypatch.setattr(os, 'scandir', unexpected)
+    with pytest.raises(api.WindowsPrivateDirectoryError, match='^windows_private_directory_rejected$'):
+        api.verify_browser_profile_tree(tmp_path / 'missing')
+
+
+@pytest.mark.parametrize('target,error', [('root', 2), ('ancestor', 2),
+                                         ('child', 3), ('child', 5), ('child', 32)])
+def test_browser_open_failures_outside_exact_race_are_not_retried(tmp_path, monkeypatch, target, error):
+    api, root, child = _browser_tree(tmp_path, 'lockfile')
+    failed_path = {'root': root, 'ancestor': root.parent, 'child': child}[target]
+    original = api._kernel32.CreateFileW
+    failures = []
+    def open_file(path, *args):
+        if Path(path) == failed_path:
+            failures.append(path)
+            ctypes.set_last_error(error)
+            return ctypes.c_void_p(-1).value
+        return original(path, *args)
+    monkeypatch.setattr(api._kernel32, 'CreateFileW', open_file)
+    with pytest.raises(api.WindowsPrivateDirectoryError, match='^windows_private_directory_rejected$'):
+        api.verify_browser_profile_tree(root)
+    assert len(failures) == 1
+
+
+def test_browser_acl_failure_with_stale_file_not_found_is_not_retried(tmp_path, monkeypatch):
+    api, root, child = _browser_tree(tmp_path, 'lockfile')
+    _security(child, _security(child) + '(A;;FA;;;WD)')
+    original = api._verify_security
+    checked = []
+    def verify(handle, **kwargs):
+        checked.append(kwargs['root'])
+        ctypes.set_last_error(2)
+        return original(handle, **kwargs)
+    monkeypatch.setattr(api, '_verify_security', verify)
+    with pytest.raises(api.WindowsPrivateDirectoryError):
+        api.verify_browser_profile_tree(root)
+    assert checked == [True, False]

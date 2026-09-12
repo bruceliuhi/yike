@@ -19,6 +19,10 @@ class WindowsPrivateDirectoryError(OSError):
     """Fixed error text; never include a caller path, SID, or native message."""
 
 
+class _EnumeratedEntryDisappeared(WindowsPrivateDirectoryError):
+    """Internal signal: discard this snapshot, never accept a partial walk."""
+
+
 class _SecurityAttributes(ctypes.Structure):
     _fields_ = [("length", wintypes.DWORD), ("descriptor", ctypes.c_void_p),
                 ("inherit", wintypes.BOOL)]
@@ -137,12 +141,15 @@ def _information(handle) -> _FileInformation:
 
 
 @contextmanager
-def _open(path: Path, *, security: bool = False):
+def _open(path: Path, *, security: bool = False, enumerated_browser_entry: bool = False):
     # OPEN_REPARSE_POINT prevents following the leaf; ancestor handles pin each
     # already checked directory. Deliberately omit FILE_SHARE_DELETE.
     handle = _kernel32.CreateFileW(str(path), 0x80 | (0x20000 if security else 0),
                                   3, None, 3, 0x02200000, None)
     if handle in (None, ctypes.c_void_p(-1).value):
+        error = ctypes.get_last_error()
+        if enumerated_browser_entry and error == 2:  # ERROR_FILE_NOT_FOUND only
+            raise _EnumeratedEntryDisappeared("windows_private_directory_rejected")
         _fail()
     try:
         yield handle, _information(handle)
@@ -295,7 +302,9 @@ def verify_browser_profile_tree(root: Path) -> None:
     """Read-only Chromium profile policy; never use for runtime/output trees.
 
     The root remains strictly private. Only known browser-created descendant
-    ACLs are accepted. All owned browser writers must be stopped first.
+    ACLs are accepted. All owned browser writers must be stopped first. An
+    enumerated descendant disappearing invalidates the entire walk; at most
+    three complete attempts are made, and only a full successful walk passes.
     """
     _verify_tree(root, browser_profile=True)
 
@@ -311,7 +320,8 @@ def _verify_tree(root: Path, *, browser_profile: bool) -> None:
             actual_root = parent / root.name
 
             def visit(path: Path, is_root: bool = False) -> None:
-                with _open(path, security=True) as (handle, info):
+                with _open(path, security=True,
+                           enumerated_browser_entry=browser_profile and not is_root) as (handle, info):
                     directory = bool(info.attributes & 0x10)
                     if is_root and not directory:
                         _fail()
@@ -328,6 +338,14 @@ def _verify_tree(root: Path, *, browser_profile: bool) -> None:
                             for entry in entries:
                                 visit(Path(entry.path))
 
-            visit(parent / root.name, True)
+            for attempt in range(3 if browser_profile else 1):
+                try:
+                    visit(actual_root, True)
+                    break
+                except _EnumeratedEntryDisappeared:
+                    # All handles from the failed walk have unwound. Recheck
+                    # the root and every remaining/new node, never skip one.
+                    if attempt == 2:
+                        _fail()
     except (OSError, ValueError, TypeError, RecursionError):
         raise WindowsPrivateDirectoryError("windows_private_directory_rejected") from None
