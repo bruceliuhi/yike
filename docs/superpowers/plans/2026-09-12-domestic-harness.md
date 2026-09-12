@@ -70,7 +70,7 @@ def run_public_read_mission(description: str, *, codex_binary: str, python_binar
 ### Task 3: Review and integration
 
 - [x] Freeze concrete code SHA; independent architecture/code/quality review of the whole diff and targeted evidence; fix only real findings and delta-check.
-- [ ] Update one evidence section and taskbook; fetch/integrate concurrent main preserving changes, normal push and live SHA parity. Retain GoalACTIVE; no fullsuite/build/deploy for this internal batch.
+- [x] Update one evidence section and taskbook; fetch/integrate concurrent main preserving changes, normal push and live SHA parity. Retain GoalACTIVE; no fullsuite/build/deploy for this internal batch.
 
 ## Evidence
 
@@ -100,4 +100,4 @@ Read-only inspection located the expected TongYi/`qwen3.7-max` configuration in 
 
 Independent whole-batch initial review of `4dc0294` found three P2s (unsupported actual calls, lost in-flight request records, drip-response absolute deadline), plus the separately root-confirmed `[DONE]` issue. Root fix `71c48de` captures records after bridge shutdown; its regression first failed, then three directly affected tests passed in 2.47s. Bridge fixes through `761dad7` passed 27 targeted tests in 12.13s. The first correction-only review resolved all except slow response headers; final fix **`33aa75899810a83f9af3498fb904525702f7b6a6`** starts the cutoff before connection/header I/O. The bridge file then passed **28 tests in 13.10s**. Independent deadline-only verification passed **2 tests in 1.67s**, and the same reviewer issued **internal integration GO**, no remaining P0/P1/P2. Final review is limited to this internal public-URL reading batch; the live provider evidence above remains bound to `761dad7`, not relabeled as a new provider run on `33aa758`.
 
-No deployment, customer wiring or full Goal completion is claimed. Prior temporary probe success in the open-web plan does not certify this implementation. Concurrent remote Windows ACL work at `2a85dbc` has been fetched and will be preserved during integration. Full suites/builds/provider calls were not repeated for doc-only integration or the final deadline correction.
+Merged with concurrent Windows ACL work `2a85dbc` and pushed to `yike-ai2026/main` as **`320903c007cb7fae10d2b8a385d005860935b9d6`**; live remote/main/local SHA parity and clean worktree verified. The reviewed worker/bridge/test bytes are unchanged by this merge. No deployment, customer wiring or full Goal completion is claimed. Prior temporary probe success in the open-web plan does not certify this implementation. Full suites/builds/provider calls were not repeated for doc-only integration or the final deadline correction.
