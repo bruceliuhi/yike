@@ -118,3 +118,34 @@ it('unsupported or missing native service and malformed responses stay unavailab
   invoke.mockResolvedValueOnce({state: 'OPENED', flowId: flow(1), cookie: 'private'} as never);
   await expect(api.connect('xhs')).rejects.toThrow('连接响应尚未确认');
 });
+it('passive login status invokes only STATUS and never reads or registers a connection',async()=>{
+ const {api,invoke,read}=await fixture();
+ invoke.mockResolvedValueOnce({state:'OPENED',flowId:flow(1)})
+  .mockResolvedValueOnce({state:'WAITING_LOGIN',flowId:flow(1)})
+  .mockResolvedValueOnce({state:'LOGIN_READY',flowId:flow(1)} as never)
+  .mockResolvedValueOnce({state:'FAILED',error:'PLATFORM_RESPONSE_CHANGED'} as never);
+ await api.connect('xhs');
+ expect(await api.connectionLoginStatus('xhs')).toBe('WAITING_LOGIN');
+ expect(await api.connectionLoginStatus('xhs')).toBe('LOGIN_READY');
+ await expect(api.connectionLoginStatus('xhs')).rejects.toMatchObject({code:'PLATFORM_RESPONSE_CHANGED'});
+ expect(invoke.mock.calls.slice(1).map(([c])=>c)).toEqual(Array(3).fill({action:'STATUS',platform:'XIAOHONGSHU',flowId:flow(1)}));
+ expect(read).not.toHaveBeenCalled();
+});
+it.each(['no-flow','wrong-flow','connected'] as const)('passive status rejects %s instead of returning a connection',async(mode)=>{
+ const {api,invoke,read}=await fixture();
+ if(mode!=='no-flow'){
+  invoke.mockResolvedValueOnce({state:'OPENED',flowId:flow(1)});await api.connect('xhs');
+  invoke.mockResolvedValue(mode==='wrong-flow'?{state:'WAITING_LOGIN',flowId:flow(2)}:{state:'CONNECTED',flowId:flow(1),connection:row});
+ }
+ await expect(api.connectionLoginStatus('xhs')).rejects.toMatchObject({code:mode==='no-flow'?'INVALID_REQUEST':'INVALID_SERVICE_RESPONSE'});
+ expect(read).not.toHaveBeenCalled();
+});
+it('discard a STATUS response after cancel and a replacement OPEN',async()=>{
+ const {api,invoke}=await fixture();let finish!:(r:PlatformConnectionResult)=>void;
+ invoke.mockResolvedValueOnce({state:'OPENED',flowId:flow(1)});await api.connect('xhs');
+ invoke.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+ const pending=api.connectionLoginStatus('xhs').catch(e=>e.name);
+ invoke.mockResolvedValueOnce({state:'CANCELLED',flowId:flow(1)});await api.cancelConnection('xhs');
+ invoke.mockResolvedValueOnce({state:'OPENED',flowId:flow(2)});await api.connect('xhs');
+ finish({state:'WAITING_LOGIN',flowId:flow(1)});expect(await pending).toBe('AbortError');
+});

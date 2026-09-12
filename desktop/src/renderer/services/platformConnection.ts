@@ -27,6 +27,15 @@ function failure(result: PlatformConnectionResult): ServiceError {
     ACCOUNT_MISMATCH: '平台账号与原连接不一致，未变更连接记录。',
     CURRENT_CONNECTION_CHANGED: '当前连接记录已变化，请刷新后核对。',
     SOURCE_STOP_FAILED: '登录窗口停止尚未确认，请核对原生窗口后再试。',
+    PLATFORM_AUTH_REQUIRED: '平台登录尚未完成，登录流程已结束，请重新打开登录窗口。',
+    PLATFORM_VERIFICATION_REQUIRED: '平台要求额外验证，请在原生页面本人处理后重新打开登录。',
+    PLATFORM_PERMISSION_DENIED: '平台拒绝访问，请核对账号权限后重试。',
+    PLATFORM_RATE_LIMITED: '平台暂时限制访问，请稍后再试。',
+    PLATFORM_RESPONSE_CHANGED: '平台页面响应已变化，登录初始化未完成。请重试；若仍失败，请反馈此问题。',
+    PLATFORM_ACCOUNT_UNVERIFIED: '未能核实当前平台账号，请重新打开登录窗口。',
+    COLLECTION_NETWORK_FAILED: '平台网络连接失败，请检查网络后重新打开登录窗口。',
+    PLATFORM_LOGIN_TIMED_OUT: '平台登录等待已超时，请重新打开登录窗口。',
+    PLATFORM_LOGIN_CANCELLED: '本次平台登录已结束，请重新打开登录窗口。',
     SERVICE_UNAVAILABLE: unavailable().message,
   };
   return new ServiceError(code, messages[code] || '平台连接未完成，请核对后重试。');
@@ -93,6 +102,19 @@ export function createPlatformConnectionService(
         // cancelled only by explicit modal/session lifecycle cancellation.
         signal?.removeEventListener('abort', abort);
       }
+    },
+    async connectionLoginStatus(platform: string): Promise<'WAITING_LOGIN'|'LOGIN_READY'> {
+      const nativePlatform = nativePlatforms[platform as keyof typeof nativePlatforms];
+      const flow = nativePlatform && active?.platform === nativePlatform ? active : null;
+      if (!flow) throw new ServiceError('INVALID_REQUEST', '本次登录流程已变化，请重新打开登录窗口。');
+      const result = await flow.invoke({action:'STATUS', platform:flow.platform, flowId:flow.id});
+      if (active !== flow) throw cancelled();
+      if ('flowId' in result && result.flowId !== flow.id)
+        throw new ServiceError('INVALID_SERVICE_RESPONSE', '登录状态响应不属于当前窗口，请重新打开。');
+      if (result.state === 'WAITING_LOGIN' || result.state === 'LOGIN_READY') return result.state;
+      if (result.state === 'CONNECTED' || result.state === 'OPENED' || result.state === 'UNKNOWN' || result.state === 'CANCELLED')
+        throw new ServiceError('INVALID_SERVICE_RESPONSE', '登录状态响应未确认，请重新打开登录窗口。');
+      throw failure(result);
     },
     async checkConnection(platform: string): Promise<PlatformConnection> {
       const nativePlatform = nativePlatforms[platform as keyof typeof nativePlatforms];

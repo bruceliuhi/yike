@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {platformConnectionCommandSchema, platformConnectionResultSchema, connectionRegistryRowSchema,
-  type PlatformConnectionResult, type ConnectionRegistryRow} from '../shared/platformConnection';
+  platformLoginFailureSchema, type PlatformLoginFailure, type PlatformConnectionResult, type ConnectionRegistryRow} from '../shared/platformConnection';
 import {validNativeAccount, type NativeLoginPlatform} from '../shared/platformAccount';
 import {parseConnectionReceipt, type ConnectionOperation} from '../shared/connectionOperation';
 import type {createDeviceIdentityController, DeviceWorkerScope} from './deviceIdentityController';
@@ -17,10 +17,10 @@ export interface PlatformConnectionControllerOptions {
   now?:()=>number;
 }
 type Flow={id:string;platform:NativeLoginPlatform;record:ConnectionProfileRecord;scope:DeviceWorkerScope;profileScope:ConnectionProfileScope;run:LoginRun;
-  observation:Observation|null;loginFailed:boolean;cancelled:boolean;checking:boolean;
+  observation:Observation|null;loginError:PlatformLoginFailure|null;cancelled:boolean;checking:boolean;
   timer:ReturnType<typeof setInterval>|null;stopping:Promise<void>|null};
 const rowsSchema=z.object({items:z.array(connectionRegistryRowSchema).max(10000)}).strict();
-const failed=(error:'CONNECTION_FAILED'|'SOURCE_STOP_FAILED'|'LOGIN_EXPIRED'|'ACCOUNT_MISMATCH'|'CURRENT_CONNECTION_CHANGED'='CONNECTION_FAILED'):PlatformConnectionResult=>({state:'FAILED',error});
+const failed=(error:Extract<PlatformConnectionResult,{state:'FAILED'}>['error']='CONNECTION_FAILED'):PlatformConnectionResult=>({state:'FAILED',error});
 class FlowFailure extends Error {constructor(readonly result:PlatformConnectionResult){super('CONNECTION_FLOW_FAILED');}}
 
 /** The main process owns identity, profile and immutable request IDs; renderer owns only the user's action. */
@@ -35,6 +35,15 @@ export function createPlatformConnectionController({serviceOrigin,identity,store
   function guardFresh(f:Flow) {
     guard(f);
     if(f.observation && (now()-Date.parse(f.observation.checked_at)>120000 || Date.parse(f.observation.checked_at)-now()>5000))throw new FlowFailure(failed('LOGIN_EXPIRED'));
+  }
+  function loginStatus(f:Flow):PlatformConnectionResult {
+    guard(f);
+    if(f.loginError)return failed(f.loginError);
+    if(!f.observation)return {state:'WAITING_LOGIN',flowId:f.id};
+    const {account_public_id,checked_at}=f.observation;
+    if(!validNativeAccount(f.platform,account_public_id) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(checked_at) || !Number.isFinite(Date.parse(checked_at)))return failed();
+    guardFresh(f);
+    return {state:'LOGIN_READY',flowId:f.id};
   }
   function stop(f:Flow):Promise<void> {
     if(f.stopping)return f.stopping;
@@ -74,7 +83,7 @@ export function createPlatformConnectionController({serviceOrigin,identity,store
   }
   async function check(f:Flow):Promise<PlatformConnectionResult> {
     guard(f);
-    if(f.loginFailed){await stop(f);return failed();}
+    if(f.loginError){const error=f.loginError;await stop(f);return failed(error);}
     if(!f.observation)return {state:'WAITING_LOGIN',flowId:f.id};
     const observation=f.observation,checked=Date.parse(observation.checked_at);
     if(!validNativeAccount(f.platform,observation.account_public_id) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(observation.checked_at) || !Number.isFinite(checked))throw new Error('INVALID_LOGIN_OBSERVATION');
@@ -125,12 +134,15 @@ export function createPlatformConnectionController({serviceOrigin,identity,store
           const device=identity.getStatus();
           if(device.state!=='READY' || device.deviceId!==openedScope.device.deviceId || device.credentialVersion!==openedScope.device.credentialVersion){openedScope.close();return {state:'SESSION_CHANGED'};}
           const run=login.start({profileId:record.profileId,platform:command.platform});
-          const f:Flow={id:randomUUID(),platform:command.platform,record,scope:openedScope,profileScope,run,observation:null,loginFailed:false,cancelled:false,checking:false,timer:null,stopping:null};
+          const f:Flow={id:randomUUID(),platform:command.platform,record,scope:openedScope,profileScope,run,observation:null,loginError:null,cancelled:false,checking:false,timer:null,stopping:null};
           active=f;
-          void run.completed.then(value=>{if(current(f))f.observation=value;},()=>{f.loginFailed=true;});
+          void run.completed.then(value=>{if(current(f))f.observation=value;},error=>{
+            const parsed=platformLoginFailureSchema.safeParse(error instanceof Error?error.message:null);
+            f.loginError=parsed.success?parsed.data:'CONNECTION_FAILED';
+          });
           f.timer=setInterval(()=>{if(!current(f))void stop(f).catch(()=>{});},100);f.timer.unref?.();
           try {await run.opened;guard(f);return {state:'OPENED',flowId:f.id};}
-          catch {await stop(f);return failed();}
+          catch {await stop(f);return failed(f.loginError??'CONNECTION_FAILED');}
         } catch {
           if(!active)openedScope?.close();
           return failed(active?.stopping?'SOURCE_STOP_FAILED':'CONNECTION_FAILED');
@@ -138,6 +150,10 @@ export function createPlatformConnectionController({serviceOrigin,identity,store
       }
       const f=active;
       if(!f || command.flowId!==f.id || command.platform!==f.platform)return {state:'INVALID_REQUEST'};
+      if(command.action==='STATUS') {
+        try {return loginStatus(f);}
+        catch(e) {return e instanceof FlowFailure?e.result:failed();}
+      }
       if(command.action==='CANCEL') {
         try {await stop(f);if(active===f)active=null;return {state:'CANCELLED',flowId:command.flowId};}
         catch {return failed('SOURCE_STOP_FAILED');}

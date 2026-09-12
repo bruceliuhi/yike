@@ -33,3 +33,11 @@ it.each(['xhs','douyin','bilibili','zhihu'])('missing %s native capability never
   expect(fetch).not.toHaveBeenCalled();
   expect(requestApi).not.toHaveBeenCalled();
 });
+it('real client connects read-only login STATUS without falling through to requestApi',async()=>{
+ const invoke=vi.fn().mockResolvedValueOnce({state:'OPENED',flowId})
+  .mockResolvedValueOnce({state:'LOGIN_READY',flowId}).mockResolvedValue({state:'CANCELLED',flowId});
+ const requestApi=vi.fn();host.yikeDesktop={platformConnectionCommand:invoke,requestApi} as unknown as YikeDesktopApi;
+ await service.connect('xhs');expect(await service.connectionLoginStatus!('xhs')).toBe('LOGIN_READY');
+ expect(invoke).toHaveBeenLastCalledWith({action:'STATUS',platform:'XIAOHONGSHU',flowId});
+ expect(requestApi).not.toHaveBeenCalled();
+});

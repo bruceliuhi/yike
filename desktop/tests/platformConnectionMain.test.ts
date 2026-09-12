@@ -43,6 +43,10 @@ it('assembles fixed trusted connection command with the same identity controller
  expect(m.store.mock.calls[0][0]).toMatchObject({directory:path.resolve('TEST-platform-main-user-data','platform-connection-records'),protection:{encryptString:expect.any(Function)}});
  expect(m.driver.mock.calls[0][0]).toMatchObject({profileRoot:path.resolve('TEST-platform-main-user-data','platform-profiles'),outputRoot:path.resolve('TEST-platform-main-user-data','platform-login-output')});
  const command={action:'OPEN',platform:'XIAOHONGSHU'};await m.handlers.get('desktop:platform-connection-command')!({sender:m.window.webContents,senderFrame:m.frame},command);expect(m.execute).toHaveBeenCalledWith(command);
+ const status={action:'STATUS',platform:'XIAOHONGSHU',flowId:'00000000-0000-4000-8000-000000000001'};
+ const invoke=m.handlers.get('desktop:platform-connection-command')!;
+ await invoke({sender:m.window.webContents,senderFrame:m.frame},status);expect(m.execute).toHaveBeenLastCalledWith(status);
+ expect(()=>invoke({sender:m.window.webContents,senderFrame:{url:'https://evil.example'}},status)).toThrow();
  expect(m.handlers.get('desktop:get-runtime-status')!({sender:m.window.webContents,senderFrame:m.frame})).toEqual({state:'FAILED',errorCode:'LOCAL_SERVICE_UNAVAILABLE'});
 });
 it('assembles reply sync with the same identity/profile store and trusted-only IPC',async()=>{

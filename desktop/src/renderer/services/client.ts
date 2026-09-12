@@ -432,6 +432,7 @@ export const service: YikeService = {
   connect: platformConnections.connect,
   checkConnection: platformConnections.checkConnection,
   cancelConnection: platformConnections.cancelConnection,
+  connectionLoginStatus: platformConnections.connectionLoginStatus,
   disconnect: async () => unavailable("断开连接"),
   suggest: async () => unavailable("AI 搜索建议"),
   tasks: async () => unavailable("任务运行服务"),

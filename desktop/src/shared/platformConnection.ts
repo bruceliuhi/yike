@@ -10,6 +10,7 @@ const timestamp = z.string().datetime({offset: true});
 export const platformConnectionCommandSchema = z.union([
   z.strictObject({action: z.literal('OPEN'), platform}),
   z.strictObject({action: z.literal('CHECK'), platform, flowId}),
+  z.strictObject({action: z.literal('STATUS'), platform, flowId}),
   z.strictObject({action: z.literal('CANCEL'), platform, flowId}),
 ]);
 export type PlatformConnectionCommand = z.infer<typeof platformConnectionCommandSchema>;
@@ -23,12 +24,19 @@ export const connectionRegistryRowSchema = z.strictObject({
   connected_at: timestamp, disconnected_at: timestamp.nullable(),
 });
 export type ConnectionRegistryRow = z.infer<typeof connectionRegistryRowSchema>;
+// Only fixed codes cross IPC. Never forward worker exception text or paths.
+export const platformLoginFailureSchema = z.enum(['CONNECTION_FAILED', 'PLATFORM_AUTH_REQUIRED',
+  'PLATFORM_PERMISSION_DENIED', 'PLATFORM_VERIFICATION_REQUIRED', 'PLATFORM_RATE_LIMITED',
+  'PLATFORM_RESPONSE_CHANGED', 'PLATFORM_ACCOUNT_UNVERIFIED', 'COLLECTION_NETWORK_FAILED',
+  'COLLECTION_PARSE_FAILED', 'COLLECTION_PROCESS_FAILED', 'PLATFORM_LOGIN_CANCELLED',
+  'PLATFORM_LOGIN_TIMED_OUT', 'PLATFORM_LOGIN_FAILED']);
+export type PlatformLoginFailure = z.infer<typeof platformLoginFailureSchema>;
 export const platformConnectionResultSchema = z.union([
-  z.strictObject({state: z.enum(['OPENED', 'WAITING_LOGIN', 'UNKNOWN', 'CANCELLED']), flowId}),
+  z.strictObject({state: z.enum(['OPENED', 'WAITING_LOGIN', 'LOGIN_READY', 'UNKNOWN', 'CANCELLED']), flowId}),
   z.strictObject({state: z.literal('CONNECTED'), flowId, connection: connectionRegistryRowSchema
     .refine(row => row.status === 'CONNECTED' && nativeLoginPlatformSchema.safeParse(row.platform).success)}),
-  z.strictObject({state: z.literal('FAILED'), error: z.enum(['CONNECTION_FAILED', 'SOURCE_STOP_FAILED',
-    'LOGIN_EXPIRED', 'ACCOUNT_MISMATCH', 'CURRENT_CONNECTION_CHANGED'])}),
+  z.strictObject({state: z.literal('FAILED'), error: z.union([platformLoginFailureSchema, z.enum(['SOURCE_STOP_FAILED',
+    'LOGIN_EXPIRED', 'ACCOUNT_MISMATCH', 'CURRENT_CONNECTION_CHANGED'])])}),
   z.strictObject({state: z.enum(['INVALID_REQUEST', 'SESSION_CHANGED', 'SIGNED_OUT',
     'DEVICE_NOT_READY', 'BUSY', 'SERVICE_UNAVAILABLE'])}),
 ]);
