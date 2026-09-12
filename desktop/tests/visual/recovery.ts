@@ -377,8 +377,8 @@ export function configureRecovery(
           content: opportunity[channel],
           savedContent: opportunity[channel],
           version: 2,
-          accountId: ACCOUNT,
-          recipient: RECIPIENT,
+          accountId: channel === "comment" ? ACCOUNT : "",
+          recipient: channel === "comment" ? RECIPIENT : "",
         });
         storage.setItem(
           `yike.ui.draft.v1.contact:${TEST_USER}:${opportunity.id}`,

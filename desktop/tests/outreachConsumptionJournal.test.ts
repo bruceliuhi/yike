@@ -4,7 +4,7 @@ import {existsSync} from 'node:fs';
 import {mkdtemp, mkdir, readdir, readFile, writeFile, rm, symlink} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import type {DeviceKeyProtection} from '../src/main/deviceKeyVault';
 
@@ -99,7 +99,7 @@ describe('immutable local outreach consumption', () => {
   it('uses exclusive file creation across independent Node processes', async () => {
     const f = await setup(); const input = grant(); const secret = randomBytes(32);
     const script = `import {createCipheriv, createDecipheriv, randomBytes} from 'node:crypto';
-      import {createOutreachConsumptionJournal} from ${JSON.stringify(modulePath)};
+      import {createOutreachConsumptionJournal} from ${JSON.stringify(pathToFileURL(modulePath).href)};
       const secret = Buffer.from(${JSON.stringify(secret.toString('hex'))}, 'hex');
       const protection = {
         isEncryptionAvailable: () => true,
@@ -173,17 +173,33 @@ describe('immutable local outreach consumption', () => {
     await expect(f.journal.consume(scope, input)).rejects.toThrow(/^OUTREACH_CONSUMPTION_STORAGE_FAILED$/);
     expect(await readdir(f.directory)).toEqual([]);
   });
-  it('rejects record symlinks and non-files, and never writes through a directory symlink', async () => {
+  it('rejects record symlinks without changing the target', async context => {
     const f = await setup(); const input = grant(); await f.journal.consume(scope, input);
     const filename = await oneFile(f.directory); const bytes = await readFile(filename); const target = path.join(f.root, 'target');
-    await writeFile(target, bytes); await rm(filename); await symlink(target, filename);
+    await writeFile(target, bytes); await rm(filename);
+    try {await symlink(target, filename, 'file');} catch (error) {
+      if (process.platform === 'win32' && (error as NodeJS.ErrnoException).code === 'EPERM') {
+        context.skip('Windows file symlink privilege unavailable; directory junction coverage runs separately');
+        return;
+      }
+      throw error;
+    }
     await expect(f.journal.consume(scope, input)).rejects.toThrow(/^OUTREACH_CONSUMPTION_INVALID_RECORD$/);
     await expect(f.journal.consumed(scope, input.requestId)).rejects.toThrow(/^OUTREACH_CONSUMPTION_INVALID_RECORD$/);
-    expect(await readFile(target)).toEqual(bytes); await rm(filename); await mkdir(filename);
+    expect(await readFile(target)).toEqual(bytes);
+  });
+  it('rejects non-files and never writes through a directory symlink', async () => {
+    const f = await setup(); const input = grant(); await f.journal.consume(scope, input);
+    const filename = await oneFile(f.directory); const bytes = await readFile(filename);
+    const target = path.join(f.root, 'target'); await writeFile(target, bytes);
+    await rm(filename); await mkdir(filename);
+    await expect(f.journal.consume(scope, input)).rejects.toThrow(/^OUTREACH_CONSUMPTION_INVALID_RECORD$/);
     await expect(f.journal.consumed(scope, input.requestId)).rejects.toThrow(/^OUTREACH_CONSUMPTION_INVALID_RECORD$/);
     const linked = path.join(f.root, 'linked'); await symlink(f.directory, linked, process.platform === 'win32' ? 'junction' : 'dir');
     await expect(f.create({...f, directory: linked}).consume(scope, grant())).rejects.toThrow(/^OUTREACH_CONSUMPTION_STORAGE_FAILED$/);
     await expect(f.create({...f, directory: target}).consumed(scope, input.requestId)).rejects.toThrow(/^OUTREACH_CONSUMPTION_STORAGE_FAILED$/);
+    expect(await readdir(f.directory)).toEqual([path.basename(filename)]);
+    expect(await readFile(target)).toEqual(bytes);
   });
   it('rejects malformed identifiers, extra fields and unsafe directory before storage', async () => {
     const f = await setup(); const input = grant();

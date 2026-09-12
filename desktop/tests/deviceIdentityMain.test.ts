@@ -52,13 +52,13 @@ it('installs normal trusted identity handlers with fixed userData vault and jour
   expect(await mocks.handlers.get('desktop:get-runtime-status')!(trusted())).toEqual({state:'FAILED',errorCode:'LOCAL_SERVICE_UNAVAILABLE'});
   expect(mocks.quit).not.toHaveBeenCalled();
 });
-it('rejects subframes, foreign windows and URLs on identity and execution channels',()=>{
+it('rejects subframes, foreign windows and URLs on identity and execution channels',async()=>{
   for(const channel of ['desktop:get-device-identity-status','desktop:prepare-device-identity','desktop:execution-command','desktop:platform-connection-command']){
     expect(mocks.handlers.has(channel)).toBe(true);
     const handler=mocks.handlers.get(channel)!;
-    expect(()=>handler({...trusted(),senderFrame:{url:'https://evil.invalid'}},{})).toThrow('UNTRUSTED_DESKTOP_SENDER');
-    expect(()=>handler({...trusted(),senderFrame:{url:mocks.frame.url}},{})).toThrow('UNTRUSTED_DESKTOP_SENDER');
-    expect(()=>handler({sender:{mainFrame:mocks.frame},senderFrame:mocks.frame},{})).toThrow('UNTRUSTED_DESKTOP_SENDER');
+    await expect(Promise.resolve().then(()=>handler({...trusted(),senderFrame:{url:'https://evil.invalid'}},{}))).rejects.toThrow('UNTRUSTED_DESKTOP_SENDER');
+    await expect(Promise.resolve().then(()=>handler({...trusted(),senderFrame:{url:mocks.frame.url}},{}))).rejects.toThrow('UNTRUSTED_DESKTOP_SENDER');
+    await expect(Promise.resolve().then(()=>handler({sender:{mainFrame:mocks.frame},senderFrame:mocks.frame},{}))).rejects.toThrow('UNTRUSTED_DESKTOP_SENDER');
   }
 });
 it('leaves login unavailable without main-owned developer runtime configuration',async()=>{
