@@ -96,6 +96,26 @@ it('rejects a public sampling grant on a native once task before CLAIM',async()=
   expect(f.execution.submit).not.toHaveBeenCalled();expect(f.driver.start).not.toHaveBeenCalled();
 });
 
+it.each(['valid','missing','forged'])('v2 public revisit binds original CLAIM across renewal before candidate upload: %s',async kind=>{
+  const f=fixture();f.start.targets=[{platform:'PUBLIC_WEB',access_mode:'PUBLIC_ANONYMOUS',connection_id:null,connection_version:null}];
+  f.receipt.platform_runs[0].platform='PUBLIC_WEB';f.strategy.snapshot.platforms=['PUBLIC_WEB'];
+  Object.assign(f.strategy.snapshot.configuration,{mode:'monitor',publicSource:'v2ex-outsourcing-authors-v1',
+    schedule:{kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1}});
+  f.start.configuration_sha256=f.strategy.configuration_sha256=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');
+  const submit=f.execution.submit.getMockImplementation()!;
+  f.execution.submit.mockImplementation(async(session,request)=>{const value=await submit(session,request);
+    if(request.operation==='CLAIM')value.receipt.public_sampling={schema_version:'public-sampling-round-v2',plan_id:id(80),source_id:'v2ex-outsourcing-authors-v1',round:1,revisit:{topic_id:'101',query:'展台'}};return value;});
+  f.candidates.submit.mockResolvedValue({state:'RECORDED'} as any);
+  const done=f.instance.run({scope:f.scope,start:f.start,startReceipt:f.receipt,strategy:f.strategy,platformRunId:id(8),allowMonitor:true,allowPublicSampling:2});
+  await tick(60000);const claim=f.execution.submit.mock.calls[0]?.[1];
+  expect(claim).toHaveProperty('public_sampling_version',2);
+  expect(f.execution.submit.mock.calls[1][1]).not.toHaveProperty('public_sampling_version');
+  f.output.resolve(kind==='missing'?[]:{records:[],publicRevisit:{schema_version:'public-source-revisit-v1',claim_request_id:kind==='forged'?id(99):claim.request_id,topic_id:'101',outcome:'UNAVAILABLE'}} as any);await tick();
+  expect(await done).toMatchObject({state:kind==='valid'?'COMPLETED':'FAILED'});
+  expect(f.candidates.submit).toHaveBeenCalledTimes(kind==='valid'?1:0);
+  if(kind==='valid')expect(f.candidates.submit.mock.calls[0][1]).toMatchObject({public_revisit:{claim_request_id:claim.request_id,outcome:'UNAVAILABLE'},records:[]});
+});
+
 it('native progress is CLAIM-only and survives RENEW into the original signed empty batch',async()=>{
   const f=fixture();Object.assign(f.strategy.snapshot.configuration,{mode:'monitor',schedule:{kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1}});
   f.start.configuration_sha256=f.strategy.configuration_sha256=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');

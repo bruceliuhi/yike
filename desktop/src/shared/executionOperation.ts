@@ -44,7 +44,7 @@ export const executionOperationSchema = z.object({
   lease_id: opaqueSchema.nullable().default(null),
   execution_generation: versionSchema.nullable().default(null),
   upload_request_id: opaqueSchema.nullable().optional(),
-  public_sampling_version: z.literal(1).optional(),
+  public_sampling_version: z.union([z.literal(1),z.literal(2)]).optional(),
   native_progress_version: z.literal(1).optional(),
 }).strict().superRefine((request, context) => {
   const applicable = applicableFields[request.operation];

@@ -28,7 +28,8 @@ HOST_FILES = ('app/__init__.py', 'app/collector.py', 'app/collectors/__init__.py
     'connectors/__init__.py', 'connectors/models.py', 'connectors/normalizer.py', 'connectors/platforms.py',
     'connectors/bilibili.py', 'connectors/douyin.py', 'connectors/candidate_mapping.py', 'connectors/zhihu_mapping.py',
     'pilot/__init__.py', 'pilot/candidate_contract.py', 'pilot/native_collection_links.py',
-    'pilot/native_search_cursor.py', 'pilot/native_search_progress.py', 'pilot/execution_contract.py')
+    'pilot/native_search_cursor.py', 'pilot/native_search_progress.py', 'pilot/execution_contract.py',
+    'pilot/public_source_revisit.py')
 PRIVATE_PARTS = {'browser_data', 'cookies', 'login data', 'history', 'local state', 'preferences', '.git',
                  '.yike-install-cache', '.env', '.env.local', '.env.production'}
 # These two governed wheels install non-code data outside site-packages.

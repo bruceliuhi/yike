@@ -23,6 +23,15 @@ function fixture() {
 }
 function rejected(input: any) {expect(() => signCandidateSubmission(input)).toThrowError(/^CANDIDATE_PROOF_SIGNING_FAILED$/);}
 describe('main-only candidate proof signing', () => {
+  it('signs the frozen public revisit identity even with no records; tampering is rejected',()=>{
+    const input=fixture();input.expected.batch.records=[];
+    input.expected.batch.public_revisit={schema_version:'public-source-revisit-v1',claim_request_id:'00000000-0000-4000-8000-000000000099',topic_id:'101',outcome:'UNAVAILABLE'};
+    const {request_id:_,...hashed}=input.expected.batch;
+    input.prepared.batch_fingerprint=createHash('sha256').update(canonical(hashed)).digest('hex');
+    input.prepared.signing_payload=canonical({...JSON.parse(input.prepared.signing_payload),batch_fingerprint:input.prepared.batch_fingerprint});
+    expect(signCandidateSubmission(input).batch.public_revisit).toEqual(input.expected.batch.public_revisit);
+    input.expected.batch.public_revisit.topic_id='102';rejected(input);
+  });
   it('binds native progress even with zero records; tampering with CLAIM invalidates signature',()=>{
     const input=fixture(),cursor={page:1,consumed_ids:[],refresh_next:false};
     input.expected.batch.platform='BILIBILI';input.expected.batch.execution.access_mode='PLATFORM_ACCOUNT';

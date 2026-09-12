@@ -73,7 +73,7 @@ def test_sampling_version_one_is_serialized_only_for_claim():
     assert ExecutionOperation.model_validate(body).model_dump(mode="json") == body
 
 
-@pytest.mark.parametrize("value", [None, True, 2, 0, "1"])
+@pytest.mark.parametrize("value", [None, True, 3, 0, "1"])
 def test_sampling_version_rejects_null_bool_and_non_one_values(value):
     with pytest.raises((ValidationError, ExecutionRuntimeError)):
         ExecutionOperation.model_validate(operation_payload("CLAIM") | {"public_sampling_version": value})
@@ -118,7 +118,7 @@ def test_support_preserves_legacy_shape_and_negotiates_only_exact_query():
     ).json() == legacy | {"public_sampling": "committed-round-v1"}
 
 
-@pytest.mark.parametrize("query", ["sampling_version=2", "sampling_version=1&sampling_version=1", "extra=1"])
+@pytest.mark.parametrize("query", ["sampling_version=3", "sampling_version=1&sampling_version=1", "extra=1"])
 def test_support_rejects_non_exact_queries_after_authentication(query):
     client, runtime = _support_client()
 
@@ -195,7 +195,8 @@ def sampling_databases():
         connection.execute(sql.SQL("DROP ROLE {}").format(sql.Identifier(role)))
 
 
-def _sampling_env(databases, *, tenant=None, user=None, profile=None, label="main"):
+def _sampling_env(databases, *, tenant=None, user=None, profile=None, label="main",
+                  source="v2ex-qna-v1"):
     admin, database = databases
     provisioner = PilotStore(admin)
     tenant = tenant or provisioner.provision_tenant("synthetic-public-sampling-" + label)
@@ -217,7 +218,7 @@ def _sampling_env(databases, *, tenant=None, user=None, profile=None, label="mai
     strategies = ResearchStrategyStore(database)
     prepared = strategies.prepare(claims, prepare_body(seed, configuration=configuration(
         name="抽样-" + label, mode="monitor", schedule=schedule,
-        publicSource="v2ex-qna-v1", keywords=["企业软件"], exclusions=[])))
+        publicSource=source, keywords=["企业软件"], exclusions=[])))
     confirmed = strategies.confirm(claims, confirm_body(prepared))
     plans = MonitorPlanStore(database, strategy_resolver=strategies.resolve)
     plan = plans.create(claims, {
@@ -229,7 +230,7 @@ def _sampling_env(databases, *, tenant=None, user=None, profile=None, label="mai
         database,
         strategy_resolver=strategies.resolve,
         capability_check=configured_collection_policy({
-            "YIKE_PILOT_COLLECTION_MODE": "four-platform-public-node-monitor-v1"
+            "YIKE_PILOT_COLLECTION_MODE": "four-platform-public-project-monitor-v1"
         }),
     )
     monitor = MonitorRuntime(database, execution)
@@ -251,7 +252,7 @@ def _sign_apply(env, body):
     return env.execution.apply(env.claims, operation, signature)
 
 
-def _begin_sampling_claim(env, session, *, client=None):
+def _begin_sampling_claim(env, session, *, client=None, version=1):
     env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
     force_due_window(env)
     ready = env.monitor.pulse(env.claims, runtime_pulse(env, monitor_session_id=session))
@@ -261,7 +262,7 @@ def _begin_sampling_claim(env, session, *, client=None):
         "device_id": env.device, "credential_version": 1, "profile_version_id": None,
         "strategy_version_id": None, "configuration_sha256": None, "targets": None,
         "task_id": begun["task_id"], "platform_run_id": begun["platform_runs"][0]["platform_run_id"],
-        "lease_id": None, "execution_generation": None, "public_sampling_version": 1,
+        "lease_id": None, "execution_generation": None, "public_sampling_version": version,
     }
     if client is None:
         return begun, request, _sign_apply(env, request)

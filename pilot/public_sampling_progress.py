@@ -9,7 +9,9 @@ PUBLIC_SOURCE_IDS = frozenset({
 })
 
 
-def committed_public_sampling_round(cursor, *, tenant_id, owner_user_id, task, platform):
+def committed_public_sampling_round(cursor, *, tenant_id, owner_user_id, task, platform, version=1):
+    if type(version) is not int or version not in (1, 2):
+        raise ExecutionRuntimeError('invalid_request', 422)
     if (platform.get("platform") != "PUBLIC_WEB"
             or platform.get("access_mode") != "PUBLIC_ANONYMOUS"):
         raise ExecutionRuntimeError("capability_unavailable", 409)
@@ -81,9 +83,15 @@ def committed_public_sampling_round(cursor, *, tenant_id, owner_user_id, task, p
     round_number = cursor.fetchone()[0]
     if type(round_number) is not int or not 0 <= round_number <= MAX_VERSION:
         raise ExecutionRuntimeError("sampling_round_exhausted", 409)
-    return {
-        "schema_version": "public-sampling-round-v1",
+    result = {
+        "schema_version": f"public-sampling-round-v{version}",
         "plan_id": plan_id,
         "source_id": source_id,
         "round": round_number,
     }
+    if version == 2:
+        from pilot.public_source_revisit import choose_revisit
+        result['revisit'] = (choose_revisit(cursor, tenant_id=tenant_id, owner_user_id=owner_user_id,
+            task=task, plan_id=plan_id, configuration=configuration)
+            if source_id == 'v2ex-outsourcing-authors-v1' and round_number % 2 else None)
+    return result

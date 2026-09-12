@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {sourceContextSchema,validAuthorTimes} from './publicAuthorContext';
 import {nativeProgressBatchSchema} from './nativeSearchProgress';
+import {publicRevisitSchema} from './publicSourceRevisit';
 const opaque = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/);
 const version = z.number().int().min(1).max(2_147_483_647);
 function unicode(value: string): boolean {
@@ -31,8 +32,15 @@ export const candidateSubmissionSchema = z.object({schema_version: z.literal('ca
   platform: z.enum(['XIAOHONGSHU', 'DOUYIN', 'BILIBILI', 'ZHIHU', 'PUBLIC_WEB']), profile_version_id: opaque, strategy_version_id: opaque,
   execution: z.object({device_id: opaque, task_id: opaque, run_id: opaque, platform_run_id: opaque, lease_id: opaque, credential_version: version, execution_generation: version,
     access_mode: z.enum(['PLATFORM_ACCOUNT', 'PUBLIC_ANONYMOUS']), connection_id: opaque.nullable(), connection_version: version.nullable().default(null)}).strict(),
-  records: z.array(record).max(100),native_progress:nativeProgressBatchSchema.optional()}).strict().refine(value => {
+  records: z.array(record).max(100),native_progress:nativeProgressBatchSchema.optional(),public_revisit:publicRevisitSchema.optional()}).strict().refine(value => {
     const execution = value.execution;
+    if(value.public_revisit!==undefined){
+      if(value.platform!=='PUBLIC_WEB'||execution.access_mode!=='PUBLIC_ANONYMOUS'||value.native_progress!==undefined)return false;
+      const records=value.records.filter(item=>item.external_source_id===value.public_revisit!.topic_id);
+      if(value.public_revisit.outcome==='UNAVAILABLE'?records.length!==0:records.length!==1||records[0].kind!=='PAGE'||
+        records[0].collector_version!=='v2ex-outsourcing-authors-v1'||records[0].source_context===undefined||
+        records[0].public_url!==`https://www.v2ex.com/t/${value.public_revisit.topic_id}`)return false;
+    }
     if(value.native_progress!==undefined&&(value.platform!=='BILIBILI'||execution.access_mode!=='PLATFORM_ACCOUNT'))return false;
     if (execution.access_mode === 'PLATFORM_ACCOUNT') {
       if (execution.connection_id === null || execution.connection_version === null) return false;

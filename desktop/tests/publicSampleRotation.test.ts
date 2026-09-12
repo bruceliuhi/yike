@@ -30,13 +30,13 @@ it('opts in on CLAIM only and leaves legacy canonical requests unchanged',()=>{
   const old=executionOperationSchema.parse(claim());expect(old).not.toHaveProperty('public_sampling_version');
   expect(executionOperationSchema.parse({...claim(),public_sampling_version:1})).toHaveProperty('public_sampling_version',1);
   expect(executionOperationSchema.parse({...claim(),public_sampling_version:undefined})).toEqual(old);
-  for(const value of [null,true,0,2])expect(executionOperationSchema.safeParse({...claim(),public_sampling_version:value}).success).toBe(false);
+  for(const value of [null,true,0,3])expect(executionOperationSchema.safeParse({...claim(),public_sampling_version:value}).success).toBe(false);
   expect(executionOperationSchema.safeParse({...claim(),operation:'RENEW',lease_id:id(7),execution_generation:1,public_sampling_version:1}).success).toBe(false);
 });
 it('negotiates via an explicit read-only support query without changing the legacy route',()=>{
   expect(validatedExecutionOperation({operation:'execution.support'})).toMatchObject({path:'/api/ui/execution-support',method:'GET'});
   expect(validatedExecutionOperation({operation:'execution.support',samplingVersion:1})).toMatchObject({path:'/api/ui/execution-support?sampling_version=1',method:'GET'});
-  expect(validatedExecutionOperation({operation:'execution.support',samplingVersion:2})).toBeNull();
+  expect(validatedExecutionOperation({operation:'execution.support',samplingVersion:3})).toBeNull();
 });
 it('accepts the negotiated frozen round only when the CLAIM requested it',()=>{
   const request=executionOperationSchema.parse({...claim(),public_sampling_version:1});

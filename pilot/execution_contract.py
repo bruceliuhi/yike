@@ -84,8 +84,9 @@ class ExecutionOperation(_Frozen):
 
     @field_validator('public_sampling_version', 'native_progress_version', mode='before')
     @classmethod
-    def sampling_version(cls, value):
-        if value is not None and (type(value) is not int or value != 1):
+    def sampling_version(cls, value, info):
+        allowed = (1, 2) if info.field_name == 'public_sampling_version' else (1,)
+        if value is not None and (type(value) is not int or value not in allowed):
             raise ExecutionRuntimeError('invalid_request', 422)
         return value
 

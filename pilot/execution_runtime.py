@@ -49,6 +49,9 @@ def _raw_model(value):
         if isinstance(value, CandidateBatch) and value.native_progress is None \
                 and 'native_progress' not in value.__pydantic_fields_set__:
             raw.pop('native_progress', None)
+        if isinstance(value, CandidateBatch) and value.public_revisit is None \
+                and 'public_revisit' not in value.__pydantic_fields_set__:
+            raw.pop('public_revisit', None)
         if isinstance(value, ExecutionOperation) and value.public_sampling_version is None \
                 and 'public_sampling_version' not in value.__pydantic_fields_set__:
             raw.pop('public_sampling_version', None)
@@ -239,6 +242,9 @@ class ExecutionRuntime:
             batch = validate_candidate_batch(payload, now=self._now(cursor))
             execution = batch.execution
             self._key(cursor, claims, tenant, execution.device_id, execution.credential_version)
+            from pilot.public_source_revisit import validate_public_revisit
+            if validate_public_revisit(cursor, tenant_id=tenant, owner_user_id=claims.user_id, batch=batch):
+                self._submission(cursor, claims, batch)
             result = dict(
                 signing_payload=submission_signing_payload(tenant_id=tenant, claims=claims, batch=batch),
                 request_id=batch.request_id,
@@ -470,7 +476,8 @@ class ExecutionRuntime:
                     four_platform_public_bili_links_monitor_policy):
                 raise ExecutionRuntimeError('capability_unavailable', 409)
             result['public_sampling'] = committed_public_sampling_round(
-                cursor, tenant_id=tenant, owner_user_id=claims.user_id, task=task, platform=platform)
+                cursor, tenant_id=tenant, owner_user_id=claims.user_id, task=task, platform=platform,
+                version=request.public_sampling_version)
         if request.native_progress_version is not None:
             from pilot.native_search_progress import claim_native_search_progress
             result['native_progress'] = claim_native_search_progress(
@@ -562,6 +569,8 @@ class ExecutionRuntime:
         now, remaining = self._live(cursor, task, run, platforms, budget=budget)
         self._lease(platform, ex.credential_version, ex.lease_id, ex.execution_generation, now)
         if budget and len(batch.records) > remaining: raise ExecutionRuntimeError('budget_exhausted')
+        from pilot.public_source_revisit import validate_public_revisit
+        validate_public_revisit(cursor, tenant_id=tenant, owner_user_id=claims.user_id, batch=batch)
         self._active(cursor, claims)
         return dict(tenant_id=tenant, owner_user_id=claims.user_id, task_id=task['task_id'], run_id=run['run_id'],
             platform_run_id=platform['platform_run_id'], profile_version_id=task['profile_version_id'],

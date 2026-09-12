@@ -11,6 +11,7 @@ from urllib.parse import parse_qsl, unquote, urlsplit
 
 import idna
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError, field_validator, model_validator, model_serializer
+from pilot.public_source_revisit import PublicSourceRevisit
 
 _OPAQUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 _TIME = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
@@ -266,12 +267,15 @@ class CandidateBatch(_Frozen):
     execution: ExecutionContextClaim
     records: tuple[CandidateRecord, ...] = Field(max_length=100)
     native_progress: object | None = None
+    public_revisit: PublicSourceRevisit | None = None
 
     @model_serializer(mode='wrap')
     def preserve_absent_native_progress(self, handler):
         value = handler(self)
         if self.native_progress is None and 'native_progress' not in self.__pydantic_fields_set__:
             value.pop('native_progress', None)
+        if self.public_revisit is None and 'public_revisit' not in self.__pydantic_fields_set__:
+            value.pop('public_revisit', None)
         return value
 
     @field_validator("request_id", "profile_version_id", "strategy_version_id")
@@ -364,6 +368,10 @@ def validate_candidate_batch(payload: object, *, now: datetime) -> CandidateBatc
             raise CandidateContractError("INVALID_SOURCE_TIME") from None
         records.append(item)
     data=dict(payload); data["execution"]=execution; data["records"]=tuple(records)
+    if 'public_revisit' in payload:
+        if (payload['public_revisit'] is None or platform != 'PUBLIC_WEB'
+                or execution.access_mode != 'PUBLIC_ANONYMOUS' or 'native_progress' in payload):
+            raise CandidateContractError('INVALID_BATCH') from None
     if "native_progress" in payload:
         if payload["native_progress"] is None:
             raise CandidateContractError("INVALID_BATCH") from None

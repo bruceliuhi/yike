@@ -8,6 +8,7 @@ import {strategyViewSchema, type StrategyView} from '../shared/researchStrategie
 import {candidateSubmissionSchema, type CandidateSubmission} from '../shared/candidateSubmission';
 import {nativeProgressBatchSchema,matchesNativeBatch,type NativeProgressBatch} from '../shared/nativeSearchProgress';
 import {platformSearchKeywords} from '../shared/researchStrategies';
+import {publicRevisitSchema,type PublicRevisit} from '../shared/publicSourceRevisit';
 
 type Lease = Extract<ExecutionReceipt, {operation: 'CLAIM' | 'RENEW'}>;
 type RecoveryKey = {platformRunId: string; requestId: string};
@@ -25,7 +26,7 @@ export interface CollectionDriver {
   // Synchronous handle creation guarantees there is always a stop handle once
   // any source process starts. The driver owns raw output preservation/cleanup.
   start(input: {snapshot: StrategyView['snapshot']; target: NonNullable<ExecutionOperation['targets']>[number];
-    lease: Lease; maxRecords: number; signal: AbortSignal;allowMonitor?:boolean}): {completed: Promise<unknown[]|{records:unknown[];nativeProgress:NativeProgressBatch}>; stop(): Promise<void>};
+    lease: Lease; maxRecords: number; signal: AbortSignal;allowMonitor?:boolean}): {completed: Promise<unknown[]|{records:unknown[];nativeProgress:NativeProgressBatch}|{records:unknown[];publicRevisit:PublicRevisit}>; stop(): Promise<void>};
 }
 export interface CollectionWorkerOptions {
   execution: Pick<ReturnType<typeof createExecutionSession>, 'submit'>;
@@ -45,7 +46,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
   return {
     cancel() {cancelActive?.();},
     async run(input: {scope: DeviceWorkerScope; start: unknown; startReceipt: unknown; strategy: unknown;
-      platformRunId: string;allowMonitor?:boolean;allowPublicSampling?:true;allowNativeProgress?:true;platformMaxRecords?:number}): Promise<CollectionWorkerResult> {
+      platformRunId: string;allowMonitor?:boolean;allowPublicSampling?:true|2;allowNativeProgress?:true;platformMaxRecords?:number}): Promise<CollectionWorkerResult> {
       if (cancelActive) return {state: 'BUSY', taskCompleted: false};
       const {scope} = input;
       const abort = new AbortController();
@@ -97,7 +98,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
         const index = receipt.platform_runs.findIndex(run => run.platform_run_id === input.platformRunId);
         const target = start.targets![index];
         if (index < 0 || !target || !strategy.snapshot.platforms.includes(target.platform)) throw new Error();
-        if (input.allowPublicSampling !== undefined && (input.allowPublicSampling !== true || input.allowMonitor !== true ||
+        if (input.allowPublicSampling !== undefined && ((input.allowPublicSampling !== true&&input.allowPublicSampling!==2) || input.allowMonitor !== true ||
             configuration.mode !== 'monitor' || target.platform !== 'PUBLIC_WEB' || target.access_mode !== 'PUBLIC_ANONYMOUS' ||
             configuration.source !== 'search' || configuration.publicSource === undefined)) throw new Error();
         if(input.allowNativeProgress!==undefined&&(input.allowNativeProgress!==true||input.allowPublicSampling!==undefined||input.allowMonitor!==true||
@@ -109,7 +110,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
           schema_version: 'execution-runtime-v1', request_id: randomUUID(), operation: kind,
           device_id: start.device_id, credential_version: start.credential_version,
           task_id: receipt.task_id, platform_run_id: input.platformRunId,
-          ...(kind === 'CLAIM' && input.allowPublicSampling === true ? {public_sampling_version:1} : {}),
+          ...(kind === 'CLAIM' && input.allowPublicSampling !== undefined ? {public_sampling_version:input.allowPublicSampling===2?2:1} : {}),
           ...(kind === 'CLAIM' && input.allowNativeProgress === true ? {native_progress_version:1} : {}),
           ...(lease ? {lease_id: lease.lease_id, execution_generation: lease.execution_generation} : {}),
         });
@@ -168,12 +169,22 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
         if (performance.now() >= leaseDeadline) stop('LEASE_EXPIRED');
         if (reason) return stoppedResult();
         const source=outcome.records;
-        let records:unknown[],nativeProgress:NativeProgressBatch|undefined;
+        let records:unknown[],nativeProgress:NativeProgressBatch|undefined,publicRevisit:PublicRevisit|undefined;
         if(claimed.native_progress){
           if(Array.isArray(source)||!source||Object.keys(source).sort().join(',')!=='nativeProgress,records')throw new Error();
+          if(!('nativeProgress' in source))throw new Error();
           nativeProgress=nativeProgressBatchSchema.parse(source.nativeProgress);
           if(!matchesNativeBatch(nativeProgress,claimed.native_progress,claimed.request_id))throw new Error();
           records=source.records;
+        }else if(claimed.public_sampling?.schema_version==='public-sampling-round-v2'&&claimed.public_sampling.revisit){
+          const selected=claimed.public_sampling.revisit;
+          if(!configuration.keywords.includes(selected.query)||claimed.public_sampling.source_id!==configuration.publicSource||
+            Array.isArray(source)||!source||Object.keys(source).sort().join(',')!=='publicRevisit,records'||!('publicRevisit' in source))throw new Error();
+          publicRevisit=publicRevisitSchema.parse(source.publicRevisit);
+          if(publicRevisit.claim_request_id!==claimed.request_id||publicRevisit.topic_id!==selected.topic_id)throw new Error();
+          records=source.records;
+          const parsed=candidateSubmissionSchema.shape.records.parse(records);
+          if(parsed.some(record=>record.external_source_id===selected.topic_id&&record.query!==selected.query))throw new Error();
         }else{if(!Array.isArray(source))throw new Error();records=source;}
         if (!Array.isArray(records) || records.length > maxRecords) throw new Error();
         // Renew at most once before upload if less than a normal minute remains.
@@ -189,7 +200,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
           execution: {device_id: start.device_id, credential_version: start.credential_version, task_id: receipt.task_id,
             run_id: receipt.run_id, platform_run_id: input.platformRunId, lease_id: lease.lease_id, execution_generation: lease.execution_generation,
             access_mode: target.access_mode, connection_id: target.connection_id, connection_version: target.connection_version}, records,
-          ...(nativeProgress?{native_progress:nativeProgress}:{})});
+          ...(nativeProgress?{native_progress:nativeProgress}:{}),...(publicRevisit?{public_revisit:publicRevisit}:{})});
         recoveryKey = {platformRunId: input.platformRunId, requestId: batch.request_id};
         const uploaded = await Promise.race([
           candidates.submit(scope.session, batch).catch(() => null), stopped.then(() => null)]);

@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {executionOperationSchema, type ExecutionOperation} from './executionOperation';
 import {deviceUuidSchema} from './deviceRegistration';
-import {publicSourceIdSchema} from './publicSources';
+import {publicSamplingSchema} from './publicSourceRevisit';
 import {nativeProgressClaimSchema} from './nativeSearchProgress';
 
 const envelope = {
@@ -33,8 +33,7 @@ const leaseReceiptSchema = z.object({
   execution_generation: z.number().int().min(1).max(2_147_483_647),
   lease_expires_at: timestampSchema,
   deadline_at: timestampSchema,
-  public_sampling: z.object({schema_version:z.literal('public-sampling-round-v1'),plan_id:deviceUuidSchema,
-    source_id:publicSourceIdSchema,round:z.number().int().min(0).max(2_147_483_647)}).strict().optional(),
+  public_sampling: publicSamplingSchema.optional(),
   native_progress:nativeProgressClaimSchema.optional(),
 }).strict().refine(receipt=>receipt.public_sampling===undefined||receipt.operation==='CLAIM','sampling is CLAIM-only')
  .refine(receipt=>receipt.native_progress===undefined||receipt.operation==='CLAIM'&&receipt.public_sampling===undefined,'exclusive CLAIM-only progress');
@@ -95,7 +94,8 @@ export function parseExecutionReceipt(raw: unknown, expected: ExecutionOperation
           receipt.lease_id !== request.lease_id || receipt.execution_generation !== request.execution_generation ||
           receipt.upload_request_id !== request.upload_request_id)) throw new Error('finish mismatch');
       if (receipt.operation === 'CLAIM' || receipt.operation === 'RENEW') {
-        if ((receipt.public_sampling !== undefined) !== (request.public_sampling_version === 1)) throw new Error('sampling mismatch');
+        if ((receipt.public_sampling !== undefined) !== (request.public_sampling_version !== undefined) ||
+          receipt.public_sampling?.schema_version !== (request.public_sampling_version===2?'public-sampling-round-v2':request.public_sampling_version===1?'public-sampling-round-v1':undefined)) throw new Error('sampling mismatch');
         if ((receipt.native_progress !== undefined) !== (request.native_progress_version === 1)) throw new Error('progress mismatch');
         if (receipt.platform_run_id !== request.platform_run_id || !withinDeadline(receipt.lease_expires_at, receipt.deadline_at)) {
           throw new Error('lease mismatch');

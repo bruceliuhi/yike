@@ -64,6 +64,13 @@ async function oneFile(directory: string) {
   expect(files[0]).toMatch(/^[0-9a-f]{64}-[0-9a-f]{64}\.candidate$/);
   return path.join(directory, files[0]);
 }
+it('reopens the exact encrypted public revisit result even when no source records were available',async()=>{
+ const f=await setup(),batch=recoveryBatch();batch.records=[];
+ batch.public_revisit={schema_version:'public-source-revisit-v1',claim_request_id:id(99),topic_id:'101',outcome:'UNAVAILABLE'};
+ await f.journal.persist(scope,batch);
+ const reopened=createCandidateJournal({directory:f.directory,protection:f.protection});
+ expect(await reopened.read(scope,key(batch))).toEqual(batch);
+});
 afterEach(async () => {
   vi.restoreAllMocks(); Object.assign(faults, {syncCalls: 0, failSyncAt: 0, partialWrite: false, replaceOnOpen: false});
   for (const directory of roots.splice(0)) {

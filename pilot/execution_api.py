@@ -44,9 +44,10 @@ def register_execution_api(router, runtime, identity, require_session_https):
             query = list(request.query_params.multi_items())
             if not query:
                 return result
-            if query == [('sampling_version', '1')]:
+            if query in ([('sampling_version', '1')], [('sampling_version', '2')]):
                 if result.get('public_monitor') is True:
-                    return result | {'public_sampling': 'committed-round-v1'}
+                    return result | {'public_sampling': 'committed-round-v1' if query[0][1] == '1'
+                                     else 'committed-round-revisit-v2'}
                 return result
             if query == [('native_progress_version', '1')]:
                 from pilot.native_search_progress import native_search_progress_supported

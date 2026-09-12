@@ -4,6 +4,7 @@ import {strategyConfigurationSchema} from '../shared/researchStrategies';
 import {executionReceiptSchema} from '../shared/executionReceipt';
 import {PUBLIC_SOURCES,publicSourceIdSchema,type PublicSourceId} from '../shared/publicSources';
 import {sourceContextSchema} from '../shared/publicAuthorContext';
+import type {PublicRevisit} from '../shared/publicSourceRevisit';
 
 const BYTE_LIMIT=1024*1024;
 const fail=(code='PUBLIC_SOURCE_FAILED')=>new Error(code);
@@ -12,7 +13,15 @@ const positive=(value:unknown,max=Number.MAX_SAFE_INTEGER):value is number=>
 const fold=(value:string)=>value.normalize('NFC').toLowerCase();
 const timestamp=(value:number)=>new Date(value).toISOString().replace(/\.\d{3}Z$/,'Z');
 
+function checkTopicUrl(value:unknown,id:number){
+  if(typeof value!=='string')throw fail();
+  const url=new URL(value);
+  if(!['http:','https:'].includes(url.protocol)||url.hostname!=='www.v2ex.com'||url.port||url.username||url.password||
+    url.search||url.pathname!==`/t/${id}`||url.hash&&!/^#reply\d+$/.test(url.hash))throw fail();
+}
+
 function sampledTopics(value:any[],maximum:number,round?:number):any[] {
+  if(maximum===0)return [];
   if(round===undefined||value.length<=maximum)return value.slice(0,maximum);
   const tail=value.length-1;
   if(maximum===1)return [value[round%2===0?0:1+Math.floor(round/2)%tail]];
@@ -20,7 +29,7 @@ function sampledTopics(value:any[],maximum:number,round?:number):any[] {
   return [value[0],...Array.from({length:maximum-1},(_,index)=>value[1+(start+index)%tail])];
 }
 
-function recordsFrom(value:unknown,keywords:string[],exclusions:string[],maximum:number,observed:number,sourceId:PublicSourceId,round?:number):CandidateSubmission['records'] {
+function recordsFrom(value:unknown,keywords:string[],exclusions:string[],maximum:number,observed:number,sourceId:PublicSourceId,round?:number,revisitQuery?:string):CandidateSubmission['records'] {
   if(!Array.isArray(value)||value.length>100)throw fail();
   const records:CandidateSubmission['records']=[],seen=new Set<number>();
   // The budget bounds inspected topics, not just matches. This is a recent
@@ -35,13 +44,11 @@ function recordsFrom(value:unknown,keywords:string[],exclusions:string[],maximum
     if(topic.deleted!==0 && topic.deleted!==false && topic.deleted!==undefined)throw fail();
     if(typeof topic.title!=='string'||typeof topic.content!=='string'||!positive(topic.created)||
         topic.created*1000>observed||typeof topic.url!=='string')throw fail();
-    const url=new URL(topic.url);
-    if(!['http:','https:'].includes(url.protocol)||url.hostname!=='www.v2ex.com'||url.port||url.username||url.password||
-        url.search||url.pathname!==`/t/${topic.id}`||url.hash && !/^#reply\d+$/.test(url.hash))throw fail();
+    checkTopicUrl(topic.url,topic.id);
     if(!topic.content.trim())continue;
     const fields=[fold(topic.title),fold(topic.content)];
-    const query=keywords.find(term=>fields.some(field=>field.includes(fold(term))));
-    if(!query||exclusions.some(term=>fields.some(field=>field.includes(fold(term)))))continue;
+    const query=revisitQuery??keywords.find(term=>fields.some(field=>field.includes(fold(term))));
+    if(!query||revisitQuery===undefined&&exclusions.some(term=>fields.some(field=>field.includes(fold(term)))))continue;
     if(topic.member?.id!==undefined && !positive(topic.member.id))throw fail();
     records.push({kind:'PAGE',external_source_id:String(topic.id),external_comment_id:null,
       public_url:`https://www.v2ex.com/t/${topic.id}`,title:topic.title||null,body:topic.content,
@@ -86,12 +93,14 @@ export function createPublicCommunityDriver(options:{fetch?:typeof fetch;now?:()
       try {
         let configuration:ReturnType<typeof strategyConfigurationSchema.parse>;
         let sourceId:PublicSourceId,endpoint:string;
-        let deadline:number,round:number|undefined;
+        let deadline:number,round:number|undefined,revisit:{topic_id:string;query:string}|null=null;
+        let claimRequestId:string;
         try {
           const {snapshot,target,maxRecords}=input;
           configuration=strategyConfigurationSchema.parse(snapshot.configuration);
           sourceId=publicSourceIdSchema.parse(configuration.publicSource);endpoint=PUBLIC_SOURCES[sourceId].endpoint;
           const lease=executionReceiptSchema.parse(input.lease);
+          claimRequestId=lease.request_id;
           const approvedMode=configuration.mode==='once'&&configuration.schedule===null || input.allowMonitor===true&&
             configuration.mode==='monitor'&&configuration.schedule?.policyVersion===1;
           if((lease.operation!=='CLAIM'&&lease.operation!=='RENEW')||lease.execution_generation!==1||!approvedMode||
@@ -104,6 +113,10 @@ export function createPublicCommunityDriver(options:{fetch?:typeof fetch;now?:()
             if(lease.operation!=='CLAIM'||input.allowMonitor!==true||configuration.mode!=='monitor'||
                 lease.public_sampling.source_id!==sourceId)throw fail();
             round=lease.public_sampling.round;
+            if(lease.public_sampling.schema_version==='public-sampling-round-v2'){
+              revisit=lease.public_sampling.revisit;
+              if(revisit&&!configuration.keywords.includes(revisit.query))throw fail();
+            }
           }
           deadline=Math.min(Date.parse(lease.deadline_at),Date.parse(lease.lease_expires_at),now()+snapshot.max_runtime_seconds*1000,now()+20000);
           if(!Number.isFinite(deadline)||deadline<=now())throw fail();
@@ -137,7 +150,10 @@ export function createPublicCommunityDriver(options:{fetch?:typeof fetch;now?:()
           return JSON.parse(body);
           };
           const payload=await readJSON(endpoint),project=sourceId==='v2ex-outsourcing-authors-v1';
-          const records=recordsFrom(payload,configuration.keywords,configuration.exclusions,project?Math.min(3,input.maxRecords):input.maxRecords,now(),sourceId,round);
+          if(!Array.isArray(payload)||payload.length>100)throw fail();
+          const fresh=revisit?payload.filter(item=>String(item?.id)!==revisit.topic_id):payload;
+          const maximum=project?Math.min(3,input.maxRecords):input.maxRecords;
+          const records=recordsFrom(fresh,configuration.keywords,configuration.exclusions,maximum-(revisit?1:0),now(),sourceId,round);
           if(project){
             for(const record of records){
               const topic=(payload as any[]).find(item=>String(item.id)===record.external_source_id);
@@ -146,6 +162,19 @@ export function createPublicCommunityDriver(options:{fetch?:typeof fetch;now?:()
               record.observed_at=timestamp(now());
               record.source_context=authorContext(topic,replies,now());record.normalizer_version='v2ex-author-page-v1';
             }
+          }
+          if(revisit){
+            const old=await readJSON(`https://www.v2ex.com/api/topics/show.json?id=${revisit.topic_id}`);
+            if(!Array.isArray(old)||old.length>1||old.length===1&&(!old[0]||old[0].id!==Number(revisit.topic_id)||old[0].node?.name!=='outsourcing'))throw fail();
+            if(old.length)checkTopicUrl(old[0].url,Number(revisit.topic_id));
+            const prior=recordsFrom(old,configuration.keywords,configuration.exclusions,1,now(),sourceId,undefined,revisit.query);
+            if(prior.length){
+              const replies=await readJSON(`https://www.v2ex.com/api/replies/show.json?topic_id=${revisit.topic_id}`);
+              prior[0].observed_at=timestamp(now());prior[0].source_context=authorContext(old[0],replies,now());prior[0].normalizer_version='v2ex-author-page-v1';
+              records.push(prior[0]);
+            }
+            const publicRevisit:PublicRevisit={schema_version:'public-source-revisit-v1',claim_request_id:claimRequestId!,topic_id:revisit.topic_id,outcome:prior.length?'READ':'UNAVAILABLE'};
+            return {records:candidateSubmissionSchema.shape.records.parse(records),publicRevisit};
           }
           return candidateSubmissionSchema.shape.records.parse(records);
         }catch {

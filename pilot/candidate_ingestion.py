@@ -147,6 +147,8 @@ class CandidateIngestionStore:
                 accepted_count=len(batch.records),received_at=received.isoformat(),items=items)
             if native_progress is not None:
                 receipt['native_progress'] = native_progress
+            if batch.public_revisit is not None:
+                receipt['public_revisit'] = batch.public_revisit.model_dump(mode='json')
             cursor.execute('UPDATE pilot_collection_platform_runs SET records_used=records_used+%s WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s AND run_id=%s AND platform_run_id=%s',
                 (len(batch.records),tenant,claims.user_id,authority['task_id'],authority['run_id'],authority['platform_run_id']))
             cursor.execute('INSERT INTO pilot_candidate_batches(tenant_id,owner_user_id,platform_run_id,request_id,task_id,run_id,fingerprint,accepted_count,received_at,receipt,platform,profile_version_id,strategy_version_id,execution_context) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s::jsonb)',

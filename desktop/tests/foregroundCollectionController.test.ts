@@ -457,6 +457,7 @@ it.each([false,true])('runs public monitor through real controller-worker-driver
  const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.strategy.configuration_sha256=hash;
  const base=f.scope.transport.requestExecution.getMockImplementation()!;f.scope.transport.requestExecution.mockImplementation(async input=>input.operation==='monitor.support'
   ?{ok:true,status:200,data:{schema_version:'monitor-runtime-support-v1',mode:'four-platform-monitor-v1',public_source:'v2ex-latest-v1'}}:
+   input.operation==='execution.support'&&(input as any).samplingVersion===2?{ok:false,status:422,error:'invalid_request'} as any:
    input.operation==='execution.support'&&(input as any).samplingVersion===1&&sampling
     ?{ok:true,status:200,data:{schema_version:'foreground-collection-support-v1',mode:'four-platform-foreground-v1',public_source:'v2ex-latest-v1',public_monitor:true,public_sampling:'committed-round-v1'}}:base(input));
  const fetcher=vi.fn(async()=>new Response(JSON.stringify(Array.from({length:7},(_,n)=>({id:12+n,title:'设计需求',content:'需要企业系统设计',created:Math.floor(Date.now()/1000)-60,url:`https://www.v2ex.com/t/${12+n}`,member:{id:9}}))),{headers:{'content-type':'application/json'}}));
@@ -480,6 +481,7 @@ it('serializes same-device native and public monitor targets through the shared 
  const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.strategy.configuration_sha256=hash;
  const read=f.scope.transport.requestExecution.getMockImplementation()!;f.scope.transport.requestExecution.mockImplementation(async input=>input.operation==='monitor.support'
   ?{ok:true,status:200,data:{schema_version:'monitor-runtime-support-v1',mode:'four-platform-monitor-v1',public_source:'v2ex-latest-v1'}}:
+   input.operation==='execution.support'&&(input as any).samplingVersion===2?{ok:false,status:422,error:'invalid_request'} as any:
    input.operation==='execution.support'&&(input as any).samplingVersion===1
     ?{ok:true,status:200,data:{schema_version:'foreground-collection-support-v1',mode:'four-platform-foreground-v1',public_source:'v2ex-latest-v1',public_monitor:true,public_sampling:'committed-round-v1'}}:read(input));
  const start={schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:hash,targets:f.command.targets};
@@ -496,7 +498,7 @@ it.each(['invalid','unavailable','session'])('sampling negotiation %s stops befo
  const read=f.scope.transport.requestExecution.getMockImplementation()!;
  f.scope.transport.requestExecution.mockImplementation(async input=>{
   if(input.operation==='monitor.support')return {ok:true,status:200,data:{schema_version:'monitor-runtime-support-v1',mode:'four-platform-monitor-v1',public_source:'v2ex-latest-v1'}} as any;
-  if(input.operation==='execution.support'&&(input as any).samplingVersion===1){
+  if(input.operation==='execution.support'&&(input as any).samplingVersion===2){
    if(kind==='unavailable')return {ok:false,status:503,error:'unavailable'} as any;
    if(kind==='session')f.invalidate();
    return {ok:true,status:200,data:{schema_version:'foreground-collection-support-v1',mode:'four-platform-foreground-v1',public_source:'v2ex-latest-v1',
@@ -508,6 +510,61 @@ it.each(['invalid','unavailable','session'])('sampling negotiation %s stops befo
  expect(f.execution.submit).not.toHaveBeenCalled();expect(f.worker.run).not.toHaveBeenCalled();
  expect(f.scope.transport.requestExecution.mock.calls.filter(([r])=>r.operation==='execution.support')).toHaveLength(1);
  await f.controller.shutdown();
+});
+
+it('v2 monitor runs the real public reader and worker to upload off-index author changes',async()=>{
+ const f=publicFixture();Object.assign(f.strategy.snapshot.configuration,{mode:'monitor',publicSource:'v2ex-outsourcing-authors-v1',
+  schedule:{kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1}});
+ f.strategy.snapshot.max_records=3;f.strategy.configuration_sha256=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');
+ const sources=['v2ex-latest-v1','v2ex-qna-v1','v2ex-outsourcing-authors-v1'];
+ f.scope.transport.requestExecution.mockImplementation(async r=>({ok:true,status:200,data:r.operation==='monitor.support'
+  ?{schema_version:'monitor-runtime-support-v1',mode:'four-platform-monitor-v1',public_source:'v2ex-latest-v1',public_sources:sources}
+  :{schema_version:'foreground-collection-support-v1',mode:'four-platform-foreground-v1',public_source:'v2ex-latest-v1',public_sources:sources,public_monitor:true,public_sampling:'committed-round-revisit-v2'}}) as any);
+ const topic={id:101,title:'项目',content:'已找到团队',created:Math.floor(Date.now()/1000)-60,url:'https://www.v2ex.com/t/101',member:{id:9},node:{name:'outsourcing'},replies:0};
+ const fetcher=vi.fn(async(url:any)=>new Response(JSON.stringify(String(url).includes('topics/show.json?id=')?[topic]:[]),{headers:{'content-type':'application/json'}}));
+ const candidates={submit:vi.fn(async()=>({state:'RECORDED'}))};let done:Promise<unknown>|undefined;
+ f.execution.submit.mockImplementation(async(_s:any,r:any)=>{f.requests.push(r);if(r.operation==='START')return {state:'RECORDED',receipt:f.startReceipt} as any;
+  const common={schema_version:'execution-runtime-v1',request_id:r.request_id,operation:r.operation,task_id:id(6),run_id:id(7),platform_run_id:id(8),lease_id:id(90),execution_generation:1};
+  return {state:'RECORDED',receipt:r.operation==='FINISH'?{...common,status:'SUCCEEDED',stop_confirmed:true,upload_request_id:r.upload_request_id,records_used:1}:{...common,status:'RUNNING',stop_confirmed:false,lease_expires_at:new Date(Date.now()+120000).toISOString(),deadline_at:new Date(Date.now()+600000).toISOString(),
+    ...(r.operation==='CLAIM'?{public_sampling:{schema_version:'public-sampling-round-v2',plan_id:id(99),source_id:'v2ex-outsourcing-authors-v1',round:1,revisit:{topic_id:'101',query:f.strategy.snapshot.configuration.keywords[0]}}}:{})}} as any;});
+ const controller=createForegroundCollectionController({...f.options,publicDriverFactory:()=>createPublicCommunityDriver({fetch:fetcher}),sessions:()=>({execution:f.execution,candidates}),workerFactory:(options:any)=>{const worker=createCollectionWorker(options);return {...worker,run:(input:any)=>done=worker.run(input)};}});
+ expect(await controller.startMonitor({schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:f.strategy.configuration_sha256,targets:f.command.targets})).toMatchObject({state:'RECORDED'});
+ expect(await done).toMatchObject({state:'COMPLETED'});
+ const claim=f.requests.find((r:any)=>r.operation==='CLAIM');expect(claim.public_sampling_version).toBe(2);
+ expect((candidates.submit.mock.calls[0] as any)[1]).toMatchObject({public_revisit:{claim_request_id:claim.request_id,topic_id:'101',outcome:'READ'},records:[{body:'已找到团队',source_context:{author_replies:[],supplements_read:false}}]});
+ expect(fetcher).toHaveBeenCalledTimes(3);await controller.shutdown();
+});
+
+it.each(['network','server','other422','session'])('v2 negotiation does not retry other failures: %s',async kind=>{
+ const f=publicFixture();Object.assign(f.strategy.snapshot.configuration,{mode:'monitor',schedule:{kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1}});
+ f.strategy.configuration_sha256=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');
+ f.scope.transport.requestExecution.mockImplementation(async r=>{
+  if(r.operation==='monitor.support')return {ok:true,status:200,data:{schema_version:'monitor-runtime-support-v1',mode:'four-platform-monitor-v1',public_source:'v2ex-latest-v1'}} as any;
+  if(kind==='network')throw new Error('network');if(kind==='session')f.invalidate();
+  return {ok:false,status:kind==='server'?503:422,error:kind==='other422'?'invalid_signature':'invalid_request'} as any;
+ });
+ expect(await f.controller.startMonitor({schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:f.strategy.configuration_sha256,targets:f.command.targets})).toEqual({state:'SERVICE_UNAVAILABLE'});
+ expect(f.scope.transport.requestExecution.mock.calls.filter(([r])=>r.operation==='execution.support')).toHaveLength(1);
+ expect(f.execution.submit).not.toHaveBeenCalled();await f.controller.shutdown();
+});
+
+it('uses actual previous server rejection through ServiceClient to preserve legacy public sampling',async()=>{
+ const f=publicFixture();Object.assign(f.strategy.snapshot.configuration,{mode:'monitor',schedule:{kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1}});
+ f.strategy.configuration_sha256=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');
+ const stored=process.env.YIKE_PUBLIC_REVISIT_LEGACY_ARTIFACT;
+ const artifact=stored?JSON.parse(readFileSync(stored,'utf8')):{negotiated:{status:422,body:{detail:{code:'invalid_request'}}},
+  legacy:{status:200,body:{schema_version:'foreground-collection-support-v1',mode:'four-platform-foreground-v1',public_source:'v2ex-latest-v1',public_monitor:true,public_sampling:'committed-round-v1'}}};
+ const fetcher=vi.fn(async(url:string)=>{
+  if(url.endsWith('/monitor-runtime/support'))return Response.json({schema_version:'monitor-runtime-support-v1',mode:'four-platform-monitor-v1',public_source:'v2ex-latest-v1'});
+  if(url.endsWith('?sampling_version=2'))return Response.json(artifact.negotiated.body,{status:artifact.negotiated.status});
+  expect(url).toBe('https://pilot.example/api/ui/execution-support?sampling_version=1');
+  return Response.json(artifact.legacy.body,{status:artifact.legacy.status});
+ });
+ const transport=createServiceClient({baseUrl:'https://pilot.example',fetch:fetcher,clearSession:async()=>{}});
+ f.scope.transport.requestExecution.mockImplementation(transport.requestExecution as any);
+ expect(await f.controller.startMonitor({schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:f.strategy.configuration_sha256,targets:f.command.targets})).toMatchObject({state:'RECORDED'});
+ expect(f.worker.run).toHaveBeenCalledWith(expect.objectContaining({allowPublicSampling:true}));
+ expect(fetcher).toHaveBeenCalledTimes(3);f.finish();await f.controller.shutdown();
 });
 
 it('rejects old, source-mismatched and wrong-device public monitor support before START',async()=>{

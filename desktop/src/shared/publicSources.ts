@@ -19,6 +19,6 @@ export function allowsPublicSource(source:unknown,defaultId:PublicSourceId|undef
   return parsed.success && defaultId!==undefined && (ids??[defaultId]).includes(parsed.data);
 }
 export function publicSourceScope(source:PublicSourceId=DEFAULT_PUBLIC_SOURCE){
-  if(source==='v2ex-outsourcing-authors-v1')return `${PUBLIC_SOURCES[source].label} · 最多3篇/4次请求，附言未读，不覆盖历史/全站`;
+  if(source==='v2ex-outsourcing-authors-v1')return `${PUBLIC_SOURCES[source].label} · 最多3篇；支持的监控可轮流复查已发现旧帖，附言未读，不覆盖全站历史`;
   return `${PUBLIC_SOURCES[source].label} · 近期主题有界抽样，不覆盖历史/全站/评论`;
 }
