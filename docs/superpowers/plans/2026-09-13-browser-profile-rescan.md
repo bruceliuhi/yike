@@ -12,7 +12,7 @@ Tech Stack：Python ctypes、Windows NTFS、pytest。
 - [x] app/windows_private_directory.py：仅 native error 2 分类，三次上限完整遍历，不跳过任何剩余节点；运行定向原生测试。
 - [x] 匿名真实 runtime 单次复验退出后的即时核验；不是用户登录成功证据。
 - [x] 独立差量审核；提交 main。
-- [ ] 与此前 STATUS / XHS 登录顺序修复合为一次后续候选构包。
+- [x] 与此前 STATUS / XHS 登录顺序修复合为一次候选0d9500b构包并实际升级；[唯一新包证据及尚待本人核验的边界](../../qa/WINDOWS_SYNC_20260912.md#固定候选0d9500b已构建并覆盖升级2026-09-13)。
 
 ## 证据
 
