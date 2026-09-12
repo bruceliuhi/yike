@@ -1,6 +1,5 @@
 """Restricted PostgreSQL coverage for bounded, owner-visible research history."""
 from datetime import UTC, datetime, timedelta
-import json
 from pathlib import Path
 from uuid import uuid4
 
@@ -193,11 +192,34 @@ def test_history_dedupes_source_caps_30_and_does_not_cross_scope_or_emit_unsafe_
             ("http://127.0.0.1/private", unsafe["sourceVersionId"]),
         )
         connection.execute("ALTER TABLE pilot_candidate_versions ENABLE TRIGGER USER")
+        unsafe_key = connection.execute(
+            """SELECT s.source_identity FROM pilot_candidate_sources s
+                JOIN pilot_candidate_versions v USING(tenant_id,owner_user_id,source_id)
+                WHERE v.version_id=%s""",
+            (unsafe["sourceVersionId"],),
+        ).fetchone()[0]
+
+    from pilot.store import PilotStore
+    other_profile = PilotStore(env.admin).save_profile(
+        env.claims.user_id,
+        {"description": "同一 owner 的另一真实业务"},
+        new_business={"requestId": str(uuid4()), "name": "另一业务"},
+    )
+    PilotStore(env.admin).confirm_profile(env.claims.user_id, other_profile["version_id"])
+    with env.admin.connect() as connection:
+        other_profile_id = connection.execute(
+            "SELECT profile_id FROM business_profile_versions WHERE profile_version_id=%s",
+            (other_profile["version_id"],),
+        ).fetchone()[0]
 
     scope, rows = history(env)
     assert scope == "PARTIAL" and len(rows) == 30
     assert len({row["project_key"] for row in rows}) == 30
-    assert all(row["source_urls"] != ["http://127.0.0.1/private"] for row in rows)
+    assert next(row for row in rows if row["project_key"] == unsafe_key)["source_urls"] == []
+    returned_urls = {url for row in rows for url in row["source_urls"]}
+    assert "https://example.com/cap-30" not in returned_urls
+    assert "https://example.com/cap-31" not in returned_urls
+    assert history(env) == (scope, rows)
     assert history(env, owner=env.users[1])[1] == []
     assert history(env, tenant=env.tenants[1], owner=env.users[2])[1] == []
-    assert history(env, profile_id=str(uuid4())) == ("NONE", [])
+    assert history(env, profile_id=other_profile_id) == ("NONE", [])
