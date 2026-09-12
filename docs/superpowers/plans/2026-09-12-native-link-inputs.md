@@ -48,3 +48,5 @@ TS RED：新测试因模块尚不存在而失败，原 researchStrategies 21 pas
 修复：`prepareStrategyRecordSchema` 保留历史 exact 结构，用于原请求摘要和回执匹配／恢复；新建记录、PREPARE重试及 renderer/main POST 保持新门禁。旧 pending 按独立 canonical 摘要的真实恢复函数回归，先1 failed/6 passed，再3文件107 passed；恢复修复后 tsc exit0。根另发现公开参数编码可能让短输入变成超过2048字符的 canonical URL，两端各一个定向失败确认后补输出长度检查。最终合并改动的目标验证：Python289 passed（0.52秒）、TS3文件107 passed（391ms），不重复模型/数据库/构包。
 
 本输入批没有任何链接采集执行、生产或 Windows 验收证据。
+
+最终独立复核固定 `f695667c16e81208ee9d679c74bb05fc3b48de04`：GO，可合 main；原P2关闭，无新增P1/P2，复用定向测试和类型检查，不重复运行。该结论只覆盖输入与历史恢复，不覆盖后续执行器。远端 `3b23658` 的纯Windows/部署交接已正常合并，未覆盖其同源候选证据；当前固定安装包不因此自动更新。
