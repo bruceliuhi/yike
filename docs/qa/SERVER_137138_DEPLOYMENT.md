@@ -1,5 +1,13 @@
 # 101.200.137.138 部署与测试交付
 
+## 当前customer：2a85dbc（2026-09-12 23:42）
+
+- 固定源码 `2a85dbcb68b121f6e8051ccd72b29954f3f2a655` 已实际部署。LF源码归档SHA256 `52d6af6d905c57278ffd23fc091e0351f9b8ffc4eef389eb77bf19a867111175`，传输两端一致。既有第三方锁条目不变，仅新增可选research extra；独立审查GO后复用实际7599不可变镜像，覆盖pilot/pyproject.toml/uv.lock，不安装MCP extra，不复制Windows app目录。
+- 新镜像ID `sha256:5ff65d4a069d7d39abb0993c4b5693c0c7c866e265fb31a891ae78b3d9ce605f`，发布digest `sha256:7ec666aceb82c74e036fa6a373d1607e65cd521f44a254824a0ff9073fd32217`。隔离、无网络、非root容器157项源码摘要通过，应用venv已安装包与旧镜像相同，普通Web导入未加载MCP。初审指出验证脚本误用系统Python，改成/app/.venv/bin/python后差量GO；宿主实际Python3.12.3。
+- 最终助手SHA256：Dockerfile `4a96cd807cf3ec96946e692b4b1405108618a571632e85cfc65df649a2adea9a`，verify `c087e7ef61c6ca307718b628afec764dd6aac72ca6306ff6334c23256df84d3c`，deploy `194ec30c51fc0ffa329ea7017a50129626c3a7c944f08ad7a82c06d383969c25`；独立GO且远端摘要一致。迁移/授权/启动脚本无差，不执行迁移，既有39项结构不变。先保留release-before-2a85dbc.json与认证加密DB备份/MAC，再18788只读候选ready、18787切换和CP06通过；无触发应用回退，不恢复覆盖DB。
+- 运行revision和release.json相符，healthy、重启0、非root、只读、loopback、PG不公开、私密配置权限及日志脱敏检查通过；内外网ready和匿名session401通过。原runtime配置摘要与ops容器ID不变，未开放外发/新研究能力，未发送短信或平台消息。4模块差量40通过见Windows同批记录；MCP独立协议旧证据不代表生产MCP服务已部署。
+- 远端原始 `testdata/build-reuse-2a85dbc.log`、`deploy-2a85dbc.log`、`verify-image-2a85dbc.py`、`audit-2a85dbc.py` 保留。Windows同源已实际安装，但新小红书响应异常及界面未刷新终态仍阻止完整业务验收；**这不是对外上线结论**。
+
 ## 当前 customer：7599e93（2026-09-12 22:36）
 
 - 已实际切换 `7599e938a3c37d506ef0cce3165f104f86cd5416`。源码LF归档SHA256 `b75dc543bb83f0123111c50fb0d9423f14c5a330790d69418e16fae83bafb16a`，两端一致。完整Docker构建在下载uv时中止；依赖锁与Dockerfile未变，经独立GO后从旧固定镜像复用依赖、覆盖全部当前运行源码；无删除文件遗留。隔离无网络容器核对154个源/锁文件摘要通过。这不是重新完整构建或镜像字节等价。
