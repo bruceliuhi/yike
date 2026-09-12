@@ -68,12 +68,22 @@ class ExecutionOperation(_Frozen):
     lease_id: str | None = None
     execution_generation: int | None = Field(default=None, ge=1, le=MAX_VERSION)
     upload_request_id: str | None = None
+    public_sampling_version: int | None = None
 
     @model_serializer(mode='wrap')
     def compatible_serialization(self, handler):
         value = handler(self)
         if self.operation != 'FINISH':
             value.pop('upload_request_id', None)
+        if self.public_sampling_version is None:
+            value.pop('public_sampling_version', None)
+        return value
+
+    @field_validator('public_sampling_version', mode='before')
+    @classmethod
+    def sampling_version(cls, value):
+        if value is not None and (type(value) is not int or value != 1):
+            raise ExecutionRuntimeError('invalid_request', 422)
         return value
 
     @field_validator('targets', mode='before')
@@ -105,6 +115,11 @@ class ExecutionOperation(_Frozen):
         conditional = {'profile_version_id', 'strategy_version_id', 'configuration_sha256', 'targets',
                        'task_id', 'platform_run_id', 'lease_id', 'execution_generation', 'upload_request_id'}
         if any((getattr(self, key) is not None) != (key in applicable) for key in conditional):
+            raise ExecutionRuntimeError('invalid_request', 422)
+        if ('public_sampling_version' in self.__pydantic_fields_set__
+                and self.public_sampling_version is None):
+            raise ExecutionRuntimeError('invalid_request', 422)
+        if self.public_sampling_version is not None and self.operation != 'CLAIM':
             raise ExecutionRuntimeError('invalid_request', 422)
         if self.targets and len({target.platform for target in self.targets}) != len(self.targets):
             raise ExecutionRuntimeError('invalid_request', 422)

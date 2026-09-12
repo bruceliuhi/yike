@@ -39,7 +39,17 @@ def register_execution_api(router, runtime, identity, require_session_https):
 
     @router.get('/execution-support')
     def support(request: Request):
-        return run(request, foreground_collection_support)
+        def supported(service, claims):
+            result = foreground_collection_support(service, claims)
+            query = list(request.query_params.multi_items())
+            if not query:
+                return result
+            if query != [('sampling_version', '1')]:
+                raise ExecutionRuntimeError('invalid_request', 422)
+            if result.get('public_monitor') is True:
+                return result | {'public_sampling': 'committed-round-v1'}
+            return result
+        return run(request, supported)
 
     @router.post("/execution-signing-payload")
     def signing_payload(body: ExecutionSigningEnvelope, request: Request):

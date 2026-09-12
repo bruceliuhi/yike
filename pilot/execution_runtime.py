@@ -24,6 +24,7 @@ from pilot.candidate_contract import CandidateBatch, CandidateRecord, CandidateC
 from pilot.connection_versions import ConnectionOperationError, ConnectionOperationStore
 from pilot.device_keys import DeviceKeyError, verify_signature
 from pilot.execution_contract import ExecutionOperation, ExecutionRuntimeError, ExecutionTarget, MAX_VERSION, canonical_uuid
+from pilot.public_sampling_progress import committed_public_sampling_round
 from pilot.sessions import PilotSessionRegistry
 
 
@@ -45,6 +46,9 @@ def _raw_model(value):
         if isinstance(value, CandidateRecord) and value.source_context is None \
                 and 'source_context' not in value.__pydantic_fields_set__:
             raw.pop('source_context', None)
+        if isinstance(value, ExecutionOperation) and value.public_sampling_version is None \
+                and 'public_sampling_version' not in value.__pydantic_fields_set__:
+            raw.pop('public_sampling_version', None)
         return raw
     if isinstance(value, (tuple, list)):
         return [_raw_model(item) for item in value]
@@ -443,9 +447,25 @@ class ExecutionRuntime:
         for table in ('pilot_collection_tasks','pilot_collection_runs'):
             cursor.execute(f'UPDATE {table} SET status=\'RUNNING\' WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s', params)
         self._live(cursor, task, run, platforms, budget=True)
-        return dict(task_id=task['task_id'], run_id=run['run_id'], status='RUNNING', stop_confirmed=False,
+        result = dict(task_id=task['task_id'], run_id=run['run_id'], status='RUNNING', stop_confirmed=False,
             platform_run_id=request.platform_run_id, lease_id=lease_id, execution_generation=generation,
             lease_expires_at=expires.isoformat(), deadline_at=task['deadline_at'].isoformat())
+        if request.public_sampling_version is not None:
+            from pilot.foreground_collection import (
+                four_platform_public_bili_links_monitor_policy,
+                four_platform_public_node_monitor_policy,
+                four_platform_public_project_monitor_policy,
+                four_platform_public_sampling_monitor_policy,
+            )
+            if self.capability_check not in (
+                    four_platform_public_sampling_monitor_policy,
+                    four_platform_public_node_monitor_policy,
+                    four_platform_public_project_monitor_policy,
+                    four_platform_public_bili_links_monitor_policy):
+                raise ExecutionRuntimeError('capability_unavailable', 409)
+            result['public_sampling'] = committed_public_sampling_round(
+                cursor, tenant_id=tenant, owner_user_id=claims.user_id, task=task, platform=platform)
+        return result
 
     @staticmethod
     def _lease(platform, credential_version, lease_id, generation, now, *, status='RUNNING'):
