@@ -148,6 +148,16 @@ def test_actual_process_cancel_preserves_read(worker,tmp_path,monkeypatch):
     assert result['status']=='CANCELLED' and len(result['reads'])==1
 
 
+def test_provider_attempts_captured_after_bridge_shutdown(worker,tmp_path,monkeypatch):
+    class SettlingBridge(worker.ResponsesBridge):
+        def __exit__(self,*exc):
+            self.records=[{'ordinal':1,'status':'unknown','code':'interrupted','usage':None}]
+    monkeypatch.setattr(worker,'ResponsesBridge',SettlingBridge)
+    result=run(worker,tmp_path,extra='time.sleep(20)\n',max_seconds=1)
+    assert result['code']=='timeout'
+    assert result['provider_calls']==[{'ordinal':1,'status':'unknown','code':'interrupted','usage':None}]
+
+
 def test_output_limit_aborts_without_echo(worker,tmp_path):
     result=run(worker,tmp_path,extra="sys.stdout.write('SYNTHETIC_SECRET'*200000);sys.stdout.flush();time.sleep(20)\n")
     assert result['status']=='FAILED' and result['code']=='output_limit'

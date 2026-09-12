@@ -259,17 +259,18 @@ def run_public_read_mission(description: str, *, codex_binary: str, python_binar
                     root = Path(directory)
                     (root/'state').mkdir(mode=0o700)
                     (root/'work').mkdir(mode=0o700)
-                    with ResponsesBridge(api_key=api_key,model=model,max_requests=max_requests,
-                                         deadline=deadline,allowed_tools=_TOOLS) as bridge:
-                        token = bridge.token
-                        command = _command(root,codex_binary=codex_binary,python_binary=python_binary,
-                                           model=model,bridge=bridge,max_reads=max_reads,max_seconds=max_seconds)
-                        try:
+                    bridge = ResponsesBridge(api_key=api_key,model=model,max_requests=max_requests,
+                                             deadline=deadline,allowed_tools=_TOOLS)
+                    try:
+                        with bridge:
+                            token = bridge.token
+                            command = _command(root,codex_binary=codex_binary,python_binary=python_binary,
+                                               model=model,bridge=bridge,max_reads=max_reads,max_seconds=max_seconds)
                             status,code = _execute(command,{'PATH':'/usr/bin:/bin',
                                 'CODEX_HOME':str(root/'state'),'YIKE_BRIDGE_TOKEN':token},
                                 description,deadline,cancelled,events,root/'work')
-                        finally:
-                            calls = bridge.records
+                    finally:
+                        calls = bridge.records
         except Exception:
             status,code = 'FAILED','runtime_unavailable'
     summary = events.summary
