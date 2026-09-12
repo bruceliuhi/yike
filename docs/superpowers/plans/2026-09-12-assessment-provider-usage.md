@@ -39,8 +39,8 @@ Files: 新migration139；pilot/db.py；deploy/grant_candidate_review.sql；新�
 ## 验收与接续
 
 - [x] Task1/2整合的真实PG+HTTP及模型worker定向验证；原配额/幂等/资格不可变规则保持。
-- [ ] 固定SHA非作者审核，必要修复后差量复核，正常合main；不因本批再构包/部署。
-- [ ] 文档记录本批实现及仍缺的普通客户端呈现/跨任务汇总、搜贝规则、真实模型生产计量、Windows/平台/跨行业客户验收。完整Goal ACTIVE。
+- [x] 固定SHA非作者审核通过，按既定流程合main；不因本批再构包/部署。
+- [x] 文档记录本批实现及仍缺的普通客户端呈现/跨任务汇总、搜贝规则、真实模型生产计量、Windows/平台/跨行业客户验收。完整Goal ACTIVE。
 
 ## Evidence
 
@@ -57,3 +57,5 @@ Task2 API及PG分别先RED（路由404、缺get_model_usage），实现后首轮
 ```
 
 结果51 passed，15.61秒。没有重跑上述较大组来扩大通过数；已验证旧research单许可/重放不双记。SQL同时拒绝字符串、JSON null与bool用量。语法/diff检查通过；原模型组196通过与最终51项是不同阶段和范围，不相加冒充整仓通过。
+
+独立非作者整批审核固定`b1690cf985bb1c404cb45cc41516c7df58342c12`：GO，无P1/P2。已沿provider→worker→parent→普通调用事件→认证查询核对原调用绑定、幂等与撤销边界；复用上述证据，不重复广集/网络。非阻断未验项：持久化失败测试为写入前异常，不是“真实COMMIT成功但ACK丢失”专项注入；不能声称该情形已实测。无真实provider计费、生产迁移、客户端呈现或Windows/客户验收。本批仅代码合入，完整Goal继续。
