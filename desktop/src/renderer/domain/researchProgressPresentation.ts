@@ -18,6 +18,7 @@ const stopExplanations:Record<string,string>={
   resource_limit_exceeded:'本轮已达到确认的研究用量上限。',task_unavailable:'当前任务暂时不能继续。',
   capability_unavailable:'当前服务暂不支持这项研究。',resource_unavailable:'研究服务暂时不可用。',
   lease_conflict:'执行状态发生变化，请查询原任务。',
+  worker_lost:'研究执行进程已中断，已有结果保留，不会自动重跑。',
 };
 
 function stoppedNextStep(code:string|null):string {
@@ -34,12 +35,12 @@ export function researchProgressPresentation(value:ResearchRuntimeStatus):Resear
   let nextStep:string;
   if(value.phase==='QUEUED'){
     explanation='研究尚未开始，不会自行在后台推进。';
-    nextStep='使用“继续研究”按已确认的范围开始。';
+    nextStep=value.contractVersion===4?'使用“开始研究”提交服务端执行，按已确认上限停止。':'使用“继续研究”按已确认的范围开始。';
   }else if(value.phase==='RUNNING'){
     explanation=value.acceptedOriginals===null
       ?'本轮正在逐步处理；入库原文数量尚未确认。'
       :`当前已确认 ${value.acceptedOriginals} 篇入库原文；页面只显示已返回的进度。`;
-    nextStep='可继续按已确认上限推进，或查询原研究状态。';
+    nextStep=value.contractVersion===4?'服务端正在研究，本页自动查询进度；无需重复启动。':'可继续按已确认上限推进，或查询原研究状态。';
   }else if(value.phase==='CANCELED'){
     explanation='已停止新增研究；此前已发出的请求不会被撤回。';
     nextStep='请查询原任务，核实此前请求及已有结果。';

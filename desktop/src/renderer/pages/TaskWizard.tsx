@@ -67,6 +67,7 @@ import { SearchSuggestionPanel } from "./tasks/SearchSuggestionPanel";
 import { IndustryTaskStrategyEditor } from './tasks/IndustryTaskStrategyEditor';
 import { adoptIndustryTaskStrategy } from '../domain/industryTaskStrategy';
 import {nativeResearchStartCommand} from '../domain/nativeResearch';
+import {DYNAMIC_RESEARCH_SOURCE} from '../../shared/dynamicResearch';
 import {researchRuntimeCapabilitySchema,researchAllowsSelection} from '../../shared/researchRuntime';
 
 export { matchesCreatedTask } from "../domain/taskOperations";
@@ -475,7 +476,7 @@ export function TaskWizardPage() {
             {timeoutMessage:'研究执行能力尚未核实，未创建任务。'}));
           if(!researchAllowsSelection(freshResearch,snapshot.publicSource,snapshot.research?.sourcePlan))throw new Error('所选板块研究能力已变化，请重新核对；未创建任务。');
           if(!await strategy.recheck() || !startScope.current())throw new Error('当前研究策略尚未重新核实。');
-          const command=await nativeResearchStartCommand(snapshot,prepared,freshConnections,session,usageSnapshot,crypto.randomUUID());
+          const command=await nativeResearchStartCommand(snapshot,prepared,freshConnections,session,usageSnapshot,crypto.randomUUID(),freshResearch);
           if(!startScope.current())throw new RequestCancelled();
           await desktopExecution.startResearch(command);
           return;
@@ -1190,7 +1191,13 @@ export function TaskWizardPage() {
                     </td>
                     <td>
                       {id === "web" ? (
-                        <PublicSourceSelector draft={draft} connections={connections.data??[]} researchCapability={researchCapability.data} onChange={publicSource=>update({publicSource})}
+                        <PublicSourceSelector draft={draft} connections={connections.data??[]} researchCapability={researchCapability.data} onChange={publicSource=>{
+                          if(publicSource===draft.publicSource)return;
+                          if(!draft.research||(publicSource!==DYNAMIC_RESEARCH_SOURCE&&draft.publicSource!==DYNAMIC_RESEARCH_SOURCE)){update({publicSource});return;}
+                          const {sourcePlan,dynamicScope,provenance,coverageProvenance,...research}=draft.research;
+                          update({publicSource,platformTerms:undefined,research:publicSource===DYNAMIC_RESEARCH_SOURCE?{...research,
+                            dynamicScope:{version:1,maxAgeDays:60,timezone:'Asia/Shanghai'},limits:{sources:20,minutes:15,modelCalls:20}}:research});
+                        }}
                           onPlanChange={(publicSource,sourcePlan)=>{if(!draft.research)return;const {sourcePlan:previous,...research}=draft.research;
                             update({publicSource,research:{...research,...(sourcePlan?{sourcePlan}:{})}});}}/>
                       ) : (

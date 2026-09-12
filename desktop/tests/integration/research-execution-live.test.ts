@@ -8,7 +8,7 @@ import {createExecutionJournal} from '../../src/main/executionJournal';
 import {createExecutionSession} from '../../src/main/executionSession';
 import {createExecutionController} from '../../src/main/executionController';
 import {executionOperationSchema} from '../../src/shared/executionOperation';
-import {researchRuntimeStatusSchema} from '../../src/shared/researchRuntime';
+import {researchRuntimeCapabilitySchema,researchRuntimeStatusSchema} from '../../src/shared/researchRuntime';
 import {taskFeedDetailSchema} from '../../src/shared/taskFeed';
 import {desktopExecutionCommandSchema} from '../../src/shared/desktopExecution';
 import type {ApiResult} from '../../src/shared/contracts';
@@ -31,6 +31,11 @@ it.skipIf(!names.some(name=>process.env[`YIKE_RESEARCH_LIVE_${name}`]))('runs on
   const data=(result:ApiResult):any=>{expect(result.ok).toBe(true);if(!result.ok)throw new Error(result.error);return result.data;};
   try{
     data(await identity.requestApi({operation:'session.login',payload:{token:env.TOKEN}}));expect(await identity.prepare()).toMatchObject({state:'READY'});
+    const dynamic=process.env.YIKE_RESEARCH_LIVE_TEST_MODE==='dynamic';
+    if(dynamic){
+      const capability=researchRuntimeCapabilitySchema.parse(data(await identity.requestApi({operation:'researchRuntime.capability',payload:{dynamicResearchVersion:1}})));
+      expect(capability.contractVersion).toBe(4);
+    }
     const quote=data(await identity.requestApi({operation:'researchUsage.quote',payload:JSON.parse(env.QUOTE!)}));
     const reservation={quote_id:quote.quoteId,strategy_version_id:start.strategy_version_id,profile_version_id:start.profile_version_id,configuration_sha256:start.configuration_sha256,
       rule_version:quote.ruleVersion,rule_sha256:quote.ruleSha256,estimated_soubei:quote.estimatedSoubei,max_soubei:quote.maxSoubei,limits:JSON.parse(env.BINDING!).limits};
@@ -42,9 +47,21 @@ it.skipIf(!names.some(name=>process.env[`YIKE_RESEARCH_LIVE_${name}`]))('runs on
     const taskId=begun.receipt.execution.task_id,runId=begun.receipt.execution.run_id;
     const files=await readdir(directory);expect(files.length).toBe(1);expect((await readFile(path.join(directory,files[0]))).includes(Buffer.from(quote.authorizationToken))).toBe(false);
     execution=coordinator();controller=createExecutionController({identity,execution});expect((await controller.execute({action:'RESEARCH_RECOVER',requestId:start.request_id})).state).toBe('RESEARCH_RECORDED');expect(startPosts).toBe(1);
-    let status=researchRuntimeStatusSchema.parse(data(await identity.requestApi({operation:'researchRuntime.advance',payload:{taskId,runId}})));expect(status.acceptedOriginals).toBe(1);
-    status=researchRuntimeStatusSchema.parse(data(await identity.requestApi({operation:'researchRuntime.advance',payload:{taskId,runId}})));expect(status.phase).toBe('COMPLETED');
-    expect(researchRuntimeStatusSchema.parse(data(await identity.requestApi({operation:'researchRuntime.status',payload:{taskId}})))).toEqual(status);
+    let status=researchRuntimeStatusSchema.parse(data(await identity.requestApi({operation:'researchRuntime.advance',payload:{taskId,runId}})));
+    if(dynamic){
+      for(let poll=0;status.phase==='RUNNING'&&poll<100;poll++){
+        await new Promise(resolve=>setTimeout(resolve,50));
+        status=researchRuntimeStatusSchema.parse(data(await identity.requestApi({operation:'researchRuntime.status',payload:{taskId}})));
+      }
+      expect(status).toMatchObject({contractVersion:4,phase:'COMPLETED',acceptedOriginals:1,analyzedOriginals:1,
+        discovery:{searches:{succeeded:1},reads:{succeeded:1},unpublishedOriginals:0}});
+      expect(status.candidateIds).toHaveLength(1);
+      expect(researchRuntimeStatusSchema.parse(data(await identity.requestApi({operation:'researchRuntime.advance',payload:{taskId,runId}})))).toMatchObject({phase:'COMPLETED',candidateIds:status.candidateIds});
+    }else{
+      expect(status.acceptedOriginals).toBe(1);
+      status=researchRuntimeStatusSchema.parse(data(await identity.requestApi({operation:'researchRuntime.advance',payload:{taskId,runId}})));expect(status.phase).toBe('COMPLETED');
+      expect(researchRuntimeStatusSchema.parse(data(await identity.requestApi({operation:'researchRuntime.status',payload:{taskId}})))).toEqual(status);
+    }
     const feed=taskFeedDetailSchema.parse(data(await identity.requestApi({operation:'taskFeed.get',payload:{taskId}})));expect(feed.item).toMatchObject({research:true,status:'SUCCEEDED'});
   }finally{if(path.dirname(directory)!==path.resolve(os.tmpdir())||!path.basename(directory).startsWith('yike-research-live-'))throw new Error('invalid cleanup');await rm(directory,{recursive:true,force:true});}
 },30_000);

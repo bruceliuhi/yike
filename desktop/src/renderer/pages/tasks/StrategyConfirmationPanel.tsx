@@ -1,7 +1,7 @@
 import { Badge, Button, Notice } from "../../components/ui";
 import type { useStrategyConfirmation } from "./useStrategyConfirmation";
 import { StrategySnapshotDetails } from "./StrategySnapshotDetails";
-import {publicSourceScope} from '../../../shared/publicSources';
+import {researchSelectionScope as publicSourceScope,DYNAMIC_RESEARCH_SOURCE} from '../../../shared/dynamicResearch';
 
 export function StrategyConfirmationPanel({ strategy, reviewed, onReviewedChange, disabled, preparationError }: {
   strategy: ReturnType<typeof useStrategyConfirmation>;
@@ -23,7 +23,9 @@ export function StrategyConfirmationPanel({ strategy, reviewed, onReviewedChange
       </Badge>
     </div>
     <p className="field-hint">准备快照后核对完整配置，再主动确认。策略确认不会启动采集或联系客户。</p>
-    {strategy.prepared?.snapshot.configuration.publicSource && <Notice>{publicSourceScope(strategy.prepared.snapshot.configuration.publicSource)}；关键词仅筛选本次近期主题样本，非全站搜索。每次最多检查任务分配的近期主题，不补扫历史；请至少间隔1分钟再采样。</Notice>}
+    {strategy.prepared?.snapshot.configuration.publicSource && <Notice>{strategy.prepared.snapshot.configuration.publicSource===DYNAMIC_RESEARCH_SOURCE
+      ?'公开网页自主研究：依据本次业务与时效动态搜索并读取原文，不保证覆盖全网；登录后内容与动态评论需另行授权补证。'
+      :publicSourceScope(strategy.prepared.snapshot.configuration.publicSource)+'；关键词仅筛选本次近期主题样本，非全站搜索。每次最多检查任务分配的近期主题，不补扫历史；请至少间隔1分钟再采样。'}</Notice>}
     {preparationError && <Notice tone="warning">{preparationError}</Notice>}
     {strategy.error && <Notice tone="warning">{strategy.error}</Notice>}
     {receipt && <>

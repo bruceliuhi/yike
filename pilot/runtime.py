@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from starlette.concurrency import run_in_threadpool
 
 from pilot.candidate_assessment_model import AssessmentModelError, OpenAICompatibleCandidateAssessmentModel
 from pilot.candidate_ingestion import CandidateIngestionStore
@@ -23,7 +25,8 @@ from pilot.db import PilotDatabase
 from pilot.execution_runtime import ExecutionRuntime
 from pilot.foreground_collection import configured_collection_policy
 from pilot.research_strategies import ResearchStrategyStore
-from pilot.research_runtime_config import research_configuration, public_research_policy, public_research_snapshot
+from pilot.research_runtime_config import (research_configuration, public_research_policy,
+    public_research_snapshot, configured_research_policy, configured_research_snapshot)
 from pilot.research_quote import ResearchQuoteService
 from pilot.research_execution import ResearchExecutionService
 from pilot.research_resources import ResearchResourceStore
@@ -31,6 +34,9 @@ from pilot.research_candidates import ResearchCandidateStore
 from pilot.research_assessment import ResearchAssessmentRunner
 from pilot.research_orchestrator import ResearchOrchestrator
 from pilot.research_runtime import ResearchRuntimeService
+from pilot.research_effect_journal import ResearchEffectJournal
+from pilot.dynamic_research_candidates import DynamicResearchCandidateStore
+from pilot.dynamic_research_runtime import DynamicResearchRuntimeService
 from pilot.reply_store import ReplyEventStore
 from pilot.signed_replies import SignedReplyStore
 from pilot.search_suggestion_model import SearchSuggestionError
@@ -126,13 +132,16 @@ def build_runtime_app(
     research_execution = research_quotes = research_runtime = research_resources = None
     if research_config is not None:
         # Do not widen ordinary collection/worker capability when enabling research.
+        dynamic_enabled = research_config.dynamic_agent is not None
+        research_policy = configured_research_policy(True) if dynamic_enabled else public_research_policy
+        research_snapshot = configured_research_snapshot(True) if dynamic_enabled else public_research_snapshot
         research_executor = ExecutionRuntime(database, strategy_resolver=strategies.resolve,
-                                             capability_check=public_research_policy)
+                                             capability_check=research_policy)
         research_quotes = ResearchQuoteService(database, strategies, research_config.rule,
-            research_config.signing_secret, public_research_snapshot)
+            research_config.signing_secret, research_snapshot)
         research_execution = ResearchExecutionService(research_executor, research_quotes)
         research_resources = ResearchResourceStore(research_executor, rule=research_config.rule,
-                                                   research_capability=public_research_snapshot)
+                                                   research_capability=research_snapshot)
     review = CandidateReviewStore(
         database,
         model=model,
@@ -150,7 +159,7 @@ def build_runtime_app(
         raise RuntimeError('invalid_outreach_platform_configuration')
     queue = OutreachQueueStore(database, drafts, runtime, outreach_platforms)
     replies.signed = SignedReplyStore(queue, replies)
-    return build_app(
+    app = build_app(
         store,
         auth_secret=auth_secret,
         dev_login=dev_login,
@@ -175,3 +184,22 @@ def build_runtime_app(
         search_suggestions=SearchSuggestionService(SearchSuggestionStore(database), model=_suggestion_model(environment)),
         outreach_queue=queue,
     )
+    if research_runtime is not None and research_config.dynamic_agent is not None:
+        journal = ResearchEffectJournal(research_resources)
+        dynamic = DynamicResearchRuntimeService(research_runtime, journal=journal,
+            candidates=DynamicResearchCandidateStore(journal), agent=research_config.dynamic_agent)
+        research_runtime.dynamic = dynamic
+        original_lifespan = app.router.lifespan_context
+
+        @asynccontextmanager
+        async def dynamic_lifespan(current_app):
+            async with original_lifespan(current_app):
+                try:
+                    yield
+                finally:
+                    stopped = await run_in_threadpool(dynamic.shutdown, timeout_seconds=5)
+                    if not stopped:
+                        raise RuntimeError("dynamic_research_shutdown_unconfirmed")
+
+        app.router.lifespan_context = dynamic_lifespan
+    return app

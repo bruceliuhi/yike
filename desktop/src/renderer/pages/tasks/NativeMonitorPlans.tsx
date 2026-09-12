@@ -11,7 +11,7 @@ import type {MonitorCollectionCommand,MonitorCollectionPlan} from '../../../shar
 import {boundedRequest} from '../../app/boundedRequest';
 import {useTaskDraft,useTaskLibrary} from '../../app/taskDraft';
 import {newTaskDraft} from '../../domain/models';
-import {publicSourceScope} from '../../../shared/publicSources';
+import {researchSelectionScope as publicSourceScope} from '../../../shared/dynamicResearch';
 
 const localLabels={DETACHED:'本机未接管',ATTACHED:'已接管，等待到期',RUNNING:'轮次处理中',STOPPING:'正在停止',STOP_UNCONFIRMED:'来源停止待核实'};
 const hints:Record<string,string>={SKIPPED_BUSY:'采集器忙碌，本次到期已跳过，不补跑。',SKIPPED_OFFLINE:'离线错过的时段已跳过。',

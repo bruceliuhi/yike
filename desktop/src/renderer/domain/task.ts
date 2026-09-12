@@ -12,6 +12,7 @@ import { platformTermsError } from './platformSearchTerms';
 import {foregroundBindingSchema,publicSourceBindingSchema} from '../../shared/foregroundCollection';
 import {allowsPublicSource,DEFAULT_PUBLIC_SOURCE,publicSourceIdSchema} from '../../shared/publicSources';
 import {researchSourcePlanSchema} from '../../shared/researchSourcePlan';
+import {DYNAMIC_RESEARCH_SOURCE,dynamicLimitsValid,dynamicScopeSchema,researchSelectionSchema} from '../../shared/dynamicResearch';
 import {planNativeCollectionLinks} from '../../shared/nativeCollectionLinks';
 
 export const PUBLIC_SOURCE_SCOPE='V2EX近期主题有界抽样，不覆盖历史/全站/评论';
@@ -213,7 +214,7 @@ export function startBlockers(
   nativeResearchReady = false,
 ): string[] {
   const blockers = Object.values(taskErrors(draft));
-  if(draft.publicSource!==undefined&&!publicSourceIdSchema.safeParse(draft.publicSource).success)
+  if(draft.publicSource!==undefined&&!researchSelectionSchema.safeParse(draft.publicSource).success)
     blockers.push('公开板块标识无效，请重新选择。');
   if (draft.research && (!researchSettingsSchema.safeParse(draft.research).success || draft.research.maxSoubei === null))
     blockers.push("请填写有效的研究范围及搜贝上限。");
@@ -227,21 +228,25 @@ export function startBlockers(
   const publicRows=connections.filter(hasPublicSourceBinding);
   const publicSelected=draft.platforms.includes('web');
   const selectedPublicSource=draft.publicSource??DEFAULT_PUBLIC_SOURCE;
+  const dynamic=selectedPublicSource===DYNAMIC_RESEARCH_SOURCE;
+  if(dynamic&&(!publicSelected||draft.platforms.length!==1||!draft.research||!dynamicScopeSchema.safeParse(draft.research.dynamicScope).success||
+    !dynamicLimitsValid(draft.research.limits)||draft.research.sourcePlan||draft.research.provenance||draft.research.coverageProvenance))
+    blockers.push('自主研究需明确时效，并使用2–100次搜索/读取、1–30分钟、2–20次模型调用上限；不能混入其他来源计划。');
   const sourcePlan=researchSourcePlanSchema.safeParse(draft.research?.sourcePlan);
   const sources=sourcePlan.success?sourcePlan.data.sources:[selectedPublicSource];
   if(sourcePlan.success && (sources[0]!==selectedPublicSource || (draft.research?.limits.sources??0)<sources.length ||
       (draft.executionLimits?.max_records??0)<sources.length || draft.mode!=='once'||draft.platforms.length!==1||!publicSelected))
     blockers.push('多来源计划需核对主来源、来源预算及每源记录配额，仅支持公开单次研究。');
-  if(publicSelected && (publicRows.length!==1 || !sources.every(source=>allowsPublicSource(source,publicRows[0].publicBinding?.sourceId,publicRows[0].publicBinding?.sourceIds))))
+  if(publicSelected && !dynamic && (publicRows.length!==1 || !sources.every(source=>allowsPublicSource(source,publicRows[0].publicBinding?.sourceId,publicRows[0].publicBinding?.sourceIds))))
     blockers.push('所选公开板块当前不可用，请重新核对来源；不会自动切换板块。');
   const publicMonitor=publicSelected&&draft.mode==='monitor'&&publicRows.length===1&&publicRows[0].publicBinding?.monitorSupported===true;
   const publicResearch=nativeResearchReady && draft.mode==='once' && draft.platforms.length===1 && publicSelected;
-  if(publicSelected && (draft.accounts.web || publicRows.length!==1 || !['once','monitor'].includes(draft.mode) || draft.mode==='monitor'&&!publicMonitor || draft.source!=='search' || draft.links.trim() || draft.research&&!publicResearch))
+  if(publicSelected && (draft.accounts.web || !dynamic&&publicRows.length!==1 || !['once','monitor'].includes(draft.mode) || draft.mode==='monitor'&&!publicMonitor || draft.source!=='search' || draft.links.trim() || draft.research&&!publicResearch))
     blockers.push(draft.mode==='monitor'?'公开来源尚不具备持续监控能力。':'公开网站仅支持已核对的 V2EX 匿名近期主题关键词采样。');
   if(publicSelected && (!draft.executionLimits || !Number.isInteger(draft.executionLimits.max_records) ||
       !Number.isInteger(draft.executionLimits.max_runtime_seconds) || (draft.executionLimits.max_records??0)<draft.platforms.length ||
-      (draft.executionLimits.max_runtime_seconds??0)<1 || (draft.executionLimits.max_records??0)>100 || (draft.executionLimits.max_runtime_seconds??0)>900))
-    blockers.push('公开采样需明确共享记录上限（至少所选平台数、最多100条）与运行时长（1至900秒）。');
+      (draft.executionLimits.max_runtime_seconds??0)<1 || (draft.executionLimits.max_records??0)>100 || (draft.executionLimits.max_runtime_seconds??0)>(dynamic?1800:900)))
+    blockers.push(`公开采样需明确共享记录上限（至少所选平台数、最多100条）与运行时长（1至${dynamic?1800:900}秒）。`);
   const nativeSelections = draft.platforms.filter(platform=>platform!=='web').map(platform => connections.find(c => c.platform === platform &&
     c.accountId === draft.accounts[platform] && hasForegroundBinding(c)));
   const multiOnce = draft.mode === 'once' && draft.platforms.length > 1 && nativeSelections.every(c =>
@@ -254,6 +259,7 @@ export function startBlockers(
       (draft.executionLimits.max_records ?? 0) < draft.platforms.length)
     blockers.push('共享记录上限不能小于所选平台数。');
   for (const platform of draft.platforms) {
+    if(platform==='web'&&dynamic)continue; // Authenticated server capability is checked separately, not a local connector.
     const name = PLATFORMS.find((p) => p.id === platform)?.name || platform;
     const connection = connections.find(
       (c) =>

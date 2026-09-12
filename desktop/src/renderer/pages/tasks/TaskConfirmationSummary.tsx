@@ -10,6 +10,7 @@ import { DEMAND_TYPES, type UsageQuote } from "../../domain/researchUsage";
 import { schedulePolicyDescription, scheduleWindowLabel } from "../../domain/schedule";
 import {hasPublicSourceBinding} from '../../domain/task';
 import {allowsPublicSource,DEFAULT_PUBLIC_SOURCE,publicSourceScope} from '../../../shared/publicSources';
+import {DYNAMIC_RESEARCH_SOURCE,researchSelectionScope} from '../../../shared/dynamicResearch';
 import {researchSourceScope} from '../../../shared/researchRuntime';
 import {researchSources,researchRecordAllotments,researchIndexLabel,RESEARCH_PLAN_LABEL} from '../../../shared/researchSourcePlan';
 
@@ -241,6 +242,7 @@ export function TaskConfirmationSummary({
                   : "待核验";
                 const webReady =
                   id === "web" &&
+                  draft.publicSource!==DYNAMIC_RESEARCH_SOURCE&&
                   !!readyConnection && hasPublicSourceBinding(readyConnection) &&
                   researchSources(draft.publicSource ?? DEFAULT_PUBLIC_SOURCE,draft.research?.sourcePlan).every(source=>allowsPublicSource(source,
                     readyConnection.publicBinding?.sourceId,readyConnection.publicBinding?.sourceIds));
@@ -273,7 +275,7 @@ export function TaskConfirmationSummary({
                         }
                       >
                         {id === "web"
-                          ? webReady
+                          ? draft.publicSource===DYNAMIC_RESEARCH_SOURCE?'服务端能力启动前复核':webReady
                             ? "公开读取可用"
                             : "范围待确认"
                           : connection?.status === "CONNECTED" && !matches
@@ -283,7 +285,7 @@ export function TaskConfirmationSummary({
                             : status}
                       </Badge>
                     </td>
-                    <td>{id === 'web' ? draft.research?.sourcePlan ? RESEARCH_PLAN_LABEL : draft.research ? researchSourceScope(draft.publicSource) : publicSourceScope(draft.publicSource) : source}</td>
+                    <td>{id === 'web' ? draft.research?.sourcePlan ? RESEARCH_PLAN_LABEL : draft.research ? researchSourceScope(draft.publicSource) : researchSelectionScope(draft.publicSource) : source}</td>
                   </tr>
                 );
               })}
