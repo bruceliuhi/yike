@@ -56,7 +56,9 @@ def build_server(*, max_reads: int, max_seconds: int, reader=read_public_page, s
         tools = [Tool(name='read_public_page', description=(
             'Read an anonymous public HTTPS page found during research. Returns original extracted '
             'page text and observation metadata, or a fixed failure code. No login, redirects or '
-            'automatic retries. Dynamic comments, PDFs and publication dates are not extracted.'),
+            'automatic retries. The optional links are unverified navigation hints from this page; '
+            'you may read relevant ones within the same budget. Dynamic comments, PDFs and '
+            'publication dates are not extracted.'),
             inputSchema={'type':'object','properties':{'url':{'type':'string','maxLength':2048}},
                          'required':['url'],'additionalProperties':False},
             annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False,
@@ -104,6 +106,7 @@ def build_server(*, max_reads: int, max_seconds: int, reader=read_public_page, s
                 else:
                     result = dict(status='READ', evidence=value,
                                   review_status='UNREVIEWED', replayed=False)
+                    discovered.update(value.get('links', []))
             except PublicReadError as error:
                 result = _failure(error.code)
             except Exception:

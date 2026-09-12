@@ -11,7 +11,7 @@ import ssl
 import sys
 from datetime import datetime, timezone
 from html.parser import HTMLParser
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 MAX_BODY_BYTES = 1024 * 1024
 MAX_TEXT_CHARS = 60_000
@@ -45,6 +45,7 @@ class _VisibleHTML(HTMLParser):
         self.stack: list[tuple[str, bool, bool]] = []
         self.text_parts: list[str] = []
         self.title_parts: list[str] = []
+        self.links: list[str] = []
 
     def handle_starttag(self, tag, attrs):
         values = {key.lower(): (value or "").lower() for key, value in attrs}
@@ -54,6 +55,11 @@ class _VisibleHTML(HTMLParser):
                   or values.get("aria-hidden") == "true"
                   or "display:none" in style or "visibility:hidden" in style)
         title = tag == "title"
+        if tag == "a" and not hidden and not self.hidden_depth and not self.title_depth:
+            href = dict(attrs).get("href")
+            if (type(href) is str and href.strip() and len(href) <= 2048
+                    and len(self.links) < 50 and href not in self.links):
+                self.links.append(href)
         if tag in _VOID_TAGS:
             return
         self.stack.append((tag, hidden, title))
@@ -107,7 +113,7 @@ def _read_body(response: http.client.HTTPResponse) -> bytes:
     return body
 
 
-def _decode(body: bytes, content_type: str) -> tuple[str, str | None]:
+def _decode(body: bytes, content_type: str, *, links=None) -> tuple[str, str | None]:
     media_type, *parameters = content_type.split(";")
     media_type = media_type.strip().lower()
     # A missing/malformed type is not a confirmed unsupported format.
@@ -138,6 +144,8 @@ def _decode(body: bytes, content_type: str) -> tuple[str, str | None]:
         text = " ".join(" ".join(parser.text_parts).split())
         title_value = " ".join(" ".join(parser.title_parts).split())
         title = title_value[:MAX_TITLE_CHARS] or None
+        if links is not None:
+            links.extend(parser.links)
     if len(text) > MAX_TEXT_CHARS:
         raise WorkerError("too_large")
     return text, title
@@ -197,7 +205,8 @@ def read_request(request: dict) -> dict:
         if response.getheader("Content-Encoding") not in (None, "identity"):
             raise WorkerError("unsupported_content")
         body = _read_body(response)
-        text, title = _decode(body, response.getheader("Content-Type") or "")
+        links = []
+        text, title = _decode(body, response.getheader("Content-Type") or "", links=links)
     except WorkerError:
         raise
     except (OSError, ssl.SSLError, http.client.HTTPException, UnicodeError):
@@ -208,9 +217,15 @@ def read_request(request: dict) -> dict:
         elif raw is not None:
             raw.close()
     observed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    resolved_links = []
+    for href in links:
+        try:
+            resolved_links.append(urljoin(url, href))
+        except ValueError:
+            continue
     return {"url": url, "title": title, "text": text, "observed_at": observed_at,
             "content_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
-            "read_scope": "PUBLIC_PAGE_TEXT"}
+            "read_scope": "PUBLIC_PAGE_TEXT", "links": resolved_links}
 
 
 def main() -> int:

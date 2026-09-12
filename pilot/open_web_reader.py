@@ -70,7 +70,12 @@ class _ReadScope:
 def valid_page_evidence(value, url: str) -> bool:
     """Validate exact, internally consistent public-page evidence."""
     try:
-        if type(value) is not dict or set(value) != _RESULT_KEYS:
+        if type(value) is not dict or set(value) not in (_RESULT_KEYS, _RESULT_KEYS | {"links"}):
+            return False
+        links = value.get("links", [])
+        if (type(links) is not list or len(links) > 50
+                or any(type(link) is not str or normalize_public_url(link) != link for link in links)
+                or len(set(links)) != len(links)):
             return False
         observed = datetime.fromisoformat(value["observed_at"])
         text, title = value["text"], value["title"]
@@ -83,8 +88,28 @@ def valid_page_evidence(value, url: str) -> bool:
             and observed <= datetime.now(timezone.utc)
             and value["content_sha256"] == hashlib.sha256(text.encode("utf-8")).hexdigest()
         )
-    except (KeyError, ValueError, TypeError, UnicodeError):
+    except (KeyError, ValueError, TypeError, UnicodeError, PublicReadError):
         return False
+
+
+def _sanitize_page_links(value):
+    """Only the trusted reader boundary may turn raw hrefs into navigation hints."""
+    if "links" not in value:
+        return value
+    raw_links = value["links"]
+    if type(raw_links) is not list or len(raw_links) > 50:
+        raise ValueError("invalid_links")
+    links = []
+    for href in raw_links:
+        if type(href) is not str:
+            raise ValueError("invalid_links")
+        try:
+            url = normalize_public_url(href)
+        except PublicReadError:
+            continue
+        if url != value["url"] and url not in links:
+            links.append(url)
+    return value | {"links": links}
 
 
 def normalize_public_url(url: str) -> str:
@@ -162,8 +187,9 @@ def _read_public_page(url: str, *, deadline: datetime, lock, active, stopped) ->
         if message.get("ok") is not True:
             raise PublicReadError(message.get("code", "unavailable"))
         result = message["result"]
-        if type(result) is not dict or set(result) != _RESULT_KEYS:
+        if type(result) is not dict or set(result) not in (_RESULT_KEYS, _RESULT_KEYS | {"links"}):
             raise ValueError
+        result = _sanitize_page_links(result)
         text = result["text"]
         title = result["title"]
         observed_at = result["observed_at"]
@@ -175,6 +201,8 @@ def _read_public_page(url: str, *, deadline: datetime, lock, active, stopped) ->
         datetime.strptime(observed_at, "%Y-%m-%dT%H:%M:%SZ")
         digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
         if result["content_sha256"] != digest:
+            raise ValueError
+        if not valid_page_evidence(result, normalized):
             raise ValueError
         return result
     except PublicReadError:

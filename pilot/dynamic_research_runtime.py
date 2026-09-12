@@ -17,6 +17,12 @@ from pilot.research_runtime_config import dynamic_research_snapshot
 _COUNTER = ("issued", "pending", "succeeded", "failed", "unknown")
 
 
+def _discovery_limits(sources):
+    # SEARCH and READ consume the same confirmed source allowance.
+    searches = min(10, max(1, sources // 3))
+    return searches, sources - searches
+
+
 def _stop_code(value, fallback):
     return value if type(value) is str and 1 <= len(value) <= 128 else fallback
 
@@ -183,6 +189,7 @@ class DynamicResearchRuntimeService:
                 generation=generation, coordinator_owner=self.owner,
                 context_binding=context["binding"],
             )
+            max_searches, max_reads = _discovery_limits(limits["sources"])
             result = self.mission(
                 json.loads(context["context_json"])["seller_description"],
                 codex_binary=self.agent.codex_binary,
@@ -190,8 +197,8 @@ class DynamicResearchRuntimeService:
                 api_key=self.agent.api_key,
                 model=self.agent.model,
                 search_api_key=self.agent.search_api_key,
-                max_searches=min(10, limits["sources"]),
-                max_reads=limits["sources"],
+                max_searches=max_searches,
+                max_reads=max_reads,
                 max_requests=limits["modelCalls"] - 1,
                 max_seconds=limits["seconds"],
                 cancelled=lambda: self._cancelled(

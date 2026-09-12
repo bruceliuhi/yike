@@ -41,6 +41,7 @@ class PublicReadSession:
         self._lock = threading.Lock()
         self._operation_lock = threading.Lock()
         self._cache = {}
+        self._discovered_links = set()
         self._used = 0
         self._closed = False
 
@@ -53,6 +54,8 @@ class PublicReadSession:
             allowed = self._allowed_url(normalized) is True
         except Exception:
             allowed = False
+        with self._lock:
+            allowed = allowed or normalized in self._discovered_links
         if not allowed:
             return _failure("invalid_url")
         with self._operation_lock:
@@ -126,6 +129,8 @@ class PublicReadSession:
                 result = _failure(hard_read_error or "unavailable")
             with self._lock:
                 self._cache[normalized] = deepcopy(result)
+                if not self._closed and result.get("status") == "READ":
+                    self._discovered_links.update(result["evidence"].get("links", []))
             return deepcopy(result)
 
     def close(self):
