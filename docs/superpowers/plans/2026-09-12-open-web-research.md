@@ -8,6 +8,8 @@
 
 **Tech Stack:** Python 3.11–3.12, installed Codex CLI, stdlib, existing Pydantic/candidate contracts; no new provider SDK required.
 
+**Runtime decision hold:** Following the user's customer-delivery clarification, Task 2's concrete Codex subprocess implementation has not started and is on hold pending server-side runtime/provider/tool capability validation. The customer must never require a Codex installation/account/key. This does not pause the overall V02 Goal or authorize replacing its Agent workflow with fixed-site collection. The generic read/evidence boundary remains reusable; no customer feature or production mode has changed.
+
 ## Global Constraints
 
 - No private platform sessions, inherited personal plugins/configuration, external sends or production activation.
