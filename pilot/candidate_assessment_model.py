@@ -76,15 +76,20 @@ class _Strict(BaseModel):
     model_config = ConfigDict(strict=True, frozen=True, extra="forbid", revalidate_instances="always")
 
 
+_CITATION_FIELDS = ("title", "body", "parent.title", "parent.body", "profile.description",
+    *(f"author_updates.{index}" for index in range(100)))
+
+
 class Citation(_Strict):
-    field: str
+    # Constrain provider generation too; custom validators alone are invisible
+    # to JSON Schema. Source existence and verbatim quotes are checked below.
+    field: str = Field(json_schema_extra={"enum": list(_CITATION_FIELDS)})
     quote: Quote
 
     @field_validator("field")
     @classmethod
     def citation_field(cls, value):
-        if value not in {"title", "body", "parent.title", "parent.body", "profile.description"} and not (
-                isinstance(value, str) and re.fullmatch(r"author_updates\.(?:[0-9]|[1-9][0-9])", value)):
+        if value not in _CITATION_FIELDS:
             raise ValueError("invalid citation field")
         return value
 

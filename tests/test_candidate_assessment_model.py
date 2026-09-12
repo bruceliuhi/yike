@@ -63,6 +63,36 @@ def test_complete_assessment_preserves_verbatim_quotes_and_independent_dimension
         result.grade = "S"
 
 
+def test_citation_schema_exposes_the_same_canonical_paths_as_the_validator():
+    from pilot.provider_schema import provider_json_schema
+
+    expected = {"title", "body", "parent.title", "parent.body", "profile.description"}
+    expected.update(f"author_updates.{index}" for index in range(100))
+    schema = module().AssessmentContent.model_json_schema()
+    for base_url in ("https://ark.cn-beijing.volces.com/api/v3", "https://example.test/v1"):
+        field = provider_json_schema(schema, base_url=base_url)["$defs"]["Citation"]["properties"]["field"]
+        assert field["type"] == "string"
+        assert set(field.get("enum", [])) == expected
+    for path in expected:
+        assert module().Citation(field=path, quote="原文").field == path
+
+
+@pytest.mark.parametrize("path", ["description", "content.body", "author_updates.00",
+    "author_updates.-1", "author_updates.100", "author_updates.1\n"])
+def test_citation_aliases_and_invalid_update_paths_are_not_normalized(path):
+    value = assessment()
+    value["businessMatch"]["citations"][0]["field"] = path
+    with pytest.raises(module().AssessmentModelError, match="invalid_assessment_result"):
+        validate(value)
+
+
+def test_canonical_but_absent_update_cannot_supply_evidence():
+    value = assessment()
+    value["businessMatch"]["citations"][0] = {"field": "author_updates.99", "quote": "食品工厂"}
+    with pytest.raises(module().AssessmentModelError, match="invalid_assessment_result"):
+        validate(value)
+
+
 @pytest.mark.parametrize("field", list(assessment()))
 def test_every_output_field_is_required(field):
     value = assessment()
@@ -429,6 +459,10 @@ def test_installed_wheel_has_identical_rules_and_missing_rules_fail_closed(tmp_p
     install = subprocess.run(["uv", "pip", "install", "--target", str(installed), "--no-deps", "--offline", str(wheel)],
                              capture_output=True, text=True, timeout=30)
     assert install.returncode == 0, install.stderr
+    for relative in ("SKILL.md", "references/qualification-and-evidence.md",
+                     "references/evaluation.md", "references/search-and-coverage.md"):
+        assert (installed / "pilot/_research_rules" / relative).read_bytes() == (
+            root / "skills/ai-project-lead-research-v1" / relative).read_bytes()
     # Isolated interpreter: remove checkout, import only the installed wheel's
     # pilot package while reusing installed dependencies (no provider/network).
     script = "import sys,json; sys.path.insert(0,sys.argv[1]); from pilot.candidate_assessment_model import load_assessment_rules; print(json.dumps(load_assessment_rules()))"

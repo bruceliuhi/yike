@@ -113,3 +113,25 @@
 3. 继续授权评论深读、阅读优先与跨日质量验证；本批新合格商机仍为0，不能据索引噪声判断市场没有需求。原个人Skill不变，完整Goal ACTIVE。
 
 独立审查 `/tmp/yike-real-research-evidence-review-20260913.md` 已核对两轮原始证据和业务排除，未联网或重跑。原始证据分别在 `/tmp/yike-buyer-runtime.9fch4M/evidence.json`、`/tmp/yike-model-diagnostic.pQfj4L/evidence.json`；合成诊断同目录 `assessment-latency.json`、`assessment-shape.json`。临时文件非客户交付依赖，本文保留可迁移结论。不提交完整页面联系人/模型转录。owned测试数据库 `yike-buyer-runtime-20260913` 已停止并核实自动删除，其他数据库未动；无产品代码改动、全量测试或构包。
+
+## 判断字段与安装包修复（同日，基线 74cd075）
+
+本节是新合成输入诊断的结论，不追认上节真实原文的 UNKNOWN 原因。输入明确标记合成、不是真实商机；仅使用已授权提供商，不读取客户私人数据或重试旧任务。
+
+### 确定根因与最小修复
+
+同一合成输入经真实HTTP、进程内观察再次返回 `invalid_assessment_result`：10.306秒、HTTP200，5804输入/714输出/6518总token。离线校验只发现 `businessMatch.citations[1].field` 为 `description`，而合法路径为 `profile.description`；仅在离线诊断副本改正路径，其他字段不变即通过。生产不执行这种自动改写。
+
+根因是 `Citation.field` 的自定义校验器没有体现在提供商 JSON Schema 中，旧schema只有string；提示词虽然列出路径，模型仍可生成别名。现将原有5个固定路径及100个作者回复路径显式列为enum，并与应用校验共用集合；不存在的作者回复、非逐字引用、父帖冒充本人意向、等级和独立短草稿校验均不变。规则指纹随完整schema改变，未修改个人本地Skill。
+
+修复后仅做一次同输入、同提供商、同进程内诊断路径与60秒诊断配置的新调用，生产默认30秒不变：**HTTP200、结构化校验通过、13.424秒，7321输入/747输出/8068总token**。本次引用body/title，没有实际输出profile.description，因此只证明新enum可被该提供商接受且本样本通过，不证明该特定路径已在实网引用、稳定性、生产子进程或新商机质量。增加schema使该样本输入增加1517 token；后续优化不能以取消约束换成本。
+
+本地合成证据位于 `assessment-rejected-capture.json` 和 `assessment-citation-enum.json`，目录 `/tmp/yike-model-diagnostic.pQfj4L`；不提交原始模型转录。后者绑定基线74cd075及修改后模块SHA256 `b8c875a323f82db9fa7d6c174cb4996777bdd4b35cd3a6b004834e1de49d9487`。
+
+### 同批暴露的安装包阻断
+
+相关回归初次 **241通过/1失败**，失败为真实离线wheel安装后的 `assessment_rules_unavailable`。检查该wheel发现只有 `_research_rules`，缺少 `_assessment_rules`：Hatch规范化force-include中的 `/./` 文件路径，重复源映射覆盖了判断资源目标。修复为研究规则使用目录源、判断规则保持两条文件源，避免同一个规范化源键重复；加载器和规则内容不变。
+
+引用schema RED阶段1失败/7通过；修复及安装包差量组56通过。安装包测试另补同一个wheel内研究四文件逐字匹配断言，保留判断规则加载一致及删除后拒绝的检查，最终该项1通过。独立整批审核 **Spec PASS / Quality PASS**，复验新增8项通过，无material缺陷；报告 `/tmp/yike-citation-schema-review-20260913.md`。不执行桌面全量构包、生产部署或外联；这是Python包定向验证。
+
+下一步仍是新真实来源完成普通判断、授权评论深读与原本地Skill的同条件效果对照；上述合成成功不能计入可联系线索，已入库过期帖和旧UNKNOWN不重放。完整Goal ACTIVE。
