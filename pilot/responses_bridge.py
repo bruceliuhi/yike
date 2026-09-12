@@ -5,8 +5,10 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import re
 import secrets
+import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -47,7 +49,8 @@ class ResponsesBridge:
             raise BridgeError("invalid_config")
         if type(max_requests) is not int or not 1 <= max_requests <= 20:
             raise BridgeError("invalid_config")
-        if not isinstance(deadline, (int, float)) or deadline > time.monotonic() + 1800:
+        if (isinstance(deadline, bool) or not isinstance(deadline, (int, float))
+                or not math.isfinite(deadline) or deadline > time.monotonic() + 1800):
             raise BridgeError("invalid_config")
         if not isinstance(allowed_tools, tuple):
             raise BridgeError("invalid_config")
@@ -72,6 +75,7 @@ class ResponsesBridge:
         self._state_lock = threading.Lock()
         self._count = 0
         self._records: list[dict] = []
+        self._connections: set[socket.socket] = set()
         self._closed = True
         self._server = None
         self._thread = None
@@ -92,6 +96,19 @@ class ResponsesBridge:
 
         class Handler(BaseHTTPRequestHandler):
             protocol_version = "HTTP/1.1"
+
+            def setup(self):
+                self.request.settimeout(max(0.001, min(20.0, bridge._deadline - time.monotonic())))
+                super().setup()
+                with bridge._state_lock:
+                    bridge._connections.add(self.connection)
+
+            def finish(self):
+                try:
+                    super().finish()
+                finally:
+                    with bridge._state_lock:
+                        bridge._connections.discard(self.connection)
 
             def do_POST(self):
                 bridge._handle(self)
@@ -118,6 +135,13 @@ class ResponsesBridge:
     def __exit__(self, *_exc):
         with self._state_lock:
             self._closed = True
+            connections = tuple(self._connections)
+        for connection in connections:
+            try:
+                connection.shutdown(socket.SHUT_RDWR)
+                connection.close()
+            except OSError:
+                pass
         if self._client is not None:
             self._client.close()
         if self._server is not None:
@@ -161,7 +185,14 @@ class ResponsesBridge:
         if length > _MAX_BYTES:
             self._send(handler, 413, {"error": {"code": "request_too_large"}})
             return
-        raw = handler.rfile.read(length)
+        try:
+            raw = handler.rfile.read(length)
+        except (OSError, TimeoutError):
+            self._send(handler, 408, {"error": {"code": "deadline_exceeded"}})
+            return
+        if len(raw) != length:
+            self._send(handler, 400, {"error": {"code": "invalid_request"}})
+            return
         try:
             payload = json.loads(raw)
             outbound = self._outbound(payload)
@@ -211,15 +242,24 @@ class ResponsesBridge:
             reasoning.pop("summary", None)
             result["reasoning"] = reasoning
         tools = []
-        for tool in result.get("tools", []):
-            if not isinstance(tool, dict) or tool.get("type") != "function":
+        for namespace in result.get("tools", []):
+            if not isinstance(namespace, dict):
                 raise BridgeError("invalid_request")
-            pair = (tool.get("namespace"), tool.get("name"))
-            alias = self._by_pair.get(pair)
-            if alias is None:
+            if namespace.get("type") != "namespace":
+                continue
+            namespace_name = namespace.get("name")
+            declared = namespace.get("tools")
+            if not isinstance(namespace_name, str) or not isinstance(declared, list):
                 raise BridgeError("invalid_request")
-            item = dict(tool); item["name"] = alias; item.pop("namespace", None)
-            tools.append(item)
+            for tool in declared:
+                if not isinstance(tool, dict) or tool.get("type") != "function" or not isinstance(tool.get("name"), str):
+                    raise BridgeError("invalid_request")
+                pair = (namespace_name, tool["name"])
+                alias = self._by_pair.get(pair)
+                if alias is None:
+                    continue
+                item = dict(tool); item["name"] = alias
+                tools.append(item)
         result["tools"] = tools
         inputs = []
         for source in result.get("input", []):

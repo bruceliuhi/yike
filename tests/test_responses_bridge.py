@@ -1,4 +1,5 @@
 import json
+import socket
 import threading
 import time
 from time import monotonic
@@ -47,8 +48,13 @@ def test_roundtrip_rewrites_only_protocol_function_names_and_history():
     with ResponsesBridge(api_key=KEY, model="test-model", max_requests=2, deadline=monotonic()+10,
                          allowed_tools=ALLOWED, transport=httpx.MockTransport(provider)) as bridge:
         payload = {"model": "ignored", "stream": True, "reasoning": {"effort": "low", "summary": "auto"},
-                   "tools": [{"type": "function", "namespace": ALLOWED[0][0], "name": ALLOWED[0][1],
-                              "description": "read", "parameters": {"type": "object"}}],
+                   "tools": [{"type": "namespace", "name": ALLOWED[0][0], "tools": [
+                       {"type": "function", "name": ALLOWED[0][1], "description": "read",
+                        "parameters": {"type": "object", "example": {"type": "function_call"}}},
+                       {"type": "function", "name": "unadvertised", "parameters": {"type": "object"}}]},
+                       {"type": "namespace", "name": "mcp__other", "tools": [
+                           {"type": "function", "name": "other", "parameters": {"type": "object"}}]},
+                       {"type": "web_search"}],
                    "input": [{"role": "user", "content": "hello", "business": {
                        "type": "function_call", "name": "opaque"}}]}
         first = request(bridge, payload)
@@ -60,6 +66,8 @@ def test_roundtrip_rewrites_only_protocol_function_names_and_history():
             assert item["namespace"] == ALLOWED[0][0]
         assert aliases[0] in events[0]["item"]["arguments"]  # business argument text is untouched
 
+        assert len(seen[0][1]["tools"]) == 1
+        assert seen[0][1]["tools"][0]["parameters"]["example"] == {"type": "function_call"}
         second = request(bridge, {**payload, "tools": payload["tools"], "input": [events[0]["item"]]})
         assert second.status_code == 200
         assert seen[1][1]["input"][0]["name"] == seen[1][1]["tools"][0]["name"]
@@ -142,3 +150,47 @@ def test_deadline_expiring_during_provider_io_cannot_become_success():
         response = request(bridge, {"tools": [], "input": []})
         assert response.status_code == 408
         assert response.json() == {"error": {"code": "deadline_exceeded"}}
+
+
+@pytest.mark.parametrize("deadline", [True, float("nan"), float("inf"), float("-inf")])
+def test_deadline_must_be_a_finite_number(deadline):
+    with pytest.raises(Exception) as caught:
+        ResponsesBridge(api_key=KEY, model="m", max_requests=1, deadline=deadline,
+                        allowed_tools=ALLOWED, transport=httpx.MockTransport(lambda _: None))
+    assert str(caught.value) == "invalid_config"
+
+
+def test_incomplete_request_body_is_bounded_by_mission_deadline():
+    with ResponsesBridge(api_key=KEY, model="m", max_requests=1, deadline=monotonic()+.15,
+                         allowed_tools=ALLOWED, transport=httpx.MockTransport(lambda _: None)) as bridge:
+        port = int(bridge.base_url.rsplit(":", 1)[1].split("/", 1)[0])
+        with socket.create_connection(("127.0.0.1", port), timeout=1) as client:
+            client.sendall(("POST /v1/responses HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+                            f"Authorization: Bearer {bridge.token}\r\nContent-Type: application/json\r\n"
+                            "Content-Length: 100\r\n\r\n{}").encode())
+            client.settimeout(1)
+            response = client.recv(1000)
+        assert b" 408 " in response or response == b""
+
+
+def test_context_close_disconnects_an_inflight_local_request():
+    entered = threading.Event(); release = threading.Event()
+    def provider(_):
+        entered.set(); release.wait(2)
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=sse(
+            ("response.completed", {"type": "response.completed", "response": {"status": "completed", "output": []}})))
+    bridge = ResponsesBridge(api_key=KEY, model="m", max_requests=1, deadline=monotonic()+5,
+                             allowed_tools=ALLOWED, transport=httpx.MockTransport(provider)).__enter__()
+    result = []
+    def local_request():
+        try:
+            result.append(request(bridge, {"tools": [], "input": []}))
+        except httpx.TransportError:
+            result.append(None)
+    thread = threading.Thread(target=local_request)
+    thread.start(); assert entered.wait(1)
+    started = monotonic(); bridge.__exit__(None, None, None)
+    assert monotonic() - started < 1
+    release.set(); thread.join(1)
+    assert not thread.is_alive()
+    assert result == [None] or result[0].status_code != 200
