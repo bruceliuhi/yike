@@ -22,6 +22,21 @@ Gitee 再次同步至 `0b5bcbd`，无新增提交。对 `1119985` 候选执行�
 
 收尾并发同步：远端新增作者证据来件至 `911d383`，与本批文档合并，仅任务书首部记录冲突、保留双方内容。产品代码复用来件独立GO；在Windows补签名器/公开driver/作者合同/原文解析4文件 **121 passed**，后端作者合同 **29 passed**，不重跑原实网/PG采样。来件已同步源码但尚未纳入本次 `a56aab2` 安装包或 `1119985` 服务器；保持固定可验收候选，不因收尾来件追认旧包或再次构包。
 
+## 当前同源候选5fb7d65（2026-09-12）
+
+源码固定 `5fb7d6529d723912046f7511e163f5a1a908f87c`，干净LF工作树 `.worktrees/win-release-5fb7d65`；customer已实际部署同SHA，见[部署记录](SERVER_137138_DEPLOYMENT.md)。旧 `a56aab2` 安装验收不追认新字节；本批包含作者原文上下文及排除/观察/过期判断隐藏草稿的已审来件。
+
+- 新payload `.runtime/portable-release-5fb7d65-relocated`，清单SHA256 `fba3f3c0b6b998222b6a1f7b79b1d9a0e1cb27099fbbbc2f6ea0e006f273eb33`，真实构建/搬迁/无开发Python依赖探针 **1 passed / 0 skipped，136.68秒**。原始 `.runtime/portable-release-5fb7d65-test.xml`；输入来自已核验旧runtime/锁，不重复下载。
+- Forge首次因命令误用manifest环境变量名而在配置加载前拒绝 `PORTABLE_BUILD_INPUT_INVALID`，未进入产品构建；改正为实际 `YIKE_PORTABLE_BUNDLE_SHA256` 后一次完整make成功。未修改构建门禁。Node24.19.0、短TEMP/TMP/SQUIRREL_TEMP、内置HTTPS；ASAR结构及40项renderer资源通过，SHA256 `b604c2fd0bc6b407775b0a56254e1cf88f2cedb6f5fab0276933293cd428f7af`。
+- `desktop/out/make/squirrel.windows/x64/YikeAI-Setup.exe` **642,819,584字节**，SHA256 `8bd4a38e22210654ddcee70f19c360c34d3bdeb6e60036af0eb5e58319460eea`；nupkg **646,499,743字节**，SHA256 `a9665ccc76b1437f0cc71174fd45ba8722aafdbe57b9393d61bb9c5302096704`；RELEASES SHA256 `ca80841329833f9bfe7d9d60e40e2c05b4cfee56c91bc30c3b6a5ca448635ffa`。仍NotSigned，不解除对外发布签名缺口。
+- 先核旧安装ASAR摘要并正常退出，再以同一默认安装目录运行新Setup（PID30976、exit0）；这是原0.2.0→新同号候选的实际升级，注册项保持，安装后ASAR与新payload清单均完全匹配。未清理用户数据或旧runtime；旧7d3bfe7工作树窗口未操作。启动器转交后的实际进程PID27424，computer-use确认首页、平台页和首次准备→READY；新runtime清单创建/修改均17:40:32。
+
+正常Alt+F4退出并确认PID27424结束后重开，首次命令行隐藏启动未立即形成可见窗口；通过正常启动入口唤起同一PID32256，未产生第二业务进程。computer-use核实重开后平台页再次READY，ASAR摘要不变、runtime清单仍为17:40:32及原摘要，未重复安装运行环境。界面留在账号与授权，等待用户正常登录；CUA启动器映射路径的定位错误只按实际窗口重新枚举，不当作产品未启动或盲目重复安装。
+
+真实用户仍未登录，未代填认证界面或读取验证码/Cookie，平台连接、原文→模型→确认联系→回复仍未验。公开样例不计客户商机，升级/运行环境通过不是产品正式上线；Goal继续ACTIVE。
+
+构包期间并发来件至 `9d85ed4`：新增 `fb28f4b` 的客户端ASSESS75秒预算（其余请求仍12秒），已有独立GO及慢provider/真实来源判断持久化证据。当前5fb7d65安装包尚未包含该必要修复，可继续登录/连接验收，不能声称AI判断超时已修复交付。下一候选须包含它；服务端镜像输入无差，不再部署服务器，不重复来件实网模型或旧安装全套。
+
 ## 2026-09-12 主干同步与剩余旧回归收口
 
 快进同步至 `cfa9301`，保留本机未提交测试修正；来件增加作者更新语义检查与排除/观察/过期判断隐藏联系草稿，复用其独立审核，不重复真实模型调用。本批只修改12个测试/隔离视觉夹具文件，不改变产品权限、发送或构建门禁，也不重复构包。
