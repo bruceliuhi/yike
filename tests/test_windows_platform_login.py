@@ -73,6 +73,23 @@ def test_fixed_worker_launch_environment_private_profile_and_opened_once(source,
     assert 'secret' not in str(result)
 
 
+@pytest.mark.skipif(sys.platform != 'win32', reason='native browser profile ACL')
+def test_browser_atomic_write_acl_can_be_reused_across_login_attempts(source, monkeypatch):
+    from tests.test_windows_private_directory import _security
+    def runner(command, **kwargs):
+        result = source.runner(command, **kwargs)
+        local_state = Path(kwargs['env']['YIKE_PROFILE_PATH']) / 'Local State'
+        local_state.write_bytes(b'fixture, not account data')
+        _security(local_state, _security(local_state).replace(';ID;', ';;'), protected=False)
+        return result
+    monkeypatch.setattr(source.api, 'run_supervised_process', runner)
+    first = source.api.login_windows_platform(**source.args, on_opened=lambda: None)
+    assert first['state'] == 'AUTHENTICATED'
+    second = source.api.login_windows_platform(**(source.args | {
+        'output_path': source.args['output_path'].with_name('output-next')}), on_opened=lambda: None)
+    assert second['state'] == 'AUTHENTICATED' and len(source.calls) == 2
+
+
 @pytest.mark.parametrize('change', [dict(platform='WEIBO'), dict(timeout_seconds=True),
     dict(timeout_seconds=181), dict(runtime_path='relative'), dict(cookie='private'), dict(schema_version='other')])
 def test_invalid_request_rejected_before_launch(tmp_path, monkeypatch, change):

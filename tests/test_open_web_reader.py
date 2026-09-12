@@ -149,7 +149,7 @@ def test_refuses_redirect(monkeypatch):
 @pytest.mark.parametrize("payload", [
     response(b"x" * (worker.MAX_BODY_BYTES + 1), "text/plain"),
     response(("界" * (worker.MAX_TEXT_CHARS + 1)).encode(), "text/plain"),
-])
+], ids=["body-byte-limit", "decoded-character-limit"])
 def test_body_and_decoded_text_bounds(monkeypatch, payload):
     install_transport(monkeypatch, payload)
     with pytest.raises(worker.WorkerError) as error:

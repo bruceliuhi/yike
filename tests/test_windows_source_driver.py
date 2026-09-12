@@ -60,6 +60,24 @@ def test_fixed_command_environment_and_no_data(source, monkeypatch):
     assert 'private data' not in str(result)
 
 
+def test_reuses_browser_acl_profile_but_output_is_still_strict(source, monkeypatch):
+    from tests.test_windows_private_directory import _security
+    local_state = source.args['profile_path'] / 'Local State'
+    local_state.write_bytes(b'fixture')
+    _security(local_state, _security(local_state).replace(';ID;', ';;'), protected=False)
+    assert source.api.collect_windows_source(**source.args)['state'] == 'COLLECTED'
+
+    def runner(command, **kwargs):
+        result = source.runner(command, **kwargs)
+        marker = Path(next(arg.split('=', 1)[1] for arg in command if arg.startswith('--save_data_path='))) / '.yike-collection-status.json'
+        _security(marker, _security(marker).replace(';ID;', ';;'), protected=False)
+        return result
+    monkeypatch.setattr(source.api, 'run_supervised_process', runner)
+    with pytest.raises(source.api.WindowsSourceError):
+        source.api.collect_windows_source(**(source.args | {
+            'output_path': source.args['output_path'].with_name('output-next')}))
+
+
 def test_expected_xhs_account_selects_fixed_project_wrapper_and_public_env(source, monkeypatch):
     def run(command, **kwargs):
         result = source.runner(command, **kwargs)

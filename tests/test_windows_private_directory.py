@@ -21,7 +21,7 @@ def _module():
     return importlib.import_module("app.windows_private_directory")
 
 
-def _security(path, sddl=None):
+def _security(path, sddl=None, *, protected=True):
     """Independent native fixture: inspect SD, or replace test-owned DACL."""
     adv = ctypes.WinDLL("advapi32", use_last_error=True)
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -49,7 +49,8 @@ def _security(path, sddl=None):
             assert adv.ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, 1, ctypes.byref(descriptor), None)
             present, defaulted, dacl = wintypes.BOOL(), wintypes.BOOL(), ptr()
             assert adv.GetSecurityDescriptorDacl(descriptor, ctypes.byref(present), ctypes.byref(dacl), ctypes.byref(defaulted))
-            assert adv.SetNamedSecurityInfoW(str(path), 1, 0x80000004, None, None, dacl, None) == 0
+            flags = 0x80000004 if protected else 0x20000004
+            assert adv.SetNamedSecurityInfoW(str(path), 1, flags, None, None, dacl, None) == 0
             return
         assert adv.GetNamedSecurityInfoW(str(path), 1, 5, None, None, None, None, ctypes.byref(descriptor)) == 0
         assert adv.ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor, 1, 5, ctypes.byref(result), None)
@@ -238,3 +239,113 @@ def test_file_reparse_is_rejected(tmp_path):
         assert original.read_bytes() == b"keep"
     finally:
         link.unlink()
+
+
+# Fixed Chromium UNKNOWN-channel network capability; independent native fixture.
+_NETWORK_SID = ('S-1-15-3-1024-1528657515-1944437972-2795272136-1227674495-'
+                '293963776-353393192-4060142787-1908764039')
+
+
+def _browser_tree(tmp_path, relative, *, directory=False):
+    api = _module()
+    root = api.create_private_directory(tmp_path / 'browser')
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if directory:
+        path.mkdir()
+    else:
+        path.write_bytes(b'fixture, not an account')
+    return api, root, path
+
+
+@pytest.mark.parametrize('relative', ['Local State', 'Default/Secure Preferences'])
+def test_browser_duplicate_trusted_grants_are_readonly_and_profile_only(tmp_path, relative):
+    api, root, path = _browser_tree(tmp_path, relative)
+    sd = _security(path)
+    _security(path, sd.replace(';ID;', ';;'), protected=False)
+    before = _security(path)
+    with pytest.raises(api.WindowsPrivateDirectoryError):
+        api.verify_private_tree(root)
+    api.verify_browser_profile_tree(root)
+    assert _security(path) == before
+
+
+def test_browser_deny_file_execute_is_readonly_and_profile_only(tmp_path):
+    api, root, path = _browser_tree(tmp_path, 'Default/Session Storage/CURRENT')
+    _security(path, _security(path).replace('(A;', '(D;;WP;;;WD)(A;', 1))
+    before = _security(path)
+    with pytest.raises(api.WindowsPrivateDirectoryError):
+        api.verify_private_tree(root)
+    api.verify_browser_profile_tree(root)
+    assert _security(path) == before
+
+
+@pytest.mark.parametrize('directory_name', ['Cache', 'Network', 'Safe Browsing Network', 'Shared Dictionary'])
+def test_browser_network_capability_accepts_exact_subtrees_and_inheritance(tmp_path, directory_name):
+    api, root, path = _browser_tree(tmp_path, f'Default/{directory_name}', directory=True)
+    _security(path, _security(path) + f'(A;;0x1301bf;;;{_NETWORK_SID})(A;OICIIO;0xe0010000;;;{_NETWORK_SID})')
+    (path / 'nested').mkdir()
+    (path / 'nested' / 'data').write_bytes(b'fixture')
+    before = {p: _security(p) for p in (path, path / 'nested', path / 'nested/data')}
+    with pytest.raises(api.WindowsPrivateDirectoryError):
+        api.verify_private_tree(root)
+    api.verify_browser_profile_tree(root)
+    assert before == {p: _security(p) for p in before}
+
+
+@pytest.mark.parametrize('relative', ['Network', 'Default/NetworkElse', 'Default/Preferences', 'Other/Network'])
+def test_browser_capability_outside_exact_network_subtrees_rejected(tmp_path, relative):
+    api, root, path = _browser_tree(tmp_path, relative, directory=True)
+    _security(path, _security(path) + f'(A;;0x1301bf;;;{_NETWORK_SID})(A;OICIIO;0xe0010000;;;{_NETWORK_SID})')
+    with pytest.raises(api.WindowsPrivateDirectoryError):
+        api.verify_browser_profile_tree(root)
+
+
+@pytest.mark.parametrize('grant', [
+    '(A;;FA;;;WD)',
+    f'(A;;FA;;;{_NETWORK_SID})',
+    f'(A;;0x40000;;;{_NETWORK_SID})',
+    f'(A;;0x80000;;;{_NETWORK_SID})',
+    f'(A;;0x1301bf;;;{_NETWORK_SID[:-1]}8)',
+    '(D;;0x2;;;WD)',
+], ids=['everyone-allow', 'cap-full', 'cap-write-dacl', 'cap-write-owner', 'unknown-cap', 'unknown-deny'])
+def test_browser_unrecognized_or_widened_ace_rejected(tmp_path, grant):
+    api, root, path = _browser_tree(tmp_path, 'Default/Network/data')
+    original = _security(path)
+    try:
+        _security(path, original + grant)
+        with pytest.raises(api.WindowsPrivateDirectoryError):
+            api.verify_browser_profile_tree(root)
+    finally:
+        _security(path, original)
+
+
+def test_browser_root_remains_strict(tmp_path):
+    api = _module()
+    root = api.create_private_directory(tmp_path / 'browser')
+    _security(root, _security(root) + f'(A;;0x1301bf;;;{_NETWORK_SID})')
+    with pytest.raises(api.WindowsPrivateDirectoryError):
+        api.verify_browser_profile_tree(root)
+
+
+def test_browser_capability_no_propagate_directory_rejected(tmp_path):
+    api, root, path = _browser_tree(tmp_path, 'Default/Network', directory=True)
+    _security(path, _security(path) + f'(A;OICINP;0x1301bf;;;{_NETWORK_SID})')
+    assert 'NP' in _security(path)
+    with pytest.raises(api.WindowsPrivateDirectoryError):
+        api.verify_browser_profile_tree(root)
+
+
+def test_browser_missing_trusted_subject_rejected(tmp_path):
+    api, root, path = _browser_tree(tmp_path, 'Local State')
+    import re
+    _security(path, re.sub(r'\(A;[^)]*;;;BA\)', '', _security(path)))
+    with pytest.raises(api.WindowsPrivateDirectoryError):
+        api.verify_browser_profile_tree(root)
+
+
+def test_browser_hardlink_remains_rejected(tmp_path):
+    api, root, path = _browser_tree(tmp_path, 'Local State')
+    os.link(path, root / 'alias')
+    with pytest.raises(api.WindowsPrivateDirectoryError):
+        api.verify_browser_profile_tree(root)
