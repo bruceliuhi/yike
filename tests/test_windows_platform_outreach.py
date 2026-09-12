@@ -25,7 +25,8 @@ def request(tmp_path):
             "context": {"opaque": "body stays off argv"}, "timeout_seconds": 60}
 
 
-@pytest.mark.parametrize("wire", [b"{}\n", b'{"x":NaN}\n', b'{"x":1,"x":2}\n', b"x" * 131072 + b"\n"])
+@pytest.mark.parametrize("wire", [b"{}\n", b'{"x":NaN}\n', b'{"x":1,"x":2}\n', b"x" * 131072 + b"\n"],
+                         ids=['missing', 'nan', 'duplicate', 'oversize'])
 def test_strict_first_frame_rejects_before_launch(tmp_path, monkeypatch, wire):
     host = api(); calls = []
     monkeypatch.setattr(host, "run_outreach", lambda **kw: calls.append(kw))
@@ -89,9 +90,15 @@ def test_real_loopback_worker_ready_execute_and_terminal_tail(tmp_path,monkeypat
     monkeypatch.setattr(host,'verify_installed_runtime',lambda _:tmp_path/'python')
     checks=[]
     def private(path):
-        checks.append(path)
+        assert path == tmp_path/'output'
+        checks.append(('output',path))
+        if cleanup_failure=='private' and len(checks)>1: raise ValueError('synthetic ACL failure')
+    def profile_private(path):
+        assert path == tmp_path/'profile'
+        checks.append(('profile',path))
         if cleanup_failure=='private' and len(checks)>1: raise ValueError('synthetic ACL failure')
     monkeypatch.setattr(host,'verify_private_tree',private)
+    monkeypatch.setattr(host,'verify_browser_profile_tree',profile_private)
     monkeypatch.setattr(host,'create_private_directory',lambda p:(p.mkdir() or p))
     def supervise(command,**kw):
         def child():
@@ -118,6 +125,7 @@ def test_real_loopback_worker_ready_execute_and_terminal_tail(tmp_path,monkeypat
     assert calls[0][0]=='check' and calls[1]==('execute',calls[0][1])
     assert result['outcome']=={'status':'UNKNOWN'}
     assert result['cleanupConfirmed'] is (not cleanup_failure)
+    assert [kind for kind,_ in checks] == (['profile','profile'] if cleanup_failure=='private' else ['profile','profile','output'])
 
 
 @pytest.mark.parametrize('stage',['setup','operation','execute'])
@@ -173,12 +181,14 @@ def test_stdin_reader_cancels_without_blocking_ready(mode):
         peer.close(); stream.close(); local.close()
 
 
-@pytest.mark.parametrize('payload',[b'x'*131073,b'{"token":NaN}\n',b'{"token":"x","token":"y"}\n'])
+@pytest.mark.parametrize('payload',[b'x'*131073,b'{"token":NaN}\n',b'{"token":"x","token":"y"}\n'],
+                         ids=['oversize', 'nan', 'duplicate'])
 def test_host_rejects_malformed_loopback_before_ready(tmp_path,monkeypatch,payload):
     host=api(); monkeypatch.setattr(host.sys,'platform','win32')
     monkeypatch.setattr(host,'_exclusive_paths',lambda _:nullcontext())
     monkeypatch.setattr(host,'verify_installed_runtime',lambda _:tmp_path/'python')
     monkeypatch.setattr(host,'verify_private_tree',lambda _:None)
+    monkeypatch.setattr(host,'verify_browser_profile_tree',lambda _:None)
     monkeypatch.setattr(host,'create_private_directory',lambda p:(p.mkdir() or p))
     def supervise(command,**kw):
         with socket.create_connection(('127.0.0.1',int(kw['env']['YIKE_OUTREACH_PORT']))) as conn:
@@ -207,6 +217,7 @@ def test_real_host_pending_operation_keeps_supervisor_responsive(tmp_path,monkey
     monkeypatch.setattr(host,'_exclusive_paths',lambda _:nullcontext())
     monkeypatch.setattr(host,'verify_installed_runtime',lambda _:tmp_path/'python')
     monkeypatch.setattr(host,'verify_private_tree',lambda _:None)
+    monkeypatch.setattr(host,'verify_browser_profile_tree',lambda _:None)
     monkeypatch.setattr(host,'create_private_directory',lambda p:(p.mkdir() or p))
     def ready(observation): inputs.announce(lambda _:announced.set(),observation)
     def supervise(command,**kw):

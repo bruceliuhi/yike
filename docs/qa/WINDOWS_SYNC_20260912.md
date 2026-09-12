@@ -1,5 +1,13 @@
 # Windows 最新主干接续（2026-09-12）
 
+## 1e554df 同步及浏览器档案核验修复（尚未入安装包）
+
+- main 从 aa50a92 快进到 `1e554df9358bca3fd7b66652e16fffb2a60faa92`；新增公开 reader/MCP 工具在独立锁定 wheel 环境 **65 passed / 0 skipped**。两项超长参数测试最初因 Windows 环境变量32767字符限制产生4个 setup/teardown错误；补短 ids，不改输入/断言。首次editable环境中文pth被GBK解码失败保留，最终使用新建no-editable环境，未污染候选依赖。日志 `.runtime/research-tests-1e554df-20260912/research-tests-wheel-fresh.log`。
+- 档案核验根因补全：并非仅Cache。真实已停止档案100个节点包含网络LPAC、同主体重复授权、文件deny execute。新增 profile 专用只读策略，仅四个固定网络子树允许经官方149源码及实机核对的固定capability；根、runtime/output、owner/links/reparse保护保留。login/source/outreach前后profile核验统一切换。设计与计划见 `docs/superpowers/specs/2026-09-12-browser-profile-acl-design.md` 和同名plans文件。
+- 原生NTFS与三条host定向测试 **128 passed / 2 skipped**，XML `.runtime/windows-profile-acl-1e554df.xml`；跳过为文件symlink权限不足、真实runtime需显式optin。后者补指定实际已安装runtime独立 **1 passed**，因此只剩symlink权限项未验。新增正例先红后绿；host旧loopback夹具同步profile核验入口，另修两处旧超长参数ids。独立审核同批及追加差量GO，无P1/P2。
+- 真实用户档案仅只读安全元数据复核通过，未读取Cookie内容或更改ACL。用既有已校验7599 runtime，在全新 `C:/ykt7599/yike-acl-ywdj0s8d` 合成档案运行带sandbox的headful Chromium空白页，连续两次启动→Job物理停止→档案核验均PASS；不是平台登录。探针 `.runtime/probe-browser-profile-roundtrip.py`。首次探针误把bundle父目录当runtime导致预检拒绝，修正为其runtime子目录后通过，未放宽运行环境校验。
+- **交付边界：服务器和安装包仍是7599e93。**本批修复未构包、未部署；真实平台授权、安装版取消/换平台、新进程设备NOT_PREPARED体验、签名与客户完整闭环仍未完成。旧失败证据保留，不写成已对外上线。
+
 ## 7599e93候选与后续main同步（2026-09-12 22:39）
 
 ### 实际构包与升级（22:48接续）

@@ -12,7 +12,7 @@ import threading
 import time
 
 from app.collector import _minimal_child_environment, run_supervised_process
-from app.windows_private_directory import create_private_directory, verify_private_tree
+from app.windows_private_directory import create_private_directory, verify_private_tree, verify_browser_profile_tree
 from app.windows_source_driver import _exclusive_paths, verify_installed_runtime
 from app.platform_login_worker import login_platform_supported, valid_account
 
@@ -118,7 +118,7 @@ def login_windows_platform(*, runtime_path, profile_path, output_path, platform,
         with _exclusive_paths([runtime_path, profile_path]):
             if stopped := interrupted(): return stopped
             python = verify_installed_runtime(runtime_path)
-            if os.path.lexists(profile_path): verify_private_tree(profile_path)
+            if os.path.lexists(profile_path): verify_browser_profile_tree(profile_path)
             else: profile_path = create_private_directory(profile_path)
             if stopped := interrupted(): return stopped
             output_path = create_private_directory(output_path)
@@ -147,7 +147,7 @@ def login_windows_platform(*, runtime_path, profile_path, output_path, platform,
                 timeout_seconds=timeout_seconds - (time.monotonic() - started),
                 cancel_requested=cancel_requested, poll_callback=poll)
             # Only here has the entire Windows Job been physically stopped.
-            verify_private_tree(profile_path)
+            verify_browser_profile_tree(profile_path)
             verify_private_tree(output_path)
             poll()
             if stopped := interrupted(): return stopped

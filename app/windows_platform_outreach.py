@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from app.collector import _minimal_child_environment, run_supervised_process
-from app.windows_private_directory import create_private_directory, verify_private_tree
+from app.windows_private_directory import create_private_directory, verify_private_tree, verify_browser_profile_tree
 from app.windows_source_driver import _exclusive_paths, verify_installed_runtime
 
 SCHEMA = 'windows-platform-outreach-v1'
@@ -105,7 +105,7 @@ def run_outreach(**request):
     started=time.monotonic(); cancelled=request.get('cancel_requested',lambda:False)
     runtime,profile,output=request['runtime_path'],request['profile_path'],request['output_path']
     with _exclusive_paths([runtime,profile]):
-        python=verify_installed_runtime(runtime); verify_private_tree(profile)
+        python=verify_installed_runtime(runtime); verify_browser_profile_tree(profile)
         if os.path.lexists(output): raise ValueError()
         output=create_private_directory(output); temporary=output/'.temporary'; temporary.mkdir(); (temporary/'matplotlib').mkdir()
         server=socket.socket(socket.AF_INET,socket.SOCK_STREAM); server.bind(('127.0.0.1',0)); server.listen(1); server.setblocking(False)
@@ -186,7 +186,7 @@ def run_outreach(**request):
             finally:
                 if state['conn'] is not None: state['conn'].close()
                 server.close()
-        try: verify_private_tree(profile); verify_private_tree(output)
+        try: verify_browser_profile_tree(profile); verify_private_tree(output)
         except Exception: cleanup_confirmed=False
         if state['result'] is None and state['phase']=='OPERATION' and getattr(supervised,'cancelled',False) is True:
             # No EXECUTE was queued. The supervisor returned only after stopping

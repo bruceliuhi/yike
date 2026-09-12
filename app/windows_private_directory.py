@@ -180,7 +180,26 @@ def _directory_chain(path: Path, stack: ExitStack) -> Path:
     return current
 
 
-def _verify_security(handle, *, directory: bool, root: bool, user: str) -> None:
+# Pinned Chromium UNKNOWN-channel lpacChromeNetworkSandbox capability.
+# Derived by Chromium from SHA256(uppercase name encoded as UTF-16LE), <8I.
+# Never infer a trusted capability from the ACL being checked.
+_CHROMIUM_NETWORK_SID = ('S-1-15-3-1024-1528657515-1944437972-2795272136-1227674495-'
+                        '293963776-353393192-4060142787-1908764039')
+_NETWORK_DIRECTORIES = {'cache', 'network', 'safe browsing network', 'shared dictionary'}
+
+
+def _network_ace(ace: _Ace, sid: str, directory: bool) -> bool:
+    if ace.type != 0 or sid != _CHROMIUM_NETWORK_SID:
+        return False
+    flags = ace.flags & ~0x10  # explicit or inherited, no other flag changes
+    # Windows maps Chromium's RWX/DELETE grant into an effective Modify ACE
+    # plus a generic inherit-only ACE on directories.
+    return ((ace.mask == 0x001301BF and flags == 0)
+            or (directory and ace.mask == 0xE0010000 and flags == 0x0B))
+
+
+def _verify_security(handle, *, directory: bool, root: bool, user: str,
+                     browser_descendant: bool = False, network: bool = False) -> None:
     owner, dacl, descriptor = (ctypes.c_void_p() for _ in range(3))
     if _advapi32.GetSecurityInfo(handle, 1, 5, ctypes.byref(owner), None,
                                ctypes.byref(dacl), None, ctypes.byref(descriptor)):
@@ -198,7 +217,8 @@ def _verify_security(handle, *, directory: bool, root: bool, user: str) -> None:
         if not _advapi32.IsValidAcl(dacl):
             _fail()
         acl = ctypes.cast(dacl, ctypes.POINTER(_Acl)).contents
-        if acl.count != len(permitted):
+        browser_descendant = browser_descendant and not root
+        if not browser_descendant and acl.count != len(permitted):
             _fail()
         seen = set()
         for index in range(acl.count):
@@ -206,14 +226,23 @@ def _verify_security(handle, *, directory: bool, root: bool, user: str) -> None:
             if not _advapi32.GetAce(dacl, index, ctypes.byref(pointer)):
                 _fail()
             ace = ctypes.cast(pointer, ctypes.POINTER(_Ace)).contents
+            if ace.type not in (0, 1) or ace.size < ctypes.sizeof(_Ace):
+                _fail()
+            sid = _sid_text(pointer.value + _Ace.sid_start.offset)
+            if browser_descendant:
+                if network and _network_ace(ace, sid, directory):
+                    continue
+                # Chromium's database files can deny execution to Everyone.
+                # This grants no access and must not become a general DENY bypass.
+                if not directory and ace.type == 1 and ace.mask == 0x20 and ace.flags == 0 and sid == 'S-1-1-0':
+                    continue
             # Only plain full-control ALLOW ACEs. No conditional/object grants,
             # deny ACEs, inherit-only, or no-propagate semantics are accepted.
             if ace.type != 0 or ace.size < ctypes.sizeof(_Ace) or ace.mask != 0x001F01FF:
                 _fail()
             if ace.flags & ~0x13 or (directory and ace.flags & 3 != 3):
                 _fail()
-            sid = _sid_text(pointer.value + _Ace.sid_start.offset)
-            if sid not in permitted or sid in seen:
+            if sid not in permitted or (sid in seen and not browser_descendant):
                 _fail()
             seen.add(sid)
         if seen != permitted:
@@ -259,6 +288,19 @@ def create_private_directory(path: Path) -> Path:
 
 def verify_private_tree(root: Path) -> None:
     """Read-only, fail-closed full traversal; caller must quiesce owned writers."""
+    _verify_tree(root, browser_profile=False)
+
+
+def verify_browser_profile_tree(root: Path) -> None:
+    """Read-only Chromium profile policy; never use for runtime/output trees.
+
+    The root remains strictly private. Only known browser-created descendant
+    ACLs are accepted. All owned browser writers must be stopped first.
+    """
+    _verify_tree(root, browser_profile=True)
+
+
+def _verify_tree(root: Path, *, browser_profile: bool) -> None:
     if _kernel32 is None:
         raise WindowsPrivateDirectoryError("windows_private_directory_unavailable")
     try:
@@ -266,15 +308,23 @@ def verify_private_tree(root: Path) -> None:
         user = _current_user_sid()
         with ExitStack() as ancestors:
             parent = _directory_chain(root.parent, ancestors)
+            actual_root = parent / root.name
 
             def visit(path: Path, is_root: bool = False) -> None:
                 with _open(path, security=True) as (handle, info):
                     directory = bool(info.attributes & 0x10)
                     if is_root and not directory:
                         _fail()
-                    _verify_security(handle, directory=directory, root=is_root, user=user)
+                    actual = _actual_path(handle)
+                    relative = actual.relative_to(actual_root).parts
+                    network = (len(relative) >= 2 and relative[0].lower() == 'default'
+                               and relative[1].lower() in _NETWORK_DIRECTORIES
+                               and (len(relative) > 2 or directory))
+                    _verify_security(handle, directory=directory, root=is_root, user=user,
+                                     browser_descendant=browser_profile and not is_root,
+                                     network=browser_profile and network)
                     if directory:
-                        with os.scandir(_actual_path(handle)) as entries:
+                        with os.scandir(actual) as entries:
                             for entry in entries:
                                 visit(Path(entry.path))
 

@@ -21,7 +21,7 @@ import time
 from app.collector import _EXIT_RESULTS, _minimal_child_environment, run_supervised_process
 from app.repository import canonical_single_keyword
 from app.platform_login_worker import valid_account
-from app.windows_private_directory import create_private_directory, verify_private_tree
+from app.windows_private_directory import create_private_directory, verify_private_tree, verify_browser_profile_tree
 from app.windows_runtime_install import load_governance, PIN, WINDOWS_PYTHON, _within, _digest
 
 
@@ -176,7 +176,7 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
             if stopped := interrupted():
                 return stopped
             python = verify_installed_runtime(runtime_path)
-            verify_private_tree(profile_path)
+            verify_browser_profile_tree(profile_path)
             if stopped := interrupted():
                 return stopped
             output_path = create_private_directory(output_path)
@@ -213,7 +213,7 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
             result = run_supervised_process(command, cwd=runtime_path, env=environment,
                 timeout_seconds=timeout_seconds - (time.monotonic() - started), cancel_requested=cancel_requested)
             # The supervisor has already waited for the complete owned tree.
-            verify_private_tree(profile_path)
+            verify_browser_profile_tree(profile_path)
             verify_private_tree(output_path)
             if stopped := interrupted():
                 return stopped
