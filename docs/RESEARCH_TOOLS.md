@@ -127,3 +127,11 @@ COMPLETED 仅表示执行器正常结束并取得搜索和原文，不表示近�
 同库历史只覆盖本客户、同业务实体候选，区分已知、排除、已联系和关闭；最多30条且明确 PARTIAL，不能据此声称全历史去重或净新增。模型上下文只带有界摘录，不复制私有资料原文。v1 规则字节与调用方式保持兼容。[实现和测试边界](superpowers/plans/2026-09-13-customer-research-context.md#evidence)。
 
 这仍是内部接线基础：下一步接逐动作持久许可/账本、客户执行链和证据入库，而非让普通客户直接调用内部 worker。原 Skill 与产品的同证据预算业务效果对照仍未完成，未宣称恢复本地效果或持续供给。
+
+## 持久调用控制接续（2026-09-13）
+
+`ResearchEffectJournal(resources)`复用已确认任务的资源服务与同一PG，`DurableResearchDispatcher`绑定claims、task/run、实际coordinator generation/owner和context-v2 binding后，可作为内部worker的`effect_dispatcher`。调用方必须先通过正常任务流程取得这些身份与租约，不能从客户JSON直接构造授权；当前没有新的客户调用入口。
+
+每次MODEL消耗MODEL_CALL，SEARCH/READ分别消耗SOURCE_READ；先提交许可与输入，再调用，再原子保存结果。重放只使用原始已验证成功结果；未知/在途不重发、不退款，不跳过未成功序号。取消/失租约后可保存先前已准入事实，但不能继续新动作。模型SSE/usage和原文text/hash保留在隔离账本，敏感字段、携带凭据的URL与文本拒绝保存。[版本、定向验证和独立审核](superpowers/plans/2026-09-13-durable-research-effects.md#evidence)。
+
+下一步必须接客户动态任务supervisor、通用候选提交、判断及现有页面：普通客户仍只登录意客，不需要Codex账号或模型key。旧固定来源不自动升级，公开读取不假装读过登录评论；分类失败后的换源行为与实际效果仍需在完整客户链路验收。

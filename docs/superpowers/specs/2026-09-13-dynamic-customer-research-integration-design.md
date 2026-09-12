@@ -2,7 +2,7 @@
 
 2026-09-13；基于 `ae94bf0` 后台源码和独立只读接线审计。状态：**范围内技术设计，部分内部基础已实现，客户纵切未完成**。沿已批准 V0.2 自主细化授权执行；不开放未经接通的新 capability，不把本设计当部署或客户验收。
 
-接续：`1156c45` 已完成[内部逐动作宿主网关](../plans/2026-09-13-research-effect-gateway.md#evidence)并获独立审核通过，替代下文描述的 MCP 原文直连基线。context-v2、显式动态策略和客户快照 loader 已有[实现候选与限定证据](../plans/2026-09-13-customer-research-context.md#evidence)；同PG逐动作许可/journal、动态客户能力合同与纵切仍未完成，不据此开放 capability。后续 journal 的 MODEL replay 必须绑定输入/工具配置和已校验、已恢复工具名的原结果，不能把任意字符串当合法SSE或重复执行别名恢复。
+接续：`1156c45` 已完成[内部逐动作宿主网关](../plans/2026-09-13-research-effect-gateway.md#evidence)并获独立审核通过，替代下文描述的 MCP 原文直连基线。context-v2、显式动态策略和客户快照 loader 已有[实现与限定证据](../plans/2026-09-13-customer-research-context.md#evidence)；同PG逐动作许可/journal在`b1e007a`独立审核通过，见[原始结果与未知回执证据](../plans/2026-09-13-durable-research-effects.md#evidence)。**动态客户能力合同与完整纵切仍未完成，不据此开放 capability。** MODEL replay绑定输入/工具配置及已校验、已恢复工具名的原结果，不接受任意字符串或二次别名恢复。
 
 ## 决策与第一条完整用户路径
 
