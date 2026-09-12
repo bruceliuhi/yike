@@ -249,7 +249,8 @@ def test_research_instructions_require_search_then_read(worker,tmp_path):
     extra=("config=next(value for value in sys.argv if value.startswith('model_instructions_file='))\n"
            "instructions=open(json.loads(config.split('=',1)[1])).read()\n"
            f"open({str(capture)!r},'w').write(json.dumps(dict(argv=sys.argv,prompt=sys.stdin.read(),instructions=instructions)))\n")
-    result=run_research(worker,tmp_path,[search_event(),read_event(),*final_events()],extra=extra)
+    result=run_research(worker,tmp_path,[search_event(),read_event(),*final_events()],extra=extra,
+                        max_searches=2,max_reads=4,max_requests=5)
     data=json.loads(capture.read_text())
     instruction_arg=next(value for value in data['argv'] if value.startswith('model_instructions_file='))
     # The private temporary file is cleaned; the argv path and mission prompt must never contain secrets.
@@ -260,6 +261,28 @@ def test_research_instructions_require_search_then_read(worker,tmp_path):
     assert 'search_public_web first' in data['instructions']
     assert 'then read_public_page' in data['instructions']
     assert 'snippets only discover sources' in data['instructions']
+    assert 'at most 2 distinct searches' in data['instructions']
+    assert 'at most 4 original-page reads' in data['instructions']
+    assert 'host allows at most 5 model requests' in data['instructions']
+    assert 'finish the final answer before exhausting that request budget' in data['instructions']
+    assert 'first-person buyer' in data['instructions']
+    assert 'business or action signals' in data['instructions']
+    assert 'community-native sources' in data['instructions']
+    assert 'SEO roundups, vendor advertisements, and auto-translated pages' in data['instructions']
+    assert 'synthetic-provider-secret' not in data['instructions']
+    assert 'synthetic-search-secret' not in data['instructions']
+
+
+def test_read_only_instructions_remain_exactly_unchanged(worker,tmp_path):
+    capture=tmp_path/'read-config.json'
+    extra=("config=next(value for value in sys.argv if value.startswith('model_instructions_file='))\n"
+           "instructions=open(json.loads(config.split('=',1)[1])).read()\n"
+           f"open({str(capture)!r},'w').write(json.dumps(dict(instructions=instructions)))\n")
+    result=run(worker,tmp_path,[read_event(),*final_events()],extra=extra,
+               max_reads=4,max_requests=5)
+    data=json.loads(capture.read_text())
+    assert result['status']=='COMPLETED'
+    assert data['instructions']==worker._INSTRUCTIONS
 
 
 @pytest.mark.parametrize('description',['包含 synthetic-provider-secret','包含 synthetic-search-secret'])

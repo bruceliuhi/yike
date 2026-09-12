@@ -43,6 +43,16 @@ _RESEARCH_INSTRUCTIONS = (
 )
 
 
+def _research_instructions(*, max_searches, max_reads, max_requests):
+    return (_RESEARCH_INSTRUCTIONS + ' The host permits at most '
+            f'{max_searches} distinct searches and at most {max_reads} original-page reads. The '
+            f'host allows at most {max_requests} model requests; finish the final answer before '
+            'exhausting that request budget. Prioritize first-person buyer posts with concrete '
+            'business or action signals and community-native sources. Treat SEO roundups, vendor '
+            'advertisements, and auto-translated pages as weak discovery leads, not verified buyer '
+            'evidence; read an original source before drawing conclusions.')
+
+
 class _InvalidOutput(Exception):
     pass
 
@@ -170,9 +180,11 @@ class _ReadEvents:
 
 
 def _command(root, *, codex_binary, python_binary, model, bridge, max_reads, max_seconds,
-             search_enabled=False):
+             max_requests, search_enabled=False, max_searches=None):
     instructions = root / 'instructions.md'
-    instructions.write_text(_RESEARCH_INSTRUCTIONS if search_enabled else _INSTRUCTIONS, encoding='utf-8')
+    instruction_text = (_research_instructions(max_searches=max_searches,max_reads=max_reads,
+                        max_requests=max_requests) if search_enabled else _INSTRUCTIONS)
+    instructions.write_text(instruction_text, encoding='utf-8')
     config = {
         'model_provider':'yike_domestic', 'model':model,
         'model_providers.yike_domestic.name':'Yike domestic research',
@@ -362,7 +374,8 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                             token = bridge.token
                             command = _command(root,codex_binary=codex_binary,python_binary=python_binary,
                                                model=model,bridge=bridge,max_reads=max_reads,
-                                               max_seconds=max_seconds,search_enabled=search_enabled)
+                                               max_seconds=max_seconds,max_requests=max_requests,
+                                               search_enabled=search_enabled,max_searches=max_searches)
                             status,code = _execute(command,{'PATH':'/usr/bin:/bin',
                                 'CODEX_HOME':str(root/'state'),'YIKE_BRIDGE_TOKEN':token},
                                 description,deadline,cancelled,events,root/'work')
