@@ -49,12 +49,15 @@ _ERRORS = {
 class AssessmentModelError(Exception):
     """Only fixed safe codes; provider/user text is never a public exception."""
 
-    def __init__(self, code: str, status: int, *, usage=None):
+    def __init__(self, code: str, status: int, *, usage=None, diagnostic=None):
         if type(code) is not str or type(status) is not int or _ERRORS.get(code) != status:
             code, status = "invalid_assessment_result", 502
             usage = None
         self.code, self.status = code, status
         self.usage = _validated_usage(usage)
+        self.diagnostic = diagnostic if type(diagnostic) is str and diagnostic in {
+            'worker_deadline', 'worker_exit', 'worker_protocol', 'worker_io',
+        } else None
         super().__init__(code)
 
 
@@ -443,7 +446,7 @@ production shortcut: that in-process path cannot interrupt native OS DNS.
             ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         if len(payload) > _PIPE_LIMIT:
             raise AssessmentModelError("invalid_assessment_input", 400)
-        error = AssessmentModelError("assessment_result_unknown", 504)
+        error = AssessmentModelError("assessment_result_unknown", 504, diagnostic='worker_exit')
         worker_usage = None
         try:
             # Isolated Python imports only our fixed package location. No model
@@ -455,25 +458,25 @@ production shortcut: that in-process path cannot interrupt native OS DNS.
                 try:
                     raw, _ = child.communicate(payload, timeout=max(0, deadline - time.monotonic()))
                     if child.returncode == 0:
-                        error = AssessmentModelError("invalid_assessment_result", 502)
+                        error = AssessmentModelError("invalid_assessment_result", 502, diagnostic='worker_protocol')
                         if len(raw) <= _PIPE_LIMIT:
                             reply = _read_json(raw.decode("utf-8"))
                             if set(reply) in ({"error", "status"}, {"error", "status", "usage"}):
                                 error = AssessmentModelError(reply["error"], reply["status"], usage=reply.get('usage'))
                                 worker_usage = error.usage
                                 if time.monotonic() >= deadline:
-                                    error = AssessmentModelError('assessment_result_unknown', 504, usage=worker_usage)
+                                    error = AssessmentModelError('assessment_result_unknown', 504, usage=worker_usage, diagnostic='worker_deadline')
                             elif (set(reply) == {"assessment", "usage", "rule_version", "rule_sha256"}
                                     and reply["rule_version"] == self.rule_version and reply["rule_sha256"] == self.rule_sha256):
                                 worker_usage = _validated_usage(reply['usage'])
                                 result = validate_assessment(reply["assessment"], description=description, content=content)
                                 if time.monotonic() < deadline:
                                     return result, worker_usage
-                                error = AssessmentModelError("assessment_result_unknown", 504, usage=worker_usage)
+                                error = AssessmentModelError("assessment_result_unknown", 504, usage=worker_usage, diagnostic='worker_deadline')
                 except subprocess.TimeoutExpired:
-                    pass
+                    error = AssessmentModelError("assessment_result_unknown", 504, diagnostic='worker_deadline')
                 except (ValueError, TypeError, UnicodeError, RecursionError, AssessmentModelError):
-                    error = AssessmentModelError("invalid_assessment_result", 502, usage=worker_usage)
+                    error = AssessmentModelError("invalid_assessment_result", 502, usage=worker_usage, diagnostic='worker_protocol')
                 finally:
                     if child.poll() is None:
                         child.kill()
@@ -481,9 +484,9 @@ production shortcut: that in-process path cannot interrupt native OS DNS.
                     # The fixed worker writes at most _PIPE_LIMIT bytes.
                     child.communicate()
         except Exception:
-            error = AssessmentModelError("assessment_result_unknown", 504, usage=worker_usage)
+            error = AssessmentModelError("assessment_result_unknown", 504, usage=worker_usage, diagnostic='worker_io')
         if time.monotonic() >= deadline:
-            error = AssessmentModelError('assessment_result_unknown', 504, usage=worker_usage)
+            error = AssessmentModelError('assessment_result_unknown', 504, usage=worker_usage, diagnostic='worker_deadline')
         raise error
 
     def _assess_in_process(self, *, description: str, content: dict,
