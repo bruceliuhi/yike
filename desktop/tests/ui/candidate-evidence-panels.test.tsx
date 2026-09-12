@@ -135,6 +135,16 @@ describe("candidate original evidence", () => {
 });
 
 describe("candidate assessment details", () => {
+  it.each(['EXCLUDE','OBSERVE'] as const)('does not present outreach drafts for %s while keeping evidence', decision => {
+    const value={...assessment(),decision,effectiveDecision:decision,grade:null};
+    render(<CandidateAssessmentDetails assessment={value}/>);
+    expect(screen.queryByRole('region',{name:'评论草稿（未发送）'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('region',{name:'私信草稿（未发送）'})).not.toBeInTheDocument();
+    expect(screen.queryByText(value.draftDm)).not.toBeInTheDocument();
+    expect(screen.getByText(value.evidence.risk)).toBeVisible();
+    expect(screen.getByText(value.summary)).toBeVisible();
+    expect(screen.getByText(decision==='EXCLUDE'?/当前判断为排除，不建议联系/:/当前仅建议观察，先等待新的采购动作/)).toBeVisible();
+  });
   it("shows four separate dimensions with reasons and every verbatim field-labelled citation", () => {
     const value = assessment();
     render(<CandidateAssessmentDetails assessment={value} />);
@@ -180,6 +190,8 @@ describe("candidate assessment details", () => {
     expect(screen.getByRole("status")).toHaveTextContent("此判断已过期，仅供只读核对");
     expect(screen.getByText(value.summary)).toBeVisible();
     expect(screen.queryByText("商机等级")).not.toBeInTheDocument();
+    expect(screen.queryByRole('region',{name:'评论草稿（未发送）'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('region',{name:'私信草稿（未发送）'})).not.toBeInTheDocument();
   });
 
   it("preserves UNKNOWN with no citations instead of inventing evidence", () => {

@@ -47,6 +47,7 @@ export function CandidateAssessmentDetails({
       </section>
     );
 
+  const showDrafts = !stale && assessment.effectiveDecision === "REVIEW";
   return (
     <section className="candidate-evidence" aria-label="AI 判断详情">
       <h3>AI 判断</h3>
@@ -106,6 +107,7 @@ export function CandidateAssessmentDetails({
           </div>
         ))}
       </dl>
+      {showDrafts ? <>
       <section
         aria-label="评论草稿（未发送）"
         className="candidate-assessment-draft"
@@ -123,6 +125,11 @@ export function CandidateAssessmentDetails({
       <p className="muted">
         草稿仅供阅读，不会自动填入人工证据，也不会自动发送。
       </p>
+      </> : <p className="muted">
+        {stale ? "此判断的联系草稿已收起，请按当前版本重新判断。" :
+          assessment.effectiveDecision === "EXCLUDE" ? "当前判断为排除，不建议联系，因此不展示联系草稿。" :
+          "当前仅建议观察，先等待新的采购动作，再重新判断是否联系。"}
+      </p>}
       <details className="candidate-evidence-details">
         <summary>判断元数据</summary>
         <dl className="candidate-evidence-facts">

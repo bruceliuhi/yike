@@ -22,8 +22,22 @@
 
 三次实际调用均通过上述预设条件，但关闭项仍生成“后续新增需求方便聊聊吗”的私信，不匹配项也生成自报无关服务的招呼；预设枚举检查没有覆盖这类行动误导，不能宣称判断/草稿全面通过。关闭项intent=HIGH反映历史寻源信号，最终EXCLUDE正确；本片不把它宣传为当前仍有高意向。
 
-选择：不删除历史模型输出、不改严格响应合同，也不继续调提示词重跑同题制造通过。候选判断详情仅在 `!stale && effectiveDecision in {REVIEW,SEND_READY}` 时显示联系草稿；EXCLUDE说明当前不建议联系、OBSERVE说明先等新采购动作、stale说明需按当前版本重新判断。保留四维、引用、风险和元数据；这是展示约束，不是新增发送门禁，也不覆盖后续明确人工复核。
+选择：不删除历史模型输出、不改严格响应合同，也不继续调提示词重跑同题制造通过。候选判断详情仅在 `!stale && effectiveDecision === REVIEW` 时显示联系草稿（模型原始SEND_READY已由服务端降为REVIEW）；EXCLUDE说明当前不建议联系、OBSERVE说明先等新采购动作、stale说明需按当前版本重新判断。保留四维、引用、风险和元数据；这是展示约束，不是新增发送门禁，也不覆盖后续明确人工复核。
 
-- [ ] `desktop/tests/ui/candidate-evidence-panels.test.tsx` 增加EXCLUDE/OBSERVE/stale不显示草稿且证据保留的失败测试；现有REVIEW草稿仍显示。
-- [ ] `CandidateAssessmentDetails.tsx` 最小条件渲染和状态原因；定向UI测试+类型检查，不重复真实模型。
+- [x] `desktop/tests/ui/candidate-evidence-panels.test.tsx` 增加EXCLUDE/OBSERVE/stale不显示草稿且证据保留的失败测试；现有REVIEW草稿仍显示。
+- [x] `CandidateAssessmentDetails.tsx` 最小条件渲染和状态原因；定向UI测试+类型检查，不重复真实模型。
 - [ ] 固定提交独立审核，记录三例实际用量和上述不足，合main但不部署。
+
+## 实际调用结果（2026-09-12）
+
+模型 `doubao-seed-2-1-turbo-260628`；规则SHA256 `4328af1731b8066bd9234a609c3f3d269ac17cd6b71d9691793517270a180f16`，没有改提示词。每例一次，无重试；3例仅2个独立实际来源，其中1240655复用于画像对照。源API核对是显式固定主题研究，不冒充生产driver的索引发现；模型使用既有 `_model_content` 投影与正式adapter，不是普通客户端ASSESS/数据库结果持久化验收。上一批普通上传链与本批模型试验仍为两份证据，不能合称一次完整客户流程。
+
+| 对照 | 模型决策/等级 | 关键证据 | provider tokens |
+| --- | --- | --- | ---: |
+| 1232232 + 开发画像 | EXCLUDE / null | 引用作者已结束声明，业务匹配HIGH，历史寻源intent仍HIGH | 6492 |
+| 1240655 + 开发画像 | REVIEW / A | 引用本人作品要求，风险注明我方作品/审美适配尚未核实 | 7323 |
+| 同1240655 + 展台画像 | EXCLUDE / null | 业务匹配LOW，不因含“设计”误收为展台需求 | 7191 |
+
+合计21006 provider tokens，仅此次已回传使用量，不是费用或搜贝。三条预设枚举/引用检查通过，不代表草稿全面可用、精确率或客户价值；人工读结果发现的招呼误导已促成上述UI修正。1240655仍是历史已知买方待适配核实，不计新增；1232232保持历史关闭排除，不联系。
+
+UI定向RED：排除/观察/过期3项均因仍显示联系草稿失败；修正后 `vitest run tests/ui/candidate-evidence-panels.test.tsx` 15 passed，`tsc --noEmit`通过。保留REVIEW只读草稿、四维依据与元数据；不删除历史结果、不改后端权限，不将展示隐藏当发送防重或平台回执。
