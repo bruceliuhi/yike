@@ -467,6 +467,8 @@ production shortcut: that in-process path cannot interrupt native OS DNS.
                     child.communicate()
         except Exception:
             error = AssessmentModelError("assessment_result_unknown", 504, usage=worker_usage)
+        if time.monotonic() >= deadline:
+            error = AssessmentModelError('assessment_result_unknown', 504, usage=worker_usage)
         raise error
 
     def _assess_in_process(self, *, description: str, content: dict,

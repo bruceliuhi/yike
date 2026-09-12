@@ -22,9 +22,9 @@
 
 Files: pilot/candidate_assessment_model.py、pilot/candidate_assessment_worker.py；tests/test_candidate_assessment_model.py及新增定向用量测试。
 
-- [ ] 用有合法usage但非法回答的完整provider响应写RED；错误异常usage只保留三字段，未知不伪造，worker/parent旧帧兼容与新帧安全检查。
-- [ ] 在解析完整envelope后捕获validated usage；格式/grounding错误raise安全AssessmentModelError携带它；网络/超限无完整envelope不自造。保持现有业务错误code及超时语义。
-- [ ] worker错误帧只在usage合法时加usage，parent严格接收；定向pytest（使用既有Python `/tmp/yike-aliyun-sdk.DYc7GB/venv/bin/python`），不真实provider调用。
+- [x] 用有合法usage但非法回答的完整provider响应写RED；错误异常usage只保留三字段，未知不伪造，worker/parent旧帧兼容与新帧安全检查。
+- [x] 在解析完整envelope后捕获validated usage；格式/grounding错误raise安全AssessmentModelError携带它；网络/超限无完整envelope不自造。保持现有业务错误code及超时语义。
+- [x] worker错误帧只在usage合法时加usage，parent严格接收；定向pytest（使用既有Python `/tmp/yike-aliyun-sdk.DYc7GB/venv/bin/python`），不真实provider调用。
 
 ### Task 2: 持久化、原请求查询与隔离（独立backend Agent）
 
@@ -41,3 +41,9 @@ Files: 新migration139；pilot/db.py；deploy/grant_candidate_review.sql；新�
 - [ ] Task1/2整合的真实PG+HTTP及模型worker定向验证；原配额/幂等/资格不可变规则保持。
 - [ ] 固定SHA非作者审核，必要修复后差量复核，正常合main；不因本批再构包/部署。
 - [ ] 文档记录本批实现及仍缺的普通客户端呈现/跨任务汇总、搜贝规则、真实模型生产计量、Windows/平台/跨行业客户验收。完整Goal ACTIVE。
+
+## Evidence
+
+Task1 新增行为先RED16失败（原异常无usage）；实现后新旧模型边界196通过，5.13秒。追加真实受控子进程→loopback HTTP返回非法回答+合法用量→worker错误帧→parent，确认只请求一次且usage穿透；最终增量17通过，0.93秒。测试使用合成输入及受控模型端点，不是生产模型计费证据。Task2真实PG/HTTP与整批审核尚待收口；不以Task1通过声明计量功能完成。
+
+接续定向回归：迟到且非法的worker帧仍应记UNKNOWN，新增RED失败后补回父进程最终deadline门禁，已知usage不丢失。真实PG准备又暴露普通候选`_raw_model`把缺省source_context展开成显式null的生产回归；新增RED 1失败/2通过后，仅对原本缺省的CandidateRecord字段保留缺省，继续拒绝显式null和伪造bool，不以修改fixture掩盖问题。最终两份增量测试21 passed（1.10秒）。

@@ -20,7 +20,7 @@ from psycopg import Cursor
 from pydantic import BaseModel, ValidationError
 
 from pilot.auth import InvalidPilotToken, TokenClaims
-from pilot.candidate_contract import CandidateBatch, CandidateContractError, batch_fingerprint, validate_candidate_batch
+from pilot.candidate_contract import CandidateBatch, CandidateRecord, CandidateContractError, batch_fingerprint, validate_candidate_batch
 from pilot.connection_versions import ConnectionOperationError, ConnectionOperationStore
 from pilot.device_keys import DeviceKeyError, verify_signature
 from pilot.execution_contract import ExecutionOperation, ExecutionRuntimeError, ExecutionTarget, MAX_VERSION, canonical_uuid
@@ -39,7 +39,13 @@ def _raw_model(value):
     # Pydantic serializers may coerce a forged model_copy field (True -> 1).
     # Read raw values before revalidation, including nested frozen 02A models.
     if isinstance(value, BaseModel):
-        return {key: _raw_model(getattr(value, key)) for key in type(value).model_fields}
+        raw = {key: _raw_model(getattr(value, key)) for key in type(value).model_fields}
+        # Absence is valid; explicitly supplied null remains invalid. Do not use
+        # model_dump here: its serializers can normalize forged scalar types.
+        if isinstance(value, CandidateRecord) and value.source_context is None \
+                and 'source_context' not in value.__pydantic_fields_set__:
+            raw.pop('source_context', None)
+        return raw
     if isinstance(value, (tuple, list)):
         return [_raw_model(item) for item in value]
     return value

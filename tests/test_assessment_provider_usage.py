@@ -110,3 +110,25 @@ def test_real_owned_worker_and_loopback_provider_keep_rejected_answer_usage():
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+def test_parent_deadline_keeps_unknown_even_for_late_invalid_frame(monkeypatch):
+    frame = dict(error='invalid_assessment_result',status=502,usage=USAGE,extra='invalid')
+    real_popen, read_json = subprocess.Popen, api._read_json
+    clock = [0.0]
+    model = adapter(timeout_seconds=1)
+    def boundary(args,**kwargs):
+        command = list(args)
+        command[3] = 'import sys;sys.stdin.buffer.read();sys.stdout.buffer.write(' + repr(json.dumps(frame).encode()) + ')'
+        return real_popen(command,**kwargs)
+    def late_read(raw):
+        value = read_json(raw)
+        clock[0] = 2.0
+        return value
+    monkeypatch.setattr(subprocess,'Popen',boundary)
+    monkeypatch.setattr(api,'time',SimpleNamespace(monotonic=lambda:clock[0]))
+    monkeypatch.setattr(api,'_read_json',late_read)
+    with pytest.raises(api.AssessmentModelError) as caught:
+        model.assess(description=DESCRIPTION,content=CONTENT)
+    assert caught.value.code == 'assessment_result_unknown'
+    assert caught.value.usage is None
