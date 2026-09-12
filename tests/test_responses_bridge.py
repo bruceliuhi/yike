@@ -247,3 +247,27 @@ def test_invalid_terminal_sequences_fail_closed(body):
     with ResponsesBridge(api_key=KEY, model="m", max_requests=1, deadline=monotonic()+5,
                          allowed_tools=ALLOWED, transport=httpx.MockTransport(provider)) as bridge:
         assert request(bridge, {"tools": [], "input": []}).status_code == 502
+
+
+def test_unallowed_actual_custom_tool_calls_fail_but_output_business_data_is_untouched():
+    completed = lambda output: httpx.Response(200, headers={"content-type": "text/event-stream"}, content=sse(
+        ("response.completed", {"type": "response.completed", "response": {
+            "status": "completed", "output": output}})))
+    providers = [
+        lambda _: completed([{"type": "custom_tool_call", "name": "forbidden", "input": "{}"}]),
+        lambda _: completed([{"type": "function_call_output", "call_id": "c1", "output": {
+            "type": "custom_tool_call", "name": "business-value"}}]),
+    ]
+    with ResponsesBridge(api_key=KEY, model="m", max_requests=2, deadline=monotonic()+5,
+                         allowed_tools=ALLOWED, transport=httpx.MockTransport(lambda req: providers.pop(0)(req))) as bridge:
+        assert request(bridge, {"tools": [], "input": []}).status_code == 502
+        accepted = request(bridge, {"tools": [], "input": [{"type": "function_call_output", "call_id": "c1",
+                            "output": {"type": "custom_tool_call", "name": "business-value"}}]})
+        assert accepted.status_code == 200
+        assert "business-value" in accepted.text
+
+    with ResponsesBridge(api_key=KEY, model="m", max_requests=1, deadline=monotonic()+5,
+                         allowed_tools=ALLOWED, transport=httpx.MockTransport(lambda _: completed([]))) as bridge:
+        rejected = request(bridge, {"tools": [], "input": [
+            {"type": "custom_tool_call", "name": "forbidden", "input": "{}"}]})
+        assert rejected.status_code == 400

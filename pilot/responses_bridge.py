@@ -267,6 +267,9 @@ class ResponsesBridge:
                 inputs.append(source)
                 continue
             item = dict(source)
+            item_type = item.get("type")
+            if isinstance(item_type, str) and item_type.endswith("_call") and item_type != "function_call":
+                raise BridgeError("invalid_request")
             if item.get("type") == "function_call":
                 pair = (item.get("namespace"), item.get("name"))
                 alias = self._by_pair.get(pair)
@@ -313,6 +316,9 @@ class ResponsesBridge:
         if not isinstance(source, dict):
             raise BridgeError("provider_error")
         item = dict(source)
+        item_type = item.get("type")
+        if isinstance(item_type, str) and item_type.endswith("_call") and item_type != "function_call":
+            raise BridgeError("provider_error")
         if item.get("type") == "function_call":
             pair = self._by_alias.get(item.get("name"))
             if pair is None:
