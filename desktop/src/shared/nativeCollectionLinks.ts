@@ -111,6 +111,7 @@ export function parseNativeCollectionLink(value: unknown): NativeCollectionLink 
   const canonical_url = token === undefined
     ? target.base
     : `${target.base}?xsec_token=${encodeURIComponent(token)}&xsec_source=${encodeURIComponent(source!)}`;
+  if (canonical_url.length > 2048) return invalidLink();
   return { platform: target.platform, kind: target.kind, external_id: target.external_id, canonical_url };
 }
 

@@ -3,6 +3,7 @@ import {platformQueries} from './platformSearchTerms';
 import { industryStrategyError } from './industryTaskStrategy';
 import {
   confirmStrategySchema,
+  prepareStrategyRecordSchema,
   prepareStrategySchema,
   revokeStrategySchema,
   strategyReceiptSchema,
@@ -125,7 +126,7 @@ type ParsedExpected =
   | { operation: "REVOKE"; request: RevokeStrategyRequest };
 
 function parseExpectedRequest(value: unknown): ParsedExpected {
-  const prepared = prepareStrategySchema.safeParse(value);
+  const prepared = prepareStrategyRecordSchema.safeParse(value);
   if (prepared.success) return { operation: "PREPARE", request: prepared.data };
   const confirmed = confirmStrategySchema.safeParse(value);
   if (confirmed.success) return { operation: "CONFIRM", request: confirmed.data };

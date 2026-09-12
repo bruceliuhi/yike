@@ -86,6 +86,8 @@ def parse_native_collection_link(value: object) -> dict:
                 or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', source)):
             _invalid()
         canonical += '?xsec_token=' + quote(token, safe='') + '&xsec_source=' + source
+    if len(canonical) > 2048:
+        _invalid()
     return target | {'canonical_url': canonical}
 
 

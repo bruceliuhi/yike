@@ -83,7 +83,8 @@ def test_bounds(links):
     for value in ('https://www.douyin.com/video/' + '1' * 21,
                   'https://www.douyin.com/user/' + 'a' * 129,
                   'https://www.douyin.com/video/1?x=' + 'a' * 2048,
-                  CASES['valid'][4]['url'] + '?xsec_source=pc&xsec_token=' + 'a' * 1025):
+                  CASES['valid'][4]['url'] + '?xsec_source=pc&xsec_token=' + 'a' * 1025,
+                  CASES['valid'][4]['url'] + '?xsec_source=pc&xsec_token=' + '/' * 1024):
         with pytest.raises(ValueError, match='^INVALID_NATIVE_COLLECTION_LINK$'):
             links.parse_native_collection_link(value)
 

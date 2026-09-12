@@ -303,7 +303,7 @@ const operationShape = {
   request_id: strategyUuidSchema,
 } as const;
 
-export const prepareStrategySchema = exactObject({
+export const prepareStrategyRecordSchema = exactObject({
   ...operationShape,
   draft_id: strategyUuidSchema,
   draft_revision: boundedInteger(2_147_483_647),
@@ -312,6 +312,8 @@ export const prepareStrategySchema = exactObject({
   if (scope.configuration.platformQueries && !scope.configuration.platformQueries.items.every(
     item=>scope.platforms.includes(item.platform)))
     context.addIssue({code:'custom',message:INVALID_STRATEGY_DATA});
+});
+export const prepareStrategySchema = prepareStrategyRecordSchema.superRefine((scope, context) => {
   if (scope.configuration.source === 'links' && scope.configuration.research === null) {
     try {
       planNativeCollectionLinks(scope.platforms, scope.configuration.links);

@@ -112,6 +112,7 @@ describe("native collection links", () => {
       `https://www.douyin.com/user/${"a".repeat(129)}`,
       `https://www.douyin.com/video/1?x=${"a".repeat(2048)}`,
       `${fixture.valid[4].url}?xsec_source=pc&xsec_token=${"a".repeat(1025)}`,
+      `${fixture.valid[4].url}?xsec_source=pc&xsec_token=${"/".repeat(1024)}`,
     ])
       expect(() => parseNativeCollectionLink(value)).toThrowError(
         /^INVALID_NATIVE_COLLECTION_LINK$/,

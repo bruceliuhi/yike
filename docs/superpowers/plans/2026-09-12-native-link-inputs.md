@@ -17,7 +17,7 @@
 
 ### Task 1：双端纯函数与新建任务校验
 
-文件：创建 pilot/native_collection_links.py、desktop/src/shared/nativeCollectionLinks.ts、tests/fixtures/native_collection_links.json、tests/test_native_collection_links.py、desktop/tests/nativeCollectionLinks.test.ts；修改 pilot/research_strategy_contract.py 和 desktop/src/shared/researchStrategies.ts。
+文件：创建 pilot/native_collection_links.py、desktop/src/shared/nativeCollectionLinks.ts、tests/fixtures/native_collection_links.json、tests/test_native_collection_links.py、desktop/tests/nativeCollectionLinks.test.ts；修改 pilot/research_strategy_contract.py 和 desktop/src/shared/researchStrategies.ts。历史恢复分离同时涉及 desktop/src/renderer/domain/researchStrategies.ts、desktop/src/renderer/domain/strategyConfirmation.ts 与 desktop/tests/strategyConfirmation.test.ts。
 
 接口：Python parse_native_collection_link(value) -> dict；plan_native_collection_links(platforms, links) -> tuple[dict,...]。TS parseNativeCollectionLink(value: unknown) -> NativeCollectionLink；planNativeCollectionLinks(platforms: readonly string[], links: readonly string[]) -> NativeCollectionLink[]。无导入数据库、运行时或 UI。
 
@@ -43,4 +43,8 @@ Python RED：纯链接抖音任务错误接受 B站 URL；合法 XHS 签名公�
 
 TS RED：新测试因模块尚不存在而失败，原 researchStrategies 21 passed；GREEN：Node24.19.0 执行 `node_modules/vitest/vitest.mjs run tests/nativeCollectionLinks.test.ts tests/researchStrategies.test.ts`，2 files / 100 tests passed（268ms）。根执行同版 `node_modules/typescript/bin/tsc --noEmit`，exit0 无诊断；`git diff --check` 通过。TS 实现与测试由独立客户端 Agent 完成，最终审核另由非实现者进行。
 
-尚待固定提交独立审核。本输入批没有任何链接采集执行、生产或 Windows 验收证据。
+首次独立整批审查固定 `c94d8f2`，NO-GO：1个P2、无P1。新建原生门禁被历史请求摘要／回执恢复复用，导致旧版合法普通链接的 pending 无法恢复；快照结构可读的测试不足以覆盖实际恢复链。非实现者离线最小反例证实，未联网、未重跑整套。按设计分离历史严格结构与新动作门禁，修复／复核接续记录在下方；首次失败不删除。
+
+修复：`prepareStrategyRecordSchema` 保留历史 exact 结构，用于原请求摘要和回执匹配／恢复；新建记录、PREPARE重试及 renderer/main POST 保持新门禁。旧 pending 按独立 canonical 摘要的真实恢复函数回归，先1 failed/6 passed，再3文件107 passed；恢复修复后 tsc exit0。根另发现公开参数编码可能让短输入变成超过2048字符的 canonical URL，两端各一个定向失败确认后补输出长度检查。最终合并改动的目标验证：Python289 passed（0.52秒）、TS3文件107 passed（391ms），不重复模型/数据库/构包。
+
+本输入批没有任何链接采集执行、生产或 Windows 验收证据。
