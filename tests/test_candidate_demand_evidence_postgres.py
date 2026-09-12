@@ -227,7 +227,7 @@ def test_withdrawal_does_not_revive_pre_supplement_cached_judgment(env):
     assert 'demandEvidenceId' not in latest['assessment']
 
 
-def test_http_pg_supplement_assess_include_and_old_shape_read(journal_env):
+def test_http_pg_supplement_assess_include_and_old_shape_read(journal_env,monkeypatch):
     from fastapi import FastAPI,APIRouter
     from fastapi.testclient import TestClient
     from types import SimpleNamespace
@@ -240,7 +240,12 @@ def test_http_pg_supplement_assess_include_and_old_shape_read(journal_env):
     item = publish(env)['items'][0]
     b = dict(candidateId=item['candidate_id'],candidateRevision=item['revision'],sourceVersionId=item['version_id'],
         profileId=env.profile,profileVersion=env.profile_number)
-    service = CandidateReviewStore(env.db,model=PageModel(),strategy_resolver=env.strategies.resolve,
+    class MixedPageModel(PageModel):
+        def assess(self,**kwargs):
+            value,usage = super().assess(**kwargs)
+            value['intent']['citations'].append(dict(field='body',quote='采购输送设备'))
+            return value,usage
+    service = CandidateReviewStore(env.db,model=MixedPageModel(),strategy_resolver=env.strategies.resolve,
         strategy_snapshot_reader=env.strategies.read_snapshot)
     app,router = FastAPI(),APIRouter()
     register_candidate_review_api(router,service,lambda _:SimpleNamespace(claims=env.claims),lambda _:None)
@@ -258,16 +263,28 @@ def test_http_pg_supplement_assess_include_and_old_shape_read(journal_env):
     current = client.get('/candidates?evidenceVersion=1').json()['items'][0]
     assert current['sourceVerification']['demandEvidence'] == declaration
     assert current['assessment']['demandEvidenceId'] == check.json()['id']
+    assert {item['field'] for item in current['assessment']['intent']['citations']} == {'author_updates.0','body'}
     legacy = client.get('/candidates').json()['items'][0]
     assert 'demandEvidence' not in legacy['sourceVerification']
     assert 'demandEvidenceId' not in legacy['assessment'] and legacy['publishedAt'] == ''
+    import pilot.candidate_review as review_module
+    original_clock = review_module._now
+    monkeypatch.setattr(review_module,'_now',lambda cursor: original_clock(cursor)+timedelta(hours=25))
+    expired_response = client.get('/candidates?evidenceVersion=1')
+    assert expired_response.status_code == 200
+    expired_page = expired_response.json()
+    expired = expired_page['items'][0]
+    assert expired['sourceStatus'] == 'EXPIRED' and expired['sourceVerification']['status'] == 'EXPIRED'
+    assert expired['sourceVerification']['demandEvidence'] == declaration
+    assert expired['assessmentStale'] and 'assessment' not in expired
+    assert client.get('/candidate-review-requests/'+check.json()['requestId']+'?evidenceVersion=1').json() == check.json()
     import json,os
     if os.environ.get('YIKE_DEMAND_WIRE_CAPTURE') == '1':
         opportunity = env.store.get_opportunity(env.claims.user_id,decision.json()['receipt']['opportunityId'])
         print('YIKE_DEMAND_WIRE='+json.dumps(dict(synthetic=True,
             description='Synthetic source and model boundary; actual restricted PostgreSQL and HTTP receipts.',
             check=check.json(),assessed=assessed.json(),decision=decision.json(),current=current,
-            source_evidence=opportunity['source_evidence']),ensure_ascii=False))
+            expired_page=expired_page,source_evidence=opportunity['source_evidence']),ensure_ascii=False))
 
 
 def test_unknown_request_replay_never_becomes_new_human_model_call(env):
