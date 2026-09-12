@@ -41,6 +41,8 @@ export YIKE_RELEASE_SERVICE_URL=https://customer.example
 
 ## Windows x64
 
+携带完整portable payload时，旧NuGet/Squirrel存在260字符路径限制。构建进程应将 `TEMP`、`TMP` 和 **`SQUIRREL_TEMP`** 同时设为已核验的短ASCII专用临时目录（本轮 `C:\Users\bruce\AI\yt`）；仅设置 `YIKE_SQUIRREL_STAGING_ROOT` 或普通TEMP不能控制Squirrel自身解包路径。不要修改全局环境或复用有业务文件的目录。若产品打包已成功、只在安装器阶段失败，核对ASAR/payload/源码摘要未变后使用 `npm run make:win -- --skip-package`，无需重做产品构建。实际失败及本次结果见[Windows接续](../../docs/qa/WINDOWS_SYNC_20260912.md)。
+
 在 Windows x64、Node.js `>=24.15.0 <25` x64 环境中，获取最终交付的完整 40 位候选 SHA，在干净独立 checkout 中构建，不使用会继续变化的 main 名称。Windows 换行转换会造成字节不同，可从现有仓库创建隔离工作树（不覆盖已有改动或更改全局 Git 配置）：
 
 ```powershell

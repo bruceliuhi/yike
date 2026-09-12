@@ -1,5 +1,6 @@
 import {EventEmitter} from 'node:events';
 import {PassThrough} from 'node:stream';
+import path from 'node:path';
 import {expect,it,vi} from 'vitest';
 import {createPortableBootstrap,publishedPortableStatus} from '../src/main/portableBootstrap';
 function child(){const p=Object.assign(new EventEmitter(),{stdout:new PassThrough(),stderr:new PassThrough(),kill:vi.fn(()=>true)});return p;}
@@ -15,7 +16,7 @@ it('verifies before spawning and waits for physical close after exact READY',asy
   expect(verify).toHaveBeenCalledOnce();expect(b.status()).toEqual({state:'PREPARING'});
   p.stdout.write(JSON.stringify({state:'READY',manifestSha256:'a'.repeat(64)})+'\n');
   expect(b.status()).toEqual({state:'PREPARING'});p.emit('close',0);
-  await expect(done).resolves.toMatchObject({pythonExecutable:expect.stringContaining('host/python.exe')});
+  await expect(done).resolves.toMatchObject({pythonExecutable:path.join('/userdata','portable-runtimes','a'.repeat(64),'host','python.exe')});
   expect(b.status()).toEqual({state:'READY'});
 });
 it('never executes a payload that failed integrity',async()=>{

@@ -189,7 +189,8 @@ it('lost upload receipt recovers its original key after controller reconstructio
     expect(await f.idle(first)).toMatchObject({localState: 'UPLOAD_UNKNOWN', serverStatus: 'RUNNING', recordsUsed: 1, recoverable: true});
     const batch = f.committed()!; const before = structuredClone(batch);
     await first.shutdown(); const reopened = f.controller();
-    expect(await reopened.start(f.command)).toMatchObject({state: 'RECORDED'});
+    // A RUNNING generation cannot become a fresh START after reconstruction.
+    expect(await reopened.start(f.command)).toMatchObject({state: 'SERVICE_UNAVAILABLE'});
     expect(f.driver.start).toHaveBeenCalledTimes(1); expect(f.events.filter(e => e === 'CLAIM')).toHaveLength(1);
     expect(await reopened.execute({action: 'RECOVER', taskId: id(6), humanConfirmed: true, retry: false})).toMatchObject({localState: 'COMPLETED', serverStatus: 'SUCCEEDED', stopConfirmed: true});
     expect(f.events.filter(e => e === 'candidate.apply')).toHaveLength(1);

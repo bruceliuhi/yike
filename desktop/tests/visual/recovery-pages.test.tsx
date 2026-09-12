@@ -128,6 +128,11 @@ it("P13 real route binds UNKNOWN to the original request; only an explicit non-d
     <OutreachPage />,
   );
   const prepare = await screen.findByRole("button", { name: "准备发送" });
+  expect((prepare as HTMLButtonElement).disabled).toBe(true);
+  // Persist routing metadata through the real component callback before sending.
+  const save = await screen.findByRole("button", { name: "保存草稿" });
+  await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(save);
   await waitFor(() =>
     expect((prepare as HTMLButtonElement).disabled).toBe(false),
   );
