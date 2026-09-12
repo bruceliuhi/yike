@@ -150,7 +150,8 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
       const query = params.toString();
       return {path:'/api/ui/candidates'+(query?'?'+query:''),method:'GET',logout:false};
     }
-    case 'candidates.review': return {path:'/api/ui/candidate-reviews',method:'POST',body:JSON.stringify(data),logout:false};
+    case 'candidates.review': return {path:'/api/ui/candidate-reviews',method:'POST',body:JSON.stringify(data),logout:false,
+      ...(data!.action === 'ASSESS' ? {timeoutMs:75_000 as const} : {})};
     case 'candidates.rawEvidence': return {path:`/api/ui/raw-candidates/${encodeURIComponent(data!.candidateId)}`,method:'GET',logout:false};
     case 'candidates.verifySource': return {path:'/api/ui/candidate-source-verifications',method:'POST',body:JSON.stringify(data),logout:false};
     case 'candidates.request': return {path:`/api/ui/candidate-review-requests/${encodeURIComponent(data!.requestId)}`,method:'GET',logout:false};

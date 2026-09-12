@@ -19,6 +19,7 @@ import type {CandidateReceipt} from '../../src/shared/candidateReceipt';
 import {publicSourceIdSchema,PUBLIC_SOURCES} from '../../src/shared/publicSources';
 import {parseRawCandidateEvidence} from '../../src/shared/rawCandidateEvidence';
 import {createCandidateReviewService} from '../../src/renderer/services/candidateReview';
+import {ServiceError} from '../../src/renderer/services/contracts';
 
 const names=['BASE','USER','TOKEN','SEED','DEVICE','PROFILE','PREPARE','NETWORK'] as const;
 it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP public collection signs, uploads and finishes without recollection',async()=>{
@@ -129,7 +130,7 @@ it.skipIf(!names.some(name=>process.env[`YIKE_PUBLIC_LIVE_${name}`]))('real HTTP
    const selected=accepted!.items.find(item=>item.index===index)!;
    const api=createCandidateReviewService(async(operation,_path,_method,payload)=>{
     const response=await identity.requestApi({operation,payload});
-    if(!response.ok)throw new Error('ordinary candidate API failed');
+    if(!response.ok)throw new ServiceError(response.error,'ordinary candidate API failed',response.status);
     return response.data;
    });
    const candidate=(await api.list({ids:[selected.candidate_id],page:1,pageSize:1})).items[0];

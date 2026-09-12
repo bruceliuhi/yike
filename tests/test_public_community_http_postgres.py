@@ -92,6 +92,7 @@ def test_public_community_client_through_ordinary_runtime(
         else:
             target = '987654321'
             provider = request.getfixturevalue('local_provider')
+            provider.delay_seconds = 13  # Exceeds the old desktop 12-second timeout.
             for dimension in ('businessMatch', 'intent', 'urgency'):
                 provider.result[dimension]['citations'] = [{'field': 'body', 'quote': '需要 AI 的企业服务'}]
             model_environment = {
