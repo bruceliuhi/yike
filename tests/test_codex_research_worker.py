@@ -285,6 +285,81 @@ def test_read_only_instructions_remain_exactly_unchanged(worker,tmp_path):
     assert data['instructions']==worker._INSTRUCTIONS
 
 
+def research_context():
+    return dict(schema_version='research-context-v1',
+        profile_version_id='11111111-1111-4111-8111-111111111111',
+        strategy_version_id='22222222-2222-4222-8222-222222222222',
+        seller_description='食品工厂的不锈钢输送设备设计与安装，服务华东地区。',
+        reference_time='2026-09-13T00:00:00+08:00',timezone='Asia/Shanghai',max_age_days=60,
+        query_seeds=['产线改造 找设备团队'],intent_signals=['找设备供应商报价'],
+        exclusions=['只招聘员工'],history_scope='PARTIAL',history=[dict(
+            project_key='known-project',description='已经联系的食品输送项目',state='CONTACTED',
+            source_urls=['https://example.com/known'])])
+
+
+def test_profile_research_loads_original_rules_and_bound_context_in_real_process(worker,tmp_path):
+    capture=tmp_path/'profile-config.json'
+    extra=("config=next(value for value in sys.argv if value.startswith('model_instructions_file='))\n"
+           "instructions=open(json.loads(config.split('=',1)[1])).read()\n"
+           f"open({str(capture)!r},'w').write(json.dumps(dict(argv=sys.argv,env=dict(os.environ),prompt=sys.stdin.read(),instructions=instructions)))\n")
+    context=research_context()
+    result=run_research(worker,tmp_path,[search_event(),read_event(),*final_events()],
+        extra=extra,research_context=context)
+    from pilot.research_context import compile_research_context
+    compiled=compile_research_context(context)
+    data=json.loads(capture.read_text())
+    assert result['status']=='COMPLETED'
+    assert result['research_binding']==compiled['binding']
+    assert compiled['instructions'] in data['instructions']
+    assert compiled['context_json'] in data['prompt']
+    assert '研究公开需求。' in data['prompt']
+    assert context['seller_description'] not in json.dumps(data['argv'],ensure_ascii=False)
+    assert context['seller_description'] not in json.dumps(data['env'],ensure_ascii=False)
+    assert context['seller_description'] not in data['instructions']
+    assert 'synthetic-provider-secret' not in json.dumps(data)
+    assert 'synthetic-search-secret' not in json.dumps(data)
+    assert result['research_binding']['profile_version_id']==context['profile_version_id']
+
+
+@pytest.mark.parametrize('context',[None,{},research_context()|{'max_age_days':True}])
+def test_invalid_explicit_research_context_never_starts_or_downgrades(worker,tmp_path,context):
+    result=run_research(worker,tmp_path,research_context=context)
+    assert result['status']=='FAILED' and result['code']=='invalid_research_context'
+    assert result['research_binding'] is None and result['reads']==[] and result['searches']==[]
+    assert worker._test_search_sessions==[]
+
+
+@pytest.mark.parametrize('secret',['synthetic-provider-secret','synthetic-search-secret'])
+def test_research_context_cannot_carry_provider_credentials(worker,tmp_path,secret):
+    context=research_context();context['history'][0]['description']='历史 '+secret
+    result=run_research(worker,tmp_path,research_context=context)
+    assert result['status']=='FAILED' and result['code']=='invalid_configuration'
+    assert result['research_binding'] is None
+    assert worker._test_search_sessions==[]
+    assert secret not in json.dumps(result)
+
+
+def test_research_context_keeps_original_description_limit(worker,tmp_path):
+    result=run_research(worker,tmp_path,description='字'*4001,research_context=research_context())
+    assert result['code']=='invalid_configuration' and worker._test_search_sessions==[]
+
+
+def test_research_rule_failure_never_starts_or_downgrades(worker,tmp_path,monkeypatch):
+    import pilot.research_context as module
+    def unavailable(_):raise module.ResearchContextError('research_rules_unavailable')
+    monkeypatch.setattr(module,'compile_research_context',unavailable)
+    result=run_research(worker,tmp_path,research_context=research_context())
+    assert result['code']=='research_rules_unavailable' and result['research_binding'] is None
+    assert worker._test_search_sessions==[]
+
+
+def test_research_binding_survives_cancel_without_authorizing_a_lead(worker,tmp_path):
+    result=run_research(worker,tmp_path,research_context=research_context(),cancelled=lambda:True)
+    assert result['status']=='CANCELLED' and result['reads']==[]
+    assert result['research_binding']['strategy_version_id']==research_context()['strategy_version_id']
+    assert 'grade' not in result and 'decision' not in result
+
+
 @pytest.mark.parametrize('description',['包含 synthetic-provider-secret','包含 synthetic-search-secret'])
 def test_research_rejects_secret_substrings_in_public_description(worker,tmp_path,description):
     result=run_research(worker,tmp_path,description=description)
