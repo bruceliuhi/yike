@@ -25,7 +25,7 @@
 
 **Interfaces:** 保留现有public/internal返回字段、`parse_page_selection(summary,evidences)`及绑定字段；增加纯函数 `page_selection_schema()` 每次返回独立schema。新阶段模块输出常量 `RESEARCH_STAGE_INSTRUCTIONS`。`_instructions(documents)`仍以已校验全部规则包为输入，输出包含其规范摘要和投影的固定文本，`rule_sha256=sha256(instructions)`不变。runtime私有 `_assessment_reserve(model_calls,max_records,max_reads)` 返回上述A；内部claim结果增加maxRecords供本轮使用，不扩外部DTO。
 
-- [ ] Step 1 — 添加定向失败测试，先运行记录RED。
+- [x] Step 1 — 添加定向失败测试，先运行记录RED。
 
 ```python
 def test_selection_schema_is_exact_and_detached():
@@ -45,7 +45,7 @@ def test_multiple_candidate_budget_is_reserved():
 
 另在已有worker夹具检查 `--output-schema`实际文件JSON和stdin画像仅一次，legacy不带；已有bridge输入添`text.format`断言出站保留精确schema。context检查新版本、原规则任何变化会变rule_sha、缺失包仍拒绝、投影长度小于原输入且包含买方/未知/反证/只读规则。保留已有严格parser反例。
 
-- [ ] Step 2 — 实施最小代码。
+- [x] Step 2 — 实施最小代码。
 
 ```python
 def _assessment_reserve(model_calls, max_records, max_reads):
@@ -65,23 +65,39 @@ schema只用object/array/string、properties/required/additionalProperties/enum�
 
 进度仅当存在合法背景跳过标记且无其他跳过时从未发布中扣除；原缺batch、invalid/budget跳过仍保留。查询补取现有 `batch.execution_context` 的跳过计数与page_selection；receipt仍只提供items，不新增其字段。
 
-- [ ] Step 3 — 受限PG端到端定向RED/GREEN。
+- [x] Step 3 — 受限PG端到端定向RED/GREEN。
 
 复用 `dynamic_env`，mission经真实dispatch记录分配上限数量的MODEL和两页READ，输出两项ASSESS；核验普通assessment两条、最终COMPLETED、总消耗不超确认限制。已有all_background测试补unpublished=0；另验证skipped_budget/无batch仍非0。用同一个owned临时PG，不建立生产数据。root提供端口与连接参数，提供前先做纯测试，不自行启动多个DB。
 
 为并行加速，root负责独立文件中的两候选纵切；先用仅测试进程插件将预留还原为旧1次公式确认RED，不回退共享产品文件；再无插件运行GREEN。其余现有文件用例由实现Agent完成。
 
-- [ ] Step 4 — 只运行一次相关组与自审、提交代码。
+- [x] Step 4 — 只运行一次相关组与自审、提交代码。
 
 Run: `.venv/bin/python -m pytest -q tests/test_codex_research_worker.py tests/test_research_context.py tests/test_research_page_selection.py tests/test_responses_bridge.py`；PG只跑本批新增/改动的命名用例。目标全部通过，保留初次失败，不把skipped当通过。
 
-- [ ] Step 5 — 一次独立Spec/Quality审核；合并发现项，定向修复、差量复核。
+- [x] Step 5 — 一次独立Spec/Quality审核；合并发现项，定向修复、差量复核。
 - [ ] Step 6 — root用固定公开快照＋fresh模型核验实际schema，比较输入/缓存/耗时，不声称稳定率；必要时另一个明确业务样本打通普通判断。确认后一次新有界实网任务，不能重放旧UNKNOWN。
 - [ ] Step 7 — 更新本页证据及唯一任务书/整合状态，核验远端main后正常合并推送。纯文档不构包。完整Goal继续ACTIVE。
 
 ## Evidence
 
-开始：基线79427c0；已复用上一轮定位证据，尚未实施/测试。
+### 初版实现和独立审核
+
+基线`79427c0`，实现`7b66d4c`，独立两候选纵切测试`a23c0ce`。contextual native schema、单份画像、6276字节研究阶段投影、普通判断预留及背景进度修正已实现；原四份包23941字节，个人Skill/原包不改。
+
+实现者先RED；首次缺函数collection随后改为行为断言，148通过/43失败中6项是预期功能缺口，其余为sandbox loopback禁止，不当产品缺陷。GREEN：预算边界及纯定向149项/19.99秒；worker/context/parser/Bridge四文件191项/41.43秒；背景/预算跳过/无batch的受限PG3项/5.58秒。组间有重叠，不累加为独立总数。
+
+root独立两候选纵切通过测试进程插件还原旧1-slot预留，真实受限PG RED是2入库/1判断/STOPPED（session8093，1失败/6.70秒）；新分配GREEN1项/5.55秒。独立审核指出当次runtime blob与最终字节不同，因此不追认该GREEN：在干净`a23c0ce`仅补跑此项，session11703 exit0、1通过/5.94秒，runtime blob`83548649bdb1bc4975df3e19f3dd00f60e74edb4`/test blob`8b8ebc3c46cd352a4f1ae23c25fda4d64e1aa16d`。变化是背景进度收紧，原失败记录保留。
+
+非作者一次整批审核`79427c0..a23c0ce`：Spec PASS、Quality PASS、无代码阻断项；额外只读188100组合法M/R/P检查未越界，不重跑套件或构包。报告`/tmp/yike-efficient-handoff-independent-review.md`；真实提供商门禁仍单独待验，不能把代码GO升级为产品完成。
+
+### 固定快照真实模型暴露引用交接缺口
+
+`a23c0ce`新任务（不是旧UNKNOWN重试）：同已存V2EX目录与1239289供方页快照，**来源网络调用0**，真实Codex/豆包/Bridge/受限PG及客户测试HTTP。session2589 exit1，pytest30.60秒，任务27.77秒；3次MODEL、2次快照READ、0候选/普通判断，STOPPED/research_selection_invalid。
+
+三次实际出站`text.format`均为精确strict json_schema且未被Bridge删除；模型final严格JSON、每页URL/hash/规则绑定均正确。第二页quote123字符不是持久text逐字连续片段，原parser第95行拒绝；未保存原final文本，不能断言具体拼接/改写/空白原因。输入24291（缓存5944）、输出890；旧同快照成功基线输入39929（缓存19056）、输出815、32.17秒。新输入少但任务失败，**不能把27.77秒作为成功效率提升或省费证据**。
+
+安全artifact：`/tmp/yike-efficient-handoff-{snapshot,structure,transport}-20260913.json`，未存模型输入/密钥；旧artifact保留。此证据支持下列定点quote_ref修订，暂不扩大来源、不再付费盲试、不降低逐字校验。没有新商机/生产/Windows构包/外发；完整Goal ACTIVE。
 
 ## Task 1 实网门禁发现后的单一修订：quote_ref
 
