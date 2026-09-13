@@ -2,6 +2,8 @@
 
 ## 当前交付：邀请试用真实闭环（2026-09-13用户明确调整Goal）
 
+2026-09-13 17:05起接续：1549c18 Windows已构建/实装，摘要一致、登录连接任务保留；新UI任务38d1428b首次required已真实带动3SEARCH/4MODEL，首READ却被数据库旧失败白名单拒绝，尚无成功原文。新增146及迁移账本只执行未应用版本，66项受限PG通过、独立差量GO；此刻尚待部署及新客户端真实闭环。[唯一安装摘要、真实失败、修复与验证](superpowers/plans/2026-09-13-research-first-action.md#1705起真实首次搜索windows实装及数据库遗漏)。不重放旧任务，不因本批服务端差量重构Windows；下面为旧状态，Goal继续。
+
 2026-09-13 16:29真实客户端新任务：e90292be已从47eb746安装版创建并自动进入进度页；一次MODEL成功后直接输出“需要先搜索”的计划和空pages，无SEARCH/READ，STOPPED/no_verified_reads。已从持久回执确认两工具存在、tool_choice=auto且json_schema终稿过早输出；不是此轮连接失败，不重试原任务。**下一工作是研究首次动作/终稿阶段约束，之后验证真实原文和候选闭环**，并合批处理初次本机请求查询/覆盖显示的实际体验缺口。详情与证据接上方唯一记录，不因官网来件重构同字节产物，仍未通过客户价值验收。
 
 2026-09-13 CodexWin同版交付：47eb746客户服务和research/broker均已实际切换，公网readyz200、原ops未变；Windows同源载荷/Forge成功，正常位置安装后app.asar与候选一致，原生新版已保留登录和业务画像，正在真实客户流程中接续。后续b69a662仅官网/文档，产品字节不变，无需重构。[唯一部署、安装摘要、失败处理及测试状态](superpowers/plans/2026-09-13-public-connect-failure.md#1623-同版部署与windows实装)。相关发布共用服务器ops/customer-research-release.lock并核对容器ID；旧UNKNOWN任务不重放。完整客户闭环、三需求和用户认可线索仍未通过，Goal继续。

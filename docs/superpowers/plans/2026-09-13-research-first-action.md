@@ -31,3 +31,15 @@
 Windows同源载荷47197已exit0，1通过/459.88秒，保留D:/yk-connect/portable-1549c18-relocated。Forge91784仍在封装EXE（实际nuget子进程28760持续I/O），唯一输出D:/ykg913；不重复启动，尚未安装此版本。首次required的真实模型结果与客户价值闭环未通过，不以部署替代验收。
 
 封装入口核对桌面649个源码的manifestSha256为`7659879b31a9db02aeec50dc40855d43f42319e5bcb64f3c9953cd7ab56c557c`，与47版本完全一致；app/vendor/依赖同样无差量。为利用封装等待，重开现有47安装版连接1549c18服务，UI已进入新建任务并填写“验收-AI定制首次搜索-0913”；未确认策略、未创建正式任务、未开始研究，不记作真实闭环通过。随后工具检测用户输入/窗口移动，暂停输入；另发现非本轮启动的D:/ykt913旧安装器窗口，未关闭/接管。待其终态且窗口稳定后再继续，不叠加安装。当前活跃清理任务已收到本轮构建目录保护清单。
+
+## 17:05起：真实首次搜索、Windows实装及数据库遗漏
+
+以上等待为历史状态。Forge91784已exit0，固定1549c18产物 `D:/ykg913/make/squirrel.windows/x64/YikeAI-Setup.exe`（642852352字节，SHA256 `1fa60336fd0ada417fabf283272d30e87e7bf46035f7a37dd5c2fe3e5c75ab10`，未签名）。关闭旧安装失败窗口及仅测试会话草稿后，本批Setup58594 exit0。实际C:/Users/bruce/AppData/Local/YikeAI/app-0.2.0/resources/app.asar与候选同为`6d28fd467c0a07dcdf3d9ce017fa5f9d09089bdb82f82183647a67e430a6921f`；原生新版工作台、登录、小红书连接、正式任务列表与暂停详情已实查保留。
+
+实际UI创建“验收-AI定制首次搜索-0913”，任务`38d1428b-7e2c-4714-8ae4-c059197ce5cc`，run`fffb91ff-53fd-45f5-9742-ead941f3fd55`。首次MODEL的required真实产生搜索；4MODEL/3SEARCH成功，17:05:44首次READ www.v2ex.com，17:05:50 STOPPED/runtime_failed，READ仍ISSUED，无成功原文或新候选。该任务创建时桌面为同649源码旧安装，之后由新实装只读查询，不追认新安装创建，也不重放原任务。
+
+已核对READ/事件截止均17:20:03，排除此次租约到期；同时间段PostgreSQL日志明确违反`research_effect_final_result`。143的journal CHECK和deferred pair仅接受旧3种失败，遗漏host现已识别的connection_unavailable。新增146同时扩展两处精确JSON白名单，不改143，不回写旧失败，保留RLS/双表绑定/UNKNOWN及防重。真实隔离PG先RED1失败61通过，再迁移后62通过。
+
+另发现重复migrate会先重放143而拒绝已保存新回执，新增回归再次RED1失败62通过。现仅bootstrap迁移账本，摘要一致的已应用版本跳过，不一致仍报错，未应用版本在原advisory锁及同一事务执行。补回执后再次升级、摘要不符回滚、空库两次及旧115前缀升级。最终66通过/27.98秒（77043），无模型或客户数据。一次测试夹具误把app URL指向superuser导致附加升级用例初始化失败；修正为专用受限testapp后通过，原journal用例本来使用受限RoleDatabase。一次性测试容器/网络已删除，合成源码留存。
+
+独立review_read_schema首审重复迁移P2已修复，差量复审GO；摘要绑定db.py `45beb83c90d0d3a72addc9e8f826acf5d1b3cd303f84fc32b5730760f9aca086`、146 `9a21f6bcbaff9da8733b2c539fd39f7f69f506b3fcf522b9ad4c69ae7e827561`。本节此刻数据库修复尚未部署；发布必须使用新管理迁移入口，不能用旧runner重放历史DDL作回滚。仅服务端迁移差量，不重复构Windows包。真实原文/候选、三业务及用户认可仍待验，完整Goal ACTIVE。

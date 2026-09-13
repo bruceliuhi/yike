@@ -58,6 +58,7 @@ class PilotDatabase:
         ("v02-known-read-outcomes", migration_path.with_name("143_v02_known_read_outcomes.sql")),
         ("v02-research-page-selection", migration_path.with_name("144_v02_research_page_selection.sql")),
         ("v02-self-service-trial", migration_path.with_name("145_v02_self_service_trial.sql")),
+        ("v02-read-connection-outcome", migration_path.with_name("146_v02_read_connection_outcome.sql")),
     )
 
     def __init__(self, url: str):
@@ -87,13 +88,20 @@ class PilotDatabase:
         with self.connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT pg_advisory_xact_lock(hashtext('yike-customer-pilot-schema'))")
+                # Bootstrap only the ledger. Replaying historical DDL can reject
+                # data that a later migration intentionally made valid.
+                cursor.execute("CREATE TABLE IF NOT EXISTS pilot_schema_meta ("
+                    "version TEXT PRIMARY KEY, checksum TEXT NOT NULL, "
+                    "applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)")
+                cursor.execute("ALTER TABLE pilot_schema_meta ADD COLUMN IF NOT EXISTS "
+                    "checksum TEXT NOT NULL DEFAULT 'legacy-unknown'")
                 for version, path in self.migration_paths:
                     sql = path.read_text(encoding="utf-8")
                     checksum = hashlib.sha256(sql.encode("utf-8")).hexdigest()
-                    cursor.execute(sql)
                     cursor.execute("SELECT checksum FROM pilot_schema_meta WHERE version=%s", (version,))
                     existing = cursor.fetchone()
                     if existing is None:
+                        cursor.execute(sql)
                         cursor.execute("INSERT INTO pilot_schema_meta(version, checksum) VALUES (%s, %s)", (version, checksum))
                     elif existing[0] != checksum:
                         raise RuntimeError(f"customer-pilot migration checksum mismatch: {version}")

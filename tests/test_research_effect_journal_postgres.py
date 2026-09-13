@@ -36,13 +36,15 @@ def known_failure():
     return {'status':'FAILED','code':'not_found','replayed':False}
 
 
-def test_known_failed_read_atomic_finish_replay_and_next_url(journal_env):
+@pytest.mark.parametrize('code', ['not_found', 'unsupported_media_type', 'too_large', 'connection_unavailable'])
+def test_known_failed_read_atomic_finish_replay_and_next_url(journal_env, code):
     env=journal_env; payload={'url':'https://example.com/missing'}
+    failure=known_failure() | {'code':code}
     entry=begin(env,kind='READ',payload=payload)['entry']
-    final=finish(env,entry,'FAILED',known_failure())
-    assert final['result']==known_failure() and final['output_sha256']
+    final=finish(env,entry,'FAILED',failure)
+    assert final['result']==failure and final['output_sha256']
     assert states(env)==[('FAILED','FAILED')]
-    assert finish(env,entry,'FAILED',known_failure())==final
+    assert finish(env,entry,'FAILED',failure)==final
     assert begin(env,kind='READ',payload=payload)=={'created':False,'entry':final}
     with pytest.raises(ExecutionRuntimeError):
         begin(env,sequence=2,kind='READ',payload=payload)
@@ -61,6 +63,31 @@ def test_deferred_one_sided_failed_hash_rolls_back(journal_env):
             updated.append(True)  # Must fail at commit, not before journal can be updated.
     assert updated==[True]
     assert states(env)==[('ISSUED','ISSUED')]
+
+
+def test_connection_failure_survives_migration_rerun(journal_env):
+    env=journal_env
+    entry=begin(env,kind='READ',payload={'url':'https://example.com/unreachable'})['entry']
+    final=finish(env,entry,'FAILED',known_failure() | {'code':'connection_unavailable'})
+    env.admin.migrate()
+    assert states(env)==[('FAILED','FAILED')]
+    assert begin(env,kind='READ',payload=entry['payload'])['entry']==final
+
+
+def test_migration_checksum_mismatch_rolls_back_new_work(databases, tmp_path, monkeypatch):
+    admin, _=databases
+    name='synthetic_migration_'+uuid4().hex
+    added=tmp_path/'added.sql'
+    added.write_text(f'CREATE TABLE {name} (id INTEGER)',encoding='utf-8')
+    changed=tmp_path/'changed.sql'
+    changed.write_text('SELECT 1',encoding='utf-8')
+    original_version=admin.migration_paths[0][0]
+    monkeypatch.setattr(admin,'migration_paths',((name,added),(original_version,changed)))
+    with pytest.raises(RuntimeError,match='migration checksum mismatch'):
+        admin.migrate()
+    with admin.connect() as connection:
+        assert connection.execute('SELECT to_regclass(%s)',(name,)).fetchone()[0] is None
+        assert connection.execute('SELECT 1 FROM pilot_schema_meta WHERE version=%s',(name,)).fetchone() is None
 
 
 @pytest.mark.parametrize('change',['cancel','profile','lease'])
