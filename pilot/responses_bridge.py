@@ -6,9 +6,12 @@ import copy
 import hashlib
 import json
 import math
+import os
+from pathlib import Path
 import re
 import secrets
 import socket
+import stat
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -48,11 +51,34 @@ class _Server(ThreadingHTTPServer):
     allow_reuse_address = False
 
 
+class _UnixServer(_Server):
+    address_family = getattr(socket, 'AF_UNIX', socket.AF_INET)
+
+    def server_bind(self):
+        # HTTPServer's TCP hostname handling does not apply to a socket path.
+        self.socket.bind(self.server_address)
+
+
+def _private_socket_path(value):
+    try:
+        if os.name != 'posix' or type(value) is not str or not 1 <= len(os.fsencode(value)) <= 100:
+            raise ValueError
+        path = Path(value)
+        parent = path.parent.lstat()
+        if (not path.is_absolute() or not stat.S_ISDIR(parent.st_mode)
+                or parent.st_uid != os.geteuid() or stat.S_IMODE(parent.st_mode) & 0o077
+                or os.path.lexists(path)):
+            raise ValueError
+        return path
+    except (OSError, ValueError, TypeError):
+        raise BridgeError('invalid_socket_path') from None
+
+
 class ResponsesBridge:
     def __init__(self, *, api_key: str, model: str, max_requests: int,
                  deadline: float, allowed_tools: tuple[tuple[str, str], ...],
                  transport=None, search_service=None, effect_dispatcher=None,
-                 read_service=None):
+                 read_service=None, unix_socket_path=None):
         if not isinstance(api_key, str) or not api_key or not isinstance(model, str) or not model:
             raise BridgeError("invalid_config")
         if type(max_requests) is not int or not 1 <= max_requests <= 20:
@@ -99,6 +125,8 @@ class ResponsesBridge:
         self._server = None
         self._thread = None
         self._client = None
+        self._unix_socket_path = unix_socket_path
+        self._socket_identity = None
 
     @property
     def records(self) -> list[dict]:
@@ -108,6 +136,8 @@ class ResponsesBridge:
     def __enter__(self):
         if not self._closed:
             raise BridgeError("already_started")
+        path = (_private_socket_path(self._unix_socket_path)
+                if self._unix_socket_path is not None else None)
         self.token = secrets.token_urlsafe(32)
         transport = self._transport if self._transport is not None else httpx.HTTPTransport(retries=0)
         self._client = httpx.Client(transport=transport, trust_env=False, follow_redirects=False)
@@ -143,11 +173,31 @@ class ResponsesBridge:
             def log_message(self, *_):
                 return
 
-        self._server = _Server(("127.0.0.1", 0), Handler)
-        port = self._server.server_address[1]
-        self.base_url = f"http://127.0.0.1:{port}/v1"
-        self.search_url = self.base_url + "/public-search" if self._search_service is not None else None
-        self.read_url = self.base_url + "/public-read" if self._read_service is not None else None
+        try:
+            if path is None:
+                self._server = _Server(("127.0.0.1", 0), Handler)
+                self.base_url = f"http://127.0.0.1:{self._server.server_address[1]}/v1"
+            else:
+                self._server = _UnixServer(str(path), Handler, bind_and_activate=False)
+                self._server.server_bind()
+                info = path.lstat()
+                self._socket_identity = (info.st_dev, info.st_ino)
+                path.chmod(0o600)
+                self._server.server_activate()
+                # UDS callers must explicitly supply their transport; never fall back to TCP.
+                self.base_url = None
+        except OSError:
+            try:
+                if self._server is not None:
+                    self._server.server_close()
+                self._client.close()
+                self._remove_socket()
+            finally:
+                self.token = ''
+                self._api_key = ''
+            raise BridgeError('bridge_bind_failed') from None
+        self.search_url = self.base_url + "/public-search" if self.base_url and self._search_service is not None else None
+        self.read_url = self.base_url + "/public-read" if self.base_url and self._read_service is not None else None
         self._closed = False
         self._thread = threading.Thread(target=self._server.serve_forever, name="responses-bridge", daemon=True)
         self._thread.start()
@@ -174,8 +224,23 @@ class ResponsesBridge:
             self._server.server_close()
         if self._thread is not None:
             self._thread.join(timeout=2)
-        self._api_key = ""
-        self.token = ""
+        try:
+            self._remove_socket()
+        finally:
+            self._api_key = ""
+            self.token = ""
+
+    def _remove_socket(self):
+        if self._socket_identity is None:
+            return
+        try:
+            path = Path(self._unix_socket_path)
+            info = path.lstat()
+            if stat.S_ISSOCK(info.st_mode) and (info.st_dev, info.st_ino) == self._socket_identity:
+                path.unlink()
+        except FileNotFoundError:
+            pass
+        self._socket_identity = None
 
     @staticmethod
     def _send(handler, status: int, value: dict):
