@@ -79,6 +79,8 @@ function serviceFailure(status: number, body: unknown): ServiceError {
     503: "服务暂时不可用，请稍后重试。",
   };
   const codes: Record<string, string> = {
+    SESSION_IDENTITY_CHANGED: "账号身份已变化，已停止客户空间操作；请重新登录，当前草稿仍保留。",
+    SESSION_REAUTH_REQUIRED: "请重新核验登录状态，当前草稿仍保留。",
     client_upgrade_required: "此记录包含新版人工补证，请升级客户端后查看；原文和核验记录仍保留。",
     phone_auth_failed: "验证码无效或已过期，请重新核对或获取验证码。",
     access_auth_failed: "临时访问码无效、已到期或已停用，请联系管理员核对。",

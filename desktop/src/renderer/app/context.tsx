@@ -10,6 +10,7 @@ import type { Session } from "../domain/models";
 import { parseRoute, type AppRoute } from "../domain/routes";
 import { service as defaultService } from "../services/client";
 import type { YikeService } from "../services/contracts";
+import { ServiceError } from "../services/contracts";
 import { hasUnsavedChanges } from "./hooks";
 import { boundedRequest } from "./boundedRequest";
 import { Confirm } from "../components/ui";
@@ -23,6 +24,7 @@ export interface AppContextValue {
   service: YikeService;
   session: Session;
   sessionReady?: boolean;
+  sessionProblem?: string;
   route: AppRoute;
   navigate: (path: string) => void;
   notify: (message: string, tone?: Toast["tone"]) => void;
@@ -53,6 +55,40 @@ export function AppProvider({
   const lastHash = useRef(window.location.hash);
   const allowed = useRef(false);
   const sessionGeneration = useRef(0);
+  const [sessionCheck, setSessionCheck] = useState<{identity: unknown; problem: string} | null>(null);
+  const sessionProblem = sessionCheck?.identity === sessionObservation ? sessionCheck.problem : "";
+  useEffect(() => {
+    if (!sessionReady || !session.authenticated) return;
+    const abort = new AbortController();
+    let running = false;
+    let checkedAt = Date.now();
+    const check = async () => {
+      if (running || document.visibilityState === 'hidden' || Date.now() - checkedAt < 60_000) return;
+      checkedAt = Date.now();
+      running = true;
+      let problem = "";
+      try {
+        const next = await boundedRequest(() => service.session(), {signal:abort.signal, timeoutMessage:"登录状态核验超时"});
+        if (!next.authenticated || next.userId !== session.userId)
+          problem = "登录状态已变化，请重新登录；当前草稿仍保留。";
+      } catch (error) {
+        problem = error instanceof ServiceError && error.status === 401
+          ? "登录已失效，请重新登录；当前草稿仍保留。"
+          : "暂时无法确认登录状态，请检查网络后重试；当前草稿仍保留。";
+      } finally { running = false; }
+      if (!abort.signal.aborted) setSessionCheck({identity:sessionObservation, problem});
+    };
+    const interval = window.setInterval(() => void check(), 30 * 60_000);
+    const focus = () => void check();
+    window.addEventListener('focus', focus);
+    document.addEventListener('visibilitychange', focus);
+    return () => {
+      abort.abort();
+      window.clearInterval(interval);
+      window.removeEventListener('focus', focus);
+      document.removeEventListener('visibilitychange', focus);
+    };
+  }, [service, sessionObservation, sessionReady, session]);
   useEffect(() => {
     const changed = () => {
       if (!allowed.current && hasUnsavedChanges()) {
@@ -135,6 +171,7 @@ export function AppProvider({
         service,
         session,
         sessionReady,
+        sessionProblem,
         route,
         navigate,
         notify,
@@ -142,6 +179,7 @@ export function AppProvider({
       }}
     >
       <DeviceConnectionPreparation api={service.deviceIdentity} session={session} confirmed={sessionReady}>
+        {sessionProblem && <div role="alert">{sessionProblem} <button onClick={() => navigate('/login')}>重新登录</button></div>}
         {children}
       </DeviceConnectionPreparation>
       {pendingPath && (
