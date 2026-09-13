@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+2026-09-13 统一候选构包：源码0b80fe9，服务镜像 `yike-ai2026:0b80fe9-trial` 摘要 `sha256:071d4d66f3e75f83d4df76c62b96ef89e59f243ce3348abf642ecfb67621526d`；研究镜像 `yike-research:0.153.4-0b80fe9` 摘要 `sha256:d62253eaf72d1fb5dccb31d4b6f4513ba8c718e63de909d371ea49c2a14dec7f`。构建session46861/97785均exit0。本机Docker Linux amd64非root10001、只读、无网络、cap-drop/512MiB/PID64下，服务动态模块导入通过（49955）；按研究摘要启动，Codex0.153.4、MCP/入口导入和非法manifest安静拒绝通过（55828）。SSH只读确认目标服务器x86_64、意客原服务运行、空间剩约24GB。未上传/切换生产，未验服务器跨容器UDS或broker真实Docker生命周期，未调用模型或读取客户数据；下一步复用此候选做Linux部署隔离/回收验收，不能写成客户研究成功。
+
 2026-09-13 隔离配置与动态运行接线：显式 BROKER_SOCKET/TASKS_ROOT 成对配置，与宿主 binary 配置互斥；无宿主可执行文件也可装配无特权 BrokerClient。租户身份来自同一数据库选举事务，task/run/generation 由后端绑定，客户端不能指定执行身份。独立审核发现取消会覆盖 broker 未确认停止，新增两项 RED 复现后优先保留 broker_stop_unknown/broker_stream_unknown；协调器 STOPPED 不表示物理容器已停止。新装配/身份/取消检查及旧配置回归共32通过/0.83秒。尚未启用生产配置、构建包含这些模块的新镜像或完成真实 Docker/模型路径验收；下一步统一镜像与 Linux 权限/回收验收，不重复构建旧候选。
 
 2026-09-13 mission隔离适配接续：`run_public_research_mission`显式broker_execution仅接受controlled+已编译上下文，固定任务UDS，宿主保留密钥/dispatch和原事件/引用解析；配置该分支不回退本地执行。真实宿主UDS+合成broker事件验证无宿主binary仍完成既有引用展开；取消先revoke再stop、未知停止保留失败未知。补1秒心跳；独立复核指出原5秒读超时短于正常回收预算，RED后改共享12秒读取/13秒reader回收。受影响21项通过/2.73秒，原worker定向7通过/2.90秒，超时合同1通过/0.38秒，共29项，最终差量独立PASS；未接环境配置/动态runtime factory，未真实Docker/模型/部署。下一步把租户/task/run/generation从权威运行记录绑定到backend配置，再统一实际容器验收。
