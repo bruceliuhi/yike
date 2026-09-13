@@ -416,6 +416,23 @@ def test_compiled_stage_projection_is_shorter_and_preserves_business_rules():
     assert "不生成联系内容" in instructions
 
 
+def test_compiled_discovery_restores_conditional_buyer_language_and_source_switching():
+    """The model sees the projection, not the original package behind its hashes."""
+    for seller in ("AI软件定制，全国线上交付", "展台设计搭建，全国企业"):
+        value = context(seller_description=seller)
+        compiled = compile_research_context(value)
+        instructions = compiled["instructions"]
+        for phrase in (
+            "业务对象", "不必包含 AI", "仅在客户业务匹配时", "本地知识库 接手",
+            "不是固定关键词", "不是采购证据", "独立来源", "connection_unavailable",
+            "停止该站本轮路径", "不切换镜像、代理或账号绕过", "不是来源许可",
+        ):
+            assert phrase in instructions
+        assert json.loads(compiled["context_json"])["seller_description"] == seller
+        assert compiled["binding"]["rule_sha256"] == hashlib.sha256(
+            instructions.encode("utf-8")).hexdigest()
+
+
 def test_oversize_or_invalid_utf8_rules_fail_with_fixed_error(monkeypatch, tmp_path):
     import pilot.research_context as module
     rules = tmp_path / "_research_rules"
