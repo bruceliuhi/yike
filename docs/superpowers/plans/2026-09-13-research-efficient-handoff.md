@@ -20,6 +20,7 @@
 - Create: `pilot/research_stage_rules.py`
 - Modify: `pilot/research_page_selection.py`, `pilot/codex_research_worker.py`, `pilot/research_context.py`, `pilot/dynamic_research_runtime.py`
 - Test: `tests/test_codex_research_worker.py`, `tests/test_research_context.py`, `tests/test_research_page_selection.py`, `tests/test_responses_bridge.py`, `tests/test_dynamic_research_runtime.py`
+- Test (root independent integration): `tests/test_research_handoff_postgres.py`；root与实现Agent文件不重叠，最终同批独立审核。
 - 只有真实payload测试证明必要时修改 `pilot/responses_bridge.py`，不改provider全局策略。
 
 **Interfaces:** 保留现有public/internal返回字段、`parse_page_selection(summary,evidences)`及绑定字段；增加纯函数 `page_selection_schema()` 每次返回独立schema。新阶段模块输出常量 `RESEARCH_STAGE_INSTRUCTIONS`。`_instructions(documents)`仍以已校验全部规则包为输入，输出包含其规范摘要和投影的固定文本，`rule_sha256=sha256(instructions)`不变。runtime私有 `_assessment_reserve(model_calls,max_records,max_reads)` 返回上述A；内部claim结果增加maxRecords供本轮使用，不扩外部DTO。
@@ -67,6 +68,8 @@ schema只用object/array/string、properties/required/additionalProperties/enum�
 - [ ] Step 3 — 受限PG端到端定向RED/GREEN。
 
 复用 `dynamic_env`，mission经真实dispatch记录分配上限数量的MODEL和两页READ，输出两项ASSESS；核验普通assessment两条、最终COMPLETED、总消耗不超确认限制。已有all_background测试补unpublished=0；另验证skipped_budget/无batch仍非0。用同一个owned临时PG，不建立生产数据。root提供端口与连接参数，提供前先做纯测试，不自行启动多个DB。
+
+为并行加速，root负责独立文件中的两候选纵切；先用仅测试进程插件将预留还原为旧1次公式确认RED，不回退共享产品文件；再无插件运行GREEN。其余现有文件用例由实现Agent完成。
 
 - [ ] Step 4 — 只运行一次相关组与自审、提交代码。
 
