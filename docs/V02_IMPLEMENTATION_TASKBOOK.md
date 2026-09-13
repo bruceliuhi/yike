@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+2026-09-13 broker验收权限与展示修复：服务器无控制socket的Docker CLI兼容检查通过；挂载Docker socket的一次性broker测试被权限审核拒绝，未执行、未绕过，等待用户明确高权限授权（Docker控制能力可能影响宿主其他项目）。继续不受阻的客户端状态检查发现fixed DTO及动态contract4 status均会把broker未知停止覆盖为CANCELED/RECORDED或OPEN；两条投影先保留STOPPED+broker原stopCode+UNCERTAIN，不允许推进，既有客户端据此提示不要新建/重发。8项投影用例分别RED复现后GREEN，与既有配置共17通过/0.75秒，无PG/真实broker验收。本批需下一次统一服务候选构建，不能追认0b80fe9旧镜像包含修复。
+
 2026-09-13 服务器隔离探针：研究候选经docker save/load载入已授权服务器（session8631 exit0），内容ID `sha256:68959061b1538e1a7e9963aba94cb9e55710b1d0e3b691cdc603e3eb199c2d13`，revision标签0b80fe9，不能误用本机manifest-list摘要。实际两容器UID10001、network none、只读根、client只读任务目录挂载，经已实现TaskSocketRelay完成固定HTTP探针（49531 exit0，cross_container_readonly_uds_relay_ok）。脚本 `/tmp/yike-linux-socket-smoke.py` SHA256 c368bba2794d831d68cc0484fca0d5b42bc5643b169fea1baa207f258f6027a9；没有模型/客户数据/真实需求。结束只清理本次唯一命名临时容器和socket目录，复查无残留，原app healthy。未启用broker服务、未验证真实broker启动/期限/崩溃回收、未切换生产研究；下一步完成这些剩余部署门禁。
 
 2026-09-13 统一候选构包：源码0b80fe9，服务镜像 `yike-ai2026:0b80fe9-trial` 摘要 `sha256:071d4d66f3e75f83d4df76c62b96ef89e59f243ce3348abf642ecfb67621526d`；研究镜像 `yike-research:0.153.4-0b80fe9` 摘要 `sha256:d62253eaf72d1fb5dccb31d4b6f4513ba8c718e63de909d371ea49c2a14dec7f`。构建session46861/97785均exit0。本机Docker Linux amd64非root10001、只读、无网络、cap-drop/512MiB/PID64下，服务动态模块导入通过（49955）；按研究摘要启动，Codex0.153.4、MCP/入口导入和非法manifest安静拒绝通过（55828）。SSH只读确认目标服务器x86_64、意客原服务运行、空间剩约24GB。未上传/切换生产，未验服务器跨容器UDS或broker真实Docker生命周期，未调用模型或读取客户数据；下一步复用此候选做Linux部署隔离/回收验收，不能写成客户研究成功。

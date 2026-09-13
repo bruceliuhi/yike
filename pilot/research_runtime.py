@@ -119,16 +119,19 @@ class ResearchRuntimeService:
         leased = bool(coordinator and coordinator[2] is not None
             and coordinator[3] is not None and coordinator[3] > now)
         durable_stopped = bool(coordinator and coordinator[4] == "STOPPED")
-        phase = "CANCELED" if canceled else "COMPLETED" if complete else \
+        broker_unknown = durable_stopped and coordinator[5] in (
+            "broker_stop_unknown", "broker_stream_unknown"
+        )
+        phase = "STOPPED" if broker_unknown else "CANCELED" if canceled else "COMPLETED" if complete else \
             "STOPPED" if unknown or failed or review_unknown or review_failed or durable_stopped else \
             "RUNNING" if event is not None or leased or (progress and any(p['phase'] != 'NOT_STARTED' for p in progress)) else "QUEUED"
-        stop = "effect_unknown" if unknown else "effect_failed" if failed else \
+        stop = coordinator[5] if broker_unknown else "effect_unknown" if unknown else "effect_failed" if failed else \
             "assessment_unknown" if review_unknown else "assessment_failed" if review_failed else \
             coordinator[5] if durable_stopped else None
         blocked = (canceled or complete or unknown or failed or pending or review_unknown or review_failed or durable_stopped
             or (leased and not ignore_active_lease))
         terminal = task_status in ("SUCCEEDED", "CANCELED") and run_status in ("SUCCEEDED", "CANCELED")
-        closeout = "UNCERTAIN" if unknown or overdue or review_unknown else \
+        closeout = "UNCERTAIN" if broker_unknown or unknown or overdue or review_unknown else \
             "DRAINING" if pending or leased else "RECORDED" if terminal else "OPEN"
         usage["resourceCloseout"] = {"state": closeout, "overduePermits": overdue,
             "asOf": now.isoformat()}

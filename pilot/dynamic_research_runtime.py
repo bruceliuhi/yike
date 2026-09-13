@@ -634,15 +634,18 @@ class DynamicResearchRuntimeService:
         active = bool(coordinator and coordinator[4] == "RUNNING"
                       and coordinator[2] is not None and coordinator[3] > now)
         durable_stop = bool(coordinator and coordinator[4] == "STOPPED")
-        phase = ("CANCELED" if canceled else
+        broker_unknown = durable_stop and coordinator[5] in (
+            "broker_stop_unknown", "broker_stream_unknown"
+        )
+        phase = ("STOPPED" if broker_unknown else "CANCELED" if canceled else
                  "RUNNING" if active else
                  "STOPPED" if durable_stop or failed or unknown or complete and pending else
                  "COMPLETED" if complete else
                  "RUNNING" if pending else "QUEUED")
-        stop = ("effect_unknown" if unknown else "effect_failed" if failed else
+        stop = (coordinator[5] if broker_unknown else "effect_unknown" if unknown else "effect_failed" if failed else
                 "effect_pending" if complete and pending else
                 _stop_code(coordinator[5], "advance_failed") if durable_stop else None)
-        closeout = ("UNCERTAIN" if unknown or overdue else "DRAINING"
+        closeout = ("UNCERTAIN" if broker_unknown or unknown or overdue else "DRAINING"
                     if pending or active else "RECORDED" if complete or canceled
                     else "OPEN")
         usage["resourceCloseout"] = {
