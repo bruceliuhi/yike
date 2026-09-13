@@ -3,6 +3,29 @@ import {createServiceClient} from '../src/main/serviceClient';
 import {candidateBinding, assessmentRequestFixture, verificationRequestFixture, decisionRequestFixture} from './fixtures/candidateReviewApi';
 
 describe('fixed service transport', () => {
+  it.each(['user','scope'])('blocks workspace calls after %s identity changes until explicit login',async(change)=>{
+    let identity={authenticated:true,user_id:'user-a',account_scope:{id:'scope-a',version:1}};
+    const fetch=vi.fn(async()=>Response.json(identity));
+    const client=createServiceClient({baseUrl:'https://customer.example',fetch,clearSession:async()=>{}});
+    expect(await client.request({operation:'session.get'})).toMatchObject({ok:true});
+    identity=change==='user'?{...identity,user_id:'user-b'}:{...identity,account_scope:{id:'scope-b',version:1}};
+    expect(await client.request({operation:'session.get'})).toMatchObject({ok:false,error:'SESSION_IDENTITY_CHANGED'});
+    expect(await client.request({operation:'profiles.list'})).toMatchObject({ok:false,error:'SESSION_IDENTITY_CHANGED'});
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(await client.request({operation:'session.requestCode',payload:{phone:'19900000001'}})).toMatchObject({ok:true});
+    expect(await client.request({operation:'session.loginAccess',payload:{access_code:'YKA-synthetic'}})).toMatchObject({ok:true});
+    expect(await client.request({operation:'profiles.list'})).toMatchObject({ok:true});
+  });
+  it.each([false,true])('persists renewed sessions without clearing existing credentials (failure=%s)',async(fail)=>{
+    const clearSession=vi.fn(async()=>{});
+    const persistSession=vi.fn(async()=>{if(fail)throw new Error('private-path');});
+    const client=createServiceClient({baseUrl:'https://customer.example',clearSession,persistSession,
+      fetch:async()=>Response.json({authenticated:true,user_id:'test-user'})});
+    expect(await client.request({operation:'session.get'})).toMatchObject(fail
+      ? {ok:false,error:'SESSION_PERSIST_FAILED'} : {ok:true});
+    expect(persistSession).toHaveBeenCalledOnce();
+    expect(clearSession).not.toHaveBeenCalled();
+  });
   it('lets an explicit assessment receive a 20-second model response without retrying',async()=>{
     vi.useFakeTimers();
     try{

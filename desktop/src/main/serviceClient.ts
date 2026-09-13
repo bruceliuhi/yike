@@ -85,6 +85,8 @@ export function createServiceClient(options: ServiceClientOptions): {
 } {
   let queue: Promise<unknown> = Promise.resolve();
   let pending = 0;
+  let sessionIdentity: string | null = null;
+  let sessionFence: string | null = null;
   async function execute(operation: ServiceOperation): Promise<ApiResult> {
     if (options.baseUrl === null) return {ok: false, status: 0, error: 'SERVICE_NOT_CONFIGURED'};
     const abort = new AbortController();
@@ -92,7 +94,11 @@ export function createServiceClient(options: ServiceClientOptions): {
     const authenticating=operation.method==='POST'&&[
       '/api/ui/session','/api/ui/auth/sms-session','/api/ui/auth/access-session',
     ].includes(operation.path);
+    const checkingSession=operation.method==='GET'&&operation.path==='/api/ui/session';
     try {
+      const loginSupport=operation.path==='/api/ui/auth/sms-code'||operation.path==='/api/ui/capabilities';
+      if(sessionFence&&!authenticating&&!operation.logout&&!checkingSession&&!loginSupport)
+        return {ok:false,status:401,error:sessionFence};
       if(authenticating&&options.beforeAuthentication){
         try{await options.beforeAuthentication();}catch{return {ok:false,status:0,error:'SESSION_CLEAR_FAILED'};}
       }
@@ -111,13 +117,28 @@ export function createServiceClient(options: ServiceClientOptions): {
         return {ok: false, status: response.status, error: 'SERVICE_REDIRECT_REJECTED'};
       }
       const data = await boundedJson(response, options.maxResponseBytes ?? 2_097_152);
-      if(response.ok&&authenticating&&options.persistSession){
+      if(response.status===401&&!authenticating) sessionFence??='SESSION_REAUTH_REQUIRED';
+      if(response.ok&&(authenticating||checkingSession)){
+        const value=data as {authenticated?:unknown;user_id?:unknown;account_scope?:unknown}|null;
+        if(!value||value.authenticated!==true||typeof value.user_id!=='string'||!value.user_id.trim())
+          return {ok:false,status:401,error:sessionFence??='SESSION_REAUTH_REQUIRED'};
+        const identity=JSON.stringify([value.user_id,value.account_scope??null]);
+        if(!authenticating&&(sessionFence==='SESSION_IDENTITY_CHANGED'||sessionIdentity!==null&&sessionIdentity!==identity)){
+          sessionFence='SESSION_IDENTITY_CHANGED';
+          return {ok:false,status:401,error:sessionFence};
+        }
+        sessionIdentity=identity;
+        sessionFence=null;
+      }
+      if(response.ok&&(authenticating||checkingSession)&&options.persistSession){
         try{
           if(!data||typeof data!=='object'||!('authenticated' in data)||data.authenticated!==true||
             !('user_id' in data)||typeof data.user_id!=='string'||!data.user_id.trim())throw new Error();
           await options.persistSession();
         }catch{
-          try{await options.clearSession();}catch{return {ok:false,status:0,error:'SESSION_CLEAR_FAILED'};}
+          if(authenticating){
+            try{await options.clearSession();}catch{return {ok:false,status:0,error:'SESSION_CLEAR_FAILED'};}
+          }
           return {ok:false,status:0,error:'SESSION_PERSIST_FAILED'};
         }
       }
@@ -132,6 +153,7 @@ export function createServiceClient(options: ServiceClientOptions): {
     } finally {
       clearTimeout(timeout);
       if (operation.logout) {
+        sessionFence='SESSION_REAUTH_REQUIRED';
         try { await options.clearSession(); }
         catch { return {ok: false, status: 0, error: 'SESSION_CLEAR_FAILED'}; }
       }

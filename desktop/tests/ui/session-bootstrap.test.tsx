@@ -7,14 +7,30 @@ import type {Session} from "../../src/renderer/domain/models";
 
 afterEach(() => {cleanup(); vi.useRealTimers();});
 function SessionProbe() {
-  const {sessionReady, session, refreshSession} = useApp();
+  const {sessionReady, session, refreshSession, sessionProblem} = useApp();
   return <>
     <output data-testid="ready">{String(sessionReady)}</output>
     <output data-testid="identity">{session.authenticated ? session.userId : "guest"}</output>
+    <output data-testid="problem">{sessionProblem}</output>
     <button onClick={() => void refreshSession()}>重新确认会话</button>
   </>;
 }
 describe("initial session lifecycle", () => {
+  it("renews while open without losing workspace identity on a failed check", async () => {
+    vi.useFakeTimers();
+    const session = vi.fn()
+      .mockResolvedValueOnce({authenticated:true,userId:"TEST-current-user"})
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue({authenticated:true,userId:"TEST-current-user"});
+    render(<AppProvider service={{...baseService, session}}><SessionProbe /></AppProvider>);
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTimeAsync(30 * 60_000));
+    expect(session).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("identity").textContent).toBe("TEST-current-user");
+    expect(screen.getByTestId("problem").textContent).toContain("无法确认");
+    await act(async () => vi.advanceTimersByTimeAsync(30 * 60_000));
+    expect(screen.getByTestId("problem").textContent).toBe("");
+  });
   it("releases initial loading after timeout, ignores the late old identity, and accepts a fresh retry", async () => {
     vi.useFakeTimers();
     let finish!: (value: Session) => void;

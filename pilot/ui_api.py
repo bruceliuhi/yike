@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from pilot.auth import InvalidPilotToken
+from pilot.auth import InvalidPilotToken, renew_sms_token, SMS_SESSION_SECONDS
 from pilot.candidate_api import register_candidate_api
 from pilot.candidate_ingestion import CandidateIngestionError
 from pilot.connection_api import register_connection_api
@@ -232,8 +232,16 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
             raise _error(400, "https_required", "登录会话需要 HTTPS 连接。")
 
     @router.get("/session")
-    def session(request: Request):
+    def session(request: Request, response: Response):
         current = identity(request)
+        # Never turn a Bearer credential into a browser session implicitly.
+        if not request.headers.get('authorization') and current.claims is not None:
+            renewed = renew_sms_token(current.claims, auth_secret)
+            if renewed:
+                require_session_https(request)
+                response.set_cookie('pilot_session', renewed, httponly=True,
+                                    secure=request.url.scheme == 'https', samesite='strict',
+                                    max_age=SMS_SESSION_SECONDS)
         return current.public_view()
 
     @router.post("/session")
