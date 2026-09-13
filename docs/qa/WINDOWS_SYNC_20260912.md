@@ -1,5 +1,12 @@
 # Windows 最新主干接续（2026-09-12）
 
+## e1bee5a 已构包并覆盖安装（2026-09-13 08:23）
+
+- 修复已推Gitee main，候选固定 `e1bee5aaddff0676592c2fa103ca61ed0e954aa9`。独立LF工作树构包，637项源码输入前后摘要相同 `112e6b63dc53ce5ac80d6e5f243d20ce0d8787625bdb6a77be8aac9ec5fb7e30`；Forge make退出0，既有Vite兼容/弃用警告保留。
+- payload真实生成、搬迁、独立Python/Chromium验证1通过/0跳过，197.32秒；XML `.runtime/portable-release-e1bee5a-test.xml`，清单SHA256 `91b09326b10e9a620ca028952e70d390f69aea2b6e6ee6f3fa2bdb40b01b6134`。ASAR结构及40项renderer资源通过，SHA256 `94b704091a990d0a7c173f6cfe9d92d970507a8fa0e503e4dc9736b8433d01cc`。
+- 安装器 `C:/yke1be/make/squirrel.windows/x64/YikeAI-Setup.exe`，642862592字节，SHA256 `2fc9f1f35b740e3b928790877cf9534047bd5cc757bfd74bfb994255dc5ade15`，仍NotSigned。旧PID31788正常退出，Setup PID21816结束（重开进程句柄未取得退出码，不能写exit0）；新安装ASAR/payload清单均匹配候选，实际启动PID23172。
+- 实际新版显示已登录、AI软件定制/全国线上交付画像已确认且完整保留；未清空任何用户数据。08:24本机运行环境仍在准备，身份状态NOT_PREPARED，确认重启后的本人核验门禁仍存在。需要本人设备确认后再走正式连接CHECK，不把此前受治理源码探针AUTHENTICATED当成客户端已CONNECTED；没有真实采集/发送。服务仍2a85dbc，未随本地修复重复部署或启用新研究模式。
+
 ## 小红书已登录误拒绝已定位和修复（2026-09-13）
 
 用户反馈已登录仍卡住。受治理、同一专用本机profile的只读探针连续三次确认：官方页面HTTP200；旧XPath匹配4个链接，精确可访问名称“我”的link只有1个，唯一可见且href符合原严格格式，无query/fragment。不是要求用户再次扫码或再次核验设备。
