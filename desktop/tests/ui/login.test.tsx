@@ -151,6 +151,7 @@ describe("登录", () => {
     });
     fireEvent.change(screen.getByLabelText("手机号码"), { target: { value: "13800000000" } });
     fireEvent.change(screen.getByLabelText("短信验证码"), { target: { value: "123456" } });
+    fireEvent.change(screen.getByLabelText("试用码"), { target: { value: "TESTAB12" } });
     fireEvent.click(screen.getByRole("button", { name: "登录" }));
     await waitFor(() => expect(service.session).toHaveBeenCalledTimes(2));
     expect(window.location.hash).not.toBe("#/workbench");
@@ -158,6 +159,7 @@ describe("登录", () => {
     await act(async () => finish({ authenticated: true, userId: "test-user" }));
     await waitFor(() => expect(window.location.hash).toBe("#/workbench"));
     expect(service.login).toHaveBeenCalledOnce();
+    expect(service.login).toHaveBeenCalledWith("13800000000", "123456", "TESTAB12");
   });
 
   it("短信请求挂起后超时，保留手机号并释放重试入口", async () => {
