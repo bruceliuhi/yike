@@ -208,6 +208,32 @@ def wait_terminal(runtime, env, timeout=8):
     pytest.fail("dynamic supervisor did not reach a terminal or stopped state")
 
 
+@pytest.mark.parametrize('code',['broker_stop_unknown','broker_stream_unknown'])
+def test_cancel_preserves_broker_unknown_through_database_and_status(dynamic_env,code):
+    env=dynamic_env
+    task_id,run_id=env.execution['task_id'],env.execution['run_id']
+    def mission(*args,**kwargs):
+        with env.admin.connect() as connection:
+            for table in ('pilot_collection_platform_runs','pilot_collection_runs','pilot_collection_tasks'):
+                connection.execute(f"UPDATE {table} SET status='CANCELED' WHERE tenant_id=%s AND task_id=%s",
+                                   (env.tenant,task_id))
+        return {'status':'FAILED','code':code}
+    runtime=service(env,mission)
+    try:
+        generation,limits=runtime._elect(env.claims,task_id,run_id)
+        runtime._run(env.claims,task_id,run_id,generation,limits)
+        with env.admin.connect() as connection:
+            row=connection.execute('SELECT phase,stop_code FROM pilot_research_runtime WHERE tenant_id=%s AND task_id=%s',
+                                   (env.tenant,task_id)).fetchone()
+        assert row==('STOPPED',code)
+        status=runtime.status(env.claims,task_id)
+        assert status['phase']=='STOPPED' and status['stopCode']==code
+        assert status['usage']['resourceCloseout']['state']=='UNCERTAIN'
+        assert not status['canAdvance']
+    finally:
+        runtime.shutdown()
+
+
 def test_public_read_session_publishes_through_actual_durable_customer_journal(dynamic_env):
     from pilot.public_read_session import PublicReadSession
 
