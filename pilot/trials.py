@@ -1,6 +1,7 @@
 """SMS entitlement activation remains AFTER phone OTP verification."""
 import hmac
 import re
+import psycopg
 
 from pilot.phone_auth import PhoneAuthError, PhoneAuthStore
 
@@ -15,6 +16,7 @@ def valid_trial_code(value: str) -> bool:
 
 
 class TrialPhoneAuthStore(PhoneAuthStore):
+    self_registration = True
     def consume(self, phone: str, code: str) -> str:
         return self.consume_trial(phone, code, None)
 
@@ -54,4 +56,14 @@ class TrialPhoneAuthStore(PhoneAuthStore):
             )
             connection.execute('UPDATE pilot_phone_bindings SET phone_verified_at=COALESCE(phone_verified_at,clock_timestamp()) WHERE user_id=%s', (user_id,))
 
-        return super().consume(phone, code, on_verified=activate)
+        def register(connection, phone_hash, challenge, otp_hash):
+            try:
+                return connection.execute('SELECT public.pilot_register_sms_trial(%s,%s,%s)',
+                                          (phone_hash,challenge,otp_hash)).fetchone()[0]
+            except psycopg.Error as error:
+                if error.sqlstate == 'YK003':
+                    raise PhoneAuthError('trial_expired') from None
+                raise
+
+        return super().consume(phone, code, on_verified=activate,
+                               resolve_verified=register if trial_code is None else None)

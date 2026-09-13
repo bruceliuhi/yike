@@ -12,8 +12,6 @@ export function LoginPage() {
   const { service, session, navigate, refreshSession } = useApp();
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
-  const [trial, setTrial] = useState("");
-  const [trialOpen, setTrialOpen] = useState(true);
   const [tokenOpen, setTokenOpen] = useState(false);
   const [token, setToken] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -97,7 +95,6 @@ export function LoginPage() {
         throw new Error("登录会话尚未建立或已失效，请核对凭证后重试。");
       if (!mounted.current) return;
       setCode("");
-      setTrial("");
       setToken("");
       navigate("/workbench");
     });
@@ -109,12 +106,8 @@ export function LoginPage() {
       setErrors({ code: "请输入 6 位短信验证码。" });
       return;
     }
-    if (trialOpen && !/^[A-Z0-9]{8}$/.test(trial.trim())) {
-      setErrors({ trial: "请输入 8 位大写字母或数字试用码。" });
-      return;
-    }
     await performLogin(() =>
-      service.login(phone.trim(), code, trialOpen ? trial.trim() : undefined),
+      service.login(phone.trim(), code),
     );
   };
   const submitToken = async (event: FormEvent) => {
@@ -188,23 +181,7 @@ export function LoginPage() {
             </div>
           </Field>
           {smsError && <Notice tone="error">{smsError}</Notice>}
-          {trialOpen && (
-            <Field label="试用码" required error={errors.trial}
-              hint="管理员发放 8 位试用码；首次登录必须同时填写手机号、短信验证码和试用码，激活后后续登录无需再填。">
-              <input
-                aria-label="试用码"
-                autoComplete="off"
-                maxLength={8}
-                placeholder="请输入 8 位试用码"
-                value={trial}
-                disabled={login.busy}
-                onChange={(e) => {
-                  setTrial(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
-                  setErrors({});
-                }}
-              />
-            </Field>
-          )}
+          <p>首次注册自动开通 3 天试用，无需试用码；重复登录不会重置试用期。</p>
           {!tokenOpen && login.error && (
             <Notice tone="error">{login.error}</Notice>
           )}
@@ -215,18 +192,6 @@ export function LoginPage() {
             loading={login.busy}
           >
             登录
-          </Button>
-          <Button
-            variant="ghost"
-            className="login-expand"
-            aria-expanded={trialOpen}
-            disabled={login.busy}
-            onClick={() => {
-              setTrialOpen(!trialOpen);
-              setErrors({});
-            }}
-          >
-            {trialOpen ? <CaretUp /> : <CaretDown />}首次使用，输入试用码开通
           </Button>
         </form>
         <div className="login-token">

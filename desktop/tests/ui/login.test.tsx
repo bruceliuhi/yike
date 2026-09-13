@@ -64,7 +64,7 @@ describe("登录", () => {
     expect(screen.getByRole("button", { name: "获取验证码" })).toBeTruthy();
     expect(service.login).not.toHaveBeenCalled();
   });
-  it("仅真实短信响应启动冷却，并校验验证码与试用码", async () => {
+  it("仅真实短信响应启动冷却，注册登录只需短信验证码", async () => {
     const service = mount({
       requestCode: vi.fn().mockResolvedValue({ retryAfter: 60 }),
     });
@@ -81,7 +81,8 @@ describe("登录", () => {
       target: { value: "123456" },
     });
     fireEvent.click(screen.getByRole("button", { name: "登录" }));
-    expect(screen.getByText("请输入 8 位大写字母或数字试用码。")).toBeTruthy();
+    expect(screen.queryByLabelText("试用码")).toBeNull();
+    await waitFor(()=>expect(service.login).toHaveBeenCalledWith("13800000000", "123456"));
   });
   it("已有凭证走真实登录方法，凭证不进入本机存储", async () => {
     const service = mount({
@@ -151,7 +152,6 @@ describe("登录", () => {
     });
     fireEvent.change(screen.getByLabelText("手机号码"), { target: { value: "13800000000" } });
     fireEvent.change(screen.getByLabelText("短信验证码"), { target: { value: "123456" } });
-    fireEvent.change(screen.getByLabelText("试用码"), { target: { value: "TESTAB12" } });
     fireEvent.click(screen.getByRole("button", { name: "登录" }));
     await waitFor(() => expect(service.session).toHaveBeenCalledTimes(2));
     expect(window.location.hash).not.toBe("#/workbench");
@@ -159,7 +159,7 @@ describe("登录", () => {
     await act(async () => finish({ authenticated: true, userId: "test-user" }));
     await waitFor(() => expect(window.location.hash).toBe("#/workbench"));
     expect(service.login).toHaveBeenCalledOnce();
-    expect(service.login).toHaveBeenCalledWith("13800000000", "123456", "TESTAB12");
+    expect(service.login).toHaveBeenCalledWith("13800000000", "123456");
   });
 
   it("短信请求挂起后超时，保留手机号并释放重试入口", async () => {

@@ -11,6 +11,7 @@ SELECT set_config('yike.app_role', :'app_role', true);
 \ir grant_phone_login.sql
 \ir grant_trials.sql
 \ir grant_temporary_access.sql
+\ir grant_self_service_trial.sql
 \ir grant_search_suggestions.sql
 \ir grant_execution_runtime.sql
 \ir grant_candidate_ingestion.sql
