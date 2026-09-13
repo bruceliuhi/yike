@@ -598,6 +598,7 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                                         'summary': '模型未完成工具调用，已由受限公开研究兜底读取原文；候选需人工复核。',
                                         'pages': pages,
                                     }, ensure_ascii=False, separators=(',', ':'))
+                            revoked.set()
                     finally:
                         if bridge is not None:
                             calls = bridge.records

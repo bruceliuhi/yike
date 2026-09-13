@@ -109,7 +109,11 @@ class BrokerMissionExecution:
         except Exception:
             code = 'broker_unavailable'
         finally:
-            revoke()  # Fence future host effects before asking the privileged side to stop.
+            # Keep the host effect gate open until the caller has had a chance to
+            # run its bounded no-read fallback. Abnormal broker exits still fence
+            # immediately; a normal STOPPED terminal is fenced by the caller.
+            if not (complete_stream and terminal is not None and terminal['status']=='STOPPED'):
+                revoke()
             finished.set()
             if not (complete_stream and terminal is not None and terminal['status']=='STOPPED'):
                 try:
