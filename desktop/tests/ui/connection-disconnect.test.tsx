@@ -7,6 +7,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { AppContextValue } from "../../src/renderer/app/context";
 import { clearLocalDrafts } from "../../src/renderer/app/hooks";
@@ -79,6 +80,34 @@ async function start() {
   );
 }
 describe("P16 断开连接的有界等待与原账号核对", () => {
+  it("无昵称的断开目标与列表中文序号一致，原始账号仍精确绑定", async () => {
+    const first = {...account, accountName: undefined};
+    const second = {...first, accountId: "TEST-account-b"};
+    vi.mocked(context.service.connections).mockResolvedValue([first, second]);
+    vi.mocked(context.service.checkConnection).mockResolvedValue(second);
+    render(<ConnectionsPage />);
+    const row = (await screen.findByText("小红书账号2")).closest("tr")!;
+    fireEvent.click(within(row).getByRole("button", {name: "断开"}));
+    expect(screen.getByRole("dialog").textContent).toContain("小红书账号2");
+    expect(screen.getByRole("dialog").textContent).not.toContain("TEST-account-b");
+    fireEvent.click(screen.getByRole("button", {name: "断开连接"}));
+    await waitFor(() => expect(Object.values(ledger())).toEqual(["ACKNOWLEDGED"]));
+    expect(JSON.parse(Object.keys(ledger())[0])[1]).toBe("TEST-account-b");
+    expect(context.service.disconnect).toHaveBeenCalledExactlyOnceWith("xhs");
+  });
+
+  it("待核对原账号不在列表时不借用其他账号名称", async () => {
+    const original = JSON.stringify(["xhs", "TEST-absent-account", "TEST-original-request"]);
+    localStorage.setItem(ledgerKey(), JSON.stringify({[original]: "PENDING"}));
+    await mount();
+    fireEvent.click(screen.getByRole("button", {name: "核对断开结果（小红书）"}));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.textContent).toContain("小红书原账号");
+    expect(dialog.textContent).not.toContain("TEST-absent-account");
+    expect(dialog.textContent).not.toContain("TEST 账号 A");
+    expect(context.service.disconnect).not.toHaveBeenCalled();
+  });
+
   it.each(["CONNECTED", "DISCONNECTED"] as const)("旧预检拒绝带设备版本的%s响应，不派发断开", async (status) => {
     vi.mocked(context.service.checkConnection).mockResolvedValue({...account, status, registration: {
       connectionId: "TEST-registered", deviceId: "TEST-other-device", version: 2,

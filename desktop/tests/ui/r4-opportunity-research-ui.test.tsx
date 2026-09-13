@@ -64,6 +64,14 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
 });
+it('keeps source change quotes without exposing evidence version identifiers',async()=>{
+ render(<EvidenceTimeline opportunity={researchRow}/>);
+ await screen.findByText('TEST 资料截止延后');
+ expect(screen.getByText('资料截止为9月15日')).toBeVisible();
+ expect(screen.getByText('资料截止为9月20日')).toBeVisible();
+ expect(screen.queryByText('变化前 · v1')).toBeNull();
+ expect(screen.queryByText('变化后 · v2')).toBeNull();
+});
 
 describe("R4 opportunity collection and source timeline", () => {
   it("keeps contact preparation available after closing the expanded research drawer", async () => {

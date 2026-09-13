@@ -7,7 +7,8 @@ import {
 } from "../../domain/models";
 import "./confirmation.css";
 import { DEMAND_TYPES, type UsageQuote } from "../../domain/researchUsage";
-import { schedulePolicyDescription, scheduleWindowLabel } from "../../domain/schedule";
+import { scheduleWindowLabel } from "../../domain/schedule";
+import {taskAccountLabel, scheduleRegionLabel} from './taskDisplayLabels';
 import {hasPublicSourceBinding} from '../../domain/task';
 import {allowsPublicSource,DEFAULT_PUBLIC_SOURCE,publicSourceScope} from '../../../shared/publicSources';
 import {DYNAMIC_RESEARCH_SOURCE,researchSelectionScope} from '../../../shared/dynamicResearch';
@@ -90,10 +91,6 @@ export function TaskConfirmationSummary({
                     <dt>原检查范围</dt>
                     <dd>
                       {draft.research.coverageProvenance.scopeSummary}
-                      <br />
-                      原运行 {draft.research.coverageProvenance.runId} ·
-                      去重版本{" "}
-                      {draft.research.coverageProvenance.deduplicationVersion}
                     </dd>
                   </div>
                 )}
@@ -106,12 +103,6 @@ export function TaskConfirmationSummary({
             <div>
               <dt>业务画像</dt>
               <dd>{profile?.fields.service || "待确认真实画像"}</dd>
-            </div>
-            <div>
-              <dt>画像版本</dt>
-              <dd>
-                {draft.profileVersion ? `v${draft.profileVersion}` : "未确认"}
-              </dd>
             </div>
             <div>
               <dt>执行设备</dt>
@@ -176,23 +167,18 @@ export function TaskConfirmationSummary({
                 <div>
                   <dt>执行窗口</dt>
                   <dd>
-                    {scheduleWindowLabel(draft.schedule)}
+                    {scheduleWindowLabel(draft.schedule)} · {scheduleRegionLabel(draft.schedule.timezone)}
                   </dd>
                 </div>
                 <div>
-                  <dt>时区</dt>
-                  <dd>{draft.schedule.timezone}</dd>
-                </div>
-                <div>
-                  <dt>日程规则</dt>
-                  <dd>{schedulePolicyDescription(draft.schedule).map((line) => <p key={line}>{line}</p>)}</dd>
+                  <dt>运行安排</dt>
+                  <dd>离线错过的计划不补跑，恢复在线后从下次计划继续。</dd>
                 </div>
               </>
             )}
           </dl>
         </div>
         {draft.research && <p className="field-hint">达到本次上限即暂停，不会自动追加用量。</p>}
-        {usage && <details><summary>用量规则详情</summary><p>计量规则：{usage.ruleVersion}</p></details>}
       </section>
       <section className="task-confirm-platforms">
         <h2>平台与执行账号</h2>
@@ -253,9 +239,9 @@ export function TaskConfirmationSummary({
                       {id === "web"
                         ? "无需账号"
                         : matches
-                          ? connection?.accountName || selected
+                          ? taskAccountLabel(connection!, connections)
                           : selected
-                            ? `${selected}（待核对）`
+                            ? "所选账号（待核对）"
                             : "—"}
                     </td>
                     <td>
@@ -271,7 +257,7 @@ export function TaskConfirmationSummary({
                         }
                       >
                         {id === "web"
-                          ? draft.publicSource===DYNAMIC_RESEARCH_SOURCE?'服务端能力启动前复核':webReady
+                          ? draft.publicSource===DYNAMIC_RESEARCH_SOURCE?'启动前检查':webReady
                             ? "公开读取可用"
                             : "范围待确认"
                           : connection?.status === "CONNECTED" && !matches

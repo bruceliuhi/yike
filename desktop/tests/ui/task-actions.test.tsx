@@ -78,6 +78,20 @@ async function confirm(label = "暂停任务") {
     { name: "确认" },
   );
 }
+it('distinguishes same-name pending tasks with stable record labels',async()=>{
+ const other={...run,id:'run-z'};
+ context.service.tasks=vi.fn(async()=>[run,other]);
+ const first:TaskActionBinding={taskId:run.id,action:'pause',requestId:'original-a',expectedHash:'a'.repeat(64)};
+ const second={...first,taskId:other.id,requestId:'original-b'};
+ localStorage.setItem(key(),JSON.stringify({[actionEntry(second)]:'PENDING',[actionEntry(first)]:'PENDING'}));
+ render(<TasksPage/>);
+ const area=await screen.findByRole('region',{name:'任务操作核对'});
+ await waitFor(()=>expect(within(area).getByText(`${run.name} · 记录 1`)).toBeTruthy());
+ expect(within(area).getByText(`${run.name} · 记录 2`)).toBeTruthy();
+ const row=within(area).getByText(`${run.name} · 记录 2`).closest('.task-recovery-row')!;
+ fireEvent.click(within(row as HTMLElement).getByRole('button',{name:'核对原操作'}));
+ await waitFor(()=>expect(ops().reconcileAction).toHaveBeenCalledWith(second));
+});
 it.each([
   ["RUNNING", "暂停任务", "pause", "PAUSED"],
   ["PAUSED", "恢复任务", "resume", "RUNNING"],

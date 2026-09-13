@@ -19,7 +19,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const sourceTypeLabels = {SOCIAL_POST:'需求主帖',COMMENT:'讨论评论',PROCUREMENT:'采购公告',COMPANY_UPDATE:'企业公开动态',INDUSTRY_SITE:'行业网站'};
 const terminal = (receipt: SuggestionReceipt) => receipt.state === "SUCCEEDED" || receipt.state === "FAILED" || receipt.state === "NOT_SUBMITTED";
 const rejectionReasons: Record<string,string> = {
-  capability_unavailable:"建议服务当前不可用", disclosure_mismatch:"业务介绍或模型配置已变化，需要重新核对",
+  capability_unavailable:"建议服务当前不可用", disclosure_mismatch:"生成条件已变化，需要重新核对",
   profile_unavailable:"所选画像当前不可用，请重新确认", suggestion_busy:"建议服务正忙，请稍后再试",
   suggestion_rate_limited:"提交过于频繁，请稍后再试", suggestion_quota_exceeded:"本小时建议生成额度已用完，请稍后再试",
 };
@@ -91,7 +91,7 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
       if (!receipt) {
         const remaining = TOTAL_WAIT_MS - (Date.now() - started);
         if (remaining <= 0) {
-          setError("等待已到45秒，模型请求可能仍在处理；已保留原请求，只能继续核对，不能新建重试。");
+          setError("等待已到45秒，建议可能仍在生成；请核对原请求，暂不能重新生成。");
           return;
         }
         receipt = await boundedRequest(signal => props.service.getReceipt(base.request, signal), {
@@ -104,7 +104,7 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
       persist(next);
       if (terminal(receipt) || receipt.state === "UNKNOWN") return;
       if (Date.now() - started >= TOTAL_WAIT_MS) {
-        setError("等待已到45秒，模型请求可能仍在处理；已保留原请求，只能继续核对，不能新建重试。");
+        setError("等待已到45秒，建议可能仍在生成；请核对原请求，暂不能重新生成。");
         return;
       }
       await new Promise<void>((resolve, reject) => {
@@ -197,7 +197,7 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
   const cancel = () => {
     generation.current++; controller.current?.abort(); controller.current = new AbortController();
     setBusy(false); setPreview(null); setPreviewBinding("");
-    setError("已停止本地等待；这不表示模型请求或费用已撤销。原请求仍保留供核对。");
+    setError("已停止等待，生成和费用不一定已取消；请核对原请求。");
   };
   const apply = async (mode: "append" | "replace_unedited" | "strategy") => {
     if (!record || !props.scope || busy) return;
@@ -243,9 +243,8 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
     {record && record.scope.userId === props.scope?.userId && record.scope.accountScopeId === props.scope?.accountScopeId &&
       record.scope.accountScopeVersion === props.scope?.accountScopeVersion && <Notice tone={record.receipt?.state === "FAILED" ? "warning" : "info"}>
       <span>{record.receipt ? suggestionStates[record.receipt.state] : "回执待核对"}</span>
-      <details><summary>请求详情</summary><p>原请求 {record.request.request_id}</p></details>
       {record.receipt?.state === "NOT_SUBMITTED" && <p>
-        服务端已确认未受理，未调用模型。{rejectionReasons[record.receipt.error_code || ""]}
+        已确认未受理，未开始生成。{rejectionReasons[record.receipt.error_code || ""]}
         。结束原请求后，可重新核对业务介绍并决定是否生成；不会自动重试。
       </p>}
       {!currentBinding() && " · 历史草稿/画像，只读核对"}

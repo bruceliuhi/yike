@@ -675,9 +675,6 @@ function LegacySendConfirmation({
         <>
           {pending.binding ? (
             <div>
-              <p className="muted text-small">
-                原请求编号：{pending.binding.requestId}
-              </p>
               <Button
                 loading={reconciliation.busy}
                 disabled={sending.busy}
@@ -688,7 +685,7 @@ function LegacySendConfirmation({
             </div>
           ) : (
             <Notice>
-              旧版本未记录可查询的请求编号，请联系服务管理员核对平台记录；当前不会重新发送。
+              此次发送无法直接核对，请联系服务管理员核对平台记录；当前不会重新发送。
             </Notice>
           )}
         </>

@@ -145,7 +145,7 @@ function followNavigation(view: ReturnType<typeof render>) {
 async function confirmReady() {
   fireEvent.click(
     screen.getByRole("checkbox", {
-      name: "我已核对以上画像版本、搜索条件、账号与运行设置",
+      name: "我已核对以上业务画像、搜索条件、账号与运行设置",
     }),
   );
   const start = screen.getByRole("button", {
@@ -225,7 +225,7 @@ describe("platform selection state names", () => {
   it("preserves the platform-only name for historical drafts without research state", async () => {
     seed({ research: undefined });
     render(<TaskWizardPage />);
-    await screen.findByText("已确认版本 v1");
+    await screen.findByText("已确认业务画像");
     for (const platform of PLATFORMS) expectPlatformState(platform.name, "");
   });
 });
@@ -234,7 +234,7 @@ describe("task wizard service boundary", () => {
   it('edits platform-specific words in the real wizard and restores their saved draft',async()=>{
     seed({platforms:['xhs','bilibili']});
     const view=render(<TaskWizardPage/>);
-    await screen.findByText('已确认版本 v1');
+    await screen.findByText('已确认业务画像');
     fireEvent.click(screen.getByText('按平台设置搜索词'));
     fireEvent.click(screen.getByRole('button',{name:'小红书单独设置'}));
     const group=screen.getByRole('group',{name:'小红书搜索词'});
@@ -266,7 +266,7 @@ describe("task wizard service boundary", () => {
     };
     seed({ profileId: versionId, terms: [], exclusions: [] });
     render(<TaskWizardPage />);
-    await screen.findByText("已确认版本 v1");
+    await screen.findByText("已确认业务画像");
     expect(context.service.suggest).not.toHaveBeenCalled();
     expect(context.service.searchSuggestions.preview).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
@@ -277,18 +277,18 @@ describe("task wizard service boundary", () => {
   it("does not regenerate a saved empty draft on entry or remount", async () => {
     seed({ terms: [], exclusions: [], savedAt: "2026-09-09T00:00:00Z" });
     const view = render(<TaskWizardPage />);
-    await screen.findByText("已确认版本 v1");
+    await screen.findByText("已确认业务画像");
     expect(context.service.suggest).not.toHaveBeenCalled();
     view.unmount();
     render(<TaskWizardPage />);
-    await screen.findByText("已确认版本 v1");
+    await screen.findByText("已确认业务画像");
     expect(context.service.suggest).not.toHaveBeenCalled();
   });
 
   it("does not auto-generate on confirmation or replace manually entered exclusions", async () => {
     seed({ terms: [], exclusions: [makeTerm("人工排除")] });
     const view = render(<TaskWizardPage />);
-    await screen.findByText("已确认版本 v1");
+    await screen.findByText("已确认业务画像");
     expect(context.service.suggest).not.toHaveBeenCalled();
     context.route = parseRoute("#/tasks/new?step=confirm");
     view.rerender(<TaskWizardPage />);
@@ -334,7 +334,7 @@ describe("task wizard service boundary", () => {
     expect(currentDraft().terms).toEqual([]);
     view.unmount();
     render(<TaskWizardPage />);
-    await screen.findByText("已确认版本 v1");
+    await screen.findByText("已确认业务画像");
     expect(context.service.suggest).toHaveBeenCalledOnce();
   });
 
@@ -388,7 +388,7 @@ describe("task wizard service boundary", () => {
         exclusions: [],
       }));
     render(<TaskWizardPage />);
-    await screen.findByText("已确认版本 v1");
+    await screen.findByText("已确认业务画像");
     vi.useFakeTimers();
     await act(async () =>
       fireEvent.click(screen.getByRole("button", { name: "重新生成" })),
@@ -426,7 +426,7 @@ describe("task wizard service boundary", () => {
         suggestionProfile: origin === "ai" ? "profile-one" : null,
       });
       const view = render(<TaskWizardPage />);
-      await screen.findByText("已确认版本 v1");
+      await screen.findByText("已确认业务画像");
       fireEvent.change(screen.getByRole("combobox", { name: "业务画像" }), {
         target: { value: "profile-two" },
       });
@@ -500,7 +500,7 @@ describe("task wizard service boundary", () => {
       exclusions: ["招聘"],
     }));
     render(<TaskWizardPage />);
-    await screen.findByText("已确认版本 v1");
+    await screen.findByText("已确认业务画像");
     fireEvent.click(screen.getByRole("button", { name: "原AI词" }));
     const input = screen.getByRole("textbox", { name: "修改原AI词" });
     fireEvent.change(input, { target: { value: "人工改过建议" } });
@@ -572,7 +572,7 @@ describe("task wizard service boundary", () => {
     seed({ mode: "monitor", schedule: legacySchedule });
     context.route = parseRoute("#/tasks/new?mode=monitor");
     const view = render(<TaskWizardPage />);
-    await screen.findByText("已确认版本 v1");
+    await screen.findByText("已确认业务画像");
     fireEvent.change(screen.getByRole("textbox", { name: "任务名称" }), {
       target: { value: "修改后的监控任务" },
     });
@@ -646,7 +646,7 @@ describe("task wizard service boundary", () => {
     expect(
       (
         screen.getByRole("checkbox", {
-          name: "我已核对以上画像版本、搜索条件、账号与运行设置",
+          name: "我已核对以上业务画像、搜索条件、账号与运行设置",
         }) as HTMLInputElement
       ).checked,
     ).toBe(false);
@@ -676,7 +676,7 @@ describe("task wizard service boundary", () => {
       await screen.findByText(reason);
       fireEvent.click(
         screen.getByRole("checkbox", {
-          name: "我已核对以上画像版本、搜索条件、账号与运行设置",
+          name: "我已核对以上业务画像、搜索条件、账号与运行设置",
         }),
       );
       expect(
@@ -744,7 +744,7 @@ describe("task wizard service boundary", () => {
       );
       fireEvent.click(
         screen.getByRole("checkbox", {
-          name: "我已核对以上画像版本、搜索条件、账号与运行设置",
+          name: "我已核对以上业务画像、搜索条件、账号与运行设置",
         }),
       );
       fireEvent.click(screen.getByRole("button", { name: "确认并启动" }));
@@ -777,7 +777,7 @@ describe("task wizard service boundary", () => {
     );
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "我已核对以上画像版本、搜索条件、账号与运行设置",
+        name: "我已核对以上业务画像、搜索条件、账号与运行设置",
       }),
     );
     fireEvent.click(screen.getByRole("button", { name: "确认并启动" }));
@@ -807,7 +807,7 @@ describe("task wizard service boundary", () => {
     );
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "我已核对以上画像版本、搜索条件、账号与运行设置",
+        name: "我已核对以上业务画像、搜索条件、账号与运行设置",
       }),
     );
     expect(
@@ -969,7 +969,7 @@ describe("template ancestry start guards", () => {
     );
     render(<TaskWizardPage />);
     await screen.findByText("执行服务已就绪");
-    expect(screen.getByText("task:ancestor-original:1")).toBeTruthy();
+    expect(screen.queryByText("task:ancestor-original:1")).toBeNull();
     const start = screen.getByRole("button", {
       name: "确认并启动",
     }) as HTMLButtonElement;

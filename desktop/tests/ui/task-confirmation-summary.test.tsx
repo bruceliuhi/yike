@@ -105,7 +105,8 @@ describe("task confirmation execution-account selection", () => {
       }),
     ]);
 
-    expect(table.getByText("TEST-selected（待核对）")).toBeTruthy();
+    expect(table.getByText("所选账号（待核对）")).toBeTruthy();
+    expect(table.queryByText(/TEST-selected/)).toBeNull();
     expect(table.getByText("待核验")).toBeTruthy();
     expect(table.queryByText("Registered only")).toBeNull();
     expect(table.queryByText("已连接")).toBeNull();

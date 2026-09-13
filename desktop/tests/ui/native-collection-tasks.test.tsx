@@ -90,12 +90,11 @@ beforeEach(() => {
   } as unknown as AppContextValue;
 });
 afterEach(cleanup);
-it('keeps task identity behind details while leaving status and cancellation visible', async()=>{
+it('removes task identity while leaving status and cancellation visible', async()=>{
  context.route=parseRoute(`#/collection?task=${id}`);
  render(<NativeCollectionTasks/>);
- const identity=await screen.findByText(`任务编号：${id}`);
- expect(identity.closest('details')).not.toBeNull();
- expect(identity.closest('details')!.open).toBe(false);
+ await screen.findByRole('button',{name:'取消本次采集'});
+ expect(document.body.textContent).not.toContain(id);
  expect(screen.getByRole('button',{name:'取消本次采集'})).toBeTruthy();
  expect(screen.getByText(/服务端状态：运行中/).closest('details')).toBeNull();
 });

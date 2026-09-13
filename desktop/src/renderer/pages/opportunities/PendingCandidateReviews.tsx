@@ -19,17 +19,17 @@ export function PendingCandidateReviews({
   if (!hidden.length) return null;
   return (
     <section aria-label="待核对候选复核">
-      {hidden.map((record) => (
+      {hidden.map((record, index) => (
         <Notice
           key={record.key}
           tone="warning"
           action={
             <Button disabled={busy} onClick={() => onReconcile(record)}>
-              核对原复核结果
+              核对原复核结果{hidden.length > 1 ? ` · 记录 ${index + 1}` : ""}
             </Button>
           }
         >
-          线索 {record.candidateId} 有一次
+          待核对记录 {index + 1}：有一次
           {record.action === "INCLUDE" ? "入库" : "排除"}复核待核对。
         </Notice>
       ))}

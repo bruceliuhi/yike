@@ -26,11 +26,11 @@ const stopExplanations:Record<string,string>={
 
 function stoppedNextStep(code:string|null):string {
   if(code==='effect_unknown'||code==='assessment_unknown'||code==='lease_conflict')return '请查询原研究状态，核实已有请求，不要重新发送。';
-  if(code==='effect_failed'||code==='assessment_failed')return '请先查看已有结果和执行明细。';
+  if(code==='effect_failed'||code==='assessment_failed')return '请先查看原文与分析，核对已有结果。';
   if(code==='resource_limit_exceeded')return '请先查看已有结果，再决定是否在新任务中调整策略。';
   if(code==='task_unavailable')return '请稍后查询原任务状态。';
-  if(code==='capability_unavailable'||code==='resource_unavailable')return '请查看执行明细或联系服务支持。';
-  return '请查看执行明细，并查询原研究状态。';
+  if(code==='capability_unavailable'||code==='resource_unavailable')return '请查询原研究状态或联系服务支持。';
+  return '请查询原研究状态，并查看原文与分析。';
 }
 
 export function researchProgressPresentation(value:ResearchRuntimeStatus):ResearchProgressPresentation {
@@ -38,12 +38,12 @@ export function researchProgressPresentation(value:ResearchRuntimeStatus):Resear
   let nextStep:string;
   if(value.phase==='QUEUED'){
     explanation='研究尚未开始，不会自行在后台推进。';
-    nextStep=value.contractVersion===4?'使用“开始研究”提交服务端执行，按已确认上限停止。':'使用“继续研究”按已确认的范围开始。';
+    nextStep=value.contractVersion===4?'使用“开始研究”，达到已确认上限即停止。':'使用“继续研究”按已确认的范围开始。';
   }else if(value.phase==='RUNNING'){
     explanation=value.acceptedOriginals===null
       ?'本轮正在逐步处理；入库原文数量尚未确认。'
       :`当前已确认 ${value.acceptedOriginals} 篇入库原文；页面只显示已返回的进度。`;
-    nextStep=value.contractVersion===4?'服务端正在研究，本页自动查询进度；无需重复启动。':'可继续按已确认上限推进，或查询原研究状态。';
+    nextStep=value.contractVersion===4?'正在研究，无需重复启动。':'可继续按已确认上限推进，或查询原研究状态。';
   }else if(value.phase==='CANCELED'){
     explanation='已停止新增研究；此前已发出的请求不会被撤回。';
     nextStep='请查询原任务，核实此前请求及已有结果。';
@@ -64,7 +64,7 @@ export function researchProgressPresentation(value:ResearchRuntimeStatus):Resear
   }else{
     explanation=value.stopCode&&Object.hasOwn(stopExplanations,value.stopCode)
       ?stopExplanations[value.stopCode]
-      :'研究已停止，请查看执行明细。';
+      :'研究已停止，请查询原研究状态。';
     nextStep=stoppedNextStep(value.stopCode);
   }
 
@@ -76,7 +76,7 @@ export function researchProgressPresentation(value:ResearchRuntimeStatus):Resear
     ||closeout?.state==='DRAINING'||closeout?.state==='UNCERTAIN'||(closeout?.overduePermits??0)>0;
   if(uncertain)nextStep='请先查询原研究状态，核实已有请求，不要重新发送或新建任务。';
   const warning=[
-    failed?'本轮存在读取或分析失败记录；失败不代表没有结果。请查看执行明细。':null,
+    failed?'本轮存在读取或分析失败记录；失败不代表没有结果。请查看原文与分析。':null,
     uncertain?'尚有请求或执行记录待核实，不会自动重做；停止本页不代表撤回已发请求。':null,
   ].filter(Boolean).join(' ')||null;
   return {title:titles[value.phase],explanation,nextStep,warning};

@@ -41,17 +41,16 @@ function receipt() {
 }
 
 describe("candidate human source verification", () => {
-  it("keeps human verification facts visible while collapsing record identifiers", () => {
+  it("keeps human verification facts without record identifiers", () => {
     const verification = receipt();
     render(<CandidateSourceVerification binding={candidateBinding} verification={verification} onSubmit={vi.fn()} />);
     expect(screen.getByText(verification.checkedBy)).toBeVisible();
     expect(screen.getByText(verification.checkedAt)).toBeVisible();
     expect(screen.getByText(verification.excerpt, { normalizer: text => text })).toBeVisible();
-    expect(screen.getByText(verification.id)).not.toBeVisible();
-    expect(screen.getByText(verification.requestId)).not.toBeVisible();
-    fireEvent.click(screen.getByText("查看核验记录绑定"));
-    expect(screen.getByText(verification.id)).toBeVisible();
-    expect(screen.getByText(verification.requestId)).toBeVisible();
+    expect(screen.queryByText(verification.id)).toBeNull();
+    expect(screen.queryByText(verification.requestId)).toBeNull();
+    expect(screen.queryByText("查看核验记录绑定")).toBeNull();
+    expect(screen.queryByText("本次核验绑定（当前版本）")).toBeNull();
   });
   it("collects optional person/date proof, clears confirmation on edits and resets with identity", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
@@ -198,10 +197,8 @@ describe("candidate human source verification", () => {
     expect(screen.getByText("当前版本核验记录")).toBeTruthy();
     expect(screen.getByText(verification.checkedBy)).toBeTruthy();
     expect(screen.getByText(verification.checkedAt)).toBeTruthy();
-    expect(screen.getByText(verification.id)).toBeTruthy();
-    expect(
-      screen.getAllByText(candidateBinding.sourceVersionId).length,
-    ).toBeGreaterThan(0);
+    expect(screen.queryByText(verification.id)).toBeNull();
+    expect(screen.queryByText(candidateBinding.sourceVersionId)).toBeNull();
     view.rerender(
       <CandidateSourceVerification
         binding={{ ...candidateBinding, candidateRevision: 3 }}
@@ -230,7 +227,7 @@ describe("candidate human source verification", () => {
           onSubmit={vi.fn()}
         />,
       );
-      expect(screen.getByText(verification.requestId)).toBeTruthy();
+      expect(screen.queryByText(verification.requestId)).toBeNull();
       const locator = screen.getByText(
         (_content, element) =>
           element?.tagName === "DD" &&

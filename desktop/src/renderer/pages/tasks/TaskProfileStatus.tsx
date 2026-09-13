@@ -103,8 +103,7 @@ export function TaskProfileStatus({ run }: { run: TaskRun }) {
         ) : comparison?.status === "NO_CONFIRMED" ? (
           <>
             <p>
-              该业务画像当前没有已确认版本，任务仍绑定 v
-              {comparison.bound.version}。
+              该业务画像当前尚未确认，任务仍保留原业务画像。
             </p>
             <p className="field-hint">
               可前往业务画像处理；不会自动改变原任务。
@@ -115,9 +114,9 @@ export function TaskProfileStatus({ run }: { run: TaskRun }) {
             <p>
               {historical
                 ? keeping
-                  ? `已知悉保留历史：任务仍绑定 v${comparison.bound.version}，当前业务画像为 v${comparison.current.version}。`
-                  : `业务画像已有更新：任务绑定 v${comparison.bound.version}，当前已确认 v${comparison.current.version}。`
-                : `任务绑定与当前已确认画像一致：v${comparison.current.version}。`}
+                  ? "已知悉保留历史：任务仍使用原业务画像。"
+                  : "业务画像已有更新：任务仍使用原业务画像。"
+                : "任务使用的业务画像与当前已确认画像一致。"}
             </p>
             {historical && (
               <p className="field-hint">

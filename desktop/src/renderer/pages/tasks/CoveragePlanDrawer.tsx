@@ -290,14 +290,6 @@ export function CoveragePlanDrawer({
             <h3>确认范围</h3>
             <p className="coverage-plan-scope">{preview.scopeSummary}</p>
             <dl>
-              <div>
-                <dt>原配置版本</dt>
-                <dd>v{plan.configurationRevision}</dd>
-              </div>
-              <div>
-                <dt>画像版本</dt>
-                <dd>v{plan.profileVersion}</dd>
-              </div>
               {preview.kind === "NEW_DRAFT" ? (
                 <>
                   <div>
@@ -341,13 +333,6 @@ export function CoveragePlanDrawer({
                       {preview.quote.estimatedAdditionalSoubei === null
                         ? "尚未确定"
                         : `${preview.quote.estimatedAdditionalSoubei} 搜贝`}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>原预算版本</dt>
-                    <dd>
-                      v{preview.quote.budgetRevision} ·{" "}
-                      {preview.quote.ruleVersion}
                     </dd>
                   </div>
                 </>

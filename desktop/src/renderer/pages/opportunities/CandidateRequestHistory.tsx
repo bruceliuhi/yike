@@ -26,21 +26,17 @@ export function CandidateRequestHistory({ operations, busy, onReconcile, onRetry
     <section aria-label="候选原请求记录" className="card candidate-request-history">
       <h3>操作进度与结果核对</h3>
       <p className="muted">切换筛选后仍可核对。核对操作不会重新判断或重复入库。</p>
-      {operations.map(operation => (
+      {operations.map((operation, index) => (
         <div key={operation.key} className="candidate-request-row">
           <span className="candidate-request-title">
             {actions[operation.action]} · {states[operation.state].label}
           </span>
           <p className="muted candidate-request-hint">{states[operation.state].hint}</p>
-          <details className="candidate-request-reference">
-            <summary>查看请求编号</summary>
-            <p>{operation.requestId}</p>
-          </details>
           <div className="action-row candidate-request-actions">
-            <Button disabled={busy} onClick={() => onReconcile(operation.key)}>核对原请求</Button>
+            <Button disabled={busy} onClick={() => onReconcile(operation.key)}>核对原请求{operations.length > 1 ? ` · 记录 ${index + 1}` : ""}</Button>
             {operation.action === "ASSESS" && ["FAILED", "UNKNOWN"].includes(operation.state) &&
               !operations.some(child => child.retryOf[0] === (operation.invocationId ?? operation.requestId)) && (
-                <Button disabled={busy} onClick={() => onRetry(operation.key)}>确认后重新判断</Button>
+                <Button disabled={busy} onClick={() => onRetry(operation.key)}>确认后重新判断{operations.length > 1 ? ` · 记录 ${index + 1}` : ""}</Button>
               )}
           </div>
         </div>

@@ -213,8 +213,9 @@ describe("P04 客户空间资料生命周期", () => {
     context.session = { ...context.session, accountScope: { id: "TEST-space-a", version: 2 } };
     view.rerender(<MaterialsWorkspace api={api} profile={profile} currentFields={fields} onApply={vi.fn()} />);
     await screen.findByText("TEST 资料");
-    fireEvent.click(screen.getByText("查看原资料操作身份"));
-    expect((screen.getByLabelText("旧资料操作请求ID") as HTMLInputElement).value).toBe(request.requestId);
+    expect(screen.getByText(/有 1 项旧资料操作待核对/)).toBeTruthy();
+    expect(screen.queryByLabelText("旧资料操作请求ID")).toBeNull();
+    expect(document.body.textContent).not.toContain(request.requestId);
     expect(screen.queryByRole("button", { name: "核对原资料操作" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "解析资料" }));
     expect(api.mutate).toHaveBeenCalledTimes(1);
@@ -222,7 +223,7 @@ describe("P04 客户空间资料生命周期", () => {
     expect(locks()).toHaveLength(1);
   });
 
-  it("v1 未知记录不自动归属当前空间，清草稿重开仍提供原请求ID且不派发", async () => {
+  it("v1 未知记录不自动归属当前空间，清草稿重开保留原请求但不展示ID或派发", async () => {
     const pending: MaterialPending = { requestId: crypto.randomUUID(), profileVersionId: profile.id, materialId: "material-test", kind: "parse", expectedVersion: 1 };
     const key = legacyMaterialOperationKey(context.session.userId!, profile.id);
     const saved = JSON.stringify(pending);
@@ -231,8 +232,9 @@ describe("P04 客户空间资料生命周期", () => {
     const api = adapter([row()]);
     const view = mount(api);
     await screen.findByText("TEST 资料");
-    fireEvent.click(screen.getByText("查看原资料操作身份"));
-    expect((screen.getByLabelText("旧资料操作请求ID") as HTMLInputElement).value).toBe(pending.requestId);
+    expect(screen.getByText(/有 1 项旧资料操作待核对/)).toBeTruthy();
+    expect(screen.queryByLabelText("旧资料操作请求ID")).toBeNull();
+    expect(document.body.textContent).not.toContain(pending.requestId);
     clearLocalDrafts();
     view.unmount();
     mount(api);

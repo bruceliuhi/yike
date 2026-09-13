@@ -87,7 +87,7 @@ export function FixedSourceEvidence({
   compact?: boolean;
 }) {
   const [bodyExpanded, setBodyExpanded] = useState(false);
-  const { snapshot, snapshot_sha256: snapshotSha256 } = evidence;
+  const { snapshot } = evidence;
   const { source, observation, assessment, verification } = snapshot;
   const parent = source.kind === "COMMENT" ? source.parent : null;
   const bodyIsLong = source.body.length > LONG_BODY_LENGTH;
@@ -128,8 +128,8 @@ export function FixedSourceEvidence({
       {source.author_updates!==undefined&&<section aria-label="留存作者回复">
         <h4>{source.source_read_scope==='HUMAN_CONFIRMED_EXCERPT'?'人工确认的本人需求':'作者后续更新'}</h4>
         {snapshot.verification.demandEvidence ? <p className="muted">
-          {snapshot.verification.demandEvidence.authorLocator} · 需求日期 {snapshot.verification.demandEvidence.publishedDate}（北京时间，日精度，人工声明）；原始页面时间未改写。
-        </p> : <p className="muted">{source.source_read_scope==='AUTHOR_REPLIES_COUNT_MATCHED_SUPPLEMENTS_UNREAD'?'本次API回复计数相符':'回复读取不全'}；附言未读，不代表来源整体完整。</p>}
+          {snapshot.verification.demandEvidence.authorLocator} · 人工确认需求日期 {snapshot.verification.demandEvidence.publishedDate}
+        </p> : <p className="muted">{source.source_read_scope==='AUTHOR_REPLIES_COUNT_MATCHED_SUPPLEMENTS_UNREAD'?'已核对回复数量':'回复读取不全'}；附言未读，不代表来源整体完整。</p>}
         {source.author_updates.map((body,index)=><div key={index} className="fixed-evidence-body">{body}</div>)}
       </section>}
 
@@ -222,23 +222,9 @@ export function FixedSourceEvidence({
       </section>
 
       <details className="fixed-evidence-versions">
-        <summary>版本与当时判断明细</summary>
+        <summary>当时的来源核验</summary>
         <dl className="detail-list">
-          <Fact label="快照格式">{snapshot.schema_version}</Fact>
-          <Fact label="来源版本">{source.version_id}</Fact>
-          <Fact label="来源内容摘要">{source.content_sha256}</Fact>
-          <Fact label="固定快照摘要">{snapshotSha256}</Fact>
-          <Fact label="观察记录">{observation.id}</Fact>
-          <Fact label="判断记录">{assessment.id}</Fact>
-          <Fact label="当时画像版本">
-            {assessment.profile_version_id} · 第 {assessment.profile_version} 版
-          </Fact>
-          <Fact label="当时策略版本">{assessment.strategy_version_id}</Fact>
-          <Fact label="模型提供方">{assessment.provider}</Fact>
-          <Fact label="当时模型">{assessment.model}</Fact>
-          <Fact label="规则版本">{assessment.rule_version}</Fact>
-          <Fact label="规则摘要">{assessment.rule_sha256}</Fact>
-          <Fact label="当时模型判断时间">
+          <Fact label="判断时间">
             <EvidenceTime value={assessment.assessed_at} />
           </Fact>
           <Fact label="人工回看时间（历史）">

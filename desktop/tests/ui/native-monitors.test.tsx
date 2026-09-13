@@ -43,14 +43,12 @@ describe('monitor page real service wiring',()=>{
   const rows=screen.getAllByRole('row').slice(1);
   expect(rows).toHaveLength(2);
   for(const [index,row] of rows.entries()){
-   const identity=within(row).getByText(new RegExp(plans[index].planId));
-   expect(identity.closest('details')).not.toBeNull();
-   expect(identity.closest('details')!.open).toBe(false);
-   expect(within(row).getByText('计划详情')).toBeTruthy();
+   expect(row.textContent).not.toContain(plans[index].planId);
+   expect(within(row).getByText(new RegExp(`每 ${plans[index].schedule.interval} 小时`))).toBeTruthy();
   }
   fireEvent.click(within(rows[1]).getByRole('button',{name:state==='ACTIVE'?'暂停计划':'恢复并在本机运行'}));
   const dialog=await screen.findByRole('dialog');
-  expect(within(dialog).getByText(`计划编号：${other}`).closest('details')).toBeNull();
+  expect(dialog.textContent).not.toContain(other);
   expect(within(dialog).getByText('业务监控')).toBeTruthy();
   expect(within(dialog).getByText(/每 2 小时/)).toBeTruthy();
   expect(within(dialog).queryByText(`计划编号：${id}`)).toBeNull();
@@ -63,13 +61,12 @@ describe('monitor page real service wiring',()=>{
   expect(screen.queryByRole('button',{name:/11111111/})).toBeNull();
   expect(screen.getByRole('button',{name:'暂停计划'})).toBeTruthy();
  });
- it('collapses monitoring identifiers but keeps the latest run action and offline state visible',async()=>{
+ it('removes monitoring identifiers but keeps the latest run action and offline state visible',async()=>{
   context.route=parseRoute(`#/monitors/${id}`);
   vi.mocked(context.service.monitorCollection!.execute).mockResolvedValue({state:'LIST',supported:true,plans:[{...base,taskId:id}],serverTime:null} as any);
   render(<NativeMonitorPlans/>);
-  const version=await screen.findByText(/版本 1/);
-  expect(version.closest('details')).not.toBeNull();
-  expect(version.closest('details')!.open).toBe(false);
+  await screen.findByRole('button',{name:'查询实际轮次结果'});
+  expect(document.body.textContent).not.toMatch(/版本 1|11111111|Asia\/Shanghai/);
   expect(screen.getByText(/计划：启用 · 本机：本机未接管/).closest('details')).toBeNull();
   expect(screen.getByRole('button',{name:'查询实际轮次结果'})).toBeTruthy();
  });
@@ -108,9 +105,7 @@ describe('monitor page real service wiring',()=>{
   await screen.findByRole('button',{name:'核对原请求'});
   const command=execute.mock.calls.find(([c])=>c.action==='SET_STATE')![0];
   if(command.action!=='SET_STATE')throw new Error('Expected state command');
-  const identity=screen.getByText(new RegExp(command.requestId));
-  expect(identity.closest('details')).not.toBeNull();
-  expect(identity.closest('details')!.open).toBe(false);
+  expect(document.body.textContent).not.toContain(command.requestId);
   expect(command).toMatchObject({planId:id,expectedRevision:1,state:'PAUSED',humanConfirmed:true});
   view.unmount();render(<NativeMonitorPlans/>);
   fireEvent.click(await screen.findByRole('button',{name:'核对原请求'}));

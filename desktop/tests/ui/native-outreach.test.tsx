@@ -59,9 +59,8 @@ it.each(['throw','silent'])('blocks CONFIRM when durable storage %s fails',async
 it('remounts uncertain sends as recovery-only, including queued cancellation and result resumption',async()=>{
   const first=render(view());await prepare();await confirm();await screen.findByText(/发送结果尚未确定/);first.unmount();
   command.mockClear();render(view());expect(command).not.toHaveBeenCalled();expect(screen.queryByRole('button',{name:'核对发送信息'})).toBeNull();
-  const recordDetails=screen.getByText(/原请求编号：/).closest('details');
-  expect(recordDetails).not.toBeNull();expect(recordDetails?.open).toBe(false);
-  expect(recordDetails?.textContent).toContain(prepared.binding.requestId);
+  expect(screen.queryByText(/原请求编号：/)).toBeNull();
+  expect(screen.queryByText('记录详情')).toBeNull();
   command.mockResolvedValueOnce(result('QUEUED'));fireEvent.click(screen.getByRole('button',{name:'核对原发送结果'}));await screen.findByRole('button',{name:'取消原排队请求'});
   command.mockResolvedValueOnce(result('CANCELLED'));fireEvent.click(screen.getByRole('button',{name:'取消原排队请求'}));await screen.findByText(/原请求已取消/);
   expect(command.mock.calls.map(([v])=>v.action)).toEqual(['RECONCILE','CANCEL_QUEUED']);

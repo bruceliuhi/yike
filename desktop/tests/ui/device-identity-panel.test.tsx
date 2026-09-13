@@ -22,11 +22,14 @@ it('requires explicit confirmation and sends no identity or signing payload', as
   await screen.findByText('上次身份核验通过');
   expect(api.prepare).toHaveBeenCalledExactlyOnceWith({});
   expect(screen.getByText(/不代表平台已连接或使用授权已激活/)).toBeTruthy();
+  expect(document.body.textContent).not.toContain(ready.deviceId);
+  expect(screen.queryByText(/本机编号|最近一次观察|执行前仍需服务端授权/)).toBeNull();
 });
 it.each(['REGISTRATION_UNKNOWN','PROOF_UNKNOWN'] as const)('checks %s without retry flags, retries only after a separate confirmation', async state => {
   const {api} = setup({state});
   api.prepare.mockResolvedValue({state});
   fireEvent.click(await screen.findByRole('button',{name:'核对原请求'}));
+  expect(screen.queryByText(/设备证明/)).toBeNull();
   await waitFor(()=>expect(api.prepare).toHaveBeenCalledExactlyOnceWith({}));
   const retry = screen.getByRole('button',{name:'确认后重试原请求'});
   expect((retry as HTMLButtonElement).disabled).toBe(true);
@@ -38,6 +41,7 @@ it.each(['KEY_MISSING','KEY_MISMATCH','REVOKED'] as const)('does not offer rebin
   const {api} = setup({state});
   await waitFor(()=>expect(api.getStatus).toHaveBeenCalled());
   await screen.findByText(/请联系支持/);
+  expect(screen.queryByText(/密钥/)).toBeNull();
   expect(screen.queryByRole('checkbox')).toBeNull();
   expect(api.prepare).not.toHaveBeenCalled();
 });

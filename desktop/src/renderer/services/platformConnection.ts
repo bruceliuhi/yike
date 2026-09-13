@@ -23,7 +23,7 @@ function failure(result: PlatformConnectionResult): ServiceError {
     SIGNED_OUT: '请先登录客户空间，再连接平台账号。',
     DEVICE_NOT_READY: '连接准备尚未完成，请稍后重试。',
     BUSY: '原登录流程仍在运行或清理，请稍后再试。',
-    LOGIN_EXPIRED: '登录等待已过期，请重新打开平台登录窗口。',
+    LOGIN_EXPIRED: '登录状态需要更新，请点击检查连接；本机有效登录会自动复用。',
     ACCOUNT_MISMATCH: '平台账号与原连接不一致，未变更连接记录。',
     CURRENT_CONNECTION_CHANGED: '当前连接记录已变化，请刷新后核对。',
     SOURCE_STOP_FAILED: '登录窗口停止尚未确认，请核对原生窗口后再试。',

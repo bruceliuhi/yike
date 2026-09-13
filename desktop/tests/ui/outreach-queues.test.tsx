@@ -26,20 +26,17 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe('outreach queue contract', () => {
-  it('keeps recipient, channel, content and unresolved result visible with technical records collapsed', async () => {
+  it('keeps business facts and unresolved result without technical records', async () => {
     vi.mocked(context.service.outreach!.queue).mockResolvedValue({queue:'issues',items:[record('issues',{message:'发送结果未知，请先核对'})],total:1});
     render(<OutreachQueue queue="issues"/>);
     fireEvent.click(await screen.findByRole('button',{name:/TEST 隔离触达记录/}));
-    const details = screen.getByText('查看记录详情').closest('details');
-    expect(details).not.toHaveAttribute('open');
-    expect(screen.getByText('test-record-1')).not.toBeVisible();
+    expect(screen.queryByText('查看记录详情')).toBeNull();
+    expect(screen.queryByText('test-record-1')).toBeNull();
     expect(screen.getByText('TEST 对象')).toBeVisible();
     expect(screen.getByText('私信')).toBeVisible();
     expect(screen.getByText('TEST 沟通内容')).toBeVisible();
     expect(screen.getByText('发送结果未知，请先核对')).toBeVisible();
-    fireEvent.click(screen.getByText('查看记录详情'));
-    expect(screen.getByText('test-record-1')).toBeVisible();
-    expect(screen.getByText('草稿版本')).toBeVisible();
+    expect(screen.queryByText('草稿版本')).toBeNull();
     expect(context.service.outreach!.send).not.toHaveBeenCalled();
   });
   it.each(['comment','dm'] as const)('opens the actual parent draft workspace from a queue with the selected %s purpose',async channel=>{
@@ -60,7 +57,7 @@ describe('outreach queue contract', () => {
     vi.mocked(context.service.outreach!.queue).mockResolvedValue({queue,items:[record(queue)],total:1});
     render(<OutreachQueue queue={queue}/>);
     fireEvent.click(await screen.findByRole('button',{name:/TEST 隔离触达记录/}));
-    expect(screen.getByText('test-record-1')).toBeTruthy();
+    expect(screen.queryByText('test-record-1')).toBeNull();
     fireEvent.click(screen.getByRole('button',{name:'查看联系准备'}));
     expect(context.navigate).toHaveBeenCalledWith('/outreach?opportunity=test-opportunity&channel=dm');
   });

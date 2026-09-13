@@ -21,7 +21,8 @@ import { TaskDraftRow } from "./tasks/TaskDraftRow";
 import { useTaskTemplates } from "./tasks/useTaskTemplates";
 import { TaskEvents } from "./tasks/TaskEvents";
 import { TaskProfileStatus } from "./tasks/TaskProfileStatus";
-import { schedulePolicyDescription, scheduleWindowLabel } from "../domain/schedule";
+import { scheduleWindowLabel } from "../domain/schedule";
+import {scheduleRegionLabel} from './tasks/taskDisplayLabels';
 import { TaskPagination } from "./tasks/TaskPagination";
 import { SearchCoverage } from "./tasks/SearchCoverage";
 import { CoveragePlanDrawer } from "./tasks/CoveragePlanDrawer";
@@ -477,15 +478,7 @@ function MonitorDetail({
             <dl className="detail-list">
               <div>
                 <dt>业务画像</dt>
-                <dd>{run.profileName || run.profileId || "待读取"}</dd>
-              </div>
-              <div>
-                <dt>画像版本</dt>
-                <dd>
-                  {typeof run.profileVersion === "number"
-                    ? `v${run.profileVersion}`
-                    : "待读取"}
-                </dd>
+                <dd>{run.profileName || "待读取"}</dd>
               </div>
               <div>
                 <dt>监控关键词</dt>
@@ -521,17 +514,13 @@ function MonitorDetail({
               <div>
                 <dt>执行窗口</dt>
                 <dd>
-                  {schedule ? scheduleWindowLabel(schedule) : "待读取"}
+                  {schedule ? `${scheduleWindowLabel(schedule)} · ${scheduleRegionLabel(schedule.timezone)}` : "待读取"}
                 </dd>
-              </div>
-              <div>
-                <dt>时区</dt>
-                <dd>{schedule?.timezone || "待读取"}</dd>
               </div>
               {schedule && (
                 <div>
-                  <dt>日程规则</dt>
-                  <dd>{schedulePolicyDescription(schedule).map((line) => <p key={line}>{line}</p>)}</dd>
+                  <dt>运行安排</dt>
+                  <dd>离线错过的计划不补跑，恢复在线后从下次计划继续。</dd>
                 </div>
               )}
               <div>

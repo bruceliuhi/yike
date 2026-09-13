@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { Badge, Button, formatDate } from "../../components/ui";
 import { TaskPlatforms } from "./TaskPlatforms";
 import { type TaskDraft } from "../../domain/models";
+import {scheduleRegionLabel} from './taskDisplayLabels';
 export function TaskDraftRow({
   draft,
   pending,
@@ -76,7 +77,7 @@ export function TaskDraftRow({
               <dt>业务画像</dt>
               <dd>
                 {draft.profileId
-                  ? `${draft.profileId}${draft.profileVersion ? ` · v${draft.profileVersion}` : ""}`
+                  ? "已选择业务画像"
                   : "尚未选择画像"}
               </dd>
             </div>
@@ -107,12 +108,8 @@ export function TaskDraftRow({
               <dd>
                 {draft.schedule.kind === "daily"
                   ? `每日 ${draft.schedule.times.join("、") || "尚未设置时间"}`
-                  : `每 ${draft.schedule.interval} 小时 · ${draft.schedule.start}–${draft.schedule.end}`}
+                  : `每 ${draft.schedule.interval} 小时 · ${draft.schedule.start}–${draft.schedule.end}`} · {scheduleRegionLabel(draft.schedule.timezone)}
               </dd>
-            </div>
-            <div>
-              <dt>时区</dt>
-              <dd>{draft.schedule.timezone || "尚未设置"}</dd>
             </div>
           </dl>
           <Button variant="primary" disabled={pending} onClick={onConfirm}>

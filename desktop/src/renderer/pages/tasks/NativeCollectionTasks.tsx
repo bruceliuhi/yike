@@ -264,7 +264,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {page.items.map((row) => (
+                  {page.items.map((row, index) => (
                     <tr key={row.task_id}>
                       <td>
                         <Button
@@ -273,7 +273,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
                             navigate(`/collection?task=${row.task_id}`)
                           }
                         >
-                          {row.name || `采集任务 ${row.task_id.slice(0, 8)}`}
+                          {row.name || `采集任务 ${index + 1}`}
                         </Button>
                       </td>
                       <td>
@@ -419,13 +419,6 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
               )}
             </>
           )}
-          <details>
-            <summary>原始绑定</summary>
-            <p>任务编号：{item.task_id}</p>
-            <p>画像版本：{item.profile_version_id}</p>
-            <p>策略版本：{item.strategy_version_id}</p>
-            <p>原启动请求：{item.start_request_id}</p>
-          </details>
         </section>
       )}
       {service.execution && cancels.length > 0 && (
@@ -470,7 +463,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
           onConfirm={() => void confirmCancel()}
         >
           <p>
-            确认取消「{confirmation.item.name || confirmation.item.task_id}
+            确认取消「{confirmation.item.name || "采集任务"}
             」？已入库记录保留；停止结果以原请求与本机状态核对为准。
           </p>
         </Confirm>

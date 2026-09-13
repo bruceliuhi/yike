@@ -18,7 +18,6 @@ import {
   Badge,
   Button,
   Confirm,
-  Field,
   Modal,
   Notice,
   PageHeader,
@@ -31,7 +30,6 @@ type SettingsDialog =
   | "export"
   | "backup"
   | "support"
-  | "diagnostic"
   | "update"
   | null;
 const dialogTitles: Record<Exclude<SettingsDialog, null>, string> = {
@@ -39,7 +37,6 @@ const dialogTitles: Record<Exclude<SettingsDialog, null>, string> = {
   export: "客户数据导出",
   backup: "备份与恢复",
   support: "联系支持",
-  diagnostic: "脱敏诊断信息",
   update: "检查更新",
 };
 
@@ -249,16 +246,6 @@ export function SettingsPage() {
               : "未取得商业设备绑定状态"}
           </span>
         </div>
-        <div className="settings-row">
-          <span>客户服务</span>
-          <span>
-            {info.data
-              ? info.data.serviceConfigured
-                ? "已配置服务地址"
-                : "尚未配置服务地址"
-              : "待检查"}
-          </span>
-        </div>
       </section>
       <section className="settings-section">
         <h2>版本与数据</h2>
@@ -284,23 +271,11 @@ export function SettingsPage() {
         </div>
       </section>
       <section className="settings-section">
-        <h2>支持与诊断</h2>
-        <div className="settings-row">
-          <span>脱敏诊断</span>
-          <span className="muted">版本、运行环境和服务配置状态</span>
-          <Button
-            onClick={() => {
-              copying.setError("");
-              setDialog("diagnostic");
-            }}
-          >
-            查看脱敏诊断
-          </Button>
-        </div>
+        <h2>帮助与支持</h2>
         <div className="settings-row">
           <span>联系支持</span>
           <span />
-          <Button onClick={() => setDialog("support")}>联系支持</Button>
+          <Button onClick={() => { copying.setError(""); setDialog("support"); }}>联系支持</Button>
         </div>
         {session.authenticated && (
           <div className="settings-row">
@@ -324,13 +299,13 @@ export function SettingsPage() {
           footer={
             <>
               <Button onClick={() => setDialog(null)}>关闭</Button>
-              {dialog === "diagnostic" && (
+              {dialog === "support" && (
                 <Button
                   variant="primary"
                   loading={copying.busy}
                   onClick={() => void copyDiagnostic()}
                 >
-                  复制脱敏诊断
+                  复制诊断信息
                 </Button>
               )}
             </>
@@ -359,26 +334,8 @@ export function SettingsPage() {
             <>
               <p>请联系为你开通客户空间的服务方。</p>
               <p>
-                可提供本页的脱敏诊断信息；请勿发送登录凭证、授权码或平台会话。
+                可复制诊断信息协助排查；请勿发送密码、授权码或其他登录信息。
               </p>
-              <Button onClick={() => setDialog("diagnostic")}>
-                查看脱敏诊断
-              </Button>
-            </>
-          )}
-          {dialog === "diagnostic" && (
-            <>
-              <Field
-                label="诊断内容"
-                hint="不包含访问凭证、客户记录、平台会话或数据库信息。"
-              >
-                <textarea
-                  aria-label="脱敏诊断内容"
-                  rows={8}
-                  readOnly
-                  value={diagnostic}
-                />
-              </Field>
               {copying.error && <Notice tone="error">{copying.error}</Notice>}
             </>
           )}

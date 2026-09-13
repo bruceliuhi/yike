@@ -13,7 +13,7 @@ export interface PlatformConnectionControllerOptions {
   serviceOrigin:string;
   identity:Pick<ReturnType<typeof createDeviceIdentityController>,'openWorkerScope'|'getStatus'>;
   store:ReturnType<typeof createConnectionProfileStore>;
-  login:{start(input:{profileId:string;platform?:NativeLoginPlatform;signal?:AbortSignal}):LoginRun};
+  login:{start(input:{profileId:string;platform?:NativeLoginPlatform;signal?:AbortSignal;inspectOnly?:boolean}):LoginRun};
   now?:()=>number;
 }
 type Flow={id:string;platform:NativeLoginPlatform;record:ConnectionProfileRecord;scope:DeviceWorkerScope;profileScope:ConnectionProfileScope;run:LoginRun;
@@ -62,6 +62,33 @@ export function createPlatformConnectionController({serviceOrigin,identity,store
     if(new Set(rows.map(r=>r.connection_id)).size!==rows.length)throw new Error('INVALID_CONNECTION_ROWS');
     return rows;
   }
+  async function stopReader(f:Flow) {
+    const stopping=f.run.stop();
+    try {await stopping;guard(f);}
+    catch(error) {
+      if(error instanceof FlowFailure)throw error;
+      f.cancelled=true;if(f.timer){clearInterval(f.timer);f.timer=null;}
+      f.stopping=stopping.finally(()=>f.scope.close());void f.stopping.catch(()=>{});
+      throw new FlowFailure(failed('SOURCE_STOP_FAILED'));
+    }
+  }
+  async function refreshObservation(f:Flow,previous:Observation):Promise<Observation> {
+    // CHECK is the user's action. STATUS never launches a reader or writes.
+    await stopReader(f);guard(f);
+    f.run=login.start({profileId:f.record.profileId,platform:f.platform,inspectOnly:true});
+    let observed:Observation;
+    try {observed=await f.run.completed;guard(f);}
+    catch(error) {
+      if(error instanceof FlowFailure)throw error;
+      await stopReader(f);
+      const code=platformLoginFailureSchema.safeParse(error instanceof Error?error.message:null);
+      throw new FlowFailure(failed(code.success?code.data:'CONNECTION_FAILED'));
+    }
+    if(!validNativeAccount(f.platform,observed.account_public_id) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(observed.checked_at) ||
+       !Number.isFinite(Date.parse(observed.checked_at)))throw new Error('INVALID_LOGIN_OBSERVATION');
+    if(observed.account_public_id!==previous.account_public_id)throw new FlowFailure(failed('ACCOUNT_MISMATCH'));
+    f.observation=observed;guardFresh(f);return observed;
+  }
   async function persist(f:Flow,op:ConnectionOperation) {
     guardFresh(f);f.record=await store.setOperation(f.profileScope,f.record.flowId,op);guardFresh(f);
     return op;
@@ -85,9 +112,10 @@ export function createPlatformConnectionController({serviceOrigin,identity,store
     guard(f);
     if(f.loginError){const error=f.loginError;await stop(f);return failed(error);}
     if(!f.observation)return {state:'WAITING_LOGIN',flowId:f.id};
-    const observation=f.observation,checked=Date.parse(observation.checked_at);
+    let observation=f.observation;const checked=Date.parse(observation.checked_at);
     if(!validNativeAccount(f.platform,observation.account_public_id) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(observation.checked_at) || !Number.isFinite(checked))throw new Error('INVALID_LOGIN_OBSERVATION');
-    if(now()-checked>120000 || checked-now()>5000)return failed('LOGIN_EXPIRED');
+    if(checked-now()>5000)return failed('LOGIN_EXPIRED');
+    if(now()-checked>120000)observation=await refreshObservation(f,observation);
     const record=await store.read(f.profileScope);guard(f);
     if(!record || record.flowId!==f.record.flowId)throw new Error('CONNECTION_PROFILE_CHANGED');
     f.record=record;

@@ -67,21 +67,9 @@ function Evidence({ row }: { row: ReplyEvidence }) {
         )}
       </small>
       <p className="muted text-small">
-        保存时间：{formatDate(e.observed_at)} · 修订 {row.revision}
+        保存时间：{formatDate(e.observed_at)}
       </p>
       {e.reason && <p>更正/撤销原因：{e.reason}</p>}
-      <details>
-        <summary>原始关联</summary>
-        <p className="muted text-small">
-          发送请求：{e.outreach_request_id}
-          <br />
-          来源：{e.source_id}
-          <br />
-          原画像版本：{e.profile_version_id}
-          <br />
-          事件：{e.event_id}
-        </p>
-      </details>
     </article>
   );
 }

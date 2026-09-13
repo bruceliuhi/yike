@@ -104,6 +104,52 @@ def test_invalid_request_rejected_before_launch(tmp_path, monkeypatch, change):
     assert b'private' not in output.getvalue()
 
 
+@pytest.mark.parametrize('inspect_only', [True, False])
+def test_host_accepts_only_optional_boolean_inspection(tmp_path, inspect_only):
+    frame = request(tmp_path) | {'inspect_only': inspect_only, 'timeout_seconds': 20}
+    result = module()._request(io.BytesIO((json.dumps(frame) + '\n').encode()))
+    assert result['inspect_only'] is inspect_only
+
+
+@pytest.mark.parametrize('change', [{'inspect_only': 'true'}, {'inspect_only': 1}, {'inspect_only': None},
+    {'inspect_only': True, 'timeout_seconds': 21}, {'inspect_only': True, 'extra': False}])
+def test_host_inspection_protocol_fails_closed(tmp_path, change):
+    frame = request(tmp_path) | {'timeout_seconds': 20} | change
+    with pytest.raises(ValueError): module()._request(io.BytesIO((json.dumps(frame) + '\n').encode()))
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='native private directories')
+def test_inspection_reuses_existing_profile_and_completes_without_opened_after_process_stops(source, monkeypatch):
+    from app.windows_private_directory import create_private_directory
+    create_private_directory(source.args['profile_path'])
+    stopped = []
+    def runner(command, **kwargs):
+        assert kwargs['env']['YIKE_LOGIN_INSPECT_ONLY'] == '1'
+        assert kwargs['env']['YIKE_PROFILE_PATH'] == str(source.args['profile_path'])
+        assert 0 < kwargs['timeout_seconds'] <= 20
+        output = Path(kwargs['env']['YIKE_LOGIN_OUTPUT_PATH'])
+        (output / '.yike-login-terminal.json').write_text(json.dumps(dict(schema_version=SCHEMA,
+            state='AUTHENTICATED', account_public_id=ACCOUNT, checked_at='2026-09-13T00:00:00Z')))
+        kwargs['poll_callback']()
+        assert source.opened == []
+        stopped.append(True)
+        return SimpleNamespace(returncode=0, cancelled=False, timed_out=False)
+    monkeypatch.setattr(source.api, 'run_supervised_process', runner)
+    result = source.api.login_windows_platform(**(source.args | {'timeout_seconds': 20}), inspect_only=True,
+        on_opened=lambda: source.opened.append(True))
+    assert stopped == [True] and source.opened == []
+    assert result['account_public_id'] == ACCOUNT
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='native private directories')
+def test_inspection_does_not_create_missing_profile_or_launch(source):
+    result = source.api.login_windows_platform(**(source.args | {'timeout_seconds': 20}), inspect_only=True,
+        on_opened=lambda: source.opened.append(True))
+    assert result['error_code'] == 'PLATFORM_AUTH_REQUIRED'
+    assert not source.args['profile_path'].exists() and not source.args['output_path'].exists()
+    assert source.calls == []
+
+
 @pytest.mark.parametrize('frame', [b'{}', b'[]\n', b'{"x":NaN}\n', b'{"x":1,"x":2}\n',
     b'\xff\n', b' ' * 65536 + b'\n'], ids=['no-lf', 'array', 'nan', 'duplicate', 'utf8', 'oversize'])
 def test_strict_json_and_byte_limit(frame, monkeypatch):

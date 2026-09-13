@@ -54,23 +54,6 @@ const contactLabels = {
   NONE: "无可核实联系路径",
 };
 
-function BindingDetails({ binding }: { binding: CandidateReviewBinding }) {
-  return (
-    <dl className="candidate-verification-binding">
-      <dt>候选 ID</dt>
-      <dd>{binding.candidateId}</dd>
-      <dt>候选版本</dt>
-      <dd>{binding.candidateRevision}</dd>
-      <dt>来源版本</dt>
-      <dd>{binding.sourceVersionId}</dd>
-      <dt>画像 ID</dt>
-      <dd>{binding.profileId}</dd>
-      <dt>画像版本</dt>
-      <dd>{binding.profileVersion}</dd>
-    </dl>
-  );
-}
-
 function VerificationForm({
   binding,
   verification,
@@ -179,10 +162,6 @@ function VerificationForm({
       <Notice>
         “已打开”仅是你的人工核对声明，不是平台验证或发送授权。仅点击回源链接不会保存核验；未核实的信息请如实记录。
       </Notice>
-      <details className="candidate-verification-identity">
-        <summary>本次核验绑定（当前版本）</summary>
-        <BindingDetails binding={binding} />
-      </details>
       {verification ? (
         <div className="candidate-verification-receipt">
           <h4>
@@ -211,7 +190,7 @@ function VerificationForm({
             </dd>
             {verification.demandEvidence ? <>
               <dt>人工确认需求作者</dt><dd>{verification.demandEvidence.authorLocator}</dd>
-              <dt>人工确认需求日期（北京时间，日精度）</dt><dd>{verification.demandEvidence.publishedDate}</dd>
+              <dt>人工确认需求日期</dt><dd>{verification.demandEvidence.publishedDate}</dd>
               <dt>本人需求摘录</dt><dd className="candidate-verification-verbatim">{verification.demandEvidence.demandExcerpt}</dd>
               <dt>原文作者标记</dt><dd>{verification.demandEvidence.authorExcerpt}</dd>
               <dt>原文时间表示</dt><dd>{verification.demandEvidence.dateExcerpt}</dd>
@@ -223,16 +202,6 @@ function VerificationForm({
               此记录不能用作当前版本核验，请重新核对。
             </Notice>
           ) : null}
-          <details>
-            <summary>查看核验记录绑定</summary>
-            <dl className="candidate-verification-binding">
-              <dt>核验 ID</dt>
-              <dd>{verification.id}</dd>
-              <dt>原请求 ID</dt>
-              <dd>{verification.requestId}</dd>
-            </dl>
-            <BindingDetails binding={verification.binding} />
-          </details>
         </div>
       ) : null}
       <form

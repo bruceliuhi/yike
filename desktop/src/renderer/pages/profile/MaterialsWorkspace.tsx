@@ -192,18 +192,7 @@ function ScopedMaterialsWorkspace({api, profile, currentFields, onApply, localDr
       )}
       {request.historical.length > 0 && (
         <Notice tone="warning">
-          存在未绑定当前客户空间版本的旧资料操作。记录已保留；确认原请求归属和结果前，不会重新提交或在当前空间查询。
-          {request.historical.map((entry) => (
-            <details key={entry.requestId}>
-              <summary>查看原资料操作身份</summary>
-              <p>画像版本：{entry.profileVersionId}</p>
-              <p>空间：{entry.accountScope === "unbound" ? "旧记录未保存空间归属" : entry.accountScope ? `${entry.accountScope.id} · 版本 ${entry.accountScope.version}` : "原请求未提供空间身份"}</p>
-              <label>
-                原请求 ID（可复制）
-                <input readOnly aria-label="旧资料操作请求ID" value={entry.requestId} onFocus={event => event.currentTarget.select()} />
-              </label>
-            </details>
-          ))}
+          有 {request.historical.length} 项旧资料操作待核对，请联系支持。记录已保留，核对前不会重复提交。
           <Button variant="ghost" onClick={request.reloadStorage}>重新读取操作记录</Button>
         </Notice>
       )}

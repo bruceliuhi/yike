@@ -224,19 +224,17 @@ export function useTaskActions(runs: TaskRun[], onRun: (run: TaskRun) => void) {
     recovery: session.authenticated && !!records.length && (
       <section className="task-recovery" aria-label="任务操作核对">
         <h2>任务操作待确认</h2>
-        {records.map(
-          ({ key, binding }) =>
+        {[...records].sort((a,b)=>a.key.localeCompare(b.key)).map(
+          ({ key, binding },index) =>
             binding && (
               <div className="task-recovery-row" key={key}>
                 <div>
                   <strong>
-                    {runs.find((run) => run.id === binding.taskId)?.name ||
-                      `任务 ${binding.taskId}`}
+                    {runs.find((run) => run.id === binding.taskId)?.name || "待核对任务"}{records.length>1?` · 记录 ${index+1}`:''}
                   </strong>
                   <p className="field-hint">
                     {labels[binding.action]}结果待确认
                   </p>
-                  <p className="task-request-id">{binding.requestId}</p>
                 </div>
                 <Button
                   disabled={action.busy}

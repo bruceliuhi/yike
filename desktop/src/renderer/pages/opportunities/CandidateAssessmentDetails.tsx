@@ -86,7 +86,7 @@ export function CandidateAssessmentDetails({
               <ul className="candidate-assessment-citations">
                 {assessment[key].citations.map((citation, index) => (
                   <li key={`${citation.field}:${index}`}>
-                    <span className="muted" title={citation.field}>
+                    <span className="muted">
                       {citation.field.startsWith('author_updates.')?`作者回复 ${Number(citation.field.split('.')[1])+1}`:citationFields[citation.field as keyof typeof citationFields]}
                     </span>
                     <blockquote className="candidate-evidence-text">
@@ -130,29 +130,8 @@ export function CandidateAssessmentDetails({
           assessment.effectiveDecision === "EXCLUDE" ? "当前判断为排除，不建议联系，因此不展示联系草稿。" :
           "当前仅建议观察，先等待新的采购动作，再重新判断是否联系。"}
       </p>}
-      <details className="candidate-evidence-details">
-        <summary>判断元数据</summary>
+      <section aria-label="判断时间">
         <dl className="candidate-evidence-facts">
-          <div>
-            <dt>服务提供方</dt>
-            <dd>{assessment.provider}</dd>
-          </div>
-          <div>
-            <dt>模型</dt>
-            <dd>{assessment.model}</dd>
-          </div>
-          <div>
-            <dt>规则版本</dt>
-            <dd>{assessment.rule_version}</dd>
-          </div>
-          <div>
-            <dt>规则 SHA-256</dt>
-            <dd>{assessment.rule_sha256}</dd>
-          </div>
-          <div>
-            <dt>策略版本 ID</dt>
-            <dd>{assessment.strategyVersionId}</dd>
-          </div>
           <div>
             <dt>判断时间</dt>
             <dd>
@@ -161,28 +140,8 @@ export function CandidateAssessmentDetails({
               </time>
             </dd>
           </div>
-          <div>
-            <dt>判断 ID</dt>
-            <dd>{assessment.id}</dd>
-          </div>
-          <div>
-            <dt>候选修订</dt>
-            <dd>{assessment.candidateRevision}</dd>
-          </div>
-          <div>
-            <dt>来源版本 ID</dt>
-            <dd>{assessment.sourceVersionId}</dd>
-          </div>
-          <div>
-            <dt>画像版本 ID</dt>
-            <dd>{assessment.profileId}</dd>
-          </div>
-          <div>
-            <dt>画像版本号</dt>
-            <dd>{assessment.profileVersion}</dd>
-          </div>
         </dl>
-      </details>
+      </section>
     </section>
   );
 }

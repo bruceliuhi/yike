@@ -60,7 +60,8 @@ import { DesktopExecutionRequests } from "./tasks/DesktopExecutionRequests";
 import { DemandSettings, ResearchSettingsPanel } from "./tasks/ResearchSettings";
 import { useUsageQuote } from "./tasks/useUsageQuote";
 import { parseUsageQuote, usageQuoteCurrent, usageQuoteRequest, usageReservation } from "../domain/researchUsage";
-import { scheduleContractBlocker, schedulePolicyDescription, scheduleWindowLabel } from "../domain/schedule";
+import { scheduleContractBlocker, scheduleWindowLabel } from "../domain/schedule";
+import {taskAccountLabel, scheduleRegionLabel} from './tasks/taskDisplayLabels';
 import {useMonitorCollection} from './tasks/useMonitorCollection';
 import {monitorCreateCommand} from '../domain/monitorCollection';
 import { SearchSuggestionPanel } from "./tasks/SearchSuggestionPanel";
@@ -689,7 +690,7 @@ export function TaskWizardPage() {
                 className="horizontal-field"
                 hint={
                   selectedProfile
-                    ? `已确认版本 v${selectedProfile.version}`
+                    ? "已确认业务画像"
                     : "选择真实已确认画像，或先保存本机草稿。"
                 }
               >
@@ -1088,7 +1089,7 @@ export function TaskWizardPage() {
                           "UTC",
                         ]),
                       ].map((t) => (
-                        <option key={t}>{t}</option>
+                        <option key={t} value={t}>{scheduleRegionLabel(t)}</option>
                       ))}
                     </select>
                   </Field>
@@ -1096,9 +1097,7 @@ export function TaskWizardPage() {
                     {draft.schedule.kind === "interval" && (
                       <p className="field-hint">任务窗口：{scheduleWindowLabel(draft.schedule)}</p>
                     )}
-                    {schedulePolicyDescription(draft.schedule).map((line) => (
-                      <p className="field-hint" key={line}>{line}</p>
-                    ))}
+                    <p className="field-hint">离线错过的计划不补跑，恢复在线后从下次计划继续。</p>
                     {draft.schedule.policyVersion === undefined && (
                       <Button variant="ghost" onClick={() => update({
                         schedule: { ...draft.schedule, policyVersion: 1 },
@@ -1222,12 +1221,12 @@ export function TaskWizardPage() {
                             )
                             .map((c) => (
                               <option key={c.registration?.connectionId || c.accountId} value={c.accountId}>
-                                {c.accountName || c.accountId}
+                                {taskAccountLabel(c, connections.data || [])}
                               </option>
                             ))}
-                          {connections.data?.filter(c => c.platform === id && c.registration && !hasForegroundBinding(c)).map(c => (
+                          {connections.data?.filter(c => c.platform === id && c.registration && !hasForegroundBinding(c)).map((c) => (
                             <option key={c.registration!.connectionId} value={`registered:${c.registration!.connectionId}`} disabled>
-                              {c.accountName || c.accountId} · 设备 {c.registration!.deviceId.slice(0, 8)}（执行能力待核验）
+                              {taskAccountLabel(c, connections.data || [])}（当前不可用）
                             </option>
                           ))}
                         </select>
@@ -1317,7 +1316,7 @@ export function TaskWizardPage() {
                 setVerified(e.target.checked ? reviewKey : null)
               }
             />
-            我已核对以上画像版本、搜索条件、账号与运行设置
+            我已核对以上业务画像、搜索条件、账号与运行设置
           </label>}
           {action.error && <Notice tone="error">{action.error}</Notice>}
           {nativeMonitor && <Notice action={<Button onClick={()=>navigate('/monitors')}>查看监控任务与原请求</Button>}>

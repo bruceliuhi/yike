@@ -18,7 +18,7 @@ import type { StrategyReceipt, StrategyView } from "../../src/shared/researchStr
 let context: AppContextValue;
 let draft: TaskDraft & { executionLimits: { max_records: number; max_runtime_seconds: number } };
 let fake: ReturnType<typeof strategyServerFixture>;
-const CHECKBOX = "我已核对以上画像版本、搜索条件、账号与运行设置";
+const CHECKBOX = "我已核对以上业务画像、搜索条件、账号与运行设置";
 vi.mock("../../src/renderer/app/context", () => ({ useApp: () => context }));
 
 /** In-memory UI fixture, not live business, transport, source, or execution proof. */
@@ -111,7 +111,8 @@ async function prepareSnapshot() {
   await waitFor(() => expect(fake.api.prepare).toHaveBeenCalledOnce());
   await waitFor(() => expect(fake.api.getStrategy).toHaveBeenCalled());
   const receipt = fake.receipts.get(fake.api.prepare.mock.calls[0][0].request_id)!;
-  await waitFor(() => expect(document.body.textContent).toContain(receipt.strategy_version_id));
+  await screen.findByText('完整任务配置');
+  expect(document.body.textContent).not.toContain(receipt.strategy_version_id);
   return receipt;
 }
 async function confirmSnapshot() {
@@ -238,18 +239,16 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
     persistDraft();
     render(<TaskWizardPage />);
     const receipt = await prepareSnapshot();
-    const summary = screen.getByText("全部绑定配置");
+    const summary = screen.getByText("完整任务配置");
     fireEvent.click(summary);
     const details = summary.closest("details")!;
     expect(details).not.toBeNull();
     expect(details.querySelectorAll("input, textarea, select")).toHaveLength(0);
     const text = details.textContent!;
-    for (const value of [draft.id, draft.name, String(draft.revision), draft.profileId, receipt.strategy_version_id,
-      receipt.profile_sha256, receipt.configuration_sha256, "设备采购", "招聘", draft.links,
-      "211", "43", "17", "29", "SOURCE_MATCH_CONTEXT",
-      "08:13", "19:27", "2.5", "07:21", "22:49", "Asia/Shanghai", "37", "913", "research-strategy-v1",
-      receipt.request_id, receipt.recorded_at, receipt.state, "小红书"])
+    for (const value of [draft.name, "设备采购", "招聘", draft.links,
+      "211", "43", "17", "29", "08:13", "19:27", "2.5", "07:21", "22:49", "北京时间", "37", "913", "小红书"])
       expect(text, `missing bound preview value: ${value}`).toContain(value);
+    for(const value of [draft.id,draft.profileId,receipt.strategy_version_id,receipt.profile_sha256,receipt.configuration_sha256,'SOURCE_MATCH_CONTEXT','Asia/Shanghai','research-strategy-v1',receipt.request_id])expect(text).not.toContain(value);
     for (const demand of [/INQUIRY|询价|询盘/, /COMPARISON|比较|对比/, /REPLACEMENT|替换|替代|更换/, /CHANGE|变化|变更/])
       expect(text).toMatch(demand);
     expect(text).toMatch(/stopAtAnyLimit|任一.*上限|任一.*停止/);
@@ -287,7 +286,7 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
     const original = fake.api.prepare.mock.calls[0][0];
     fireEvent.click(button("查询原策略请求"));
     await waitFor(() => expect(fake.api.getReceipt).toHaveBeenCalledWith(original.request_id));
-    await waitFor(() => expect(document.body.textContent).toContain(fake.receipts.get(original.request_id)!.strategy_version_id));
+    await screen.findByText('完整任务配置');
     expect(fake.api.prepare).toHaveBeenCalledOnce();
     expect(fake.api.confirm).not.toHaveBeenCalled();
     expect(checkbox().checked).toBe(false);
@@ -350,7 +349,8 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
     const updated = fake.api.prepare.mock.calls[1][0];
     expect(updated.draft_revision).toBe(draft.revision + 1);
     expect(updated.configuration.name).toBe("修改后的合成策略");
-    await waitFor(() => expect(document.body.textContent).toContain(fake.receipts.get(updated.request_id)!.strategy_version_id));
+    await waitFor(() => expect(fake.receipts.has(updated.request_id)).toBe(true));
+    await screen.findByText('完整任务配置');
     expect(checkbox().checked).toBe(false);
     expect(button("确认本次策略").disabled).toBe(true);
     expect(fake.api.confirm).toHaveBeenCalledOnce();
@@ -394,7 +394,8 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
       max_records: 52, max_runtime_seconds: original.executionLimits.max_runtime_seconds,
       configuration: firstRequest.configuration, platforms: firstRequest.platforms });
     expect(nextRequest.request_id).not.toBe(firstRequest.request_id);
-    await waitFor(() => expect(document.body.textContent).toContain(fake.receipts.get(nextRequest.request_id)!.strategy_version_id));
+    await waitFor(() => expect(fake.receipts.has(nextRequest.request_id)).toBe(true));
+    await screen.findByText('完整任务配置');
     expect(checkbox().checked).toBe(false);
     expect(fake.api.confirm).toHaveBeenCalledOnce();
     expect(button("确认并启动").disabled).toBe(true);

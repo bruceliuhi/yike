@@ -42,7 +42,6 @@ export function OutreachQueue({ queue, onOpen }: { queue: Queue; onOpen?: (path:
             <dl className="detail-list"><div><dt>收件对象</dt><dd>{selected.recipientLabel || "待核对"}</dd></div><div><dt>渠道</dt><dd>{selected.channel === "comment" ? "评论" : "私信"}</dd></div></dl>
             <pre className="draft-preview">{selected.content || "暂无内容"}</pre>
             {selected.message && <Notice>{selected.message}</Notice>}
-            <details><summary>查看记录详情</summary><dl className="detail-list"><div><dt>记录编号</dt><dd>{selected.id}</dd></div><div><dt>草稿版本</dt><dd>{selected.version}</dd></div></dl></details>
             {selected.sample || selected.id === "sample" || selected.opportunityId === "sample" ? <Notice>样例记录仅供查看，不能进入客户发送流程。</Notice> : <Button onClick={() => (onOpen || navigate)("/outreach?opportunity=" + encodeURIComponent(selected.opportunityId) + "&channel=" + selected.channel)}>查看联系准备</Button>}
           </section> : <Empty title="选择一条触达记录" />}
         </div>}

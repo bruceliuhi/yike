@@ -67,7 +67,15 @@ it("describes public once and monitor snapshots as bounded recent-topic filterin
   render(<StrategySnapshotDetails receipt={receipt("once", false)} />);
   expect(screen.getByText("关键词搜索")).toBeTruthy();
   expect(screen.queryByText(/近期主题/)).toBeNull();
-  expect(screen.getByText(/非当前执行许可/)).toBeTruthy();
+  expect(screen.queryByText(/非当前执行许可/)).toBeNull();
+});
+it('removes internal identifiers, revisions and timezone codes even inside configuration details',()=>{
+ const value=receipt('monitor');
+ const {container}=render(<StrategySnapshotDetails receipt={value}/>);
+ expect(container.textContent).not.toMatch(/11111111|Asia\/Shanghai|版本|配置摘要|画像摘要|历史回执|原准备请求|v2ex-latest-v1/);
+ expect(container.textContent).toContain('09:00–18:00');
+ expect(container.textContent).toContain('10 条');
+ expect(container.textContent).toContain('600 秒');
 });
 it('shows bounded project sources, supported old-topic revisit and unread supplements',()=>{
  const value=receipt('once');value.snapshot.configuration.publicSource='v2ex-outsourcing-authors-v1';

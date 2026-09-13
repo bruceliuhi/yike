@@ -60,7 +60,7 @@ beforeEach(() => {
 afterEach(cleanup);
 async function review() {
   await waitFor(() => expect(execute).toHaveBeenCalledWith({action: 'LIST'}));
-  fireEvent.click(screen.getByRole('checkbox', {name: '我已核对以上画像版本、搜索条件、账号与运行设置'}));
+  fireEvent.click(screen.getByRole('checkbox', {name: '我已核对以上业务画像、搜索条件、账号与运行设置'}));
 }
 describe('original TaskWizard signed execution entry', () => {
   it('shows bounded public scope and refuses a changed device after explicit confirmation',async()=>{
@@ -80,15 +80,16 @@ describe('original TaskWizard signed execution entry', () => {
     const account={platform:'xhs' as const,status:'CONNECTED' as const,accountId:'account01',capabilities:['search'],
       registration:{connectionId,deviceId,version:2,connectedAt:'2026-09-10T00:00:00Z',disconnectedAt:null},
       foregroundBinding:{mode:'xhs-foreground-v1' as const,platform:'XIAOHONGSHU' as const,connectionId,connectionVersion:2,deviceId,accountPublicId:'account01'}};
-    vi.mocked(context.service.connections).mockResolvedValue([account, {...account,accountId:'account02',foregroundBinding:undefined,
-      registration:{...account.registration,connectionId:crypto.randomUUID()}}]);
+    vi.mocked(context.service.connections).mockResolvedValue([{...account,accountId:'account02',foregroundBinding:undefined,
+      registration:{...account.registration,connectionId:crypto.randomUUID()}},account]);
     sessionStorage.setItem('yike.ui.draft.v1.task.'+context.session.userId,JSON.stringify(draft));
     render(<TaskWizardPage />);
     const select=await screen.findByRole('combobox',{name:'小红书执行账号'});
-    const ready=await screen.findByRole('option',{name:/account01/}) as HTMLOptionElement;
+    const ready=await screen.findByRole('option',{name:'小红书账号2'}) as HTMLOptionElement;
     expect(ready.disabled).toBe(false);
     expect(ready.value).toBe('account01');
-    expect((screen.getByRole('option',{name:/account02/}) as HTMLOptionElement).disabled).toBe(true);
+    expect((screen.getByRole('option',{name:'小红书账号1（当前不可用）'}) as HTMLOptionElement).disabled).toBe(true);
+    expect(select.textContent).not.toMatch(/account01|account02/);
     fireEvent.change(select,{target:{value:'account01'}});
     expect(account.registration.connectionId).toBe(connectionId);
   });
@@ -105,7 +106,8 @@ describe('original TaskWizard signed execution entry', () => {
     await waitFor(() => expect(start.disabled).toBe(true));
     const originalId = requests[0].request_id;
     view.unmount(); render(<TaskWizardPage />);
-    await screen.findByText(originalId);
+    await screen.findByRole('button',{name:'查询原执行请求'});
+    expect(screen.queryByText(originalId)).toBeNull();
     fireEvent.click(screen.getByRole('button', {name: '查询原执行请求'}));
     await waitFor(() => expect(execute).toHaveBeenLastCalledWith({action: 'RECOVER', requestId: originalId}));
     expect(execute.mock.calls.filter(([value]) => value.action === 'START')).toHaveLength(1);

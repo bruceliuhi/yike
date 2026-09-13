@@ -88,7 +88,7 @@ afterEach(() => {
 async function submit() {
   fireEvent.click(
     screen.getByRole("checkbox", {
-      name: "我已核对以上画像版本、搜索条件、账号与运行设置",
+      name: "我已核对以上业务画像、搜索条件、账号与运行设置",
     }),
   );
   const button = screen.getByRole("button", {

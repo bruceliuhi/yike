@@ -160,7 +160,7 @@ describe("设备与授权", () => {
     const service = mount();
     await screen.findByText("0.2.0-test");
     expect(screen.getByText("macOS")).toBeTruthy();
-    expect(screen.getByText("尚未配置服务地址")).toBeTruthy();
+    expect(screen.queryByText(/配置服务地址|服务配置状态|支持与诊断/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "激活" }));
     expect(service.activate).not.toHaveBeenCalled();
     expect(screen.getByText("请输入授权码。")).toBeTruthy();
@@ -174,16 +174,19 @@ describe("设备与授权", () => {
       "synthetic-activation-code",
     );
   });
-  it("诊断仅含实际运行信息，不包含凭证或业务记录", async () => {
+  it("联系支持可复制白名单诊断，但页面不展示技术内容", async () => {
     const service = mount();
     await screen.findByText("0.2.0-test");
     fireEvent.change(screen.getByLabelText("授权码"), {
       target: { value: "private-code" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "查看脱敏诊断" }));
-    const content = (
-      screen.getByLabelText("脱敏诊断内容") as HTMLTextAreaElement
-    ).value;
+    expect(screen.queryByRole("button", { name: "查看脱敏诊断" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "联系支持" }));
+    expect(screen.queryByLabelText("脱敏诊断内容")).toBeNull();
+    expect(screen.queryByText(/serviceConfigured|connectionPreparation/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "复制诊断信息" }));
+    await waitFor(() => expect(service.copy).toHaveBeenCalledOnce());
+    const content = vi.mocked(service.copy).mock.calls[0][0];
     expect(JSON.parse(content)).toEqual({
       product: "意客AI",
       version: "0.2.0-test",
@@ -192,8 +195,6 @@ describe("设备与授权", () => {
     });
     expect(content).not.toContain("private-code");
     expect(content).not.toContain("test-user");
-    fireEvent.click(screen.getByRole("button", { name: "复制脱敏诊断" }));
-    await waitFor(() => expect(service.copy).toHaveBeenCalledWith(content));
   });
   it("退出需确认，成功后清除本机草稿", async () => {
     sessionStorage.setItem("yike.ui.draft.v1.test", "draft-only");

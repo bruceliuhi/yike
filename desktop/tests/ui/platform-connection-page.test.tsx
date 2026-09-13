@@ -80,19 +80,35 @@ it('LOGIN_READY is only a prompt for explicit CHECK, never connection success',a
  fireEvent.click(screen.getByRole('button',{name:'我已完成登录，检查连接'}));await act(async()=>{});
  expect(context.service.checkConnection).toHaveBeenCalledTimes(1);
 });
-it('expired CHECK clears stale login readiness until an explicit new OPEN',async()=>{
+it('expired CHECK clears stale readiness but permits an explicit silent recheck',async()=>{
  context.service.connectionLoginStatus=vi.fn().mockResolvedValue('LOGIN_READY');
  vi.mocked(context.service.checkConnection).mockRejectedValue(new ServiceError('LOGIN_EXPIRED','登录等待已过期，请重新打开平台登录窗口。'));
  render(<ConnectionsPage />);await act(async()=>{});
  fireEvent.click(screen.getByRole('button',{name:'打开登录窗口'}));await screen.findByText('登录已完成，待检查连接');
  fireEvent.click(screen.getByRole('button',{name:'我已完成登录，检查连接'}));
  await screen.findByText('登录等待已过期，请重新打开平台登录窗口。');
- expect((screen.getByRole('button',{name:'我已完成登录，检查连接'}) as HTMLButtonElement).disabled).toBe(true);
+ expect((screen.getByRole('button',{name:'我已完成登录，检查连接'}) as HTMLButtonElement).disabled).toBe(false);
  expect(screen.queryByText('请本人点击“我已完成登录，检查连接”，完成当前账号连接核验。')).toBeNull();
  expect(context.service.connect).toHaveBeenCalledTimes(1);
- fireEvent.click(screen.getByRole('button',{name:'打开登录窗口'}));await screen.findByText('登录已完成，待检查连接');
+ vi.mocked(context.service.checkConnection).mockResolvedValue({platform:'xhs',status:'CONNECTED',capabilities:[]});
+ fireEvent.click(screen.getByRole('button',{name:'我已完成登录，检查连接'}));await screen.findByText('账号已连接');
+ expect(context.service.connect).toHaveBeenCalledTimes(1);expect(context.service.checkConnection).toHaveBeenCalledTimes(2);
+});
+it('expired STATUS leaves CHECK available without automatically refreshing the local login',async()=>{
+ context.service.connectionLoginStatus=vi.fn().mockRejectedValue(new ServiceError('LOGIN_EXPIRED','登录状态需要更新，请检查连接。'));
+ render(<ConnectionsPage />);await act(async()=>{});
+ fireEvent.click(screen.getByRole('button',{name:'打开登录窗口'}));await screen.findByText('登录状态需要更新，请检查连接。');
  expect((screen.getByRole('button',{name:'我已完成登录，检查连接'}) as HTMLButtonElement).disabled).toBe(false);
- expect(context.service.checkConnection).toHaveBeenCalledTimes(1);
+ expect(context.service.checkConnection).not.toHaveBeenCalled();expect(context.service.connect).toHaveBeenCalledTimes(1);
+});
+it('a genuinely invalid saved platform login requires explicit login instead of stale CHECK',async()=>{
+ context.service.connectionLoginStatus=vi.fn().mockResolvedValue('LOGIN_READY');
+ vi.mocked(context.service.checkConnection).mockRejectedValue(new ServiceError('PLATFORM_AUTH_REQUIRED','平台登录已失效，请重新登录。'));
+ render(<ConnectionsPage />);await act(async()=>{});
+ fireEvent.click(screen.getByRole('button',{name:'打开登录窗口'}));await screen.findByText('登录已完成，待检查连接');
+ fireEvent.click(screen.getByRole('button',{name:'我已完成登录，检查连接'}));await screen.findByText('平台登录已失效，请重新登录。');
+ expect((screen.getByRole('button',{name:'我已完成登录，检查连接'}) as HTMLButtonElement).disabled).toBe(true);
+ expect(screen.queryByText('请本人点击“我已完成登录，检查连接”，完成当前账号连接核验。')).toBeNull();
 });
 it('bounds a hanging status without overlapping requests and ignores its late success',async()=>{
  vi.useFakeTimers();let finish!:(value:'LOGIN_READY')=>void;

@@ -16,8 +16,8 @@ it('shows author time window and shared source allowance before confirmation',()
   render(<ResearchSettingsPanel value={value} onChange={onChange} quote={null} busy={false} error="" onEstimate={vi.fn()} onCancel={vi.fn()}/>);
   fireEvent.change(screen.getByRole('spinbutton',{name:'需求时间窗口（天）'}),{target:{value:'30'}});
   expect(onChange).toHaveBeenCalledWith({...value,dynamicScope:{...value.dynamicScope,maxAgeDays:30}});
-  expect(screen.getByText(/搜索和读取共用来源上限/)).toBeTruthy();
-  expect(screen.getByText(/最多20次模型调用/)).toBeTruthy();
+  expect(screen.getByLabelText('搜索与读取合计上限',{selector:'input'})).toBeTruthy();
+  expect(screen.queryByText(/最多20次模型调用/)).toBeNull();
 });
 it('offers dynamic server research without a fabricated local source binding',()=>{
   const onChange=vi.fn();

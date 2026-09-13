@@ -39,7 +39,7 @@ export function StrategyConfirmationPanel({ strategy, reviewed, onReviewedChange
     <label className="check-row">
       <input type="checkbox" checked={reviewed} disabled={locked || !current}
         onChange={event => onReviewedChange(event.target.checked)} />
-      我已核对以上画像版本、搜索条件、账号与运行设置
+      我已核对以上业务画像、搜索条件、账号与运行设置
     </label>
     <div className="strategy-actions">
       <Button disabled={locked || strategy.pending || !!preparationError} onClick={() => void strategy.prepare()}>

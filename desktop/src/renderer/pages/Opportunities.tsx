@@ -2237,7 +2237,6 @@ function CandidateWorkbench() {
                             <option value="">选择已确认画像</option>
                             {confirmedProfiles.map((profile) => (
                               <option key={profile.id} value={profile.id}>
-                                版本 {profile.version} ·{" "}
                                 {profile.businessName || profile.fields.service || "业务画像"}
                               </option>
                             ))}
@@ -2329,8 +2328,7 @@ function CandidateWorkbench() {
                         {editor?.assessment &&
                           selected.status === "PENDING_REVIEW" && (
                             <p className="field-hint">
-                              判断建议 · 画像版本{" "}
-                              {editor.assessment.profileVersion} ·{" "}
+                              判断建议 ·{" "}
                               {formatDate(editor.assessment.assessedAt)} ·
                               待人工校对
                             </p>
@@ -2563,16 +2561,6 @@ function CandidateWorkbench() {
           {confirmation.rows.map((row, index) => (
             <section key={row.id}>
               <h3>{row.title}</h3>
-              <p className="muted">
-                画像版本 {confirmation.reviews[index].profileVersion} · 来源版本{" "}
-                {row.sourceVersionId}
-              </p>
-              {confirmation.reviews[index].sourceVerificationId && (
-                <p className="muted">
-                  本次来源核验 ID：
-                  {confirmation.reviews[index].sourceVerificationId}
-                </p>
-              )}
               <dl className="detail-list">
                 {(
                   Object.keys(

@@ -106,7 +106,7 @@ export function NativeSendConfirmation({row,draft,connection,onClose,fingerprint
     {!ledger.record && <label className="checkbox-label"><input type="checkbox" checked={checked&&!changed} disabled={!prepared||busy||changed||blocked} onChange={e=>setChecked(e.target.checked)}/>我已核对联系对象、发送账号和内容</label>}
     {changed?<Notice tone="warning">内容、连接或身份已变化，原操作已停止，请返回重新核对；未决记录仍保留。</Notice>:blocked?<Notice tone="warning">请先登录，保存完整草稿，并选择与商机匹配的已连接小红书账号。</Notice>:null}
     {ledger.record?.state==='SENT' && <Notice>此版本已确认发送；不能重复首联，修改草稿不会解除保护。</Notice>}
-    {ledger.record?.state==='PENDING' && <><Notice tone="warning">原请求待核对。关闭或修改草稿不会解除发送保护。</Notice><details><summary>记录详情</summary><p className="muted text-small">原请求编号：{ledger.record.binding.requestId}</p></details><div className="inline-actions"><Button disabled={busy||changed} onClick={()=>void recover('RECONCILE')}>核对原发送结果</Button><Button disabled={busy||changed} onClick={()=>void recover('RESUME_RESULT')}>补报原发送结果</Button>{queued&&<Button disabled={busy||changed} onClick={()=>void recover('CANCEL_QUEUED')}>取消原排队请求</Button>}</div></>}
+    {ledger.record?.state==='PENDING' && <><Notice tone="warning">原请求待核对。关闭或修改草稿不会解除发送保护。</Notice><div className="inline-actions"><Button disabled={busy||changed} onClick={()=>void recover('RECONCILE')}>核对原发送结果</Button><Button disabled={busy||changed} onClick={()=>void recover('RESUME_RESULT')}>补报原发送结果</Button>{queued&&<Button disabled={busy||changed} onClick={()=>void recover('CANCEL_QUEUED')}>取消原排队请求</Button>}</div></>}
     {message&&!changed&&<Notice>{message}</Notice>}{(error||ledger.error)&&<Notice tone="error">{error||ledger.error}</Notice>}
   </Modal>;
 }
