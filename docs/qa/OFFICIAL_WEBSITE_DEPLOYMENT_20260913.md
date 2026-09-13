@@ -10,8 +10,8 @@
 ## 发布版本
 
 - Gitee：`yike-ai2026/main`
-- 源码提交：`7c5db83918a7e541c06c6c7c884fd6f5097e7859`
-- 发布目录：`/www/wwwroot/www.tuokexing.net/releases/7c5db83918a7e541c06c6c7c884fd6f5097e7859`
+- 源码提交：`b7b956e0a6313de128c6dcb866b1c1cfab732e57`
+- 发布目录：`/www/wwwroot/www.tuokexing.net/releases/b7b956e0a6313de128c6dcb866b1c1cfab732e57`
 - 当前软链：`/www/wwwroot/www.tuokexing.net/current`
 - 站点类型：独立静态站点，不占用 `yike.tuokexing.net` 的应用和运营后台配置。
 
@@ -36,4 +36,4 @@
 - `/roadmap/`
 - `/contact/`
 
-官网首页已包含：目标客户与使用场景、商机工作台与客户情报 CRM、发现/判断/触达/经营四步链路、机会证据样例、平台连接说明及 7 天试点入口。示例机会明确标注为示例，不代表客户业绩。
+官网首页已包含：目标客户与使用场景、商机工作台与客户情报 CRM、发现/判断/触达/经营四步链路、机会证据样例、平台连接说明及 7 天试点入口。首屏、商机工作台和客户情报 CRM 已加入统一风格的产品插图，多平台信号区增加信号汇聚视觉。示例机会明确标注为示例，不代表客户业绩。
