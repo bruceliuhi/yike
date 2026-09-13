@@ -159,6 +159,12 @@ def citation_fragments(text):
 
 ## Task 2：研究原文只读回查（唯一前端补口）
 
+### 统一交付前置检查（2026-09-13）
+
+Docker 源码复制布局未携带 `research_context` 所需的四份规则；wheel 的 force-include 不适用于当前 `--no-install-project` 镜像。补两条 COPY，不改变规则内容、默认研究开关、可选 MCP 依赖、权限或收费参数。既有 COPY 布局隔离 Python 检查先以 `research_rules_unavailable` 失败，修复后 `tests/test_deploy_contracts.py` 4 passed / 1.23s，并校验打包规则逐字节一致。这不是实际镜像构建或云端研究可用证明；Linux Codex/MCP 运行环境及完整已批准配置仍须交付验证。
+
+本机对已批准服务器 `101.200.137.138` 的只读 SSH 检查返回 `Permission denied (publickey)`；详细诊断确认本地 `id_ed25519` 存在且已提供，服务器拒绝该公钥。未修改授权或生产服务，不能据仓库部署记录断言当前线上版本。恢复服务器授权后继续统一部署与真实任务验收，不重复已通过的同字节本地测试。
+
 **Files:** 后端 `pilot/research_runtime.py`（委托dynamic）、`pilot/dynamic_research_runtime.py`（只读方法）、`pilot/research_execution_api.py`（GET）；客户端 `desktop/src/shared/researchRuntime.ts`、`desktop/src/shared/contracts.ts`、`desktop/src/main/servicePolicy.ts`、`desktop/src/renderer/services/researchRuntime.ts`、`desktop/src/renderer/pages/tasks/ResearchProgress.tsx`，新增同目录 `ResearchReadEvidence.tsx`。对应API/PG和desktop现有定向测试；必要时新建独立测试文件以免碰citation实现者文件。不改tools/worker/context/引用选择器，不改既有schema或DB迁移。
 
 **Interfaces:** 按spec末尾固定GET/JSON；后端`reads(claims,task_id,*,run_id,after=0,limit=5)`，fixed仅委托已配置dynamic否则501。客户端可选`reads(taskId,runId,after?,signal?)`接口保留旧fixture兼容；服务调用必须校验响应taskId/runId、序号递增/唯一、分页前进、来源URL与字符串范围、严格DTO。IPC操作`researchRuntime.reads`仍使用主进程固定路径，不接收自由URL。
