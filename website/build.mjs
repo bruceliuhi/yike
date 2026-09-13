@@ -39,7 +39,7 @@ const pages = {
     path: '/features/',
     title: '能力全景｜意客 AI 获客、证据与跟进',
     description: '查看意客 AI 的业务画像、多平台研究、证据复核、监控、触达、客户情报和企业交付能力，以及各能力状态。',
-    heading: '从信息捕获到客户跟进，一条完整的增长链。',
+    heading: '把公开需求，变成销售今天能跟进的机会。',
   },
   scenarios: {
     path: '/scenarios/',
@@ -83,7 +83,7 @@ const fallback = {
   home: `<section class="seo-fallback"><p>意客 AI · 全网智能获客</p><h1>客户还没开口，意客 AI 先发现。</h1><p>意客 AI 从已授权平台与可访问公开来源发现正在发生的需求，整理成带原文证据、匹配理由和下一步动作的销售机会。</p><p><a href="/products/workbench/">了解商机工作台</a>　<a href="/products/crm/">了解客户情报 CRM</a>　<a href="/contact/">申请试用</a></p><h2>核心能力</h2><ul><li>业务画像与搜索条件</li><li>小红书、抖音、B站、知乎等授权平台与公开网页研究</li><li>原文证据、匹配理由、人工复核</li><li>评论与私信草稿、回复记录和客户情报 CRM</li></ul></section>`,
   'products-workbench': `<section class="seo-fallback"><p>意客 AI · 商机工作台</p><h1>商机工作台：从公开信号到可跟进机会。</h1><p>围绕业务画像研究已授权平台与可访问公开来源，保存原文证据、匹配理由、人工复核和跟进动作。</p><h2>适合需要主动获客的企业销售团队</h2><p>支持业务画像、搜索条件、线索采集、监控任务、机会库、原文证据、联系准备和跟进记录。</p></section>`,
   'products-crm': `<section class="seo-fallback"><p>意客 AI · 客户情报 CRM</p><h1>客户情报 CRM：让每一次销售跟进都有下一步。</h1><p>组织公司、联系人、商机、活动、客户情报和 AI 草稿，让销售团队围绕同一份事实协作。</p><h2>从线索进入，到客户持续经营</h2><p>支持线索导入、联系人、销售管道、客户情报证据账本、活动、待办和审计记录。</p></section>`,
-  features: `<section class="seo-fallback"><p>意客 AI · 能力全景</p><h1>从信息捕获到客户跟进，一条完整的增长链。</h1><p>业务画像、多平台研究、证据复核、监控、触达、客户情报和企业交付能力按状态说明。</p><h2>AI 负责理解和推进，人负责确认和决策。</h2></section>`,
+  features: `<section class="seo-fallback"><p>意客 AI · 能力全景</p><h1>把公开需求，变成销售今天能跟进的机会。</h1><p>意客 AI 用业务画像、授权平台研究、原文证据和人工确认，把发现需求、判断价值、准备联系和持续跟进放进同一套工作流。</p><h2>AI 负责理解和推进，人负责确认和决策。</h2></section>`,
   scenarios: `<section class="seo-fallback"><p>意客 AI · 适用场景</p><h1>不同的销售场景，先解决同一个问题。</h1><p>方案型销售、销售负责人、顾问与专业服务团队，都可以从公开需求信号开始建立一条可复核的跟进链路。</p><h2>先看见需求，再决定是否值得联系</h2></section>`,
   download: `<section class="seo-fallback"><p>意客 AI · 下载与试用</p><h1>先用真实业务，判断它值不值得留下。</h1><p>商机工作台提供桌面客户端体验，客户情报 CRM 提供网页产品体验；安装包和授权按版本与连接状态提供。</p></section>`,
   roadmap: `<section class="seo-fallback"><p>意客 AI · 产品路线</p><h1>从一条证据链开始，让每一次跟进都有依据。</h1><p>当前可体验能力、企业方案和持续演进方向分别说明，不把规划能力当成现有交付。</p></section>`,
