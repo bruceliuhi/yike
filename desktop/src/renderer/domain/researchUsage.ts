@@ -206,7 +206,6 @@ export function parseUsageQuote(
   )
     throw new Error("估算与当前账户、任务或用量上限不一致，请重新估算。");
   if (
-    Date.parse(quote.generatedAt) > now ||
     Date.parse(quote.expiresAt) <= now ||
     Date.parse(quote.generatedAt) >= Date.parse(quote.expiresAt)
   )

@@ -207,6 +207,16 @@ describe("R4 usage bindings and recovered start protection", () => {
       ),
     ).toThrow(/账户/);
   });
+  it("accepts a signed quote whose server clock is ahead while its expiry is still valid", async () => {
+    const input = usageQuoteRequest(
+      draft,
+      context.session,
+      await configurationHash(draft),
+    );
+    const generatedAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.parse(generatedAt) + 5 * 60 * 1000).toISOString();
+    expect(parseUsageQuote({ ...quoteFor(input), generatedAt, expiresAt }, input).expiresAt).toBe(expiresAt);
+  });
   it("preserves in-progress blank and invalid limits without erasing the task", () => {
     const { result } = renderHook(() =>
       useTaskDraft(
