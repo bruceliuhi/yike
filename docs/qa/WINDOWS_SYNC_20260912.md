@@ -1,6 +1,6 @@
 # Windows 最新主干接续（2026-09-12）
 
-## 自动连接准备候选 3ffddbd 已构包，尚未覆盖安装（2026-09-13）
+## 自动连接准备候选 3ffddbd 已安装，自动准备与重启通过（2026-09-13）
 
 用户明确同意“后台自动处理、前台隐藏”。`3ffddbd17430e858dc58bfa1ba703df0f1910a95` 已推 main：产品登录确认后自动准备设备，重启复用登记/密钥；正常设置页隐藏手动身份核验，异常在当前平台弹窗内直接重试。账号变化、撤销、密钥异常、未知回执和执行前授权保持失败关闭。详情及独立 GO 见[本批计划](../superpowers/plans/2026-09-13-automatic-device-preparation.md)。
 
@@ -8,8 +8,9 @@
 - 固定 LF 工作树 `.worktrees/win-auto-device`；Forge make 退出 0，639 项源码前后摘要一致 `504afe443e868805dacf9deb7ed680282c06e43dd6684577d5e2f0b20e57f621`。ASAR 39 项 renderer 资源及正式 HTTPS 地址通过，ASAR SHA256 `098ef7a5873b9b5aa63e5b6ba387b54796b4b6e33844cf37410b71976cbd37ba`。
 - 安装包 `C:/yka0913/make/squirrel.windows/x64/YikeAI-Setup.exe`，642873856 字节，SHA256 `ce9c5126e07ffa8f4392131eec1a49873a6b4ff8aef62721be7a4ce6853b45f0`，仍 **NotSigned**。payload 清单 SHA256 `36f636e694ba4329109d521a9dd188be22965787846e6d3a70806c932a8ab1d2`，实际生成/搬迁验证 1 passed / 0 skipped，132.73 秒（`.runtime/portable-auto-device-verified.xml`）。
 - 打包前环境失败如实保留：旧虚拟环境中文 editable 路径解码失败/无 pytest，首次 Git 输入硬链接拒绝，旧运行目录与当前治理摘要不匹配。改用明确的现有测试依赖、单链接 Git/bin 和匹配的 `windows-runtime-7599e93` 后通过；没有修改运行环境治理或放宽校验。Forge 既有 Vite 兼容/弃用警告仍保留。
-- **尚未安装**：Computer Use 正常退出旧版时两次 `failed to activate captured window`；安装前进程检查阻止了 Setup 启动，没有强制终止。已核实安装态仍是 e1bee5a 的 ASAR `94b704…`、PID23172（08:23 启动），账号仍已登录。本批尚无真实自动准备/重启/平台连接验收，不将构包成功写成用户已升级。
-- 下一步：用户关闭现有安装版意客AI后，直接使用这份候选升级并验收；不要再次构包。服务端仍已验证的 e1bee5a，本批没有后端/API/Python 改动，无需重新部署服务器。
+- 先前 Computer Use 两次无法激活旧窗口，安装前检查曾阻止 Setup，未强制终止；用户回复“已关闭”后确认旧 PID23172 已退出。复核同一安装器摘要后正常升级，Setup PID26576 **exit 0**，09:30:16 新进程 PID9364；实际安装 ASAR 与 payload 清单均匹配上述候选，未清空用户数据、未重复构包。
+- 原生 Computer Use 实测：账号保持已登录，设置页无手动身份核验按钮；脱敏诊断 `connectionPreparation=READY`。小红书连接弹窗正常进入，“打开登录窗口”可用，无设备勾选/设备信息输入。随后正常 Alt+F4 退出，确认无 YikeAI 进程，再启动同一安装版（09:32:31 / PID9804）：账号及 AI软件定制、目标企业、全国线上交付的已确认版本1画像完整保留，诊断再次 READY。没有代操作平台认证、启动采集或发送。
+- 本批已验证的是升级、后台自动准备、重启恢复与平台入口，不是平台账号 CONNECTED 或真实业务闭环。下一步继续正式平台账号检查、真实采集→原文→判断→确认联系→跟进；签名及客户验收仍待完成。服务端仍已验证的 e1bee5a，本批没有后端/API/Python 改动，无需重新部署服务器。
 
 ## e1bee5a 已构包并覆盖安装（2026-09-13 08:23）
 
