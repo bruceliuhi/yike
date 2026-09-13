@@ -76,11 +76,23 @@ export function useDesktopExecution(prepared: StrategyReceipt | null) {
       return api!.execute(command);
     }, {timeoutMessage: '执行等待超时，原请求已保留，请核对原请求。'}));
   };
+  const listCall = async (action: 'LIST' | 'RESEARCH_LIST') => {
+    let result = await call({action});
+    // A concurrent identity check can reject a read before it starts. Only
+    // explicit BUSY list responses are retried; mutations keep their original path.
+    for (const delay of [250, 500, 1000]) {
+      if (result.state !== 'BUSY') return result;
+      await new Promise<void>(resolve => setTimeout(resolve, delay));
+      if (!scope.current()) throw new Error();
+      result = await call({action});
+    }
+    return result;
+  };
   const refresh = () => run(async () => {
     show({loaded: false});
-    const ordinary=await Promise.resolve().then(()=>call({action:'LIST'})).then(value=>({status:'fulfilled' as const,value}),reason=>({status:'rejected' as const,reason}));
+    const ordinary=await Promise.resolve().then(()=>listCall('LIST')).then(value=>({status:'fulfilled' as const,value}),reason=>({status:'rejected' as const,reason}));
     const research=api?.researchContractVersion===1
-      ?await Promise.resolve().then(()=>call({action:'RESEARCH_LIST'})).then(value=>({status:'fulfilled' as const,value}),reason=>({status:'rejected' as const,reason}))
+      ?await Promise.resolve().then(()=>listCall('RESEARCH_LIST')).then(value=>({status:'fulfilled' as const,value}),reason=>({status:'rejected' as const,reason}))
       :null;
     if (!scope.current()) return;
     const entries = new Map(latest.current.entries.map(entry => [entry.requestId, entry]));
