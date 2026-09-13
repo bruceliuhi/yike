@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+2026-09-13 服务器隔离探针：研究候选经docker save/load载入已授权服务器（session8631 exit0），内容ID `sha256:68959061b1538e1a7e9963aba94cb9e55710b1d0e3b691cdc603e3eb199c2d13`，revision标签0b80fe9，不能误用本机manifest-list摘要。实际两容器UID10001、network none、只读根、client只读任务目录挂载，经已实现TaskSocketRelay完成固定HTTP探针（49531 exit0，cross_container_readonly_uds_relay_ok）。脚本 `/tmp/yike-linux-socket-smoke.py` SHA256 c368bba2794d831d68cc0484fca0d5b42bc5643b169fea1baa207f258f6027a9；没有模型/客户数据/真实需求。结束只清理本次唯一命名临时容器和socket目录，复查无残留，原app healthy。未启用broker服务、未验证真实broker启动/期限/崩溃回收、未切换生产研究；下一步完成这些剩余部署门禁。
+
 2026-09-13 统一候选构包：源码0b80fe9，服务镜像 `yike-ai2026:0b80fe9-trial` 摘要 `sha256:071d4d66f3e75f83d4df76c62b96ef89e59f243ce3348abf642ecfb67621526d`；研究镜像 `yike-research:0.153.4-0b80fe9` 摘要 `sha256:d62253eaf72d1fb5dccb31d4b6f4513ba8c718e63de909d371ea49c2a14dec7f`。构建session46861/97785均exit0。本机Docker Linux amd64非root10001、只读、无网络、cap-drop/512MiB/PID64下，服务动态模块导入通过（49955）；按研究摘要启动，Codex0.153.4、MCP/入口导入和非法manifest安静拒绝通过（55828）。SSH只读确认目标服务器x86_64、意客原服务运行、空间剩约24GB。未上传/切换生产，未验服务器跨容器UDS或broker真实Docker生命周期，未调用模型或读取客户数据；下一步复用此候选做Linux部署隔离/回收验收，不能写成客户研究成功。
 
 2026-09-13 隔离配置与动态运行接线：显式 BROKER_SOCKET/TASKS_ROOT 成对配置，与宿主 binary 配置互斥；无宿主可执行文件也可装配无特权 BrokerClient。租户身份来自同一数据库选举事务，task/run/generation 由后端绑定，客户端不能指定执行身份。独立审核发现取消会覆盖 broker 未确认停止，新增两项 RED 复现后优先保留 broker_stop_unknown/broker_stream_unknown；协调器 STOPPED 不表示物理容器已停止。新装配/身份/取消检查及旧配置回归共32通过/0.83秒。尚未启用生产配置、构建包含这些模块的新镜像或完成真实 Docker/模型路径验收；下一步统一镜像与 Linux 权限/回收验收，不重复构建旧候选。
