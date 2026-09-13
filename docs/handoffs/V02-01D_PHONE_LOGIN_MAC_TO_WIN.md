@@ -14,7 +14,7 @@
 | session.loginPhone | POST /api/ui/auth/sms-session | `{phone,code,trial_code?}` → `{authenticated:true,user_id}`＋安全Cookie |
 | session.get / session.logout | 既有GET/DELETE /api/ui/session | 复用服务端身份和撤销，不靠客户端布尔值登录 |
 
-phone为11位ASCII国内号码，code为6位ASCII数字；客户端不能提交user_id/tenant_id/URL/任意请求头。非空trial_code明确501，本轮不自动注册、开通权益或消费试用码。
+phone为11位ASCII国内号码，code为6位ASCII数字；首次试用激活时 `trial_code` 为运营发放的 8 位大写字母数字码，客户端不能提交user_id/tenant_id/URL/任意请求头。已激活客户后续登录不带 trial_code；旧长码仅用于过渡兼容，运营重发统一生成 8 位码。
 
 验证码请求响应仅说明受理，不证明号码已开通或短信送达；未知号码相同响应但不外发。发送为短事务预留→事务外单次供应商调用→短事务确认。明确接收、拒绝、未知分开；异常不重试，冷却不返还。仅当前ACCEPTED且未过期/未消费的码可登录。
 

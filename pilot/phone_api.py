@@ -27,7 +27,8 @@ class CodeInput(BaseModel):
 
 class PhoneSessionInput(CodeInput):
     code: str = Field(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")
-    trial_code: str | None = Field(default=None, max_length=128)
+    trial_code: str | None = Field(default=None, min_length=8, max_length=128,
+                                   pattern=r"^(?:[A-Z0-9]{8}|YK-[A-Za-z0-9_-]{32,})$")
 
 
 def _unavailable():

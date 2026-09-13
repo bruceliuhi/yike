@@ -121,8 +121,10 @@ def build_runtime_app(
     if sms_sender is not None and not phone_secret:
         raise RuntimeError('phone_auth_configuration_required')
     phone_auth = TrialPhoneAuthStore(database,phone_secret.encode()) if phone_secret else None
-    from pilot.access_auth import AccessAuthStore
-    access_auth = AccessAuthStore(database,phone_secret.encode()) if phone_secret else None
+    # Trial activation has one customer path: phone + SMS OTP + the
+    # operator-issued trial code. Keep legacy access-code rows readable for
+    # historical data, but never assemble the bypass into the customer app.
+    access_auth = None
     strategies = ResearchStrategyStore(database)
     runtime = ExecutionRuntime(database, strategy_resolver=strategies.resolve,
                                capability_check=configured_collection_policy(environment))

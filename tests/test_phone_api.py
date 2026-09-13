@@ -135,7 +135,7 @@ def test_phone_routes_preserve_https_and_origin(path, payload):
 def test_trial_code_is_not_silently_accepted_or_consumed():
     auth = PhoneFixture()
     response = client_for(auth, SenderFixture()).post("/api/ui/auth/sms-session",
-        json={"phone": PHONE, "code": CODE, "trial_code": "synthetic-invitation"})
+        json={"phone": PHONE, "code": CODE, "trial_code": "ABCDEFGH"})
     assert response.status_code == 501
     assert not auth.calls
     assert "set-cookie" not in response.headers

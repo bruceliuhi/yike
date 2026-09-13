@@ -7,13 +7,6 @@ import os
 import re
 from collections.abc import Mapping
 
-from alibabacloud_dysmsapi20170525.client import Client as AliyunClient
-from alibabacloud_dysmsapi20170525.models import SendSmsRequest
-from alibabacloud_tea_openapi.models import Config
-from alibabacloud_tea_util.models import RuntimeOptions
-from darabonba.policy.retry import RetryOptions
-
-
 _ENDPOINT = "dysmsapi.aliyuncs.com"
 _PHONE_PATTERN = re.compile(r"1[0-9]{10}\Z", re.ASCII)
 _CODE_PATTERN = re.compile(r"[0-9]{6}\Z", re.ASCII)
@@ -70,6 +63,17 @@ class AliyunSmsSender:
         template_code: str,
         code_parameter: str,
     ) -> None:
+        # Keep the provider SDK optional for ordinary customer runtimes. It
+        # is imported only when the deployment explicitly enables Aliyun SMS;
+        # missing SDK/configuration must remain the documented 501 path.
+        try:
+            from alibabacloud_dysmsapi20170525.client import Client as AliyunClient
+            from alibabacloud_dysmsapi20170525.models import SendSmsRequest
+            from alibabacloud_tea_openapi.models import Config
+            from alibabacloud_tea_util.models import RuntimeOptions
+            from darabonba.policy.retry import RetryOptions
+        except ImportError:
+            raise SmsConfigurationError("SMS provider SDK is unavailable") from None
         _reject_sdk_debug(os.environ.get("DEBUG"))
         values = (access_key_id, access_key_secret, sign_name, template_code, code_parameter)
         if any(not isinstance(value, str) or not value for value in values):
@@ -116,6 +120,8 @@ class AliyunSmsSender:
         return "AliyunSmsSender(configured=True)"
 
     def send_code(self, phone: str, code: str) -> bool:
+        from alibabacloud_dysmsapi20170525.models import SendSmsRequest
+
         _reject_sdk_debug(os.environ.get("DEBUG"))
         if not isinstance(phone, str) or _PHONE_PATTERN.fullmatch(phone) is None:
             raise ValueError("invalid SMS phone number")

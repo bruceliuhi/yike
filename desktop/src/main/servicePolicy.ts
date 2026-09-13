@@ -45,7 +45,7 @@ const schemas = {
   'session.login': z.object({token: z.string().min(1).max(8192)}).strict(),
   'session.logout': empty,
   'session.requestCode': z.object({phone}).strict(),
-  'session.loginPhone': z.object({phone, code: z.string().length(6).regex(/^[0-9]{6}$/), trial_code: z.string().max(128).optional()}).strict(),
+  'session.loginPhone': z.object({phone, code: z.string().length(6).regex(/^[0-9]{6}$/), trial_code: z.string().max(128).regex(/^(?:[A-Z0-9]{8}|YK-[A-Za-z0-9_-]{32,})$/).optional()}).strict(),
   'session.loginAccess': z.object({access_code:z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/)}).strict(),
   'profiles.list': empty,
   'connections.list': empty,

@@ -1,7 +1,17 @@
 """SMS entitlement activation remains AFTER phone OTP verification."""
 import hmac
+import re
 
 from pilot.phone_auth import PhoneAuthError, PhoneAuthStore
+
+
+_NEW_TRIAL_CODE = re.compile(r'^[A-Z0-9]{8}$')
+_LEGACY_TRIAL_CODE = re.compile(r'^YK-[A-Za-z0-9_-]{32,}$')
+
+
+def valid_trial_code(value: str) -> bool:
+    """Accept current eight-character codes and already-issued legacy codes."""
+    return bool(_NEW_TRIAL_CODE.fullmatch(value) or _LEGACY_TRIAL_CODE.fullmatch(value))
 
 
 class TrialPhoneAuthStore(PhoneAuthStore):
@@ -9,7 +19,7 @@ class TrialPhoneAuthStore(PhoneAuthStore):
         return self.consume_trial(phone, code, None)
 
     def consume_trial(self, phone: str, code: str, trial_code: str | None) -> str:
-        if trial_code is not None and (not isinstance(trial_code, str) or not 1 <= len(trial_code) <= 128):
+        if trial_code is not None and (not isinstance(trial_code, str) or not valid_trial_code(trial_code)):
             raise PhoneAuthError('trial_invalid')
 
         def activate(connection, user_id):

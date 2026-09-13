@@ -43,31 +43,10 @@ function mount(overrides: Partial<YikeService> = {}) {
 }
 
 describe("登录", () => {
-  it("临时访问码无需手机号或短信，成功后核实会话且不保存原码", async () => {
-    const service=mount({loginAccess:vi.fn().mockResolvedValue({authenticated:true,userId:'access-user'}),
-      session:vi.fn().mockResolvedValueOnce({authenticated:false}).mockResolvedValue({authenticated:true,userId:'access-user'})});
-    fireEvent.click(screen.getByRole('button',{name:'临时访问码登录'}));
-    fireEvent.change(screen.getByLabelText('临时访问码'),{target:{value:'YKA-synthetic-only'}});
-    fireEvent.click(screen.getByRole('button',{name:'使用临时码进入'}));
-    await waitFor(()=>expect(window.location.hash).toBe('#/workbench'));
-    expect(service.loginAccess).toHaveBeenCalledWith('YKA-synthetic-only');
-    expect(service.login).not.toHaveBeenCalled();expect(service.requestCode).not.toHaveBeenCalled();
-    expect(JSON.stringify({...sessionStorage,...localStorage})).not.toContain('YKA-synthetic-only');
-    expect((screen.getByLabelText('临时访问码') as HTMLInputElement).value).toBe('');
-  });
-  it('临时访问码失败和会话未核实均不进入工作台',async()=>{
-    const service=mount({loginAccess:vi.fn().mockRejectedValueOnce(new Error('临时码无效'))
-      .mockResolvedValue({authenticated:true,userId:'access-user'})});
-    fireEvent.click(screen.getByRole('button',{name:'临时访问码登录'}));
-    fireEvent.click(screen.getByRole('button',{name:'使用临时码进入'}));
-    expect(service.loginAccess).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText('临时访问码'),{target:{value:'YKA-synthetic'}});
-    fireEvent.click(screen.getByRole('button',{name:'使用临时码进入'}));await screen.findByText('临时码无效');
-    expect(window.location.hash).not.toBe('#/workbench');
-    fireEvent.click(screen.getByRole('button',{name:'使用临时码进入'}));
-    await screen.findByText('登录会话尚未建立或已失效，请核对凭证后重试。');
-    expect(window.location.hash).not.toBe('#/workbench');
-    expect(service.requestCode).not.toHaveBeenCalled();
+  it("不展示绕过短信的临时访问码入口", async () => {
+    mount();
+    expect(screen.queryByRole('button',{name:'临时访问码登录'})).toBeNull();
+    expect(screen.queryByLabelText('临时访问码')).toBeNull();
   });
   it("验证手机号并保留失败输入，短信服务失败不会进入倒计时", async () => {
     const service = mount();
@@ -101,11 +80,8 @@ describe("登录", () => {
     fireEvent.change(screen.getByLabelText("短信验证码"), {
       target: { value: "123456" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "首次使用，输入试用码开通" }),
-    );
     fireEvent.click(screen.getByRole("button", { name: "登录" }));
-    expect(screen.getByText("请输入试用码，或收起试用开通。")).toBeTruthy();
+    expect(screen.getByText("请输入 8 位大写字母或数字试用码。")).toBeTruthy();
   });
   it("已有凭证走真实登录方法，凭证不进入本机存储", async () => {
     const service = mount({

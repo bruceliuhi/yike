@@ -181,6 +181,17 @@ def test_ops_and_trial_implementation_exists():
     assert importlib.util.find_spec('pilot.ops_web') is not None
 
 
+def test_new_trial_codes_are_eight_unambiguous_characters():
+    from pilot.ops_store import TRIAL_CODE_ALPHABET, new_trial_code
+    from pilot.trials import valid_trial_code
+
+    code = new_trial_code()
+    assert len(code) == 8
+    assert set(code) <= set(TRIAL_CODE_ALPHABET)
+    assert valid_trial_code(code)
+    assert not valid_trial_code('1234567')
+
+
 def test_ops_http_issue_and_one_time_secret_display(env, caplog):
     _, _, ops, _, phone, _ = env
     from pilot.ops_web import build_ops_app
@@ -194,7 +205,8 @@ def test_ops_http_issue_and_one_time_secret_display(env, caplog):
     new_phone='177'+phone[3:]
     response=client.post('/ops/trials',data={'phone':new_phone,'name':'<script>测试</script>','csrf':csrf},headers=headers)
     assert response.status_code == 200
-    code=re.search(r'YK-[A-Za-z0-9_-]{32}',response.text)[0]
+    code=re.search(r'\b[A-Z0-9]{8}\b',response.text)[0]
+    assert len(code) == 8
     assert new_phone in response.text
     listed=client.get('/ops/users').text
     assert code not in listed and '&lt;script&gt;' in listed and '<script>测试' not in listed
