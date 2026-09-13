@@ -433,12 +433,13 @@ def test_read_only_instructions_remain_exactly_unchanged(worker,tmp_path):
     capture=tmp_path/'read-config.json'
     extra=("config=next(value for value in sys.argv if value.startswith('model_instructions_file='))\n"
            "instructions=open(json.loads(config.split('=',1)[1])).read()\n"
-           f"open({str(capture)!r},'w').write(json.dumps(dict(instructions=instructions)))\n")
+           f"open({str(capture)!r},'w').write(json.dumps(dict(argv=sys.argv,instructions=instructions)))\n")
     result=run(worker,tmp_path,[read_event(),*final_events()],extra=extra,
                max_reads=4,max_requests=5)
     data=json.loads(capture.read_text())
     assert result['status']=='COMPLETED'
     assert data['instructions']==worker._INSTRUCTIONS
+    assert '--output-schema' not in data['argv']
 
 
 def research_context():
@@ -458,7 +459,9 @@ def test_profile_research_loads_original_rules_and_bound_context_in_real_process
     capture=tmp_path/'profile-config.json'
     extra=("config=next(value for value in sys.argv if value.startswith('model_instructions_file='))\n"
            "instructions=open(json.loads(config.split('=',1)[1])).read()\n"
-           f"open({str(capture)!r},'w').write(json.dumps(dict(argv=sys.argv,env=dict(os.environ),prompt=sys.stdin.read(),instructions=instructions)))\n")
+           "schema_index=sys.argv.index('--output-schema')\n"
+           "schema=json.load(open(sys.argv[schema_index+1]))\n"
+           f"open({str(capture)!r},'w').write(json.dumps(dict(argv=sys.argv,env=dict(os.environ),prompt=sys.stdin.read(),instructions=instructions,schema=schema)))\n")
     context=research_context()
     if version==2:
         from tests.test_research_context import projected_v2
@@ -476,8 +479,10 @@ def test_profile_research_loads_original_rules_and_bound_context_in_real_process
     assert '/api/' not in compiled['instructions']
     assert result['research_binding']['rule_sha256']==hashlib.sha256(
         compiled['instructions'].encode('utf-8')).hexdigest()
-    assert compiled['context_json'] in data['prompt']
-    assert '研究公开需求。' in data['prompt']
+    assert data['prompt'].startswith('HOST_RESEARCH_CONTEXT_JSON')
+    assert data['prompt'].count(compiled['context_json']) == 1
+    assert data['schema'] == worker.page_selection_schema()
+    assert data['argv'].count('--output-schema') == 1
     assert context['seller_description'] not in json.dumps(data['argv'],ensure_ascii=False)
     assert context['seller_description'] not in json.dumps(data['env'],ensure_ascii=False)
     assert context['seller_description'] not in data['instructions']
@@ -558,9 +563,9 @@ def test_context_v2_delivers_full_8000_character_multiline_profile_to_real_proce
     data=json.loads(capture.read_text())
     assert result['status']=='COMPLETED'
     assert result['research_binding']==compiled['binding']
-    assert data['prompt'].startswith(seller+'\n\nHOST_RESEARCH_CONTEXT_JSON')
+    assert data['prompt'].startswith('HOST_RESEARCH_CONTEXT_JSON')
     assert compiled['context_json'] in data['prompt']
-    assert data['prompt'].count(seller)==1
+    assert json.loads(data['prompt'].split(':\n', 1)[1])['seller_description'] == seller
     assert len(seller)==8000 and seller.endswith('乙')
 
 

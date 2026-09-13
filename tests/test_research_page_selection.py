@@ -4,6 +4,7 @@ import json
 import pytest
 
 from pilot.execution_contract import ExecutionRuntimeError
+import pilot.research_page_selection as selection_module
 from pilot.research_page_selection import (
     SELECTION_INSTRUCTIONS,
     parse_page_selection,
@@ -88,6 +89,29 @@ def test_validate_single_decision_and_instruction_uncertainty_policy():
     assert "ASSESS" in SELECTION_INSTRUCTIONS and "UNCERTAIN" in SELECTION_INSTRUCTIONS
     assert "预算" in SELECTION_INSTRUCTIONS and "身份" in SELECTION_INSTRUCTIONS
     assert "research-page-selection-v1" in SELECTION_INSTRUCTIONS
+
+
+def test_selection_schema_is_exact_and_detached():
+    assert callable(getattr(selection_module, "page_selection_schema", None))
+    page_selection_schema = selection_module.page_selection_schema
+    first = page_selection_schema()
+    assert set(first["properties"]) == {"schema_version", "summary", "pages"}
+    assert first["additionalProperties"] is False
+    assert set(first["properties"]["pages"]["items"]["properties"]) == {
+        "url", "content_sha256", "decision", "reason", "quote",
+    }
+    assert first["properties"]["schema_version"]["enum"] == [
+        "research-page-selection-v1"
+    ]
+    assert first["properties"]["pages"]["items"]["properties"]["decision"]["enum"] == [
+        "ASSESS", "BACKGROUND",
+    ]
+    assert set(first["properties"]["pages"]["items"]["properties"]["reason"]["enum"]) == {
+        "POSSIBLE_DEMAND", "UNCERTAIN", "INDEX", "VENDOR_CONTENT",
+        "NO_BUYER_SIGNAL", "STALE_OR_CLOSED", "IRRELEVANT",
+    }
+    first["properties"].clear()
+    assert page_selection_schema()["properties"]
 
 
 @pytest.mark.parametrize("raw,evidences", [

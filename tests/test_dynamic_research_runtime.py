@@ -33,6 +33,14 @@ from tests.test_research_runtime_postgres import _grant_runtime
 ROOT = Path(__file__).parents[1]
 
 
+def test_multiple_candidate_budget_is_reserved():
+    from pilot.dynamic_research_runtime import _assessment_reserve
+
+    assert _assessment_reserve(8, 20, 7) == 4
+    assert _assessment_reserve(8, 1, 7) == 1
+    assert _assessment_reserve(2, 20, 1) == 1
+
+
 class ResearchModel(BoundaryModel):
     def assess_before(self, _deadline, **kwargs):
         value, usage = self.assess(**kwargs)
@@ -252,10 +260,41 @@ def test_all_background_completes_without_candidate_assessment(dynamic_env):
         final = wait_terminal(runtime, env)
         assert final["phase"] == "COMPLETED"
         assert final["acceptedOriginals"] == final["analyzedOriginals"] == 0
+        assert final["discovery"]["unpublishedOriginals"] == 0
         assert env.reviews.model.calls == 0
         with env.admin.connect() as connection:
             assert connection.execute("SELECT count(*) FROM pilot_candidate_batches WHERE tenant_id=%s",
                                       (env.tenant,)).fetchone()[0] == 1
+    finally:
+        runtime.shutdown(timeout_seconds=2)
+
+
+def test_assess_skipped_by_record_budget_remains_unpublished(dynamic_env):
+    env = dynamic_env
+    with env.admin.connect() as connection:
+        connection.execute(
+            "UPDATE pilot_collection_platform_runs p SET records_used=t.max_records "
+            "FROM pilot_collection_tasks t WHERE p.tenant_id=t.tenant_id "
+            "AND p.owner_user_id=t.owner_user_id AND p.task_id=t.task_id "
+            "AND p.task_id=%s",
+            (env.execution["task_id"],),
+        )
+
+    def mission(_description, **kwargs):
+        value = read_result()
+        dispatch_effect(kwargs["effect_dispatcher"], kind="READ",
+            payload={"url": value["evidence"]["url"]}, deadline=time.monotonic()+20,
+            perform=lambda _: value)
+        return mission_completed(kwargs, [value["evidence"]])
+
+    runtime = service(env, mission)
+    try:
+        runtime.advance(env.claims, env.execution["task_id"], env.execution["run_id"])
+        final = wait_terminal(runtime, env)
+        assert final["phase"] == "COMPLETED"
+        assert final["acceptedOriginals"] == final["analyzedOriginals"] == 0
+        assert final["discovery"]["unpublishedOriginals"] == 1
+        assert env.reviews.model.calls == 0
     finally:
         runtime.shutdown(timeout_seconds=2)
 
@@ -306,6 +345,7 @@ def test_invalid_complete_selection_stops_before_any_publication(dynamic_env):
         final = wait_terminal(runtime, env)
         assert final["phase"] == "STOPPED" and final["stopCode"] == "research_selection_invalid"
         assert final["acceptedOriginals"] == 0 and env.reviews.model.calls == 0
+        assert final["discovery"]["unpublishedOriginals"] == 1
         with env.admin.connect() as connection:
             assert connection.execute("SELECT count(*) FROM pilot_candidate_batches WHERE tenant_id=%s",
                                       (env.tenant,)).fetchone()[0] == 0

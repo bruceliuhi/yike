@@ -184,6 +184,37 @@ def test_model_effect_dispatch_receives_normalized_outbound_and_shortened_deadli
     assert seen["payload"]["model"] == "forced" and seen["provider"] == seen["payload"]
 
 
+def test_model_effect_preserves_exact_structured_text_format_through_admission():
+    from pilot.research_effect_contract import effect_input
+    from tests.test_research_effect_contract import binding
+
+    schema = {"type": "object", "properties": {"status": {"type": "string", "enum": ["OK"]}},
+              "required": ["status"], "additionalProperties": False}
+    seen = {}
+
+    def dispatcher(kind, payload, deadline, perform):
+        admitted, _ = effect_input(kind, payload, binding())
+        seen["admitted"] = admitted
+        return perform(deadline)
+
+    def provider(req):
+        seen["provider"] = json.loads(req.content)
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=sse(
+            ("response.completed", {"type": "response.completed", "response": {
+                "status": "completed", "output": []}})))
+
+    text_format = {"type": "json_schema", "name": "page_selection", "strict": True,
+                   "schema": schema}
+    with ResponsesBridge(api_key=KEY, model="forced", max_requests=1,
+            deadline=monotonic()+10, allowed_tools=(), effect_dispatcher=dispatcher,
+            transport=httpx.MockTransport(provider)) as bridge:
+        response = request(bridge, {"tools": [], "input": [], "stream": True,
+                                    "text": {"format": text_format}})
+    assert response.status_code == 200
+    assert seen["admitted"]["text"]["format"] == text_format
+    assert seen["provider"]["text"]["format"] == text_format
+
+
 def test_model_effect_can_return_trusted_replay_without_provider_io():
     body = sse(("response.completed", {"type": "response.completed", "response": {
         "status": "completed", "output": [], "usage": {"total_tokens": 7}}})).decode()

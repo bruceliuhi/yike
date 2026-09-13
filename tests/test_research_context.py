@@ -185,7 +185,7 @@ def test_compiles_ai_and_non_ai_service_contexts_with_host_binding():
     assert set(ai) == {"instructions", "context_json", "binding", "entry_urls"}
     assert set(ai["binding"]) == expected_keys
     assert ai["binding"]["rule_version"] == (
-        "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1/trusted-entries-v1")
+        "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1/trusted-entries-v1/efficient-handoff-v1")
     assert ai["binding"]["profile_version_id"] == context()["profile_version_id"]
     assert len(ai["binding"]["rule_sha256"]) == 64
     assert len(ai["binding"]["context_sha256"]) == 64
@@ -238,7 +238,7 @@ def test_compiler_derives_catalog_and_known_history_but_exact_negative_wins():
         known,
     )
     assert blocked not in compiled["entry_urls"] and prose_only not in compiled["entry_urls"]
-    assert compiled["binding"]["rule_version"].endswith("/trusted-entries-v1")
+    assert "/trusted-entries-v1/efficient-handoff-v1" in compiled["binding"]["rule_version"]
     detached = compiled["entry_urls"]
     value["history"][0]["source_urls"].append("https://example.com/later")
     assert detached == compiled["entry_urls"]
@@ -388,6 +388,31 @@ def test_each_source_rule_filename_and_text_participates_in_hash(monkeypatch, tm
         target.write_text(original + "changed\n", encoding="utf-8")
         assert compile_research_context(context())["binding"]["rule_sha256"] != baseline
         target.write_text(original, encoding="utf-8")
+
+
+def test_compiled_stage_projection_is_shorter_and_preserves_business_rules():
+    import pilot.research_context as module
+
+    documents = module._load_rules()
+    compiled = compile_research_context(context())
+    instructions = compiled["instructions"]
+    assert len(instructions.encode("utf-8")) < sum(
+        len(value.encode("utf-8")) for value in documents.values()
+    )
+    for filename, contents in sorted(documents.items()):
+        digest = hashlib.sha256(contents.encode("utf-8")).hexdigest()
+        assert f"{filename}: sha256:{digest}" in instructions
+    for phrase in (
+        "客户画像优先", "业务问题", "可交付物", "采购动作", "四条发现路径",
+        "直接寻源", "失败/替换", "需求评论", "带在手项目", "独立来源",
+        "作者扩展", "搜索摘要", "作者原文时间", "第三方回复", "评论作者时间",
+        "购买对象", "资金归属", "硬件支出", "会员费用", "工资", "第三方报价",
+        "预算未知", "联系路径未知", "成果", "驻场", "按成果结算", "DIY",
+        "本人业务询价", "中间方", "反证", "净新增", "人工批准", "只读",
+    ):
+        assert phrase in instructions
+    assert "不写入文件" in instructions
+    assert "不生成联系内容" in instructions
 
 
 def test_oversize_or_invalid_utf8_rules_fail_with_fixed_error(monkeypatch, tmp_path):

@@ -24,6 +24,10 @@ def _discovery_limits(sources):
     return min(10, sources - 1), sources - 1
 
 
+def _assessment_reserve(model_calls, max_records, max_reads):
+    return min(max_records, max_reads, max(1, model_calls // 2))
+
+
 def _stop_code(value, fallback):
     return value if type(value) is str and 1 <= len(value) <= 128 else fallback
 
@@ -176,7 +180,7 @@ class DynamicResearchRuntimeService:
             self.execution._active(cursor, claims)
             return generation, {
                 "sources": limits[0], "minutes": limits[1],
-                "modelCalls": limits[2],
+                "modelCalls": limits[2], "maxRecords": task["max_records"],
                 "seconds": max(1, min(1800, int((lease - now).total_seconds()))),
             }
 
@@ -191,6 +195,9 @@ class DynamicResearchRuntimeService:
                 context_binding=context["binding"],
             )
             max_searches, max_reads = _discovery_limits(limits["sources"])
+            reserve = _assessment_reserve(
+                limits["modelCalls"], limits["maxRecords"], max_reads
+            )
             result = self.mission(
                 json.loads(context["context_json"])["seller_description"],
                 codex_binary=self.agent.codex_binary,
@@ -200,7 +207,7 @@ class DynamicResearchRuntimeService:
                 search_api_key=self.agent.search_api_key,
                 max_searches=max_searches,
                 max_reads=max_reads,
-                max_requests=limits["modelCalls"] - 1,
+                max_requests=limits["modelCalls"] - reserve,
                 max_seconds=limits["seconds"],
                 cancelled=lambda: self._cancelled(
                     claims, task_id, run_id, generation
@@ -554,7 +561,7 @@ class DynamicResearchRuntimeService:
                     discovery[kind]["issued"] += count
                     discovery[kind][names[status]] += count
                 cursor.execute(
-                    "SELECT j.sequence,b.accepted_count,b.receipt FROM "
+                    "SELECT j.sequence,b.accepted_count,b.receipt,b.execution_context FROM "
                     "pilot_research_effect_journal j LEFT JOIN pilot_candidate_batches b "
                     "ON b.tenant_id=j.tenant_id AND b.owner_user_id=j.owner_user_id "
                     "AND b.task_id=j.task_id AND b.run_id=j.run_id AND b.request_id=j.action_id "
@@ -564,10 +571,20 @@ class DynamicResearchRuntimeService:
                 )
                 batches = cursor.fetchall()
         accepted = sum(row[1] or 0 for row in batches)
-        unpublished = sum(row[1] is None or row[1] == 0 for row in batches)
+        unpublished = 0
+        for _, accepted_count, _, execution_context in batches:
+            background = (type(execution_context) is dict
+                          and execution_context.get("observed_count") == 1
+                          and execution_context.get("accepted_count") == 0
+                          and execution_context.get("skipped_background_count") == 1
+                          and execution_context.get("skipped_invalid_count") == 0
+                          and execution_context.get("skipped_budget_count") == 0
+                          and type(execution_context.get("page_selection")) is dict
+                          and execution_context["page_selection"].get("decision") == "BACKGROUND")
+            unpublished += accepted_count is None or accepted_count == 0 and not background
         candidate_ids, analyzed, skipped = [], 0, 0
         task = self.execution.get_task(claims, task_id)
-        for _, _, receipt in batches:
+        for _, _, receipt, _ in batches:
             for item in receipt.get("items", []) if type(receipt) is dict else []:
                 candidate_ids.append(item["candidate_id"])
                 request_id = self.fixed.orchestrator._review_action(task_id, run_id, item)

@@ -26,6 +26,36 @@ _ASSESS_REASONS = {"POSSIBLE_DEMAND", "UNCERTAIN"}
 _BACKGROUND_REASONS = {"INDEX", "VENDOR_CONTENT", "NO_BUYER_SIGNAL", "STALE_OR_CLOSED", "IRRELEVANT"}
 
 
+def page_selection_schema() -> dict:
+    """Return a detached provider schema; semantic evidence checks stay local."""
+    reasons = [
+        "POSSIBLE_DEMAND", "UNCERTAIN", "INDEX", "VENDOR_CONTENT",
+        "NO_BUYER_SIGNAL", "STALE_OR_CLOSED", "IRRELEVANT",
+    ]
+    page = {
+        "type": "object",
+        "properties": {
+            "url": {"type": "string"},
+            "content_sha256": {"type": "string"},
+            "decision": {"type": "string", "enum": ["ASSESS", "BACKGROUND"]},
+            "reason": {"type": "string", "enum": reasons},
+            "quote": {"type": "string"},
+        },
+        "required": ["url", "content_sha256", "decision", "reason", "quote"],
+        "additionalProperties": False,
+    }
+    return {
+        "type": "object",
+        "properties": {
+            "schema_version": {"type": "string", "enum": [SCHEMA_VERSION]},
+            "summary": {"type": "string"},
+            "pages": {"type": "array", "items": page},
+        },
+        "required": ["schema_version", "summary", "pages"],
+        "additionalProperties": False,
+    }
+
+
 def _invalid():
     raise ExecutionRuntimeError("research_selection_invalid", 409)
 
