@@ -1,4 +1,4 @@
-import { crmFeatures, nav, platformLogos, trustItems, workbenchFeatures } from './data.js?v=20260913-promo3';
+import { crmFeatures, nav, platformLogos, trustItems, workbenchFeatures } from './data.js?v=20260913-content1';
 import { insights } from './insights.js?v=20260913-insights1';
 
 const page = document.body.dataset.page;
