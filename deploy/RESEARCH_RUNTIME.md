@@ -1,5 +1,7 @@
 # 独立研究运行镜像（未接生产任务）
 
+2026-09-13 已部署a91ea42恢复/期限实测：先确认ledger无任务、无研究任务运行，精确终止管理服务宿主PID2491666，Docker自动恢复至PID2493013/restarts=1，私有GET恢复405，客户仍healthy。随后无Docker权限的UID10001客户端容器经真实BrokerClient创建3秒限时任务，2410 exit0：耗时3.74秒，STOPPED/timeout，重复create返回STOPPED，模型调用0。任务key `d795418ca5be4f7aedc2f3960767dff0fb8d81ce2a7086804973e7e4e0027309`；物理inspect为exited/running=false/exit124，StartedAt=2026-09-13T06:17:10.569344954Z，FinishedAt=2026-09-13T06:17:14.209721613Z，networknone/readonly。停止容器与ledger保留用于后续防重核验；无客户信息。**目前证明空闲管理服务异常恢复和真实任务期限，不证明管理服务在任务执行中崩溃后的回收；该项仍待验，客户研究仍未启用。** 探针源文件本机 `/tmp/yike-broker-client-probe.py`，服务器专用deploy/client-probe.py，不含密钥。
+
 2026-09-13 管理服务已启动（尚未启用客户研究）：a91ea42服务构建32750、研究构建50732均exit0，研究本机manifest-list为145b1b53…ae5347，经63941真实save/load上传后服务器内容ID为 `sha256:2e1760d827022ce67f307670af85a43213bc45dcd21584e056ea6613e8277419`、revision=a91ea42。本机无网络/只读/UID10001导入恢复函数及MCP成功；服务器同镜像挂只读CLI执行Docker29.1.3版本成功。核对原先不存在专用根后创建私有目录，独立Compose固定该内容ID启动 `yike-research-broker-research-broker-1`；实际running/restarts=0/network=none/readonly=true，私有HTTP GET返回预期405。客户容器仍healthy且旧镜像d9c26f…，未改客户配置、未调用模型或公开研究。下一步仍需实际异常重启与任务物理终态/防重复启动验收；socket可访问不是研究可用。
 
 ## 长期管理服务部署接续（2026-09-13，尚未启动）
