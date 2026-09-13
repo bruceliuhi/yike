@@ -10,6 +10,7 @@ import stat
 import subprocess
 from time import time
 from uuid import UUID
+from pilot.research_container_lifecycle import ContainerLifecycle
 
 _RUNTIME_UID = 10001
 
@@ -41,13 +42,13 @@ def _private_directory(path):
 def _run(command):
     try:
         return subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL, text=True, timeout=10,
+            stderr=subprocess.DEVNULL, text=True, timeout=2,
             env={'PATH': '/usr/local/bin:/usr/bin:/bin'})
     except (OSError, subprocess.TimeoutExpired):
         return subprocess.CompletedProcess(command, 1, '')
 
 
-class TaskContainerBroker:
+class TaskContainerBroker(ContainerLifecycle):
     def __init__(self, *, image, tasks_root, ledger_root):
         if os.getuid() != _RUNTIME_UID:
             raise ValueError('runtime_uid_required')
@@ -67,7 +68,9 @@ class TaskContainerBroker:
             value = json.loads(path.read_text())
             if (set(value) != {'key', 'image', 'expires_at'} or value['key'] != key
                     or type(value['image']) is not str
-                    or not re.fullmatch(r'sha256:[0-9a-f]{64}', value['image'])):
+                    or not re.fullmatch(r'sha256:[0-9a-f]{64}', value['image'])
+                    or type(value['expires_at']) not in (int, float)
+                    or not math.isfinite(value['expires_at'])):
                 return None
             return value
         except (OSError, ValueError, TypeError):
@@ -93,13 +96,16 @@ class TaskContainerBroker:
 
     def status(self, identity):
         key = task_key(identity)
+        return self._status_key(key)
+
+    def _status_key(self, key):
         state = self._inspect(key)
         if state is None:
             status = 'UNKNOWN'
         elif state.get('Running') is True:
             status = 'RUNNING'
         elif state.get('Status') == 'created':
-            status = 'CREATED'
+            status = ('UNKNOWN' if (self.ledger_root/(key+'.started')).exists() else 'CREATED')
         elif state.get('Status') in ('exited', 'dead') and state.get('Running') is False:
             status = 'STOPPED'
         else:
@@ -144,9 +150,16 @@ class TaskContainerBroker:
 
     def stop(self, identity):
         key = task_key(identity)
+        return self._stop_key(key)
+
+    def _stop_key(self, key):
+        self._mark(key, 'cancelled')
         state = self._inspect(key)
         if state is None:
             return {'key': key, 'status': 'UNKNOWN'}
         if state.get('Running') is True:
             _run(['docker', 'kill', '--signal=KILL', 'yike-r-'+key])
-        return self.status(identity)
+        result = self._status_key(key)
+        if result['status'] == 'STOPPED':
+            self._mark(key, 'terminal')
+        return result

@@ -1,5 +1,9 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+本批启动/守护最终修复差量独立PASS，所有本批P2关闭；适用范围仅下述源码与定向证据，不代表Docker、服务/worker或上线验收。
+
+2026-09-13 启动与守护接续：固定docker start -ai、stdin任务令牌仅内存、stdout有界转发；单broker锁/最多2执行、持久started/cancelled/terminal、独立watch线程到期核对及重启孤儿清理。UNKNOWN启动仍保留UNKNOWN，旧started未清理拒新执行。重复启动误取消、线程启动失败漏槽、历史终态重复检查及同进程未确认停止后继续新启四项经RED复现修复；恢复门禁在最终准入锁内重查并与槽/启动所有权登记串行，另有交错RED证明。最终生命周期11通过/0.82秒，未变core6项复用（此前合批15通过/0.81秒），共17项。全部Docker/子进程回执仍为合成，独立线程触发为真实本地检查；尚无真实Docker/客户任务、服务/worker接线或部署。下一步接broker服务与宿主执行边界，再统一同版本真实容器验收。
+
 2026-09-13 特权任务管理核心：固定镜像/命令/任务挂载及资源限制，持久O_EXCL预占后create，重启或UNKNOWN不重复创建，归属核验后kill并inspect确认。独立复核UID权限不匹配、镜像升级无法清理旧任务两P2经RED复现后修复，最终6项定向通过/0.05秒、修复差量独立PASS（合成Docker回执及真实socket夹具；初次夹具Unix路径过长已修正），不是实际容器验收。仅create/status/stop核心，尚缺start与stdio、独立期限扫描/恢复、broker服务和worker接线，未部署。
 
 2026-09-13 固定容器任务入口：复用现有Codex/MCP命令生成和已完成relay，固定容器路径/任务JSON字段/输入上限/绝对过期，不接任意命令或供应商key；stdout仍交宿主证据解析。新增RED7缺模块，独立复核取消时序P2经真实子进程RED复现后修复为信号置标志、受控循环退出、finally回收；最终定向9通过/0.38秒、修复差量独立PASS，含真实sleep子进程超时与spawn期间取消后的kill+wait。不是实际Codex模型或容器端到端证据。尚未接broker/worker、构包或部署；下一步固定任务create/status/stop及独立deadline回收。
