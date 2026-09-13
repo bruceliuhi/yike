@@ -7,7 +7,9 @@
 - [商机工作台](https://www.tuokexing.net/products/workbench/): 业务画像、多平台研究、机会证据和跟进
 - [客户情报 CRM](https://www.tuokexing.net/products/crm/): 公司、联系人、商机、活动和客户情报
 - [能力全景](https://www.tuokexing.net/features/): 能力范围与当前状态
+- [适用场景](https://www.tuokexing.net/scenarios/): 方案型销售、销售负责人、顾问和专业服务团队
 - [常见问题](https://www.tuokexing.net/faq/): 平台边界、人工确认、数据与试用说明
+- [数据与安全](https://www.tuokexing.net/security/): 授权连接、数据边界、隔离和人工确认
 - [下载与试用](https://www.tuokexing.net/download/): 体验入口和交付方式
 - [预约演示](https://www.tuokexing.net/contact/): 用真实业务申请演示和试用
 
