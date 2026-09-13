@@ -76,7 +76,7 @@ schema只用object/array/string、properties/required/additionalProperties/enum�
 Run: `.venv/bin/python -m pytest -q tests/test_codex_research_worker.py tests/test_research_context.py tests/test_research_page_selection.py tests/test_responses_bridge.py`；PG只跑本批新增/改动的命名用例。目标全部通过，保留初次失败，不把skipped当通过。
 
 - [x] Step 5 — 一次独立Spec/Quality审核；合并发现项，定向修复、差量复核。
-- [ ] Step 6 — root用固定公开快照＋fresh模型核验实际schema，比较输入/缓存/耗时，不声称稳定率；必要时另一个明确业务样本打通普通判断。确认后一次新有界实网任务，不能重放旧UNKNOWN。
+- [x] Step 6 — root用固定公开快照＋fresh模型核验实际schema，比较输入/缓存/耗时，不声称稳定率；本批成功证据见下。新有界真实买方任务留到统一试用验收，不能重放旧UNKNOWN；这仍是未完成的产品效果门禁，不因背景页成功而省略。
 - [ ] Step 7 — 更新本页证据及唯一任务书/整合状态，核验远端main后正常合并推送。纯文档不构包。完整Goal继续ACTIVE。
 
 ## Evidence
@@ -137,7 +137,7 @@ def citation_fragments(text):
 ```
 
 - [x] 一次定向组：新纯函数、research_tools、worker、context；不重跑原parser/Bridge/PG全套。新接点必须通过实际MCP工具及worker事件夹具，不以字符串存在代替转换验证。原legacy/frame大小测试如需改，只改新版contextual final夹具，保留原目的。
-- [ ] 提交修订代码，交同独立reviewer差量复核；root随后以新输出路径跑同快照fresh模型一次，旧失败保留。通过后才进行已准备的新有界实网任务，最后更新唯一证据/状态并同步main。
+- [x] 提交修订代码并完成独立差量复核；root以新输出路径跑同快照fresh模型，旧失败保留。新的真实买方验收留到统一候选交付，不追加本轮付费盲搜；最终文档/主线同步见Step7。
 
 ### quote_ref实现及新实际模型检查
 
@@ -146,6 +146,16 @@ def citation_fragments(text):
 绑定`2516f5d`，session44341固定快照新模型检查：exit1，1失败/25.85秒；2次READ、3次MODEL成功，最终STOPPED/research_selection_invalid。实际strict schema精确送达，但三次出站input均不含text_fragments/quote_ref；模型两页返回q0，未进入原runtime逐字parser。输入24060（缓存12200）、输出475。仅更改工具TextContent尚未证明能让实际模型看见编号；继续定位实际MCP展示通道，不放宽不存在编号校验、不再追加来源搜索。安全证据`/tmp/yike-citation-choice-{snapshot,structure,transport}-20260913.json`保留；来源网络调用0、合成租户、无生产/外联/新商机。
 
 根因已按本机Codex源码确认：structuredContent优先，TextContent被忽略。按同spec“实际Codex工具通道修订”继续该引用接点：仅citation成功READ的模型投影移入structuredContent，完整原READ放宿主JSONL_meta；worker对原证据及其确定性投影双重核验。不改持久READ/最终parser，不加付费搜索。新增一次真实CLI＋本机假provider往返覆盖实际工具通道，定向RED/GREEN后差量审核；仅当无费接点检查通过才做新输出路径的固定快照真实模型检查。旧失败证据保留。
+
+### 通道修复后的成功证据与整合
+
+`f343a64`仅6个工具/worker/citation和测试文件实现上述通道修复。定向RED4失败/2通过；GREEN6通过/1.88秒；相关三文件组115通过/26.14秒。临时无费CLI探针先因错误resolve到系统Python而无法加载MCP，纠正venv入口后又发现采集器误计开始事件；均为夹具问题，不改产品规避。root接手修正计数后，session15474、1通过/4.40秒，真实Codex＋本机假provider证明模型只见片段编号、JSONL保留原meta、worker从原文展开成功。
+
+独立新增差量`f343a64`及UI两行`00f35ba`审核PASS，无剩余阻断；复用之前Task2审核，不重跑全套。最大单事件测试不是任意多页上限保证，既有整轮2MiB stdout上限仍会明确output_limit。正常合入远端`a0142c7`为`5426a27`：保留设备自动准备、XHS自导航和可选MCP导入隔离；worker冲突只合并导入，`_valid_page`仍指同一个reader函数。合并后只补默认runtime无MCP导入1通过/1.03秒和desktop typecheck，不重复其余已测字节。
+
+**实际模型成功绑定`5426a27`**：session52196、1通过/23.71秒，任务21.01秒；同两份已存V2EX公开快照，来源网络0，3次真实MODEL/2次快照READ。后两次模型input实际含text_fragments/quote_ref，strict schema全程一致；两页q1展开后原parser接受，URL/hash/绑定和400字符逐字引用全过。最终COMPLETED，2BACKGROUND（目录/供方）、0候选、0普通判断，unpublishedOriginals=0，UNKNOWN=0。本批没有新增合格商机，也不是新实时来源验证或生产验收。
+
+本次输入24162（缓存16808）、输出430；旧同快照成功基线39929（缓存19056）/输出815/32.17秒。单个同快照观察输入约少39.5%、任务时间约少34.7%；输出/缓存等条件亦不同，不能推断普遍加速、稳定率或计费节省。安全证据保留`/tmp/yike-citation-transport-{snapshot,structure,outbound}-20260913.json`，不覆盖前两次失败。下一步把本批作为统一试用候选，同版本部署/客户端与新的真实买方任务验收；不再重复修已解决的引用接点。未构包、部署、外联或完成完整Goal。
 
 ## Task 2：研究原文只读回查（唯一前端补口）
 
@@ -166,7 +176,7 @@ assert effect_count() == before
 
 - [x] 最小实现：验证身份/任务/run→查询最多limit+1条本身份成功READ→复用journal配对和effect_result/hash校验→只投影六个原文字段→确定nextAfter。原始payload/context或异常文本不返回。API严格query绑定；前端通过既有transport/IPC固定operation，使用现有受控折叠/长文展开样式，不换皮或另造信息架构。
 - [x] 一次受影响定向测试：后端真实受限PG纵切/API及客户端合同/transport/取消换任务隔离；旧服务不支持仍可查看原进度/候选。root提供唯一owned PG端口62169，不自行新开多个数据库；和citation纯测试并行可行，双方不要同时用同一DB夹具。
-- [ ] 提交本切片，独立一次差量审核；root冻结后只做一次界面宽/窄视口检查，与引用修复合并到同一个试用候选，不另构包。不把fixture原文当新商机或生产证据。
+- [x] 提交本切片并完成独立差量审核；root已做一次界面宽/窄视口检查，与引用修复合并到同一个试用候选，不另构包。不把fixture原文当新商机或生产证据。
 
 ### Task2实施证据
 
