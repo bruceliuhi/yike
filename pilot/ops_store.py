@@ -11,6 +11,14 @@ import psycopg
 from pilot.phone_auth import PhoneAuthStore
 
 
+TRIAL_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+
+def new_trial_code() -> str:
+    """Return the customer-facing eight-character trial code."""
+    return ''.join(secrets.choice(TRIAL_CODE_ALPHABET) for _ in range(8))
+
+
 class OpsError(ValueError):
     pass
 
@@ -44,7 +52,7 @@ class OpsStore:
             raise OpsError('invalid_trial_days')
         user, tenant, trial = (str(uuid4()) for _ in range(3))
         phone_hash = self.auth._phone(phone)
-        code = 'YK-' + secrets.token_urlsafe(24)
+        code = new_trial_code()
         encrypted = bytes(self.box.encrypt(json.dumps({'phone': phone, 'user_id': user}).encode()))
         try:
             with self.database.connect() as c:
@@ -105,7 +113,7 @@ class OpsStore:
             trial_id=str(UUID(trial_id))
         except (ValueError,TypeError,AttributeError):
             raise OpsError('invalid_trial') from None
-        code='YK-'+secrets.token_urlsafe(24)
+        code=new_trial_code()
         with self.database.connect() as c:
             row=c.execute(
                 "UPDATE pilot_trial_accounts SET code_hash=%s,redeem_before=clock_timestamp()+interval '30 days' "

@@ -47,12 +47,10 @@ def users_view(rows, offset, csrf):
         action = f'<a href="/ops/revoke?trial_id={escape(row["trial_id"])}">停用</a>' if row['trial_id'] and row['state'] != '已停用' else '—'
         if row['trial_id'] and not row['activated_at'] and row['state'] != '已停用' and row.get('credential_kind') != 'TEMPORARY_ACCESS':
             action += f' · <a href="/ops/reissue?trial_id={escape(row["trial_id"])}">重发码</a>'
-        if row['trial_id'] and row['state'] != '已停用' and (not row['activated_at'] or (row.get('credential_kind') == 'TEMPORARY_ACCESS' and row['state'] != '已到期')):
-            action += f' · <a href="/ops/access?trial_id={escape(row["trial_id"])}">签发/改发临时登录码</a>'
         phone = escape(row['phone']) if row['phone'] else '未留存可还原手机号'
         verified = '已短信验证' if row.get('phone_verified_at') else '未短信验证'
         if row.get('credential_kind') == 'TEMPORARY_ACCESS':
-            verified += ' · 临时访问'
+            verified += ' · 历史临时访问（已停用）'
         content.append(f'<tr><td>{escape(row["name"])}<small>{escape(row["user_id"])}</small></td>'
                        f'<td>{phone}<small>{verified}</small></td><td>{escape(row["state"])}</td>'
                        f'<td>{date(row["activated_at"])}</td><td>{date(row["expires_at"])}</td><td>{action}</td></tr>')
@@ -69,7 +67,7 @@ def users_view(rows, offset, csrf):
 
 
 def issue_view(csrf, error=None):
-    body = '<h1>生成试用码</h1><p class="muted">先登记客户，再通过微信等渠道发码；客户仍须接收短信验证码。</p>'
+    body = '<h1>生成试用码</h1><p class="muted">先登记客户，再通过微信等渠道私下发放 8 位试用码；客户登录时必须同时填写手机号和短信验证码。</p>'
     if error:
         body += f'<p role="alert" class="error">{escape(error)}</p>'
     body += f'<form class="form" method="post" action="/ops/trials">{hidden(csrf)}'

@@ -7,7 +7,7 @@ describe('desktop service boundary', () => {
     expect(validatedOperation({operation: 'session.requestCode', payload: {phone: '19900000001'}})).toEqual({
       path: '/api/ui/auth/sms-code', method: 'POST', body: JSON.stringify({phone: '19900000001'}), logout: false,
     });
-    expect(validatedOperation({operation: 'session.loginPhone', payload: {phone: '19900000001', code: '123456', trial_code: 'invite'}})).toMatchObject({
+    expect(validatedOperation({operation: 'session.loginPhone', payload: {phone: '19900000001', code: '123456', trial_code: 'ABCDEFGH'}})).toMatchObject({
       path: '/api/ui/auth/sms-session', method: 'POST', logout: false,
     });
     for (const payload of [

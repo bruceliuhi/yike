@@ -36,7 +36,7 @@ describe('phone login fixed transport', () => {
     ['trial_already_used', '该账号已激活，请收起试用开通后使用短信验证码登录。'],
   ])('explains trial decision %s without treating it as an unrelated permission error', async (code, message) => {
     host.yikeDesktop = {requestApi: vi.fn().mockResolvedValue({ok: false, status: 403, error: code})} as unknown as YikeDesktopApi;
-    await expect(service.login('19900000001', '123456', 'invitation')).rejects.toMatchObject({code, message});
+    await expect(service.login('19900000001', '123456', 'ABCDEFGH')).rejects.toMatchObject({code, message});
   });
   it('explains rejected access credentials without changing ordinary session errors', async () => {
     host.yikeDesktop = {requestApi: vi.fn().mockResolvedValue({ok: false, status: 401, error: 'authentication_required'})} as unknown as YikeDesktopApi;
@@ -61,8 +61,8 @@ describe('phone login fixed transport', () => {
   });
   it('exchanges phone proof without exposing a token', async () => {
     const call = bridge({authenticated: true, user_id: 'test-user'});
-    await expect(service.login('19900000001', '123456', 'invitation')).resolves.toEqual({authenticated: true, userId: 'test-user'});
-    expect(call).toHaveBeenCalledWith({operation: 'session.loginPhone', payload: {phone: '19900000001', code: '123456', trial_code: 'invitation'}});
+    await expect(service.login('19900000001', '123456', 'ABCDEFGH')).resolves.toEqual({authenticated: true, userId: 'test-user'});
+    expect(call).toHaveBeenCalledWith({operation: 'session.loginPhone', payload: {phone: '19900000001', code: '123456', trial_code: 'ABCDEFGH'}});
   });
   it('omits unused trial field but preserves explicitly supplied code', async () => {
     const call = bridge({authenticated: true, user_id: 'test-user'});
