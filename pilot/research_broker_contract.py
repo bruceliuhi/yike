@@ -3,6 +3,10 @@ import hashlib
 import json
 from uuid import UUID
 
+# Includes the broker's 2s CLI wait + three 2s Docker checks + thread cleanup.
+STREAM_READ_TIMEOUT = 12
+STREAM_JOIN_TIMEOUT = STREAM_READ_TIMEOUT + 1
+
 
 def task_key(identity):
     try:

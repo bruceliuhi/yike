@@ -24,6 +24,7 @@ def test_client_private_service_roundtrip_and_identity_binding():
         def stop(self, value):
             return {'key':key,'status':'STOPPED'}
         def execute(self, value, manifest, *, emit):
+            emit(b'')
             emit(b'{"synthetic":true}\n')
             assert received.wait(2), 'client must receive progress before execution completes'
             return {'key':key,'status':'STOPPED','code':None}
@@ -35,6 +36,7 @@ def test_client_private_service_roundtrip_and_identity_binding():
             assert client.status(identity)['status']=='RUNNING'
             assert client.stop(identity)['status']=='STOPPED'
             stream=client.events(identity,{})
+            assert next(stream)=={'type':'heartbeat'}
             first=next(stream)
             received.set()
             frames=[first,*stream]
@@ -51,3 +53,12 @@ def test_client_rejects_cross_task_or_unexpected_results(change):
     client=object.__new__(module.BrokerClient)
     with pytest.raises(ValueError,match='invalid_broker_result'):
         client._result(identity,{'key':module.task_key(identity),'status':'STOPPED'} | change)
+
+
+def test_stream_timeout_covers_bounded_terminal_cleanup():
+    module=importlib.import_module('pilot.research_broker_client')
+    client=object.__new__(module.BrokerClient)
+    client.path='/unused.sock'
+    with client._client(streaming=True) as transport:
+        # CLI wait 2 + inspect/kill/inspect 6 + thread joins .6, with transport margin.
+        assert transport.timeout.read >= 11

@@ -7,7 +7,7 @@ import queue
 import subprocess
 import threading
 from contextlib import nullcontext
-from time import time
+from time import monotonic, time
 
 from pilot.codex_research_worker import _kill_group
 from pilot.research_container_entry import validate_manifest
@@ -180,7 +180,7 @@ class ContainerLifecycle:
                     worker = threading.Thread(target=target, daemon=True)
                     worker.start()
                     workers.append(worker)
-                size, eof = 0, False
+                size, eof, last_heartbeat = 0, False, monotonic()
                 while True:
                     if cancelled() or self._halt.is_set() or (self.ledger_root/(key+'.cancelled')).exists():
                         code = 'cancelled'
@@ -196,6 +196,9 @@ class ContainerLifecycle:
                     try:
                         chunk = chunks.get(timeout=.05)
                     except queue.Empty:
+                        if monotonic()-last_heartbeat >= 1:
+                            emit(b'')
+                            last_heartbeat = monotonic()
                         continue
                     if not chunk:
                         eof = True

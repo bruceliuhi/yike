@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+2026-09-13 mission隔离适配接续：`run_public_research_mission`显式broker_execution仅接受controlled+已编译上下文，固定任务UDS，宿主保留密钥/dispatch和原事件/引用解析；配置该分支不回退本地执行。真实宿主UDS+合成broker事件验证无宿主binary仍完成既有引用展开；取消先revoke再stop、未知停止保留失败未知。补1秒心跳；独立复核指出原5秒读超时短于正常回收预算，RED后改共享12秒读取/13秒reader回收。受影响21项通过/2.73秒，原worker定向7通过/2.90秒，超时合同1通过/0.38秒，共29项，最终差量独立PASS；未接环境配置/动态runtime factory，未真实Docker/模型/部署。下一步把租户/task/run/generation从权威运行记录绑定到backend配置，再统一实际容器验收。
+
 私有服务/client本批最终差量独立PASS，关闭交接P2关闭；仅源码与下列限定证据，不代表worker接线、真实Docker或部署完成。
 
 2026-09-13 私有broker服务/client：固定0600 UDS四路由、有界NDJSON及无Docker导入的客户侧适配器，纯身份合同提取保持broker导出兼容。实UDS小事件缓存延迟、关闭交错晚准入及最终启动交接均RED复现后修复，关闭置halt与最后检查/Popen使用同一锁。服务/client/lifecycle/core此前合批21通过/1.94秒，追加跨任务/意外状态/字段拒绝3通过/0.08秒，最终受影响lifecycle13通过/0.94秒，共25项独立用例。Docker仍为合成回执，无真实研究/部署；下一步将client接入mission并保持宿主permit/journal，再统一实际容器链路验收。

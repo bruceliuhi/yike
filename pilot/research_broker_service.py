@@ -96,9 +96,12 @@ class BrokerServer:
                         self.wfile.write(json.dumps(value,separators=(',',':')).encode()+b'\n')
                         self.wfile.flush()
                     def emit(data):
-                        if type(data) is not bytes or not 0 < len(data) <= 65536:
+                        if type(data) is not bytes or len(data) > 65536:
                             raise ValueError('invalid_output_chunk')
-                        frame({'type':'chunk','data':base64.b64encode(data).decode('ascii')})
+                        if not data:
+                            frame({'type':'heartbeat'})
+                        else:
+                            frame({'type':'chunk','data':base64.b64encode(data).decode('ascii')})
                     try:
                         result = broker.execute(body['identity'],body['manifest'],emit=emit)
                         frame({'type':'result','value':result})

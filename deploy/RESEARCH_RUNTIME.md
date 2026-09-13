@@ -45,3 +45,9 @@ broker必须以UID10001运行并单独获得Docker控制权限；不兼容UID启
 `python -I -m pilot.research_broker_service --socket <私有socket路径> --image <固定sha256> --tasks-root <私有任务根> --ledger-root <私有登记根>`提供同UID/0600 Unix socket服务，绝不监听TCP。固定POST `/v1/create`、`/v1/status`、`/v1/stop`、`/v1/execute`，body最多1MiB、最多4请求线程；执行返回NDJSON块和最终物理状态，不把STOPPED当研究成功。不得通过公网反代暴露这些接口。服务主进程上下文拥有broker守护，仍需后续部署配置自动重启恢复。
 
 客户服务使用独立 `BrokerClient`，只依赖httpx和纯身份合同，不导入Docker控制；固定socket与路径、校验task key/状态/帧/2MiB总量。真实本地UDS合成broker往返验证了小事件在任务结束前可见；原64KiB累积延迟经RED复现修复。关闭时最终准入再查halt/alive，避免status耗时期间服务停止后继续启动。当前尚未将此client注入实际mission、配置生产挂载或运行真实Docker，不能据服务接口通过声称客户研究已经隔离执行。
+
+### mission适配源码接续（尚未配置启用）
+
+`BrokerMissionExecution`接入现有`run_public_research_mission(..., broker_execution=...)`，只允许有宿主动作许可及编译上下文的研究分支；宿主不需Codex/Python可执行文件，不回退本地进程。任务目录按身份hash唯一创建；模型/搜索key不进manifest。原事件解析和citation展开仍由宿主完成，合成broker输出不是可信采购事实或新的真实研究证据。取消/格式错误先撤销宿主后续动作许可，再请求物理停止，停止未确认写broker_stop_unknown；短令牌虽仍在临时网关内，revoked围栏拒绝后续effect。
+
+broker空闲执行每秒发协议心跳，client流读超时12秒、host reader回收上限13秒，公共合同绑定以覆盖2秒CLI等待+三次2秒Docker核对及线程回收；host适配器有界队列消费，按原deadline/cancel回收。最终STOPPED帧且完整流已确认时不重复stop查询。当前尚未接动态配置factory与生产挂载，前文“尚未注入mission”由本节源码状态替代；真实容器/模型/客户路径仍未验收。

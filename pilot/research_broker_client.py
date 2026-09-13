@@ -7,7 +7,7 @@ import stat
 
 import httpx
 
-from pilot.research_broker_contract import task_key
+from pilot.research_broker_contract import STREAM_READ_TIMEOUT, task_key
 
 
 class BrokerClient:
@@ -21,7 +21,7 @@ class BrokerClient:
 
     def _client(self, *, streaming=False):
         return httpx.Client(transport=httpx.HTTPTransport(uds=self.path),
-            base_url='http://broker',trust_env=False,timeout=1830 if streaming else 10)
+            base_url='http://broker',trust_env=False,timeout=STREAM_READ_TIMEOUT if streaming else 10)
 
     def _result(self, identity, value, *, execution=False):
         fields = {'key','status','code'} if execution else {'key','status'}
@@ -68,7 +68,9 @@ class BrokerClient:
                         value = json.loads(line)
                         if done or type(value) is not dict:
                             raise ValueError('invalid_broker_stream')
-                        if set(value)=={'type','data'} and value['type']=='chunk':
+                        if value == {'type':'heartbeat'}:
+                            yield value
+                        elif set(value)=={'type','data'} and value['type']=='chunk':
                             data = base64.b64decode(value['data'],validate=True)
                             total += len(data)
                             if not 0 < len(data) <= 65536 or total > 2*1024*1024:
