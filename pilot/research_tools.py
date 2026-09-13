@@ -26,7 +26,9 @@ from pilot.open_web_reader import (
 )
 from pilot.public_search import normalize_query, valid_search_result
 from pilot.research_entry_urls import decode_entry_urls_json, validate_entry_urls
-from pilot.research_citation_selection import citation_fragments
+from pilot.research_citation_selection import (
+    CITATION_CONTENT_NOTICE, ORIGINAL_READ_META_KEY, citation_read_projection,
+)
 
 
 def _failure(code):
@@ -150,13 +152,15 @@ def build_server(*, max_reads: int, max_seconds: int, reader=read_public_page, s
             result = await search(arguments)
         else:
             result = _failure('unknown_tool')
-        display = result
+        content = json.dumps(result, ensure_ascii=False, separators=(',',':'))
+        structured = result
+        meta = None
         if citation_mode and result['status'] == 'READ':
-            display = {**result, 'evidence': {key:value for key,value in result['evidence'].items()
-                                              if key != 'text'}}
-            display['evidence']['text_fragments'] = citation_fragments(result['evidence']['text'])
-        return CallToolResult(content=[TextContent(type='text', text=json.dumps(
-            display, ensure_ascii=False, separators=(',',':')))], structuredContent=result,
+            content = CITATION_CONTENT_NOTICE
+            structured = citation_read_projection(result)
+            meta = {ORIGINAL_READ_META_KEY: result}
+        return CallToolResult(content=[TextContent(type='text', text=content)],
+            structuredContent=structured, _meta=meta,
             isError=result['status'] not in {'READ','SEARCHED'})
 
     return server

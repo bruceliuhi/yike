@@ -8,6 +8,8 @@ from pilot.research_page_selection import SCHEMA_VERSION, page_selection_schema,
 
 
 CITATION_SCHEMA_VERSION = "research-citation-choice-v1"
+ORIGINAL_READ_META_KEY = "yike_original_read_v1"
+CITATION_CONTENT_NOTICE = "Citation fragments are provided in structuredContent."
 CITATION_CHOICE_INSTRUCTIONS = """# 最终逐页引用选择合同（research-citation-choice-v1）
 
 最后一次回答必须且只能是严格 JSON，不要 Markdown 围栏、解释或尾随文本：
@@ -46,6 +48,18 @@ def citation_fragments(text: str) -> list[dict]:
         _invalid()
     return [{"quote_ref": f"q{offset // 400 + 1}", "text": text[offset:offset + 400]}
             for offset in range(0, len(text), 400)]
+
+
+def citation_read_projection(result: dict) -> dict:
+    """Return the exact model view while leaving the original READ detached."""
+    if (type(result) is not dict
+            or set(result) != {"status", "evidence", "review_status", "replayed"}
+            or result.get("status") != "READ" or type(result.get("evidence")) is not dict
+            or type(result["evidence"].get("text")) is not str):
+        _invalid()
+    evidence = {key:value for key,value in result["evidence"].items() if key != "text"}
+    evidence["text_fragments"] = citation_fragments(result["evidence"]["text"])
+    return {**result, "evidence": evidence}
 
 
 def citation_choice_schema() -> dict:

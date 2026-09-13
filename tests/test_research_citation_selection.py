@@ -53,6 +53,20 @@ def test_citation_schema_is_exact_and_detached():
     assert module.citation_choice_schema()["properties"]
 
 
+def test_citation_read_projection_is_detached_and_replaces_only_original_text():
+    module = citation_module()
+    source = evidence("https://example.com/read", "原文" * 250)
+    result = {"status":"READ", "evidence":source, "review_status":"UNREVIEWED",
+              "replayed":False}
+    projected = module.citation_read_projection(result)
+    assert projected.keys() == result.keys()
+    assert "text" not in projected["evidence"]
+    assert "text_fragments" not in result["evidence"]
+    assert "".join(item["text"] for item in projected["evidence"]["text_fragments"]) == source["text"]
+    projected["evidence"]["url"] = "https://example.com/changed"
+    assert result["evidence"]["url"] == source["url"]
+
+
 def test_expand_choices_reconstructs_only_host_fragments_then_passes_original_parser():
     module = citation_module()
     first = evidence("https://example.com/a", "前" * 400 + "后部需求：找团队报价。")

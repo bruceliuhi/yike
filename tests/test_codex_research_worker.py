@@ -55,6 +55,21 @@ def citation_final_events(*read_events):
         summary='逐页引用选择完成',pages=pages),ensure_ascii=False))
 
 
+def citation_read_event(event):
+    original=copy.deepcopy(event['item']['result']['structured_content'])
+    evidence=original['evidence']
+    projected=copy.deepcopy(original)
+    projected['evidence'].pop('text')
+    projected['evidence']['text_fragments']=[
+        {'quote_ref':f'q{offset//400+1}','text':evidence['text'][offset:offset+400]}
+        for offset in range(0,len(evidence['text']),400)]
+    event['item']['result']={'content':[{'type':'text','text':
+        'Citation fragments are provided in structuredContent.'}],
+        'structured_content':projected,
+        '_meta':{'yike_original_read_v1':original}}
+    return event
+
+
 @pytest.fixture
 def worker(monkeypatch):
     import pilot.codex_research_worker as module
@@ -406,6 +421,7 @@ def test_seeded_controlled_worker_transports_entries_and_completes_without_searc
     event=read_event()
     event['item']['arguments']['url']=entry
     event['item']['result']['structured_content']['evidence']['url']=entry
+    event=citation_read_event(event)
     result=run_research(worker,tmp_path,[event,*citation_final_events(event)],extra=extra,
         research_context=context,effect_dispatcher=lambda kind,payload,deadline,perform:perform(deadline))
     data=json.loads(capture.read_text())
@@ -478,7 +494,7 @@ def test_profile_research_loads_original_rules_and_bound_context_in_real_process
     if version==2:
         from tests.test_research_context import projected_v2
         context=projected_v2()
-    event=read_event()
+    event=citation_read_event(read_event())
     result=run_research(worker,tmp_path,[search_event(),event,*citation_final_events(event)],
         extra=extra,research_context=context)
     from pilot.research_context import compile_research_context
@@ -574,7 +590,7 @@ def test_context_v2_delivers_full_8000_character_multiline_profile_to_real_proce
     compiled=compile_research_context(context)
     capture=tmp_path/'long-v2-context.json'
     extra=(f"open({str(capture)!r},'w').write(json.dumps(dict(prompt=sys.stdin.read())))\n")
-    event=read_event()
+    event=citation_read_event(read_event())
     result=run_research(worker,tmp_path,[search_event(),event,*citation_final_events(event)],
         description=seller,research_context=context,extra=extra)
     data=json.loads(capture.read_text())
@@ -589,7 +605,8 @@ def test_context_v2_delivers_full_8000_character_multiline_profile_to_real_proce
 def test_contextual_final_message_allows_512_kib_but_legacy_keeps_16000(worker,tmp_path):
     from tests.test_research_context import projected_v2
     large='x'*17000
-    contextual=run_research(worker,tmp_path,[search_event(),read_event(),*final_events_with(large)],
+    event=citation_read_event(read_event())
+    contextual=run_research(worker,tmp_path,[search_event(),event,*final_events_with(large)],
                             research_context=projected_v2())
     legacy=run_research(worker,tmp_path,[search_event(),read_event(),*final_events_with(large)])
     assert contextual['status']=='FAILED' and contextual['code']=='research_selection_invalid'
@@ -598,7 +615,7 @@ def test_contextual_final_message_allows_512_kib_but_legacy_keeps_16000(worker,t
 
 
 def test_contextual_invalid_citation_final_fails_closed_without_echo_or_v1_fallback(worker,tmp_path):
-    event=read_event()
+    event=citation_read_event(read_event())
     bad=json.dumps(dict(schema_version='research-page-selection-v1',summary='PRIVATE_BAD_FINAL',
         pages=[]),ensure_ascii=False)
     result=run_research(worker,tmp_path,[search_event(),event,*final_events_with(bad)],
@@ -608,7 +625,7 @@ def test_contextual_invalid_citation_final_fails_closed_without_echo_or_v1_fallb
 
 
 def test_contextual_unbounded_numeric_quote_ref_returns_fixed_failure(worker,tmp_path):
-    event=read_event()
+    event=citation_read_event(read_event())
     evidence=event['item']['result']['structured_content']['evidence']
     marker='9'*5000
     bad=json.dumps(dict(schema_version='research-citation-choice-v1',summary='PRIVATE_LONG_REF',
@@ -620,6 +637,19 @@ def test_contextual_unbounded_numeric_quote_ref_returns_fixed_failure(worker,tmp
     assert result['status']=='FAILED' and result['code']=='research_selection_invalid'
     assert result['summary']=='' and 'PRIVATE_LONG_REF' not in json.dumps(result)
     assert marker not in json.dumps(result)
+
+
+@pytest.mark.parametrize('change',['missing_original','changed_projection'])
+def test_contextual_read_requires_original_meta_and_exact_projection(worker,tmp_path,change):
+    event=citation_read_event(read_event())
+    if change=='missing_original':
+        event['item']['result'].pop('_meta')
+    else:
+        event['item']['result']['structured_content']['evidence']['text_fragments'][0]['text']='伪造'
+    result=run_research(worker,tmp_path,[search_event(),event,*final_events()],
+                        research_context=research_context())
+    assert result['status']=='FAILED' and result['code']=='invalid_runtime_output'
+    assert result['reads']==[]
 
 
 def test_context_v2_long_description_requires_exact_verified_seller_profile(worker,tmp_path):

@@ -19,7 +19,10 @@ from pilot.public_read_session import PublicReadSession
 from pilot.research_effects import EffectDispatchError
 from pilot.research_entry_urls import validate_entry_urls
 from pilot.research_tools import _valid_page
-from pilot.research_citation_selection import citation_choice_schema, expand_citation_choices
+from pilot.research_citation_selection import (
+    CITATION_CONTENT_NOTICE, ORIGINAL_READ_META_KEY, citation_choice_schema,
+    citation_read_projection, expand_citation_choices,
+)
 from pilot.responses_bridge import ResponsesBridge
 
 _LIMIT = 2 * 1024 * 1024
@@ -87,11 +90,12 @@ class _InvalidOutput(Exception):
 
 
 class _ReadEvents:
-    def __init__(self, search_enabled=False, entry_urls=()):
+    def __init__(self, search_enabled=False, entry_urls=(), citation_mode=False):
         self.reads, self.failures, self.seen = [], [], {}
         self.searches, self.search_failures = [], []
         self.search_enabled = search_enabled
         self.entry_urls = validate_entry_urls(entry_urls)
+        self.citation_mode = citation_mode
         self.search_urls = set(self.entry_urls)
         self.summary, self.usage, self.done, self.failed = '', None, False, False
         self.max_message_chars = 16_000
@@ -154,6 +158,23 @@ class _ReadEvents:
             url = None
         result = item.get('result')
         value = result.get('structured_content') if type(result) is dict else None
+        if self.citation_mode and type(result) is dict \
+                and (type(value) is dict and value.get('status') == 'READ' or '_meta' in result):
+            meta = result.get('_meta')
+            original = (meta.get(ORIGINAL_READ_META_KEY) if type(meta) is dict
+                        and set(meta) == {ORIGINAL_READ_META_KEY} else None)
+            expected_content = [{'type':'text','text':CITATION_CONTENT_NOTICE}]
+            if (set(result) != {'content','structured_content','_meta'}
+                    or result.get('content') != expected_content
+                    or type(original) is not dict
+                    or set(original) != {'status','evidence','review_status','replayed'}
+                    or original.get('status') != 'READ'
+                    or original.get('review_status') != 'UNREVIEWED'
+                    or type(original.get('replayed')) is not bool
+                    or url is None or not _valid_page(original.get('evidence'), url)
+                    or value != citation_read_projection(original)):
+                raise _InvalidOutput
+            value = original
         if self.search_enabled and url not in self.search_urls:
             # The tool legitimately rejects undiscovered URLs before any I/O.
             # Observe that denial without granting the URL or aborting the run.
@@ -450,7 +471,8 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                 compiled = prepared
                 entries = (validate_entry_urls(prepared['entry_urls'])
                            if controlled and search_enabled else ())
-                events = _ReadEvents(search_enabled=search_enabled,entry_urls=entries)
+                events = _ReadEvents(search_enabled=search_enabled,entry_urls=entries,
+                                     citation_mode=True)
                 events.max_message_chars = 512 * 1024
                 events.max_message_bytes = 512 * 1024
         except ResearchContextError as error:
