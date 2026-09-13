@@ -23,6 +23,7 @@ const rejectionReasons: Record<string,string> = {
   profile_unavailable:"所选画像当前不可用，请重新确认", suggestion_busy:"建议服务正忙，请稍后再试",
   suggestion_rate_limited:"提交过于频繁，请稍后再试", suggestion_quota_exceeded:"本小时建议生成额度已用完，请稍后再试",
 };
+const suggestionStates = {PENDING:'正在生成',SUCCEEDED:'建议已生成',FAILED:'生成失败',NOT_SUBMITTED:'未受理',UNKNOWN:'结果待核对'};
 const sameRequest = (receipt: SuggestionReceipt, request: SuggestionRequest) =>
   receipt.request_id === request.request_id && receipt.draft_id === request.draft_id &&
   receipt.profile_version_id === request.profile_version_id && receipt.draft_revision === request.draft_revision &&
@@ -226,7 +227,8 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
     {error && <Notice tone="warning">{error}</Notice>}
     {record && record.scope.userId === props.scope?.userId && record.scope.accountScopeId === props.scope?.accountScopeId &&
       record.scope.accountScopeVersion === props.scope?.accountScopeVersion && <Notice tone={record.receipt?.state === "FAILED" ? "warning" : "info"}>
-      原请求 {record.request.request_id} · {record.receipt?.state || "回执待核对"}
+      <span>{record.receipt ? suggestionStates[record.receipt.state] : "回执待核对"}</span>
+      <details><summary>请求详情</summary><p>原请求 {record.request.request_id}</p></details>
       {record.receipt?.state === "NOT_SUBMITTED" && <p>
         服务端已确认未受理，未调用模型。{rejectionReasons[record.receipt.error_code || ""]}
         。结束原请求后，可重新核对业务介绍并决定是否生成；不会自动重试。
@@ -262,7 +264,7 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
         <h4>寻找这些购买信号</h4><ul>{result.strategy.intentSignals.map((value,index)=><li key={index}>{value}</li>)}</ul>
         <h4>留意这些反例</h4>{result.strategy.counterSignals.length?<ul>{result.strategy.counterSignals.map((value,index)=><li key={index}>{value}</li>)}</ul>:<p>暂未提出，仍需人工判断。</p>}
         <h4>策略的画像依据</h4><ul>{result.strategy.basis.map((value,index)=><li key={index}>{value}</li>)}</ul>
-        <p className="muted">策略版本：{result.strategy.version}</p>
+        <details><summary>策略版本详情</summary><p className="muted">策略版本：{result.strategy.version}</p></details>
       </section>}
       <h3>搜索关键词</h3><div className="suggestion-list">{result.keywords.map(v => <span key={v}>{v}</span>)}</div>
       <h3>排除词</h3><div className="suggestion-list">{result.exclusions.map(v => <span key={v}>{v}</span>)}</div>

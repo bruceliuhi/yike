@@ -35,6 +35,9 @@ it('shows proposed sources, business evidence and unknowns without automatically
   expect(screen.getByText('需求主帖')).toBeTruthy();expect(screen.getByText('讨论评论')).toBeTruthy();
   expect(screen.getByText('寻找设备改造供应商')).toBeTruthy();expect(screen.getByText('设备厂商广告')).toBeTruthy();
   expect(screen.getByText('为制造企业提供产线改造')).toBeTruthy();
+  const version=screen.getByText(/策略版本：industry-search-strategy-v1/);
+  expect(version.closest('details')).not.toBeNull();
+  expect(version.closest('details')!.open).toBe(false);
   expect(onApply).not.toHaveBeenCalled();expect(service.submit).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button',{name:'合并新增建议'}));
   await waitFor(()=>expect(onApply).toHaveBeenCalledWith(receipt,'append'));

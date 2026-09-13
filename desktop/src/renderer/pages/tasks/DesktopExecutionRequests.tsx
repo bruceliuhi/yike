@@ -30,14 +30,16 @@ export function DesktopExecutionRequests({execution, canRetryStart, canRetryCanc
       const cancelExists = receipt?.operation === 'START' && execution.entries.some(value => value.operation === 'CANCEL' &&
         (value.request?.task_id === receipt.task_id || value.command?.action === 'CANCEL' && value.command.taskId === receipt.task_id));
       return <article key={entry.requestId} className="task-start-blockers">
-        <h3>{research?'公开单源研究启动':{START: '启动任务', CANCEL: '取消任务', CLAIM: '领取任务', RENEW: '续期任务', FINISH:'完成登记'}[entry.operation]} · 原执行请求</h3><p className="field-hint">{entry.requestId}</p>
+        <h3>{research?'公开单源研究启动':{START: '启动任务', CANCEL: '取消任务', CLAIM: '领取任务', RENEW: '续期任务', FINISH:'完成登记'}[entry.operation]} · 原执行请求</h3>
+        <details><summary>请求详情</summary><p className="field-hint">{entry.requestId}</p>
+          {receipt && <p className="field-hint">任务：{receipt.task_id}</p>}
+        </details>
         {research&&<p className="field-hint">所选公开板块的单源研究，具体范围见研究进度；查询只恢复原请求，不会重新提交报价令牌。</p>}
         <p>{receipt?.operation === 'START' ? '原启动回执：任务已创建，当时待执行；不是当前任务状态，不代表采集成功。'
           : receipt?.operation === 'CANCEL' ? receipt.stop_confirmed ? '服务端已登记停止；本机来源请另行核对。' : '取消已登记，等待停止确认。'
           : receipt?.operation === 'FINISH' ? '已核对历史完成回执；它记录当时结果，不是当前执行授权。'
           : receipt ? '已核对历史租约回执，不代表当前仍有执行授权。'
           : `原请求待核对（${entry.state || '未查询'}）；未查到不表示请求失败。`}</p>
-        {receipt && <p className="field-hint">任务：{receipt.task_id}</p>}
         {!research&&(entry.operation === 'START' || entry.operation === 'CANCEL') && <label className="check-row">
           <input type="checkbox" checked={retryChecked} disabled={execution.busy || !execution.loaded || !canRetry}
             onChange={event => setRetry(old => ({...old, [entry.requestId]: event.target.checked}))} />

@@ -93,7 +93,7 @@ export function TaskWizardPage() {
   const nativeMonitor = draft.mode === 'monitor' && monitors.available;
   const monitorReady = nativeMonitor && monitors.list?.supported === true;
   const strategyPreparationError = !executionLimits
-    ? "请返回任务条件，明确设置执行记录与执行时长上限；建议值尚未采用。"
+    ? "请返回任务条件，使用推荐设置或在高级设置中调整处理范围。"
     : draft.research?.coverageProvenance
       ? "当前策略服务尚未支持补查来源。原草稿与溯源已保留，暂不能确认此策略。"
       : null;

@@ -97,6 +97,7 @@ it('edits and preserves unfinished local rules, explicitly rebinds profile and r
     return <><IndustryTaskStrategyEditor value={value} profileId={other} onChange={setValue}/>
       <output data-testid="current">{JSON.stringify(value??null)}</output></>;}
   render(<Harness/>);
+  fireEvent.click(screen.getByText('高级设置：客户筛选'));
   fireEvent.change(screen.getByLabelText('任务购买信号'),{target:{value:'人工信号\n'}});
   expect(JSON.parse(screen.getByTestId('current').textContent!).configuration.intentSignals).toEqual(['人工信号','']);
   fireEvent.click(screen.getByRole('button',{name:'按当前画像确认'}));

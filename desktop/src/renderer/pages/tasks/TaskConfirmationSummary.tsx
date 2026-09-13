@@ -71,14 +71,8 @@ export function TaskConfirmationSummary({
                   <dt>{usage?.strategyBinding ? '资源上限估算' : '预计消耗'}</dt>
                   <dd>
                     {usage
-                      ? `${usage.estimatedSoubei} 搜贝 · ${usage.ruleVersion}`
+                      ? `${usage.estimatedSoubei} 搜贝`
                       : "待重新估算"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>停止条件</dt>
-                  <dd>
-                    搜贝、来源、时长或模型调用达到任一上限即停止；扩大范围需重新确认。
                   </dd>
                 </div>
                 {draft.research.provenance && (
@@ -124,10 +118,10 @@ export function TaskConfirmationSummary({
               <dd>{deviceReady ? "执行服务已就绪" : "本机 · 待绑定或检查"}</dd>
             </div>
             <div>
-              <dt>执行保护上限</dt>
+              <dt>本次处理范围</dt>
               <dd>{draft.executionLimits
                 ? `${draft.executionLimits.max_records ?? "待设置"} 条记录 / ${draft.executionLimits.max_runtime_seconds ?? "待设置"} 秒`
-                : "尚未设置；建议100条记录 / 900秒，须返回配置后采用"}（独立于搜贝与研究上限）</dd>
+                : "尚未设置，请返回配置设置后再启动。"}</dd>
             </div>
             <div>
               <dt>搜索关键词</dt>
@@ -197,6 +191,8 @@ export function TaskConfirmationSummary({
             )}
           </dl>
         </div>
+        {draft.research && <p className="field-hint">达到本次上限即暂停，不会自动追加用量。</p>}
+        {usage && <details><summary>用量规则详情</summary><p>计量规则：{usage.ruleVersion}</p></details>}
       </section>
       <section className="task-confirm-platforms">
         <h2>平台与执行账号</h2>

@@ -135,10 +135,10 @@ export function CandidateOriginalEvidence({
         />
         <dl className="candidate-evidence-facts">
           <Fact label="来源平台">
-            {platformLabels[candidate.platform]}（{candidate.platform}）
+            {platformLabels[candidate.platform]}
           </Fact>
           <Fact label="来源类型">
-            {kindLabels[candidate.kind]}（{candidate.kind}）
+            {kindLabels[candidate.kind]}
           </Fact>
           <Fact label="采集端观察时间">
             <EvidenceTime value={candidate.latest_observed_at} />
@@ -150,14 +150,19 @@ export function CandidateOriginalEvidence({
               "当前观察记录不在已返回历史中，未知"
             )}
           </Fact>
-          <Fact label="候选修订">{candidate.revision}</Fact>
-          <Fact label="来源版本 ID">
-            {candidate.current_version.version_id}
-          </Fact>
-          <Fact label="内容版本摘要">
-            {candidate.current_version.content_version}
-          </Fact>
         </dl>
+        <details className="candidate-evidence-details">
+          <summary>查看来源记录详情</summary>
+          <dl className="candidate-evidence-facts">
+            <Fact label="候选修订">{candidate.revision}</Fact>
+            <Fact label="来源版本 ID">
+              {candidate.current_version.version_id}
+            </Fact>
+            <Fact label="内容版本摘要">
+              {candidate.current_version.content_version}
+            </Fact>
+          </dl>
+        </details>
       </section>
       {observations.truncated ? (
         <p className="candidate-evidence-warning">

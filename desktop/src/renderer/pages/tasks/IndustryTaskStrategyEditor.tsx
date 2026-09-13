@@ -6,13 +6,16 @@ export function IndustryTaskStrategyEditor({value,profileId,onChange}:{
   value?:IndustryStrategyDraft;profileId:string;onChange:(value:IndustryStrategyDraft|undefined)=>void;
 }) {
   const config=value?.configuration;
+  const needsReview=!!value&&(value.profileId!==profileId||!industryTaskStrategySchema.safeParse(config).success);
   const change=(patch:Partial<IndustryStrategyDraft['configuration']>)=>{
     if(value)onChange({...value,configuration:{...value.configuration,...patch}});
   };
   return <section className="form-section" aria-label="本任务行业策略">
-    <h2>本任务行业策略</h2>
-    <p className="field-hint">保存研究方向，随最终任务快照确认；发起候选AI判断时作为研究条件使用，不自动过滤采集内容。内容方向不代表平台权限或已发现需求。</p>
-    {!config?<><p>可先生成建议并单独采用，也可以手动设置；留空不影响原搜索条件。</p>
+    {needsReview&&<Notice tone="warning">客户筛选条件需要核对，请展开高级设置修改。</Notice>}
+    <details className="usage-advanced">
+    <summary>高级设置：客户筛选</summary>
+    <p className="field-hint">补充理想客户和排除条件，帮助 AI 判断；不会改变采集范围。</p>
+    {!config?<><p className="field-hint">可选，留空也可以继续。</p>
       <Button disabled={!profileId} onClick={()=>onChange({profileId,configuration:{version:'industry-task-strategy-v1',
         sourceTypes:['SOCIAL_POST','COMMENT'],intentSignals:[''],counterSignals:[]}})}>手动设置行业策略</Button></>:<>
       {value.profileId!==profileId&&<Notice tone="warning">策略来自旧画像，核对当前业务后再继续。
@@ -33,5 +36,6 @@ export function IndustryTaskStrategyEditor({value,profileId,onChange}:{
       {!industryTaskStrategySchema.safeParse(config).success&&<Notice tone="warning">内容方向至少选一种；信号1–5条、反例0–5条，每条1–160字，不能重复或含空行。未完成的编辑已保留，请修正后准备策略。</Notice>}
       <Button variant="ghost" onClick={()=>onChange(undefined)}>移除本任务策略</Button>
     </>}
+    </details>
   </section>;
 }

@@ -77,7 +77,7 @@ export function CandidateAssessmentDetails({
           >
             <h4>{label}</h4>
             <p>
-              {levels[assessment[key].level]}（{assessment[key].level}）
+              {levels[assessment[key].level]}
             </p>
             <p className="candidate-evidence-text">{assessment[key].reason}</p>
             {assessment[key].citations.length === 0 ? (
@@ -86,8 +86,8 @@ export function CandidateAssessmentDetails({
               <ul className="candidate-assessment-citations">
                 {assessment[key].citations.map((citation, index) => (
                   <li key={`${citation.field}:${index}`}>
-                    <span className="muted">
-                      {citation.field.startsWith('author_updates.')?`作者回复 ${Number(citation.field.split('.')[1])+1}`:citationFields[citation.field as keyof typeof citationFields]} · {citation.field}
+                    <span className="muted" title={citation.field}>
+                      {citation.field.startsWith('author_updates.')?`作者回复 ${Number(citation.field.split('.')[1])+1}`:citationFields[citation.field as keyof typeof citationFields]}
                     </span>
                     <blockquote className="candidate-evidence-text">
                       {citation.quote}

@@ -28,9 +28,13 @@ export function StrategyExecutionLimits({ value, onChange }: {
 
   return (
     <section className="research-settings" aria-label="执行保护上限">
+      {!validStrategyExecutionLimits(value) && <>
+        <p className="field-hint">请采用推荐设置，或展开高级设置调整处理范围。</p>
+        <Button variant="ghost" onClick={() => onChange({ ...SUGGESTED_LIMITS })}>使用推荐设置</Button>
+      </>}
       <details className="usage-advanced">
         <summary>
-          执行保护上限 <small>本次执行的记录数与时长</small>
+          高级设置：处理范围
         </summary>
         <Field label="最多处理记录数" className="usage-cap">
           <div className="soubei-input">

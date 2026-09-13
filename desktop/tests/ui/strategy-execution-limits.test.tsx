@@ -63,7 +63,7 @@ describe("strategy execution limit draft storage", () => {
 describe("strategy execution limit editor", () => {
   it("shows unconfirmed suggested values and adopts them only after an explicit action", () => {
     render(<Editor />);
-    fireEvent.click(screen.getByText("执行保护上限"));
+    fireEvent.click(screen.getByText("高级设置：处理范围"));
 
     const records = screen.getByRole("spinbutton", {
       name: "最多处理记录数",
@@ -96,7 +96,7 @@ describe("strategy execution limit editor", () => {
     render(
       <Editor initial={{ max_records: 25, max_runtime_seconds: 1_200 }} />,
     );
-    fireEvent.click(screen.getByText("执行保护上限"));
+    fireEvent.click(screen.getByText("高级设置：处理范围"));
     const records = screen.getByRole("spinbutton", {
       name: "最多处理记录数",
     }) as HTMLInputElement;

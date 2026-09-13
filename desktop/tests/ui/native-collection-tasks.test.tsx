@@ -90,6 +90,15 @@ beforeEach(() => {
   } as unknown as AppContextValue;
 });
 afterEach(cleanup);
+it('keeps task identity behind details while leaving status and cancellation visible', async()=>{
+ context.route=parseRoute(`#/collection?task=${id}`);
+ render(<NativeCollectionTasks/>);
+ const identity=await screen.findByText(`任务编号：${id}`);
+ expect(identity.closest('details')).not.toBeNull();
+ expect(identity.closest('details')!.open).toBe(false);
+ expect(screen.getByRole('button',{name:'取消本次采集'})).toBeTruthy();
+ expect(screen.getByText(/服务端状态：运行中/).closest('details')).toBeNull();
+});
 it('creates a fresh ordinary draft from the production task-feed route in the current account scope',async()=>{
  const key='yike.ui.draft.v1.task.'+taskDraftOwner(context.session.userId,context.session.accountScope);
  const previous={...newTaskDraft(),research:defaultResearchSettings()};

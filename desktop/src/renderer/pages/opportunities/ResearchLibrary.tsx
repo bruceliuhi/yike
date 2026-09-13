@@ -596,20 +596,18 @@ export function ResearchLibrary() {
               </aside>
             </div>
           )}
-          <section className="research-observation-note">
-            <div>
-              <h2>观察池接收什么</h2>
+          <details className="research-gap">
+            <summary>什么情况先观察？</summary>
               <p>
                 开店、扩产、参展等业务变化，尚无明确采购表达时先观察并补证。
               </p>
-            </div>
             <Button
               variant="ghost"
               onClick={() => changeCategory("OBSERVATION")}
             >
               查看观察池
             </Button>
-          </section>
+          </details>
         </>
       )}
     </>

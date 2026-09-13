@@ -1,4 +1,3 @@
-import { CheckCircle, ListChecks } from "@phosphor-icons/react";
 import { Badge, Button, Field, Notice } from "../../components/ui";
 import {
   defaultResearchSettings,
@@ -122,26 +121,19 @@ export function ResearchSettingsPanel({
             onChange={event=>onChange({...value,dynamicScope:{...value.dynamicScope!,maxAgeDays:Number(event.target.value)}})}/>
         </Field>
         <p className="field-hint">近 {value.dynamicScope.maxAgeDays} 天 · {value.dynamicScope.timezone}。依据需求作者原文时间；未核实日期的内容不能冒充近期商机。</p>
-        <p className="field-hint">搜索和读取共用来源上限（2–100次）；最多10次独立搜索、30分钟、最多20次模型调用（规划和判断合计）。至少预留一次判断额度，不保证固定候选数量。</p>
-        {!dynamicLimitsValid(value.limits)&&<Notice tone="warning">当前上限超出自主研究能力，请调整来源、时长或模型调用次数；系统不会静默调低。</Notice>}
+        {!dynamicLimitsValid(value.limits)&&<Notice tone="warning">当前设置超出可用范围，请展开高级设置调整。</Notice>}
       </>}
-      <dl className="usage-status">
-        <div>
-          <dt>已使用</dt>
-          <dd>尚未启动</dd>
-        </div>
-      </dl>
-      {quote && <p className="field-hint">{quote.basis}</p>}
       {error && <Notice tone="warning">{error}</Notice>}
       {!researchSettingsSchema.safeParse(value).success && (
         <Notice tone="warning">
-          请选择需求类型，用量上限需为 1 至 1,000,000 的整数。
+          请核对需求类型和用量上限；更多参数可在高级设置中调整。
         </Notice>
       )}
       <details className="usage-advanced">
         <summary>
-          高级设置 <small>来源、时长与调用上限</small>
+          高级设置
         </summary>
+        {value.dynamicScope && <p className="field-hint">搜索和读取共用来源上限（2–100次）；最多10次独立搜索、30分钟、最多20次模型调用（规划和判断合计）。至少预留一次判断额度，不保证固定候选数量。</p>}
         {(
           [
             ["sources", value.dynamicScope?"搜索与读取合计上限":"独立来源上限", value.dynamicScope?"次":"条"],
@@ -172,37 +164,14 @@ export function ResearchSettingsPanel({
             </div>
           </Field>
         ))}
-      </details>
-      <div className="evidence-order">
-        <h3>
-          <ListChecks size={18} />
-          补证顺序
-        </h3>
-        <ol>
-          {["原文与发布时间", "需求依据与目标匹配", "联系上下文"].map(
-            (label, index) => (
-              <li key={label}>
-                <span className="step-number">{index + 1}</span>
-                {label}
-              </li>
-            ),
-          )}
-        </ol>
-      </div>
-      <div className="research-stops">
-        <h3>停止条件</h3>
-        <p className="research-stop">
-          <CheckCircle size={17} />
-          任一用量上限触达即停止继续研究
-        </p>
-      </div>
-      <p className="field-hint">证据不足如实显示，搜贝用量不代表商机数量。</p>
+      {quote && <p className="field-hint">{quote.basis}</p>}
       <dl className="usage-status">
         <div>
           <dt>计量规则</dt>
           <dd>{quote?.ruleVersion || "待服务确认"}</dd>
         </div>
       </dl>
+      </details>
       {onPreview && (
         <Button variant="ghost" onClick={onPreview}>
           查看启动确认内容

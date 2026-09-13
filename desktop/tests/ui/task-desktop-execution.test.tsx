@@ -174,7 +174,7 @@ describe('original TaskWizard signed execution entry', () => {
       researchUsage:{requiresConfirmedStrategy:true,quote:vi.fn(async input=>({...input,quoteId:crypto.randomUUID(),ruleVersion:'test-v1',ruleSha256:'c'.repeat(64),authorizationToken:'abc.def',
         estimatedSoubei:5,generatedAt:new Date(Date.now()-1000).toISOString(),expiresAt:new Date(Date.now()+60_000).toISOString(),basis:'TEST only'}))}}};
     sessionStorage.setItem('yike.ui.draft.v1.task.'+taskDraftOwner(context.session.userId,context.session.accountScope),JSON.stringify(draft));render(<TaskWizardPage/>);
-    fireEvent.click(await screen.findByRole('button',{name:'重新估算'}));await screen.findByText('5 搜贝 · test-v1');await review();
+    fireEvent.click(await screen.findByRole('button',{name:'重新估算'}));await screen.findByText('5 搜贝');await review();
     if(plan){expect(screen.getByRole('table',{name:'已确认来源配额'})).toBeTruthy();
       expect(prepared.snapshot.configuration.research?.sourcePlan?.sources).toEqual([source,'v2ex-outsourcing-authors-v1']);}
     if(source==='v2ex-qna-v1'&&!plan)expect(screen.getByText('V2EX问与答 · 单源索引研究（未读评论）')).toBeTruthy();
@@ -208,7 +208,7 @@ describe('original TaskWizard signed execution entry', () => {
         expiresAt:new Date(Date.now()+60_000).toISOString(),basis:'TEST only'}))}}};
     sessionStorage.setItem('yike.ui.draft.v1.task.'+taskDraftOwner(context.session.userId,context.session.accountScope),JSON.stringify(draft));
     render(<TaskWizardPage/>);
-    fireEvent.click(await screen.findByRole('button',{name:'重新估算'}));await screen.findByText('5 搜贝 · test-v1');await review();
+    fireEvent.click(await screen.findByRole('button',{name:'重新估算'}));await screen.findByText('5 搜贝');await review();
     expect(screen.queryByText(/关键词仅筛选本次近期主题样本/)).toBeNull();
     const start=screen.getByRole('button',{name:'确认并启动'}) as HTMLButtonElement;
     await waitFor(()=>expect(start.disabled).toBe(false));

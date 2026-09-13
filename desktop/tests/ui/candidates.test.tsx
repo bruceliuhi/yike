@@ -178,7 +178,7 @@ describe("原始候选 P07", () => {
         requestId: "request-test",
       }),
     ).rejects.toMatchObject({ code: "CAPABILITY_UNAVAILABLE" });
-    expect(fetch).toHaveBeenCalledExactlyOnceWith("/api/ui/candidates",expect.objectContaining({method:"GET"}));
+    expect(fetch).toHaveBeenCalledExactlyOnceWith("/api/ui/candidates?evidenceVersion=1",expect.objectContaining({method:"GET"}));
   });
   it("筛选与分页传服务端契约，条件变化回到第一页", async () => {
     const load = vi

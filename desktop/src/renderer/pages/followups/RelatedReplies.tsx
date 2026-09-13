@@ -253,9 +253,12 @@ export function RelatedReplies({
                       <p className="preserve-lines">{reply.content}</p>
                       <small>{formatDate(reply.receivedAt)}</small>
                       {reply.opportunityId && reply.sendRequestId ? (
-                        <p className="muted text-small">
-                          关联发送记录：{reply.sendRequestId}
-                        </p>
+                        <details>
+                          <summary>查看关联记录</summary>
+                          <p className="muted text-small">
+                            关联发送记录：{reply.sendRequestId}
+                          </p>
+                        </details>
                       ) : (
                         <Notice>
                           {reply.unmatchedReason ||

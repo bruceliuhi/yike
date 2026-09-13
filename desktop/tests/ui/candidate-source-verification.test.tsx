@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
 import {
   act,
   cleanup,
@@ -40,6 +41,18 @@ function receipt() {
 }
 
 describe("candidate human source verification", () => {
+  it("keeps human verification facts visible while collapsing record identifiers", () => {
+    const verification = receipt();
+    render(<CandidateSourceVerification binding={candidateBinding} verification={verification} onSubmit={vi.fn()} />);
+    expect(screen.getByText(verification.checkedBy)).toBeVisible();
+    expect(screen.getByText(verification.checkedAt)).toBeVisible();
+    expect(screen.getByText(verification.excerpt, { normalizer: text => text })).toBeVisible();
+    expect(screen.getByText(verification.id)).not.toBeVisible();
+    expect(screen.getByText(verification.requestId)).not.toBeVisible();
+    fireEvent.click(screen.getByText("查看核验记录绑定"));
+    expect(screen.getByText(verification.id)).toBeVisible();
+    expect(screen.getByText(verification.requestId)).toBeVisible();
+  });
   it("collects optional person/date proof, clears confirmation on edits and resets with identity", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     const view = render(<CandidateSourceVerification binding={candidateBinding} allowDemandEvidence onSubmit={onSubmit} />);

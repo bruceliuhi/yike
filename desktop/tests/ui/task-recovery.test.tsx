@@ -74,6 +74,14 @@ afterEach(() => {
 function seed(entry = startEntry(binding)) {
   localStorage.setItem(key(), JSON.stringify({ [binding.draftId]: entry }));
 }
+it('keeps unresolved startup recovery visible with the request ID collapsed',()=>{
+ seed();render(<PendingTaskStarts/>);
+ const identity=screen.getByText(binding.requestId);
+ expect(identity.closest('details')).not.toBeNull();
+ expect(identity.closest('details')!.open).toBe(false);
+ expect(screen.getByRole('button',{name:'核对原启动结果'})).toBeTruthy();
+ expect(screen.getByText('启动结果待确认').closest('details')).toBeNull();
+});
 it("recovers the same original request after clearing drafts and remounting, without starting anything", async () => {
   seed();
   const view = render(<PendingTaskStarts />);

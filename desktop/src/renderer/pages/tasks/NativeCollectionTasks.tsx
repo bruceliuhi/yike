@@ -322,7 +322,6 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
       {item && (
         <section className="panel" aria-label="真实采集详情">
           <h2>{item.name || "采集任务"}</h2>
-          <p>任务编号：{item.task_id}</p>
           <p>
             服务端状态：{statusLabels[item.status]} · 入库记录：
             {item.records_used} / {item.max_records}
@@ -422,6 +421,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
           )}
           <details>
             <summary>原始绑定</summary>
+            <p>任务编号：{item.task_id}</p>
             <p>画像版本：{item.profile_version_id}</p>
             <p>策略版本：{item.strategy_version_id}</p>
             <p>原启动请求：{item.start_request_id}</p>

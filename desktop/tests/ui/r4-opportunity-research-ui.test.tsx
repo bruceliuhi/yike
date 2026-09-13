@@ -8,6 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
 import {
   OpportunitiesPage,
   OpportunityDetailPage,
@@ -276,6 +277,20 @@ describe("R4 opportunity collection and source timeline", () => {
     await screen.findByText(/机会身份不匹配/);
     expect(screen.queryByText(researchRow.title)).toBeNull();
   });
+});
+
+it("keeps observation guidance optional without hiding classification or its navigation", async () => {
+  render(<OpportunitiesPage />);
+  await screen.findByText(researchRow.title);
+  const summary = screen.getByText("什么情况先观察？");
+  expect(summary.closest("details")).not.toHaveAttribute("open");
+  expect(screen.getByText(/开店、扩产、参展等业务变化/)).not.toBeVisible();
+  expect(screen.getByRole("tab", { name: "观察池" })).toBeVisible();
+  expect(screen.getByText(researchRecord.classification.reason)).toBeVisible();
+  fireEvent.click(summary);
+  expect(screen.getByText(/开店、扩产、参展等业务变化/)).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "查看观察池" }));
+  expect(screen.getByRole("tab", { name: "观察池" })).toHaveAttribute("aria-selected", "true");
 });
 
 describe("fixed evidence in the preferred R4 detail path", () => {

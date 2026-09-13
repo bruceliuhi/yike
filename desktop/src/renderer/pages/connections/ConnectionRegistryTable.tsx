@@ -35,7 +35,7 @@ export function ConnectionRegistryTable({rows, loading, error, pendingPlatforms,
               <td><PlatformLabel platform={platform.id} size={22} /></td>
               <td className="connection-account">
                 <span>{connection?.accountName || connection?.accountId || (isWeb ? "无需账号" : "—")}</span>
-                {registered && <p className="field-hint" title={`设备 ${registered.deviceId}`}>设备 {registered.deviceId.length > 18 ? `${registered.deviceId.slice(0, 8)}…${registered.deviceId.slice(-6)}` : registered.deviceId} · 连接 v{registered.version}</p>}
+                {registered && <p className="field-hint" title={`设备 ${registered.deviceId}`}>设备 {registered.deviceId.length > 18 ? `${registered.deviceId.slice(0, 8)}…${registered.deviceId.slice(-6)}` : registered.deviceId}</p>}
               </td>
               <td>{isWeb && !connection ? "—" : <Badge tone={connection?.status === "CONNECTED" ? "green" : ["EXPIRED", "LIMITED", "UNVERIFIED"].includes(connection?.status || "") ? "orange" : "neutral"}>
                 {connection ? connectionLabel[connection.status] : rows ? "未连接" : "待读取连接状态"}
@@ -59,14 +59,19 @@ export function ConnectionRegistryTable({rows, loading, error, pendingPlatforms,
         <dl className="detail-list" style={{overflowWrap: "anywhere"}}>
           <div><dt>账号</dt><dd>{selected.accountName || selected.accountId}</dd></div>
           <div><dt>登记状态</dt><dd>{connectionLabel[selected.status]}</dd></div>
-          <div><dt>连接编号</dt><dd>{selected.registration.connectionId}</dd></div>
           <div><dt>设备编号</dt><dd>{selected.registration.deviceId}</dd></div>
-          <div><dt>连接版本</dt><dd>v{selected.registration.version}</dd></div>
           <div><dt>登记时间</dt><dd>{formatDate(selected.registration.connectedAt)}</dd></div>
           <div><dt>断开时间</dt><dd>{selected.registration.disconnectedAt ? formatDate(selected.registration.disconnectedAt) : "—"}</dd></div>
           <div><dt>可用能力</dt><dd>{selected.capabilities.length ? selected.capabilities.join("、") : "尚无已核验能力"}</dd></div>
         </dl>
         <Notice>当前可查看服务端连接记录；本机账号登录、能力核验与断开操作仍待接通。</Notice>
+        <details>
+          <summary>查看连接技术信息</summary>
+          <dl className="detail-list" style={{overflowWrap: "anywhere"}}>
+            <div><dt>连接编号</dt><dd>{selected.registration.connectionId}</dd></div>
+            <div><dt>连接版本</dt><dd>v{selected.registration.version}</dd></div>
+          </dl>
+        </details>
       </> : <Notice>{loading ? "正在重新读取连接记录…" : error ? `连接详情读取失败：${error}` : "该连接当前不可见，请刷新列表核对。"}</Notice>}
     </Modal>}
   </>;

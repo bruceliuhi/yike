@@ -54,17 +54,37 @@ function mount(overrides: Partial<YikeService> = {}, path = "/profile") {
 }
 
 describe("业务画像和资料", () => {
+  it("编辑时收起重复摘要，展开仍显示最新内容且确认弹窗完整可见", async () => {
+    mount({ profiles: vi.fn().mockResolvedValue([profile()]) });
+    await waitFor(() => expect(screen.queryByText("正在加载…")).toBeNull());
+    const summary = screen.getByText("查看画像摘要");
+    const preview = summary.closest("details");
+    expect(preview).not.toBeNull();
+    expect(preview!.open).toBe(false);
+    fireEvent.change(screen.getByLabelText("服务地区"), { target: { value: "杭州" } });
+    fireEvent.click(summary);
+    expect(preview!.open).toBe(true);
+    expect(within(preview!).getByText("杭州")).toBeTruthy();
+    fireEvent.click(summary);
+    expect(preview!.open).toBe(false);
+    expect((screen.getByLabelText("服务地区") as HTMLInputElement).value).toBe("杭州");
+    fireEvent.click(screen.getByRole("button", { name: "确认画像" }));
+    const dialog = await screen.findByRole("dialog", { name: "确认画像版本 1" });
+    expect(within(dialog).getByText(fields.service).closest("details")).toBeNull();
+    expect(within(dialog).getByRole("checkbox")).toBeTruthy();
+    expect((within(dialog).getByRole("button", { name: "确认画像" }) as HTMLButtonElement).disabled).toBe(true);
+  });
   it("拒绝损坏的本机资料恢复数据并保持可用空态", async () => {
     sessionStorage.setItem(
-      "yike.ui.draft.v1.materials.test-user",
+      "yike.ui.draft.v1.materials.corrupt-draft-user",
       JSON.stringify([{ id: "broken", name: { invalid: true } }]),
     );
-    mount({}, "/profile?tab=materials");
+    mount({session: vi.fn().mockResolvedValue({authenticated: true, userId: "corrupt-draft-user"})}, "/profile?tab=materials");
     await waitFor(() => expect(screen.queryByText("正在加载…")).toBeNull());
     expect(await screen.findByText("暂无资料")).toBeTruthy();
     await waitFor(() =>
       expect(
-        sessionStorage.getItem("yike.ui.draft.v1.materials.test-user"),
+        sessionStorage.getItem("yike.ui.draft.v1.materials.corrupt-draft-user"),
       ).toBeNull(),
     );
     expect(screen.queryByText("broken")).toBeNull();

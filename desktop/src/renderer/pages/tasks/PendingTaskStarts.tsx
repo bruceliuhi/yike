@@ -109,15 +109,16 @@ export function PendingTaskStarts({
         <div className="task-recovery-row" key={row.id}>
           <div>
             <strong>原请求</strong>
-            <p className="task-request-id">
-              {row.binding?.requestId || "请求记录无法读取"}
-            </p>
+            {row.binding ? <details><summary>请求详情</summary>
+              <p className="task-request-id">{row.binding.requestId}</p>
+              <p>配置版本 {row.binding.revision}</p>
+            </details> : <p className="task-request-id">请求记录无法读取</p>}
             {row.binding && (
               <span className="field-hint">
-                {!owns(row.binding) ? "请切回原客户空间核对 · " : ""}配置版本 {row.binding.revision}
+                {!owns(row.binding) ? "请切回原客户空间核对 · " : ""}
                 {row.binding.mode
-                  ? ` · ${row.binding.mode === "monitor" ? "持续监控" : "单次采集"}`
-                  : " · 旧版记录"}
+                  ? (row.binding.mode === "monitor" ? "持续监控" : "单次采集")
+                  : "旧版记录"}
               </span>
             )}
           </div>

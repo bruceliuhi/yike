@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { OutreachPage } from '../../src/renderer/pages/Outreach';
 import { OutreachQueue } from '../../src/renderer/pages/OutreachQueue';
+import '@testing-library/jest-dom/vitest';
 import { PUBLIC_SAMPLE } from '../../src/renderer/pages/Opportunities';
 import { parseRoute } from '../../src/renderer/domain/routes';
 import type { OutreachQueue as Queue, OutreachRecord } from '../../src/renderer/domain/outreach';
@@ -25,6 +26,22 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe('outreach queue contract', () => {
+  it('keeps recipient, channel, content and unresolved result visible with technical records collapsed', async () => {
+    vi.mocked(context.service.outreach!.queue).mockResolvedValue({queue:'issues',items:[record('issues',{message:'发送结果未知，请先核对'})],total:1});
+    render(<OutreachQueue queue="issues"/>);
+    fireEvent.click(await screen.findByRole('button',{name:/TEST 隔离触达记录/}));
+    const details = screen.getByText('查看记录详情').closest('details');
+    expect(details).not.toHaveAttribute('open');
+    expect(screen.getByText('test-record-1')).not.toBeVisible();
+    expect(screen.getByText('TEST 对象')).toBeVisible();
+    expect(screen.getByText('私信')).toBeVisible();
+    expect(screen.getByText('TEST 沟通内容')).toBeVisible();
+    expect(screen.getByText('发送结果未知，请先核对')).toBeVisible();
+    fireEvent.click(screen.getByText('查看记录详情'));
+    expect(screen.getByText('test-record-1')).toBeVisible();
+    expect(screen.getByText('草稿版本')).toBeVisible();
+    expect(context.service.outreach!.send).not.toHaveBeenCalled();
+  });
   it.each(['comment','dm'] as const)('opens the actual parent draft workspace from a queue with the selected %s purpose',async channel=>{
     vi.mocked(context.service.outreach!.queue).mockResolvedValue({queue:'confirm',items:[record('confirm',{channel})],total:1});
     vi.mocked(context.service.opportunity).mockResolvedValue({...PUBLIC_SAMPLE,id:'test-opportunity',sample:false,comment:'TEST 评论联系准备',dm:'TEST 私信联系准备'});

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
 import {
   act,
   cleanup,
@@ -140,6 +141,20 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("P14 structured followup lists and replies", () => {
+  it("keeps reply evidence visible and puts its technical linkage in optional details", async () => {
+    context.route = parseRoute("#/followups?opportunity=TEST-opp&tab=replies");
+    vi.mocked(context.service.followup!.replies).mockResolvedValue([reply()]);
+    render(<FollowupsPage />);
+    expect(await screen.findByText("TEST真实条件回复")).toBeVisible();
+    expect(screen.getByText("未读（仅意客内）")).toBeVisible();
+    expect(screen.getByRole("button", { name: "标为已读" })).toBeVisible();
+    const summary = screen.getByText("查看关联记录");
+    expect(summary.closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("关联发送记录：TEST-send")).not.toBeVisible();
+    fireEvent.click(summary);
+    expect(screen.getByText("关联发送记录：TEST-send")).toBeVisible();
+    expect(context.service.followup!.mutate).not.toHaveBeenCalled();
+  });
   it("honors a workbench target once, selects its latest record, and does not pull back a local selection on refresh", async () => {
     context.route = parseRoute("#/followups?opportunity=TEST-opp&tab=replies");
     mockRecords([
