@@ -9,6 +9,16 @@
 - 独立审核 6 文件 41 项通过，发现多 START 记录取消对象不可辨识 P2；追加双记录排序/取消绑定用例先 1 项 RED，再 3 文件 22 项 GREEN。独立差量复跑 14 项通过，GO，无剩余 P1/P2；候选安装结果待本节续记。
 - 原始定向证据保存在本机 .runtime/customer-technical-copy-*.json、customer-copy-final-ui.json、customer-copy-regression-fixed.json、customer-copy-multiple-*.json；不把测试夹具当真实收发。
 
+### 追加删除文案的 Windows 候选
+
+UI 代码 f9bb6e8，冻结候选 56e8abd00c8d5e2fbef83a253a8d8d60d89acfa4 已推 main。随后同步 c22ea0d 服务端来件，desktop/app 无变化，不重复编译，也不追认冻结包为新提交。
+
+- 便携构建/搬迁/独立 Python/Chromium **1 passed / 0 skipped，124.91秒**；清单 074bd047d84fe398e85637d4110e84dc198700c6aa7d91c22b498e623123f815。645 项固定桌面输入前后摘要 ed208d36c236a2679f73ae43374fa8e79ed34f911a79377a8726b53df0a6d474 相同。
+- 首次已编译产品，Squirrel 封装因漏设独立 SQUIRREL_TEMP 导致 PathTooLongException。补短目录后 skipPackage 仅重封装，11,157 个资源前后字节相同，exit0；没有重编译或重跑业务测试。原始 .runtime/candidate-source-customer-copy.json 保留首轮 FAILED，candidate-remake-customer-copy.json 记录同字节成功。
+- Setup：C:/ykc913/make/squirrel.windows/x64/YikeAI-Setup.exe，642,867,712 字节，SHA256 bc8bbe1624de4826d5901f26dc3bd304b20f838ffd7ce09ac06378bc816440be；nupkg 646,501,490 字节，SHA256 4af47aec8ce67008cff25b571f423e05d5ffd3f94b3894ae522609512f00dc39；仍 NotSigned。
+- ASAR 385db6559e5fd8f172e9d04a63cea52fdef590f828e0c0ed499fdd695a923f5b。包内主入口、40 个 renderer 文件与固定构建一致，HTTPS 和载荷 pin 通过；旧 Windows .NET Packaging 实读 nupkg **11,204 parts**，ASAR/清单两项摘要一致。
+- 实装仍 a16e7b7。正常 UI 将已有 8 个建议词合入“验收-AI软件定制-0913”会话草稿，未新调用模型/启动任务/联系。退出明确提示会清除会话草稿；尚未获本次放弃批准，未点击放弃、强杀或启动安装器。只读复查确认仍在。下一步用户选择后安装同包并检查真实弹窗；本轮未重新部署服务器，完整 Goal ACTIVE。
+
 ### 本批前已完成的同版本交付
 
 实际服务器和 Windows 已更新到 a16e7b7，不再停在下方历史清草稿检查点。服务器健康、重启 0、只读根目录、非 root、HTTPS health/ready 通过；数据库结构及运行配置未变，未启用隔离动态研究。镜像 ID d9c26f01684a0137e753ddb3ec6a97bb01548b99b218111b333d92fa9f8e7393。服务器复用锁定依赖，188 项源码/资源字节及运行导入检查通过；首次 CRLF 归档校验失败后改用 LF 归档，失败产物未部署。启动即刻健康检查尚在 starting，之后同容器检查 healthy，通过，无重部署。
