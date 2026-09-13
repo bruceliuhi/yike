@@ -1,5 +1,16 @@
 # Windows 最新主干接续（2026-09-12）
 
+## 自动连接准备候选 3ffddbd 已构包，尚未覆盖安装（2026-09-13）
+
+用户明确同意“后台自动处理、前台隐藏”。`3ffddbd17430e858dc58bfa1ba703df0f1910a95` 已推 main：产品登录确认后自动准备设备，重启复用登记/密钥；正常设置页隐藏手动身份核验，异常在当前平台弹窗内直接重试。账号变化、撤销、密钥异常、未知回执和执行前授权保持失败关闭。详情及独立 GO 见[本批计划](../superpowers/plans/2026-09-13-automatic-device-preparation.md)。
+
+- 最终整合 194 passed / 0 failed / 0 skipped（9 文件），类型检查通过；底层相关 370 passed 为重叠集合，不相加。曾出现的退出竞态、服务切换旧确认、BUSY 丢重试及弹窗外恢复问题均有 RED/GREEN。
+- 固定 LF 工作树 `.worktrees/win-auto-device`；Forge make 退出 0，639 项源码前后摘要一致 `504afe443e868805dacf9deb7ed680282c06e43dd6684577d5e2f0b20e57f621`。ASAR 39 项 renderer 资源及正式 HTTPS 地址通过，ASAR SHA256 `098ef7a5873b9b5aa63e5b6ba387b54796b4b6e33844cf37410b71976cbd37ba`。
+- 安装包 `C:/yka0913/make/squirrel.windows/x64/YikeAI-Setup.exe`，642873856 字节，SHA256 `ce9c5126e07ffa8f4392131eec1a49873a6b4ff8aef62721be7a4ce6853b45f0`，仍 **NotSigned**。payload 清单 SHA256 `36f636e694ba4329109d521a9dd188be22965787846e6d3a70806c932a8ab1d2`，实际生成/搬迁验证 1 passed / 0 skipped，132.73 秒（`.runtime/portable-auto-device-verified.xml`）。
+- 打包前环境失败如实保留：旧虚拟环境中文 editable 路径解码失败/无 pytest，首次 Git 输入硬链接拒绝，旧运行目录与当前治理摘要不匹配。改用明确的现有测试依赖、单链接 Git/bin 和匹配的 `windows-runtime-7599e93` 后通过；没有修改运行环境治理或放宽校验。Forge 既有 Vite 兼容/弃用警告仍保留。
+- **尚未安装**：Computer Use 正常退出旧版时两次 `failed to activate captured window`；安装前进程检查阻止了 Setup 启动，没有强制终止。已核实安装态仍是 e1bee5a 的 ASAR `94b704…`、PID23172（08:23 启动），账号仍已登录。本批尚无真实自动准备/重启/平台连接验收，不将构包成功写成用户已升级。
+- 下一步：用户关闭现有安装版意客AI后，直接使用这份候选升级并验收；不要再次构包。服务端仍已验证的 e1bee5a，本批没有后端/API/Python 改动，无需重新部署服务器。
+
 ## e1bee5a 已构包并覆盖安装（2026-09-13 08:23）
 
 - 修复已推Gitee main，候选固定 `e1bee5aaddff0676592c2fa103ca61ed0e954aa9`。独立LF工作树构包，637项源码输入前后摘要相同 `112e6b63dc53ce5ac80d6e5f243d20ce0d8787625bdb6a77be8aac9ec5fb7e30`；Forge make退出0，既有Vite兼容/弃用警告保留。
