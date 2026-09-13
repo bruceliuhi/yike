@@ -1,0 +1,10 @@
+{
+  "name": "yike-ai-official-website",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "preview": "python3 -m http.server 4173 -d dist"
+  }
+}
