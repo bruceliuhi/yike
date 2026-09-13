@@ -171,6 +171,18 @@ session67847终态exit0：实际镜像以 `--network none --read-only --tmpfs /t
 
 部署缺口进一步定位：`pilot/dynamic_research_runtime.py` 的 `ThreadPoolExecutor(max_workers<=2)` 在共享服务进程中调用mission；`pilot/codex_research_worker.py`仅创建0700临时目录并启动子进程，与原设计明确要求的租户执行容器隔离不同。不能用安装Codex/MCP或临时目录权限代替该门禁。下一实施批次保留宿主逐动作许可和journal，补执行边界及有界回收/跨租户隔离验收；不得把Docker socket开放给客户服务，不将真实供应商key送入Codex容器。已核对官方0.153.4发布元数据存在Linux产物，尚未安装，继续固定原已测版本；不以换最新版规避接线验证。
 
+### 隔离执行接续（尚未接通）
+
+独立架构复核建议保留宿主监督线程、Bridge和账本，仅替换 `_execute`：每任务固定digest的Codex/MCP容器无外网，只挂任务Unix socket；容器内固定回环relay连接宿主Bridge，不接受任意目的地址。控制面持供应商key/DB，任务容器仅拿短期任务token；固定容器内路径和私有tmpfs，不挂共享HOME或源码。独立broker拥有固定创建/状态/停止协议，按task/run/generation幂等，不把Docker socket交客户服务。取消先撤销permit/Bridge，再stop/kill/inspect；broker独立截止时间及恢复检查兜住API崩溃，未知创建不重建。这是后续实施边界，不是已有实现。
+
+运行镜像源码候选：新增独立 `deploy/Dockerfile.research` 和 `research-python.pth`，不改普通服务镜像。固定Codex 0.153.4官方完整amd64包，官方元数据及本地下载SHA256均为 `a822187e1a2420c61c5926721bfbd878701ed95547c9bb0d4de4498a16ba1821`；Docker ADD要求摘要验证，MCP用现有lock的research extra，Python -I通过只读安装路径加载pilot。默认非root只打印版本，不启用客户研究。新定向RED1失败（文件缺失），GREEN部署合同5通过/2.15秒；这是静态/复制布局检查，不是Codex Linux执行验收。
+
+真实研究镜像构建遭自动审批拒绝：审批引用旧目录AGENTS的V0.2云端冻结；补充当前实施仓AUTHORITY及最新Goal证据复核后仍拒绝。未换路径、工具或命令绕过，未构建该镜像、未启用任何服务；等待用户明确解除旧冻结限制。此前40b2f65普通服务镜像真实构建证据仍有效。代码候选需实际无网络容器验证Codex/MCP启动后才作为运行镜像交付，后续还须验证两任务文件/socket不可互读、禁止公网出网、固定Bridge/permit往返、停止回收与UNKNOWN不重发。
+
+**后续授权与真实镜像验证：** 用户明确回复“确认”解除旧冻结，随后告知SSH恢复；一次只读SSH实际成功，app healthy，未改生产。原静态镜像差量独立PASS、5项检查证据复用，不重跑。session81741执行原构建命令exit0，基础准确解析到40b2f65的`sha256:07640dea5cebfc8eba2af2b4fecb266a5c31d024bc0b0808e1dc0db8667cce74`，研究镜像`yike-research:0.153.4-40b2f65`摘要`sha256:bc280315a7423b5c031dfbba29ed8eaadea4d18cda35dac8b380a9ac167beef5`。ADD官方摘要通过，MCP1.28.0及其依赖按lock安装。SERVICE_IMAGE故意无默认值，有InvalidDefaultArgInFrom警告；实际传入并解析成功，不掩盖警告。
+
+session31608实际两个无网络/只读/UID10001/512MiB/PID64临时容器exit0：Codex报告0.153.4；Python -I启动真实MCP子进程，ClientSession.initialize和list_tools通过，只有read_public_page。Codex默认只读HOME不能创建PATH别名有警告，后续任务启动器需专属可写state/tmpfs；不能据版本输出推断完整Codex任务成功。容器自动移除，镜像保留。无模型、真实网页、数据库或密钥；不证明隔离broker/跨租户验收/线上研究已启用。使用与边界见 `deploy/RESEARCH_RUNTIME.md`，下一步继续任务级socket/relay和受限broker，不重建已通过的同字节基础镜像。
+
 **Files:** 后端 `pilot/research_runtime.py`（委托dynamic）、`pilot/dynamic_research_runtime.py`（只读方法）、`pilot/research_execution_api.py`（GET）；客户端 `desktop/src/shared/researchRuntime.ts`、`desktop/src/shared/contracts.ts`、`desktop/src/main/servicePolicy.ts`、`desktop/src/renderer/services/researchRuntime.ts`、`desktop/src/renderer/pages/tasks/ResearchProgress.tsx`，新增同目录 `ResearchReadEvidence.tsx`。对应API/PG和desktop现有定向测试；必要时新建独立测试文件以免碰citation实现者文件。不改tools/worker/context/引用选择器，不改既有schema或DB迁移。
 
 **Interfaces:** 按spec末尾固定GET/JSON；后端`reads(claims,task_id,*,run_id,after=0,limit=5)`，fixed仅委托已配置dynamic否则501。客户端可选`reads(taskId,runId,after?,signal?)`接口保留旧fixture兼容；服务调用必须校验响应taskId/runId、序号递增/唯一、分页前进、来源URL与字符串范围、严格DTO。IPC操作`researchRuntime.reads`仍使用主进程固定路径，不接收自由URL。
