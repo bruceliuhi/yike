@@ -30,6 +30,10 @@
 
 ### 构包后上线阻断复核
 
+最新接续：Mac已在1c26887记录客户研究ff4ffec部署；CodexWin只读核实运行镜像5470c2…、customer/ops入口均200，故**取消重复切换customer计划**，保留其research env、overlay和18787端口。上段普通8faa2b…仅候选未上线，可供独立ops升级复用；ops仍fbf9f94，新8位试用签发尚未上线。
+
+Windows统一包已完成：冻结 `ff4ffec756cb63d9e47e50c2b42053e05fb5646d`（包含963abc7全页扫尾），`D:/ykt913/make/squirrel.windows/x64/YikeAI-Setup.exe`，642850304字节，SHA256 `9c96bf567e6205454be64220e87a9d9fa927a64403c809a5cb57fb81cd5edefd`，NotSigned。便携组件真实构建/搬迁/Python与Chromium校验1通过/0跳过/118.46秒；一次Forge make exit0，649项源码构前后摘要a6a9f7f…一致。ASAR `2720852e6ba005cf859a1a9c10cf5f8f8aa227abda0159f929dd25557fb8be77`，载荷清单 `2199db0f1e8a7fe491eccdc9bcd6a7ce8dab3f22c2bd3dc69f404386bb7fcbc4`；主入口/40个renderer与固定产物一致，HTTPS及pin通过。新构建后未发生产品字节变化，不为纯文档来件重包。Computer Use仅核对旧安装版：任务列表无已启动采集，仍有“验收-公开需求-AI定制-0913B”本机草稿；初次输入缺几何信息，重新观察/激活后导航成功，未丢弃/安装/启动任务。待用户批准处理该草稿后实装并从真实客户端验收；不以本段构包代替上线。
+
 2026-09-13 14:50 后 CodexWin接续：普通服务候选固定 ff4ffec（与963abc7产品字节相同），服务器镜像已构建为 `sha256:8faa2baf22a2111776540376f3e7c9fe127c63433f65b902c463c3b19c6354f4`，tag `yike-ai2026:ff4ffec756cb63d9e47e50c2b42053e05fb5646d`。195项源码/资源摘要及依赖一致、无网络/无生产配置的启动与新旧试用码识别通过；本地试用登录相关22项通过。可复用此镜像，不重复构建。**未切换customer/ops，未启用研究。** ops曾被外部重建为缺配置的失败容器，后续外部恢复，最新585c935…登录入口200；当前customer仍a16e7b7。升级前核对发现私有runtime.env的COLLECTION_MODE与运行容器不同，表明存在待启用配置；CodexWin保留它，不用普通升级覆盖或顺带启用。独立研究部署仍由原推进方接续；本任务只准备同源Windows候选 `D:/yk-trial/source`，构建完成后补唯一产物。新试用政策已同步AUTHORITY，不再推进零费率改造；安装前当前草稿处理仍需用户决定。
 
 2026-09-13 后续只读实查：公网 healthz/readyz 均通过。customer 仍 a16e7b7/d9c26f…、healthy/重启0/只读，四平台模式且无 RESEARCH 配置；ops 仍 fbf9f94/a9d372…、重启0；独立 broker 为 a91ea42/2e1760…、network none/只读/重启2。未读取或输出秘密值，仅环境键名和公开发布状态。原生旧客户端工作台仍显示小红书“已连接”及旧时区括注；未点击、退出、安装或丢弃草稿。
