@@ -28,7 +28,9 @@ def research_configuration(environment, *, model, auth_secret):
     agent_values = tuple(environment.get("YIKE_PILOT_RESEARCH_AGENT_" + name, "")
                          for name in _AGENT_NAMES)
     try:
-        agent = dynamic_agent_configuration(agent_values)
+        broker_values=tuple(environment.get('YIKE_PILOT_RESEARCH_AGENT_'+name,'')
+                            for name in ('BROKER_SOCKET','TASKS_ROOT'))
+        agent = dynamic_agent_configuration(agent_values,broker_values=broker_values)
     except (TypeError, ValueError):
         raise RuntimeError("invalid_research_configuration") from None
     if not any(value.strip() for value in values) and agent is None:

@@ -15,6 +15,8 @@ from pilot.research_runtime_config import dynamic_research_snapshot
 from pilot.research_page_selection import parse_page_selection
 from pilot.research_effect_contract import effect_result
 from pilot.research_resources import _event
+from pilot.research_broker_client import BrokerClient
+from pilot.research_broker_mission import BrokerMissionExecution
 
 
 _COUNTER = ("issued", "pending", "succeeded", "failed", "unknown")
@@ -49,6 +51,8 @@ class DynamicResearchRuntimeService:
         self.mission = mission
         self.database = fixed.database
         self.execution = fixed.execution
+        broker_socket = getattr(agent, 'broker_socket', '')
+        self._broker_client = BrokerClient(broker_socket) if broker_socket else None
         # The existing assessment admission fence is owned by the facade.
         # Share that persisted owner identity instead of inventing a second
         # coordinator principal for the same task.
@@ -181,10 +185,17 @@ class DynamicResearchRuntimeService:
             )
             self.execution._active(cursor, claims)
             return generation, {
+                'tenant_id': str(tenant),
                 "sources": limits[0], "minutes": limits[1],
                 "modelCalls": limits[2], "maxRecords": task["max_records"],
                 "seconds": max(1, min(1800, int((lease - now).total_seconds()))),
             }
+
+    def _mission_options(self, limits, task_id, run_id, generation):
+        if self._broker_client is None:
+            return {}
+        identity = dict(tenant_id=limits['tenant_id'],task_id=task_id,run_id=run_id,generation=generation)
+        return {'broker_execution': BrokerMissionExecution(identity,self._broker_client,self.agent.tasks_root)}
 
     def _run(self, claims, task_id, run_id, generation, limits):
         try:
@@ -216,7 +227,17 @@ class DynamicResearchRuntimeService:
                 ),
                 research_context=json.loads(context["context_json"]),
                 effect_dispatcher=dispatcher,
+                **self._mission_options(limits,task_id,run_id,generation),
             )
+            # A cancellation request is not evidence that the isolated executor
+            # has stopped. Preserve uncertainty before settling cancellation.
+            if type(result) is dict and result.get("code") in (
+                "broker_stop_unknown", "broker_stream_unknown"
+            ):
+                self._release_if_owned(
+                    claims, task_id, generation, "STOPPED", result["code"]
+                )
+                return
             if self._cancelled(claims, task_id, run_id, generation):
                 self._settle_cancellation(claims, task_id, generation)
                 return

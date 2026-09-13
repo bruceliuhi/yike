@@ -51,3 +51,11 @@ broker必须以UID10001运行并单独获得Docker控制权限；不兼容UID启
 `BrokerMissionExecution`接入现有`run_public_research_mission(..., broker_execution=...)`，只允许有宿主动作许可及编译上下文的研究分支；宿主不需Codex/Python可执行文件，不回退本地进程。任务目录按身份hash唯一创建；模型/搜索key不进manifest。原事件解析和citation展开仍由宿主完成，合成broker输出不是可信采购事实或新的真实研究证据。取消/格式错误先撤销宿主后续动作许可，再请求物理停止，停止未确认写broker_stop_unknown；短令牌虽仍在临时网关内，revoked围栏拒绝后续effect。
 
 broker空闲执行每秒发协议心跳，client流读超时12秒、host reader回收上限13秒，公共合同绑定以覆盖2秒CLI等待+三次2秒Docker核对及线程回收；host适配器有界队列消费，按原deadline/cancel回收。最终STOPPED帧且完整流已确认时不重复stop查询。当前尚未接动态配置factory与生产挂载，前文“尚未注入mission”由本节源码状态替代；真实容器/模型/客户路径仍未验收。
+
+### 动态配置与任务身份接线（源码已接，未部署启用）
+
+启用隔离分支须同时设置 `YIKE_PILOT_RESEARCH_AGENT_BROKER_SOCKET` 和 `YIKE_PILOT_RESEARCH_AGENT_TASKS_ROOT`，仍要求原有 API_KEY/MODEL/SEARCH_API_KEY；不得同时设置宿主 CODEX_BINARY/PYTHON_BINARY。固定容器执行路径不在宿主检查。缺字段、相对路径或混合配置直接拒绝；运行时装配检查私有 socket，配置故障不回退宿主执行。未配置 broker 的既有路径保持兼容，不代表生产已经启用隔离。
+
+例如 control socket 使用 `/run/yike/control/broker.sock`、tasks root 使用 `/run/yike/tasks`；任务根长度不超过23字节，以容纳hash与UDS路径。生产应挂载私有 control 目录而非单独 socket 文件，避免服务重启换 inode 后继续使用旧挂载；API 不挂 Docker socket或broker登记目录。这些是部署要求，尚无实际挂载验收。
+
+动态 runtime 在数据库选举同一事务保存确认的 tenant_id，再绑定 task_id/run_id/generation 创建 BrokerMissionExecution；不在执行途中改用另一个当前租户。mission 返回 broker_stop_unknown 或 broker_stream_unknown 时，先保存原 stop_code，再结束本轮协调器，不能被用户取消覆盖为 CANCELED。协调器 STOPPED 是停止推进，不是容器物理停止证明；后者仍由 broker 核对。32项定向检查通过，未使用真实PG/Docker或调用模型。

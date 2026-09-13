@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+2026-09-13 隔离配置与动态运行接线：显式 BROKER_SOCKET/TASKS_ROOT 成对配置，与宿主 binary 配置互斥；无宿主可执行文件也可装配无特权 BrokerClient。租户身份来自同一数据库选举事务，task/run/generation 由后端绑定，客户端不能指定执行身份。独立审核发现取消会覆盖 broker 未确认停止，新增两项 RED 复现后优先保留 broker_stop_unknown/broker_stream_unknown；协调器 STOPPED 不表示物理容器已停止。新装配/身份/取消检查及旧配置回归共32通过/0.83秒。尚未启用生产配置、构建包含这些模块的新镜像或完成真实 Docker/模型路径验收；下一步统一镜像与 Linux 权限/回收验收，不重复构建旧候选。
+
 2026-09-13 mission隔离适配接续：`run_public_research_mission`显式broker_execution仅接受controlled+已编译上下文，固定任务UDS，宿主保留密钥/dispatch和原事件/引用解析；配置该分支不回退本地执行。真实宿主UDS+合成broker事件验证无宿主binary仍完成既有引用展开；取消先revoke再stop、未知停止保留失败未知。补1秒心跳；独立复核指出原5秒读超时短于正常回收预算，RED后改共享12秒读取/13秒reader回收。受影响21项通过/2.73秒，原worker定向7通过/2.90秒，超时合同1通过/0.38秒，共29项，最终差量独立PASS；未接环境配置/动态runtime factory，未真实Docker/模型/部署。下一步把租户/task/run/generation从权威运行记录绑定到backend配置，再统一实际容器验收。
 
 2026-09-13 CodexWin 客户文案收敛已合入 main，冻结 Windows 候选 56e8abd 已完成构包与包内字节验证；删除建议原因、模型/披露标识及长技术教学，原文/收发保护不变。首轮临时路径失败后同字节重封装成功，[唯一证据及当前卡点](superpowers/plans/2026-09-13-customer-page-simplification.md#追加删除文案的-windows-候选)。实装仍 a16e7b7，退出会清除当前测试会话草稿，等待用户本次选择；未安装候选、未启用生产研究或完成上线验收。随后 c22ea0d 来件不改变 desktop/app，不重复构包。
