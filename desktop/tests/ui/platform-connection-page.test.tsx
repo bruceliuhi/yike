@@ -116,11 +116,26 @@ it('polls once per second and surfaces a later terminal failure without another 
  await act(async()=>{await vi.advanceTimersByTimeAsync(1);});expect(screen.getByText('terminal failure')).toBeTruthy();
  expect(context.service.connect).toHaveBeenCalledTimes(1);expect(context.service.checkConnection).not.toHaveBeenCalled();
 });
-it('LOGIN_READY observations do not extend the original 120 second waiting limit',async()=>{
+it('LOGIN_READY observation ends at 120 seconds without claiming login failure or automatic CHECK',async()=>{
  vi.useFakeTimers();context.service.connectionLoginStatus=vi.fn().mockResolvedValue('LOGIN_READY');
  render(<ConnectionsPage />);await act(async()=>{});fireEvent.click(screen.getByRole('button',{name:'打开登录窗口'}));await act(async()=>{});
  await act(async()=>{await vi.advanceTimersByTimeAsync(119999);});expect(screen.getByText('登录已完成，待检查连接')).toBeTruthy();
- await act(async()=>{await vi.advanceTimersByTimeAsync(1);});expect(screen.getByText('等待超时')).toBeTruthy();
+ await act(async()=>{await vi.advanceTimersByTimeAsync(1);});expect(screen.getByText('登录已识别，待检查连接')).toBeTruthy();
+ expect(screen.queryByText('等待超时')).toBeNull();
+ expect(screen.queryByText(/等待登录已超时/)).toBeNull();
+ expect(screen.getByText('自动观察已结束，尚未确认连接。请点击“我已完成登录，检查连接”核对当前状态；若检查提示未登录，再重新打开登录窗口。')).toBeTruthy();
+ expect((screen.getByRole('button',{name:'我已完成登录，检查连接'}) as HTMLButtonElement).disabled).toBe(false);
+ expect(screen.queryByText('账号已连接')).toBeNull();
+ const count=vi.mocked(context.service.connectionLoginStatus).mock.calls.length;
+ await act(async()=>{await vi.advanceTimersByTimeAsync(5000);});expect(context.service.connectionLoginStatus).toHaveBeenCalledTimes(count);
+ expect(context.service.checkConnection).not.toHaveBeenCalled();
+});
+it('an expired observation without LOGIN_READY does not claim that login was recognized',async()=>{
+ vi.useFakeTimers();context.service.connectionLoginStatus=vi.fn().mockResolvedValue('WAITING_LOGIN');
+ render(<ConnectionsPage />);await act(async()=>{});fireEvent.click(screen.getByRole('button',{name:'打开登录窗口'}));await act(async()=>{});
+ await act(async()=>{await vi.advanceTimersByTimeAsync(120000);});
+ expect(screen.getByText('等待登录已结束')).toBeTruthy();
+ expect(screen.queryByText('登录已识别，待检查连接')).toBeNull();
  const count=vi.mocked(context.service.connectionLoginStatus).mock.calls.length;
  await act(async()=>{await vi.advanceTimersByTimeAsync(5000);});expect(context.service.connectionLoginStatus).toHaveBeenCalledTimes(count);
  expect(context.service.checkConnection).not.toHaveBeenCalled();
