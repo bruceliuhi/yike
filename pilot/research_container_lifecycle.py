@@ -191,7 +191,10 @@ class ContainerLifecycle:
                     if stop.is_set():
                         break
                     if eof and process.poll() is not None:
-                        code = None if process.returncode == 0 else 'runtime_failed'
+                        # Fixed entry reserves 124 for deadline and 130 for cancel.
+                        # Physical termination is still verified separately below.
+                        code = {0: None, 124: 'timeout', 130: 'cancelled'}.get(
+                            process.returncode, 'runtime_failed')
                         break
                     try:
                         chunk = chunks.get(timeout=.05)
