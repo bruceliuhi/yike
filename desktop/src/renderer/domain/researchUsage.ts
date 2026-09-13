@@ -66,7 +66,7 @@ export const researchDraftSchema = researchSettingsSchema.extend({
 export const defaultResearchSettings = (): ResearchSettings => ({
   version: 1,
   demandTypes: ["INQUIRY", "COMPARISON", "REPLACEMENT"],
-  maxSoubei: null,
+  maxSoubei: 100_000,
   limits: { sources: 100, minutes: 15, modelCalls: 50 },
   stopAtAnyLimit: true,
   evidenceOrder: "SOURCE_MATCH_CONTEXT",

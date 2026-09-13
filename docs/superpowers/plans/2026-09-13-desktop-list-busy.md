@@ -32,3 +32,11 @@ main已同步至a0f30e4，工作树原先干净。生产只读复查ce4任务仍
 唯一Forge封装61466仍运行，实际node22080及nuget36648持续读写；不得因等待无新日志重复构建。输出D:/ykh913，临时根D:/ykht913、D:/ykhx913、D:/ykhs913。桌面650源码manifest fc31bbf6f3786f2f716cd9f0aae8ecf54d0d5ee50fc5c102b730bd302c681575；已生成ASAR 3664ec2cbab4bad7df5d19ef9f938901d623af759344dac0f8000121b596ccdd。40个renderer文件与固定构建目录逐字节一致，main正式HTTPS和载荷pin核对通过，载荷manifest ab59027cce0966df63a500f758030e2fae625cdfcc32bbe309162f74083a7454。尚不能把中间ASAR写成EXE封装成功，需等待61466终态、核对最终产物，再安装/实机复查。旧安装1549c18未关闭，用户输入期间不抢窗口。
 
 研究诊断追加：只读读取ce4首次MODEL已持久上下文，10个query_seeds确实全部是AI软件定制品类/服务商词（例如AI软件定制开发、全国AI软件开发、企业AI定制开发服务商），意向信号为询价/比较/替换，60天、无排除词。上游搜索建议系统提示本已有买方问题/交付物要求，不能把“未生成买方表达”误说为完全缺指令；下一次仍按同画像/限额的人工短句对照查影响，不再盲加提示词。此处无新模型/搜索调用、无候选/草稿/反馈。
+
+## ba15af7实际安装与新默认额度接续
+
+Forge61466已exit0，最终EXE D:/ykh913/make/squirrel.windows/x64/YikeAI-Setup.exe，642855424字节，SHA256 6d29ca53a5a6ced7e052bc897091609a081dceae42dbf4df10970234a13f38ee，NotSigned。原生UI放弃测试草稿并关闭旧版后，同包已启动新版。CIM运行路径为C:/Users/bruce/AppData/Local/YikeAI/app-0.2.0/YikeAI.exe；Computer Use报告应用缓存别名，两路径读取的ASAR都与上述候选3664ec2c一致，不据此推断丢失数据或重复安装。Setup/Update进程已退出，新GUI保持运行；PowerShell Start-Process -Wait的32598仍等待子进程树，尚未取得该会话exitcode，不重启安装器。
+
+实机已确认登录、小红书连接、五个历史任务保留；列表改为查看研究进度，ce4详情显示无可核对原文，不再有普通PENDING/旧覆盖。已填写“验收-AI定制买方短句-0913”及10个买方短句，未选择来源/提交/开始。之后检测到用户输入而暂停，没有新增研究调用。
+
+用户新增要求默认10万搜贝：方案仅将defaultResearchSettings.maxSoubei改为100000（协议现有上限1000000），保留旧任务/手工额度、所有实际资源上限和估算/确认绑定；不新增计费、充值或模型预算。新增默认/面板/旧草稿测试，夹具改用独立owner避免清理后的旧key复活保护；RED3失败1通过后，默认、用量、模板和动态UI共32通过/4.99秒，typecheck通过。独立review_buyer_discovery GO，绑定researchUsage blob 943e3a20bed75e2ab9566cfcfc94825f80cbf580及测试bb5be761c801c4be4e28598b93d15dbb6fcc2ee6；此改动不在刚安装的ba15af7中，下一候选需包含该差量，不把手填额度追认为新版默认体验。
