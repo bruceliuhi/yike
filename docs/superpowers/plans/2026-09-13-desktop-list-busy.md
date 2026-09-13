@@ -112,6 +112,14 @@ Goal：让用户明确切换到已有普通平台采集路径，不扩展平台�
 - [x] `desktop/tests/ui/task-wizard.test.tsx`先加失败回归：显式切换及保留字段、非研究路径无quote、web/混选不显示切换；未点击前不隐式改变研究。
 - [x] `desktop/src/renderer/pages/TaskWizard.tsx`仅补上述按钮及研究面板条件；不改server、账号绑定或执行守卫。
 - [x] 入口新增7例RED4失败/3通过，最终相邻两文件70通过；确认摘要7通过，typecheck通过。21:19同批Spec/Quality独立GO，四个blob与审核一致，不重复运行通过检查。
-- [ ] 随后一次新候选与真实UI采集，真实原文/候选仍未产出，不能标上线。
+- [x] 新候选92724a5实装并通过真实UI启动；实际采集失败，非原文/候选验收通过，见下。
 
 同批实机还发现确认摘要仍用`!registration`筛选，排除了账号选择步骤已经核实的合法本机绑定，错误显示“所选账号待核对”。此独立展示差量仅在`TaskConfirmationSummary.tsx`复用既有`hasForegroundBinding`，不变更执行守卫；`task-confirmation-summary.test.tsx`补合法绑定显示和失效版本仍不冒充已核验两项，初次1失败/6通过准确复现。与上述入口统一审核/构包，不为这项展示修复单独构包。
+
+### 92724a5实装：已启动真实采集，账号识别遗漏待修
+
+EXE `D:/ykl913/make/squirrel.windows/x64/YikeAI-Setup.exe`，SHA256 `5eb702b6aeebfd8ad3f3d33610113cbd22cacb45f19ffef5f67ed7caa0ebf74a`，642851328字节、NotSigned；Forge及安装exit0，实装ASAR `2fed4bd004189e91db20accc31945f759dcef7b9af3cf7eb9dc3956b7b58b552`与候选一致。651源码输入前后一致，40项renderer对应。复用本批77项定向测试/typecheck/独立GO，不重复服务端部署。
+
+原生UI新任务“验收-小红书AI定制-92724a5”实际切换普通平台采集、保留三词/账号/10条300秒，确认摘要正确显示已连接；策略确认并启动成功创建任务。实际本机输出 `platform-collection-output/d62506e5-a1cd-4f6e-ab85-81eb3597c0ef` 进度RUNNING，终态BLOCKED_INPUT/PLATFORM_AUTH_REQUIRED，0记录；不是采集成功。已从UI取消该测试任务，最后读取为取消中/尚未停止确认，不重放。未发送或开启新付费研究。
+
+源码发现e1bee5a只修正登录入口精确“我”导航定位，采集guard遗留旧后代span XPath，可能误计其他作者链接。最小修复统一为相同精确role定位，保留官方URL、唯一可见、严格href/账号及请求前后守卫；不增加重试/放松账号。两条新回归先RED2失败，登录+采集相邻60项通过/0跳过13.84秒（含已安装runtime受控HTTP），pytest旧临时目录ACL清理warning保留。新字节待独立差量审核及一次候选；真实采集是否恢复仍须实装验证，Goal ACTIVE。

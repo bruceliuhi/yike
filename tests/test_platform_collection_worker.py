@@ -31,11 +31,17 @@ def source():
         async def count(self): return state.count
         async def is_visible(self): return state.visible
         async def get_attribute(self, key): return '/user/profile/' + state.account
+    class DescendantLocator(Locator):
+        async def count(self): return getattr(state, 'descendant_count', state.count)
     class Page:
         @property
         def url(self): return state.url
         def locator(self, selector):
             assert '我' in selector and '/user/profile/' in selector
+            events.append('guard')
+            return DescendantLocator()
+        def get_by_role(self, role, *, name, exact):
+            assert role == 'link' and name == '我' and exact is True
             events.append('guard')
             return Locator()
     class Client:
@@ -70,6 +76,21 @@ def test_same_crawler_page_checked_before_and_after_search_and_requests(source):
     assert run(source) == [{'original': ' 原文 é😀 '}]
     assert source.events.count('search') == 1 and source.events.count('http') == 1
     assert source.events.count('guard') >= 4
+
+
+def test_unrelated_profile_descendant_does_not_reject_unique_self_navigation(source):
+    # The login entry already uses the exact accessible self link. Another
+    # author anchor can contain a span saying 我 without being that self link.
+    source.state.descendant_count = 2
+    assert run(source) == [{'original': ' 原文 é😀 '}]
+    assert source.events.count('search') == 1 and source.events.count('http') == 1
+
+
+def test_descendant_span_alone_is_not_proof_of_self_account(source):
+    source.state.descendant_count = 1
+    source.state.count = 0
+    with pytest.raises(source.AuthError): run(source)
+    assert 'search' not in source.events and 'http' not in source.events
 
 
 @pytest.mark.parametrize('change', [dict(account=OTHER), dict(count=0), dict(count=2),
@@ -161,7 +182,9 @@ class Page:
     async def evaluate(self, value):
         assert value == 'navigator.userAgent'
         return 'controlled-browser'
-    def locator(self, value): return Locator()
+    def get_by_role(self, role, *, name, exact):
+        assert role == 'link' and name == '我' and exact is True
+        return Locator()
 class Context:
     async def new_page(self): return Page()
     async def cookies(self, *, urls):

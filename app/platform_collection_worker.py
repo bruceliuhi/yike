@@ -38,7 +38,6 @@ else:
 
 _ACCOUNT = re.compile(r'[A-Za-z0-9]{8,32}')
 _HREF = re.compile(r'(?:https://www\.xiaohongshu\.com)?/user/profile/([A-Za-z0-9]{8,32})')
-_SELF = "xpath=//a[contains(@href, '/user/profile/') and .//span[text()='我']]"
 
 
 async def _check_account(page, expected, auth_error):
@@ -47,7 +46,9 @@ async def _check_account(page, expected, auth_error):
         if not isinstance(url, str) or not url.isprintable() or '\\' in url: raise ValueError()
         parsed = urlsplit(url)
         if parsed.scheme != 'https' or parsed.netloc != 'www.xiaohongshu.com': raise ValueError()
-        own = page.locator(_SELF)
+        # Use the same exact self navigation as login, not an author's nested
+        # span that happens to say 我. All URL, uniqueness and account checks stay.
+        own = page.get_by_role('link', name='我', exact=True)
         if await own.count() != 1 or not await own.is_visible(): raise ValueError()
         href = await own.get_attribute('href')
         match = _HREF.fullmatch(href) if isinstance(href, str) else None
