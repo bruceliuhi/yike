@@ -101,7 +101,7 @@ def test_quote_binds_confirmed_strategy_and_calculates_ceiling():
     result = service.quote(claims, request)
     assert result["strategyBinding"] == request["strategyBinding"]
     assert result["estimatedSoubei"] == 6
-    assert result["expiresAt"] == "2026-09-11T04:05:00+00:00"
+    assert result["expiresAt"] == "2026-09-11T04:05:00.000Z"
     assert "上限" in result["basis"] and "未预留" in result["basis"]
     assert any("REPEATABLE READ READ ONLY" in sql for sql in service.database.statements)
 
