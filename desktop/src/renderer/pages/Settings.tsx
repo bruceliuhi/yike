@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { DeviceIdentityPanel, deviceIdentityLabels } from './settings/DeviceIdentityPanel';
-import { deviceIdentityStatusSchema } from '../../shared/deviceIdentity';
+import { useDeviceConnectionPreparation } from '../app/DeviceConnectionPreparation';
 import { useApp } from "../app/context";
 import { clearLocalDrafts, useAction, useResource } from "../app/hooks";
 import { accountSchema } from "../domain/management";
@@ -28,7 +27,6 @@ import {
 } from "../components/ui";
 
 type SettingsDialog =
-  | "identity"
   | "bind"
   | "export"
   | "backup"
@@ -37,7 +35,6 @@ type SettingsDialog =
   | "update"
   | null;
 const dialogTitles: Record<Exclude<SettingsDialog, null>, string> = {
-  identity: "核验本机设备身份",
   bind: "绑定本机设备",
   export: "客户数据导出",
   backup: "备份与恢复",
@@ -57,7 +54,7 @@ export function SettingsPage() {
   const [codeError, setCodeError] = useState("");
   const [activationSent, setActivationSent] = useState(false);
   const management = service.management ?? unavailableManagement;
-  const deviceIdentity = service.deviceIdentity;
+  const preparation = useDeviceConnectionPreparation();
   const account = useResource(
     async () =>
       accountSchema.parse(await managementRequest(() => management.account())),
@@ -80,11 +77,6 @@ export function SettingsPage() {
     OFFLINE: "已绑定 · 离线",
   };
   const [dialog, setDialog] = useState<SettingsDialog>(null);
-  const identityObservation = useResource(async () => {
-    if (!deviceIdentity || !session.authenticated) return null;
-    return deviceIdentityStatusSchema.parse(await deviceIdentity.getStatus());
-  }, [service, deviceIdentity, session.authenticated, session.userId,
-    session.accountScope?.id, session.accountScope?.version, dialog === 'identity']);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const platform = info.data?.platform;
@@ -98,6 +90,7 @@ export function SettingsPage() {
       version: info.data?.version || null,
       platform: platform || null,
       serviceConfigured: info.data?.serviceConfigured ?? null,
+      ...(preparation ? {connectionPreparation:preparation.state} : {}),
     },
     null,
     2,
@@ -238,18 +231,6 @@ export function SettingsPage() {
       </section>
       <section className="settings-section">
         <h2>设备管理</h2>
-        {deviceIdentity && session.authenticated && <div className="settings-row">
-          <span>本机身份</span>
-          <span className="muted" role="status">{identityObservation.loading
-            ? '正在读取本机身份状态…'
-            : identityObservation.error || !identityObservation.data
-              ? '本机身份状态读取失败，请打开核验入口重查。'
-              : deviceIdentityLabels[identityObservation.data.state]}</span>
-          <Button onClick={()=>setDialog('identity')}>核验本机身份</Button>
-        </div>}
-        {deviceIdentity && session.authenticated && <p className="muted">
-          本机身份核验无需输入授权码；该状态独立于平台连接和商业使用授权，执行前仍需服务端核验。
-        </p>}
         <div className="settings-row">
           <span>运行环境</span>
           <span>{platformName}</span>
@@ -355,9 +336,6 @@ export function SettingsPage() {
             </>
           }
         >
-          {dialog === 'identity' && deviceIdentity && session.authenticated && <DeviceIdentityPanel
-            api={deviceIdentity} scope={JSON.stringify([session.userId,session.accountScope])}
-          />}
           {dialog === "bind" && (
             <ManagementAction
               account={account.data}

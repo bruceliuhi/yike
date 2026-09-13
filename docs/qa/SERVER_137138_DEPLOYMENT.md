@@ -1,6 +1,14 @@
 # 101.200.137.138 部署与测试交付
 
-## 当前customer：2a85dbc（2026-09-12 23:42）
+## 当前customer：e1bee5a（2026-09-13 08:37）
+
+- 固定源码 `e1bee5aaddff0676592c2fa103ca61ed0e954aa9` 已部署，与当前Windows候选同源；后续纯证据提交不重构包。LF归档SHA256 `46526a930d1a7879b043863f4cb86bc5797e82a3193789798d3d87d6d762e481` 两端一致。复用旧不可变镜像已安装依赖，仅覆盖全部差量pilot/migrations/元数据；uv.lock字节和实际应用venv包集合不变。隔离无网络非root镜像181项源码摘要通过，真实默认runtime构建+healthz通过且MCP未安装/未导入，关闭上一批P1。不是从零下载依赖的完整Docker构建。
+- 两个独立临时PG容器均只用合成数据、loopback15440/tmpfs/512MB上限，检查后已停止删除临时数据。旧39→43、重复迁移、全部摘要、整套受限grants、独立旧2a85进程读回画像/设备/连接通过；候选上传/默认启动25通过，旧20字段回执、新22字段选择及143延迟约束等78通过，均0失败/0跳过。XML `.runtime/upgrade-e1bee5a.xml`、`.runtime/contracts-e1bee5a.xml`，对应远端testdata同名文件。不是生产平台或真实发送证据。
+- 生产助手 `deploy-e1bee5a.sh` SHA256 `d3a787d486b75ccb21692bde246dea8452e8369e1230a4d0405edd2dd637e24a` 独立差量GO，远端一致。先保存旧发布坐标、V2认证加密备份 `backups/yike-before-e1bee5a.dump.enc`＋MAC，再管理员43迁移/授权、旧服务ready、18788只读候选ready、18787切换；CP06通过，脚本退出0。143/144修改旧约束与触发器，不能称纯新增；失败仅应用回退，不恢复覆盖DB。本次未触发回退。
+- 镜像ID `sha256:3b5cff9116790a341d9f3c3e9df46384a9435bf893257fdcf9d3e3f4f931a08b`，发布digest `sha256:1089f5d9b13567f4c051fda1307eb84171d09ea5cbda5be2fb6d53722ac30611`。实际运行revision及release.json一致、healthy/重启0、非root/只读/loopback、数据库不公开、私密文件权限及日志脱敏通过；内外网healthz/readyz成功，匿名session401。runtime.env摘要与ops容器ID前后不变，无新增代理、管理员运行凭据、动态研究配置或外发能力。
+- helpers集中远端`testdata/`：`Dockerfile.reuse-e1bee5a`、`verify-image-e1bee5a.py`、`test-upgrade-e1bee5a.py`、`run-upgrade-e1bee5a.sh`、`run-contracts-e1bee5a.sh`、`deploy-e1bee5a.sh`、`audit-e1bee5a.py`，以及`migrate-e1bee5a.log`。用户设备本人核验仍待完成，平台连接CHECK/真实采集/联系/回复、签名及客户验收未完成。Docker动态研究规则资源仍未齐，现有关闭配置不得解释为该能力已上线；完整Goal保持ACTIVE。
+
+## 历史customer：2a85dbc（2026-09-12 23:42）
 
 - 固定源码 `2a85dbcb68b121f6e8051ccd72b29954f3f2a655` 已实际部署。LF源码归档SHA256 `52d6af6d905c57278ffd23fc091e0351f9b8ffc4eef389eb77bf19a867111175`，传输两端一致。既有第三方锁条目不变，仅新增可选research extra；独立审查GO后复用实际7599不可变镜像，覆盖pilot/pyproject.toml/uv.lock，不安装MCP extra，不复制Windows app目录。
 - 新镜像ID `sha256:5ff65d4a069d7d39abb0993c4b5693c0c7c866e265fb31a891ae78b3d9ce605f`，发布digest `sha256:7ec666aceb82c74e036fa6a373d1607e65cd521f44a254824a0ff9073fd32217`。隔离、无网络、非root容器157项源码摘要通过，应用venv已安装包与旧镜像相同，普通Web导入未加载MCP。初审指出验证脚本误用系统Python，改成/app/.venv/bin/python后差量GO；宿主实际Python3.12.3。

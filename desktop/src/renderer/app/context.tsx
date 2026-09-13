@@ -13,6 +13,7 @@ import type { YikeService } from "../services/contracts";
 import { hasUnsavedChanges } from "./hooks";
 import { boundedRequest } from "./boundedRequest";
 import { Confirm } from "../components/ui";
+import { DeviceConnectionPreparation } from './DeviceConnectionPreparation';
 export interface Toast {
   id: number;
   message: string;
@@ -41,8 +42,12 @@ export function AppProvider({
   service?: YikeService;
 }) {
   const [route, setRoute] = useState(() => parseRoute(window.location.hash));
-  const [session, setSession] = useState<Session>({ authenticated: false });
-  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionObservation, setSessionObservation] = useState<{service:YikeService; session:Session} | null>(null);
+  const guest = useRef<Session>({authenticated:false});
+  const sessionReady = sessionObservation?.service === service;
+  const session = sessionReady ? sessionObservation.session : guest.current;
+  const currentService = useRef(service);
+  currentService.current = service;
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [pendingPath, setPendingPath] = useState<string | null>(null);
   const lastHash = useRef(window.location.hash);
@@ -65,24 +70,24 @@ export function AppProvider({
   }, []);
   const refreshSession = async (signal?: AbortSignal) => {
     if (signal?.aborted) throw new DOMException("Session refresh cancelled", "AbortError");
+    if (currentService.current !== service) return {authenticated:false};
     const id = ++sessionGeneration.current;
     try {
       const next = await service.session();
-      if (!signal?.aborted && id === sessionGeneration.current) {
-        setSession(next);
-        setSessionReady(true);
+      if (!signal?.aborted && id === sessionGeneration.current && currentService.current === service) {
+        setSessionObservation({service,session:next});
       }
       return next;
     } catch {
       const next = { authenticated: false };
-      if (!signal?.aborted && id === sessionGeneration.current) {
-        setSession(next);
-        setSessionReady(true);
+      if (!signal?.aborted && id === sessionGeneration.current && currentService.current === service) {
+        setSessionObservation({service,session:next});
       }
       return next;
     }
   };
   useEffect(() => {
+    setSessionObservation(null);
     const abort = new AbortController();
     let requestId = -1;
     void boundedRequest(signal => {
@@ -95,8 +100,7 @@ export function AppProvider({
     }).catch(error => {
       if (abort.signal.aborted || requestId !== sessionGeneration.current) return;
       sessionGeneration.current++;
-      setSession({ authenticated: false });
-      setSessionReady(true);
+      setSessionObservation({service,session:{authenticated:false}});
       notify(error instanceof Error ? error.message : "登录状态尚未确认，请重新登录后重试。", "error");
     });
     return () => {
@@ -137,7 +141,9 @@ export function AppProvider({
         refreshSession,
       }}
     >
-      {children}
+      <DeviceConnectionPreparation api={service.deviceIdentity} session={session} confirmed={sessionReady}>
+        {children}
+      </DeviceConnectionPreparation>
       {pendingPath && (
         <Confirm
           title="离开当前页面？"

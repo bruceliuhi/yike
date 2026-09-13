@@ -21,7 +21,7 @@ function failure(result: PlatformConnectionResult): ServiceError {
     CANCELLED: '本次平台登录已取消，请重新打开登录窗口。',
     SESSION_CHANGED: '客户账号已变化，请在当前账号下重新连接。',
     SIGNED_OUT: '请先登录客户空间，再连接平台账号。',
-    DEVICE_NOT_READY: '设备尚未就绪，请先在设备与使用授权中完成检查。',
+    DEVICE_NOT_READY: '连接准备尚未完成，请稍后重试。',
     BUSY: '原登录流程仍在运行或清理，请稍后再试。',
     LOGIN_EXPIRED: '登录等待已过期，请重新打开平台登录窗口。',
     ACCOUNT_MISMATCH: '平台账号与原连接不一致，未变更连接记录。',

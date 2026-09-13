@@ -1,5 +1,35 @@
 # Windows 最新主干接续（2026-09-12）
 
+## 自动连接准备候选 3ffddbd 已构包，尚未覆盖安装（2026-09-13）
+
+用户明确同意“后台自动处理、前台隐藏”。`3ffddbd17430e858dc58bfa1ba703df0f1910a95` 已推 main：产品登录确认后自动准备设备，重启复用登记/密钥；正常设置页隐藏手动身份核验，异常在当前平台弹窗内直接重试。账号变化、撤销、密钥异常、未知回执和执行前授权保持失败关闭。详情及独立 GO 见[本批计划](../superpowers/plans/2026-09-13-automatic-device-preparation.md)。
+
+- 最终整合 194 passed / 0 failed / 0 skipped（9 文件），类型检查通过；底层相关 370 passed 为重叠集合，不相加。曾出现的退出竞态、服务切换旧确认、BUSY 丢重试及弹窗外恢复问题均有 RED/GREEN。
+- 固定 LF 工作树 `.worktrees/win-auto-device`；Forge make 退出 0，639 项源码前后摘要一致 `504afe443e868805dacf9deb7ed680282c06e43dd6684577d5e2f0b20e57f621`。ASAR 39 项 renderer 资源及正式 HTTPS 地址通过，ASAR SHA256 `098ef7a5873b9b5aa63e5b6ba387b54796b4b6e33844cf37410b71976cbd37ba`。
+- 安装包 `C:/yka0913/make/squirrel.windows/x64/YikeAI-Setup.exe`，642873856 字节，SHA256 `ce9c5126e07ffa8f4392131eec1a49873a6b4ff8aef62721be7a4ce6853b45f0`，仍 **NotSigned**。payload 清单 SHA256 `36f636e694ba4329109d521a9dd188be22965787846e6d3a70806c932a8ab1d2`，实际生成/搬迁验证 1 passed / 0 skipped，132.73 秒（`.runtime/portable-auto-device-verified.xml`）。
+- 打包前环境失败如实保留：旧虚拟环境中文 editable 路径解码失败/无 pytest，首次 Git 输入硬链接拒绝，旧运行目录与当前治理摘要不匹配。改用明确的现有测试依赖、单链接 Git/bin 和匹配的 `windows-runtime-7599e93` 后通过；没有修改运行环境治理或放宽校验。Forge 既有 Vite 兼容/弃用警告仍保留。
+- **尚未安装**：Computer Use 正常退出旧版时两次 `failed to activate captured window`；安装前进程检查阻止了 Setup 启动，没有强制终止。已核实安装态仍是 e1bee5a 的 ASAR `94b704…`、PID23172（08:23 启动），账号仍已登录。本批尚无真实自动准备/重启/平台连接验收，不将构包成功写成用户已升级。
+- 下一步：用户关闭现有安装版意客AI后，直接使用这份候选升级并验收；不要再次构包。服务端仍已验证的 e1bee5a，本批没有后端/API/Python 改动，无需重新部署服务器。
+
+## e1bee5a 已构包并覆盖安装（2026-09-13 08:23）
+
+- 修复已推Gitee main，候选固定 `e1bee5aaddff0676592c2fa103ca61ed0e954aa9`。独立LF工作树构包，637项源码输入前后摘要相同 `112e6b63dc53ce5ac80d6e5f243d20ce0d8787625bdb6a77be8aac9ec5fb7e30`；Forge make退出0，既有Vite兼容/弃用警告保留。
+- payload真实生成、搬迁、独立Python/Chromium验证1通过/0跳过，197.32秒；XML `.runtime/portable-release-e1bee5a-test.xml`，清单SHA256 `91b09326b10e9a620ca028952e70d390f69aea2b6e6ee6f3fa2bdb40b01b6134`。ASAR结构及40项renderer资源通过，SHA256 `94b704091a990d0a7c173f6cfe9d92d970507a8fa0e503e4dc9736b8433d01cc`。
+- 安装器 `C:/yke1be/make/squirrel.windows/x64/YikeAI-Setup.exe`，642862592字节，SHA256 `2fc9f1f35b740e3b928790877cf9534047bd5cc757bfd74bfb994255dc5ade15`，仍NotSigned。旧PID31788正常退出，Setup PID21816结束（重开进程句柄未取得退出码，不能写exit0）；新安装ASAR/payload清单均匹配候选，实际启动PID23172。
+- 实际新版显示已登录、AI软件定制/全国线上交付画像已确认且完整保留；未清空任何用户数据。08:24本机运行环境仍在准备，身份状态NOT_PREPARED，确认重启后的本人核验门禁仍存在。需要本人设备确认后再走正式连接CHECK，不把此前受治理源码探针AUTHENTICATED当成客户端已CONNECTED；没有真实采集/发送。服务仍2a85dbc，未随本地修复重复部署或启用新研究模式。
+
+08:25继续观察确认本机运行环境已READY；当前进程仍NOT_PREPARED，等待本人设备确认，未重新启动或重装。08:37同源码server已完成部署，见[服务器唯一记录](SERVER_137138_DEPLOYMENT.md)；不把上段“服务仍2a85dbc”当最新状态，不将本人确认待办写成已连接。
+
+## 小红书已登录误拒绝已定位和修复（2026-09-13）
+
+用户反馈已登录仍卡住。受治理、同一专用本机profile的只读探针连续三次确认：官方页面HTTP200；旧XPath匹配4个链接，精确可访问名称“我”的link只有1个，唯一可见且href符合原严格格式，无query/fragment。不是要求用户再次扫码或再次核验设备。
+
+修正登录前后两处self定位，不放宽官方域、严格pong、唯一可见账号、href或停止后核验。新增回归先实际BLOCKED_INPUT失败；修复后worker26通过（含已安装runtime受控HTTP）。实际当前源码+原已安装runtime+已有profile，仅允许现有会话读取、禁止进入交互登录的探针返回AUTHENTICATED、valid_account=true，监督进程exit0，停止后profile核验通过；不记录账号、Cookie或原始响应，不登记连接/采集/发送。现有安装包仍0d9500b，须新包升级后确认产品连接状态，不能把探针成功当UI闭环完成。
+
+同批关闭默认服务错误导入可选MCP的P1：仅改为导入同一中性校验函数，隔离进程先实际MCP导入失败后通过。定向合计66通过/64 POSIX跳过，补充reader+默认启动59通过；XML为`.runtime/login-import-batch.xml`及`.runtime/reader-import-green.xml`。独立差量GO，绑定worker `f2e8daabaf554d67b65aeea12332d696a68ca01f`、登录测试 `e12d411efd6c14a7b246ef3b1fa8cd837e25a12d`、research worker `91f839939838f7d8bad38ebeb8d11538cd6a92d7`、默认启动测试 `4b8d21f9e9fe36b281d7d497b465ad403e480344`。新包/新服务器镜像和39→43升级仍待验证；不重复部署当前2a85dbc服务。
+
+来件61472b9的Windows定向129通过/1个Python回执交叉夹具未配置跳过，tsc退出0，证据`.runtime/win-incoming-61472b9.json`；不把上游新研究能力追认到旧服务或旧安装包。
+
 ## 0d9500b 本人核验后的小红书实测（2026-09-13 07:57）
 
 本人操作后，已安装客户端实际显示“上次身份核验通过”，设备编号与前版相同；未重启、构包或代提交核验。正常连接入口成功打开小红书 Chrome for Testing 窗口，已越过 DEVICE_NOT_READY。
