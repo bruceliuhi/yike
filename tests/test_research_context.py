@@ -185,7 +185,7 @@ def test_compiles_ai_and_non_ai_service_contexts_with_host_binding():
     assert set(ai) == {"instructions", "context_json", "binding", "entry_urls"}
     assert set(ai["binding"]) == expected_keys
     assert ai["binding"]["rule_version"] == (
-        "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1/trusted-entries-v1/efficient-handoff-v1")
+        "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1/trusted-entries-v1/efficient-handoff-v1/citation-choice-v1")
     assert ai["binding"]["profile_version_id"] == context()["profile_version_id"]
     assert len(ai["binding"]["rule_sha256"]) == 64
     assert len(ai["binding"]["context_sha256"]) == 64
@@ -238,7 +238,7 @@ def test_compiler_derives_catalog_and_known_history_but_exact_negative_wins():
         known,
     )
     assert blocked not in compiled["entry_urls"] and prose_only not in compiled["entry_urls"]
-    assert "/trusted-entries-v1/efficient-handoff-v1" in compiled["binding"]["rule_version"]
+    assert "/trusted-entries-v1/efficient-handoff-v1/citation-choice-v1" in compiled["binding"]["rule_version"]
     detached = compiled["entry_urls"]
     value["history"][0]["source_urls"].append("https://example.com/later")
     assert detached == compiled["entry_urls"]
@@ -354,10 +354,11 @@ def test_canonical_hash_is_order_independent_and_content_bound():
 
 
 def test_page_selection_contract_is_versioned_and_participates_in_rule_hash():
-    from pilot.research_page_selection import SELECTION_INSTRUCTIONS
+    from pilot.research_citation_selection import CITATION_CHOICE_INSTRUCTIONS
     result = compile_research_context(context())
-    assert result["instructions"].endswith(SELECTION_INSTRUCTIONS)
+    assert result["instructions"].endswith(CITATION_CHOICE_INSTRUCTIONS)
     assert "/page-selection-v1/" in result["binding"]["rule_version"]
+    assert result["binding"]["rule_version"].endswith("/citation-choice-v1")
     assert result["binding"]["rule_sha256"] == hashlib.sha256(
         result["instructions"].encode("utf-8")
     ).hexdigest()

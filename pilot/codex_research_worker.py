@@ -13,12 +13,13 @@ import threading
 from time import monotonic
 
 from pilot.open_web_reader import PublicReadError, normalize_public_url
+from pilot.execution_contract import ExecutionRuntimeError
 from pilot.public_search import PublicSearchSession, normalize_query, valid_search_result
 from pilot.public_read_session import PublicReadSession
 from pilot.research_effects import EffectDispatchError
 from pilot.research_entry_urls import validate_entry_urls
 from pilot.research_tools import _valid_page
-from pilot.research_page_selection import page_selection_schema
+from pilot.research_citation_selection import citation_choice_schema, expand_citation_choices
 from pilot.responses_bridge import ResponsesBridge
 
 _LIMIT = 2 * 1024 * 1024
@@ -250,7 +251,8 @@ def _command(root, *, codex_binary, python_binary, model, bridge, max_reads, max
             'YIKE_PUBLIC_READ_URL='+bridge.read_url,
             'YIKE_PUBLIC_READ_TOKEN='+bridge.token,
         ] if controlled else []) + [python_binary,'-I','-m','pilot.research_tools',
-                                       '--max-reads',str(max_reads),'--max-seconds',str(max_seconds)]),
+                                       '--max-reads',str(max_reads),'--max-seconds',str(max_seconds)]
+                                      + (['--citation-mode'] if research_instructions is not None else [])),
         'mcp_servers.yike_public.required':True,
         'mcp_servers.yike_public.enabled_tools':(
             ['search_public_web','read_public_page'] if search_enabled else ['read_public_page']),
@@ -266,8 +268,8 @@ def _command(root, *, codex_binary, python_binary, model, bridge, max_reads, max
     command = [codex_binary,'exec','--ignore-user-config','--ephemeral','--skip-git-repo-check',
                '--sandbox','read-only','--json','--cd',str(root/'work')]
     if research_instructions is not None:
-        schema_path = root / 'page-selection.schema.json'
-        schema_path.write_text(json.dumps(page_selection_schema(),ensure_ascii=False,
+        schema_path = root / 'citation-choice.schema.json'
+        schema_path.write_text(json.dumps(citation_choice_schema(),ensure_ascii=False,
                                           separators=(',',':')),encoding='utf-8')
         command += ['--output-schema',str(schema_path)]
     for key,value in config.items():
@@ -355,8 +357,11 @@ def _execute(command, env, description, deadline, cancelled, events, cwd):
         stopped.set()
         for thread in threads:
             thread.join(timeout=0.3)
-        process.stdin.close()
-        process.stdout.close()
+        for stream in (process.stdin, process.stdout):
+            try:
+                stream.close()
+            except (OSError, ValueError):
+                pass
 
 
 def run_public_read_mission(description: str, *, codex_binary: str, python_binary: str,
@@ -516,6 +521,12 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
         except Exception:
             status,code = 'FAILED','runtime_unavailable'
     summary = events.summary
+    if status == 'COMPLETED' and compiled is not None:
+        try:
+            summary = expand_citation_choices(
+                summary, [item['evidence'] for item in events.reads])
+        except ExecutionRuntimeError:
+            status, code, summary = 'FAILED', 'research_selection_invalid', ''
     for secret in (api_key,search_api_key,token):
         if type(secret) is str and secret:
             summary = summary.replace(secret,'[REDACTED]')
