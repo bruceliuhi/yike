@@ -299,7 +299,7 @@ async function startApplication(): Promise<void> {
   });
   ipcMain.handle(PREPARE_DEVICE_IDENTITY_CHANNEL, (event, input: unknown) => {
     trustedSender(event);
-    return identity.prepare(input);
+    return identity.prepareForUse(input);
   });
   ipcMain.handle(GET_RUNTIME_STATUS_CHANNEL, event => {
     trustedSender(event);

@@ -56,6 +56,7 @@ export function createDeviceIdentityController({service, identityFactory}: Devic
   let authPending = 0;
   let preparing = false;
   let activeAuthenticatedEpoch: string | null = null;
+  let automaticPreparation: {epoch: string; key: string; result: Promise<DeviceIdentityStatus>; isCurrent: () => boolean} | null = null;
   const workerScopes = new Set<AbortController>();
   function observe(value: DeviceIdentityStatus): DeviceIdentityStatus {
     status = {...value};
@@ -170,7 +171,36 @@ export function createDeviceIdentityController({service, identityFactory}: Devic
       } catch { return {ok: false, status: 0, error: 'SERVICE_UNAVAILABLE'}; }
       finally { if (authChange) authPending--; }
     },
-    async prepare(input: unknown = {}): Promise<DeviceIdentityStatus> {
+    async prepareForUse(input: unknown = {}): Promise<DeviceIdentityStatus> {
+      // Renderer remounts share only an in-flight operation, never cached authorization.
+      let retry: DeviceIdentityRetry;
+      try {retry = deviceIdentityRetrySchema.parse(input);}
+      catch {return {state:'INVALID_REQUEST'};}
+      const requestEpoch = epoch;
+      const key = JSON.stringify([retry.retryRegistration === true, retry.retryProof === true]);
+      let pending = automaticPreparation;
+      if (!pending || pending.epoch !== requestEpoch || pending.key !== key) {
+        if (preparing || authPending > 0) return {state:'BUSY'};
+        let resultCurrent = () => false;
+        pending = {epoch:requestEpoch, key,
+          result:prepareIdentity(retry, current => {resultCurrent = current;}),
+          isCurrent:() => resultCurrent()};
+        automaticPreparation = pending;
+      }
+      try {
+        const result = await pending.result;
+        // Authentication can change after the inner final check but before this delivery.
+        if (result.state === 'READY' && !pending.isCurrent()) return changed();
+        return {...result};
+      } finally {
+        if (automaticPreparation === pending) automaticPreparation = null;
+      }
+    },
+    prepare(input: unknown = {}): Promise<DeviceIdentityStatus> {return prepareIdentity(input);},
+    // Historical local observation only; consumers must not treat this as execution authorization.
+    getStatus(): DeviceIdentityStatus {return {...status};},
+  };
+  async function prepareIdentity(input: unknown = {}, captureCurrent?: (current: () => boolean) => void): Promise<DeviceIdentityStatus> {
       let retry: DeviceIdentityRetry;
       try { retry = deviceIdentityRetrySchema.parse(input); }
       catch {
@@ -218,12 +248,10 @@ export function createDeviceIdentityController({service, identityFactory}: Devic
         const result = await identity.prepare({userId, sessionId: prepareEpoch, isCurrent: current}, retry);
         if (!current()) return changed();
         const parsed = deviceIdentityStatusSchema.safeParse(result);
+        captureCurrent?.(current);
         return observe(parsed.success ? parsed.data : failure());
       } catch { return current() ? observe(failure()) : changed(); }
       finally { preparing = false; }
-    },
-    // Historical local observation only; consumers must not treat this as execution authorization.
-    getStatus(): DeviceIdentityStatus {return {...status};},
-  };
+  }
   return controller;
 }

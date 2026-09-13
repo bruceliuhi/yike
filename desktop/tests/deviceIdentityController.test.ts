@@ -73,6 +73,69 @@ describe('narrow shared device identity contract', () => {
 });
 
 describe('main device identity controller', () => {
+  it('coalesces automatic preparation in the same epoch without returning BUSY to the second caller', async () => {
+    const f = fixture(); const response = deferred<ApiResult>();
+    f.state.publicHandler = async () => response.promise;
+    const a = f.controller.prepareForUse();
+    const b = f.controller.prepareForUse({});
+    response.resolve(auth());
+    expect(await a).toEqual(ready); expect(await b).toEqual(ready);
+    expect(f.state.publicCalls).toEqual([{operation:'session.get'}]);
+    expect(f.state.prepares).toHaveLength(1);
+    expect(f.state.prepares[0].retry).toEqual({});
+    Object.assign(await a, {state:'FAILED'});
+    expect(await b).toEqual(ready);
+  });
+  it('does not merge an explicit retry with the initial automatic observation', async () => {
+    const f = fixture(); const response = deferred<ApiResult>();
+    f.state.publicHandler = async () => response.promise;
+    const pending = f.controller.prepareForUse();
+    expect(await f.controller.prepareForUse({retryRegistration:true})).toEqual({state:'BUSY'});
+    response.resolve(auth()); await pending;
+    expect(f.state.prepares[0].retry).toEqual({});
+  });
+  it('drops READY when logout occurs between preparation and coalesced delivery', async () => {
+    const controller = createDeviceIdentityController({
+      service:{request:async()=>auth(),requestDevice:async()=>ok({})},
+      identityFactory:()=>({prepare(){
+        const result=Promise.resolve(ready);
+        void result.then(()=>queueMicrotask(()=>{void controller.requestApi(logout);}));
+        return result;
+      }}),
+    });
+    const a=controller.prepareForUse(); const b=controller.prepareForUse();
+    expect(await a).toEqual({state:'SESSION_CHANGED'});
+    expect(await b).toEqual({state:'SESSION_CHANGED'});
+    expect(controller.getStatus()).toEqual(signedOut);
+  });
+  it('does not join an older automatic preparation after logout or leak its late READY', async () => {
+    const f = fixture(); const response = deferred<ApiResult>();
+    f.state.publicHandler = async input => (input as {operation:string}).operation === 'session.get' ? response.promise : ok({authenticated:false});
+    const pending = f.controller.prepareForUse();
+    await f.controller.requestApi(logout);
+    expect(await f.controller.prepareForUse()).toEqual({state:'BUSY'});
+    response.resolve(auth());
+    expect(await pending).toEqual({state:'SESSION_CHANGED'});
+    expect(f.controller.getStatus()).toEqual(signedOut);
+    f.state.publicHandler = async () => ok({authenticated:false});
+    expect(await f.controller.prepareForUse()).toEqual(signedOut);
+    expect(f.state.prepares).toHaveLength(0);
+  });
+  it.each(['REGISTRATION_UNKNOWN','PROOF_UNKNOWN','REVOKED','KEY_MISSING','KEY_MISMATCH'] as const)('automatic preparation preserves %s without retrying or manufacturing READY', async state => {
+    const f = fixture(); f.state.prepareHandler = async () => ({state});
+    expect(await f.controller.prepareForUse()).toEqual({state});
+    expect(f.state.prepares).toHaveLength(1);
+    expect(f.state.prepares[0].retry).toEqual({});
+    expect(await f.controller.openWorkerScope()).toEqual({ok:false,state:'DEVICE_NOT_READY'});
+  });
+  it('rejects forged automatic preparation input without joining pending valid work', async () => {
+    const f = fixture(); const response = deferred<ApiResult>();
+    f.state.publicHandler = async () => response.promise;
+    const pending = f.controller.prepareForUse();
+    expect(await f.controller.prepareForUse({userId:'forged'})).toEqual({state:'INVALID_REQUEST'});
+    response.resolve(auth()); expect(await pending).toEqual(ready);
+    expect(f.state.prepares).toHaveLength(1);
+  });
   it('accepts the current authenticated account scope DTO and rejects malformed scope', async () => {
     const f=fixture();
     f.state.publicHandler=async()=>ok({authenticated:true,user_id:'TEST-owner',account_scope:{id:deviceId,version:1}});

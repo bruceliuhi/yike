@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowSquareOut, CheckCircle, Plus } from "@phosphor-icons/react";
 import { useApp } from "../app/context";
+import { DeviceConnectionPreparationNotice, useDeviceConnectionPreparation } from '../app/DeviceConnectionPreparation';
 import { PlatformIcon, PlatformLabel } from "../components/Platform";
 import { useResource } from "../app/hooks";
 import { useConnectionDisconnect } from "./connections/useConnectionDisconnect";
@@ -40,6 +41,8 @@ type ConnectingState =
   | "error";
 export function ConnectionsPage() {
   const { service, session, route, navigate, notify } = useApp();
+  const preparation = useDeviceConnectionPreparation();
+  const deviceBlocked = preparation !== null && !preparation.ready;
   const connections = useResource(
     (signal) =>
       boundedRequest(() => service.connections(), {
@@ -133,6 +136,7 @@ export function ConnectionsPage() {
   const openLogin = async () => {
     if (
       !selected ||
+      deviceBlocked ||
       busy ||
       disconnect.records.some((record) => record.platform === selected.id)
     )
@@ -171,7 +175,7 @@ export function ConnectionsPage() {
     }
   };
   const check = async () => {
-    if (!selected || (!opened && !recoverable) || busy) return;
+    if (deviceBlocked || !selected || (!opened && !recoverable) || busy) return;
     const request = ++generation.current;
     controller.current?.abort();
     const abort = new AbortController();
@@ -349,7 +353,7 @@ export function ConnectionsPage() {
               <>
                 <Button onClick={close}>取消</Button>
                 <Button
-                  disabled={(!opened && !recoverable) || busy}
+                  disabled={deviceBlocked || (!opened && !recoverable) || busy}
                   loading={state === "checking"}
                   onClick={() => void check()}
                 >
@@ -359,6 +363,7 @@ export function ConnectionsPage() {
                   variant="primary"
                   loading={state === "opening"}
                   disabled={
+                    deviceBlocked ||
                     state === "checking" ||
                     disconnect.records.some(
                       (record) => record.platform === selected.id,
@@ -389,7 +394,7 @@ export function ConnectionsPage() {
           <p className="muted">
             账号登录在平台原生页面完成，意客AI不要求输入平台密码。
           </p>
-          <div className="connection-status">
+          {deviceBlocked ? <DeviceConnectionPreparationNotice /> : <div className="connection-status">
             <PlatformIcon platform={selected.id} size={32} />
             <div>
               <span className="muted">当前状态</span>
@@ -402,7 +407,7 @@ export function ConnectionsPage() {
                     : "点击下方按钮打开平台登录窗口。"}
               </p>
             </div>
-          </div>
+          </div>}
           {error && <Notice tone="error">{error}</Notice>}
           {state === "connected" && !result?.capabilities.length && (
             <Notice tone="warning">

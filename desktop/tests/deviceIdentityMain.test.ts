@@ -61,6 +61,17 @@ it('rejects subframes, foreign windows and URLs on identity and execution channe
     await expect(Promise.resolve().then(()=>handler({sender:{mainFrame:mocks.frame},senderFrame:mocks.frame},{}))).rejects.toThrow('UNTRUSTED_DESKTOP_SENDER');
   }
 });
+it('coalesces simultaneous trusted automatic setup calls through the normal IPC', async()=>{
+  let resolve!: (value:any)=>void;
+  mocks.prepare.mockImplementationOnce(()=>new Promise(r=>{resolve=r;}));
+  const before=mocks.prepare.mock.calls.length;
+  const handler=mocks.handlers.get('desktop:prepare-device-identity')!;
+  const a=handler(trusted(),{}); const b=handler(trusted(),{});
+  await vi.waitFor(()=>expect(mocks.prepare.mock.calls.length).toBe(before+1));
+  resolve({state:'READY',deviceId:'12345678-1234-1234-1234-123456789abc',credentialVersion:1});
+  expect((await a).state).toBe('READY'); expect((await b).state).toBe('READY');
+  expect(mocks.prepare.mock.calls.length).toBe(before+1);
+});
 it('leaves login unavailable without main-owned developer runtime configuration',async()=>{
   const handler=mocks.handlers.get('desktop:platform-connection-command');expect(handler).toBeTypeOf('function');
   expect(await handler!(trusted(),{action:'OPEN',platform:'XIAOHONGSHU'})).toEqual({state:'SERVICE_UNAVAILABLE'});
