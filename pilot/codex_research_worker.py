@@ -553,6 +553,7 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                                     'CODEX_HOME':str(root/'state'),'YIKE_BRIDGE_TOKEN':token},
                                     mission,deadline,cancelled,events,root/'work')
                     finally:
+                        revoked.set()
                         if bridge is not None:
                             calls = bridge.records
                         if search_service is not None:

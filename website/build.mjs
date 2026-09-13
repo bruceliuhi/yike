@@ -16,6 +16,9 @@ const routes = [
   { route: 'contact', key: 'contact' },
   { route: 'faq', key: 'faq' },
   { route: 'security', key: 'security' },
+  { route: 'privacy', key: 'privacy' },
+  { route: 'terms', key: 'terms' },
+  { route: 'filing', key: 'filing' },
 ];
 const pages = {
   home: {
@@ -78,6 +81,24 @@ const pages = {
     description: '了解意客 AI 的平台授权、公开来源、租户隔离、人工确认、数据保存与删除边界。',
     heading: '先说清楚数据从哪里来、保存什么、谁来确认。',
   },
+  privacy: {
+    path: '/privacy/',
+    title: '隐私政策｜意客 AI',
+    description: '了解意客 AI 在试用、演示和企业交付中如何处理联系信息与公开来源数据。',
+    heading: '意客 AI 隐私政策。',
+  },
+  terms: {
+    path: '/terms/',
+    title: '服务协议｜意客 AI',
+    description: '了解意客 AI 官网试用申请、产品体验与企业交付的服务范围和使用边界。',
+    heading: '意客 AI 服务协议。',
+  },
+  filing: {
+    path: '/filing/',
+    title: '备案信息｜意客 AI',
+    description: '查看意客 AI 网站主体与备案信息状态；未核验的信息不会在此页面展示。',
+    heading: '意客 AI 备案信息。',
+  },
 };
 
 for (const article of insights) {
@@ -99,6 +120,9 @@ const fallback = {
   contact: `<section class="seo-fallback"><p>意客 AI · 预约演示</p><h1>告诉我们卖什么、卖给谁，现场看一条机会怎么生成</h1><p>填写业务场景或拨打 150 1156 9988，了解从业务画像、公开来源研究到机会证据和跟进草稿的完整链路。</p></section>`,
   faq: `<section class="seo-fallback"><p>意客 AI · 常见问题</p><h1>意客 AI 能做什么、怎么连接、怎么试用？</h1><h2>意客 AI 是什么？</h2><p>意客 AI 是面向企业销售团队的客户情报与商机工作台，用于发现公开需求信号、复核机会证据并准备下一步跟进。</p><h2>支持哪些平台？</h2><p>按授权和连接状态支持小红书、抖音、B站、知乎等平台，并可研究公开网页与行业社区。实际可用范围以账号授权、连接状态和项目配置为准。</p><h2>“全网”具体指什么？</h2><p>这里的全网，指已授权的平台与系统当前可访问的公开来源，不代表绕过登录、权限或平台限制，也不承诺无限制覆盖所有网站。</p><h2>会自动发送消息吗？</h2><p>评论和私信先生成草稿，外部触达在发送前由人确认。系统会记录发送、回复和下一步，便于团队复核与协作。</p><h2>试用能拿到什么？</h2><p>围绕一个真实业务场景完成首轮研究，交付可复核的机会记录、原文证据和带上下文的跟进草稿；具体范围按授权和版本确认。</p></section>`,
   security: `<section class="seo-fallback"><p>意客 AI · 数据与安全</p><h1>把数据边界说清楚，才能长期使用</h1><p>平台连接基于授权，研究范围受连接状态和项目配置约束；机会保存原文来源、时间和判断理由，触达动作发送前由人确认。</p><h2>租户、角色和连接身份</h2><p>企业交付按租户、角色和连接身份隔离数据；具体保存周期、删除方式和部署边界写入项目方案与验收记录。</p></section>`,
+  privacy: `<section class="seo-fallback"><p>意客 AI · 隐私政策</p><h1>意客 AI 如何处理试用与联系信息</h1><p>我们只在产品试用、演示和企业交付所需范围内处理你主动提交的业务描述和联系方式。查询或删除请求请联系 150 1156 9988。</p></section>`,
+  terms: `<section class="seo-fallback"><p>意客 AI · 服务协议</p><h1>意客 AI 服务范围与使用边界</h1><p>官网展示能力以双方确认的版本、授权和项目验收记录为准；规划中的能力不会自动构成已开通服务。</p></section>`,
+  filing: `<section class="seo-fallback"><p>意客 AI · 备案信息</p><h1>网站主体与备案信息</h1><p>备案信息会在取得并核验后更新，当前不展示未确认的备案号。如需核验，请联系 150 1156 9988。</p></section>`,
 };
 
 for (const article of insights) {
@@ -113,7 +137,7 @@ function pageImage(key) {
   if (key === 'insights') return `${site}/illustrations/insights/content-hub-hero-v1.webp`;
   if (key === 'features') return `${site}/illustrations/insights/signal-node-v1.webp`;
   if (key === 'scenarios') return `${site}/illustrations/insights/article-evidence-v1.webp`;
-  return `${site}/product-screenshots/workbench-navigation.png`;
+  return `${site}/product-screenshots/workbench-navigation.webp`;
 }
 
 

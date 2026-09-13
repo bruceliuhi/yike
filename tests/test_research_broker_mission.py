@@ -119,3 +119,24 @@ def test_terminal_broker_failure_does_not_start_host_fallback(monkeypatch, searc
     assert effects==[]
     assert (result['status'],result['code'])==('FAILED',expected_code)
     assert result['reads']==[]
+
+
+def test_confirmed_broker_terminal_revokes_before_return():
+    worker=importlib.import_module('pilot.codex_research_worker')
+    module=importlib.import_module('pilot.research_broker_mission')
+    identity=dict(tenant_id='00000000-0000-4000-8000-000000000001',
+        task_id='00000000-0000-4000-8000-000000000002',
+        run_id='00000000-0000-4000-8000-000000000003',generation=1)
+    class Client:
+        def create(self,*args,**kwargs): return {'status':'CREATED'}
+        def events(self,*args):
+            yield {'type':'chunk','data':b'{"type":"turn.completed"}\n'}
+            yield {'type':'result','value':{'status':'STOPPED','code':None}}
+        def stop(self,*args):
+            raise AssertionError('confirmed terminal does not need another stop')
+    revoked=threading.Event()
+    result=module.BrokerMissionExecution(identity,Client(),'/unused').execute(
+        {'expires_at':time()+5},deadline=monotonic()+5,cancelled=lambda:False,
+        events=worker._ReadEvents(search_enabled=False),revoke=revoked.set)
+    assert result==('FAILED','no_verified_reads')
+    assert revoked.is_set(), 'confirmed terminal must fence effects before returning to caller'
