@@ -66,7 +66,10 @@ export const researchDraftSchema = researchSettingsSchema.extend({
 export const defaultResearchSettings = (): ResearchSettings => ({
   version: 1,
   demandTypes: ["INQUIRY", "COMPARISON", "REPLACEMENT"],
-  maxSoubei: null,
+  // Invited trials should start with a generous visible ceiling so a user can
+  // validate the research workflow without first negotiating an allowance.
+  // Actual source/model usage is still settled separately by the runtime.
+  maxSoubei: 1_000_000,
   limits: { sources: 100, minutes: 15, modelCalls: 50 },
   stopAtAnyLimit: true,
   evidenceOrder: "SOURCE_MATCH_CONTEXT",
