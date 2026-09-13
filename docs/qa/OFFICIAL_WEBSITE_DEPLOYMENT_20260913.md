@@ -10,8 +10,8 @@
 ## 发布版本
 
 - Gitee：`yike-ai2026/main`
-- 源码提交：`72f7d7814b24356fc2e0140351a146d6e39fdc39`
-- 发布目录：`/www/wwwroot/www.tuokexing.net/releases/72f7d7814b24356fc2e0140351a146d6e39fdc39`
+- 源码提交：`634a91c08b522c067bb5eae8e96cd8170e547509`
+- 发布目录：`/www/wwwroot/www.tuokexing.net/releases/634a91c08b522c067bb5eae8e96cd8170e547509`
 - 当前软链：`/www/wwwroot/www.tuokexing.net/current`
 - 站点类型：独立静态站点，不占用 `yike.tuokexing.net` 的应用和运营后台配置。
 
@@ -36,6 +36,8 @@
 - `/roadmap/`
 - `/contact/`
 - `/faq/`
+- `/security/`
+- `/scenarios/`
 
 官网已加入搜索与 AI 抓取基础：每个路由有独立 title、description、canonical、Open Graph/Twitter 元信息和 JSON-LD；各页面在 JavaScript 执行前保留可抓取的语义正文；`robots.txt`、`sitemap.xml`、`llms.txt` 和 FAQ 已上线。产品范围统一按已授权平台与当前可访问公开来源表述，不把规划能力写成已交付能力。
 
