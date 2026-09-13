@@ -210,6 +210,11 @@ export function ConnectionsPage() {
     } catch (e) {
       if (request === generation.current && !(e instanceof RequestCancelled)) {
         setState(e instanceof RequestTimeout ? "timeout" : "error");
+        if (e instanceof ServiceError && e.code === 'LOGIN_EXPIRED') {
+          setOpened(false);
+          setLoginReady(false);
+          setRecoverable(false);
+        }
         setError(errorMessage(e));
       }
     }

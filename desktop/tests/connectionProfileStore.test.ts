@@ -34,9 +34,14 @@ it('rejects rewriting an original operation or binding another profile',async ()
   await expect(f.store.setOperation(scope,r.flowId,{...op,session_ref:'vault://platform/other'})).rejects.toThrow();
   expect((await f.store.read(scope))!.registration).toEqual(op);
 });
-it('only resolved flows may be replaced and old snapshots remain intact',async () => {
-  const f=await fixture(); const r=await f.store.open(scope); await f.store.resolve(scope,r.flowId);
-  const next=await f.store.open(scope); expect(next.profileId).not.toBe(r.profileId); expect(r.state).toBe('PENDING');
+it('reuses the browser profile across completed flows and restart but starts new immutable operations',async () => {
+  const f=await fixture(); const r=await f.store.open(scope); await f.store.setOperation(scope,r.flowId,operation(r)); await f.store.resolve(scope,r.flowId);
+  const next=await createConnectionProfileStore(f.options).open(scope);
+  expect(next.profileId).toBe(r.profileId); expect(next.flowId).not.toBe(r.flowId); expect(r.state).toBe('PENDING');
+  expect(next.state).toBe('PENDING'); expect(next.registration).toBeNull(); expect(next.verification).toBeNull();
+  const archive=(await readdir(f.directory)).find(name=>name.endsWith('.'+r.flowId+'.resolved'))!;
+  const prior=JSON.parse(protection.decryptString(await readFile(path.join(f.directory,archive))));
+  expect(prior.state).toBe('RESOLVED'); expect(prior.registration).toEqual(operation(r));
   await expect(f.store.resolve(scope,r.flowId)).rejects.toThrow();
 });
 it('corrupt records or unavailable protection fail closed without overwriting',async () => {

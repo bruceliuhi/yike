@@ -64,7 +64,9 @@ export function createConnectionProfileStore({directory,protection}:{directory:s
     open(scope:ConnectionProfileScope) {return transaction(scope,async(s,f,r)=>{
       if(r?.state==='PENDING') return r;
       if(r) {const archive=f+'.'+r.flowId+'.resolved'; const old=await readFile(archive,s); if(old && !same(old,r))throw failure(); if(!old)await write(archive,r);}
-      const created:ConnectionProfileRecord={version:1,scope:s,flowId:randomUUID(),profileId:randomUUID(),state:'PENDING',registration:null,verification:null};
+      // Login state belongs to this server/user/device/platform scope, not to a
+      // short-lived registration flow. Archive receipts, but retain its profile.
+      const created:ConnectionProfileRecord={version:1,scope:s,flowId:randomUUID(),profileId:r?.profileId??randomUUID(),state:'PENDING',registration:null,verification:null};
       await write(f,created); return created;
     });},
     setOperation(scope:ConnectionProfileScope,flowId:string,raw:ConnectionOperation) {return transaction(scope,async(s,f,r)=>{
