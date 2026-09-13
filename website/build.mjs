@@ -95,7 +95,7 @@ await cp(join(root, 'public'), join(dist), { recursive: true });
 function renderHtml(key) {
   const page = pages[key];
   const canonical = `${site}${page.path}`;
-  const head = `\n    <link rel="canonical" href="${canonical}" />\n    <meta property="og:type" content="website" />\n    <meta property="og:url" content="${canonical}" />\n    <meta property="og:site_name" content="意客 AI" />\n    <meta property="og:locale" content="zh_CN" />\n    <meta name="twitter:card" content="summary_large_image" />\n    <meta name="twitter:title" content="${page.title}" />\n    <meta name="twitter:description" content="${page.description}" />\n    <meta name="twitter:image" content="${site}/product-screenshots/workbench-navigation.png" />\n    ${jsonLd(key)}`;
+  const head = `\n    <link rel="canonical" href="${canonical}" />\n    <meta property="og:type" content="website" />\n    <meta property="og:url" content="${canonical}" />\n    <meta property="og:site_name" content="意客 AI" />\n    <meta property="og:locale" content="zh_CN" />\n    <meta name="robots" content="index,follow,max-image-preview:large" />\n    <meta name="twitter:card" content="summary_large_image" />\n    <meta name="twitter:title" content="${page.title}" />\n    <meta name="twitter:description" content="${page.description}" />\n    <meta name="twitter:image" content="${site}/product-screenshots/workbench-navigation.png" />\n    ${jsonLd(key)}`;
   return base
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${page.title}</title>`)
     .replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${page.description}" />`)
