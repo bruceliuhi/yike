@@ -74,3 +74,11 @@ main正常合并7842532宣传文件后推至3de1b35d5d26ca171bfdfcc32f360f7116cc
 独立来源诊断（非客户任务/商机）：本轮PublicPageReader直接读取已经搜索发现的https://eleduck.com/成功，0.88秒、580字符、41链接，内容SHA256 614e7b3a8d7cd1c67b7abac2ae0e157f49afd3879c692d3290c341f0cabdc781。仅证明该入口可读，不证明存在近期买方原文；没有新增模型/搜索调用或正式证据记录。实际980任务仍0原文/候选，完整Goal保持ACTIVE。
 
 19:16推送并发接续：首次推送49b1250被正常拒绝；新来件8556cab仅把两处time.monotonic改为monotonic，已解决上述时钟名称错误，不继续把该项称为最新源码缺陷。撤销后调用、固定AI查询与机械候选选择三项仍未改，不能据此批准研究fallback；没有现场验证8556cab是否部署。正常合入809e287并保留官网变化，纯记录不触发构包/全量测试。
+
+### 19:28 终态回归与发布归属冲突
+
+在7490b1c基线上补3种正常无原文/已有搜索无原文/运行失败的终态回归：实际BrokerMissionExecution和ResponsesBridge，合成broker流，无模型/搜索网络；捕获真实search入口，断言结束后无新尝试、无外部效果及失败码/零原文保留。Windows因可选MCP未装跳过，不算通过；转隔离Linux（无网络、只读、无客户数据/密钥）后先修复测试目录权限和规则资源缺失，RED3失败/2通过确实捕获两条硬编码搜索。移除46行fallback，保持broker撤销不动；无搜索夹具因已有可信入口实际为no_verified_reads，修正该期望后最终5通过/2.86秒，原正常成功和UNKNOWN两项包含其中。独立差量GO，worker blob72388b96a2f6d9c2a4c89669a445d3175e36da97、测试0fd4726e0828e06efec0900f6ae7e64414f231f5；这不是真实原文产出恢复。
+
+同期只使用服务器原DNS应答做有界TCP诊断：www.v2ex.com IPv4连接2秒超时、IPv6立即OSError；eleduck.com连接0.01秒成功。没有HTTP/模型/搜索调用，没有改DNS、代理或绕过访问控制；不能把V2EX失败归因为只选第一个地址，也不能仅凭连接成功称电鸭存在有效买方线索。
+
+再次fetch发现Mac 01465e5改为正常STOPPED不在broker内撤销，在worker fallback之后才撤销，与Win修复重叠。该来件未合入本修复分支、未做部署验收；不悄悄覆盖或追认。当前修复保存在短期codex/research-terminal-guard，最终仍以main为合入目标，待确定唯一研究服务发布负责端后整合。已向用户请求明确Win负责研究/部署/Windows、Mac仅官网或相反分工，目前无直接可联系Mac的任务入口。另一端活动研究不停止、不重放，本轮没有新部署/Windows构包，完整Goal仍ACTIVE。
