@@ -12,7 +12,7 @@ import {researchTimelineRequestSchema,researchSimilarRequestSchema} from '../sha
 import {prepareStrategySchema, confirmStrategySchema, revokeStrategySchema, strategyUuidSchema} from '../shared/researchStrategies';
 import {candidateBindingSchema, candidateQuerySchema, candidateReviewRequestSchema, sourceVerificationRequestSchema, candidateRequestIdSchema, type CandidateQueryInput} from '../shared/candidateReviewApi';
 import {materialImpactRequestSchema, materialListRequestSchema, materialMutationRequestSchema, materialOperationRequestSchema} from '../shared/materialsApi';
-import {researchRuntimeAdvanceRequestSchema,researchRuntimeStatusRequestSchema,researchRuntimeCapabilityRequestSchema} from '../shared/researchRuntime';
+import {researchRuntimeAdvanceRequestSchema,researchRuntimeStatusRequestSchema,researchRuntimeCapabilityRequestSchema,researchRuntimeReadsRequestSchema} from '../shared/researchRuntime';
 
 const empty = z.object({}).strict().optional();
 const identifier = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-][A-Za-z0-9_.:-]*$/);
@@ -23,6 +23,7 @@ const schemas = {
   'researchRuntime.capability':researchRuntimeCapabilityRequestSchema,
   'researchRuntime.status':researchRuntimeStatusRequestSchema,
   'researchRuntime.advance':researchRuntimeAdvanceRequestSchema,
+  'researchRuntime.reads':researchRuntimeReadsRequestSchema,
   'opportunityBrief.query': opportunityBriefQueryWire,
   'shortCoach.preview': coachInputSchema,
   'followup.list': empty,
@@ -106,6 +107,8 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
     case 'researchRuntime.status':return {path:`/api/ui/research-execution/tasks/${data!.taskId}`,method:'GET',logout:false};
     case 'researchRuntime.advance':return {path:`/api/ui/research-execution/tasks/${data!.taskId}/advance`,method:'POST',
       body:JSON.stringify({runId:data!.runId}),logout:false,timeoutMs:75_000};
+    case 'researchRuntime.reads':return {path:`/api/ui/research-execution/tasks/${data!.taskId}/reads?run_id=${data!.runId}&after=${data!.after}&limit=${data!.limit}`,
+      method:'GET',logout:false};
     case 'opportunityBrief.query': return {path:'/api/ui/opportunity-brief/query',method:'POST',body:JSON.stringify(parsed.data),logout:false};
     case 'shortCoach.preview':
     case 'shortCoach.generate': return {path:`/api/ui/short-coach/${operation.slice('shortCoach.'.length)}`,method:'POST',body:JSON.stringify(parsed.data),logout:false,timeoutMs:25_000};

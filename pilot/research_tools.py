@@ -26,6 +26,9 @@ from pilot.open_web_reader import (
 )
 from pilot.public_search import normalize_query, valid_search_result
 from pilot.research_entry_urls import decode_entry_urls_json, validate_entry_urls
+from pilot.research_citation_selection import (
+    CITATION_CONTENT_NOTICE, ORIGINAL_READ_META_KEY, citation_read_projection,
+)
 
 
 def _failure(code):
@@ -36,10 +39,11 @@ _valid_page = valid_page_evidence  # Preserve the existing internal validator im
 
 
 def build_server(*, max_reads: int, max_seconds: int, reader=read_public_page, searcher=None,
-                 entry_urls=()):
+                 entry_urls=(), citation_mode=False):
     if (type(max_reads) is not int or not 1 <= max_reads <= 100
             or type(max_seconds) is not int or not 1 <= max_seconds <= 1800
-            or not callable(reader) or searcher is not None and not callable(searcher)):
+            or not callable(reader) or searcher is not None and not callable(searcher)
+            or type(citation_mode) is not bool):
         raise ValueError('invalid_tool_limits')
     entries = validate_entry_urls(entry_urls)
     expires = monotonic() + max_seconds
@@ -148,8 +152,15 @@ def build_server(*, max_reads: int, max_seconds: int, reader=read_public_page, s
             result = await search(arguments)
         else:
             result = _failure('unknown_tool')
-        return CallToolResult(content=[TextContent(type='text', text=json.dumps(
-            result, ensure_ascii=False, separators=(',',':')))], structuredContent=result,
+        content = json.dumps(result, ensure_ascii=False, separators=(',',':'))
+        structured = result
+        meta = None
+        if citation_mode and result['status'] == 'READ':
+            content = CITATION_CONTENT_NOTICE
+            structured = citation_read_projection(result)
+            meta = {ORIGINAL_READ_META_KEY: result}
+        return CallToolResult(content=[TextContent(type='text', text=content)],
+            structuredContent=structured, _meta=meta,
             isError=result['status'] not in {'READ','SEARCHED'})
 
     return server
@@ -173,6 +184,7 @@ def main():
     parser = argparse.ArgumentParser(description='Internal read-only research tools (stdio only)')
     parser.add_argument('--max-reads', type=int, required=True)
     parser.add_argument('--max-seconds', type=int, required=True)
+    parser.add_argument('--citation-mode', action='store_true')
     args = parser.parse_args()
     try:
         entry_raw = os.environ.get('YIKE_PUBLIC_ENTRY_URLS')
@@ -192,7 +204,8 @@ def main():
         if entries and (searcher is None or read_url is None or read_token is None):
             raise ValueError('invalid_entry_urls')
         server = build_server(max_reads=args.max_reads, max_seconds=args.max_seconds,
-                              searcher=searcher,reader=reader,entry_urls=entries)
+                              searcher=searcher,reader=reader,entry_urls=entries,
+                              citation_mode=args.citation_mode)
     except ValueError:
         parser.error('invalid_tool_limits')
     def hard_stop():

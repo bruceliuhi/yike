@@ -7,6 +7,7 @@ import {researchRuntimeStatusSchema,type ResearchRuntimeStatus} from '../../../s
 import {useTaskScope} from './useTaskScope';
 import {researchIndexLabel} from '../../../shared/researchSourcePlan';
 import {researchProgressPresentation} from '../../domain/researchProgressPresentation';
+import {ResearchReadEvidence} from './ResearchReadEvidence';
 
 const resourceStates={OPEN:'资源记录仍开放',DRAINING:'等待回执或执行者退出',UNCERTAIN:'资源结果仍待核实',RECORDED:'资源记录已收齐'};
 const sourcePhases={NOT_STARTED:'未开始',PENDING:'等待回执',SUCCEEDED:'已入库',FAILED:'失败',UNKNOWN:'结果待核实'};
@@ -114,6 +115,8 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
       <p className="muted">这些是原文与分析进度，不是已确认的商机数量；请打开候选逐条核对出处与购买意向。</p>
       {presentation!.warning&&<Notice tone="warning">{presentation!.warning}</Notice>}
       <p>{presentation!.nextStep}</p>
+      {dynamic&&service.researchRuntime?.reads&&<ResearchReadEvidence taskId={taskId} runId={runId}
+        reads={service.researchRuntime.reads} onOpen={service.openExternal}/>}
       <details>
         <summary>执行明细</summary>
         {(['sourceReads','modelCalls'] as const).map(resource=>{

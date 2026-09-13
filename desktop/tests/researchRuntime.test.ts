@@ -1,6 +1,6 @@
 import {describe,expect,it,vi} from 'vitest';
 import {validatedOperation} from '../src/main/servicePolicy';
-import {researchRuntimeCapabilitySchema,researchRuntimeStatusSchema,researchAllowsSource} from '../src/shared/researchRuntime';
+import {researchRuntimeCapabilitySchema,researchRuntimeReadsSchema,researchRuntimeStatusSchema,researchAllowsSource} from '../src/shared/researchRuntime';
 import {desktopExecution} from '../src/renderer/services/desktopExecution';
 import type {YikeDesktopApi} from '../src/shared/contracts';
 
@@ -70,6 +70,33 @@ describe('strict research runtime wire contract',()=>{
     expect(validatedOperation({operation:'researchRuntime.advance',payload:{taskId:id(1),runId:id(2)}})).toEqual({
       path:`/api/ui/research-execution/tasks/${id(1)}/advance`,method:'POST',body:JSON.stringify({runId:id(2)}),logout:false,timeoutMs:75_000});
     expect(validatedOperation({operation:'researchRuntime.advance',payload:{taskId:id(1),runId:id(2),tenantId:id(3)}})).toBeNull();
+    expect(validatedOperation({operation:'researchRuntime.reads',payload:{taskId:id(1),runId:id(2),after:0,limit:5}})).toEqual({
+      path:`/api/ui/research-execution/tasks/${id(1)}/reads?run_id=${id(2)}&after=0&limit=5`,method:'GET',logout:false});
+    for(const payload of [
+      {taskId:id(1),runId:id(2),after:-1,limit:5},
+      {taskId:id(1),runId:id(2),after:0,limit:6},
+      {taskId:id(1),runId:id(2),after:0,limit:5,tenantId:id(3)},
+    ])expect(validatedOperation({operation:'researchRuntime.reads',payload})).toBeNull();
+  });
+  it('accepts only bounded, ordered public READ evidence pages',()=>{
+    const item={sequence:3,url:'https://example.com/demand',title:'公开需求',text:'需要搭建展台',
+      observedAt:'2026-09-13T08:00:00Z',contentSha256:'a'.repeat(64)};
+    const page={contractVersion:1,taskId:id(1),runId:id(2),items:[item],nextAfter:3};
+    expect(researchRuntimeReadsSchema.parse(page)).toEqual(page);
+    for(const invalid of [
+      {...page,items:[item,item]},
+      {...page,items:[{...item,url:'javascript:alert(1)'}]},
+      {...page,items:[{...item,text:''}]},
+      {...page,items:[{...item,contentSha256:'A'.repeat(64)}]},
+      {...page,nextAfter:2},
+      {...page,extra:'private-context'},
+    ])expect(researchRuntimeReadsSchema.safeParse(invalid).success).toBe(false);
+    expect(researchRuntimeReadsSchema.safeParse({...page,items:[{...item,
+      title:'🙂'.repeat(1000),text:'🙂'.repeat(60_000)}]}).success).toBe(true);
+    expect(researchRuntimeReadsSchema.safeParse({...page,items:[{...item,
+      title:'🙂'.repeat(1001)}]}).success).toBe(false);
+    expect(researchRuntimeReadsSchema.safeParse({...page,items:[{...item,
+      text:'🙂'.repeat(60_001)}]}).success).toBe(false);
   });
   it('exposes native protocol version separately from server capability',()=>{
     const service=desktopExecution({executionCommand:vi.fn(),requestApi:vi.fn()} as unknown as YikeDesktopApi)!;

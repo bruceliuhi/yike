@@ -62,7 +62,7 @@ export const API_OPERATIONS = [
   'materials.list', 'materials.mutate', 'materials.operation', 'materials.impact',
   'suggestions.preview', 'suggestions.submit', 'suggestions.receipt',
   'capabilities.get'
-  ,'researchRuntime.capability','researchRuntime.status','researchRuntime.advance'
+  ,'researchRuntime.capability','researchRuntime.status','researchRuntime.advance','researchRuntime.reads'
 ] as const;
 
 export type ApiOperation = typeof API_OPERATIONS[number];

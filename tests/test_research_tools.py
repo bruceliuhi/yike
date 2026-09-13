@@ -45,12 +45,53 @@ def test_protocol_read_unknown_domains_and_replay():
             value = first.structuredContent
             assert value['status'] == 'READ' and value['review_status'] == 'UNREVIEWED'
             assert value['evidence'] == page(calls[0]) | {'observed_at': value['evidence']['observed_at']}
+            assert json.loads(first.content[0].text) == value
             assert 'published_at' not in value['evidence']
             again = await session.call_tool('read_public_page', {'url':'https://new-industry.example:443/need#reply1'})
             assert again.structuredContent == value | {'replayed':True}
             other = await session.call_tool('read_public_page', {'url':'https://another-industry.example/project'})
             assert other.structuredContent['status'] == 'READ'
             assert calls == ['https://new-industry.example/need', 'https://another-industry.example/project']
+    run(scenario())
+
+
+def test_citation_mode_projects_text_fragments_but_keeps_structured_read_exact():
+    from pilot.research_citation_selection import CITATION_CONTENT_NOTICE, ORIGINAL_READ_META_KEY
+    text = "甲\n🙂e\u0301 " * 101
+    def reader(url, **_):
+        return page(url) | {"text": text, "content_sha256": hashlib.sha256(text.encode()).hexdigest()}
+    async def scenario():
+        async with create_connected_server_and_client_session(build(
+                reader=reader, citation_mode=True)) as session:
+            result = await session.call_tool('read_public_page', {'url':'https://example.com/need'})
+            display = result.structuredContent
+            original = result.meta[ORIGINAL_READ_META_KEY]
+            assert result.content[0].text == CITATION_CONTENT_NOTICE
+            assert original['evidence']['text'] == text
+            assert original['evidence']['content_sha256'] == hashlib.sha256(text.encode()).hexdigest()
+            assert 'text_fragments' not in original['evidence']
+            assert 'text' not in display['evidence']
+            assert ''.join(item['text'] for item in display['evidence']['text_fragments']) == text
+            assert display['evidence']['text_fragments'][0]['quote_ref'] == 'q1'
+    run(scenario())
+
+
+def test_maximum_citation_result_stays_below_codex_jsonl_event_limit():
+    from pilot.research_citation_selection import ORIGINAL_READ_META_KEY
+    text = "🙂" * 60_000
+    links = []
+    for index in range(50):
+        prefix = f"https://example.com/{index}/"
+        links.append(prefix + "x" * (2048 - len(prefix)))
+    def reader(url, **_):
+        return page(url) | {"title":"题" * 1000, "text":text, "links":links,
+            "content_sha256":hashlib.sha256(text.encode()).hexdigest()}
+    async def scenario():
+        async with create_connected_server_and_client_session(build(
+                reader=reader, citation_mode=True)) as session:
+            result = await session.call_tool('read_public_page', {'url':'https://example.com/max'})
+            assert result.meta[ORIGINAL_READ_META_KEY]['evidence']['text'] == text
+            assert len(result.model_dump_json(by_alias=True, exclude_none=True).encode()) < 1024 * 1024
     run(scenario())
 
 

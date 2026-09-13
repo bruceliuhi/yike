@@ -13,6 +13,8 @@ from pilot.durable_research_dispatch import DurableResearchDispatcher
 from pilot.execution_contract import ExecutionRuntimeError, canonical_uuid
 from pilot.research_runtime_config import dynamic_research_snapshot
 from pilot.research_page_selection import parse_page_selection
+from pilot.research_effect_contract import effect_result
+from pilot.research_resources import _event
 
 
 _COUNTER = ("issued", "pending", "succeeded", "failed", "unknown")
@@ -22,6 +24,10 @@ def _discovery_limits(sources):
     # Per-kind ceilings reserve one attempt of the other kind, not fixed pots.
     # Their sum is NOT a grant: the durable SOURCE_READ ledger owns the total.
     return min(10, sources - 1), sources - 1
+
+
+def _assessment_reserve(model_calls, max_records, max_reads):
+    return min(max_records, max_reads, max(1, model_calls // 2))
 
 
 def _stop_code(value, fallback):
@@ -176,7 +182,7 @@ class DynamicResearchRuntimeService:
             self.execution._active(cursor, claims)
             return generation, {
                 "sources": limits[0], "minutes": limits[1],
-                "modelCalls": limits[2],
+                "modelCalls": limits[2], "maxRecords": task["max_records"],
                 "seconds": max(1, min(1800, int((lease - now).total_seconds()))),
             }
 
@@ -191,6 +197,9 @@ class DynamicResearchRuntimeService:
                 context_binding=context["binding"],
             )
             max_searches, max_reads = _discovery_limits(limits["sources"])
+            reserve = _assessment_reserve(
+                limits["modelCalls"], limits["maxRecords"], max_reads
+            )
             result = self.mission(
                 json.loads(context["context_json"])["seller_description"],
                 codex_binary=self.agent.codex_binary,
@@ -200,7 +209,7 @@ class DynamicResearchRuntimeService:
                 search_api_key=self.agent.search_api_key,
                 max_searches=max_searches,
                 max_reads=max_reads,
-                max_requests=limits["modelCalls"] - 1,
+                max_requests=limits["modelCalls"] - reserve,
                 max_seconds=limits["seconds"],
                 cancelled=lambda: self._cancelled(
                     claims, task_id, run_id, generation
@@ -554,7 +563,7 @@ class DynamicResearchRuntimeService:
                     discovery[kind]["issued"] += count
                     discovery[kind][names[status]] += count
                 cursor.execute(
-                    "SELECT j.sequence,b.accepted_count,b.receipt FROM "
+                    "SELECT j.sequence,b.accepted_count,b.receipt,b.execution_context FROM "
                     "pilot_research_effect_journal j LEFT JOIN pilot_candidate_batches b "
                     "ON b.tenant_id=j.tenant_id AND b.owner_user_id=j.owner_user_id "
                     "AND b.task_id=j.task_id AND b.run_id=j.run_id AND b.request_id=j.action_id "
@@ -564,10 +573,20 @@ class DynamicResearchRuntimeService:
                 )
                 batches = cursor.fetchall()
         accepted = sum(row[1] or 0 for row in batches)
-        unpublished = sum(row[1] is None or row[1] == 0 for row in batches)
+        unpublished = 0
+        for _, accepted_count, _, execution_context in batches:
+            background = (type(execution_context) is dict
+                          and execution_context.get("observed_count") == 1
+                          and execution_context.get("accepted_count") == 0
+                          and execution_context.get("skipped_background_count") == 1
+                          and execution_context.get("skipped_invalid_count") == 0
+                          and execution_context.get("skipped_budget_count") == 0
+                          and type(execution_context.get("page_selection")) is dict
+                          and execution_context["page_selection"].get("decision") == "BACKGROUND")
+            unpublished += accepted_count is None or accepted_count == 0 and not background
         candidate_ids, analyzed, skipped = [], 0, 0
         task = self.execution.get_task(claims, task_id)
-        for _, _, receipt in batches:
+        for _, _, receipt, _ in batches:
             for item in receipt.get("items", []) if type(receipt) is dict else []:
                 candidate_ids.append(item["candidate_id"])
                 request_id = self.fixed.orchestrator._review_action(task_id, run_id, item)
@@ -624,6 +643,63 @@ class DynamicResearchRuntimeService:
                 "searches": discovery["SEARCH"], "reads": discovery["READ"],
                 "unpublishedOriginals": unpublished,
             },
+        }
+
+    def reads(self, claims, task_id, *, run_id, after=0, limit=5):
+        task_id, run_id = map(canonical_uuid, (task_id, run_id))
+        if (type(after) is not int or not 0 <= after <= 1000
+                or type(limit) is not int or not 1 <= limit <= 5):
+            raise ExecutionRuntimeError("invalid_request", 422)
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                tenant, _identity = self.fixed._identity(cursor, claims, task_id, run_id)
+                cursor.execute(
+                    "SELECT t.configuration_snapshot,p.platform,p.access_mode,"
+                    "p.connection_id,p.connection_version FROM pilot_collection_tasks t "
+                    "JOIN pilot_collection_platform_runs p USING(tenant_id,owner_user_id,task_id) "
+                    "WHERE t.tenant_id=%s AND t.owner_user_id=%s AND t.task_id=%s",
+                    (tenant, claims.user_id, task_id),
+                )
+                scope = cursor.fetchall()
+                if (len(scope) != 1 or not dynamic_research_snapshot(scope[0][0])
+                        or scope[0][1:] != ("PUBLIC_WEB", "PUBLIC_ANONYMOUS", None, None)):
+                    raise ExecutionRuntimeError("request_conflict", 409)
+                cursor.execute(
+                    "SELECT sequence FROM pilot_research_effect_journal "
+                    "WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s AND run_id=%s "
+                    "AND kind='READ' AND status='SUCCEEDED' AND sequence>%s "
+                    "ORDER BY sequence LIMIT %s",
+                    (tenant, claims.user_id, task_id, run_id, after, limit + 1),
+                )
+                sequences = [row[0] for row in cursor.fetchall()]
+                entries = []
+                try:
+                    for sequence in sequences:
+                        entry = self.journal._select(
+                            cursor, tenant, claims.user_id, task_id, run_id, sequence)
+                        event_row = self.journal.resources._select(
+                            cursor, tenant, claims.user_id, task_id, run_id, entry["action_id"])
+                        if (event_row is None
+                                or not self.journal.prior_effect_valid(entry, _event(event_row))):
+                            raise ExecutionRuntimeError("resource_unavailable", 503)
+                        result = effect_result("READ", entry["payload"], entry["result"])
+                        entries.append((sequence, result["evidence"]))
+                except (KeyError, TypeError, ValueError, ExecutionRuntimeError) as error:
+                    if isinstance(error, ExecutionRuntimeError) and error.status == 503:
+                        raise
+                    raise ExecutionRuntimeError("resource_unavailable", 503) from None
+                self.execution._active(cursor, claims)
+        visible = entries[:limit]
+        return {
+            "contractVersion": 1, "taskId": task_id, "runId": run_id,
+            "items": [{
+                "sequence": sequence, "url": evidence["url"],
+                "title": evidence["title"], "text": evidence["text"],
+                "observedAt": evidence["observed_at"],
+                "contentSha256": evidence["content_sha256"],
+            } for sequence, evidence in visible],
+            "nextAfter": visible[-1][0] if len(entries) > limit else None,
         }
 
     def shutdown(self, timeout_seconds=5):

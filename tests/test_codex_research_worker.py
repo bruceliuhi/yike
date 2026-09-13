@@ -45,6 +45,31 @@ def final_events_with(text):
             {'type':'turn.completed','usage':{'input_tokens':1,'output_tokens':1}}]
 
 
+def citation_final_events(*read_events):
+    pages=[]
+    for event in read_events:
+        evidence=event['item']['result']['structured_content']['evidence']
+        pages.append(dict(url=evidence['url'],content_sha256=evidence['content_sha256'],
+                          decision='ASSESS',reason='POSSIBLE_DEMAND',quote_ref='q1'))
+    return final_events_with(json.dumps(dict(schema_version='research-citation-choice-v1',
+        summary='逐页引用选择完成',pages=pages),ensure_ascii=False))
+
+
+def citation_read_event(event):
+    original=copy.deepcopy(event['item']['result']['structured_content'])
+    evidence=original['evidence']
+    projected=copy.deepcopy(original)
+    projected['evidence'].pop('text')
+    projected['evidence']['text_fragments']=[
+        {'quote_ref':f'q{offset//400+1}','text':evidence['text'][offset:offset+400]}
+        for offset in range(0,len(evidence['text']),400)]
+    event['item']['result']={'content':[{'type':'text','text':
+        'Citation fragments are provided in structuredContent.'}],
+        'structured_content':projected,
+        '_meta':{'yike_original_read_v1':original}}
+    return event
+
+
 @pytest.fixture
 def worker(monkeypatch):
     import pilot.codex_research_worker as module
@@ -396,12 +421,14 @@ def test_seeded_controlled_worker_transports_entries_and_completes_without_searc
     event=read_event()
     event['item']['arguments']['url']=entry
     event['item']['result']['structured_content']['evidence']['url']=entry
-    result=run_research(worker,tmp_path,[event,*final_events()],extra=extra,
+    event=citation_read_event(event)
+    result=run_research(worker,tmp_path,[event,*citation_final_events(event)],extra=extra,
         research_context=context,effect_dispatcher=lambda kind,payload,deadline,perform:perform(deadline))
     data=json.loads(capture.read_text())
     assert result['status']=='COMPLETED' and result['searches']==[] and len(result['reads'])==1
     serialized=json.dumps(data['argv'])
     assert 'YIKE_PUBLIC_ENTRY_URLS=' in serialized and 'https://www.v2ex.com/recent' in serialized
+    assert '--citation-mode' in serialized
     expected=['https://www.v2ex.com/recent','https://www.v2ex.com/go/qna',entry]
     assert json.dumps(expected,separators=(',',':')) in data['instructions']
     assert captured['allowed_url'](entry) and not captured['allowed_url'](entry+'/nearby')
@@ -433,12 +460,14 @@ def test_read_only_instructions_remain_exactly_unchanged(worker,tmp_path):
     capture=tmp_path/'read-config.json'
     extra=("config=next(value for value in sys.argv if value.startswith('model_instructions_file='))\n"
            "instructions=open(json.loads(config.split('=',1)[1])).read()\n"
-           f"open({str(capture)!r},'w').write(json.dumps(dict(instructions=instructions)))\n")
+           f"open({str(capture)!r},'w').write(json.dumps(dict(argv=sys.argv,instructions=instructions)))\n")
     result=run(worker,tmp_path,[read_event(),*final_events()],extra=extra,
                max_reads=4,max_requests=5)
     data=json.loads(capture.read_text())
     assert result['status']=='COMPLETED'
     assert data['instructions']==worker._INSTRUCTIONS
+    serialized=json.dumps(data['argv'])
+    assert '--output-schema' not in data['argv'] and '--citation-mode' not in serialized
 
 
 def research_context():
@@ -458,12 +487,15 @@ def test_profile_research_loads_original_rules_and_bound_context_in_real_process
     capture=tmp_path/'profile-config.json'
     extra=("config=next(value for value in sys.argv if value.startswith('model_instructions_file='))\n"
            "instructions=open(json.loads(config.split('=',1)[1])).read()\n"
-           f"open({str(capture)!r},'w').write(json.dumps(dict(argv=sys.argv,env=dict(os.environ),prompt=sys.stdin.read(),instructions=instructions)))\n")
+           "schema_index=sys.argv.index('--output-schema')\n"
+           "schema=json.load(open(sys.argv[schema_index+1]))\n"
+           f"open({str(capture)!r},'w').write(json.dumps(dict(argv=sys.argv,env=dict(os.environ),prompt=sys.stdin.read(),instructions=instructions,schema=schema)))\n")
     context=research_context()
     if version==2:
         from tests.test_research_context import projected_v2
         context=projected_v2()
-    result=run_research(worker,tmp_path,[search_event(),read_event(),*final_events()],
+    event=citation_read_event(read_event())
+    result=run_research(worker,tmp_path,[search_event(),event,*citation_final_events(event)],
         extra=extra,research_context=context)
     from pilot.research_context import compile_research_context
     compiled=compile_research_context(context)
@@ -476,8 +508,13 @@ def test_profile_research_loads_original_rules_and_bound_context_in_real_process
     assert '/api/' not in compiled['instructions']
     assert result['research_binding']['rule_sha256']==hashlib.sha256(
         compiled['instructions'].encode('utf-8')).hexdigest()
-    assert compiled['context_json'] in data['prompt']
-    assert '研究公开需求。' in data['prompt']
+    assert data['prompt'].startswith('HOST_RESEARCH_CONTEXT_JSON')
+    assert data['prompt'].count(compiled['context_json']) == 1
+    assert data['schema'] == worker.citation_choice_schema()
+    assert data['argv'].count('--output-schema') == 1
+    assert '--citation-mode' in json.dumps(data['argv'])
+    from pilot.research_page_selection import parse_page_selection
+    assert parse_page_selection(result['summary'], [result['reads'][0]['evidence']])
     assert context['seller_description'] not in json.dumps(data['argv'],ensure_ascii=False)
     assert context['seller_description'] not in json.dumps(data['env'],ensure_ascii=False)
     assert context['seller_description'] not in data['instructions']
@@ -553,25 +590,66 @@ def test_context_v2_delivers_full_8000_character_multiline_profile_to_real_proce
     compiled=compile_research_context(context)
     capture=tmp_path/'long-v2-context.json'
     extra=(f"open({str(capture)!r},'w').write(json.dumps(dict(prompt=sys.stdin.read())))\n")
-    result=run_research(worker,tmp_path,[search_event(),read_event(),*final_events()],
+    event=citation_read_event(read_event())
+    result=run_research(worker,tmp_path,[search_event(),event,*citation_final_events(event)],
         description=seller,research_context=context,extra=extra)
     data=json.loads(capture.read_text())
     assert result['status']=='COMPLETED'
     assert result['research_binding']==compiled['binding']
-    assert data['prompt'].startswith(seller+'\n\nHOST_RESEARCH_CONTEXT_JSON')
+    assert data['prompt'].startswith('HOST_RESEARCH_CONTEXT_JSON')
     assert compiled['context_json'] in data['prompt']
-    assert data['prompt'].count(seller)==1
+    assert json.loads(data['prompt'].split(':\n', 1)[1])['seller_description'] == seller
     assert len(seller)==8000 and seller.endswith('乙')
 
 
 def test_contextual_final_message_allows_512_kib_but_legacy_keeps_16000(worker,tmp_path):
     from tests.test_research_context import projected_v2
     large='x'*17000
-    contextual=run_research(worker,tmp_path,[search_event(),read_event(),*final_events_with(large)],
+    event=citation_read_event(read_event())
+    contextual=run_research(worker,tmp_path,[search_event(),event,*final_events_with(large)],
                             research_context=projected_v2())
     legacy=run_research(worker,tmp_path,[search_event(),read_event(),*final_events_with(large)])
-    assert contextual['status']=='COMPLETED' and contextual['summary']==large
+    assert contextual['status']=='FAILED' and contextual['code']=='research_selection_invalid'
+    assert contextual['summary']==''
     assert legacy['status']=='FAILED' and legacy['code']=='invalid_runtime_output'
+
+
+def test_contextual_invalid_citation_final_fails_closed_without_echo_or_v1_fallback(worker,tmp_path):
+    event=citation_read_event(read_event())
+    bad=json.dumps(dict(schema_version='research-page-selection-v1',summary='PRIVATE_BAD_FINAL',
+        pages=[]),ensure_ascii=False)
+    result=run_research(worker,tmp_path,[search_event(),event,*final_events_with(bad)],
+                        research_context=research_context())
+    assert result['status']=='FAILED' and result['code']=='research_selection_invalid'
+    assert result['summary']=='' and 'PRIVATE_BAD_FINAL' not in json.dumps(result)
+
+
+def test_contextual_unbounded_numeric_quote_ref_returns_fixed_failure(worker,tmp_path):
+    event=citation_read_event(read_event())
+    evidence=event['item']['result']['structured_content']['evidence']
+    marker='9'*5000
+    bad=json.dumps(dict(schema_version='research-citation-choice-v1',summary='PRIVATE_LONG_REF',
+        pages=[dict(url=evidence['url'],content_sha256=evidence['content_sha256'],
+                    decision='ASSESS',reason='POSSIBLE_DEMAND',quote_ref='q'+marker)]),
+        ensure_ascii=False)
+    result=run_research(worker,tmp_path,[search_event(),event,*final_events_with(bad)],
+                        research_context=research_context())
+    assert result['status']=='FAILED' and result['code']=='research_selection_invalid'
+    assert result['summary']=='' and 'PRIVATE_LONG_REF' not in json.dumps(result)
+    assert marker not in json.dumps(result)
+
+
+@pytest.mark.parametrize('change',['missing_original','changed_projection'])
+def test_contextual_read_requires_original_meta_and_exact_projection(worker,tmp_path,change):
+    event=citation_read_event(read_event())
+    if change=='missing_original':
+        event['item']['result'].pop('_meta')
+    else:
+        event['item']['result']['structured_content']['evidence']['text_fragments'][0]['text']='伪造'
+    result=run_research(worker,tmp_path,[search_event(),event,*final_events()],
+                        research_context=research_context())
+    assert result['status']=='FAILED' and result['code']=='invalid_runtime_output'
+    assert result['reads']==[]
 
 
 def test_context_v2_long_description_requires_exact_verified_seller_profile(worker,tmp_path):

@@ -50,6 +50,10 @@ class Runtime:
         self.calls.append(("status", claims, task_id)); return {"taskId": task_id}
     def advance(self, claims, task_id, run_id):
         self.calls.append(("advance", claims, task_id, run_id)); return {"runId": run_id}
+    def reads(self, claims, task_id, *, run_id, after=0, limit=5):
+        self.calls.append(("reads", claims, task_id, run_id, after, limit))
+        return {"contractVersion": 1, "taskId": task_id, "runId": run_id,
+                "items": [], "nextAfter": None}
 
 
 def test_runtime_routes_are_authenticated_strict_and_read_only_by_method():
@@ -67,6 +71,45 @@ def test_runtime_routes_are_authenticated_strict_and_read_only_by_method():
         json={"runId": run_id, "userId": "forbidden"}).status_code == 422
     assert client(Service(), runtime).get(
         "/api/ui/research-execution/tasks/" + task_id + "?runId=" + run_id).status_code == 422
+
+
+def test_read_visibility_query_is_exact_bounded_and_read_only():
+    runtime, task_id, run_id = Runtime(), str(uuid4()), str(uuid4())
+    http = client(Service(), runtime)
+    path = "/api/ui/research-execution/tasks/" + task_id + "/reads"
+    response = http.get(path + f"?run_id={run_id}")
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert response.json() == {"contractVersion": 1, "taskId": task_id,
+                               "runId": run_id, "items": [], "nextAfter": None}
+    assert runtime.calls[-1][0] == "reads" and runtime.calls[-1][3:] == (run_id, 0, 5)
+    for query, expected in (
+        (f"run_id={run_id}&after=3", (3, 5)),
+        (f"run_id={run_id}&limit=1", (0, 1)),
+        (f"run_id={run_id}&after=3&limit=1", (3, 1)),
+    ):
+        assert http.get(path + "?" + query).status_code == 200
+        assert runtime.calls[-1][4:] == expected
+    valid_calls = len(runtime.calls)
+    for query in (
+        "",
+        f"run_id={run_id}&after=-1&limit=5", f"run_id={run_id}&after=1001&limit=5",
+        f"run_id={run_id}&after=00&limit=5", f"run_id={run_id}&after=0&limit=0",
+        f"run_id={run_id}&after=0&limit=6", f"run_id={run_id}&after=0&limit=05",
+        f"run_id={run_id}&after=0&limit=5&limit=5",
+        f"run_id={run_id}&after=0&limit=5&owner=user",
+        f"run_id=not-a-uuid&after=0&limit=5",
+    ):
+        assert http.get(path + ("?" + query if query else "")).status_code == 422
+    assert len(runtime.calls) == valid_calls
+
+
+def test_read_visibility_authenticates_before_unavailable_runtime():
+    task_id, run_id = str(uuid4()), str(uuid4())
+    path = f"/api/ui/research-execution/tasks/{task_id}/reads?run_id={run_id}&after=0&limit=5"
+    response = client(Service(), None).get(path)
+    assert response.status_code == 501
+    assert response.json() == {"detail": {"code": "capability_unavailable"}}
 
 
 def test_source_catalog_query_is_exact_and_read_only():

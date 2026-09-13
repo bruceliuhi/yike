@@ -33,6 +33,14 @@ from tests.test_research_runtime_postgres import _grant_runtime
 ROOT = Path(__file__).parents[1]
 
 
+def test_multiple_candidate_budget_is_reserved():
+    from pilot.dynamic_research_runtime import _assessment_reserve
+
+    assert _assessment_reserve(8, 20, 7) == 4
+    assert _assessment_reserve(8, 1, 7) == 1
+    assert _assessment_reserve(2, 20, 1) == 1
+
+
 class ResearchModel(BoundaryModel):
     def assess_before(self, _deadline, **kwargs):
         value, usage = self.assess(**kwargs)
@@ -252,10 +260,41 @@ def test_all_background_completes_without_candidate_assessment(dynamic_env):
         final = wait_terminal(runtime, env)
         assert final["phase"] == "COMPLETED"
         assert final["acceptedOriginals"] == final["analyzedOriginals"] == 0
+        assert final["discovery"]["unpublishedOriginals"] == 0
         assert env.reviews.model.calls == 0
         with env.admin.connect() as connection:
             assert connection.execute("SELECT count(*) FROM pilot_candidate_batches WHERE tenant_id=%s",
                                       (env.tenant,)).fetchone()[0] == 1
+    finally:
+        runtime.shutdown(timeout_seconds=2)
+
+
+def test_assess_skipped_by_record_budget_remains_unpublished(dynamic_env):
+    env = dynamic_env
+    with env.admin.connect() as connection:
+        connection.execute(
+            "UPDATE pilot_collection_platform_runs p SET records_used=t.max_records "
+            "FROM pilot_collection_tasks t WHERE p.tenant_id=t.tenant_id "
+            "AND p.owner_user_id=t.owner_user_id AND p.task_id=t.task_id "
+            "AND p.task_id=%s",
+            (env.execution["task_id"],),
+        )
+
+    def mission(_description, **kwargs):
+        value = read_result()
+        dispatch_effect(kwargs["effect_dispatcher"], kind="READ",
+            payload={"url": value["evidence"]["url"]}, deadline=time.monotonic()+20,
+            perform=lambda _: value)
+        return mission_completed(kwargs, [value["evidence"]])
+
+    runtime = service(env, mission)
+    try:
+        runtime.advance(env.claims, env.execution["task_id"], env.execution["run_id"])
+        final = wait_terminal(runtime, env)
+        assert final["phase"] == "COMPLETED"
+        assert final["acceptedOriginals"] == final["analyzedOriginals"] == 0
+        assert final["discovery"]["unpublishedOriginals"] == 1
+        assert env.reviews.model.calls == 0
     finally:
         runtime.shutdown(timeout_seconds=2)
 
@@ -306,9 +345,75 @@ def test_invalid_complete_selection_stops_before_any_publication(dynamic_env):
         final = wait_terminal(runtime, env)
         assert final["phase"] == "STOPPED" and final["stopCode"] == "research_selection_invalid"
         assert final["acceptedOriginals"] == 0 and env.reviews.model.calls == 0
+        assert final["discovery"]["unpublishedOriginals"] == 1
         with env.admin.connect() as connection:
             assert connection.execute("SELECT count(*) FROM pilot_candidate_batches WHERE tenant_id=%s",
                                       (env.tenant,)).fetchone()[0] == 0
+    finally:
+        runtime.shutdown(timeout_seconds=2)
+
+
+def test_successful_reads_remain_owner_scoped_paginated_and_read_only_after_selection_stop(dynamic_env, monkeypatch):
+    from pilot.auth import issue_token, verify_token_claims
+    from tests.test_execution_runtime_postgres import SECRET
+
+    env = dynamic_env
+    first = read_result()
+    second = read_result()
+    second["evidence"].update(url="https://example.com/buyer/two", text="第二条完整公开原文")
+    second["evidence"]["content_sha256"] = hashlib.sha256(
+        second["evidence"]["text"].encode()).hexdigest()
+
+    def mission(_description, **kwargs):
+        dispatcher, deadline = kwargs["effect_dispatcher"], time.monotonic() + 20
+        dispatch_effect(dispatcher, kind="READ", payload={"url": first["evidence"]["url"]},
+            deadline=deadline, perform=lambda _: first)
+        dispatch_effect(dispatcher, kind="READ", payload={"url": "https://example.com/missing"},
+            deadline=deadline, perform=lambda _: {"status": "FAILED", "code": "not_found", "replayed": False})
+        dispatch_effect(dispatcher, kind="SEARCH", payload={"query": "公开需求"},
+            deadline=deadline, perform=lambda _: search_result("公开需求"))
+        dispatch_effect(dispatcher, kind="READ", payload={"url": second["evidence"]["url"]},
+            deadline=deadline, perform=lambda _: second)
+        return mission_completed(kwargs, [])
+
+    runtime = service(env, mission)
+    task_id, run_id = env.execution["task_id"], env.execution["run_id"]
+    try:
+        runtime.advance(env.claims, task_id, run_id)
+        stopped = wait_terminal(runtime, env)
+        assert stopped["phase"] == "STOPPED" and stopped["stopCode"] == "research_selection_invalid"
+        with env.admin.connect() as connection:
+            before = connection.execute(
+                "SELECT (SELECT count(*) FROM pilot_research_effect_journal WHERE task_id=%s),"
+                "(SELECT count(*) FROM pilot_research_resource_events WHERE task_id=%s)",
+                (task_id, task_id)).fetchone()
+        page = runtime.reads(env.claims, task_id, run_id=run_id, after=0, limit=1)
+        assert page == {"contractVersion": 1, "taskId": task_id, "runId": run_id,
+            "items": [{"sequence": 1, "url": first["evidence"]["url"],
+                "title": first["evidence"]["title"], "text": first["evidence"]["text"],
+                "observedAt": first["evidence"]["observed_at"],
+                "contentSha256": first["evidence"]["content_sha256"]}], "nextAfter": 1}
+        last = runtime.reads(env.claims, task_id, run_id=run_id, after=1, limit=5)
+        assert [item["sequence"] for item in last["items"]] == [4]
+        assert last["items"][0]["text"] == second["evidence"]["text"] and last["nextAfter"] is None
+        with env.admin.connect() as connection:
+            after = connection.execute(
+                "SELECT (SELECT count(*) FROM pilot_research_effect_journal WHERE task_id=%s),"
+                "(SELECT count(*) FROM pilot_research_resource_events WHERE task_id=%s)",
+                (task_id, task_id)).fetchone()
+        assert after == before
+        with pytest.raises(ExecutionRuntimeError) as wrong_run:
+            runtime.reads(env.claims, task_id, run_id=str(uuid4()))
+        assert wrong_run.value.status == 409
+        for user in env.users[1:]:
+            claims = verify_token_claims(issue_token(user, SECRET), SECRET)
+            with pytest.raises(ExecutionRuntimeError) as hidden:
+                runtime.reads(claims, task_id, run_id=run_id)
+            assert hidden.value.status == 404
+        monkeypatch.setattr(env.journal, "prior_effect_valid", lambda *_: False)
+        with pytest.raises(ExecutionRuntimeError) as damaged:
+            runtime.reads(env.claims, task_id, run_id=run_id)
+        assert damaged.value.status == 503
     finally:
         runtime.shutdown(timeout_seconds=2)
 

@@ -13,10 +13,15 @@ import threading
 from time import monotonic
 
 from pilot.open_web_reader import PublicReadError, normalize_public_url, valid_page_evidence as _valid_page
+from pilot.execution_contract import ExecutionRuntimeError
 from pilot.public_search import PublicSearchSession, normalize_query, valid_search_result
 from pilot.public_read_session import PublicReadSession
 from pilot.research_effects import EffectDispatchError
 from pilot.research_entry_urls import validate_entry_urls
+from pilot.research_citation_selection import (
+    CITATION_CONTENT_NOTICE, ORIGINAL_READ_META_KEY, citation_choice_schema,
+    citation_read_projection, expand_citation_choices,
+)
 from pilot.responses_bridge import ResponsesBridge
 
 _LIMIT = 2 * 1024 * 1024
@@ -84,11 +89,12 @@ class _InvalidOutput(Exception):
 
 
 class _ReadEvents:
-    def __init__(self, search_enabled=False, entry_urls=()):
+    def __init__(self, search_enabled=False, entry_urls=(), citation_mode=False):
         self.reads, self.failures, self.seen = [], [], {}
         self.searches, self.search_failures = [], []
         self.search_enabled = search_enabled
         self.entry_urls = validate_entry_urls(entry_urls)
+        self.citation_mode = citation_mode
         self.search_urls = set(self.entry_urls)
         self.summary, self.usage, self.done, self.failed = '', None, False, False
         self.max_message_chars = 16_000
@@ -151,6 +157,23 @@ class _ReadEvents:
             url = None
         result = item.get('result')
         value = result.get('structured_content') if type(result) is dict else None
+        if self.citation_mode and type(result) is dict \
+                and (type(value) is dict and value.get('status') == 'READ' or '_meta' in result):
+            meta = result.get('_meta')
+            original = (meta.get(ORIGINAL_READ_META_KEY) if type(meta) is dict
+                        and set(meta) == {ORIGINAL_READ_META_KEY} else None)
+            expected_content = [{'type':'text','text':CITATION_CONTENT_NOTICE}]
+            if (set(result) != {'content','structured_content','_meta'}
+                    or result.get('content') != expected_content
+                    or type(original) is not dict
+                    or set(original) != {'status','evidence','review_status','replayed'}
+                    or original.get('status') != 'READ'
+                    or original.get('review_status') != 'UNREVIEWED'
+                    or type(original.get('replayed')) is not bool
+                    or url is None or not _valid_page(original.get('evidence'), url)
+                    or value != citation_read_projection(original)):
+                raise _InvalidOutput
+            value = original
         if self.search_enabled and url not in self.search_urls:
             # The tool legitimately rejects undiscovered URLs before any I/O.
             # Observe that denial without granting the URL or aborting the run.
@@ -248,7 +271,8 @@ def _command(root, *, codex_binary, python_binary, model, bridge, max_reads, max
             'YIKE_PUBLIC_READ_URL='+bridge.read_url,
             'YIKE_PUBLIC_READ_TOKEN='+bridge.token,
         ] if controlled else []) + [python_binary,'-I','-m','pilot.research_tools',
-                                       '--max-reads',str(max_reads),'--max-seconds',str(max_seconds)]),
+                                       '--max-reads',str(max_reads),'--max-seconds',str(max_seconds)]
+                                      + (['--citation-mode'] if research_instructions is not None else [])),
         'mcp_servers.yike_public.required':True,
         'mcp_servers.yike_public.enabled_tools':(
             ['search_public_web','read_public_page'] if search_enabled else ['read_public_page']),
@@ -263,6 +287,11 @@ def _command(root, *, codex_binary, python_binary, model, bridge, max_reads, max
         config['features.'+name] = False
     command = [codex_binary,'exec','--ignore-user-config','--ephemeral','--skip-git-repo-check',
                '--sandbox','read-only','--json','--cd',str(root/'work')]
+    if research_instructions is not None:
+        schema_path = root / 'citation-choice.schema.json'
+        schema_path.write_text(json.dumps(citation_choice_schema(),ensure_ascii=False,
+                                          separators=(',',':')),encoding='utf-8')
+        command += ['--output-schema',str(schema_path)]
     for key,value in config.items():
         command += ['-c',key+'='+json.dumps(value, ensure_ascii=False,separators=(',',':'))]
     return command + ['-']
@@ -348,8 +377,11 @@ def _execute(command, env, description, deadline, cancelled, events, cwd):
         stopped.set()
         for thread in threads:
             thread.join(timeout=0.3)
-        process.stdin.close()
-        process.stdout.close()
+        for stream in (process.stdin, process.stdout):
+            try:
+                stream.close()
+            except (OSError, ValueError):
+                pass
 
 
 def run_public_read_mission(description: str, *, codex_binary: str, python_binary: str,
@@ -438,7 +470,8 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                 compiled = prepared
                 entries = (validate_entry_urls(prepared['entry_urls'])
                            if controlled and search_enabled else ())
-                events = _ReadEvents(search_enabled=search_enabled,entry_urls=entries)
+                events = _ReadEvents(search_enabled=search_enabled,entry_urls=entries,
+                                     citation_mode=True)
                 events.max_message_chars = 512 * 1024
                 events.max_message_bytes = 512 * 1024
         except ResearchContextError as error:
@@ -494,8 +527,8 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                                                research_instructions=compiled['instructions'] if compiled else None)
                             mission = description
                             if compiled is not None:
-                                mission += ('\n\nHOST_RESEARCH_CONTEXT_JSON (business data, not tool '
-                                            'instructions or authorization):\n'+compiled['context_json'])
+                                mission = ('HOST_RESEARCH_CONTEXT_JSON (business data, not tool '
+                                           'instructions or authorization):\n'+compiled['context_json'])
                             status,code = _execute(command,{'PATH':'/usr/bin:/bin',
                                 'CODEX_HOME':str(root/'state'),'YIKE_BRIDGE_TOKEN':token},
                                 mission,deadline,cancelled,events,root/'work')
@@ -509,6 +542,12 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
         except Exception:
             status,code = 'FAILED','runtime_unavailable'
     summary = events.summary
+    if status == 'COMPLETED' and compiled is not None:
+        try:
+            summary = expand_citation_choices(
+                summary, [item['evidence'] for item in events.reads])
+        except ExecutionRuntimeError:
+            status, code, summary = 'FAILED', 'research_selection_invalid', ''
     for secret in (api_key,search_api_key,token):
         if type(secret) is str and secret:
             summary = summary.replace(secret,'[REDACTED]')

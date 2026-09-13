@@ -2,8 +2,10 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import {ResearchProgress} from '../../src/renderer/pages/tasks/ResearchProgress';
+import {ResearchReadEvidence} from '../../src/renderer/pages/tasks/ResearchReadEvidence';
 import type {AppContextValue} from '../../src/renderer/app/context';
 import {RESEARCH_RUNTIME_SOURCE_LABEL,RESEARCH_RUNTIME_SOURCE_SCOPE,type ResearchRuntimeStatus} from '../../src/shared/researchRuntime';
+import type {ResearchRuntimeService} from '../../src/renderer/services/researchRuntime';
 
 let context:AppContextValue;
 vi.mock('../../src/renderer/app/context',()=>({useApp:()=>context}));
@@ -13,13 +15,14 @@ const queued:ResearchRuntimeStatus={contractVersion:1,taskId,runId,phase:'QUEUED
   sourceLabel:RESEARCH_RUNTIME_SOURCE_LABEL,acceptedOriginals:null,analyzedOriginals:0,skippedOriginals:0,
   candidateIds:[],canAdvance:true,stopCode:null,newActionsBlocked:false,effectsPending:false,
   usage:{sourceReads:counts,modelCalls:counts,actualSoubei:null,settlementState:'PENDING'}};
-let status:ReturnType<typeof vi.fn>,advance:ReturnType<typeof vi.fn>;
+let status:ReturnType<typeof vi.fn>,advance:ReturnType<typeof vi.fn>,reads:ReturnType<typeof vi.fn>;
 beforeEach(()=>{
-  status=vi.fn().mockResolvedValue(queued);advance=vi.fn();
+  status=vi.fn().mockResolvedValue(queued);advance=vi.fn();reads=vi.fn();
   context={service:{researchRuntime:{status,advance}},session:{authenticated:true,userId:'user'},navigate:vi.fn()} as unknown as AppContextValue;
 });
 afterEach(cleanup);
 function view(){return render(<ResearchProgress taskId={taskId} runId={runId} taskStatus="PENDING"/>);}
+function readMethod(){return reads as unknown as NonNullable<ResearchRuntimeService['reads']>;}
 it('renders each planned source receipt and continues past the first empty source',async()=>{
   const sourceProgress=[{sourceId:'v2ex-qna-v1',phase:'NOT_STARTED',acceptedOriginals:null,recordLimit:5},
     {sourceId:'v2ex-outsourcing-authors-v1',phase:'NOT_STARTED',acceptedOriginals:null,recordLimit:5}];
@@ -166,4 +169,60 @@ it('does not infer unsupported all-web capability from the source label',async()
   view();await screen.findByText(RESEARCH_RUNTIME_SOURCE_LABEL);
   expect(screen.queryByText(/全网|所有网站|后台持续/)).toBeNull();
   expect(advance).not.toHaveBeenCalled();
+});
+it('loads successful READ evidence only after opening the dynamic read-only section',async()=>{
+  const dynamic={...queued,contractVersion:4 as const,sourceScope:'PUBLIC_WEB_AGENT' as const,
+    sourceLabel:'公开网页自主研究' as const,executionMode:'SERVER_BACKGROUND' as const,
+    acceptedOriginals:0,phase:'STOPPED' as const,canAdvance:false,newActionsBlocked:true,stopCode:'research_selection_invalid',
+    discovery:{searches:counts,reads:{...counts,issued:1,succeeded:1},unpublishedOriginals:1},
+    usage:{...queued.usage,sourceReads:{...counts,issued:1,succeeded:1}}};
+  const item={sequence:2,url:'https://example.com/demand',title:'展台需求',text:'原文'.repeat(400),
+    observedAt:'2026-09-13T08:00:00Z',contentSha256:'a'.repeat(64)};
+  status.mockResolvedValue(dynamic);reads.mockResolvedValue({contractVersion:1,taskId,runId,items:[item],nextAfter:null});
+  context={...context,service:{...context.service,researchRuntime:{status,advance,reads},openExternal:vi.fn()}} as unknown as AppContextValue;
+  view();const summary=await screen.findByText('已读原文');
+  expect(reads).not.toHaveBeenCalled();
+  fireEvent.click(summary);
+  await screen.findByText('展台需求');
+  expect(screen.getByText(item.url)).toBeTruthy();
+  expect(reads).toHaveBeenCalledWith(taskId,runId,0,expect.any(AbortSignal));
+  expect(screen.getByText('研究原文，尚非已确认商机')).toBeTruthy();
+  expect(screen.getByText('展开完整原文')).toBeTruthy();
+  expect(screen.getByText('原文'.repeat(400)).className).toContain('fixed-evidence-body--collapsed');
+  fireEvent.click(screen.getByRole('button',{name:'展开完整原文'}));
+  expect(screen.getByText('原文'.repeat(400))).toBeTruthy();
+  expect(advance).not.toHaveBeenCalled();
+});
+it('keeps legacy progress usable when the optional READ evidence method is absent',async()=>{
+  const dynamic={...queued,contractVersion:4 as const,sourceScope:'PUBLIC_WEB_AGENT' as const,
+    sourceLabel:'公开网页自主研究' as const,executionMode:'SERVER_BACKGROUND' as const,
+    acceptedOriginals:0,discovery:{searches:counts,reads:counts,unpublishedOriginals:0}};
+  status.mockResolvedValue(dynamic);view();await screen.findByText('公开网页自主研究');
+  expect(screen.queryByText('已读原文')).toBeNull();
+  expect(screen.getByRole('button',{name:'查询原研究状态'})).toBeTruthy();
+});
+it('appends strictly paginated READ evidence without reloading the first page',async()=>{
+  const first={sequence:1,url:'https://example.com/one',title:'第一页',text:'第一条原文',
+    observedAt:'2026-09-13T08:00:00Z',contentSha256:'a'.repeat(64)};
+  const second={...first,sequence:3,url:'https://example.com/two',title:'第二页',text:'第二条原文',contentSha256:'b'.repeat(64)};
+  reads.mockResolvedValueOnce({contractVersion:1,taskId,runId,items:[first],nextAfter:1})
+    .mockResolvedValueOnce({contractVersion:1,taskId,runId,items:[second],nextAfter:null});
+  render(<ResearchReadEvidence taskId={taskId} runId={runId} reads={readMethod()} onOpen={vi.fn()}/>);
+  fireEvent.click(screen.getByText('已读原文'));await screen.findByText('第一页');
+  fireEvent.click(screen.getByRole('button',{name:'下一页'}));await screen.findByText('第二页');
+  expect(reads.mock.calls.map(call=>call.slice(0,3))).toEqual([[taskId,runId,0],[taskId,runId,1]]);
+  expect(screen.getAllByRole('article',{name:'研究原文'})).toHaveLength(2);
+  expect((screen.getByRole('button',{name:'下一页'}) as HTMLButtonElement).disabled).toBe(true);
+});
+it('aborts and discards a late READ page when the run changes',async()=>{
+  let release!:(value:unknown)=>void;let originalSignal!:AbortSignal;
+  reads.mockImplementation((_task,_run,_after,signal)=>{originalSignal=signal!;return new Promise(resolve=>{release=resolve;});});
+  const rendered=render(<ResearchReadEvidence taskId={taskId} runId={runId} reads={readMethod()} onOpen={vi.fn()}/>);
+  fireEvent.click(screen.getByText('已读原文'));await waitFor(()=>expect(reads).toHaveBeenCalledTimes(1));
+  const nextRun='33333333-3333-4333-8333-333333333333';
+  rendered.rerender(<ResearchReadEvidence taskId={taskId} runId={nextRun} reads={readMethod()} onOpen={vi.fn()}/>);
+  expect(originalSignal.aborted).toBe(true);
+  release({contractVersion:1,taskId,runId,items:[{sequence:1,url:'https://example.com/old',title:'旧任务原文',
+    text:'不得显示',observedAt:'2026-09-13T08:00:00Z',contentSha256:'a'.repeat(64)}],nextAfter:null});
+  await Promise.resolve();expect(screen.queryByText('旧任务原文')).toBeNull();
 });

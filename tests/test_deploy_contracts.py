@@ -25,12 +25,21 @@ def test_image_copy_layout_can_import_current_service_entrypoint(tmp_path):
                 target.parent.mkdir(parents=True,exist_ok=True)
                 shutil.copyfile(source,target)
     script=('import sys;from pathlib import Path;sys.path.insert(0,sys.argv[1]);'
-            'import pilot.cli,app.model_contract;'
+            'import pilot.cli,app.model_contract,pilot.research_context as research;'
             'assert Path(pilot.cli.__file__).resolve().is_relative_to(Path(sys.argv[1]).resolve()), "pilot missing from image";'
-            'assert Path(app.model_contract.__file__).resolve().is_relative_to(Path(sys.argv[1]).resolve()), "app.model_contract missing from image"')
+            'assert Path(app.model_contract.__file__).resolve().is_relative_to(Path(sys.argv[1]).resolve()), "app.model_contract missing from image";'
+            'rules=research._load_rules();'
+            'assert set(rules)==set(research._RULE_FILES);'
+            'assert research._PACKAGE_RULES.is_dir(), "research rules missing from image";'
+            'assert research._instructions(rules);'
+            'assert "mcp" not in sys.modules, "default service imported optional transport"')
     result=subprocess.run([sys.executable,'-I','-c',script,str(tmp_path)],cwd=tmp_path,
         env={'PATH':os.environ.get('PATH','')},capture_output=True,text=True,timeout=20)
     assert result.returncode==0,result.stderr
+    from pilot.research_context import _RULE_FILES
+    for relative in _RULE_FILES:
+        assert (tmp_path/'pilot/_research_rules'/relative).read_bytes() == (
+            ROOT/'skills/ai-project-lead-research-v1'/relative).read_bytes()
 
 
 def test_build_context_excludes_runtime_and_secret_material() -> None:
