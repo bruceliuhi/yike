@@ -94,3 +94,10 @@ def test_whitespace_fragment_is_not_promoted_past_original_literal_validator():
     item = evidence("https://example.com/space", " " * 400 + "真实需求")
     with pytest.raises(ExecutionRuntimeError, match="^research_selection_invalid$"):
         module.expand_citation_choices(choice([page(item, "q1")]), [item])
+
+
+def test_expand_rejects_unbounded_numeric_quote_ref_with_fixed_error():
+    module = citation_module()
+    item = evidence("https://example.com/long-ref", "真实需求")
+    with pytest.raises(ExecutionRuntimeError, match="^research_selection_invalid$"):
+        module.expand_citation_choices(choice([page(item, "q" + "9" * 5000)]), [item])

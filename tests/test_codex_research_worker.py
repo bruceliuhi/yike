@@ -607,6 +607,21 @@ def test_contextual_invalid_citation_final_fails_closed_without_echo_or_v1_fallb
     assert result['summary']=='' and 'PRIVATE_BAD_FINAL' not in json.dumps(result)
 
 
+def test_contextual_unbounded_numeric_quote_ref_returns_fixed_failure(worker,tmp_path):
+    event=read_event()
+    evidence=event['item']['result']['structured_content']['evidence']
+    marker='9'*5000
+    bad=json.dumps(dict(schema_version='research-citation-choice-v1',summary='PRIVATE_LONG_REF',
+        pages=[dict(url=evidence['url'],content_sha256=evidence['content_sha256'],
+                    decision='ASSESS',reason='POSSIBLE_DEMAND',quote_ref='q'+marker)]),
+        ensure_ascii=False)
+    result=run_research(worker,tmp_path,[search_event(),event,*final_events_with(bad)],
+                        research_context=research_context())
+    assert result['status']=='FAILED' and result['code']=='research_selection_invalid'
+    assert result['summary']=='' and 'PRIVATE_LONG_REF' not in json.dumps(result)
+    assert marker not in json.dumps(result)
+
+
 def test_context_v2_long_description_requires_exact_verified_seller_profile(worker,tmp_path):
     from tests.test_research_context import projected_v2
     context=projected_v2(seller_description='甲\n'+'乙'*7998)

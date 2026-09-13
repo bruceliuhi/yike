@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import re
 
 from pilot.execution_contract import ExecutionRuntimeError
 from pilot.research_page_selection import SCHEMA_VERSION, page_selection_schema, parse_page_selection
@@ -94,17 +93,18 @@ def expand_citation_choices(summary: str, evidences: list[dict]) -> str:
                 or any(type(page.get(key)) is not str for key in _PAGE_KEYS)):
             _invalid()
         key = (page["url"], page["content_sha256"])
-        if key in seen or key not in unique or not re.fullmatch(r"q[1-9][0-9]*", page["quote_ref"]):
+        if key in seen or key not in unique:
             _invalid()
-        fragments = citation_fragments(unique[key]["text"])
-        index = int(page["quote_ref"][1:]) - 1
-        if not 0 <= index < len(fragments):
+        fragments = {item["quote_ref"]: item["text"]
+                     for item in citation_fragments(unique[key]["text"])}
+        quote = fragments.get(page["quote_ref"])
+        if quote is None:
             _invalid()
         seen.add(key)
         expanded_pages.append({
             "url": page["url"], "content_sha256": page["content_sha256"],
             "decision": page["decision"], "reason": page["reason"],
-            "quote": fragments[index]["text"],
+            "quote": quote,
         })
     if seen != set(unique):
         _invalid()
