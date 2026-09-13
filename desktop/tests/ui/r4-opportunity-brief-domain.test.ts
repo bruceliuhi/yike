@@ -14,12 +14,14 @@ it("binds one account/profile/day and does not sum repeated opportunities across
   );
   expect(value).not.toHaveProperty("newCustomers");
 });
-it("rejects future-generated data while leaving expired snapshots available for labelled history", () => {
+it("allows bounded clock skew but rejects future data and preserves expired history", () => {
   const value = briefFixture();
   const generated = Date.parse(value.generatedAt);
   expect(() =>
-    parseOpportunityBrief(value, briefQuery, generated - 1),
+    parseOpportunityBrief(value, briefQuery, generated - 5001),
   ).toThrow();
+  expect(parseOpportunityBrief(value, briefQuery, generated - 5000)).toEqual(value);
+  expect(parseOpportunityBrief(value, briefQuery, generated - 545)).toEqual(value);
   expect(parseOpportunityBrief(value, briefQuery, generated + 120_000)).toEqual(
     value,
   );

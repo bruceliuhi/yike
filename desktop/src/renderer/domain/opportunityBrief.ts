@@ -129,7 +129,8 @@ export function parseOpportunityBrief(
   )
     throw new Error("简报与当前账户、画像或业务日期不一致，请刷新重试。");
   if (
-    Date.parse(snapshot.generatedAt) > now ||
+    // Separate device clocks can differ slightly; never extend expiresAt.
+    Date.parse(snapshot.generatedAt) > now + 5_000 ||
     Date.parse(snapshot.generatedAt) >= Date.parse(snapshot.expiresAt) ||
     (snapshot.lastCompletedCheckAt !== null &&
       Date.parse(snapshot.lastCompletedCheckAt) >
