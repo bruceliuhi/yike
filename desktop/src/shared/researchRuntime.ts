@@ -109,3 +109,23 @@ export const researchRuntimeStatusSchema = z.object({
 export type ResearchRuntimeStatus=z.infer<typeof researchRuntimeStatusSchema>;
 export const researchRuntimeStatusRequestSchema=z.object({taskId:deviceUuidSchema}).strict();
 export const researchRuntimeAdvanceRequestSchema=z.object({taskId:deviceUuidSchema,runId:deviceUuidSchema}).strict();
+const researchReadUrlSchema=z.string().min(1).max(2048).refine(value=>{
+  try{const url=new URL(value);return ['http:','https:'].includes(url.protocol)&&!url.username&&!url.password&&url.href===value;}
+  catch{return false;}
+},'invalid public source URL');
+const researchReadTextSchema=z.string().max(120_000).refine(value=>Array.from(value).length<=60_000);
+const researchReadTitleSchema=z.string().max(2000).refine(value=>Array.from(value).length<=1000);
+const researchReadItemSchema=z.object({
+  sequence:z.number().int().min(1).max(1000),url:researchReadUrlSchema,
+  title:researchReadTitleSchema.nullable(),text:researchReadTextSchema.refine(value=>value.trim().length>0),
+  observedAt:z.string().datetime({offset:true}),contentSha256:z.string().regex(/^[0-9a-f]{64}$/),
+}).strict();
+export const researchRuntimeReadsSchema=z.object({
+  contractVersion:z.literal(1),taskId:deviceUuidSchema,runId:deviceUuidSchema,
+  items:z.array(researchReadItemSchema).max(5).refine(items=>items.every((item,index)=>index===0||item.sequence>items[index-1].sequence)),
+  nextAfter:z.number().int().min(1).max(1000).nullable(),
+}).strict().refine(value=>value.nextAfter===null||value.items.length>0&&value.nextAfter===value.items.at(-1)!.sequence,
+  'pagination cursor mismatch');
+export type ResearchRuntimeReads=z.infer<typeof researchRuntimeReadsSchema>;
+export const researchRuntimeReadsRequestSchema=z.object({taskId:deviceUuidSchema,runId:deviceUuidSchema,
+  after:z.number().int().min(0).max(1000),limit:z.number().int().min(1).max(5)}).strict();

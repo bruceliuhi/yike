@@ -13,6 +13,8 @@ from pilot.durable_research_dispatch import DurableResearchDispatcher
 from pilot.execution_contract import ExecutionRuntimeError, canonical_uuid
 from pilot.research_runtime_config import dynamic_research_snapshot
 from pilot.research_page_selection import parse_page_selection
+from pilot.research_effect_contract import effect_result
+from pilot.research_resources import _event
 
 
 _COUNTER = ("issued", "pending", "succeeded", "failed", "unknown")
@@ -641,6 +643,63 @@ class DynamicResearchRuntimeService:
                 "searches": discovery["SEARCH"], "reads": discovery["READ"],
                 "unpublishedOriginals": unpublished,
             },
+        }
+
+    def reads(self, claims, task_id, *, run_id, after=0, limit=5):
+        task_id, run_id = map(canonical_uuid, (task_id, run_id))
+        if (type(after) is not int or not 0 <= after <= 1000
+                or type(limit) is not int or not 1 <= limit <= 5):
+            raise ExecutionRuntimeError("invalid_request", 422)
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                tenant, _identity = self.fixed._identity(cursor, claims, task_id, run_id)
+                cursor.execute(
+                    "SELECT t.configuration_snapshot,p.platform,p.access_mode,"
+                    "p.connection_id,p.connection_version FROM pilot_collection_tasks t "
+                    "JOIN pilot_collection_platform_runs p USING(tenant_id,owner_user_id,task_id) "
+                    "WHERE t.tenant_id=%s AND t.owner_user_id=%s AND t.task_id=%s",
+                    (tenant, claims.user_id, task_id),
+                )
+                scope = cursor.fetchall()
+                if (len(scope) != 1 or not dynamic_research_snapshot(scope[0][0])
+                        or scope[0][1:] != ("PUBLIC_WEB", "PUBLIC_ANONYMOUS", None, None)):
+                    raise ExecutionRuntimeError("request_conflict", 409)
+                cursor.execute(
+                    "SELECT sequence FROM pilot_research_effect_journal "
+                    "WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s AND run_id=%s "
+                    "AND kind='READ' AND status='SUCCEEDED' AND sequence>%s "
+                    "ORDER BY sequence LIMIT %s",
+                    (tenant, claims.user_id, task_id, run_id, after, limit + 1),
+                )
+                sequences = [row[0] for row in cursor.fetchall()]
+                entries = []
+                try:
+                    for sequence in sequences:
+                        entry = self.journal._select(
+                            cursor, tenant, claims.user_id, task_id, run_id, sequence)
+                        event_row = self.journal.resources._select(
+                            cursor, tenant, claims.user_id, task_id, run_id, entry["action_id"])
+                        if (event_row is None
+                                or not self.journal.prior_effect_valid(entry, _event(event_row))):
+                            raise ExecutionRuntimeError("resource_unavailable", 503)
+                        result = effect_result("READ", entry["payload"], entry["result"])
+                        entries.append((sequence, result["evidence"]))
+                except (KeyError, TypeError, ValueError, ExecutionRuntimeError) as error:
+                    if isinstance(error, ExecutionRuntimeError) and error.status == 503:
+                        raise
+                    raise ExecutionRuntimeError("resource_unavailable", 503) from None
+                self.execution._active(cursor, claims)
+        visible = entries[:limit]
+        return {
+            "contractVersion": 1, "taskId": task_id, "runId": run_id,
+            "items": [{
+                "sequence": sequence, "url": evidence["url"],
+                "title": evidence["title"], "text": evidence["text"],
+                "observedAt": evidence["observed_at"],
+                "contentSha256": evidence["content_sha256"],
+            } for sequence, evidence in visible],
+            "nextAfter": visible[-1][0] if len(entries) > limit else None,
         }
 
     def shutdown(self, timeout_seconds=5):

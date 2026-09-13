@@ -353,6 +353,71 @@ def test_invalid_complete_selection_stops_before_any_publication(dynamic_env):
         runtime.shutdown(timeout_seconds=2)
 
 
+def test_successful_reads_remain_owner_scoped_paginated_and_read_only_after_selection_stop(dynamic_env, monkeypatch):
+    from pilot.auth import issue_token, verify_token_claims
+    from tests.test_execution_runtime_postgres import SECRET
+
+    env = dynamic_env
+    first = read_result()
+    second = read_result()
+    second["evidence"].update(url="https://example.com/buyer/two", text="第二条完整公开原文")
+    second["evidence"]["content_sha256"] = hashlib.sha256(
+        second["evidence"]["text"].encode()).hexdigest()
+
+    def mission(_description, **kwargs):
+        dispatcher, deadline = kwargs["effect_dispatcher"], time.monotonic() + 20
+        dispatch_effect(dispatcher, kind="READ", payload={"url": first["evidence"]["url"]},
+            deadline=deadline, perform=lambda _: first)
+        dispatch_effect(dispatcher, kind="READ", payload={"url": "https://example.com/missing"},
+            deadline=deadline, perform=lambda _: {"status": "FAILED", "code": "not_found", "replayed": False})
+        dispatch_effect(dispatcher, kind="SEARCH", payload={"query": "公开需求"},
+            deadline=deadline, perform=lambda _: search_result("公开需求"))
+        dispatch_effect(dispatcher, kind="READ", payload={"url": second["evidence"]["url"]},
+            deadline=deadline, perform=lambda _: second)
+        return mission_completed(kwargs, [])
+
+    runtime = service(env, mission)
+    task_id, run_id = env.execution["task_id"], env.execution["run_id"]
+    try:
+        runtime.advance(env.claims, task_id, run_id)
+        stopped = wait_terminal(runtime, env)
+        assert stopped["phase"] == "STOPPED" and stopped["stopCode"] == "research_selection_invalid"
+        with env.admin.connect() as connection:
+            before = connection.execute(
+                "SELECT (SELECT count(*) FROM pilot_research_effect_journal WHERE task_id=%s),"
+                "(SELECT count(*) FROM pilot_research_resource_events WHERE task_id=%s)",
+                (task_id, task_id)).fetchone()
+        page = runtime.reads(env.claims, task_id, run_id=run_id, after=0, limit=1)
+        assert page == {"contractVersion": 1, "taskId": task_id, "runId": run_id,
+            "items": [{"sequence": 1, "url": first["evidence"]["url"],
+                "title": first["evidence"]["title"], "text": first["evidence"]["text"],
+                "observedAt": first["evidence"]["observed_at"],
+                "contentSha256": first["evidence"]["content_sha256"]}], "nextAfter": 1}
+        last = runtime.reads(env.claims, task_id, run_id=run_id, after=1, limit=5)
+        assert [item["sequence"] for item in last["items"]] == [4]
+        assert last["items"][0]["text"] == second["evidence"]["text"] and last["nextAfter"] is None
+        with env.admin.connect() as connection:
+            after = connection.execute(
+                "SELECT (SELECT count(*) FROM pilot_research_effect_journal WHERE task_id=%s),"
+                "(SELECT count(*) FROM pilot_research_resource_events WHERE task_id=%s)",
+                (task_id, task_id)).fetchone()
+        assert after == before
+        with pytest.raises(ExecutionRuntimeError) as wrong_run:
+            runtime.reads(env.claims, task_id, run_id=str(uuid4()))
+        assert wrong_run.value.status == 409
+        for user in env.users[1:]:
+            claims = verify_token_claims(issue_token(user, SECRET), SECRET)
+            with pytest.raises(ExecutionRuntimeError) as hidden:
+                runtime.reads(claims, task_id, run_id=run_id)
+            assert hidden.value.status == 404
+        monkeypatch.setattr(env.journal, "prior_effect_valid", lambda *_: False)
+        with pytest.raises(ExecutionRuntimeError) as damaged:
+            runtime.reads(env.claims, task_id, run_id=run_id)
+        assert damaged.value.status == 503
+    finally:
+        runtime.shutdown(timeout_seconds=2)
+
+
 def test_oversized_json_integer_stops_as_selection_invalid_before_publication(dynamic_env):
     from pilot.research_context import compile_research_context
     env = dynamic_env

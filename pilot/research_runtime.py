@@ -152,6 +152,12 @@ class ResearchRuntimeService:
             return self.dynamic.status(claims, task_id)
         return self._dto(claims, task_id)
 
+    def reads(self, claims, task_id, *, run_id, after=0, limit=5):
+        if self.dynamic is None:
+            raise ExecutionRuntimeError("capability_unavailable", 501)
+        return self.dynamic.reads(claims, canonical_uuid(task_id), run_id=canonical_uuid(run_id),
+                                  after=after, limit=limit)
+
     def advance(self, claims, task_id, run_id):
         task_id, run_id = canonical_uuid(task_id), canonical_uuid(run_id)
         if self._dynamic_task(claims, task_id):

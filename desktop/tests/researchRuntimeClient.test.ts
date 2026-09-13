@@ -49,6 +49,25 @@ it('uses scoped status/advance routes and rejects a response for another task/ru
   transport.mockResolvedValue({...status,taskId:runId});
   await expect(service.status(taskId)).rejects.toThrow();
 });
+it('reads one bounded page through the fixed route and rejects stale or incoherent pagination',async()=>{
+  const item={sequence:2,url:'https://example.com/demand',title:null,text:'公开原文',
+    observedAt:'2026-09-13T08:00:00Z',contentSha256:'b'.repeat(64)};
+  const page={contractVersion:1,taskId,runId,items:[item],nextAfter:null};
+  const transport=vi.fn().mockResolvedValue(page),service=createResearchRuntimeService(transport);
+  expect(await service.reads!(taskId,runId,1)).toEqual(page);
+  expect(transport).toHaveBeenLastCalledWith('researchRuntime.reads',
+    `/research-execution/tasks/${taskId}/reads?run_id=${runId}&after=1&limit=5`,'GET',
+    {taskId,runId,after:1,limit:5},undefined);
+  for(const invalid of [
+    {...page,taskId:runId},
+    {...page,runId:taskId},
+    {...page,items:[{...item,sequence:1}]},
+    {...page,nextAfter:1},
+  ]){
+    transport.mockResolvedValueOnce(invalid);
+    await expect(service.reads!(taskId,runId,1)).rejects.toThrow();
+  }
+});
 it('never repairs invalid counts or settles unknown usage',async()=>{
   const transport=vi.fn().mockResolvedValue({...status,usage:{...status.usage,actualSoubei:1}});
   await expect(createResearchRuntimeService(transport).status(taskId)).rejects.toThrow();

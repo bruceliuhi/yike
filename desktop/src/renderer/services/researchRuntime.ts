@@ -1,5 +1,6 @@
 import {researchRuntimeCapabilitySchema,researchRuntimeStatusSchema,researchRuntimeStatusRequestSchema,
-  researchRuntimeAdvanceRequestSchema,type ResearchRuntimeCapability,type ResearchRuntimeStatus} from '../../shared/researchRuntime';
+  researchRuntimeAdvanceRequestSchema,researchRuntimeReadsRequestSchema,researchRuntimeReadsSchema,
+  type ResearchRuntimeCapability,type ResearchRuntimeReads,type ResearchRuntimeStatus} from '../../shared/researchRuntime';
 import type {ApiOperation} from '../../shared/contracts';
 import {ServiceError} from './contracts';
 
@@ -8,6 +9,7 @@ export interface ResearchRuntimeService {
   capability(signal?:AbortSignal):Promise<ResearchRuntimeCapability>;
   status(taskId:string,signal?:AbortSignal):Promise<ResearchRuntimeStatus>;
   advance(taskId:string,runId:string,signal?:AbortSignal):Promise<ResearchRuntimeStatus>;
+  reads?(taskId:string,runId:string,after?:number,signal?:AbortSignal):Promise<ResearchRuntimeReads>;
 }
 export function createResearchRuntimeService(transport:Transport):ResearchRuntimeService {
   function bound(raw:unknown,taskId:string,runId?:string) {
@@ -44,5 +46,14 @@ export function createResearchRuntimeService(transport:Transport):ResearchRuntim
       return bound(await transport('researchRuntime.status',`/research-execution/tasks/${taskId}`,'GET',payload,signal),taskId);},
     async advance(taskId,runId,signal){const payload=researchRuntimeAdvanceRequestSchema.parse({taskId,runId});
       return bound(await transport('researchRuntime.advance',`/research-execution/tasks/${taskId}/advance`,'POST',payload,signal),taskId,runId);},
+    async reads(taskId,runId,after=0,signal){
+      const payload=researchRuntimeReadsRequestSchema.parse({taskId,runId,after,limit:5});
+      const result=researchRuntimeReadsSchema.parse(await transport('researchRuntime.reads',
+        `/research-execution/tasks/${taskId}/reads?run_id=${runId}&after=${after}&limit=5`,'GET',payload,signal));
+      if(result.taskId!==taskId||result.runId!==runId||result.items.some(item=>item.sequence<=after)||
+          result.items.length>payload.limit||result.nextAfter!==null&&result.nextAfter<=after)
+        throw new ServiceError('INVALID_SERVICE_RESPONSE','研究原文与当前任务不一致，请核对原任务。');
+      return result;
+    },
   };
 }
