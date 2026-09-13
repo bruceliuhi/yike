@@ -10,8 +10,8 @@
 ## 发布版本
 
 - Gitee：`yike-ai2026/main`
-- 源码提交：`180f92864d9ecc675def971226ff891e23928ea2`
-- 发布目录：`/www/wwwroot/www.tuokexing.net/releases/180f92864d9ecc675def971226ff891e23928ea2`
+- 源码提交：`c655df8088c466fa289aea34fa8dd2d2912ff49e`
+- 发布目录：`/www/wwwroot/www.tuokexing.net/releases/c655df8088c466fa289aea34fa8dd2d2912ff49e`
 - 当前软链：`/www/wwwroot/www.tuokexing.net/current`
 - 站点类型：独立静态站点，不占用 `yike.tuokexing.net` 的应用和运营后台配置。
 
