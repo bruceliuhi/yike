@@ -26,6 +26,12 @@ _BINDING_KEYS = {"strategyVersionId", "profileVersionId", "configurationSha256"}
 _TOKEN_DOMAIN = b"yike-research-quote-v1\0"
 
 
+def _utc_instant(value: datetime) -> str:
+    """Emit one browser-safe, unambiguous UTC timestamp for quote deadlines."""
+    aware = value.astimezone(UTC) if value.tzinfo else value.replace(tzinfo=UTC)
+    return aware.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
 class ResearchQuoteError(ValueError):
     def __init__(self, code: str, status: int = 409):
         allowed = {"invalid_request": 422, "invalid_session": 401, "strategy_conflict": 409,
@@ -193,7 +199,7 @@ class ResearchQuoteService:
         response = dict(request)
         response.update(quoteId=str(uuid4()), ruleVersion=self.rule.ruleVersion,
             ruleSha256=self.rule.digest(), estimatedSoubei=estimated,
-            generatedAt=generated.isoformat(), expiresAt=(generated + timedelta(seconds=300)).isoformat(),
+            generatedAt=_utc_instant(generated), expiresAt=_utc_instant(generated + timedelta(seconds=300)),
             basis="按确认策略各项限制计算的资源上限；未预留资源，也不是实际消耗预测。")
         payload = _canonical(response)
         signature = hmac.new(self.signing_secret, _TOKEN_DOMAIN + payload, hashlib.sha256).digest()
