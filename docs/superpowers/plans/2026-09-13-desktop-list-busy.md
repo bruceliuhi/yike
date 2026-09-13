@@ -42,3 +42,15 @@ Forge61466已exit0，最终EXE D:/ykh913/make/squirrel.windows/x64/YikeAI-Setup.
 用户新增要求默认10万搜贝：方案仅将defaultResearchSettings.maxSoubei改为100000（协议现有上限1000000），保留旧任务/手工额度、所有实际资源上限和估算/确认绑定；不新增计费、充值或模型预算。新增默认/面板/旧草稿测试，夹具改用独立owner避免清理后的旧key复活保护；RED3失败1通过后，默认、用量、模板和动态UI共32通过/4.99秒，typecheck通过。独立review_buyer_discovery GO，绑定researchUsage blob 943e3a20bed75e2ab9566cfcfc94825f80cbf580及测试bb5be761c801c4be4e28598b93d15dbb6fcc2ee6；此改动不在刚安装的ba15af7中，下一候选需包含该差量，不把手填额度追认为新版默认体验。
 
 main并发整合：e66587d推送被正常拒绝，fetch发现Mac来件2b643ca把同默认设100万；普通merge保留双方检查和注释，按本任务用户10万示例统一为100000，并同步来件测试期望。受影响sourcePlan/default UI差量9通过2.54秒，未重跑不变的用量/模板整套。没有可直达Mac的本地任务入口，主干记录作为交接；勿再分别实现不同额度默认值。
+
+## 18:52 新版实装与买方短句真实对照
+
+main正常合并7842532宣传文件后推至3de1b35d5d26ca171bfdfcc32f360f7116ccfd3c；冻结同提交到既有干净LF工作区，不重复既有产品测试。载荷24988 exit0，实际隔离运行检查1通过187.62秒；Forge30715 exit0，同源651文件manifest 19e2eb37e1fdf50f1fad4fad2d6cac37db0d245e7fb248d43212134cd82d5516，构建前后不变。唯一新EXE为D:/yki913/make/squirrel.windows/x64/YikeAI-Setup.exe，642852864字节，SHA256 090f9e4182f4348720630684ffc22dbf8b5f506cb1d11227cddfaf3f69377685，NotSigned。40个renderer文件与冻结构建一致；main正式HTTPS/载荷pin通过，payload manifest 7566abf3a40d5539dde4019e0b1078ce8eb6e39688841a783560bf99e8bb27cb。
+
+已正常关闭ba15客户端并清除本轮未启动测试草稿（用户已授权测试草稿无需保留），旧安装等待32598取得exit0。新安装90798的Setup/Update进程已退出，GUI正常运行；该PowerShell -Wait仍随GUI子进程等待，不重复安装。实装app.asar为536c1c33e34a72865111179fc07f8aa688da1d8fb61d94fb01a94e771f8003b8，与新候选一致。实际窗口45025618，登录/小红书连接保留，新建任务未经额度编辑即显示100000；确认页沿用同值。原文状态修复仍有效，首次本机任务记录未再报读取失败。服务器customer/research仍90f58d1，健康、HTTPS readyz200；本批仅桌面差量不重新部署。
+
+真实UI新任务“验收-AI定制买方短句-0913”，task 980dc5e6-f6f1-41a5-b891-699556f3132a，run cac912ab-7746-4045-b16e-ec0f6bfc3e48，generation1。同一AI软件定制画像、公开网页自主研究、近60天；仅人工配置10个买方短句，与旧品类词对照。快照现场确认20来源/15分钟/20模型及100记录/900秒不变，搜贝上限100000，资源上限估算55。策略确认、估算、创建和开始均由真实客户端操作，非后台脚本创建。
+
+18:51:15起执行，18:51:58 STOPPED/no_verified_reads：6 MODEL、5 SEARCH成功，1 READ失败connection_unavailable，0成功原文/候选，已无活动研究容器。真实查询已采用“企业知识库 找人开发 外包”“智能客服 找开发团队 外包 需求”等，证明人工种子被使用，但结果仍主要供方/教程。唯一READ为https://www.v2ex.com/go/outsourcing，失败后有4次成功搜索（含电鸭入口），没有读取其它站就输出空pages；模型总结自称6次搜索与账本5次不符，以账本为准。客户端真实显示研究暂停和无可核对原文，不把0READ当市场无需求，不重放原任务。
+
+这次对照否定“只换买方搜索词就能恢复完整流程”。只读源码定位：ResponsesBridge仅第一次MODEL强制工具，之后允许终稿；Codex正常turn.completed后broker因无成功READ记失败，不是预算/时长/取消停止。已有指令包含相关入口早读、受阻换站，不能继续当成单纯缺少提示词。下一步先用已持久回执和受控测试定位研究规划/提前终稿的执行约束，保留合法零结果、权限/未知和原限制，不盲增提示或强读无关页。研究价值闭环、草稿反馈、三业务及用户认可候选仍未通过，Goal ACTIVE。
