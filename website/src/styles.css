@@ -98,3 +98,17 @@
 .site-header{position:sticky;top:0;background:rgba(248,251,255,.88);backdrop-filter:blur(14px);}
 
 @media(max-width:700px){.article-page+.mobile-cta{display:grid}}
+
+/* Subtle motion and mobile header alignment */
+@keyframes yike-reveal-up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes yike-reveal-art{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes yike-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.hero-copy,.page-hero-copy,.insights-hero-copy{animation:yike-reveal-up .65s cubic-bezier(.22,.8,.28,1) both}
+.hero-visual,.page-hero-art,.insights-hero-art{animation:yike-reveal-art .8s .08s cubic-bezier(.22,.8,.28,1) both}
+.hero-illustration,.page-hero-art img,.insights-hero-art img{animation:yike-float 8s ease-in-out 1s infinite}
+.product-card,.scenario-grid article,.feature-card,.download-card,.insight-card{transition:transform .28s ease,box-shadow .28s ease,border-color .28s ease}
+.product-card:hover,.scenario-grid article:hover,.feature-card:hover,.download-card:hover,.insight-card:hover{transform:translateY(-4px);border-color:#c4dafa;box-shadow:0 20px 48px rgba(31,79,144,.11)}
+@media(max-width:900px){.menu-button{margin-left:auto}}
+@media(max-width:900px){.site-header{gap:12px;padding-left:22px;padding-right:22px}.site-header nav{display:none;position:absolute;top:72px;left:16px;right:16px;padding:14px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);border-radius:12px;flex-direction:column;align-items:stretch;gap:0}.site-header nav.open{display:flex}.site-header nav a{padding:10px 12px}.menu-button{display:block;margin-left:auto;padding:6px 0 6px 10px}.header-cta{margin-left:auto;white-space:nowrap}}
+@media(max-width:600px){.header-cta{display:none}}
+@media(prefers-reduced-motion:reduce){.hero-copy,.page-hero-copy,.insights-hero-copy,.hero-visual,.page-hero-art,.insights-hero-art,.hero-illustration,.page-hero-art img,.insights-hero-art img{animation:none}.product-card,.scenario-grid article,.feature-card,.download-card,.insight-card{transition:none}}
