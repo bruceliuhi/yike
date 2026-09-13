@@ -1,5 +1,9 @@
 # 独立研究运行镜像（未接生产任务）
 
+2026-09-13 客户研究配置已部署、真实任务待验：服务源码ff4ffec，服务器不可变镜像 `sha256:5470c2f90c481b511f1d7811616a47e9dd3bd0d1ecae75c69a28f2c1888348c9`。研究相关表已迁移到144，客户角色对reservations/resource_events/runtime/customer_contexts/effect_journal所查SELECT/INSERT均通过。候选env为服务器600文件 `secrets/runtime-research-ff4ffec.env`，原runtime.env未覆盖；安全差异检查仅11项研究/collection配置变化。内部规则invited-trial-meter-v1三个权重1000，每单位1搜贝，仅试用记量，不是人民币价格；用户要求保留预算逻辑、填高上限，不实施零费率模式。模型与搜索凭据沿用此前授权来源，未输出或提交。
+
+无公网候选服务health/ready通过，静态部署差量独立PASS后只替换pilot；broker继续a91ea42，未改ops。首次替换遗漏既有绑定端口，误用默认8787，公网实测502；核查Nginx原上游18787后明确设置 `YIKE_PILOT_BIND_PORT=18787` 重建pilot，公网healthz/readyz均HTTP200、ok/ready。不得用首次容器healthy冒充公网通过。临时preflight容器已正常停止并删除，无客户数据。最终运行使用原release的compose.pilot.yml、ops/compose.override.yml及 `/var/lib/yike-r/deploy/customer-overlay.yml`（仅control只读/tasks读写，无Docker/ledger）。后续任何切换必须保留18787，回滚仍用原runtime.env与原镜像d9c26f…，先停止研究准入并核实活动任务。当前仅配置启用和服务健康，未从客户界面取得真实研究结果。
+
 2026-09-13 运行中崩溃回收实测：69463 exit0，任务 `0e98c94af32d56c17222cfdb36e296967a2f8c2e269f7a6215adb0e0cd426670` 确认Running后精确终止broker PID2493013；管理服务自动恢复/restarts=2。无特权BrokerClient收到流中断，恢复查询STOPPED、重复create仍STOPPED。物理容器exited/running=false/exit137，StartedAt=06:18:29.370344752Z、FinishedAt=06:18:46.159088309Z（2026-09-13 UTC），客户healthy，模型调用0。这证明该测试旧任务回收及防重，不是客户真实研究成功。
 
 客户接线检查发现新的配置决策缺口：线上只检查环境变量名称，当前完全没有RESEARCH配置；`research_runtime_config.py`强制要求RULE_VERSION以及SOURCE_MILLI/MINUTE_MILLI/MODEL_CALL_MILLI三个正整数计价参数，否则拒绝启用。既有文档禁止采用测试价格或默认价，用户尚未确认这些运营参数。不得用“允许部署”推导收费授权或偷填测试数值；须先确定邀请试用的非收费额度口径或批准计价规则。供应商密钥未输出或写入Git，客户研究尚未启用。
