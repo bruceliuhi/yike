@@ -21,7 +21,7 @@ const pages = {
     path: '/',
     title: '意客 AI｜全网智能获客与证据化商机工作台',
     description: '意客 AI 从已授权平台与可访问公开来源发现正在发生的需求，整理成带原文证据、匹配理由和下一步动作的销售机会。',
-    heading: '发现客户需求，给销售下一步。',
+    heading: '从全网公开内容中，找到有需求的客户',
   },
   'products-workbench': {
     path: '/products/workbench/',
@@ -80,7 +80,7 @@ const pages = {
 };
 
 const fallback = {
-  home: `<section class="seo-fallback"><p>意客 AI · 全网智能获客</p><h1>发现客户需求，给销售下一步。</h1><p>意客 AI 从已授权平台与可访问公开来源发现正在发生的需求，整理成带原文证据、匹配理由和下一步动作的销售机会。</p><p><a href="/products/workbench/">了解商机工作台</a>　<a href="/products/crm/">了解客户情报 CRM</a>　<a href="/contact/">申请试用</a></p><h2>核心能力</h2><ul><li>业务画像与搜索条件</li><li>小红书、抖音、B站、知乎等授权平台与公开网页研究</li><li>原文证据、匹配理由、人工复核</li><li>评论与私信草稿、回复记录和客户情报 CRM</li></ul></section>`,
+  home: `<section class="seo-fallback"><p>意客 AI · 全网智能获客</p><h1>从全网公开内容中，找到有需求的客户</h1><p>意客 AI 从已授权平台与可访问公开来源发现正在发生的需求，整理成带原文证据、匹配理由和下一步动作的销售机会。</p><p><a href="/products/workbench/">了解商机工作台</a>　<a href="/products/crm/">了解客户情报 CRM</a>　<a href="/contact/">申请试用</a></p><h2>核心能力</h2><ul><li>业务画像与搜索条件</li><li>小红书、抖音、B站、知乎等授权平台与公开网页研究</li><li>原文证据、匹配理由、人工复核</li><li>评论与私信草稿、回复记录和客户情报 CRM</li></ul></section>`,
   'products-workbench': `<section class="seo-fallback"><p>意客 AI · 商机工作台</p><h1>商机工作台：从公开信号到可跟进机会。</h1><p>围绕业务画像研究已授权平台与可访问公开来源，保存原文证据、匹配理由、人工复核和跟进动作。</p><h2>适合需要主动获客的企业销售团队</h2><p>支持业务画像、搜索条件、线索采集、监控任务、机会库、原文证据、联系准备和跟进记录。</p></section>`,
   'products-crm': `<section class="seo-fallback"><p>意客 AI · 客户情报 CRM</p><h1>客户情报 CRM：让每一次销售跟进都有下一步。</h1><p>组织公司、联系人、商机、活动、客户情报和 AI 草稿，让销售团队围绕同一份事实协作。</p><h2>从线索进入，到客户持续经营</h2><p>支持线索导入、联系人、销售管道、客户情报证据账本、活动、待办和审计记录。</p></section>`,
   features: `<section class="seo-fallback"><p>意客 AI · 能力全景</p><h1>把公开需求，变成销售今天能跟进的机会。</h1><p>意客 AI 用业务画像、授权平台研究、原文证据和人工确认，把发现需求、判断价值、准备联系和持续跟进放进同一套工作流。</p><h2>AI 负责理解和推进，人负责确认和决策。</h2></section>`,
