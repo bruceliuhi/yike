@@ -47,6 +47,8 @@ it.each([
   ['constructor','研究已停止，请查看执行明细。'],['toString','研究已停止，请查看执行明细。'],
   ['__proto__','研究已停止，请查看执行明细。'],
   ['research_selection_invalid','已读取的原文保留，但逐页筛选未完成；不能据此判断没有机会。'],
+  ['broker_stop_unknown','已停止新增研究，但执行进程是否退出仍待核实。'],
+  ['broker_stream_unknown','研究结果传输尚未核实，不能据此判断研究完成或没有机会。'],
 ] as const)('maps stop code %s without exposing the code',(stopCode,explanation)=>{
   const shown=researchProgressPresentation(value({phase:'STOPPED',stopCode,newActionsBlocked:true,canAdvance:false}));
   expect(shown.explanation).toBe(explanation);

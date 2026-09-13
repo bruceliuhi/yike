@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+2026-09-13 客户未知结果提示收尾：新增两种broker停止码的中文解释，明确“执行进程是否退出仍待核实”和“结果传输尚未核实，不据此判断完成或没有机会”，不再仅用泛化“已停止”。两个用例RED后，展示及进度UI共49通过/2.67秒；不改接口或增加配置，不构包，旧Windows候选不包含该文案。高权限服务器测试仍等待明确授权，未重试或绕过。
+
 2026-09-13 broker验收权限与展示修复：服务器无控制socket的Docker CLI兼容检查通过；挂载Docker socket的一次性broker测试被权限审核拒绝，未执行、未绕过，等待用户明确高权限授权（Docker控制能力可能影响宿主其他项目）。继续不受阻的客户端状态检查发现fixed DTO及动态contract4 status均会把broker未知停止覆盖为CANCELED/RECORDED或OPEN；两条投影先保留STOPPED+broker原stopCode+UNCERTAIN，不允许推进，既有客户端据此提示不要新建/重发。8项投影用例分别RED复现后GREEN，与既有配置共17通过/0.75秒，无PG/真实broker验收。本批需下一次统一服务候选构建，不能追认0b80fe9旧镜像包含修复。
 
 2026-09-13 服务器隔离探针：研究候选经docker save/load载入已授权服务器（session8631 exit0），内容ID `sha256:68959061b1538e1a7e9963aba94cb9e55710b1d0e3b691cdc603e3eb199c2d13`，revision标签0b80fe9，不能误用本机manifest-list摘要。实际两容器UID10001、network none、只读根、client只读任务目录挂载，经已实现TaskSocketRelay完成固定HTTP探针（49531 exit0，cross_container_readonly_uds_relay_ok）。脚本 `/tmp/yike-linux-socket-smoke.py` SHA256 c368bba2794d831d68cc0484fca0d5b42bc5643b169fea1baa207f258f6027a9；没有模型/客户数据/真实需求。结束只清理本次唯一命名临时容器和socket目录，复查无残留，原app healthy。未启用broker服务、未验证真实broker启动/期限/崩溃回收、未切换生产研究；下一步完成这些剩余部署门禁。

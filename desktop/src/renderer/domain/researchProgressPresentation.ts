@@ -20,6 +20,8 @@ const stopExplanations:Record<string,string>={
   lease_conflict:'执行状态发生变化，请查询原任务。',
   worker_lost:'研究执行进程已中断，已有结果保留，不会自动重跑。',
   research_selection_invalid:'已读取的原文保留，但逐页筛选未完成；不能据此判断没有机会。',
+  broker_stop_unknown:'已停止新增研究，但执行进程是否退出仍待核实。',
+  broker_stream_unknown:'研究结果传输尚未核实，不能据此判断研究完成或没有机会。',
 };
 
 function stoppedNextStep(code:string|null):string {
