@@ -33,7 +33,7 @@ const pages = {
     path: '/products/crm/',
     title: '客户情报 CRM｜意客 AI 销售协作',
     description: '客户情报 CRM 组织公司、联系人、商机、活动、客户情报和 AI 草稿，让销售团队围绕同一份事实协作。',
-    heading: '客户情报 CRM：让每一次销售跟进都有下一步。',
+    heading: '客户情报 CRM：把客户、商机和跟进放在同一份记录里。',
   },
   features: {
     path: '/features/',
