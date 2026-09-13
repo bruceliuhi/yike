@@ -1,5 +1,15 @@
 # Windows 最新主干接续（2026-09-12）
 
+## 小红书已登录误拒绝已定位和修复（2026-09-13）
+
+用户反馈已登录仍卡住。受治理、同一专用本机profile的只读探针连续三次确认：官方页面HTTP200；旧XPath匹配4个链接，精确可访问名称“我”的link只有1个，唯一可见且href符合原严格格式，无query/fragment。不是要求用户再次扫码或再次核验设备。
+
+修正登录前后两处self定位，不放宽官方域、严格pong、唯一可见账号、href或停止后核验。新增回归先实际BLOCKED_INPUT失败；修复后worker26通过（含已安装runtime受控HTTP）。实际当前源码+原已安装runtime+已有profile，仅允许现有会话读取、禁止进入交互登录的探针返回AUTHENTICATED、valid_account=true，监督进程exit0，停止后profile核验通过；不记录账号、Cookie或原始响应，不登记连接/采集/发送。现有安装包仍0d9500b，须新包升级后确认产品连接状态，不能把探针成功当UI闭环完成。
+
+同批关闭默认服务错误导入可选MCP的P1：仅改为导入同一中性校验函数，隔离进程先实际MCP导入失败后通过。定向合计66通过/64 POSIX跳过，补充reader+默认启动59通过；XML为`.runtime/login-import-batch.xml`及`.runtime/reader-import-green.xml`。独立差量GO，绑定worker `f2e8daabaf554d67b65aeea12332d696a68ca01f`、登录测试 `e12d411efd6c14a7b246ef3b1fa8cd837e25a12d`、research worker `91f839939838f7d8bad38ebeb8d11538cd6a92d7`、默认启动测试 `4b8d21f9e9fe36b281d7d497b465ad403e480344`。新包/新服务器镜像和39→43升级仍待验证；不重复部署当前2a85dbc服务。
+
+来件61472b9的Windows定向129通过/1个Python回执交叉夹具未配置跳过，tsc退出0，证据`.runtime/win-incoming-61472b9.json`；不把上游新研究能力追认到旧服务或旧安装包。
+
 ## 0d9500b 本人核验后的小红书实测（2026-09-13 07:57）
 
 本人操作后，已安装客户端实际显示“上次身份核验通过”，设备编号与前版相同；未重启、构包或代提交核验。正常连接入口成功打开小红书 Chrome for Testing 窗口，已越过 DEVICE_NOT_READY。

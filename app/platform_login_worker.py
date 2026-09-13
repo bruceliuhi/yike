@@ -18,7 +18,6 @@ from urllib.parse import urlsplit
 
 SCHEMA = 'windows-platform-login-v1'
 _HOME = 'https://www.xiaohongshu.com'
-_SELF = "xpath=//a[contains(@href, '/user/profile/') and .//span[text()='我']]"
 _HREF = re.compile(r'(?:https://www\.xiaohongshu\.com)?/user/profile/([A-Za-z0-9]{8,32})')
 _ACCOUNTS = {'XIAOHONGSHU': r'[A-Za-z0-9]{8,32}',
     'BILIBILI': r'[1-9][0-9]{0,19}', 'DOUYIN': r'[A-Za-z0-9_.-]{1,64}',
@@ -258,7 +257,9 @@ async def login_xhs(*, output_path: Path) -> dict:
                 # Anonymous selfinfo responses are not a prerequisite to showing
                 # the user's normal login UI. A visible self link is only a hint;
                 # strict API and unique-account checks still follow below.
-                own_link = crawler.context_page.locator(_SELF)
+                # A descendant span saying "我" also appears inside unrelated
+                # profile anchors. Match the self link's exact accessible name.
+                own_link = crawler.context_page.get_by_role('link', name='我', exact=True)
                 count = await own_link.count()
                 if count > 1:
                     raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
@@ -274,7 +275,7 @@ async def login_xhs(*, output_path: Path) -> dict:
                     raise _LoginError('PLATFORM_AUTH_REQUIRED')
                 if not _official_page(crawler.context_page.url):
                     raise _LoginError('PLATFORM_RESPONSE_CHANGED')
-                own_link = crawler.context_page.locator(_SELF)
+                own_link = crawler.context_page.get_by_role('link', name='我', exact=True)
                 if await own_link.count() != 1 or not await own_link.is_visible():
                     raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
                 href = await own_link.get_attribute('href')

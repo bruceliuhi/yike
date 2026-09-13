@@ -23,10 +23,12 @@ def module():
 @pytest.fixture
 def runtime():
     events = []
-    state = SimpleNamespace(href='/user/profile/' + ACCOUNT, count=1, visible=True,
+    state = SimpleNamespace(href='/user/profile/' + ACCOUNT, count=1, broad_count=None, visible=True,
         pong=[True], url='https://www.xiaohongshu.com/', close_error=False, login_error=False, exit_error=False)
     class Locator:
-        async def count(self): return state.count
+        def __init__(self, broad=False): self.broad = broad
+        async def count(self):
+            return state.broad_count if self.broad and state.broad_count is not None else state.count
         async def is_visible(self): return state.visible
         async def get_attribute(self, name):
             assert name == 'href'
@@ -39,6 +41,10 @@ def runtime():
             events.append('home')
         def locator(self, selector):
             assert '我' in selector and 'span' in selector and '/user/profile/' in selector
+            events.append('self-navigation')
+            return Locator(broad=True)
+        def get_by_role(self, role, *, name, exact):
+            assert role == 'link' and name == '我' and exact is True
             events.append('self-navigation')
             return Locator()
     class Context:
@@ -93,6 +99,17 @@ def test_pong_authenticated_reads_only_unique_self_navigation_after_browser_open
     assert json.loads((tmp_path / '.yike-login-opened.json').read_text()) == {
         'schema_version': 'windows-platform-login-v1', 'state': 'OPENED'}
     assert 'secret' not in str(result)
+
+
+def test_unique_accessible_self_link_ignores_other_profile_links_with_nested_me_text(tmp_path, runtime, monkeypatch):
+    # Actual signed-in page: old XPath matches four anchors; exact accessible
+    # self-navigation matches one. Arbitrary author/profile links are not self.
+    runtime.state.broad_count = 4
+    result = run(tmp_path, runtime, monkeypatch)
+    assert result['state'] == 'AUTHENTICATED'
+    assert result['account_public_id'] == ACCOUNT
+    assert runtime.events.count('self-account-read') == 1
+    assert 'user-login' not in runtime.events
 
 
 def test_logged_out_uses_existing_user_login_refresh_then_rechecks_self(tmp_path, runtime, monkeypatch):
@@ -247,7 +264,9 @@ class Page:
         assert "我" in selector
         events.append('user-login')
         return True
-    def locator(self, value): return Locator()
+    def get_by_role(self, role, *, name, exact):
+        assert role == 'link' and name == '我' and exact is True
+        return Locator()
 class Context:
     async def new_page(self): return Page()
     async def cookies(self, *, urls):

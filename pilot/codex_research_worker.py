@@ -12,12 +12,11 @@ import tempfile
 import threading
 from time import monotonic
 
-from pilot.open_web_reader import PublicReadError, normalize_public_url
+from pilot.open_web_reader import PublicReadError, normalize_public_url, valid_page_evidence as _valid_page
 from pilot.public_search import PublicSearchSession, normalize_query, valid_search_result
 from pilot.public_read_session import PublicReadSession
 from pilot.research_effects import EffectDispatchError
 from pilot.research_entry_urls import validate_entry_urls
-from pilot.research_tools import _valid_page
 from pilot.responses_bridge import ResponsesBridge
 
 _LIMIT = 2 * 1024 * 1024
