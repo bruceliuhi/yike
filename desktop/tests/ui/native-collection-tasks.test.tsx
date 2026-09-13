@@ -91,6 +91,36 @@ beforeEach(() => {
   } as unknown as AppContextValue;
 });
 afterEach(cleanup);
+it('uses research progress rather than the pending collection ledger or coverage for research tasks',async()=>{
+ context.route=parseRoute(`#/collection?task=${id}`);
+ vi.mocked(context.service.taskFeed!.get).mockResolvedValue({...item,research:true,status:'PENDING',profile_version:3} as never);
+ const counts={issued:0,pending:0,succeeded:0,failed:0,unknown:0};
+ context.service.researchRuntime={capability:vi.fn(),status:vi.fn().mockResolvedValue({
+  contractVersion:4,taskId:id,runId:id,phase:'STOPPED',sourceScope:'PUBLIC_WEB_AGENT',
+  sourceLabel:'公开网页自主研究',executionMode:'SERVER_BACKGROUND',acceptedOriginals:0,
+  analyzedOriginals:0,skippedOriginals:0,candidateIds:[],canAdvance:false,stopCode:'no_verified_reads',
+  newActionsBlocked:true,effectsPending:false,
+  discovery:{searches:{...counts,issued:2,succeeded:2},reads:{...counts,issued:1,failed:1},unpublishedOriginals:0},
+  usage:{sourceReads:{...counts,issued:3,succeeded:2,failed:1},modelCalls:counts,actualSoubei:null,settlementState:'PENDING'},
+ }),advance:vi.fn()};
+ context.service.searchCoverage={query:vi.fn()};
+ render(<NativeCollectionTasks/>);
+ expect(await screen.findByText('研究已暂停')).toBeVisible();
+ expect(screen.queryByText(/当前状态：待执行/)).toBeNull();
+ expect(screen.queryByRole('region',{name:'搜索覆盖与结果解释'})).toBeNull();
+ expect(context.service.searchCoverage.query).not.toHaveBeenCalled();
+ expect(screen.getByRole('button',{name:'查看原文与分析'})).toBeVisible();
+ expect(screen.getByRole('button',{name:'取消本次采集'})).toBeVisible();
+ expect(context.service.researchRuntime!.advance).not.toHaveBeenCalled();
+});
+it('links research rows to their authoritative progress instead of labeling their upload ledger pending',async()=>{
+ vi.mocked(context.service.taskFeed!.list).mockResolvedValue({schema_version:'execution-task-feed-v1',
+  items:[{...item,research:true,status:'PENDING'} as never],next_cursor:null});
+ render(<NativeCollectionTasks/>);
+ fireEvent.click(await screen.findByRole('button',{name:'查看研究进度'}));
+ expect(screen.queryByText('待执行')).toBeNull();
+ expect(context.navigate).toHaveBeenCalledWith(`/collection?task=${id}`);
+});
 it('keeps task status and actions up front while hiding server bookkeeping',async()=>{
  context.route=parseRoute(`#/collection?task=${id}`);
  render(<NativeCollectionTasks/>);

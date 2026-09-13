@@ -16,3 +16,11 @@
 独立review_buyer_discovery本批GO，绑定hook blob `c66c53bc08ed8adb33fdf4afece2cb3bff3c1087`、test blob `07b8dfbc7d5eea0ea826b2e1511a454f2fb4364a`。等待计时器不主动取消，但在当前最多1秒等待后检查旧scope并退出；不会继续旧查询或把迟到状态写入新账号。本批不改变主进程鉴权，审核/测试不等于已实装。
 
 客户端终态核查：研究区已显示暂停，但同页原采集状态仍待执行；进入“查看原文与分析”后实际待复核列表0条，没有生成草稿或反馈。保留状态不一致、覆盖面板过时/时区及技术说明冗余为同一个后续Windows体验批次，不以任务结束视为完成。下一轮研究诊断优先做一次“具体买方业务/寻源短语”和现有品类种子对照，保持同一真实画像、服务版本和预算；明确区分人工调整查询的诊断与客户只描述业务的自动体验，不能以人工挑选来源证明全自动达标。
+
+## 18:13 研究状态展示合批修复
+
+main已同步至a0f30e4，工作树原先干净。生产只读复查ce4任务仍STOPPED/no_verified_reads，研究容器已无运行项，没有重放。实际已安装页面仍0线索；两次Computer Use输入均检测到用户操作，已暂停界面输入，没有创建对照任务。
+
+已定位NativeCollectionTasks把采集入库账本PENDING当研究当前状态，并对研究调用普通SearchCoverage。现研究详情仅由原ResearchProgress展示真实研究状态，不查询普通覆盖；列表研究行链接至研究进度，折叠的平台状态明确标为入库状态。普通采集、取消/未知警告、权限和恢复不改。no_verified_reads改成无可核对原文的简洁解释，不说没有市场需求；若同时有UNKNOWN，原核对提示仍覆盖新建建议。
+
+测试最初研究夹具的汇总计数不一致，修正后RED明确3项预期失败/34通过；实现后37通过/3.50秒，补齐夹具capability类型后typecheck通过。独立review_buyer_discovery GO，绑定NativeCollectionTasks blob d9d8ece8984d85ab4b87e5c9b04f0aa907cf8997、presentation f1bfece73d4e9e015b6d5dd61daa21e70943bdb1、两测试406690605be02f4a8bb6c331c662593cf897d652/a36103eeaca9da385ede12b40ab3c159f072cb13。此刻尚未新构包或安装，真实搜索词对照、原文候选/草稿反馈仍未完成。

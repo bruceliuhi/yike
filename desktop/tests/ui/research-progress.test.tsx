@@ -24,6 +24,14 @@ beforeEach(()=>{
 afterEach(cleanup);
 function view(){return render(<ResearchProgress taskId={taskId} runId={runId} taskStatus="PENDING"/>);}
 function readMethod(){return reads as unknown as NonNullable<ResearchRuntimeService['reads']>;}
+it('explains a finished search with no verified original without claiming no market demand',async()=>{
+ status.mockResolvedValue({...queued,phase:'STOPPED',stopCode:'no_verified_reads',canAdvance:false,newActionsBlocked:true});
+ view();
+ expect(await screen.findByText('本轮未能取得可核对的原文，暂时无法判断是否有合适需求。')).toBeVisible();
+ expect(screen.getByText('可在新任务中调整搜索词或来源后再试。')).toBeVisible();
+ expect(screen.getByRole('button',{name:'继续研究'})).toBeDisabled();
+ expect(advance).not.toHaveBeenCalled();
+});
 it('puts execution counts behind diagnostics while keeping results, usage and safe actions visible',async()=>{
   view();
   await screen.findByText(/入库原文：/);

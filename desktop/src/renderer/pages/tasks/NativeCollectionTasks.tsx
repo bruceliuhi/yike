@@ -258,7 +258,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
                   <tr>
                     <th>任务</th>
                     <th>类型 / 平台</th>
-                    <th>服务端状态</th>
+                    <th>进度</th>
                     <th>入库记录 / 上限</th>
                     <th>创建时间</th>
                   </tr>
@@ -287,7 +287,9 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
                           .map((p) => platformLabels[p.platform])
                           .join("、")}
                       </td>
-                      <td>{statusLabels[row.status]}</td>
+                      <td>{row.research
+                        ? <Button variant="ghost" onClick={() => navigate(`/collection?task=${row.task_id}`)}>查看研究进度</Button>
+                        : statusLabels[row.status]}</td>
                       <td>
                         {row.records_used} / {row.max_records}
                       </td>
@@ -313,7 +315,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
       )}
       {item?.research && <ResearchProgress key={item.task_id} taskId={item.task_id} runId={item.run_id}
         taskStatus={item.status} onTerminal={()=>void data.reload()}/>}
-      {item && (
+      {item && !item.research && (
         <SearchCoverage run={{id:item.task_id,profileId:item.profile_version_id,
           profileVersion:item.profile_version,platforms:item.platform_runs.map(row=>coveragePlatforms[row.platform])}}
           refreshKey={JSON.stringify([item.status,item.records_used,item.platform_runs])}
@@ -322,9 +324,9 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
       {item && (
         <section className="panel" aria-label="真实采集详情">
           <h2>{item.name || "采集任务"}</h2>
-          <p>
+          {!item.research && <p>
             当前状态：{statusLabels[item.status]}
-          </p>
+          </p>}
           {['CANCELLING','CANCELED'].includes(item.status) && !item.stop_confirmed && <Notice tone="warning">停止结果尚未确认，请刷新当前任务，不要重复启动。</Notice>}
           <details className="usage-advanced">
           <summary>查看运行详情</summary>
@@ -341,7 +343,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
             <thead>
               <tr>
                 <th>平台</th>
-                <th>状态</th>
+                <th>{item.research ? '入库状态' : '状态'}</th>
                 <th>入库记录</th>
               </tr>
             </thead>

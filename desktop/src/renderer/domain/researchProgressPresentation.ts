@@ -13,6 +13,7 @@ const titles:Record<ResearchRuntimeStatus['phase'],string>={
 };
 
 const stopExplanations:Record<string,string>={
+  no_verified_reads:'本轮未能取得可核对的原文，暂时无法判断是否有合适需求。',
   effect_unknown:'已有请求的结果尚未核实。',assessment_unknown:'已有请求的结果尚未核实。',
   effect_failed:'本轮读取或分析未完成。',assessment_failed:'本轮读取或分析未完成。',
   resource_limit_exceeded:'本轮已达到确认的研究用量上限。',task_unavailable:'当前任务暂时不能继续。',
@@ -25,6 +26,7 @@ const stopExplanations:Record<string,string>={
 };
 
 function stoppedNextStep(code:string|null):string {
+  if(code==='no_verified_reads')return '可在新任务中调整搜索词或来源后再试。';
   if(code==='effect_unknown'||code==='assessment_unknown'||code==='lease_conflict')return '请查询原研究状态，核实已有请求，不要重新发送。';
   if(code==='effect_failed'||code==='assessment_failed')return '请先查看原文与分析，核对已有结果。';
   if(code==='resource_limit_exceeded')return '请先查看已有结果，再决定是否在新任务中调整策略。';
