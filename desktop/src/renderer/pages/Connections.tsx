@@ -35,6 +35,7 @@ type ConnectingState =
   | "idle"
   | "opening"
   | "waiting"
+  | "observation-ended"
   | "checking"
   | "connected"
   | "timeout"
@@ -88,8 +89,7 @@ export function ConnectionsPage() {
     if (state !== "waiting") return;
     const timer = window.setTimeout(() => {
       generation.current++;
-      setState("timeout");
-      setError("等待登录已超时。可重新打开登录窗口，或再次检查连接。");
+      setState("observation-ended");
     }, 120_000);
     return () => window.clearTimeout(timer);
   }, [state]);
@@ -221,6 +221,8 @@ export function ConnectionsPage() {
         ? "正在检查连接"
         : state === "connected"
           ? "账号已连接"
+          : state === "observation-ended"
+            ? loginReady ? "登录已识别，待检查连接" : "等待登录已结束"
           : state === "timeout"
             ? "等待超时"
             : state === "error"
@@ -408,6 +410,9 @@ export function ConnectionsPage() {
               </p>
             </div>
           </div>}
+          {state === "observation-ended" && <Notice tone="warning">
+            自动观察已结束，尚未确认连接。请点击“我已完成登录，检查连接”核对当前状态；若检查提示未登录，再重新打开登录窗口。
+          </Notice>}
           {error && <Notice tone="error">{error}</Notice>}
           {state === "connected" && !result?.capabilities.length && (
             <Notice tone="warning">

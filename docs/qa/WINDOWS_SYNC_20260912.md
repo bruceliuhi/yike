@@ -16,6 +16,8 @@
 
 同轮主干接收：正常合并远端3f34010及本机认证证据为9db331a，保留双方改动。来件包含已读原文展示/研究引用交接与镜像规则资源；Windows受影响researchRuntime、researchRuntimeClient、research-progress三文件 **33 passed / 0 failed / 0 skipped**，类型检查exit0，证据`.runtime/win-research-incoming-9db331a.json`。当前安装仍3ffddbd、服务器仍e1bee5a，不追认新原文展示或动态研究为已部署；同源试用候选须等执行隔离缺口收口后统一交付，复用来件审核/既有证据，不重做相同检查。
 
+后续实机发现并定位提示缺陷：3ffddbd 的同一已识别登录流程，在120秒观察上限到达后显示“等待超时／等待登录已超时”，同时仍提示本人CHECK；不是后台重新报未登录。源码定时器无条件进入timeout，LOGIN_READY提示布尔仍保留。修复将观察期限结束与真正请求超时分开，显示“登录已识别，待检查连接”或“等待登录已结束”，明确人工检查当前状态；原120秒上限、停止轮询、generation、取消及CHECK权限不变，主进程原LOGIN_EXPIRED期限仍严格执行，旧观察不保证可直接登记连接。两项UI回归先RED（16通过/2失败），受影响UI/自动准备/主控制器合计90通过/0失败/0跳过，tsc exit0，证据`.runtime/login-observation-expiry-{red,green}.json`。独立login_expiry_review需求/质量GO，无阻断，页面SHA256 `338c9b525d4e5833733fabb060451127718a72c1cb66e4da07ae261e2efe6c18`、测试`b86b88978d54c7e52515cd62284a5eb995f5c2c1a5c140b2a551c9c4914151f6`；本修复尚未进入安装包，将并入统一试用候选，不为单一提示重新构包。
+
 ## e1bee5a 已构包并覆盖安装（2026-09-13 08:23）
 
 - 修复已推Gitee main，候选固定 `e1bee5aaddff0676592c2fa103ca61ed0e954aa9`。独立LF工作树构包，637项源码输入前后摘要相同 `112e6b63dc53ce5ac80d6e5f243d20ce0d8787625bdb6a77be8aac9ec5fb7e30`；Forge make退出0，既有Vite兼容/弃用警告保留。
