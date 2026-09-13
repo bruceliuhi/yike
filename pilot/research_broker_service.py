@@ -2,13 +2,47 @@
 
 import argparse
 import base64
+import errno
 from http.server import BaseHTTPRequestHandler
 import json
+import os
+from pathlib import Path
 import signal
+import socket
 import stat
 import threading
 
 from pilot.responses_bridge import _UnixServer, _private_socket_path
+
+
+def _recover_control_socket(value):
+    """Called only after acquiring the persistent broker supervision lock."""
+    if type(value) is not str or not 1 <= len(os.fsencode(value)) <= 100:
+        raise ValueError('invalid_control_socket')
+    path = Path(value)
+    parent = path.parent.lstat()
+    if (not path.is_absolute() or not stat.S_ISDIR(parent.st_mode)
+            or parent.st_uid != os.geteuid() or stat.S_IMODE(parent.st_mode) & 0o077):
+        raise ValueError('invalid_control_socket')
+    try:
+        previous = path.lstat()
+    except FileNotFoundError:
+        return
+    if not stat.S_ISSOCK(previous.st_mode) or previous.st_uid != os.geteuid():
+        raise ValueError('invalid_control_socket')
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+        probe.settimeout(0.5)
+        try:
+            probe.connect(value)
+        except OSError as error:
+            if error.errno != errno.ECONNREFUSED:
+                raise ValueError('control_socket_not_confirmed_stale') from None
+        else:
+            raise ValueError('control_socket_in_use')
+    current = path.lstat()
+    if (current.st_dev, current.st_ino) != (previous.st_dev, previous.st_ino):
+        raise ValueError('control_socket_changed')
+    path.unlink()
 
 
 class _BoundedServer(_UnixServer):
@@ -165,6 +199,7 @@ def main():
     signal.signal(signal.SIGTERM,lambda *_: stopping.set())
     signal.signal(signal.SIGINT,lambda *_: stopping.set())
     with TaskContainerBroker(image=args.image,tasks_root=args.tasks_root,ledger_root=args.ledger_root) as broker:
+        _recover_control_socket(args.socket)
         with BrokerServer(broker,args.socket):
             stopping.wait()
 

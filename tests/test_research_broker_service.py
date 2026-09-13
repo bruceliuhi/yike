@@ -4,6 +4,10 @@ import json
 import os
 from pathlib import Path
 import stat
+import socket
+import select
+import subprocess
+import sys
 import tempfile
 
 import httpx
@@ -53,3 +57,60 @@ def test_server_does_not_replace_existing_socket_path():
             with module.BrokerServer(object(),str(path)):
                 pass
         assert path.read_text()=='existing'
+
+
+def test_control_recovery_removes_only_dead_socket():
+    module = importlib.import_module('pilot.research_broker_service')
+    with tempfile.TemporaryDirectory(prefix='yb-', dir='/tmp') as directory:
+        path = str(Path(directory) / 'control.sock')
+        with socket.socket(socket.AF_UNIX) as abandoned:
+            abandoned.bind(path)
+        module._recover_control_socket(path)
+        with module.BrokerServer(object(), path):
+            assert os.path.exists(path)
+
+
+@pytest.mark.parametrize('kind', ['live', 'file', 'symlink'])
+def test_control_recovery_preserves_other_paths(kind):
+    module = importlib.import_module('pilot.research_broker_service')
+    with tempfile.TemporaryDirectory(prefix='yb-', dir='/tmp') as directory:
+        path = Path(directory) / 'control.sock'
+        with socket.socket(socket.AF_UNIX) as live:
+            if kind == 'live':
+                live.bind(str(path))
+                live.listen(1)
+            elif kind == 'file':
+                path.write_text('keep')
+            else:
+                path.symlink_to(Path(directory) / 'missing')
+            inode = path.lstat().st_ino
+            with pytest.raises(ValueError):
+                module._recover_control_socket(str(path))
+            assert path.lstat().st_ino == inode
+
+
+def test_control_socket_recovers_after_server_process_is_killed():
+    module = importlib.import_module('pilot.research_broker_service')
+    script = ('import sys,time;from pilot.research_broker_service import BrokerServer;'
+              's=BrokerServer(object(),sys.argv[1]);s.__enter__();'
+              'print("ready",flush=True);time.sleep(30)')
+    with tempfile.TemporaryDirectory(prefix='yb-', dir='/tmp') as directory:
+        path = str(Path(directory) / 'control.sock')
+        child = subprocess.Popen([sys.executable, '-c', script, path],
+                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        try:
+            assert select.select([child.stdout], [], [], 5)[0], 'server startup timed out'
+            assert child.stdout.readline() == b'ready\n'
+            child.kill()
+            child.wait(timeout=5)
+            assert os.path.exists(path), 'crash must leave the socket for recovery'
+            module._recover_control_socket(path)
+            with module.BrokerServer(object(), path):
+                with httpx.Client(transport=httpx.HTTPTransport(uds=path),
+                                  base_url='http://broker') as client:
+                    assert client.get('/v1/status').status_code == 405
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait(timeout=5)
+            child.stdout.close()

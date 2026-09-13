@@ -1,0 +1,56 @@
+# Standalone project: docker compose -p yike-research-broker -f ...
+# Docker control is host-equivalent authority despite the non-root process.
+# Never attach the customer service to this group or mount its Docker socket.
+services:
+  research-broker:
+    image: ${YIKE_BROKER_IMAGE:?set an immutable verified research image reference}
+    entrypoint: ["/app/.venv/bin/python", "-I", "-m", "pilot.research_broker_service"]
+    command:
+      - --socket
+      - /run/yike/control/broker.sock
+      - --image
+      - ${YIKE_RESEARCH_IMAGE_ID:?set the server verified sha256 image ID}
+      - --tasks-root
+      - /var/lib/yike-r/tasks
+      - --ledger-root
+      - /var/lib/yike-r/ledger
+    user: "10001:10001"
+    group_add:
+      - ${YIKE_DOCKER_GID:?set the verified host Docker socket group}
+    network_mode: none
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 128
+    stop_grace_period: 30s
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    volumes:
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        bind: {create_host_path: false}
+      - type: bind
+        source: /usr/bin/docker
+        target: /usr/bin/docker
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /var/lib/yike-r/control
+        target: /run/yike/control
+        bind: {create_host_path: false}
+      - type: bind
+        source: /var/lib/yike-r/tasks
+        target: /var/lib/yike-r/tasks
+        bind: {create_host_path: false}
+      - type: bind
+        source: /var/lib/yike-r/ledger
+        target: /var/lib/yike-r/ledger
+        bind: {create_host_path: false}
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
