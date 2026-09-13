@@ -30,6 +30,10 @@
 
 ### 构包后上线阻断复核
 
+2026-09-13 15:14 CodexWin实际接收：用户明确测试草稿均可不保留、不需逐次确认；0913B已从正常退出弹窗丢弃。首装误在退出点击结果未确认前启动，日志dxil.dll占用/拒绝访问、exit -1；确认旧进程全部退出后同包重试exit0，无重包或强杀。实装ASAR `2720852e…fb8be77`与ff4ffec候选一致，真实窗口保留登录/XHS连接且日期已无时区括注；已进入新建真实研究任务，不追认首装失败为通过。
+
+ops已独立升级到ff4ffec/8faa2b…，容器 `51a5e37a9b836e67f3beda41e2def1b026186040551b81d1bcfd4d3ce8d9e6f4`，新8位签发实现已上线但未实际签发/激活客户或发送短信。独立review_ops_upgrade先指出归属及不确定回滚问题，补唯一owner/固定ID/实际状态恢复/锁后差量GO；无公网候选入口及最终18789入口200/不缓存。旧容器保留为 `yike-ai2026-ops-before-ff4ffec`，当前重启0/只读/非root。customer仍db1591…/5470c2…，broker仍71690…/2e1760…；容器ID及各私有配置摘要升级前后未变，不重启研究、不修改数据库。此项已完成，Mac无需重复升级ops。
+
 最新接续：Mac已在1c26887记录客户研究ff4ffec部署；CodexWin只读核实运行镜像5470c2…、customer/ops入口均200，故**取消重复切换customer计划**，保留其research env、overlay和18787端口。上段普通8faa2b…仅候选未上线，可供独立ops升级复用；ops仍fbf9f94，新8位试用签发尚未上线。
 
 Windows统一包已完成：冻结 `ff4ffec756cb63d9e47e50c2b42053e05fb5646d`（包含963abc7全页扫尾），`D:/ykt913/make/squirrel.windows/x64/YikeAI-Setup.exe`，642850304字节，SHA256 `9c96bf567e6205454be64220e87a9d9fa927a64403c809a5cb57fb81cd5edefd`，NotSigned。便携组件真实构建/搬迁/Python与Chromium校验1通过/0跳过/118.46秒；一次Forge make exit0，649项源码构前后摘要a6a9f7f…一致。ASAR `2720852e6ba005cf859a1a9c10cf5f8f8aa227abda0159f929dd25557fb8be77`，载荷清单 `2199db0f1e8a7fe491eccdc9bcd6a7ce8dab3f22c2bd3dc69f404386bb7fcbc4`；主入口/40个renderer与固定产物一致，HTTPS及pin通过。新构建后未发生产品字节变化，不为纯文档来件重包。Computer Use仅核对旧安装版：任务列表无已启动采集，仍有“验收-公开需求-AI定制-0913B”本机草稿；初次输入缺几何信息，重新观察/激活后导航成功，未丢弃/安装/启动任务。待用户批准处理该草稿后实装并从真实客户端验收；不以本段构包代替上线。
