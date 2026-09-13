@@ -552,56 +552,6 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                                 status,code = _execute(command,{'PATH':'/usr/bin:/bin',
                                     'CODEX_HOME':str(root/'state'),'YIKE_BRIDGE_TOKEN':token},
                                     mission,deadline,cancelled,events,root/'work')
-                            # Some domestic Responses-compatible models acknowledge the
-                            # request but omit the MCP tool call even when tool_choice is
-                            # required.  Do not treat that as successful research.  A
-                            # bounded host-owned fallback performs one real discovery and
-                            # reads returned original pages through the same effect gates;
-                            # it never fabricates URLs or bypasses the source/read limits.
-                            if (search_enabled and not events.reads and not events.searches
-                                    and status == 'FAILED'
-                                    and code in {'no_verified_searches', 'no_verified_reads',
-                                                 'runtime_failed'}):
-                                fallback_queries = (
-                                    '企业 AI 系统开发 知识库 Agent 客服 需求 询价',
-                                    'AI 软件 定制 开发 外包 需求 找团队',
-                                )
-                                for query in fallback_queries:
-                                    if time.monotonic() >= deadline or events.searches:
-                                        break
-                                    value = search_service.search(query)
-                                    if value.get('status') == 'SEARCHED':
-                                        events.searches.append(value)
-                                        events.search_urls.update(
-                                            item['url'] for item in value.get('results', []))
-                                for result in events.searches:
-                                    for item in result.get('results', []):
-                                        if len(events.reads) >= max_reads or time.monotonic() >= deadline:
-                                            break
-                                        value = read_service.read(item['url'], deadline=deadline)
-                                        if value.get('status') == 'READ':
-                                            if not any(record['evidence'] == value['evidence']
-                                                       for record in events.reads):
-                                                events.reads.append(value)
-                                    if events.reads:
-                                        break
-                                if events.reads:
-                                    pages = []
-                                    for value in events.reads:
-                                        evidence = value['evidence']
-                                        pages.append({
-                                            'url': evidence['url'],
-                                            'content_sha256': evidence['content_sha256'],
-                                            'decision': 'ASSESS',
-                                            'reason': 'UNCERTAIN',
-                                            'quote_ref': 'q1',
-                                        })
-                                    status, code = 'COMPLETED', None
-                                    events.summary = json.dumps({
-                                        'schema_version': 'research-citation-choice-v1',
-                                        'summary': '模型未完成工具调用，已由受限公开研究兜底读取原文；候选需人工复核。',
-                                        'pages': pages,
-                                    }, ensure_ascii=False, separators=(',', ':'))
                     finally:
                         if bridge is not None:
                             calls = bridge.records
