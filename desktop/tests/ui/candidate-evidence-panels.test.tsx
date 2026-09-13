@@ -16,7 +16,8 @@ it('labels an author-update model citation independently from the main body',()=
  const result=parseCandidateReviewResult({kind:'assessment',requestId:'TEST.author:1',candidateId:fixture.candidateId,assessment:fixture},{requestId:'TEST.author:1'});
  if(result.kind!=='assessment')throw new Error('wrong result');
  render(<CandidateAssessmentDetails assessment={result.assessment}/>);
- expect(screen.getByText('作者回复 1 · author_updates.0')).toBeVisible();
+ expect(screen.getByText('作者回复 1')).toBeVisible();
+ expect(screen.getByText('作者回复 1')).toHaveAttribute('title','author_updates.0');
 });
 
 function assessment() {
@@ -48,10 +49,25 @@ describe("candidate original evidence", () => {
     const current = screen.getByRole("region", { name: "当前原文" });
     expect(within(current).getByLabelText("评论原文").textContent).toBe(raw.candidate.current_version.body);
     expect(container.querySelector("script")).toBeNull();
-    expect(within(current).getByText("公开网站（PUBLIC_WEB）")).toBeVisible();
-    expect(within(current).getByText("评论（COMMENT）")).toBeVisible();
+    expect(within(current).getByText("公开网站")).toBeVisible();
+    expect(within(current).getByText("评论")).toBeVisible();
     expect(within(current).getByText("评论作者🙂")).toBeVisible();
     expect(container.querySelector("textarea, input, a")).toBeNull();
+  });
+
+  it("collapses source version metadata while keeping original evidence and timestamps visible", () => {
+    const raw = rawEvidenceFixture();
+    render(<CandidateOriginalEvidence evidence={parseRawCandidateEvidence(raw, rawEvidenceBinding)} />);
+    const current = within(screen.getByRole("region", { name: "当前原文" }));
+    const details = current.getByText("查看来源记录详情").closest("details");
+    expect(details).not.toHaveAttribute("open");
+    expect(current.getByText(raw.candidate.current_version.content_version)).not.toBeVisible();
+    expect(current.getByText("评论作者🙂")).toBeVisible();
+    expect(current.getByText("采集端观察时间")).toBeVisible();
+    expect(current.getByText("服务器接收时间")).toBeVisible();
+    fireEvent.click(current.getByText("查看来源记录详情"));
+    expect(current.getByText(raw.candidate.current_version.content_version)).toBeVisible();
+    expect(current.getByText("候选修订").nextElementSibling).toHaveTextContent("2");
   });
 
   it("keeps unknown source publication distinct from observer and server times", () => {
@@ -115,7 +131,7 @@ describe("candidate original evidence", () => {
     expect(current.getByText("服务器接收时间").nextElementSibling).toHaveTextContent("当前观察记录不在已返回历史中，未知");
   });
 
-  it.each([["POST", "帖子原文", "帖子（POST）"], ["PAGE", "页面原文", "网页（PAGE）"]])(
+  it.each([["POST", "帖子原文", "帖子"], ["PAGE", "页面原文", "网页"]])(
     "labels %s own title and body without inventing comment context",
     (kind, bodyLabel, kindLabel) => {
       const raw = rawEvidenceFixture();
@@ -150,10 +166,11 @@ describe("candidate assessment details", () => {
     render(<CandidateAssessmentDetails assessment={value} />);
     for (const [key, label] of [["businessMatch", "业务匹配"], ["intent", "需求意向"], ["urgency", "紧迫度"], ["actionability", "可行动性"]] as const) {
       const dimension = within(screen.getByRole("region", { name: label }));
-      expect(dimension.getByText("高（HIGH）")).toBeVisible();
+      expect(dimension.getByText("高")).toBeVisible();
       expect(dimension.getByText(value[key].reason)).toBeVisible();
       for (const citation of value[key].citations) {
-        expect(dimension.getByText((text) => text.endsWith(` · ${citation.field}`))).toBeVisible();
+        expect(dimension.getByTitle(citation.field)).toBeVisible();
+        expect(dimension.getByTitle(citation.field).textContent).not.toContain(` · ${citation.field}`);
         expect(dimension.getByText(citation.quote, { normalizer: (text) => text }).textContent).toBe(citation.quote);
       }
     }
@@ -199,7 +216,7 @@ describe("candidate assessment details", () => {
     value.urgency = { level: "UNKNOWN", reason: "未提到明确时间", citations: [] };
     render(<CandidateAssessmentDetails assessment={value} />);
     const dimension = within(screen.getByRole("region", { name: "紧迫度" }));
-    expect(dimension.getByText("未知（UNKNOWN）")).toBeVisible();
+    expect(dimension.getByText("未知")).toBeVisible();
     expect(dimension.getByText("未提到明确时间")).toBeVisible();
     expect(dimension.getByText("暂无逐字引用；不据此补造依据。")).toBeVisible();
     expect(dimension.queryByRole("list")).not.toBeInTheDocument();

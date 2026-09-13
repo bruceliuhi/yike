@@ -36,6 +36,22 @@ describe("controlled search suggestion panel", () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
+  it('keeps unresolved suggestions actionable while request IDs are collapsed', async()=>{
+    const request: SuggestionRequest = {request_id:'44444444-4444-4444-8444-444444444444',draft_id:draftId,
+      profile_version_id:profileId,draft_revision:3,disclosure:{accepted:true,profile_sha256:preview.profile_sha256,
+        model_provider:preview.model_provider,model_name:preview.model_name,policy_version:preview.disclosure_policy_version}};
+    saveSearchSuggestion({schemaVersion:1,scope,request,receipt:null});
+    const service={preview:vi.fn(),submit:vi.fn(),getReceipt:vi.fn().mockResolvedValue({...receipt(request),state:'UNKNOWN',result:null,usage:null,error_code:'suggestion_result_unknown'})};
+    render(<SearchSuggestionPanel {...props(service)}/>);
+    await waitFor(()=>expect(service.getReceipt).toHaveBeenCalled());
+    const identity=await screen.findByText(new RegExp(`原请求 ${request.request_id}`));
+    expect(identity.closest('details')).not.toBeNull();
+    expect(identity.closest('details')!.open).toBe(false);
+    expect(screen.getByText('结果待核对').closest('details')).toBeNull();
+    expect(screen.getByRole('button',{name:'核对原请求'})).toBeTruthy();
+    expect(service.submit).not.toHaveBeenCalled();
+  });
+
   it("restores a definite rejection and requires explicit ending plus fresh disclosure, never auto POST", async () => {
     const denied = (request: SuggestionRequest): SuggestionReceipt => ({ ...receipt(request),
       state: "NOT_SUBMITTED", profile_current: false, result: null, usage: null, error_code: "suggestion_quota_exceeded" });

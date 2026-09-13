@@ -191,10 +191,6 @@ function VerificationForm({
               : "历史核验记录，与当前版本不匹配"}
           </h4>
           <dl className="candidate-verification-binding">
-            <dt>核验 ID</dt>
-            <dd>{verification.id}</dd>
-            <dt>原请求 ID</dt>
-            <dd>{verification.requestId}</dd>
             <dt>核验人</dt>
             <dd>{verification.checkedBy}</dd>
             <dt>核验时间</dt>
@@ -229,6 +225,12 @@ function VerificationForm({
           ) : null}
           <details>
             <summary>查看核验记录绑定</summary>
+            <dl className="candidate-verification-binding">
+              <dt>核验 ID</dt>
+              <dd>{verification.id}</dd>
+              <dt>原请求 ID</dt>
+              <dd>{verification.requestId}</dd>
+            </dl>
             <BindingDetails binding={verification.binding} />
           </details>
         </div>

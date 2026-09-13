@@ -600,11 +600,8 @@ function ProfileWorkspace() {
               }}>{labels[field as keyof ProfileFields]}改为人工内容</Button>
             </Notice>
           ))}
-          <section className="profile-summary">
-            <div className="section-heading">
-              <h2>画像确认摘要</h2>
-              <span className="muted">根据当前填写内容展示</span>
-            </div>
+          <details className="profile-summary">
+            <summary>查看画像摘要</summary>
             <dl className="detail-list">
               {(Object.keys(labels) as (keyof ProfileFields)[]).map((key) => (
                 <div key={key}>
@@ -613,7 +610,7 @@ function ProfileWorkspace() {
                 </div>
               ))}
             </dl>
-          </section>
+          </details>
           {action.error && <Notice tone="error">{action.error}</Notice>}
           <footer className="profile-actions">
             <span className="muted">确认后可配置获客任务，尚未启动采集。</span>

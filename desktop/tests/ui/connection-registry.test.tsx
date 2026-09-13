@@ -18,6 +18,27 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 const details = () => screen.getByRole("button", {name: "查看小红书连接详情：TEST-shared-account，设备TEST-device-two"});
+it("folds technical connection identity while preserving account, device, status and capability limits", async () => {
+  render(<ConnectionsPage />);
+  await screen.findAllByText("TEST-shared-account");
+  expect(screen.queryByText(/连接 v2/)).toBeNull();
+  expect(screen.getByText("设备 TEST-device-two")).toBeTruthy();
+  fireEvent.click(details());
+  const dialog = within(screen.getByRole("dialog"));
+  const summary = dialog.getByText("查看连接技术信息");
+  const technical = summary.closest("details");
+  expect(technical).not.toBeNull();
+  expect(technical!.open).toBe(false);
+  expect(dialog.getByText("TEST-connection-two").closest("details")).toBe(technical);
+  expect(dialog.getByText("v2").closest("details")).toBe(technical);
+  for (const text of ["TEST-shared-account", "TEST-device-two", "已连接", "尚无已核验能力", "当前可查看服务端连接记录；本机账号登录、能力核验与断开操作仍待接通。"]) {
+    expect(dialog.getByText(text).closest("details")).toBeNull();
+  }
+  fireEvent.click(summary);
+  expect(technical!.open).toBe(true);
+  expect(within(technical!).getByText("TEST-connection-two")).toBeTruthy();
+  expect(context.service.disconnect).not.toHaveBeenCalled();
+});
 it("shows both devices for the same account, with exact detail identity and no legacy operation", async () => {
   render(<ConnectionsPage />);
   await screen.findAllByText("TEST-shared-account");

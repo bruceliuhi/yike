@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Synthetic UI contract evidence, not actual platform collection.
-import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
+import {cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react';
 import {afterEach,beforeEach,describe,it,expect,vi} from 'vitest';
 import {NativeMonitorPlans} from '../../src/renderer/pages/tasks/NativeMonitorPlans';
 import {TasksPage} from '../../src/renderer/pages/Tasks';
@@ -23,6 +23,56 @@ beforeEach(()=>{
 });
 afterEach(()=>cleanup());
 describe('monitor page real service wiring',()=>{
+ it.each(['ACTIVE','PAUSED'] as const)('distinguishes two same-profile %s plans and confirms only the chosen plan',async(state)=>{
+  const other='22222222-2222-4222-8222-222222222222';
+  const plans=[{...base,state,nextDueAt:null},{...base,planId:other,state,nextDueAt:null,
+   schedule:{...base.schedule,interval:2},revision:2}];
+  const execute=vi.mocked(context.service.monitorCollection!.execute);
+  execute.mockImplementation(async c=>c.action==='LIST'?{state:'LIST',supported:true,plans,serverTime:null} as any:{state:'BUSY'});
+  context.service.researchStrategies={getStrategy:vi.fn().mockResolvedValue({
+   schema_version:'strategy-confirmation-v1',strategy_version_id:id,draft_id:id,draft_revision:1,profile_version_id:id,
+   profile_sha256:'a'.repeat(64),configuration_sha256:base.configurationSha256,state:'CONFIRMED',
+   created_at:'2026-09-11T00:00:00Z',confirmed_at:'2026-09-11T00:00:00Z',revoked_at:null,is_current:true,profile_current:true,
+   snapshot:{strategy_version_id:id,profile_version_id:id,platforms:['PUBLIC_WEB'],max_records:10,max_runtime_seconds:60,
+    configuration:{schema_version:'research-strategy-v1',name:'业务监控',source:'search',keywords:['采购'],exclusions:[],links:[],
+     mode:'monitor',schedule:plans[1].schedule,research:null,publicSource:'v2ex-latest-v1'}}
+  })} as any;
+  context.service.connections=vi.fn().mockResolvedValue([{platform:'web',status:'CONNECTED',capabilities:['search'],
+   publicBinding:{sourceId:'v2ex-latest-v1',deviceId:id,monitorSupported:true}}]);
+  render(<NativeMonitorPlans/>);await screen.findAllByText('本机未接管');
+  const rows=screen.getAllByRole('row').slice(1);
+  expect(rows).toHaveLength(2);
+  for(const [index,row] of rows.entries()){
+   const identity=within(row).getByText(new RegExp(plans[index].planId));
+   expect(identity.closest('details')).not.toBeNull();
+   expect(identity.closest('details')!.open).toBe(false);
+   expect(within(row).getByText('计划详情')).toBeTruthy();
+  }
+  fireEvent.click(within(rows[1]).getByRole('button',{name:state==='ACTIVE'?'暂停计划':'恢复并在本机运行'}));
+  const dialog=await screen.findByRole('dialog');
+  expect(within(dialog).getByText(`计划编号：${other}`).closest('details')).toBeNull();
+  expect(within(dialog).getByText('业务监控')).toBeTruthy();
+  expect(within(dialog).getByText(/每 2 小时/)).toBeTruthy();
+  expect(within(dialog).queryByText(`计划编号：${id}`)).toBeNull();
+  fireEvent.click(within(dialog).getByRole('button',{name:'确认执行'}));
+  await waitFor(()=>expect(execute.mock.calls.some(([c])=>c.action==='SET_STATE'&&c.planId===other&&c.expectedRevision===2)).toBe(true));
+  expect(execute.mock.calls.filter(([c])=>c.action==='SET_STATE')).toHaveLength(1);
+ });
+ it('uses business labels without technical plan IDs in the default list',async()=>{
+  render(<NativeMonitorPlans/>);await screen.findByText('本机未接管');
+  expect(screen.queryByRole('button',{name:/11111111/})).toBeNull();
+  expect(screen.getByRole('button',{name:'暂停计划'})).toBeTruthy();
+ });
+ it('collapses monitoring identifiers but keeps the latest run action and offline state visible',async()=>{
+  context.route=parseRoute(`#/monitors/${id}`);
+  vi.mocked(context.service.monitorCollection!.execute).mockResolvedValue({state:'LIST',supported:true,plans:[{...base,taskId:id}],serverTime:null} as any);
+  render(<NativeMonitorPlans/>);
+  const version=await screen.findByText(/版本 1/);
+  expect(version.closest('details')).not.toBeNull();
+  expect(version.closest('details')!.open).toBe(false);
+  expect(screen.getByText(/计划：启用 · 本机：本机未接管/).closest('details')).toBeNull();
+  expect(screen.getByRole('button',{name:'查询实际轮次结果'})).toBeTruthy();
+ });
  it('creates a fresh ordinary monitoring draft from the production monitor route',async()=>{
   context.session.accountScope={id,version:1};
   const key='yike.ui.draft.v1.task.'+taskDraftOwner(context.session.userId,context.session.accountScope);
@@ -57,6 +107,10 @@ describe('monitor page real service wiring',()=>{
   fireEvent.click(screen.getByRole('button',{name:'确认执行'}));
   await screen.findByRole('button',{name:'核对原请求'});
   const command=execute.mock.calls.find(([c])=>c.action==='SET_STATE')![0];
+  if(command.action!=='SET_STATE')throw new Error('Expected state command');
+  const identity=screen.getByText(new RegExp(command.requestId));
+  expect(identity.closest('details')).not.toBeNull();
+  expect(identity.closest('details')!.open).toBe(false);
   expect(command).toMatchObject({planId:id,expectedRevision:1,state:'PAUSED',humanConfirmed:true});
   view.unmount();render(<NativeMonitorPlans/>);
   fireEvent.click(await screen.findByRole('button',{name:'核对原请求'}));

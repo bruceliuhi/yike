@@ -372,7 +372,7 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
     context = { ...context, route: parseRoute("#/tasks/new") };
     page.rerender(<TaskWizardPage />);
     fireEvent.click(screen.getByText((_text, element) =>
-      element?.tagName === "SUMMARY" && element.textContent?.startsWith("执行保护上限") === true));
+      element?.tagName === "SUMMARY" && element.textContent?.startsWith("高级设置：处理范围") === true));
     fireEvent.change(screen.getByRole("spinbutton", { name: "最多处理记录数" }), { target: { value: "52" } });
     await waitFor(() => {
       const saved = JSON.parse(sessionStorage.getItem("yike.ui.draft.v1.task." + context.session.userId)!);
