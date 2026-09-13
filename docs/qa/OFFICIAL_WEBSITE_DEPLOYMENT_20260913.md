@@ -10,8 +10,8 @@
 ## 发布版本
 
 - Gitee：`yike-ai2026/main`
-- 源码提交：`e536a21a46c5d766234ae20cf94b3574a8f3ae80`
-- 发布目录：`/www/wwwroot/www.tuokexing.net/releases/e536a21a46c5d766234ae20cf94b3574a8f3ae80`
+- 源码提交：`44c431445b23a253f27b1fdf8bd9d5990d44affe`
+- 发布目录：`/www/wwwroot/www.tuokexing.net/releases/44c431445b23a253f27b1fdf8bd9d5990d44affe`
 - 当前软链：`/www/wwwroot/www.tuokexing.net/current`
 - 站点类型：独立静态站点，不占用 `yike.tuokexing.net` 的应用和运营后台配置。
 
@@ -46,3 +46,5 @@
 本次发布新增内容中心视觉资产：内容洞察页主视觉、文章卡片配图和文章详情封面，统一表达“公开内容信号 → 证据判断 → 销售下一步”。资产位于 `website/public/illustrations/insights/`，采用 WebP 压缩，文章配图均有描述性替代文本。
 
 本次精修补充：能力全景、适用场景、下载与试用三页首屏配图；小红书、抖音、B站、知乎和公开网页使用统一尺寸的平台图标；首页在 1240px 以下切换单列避免产品图裁切；移动菜单支持 `aria-expanded`、Escape 关闭和点击链接收起；全局加入键盘焦点样式、减少动画设置和移动端底部安全间距；文章分享图与 Article JSON-LD 按页面使用对应视觉资产。
+
+试用表单现在会根据剪贴板权限显示真实结果：自动复制成功时提示已复制，失败时直接展示可手动复制的内容；文章移动端保留底部试用入口。
