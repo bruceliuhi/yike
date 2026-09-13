@@ -78,3 +78,17 @@ def test_compose_runtime_is_loopback_only_and_hardened() -> None:
     assert "read_only: true" in compose
     assert "no-new-privileges:true" in compose
     assert "- ALL" in compose
+
+
+def test_research_image_is_explicit_pinned_and_non_service():
+    dockerfile = (ROOT / 'deploy/Dockerfile.research').read_text()
+    assert 'ARG SERVICE_IMAGE\nFROM ${SERVICE_IMAGE}' in dockerfile
+    assert 'uv sync --frozen --no-dev --no-install-project --extra research' in dockerfile
+    assert '0.153.4' in dockerfile
+    assert 'a822187e1a2420c61c5926721bfbd878701ed95547c9bb0d4de4498a16ba1821' in dockerfile
+    assert 'ADD --checksum=sha256:' in dockerfile
+    assert 'USER yike' in dockerfile
+    assert 'ENTRYPOINT ["/opt/codex/bin/codex"]' in dockerfile
+    assert 'CMD ["--version"]' in dockerfile
+    assert (ROOT / 'deploy/research-python.pth').read_text() == '/app\n'
+    assert '--extra research' not in (ROOT / 'deploy/Dockerfile').read_text()

@@ -1,0 +1,18 @@
+# Build separately from the verified service candidate. Never enables a service.
+ARG SERVICE_IMAGE
+FROM ${SERVICE_IMAGE}
+
+USER root
+# This first runtime artifact is Linux amd64 only; do not run an x86 binary on ARM.
+RUN test "$(uname -m)" = x86_64
+RUN uv sync --frozen --no-dev --no-install-project --extra research
+
+# Official complete package, bound to the version used by citation transport tests.
+ADD --checksum=sha256:a822187e1a2420c61c5926721bfbd878701ed95547c9bb0d4de4498a16ba1821 https://releases.openai.com/codex/releases/0.153.4/codex-package-x86_64-unknown-linux-musl.tar.gz /tmp/codex-package.tar.gz
+RUN mkdir -p /opt/codex && tar -xzf /tmp/codex-package.tar.gz -C /opt/codex && rm /tmp/codex-package.tar.gz
+
+# MCP is launched with Python -I: source checkout cwd/PYTHONPATH is not available.
+COPY deploy/research-python.pth /app/.venv/lib/python3.12/site-packages/yike-research.pth
+USER yike
+ENTRYPOINT ["/opt/codex/bin/codex"]
+CMD ["--version"]
