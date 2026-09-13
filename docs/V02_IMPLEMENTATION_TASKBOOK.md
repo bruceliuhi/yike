@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+2026-09-13 CodexWin 客户文案收敛已合入 main，冻结 Windows 候选 56e8abd 已完成构包与包内字节验证；删除建议原因、模型/披露标识及长技术教学，原文/收发保护不变。首轮临时路径失败后同字节重封装成功，[唯一证据及当前卡点](superpowers/plans/2026-09-13-customer-page-simplification.md#追加删除文案的-windows-候选)。实装仍 a16e7b7，退出会清除当前测试会话草稿，等待用户本次选择；未安装候选、未启用生产研究或完成上线验收。随后 c22ea0d 来件不改变 desktop/app，不重复构包。
+
 私有服务/client本批最终差量独立PASS，关闭交接P2关闭；仅源码与下列限定证据，不代表worker接线、真实Docker或部署完成。
 
 2026-09-13 私有broker服务/client：固定0600 UDS四路由、有界NDJSON及无Docker导入的客户侧适配器，纯身份合同提取保持broker导出兼容。实UDS小事件缓存延迟、关闭交错晚准入及最终启动交接均RED复现后修复，关闭置halt与最后检查/Popen使用同一锁。服务/client/lifecycle/core此前合批21通过/1.94秒，追加跨任务/意外状态/字段拒绝3通过/0.08秒，最终受影响lifecycle13通过/0.94秒，共25项独立用例。Docker仍为合成回执，无真实研究/部署；下一步将client接入mission并保持宿主permit/journal，再统一实际容器链路验收。
