@@ -40,6 +40,7 @@ export function ResearchReadEvidence({taskId,runId,reads,onOpen}:{
     {items.map(item=>{const long=item.text.length>LONG_TEXT_LENGTH,isExpanded=expanded.has(item.sequence);return <article
       className="fixed-source-evidence fixed-source-evidence--compact" aria-label="研究原文" key={item.sequence}>
       <h3>{item.title??'未提供标题'}</h3>
+      <p className="field-hint" style={{overflowWrap:'anywhere'}}>{item.url}</p>
       <p className="muted">读取于 {formatDate(item.observedAt)} · 序号 {item.sequence}</p>
       <div className={`fixed-evidence-body${long&&!isExpanded?' fixed-evidence-body--collapsed':''}`}>{item.text}</div>
       {long&&<Button variant="ghost" aria-expanded={isExpanded} onClick={()=>setExpanded(current=>{

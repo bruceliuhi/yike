@@ -184,6 +184,7 @@ it('loads successful READ evidence only after opening the dynamic read-only sect
   expect(reads).not.toHaveBeenCalled();
   fireEvent.click(summary);
   await screen.findByText('展台需求');
+  expect(screen.getByText(item.url)).toBeTruthy();
   expect(reads).toHaveBeenCalledWith(taskId,runId,0,expect.any(AbortSignal));
   expect(screen.getByText('研究原文，尚非已确认商机')).toBeTruthy();
   expect(screen.getByText('展开完整原文')).toBeTruthy();
