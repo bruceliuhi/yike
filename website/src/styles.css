@@ -39,3 +39,8 @@
 @media(max-width:1100px){.hero{grid-template-columns:minmax(350px,.9fr) minmax(460px,1.1fr);padding-left:5vw;padding-right:5vw;gap:24px}.hero h1{font-size:clamp(44px,4.8vw,68px)}}
 @media(max-width:900px){.hero{grid-template-columns:1fr;padding-top:58px}.hero-copy{max-width:680px}.hero-visual{transform:none;min-height:320px}.hero-illustration{max-width:650px}}
 @media(max-width:520px){.hero h1{font-size:45px}.hero-lead{font-size:16px}.hero-proofline{margin-top:16px}.hero-visual{min-height:250px}.hero-visual-caption{left:14px;bottom:12px;font-size:11px}}
+
+.hero-visual-badge{position:absolute;right:24px;top:24px;z-index:2;padding:7px 11px;border:1px solid rgba(198,216,239,.95);border-radius:6px;background:rgba(255,255,255,.92);color:#496486;font-size:11px;font-weight:800;box-shadow:0 8px 20px rgba(28,52,88,.08);backdrop-filter:blur(8px)}
+.hero-action-note{margin:13px 0 0;color:#7b8aa2;font-size:12px}
+.hero-visual{scroll-margin-top:90px}
+@media(max-width:520px){.hero-visual-badge{right:14px;top:14px;font-size:10px;padding:6px 8px}.hero-action-note{font-size:11px;margin-top:10px}}
