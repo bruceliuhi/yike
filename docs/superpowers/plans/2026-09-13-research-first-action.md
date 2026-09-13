@@ -43,3 +43,15 @@ Windows同源载荷47197已exit0，1通过/459.88秒，保留D:/yk-connect/porta
 另发现重复migrate会先重放143而拒绝已保存新回执，新增回归再次RED1失败62通过。现仅bootstrap迁移账本，摘要一致的已应用版本跳过，不一致仍报错，未应用版本在原advisory锁及同一事务执行。补回执后再次升级、摘要不符回滚、空库两次及旧115前缀升级。最终66通过/27.98秒（77043），无模型或客户数据。一次测试夹具误把app URL指向superuser导致附加升级用例初始化失败；修正为专用受限testapp后通过，原journal用例本来使用受限RoleDatabase。一次性测试容器/网络已删除，合成源码留存。
 
 独立review_read_schema首审重复迁移P2已修复，差量复审GO；摘要绑定db.py `45beb83c90d0d3a72addc9e8f826acf5d1b3cd303f84fc32b5730760f9aca086`、146 `9a21f6bcbaff9da8733b2c539fd39f7f69f506b3fcf522b9ad4c69ae7e827561`。本节此刻数据库修复尚未部署；发布必须使用新管理迁移入口，不能用旧runner重放历史DDL作回滚。仅服务端迁移差量，不重复构Windows包。真实原文/候选、三业务及用户认可仍待验，完整Goal ACTIVE。
+
+## 17:25 数据库修复实际部署
+
+产品修复`b30415f1da2ae3de0c8c19d43049ba2717acabcb`已推main，官网来件正常合并为2e8587f，无产品差量。固定源码归档SHA256 `02242d61e243c69224385ab10728a2c540de5d40ec68c7e73daa45a3f76ee775`构建两个新镜像，各197文件哈希一致，无下载依赖。发布脚本复用原锁/容器身份/无活跃研究/回滚边界，仅新增停customer后原子146迁移及版本常量；独立首审发现DO定界符错误，修正后在一次性PG执行原函数连续两次成功，再获GO。未把dry preflight当SQL成功。
+
+正式发布exit0，146及同摘要schema_meta已提交，CHECK和deferred pair现场只读确认均包含新精确原因；没有改动旧ISSUED/失败任务或客户数据，没有执行降级迁移。
+
+- customer：容器`26b99db321534ff1f4011db227bb1398fef68b160a868f6580d17d448f3d3caa`，镜像`sha256:22cf8ca13c82c4830ccd132e770f6e1f35fb5f0133aa92c9b337e434c7780a4f`。
+- research/broker：容器`819c9936e1e57d8cd8a9eda3fabfa910d5b3a2f955af11f1429886dcaea92b0f`，镜像`sha256:751995475c552bf8a317d677222970172d84030dabb2ff63b3b2f94385061048`。
+- 两者revision b30415f，running/restarts0/只读非root，broker仍无网络；公网HTTPS readyz和客户18787均200，ops原容器未变、18789为200。无活动研究。旧镜像保留可回滚运行服务，但管理migrate/provision必须用新入口，不能用旧runner重放143；实际回滚未触发。
+
+Windows仍使用本页已实装1549c18（本批无桌面或本地执行差量），不冒称新构包。下一步仅从新版实际界面开始新独立研究，验证可读原文、候选/短句草稿和反馈；旧38d1428b结果原样保留不重放。三业务/用户认可/正式外发未通过，不宣称可公开上线。
