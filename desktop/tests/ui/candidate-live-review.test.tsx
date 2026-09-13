@@ -227,7 +227,7 @@ async function ready() {
 it("selects the bound profile and reads full original evidence without an implicit model call", async () => {
   const { transport, raw } = mount();
   await ready();
-  expect(screen.getByText(/该候选所属任务已确认的行业策略/)).toBeTruthy();
+  expect(screen.queryByText(/发送给配置的模型/)).toBeNull();
   expect(
     (
       screen.getByRole("combobox", {
@@ -458,6 +458,9 @@ it("unknown assessment locks ordinary writes and exposes only explicit original-
   ).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "确认后重新判断" }));
   const dialog = screen.getByRole("dialog", { name: "重新发起判断？" });
+  expect(dialog.textContent).not.toContain('向配置的模型发送');
+  expect(dialog.textContent).toContain('仍在处理时不重发');
+  expect(dialog.textContent).toContain('可能再次消耗');
   fireEvent.click(within(dialog).getByRole("button", { name: "取消" }));
   expect(transport.mock.calls.filter((c) => c[2] === "POST")).toHaveLength(1);
 });

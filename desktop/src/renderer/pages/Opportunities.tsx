@@ -2259,10 +2259,6 @@ function CandidateWorkbench() {
                               尚无已确认画像，请先保存并确认业务画像。
                             </Notice>
                           )}
-                        {liveCandidate(selected) && selected.status === "PENDING_REVIEW" && <p className="field-hint">
-                          点击判断，将把业务画像、候选原文及该候选所属任务已确认的行业策略（如有）发送给配置的模型。
-                          策略只是研究条件，不是采购事实；不会自动联系客户。
-                        </p>}
                         {selected.status === "PENDING_REVIEW" && (
                           <Button
                             disabled={
@@ -2510,8 +2506,7 @@ function CandidateWorkbench() {
           }}
         >
           <p>
-            将先只读核对原请求。仅已失败或结果未知的分析才创建新的重试请求，可能再次消耗模型用量；仍在处理时不重发。
-            重新判断会向配置的模型发送业务画像、候选原文和所属任务已确认的行业策略（如有），不会自动联系客户。
+            先核对上次结果。仅失败或结果未知时重新判断，可能再次消耗用量；仍在处理时不重发。
           </p>
         </Confirm>
       )}

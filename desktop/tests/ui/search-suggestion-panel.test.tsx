@@ -36,6 +36,58 @@ describe("controlled search suggestion panel", () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
+  it('shows only filled business content without model internals or process explanations', async () => {
+    const full = {...preview, description: '服务内容："AI软件定制"\n目标客户："企业"\n服务地区："全国"\n项目偏好：""\n排除项：""'};
+    const service = {preview: vi.fn().mockResolvedValue(full), submit: vi.fn(async (request: SuggestionRequest) => receipt(request)), getReceipt: vi.fn()};
+    render(<SearchSuggestionPanel {...props(service)} />);
+    fireEvent.click(screen.getByRole('button', {name: '生成建议'}));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.textContent).toContain('AI软件定制');
+    for (const hidden of ['项目偏好：', '排除项：', preview.model_provider, preview.model_name,
+      preview.disclosure_policy_version, '受控模型', '披露规则', '不会自动采集或发送']) {
+      expect(dialog.textContent).not.toContain(hidden);
+    }
+    expect(service.submit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', {name: '确认生成'}));
+    await waitFor(() => expect(service.submit).toHaveBeenCalledOnce());
+    expect(service.submit.mock.calls[0][0].disclosure).toEqual({accepted:true,
+      profile_sha256:full.profile_sha256,model_provider:full.model_provider,
+      model_name:full.model_name,policy_version:full.disclosure_policy_version});
+    expect(full.description).toContain('排除项：""');
+  });
+
+  it('keeps business values and legacy free text intact when simplifying the preview', async () => {
+    const full = {...preview, description: '服务内容："支持\\n多行与\\\"引号\\\""\n目标客户："企业"\n服务地区："全国"\n项目偏好："保留原需求"\n排除项："招聘"'};
+    const service = {preview: vi.fn().mockResolvedValue(full), submit:vi.fn(), getReceipt:vi.fn()};
+    const view = render(<SearchSuggestionPanel {...props(service)} />);
+    fireEvent.click(screen.getByRole('button', {name:'生成建议'}));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.textContent).toContain('服务内容：支持\n多行与"引号"');
+    expect(dialog.textContent).toContain('排除项：招聘');
+    view.unmount();
+    const legacy = '自填原文：保留原始格式\n排除项：""\n不能按片段过滤客户自由文本';
+    service.preview.mockResolvedValue({...preview,description:legacy});
+    render(<SearchSuggestionPanel {...props(service)} />);
+    fireEvent.click(screen.getByRole('button', {name:'生成建议'}));
+    expect((await screen.findByRole('dialog')).textContent).toContain(legacy);
+    expect(service.submit).not.toHaveBeenCalled();
+  });
+
+  it('shows actionable search words without rationale or model-generated explanations', async () => {
+    const service = {preview:vi.fn().mockResolvedValue(preview),
+      submit:vi.fn(async (request:SuggestionRequest)=>receipt(request)),getReceipt:vi.fn()};
+    render(<SearchSuggestionPanel {...props(service)} />);
+    fireEvent.click(screen.getByRole('button',{name:'生成建议'}));
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByRole('button',{name:/^(确认生成|我已核对，发送并生成)$/}));
+    await screen.findByText('设备预测性维护');
+    expect(screen.getByText('招聘')).toBeTruthy();
+    for(const text of ['建议原因','依据','未知信息','命中业务与客户场景','业务介绍明确包含设备维护','预算范围未知']) {
+      expect(screen.queryByText(text)).toBeNull();
+    }
+    expect(screen.getByRole('button',{name:'合并新增建议'})).toBeTruthy();
+  });
+
   it('keeps unresolved suggestions actionable while request IDs are collapsed', async()=>{
     const request: SuggestionRequest = {request_id:'44444444-4444-4444-8444-444444444444',draft_id:draftId,
       profile_version_id:profileId,draft_revision:3,disclosure:{accepted:true,profile_sha256:preview.profile_sha256,
@@ -60,7 +112,7 @@ describe("controlled search suggestion panel", () => {
     const view = render(<SearchSuggestionPanel {...props(service)} />);
     fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
     await screen.findByText(preview.description);
-    fireEvent.click(screen.getByRole("button", { name: "我已核对，发送并生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认生成" }));
     expect(await screen.findByText(/服务端已确认未受理/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "合并新增建议" })).toBeNull();
     view.unmount();
@@ -72,7 +124,7 @@ describe("controlled search suggestion panel", () => {
     fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
     await screen.findByText(preview.description);
     expect(service.submit).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: "我已核对，发送并生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认生成" }));
     await waitFor(() => expect(service.submit).toHaveBeenCalledTimes(2));
     expect(service.submit.mock.calls[1][0].request_id).not.toBe(service.submit.mock.calls[0][0].request_id);
   });
@@ -84,9 +136,9 @@ describe("controlled search suggestion panel", () => {
     expect(service.preview).not.toHaveBeenCalled(); expect(service.submit).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
     expect(await screen.findByText(preview.description)).toBeTruthy();
-    expect(screen.getByText(/controlled-provider \/ controlled-model/)).toBeTruthy();
+    expect(screen.queryByText(/controlled-provider \/ controlled-model/)).toBeNull();
     expect(service.submit).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "我已核对，发送并生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认生成" }));
     await waitFor(() => expect(service.submit).toHaveBeenCalledOnce());
     expect(await screen.findByText("设备预测性维护")).toBeTruthy();
   });
@@ -97,7 +149,7 @@ describe("controlled search suggestion panel", () => {
     fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
     await screen.findByText(preview.description);
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("full", "QuotaExceededError"); });
-    fireEvent.click(screen.getByRole("button", { name: "我已核对，发送并生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认生成" }));
     expect(await screen.findByText(/无法可靠保存/)).toBeTruthy();
     expect(service.submit).not.toHaveBeenCalled();
   });
@@ -111,7 +163,7 @@ describe("controlled search suggestion panel", () => {
     await waitFor(() => expect(service.preview).toHaveBeenCalledOnce());
     view.rerender(<SearchSuggestionPanel {...props(service)} scope={{ ...scope, accountScopeId: "space-b" }} />);
     await act(async () => finish(preview));
-    expect(screen.queryByRole("dialog", { name: "确认发送业务介绍" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "生成搜索建议" })).toBeNull();
     expect(service.submit).not.toHaveBeenCalled();
   });
 
@@ -142,7 +194,7 @@ describe("controlled search suggestion panel", () => {
     const view = render(<SearchSuggestionPanel {...input} />);
     fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
     await screen.findByText(preview.description);
-    fireEvent.click(screen.getByRole("button", { name: "我已核对，发送并生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认生成" }));
     await screen.findByText("设备预测性维护");
     fireEvent.click(screen.getByRole("button", { name: "合并新增建议" }));
     await waitFor(() => expect(service.getReceipt).toHaveBeenCalledOnce());
@@ -158,7 +210,7 @@ describe("controlled search suggestion panel", () => {
     fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
     await screen.findByText(preview.description);
     localStorage.setItem(key, "corrupt-original-bytes");
-    fireEvent.click(screen.getByRole("button", { name: "我已核对，发送并生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认生成" }));
     expect(await screen.findByText(/损坏|原请求/)).toBeTruthy();
     expect(service.submit).not.toHaveBeenCalled();
     expect(localStorage.getItem(key)).toBe("corrupt-original-bytes");
@@ -174,7 +226,7 @@ describe("controlled search suggestion panel", () => {
     render(<SearchSuggestionPanel {...input} />);
     fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
     await screen.findByText(preview.description);
-    fireEvent.click(screen.getByRole("button", { name: "我已核对，发送并生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认生成" }));
     await screen.findByText("设备预测性维护");
     fireEvent.click(screen.getByRole("button", { name: "合并新增建议" }));
     await waitFor(() => expect(service.getReceipt).toHaveBeenCalledOnce());

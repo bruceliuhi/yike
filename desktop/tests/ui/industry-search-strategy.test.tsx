@@ -23,7 +23,7 @@ it('validates bounded strategy receipts without accepting execution permissions 
   const {strategy:omitted,...legacy}=receipt.result;
   expect(suggestionReceiptSchema.parse({...receipt,result:legacy}).result).not.toHaveProperty('strategy');
 });
-it('shows proposed sources, business evidence and unknowns without automatically executing them',async()=>{
+it('keeps proposed filters collapsed without publishing generated explanations or executing them',async()=>{
   saveSearchSuggestion({schemaVersion:1,scope,request,receipt:null});
   const service={preview:vi.fn(),submit:vi.fn(),getReceipt:vi.fn().mockResolvedValue(receipt)};
   const onApply=vi.fn(()=>true);
@@ -34,10 +34,9 @@ it('shows proposed sources, business evidence and unknowns without automatically
   expect(screen.getByText('画像未说明')).toBeTruthy();
   expect(screen.getByText('需求主帖')).toBeTruthy();expect(screen.getByText('讨论评论')).toBeTruthy();
   expect(screen.getByText('寻找设备改造供应商')).toBeTruthy();expect(screen.getByText('设备厂商广告')).toBeTruthy();
-  expect(screen.getByText('为制造企业提供产线改造')).toBeTruthy();
-  const version=screen.getByText(/策略版本：industry-search-strategy-v1/);
-  expect(version.closest('details')).not.toBeNull();
-  expect(version.closest('details')!.open).toBe(false);
+  expect(screen.queryByText('为制造企业提供产线改造')).toBeNull();
+  expect(screen.queryByText(/策略版本：industry-search-strategy-v1/)).toBeNull();
+  expect(screen.getByText('更多筛选条件').closest('details')!.open).toBe(false);
   expect(onApply).not.toHaveBeenCalled();expect(service.submit).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button',{name:'合并新增建议'}));
   await waitFor(()=>expect(onApply).toHaveBeenCalledWith(receipt,'append'));

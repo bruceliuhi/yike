@@ -24,7 +24,7 @@ export function NativeReplySync({session,opportunity,evidence,onSynced}:{session
     const values:string[]=[];
     try {const record=readNativeOutreachRecord(nativeOutreachLedgerKey(session,opportunity.id,'comment'));if(record)values.push(record.binding.requestId);} catch {/* A local hint may be unreadable; main remains authoritative. */}
     for(const row of evidence)if(row.event.kind==='PLATFORM_REPLY' && row.event.platform==='XIAOHONGSHU' && row.event.channel==='comment')values.push(row.event.outreach_request_id);
-    return [...new Set(values)];
+    return [...new Set(values)].sort();
   },[eligible,session,opportunity.id,evidence]);
   if(!eligible)return null;
   const command=bridge();
@@ -44,9 +44,12 @@ export function NativeReplySync({session,opportunity,evidence,onSynced}:{session
   }
   return <div>
     <h3>同步小红书公开评论回复</h3>
-    {!requests.length?<Notice>需先完成并核实原生联系，才能从原请求同步公开评论回复；这里不能手工填写请求 ID。</Notice>:
+    {!requests.length?<Notice>需先完成并核实原生联系，才能同步公开评论回复。</Notice>:
       !command?<Notice>请在意客AI桌面客户端中同步原生回复。</Notice>:
-      <>{requests.map(requestId=><Button key={requestId} variant="secondary" loading={running===requestId} disabled={running!==null} onClick={()=>sync(requestId)}>同步原请求 {requestId}</Button>)}</>}
+      <>{requests.map((requestId,index)=><div key={requestId}>
+        <Button variant="secondary" loading={running===requestId} disabled={running!==null} onClick={()=>sync(requestId)}>同步此联系的回复{requests.length>1?` · 联系 ${index+1}`:''}</Button>
+        <details><summary>查看联系技术信息</summary><p className="field-hint">原请求编号：{requestId}</p></details>
+      </div>)}</>}
     {message && <Notice tone={message.includes('范围读取')?'success':'error'}>{message}</Notice>}
   </div>;
 }

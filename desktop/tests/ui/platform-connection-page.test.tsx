@@ -113,7 +113,8 @@ it('polls once per second and surfaces a later terminal failure without another 
  render(<ConnectionsPage />);await act(async()=>{});fireEvent.click(screen.getByRole('button',{name:'打开登录窗口'}));await act(async()=>{});
  expect(screen.getByText('等待登录')).toBeTruthy();
  await act(async()=>{await vi.advanceTimersByTimeAsync(999);});expect(context.service.connectionLoginStatus).toHaveBeenCalledTimes(1);
- await act(async()=>{await vi.advanceTimersByTimeAsync(1);});expect(screen.getByText('terminal failure')).toBeTruthy();
+ await act(async()=>{await vi.advanceTimersByTimeAsync(1);});expect(screen.getByText('操作未完成，请查看当前状态后再继续。')).toBeTruthy();
+ expect(screen.queryByText('terminal failure')).toBeNull();
  expect(context.service.connect).toHaveBeenCalledTimes(1);expect(context.service.checkConnection).not.toHaveBeenCalled();
 });
 it('LOGIN_READY observation ends at 120 seconds without claiming login failure or automatic CHECK',async()=>{

@@ -103,7 +103,7 @@ it("keeps the native sync result visible while its evidence reload is pending", 
   const nativeReplyCommand = vi.fn().mockResolvedValue({state: "SYNCED", requestId, coverage: "PARTIAL", observed: 2, recorded: 1});
   Object.defineProperty(window, "yikeDesktop", {configurable: true, value: {nativeReplyCommand}});
   render(<ReplyEvidencePanel opportunity={f.opportunity} />);
-  fireEvent.click(await screen.findByRole("button", {name: `同步原请求 ${requestId}`}));
+  fireEvent.click(await screen.findByRole("button", {name: "同步此联系的回复"}));
   expect(await screen.findByText("部分范围读取：2 条；保存并核实：1 条（包含去重结果）。")).toBeTruthy();
   expect(app.service.replyEvidence).toHaveBeenCalledTimes(2);
   expect(screen.getByText("部分范围读取：2 条；保存并核实：1 条（包含去重结果）。")).toBeTruthy();

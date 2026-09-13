@@ -216,7 +216,9 @@ function FollowupWorkspace() {
               "旧跟进操作尚未绑定当前客户空间或版本，不能在此核对或重复保存。请返回原空间版本核对；归属未知时需由服务管理员核实。"}
           </Notice>
           {operation.historical.map((entry, index) => (
-            <Field key={index} label={`待核对原请求 ${index + 1}`}>
+            <details key={index}>
+              <summary>待核对记录 {index + 1} · 记录详情</summary>
+              <Field label={`待核对原请求 ${index + 1}`}>
               <input
                 aria-label={`待核对原请求 ${index + 1}`}
                 readOnly
@@ -229,7 +231,8 @@ function FollowupWorkspace() {
                     ? `原空间 ${entry.accountScope.id} · 版本 ${entry.accountScope.version}`
                     : "原会话未提供客户空间"}
               </small>
-            </Field>
+              </Field>
+            </details>
           ))}
           <Button onClick={operation.refresh}>重新读取操作记录</Button>
         </section>

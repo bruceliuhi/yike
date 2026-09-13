@@ -28,7 +28,7 @@ import {
 import { safeReturnTo } from "../domain/routes";
 import { errorMessage, ServiceError } from "../services/contracts";
 import { mergeConnectionRead } from "../services/connectionRegistry";
-import { ConnectionRegistryTable } from "./connections/ConnectionRegistryTable";
+import { ConnectionRegistryTable, capabilityText } from "./connections/ConnectionRegistryTable";
 import { PortableRuntimeNotice } from "./connections/PortableRuntimeNotice";
 
 type ConnectingState =
@@ -403,7 +403,7 @@ export function ConnectionsPage() {
               <h3 role="status">{currentState}</h3>
               <p>
                 {state === "connected"
-                  ? `${result?.accountName || result?.accountId || "账号信息待读取"} · ${result?.capabilities.length ? result.capabilities.join("、") : "暂无通过检查的执行能力"}`
+                  ? `${result?.accountName || result?.accountId || "账号信息待读取"} · ${result?.capabilities.length ? capabilityText(result.capabilities) : "暂无通过检查的执行能力"}`
                   : opened
                     ? loginReady ? '请本人点击“我已完成登录，检查连接”，完成当前账号连接核验。' : `在本机浏览器中完成${selected.name}账号登录。`
                     : "点击下方按钮打开平台登录窗口。"}

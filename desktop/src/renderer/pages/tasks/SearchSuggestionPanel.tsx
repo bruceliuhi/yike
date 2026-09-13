@@ -24,6 +24,21 @@ const rejectionReasons: Record<string,string> = {
   suggestion_rate_limited:"提交过于频繁，请稍后再试", suggestion_quota_exceeded:"本小时建议生成额度已用完，请稍后再试",
 };
 const suggestionStates = {PENDING:'正在生成',SUCCEEDED:'建议已生成',FAILED:'生成失败',NOT_SUBMITTED:'未受理',UNKNOWN:'结果待核对'};
+function businessPreview(description: string): string {
+  const labels = ['服务内容', '目标客户', '服务地区', '项目偏好', '排除项'];
+  const lines = description.split('\n');
+  if (lines.length !== labels.length) return description;
+  try {
+    const values = labels.map((label, index) => {
+      if (!lines[index].startsWith(`${label}：`)) throw new Error('legacy');
+      const value: unknown = JSON.parse(lines[index].slice(label.length + 1));
+      if (typeof value !== 'string') throw new Error('legacy');
+      return value;
+    });
+    return labels.flatMap((label, index) => values[index].trim()
+      ? [`${label}：${values[index]}`] : []).join('\n');
+  } catch { return description; }
+}
 const sameRequest = (receipt: SuggestionReceipt, request: SuggestionRequest) =>
   receipt.request_id === request.request_id && receipt.draft_id === request.draft_id &&
   receipt.profile_version_id === request.profile_version_id && receipt.draft_revision === request.draft_revision &&
@@ -238,39 +253,31 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
         {record.receipt.state === "NOT_SUBMITTED" ? "结束未受理请求" : "结束原请求"}
       </Button>}
     </Notice>}
-    {preview && previewBinding === viewBinding && <Modal title="确认发送业务介绍" onClose={() => { setPreview(null); setPreviewBinding(""); }} footer={<>
-      <Button onClick={() => setPreview(null)}>暂不发送</Button>
-      <Button variant="primary" onClick={() => void submit()}>我已核对，发送并生成</Button>
+    {preview && previewBinding === viewBinding && <Modal title="生成搜索建议" onClose={() => { setPreview(null); setPreviewBinding(""); }} footer={<>
+      <Button onClick={() => setPreview(null)}>取消</Button>
+      <Button variant="primary" onClick={() => void submit()}>确认生成</Button>
     </>}>
-      <p>以下完整业务介绍将发送给受控模型，用于生成搜索关键词、排除词与行业策略建议；不会自动采集或发送。</p>
-      <h3>完整业务介绍</h3><p style={{ whiteSpace: "pre-wrap" }}>{preview.description}</p>
-      <p className="muted">模型：{preview.model_provider} / {preview.model_name} · 披露规则 {preview.disclosure_policy_version}</p>
+      <p style={{ whiteSpace: "pre-wrap" }}>{businessPreview(preview.description)}</p>
     </Modal>}
     {result && <Modal title="核对搜索建议" onClose={() => undefined} footer={<>
       <Button onClick={finish}>保留当前并结束</Button>
       <Button onClick={() => void apply("replace_unedited")} disabled={!currentBinding() || !record?.receipt?.profile_current}>替换未修改的建议</Button>
       <Button variant="primary" onClick={() => void apply("append")} disabled={!currentBinding() || !record?.receipt?.profile_current}>合并新增建议</Button>
     </>}>
-      {result.strategy&&<section aria-label="行业搜索策略">
+      {result.strategy&&<details><summary>更多筛选条件</summary><section aria-label="行业搜索策略">
         <h3>行业搜索策略</h3><Badge tone="blue">策略建议，尚未执行</Badge>
         <dl className="detail-list">
           <div><dt>画像中的买方角色</dt><dd>{result.strategy.buyerRole??'画像未说明'}</dd></div>
           <div><dt>画像中的销售方式</dt><dd>{result.strategy.salesMotion??'画像未说明'}</dd></div>
         </dl>
         <h4>建议查看的内容类型</h4><ul>{result.strategy.sourceTypes.map(type=><li key={type}>{sourceTypeLabels[type]}</li>)}</ul>
-        <p className="muted">内容类型不代表平台已接入。词项合并/替换只更新搜索词；任务策略需单独采用，不会开启新平台、增加预算或自动联系。</p>
         {props.onApplyStrategy&&<Button disabled={busy||props.hasStrategy||!currentBinding()||!record?.receipt?.profile_current}
           onClick={()=>void apply('strategy')}>{props.hasStrategy?'已有任务策略，请在表单编辑':'采用任务策略'}</Button>}
         <h4>寻找这些购买信号</h4><ul>{result.strategy.intentSignals.map((value,index)=><li key={index}>{value}</li>)}</ul>
         <h4>留意这些反例</h4>{result.strategy.counterSignals.length?<ul>{result.strategy.counterSignals.map((value,index)=><li key={index}>{value}</li>)}</ul>:<p>暂未提出，仍需人工判断。</p>}
-        <h4>策略的画像依据</h4><ul>{result.strategy.basis.map((value,index)=><li key={index}>{value}</li>)}</ul>
-        <details><summary>策略版本详情</summary><p className="muted">策略版本：{result.strategy.version}</p></details>
-      </section>}
+      </section></details>}
       <h3>搜索关键词</h3><div className="suggestion-list">{result.keywords.map(v => <span key={v}>{v}</span>)}</div>
       <h3>排除词</h3><div className="suggestion-list">{result.exclusions.map(v => <span key={v}>{v}</span>)}</div>
-      <h3>建议原因</h3><p>{result.rationale}</p>
-      <h3>依据</h3><ul>{result.evidence.map(v => <li key={v}>{v}</li>)}</ul>
-      <h3>未知信息</h3>{result.unknowns.length ? <ul>{result.unknowns.map(v => <li key={v}>{v}</li>)}</ul> : <p>无</p>}
       {!record?.receipt?.profile_current && <Notice tone="warning">画像版本已变化；结果仅供历史核对，不能采用。</Notice>}
     </Modal>}
   </>;

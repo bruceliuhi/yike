@@ -823,6 +823,7 @@ export function TaskWizardPage() {
                 <div className="platform-choices">
                   {PLATFORMS.map((p) => {
                     const status = !draft.research ? ""
+                      : p.id === "web" ? "无需账号"
                       : connections.loading ? "读取中"
                       : connections.error ? "读取失败"
                       : connections.data?.some(c => c.platform === p.id && c.status === "CONNECTED") ? "已连接"

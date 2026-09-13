@@ -191,7 +191,7 @@ it("retains an old-space uncertain write until returning to its exact scope", as
     ),
   );
 });
-it("keeps unbound legacy request IDs visible and cannot query or replace them in the current space", async () => {
+it("keeps legacy request IDs in closed record details and cannot query or replace them in the current space", async () => {
   const binding = {
     opportunityId: opportunity.id,
     profileVersionId: opportunity.profileVersionId,
@@ -208,6 +208,8 @@ it("keeps unbound legacy request IDs visible and cannot query or replace them in
   render(<FollowupsPage />);
   await fill();
   expect(screen.getByDisplayValue(binding.requestId)).toBeTruthy();
+  const recordDetails=screen.getByDisplayValue(binding.requestId).closest('details');
+  expect(recordDetails).not.toBeNull();expect(recordDetails?.open).toBe(false);
   expect(screen.queryByRole("button", { name: "核对原跟进操作" })).toBeNull();
   expect(
     (screen.getByRole("button", { name: "保存记录" }) as HTMLButtonElement)

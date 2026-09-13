@@ -158,6 +158,8 @@ describe("平台连接", () => {
     expect(screen.queryByText("账号已连接")).toBeNull();
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "我已完成登录，检查连接" })));
     expect(screen.getByText("账号已连接")).toBeTruthy();
+    expect(screen.getByText("test-new · 搜索公开内容")).toBeTruthy();
+    expect(screen.queryByText(/test-new · search/)).toBeNull();
     expect(screen.queryByText("test-stale")).toBeNull();
     expect(service.checkConnection).toHaveBeenCalledTimes(2);
   });
