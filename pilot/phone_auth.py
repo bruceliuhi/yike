@@ -25,6 +25,7 @@ class PhoneReservation:
 
 
 class PhoneAuthStore:
+    self_registration = False
     def __init__(self, database, secret: bytes):
         if not isinstance(secret, bytes) or not 32 <= len(secret) <= 4096:
             raise PhoneAuthError('phone_auth_failed')
@@ -83,7 +84,7 @@ class PhoneAuthStore:
                     raise PhoneAuthError('auth_rate_limited')
             for kind, key, _ in scopes:
                 c.execute("INSERT INTO pilot_phone_rates(kind,scope_hash,hits) VALUES (%s,%s,ARRAY[%s::timestamptz]) ON CONFLICT(kind,scope_hash) DO UPDATE SET hits=ARRAY(SELECT hit FROM unnest(pilot_phone_rates.hits) AS hit WHERE hit > %s::timestamptz-interval '1 hour') || ARRAY[%s::timestamptz]", (kind,key,now,now,now))
-            eligible = c.execute('SELECT user_id FROM pilot_phone_bindings WHERE phone_hash=%s', (phone_hash,)).fetchone() is not None
+            eligible = self.self_registration or c.execute('SELECT user_id FROM pilot_phone_bindings WHERE phone_hash=%s', (phone_hash,)).fetchone() is not None
             otp_hash = self._digest('otp', 'login', phone_hash, challenge_id, code)
             c.execute("INSERT INTO pilot_phone_challenges(phone_hash,challenge_id,otp_hash,created_at,expires_at) VALUES (%s,%s,%s,%s,%s::timestamptz+interval '300 seconds') ON CONFLICT(phone_hash) DO UPDATE SET challenge_id=EXCLUDED.challenge_id,otp_hash=EXCLUDED.otp_hash,created_at=EXCLUDED.created_at,expires_at=EXCLUDED.expires_at,state='PENDING',failures=0,consumed=false", (phone_hash,challenge_id,otp_hash,now,now))
         return PhoneReservation(challenge_id,code,eligible)
@@ -100,20 +101,25 @@ class PhoneAuthStore:
         with self._connection(phone_hash) as c:
             c.execute("UPDATE pilot_phone_challenges SET state=%s WHERE phone_hash=%s AND challenge_id=%s AND state='PENDING' AND expires_at>clock_timestamp()", (state,phone_hash,challenge_id))
 
-    def consume(self, phone: str, code: str, *, on_verified=None) -> str:
+    def consume(self, phone: str, code: str, *, on_verified=None, resolve_verified=None) -> str:
         phone_hash = self._phone(phone)
         if not isinstance(code,str) or len(code) != 6 or not re.fullmatch(r'[0-9]{6}',code):
             raise PhoneAuthError('invalid_code')
         user = None
         with self._connection(phone_hash) as c:
+            if self.self_registration:
+                c.execute('SELECT pg_advisory_xact_lock(10901, 0)')
             row = c.execute("SELECT challenge_id,otp_hash,state,failures,consumed,expires_at FROM pilot_phone_challenges WHERE phone_hash=%s FOR UPDATE", (phone_hash,)).fetchone()
             # Evaluate time after lock acquisition, not while waiting on another consumer.
             now = c.execute('SELECT clock_timestamp()').fetchone()[0]
             if row and row[2] == 'ACCEPTED' and row[3] < 5 and not row[4] and row[5] > now:
                 matches = hmac.compare_digest(row[1],self._digest('otp','login',phone_hash,str(row[0]),code))
                 if matches:
-                    binding = c.execute('SELECT user_id FROM pilot_phone_bindings WHERE phone_hash=%s',(phone_hash,)).fetchone()
-                    user = binding[0] if binding else None
+                    if resolve_verified is not None:
+                        user = resolve_verified(c, phone_hash, row[0], row[1])
+                    else:
+                        binding = c.execute('SELECT user_id FROM pilot_phone_bindings WHERE phone_hash=%s',(phone_hash,)).fetchone()
+                        user = binding[0] if binding else None
                     if user is not None and on_verified is not None:
                         # Trusted in-process entitlement hook; same transaction
                         # as one-time OTP consumption, never a request callback.

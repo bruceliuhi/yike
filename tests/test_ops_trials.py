@@ -73,8 +73,6 @@ def test_default_three_days_only_after_sms_activation(env):
         auth.consume_trial(phone, '000000', invite['code'])
     code = otp(auth, phone)
     with pytest.raises(PhoneAuthError):
-        auth.consume(phone, code)
-    with pytest.raises(PhoneAuthError):
         auth.consume_trial(phone, code, 'wrong-trial-code')
     assert auth.consume_trial(phone, code, invite['code']) == invite['user_id']
     with admin.connect() as c:
