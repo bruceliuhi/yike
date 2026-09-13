@@ -41,3 +41,20 @@
 - 不改Bridge、预算或普通assessment，不新增请求/重试。模型是否同时收到structuredContent影响输入量，必须实测，不预先声称此修订更省token。
 
 验收只追加：片段可逆/中文与emoji/长文后部/空白、越界ref/跨页与错sha/重复缺页/非逐字v1仍拒绝；contextual MCP显示＋原structured一致，legacy不变；实际worker事件转换后能通过旧parser，错误final失败不降级；复用现有最终PG及191项证据，仅新接点定向测试。独立同审核者差量复核，然后同输入**新任务**一次真实模型核验；旧失败artifact不可覆盖。
+
+## 首次试用必要补口：成功READ可回查
+
+依据同日用户“按这个处理”的试用范围确认，只增加只读可见性，不把所有原文自动发布为候选。独立源码核查确认目前仅展示unpublishedOriginals数量，journal原文没有客户回查入口。
+
+`GET /api/ui/research-execution/tasks/{task_id}/reads?run_id=<uuid>&after=0&limit=5`：run_id必填，after为0～1000整数、limit为1～5整数，拒绝重复/未知参数；服务未装配此能力返回明确501，不重试执行。响应固定 `{contractVersion:1,taskId,runId,items:[{sequence,url,title,text,observedAt,contentSha256}],nextAfter}`；nextAfter为最后返回序号或null，只有确有下一页时非null。最多5条，按sequence正序；每条均来自当前身份tenant/owner、指定task/run的READ/SUCCEEDED且已配对有效资源回执，不返回MODEL/SEARCH payload、内部context、凭据或未知/失败原文；返回前复用既有原文与output hash校验。无候选化、模型、网络、重试、计量、退款或状态变更。任务历史版本的只读证据不因为新画像确认而被篡改，跨owner/tenant/run绝不能查到。
+
+在现有ResearchProgress的dynamic状态下增加折叠“已读原文”区，展开才调用（不加入轮询），可手动刷新/下一页；有界请求、任务/run切换或退出中断并清空旧结果，错误明确显示不能当空列表。展示标题、规范来源URL、观察时间和原文（长文展开），统一标注“研究原文，尚非已确认商机”；不猜发布状态或作者/发布时间。现有候选/分析入口保留，只读材料不获得联系/发送资格。仅渲染文本，不解释HTML或页面指令；外链复用现有安全打开机制。旧服务/fixture没有reads方法时不影响现有进度/候选路径，不新增整个能力版本协商。
+
+此增量解决失败后的原文可见性，不声称已经实现逐页候选发布容错；当前quote_ref修订先降低已证实的抄写错误，未通过证据绑定的页仍不发布。完整V02其余项按最新试用里程碑后置，不在此扩入。
+## 实际Codex工具通道修订（同批定点修复）
+
+`2516f5d`新同快照探针证明仅TextContent投影片段不足：真实模型input没有引用编号。已核对本机Codex0.153.4源码`protocol/src/models.rs:2206-2216`：有structuredContent时优先使用，忽略content；JSONL事件处理`exec/src/event_processor_with_jsonl_output.rs:228`保留工具_meta。
+
+因此本节覆盖前述“structuredContent原READ不变”的**工具展示**约定，不改变持久READ或最终v1合同。仅citation成功READ：structuredContent为精确片段投影；content固定短标记；`_meta.yike_original_read_v1`保留完整原READ，仅供宿主JSONL事件核验。worker仅此模式从_meta取原READ，验证原envelope/URL/hash，并从原文重算片段与structuredContent精确比较后纳入events.reads；任一缺失或偏差固定拒绝。模型final仍仅选编号，展开仅用已验证原文，runtime仍和同任务持久原文逐字/完整性核对。legacy、SEARCH、失败、Bridge和资源门禁不变。
+
+为覆盖实际通道而非只测SDK对象，增加一次本机真实Codex CLI＋假provider的无外网往返观察：模型input有片段、无_meta原文；JSONL保留原meta并通过worker；同时核对最大合法原文/链接的事件大小。定向验证后一次差量审核，不再重审前述整批。

@@ -106,7 +106,7 @@ root独立两候选纵切通过测试进程插件还原旧1-slot预留，真实�
 **Files:** 新增 `pilot/research_citation_selection.py`、`tests/test_research_citation_selection.py`；修改 `pilot/research_tools.py`、`pilot/codex_research_worker.py`、`pilot/research_context.py`及其三份定向测试。不改 `research_page_selection.py`、runtime、Bridge、原Skill包或DB。
 **Interfaces:** `citation_fragments(text: str) -> list[dict]`（q1起，每段原文400字符）；`citation_choice_schema() -> dict`（detached内部schema）；`CITATION_CHOICE_INSTRUCTIONS`；`expand_citation_choices(summary: str, evidences: list[dict]) -> str`（严格新final→旧v1 JSON）。`build_server(..., citation_mode=False)`仅显式True投影TextContent，新增CLI `--citation-mode`开关；legacy完全不变。
 
-- [ ] 先添加RED：缺新纯函数、contextual命令/schema、MCP片段显示及原structured不变；原v1改写引文反例仍失败。
+- [x] 先添加RED：缺新纯函数、contextual命令/schema、MCP片段显示及原structured不变；原v1改写引文反例仍失败。
 
 ```python
 def test_citation_fragments_preserve_original():
@@ -119,7 +119,7 @@ def test_citation_fragments_preserve_original():
 # 展开后只交给旧parser验证；错误ref/错页hash/重复缺页/JSON重键必须失败。
 ```
 
-- [ ] 实施纯引用选择器和contextual工具/worker接线。
+- [x] 实施纯引用选择器和contextual工具/worker接线。
 
 ```python
 def citation_fragments(text):
@@ -136,5 +136,42 @@ def citation_fragments(text):
 # _run_mission仅COMPLETED且compiled时展开已验证events.reads，失败固定错误且无原始摘要回显。
 ```
 
-- [ ] 一次定向组：新纯函数、research_tools、worker、context；不重跑原parser/Bridge/PG全套。新接点必须通过实际MCP工具及worker事件夹具，不以字符串存在代替转换验证。原legacy/frame大小测试如需改，只改新版contextual final夹具，保留原目的。
+- [x] 一次定向组：新纯函数、research_tools、worker、context；不重跑原parser/Bridge/PG全套。新接点必须通过实际MCP工具及worker事件夹具，不以字符串存在代替转换验证。原legacy/frame大小测试如需改，只改新版contextual final夹具，保留原目的。
 - [ ] 提交修订代码，交同独立reviewer差量复核；root随后以新输出路径跑同快照fresh模型一次，旧失败保留。通过后才进行已准备的新有界实网任务，最后更新唯一证据/状态并同步main。
+
+### quote_ref实现及新实际模型检查
+
+`969aa1b`实现引用编号选择、MCP TextContent片段展示、worker展开到原严格v1；RED21失败/148通过，最终定向169通过/23.56秒。独立审核唯一P2是超长编号整数转换逃逸固定错误；`2516f5d`改有限映射查找，RED2、GREEN2/0.85秒，selector13/0.12秒。仅该差量复核后Spec/Quality PASS，不追认原失败。
+
+绑定`2516f5d`，session44341固定快照新模型检查：exit1，1失败/25.85秒；2次READ、3次MODEL成功，最终STOPPED/research_selection_invalid。实际strict schema精确送达，但三次出站input均不含text_fragments/quote_ref；模型两页返回q0，未进入原runtime逐字parser。输入24060（缓存12200）、输出475。仅更改工具TextContent尚未证明能让实际模型看见编号；继续定位实际MCP展示通道，不放宽不存在编号校验、不再追加来源搜索。安全证据`/tmp/yike-citation-choice-{snapshot,structure,transport}-20260913.json`保留；来源网络调用0、合成租户、无生产/外联/新商机。
+
+根因已按本机Codex源码确认：structuredContent优先，TextContent被忽略。按同spec“实际Codex工具通道修订”继续该引用接点：仅citation成功READ的模型投影移入structuredContent，完整原READ放宿主JSONL_meta；worker对原证据及其确定性投影双重核验。不改持久READ/最终parser，不加付费搜索。新增一次真实CLI＋本机假provider往返覆盖实际工具通道，定向RED/GREEN后差量审核；仅当无费接点检查通过才做新输出路径的固定快照真实模型检查。旧失败证据保留。
+
+## Task 2：研究原文只读回查（唯一前端补口）
+
+**Files:** 后端 `pilot/research_runtime.py`（委托dynamic）、`pilot/dynamic_research_runtime.py`（只读方法）、`pilot/research_execution_api.py`（GET）；客户端 `desktop/src/shared/researchRuntime.ts`、`desktop/src/shared/contracts.ts`、`desktop/src/main/servicePolicy.ts`、`desktop/src/renderer/services/researchRuntime.ts`、`desktop/src/renderer/pages/tasks/ResearchProgress.tsx`，新增同目录 `ResearchReadEvidence.tsx`。对应API/PG和desktop现有定向测试；必要时新建独立测试文件以免碰citation实现者文件。不改tools/worker/context/引用选择器，不改既有schema或DB迁移。
+
+**Interfaces:** 按spec末尾固定GET/JSON；后端`reads(claims,task_id,*,run_id,after=0,limit=5)`，fixed仅委托已配置dynamic否则501。客户端可选`reads(taskId,runId,after?,signal?)`接口保留旧fixture兼容；服务调用必须校验响应taskId/runId、序号递增/唯一、分页前进、来源URL与字符串范围、严格DTO。IPC操作`researchRuntime.reads`仍使用主进程固定路径，不接收自由URL。
+
+- [x] RED：成功READ但模型筛选停止仍可GET原文；相邻tenant/owner和错误run拒绝；FAILED/UNKNOWN/MODEL不在列表；limit/after严格，序号分页无重复，损坏结果不暴露。每次读取前后持久动作数量不变。
+
+```python
+# 复用受限PG已有成功READ/STOPPED夹具，不执行真实网络或模型：
+before = effect_count()
+result = runtime.reads(claims, task_id, run_id=run_id, after=0, limit=1)
+assert result['items'][0]['text'] == original_text
+assert result['items'][0]['contentSha256'] == original_sha
+assert effect_count() == before
+```
+
+- [x] 最小实现：验证身份/任务/run→查询最多limit+1条本身份成功READ→复用journal配对和effect_result/hash校验→只投影六个原文字段→确定nextAfter。原始payload/context或异常文本不返回。API严格query绑定；前端通过既有transport/IPC固定operation，使用现有受控折叠/长文展开样式，不换皮或另造信息架构。
+- [x] 一次受影响定向测试：后端真实受限PG纵切/API及客户端合同/transport/取消换任务隔离；旧服务不支持仍可查看原进度/候选。root提供唯一owned PG端口62169，不自行新开多个数据库；和citation纯测试并行可行，双方不要同时用同一DB夹具。
+- [ ] 提交本切片，独立一次差量审核；root冻结后只做一次界面宽/窄视口检查，与引用修复合并到同一个试用候选，不另构包。不把fixture原文当新商机或生产证据。
+
+### Task2实施证据
+
+代码`2b118fa`（14文件）完成只读成功READ API、严格客户/任务/运行与原动作配对校验、固定IPC/客户端DTO、现有进度页按需展开及手动分页。API after/limit有0/5默认；Unicode上限按后端码点而非UTF-16计算，完整原文不截断。旧服务不可用不影响候选链路；读取不产生模型/网络动作。
+
+定向API14通过/3.88秒；前端三文件33通过/4.83秒，末次UI21通过/3.05秒（有重叠，不累加）；typecheck通过。真实受限PG纵切1通过/4.15秒，覆盖身份/分页/动作数量不变/损坏配对拒绝。root复用既有隔离visual入口添加合成“有原文、筛选未完成”状态，Node Playwright实际Chrome检查1366×900和390×844均无横向溢出、展开收起通过、JS错误0；截图`/tmp/yike-read-visibility-{1366,390}-20260913.png`。初尝Python无Playwright依赖，切用已有Node依赖，未安装新依赖；不是产品失败。此处是界面及合同证据，不是实网商机/客户/生产验收，待独立差量审核。
+
+独立审核`2b118fa` PASS，无P0/P1/P2；唯一P3是卡片仅有安全打开按钮，未直接显示URL。`00f35ba`补一行可折行纯文本URL和一条现有测试断言；同名定向RED1/3.34秒、GREEN1/2.03秒，20项未选不当通过；截图为补此行前的显示证据，不追认为最终像素验收。报告`/tmp/yike-trial-finish-independent-review.md`，后续仅合并citation新差量及此两行核对，不重审Task2整批。
