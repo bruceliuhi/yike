@@ -123,3 +123,13 @@ EXE `D:/ykl913/make/squirrel.windows/x64/YikeAI-Setup.exe`，SHA256 `5eb702b6aee
 原生UI新任务“验收-小红书AI定制-92724a5”实际切换普通平台采集、保留三词/账号/10条300秒，确认摘要正确显示已连接；策略确认并启动成功创建任务。实际本机输出 `platform-collection-output/d62506e5-a1cd-4f6e-ab85-81eb3597c0ef` 进度RUNNING，终态BLOCKED_INPUT/PLATFORM_AUTH_REQUIRED，0记录；不是采集成功。已从UI取消该测试任务，最后读取为取消中/尚未停止确认，不重放。未发送或开启新付费研究。
 
 源码发现e1bee5a只修正登录入口精确“我”导航定位，采集guard遗留旧后代span XPath，可能误计其他作者链接。最小修复统一为相同精确role定位，保留官方URL、唯一可见、严格href/账号及请求前后守卫；不增加重试/放松账号。两条新回归先RED2失败，登录+采集相邻60项通过/0跳过13.84秒（含已安装runtime受控HTTP），pytest旧临时目录ACL清理warning保留。新字节待独立差量审核及一次候选；真实采集是否恢复仍须实装验证，Goal ACTIVE。
+
+### a6a2dae实装：真实小红书十条入库与判断通过
+
+上述差量独立GO，审核worker/tests blob为82616ef514aabad14796e2d0f6dc12c5d366f743、1fdedc0fae3e949f2f2d251f70952843429db104；main源码a6a2dae84c2a884379c431d398c33158576cb578。唯一EXE `D:/ykm913/make/squirrel.windows/x64/YikeAI-Setup.exe`，642851328字节，SHA256 `444d238facf587e44fe0b1d8e28a8f89ff099be6d1cd6c65aed9e0a21f1b5791`，NotSigned。载荷生成/搬迁1通过118.21秒，manifest `0c4d7946b9bbf217bb2c401db0feb0c21b5201babe160dec370c84ab98c2c116`；采集worker与冻结源码SHA256均c8046cc81c0faaf92918838657c554edecb18dd4004dbc27bf5c967cad0eb193。651桌面输入前后一致、40renderer相同，Forge/安装exit0；实装ASAR `71f7fb4687456dc9859293ef68b5e9ebe3dc867ae53b8fdf69f9e34d6a7d6369`匹配。没有服务端部署或凭据修改。
+
+原生窗口86638788通过“新建普通采集”创建“验收-小红书AI定制-a6a2dae”，原画像/账号/三词、10条300秒，21:54:03从UI启动。三个实际输出目录f4b9f2f6、dacf45b3、0edee015均完成SUCCEEDED；21:55:01服务端接收，客户端本机执行已完成/停止登记已确认，重新进入列表显示已完成10/10。发现线索页显示10条待复核候选及评论逐字原文、原帖上下文、链接/时间；非样例或脚本代替UI。本人原平台登录沿用，账号误判修复实机通过。
+
+从UI选择“谁会做APP啊，求大佬”，实际评论“想做个app”、发布时间2024-11-21；21:57:02真实AI判断返回信息不足、匹配度待确认、仅观察。未伪造来源核验、未确认入客户商机库、未生成草稿或发送。不能将10条原始候选写成10条有效商机或完整上线。
+
+下一批集中价值与体验：运行配置小红书SORT_TYPE仍popularity_descending，本批旧帖/教程较多，应优先验证新鲜明确需求与买方词；此后再接草稿/跟进。实测旧927取消任务仍CANCELLING（后端已领取任务无停止确认收口）、当前普通详情刷新前仍显示旧RUNNING、范围覆盖UTC/过多技术提示等缺口保留，按影响合批修复，不立即为文档或每条文案单独构包。完整Goal保持ACTIVE。
