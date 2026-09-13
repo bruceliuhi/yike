@@ -28,3 +28,16 @@
 定向RED→GREEN：contextual命令schema及桥接原样传递、无context旧命令；规则有效性/新指纹/单份画像/语义反例；两个ASSESS在研究用完分配后仍能判断；BACKGROUND完成后未发布0、真正未发布与budget-skipped不被吞掉；取消/UNKNOWN保持原证据。
 
 一批独立代码审核；同快照fresh模型一次验证真实schema/合法final/输入量。若需要业务候选，则使用有明确业务需求的另一个固定公开快照作不同样本并披露来源，不把BACKGROUND成功当候选判断通过。实网验证仅在上述通过后新建有界任务，保留旧失败，不重放旧UNKNOWN。只对修改影响的检查追加；不重复全量测试或安装包。
+
+## 实测后的定点设计修订：引用选择而非抄写
+
+`a23c0ce`独立Spec/Quality已通过，但新固定快照真实模型session2589终态失败：两页JSON形状、URL、SHA、规则绑定全正确，第二页123字符quote不是持久text中的连续逐字片段，原parser如实拒绝。三次实际出站均保留strict schema，故不能将问题归因于提供商未收到schema，也不放宽引用校验。具体是拼接、改写或空白差异未留存，不能猜测。旧“本批不引入page_ref”的选择保留历史；本修订仍不引入page_ref、不移除URL/SHA，仅把模型生成quote改为选择宿主片段。
+
+- 新增内部 `research-citation-choice-v1` final：原root/page字段不变，仅 `quote` 换成 `quote_ref`（例如`q1`）；保留URL＋内容SHA完整版本身份、decision/reason。原持久 `research-page-selection-v1` 不变。
+- 纯函数将成功READ的**原始text按Python字符每400字符连续切片**，不规整空白、不删除字符、不从标题/链接生成证据。序号q1起；拼接全部片段必须精确恢复原text。选择纯空白片段仍被原校验拒绝。所有片段可见，不截掉后部需求。
+- 仅已编译contextual任务给内部MCP启用显式citation模式。模型可见TextContent以 `text_fragments:[{quote_ref,text}]` 替代text；同条structuredContent仍保持既有原始READ（包括完整text），不新增持久证据字段。展示明确是原文的宿主切片、不是作者身份或采购证明。legacy工具内容和命令保持不变。
+- contextual worker严格解析新final（精确字段、版本、无重复JSON键、无额外页、每个成功唯一URL/SHA恰一次），从已经验证的READ事件按同一纯函数解析片段，重建旧v1 summary，再经原parser验证。不得从模型回传文本、标题、未知ref或其他页面恢复，不修复错误ref，不接受v1作为新模式降级。失败返回固定 `research_selection_invalid`，不回显模型原文。
+- runtime仍依据**同tenant/owner/task/run持久成功READ**做原v1 parser及绑定、发布判断；worker重建不成为信任捷径。取消/失败任务不转成完成。规则版本/哈希追加citation版本，不能沿用旧确认。
+- 不改Bridge、预算或普通assessment，不新增请求/重试。模型是否同时收到structuredContent影响输入量，必须实测，不预先声称此修订更省token。
+
+验收只追加：片段可逆/中文与emoji/长文后部/空白、越界ref/跨页与错sha/重复缺页/非逐字v1仍拒绝；contextual MCP显示＋原structured一致，legacy不变；实际worker事件转换后能通过旧parser，错误final失败不降级；复用现有最终PG及191项证据，仅新接点定向测试。独立同审核者差量复核，然后同输入**新任务**一次真实模型核验；旧失败artifact不可覆盖。

@@ -82,3 +82,43 @@ Run: `.venv/bin/python -m pytest -q tests/test_codex_research_worker.py tests/te
 ## Evidence
 
 开始：基线79427c0；已复用上一轮定位证据，尚未实施/测试。
+
+## Task 1 实网门禁发现后的单一修订：quote_ref
+
+前置证据：`a23c0ce`整批独立Spec/Quality PASS；固定快照真实模型strict schema送达，但第二页quote非逐字导致STOPPED。按同日spec末尾修订继续本批，暂不合并/部署；不是再新增一组泛化功能。
+
+**Files:** 新增 `pilot/research_citation_selection.py`、`tests/test_research_citation_selection.py`；修改 `pilot/research_tools.py`、`pilot/codex_research_worker.py`、`pilot/research_context.py`及其三份定向测试。不改 `research_page_selection.py`、runtime、Bridge、原Skill包或DB。
+**Interfaces:** `citation_fragments(text: str) -> list[dict]`（q1起，每段原文400字符）；`citation_choice_schema() -> dict`（detached内部schema）；`CITATION_CHOICE_INSTRUCTIONS`；`expand_citation_choices(summary: str, evidences: list[dict]) -> str`（严格新final→旧v1 JSON）。`build_server(..., citation_mode=False)`仅显式True投影TextContent，新增CLI `--citation-mode`开关；legacy完全不变。
+
+- [ ] 先添加RED：缺新纯函数、contextual命令/schema、MCP片段显示及原structured不变；原v1改写引文反例仍失败。
+
+```python
+def test_citation_fragments_preserve_original():
+    text = '甲\n🙂e\u0301 ' * 101
+    pieces = citation_fragments(text)
+    assert ''.join(p['text'] for p in pieces) == text
+    assert all(1 <= len(p['text']) <= 400 for p in pieces)
+    assert pieces[0]['quote_ref'] == 'q1'
+
+# 展开后只交给旧parser验证；错误ref/错页hash/重复缺页/JSON重键必须失败。
+```
+
+- [ ] 实施纯引用选择器和contextual工具/worker接线。
+
+```python
+def citation_fragments(text):
+    return [{'quote_ref': f'q{i // 400 + 1}', 'text': text[i:i + 400]}
+            for i in range(0, len(text), 400)]
+
+# schema从现有detached page_selection_schema()派生：版本变citation-choice-v1，
+# pages.items.properties删除quote新增quote_ref:string，required对应替换。
+# expand严格读取JSON后按精确(url,sha)找到同版evidence；解析q1等存在编号；
+# 只取citation_fragments(evidence['text'])对应片段，生成旧v1 root；
+# 用原parse_page_selection(expanded,evidences)验证后返回JSON；不重试/降级。
+# call_tool只投影content中的evidence.text为text_fragments，structuredContent原result不动。
+# _command仅contextual加--citation-mode，使用新schema与绑定指令；
+# _run_mission仅COMPLETED且compiled时展开已验证events.reads，失败固定错误且无原始摘要回显。
+```
+
+- [ ] 一次定向组：新纯函数、research_tools、worker、context；不重跑原parser/Bridge/PG全套。新接点必须通过实际MCP工具及worker事件夹具，不以字符串存在代替转换验证。原legacy/frame大小测试如需改，只改新版contextual final夹具，保留原目的。
+- [ ] 提交修订代码，交同独立reviewer差量复核；root随后以新输出路径跑同快照fresh模型一次，旧失败保留。通过后才进行已准备的新有界实网任务，最后更新唯一证据/状态并同步main。
