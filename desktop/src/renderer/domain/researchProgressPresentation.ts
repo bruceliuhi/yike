@@ -71,9 +71,13 @@ export function researchProgressPresentation(value:ResearchRuntimeStatus):Resear
   const effects=[value.usage.sourceReads,value.usage.modelCalls];
   const failed=effects.some(item=>item.failed>0)||value.sourceProgress?.some(item=>item.phase==='FAILED')===true;
   const closeout=value.usage.resourceCloseout;
-  const uncertain=value.effectsPending||effects.some(item=>item.pending>0||item.unknown>0)
+  const backgroundRunning=value.contractVersion===4&&value.phase==='RUNNING';
+  const pending=value.effectsPending||effects.some(item=>item.pending>0)||closeout?.state==='DRAINING';
+  const uncertain=(!backgroundRunning&&pending)||effects.some(item=>item.unknown>0)
+    ||['effect_unknown','assessment_unknown','broker_stop_unknown','broker_stream_unknown'].includes(value.stopCode??'')
+    ||[value.discovery?.searches,value.discovery?.reads].some(item=>(item?.unknown??0)>0)
     ||value.sourceProgress?.some(item=>item.phase==='UNKNOWN')===true
-    ||closeout?.state==='DRAINING'||closeout?.state==='UNCERTAIN'||(closeout?.overduePermits??0)>0;
+    ||closeout?.state==='UNCERTAIN'||(closeout?.overduePermits??0)>0;
   if(uncertain)nextStep='请先查询原研究状态，核实已有请求，不要重新发送或新建任务。';
   const warning=[
     failed?'本轮存在读取或分析失败记录；失败不代表没有结果。请查看原文与分析。':null,

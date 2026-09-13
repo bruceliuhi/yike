@@ -111,6 +111,7 @@ export function useDesktopExecution(prepared: StrategyReceipt | null) {
       if(entry.kind!=='RESEARCH'||result.receipt.execution.request_id!==entry.requestId)throw new Error();
       save({...entry,state:'RESEARCH_RECORDED',receipt:result.receipt.execution,researchReceipt:result.receipt});
     } else save({...entry, state: result.state});
+    return result;
   }
   const start = (input: DesktopStartCommand) => run(async () => {
     const command = desktopExecutionCommandSchema.parse(input) as DesktopStartCommand;
@@ -124,7 +125,7 @@ export function useDesktopExecution(prepared: StrategyReceipt | null) {
     save(entry); // Retain the UUID before IPC; the main process persists its complete original operation.
     await dispatch(entry, command);
   });
-  const startResearch=(input:DesktopResearchStartCommand)=>run(async()=>{
+  const startResearch=(input:DesktopResearchStartCommand,onRecorded?:(receipt:ResearchStartReceipt)=>void)=>run(async()=>{
     const command=desktopExecutionCommandSchema.parse(input) as DesktopResearchStartCommand;
     const binding={profileVersionId:command.profileVersionId,strategyVersionId:command.strategyVersionId,
       configurationSha256:command.configurationSha256,targets:structuredClone(command.targets)};
@@ -134,7 +135,8 @@ export function useDesktopExecution(prepared: StrategyReceipt | null) {
     const entry:DesktopExecutionEntry={kind:'RESEARCH',requestId:command.requestId,operation:'START',
       command:{action:'RESEARCH_RECOVER',requestId:command.requestId},start:binding,state:'UNKNOWN'};
     save(entry); // Persist only a recovery handle in renderer memory; the token goes directly to native IPC.
-    await dispatch(entry,command);
+    const result=await dispatch(entry,command);
+    if(scope.current()&&result?.state==='RESEARCH_RECORDED')onRecorded?.(result.receipt);
   });
   const recover = (supplied: DesktopExecutionEntry, retry = false, validate?: () => Promise<DesktopStartCommand>) => run(async () => {
     const entry = latest.current.entries.find(value => value.requestId === supplied.requestId);

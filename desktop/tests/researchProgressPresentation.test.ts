@@ -1,6 +1,7 @@
 import {expect,it} from 'vitest';
 import {researchProgressPresentation} from '../src/renderer/domain/researchProgressPresentation';
-import {RESEARCH_RUNTIME_SOURCE_LABEL,RESEARCH_RUNTIME_SOURCE_SCOPE,type ResearchRuntimeStatus} from '../src/shared/researchRuntime';
+import {RESEARCH_RUNTIME_SOURCE_LABEL,RESEARCH_RUNTIME_SOURCE_SCOPE,researchRuntimeStatusSchema,type ResearchRuntimeStatus} from '../src/shared/researchRuntime';
+import {dynamicStatus} from './fixtures/dynamicResearch';
 
 const counts={issued:0,pending:0,succeeded:0,failed:0,unknown:0};
 function value(overrides:Partial<ResearchRuntimeStatus>={}):ResearchRuntimeStatus {
@@ -61,6 +62,19 @@ it('keeps pending and failure risks visible even for terminal success or cancel'
   const canceled=researchProgressPresentation(value({phase:'CANCELED',usage:{...value().usage,modelCalls:{...counts,failed:1}}}));
   expect(canceled.warning).toContain('读取或分析');
   expect(canceled.nextStep).not.toMatch(/重启|重试|继续研究/);
+});
+
+it('shows normal background work as progress, not an unknown-result warning',()=>{
+  const input=researchRuntimeStatusSchema.parse({...dynamicStatus(),phase:'RUNNING',effectsPending:true,newActionsBlocked:true,canAdvance:false,
+    usage:{...value().usage,modelCalls:{...counts,issued:1,pending:1},
+      resourceCloseout:{state:'DRAINING',overduePermits:0,asOf:'2026-09-13T07:30:00Z'}}});
+  expect(researchProgressPresentation(input)).toMatchObject({warning:null,nextStep:'正在研究，无需重复启动。'});
+  for(const risk of [
+    {...input,stopCode:'effect_unknown'},
+    {...input,usage:{...input.usage,modelCalls:{...counts,issued:1,unknown:1}}},
+    {...input,usage:{...input.usage,resourceCloseout:{...input.usage.resourceCloseout!,state:'UNCERTAIN' as const}}},
+    {...input,usage:{...input.usage,resourceCloseout:{...input.usage.resourceCloseout!,overduePermits:1}}},
+  ])expect(researchProgressPresentation(risk).warning).toContain('尚有请求或执行记录待核实');
 });
 
 it('detects source and closeout risk without mutating its input',()=>{

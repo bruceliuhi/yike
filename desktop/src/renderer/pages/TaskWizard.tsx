@@ -479,7 +479,9 @@ export function TaskWizardPage() {
           if(!await strategy.recheck() || !startScope.current())throw new Error('当前研究策略尚未重新核实。');
           const command=await nativeResearchStartCommand(snapshot,prepared,freshConnections,session,usageSnapshot,crypto.randomUUID(),freshResearch);
           if(!startScope.current())throw new RequestCancelled();
-          await desktopExecution.startResearch(command);
+        await desktopExecution.startResearch(command,receipt=>{
+          if(startScope.current())navigate(`/collection?task=${receipt.execution.task_id}`);
+        });
           return;
         }
         await desktopExecution.start(await validateDesktopStart(crypto.randomUUID()));
