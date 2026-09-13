@@ -32,6 +32,11 @@ it('retains a strict optional plan through draft and strategy, without changing 
   draft.research!.limits.sources=1;expect(prepare).toThrow();
   draft.research!.limits.sources=2;draft.publicSource='v2ex-outsourcing-authors-v1';expect(prepare).toThrow();
 });
+it('defaults invited-trial research to a generous explicit usage cap',()=>{
+  const defaults=defaultResearchSettings();
+  expect(defaults.maxSoubei).toBe(100_000);
+  expect(defaults.limits).toEqual({sources:100,minutes:15,modelCalls:50});
+});
 it('allots frozen fair shares and only permits a plan on capability v3',()=>{
   expect(researchRecordAllotments(5,plan.sources).map(row=>row.recordLimit)).toEqual([3,2]);
   expect(researchRecordAllotments(1,plan.sources)).toEqual([]);
