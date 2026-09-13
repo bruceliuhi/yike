@@ -62,7 +62,7 @@ command += ['--output-schema', str(schema_path)]
 
 schema只用object/array/string、properties/required/additionalProperties/enum，不用provider不支持的长度约束。decision enum为ASSESS/BACKGROUND，reason为现有7项，schema_version只有现有值；组合语义仍parser负责。阶段指令按spec逐项覆盖，无草稿、文件写入职责；每份原规则SHA按文件名稳定排序写入文本，不注入其全文。只在compiled存在时以HOST_RESEARCH_CONTEXT_JSON代替重复description；无context原行为保留。
 
-进度仅当存在合法背景跳过标记且无其他跳过时从未发布中扣除；原缺batch、invalid/budget跳过仍保留。复用现有receipt实际字段，不猜结构。
+进度仅当存在合法背景跳过标记且无其他跳过时从未发布中扣除；原缺batch、invalid/budget跳过仍保留。查询补取现有 `batch.execution_context` 的跳过计数与page_selection；receipt仍只提供items，不新增其字段。
 
 - [ ] Step 3 — 受限PG端到端定向RED/GREEN。
 

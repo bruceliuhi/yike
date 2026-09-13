@@ -14,7 +14,7 @@
 1. **结构化 final**：仅已编译研究上下文启用固定 `research-page-selection-v1` JSON schema，经 `codex exec --output-schema` 下发。`--json`继续接事件。schema限定精确root/page字段、类型和枚举；URL/hash/逐字quote/大小/每页完整性仍由现有持久证据parser严格校验。schema不含提供商不支持的字符串/数组长度约束；本地语义约束不变。没有上下文的旧任务不加schema。临时schema在原隔离任务目录内生成，不加载用户文件。桥接保留实际 `text.format`，不静默删除或降级。官方说明：[Codex非交互模式](https://learn.chatgpt.com/docs/non-interactive-mode)。国产提供商兼容性仍须有界实测，不能以文档或mock证明。
 2. **研究执行投影**：新增 `pilot/research_stage_rules.py` 保存固定版本执行文本，替换模型输入中的四份全文，但继续加载和校验原规则包；其全部摘要进入新的rule指纹，原规则变化不能无感沿用旧绑定。保留客户画像优先、业务问题→交付物→行动、四发现路径、独立来源/作者扩展、原文和搜索摘要区分、时效/作者更新、购买对象/资金归属、预算匿名联系路径未知不误杀、按成果而非岗位标题判断、明确排除与反证、部分历史不可称净新增、授权与只读边界。去掉本阶段的写文件/维护队列/写联系草稿/商业验证动作；普通assessment与其规则包不改。对有context的mission只发送一次已验证画像（在context JSON中），不再正文重复description。规则版本追加 `/efficient-handoff-v1`，持久context JSON和绑定字段形状不改。旧运行绑定不兼容时继续拒绝，不重放。
 3. **预算分配**：维持用户确认的总MODEL_CALL和来源上限、不增请求、不新增自动重试。设M=modelCalls、R=task.max_records、P=原max_reads，预留 `A=min(R,P,max(1,M//2))` 次普通判断，研究最多 `M-A` 次。这是有界分配而非“确保所有页面都能判断”的承诺；原SEARCH/READ上限不降低，模型不能把超出判断额度的潜在需求强标BACKGROUND。剩余额度仍以持久账本逐次校验，研究实际少用则普通判断可继续使用未花额度；更多候选保留已发布/待分析并按原STOPPED/resource_limit_exceeded结束，不伪造COMPLETED。不引入未确认的追加预算/继续任务。M=2时保持1+1；R=1只预留1。
-4. **真实进度**：修正unpublishedOriginals。无candidate batch仍为未发布；有效BACKGROUND回执是已完成筛选，不计未发布。被容量/无效原文阻止入库的ASSESS零项回执仍计未发布，不能把所有零项都清零。复用batch.receipt中的 `skipped_background_count`，无新字段/表/客户端协议。
+4. **真实进度**：修正unpublishedOriginals。无candidate batch仍为未发布；有效BACKGROUND回执是已完成筛选，不计未发布。被容量/无效原文阻止入库的ASSESS零项回执仍计未发布，不能把所有零项都清零。复用batch.execution_context中的 `skipped_background_count`、`page_selection`及其他跳过计数；receipt只提供items，不新增其字段。无新表/客户端协议。
 
 ## 不变边界
 
