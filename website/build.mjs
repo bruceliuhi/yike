@@ -107,13 +107,23 @@ for (const article of insights) {
 }
 fallback.insights = `<section class="seo-fallback"><p>意客 AI · 内容洞察</p><h1>把客户问题讲清楚，让销售知道下一步</h1><p>围绕主动获客、需求信号、平台监控、证据化商机和销售协作，整理可复核的方法、示例和数据边界。</p>${insights.map((article) => `<h2><a href="/insights/${article.slug}/">${article.title}</a></h2><p>${article.description}</p>`).join('')}</section>`;
 
+function pageImage(key) {
+  const article = insights.find((item) => `insights-${item.slug}` === key);
+  if (article) return `${site}/${article.category === '平台监控' || article.category === '数据与合规' ? 'illustrations/insights/signal-node-v1.webp' : 'illustrations/insights/article-evidence-v1.webp'}`;
+  if (key === 'insights') return `${site}/illustrations/insights/content-hub-hero-v1.webp`;
+  if (key === 'features') return `${site}/illustrations/insights/signal-node-v1.webp`;
+  if (key === 'scenarios') return `${site}/illustrations/insights/article-evidence-v1.webp`;
+  return `${site}/product-screenshots/workbench-navigation.png`;
+}
+
+
 function jsonLd(key) {
   const page = pages[key];
   const organization = { '@type': 'Organization', '@id': `${site}/#organization`, name: '意客 AI', url: site, logo: `${site}/brand/yike-logo-mark.png` };
   const graph = [organization, { '@type': 'WebSite', '@id': `${site}/#website`, url: site, name: '意客 AI', publisher: { '@id': `${site}/#organization` }, inLanguage: 'zh-CN' }, { '@type': 'WebPage', '@id': `${site}${page.path}#webpage`, url: `${site}${page.path}`, name: page.title, description: page.description, isPartOf: { '@id': `${site}/#website` }, about: { '@id': `${site}/#organization` }, inLanguage: 'zh-CN' }];
   if (key === 'insights') graph.push({ '@type': 'CollectionPage', name: page.title, url: `${site}${page.path}`, mainEntity: { '@type': 'ItemList', itemListElement: insights.map((article, index) => ({ '@type': 'ListItem', position: index + 1, name: article.title, url: `${site}/insights/${article.slug}/` })) } });
   const article = insights.find((item) => `insights-${item.slug}` === key);
-  if (article) graph.push({ '@type': 'Article', '@id': `${site}${page.path}#article`, headline: article.title, description: article.description, datePublished: article.date, dateModified: article.date, author: { '@type': 'Organization', name: '意客 AI 产品团队', url: site }, publisher: { '@id': `${site}/#organization` }, mainEntityOfPage: { '@id': `${site}${page.path}#webpage` }, inLanguage: 'zh-CN' });
+  if (article) graph.push({ '@type': 'Article', '@id': `${site}${page.path}#article`, headline: article.title, description: article.description, image: pageImage(key), datePublished: article.date, dateModified: article.date, author: { '@type': 'Organization', name: '意客 AI 产品团队', url: site }, publisher: { '@id': `${site}/#organization` }, mainEntityOfPage: { '@id': `${site}${page.path}#webpage` }, inLanguage: 'zh-CN' });
   if (key === 'products-workbench' || key === 'products-crm') graph.push({ '@type': 'SoftwareApplication', name: key === 'products-workbench' ? '意客 AI 商机工作台' : '意客 AI 客户情报 CRM', applicationCategory: 'BusinessApplication', operatingSystem: key === 'products-workbench' ? 'macOS, Windows' : 'Web', url: `${site}${page.path}`, publisher: { '@id': `${site}/#organization` }, description: page.description });
   if (key === 'faq') graph.push({ '@type': 'FAQPage', mainEntity: [{ '@type': 'Question', name: '意客 AI 是什么？', acceptedAnswer: { '@type': 'Answer', text: '意客 AI 是面向企业销售团队的客户情报与商机工作台，用于发现公开需求信号、复核机会证据并准备下一步跟进。' } }, { '@type': 'Question', name: '支持哪些平台？', acceptedAnswer: { '@type': 'Answer', text: '按授权和连接状态支持小红书、抖音、B站、知乎等平台，并可研究公开网页与行业社区。实际可用范围以账号授权、连接状态和项目配置为准。' } }, { '@type': 'Question', name: '“全网”具体指什么？', acceptedAnswer: { '@type': 'Answer', text: '这里的全网，指已授权的平台与系统当前可访问的公开来源，不代表绕过登录、权限或平台限制，也不承诺无限制覆盖所有网站。' } }, { '@type': 'Question', name: '会自动发送消息吗？', acceptedAnswer: { '@type': 'Answer', text: '评论和私信先生成草稿，外部触达在发送前由人确认。系统会记录发送、回复和下一步，便于团队复核与协作。' } }, { '@type': 'Question', name: '7 天试用能拿到什么？', acceptedAnswer: { '@type': 'Answer', text: '围绕一个真实业务场景完成首轮研究，交付可复核的机会记录、原文证据和带上下文的跟进草稿；具体范围按授权和版本确认。' } }] });
   if (key !== 'home') { const articleForCrumb = insights.find((item) => `insights-${item.slug}` === key); graph.push({ '@type': 'BreadcrumbList', itemListElement: articleForCrumb ? [{ '@type': 'ListItem', position: 1, name: '首页', item: site + '/' }, { '@type': 'ListItem', position: 2, name: '内容洞察', item: site + '/insights/' }, { '@type': 'ListItem', position: 3, name: articleForCrumb.title, item: site + page.path }] : [{ '@type': 'ListItem', position: 1, name: '首页', item: site + '/' }, { '@type': 'ListItem', position: 2, name: page.title.split('｜')[0], item: site + page.path }] }); }
@@ -129,13 +139,13 @@ await cp(join(root, 'public'), join(dist), { recursive: true });
 function renderHtml(key) {
   const page = pages[key];
   const canonical = `${site}${page.path}`;
-  const head = `\n    <link rel="canonical" href="${canonical}" />\n    <meta property="og:type" content="website" />\n    <meta property="og:url" content="${canonical}" />\n    <meta property="og:site_name" content="意客 AI" />\n    <meta property="og:locale" content="zh_CN" />\n    <meta name="robots" content="index,follow,max-image-preview:large" />\n    <meta name="twitter:card" content="summary_large_image" />\n    <meta name="twitter:title" content="${page.title}" />\n    <meta name="twitter:description" content="${page.description}" />\n    <meta name="twitter:image" content="${site}/product-screenshots/workbench-navigation.png" />\n    ${jsonLd(key)}`;
+  const head = `\n    <link rel="canonical" href="${canonical}" />\n    <meta property="og:type" content="website" />\n    <meta property="og:url" content="${canonical}" />\n    <meta property="og:site_name" content="意客 AI" />\n    <meta property="og:locale" content="zh_CN" />\n    <meta name="robots" content="index,follow,max-image-preview:large" />\n    <meta name="twitter:card" content="summary_large_image" />\n    <meta name="twitter:title" content="${page.title}" />\n    <meta name="twitter:description" content="${page.description}" />\n    <meta name="twitter:image" content="${pageImage(key)}" />\n    ${jsonLd(key)}`;
   return base
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${page.title}</title>`)
     .replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${page.description}" />`)
     .replace(/<meta property="og:title" content="[^"]*" \/>/, `<meta property="og:title" content="${page.title}" />`)
     .replace(/<meta property="og:description" content="[^"]*" \/>/, `<meta property="og:description" content="${page.description}" />`)
-    .replace(/<meta property="og:image" content="[^"]*" \/>/, `<meta property="og:image" content="${site}/product-screenshots/workbench-navigation.png" />`)
+    .replace(/<meta property="og:image" content="[^"]*" \/>/, `<meta property="og:image" content="${pageImage(key)}" />`)
     .replace('</head>', `${head}\n  </head>`)
     .replace('<div id="app"></div>', `<div id="app">${fallback[key]}</div>`)
     .replace('data-page="home"', `data-page="${key}"`);

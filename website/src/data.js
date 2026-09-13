@@ -9,7 +9,11 @@ export const nav = [
 ];
 
 export const platformLogos = [
-  ['小红书', 'XHS'], ['抖音', 'DOU'], ['B站', 'B'], ['知乎', '知'], ['公开网页', 'WEB'],
+  ['小红书', 'XHS', '/brand/platforms/xiaohongshu.svg'],
+  ['抖音', 'DOU', '/brand/platforms/douyin.svg'],
+  ['B站', 'B', '/brand/platforms/bilibili.svg'],
+  ['知乎', '知', '/brand/platforms/zhihu.svg'],
+  ['公开网页', 'WEB', '/brand/platforms/web.svg'],
 ];
 
 export const workbenchFeatures = [
