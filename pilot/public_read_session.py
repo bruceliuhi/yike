@@ -12,7 +12,7 @@ from pilot.research_effects import dispatch_effect
 from pilot.research_effect_contract import is_known_read_failure
 
 _FAILURE_CODES = {"invalid_url", "unavailable", "unsupported_content", "too_large", "timeout",
-                  "not_found", "unsupported_media_type", "access_restricted", "rate_limited",
+                  "not_found", "unsupported_media_type", "access_restricted", "rate_limited", "connection_unavailable",
                   "invalid_read_result", "deadline_exceeded", "read_limit_reached", "closed"}
 
 

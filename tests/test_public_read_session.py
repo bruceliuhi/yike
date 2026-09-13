@@ -47,6 +47,24 @@ def test_undiscovered_invalid_and_budget_fail_without_dispatch():
     assert calls == [] and reader.calls == []
 
 
+def test_connection_failure_is_cached_then_another_page_can_be_read():
+    from tests.test_durable_research_dispatch import Journal, dispatcher as durable_dispatcher
+    journal=Journal(); reader=Reader()
+    def read(url,*,deadline):
+        reader.calls.append(url)
+        if url.endswith('/unreachable'): raise PublicReadError('connection_unavailable')
+        return evidence(url)
+    reader.read=read
+    session=PublicReadSession(max_reads=2,deadline=time.monotonic()+30,allowed_url=lambda _:True,
+        effect_dispatcher=durable_dispatcher(journal),reader=reader)
+    first=session.read('https://example.com/unreachable',deadline=time.monotonic()+10)
+    assert first=={'status':'FAILED','code':'connection_unavailable','replayed':False}
+    assert session.read('https://example.com/unreachable',deadline=time.monotonic()+10)==first|{'replayed':True}
+    assert session.read('https://example.com/other',deadline=time.monotonic()+10)['status']=='READ'
+    assert len(reader.calls)==2
+    assert [event[1]['status'] for event in journal.events if event[0]=='finish']==['FAILED','SUCCEEDED']
+
+
 def test_failure_is_cached_and_close_blocks_late_success():
     class Failing(Reader):
         def read(self,url,*,deadline): self.calls.append(url); raise PublicReadError("timeout")
@@ -73,7 +91,8 @@ def test_durable_hard_failure_keeps_reason_but_blocks_subsequent_io(code):
     assert journal.events[-1][1]['status']=='UNKNOWN'
 
 
-def test_known_read_ack_loss_is_not_reported_as_continuable_result():
+@pytest.mark.parametrize('code',['not_found','connection_unavailable'])
+def test_known_read_ack_loss_is_not_reported_as_continuable_result(code):
     from tests.test_durable_research_dispatch import Journal, dispatcher as durable_dispatcher
     journal=Journal(); reader=Reader(); original=journal.finish
     def lose(*args,**kwargs):
@@ -82,7 +101,7 @@ def test_known_read_ack_loss_is_not_reported_as_continuable_result():
     journal.finish=lose
     def fail(url,*,deadline):
         reader.calls.append(url)
-        raise PublicReadError('not_found')
+        raise PublicReadError(code)
     reader.read=fail
     session=PublicReadSession(max_reads=2,deadline=time.monotonic()+30,allowed_url=lambda _:True,
         effect_dispatcher=durable_dispatcher(journal),reader=reader)

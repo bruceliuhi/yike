@@ -35,14 +35,15 @@ def test_posts_exact_envelope_and_returns_valid_evidence(monkeypatch):
     assert request.read() == b'{"url":"https://example.com/"}'
 
 
-def test_failure_codes_are_mapped(monkeypatch):
+@pytest.mark.parametrize('code',['timeout','connection_unavailable'])
+def test_failure_codes_are_mapped(monkeypatch,code):
     original=httpx.Client
     def client_for(payload):
         return lambda **kw: original(transport=httpx.MockTransport(lambda req:httpx.Response(200,json=payload)),**kw)
-    monkeypatch.setattr(httpx,"Client",client_for({"status":"FAILED","code":"timeout","replayed":False}))
+    monkeypatch.setattr(httpx,"Client",client_for({"status":"FAILED","code":code,"replayed":False}))
     client=ReadToolClient(url="http://127.0.0.1:1234/v1/public-read",token="token")
     with pytest.raises(PublicReadError) as error: client.read("https://example.com/",deadline=datetime.now(timezone.utc)+timedelta(seconds=2))
-    assert error.value.code == "timeout"
+    assert error.value.code == code
 
 
 def test_rejects_evidence_returned_after_absolute_deadline(monkeypatch):

@@ -38,6 +38,23 @@ beforeEach(() => {
 afterEach(() => {cleanup(); vi.useRealTimers();});
 
 describe('desktop execution original-request safety', () => {
+  it('ignores a recorded research response after the account scope changes',async()=>{
+    const hook=renderHook(()=>useDesktopExecution(prepared));
+    await waitFor(()=>expect(hook.result.current.loaded).toBe(true));
+    let finish!:(value:DesktopExecutionResult)=>void;
+    execute.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+    const onRecorded=vi.fn();let pending!:Promise<void>;
+    await act(async()=>{pending=hook.result.current.startResearch(researchCommand,onRecorded);});
+    context={...context,session:{authenticated:true,userId:'another-user'}};
+    hook.rerender();
+    await act(async()=>{
+      finish({state:'RESEARCH_RECORDED',receipt:{schema_version:'research-execution-v1',execution:receipt,
+        reservation:{...researchCommand.reservation,reservation_id:taskId,status:'RESERVED'}}});
+      await pending;
+    });
+    expect(onRecorded).not.toHaveBeenCalled();
+    expect(hook.result.current.entries).toHaveLength(0);
+  });
   it('serially loads both journals through the real identity, controller, and session locks',async()=>{
     const researchRequest={...request,request_id:taskId};
     const researchRecord={record_version:2 as const,record_type:'RESEARCH_START' as const,request:researchRequest,reservation:{quote_id:requestId,

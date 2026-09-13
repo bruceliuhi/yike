@@ -196,7 +196,19 @@ describe('original TaskWizard signed execution entry', () => {
     for(const storage of [localStorage,sessionStorage])for(let index=0;index<storage.length;index++)
       expect(storage.getItem(storage.key(index)!)).not.toContain('abc.def');
   });
-  it.each([false,true])('starts dynamic research without local public binding and rechecks service availability (%s)',async(changed)=>{
+  it.each(['unknown','recorded','changed'] as const)('starts dynamic research without local public binding and rechecks service availability (%s)',async(outcome)=>{
+    const changed=outcome==='changed';
+    const taskId=crypto.randomUUID();
+    if(outcome==='recorded')execute.mockImplementation(async command=>{
+      if(command.action==='LIST')return {state:'LIST',requests:[]};
+      if(command.action==='RESEARCH_LIST')return {state:'RESEARCH_LIST',requests:[]};
+      if(command.action==='RESEARCH_START')return {state:'RESEARCH_RECORDED',receipt:{schema_version:'research-execution-v1',
+        execution:{schema_version:'execution-runtime-v1',request_id:command.requestId,operation:'START',task_id:taskId,
+          run_id:crypto.randomUUID(),status:'PENDING',stop_confirmed:false,
+          platform_runs:[{platform:'PUBLIC_WEB',platform_run_id:crypto.randomUUID(),status:'PENDING'}]},
+        reservation:{...command.reservation,reservation_id:crypto.randomUUID(),status:'RESERVED'}}};
+      return {state:'FAILED',error:'EXECUTION_SESSION_FAILED'};
+    });
     draft={...draft,publicSource:'public-web-agent-v1',research:{...defaultResearchSettings(),maxSoubei:20,
       limits:{sources:20,minutes:15,modelCalls:20},dynamicScope:{version:1,maxAgeDays:60,timezone:'Asia/Shanghai'}}};
     const request=strategyPrepareRequest(draft,prepared.request_id,{max_records:10,max_runtime_seconds:60});
@@ -218,7 +230,12 @@ describe('original TaskWizard signed execution entry', () => {
       maxFreshEffectsPerAdvance:1,settlementState:'PENDING'});
     fireEvent.click(start);
     if(changed){await screen.findByText(/所选板块研究能力已变化/);expect(execute.mock.calls.some(([c])=>c.action==='RESEARCH_START')).toBe(false);}
-    else await waitFor(()=>expect(execute.mock.calls.some(([c])=>c.action==='RESEARCH_START')).toBe(true));
+    else {
+      await waitFor(()=>expect(execute.mock.calls.some(([c])=>c.action==='RESEARCH_START')).toBe(true));
+      if(outcome==='recorded')await waitFor(()=>expect(context.navigate).toHaveBeenCalledWith(`/collection?task=${taskId}`));
+      else {await waitFor(()=>expect(start.disabled).toBe(true));expect(context.navigate).not.toHaveBeenCalled();}
+      expect(execute.mock.calls.filter(([c])=>c.action==='RESEARCH_START')).toHaveLength(1);
+    }
   });
   it('blocks native research when the explicit backend capability is unavailable',async()=>{
     draft={...draft,research:{...defaultResearchSettings(),maxSoubei:20}};sessionStorage.setItem('yike.ui.draft.v1.task.'+context.session.userId,JSON.stringify(draft));

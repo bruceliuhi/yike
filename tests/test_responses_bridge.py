@@ -298,6 +298,34 @@ def test_public_read_invalid_envelope_fails_closed_and_absent_service_has_no_rou
         assert httpx.post(bridge.base_url + "/public-read").status_code == 404
 
 
+def test_determinate_connect_failure_survives_real_bridge_and_next_page_read():
+    from datetime import timedelta
+    from pilot.open_web_reader import PublicReadError
+    from pilot.public_read_session import PublicReadSession
+    from pilot.read_tool_client import ReadToolClient
+    from tests.test_durable_research_dispatch import Journal, dispatcher
+    calls=[]; journal=Journal()
+    class Reader:
+        def read(self,url,*,deadline):
+            calls.append(url)
+            if url.endswith('/unreachable'): raise PublicReadError('connection_unavailable')
+            return _page(url)
+        def close(self): pass
+    session=PublicReadSession(max_reads=2,deadline=monotonic()+10,allowed_url=lambda _:True,
+        effect_dispatcher=dispatcher(journal),reader=Reader())
+    with ResponsesBridge(api_key=KEY,model='m',max_requests=1,deadline=monotonic()+10,
+            allowed_tools=(),read_service=session,transport=httpx.MockTransport(lambda _:None)) as bridge:
+        client=ReadToolClient(url=bridge.read_url,token=bridge.token)
+        for _ in range(2):
+            with pytest.raises(PublicReadError) as error:
+                client.read('https://example.com/unreachable',deadline=datetime.now(timezone.utc)+timedelta(seconds=3))
+            assert error.value.code=='connection_unavailable'
+        result=client.read('https://example.com/other',deadline=datetime.now(timezone.utc)+timedelta(seconds=3))
+        assert result['url']=='https://example.com/other'
+    assert calls==['https://example.com/unreachable','https://example.com/other']
+    assert [event[1]['status'] for event in journal.events if event[0]=='finish']==['FAILED','SUCCEEDED']
+
+
 @pytest.mark.parametrize("effect_dispatcher,read_service", [(False, None), (None, object())])
 def test_new_bridge_dependencies_require_callable_interfaces(effect_dispatcher, read_service):
     with pytest.raises(Exception, match="^invalid_config$"):

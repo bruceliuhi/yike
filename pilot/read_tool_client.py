@@ -11,7 +11,7 @@ from pilot.open_web_reader import PublicReadError, normalize_public_url, valid_p
 
 _MAX_RESPONSE_BYTES=300_000
 _ALLOWED={"invalid_url","unavailable","unsupported_content","too_large","timeout",
-          "not_found","unsupported_media_type","access_restricted","rate_limited"}
+          "not_found","unsupported_media_type","access_restricted","rate_limited","connection_unavailable"}
 
 
 class ReadToolClient:
