@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import '@testing-library/jest-dom/vitest';
 import {
   act,
   cleanup,
@@ -69,6 +70,16 @@ it("opens the real P09 coverage tab by default and keeps the original platform/e
   fireEvent.click(screen.getByRole("tab", { name: "任务配置" }));
   expect(screen.queryByText("v1")).toBeNull();
   expect(screen.getByRole("tab", { name: "执行记录" })).toBeTruthy();
+});
+it('keeps the actionable result and usage visible while collapsing the technical coverage table',async()=>{
+  render(<SearchCoverage run={coverageRun}/>);
+  await screen.findByText('TEST 登录失效，本方向未完成。');
+  expect(screen.getByText('TEST 登录失效，本方向未完成。')).toBeVisible();
+  expect(screen.getByRole('button',{name:'重新连接'})).toBeVisible();
+  expect(screen.getByRole('region',{name:'本次搜贝用量'})).toBeVisible();
+  expect(screen.getByText('独立来源')).not.toBeVisible();
+  fireEvent.click(screen.getByText('查看各搜索方向'));
+  expect(screen.getByText('独立来源')).toBeVisible();
 });
 it("missing capability or verified session account never requests or fabricates coverage", async () => {
   delete context.service.searchCoverage;

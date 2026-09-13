@@ -68,6 +68,8 @@ export function CandidateAssessmentDetails({
           </div>
         </dl>
       ) : null}
+      <details className="usage-advanced">
+      <summary>查看详细判断依据</summary>
       <div className="candidate-assessment-dimensions">
         {dimensions.map(([key, label]) => (
           <section
@@ -99,6 +101,7 @@ export function CandidateAssessmentDetails({
           </section>
         ))}
       </div>
+      </details>
       <dl className="candidate-evidence-facts">
         {evidenceFields.map(([key, label]) => (
           <div key={key}>

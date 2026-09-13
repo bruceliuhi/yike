@@ -25,6 +25,19 @@
 .coverage-left {
   min-width: 0;
 }
+.coverage-layout--customer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.coverage-layout--customer > .coverage-aside {
+  order: -1;
+}
+.coverage-layout--customer summary {
+  cursor: pointer;
+  padding: 10px 0;
+  color: var(--muted, #64748b);
+}
 .coverage-table-panel,
 .coverage-breakdown,
 .coverage-aside {

@@ -9,6 +9,7 @@ import {
   act,
 } from "@testing-library/react";
 import { afterEach, beforeEach, it, expect, vi } from "vitest";
+import '@testing-library/jest-dom/vitest';
 import { NativeCollectionTasks } from "../../src/renderer/pages/tasks/NativeCollectionTasks";
 import {TasksPage} from '../../src/renderer/pages/Tasks';
 import {taskDraftOwner} from '../../src/renderer/app/taskDraft';
@@ -90,13 +91,31 @@ beforeEach(() => {
   } as unknown as AppContextValue;
 });
 afterEach(cleanup);
+it('keeps task status and actions up front while hiding server bookkeeping',async()=>{
+ context.route=parseRoute(`#/collection?task=${id}`);
+ render(<NativeCollectionTasks/>);
+ await screen.findByRole('button',{name:'取消本次采集'});
+ expect(screen.getByText(/服务端停止登记：/)).not.toBeVisible();
+ expect(screen.getByText(/执行期限：/)).not.toBeVisible();
+ expect(screen.getByText(/当前状态：运行中/)).toBeVisible();
+ expect(screen.getByRole('button',{name:'查看本次发现线索'})).toBeVisible();
+ fireEvent.click(screen.getByText('查看运行详情'));
+ expect(screen.getByText(/服务端停止登记：/)).toBeVisible();
+});
 it('removes task identity while leaving status and cancellation visible', async()=>{
  context.route=parseRoute(`#/collection?task=${id}`);
  render(<NativeCollectionTasks/>);
  await screen.findByRole('button',{name:'取消本次采集'});
  expect(document.body.textContent).not.toContain(id);
  expect(screen.getByRole('button',{name:'取消本次采集'})).toBeTruthy();
- expect(screen.getByText(/服务端状态：运行中/).closest('details')).toBeNull();
+ expect(screen.getByText(/当前状态：运行中/).closest('details')).toBeNull();
+});
+it.each(['CANCELLING','CANCELED'])('keeps an unconfirmed physical stop visible for %s even with diagnostics closed',async(status)=>{
+ context.route=parseRoute(`#/collection?task=${id}`);
+ vi.mocked(context.service.taskFeed!.get).mockResolvedValue({...item,status,stop_confirmed:false} as never);
+ render(<NativeCollectionTasks/>);
+ expect(await screen.findByText('停止结果尚未确认，请刷新当前任务，不要重复启动。')).toBeVisible();
+ expect(screen.getByText(/服务端停止登记：/)).not.toBeVisible();
 });
 it('creates a fresh ordinary draft from the production task-feed route in the current account scope',async()=>{
  const key='yike.ui.draft.v1.task.'+taskDraftOwner(context.session.userId,context.session.accountScope);
