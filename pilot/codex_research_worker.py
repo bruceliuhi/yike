@@ -515,6 +515,8 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                         bridge_args=dict(api_key=api_key,model=model,max_requests=max_requests,
                                          deadline=deadline,
                                          allowed_tools=_RESEARCH_TOOLS if search_enabled else _TOOLS)
+                        if controlled and compiled is not None:
+                            bridge_args['require_initial_tool'] = True
                         if search_enabled:
                             bridge_args['search_service'] = search_service
                         if controlled:

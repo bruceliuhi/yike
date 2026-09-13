@@ -316,6 +316,7 @@ def test_controlled_worker_passes_shared_gate_and_host_read_credentials(worker,t
     assert gate is captured['read']['effect_dispatcher'] is captured['bridge']['effect_dispatcher']
     assert captured['read']['allowed_url']('https://new-source.example/project')
     assert captured['bridge']['read_service'] is services[0]
+    assert not captured['bridge'].get('require_initial_tool', False)
     assert services[0].closed and captured['search_closed']
     data=capture.read_text()
     assert 'YIKE_PUBLIC_READ_URL=http://127.0.0.1:1/v1/public-read' in data
@@ -409,7 +410,7 @@ def test_seeded_controlled_worker_transports_entries_and_completes_without_searc
         base_url='http://127.0.0.1:1/v1'
         search_url=base_url+'/public-search'; read_url=base_url+'/public-read'
         token='synthetic-local-token'; records=[]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs): captured['bridge']=kwargs
         def __enter__(self): return self
         def __exit__(self,*exc): pass
     monkeypatch.setattr(worker,'PublicSearchSession',Search)
@@ -426,6 +427,7 @@ def test_seeded_controlled_worker_transports_entries_and_completes_without_searc
         research_context=context,effect_dispatcher=lambda kind,payload,deadline,perform:perform(deadline))
     data=json.loads(capture.read_text())
     assert result['status']=='COMPLETED' and result['searches']==[] and len(result['reads'])==1
+    assert captured['bridge']['require_initial_tool'] is True
     serialized=json.dumps(data['argv'])
     assert 'YIKE_PUBLIC_ENTRY_URLS=' in serialized and 'https://www.v2ex.com/recent' in serialized
     assert '--citation-mode' in serialized

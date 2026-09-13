@@ -78,11 +78,14 @@ class ResponsesBridge:
     def __init__(self, *, api_key: str, model: str, max_requests: int,
                  deadline: float, allowed_tools: tuple[tuple[str, str], ...],
                  transport=None, search_service=None, effect_dispatcher=None,
-                 read_service=None, unix_socket_path=None):
+                 read_service=None, unix_socket_path=None, require_initial_tool=False):
         if not isinstance(api_key, str) or not api_key or not isinstance(model, str) or not model:
             raise BridgeError("invalid_config")
         if type(max_requests) is not int or not 1 <= max_requests <= 20:
             raise BridgeError("invalid_config")
+        if type(require_initial_tool) is not bool:
+            raise BridgeError("invalid_config")
+        self._require_initial_tool = require_initial_tool
         if (isinstance(deadline, bool) or not isinstance(deadline, (int, float))
                 or not math.isfinite(deadline) or deadline > time.monotonic() + 1800):
             raise BridgeError("invalid_config")
@@ -305,6 +308,13 @@ class ResponsesBridge:
             if self._count >= self._max_requests:
                 self._send(handler, 429, {"error": {"code": "request_limit"}})
                 return
+            if self._require_initial_tool and self._count == 0:
+                if not outbound.get("tools"):
+                    self._send(handler, 400, {"error": {"code": "invalid_request"}})
+                    return
+                # Bind the actual first-action policy into the same durable MODEL
+                # payload. Later turns may finish normally; no retry is introduced.
+                outbound["tool_choice"] = "required"
             self._count += 1
             ordinal = self._count
             self._records.append({"ordinal": ordinal, "status": "unknown", "code": "in_flight",
