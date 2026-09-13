@@ -16,6 +16,7 @@ it('labels an author-update model citation independently from the main body',()=
  const result=parseCandidateReviewResult({kind:'assessment',requestId:'TEST.author:1',candidateId:fixture.candidateId,assessment:fixture},{requestId:'TEST.author:1'});
  if(result.kind!=='assessment')throw new Error('wrong result');
  render(<CandidateAssessmentDetails assessment={result.assessment}/>);
+ fireEvent.click(screen.getByText('查看详细判断依据'));
  expect(screen.getByText('作者回复 1')).toBeVisible();
  expect(screen.getByText('作者回复 1')).not.toHaveAttribute('title');
 });
@@ -150,6 +151,16 @@ describe("candidate original evidence", () => {
 });
 
 describe("candidate assessment details", () => {
+  it('prioritizes summary, risks and drafts while keeping detailed scoring opt-in',()=>{
+    const value=assessment();
+    render(<CandidateAssessmentDetails assessment={value}/>);
+    expect(screen.getByText(value.summary)).toBeVisible();
+    expect(screen.getByText(value.evidence.risk)).toBeVisible();
+    expect(screen.getByText(value.evidence.unknowns)).toBeVisible();
+    expect(screen.getByText('采购意向依据')).not.toBeVisible();
+    fireEvent.click(screen.getByText('查看详细判断依据'));
+    expect(screen.getByText('采购意向依据')).toBeVisible();
+  });
   it.each(['EXCLUDE','OBSERVE'] as const)('does not present outreach drafts for %s while keeping evidence', decision => {
     const value={...assessment(),decision,effectiveDecision:decision,grade:null};
     render(<CandidateAssessmentDetails assessment={value}/>);
@@ -163,6 +174,7 @@ describe("candidate assessment details", () => {
   it("shows four separate dimensions with reasons and every verbatim field-labelled citation", () => {
     const value = assessment();
     render(<CandidateAssessmentDetails assessment={value} />);
+    fireEvent.click(screen.getByText('查看详细判断依据'));
     for (const [key, label] of [["businessMatch", "业务匹配"], ["intent", "需求意向"], ["urgency", "紧迫度"], ["actionability", "可行动性"]] as const) {
       const dimension = within(screen.getByRole("region", { name: label }));
       expect(dimension.getByText("高")).toBeVisible();
@@ -214,6 +226,7 @@ describe("candidate assessment details", () => {
     const value = assessment();
     value.urgency = { level: "UNKNOWN", reason: "未提到明确时间", citations: [] };
     render(<CandidateAssessmentDetails assessment={value} />);
+    fireEvent.click(screen.getByText('查看详细判断依据'));
     const dimension = within(screen.getByRole("region", { name: "紧迫度" }));
     expect(dimension.getByText("未知")).toBeVisible();
     expect(dimension.getByText("未提到明确时间")).toBeVisible();

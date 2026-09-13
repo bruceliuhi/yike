@@ -323,9 +323,12 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
         <section className="panel" aria-label="真实采集详情">
           <h2>{item.name || "采集任务"}</h2>
           <p>
-            服务端状态：{statusLabels[item.status]} · 入库记录：
-            {item.records_used} / {item.max_records}
+            当前状态：{statusLabels[item.status]}
           </p>
+          {['CANCELLING','CANCELED'].includes(item.status) && !item.stop_confirmed && <Notice tone="warning">停止结果尚未确认，请刷新当前任务，不要重复启动。</Notice>}
+          <details className="usage-advanced">
+          <summary>查看运行详情</summary>
+          <p>已保存记录：{item.records_used} / {item.max_records}（不是已确认商机数量）</p>
           <p>
             创建时间：{formatDate(item.created_at)} · 执行期限：
             {formatDate(item.deadline_at)}
@@ -352,6 +355,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
               ))}
             </tbody>
           </table>
+          </details>
           {item.mode === "monitor" && (
             <Notice>
               这是一次监控轮次；取消本次采集不会暂停后续计划。可前往监控任务管理计划。

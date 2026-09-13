@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
+import '@testing-library/jest-dom/vitest';
 import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import {ResearchProgress} from '../../src/renderer/pages/tasks/ResearchProgress';
 import {ResearchReadEvidence} from '../../src/renderer/pages/tasks/ResearchReadEvidence';
@@ -23,6 +24,17 @@ beforeEach(()=>{
 afterEach(cleanup);
 function view(){return render(<ResearchProgress taskId={taskId} runId={runId} taskStatus="PENDING"/>);}
 function readMethod(){return reads as unknown as NonNullable<ResearchRuntimeService['reads']>;}
+it('puts execution counts behind diagnostics while keeping results, usage and safe actions visible',async()=>{
+  view();
+  await screen.findByText(/入库原文：/);
+  expect(screen.getByText(/入库原文：/)).not.toBeVisible();
+  expect(screen.getByText(/实际搜贝用量待结算/)).toBeVisible();
+  expect(screen.getByRole('button',{name:'查看原文与分析'})).toBeVisible();
+  expect(screen.getByRole('button',{name:'继续研究'})).toBeVisible();
+  fireEvent.click(screen.getByText('查看处理明细'));
+  expect(screen.getByText(/入库原文：/)).toBeVisible();
+  expect(advance).not.toHaveBeenCalled();
+});
 it('renders each planned source receipt and continues past the first empty source',async()=>{
   const sourceProgress=[{sourceId:'v2ex-qna-v1',phase:'NOT_STARTED',acceptedOriginals:null,recordLimit:5},
     {sourceId:'v2ex-outsourcing-authors-v1',phase:'NOT_STARTED',acceptedOriginals:null,recordLimit:5}];
@@ -35,7 +47,9 @@ it('renders each planned source receipt and continues past the first empty sourc
   status.mockResolvedValue(plan);
   let release!:(value:unknown)=>void;
   advance.mockResolvedValueOnce(first).mockImplementationOnce(()=>new Promise(resolve=>{release=resolve;}));
-  view();await screen.findByRole('table',{name:'逐来源研究进度'});
+  view();await screen.findByText('查看处理明细');
+  fireEvent.click(screen.getByText('查看处理明细'));
+  await screen.findByRole('table',{name:'逐来源研究进度'});
   fireEvent.click(screen.getByRole('button',{name:'继续研究'}));
   await waitFor(()=>expect(advance).toHaveBeenCalledTimes(2));
   expect(screen.getByText(/入库原文：尚未确认/)).toBeTruthy();
@@ -179,7 +193,7 @@ it('loads successful READ evidence only after opening the dynamic read-only sect
   await screen.findByText('展台需求');
   expect(screen.getByText(item.url)).toBeTruthy();
   expect(reads).toHaveBeenCalledWith(taskId,runId,0,expect.any(AbortSignal));
-  expect(screen.getByText('研究原文，尚非已确认商机')).toBeTruthy();
+  expect(screen.getByText(/研究原文，尚非已确认商机/)).toBeTruthy();
   expect(screen.getByText('展开完整原文')).toBeTruthy();
   expect(screen.getByText('原文'.repeat(400)).className).toContain('fixed-evidence-body--collapsed');
   fireEvent.click(screen.getByRole('button',{name:'展开完整原文'}));
