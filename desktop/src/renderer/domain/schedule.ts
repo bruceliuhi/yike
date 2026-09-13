@@ -44,8 +44,8 @@ export function scheduleContractBlocker(
 ): string | null {
   if (schedule.policyVersion === undefined) return null;
   if (schedule.policyVersion !== SCHEDULE_POLICY_VERSION)
-    return "此日程规则版本不受当前客户端支持，请核对原配置。";
+    return "此日程暂不可用，请重新设置执行时间。";
   if (supportedVersion !== SCHEDULE_POLICY_VERSION)
-    return "执行服务尚未支持当前日程规则，可保存草稿，暂不能启动此监控。";
+    return "暂不能启动此监控，可先保存草稿，稍后再试。";
   return null;
 }

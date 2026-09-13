@@ -39,6 +39,9 @@ describe("monitor configuration without executing a scheduler", () => {
   });
   it("requires executor opt-in for v1 while identifying the legacy contract", () => {
     expect(scheduleContractBlocker(schedule(), undefined)).toContain("暂不能启动");
+    expect(scheduleContractBlocker(schedule(), undefined)).not.toMatch(/执行服务|规则版本/);
+    // @ts-expect-error Exercise the defensive path for an incompatible persisted policy.
+    expect(scheduleContractBlocker(schedule({policyVersion: 2}), 1)).toBe('此日程暂不可用，请重新设置执行时间。');
     expect(scheduleContractBlocker(schedule(), 1)).toBeNull();
     expect(scheduleContractBlocker(schedule({policyVersion: undefined}), undefined)).toBeNull();
     expect(schedulePolicyDescription(schedule({policyVersion: undefined}))[0]).toContain("历史日程未声明");

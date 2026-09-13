@@ -329,7 +329,7 @@ describe("P18 available management contracts", () => {
 
 it("backup parser rejects credentials, unknown versions and invalid JSON", () => {
   expect(readBackup(backup()).spaceId).toBe(account.spaceId);
-  expect(() => readBackup("not json")).toThrow(/JSON/);
+  expect(() => readBackup("not json")).toThrow("无法读取此备份，请重新选择意客AI导出的备份文件。");
   expect(() =>
     readBackup(backup().replace('"schemaVersion":1', '"schemaVersion":2')),
   ).toThrow(/版本/);

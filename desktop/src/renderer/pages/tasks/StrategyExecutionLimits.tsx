@@ -27,7 +27,7 @@ export function StrategyExecutionLimits({ value, onChange }: {
   };
 
   return (
-    <section className="research-settings" aria-label="执行保护上限">
+    <section className="research-settings" aria-label="处理范围">
       {!validStrategyExecutionLimits(value) && <>
         <p className="field-hint">请采用推荐设置，或展开高级设置调整处理范围。</p>
         <Button variant="ghost" onClick={() => onChange({ ...SUGGESTED_LIMITS })}>使用推荐设置</Button>
@@ -68,9 +68,6 @@ export function StrategyExecutionLimits({ value, onChange }: {
             <span>秒</span>
           </div>
         </Field>
-        <p className="field-hint">
-          这是本次执行保护；不是搜贝上限，也不是研究来源、时长或模型调用硬上限。
-        </p>
         <Button
           variant="ghost"
           onClick={() => onChange({ ...SUGGESTED_LIMITS })}
