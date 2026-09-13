@@ -28,7 +28,7 @@
 .hero-proofline{display:flex;flex-wrap:wrap;gap:9px;margin-top:26px}.hero-proofline span{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid #dbe5f2;border-radius:5px;background:rgba(255,255,255,.58);color:#65738a;font-size:12px}.hero-proofline .live-dot{margin-right:0}.hero-proofline span:nth-child(2):before,.hero-proofline span:nth-child(3):before{content:"✓";color:#1fae7d;font-weight:800}@media(max-width:520px){.hero-proofline{gap:6px}.hero-proofline span{font-size:11px;padding:6px 8px}}
 
 /* impact pass: make the first screen outcome-led and image-dominant */
-.hero{grid-template-columns:minmax(390px,.82fr) minmax(560px,1.18fr);gap:34px;padding-top:72px}
+.hero{grid-template-columns:minmax(460px,.92fr) minmax(520px,1.08fr);gap:34px;padding-top:72px}
 .hero-copy{max-width:560px}
 .hero h1{font-size:clamp(46px,4.8vw,72px);margin-top:18px;margin-bottom:22px}
 .hero-lead{max-width:500px;font-size:17px;line-height:1.7}
