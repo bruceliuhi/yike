@@ -5,12 +5,17 @@ import hashlib
 import hmac
 import json
 import secrets
+import re
 import time
 from dataclasses import dataclass
 
 
 class InvalidPilotToken(PermissionError):
     pass
+
+
+SMS_SESSION_SECONDS = 30 * 86400
+SMS_RENEW_BEFORE_SECONDS = 7 * 86400
 
 
 @dataclass(frozen=True)
@@ -21,15 +26,28 @@ class TokenClaims:
     auth_source: str = 'legacy'
 
 
-def issue_token(user_id: str, secret: str, *, ttl_seconds: int = 3600, now: int | None = None, auth_source: str = 'legacy') -> str:
+def issue_token(user_id: str, secret: str, *, ttl_seconds: int = 3600, now: int | None = None, auth_source: str = 'legacy', revocation_key: str | None = None) -> str:
     if auth_source not in {'legacy','sms','temporary_access'}:
         raise ValueError('invalid authentication source')
     payload = {"sub": user_id, "exp": (now if now is not None else int(time.time())) + ttl_seconds, "jti": secrets.token_urlsafe(24)}
     if auth_source != 'legacy':
         payload['auth_source'] = auth_source
+    if revocation_key is not None:
+        if auth_source != 'sms' or not re.fullmatch(r'[a-f0-9]{64}', revocation_key):
+            raise ValueError('invalid session family')
+        payload['session_family'] = revocation_key
     raw = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).rstrip(b"=")
     signature = hmac.new(secret.encode(), raw, hashlib.sha256).digest()
     return raw.decode() + "." + base64.urlsafe_b64encode(signature).rstrip(b"=").decode()
+
+
+def renew_sms_token(claims: TokenClaims, secret: str) -> str | None:
+    """Call only after registry authentication; renewed tokens share logout fencing."""
+    now = int(time.time())
+    if claims.auth_source != 'sms' or not 0 < claims.expires_at - now <= SMS_RENEW_BEFORE_SECONDS:
+        return None
+    return issue_token(claims.user_id, secret, ttl_seconds=SMS_SESSION_SECONDS,
+                       now=now, auth_source='sms', revocation_key=claims.revocation_key)
 
 
 def verify_token(token: str, secret: str, *, now: int | None = None) -> str:
@@ -64,6 +82,10 @@ def verify_token_claims(token: str, secret: str, *, now: int | None = None) -> T
         source = payload.get('auth_source', 'legacy')
         if source not in {'legacy','sms','temporary_access'}:
             raise InvalidPilotToken('invalid pilot token')
-        return TokenClaims(user_id, expires_at, hashlib.sha256(raw).hexdigest(), source)
+        family = payload.get('session_family')
+        if family is not None and (source != 'sms' or not isinstance(family, str)
+                                   or not re.fullmatch(r'[a-f0-9]{64}', family)):
+            raise InvalidPilotToken('invalid pilot token')
+        return TokenClaims(user_id, expires_at, family or hashlib.sha256(raw).hexdigest(), source)
     except (ValueError, TypeError, KeyError, json.JSONDecodeError, base64.binascii.Error) as error:
         raise InvalidPilotToken("invalid pilot token") from error

@@ -20,6 +20,7 @@ import {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   clearLocalDrafts();
   window.history.replaceState(null, "", "/");
 });
@@ -52,6 +53,42 @@ function mount(overrides: Partial<YikeService> = {}) {
 }
 
 describe("设备与授权", () => {
+  it("后台核验失效覆盖设置页先前的已登录状态", async () => {
+    vi.useFakeTimers();
+    const identity={authenticated:true,userId:"test-user"};
+    mount({session:vi.fn().mockResolvedValueOnce(identity).mockResolvedValueOnce(identity)
+      .mockRejectedValue(new ServiceError("HTTP_401","expired",401))});
+    await act(async()=>{});
+    expect(screen.getByText("已登录")).toBeTruthy();
+    await act(async()=>vi.advanceTimersByTimeAsync(30 * 60_000));
+    expect(screen.queryByText("已登录")).toBeNull();
+    expect(screen.getAllByText("登录已失效，请重新登录；当前草稿仍保留。").length).toBeGreaterThan(0);
+  });
+  it.each([
+    [401, "登录已失效，请重新登录；本机草稿仍保留。"],
+    [503, "暂时无法确认登录状态，请重试；本机草稿仍保留。"],
+  ])("会话核验错误 %s 不冒充已登录，允许重新核验", async (status, message) => {
+    const session = vi.fn()
+      .mockResolvedValueOnce({authenticated: true, userId: "test-user"})
+      .mockRejectedValueOnce(new ServiceError("TEST_FAILURE", "test", status))
+      .mockResolvedValue({authenticated: true, userId: "test-user"});
+    const service = mount({session});
+    await screen.findByText(message);
+    expect(screen.queryByText("已登录")).toBeNull();
+    fireEvent.click(screen.getByRole("button", {name: "核验登录"}));
+    await screen.findByText("已登录");
+    expect(service.logout).not.toHaveBeenCalled();
+  });
+  it("重新核验已保存的会话，不把过期认证显示为已登录，也不清除草稿", async () => {
+    sessionStorage.setItem("yike.ui.draft.v1.test", "draft-only");
+    const service = mount({session: vi.fn()
+      .mockResolvedValueOnce({authenticated: true, userId: "test-user"})
+      .mockResolvedValue({authenticated: false})});
+    await screen.findByText("登录已失效，请重新登录；本机草稿仍保留。");
+    expect(screen.queryByText("已登录")).toBeNull();
+    expect(service.logout).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem("yike.ui.draft.v1.test")).toBe("draft-only");
+  });
   it('设置保留商业授权，自动连接准备不显示手动身份入口', async () => {
     const identity={getStatus:vi.fn(),prepare:vi.fn().mockResolvedValue({state:'READY',
       deviceId:'12345678-1234-1234-1234-123456789abc',credentialVersion:1})};
@@ -130,7 +167,7 @@ describe("设备与授权", () => {
     await screen.findByText(
       "已离开客户空间并清除本机草稿，服务端注销结果尚未确认。",
     );
-    expect(service.session).toHaveBeenCalledTimes(2);
+    expect(service.session).toHaveBeenCalledTimes(3); // Bootstrap, settings verification, logout verification.
     expect(sessionStorage.getItem("yike.ui.draft.v1.test")).toBeNull();
     await waitFor(() => expect(window.location.hash).toBe("#/login"));
     expect(screen.queryByText("退出成功")).toBeNull();
@@ -149,7 +186,7 @@ describe("设备与授权", () => {
       ).getByRole("button", { name: "退出登录" }),
     );
     await screen.findByText("服务暂时无法连接");
-    await waitFor(() => expect(service.session).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(service.session).toHaveBeenCalledTimes(3));
     expect(sessionStorage.getItem("yike.ui.draft.v1.test")).toBe("draft-only");
     expect(
       screen.getByRole("dialog", { name: "退出当前客户空间？" }),

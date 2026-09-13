@@ -5,7 +5,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from pilot.auth import issue_token
+from pilot.auth import issue_token, SMS_SESSION_SECONDS
 from pilot.phone_auth import PhoneAuthError
 from pilot.sessions import authenticate_session
 
@@ -93,12 +93,12 @@ def register_phone_api(router, store, phone_auth, sender: SmsSender | None,
                        if body.trial_code else phone_auth.consume(body.phone, body.code))
         except PhoneAuthError as error:
             raise _auth_error(error) from None
-        token = issue_token(user_id, auth_secret, auth_source='sms')
+        token = issue_token(user_id, auth_secret, auth_source='sms', ttl_seconds=SMS_SESSION_SECONDS)
         # Resolve tenant/session with the normal restricted app connection.
         current = authenticate_session(store, token, auth_secret)
         response = JSONResponse(current.public_view())
         response.set_cookie("pilot_session", token, httponly=True,
-                            secure=request.url.scheme == "https", samesite="strict", max_age=3600)
+                            secure=request.url.scheme == "https", samesite="strict", max_age=SMS_SESSION_SECONDS)
         return response
 
     return available

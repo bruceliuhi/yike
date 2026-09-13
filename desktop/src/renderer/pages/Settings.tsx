@@ -4,6 +4,7 @@ import { useApp } from "../app/context";
 import { clearLocalDrafts, useAction, useResource } from "../app/hooks";
 import { accountSchema } from "../domain/management";
 import { safeReturnTo } from "../domain/routes";
+import { ServiceError } from "../services/contracts";
 import {
   managementRequest,
   unavailableManagement,
@@ -41,9 +42,28 @@ const dialogTitles: Record<Exclude<SettingsDialog, null>, string> = {
 };
 
 export function SettingsPage() {
-  const { service, session, route, navigate, notify, refreshSession } = useApp();
+  const { service, session, route, navigate, notify, refreshSession, sessionProblem } = useApp();
   const caller = safeReturnTo(route.query.get("returnTo"), "");
   const info = useResource(() => service.info(), [service]);
+  // Verify without replacing the workspace identity: an expired session must not
+  // unmount the current workspace or discard its unsaved drafts.
+  const verifiedSession = useResource(
+    async () => {
+      if (!session.authenticated) return null;
+      try { return await service.session(); }
+      catch (error) {
+        if (error instanceof ServiceError && error.status === 401) return {authenticated: false};
+        throw error;
+      }
+    },
+    [service, session.authenticated, session.userId],
+  );
+  const sessionLabel = sessionProblem || (verifiedSession.loading ? "正在核验登录状态…"
+    : verifiedSession.data?.authenticated === false
+      ? "登录已失效，请重新登录；本机草稿仍保留。"
+      : verifiedSession.error || !verifiedSession.data || verifiedSession.data.userId !== session.userId
+        ? "暂时无法确认登录状态，请重试；本机草稿仍保留。"
+        : "已登录");
   const activation = useAction();
   const logout = useAction();
   const copying = useAction();
@@ -280,7 +300,9 @@ export function SettingsPage() {
         {session.authenticated && (
           <div className="settings-row">
             <span>当前会话</span>
-            <span>已登录</span>
+            <span>{sessionLabel}</span>
+            {sessionLabel !== "已登录" && <Button onClick={() => navigate('/login')}>重新登录</Button>}
+            <Button onClick={() => void verifiedSession.reload()} disabled={verifiedSession.loading}>核验登录</Button>
             <Button onClick={() => setLogoutOpen(true)}>退出登录</Button>
           </div>
         )}
