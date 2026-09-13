@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+2026-09-13 用户明确授权一次性Docker socket broker验证后执行（此前拒绝未绕过）：session46983 exit0，实际候选镜像68959061…中的TaskContainerBroker创建固定研究容器，execute返回物理STOPPED/code=runtime_failed，重复create同一任务返回STOPPED不重启，模型调用0。任务key `82ac8a367083e6326a1768c3b9c3ad45ab91345db4b6f84dafab3f0e529d2eb1`；本次临时broker/任务容器及目录已清理，精确名称复查无残留，app healthy。**本次只证明真实创建、停止核对及重复创建不重启；未记录容器ExitCode，runtime_failed不能据此追认为期限触发，超时/崩溃回收和成功研究仍未通过。** 不把一次性授权扩为长期挂载或生产切换。下一步有界验收须在清理前记录状态/退出码及时间，不为旧任务补造证据。
+
 2026-09-13 客户未知结果提示收尾：新增两种broker停止码的中文解释，明确“执行进程是否退出仍待核实”和“结果传输尚未核实，不据此判断完成或没有机会”，不再仅用泛化“已停止”。两个用例RED后，展示及进度UI共49通过/2.67秒；不改接口或增加配置，不构包，旧Windows候选不包含该文案。高权限服务器测试仍等待明确授权，未重试或绕过。
 
 2026-09-13 broker验收权限与展示修复：服务器无控制socket的Docker CLI兼容检查通过；挂载Docker socket的一次性broker测试被权限审核拒绝，未执行、未绕过，等待用户明确高权限授权（Docker控制能力可能影响宿主其他项目）。继续不受阻的客户端状态检查发现fixed DTO及动态contract4 status均会把broker未知停止覆盖为CANCELED/RECORDED或OPEN；两条投影先保留STOPPED+broker原stopCode+UNCERTAIN，不允许推进，既有客户端据此提示不要新建/重发。8项投影用例分别RED复现后GREEN，与既有配置共17通过/0.75秒，无PG/真实broker验收。本批需下一次统一服务候选构建，不能追认0b80fe9旧镜像包含修复。

@@ -1,5 +1,7 @@
 # 独立研究运行镜像（未接生产任务）
 
+一次性broker真实验证更新：用户明确授权后，专用临时broker容器获得Docker socket，客户API与研究任务容器未获该挂载；复用68959061…候选执行真实create/execute/status，返回STOPPED/runtime_failed，重复create没有重启。测试及临时资源已结束清理，未安装长期broker或切换生产。未记录容器退出码，故本次不证明短期限正确触发或正常研究成功；后续回收验收须在清理前记录实际退出码、终态和时序。权限仅涵盖该一次性验证，不自动延伸为长期宿主控制授权。
+
 服务器加载状态更新：`yike-research:0.153.4-0b80fe9` 已通过 save/load 载入授权服务器，`docker image inspect .Id` 为 `sha256:68959061b1538e1a7e9963aba94cb9e55710b1d0e3b691cdc603e3eb199c2d13`，revision标签对应0b80fe9。broker使用服务器本地实际可解析的不可变内容ID；本机manifest-list摘要d62253…不是该服务器的本地image ID。实际同UID10001两容器、无网络/只读根、客户端只读挂载任务目录下，TaskSocketRelay至网关UDS固定HTTP探针通过，临时容器和目录清理完成。该结果仅证明Linux跨容器UDS传输可行，不证明许可网关/模型/PG/研究任务或broker崩溃回收通过。生产app未切换且复查healthy；下文“未上传服务器”为历史阶段记录。
 
 最新本机构包（源码 `0b80fe9`）：服务 `yike-ai2026:0b80fe9-trial` / `sha256:071d4d66f3e75f83d4df76c62b96ef89e59f243ce3348abf642ecfb67621526d`；研究 `yike-research:0.153.4-0b80fe9` / `sha256:d62253eaf72d1fb5dccb31d4b6f4513ba8c718e63de909d371ea49c2a14dec7f`。两者均已实际构建，研究镜像包括下文新增relay/入口与接线模块。实际Linux容器无网络/只读/UID10001检查通过服务导入、Codex版本、MCP导入、固定入口拒绝非法manifest；未调用模型，MCP导入不等于本版本协议端到端通过。尚未上传服务器，不能替代跨容器socket、真实broker生命周期和客户任务验收。下文40b2f65镜像证据仅作历史记录，不追认为本版本证据。
