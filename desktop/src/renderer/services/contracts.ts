@@ -99,7 +99,7 @@ export interface YikeService {
     id: string,
     action: "pause" | "resume" | "cancel" | "retry",
   ): Promise<void>;
-  generateContact(id: string, channel: "comment" | "dm"): Promise<string>;
+  generateContact?(id: string, channel: "comment" | "dm"): Promise<string>;
   saveContact(draft: ContactDraft): Promise<void>;
   send(draft: ContactDraft, confirmation: string): Promise<{ status: string }>;
   activate(code: string): Promise<void>;

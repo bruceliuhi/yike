@@ -283,7 +283,8 @@ export function ContactEditor({
   })();
   const latest = useLatestContactDraft(row, channel, pristineInitial, applyLatest);
   const generate = async () => {
-    if (sample || !session.authenticated) return;
+    const generateContact = service.generateContact;
+    if (sample || !session.authenticated || !generateContact) return;
     setPendingRegenerate(false);
     setGenerationFailed(false);
     const id = ++request.current;
@@ -291,7 +292,7 @@ export function ContactEditor({
     const version = draft.version;
     const result = await action.run(async () => {
       const value = await boundedRequest(
-        () => service.generateContact(row.id, atChannel),
+        () => generateContact(row.id, atChannel),
         { timeoutMessage: "草稿生成超时，当前内容已保留，请重试生成。" },
       );
       if (typeof value !== "string" || !value.trim())
@@ -381,7 +382,7 @@ export function ContactEditor({
         </Field>
         <div className="section-heading">
           <h3>沟通内容</h3>
-          <Button
+          {service.generateContact && <Button
             variant="ghost"
             disabled={sample || !session.authenticated || action.busy}
             onClick={() =>
@@ -395,7 +396,7 @@ export function ContactEditor({
               : draft.content.trim()
                 ? "重新生成"
                 : "生成联系草稿"}
-          </Button>
+          </Button>}
         </div>
         <textarea
           className="contact-content"

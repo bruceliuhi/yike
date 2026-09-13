@@ -104,7 +104,7 @@ describe('first draft and manual edits',()=>{
   }
   it('offers initial generation, retries failure and previews without overwriting manual text',async()=>{
     setup();
-    vi.mocked(context.service.generateContact).mockRejectedValueOnce(new Error('TEST 生成失败')).mockResolvedValueOnce('TEST 新建议');
+    vi.mocked(context.service.generateContact!).mockRejectedValueOnce(new Error('TEST 生成失败')).mockResolvedValueOnce('TEST 新建议');
     render(<OutreachPage/>);
     fireEvent.click(await screen.findByRole('button',{name:'生成联系草稿'}));
     await screen.findByText('TEST 生成失败');
@@ -117,7 +117,7 @@ describe('first draft and manual edits',()=>{
     expect((screen.getByRole('textbox',{name:'沟通内容'}) as HTMLTextAreaElement).value).toBe('TEST 人工编辑');
   });
   it('empty generation is failure and cannot replace text',async()=>{
-    setup(); vi.mocked(context.service.generateContact).mockResolvedValue('  ');
+    setup(); vi.mocked(context.service.generateContact!).mockResolvedValue('  ');
     render(<OutreachPage/>);
     fireEvent.click(await screen.findByRole('button',{name:'生成联系草稿'}));
     await screen.findByText('未生成可用草稿，当前内容已保留，请重试生成。');
@@ -131,7 +131,7 @@ describe('first draft and manual edits',()=>{
   });
   it('keeps edits made while generation is pending until explicit replacement',async()=>{
     setup(); let resolve!: (v:string)=>void;
-    vi.mocked(context.service.generateContact).mockImplementation(()=>new Promise(r=>{resolve=r}));
+    vi.mocked(context.service.generateContact!).mockImplementation(()=>new Promise(r=>{resolve=r}));
     render(<OutreachPage/>);
     fireEvent.click(await screen.findByRole('button',{name:'生成联系草稿'}));
     fireEvent.change(screen.getByRole('textbox',{name:'沟通内容'}),{target:{value:'TEST 生成期间人工编辑'}});

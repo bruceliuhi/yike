@@ -74,7 +74,7 @@ export function ShortCoachPanel({
         <>
           {!service.shortCoach ? (
             <p className="field-hint">
-              短句教练服务尚未接通，可继续编辑或使用原草稿生成。
+              短句教练服务尚未接通，可继续手工编辑和复制草稿。
             </p>
           ) : problem ? (
             <Notice tone="warning">{problem}</Notice>

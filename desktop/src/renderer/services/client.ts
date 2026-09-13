@@ -439,7 +439,6 @@ export const service: YikeService = {
   tasks: async () => unavailable("任务运行服务"),
   startTask: async () => unavailable("任务启动"),
   taskAction: async () => unavailable("任务操作"),
-  generateContact: async () => unavailable("联系草稿生成"),
   saveContact: async () => unavailable("草稿同步"),
   send: async () => unavailable("消息发送"),
   activate: async () => unavailable("产品激活"),

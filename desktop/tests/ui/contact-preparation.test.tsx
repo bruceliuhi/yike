@@ -15,6 +15,7 @@ import { sortContactRows } from "../../src/renderer/domain/contactList";
 import type { AppContextValue } from "../../src/renderer/app/context";
 import type { YikeService } from "../../src/renderer/services/contracts";
 import type { Opportunity } from "../../src/renderer/domain/models";
+import { service as productionService } from "../../src/renderer/services/client";
 let context: AppContextValue;
 vi.mock("../../src/renderer/app/context", () => ({ useApp: () => context }));
 const row = (id: string, updatedAt = "2026-09-09T08:00:00Z"): Opportunity => ({
@@ -42,6 +43,22 @@ beforeEach(() => {
   };
 });
 afterEach(cleanup);
+it("does not advertise the unconnected legacy generator in the production client", () => {
+  expect(productionService.generateContact).toBeUndefined();
+  expect(productionService.shortCoach).toBeDefined();
+});
+it("keeps manual copy available without a legacy generation endpoint", async () => {
+  context.route = parseRoute("#/outreach?opportunity=manual");
+  vi.mocked(context.service.opportunity).mockResolvedValue(row("manual"));
+  context.service.copy = vi.fn().mockResolvedValue(undefined);
+  render(<OutreachPage />);
+  const editor = await screen.findByRole("textbox", { name: "沟通内容" });
+  expect(screen.queryByRole("button", { name: /^(生成联系草稿|重新生成|重试生成)$/ })).toBeNull();
+  expect(screen.queryByText(/可继续编辑或使用原草稿生成/)).toBeNull();
+  fireEvent.change(editor, { target: { value: "您提到的资料检索问题还需要处理吗？" } });
+  fireEvent.click(screen.getByRole("button", { name: "复制联系草稿" }));
+  await waitFor(() => expect(context.service.copy).toHaveBeenCalledWith("您提到的资料检索问题还需要处理吗？"));
+});
 it("sorts actual update timestamps, keeps unknown times last, and preserves the input array", () => {
   const input = [
     row("unknown", ""),

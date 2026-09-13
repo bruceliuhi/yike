@@ -212,7 +212,7 @@ describe("R4 structured short coach", () => {
     context.service.shortCoach = undefined;
     await mount();
     expect(
-      screen.getByText("短句教练服务尚未接通，可继续编辑或使用原草稿生成。"),
+      screen.getByText("短句教练服务尚未接通，可继续手工编辑和复制草稿。"),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "重新生成" }));
     fireEvent.click(await screen.findByRole("button", { name: "生成新建议" }));
