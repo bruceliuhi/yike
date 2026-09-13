@@ -25,3 +25,5 @@ docker build --platform linux/amd64 -f deploy/Dockerfile.research \
 正式执行必须由受限broker绑定task/run/generation，固定镜像digest、命令及挂载，独立截止时间、取消和未知结果核对。客户API不能拥有Docker socket；容器只能访问自己的任务socket，不能挂共享HOME/源码/账号。供应商key和DB留在宿主许可网关，容器只拿短期任务token；专属state/tmpfs解决只读HOME别名警告，不开放宿主写权限。完整CLI→MCP→宿主许可/原文账本往返、跨租户隔离及停止回收尚待实现验收。
 
 源码现有 `pilot.research_socket_relay.TaskSocketRelay`：在容器回环临时端口将原始流量转交唯一指定的Unix socket，HTTP路径与短期token仍由宿主ResponsesBridge验证。最多4连接、每方向2MiB+64KiB、期限最多30分钟，到期或退出关闭连接，不删除挂载socket。仅有本地合成验证，未打入上述镜像、未接任务启动器；不能凭此宣称容器任务已经可用。
+
+固定任务入口源码为 `python -I -m pilot.research_container_entry`，由后续broker固定选用，不接受客户指定命令。stdin一次性JSON仅包含version=1、model、短期token、mission、编译instructions、entry_urls、max_reads/max_requests/max_searches/max_seconds、绝对expires_at；未知字段拒绝，输入最多1MiB。网关固定 `/run/yike/bridge.sock`，Codex固定 `/opt/codex/bin/codex`，MCP解释器固定 `/app/.venv/bin/python`。普通Codex JSON事件直接交回宿主现有事件与证据解析，不在容器重建账本；返回124表示超时、130表示取消、2表示入口失败，其他为Codex退出码。临时HOME/state/work只在容器/tmp，不挂宿主HOME。broker仍须为stdin准备、整个容器及API崩溃提供独立截止回收，入口进程的finally不是替代。此入口尚未打入前述镜像或接worker，不是实际客户任务验收。
