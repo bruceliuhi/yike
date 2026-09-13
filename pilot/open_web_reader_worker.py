@@ -181,8 +181,14 @@ def read_request(request: dict) -> dict:
     raw = tls = None
     try:
         raw = socket.socket(family, socket.SOCK_STREAM, socket.IPPROTO_TCP)
+        # Leave room for a determinate failure receipt before the parent's total
+        # deadline. No HTTP request has been sent at this narrow failure point.
+        raw.settimeout(min(5.0, timeout / 2))
+        try:
+            raw.connect(target)
+        except OSError:
+            raise WorkerError("connection_unavailable") from None
         raw.settimeout(timeout)
-        raw.connect(target)
         tls = ssl.create_default_context().wrap_socket(raw, server_hostname=host)
         path = parts.path or "/"
         if parts.query:

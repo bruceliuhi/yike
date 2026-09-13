@@ -96,6 +96,32 @@ def test_plain_text(monkeypatch):
     assert worker.read_request({"url": "https://example.com/", "timeout_seconds": 2})["text"] == "plain\ntext"
 
 
+@pytest.mark.parametrize('stage',['connect','tls','send'])
+def test_only_pre_http_tcp_failure_is_determinate(monkeypatch,stage):
+    raw,seen=install_transport(monkeypatch,response(b'ok','text/plain'))
+    factory=worker.socket.socket
+    connected=[]
+    def fail(*args,**kwargs):
+        raise TimeoutError('synthetic network failure')
+    original_connect=factory.connect
+    def connect(self,address):
+        connected.append(address)
+        if stage=='connect':
+            assert 0<seen['timeout']<=5
+            assert seen['timeout']<20
+            fail()
+        return original_connect(self,address)
+    monkeypatch.setattr(factory,'connect',connect)
+    if stage=='tls':
+        monkeypatch.setattr(worker.ssl.create_default_context,'wrap_socket',fail)
+    elif stage=='send':
+        monkeypatch.setattr(factory,'sendall',fail)
+    with pytest.raises(worker.WorkerError) as error:
+        worker.read_request({'url':'https://example.com/','timeout_seconds':20})
+    assert error.value.code==('connection_unavailable' if stage=='connect' else 'unavailable')
+    assert len(connected)==1 and raw.sent==b''
+
+
 def test_ipv6_connects_to_resolved_sockaddr_without_second_resolution(monkeypatch):
     _raw, seen = install_transport(monkeypatch, response(b"ok", "text/plain"), ("2606:2800:220:1:248:1893:25c8:1946",))
     worker.read_request({"url": "https://example.com/", "timeout_seconds": 2})
@@ -197,7 +223,7 @@ def test_missing_or_malformed_mime_is_hard_failure(monkeypatch,mime):
     assert error.value.code=='unsupported_content'
 
 
-@pytest.mark.parametrize("code", ["not_found", "unsupported_media_type", "access_restricted", "rate_limited"])
+@pytest.mark.parametrize("code", ["not_found", "unsupported_media_type", "access_restricted", "rate_limited", "connection_unavailable"])
 def test_parent_preserves_precise_worker_errors(monkeypatch, code):
     class Process:
         returncode = 0

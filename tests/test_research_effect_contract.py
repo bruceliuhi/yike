@@ -17,7 +17,7 @@ def binding():
     return compile_research_context(projected_v2())["binding"]
 
 
-@pytest.mark.parametrize("code", ["not_found", "unsupported_media_type", "too_large"])
+@pytest.mark.parametrize("code", ["not_found", "unsupported_media_type", "too_large", "connection_unavailable"])
 def test_known_read_failure_is_separate_copied_exact_contract(code):
     from pilot import research_effect_contract as contract
     result = {"status": "FAILED", "code": code, "replayed": False}

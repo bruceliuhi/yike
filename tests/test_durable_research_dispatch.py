@@ -92,9 +92,10 @@ def test_resource_limit_is_recoverable_only_before_journal_admission(phase):
                 lambda _:pytest.fail('uncertain effect must keep dispatcher closed'))
 
 
-def test_known_failure_finishes_failed_then_allows_different_effect():
+@pytest.mark.parametrize('code',['not_found','connection_unavailable'])
+def test_known_failure_finishes_failed_then_allows_different_effect(code):
     journal = Journal(); use = dispatcher(journal)
-    result = {"status": "FAILED", "code": "not_found", "replayed": False}
+    result = {"status": "FAILED", "code": code, "replayed": False}
     assert use("READ", {"url": "https://example.com/"}, time.monotonic()+10, lambda _: result) == result
     assert journal.events[-1][1]["status"] == "FAILED"
     assert use("SEARCH", {"query": "buyer"}, time.monotonic()+10, lambda _: search_result())["status"] == "SEARCHED"
