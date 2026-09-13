@@ -1,6 +1,7 @@
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { insights } from './src/insights.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)));
 const dist = join(root, 'dist');
@@ -79,6 +80,14 @@ const pages = {
   },
 };
 
+for (const article of insights) {
+  const key = `insights-${article.slug}`;
+  pages[key] = { path: `/insights/${article.slug}/`, title: `${article.title}｜意客 AI 内容洞察`, description: article.description, heading: article.title };
+  routes.push({ route: `insights/${article.slug}`, key });
+}
+routes.push({ route: 'insights', key: 'insights' });
+pages.insights = { path: '/insights/', title: '内容洞察｜意客 AI 主动获客与客户情报', description: '围绕主动获客、需求信号、平台监控、证据化商机和销售协作，整理可复核的方法、示例和数据边界。', heading: '把客户问题讲清楚，让销售知道下一步' };
+
 const fallback = {
   home: `<section class="seo-fallback"><p>意客 AI · 全网智能获客</p><h1>把公开需求，变成销售今天能跟进的机会</h1><p>意客 AI 从已授权平台与可访问公开来源发现正在发生的需求，整理成带原文证据、匹配理由和下一步动作的销售机会。</p><p><a href="/products/workbench/">了解商机工作台</a>　<a href="/products/crm/">了解客户情报 CRM</a>　<a href="/contact/">申请试用</a></p><h2>核心能力</h2><ul><li>业务画像与搜索条件</li><li>小红书、抖音、B站、知乎等授权平台与公开网页研究</li><li>原文证据、匹配理由、人工复核</li><li>评论与私信草稿、回复记录和客户情报 CRM</li></ul></section>`,
   'products-workbench': `<section class="seo-fallback"><p>意客 AI · 商机工作台</p><h1>商机工作台：从公开信号到可跟进机会</h1><p>围绕业务画像研究已授权平台与可访问公开来源，保存原文证据、匹配理由、人工复核和跟进动作。</p><h2>适合需要主动获客的企业销售团队</h2><p>支持业务画像、搜索条件、线索采集、监控任务、机会库、原文证据、联系准备和跟进记录。</p></section>`,
@@ -92,13 +101,22 @@ const fallback = {
   security: `<section class="seo-fallback"><p>意客 AI · 数据与安全</p><h1>把数据边界说清楚，才能长期使用</h1><p>平台连接基于授权，研究范围受连接状态和项目配置约束；机会保存原文来源、时间和判断理由，触达动作发送前由人确认。</p><h2>租户、角色和连接身份</h2><p>企业交付按租户、角色和连接身份隔离数据；具体保存周期、删除方式和部署边界写入项目方案与验收记录。</p></section>`,
 };
 
+for (const article of insights) {
+  const key = `insights-${article.slug}`;
+  fallback[key] = `<section class="seo-fallback"><p>意客 AI · ${article.category}</p><h1>${article.title}</h1><p>${article.intro}</p>${article.sections.map((section) => `<h2>${section.title}</h2>${(section.paragraphs || []).map((paragraph) => `<p>${paragraph}</p>`).join('')}${section.bullets ? `<ul>${section.bullets.map((item) => `<li>${item}</li>`).join('')}</ul>` : ''}`).join('')}<p><a href="/insights/">返回内容洞察</a>　<a href="/contact/">预约演示</a></p></section>`;
+}
+fallback.insights = `<section class="seo-fallback"><p>意客 AI · 内容洞察</p><h1>把客户问题讲清楚，让销售知道下一步</h1><p>围绕主动获客、需求信号、平台监控、证据化商机和销售协作，整理可复核的方法、示例和数据边界。</p>${insights.map((article) => `<h2><a href="/insights/${article.slug}/">${article.title}</a></h2><p>${article.description}</p>`).join('')}</section>`;
+
 function jsonLd(key) {
   const page = pages[key];
   const organization = { '@type': 'Organization', '@id': `${site}/#organization`, name: '意客 AI', url: site, logo: `${site}/brand/yike-logo-mark.png` };
   const graph = [organization, { '@type': 'WebSite', '@id': `${site}/#website`, url: site, name: '意客 AI', publisher: { '@id': `${site}/#organization` }, inLanguage: 'zh-CN' }, { '@type': 'WebPage', '@id': `${site}${page.path}#webpage`, url: `${site}${page.path}`, name: page.title, description: page.description, isPartOf: { '@id': `${site}/#website` }, about: { '@id': `${site}/#organization` }, inLanguage: 'zh-CN' }];
+  if (key === 'insights') graph.push({ '@type': 'CollectionPage', name: page.title, url: `${site}${page.path}`, mainEntity: { '@type': 'ItemList', itemListElement: insights.map((article, index) => ({ '@type': 'ListItem', position: index + 1, name: article.title, url: `${site}/insights/${article.slug}/` })) } });
+  const article = insights.find((item) => `insights-${item.slug}` === key);
+  if (article) graph.push({ '@type': 'Article', '@id': `${site}${page.path}#article`, headline: article.title, description: article.description, datePublished: article.date, dateModified: article.date, author: { '@type': 'Organization', name: '意客 AI 产品团队', url: site }, publisher: { '@id': `${site}/#organization` }, mainEntityOfPage: { '@id': `${site}${page.path}#webpage` }, inLanguage: 'zh-CN' });
   if (key === 'products-workbench' || key === 'products-crm') graph.push({ '@type': 'SoftwareApplication', name: key === 'products-workbench' ? '意客 AI 商机工作台' : '意客 AI 客户情报 CRM', applicationCategory: 'BusinessApplication', operatingSystem: key === 'products-workbench' ? 'macOS, Windows' : 'Web', url: `${site}${page.path}`, publisher: { '@id': `${site}/#organization` }, description: page.description });
   if (key === 'faq') graph.push({ '@type': 'FAQPage', mainEntity: [{ '@type': 'Question', name: '意客 AI 是什么？', acceptedAnswer: { '@type': 'Answer', text: '意客 AI 是面向企业销售团队的客户情报与商机工作台，用于发现公开需求信号、复核机会证据并准备下一步跟进。' } }, { '@type': 'Question', name: '支持哪些平台？', acceptedAnswer: { '@type': 'Answer', text: '按授权和连接状态支持小红书、抖音、B站、知乎等平台，并可研究公开网页与行业社区。实际可用范围以账号授权、连接状态和项目配置为准。' } }, { '@type': 'Question', name: '“全网”具体指什么？', acceptedAnswer: { '@type': 'Answer', text: '这里的全网，指已授权的平台与系统当前可访问的公开来源，不代表绕过登录、权限或平台限制，也不承诺无限制覆盖所有网站。' } }, { '@type': 'Question', name: '会自动发送消息吗？', acceptedAnswer: { '@type': 'Answer', text: '评论和私信先生成草稿，外部触达在发送前由人确认。系统会记录发送、回复和下一步，便于团队复核与协作。' } }, { '@type': 'Question', name: '7 天试用能拿到什么？', acceptedAnswer: { '@type': 'Answer', text: '围绕一个真实业务场景完成首轮研究，交付可复核的机会记录、原文证据和带上下文的跟进草稿；具体范围按授权和版本确认。' } }] });
-  if (key !== 'home') graph.push({ '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: '首页', item: site + '/' }, { '@type': 'ListItem', position: 2, name: page.title.split('｜')[0], item: site + page.path }] });
+  if (key !== 'home') { const articleForCrumb = insights.find((item) => `insights-${item.slug}` === key); graph.push({ '@type': 'BreadcrumbList', itemListElement: articleForCrumb ? [{ '@type': 'ListItem', position: 1, name: '首页', item: site + '/' }, { '@type': 'ListItem', position: 2, name: '内容洞察', item: site + '/insights/' }, { '@type': 'ListItem', position: 3, name: articleForCrumb.title, item: site + page.path }] : [{ '@type': 'ListItem', position: 1, name: '首页', item: site + '/' }, { '@type': 'ListItem', position: 2, name: page.title.split('｜')[0], item: site + page.path }] }); }
   return `<script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@graph': graph })}</script>`;
 }
 
@@ -129,4 +147,8 @@ for (const item of routes) {
   await mkdir(dirname(target), { recursive: true });
   await writeFile(target, renderHtml(item.key));
 }
+const sitemapEntries = [{ path: '/', lastmod: '2026-09-13' }, ...routes.map((item) => ({ path: `/${item.route}/`, lastmod: insights.find((article) => item.key === `insights-${article.slug}`)?.date || '2026-09-13' }))];
+const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${sitemapEntries.map((entry) => `  <url><loc>${site}${entry.path}</loc><lastmod>${entry.lastmod}</lastmod></url>`).join('\n')}\n</urlset>\n`;
+await writeFile(join(dist, 'sitemap.xml'), sitemap);
+await writeFile(join(dist, 'insights', 'feed.xml'), `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>意客 AI 内容洞察</title><link>${site}/insights/</link><description>主动获客、需求信号、平台监控和销售协作</description>${insights.map((article) => `<item><title>${article.title}</title><link>${site}/insights/${article.slug}/</link><guid>${site}/insights/${article.slug}/</guid><pubDate>${article.date}</pubDate><description>${article.description}</description></item>`).join('')}</channel></rss>`);
 console.log(`Built Yike AI official site: ${routes.length + 1} routes`);

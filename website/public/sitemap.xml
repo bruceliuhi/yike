@@ -1,13 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://www.tuokexing.net/</loc><priority>1.0</priority></url>
-  <url><loc>https://www.tuokexing.net/products/workbench/</loc><priority>0.9</priority></url>
-  <url><loc>https://www.tuokexing.net/products/crm/</loc><priority>0.9</priority></url>
-  <url><loc>https://www.tuokexing.net/features/</loc><priority>0.8</priority></url>
-  <url><loc>https://www.tuokexing.net/scenarios/</loc><priority>0.8</priority></url>
-  <url><loc>https://www.tuokexing.net/faq/</loc><priority>0.8</priority></url>
-  <url><loc>https://www.tuokexing.net/security/</loc><priority>0.6</priority></url>
-  <url><loc>https://www.tuokexing.net/download/</loc><priority>0.7</priority></url>
-  <url><loc>https://www.tuokexing.net/contact/</loc><priority>0.7</priority></url>
-  <url><loc>https://www.tuokexing.net/roadmap/</loc><priority>0.5</priority></url>
+  <url><loc>https://www.tuokexing.net/</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://www.tuokexing.net/products/workbench/</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://www.tuokexing.net/products/crm/</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://www.tuokexing.net/features/</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://www.tuokexing.net/scenarios/</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://www.tuokexing.net/download/</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://www.tuokexing.net/roadmap/</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://www.tuokexing.net/contact/</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://www.tuokexing.net/faq/</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://www.tuokexing.net/security/</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://www.tuokexing.net/insights/xiaohongshu-b2b-demand/</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://www.tuokexing.net/insights/douyin-comment-buying-signal/</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://www.tuokexing.net/insights/intent-signal-vs-lead/</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://www.tuokexing.net/insights/evidence-first-lead-capture/</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://www.tuokexing.net/insights/multi-platform-monitoring/</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://www.tuokexing.net/insights/authorized-public-content-boundary/</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://www.tuokexing.net/insights/</loc><lastmod>2026-09-13</lastmod></url>
 </urlset>

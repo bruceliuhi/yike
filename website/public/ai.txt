@@ -1,3 +1,5 @@
 意客 AI 是面向企业销售团队的客户情报与商机工作台。
 权威信息请以 https://www.tuokexing.net/llms.txt 和官网页面为准。
 平台按授权与连接状态提供，外部触达需要人工确认。
+内容洞察入口：https://www.tuokexing.net/insights/
+内容洞察订阅：https://www.tuokexing.net/insights/feed.xml
