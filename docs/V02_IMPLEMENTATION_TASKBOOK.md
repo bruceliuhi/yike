@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+2026-09-13 runtime_failed原因收敛：本地旧候选研究镜像在无网络、无Docker socket、同合成manifest下实际fixed entry返回124，耗时4.78秒、stdout/stderr均0字节（17973 exit0）；该证据只证明本地入口期限，不回填服务器旧退出码。发现broker lifecycle把124/130统一泛化失败，现保留124=timeout、130=cancelled、0=正常返回，其他仍runtime_failed；物理停止核验与UNKNOWN不变。两项RED复现后生命周期19通过/0.95秒。本轮未重试服务器高权操作、未构新镜像；成功研究与守护崩溃回收仍待真实验收。
+
 2026-09-13 用户明确授权一次性Docker socket broker验证后执行（此前拒绝未绕过）：session46983 exit0，实际候选镜像68959061…中的TaskContainerBroker创建固定研究容器，execute返回物理STOPPED/code=runtime_failed，重复create同一任务返回STOPPED不重启，模型调用0。任务key `82ac8a367083e6326a1768c3b9c3ad45ab91345db4b6f84dafab3f0e529d2eb1`；本次临时broker/任务容器及目录已清理，精确名称复查无残留，app healthy。**本次只证明真实创建、停止核对及重复创建不重启；未记录容器ExitCode，runtime_failed不能据此追认为期限触发，超时/崩溃回收和成功研究仍未通过。** 不把一次性授权扩为长期挂载或生产切换。下一步有界验收须在清理前记录状态/退出码及时间，不为旧任务补造证据。
 
 2026-09-13 客户未知结果提示收尾：新增两种broker停止码的中文解释，明确“执行进程是否退出仍待核实”和“结果传输尚未核实，不据此判断完成或没有机会”，不再仅用泛化“已停止”。两个用例RED后，展示及进度UI共49通过/2.67秒；不改接口或增加配置，不构包，旧Windows候选不包含该文案。高权限服务器测试仍等待明确授权，未重试或绕过。

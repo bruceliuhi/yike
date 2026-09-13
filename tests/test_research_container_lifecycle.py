@@ -72,7 +72,8 @@ def test_execute_requires_active_supervisor(broker):
 
 
 @pytest.mark.parametrize('fail_drain', [False, True])
-def test_execute_streams_once_without_persisting_token(broker, monkeypatch, fail_drain):
+@pytest.mark.parametrize('exit_code,expected_code',[(0,None),(124,'timeout'),(130,'cancelled'),(1,'runtime_failed')])
+def test_execute_streams_once_without_persisting_token(broker, monkeypatch, fail_drain,exit_code,expected_code):
     module = importlib.import_module('pilot.research_container_broker')
     key = module.task_key(identity())
     reserve(broker, key, time()+20)
@@ -86,7 +87,7 @@ def test_execute_streams_once_without_persisting_token(broker, monkeypatch, fail
             super().close()
     class Process:
         pid = 123
-        returncode = 0
+        returncode = exit_code
         def __init__(self, command, **kwargs):
             captured['command'] = command
             captured['env'] = kwargs['env']
@@ -94,9 +95,9 @@ def test_execute_streams_once_without_persisting_token(broker, monkeypatch, fail
             self.stdout = io.BytesIO(b'{"event":"synthetic"}\n')
             state.update(Status='exited',Running=False)
         def poll(self):
-            return 0
+            return exit_code
         def wait(self, timeout=None):
-            return 0
+            return exit_code
     monkeypatch.setattr(module.subprocess,'Popen',Process)
     monkeypatch.setattr(importlib.import_module('pilot.research_container_lifecycle'),
                         '_kill_group',lambda p: None)
@@ -117,7 +118,9 @@ def test_execute_streams_once_without_persisting_token(broker, monkeypatch, fail
             assert broker._slots.acquire(blocking=False)
             assert broker._slots.acquire(blocking=False)
             return
-        assert broker.execute(identity(),manifest,emit=output.append)['status']=='STOPPED'
+        result=broker.execute(identity(),manifest,emit=output.append)
+        assert result['status']=='STOPPED'
+        assert result['code']==expected_code
         with pytest.raises(ValueError,match='task_not_startable'):
             broker.execute(identity(),manifest,emit=output.append)
     assert b''.join(output) == b'{"event":"synthetic"}\n'
