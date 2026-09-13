@@ -491,6 +491,30 @@ def xhs_raw():
     }
 
 
+@pytest.mark.parametrize('description', [None, '', ' \t', BODY])
+def test_xhs_post_preserves_real_body_or_title_only_fallback(description):
+    content = dict(xhs_raw()['content'], desc=description, time='2026-09-08T01:02:03Z',
+                   collected_at='2026-09-09T02:00:00Z', user_id='public-author')
+    original = deepcopy(content)
+    item = build([{'content': content}], 'XIAOHONGSHU').records[0]
+    assert item.kind == 'POST'
+    assert item.body == (BODY if description == BODY else content['title'])
+    assert item.published_at == content['time'] and item.author_public_id == 'public-author'
+    assert content == original
+
+
+@pytest.mark.parametrize('changes', [
+    {'source_id': '66c21234abcdef0123456789'}, {'id': '66c21234abcdef0123456789'},
+    {'note_url': 'https://example.com/private'}, {'desc': 123}, {'user_id': 123},
+    {'time': 1788829323000}, {'time': True}, {'published_at': '2026-09-08T01:02:04Z'},
+])
+def test_xhs_post_rejects_malformed_or_conflicting_source_metadata(changes):
+    content = dict(xhs_raw()['content'], desc=BODY, time='2026-09-08T01:02:03Z',
+                   collected_at='2026-09-09T02:00:00Z')
+    content.update(changes)
+    assert_mapping_error([{'content': content}], 'XIAOHONGSHU')
+
+
 @pytest.mark.parametrize("fields", [
     ("note_id",), ("source_id",), ("note_id", "source_id"),
     ("parent_note_id",), ("parent_source_id",), ("parent_note_id", "parent_source_id"),

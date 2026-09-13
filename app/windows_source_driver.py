@@ -124,6 +124,11 @@ def _collection_limits(platform, max_records, collection_mode='search'):
             raise WindowsSourceError('source_input_invalid')
         contents = 1 if collection_mode == 'detail' else min(5, max(1, max_records // 2))
         return contents, max(0, (max_records - contents) // contents)
+    if platform == 'XIAOHONGSHU':
+        # Original notes and comments share the candidate count. Reserve each
+        # note before allocating its bounded comment sample (one record = post).
+        contents = min(5, max(1, max_records // 2))
+        return contents, (max_records - contents) // contents
     max_contents = min(5, max_records)
     # Zhihu emits POST as well as COMMENT; its governed source applies one
     # shared output budget instead of the legacy per-content comment limit.

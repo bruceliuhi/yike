@@ -18,6 +18,7 @@ BODY = '  原文 é😀\n\t '
 
 def raw():
     return ({'note_id': NOTE, 'title': None, 'desc': '不能用摘要代替标题',
+             'time': None, 'last_modify_ts': 1789000000123,
              'note_url': f'https://www.xiaohongshu.com/explore/{NOTE}'},
             {'note_id': NOTE, 'comment_id': COMMENT, 'content': BODY,
              'create_time': '2026-09-10T00:00:00Z', 'parent_comment_id': None,
@@ -40,9 +41,13 @@ def mapped(records):
 def test_xhs_exact_raw_evidence_reaches_formal_mapper(tmp_path):
     content, comment = raw()
     write(tmp_path, content, comment)
-    rows = read_collection_output(tmp_path, 'XIAOHONGSHU', 1)
-    assert rows == [{'content': content, 'comment': comment | {'collected_at': '2026-09-10T00:26:40Z'}}]
-    item = mapped(rows).records[0]
+    rows = read_collection_output(tmp_path, 'XIAOHONGSHU', 2)
+    observed_content = content | {'collected_at': '2026-09-10T00:26:40Z'}
+    assert rows == [{'content': observed_content},
+                    {'content': observed_content, 'comment': comment | {'collected_at': '2026-09-10T00:26:40Z'}}]
+    original, item = mapped(rows).records
+    assert original.kind == 'POST' and original.body == content['desc'] and original.title is None
+    assert original.published_at is None
     assert item.body == BODY and item.title is None and item.parent is None
     assert item.author_public_id is None
     assert item.external_source_id == NOTE and item.external_comment_id == COMMENT
@@ -54,7 +59,7 @@ def test_xhs_comment_alias_and_parent_evidence_preserved(tmp_path, field):
     comment.pop('comment_id')
     comment.update({field: COMMENT, 'parent_comment_id': '66c21234abcdef0123456789', 'parent_content': BODY})
     write(tmp_path, content, comment)
-    item = mapped(read_collection_output(tmp_path, 'XIAOHONGSHU', 1)).records[0]
+    item = mapped(read_collection_output(tmp_path, 'XIAOHONGSHU', 2)).records[1]
     assert item.parent.external_comment_id == comment['parent_comment_id']
     assert item.parent.body == BODY and item.parent.published_at is None
 
@@ -68,7 +73,7 @@ def test_xhs_invalid_or_conflicting_identifiers_are_not_repaired(tmp_path, side,
     content, comment = raw()
     (content if side == 'content' else comment)[field] = value
     write(tmp_path, content, comment)
-    with pytest.raises(CollectionOutputError): read_collection_output(tmp_path, 'XIAOHONGSHU', 1)
+    with pytest.raises(CollectionOutputError): read_collection_output(tmp_path, 'XIAOHONGSHU', 2)
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='actual Windows Job fixture')
@@ -91,4 +96,6 @@ def write(path, data): path.write_text(json.dumps(data, ensure_ascii=False), enc
     monkeypatch.setattr(source.api, 'run_supervised_process', run_supervised_process)
     result = source.api.collect_windows_source(**(source.args | {'platform': 'XIAOHONGSHU'}))
     assert result['state'] == 'COLLECTED' and result['task_completed'] is False
-    assert mapped(result['records']).records[0].body == BODY
+    original, reply = mapped(result['records']).records
+    assert original.kind == 'POST' and original.body == content['desc']
+    assert reply.kind == 'COMMENT' and reply.body == BODY

@@ -18,6 +18,14 @@ def module():
     return importlib.import_module('app.windows_source_driver')
 
 
+@pytest.mark.parametrize('budget', range(1, 101))
+def test_xhs_source_limits_reserve_original_posts_within_joint_budget(budget):
+    posts, comments = module()._collection_limits('XIAOHONGSHU', budget)
+    assert posts == min(5, max(1, budget // 2))
+    assert comments == (budget - posts) // posts
+    assert posts * (1 + comments) <= budget
+
+
 @pytest.fixture
 def source(tmp_path, monkeypatch):
     api = module()
@@ -78,7 +86,8 @@ def test_reuses_browser_acl_profile_but_output_is_still_strict(source, monkeypat
             'output_path': source.args['output_path'].with_name('output-next')}))
 
 
-def test_expected_xhs_account_selects_fixed_project_wrapper_and_public_env(source, monkeypatch):
+@pytest.mark.parametrize('budget,posts,comments', [(1, 1, 0), (20, 5, 3)])
+def test_expected_xhs_account_selects_fixed_project_wrapper_and_public_env(source, monkeypatch, budget, posts, comments):
     def run(command, **kwargs):
         result = source.runner(command, **kwargs)
         for name in ('.yike-collection-status.json', '.yike-collection-progress.json'):
@@ -88,7 +97,7 @@ def test_expected_xhs_account_selects_fixed_project_wrapper_and_public_env(sourc
         return result
     monkeypatch.setattr(source.api, 'run_supervised_process', run)
     expected = '66c01234abcdef0123456789'
-    result = source.api.collect_windows_source(**(source.args | {'platform': 'XIAOHONGSHU'}), expected_account_public_id=expected)
+    result = source.api.collect_windows_source(**(source.args | {'platform': 'XIAOHONGSHU', 'max_records': budget}), expected_account_public_id=expected)
     assert result['state'] == 'COLLECTED'
     command, kwargs = source.calls[0]
     assert command[:4] == [sys.executable, '-B', '-X', 'utf8']
@@ -97,6 +106,8 @@ def test_expected_xhs_account_selects_fixed_project_wrapper_and_public_env(sourc
     assert kwargs['env']['PYTHONDONTWRITEBYTECODE'] == '1'
     assert kwargs['cwd'] == source.args['runtime_path']
     assert '--keywords=中文 é😀' in command and command[command.index('--platform') + 1] == 'xhs'
+    assert command[command.index('--crawler_max_notes_count') + 1] == str(posts)
+    assert command[command.index('--max_comments_count_singlenotes') + 1] == str(comments)
 
 
 @pytest.mark.parametrize('value', ['bad', 'private?cookie=x', True])

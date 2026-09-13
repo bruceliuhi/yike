@@ -147,8 +147,27 @@ def test_fixed_cli_never_accepts_other_platform_database_cookie_or_duplicate(tmp
     with pytest.raises(ValueError): module()._fixed_arguments(arguments(tmp_path) + extra)
 
 
+@pytest.mark.parametrize('platform', ['XIAOHONGSHU', 'BILIBILI', 'DOUYIN', 'ZHIHU'])
+def test_fixed_search_cli_zero_comments_is_only_allowed_for_xhs(tmp_path, platform):
+    args = arguments(tmp_path)
+    args[1] = {'XIAOHONGSHU': 'xhs', 'BILIBILI': 'bili', 'DOUYIN': 'dy', 'ZHIHU': 'zhihu'}[platform]
+    args[-1] = '0'
+    if platform == 'XIAOHONGSHU':
+        assert module()._fixed_arguments(args, platform) == 'search'
+    else:
+        with pytest.raises(ValueError): module()._fixed_arguments(args, platform)
+
+
+def test_fixed_xhs_cli_rejects_joint_post_comment_overflow(tmp_path):
+    args = arguments(tmp_path)
+    args[args.index('--crawler_max_notes_count') + 1] = '5'
+    args[-1] = '20'
+    with pytest.raises(ValueError): module()._fixed_arguments(args)
+
+
 @pytest.mark.parametrize('mode', ['matched', 'wrong', 'switch'])
-def test_installed_main_status_cleanup_with_controlled_source_and_http(tmp_path, mode):
+@pytest.mark.parametrize('comment_limit', [0, 2])
+def test_installed_main_status_cleanup_with_controlled_source_and_http(tmp_path, mode, comment_limit):
     """Real installed start/client/main, fixture browser and search body; no external network."""
     installed = Path(os.environ.get('YIKE_SOURCE_INSTALLED_CHECK',
         'C:/Users/bruce/AI/意客AI2026/.runtime/windows-installed-xhs-20260910-02'))
@@ -214,6 +233,11 @@ async def controlled_search(self):
     events.append('search')
     await self.xhs_client.request('GET', 'https://edith.xiaohongshu.com/api/sns/web/v1/user/selfinfo')
     import config
+    from media_platform.xhs.field import SearchSortType
+    assert config.SORT_TYPE == SearchSortType.LATEST.value == 'time_descending'
+    if config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES == 0:
+        # Exercise the installed client: zero budget must perform no comment HTTP.
+        assert await self.xhs_client.get_note_all_comments('fixture-note', '', max_count=0) == []
     raw = Path(config.SAVE_DATA_PATH) / 'xhs/jsonl/search_comments_fixture.jsonl'
     raw.parent.mkdir(parents=True, exist_ok=True)
     raw.write_text('{"content":"原文 unchanged"}\\n', encoding='utf-8')
@@ -227,11 +251,13 @@ print(json.dumps({'exit': code, 'events': events}))
     environment = _minimal_child_environment(YIKE_PROFILE_PATH=str(tmp_path),
         YIKE_EXPECTED_ACCOUNT_PUBLIC_ID=ACCOUNT, PYTHONDONTWRITEBYTECODE='1',
         TEMP=str(tmp_path), TMP=str(tmp_path), MPLCONFIGDIR=str(tmp_path))
-    measured = ['main.py', 'media_platform/xhs/core.py', 'media_platform/xhs/client.py']
+    measured = ['main.py', 'media_platform/xhs/core.py', 'media_platform/xhs/client.py', 'config/xhs_config.py']
     # POSIX exercises the pinned source only, never Windows installation proof.
     if sys.platform == 'win32': measured.append('.yike-windows-install.json')
     before = {name: (installed / name).read_bytes() for name in measured}
-    proc = subprocess.run([str(python), '-X', 'utf8', '-c', script, str(worker), mode, *arguments(tmp_path)],
+    args = arguments(tmp_path)
+    args[-1] = str(comment_limit)
+    proc = subprocess.run([str(python), '-X', 'utf8', '-c', script, str(worker), mode, *args],
         cwd=installed, env=environment, capture_output=True, timeout=30)
     assert proc.returncode == 0, proc.stderr.decode('utf-8', errors='replace')
     result = json.loads(proc.stdout)

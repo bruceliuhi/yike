@@ -209,7 +209,7 @@ def _read(output_dir: Path, platform: str, max_records: int, collection_mode: st
                 raise CollectionOutputError()
     if any(source not in contents for source, _ in comments):
         raise CollectionOutputError()
-    if collection_mode != 'search':
+    if collection_mode != 'search' or platform == 'XIAOHONGSHU':
         observed = {source: _with_observation(row) for source, row in contents.items()}
         result = [{'content': row} for row in observed.values()]
         result += [{'content': observed[source], 'comment': row} for source, row in comments]

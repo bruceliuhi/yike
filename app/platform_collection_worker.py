@@ -229,9 +229,9 @@ def _fixed_arguments(arguments, platform='XIAOHONGSHU'):
     output = Path(values['--save_data_path'])
     if not output.is_absolute() or not output.is_dir(): raise ValueError()
     for key, maximum in (('--crawler_max_notes_count', 5), ('--max_comments_count_singlenotes', 100)):
-        pattern = r'(?:0|[1-9][0-9]*)' if mode != 'search' and key == '--max_comments_count_singlenotes' else r'[1-9][0-9]*'
+        pattern = r'(?:0|[1-9][0-9]*)' if (mode != 'search' or platform == 'XIAOHONGSHU') and key == '--max_comments_count_singlenotes' else r'[1-9][0-9]*'
         if not re.fullmatch(pattern, values[key]) or int(values[key]) > maximum: raise ValueError()
-    if mode != 'search':
+    if mode != 'search' or platform == 'XIAOHONGSHU':
         contents = int(values['--crawler_max_notes_count'])
         comments = int(values['--max_comments_count_singlenotes'])
         if (mode == 'detail' and contents != 1) or contents * (1 + comments) > 100: raise ValueError()
@@ -251,8 +251,13 @@ def main():
         from tools.yike_runtime import YikePlatformAuthRequired, _EXPLICIT_TERMINALS
         error_types = {code: kind for kind, (code, _) in _EXPLICIT_TERMINALS}
         if platform == 'XIAOHONGSHU':
+            import config
+            from media_platform.xhs.field import SearchSortType
             from media_platform.xhs.core import XiaoHongShuCrawler
             from media_platform.xhs.client import XiaoHongShuClient
+            # This worker process searches fresh demand; leave the pinned
+            # runtime files and other platform defaults unchanged.
+            config.SORT_TYPE = SearchSortType.LATEST.value
             guard = install_account_guard(XiaoHongShuCrawler, XiaoHongShuClient, YikePlatformAuthRequired, expected)
         elif platform == 'BILIBILI':
             from media_platform.bilibili.core import BilibiliCrawler
