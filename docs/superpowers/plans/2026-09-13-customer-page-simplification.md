@@ -59,3 +59,5 @@
 - 最终安装器 `C:/ykui913/make/squirrel.windows/x64/YikeAI-Setup.exe`，**642,869,248 字节**，SHA256 `d29569073b75de23798bd3889dc029ada642259214b726cb8db8a5923f8a2d3a`；nupkg 646,525,695 字节。签名仍 `NotSigned`，不作为正式上线通过。
 - ASAR SHA256 `06e811106038687000ab62fee1b91968fd14ddb03733725f2c87bcfa7e8bc258`，实际读取主入口、renderer 资源及内置 `https://yike.tuokexing.net`/固定载荷清单 pin 成功。最初检查使用 POSIX 分隔符导致读入口报错，改用 Windows 路径后确认存在，没有修改产物。
 - 实装前核旧 ASAR 仍为 `098ef7a5873b9b5aa63e5b6ba387b54796b4b6e33844cf37410b71976cbd37ba`；平台页真实显示本机已准备好。正常 Alt+F4 出现“尚有未提交的更改 / 关闭窗口会清除会话草稿”，未点击放弃、未强制结束或启动 Setup。当前实际客户端仍是旧版，待用户选择后继续更新，登录数据未清理。
+- 自动接续只做无损检查：Windows 旧 .NET `System.IO.Packaging.Package` 实际读取最终 nupkg 的 **11,204 parts** 成功，包内 ASAR/载荷清单 SHA256 与上述固定摘要逐一相同。不是仅 ZIP 可读，也不替代 Setup 实装。再次只读核对旧版窗口，清除草稿确认仍在；没有用其他工具绕过该选择。
+- 同轮线上只读核对：HTTPS `healthz/readyz` 分别返回 `ok/ready`；实际 customer 仍为 `e1bee5aaddff0676592c2fa103ca61ed0e954aa9`、healthy、重启 0、只读根目录、用户 yike。没有部署或启用新研究，线上健康不证明尚未接通的隔离研究及客户闭环可用。
