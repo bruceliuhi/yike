@@ -99,6 +99,8 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
       <p>{value.sourceLabel}</p>
       <h3>{presentation!.title}</h3>
       <p>{presentation!.explanation}</p>
+      <details className="usage-advanced">
+      <summary>查看处理明细</summary>
       {value.discovery&&<>
         <p>搜索完成：{value.discovery.searches.succeeded} · 原文读取完成：{value.discovery.reads.succeeded} · 未入候选原文：{value.discovery.unpublishedOriginals}</p>
         <p className="muted">搜索摘要不计原文；超长、超出上限或尚待入库的原文不计候选。需要登录或展开评论的来源需另行授权补查。</p>
@@ -112,6 +114,7 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
       </table>}
       <p>入库原文：{value.acceptedOriginals??'尚未确认'} · 已分析：{value.analyzedOriginals} · 已跳过：{value.skippedOriginals}</p>
       <p className="muted">这些是原文与分析进度，不是已确认的商机数量；请打开候选逐条核对出处与购买意向。</p>
+      </details>
       {presentation!.warning&&<Notice tone="warning">{presentation!.warning}</Notice>}
       <p>{presentation!.nextStep}</p>
       {dynamic&&service.researchRuntime?.reads&&<ResearchReadEvidence taskId={taskId} runId={runId}

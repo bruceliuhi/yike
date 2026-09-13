@@ -145,8 +145,9 @@ function CoverageView({
         检查窗口：{zoned(snapshot.window.start, snapshot.window.timezone)} –{" "}
         {zoned(snapshot.window.end, snapshot.window.timezone)}
       </p>
-      <div className="coverage-layout">
-        <div className="coverage-left">
+      <div className="coverage-layout coverage-layout--customer">
+        <details className="coverage-left">
+          <summary>查看各搜索方向</summary>
           <section className="coverage-table-panel" aria-label="搜索覆盖方向">
             <h3>搜索覆盖</h3>
             {!snapshot.units.length ? (
@@ -222,7 +223,7 @@ function CoverageView({
               unit={unit}
             />
           )}
-        </div>
+        </details>
         <aside className="coverage-aside" aria-label="所选方向结果">
           {unit ? (
             <>
@@ -231,6 +232,8 @@ function CoverageView({
               </h3>
               <h3>{coverageResultLabel(unit)}</h3>
               <p>{unit.explanation}</p>
+              <details>
+              <summary>查看范围说明</summary>
               <dl className="detail-list">
                 <div>
                   <dt>数据覆盖</dt>
@@ -259,6 +262,7 @@ function CoverageView({
                   </ul>
                 </>
               )}
+              </details>
               {unit.stopReason === "LOGIN_EXPIRED" &&
                 unit.platform !== "web" && (
                   <Button

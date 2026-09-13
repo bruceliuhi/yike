@@ -41,13 +41,12 @@ export function ResearchReadEvidence({taskId,runId,reads,onOpen}:{
       className="fixed-source-evidence fixed-source-evidence--compact" aria-label="研究原文" key={item.sequence}>
       <h3>{item.title??'未提供标题'}</h3>
       <p className="field-hint" style={{overflowWrap:'anywhere'}}>{item.url}</p>
-      <p className="muted">读取于 {formatDate(item.observedAt)} · 序号 {item.sequence}</p>
+      <p className="muted">读取于 {formatDate(item.observedAt)}</p>
       <div className={`fixed-evidence-body${long&&!isExpanded?' fixed-evidence-body--collapsed':''}`}>{item.text}</div>
       {long&&<Button variant="ghost" aria-expanded={isExpanded} onClick={()=>setExpanded(current=>{
         const next=new Set(current);if(next.has(item.sequence))next.delete(item.sequence);else next.add(item.sequence);return next;
       })}>{isExpanded?'收起原文':'展开完整原文'}</Button>}
       <div className="task-footer"><Button onClick={()=>void onOpen(item.url).catch(()=>setError('来源链接未能安全打开，请稍后重试。'))}>打开公开来源</Button></div>
-      <p className="field-hint">研究原文，尚非已确认商机</p>
     </article>;})}
     <div className="task-footer">
       <Button disabled={loading} onClick={()=>void load(0,true)}>刷新已读原文</Button>
