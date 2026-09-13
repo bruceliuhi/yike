@@ -24,7 +24,8 @@ import {
   type TaskDraft,
   type TaskRun,
 } from "../../src/renderer/domain/models";
-import { makeTerm } from "../../src/renderer/domain/task";
+import { makeTerm, taskFingerprint } from "../../src/renderer/domain/task";
+import { defaultResearchSettings } from "../../src/renderer/domain/researchUsage";
 import {
   ServiceError,
   type YikeService,
@@ -227,6 +228,86 @@ describe("platform selection state names", () => {
     render(<TaskWizardPage />);
     await screen.findByText("已确认业务画像");
     for (const platform of PLATFORMS) expectPlatformState(platform.name, "");
+  });
+});
+
+describe("explicit platform collection entry", () => {
+  it.each([{}, { xhs: "account-two" }])(
+    "switches only on request and preserves the collection draft with accounts %j",
+    async (accounts) => {
+      const saved = seed({
+        research: defaultResearchSettings(),
+        accounts,
+        exclusions: [makeTerm("人工排除")],
+        platformTerms: { xhs: [makeTerm("平台搜索词")] },
+        executionLimits: { max_records: 37, max_runtime_seconds: 180 },
+        savedAt: "2026-09-13T00:00:00Z",
+      });
+      context.service.researchUsage = { quote: vi.fn() };
+      const view = render(<TaskWizardPage />);
+      const switchMode = await screen.findByRole("button", { name: "使用平台采集" });
+      await screen.findByText("已确认业务画像");
+      expect(currentDraft()).toEqual(saved);
+      expect(screen.getByRole("heading", { name: "研究用量" })).toBeTruthy();
+
+      fireEvent.click(switchMode);
+      const { research: _research, ...collection } = saved;
+      expect(currentDraft()).toEqual({ ...collection, revision: saved.revision + 1, savedAt: null });
+      expect(taskFingerprint(currentDraft())).not.toBe(taskFingerprint(saved));
+      expect(screen.queryByRole("heading", { name: "研究用量" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "配置研究用量" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "使用平台采集" })).toBeNull();
+      view.unmount();
+      render(<TaskWizardPage />);
+      await screen.findByText("已确认业务画像");
+      expect(currentDraft().research).toBeUndefined();
+      expect(context.service.researchUsage.quote).not.toHaveBeenCalled();
+      expect(context.service.suggest).not.toHaveBeenCalled();
+      expect(context.service.startTask).not.toHaveBeenCalled();
+      expect(context.navigate).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each<TaskDraft["platforms"]>([[], ["web"], ["xhs", "web"]])(
+    "does not offer a platform-only switch for scope %j",
+    async (...platforms) => {
+      const saved = seed({ research: defaultResearchSettings(), platforms });
+      render(<TaskWizardPage />);
+      await screen.findByText("已确认业务画像");
+      expect(screen.queryByRole("button", { name: "使用平台采集" })).toBeNull();
+      expect(screen.getByRole("heading", { name: "研究用量" })).toBeTruthy();
+      expect(currentDraft()).toEqual(saved);
+      expect(context.service.startTask).not.toHaveBeenCalled();
+    },
+  );
+
+  it("clears an earlier configuration review when switching to platform collection", async () => {
+    seed({ research: defaultResearchSettings() });
+    context.route = parseRoute("#/tasks/new?step=confirm");
+    const view = render(<TaskWizardPage />);
+    await screen.findByText("执行服务已就绪");
+    const reviewName = "我已核对以上业务画像、搜索条件、账号与运行设置";
+    fireEvent.click(screen.getByRole("checkbox", { name: reviewName }));
+    expect((screen.getByRole("checkbox", { name: reviewName }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "返回修改" }));
+    followNavigation(view);
+    fireEvent.click(screen.getByRole("button", { name: "使用平台采集" }));
+    fireEvent.click(screen.getByRole("button", { name: "下一步：连接平台" }));
+    followNavigation(view);
+    fireEvent.click(screen.getByRole("button", { name: "下一步：确认任务" }));
+    followNavigation(view);
+    expect((screen.getByRole("checkbox", { name: reviewName }) as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByRole("button", { name: "确认并启动" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(context.service.startTask).not.toHaveBeenCalled();
+  });
+
+  it("does not label a non-research task as a historical research draft", async () => {
+    seed();
+    render(<TaskWizardPage />);
+    await screen.findByText("已确认业务画像");
+    expect(screen.queryByRole("heading", { name: "研究用量" })).toBeNull();
+    expect(screen.queryByText("此历史草稿尚未配置搜贝上限。")).toBeNull();
+    expect(screen.queryByRole("button", { name: "配置研究用量" })).toBeNull();
   });
 });
 

@@ -52,6 +52,33 @@ function renderSummary(
 }
 
 describe("task confirmation execution-account selection", () => {
+  const connectionId = "11111111-1111-4111-8111-111111111111";
+  const deviceId = "22222222-2222-4222-8222-222222222222";
+  const accountId = "a".repeat(24);
+  const boundAccount: PlatformConnection = row({
+    accountId,
+    accountName: "已登录的小红书账号",
+    registration: { connectionId, deviceId, version: 2,
+      connectedAt: "2026-09-13T00:00:00Z", disconnectedAt: null },
+    foregroundBinding: { mode: "xhs-foreground-v1", platform: "XIAOHONGSHU",
+      connectionId, deviceId, connectionVersion: 2, accountPublicId: accountId },
+  });
+
+  it("shows the selected registered account when its current foreground binding is valid", () => {
+    const table = renderSummary([boundAccount], draft({ accounts: { xhs: accountId } }));
+    expect(table.getByText("已登录的小红书账号")).toBeTruthy();
+    expect(table.getByText("已连接")).toBeTruthy();
+    expect(table.queryByText("所选账号（待核对）")).toBeNull();
+  });
+
+  it("does not present a stale foreground binding as a verified account", () => {
+    const table = renderSummary([{ ...boundAccount,
+      registration: { ...boundAccount.registration!, version: 3 },
+    }], draft({ accounts: { xhs: accountId } }));
+    expect(table.getByText("所选账号（待核对）")).toBeTruthy();
+    expect(table.queryByText("已连接")).toBeNull();
+  });
+
   it("shows the selected connected legacy account when a registration is first", () => {
     const table = renderSummary([
       row({

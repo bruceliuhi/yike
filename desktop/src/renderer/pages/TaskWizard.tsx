@@ -1122,7 +1122,12 @@ export function TaskWizardPage() {
           </div>
           <aside className="task-aside">
             {strategy.available && <StrategyExecutionLimits value={draft.executionLimits} onChange={executionLimits => update({ executionLimits })} />}
-            <ResearchSettingsPanel value={draft.research} onChange={research => update({ research })} quote={usage.quote} busy={usage.busy} error={usage.error} onEstimate={() => void usage.estimate()} onCancel={usage.cancel} onPreview={() => changeStep(3)} />
+            {draft.research && draft.platforms.length > 0 && !draft.platforms.includes("web") && (
+              <Notice action={<Button onClick={() => update({ research: undefined })}>使用平台采集</Button>}>
+                切换后按平台采集流程继续，已有条件和账号选择会保留；启动前需重新确认。
+              </Notice>
+            )}
+            {draft.research && <ResearchSettingsPanel value={draft.research} onChange={research => update({ research })} quote={usage.quote} busy={usage.busy} error={usage.error} onEstimate={() => void usage.estimate()} onCancel={usage.cancel} onPreview={() => changeStep(3)} />}
             {!draft.research && <>
             <div className="section-heading">
               <h2>平台连接状态</h2>

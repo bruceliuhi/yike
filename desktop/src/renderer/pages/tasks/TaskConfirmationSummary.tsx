@@ -9,7 +9,7 @@ import "./confirmation.css";
 import { DEMAND_TYPES, type UsageQuote } from "../../domain/researchUsage";
 import { scheduleWindowLabel } from "../../domain/schedule";
 import {taskAccountLabel, scheduleRegionLabel} from './taskDisplayLabels';
-import {hasPublicSourceBinding} from '../../domain/task';
+import {hasForegroundBinding,hasPublicSourceBinding} from '../../domain/task';
 import {allowsPublicSource,DEFAULT_PUBLIC_SOURCE,publicSourceScope} from '../../../shared/publicSources';
 import {DYNAMIC_RESEARCH_SOURCE,researchSelectionScope} from '../../../shared/dynamicResearch';
 import {researchSourceScope} from '../../../shared/researchRuntime';
@@ -198,7 +198,7 @@ export function TaskConfirmationSummary({
                 const readyConnection = connections.find(
                   (row) =>
                     row.platform === id &&
-                    !row.registration &&
+                    (!row.registration || hasForegroundBinding(row)) &&
                     row.status === "CONNECTED" &&
                     (id === "web" || row.accountId === selected),
                 );
@@ -207,7 +207,7 @@ export function TaskConfirmationSummary({
                   connections.find(
                     (row) =>
                       row.platform === id &&
-                      !row.registration &&
+                      (!row.registration || hasForegroundBinding(row)) &&
                       (id === "web" || row.accountId === selected),
                   );
                 const matches =
