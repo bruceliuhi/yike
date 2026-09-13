@@ -1257,14 +1257,13 @@ export function TaskWizardPage() {
           )}
           <section className="form-section">
             <div className="section-heading">
-              <h2>执行设备</h2>
+              <h2>采集准备</h2>
               <Badge tone={info.data?.deviceReady ? "green" : "neutral"}>
-                {info.data?.deviceReady ? "执行服务已就绪" : "待绑定或检查"}
+                {info.data?.deviceReady ? "执行服务已就绪" : "尚未就绪"}
               </Badge>
             </div>
             <p className="muted">
-              {info.data?.platform || "本机"} ·
-              当前任务只有在设备可用时才能启动。
+              请检查所选平台的连接及服务状态；启动前会再次核对。
             </p>
             <Button variant="ghost" onClick={() => void info.reload()}>
               重新检查

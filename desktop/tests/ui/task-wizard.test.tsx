@@ -839,6 +839,23 @@ describe("task wizard service boundary", () => {
   });
 });
 
+describe("collection readiness copy", () => {
+  it("does not diagnose an unbound device when collection capability is unavailable", async () => {
+    seed();
+    context.route = parseRoute("#/tasks/new?step=connect");
+    vi.mocked(context.service.info).mockResolvedValue({version:'0.2.0',platform:'win32',serviceConfigured:true,deviceReady:false});
+    render(<TaskWizardPage />);
+    await screen.findByRole('heading', {name:'采集准备'});
+    expect(screen.getByText('尚未就绪')).toBeTruthy();
+    expect(screen.queryByText('待绑定或检查')).toBeNull();
+    expect(screen.getByText('请检查所选平台的连接及服务状态；启动前会再次核对。')).toBeTruthy();
+    vi.mocked(context.service.info).mockResolvedValue({version:'0.2.0',platform:'win32',serviceConfigured:true,deviceReady:true});
+    fireEvent.click(screen.getByRole('button', {name:'重新检查'}));
+    await screen.findByText('执行服务已就绪');
+    expect(context.service.startTask).not.toHaveBeenCalled();
+  });
+});
+
 describe("new original-start contract", () => {
   it("persists the exact configuration binding before dispatch and reconciles rather than restarting", async () => {
     const draft = seed();
