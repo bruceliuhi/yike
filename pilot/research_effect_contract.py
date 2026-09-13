@@ -243,7 +243,7 @@ def known_read_failure(kind, payload, result) -> dict:
                 or normalize_public_url(clean_payload["url"]) != clean_payload["url"]
                 or type(clean) is not dict or set(clean) != {"status", "code", "replayed"}
                 or clean["status"] != "FAILED" or clean["replayed"] is not False
-                or clean["code"] not in {"not_found", "unsupported_media_type", "too_large"}):
+                or clean["code"] not in {"not_found", "unsupported_media_type", "too_large", "connection_unavailable"}):
             _invalid_result()
         return clean
     except (ExecutionRuntimeError, PublicReadError, KeyError, TypeError, ValueError, RecursionError):
