@@ -1,6 +1,5 @@
 """Privileged broker core. Never import into the customer API execution path."""
 
-import hashlib
 import json
 import math
 import os
@@ -9,24 +8,10 @@ import re
 import stat
 import subprocess
 from time import time
-from uuid import UUID
+from pilot.research_broker_contract import task_key
 from pilot.research_container_lifecycle import ContainerLifecycle
 
 _RUNTIME_UID = 10001
-
-
-def task_key(identity):
-    try:
-        if type(identity) is not dict or set(identity) != {'tenant_id', 'task_id', 'run_id', 'generation'}:
-            raise ValueError()
-        for field in ('tenant_id', 'task_id', 'run_id'):
-            if type(identity[field]) is not str or str(UUID(identity[field])) != identity[field]:
-                raise ValueError()
-        if type(identity['generation']) is not int or not 1 <= identity['generation'] <= 2**31-1:
-            raise ValueError()
-        return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
-    except (ValueError, TypeError, AttributeError):
-        raise ValueError('invalid_task_identity') from None
 
 
 def _private_directory(path):

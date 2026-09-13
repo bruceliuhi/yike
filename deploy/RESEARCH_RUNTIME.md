@@ -39,3 +39,9 @@ broker必须以UID10001运行并单独获得Docker控制权限；不兼容UID启
 重启先取消旧started，仍未确认终态时拒绝新执行，守护继续尝试清理。监督进程存活时独立于execute输出消费检查期限；监督进程本身崩溃期间，尚需部署服务自动重启触发恢复，不能宣称已经有外部孤儿清理服务。`emit`由后续内部服务提供有界传输，不接受用户代码。上述源码已取代前文“无start”的历史状态，但仍未接服务/worker或实际Docker验收；不上传镜像或启用客户研究。
 
 同进程execute结束但物理状态未确认STOPPED，也会保留优先回收并加入新启动门禁；不需要等broker重启才限制孤儿增长。槽位释放只代表本地attach调用结束，不代表容器已停止。
+
+### 私有服务与无特权客户端（源码接续，未接客户任务）
+
+`python -I -m pilot.research_broker_service --socket <私有socket路径> --image <固定sha256> --tasks-root <私有任务根> --ledger-root <私有登记根>`提供同UID/0600 Unix socket服务，绝不监听TCP。固定POST `/v1/create`、`/v1/status`、`/v1/stop`、`/v1/execute`，body最多1MiB、最多4请求线程；执行返回NDJSON块和最终物理状态，不把STOPPED当研究成功。不得通过公网反代暴露这些接口。服务主进程上下文拥有broker守护，仍需后续部署配置自动重启恢复。
+
+客户服务使用独立 `BrokerClient`，只依赖httpx和纯身份合同，不导入Docker控制；固定socket与路径、校验task key/状态/帧/2MiB总量。真实本地UDS合成broker往返验证了小事件在任务结束前可见；原64KiB累积延迟经RED复现修复。关闭时最终准入再查halt/alive，避免status耗时期间服务停止后继续启动。当前尚未将此client注入实际mission、配置生产挂载或运行真实Docker，不能据服务接口通过声称客户研究已经隔离执行。

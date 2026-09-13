@@ -13,6 +13,10 @@ from pilot.codex_research_worker import _kill_group
 from pilot.research_container_entry import validate_manifest
 
 
+class _BrokerStopping(Exception):
+    pass
+
+
 class ContainerLifecycle:
     def _mark(self, key, suffix):
         try:
@@ -54,10 +58,12 @@ class ContainerLifecycle:
             while not self._halt.wait(.5):
                 self.reconcile()
         finally:
-            self._halt.set()
+            with self._active_guard:
+                self._halt.set()
 
     def __exit__(self, *_):
-        self._halt.set()
+        with self._active_guard:
+            self._halt.set()
         try:
             self._supervisor_thread.join(timeout=25)
             self.reconcile(recover=True)
@@ -96,6 +102,14 @@ class ContainerLifecycle:
             results.append(self._stop_key(key))
         return results
 
+    def _attach(self, key):
+        with self._active_guard:
+            if self._halt.is_set() or (self.ledger_root/(key+'.cancelled')).exists():
+                raise _BrokerStopping()
+            return subprocess.Popen(['docker','start','--attach','--interactive','yike-r-'+key],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                start_new_session=True, env={'PATH':'/usr/local/bin:/usr/bin:/bin'})
+
     def execute(self, identity, manifest, *, emit, cancelled=lambda: False):
         # Import only at invocation to keep the broker core/lifecycle dependency acyclic.
         from pilot.research_container_broker import task_key
@@ -122,6 +136,8 @@ class ContainerLifecycle:
         physical = None
         try:
             with self._active_guard:
+                if self._halt.is_set() or not thread.is_alive():
+                    raise ValueError('supervisor_required')
                 if any(not (self.ledger_root/(k+'.terminal')).exists() for k in self._recovery_keys):
                     raise ValueError('broker_recovery_pending')
                 if not self._slots.acquire(blocking=False):
@@ -135,12 +151,10 @@ class ContainerLifecycle:
             payload = json.dumps(manifest, separators=(',', ':'), ensure_ascii=False).encode()
             if len(payload) > 1024*1024:
                 raise ValueError('invalid_task_manifest')
-            if (self.ledger_root/(key+'.cancelled')).exists() or cancelled():
+            if self._halt.is_set() or (self.ledger_root/(key+'.cancelled')).exists() or cancelled():
                 code = 'cancelled'
             else:
-                process = subprocess.Popen(['docker','start','--attach','--interactive','yike-r-'+key],
-                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                    start_new_session=True, env={'PATH':'/usr/local/bin:/usr/bin:/bin'})
+                process = self._attach(key)
                 chunks = queue.Queue(maxsize=16)
                 def feed():
                     try:
@@ -191,6 +205,8 @@ class ContainerLifecycle:
                         code = 'output_limit'
                         break
                     emit(chunk)
+        except _BrokerStopping:
+            code = 'cancelled'
         finally:
             stop.set()
             try:
