@@ -14,6 +14,8 @@
 
 10:07 正式安装态接续：通过产品“小红书→打开登录窗口”进入真实连接流程，输出 `09230b34-d5b9-46ce-9f78-cc01283a0b04` 于10:07:13 OPENED、10:07:16 **AUTHENTICATED**，公开账号标识非空（不记录其值）。平台进程已退出；原生UI显示“登录已完成，待检查连接”，提示本人点击“我已完成登录，检查连接”。本次复用了此前用户完成的登录，没有代操作认证页、重新扫码或修改profile；正式连接CHECK仍待本人确认，列表仍未连接，不能把AUTHENTICATED写成CONNECTED。没有采集/模型/外发、没有重新构包或部署。
 
+同轮主干接收：正常合并远端3f34010及本机认证证据为9db331a，保留双方改动。来件包含已读原文展示/研究引用交接与镜像规则资源；Windows受影响researchRuntime、researchRuntimeClient、research-progress三文件 **33 passed / 0 failed / 0 skipped**，类型检查exit0，证据`.runtime/win-research-incoming-9db331a.json`。当前安装仍3ffddbd、服务器仍e1bee5a，不追认新原文展示或动态研究为已部署；同源试用候选须等执行隔离缺口收口后统一交付，复用来件审核/既有证据，不重做相同检查。
+
 ## e1bee5a 已构包并覆盖安装（2026-09-13 08:23）
 
 - 修复已推Gitee main，候选固定 `e1bee5aaddff0676592c2fa103ca61ed0e954aa9`。独立LF工作树构包，637项源码输入前后摘要相同 `112e6b63dc53ce5ac80d6e5f243d20ce0d8787625bdb6a77be8aac9ec5fb7e30`；Forge make退出0，既有Vite兼容/弃用警告保留。
