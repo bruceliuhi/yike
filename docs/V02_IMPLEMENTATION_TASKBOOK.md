@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+2026-09-13 隔离通信切片：显式任务Unix socket网关已实现，保留原auth/许可/路由/调用上限，私有目录/0600/无TCP回退；生命周期P2经RED复现后修复，最终独立差量PASS。UDS7项通过，既有TCP43项复用；Linux合成往返检查只绑定生命周期修复前，非真实模型/完整容器隔离证据。[唯一记录](superpowers/plans/2026-09-13-research-efficient-handoff.md#隔离执行接续尚未接通)。尚未接worker或部署，下一步是容器回环relay、固定协议broker及任务停止回收，不把本切片当云端可用。
+
 2026-09-13 隔离研究恢复：用户已明确解除旧冻结并恢复SSH，实际只读连接成功。独立Codex0.153.4/MCP1.28.0 Linux amd64镜像完成真实构建与受限无网络容器内版本/stdio初始化检查；源码静态独立PASS，5项部署合同检查复用。镜像及限定证据见[研究运行镜像](../deploy/RESEARCH_RUNTIME.md)和[唯一接续记录](superpowers/plans/2026-09-13-research-efficient-handoff.md#隔离执行接续尚未接通)。尚未接生产任务、未部署；下一步是任务级Unix socket/relay与固定协议broker，验证跨租户隔离、截止时间/取消回收和UNKNOWN不重发。下方SSH拒绝与未安装记录保留为历史，不继续描述当前授权状态。
 
 2026-09-13 客户联系准备断点修复：生产 `client.generateContact` 原为必然返回unavailable的占位，但界面仍显示生成按钮。现将旧接口改可选并从生产声明移除，按钮/handler按实际方法存在性保护；原ShortCoach确认生成、人工编辑/复制/保存均保留，缺教练时不再引导至旧空接口。新增RED2复现，contact-preparation 8通过；queues/shortCoach组50通过、1条旧文案断言失败，修正对应断言后仅该条1通过；去重59项有通过证据，最终typecheck通过。生产源差量独立PASS，无模型/外联/云端操作，未构包或部署；与被审批阻断的独立研究镜像候选分开提交，不据此恢复云端权限或宣称客户试用完成。

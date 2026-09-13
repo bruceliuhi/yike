@@ -173,6 +173,12 @@ session67847终态exit0：实际镜像以 `--network none --read-only --tmpfs /t
 
 ### 隔离执行接续（尚未接通）
 
+任务UDS网关切片：`ResponsesBridge`新增显式 `unix_socket_path`，仅POSIX自有私有父目录下的新路径，0600 socket、无TCP监听/base_url；仍使用原三条固定HTTP路由、短期token、宿主dispatch和请求上限。退出只删除自身socket inode，不覆盖既有路径或误删替换物。尚未由worker调用，容器relay/broker仍待实现，旧TCP默认路径保持。
+
+验证记录：新增RED5为缺参数；普通sandbox的bind失败由原生最小探针确认EPERM，获准本地socket测试后两文件47通过/1失败。唯一失败为新测试dispatcher错误使用关键字签名，修正夹具后该条1通过/0.71秒，未放宽生产协议。session68964在真实Linux amd64研究镜像仅挂本批单模块，无网络/只读/UID10001/512MiB/PID64，以合成provider验证未认证401、认证200、无TCP回退和关闭删除，exit0；不是容器间通信或真实MODEL。
+
+独立审核发现P2：构造阶段bind后listen失败可能遗留socket，清理异常可能跳过内存秘密清空。新增RED2实际复现；改为分阶段bind→记录inode→chmod→activate，失败/移除异常以finally清空token/key。最终UDS7通过/2.76秒，旧TCP43项复用原证据；Linux成功证据绑定该生命周期修复前，不追认为修复后重新检查。最终受影响差量独立PASS，P2关闭；下一步容器回环relay与broker绑定，不重复构建基础镜像。
+
 独立架构复核建议保留宿主监督线程、Bridge和账本，仅替换 `_execute`：每任务固定digest的Codex/MCP容器无外网，只挂任务Unix socket；容器内固定回环relay连接宿主Bridge，不接受任意目的地址。控制面持供应商key/DB，任务容器仅拿短期任务token；固定容器内路径和私有tmpfs，不挂共享HOME或源码。独立broker拥有固定创建/状态/停止协议，按task/run/generation幂等，不把Docker socket交客户服务。取消先撤销permit/Bridge，再stop/kill/inspect；broker独立截止时间及恢复检查兜住API崩溃，未知创建不重建。这是后续实施边界，不是已有实现。
 
 运行镜像源码候选：新增独立 `deploy/Dockerfile.research` 和 `research-python.pth`，不改普通服务镜像。固定Codex 0.153.4官方完整amd64包，官方元数据及本地下载SHA256均为 `a822187e1a2420c61c5926721bfbd878701ed95547c9bb0d4de4498a16ba1821`；Docker ADD要求摘要验证，MCP用现有lock的research extra，Python -I通过只读安装路径加载pilot。默认非root只打印版本，不启用客户研究。新定向RED1失败（文件缺失），GREEN部署合同5通过/2.15秒；这是静态/复制布局检查，不是Codex Linux执行验收。
