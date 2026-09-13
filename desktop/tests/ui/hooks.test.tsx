@@ -232,9 +232,9 @@ describe("resource identity and late results", () => {
     rerender({ user: "b" });
     expect(result.current.data).toBeUndefined();
     expect(result.current.loading).toBe(true);
-    await act(async () => next.reject(new Error("B unavailable")));
+    await act(async () => next.reject(new Error("当前账号暂不可用")));
     expect(result.current.data).toBeUndefined();
-    expect(result.current.error).toBe("B unavailable");
+    expect(result.current.error).toBe("当前账号暂不可用");
     expect(result.current.loading).toBe(false);
   });
   it("discards an old identity result even when it resolves last", async () => {
@@ -267,10 +267,10 @@ describe("resource identity and late results", () => {
     act(() => {
       void result.current.reload();
     });
-    await act(async () => third.reject(new Error("latest failed")));
+    await act(async () => third.reject(new Error("最新读取未完成")));
     await act(async () => second.resolve("stale"));
     expect(result.current.data).toBeUndefined();
-    expect(result.current.error).toBe("latest failed");
+    expect(result.current.error).toBe("最新读取未完成");
   });
   it("preserves a newer explicit update against an older pending fetch", async () => {
     const pending = deferred<string>();

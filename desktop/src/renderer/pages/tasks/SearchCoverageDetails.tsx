@@ -24,9 +24,11 @@ function Evidence({ rows }: { rows: CoverageEvidence[] }) {
         rows.map((row) => (
           <div className="coverage-evidence" key={row.id}>
             <blockquote>{row.excerpt}</blockquote>
-            <p className="muted">
-              来源 {row.sourceId} · 证据版本 {row.sourceVersionId}
-            </p>
+            <p className="muted" style={{overflowWrap: "anywhere"}}>{row.url}</p>
+            <details>
+              <summary>查看来源技术信息</summary>
+              <p className="muted">来源 {row.sourceId} · 证据版本 {row.sourceVersionId}</p>
+            </details>
             <Button
               variant="ghost"
               disabled={busy}

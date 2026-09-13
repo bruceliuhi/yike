@@ -29,11 +29,11 @@ export class ServiceError extends Error {
   }
 }
 export function errorMessage(error: unknown): string {
-  return error instanceof ServiceError
-    ? error.message
-    : error instanceof Error
-      ? error.message
-      : "操作未完成，请重试。";
+  // Schema and runtime diagnostics are not customer instructions.
+  if (error instanceof Error && error.name !== "ZodError" && /[\u3400-\u9fff]/u.test(error.message)) {
+    return error.message;
+  }
+  return "操作未完成，请查看当前状态后再继续。";
 }
 export interface YikeService {
   searchSuggestions?: import('./searchSuggestions').SearchSuggestionsService;

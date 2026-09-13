@@ -68,7 +68,7 @@ function Harness(){const [current,setCurrent]=useState(draft);return <>
  <button onClick={()=>setCurrent(v=>({...v,content:'人工改写',version:v.version+1}))}>人工编辑</button>
  <ShortCoachPanel row={row} draft={current} purpose="requirement" onApply={(content,materialReferences)=>setCurrent(v=>({...v,content,materialReferences,version:v.version+1}))}/>
  </>;}
-async function openPreview(){render(<Harness/>);fireEvent.click(screen.getByRole('button',{name:'生成短句建议'}));return screen.findByRole('dialog',{name:'确认模型生成'});}
+async function openPreview(){render(<Harness/>);fireEvent.click(screen.getByRole('button',{name:'生成短句建议'}));return screen.findByRole('dialog',{name:'生成短句建议'});}
 async function ready(){const dialog=await openPreview();fireEvent.click(within(dialog).getByRole('button',{name:'确认并生成'}));return screen.findByRole('dialog',{name:'短句建议与当前草稿'});}
 it('discloses selected excerpts, requalifies and adopts shortened reference with content',async()=>{
  const dialog=await openPreview();expect(within(dialog).getByText(ref.quote)).toBeTruthy();
@@ -114,7 +114,7 @@ it('saves the actually used shortened quote through the ordinary contact editor'
  render(<ContactEditor row={row} renderConfirmation={()=>null}/>);
  fireEvent.click(await screen.findByRole('button',{name:'带入资料片段'}));
  fireEvent.click(screen.getByRole('button',{name:'生成短句建议'}));
- let dialog=await screen.findByRole('dialog',{name:'确认模型生成'});
+ let dialog=await screen.findByRole('dialog',{name:'生成短句建议'});
  fireEvent.click(within(dialog).getByRole('button',{name:'确认并生成'}));
  dialog=await screen.findByRole('dialog',{name:'短句建议与当前草稿'});
  fireEvent.click(within(dialog).getByRole('button',{name:'核对并替换当前草稿'}));

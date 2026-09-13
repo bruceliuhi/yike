@@ -2,6 +2,7 @@
 import {afterEach, beforeEach, expect, it, vi} from "vitest";
 import {act, cleanup, fireEvent, render, screen, waitFor, within} from "@testing-library/react";
 import {ConnectionsPage} from "../../src/renderer/pages/Connections";
+import {ConnectionRegistryTable} from "../../src/renderer/pages/connections/ConnectionRegistryTable";
 import {decodeConnectionRegistry} from "../../src/renderer/services/connectionRegistry";
 import type {AppContextValue} from "../../src/renderer/app/context";
 import type {YikeService} from "../../src/renderer/services/contracts";
@@ -17,12 +18,13 @@ beforeEach(() => {
   } as unknown as YikeService};
 });
 afterEach(cleanup);
-const details = () => screen.getByRole("button", {name: "查看小红书连接详情：TEST-shared-account，设备TEST-device-two"});
+const details = () => screen.getByRole("button", {name: "查看小红书连接详情：TEST-shared-account，连接 2"});
 it("folds technical connection identity while preserving account, device, status and capability limits", async () => {
   render(<ConnectionsPage />);
   await screen.findAllByText("TEST-shared-account");
   expect(screen.queryByText(/连接 v2/)).toBeNull();
-  expect(screen.getByText("设备 TEST-device-two")).toBeTruthy();
+  expect(screen.queryByText("设备 TEST-device-two")).toBeNull();
+  expect(screen.getByText("已登记设备 · 连接 2")).toBeTruthy();
   fireEvent.click(details());
   const dialog = within(screen.getByRole("dialog"));
   const summary = dialog.getByText("查看连接技术信息");
@@ -31,13 +33,22 @@ it("folds technical connection identity while preserving account, device, status
   expect(technical!.open).toBe(false);
   expect(dialog.getByText("TEST-connection-two").closest("details")).toBe(technical);
   expect(dialog.getByText("v2").closest("details")).toBe(technical);
-  for (const text of ["TEST-shared-account", "TEST-device-two", "已连接", "尚无已核验能力", "当前可查看服务端连接记录；本机账号登录、能力核验与断开操作仍待接通。"]) {
+  expect(dialog.getByText("TEST-device-two").closest("details")).toBe(technical);
+  for (const text of ["TEST-shared-account", "已连接", "尚无已核验能力", "当前可查看服务端连接记录；本机账号登录、能力核验与断开操作仍待接通。"]) {
     expect(dialog.getByText(text).closest("details")).toBeNull();
   }
   fireEvent.click(summary);
   expect(technical!.open).toBe(true);
   expect(within(technical!).getByText("TEST-connection-two")).toBeTruthy();
   expect(context.service.disconnect).not.toHaveBeenCalled();
+});
+it('labels known capabilities in Chinese without publishing unknown capability codes',()=>{
+  const rows=records().map(row=>({...row,capabilities:['search','read','monitor','comment','dm','FUTURE_INTERNAL_CODE']}));
+  render(<ConnectionRegistryTable rows={rows} loading={false} error="" pendingPlatforms={[]} onOpen={vi.fn()} onDisconnect={vi.fn()} onRefresh={vi.fn()}/>);
+  expect(screen.getAllByText('搜索公开内容、读取原文、持续监控、发布评论、发送私信、其他能力待核验')).toHaveLength(2);
+  expect(screen.queryByText(/FUTURE_INTERNAL_CODE|search、read/)).toBeNull();
+  fireEvent.click(details());
+  expect(within(screen.getByRole('dialog')).getByText('搜索公开内容、读取原文、持续监控、发布评论、发送私信、其他能力待核验').closest('details')).toBeNull();
 });
 it("shows both devices for the same account, with exact detail identity and no legacy operation", async () => {
   render(<ConnectionsPage />);

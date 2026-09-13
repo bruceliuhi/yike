@@ -8,6 +8,13 @@ export const connectionLabel: Record<PlatformConnection["status"], string> = {
   LIMITED: "连接受限", UNAVAILABLE: "连接服务待接通", UNVERIFIED: "待核验",
 };
 
+export function capabilityText(capabilities: string[]) {
+  const labels: Record<string, string> = {
+    search: "搜索公开内容", read: "读取原文", monitor: "持续监控", comment: "发布评论", dm: "发送私信",
+  };
+  return [...new Set(capabilities.map(value => labels[value] || "其他能力待核验"))].join("、");
+}
+
 /** Show every registration. A platform name alone cannot identify an account or device. */
 export function ConnectionRegistryTable({rows, loading, error, pendingPlatforms, onOpen, onDisconnect, onRefresh}: {
   rows: PlatformConnection[] | undefined;
@@ -35,13 +42,13 @@ export function ConnectionRegistryTable({rows, loading, error, pendingPlatforms,
               <td><PlatformLabel platform={platform.id} size={22} /></td>
               <td className="connection-account">
                 <span>{connection?.accountName || connection?.accountId || (isWeb ? "无需账号" : "—")}</span>
-                {registered && <p className="field-hint" title={`设备 ${registered.deviceId}`}>设备 {registered.deviceId.length > 18 ? `${registered.deviceId.slice(0, 8)}…${registered.deviceId.slice(-6)}` : registered.deviceId}</p>}
+                {registered && <p className="field-hint">已登记设备 · 连接 {index + 1}</p>}
               </td>
               <td>{isWeb && !connection ? "—" : <Badge tone={connection?.status === "CONNECTED" ? "green" : ["EXPIRED", "LIMITED", "UNVERIFIED"].includes(connection?.status || "") ? "orange" : "neutral"}>
                 {connection ? connectionLabel[connection.status] : rows ? "未连接" : "待读取连接状态"}
               </Badge>}</td>
-              <td>{connection?.capabilities.length ? connection.capabilities.join("、") : registered ? "尚无已核验能力" : isWeb ? "公开页面读取（范围待验收）" : "待检查平台能力"}</td>
-              <td>{registered ? <Button onClick={() => setSelectedId(registered.connectionId)} aria-label={`查看${platform.name}连接详情：${connection.accountId}，设备${registered.deviceId}`}>查看详情</Button> : !isWeb && <div className="inline-actions">
+              <td>{connection?.capabilities.length ? capabilityText(connection.capabilities) : registered ? "尚无已核验能力" : isWeb ? "公开页面读取（范围待验收）" : "待检查平台能力"}</td>
+              <td>{registered ? <Button onClick={() => setSelectedId(registered.connectionId)} aria-label={`查看${platform.name}连接详情：${connection.accountName || connection.accountId}，连接 ${index + 1}`}>查看详情</Button> : !isWeb && <div className="inline-actions">
                 <Button disabled={blocked} onClick={() => onOpen(platform.id)}>{connection?.status === "CONNECTED" ? "查看连接" : connection?.status === "EXPIRED" ? "重新连接" : "连接"}</Button>
                 {connection?.status === "CONNECTED" && <Button variant="ghost" disabled={blocked} onClick={() => onDisconnect(connection)}>断开</Button>}
               </div>}</td>
@@ -59,16 +66,16 @@ export function ConnectionRegistryTable({rows, loading, error, pendingPlatforms,
         <dl className="detail-list" style={{overflowWrap: "anywhere"}}>
           <div><dt>账号</dt><dd>{selected.accountName || selected.accountId}</dd></div>
           <div><dt>登记状态</dt><dd>{connectionLabel[selected.status]}</dd></div>
-          <div><dt>设备编号</dt><dd>{selected.registration.deviceId}</dd></div>
           <div><dt>登记时间</dt><dd>{formatDate(selected.registration.connectedAt)}</dd></div>
           <div><dt>断开时间</dt><dd>{selected.registration.disconnectedAt ? formatDate(selected.registration.disconnectedAt) : "—"}</dd></div>
-          <div><dt>可用能力</dt><dd>{selected.capabilities.length ? selected.capabilities.join("、") : "尚无已核验能力"}</dd></div>
+          <div><dt>可用能力</dt><dd>{selected.capabilities.length ? capabilityText(selected.capabilities) : "尚无已核验能力"}</dd></div>
         </dl>
         <Notice>当前可查看服务端连接记录；本机账号登录、能力核验与断开操作仍待接通。</Notice>
         <details>
           <summary>查看连接技术信息</summary>
           <dl className="detail-list" style={{overflowWrap: "anywhere"}}>
             <div><dt>连接编号</dt><dd>{selected.registration.connectionId}</dd></div>
+            <div><dt>设备编号</dt><dd>{selected.registration.deviceId}</dd></div>
             <div><dt>连接版本</dt><dd>v{selected.registration.version}</dd></div>
           </dl>
         </details>

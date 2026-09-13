@@ -144,8 +144,8 @@ describe("R4 structured short coach", () => {
   it('previews exact disclosure and only calls the model after explicit confirmation',async()=>{
     context.service.shortCoach!.preview=vi.fn(preview);
     await mount();fireEvent.click(screen.getByRole('button',{name:'生成短句建议'}));
-    const modal=await screen.findByRole('dialog',{name:'确认模型生成'});
-    expect(within(modal).getByText('configured-provider · configured-model')).toBeTruthy();
+    const modal=await screen.findByRole('dialog',{name:'生成短句建议'});
+    expect(within(modal).queryByText(/configured-provider|configured-model|交给配置模型|取消不会调用模型/)).toBeNull();
     expect(within(modal).getByText(row.excerpt)).toBeTruthy();
     expect(context.service.shortCoach!.generate).not.toHaveBeenCalled();
     fireEvent.click(within(modal).getByRole('button',{name:'确认并生成'}));
@@ -157,11 +157,11 @@ describe("R4 structured short coach", () => {
   it('does not generate after cancel or manual change during disclosure',async()=>{
     context.service.shortCoach!.preview=vi.fn(preview);
     await mount();fireEvent.click(screen.getByRole('button',{name:'生成短句建议'}));
-    let modal=await screen.findByRole('dialog',{name:'确认模型生成'});
+    let modal=await screen.findByRole('dialog',{name:'生成短句建议'});
     fireEvent.click(within(modal).getByRole('button',{name:'取消'}));
     expect(context.service.shortCoach!.generate).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button',{name:'生成短句建议'}));
-    modal=await screen.findByRole('dialog',{name:'确认模型生成'});
+    modal=await screen.findByRole('dialog',{name:'生成短句建议'});
     fireEvent.change(content(),{target:{value:'刚修改的新草稿'}});
     fireEvent.click(within(modal).getByRole('button',{name:'确认并生成'}));
     await screen.findByText(/草稿已变化，请重新预览/);

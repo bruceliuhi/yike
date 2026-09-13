@@ -167,13 +167,21 @@ function expectPlatformState(name: string, status: string) {
 }
 
 describe("platform selection state names", () => {
+  it('does not ask for an account for public websites or mark the scope executable', async () => {
+    render(<TaskWizardPage />);
+    await screen.findByRole('checkbox', {name:'小红书 已连接'});
+    const website = expectPlatformState('公开网站', '无需账号');
+    expect((website as HTMLInputElement).checked).toBe(false);
+    expect(context.service.startTask).not.toHaveBeenCalled();
+    expect(screen.queryByRole('checkbox', {name:'公开网站 已连接'})).toBeNull();
+  });
   it("keeps visible and explicit accessible names in sync from loading to failure", async () => {
     let reject!: (error: Error) => void;
     context.service.connections = vi.fn(() => new Promise<PlatformConnection[]>((_, fail) => { reject = fail; }));
     render(<TaskWizardPage />);
-    for (const platform of PLATFORMS) expectPlatformState(platform.name, "读取中");
+    for (const platform of PLATFORMS) expectPlatformState(platform.name, platform.id === "web" ? "无需账号" : "读取中");
     await act(async () => reject(new Error("TEST 连接读取失败")));
-    for (const platform of PLATFORMS) expectPlatformState(platform.name, "读取失败");
+    for (const platform of PLATFORMS) expectPlatformState(platform.name, platform.id === "web" ? "无需账号" : "读取失败");
     expect(screen.queryByRole("checkbox", { name: /读取中|已连接/ })).toBeNull();
     // Selecting a draft's scope never asserts that it is executable.
     fireEvent.click(expectPlatformState("小红书", "读取失败"));
@@ -192,7 +200,8 @@ describe("platform selection state names", () => {
     await screen.findByRole("checkbox", { name: "小红书 已连接" });
     expectPlatformState("小红书", "已连接");
     expectPlatformState("抖音", "待核验");
-    for (const name of ["B站", "知乎", "公开网站"]) expectPlatformState(name, "待连接");
+    for (const name of ["B站", "知乎"]) expectPlatformState(name, "待连接");
+    expectPlatformState("公开网站", "无需账号");
     expect(screen.queryByRole("checkbox", { name: /读取中|可用/ })).toBeNull();
     expect(context.service.startTask).not.toHaveBeenCalled();
   });
@@ -209,7 +218,7 @@ describe("platform selection state names", () => {
     view.rerender(<TaskWizardPage />);
     await screen.findByRole("checkbox", { name: "小红书 读取失败" });
     await act(async () => finishOld(connections));
-    for (const platform of PLATFORMS) expectPlatformState(platform.name, "读取失败");
+    for (const platform of PLATFORMS) expectPlatformState(platform.name, platform.id === "web" ? "无需账号" : "读取失败");
     expect(screen.queryByRole("checkbox", { name: /已连接|读取中/ })).toBeNull();
   });
 
@@ -261,7 +270,7 @@ describe("task wizard service boundary", () => {
     expect(context.service.suggest).not.toHaveBeenCalled();
     expect(context.service.searchSuggestions.preview).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
-    expect((await screen.findAllByText("完整业务介绍")).length).toBe(2);
+    expect((await screen.findAllByText("完整业务介绍")).length).toBe(1);
     expect(context.service.searchSuggestions.submit).not.toHaveBeenCalled();
   });
 
