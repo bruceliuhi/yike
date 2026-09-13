@@ -1,5 +1,7 @@
 # 独立研究运行镜像（未接生产任务）
 
+2026-09-13 管理服务已启动（尚未启用客户研究）：a91ea42服务构建32750、研究构建50732均exit0，研究本机manifest-list为145b1b53…ae5347，经63941真实save/load上传后服务器内容ID为 `sha256:2e1760d827022ce67f307670af85a43213bc45dcd21584e056ea6613e8277419`、revision=a91ea42。本机无网络/只读/UID10001导入恢复函数及MCP成功；服务器同镜像挂只读CLI执行Docker29.1.3版本成功。核对原先不存在专用根后创建私有目录，独立Compose固定该内容ID启动 `yike-research-broker-research-broker-1`；实际running/restarts=0/network=none/readonly=true，私有HTTP GET返回预期405。客户容器仍healthy且旧镜像d9c26f…，未改客户配置、未调用模型或公开研究。下一步仍需实际异常重启与任务物理终态/防重复启动验收；socket可访问不是研究可用。
+
 ## 长期管理服务部署接续（2026-09-13，尚未启动）
 
 用户在明确说明长期Docker控制权限、隔离/回收验收后启用生产、不改其他项目、不外联和不增加模型预算的请求后回复“推进”。本次依此准备独立 `compose.research-broker.yml`，不把此前一次性探针授权复用为长期授权。使用单独Compose项目 `yike-research-broker`，无端口/网络/供应商环境文件，UID10001仅管理服务附加经实查的Docker组；该权限仍等同宿主控制能力，不因非root宣称低权限。
