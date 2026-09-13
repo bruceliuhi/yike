@@ -1,5 +1,7 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+2026-09-13 特权任务管理核心：固定镜像/命令/任务挂载及资源限制，持久O_EXCL预占后create，重启或UNKNOWN不重复创建，归属核验后kill并inspect确认。独立复核UID权限不匹配、镜像升级无法清理旧任务两P2经RED复现后修复，最终6项定向通过/0.05秒、修复差量独立PASS（合成Docker回执及真实socket夹具；初次夹具Unix路径过长已修正），不是实际容器验收。仅create/status/stop核心，尚缺start与stdio、独立期限扫描/恢复、broker服务和worker接线，未部署。
+
 2026-09-13 固定容器任务入口：复用现有Codex/MCP命令生成和已完成relay，固定容器路径/任务JSON字段/输入上限/绝对过期，不接任意命令或供应商key；stdout仍交宿主证据解析。新增RED7缺模块，独立复核取消时序P2经真实子进程RED复现后修复为信号置标志、受控循环退出、finally回收；最终定向9通过/0.38秒、修复差量独立PASS，含真实sleep子进程超时与spawn期间取消后的kill+wait。不是实际Codex模型或容器端到端证据。尚未接broker/worker、构包或部署；下一步固定任务create/status/stop及独立deadline回收。
 
 2026-09-13 容器回环转接切片：新增固定 loopback→任务 Unix socket 透明 relay，沿用宿主网关鉴权/路由，最多4连接、每方向字节上限、绝对截止时间和退出关闭；不持有供应商密钥、不删除宿主 socket。独立复核的资源分配P2经2项RED复现后修复，最终定向8项通过/1.72秒、修复差量独立PASS；尚未接worker/broker或生产，不能当作完整隔离执行完成。后续固定任务启动、取消回收和跨任务隔离仍须验证。
