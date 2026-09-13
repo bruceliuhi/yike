@@ -563,7 +563,7 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                                     'AI 软件 定制 开发 外包 需求 找团队',
                                 )
                                 for query in fallback_queries:
-                                    if time.monotonic() >= deadline:
+                                    if monotonic() >= deadline:
                                         break
                                     value = search_service.search(query)
                                     if value.get('status') == 'SEARCHED':
@@ -572,7 +572,7 @@ def _run_mission(description, *, codex_binary, python_binary, api_key, model,
                                             item['url'] for item in value.get('results', []))
                                 for result in events.searches:
                                     for item in result.get('results', []):
-                                        if len(events.reads) >= max_reads or time.monotonic() >= deadline:
+                                        if len(events.reads) >= max_reads or monotonic() >= deadline:
                                             break
                                         value = read_service.read(item['url'], deadline=deadline)
                                         if value.get('status') == 'READ':
