@@ -3,6 +3,7 @@ export const nav = [
   { href: '/products/workbench/', label: '商机工作台' },
   { href: '/products/crm/', label: '客户情报 CRM' },
   { href: '/features/', label: '能力全景' },
+  { href: '/scenarios/', label: '适用场景' },
   { href: '/download/', label: '下载与试用' },
 ];
 
