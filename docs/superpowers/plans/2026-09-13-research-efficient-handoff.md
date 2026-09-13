@@ -165,6 +165,12 @@ Docker 源码复制布局未携带 `research_context` 所需的四份规则；wh
 
 本机对已批准服务器 `101.200.137.138` 的只读 SSH 检查返回 `Permission denied (publickey)`；详细诊断确认本地 `id_ed25519` 存在且已提供，服务器拒绝该公钥。未修改授权或生产服务，不能据仓库部署记录断言当前线上版本。恢复服务器授权后继续统一部署与真实任务验收，不重复已通过的同字节本地测试。
 
+后续真实构建绑定 `40b2f65d76dba7049aa2188f55147a7d40b0df45`：`docker build --platform linux/amd64 -f deploy/Dockerfile --build-arg VCS_REF=40b2f65d76dba7049aa2188f55147a7d40b0df45 -t yike-ai2026:40b2f65-trial .`，session45367终态exit0。本机镜像检查ID `sha256:07640dea5cebfc8eba2af2b4fecb266a5c31d024bc0b0808e1dc0db8667cce74`，架构amd64、revision完全匹配。不是此前源码覆盖镜像：本次按frozen锁安装47个依赖并构建完整Dockerfile。
+
+session67847终态exit0：实际镜像以 `--network none --read-only --tmpfs /tmp:rw,noexec,nosuid,nodev --cap-drop ALL --security-opt no-new-privileges:true` 执行 `.venv/bin/python` 检查，UID10001、入口import、四份规则及指令生成全部通过，MCP未装；自动移除该临时容器，保留可交付镜像。无数据库/模型/搜索凭据、无公网任务，不证明HTTP空库启动或生产验收。
+
+部署缺口进一步定位：`pilot/dynamic_research_runtime.py` 的 `ThreadPoolExecutor(max_workers<=2)` 在共享服务进程中调用mission；`pilot/codex_research_worker.py`仅创建0700临时目录并启动子进程，与原设计明确要求的租户执行容器隔离不同。不能用安装Codex/MCP或临时目录权限代替该门禁。下一实施批次保留宿主逐动作许可和journal，补执行边界及有界回收/跨租户隔离验收；不得把Docker socket开放给客户服务，不将真实供应商key送入Codex容器。已核对官方0.153.4发布元数据存在Linux产物，尚未安装，继续固定原已测版本；不以换最新版规避接线验证。
+
 **Files:** 后端 `pilot/research_runtime.py`（委托dynamic）、`pilot/dynamic_research_runtime.py`（只读方法）、`pilot/research_execution_api.py`（GET）；客户端 `desktop/src/shared/researchRuntime.ts`、`desktop/src/shared/contracts.ts`、`desktop/src/main/servicePolicy.ts`、`desktop/src/renderer/services/researchRuntime.ts`、`desktop/src/renderer/pages/tasks/ResearchProgress.tsx`，新增同目录 `ResearchReadEvidence.tsx`。对应API/PG和desktop现有定向测试；必要时新建独立测试文件以免碰citation实现者文件。不改tools/worker/context/引用选择器，不改既有schema或DB迁移。
 
 **Interfaces:** 按spec末尾固定GET/JSON；后端`reads(claims,task_id,*,run_id,after=0,limit=5)`，fixed仅委托已配置dynamic否则501。客户端可选`reads(taskId,runId,after?,signal?)`接口保留旧fixture兼容；服务调用必须校验响应taskId/runId、序号递增/唯一、分页前进、来源URL与字符串范围、严格DTO。IPC操作`researchRuntime.reads`仍使用主进程固定路径，不接收自由URL。
