@@ -137,12 +137,15 @@ it('bad DTO or exception never echoes sensitive content',async()=>{
   fireEvent.click(await screen.findByRole('button',{name:'重试'}));await waitFor(()=>expect(service.deviceIdentity.prepare).toHaveBeenCalledTimes(2));
   expect(document.body.textContent).not.toContain('secret-key');expect(document.body.textContent).not.toContain(ready.deviceId);
 });
-it('settings hides manual identity UI and diagnostics include only safe state code',async()=>{
-  const service=fixture();render(<AppProvider service={service}><SettingsPage/></AppProvider>);
+it('settings hides manual identity and diagnostic JSON, copying only safe state code from support',async()=>{
+  const service={...fixture(),copy:vi.fn().mockResolvedValue(undefined)};render(<AppProvider service={service}><SettingsPage/></AppProvider>);
   await waitFor(()=>expect(service.deviceIdentity.prepare).toHaveBeenCalledOnce());
   expect(screen.queryByRole('button',{name:/核验本机/})).toBeNull();expect(screen.queryByText('本机身份')).toBeNull();
-  fireEvent.click(screen.getByRole('button',{name:'查看脱敏诊断'}));
-  const diagnostic=(screen.getByLabelText('脱敏诊断内容') as HTMLTextAreaElement).value;
+  fireEvent.click(screen.getByRole('button',{name:'联系支持'}));
+  expect(screen.queryByLabelText('脱敏诊断内容')).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'复制诊断信息'}));
+  await waitFor(()=>expect(service.copy).toHaveBeenCalledOnce());
+  const diagnostic=service.copy.mock.calls[0][0] as string;
   expect(JSON.parse(diagnostic).connectionPreparation).toBe('READY');expect(diagnostic).not.toContain(ready.deviceId);
   expect(diagnostic).not.toContain('user-a');
 });

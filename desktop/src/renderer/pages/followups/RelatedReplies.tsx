@@ -252,14 +252,7 @@ export function RelatedReplies({
                       )}
                       <p className="preserve-lines">{reply.content}</p>
                       <small>{formatDate(reply.receivedAt)}</small>
-                      {reply.opportunityId && reply.sendRequestId ? (
-                        <details>
-                          <summary>查看关联记录</summary>
-                          <p className="muted text-small">
-                            关联发送记录：{reply.sendRequestId}
-                          </p>
-                        </details>
-                      ) : (
+                      {!(reply.opportunityId && reply.sendRequestId) && (
                         <Notice>
                           {reply.unmatchedReason ||
                             "尚未匹配到商机与发送记录，请由渠道服务核对。"}
@@ -317,7 +310,7 @@ export function RelatedReplies({
                 {row.nextFollowupAt && (
                   <small>下次跟进：{formatDate(row.nextFollowupAt)}</small>
                 )}
-                {row.correctsId && <small>纠正原记录：{row.correctsId}</small>}
+                {row.correctsId && <small>已纠正原记录</small>}
                 {row.reason && <small>原因：{row.reason}</small>}
               </div>
               {!row.legacy &&

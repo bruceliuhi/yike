@@ -7,6 +7,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { AppProvider } from "../../src/renderer/app/context";
 import { clearLocalDrafts } from "../../src/renderer/app/hooks";
@@ -57,6 +58,7 @@ async function mount(
 describe("平台连接", () => {
   it("连接服务失败不变成登录成功，检查按钮保持禁用", async () => {
     const service = await mount();
+    expect(screen.getByText("管理已连接的平台账号。")).toBeTruthy();
     expect(
       (
         screen.getByRole("button", {
@@ -77,7 +79,7 @@ describe("平台连接", () => {
       ).disabled,
     ).toBe(true);
   });
-  it("原生窗口已打开后才检查；能力不足不会当作全部通过", async () => {
+  it("连接成功只展示结果，不展示内部编号、空能力警告或登录教学", async () => {
     const service = await mount({
       connect: vi.fn().mockResolvedValue(undefined),
       checkConnection: vi
@@ -96,11 +98,11 @@ describe("平台连接", () => {
     );
     await screen.findByText("账号已连接");
     expect(service.checkConnection).toHaveBeenCalledWith("xhs");
-    expect(
-      screen.getByText(
-        "账号连接成功，但尚无已验证的采集或触达能力；任务启动条件仍需检查。",
-      ),
-    ).toBeTruthy();
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.queryByText(/fixture-account|暂无通过检查|尚无已验证/)).toBeNull();
+    expect(dialog.queryByText(/本机浏览器登录|账号登录在平台原生页面|扫码、验证码/)).toBeNull();
+    expect(dialog.queryByRole("list", { name: "连接步骤" })).toBeNull();
+    expect(dialog.queryByText(/搜索公开内容|采集可用/)).toBeNull();
   });
   it("取消返回原任务并忽略过期的打开窗口响应", async () => {
     let finish: () => void = () => {};
@@ -142,7 +144,7 @@ describe("平台连接", () => {
 
   it("连接检查挂起会超时，保留已打开状态供重试并忽略旧成功", async () => {
     let finish!: (value: PlatformConnection) => void;
-    const connection: PlatformConnection = { platform: "xhs", status: "CONNECTED", accountId: "test-new", capabilities: ["search"] };
+    const connection: PlatformConnection = { platform: "xhs", status: "CONNECTED", accountId: "test-new", accountName: "小林", capabilities: ["search"] };
     const service = await mount({
       connect: vi.fn().mockResolvedValue(undefined),
       checkConnection: vi.fn().mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }))
@@ -158,8 +160,8 @@ describe("平台连接", () => {
     expect(screen.queryByText("账号已连接")).toBeNull();
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "我已完成登录，检查连接" })));
     expect(screen.getByText("账号已连接")).toBeTruthy();
-    expect(screen.getByText("test-new · 搜索公开内容")).toBeTruthy();
-    expect(screen.queryByText(/test-new · search/)).toBeNull();
+    expect(within(screen.getByRole("dialog")).getByText("小林")).toBeTruthy();
+    expect(screen.queryByText(/test-new/)).toBeNull();
     expect(screen.queryByText("test-stale")).toBeNull();
     expect(service.checkConnection).toHaveBeenCalledTimes(2);
   });

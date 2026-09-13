@@ -124,8 +124,8 @@ export function EvidenceTimeline({
                   {'sourceContext' in v&&v.sourceContext&&<>
                     <h4>该次留存的作者回复</h4>
                     <p className="muted">已读取 {v.sourceContext.replies_read} 条回复；{v.sourceContext.replies_complete?'读取数量与当时标注一致':'读取范围不完整'}，附言未读取。</p>
-                    {v.sourceContext.author_replies.map(reply=><div key={reply.id}>
-                      <p className="muted">回复 {reply.id} · 原标注发布时间 {time(reply.published_at)}</p>
+                    {v.sourceContext.author_replies.map((reply,index)=><div key={reply.id}>
+                      <p className="muted">作者回复 {index+1} · 原标注发布时间 {time(reply.published_at)}</p>
                       <blockquote className="evidence-quote">{reply.body}</blockquote>
                     </div>)}
                     {!v.sourceContext.author_replies.length&&<p className="muted">该次范围内未读到作者本人回复。</p>}
@@ -153,11 +153,11 @@ export function EvidenceTimeline({
                   </p>}
                   <div className="research-diff">
                     <div>
-                      <span>变化前 · {change.from.evidenceVersion}</span>
+                      <span>变化前</span>
                       <blockquote>{change.from.quote}</blockquote>
                     </div>
                     <div>
-                      <span>变化后 · {change.to.evidenceVersion}</span>
+                      <span>变化后</span>
                       <blockquote>{change.to.quote}</blockquote>
                     </div>
                   </div>
@@ -172,15 +172,15 @@ export function EvidenceTimeline({
               {data.authorChanges.map(change=>(
                 <article className="research-change" key={change.id}>
                   <h3>{change.label}</h3>
-                  <p className="muted">回复编号 {change.replyId} · 实际编辑时间未知</p>
+                  <p className="muted">实际编辑时间未知</p>
                   <p className="muted">后次观察时间　{time(data.observations.find(o=>o.id===change.toObservationId)?.observedAt)}</p>
                   <p className="muted">系统收到证据　{time(change.detectedAt)}</p>
                   <div className="research-diff">
                     <div>
-                      {change.from?<><span>前次留存 · {change.from.evidenceVersion}</span><blockquote>{change.from.quote}</blockquote></>:
+                      {change.from?<><span>前次留存</span><blockquote>{change.from.quote}</blockquote></>:
                         <p className="muted">此前留存范围内未读到该回复</p>}
                     </div>
-                    <div><span>本次留存 · {change.to.evidenceVersion}</span><blockquote>{change.to.quote}</blockquote></div>
+                    <div><span>本次留存</span><blockquote>{change.to.quote}</blockquote></div>
                   </div>
                 </article>
               ))}
@@ -199,11 +199,7 @@ export function EvidenceTimeline({
                   事件时间 {time(event.occurredAt)} · 记录时间{" "}
                   {time(event.recordedAt)}
                 </p>
-                <small className="muted">
-                  {event.kind === "MANUAL"
-                    ? `登记人 ${event.operator}`
-                    : `回执 ${event.receiptId}`}
-                </small>
+                {event.kind === "MANUAL" && <small className="muted">登记人 {event.operator}</small>}
               </article>
             ))
           ) : (

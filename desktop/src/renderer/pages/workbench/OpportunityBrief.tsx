@@ -127,11 +127,7 @@ function BriefRows({
                       : item.basis.kind === "VERIFIED_CHANGE"
                         ? "留存来源证据"
                         : "已人工复核需求"}{" "}
-                  · {time(item.basis.verifiedAt, snapshot.timezone)}（
-                  {snapshot.timezone}）
-                </p>
-                <p className="muted">
-                  记录 {item.basis.recordId} · 版本 {item.basis.version}
+                  · {time(item.basis.verifiedAt, snapshot.timezone)}
                 </p>
               </details>
               <Button
@@ -176,8 +172,7 @@ function BriefRows({
       <details className="brief-scope">
         <summary>查看检查范围与口径</summary>
         <p>
-          业务日期 {snapshot.businessDate}（{snapshot.timezone}） · 画像 v
-          {snapshot.profileVersion}
+          业务日期 {snapshot.businessDate}
         </p>
         <h4>已检查</h4>
         {snapshot.checkedScope.length ? (
@@ -323,7 +318,7 @@ export function OpportunityBrief({
         </strong>
         <p>
           {snapshot
-            ? `当前简报按 ${snapshot.businessDate}（${snapshot.timezone}）展示，未覆盖范围不作无机会结论。`
+            ? `业务日期 ${snapshot.businessDate}。未检查的范围不代表没有机会。`
             : "首次检查完成后，按证据与跟进安排生成简报。"}
         </p>
       </Notice>

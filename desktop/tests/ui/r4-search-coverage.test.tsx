@@ -67,7 +67,7 @@ it("opens the real P09 coverage tab by default and keeps the original platform/e
   fireEvent.click(screen.getByRole("tab", { name: "平台状态" }));
   expect(screen.getByRole("region", { name: "平台运行状态" })).toBeTruthy();
   fireEvent.click(screen.getByRole("tab", { name: "任务配置" }));
-  expect(screen.getByText("v1")).toBeTruthy();
+  expect(screen.queryByText("v1")).toBeNull();
   expect(screen.getByRole("tab", { name: "执行记录" })).toBeTruthy();
 });
 it("missing capability or verified session account never requests or fabricates coverage", async () => {
@@ -306,7 +306,7 @@ it("terminal runs offer a new draft plan while unknown recovery cannot be retrie
   expect(
     screen.queryByRole("button", { name: "基于未查范围创建草稿" }),
   ).toBeNull();
-  expect(screen.getByText(/当前可恢复状态或搜贝版本尚未确认/)).toBeTruthy();
+  expect(screen.getByText(/当前可恢复状态或搜贝用量尚未确认/)).toBeTruthy();
 });
 it("opens a typed limit preview only for confirmed resumability, never executes or settles", async () => {
   context.service.searchCoverage!.query = vi.fn(async (request) => {

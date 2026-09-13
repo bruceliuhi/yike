@@ -52,31 +52,28 @@ it.each([
   expect(screen.queryByText(RESEARCH_RUNTIME_SOURCE_LABEL)).toBeNull();
   expect(advance).not.toHaveBeenCalled();
 });
-it('shows recorded resources separately from financial settlement inside closed details',async()=>{
+it('removes resource internals without implying financial settlement',async()=>{
   status.mockResolvedValue({...queued,phase:'COMPLETED',canAdvance:false,newActionsBlocked:true,
     usage:{...queued.usage,resourceCloseout:{state:'RECORDED',overduePermits:0,asOf:'2026-09-11T14:00:00Z'}}});
   view();
-  const summary=await screen.findByText('执行明细');
-  expect(summary.closest('details')?.open).toBe(false);
-  await screen.findByText(/本次查询：资源记录已收齐/);
-  expect(screen.getByText(/不代表搜贝已结算或余额已释放/)).toBeTruthy();
-  expect(screen.getByText(/来源许可：0/).closest('details')).toBe(summary.closest('details'));
+  await screen.findByText(/实际搜贝用量待结算/);
+  expect(screen.queryByText('执行明细')).toBeNull();
+  expect(screen.queryByText(/来源许可|模型许可/)).toBeNull();
   expect(advance).not.toHaveBeenCalled();
 });
 it('old services do not imply recorded or settled resources',async()=>{
-  view();await screen.findByText(/服务尚未提供资源收口状态/);
+  view();await screen.findByText(/实际搜贝用量待结算/);
   expect(screen.queryByText(/本次查询：资源记录已收齐/)).toBeNull();
   expect(advance).not.toHaveBeenCalled();
 });
-it.each(['OPEN','DRAINING','UNCERTAIN'] as const)('shows %s with explicit permit outcomes',async(state)=>{
+it.each(['OPEN','DRAINING','UNCERTAIN'] as const)('keeps %s guarded without displaying internal permits',async(state)=>{
   const unresolved=state==='UNCERTAIN',pending=state==='OPEN'?0:1;
   status.mockResolvedValue({...queued,canAdvance:state==='OPEN',newActionsBlocked:state!=='OPEN',effectsPending:pending>0,
     usage:{...queued.usage,sourceReads:{...counts,issued:pending,pending},
       resourceCloseout:{state,overduePermits:unresolved?1:0,asOf:'2026-09-11T14:00:00Z'}}});
-  view();await screen.findByText(/本次查询：/);
-  expect(screen.getByText(/来源许可：/)).toBeTruthy();
-  expect(screen.getAllByText(/待回执/).length).toBeGreaterThan(0);
-  if(unresolved)expect(screen.getByText(/超期未核实：1/)).toBeTruthy();
+  view();await screen.findByText(/实际搜贝用量待结算/);
+  expect(screen.queryByText(/来源许可：|超期未核实：/)).toBeNull();
+  expect((screen.getByRole('button',{name:'继续研究'}) as HTMLButtonElement).disabled).toBe(state!=='OPEN');
   expect(advance).not.toHaveBeenCalled();
 });
 it('a newer snapshot timestamp alone never triggers repeated advances',async()=>{
@@ -103,7 +100,7 @@ it('reads without work until asked, then advances serially to honest completion'
   await screen.findByText('本轮研究已完成');
   expect(advance).toHaveBeenCalledTimes(2);
   expect(screen.getByText(/不是已确认的商机数量/)).toBeTruthy();
-  expect(screen.getByText(/实际搜贝待结算/)).toBeTruthy();
+  expect(screen.getByText(/实际搜贝用量待结算/)).toBeTruthy();
 });
 it('timeout queries original state once and never repeats an unknown model effect',async()=>{
   const unknown={...queued,phase:'STOPPED',canAdvance:false,newActionsBlocked:true,stopCode:'effect_unknown',
@@ -130,19 +127,15 @@ it('leaving the page prevents later completions from advancing again',async()=>{
   release({...queued,phase:'RUNNING',acceptedOriginals:1});
   await Promise.resolve();expect(advance).toHaveBeenCalledTimes(1);
 });
-it('keeps cautious status and risk outside details while raw unknown code stays inside',async()=>{
+it('keeps cautious status and risk while removing raw unknown code',async()=>{
   status.mockResolvedValue({...queued,phase:'CANCELED',canAdvance:false,newActionsBlocked:true,stopCode:'future_code',effectsPending:true,
     usage:{...queued.usage,sourceReads:{...counts,issued:1,pending:1},resourceCloseout:{state:'DRAINING',overduePermits:0,asOf:'2026-09-11T14:00:00Z'}}});
   view();
   const title=await screen.findByText('已停止新增研究');
-  const summary=screen.getByText('执行明细');
-  const details=summary.closest('details');
-  expect(details?.open).toBe(false);
+  expect(screen.queryByText('执行明细')).toBeNull();
   expect(title.closest('details')).toBeNull();
   expect(screen.getByText(/尚有请求或执行记录待核实/).closest('details')).toBeNull();
-  expect(screen.getByText(/停止原因：future_code/).closest('details')).toBe(details);
-  fireEvent.click(summary);
-  expect(details?.open).toBe(true);
+  expect(document.body.textContent).not.toContain('future_code');
   expect(advance).not.toHaveBeenCalled();
 });
 it('shows an unknown-effect stop reason as a primary action without resending',async()=>{

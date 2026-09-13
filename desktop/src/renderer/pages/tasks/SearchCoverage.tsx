@@ -134,7 +134,6 @@ function CoverageView({
         <span>
           筛选 <Badge>{screeningLabels[snapshot.screening]}</Badge>
         </span>
-        <span>本次使用画像 v{snapshot.profileVersion}</span>
         <span>
           最近更新 {zoned(snapshot.generatedAt, snapshot.window.timezone)}
         </span>
@@ -144,8 +143,7 @@ function CoverageView({
       </div>
       <p className="coverage-window">
         检查窗口：{zoned(snapshot.window.start, snapshot.window.timezone)} –{" "}
-        {zoned(snapshot.window.end, snapshot.window.timezone)}（
-        {snapshot.window.timezone}）
+        {zoned(snapshot.window.end, snapshot.window.timezone)}
       </p>
       <div className="coverage-layout">
         <div className="coverage-left">
@@ -299,7 +297,7 @@ function CoverageView({
               )}
               {unit.stopReason === "LIMIT_REACHED" && !plan && (
                 <Notice tone="warning">
-                  当前可恢复状态或搜贝版本尚未确认，请先刷新核对；不会再次执行。
+                  当前可恢复状态或搜贝用量尚未确认，请先刷新核对；不会再次执行。
                 </Notice>
               )}
               {handoffError && <Notice tone="error">{handoffError}</Notice>}
@@ -337,18 +335,7 @@ function CoverageView({
           </section>
         </aside>
       </div>
-      <details className="coverage-binding">
-        <summary>运行窗口与统计口径</summary>
-        <p>
-          运行 {snapshot.runId} · 窗口 {snapshot.window.id} · 配置 v
-          {snapshot.configurationRevision} · 去重规则{" "}
-          {snapshot.deduplicationVersion}
-        </p>
-        <p>
-          各方向计数按各自口径展示，不跨平台直接相加。任务仍绑定画像 v
-          {snapshot.profileVersion}，不会随画像编辑自动更新。
-        </p>
-      </details>
+      <p className="muted">各方向计数不跨平台直接相加；原任务不会随业务画像编辑自动更新。</p>
       <Notice>
         已检查范围无合格机会，不代表所有平台没有需求。未检查、待复核和未知结果分别保留。
       </Notice>

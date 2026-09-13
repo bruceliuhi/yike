@@ -67,6 +67,8 @@ it("renders three groups, their source basis and exact existing destinations wit
   await screen.findByText("TEST 客户机会");
   fireEvent.click(screen.getByText("查看判断依据"));
   expect(screen.getByText("TEST 本段为隔离测试的已核验内容。")).toBeTruthy();
+  expect(document.body.textContent).not.toMatch(/Asia\/Shanghai|America\/|Europe\/|（UTC）|记录 TEST/);
+  expect(document.body.textContent).not.toContain('画像 v');
   fireEvent.click(screen.getByRole("button", { name: "查看机会证据" }));
   expect(context.navigate).toHaveBeenLastCalledWith(
     "/opportunities/TEST-opportunity",

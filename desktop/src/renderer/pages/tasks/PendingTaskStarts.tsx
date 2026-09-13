@@ -105,14 +105,11 @@ export function PendingTaskStarts({
           <p className="field-hint">仅查询原请求，不会重新创建任务。</p>
         </>
       )}
-      {records.map((row) => (
+      {[...records].sort((a,b)=>a.id.localeCompare(b.id)).map((row,index) => (
         <div className="task-recovery-row" key={row.id}>
           <div>
-            <strong>原请求</strong>
-            {row.binding ? <details><summary>请求详情</summary>
-              <p className="task-request-id">{row.binding.requestId}</p>
-              <p>配置版本 {row.binding.revision}</p>
-            </details> : <p className="task-request-id">请求记录无法读取</p>}
+            <strong>{records.length>1?`启动记录 ${index+1}`:'原启动记录'}</strong>
+            {!row.binding && <p>请求记录无法读取</p>}
             {row.binding && (
               <span className="field-hint">
                 {!owns(row.binding) ? "请切回原客户空间核对 · " : ""}

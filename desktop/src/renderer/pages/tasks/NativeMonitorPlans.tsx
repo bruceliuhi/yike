@@ -5,7 +5,7 @@ import {Button,PageHeader,Notice,Confirm,ResourceStatus,formatDate} from '../../
 import {useMonitorCollection} from './useMonitorCollection';
 import {useTaskScope} from './useTaskScope';
 import {monitorTargets} from '../../domain/monitorCollection';
-import {schedulePolicyDescription} from '../../domain/schedule';
+import {taskAccountLabel, scheduleRegionLabel} from './taskDisplayLabels';
 import {strategyViewSchema} from '../../../shared/researchStrategies';
 import type {MonitorCollectionCommand,MonitorCollectionPlan} from '../../../shared/monitorCollection';
 import {boundedRequest} from '../../app/boundedRequest';
@@ -16,7 +16,7 @@ import {researchSelectionScope as publicSourceScope} from '../../../shared/dynam
 const localLabels={DETACHED:'本机未接管',ATTACHED:'已接管，等待到期',RUNNING:'轮次处理中',STOPPING:'正在停止',STOP_UNCONFIRMED:'来源停止待核实'};
 const hints:Record<string,string>={SKIPPED_BUSY:'采集器忙碌，本次到期已跳过，不补跑。',SKIPPED_OFFLINE:'离线错过的时段已跳过。',
  SKIPPED_MISSED:'错过的执行时段已跳过。',RECOVERY_REQUIRED:'旧轮次待核对，不会重新打开来源。',START_UNKNOWN:'启动结果待核对，不会重复启动。'};
-const scheduleLabel=({schedule}:MonitorCollectionPlan)=>`${schedule.kind==='daily'?`每天 ${schedule.times.join('、')}`:`每 ${schedule.interval} 小时 · ${schedule.start}–${schedule.end}`} · 时区 ${schedule.timezone}`;
+const scheduleLabel=({schedule}:MonitorCollectionPlan)=>`${schedule.kind==='daily'?`每天 ${schedule.times.join('、')}`:`每 ${schedule.interval} 小时 · ${schedule.start}–${schedule.end}`} · ${scheduleRegionLabel(schedule.timezone)}`;
 export function NativeMonitorPlans(){
  const {service,session,route,navigate}=useApp(),scope=useTaskScope(route.path),monitor=useMonitorCollection();
  const [library]=useTaskLibrary(session.userId,session.accountScope);
@@ -48,7 +48,7 @@ export function NativeMonitorPlans(){
     const accounts=targets.map(target=>{
      if(target.platform==='PUBLIC_WEB')return `公开社区：${publicSourceScope(view.snapshot.configuration.publicSource)}；按已确认周期抽样`;
      const row=connections.find(c=>c.registration?.connectionId===target.connection_id)!;
-     return `${row.platform}：${row.accountId}`;
+     return taskAccountLabel(row, connections);
     });
     setConfirmation({command:action==='attach'?{action:'ATTACH',planId:plan.planId,expectedRevision:plan.revision,targets,humanConfirmed:true}:
      {action:'SET_STATE',requestId:crypto.randomUUID(),planId:plan.planId,expectedRevision:plan.revision,state:'ACTIVE',targets,humanConfirmed:true},accounts,...presentation});
@@ -78,9 +78,8 @@ export function NativeMonitorPlans(){
   {!monitor.list&&!monitor.error&&<Notice>正在读取监控计划…</Notice>}
   {monitor.pending.length>0&&<section className="panel" aria-label="监控原请求">
    <h2>原请求待核对</h2><p>这里只查询原操作回执，不重新创建或重复变更。</p>
-   {monitor.pending.map(command=><div className="task-footer" key={command.requestId}>
-    <span>{command.action==='CREATE'?'创建计划':'变更计划'}</span>
-    <details><summary>请求详情</summary><p>{command.requestId}</p></details>
+   {[...monitor.pending].sort((a,b)=>a.requestId.localeCompare(b.requestId)).map((command,index)=><div className="task-footer" key={command.requestId}>
+    <span>{command.action==='CREATE'?'创建计划':'变更计划'}{monitor.pending.length>1?` · 记录 ${index+1}`:''}</span>
     <Button disabled={monitor.busy} onClick={()=>void monitor.execute({action:'RECEIPT',command})}>核对原请求</Button>
    </div>)}
   </section>}
@@ -90,7 +89,7 @@ export function NativeMonitorPlans(){
     <table className="data-table"><thead><tr><th>业务与计划</th><th>计划状态</th><th>本机状态</th><th>下次到期</th><th>操作</th></tr></thead>
      <tbody>{monitor.list.plans.map(p=><tr key={p.planId}>
       <td><Button variant="ghost" onClick={()=>navigate(`/monitors/${p.planId}`)}>{name(p)}</Button>
-       <details><summary>计划详情</summary><p>计划编号：{p.planId}</p><p>{scheduleLabel(p)}</p><p>版本 {p.revision}</p></details>
+       <p>{scheduleLabel(p)}</p>
       </td>
       <td>{p.state==='ACTIVE'?'计划启用':'已暂停'}</td><td>{localLabels[p.localState]}</td><td>{p.nextDueAt?formatDate(p.nextDueAt):'—'}</td><td>{actions(p)}</td>
      </tr>)}</tbody></table>}
@@ -104,22 +103,18 @@ export function NativeMonitorPlans(){
   {selected&&<section className="panel" aria-label="真实监控详情">
    <h2>{name(selected)}</h2>
    <p>计划：{selected.state==='ACTIVE'?'启用':'已暂停'} · 本机：{localLabels[selected.localState]}</p>
-   <p>{selected.schedule.kind==='daily'?`每天 ${selected.schedule.times.join('、')}`:`每 ${selected.schedule.interval} 小时 · ${selected.schedule.start}–${selected.schedule.end}`} · 时区 {selected.schedule.timezone}</p>
-   <p className="field-hint">{schedulePolicyDescription(selected.schedule).slice(0,2).join(' ')}</p>
+   <p>{scheduleLabel(selected)}</p>
+   <p className="field-hint">离线错过的计划不补跑，恢复在线后从下次计划继续。</p>
    <p>下次到期：{selected.nextDueAt?formatDate(selected.nextDueAt):'暂停期间不安排'}</p>
-   {details.data&&<><p>平台：{details.data.snapshot.platforms.join('、')}；搜索词：{details.data.snapshot.configuration.keywords.join('、')}</p>
+   {details.data&&<><p>平台：{details.data.snapshot.platforms.map(platform=>({PUBLIC_WEB:'公开网站',XIAOHONGSHU:'小红书',DOUYIN:'抖音',BILIBILI:'B站',ZHIHU:'知乎'})[platform]).join('、')}；搜索词：{details.data.snapshot.configuration.keywords.join('、')}</p>
     {details.data.snapshot.platforms.includes('PUBLIC_WEB')&&<p className="field-hint">{publicSourceScope(details.data.snapshot.configuration.publicSource)}；按已确认周期抽样，列表消失不表示需求关闭。</p>}</>}
    <ResourceStatus loading={details.loading} error={details.error}/>
-   {selected.lastError&&<Notice tone="warning">{hints[selected.lastError]||`本机需要处理：${selected.lastError}，请核对账号与原执行记录。`}</Notice>}
+   {selected.lastError&&<Notice tone="warning">{hints[selected.lastError]||'本机运行未完成，请核对账号与原执行记录。'}</Notice>}
    <div className="task-footer">{actions(selected)}<Button onClick={()=>navigate('/opportunities')}>查看商机库</Button></div>
-   <details><summary>计划详情</summary>
-    <p>计划编号：{selected.planId} · 版本 {selected.revision}</p>
-    {selected.taskId&&<p>当前或最近轮次：{selected.taskId}</p>}
-   </details>
    {selected.taskId&&<>
     <Button disabled={!service.foregroundCollection} onClick={()=>void(async()=>{
      try{const result=await service.foregroundCollection!.execute({action:'STATUS',taskId:selected.taskId!});
-      if(scope.current())setRunState(result.state==='STATUS'?`本机：${result.localState}；服务端：${result.serverStatus}；已记录 ${result.recordsUsed} 条；停止${result.stopConfirmed?'已确认':'尚未确认'}`:'轮次状态未核实，请稍后刷新。');
+      if(scope.current())setRunState(result.state==='STATUS'?`采集：${({COLLECTING:'采集中',INTERRUPTED:'已中断',UPLOAD_UNKNOWN:'上传待核对',FINISH_UNKNOWN:'完成待核对',COMPLETED:'已完成',STOPPED:'已停止',FAILED:'失败'})[result.localState] || '待核对'}；任务：${({PENDING:'待执行',RUNNING:'运行中',CANCELLING:'取消中',CANCELED:'已取消',SUCCEEDED:'已完成'})[result.serverStatus] || '待核对'}；已记录 ${result.recordsUsed} 条；停止${result.stopConfirmed?'已确认':'尚未确认'}`:'轮次状态未核实，请稍后刷新。');
      }catch{if(scope.current())setRunState('轮次状态未核实，请稍后刷新。');}
     })()}>查询实际轮次结果</Button><p>{runState}</p></>}
    <p className="field-hint">计划已启用、下次到期和本机接管均不是采集成功证明。真实结果以原轮次与商机证据为准。</p>
@@ -129,9 +124,8 @@ export function NativeMonitorPlans(){
     await monitor.execute(confirmation.command);if(scope.current())setConfirmation(null);
    })()}>
    <h3>{confirmation.planName}</h3>
-   <p>计划编号：{confirmation.command.planId}</p>
    <p>{confirmation.scheduleLabel}</p>
-   <p>{confirmation.command.action==='SET_STATE'&&confirmation.command.state==='PAUSED'?'先停止本机采集，再提交计划暂停；最终状态以服务端确认结果为准。':'将按已确认策略，在当前客户端在线期间周期采集。不会发送评论或私信。'}</p>
+   <p>{confirmation.command.action==='SET_STATE'&&confirmation.command.state==='PAUSED'?'暂停结果以最终状态为准。':'将按已确认策略，在当前客户端在线期间周期采集。不会发送评论或私信。'}</p>
    {confirmation.accounts.map(account=><p key={account}>{account}</p>)}
   </Confirm>}
  </>;

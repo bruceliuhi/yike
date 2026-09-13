@@ -111,6 +111,54 @@ it('strict renderer commands reject identity, profile paths and claimed status',
  const f=fixture();for(const extra of [{profile_path:'C:/private'},{account_public_id:account},{status:'CONNECTED'},{device_id:id(1)}])expect((await f.controller.execute({action:'OPEN',platform:'XIAOHONGSHU',...extra})).state).toBe('INVALID_REQUEST');
  expect(f.login.start).not.toHaveBeenCalled();
 });
+it('refreshes an expired observation from the same local profile on explicit CHECK',async()=>{
+ const f=fixture();await f.authenticate();f.setNow(NOW+121000);
+ f.login.start.mockReturnValueOnce({opened:Promise.resolve(),completed:Promise.resolve({account_public_id:account,checked_at:'2026-09-10T05:02:01Z'}),stop:f.stop});
+ expect((await f.check()).state).toBe('CONNECTED');
+ expect(f.login.start).toHaveBeenLastCalledWith({profileId:id(4),platform:'XIAOHONGSHU',inspectOnly:true});
+ expect(f.stop).toHaveBeenCalledTimes(1);expect(f.applied()).toBe(2);
+});
+it('refuses a different account from a silent refresh before any connection write',async()=>{
+ const f=fixture();await f.authenticate();f.setNow(NOW+121000);
+ f.login.start.mockReturnValueOnce({opened:Promise.resolve(),completed:Promise.resolve({account_public_id:'77c01234abcdef0123456789',checked_at:'2026-09-10T05:02:01Z'}),stop:f.stop});
+ expect(await f.check()).toEqual({state:'FAILED',error:'ACCOUNT_MISMATCH'});expect(f.applied()).toBe(0);
+});
+it('does not write when the session changes during a silent refresh',async()=>{
+ const f=fixture();await f.authenticate();f.setNow(NOW+121000);
+ const read=deferred<{account_public_id:string;checked_at:string}>();
+ f.login.start.mockReturnValueOnce({opened:Promise.resolve(),completed:read.promise,stop:f.stop});
+ const result=f.check();await vi.waitFor(()=>expect(f.login.start).toHaveBeenCalledTimes(2));
+ f.setCurrent(false);read.resolve({account_public_id:account,checked_at:'2026-09-10T05:02:01Z'});
+ expect((await result).state).toBe('SESSION_CHANGED');expect(f.applied()).toBe(0);
+});
+it('silent refresh reconciles the original unknown registration rather than replacing it',async()=>{
+ const f=fixture();await f.authenticate();f.setMode('unknown');expect((await f.check()).state).toBe('UNKNOWN');
+ const request=f.saved[0];f.setNow(NOW+121000);
+ f.login.start.mockReturnValueOnce({opened:Promise.resolve(),completed:Promise.resolve({account_public_id:account,checked_at:'2026-09-10T05:02:01Z'}),stop:f.stop});
+ expect((await f.check()).state).toBe('CONNECTED');expect(f.saved.filter(op=>op.action==='REGISTER')).toEqual([request]);expect(f.applied()).toBe(2);
+});
+it('silent refresh never starts after an unconfirmed old reader stop',async()=>{
+ const f=fixture();await f.authenticate();f.setNow(NOW+121000);f.stop.mockRejectedValue(new Error('SOURCE_STOP_FAILED'));
+ expect(await f.check()).toEqual({state:'FAILED',error:'SOURCE_STOP_FAILED'});expect(f.login.start).toHaveBeenCalledTimes(1);expect(f.applied()).toBe(0);
+ expect(await f.openFlow()).toEqual({state:'FAILED',error:'SOURCE_STOP_FAILED'});expect(f.login.start).toHaveBeenCalledTimes(1);
+ cleanups.pop();await expect(f.controller.shutdown()).rejects.toThrow('SOURCE_STOP_FAILED');
+});
+it('silent refresh does not turn an invalid stored platform login into an interactive login',async()=>{
+ const f=fixture();await f.authenticate();f.setNow(NOW+121000);
+ f.login.start.mockImplementationOnce(()=>({opened:Promise.resolve(),completed:Promise.reject(new Error('PLATFORM_AUTH_REQUIRED')),stop:f.stop}));
+ expect(await f.check()).toEqual({state:'FAILED',error:'PLATFORM_AUTH_REQUIRED'});expect(f.applied()).toBe(0);
+ expect(f.login.start).toHaveBeenCalledTimes(2);expect(f.login.start).toHaveBeenLastCalledWith({profileId:id(4),platform:'XIAOHONGSHU',inspectOnly:true});
+});
+it('only one silent refresh runs and cancellation discards its late account observation',async()=>{
+ const f=fixture();await f.authenticate();f.setNow(NOW+121000);
+ const read=deferred<{account_public_id:string;checked_at:string}>();
+ f.login.start.mockReturnValueOnce({opened:Promise.resolve(),completed:read.promise,stop:f.stop});
+ const result=f.check();await vi.waitFor(()=>expect(f.login.start).toHaveBeenCalledTimes(2));
+ expect((await f.check()).state).toBe('BUSY');
+ expect((await f.controller.execute({action:'CANCEL',platform:'XIAOHONGSHU',flowId:f.getFlowId()})).state).toBe('CANCELLED');
+ read.resolve({account_public_id:account,checked_at:'2026-09-10T05:02:01Z'});
+ expect((await result).state).toBe('SESSION_CHANGED');expect(f.applied()).toBe(0);
+});
 it('STATUS is local and read-only before and after authentication until explicit CHECK',async()=>{
  const f=fixture();await f.openFlow();
  const status=()=>f.controller.execute({action:'STATUS',platform:'XIAOHONGSHU',flowId:f.getFlowId()});

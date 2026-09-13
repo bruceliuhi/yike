@@ -88,7 +88,7 @@ describe("controlled search suggestion panel", () => {
     expect(screen.getByRole('button',{name:'合并新增建议'})).toBeTruthy();
   });
 
-  it('keeps unresolved suggestions actionable while request IDs are collapsed', async()=>{
+  it('keeps unresolved suggestions actionable while request IDs are removed', async()=>{
     const request: SuggestionRequest = {request_id:'44444444-4444-4444-8444-444444444444',draft_id:draftId,
       profile_version_id:profileId,draft_revision:3,disclosure:{accepted:true,profile_sha256:preview.profile_sha256,
         model_provider:preview.model_provider,model_name:preview.model_name,policy_version:preview.disclosure_policy_version}};
@@ -96,9 +96,7 @@ describe("controlled search suggestion panel", () => {
     const service={preview:vi.fn(),submit:vi.fn(),getReceipt:vi.fn().mockResolvedValue({...receipt(request),state:'UNKNOWN',result:null,usage:null,error_code:'suggestion_result_unknown'})};
     render(<SearchSuggestionPanel {...props(service)}/>);
     await waitFor(()=>expect(service.getReceipt).toHaveBeenCalled());
-    const identity=await screen.findByText(new RegExp(`原请求 ${request.request_id}`));
-    expect(identity.closest('details')).not.toBeNull();
-    expect(identity.closest('details')!.open).toBe(false);
+    expect(document.body.textContent).not.toContain(request.request_id);
     expect(screen.getByText('结果待核对').closest('details')).toBeNull();
     expect(screen.getByRole('button',{name:'核对原请求'})).toBeTruthy();
     expect(service.submit).not.toHaveBeenCalled();
@@ -113,7 +111,7 @@ describe("controlled search suggestion panel", () => {
     fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
     await screen.findByText(preview.description);
     fireEvent.click(screen.getByRole("button", { name: "确认生成" }));
-    expect(await screen.findByText(/服务端已确认未受理/)).toBeTruthy();
+    expect(await screen.findByText(/已确认未受理，未开始生成/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "合并新增建议" })).toBeNull();
     view.unmount();
     render(<SearchSuggestionPanel {...props(service)} />);

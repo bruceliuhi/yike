@@ -71,9 +71,11 @@ function validatePaths(options: PlatformLoginDriverOptions, profileId: string): 
 export function createPlatformLoginDriver(options: PlatformLoginDriverOptions) {
   const owned = {...options};
   const launch = owned.spawn ?? spawn;
-  return {start(input: {profileId: string; platform?: NativeLoginPlatform; signal?: AbortSignal}): PlatformLoginRun {
+  return {start(input: {profileId: string; platform?: NativeLoginPlatform; signal?: AbortSignal; inspectOnly?: boolean}): PlatformLoginRun {
     const {profileId, signal} = input;
     const platform = input.platform ?? 'XIAOHONGSHU';
+    const inspectOnly = input.inspectOnly === true;
+    const timeoutSeconds = inspectOnly ? 20 : 180;
     let child: ChildProcessWithoutNullStreams | null = null;
     let settled = false, sawOpened = false, unknownCleanup = false;
     let cancelled = signal?.aborted ?? false, timedOut = false;
@@ -123,11 +125,13 @@ export function createPlatformLoginDriver(options: PlatformLoginDriverOptions) {
       if (cancelled) {settle(failure('PLATFORM_LOGIN_CANCELLED')); return;}
       let wire: Buffer;
       try {
+        if ('inspectOnly' in input && typeof input.inspectOnly !== 'boolean') throw failure('PLATFORM_LOGIN_INPUT_INVALID');
         validatePaths(owned, profileId);
         nativeLoginPlatformSchema.parse(platform);
         wire = Buffer.from(JSON.stringify({schema_version: SCHEMA, runtime_path: owned.runtimePath,
           profile_path: path.join(owned.profileRoot, profileId), output_path: path.join(owned.outputRoot, randomUUID()),
-          platform, timeout_seconds: 180}) + '\n', 'utf8');
+          platform, timeout_seconds: timeoutSeconds,
+          ...('inspectOnly' in input ? {inspect_only: input.inspectOnly} : {})}) + '\n', 'utf8');
         if (wire.length > 65536) throw failure('PLATFORM_LOGIN_INPUT_INVALID');
       } catch {settle(failure('PLATFORM_LOGIN_INPUT_INVALID')); return;}
       const env: NodeJS.ProcessEnv = {PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1'};
@@ -138,7 +142,7 @@ export function createPlatformLoginDriver(options: PlatformLoginDriverOptions) {
       } catch {unknownCleanup = true; settle(failure('SOURCE_HOST_FAILED')); return;}
       const active = child;
       let total = 0, pending = Buffer.alloc(0);
-      deadline = setTimeout(() => {timedOut = true; requestStop(failure('PLATFORM_LOGIN_TIMED_OUT'));}, 180_000);
+      deadline = setTimeout(() => {timedOut = true; requestStop(failure('PLATFORM_LOGIN_TIMED_OUT'));}, timeoutSeconds * 1000);
       active.stderr.resume(); // Drain without retaining or disclosing raw logs.
       active.on('error', protocolFailure);
       active.stdin.on('error', protocolFailure);
@@ -156,9 +160,9 @@ export function createPlatformLoginDriver(options: PlatformLoginDriverOptions) {
             const frame = decodeFrame(pending.subarray(0, end));
             pending = pending.subarray(end + 1);
             const keys = Object.keys(frame).sort().join(',');
-            if (frame.state === 'OPENED' && keys === 'schema_version,state' && !sawOpened) {
+            if (frame.state === 'OPENED' && keys === 'schema_version,state' && !sawOpened && !inspectOnly) {
               sawOpened = true; resolveOpened();
-            } else if (frame.state === 'AUTHENTICATED' && sawOpened && keys === 'account_public_id,checked_at,schema_version,state') {
+            } else if (frame.state === 'AUTHENTICATED' && (sawOpened || inspectOnly) && keys === 'account_public_id,checked_at,schema_version,state') {
               if (!validNativeAccount(platform, frame.account_public_id) ||
                   !/^(?!0000)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(frame.checked_at) ||
                   new Date(frame.checked_at).toISOString() !== frame.checked_at.replace('Z', '.000Z')) throw failure('SOURCE_HOST_FAILED');

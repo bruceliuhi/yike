@@ -69,8 +69,8 @@ function OriginalContent({
         <h4>作者后续更新</h4>
         <p className="muted">接口回复已读 {content.source_context.replies_read} / {content.source_context.replies_expected??'未知'}；
           {content.source_context.replies_complete?'本次计数相符，不代表来源整体完整':'回复读取不全'}。附言未读，仍需人工核验。</p>
-        {content.source_context.author_replies.map(reply=><article key={reply.id}>
-          <p>回复 ID {reply.id} · <EvidenceTime value={reply.published_at}/></p>
+        {content.source_context.author_replies.map((reply,index)=><article key={reply.id}>
+          <p>作者回复 {index+1} · <EvidenceTime value={reply.published_at}/></p>
           <div className="candidate-evidence-text">{reply.body}</div>
         </article>)}
       </section> : kind==='PAGE'?<p className="muted">未留存作者后续更新；请打开来源核实。</p>:null}
@@ -96,9 +96,6 @@ function OriginalContent({
                 </Fact>
                 <Fact label="父评论发布时间">
                   <EvidenceTime value={content.parent.published_at} />
-                </Fact>
-                <Fact label="父评论 ID">
-                  {content.parent.external_comment_id}
                 </Fact>
                 <Fact label="父评论链接">
                   {content.parent.public_url ?? "未知"}
@@ -151,18 +148,6 @@ export function CandidateOriginalEvidence({
             )}
           </Fact>
         </dl>
-        <details className="candidate-evidence-details">
-          <summary>查看来源记录详情</summary>
-          <dl className="candidate-evidence-facts">
-            <Fact label="候选修订">{candidate.revision}</Fact>
-            <Fact label="来源版本 ID">
-              {candidate.current_version.version_id}
-            </Fact>
-            <Fact label="内容版本摘要">
-              {candidate.current_version.content_version}
-            </Fact>
-          </dl>
-        </details>
       </section>
       {observations.truncated ? (
         <p className="candidate-evidence-warning">
@@ -190,9 +175,6 @@ export function CandidateOriginalEvidence({
                 : ""}
             </h4>
             <dl className="candidate-evidence-facts">
-              <Fact label="观察 ID">{item.observation_id}</Fact>
-              <Fact label="来源版本 ID">{item.version_id}</Fact>
-              <Fact label="内容版本摘要">{item.content_version}</Fact>
               <Fact label="采集端观察时间">
                 <EvidenceTime value={item.observed_at} />
               </Fact>
@@ -200,8 +182,6 @@ export function CandidateOriginalEvidence({
                 <EvidenceTime value={item.received_at} />
               </Fact>
               <Fact label="采集查询">{item.query ?? "未知"}</Fact>
-              <Fact label="采集器版本">{item.collector_version}</Fact>
-              <Fact label="规范化器版本">{item.normalizer_version}</Fact>
             </dl>
             <OriginalContent content={item.content} kind={candidate.kind} />
           </article>

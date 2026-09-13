@@ -179,7 +179,7 @@ describe('original send request reconciliation',()=>{
   localStorage.setItem(ledger(),JSON.stringify({[JSON.stringify([row.id,draft.channel])]:'PENDING'}));
   mount();expect(sendButton().disabled).toBe(true);
   expect(screen.queryByRole('button',{name:'核对原发送结果'})).toBeNull();
-  expect(screen.getByText(/旧版本未记录可查询的请求编号/)).toBeTruthy();
+  expect(screen.getByText(/此次发送无法直接核对/)).toBeTruthy();
  });
  it('a missing reconciliation adapter keeps the lock and reports unavailable',async()=>{
   pending();context.service.outreach=undefined;mount();

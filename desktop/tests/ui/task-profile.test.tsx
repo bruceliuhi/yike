@@ -185,10 +185,10 @@ describe("P09 profile comparison interaction", () => {
   it("shows the live lineage and lets users keep history or go to the profile without mutation", async () => {
     const snapshot = structuredClone(run);
     render(<TaskProfileStatus run={run} />);
-    await screen.findByText("业务画像已有更新：任务绑定 v1，当前已确认 v2。");
+    await screen.findByText("业务画像已有更新：任务仍使用原业务画像。");
     fireEvent.click(screen.getByRole("button", { name: "保持历史" }));
     expect(
-      screen.getByText("已知悉保留历史：任务仍绑定 v1，当前业务画像为 v2。"),
+      screen.getByText("已知悉保留历史：任务仍使用原业务画像。"),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "去更新" }));
     expect(context.navigate).toHaveBeenCalledWith("/profile");
@@ -205,7 +205,7 @@ describe("P09 profile comparison interaction", () => {
   });
   it("shows a new warning after a later version even after keeping the earlier history", async () => {
     render(<TaskProfileStatus run={run} />);
-    await screen.findByText(/当前已确认 v2/);
+    await screen.findByText(/业务画像已有更新/);
     fireEvent.click(screen.getByRole("button", { name: "保持历史" }));
     context.service.profiles = vi
       .fn()
@@ -214,12 +214,12 @@ describe("P09 profile comparison interaction", () => {
         profile("TEST-version-3", 3, "CONFIRMED"),
       ]);
     fireEvent.click(screen.getByRole("button", { name: "重新核对" }));
-    await screen.findByText("业务画像已有更新：任务绑定 v1，当前已确认 v3。");
+    await screen.findByText("业务画像已有更新：任务仍使用原业务画像。");
     expect(screen.getByRole("button", { name: "保持历史" })).toBeTruthy();
     expect(screen.queryByText(/已知悉保留历史/)).toBeNull();
     context.service.profiles = vi.fn().mockResolvedValue(history());
     fireEvent.click(screen.getByRole("button", { name: "重新核对" }));
-    await screen.findByText("业务画像已有更新：任务绑定 v1，当前已确认 v2。");
+    await screen.findByText("业务画像已有更新：任务仍使用原业务画像。");
     expect(screen.queryByText(/已知悉保留历史/)).toBeNull();
   });
   it("does not present a failed refresh as agreement with the current profile", async () => {
@@ -227,7 +227,7 @@ describe("P09 profile comparison interaction", () => {
       .fn()
       .mockResolvedValue([profile(run.profileId!, 1, "CONFIRMED")]);
     render(<TaskProfileStatus run={run} />);
-    await screen.findByText(/任务绑定与当前已确认画像一致/);
+    await screen.findByText(/任务使用的业务画像与当前已确认画像一致/);
     context.service.profiles = vi
       .fn()
       .mockRejectedValue(new Error("TEST读取失败"));
@@ -255,7 +255,7 @@ describe("P09 profile comparison interaction", () => {
   });
   it("drops old-space reads and cannot restore an old acknowledgement on an A-B-A switch", async () => {
     const view = render(<TaskProfileStatus run={run} />);
-    await screen.findByText(/当前已确认 v2/);
+    await screen.findByText(/业务画像已有更新/);
     fireEvent.click(screen.getByRole("button", { name: "保持历史" }));
     let finish!: (p: Profile[]) => void;
     context.service.profiles = vi.fn(
@@ -291,7 +291,7 @@ describe("P09 profile comparison interaction", () => {
     };
     context.service.profiles = vi.fn().mockResolvedValue(history());
     view.rerender(<TaskProfileStatus run={run} />);
-    await screen.findByText(/当前已确认 v2/);
+    await screen.findByText(/业务画像已有更新/);
     expect(screen.getByRole("button", { name: "保持历史" })).toBeTruthy();
     expect(screen.queryByText(/已知悉保留历史/)).toBeNull();
   });
@@ -309,12 +309,12 @@ describe("P09 profile comparison interaction", () => {
   });
   it("keeps the warning available in task configuration and does not call a task mutation", async () => {
     render(<TasksPage />);
-    await screen.findByText(/当前已确认 v2/);
+    await screen.findByText(/业务画像已有更新/);
     fireEvent.click(screen.getByRole("tab", { name: "任务配置" }));
     expect(
       screen.getByRole("region", { name: "任务画像版本核对" }),
     ).toBeTruthy();
-    expect(screen.getByText("v1")).toBeTruthy();
+    expect(screen.queryByText("v1")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "保持历史" }));
     expect(context.service.taskAction).not.toHaveBeenCalled();
     expect(context.service.tasks).toHaveBeenCalledOnce();

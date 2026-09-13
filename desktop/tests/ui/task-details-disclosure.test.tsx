@@ -26,22 +26,18 @@ it('requires returning to configure an unset range without presenting defaults a
  expect(screen.queryByText(/建议100条|900秒/)).toBeNull();
  expect(screen.getByRole('button',{name:'修改配置'})).toBeTruthy();
 });
-it('collapses raw execution request identity without hiding UNKNOWN recovery',()=>{
+it('removes raw execution request identity without hiding UNKNOWN recovery',()=>{
  const execution={identity:{},loaded:true,busy:false,error:'',entries:[{requestId:'technical-request',operation:'START',state:'UNKNOWN'}],refresh:vi.fn()};
  render(<DesktopExecutionRequests execution={execution as any} canRetryStart={false} validateStart={vi.fn()}/>);
- const identity=screen.getByText('technical-request');
- expect(identity.closest('details')).not.toBeNull();
- expect(identity.closest('details')!.open).toBe(false);
+ expect(screen.queryByText('technical-request')).toBeNull();
  expect(screen.getByText(/原请求待核对/).closest('details')).toBeNull();
  expect(screen.getByRole('button',{name:'查询原执行请求'})).toBeTruthy();
 });
-it('keeps confirmation budgets in view and places billing rule versions in details',()=>{
+it('keeps confirmation budgets in view and removes billing rule versions',()=>{
  const draft={...newTaskDraft(),research:defaultResearchSettings()};
  render(<TaskConfirmationSummary draft={draft} usage={{estimatedSoubei:20,ruleVersion:'technical-rule-v1'} as any}
   connections={[]} deviceReady disabled={false} onEdit={vi.fn()}/>);
- const rule=screen.getByText(/technical-rule-v1/);
- expect(rule.closest('details')).not.toBeNull();
- expect(rule.closest('details')!.open).toBe(false);
+ expect(screen.queryByText(/technical-rule-v1/)).toBeNull();
  expect(screen.getByText('20 搜贝').closest('details')).toBeNull();
  expect(screen.getByText('搜贝上限').closest('details')).toBeNull();
  expect(screen.getByRole('button',{name:'修改配置'})).toBeTruthy();

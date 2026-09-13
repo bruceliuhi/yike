@@ -9,7 +9,6 @@ import {researchIndexLabel} from '../../../shared/researchSourcePlan';
 import {researchProgressPresentation} from '../../domain/researchProgressPresentation';
 import {ResearchReadEvidence} from './ResearchReadEvidence';
 
-const resourceStates={OPEN:'资源记录仍开放',DRAINING:'等待回执或执行者退出',UNCERTAIN:'资源结果仍待核实',RECORDED:'资源记录已收齐'};
 const sourcePhases={NOT_STARTED:'未开始',PENDING:'等待回执',SUCCEEDED:'已入库',FAILED:'失败',UNKNOWN:'结果待核实'};
 function progressKey(value:ResearchRuntimeStatus){
   const closeout=value.usage.resourceCloseout;
@@ -117,19 +116,7 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
       <p>{presentation!.nextStep}</p>
       {dynamic&&service.researchRuntime?.reads&&<ResearchReadEvidence taskId={taskId} runId={runId}
         reads={service.researchRuntime.reads} onOpen={service.openExternal}/>}
-      <details>
-        <summary>执行明细</summary>
-        {(['sourceReads','modelCalls'] as const).map(resource=>{
-          const counts=value.usage[resource];
-          return <p key={resource}>{resource==='sourceReads'?'来源许可':'模型许可'}：{counts.issued} · 成功 {counts.succeeded} · 失败 {counts.failed} · 待回执 {counts.pending} · 未知 {counts.unknown}</p>;
-        })}
-        {value.usage.resourceCloseout?<>
-          <p>本次查询：{resourceStates[value.usage.resourceCloseout.state]} · 超期未核实：{value.usage.resourceCloseout.overduePermits}</p>
-          <p className="muted">记录截至：{new Date(value.usage.resourceCloseout.asOf).toLocaleString('zh-CN')}。仅表示本次快照，不代表搜贝已结算或余额已释放。</p>
-        </>:<p className="muted">服务尚未提供资源收口状态，不能判断记录是否收齐。</p>}
-        <p className="muted">许可不等于实际外部调用或费用；实际搜贝待结算。</p>
-        {value.stopCode&&<p>停止原因：{value.stopCode}</p>}
-      </details>
+      <p className="muted">实际搜贝用量待结算，研究停止不表示费用已结清。</p>
     </>}
     {message && <Notice tone="warning">{message}</Notice>}
     <div className="task-footer">

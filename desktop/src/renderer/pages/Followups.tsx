@@ -4,10 +4,10 @@ import { useApp } from "../app/context";
 import { useResource } from "../app/hooks";
 import { boundedRequest } from "../app/boundedRequest";
 import {
+  Field,
   Badge,
   Button,
   Empty,
-  Field,
   Notice,
   PageHeader,
   ResourceStatus,
@@ -216,23 +216,16 @@ function FollowupWorkspace() {
               "旧跟进操作尚未绑定当前客户空间或版本，不能在此核对或重复保存。请返回原空间版本核对；归属未知时需由服务管理员核实。"}
           </Notice>
           {operation.historical.map((entry, index) => (
-            <details key={index}>
-              <summary>待核对记录 {index + 1} · 记录详情</summary>
-              <Field label={`待核对原请求 ${index + 1}`}>
-              <input
-                aria-label={`待核对原请求 ${index + 1}`}
-                readOnly
-                value={entry.binding.requestId}
-              />
+            <div key={index}>
+              <p>待核对记录 {index + 1}</p>
               <small>
                 {entry.accountScope === "unbound"
                   ? "旧版本：客户空间归属未绑定"
                   : entry.accountScope
-                    ? `原空间 ${entry.accountScope.id} · 版本 ${entry.accountScope.version}`
+                    ? "请返回原客户空间核对"
                     : "原会话未提供客户空间"}
               </small>
-              </Field>
-            </details>
+            </div>
           ))}
           <Button onClick={operation.refresh}>重新读取操作记录</Button>
         </section>
@@ -242,7 +235,7 @@ function FollowupWorkspace() {
           <Notice tone="warning">
             有跟进操作结果待确认，请先核对原请求，避免重复登记。
           </Notice>
-          {pending.map((key) => (
+          {pending.map((key, index) => (
             <Button
               key={key}
               loading={operation.action.busy}
@@ -256,7 +249,7 @@ function FollowupWorkspace() {
                 })
               }
             >
-              核对原跟进操作
+              核对原跟进操作{pending.length > 1 ? ` · 记录 ${index + 1}` : ""}
             </Button>
           ))}
           {operation.action.error && (

@@ -18,49 +18,50 @@ beforeEach(() => {
   } as unknown as YikeService};
 });
 afterEach(cleanup);
-const details = () => screen.getByRole("button", {name: "查看小红书连接详情：TEST-shared-account，连接 2"});
-it("folds technical connection identity while preserving account, device, status and capability limits", async () => {
+const details = () => screen.getByRole("button", {name: "查看小红书连接详情：小红书账号2，连接 2"});
+it("shows only account, status and times in details without technical identity", async () => {
   render(<ConnectionsPage />);
-  await screen.findAllByText("TEST-shared-account");
+  await screen.findByText("小红书账号2");
+  expect(screen.getByText("小红书账号1")).toBeTruthy();
+  expect(screen.queryByText("TEST-shared-account")).toBeNull();
   expect(screen.queryByText(/连接 v2/)).toBeNull();
   expect(screen.queryByText("设备 TEST-device-two")).toBeNull();
-  expect(screen.getByText("已登记设备 · 连接 2")).toBeTruthy();
+  expect(screen.queryByText("已登记设备 · 连接 2")).toBeNull();
   fireEvent.click(details());
   const dialog = within(screen.getByRole("dialog"));
-  const summary = dialog.getByText("查看连接技术信息");
-  const technical = summary.closest("details");
-  expect(technical).not.toBeNull();
-  expect(technical!.open).toBe(false);
-  expect(dialog.getByText("TEST-connection-two").closest("details")).toBe(technical);
-  expect(dialog.getByText("v2").closest("details")).toBe(technical);
-  expect(dialog.getByText("TEST-device-two").closest("details")).toBe(technical);
-  for (const text of ["TEST-shared-account", "已连接", "尚无已核验能力", "当前可查看服务端连接记录；本机账号登录、能力核验与断开操作仍待接通。"]) {
+  expect(dialog.queryByText("查看连接技术信息")).toBeNull();
+  for (const text of ["TEST-connection-two", "v2", "TEST-device-two", "TEST-shared-account", "可用能力"]) {
+    expect(dialog.queryByText(text)).toBeNull();
+  }
+  expect(dialog.queryByText(/尚无已核验能力|本机账号登录、能力核验与断开操作仍待接通/)).toBeNull();
+  for (const text of ["小红书账号2", "已连接", "登记时间", "断开时间"]) {
     expect(dialog.getByText(text).closest("details")).toBeNull();
   }
-  fireEvent.click(summary);
-  expect(technical!.open).toBe(true);
-  expect(within(technical!).getByText("TEST-connection-two")).toBeTruthy();
   expect(context.service.disconnect).not.toHaveBeenCalled();
 });
-it('labels known capabilities in Chinese without publishing unknown capability codes',()=>{
+it('shows four account columns without publishing capability details',()=>{
   const rows=records().map(row=>({...row,capabilities:['search','read','monitor','comment','dm','FUTURE_INTERNAL_CODE']}));
   render(<ConnectionRegistryTable rows={rows} loading={false} error="" pendingPlatforms={[]} onOpen={vi.fn()} onDisconnect={vi.fn()} onRefresh={vi.fn()}/>);
-  expect(screen.getAllByText('搜索公开内容、读取原文、持续监控、发布评论、发送私信、其他能力待核验')).toHaveLength(2);
-  expect(screen.queryByText(/FUTURE_INTERNAL_CODE|search、read/)).toBeNull();
+  expect(screen.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['平台', '当前账号', '连接状态', '操作']);
+  expect(screen.queryByText(/FUTURE_INTERNAL_CODE|搜索公开内容|可用能力/)).toBeNull();
   fireEvent.click(details());
-  expect(within(screen.getByRole('dialog')).getByText('搜索公开内容、读取原文、持续监控、发布评论、发送私信、其他能力待核验').closest('details')).toBeNull();
+  expect(within(screen.getByRole('dialog')).queryByText(/FUTURE_INTERNAL_CODE|搜索公开内容|可用能力/)).toBeNull();
 });
 it("shows both devices for the same account, with exact detail identity and no legacy operation", async () => {
   render(<ConnectionsPage />);
-  await screen.findAllByText("TEST-shared-account");
-  expect(screen.getAllByText("TEST-shared-account")).toHaveLength(2);
-  expect(screen.getAllByText("尚无已核验能力")).toHaveLength(2);
+  await screen.findByText("小红书账号2");
+  expect(screen.getByText("小红书账号1")).toBeTruthy();
+  expect(screen.queryByText("TEST-shared-account")).toBeNull();
+  for (const name of ["小红书账号1", "小红书账号2"]) {
+    const cells = within(screen.getByText(name).closest("tr")!).getAllByRole("cell");
+    expect(cells).toHaveLength(4);
+    expect(cells[3].textContent).toBe("查看详情");
+  }
   expect(screen.getByText("待核验")).toBeTruthy();
   fireEvent.click(details());
   const dialog = within(screen.getByRole("dialog"));
-  expect(dialog.getByText("TEST-connection-two")).toBeTruthy();
-  expect(dialog.getByText("TEST-device-two")).toBeTruthy();
-  expect(dialog.getByText("v2")).toBeTruthy();
+  expect(dialog.getByText("小红书账号2")).toBeTruthy();
+  expect(dialog.getByText("已连接")).toBeTruthy();
   expect(dialog.queryByRole("button", {name: "断开"})).toBeNull();
   expect(context.service.disconnect).not.toHaveBeenCalled();
   expect(context.service.checkConnection).not.toHaveBeenCalled();
@@ -68,7 +69,7 @@ it("shows both devices for the same account, with exact detail identity and no l
 it("hides stale detail while refreshing and does not turn a read error into no accounts", async () => {
   let reject!: (reason: Error) => void;
   vi.mocked(context.service.connections).mockResolvedValueOnce(records()).mockImplementation(() => new Promise((_, r) => {reject = r;}));
-  render(<ConnectionsPage />); await screen.findAllByText("TEST-shared-account");
+  render(<ConnectionsPage />); await screen.findByText("小红书账号2");
   fireEvent.click(details()); fireEvent.click(screen.getByRole("button", {name: "刷新状态"}));
   await screen.findByText("正在重新读取连接记录…");
   expect(screen.queryByText("TEST-connection-two")).toBeNull();
@@ -80,7 +81,7 @@ it("hides stale detail while refreshing and does not turn a read error into no a
 it("closes account detail on workspace change and ignores the old delayed list", async () => {
   let finish!: (rows: PlatformConnection[]) => void;
   vi.mocked(context.service.connections).mockResolvedValueOnce(records()).mockImplementationOnce(() => new Promise(r => {finish = r;})).mockResolvedValue([]);
-  const view = render(<ConnectionsPage />); await screen.findAllByText("TEST-shared-account");
+  const view = render(<ConnectionsPage />); await screen.findByText("小红书账号2");
   fireEvent.click(details()); fireEvent.click(screen.getByRole("button", {name: "刷新状态"}));
   await waitFor(() => expect(finish).toBeTypeOf("function"));
   context = {...context, session: {...context.session, accountScope: {id: "TEST-space-two", version: 2}}};

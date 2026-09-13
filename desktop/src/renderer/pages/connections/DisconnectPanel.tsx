@@ -1,18 +1,24 @@
 import { PlatformLabel } from "../../components/Platform";
 import { Button, Modal, Notice } from "../../components/ui";
-import { PLATFORMS } from "../../domain/models";
+import { PLATFORMS, type PlatformConnection } from "../../domain/models";
 import type { useConnectionDisconnect } from "./useConnectionDisconnect";
+import { connectionAccountLabel } from "./ConnectionRegistryTable";
 
 export function DisconnectPanel({
   action,
+  rows,
 }: {
   action: ReturnType<typeof useConnectionDisconnect>;
+  rows?: PlatformConnection[];
 }) {
   const target = action.target;
   if (!target) return null;
   const name =
     PLATFORMS.find((item) => item.id === target.platform)?.name ||
     target.platform;
+  const matches = rows?.filter(row => row.platform === target.platform) || [];
+  const index = matches.findIndex(row => row.accountId === target.accountId && !row.registration);
+  const accountName = index >= 0 ? connectionAccountLabel(matches[index], index) : target.accountName?.trim() || `${name}原账号`;
   return (
     <Modal
       title={action.pending ? `核对${name}断开结果` : `断开${name}连接？`}
@@ -34,7 +40,7 @@ export function DisconnectPanel({
     >
       <p>
         <PlatformLabel platform={target.platform} /> · 账号“
-        {target.accountName || target.accountId}”
+        {accountName}”
       </p>
       <p>依赖该账号的采集与触达任务需要重新连接后才能继续。</p>
       {action.busy && (

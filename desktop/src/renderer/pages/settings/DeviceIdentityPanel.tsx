@@ -6,9 +6,9 @@ import type {DeviceIdentityApi} from '../../services/deviceIdentity';
 export type {DeviceIdentityApi} from '../../services/deviceIdentity';
 export const deviceIdentityLabels: Readonly<Record<DeviceIdentityStatus['state'], string>> = {
   NOT_PREPARED:'尚未核验本机身份', READY:'上次身份核验通过',
-  REGISTRATION_UNKNOWN:'设备登记结果未知', PROOF_UNKNOWN:'设备证明结果未知',
-  REVOKED:'本机身份已撤销，请联系支持', KEY_MISSING:'本机密钥缺失，请联系支持',
-  KEY_MISMATCH:'本机密钥不匹配，请联系支持', SESSION_CHANGED:'会话已变化，请重新核验',
+  REGISTRATION_UNKNOWN:'设备登记结果未知', PROOF_UNKNOWN:'设备核验结果未知',
+  REVOKED:'本机身份已撤销，请联系支持', KEY_MISSING:'本机设备暂不可用，请联系支持',
+  KEY_MISMATCH:'本机设备暂不可用，请联系支持', SESSION_CHANGED:'会话已变化，请重新核验',
   SIGNED_OUT:'请先登录当前账号', BUSY:'已有身份操作正在处理，请稍后核对',
   SERVICE_UNAVAILABLE:'客户服务暂不可用，请稍后核对',
   INVALID_REQUEST:'请求未被接受，请重新核验', FAILED:'核验结果尚未确认，请重新核对',
@@ -43,8 +43,7 @@ export function DeviceIdentityPanel({api, scope}: {api: DeviceIdentityApi; scope
   }
   return <section aria-label="本机设备身份">
     <p role="status">{deviceIdentityLabels[status.state]}</p>
-    <p className="muted">此处仅核验本机设备身份，不代表平台已连接或使用授权已激活。状态为最近一次观察，执行前仍需服务端授权。</p>
-    {status.state === 'READY' && <p className="muted">本机编号：{status.deviceId}</p>}
+    <p className="muted">设备核验不代表平台已连接或使用授权已激活。</p>
     {unknown && <Notice>请先核对原请求；核对不会重复登记，重试需再次明确确认。</Notice>}
     {!stopped && <>
       {unknown && <Button disabled={busy} onClick={()=>void prepare(false)}>核对原请求</Button>}

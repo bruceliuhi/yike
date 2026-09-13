@@ -54,16 +54,12 @@ export function AdoptedCoachSummary({
           {candidate.quotes.map((quote) => (
             <blockquote className="coach-quote" key={quote.id}>
               <p>{quote.text}</p>
-              <small>
-                原文版本 {quote.sourceEvidenceVersion} · 位置 {quote.start}–
-                {quote.end}
-              </small>
             </blockquote>
           ))}
           {!!candidate.materialReferences?.length && <>
             <h3>采用时的业务资料出处</h3>
             {candidate.materialReferences.map((ref,index)=><blockquote className="coach-quote" key={index}>
-              <p>{ref.quote}</p><small>资料 {ref.materialId} · 版本 {ref.materialVersion}</small>
+              <p>{ref.quote}</p><small>业务资料 {index+1}</small>
             </blockquote>)}
           </>}
           <p className="field-hint">

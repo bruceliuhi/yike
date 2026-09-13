@@ -28,7 +28,7 @@ import {
 import { safeReturnTo } from "../domain/routes";
 import { errorMessage, ServiceError } from "../services/contracts";
 import { mergeConnectionRead } from "../services/connectionRegistry";
-import { ConnectionRegistryTable, capabilityText } from "./connections/ConnectionRegistryTable";
+import { ConnectionRegistryTable } from "./connections/ConnectionRegistryTable";
 import { PortableRuntimeNotice } from "./connections/PortableRuntimeNotice";
 
 type ConnectingState =
@@ -113,7 +113,7 @@ export function ConnectionsPage() {
         if (!current() || e instanceof RequestCancelled) return;
         setOpened(false);
         setLoginReady(false);
-        setRecoverable(false);
+        setRecoverable(e instanceof ServiceError && e.code === 'LOGIN_EXPIRED');
         setState(e instanceof RequestTimeout ? 'timeout' : 'error');
         setError(errorMessage(e));
       }
@@ -210,10 +210,10 @@ export function ConnectionsPage() {
     } catch (e) {
       if (request === generation.current && !(e instanceof RequestCancelled)) {
         setState(e instanceof RequestTimeout ? "timeout" : "error");
-        if (e instanceof ServiceError && e.code === 'LOGIN_EXPIRED') {
+        if (e instanceof ServiceError && ['LOGIN_EXPIRED','PLATFORM_AUTH_REQUIRED','PLATFORM_VERIFICATION_REQUIRED','ACCOUNT_MISMATCH'].includes(e.code)) {
           setOpened(false);
           setLoginReady(false);
-          setRecoverable(false);
+          setRecoverable(e.code === 'LOGIN_EXPIRED');
         }
         setError(errorMessage(e));
       }
@@ -259,7 +259,7 @@ export function ConnectionsPage() {
         </Button>
       </div>
       <p className="page-description">
-        连接用于采集或触达，能力按平台分别显示。
+        管理已连接的平台账号。
       </p>
       <ResourceStatus
         loading={connections.loading}
@@ -385,15 +385,16 @@ export function ConnectionsPage() {
             )
           }
         >
+          {state !== "connected" && <>
           <ol className="connection-steps" aria-label="连接步骤">
             <li className="done">
               <CheckCircle aria-hidden />
               选择平台
             </li>
-            <li className={state === "connected" ? "done" : "active"}>
+            <li className="active">
               <span>2</span>登录账号
             </li>
-            <li className={state === "connected" ? "active" : ""}>
+            <li>
               <span>3</span>检查连接
             </li>
           </ol>
@@ -401,35 +402,31 @@ export function ConnectionsPage() {
           <p className="muted">
             账号登录在平台原生页面完成，意客AI不要求输入平台密码。
           </p>
+          </>}
           {deviceBlocked ? <DeviceConnectionPreparationNotice /> : <div className="connection-status">
             <PlatformIcon platform={selected.id} size={32} />
             <div>
               <span className="muted">当前状态</span>
               <h3 role="status">{currentState}</h3>
-              <p>
-                {state === "connected"
-                  ? `${result?.accountName || result?.accountId || "账号信息待读取"} · ${result?.capabilities.length ? capabilityText(result.capabilities) : "暂无通过检查的执行能力"}`
-                  : opened
+              {state === "connected" ? (
+                result?.accountName?.trim() ? <p>{result.accountName.trim()}</p> : null
+              ) : <p>
+                {opened
                     ? loginReady ? '请本人点击“我已完成登录，检查连接”，完成当前账号连接核验。' : `在本机浏览器中完成${selected.name}账号登录。`
-                    : "点击下方按钮打开平台登录窗口。"}
-              </p>
+                    : recoverable ? '点击“检查连接”核对当前状态，无需重复打开登录窗口。' : "点击下方按钮打开平台登录窗口。"}
+              </p>}
             </div>
           </div>}
           {state === "observation-ended" && <Notice tone="warning">
             自动观察已结束，尚未确认连接。请点击“我已完成登录，检查连接”核对当前状态；若检查提示未登录，再重新打开登录窗口。
           </Notice>}
           {error && <Notice tone="error">{error}</Notice>}
-          {state === "connected" && !result?.capabilities.length && (
-            <Notice tone="warning">
-              账号连接成功，但尚无已验证的采集或触达能力；任务启动条件仍需检查。
-            </Notice>
-          )}
-          <p className="field-hint">
+          {state !== "connected" && <p className="field-hint">
             扫码、验证码和额外验证均在平台原生页面处理。
-          </p>
+          </p>}
         </Modal>
       )}
-      <DisconnectPanel action={disconnect} />
+      <DisconnectPanel action={disconnect} rows={connections.data} />
     </>
   );
 }

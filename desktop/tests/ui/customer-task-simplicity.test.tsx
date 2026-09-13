@@ -19,10 +19,10 @@ it('keeps the usage cap and estimate visible but removes execution teaching from
   expect(screen.queryByText('补证顺序')).not.toBeInTheDocument();
   expect(screen.queryByText('停止条件')).not.toBeInTheDocument();
   expect(screen.queryByText('尚未启动')).not.toBeInTheDocument();
-  expect(screen.getByText('计量规则')).not.toBeVisible();
+  expect(screen.queryByText('计量规则')).not.toBeInTheDocument();
   fireEvent.click(screen.getByText('高级设置'));
   expect(screen.getByRole('spinbutton',{name:'模型调用上限'})).toBeVisible();
-  expect(screen.getByText('计量规则')).toBeVisible();
+  expect(screen.queryByText('计量规则')).not.toBeInTheDocument();
 });
 
 it('retains visible actionable errors even while advanced settings are closed',()=>{

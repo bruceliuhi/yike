@@ -17,7 +17,7 @@ it('labels an author-update model citation independently from the main body',()=
  if(result.kind!=='assessment')throw new Error('wrong result');
  render(<CandidateAssessmentDetails assessment={result.assessment}/>);
  expect(screen.getByText('作者回复 1')).toBeVisible();
- expect(screen.getByText('作者回复 1')).toHaveAttribute('title','author_updates.0');
+ expect(screen.getByText('作者回复 1')).not.toHaveAttribute('title');
 });
 
 function assessment() {
@@ -55,19 +55,16 @@ describe("candidate original evidence", () => {
     expect(container.querySelector("textarea, input, a")).toBeNull();
   });
 
-  it("collapses source version metadata while keeping original evidence and timestamps visible", () => {
+  it("removes source version metadata while keeping original evidence and timestamps visible", () => {
     const raw = rawEvidenceFixture();
     render(<CandidateOriginalEvidence evidence={parseRawCandidateEvidence(raw, rawEvidenceBinding)} />);
     const current = within(screen.getByRole("region", { name: "当前原文" }));
-    const details = current.getByText("查看来源记录详情").closest("details");
-    expect(details).not.toHaveAttribute("open");
-    expect(current.getByText(raw.candidate.current_version.content_version)).not.toBeVisible();
+    expect(current.queryByText("查看来源记录详情")).toBeNull();
+    expect(screen.queryByText(raw.candidate.current_version.content_version)).toBeNull();
     expect(current.getByText("评论作者🙂")).toBeVisible();
     expect(current.getByText("采集端观察时间")).toBeVisible();
     expect(current.getByText("服务器接收时间")).toBeVisible();
-    fireEvent.click(current.getByText("查看来源记录详情"));
-    expect(current.getByText(raw.candidate.current_version.content_version)).toBeVisible();
-    expect(current.getByText("候选修订").nextElementSibling).toHaveTextContent("2");
+    expect(current.queryByText("候选修订")).toBeNull();
   });
 
   it("keeps unknown source publication distinct from observer and server times", () => {
@@ -110,11 +107,13 @@ describe("candidate original evidence", () => {
     fireEvent.click(screen.getByText("观察历史（2 / 2）"));
     const record = within(screen.getByRole("article", { name: "观察记录 2" }));
     expect(record.getByLabelText("评论原文").textContent).toBe(old.content.body);
-    for (const value of [old.version_id, old.content_version, old.observed_at, old.received_at, "旧作者"]) {
+    for (const value of [old.observed_at, old.received_at, "旧作者"]) {
       expect(record.getByText(value)).toBeVisible();
     }
     expect(record.queryByText(raw.candidate.current_version.version_id)).not.toBeInTheDocument();
-    expect(screen.getByText("候选修订").nextElementSibling).toHaveTextContent("2");
+    expect(screen.queryByText("候选修订")).toBeNull();
+    expect(record.queryByText(old.version_id)).toBeNull();
+    expect(record.queryByText(old.content_version)).toBeNull();
   });
 
   it("explicitly warns about truncated history and does not borrow another receipt for a missing current observation", () => {
@@ -169,8 +168,9 @@ describe("candidate assessment details", () => {
       expect(dimension.getByText("高")).toBeVisible();
       expect(dimension.getByText(value[key].reason)).toBeVisible();
       for (const citation of value[key].citations) {
-        expect(dimension.getByTitle(citation.field)).toBeVisible();
-        expect(dimension.getByTitle(citation.field).textContent).not.toContain(` · ${citation.field}`);
+        const quote = dimension.getByText(citation.quote, { normalizer: text => text });
+        expect(quote.previousElementSibling?.textContent).toMatch(/本人|上下文|画像/);
+        expect(dimension.queryByTitle(citation.field)).toBeNull();
         expect(dimension.getByText(citation.quote, { normalizer: (text) => text }).textContent).toBe(citation.quote);
       }
     }
@@ -179,17 +179,16 @@ describe("candidate assessment details", () => {
     expect(screen.getByText(value.summary)).toBeVisible();
   });
 
-  it("keeps distinct drafts read-only and model provenance inside collapsible metadata", () => {
+  it("keeps distinct drafts read-only and judgment time without model metadata", () => {
     const value = assessment();
     const { container } = render(<CandidateAssessmentDetails assessment={value} />);
     expect(screen.getByRole("region", { name: "评论草稿（未发送）" })).toHaveTextContent(value.draftComment);
     expect(screen.getByRole("region", { name: "私信草稿（未发送）" })).toHaveTextContent(value.draftDm);
     expect(container.querySelector("textarea, input, button")).toBeNull();
-    const metadata = screen.getByText("判断元数据").closest("details");
-    expect(metadata).not.toHaveAttribute("open");
-    fireEvent.click(screen.getByText("判断元数据"));
-    for (const text of [value.provider, value.model, value.rule_version, value.rule_sha256, value.strategyVersionId, value.assessedAt]) {
-      expect(within(metadata!).getByText(text)).toBeVisible();
+    expect(screen.queryByText("判断元数据")).toBeNull();
+    expect(screen.getByText(value.assessedAt)).toBeVisible();
+    for (const text of [value.provider, value.model, value.rule_version, value.rule_sha256, value.strategyVersionId]) {
+      expect(screen.queryByText(text)).toBeNull();
     }
   });
 

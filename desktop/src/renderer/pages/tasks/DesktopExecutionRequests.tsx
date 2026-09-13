@@ -40,9 +40,6 @@ export function DesktopExecutionRequests({execution, canRetryStart, canRetryCanc
         (value.request?.task_id === receipt.task_id || value.command?.action === 'CANCEL' && value.command.taskId === receipt.task_id));
       return <article key={entry.requestId} className="task-start-blockers">
         <h3>{research?'公开单源研究启动':{START: '启动任务', CANCEL: '取消任务', CLAIM: '领取任务', RENEW: '续期任务', FINISH:'完成登记'}[entry.operation]} · {label}</h3>
-        <details><summary>请求详情</summary><p className="field-hint">{entry.requestId}</p>
-          {receipt && <p className="field-hint">任务：{receipt.task_id}</p>}
-        </details>
         {research&&<p className="field-hint">查询仅核对原研究进度，不会重复启动研究。</p>}
         <p>{receipt?.operation === 'START' ? '原启动回执：任务已创建，当时待执行；不是当前任务状态，不代表采集成功。'
           : receipt?.operation === 'CANCEL' ? receipt.stop_confirmed ? '服务端已登记停止；本机来源请另行核对。' : '取消已登记，等待停止确认。'
@@ -52,7 +49,7 @@ export function DesktopExecutionRequests({execution, canRetryStart, canRetryCanc
         {!research&&(entry.operation === 'START' || entry.operation === 'CANCEL') && <label className="check-row">
           <input type="checkbox" checked={retryChecked} disabled={execution.busy || !execution.loaded || !canRetry}
             onChange={event => setRetry(old => ({...old, [entry.requestId]: event.target.checked}))} />
-          我确认核对后重试此原{entry.operation === 'START' ? '启动' : '取消'}请求（沿用原请求编号）
+          我确认核对后重试此原{entry.operation === 'START' ? '启动' : '取消'}请求
         </label>}
         {!research&&entry.operation === 'START' && !canRetryStart && <p className="field-hint">启动重试需当前草稿和已确认策略完全一致，且通过全部执行条件；现在仍可只查询。</p>}
         <Button disabled={execution.busy || !execution.loaded}

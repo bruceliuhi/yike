@@ -30,11 +30,11 @@ it('removes quote-token teaching while retaining non-replay research recovery',(
   expect(screen.getByRole('button',{name:'恢复原研究请求'})).toBeTruthy();
   expect(screen.queryByRole('checkbox')).toBeNull();
 });
-it('keeps task identity folded and cancellation confirmation attached to its entry',()=>{
+it('removes task identity and keeps cancellation confirmation attached to its entry',()=>{
   const entry={requestId:'internal-request',operation:'START',receipt:{operation:'START',task_id:'internal-task'}};
   const model=execution(entry);
   render(<DesktopExecutionRequests execution={model as any} canRetryStart={false} validateStart={vi.fn()}/>);
-  expect(screen.getByText('任务：internal-task').closest('details')!.open).toBe(false);
+  expect(document.body.textContent).not.toMatch(/internal-task|internal-request/);
   const checkbox=screen.getByRole('checkbox',{name:'我确认取消此任务'});
   const button=screen.getByRole('button',{name:'确认取消此任务'}) as HTMLButtonElement;
   expect(button.disabled).toBe(true);
@@ -47,10 +47,11 @@ it('distinguishes multiple records and repeats the selected label in cancellatio
   const model={...execution(first),entries:[second,first]};
   const view=render(<DesktopExecutionRequests execution={model as any} canRetryStart={false} validateStart={vi.fn()}/>);
   const card=screen.getByRole('heading',{name:'启动任务 · 记录 2'}).closest('article')!;
-  expect(within(card).getByText('任务：task-b').closest('details')!.open).toBe(false);
+  expect(card.textContent).not.toContain('task-b');
   fireEvent.click(within(card).getByRole('checkbox',{name:'我确认取消记录 2 对应的任务'}));
   fireEvent.click(within(card).getByRole('button',{name:'确认取消记录 2 对应的任务'}));
   expect(model.cancel).toHaveBeenCalledWith(second,true);
   view.rerender(<DesktopExecutionRequests execution={{...model,entries:[first,second]} as any} canRetryStart={false} validateStart={vi.fn()}/>);
-  expect(within(screen.getByRole('heading',{name:'启动任务 · 记录 2'}).closest('article')!).getByText('任务：task-b')).toBeTruthy();
+  fireEvent.click(within(screen.getByRole('heading',{name:'启动任务 · 记录 2'}).closest('article')!).getByRole('button',{name:'确认取消记录 2 对应的任务'}));
+  expect(model.cancel).toHaveBeenLastCalledWith(second,true);
 });

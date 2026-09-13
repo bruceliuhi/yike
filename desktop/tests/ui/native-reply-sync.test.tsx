@@ -38,8 +38,8 @@ it('accepts only the strict renderer command and bounded result contract',()=>{
 
 it('offers an empty-evidence ledger request and sends only the exact sync payload',async()=>{
   saveOriginal();render(<NativeReplySync session={session} opportunity={opportunity} evidence={[]} onSynced={vi.fn()}/>);
-  const technical=screen.getByText(`原请求编号：${requestId}`).closest('details');
-  expect(technical).not.toBeNull();expect(technical!.open).toBe(false);
+  expect(screen.queryByText(`原请求编号：${requestId}`)).toBeNull();
+  expect(screen.queryByText('查看联系技术信息')).toBeNull();
   fireEvent.click(screen.getByRole('button',{name:'同步此联系的回复'}));
   await screen.findByText('部分范围读取：3 条；保存并核实：2 条（包含去重结果）。');
   expect(command).toHaveBeenCalledWith({action:'SYNC',opportunityId:opportunity.id,requestId});
@@ -91,5 +91,5 @@ it('distinguishes multiple contacts with stable ordinals and preserves exact req
   view.rerender(<NativeReplySync session={session} opportunity={opportunity} evidence={[evidence(first),evidence(second)]} onSynced={vi.fn()}/>);
   fireEvent.click(screen.getByRole('button',{name:'同步此联系的回复 · 联系 2'}));
   await waitFor(()=>expect(command).toHaveBeenCalledWith({action:'SYNC',opportunityId:opportunity.id,requestId:second}));
-  expect(screen.getByText(`原请求编号：${second}`).closest('details')!.open).toBe(false);
+  expect(screen.queryByText(`原请求编号：${second}`)).toBeNull();
 });

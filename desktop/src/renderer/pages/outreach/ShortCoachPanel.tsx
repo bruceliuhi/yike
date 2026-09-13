@@ -199,16 +199,12 @@ export function ShortCoachPanel({
           {coach.candidate.quotes.map((quote) => (
             <blockquote key={quote.id} className="coach-quote">
               <p>{quote.text}</p>
-              <small>
-                原文版本 {quote.sourceEvidenceVersion} · 位置 {quote.start}–
-                {quote.end}
-              </small>
             </blockquote>
           ))}
           {!!coach.candidate.materialReferences?.length && <>
             <h3>实际采用的业务资料</h3>
             {coach.candidate.materialReferences.map((ref,index)=><blockquote className="coach-quote" key={index}>
-              <p>{ref.quote}</p><small>资料 {ref.materialId} · 版本 {ref.materialVersion}</small>
+              <p>{ref.quote}</p><small>业务资料 {index+1}</small>
             </blockquote>)}
           </>}
           {!!coach.candidate.checks.length && (

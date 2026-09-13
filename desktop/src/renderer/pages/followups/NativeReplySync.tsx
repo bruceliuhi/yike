@@ -48,7 +48,6 @@ export function NativeReplySync({session,opportunity,evidence,onSynced}:{session
       !command?<Notice>请在意客AI桌面客户端中同步原生回复。</Notice>:
       <>{requests.map((requestId,index)=><div key={requestId}>
         <Button variant="secondary" loading={running===requestId} disabled={running!==null} onClick={()=>sync(requestId)}>同步此联系的回复{requests.length>1?` · 联系 ${index+1}`:''}</Button>
-        <details><summary>查看联系技术信息</summary><p className="field-hint">原请求编号：{requestId}</p></details>
       </div>)}</>}
     {message && <Notice tone={message.includes('范围读取')?'success':'error'}>{message}</Notice>}
   </div>;

@@ -120,19 +120,14 @@ describe("固定来源原文证据", () => {
     expect(body.textContent).toBe(longBody);
   });
 
-  it("把版本、摘要、模型规则及历史判断时间收在可展开明细中", () => {
+  it("移除版本、摘要和模型规则，保留历史判断时间与核验方式", () => {
     const evidence = captured();
     render(<FixedSourceEvidence evidence={evidence} onOpen={vi.fn()} />);
 
-    const details = screen.getByText("版本与当时判断明细").closest("details");
-    expect(details?.open).toBe(false);
-    fireEvent.click(screen.getByText("版本与当时判断明细"));
+    const details = screen.getByText("当时的来源核验").closest("details");
+    fireEvent.click(screen.getByText("当时的来源核验"));
     expect(details?.open).toBe(true);
-    expect(within(details!).getByText("TEST-source-version-1")).toBeTruthy();
-    expect(within(details!).getByText("a".repeat(64))).toBeTruthy();
-    expect(within(details!).getByText("TEST-model")).toBeTruthy();
-    expect(within(details!).getByText("TEST-rule-v1")).toBeTruthy();
-    expect(within(details!).getByText("TEST-p · 第 7 版")).toBeTruthy();
+    for (const technical of ["TEST-source-version-1", "a".repeat(64), "TEST-model", "TEST-rule-v1", "TEST-p · 第 7 版"]) expect(screen.queryByText(technical)).toBeNull();
     expect(within(details!).getByText("有效（纳入时）")).toBeTruthy();
     expect(within(details!).getByText("直接打开")).toBeTruthy();
     expect(within(details!).getByText("评论")).toBeTruthy();

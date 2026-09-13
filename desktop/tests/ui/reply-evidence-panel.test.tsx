@@ -53,6 +53,15 @@ afterEach(() => {
   localStorage.clear();
   delete (window as any).yikeDesktop;
 });
+it('omits internal reply associations while preserving author, original body and unknown read state', async () => {
+  const {opportunity,row}=fixture();app.service.replyEvidence.mockResolvedValue([row]);
+  render(<ReplyEvidencePanel opportunity={opportunity}/>);
+  await screen.findByText(row.event.body);
+  expect(screen.queryByText('原始关联')).toBeNull();
+  for(const value of [row.event.source_id,row.event.outreach_request_id,row.event.profile_version_id,row.event.event_id]) expect(screen.queryByText(value,{exact:false})).toBeNull();
+  expect(screen.getByText('已读状态未知')).toBeTruthy();
+  expect(screen.getByText(/buyer1/)).toBeTruthy();
+});
 it.each(['session', 'token', 'sms'])('ordinary %s identity reaches selected opportunity evidence', async (method) => {
   const f = fixture();
   const requestApi = vi.fn(async (request: any) => ({ok: true, status: 200, data:

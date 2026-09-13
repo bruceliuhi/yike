@@ -175,9 +175,11 @@ async def read_zhihu_self_account(page):
         await response.dispose()
 
 
-async def login_platform(*, platform, output_path: Path) -> dict:
+async def login_platform(*, platform, output_path: Path, inspect_only=False) -> dict:
+    if type(inspect_only) is not bool:
+        return _failure('SOURCE_HOST_FAILED')
     if platform == 'XIAOHONGSHU':
-        return await login_xhs(output_path=output_path)
+        return await login_xhs(output_path=output_path, inspect_only=inspect_only)
     if not login_platform_supported(platform):
         return _failure('SOURCE_HOST_FAILED')
     runtime = None
@@ -191,8 +193,9 @@ async def login_platform(*, platform, output_path: Path) -> dict:
             try:
                 options = {} if platform == 'BILIBILI' else {'user_agent': None}
                 crawler.browser_context = await crawler.launch_browser(playwright.chromium, None,
-                    headless=False, **options)
-                _write(output_path, '.yike-login-opened.json', dict(schema_version=SCHEMA, state='OPENED'))
+                    headless=inspect_only, **options)
+                if not inspect_only:
+                    _write(output_path, '.yike-login-opened.json', dict(schema_version=SCHEMA, state='OPENED'))
                 crawler.context_page = await crawler.browser_context.new_page()
                 await crawler.context_page.goto(home)
                 if not _official_page(crawler.context_page.url, urlsplit(home).netloc):
@@ -208,6 +211,8 @@ async def login_platform(*, platform, output_path: Path) -> dict:
                     client = crawler.dy_client = await crawler.create_douyin_client(None)
                     pong_args = {'browser_context': crawler.browser_context}
                 if not await client.pong(**pong_args):
+                    if inspect_only:
+                        raise _LoginError('PLATFORM_AUTH_REQUIRED')
                     login = runtime.Login(login_type='qrcode', browser_context=crawler.browser_context,
                         context_page=crawler.context_page)
                     await login.begin()
@@ -240,7 +245,9 @@ async def login_platform(*, platform, output_path: Path) -> dict:
         return _classified_failure(error, runtime, cleanup_failed)
 
 
-async def login_xhs(*, output_path: Path) -> dict:
+async def login_xhs(*, output_path: Path, inspect_only=False) -> dict:
+    if type(inspect_only) is not bool:
+        return _failure('SOURCE_HOST_FAILED')
     runtime = None
     cleanup_failed = False
     try:
@@ -248,8 +255,9 @@ async def login_xhs(*, output_path: Path) -> dict:
         crawler = runtime.XiaoHongShuCrawler()
         async with runtime.async_playwright() as playwright:
             try:
-                crawler.browser_context = await crawler.launch_browser(playwright.chromium, None, None, False)
-                _write(output_path, '.yike-login-opened.json', dict(schema_version=SCHEMA, state='OPENED'))
+                crawler.browser_context = await crawler.launch_browser(playwright.chromium, None, None, inspect_only)
+                if not inspect_only:
+                    _write(output_path, '.yike-login-opened.json', dict(schema_version=SCHEMA, state='OPENED'))
                 crawler.context_page = await crawler.browser_context.new_page()
                 await crawler.context_page.goto(_HOME)
                 if not _official_page(crawler.context_page.url):
@@ -264,6 +272,8 @@ async def login_xhs(*, output_path: Path) -> dict:
                 if count > 1:
                     raise _LoginError('PLATFORM_ACCOUNT_UNVERIFIED')
                 if count == 0 or not await own_link.is_visible():
+                    if inspect_only:
+                        raise _LoginError('PLATFORM_AUTH_REQUIRED')
                     login = runtime.XiaoHongShuLogin(login_type='qrcode',
                         browser_context=crawler.browser_context, context_page=crawler.context_page)
                     await login.begin()
@@ -299,12 +309,14 @@ async def login_xhs(*, output_path: Path) -> dict:
 
 def main() -> int:
     try:
+        inspect = os.environ.get('YIKE_LOGIN_INSPECT_ONLY', '0')
+        if inspect not in ('0', '1'): return 1
         output = Path(os.environ['YIKE_LOGIN_OUTPUT_PATH'])
         profile = Path(os.environ['YIKE_PROFILE_PATH'])
         if not output.is_absolute() or not output.is_dir() or not profile.is_absolute() or not profile.is_dir():
             return 1
         result = asyncio.run(login_platform(platform=os.environ.get('YIKE_LOGIN_PLATFORM', 'XIAOHONGSHU'),
-            output_path=output))
+            output_path=output, inspect_only=inspect == '1'))
         _write(output, '.yike-login-terminal.json', result)
         return 0
     except (Exception, KeyboardInterrupt):

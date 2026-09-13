@@ -25,10 +25,6 @@ function Evidence({ rows }: { rows: CoverageEvidence[] }) {
           <div className="coverage-evidence" key={row.id}>
             <blockquote>{row.excerpt}</blockquote>
             <p className="muted" style={{overflowWrap: "anywhere"}}>{row.url}</p>
-            <details>
-              <summary>查看来源技术信息</summary>
-              <p className="muted">来源 {row.sourceId} · 证据版本 {row.sourceVersionId}</p>
-            </details>
             <Button
               variant="ghost"
               disabled={busy}
@@ -107,7 +103,7 @@ export function SearchCoverageDetails({ unit }: { unit: CoverageUnit }) {
                 </summary>
                 <p className="muted">
                   {row.phase === "DEDUPLICATION" ? "去重前处理" : "去重后筛选"}{" "}
-                  · 规则 {row.ruleVersion} ·{" "}
+                  ·{" "}
                   {row.overlapping
                     ? "可与其他分类重叠，不可相加"
                     : "本分类独立计数"}

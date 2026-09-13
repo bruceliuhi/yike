@@ -67,10 +67,12 @@ def _request(stdin):
     if isinstance(frame, str): frame = frame.encode('utf-8')
     if len(frame) > 65536 or not frame.endswith(b'\n'): raise ValueError()
     value = _decode(frame)
-    if not isinstance(value, dict) or set(value) != _FIELDS or value['schema_version'] != SCHEMA:
+    if not isinstance(value, dict) or set(value) not in (_FIELDS, _FIELDS | {'inspect_only'}) or value['schema_version'] != SCHEMA:
         raise ValueError()
+    inspect_only = value.get('inspect_only', False)
+    if type(inspect_only) is not bool: raise ValueError()
     if any(not isinstance(value[key], str) for key in ('runtime_path', 'profile_path', 'output_path')): raise ValueError()
-    if not login_platform_supported(value['platform']) or type(value['timeout_seconds']) is not int or not 1 <= value['timeout_seconds'] <= 180:
+    if not login_platform_supported(value['platform']) or type(value['timeout_seconds']) is not int or not 1 <= value['timeout_seconds'] <= (20 if inspect_only else 180):
         raise ValueError()
     paths = _paths(*(value[key] for key in ('runtime_path', 'profile_path', 'output_path')))
     for key, path in zip(('runtime_path', 'profile_path', 'output_path'), paths): value[key] = path
@@ -104,14 +106,15 @@ def _terminal(value, platform='XIAOHONGSHU'):
 
 
 def login_windows_platform(*, runtime_path, profile_path, output_path, platform,
-                           timeout_seconds, on_opened, cancel_requested=None):
+                           timeout_seconds, on_opened, cancel_requested=None, inspect_only=False):
     started = time.monotonic()
     def interrupted():
         if cancel_requested and cancel_requested(): return _failure('PLATFORM_LOGIN_CANCELLED', 'CANCELLED')
         if time.monotonic() - started >= timeout_seconds: return dict(schema_version=SCHEMA, state='TIMED_OUT')
         return None
     try:
-        if sys.platform != 'win32' or not login_platform_supported(platform) or type(timeout_seconds) is not int or not 1 <= timeout_seconds <= 180:
+        if (sys.platform != 'win32' or not login_platform_supported(platform) or type(inspect_only) is not bool
+                or type(timeout_seconds) is not int or not 1 <= timeout_seconds <= (20 if inspect_only else 180)):
             raise ValueError()
         runtime_path, profile_path, output_path = _paths(runtime_path, profile_path, output_path)
         if os.path.lexists(output_path): raise ValueError()
@@ -119,6 +122,7 @@ def login_windows_platform(*, runtime_path, profile_path, output_path, platform,
             if stopped := interrupted(): return stopped
             python = verify_installed_runtime(runtime_path)
             if os.path.lexists(profile_path): verify_browser_profile_tree(profile_path)
+            elif inspect_only: return _failure('PLATFORM_AUTH_REQUIRED', 'BLOCKED_INPUT')
             else: profile_path = create_private_directory(profile_path)
             if stopped := interrupted(): return stopped
             output_path = create_private_directory(output_path)
@@ -128,6 +132,7 @@ def login_windows_platform(*, runtime_path, profile_path, output_path, platform,
             env = _minimal_child_environment(YIKE_PROFILE_PATH=str(profile_path),
                 YIKE_LOGIN_OUTPUT_PATH=str(output_path),
                 YIKE_LOGIN_PLATFORM=platform,
+                YIKE_LOGIN_INSPECT_ONLY='1' if inspect_only else '0',
                 PYTHONDONTWRITEBYTECODE='1',
                 PLAYWRIGHT_BROWSERS_PATH=str(runtime_path / '.venv/playwright-browsers'),
                 TEMP=str(temporary), TMP=str(temporary), MPLCONFIGDIR=str(temporary / 'matplotlib'))
@@ -138,6 +143,7 @@ def login_windows_platform(*, runtime_path, profile_path, output_path, platform,
                 if opened: return
                 marker = output_path / '.yike-login-opened.json'
                 if not os.path.lexists(marker): return
+                if inspect_only: raise ValueError()
                 if _marker(marker) != _OPENED: raise ValueError()
                 on_opened()
                 opened = True
@@ -155,7 +161,7 @@ def login_windows_platform(*, runtime_path, profile_path, output_path, platform,
             if result.timed_out: return dict(schema_version=SCHEMA, state='TIMED_OUT')
             if result.returncode != 0: return _failure('SOURCE_HOST_FAILED')
             terminal = _terminal(_marker(output_path / '.yike-login-terminal.json'), platform)
-            if terminal['state'] == 'AUTHENTICATED' and not opened: raise ValueError()
+            if terminal['state'] == 'AUTHENTICATED' and not (opened or inspect_only): raise ValueError()
             return terminal
     except KeyboardInterrupt:
         # Supervisor re-raises only after cleanup; unconfirmed cleanup is OSError.

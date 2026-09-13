@@ -54,6 +54,39 @@ it('uses a fixed six-field request and secret-free spawn, holds stdin and waits 
   await run.stop();
 });
 
+it('inspection sends a strict private flag and 20-second limit and waits close without OPENED', async () => {
+  const f = await fixture(); const run = f.driver.start({profileId, inspectOnly: true}); await tick();
+  expect(JSON.parse(f.children[0].stdin.read().toString())).toMatchObject({inspect_only: true, timeout_seconds: 20,
+    profile_path: f.options.profileRoot + '\\' + profileId});
+  let done = false; void run.completed.then(() => {done = true;});
+  f.frame(authenticated); await tick(); expect(done).toBe(false);
+  f.children[0].emit('exit', 0, null); await tick(); expect(done).toBe(false);
+  f.close(); expect(await run.completed).toEqual({account_public_id: 'abc12345', checked_at: authenticated.checked_at});
+  await run.stop();
+});
+
+it.each(['true', 1, null])('rejects non-boolean inspectOnly %s before spawning', async inspectOnly => {
+  const f = await fixture(); const run = f.driver.start({profileId, inspectOnly} as any);
+  await expect(run.completed).rejects.toThrow('PLATFORM_LOGIN_INPUT_INVALID');
+  expect(f.spawn).not.toHaveBeenCalled();
+});
+
+it('inspection cancels at 20 seconds and discards authentication until cleanup close', async () => {
+  const f = await fixture(); const run = f.driver.start({profileId, inspectOnly: true});
+  const outcome = run.completed.catch(e => e.message); await tick();
+  await vi.advanceTimersByTimeAsync(19999); expect(f.children[0].stdin.writableEnded).toBe(false);
+  await vi.advanceTimersByTimeAsync(1); expect(f.children[0].stdin.writableEnded).toBe(true);
+  let stopped = false; const stop = run.stop().then(() => {stopped = true;});
+  f.frame(authenticated); await tick(); expect(stopped).toBe(false);
+  f.close(); expect(await outcome).toBe('PLATFORM_LOGIN_TIMED_OUT'); await stop;
+});
+
+it('inspection rejects a visible OPENED event', async () => {
+  const f = await fixture(); const run = f.driver.start({profileId, inspectOnly: true}); await tick();
+  f.frame(opened); f.frame(authenticated); f.close();
+  await expect(run.completed).rejects.toThrow('SOURCE_HOST_FAILED');
+});
+
 it.each([
   ['DOUYIN', 'owner.handle-1'],
   ['BILIBILI', '1234567890'],

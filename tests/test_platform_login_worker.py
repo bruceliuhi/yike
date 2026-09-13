@@ -24,7 +24,8 @@ def module():
 def runtime():
     events = []
     state = SimpleNamespace(href='/user/profile/' + ACCOUNT, count=1, broad_count=None, visible=True,
-        pong=[True], url='https://www.xiaohongshu.com/', close_error=False, login_error=False, exit_error=False)
+        pong=[True], url='https://www.xiaohongshu.com/', close_error=False, login_error=False, exit_error=False,
+        headless=False)
     class Locator:
         def __init__(self, broad=False): self.broad = broad
         async def count(self):
@@ -59,7 +60,7 @@ def runtime():
     class Crawler:
         def __init__(self): self.cookie_urls = ['https://www.xiaohongshu.com']
         async def launch_browser(self, chromium, proxy, agent, headless):
-            assert chromium == 'controlled' and proxy is None and agent is None and headless is False
+            assert chromium == 'controlled' and proxy is None and agent is None and headless is state.headless
             events.append('browser-open')
             return Context()
         async def create_xhs_client(self, proxy):
@@ -99,6 +100,35 @@ def test_pong_authenticated_reads_only_unique_self_navigation_after_browser_open
     assert json.loads((tmp_path / '.yike-login-opened.json').read_text()) == {
         'schema_version': 'windows-platform-login-v1', 'state': 'OPENED'}
     assert 'secret' not in str(result)
+
+
+@pytest.mark.parametrize('change,expected', [({}, None), ({'count': 0}, 'PLATFORM_AUTH_REQUIRED'),
+    ({'visible': False}, 'PLATFORM_AUTH_REQUIRED'), ({'pong': [False]}, 'PLATFORM_AUTH_REQUIRED'),
+    ({'count': 2}, 'PLATFORM_ACCOUNT_UNVERIFIED'), ({'close_error': True}, 'SOURCE_HOST_FAILED')])
+def test_inspect_only_xhs_is_headless_never_begins_login_and_closes(tmp_path, runtime, monkeypatch, change, expected):
+    runtime.state.headless = True
+    for key, value in change.items(): setattr(runtime.state, key, value)
+    monkeypatch.setattr(module(), '_load_runtime', lambda: runtime.api)
+    before = datetime.now(timezone.utc).replace(microsecond=0)
+    result = asyncio.run(module().login_platform(platform='XIAOHONGSHU', output_path=tmp_path, inspect_only=True))
+    assert 'user-login' not in runtime.events and 'refresh' not in runtime.events
+    assert not (tmp_path / '.yike-login-opened.json').exists()
+    assert runtime.events[-2:] == ['browser-close', 'playwright-close']
+    if expected:
+        assert result['error_code'] == expected and 'account_public_id' not in result
+    else:
+        assert result['account_public_id'] == ACCOUNT
+        assert datetime.fromisoformat(result['checked_at'].replace('Z', '+00:00')) >= before
+
+
+@pytest.mark.parametrize('value', ['true', 'false', '', '2', 'yes'])
+def test_worker_rejects_invalid_inspect_environment_before_browser(tmp_path, monkeypatch, value):
+    monkeypatch.setenv('YIKE_LOGIN_OUTPUT_PATH', str(tmp_path))
+    monkeypatch.setenv('YIKE_PROFILE_PATH', str(tmp_path))
+    monkeypatch.setenv('YIKE_LOGIN_INSPECT_ONLY', value)
+    async def forbidden(**kwargs): pytest.fail('invalid environment must not open a browser')
+    monkeypatch.setattr(module(), 'login_platform', forbidden)
+    assert module().main() == 1
 
 
 def test_unique_accessible_self_link_ignores_other_profile_links_with_nested_me_text(tmp_path, runtime, monkeypatch):

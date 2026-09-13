@@ -74,13 +74,21 @@ afterEach(() => {
 function seed(entry = startEntry(binding)) {
   localStorage.setItem(key(), JSON.stringify({ [binding.draftId]: entry }));
 }
-it('keeps unresolved startup recovery visible with the request ID collapsed',()=>{
+it('keeps unresolved startup recovery visible with the request ID removed',()=>{
  seed();render(<PendingTaskStarts/>);
- const identity=screen.getByText(binding.requestId);
- expect(identity.closest('details')).not.toBeNull();
- expect(identity.closest('details')!.open).toBe(false);
+ expect(screen.queryByText(binding.requestId)).toBeNull();
  expect(screen.getByRole('button',{name:'核对原启动结果'})).toBeTruthy();
  expect(screen.getByText('启动结果待确认').closest('details')).toBeNull();
+});
+it('distinguishes multiple startup records while querying only the selected original binding',async()=>{
+ const second={...binding,draftId:'z-other-draft',requestId:'task:z-other-draft:2'};
+ localStorage.setItem(key(),JSON.stringify({[second.draftId]:startEntry(second),[binding.draftId]:startEntry(binding)}));
+ render(<PendingTaskStarts/>);
+ expect(screen.getByText('启动记录 1')).toBeTruthy();
+ const row=screen.getByText('启动记录 2').closest('.task-recovery-row')!;
+ fireEvent.click(row.querySelector('button')!);
+ await waitFor(()=>expect(context.service.taskOperations!.reconcileStart).toHaveBeenCalledWith(second));
+ expect(context.service.taskOperations!.start).not.toHaveBeenCalled();
 });
 it("recovers the same original request after clearing drafts and remounting, without starting anything", async () => {
   seed();

@@ -117,6 +117,47 @@ def test_unknown_platform_never_loads_a_browser(tmp_path, monkeypatch):
     assert asyncio.run(worker.login_platform(platform='WEIBO', output_path=tmp_path))['state'] == 'FAILED'
 
 
+@pytest.mark.parametrize('platform,account', [('BILIBILI', '123456'), ('DOUYIN', 'studio_2026.test'), ('ZHIHU', '123456')])
+@pytest.mark.parametrize('authenticated', [True, False])
+def test_inspect_only_video_checks_headlessly_without_login(tmp_path, monkeypatch, platform, account, authenticated):
+    events = []
+    class Page:
+        url = ''
+        async def goto(self, url): self.url = url
+        async def evaluate(self, script): return 'controlled-agent'
+    class Context:
+        async def new_page(self): return Page()
+    class Client:
+        async def pong(self, **kwargs): return authenticated
+        async def get(self, uri):
+            assert uri == '/x/web-interface/nav'
+            return {'isLogin': True, 'mid': int(account)}
+        async def update_cookies(self, *args, **kwargs): pytest.fail('must not refresh login cookies')
+    class Crawler:
+        async def launch_browser(self, chromium, proxy, **kwargs):
+            assert kwargs['headless'] is True
+            events.append('headless')
+            return Context()
+        async def create_bilibili_client(self, proxy): return Client()
+        async def create_douyin_client(self, proxy): return Client()
+        async def create_zhihu_client(self, proxy): return Client()
+        async def close(self): events.append('closed')
+    class Playwright:
+        async def __aenter__(self): return NS(chromium='controlled')
+        async def __aexit__(self, *args): events.append('playwright-closed')
+    def forbidden(**kwargs): pytest.fail('inspect must never create QR login')
+    async def self_account(page): return account
+    monkeypatch.setattr(worker, 'read_douyin_self_account', self_account)
+    monkeypatch.setattr(worker, 'read_zhihu_self_account', self_account)
+    monkeypatch.setattr(worker, '_load_video_runtime', lambda _: NS(Crawler=Crawler, Login=forbidden,
+        async_playwright=Playwright, classify_error=lambda exc: ('COLLECTION_PROCESS_FAILED', 48)))
+    result = asyncio.run(worker.login_platform(platform=platform, output_path=tmp_path, inspect_only=True))
+    assert events == ['headless', 'closed', 'playwright-closed']
+    assert not (tmp_path / '.yike-login-opened.json').exists()
+    if authenticated: assert result['account_public_id'] == account
+    else: assert result['error_code'] == 'PLATFORM_AUTH_REQUIRED' and 'account_public_id' not in result
+
+
 @pytest.mark.parametrize('status,expected', [(401, 'PLATFORM_AUTH_REQUIRED'),
     (403, 'PLATFORM_PERMISSION_DENIED'), (429, 'PLATFORM_RATE_LIMITED'),
     (500, 'PLATFORM_RESPONSE_CHANGED')])
