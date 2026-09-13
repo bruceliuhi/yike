@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /src/
+Sitemap: https://www.tuokexing.net/sitemap.xml
