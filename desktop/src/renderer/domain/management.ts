@@ -102,7 +102,7 @@ export function readBackup(content: string): CustomerBackup {
   try {
     parsed = JSON.parse(content);
   } catch {
-    throw new Error("备份文件不是有效的 JSON。");
+    throw new Error("无法读取此备份，请重新选择意客AI导出的备份文件。");
   }
   const result = backupSchema.safeParse(parsed);
   if (!result.success)

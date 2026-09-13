@@ -78,9 +78,8 @@ describe("strategy execution limit editor", () => {
     expect(screen.getByLabelText("当前执行保护上限").textContent).toBe(
       "undefined",
     );
-    expect(screen.getByText(/不是搜贝上限/).textContent).toMatch(
-      /不是研究来源、时长或模型调用硬上限/,
-    );
+    expect(screen.queryByText(/执行保护|模型调用硬上限|不是搜贝上限/)).toBeNull();
+    expect(screen.getByRole('region', { name: '处理范围' })).toBeTruthy();
 
     fireEvent.click(
       screen.getByRole("button", { name: "采用建议执行上限" }),
