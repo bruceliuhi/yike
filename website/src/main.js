@@ -1,4 +1,4 @@
-import { crmFeatures, nav, platformLogos, trustItems, workbenchFeatures } from './data.js?v=20260913-content1';
+import { crmFeatures, nav, platformLogos, trustItems, workbenchFeatures } from './data.js?v=20260913-content2';
 import { insights } from './insights.js?v=20260913-insights1';
 
 const page = document.body.dataset.page;
@@ -6,7 +6,8 @@ const esc = (value) => String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;',
 
 function icon(name) { return `<span class="glyph" aria-hidden="true">${name}</span>`; }
 function header() {
-  return `<header class="site-header"><a class="brand" href="/"><img src="/brand/yike-logo-mark.png" alt=""/><span>意客 <b>AI</b><small>INTELLIGENCE WORKSPACE</small></span></a><nav>${nav.map((item) => `<a href="${item.href}" class="${location.pathname === item.href ? 'active' : ''}">${item.label}</a>`).join('')}</nav><a class="header-cta" href="/contact/">预约演示 <span>↗</span></a><button class="menu-button" aria-label="打开菜单">☰</button></header>`;
+  const headerNav = nav.some((item) => item.href === '/insights/') ? nav : [...nav, { href: '/insights/', label: '内容洞察' }];
+  return `<header class="site-header"><a class="brand" href="/"><img src="/brand/yike-logo-mark.png" alt=""/><span>意客 <b>AI</b><small>INTELLIGENCE WORKSPACE</small></span></a><nav>${headerNav.map((item) => `<a href="${item.href}" class="${location.pathname === item.href ? 'active' : ''}">${item.label}</a>`).join('')}</nav><a class="header-cta" href="/contact/">预约演示 <span>↗</span></a><button class="menu-button" aria-label="打开菜单">☰</button></header>`;
 }
 function footer() {
   return `<footer><div class="footer-top"><a class="brand" href="/"><img src="/brand/yike-logo-mark.png" alt=""/><span>意客 <b>AI</b><small>INTELLIGENCE WORKSPACE</small></span></a><p>把客户信号、销售动作与企业知识，组织成一套可以持续使用的工作系统。</p></div><div class="footer-grid"><div><h4>产品</h4><a href="/products/workbench/">商机工作台</a><a href="/products/crm/">客户情报 CRM</a><a href="/features/">能力全景</a><a href="/scenarios/">适用场景</a><a href="/insights/">内容洞察</a></div><div><h4>开始使用</h4><a href="/download/">下载与试用</a><a href="/contact/">预约产品演示</a><a href="tel:15011569988">150 1156 9988</a></div><div><h4>关于意客</h4><a href="/roadmap/">产品路线</a><a href="/faq/">常见问题</a><a href="/contact/">企业合作</a><a href="/security/">隐私与安全</a></div></div><div class="footer-bottom"><span>© 2026 意客 AI · Xinghe Technology</span><span>面向企业的客户情报与商机工作台</span></div></footer>`;
