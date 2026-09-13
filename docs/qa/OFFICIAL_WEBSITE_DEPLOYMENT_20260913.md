@@ -10,8 +10,8 @@
 ## 发布版本
 
 - Gitee：`yike-ai2026/main`
-- 源码提交：`3fda66ee69d65f9a93848d19ecd213ba54f209b3`
-- 发布目录：`/www/wwwroot/www.tuokexing.net/releases/3fda66ee69d65f9a93848d19ecd213ba54f209b3`
+- 源码提交：`246eca98a453518b05a28f891dea421b993c027e`
+- 发布目录：`/www/wwwroot/www.tuokexing.net/releases/246eca98a453518b05a28f891dea421b993c027e`
 - 当前软链：`/www/wwwroot/www.tuokexing.net/current`
 - 站点类型：独立静态站点，不占用 `yike.tuokexing.net` 的应用和运营后台配置。
 
@@ -35,5 +35,8 @@
 - `/download/`
 - `/roadmap/`
 - `/contact/`
+- `/faq/`
+
+官网已加入搜索与 AI 抓取基础：每个路由有独立 title、description、canonical、Open Graph/Twitter 元信息和 JSON-LD；各页面在 JavaScript 执行前保留可抓取的语义正文；`robots.txt`、`sitemap.xml`、`llms.txt` 和 FAQ 已上线。产品范围统一按已授权平台与当前可访问公开来源表述，不把规划能力写成已交付能力。
 
 官网首页已包含：目标客户与使用场景、商机工作台与客户情报 CRM、发现/判断/触达/经营四步链路、机会证据样例、平台连接说明及 7 天试点入口。首屏、商机工作台和客户情报 CRM 已加入统一风格的产品插图，多平台信号区增加信号汇聚视觉；首页文案已改为面向所有主动获客企业，突出全网公开信息智能挖掘；首屏收敛为“客户还没开口，意客 AI 先发现”，仅保留两项信任提示与两个动作；右侧使用真实机会详情界面，展示原文证据与联系准备；首屏主按钮直达脱敏机会样例，并明确试用可获得机会记录、原文证据和跟进草稿；新增可切换的“原文证据—匹配判断—建议动作”样例、试用准备表单、平台连接状态说明和移动端固定入口，详细能力下沉到后续区块。示例机会明确标注为示例，不代表客户业绩。
