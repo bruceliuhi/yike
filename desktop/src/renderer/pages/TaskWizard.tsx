@@ -120,6 +120,12 @@ export function TaskWizardPage() {
     [service, session.userId, session.authenticated, session.accountScope?.id, session.accountScope?.version],
   );
   const info = useResource(() => service.info(), [service, session.userId, session.authenticated, session.accountScope?.id, session.accountScope?.version]);
+  const refreshPreparation = () => {
+    // Runtime preparation can finish after the first account read. Refresh the
+    // bindings too; a ready service badge cannot make a stale account selectable.
+    void connections.reload();
+    void info.reload();
+  };
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [generating, setGenerating] = useState(false);
   const [suggestionError, setSuggestionError] = useState("");
@@ -239,6 +245,7 @@ export function TaskWizardPage() {
         return;
       }
     }
+    if (next === 2) refreshPreparation();
     navigate(stepPath(next));
   };
   useEffect(() => {
@@ -1266,7 +1273,7 @@ export function TaskWizardPage() {
             <p className="muted">
               请检查所选平台的连接及服务状态；启动前会再次核对。
             </p>
-            <Button variant="ghost" onClick={() => void info.reload()}>
+            <Button variant="ghost" onClick={refreshPreparation} disabled={connections.loading || info.loading}>
               重新检查
             </Button>
           </section>

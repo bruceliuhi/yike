@@ -579,6 +579,7 @@ describe("task wizard service boundary", () => {
     addKeyword("另一个人工词");
     fireEvent.click(screen.getByRole("button", { name: "下一步：连接平台" }));
     followNavigation(view);
+    await screen.findByRole("option", { name: "测试账号二" });
     fireEvent.change(screen.getByRole("combobox", { name: "小红书执行账号" }), {
       target: { value: "account-two" },
     });
@@ -597,6 +598,7 @@ describe("task wizard service boundary", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "下一步：连接平台" }));
     followNavigation(view);
+    await screen.findByRole("option", { name: "测试账号二" });
     expect(
       (
         screen.getByRole("combobox", {
@@ -840,6 +842,38 @@ describe("task wizard service boundary", () => {
 });
 
 describe("collection readiness copy", () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  const accountId = 'a'.repeat(24);
+  const registered: PlatformConnection = {platform:'xhs',status:'CONNECTED',accountId,accountName:'已登录的小红书',capabilities:[],
+    registration:{connectionId:id,deviceId:id,version:2,connectedAt:'2026-09-13T00:00:00Z',disconnectedAt:null}};
+  const readyAccount: PlatformConnection = {...registered,foregroundBinding:{mode:'xhs-foreground-v1',platform:'XIAOHONGSHU',
+    connectionId:id,deviceId:id,connectionVersion:2,accountPublicId:accountId}};
+
+  it('reloads account bindings when entering platform selection after runtime preparation', async () => {
+    seed({accounts:{}});
+    vi.mocked(context.service.connections).mockResolvedValueOnce([registered]).mockResolvedValue([readyAccount]);
+    const view = render(<TaskWizardPage />);
+    await screen.findByRole('checkbox',{name:/^小红书/});
+    await act(async()=>{});
+    fireEvent.click(screen.getByRole('button',{name:'下一步：连接平台'}));
+    followNavigation(view);
+    await waitFor(()=>expect((screen.getByRole('option',{name:'已登录的小红书'}) as HTMLOptionElement).disabled).toBe(false));
+    expect(currentDraft().accounts.xhs).toBeUndefined();
+    expect(context.service.startTask).not.toHaveBeenCalled();
+  });
+
+  it('rechecks accounts as well as readiness without requiring another platform login', async () => {
+    seed({accounts:{}});
+    context.route = parseRoute('#/tasks/new?step=connect');
+    vi.mocked(context.service.connections).mockResolvedValueOnce([registered]).mockResolvedValue([readyAccount]);
+    render(<TaskWizardPage />);
+    expect((await screen.findByRole('option',{name:'已登录的小红书（当前不可用）'}) as HTMLOptionElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button',{name:'重新检查'}));
+    await waitFor(()=>expect((screen.getByRole('option',{name:'已登录的小红书'}) as HTMLOptionElement).disabled).toBe(false));
+    expect(context.service.info).toHaveBeenCalledTimes(2);
+    expect(context.service.startTask).not.toHaveBeenCalled();
+  });
+
   it("does not diagnose an unbound device when collection capability is unavailable", async () => {
     seed();
     context.route = parseRoute("#/tasks/new?step=connect");
