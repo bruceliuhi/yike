@@ -113,3 +113,9 @@ EXE `D:/yku914/make/squirrel.windows/x64/YikeAI-Setup.exe`，642862592字节，S
 普通TaskWizard原START路径只有保存回执，没有研究路径已有的导航回调。新增可选成功回调，在既有RECORDED绑定验证和双scope检查后进入真实任务详情；UNKNOWN保留原请求，不跳转不重发。新回归先证实RECORDED导航断言失败/UNKNOWN通过，修复后task-desktop-execution、desktop-execution、desktop-execution-list-busy共39项通过，tsc通过。独立差量Spec/Quality GO无P1/P2；审核blob为TaskWizard `9fe6896920a38f19f8774603388e6d73fa905397`、hook `515e7abdb9f27622cba99a94d69da456a732c180`、test `141abd210e1c879c7a344fb2fad0c7afaed393c2`。此修复尚未构包/安装实测。
 
 12:17实际客户端已显示“已打开原帖”并恢复按钮，原viewer进程已退出。12:18:11再次从客户端打开同一原文，输出 `8380e01c-de14-49bf-8675-5a088122b598` 在12:18:20产生SOURCE_OPENED。后台快照仍显示按钮禁用，但主动切回意客后下一次新截图按钮已恢复；12:19:33同时核对原文浏览器与三层Python进程仍存活，排除了“必须等窗口结束才返回”的猜测。未为该猜测修改协议/计时；后台快照可能未刷新，不作为消息丢失证据。浏览器当前窗口91424438仍遇归属检查错误，未取得可读原帖截图、不写人工核验。继续推进新包实际任务导航与完整买方闭环，Goal保持ACTIVE。
+
+### 13877eb 候选构建安装
+
+固定源码 `13877ebf68248bdfb52f3104bb1944433c79eac5`，仅客户端变化，复用已验证runtime-e5c4354输入，新建绑定该提交的portable-13877eb-relocated。真实隔离payload检查1项通过（121.55秒）；Forge退出0，658项源码输入前后一致（`009df477142a1119f79e3f65a086b7df5ec9db088ceed63b2c43103aea9e7d68`）。40个renderer文件、主进程HTTPS与payload pin核对通过。
+
+EXE：`D:/ykv914/make/squirrel.windows/x64/YikeAI-Setup.exe`，642865664字节，SHA256 `7e0f74088e10db7e836daf913c4b72a728c673c56d83f708651216b65fda8c7a`，NotSigned。payload manifest `e7875f8af77a9b3c2fb12607b5c38c323b92600ee07ae2e3e1b2c048cc84f17d`；包及实装ASAR均 `786b3b86662873d0cee84c7be99d76587851b1f668c08f25e6020a1e03a24b14`。正常退出时按用户既有授权丢弃本次测试会话草稿；安装器退出0。实际新窗口591248进入工作台，无需重新登录，显示小红书已连接；未写人工核验、未发送。服务端readyz正常，本次未改后端、不重复部署。仍待新包真实任务跳转与草稿/反馈完整闭环，不以安装成功标上线完成。
