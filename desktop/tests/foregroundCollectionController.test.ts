@@ -22,7 +22,8 @@ function fixture(){
  const row={connection_id:id(5),device_id:id(2),platform:'XIAOHONGSHU',account_public_id:'66c01234abcdef0123456789',connection_version:2,status:'CONNECTED',connected_at:'2026-09-10T00:00:00Z',disconnected_at:null};
  const scope={device:{deviceId:id(2),credentialVersion:1},session:{userId:'owner',sessionId:id(20),isCurrent:()=>current},transport:{requestExecution:vi.fn(async(input:any)=>({ok:true,status:200,data:input.operation==='execution.support'?{schema_version:'foreground-collection-support-v1',mode:'xhs-foreground-v1'}:{task_id:id(6),run_id:id(7),status:'PENDING',stop_confirmed:false,profile_version_id:id(3),strategy_version_id:id(4),max_records:50,records_used:0,deadline_at:'2099-09-10T00:10:00Z',platform_runs:[{platform_run_id:id(8),platform:'XIAOHONGSHU',status:'PENDING',execution_generation:0,records_used:0}]}})),requestConnection:vi.fn(async()=>({ok:true,status:200,data:{items:[row]}})),requestCandidate:vi.fn()},close:vi.fn()};
  const identity={openWorkerScope:vi.fn(async()=>({ok:true,scope})),getStatus:()=>({state:'READY',...scope.device}),requestApi:vi.fn(async()=>({ok:true,status:200,data:strategy}))};
- const executionJournal={list:vi.fn(async()=>requests),read:vi.fn(async(_s:any,key:string)=>requests.find(r=>r.request_id===key)??null)};
+ const executionJournal={list:vi.fn(async()=>requests),read:vi.fn(async(_s:any,key:string)=>requests.find(r=>r.request_id===key)??null),
+  persist:vi.fn(async(_s:any,r:any)=>{requests.push(r);return {request:r,created:true};})};
  const candidatesJournal={list:vi.fn(async()=>[]),read:vi.fn()};
  const execution={submit:vi.fn(async(_s:any,r:any)=>{requests.push(r);return {state:'RECORDED',receipt:startReceipt};}),recover:vi.fn()};
  const worker={run:vi.fn((_input:any)=>new Promise(r=>resolveRun=r)),cancel:vi.fn()};
@@ -32,6 +33,72 @@ function fixture(){
   sessions:()=>({execution,candidates:{recover:candidateRecover}}),workerFactory:()=>worker,driverFactory,resolveAccount,probe};
  return {controller:createForegroundCollectionController(options),options,identity,scope,requests,strategy,command,startReceipt,execution,executionJournal,candidatesJournal,candidateRecover,worker,driverFactory,resolveAccount,probe,finish:(value:any={state:'COMPLETED',taskCompleted:true})=>resolveRun(value),invalidate:()=>current=false};
 }
+const stopProof={taskId:id(6),platformRunId:id(8),leaseId:id(28),executionGeneration:1,deviceId:id(2),credentialVersion:1};
+function stopping(f:ReturnType<typeof fixture>,state='CANCELLING',generation=1){
+ const base=f.scope.transport.requestExecution.getMockImplementation()!;
+ f.scope.transport.requestExecution.mockImplementation(async input=>{
+  const result=await base(input);return input.operation==='execution.task'?{...result,data:{...result.data,status:state,stop_confirmed:state==='CANCELED'||state==='SUCCEEDED',
+   platform_runs:[{platform_run_id:id(8),platform:'XIAOHONGSHU',status:state,execution_generation:generation,records_used:0}]}} as any:result;
+ });
+}
+it('persists physical stop proof before replay and retries its same saved request only after CANCEL reaches server',async()=>{
+ const f=fixture();await f.controller.start(f.command);f.controller.cancel(id(6));
+ f.execution.recover.mockResolvedValue({state:'UNKNOWN'});
+ expect(f.executionJournal.persist).not.toHaveBeenCalled();
+ f.finish({state:'STOPPED',reason:'CANCELLED',stopProof});await new Promise(resolve=>setImmediate(resolve));
+ expect(f.executionJournal.persist).toHaveBeenCalledOnce();
+ const saved=f.requests.find(r=>r.operation==='STOP');expect(saved).toMatchObject({task_id:id(6),platform_run_id:id(8),lease_id:id(28),execution_generation:1,device_id:id(2),credential_version:1});
+ expect(f.execution.recover).not.toHaveBeenCalled();stopping(f);
+ await f.controller.execute({action:'STATUS',taskId:id(6)});
+ expect(f.execution.recover).toHaveBeenCalledWith(expect.objectContaining({userId:'owner',sessionId:id(20)}),saved.request_id,true,f.scope.device);
+ expect(f.execution.submit.mock.calls.filter(([,r])=>r.operation==='STOP')).toHaveLength(0);
+ await f.controller.execute({action:'STATUS',taskId:id(6)});
+ expect(f.executionJournal.persist).toHaveBeenCalledOnce();expect(f.execution.recover).toHaveBeenCalledTimes(2);
+});
+it.each(['UPLOAD_UNKNOWN','FINISH_UNKNOWN','FAILED','STOPPED'])('does not manufacture stop proof for %s',async state=>{
+ const f=fixture();await f.controller.start(f.command);stopping(f);f.controller.cancel(id(6));
+ f.finish({state,reason:'CANCELLED',error:'SOURCE_STOP_FAILED'});await new Promise(resolve=>setImmediate(resolve));
+ await f.controller.execute({action:'STATUS',taskId:id(6)});
+ expect(f.executionJournal.persist).not.toHaveBeenCalled();expect(f.execution.recover).not.toHaveBeenCalled();
+});
+it.each(['session','device','credential','generation','succeeded','batch','finish','journal'])('leaves stop unconfirmed on %s mismatch or failure',async kind=>{
+ const f=fixture();await f.controller.start(f.command);stopping(f,kind==='succeeded'?'SUCCEEDED':'CANCELLING',kind==='generation'?2:1);
+ if(kind==='session')f.invalidate();
+ if(kind==='device')f.scope.device.deviceId=id(99);
+ if(kind==='credential')f.scope.device.credentialVersion=2;
+ if(kind==='journal')f.executionJournal.persist.mockRejectedValue(new Error('disk'));
+ if(kind==='finish')f.requests.push({operation:'FINISH',task_id:id(6),platform_run_id:id(8)});
+ if(kind==='batch'){f.candidatesJournal.list.mockResolvedValue([{}] as any);f.candidatesJournal.read.mockResolvedValue(batch('XIAOHONGSHU',id(8),id(40),id(5)));}
+ f.finish({state:'STOPPED',reason:'CANCELLED',stopProof});await new Promise(resolve=>setImmediate(resolve));
+ await f.controller.execute({action:'STATUS',taskId:id(6)});expect(f.execution.recover).not.toHaveBeenCalled();
+ expect(f.driverFactory).toHaveBeenCalledOnce();
+});
+it('waits for physical stop after the CANCEL response without a completion cycle and reports fresh server status',async()=>{
+ const f=fixture();await f.controller.start(f.command);f.controller.cancel(id(6));stopping(f);
+ f.execution.recover.mockImplementation(async(_s,key)=>{
+  const request=f.requests.find(r=>r.request_id===key);stopping(f,'CANCELED');
+  return {state:'RECORDED',receipt:{schema_version:'execution-runtime-v1',operation:'STOP',request_id:key,task_id:id(6),run_id:id(7),
+   platform_run_id:id(8),lease_id:request.lease_id,execution_generation:1,status:'CANCELED',stop_confirmed:true}};
+ });
+ const ack=f.controller.acknowledgeCancellation(id(6));expect(f.execution.recover).not.toHaveBeenCalled();
+ f.finish({state:'STOPPED',reason:'CANCELLED',stopProof});
+ expect(await ack).toMatchObject({state:'STATUS',serverStatus:'CANCELED',stopConfirmed:true});
+ expect(f.execution.recover).toHaveBeenCalledOnce();
+});
+it('recovers only a saved stop after controller restart in the same owner and device scope without launching a source',async()=>{
+ const f=fixture();await f.controller.start(f.command);f.finish({state:'STOPPED',reason:'CANCELLED',stopProof});
+ await new Promise(resolve=>setImmediate(resolve));f.scope.session.sessionId=id(99);stopping(f);
+ f.execution.recover.mockResolvedValue({state:'UNKNOWN'});
+ const restarted=createForegroundCollectionController(f.options);
+ expect(await restarted.execute({action:'STATUS',taskId:id(6)})).toMatchObject({serverStatus:'CANCELLING',stopConfirmed:false});
+ expect(f.execution.recover).toHaveBeenCalledOnce();expect(f.driverFactory).toHaveBeenCalledOnce();
+});
+it.each(['session','user'])('does not send in the immediate CANCEL callback after its original %s changes',async kind=>{
+ const f=fixture();await f.controller.start(f.command);f.controller.cancel(id(6));stopping(f);
+ if(kind==='session')f.scope.session.sessionId=id(99);else f.scope.session.userId='another-owner';
+ f.finish({state:'STOPPED',reason:'CANCELLED',stopProof});
+ await f.controller.acknowledgeCancellation(id(6));expect(f.execution.recover).not.toHaveBeenCalled();
+});
 function publicFixture(mixed=false){
  const f=fixture(),nativeConfiguration=f.options.configuration;
  f.options.configuration=null;

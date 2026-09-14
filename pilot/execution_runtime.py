@@ -317,7 +317,7 @@ class ExecutionRuntime:
                 (tenant, claims.user_id, request.request_id, request.operation, fingerprint,
                  result['task_id'], result['run_id'], _json(result)))
             self._active(cursor, claims)
-            if request.operation != 'CANCEL':
+            if request.operation not in ('CANCEL', 'STOP'):
                 task, run, platforms = self._locks(cursor, claims, tenant, result['task_id'])
                 finishing = request.operation == 'FINISH'
                 now, _ = self._live(cursor, task, run, platforms, budget=not finishing, finished=finishing)
@@ -423,7 +423,7 @@ class ExecutionRuntime:
             raise ExecutionRuntimeError('capability_unavailable', 409)
         if peek['device_id'] != request.device_id: raise ExecutionRuntimeError('device_unavailable', 404)
         if peek['status'] == 'SUCCEEDED': raise ExecutionRuntimeError('task_finished')
-        if request.operation != 'CANCEL':
+        if request.operation not in ('CANCEL', 'STOP'):
             # Cancellation failure takes precedence even when strategy was revoked.
             if peek['status'] in ('CANCELED','CANCELLING'): raise ExecutionRuntimeError('task_cancelled')
             self._versions(cursor, claims, tenant, peek, request.platform_run_id, request.device_id)
@@ -431,12 +431,43 @@ class ExecutionRuntime:
         params = (tenant, claims.user_id, request.task_id)
         if task['status'] == 'SUCCEEDED': raise ExecutionRuntimeError('task_finished')
         if request.operation == 'CANCEL':
-            stopped = all(p['status'] == 'SUCCEEDED' or p['execution_generation'] == 0 for p in platforms)
+            for platform in platforms:
+                if platform['status'] not in ('SUCCEEDED', 'CANCELED'):
+                    platform['status'] = 'CANCELED' if platform['execution_generation'] == 0 else 'CANCELLING'
+            cursor.execute("UPDATE pilot_collection_platform_runs SET status=CASE WHEN execution_generation=0 "
+                "THEN 'CANCELED' ELSE 'CANCELLING' END WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s "
+                "AND status NOT IN ('SUCCEEDED','CANCELED')", params)
+            stopped = all(p['status'] in ('SUCCEEDED', 'CANCELED') for p in platforms)
             status = 'CANCELED' if stopped else 'CANCELLING'
-            for table in ('pilot_collection_tasks', 'pilot_collection_runs', 'pilot_collection_platform_runs'):
+            for table in ('pilot_collection_tasks', 'pilot_collection_runs'):
                 cursor.execute(f'UPDATE {table} SET status=%s WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s '
                                "AND status<>'SUCCEEDED'", (status, *params))
             return dict(task_id=task['task_id'], run_id=run['run_id'], status=status, stop_confirmed=stopped)
+        if request.operation == 'STOP':
+            if task['status'] not in ('CANCELLING', 'CANCELED') or run['status'] not in ('CANCELLING', 'CANCELED'):
+                raise ExecutionRuntimeError('task_not_cancelling')
+            platform = next((p for p in platforms if p['platform_run_id'] == request.platform_run_id), None)
+            if platform is None: raise ExecutionRuntimeError('platform_run_not_found', 404)
+            # A STOP proves quiescence of this exact claimed execution, not a
+            # renewed right to execute. Expiry and revoked strategy/connection
+            # therefore do not block it; current device proof was checked above.
+            if (platform['credential_version'], platform['lease_id'], platform['execution_generation']) != (
+                    request.credential_version, request.lease_id, request.execution_generation):
+                raise ExecutionRuntimeError('lease_conflict')
+            if platform['status'] not in ('CANCELLING', 'CANCELED'):
+                raise ExecutionRuntimeError('lease_conflict')
+            cursor.execute("UPDATE pilot_collection_platform_runs SET status='CANCELED' "
+                'WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s AND platform_run_id=%s',
+                (*params, request.platform_run_id))
+            stopped = all(p['platform_run_id'] == request.platform_run_id or p['status'] in ('SUCCEEDED', 'CANCELED')
+                          for p in platforms)
+            status = 'CANCELED' if stopped else 'CANCELLING'
+            for table in ('pilot_collection_tasks', 'pilot_collection_runs'):
+                cursor.execute(f'UPDATE {table} SET status=%s WHERE tenant_id=%s AND owner_user_id=%s AND task_id=%s',
+                               (status, *params))
+            return dict(task_id=task['task_id'], run_id=run['run_id'], platform_run_id=request.platform_run_id,
+                lease_id=request.lease_id, execution_generation=request.execution_generation,
+                status=status, stop_confirmed=stopped)
         now, _ = self._live(cursor, task, run, platforms, budget=request.operation != 'FINISH')
         platform = next((p for p in platforms if p['platform_run_id'] == request.platform_run_id), None)
         if platform is None: raise ExecutionRuntimeError('platform_run_not_found', 404)
@@ -612,7 +643,7 @@ class ExecutionRuntime:
             self._active(cursor, claims)
             return dict(task_id=task_id, run_id=run['run_id'], status=task['status'],
                 stop_confirmed=task['status']=='SUCCEEDED' or (task['status']=='CANCELED' and
-                    all(p['status']=='SUCCEEDED' or p['execution_generation']==0 for p in platforms)),
+                    all(p['status'] in ('SUCCEEDED', 'CANCELED') for p in platforms)),
                 profile_version_id=task['profile_version_id'], strategy_version_id=task['strategy_version_id'],
                 max_records=task['max_records'], records_used=sum(p['records_used'] for p in platforms),
                 deadline_at=task['deadline_at'].isoformat(), platform_runs=[{
@@ -684,7 +715,7 @@ class ExecutionRuntime:
             status=row['status'], max_records=row['max_records'],
             records_used=sum(item['records_used'] for item in platforms),
             stop_confirmed=row['status'] == 'SUCCEEDED' or (row['status'] == 'CANCELED' and
-                all(item['status'] == 'SUCCEEDED' or item['execution_generation'] == 0 for item in platforms)),
+                all(item['status'] in ('SUCCEEDED', 'CANCELED') for item in platforms)),
             platform_runs=platforms,
         )
 

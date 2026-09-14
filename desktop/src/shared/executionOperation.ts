@@ -20,19 +20,20 @@ const executionTargetSchema = z.object({
 
 const conditionalFields = ['profile_version_id', 'strategy_version_id', 'configuration_sha256', 'targets',
   'task_id', 'platform_run_id', 'lease_id', 'execution_generation', 'upload_request_id'] as const;
-const applicableFields: Record<'START' | 'CLAIM' | 'RENEW' | 'CANCEL' | 'FINISH', readonly string[]> = {
+const applicableFields: Record<'START' | 'CLAIM' | 'RENEW' | 'CANCEL' | 'FINISH' | 'STOP', readonly string[]> = {
   START: ['profile_version_id', 'strategy_version_id', 'configuration_sha256', 'targets'],
   CLAIM: ['task_id', 'platform_run_id'],
   RENEW: ['task_id', 'platform_run_id', 'lease_id', 'execution_generation'],
   FINISH: ['task_id', 'platform_run_id', 'lease_id', 'execution_generation', 'upload_request_id'],
   CANCEL: ['task_id'],
+  STOP: ['task_id', 'platform_run_id', 'lease_id', 'execution_generation'],
 };
 
 /** Canonical JSON-domain shape shared with pilot.execution_contract.ExecutionOperation. */
 export const executionOperationSchema = z.object({
   schema_version: z.literal('execution-runtime-v1'),
   request_id: deviceUuidSchema,
-  operation: z.enum(['START', 'CLAIM', 'RENEW', 'CANCEL', 'FINISH']),
+  operation: z.enum(['START', 'CLAIM', 'RENEW', 'CANCEL', 'FINISH', 'STOP']),
   device_id: deviceUuidSchema,
   credential_version: versionSchema,
   profile_version_id: opaqueSchema.nullable().default(null),
@@ -57,6 +58,9 @@ export const executionOperationSchema = z.object({
     context.addIssue({code: 'custom', path: ['targets'], message: 'duplicate execution platform'});
   }
   // Old journal/signature bytes must not acquire a new null field.
+  if(request.operation==='STOP'&&Object.hasOwn(request,'upload_request_id')){
+    context.addIssue({code:'custom',path:['upload_request_id'],message:'STOP has no upload attachment'});
+  }
   if (request.operation !== 'FINISH') delete request.upload_request_id;
   if (request.public_sampling_version !== undefined && request.operation !== 'CLAIM') {
     context.addIssue({code: 'custom', path: ['public_sampling_version'], message: 'sampling is CLAIM-only'});

@@ -291,6 +291,7 @@ async function startApplication(): Promise<void> {
     if(parsed.data.action==='CANCEL')foregroundCollection?.cancel(parsed.data.taskId);
     if(!execution)return {state:'SERVICE_UNAVAILABLE'};
     const result=await execution.execute(command);
+    if(parsed.data.action==='CANCEL')await foregroundCollection?.acknowledgeCancellation(parsed.data.taskId);
     if(parsed.data.action==='RECOVER' && parsed.data.retry===true && result.state==='RECORDED' && result.receipt.operation==='START'){
       // Explicit original-intent retry may continue a never-claimed task. CLAIM journals prohibit recollection.
       await foregroundCollection?.resumeStart(parsed.data.requestId);

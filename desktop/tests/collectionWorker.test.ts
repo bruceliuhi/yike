@@ -39,6 +39,38 @@ function fixture() {
 beforeEach(() => {vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-10T00:01:00Z'));});
 afterEach(() => vi.useRealTimers());
 async function tick(ms = 0) {await vi.advanceTimersByTimeAsync(ms);}
+
+it('returns a bound cancellation stop proof only after physical stop resolves',async()=>{
+  const f=fixture(),physical=deferred<void>();f.stopped.mockImplementation(()=>physical.promise);
+  const done=f.run();await tick();f.instance.cancel();await tick();
+  let ended=false;void done.then(()=>{ended=true;});await tick();expect(ended).toBe(false);
+  physical.resolve();await tick();
+  expect(await done).toMatchObject({state:'STOPPED',reason:'CANCELLED',stopProof:{
+    taskId:id(6),platformRunId:id(8),leaseId:id(9),executionGeneration:1,deviceId:id(2),credentialVersion:1}});
+});
+it('does not produce a stop proof when physical stop fails',async()=>{
+  const f=fixture();f.stopped.mockRejectedValue(new Error('stop failed'));
+  const done=f.run();await tick();f.instance.cancel();await tick();
+  const result=await done;expect(result).toMatchObject({state:'FAILED',error:'SOURCE_STOP_FAILED'});
+  expect(result).not.toHaveProperty('stopProof');
+});
+it('preserves unknown upload when cancellation arrives after upload dispatch',async()=>{
+  const f=fixture(),upload=deferred<any>();f.candidates.submit.mockImplementation(()=>upload.promise);
+  const done=f.run();await tick();f.output.resolve([]);await tick();expect(f.candidates.submit).toHaveBeenCalledTimes(1);
+  f.instance.cancel();await tick();const result=await done;
+  expect(result).toMatchObject({state:'UPLOAD_UNKNOWN',recoveryKey:{platformRunId:id(8)}});
+  expect(result).not.toHaveProperty('stopProof');upload.resolve({state:'RECORDED'});
+});
+it('preserves unknown finish when cancellation arrives after FINISH dispatch',async()=>{
+  const f=fixture(),finish=deferred<any>();f.candidates.submit.mockResolvedValue({state:'RECORDED'} as any);
+  const original=f.execution.submit.getMockImplementation()!;
+  f.execution.submit.mockImplementation((session,request)=>request.operation==='FINISH'?finish.promise:original(session,request));
+  const done=f.run();await tick();f.output.resolve([]);await tick();
+  expect(f.execution.submit.mock.calls.at(-1)?.[1].operation).toBe('FINISH');
+  f.instance.cancel();await tick();const result=await done;
+  expect(result).toMatchObject({state:'FINISH_UNKNOWN',recoveryKey:{platformRunId:id(8)}});
+  expect(result).not.toHaveProperty('stopProof');finish.resolve({state:'UNKNOWN'});
+});
 function finishReceipt(request: any) {return {schema_version: 'execution-runtime-v1', operation: 'FINISH',
   request_id: request.request_id, task_id: id(6), run_id: id(7), platform_run_id: id(8),
   lease_id: id(9), execution_generation: 1, upload_request_id: request.upload_request_id,
@@ -183,7 +215,7 @@ it('cancel during pending upload invalidates the local scope immediately and kee
   f.instance.cancel();
   expect(f.scope.session.isCurrent()).toBe(false);
   sending.resolve({state: 'SESSION_CHANGED'}); await tick();
-  expect(await done).toMatchObject({state: 'STOPPED', reason: 'CANCELLED', recoveryKey: {
+  expect(await done).toMatchObject({state: 'UPLOAD_UNKNOWN', recoveryKey: {
     platformRunId: id(8), requestId: expect.any(String)}});
   expect(f.scope.close).toHaveBeenCalledTimes(1);
 });
@@ -225,7 +257,7 @@ it('normal AbortError keeps cancellation reason and awaits physical stop', async
   const done = f.run(); await tick(); f.instance.cancel(); await tick();
   let settled = false; void done.then(() => {settled = true;}); await tick(); expect(settled).toBe(false);
   stopping.resolve(); await tick();
-  expect(await done).toEqual({state: 'STOPPED', reason: 'CANCELLED', taskCompleted: false});
+  expect(await done).toMatchObject({state: 'STOPPED', reason: 'CANCELLED', taskCompleted: false,stopProof:{leaseId:id(9)}});
 });
 
 it('backward wall clock during renewal cannot extend the original task deadline', async () => {
@@ -336,7 +368,7 @@ it.each(['upload', 'finish'])('deadline still closes the scope during pending %s
   const done = f.run(); await tick();
   if (phase === 'finish') f.execution.submit.mockImplementationOnce(() => pending.promise);
   f.output.resolve([]); await tick(); await tick(120_100);
-  expect(await done).toMatchObject({state: 'STOPPED', reason: 'LEASE_EXPIRED', taskCompleted: false,
+  expect(await done).toMatchObject({state: phase==='finish'?'FINISH_UNKNOWN':'UPLOAD_UNKNOWN', taskCompleted: false,
     recoveryKey: {platformRunId: id(8), requestId: expect.any(String)}});
   expect(f.scope.close).toHaveBeenCalledTimes(1);
   pending.resolve({state: 'UNKNOWN'}); await tick(); expect(f.driver.start).toHaveBeenCalledTimes(1);
@@ -360,7 +392,7 @@ it.each(['cancel', 'session'])('pending FINISH preserves its request id on %s an
   f.output.resolve([]); await tick(); const finish = f.execution.submit.mock.calls[1][1];
   if (kind === 'cancel') f.instance.cancel(); else f.expire();
   await tick(100);
-  expect(await done).toMatchObject({state: 'STOPPED', reason: kind === 'cancel' ? 'CANCELLED' : 'SESSION_CHANGED',
+  expect(await done).toMatchObject({state: 'FINISH_UNKNOWN',
     taskCompleted: false, requestId: finish.request_id, recoveryKey: {platformRunId: id(8), requestId: expect.any(String)}});
   pending.resolve({state: 'RECORDED', receipt: finishReceipt(finish)}); await tick();
   expect(f.execution.submit).toHaveBeenCalledTimes(2); expect(f.driver.start).toHaveBeenCalledTimes(1);

@@ -59,6 +59,7 @@ class PilotDatabase:
         ("v02-research-page-selection", migration_path.with_name("144_v02_research_page_selection.sql")),
         ("v02-self-service-trial", migration_path.with_name("145_v02_self_service_trial.sql")),
         ("v02-read-connection-outcome", migration_path.with_name("146_v02_read_connection_outcome.sql")),
+        ("v02-execution-stop", migration_path.with_name("147_v02_execution_stop.sql")),
     )
 
     def __init__(self, url: str):

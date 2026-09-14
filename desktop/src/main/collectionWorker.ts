@@ -13,12 +13,14 @@ import {publicRevisitSchema,type PublicRevisit} from '../shared/publicSourceRevi
 type Lease = Extract<ExecutionReceipt, {operation: 'CLAIM' | 'RENEW'}>;
 type RecoveryKey = {platformRunId: string; requestId: string};
 type StopReason = 'CANCELLED' | 'SESSION_CHANGED' | 'LEASE_EXPIRED' | 'LEASE_UNKNOWN';
+export type CollectionStopProof = {taskId:string;platformRunId:string;leaseId:string;executionGeneration:number;
+  deviceId:string;credentialVersion:number};
 export type CollectionWorkerResult = {state: 'COMPLETED'; taskCompleted: boolean; requestId: string; recoveryKey: RecoveryKey} | ({taskCompleted: false} & (
   | {state: 'UPLOADED'; recoveryKey: RecoveryKey}
   | {state: 'UPLOAD_UNKNOWN'; recoveryKey: RecoveryKey}
   | {state: 'FINISH_UNKNOWN'; requestId: string; recoveryKey: RecoveryKey}
   | {state: 'LEASE_UNKNOWN'; requestId: string}
-  | {state: 'STOPPED'; reason: StopReason; requestId?: string; recoveryKey?: RecoveryKey}
+  | {state: 'STOPPED'; reason: StopReason; requestId?: string; recoveryKey?: RecoveryKey;stopProof?:CollectionStopProof}
   | {state: 'BUSY'}
   | {state: 'FAILED'; error: 'COLLECTION_WORKER_INVALID_INPUT' | 'COLLECTION_WORKER_FAILED' | 'SOURCE_STOP_FAILED'; recoveryKey?: RecoveryKey}
 ));
@@ -54,6 +56,9 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
       let scopeClosed = false;
       let recoveryKey: RecoveryKey | undefined;
       let requestId: string | undefined;
+      let claimProof:CollectionStopProof|undefined;
+      let stoppedValue:Extract<CollectionWorkerResult,{state:'STOPPED'}>|undefined;
+      let uploadDispatched=false,finishDispatched=false;
       let process: ReturnType<CollectionDriver['start']> | null = null;
       let stopPromise: Promise<void> | null = null;
       let timer: ReturnType<typeof setInterval> | undefined;
@@ -75,8 +80,13 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
         else stoppedResolve();
       }
       cancelActive = () => stop('CANCELLED');
-      const stoppedResult = (): CollectionWorkerResult => ({state: 'STOPPED', reason: reason!, taskCompleted: false,
-        ...(requestId ? {requestId} : {}), ...(recoveryKey ? {recoveryKey} : {})});
+      const stoppedResult = (): CollectionWorkerResult => {
+        if(finishDispatched&&requestId&&recoveryKey)return {state:'FINISH_UNKNOWN',requestId,recoveryKey,taskCompleted:false};
+        if(uploadDispatched&&recoveryKey)return {state:'UPLOAD_UNKNOWN',recoveryKey,taskCompleted:false};
+        stoppedValue={state:'STOPPED',reason:reason!,taskCompleted:false,
+          ...(requestId?{requestId}:{}),...(recoveryKey?{recoveryKey}:{})};
+        return stoppedValue;
+      };
       let validInput = false;
       try {
         const start = executionOperationSchema.parse(input.start);
@@ -144,6 +154,8 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
         if (!claimed) return {state: 'LEASE_UNKNOWN', requestId: requestId!, taskCompleted: false};
         if (claimed.execution_generation !== 1) return {state:'LEASE_UNKNOWN',requestId:claimed.request_id,taskCompleted:false};
         lease = claimed;
+        claimProof={taskId:receipt.task_id,platformRunId:input.platformRunId,leaseId:claimed.lease_id,
+          executionGeneration:claimed.execution_generation,deviceId:start.device_id,credentialVersion:start.credential_version};
         if(claimed.native_progress&&JSON.stringify(claimed.native_progress.queries.map(q=>q.query))!==JSON.stringify(platformSearchKeywords(configuration,target.platform)))throw new Error();
         const maxRecords = input.platformMaxRecords??Math.min(strategy.snapshot.max_records, 100);
         process = driver.start({snapshot: structuredClone(strategy.snapshot), target: structuredClone(target),
@@ -202,6 +214,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
             access_mode: target.access_mode, connection_id: target.connection_id, connection_version: target.connection_version}, records,
           ...(nativeProgress?{native_progress:nativeProgress}:{}),...(publicRevisit?{public_revisit:publicRevisit}:{})});
         recoveryKey = {platformRunId: input.platformRunId, requestId: batch.request_id};
+        uploadDispatched=true;
         const uploaded = await Promise.race([
           candidates.submit(scope.session, batch).catch(() => null), stopped.then(() => null)]);
         if (!scope.session.isCurrent()) stop('SESSION_CHANGED');
@@ -213,6 +226,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
           task_id: receipt.task_id, platform_run_id: input.platformRunId, lease_id: lease.lease_id,
           execution_generation: lease.execution_generation, upload_request_id: batch.request_id});
         requestId = finish.request_id;
+        finishDispatched=true;
         const finished = await Promise.race([
           execution.submit(scope.session, finish).catch(() => null), stopped.then(() => null)]);
         if (!scope.session.isCurrent()) stop('SESSION_CHANGED');
@@ -235,6 +249,9 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
         try {if (process) await stopSource();}
         catch {closeScope(); cancelActive = null; return {state: 'FAILED', error: 'SOURCE_STOP_FAILED', taskCompleted: false,
           ...(recoveryKey ? {recoveryKey} : {})};}
+        if(process&&claimProof&&stoppedValue?.reason==='CANCELLED'&&!uploadDispatched){
+          stoppedValue.stopProof=claimProof;
+        }
         closeScope(); cancelActive = null;
       }
     },

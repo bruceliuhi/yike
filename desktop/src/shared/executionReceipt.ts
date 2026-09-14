@@ -56,7 +56,12 @@ const finishReceiptSchema = z.object({
   records_used: z.number().int().min(0).max(10000),
 }).strict().refine(receipt => receipt.stop_confirmed === (receipt.status === 'SUCCEEDED'),
   'invalid execution stop state');
-export const executionReceiptSchema = z.discriminatedUnion('operation', [startReceiptSchema, leaseReceiptSchema, cancelReceiptSchema, finishReceiptSchema]);
+const stopReceiptSchema = z.object({
+  ...envelope, operation:z.literal('STOP'), status:z.enum(['CANCELLING','CANCELED']),stop_confirmed:z.boolean(),
+  platform_run_id:deviceUuidSchema,lease_id:deviceUuidSchema,
+  execution_generation:z.number().int().min(1).max(2_147_483_647),
+}).strict().refine(receipt=>receipt.stop_confirmed===(receipt.status==='CANCELED'),'invalid execution stop state');
+export const executionReceiptSchema = z.discriminatedUnion('operation', [startReceiptSchema, leaseReceiptSchema, cancelReceiptSchema, finishReceiptSchema,stopReceiptSchema]);
 const receiptSchema = executionReceiptSchema;
 export type ExecutionReceipt = z.infer<typeof receiptSchema>;
 
@@ -90,6 +95,8 @@ export function parseExecutionReceipt(raw: unknown, expected: ExecutionOperation
       }
     } else {
       if (receipt.task_id !== request.task_id) throw new Error('task mismatch');
+      if(receipt.operation==='STOP'&&(receipt.platform_run_id!==request.platform_run_id||
+        receipt.lease_id!==request.lease_id||receipt.execution_generation!==request.execution_generation))throw new Error('stop mismatch');
       if (receipt.operation === 'FINISH' && (receipt.platform_run_id !== request.platform_run_id ||
           receipt.lease_id !== request.lease_id || receipt.execution_generation !== request.execution_generation ||
           receipt.upload_request_id !== request.upload_request_id)) throw new Error('finish mismatch');

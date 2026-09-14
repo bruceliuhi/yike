@@ -56,7 +56,7 @@ class ExecutionTarget(_Frozen):
 class ExecutionOperation(_Frozen):
     schema_version: Literal['execution-runtime-v1']
     request_id: str
-    operation: Literal['START', 'CLAIM', 'RENEW', 'CANCEL', 'FINISH']
+    operation: Literal['START', 'CLAIM', 'RENEW', 'CANCEL', 'FINISH', 'STOP']
     device_id: str
     credential_version: int = Field(ge=1, le=MAX_VERSION)
     profile_version_id: str | None = None
@@ -113,12 +113,15 @@ class ExecutionOperation(_Frozen):
             'START': {'profile_version_id', 'strategy_version_id', 'configuration_sha256', 'targets'},
             'CLAIM': {'task_id', 'platform_run_id'},
             'RENEW': {'task_id', 'platform_run_id', 'lease_id', 'execution_generation'},
+            'STOP': {'task_id', 'platform_run_id', 'lease_id', 'execution_generation'},
             'FINISH': {'task_id', 'platform_run_id', 'lease_id', 'execution_generation', 'upload_request_id'},
             'CANCEL': {'task_id'},
         }[self.operation]
         conditional = {'profile_version_id', 'strategy_version_id', 'configuration_sha256', 'targets',
                        'task_id', 'platform_run_id', 'lease_id', 'execution_generation', 'upload_request_id'}
         if any((getattr(self, key) is not None) != (key in applicable) for key in conditional):
+            raise ExecutionRuntimeError('invalid_request', 422)
+        if self.operation == 'STOP' and 'upload_request_id' in self.__pydantic_fields_set__:
             raise ExecutionRuntimeError('invalid_request', 422)
         if ('public_sampling_version' in self.__pydantic_fields_set__
                 and self.public_sampling_version is None):

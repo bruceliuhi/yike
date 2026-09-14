@@ -28,7 +28,7 @@ interface Options {
  serviceOrigin:string;
  identity:Pick<ReturnType<typeof createDeviceIdentityController>,'openWorkerScope'|'getStatus'|'requestApi'>;
  store:Pick<ReturnType<typeof createConnectionProfileStore>,'read'>;
- executionJournal:Pick<ExecutionJournal,'list'|'read'>;
+ executionJournal:Pick<ExecutionJournal,'list'|'read'|'persist'>;
  candidateJournal:Pick<CandidateJournal,'list'|'read'>;
  configuration:PlatformLoginDriverOptions|null;
  sessions(scope:DeviceWorkerScope):{execution:ReturnType<typeof createExecutionSession>;candidates:ReturnType<typeof createCandidateSession>};
@@ -71,6 +71,8 @@ export function createForegroundCollectionController(options:Options) {
  type Active={taskId:string;userId:string;scope:DeviceWorkerScope;worker:ReturnType<typeof createCollectionWorker>;done:Promise<void>};
  let active:Active|null=null;
  const local=new Map<string,CollectionWorkerResult>();
+ const reconcilingStops=new Set<string>();
+ const cancelOrigins=new Map<string,{userId:string;sessionId:string;deviceId:string;credentialVersion:number}>();
  const localKey=(scope:DeviceWorkerScope,taskId:string)=>JSON.stringify([scope.session.userId,scope.session.sessionId,taskId]);
  const journalScope=(scope:DeviceWorkerScope)=>({serviceOrigin,userId:scope.session.userId});
  function guard(scope:DeviceWorkerScope){
@@ -167,12 +169,36 @@ export function createForegroundCollectionController(options:Options) {
   return found;
  }
  async function status(scope:DeviceWorkerScope,taskId:string):Promise<ForegroundCollectionResult>{
-  const current=await task(scope,taskId),batches=await batchesFor(scope,taskId);guard(scope);
+  let current=await task(scope,taskId);const batches=await batchesFor(scope,taskId);guard(scope);
+  current=await reconcileStops(scope,current,batches);
   const running=active?.taskId===taskId && active.userId===scope.session.userId && active.scope.session.sessionId===scope.session.sessionId;
   const result=local.get(localKey(scope,taskId));
   const localState=running?'COLLECTING':result?.state==='COMPLETED'&&result.taskCompleted?'COMPLETED':result?.state==='UPLOAD_UNKNOWN'?'UPLOAD_UNKNOWN':result?.state==='FINISH_UNKNOWN'||result?.state==='COMPLETED'?'FINISH_UNKNOWN':result?.state==='STOPPED'?'STOPPED':result?.state==='FAILED'?'FAILED':'INTERRUPTED';
   return {state:'STATUS',taskId,localState,serverStatus:current.status,stopConfirmed:current.stop_confirmed,recordsUsed:current.records_used,
    recoverable:!running && batches.length>0 && !['CANCELED','CANCELLING','SUCCEEDED'].includes(current.status)};
+ }
+ async function reconcileStops(scope:DeviceWorkerScope,current:Awaited<ReturnType<typeof task>>,batches:Awaited<ReturnType<typeof batchesFor>>){
+  if(current.status!=='CANCELLING')return current;
+  const history=await options.executionJournal.list(journalScope(scope));guard(scope);
+  for(const raw of history){
+   if(raw.operation!=='STOP'||raw.task_id!==current.task_id)continue;
+   const request=executionOperationSchema.parse(raw),platform=current.platform_runs.find(p=>p.platform_run_id===request.platform_run_id);
+   if(!platform||platform.platform==='PUBLIC_WEB'||platform.status!=='CANCELLING'||platform.execution_generation!==request.execution_generation||
+    request.device_id!==scope.device.deviceId||request.credential_version!==scope.device.credentialVersion||
+    batches.some(b=>b.execution.platform_run_id===request.platform_run_id)||
+    history.some(r=>r.operation==='FINISH'&&r.task_id===current.task_id&&r.platform_run_id===request.platform_run_id)||reconcilingStops.has(request.request_id))continue;
+   reconcilingStops.add(request.request_id);
+   try{
+    guard(scope);const result=await options.sessions(scope).execution.recover(scope.session,request.request_id,true,
+     {deviceId:request.device_id,credentialVersion:request.credential_version});guard(scope);
+    if(result.state!=='RECORDED')continue;
+    const receipt=parseExecutionReceipt(result.receipt,request);
+    if(receipt.operation!=='STOP'||receipt.run_id!==current.run_id)throw new Error();
+    // Historical receipt is not current aggregate state; read the authoritative task again.
+    current=await task(scope,current.task_id);
+   }finally{reconcilingStops.delete(request.request_id);}
+  }
+  return current;
  }
  function budgets(total:number,count:number){
   if(!Number.isInteger(total)||total<count)throw new Error();const base=Math.floor(total/count),extra=total%count;
@@ -182,6 +208,7 @@ export function createForegroundCollectionController(options:Options) {
   let currentWorker:ReturnType<typeof createCollectionWorker>|null=null,cancelled=false;
   const composite={cancel(){cancelled=true;currentWorker?.cancel();}} as ReturnType<typeof createCollectionWorker>;
   const current:Active={taskId:input.receipt.task_id,userId:input.scope.session.userId,scope:input.scope,worker:composite,done:Promise.resolve()};
+  const original={userId:input.scope.session.userId,sessionId:input.scope.session.sessionId,...input.scope.device};
   active=current;const allocated=budgets(input.strategy.snapshot.max_records,input.targets.length);
   current.done=(async()=>{let activeScope:DeviceWorkerScope|undefined=input.scope;
    try{for(let index=input.startIndex??0;index<input.targets.length;index++){
@@ -212,7 +239,27 @@ export function createForegroundCollectionController(options:Options) {
      ...(anonymous&&input.allowPublicSampling?{allowPublicSampling:input.allowPublicSampling}:{}),
      ...(input.targets[index].platform==='BILIBILI'&&input.allowNativeProgress?{allowNativeProgress:true as const}:{})});
     if(value.state==='FAILED'&&value.error==='SOURCE_STOP_FAILED')stopUnconfirmed=true;
-    local.set(localKey(current.scope,current.taskId),value);activeScope=undefined;if(value.state!=='COMPLETED')break;
+    local.set(localKey(current.scope,current.taskId),value);activeScope=undefined;
+    if(!anonymous&&value.state==='STOPPED'&&value.reason==='CANCELLED'&&value.stopProof){
+     const proof=value.stopProof;
+     if(proof.taskId===current.taskId&&proof.platformRunId===input.receipt.platform_runs[index].platform_run_id&&
+       proof.deviceId===original.deviceId&&proof.credentialVersion===original.credentialVersion){
+      let fresh:DeviceWorkerScope|undefined;
+      try{
+       const request=executionOperationSchema.parse({schema_version:'execution-runtime-v1',operation:'STOP',request_id:randomUUID(),
+        device_id:proof.deviceId,credential_version:proof.credentialVersion,task_id:proof.taskId,platform_run_id:proof.platformRunId,
+        lease_id:proof.leaseId,execution_generation:proof.executionGeneration});
+       const saved=await options.executionJournal.persist({serviceOrigin,userId:original.userId},request);
+       if(JSON.stringify(saved.request)!==JSON.stringify(request))throw new Error();
+       fresh=await open();
+       if(fresh.session.userId!==original.userId||fresh.session.sessionId!==original.sessionId||fresh.device.deviceId!==original.deviceId||
+         fresh.device.credentialVersion!==original.credentialVersion)throw new Error();
+       await status(fresh,current.taskId);
+      }catch{/* Physical stop is local evidence only; retain journal/uncertainty for later reconciliation. */}
+      finally{fresh?.close();}
+     }
+    }
+    if(value.state!=='COMPLETED')break;
    }}catch{activeScope?.close();local.set(localKey(current.scope,current.taskId),{state:'FAILED',error:'COLLECTION_WORKER_FAILED',taskCompleted:false});}
    finally{if(active===current)active=null;}})();
  }
@@ -409,7 +456,24 @@ export function createForegroundCollectionController(options:Options) {
     scope?.close();if(command.action==='RECOVER'){opening=false;finishOpening?.();finishOpening=null;openingDone=null;}
    }
   },
-  cancel(taskId:string){if(active?.taskId===taskId)active.worker.cancel();},
+  cancel(taskId:string){if(active?.taskId===taskId){
+   cancelOrigins.set(taskId,{userId:active.userId,sessionId:active.scope.session.sessionId,...active.scope.device});
+   active.worker.cancel();
+  }},
+  async acknowledgeCancellation(taskId:string){
+   // Called after server CANCEL, independently of the worker's proof persistence.
+   // Worker completion never waits on this callback, so awaiting it cannot form a cycle.
+   const original=cancelOrigins.get(taskId),current=active;
+   if(current?.taskId===taskId)await current.done;
+   let fresh:DeviceWorkerScope|undefined;
+   try{
+    fresh=await open();
+    if(original&&(fresh.session.userId!==original.userId||fresh.session.sessionId!==original.sessionId||
+      fresh.device.deviceId!==original.deviceId||fresh.device.credentialVersion!==original.credentialVersion))throw new Error();
+    return await status(fresh,taskId);
+   }catch{return {state:'UNAVAILABLE'} as ForegroundCollectionResult;}
+   finally{fresh?.close();if(cancelOrigins.get(taskId)===original)cancelOrigins.delete(taskId);}
+  },
   async shutdown(){shuttingDown=true;await openingDone;active?.worker.cancel();const current=active;await current?.done;
    if(stopUnconfirmed)throw new Error('SOURCE_STOP_FAILED');
   },
