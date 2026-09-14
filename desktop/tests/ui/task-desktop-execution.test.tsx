@@ -265,6 +265,12 @@ describe('original TaskWizard signed execution entry', () => {
       else {await waitFor(()=>expect(start.disabled).toBe(true));expect(context.navigate).not.toHaveBeenCalled();}
       expect(execute.mock.calls.filter(([c])=>c.action==='RESEARCH_START')).toHaveLength(1);
     }
+    const nextDraft = JSON.parse(sessionStorage.getItem('yike.ui.draft.v1.task.' + taskDraftOwner(context.session.userId, context.session.accountScope))!);
+    if (outcome === 'recorded') {
+      expect(nextDraft.id).not.toBe(draft.id);
+      expect(nextDraft.name).toBe('');
+      expect(nextDraft.research).toEqual(defaultResearchSettings());
+    } else expect(nextDraft.id).toBe(draft.id);
   });
   it('blocks native research when the explicit backend capability is unavailable',async()=>{
     draft={...draft,research:{...defaultResearchSettings(),maxSoubei:20}};sessionStorage.setItem('yike.ui.draft.v1.task.'+context.session.userId,JSON.stringify(draft));

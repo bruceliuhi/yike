@@ -131,3 +131,5 @@ EXE：`D:/ykv914/make/squirrel.windows/x64/YikeAI-Setup.exe`，642865664字节�
 继续实际阅读 `6aa6b9dd000000000d024fce` 为汽车AI学习推荐，`6aa76f0d000000002a007b9a` 为软件公司的服务广告，均不是采购。随后真实点击“新建采集”却回到刚已完成的“验收-AI开发需求-13877eb”普通草稿，未进入默认研究模式；未重新提交该任务。代码确认useTaskDraft会恢复会话，普通成功路径此前只导航、不消费草稿。
 
 修复仅在已验证普通START RECORDED与当前scope有效后消费同ID任务库草稿，并同步写入与useTaskDraft默认一致的新once研究草稿后导航；UNKNOWN保留旧草稿与原请求，不修改操作journal。新增断言先失败于仍为旧ID，修复后3个定向文件67通过、tsc通过。独立Spec/Quality GO无P1/P2（TaskWizard blob `152e00ce7ed05276d87f41030792e244e3992c98`，test `37c145993a568a6f891e86a4ff0383c8f92aa48a`）。本修复尚未构包/安装；当前已安装13877eb未追认为修复版，研究/监控成功草稿生命周期未纳入本批。新买方、研究筛选/草稿/反馈与上线验收继续，Goal ACTIVE。
+
+12:40 同类研究路径定向复现：nativeResearch成功回执也保留旧草稿；新断言RED recorded旧ID失败，unknown/能力变化两项通过。研究成功回调补充同scope/同snapshot.id消费及默认新草稿，原研究journal与UNKNOWN恢复不变。两个相关文件22项通过、tsc通过；差量独立Spec/Quality GO无P1/P2（TaskWizard `a62c615f2e7acb918434b9144c58cac7c228cda5`，test `73135fc37a7d1f60a67fb24950c7983ffe50bb92`）。与普通路径合为一次候选构包；不把本地检查写成实机通过，监控路径不纳入本批。

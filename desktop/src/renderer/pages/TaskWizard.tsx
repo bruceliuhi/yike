@@ -488,7 +488,10 @@ export function TaskWizardPage() {
           const command=await nativeResearchStartCommand(snapshot,prepared,freshConnections,session,usageSnapshot,crypto.randomUUID(),freshResearch);
           if(!startScope.current())throw new RequestCancelled();
         await desktopExecution.startResearch(command,receipt=>{
-          if(startScope.current())navigate(`/collection?task=${receipt.execution.task_id}`);
+          if (!startScope.current()) return;
+          setLibrary(old => old.filter(item => item.id !== snapshot.id));
+          setDraft({...newTaskDraft('once'), research: defaultResearchSettings()});
+          navigate(`/collection?task=${receipt.execution.task_id}`);
         });
           return;
         }
