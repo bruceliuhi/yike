@@ -491,7 +491,9 @@ export function TaskWizardPage() {
         });
           return;
         }
-        await desktopExecution.start(await validateDesktopStart(crypto.randomUUID()));
+        await desktopExecution.start(await validateDesktopStart(crypto.randomUUID()), receipt => {
+          if (startScope.current()) navigate(`/collection?task=${receipt.task_id}`);
+        });
         return;
       }
       // Recheck live execution prerequisites immediately before creating one task.

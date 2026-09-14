@@ -63,6 +63,28 @@ async function review() {
   fireEvent.click(screen.getByRole('checkbox', {name: '我已核对以上业务画像、搜索条件、账号与运行设置'}));
 }
 describe('original TaskWizard signed execution entry', () => {
+  it.each(['RECORDED', 'UNKNOWN'] as const)('opens the ordinary task only after a confirmed receipt (%s)', async state => {
+    const taskId = crypto.randomUUID();
+    execute.mockImplementation(async command => {
+      if (command.action === 'LIST') return {state: 'LIST', requests: []};
+      if (command.action === 'START') return state === 'UNKNOWN'
+        ? {state: 'UNKNOWN', requestId: command.requestId}
+        : {state: 'RECORDED', receipt: {schema_version: 'execution-runtime-v1', request_id: command.requestId,
+          operation: 'START', task_id: taskId, run_id: crypto.randomUUID(), status: 'PENDING', stop_confirmed: false,
+          platform_runs: [{platform: 'PUBLIC_WEB', platform_run_id: crypto.randomUUID(), status: 'PENDING'}]}};
+      return {state: 'FAILED', error: 'EXECUTION_SESSION_FAILED'};
+    });
+    render(<TaskWizardPage />); await review();
+    const start = screen.getByRole('button', {name: '确认并启动'}) as HTMLButtonElement;
+    await waitFor(() => expect(start.disabled).toBe(false));
+    fireEvent.click(start);
+    await waitFor(() => expect(execute.mock.calls.filter(([command]) => command.action === 'START')).toHaveLength(1));
+    if (state === 'RECORDED') await waitFor(() => expect(context.navigate).toHaveBeenCalledWith(`/collection?task=${taskId}`));
+    else {
+      await screen.findByRole('button', {name: '查询原执行请求'});
+      expect(context.navigate).not.toHaveBeenCalled();
+    }
+  });
   it('shows bounded public scope and refuses a changed device after explicit confirmation',async()=>{
     render(<TaskWizardPage />);await review();
     expect(screen.getByText('V2EX最新主题 · 近期主题有界抽样，不覆盖历史/全站/评论')).toBeTruthy();

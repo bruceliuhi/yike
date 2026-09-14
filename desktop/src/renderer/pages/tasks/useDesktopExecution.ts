@@ -125,7 +125,7 @@ export function useDesktopExecution(prepared: StrategyReceipt | null) {
     } else save({...entry, state: result.state});
     return result;
   }
-  const start = (input: DesktopStartCommand) => run(async () => {
+  const start = (input: DesktopStartCommand, onRecorded?: (receipt: ExecutionReceipt) => void) => run(async () => {
     const command = desktopExecutionCommandSchema.parse(input) as DesktopStartCommand;
     if (!latest.current.loaded || command.action !== 'START') throw new Error();
     if (latest.current.entries.some(entry => {
@@ -135,7 +135,8 @@ export function useDesktopExecution(prepared: StrategyReceipt | null) {
     })) throw new Error();
     const entry: DesktopExecutionEntry = {kind:'ORDINARY',requestId: command.requestId, operation: 'START', command, state: 'UNKNOWN'};
     save(entry); // Retain the UUID before IPC; the main process persists its complete original operation.
-    await dispatch(entry, command);
+    const result = await dispatch(entry, command);
+    if (scope.current() && result?.state === 'RECORDED') onRecorded?.(result.receipt);
   });
   const startResearch=(input:DesktopResearchStartCommand,onRecorded?:(receipt:ResearchStartReceipt)=>void)=>run(async()=>{
     const command=desktopExecutionCommandSchema.parse(input) as DesktopResearchStartCommand;

@@ -107,3 +107,9 @@ EXE `D:/yku914/make/squirrel.windows/x64/YikeAI-Setup.exe`，642862592字节，S
 12:05:14创建的新任务实际完成9/10；从列表进入详情，状态和“查看本次发现线索”直接可见，两类详情默认收起。确认页没有自动转入结果页，虽任务已完成仍停留确认页，需后续修复这个实际体验缺口。
 
 同帖 `6aa6534e000000002902df7a` 新采集版本已显示原作者 `6863dafd000000001b01be97`，没有从旧hash回填。12:07:59点击查看原文，输出 `8ddadac4-e148-41ec-bd2f-062c18901bf2/.yike-source-opened.json` 为SOURCE_OPENED，实际Chrome for Testing窗口标题“有偿有偿#gpt #ai #ppt - 小红书”，已越过此前HIDDEN搜索分支并定位同帖。Windows工具两次绑定均报“window id ... no longer belongs to Chrome; current owner is Chrome”，未取得人工可读截图，不写人工核验。12:09客户端按钮仍禁用，未见打开成功反馈；需继续确认打开事件是否及时到达客户端及窗口清理终态。该记录证明新原作者定位路径已有实际打开信号，不等于用户人工核验或完整试用通过。
+
+### 12:20 普通任务跳转与原文反馈复查
+
+普通TaskWizard原START路径只有保存回执，没有研究路径已有的导航回调。新增可选成功回调，在既有RECORDED绑定验证和双scope检查后进入真实任务详情；UNKNOWN保留原请求，不跳转不重发。新回归先证实RECORDED导航断言失败/UNKNOWN通过，修复后task-desktop-execution、desktop-execution、desktop-execution-list-busy共39项通过，tsc通过。独立差量Spec/Quality GO无P1/P2；审核blob为TaskWizard `9fe6896920a38f19f8774603388e6d73fa905397`、hook `515e7abdb9f27622cba99a94d69da456a732c180`、test `141abd210e1c879c7a344fb2fad0c7afaed393c2`。此修复尚未构包/安装实测。
+
+12:17实际客户端已显示“已打开原帖”并恢复按钮，原viewer进程已退出。12:18:11再次从客户端打开同一原文，输出 `8380e01c-de14-49bf-8675-5a088122b598` 在12:18:20产生SOURCE_OPENED。后台快照仍显示按钮禁用，但主动切回意客后下一次新截图按钮已恢复；12:19:33同时核对原文浏览器与三层Python进程仍存活，排除了“必须等窗口结束才返回”的猜测。未为该猜测修改协议/计时；后台快照可能未刷新，不作为消息丢失证据。浏览器当前窗口91424438仍遇归属检查错误，未取得可读原帖截图、不写人工核验。继续推进新包实际任务导航与完整买方闭环，Goal保持ACTIVE。
