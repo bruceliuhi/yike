@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "../../app/context";
 import { useResource } from "../../app/hooks";
 import { useTaskDraft, useTaskLibrary } from "../../app/taskDraft";
@@ -102,6 +102,34 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
   );
   const item = data.data?.item,
     page = data.data?.page;
+  const [staleObservation, setStaleObservation] = useState<typeof data.data>();
+  const latestObservation = useRef(data.data);
+  latestObservation.current = data.data;
+  const statusStale = !!data.data && staleObservation === data.data;
+  useEffect(() => {
+    const observed = data.data;
+    if (!session.authenticated || !item || item.research || item.task_id !== taskId ||
+      data.loading || data.error || statusStale ||
+      !['PENDING', 'RUNNING', 'CANCELLING'].includes(item.status)) return;
+    const controller = new AbortController();
+    const current = () => !controller.signal.aborted && scope.current() &&
+      latestObservation.current === observed;
+    const timer = setTimeout(async () => {
+      try {
+        const fresh = await boundedRequest(signal => service.taskFeed!.get(taskId, signal), {
+          signal: controller.signal, timeoutMessage: '状态更新超时，请刷新任务。',
+        });
+        if (!current()) return;
+        if (fresh.task_id !== item.task_id || fresh.run_id !== item.run_id ||
+          fresh.device_id !== item.device_id || fresh.start_request_id !== item.start_request_id || fresh.research)
+          throw new Error('Task observation mismatch');
+        data.setData({ item: fresh, page: null });
+      } catch {
+        if (current()) setStaleObservation(observed);
+      }
+    }, 3000);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [data.data, data.loading, data.error, data.setData, scope.identity, statusStale, taskId]);
   const sameDevice =
     !!item &&
     device.data?.state === "READY" &&
@@ -245,6 +273,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
         }
       />
       <ResourceStatus loading={data.loading} error={data.error} />
+      {statusStale && <Notice tone="warning">状态更新失败，当前显示上次结果，请刷新任务。</Notice>}
       {error && <Notice tone="warning">{error}</Notice>}
       {recoveryNotice && <Notice>{recoveryNotice}</Notice>}
       {page && (

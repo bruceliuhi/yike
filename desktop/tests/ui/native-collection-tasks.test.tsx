@@ -90,7 +90,90 @@ beforeEach(() => {
     },
   } as unknown as AppContextValue;
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.useRealTimers(); });
+it('refreshes running detail without clearing it and stops reading at completion', async () => {
+ context.route=parseRoute(`#/collection?task=${id}`);
+ render(<NativeCollectionTasks/>);
+ await screen.findByText('当前状态：运行中');
+ vi.useFakeTimers();
+ // Initial timer was scheduled with real time; manual refresh starts the fake-time cycle.
+ await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'刷新任务'}));});
+ let finish!:(value:any)=>void;
+ vi.mocked(context.service.taskFeed!.get).mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+ await act(async()=>{await vi.advanceTimersByTimeAsync(3000);});
+ expect(screen.getByText('当前状态：运行中')).toBeInTheDocument();
+ expect(finish).toBeTypeOf('function');
+ await act(async()=>{finish({...item,status:'SUCCEEDED',stop_confirmed:true});});
+ expect(screen.getByText('当前状态：已完成')).toBeInTheDocument();
+ const reads=vi.mocked(context.service.taskFeed!.get).mock.calls.length;
+ await act(async()=>{await vi.advanceTimersByTimeAsync(9000);});
+ expect(context.service.taskFeed!.get).toHaveBeenCalledTimes(reads);
+ expect(vi.mocked(context.service.execution!.execute).mock.calls.every(([command])=>command.action==='LIST')).toBe(true);
+});
+it('keeps the last observation with a visible warning on failed refresh and allows manual refresh', async()=>{
+ context.route=parseRoute(`#/collection?task=${id}`);
+ render(<NativeCollectionTasks/>); await screen.findByText('当前状态：运行中');
+ vi.useFakeTimers();
+ await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'刷新任务'}));});
+ vi.mocked(context.service.taskFeed!.get).mockRejectedValueOnce(new Error('private transport details'));
+ await act(async()=>{await vi.advanceTimersByTimeAsync(3000);});
+ expect(screen.getByText('状态更新失败，当前显示上次结果，请刷新任务。')).toBeInTheDocument();
+ expect(screen.queryByText('private transport details')).not.toBeInTheDocument();
+ const reads=vi.mocked(context.service.taskFeed!.get).mock.calls.length;
+ await act(async()=>{await vi.advanceTimersByTimeAsync(9000);});
+ expect(context.service.taskFeed!.get).toHaveBeenCalledTimes(reads);
+ vi.mocked(context.service.taskFeed!.get).mockResolvedValue({...item,status:'SUCCEEDED'} as never);
+ await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'刷新任务'}));});
+ expect(screen.getByText('当前状态：已完成')).toBeInTheDocument();
+ expect(screen.queryByText('状态更新失败，当前显示上次结果，请刷新任务。')).not.toBeInTheDocument();
+});
+it('aborts an in-flight automatic read when leaving the task and ignores late results',async()=>{
+ context.route=parseRoute(`#/collection?task=${id}`);
+ const view=render(<NativeCollectionTasks/>); await screen.findByText('当前状态：运行中');
+ vi.useFakeTimers();
+ await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'刷新任务'}));});
+ let finish!:(value:any)=>void, signal:AbortSignal|undefined;
+ vi.mocked(context.service.taskFeed!.get).mockImplementationOnce((_id,s)=>{signal=s;return new Promise(resolve=>{finish=resolve;});});
+ await act(async()=>{await vi.advanceTimersByTimeAsync(3000);});
+ expect(signal?.aborted).toBe(false);
+ context={...context,route:parseRoute('#/collection')};
+ await act(async()=>{view.rerender(<NativeCollectionTasks/>);});
+ expect(signal?.aborted).toBe(true);
+ await act(async()=>{finish({...item,status:'SUCCEEDED'});});
+ expect(screen.queryByText('当前状态：已完成')).not.toBeInTheDocument();
+});
+it.each(['manual', 'account'] as const)('ignores old automatic results after %s refresh',async(kind)=>{
+ context.route=parseRoute(`#/collection?task=${id}`);
+ const view=render(<NativeCollectionTasks/>); await screen.findByText('当前状态：运行中');
+ vi.useFakeTimers();
+ await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'刷新任务'}));});
+ let finish!:(value:any)=>void, signal:AbortSignal|undefined;
+ vi.mocked(context.service.taskFeed!.get).mockImplementationOnce((_id,s)=>{signal=s;return new Promise(resolve=>{finish=resolve;});});
+ await act(async()=>{await vi.advanceTimersByTimeAsync(3000);});
+ expect(signal?.aborted).toBe(false);
+ vi.mocked(context.service.taskFeed!.get).mockResolvedValue({...item,status:'CANCELED'} as never);
+ await act(async()=>{
+  if(kind==='manual')fireEvent.click(screen.getByRole('button',{name:'刷新任务'}));
+  else {
+   context={...context,session:{...context.session,accountScope:{id:other,version:2}}};
+   view.rerender(<NativeCollectionTasks/>);
+  }
+ });
+ expect(signal?.aborted).toBe(true);
+ await act(async()=>{finish({...item,status:'SUCCEEDED'});});
+ expect(screen.getByText('当前状态：已取消')).toBeInTheDocument();
+ expect(screen.queryByText('当前状态：已完成')).not.toBeInTheDocument();
+});
+it('rejects an automatic observation from another run without displaying its result',async()=>{
+ context.route=parseRoute(`#/collection?task=${id}`);
+ render(<NativeCollectionTasks/>); await screen.findByText('当前状态：运行中');
+ vi.useFakeTimers();
+ await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'刷新任务'}));});
+ vi.mocked(context.service.taskFeed!.get).mockResolvedValue({...item,run_id:other,status:'SUCCEEDED'} as never);
+ await act(async()=>{await vi.advanceTimersByTimeAsync(3000);});
+ expect(screen.getByText('状态更新失败，当前显示上次结果，请刷新任务。')).toBeInTheDocument();
+ expect(screen.getByText('当前状态：运行中')).toBeInTheDocument();
+});
 it('uses research progress rather than the pending collection ledger or coverage for research tasks',async()=>{
  context.route=parseRoute(`#/collection?task=${id}`);
  vi.mocked(context.service.taskFeed!.get).mockResolvedValue({...item,research:true,status:'PENDING',profile_version:3} as never);
