@@ -95,3 +95,15 @@ Chunk 3实现与限定验证已完成：两项有效RED后2个UI文件33项通�
 - [ ] 实际客户端新POST采集后原作者页定位验证。此修复不解决旧记录缺作者，也不证明HIDDEN搜索入口或同帖网页访问已恢复；不得写为原文可用或上线通过。
 
 独立差量Spec/Quality GO，无P1/P2：patch blob `3a15aafa118c732d58aa175dee2fcd7a1b013860`、lock `2e9e52981b3dcaa13983a8384146466dd914585f`、测试 `94f1270be55efb4ed9046fad4a05addd8f66bef2`。旧runtime输入的store hash不同，不能直接拿旧payload构新包；下一步准备绑定新锁的runtime，再集中构包，不改旧安装/会话或伪造旧探针回执。
+
+## e5c4354 已构包实装（2026-09-14 12:00）
+
+新建 `D:/yk-connect/runtime-e5c4354`，使用固定uv0.11.6完成新锁安装与实际本地CLI/浏览器检查（149.0.7827.55）；未复用旧安装回执。依赖下载等待期间同一进程持续存活，最终退出0。portable检查1通过/159.68秒，Forge退出0；658项桌面输入前后hash `b41aee9f33d0820bfd8397838804076e833843899b4839fea4b0ed3a350eefdd`。
+
+EXE `D:/yku914/make/squirrel.windows/x64/YikeAI-Setup.exe`，642862592字节，SHA256 `8d21c3f6d4166ba318935b0650f897f3940f7c2df8f3ebcd31eb4fa83c4ef503`，NotSigned。manifest `a463d15eb6cfa2e7ecea8495562faa805cb30a410dbfc44bd48ffd28f8ea613c`；40个renderer及main HTTPS/pin一致，安装退出0，实际ASAR `8005fc434b2569460391d05a258f61ab9e013ca4bb7c30a4b030826eadea7b54` 与候选一致。客户端已启动，原登录及小红书连接保留；无服务端差量，不重复部署。
+
+实际页面新建 `验收-AI原文定位-e5c4354`，AI软件定制画像、原有小红书账号、关键词“有偿求助 AI”、单次10条/300秒；已核对快照并提交一次启动。已观察到Chrome for Testing平台窗口，尚未获得最终采集/原文打开结果；不重复启动、不发送或写人工来源核验。后续须查原任务状态并从新POST核验原文，再接草稿反馈及三业务质量验收。
+
+12:05:14创建的新任务实际完成9/10；从列表进入详情，状态和“查看本次发现线索”直接可见，两类详情默认收起。确认页没有自动转入结果页，虽任务已完成仍停留确认页，需后续修复这个实际体验缺口。
+
+同帖 `6aa6534e000000002902df7a` 新采集版本已显示原作者 `6863dafd000000001b01be97`，没有从旧hash回填。12:07:59点击查看原文，输出 `8ddadac4-e148-41ec-bd2f-062c18901bf2/.yike-source-opened.json` 为SOURCE_OPENED，实际Chrome for Testing窗口标题“有偿有偿#gpt #ai #ppt - 小红书”，已越过此前HIDDEN搜索分支并定位同帖。Windows工具两次绑定均报“window id ... no longer belongs to Chrome; current owner is Chrome”，未取得人工可读截图，不写人工核验。12:09客户端按钮仍禁用，未见打开成功反馈；需继续确认打开事件是否及时到达客户端及窗口清理终态。该记录证明新原作者定位路径已有实际打开信号，不等于用户人工核验或完整试用通过。
