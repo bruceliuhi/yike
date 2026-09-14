@@ -69,3 +69,9 @@
 初步定位在搜索控件等待/唯一可见性分支；普通Chrome只读页面检查确有 `input#search-input.search-input`，但该浏览器未登录，不等于保存账号的实际查看窗口。后者短暂出现，Windows工具现场捕捉分别遇到窗口已关闭和Chrome窗口归属检查错误，尚未取得其搜索控件DOM证据；不得据此猜改选择器或放宽身份/来源校验。下一步取得实际窗口失败现场，修复搜索定位后继续原文→草稿→反馈及三业务验收。任务页状态区挤出“查看本次发现线索”按钮、判断时间仍显原始ISO等实机UX缺口一并保留待精简。未新增采集、判断、发送或来源核验记录；文档更新不重新构包。
 
 搜索现场诊断增量：仅在失败后最多1秒读取控件数量/可见性，保存固定 `source-search-diagnostic-v1` schema与MISSING/HIDDEN/MULTIPLE/VISIBLE_AFTER_FAILURE/INSPECTION_FAILED原因到既有私有输出，不含页面、URL、账号或异常正文，不进入IPC/客户UI；写盘失败不改变清理。导航新增4项有效RED，worker新增1项有效RED后两个相关文件85通过/14.86秒；本地.venv启动受旧site编码问题影响，使用既有隔离Python及既有运行时测试依赖完成，未重装依赖。独立差量Spec/Quality GO，无P1/P2；导航blob `ce38a16a7e17479e075d42607a966e6934cf3f2a`、worker `1e1aa596196e3b5d18e8936eec77d288324d9273`。这是定位手段而非查看修复；须实装读取原因后再决定修复，不扩大搜索/采集范围。
+
+## e688f2c 实装诊断（2026-09-14 11:19）
+
+源码 `e688f2cee2bfb2834dfbf53e1257d3f4c7bf0562`；portable检查1通过/118.77秒，658项桌面输入仍为 `c746e962b053d150997f519dc63fb88796432faad0fabe65af93d882a7b7ccff`，Forge退出0。安装包 `D:/ykt914/make/squirrel.windows/x64/YikeAI-Setup.exe`，642866176字节，SHA256 `fbda500f24e1b1e6ee835b839b2f835d84dba2b8390735ea3ca357d0642923d2`。manifest `da764de09d816a0fd40ebfdec79343767d331d83f260363a3c5008c9973ae4e8`；40个renderer/main HTTPS/pin对包一致，安装退出0，实际ASAR `25fdd1cae5060e0f86e676c9dda371e7b8b5cac9b79c829f25350f0b75a14e93` 与候选一致，原登录/任务保留。
+
+11:19:54真实客户端同任务同帖点击，输出 `13572741-6ebf-4388-a18a-6b50a88c3f29` 终态仍FAILED/SEARCH_UNAVAILABLE；本机诊断明确HIDDEN（匹配一个搜索框但不可见），不是MISSING/MULTIPLE。无SOURCE_OPENED、无新采集/模型/发送/核验记录。下一步检查该账号页面隐藏原因与真实可用导航入口，不能再猜改ID或仅增加等待；尚未修复原文查看，不关闭试用Goal。Windows窗口捕捉另受Chrome for Testing归属检查错误影响，已转为这条无原文/凭证的内部诊断；不要求用户重复授权。
