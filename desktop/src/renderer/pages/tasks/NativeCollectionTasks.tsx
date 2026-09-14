@@ -315,12 +315,6 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
       )}
       {item?.research && <ResearchProgress key={item.task_id} taskId={item.task_id} runId={item.run_id}
         taskStatus={item.status} onTerminal={()=>void data.reload()}/>}
-      {item && !item.research && (
-        <SearchCoverage run={{id:item.task_id,profileId:item.profile_version_id,
-          profileVersion:item.profile_version,platforms:item.platform_runs.map(row=>coveragePlatforms[row.platform])}}
-          refreshKey={JSON.stringify([item.status,item.records_used,item.platform_runs])}
-          returnPath={`/collection?task=${encodeURIComponent(item.task_id)}`}/>
-      )}
       {item && (
         <section className="panel" aria-label="真实采集详情">
           <h2>{item.name || "采集任务"}</h2>
@@ -426,6 +420,15 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
             </>
           )}
         </section>
+      )}
+      {item && !item.research && (
+        <details className="usage-advanced">
+          <summary>查看搜索详情</summary>
+          <SearchCoverage run={{id:item.task_id,profileId:item.profile_version_id,
+            profileVersion:item.profile_version,platforms:item.platform_runs.map(row=>coveragePlatforms[row.platform])}}
+            refreshKey={JSON.stringify([item.status,item.records_used,item.platform_runs])}
+            returnPath={`/collection?task=${encodeURIComponent(item.task_id)}`}/>
+        </details>
       )}
       {service.execution && cancels.length > 0 && (
         <DesktopExecutionRequests

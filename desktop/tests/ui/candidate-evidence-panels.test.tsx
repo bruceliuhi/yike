@@ -232,7 +232,10 @@ describe("candidate assessment details", () => {
     expect(screen.getByRole("region", { name: "私信草稿（未发送）" })).toHaveTextContent(value.draftDm);
     expect(container.querySelector("textarea, input, button")).toBeNull();
     expect(screen.queryByText("判断元数据")).toBeNull();
-    expect(screen.getByText(value.assessedAt)).toBeVisible();
+    const assessedTime = screen.getByText(formatDate(value.assessedAt));
+    expect(assessedTime).toBeVisible();
+    expect(assessedTime).toHaveAttribute('datetime', value.assessedAt);
+    expect(screen.queryByText(value.assessedAt)).not.toBeInTheDocument();
     for (const text of [value.provider, value.model, value.rule_version, value.rule_sha256, value.strategyVersionId]) {
       expect(screen.queryByText(text)).toBeNull();
     }

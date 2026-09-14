@@ -1,5 +1,6 @@
 import React from "react";
 import type { CandidateAssessmentDto } from "../../../shared/candidateReviewApi";
+import { formatDate } from "../../components/ui";
 import "./candidateEvidence.css";
 
 const dimensions = [
@@ -139,7 +140,7 @@ export function CandidateAssessmentDetails({
             <dt>判断时间</dt>
             <dd>
               <time dateTime={assessment.assessedAt}>
-                {assessment.assessedAt}
+                {formatDate(assessment.assessedAt)}
               </time>
             </dd>
           </div>

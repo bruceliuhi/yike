@@ -127,10 +127,25 @@ it('keeps task status and actions up front while hiding server bookkeeping',asyn
  await screen.findByRole('button',{name:'取消本次采集'});
  expect(screen.getByText(/服务端停止登记：/)).not.toBeVisible();
  expect(screen.getByText(/执行期限：/)).not.toBeVisible();
- expect(screen.getByText(/当前状态：运行中/)).toBeVisible();
- expect(screen.getByRole('button',{name:'查看本次发现线索'})).toBeVisible();
- fireEvent.click(screen.getByText('查看运行详情'));
+  expect(screen.getByText(/当前状态：运行中/)).toBeVisible();
+  expect(screen.getByRole('button',{name:'查看本次发现线索'})).toBeVisible();
+  fireEvent.click(screen.getByText('查看运行详情'));
  expect(screen.getByText(/服务端停止登记：/)).toBeVisible();
+});
+it('keeps real task details before collapsed search details while retaining expandable coverage', async () => {
+  context.route = parseRoute(`#/collection?task=${id}`);
+  context.service.searchCoverage = { query: vi.fn(async () => coverageFixture()) } as any;
+  vi.mocked(context.service.taskFeed!.get).mockResolvedValue({ ...item, profile_version: 1 } as any);
+  const { container } = render(<NativeCollectionTasks />);
+  await screen.findByRole('button', { name: '查看本次发现线索' });
+  const details = screen.getByRole('region', { name: '真实采集详情' });
+  const advanced = container.querySelector('details.usage-advanced:last-of-type');
+  expect(advanced).not.toBeNull();
+  expect(advanced).not.toHaveAttribute('open');
+  expect(details.compareDocumentPosition(advanced!) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  expect(screen.getByRole('region', { name: '搜索覆盖与结果解释' })).not.toBeVisible();
+  fireEvent.click(screen.getByText('查看搜索详情'));
+  expect(screen.getByRole('region', { name: '搜索覆盖与结果解释' })).toBeVisible();
 });
 it('removes task identity while leaving status and cancellation visible', async()=>{
  context.route=parseRoute(`#/collection?task=${id}`);

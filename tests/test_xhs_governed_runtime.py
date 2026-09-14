@@ -232,6 +232,30 @@ def test_raw_store_unicode_null_timestamp_and_no_tokens(runtime):
     assert sink.store_comment.call_args.args[0]['create_time'] is None
 
 
+@pytest.mark.parametrize('author', ['5cebf3a50000000016026b8f', None, '', 'anonymous-hash',
+    '5cebf3a50000000016026b8f?token=SECRET', 'A' * 24, 123, {'user_id': 'SECRET'}])
+def test_post_retains_only_original_public_author_for_source_navigation(runtime, author):
+    from datetime import datetime, timezone
+    from connectors.candidate_mapping import _xhs_post_record
+    sink = NS(store_content=AsyncMock(), store_comment=AsyncMock())
+    runtime.g.update(datetime=datetime, timezone=timezone, XhsStoreFactory=NS(create_store=lambda: sink))
+    ns = runtime.load('store/xhs/__init__.py', names=[
+        'update_xhs_note', 'update_xhs_note_comment', 'get_video_url_arr', '_xhs_time'])
+    user = {'user_id': author, 'nickname': 'PRIVATE-NICKNAME', 'token': 'SECRET'}
+    run(ns['update_xhs_note']({'note_id': '6aa6534e000000002902df7a',
+        'desc': '原帖正文', 'user': user, 'xsec_token': 'SECRET'}))
+    post = sink.store_content.call_args.args[0]
+    expected = author if author == '5cebf3a50000000016026b8f' else None
+    assert post['user_id'] == expected
+    observed = {**post, 'collected_at': '2026-09-14T03:30:00Z'}
+    assert _xhs_post_record(observed, 'offline-test', '原文')['author_public_id'] == expected
+    assert 'SECRET' not in json.dumps(post) and 'PRIVATE-NICKNAME' not in json.dumps(post)
+    run(ns['update_xhs_note_comment']('6aa6534e000000002902df7a', {
+        'id': 'comment', 'content': '评论', 'user_info': user}))
+    comment = sink.store_comment.call_args.args[0]
+    assert 'user_id' not in comment
+
+
 def test_no_data_uses_xhs_directory(runtime, tmp_path):
     runtime.g['config'].SAVE_DATA_PATH=str(tmp_path)
     ns=runtime.load('main.py', names=['_has_candidate_output'])

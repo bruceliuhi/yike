@@ -75,3 +75,23 @@
 源码 `e688f2cee2bfb2834dfbf53e1257d3f4c7bf0562`；portable检查1通过/118.77秒，658项桌面输入仍为 `c746e962b053d150997f519dc63fb88796432faad0fabe65af93d882a7b7ccff`，Forge退出0。安装包 `D:/ykt914/make/squirrel.windows/x64/YikeAI-Setup.exe`，642866176字节，SHA256 `fbda500f24e1b1e6ee835b839b2f835d84dba2b8390735ea3ca357d0642923d2`。manifest `da764de09d816a0fd40ebfdec79343767d331d83f260363a3c5008c9973ae4e8`；40个renderer/main HTTPS/pin对包一致，安装退出0，实际ASAR `25fdd1cae5060e0f86e676c9dda371e7b8b5cac9b79c829f25350f0b75a14e93` 与候选一致，原登录/任务保留。
 
 11:19:54真实客户端同任务同帖点击，输出 `13572741-6ebf-4388-a18a-6b50a88c3f29` 终态仍FAILED/SEARCH_UNAVAILABLE；本机诊断明确HIDDEN（匹配一个搜索框但不可见），不是MISSING/MULTIPLE。无SOURCE_OPENED、无新采集/模型/发送/核验记录。下一步检查该账号页面隐藏原因与真实可用导航入口，不能再猜改ID或仅增加等待；尚未修复原文查看，不关闭试用Goal。Windows窗口捕捉另受Chrome for Testing归属检查错误影响，已转为这条无原文/凭证的内部诊断；不要求用户重复授权。
+
+## Chunk 3：已批准的实机界面减负（原文故障并未解决）
+
+依据AUTHORITY客户界面标准及用户“所有页面技术细节隐藏、直接调整”的授权，采用原组件重排/折叠和既有日期格式化，不新建页面/状态机，不删除诊断和恢复能力。相比只改文案，默认折叠并把真实结果放前可直接减少首屏滚动；不选删除覆盖逻辑，避免丢失失败/未知证据。
+
+- [ ] `desktop/src/renderer/pages/tasks/NativeCollectionTasks.tsx`：真实采集详情（状态、发现线索、取消/恢复）先于覆盖区；普通任务覆盖组件置于默认关闭的“查看搜索详情”details中，展开仍可检查范围/失败/用量，研究任务既有进度不变。`desktop/tests/ui/native-collection-tasks.test.tsx`先增加RED：真实详情DOM在覆盖容器前、details默认关闭且可展开、原查看线索/恢复操作仍在。仅相关文件GREEN及typecheck，不重跑全套。
+- [ ] `desktop/src/renderer/pages/opportunities/CandidateAssessmentDetails.tsx`：判断时间复用既有`formatDate`，保留time.dateTime原值，客户可见文本不再原始ISO；未知/过期/草稿规则不变。现有候选UI测试增加RED验证可见文本与机器时间分离，修复后定向GREEN。无新增依赖或状态。
+- [ ] 按subagent-driven-development实施、独立Spec及Quality差量审核，集中提交main；与下一实际修复批合并候选构包，原文HIDDEN不因UI通过而标已修复。以上不替代三业务真实闭环及用户认可线索门禁。
+
+Chunk 3实现与限定验证已完成：两项有效RED后2个UI文件33项通过，typecheck通过；独立Spec/Quality GO，任务页blob `1530675e6fd2e518a40f4c5b881fb9ab8619650a`、判断详情blob `71cb3954c9940276d3009fd5f06697e995240d74`。恢复/未知/错误仍在折叠外。尚待集中提交构包及实机确认，不重复同字节检查。
+
+## 新POST原作者定位前提（2026-09-14）
+
+已核对固定上游store有意只存creator_hash，不是mapper漏读；本项目AUTHORITY要求公开原文/作者，既有mapper与同账号查看器支持原帖公开user_id。局部取舍：仅新采集POST保留原帖响应user.user_id的严格24位小写十六进制公开标识，缺失/非法仍None；不去匿名评论者，不扩充作者资料请求，不保留token/登录身份，不改旧数据或用hash猜作者。这是对上游匿名化的一处明确例外，并非无数据边界变化。
+
+- [x] 最小补丁与锁摘要更新；既有POST mapper无需改动。新增8项先因缺user_id有效RED，初次GREEN尝试暴露测试缺collected_at，补齐采集包装层观察时间后，运行时及source-output两个文件98项通过/9.70秒，退出0；测试实际应用固定上游全部补丁并核对文件锁。
+- [ ] 独立差量审核；与Chunk 3集中提交并构建一次候选，运行时须绑定新补丁而非复用旧锁。
+- [ ] 实际客户端新POST采集后原作者页定位验证。此修复不解决旧记录缺作者，也不证明HIDDEN搜索入口或同帖网页访问已恢复；不得写为原文可用或上线通过。
+
+独立差量Spec/Quality GO，无P1/P2：patch blob `3a15aafa118c732d58aa175dee2fcd7a1b013860`、lock `2e9e52981b3dcaa13983a8384146466dd914585f`、测试 `94f1270be55efb4ed9046fad4a05addd8f66bef2`。旧runtime输入的store hash不同，不能直接拿旧payload构新包；下一步准备绑定新锁的runtime，再集中构包，不改旧安装/会话或伪造旧探针回执。
