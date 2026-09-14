@@ -35,7 +35,8 @@ it('uses a bounded real task feed on the homepage and never falls back after a f
 it('carries task filter through status changes, validates echo and returns to the task',async()=>{
  context.route=parseRoute(`#/candidates?task=${taskId}`);const view=render(<CandidatesPage/>);
  await waitFor(()=>expect(context.service.candidates).toHaveBeenCalledWith(expect.objectContaining({taskId,status:undefined}),expect.any(AbortSignal)));
- expect(screen.getByText(/当前最新版本/)).toBeTruthy();
+ expect(screen.getByText('本次任务发现的线索（展示最新内容）。')).toBeTruthy();
+ expect(screen.queryByText(/重复观察按线索去重/)).toBeNull();
  expect(await screen.findByRole('heading',{name:'制造企业需求 · 发现线索'})).toBeTruthy();
  fireEvent.change(screen.getByLabelText('候选复核状态筛选'),{target:{value:'IMPORTED'}});
  await waitFor(()=>expect(context.service.candidates).toHaveBeenLastCalledWith(expect.objectContaining({taskId,status:'IMPORTED'}),expect.any(AbortSignal)));

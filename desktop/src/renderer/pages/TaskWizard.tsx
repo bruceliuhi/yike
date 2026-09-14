@@ -811,7 +811,7 @@ export function TaskWizardPage() {
                   }
                 />
               </Field>
-              <Field label="排除词" className="horizontal-field" hint="结果返回本机后再过滤；评论只匹配评论自身正文，不匹配父帖。">
+              <Field label="排除词" className="horizontal-field">
                 <TermEditor
                   label="排除词"
                   terms={draft.exclusions}

@@ -1808,7 +1808,7 @@ function CandidateWorkbench() {
         back={() => navigate(taskId ? `/collection?task=${taskId}` : "/collection")}
       />
       {taskId && <Notice action={<Button variant="ghost" onClick={()=>navigate(`/collection?task=${taskId}`)}>返回采集任务</Button>}>
-        本任务发现过的线索 · 当前最新版本。重复观察按线索去重，不等同于采集入库记录数；来源证据仅展示有限条观察，可能包含其他任务且不一定覆盖全部历史原文。
+        本次任务发现的线索（展示最新内容）。
       </Notice>}
       {taskId && task.error && <Notice tone="warning">任务名称读取未完成；线索范围仍按当前任务编号核验。</Notice>}
       <Tabs
