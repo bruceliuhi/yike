@@ -67,3 +67,5 @@
 10:57:37在真实客户端同任务、同 `6aa6534e000000002902df7a` 点击查看原文，已启动新Chrome for Testing窗口及source输出，不再误走旧Chrome外链。但窗口随后关闭，终态 `FAILED/XHS_SOURCE_SEARCH_UNAVAILABLE`，没有SOURCE_OPENED；输出 `a5cc694c-2510-468c-9424-42b29c5190ab`，定向现场复现 `2f480ccc-e1bd-4bd8-8f74-064ad1093eac` 同错误。UI如实显示“暂时无法定位这条原文，可稍后重试”。不能标为原文可用。
 
 初步定位在搜索控件等待/唯一可见性分支；普通Chrome只读页面检查确有 `input#search-input.search-input`，但该浏览器未登录，不等于保存账号的实际查看窗口。后者短暂出现，Windows工具现场捕捉分别遇到窗口已关闭和Chrome窗口归属检查错误，尚未取得其搜索控件DOM证据；不得据此猜改选择器或放宽身份/来源校验。下一步取得实际窗口失败现场，修复搜索定位后继续原文→草稿→反馈及三业务验收。任务页状态区挤出“查看本次发现线索”按钮、判断时间仍显原始ISO等实机UX缺口一并保留待精简。未新增采集、判断、发送或来源核验记录；文档更新不重新构包。
+
+搜索现场诊断增量：仅在失败后最多1秒读取控件数量/可见性，保存固定 `source-search-diagnostic-v1` schema与MISSING/HIDDEN/MULTIPLE/VISIBLE_AFTER_FAILURE/INSPECTION_FAILED原因到既有私有输出，不含页面、URL、账号或异常正文，不进入IPC/客户UI；写盘失败不改变清理。导航新增4项有效RED，worker新增1项有效RED后两个相关文件85通过/14.86秒；本地.venv启动受旧site编码问题影响，使用既有隔离Python及既有运行时测试依赖完成，未重装依赖。独立差量Spec/Quality GO，无P1/P2；导航blob `ce38a16a7e17479e075d42607a966e6934cf3f2a`、worker `1e1aa596196e3b5d18e8936eec77d288324d9273`。这是定位手段而非查看修复；须实装读取原因后再决定修复，不扩大搜索/采集范围。

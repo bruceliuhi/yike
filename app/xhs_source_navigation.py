@@ -31,6 +31,20 @@ def _fail(code):
     raise XhsSourceNavigationError('XHS_SOURCE_' + code) from None
 
 
+async def _search_failure(search):
+    reason = 'INSPECTION_FAILED'
+    try:
+        async with asyncio.timeout(1):
+            count = await search.count()
+            reason = ('MISSING' if count == 0 else 'MULTIPLE' if count > 1
+                else 'VISIBLE_AFTER_FAILURE' if await search.is_visible(timeout=500) else 'HIDDEN')
+    except Exception:
+        pass
+    error = XhsSourceNavigationError('XHS_SOURCE_SEARCH_UNAVAILABLE')
+    error.search_diagnostic = reason
+    raise error from None
+
+
 def _path(value, *, relative=False):
     if not isinstance(value, str) or not value.isprintable() or '\\' in value:
         return None
@@ -127,10 +141,10 @@ async def navigate_xhs_source(page, *, note_id, expected_account, author_id=None
                 try:
                     await search.wait_for(state='visible', timeout=3000)
                 except Exception:
-                    _fail('SEARCH_UNAVAILABLE')
+                    await _search_failure(search)
                 await guard()
                 if await search.count() != 1 or not await search.is_visible(timeout=500):
-                    _fail('SEARCH_UNAVAILABLE')
+                    await _search_failure(search)
                 await guard()
                 await search.fill(original_query, timeout=3000)
                 await guard()

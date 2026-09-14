@@ -230,3 +230,22 @@ def test_browser_exception_does_not_export_url_or_body(capsys):
 def test_spa_controls_wait_for_visibility_before_inspection(pending):
     page = Page(); setattr(page, pending, True)
     assert run(page, original_query='query') == 'SOURCE_OPENED'
+
+
+@pytest.mark.parametrize('mode, expected', [('missing', 'MISSING'), ('hidden', 'HIDDEN'),
+    ('duplicate', 'MULTIPLE'), ('error', 'INSPECTION_FAILED')])
+def test_search_failure_has_only_fixed_local_diagnostic(mode, expected):
+    page = Page()
+    class Search(Locator):
+        async def wait_for(self, **kwargs): raise RuntimeError(TOKEN)
+        async def count(self):
+            if mode == 'error': raise RuntimeError(TOKEN)
+            return await super().count()
+    original = page.locator
+    elements = [] if mode == 'missing' else [Element(page, visible=False)]
+    if mode == 'duplicate': elements.append(Element(page))
+    page.locator = lambda selector: Search(elements) if selector == 'input#search-input' else original(selector)
+    with pytest.raises(RuntimeError, match='^XHS_SOURCE_SEARCH_UNAVAILABLE$') as error:
+        run(page, original_query='query')
+    assert getattr(error.value, 'search_diagnostic', None) == expected
+    assert TOKEN not in str(error.value)

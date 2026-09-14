@@ -25,7 +25,7 @@ def test_invalid_target_never_loads_runtime(tmp_path, monkeypatch, change):
     assert asyncio.run(api.view_xhs_source(**(args(tmp_path) | change)))['error_code'] == 'XHS_SOURCE_INVALID_INPUT'
 
 
-@pytest.mark.parametrize('outcome', ['closed', 'cancel', 'timeout', 'navigation', 'cleanup', 'cleanup-interrupt', 'unverified'])
+@pytest.mark.parametrize('outcome', ['closed', 'cancel', 'timeout', 'navigation', 'search', 'search-secret', 'cleanup', 'cleanup-interrupt', 'unverified'])
 def test_verified_open_stays_alive_and_terminal_follows_cleanup(tmp_path, monkeypatch, outcome):
     api = module()
     events = []
@@ -54,14 +54,22 @@ def test_verified_open_stays_alive_and_terminal_follows_cleanup(tmp_path, monkey
         events.append('navigate')
         assert not (tmp_path / '.yike-source-opened.json').exists()
         if outcome == 'navigation': raise api.XhsSourceNavigationError('XHS_SOURCE_NOT_FOUND')
+        if outcome in ('search', 'search-secret'):
+            error = api.XhsSourceNavigationError('XHS_SOURCE_SEARCH_UNAVAILABLE')
+            error.search_diagnostic = 'MULTIPLE' if outcome == 'search' else 'secret'
+            raise error
         return 'SOURCE_OPENED' if outcome != 'unverified' else 'OPENED'
     monkeypatch.setattr(api, '_load_runtime', lambda: SimpleNamespace(XiaoHongShuCrawler=Crawler, async_playwright=Playwright))
     monkeypatch.setattr(api, 'navigate_xhs_source', navigate)
     result = asyncio.run(api.view_xhs_source(**args(tmp_path), cancelled=lambda: 'navigate' in events and outcome in ('cancel', 'cleanup', 'cleanup-interrupt')))
     assert events[-2:] == ['close', 'playwright-close']
     assert result['state'] == {'closed':'CLOSED','cancel':'CANCELLED','timeout':'TIMED_OUT',
-        'navigation':'FAILED','cleanup':'FAILED','cleanup-interrupt':'FAILED','unverified':'FAILED'}[outcome]
+        'navigation':'FAILED','search':'FAILED','search-secret':'FAILED','cleanup':'FAILED','cleanup-interrupt':'FAILED','unverified':'FAILED'}[outcome]
     marker = tmp_path / '.yike-source-opened.json'
-    assert marker.exists() == (outcome not in ('navigation', 'unverified'))
+    assert marker.exists() == (outcome not in ('navigation', 'search', 'search-secret', 'unverified'))
     if marker.exists(): assert json.loads(marker.read_text()) == dict(schema_version=api.SCHEMA,state='SOURCE_OPENED')
     assert 'secret' not in str(result)
+    diagnostic = tmp_path / '.yike-source-diagnostic.json'
+    assert diagnostic.exists() == (outcome == 'search')
+    if diagnostic.exists():
+        assert json.loads(diagnostic.read_text()) == {'schema_version': 'source-search-diagnostic-v1', 'reason': 'MULTIPLE'}

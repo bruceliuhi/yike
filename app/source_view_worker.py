@@ -69,6 +69,14 @@ async def view_xhs_source(*, output_path, note_id, expected_account, author_id=N
                         await asyncio.sleep(0.1)
                 except XhsSourceNavigationError as error:
                     code = str(error)
+                    reason = getattr(error, 'search_diagnostic', None)
+                    if code == 'XHS_SOURCE_SEARCH_UNAVAILABLE' and reason in (
+                            'MISSING', 'HIDDEN', 'MULTIPLE', 'VISIBLE_AFTER_FAILURE', 'INSPECTION_FAILED'):
+                        try:
+                            _write(output_path, '.yike-source-diagnostic.json',
+                                dict(schema_version='source-search-diagnostic-v1', reason=reason))
+                        except OSError:
+                            pass  # Optional local diagnosis must not change cleanup or the terminal result.
                     result = failure(code if code in CODES else 'SOURCE_HOST_FAILED',
                         'CANCELLED' if code == 'XHS_SOURCE_CANCELLED' else 'FAILED')
                 except TimeoutError:
