@@ -59,3 +59,11 @@
 10:38:20通过真实客户端原任务选择 `6aa6534e000000002902df7a` 点击“查看原文”，实际仍激活旧Chrome 404页，没有新source输出目录项，不是修复通过。根因：真实 `client.candidates` 将平台枚举转换为“小红书”显示标签，而新按钮只比较XIAOHONGSHU；原测试直接api.list绕过了这层转换。
 
 差量：分支同时识别枚举与既有显示标签，不放宽主进程真实候选/平台校验；XHS测试改走真实base.candidates及模拟固定bridge。有效RED1失败（新查看调用0），修正后本文件17通过，typecheck通过。独立差量Spec/Quality GO，UI blob `0a3fcc0293abb3c8bc69e2260dbb808fb5ba05ba`、测试 `ba616b477121e94f1b44e81dfa43b8ad2167dc97`。未新增采集/判断/发送/核验记录。原帖可访问性仍未通过，下一步构建并实装修正版本；6b31309不能标为原文查看可用。当前构包合同要求payload source commit等于桌面HEAD，故不直接复用旧manifest或伪造版本。
+
+## 6c174ac 实装与搜索定位失败（2026-09-14 10:54–11:02）
+
+源码 `6c174acc5272f98c8a38e608ec66a2b9272f5fdb`；portable隔离检查1通过/119.68秒，658项桌面输入前后hash `c746e962b053d150997f519dc63fb88796432faad0fabe65af93d882a7b7ccff`，Forge退出0。安装包 `D:/yks914/make/squirrel.windows/x64/YikeAI-Setup.exe`，642865664字节，SHA256 `e1ed2216a16fba3ba64e1d61676ea393e97c45bf720d2ed20aecc71887554c00`，NotSigned。portable manifest `24439db9e1aad2fe62a40209e43140af5c963b5b710ebab3375bbfa3c8d257d2`；40个renderer文件及main HTTPS/pin一致，安装退出0，实际ASAR `71e3ebe7610c06fcdebb30a4eb137746c4514f8c040f39b3768ec189608966af` 与候选一致。登录、小红书连接及原任务9条线索保留，无服务部署。
+
+10:57:37在真实客户端同任务、同 `6aa6534e000000002902df7a` 点击查看原文，已启动新Chrome for Testing窗口及source输出，不再误走旧Chrome外链。但窗口随后关闭，终态 `FAILED/XHS_SOURCE_SEARCH_UNAVAILABLE`，没有SOURCE_OPENED；输出 `a5cc694c-2510-468c-9424-42b29c5190ab`，定向现场复现 `2f480ccc-e1bd-4bd8-8f74-064ad1093eac` 同错误。UI如实显示“暂时无法定位这条原文，可稍后重试”。不能标为原文可用。
+
+初步定位在搜索控件等待/唯一可见性分支；普通Chrome只读页面检查确有 `input#search-input.search-input`，但该浏览器未登录，不等于保存账号的实际查看窗口。后者短暂出现，Windows工具现场捕捉分别遇到窗口已关闭和Chrome窗口归属检查错误，尚未取得其搜索控件DOM证据；不得据此猜改选择器或放宽身份/来源校验。下一步取得实际窗口失败现场，修复搜索定位后继续原文→草稿→反馈及三业务验收。任务页状态区挤出“查看本次发现线索”按钮、判断时间仍显原始ISO等实机UX缺口一并保留待精简。未新增采集、判断、发送或来源核验记录；文档更新不重新构包。
