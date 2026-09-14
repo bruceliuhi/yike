@@ -7,6 +7,7 @@ const m=vi.hoisted(()=>{
  return {frame,window,handlers:new Map<string,Function>(),events:new Map<string,Function>(),mkdir:vi.fn().mockResolvedValue(undefined),
   controller:vi.fn(),replyController:vi.fn(),replyExecute:vi.fn().mockResolvedValue({state:'SYNCED'}),replyStop:vi.fn(()=>stopped),driver:vi.fn().mockReturnValue({login:true}),store:vi.fn().mockReturnValue({store:true}),
   execute:vi.fn().mockResolvedValue({state:'OPENED',flowId:'flow'}),shutdown:vi.fn(()=>stopped),stop,
+  sourceController:vi.fn(),sourceOpen:vi.fn().mockResolvedValue({state:'OPENED',sourceKind:'POST'}),sourceStop:vi.fn(()=>stopped),
   quit:vi.fn(),error:vi.fn(),service:{request:vi.fn(),requestDevice:vi.fn(),requestConnection:vi.fn()}};
 });
 vi.mock('node:fs/promises',async original=>({...await original<typeof import('node:fs/promises')>(),mkdir:m.mkdir}));
@@ -25,6 +26,8 @@ vi.mock('../src/main/rendererAssets',()=>({CONTENT_SECURITY_POLICY:'test',loadRe
 vi.mock('../src/main/serviceClient',async original=>({...await original<typeof import('../src/main/serviceClient')>(),createServiceClient:()=>m.service}));
 vi.mock('../src/main/platformConnectionController',()=>({createPlatformConnectionController:(options:any)=>{m.controller(options);return {execute:m.execute,shutdown:m.shutdown};}}));
 vi.mock('../src/main/platformLoginDriver',()=>({createPlatformLoginDriver:m.driver}));
+vi.mock('../src/main/sourceViewDriver',()=>({createSourceViewDriver:()=>({source:true})}));
+vi.mock('../src/main/sourceViewController',()=>({createSourceViewController:(options:any)=>{m.sourceController(options);return {open:m.sourceOpen,shutdown:m.sourceStop};}}));
 // This is a main wiring fixture, not a claim that Windows profiles run on macOS.
 vi.mock('../src/main/platformLoginConfiguration',()=>({platformLoginConfiguration:()=>({
  pythonExecutable:path.resolve('python.exe'),projectRoot:path.resolve('project'),runtimePath:path.resolve('runtime'),
@@ -57,9 +60,17 @@ it('assembles reply sync with the same identity/profile store and trusted-only I
  expect(()=>invoke({sender:m.window.webContents,senderFrame:{url:'https://evil.example'}},command)).toThrow();
  expect(m.replyExecute).toHaveBeenCalledTimes(1);
 });
+it('source view uses trusted-only IPC and existing identity/profile authority',async()=>{
+ const options=m.sourceController.mock.calls[0]?.[0],connection=m.controller.mock.calls[0][0];
+ expect(options?.identity).toBe(connection.identity);expect(options?.store).toBe(connection.store);
+ const invoke=m.handlers.get('desktop:source-view')!,binding={candidateId:'test-hint'};
+ await invoke({sender:m.window.webContents,senderFrame:m.frame},binding);expect(m.sourceOpen).toHaveBeenCalledWith(binding);
+ expect(()=>invoke({sender:m.window.webContents,senderFrame:{url:'https://evil.example'}},binding)).toThrow();
+});
 it('quit waits once for the physical login and reply stop before completing application exit',async()=>{
  const preventDefault=vi.fn(),beforeQuit=m.events.get('before-quit')!;beforeQuit({preventDefault});beforeQuit({preventDefault});
  expect(preventDefault).toHaveBeenCalledTimes(2);expect(m.shutdown).toHaveBeenCalledTimes(1);expect(m.quit).not.toHaveBeenCalled();
  expect(m.replyStop).toHaveBeenCalledTimes(1);
+ expect(m.sourceStop).toHaveBeenCalledTimes(1);
  m.stop();await vi.waitFor(()=>expect(m.quit).toHaveBeenCalledTimes(1));beforeQuit({preventDefault});expect(preventDefault).toHaveBeenCalledTimes(2);expect(m.error).not.toHaveBeenCalled();
 });

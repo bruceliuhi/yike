@@ -24,6 +24,7 @@ export interface YikeDesktopApi {
   nativeReplyCommand?(command: import('./nativeReply').NativeReplyCommand): Promise<import('./nativeReply').NativeReplyResult>;
   requestApi(request: ApiRequest): Promise<ApiResult>;
   openExternal(url: string): Promise<DesktopActionResult>;
+  openSourceView?(binding:import('./rawCandidateEvidence').ExpectedRawCandidateEvidence):Promise<import('./sourceView').SourceViewResult>;
   copyText(text: string): Promise<DesktopActionResult>;
   saveExport(request: ExportRequest): Promise<SaveExportResult>;
 }

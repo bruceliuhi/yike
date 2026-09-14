@@ -26,8 +26,8 @@
 ## Chunk 2：客户端接线与实机
 
 - [x] 新建 desktop/src/main/xhsSourceTarget.ts 及 desktop/tests/xhsSourceTarget.test.ts：复用现有严格rawEvidence解析，用renderer当前版本绑定比对服务端当前证据；只从精确current_observation取原查询与连接，不借其它历史记录。COMMENT作者不作为原帖作者；源URL/ID需完全匹配固定规范，参数不进入目标。先RED再实现。
-- [ ] 基于既有受监督host/driver增加只读查看生命周期，不复用发送上下文、不把AUTHENTICATED当原文已打开。主进程获取当前候选与profile绑定，仅传当前账号目标；新IPC由受信renderer触发；已有系统浏览器入口保留其它平台/公共网站行为。
-- [ ] 原文按钮接入当前candidate ID/version，打开中禁重复，结果以简单中文显示；不写来源核验、不发起发送。账户切换/退出停止会话并释放profile锁。
+- [x] 基于既有受监督host/driver增加只读查看生命周期，不复用发送上下文、不把AUTHENTICATED当原文已打开。主进程获取当前候选与profile绑定，仅传当前账号目标；新IPC由受信renderer触发；已有系统浏览器入口保留其它平台/公共网站行为。
+- [x] 原文按钮接入当前candidate ID/version，打开中禁重复，结果以简单中文显示；不写来源核验、不发起发送。账户切换/退出停止会话并释放profile锁。
 - [ ] 定向验证身份/目标绑定、旧版本拒绝、busy/失败/cleanup、UI接线；独立批次审核后合并构一次最新Windows候选，真实用户路径验证同条原帖可读，未通过则保留失败继续修复。
 
 此计划不缩小发布目标：三业务任务、有效买方线索、草稿反馈及真实用户认可仍需完成；原文导航单元测试不等于平台实机成功。
@@ -41,3 +41,13 @@
 基础模块独立Spec/Quality审核GO，无P1/P2；绑定导航blob `f81e3e76ef2c206bd9b8597b3ec488031516df80`、Python测试 `62ea58634019b6409de679ce1b61cad68965e9fc`、目标解析 `b97a29b5ecb2d627af5e79484c12cdf3506b9b2b`、TS测试 `27dca827f9a01016faebc95ebe6ef8248c17811f`。该结论仅覆盖基础模块，不代表host/driver/IPC/UI或实机可读性完成；复用同字节测试证据，不重复构包。
 
 下一接线位置已确认：main.ts attachPlatformRuntime内复用profileStore与runtime配置，identity.requestApi({operation:'candidates.rawEvidence',payload:{candidateId}})取当前证据，现有resolveCollectionAccount校验当前连接/profile。查看器须把scope当前性/AbortSignal贯穿异步步骤，并加入before-quit的停止链。不得调用outreach执行或伪造其上下文。renderer Opportunities.openSource 当前仍只有service.openExternal，需新增只读IPC后才替换小红书分支。接线及真实源站验证是必做后续，不因本轮单元测试通过而认为修复完成。
+
+## 客户端接线批（2026-09-14；覆盖上段接线待办，实机仍未完成）
+
+新增独立只读host/worker/driver及主进程控制器；固定协议 `windows-source-view-v1`，实际同帖详情就绪才发SOURCE_OPENED，浏览窗口最多300秒，关闭后才确认物理清理。当前scope、设备、当前候选版本及原观察连接与加密profile绑定；账号切换/应用退出停止查看。小红书原文按钮使用新IPC，评论仅开父帖明确提示；其它平台和样例保留原外链。不调用发送、核验写入或模型。
+
+定向证据：控制器先有效RED 5失败/2通过（占位期另有未消费拒绝，测试已修正），后7通过，忙锁新增1项RED后最终8通过；host/worker最终30通过，包含意外清理中断和明确启动前锁忙的RED→GREEN；driver初始缺模块失败后40通过，再3项协议/忙锁RED→GREEN（共43项，不重复累计）。主进程/预加载/服务/UI批最初新增3项失败，其中UI替身sourceLabel不匹配先修正再取得有效RED；最终5文件68通过，其后控制器新增1项已独立通过。两项旧UI断言跟随已批准的技术ID隐藏和“记录”按钮文案更新，核验ID仍在提交体内断言，不重新暴露给用户。最终typecheck通过。
+
+审核发现并修正：安装包固定HOST_FILES及host import probe补入3个Python模块，新增清单测试RED→GREEN 1通过；明确未启动的锁忙映射XHS_SOURCE_BUSY，不当成未知清理而锁死退出，其他未知清理仍拒绝重启。离线替身与清单检查不代表实际平台可读；下一步冻结本批、一次构包、用真实客户端点击同一原帖验证。
+
+最终独立Spec/Quality GO（仅实现合入）：host `d7eae15dda037a735f5b7ac4196d7b47d55d55e2`，worker `5ffcd8fa0d744b4e85e783965a91662e7daf98ca`，controller `a558204e803768d68ec83313e36a8e614ae54f5e`，driver `8a2297f0a8f42faa776b4d6f68585cc2514458d6`，main `554fd62846195f653ff4703e929314be873492b5`，UI `fb807ec085733d72d3e1e72a5f8dfddaaecdf326`。两项阻断均已差量复核，无剩余P1/P2；不追认实际平台可读或产品上线。

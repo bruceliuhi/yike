@@ -50,6 +50,9 @@ import {createOutreachResultOutbox} from './outreachResultOutbox';
 import {createPortableBootstrap,publishedPortableStatus} from './portableBootstrap';
 import {PORTABLE_RUNTIME_STATUS_CHANNEL} from '../shared/portableRuntime';
 import type {PlatformLoginDriverOptions} from './platformLoginDriver';
+import {createSourceViewDriver} from './sourceViewDriver';
+import {createSourceViewController} from './sourceViewController';
+import {SOURCE_VIEW_CHANNEL} from '../shared/sourceView';
 declare const __YIKE_PORTABLE_PIN__:{sha256:string;resourceName:string}|null;
 declare const __YIKE_RELEASE_SERVICE_URL__:string|null;
 
@@ -65,6 +68,7 @@ let foregroundCollection:ReturnType<typeof createForegroundCollectionController>
 let monitorCollection:ReturnType<typeof createMonitorCollectionController>|null=null;
 let nativeOutreach:ReturnType<typeof createNativeOutreachController>|null=null;
 let nativeReplies:ReturnType<typeof createNativeReplyController>|null=null;
+let sourceView:ReturnType<typeof createSourceViewController>|null=null;
 let portableBootstrap:ReturnType<typeof createPortableBootstrap>|null=null;
 let runtimeStartup:Promise<void>|null=null;
 let runtimeSetupFailed=false;
@@ -236,12 +240,15 @@ async function startApplication(): Promise<void> {
     // These empty parents contain only UUID-named leaves; Python creates each cookie/output leaf with native private ACLs.
     const outputRoot=path.join(app.getPath('userData'),'platform-collection-output');
     const outreachOutputRoot=path.join(app.getPath('userData'),'platform-outreach-output');
-    await Promise.all([loginConfiguration.profileRoot,loginConfiguration.outputRoot,outputRoot,outreachOutputRoot].map(p=>mkdir(p,{recursive:true})));
+    const sourceOutputRoot=path.join(app.getPath('userData'),'platform-source-output');
+    await Promise.all([loginConfiguration.profileRoot,loginConfiguration.outputRoot,outputRoot,outreachOutputRoot,sourceOutputRoot].map(p=>mkdir(p,{recursive:true})));
     if(quitting)return;
     platformConnection=createPlatformConnectionController({serviceOrigin:baseUrl,identity,
       store:profileStore,
       login:createPlatformLoginDriver(loginConfiguration)});
     foregroundCollection?.configureNativeRuntime({...loginConfiguration,outputRoot});
+    sourceView=createSourceViewController({serviceOrigin:baseUrl,identity,store:profileStore,
+      driver:createSourceViewDriver({...loginConfiguration,outputRoot:sourceOutputRoot})});
     nativeOutreach=createNativeOutreachController({serviceOrigin:baseUrl,identity,store:profileStore,vault,
       journal:createOutreachConsumptionJournal({directory:path.join(app.getPath('userData'),'outreach-consumption'),protection}),
       outbox:createOutreachResultOutbox({directory:path.join(app.getPath('userData'),'outreach-results'),protection}),
@@ -264,6 +271,9 @@ async function startApplication(): Promise<void> {
   ipcMain.handle(NATIVE_OUTREACH_CHANNEL,(event,command:unknown)=>{
     trustedSender(event);
     return nativeOutreach?nativeOutreach.execute(command):{state:'FAILED',error:'OUTREACH_FAILED'};
+  });
+  ipcMain.handle(SOURCE_VIEW_CHANNEL,(event,binding:unknown)=>{
+    trustedSender(event);return sourceView?sourceView.open(binding):{state:'FAILED',error:'SOURCE_VIEW_UNAVAILABLE'};
   });
   ipcMain.handle(NATIVE_REPLY_CHANNEL,(event,command:unknown)=>{
     trustedSender(event);
@@ -352,9 +362,9 @@ async function startApplication(): Promise<void> {
 
 app.on('before-quit', event => {
   quitting = true;
-  if((platformConnection || foregroundCollection || monitorCollection || nativeOutreach || nativeReplies || portableBootstrap) && !platformStopped) {
+  if((platformConnection || foregroundCollection || monitorCollection || nativeOutreach || nativeReplies || sourceView || portableBootstrap) && !platformStopped) {
     event.preventDefault();
-    if(!platformShutdown)platformShutdown=Promise.allSettled([monitorCollection?.shutdown(),platformConnection?.shutdown(),foregroundCollection?.shutdown(),nativeOutreach?.stop(),nativeReplies?.stop(),portableBootstrap?.stop(),runtimeStartup]).then(results=>{
+    if(!platformShutdown)platformShutdown=Promise.allSettled([monitorCollection?.shutdown(),platformConnection?.shutdown(),foregroundCollection?.shutdown(),nativeOutreach?.stop(),nativeReplies?.stop(),sourceView?.shutdown(),portableBootstrap?.stop(),runtimeStartup]).then(results=>{
       if(results.some(r=>r.status==='rejected'))throw new Error('PLATFORM_STOP_UNCONFIRMED');
       platformStopped=true;app.quit();
     }).catch(()=>{

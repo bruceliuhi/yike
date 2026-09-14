@@ -106,5 +106,6 @@ export interface YikeService {
   checkUpdate(): Promise<{ available: boolean; version?: string }>;
   info(): Promise<RuntimeInfo>;
   openExternal(url: string): Promise<void>;
+  openSourceView?(binding:import('../../shared/rawCandidateEvidence').ExpectedRawCandidateEvidence):Promise<import('../../shared/sourceView').SourceViewResult>;
   copy(text: string): Promise<void>;
 }

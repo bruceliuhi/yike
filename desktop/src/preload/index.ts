@@ -7,6 +7,8 @@ import {MONITOR_COLLECTION_CHANNEL,type MonitorCollectionCommand} from '../share
 import {NATIVE_OUTREACH_CHANNEL,type NativeOutreachCommand} from '../shared/nativeOutreach';
 import {NATIVE_REPLY_CHANNEL,type NativeReplyCommand} from '../shared/nativeReply';
 import {PORTABLE_RUNTIME_STATUS_CHANNEL} from '../shared/portableRuntime';
+import {SOURCE_VIEW_CHANNEL} from '../shared/sourceView';
+import type {ExpectedRawCandidateEvidence} from '../shared/rawCandidateEvidence';
 
 import {
   GET_RUNTIME_STATUS_CHANNEL,
@@ -34,6 +36,7 @@ const api: YikeDesktopApi = Object.freeze({
   nativeReplyCommand: (command: NativeReplyCommand) => ipcRenderer.invoke(NATIVE_REPLY_CHANNEL, command),
   requestApi: (request: ApiRequest) => ipcRenderer.invoke(REQUEST_API_CHANNEL, request),
   openExternal: (url: string) => ipcRenderer.invoke(OPEN_EXTERNAL_CHANNEL, url),
+  openSourceView:(binding:ExpectedRawCandidateEvidence)=>ipcRenderer.invoke(SOURCE_VIEW_CHANNEL,binding),
   copyText: (text: string) => ipcRenderer.invoke(COPY_TEXT_CHANNEL, text),
   saveExport: (request: ExportRequest) => ipcRenderer.invoke(SAVE_EXPORT_CHANNEL, request)
 });

@@ -43,10 +43,12 @@ function mount(
     assessmentUnknown?: boolean;
     wrongStrategy?: boolean;
     dynamic?: boolean;
+    xhs?: boolean;
   } = {},
 ) {
   vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-09-10T03:00:00Z"));
   const raw = rawEvidenceFixture();
+  if(options.xhs)raw.candidate.platform=raw.observations.items[0].platform='XIAOHONGSHU';
   if (options.dynamic) {
     Object.assign(raw.candidate, {kind:"PAGE",external_source_id:null,external_comment_id:null});
     const content = { ...raw.candidate.current_version, parent:null,author_public_id:null,
@@ -63,6 +65,7 @@ function mount(
   }
   const row: Candidate = {
     ...candidateFixture(),
+    ...(options.xhs?{platform:'XIAOHONGSHU',sourceLabel:'XIAOHONGSHU'}:{}),
     status: "PENDING_REVIEW",
     sourceStatus: "UNVERIFIED",
     url: raw.candidate.current_version.public_url,
@@ -211,6 +214,7 @@ function mount(
     ),
     reviewCandidate: vi.fn(),
     openExternal: vi.fn().mockResolvedValue(undefined),
+    openSourceView:vi.fn().mockResolvedValue({state:'OPENED' as const,sourceKind:'COMMENT' as const}),
   };
   window.history.replaceState(null, "", "#/candidates");
   render(
@@ -223,6 +227,15 @@ function mount(
 async function ready() {
   await screen.findByRole("combobox", { name: "候选目标业务画像" });
 }
+
+it('opens XHS in the bound source viewer and labels a parent-only comment view',async()=>{
+  const {service,transport,row}=mount({xhs:true});await ready();
+  fireEvent.click(screen.getByRole('button',{name:/查看原文/}));
+  await waitFor(()=>expect(service.openSourceView).toHaveBeenCalledWith({candidateId:row.id,candidateRevision:row.revision,sourceVersionId:row.sourceVersionId,profileId:row.profileId,strategyVersionId:row.strategyVersionId}));
+  expect(await screen.findByText('已打开所属原帖，未定位该评论')).toBeTruthy();
+  expect(service.openExternal).not.toHaveBeenCalled();
+  expect(transport.mock.calls.filter(call=>call[2]==='POST')).toHaveLength(0);
+});
 
 it("selects the bound profile and reads full original evidence without an implicit model call", async () => {
   const { transport, raw } = mount();
@@ -318,7 +331,7 @@ it("requires human source verification then snapshots its ID before a confirmed 
   await verify();
   fireEvent.click(screen.getByRole("button", { name: "确认入库" }));
   const dialog = screen.getByRole("dialog", { name: "确认候选入库" });
-  expect(dialog.textContent).toContain(verificationId);
+  expect(dialog.textContent).not.toContain(verificationId);
   fireEvent.click(within(dialog).getByRole("checkbox"));
   fireEvent.click(within(dialog).getByRole("button", { name: "确认入库" }));
   await screen.findByText("已确认入库。");
@@ -383,7 +396,7 @@ it("recovers a lost decision outside the current filter using only the original 
   const includeRecord =
     within(history).getByText(/确认入库 · 结果待确认/).parentElement!;
   fireEvent.click(
-    within(includeRecord).getByRole("button", { name: "核对原请求" }),
+    within(includeRecord).getByRole("button", { name: /^核对原请求/ }),
   );
   await screen.findByText(/原请求已核对成功/);
   expect(screen.queryByText(/本次结果尚未确定，请核对原请求/)).toBeNull();

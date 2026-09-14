@@ -20,6 +20,16 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("real client transport boundaries", () => {
+  it('opens source only through fixed bound desktop entry without raw errors or fallback',async()=>{
+    const openSourceView=vi.fn().mockResolvedValue({state:'OPENED',sourceKind:'COMMENT'});
+    host.yikeDesktop={openSourceView} as unknown as YikeDesktopApi;
+    expect(await service.openSourceView!(rawEvidenceBinding)).toEqual({state:'OPENED',sourceKind:'COMMENT'});
+    expect(openSourceView).toHaveBeenCalledWith(rawEvidenceBinding);
+    openSourceView.mockResolvedValue({state:'OPENED',sourceKind:'COMMENT',secret:'PRIVATE'});
+    await expect(service.openSourceView!(rawEvidenceBinding)).rejects.toThrow('暂时无法打开原文');
+    delete host.yikeDesktop;
+    await expect(service.openSourceView!(rawEvidenceBinding)).rejects.toThrow('请在最新版客户端中查看');
+  });
   it("reads original candidate evidence while the legacy implicit write entry stays disabled", async () => {
     const data = rawEvidenceFixture();
     const requestApi = vi.fn().mockResolvedValue({ok:true,status:200,data});

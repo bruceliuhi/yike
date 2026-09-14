@@ -943,6 +943,8 @@ function CandidateWorkbench() {
   const lock = useRef(false);
   const live = useRef(true);
   const [error, setError] = useState("");
+  const [sourceOpening,setSourceOpening]=useState(false);
+  const sourceOpeningLock=useRef(false);
   const [outcome, setOutcome] = useState<{
     message: string;
     opportunityId?: string;
@@ -1677,11 +1679,23 @@ function CandidateWorkbench() {
     }
   };
   const openSource = async (candidate: Candidate) => {
-    if (!candidate.url) return;
+    if (!candidate.url || sourceOpeningLock.current) return;
+    const scope=scopeRef.current;
+    sourceOpeningLock.current=true;setSourceOpening(true);
     try {
-      await service.openExternal(candidate.url);
+      if(candidate.platform==='XIAOHONGSHU' && !candidate.sample){
+        if(!service.openSourceView || !candidate.profileId || !candidate.strategyVersionId)throw new Error('请在最新版客户端中查看小红书原文。');
+        const result=await service.openSourceView({candidateId:candidate.id,candidateRevision:candidate.revision,
+          sourceVersionId:candidate.sourceVersionId,profileId:candidate.profileId,strategyVersionId:candidate.strategyVersionId});
+        if(!live.current || scopeRef.current!==scope)return;
+        if(result.state==='BUSY')throw new Error('平台正在使用中，请关闭原文窗口或等当前任务结束后再试。');
+        if(result.state==='FAILED')throw new Error(result.error==='SOURCE_STOP_FAILED'?'原文窗口尚未关闭，请关闭后重启客户端。':'暂时无法定位这条原文，可稍后重试。');
+        setOutcome({message:result.sourceKind==='COMMENT'?'已打开所属原帖，未定位该评论':'已打开原帖'});
+      }else await service.openExternal(candidate.url);
     } catch (e) {
-      setError(errorMessage(e));
+      if(live.current && scopeRef.current===scope)setError(errorMessage(e));
+    } finally {
+      sourceOpeningLock.current=false;if(live.current)setSourceOpening(false);
     }
   };
   const saveVerification = async (request: SourceVerificationRequest) => {
@@ -2116,7 +2130,7 @@ function CandidateWorkbench() {
                       )}
                       <Button
                         variant="ghost"
-                        disabled={!selected.url}
+                        disabled={!selected.url || sourceOpening}
                         onClick={() => void openSource(selected)}
                       >
                         查看原文 <ArrowSquareOut />

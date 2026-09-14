@@ -26,6 +26,7 @@ assert sys.flags.isolated == 1 and sys.flags.no_site == 1 and sys.dont_write_byt
 import app.windows_collection_host, app.windows_platform_login, app.windows_source_probe
 import app.platform_collection_worker, app.platform_login_worker, app.windows_process_job, app.collection_output
 import app.windows_platform_outreach, app.platform_outreach_worker
+import app.windows_source_view, app.source_view_worker, app.xhs_source_navigation
 import app.platform_outreach_runtime, app.xhs_comment_channel
 import app.windows_portable_install
 import pydantic, pydantic_core, idna

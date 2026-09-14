@@ -1,4 +1,6 @@
 import { ServiceError, type YikeService } from "./contracts";
+import {expectedRawCandidateEvidenceSchema} from '../../shared/rawCandidateEvidence';
+import {sourceViewResultSchema} from '../../shared/sourceView';
 import {profileSaveSchema, savedMaterialReferences} from '../../shared/profileMaterialReferences';
 import { desktopDeviceIdentity } from './deviceIdentity';
 import { desktopExecution } from './desktopExecution';
@@ -489,6 +491,12 @@ export const service: YikeService = {
         "请复制来源链接，在浏览器中打开。",
       );
     window.open(parsed.href, "_blank", "noopener,noreferrer");
+  },
+  openSourceView:async binding=>{
+    const desktop=bridge();
+    if(!desktop?.openSourceView)throw new ServiceError('SOURCE_VIEW_UNAVAILABLE','请在最新版客户端中查看小红书原文。');
+    try{return sourceViewResultSchema.parse(await desktop.openSourceView(expectedRawCandidateEvidenceSchema.parse(binding)));}
+    catch{throw new ServiceError('SOURCE_VIEW_UNAVAILABLE','暂时无法打开原文，请稍后重试。');}
   },
   copy: async (value) => {
     const desktop = bridge();
