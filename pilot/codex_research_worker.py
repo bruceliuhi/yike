@@ -261,7 +261,9 @@ def _command(root, *, codex_binary, python_binary, model, bridge, max_reads, max
         'model_providers.yike_domestic.stream_max_retries':0,
         'model_instructions_file':str(instructions), 'project_root_markers':[],
         'web_search':'disabled', 'approval_policy':'never',
-        'model_reasoning_effort':'minimal', 'model_supports_reasoning_summaries':False,
+        'model_reasoning_effort':('low' if controlled and search_enabled
+                                  and research_instructions is not None else 'minimal'),
+        'model_supports_reasoning_summaries':False,
         'shell_environment_policy.inherit':'none', 'features.skip_host_skill_discovery':True,
         'mcp_servers.yike_public.command':'/usr/bin/env',
         'mcp_servers.yike_public.args':(['-i'] + ([
