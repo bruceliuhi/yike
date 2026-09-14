@@ -77,7 +77,11 @@ def test_xhs_invalid_or_conflicting_identifiers_are_not_repaired(tmp_path, side,
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='actual Windows Job fixture')
-def test_xhs_driver_real_fixture_process_and_formal_mapper(source, monkeypatch):
+@pytest.mark.parametrize('with_comment,terminal,valid', [
+    (True, 'SUCCEEDED', True), (False, 'SUCCEEDED_NO_DATA', True),
+    (True, 'SUCCEEDED_NO_DATA', False), (False, 'SUCCEEDED', False),
+])
+def test_xhs_driver_real_fixture_process_and_formal_mapper(source, monkeypatch, with_comment, terminal, valid):
     from app.collector import run_supervised_process
     content, comment = raw()
     script = '''import json, os, sys
@@ -89,13 +93,23 @@ leaf = output / 'xhs/jsonl'
 leaf.mkdir(parents=True)
 def write(path, data): path.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
 '''
-    script += f"write(leaf / 'search_contents_1.jsonl', {content!r})\nwrite(leaf / 'search_comments_1.jsonl', {comment!r})\n"
-    script += "write(output / '.yike-collection-status.json', dict(schema_version='YIKE_MEDIACRAWLER_STATUS_V1', platform='xhs', status='SUCCEEDED', error_code=None))\n"
+    script += f"write(leaf / 'search_contents_1.jsonl', {content!r})\n"
+    if with_comment:
+        script += f"write(leaf / 'search_comments_1.jsonl', {comment!r})\n"
+    # The pinned XHS producer's terminal reports comment presence, not posts.
+    script += f"write(output / '.yike-collection-status.json', dict(schema_version='YIKE_MEDIACRAWLER_STATUS_V1', platform='xhs', status={terminal!r}, error_code=None))\n"
     script += "write(output / '.yike-collection-progress.json', dict(schema_version='YIKE_MEDIACRAWLER_PROGRESS_V1', platform='xhs', state='RUNNING', sequence=1))\n"
     (source.args['runtime_path'] / 'main.py').write_text(script, encoding='utf-8')
     monkeypatch.setattr(source.api, 'run_supervised_process', run_supervised_process)
+    if not valid:
+        with pytest.raises(source.api.WindowsSourceError, match='source_collection_failed'):
+            source.api.collect_windows_source(**(source.args | {'platform': 'XIAOHONGSHU'}))
+        return
     result = source.api.collect_windows_source(**(source.args | {'platform': 'XIAOHONGSHU'}))
     assert result['state'] == 'COLLECTED' and result['task_completed'] is False
-    original, reply = mapped(result['records']).records
+    records = mapped(result['records']).records
+    original = records[0]
     assert original.kind == 'POST' and original.body == content['desc']
-    assert reply.kind == 'COMMENT' and reply.body == BODY
+    assert len(records) == 1 + int(with_comment)
+    if with_comment:
+        assert records[1].kind == 'COMMENT' and records[1].body == BODY

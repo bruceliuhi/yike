@@ -241,7 +241,10 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
                 raise ValueError()
             records = (read_collection_output(output_path, platform, max_records) if mode == 'search' else
                 read_collection_output(output_path, platform, max_records, collection_mode=mode))
-            if bool(records) != (pair[0] == 'SUCCEEDED'):
+            # The pinned XHS main.py reports comment presence, even when real
+            # posts exist. Validate that producer contract without dropping posts.
+            terminal_has_data = any('comment' in row for row in records) if platform == 'XIAOHONGSHU' else bool(records)
+            if terminal_has_data != (pair[0] == 'SUCCEEDED'):
                 raise ValueError()
             if stopped := interrupted():
                 return stopped
