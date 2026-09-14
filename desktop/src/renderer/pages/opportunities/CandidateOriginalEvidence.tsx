@@ -1,5 +1,6 @@
 import React, { type ReactNode } from "react";
 import type { RawCandidateEvidenceDto } from "../../../shared/rawCandidateEvidence";
+import { formatDate } from "../../components/ui";
 import "./candidateEvidence.css";
 
 type Candidate = RawCandidateEvidenceDto["candidate"];
@@ -24,7 +25,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function EvidenceTime({ value }: { value: string | null }) {
-  return value === null ? <>未知</> : <time dateTime={value}>{value}</time>;
+  return value === null ? <>未知</> : <time dateTime={value}>{formatDate(value)}</time>;
 }
 
 function OriginalContent({
@@ -137,17 +138,22 @@ export function CandidateOriginalEvidence({
           <Fact label="来源类型">
             {kindLabels[candidate.kind]}
           </Fact>
-          <Fact label="采集端观察时间">
-            <EvidenceTime value={candidate.latest_observed_at} />
-          </Fact>
-          <Fact label="服务器接收时间">
-            {currentObservation ? (
-              <EvidenceTime value={currentObservation.received_at} />
-            ) : (
-              "当前观察记录不在已返回历史中，未知"
-            )}
-          </Fact>
         </dl>
+        <details className="candidate-evidence-details">
+          <summary>采集详情</summary>
+          <dl className="candidate-evidence-facts">
+            <Fact label="采集端观察时间">
+              <EvidenceTime value={candidate.latest_observed_at} />
+            </Fact>
+            <Fact label="服务器接收时间">
+              {currentObservation ? (
+                <EvidenceTime value={currentObservation.received_at} />
+              ) : (
+                "当前观察记录不在已返回历史中，未知"
+              )}
+            </Fact>
+          </dl>
+        </details>
       </section>
       {observations.truncated ? (
         <p className="candidate-evidence-warning">

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { CandidateOriginalEvidence } from "../../src/renderer/pages/opportunities/CandidateOriginalEvidence";
+import { formatDate } from "../../src/renderer/components/ui";
 import { CandidateAssessmentDetails } from "../../src/renderer/pages/opportunities/CandidateAssessmentDetails";
 import { parseRawCandidateEvidence } from "../../src/shared/rawCandidateEvidence";
 import { parseCandidateReviewResult } from "../../src/shared/candidateReviewApi";
@@ -42,6 +43,18 @@ function assessment() {
 }
 
 describe("candidate original evidence", () => {
+  it("shows a readable source publication date while preserving its raw datetime", () => {
+    const raw = rawEvidenceFixture();
+    const publishedAt = "2026-09-09T04:05:06Z";
+    raw.candidate.current_version.published_at = publishedAt;
+    raw.observations.items[0].content.published_at = publishedAt;
+    render(<CandidateOriginalEvidence evidence={parseRawCandidateEvidence(raw, rawEvidenceBinding)} />);
+    const current = within(screen.getByRole("region", { name: "当前原文" }));
+    expect(current.getByText(formatDate(publishedAt))).toBeVisible();
+    expect(current.getByText(formatDate(publishedAt))).toHaveAttribute("datetime", publishedAt);
+    expect(current.queryByText(publishedAt)).toBeNull();
+  });
+
   it("renders full own original text verbatim and escapes malicious markup", () => {
     const raw = rawEvidenceFixture();
     raw.candidate.current_version.body += "x".repeat(1200);
@@ -56,15 +69,27 @@ describe("candidate original evidence", () => {
     expect(container.querySelector("textarea, input, a")).toBeNull();
   });
 
-  it("removes source version metadata while keeping original evidence and timestamps visible", () => {
+  it("keeps original evidence visible while collection timestamps default to closed details", () => {
     const raw = rawEvidenceFixture();
     render(<CandidateOriginalEvidence evidence={parseRawCandidateEvidence(raw, rawEvidenceBinding)} />);
     const current = within(screen.getByRole("region", { name: "当前原文" }));
     expect(current.queryByText("查看来源记录详情")).toBeNull();
     expect(screen.queryByText(raw.candidate.current_version.content_version)).toBeNull();
     expect(current.getByText("评论作者🙂")).toBeVisible();
+    expect(current.getByLabelText("评论原文")).toBeVisible();
+    expect(screen.getByText(/采集留存原文，尚未完成人工来源核验/)).toBeVisible();
+    expect(current.getByText("采集端观察时间")).not.toBeVisible();
+    expect(current.getByText("服务器接收时间")).not.toBeVisible();
+    const summary = current.getByText("采集详情");
+    expect(summary.closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(summary);
     expect(current.getByText("采集端观察时间")).toBeVisible();
     expect(current.getByText("服务器接收时间")).toBeVisible();
+    for (const value of [raw.candidate.latest_observed_at, raw.observations.items[0].received_at]) {
+      expect(current.getByText(formatDate(value))).toBeVisible();
+      expect(current.getByText(formatDate(value))).toHaveAttribute("datetime", value);
+      expect(current.queryByText(value)).toBeNull();
+    }
     expect(current.queryByText("候选修订")).toBeNull();
   });
 
@@ -76,8 +101,10 @@ describe("candidate original evidence", () => {
     const current = within(screen.getByRole("region", { name: "当前原文" }));
     expect(current.getByText("来源发布时间").nextElementSibling).toHaveTextContent("未知");
     expect(current.getByText("评论公开作者").nextElementSibling).toHaveTextContent("未知");
-    expect(current.getByText("采集端观察时间").nextElementSibling).toHaveTextContent(raw.candidate.latest_observed_at);
-    expect(current.getByText("服务器接收时间").nextElementSibling).toHaveTextContent(raw.observations.items[0].received_at);
+    expect(current.getByText("来源发布时间").nextElementSibling?.querySelector("time")).toBeNull();
+    fireEvent.click(current.getByText("采集详情"));
+    expect(current.getByText("采集端观察时间").nextElementSibling).toHaveTextContent(formatDate(raw.candidate.latest_observed_at));
+    expect(current.getByText("服务器接收时间").nextElementSibling).toHaveTextContent(formatDate(raw.observations.items[0].received_at));
   });
 
   it("separates container title and parent comment author/body/publication from the current speaker", () => {
@@ -89,7 +116,9 @@ describe("candidate original evidence", () => {
     const parent = current.getByRole("region", { name: "父评论上下文" });
     expect(within(parent).getByLabelText("父评论原文").textContent).toBe(raw.candidate.current_version.parent?.body);
     expect(within(parent).getByText("父评论公开作者").nextElementSibling).toHaveTextContent("父评论作者");
-    expect(within(parent).getByText("父评论发布时间").nextElementSibling).toHaveTextContent("2026-09-09T00:00:00Z");
+    const published = within(parent).getByText(formatDate("2026-09-09T00:00:00Z"));
+    expect(published).toBeVisible();
+    expect(published).toHaveAttribute("datetime", "2026-09-09T00:00:00Z");
   });
 
   it("shows each historical observation with its own content, version and times", () => {
@@ -105,11 +134,16 @@ describe("candidate original evidence", () => {
     raw.observations.items.push(old);
     raw.observations.total = 2;
     render(<CandidateOriginalEvidence evidence={parseRawCandidateEvidence(raw, rawEvidenceBinding)} />);
+    expect(screen.getByText("观察历史（2 / 2）").closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByText(old.content.body, { normalizer: text => text })).not.toBeVisible();
     fireEvent.click(screen.getByText("观察历史（2 / 2）"));
     const record = within(screen.getByRole("article", { name: "观察记录 2" }));
     expect(record.getByLabelText("评论原文").textContent).toBe(old.content.body);
-    for (const value of [old.observed_at, old.received_at, "旧作者"]) {
-      expect(record.getByText(value)).toBeVisible();
+    expect(record.getByText("旧作者")).toBeVisible();
+    for (const value of [old.observed_at, old.received_at]) {
+      expect(record.getByText(formatDate(value))).toBeVisible();
+      expect(record.getByText(formatDate(value))).toHaveAttribute("datetime", value);
+      expect(record.queryByText(value)).toBeNull();
     }
     expect(record.queryByText(raw.candidate.current_version.version_id)).not.toBeInTheDocument();
     expect(screen.queryByText("候选修订")).toBeNull();
