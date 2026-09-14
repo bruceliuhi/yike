@@ -2,6 +2,8 @@
 
 ## 当前交付：邀请试用真实闭环（2026-09-13用户明确调整Goal）
 
+2026-09-14 官网下载交付：`https://www.tuokexing.net/download/` 已接 Windows `42d8402` EXE 与 macOS Apple 芯片 `0.2.0-9bd2c00` ZIP 直接下载，注明试用版和 Mac 架构；按钮支持窄屏换行，CSS/JS 缓存版本 `20260914-downloads1`。定向测试 2/2、独立差量审核 PASS，线上页面引用与两个安装包 HTTP 200 已核实。静态发布目录 `releases/downloads-20260914-1`；下载文件仍链接保留在旧发布目录 `6959d50766aa92d96f65ba704acd35bf46fd33f0/downloads`，不可作为过期页面目录删除。仅官网入口交付，不代表 Mac 实装或完整产品验收通过。
+
 2026-09-14 普通采集取消实机缺口：05e6411实装“验收-原帖入库-9bd2c00”仍RUNNING；UI查询本机返回INTERRUPTED、stopConfirmed=false。通过现有确认弹窗仅取消一次后，服务端变CANCELLING，继续执行按钮禁用，未重启采集或删除记录。根因定位：`pilot/execution_runtime.py` CANCEL仅在各平台已SUCCEEDED或generation=0时确认停止；已CLAIM平台进入CANCELLING，当前普通执行合同缺少物理停止回执收口。`foregroundCollectionController.cancel`只对当前active worker发停止，历史任务无active时不能凭本机记录缺失声明物理已停。下一批补受设备/任务/执行代次绑定的停止确认与持久回执恢复；不能以时限已过或进程记录缺失伪造stop_confirmed，不重采旧任务。另实机触达中心暂无真实客户商机、只有只读样例，算法合作候选仍待原文核验，未冒充完成复制/反馈闭环。
 
 2026-09-14 服务端物理回收补证：在已部署broker镜像`sha256:bb8350f4e66a3b9e744e1ef244f5ee8f43609b97fb1b937b314079700569001b`内调用实际TaskContainerBroker，使用独立临时ledger和两个同镜像、无网络/只读/UID10001/64MB/PID32/无挂载的sleep测试容器；不读取客户ledger、不调用模型、不重启生产服务。运行`40b80a7f-8db8-4536-b70c-029193e0234a`：3秒期限的watchdog在3.78秒内确认物理STOPPED及terminal；重建已started残留状态由新broker在0.10秒确认停止。两例重复create均保持STOPPED、StartedAt不变、RestartCount为0。仅按本次唯一标签和精确容器ID核对后删除两个测试容器，标签查询无残留；生产app/broker容器ID与检查前一致且运行中，公网readyz200。此证据覆盖真实Docker进程超时/残留状态接管与不重建，不冒充生产崩溃注入、正式入口全链或客户价值通过。客户端仍复用05e6411安装包；原文核验→入库→复制→反馈和三业务价值验收仍未完成，Goal ACTIVE。
