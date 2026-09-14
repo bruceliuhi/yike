@@ -53,6 +53,17 @@ def test_xhs_exact_raw_evidence_reaches_formal_mapper(tmp_path):
     assert item.external_source_id == NOTE and item.external_comment_id == COMMENT
 
 
+@pytest.mark.parametrize('title', ['', ' \t '])
+def test_xhs_blank_title_keeps_post_and_comment_evidence(tmp_path, title):
+    content, comment = raw()
+    content['title'] = title
+    write(tmp_path, content, comment)
+    records = mapped(read_collection_output(tmp_path, 'XIAOHONGSHU', 2)).records
+    assert [record.title for record in records] == [None, None]
+    assert [record.body for record in records] == [content['desc'], BODY]
+    assert content['title'] == title
+
+
 @pytest.mark.parametrize('field', ['comment_id', 'id'])
 def test_xhs_comment_alias_and_parent_evidence_preserved(tmp_path, field):
     content, comment = raw()

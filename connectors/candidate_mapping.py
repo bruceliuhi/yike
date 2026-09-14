@@ -91,6 +91,12 @@ def _author(comment: Mapping[str, Any], names: tuple[str, ...]) -> str | None:
     return values[0] if values else None
 
 
+def _xhs_title(content: Mapping[str, Any]) -> object:
+    title = _title(content)
+    # XHS uses an empty string for an untitled note; retain its body separately.
+    return None if isinstance(title, str) and not title.strip() else title
+
+
 def _checked_url(value: object, expected: str) -> str:
     # Exact established URL shapes also exclude credentials, tracking, controls,
     # alternate origins and mismatched targets. Never clean a provided URL.
@@ -132,7 +138,7 @@ def _xhs_post_record(content: object, collector_version: str, query: str | None)
     url = f'https://www.xiaohongshu.com/explore/{source_id}'
     if content.get('note_url') is not None:
         _checked_url(content['note_url'], url)
-    title = _title(content)
+    title = _xhs_title(content)
     body = content.get('desc')
     if body is None or (isinstance(body, str) and not body.strip()):
         body = title  # Original title-only source, never a generated summary.
@@ -243,7 +249,7 @@ def _record(platform: str, raw: object, collector_version: str, query: str | Non
         "external_source_id": source_id,
         "external_comment_id": comment_id,
         "public_url": public_url,
-        "title": _title(content),
+        "title": _xhs_title(content) if platform == "XIAOHONGSHU" else _title(content),
         "author_public_id": _author(comment, author_fields),
         "body": _aliases(comment, body_fields),
         "published_at": published_at,
