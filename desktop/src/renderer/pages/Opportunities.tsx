@@ -1683,7 +1683,7 @@ function CandidateWorkbench() {
     const scope=scopeRef.current;
     sourceOpeningLock.current=true;setSourceOpening(true);
     try {
-      if(candidate.platform==='XIAOHONGSHU' && !candidate.sample){
+      if((candidate.platform==='XIAOHONGSHU' || candidate.platform===CANDIDATE_PLATFORM_LABELS.XIAOHONGSHU) && !candidate.sample){
         if(!service.openSourceView || !candidate.profileId || !candidate.strategyVersionId)throw new Error('请在最新版客户端中查看小红书原文。');
         const result=await service.openSourceView({candidateId:candidate.id,candidateRevision:candidate.revision,
           sourceVersionId:candidate.sourceVersionId,profileId:candidate.profileId,strategyVersionId:candidate.strategyVersionId});

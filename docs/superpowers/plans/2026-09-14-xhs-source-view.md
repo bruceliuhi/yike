@@ -51,3 +51,11 @@
 审核发现并修正：安装包固定HOST_FILES及host import probe补入3个Python模块，新增清单测试RED→GREEN 1通过；明确未启动的锁忙映射XHS_SOURCE_BUSY，不当成未知清理而锁死退出，其他未知清理仍拒绝重启。离线替身与清单检查不代表实际平台可读；下一步冻结本批、一次构包、用真实客户端点击同一原帖验证。
 
 最终独立Spec/Quality GO（仅实现合入）：host `d7eae15dda037a735f5b7ac4196d7b47d55d55e2`，worker `5ffcd8fa0d744b4e85e783965a91662e7daf98ca`，controller `a558204e803768d68ec83313e36a8e614ae54f5e`，driver `8a2297f0a8f42faa776b4d6f68585cc2514458d6`，main `554fd62846195f653ff4703e929314be873492b5`，UI `fb807ec085733d72d3e1e72a5f8dfddaaecdf326`。两项阻断均已差量复核，无剩余P1/P2；不追认实际平台可读或产品上线。
+
+## 6b31309 实装与实际失败（2026-09-14 10:33–10:40）
+
+固定源码 `6b31309deb42e58c7446df31ac36765aa77b3efd`，658项桌面输入前后hash `d7a4a053f238b0ed7fc22b80bcb3d04d4a1e2153c31b15a6b34693b98c4617f3`；隔离portable检查1通过/120.89秒，Forge退出0。`D:/ykr914/make/squirrel.windows/x64/YikeAI-Setup.exe`，642865152字节，SHA256 `2724591a0ba2e2d809eff3d57a38f217e1e1e38fb40366542bee16b72b295ad5`，NotSigned。portable manifest `b595be1be8520bf4c578cc74536972ce785b656add9ac5b94787e88d36fa1ed8`；40个renderer文件及main HTTPS/pin对包一致，安装退出0，实际ASAR `142f37eff4951632f73539634e4972a5bfb3ce15eb89beb30852ec29f4e05518` 与候选一致。旧版正常退出，未删会话/线索；新UI保留登录、小红书已连接及原任务9/10已完成。服务ready返回ready，本批无服务部署。
+
+10:38:20通过真实客户端原任务选择 `6aa6534e000000002902df7a` 点击“查看原文”，实际仍激活旧Chrome 404页，没有新source输出目录项，不是修复通过。根因：真实 `client.candidates` 将平台枚举转换为“小红书”显示标签，而新按钮只比较XIAOHONGSHU；原测试直接api.list绕过了这层转换。
+
+差量：分支同时识别枚举与既有显示标签，不放宽主进程真实候选/平台校验；XHS测试改走真实base.candidates及模拟固定bridge。有效RED1失败（新查看调用0），修正后本文件17通过，typecheck通过。独立差量Spec/Quality GO，UI blob `0a3fcc0293abb3c8bc69e2260dbb808fb5ba05ba`、测试 `ba616b477121e94f1b44e81dfa43b8ad2167dc97`。未新增采集/判断/发送/核验记录。原帖可访问性仍未通过，下一步构建并实装修正版本；6b31309不能标为原文查看可用。当前构包合同要求payload source commit等于桌面HEAD，故不直接复用旧manifest或伪造版本。

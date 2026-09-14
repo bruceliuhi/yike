@@ -27,6 +27,7 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   vi.restoreAllMocks();
+  Reflect.deleteProperty(window,'yikeDesktop');
   window.history.replaceState(null, "", "/");
 });
 function mount(
@@ -187,11 +188,14 @@ function mount(
     },
   );
   const api = createCandidateReviewService(transport);
+  if(options.xhs)Object.defineProperty(window,'yikeDesktop',{configurable:true,value:{
+    requestApi:async(input:{operation:string;payload:unknown})=>({ok:true,status:200,data:await transport(input.operation,'/candidates','GET',input.payload)}),
+  }});
   const service = {
     ...base,
     candidateReview: api,
     rawCandidateEvidence: api.getRawEvidence,
-    candidates: api.list,
+    candidates: options.xhs?base.candidates:api.list,
     session: vi
       .fn()
       .mockResolvedValue({ authenticated: true, userId: "TEST-live-user" }),
