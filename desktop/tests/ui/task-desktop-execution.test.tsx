@@ -79,10 +79,17 @@ describe('original TaskWizard signed execution entry', () => {
     await waitFor(() => expect(start.disabled).toBe(false));
     fireEvent.click(start);
     await waitFor(() => expect(execute.mock.calls.filter(([command]) => command.action === 'START')).toHaveLength(1));
-    if (state === 'RECORDED') await waitFor(() => expect(context.navigate).toHaveBeenCalledWith(`/collection?task=${taskId}`));
+    if (state === 'RECORDED') {
+      await waitFor(() => expect(context.navigate).toHaveBeenCalledWith(`/collection?task=${taskId}`));
+      const next = JSON.parse(sessionStorage.getItem('yike.ui.draft.v1.task.' + context.session.userId)!);
+      expect(next.id).not.toBe(draft.id);
+      expect(next.name).toBe('');
+      expect(next.research).toEqual(defaultResearchSettings());
+    }
     else {
       await screen.findByRole('button', {name: '查询原执行请求'});
       expect(context.navigate).not.toHaveBeenCalled();
+      expect(JSON.parse(sessionStorage.getItem('yike.ui.draft.v1.task.' + context.session.userId)!).id).toBe(draft.id);
     }
   });
   it('shows bounded public scope and refuses a changed device after explicit confirmation',async()=>{

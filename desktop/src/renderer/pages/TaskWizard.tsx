@@ -25,6 +25,7 @@ import {
 import { TermEditor } from "../components/TermEditor";
 import {
   PLATFORMS,
+  newTaskDraft,
   type Suggestion,
   type TaskDraft,
   type TaskRun,
@@ -59,7 +60,7 @@ import { desktopStartCommand, useDesktopExecution } from "./tasks/useDesktopExec
 import { DesktopExecutionRequests } from "./tasks/DesktopExecutionRequests";
 import { DemandSettings, ResearchSettingsPanel } from "./tasks/ResearchSettings";
 import { useUsageQuote } from "./tasks/useUsageQuote";
-import { parseUsageQuote, usageQuoteCurrent, usageQuoteRequest, usageReservation } from "../domain/researchUsage";
+import { defaultResearchSettings, parseUsageQuote, usageQuoteCurrent, usageQuoteRequest, usageReservation } from "../domain/researchUsage";
 import { scheduleContractBlocker, scheduleWindowLabel } from "../domain/schedule";
 import {taskAccountLabel, scheduleRegionLabel} from './tasks/taskDisplayLabels';
 import {useMonitorCollection} from './tasks/useMonitorCollection';
@@ -492,7 +493,10 @@ export function TaskWizardPage() {
           return;
         }
         await desktopExecution.start(await validateDesktopStart(crypto.randomUUID()), receipt => {
-          if (startScope.current()) navigate(`/collection?task=${receipt.task_id}`);
+          if (!startScope.current()) return;
+          setLibrary(old => old.filter(item => item.id !== draft.id));
+          setDraft({...newTaskDraft('once'), research: defaultResearchSettings()});
+          navigate(`/collection?task=${receipt.task_id}`);
         });
         return;
       }
