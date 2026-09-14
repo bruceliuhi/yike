@@ -23,7 +23,7 @@ export function ContactMaterialQuotes({row,draft,onChange,disabled}:{row:Opportu
   .flatMap(m=>Array.from(new Set(m.extraction!.evidence.map(e=>e.quote))).map(quote=>({name:m.name,ref:{sourceProfileVersionId:m.profileVersionId,
    materialId:m.id,materialVersion:m.version,extractionId:m.extraction!.id,quote}}))):[];
  return <details className="contact-routing"><summary>引用业务资料{refs.length?` · ${refs.length}段`:''}</summary>
-  <p className="field-hint">仅选用本人已确认、允许对外引用的原文；保存及发送前再次核验，历史记录不代表当前仍获授权。</p>
+  <p className="field-hint">请选择允许对外引用的资料。</p>
   {refs.map((ref,index)=><div key={JSON.stringify(ref)}><p>{resource.data?.find(material=>material.id===ref.materialId)?.name || `已选资料 ${index+1}`}</p><blockquote>{ref.quote}</blockquote>
    {!draft.content.includes(ref.quote)&&<Notice tone="warning">引用片段已被编辑，请重新选用或移除引用。</Notice>}
    <Button disabled={disabled} onClick={()=>onChange({content:draft.content.split(ref.quote).join(''),materialReferences:refs.filter((_,i)=>i!==index)})}>移除引用片段</Button></div>)}

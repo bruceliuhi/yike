@@ -251,7 +251,7 @@ function OpportunityList() {
         {service.opportunityResearch && !hasResearchScope(session.accountScope)
           ? "当前账户空间尚未核验，需求分类与观察服务暂不可用。"
           : "需求分类与观察服务尚未接通。"}
-        以下保留已有客户商机，处理状态与采购阶段不代表需求分类。
+        已有商机仍可查看。
       </Notice>
       <div className="filter-bar">
         <div className="search-input">
@@ -1917,7 +1917,7 @@ function CandidateWorkbench() {
                 </Button>
               }
             >
-              其他任务或当前筛选外的原请求仍已保留，请前往全部线索核对。
+              其他线索有处理记录，可前往全部线索查看。
             </Notice>
           )}
           {!sample && requests.error && (
@@ -2184,7 +2184,7 @@ function CandidateWorkbench() {
                             } as Record<string, string>
                           )[selected.sourceStatus]
                         }
-                        ，暂不能确认入库。打开链接不会自动解除此限制。
+                        ，请核对来源后再确认入库。
                       </Notice>
                     )}
                     {sample ? (

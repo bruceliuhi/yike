@@ -106,8 +106,8 @@ function checkbox(): HTMLInputElement {
   return screen.getByRole("checkbox", { name: CHECKBOX }) as HTMLInputElement;
 }
 async function prepareSnapshot() {
-  await waitFor(() => expect(button("准备策略快照").disabled).toBe(false));
-  fireEvent.click(button("准备策略快照"));
+  await waitFor(() => expect(button("预览搜索设置").disabled).toBe(false));
+  fireEvent.click(button("预览搜索设置"));
   await waitFor(() => expect(fake.api.prepare).toHaveBeenCalledOnce());
   await waitFor(() => expect(fake.api.getStrategy).toHaveBeenCalled());
   const receipt = fake.receipts.get(fake.api.prepare.mock.calls[0][0].request_id)!;
@@ -207,7 +207,7 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
     render(<StrictMode><TaskWizardPage /></StrictMode>);
     await waitFor(() => expect(context.service.profiles).toHaveBeenCalled());
     expect(fake.api.prepare).not.toHaveBeenCalled();
-    expect(button("准备策略快照")).toBeTruthy();
+    expect(button("预览搜索设置")).toBeTruthy();
     expect(checkbox().disabled).toBe(true);
     fireEvent.click(checkbox());
     expect(button("确认并启动").disabled).toBe(true);
@@ -261,9 +261,9 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
     if (failure === "501") fake.api.prepare.mockRejectedValueOnce(new ServiceError("NOT_IMPLEMENTED", "策略服务尚未启用", 501));
     else context.service.researchStrategies = {} as ResearchStrategiesService;
     render(<TaskWizardPage />);
-    await waitFor(() => expect(button("准备策略快照").disabled).toBe(false));
-    fireEvent.click(button("准备策略快照"));
-    await waitFor(() => expect(button("核对并重试原策略请求").disabled).toBe(false));
+    await waitFor(() => expect(button("预览搜索设置").disabled).toBe(false));
+    fireEvent.click(button("预览搜索设置"));
+    await waitFor(() => expect(button("检查并继续确认").disabled).toBe(false));
     if (failure === "501") expect(screen.getByText("策略服务尚未启用")).toBeTruthy();
     fireEvent.click(checkbox());
     expect(button("确认并启动").disabled).toBe(true);
@@ -279,12 +279,12 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
       throw new ServiceError("SERVICE_TIMEOUT", "策略响应丢失");
     });
     render(<TaskWizardPage />);
-    await waitFor(() => expect(button("准备策略快照").disabled).toBe(false));
-    fireEvent.click(button("准备策略快照"));
+    await waitFor(() => expect(button("预览搜索设置").disabled).toBe(false));
+    fireEvent.click(button("预览搜索设置"));
     await screen.findByText("策略响应丢失");
     expect(button("确认并启动").disabled).toBe(true);
     const original = fake.api.prepare.mock.calls[0][0];
-    fireEvent.click(button("查询原策略请求"));
+    fireEvent.click(button("查看确认结果"));
     await waitFor(() => expect(fake.api.getReceipt).toHaveBeenCalledWith(original.request_id));
     await screen.findByText('完整任务配置');
     expect(fake.api.prepare).toHaveBeenCalledOnce();
@@ -296,11 +296,11 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
   it("retries an unknown prepare only after querying 404 and keeps its exact request UUID", async () => {
     fake.api.prepare.mockRejectedValueOnce(new ServiceError("SERVICE_TIMEOUT", "准备超时"));
     render(<TaskWizardPage />);
-    await waitFor(() => expect(button("准备策略快照").disabled).toBe(false));
-    fireEvent.click(button("准备策略快照"));
+    await waitFor(() => expect(button("预览搜索设置").disabled).toBe(false));
+    fireEvent.click(button("预览搜索设置"));
     await screen.findByText("准备超时");
     const original = structuredClone(fake.api.prepare.mock.calls[0][0]);
-    fireEvent.click(button("核对并重试原策略请求"));
+    fireEvent.click(button("检查并继续确认"));
     await waitFor(() => expect(fake.api.prepare).toHaveBeenCalledTimes(2));
     expect(fake.api.getReceipt).toHaveBeenCalledWith(original.request_id);
     expect(fake.api.getReceipt.mock.invocationCallOrder[0]).toBeLessThan(fake.api.prepare.mock.invocationCallOrder[1]);
@@ -316,9 +316,9 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
     render(<TaskWizardPage />);
     expect(checkbox().checked).toBe(false);
     expect(button("确认并启动").disabled).toBe(true);
-    fireEvent.click(button("查询原策略请求"));
+    fireEvent.click(button("查看确认结果"));
     await waitFor(() => expect(fake.api.getReceipt).toHaveBeenCalled());
-    await waitFor(() => expect(button("查询原策略请求").disabled).toBe(false));
+    await waitFor(() => expect(button("查看确认结果").disabled).toBe(false));
     expect(checkbox().checked).toBe(false);
     expect(button("确认并启动").disabled).toBe(true);
     expect(fake.api.confirm).toHaveBeenCalledOnce();
@@ -344,7 +344,7 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
     expect(button("确认本次策略").disabled).toBe(true);
     expect(button("确认并启动").disabled).toBe(true);
     expect(fake.api.prepare).toHaveBeenCalledOnce();
-    fireEvent.click(button("准备策略快照"));
+    fireEvent.click(button("预览搜索设置"));
     await waitFor(() => expect(fake.api.prepare).toHaveBeenCalledTimes(2));
     const updated = fake.api.prepare.mock.calls[1][0];
     expect(updated.draft_revision).toBe(draft.revision + 1);
@@ -387,7 +387,7 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
     expect(checkbox().checked).toBe(false);
     expect(screen.queryByText("本次策略已确认")).toBeNull();
     expect(button("确认本次策略").disabled).toBe(true);
-    fireEvent.click(button("准备策略快照"));
+    fireEvent.click(button("预览搜索设置"));
     await waitFor(() => expect(fake.api.prepare).toHaveBeenCalledTimes(2));
     const nextRequest = fake.api.prepare.mock.calls[1][0];
     expect(nextRequest).toMatchObject({ draft_id: original.id, draft_revision: original.revision + 1,
@@ -416,9 +416,9 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
     await screen.findByText("撤销响应丢失");
     expect(button("确认并启动").disabled).toBe(true);
     const request = fake.api.revoke.mock.calls[0][0];
-    fireEvent.click(button("查询原策略请求"));
+    fireEvent.click(button("查看确认结果"));
     await waitFor(() => expect(fake.api.getReceipt).toHaveBeenCalledWith(request.request_id));
-    await waitFor(() => expect(button("查询原策略请求").disabled).toBe(false));
+    await waitFor(() => expect(button("查看确认结果").disabled).toBe(false));
     expect(button("确认并启动").disabled).toBe(true);
     expect(button("确认本次策略").disabled).toBe(true);
     expect(fake.api.revoke).toHaveBeenCalledOnce();

@@ -42,7 +42,7 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
         if(['COMPLETED','CANCELED'].includes(next.phase))callback.current?.();
         if(next.phase==='RUNNING')timer=setTimeout(poll,2000);
       }catch{
-        if(!abort.signal.aborted&&scope.current())setMessage('自动查询暂时中断，请查询原研究状态；不会重新启动任务。');
+        if(!abort.signal.aborted&&scope.current())setMessage('进度更新暂时中断，请刷新进度。');
       }
     }
     timer=setTimeout(poll,2000);
@@ -76,12 +76,12 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
         }));
         if(!current())return;
         data.setData(value);
-        if(progressKey(value)===previous){setMessage('暂未取得新进度，本轮已停下。请稍后查询原任务，不会循环重试。');break;}
+        if(progressKey(value)===previous){setMessage('暂未取得新进度，请稍后刷新进度。');break;}
       }
       if(current() && ['COMPLETED','CANCELED'].includes(value.phase))callback.current?.();
     } catch {
       if(!scope.current())return;
-      setMessage('本轮推进未确认，已停止继续调用。查询原任务不会重发来源或模型请求。');
+      setMessage('研究进度暂未确认，请稍后刷新进度。');
       data.setData(undefined);
       // A timeout is not a refund, cancellation, or proof that nothing happened.
       try {const value=await boundedRequest(read,{timeoutMessage:'原研究状态仍未核实。'});if(scope.current())data.setData(value);} catch { /* Retain last confirmed state; explicit refresh remains available. */ }
@@ -96,14 +96,13 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
     <h2>研究进度</h2>
     <ResourceStatus loading={data.loading} error={data.error}/>
     {value && <>
-      <p>{value.sourceLabel}</p>
       <h3>{presentation!.title}</h3>
       <p>{presentation!.explanation}</p>
       <details className="usage-advanced">
       <summary>查看处理明细</summary>
+      <p>{value.sourceLabel}</p>
       {value.discovery&&<>
         <p>搜索完成：{value.discovery.searches.succeeded} · 原文读取完成：{value.discovery.reads.succeeded} · 未入候选原文：{value.discovery.unpublishedOriginals}</p>
-        <p className="muted">搜索摘要不计原文；超长、超出上限或尚待入库的原文不计候选。需要登录或展开评论的来源需另行授权补查。</p>
       </>}
       {value.sourceProgress&&<table aria-label="逐来源研究进度">
         <thead><tr><th>来源</th><th>状态</th><th>入库 / 配额</th></tr></thead>
@@ -113,22 +112,20 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
         </tr>)}</tbody>
       </table>}
       <p>入库原文：{value.acceptedOriginals??'尚未确认'} · 已分析：{value.analyzedOriginals} · 已跳过：{value.skippedOriginals}</p>
-      <p className="muted">这些是原文与分析进度，不是已确认的商机数量；请打开候选逐条核对出处与购买意向。</p>
       </details>
       {presentation!.warning&&<Notice tone="warning">{presentation!.warning}</Notice>}
       <p>{presentation!.nextStep}</p>
       {dynamic&&service.researchRuntime?.reads&&<ResearchReadEvidence taskId={taskId} runId={runId}
         reads={service.researchRuntime.reads} onOpen={service.openExternal}/>}
-      <p className="muted">实际搜贝用量待结算，研究停止不表示费用已结清。</p>
+      <p className="muted">实际搜贝用量待结算。</p>
     </>}
     {message && <Notice tone="warning">{message}</Notice>}
     <div className="task-footer">
       <Button variant="primary" disabled={busy || data.loading || !!data.error || !value?.canAdvance || value.newActionsBlocked}
         onClick={()=>void run()}>{dynamic?'开始研究':'继续研究'}</Button>
-      {!dynamic&&<Button disabled={!busy} onClick={()=>{controller.current?.abort();setMessage('已停止本页后续推进，已发出的请求仍需查询结果。');}}>停止本页推进</Button>}
-      <Button disabled={busy||data.loading} onClick={()=>void data.reload()}>查询原研究状态</Button>
+      {!dynamic&&<Button disabled={!busy} onClick={()=>{controller.current?.abort();setMessage('已暂停继续处理，请刷新进度查看结果。');}}>暂停继续处理</Button>}
+      <Button disabled={busy||data.loading} onClick={()=>void data.reload()}>刷新进度</Button>
       <Button onClick={()=>navigate(`/candidates?task=${taskId}`)}>查看原文与分析</Button>
     </div>
-    <p className="field-hint">{dynamic?'离开页面不会停止服务端研究；页面仅查询进度。取消整个任务请使用下方取消按钮。':'点击继续后按已确认上限逐步处理；离开页面停止后续推进。取消整个任务请使用下方取消按钮。'}</p>
   </section>;
 }

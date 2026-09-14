@@ -106,7 +106,7 @@ export function TaskProfileStatus({ run }: { run: TaskRun }) {
               该业务画像当前尚未确认，任务仍保留原业务画像。
             </p>
             <p className="field-hint">
-              可前往业务画像处理；不会自动改变原任务。
+              请前往业务画像确认。
             </p>
           </>
         ) : hasCurrent ? (
@@ -120,7 +120,7 @@ export function TaskProfileStatus({ run }: { run: TaskRun }) {
             </p>
             {historical && (
               <p className="field-hint">
-                “去更新”仅前往业务画像；原任务不会自动换版或重新启动。
+                更新画像后，本任务仍保留原搜索条件。
               </p>
             )}
           </>

@@ -317,7 +317,7 @@ function FollowupWorkspace() {
                 <>
                   {tab === "todo" && !service.followup && (
                     <p className="muted text-small">
-                      结构化计划尚未接通，以下为已登记的人工跟进，不代表到期提醒。
+                      以下为手工跟进记录，暂不提供到期提醒。
                     </p>
                   )}
                   <div className="table-wrap">

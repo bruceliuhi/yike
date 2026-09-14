@@ -170,7 +170,7 @@ function BriefRows({
         </div>
       )}
       <details className="brief-scope">
-        <summary>查看检查范围与口径</summary>
+        <summary>查看搜索范围</summary>
         <p>
           业务日期 {snapshot.businessDate}
         </p>
@@ -318,8 +318,8 @@ export function OpportunityBrief({
         </strong>
         <p>
           {snapshot
-            ? `业务日期 ${snapshot.businessDate}。未检查的范围不代表没有机会。`
-            : "首次检查完成后，按证据与跟进安排生成简报。"}
+            ? `业务日期 ${snapshot.businessDate}`
+            : "首次搜索完成后，这里会显示机会简报。"}
         </p>
       </Notice>
       <div className="brief-layout">
@@ -433,7 +433,7 @@ export function OpportunityBrief({
             })}
           </ul>
           <p className="brief-hint">
-            平台连接状态不代表已完成搜索；覆盖结果以运行详情为准。
+            连接平台后，即可开始搜索。
           </p>
         </aside>
       </div>

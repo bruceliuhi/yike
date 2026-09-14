@@ -142,13 +142,10 @@ export function ReplyEvidencePanel({
       )}
       {!resource.loading && !resource.error && resource.data && (
         <>
-          <Notice>
-            这里只展示已保存的证据，不代表已完成平台同步；设备提交证据并非服务器独立平台核验。
-          </Notice>
           {!resource.data.history.length ? (
             <Empty
               title="暂无保存的回复证据"
-              description="不代表平台没有回复；平台同步状态需另行核对。"
+              description="可前往平台查看回复，或手工记录沟通结果。"
             />
           ) : (
             <>

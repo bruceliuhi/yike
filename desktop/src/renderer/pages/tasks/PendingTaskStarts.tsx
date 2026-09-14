@@ -102,7 +102,7 @@ export function PendingTaskStarts({
       {!!records.length && (
         <>
           <h2>启动结果待确认</h2>
-          <p className="field-hint">仅查询原请求，不会重新创建任务。</p>
+          <p className="field-hint">请先查看启动结果。</p>
         </>
       )}
       {[...records].sort((a,b)=>a.id.localeCompare(b.id)).map((row,index) => (

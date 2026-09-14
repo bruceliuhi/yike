@@ -34,7 +34,8 @@ it('starts once and polls existing background work; leaving stops observation, n
   const view=render(<ResearchProgress taskId={queued.taskId} runId={queued.runId} taskStatus="PENDING"/>);
   await screen.findByRole('button',{name:'开始研究'});
   fireEvent.click(screen.getByRole('button',{name:'开始研究'}));
-  await screen.findByText(/离开页面不会停止服务端研究/);
+  await screen.findByText('研究进行中');
+  expect(screen.queryByText(/离开页面不会停止服务端研究/)).toBeNull();
   await waitFor(()=>expect(status.mock.calls.length).toBeGreaterThanOrEqual(3),{timeout:4000});
   expect(advance).toHaveBeenCalledTimes(1);
   expect(screen.queryByText(/暂未取得新进度/)).toBeNull();

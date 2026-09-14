@@ -46,22 +46,20 @@ export function DisconnectPanel({
       {action.busy && (
         <p role="status">
           {action.phase === "preflight"
-            ? "正在核对客户身份与执行账号…"
+            ? "正在检查账号…"
             : action.phase === "submitting"
-              ? "正在等待断开回执…"
-              : "正在读取原账号连接状态…"}
+              ? "正在断开连接…"
+              : "正在检查连接状态…"}
         </p>
       )}
       {action.pending && (
         <Notice tone="warning">
-          {action.pending.acknowledged
-            ? "已收到原请求回执，仍需核对原账号已断开。"
-            : "原请求回执尚未确认，已保留核对记录。当前未重发，也未撤销服务端请求。"}
+          断开结果待确认，请检查连接状态。
         </Notice>
       )}
       {action.message && <Notice tone="warning">{action.message}</Notice>}
       <p className="field-hint">
-        关闭或取消等待不会删除核对记录。核对完成前，该平台不能再次断开或重新连接。
+        确认断开结果前，暂不能重新连接。
       </p>
     </Modal>
   );

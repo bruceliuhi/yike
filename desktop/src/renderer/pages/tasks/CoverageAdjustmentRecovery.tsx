@@ -20,7 +20,7 @@ export function CoverageAdjustmentRecovery({ taskId }: { taskId: string }) {
             </Button>
           }
         >
-          原搜贝上限调整结果尚未确认。仅查询原请求，不会再次调整或恢复任务。
+          搜贝上限调整结果待确认，请先查看结果。
         </Notice>
       ))}
       {operation.error && <Notice tone="warning">{operation.error}</Notice>}

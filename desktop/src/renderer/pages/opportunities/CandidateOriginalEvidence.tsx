@@ -78,7 +78,7 @@ function OriginalContent({
       {kind === "COMMENT" ? (
         <>
           <p className="muted">
-            原帖标题和父评论仅作上下文，不代表当前评论者本人的采购需求；不同作者不视为同一人。
+            以下为上下文，需求判断以当前评论为准。
           </p>
           {content.parent === null ? (
             <p className="muted">未取得父评论上下文。</p>
@@ -124,7 +124,7 @@ export function CandidateOriginalEvidence({
     <section className="candidate-evidence" aria-label="候选原文证据">
       <h3>原文证据</h3>
       <p className="muted">
-        采集留存原文，尚未完成人工来源核验；不代表来源当前可访问或已授权联系。
+        已保存的原文，可打开来源核对。
       </p>
       <section aria-label="当前原文">
         <OriginalContent
@@ -158,7 +158,7 @@ export function CandidateOriginalEvidence({
       {observations.truncated ? (
         <p className="candidate-evidence-warning">
           观察历史已截断，仅显示 {observations.items.length} 条，共{" "}
-          {observations.total} 条；未显示的记录不代表不存在。
+          {observations.total} 条。
         </p>
       ) : null}
       <details className="candidate-evidence-details">
@@ -166,7 +166,7 @@ export function CandidateOriginalEvidence({
           观察历史（{observations.items.length} / {observations.total}）
         </summary>
         <p className="muted">
-          每条记录保留其自己的原文、版本与时间；历史留存不能替代当前核验。
+          历次保存的原文。
         </p>
         {observations.items.map((item, index) => (
           <article

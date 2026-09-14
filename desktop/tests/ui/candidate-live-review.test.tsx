@@ -397,10 +397,11 @@ it("recovers a lost decision outside the current filter using only the original 
   });
   await screen.findByText("没有符合条件的线索");
   const history = screen.getByRole("region", { name: "候选原请求记录" });
+  fireEvent.click(within(history).getByText(/^查看处理记录/));
   const includeRecord =
     within(history).getByText(/确认入库 · 结果待确认/).parentElement!;
   fireEvent.click(
-    within(includeRecord).getByRole("button", { name: /^核对原请求/ }),
+    within(includeRecord).getByRole("button", { name: /^查看处理结果/ }),
   );
   await screen.findByText(/原请求已核对成功/);
   expect(screen.queryByText(/本次结果尚未确定，请核对原请求/)).toBeNull();
@@ -446,7 +447,7 @@ it("does not adopt a late judgment after leaving and returning to the same filte
   });
   await ready();
   finish();
-  await screen.findByText(/画像判断 · 已取得回执/);
+  await screen.findByText(/画像判断 · 结果已返回/);
   expect(screen.queryByText("您希望什么时候完成采购？")).toBeNull();
 });
 
@@ -464,7 +465,10 @@ it("unknown assessment locks ordinary writes and exposes only explicit original-
   const { transport } = mount({ assessmentUnknown: true });
   await ready();
   fireEvent.click(screen.getByRole("button", { name: /按画像.*判断/ }));
-  await screen.findByText(/画像判断 · 结果未知/);
+  await screen.findByText(/画像判断 · 结果待确认/);
+  fireEvent.click(screen.getByText('查看处理记录（1）'));
+  const retry = await screen.findByRole('button', {name:'确认后重新判断'});
+  await waitFor(()=>expect((retry as HTMLButtonElement).disabled).toBe(false));
   expect(
     (screen.getByRole("button", { name: /按画像.*判断/ }) as HTMLButtonElement)
       .disabled,
@@ -473,7 +477,7 @@ it("unknown assessment locks ordinary writes and exposes only explicit original-
     (screen.getByRole("button", { name: "保存来源核验" }) as HTMLButtonElement)
       .disabled,
   ).toBe(true);
-  fireEvent.click(screen.getByRole("button", { name: "确认后重新判断" }));
+  fireEvent.click(retry);
   const dialog = screen.getByRole("dialog", { name: "重新发起判断？" });
   expect(dialog.textContent).not.toContain('向配置的模型发送');
   expect(dialog.textContent).toContain('仍在处理时不重发');
@@ -486,7 +490,7 @@ it("rejects judgment from a different strategy even when the five-field request 
   mount({ wrongStrategy: true });
   await ready();
   fireEvent.click(screen.getByRole("button", { name: /按画像.*判断/ }));
-  await screen.findByText(/画像判断 · 已取得回执/);
+  await screen.findByText(/画像判断 · 结果已返回/);
   expect(screen.queryByText("您希望什么时候完成采购？")).toBeNull();
   expect(screen.getByText(/判断结果与当前画像或来源不一致/)).toBeTruthy();
 });
@@ -586,7 +590,7 @@ it.each(["verification", "decision"] as const)(
     finish();
     await screen.findByText(
       new RegExp(
-        `${kind === "decision" ? "确认入库" : "来源核验"} · 已取得回执`,
+        `${kind === "decision" ? "确认入库" : "来源核验"} · 结果已返回`,
       ),
     );
     expect(

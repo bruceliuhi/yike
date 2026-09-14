@@ -74,9 +74,11 @@ it("opens the real P09 coverage tab by default and keeps the original platform/e
 it('keeps the actionable result and usage visible while collapsing the technical coverage table',async()=>{
   render(<SearchCoverage run={coverageRun}/>);
   await screen.findByText('TEST 登录失效，本方向未完成。');
-  expect(screen.getByText('TEST 登录失效，本方向未完成。')).toBeVisible();
+  expect(screen.getByText('TEST 登录失效，本方向未完成。')).not.toBeVisible();
   expect(screen.getByRole('button',{name:'重新连接'})).toBeVisible();
   expect(screen.getByRole('region',{name:'本次搜贝用量'})).toBeVisible();
+  fireEvent.click(screen.getByText('查看范围说明'));
+  expect(screen.getByText('TEST 登录失效，本方向未完成。')).toBeVisible();
   expect(screen.getByText('独立来源')).not.toBeVisible();
   fireEvent.click(screen.getByText('查看各搜索方向'));
   expect(screen.getByText('独立来源')).toBeVisible();
@@ -99,7 +101,7 @@ it("missing capability or verified session account never requests or fabricates 
 it("shows the four result types, distinct unknown counts, evidence and exact reconnect route", async () => {
   render(<SearchCoverage run={coverageRun} />);
   await screen.findByText("TEST 登录失效，本方向未完成。");
-  expect(screen.getByText(/部分范围尚未完成/)).toBeTruthy();
+  expect(screen.getByText(/部分搜索尚未完成/)).toBeTruthy();
   for (const label of [
     "访问失败",
     "研究用量已达上限",
@@ -219,7 +221,7 @@ it("keeps expired snapshots readable but disables related actions", async () => 
     return value;
   });
   render(<SearchCoverage run={coverageRun} />);
-  await screen.findByText(/覆盖快照已过期/);
+  await screen.findByText(/结果需要更新/);
   expect(
     (screen.getByRole("button", { name: "重新连接" }) as HTMLButtonElement)
       .disabled,
@@ -244,7 +246,7 @@ it("expires a displayed snapshot without a page refresh", async () => {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(1001);
   });
-  expect(screen.getByText(/覆盖快照已过期/)).toBeTruthy();
+  expect(screen.getByText(/结果需要更新/)).toBeTruthy();
   expect(
     (screen.getByRole("button", { name: "重新连接" }) as HTMLButtonElement)
       .disabled,
@@ -317,7 +319,7 @@ it("terminal runs offer a new draft plan while unknown recovery cannot be retrie
   expect(
     screen.queryByRole("button", { name: "基于未查范围创建草稿" }),
   ).toBeNull();
-  expect(screen.getByText(/当前可恢复状态或搜贝用量尚未确认/)).toBeTruthy();
+  expect(screen.getByText(/暂时无法继续/)).toBeTruthy();
 });
 it("opens a typed limit preview only for confirmed resumability, never executes or settles", async () => {
   context.service.searchCoverage!.query = vi.fn(async (request) => {

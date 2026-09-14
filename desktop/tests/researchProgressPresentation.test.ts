@@ -21,35 +21,35 @@ it.each([
 
 it('distinguishes zero, positive, and unconfirmed completed originals',()=>{
   expect(researchProgressPresentation(value({phase:'COMPLETED',acceptedOriginals:0}))).toMatchObject({
-    explanation:'本轮没有取得可供分析的原文，不代表没有市场需求。',
+    explanation:'本轮未找到可分析的原文。',
   });
   expect(researchProgressPresentation(value({phase:'COMPLETED',acceptedOriginals:2})).nextStep).toContain('查看原文与分析');
   const unknown=researchProgressPresentation(value({phase:'COMPLETED',acceptedOriginals:null}));
   expect(unknown.explanation).toContain('原文数量尚未确认');
-  expect(unknown.nextStep).toContain('查询原研究状态');
+  expect(unknown.nextStep).toContain('刷新进度');
 });
 
 it('distinguishes pages read from selected candidates without declaring all pages background',()=>{
   const input=value({contractVersion:4,phase:'COMPLETED',acceptedOriginals:0,
     discovery:{searches:{...counts,issued:1,succeeded:1},reads:{...counts,issued:3,succeeded:3},unpublishedOriginals:3}});
   const shown=researchProgressPresentation(input);
-  expect(shown.explanation).toBe('已读取 3 篇公开页面，本轮没有选入待分析候选；不代表没有市场需求。');
+  expect(shown.explanation).toBe('已读取 3 篇公开页面，暂未选出合适线索。');
   expect(shown.explanation).not.toContain('全部为背景');
   expect(researchProgressPresentation({...input,discovery:{...input.discovery!,reads:{...counts}}}).explanation)
-    .toBe('本轮没有取得可供分析的原文，不代表没有市场需求。');
+    .toBe('本轮未找到可分析的原文。');
 });
 
 it.each([
-  ['effect_unknown','已有请求的结果尚未核实。'],['assessment_unknown','已有请求的结果尚未核实。'],
+  ['effect_unknown','研究结果仍待确认。'],['assessment_unknown','研究结果仍待确认。'],
   ['effect_failed','本轮读取或分析未完成。'],['assessment_failed','本轮读取或分析未完成。'],
   ['resource_limit_exceeded','本轮已达到确认的研究用量上限。'],['task_unavailable','当前任务暂时不能继续。'],
   ['capability_unavailable','当前服务暂不支持这项研究。'],['resource_unavailable','研究服务暂时不可用。'],
-  ['lease_conflict','执行状态发生变化，请查询原任务。'],['future_code','研究已停止，请查询原研究状态。'],
-  ['constructor','研究已停止，请查询原研究状态。'],['toString','研究已停止，请查询原研究状态。'],
-  ['__proto__','研究已停止，请查询原研究状态。'],
-  ['research_selection_invalid','已读取的原文保留，但逐页筛选未完成；不能据此判断没有机会。'],
-  ['broker_stop_unknown','已停止新增研究，但执行进程是否退出仍待核实。'],
-  ['broker_stream_unknown','研究结果传输尚未核实，不能据此判断研究完成或没有机会。'],
+  ['lease_conflict','任务状态已变化，请刷新进度。'],['future_code','研究已停止，请刷新进度。'],
+  ['constructor','研究已停止，请刷新进度。'],['toString','研究已停止，请刷新进度。'],
+  ['__proto__','研究已停止，请刷新进度。'],
+  ['research_selection_invalid','部分原文尚未完成分析。'],
+  ['broker_stop_unknown','任务是否已停止仍待确认，请刷新进度。'],
+  ['broker_stream_unknown','部分研究结果仍待确认。'],
 ] as const)('maps stop code %s without exposing the code',(stopCode,explanation)=>{
   const shown=researchProgressPresentation(value({phase:'STOPPED',stopCode,newActionsBlocked:true,canAdvance:false}));
   expect(shown.explanation).toBe(explanation);
@@ -58,41 +58,48 @@ it.each([
 
 it('keeps pending and failure risks visible even for terminal success or cancel',()=>{
   const completed=researchProgressPresentation(value({phase:'COMPLETED',effectsPending:true,acceptedOriginals:1}));
-  expect(completed.warning).toContain('尚有请求或执行记录待核实，不会自动重做；停止本页不代表撤回已发请求。');
+  expect(completed.warning).toContain('部分结果仍待确认。');
   const canceled=researchProgressPresentation(value({phase:'CANCELED',usage:{...value().usage,modelCalls:{...counts,failed:1}}}));
-  expect(canceled.warning).toContain('读取或分析');
+  expect(canceled.warning).toBe('部分内容未能完成分析，可查看已有结果。');
   expect(canceled.nextStep).not.toMatch(/重启|重试|继续研究/);
+});
+
+it('combines failed and uncertain results in one short customer warning without losing either',()=>{
+  const shown=researchProgressPresentation(value({phase:'STOPPED',effectsPending:true,
+    usage:{...value().usage,modelCalls:{...counts,issued:1,failed:1}}}));
+  expect(shown.warning).toBe('部分内容未完成，另有结果待确认。');
+  expect(shown.nextStep).toBe('请先刷新进度，确认结果后再继续。');
 });
 
 it('shows normal background work as progress, not an unknown-result warning',()=>{
   const input=researchRuntimeStatusSchema.parse({...dynamicStatus(),phase:'RUNNING',effectsPending:true,newActionsBlocked:true,canAdvance:false,
     usage:{...value().usage,modelCalls:{...counts,issued:1,pending:1},
       resourceCloseout:{state:'DRAINING',overduePermits:0,asOf:'2026-09-13T07:30:00Z'}}});
-  expect(researchProgressPresentation(input)).toMatchObject({warning:null,nextStep:'正在研究，无需重复启动。'});
+  expect(researchProgressPresentation(input)).toMatchObject({warning:null,nextStep:'正在研究，请稍候。'});
   for(const risk of [
     {...input,stopCode:'effect_unknown'},
     {...input,usage:{...input.usage,modelCalls:{...counts,issued:1,unknown:1}}},
     {...input,usage:{...input.usage,resourceCloseout:{...input.usage.resourceCloseout!,state:'UNCERTAIN' as const}}},
     {...input,usage:{...input.usage,resourceCloseout:{...input.usage.resourceCloseout!,overduePermits:1}}},
-  ])expect(researchProgressPresentation(risk).warning).toContain('尚有请求或执行记录待核实');
+  ])expect(researchProgressPresentation(risk).warning).toContain('部分结果仍待确认');
 });
 
 it('detects source and closeout risk without mutating its input',()=>{
   const input=value({sourceProgress:[{sourceId:'v2ex-qna-v1',phase:'UNKNOWN',acceptedOriginals:null,recordLimit:5}],
     usage:{...value().usage,resourceCloseout:{state:'DRAINING',overduePermits:0,asOf:'2026-09-11T14:00:00Z'}}});
   const before=structuredClone(input);
-  expect(researchProgressPresentation(input).warning).toContain('尚有请求或执行记录待核实');
+  expect(researchProgressPresentation(input).warning).toContain('部分结果仍待确认');
   expect(input).toEqual(before);
 });
 
 it('uses natural cautious language while a running original count is unconfirmed',()=>{
   const shown=researchProgressPresentation(value({phase:'RUNNING',acceptedOriginals:null}));
-  expect(shown.explanation).toBe('本轮正在逐步处理；入库原文数量尚未确认。');
+  expect(shown.explanation).toBe('正在查找并分析相关内容。');
   expect(shown.explanation).not.toContain('当前已确认');
 });
 
 it.each(['QUEUED','COMPLETED'] as const)('does not invite new work from %s while effects remain unconfirmed',phase=>{
   const shown=researchProgressPresentation(value({phase,acceptedOriginals:0,effectsPending:true,newActionsBlocked:true}));
-  expect(shown.nextStep).toContain('核实已有请求');
+  expect(shown.nextStep).toContain('确认结果后再继续');
   expect(shown.nextStep).not.toMatch(/继续研究|新任务|调整策略后再研究/);
 });

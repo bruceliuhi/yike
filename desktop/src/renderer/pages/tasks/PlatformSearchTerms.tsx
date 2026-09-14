@@ -17,7 +17,7 @@ export function PlatformSearchTerms({draft,onChange}:{draft:TaskDraft;onChange:(
   return <details className="strategy-snapshot">
     <summary>按平台设置搜索词</summary>
     <p>单独设置后替换该平台的通用词，其他平台不变；共用排除词和任务上限。AI重新生成通用建议不会覆盖这里的人工词。</p>
-    {!enabled && <Notice tone="warning">平台专用词目前只接入普通关键词采集与监控；研究或链接模式请恢复通用词，不会自动切换任务类型。</Notice>}
+    {!enabled && <Notice tone="warning">当前模式不支持平台专用词，请使用通用搜索词。</Notice>}
     {!visible.length && <p>请先选择小红书、抖音、B站或知乎。</p>}
     {visible.map(platform=>{
       const key=platform.id as QueryPlatform,terms=draft.platformTerms?.[key];

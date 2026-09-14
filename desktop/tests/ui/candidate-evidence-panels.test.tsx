@@ -77,7 +77,7 @@ describe("candidate original evidence", () => {
     expect(screen.queryByText(raw.candidate.current_version.content_version)).toBeNull();
     expect(current.getByText("评论作者🙂")).toBeVisible();
     expect(current.getByLabelText("评论原文")).toBeVisible();
-    expect(screen.getByText(/采集留存原文，尚未完成人工来源核验/)).toBeVisible();
+    expect(screen.getByText('已保存的原文，可打开来源核对。')).toBeVisible();
     expect(current.getByText("采集端观察时间")).not.toBeVisible();
     expect(current.getByText("服务器接收时间")).not.toBeVisible();
     const summary = current.getByText("采集详情");
@@ -112,7 +112,7 @@ describe("candidate original evidence", () => {
     render(<CandidateOriginalEvidence evidence={parseRawCandidateEvidence(raw, rawEvidenceBinding)} />);
     const current = within(screen.getByRole("region", { name: "当前原文" }));
     expect(current.getByText("原帖／容器标题（上下文）").nextElementSibling?.textContent).toBe(raw.candidate.current_version.title);
-    expect(current.getByText(/不代表当前评论者本人的采购需求/)).toBeVisible();
+    expect(current.getByText(/需求判断以当前评论为准/)).toBeVisible();
     const parent = current.getByRole("region", { name: "父评论上下文" });
     expect(within(parent).getByLabelText("父评论原文").textContent).toBe(raw.candidate.current_version.parent?.body);
     expect(within(parent).getByText("父评论公开作者").nextElementSibling).toHaveTextContent("父评论作者");
@@ -243,7 +243,7 @@ describe("candidate assessment details", () => {
 
   it("does not invent grades or drafts when analysis is absent", () => {
     render(<CandidateAssessmentDetails assessment={undefined} />);
-    expect(screen.getByText(/尚无 AI 判断/)).toBeVisible();
+    expect(screen.getByText(/暂无分析/)).toBeVisible();
     expect(screen.queryByText("高（HIGH）")).not.toBeInTheDocument();
     expect(screen.queryByText("商机等级")).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "评论草稿（未发送）" })).not.toBeInTheDocument();
@@ -252,7 +252,7 @@ describe("candidate assessment details", () => {
   it("marks stale analysis as read-only and omits null grade", () => {
     const value = { ...assessment(), grade: null };
     render(<CandidateAssessmentDetails assessment={value} stale />);
-    expect(screen.getByRole("status")).toHaveTextContent("此判断已过期，仅供只读核对");
+    expect(screen.getByRole("status")).toHaveTextContent("此分析已过期，请重新判断。");
     expect(screen.getByText(value.summary)).toBeVisible();
     expect(screen.queryByText("商机等级")).not.toBeInTheDocument();
     expect(screen.queryByRole('region',{name:'评论草稿（未发送）'})).not.toBeInTheDocument();
@@ -267,7 +267,7 @@ describe("candidate assessment details", () => {
     const dimension = within(screen.getByRole("region", { name: "紧迫度" }));
     expect(dimension.getByText("未知")).toBeVisible();
     expect(dimension.getByText("未提到明确时间")).toBeVisible();
-    expect(dimension.getByText("暂无逐字引用；不据此补造依据。")).toBeVisible();
+    expect(dimension.getByText("暂无原文引用。")).toBeVisible();
     expect(dimension.queryByRole("list")).not.toBeInTheDocument();
   });
 });

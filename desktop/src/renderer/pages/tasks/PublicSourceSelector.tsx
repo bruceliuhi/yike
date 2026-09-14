@@ -33,8 +33,8 @@ export function PublicSourceSelector({draft,connections,onChange,onPlanChange,re
     {choices.map(source=><option key={source} value={source}>{label(source)}</option>)}
    </select>
   </label>
-  <p className="field-hint">{dynamic?'从已确认业务生成查询、打开公开原文并形成待复核候选；不保证覆盖全网，不读取登录后评论':draft.research?researchSourceScope(selected)+'；仅判断该索引返回的样本，不覆盖全站或历史':publicSourceScope(selected)+'；关键词仅筛选该板块本次返回的样本'}。</p>
-  {!available&&<p className="field-hint">所选板块当前不可用，已保留原选择；不会自动切换或启动。</p>}
+  <p className="field-hint">{dynamic?'搜索公开网页中的相关需求':draft.research?researchSourceScope(selected):publicSourceScope(selected)}。</p>
+  {!available&&<p className="field-hint">所选板块当前不可用，请选择其他来源。</p>}
   {draft.research&&!dynamic&&(multi||draft.research.sourcePlan)&&<fieldset>
    <legend>同时研究其他已支持板块</legend>
    {catalog.filter(id=>id!==selected&&(choices.includes(id)||planned.includes(id))).map(id=><label key={id}>
@@ -42,7 +42,7 @@ export function PublicSourceSelector({draft,connections,onChange,onPlanChange,re
      disabled={!multi||!onPlanChange||!choices.includes(id)} onChange={event=>changePlan(selected,
       event.target.checked?[...planned,id]:planned.filter(source=>source!==id))}/>{researchIndexLabel(id)}
    </label>)}
-   <p className="field-hint">按确认顺序读取，各板块均分总记录上限；空板块的配额不转移。仅索引主题，未读评论或作者回复，不代表全站覆盖。</p>
+   <p className="field-hint">仅搜索所选板块的近期主题。</p>
    {!multi&&<p className="field-hint">当前服务不支持已保存的多来源计划，原选择保留，暂不能启动。</p>}
   </fieldset>}
  </div>;

@@ -63,7 +63,7 @@ export function AdoptedCoachSummary({
             </blockquote>)}
           </>}
           <p className="field-hint">
-            这是本次建议的原文引用与检查记录，不代表此后发生了新的审核。有效至{" "}
+            建议有效至{" "}
             {new Date(candidate.expiresAt).toLocaleString("zh-CN")}。
           </p>
         </Modal>

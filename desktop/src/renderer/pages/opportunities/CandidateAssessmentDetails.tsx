@@ -42,8 +42,7 @@ export function CandidateAssessmentDetails({
       <section className="candidate-evidence" aria-label="AI 判断详情">
         <h3>AI 判断</h3>
         <p className="muted">
-          尚无 AI
-          判断，请先查看原文，再显式发起判断；不会自动生成等级或联系草稿。
+          暂无分析，请先查看原文，再点击“按画像重新判断”。
         </p>
       </section>
     );
@@ -54,12 +53,9 @@ export function CandidateAssessmentDetails({
       <h3>AI 判断</h3>
       {stale ? (
         <p role="status" className="candidate-evidence-warning">
-          此判断已过期，仅供只读核对；请返回当前来源、画像与策略版本重新判断。
+          此分析已过期，请重新判断。
         </p>
       ) : null}
-      <p className="muted">
-        以下为 AI 分析，不是原文事实或发送授权，仍需人工核实。
-      </p>
       <div className="candidate-evidence-text">{assessment.summary}</div>
       {assessment.grade !== null ? (
         <dl className="candidate-evidence-facts">
@@ -84,7 +80,7 @@ export function CandidateAssessmentDetails({
             </p>
             <p className="candidate-evidence-text">{assessment[key].reason}</p>
             {assessment[key].citations.length === 0 ? (
-              <p className="muted">暂无逐字引用；不据此补造依据。</p>
+              <p className="muted">暂无原文引用。</p>
             ) : (
               <ul className="candidate-assessment-citations">
                 {assessment[key].citations.map((citation, index) => (
@@ -126,9 +122,6 @@ export function CandidateAssessmentDetails({
         <h4>私信草稿（未发送）</h4>
         <p className="candidate-evidence-text">{assessment.draftDm}</p>
       </section>
-      <p className="muted">
-        草稿仅供阅读，不会自动填入人工证据，也不会自动发送。
-      </p>
       </> : <p className="muted">
         {stale ? "此判断的联系草稿已收起，请按当前版本重新判断。" :
           assessment.effectiveDecision === "EXCLUDE" ? "当前判断为排除，不建议联系，因此不展示联系草稿。" :

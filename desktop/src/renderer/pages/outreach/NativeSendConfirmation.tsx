@@ -100,7 +100,7 @@ export function NativeSendConfirmation({row,draft,connection,onClose,fingerprint
   const close=()=>{mounted.current=false;generation.current++;if(active.current){cancel(active.current);active.current=null;}onClose();};
   const c=prepared?.context;
   return <Modal title="确认发送" onClose={close} footer={<><Button onClick={close}>返回修改</Button><Button variant="primary" loading={busy} disabled={!prepared||!checked||blocked||changed||!!ledger.record||!!ledger.error} onClick={()=>void confirm()}>确认并发送</Button></>}>
-    <p className="muted">核对当前已保存的全文。平台与账号将在你确认后实际核验，准备信息不代表已发送。</p>
+    <p className="muted">请核对账号、联系对象和内容，确认后发送。</p>
     {c && !changed && <><dl className="detail-list"><div><dt>渠道</dt><dd>小红书 · 评论</dd></div><div><dt>发送账号</dt><dd>{c.connection.accountPublicId}</dd></div><div><dt>收件对象</dt><dd>{c.target.authorPublicId}</dd></div><div><dt>关联来源</dt><dd>{c.source.url}</dd></div></dl><blockquote className="coach-quote">{c.source.excerpt}</blockquote><h3>发送内容预览</h3><pre className="draft-preview">{c.draft.content}</pre></>}
     {!prepared && !ledger.record && !ledger.error && !blocked && !changed && <Button loading={busy} onClick={()=>void inspect()}>核对发送信息</Button>}
     {!ledger.record && <label className="checkbox-label"><input type="checkbox" checked={checked&&!changed} disabled={!prepared||busy||changed||blocked} onChange={e=>setChecked(e.target.checked)}/>我已核对联系对象、发送账号和内容</label>}

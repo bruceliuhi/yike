@@ -9,11 +9,11 @@ const actions: Record<CandidateRequestOperation["action"], string> = {
   EXCLUDE: "排除线索",
 };
 const states: Record<CandidateRequestOperation["state"], { label: string; hint: string }> = {
-  PENDING: { label: "结果待确认", hint: "尚未收到确定回执，请先核对原请求，避免重复操作。" },
+  PENDING: { label: "结果待确认", hint: "请查看处理结果，暂勿重复操作。" },
   PROCESSING: { label: "处理中", hint: "服务仍在处理，可核对最新进度，无需重新提交。" },
-  UNKNOWN: { label: "结果未知", hint: "暂时无法确认执行结果，请先核对原请求。" },
+  UNKNOWN: { label: "结果待确认", hint: "请稍后查看处理结果。" },
   FAILED: { label: "判断失败", hint: "可先核对失败结果，再确认是否重新判断。" },
-  RECORDED: { label: "已取得回执", hint: "已收到原操作回执，具体结论以对应记录为准。" },
+  RECORDED: { label: "结果已返回", hint: "可查看处理结果。" },
 };
 
 export function CandidateRequestHistory({ operations, busy, onReconcile, onRetry }: {
@@ -24,8 +24,11 @@ export function CandidateRequestHistory({ operations, busy, onReconcile, onRetry
 }) {
   return (
     <section aria-label="候选原请求记录" className="card candidate-request-history">
-      <h3>操作进度与结果核对</h3>
-      <p className="muted">切换筛选后仍可核对。核对操作不会重新判断或重复入库。</p>
+      <h3>处理记录</h3>
+      {operations.some(operation=>operation.state==='FAILED')&&<p role="status">有判断失败，展开查看并处理。</p>}
+      {operations.some(operation=>['PENDING','PROCESSING','UNKNOWN'].includes(operation.state))&&<p role="status">有操作尚待确认，可展开查看结果。</p>}
+      <details>
+      <summary>查看处理记录（{operations.length}）</summary>
       {operations.map((operation, index) => (
         <div key={operation.key} className="candidate-request-row">
           <span className="candidate-request-title">
@@ -33,7 +36,7 @@ export function CandidateRequestHistory({ operations, busy, onReconcile, onRetry
           </span>
           <p className="muted candidate-request-hint">{states[operation.state].hint}</p>
           <div className="action-row candidate-request-actions">
-            <Button disabled={busy} onClick={() => onReconcile(operation.key)}>核对原请求{operations.length > 1 ? ` · 记录 ${index + 1}` : ""}</Button>
+            <Button disabled={busy} onClick={() => onReconcile(operation.key)}>查看处理结果{operations.length > 1 ? ` · 记录 ${index + 1}` : ""}</Button>
             {operation.action === "ASSESS" && ["FAILED", "UNKNOWN"].includes(operation.state) &&
               !operations.some(child => child.retryOf[0] === (operation.invocationId ?? operation.requestId)) && (
                 <Button disabled={busy} onClick={() => onRetry(operation.key)}>确认后重新判断{operations.length > 1 ? ` · 记录 ${index + 1}` : ""}</Button>
@@ -41,6 +44,7 @@ export function CandidateRequestHistory({ operations, busy, onReconcile, onRetry
           </div>
         </div>
       ))}
+      </details>
     </section>
   );
 }

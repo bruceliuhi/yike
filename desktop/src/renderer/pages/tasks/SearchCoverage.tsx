@@ -116,12 +116,12 @@ function CoverageView({
     <>
       {expired && (
         <Notice tone="warning">
-          覆盖快照已过期，以下为历史结果。刷新后再处理当前范围。
+          结果需要更新，请刷新后继续。
         </Notice>
       )}
       {snapshot.coverage !== "COMPLETE" && (
         <Notice tone="warning">
-          部分范围尚未完成，不能判断本轮是否无合格机会。平台访问、搜贝用量与筛选结果分别记录。
+          部分搜索尚未完成。
         </Notice>
       )}
       <div className="coverage-meta">
@@ -141,19 +141,19 @@ function CoverageView({
           刷新覆盖
         </Button>
       </div>
-      <p className="coverage-window">
-        检查窗口：{zoned(snapshot.window.start, snapshot.window.timezone)} –{" "}
-        {zoned(snapshot.window.end, snapshot.window.timezone)}
-      </p>
       <div className="coverage-layout coverage-layout--customer">
         <details className="coverage-left">
           <summary>查看各搜索方向</summary>
+          <p className="coverage-window">
+            搜索时间：{zoned(snapshot.window.start, snapshot.window.timezone)} –{" "}
+            {zoned(snapshot.window.end, snapshot.window.timezone)}
+          </p>
           <section className="coverage-table-panel" aria-label="搜索覆盖方向">
             <h3>搜索覆盖</h3>
             {!snapshot.units.length ? (
               <Empty
                 title="尚未开始检查"
-                description="目前没有已完成的方向，不代表范围内无需求。"
+                description="搜索完成后，可在这里查看结果。"
               />
             ) : (
               <div className="table-scroll">
@@ -231,9 +231,9 @@ function CoverageView({
                 <PlatformLabel platform={unit.platform} size={24} />
               </h3>
               <h3>{coverageResultLabel(unit)}</h3>
-              <p>{unit.explanation}</p>
               <details>
               <summary>查看范围说明</summary>
+              <p>{unit.explanation}</p>
               <dl className="detail-list">
                 <div>
                   <dt>数据覆盖</dt>
@@ -292,16 +292,16 @@ function CoverageView({
                   </Button>
                   <p className="muted">
                     {!onPlan
-                      ? "范围与搜贝预览入口尚未接通，当前没有追加用量或新建任务。"
+                      ? "暂时无法调整，请稍后再试。"
                       : plan.kind === "ADJUST_LIMIT"
                         ? "先预览搜贝变化，确认追加后仍须明确恢复。"
-                        : "保留原运行记录，仅准备新草稿，再确认启动。"}
+                        : "先准备搜索条件，确认后开始。"}
                   </p>
                 </>
               )}
               {unit.stopReason === "LIMIT_REACHED" && !plan && (
                 <Notice tone="warning">
-                  当前可恢复状态或搜贝用量尚未确认，请先刷新核对；不会再次执行。
+                  暂时无法继续，请先刷新进度。
                 </Notice>
               )}
               {handoffError && <Notice tone="error">{handoffError}</Notice>}
@@ -332,17 +332,13 @@ function CoverageView({
                     RESERVED: "额度已预留，实际用量以结算为准",
                     PENDING: "结算待确认",
                     SETTLED: "服务已返回结算用量",
-                    UNKNOWN: "用量状态未知，请核对原记录",
+                    UNKNOWN: "用量待确认",
                   }[snapshot.usage.settlement]
-                : "搜贝计量尚未返回，不按零消耗处理。"}
+                : "用量待更新。"}
             </p>
           </section>
         </aside>
       </div>
-      <p className="muted">各方向计数不跨平台直接相加；原任务不会随业务画像编辑自动更新。</p>
-      <Notice>
-        已检查范围无合格机会，不代表所有平台没有需求。未检查、待复核和未知结果分别保留。
-      </Notice>
     </>
   );
 }

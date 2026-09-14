@@ -24,10 +24,20 @@ beforeEach(()=>{
 afterEach(cleanup);
 function view(){return render(<ResearchProgress taskId={taskId} runId={runId} taskStatus="PENDING"/>);}
 function readMethod(){return reads as unknown as NonNullable<ResearchRuntimeService['reads']>;}
+it('gives one short warning and a safe refresh action instead of internal lifecycle explanations',async()=>{
+  status.mockResolvedValue({...queued,phase:'STOPPED',canAdvance:false,newActionsBlocked:true,effectsPending:true,
+    usage:{...queued.usage,sourceReads:{...counts,issued:1,failed:1},modelCalls:{...counts,issued:1,unknown:1}}});
+  view();
+  expect(await screen.findByText('部分内容未完成，另有结果待确认。')).toBeVisible();
+  expect(screen.queryByText(/尚有请求或执行记录|失败不代表没有结果|停止本页不代表|离开页面/)).toBeNull();
+  expect(screen.getByRole('button',{name:'刷新进度'})).toBeEnabled();
+  expect(screen.getByRole('button',{name:'继续研究'})).toBeDisabled();
+  expect(advance).not.toHaveBeenCalled();
+});
 it('explains a finished search with no verified original without claiming no market demand',async()=>{
  status.mockResolvedValue({...queued,phase:'STOPPED',stopCode:'no_verified_reads',canAdvance:false,newActionsBlocked:true});
  view();
- expect(await screen.findByText('本轮未能取得可核对的原文，暂时无法判断是否有合适需求。')).toBeVisible();
+ expect(await screen.findByText('本轮未找到可核对的原文。')).toBeVisible();
  expect(screen.getByText('可在新任务中调整搜索词或来源后再试。')).toBeVisible();
  expect(screen.getByRole('button',{name:'继续研究'})).toBeDisabled();
  expect(advance).not.toHaveBeenCalled();
@@ -121,7 +131,7 @@ it('reads without work until asked, then advances serially to honest completion'
   release(sourced);
   await screen.findByText('本轮研究已完成');
   expect(advance).toHaveBeenCalledTimes(2);
-  expect(screen.getByText(/不是已确认的商机数量/)).toBeTruthy();
+  expect(screen.queryByText(/不是已确认的商机数量/)).toBeNull();
   expect(screen.getByText(/实际搜贝用量待结算/)).toBeTruthy();
 });
 it('timeout queries original state once and never repeats an unknown model effect',async()=>{
@@ -131,7 +141,7 @@ it('timeout queries original state once and never repeats an unknown model effec
   advance.mockRejectedValue(new Error('connection lost'));
   view();await screen.findByText('V2EX最新主题 · 公开单源研究');
   fireEvent.click(screen.getByRole('button',{name:'继续研究'}));
-  await screen.findByText(/本轮推进未确认/);
+  await screen.findByText(/研究进度暂未确认/);
   expect(advance).toHaveBeenCalledTimes(1);
   expect((screen.getByRole('button',{name:'继续研究'}) as HTMLButtonElement).disabled).toBe(true);
 });
@@ -156,7 +166,7 @@ it('keeps cautious status and risk while removing raw unknown code',async()=>{
   const title=await screen.findByText('已停止新增研究');
   expect(screen.queryByText('执行明细')).toBeNull();
   expect(title.closest('details')).toBeNull();
-  expect(screen.getByText(/尚有请求或执行记录待核实/).closest('details')).toBeNull();
+  expect(screen.getByText(/部分结果仍待确认/).closest('details')).toBeNull();
   expect(document.body.textContent).not.toContain('future_code');
   expect(advance).not.toHaveBeenCalled();
 });
@@ -164,21 +174,21 @@ it('shows an unknown-effect stop reason as a primary action without resending',a
   status.mockResolvedValue({...queued,phase:'STOPPED',canAdvance:false,newActionsBlocked:true,stopCode:'effect_unknown',effectsPending:true,
     usage:{...queued.usage,modelCalls:{...counts,issued:1,unknown:1}}});
   view();
-  const explanation=await screen.findByText('已有请求的结果尚未核实。');
+  const explanation=await screen.findByText('研究结果仍待确认。');
   expect(explanation.closest('details')).toBeNull();
-  expect(screen.getByText(/核实已有请求，不要重新发送/).closest('details')).toBeNull();
+  expect(screen.getByText(/确认结果后再继续/).closest('details')).toBeNull();
   expect(advance).not.toHaveBeenCalled();
 });
 it('shows zero versus unknown completion honestly and preserves candidate navigation',async()=>{
   status.mockResolvedValue({...queued,phase:'COMPLETED',acceptedOriginals:0,canAdvance:false,newActionsBlocked:true});
-  view();await screen.findByText('本轮没有取得可供分析的原文，不代表没有市场需求。');
+  view();await screen.findByText('本轮未找到可分析的原文。');
   expect(screen.getByText(/新任务/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button',{name:'查看原文与分析'}));
   expect(context.navigate).toHaveBeenCalledWith(`/candidates?task=${taskId}`);
   cleanup();
   status.mockResolvedValue({...queued,phase:'COMPLETED',acceptedOriginals:null,canAdvance:false,newActionsBlocked:true});
   view();await screen.findByText(/原文数量尚未确认/);
-  expect(screen.getAllByText(/查询原研究状态/).length).toBeGreaterThan(0);
+  expect(screen.getAllByText(/刷新进度/).length).toBeGreaterThan(0);
 });
 it('does not infer unsupported all-web capability from the source label',async()=>{
   view();await screen.findByText(RESEARCH_RUNTIME_SOURCE_LABEL);
@@ -214,7 +224,7 @@ it('keeps legacy progress usable when the optional READ evidence method is absen
     acceptedOriginals:0,discovery:{searches:counts,reads:counts,unpublishedOriginals:0}};
   status.mockResolvedValue(dynamic);view();await screen.findByText('公开网页自主研究');
   expect(screen.queryByText('已读原文')).toBeNull();
-  expect(screen.getByRole('button',{name:'查询原研究状态'})).toBeTruthy();
+  expect(screen.getByRole('button',{name:'刷新进度'})).toBeTruthy();
 });
 it('appends strictly paginated READ evidence without reloading the first page',async()=>{
   const first={sequence:1,url:'https://example.com/one',title:'第一页',text:'第一条原文',

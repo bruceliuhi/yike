@@ -17,7 +17,10 @@ it('distinguishes request recovery actions without exposing request IDs',()=>{
  render(<CandidateRequestHistory operations={operations} busy={false} onReconcile={reconcile} onRetry={retry}/>);
  expect(screen.queryAllByText('查看请求编号')).toHaveLength(0);
  expect(screen.queryAllByText(/internal-request/)).toHaveLength(0);
- fireEvent.click(screen.getByRole('button',{name:'核对原请求 · 记录 2'}));
+ expect(screen.getByText('有操作尚待确认，可展开查看结果。')).toBeTruthy();
+ expect(screen.getByText('查看处理记录（2）').closest('details')?.open).toBe(false);
+ fireEvent.click(screen.getByText('查看处理记录（2）'));
+ fireEvent.click(screen.getByRole('button',{name:'查看处理结果 · 记录 2'}));
  expect(reconcile).toHaveBeenCalledWith('key-2');
  fireEvent.click(screen.getByRole('button',{name:'确认后重新判断 · 记录 1'}));
  expect(retry).toHaveBeenCalledWith('key-1');
