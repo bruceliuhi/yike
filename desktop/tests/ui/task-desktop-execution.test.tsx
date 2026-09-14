@@ -87,6 +87,7 @@ describe('original TaskWizard signed execution entry', () => {
       expect(next.research).toEqual(defaultResearchSettings());
     }
     else {
+      fireEvent.click(screen.getByText('历史任务处理'));
       await screen.findByRole('button', {name: '查询原执行请求'});
       expect(context.navigate).not.toHaveBeenCalled();
       expect(JSON.parse(sessionStorage.getItem('yike.ui.draft.v1.task.' + context.session.userId)!).id).toBe(draft.id);
@@ -135,6 +136,7 @@ describe('original TaskWizard signed execution entry', () => {
     await waitFor(() => expect(start.disabled).toBe(true));
     const originalId = requests[0].request_id;
     view.unmount(); render(<TaskWizardPage />);
+    fireEvent.click(screen.getByText('历史任务处理'));
     await screen.findByRole('button',{name:'查询原执行请求'});
     expect(screen.queryByText(originalId)).toBeNull();
     fireEvent.click(screen.getByRole('button', {name: '查询原执行请求'}));
@@ -150,6 +152,7 @@ describe('original TaskWizard signed execution entry', () => {
     render(<TaskWizardPage />); await review();
     expect((screen.getByRole('button', {name: '确认并启动'}) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText('执行设备尚未绑定或当前不可用。')).toBeTruthy();
+    fireEvent.click(screen.getByText('历史任务处理'));
     expect((screen.getByRole('checkbox', {name: /我确认核对后重试此原启动请求/}) as HTMLInputElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole('button', {name: '查询原执行请求'}));
     await waitFor(() => expect(execute).toHaveBeenLastCalledWith({action: 'RECOVER', requestId: requests[0].request_id}));
@@ -175,6 +178,7 @@ describe('original TaskWizard signed execution entry', () => {
     const start = screen.getByRole('button', {name: '确认并启动'}) as HTMLButtonElement;
     await waitFor(() => expect(start.disabled).toBe(false)); fireEvent.click(start);
     await screen.findByText(/任务已创建，当时待执行；不是当前任务状态/);
+    fireEvent.click(screen.getByText('历史任务处理'));
     const region = screen.getByRole('region', {name: '本机原执行请求'});
     const cancel = within(region).getByRole('button', {name: '确认取消此任务'}) as HTMLButtonElement;
     expect(cancel.disabled).toBe(true);

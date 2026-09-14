@@ -20,11 +20,15 @@ export function DesktopExecutionRequests({execution, canRetryStart, canRetryCanc
   const [recovery, setRecovery] = useState<{identity:object; checked:Record<string,boolean>}>(
     {identity:execution.identity, checked:{}});
   return <section className="strategy-confirmation" aria-label="本机原执行请求">
+    {!execution.loaded && <Notice tone="warning">本机原请求尚未读取成功，暂不能创建新任务。</Notice>}
+    {execution.error && <Notice tone="warning">{execution.error}</Notice>}
+    {execution.entries.length > 0 && <p className="field-hint">有任务记录可核对，请展开查看处理状态。</p>}
+    {execution.loaded && execution.blocksStart && <Notice tone="warning">当前任务已有请求，请展开核对后继续。</Notice>}
+    <details>
+    <summary>历史任务处理</summary>
     <div className="section-heading"><h2>本机原执行请求</h2>
       <Button disabled={execution.busy} onClick={() => void execution.refresh()}>刷新本机原请求</Button></div>
     <p className="field-hint">先核对原请求，避免重复创建。查询不会重新提交执行；任务创建不表示采集成功。</p>
-    {!execution.loaded && <Notice tone="warning">本机原请求尚未读取成功，暂不能创建新任务。</Notice>}
-    {execution.error && <Notice tone="warning">{execution.error}</Notice>}
     {execution.loaded && !execution.entries.length && <p className="field-hint">当前工作空间暂无本机原执行请求。</p>}
     {[...execution.entries].sort((a,b)=>a.requestId.localeCompare(b.requestId)).map((entry,index) => {
       const label = execution.entries.length > 1 ? '记录 ' + (index + 1) : '原执行请求';
@@ -83,5 +87,6 @@ export function DesktopExecutionRequests({execution, canRetryStart, canRetryCanc
         </>}
       </article>;
     })}
+    </details>
   </section>;
 }

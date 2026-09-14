@@ -33,7 +33,8 @@ beforeEach(() => {
 });
 afterEach(() => {cleanup(); vi.useRealTimers();});
 async function ready() {
-  await screen.findByText(requestId);
+  await screen.findByText('有任务记录可核对，请展开查看处理状态。');
+  fireEvent.click(screen.getByText('历史任务处理'));
   fireEvent.click(screen.getByRole('button',{name:'查询原执行请求'}));
   await screen.findByText(/原启动回执/);
 }
@@ -46,7 +47,7 @@ describe('existing task request foreground controls', () => {
       rule_sha256:'b'.repeat(64),estimated_soubei:1,max_soubei:2,limits:{sources:1,minutes:1,modelCalls:1}}};
     context={...context,service:{...context.service,execution:{researchContractVersion:1,execute:vi.fn(async (command:any):Promise<any>=>command.action==='LIST'?{state:'LIST',requests:[]}:
       command.action==='RESEARCH_LIST'?{state:'RESEARCH_LIST',requests:[research]}:'requestId'in command?{state:'UNKNOWN',requestId:command.requestId}:{state:'FAILED',error:'EXECUTION_SESSION_FAILED'})}}};
-    render(<Harness/>);await screen.findByText(/公开单源研究启动/);expect(screen.queryByRole('checkbox',{name:/重试此原启动请求/})).toBeNull();
+    render(<Harness/>);await screen.findByText(/公开单源研究启动/);fireEvent.click(screen.getByText('历史任务处理'));expect(screen.queryByRole('checkbox',{name:/重试此原启动请求/})).toBeNull();
     expect(screen.queryByRole('button',{name:'读取当前采集状态'})).toBeNull();fireEvent.click(screen.getByRole('button',{name:'恢复原研究请求'}));
     await waitFor(()=>expect(context.service.execution!.execute).toHaveBeenLastCalledWith({action:'RESEARCH_RECOVER',requestId}));
   });

@@ -5,6 +5,39 @@ import {DesktopExecutionRequests} from '../../src/renderer/pages/tasks/DesktopEx
 
 afterEach(cleanup);
 const execution=(entry:any)=>({identity:{},loaded:true,busy:false,error:'',entries:[entry],refresh:vi.fn(),recover:vi.fn(),cancel:vi.fn()});
+it('keeps request controls closed by default and queries without retry after expansion',()=>{
+  const entry={requestId:'internal-request',operation:'START',state:'UNKNOWN'};
+  const model=execution(entry);
+  render(<DesktopExecutionRequests execution={model as any} canRetryStart validateStart={vi.fn()}/>);
+  const summary=screen.getByText('历史任务处理');
+  const details=summary.closest('details')!;
+  expect(details.open).toBe(false);
+  expect(screen.getByText('有任务记录可核对，请展开查看处理状态。').closest('details')).toBeNull();
+  for(const control of screen.getAllByRole('button')) expect(control.closest('details')).toBe(details);
+  expect(model.recover).not.toHaveBeenCalled();
+  fireEvent.click(summary);
+  expect(details.open).toBe(true);
+  expect(model.recover).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button',{name:'查询原执行请求'}));
+  expect(model.recover).toHaveBeenCalledWith(entry,false,expect.any(Function));
+});
+it('keeps load failure and errors outside the disclosure with refresh available inside',()=>{
+  const model={...execution(null),entries:[],loaded:false,error:'读取失败，请稍后重试'};
+  render(<DesktopExecutionRequests execution={model as any} canRetryStart={false} validateStart={vi.fn()}/>);
+  expect(screen.getByText('本机原请求尚未读取成功，暂不能创建新任务。').closest('details')).toBeNull();
+  expect(screen.getByText(model.error).closest('details')).toBeNull();
+  expect(screen.queryByText('有任务记录可核对，请展开查看处理状态。')).toBeNull();
+  fireEvent.click(screen.getByText('历史任务处理'));
+  fireEvent.click(screen.getByRole('button',{name:'刷新本机原请求'}));
+  expect(model.refresh).toHaveBeenCalledOnce();
+});
+it('keeps the current-request warning outside even when there is no error',()=>{
+  const model={...execution({requestId:'current-request',operation:'START'}),blocksStart:true};
+  const view=render(<DesktopExecutionRequests execution={model as any} canRetryStart={false} validateStart={vi.fn()}/>);
+  expect(screen.getByText('当前任务已有请求，请展开核对后继续。').closest('details')).toBeNull();
+  view.rerender(<DesktopExecutionRequests execution={{...model,blocksStart:false} as any} canRetryStart={false} validateStart={vi.fn()}/>);
+  expect(screen.queryByText('当前任务已有请求，请展开核对后继续。')).toBeNull();
+});
 it.each([
   ['UNKNOWN','结果尚未确认'],['NOT_FOUND','暂未查到记录'],['SERVICE_UNAVAILABLE','服务暂不可用'],
   ['SESSION_CHANGED','登录身份已变化'],['BUSY','正在处理'],['KEY_MISSING','本机验证信息不可用'],
@@ -15,10 +48,14 @@ it.each([
   const model=execution(entry);
   render(<DesktopExecutionRequests execution={model as any} canRetryStart validateStart={vi.fn()}/>);
   expect(screen.queryByText(new RegExp(state))).toBeNull();
-  expect(screen.getByText(`原请求待核对（${label}）；未查到不表示请求失败。`).closest('details')).toBeNull();
+  expect(screen.getByText(`原请求待核对（${label}）；未查到不表示请求失败。`).closest('details')?.open).toBe(false);
+  fireEvent.click(screen.getByText('历史任务处理'));
   fireEvent.click(screen.getByRole('button',{name:'查询原执行请求'}));
   expect(model.recover).toHaveBeenLastCalledWith(entry,false,expect.any(Function));
   fireEvent.click(screen.getByRole('checkbox',{name:/我确认核对后重试/}));
+  fireEvent.click(screen.getByText('历史任务处理'));
+  fireEvent.click(screen.getByText('历史任务处理'));
+  expect((screen.getByRole('checkbox',{name:/我确认核对后重试/}) as HTMLInputElement).checked).toBe(true);
   fireEvent.click(screen.getByRole('button',{name:'核对并重试原执行请求'}));
   expect(model.recover).toHaveBeenLastCalledWith(entry,true,expect.any(Function));
 });
@@ -26,6 +63,7 @@ it('removes quote-token teaching while retaining non-replay research recovery',(
   const model=execution({requestId:'internal-request',kind:'RESEARCH',operation:'START',state:'UNKNOWN'});
   render(<DesktopExecutionRequests execution={model as any} canRetryStart validateStart={vi.fn()}/>);
   expect(screen.queryByText(/报价令牌/)).toBeNull();
+  fireEvent.click(screen.getByText('历史任务处理'));
   expect(screen.getByText('查询仅核对原研究进度，不会重复启动研究。')).toBeTruthy();
   expect(screen.getByRole('button',{name:'恢复原研究请求'})).toBeTruthy();
   expect(screen.queryByRole('checkbox')).toBeNull();
@@ -35,10 +73,15 @@ it('removes task identity and keeps cancellation confirmation attached to its en
   const model=execution(entry);
   render(<DesktopExecutionRequests execution={model as any} canRetryStart={false} validateStart={vi.fn()}/>);
   expect(document.body.textContent).not.toMatch(/internal-task|internal-request/);
+  fireEvent.click(screen.getByText('历史任务处理'));
   const checkbox=screen.getByRole('checkbox',{name:'我确认取消此任务'});
   const button=screen.getByRole('button',{name:'确认取消此任务'}) as HTMLButtonElement;
   expect(button.disabled).toBe(true);
-  fireEvent.click(checkbox);fireEvent.click(button);
+  fireEvent.click(checkbox);
+  fireEvent.click(screen.getByText('历史任务处理'));
+  fireEvent.click(screen.getByText('历史任务处理'));
+  expect((checkbox as HTMLInputElement).checked).toBe(true);
+  fireEvent.click(button);
   expect(model.cancel).toHaveBeenCalledWith(entry,true);
 });
 it('distinguishes multiple records and repeats the selected label in cancellation',()=>{
@@ -46,6 +89,7 @@ it('distinguishes multiple records and repeats the selected label in cancellatio
   const second={requestId:'request-b',operation:'START',receipt:{operation:'START',task_id:'task-b'}};
   const model={...execution(first),entries:[second,first]};
   const view=render(<DesktopExecutionRequests execution={model as any} canRetryStart={false} validateStart={vi.fn()}/>);
+  fireEvent.click(screen.getByText('历史任务处理'));
   const card=screen.getByRole('heading',{name:'启动任务 · 记录 2'}).closest('article')!;
   expect(card.textContent).not.toContain('task-b');
   fireEvent.click(within(card).getByRole('checkbox',{name:'我确认取消记录 2 对应的任务'}));

@@ -19,3 +19,19 @@
 服务候选为现有镜像只覆盖main b95b788的worker，193个产品文件核对差量仅此文件；不是全仓库同SHA镜像。customer镜像ec29f20114b18b71cbe968824f86bc68eeb5405ddf3f5c6e98577a898fc08b48，research镜像bb8350f4e66a3b9e744e1ef244f5ee8f43609b97fb1b937b314079700569001b，worker SHA256 192a8ab991856f5c033199700c9c084792f15406a8af3589e2245f769cc346b3。发布脚本SHA256 2928360c56d3520cccaaa284ad0666c4ab03eab8ba36f87a237e5d6c2e4f47a3，经独立差量GO、预检查通过后实际执行退出0；发布锁、无活动任务复查、旧镜像回滚和ops隔离保留，公网readyz为200。
 
 Windows冻结源码b95b788，运行包检查1通过/117.25秒。Forge会话25719仍在封装EXE，输出D:/ykx914，不能重复启动或宣布EXE完成。已打出的app.asar核对40个renderer文件、主进程HTTPS和payload pin，SHA256 c43874b05622ddbf21712a2e97915fcad84a7c41d8de3f4a7faf0367f51e7777；portable manifest ef007bd8729214e92b4f78834b65259c0ef0a32e59030cb3d10a5d2a2ee2c670。已安装版本仍0c32113，未重启旧任务，尚无low真实MODEL回执或新原文/买方结果。
+
+接续：Forge25719已退出0，EXE完成：D:/ykx914/make/squirrel.windows/x64/YikeAI-Setup.exe，642865664字节，SHA256 f4099601d775bc54da619732eab1942603bb206d95d69934a1bb6b75b27d866b，未签名。已正常关闭旧客户端，13:33:07只启动一次silent安装，会话48592/PID32580仍活跃；无可见安装窗口，ASAR仍为旧f6edf645，尚不能标实装成功。继续等待同一进程，不因无新输出重装或启动旧版进行新版验收。
+
+## 13:52 同批客户端真实执行
+
+安装会话48592仍活跃，未重启；为推进业务验收，使用D:/ykx914/意客AI-win32-x64/YikeAI.exe同批未安装客户端，不替代安装验收。实际界面填写验收-AI定制低推理-b95b788，复用上轮八个关键词、既有AI软件定制画像、公开网页自主研究、100条/900秒、20来源/20模型调用/近60天、10万搜贝上限，完成策略核对和55搜贝估算后创建并仅启动一次。
+
+任务4ec9b7e2-1832-420a-8d50-4445a57d932d，run e88b4602-7f85-41db-b0ea-5d45512ac411。只读journal确认首MODEL实际effort=low，input9815/output64/reasoning_tokens=0；指导完整。到本次观察时3次SEARCH成功，仍主要供应商/讨论，V2EX outsourcing目录READ失败，界面研究中/0篇原文，不标整轮终态或效果改善。下一步核对同一run最终结果及供应商推理参数适配，不盲升档或重试旧任务。
+
+实际确认页仍默认展示26条历史原执行请求及解释文字，是未解决的普通用户界面复杂度问题；应集中精简显示，但保留未知结果核对与防重能力。
+
+13:55终态补充：同一run于05:53:32Z停止，runtime_failed、0成功READ，研究容器无活动实例。共7 MODEL/5 SEARCH/2 READ；最后READ为https://eleduck.com/posts/N0fKOr，UNKNOWN（约0.8秒），此前V2EX为确定connection_unavailable。客户端如实显示暂停/已有请求待核实。服务器匿名HEAD诊断（不是任务重放，无GET正文、无模型调用）收到302，Location=/verification?redirect=…；说明当前该站将此请求导向验证页，不绕过。HEAD不证明历史GET的精确回包，但提供明确访问限制证据。代码对非200/未分类响应返回unavailable，durable层不能将其作为已知失败而记UNKNOWN；当前没有足够历史回执区分具体GET错误，不把未知改写为已成功/已知拒绝。low已实际送达但未证明能产出可用买方，不能继续仅靠升推理档位解决来源限制。
+
+14:01安装补充：实际日志位于C:/Users/bruce/AppData/Local/SquirrelTemp/Squirrel-Install.log。原尝试13:33:10已因旧dxcompiler.dll访问拒绝fatal（此前旧客户端退出有延迟）；仅外层32580仍活跃，并非正常安装等待。核对该wrapper精确路径且无子进程后结束，旧会话48592退出INSTALLER_EXIT=-1。正常关闭D盘测试客户端，CIM确认全部YikeAI/Update/Setup退出后，14:00:57重试同一安装包一次（session84679/PID25244），14:01:15完成、退出0。实装app.asar SHA256 c43874b05622ddbf21712a2e97915fcad84a7c41d8de3f4a7faf0367f51e7777，与候选一致。没有重新构包或修改文件权限；这证明安装成功，不代表真实研究/商机闭环通过。
+
+安装版启动验证：首次Sky启动等待未获得匹配窗口，刷新窗口列表后发现真实安装路径窗口111020526，截图已进入商机工作台，保留原登录、小红书已连接及现有任务范围。不是D盘未安装客户端，安装路径及虚拟化别名ASAR均匹配c43874b。历史请求展示精简为随后源码批次，未追认为本安装包能力。

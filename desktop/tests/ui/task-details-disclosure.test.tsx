@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {cleanup,render,screen} from '@testing-library/react';
+import {cleanup,fireEvent,render,screen} from '@testing-library/react';
 import {afterEach,it,expect,vi} from 'vitest';
 import {DesktopExecutionRequests} from '../../src/renderer/pages/tasks/DesktopExecutionRequests';
 import {TaskConfirmationSummary} from '../../src/renderer/pages/tasks/TaskConfirmationSummary';
@@ -26,11 +26,12 @@ it('requires returning to configure an unset range without presenting defaults a
  expect(screen.queryByText(/建议100条|900秒/)).toBeNull();
  expect(screen.getByRole('button',{name:'修改配置'})).toBeTruthy();
 });
-it('removes raw execution request identity without hiding UNKNOWN recovery',()=>{
+it('removes raw execution request identity and keeps UNKNOWN recovery in history',()=>{
  const execution={identity:{},loaded:true,busy:false,error:'',entries:[{requestId:'technical-request',operation:'START',state:'UNKNOWN'}],refresh:vi.fn()};
  render(<DesktopExecutionRequests execution={execution as any} canRetryStart={false} validateStart={vi.fn()}/>);
  expect(screen.queryByText('technical-request')).toBeNull();
- expect(screen.getByText(/原请求待核对/).closest('details')).toBeNull();
+ expect(screen.getByText(/原请求待核对/).closest('details')?.open).toBe(false);
+ fireEvent.click(screen.getByText('历史任务处理'));
  expect(screen.getByRole('button',{name:'查询原执行请求'})).toBeTruthy();
 });
 it('keeps confirmation budgets in view and removes billing rule versions',()=>{
