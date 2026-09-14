@@ -19,7 +19,8 @@ from app.collector import _EXIT_RESULTS
 from app.repository import canonical_single_keyword
 from app.windows_source_driver import collect_windows_source
 from app.platform_login_worker import valid_account
-from connectors.candidate_mapping import build_comment_batch
+from connectors.candidate_mapping import CandidateMappingError, build_comment_batch
+from pilot.candidate_contract import CandidateContractError
 from pilot.native_collection_links import validate_bili_collection_target
 from app.bili_search_progress import checked_input, checked_delta
 
@@ -141,9 +142,14 @@ def _collect(payload: dict, cancelled: threading.Event) -> dict:
             raise ValueError()
         if not isinstance(result['records'], list) or len(result['records']) > payload['max_records']:
             raise ValueError()
-        batch = build_comment_batch(raw_records=result['records'], platform=payload['platform'],
-            collector_version=result['collector_version'], query=result['query'],
-            now=datetime.now(timezone.utc), **payload['mapping'])
+        try:
+            batch = build_comment_batch(raw_records=result['records'], platform=payload['platform'],
+                collector_version=result['collector_version'], query=result['query'],
+                now=datetime.now(timezone.utc), **payload['mapping'])
+        except (CandidateMappingError, CandidateContractError):
+            # Mapping is offline, after the source driver has returned and stopped.
+            # Reject the entire batch without reporting unknown process cleanup.
+            return _failure('COLLECTION_PARSE_FAILED')
         return {'schema_version': SCHEMA_VERSION, 'state': 'COLLECTED',
                 'records': [record.model_dump(mode='json') for record in batch.records], **delta}
     if state not in _FAILURE_STATES:

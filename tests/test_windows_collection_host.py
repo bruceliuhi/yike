@@ -180,6 +180,7 @@ def test_exception_never_leaks(tmp_path, monkeypatch):
         raise RuntimeError('secret token path database')
     result, wire = run(monkeypatch, encoded(request(tmp_path)), driver)
     assert result['state'] == 'FAILED' and b'secret' not in wire
+    assert result['error_code'] == 'SOURCE_HOST_FAILED'
 
 
 def test_response_byte_budget_is_all_or_nothing(tmp_path, monkeypatch):
@@ -216,6 +217,17 @@ def test_mapping_failure_does_not_emit_partial_records(tmp_path, monkeypatch):
         state='COLLECTED', records=[raw('BILIBILI'), {'secret': 'private data'}],
         query='设备', collector_version='source-1'))
     assert result['state'] == 'FAILED' and 'records' not in result and b'secret' not in wire
+    assert result['error_code'] == 'COLLECTION_PARSE_FAILED'
+
+
+def test_formal_record_failure_after_driver_return_is_not_a_stop_failure(tmp_path, monkeypatch):
+    invalid = raw('BILIBILI')
+    invalid['content']['title'] = ''
+    result, wire = run(monkeypatch, encoded(request(tmp_path)), lambda **kw: dict(
+        state='COLLECTED', records=[invalid], query='设备', collector_version='source-1'))
+    assert result == dict(schema_version='windows-source-host-v1', state='FAILED',
+                          error_code='COLLECTION_PARSE_FAILED')
+    assert 'records' not in result and b'content' not in wire
 
 
 def test_keyboard_interrupt_is_reported_only_after_driver_cleanup(tmp_path, monkeypatch):
@@ -229,8 +241,8 @@ def test_keyboard_interrupt_is_reported_only_after_driver_cleanup(tmp_path, monk
     assert cleaned == [True] and result['state'] == 'CANCELLED'
 
 
-@pytest.mark.parametrize('cancel', [False, True])
-def test_real_pipe_with_controlled_driver_waits_for_eof_cleanup_or_exits_with_open_stdin(tmp_path, cancel):
+@pytest.mark.parametrize('cancel,invalid', [(False, False), (True, False), (False, True)])
+def test_real_pipe_with_controlled_driver_waits_for_eof_cleanup_or_exits_with_open_stdin(tmp_path, cancel, invalid):
     host()
     marker = tmp_path / 'fixture-state'
     script = '''import sys, time
@@ -246,13 +258,13 @@ def collect(**kw):
         time.sleep(.05)
         marker.write_text('stopped')
         return {'state': 'CANCELLED', 'task_completed': False}
-    return {'state': 'COLLECTED', 'records': [], 'query': kw['query'],
+    return {'state': 'COLLECTED', 'records': [{}] if sys.argv[2] == 'invalid' else [], 'query': kw['query'],
             'collector_version': 'controlled-1', 'task_completed': False}
 host.collect_windows_source = collect
 raise SystemExit(host.main())
 '''
     proc = subprocess.Popen([sys.executable, '-X', 'utf8', '-c', script, str(marker),
-        'cancel' if cancel else 'collect'], stdin=subprocess.PIPE,
+        'cancel' if cancel else 'invalid' if invalid else 'collect'], stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         cwd=Path(__file__).resolve().parents[1])
     lines = queue.Queue()
@@ -269,7 +281,10 @@ raise SystemExit(host.main())
             assert lines.empty() and proc.poll() is None
             proc.stdin.close()
         wire = lines.get(timeout=5)
-        assert json.loads(wire)['state'] == ('CANCELLED' if cancel else 'COLLECTED')
+        result = json.loads(wire)
+        assert result['state'] == ('CANCELLED' if cancel else 'FAILED' if invalid else 'COLLECTED')
+        if invalid:
+            assert result['error_code'] == 'COLLECTION_PARSE_FAILED' and 'records' not in result
         assert proc.wait(timeout=5) == 0
         assert proc.stdout.read() == b'' and proc.stderr.read() == b''
         if cancel: assert marker.read_text() == 'stopped'

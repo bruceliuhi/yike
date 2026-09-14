@@ -204,6 +204,14 @@ it('unknown cleanup from host is not a confirmed physical stop', async () => {
   f.children[0].stdout.write(JSON.stringify({schema_version, state: 'FAILED', error_code: 'SOURCE_HOST_FAILED'}) + '\n'); f.children[0].emit('close', 0, null);
   expect(await outcome).toBe('SOURCE_DRIVER_FAILED'); await expect(run.stop()).rejects.toThrow('SOURCE_STOP_FAILED');
 });
+it('offline candidate mapping rejection does not poison a clean host stop', async () => {
+  const f = fixture(); const run = f.driver.start(f.input); const outcome = run.completed.catch(e => e.message); await tick();
+  f.children[0].stdout.write(JSON.stringify({schema_version, state: 'FAILED', error_code: 'COLLECTION_PARSE_FAILED'}) + '\n');
+  f.children[0].emit('close', 0, null);
+  expect(await outcome).toBe('SOURCE_DRIVER_FAILED');
+  await expect(run.stop()).resolves.toBeUndefined();
+  expect(f.children).toHaveLength(1); // Never continue the next query after a rejected batch.
+});
 it('one second is a usable budget and total deadline cancels the host', async () => {
   const f = fixture(); f.input.snapshot.max_runtime_seconds = 1;
   const now = vi.spyOn(performance, 'now'); now.mockReturnValueOnce(0).mockReturnValueOnce(0.2);
