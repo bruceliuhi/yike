@@ -13,7 +13,7 @@
 - [x] 修改 desktop/tests/ui/candidate-evidence-panels.test.tsx：先断言默认原文可见、内部时间不可见，展开后可见；检查可读时间及原始 dateTime、未知发布时间不借接收时间填充，历史逐字正文保留。运行该文件验证预期 RED。
 - [x] 修改 desktop/src/renderer/pages/opportunities/CandidateOriginalEvidence.tsx：导入已有 formatDate，转换 EvidenceTime 可见文字；当前采集时间放默认关闭 details；不改作者、正文、来源核验和入库操作。
 - [x] 定向运行 candidate-evidence-panels 与 public-author-evidence，必要 typecheck。审核同一批差量，不全量重测、不单独构包。
-- [ ] 一次审核并提交 main；与已通过的31bdeeb下一候选合批。实际安装与用户链路未过前不标上线。
+- [x] 一次审核并提交 main；与已通过的31bdeeb下一候选合批。实际安装与用户链路未过前不标上线。
 
 验证：初始新增夹具因发布时间早于父评论被合同拒绝，修正夹具后得到有效 RED 13通过/5失败（可见时间与默认折叠缺失）；GREEN 两文件19通过/0失败，typecheck退出0。原始JSON报告保留本地.runtime/candidate-evidence-{red,green}.json。根代理读取JSON及实际差量复核，独立Spec/Quality均GO；组件blob53b164d53f93b59593023f8621a9ce3fd4a1f4c2，测试blob943a750d149bd2bd589b59c93f691d17d0ad5c3d。此次仅展示改动，安装版仍0f81f76；不重构同字节旧包，不标原文访问修复。
 
@@ -24,3 +24,11 @@
 当前没有已有的只读原文查看器；登录 driver 完成后主动关闭浏览器，不能拿登录动作冒充原文打开。不能为测试导出 Cookie、改写云端证据 URL 或谎称浏览器已打开即核验成功。待验证方案应保留当前账号/设备隔离与凭据保护，不假定仅复用登录就能解决源站访问限制。
 
 进一步已找到可复用的导航模式：app/platform_outreach_runtime.py 在既有隔离浏览器先打开原作者主页，再点击该页实际可见的精确笔记链接，临时参数只留在浏览器；tests/test_platform_outreach_runtime.py 覆盖该导航及缺失链接失败。但这是已确认发送上下文的运行器，不是通用只读查看入口，不能为看原文伪造发送上下文。此次无标题候选作者未知，不能凭匿名哈希拼作者主页。下一步应验证同会话只读导航（已知作者用原主页，未知作者仅可用原查询中实际找到的同一笔记链接），找不到则明确不可访问；不得搜索相似帖子代替原证据。
+
+## 2026-09-14 合批构包与安装版验证
+
+产品源码638906e07d1cbf0cf3bace90cfd1b373bf9b46c3（包含31bdeeb退出分类修复）已与origin/main同步后冻结。独立运行包检查1通过/121.21秒；一次Forge完成，651项源码输入前后不变，摘要6ae5c83cdecdadd60865b70aad98de9cb1c47a40694ad74be57070877b641bb6。EXE：D:/ykq914/make/squirrel.windows/x64/YikeAI-Setup.exe，642853888字节，SHA256 3fc6211bede81b1de286b485fe617d6b2927dd24bda61f4bba7968b256568340，未签名。40个renderer资源、HTTPS地址及portable pin一致；portable manifest 47257c38556491bbf3cf777ecafa57dd5d80ad2ba5e39cdb63c8ab0c34fb212c。
+
+旧版正常关闭，仅放弃未提交测试会话草稿，无强制结束进程、无删除保存线索。安装退出0，实际安装ASAR匹配候选d25dc240f351598da37294be84d19103dd953f610e1eb88a25e36cc143c7dc27；启动保留产品登录、小红书连接，真实任务仍已完成9/10。由UI进入该任务线索列表和第一条评论证据：逐字正文“个人自拍式短视频可以做吗”保留，发布时间显示2026/7/31 12:46:21，采集详情默认折叠，实际点击展开后显示观察09:17:55/接收09:17:56，均为本地易读时间。原文可访问性仍未核实、确认入库仍受保护，没有重新采集/判断/上传或发送。
+
+公网readyz返回200/ready；本批不涉及服务端代码，不重复部署。旧失败任务仍显示运行中/取消中，未伪造终态。31bdeeb特定失败后的退出修复未制造真实平台故障重测，只引用已通过的离线管道定向证据。来源重开、真实买方价值、草稿反馈及三业务试用仍未完成，Goal保持ACTIVE，不能称上线。
