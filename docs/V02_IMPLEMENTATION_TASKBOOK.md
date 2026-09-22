@@ -1,5 +1,14 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+### 2026-09-23 本地发布候选收口（`11f6e49`）
+
+- 本地主线保留已确认的首次激活流程：手机号 + 短信验证码 + 8 位试用码；远端过渡提交中把它改成仅短信的版本已作为历史记录合并，不作为交付代码。
+- Lead Radar 当前定向回归 **44 项通过**；新增 API Key、按动作搜贝计量、工作区额度/硬门禁、请求 ID 与审计，并要求独立 `LEAD_RADAR_ADMIN_TOKEN` 保护 Key/额度管理面。控制面缺少令牌时返回 401，客户 API Key 不能自签 Key 或修改额度。
+- 动态研究候选现在必须绑定成功 SEARCH 回执中的原始查询，无法从未配对或被篡改的事件生成候选；相关回归已合入主线。
+- 本地发布候选检查：`local=PASS / external=NOT_VERIFIED / overall=HOLD`；Mac arm64 包仍以 [`latest-main-package-e2a3232.json`](qa/ui-candidate-mac/latest-main-package-e2a3232.json) 为准，桌面包字节未因本轮后端/API 文档收口而改变。
+- Gitee `origin/main` 曾在本轮并发写入自助短信过渡提交，当前已用合并提交保留验证后的本地实现；推送后必须再次核对 `main` 的试用码门禁、API 访问控制和发布检查。
+- 上线仍缺真实授权来源回执、一次不预塞 URL/作者的 SEARCH→READ→候选→证据运行、真实样本校准、目标 PostgreSQL/RLS/备份恢复/回滚，以及最终 HTTPS 运行版本与客户 UAT；本记录不改变总体 **HOLD**。
+
 ### 2026-09-23 Feed / Monitor 与当前 Mac 候选（`8c8d294`）
 
 - `yike-ai2026/main` 与 GitHub `main` 已同步到 `8c8d294`，新增证据绑定的 Feed 时间线：采购需求、招聘、招标、官网变化和竞品变化事件均保留来源 URL、摘要、内容指纹、机会关联及人工复核状态，并提供受控 API/MCP 读取与复核。
