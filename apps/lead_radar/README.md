@@ -88,6 +88,8 @@ MCP 还提供 `get_feed`、`get_feed_event` 和 `review_feed_event`。Feed 事�
 
 任务创建时会生成三条可检查的搜索路径：快速搜索、条件核验、扩展搜索，并给出来源状态和搜贝估算。`cost_estimate.unit` 固定为 `SOUBEI`，`display_unit` 为 `搜贝`，`rule_version` 为 `source-result-v1`；旧版 `estimated_credits` / `credits_used` 字段暂保留作为兼容字段，不代表人民币价格或外部平台收费。机会录入必须有 `title`、`source_url` 和 `snippet`。系统保留来源 URL、原文片段和核验时间；当前外部平台连接器仍显示为 `REQUIRES_PROOF` 或 `REQUIRES_AUTH`，不会用假数据冒充自动搜索。
 
+每条机会会按 `qualification-v1` 生成可解释评分，拆分为场景词、采购动作、企业信号、时间窗、证据完整度和排除词惩罚，并把命中词、复核优先级和下一步写入 `decision.qualification`。评分只用于排序人工复核，`permission_granted` 永远为 false；来源权利、原文重开和人工确认仍由独立门禁决定。
+
 人工录入即使提交了 `evidence_level=VERIFIED` 和 `source_permission=allowed`，也必须额外提供 `manual_override: {status: "SEND_READY", actor, reason, confirmed: true}`；系统会把覆写写入证据元数据和审计事件。没有该覆写的记录不会进入联系队列。受控 URL、授权搜索和索引导入继续默认 `REVIEW`，必须经过原文重开和人工反馈。
 
 机会反馈支持 `CONTACTED`（已联系）、`DEFERRED`（暂缓）、`HANDOFF`（转人工）、`DUPLICATE`（重复）和 `UNSUBSCRIBED`（退订/禁触达）。进入这些状态会取消尚未发送的动作草稿；`DO_NOT_CONTACT` 是锁定状态，除重复记录退订外，普通反馈不能重新放行。
