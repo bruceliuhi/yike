@@ -60,6 +60,8 @@ python3 apps/lead_radar/server.py --port 8780
 
 GET /api/v1/task-templates?language=zh-CN 或 en-US 返回首批可复用任务模板。创建任务时可以传 template_id 而不传 objective，服务端会把模板目标、条件和模板 ID 编译进同一份 IntentProfile/TaskPlan；模板只降低首次使用门槛，不会改变来源权限和人工复核门禁。
 
+GET /api/v1/business/research_brief/{task_id} 和 MCP 的 get_research_brief 会把任务候选、证据缺口、实体关联、状态分布和人工下一步整理成研究简报。它只读本地 task replay，响应明确标记 external_lookup_performed=false、external_actions_sent=false；需要工商、联系方式或第三方画像时，必须另行接入有权利证明的连接器。
+
 调度接口负责持久化周期、搜贝预算、最低新增结果数、失败策略和人工审核策略；独立的 worker.py 负责按 `next_run_at` 扫描到期任务、并发幂等触发、执行已通过门禁的授权搜索，并把来源阻塞、证据写入、用量和结算状态落到同一审计链路。worker 可由 supervisor 执行 `.venv/bin/python -m apps.lead_radar.worker --db apps/lead_radar/lead_radar.sqlite3 --once`，或去掉 `--once` 持续运行；没有真实来源 proof 时只记录 BLOCKED_SOURCE。
 
 可选的 Codex/MCP 入口使用本地 stdio：

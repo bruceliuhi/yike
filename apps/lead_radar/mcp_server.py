@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from .brief_api import get_research_brief
     from .business_api import (
         API_VERSION,
         BusinessApiError,
@@ -32,6 +33,7 @@ try:
     from .storage import Store
     from .templates import list_task_templates
 except ImportError:  # running this file directly
+    from brief_api import get_research_brief
     from business_api import API_VERSION, BusinessApiError, create_search_task, enrich_entity, fetch_search_results, get_search_status
     from evaluation_api import get_calibration_evaluation
     from feed_api import get_feed_event, list_feed, review_feed_event
@@ -75,6 +77,17 @@ TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
     {
         "name": "get_search_status",
         "description": "读取本地搜索任务、运行实例、来源门禁和事件状态。",
+        "readOnlyHint": True,
+        "inputSchema": {
+            "type": "object",
+            "properties": {"task_id": {"type": "string", "maxLength": 120}},
+            "required": ["task_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "get_research_brief",
+        "description": "从一条本地任务的候选、证据、实体和反馈生成只读研究简报；不会查询第三方或发送动作。",
         "readOnlyHint": True,
         "inputSchema": {
             "type": "object",
@@ -288,6 +301,8 @@ def build_server(store: Store, workspace_id: str = WORKSPACE_ID):
                 result = {"api_version": API_VERSION, "items": list_task_templates(args.get("language", "zh-CN"))}
             elif name == "get_search_status":
                 result = get_search_status(store, workspace_id, args["task_id"])
+            elif name == "get_research_brief":
+                result = get_research_brief(store, workspace_id, args["task_id"])
             elif name == "fetch_search_results":
                 result = fetch_search_results(
                     store,

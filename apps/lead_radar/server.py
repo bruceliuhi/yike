@@ -24,6 +24,7 @@ try:
     from .capture import CaptureError, fetch_public_page
     from .connectors import list_capabilities
     from .domain import compile_intent, evidence_status
+    from .brief_api import get_research_brief
     from .evaluation_api import get_calibration_evaluation
     from .feed_api import get_feed_event, list_feed, review_feed_event
     from .index_connector import IndexResultError, normalize_index_results
@@ -43,6 +44,7 @@ except ImportError:  # running server.py directly
     from capture import CaptureError, fetch_public_page
     from connectors import list_capabilities
     from domain import compile_intent, evidence_status
+    from brief_api import get_research_brief
     from evaluation_api import get_calibration_evaluation
     from feed_api import get_feed_event, list_feed, review_feed_event
     from index_connector import IndexResultError, normalize_index_results
@@ -188,6 +190,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             return "fetch_search_results"
         if "/enrich_entity/" in path:
             return "enrich_entity"
+        if "/research_brief/" in path:
+            return "get_research_brief"
         if path.endswith("/opportunities/export.csv"):
             return "export_opportunities"
         return None
@@ -336,6 +340,11 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/v1/business/enrich_entity/"):
             try:
                 return self._send(200, enrich_entity(self.store, WORKSPACE_ID, path.rsplit("/", 1)[-1]))
+            except BusinessApiError as exc:
+                return self._error(exc.status, exc.code, exc.message)
+        if path.startswith("/api/v1/business/research_brief/"):
+            try:
+                return self._send(200, get_research_brief(self.store, WORKSPACE_ID, path.rsplit("/", 1)[-1]))
             except BusinessApiError as exc:
                 return self._error(exc.status, exc.code, exc.message)
         if path.startswith("/api/v1/tasks/") and path.endswith("/replay"):

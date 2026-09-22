@@ -243,6 +243,38 @@ class BusinessApiTest(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertEqual(rejected["error"], "task_template_not_found")
 
+    def test_research_brief_is_evidence_bound_and_never_claims_external_enrichment(self) -> None:
+        status, created, _ = self.request(
+            "POST",
+            "/api/v1/business/create_search_task",
+            {"objective": "研究简报任务"},
+        )
+        self.assertEqual(status, 201)
+        task_id = created["task"]["id"]
+        status, added, _ = self.request(
+            "POST",
+            f"/api/v1/tasks/{task_id}/opportunities",
+            {
+                "title": "研究简报候选",
+                "source_url": "https://brief.example/request",
+                "snippet": "企业公开表达需要 AI 客服定制开发。",
+                "intent_type": "AI 客服",
+                "source_kind": "manual_public_evidence",
+            },
+        )
+        self.assertEqual(status, 201)
+        status, brief, _ = self.request(
+            "GET",
+            f"/api/v1/business/research_brief/{task_id}",
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(brief["brief"]["candidate_count"], 1)
+        self.assertEqual(brief["brief"]["status_counts"]["REVIEW"], 1)
+        self.assertTrue(brief["provenance"]["evidence_bound"])
+        self.assertFalse(brief["provenance"]["external_lookup_performed"])
+        self.assertFalse(brief["provenance"]["external_actions_sent"])
+        self.assertIn("人工打开原文", brief["brief"]["next_actions"][0])
+
 
 class McpContractTest(unittest.TestCase):
     def test_mcp_tools_have_no_credential_or_outreach_inputs(self) -> None:

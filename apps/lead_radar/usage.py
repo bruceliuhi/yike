@@ -18,6 +18,7 @@ DISPLAY_UNIT = "搜贝"
 ACTION_COSTS: dict[str, int] = {
     "create_search_task": 1,
     "enrich_entity": 1,
+    "get_research_brief": 0,
     "create_monitor_schedule": 1,
     "get_search_status": 0,
     "fetch_search_results": 0,
