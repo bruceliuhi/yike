@@ -72,17 +72,21 @@ def build_query_portfolio(*, query_seeds: list[str], intent_signals: list[str],
         if len(query) <= 512 and query not in candidates:
             candidates.append(query)
 
-    for seed in seeds:
-        for action in actions:
+    # Walk actions outside seeds so a bounded portfolio still represents every
+    # explicit business seed before spending its remaining budget on expansion.
+    # This matters when the context permits 20 seeds but the runtime keeps only
+    # 24 queries: seed-major ordering would silently drop most of the profile.
+    for action in actions:
+        for seed in seeds:
             add(seed, action)
-    for seed in seeds:
-        for action in actions:
+    for action in actions:
+        for seed in seeds:
             add(seed, action, negative=True)
-    for seed in seeds:
-        for action in fallback_actions:
+    for action in fallback_actions:
+        for seed in seeds:
             add(seed, action)
-    for seed in seeds:
-        for action in fallback_actions:
+    for action in fallback_actions:
+        for seed in seeds:
             add(seed, action, negative=True)
     for seed in seeds:
         add(seed, "", negative=True)

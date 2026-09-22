@@ -47,3 +47,15 @@ def test_portfolio_accepts_context_field_limits():
         exclusions=["z" * 160], max_queries=4,
     )
     assert len(queries) == 4
+
+
+def test_portfolio_covers_each_explicit_seed_before_expanding_actions():
+    seeds = [f"业务{s}" for s in range(20)]
+    queries = build_query_portfolio(
+        query_seeds=seeds,
+        intent_signals=[f"动作{a}" for a in range(5)],
+        exclusions=["招聘"],
+        max_queries=24,
+    )
+
+    assert all(any(seed in query for query in queries) for seed in seeds)
