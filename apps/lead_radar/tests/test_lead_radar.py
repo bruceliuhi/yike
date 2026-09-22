@@ -79,6 +79,13 @@ class LeadRadarApiTest(unittest.TestCase):
         status, feedback = self.request("POST", f"/api/v1/opportunities/{opportunity_id}/feedback", {"label": "INVALID", "note": "人工复核后排除"})
         self.assertEqual(status, 200)
         self.assertEqual(feedback["status"], "EXCLUDE")
+        status, detail = self.request("GET", f"/api/v1/opportunities/{opportunity_id}")
+        self.assertEqual(status, 200)
+        self.assertEqual(detail["evidence"][0]["content"], "希望寻找团队定制企业 AI 客服并尽快落地。")
+        self.assertEqual(detail["feedback_events"][-1]["note"], "人工复核后排除")
+        self.assertEqual(detail["audit_events"][-1]["payload"]["label"], "INVALID")
+        self.assertEqual(feedback["feedback_events"][-1]["label"], "INVALID")
+        self.assertEqual(feedback["audit_events"][-1]["action"], "feedback")
 
         status, started = self.request("POST", f"/api/v1/tasks/{task['id']}/start", {"mode": "quick"})
         self.assertEqual(status, 200)

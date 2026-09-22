@@ -871,6 +871,20 @@ class Store:
                        ORDER BY oe.created_at""",
                     (result["id"],),
                 ).fetchall()
+                feedback_events = self.db.execute(
+                    """SELECT id, label, note, actor, created_at
+                       FROM feedback_events
+                       WHERE opportunity_id = ?
+                       ORDER BY created_at, rowid""",
+                    (result["id"],),
+                ).fetchall()
+                audit_events = self.db.execute(
+                    """SELECT id, action, payload_json, created_at
+                       FROM audit_events
+                       WHERE workspace_id = ? AND entity_type = 'opportunity' AND entity_id = ?
+                       ORDER BY created_at, rowid""",
+                    (result["workspace_id"], result["id"]),
+                ).fetchall()
             result["evidence"] = []
             result["decision"] = json.loads(result.pop("decision_json") or "{}")
             for item in evidence:
@@ -884,6 +898,12 @@ class Store:
                 entry["entity_confidence"] = entry.pop("entity_confidence")
                 entry["evidence"] = json.loads(entry.pop("evidence_json") or "{}")
                 result["entities"].append(entry)
+            result["feedback_events"] = [dict(item) for item in feedback_events]
+            result["audit_events"] = []
+            for item in audit_events:
+                entry = dict(item)
+                entry["payload"] = json.loads(entry.pop("payload_json") or "{}")
+                result["audit_events"].append(entry)
         return result
 
     def _resolve_opportunity_entities(
