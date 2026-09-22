@@ -21,6 +21,7 @@ try:
     from .capture import CaptureError, fetch_public_page
     from .connectors import list_capabilities
     from .domain import compile_intent, evidence_status
+    from .feed_api import get_feed_event, list_feed, review_feed_event
     from .index_connector import IndexResultError, normalize_index_results
     from .planner import build_search_plan
     from .proofs import SourceProofError, normalize_source_proof
@@ -34,6 +35,7 @@ except ImportError:  # running server.py directly
     from capture import CaptureError, fetch_public_page
     from connectors import list_capabilities
     from domain import compile_intent, evidence_status
+    from feed_api import get_feed_event, list_feed, review_feed_event
     from index_connector import IndexResultError, normalize_index_results
     from planner import build_search_plan
     from proofs import SourceProofError, normalize_source_proof
@@ -186,6 +188,28 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 return self._error(exc.status, exc.code, exc.message)
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/schedules":
             return self._send(200, list_schedules(self.store, WORKSPACE_ID))
+        if path == f"/api/v1/workspaces/{WORKSPACE_ID}/feed":
+            query = parse_qs(parsed.query)
+            try:
+                return self._send(
+                    200,
+                    list_feed(
+                        self.store,
+                        WORKSPACE_ID,
+                        event_type=query.get("event_type", [None])[0],
+                        status=query.get("status", [None])[0],
+                        since=query.get("since", [None])[0],
+                        limit=query.get("limit", [50])[0],
+                        offset=query.get("offset", [0])[0],
+                    ),
+                )
+            except BusinessApiError as exc:
+                return self._error(exc.status, exc.code, exc.message)
+        if path.startswith("/api/v1/feed-events/") and path.count("/") == 4:
+            try:
+                return self._send(200, get_feed_event(self.store, WORKSPACE_ID, path.rsplit("/", 1)[-1]))
+            except BusinessApiError as exc:
+                return self._error(exc.status, exc.code, exc.message)
         if path.startswith("/api/v1/schedules/") and path.count("/") == 4:
             try:
                 return self._send(200, get_schedule(self.store, WORKSPACE_ID, path.rsplit("/", 1)[-1]))
@@ -253,6 +277,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 return self._send(200, control_schedule(self.store, WORKSPACE_ID, path.split("/")[-2], "pause", payload.get("actor", "operator")))
             if path.startswith("/api/v1/schedules/") and path.endswith("/resume"):
                 return self._send(200, control_schedule(self.store, WORKSPACE_ID, path.split("/")[-2], "resume", payload.get("actor", "operator")))
+            if path.startswith("/api/v1/feed-events/") and path.endswith("/review"):
+                return self._send(200, review_feed_event(self.store, WORKSPACE_ID, path.split("/")[-2], payload))
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/profiles":
                 return self._create_profile(payload)
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/source-proofs/revoke":

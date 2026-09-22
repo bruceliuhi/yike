@@ -24,11 +24,13 @@ try:
         fetch_search_results,
         get_search_status,
     )
+    from .feed_api import get_feed_event, list_feed, review_feed_event
     from .server import WORKSPACE_ID
     from .schedule_api import create_schedule, get_schedule, trigger_schedule
     from .storage import Store
 except ImportError:  # running this file directly
     from business_api import API_VERSION, BusinessApiError, create_search_task, enrich_entity, fetch_search_results, get_search_status
+    from feed_api import get_feed_event, list_feed, review_feed_event
     from server import WORKSPACE_ID
     from schedule_api import create_schedule, get_schedule, trigger_schedule
     from storage import Store
@@ -141,6 +143,49 @@ TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "additionalProperties": False,
         },
     },
+    {
+        "name": "get_feed",
+        "description": "读取带来源 URL、摘要和内容指纹的 Feed 事件时间线。",
+        "readOnlyHint": True,
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "event_type": {"type": "string", "enum": ["PURCHASE_DEMAND", "HIRING", "TENDER", "WEBSITE_CHANGE", "COMPETITOR_CHANGE"]},
+                "status": {"type": "string", "enum": ["NEW", "REVIEWED", "DISMISSED"]},
+                "since": {"type": "string"},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+                "offset": {"type": "integer", "minimum": 0},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "get_feed_event",
+        "description": "读取单条 Feed 事件及其证据边界。",
+        "readOnlyHint": True,
+        "inputSchema": {
+            "type": "object",
+            "properties": {"event_id": {"type": "string", "maxLength": 120}},
+            "required": ["event_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "review_feed_event",
+        "description": "将 Feed 事件标记为人工已复核或忽略；不会发送消息。",
+        "readOnlyHint": False,
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "event_id": {"type": "string", "maxLength": 120},
+                "status": {"type": "string", "enum": ["REVIEWED", "DISMISSED"]},
+                "actor": {"type": "string", "maxLength": 120},
+                "note": {"type": "string", "maxLength": 1000},
+            },
+            "required": ["event_id", "status"],
+            "additionalProperties": False,
+        },
+    },
 )
 
 
@@ -226,6 +271,20 @@ def build_server(store: Store, workspace_id: str = WORKSPACE_ID):
                     args.get("actor", "scheduler"),
                     args.get("scheduled_for"),
                 )
+            elif name == "get_feed":
+                result = list_feed(
+                    store,
+                    workspace_id,
+                    event_type=args.get("event_type"),
+                    status=args.get("status"),
+                    since=args.get("since"),
+                    limit=args.get("limit", 50),
+                    offset=args.get("offset", 0),
+                )
+            elif name == "get_feed_event":
+                result = get_feed_event(store, workspace_id, args["event_id"])
+            elif name == "review_feed_event":
+                result = review_feed_event(store, workspace_id, args["event_id"], args)
             else:
                 result = _failure("unknown_tool", "工具不存在。")
         except BusinessApiError as exc:

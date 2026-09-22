@@ -145,6 +145,28 @@ CREATE TABLE IF NOT EXISTS opportunities (
     UNIQUE(workspace_id, dedup_key)
 );
 
+CREATE TABLE IF NOT EXISTS feed_events (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    task_id TEXT REFERENCES tasks(id),
+    opportunity_id TEXT REFERENCES opportunities(id),
+    event_type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'NEW',
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    source_url TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    published_at TEXT,
+    observed_at TEXT NOT NULL,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    review_note TEXT,
+    reviewed_by TEXT,
+    reviewed_at TEXT,
+    dedup_key TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(workspace_id, dedup_key)
+);
+
 CREATE TABLE IF NOT EXISTS evidence (
     id TEXT PRIMARY KEY,
     opportunity_id TEXT NOT NULL REFERENCES opportunities(id),
@@ -276,6 +298,8 @@ CREATE TABLE IF NOT EXISTS action_drafts (
 CREATE INDEX IF NOT EXISTS idx_tasks_workspace_created ON tasks(workspace_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_opportunities_workspace_updated ON opportunities(workspace_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_opportunities_status ON opportunities(status);
+CREATE INDEX IF NOT EXISTS idx_feed_events_workspace_observed ON feed_events(workspace_id, observed_at DESC, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_feed_events_type_status ON feed_events(workspace_id, event_type, status, observed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_entities_workspace ON entities(workspace_id, entity_type, canonical_name);
 CREATE INDEX IF NOT EXISTS idx_entities_host ON entities(workspace_id, website_host);
 CREATE INDEX IF NOT EXISTS idx_opportunity_entities_entity ON opportunity_entities(entity_id);
@@ -323,6 +347,8 @@ ACTION_CHANNEL_ORDER = ["PUBLIC_REPLY", "EMAIL", "FEISHU_TASK", "CRM_TASK"]
 CALIBRATION_NAME_MAX = 120
 CALIBRATION_REVIEWER_MAX = 120
 CALIBRATION_NOTE_MAX = 4000
+FEED_EVENT_TYPES = {"PURCHASE_DEMAND", "HIRING", "TENDER", "WEBSITE_CHANGE", "COMPETITOR_CHANGE"}
+FEED_EVENT_STATUSES = {"NEW", "REVIEWED", "DISMISSED"}
 
 
 def predicted_calibration_label(status: str) -> str:
@@ -1074,6 +1100,188 @@ class Store:
             (_id("run_event"), run_id, event_type, status, message, _json(payload), now_iso()),
         )
 
+    @staticmethod
+    def _feed_event_type(item: dict[str, Any], override: str | None = None) -> str:
+        explicit = override or item.get("feed_event_type") or item.get("event_type")
+        if explicit:
+            normalized = str(explicit).strip().upper()
+            if normalized not in FEED_EVENT_TYPES:
+                raise ValueError("feed_event_type_invalid")
+            return normalized
+        text = " ".join(str(item.get(field) or "") for field in ("title", "intent_type", "snippet"))
+        if any(term in text for term in ("招聘", "招募", "岗位", "人才")):
+            return "HIRING"
+        if any(term in text for term in ("招标", "投标", "公告", "标书")):
+            return "TENDER"
+        return "PURCHASE_DEMAND"
+
+    @staticmethod
+    def _feed_event_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
+        result = _decode(row)
+        if not result:
+            return None
+        try:
+            result["payload"] = json.loads(result.pop("payload_json") or "{}")
+        except (TypeError, json.JSONDecodeError):
+            result["payload"] = {}
+            result.pop("payload_json", None)
+        return result
+
+    def _record_feed_event(
+        self,
+        db: sqlite3.Connection,
+        workspace_id: str,
+        task_id: str | None,
+        opportunity_id: str | None,
+        item: dict[str, Any],
+        *,
+        event_type: str | None = None,
+        observed_at: str | None = None,
+    ) -> dict[str, Any]:
+        normalized_type = self._feed_event_type(item, event_type)
+        title = str(item.get("title") or "公开来源事件").strip()[:500]
+        summary = str(item.get("snippet") or item.get("summary") or "").strip()[:4000]
+        source_url = str(item.get("source_url") or item.get("url") or "").strip()
+        if not title or not summary or not source_url:
+            raise ValueError("feed_event_evidence_required")
+        metadata = item.get("evidence_metadata") or {}
+        if not isinstance(metadata, dict):
+            metadata = {}
+        content_hash = str(
+            metadata.get("content_hash")
+            or item.get("content_hash")
+            or hashlib.sha256(f"{title}|{summary}".encode("utf-8")).hexdigest()
+        ).strip()
+        if len(content_hash) > 128:
+            content_hash = hashlib.sha256(content_hash.encode("utf-8")).hexdigest()
+        dedup_key = hashlib.sha256(
+            f"{workspace_id}|{normalized_type}|{source_url}|{content_hash}".encode("utf-8")
+        ).hexdigest()
+        provenance = metadata.get("source_provenance") if isinstance(metadata.get("source_provenance"), dict) else {}
+        payload = {
+            "source_kind": item.get("source_kind"),
+            "evidence_level": item.get("evidence_level", "UNVERIFIED"),
+            "source_permission": item.get("source_permission", "unknown"),
+            "platform": provenance.get("platform"),
+            "change_type": item.get("change_type"),
+            "content_hash": content_hash,
+        }
+        timestamp = now_iso()
+        db.execute(
+            """INSERT OR IGNORE INTO feed_events
+               (id, workspace_id, task_id, opportunity_id, event_type, status,
+                title, summary, source_url, content_hash, published_at,
+                observed_at, payload_json, dedup_key, created_at)
+               VALUES (?, ?, ?, ?, ?, 'NEW', ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                _id("feed"),
+                workspace_id,
+                task_id,
+                opportunity_id,
+                normalized_type,
+                title,
+                summary,
+                source_url,
+                content_hash,
+                item.get("published_at"),
+                str(observed_at or item.get("observed_at") or item.get("captured_at") or timestamp),
+                _json(payload),
+                dedup_key,
+                timestamp,
+            ),
+        )
+        row = db.execute("SELECT * FROM feed_events WHERE workspace_id = ? AND dedup_key = ?", (workspace_id, dedup_key)).fetchone()
+        return self._feed_event_dict(row)  # type: ignore[return-value]
+
+    def get_feed_event(self, event_id: str, workspace_id: str | None = None) -> dict[str, Any] | None:
+        query = "SELECT * FROM feed_events WHERE id = ?"
+        params: list[Any] = [event_id]
+        if workspace_id is not None:
+            query += " AND workspace_id = ?"
+            params.append(workspace_id)
+        with self.lock:
+            row = self.db.execute(query, params).fetchone()
+        return self._feed_event_dict(row)
+
+    def list_feed_events(
+        self,
+        workspace_id: str,
+        *,
+        event_type: str | None = None,
+        status: str | None = None,
+        since: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        if event_type is not None:
+            event_type = str(event_type).strip().upper()
+            if event_type not in FEED_EVENT_TYPES:
+                raise ValueError("feed_event_type_invalid")
+        if status is not None:
+            status = str(status).strip().upper()
+            if status not in FEED_EVENT_STATUSES:
+                raise ValueError("feed_event_status_invalid")
+        bounded_limit = max(1, min(int(limit), 100))
+        bounded_offset = max(0, int(offset))
+        clauses = ["workspace_id = ?"]
+        params: list[Any] = [workspace_id]
+        if event_type:
+            clauses.append("event_type = ?")
+            params.append(event_type)
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        if since:
+            clauses.append("observed_at >= ?")
+            params.append(str(since))
+        where = " AND ".join(clauses)
+        with self.lock:
+            total = int(self.db.execute(f"SELECT COUNT(*) FROM feed_events WHERE {where}", params).fetchone()[0])
+            rows = self.db.execute(
+                f"SELECT * FROM feed_events WHERE {where} ORDER BY observed_at DESC, created_at DESC, rowid DESC LIMIT ? OFFSET ?",
+                (*params, bounded_limit, bounded_offset),
+            ).fetchall()
+        items = [self._feed_event_dict(row) for row in rows]
+        next_offset = bounded_offset + bounded_limit if bounded_offset + bounded_limit < total else None
+        return {
+            "items": items,
+            "pagination": {
+                "limit": bounded_limit,
+                "offset": bounded_offset,
+                "total": total,
+                "has_more": next_offset is not None,
+                "next_offset": next_offset,
+            },
+        }
+
+    def review_feed_event(
+        self,
+        event_id: str,
+        workspace_id: str,
+        status: str,
+        actor: str = "operator",
+        note: str = "",
+    ) -> dict[str, Any] | None:
+        status = str(status or "").strip().upper()
+        if status not in FEED_EVENT_STATUSES - {"NEW"}:
+            raise ValueError("feed_review_status_invalid")
+        actor = str(actor or "operator").strip() or "operator"
+        note = str(note or "").strip()[:1000]
+        with self.tx() as db:
+            row = db.execute(
+                "SELECT * FROM feed_events WHERE id = ? AND workspace_id = ?",
+                (event_id, workspace_id),
+            ).fetchone()
+            if not row:
+                return None
+            timestamp = now_iso()
+            db.execute(
+                "UPDATE feed_events SET status = ?, review_note = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ?",
+                (status, note, actor, timestamp, event_id),
+            )
+            self._audit(db, workspace_id, "feed_event", event_id, "reviewed", {"status": status, "actor": actor, "note": note})
+        return self.get_feed_event(event_id, workspace_id)
+
     def add_opportunity(self, task_id: str, item: dict[str, Any], status: str) -> tuple[dict[str, Any], bool]:
         with self.lock:
             task = self.db.execute("SELECT workspace_id FROM tasks WHERE id = ?", (task_id,)).fetchone()
@@ -1096,6 +1304,7 @@ class Store:
             ).fetchone()
             if existing:
                 db.execute("UPDATE opportunities SET updated_at = ? WHERE id = ?", (timestamp, existing["id"]))
+                self._record_feed_event(db, workspace_id, task_id, existing["id"], item)
                 self._audit(db, workspace_id, "opportunity", existing["id"], "deduplicated", {"task_id": task_id})
                 return self._opportunity_dict(existing), True
             db.execute(
@@ -1141,6 +1350,7 @@ class Store:
                 ),
             )
             self._resolve_opportunity_entities(db, workspace_id, opportunity_id, item)
+            self._record_feed_event(db, workspace_id, task_id, opportunity_id, item)
             audit_payload = {"task_id": task_id, "status": status}
             manual_override = item.get("_manual_override")
             if isinstance(manual_override, dict):
@@ -1525,6 +1735,31 @@ class Store:
                     "UPDATE opportunities SET decision_json = ?, updated_at = ? WHERE id = ?",
                     (_json(decision), timestamp, opportunity_id),
                 )
+            if evidence_type == "reopen_check" and metadata.get("matches_previous_snapshot") is False:
+                opportunity = db.execute(
+                    "SELECT task_id, title, published_at, source_kind, source_permission, evidence_level FROM opportunities WHERE id = ?",
+                    (opportunity_id,),
+                ).fetchone()
+                if opportunity:
+                    self._record_feed_event(
+                        db,
+                        row["workspace_id"],
+                        opportunity["task_id"],
+                        opportunity_id,
+                        {
+                            "title": opportunity["title"],
+                            "snippet": content,
+                            "source_url": url,
+                            "published_at": opportunity["published_at"],
+                            "source_kind": opportunity["source_kind"],
+                            "source_permission": opportunity["source_permission"],
+                            "evidence_level": opportunity["evidence_level"],
+                            "change_type": "CONTENT_CHANGED",
+                            "evidence_metadata": metadata,
+                        },
+                        event_type="WEBSITE_CHANGE",
+                        observed_at=captured_at or timestamp,
+                    )
             self._audit(db, row["workspace_id"], "opportunity", opportunity_id, "evidence_appended", {"evidence_type": evidence_type, **metadata})
         return self.get_opportunity(opportunity_id)
 
@@ -1564,6 +1799,10 @@ class Store:
                     "SELECT * FROM action_drafts WHERE opportunity_id = ? ORDER BY created_at DESC, rowid DESC",
                     (result["id"],),
                 ).fetchall()
+                feed_events = self.db.execute(
+                    "SELECT * FROM feed_events WHERE opportunity_id = ? ORDER BY observed_at DESC, created_at DESC, rowid DESC",
+                    (result["id"],),
+                ).fetchall()
             result["evidence"] = []
             result["decision"] = json.loads(result.pop("decision_json") or "{}")
             for item in evidence:
@@ -1584,6 +1823,7 @@ class Store:
                 entry["payload"] = json.loads(entry.pop("payload_json") or "{}")
                 result["audit_events"].append(entry)
             result["action_drafts"] = [self._action_draft_dict(item) for item in action_drafts]
+            result["feed_events"] = [self._feed_event_dict(item) for item in feed_events]
         return result
 
     def _resolve_opportunity_entities(

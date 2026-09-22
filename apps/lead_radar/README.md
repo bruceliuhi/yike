@@ -31,11 +31,9 @@ python3 apps/lead_radar/server.py --port 8780
 - `GET /api/v1/workspaces/ws_意客AI/schedules` / `GET /api/v1/schedules/{schedule_id}`：读取调度及最近运行记录
 - `POST /api/v1/schedules/{schedule_id}/trigger`：由受控 scheduler 触发一次到期运行；来源未通过门禁时会持久化阻塞原因
 - `POST /api/v1/schedules/{schedule_id}/pause` / `resume`：暂停或恢复周期任务
-- `GET /api/v1/workspaces/ws_意客AI/schedules`：列出监测调度
-- `POST /api/v1/workspaces/ws_意客AI/schedules`：创建频率、预算、结果阈值、失败策略和审批策略
-- `GET /api/v1/schedules/{schedule_id}`：读取调度与最近运行
-- `POST /api/v1/schedules/{schedule_id}/trigger`：对到期调度登记一次运行并排队任务
-- `POST /api/v1/schedules/{schedule_id}/pause|resume`：暂停或恢复调度
+- `GET /api/v1/workspaces/ws_意客AI/feed?event_type=HIRING&status=NEW`：读取证据绑定的 Feed 时间线
+- `GET /api/v1/feed-events/{event_id}`：读取单条 Feed 事件
+- `POST /api/v1/feed-events/{event_id}/review`：记录人工复核或忽略
 - `GET /api/v1/tasks/{task_id}/plan`
 - `POST /api/v1/tasks/{task_id}/start`
 - `POST /api/v1/tasks/{task_id}/execute`
@@ -71,6 +69,8 @@ python3 apps/lead_radar/server.py --port 8780
 它暴露 `create_search_task`、`get_search_status`、`fetch_search_results` 和 `enrich_entity` 四个工具。MCP 依赖属于可选的 `research` 组；普通 HTTP 工作台不依赖它。MCP 工具没有发送、登录、Cookie、密码或第三方 Token 参数，也不监听 HTTP 端口。
 
 MCP 还暴露 `create_monitor_schedule`、`get_monitor_schedule` 和 `trigger_monitor_schedule`。调度器目前以 `trigger` 作为清晰的 worker 边界：创建和到期判定已持久化，后台进程需要显式调用该入口；来源未通过生产门禁时会记录 `BLOCKED_SOURCE`，不会把排队当成搜索完成。
+
+MCP 还提供 `get_feed`、`get_feed_event` 和 `review_feed_event`。Feed 事件只从机会证据、重复内容变化或原文重开变化产生，支持 `PURCHASE_DEMAND`、`HIRING`、`TENDER`、`WEBSITE_CHANGE` 和 `COMPETITOR_CHANGE`；每条事件保留来源 URL、摘要、内容指纹和人工复核状态。
 
 任务创建时会生成三条可检查的搜索路径：快速搜索、条件核验、扩展搜索，并给出来源状态和搜贝估算。`cost_estimate.unit` 固定为 `SOUBEI`，`display_unit` 为 `搜贝`，`rule_version` 为 `source-result-v1`；旧版 `estimated_credits` / `credits_used` 字段暂保留作为兼容字段，不代表人民币价格或外部平台收费。机会录入必须有 `title`、`source_url` 和 `snippet`。系统保留来源 URL、原文片段和核验时间；当前外部平台连接器仍显示为 `REQUIRES_PROOF` 或 `REQUIRES_AUTH`，不会用假数据冒充自动搜索。
 
