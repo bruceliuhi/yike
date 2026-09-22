@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import {webcrypto} from 'node:crypto';
-import {act, cleanup, renderHook} from '@testing-library/react';
+import {act, cleanup, renderHook, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {validatedOperation} from '../../src/main/servicePolicy';
 import {service} from '../../src/renderer/services/client';
@@ -77,7 +77,8 @@ describe('confirmed quote hook', () => {
     context.service.researchUsage!.quote = vi.fn(() => new Promise<UsageQuote>(resolve => {done = resolve;}));
     const hook = renderHook(({value}) => useUsageQuote(value, strategy), {initialProps: {value: draft}});
     let pending!: Promise<void>;
-    await act(async () => {pending = hook.result.current.estimate(); await new Promise(resolve => setTimeout(resolve, 10));});
+    await act(async () => {pending = hook.result.current.estimate();});
+    await waitFor(() => expect(context.service.researchUsage!.quote).toHaveBeenCalled());
     const request = vi.mocked(context.service.researchUsage!.quote).mock.calls[0][0];
     expect(request.strategyBinding).toEqual(strategyBinding);
     expect(strategy.recheck).toHaveBeenCalledOnce();

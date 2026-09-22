@@ -175,14 +175,12 @@ function monitorRun(overrides: Partial<TaskRun> = {}): TaskRun {
     ...overrides,
   };
 }
-function loadMonitor(run: TaskRun) {
+async function loadMonitor(run: TaskRun) {
   context.route = parseRoute("#/monitors/" + encodeURIComponent(run.id));
   context.service.tasks = vi.fn().mockResolvedValue([run]);
   const view = render(<TasksPage />);
   // R4 opens coverage by default. These R3 regressions explicitly inspect the retained platform tab.
-  void screen
-    .findByRole("tab", { name: "平台状态" })
-    .then((tab) => fireEvent.click(tab));
+  fireEvent.click(await screen.findByRole("tab", { name: "平台状态" }));
   return view;
 }
 describe("monitor detail from execution service data", () => {
@@ -212,7 +210,7 @@ describe("monitor detail from execution service data", () => {
       ],
       statistics: { today: 3, week: 8 },
     });
-    loadMonitor(run);
+    await loadMonitor(run);
     await screen.findByRole("heading", { name: "测试监控任务", level: 1 });
     const table = within(screen.getByRole("region", { name: "平台运行状态" }));
     const aside = within(
@@ -255,7 +253,7 @@ describe("monitor detail from execution service data", () => {
     expect(context.service.taskAction).not.toHaveBeenCalled();
   });
   it("does not turn absent execution data into waiting states, zero counts, or example events", async () => {
-    loadMonitor(monitorRun({ platforms: ["web"], status: "PAUSED" }));
+    await loadMonitor(monitorRun({ platforms: ["web"], status: "PAUSED" }));
     await screen.findByRole("heading", { name: "测试监控任务", level: 1 });
     const table = within(screen.getByRole("region", { name: "平台运行状态" }));
     expect(table.getByText("待读取")).toBeTruthy();
@@ -271,7 +269,7 @@ describe("monitor detail from execution service data", () => {
     expect(screen.queryByText(/每日/)).toBeNull();
   });
   it("renders the service profile version, schedule, events, and failure reason without deriving a next run", async () => {
-    loadMonitor(
+    await loadMonitor(
       monitorRun({
         status: "PARTIAL",
         profileId: "profile-test",
@@ -393,7 +391,7 @@ describe("actual task list pagination and filters", () => {
   });
 });
 it("paginates and filters actual execution events without fabricating a timestamp", async () => {
-  loadMonitor(
+  await loadMonitor(
     monitorRun({
       events: Array.from({ length: 13 }, (_, i) => ({
         id: `event-${i}`,
