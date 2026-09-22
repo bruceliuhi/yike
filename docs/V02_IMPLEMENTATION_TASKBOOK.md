@@ -1,5 +1,11 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+### 2026-09-22 多平台增量能力复核（已同步主干）
+
+- 抖音增量游标暂不开发：固定 MediaCrawler 提交的搜索响应只有 `data` 与动态 `extra.logid`，没有稳定的 `has_more`、总量或结束字段；请求 `count=15`、offset 步长存在重叠，重启后的排序和 `logid` 续接也没有证据。现阶段仍按普通轮次采集处理，不能因平台连接页面存在就标记为持续监控可用。
+- 知乎列为下一条可实施纵切：现有受控补丁已校验 `paging.is_end`/`paging.next`，但客户端接口丢弃下一页游标、核心流程固定第 1 页。实现前必须锁定知乎专用 adapter、受限 next URL 校验、页内内容 ID/刷新阶段、MediaCrawler 补丁与 lock hash，并贯通 Windows host、桌面合同、服务端 claim/commit、PostgreSQL 回放和 Windows 实机验收。
+- 本复核只收紧能力边界，不改变已接通的四平台普通采集；在上述证据完成前，产品能力矩阵不得把抖音或知乎写成“持久增量监控”。详细原因见 [多平台 Skill 方案](V02_MULTIPLATFORM_SKILL_PLAN.md#2026-09-22-平台增量边界复核)。
+
 ### 2026-09-22 小红书持久增量游标增量（开发完成，实机待验）
 
 - 新增 `xhs-search-items-v1` 适配器：持久保存 `search_id`、页码、已消费笔记 ID 和刷新阶段；服务端按租户、画像/策略、平台连接版本和适配器版本做 claim/commit 原子校验，旧 worker 或重复页不能推进游标。
