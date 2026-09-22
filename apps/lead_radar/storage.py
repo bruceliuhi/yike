@@ -2145,6 +2145,52 @@ class Store:
                 entry["entity_confidence"] = entry.pop("entity_confidence")
                 entry["evidence"] = json.loads(entry.pop("evidence_json") or "{}")
                 result["entities"].append(entry)
+            primary_entity = result["entities"][0] if result["entities"] else None
+            if primary_entity:
+                with self.lock:
+                    linked_rows = self.db.execute(
+                        """SELECT o.id, o.title, o.source_url, o.source_kind, o.published_at, o.updated_at
+                           FROM opportunities o
+                           JOIN opportunity_entities oe ON oe.opportunity_id = o.id
+                           WHERE oe.entity_id = ? AND o.workspace_id = ?
+                           ORDER BY o.updated_at DESC, o.rowid DESC LIMIT 20""",
+                        (primary_entity["id"], result["workspace_id"]),
+                    ).fetchall()
+                source_hosts = sorted({source_host(row["source_url"]) for row in linked_rows if source_host(row["source_url"])})
+                result["background"] = {
+                    "status": "LOCAL_EVIDENCE_ONLY",
+                    "entity_name": primary_entity.get("canonical_name"),
+                    "website_host": primary_entity.get("website_host"),
+                    "identity_confidence": primary_entity.get("entity_confidence"),
+                    "linked_opportunity_count": len(linked_rows),
+                    "known_source_hosts": source_hosts,
+                    "known_signals": [
+                        {
+                            "opportunity_id": row["id"],
+                            "title": row["title"],
+                            "source_url": row["source_url"],
+                            "source_kind": row["source_kind"],
+                            "published_at": row["published_at"],
+                            "updated_at": row["updated_at"],
+                        }
+                        for row in linked_rows
+                    ],
+                    "external_lookup_performed": False,
+                    "contact_data_returned": False,
+                    "next_action": "通过有权利证明的企业背景连接器补充资料，再由人工核验。",
+                }
+            else:
+                result["background"] = {
+                    "status": "ENTITY_UNRESOLVED",
+                    "entity_name": None,
+                    "website_host": None,
+                    "linked_opportunity_count": 0,
+                    "known_source_hosts": [],
+                    "known_signals": [],
+                    "external_lookup_performed": False,
+                    "contact_data_returned": False,
+                    "next_action": "补充明确企业名称或稳定官网主机后再建立实体背景。",
+                }
             result["feedback_events"] = [dict(item) for item in feedback_events]
             result["audit_events"] = []
             for item in audit_events:

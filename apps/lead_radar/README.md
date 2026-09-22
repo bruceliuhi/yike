@@ -119,6 +119,8 @@ POST /api/v1/evaluation-contract/validate 接收 `{dataset, samples}` manifest�
 
 机会详情会同时展示证据快照、系统判断、来源权限、人工反馈和审计时间线；详情页只帮助人工复核，不会把查看动作变成联系或发送许可。
 
+机会详情的 `background` 字段只汇总本地实体解析和已入账机会信号，状态为 `LOCAL_EVIDENCE_ONLY`；它会返回实体名称、官网主机、关联机会数、已知来源主机和观察信号，并明确 `external_lookup_performed=false`、`contact_data_returned=false`。工商、联系方式和第三方组织资料仍需另行接入有权利证明的背景连接器。
+
 总览页的“审计与用量”读取同一工作区的审计事件和用量账本，只读展示任务、证据、反馈和动作草稿的实际变化。每条来源尝试带有 `source_id`、`outcome`、`unit`、规则版本和元数据：新结果为 `SUCCESS`（当前 1 搜贝），重复为 `DUPLICATE`（0），无结果为 `NO_RESULT`（0），来源失败为 `FAILED`（0）。同一工作区内重复的幂等键只返回原记录，不会再次增加任务用量。`credits_used` 汇总来自用量账本，兼容旧字段并按搜贝计，不代表人民币价格、平台搜索已经成功或外部触达已经发送。
 
 跟进草稿只能从 `SEND_READY` 机会生成，渠道为 `PUBLIC_REPLY`、`EMAIL`、`FEISHU_TASK` 或 `CRM_TASK`。生成时绑定当前证据 ID，默认状态为 `DRAFT`；审批必须显式提交 `confirm:true`，只记录人工批准事实，不调用平台发送器、不写入外部 CRM，也不会把审批当作已发送。重复请求可使用 `Idempotency-Key`，同一机会和渠道不会重复生成未取消草稿。

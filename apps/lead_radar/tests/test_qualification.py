@@ -97,6 +97,9 @@ class QualificationPersistenceTest(unittest.TestCase):
         self.assertGreater(opportunity["score"], 0)
         self.assertEqual(opportunity["decision"]["qualification"]["version"], VERSION)
         self.assertFalse(opportunity["decision"]["qualification"]["permission_granted"])
+        self.assertEqual(opportunity["background"]["status"], "LOCAL_EVIDENCE_ONLY")
+        self.assertFalse(opportunity["background"]["external_lookup_performed"])
+        self.assertEqual(opportunity["background"]["linked_opportunity_count"], 1)
 
 
 if __name__ == "__main__":
