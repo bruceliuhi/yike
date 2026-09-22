@@ -15,7 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import PlainTextResponse, RedirectResponse, Response
 
 from pilot.ops_store import OpsError, OpsStore
-from pilot.ops_views import CSS, hidden, issue_view, overview_view, page, users_view
+from pilot.ops_views import CSS, audit_view, hidden, issue_view, overview_view, page, users_view
 
 
 def _contains_http_exception(error: BaseException) -> bool:
@@ -142,6 +142,18 @@ def build_ops_app(store: OpsStore, *, password: str, origin: str) -> FastAPI:
             return users_view([], 0, csrf_for(token), q, state, message)
         return users_view(rows,offset,csrf_for(token),q,state)
 
+    @app.get('/ops/audit')
+    def audit(request: Request, offset: int = 0, action: str = '', result: str = ''):
+        token = identity(request)
+        try:
+            rows = store.audit_events(offset=offset, action=action, result=result)
+        except OpsError as error:
+            message = ({'invalid_page': '页码无效，请重新打开操作记录。',
+                        'invalid_audit_filter': '操作或结果筛选无效，请重新选择。'}).get(
+                            str(error), '操作记录暂时无法读取，请稍后重试。')
+            return audit_view([], 0, csrf_for(token), action, result, message)
+        return audit_view(rows, offset, csrf_for(token), action, result)
+
     @app.get('/ops/trials')
     def trials(request: Request):
         return issue_view(csrf_for(identity(request)))
@@ -151,7 +163,7 @@ def build_ops_app(store: OpsStore, *, password: str, origin: str) -> FastAPI:
               days: int = Form(3), csrf: str = Form('')):
         token = authorize(request,csrf)
         try:
-            result = store.issue(phone,name,days)
+            result = store.issue(phone, name, days, actor_token=token)
         except OpsError as error:
             messages = {'phone_already_registered':'此手机号已登记，请在客户列表查看，不能重复签发。',
                         'invalid_phone':'请输入正确的 11 位手机号。','invalid_trial_days':'试用期须为 1–30 天。',
@@ -179,7 +191,7 @@ def build_ops_app(store: OpsStore, *, password: str, origin: str) -> FastAPI:
     def issue_access(request: Request, trial_id: str = Form(...,max_length=36), csrf: str = Form('')):
         token = authorize(request,csrf)
         try:
-            result = store.issue_access(trial_id)
+            result = store.issue_access(trial_id, actor_token=token)
         except OpsError:
             return page('无法签发','<h1>无法签发</h1><p>账号已停用、试用已结束或不支持转换，请检查客户状态。</p><a href="/ops/users">返回客户列表</a>',csrf_for(token),400)
         return page('临时登录访问码已生成',f'<h1>临时登录访问码已生成</h1><p>仅本次展示，请私下分发；无需短信，不代表手机号已验证。</p><p class="code">{escape(result["code"])}</p><p>首次登录起72小时，再次登录或改发不延期。</p><a href="/ops/users">返回客户列表</a>',csrf_for(token))
@@ -188,7 +200,7 @@ def build_ops_app(store: OpsStore, *, password: str, origin: str) -> FastAPI:
     def revoke(request: Request, trial_id: str = Form(...,max_length=36), csrf: str = Form('')):
         token = authorize(request,csrf)
         try:
-            store.revoke(trial_id)
+            store.revoke(trial_id, actor_token=token)
         except OpsError:
             # An expired, already revoked, malformed or missing trial is an
             # operator input/state error. Keep it out of the generic 503
@@ -209,7 +221,7 @@ def build_ops_app(store: OpsStore, *, password: str, origin: str) -> FastAPI:
     def reissue(request: Request, trial_id: str = Form(...,max_length=36), csrf: str = Form('')):
         token = authorize(request,csrf)
         try:
-            result = store.reissue(trial_id)
+            result = store.reissue(trial_id, actor_token=token)
         except OpsError:
             return page('无法重发','<h1>无法重发</h1><p>试用已激活、停用或记录不存在，请检查客户状态。</p><a href="/ops/users">返回客户列表</a>',csrf_for(token),400)
         return page('替换码已生成',f'<h1>替换码已生成</h1><p>原码已作废，请私下发给原客户；仅展示一次。</p><p class="code">{escape(result["code"])}</p><a href="/ops/users">返回客户列表</a>',csrf_for(token))

@@ -21,7 +21,7 @@ class _ActionErrorStore:
     def logout(self, token):
         self.token = None
 
-    def revoke(self, trial_id):
+    def revoke(self, trial_id, *, actor_token=None):
         raise OpsError('trial_not_found')
 
 

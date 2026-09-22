@@ -1,5 +1,6 @@
 """The operator landing page is server-derived and remains behind its session gate."""
 import re
+from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
 
@@ -30,6 +31,13 @@ class _OverviewStore:
             raise OpsError('invalid_user_state')
         self.user_queries.append((offset, query, state))
         return []
+
+    def audit_events(self, *, offset=0, action='', result=''):
+        self.audit_queries = getattr(self, 'audit_queries', [])
+        self.audit_queries.append((offset, action, result))
+        return [dict(created_at=datetime(2026, 9, 22, 1, 2, tzinfo=timezone.utc),
+                     action='ISSUE', result='SUCCEEDED',
+                     actor_hash='a' * 64, trial_id='trial-1', user_id='user-1', error_code=None)]
 
 
 def test_ops_home_shows_server_derived_trial_summary():
@@ -94,3 +102,21 @@ def test_ops_invalid_user_state_fails_closed():
     assert response.status_code == 200
     assert "状态筛选无效" in response.text
     assert store.user_queries == []
+
+
+def test_ops_audit_page_is_session_gated_and_filters_server_side():
+    store = _OverviewStore()
+    client = TestClient(
+        build_ops_app(store, password="synthetic-operator-password", origin="https://ops.example"),
+        base_url="https://ops.example",
+        follow_redirects=False,
+    )
+    headers = {"Origin": "https://ops.example"}
+    assert client.get("/ops/audit").status_code == 303
+    client.post("/ops/login", data={"password": "synthetic-operator-password"}, headers=headers)
+    response = client.get("/ops/audit?action=ISSUE&result=SUCCEEDED")
+    assert response.status_code == 200
+    assert "运营操作记录" in response.text
+    assert "2026-09-22 09:02" in response.text
+    assert "aaaaaaaaaaaa…" in response.text
+    assert store.audit_queries == [(0, "ISSUE", "SUCCEEDED")]

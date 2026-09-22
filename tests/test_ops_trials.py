@@ -114,6 +114,44 @@ def test_full_phone_only_ops_and_duplicate_issue_atomic(env):
         OpsStore(admin, phone_secret=SECRET, encryption_key=KEY)
 
 
+def test_operator_mutations_write_append_only_audit_without_secrets(env):
+    admin, appdb, ops, _, phone, _ = env
+    from hashlib import sha256
+    from pilot.ops_store import OpsError
+
+    actor = 'operator-session-' + uuid4().hex
+    issued = ops.issue('188' + phone[3:], '审计合成客户', actor_token=actor)
+    with pytest.raises(OpsError, match='phone_already_registered'):
+        ops.issue('188' + phone[3:], '重复审计客户', actor_token=actor)
+    replacement = ops.reissue(issued['trial_id'], actor_token=actor)
+    ops.revoke(issued['trial_id'], actor_token=actor)
+    with pytest.raises(OpsError, match='trial_already_revoked'):
+        ops.revoke(issued['trial_id'], actor_token=actor)
+
+    with admin.connect() as c:
+        rows = c.execute(
+            'SELECT action,result,actor_hash,trial_id,user_id,error_code '
+            'FROM pilot_ops_audit_events WHERE actor_hash=%s ORDER BY created_at,event_id',
+            (sha256(actor.encode()).hexdigest(),),
+        ).fetchall()
+        assert [(row[0], row[1]) for row in rows] == [
+            ('ISSUE', 'SUCCEEDED'), ('ISSUE', 'REJECTED'), ('REISSUE', 'SUCCEEDED'),
+            ('REVOKE', 'SUCCEEDED'), ('REVOKE', 'REJECTED'),
+        ]
+        assert all(row[2] == sha256(actor.encode()).hexdigest() for row in rows)
+        assert all(actor not in str(row) and phone not in str(row) and issued['code'] not in str(row)
+                   and replacement['code'] not in str(row) for row in rows)
+        assert all(not c.execute(
+            'SELECT has_table_privilege(%s,%s,%s)',
+            ('ops_test', 'public.pilot_ops_audit_events', privilege),
+        ).fetchone()[0] for privilege in ('UPDATE', 'DELETE', 'TRUNCATE', 'TRIGGER', 'REFERENCES'))
+        with pytest.raises(psycopg.errors.RaiseException):
+            c.execute('DELETE FROM pilot_ops_audit_events WHERE trial_id=%s', (issued['trial_id'],))
+    with appdb.connect() as c:
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            c.execute('SELECT * FROM pilot_ops_audit_events')
+
+
 def test_unactivated_revoked_and_expired_existing_sessions_denied(env):
     admin, appdb, ops, auth, phone, invite = env
     client = TestClient(build_app(PilotStore(appdb), auth_secret='synthetic-session'), base_url='https://pilot.example')

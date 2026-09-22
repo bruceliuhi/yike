@@ -13,6 +13,8 @@ from pilot.phone_auth import PhoneAuthStore
 
 TRIAL_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 USER_STATES = ('pending', 'active', 'expired', 'revoked', 'no_trial')
+AUDIT_ACTIONS = ('ISSUE', 'REISSUE', 'REVOKE', 'ISSUE_ACCESS')
+AUDIT_RESULTS = ('SUCCEEDED', 'REJECTED', 'FAILED')
 _USER_STATE_FILTERS = {
     'pending': "a.trial_id IS NOT NULL AND a.revoked_at IS NULL AND a.activated_at IS NULL AND a.redeem_before > clock_timestamp()",
     'active': "a.trial_id IS NOT NULL AND a.revoked_at IS NULL AND a.activated_at IS NOT NULL AND (a.expires_at IS NULL OR a.expires_at > clock_timestamp())",
@@ -51,18 +53,55 @@ class OpsStore:
             if unsafe:
                 raise OpsError('restricted_ops_database_required')
 
-    def issue(self, phone: str, name: str, days: int = 3) -> dict:
-        if not isinstance(phone, str) or not re.fullmatch(r'1[0-9]{10}', phone):
-            raise OpsError('invalid_phone')
-        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 100 or any(ord(x) < 32 for x in name):
-            raise OpsError('invalid_customer_name')
-        if type(days) is not int or not 1 <= days <= 30:
-            raise OpsError('invalid_trial_days')
-        user, tenant, trial = (str(uuid4()) for _ in range(3))
-        phone_hash = self.auth._phone(phone)
-        code = new_trial_code()
-        encrypted = bytes(self.box.encrypt(json.dumps({'phone': phone, 'user_id': user}).encode()))
+    @staticmethod
+    def _actor_hash(token: str | None) -> str:
+        """Hash the operator session; the bearer token never reaches storage."""
+        return hashlib.sha256((token or '').encode()).hexdigest()
+
+    @staticmethod
+    def _error_code(error: BaseException) -> str:
+        value = str(error)
+        return value if re.fullmatch(r'[a-z0-9_]{1,64}', value) else 'operation_failed'
+
+    def _audit_insert(self, connection, *, action: str, result: str, actor_hash: str,
+                      trial_id: str | None = None, user_id: str | None = None,
+                      error_code: str | None = None) -> None:
+        if action not in AUDIT_ACTIONS or result not in AUDIT_RESULTS:
+            raise OpsError('invalid_audit_event')
+        connection.execute(
+            'INSERT INTO pilot_ops_audit_events(event_id,action,result,actor_hash,trial_id,user_id,error_code) '
+            'VALUES (%s,%s,%s,%s,%s,%s,%s)',
+            (str(uuid4()), action, result, actor_hash, trial_id, user_id, error_code),
+        )
+
+    def _audit_after_failure(self, *, action: str, result: str, actor_hash: str,
+                             trial_id: str | None = None, user_id: str | None = None,
+                             error_code: str | None = None) -> None:
+        """Best-effort rejection/failure receipt after the business tx rolled back."""
         try:
+            with self.database.connect() as connection:
+                self._audit_insert(connection, action=action, result=result,
+                                   actor_hash=actor_hash, trial_id=trial_id,
+                                   user_id=user_id, error_code=error_code)
+        except (psycopg.Error, OpsError):
+            # A database outage must never be converted into a fabricated audit.
+            pass
+
+    def issue(self, phone: str, name: str, days: int = 3, *, actor_token: str | None = None) -> dict:
+        action = 'ISSUE'
+        actor_hash = self._actor_hash(actor_token)
+        user = tenant = trial = None
+        try:
+            if not isinstance(phone, str) or not re.fullmatch(r'1[0-9]{10}', phone):
+                raise OpsError('invalid_phone')
+            if not isinstance(name, str) or not 1 <= len(name.strip()) <= 100 or any(ord(x) < 32 for x in name):
+                raise OpsError('invalid_customer_name')
+            if type(days) is not int or not 1 <= days <= 30:
+                raise OpsError('invalid_trial_days')
+            user, tenant, trial = (str(uuid4()) for _ in range(3))
+            phone_hash = self.auth._phone(phone)
+            code = new_trial_code()
+            encrypted = bytes(self.box.encrypt(json.dumps({'phone': phone, 'user_id': user}).encode()))
             with self.database.connect() as c:
                 # The same phone cannot create two tenants, including across processes.
                 c.execute('SELECT pg_advisory_xact_lock(10901,0)')
@@ -73,7 +112,15 @@ class OpsStore:
                 c.execute('INSERT INTO pilot_phone_bindings(phone_hash,user_id) VALUES (%s,%s)', (phone_hash,user))
                 c.execute('INSERT INTO pilot_trial_accounts(trial_id,user_id,phone_hash,phone_ciphertext,code_hash,days) VALUES (%s,%s,%s,%s,%s,%s)',
                           (trial,user,phone_hash,encrypted,self.auth._digest('trial',code),days))
+                self._audit_insert(c, action=action, result='SUCCEEDED', actor_hash=actor_hash,
+                                   trial_id=trial, user_id=user)
+        except OpsError as error:
+            self._audit_after_failure(action=action, result='REJECTED', actor_hash=actor_hash,
+                                       trial_id=trial, user_id=user, error_code=self._error_code(error))
+            raise
         except psycopg.Error:
+            self._audit_after_failure(action=action, result='FAILED', actor_hash=actor_hash,
+                                       trial_id=trial, user_id=user, error_code='ops_write_failed')
             raise OpsError('ops_write_failed') from None
         return {'trial_id':trial,'user_id':user,'code':code,'days':days,'activated_at':None}
 
@@ -163,50 +210,131 @@ class OpsStore:
         keys = ("total", "no_trial", "revoked", "pending", "active", "expired")
         return dict(zip(keys, (int(value or 0) for value in row), strict=True))
 
-    def revoke(self, trial_id: str) -> None:
+    def revoke(self, trial_id: str, *, actor_token: str | None = None) -> None:
+        action = 'REVOKE'
+        actor_hash = self._actor_hash(actor_token)
+        normalized = None
         try:
-            trial_id = str(UUID(trial_id))
+            normalized = str(UUID(trial_id))
         except (ValueError, TypeError, AttributeError):
-            raise OpsError('invalid_trial') from None
-        with self.database.connect() as c:
-            row = c.execute('UPDATE pilot_trial_accounts SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE trial_id=%s RETURNING trial_id', (trial_id,)).fetchone()
-            if row is None:
-                raise OpsError('trial_not_found')
-
-    def reissue(self, trial_id: str) -> dict:
+            error = OpsError('invalid_trial')
+            self._audit_after_failure(action=action, result='REJECTED', actor_hash=actor_hash,
+                                       error_code=self._error_code(error))
+            raise error from None
         try:
-            trial_id=str(UUID(trial_id))
+            with self.database.connect() as c:
+                row = c.execute(
+                    'UPDATE pilot_trial_accounts SET revoked_at=COALESCE(revoked_at,clock_timestamp()) '
+                    'WHERE trial_id=%s AND revoked_at IS NULL RETURNING trial_id,user_id', (normalized,)).fetchone()
+                if row is None:
+                    # Keep repeated destructive requests visible as a rejected
+                    # operator action instead of a misleading second success.
+                    exists = c.execute('SELECT 1 FROM pilot_trial_accounts WHERE trial_id=%s', (normalized,)).fetchone()
+                    raise OpsError('trial_already_revoked' if exists else 'trial_not_found')
+                self._audit_insert(c, action=action, result='SUCCEEDED', actor_hash=actor_hash,
+                                   trial_id=normalized, user_id=row[1])
+        except OpsError as error:
+            self._audit_after_failure(action=action, result='REJECTED', actor_hash=actor_hash,
+                                       trial_id=normalized, error_code=self._error_code(error))
+            raise
+        except psycopg.Error:
+            self._audit_after_failure(action=action, result='FAILED', actor_hash=actor_hash,
+                                       trial_id=normalized, error_code='ops_write_failed')
+            raise OpsError('ops_write_failed') from None
+
+    def reissue(self, trial_id: str, *, actor_token: str | None = None) -> dict:
+        action = 'REISSUE'
+        actor_hash = self._actor_hash(actor_token)
+        normalized = None
+        try:
+            normalized = str(UUID(trial_id))
         except (ValueError,TypeError,AttributeError):
-            raise OpsError('invalid_trial') from None
+            error = OpsError('invalid_trial')
+            self._audit_after_failure(action=action, result='REJECTED', actor_hash=actor_hash,
+                                       error_code=self._error_code(error))
+            raise error from None
         code=new_trial_code()
-        with self.database.connect() as c:
-            row=c.execute(
-                "UPDATE pilot_trial_accounts SET code_hash=%s,redeem_before=clock_timestamp()+interval '30 days' "
-                "WHERE trial_id=%s AND activated_at IS NULL AND revoked_at IS NULL AND credential_kind='SMS_TRIAL' RETURNING user_id,days",
-                (self.auth._digest('trial',code),trial_id),
-            ).fetchone()
-            if row is None:
-                raise OpsError('trial_not_reissuable')
-        return dict(trial_id=trial_id,user_id=row[0],days=row[1],code=code)
-
-    def issue_access(self, trial_id: str) -> dict:
-        """Explicit operator conversion/rotation, never reuse an SMS invitation."""
         try:
-            trial_id = str(UUID(trial_id))
+            with self.database.connect() as c:
+                row=c.execute(
+                    "UPDATE pilot_trial_accounts SET code_hash=%s,redeem_before=clock_timestamp()+interval '30 days' "
+                    "WHERE trial_id=%s AND activated_at IS NULL AND revoked_at IS NULL AND credential_kind='SMS_TRIAL' RETURNING user_id,days",
+                    (self.auth._digest('trial',code),normalized),
+                ).fetchone()
+                if row is None:
+                    raise OpsError('trial_not_reissuable')
+                self._audit_insert(c, action=action, result='SUCCEEDED', actor_hash=actor_hash,
+                                   trial_id=normalized, user_id=row[0])
+            return dict(trial_id=normalized,user_id=row[0],days=row[1],code=code)
+        except OpsError as error:
+            self._audit_after_failure(action=action, result='REJECTED', actor_hash=actor_hash,
+                                       trial_id=normalized, error_code=self._error_code(error))
+            raise
+        except psycopg.Error:
+            self._audit_after_failure(action=action, result='FAILED', actor_hash=actor_hash,
+                                       trial_id=normalized, error_code='ops_write_failed')
+            raise OpsError('ops_write_failed') from None
+
+    def issue_access(self, trial_id: str, *, actor_token: str | None = None) -> dict:
+        """Explicit operator conversion/rotation, never reuse an SMS invitation."""
+        action = 'ISSUE_ACCESS'
+        actor_hash = self._actor_hash(actor_token)
+        normalized = None
+        try:
+            normalized = str(UUID(trial_id))
         except (ValueError,TypeError,AttributeError):
-            raise OpsError('invalid_trial') from None
+            error = OpsError('invalid_trial')
+            self._audit_after_failure(action=action, result='REJECTED', actor_hash=actor_hash,
+                                       error_code=self._error_code(error))
+            raise error from None
         code = 'YA-' + secrets.token_urlsafe(24)
+        try:
+            with self.database.connect() as c:
+                row = c.execute(
+                    "UPDATE pilot_trial_accounts SET credential_kind='TEMPORARY_ACCESS',access_code_hash=%s,"
+                    "access_issued_at=clock_timestamp(),code_hash=%s,redeem_before=clock_timestamp()+interval '30 days',days=3 "
+                    "WHERE trial_id=%s AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>clock_timestamp()) "
+                    "AND (activated_at IS NULL OR credential_kind='TEMPORARY_ACCESS') RETURNING user_id",
+                    (self.auth._digest('temporary-access-v1',code),self.auth._digest('retired-trial-v1',secrets.token_urlsafe(24)),normalized),
+                ).fetchone()
+                if row is None:
+                    raise OpsError('access_not_issuable')
+                self._audit_insert(c, action=action, result='SUCCEEDED', actor_hash=actor_hash,
+                                   trial_id=normalized, user_id=row[0])
+            return {'trial_id':normalized,'user_id':row[0],'code':code}
+        except OpsError as error:
+            self._audit_after_failure(action=action, result='REJECTED', actor_hash=actor_hash,
+                                       trial_id=normalized, error_code=self._error_code(error))
+            raise
+        except psycopg.Error:
+            self._audit_after_failure(action=action, result='FAILED', actor_hash=actor_hash,
+                                       trial_id=normalized, error_code='ops_write_failed')
+            raise OpsError('ops_write_failed') from None
+
+    def audit_events(self, *, offset: int = 0, action: str = '', result: str = '') -> list[dict]:
+        if type(offset) is not int or not 0 <= offset <= 1000000:
+            raise OpsError('invalid_page')
+        if action not in ('', *AUDIT_ACTIONS) or result not in ('', *AUDIT_RESULTS):
+            raise OpsError('invalid_audit_filter')
+        clauses = []
+        params: list[object] = []
+        if action:
+            clauses.append('action=%s')
+            params.append(action)
+        if result:
+            clauses.append('result=%s')
+            params.append(result)
+        where = (' WHERE ' + ' AND '.join(clauses)) if clauses else ''
+        params.append(offset)
         with self.database.connect() as c:
-            row = c.execute(
-                "UPDATE pilot_trial_accounts SET credential_kind='TEMPORARY_ACCESS',access_code_hash=%s,"
-                "access_issued_at=clock_timestamp(),code_hash=%s,redeem_before=clock_timestamp()+interval '30 days',days=3 "
-                "WHERE trial_id=%s AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>clock_timestamp()) "
-                "AND (activated_at IS NULL OR credential_kind='TEMPORARY_ACCESS') RETURNING user_id",
-                (self.auth._digest('temporary-access-v1',code),self.auth._digest('retired-trial-v1',secrets.token_urlsafe(24)),trial_id),
-            ).fetchone()
-            if row is None:
-                raise OpsError('access_not_issuable')
-        return {'trial_id':trial_id,'user_id':row[0],'code':code}
+            rows = c.execute(
+                'SELECT created_at,action,result,actor_hash,trial_id,user_id,error_code '
+                f'FROM pilot_ops_audit_events{where} ORDER BY created_at DESC,event_id DESC LIMIT 50 OFFSET %s',
+                tuple(params),
+            ).fetchall()
+        return [dict(created_at=row[0], action=row[1], result=row[2], actor_hash=row[3],
+                     trial_id=str(row[4]) if row[4] else None, user_id=row[5], error_code=row[6])
+                for row in rows]
 
     @staticmethod
     def _session_hash(token: str) -> str:

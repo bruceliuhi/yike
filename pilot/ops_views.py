@@ -14,6 +14,19 @@ USER_STATE_OPTIONS = (
     ('revoked', '已停用'),
     ('no_trial', '未登记试用'),
 )
+AUDIT_ACTION_OPTIONS = (
+    ('', '全部操作'),
+    ('ISSUE', '签发试用码'),
+    ('REISSUE', '重发试用码'),
+    ('REVOKE', '停用试用'),
+    ('ISSUE_ACCESS', '签发临时访问码'),
+)
+AUDIT_RESULT_OPTIONS = (
+    ('', '全部结果'),
+    ('SUCCEEDED', '成功'),
+    ('REJECTED', '已拒绝'),
+    ('FAILED', '失败'),
+)
 
 
 CSS = '''
@@ -38,7 +51,7 @@ def hidden(csrf: str) -> str:
 
 def page(title: str, body: str, csrf: str | None = None, status=200):
     nav = '' if csrf is None else (
-        '<nav><a href="/ops">运营概览</a><a href="/ops/users">客户与试用</a><a href="/ops/trials">生成试用码</a></nav>'
+        '<nav><a href="/ops">运营概览</a><a href="/ops/users">客户与试用</a><a href="/ops/trials">生成试用码</a><a href="/ops/audit">操作记录</a></nav>'
         f'<form class="logout" method="post" action="/ops/logout">{hidden(csrf)}<button class="secondary">退出登录</button></form>'
     )
     return HTMLResponse(
@@ -119,3 +132,47 @@ def issue_view(csrf, error=None):
     body += '<label for="days">激活后试用天数</label><input id="days" name="days" type="number" value="3" min="1" max="30" required>'
     body += '<p class="muted">默认 3 天（72 小时）。未激活的码 30 天后过期；同一手机号不能重复登记。</p><button>生成专属试用码</button></form>'
     return page('生成试用码', body, csrf, 400 if error else 200)
+
+
+def audit_view(rows, offset, csrf, action='', result='', error=None):
+    content = []
+    for row in rows:
+        outcome = {'SUCCEEDED': '成功', 'REJECTED': '已拒绝', 'FAILED': '失败'}.get(row['result'], row['result'])
+        operation = {
+            'ISSUE': '签发试用码', 'REISSUE': '重发试用码',
+            'REVOKE': '停用试用', 'ISSUE_ACCESS': '签发临时访问码',
+        }.get(row['action'], row['action'])
+        actor = escape(row['actor_hash'][:12] + '…')
+        target = escape(row['trial_id'] or row['user_id'] or '—')
+        content.append(
+            f'<tr><td>{escape(date(row["created_at"]))}</td><td>{escape(operation)}</td>'
+            f'<td>{escape(outcome)}</td><td><code>{actor}</code></td>'
+            f'<td><code>{target}</code></td><td>{escape(row["error_code"] or "—")}</td></tr>'
+        )
+    body = '<h1>运营操作记录</h1><p class="muted">仅保存操作时间、动作、结果、目标 ID 和不可逆会话指纹；手机号、试用码、Cookie 与表单原文不会写入记录。</p>'
+    if error:
+        body += f'<p role="alert" class="error">{escape(error)}</p>'
+    actions = ''.join(
+        f'<option value="{escape(value, quote=True)}"{" selected" if value == action else ""}>{escape(label)}</option>'
+        for value, label in AUDIT_ACTION_OPTIONS
+    )
+    results = ''.join(
+        f'<option value="{escape(value, quote=True)}"{" selected" if value == result else ""}>{escape(label)}</option>'
+        for value, label in AUDIT_RESULT_OPTIONS
+    )
+    body += '<form class="search" method="get" action="/ops/audit"><div class="actions">'
+    body += f'<label for="audit-action">操作</label><select id="audit-action" name="action">{actions}</select>'
+    body += f'<label for="audit-result">结果</label><select id="audit-result" name="result">{results}</select><button>筛选</button>'
+    if action or result:
+        body += ' <a class="button secondary" href="/ops/audit">清除</a>'
+    body += '</div></form>'
+    body += '<div class="table-wrap"><table><thead><tr><th>时间</th><th>操作</th><th>结果</th><th>操作会话</th><th>目标</th><th>错误码</th></tr></thead><tbody>'
+    body += ''.join(content) or '<tr><td colspan="6" class="empty">暂无操作记录。</td></tr>'
+    body += '</tbody></table></div><div class="actions">'
+    params = {'action': action, 'result': result}
+    suffix = '&' + urlencode({key: value for key, value in params.items() if value}) if action or result else ''
+    if offset:
+        body += f'<a href="/ops/audit?offset={max(0, offset - 50)}{suffix}">上一页</a>'
+    if len(rows) == 50:
+        body += f'<a href="/ops/audit?offset={offset + 50}{suffix}">下一页</a>'
+    return page('运营操作记录', body + '</div>', csrf)

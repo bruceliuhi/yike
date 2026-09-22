@@ -22,8 +22,17 @@ BEGIN
     EXECUTE format('GRANT UPDATE(revoked_at,code_hash,redeem_before) ON public.pilot_trial_accounts TO %I',target_role);
     EXECUTE format('GRANT UPDATE(credential_kind,access_code_hash,access_issued_at,days) ON public.pilot_trial_accounts TO %I',target_role);
     EXECUTE format('GRANT SELECT,INSERT,DELETE ON public.pilot_ops_sessions TO %I',target_role);
-    FOREACH relation IN ARRAY ARRAY['pilot_tenants','pilot_users','pilot_phone_bindings','pilot_trial_accounts','pilot_ops_sessions'] LOOP
+    EXECUTE format('REVOKE UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES ON public.pilot_ops_audit_events FROM %I',target_role);
+    EXECUTE format('GRANT SELECT,INSERT ON public.pilot_ops_audit_events TO %I',target_role);
+    FOREACH relation IN ARRAY ARRAY['pilot_tenants','pilot_users','pilot_phone_bindings','pilot_trial_accounts','pilot_ops_sessions','pilot_ops_audit_events'] LOOP
       EXECUTE format('DROP POLICY IF EXISTS ops_operator ON public.%I',relation);
       EXECUTE format('CREATE POLICY ops_operator ON public.%I TO %I USING (true) WITH CHECK (true)',relation,target_role);
     END LOOP;
+    IF has_table_privilege(target_role,'public.pilot_ops_audit_events','UPDATE')
+       OR has_table_privilege(target_role,'public.pilot_ops_audit_events','DELETE')
+       OR has_table_privilege(target_role,'public.pilot_ops_audit_events','TRUNCATE')
+       OR has_table_privilege(target_role,'public.pilot_ops_audit_events','TRIGGER')
+       OR has_table_privilege(target_role,'public.pilot_ops_audit_events','REFERENCES') THEN
+      RAISE EXCEPTION 'ops role must not mutate or alter audit events';
+    END IF;
 END $$;
