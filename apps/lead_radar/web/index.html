@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lead Radar · 意客 AI</title>
+  <style>
+    :root { --bg:#f5f7fb; --panel:#fff; --ink:#172033; --muted:#667085; --line:#e7eaf0; --blue:#2458d6; --blue-soft:#eaf0ff; --green:#16856a; --green-soft:#e5f7f1; --amber:#b76b14; --amber-soft:#fff3df; --red:#bf4c57; --shadow:0 18px 50px rgba(26,46,90,.08); }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--bg); font:14px/1.55 Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+    button,input,textarea { font:inherit; }
+    button { cursor:pointer; }
+    .shell { min-height:100vh; display:grid; grid-template-columns:238px 1fr; }
+    aside { background:#101a31; color:#d7e0f4; padding:26px 16px; display:flex; flex-direction:column; }
+    .brand { display:flex; align-items:center; gap:10px; padding:0 10px 30px; }
+    .brand-mark { width:31px; height:31px; border-radius:10px; background:linear-gradient(135deg,#6d96ff,#3156d9); display:grid; place-items:center; font-weight:800; color:#fff; box-shadow:0 7px 20px rgba(55,100,230,.4); }
+    .brand strong { color:#fff; letter-spacing:.3px; }
+    .brand small { display:block; color:#8f9cb8; font-size:10px; margin-top:1px; }
+    nav { display:grid; gap:5px; }
+    nav a { color:#9eabc4; text-decoration:none; padding:11px 12px; border-radius:9px; display:flex; gap:10px; align-items:center; }
+    nav a.active, nav a:hover { background:#1d2c50; color:#fff; }
+    .side-foot { margin-top:auto; padding:14px 12px; border:1px solid #263657; border-radius:12px; color:#8f9cb8; font-size:12px; }
+    .side-foot b { display:block; color:#d8e2f9; margin-bottom:5px; }
+    main { padding:28px 34px 44px; max-width:1500px; width:100%; margin:0 auto; }
+    .topbar { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom:26px; }
+    h1 { margin:0; font-size:27px; letter-spacing:-.6px; }
+    .eyebrow { text-transform:uppercase; letter-spacing:1.4px; font-size:11px; font-weight:700; color:var(--blue); margin-bottom:5px; }
+    .sub { color:var(--muted); margin:4px 0 0; }
+    .primary { border:0; background:var(--blue); color:#fff; border-radius:9px; padding:11px 16px; box-shadow:0 8px 20px rgba(36,88,214,.2); }
+    .primary:hover { background:#1947b9; }
+    .ghost { border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:8px; padding:9px 13px; }
+    .kpis { display:grid; grid-template-columns:repeat(5,1fr); gap:13px; margin-bottom:18px; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:13px; box-shadow:var(--shadow); }
+    .kpi { padding:17px 18px; }
+    .kpi span { color:var(--muted); font-size:12px; }
+    .kpi strong { display:block; font-size:26px; margin-top:7px; letter-spacing:-.7px; }
+    .kpi em { font-style:normal; font-size:11px; color:var(--muted); }
+    .layout { display:grid; grid-template-columns:minmax(0,1.7fr) minmax(310px,.9fr); gap:16px; }
+    .section { padding:20px; }
+    .section-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:16px; }
+    h2 { font-size:16px; margin:0; letter-spacing:-.2px; }
+    .section-head small { color:var(--muted); }
+    .task-list { display:grid; gap:10px; }
+    .task { border:1px solid var(--line); border-radius:10px; padding:14px; display:grid; grid-template-columns:1fr auto; gap:12px; }
+    .task-title { font-weight:700; margin-bottom:5px; }
+    .task-meta { color:var(--muted); font-size:12px; }
+    .task-plan { display:flex; flex-wrap:wrap; gap:6px; margin-top:11px; }
+    .plan-chip { border:1px solid #e1e6f0; background:#fafbfe; color:#526079; border-radius:6px; padding:5px 8px; font-size:11px; }
+    .task-gate { color:var(--amber); font-size:11px; margin-top:9px; }
+    .task-actions { display:flex; flex-direction:column; align-items:flex-end; gap:7px; }
+    .task-actions .ghost { font-size:11px; padding:5px 8px; }
+    .badge { display:inline-flex; align-items:center; gap:5px; padding:4px 8px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap; }
+    .badge.blue { color:#2458d6; background:var(--blue-soft); } .badge.green { color:var(--green); background:var(--green-soft); } .badge.amber { color:var(--amber); background:var(--amber-soft); } .badge.red { color:var(--red); background:#ffebed; }
+    .sources { display:grid; gap:10px; }
+    .source { display:grid; grid-template-columns:9px 1fr auto; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid #f0f1f4; }
+    .source:last-child { border-bottom:0; } .dot { width:8px; height:8px; border-radius:50%; background:#c2c8d3; } .dot.ready { background:#24a37e; box-shadow:0 0 0 4px #e6f7f1; } .dot.warn { background:#d99737; box-shadow:0 0 0 4px #fff2df; }
+    .source b { display:block; font-size:13px; } .source span { color:var(--muted); font-size:11px; }
+    .opps { margin-top:16px; }
+    .opportunity { display:grid; grid-template-columns:1fr auto; gap:14px; border-top:1px solid var(--line); padding:16px 0; }
+    .opportunity:first-child { border-top:0; }
+    .opp-title { font-weight:700; font-size:14px; } .opp-title a { color:inherit; text-decoration:none; } .opp-title a:hover { color:var(--blue); }
+    .opp-meta { color:var(--muted); font-size:12px; margin:5px 0 8px; }
+    .snippet { color:#475467; background:#f8f9fc; border-left:3px solid #c8d5fb; padding:8px 10px; font-size:12px; }
+    .opp-actions { display:flex; gap:6px; margin-top:9px; } .opp-actions button { background:#fff; border:1px solid var(--line); color:#475467; border-radius:6px; padding:5px 8px; font-size:11px; }
+    .empty { text-align:center; padding:32px 18px; border:1px dashed #cfd5e1; border-radius:10px; color:var(--muted); }
+    .empty strong { display:block; color:var(--ink); margin-bottom:4px; }
+    .modal { position:fixed; inset:0; background:rgba(16,26,49,.38); display:none; align-items:center; justify-content:center; padding:20px; z-index:5; }
+    .modal.open { display:flex; } .modal-card { width:min(620px,100%); background:#fff; border-radius:15px; padding:23px; box-shadow:0 30px 80px rgba(16,26,49,.25); }
+    .plan-detail { max-height:65vh; overflow:auto; }
+    .plan-summary { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:15px; }
+    .plan-summary div { background:#f8f9fc; border:1px solid var(--line); border-radius:8px; padding:10px; } .plan-summary span { display:block; color:var(--muted); font-size:11px; } .plan-summary b { display:block; margin-top:4px; }
+    .strategy-block { border-top:1px solid var(--line); padding:13px 0; } .strategy-block h3 { font-size:13px; margin:0 0 4px; } .strategy-block p { color:var(--muted); font-size:12px; margin:0 0 8px; } .query { color:#475467; background:#f8f9fc; padding:6px 8px; border-radius:6px; margin-top:5px; font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; word-break:break-all; }
+    .modal-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; } .close { border:0; background:transparent; color:var(--muted); font-size:20px; }
+    label { display:grid; gap:6px; color:#344054; font-weight:600; font-size:12px; margin:12px 0; } input,textarea,select { border:1px solid #d8dde8; border-radius:8px; padding:10px 11px; outline:none; color:var(--ink); background:#fff; } textarea { min-height:90px; resize:vertical; } input:focus,textarea:focus,select:focus { border-color:#7895ed; box-shadow:0 0 0 3px #edf1ff; }
+    .form-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; } .toast { position:fixed; right:22px; bottom:22px; background:#172033; color:#fff; padding:12px 15px; border-radius:9px; opacity:0; transform:translateY(8px); transition:.2s; pointer-events:none; } .toast.show { opacity:1; transform:translateY(0); }
+    @media (max-width:1000px) { .shell { grid-template-columns:1fr; } aside { display:none; } main { padding:22px 16px 35px; } .kpis { grid-template-columns:repeat(2,1fr); } .layout { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand"><div class="brand-mark">雷</div><div><strong>Lead Radar</strong><small>意客 AI 商机工作台</small></div></div>
+      <nav><a class="active" href="#overview">◈　总览</a><a href="#tasks">⌁　搜索任务</a><a href="#opportunities">✦　机会池</a><a href="#sources">◌　来源能力</a><a href="#audit">◇　审计与用量</a></nav>
+      <div class="side-foot"><b>证据优先模式</b>所有机会必须保留原文片段、来源 URL 和核验时间，人工反馈会反向改善下一轮任务。</div>
+    </aside>
+    <main>
+      <div class="topbar" id="overview"><div><div class="eyebrow">Opportunity intelligence</div><h1>商机雷达</h1><p class="sub">从公开需求信号到可审计的下一步动作。</p></div><button class="primary" id="newTask">＋ 新建搜索任务</button></div>
+      <section class="kpis" id="kpis"></section>
+      <div class="layout">
+        <section class="card section" id="tasks"><div class="section-head"><div><h2>搜索任务</h2><small>自然语言目标会被编译为可编辑画像</small></div><button class="ghost" id="newTask2">新建</button></div><div class="task-list" id="taskList"></div></section>
+        <section class="card section" id="sources"><div class="section-head"><div><h2>来源能力</h2><small>接通状态和证据边界</small></div></div><div class="sources" id="sourceList"></div></section>
+      </div>
+      <section class="card section opps" id="opportunities"><div class="section-head"><div><h2>机会池</h2><small>先看证据，再决定动作；系统不会自动触达</small></div><div style="display:flex;gap:7px"><button class="ghost" id="captureUrl">读取公开 URL</button><button class="ghost" id="newEvidence">录入证据</button></div></div><div id="oppList"></div></section>
+    </main>
+  </div>
+  <div class="modal" id="taskModal"><div class="modal-card"><div class="modal-head"><h2>新建搜索任务</h2><button class="close" data-close="taskModal">×</button></div><form id="taskForm"><label>任务名称<input name="name" placeholder="例如：华东企业 AI 定制需求" /></label><label>自然语言目标<textarea name="objective" required placeholder="找最近 180 天公开表达过 AI 客服、知识库、智能体定制需求的中文企业，排除招聘和同行推广。"></textarea></label><label>候选上限<input name="requested_limit" type="number" value="10" min="1" max="500" /></label><div class="form-actions"><button type="button" class="ghost" data-close="taskModal">取消</button><button class="primary">创建任务</button></div></form></div></div>
+  <div class="modal" id="planModal"><div class="modal-card"><div class="modal-head"><h2>搜索计划详情</h2><button class="close" data-close="planModal">×</button></div><div class="plan-detail" id="planDetail"></div></div></div>
+  <div class="modal" id="evidenceModal"><div class="modal-card"><div class="modal-head"><h2>录入一条公开证据</h2><button class="close" data-close="evidenceModal">×</button></div><form id="evidenceForm"><label>归属任务<select name="task_id" id="taskSelect" required></select></label><label>标题<input name="title" required placeholder="原文标题" /></label><label>作者 / 账号<input name="author" placeholder="作者或账号" /></label><label>来源 URL<input name="source_url" type="url" required placeholder="https://..." /></label><label>原文片段<textarea name="snippet" required placeholder="能支持需求判断的原文片段"></textarea></label><label>意向类型<input name="intent_type" placeholder="定制 / 开发 / 采购 / 预算" /></label><div class="form-actions"><button type="button" class="ghost" data-close="evidenceModal">取消</button><button class="primary">保存证据</button></div></form></div></div>
+  <div class="modal" id="captureModal"><div class="modal-card"><div class="modal-head"><h2>读取一条公开 URL</h2><button class="close" data-close="captureModal">×</button></div><p class="sub" style="margin:0 0 14px">系统只访问你明确提交的公网 URL，限制内网地址、跳转、大小和 HTML 类型；采集结果先进入待复核。</p><form id="captureForm"><label>归属任务<select name="task_id" id="captureTaskSelect" required></select></label><label>公开 URL<input name="url" type="url" required placeholder="https://example.com/article" /></label><label>意向类型<input name="intent_type" placeholder="定制 / 开发 / 采购 / 预算" /></label><div class="form-actions"><button type="button" class="ghost" data-close="captureModal">取消</button><button class="primary">读取并生成证据卡</button></div></form></div></div>
+  <div class="toast" id="toast"></div>
+  <script>
+    const WS = 'ws_意客AI';
+    const api = (p) => `/api/v1${p}`;
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const $ = (s) => document.querySelector(s);
+    async function request(url, options = {}) { const r = await fetch(url, {headers:{'Content-Type':'application/json', ...(options.headers||{})}, ...options}); const j = await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.message || j.error || `HTTP ${r.status}`); return j; }
+    function toast(message) { const el=$('#toast'); el.textContent=message; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2600); }
+    function badge(status) { const map={PLANNED:['blue','已规划'],AWAITING_SOURCE:['amber','等待来源'],BLOCKED_REQUIRES_SOURCE:['red','缺少来源'],QUEUED:['blue','已排队'],RUNNING:['blue','运行中'],SEND_READY:['green','可进入联系队列'],REVIEW:['amber','待复核'],OBSERVE:['blue','观察'],EXCLUDE:['red','已排除']}; const [c,t]=map[status]||['blue',status]; return `<span class="badge ${c}">${t}</span>`; }
+    function renderKpis(d) { $('#kpis').innerHTML = [['机会总数',d.opportunities,'条'],['待人工复核',d.review,'条'],['可进入联系队列',d.send_ready,'条'],['运行中任务',d.running_tasks,'个'],['已用积分',d.credits_used,'credits']].map(x=>`<div class="card kpi"><span>${x[0]}</span><strong>${x[1]}</strong><em>${x[2]}</em></div>`).join(''); }
+    function renderTasks(items) { const el=$('#taskList'); if(!items.length){el.innerHTML='<div class="empty"><strong>还没有搜索任务</strong>先用一个具体目标开始，系统会保存画像版本和预计成本。</div>'; return;} el.innerHTML=items.map(t=>{const p=t.plan||{};const strategies=p.strategies||[];const blocked=(p.blocked_sources||[]).length;return `<div class="task"><div><div class="task-title">${esc(t.objective)}</div><div class="task-meta">${esc(t.id)} · 上限 ${t.requested_limit} · 预计 ${t.estimated_credits} credits · 创建于 ${esc(t.created_at)}</div><div class="task-plan">${strategies.map(s=>`<span class="plan-chip">${esc(s.name)} · ${s.queries?.length||0} 条路径</span>`).join('')}</div>${blocked?`<div class="task-gate">当前 ${blocked} 个来源未通过自动搜索门禁，预检会保留阻塞原因。</div>`:''}</div><div class="task-actions">${badge(t.status)}<button class="ghost view-plan" data-id="${t.id}">查看计划</button><button class="ghost start-task" data-id="${t.id}">预检任务</button></div></div>`}).join(''); document.querySelectorAll('.view-plan').forEach(b=>b.onclick=()=>{const task=items.find(item=>item.id===b.dataset.id); if(task) showPlan(task);}); document.querySelectorAll('.start-task').forEach(b=>b.onclick=async()=>{try{const result=await request(api(`/tasks/${b.dataset.id}/start`),{method:'POST',body:JSON.stringify({mode:'quick'})});toast(result.message);refresh();}catch(e){toast(e.message)}}); }
+    function showPlan(task) { const p=task.plan||{}; const sources=(p.source_plan||[]).map(s=>`${esc(s.name)} · ${badge(s.status)}`).join('<br>'); $('#planDetail').innerHTML=`<div class="plan-summary"><div><span>预计最低</span><b>${p.cost_estimate?.min_credits||0} credits</b></div><div><span>完整计划上限</span><b>${p.cost_estimate?.max_credits||0} credits</b></div><div><span>时间窗</span><b>${p.hard_filters?.time_window_days||0} 天</b></div></div><p class="sub" style="margin:0 0 13px">排除词：${esc((p.hard_filters?.exclude_terms||[]).join('、')||'无')}<br>来源：${sources||'未配置'}</p>${(p.strategies||[]).map(s=>`<div class="strategy-block"><h3>${esc(s.name)} · ${s.queries?.length||0} 条路径 · ${s.estimated_credits} credits</h3><p>${esc(s.purpose)}</p>${(s.queries||[]).map(q=>`<div class="query">${esc(q)}</div>`).join('')}</div>`).join('')}`; open('planModal'); }
+    function renderSources(items) { $('#sourceList').innerHTML=items.map(s=>`<div class="source"><i class="dot ${s.status==='READY'?'ready':s.status==='REQUIRES_PROOF'?'warn':''}"></i><div><b>${esc(s.name)}</b><span>${esc(s.note)}</span></div>${badge(s.status)}</div>`).join(''); }
+    function renderOpps(items) { const el=$('#oppList'); if(!items.length){el.innerHTML='<div class="empty"><strong>机会池为空</strong>录入一条已人工打开并核验的公开证据，观察完整证据卡如何进入反馈闭环。</div>';return;} el.innerHTML=items.map(o=>`<article class="opportunity"><div><div class="opp-title"><a href="${esc(o.source_url)}" target="_blank" rel="noreferrer">${esc(o.title)}</a></div><div class="opp-meta">${esc(o.author||'未知作者')} · ${esc(o.published_at||'未提供时间')} · ${esc(o.intent_type||'未分类')} · ${badge(o.status)}</div><div class="snippet">${esc(o.snippet)}</div><div class="opp-actions">${o.source_kind==='public_url_capture'?`<button data-reopen="true" data-id="${o.id}">重开核验</button>`:''}<button data-feedback="VALID" data-id="${o.id}">确认有效</button><button data-feedback="INVALID" data-id="${o.id}">标为无效</button><button data-feedback="OBSERVE" data-id="${o.id}">继续观察</button></div></div><div style="color:var(--muted);font-size:11px">证据 ${o.evidence?.length||0} 条<br/>评分 ${o.score||0}</div></article>`).join(''); document.querySelectorAll('[data-feedback]').forEach(b=>b.onclick=async()=>{try{await request(api(`/opportunities/${b.dataset.id}/feedback`),{method:'POST',body:JSON.stringify({label:b.dataset.feedback})});toast('反馈已记录');refresh();}catch(e){toast(e.message)}}); document.querySelectorAll('[data-reopen]').forEach(b=>b.onclick=async()=>{try{const result=await request(api(`/opportunities/${b.dataset.id}/reopen`),{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:'{}'});toast(result.reopen.matches_previous_snapshot?'页面未变化，重开核验通过':'页面内容已变化，已追加新的待复核证据');refresh();}catch(e){toast(e.message)}}); }
+    async function refresh(){try{const [d,t,s,o]=await Promise.all([request(api(`/workspaces/${encodeURIComponent(WS)}/dashboard`)),request(api(`/workspaces/${encodeURIComponent(WS)}/tasks`)),request('/api/v1/sources/capabilities'),request(api(`/workspaces/${encodeURIComponent(WS)}/opportunities`))]);renderKpis(d);renderTasks(t.items);renderSources(s.items);renderOpps(o.items);const options=t.items.map(x=>`<option value="${x.id}">${esc(x.objective.slice(0,70))}</option>`).join('');$('#taskSelect').innerHTML=options;$('#captureTaskSelect').innerHTML=options;}catch(e){toast(`加载失败：${e.message}`)}}
+    function open(id){$('#'+id).classList.add('open');} function close(id){$('#'+id).classList.remove('open');}
+    document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>close(b.dataset.close)); $('#newTask').onclick=()=>open('taskModal'); $('#newTask2').onclick=()=>open('taskModal'); $('#newEvidence').onclick=()=>open('evidenceModal'); $('#captureUrl').onclick=()=>open('captureModal');
+    $('#taskForm').onsubmit=async(e)=>{e.preventDefault();const f=new FormData(e.target);try{await request(api(`/workspaces/${encodeURIComponent(WS)}/tasks`),{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({objective:f.get('objective'),name:f.get('name'),requested_limit:Number(f.get('requested_limit'))})});close('taskModal');e.target.reset();toast('任务已创建');refresh();}catch(x){toast(x.message)}};
+    $('#evidenceForm').onsubmit=async(e)=>{e.preventDefault();const f=new FormData(e.target);try{await request(api(`/tasks/${f.get('task_id')}/opportunities`),{method:'POST',body:JSON.stringify({title:f.get('title'),author:f.get('author'),source_url:f.get('source_url'),snippet:f.get('snippet'),intent_type:f.get('intent_type'),source_kind:'manual_public_evidence',source_permission:'allowed',evidence_level:'VERIFIED'})});close('evidenceModal');e.target.reset();toast('证据已入库');refresh();}catch(x){toast(x.message)}};
+    $('#captureForm').onsubmit=async(e)=>{e.preventDefault();const f=new FormData(e.target);try{const result=await request(api(`/tasks/${f.get('task_id')}/capture-url`),{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({url:f.get('url'),intent_type:f.get('intent_type')})});close('captureModal');e.target.reset();toast(result.created?'公开页面已读取，证据进入待复核':'页面已读取，但与已有证据重复');refresh();}catch(x){toast(x.message)}};
+    refresh();
+  </script>
+</body>
+</html>
