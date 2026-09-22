@@ -67,7 +67,7 @@ GET /api/v1/integrations?language=zh-CN 或 en-US 返回连接器市场目录，
 
 GET /api/v1/product-catalog?language=zh-CN 或 en-US 返回独立于 CRM 的产品模块目录。每个模块声明买方结果、输入输出、当前状态和是否需要外部权利/回写证据，可用于产品包装、报价和生产验收。
 
-GET /api/v1/icp-profiles?language=zh-CN 或 en-US 返回当前首个 ICP `ai_solution_buyer_v1`：AI 解决方案采购方。画像定义正向信号、排除条件、必须保留的证据、评分优先级和试点验收线；创建业务任务时可以传 `icp_id`，未知画像会被拒绝。画像本身是产品假设和验收合同，仍需真实客户访谈与付费试点验证，不能冒充市场事实。
+GET /api/v1/icp-profiles?language=zh-CN 或 en-US 返回当前首个 ICP `ai_solution_buyer_v1`：AI 解决方案采购方。画像定义正向信号、排除条件、必须保留的证据、评分优先级和试点验收线；创建业务任务时可以传 `icp_id`，未知画像会被拒绝，工作台新建任务会直接选择并写入该画像。画像本身是产品假设和验收合同，仍需真实客户访谈与付费试点验证，不能冒充市场事实。
 
 POST /api/v1/tasks/{task_id}/capture-feed 接受用户明确提交的公开 RSS/Atom URL，限制公网地址、XML 类型、大小和条目数量。每条 Feed 条目进入 REVIEW，保留原文链接、发布时间、Feed 内容指纹和可重复计量记录；它不执行社交平台搜索，也不接受 Cookie 或 Token。
 
