@@ -12,11 +12,13 @@ from typing import Any
 try:
     from .domain import compile_intent
     from .planner import build_search_plan
+    from .presentation import localize_opportunities
     from .storage import Store
     from .templates import get_task_template
 except ImportError:  # running the module directly during local inspection
     from domain import compile_intent
     from planner import build_search_plan
+    from presentation import localize_opportunities
     from storage import Store
     from templates import get_task_template
 
@@ -191,6 +193,7 @@ def fetch_search_results(
     limit: Any = 20,
     offset: Any = 0,
     status: Any = None,
+    language: str = "zh-CN",
 ) -> dict[str, Any]:
     task = _workspace_task(store, workspace_id, task_id)
     page_size = _bounded_int(limit, "limit", 20, 1, MAX_PAGE_SIZE)
@@ -208,7 +211,7 @@ def fetch_search_results(
     return {
         "api_version": API_VERSION,
         "task_id": task["id"],
-        "items": page,
+        "items": localize_opportunities(page, language),
         "pagination": {
             "limit": page_size,
             "offset": page_offset,
@@ -220,6 +223,7 @@ def fetch_search_results(
             "evidence_reopen_required": True,
             "contact_permission": "manual_confirmation_required",
             "messages_sent": False,
+            "evidence_language": language,
         },
     }
 

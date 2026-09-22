@@ -135,6 +135,7 @@ TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
                 "limit": {"type": "integer", "minimum": 1, "maximum": 100},
                 "offset": {"type": "integer", "minimum": 0},
                 "status": {"type": "string", "maxLength": 40},
+                "language": {"type": "string", "enum": ["zh-CN", "en-US"]},
             },
             "required": ["task_id"],
             "additionalProperties": False,
@@ -374,6 +375,7 @@ def build_server(store: Store, workspace_id: str = WORKSPACE_ID):
                     limit=args.get("limit", 20),
                     offset=args.get("offset", 0),
                     status=args.get("status"),
+                    language=args.get("language", "zh-CN"),
                 )
             elif name == "enrich_entity":
                 result = enrich_entity(store, workspace_id, args["entity_id"])

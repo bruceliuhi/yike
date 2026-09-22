@@ -96,6 +96,8 @@ MCP 还提供 `get_feed`、`get_feed_event` 和 `review_feed_event`。Feed 事�
 
 机会还会进入保守的实体解析层：导入记录明确提供 `entity_name` / `company_name` 时建立企业或组织实体；没有实体名称时，只在来源 URL 主机足够稳定时按官网主机建立关联。小红书、抖音、微博等社交平台主机不会被当成企业官网，标题和作者昵称也不会单独创建企业实体。同名实体如果对应不同官网主机会保持分离，避免把不同公司的公开信号错误合并。每张机会卡返回 `entities`，包含实体、主机、置信度、解析原因和关联证据。
 
+机会列表、机会详情和业务搜索结果支持 `language=zh-CN|en-US`。`presentation` 只翻译状态、来源类型、决策代码和评分优先级；原始标题、原文片段、来源 URL、发布时间和证据 metadata 原样保留，避免翻译层覆盖可审计证据。当前工作台默认中文，多语言导出与完整界面切换仍是独立待办。
+
 四类社交公开来源已注册为同一来源策略：`xiaohongshu_public`、`douyin_public`、`bilibili_public`、`zhihu_public`。用户侧发现可以不登录，第一层只接受用户明确提交的公开 URL，并在证据元数据中记录 `platform`、`source_family`、`capture_layer`、`end_user_login_required` 和 `server_authorization_required`。这些字段只描述来源边界，不授予抓取权限；四平台的自动搜索仍保持 `REQUIRES_PROOF`，需要平台条款、频率、发布时间、原文重开、保存边界和重试幂等证明后才能接入。
 
 校准批次用于把一批候选交给人工复核，并记录模型/规则预测与人工金标准的差异。创建批次时可以传 `opportunity_ids`，也可以让服务按 `REVIEW → OBSERVE → SEND_READY → EXCLUDE` 的顺序选择最多 `target_count` 条当前工作区机会；目标数量必须为 1–500，机会只能来自当前工作区且不能重复。复核标签为 `VALID`、`INVALID`、`DUPLICATE`、`OBSERVE`、`NEEDS_EVIDENCE`，默认会写入既有反馈事件并同步机会状态；传 `apply_feedback:false` 只保存校准记录，不改变机会状态。批次返回覆盖率、人工复核数、准确率、误报/漏报数，以及对用户提交公开网页的重开率。重复复核会保留新的审计/反馈事实，不能当作幂等发送。
