@@ -6,6 +6,7 @@ from pathlib import Path
 
 from apps.lead_radar import worker
 from apps.lead_radar.domain import compile_intent
+from apps.lead_radar.rights import normalize_source_right
 from apps.lead_radar.storage import Store
 
 
@@ -36,6 +37,36 @@ class WorkerTest(unittest.TestCase):
             "2026-09-22T00:00:00+00:00",
             "qa",
         )
+
+    def approve_authorized_search_right(self) -> None:
+        self.store.save_source_proof(
+            WORKSPACE_ID,
+            {
+                "proof_ref": "proof-test",
+                "provider": "authorized-search-api",
+                "source_family": "authorized_search",
+                "endpoint": "https://search.example/proof/proof-test",
+                "artifact_sha256": "a" * 64,
+                "checked_at": "2026-09-22T00:00:00+00:00",
+                "checks": {"terms_and_robots": True, "rate_limit": True, "published_at": True, "url_reopen": True, "save_boundary": True, "retry_idempotency": True},
+            },
+        )
+        right, _ = self.store.save_source_right(
+            WORKSPACE_ID,
+            normalize_source_right({
+                "source_id": "authorized_search_api",
+                "provider": "authorized-search-api",
+                "source_family": "authorized_search",
+                "access_method": "OFFICIAL_API",
+                "terms_url": "https://search.example/terms",
+                "allowed_operations": ["SEARCH", "REOPEN", "STORE_EXCERPT"],
+                "allowed_fields": ["title", "source_url", "snippet", "published_at"],
+                "can_search": True,
+                "retention_days": 30,
+                "rate_limit_per_minute": 30,
+            }),
+        )
+        self.store.approve_source_right(right["id"], WORKSPACE_ID, "proof-test", "qa")
 
     def test_due_blocked_schedule_is_claimed_once_and_explains_source_gate(self) -> None:
         schedule = self.schedule()
@@ -83,6 +114,7 @@ class WorkerTest(unittest.TestCase):
         worker.build_search_plan = lambda criteria, requested_limit: ready_plan
         worker.AuthorizedSearchConnector = FakeConnector
         try:
+            self.approve_authorized_search_right()
             schedule = self.schedule({"sources": ["authorized_search_api"]})
             result = worker.run_due_once(self.store, due_at="2026-09-23T00:00:00+00:00", execute=True)
         finally:

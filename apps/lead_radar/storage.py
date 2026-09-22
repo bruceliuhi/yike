@@ -247,6 +247,32 @@ CREATE TABLE IF NOT EXISTS source_proofs (
     UNIQUE(workspace_id, proof_ref)
 );
 
+CREATE TABLE IF NOT EXISTS source_rights (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    source_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    source_family TEXT NOT NULL,
+    access_method TEXT NOT NULL,
+    permission_status TEXT NOT NULL DEFAULT 'PENDING',
+    proof_ref TEXT,
+    terms_url TEXT,
+    privacy_url TEXT,
+    allowed_operations_json TEXT NOT NULL,
+    allowed_fields_json TEXT NOT NULL,
+    store_original INTEGER NOT NULL DEFAULT 0,
+    retention_days INTEGER NOT NULL,
+    rate_limit_per_minute INTEGER NOT NULL,
+    can_search INTEGER NOT NULL DEFAULT 0,
+    can_write_back INTEGER NOT NULL DEFAULT 0,
+    notes TEXT,
+    reviewed_by TEXT,
+    reviewed_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(workspace_id, source_id)
+);
+
 CREATE TABLE IF NOT EXISTS audit_events (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL REFERENCES workspaces(id),
@@ -351,6 +377,7 @@ CREATE INDEX IF NOT EXISTS idx_calibration_items_batch_created ON calibration_it
 CREATE INDEX IF NOT EXISTS idx_action_drafts_opportunity_created ON action_drafts(opportunity_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_api_keys_workspace_status ON api_keys(workspace_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_api_requests_workspace_created ON api_requests(workspace_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_source_rights_workspace_status ON source_rights(workspace_id, permission_status, source_id);
 """
 
 
@@ -2607,6 +2634,121 @@ class Store:
             )
             updated = db.execute("SELECT * FROM source_proofs WHERE id = ?", (row["id"],)).fetchone()
         return self._source_proof_dict(updated)
+
+    @staticmethod
+    def _source_right_dict(row: sqlite3.Row | dict[str, Any] | None) -> dict[str, Any] | None:
+        if row is None:
+            return None
+        result = dict(row)
+        for source_key, target_key in (("allowed_operations_json", "allowed_operations"), ("allowed_fields_json", "allowed_fields")):
+            try:
+                result[target_key] = json.loads(result.pop(source_key) or "[]")
+            except (TypeError, json.JSONDecodeError):
+                result[target_key] = []
+                result.pop(source_key, None)
+        for key in ("store_original", "can_search", "can_write_back"):
+            result[key] = bool(result.get(key))
+        return result
+
+    def save_source_right(self, workspace_id: str, right: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+        with self.tx() as db:
+            if not db.execute("SELECT id FROM workspaces WHERE id = ?", (workspace_id,)).fetchone():
+                raise KeyError("workspace_not_found")
+            existing = db.execute("SELECT * FROM source_rights WHERE workspace_id = ? AND source_id = ?", (workspace_id, right["source_id"])).fetchone()
+            if existing:
+                current = self._source_right_dict(existing)
+                comparable = ("provider", "source_family", "access_method", "proof_ref", "terms_url", "privacy_url", "store_original", "retention_days", "rate_limit_per_minute", "can_search", "can_write_back", "notes")
+                if any(current.get(key) != right.get(key) for key in comparable) or current.get("allowed_operations") != right["allowed_operations"] or current.get("allowed_fields") != right["allowed_fields"]:
+                    raise ValueError("source_right_conflict")
+                return current, False  # type: ignore[return-value]
+            right_id = _id("right")
+            timestamp = now_iso()
+            db.execute(
+                """INSERT INTO source_rights
+                   (id, workspace_id, source_id, provider, source_family, access_method,
+                    permission_status, proof_ref, terms_url, privacy_url,
+                    allowed_operations_json, allowed_fields_json, store_original,
+                    retention_days, rate_limit_per_minute, can_search, can_write_back,
+                    notes, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    right_id, workspace_id, right["source_id"], right["provider"], right["source_family"],
+                    right["access_method"], right["status"], right["proof_ref"], right["terms_url"], right["privacy_url"],
+                    _json(right["allowed_operations"]), _json(right["allowed_fields"]), int(right["store_original"]),
+                    right["retention_days"], right["rate_limit_per_minute"], int(right["can_search"]), int(right["can_write_back"]),
+                    right["notes"], timestamp, timestamp,
+                ),
+            )
+            self._audit(db, workspace_id, "source_right", right_id, "registered", {"source_id": right["source_id"], "provider": right["provider"], "access_method": right["access_method"], "permission_status": right["status"], "allowed_operations": right["allowed_operations"], "allowed_fields": right["allowed_fields"], "retention_days": right["retention_days"]})
+            row = db.execute("SELECT * FROM source_rights WHERE id = ?", (right_id,)).fetchone()
+        return self._source_right_dict(row), True  # type: ignore[return-value]
+
+    def get_source_right(self, right_id: str, workspace_id: str | None = None) -> dict[str, Any] | None:
+        query = "SELECT * FROM source_rights WHERE id = ?"
+        params: list[Any] = [right_id]
+        if workspace_id is not None:
+            query += " AND workspace_id = ?"
+            params.append(workspace_id)
+        with self.lock:
+            row = self.db.execute(query, params).fetchone()
+        return self._source_right_dict(row)
+
+    def list_source_rights(self, workspace_id: str) -> list[dict[str, Any]]:
+        with self.lock:
+            rows = self.db.execute("SELECT * FROM source_rights WHERE workspace_id = ? ORDER BY source_id, created_at DESC", (workspace_id,)).fetchall()
+        return [self._source_right_dict(row) for row in rows]  # type: ignore[list-item]
+
+    def approve_source_right(self, right_id: str, workspace_id: str, proof_ref: str, actor: str) -> dict[str, Any] | None:
+        with self.tx() as db:
+            row = db.execute("SELECT * FROM source_rights WHERE id = ? AND workspace_id = ?", (right_id, workspace_id)).fetchone()
+            if not row:
+                return None
+            proof = db.execute(
+                "SELECT * FROM source_proofs WHERE workspace_id = ? AND proof_ref = ? AND status = 'ACTIVE'",
+                (workspace_id, proof_ref),
+            ).fetchone()
+            if not proof:
+                raise ValueError("active_source_proof_required")
+            if proof["provider"] != row["provider"]:
+                raise ValueError("source_right_proof_provider_mismatch")
+            if not row["terms_url"] or not row["allowed_operations_json"] or not row["allowed_fields_json"]:
+                raise ValueError("source_right_approval_fields_missing")
+            timestamp = now_iso()
+            db.execute(
+                """UPDATE source_rights
+                   SET permission_status = 'APPROVED', proof_ref = ?, reviewed_by = ?,
+                       reviewed_at = ?, updated_at = ?
+                   WHERE id = ?""",
+                (proof_ref, actor, timestamp, timestamp, right_id),
+            )
+            self._audit(db, workspace_id, "source_right", right_id, "approved", {"proof_ref": proof_ref, "actor": actor, "reviewed_at": timestamp})
+            updated = db.execute("SELECT * FROM source_rights WHERE id = ?", (right_id,)).fetchone()
+        return self._source_right_dict(updated)
+
+    def suspend_source_right(self, right_id: str, workspace_id: str, actor: str, reason: str) -> dict[str, Any] | None:
+        with self.tx() as db:
+            row = db.execute("SELECT * FROM source_rights WHERE id = ? AND workspace_id = ?", (right_id, workspace_id)).fetchone()
+            if not row:
+                return None
+            timestamp = now_iso()
+            db.execute("UPDATE source_rights SET permission_status = 'SUSPENDED', updated_at = ? WHERE id = ?", (timestamp, right_id))
+            self._audit(db, workspace_id, "source_right", right_id, "suspended", {"actor": actor, "reason": reason[:1000]})
+            updated = db.execute("SELECT * FROM source_rights WHERE id = ?", (right_id,)).fetchone()
+        return self._source_right_dict(updated)
+
+    def get_approved_source_right(self, workspace_id: str, source_id: str) -> dict[str, Any] | None:
+        with self.lock:
+            row = self.db.execute(
+                """SELECT r.* FROM source_rights r
+                   JOIN source_proofs p ON p.workspace_id = r.workspace_id
+                                      AND p.proof_ref = r.proof_ref
+                                      AND p.status = 'ACTIVE'
+                   WHERE r.workspace_id = ? AND r.source_id = ?
+                     AND r.permission_status = 'APPROVED'
+                   LIMIT 1""",
+                (workspace_id, source_id),
+            ).fetchone()
+        return self._source_right_dict(row)
 
     def dashboard(self, workspace_id: str) -> dict[str, Any]:
         with self.lock:

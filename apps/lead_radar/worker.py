@@ -79,6 +79,9 @@ def execute_task_once(
     plan = task.get("plan") or {}
     if capability.get("status") != "READY" or "authorized_search_api" not in plan.get("runnable_sources", []):
         return {"status": "BLOCKED_SOURCE", "error_code": "NO_SEARCH_CONNECTOR_READY", "capability": capability, "task": task}
+    rights = store.get_approved_source_right(workspace_id, "authorized_search_api")
+    if not rights:
+        return {"status": "BLOCKED_SOURCE", "error_code": "SOURCE_RIGHTS_NOT_APPROVED", "capability": capability, "task": task}
 
     task = store.start_task(task_id, mode)
     if not task:

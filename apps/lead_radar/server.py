@@ -28,6 +28,7 @@ try:
     from .index_connector import IndexResultError, normalize_index_results
     from .planner import build_search_plan
     from .proofs import SourceProofError, normalize_source_proof
+    from .rights import SourceRightError, normalize_source_right
     from .search_connector import AuthorizedSearchConnector, SearchConnectorError
     from .schedule_api import control_schedule, create_schedule, get_schedule, list_schedules, trigger_schedule
     from .source_policy import classify_public_url
@@ -43,6 +44,7 @@ except ImportError:  # running server.py directly
     from index_connector import IndexResultError, normalize_index_results
     from planner import build_search_plan
     from proofs import SourceProofError, normalize_source_proof
+    from rights import SourceRightError, normalize_source_right
     from search_connector import AuthorizedSearchConnector, SearchConnectorError
     from schedule_api import control_schedule, create_schedule, get_schedule, list_schedules, trigger_schedule
     from source_policy import classify_public_url
@@ -97,6 +99,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             path.endswith("/api-keys")
             or path.endswith("/quota")
             or path.endswith("/usage")
+            or path.endswith("/source-rights")
+            or (path.startswith("/api/v1/source-rights/") and (path.endswith("/approve") or path.endswith("/suspend")))
             or (path.startswith("/api/v1/api-keys/") and path.endswith("/revoke"))
         )
 
@@ -348,6 +352,11 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             return self._send(200, self.store.audit_usage(WORKSPACE_ID, limit))
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/source-proofs":
             return self._send(200, {"items": self.store.list_source_proofs(WORKSPACE_ID)})
+        if path == f"/api/v1/workspaces/{WORKSPACE_ID}/source-rights":
+            return self._send(200, {"items": self.store.list_source_rights(WORKSPACE_ID)})
+        if path.startswith("/api/v1/source-rights/") and path.count("/") == 4:
+            right = self.store.get_source_right(path.rsplit("/", 1)[-1], WORKSPACE_ID)
+            return self._send(200, {"right": right}) if right else self._error(404, "source_right_not_found", "数据权利记录不存在。")
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/tasks":
             return self._send(200, {"items": self.store.list_tasks(WORKSPACE_ID)})
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/opportunities":
@@ -458,6 +467,26 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 return self._revoke_source_proof(payload)
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/source-proofs":
                 return self._register_source_proof(payload)
+            if path == f"/api/v1/workspaces/{WORKSPACE_ID}/source-rights":
+                right = normalize_source_right(payload)
+                saved, created = self.store.save_source_right(WORKSPACE_ID, right)
+                return self._send(201 if created else 200, {"right": saved, "created": created})
+            if path.startswith("/api/v1/source-rights/") and path.endswith("/approve"):
+                proof_ref = str(payload.get("proof_ref", "")).strip()
+                if not proof_ref:
+                    raise ValueError("proof_ref_required")
+                right = self.store.approve_source_right(path.split("/")[-2], WORKSPACE_ID, proof_ref, str(payload.get("actor", "operator")))
+                if not right:
+                    return self._error(404, "source_right_not_found", "数据权利记录不存在。")
+                return self._send(200, {"right": right})
+            if path.startswith("/api/v1/source-rights/") and path.endswith("/suspend"):
+                reason = str(payload.get("reason", "")).strip()
+                if not reason:
+                    raise ValueError("suspend_reason_required")
+                right = self.store.suspend_source_right(path.split("/")[-2], WORKSPACE_ID, str(payload.get("actor", "operator")), reason)
+                if not right:
+                    return self._error(404, "source_right_not_found", "数据权利记录不存在。")
+                return self._send(200, {"right": right})
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/tasks":
                 return self._create_task(payload)
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/calibration-batches":
@@ -503,6 +532,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         except IndexResultError as exc:
             return self._error(400, exc.code, exc.message)
         except SourceProofError as exc:
+            return self._error(400, exc.code, exc.message)
+        except SourceRightError as exc:
             return self._error(400, exc.code, exc.message)
         except ValueError as exc:
             return self._error(400, "invalid_request", str(exc))
