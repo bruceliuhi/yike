@@ -197,6 +197,23 @@ CREATE TABLE IF NOT EXISTS calibration_items (
     UNIQUE(batch_id, opportunity_id)
 );
 
+CREATE TABLE IF NOT EXISTS action_drafts (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    opportunity_id TEXT NOT NULL REFERENCES opportunities(id),
+    channel TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'DRAFT',
+    subject TEXT,
+    body TEXT NOT NULL,
+    evidence_ids_json TEXT NOT NULL DEFAULT '[]',
+    idempotency_key TEXT UNIQUE,
+    created_by TEXT NOT NULL,
+    approved_by TEXT,
+    approved_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_tasks_workspace_created ON tasks(workspace_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_opportunities_workspace_updated ON opportunities(workspace_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_opportunities_status ON opportunities(status);
@@ -206,6 +223,7 @@ CREATE INDEX IF NOT EXISTS idx_opportunity_entities_entity ON opportunity_entiti
 CREATE INDEX IF NOT EXISTS idx_task_run_events_run_created ON task_run_events(run_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_calibration_batches_workspace_created ON calibration_batches(workspace_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_calibration_items_batch_created ON calibration_items(batch_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_action_drafts_opportunity_created ON action_drafts(opportunity_id, created_at DESC);
 """
 
 
@@ -238,6 +256,8 @@ PLATFORM_HOSTS = {
 }
 
 CALIBRATION_LABELS = {"VALID", "INVALID", "DUPLICATE", "OBSERVE", "NEEDS_EVIDENCE"}
+ACTION_CHANNELS = {"PUBLIC_REPLY", "EMAIL", "FEISHU_TASK", "CRM_TASK"}
+ACTION_CHANNEL_ORDER = ["PUBLIC_REPLY", "EMAIL", "FEISHU_TASK", "CRM_TASK"]
 CALIBRATION_NAME_MAX = 120
 CALIBRATION_REVIEWER_MAX = 120
 CALIBRATION_NOTE_MAX = 4000
@@ -669,6 +689,190 @@ class Store:
             row = self.db.execute("SELECT * FROM opportunities WHERE id = ?", (opportunity_id,)).fetchone()
         return self._opportunity_dict(row)
 
+    @staticmethod
+    def _action_draft_content(channel: str, opportunity: sqlite3.Row) -> tuple[str | None, str]:
+        title = str(opportunity["title"] or "公开需求")
+        intent = str(opportunity["intent_type"] or "相关需求")
+        snippet = str(opportunity["snippet"] or "").strip()
+        excerpt = snippet[:240] + ("…" if len(snippet) > 240 else "")
+        source_url = str(opportunity["source_url"])
+        if channel == "PUBLIC_REPLY":
+            return None, (
+                f"你好，我看到你在公开页面提到{intent}，想进一步了解具体场景。"
+                f"如果这个需求仍在评估，我可以先提供一个针对性的落地思路，再根据预算和时间安排下一步。"
+                f"参考原文：{source_url}"
+            )
+        if channel == "EMAIL":
+            return f"关于{title}的 AI 需求沟通", (
+                f"您好，我看到贵方公开提到{intent}。\n\n"
+                f"原文摘要：{excerpt}\n\n"
+                "我们可以先用一次短沟通确认目标、现有系统和交付边界，再判断是否适合进入方案评估。\n\n"
+                f"参考来源：{source_url}"
+            )
+        task_prefix = "飞书任务" if channel == "FEISHU_TASK" else "CRM 任务"
+        return f"{task_prefix}：复核 {title}", (
+            f"复核对象：{title}\n"
+            f"需求类型：{intent}\n"
+            f"原文摘要：{excerpt}\n"
+            f"来源：{source_url}\n\n"
+            "下一步：人工确认联系人、业务关系和触达方式后再执行。"
+        )
+
+    @staticmethod
+    def _action_draft_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
+        result = _decode(row)
+        if not result:
+            return None
+        result["evidence_ids"] = json.loads(result.pop("evidence_ids_json") or "[]")
+        return result
+
+    def create_action_drafts(
+        self,
+        opportunity_id: str,
+        channels: list[str],
+        actor: str = "operator",
+        request_key: str | None = None,
+    ) -> list[dict[str, Any]] | None:
+        normalized_channels: list[str] = []
+        for channel in channels:
+            value = str(channel or "").strip().upper()
+            if value not in ACTION_CHANNELS:
+                raise ValueError("invalid_action_channel")
+            if value not in normalized_channels:
+                normalized_channels.append(value)
+        if not normalized_channels:
+            raise ValueError("action_channels_required")
+        actor = str(actor or "operator").strip() or "operator"
+        with self.tx() as db:
+            opportunity = db.execute("SELECT * FROM opportunities WHERE id = ?", (opportunity_id,)).fetchone()
+            if not opportunity:
+                return None
+            if opportunity["status"] != "SEND_READY":
+                raise ValueError("opportunity_not_send_ready")
+            evidence_ids = [row["id"] for row in db.execute("SELECT id FROM evidence WHERE opportunity_id = ? ORDER BY created_at", (opportunity_id,)).fetchall()]
+            timestamp = now_iso()
+            for channel in normalized_channels:
+                idempotency_key = f"{request_key}:{channel}" if request_key else None
+                existing = None
+                if idempotency_key:
+                    existing = db.execute("SELECT id FROM action_drafts WHERE idempotency_key = ?", (idempotency_key,)).fetchone()
+                else:
+                    existing = db.execute(
+                        """SELECT id FROM action_drafts
+                           WHERE opportunity_id = ? AND channel = ? AND status IN ('DRAFT', 'APPROVED')
+                           ORDER BY created_at DESC LIMIT 1""",
+                        (opportunity_id, channel),
+                    ).fetchone()
+                if existing:
+                    continue
+                subject, body = self._action_draft_content(channel, opportunity)
+                draft_id = _id("action")
+                db.execute(
+                    """INSERT INTO action_drafts
+                       (id, workspace_id, opportunity_id, channel, status, subject, body,
+                        evidence_ids_json, idempotency_key, created_by, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, 'DRAFT', ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        draft_id,
+                        opportunity["workspace_id"],
+                        opportunity_id,
+                        channel,
+                        subject,
+                        body,
+                        _json(evidence_ids),
+                        idempotency_key,
+                        actor,
+                        timestamp,
+                        timestamp,
+                    ),
+                )
+                self._audit(
+                    db,
+                    opportunity["workspace_id"],
+                    "opportunity",
+                    opportunity_id,
+                    "action_draft_created",
+                    {"draft_id": draft_id, "channel": channel, "actor": actor, "evidence_ids": evidence_ids},
+                )
+        return self.list_action_drafts(opportunity_id)
+
+    def list_action_drafts(self, opportunity_id: str, workspace_id: str | None = None) -> list[dict[str, Any]]:
+        with self.lock:
+            query = "SELECT * FROM action_drafts WHERE opportunity_id = ?"
+            params: list[Any] = [opportunity_id]
+            if workspace_id is not None:
+                query += " AND workspace_id = ?"
+                params.append(workspace_id)
+            query += " ORDER BY created_at DESC, rowid DESC"
+            rows = self.db.execute(query, params).fetchall()
+        return [self._action_draft_dict(row) for row in rows]  # type: ignore[list-item]
+
+    def get_action_draft(self, draft_id: str, workspace_id: str | None = None) -> dict[str, Any] | None:
+        with self.lock:
+            query = "SELECT * FROM action_drafts WHERE id = ?"
+            params: list[Any] = [draft_id]
+            if workspace_id is not None:
+                query += " AND workspace_id = ?"
+                params.append(workspace_id)
+            row = self.db.execute(query, params).fetchone()
+        return self._action_draft_dict(row)
+
+    def approve_action_draft(self, draft_id: str, actor: str = "operator", confirm: bool = False) -> dict[str, Any] | None:
+        if confirm is not True:
+            raise ValueError("explicit_confirmation_required")
+        actor = str(actor or "operator").strip() or "operator"
+        with self.tx() as db:
+            row = db.execute(
+                """SELECT d.*, o.status AS opportunity_status
+                   FROM action_drafts d JOIN opportunities o ON o.id = d.opportunity_id
+                   WHERE d.id = ?""",
+                (draft_id,),
+            ).fetchone()
+            if not row:
+                return None
+            if row["status"] == "APPROVED":
+                return self._action_draft_dict(row)
+            if row["status"] != "DRAFT":
+                raise ValueError("action_draft_not_approvable")
+            if row["opportunity_status"] != "SEND_READY":
+                raise ValueError("opportunity_not_send_ready")
+            timestamp = now_iso()
+            db.execute(
+                "UPDATE action_drafts SET status = 'APPROVED', approved_by = ?, approved_at = ?, updated_at = ? WHERE id = ?",
+                (actor, timestamp, timestamp, draft_id),
+            )
+            self._audit(
+                db,
+                row["workspace_id"],
+                "opportunity",
+                row["opportunity_id"],
+                "action_draft_approved",
+                {"draft_id": draft_id, "channel": row["channel"], "actor": actor, "sent": False},
+            )
+        return self.get_action_draft(draft_id)
+
+    def cancel_action_draft(self, draft_id: str, actor: str = "operator") -> dict[str, Any] | None:
+        actor = str(actor or "operator").strip() or "operator"
+        with self.tx() as db:
+            row = db.execute("SELECT * FROM action_drafts WHERE id = ?", (draft_id,)).fetchone()
+            if not row:
+                return None
+            if row["status"] == "CANCELLED":
+                return self._action_draft_dict(row)
+            if row["status"] not in {"DRAFT", "APPROVED"}:
+                raise ValueError("action_draft_not_cancellable")
+            timestamp = now_iso()
+            db.execute("UPDATE action_drafts SET status = 'CANCELLED', updated_at = ? WHERE id = ?", (timestamp, draft_id))
+            self._audit(
+                db,
+                row["workspace_id"],
+                "opportunity",
+                row["opportunity_id"],
+                "action_draft_cancelled",
+                {"draft_id": draft_id, "channel": row["channel"], "actor": actor},
+            )
+        return self.get_action_draft(draft_id)
+
     def list_entities(self, workspace_id: str) -> list[dict[str, Any]]:
         with self.lock:
             rows = self.db.execute(
@@ -885,6 +1089,10 @@ class Store:
                        ORDER BY created_at, rowid""",
                     (result["workspace_id"], result["id"]),
                 ).fetchall()
+                action_drafts = self.db.execute(
+                    "SELECT * FROM action_drafts WHERE opportunity_id = ? ORDER BY created_at DESC, rowid DESC",
+                    (result["id"],),
+                ).fetchall()
             result["evidence"] = []
             result["decision"] = json.loads(result.pop("decision_json") or "{}")
             for item in evidence:
@@ -904,6 +1112,7 @@ class Store:
                 entry = dict(item)
                 entry["payload"] = json.loads(entry.pop("payload_json") or "{}")
                 result["audit_events"].append(entry)
+            result["action_drafts"] = [self._action_draft_dict(item) for item in action_drafts]
         return result
 
     def _resolve_opportunity_entities(

@@ -117,12 +117,61 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(cancelled["run"]["status"], "CANCELLED")
         self.assertEqual(cancelled["run"]["events"][-1]["event_type"], "cancel")
-
         status, retried = self.request("POST", f"/api/v1/tasks/{task['id']}/runs/{run_id}/retry", {"actor": "qa"})
         self.assertEqual(status, 200)
         self.assertEqual(retried["run"]["status"], "BLOCKED_REQUIRES_SOURCE")
         self.assertEqual(retried["run"]["events"][0]["event_type"], "retry_created")
         self.assertEqual(len(retried["runs"]), 2)
+
+    def test_action_drafts_bind_evidence_and_require_explicit_approval(self) -> None:
+        _, task = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks",
+            {"objective": "生成 AI 客服需求的人工跟进草稿"},
+        )
+        _, created = self.request(
+            "POST",
+            f"/api/v1/tasks/{task['id']}/opportunities",
+            {
+                "title": "企业寻找 AI 客服开发团队",
+                "source_url": "https://buyer.example/request/1",
+                "snippet": "公开页面明确提到正在评估 AI 客服定制开发。",
+                "intent_type": "定制 / 开发",
+                "source_permission": "allowed",
+                "evidence_level": "VERIFIED",
+            },
+        )
+        opportunity_id = created["items"][0]["id"]
+        draft_path = f"/api/v1/opportunities/{opportunity_id}/action-drafts"
+        headers = {"Idempotency-Key": "draft-request-1"}
+        status, first = self.request("POST", draft_path, {"channels": ["PUBLIC_REPLY", "EMAIL"]}, headers)
+        self.assertEqual(status, 200)
+        self.assertEqual(first["count"], 2)
+        self.assertEqual({item["channel"] for item in first["items"]}, {"PUBLIC_REPLY", "EMAIL"})
+        self.assertTrue(all(item["status"] == "DRAFT" for item in first["items"]))
+        self.assertTrue(all(item["evidence_ids"] for item in first["items"]))
+        status, duplicate = self.request("POST", draft_path, {"channels": ["PUBLIC_REPLY", "EMAIL"]}, headers)
+        self.assertEqual(status, 200)
+        self.assertEqual(duplicate["count"], 2)
+        self.assertEqual(len(duplicate["items"]), 2)
+        self.assertEqual(len({item["id"] for item in duplicate["items"]}), 2)
+
+        public_reply = next(item for item in first["items"] if item["channel"] == "PUBLIC_REPLY")
+        status, rejected = self.request("POST", f"/api/v1/action-drafts/{public_reply['id']}/approve", {"confirm": False})
+        self.assertEqual(status, 400)
+        self.assertEqual(rejected["error"], "invalid_request")
+        status, approved = self.request("POST", f"/api/v1/action-drafts/{public_reply['id']}/approve", {"confirm": True, "actor": "qa"})
+        self.assertEqual(status, 200)
+        self.assertEqual(approved["draft"]["status"], "APPROVED")
+        status, detail = self.request("GET", f"/api/v1/opportunities/{opportunity_id}")
+        self.assertEqual(status, 200)
+        self.assertEqual(detail["audit_events"][-1]["action"], "action_draft_approved")
+        self.assertFalse(detail["audit_events"][-1]["payload"]["sent"])
+
+        email = next(item for item in first["items"] if item["channel"] == "EMAIL")
+        status, cancelled = self.request("POST", f"/api/v1/action-drafts/{email['id']}/cancel", {"actor": "qa"})
+        self.assertEqual(status, 200)
+        self.assertEqual(cancelled["draft"]["status"], "CANCELLED")
 
     def test_duplicate_evidence_is_recorded_without_double_counting(self) -> None:
         _, task = self.request("POST", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks", {"objective": "寻找 AI 知识库项目"})
@@ -464,6 +513,79 @@ class LeadRadarApiTest(unittest.TestCase):
         status, result = self.request("POST", review_path, {"gold_label": "VALID", "apply_feedback": "false"})
         self.assertEqual(status, 400)
         self.assertIn("apply_feedback_must_be_boolean", result["message"])
+
+    def test_action_drafts_are_evidence_bound_idempotent_and_never_sent(self) -> None:
+        _, task = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks",
+            {"objective": "生成 AI 客服商机动作草案"},
+        )
+        path = f"/api/v1/tasks/{task['id']}/opportunities"
+        _, created = self.request(
+            "POST",
+            path,
+            {
+                "title": "动作草案候选",
+                "source_url": "https://action.example/request",
+                "snippet": "企业公开表达需要 AI 客服定制开发团队。",
+                "intent_type": "定制开发",
+                "source_permission": "allowed",
+                "evidence_level": "VERIFIED",
+            },
+        )
+        opportunity_id = created["items"][0]["id"]
+        draft_path = f"/api/v1/opportunities/{opportunity_id}/action-drafts"
+        status, drafts = self.request(
+            "POST",
+            draft_path,
+            {"channels": ["PUBLIC_REPLY", "EMAIL", "FEISHU_TASK", "CRM_TASK"], "actor": "qa"},
+            {"Idempotency-Key": "action-draft-request-1"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(drafts["count"], 4)
+        self.assertTrue(all(item["status"] == "DRAFT" for item in drafts["items"]))
+        self.assertTrue(all(item["evidence_ids"] for item in drafts["items"]))
+        self.assertTrue(all("尚未发送" not in item["body"] for item in drafts["items"]))
+
+        status, retry = self.request(
+            "POST",
+            draft_path,
+            {"channels": ["PUBLIC_REPLY", "EMAIL", "FEISHU_TASK", "CRM_TASK"], "actor": "qa"},
+            {"Idempotency-Key": "action-draft-request-1"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual({item["id"] for item in retry["items"]}, {item["id"] for item in drafts["items"]})
+
+        draft_id = drafts["items"][0]["id"]
+        status, rejected = self.request("POST", f"/api/v1/action-drafts/{draft_id}/approve", {"confirm": False})
+        self.assertEqual(status, 400)
+        self.assertIn("explicit_confirmation_required", rejected["message"])
+        status, approved = self.request("POST", f"/api/v1/action-drafts/{draft_id}/approve", {"confirm": True, "actor": "qa"})
+        self.assertEqual(status, 200)
+        self.assertEqual(approved["draft"]["status"], "APPROVED")
+        self.assertFalse(approved["sent"])
+        self.assertIn("尚未发送", approved["message"])
+
+        status, listed = self.request("GET", draft_path)
+        self.assertEqual(status, 200)
+        self.assertEqual({item["status"] for item in listed["items"]}, {"DRAFT", "APPROVED"})
+        status, detail = self.request("GET", f"/api/v1/opportunities/{opportunity_id}")
+        self.assertEqual(status, 200)
+        self.assertEqual(len(detail["action_drafts"]), 4)
+        self.assertEqual(detail["audit_events"][-1]["action"], "action_draft_approved")
+
+        _, review_only = self.request(
+            "POST",
+            path,
+            {"title": "尚未就绪", "source_url": "https://action.example/review", "snippet": "只有公开片段。"},
+        )
+        status, blocked = self.request(
+            "POST",
+            f"/api/v1/opportunities/{review_only['items'][0]['id']}/action-drafts",
+            {"channels": ["EMAIL"]},
+        )
+        self.assertEqual(status, 400)
+        self.assertIn("opportunity_not_send_ready", blocked["message"])
 
 
 if __name__ == "__main__":

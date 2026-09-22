@@ -105,6 +105,12 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/v1/opportunities/") and path.count("/") == 4:
             opportunity = self.store.get_opportunity(path.rsplit("/", 1)[-1])
             return self._send(200, opportunity) if opportunity else self._error(404, "opportunity_not_found", "机会不存在")
+        if path.startswith("/api/v1/opportunities/") and path.endswith("/action-drafts"):
+            opportunity_id = path.split("/")[-2]
+            opportunity = self.store.get_opportunity(opportunity_id)
+            if not opportunity or opportunity.get("workspace_id") != WORKSPACE_ID:
+                return self._error(404, "opportunity_not_found", "机会不存在")
+            return self._send(200, {"items": self.store.list_action_drafts(opportunity_id, WORKSPACE_ID)})
         if path.startswith("/api/v1/entities/") and path.count("/") == 4:
             entity = self.store.get_entity(path.rsplit("/", 1)[-1])
             return self._send(200, entity) if entity else self._error(404, "entity_not_found", "实体不存在")
@@ -139,6 +145,12 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 return self._add_opportunities(path.split("/")[-2], payload)
             if path.startswith("/api/v1/opportunities/") and path.endswith("/feedback"):
                 return self._feedback(path.split("/")[-2], payload)
+            if path.startswith("/api/v1/opportunities/") and path.endswith("/action-drafts"):
+                return self._create_action_drafts(path.split("/")[-2], payload)
+            if path.startswith("/api/v1/action-drafts/") and path.endswith("/approve"):
+                return self._approve_action_draft(path.split("/")[-2], payload)
+            if path.startswith("/api/v1/action-drafts/") and path.endswith("/cancel"):
+                return self._cancel_action_draft(path.split("/")[-2], payload)
             if path.startswith("/api/v1/opportunities/") and path.endswith("/reopen"):
                 return self._reopen_evidence(path.split("/")[-2])
             if path.startswith("/api/v1/entities/") and path.endswith("/merge"):
@@ -420,6 +432,47 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if not opportunity:
             return self._error(404, "opportunity_not_found", "机会不存在")
         self._send(200, opportunity)
+
+    def _create_action_drafts(self, opportunity_id: str, payload: dict[str, Any]) -> None:
+        opportunity = self.store.get_opportunity(opportunity_id)
+        if not opportunity or opportunity.get("workspace_id") != WORKSPACE_ID:
+            return self._error(404, "opportunity_not_found", "机会不存在")
+        channels = payload.get("channels", ["PUBLIC_REPLY", "EMAIL", "FEISHU_TASK", "CRM_TASK"])
+        if not isinstance(channels, list):
+            raise ValueError("action_channels_must_be_array")
+        request_key = self.headers.get("Idempotency-Key") or payload.get("idempotency_key")
+        if request_key is not None and not isinstance(request_key, str):
+            raise ValueError("idempotency_key_must_be_string")
+        drafts = self.store.create_action_drafts(
+            opportunity_id,
+            channels,
+            str(payload.get("actor", "operator")),
+            request_key,
+        )
+        if drafts is None:
+            return self._error(404, "opportunity_not_found", "机会不存在")
+        self._send(200, {"items": drafts, "count": len(drafts), "message": "动作草案已生成，尚未发送。"})
+
+    def _approve_action_draft(self, draft_id: str, payload: dict[str, Any]) -> None:
+        draft = self.store.get_action_draft(draft_id, WORKSPACE_ID)
+        if not draft:
+            return self._error(404, "action_draft_not_found", "动作草案不存在")
+        confirm = payload.get("confirm")
+        if not isinstance(confirm, bool):
+            raise ValueError("confirm_must_be_boolean")
+        approved = self.store.approve_action_draft(draft_id, str(payload.get("actor", "operator")), confirm)
+        if not approved:
+            return self._error(404, "action_draft_not_found", "动作草案不存在")
+        self._send(200, {"draft": approved, "sent": False, "message": "草案已人工批准，但系统尚未发送。"})
+
+    def _cancel_action_draft(self, draft_id: str, payload: dict[str, Any]) -> None:
+        draft = self.store.get_action_draft(draft_id, WORKSPACE_ID)
+        if not draft:
+            return self._error(404, "action_draft_not_found", "动作草案不存在")
+        cancelled = self.store.cancel_action_draft(draft_id, str(payload.get("actor", "operator")))
+        if not cancelled:
+            return self._error(404, "action_draft_not_found", "动作草案不存在")
+        self._send(200, {"draft": cancelled, "message": "草案已取消，未发送。"})
 
     def _merge_entity(self, source_id: str, payload: dict[str, Any]) -> None:
         target_id = str(payload.get("target_entity_id", "")).strip()

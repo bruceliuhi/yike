@@ -28,6 +28,9 @@ python3 apps/lead_radar/server.py --port 8780
 - `POST /api/v1/tasks/{task_id}/capture-urls`
 - `POST /api/v1/tasks/{task_id}/opportunities`
 - `POST /api/v1/opportunities/{opportunity_id}/feedback`
+- `GET /api/v1/opportunities/{opportunity_id}/action-drafts`
+- `POST /api/v1/opportunities/{opportunity_id}/action-drafts`
+- `POST /api/v1/action-drafts/{draft_id}/approve|cancel`
 - `GET /api/v1/workspaces/{workspace_id}/calibration-batches`
 - `POST /api/v1/workspaces/{workspace_id}/calibration-batches`
 - `GET /api/v1/calibration-batches/{batch_id}`
@@ -45,6 +48,8 @@ python3 apps/lead_radar/server.py --port 8780
 校准指标只反映当前批次中已录入的机会和人工标签，不代表平台召回率、商机成交率或跨行业效果。样本必须来自真实授权运行或明确的用户提交来源；fixture、静态页面和预置 URL 不能作为生产校准证据。正式发布仍需按 CP-06 记录真实来源 capability、生产数据库/恢复、HTTPS 和客户验收。
 
 机会详情会同时展示证据快照、系统判断、来源权限、人工反馈和审计时间线；详情页只帮助人工复核，不会把查看动作变成联系或发送许可。
+
+跟进草稿只能从 `SEND_READY` 机会生成，渠道为 `PUBLIC_REPLY`、`EMAIL`、`FEISHU_TASK` 或 `CRM_TASK`。生成时绑定当前证据 ID，默认状态为 `DRAFT`；审批必须显式提交 `confirm:true`，只记录人工批准事实，不调用平台发送器、不写入外部 CRM，也不会把审批当作已发送。重复请求可使用 `Idempotency-Key`，同一机会和渠道不会重复生成未取消草稿。
 
 实体主档支持人工合并和按单条机会拆分。操作会把关联关系写入审计事件，并保留机会原始证据；“合并”只移动机会与实体的关系，“拆分”只改变选中机会的实体归属，不会删除来源内容。
 
