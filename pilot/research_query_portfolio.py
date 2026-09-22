@@ -27,7 +27,7 @@ def _terms(value: object, *, maximum: int) -> list[str]:
         _invalid()
     result: list[str] = []
     for item in value:
-        if type(item) is not str or not 1 <= len(item.strip()) <= 80:
+        if type(item) is not str or not 1 <= len(item.strip()) <= 160:
             _invalid()
         item = " ".join(item.split())
         if not item or _SECRET.search(item) or any(ord(char) < 32 for char in item):
@@ -50,8 +50,10 @@ def build_query_portfolio(*, query_seeds: list[str], intent_signals: list[str],
     seeds = _terms(query_seeds, maximum=20)
     signals = _terms(intent_signals, maximum=20)
     excluded = _terms(exclusions or [], maximum=25)
-    if not seeds or not 1 <= max_queries <= 64:
+    if not 1 <= max_queries <= 64:
         _invalid()
+    if not seeds:
+        seeds = ["公开需求"]
     if type(region) is not str or len(region.strip()) > 80:
         _invalid()
     region = " ".join(region.split())
@@ -67,20 +69,24 @@ def build_query_portfolio(*, query_seeds: list[str], intent_signals: list[str],
         if negative and excluded:
             parts.extend(f"-{item}" for item in excluded[:4])
         query = " ".join(parts)
-        if len(query) <= 160 and query not in candidates:
+        if len(query) <= 512 and query not in candidates:
             candidates.append(query)
 
-    for seed in seeds:
-        for action in actions:
+    # Walk actions outside seeds so a bounded portfolio still represents every
+    # explicit business seed before spending its remaining budget on expansion.
+    # This matters when the context permits 20 seeds but the runtime keeps only
+    # 24 queries: seed-major ordering would silently drop most of the profile.
+    for action in actions:
+        for seed in seeds:
             add(seed, action)
-    for seed in seeds:
-        for action in actions:
+    for action in actions:
+        for seed in seeds:
             add(seed, action, negative=True)
-    for seed in seeds:
-        for action in fallback_actions:
+    for action in fallback_actions:
+        for seed in seeds:
             add(seed, action)
-    for seed in seeds:
-        for action in fallback_actions:
+    for action in fallback_actions:
+        for seed in seeds:
             add(seed, action, negative=True)
     for seed in seeds:
         add(seed, "", negative=True)
