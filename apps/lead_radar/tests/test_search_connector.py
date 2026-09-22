@@ -8,6 +8,18 @@ from unittest.mock import Mock, patch
 from apps.lead_radar.search_connector import AuthorizedSearchConnector, capability
 
 
+PROOF_ENV = {
+    "LEAD_RADAR_SEARCH_PROOF_REF": "qa-search-proof-001",
+    "LEAD_RADAR_SEARCH_PROOF_SHA256": "0" * 64,
+    "LEAD_RADAR_SEARCH_PROOF_CHECKED_AT": "2026-09-22T00:00:00Z",
+    "LEAD_RADAR_SEARCH_PROOF_ENDPOINT": "search.example",
+    "LEAD_RADAR_SEARCH_PROOF_PROVIDER": "authorized-search-api",
+    "LEAD_RADAR_SEARCH_PROOF_CHECKS": json.dumps({
+        "url_reopen": True, "published_at": True, "save_boundary": True, "retry_idempotency": True,
+    }),
+}
+
+
 class AuthorizedSearchConnectorTest(unittest.TestCase):
     def test_capability_requires_reopen_proof_before_ready(self) -> None:
         with patch.dict(
@@ -21,7 +33,7 @@ class AuthorizedSearchConnectorTest(unittest.TestCase):
             self.assertEqual(capability()["status"], "REQUIRES_PROOF")
         with patch.dict(
             os.environ,
-            {
+            {**PROOF_ENV,
                 "LEAD_RADAR_SEARCH_ENDPOINT": "https://search.example/api/search",
                 "LEAD_RADAR_SEARCH_TOKEN": "token",
                 "LEAD_RADAR_SEARCH_REOPEN_PROOF": "true",
@@ -47,7 +59,7 @@ class AuthorizedSearchConnectorTest(unittest.TestCase):
         plan = {"requested_limit": 10, "strategies": [{"id": "quick", "queries": ["AI 客服 采购"]}], "hard_filters": {}}
         with patch.dict(
             os.environ,
-            {
+            {**PROOF_ENV,
                 "LEAD_RADAR_SEARCH_ENDPOINT": "https://search.example/api/search",
                 "LEAD_RADAR_SEARCH_TOKEN": "token",
                 "LEAD_RADAR_SEARCH_REOPEN_PROOF": "true",

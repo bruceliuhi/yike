@@ -17,6 +17,18 @@ from apps.lead_radar.search_connector import SearchConnectorError
 ROOT = Path(__file__).resolve().parents[3]
 
 
+PROOF_ENV = {
+    "LEAD_RADAR_SEARCH_PROOF_REF": "qa-search-proof-001",
+    "LEAD_RADAR_SEARCH_PROOF_SHA256": "0" * 64,
+    "LEAD_RADAR_SEARCH_PROOF_CHECKED_AT": "2026-09-22T00:00:00Z",
+    "LEAD_RADAR_SEARCH_PROOF_ENDPOINT": "search.example",
+    "LEAD_RADAR_SEARCH_PROOF_PROVIDER": "authorized-search-api",
+    "LEAD_RADAR_SEARCH_PROOF_CHECKS": json.dumps({
+        "url_reopen": True, "published_at": True, "save_boundary": True, "retry_idempotency": True,
+    }),
+}
+
+
 class LeadRadarApiTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
@@ -268,7 +280,7 @@ class LeadRadarApiTest(unittest.TestCase):
         }
         with patch.dict(
             os.environ,
-            {
+            {**PROOF_ENV,
                 "LEAD_RADAR_SEARCH_ENDPOINT": "https://search.example/api/search",
                 "LEAD_RADAR_SEARCH_TOKEN": "test-token",
                 "LEAD_RADAR_SEARCH_REOPEN_PROOF": "true",
@@ -303,7 +315,7 @@ class LeadRadarApiTest(unittest.TestCase):
     def test_authorized_search_execution_failure_is_recorded_and_retryable(self) -> None:
         with patch.dict(
             os.environ,
-            {
+            {**PROOF_ENV,
                 "LEAD_RADAR_SEARCH_ENDPOINT": "https://search.example/api/search",
                 "LEAD_RADAR_SEARCH_TOKEN": "test-token",
                 "LEAD_RADAR_SEARCH_REOPEN_PROOF": "true",
