@@ -69,6 +69,11 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(started["runs"][0]["status"], "BLOCKED_REQUIRES_SOURCE")
         self.assertEqual(started["runs"][0]["error_code"], "NO_SEARCH_CONNECTOR_READY")
+        self.assertEqual(started["runs"][0]["events"][0]["event_type"], "created")
+        run_id = started["runs"][0]["id"]
+        status, run_events = self.request("GET", f"/api/v1/tasks/{task['id']}/runs/{run_id}/events")
+        self.assertEqual(status, 200)
+        self.assertEqual(run_events["events"][0]["status"], "BLOCKED_REQUIRES_SOURCE")
         status, plan = self.request("GET", f"/api/v1/tasks/{task['id']}/plan")
         self.assertEqual(status, 200)
         self.assertEqual(plan["cost_estimate"]["unit"], "credits")
@@ -79,6 +84,23 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertEqual(dashboard["excluded"], 1)
         self.assertEqual(dashboard["running_tasks"], 0)
         self.assertEqual(dashboard["awaiting_source"], 1)
+
+    def test_task_run_cancel_retry_and_event_history(self) -> None:
+        _, task = self.request("POST", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks", {"objective": "验证运行控制"})
+        status, started = self.request("POST", f"/api/v1/tasks/{task['id']}/start", {"mode": "quick"})
+        self.assertEqual(status, 200)
+        run_id = started["runs"][0]["id"]
+
+        status, cancelled = self.request("POST", f"/api/v1/tasks/{task['id']}/runs/{run_id}/cancel", {"actor": "qa"})
+        self.assertEqual(status, 200)
+        self.assertEqual(cancelled["run"]["status"], "CANCELLED")
+        self.assertEqual(cancelled["run"]["events"][-1]["event_type"], "cancel")
+
+        status, retried = self.request("POST", f"/api/v1/tasks/{task['id']}/runs/{run_id}/retry", {"actor": "qa"})
+        self.assertEqual(status, 200)
+        self.assertEqual(retried["run"]["status"], "BLOCKED_REQUIRES_SOURCE")
+        self.assertEqual(retried["run"]["events"][0]["event_type"], "retry_created")
+        self.assertEqual(len(retried["runs"]), 2)
 
     def test_duplicate_evidence_is_recorded_without_double_counting(self) -> None:
         _, task = self.request("POST", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks", {"objective": "寻找 AI 知识库项目"})

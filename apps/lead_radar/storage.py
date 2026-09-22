@@ -73,6 +73,16 @@ CREATE TABLE IF NOT EXISTS task_runs (
     finished_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS task_run_events (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES task_runs(id),
+    event_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    message TEXT NOT NULL,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS opportunities (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL REFERENCES workspaces(id),
@@ -169,6 +179,7 @@ CREATE INDEX IF NOT EXISTS idx_opportunities_status ON opportunities(status);
 CREATE INDEX IF NOT EXISTS idx_entities_workspace ON entities(workspace_id, entity_type, canonical_name);
 CREATE INDEX IF NOT EXISTS idx_entities_host ON entities(workspace_id, website_host);
 CREATE INDEX IF NOT EXISTS idx_opportunity_entities_entity ON opportunity_entities(entity_id);
+CREATE INDEX IF NOT EXISTS idx_task_run_events_run_created ON task_run_events(run_id, created_at);
 """
 
 
@@ -322,11 +333,24 @@ class Store:
             with self.lock:
                 plan_row = self.db.execute("SELECT plan_json FROM task_plans WHERE task_id = ?", (result["id"],)).fetchone()
                 run_rows = self.db.execute(
-                    "SELECT id, mode, status, requested_limit, candidate_count, verified_count, error_code, created_at, started_at, finished_at FROM task_runs WHERE task_id = ? ORDER BY created_at DESC",
+                    "SELECT id, mode, status, requested_limit, candidate_count, verified_count, error_code, created_at, started_at, finished_at FROM task_runs WHERE task_id = ? ORDER BY created_at DESC, rowid DESC",
+                    (result["id"],),
+                ).fetchall()
+                run_event_rows = self.db.execute(
+                    "SELECT run_id, id, event_type, status, message, payload_json, created_at FROM task_run_events WHERE run_id IN (SELECT id FROM task_runs WHERE task_id = ?) ORDER BY created_at",
                     (result["id"],),
                 ).fetchall()
             result["plan"] = json.loads(plan_row["plan_json"]) if plan_row else None
-            result["runs"] = [dict(run) for run in run_rows]
+            events_by_run: dict[str, list[dict[str, Any]]] = {}
+            for event in run_event_rows:
+                entry = dict(event)
+                entry["payload"] = json.loads(entry.pop("payload_json") or "{}")
+                events_by_run.setdefault(entry.pop("run_id"), []).append(entry)
+            result["runs"] = []
+            for run in run_rows:
+                run_dict = dict(run)
+                run_dict["events"] = events_by_run.get(run_dict["id"], [])
+                result["runs"].append(run_dict)
         return result
 
     def list_tasks(self, workspace_id: str) -> list[dict[str, Any]]:
@@ -348,15 +372,118 @@ class Store:
             if not existing:
                 runnable = bool(plan.get("runnable_sources"))
                 run_status = "QUEUED" if runnable else "BLOCKED_REQUIRES_SOURCE"
+                timestamp = now_iso()
+                run_id = _id("run")
                 db.execute(
                     """INSERT INTO task_runs
                     (id, task_id, mode, status, requested_limit, error_code, idempotency_key, created_at, started_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (_id("run"), task_id, mode, run_status, row["requested_limit"], None if runnable else "NO_SEARCH_CONNECTOR_READY", run_key, now_iso(), now_iso() if runnable else None),
+                    (run_id, task_id, mode, run_status, row["requested_limit"], None if runnable else "NO_SEARCH_CONNECTOR_READY", run_key, timestamp, timestamp if runnable else None),
                 )
-                db.execute("UPDATE tasks SET status = ?, started_at = COALESCE(started_at, ?) WHERE id = ?", ("QUEUED" if runnable else "AWAITING_SOURCE", now_iso(), task_id))
+                db.execute("UPDATE tasks SET status = ?, started_at = COALESCE(started_at, ?) WHERE id = ?", ("QUEUED" if runnable else "AWAITING_SOURCE", timestamp, task_id))
+                self._run_event(
+                    db,
+                    run_id,
+                    "created",
+                    run_status,
+                    "任务已创建运行实例。" if runnable else "任务被来源生产门禁阻塞。",
+                    {"mode": mode, "blocked_sources": plan.get("blocked_sources", [])},
+                )
                 self._audit(db, row["workspace_id"], "task", task_id, "run_created", {"mode": mode, "status": run_status})
         return self.get_task(task_id)
+
+    def control_task_run(self, task_id: str, run_id: str, action: str, actor: str = "operator") -> dict[str, Any] | None:
+        transitions = {
+            "pause": ({"QUEUED", "RUNNING"}, "PAUSED", "任务已暂停。"),
+            "resume": ({"PAUSED"}, "QUEUED", "任务已恢复并重新排队。"),
+            "cancel": ({"QUEUED", "RUNNING", "PAUSED", "BLOCKED_REQUIRES_SOURCE"}, "CANCELLED", "任务已取消。"),
+        }
+        if action not in transitions:
+            raise ValueError("invalid_run_action")
+        allowed, next_status, message = transitions[action]
+        with self.tx() as db:
+            row = db.execute(
+                """SELECT r.*, t.workspace_id FROM task_runs r
+                   JOIN tasks t ON t.id = r.task_id
+                   WHERE r.id = ? AND r.task_id = ?""",
+                (run_id, task_id),
+            ).fetchone()
+            if not row:
+                return None
+            current = row["status"]
+            if current == next_status:
+                return self.get_task(task_id)
+            if current not in allowed:
+                raise ValueError(f"run_action_not_allowed:{action}:{current}")
+            timestamp = now_iso()
+            finished_at = timestamp if next_status in {"CANCELLED"} else None
+            started_at = timestamp if next_status == "RUNNING" else row["started_at"]
+            db.execute(
+                "UPDATE task_runs SET status = ?, started_at = ?, finished_at = ? WHERE id = ?",
+                (next_status, started_at, finished_at, run_id),
+            )
+            task_status = "CANCELLED" if next_status == "CANCELLED" else next_status
+            db.execute("UPDATE tasks SET status = ?, finished_at = ? WHERE id = ?", (task_status, finished_at, task_id))
+            self._run_event(db, run_id, action, next_status, message, {"actor": actor, "from_status": current})
+            self._audit(db, row["workspace_id"], "task_run", run_id, action, {"task_id": task_id, "actor": actor, "from_status": current, "to_status": next_status})
+        return self.get_task(task_id)
+
+    def retry_task_run(self, task_id: str, run_id: str, actor: str = "operator") -> dict[str, Any] | None:
+        with self.tx() as db:
+            row = db.execute(
+                """SELECT r.*, t.workspace_id, t.requested_limit FROM task_runs r
+                   JOIN tasks t ON t.id = r.task_id
+                   WHERE r.id = ? AND r.task_id = ?""",
+                (run_id, task_id),
+            ).fetchone()
+            if not row:
+                return None
+            if row["status"] not in {"FAILED", "CANCELLED", "BLOCKED_REQUIRES_SOURCE"}:
+                raise ValueError(f"retry_not_allowed:{row['status']}")
+            plan_row = db.execute("SELECT plan_json FROM task_plans WHERE task_id = ?", (task_id,)).fetchone()
+            plan = json.loads(plan_row["plan_json"]) if plan_row else {}
+            runnable = bool(plan.get("runnable_sources"))
+            next_status = "QUEUED" if runnable else "BLOCKED_REQUIRES_SOURCE"
+            timestamp = now_iso()
+            new_run_id = _id("run")
+            retry_key = f"{task_id}:{row['mode']}:{plan.get('planner_version', 'unknown')}:retry:{new_run_id}"
+            db.execute(
+                """INSERT INTO task_runs
+                   (id, task_id, mode, status, requested_limit, error_code, idempotency_key, created_at, started_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (new_run_id, task_id, row["mode"], next_status, row["requested_limit"], None if runnable else "NO_SEARCH_CONNECTOR_READY", retry_key, timestamp, timestamp if runnable else None),
+            )
+            db.execute("UPDATE tasks SET status = ?, finished_at = NULL, started_at = COALESCE(started_at, ?) WHERE id = ?", ("QUEUED" if runnable else "AWAITING_SOURCE", timestamp, task_id))
+            self._run_event(db, new_run_id, "retry_created", next_status, "已从上一运行实例重试。" if runnable else "重试仍被来源生产门禁阻塞。", {"actor": actor, "previous_run_id": run_id, "blocked_sources": plan.get("blocked_sources", [])})
+            self._audit(db, row["workspace_id"], "task_run", new_run_id, "retry_created", {"task_id": task_id, "actor": actor, "previous_run_id": run_id, "status": next_status})
+        return self.get_task(task_id)
+
+    def _run_events(self, run_id: str) -> list[dict[str, Any]]:
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT id, event_type, status, message, payload_json, created_at FROM task_run_events WHERE run_id = ? ORDER BY created_at, rowid",
+                (run_id,),
+            ).fetchall()
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            entry = dict(row)
+            entry["payload"] = json.loads(entry.pop("payload_json") or "{}")
+            result.append(entry)
+        return result
+
+    def get_task_run_events(self, task_id: str, run_id: str) -> list[dict[str, Any]] | None:
+        with self.lock:
+            owned = self.db.execute("SELECT id FROM task_runs WHERE id = ? AND task_id = ?", (run_id, task_id)).fetchone()
+        if not owned:
+            return None
+        return self._run_events(run_id)
+
+    @staticmethod
+    def _run_event(db: sqlite3.Connection, run_id: str, event_type: str, status: str, message: str, payload: dict[str, Any]) -> None:
+        db.execute(
+            "INSERT INTO task_run_events(id, run_id, event_type, status, message, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (_id("run_event"), run_id, event_type, status, message, _json(payload), now_iso()),
+        )
 
     def add_opportunity(self, task_id: str, item: dict[str, Any], status: str) -> tuple[dict[str, Any], bool]:
         with self.lock:

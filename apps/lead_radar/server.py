@@ -93,6 +93,11 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/v1/tasks/") and path.endswith("/plan"):
             task = self.store.get_task(path.split("/")[-2])
             return self._send(200, task["plan"]) if task and task.get("plan") else self._error(404, "plan_not_found", "任务计划不存在")
+        if path.startswith("/api/v1/tasks/") and path.endswith("/events"):
+            parts = path.split("/")
+            task_id, run_id = parts[-4], parts[-2]
+            events = self.store.get_task_run_events(task_id, run_id)
+            return self._send(200, {"run_id": run_id, "events": events}) if events is not None else self._error(404, "run_not_found", "运行实例不存在")
         if path.startswith("/api/v1/opportunities/") and path.count("/") == 4:
             opportunity = self.store.get_opportunity(path.rsplit("/", 1)[-1])
             return self._send(200, opportunity) if opportunity else self._error(404, "opportunity_not_found", "机会不存在")
@@ -116,6 +121,9 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 return self._capture_urls(path.split("/")[-2], payload)
             if path.startswith("/api/v1/tasks/") and path.endswith("/start"):
                 return self._start_task(path.split("/")[-2], payload)
+            if path.startswith("/api/v1/tasks/") and path.split("/")[-1] in {"pause", "resume", "cancel", "retry"}:
+                parts = path.split("/")
+                return self._control_run(parts[-4], parts[-2], parts[-1], payload)
             if path.startswith("/api/v1/tasks/") and path.endswith("/opportunities"):
                 return self._add_opportunities(path.split("/")[-2], payload)
             if path.startswith("/api/v1/opportunities/") and path.endswith("/feedback"):
@@ -173,6 +181,14 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         latest_run = task.get("runs", [None])[0]
         message = "任务已进入队列。" if latest_run and latest_run["status"] == "QUEUED" else "任务计划已生成，但当前没有通过生产门禁的自动搜索连接器。"
         self._send(200, {**task, "message": message})
+
+    def _control_run(self, task_id: str, run_id: str, action: str, payload: dict[str, Any]) -> None:
+        actor = str(payload.get("actor", "operator"))
+        task = self.store.retry_task_run(task_id, run_id, actor) if action == "retry" else self.store.control_task_run(task_id, run_id, action, actor)
+        if not task:
+            return self._error(404, "run_not_found", "运行实例不存在")
+        latest_run = task.get("runs", [None])[0]
+        self._send(200, {**task, "message": f"运行实例已执行：{action}", "run": latest_run})
 
     @staticmethod
     def _build_captured_item(payload: dict[str, Any], capture: dict[str, Any]) -> dict[str, Any]:
