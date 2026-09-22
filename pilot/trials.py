@@ -46,13 +46,8 @@ class TrialPhoneAuthStore(PhoneAuthStore):
                 return
             if kind != 'SMS_TRIAL':
                 raise PhoneAuthError('trial_invalid')
-            # SMS verification is the self-service activation proof. Pending
-            # operator invitations remain compatible with this path: the
-            # atomic 72-hour activation is performed by the registration
-            # function before this entitlement hook runs.
             if not trial_code:
-                connection.execute('UPDATE pilot_phone_bindings SET phone_verified_at=COALESCE(phone_verified_at,clock_timestamp()) WHERE user_id=%s', (user_id,))
-                return
+                raise PhoneAuthError('trial_required')
             if deadline <= now or not hmac.compare_digest(digest, self._digest('trial', trial_code)):
                 raise PhoneAuthError('trial_invalid')
             connection.execute(

@@ -14,6 +14,8 @@ export function LoginPage() {
   const returnTo = safeReturnTo(route.query.get("returnTo"), "/workbench");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
+  const [trial, setTrial] = useState("");
+  const [trialOpen, setTrialOpen] = useState(true);
   const [tokenOpen, setTokenOpen] = useState(false);
   const [token, setToken] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -109,8 +111,19 @@ export function LoginPage() {
       setErrors({ code: "请输入 6 位短信验证码。" });
       return;
     }
+    const normalizedTrial = trial.trim().toUpperCase();
+    if (trialOpen && !/^[A-Z0-9]{8}$/.test(normalizedTrial)) {
+      setErrors({ trial: "首次试用请输入 8 位试用码。" });
+      return;
+    }
     setErrors({});
-    await performLogin(() => service.login(phone.trim(), code));
+    await performLogin(() =>
+      service.login(
+        phone.trim(),
+        code,
+        trialOpen ? normalizedTrial : undefined,
+      ),
+    );
   };
   const submitToken = async (event: FormEvent) => {
     event.preventDefault();
@@ -151,6 +164,7 @@ export function LoginPage() {
                 setSmsBusy(false);
                 setCooldown(0);
                 setCode("");
+                setTrial("");
                 setPhone(e.target.value);
                 setErrors({});
                 login.setError("");
@@ -185,7 +199,43 @@ export function LoginPage() {
             </div>
           </Field>
           {smsError && <Notice tone="error">{smsError}</Notice>}
-          <p className="login-hint">首次短信验证成功后自动开通 3 天试用，无需试用码。</p>
+          {trialOpen && (
+            <Field
+              label="试用码"
+              required
+              error={errors.trial}
+              hint="首次试用请填写管理员发放的 8 位试用码；试用码只用于首次激活。"
+            >
+              <input
+                aria-label="试用码"
+                type="text"
+                autoComplete="off"
+                inputMode="text"
+                maxLength={8}
+                placeholder="请输入 8 位试用码"
+                value={trial}
+                disabled={login.busy}
+                onChange={(e) => {
+                  setTrial(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase());
+                  setErrors({});
+                  login.setError("");
+                }}
+              />
+            </Field>
+          )}
+          <Button
+            variant="ghost"
+            aria-expanded={trialOpen}
+            disabled={login.busy}
+            onClick={() => {
+              setTrialOpen(!trialOpen);
+              setTrial("");
+              setErrors({});
+              login.setError("");
+            }}
+          >
+            {trialOpen ? "已有客户，直接使用短信验证码登录" : "首次试用，输入试用码"}
+          </Button>
           {!tokenOpen && login.error && (
             <Notice tone="error">{login.error}</Notice>
           )}
