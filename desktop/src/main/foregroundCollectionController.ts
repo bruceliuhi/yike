@@ -259,7 +259,15 @@ export function createForegroundCollectionController(options:Options) {
       finally{fresh?.close();}
      }
     }
-    if(value.state!=='COMPLETED')break;
+    if(value.state==='COMPLETED')continue;
+    // A platform-level source/lease failure must not prevent the remaining
+    // platforms in the same confirmed round from running. Unknown upload or
+    // finish receipts still stop the round so recovery can reconcile the
+    // current platform before another source is started; global cancellation,
+    // session changes and an unconfirmed physical stop always stop as well.
+    const continueAfterFailure = value.state === 'FAILED' || value.state === 'LEASE_UNKNOWN' ||
+      value.state === 'STOPPED' && (value.reason === 'LEASE_EXPIRED' || value.reason === 'LEASE_UNKNOWN');
+    if(!continueAfterFailure || cancelled || stopUnconfirmed)break;
    }}catch{activeScope?.close();local.set(localKey(current.scope,current.taskId),{state:'FAILED',error:'COLLECTION_WORKER_FAILED',taskCompleted:false});}
    finally{if(active===current)active=null;}})();
  }

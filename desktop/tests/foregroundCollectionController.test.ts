@@ -233,6 +233,17 @@ it('late native setup preserves the same active controller and serial mixed sour
  expect(f.resolveAccount).toHaveBeenCalledTimes(1);expect(f.publicDriverFactory).toHaveBeenCalledTimes(1);
  f.finish();await f.controller.shutdown();
 });
+it('continues the next platform after a recoverable platform failure',async()=>{
+ const f=publicFixture(true);
+ f.controller.configureNativeRuntime(f.nativeConfiguration);
+ const completed={state:'COMPLETED',taskCompleted:true,requestId:id(41),recoveryKey:{platformRunId:id(9),requestId:id(42)}} as const;
+ f.worker.run.mockReset().mockResolvedValueOnce({state:'FAILED',error:'COLLECTION_WORKER_FAILED',taskCompleted:false}).mockResolvedValueOnce(completed);
+ expect(await f.controller.start(f.command)).toMatchObject({state:'RECORDED'});
+ await vi.waitFor(()=>expect(f.worker.run).toHaveBeenCalledTimes(2),{timeout:3000,interval:10});
+ expect(f.publicDriverFactory).toHaveBeenCalledTimes(1);
+ expect(f.worker.run.mock.calls.map(call=>call[0].platformRunId)).toEqual([id(8),id(9)]);
+ await f.controller.shutdown();
+});
 it('runs the actual controller, worker and public driver through CLAIM, evidence upload and FINISH',async()=>{
  const f=publicFixture(),events:string[]=[];let done:Promise<unknown>|undefined;
  const fetcher=vi.fn(async()=>{events.push('FETCH');return new Response(JSON.stringify([{id:12,title:'设计需求',content:'需要企业系统设计',
