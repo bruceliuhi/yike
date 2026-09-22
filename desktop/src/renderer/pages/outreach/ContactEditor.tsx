@@ -555,8 +555,15 @@ export function ContactEditor({
             aria-label="复制联系草稿"
           >
             <Copy />
-            {sample ? "复制样例文字" : null}
+            {sample ? "复制样例文字" : "复制草稿"}
           </Button>
+          {!sample && session.authenticated && (
+            <Button
+              onClick={() => navigate("/followups?add=1&opportunity=" + encodeURIComponent(row.id))}
+            >
+              记录实际跟进
+            </Button>
+          )}
         </div>
       </section>
       <aside className="outreach-evidence">

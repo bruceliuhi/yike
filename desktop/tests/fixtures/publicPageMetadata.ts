@@ -30,7 +30,7 @@ export function publicPageCandidateFixture(metadata = pageMetadataFixture()) {
     observations: {
       ...raw.observations,
       items: raw.observations.items.map(item => ({
-        ...item, normalizer_version: 'dynamic-public-read-v2',
+        ...item, normalizer_version: 'dynamic-public-read-v2', collector_version: 'public-web-agent-v1',
         content: { ...item.content, ...structuredClone(source) },
       })),
     },

@@ -193,7 +193,8 @@ export function parseRawCandidateEvidence(raw: unknown, expected: unknown): RawC
         entry.strategy_version_id !== item.strategy_version_id || !validParent(entry.content) ||
         !validSourceTimes(entry.content, entry.observed_at) ||
         entry.content.source_context!==undefined&&entry.normalizer_version!=='v2ex-author-page-v1' ||
-        entry.content.page_metadata!==undefined&&entry.normalizer_version!=='dynamic-public-read-v2' ||
+        entry.content.page_metadata!==undefined&&(entry.normalizer_version!=='dynamic-public-read-v2' ||
+          entry.collector_version!=='public-web-agent-v1') ||
         Date.parse(entry.observed_at) > Date.parse(entry.received_at) ||
         Date.parse(entry.observed_at) > Date.parse(item.latest_observed_at)) throw new Error();
       const known = versions.get(entry.version_id);

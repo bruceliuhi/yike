@@ -289,6 +289,7 @@ class CandidateRecord(_Frozen):
         if self.page_metadata is not None:
             from pilot.open_web_reader_worker import validate_page_metadata
             if (self.kind != "PAGE" or self.normalizer_version != "dynamic-public-read-v2"
+                    or self.collector_version != "public-web-agent-v1"
                     or self.source_context is not None or self.author_public_id is not None):
                 raise ValueError("invalid page metadata relation")
             validate_page_metadata(self.page_metadata.model_dump(mode="json"), observed_at=self.observed_at)

@@ -139,6 +139,12 @@ describe('publisher-declared public page metadata at real evidence boundaries', 
     expect(() => parseFixed(fixed)).toThrow('INVALID_OPPORTUNITY_SOURCE_EVIDENCE');
   });
 
+  it('rejects metadata observations from an unrelated collector', () => {
+    const candidate = publicPageCandidateFixture();
+    candidate.observations.items[0].collector_version = 'other-reader-v1';
+    expect(() => parseCandidate(candidate)).toThrow('INVALID_RAW_CANDIDATE_EVIDENCE');
+  });
+
   it('rejects non-PAGE, non-PUBLIC_WEB, verified authors and author scopes', () => {
     for (const change of [
       (source: any) => { source.kind = 'POST'; },

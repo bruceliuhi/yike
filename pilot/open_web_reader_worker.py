@@ -19,6 +19,7 @@ MAX_HEADER_BYTES = 64 * 1024
 MAX_TITLE_CHARS = 1000
 _HIDDEN_TAGS = {"script", "style", "noscript", "template", "svg", "canvas"}
 _VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+_HEAD_ELEMENTS = {"base", "basefont", "bgsound", "link", "meta", "title", "noframes", "script", "noscript", "style", "template"}
 
 
 def _metadata_text(value, limit):
@@ -136,22 +137,39 @@ class _VisibleHTML(HTMLParser):
         self.title_parts: list[str] = []
         self.links: list[str] = []
         self.metadata_claims: list[tuple[str, str]] = []
+        self.metadata_head_closed = False
 
     def handle_starttag(self, tag, attrs):
         values = {key.lower(): (value or "").lower() for key, value in attrs}
         style = values.get("style", "").replace(" ", "")
         tag = tag.lower()
+        # HTMLParser does not perform the browser's implicit head/body closure.
+        # Retain declarations only while the first explicit head is unambiguous.
+        if not self.hidden_depth and not self.title_depth:
+            if tag not in _HEAD_ELEMENTS | {"html", "head"} or (
+                    tag == "head" and any(item[0] == "head" for item in self.stack)):
+                self.metadata_head_closed = True
         hidden = (tag in _HIDDEN_TAGS or "hidden" in values
                   or values.get("aria-hidden") == "true"
                   or "display:none" in style or "visibility:hidden" in style)
         title = tag == "title"
-        if (tag == "meta" and not hidden and not self.hidden_depth
-                and any(item[0] == "head" for item in self.stack)
+        if (tag == "meta" and not hidden and not self.hidden_depth and not self.title_depth
+                and not self.metadata_head_closed and self.stack and self.stack[-1][0] == "head"
                 and not any(item[0] == "body" for item in self.stack)):
             attrs_raw = dict(attrs)
             declaration = values.get("property") or values.get("name")
             raw = attrs_raw.get("content")
-            if declaration in {"article:published_time", "datepublished", "author"}:
+            declarations = {value.lower() for key, value in attrs if key in {"property", "name"}
+                            and type(value) is str and value.lower() in {"article:published_time", "datepublished", "author"}}
+            ambiguous = (len(declarations) > 1 or any(
+                sum(key == field for key, _value in attrs) > 1 for field in ("property", "name", "content")))
+            if ambiguous:
+                # Poison every implicated declaration instead of choosing first
+                # or last duplicate attribute differently from a browser.
+                for declared in sorted(declarations):
+                    if len(self.metadata_claims) <= 16:
+                        self.metadata_claims.append((declared, ""))
+            elif declaration in {"article:published_time", "datepublished", "author"}:
                 # Bounded, and a conflicting/oversized declaration is not silently
                 # discarded in favour of whichever declaration happened to be first.
                 if len(self.metadata_claims) <= 16:
@@ -174,6 +192,8 @@ class _VisibleHTML(HTMLParser):
 
     def handle_endtag(self, tag):
         tag = tag.lower()
+        if tag in {"head", "body", "html"}:
+            self.metadata_head_closed = True
         matching = next((index for index in range(len(self.stack) - 1, -1, -1)
                          if self.stack[index][0] == tag), None)
         if matching is None:
@@ -185,6 +205,8 @@ class _VisibleHTML(HTMLParser):
         del self.stack[matching:]
 
     def handle_data(self, data):
+        if data.strip() and not self.title_depth and not self.hidden_depth:
+            self.metadata_head_closed = True
         if self.title_depth:
             self.title_parts.append(data)
         elif not self.hidden_depth:

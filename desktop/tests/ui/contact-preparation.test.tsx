@@ -35,6 +35,7 @@ beforeEach(() => {
       opportunity: vi.fn(),
       connections: vi.fn().mockResolvedValue([]),
       saveContact: vi.fn().mockResolvedValue(undefined),
+      send: vi.fn(),
     } as unknown as YikeService,
     route: parseRoute("#/outreach"),
     navigate: vi.fn(),
@@ -56,8 +57,22 @@ it("keeps manual copy available without a legacy generation endpoint", async () 
   expect(screen.queryByRole("button", { name: /^(生成联系草稿|重新生成|重试生成)$/ })).toBeNull();
   expect(screen.queryByText(/可继续编辑或使用原草稿生成/)).toBeNull();
   fireEvent.change(editor, { target: { value: "您提到的资料检索问题还需要处理吗？" } });
+  expect(screen.getByRole("button", { name: "复制联系草稿" }).textContent).toContain("复制草稿");
   fireEvent.click(screen.getByRole("button", { name: "复制联系草稿" }));
   await waitFor(() => expect(context.service.copy).toHaveBeenCalledWith("您提到的资料检索问题还需要处理吗？"));
+  expect(context.navigate).not.toHaveBeenCalled();
+  expect(context.service.saveContact).not.toHaveBeenCalled();
+  expect(context.service.send).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "记录实际跟进" }));
+  expect(context.navigate).toHaveBeenCalledWith("/followups?add=1&opportunity=manual");
+  expect(context.service.send).not.toHaveBeenCalled();
+});
+it("does not offer actual followup for a public sample", async () => {
+  context.route = parseRoute("#/outreach?opportunity=sample");
+  render(<OutreachPage />);
+  await screen.findByRole("textbox", { name: "沟通内容" });
+  expect(screen.queryByRole("button", { name: "记录实际跟进" })).toBeNull();
+  expect(context.service.send).not.toHaveBeenCalled();
 });
 it("sorts actual update timestamps, keeps unknown times last, and preserves the input array", () => {
   const input = [

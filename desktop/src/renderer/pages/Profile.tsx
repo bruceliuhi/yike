@@ -22,13 +22,16 @@ import {
 } from "../components/ui";
 import {
   EMPTY_PROFILE,
+  newTaskDraft,
   type Profile,
   type ProfileFields,
+  type TaskDraft,
 } from "../domain/models";
 import { boundedRequest } from "../app/boundedRequest";
 import { MaterialsWorkspace } from "./profile/MaterialsWorkspace";
 import { LocalMaterialDrafts, type LocalMaterialDraft as Material } from "./profile/LocalMaterialDrafts";
-import { taskDraftOwner } from "../app/taskDraft";
+import { taskDraftOwner, useTaskDraft, useTaskLibrary } from "../app/taskDraft";
+import { defaultResearchSettings } from "../domain/researchUsage";
 import {adoptedBindings,bindingOptions,savedBindings,type ReferenceBindings} from './profile/profileReferenceBindings';
 
 interface ProfileEditor {
@@ -118,6 +121,13 @@ const statusLabel = (status?: string) =>
       ? "历史版本"
       : "草稿";
 
+function hasTaskDraftContent(draft: TaskDraft) {
+  const empty = { ...newTaskDraft(), research: defaultResearchSettings() };
+  return Object.entries(draft).some(([key, value]) =>
+    key !== "id" && JSON.stringify(value) !== JSON.stringify(empty[key as keyof TaskDraft]),
+  );
+}
+
 export function ProfilePage() {
   const { session } = useApp();
   return <ProfileWorkspace key={JSON.stringify([session.authenticated, taskDraftOwner(session.userId, session.accountScope)])} />;
@@ -163,6 +173,9 @@ function ProfileWorkspace() {
     Partial<Record<keyof ProfileFields, string>>
   >({});
   const [confirming, setConfirming] = useState<Profile | null>(null);
+  const [taskDraft, setTaskDraft] = useTaskDraft(session.userId, "once", session.accountScope);
+  const [taskLibrary, setTaskLibrary] = useTaskLibrary(session.userId, session.accountScope);
+  const [researchChoice, setResearchChoice] = useState(false);
   const [verified, setVerified] = useState(false);
   const [leaving, setLeaving] = useState<{
     path?: string;
@@ -189,6 +202,22 @@ function ProfileWorkspace() {
     materialOpen && JSON.stringify(material) !== materialBaseline;
   useUnsavedChanges(dirty || materialDirty);
   const current = profiles.data?.find((p) => p.id === editor.versionId);
+  const researchReady = session.authenticated && !!session.userId && !dirty && current?.status === "CONFIRMED";
+  const newerTaskDraft = taskLibrary.some((draft) => draft.id === taskDraft.id && draft.revision > taskDraft.revision);
+  const createResearch = () => {
+    if (!researchReady || !currentScope() || !current || newerTaskDraft) return;
+    if (hasTaskDraftContent(taskDraft)) {
+      setTaskLibrary((old) => [taskDraft, ...old.filter((draft) => draft.id !== taskDraft.id)]);
+    }
+    setTaskDraft({
+      ...newTaskDraft(),
+      profileId: current.id,
+      profileVersion: current.version,
+      research: defaultResearchSettings(),
+    });
+    setResearchChoice(false);
+    navigate("/tasks/new");
+  };
   const activeEditor = useRef(editor);
   activeEditor.current = editor;
   const applyProfile = (profile: Profile) => {
@@ -618,7 +647,13 @@ function ProfileWorkspace() {
               <Button loading={action.busy} onClick={() => void save()}>
                 保存草稿
               </Button>
-              <Button
+              {researchReady ? <Button
+                variant="primary"
+                loading={action.busy}
+                onClick={() => hasTaskDraftContent(taskDraft) ? setResearchChoice(true) : createResearch()}
+              >
+                用此画像新建研究
+              </Button> : <Button
                 variant="primary"
                 loading={action.busy}
                 disabled={!dirty && current?.status === "CONFIRMED"}
@@ -627,7 +662,7 @@ function ProfileWorkspace() {
                 {!dirty && current?.status === "CONFIRMED"
                   ? "画像已确认"
                   : "确认画像"}
-              </Button>
+              </Button>}
             </div>
           </footer>
         </>
@@ -669,6 +704,25 @@ function ProfileWorkspace() {
             <Empty title="暂无资料" description="添加产品介绍或真实案例。" />
           )}
         </>
+      )}
+      {researchChoice && researchReady && (
+        <Modal
+          title="已有任务草稿"
+          onClose={() => setResearchChoice(false)}
+          footer={<>
+            <Button onClick={() => setResearchChoice(false)}>取消</Button>
+            <Button onClick={() => {
+              setResearchChoice(false);
+              navigate(taskDraft.mode === "monitor" ? "/tasks/new?mode=monitor" : "/tasks/new");
+            }}>继续已有草稿</Button>
+            <Button variant="primary" disabled={newerTaskDraft} onClick={createResearch}>保留草稿并新建</Button>
+          </>}
+        >
+          <p>{taskDraft.name || "未命名任务草稿"}</p>
+          <p>继续已有草稿会保留原画像和任务条件；另开研究会先将它保留在线索采集或监控任务的本机草稿列表，再使用当前已确认画像。</p>
+          <p className="muted">这里只配置任务，不会启动研究。</p>
+          {newerTaskDraft && <Notice tone="warning">草稿列表中已有更新版本，请先在线索采集或监控任务中核对；当前草稿未改动。</Notice>}
+        </Modal>
       )}
       {confirming && (
         <Modal

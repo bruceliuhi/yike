@@ -68,6 +68,30 @@ def test_body_template_script_metadata_is_not_page_metadata(monkeypatch):
     assert "page_metadata" not in result
 
 
+@pytest.mark.parametrize("html", [
+    '<html><head><title>需求</title><div>正文<meta name="author" content="评论者"></div></html>',
+    '<html><head><title>需求</title>正文<meta name="author" content="评论者"></html>',
+    '<html><head></head><body>正文<head><meta name="author" content="评论者"></head></body></html>',
+    '<html><head><title><meta name="author" content="评论者"></title></head><body>正文</body></html>',
+])
+def test_implicit_body_or_title_metadata_is_not_publisher_declaration(monkeypatch, html):
+    install_transport(monkeypatch, response(html.encode()))
+    result = worker.read_request({"url": "https://example.com/", "timeout_seconds": 3})
+    assert "page_metadata" not in result
+
+
+@pytest.mark.parametrize("attributes", [
+    'name="author" content="甲" content="乙"',
+    'name="author" name="datepublished" content="2026-09-04"',
+    'property="article:published_time" property="author" content="2026-09-04"',
+])
+def test_duplicate_critical_meta_attributes_are_ambiguous(monkeypatch, attributes):
+    html = f'<html><head><meta {attributes}></head><body>需求原文</body></html>'
+    install_transport(monkeypatch, response(html.encode()))
+    result = worker.read_request({"url": "https://example.com/", "timeout_seconds": 3})
+    assert "page_metadata" not in result
+
+
 @pytest.mark.parametrize("meta", [metadata(), metadata("2026-09-04T03:20:30Z", precision="SECOND"),
                                   metadata("2026-09-04T03:20:30", precision="LOCAL_SECOND")])
 def test_exact_metadata_passes_evidence_boundary(meta):
@@ -100,6 +124,7 @@ def test_candidate_rejects_metadata_on_other_sources_and_mismatched_projection()
     assert CandidateRecord.model_validate(current).model_dump()["page_metadata"] == metadata()
     for patch in ({"kind": "POST"}, {"author_public_id": "inferred-buyer"},
                   {"normalizer_version": "legacy"}, {"published_at": "2026-09-04T00:00:00Z"},
+                  {"collector_version": "other-reader-v1"},
                   {"page_metadata": None}):
         with pytest.raises(ValidationError):
             CandidateRecord.model_validate(current | patch)
