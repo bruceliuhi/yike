@@ -10,7 +10,7 @@
 python3 scripts/release_candidate_check.py --run-tests
 ```
 
-它会检查当前提交、已跟踪工作树、差异空白、发布合同文件、脚本权限和静态凭据扫描，并执行 Lead Radar 合同测试。默认返回码为：
+它会检查当前提交、已跟踪工作树、差异空白、发布合同文件、脚本权限、静态凭据扫描、Lead Radar 页面脚本语法，并执行 Lead Radar 合同测试。默认返回码为：
 
 - `0`：本机检查和测试通过，且显式使用了 `--local-only`
 - `1`：本机检查失败

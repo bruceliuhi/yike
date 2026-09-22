@@ -114,6 +114,30 @@ def _lead_radar_tests() -> Check:
     return Check("lead_radar_tests", "FAIL", stderr or stdout or "Lead Radar tests failed")
 
 
+def _lead_radar_web_syntax() -> Check:
+    page = ROOT / "apps/lead_radar/web/index.html"
+    try:
+        html = page.read_text(encoding="utf-8")
+        script = html.split("<script>\n", 1)[1].split("\n  </script>", 1)[0]
+    except (OSError, IndexError) as exc:
+        return Check("lead_radar_web_syntax", "FAIL", f"cannot extract page script: {exc}")
+    try:
+        result = subprocess.run(
+            ["node", "--check", "-"],
+            cwd=ROOT,
+            input=script,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        return Check("lead_radar_web_syntax", "FAIL", str(exc))
+    if result.returncode == 0:
+        return Check("lead_radar_web_syntax", "PASS", "embedded Lead Radar page script parses")
+    return Check("lead_radar_web_syntax", "FAIL", result.stderr.strip() or "node --check failed")
+
+
 def _external_gates() -> list[Check]:
     # These are intentionally not inferred from source files, health endpoints,
     # static pages, fixtures, or environment-variable presence.
@@ -166,6 +190,7 @@ def build_report(*, run_tests: bool) -> dict[str, Any]:
                 "use --run-tests to execute the local Lead Radar contract suite",
             )
         )
+    local.append(_lead_radar_web_syntax())
     external = _external_gates()
     local_ok = all(item.status == "PASS" for item in local)
     return {
