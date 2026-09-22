@@ -7,6 +7,13 @@
 - `scripts/release_candidate_check.py --local-only --run-tests` 当前为 `local=PASS / external=NOT_VERIFIED / overall=HOLD`。公网 `yike.tuokexing.net` 仍回报旧 revision `bc38fa0f05a1e57e0c949a5badf6a29c64dd2157`，与当前主干不一致；因此该包仍是可演示候选，不是已切换的生产版本。
 - 本轮本机验证：Lead Radar **34 项通过**，包结构验证 PASS，包内冒烟 PASS。Windows 专属测试在 macOS 上因 Windows 路径/运行环境失败，按当前范围不作为本轮产品判断；正式上线仍保留 Windows 交付门禁。
 
+### 2026-09-23 短信失败反馈修复与同源生产切换（`20bac56`）
+
+- 服务端不再把供应商明确拒绝或结果未知的短信请求伪装成“已受理”：有效号码分别返回稳定的 `sms_delivery_rejected`（502）或 `sms_delivery_unknown`（503），未知号码仍保持统一响应，避免账号枚举。客户端对应显示“短信发送未确认/结果尚未确认”，不再错误进入倒计时；验证码、供应商异常和敏感值均不回显。
+- 先写回归再改实现：Python 手机/SMS 定向回归 **76 passed**；桌面 phone client + 登录页 **41 passed**；`npm run typecheck` 和 renderer production build 通过。此前真实阿里云投递仍为 `PORT_NOT_REGISTERED`，本批未重发短信。
+- 当前 `main` 同源镜像已切换为 registry digest `sha256:486454781662f06ca53663ef79852c28b47892abcc4f4444b84c422d03896fb9`，运行 revision `20bac56238207bbe33bfdef1a73f1c92ffd14c02`；HTTPS `/healthz`、`/readyz` 和 `scripts/cp06_probe.sh` 均通过。上一镜像以停止容器 `yike-ai2026-app-before-20bac56` 保留回滚。
+- 这只修复了失败反馈与发布同源性，不等于完整上线：短信端口报备、真实手机收码/登录、真实平台连接、SEARCH→READ→候选→证据和客户价值验收仍未完成；当前能力回读中的 `platform_connections`、`task_execution`、`outreach`、`replies` 仍为 `false`，总体保持 **HOLD**。
+
 ### 2026-09-23 当前主干候选（`866ef86`，Mac 可演示包已生成）
 
 - Gitee `yike-ai2026/main`、GitHub `main` 与本地主线已同步到 `866ef864c66d9eadab9258a69ad74c8aa7f443f5`。来源证明登记/撤销、索引无结果记录、按结果结算搜贝、来源证明管理台、人工升级门禁、联系生命周期和桌面研究超时进度保留均已进入该主线。
