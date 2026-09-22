@@ -80,6 +80,20 @@ it("shows an empty queue only after a complete authoritative empty response", as
   await act(async () => resolve({ queue: "review", items: [], total: 0 }));
   expect(screen.getByText("还没有待处理商机")).toBeTruthy();
 });
+it.each([
+  ["OFFLINE", "任务离线"],
+  ["NO_NEW", "本次运行无新增"],
+  ["READY", "今日待办为空"],
+] as const)("keeps an empty queue distinct for task state %s", async (taskState, title) => {
+  vi.mocked(context.service.workbench!.queue).mockResolvedValue({
+    queue: "review",
+    items: [],
+    total: 0,
+  });
+  render(<TodoQueue queue="review" taskState={taskState} />);
+  expect(await screen.findByText(title)).toBeTruthy();
+  expect(screen.getByRole("button", { name: "查看运行情况" })).toBeTruthy();
+});
 it("does not reuse a late result after switching queues", async () => {
   let resolve!: (v: any) => void;
   vi.mocked(context.service.workbench!.queue)

@@ -4,11 +4,21 @@ import { boundedRequest } from "../../app/boundedRequest";
 import { useResource } from "../../app/hooks";
 import { Button, Empty, ResourceStatus } from "../../components/ui";
 import {
+  taskQueueEmptyCopy,
+  type WorkbenchTaskState,
+} from "../../domain/workbenchStatus";
+import {
   parseWorkbenchSnapshot,
   type WorkbenchQueue,
 } from "../../services/workbench";
 
-export function TodoQueue({ queue }: { queue: WorkbenchQueue }) {
+export function TodoQueue({
+  queue,
+  taskState = "NO_TASK",
+}: {
+  queue: WorkbenchQueue;
+  taskState?: WorkbenchTaskState;
+}) {
   const { service, session, navigate } = useApp();
   const state = useResource(async () => {
     if (!session.authenticated || !session.userId)
@@ -72,12 +82,22 @@ export function TodoQueue({ queue }: { queue: WorkbenchQueue }) {
               </Button>
             )}
           </>
-        ) : (
-          <Empty
-            title="还没有待处理商机"
-            description="创建任务后，新增需求会出现在这里。"
-          />
-        ))}
+        ) : (() => {
+          const copy = taskQueueEmptyCopy(taskState);
+          return (
+            <Empty
+              title={copy.title}
+              description={copy.description}
+              action={
+                copy.action ? (
+                  <Button onClick={() => navigate("/monitors")}>
+                    {copy.action}
+                  </Button>
+                ) : undefined
+              }
+            />
+          );
+        })())}
     </>
   );
 }

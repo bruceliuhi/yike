@@ -6,6 +6,11 @@ import { boundedRequest } from "../app/boundedRequest";
 import { OpportunityBrief } from "./workbench/OpportunityBrief";
 import { TodoQueue } from "./workbench/TodoQueue";
 import { isSample } from "./Opportunities";
+import {
+  summarizeTaskRuns,
+  taskStateLabel,
+  type WorkbenchTaskState,
+} from "../domain/workbenchStatus";
 import type { WorkbenchQueue } from "../services/workbench";
 import {
   Badge,
@@ -54,16 +59,23 @@ export function WorkbenchPage() {
         : Promise.resolve([]),
     deps,
   );
-  const tasks = useResource(
+  const tasks = useResource<WorkbenchTaskState>(
     (signal) =>
       session.authenticated
-        ? boundedRequest(async () => service.taskFeed
-            ? (await service.taskFeed.list({limit:1},signal)).items.length > 0
-            : (await service.tasks()).length > 0, {
+        ? boundedRequest(async () => {
+            if (service.taskFeed) {
+              const page = await service.taskFeed.list({ limit: 1 }, signal);
+              // The native feed deliberately does not expose platform outcome
+              // semantics. Preserve that uncertainty instead of calling it
+              // “无新增” from a zero record count.
+              return page.items.length ? "UNKNOWN" : "NO_TASK";
+            }
+            return summarizeTaskRuns(await service.tasks());
+          }, {
             signal,
             timeoutMessage: "任务状态读取超时，请重试。",
           })
-        : Promise.resolve(false),
+        : Promise.resolve<WorkbenchTaskState>("NO_TASK"),
     deps,
   );
   const completed = profiles.data?.some((p) => p.status === "CONFIRMED");
@@ -71,6 +83,8 @@ export function WorkbenchPage() {
     (row) => !isSample(row),
   );
   const connected = connections.data?.some((c) => c.status === "CONNECTED");
+  const taskState = tasks.data || "NO_TASK";
+  const hasTask = taskState !== "NO_TASK";
   const steps = [
     {
       title: "完善业务画像",
@@ -99,11 +113,11 @@ export function WorkbenchPage() {
       status:
         tasks.loading || tasks.error
           ? "待核验"
-          : tasks.data
+          : taskState === "UNKNOWN"
             ? "已有任务"
-            : "未开始",
-      path: tasks.data ? "/collection" : "/tasks/new",
-      done: tasks.data === true,
+            : taskStateLabel(taskState),
+      path: hasTask ? "/collection" : "/tasks/new",
+      done: hasTask,
     },
   ];
   return (
@@ -170,7 +184,10 @@ export function WorkbenchPage() {
                 description="也可以先准备业务与任务草稿。"
               />
             ) : service.workbench ? (
-              <TodoQueue queue={tab as WorkbenchQueue} />
+              <TodoQueue
+                queue={tab as WorkbenchQueue}
+                taskState={taskState}
+              />
             ) : tab === "contact" ? (
               <>
                 <Notice>待联系队列尚未接通，以下为客户空间的商机。</Notice>
