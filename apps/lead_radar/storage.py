@@ -1487,19 +1487,58 @@ class Store:
 
     def add_feedback(self, opportunity_id: str, label: str, note: str, actor: str) -> dict[str, Any] | None:
         with self.tx() as db:
-            row = db.execute("SELECT workspace_id FROM opportunities WHERE id = ?", (opportunity_id,)).fetchone()
+            row = db.execute("SELECT workspace_id, status FROM opportunities WHERE id = ?", (opportunity_id,)).fetchone()
             if not row:
                 return None
-            status_map = {"VALID": "SEND_READY", "REVIEW": "REVIEW", "OBSERVE": "OBSERVE", "INVALID": "EXCLUDE", "DUPLICATE": "EXCLUDE"}
+            if row["status"] == "DO_NOT_CONTACT" and label != "UNSUBSCRIBED":
+                raise ValueError("do_not_contact_locked")
+            status_map = {
+                "VALID": "SEND_READY",
+                "REVIEW": "REVIEW",
+                "OBSERVE": "OBSERVE",
+                "INVALID": "EXCLUDE",
+                "DUPLICATE": "DUPLICATE",
+                "CONTACTED": "CONTACTED",
+                "DEFERRED": "DEFERRED",
+                "HANDOFF": "HANDOFF",
+                "UNSUBSCRIBED": "DO_NOT_CONTACT",
+            }
             next_status = status_map.get(label)
+            previous_status = row["status"]
+            cancelled_drafts = 0
             if next_status:
                 db.execute("UPDATE opportunities SET status = ?, updated_at = ? WHERE id = ?", (next_status, now_iso(), opportunity_id))
+            if label in {"CONTACTED", "DEFERRED", "HANDOFF", "UNSUBSCRIBED", "INVALID", "DUPLICATE"}:
+                cancelled_drafts = int(
+                    db.execute(
+                        "SELECT COUNT(*) FROM action_drafts WHERE opportunity_id = ? AND status IN ('DRAFT', 'APPROVED')",
+                        (opportunity_id,),
+                    ).fetchone()[0]
+                )
+                if cancelled_drafts:
+                    db.execute(
+                        "UPDATE action_drafts SET status = 'CANCELLED', updated_at = ? WHERE opportunity_id = ? AND status IN ('DRAFT', 'APPROVED')",
+                        (now_iso(), opportunity_id),
+                    )
             feedback_id = _id("feedback")
             db.execute(
                 "INSERT INTO feedback_events(id, opportunity_id, label, note, actor, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                 (feedback_id, opportunity_id, label, note, actor, now_iso()),
             )
-            self._audit(db, row["workspace_id"], "opportunity", opportunity_id, "feedback", {"label": label, "actor": actor})
+            self._audit(
+                db,
+                row["workspace_id"],
+                "opportunity",
+                opportunity_id,
+                "feedback",
+                {
+                    "label": label,
+                    "actor": actor,
+                    "previous_status": previous_status,
+                    "next_status": next_status,
+                    "cancelled_draft_count": cancelled_drafts,
+                },
+            )
         return self.get_opportunity(opportunity_id)
 
     def record_usage(

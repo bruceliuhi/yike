@@ -290,6 +290,65 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertEqual(opportunity["evidence"][0]["metadata"]["manual_override"]["actor"], "qa")
         self.assertEqual(opportunity["audit_events"][-1]["payload"]["manual_override"]["reason"], "人工打开原文并核对采购意向")
 
+    def test_feedback_lifecycle_cancels_drafts_and_locks_unsubscribe(self) -> None:
+        _, task = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks",
+            {"objective": "验证机会生命周期"},
+        )
+        path = f"/api/v1/tasks/{task['id']}/opportunities"
+
+        def create(label: str) -> str:
+            status, result = self.request(
+                "POST",
+                path,
+                {
+                    "title": f"生命周期候选 {label}",
+                    "source_url": f"https://lifecycle.example/{label.lower()}",
+                    "snippet": "原文明确表达正在寻找 AI 客服定制开发团队。",
+                    "source_permission": "allowed",
+                    "evidence_level": "VERIFIED",
+                    "manual_override": MANUAL_SEND_READY_OVERRIDE,
+                },
+            )
+            self.assertEqual(status, 201)
+            return result["items"][0]["id"]
+
+        for label, expected in (("CONTACTED", "CONTACTED"), ("DEFERRED", "DEFERRED"), ("HANDOFF", "HANDOFF"), ("DUPLICATE", "DUPLICATE")):
+            opportunity_id = create(label)
+            status, updated = self.request(
+                "POST",
+                f"/api/v1/opportunities/{opportunity_id}/feedback",
+                {"label": label, "actor": "qa"},
+            )
+            self.assertEqual(status, 200)
+            self.assertEqual(updated["status"], expected)
+
+        optout_id = create("UNSUBSCRIBED")
+        status, draft = self.request(
+            "POST",
+            f"/api/v1/opportunities/{optout_id}/action-drafts",
+            {"channels": ["EMAIL"], "actor": "qa"},
+        )
+        self.assertEqual(status, 200)
+        draft_id = draft["items"][0]["id"]
+        status, unsubscribed = self.request(
+            "POST",
+            f"/api/v1/opportunities/{optout_id}/feedback",
+            {"label": "UNSUBSCRIBED", "note": "对方明确要求停止联系", "actor": "qa"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(unsubscribed["status"], "DO_NOT_CONTACT")
+        self.assertEqual(unsubscribed["action_drafts"][0]["id"], draft_id)
+        self.assertEqual(unsubscribed["action_drafts"][0]["status"], "CANCELLED")
+        status, blocked = self.request(
+            "POST",
+            f"/api/v1/opportunities/{optout_id}/feedback",
+            {"label": "VALID", "actor": "qa"},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(blocked["message"], "do_not_contact_locked")
+
     def test_action_drafts_bind_evidence_and_require_explicit_approval(self) -> None:
         _, task = self.request(
             "POST",

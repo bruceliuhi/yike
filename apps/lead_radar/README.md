@@ -49,6 +49,8 @@ python3 apps/lead_radar/server.py --port 8780
 
 人工录入即使提交了 `evidence_level=VERIFIED` 和 `source_permission=allowed`，也必须额外提供 `manual_override: {status: "SEND_READY", actor, reason, confirmed: true}`；系统会把覆写写入证据元数据和审计事件。没有该覆写的记录不会进入联系队列。受控 URL、授权搜索和索引导入继续默认 `REVIEW`，必须经过原文重开和人工反馈。
 
+机会反馈支持 `CONTACTED`（已联系）、`DEFERRED`（暂缓）、`HANDOFF`（转人工）、`DUPLICATE`（重复）和 `UNSUBSCRIBED`（退订/禁触达）。进入这些状态会取消尚未发送的动作草稿；`DO_NOT_CONTACT` 是锁定状态，除重复记录退订外，普通反馈不能重新放行。
+
 机会还会进入保守的实体解析层：导入记录明确提供 `entity_name` / `company_name` 时建立企业或组织实体；没有实体名称时，只在来源 URL 主机足够稳定时按官网主机建立关联。小红书、抖音、微博等社交平台主机不会被当成企业官网，标题和作者昵称也不会单独创建企业实体。同名实体如果对应不同官网主机会保持分离，避免把不同公司的公开信号错误合并。每张机会卡返回 `entities`，包含实体、主机、置信度、解析原因和关联证据。
 
 三类社交公开来源已注册为同一来源策略：`xiaohongshu_public`、`douyin_public`、`bilibili_public`。用户侧发现可以不登录，第一层只接受用户明确提交的公开 URL，并在证据元数据中记录 `platform`、`source_family`、`capture_layer`、`end_user_login_required` 和 `server_authorization_required`。这些字段只描述来源边界，不授予抓取权限；三平台的自动搜索仍保持 `REQUIRES_PROOF`，需要平台条款、频率、发布时间、原文重开、保存边界和重试幂等证明后才能接入。

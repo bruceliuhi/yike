@@ -681,9 +681,22 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
 
     def _feedback(self, opportunity_id: str, payload: dict[str, Any]) -> None:
         label = str(payload.get("label", "")).upper()
-        if label not in {"VALID", "REVIEW", "OBSERVE", "INVALID", "DUPLICATE"}:
+        if label not in {
+            "VALID",
+            "REVIEW",
+            "OBSERVE",
+            "INVALID",
+            "DUPLICATE",
+            "CONTACTED",
+            "DEFERRED",
+            "HANDOFF",
+            "UNSUBSCRIBED",
+        }:
             raise ValueError("invalid_feedback_label")
-        opportunity = self.store.add_feedback(opportunity_id, label, str(payload.get("note", "")), str(payload.get("actor", "operator")))
+        note = str(payload.get("note", "")).strip()
+        if label == "UNSUBSCRIBED" and not note:
+            raise ValueError("unsubscribe_reason_required")
+        opportunity = self.store.add_feedback(opportunity_id, label, note, str(payload.get("actor", "operator")))
         if not opportunity:
             return self._error(404, "opportunity_not_found", "机会不存在")
         self._send(200, opportunity)
