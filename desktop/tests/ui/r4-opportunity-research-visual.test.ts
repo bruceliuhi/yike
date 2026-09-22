@@ -20,6 +20,10 @@ function scopedService() {
 describe("R4 research isolated visual adapter", () => {
   it("does not invent a trusted session scope in its isolated adapter", async () => {
     const { service } = createVisualService();
+    service.session = async () => ({
+      authenticated: true,
+      userId: "TEST-visual-review",
+    });
     configureResearchVisual(service, "populated");
     await expect(service.opportunityResearch!.list()).rejects.toThrow(
       "可信账户空间",
