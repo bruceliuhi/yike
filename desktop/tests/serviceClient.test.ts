@@ -100,7 +100,7 @@ describe('fixed service transport', () => {
     expect(calls.map(([url,init])=>[new URL(url).pathname,init.method])).toEqual([
       ['/api/ui/candidates','GET'],['/api/ui/candidate-reviews','POST'],['/api/ui/candidate-source-verifications','POST'],['/api/ui/candidate-review-requests/TEST%3Adecision','GET']
     ]);
-    expect(Object.fromEntries(new URL(calls[0][0]).searchParams)).toEqual({...query,ids:candidateBinding.candidateId,page:'1',pageSize:'1'});
+    expect(Object.fromEntries(new URL(calls[0][0]).searchParams)).toEqual({...query,ids:candidateBinding.candidateId,page:'1',pageSize:'1',evidenceVersion:'1'});
     expect(calls[1][1].body).toBe(JSON.stringify(assessmentRequestFixture()));
     for (const [,init] of calls) expect(init).toMatchObject({credentials:'include',redirect:'manual',headers:expect.objectContaining({Origin:'https://customer.example'})});
     const count = fetch.mock.calls.length;

@@ -101,7 +101,7 @@ describe('private fixed device service transport', () => {
     const order: string[] = [];
     const client = createServiceClient({baseUrl: origin, fetch: async (url, init) => {
       order.push(`${init.method} ${new URL(url).pathname}`);
-      if (init.method === 'POST' && url.endsWith('/session')) {await release.promise; return Response.json({});}
+      if (init.method === 'POST' && url.endsWith('/session')) {await release.promise; return Response.json({authenticated:true,user_id:'test-user'});}
       throw new Error('private failure');
     }, clearSession: async () => {order.push('clear');}});
     const login = client.request({operation: 'session.login', payload: {token: 'synthetic-token'}});
@@ -118,7 +118,7 @@ describe('private fixed device service transport', () => {
 
   it('shares a 16-pending cap across public and device requests and releases capacity', async () => {
     const release = deferred();
-    const fetch = vi.fn(async () => {await release.promise; return Response.json({});});
+    const fetch = vi.fn(async (url: string) => {await release.promise; return url.endsWith('/api/ui/session') ? Response.json({authenticated:true,user_id:'test-user'}) : Response.json({});});
     const client = createServiceClient({baseUrl: origin, fetch, clearSession: async () => {}});
     const pending = Array.from({length: 16}, (_, i) => i % 2 ? client.requestDevice(registration) : client.request({operation: 'session.get'}));
     expect(await client.requestDevice(registration)).toEqual({ok: false, status: 0, error: 'SERVICE_BUSY'});
@@ -133,7 +133,7 @@ describe('private fixed device service transport', () => {
 
   it('snapshots nested bodies and route UUIDs before enqueue so later input mutation is inert', async () => {
     const release = deferred();
-    const fetch = vi.fn(async () => {await release.promise; return Response.json({});});
+    const fetch = vi.fn(async (url: string) => {await release.promise; return url.endsWith('/api/ui/session') ? Response.json({authenticated:true,user_id:'test-user'}) : Response.json({});});
     const client = createServiceClient({baseUrl: origin, fetch, clearSession: async () => {}});
     const login = client.request({operation: 'session.login', payload: {token: 'synthetic-token'}});
     const inputs = routes.map(({input}) => structuredClone(input));
