@@ -1,0 +1,31 @@
+{
+  "schema": "yike.mac-package-evidence/v1",
+  "sourceRevision": "61ec69c8bdc5ccdd3e6f0d88c8437f09e1b4b468",
+  "builtAt": "2026-09-23",
+  "platform": "darwin/arm64",
+  "version": "0.2.0",
+  "serviceOrigin": "https://yike.tuokexing.net",
+  "zip": {
+    "path": "desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip",
+    "sha256": "1772170272543cdd7c0ca61f695772c9fe8cc19227fe2e2711eb6bfd4f42e21d"
+  },
+  "asar": {
+    "path": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/app.asar",
+    "sha256": "54f8186bd35bc8a813e9683a4595ee2d349fbb246fe4928e13f68bf4bb3b458a"
+  },
+  "checks": {
+    "make_mac": "PASS",
+    "verify_package": "PASS",
+    "packaged_smoke": "PASS",
+    "login_regression": "17 passed",
+    "desktop_full_regression": "4569 passed, 55 skipped",
+    "lead_radar": "56 passed",
+    "release_candidate_check": "local=PASS / external=NOT_VERIFIED / overall=HOLD"
+  },
+  "distribution": {
+    "code_signing": "AD_HOC",
+    "developer_id_identity": "NOT_AVAILABLE",
+    "notarization": "NOT_RUN"
+  },
+  "scope": "当前主线的桌面源码未在后续 Lead Radar 提交中变化；包内服务地址、渲染资源、平台 logo、IPC 安全、CSV/备份导出和退出流程已验证。Finder 安装、Developer ID 签名/公证、最终服务器版本、真实平台来源权利、生产数据库恢复和客户 UAT 仍是独立上线门禁。"
+}
