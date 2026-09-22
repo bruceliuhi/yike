@@ -85,6 +85,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/opportunities":
             status = parse_qs(parsed.query).get("status", [None])[0]
             return self._send(200, {"items": self.store.list_opportunities(WORKSPACE_ID, status)})
+        if path == f"/api/v1/workspaces/{WORKSPACE_ID}/entities":
+            return self._send(200, {"items": self.store.list_entities(WORKSPACE_ID)})
         if path.startswith("/api/v1/tasks/") and path.count("/") == 4:
             task = self.store.get_task(path.rsplit("/", 1)[-1])
             return self._send(200, task) if task else self._error(404, "task_not_found", "任务不存在")
@@ -94,6 +96,9 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/v1/opportunities/") and path.count("/") == 4:
             opportunity = self.store.get_opportunity(path.rsplit("/", 1)[-1])
             return self._send(200, opportunity) if opportunity else self._error(404, "opportunity_not_found", "机会不存在")
+        if path.startswith("/api/v1/entities/") and path.count("/") == 4:
+            entity = self.store.get_entity(path.rsplit("/", 1)[-1])
+            return self._send(200, entity) if entity else self._error(404, "entity_not_found", "实体不存在")
         return self._error(404, "not_found", "接口不存在")
 
     def do_POST(self) -> None:
@@ -115,6 +120,10 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 return self._feedback(path.split("/")[-2], payload)
             if path.startswith("/api/v1/opportunities/") and path.endswith("/reopen"):
                 return self._reopen_evidence(path.split("/")[-2])
+            if path.startswith("/api/v1/entities/") and path.endswith("/merge"):
+                return self._merge_entity(path.split("/")[-2], payload)
+            if path.startswith("/api/v1/entities/") and path.endswith("/split"):
+                return self._split_entity(path.split("/")[-2], payload)
         except CaptureError as exc:
             return self._error(400, exc.code, exc.message)
         except ValueError as exc:
@@ -260,6 +269,34 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if not opportunity:
             return self._error(404, "opportunity_not_found", "机会不存在")
         self._send(200, opportunity)
+
+    def _merge_entity(self, source_id: str, payload: dict[str, Any]) -> None:
+        target_id = str(payload.get("target_entity_id", "")).strip()
+        if not target_id:
+            raise ValueError("target_entity_id_required")
+        entity = self.store.merge_entities(source_id, target_id, str(payload.get("actor", "operator")), str(payload.get("reason", "")))
+        if not entity:
+            return self._error(404, "entity_not_found", "实体不存在或关联不完整")
+        self._send(200, entity)
+
+    def _split_entity(self, entity_id: str, payload: dict[str, Any]) -> None:
+        opportunity_id = str(payload.get("opportunity_id", "")).strip()
+        new_name = str(payload.get("entity_name") or payload.get("new_name") or "").strip()
+        if not opportunity_id:
+            raise ValueError("opportunity_id_required")
+        if not new_name:
+            raise ValueError("entity_name_required")
+        entity = self.store.split_entity(
+            entity_id,
+            opportunity_id,
+            new_name,
+            str(payload.get("website_host", "")),
+            str(payload.get("actor", "operator")),
+            str(payload.get("reason", "")),
+        )
+        if not entity:
+            return self._error(404, "entity_not_found", "实体或机会关联不存在")
+        self._send(200, entity)
 
     def _reopen_evidence(self, opportunity_id: str) -> None:
         opportunity = self.store.get_opportunity(opportunity_id)

@@ -166,6 +166,41 @@ class LeadRadarApiTest(unittest.TestCase):
         )
         self.assertEqual(result["items"][0]["entities"], [])
 
+    def test_manual_entity_merge_and_split_keep_opportunity_links_auditable(self) -> None:
+        _, task = self.request("POST", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks", {"objective": "寻找企业 AI 项目"})
+        path = f"/api/v1/tasks/{task['id']}/opportunities"
+        base = {"title": "AI 项目线索", "snippet": "寻找 AI 定制开发团队。", "source_permission": "allowed", "evidence_level": "VERIFIED"}
+        _, left = self.request("POST", path, {**base, "entity_name": "甲公司", "source_url": "https://jia.example/a"})
+        _, right = self.request("POST", path, {**base, "title": "AI 项目线索 2", "entity_name": "乙公司", "source_url": "https://yi.example/b"})
+        left_id = left["items"][0]["entities"][0]["id"]
+        right_id = right["items"][0]["entities"][0]["id"]
+        right_opportunity_id = right["items"][0]["id"]
+
+        status, merged = self.request(
+            "POST",
+            f"/api/v1/entities/{right_id}/merge",
+            {"target_entity_id": left_id, "reason": "人工核对官网和工商名称一致", "actor": "qa"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(merged["id"], left_id)
+        self.assertEqual(len(merged["opportunities"]), 2)
+
+        status, split = self.request(
+            "POST",
+            f"/api/v1/entities/{left_id}/split",
+            {"opportunity_id": right_opportunity_id, "entity_name": "乙公司（拆分后）", "website_host": "yi.example", "reason": "复核发现属于另一家公司", "actor": "qa"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(split["canonical_name"], "乙公司（拆分后）")
+        self.assertEqual(split["opportunities"][0]["id"], right_opportunity_id)
+
+        status, entity_detail = self.request("GET", f"/api/v1/entities/{left_id}")
+        self.assertEqual(status, 200)
+        self.assertEqual(len(entity_detail["opportunities"]), 1)
+        status, entities = self.request("GET", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/entities")
+        self.assertEqual(status, 200)
+        self.assertEqual(len(entities["items"]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

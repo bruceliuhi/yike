@@ -427,6 +427,168 @@ class Store:
             row = self.db.execute("SELECT * FROM opportunities WHERE id = ?", (opportunity_id,)).fetchone()
         return self._opportunity_dict(row)
 
+    def list_entities(self, workspace_id: str) -> list[dict[str, Any]]:
+        with self.lock:
+            rows = self.db.execute(
+                """SELECT e.*, COUNT(DISTINCT oe.opportunity_id) AS opportunity_count
+                   FROM entities e
+                   LEFT JOIN opportunity_entities oe ON oe.entity_id = e.id
+                   WHERE e.workspace_id = ?
+                   GROUP BY e.id
+                   ORDER BY opportunity_count DESC, e.updated_at DESC""",
+                (workspace_id,),
+            ).fetchall()
+        return [self._entity_dict(row, include_opportunities=False) for row in rows]
+
+    def get_entity(self, entity_id: str) -> dict[str, Any] | None:
+        with self.lock:
+            row = self.db.execute("SELECT * FROM entities WHERE id = ?", (entity_id,)).fetchone()
+        return self._entity_dict(row)
+
+    def merge_entities(self, source_id: str, target_id: str, actor: str, reason: str) -> dict[str, Any] | None:
+        if source_id == target_id:
+            raise ValueError("merge_target_must_differ")
+        reason = str(reason or "人工确认同一实体").strip()
+        with self.tx() as db:
+            source = db.execute("SELECT * FROM entities WHERE id = ?", (source_id,)).fetchone()
+            target = db.execute("SELECT * FROM entities WHERE id = ?", (target_id,)).fetchone()
+            if not source or not target:
+                return None
+            if source["workspace_id"] != target["workspace_id"]:
+                raise ValueError("entities_must_share_workspace")
+            if source["entity_type"] != target["entity_type"]:
+                raise ValueError("entity_types_must_match")
+            links = db.execute(
+                "SELECT * FROM opportunity_entities WHERE entity_id = ? ORDER BY created_at",
+                (source_id,),
+            ).fetchall()
+            moved = 0
+            skipped = 0
+            timestamp = now_iso()
+            for link in links:
+                existing = db.execute(
+                    "SELECT id FROM opportunity_entities WHERE opportunity_id = ? AND entity_id = ?",
+                    (link["opportunity_id"], target_id),
+                ).fetchone()
+                if existing:
+                    skipped += 1
+                    continue
+                db.execute(
+                    """INSERT INTO opportunity_entities
+                       (id, opportunity_id, entity_id, relation, confidence, resolution_reason, evidence_json, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        _id("opp_entity"),
+                        link["opportunity_id"],
+                        target_id,
+                        link["relation"],
+                        max(float(link["confidence"]), 0.99),
+                        f"人工合并：{reason}",
+                        _json({"merged_from": source_id, "original_evidence": json.loads(link["evidence_json"] or "{}")}),
+                        timestamp,
+                    ),
+                )
+                moved += 1
+            db.execute("DELETE FROM opportunity_entities WHERE entity_id = ?", (source_id,))
+            db.execute("DELETE FROM entities WHERE id = ?", (source_id,))
+            self._audit(
+                db,
+                target["workspace_id"],
+                "entity",
+                target_id,
+                "merged",
+                {"source_id": source_id, "actor": actor, "reason": reason, "moved": moved, "skipped": skipped},
+            )
+        return self.get_entity(target_id)
+
+    def split_entity(
+        self,
+        entity_id: str,
+        opportunity_id: str,
+        new_name: str,
+        website_host: str,
+        actor: str,
+        reason: str,
+    ) -> dict[str, Any] | None:
+        new_name = normalize_entity_name(new_name)
+        if not new_name:
+            raise ValueError("new_entity_name_required")
+        website_host = normalize_host(website_host)
+        reason = str(reason or "人工确认该机会属于另一个实体").strip()
+        with self.tx() as db:
+            source = db.execute("SELECT * FROM entities WHERE id = ?", (entity_id,)).fetchone()
+            opportunity = db.execute(
+                "SELECT id, workspace_id FROM opportunities WHERE id = ?", (opportunity_id,)
+            ).fetchone()
+            link = db.execute(
+                "SELECT id FROM opportunity_entities WHERE entity_id = ? AND opportunity_id = ?",
+                (entity_id, opportunity_id),
+            ).fetchone()
+            if not source or not opportunity or not link:
+                return None
+            if source["workspace_id"] != opportunity["workspace_id"]:
+                raise ValueError("entities_must_share_workspace")
+            timestamp = now_iso()
+            target = db.execute(
+                """SELECT * FROM entities
+                   WHERE workspace_id = ? AND entity_type = ? AND canonical_name = ? AND website_host = ?""",
+                (source["workspace_id"], source["entity_type"], new_name, website_host),
+            ).fetchone()
+            if target is None:
+                target_id = _id("entity")
+                db.execute(
+                    """INSERT INTO entities
+                       (id, workspace_id, entity_type, canonical_name, website_host, confidence, resolution_status, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (target_id, source["workspace_id"], source["entity_type"], new_name, website_host, 1.0, "MANUAL_SPLIT", timestamp, timestamp),
+                )
+            else:
+                target_id = target["id"]
+                db.execute("UPDATE entities SET confidence = MAX(confidence, 1.0), updated_at = ? WHERE id = ?", (timestamp, target_id))
+            db.execute("DELETE FROM opportunity_entities WHERE id = ?", (link["id"],))
+            db.execute(
+                """INSERT OR REPLACE INTO opportunity_entities
+                   (id, opportunity_id, entity_id, relation, confidence, resolution_reason, evidence_json, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    _id("opp_entity"),
+                    opportunity_id,
+                    target_id,
+                    "about",
+                    1.0,
+                    f"人工拆分：{reason}",
+                    _json({"split_from": entity_id, "source_opportunity": opportunity_id}),
+                    timestamp,
+                ),
+            )
+            self._audit(
+                db,
+                source["workspace_id"],
+                "entity",
+                target_id,
+                "split",
+                {"source_id": entity_id, "opportunity_id": opportunity_id, "actor": actor, "reason": reason},
+            )
+        return self.get_entity(target_id)
+
+    def _entity_dict(self, row: sqlite3.Row | None, include_opportunities: bool = True) -> dict[str, Any] | None:
+        result = _decode(row)
+        if not result:
+            return None
+        if include_opportunities:
+            with self.lock:
+                opportunities = self.db.execute(
+                    """SELECT o.id, o.title, o.status, o.source_url, oe.confidence,
+                              oe.resolution_reason
+                       FROM opportunity_entities oe
+                       JOIN opportunities o ON o.id = oe.opportunity_id
+                       WHERE oe.entity_id = ?
+                       ORDER BY o.updated_at DESC""",
+                    (result["id"],),
+                ).fetchall()
+            result["opportunities"] = [dict(item) for item in opportunities]
+        return result
+
     def append_evidence(
         self,
         opportunity_id: str,
