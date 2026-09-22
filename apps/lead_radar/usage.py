@@ -24,6 +24,7 @@ ACTION_COSTS: dict[str, int] = {
     "get_feed": 0,
     "get_feed_event": 0,
     "review_feed_event": 0,
+    "export_opportunities": 0,
 }
 
 OUTCOMES = {"SUCCESS", "DUPLICATE", "NO_RESULT", "FAILED"}
@@ -42,6 +43,7 @@ SOURCE_RESULT_COSTS: dict[str, dict[str, int]] = {
     "xiaohongshu_public": {"SUCCESS": 1, "DUPLICATE": 0, "NO_RESULT": 0, "FAILED": 0},
     "douyin_public": {"SUCCESS": 1, "DUPLICATE": 0, "NO_RESULT": 0, "FAILED": 0},
     "bilibili_public": {"SUCCESS": 1, "DUPLICATE": 0, "NO_RESULT": 0, "FAILED": 0},
+    "zhihu_public": {"SUCCESS": 1, "DUPLICATE": 0, "NO_RESULT": 0, "FAILED": 0},
     "manual_public_evidence": {"SUCCESS": 1, "DUPLICATE": 0, "NO_RESULT": 0, "FAILED": 0},
     "feishu_authorized": {"SUCCESS": 1, "DUPLICATE": 0, "NO_RESULT": 0, "FAILED": 0},
     "crm_authorized": {"SUCCESS": 1, "DUPLICATE": 0, "NO_RESULT": 0, "FAILED": 0},

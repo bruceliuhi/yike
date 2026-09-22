@@ -15,6 +15,8 @@ class PublicSourcePolicyTest(unittest.TestCase):
             "https://v.douyin.com/abc": "douyin",
             "https://www.bilibili.com/video/BVabc": "bilibili",
             "https://b23.tv/abc": "bilibili",
+            "https://www.zhihu.com/question/123/answer/456": "zhihu",
+            "https://zhuanlan.zhihu.com/p/789": "zhihu",
             "https://buyer.example/request": "web",
         }
         for url, expected_platform in cases.items():
@@ -26,12 +28,13 @@ class PublicSourcePolicyTest(unittest.TestCase):
                 if expected_platform != "web":
                     self.assertTrue(result["server_authorization_required"])
 
-    def test_capabilities_expose_three_public_platforms_and_login_boundary(self) -> None:
+    def test_capabilities_expose_four_public_platforms_and_login_boundary(self) -> None:
         capabilities = {item["id"]: item for item in list_capabilities()}
         for source_id, platform in (
             ("xiaohongshu_public", "xiaohongshu"),
             ("douyin_public", "douyin"),
             ("bilibili_public", "bilibili"),
+            ("zhihu_public", "zhihu"),
         ):
             with self.subTest(source_id=source_id):
                 item = capabilities[source_id]
@@ -42,13 +45,13 @@ class PublicSourcePolicyTest(unittest.TestCase):
                 self.assertEqual(item["platform"], platform)
                 self.assertIn("url_reopen", item["proof_gates"])
 
-    def test_default_plan_lists_all_three_public_platforms_but_stays_blocked(self) -> None:
+    def test_default_plan_lists_all_four_public_platforms_but_stays_blocked(self) -> None:
         criteria = compile_intent("寻找企业 AI 客服定制需求")
         plan = build_search_plan(criteria, 10)
         source_ids = plan["coverage"]["source_ids"]
         self.assertEqual(
             source_ids,
-            ["public_web", "xiaohongshu_public", "douyin_public", "bilibili_public"],
+            ["public_web", "xiaohongshu_public", "douyin_public", "bilibili_public", "zhihu_public"],
         )
         self.assertEqual(plan["execution"]["status"], "BLOCKED_REQUIRES_SOURCE")
         self.assertFalse(plan["execution"]["can_start"])

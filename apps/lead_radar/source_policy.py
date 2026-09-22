@@ -11,12 +11,14 @@ PLATFORM_HOSTS: dict[str, tuple[str, ...]] = {
     "xiaohongshu": ("xiaohongshu.com", "xhslink.com"),
     "douyin": ("douyin.com", "iesdouyin.com"),
     "bilibili": ("bilibili.com", "b23.tv"),
+    "zhihu": ("zhihu.com",),
 }
 
 PLATFORM_NAMES = {
     "xiaohongshu": "小红书",
     "douyin": "抖音",
     "bilibili": "B 站",
+    "zhihu": "知乎",
     "web": "公开网站",
 }
 

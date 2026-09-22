@@ -80,13 +80,15 @@ MCP 还提供 `get_feed`、`get_feed_event` 和 `review_feed_event`。Feed 事�
 
 机会还会进入保守的实体解析层：导入记录明确提供 `entity_name` / `company_name` 时建立企业或组织实体；没有实体名称时，只在来源 URL 主机足够稳定时按官网主机建立关联。小红书、抖音、微博等社交平台主机不会被当成企业官网，标题和作者昵称也不会单独创建企业实体。同名实体如果对应不同官网主机会保持分离，避免把不同公司的公开信号错误合并。每张机会卡返回 `entities`，包含实体、主机、置信度、解析原因和关联证据。
 
-三类社交公开来源已注册为同一来源策略：`xiaohongshu_public`、`douyin_public`、`bilibili_public`。用户侧发现可以不登录，第一层只接受用户明确提交的公开 URL，并在证据元数据中记录 `platform`、`source_family`、`capture_layer`、`end_user_login_required` 和 `server_authorization_required`。这些字段只描述来源边界，不授予抓取权限；三平台的自动搜索仍保持 `REQUIRES_PROOF`，需要平台条款、频率、发布时间、原文重开、保存边界和重试幂等证明后才能接入。
+四类社交公开来源已注册为同一来源策略：`xiaohongshu_public`、`douyin_public`、`bilibili_public`、`zhihu_public`。用户侧发现可以不登录，第一层只接受用户明确提交的公开 URL，并在证据元数据中记录 `platform`、`source_family`、`capture_layer`、`end_user_login_required` 和 `server_authorization_required`。这些字段只描述来源边界，不授予抓取权限；四平台的自动搜索仍保持 `REQUIRES_PROOF`，需要平台条款、频率、发布时间、原文重开、保存边界和重试幂等证明后才能接入。
 
 校准批次用于把一批候选交给人工复核，并记录模型/规则预测与人工金标准的差异。创建批次时可以传 `opportunity_ids`，也可以让服务按 `REVIEW → OBSERVE → SEND_READY → EXCLUDE` 的顺序选择最多 `target_count` 条当前工作区机会；目标数量必须为 1–500，机会只能来自当前工作区且不能重复。复核标签为 `VALID`、`INVALID`、`DUPLICATE`、`OBSERVE`、`NEEDS_EVIDENCE`，默认会写入既有反馈事件并同步机会状态；传 `apply_feedback:false` 只保存校准记录，不改变机会状态。批次返回覆盖率、人工复核数、准确率、误报/漏报数，以及对用户提交公开网页的重开率。重复复核会保留新的审计/反馈事实，不能当作幂等发送。
 
 校准指标只反映当前批次中已录入的机会和人工标签，不代表平台召回率、商机成交率或跨行业效果。样本必须来自真实授权运行或明确的用户提交来源；fixture、静态页面和预置 URL 不能作为生产校准证据。正式发布仍需按 CP-06 记录真实来源 capability、生产数据库/恢复、HTTPS 和客户验收。
 
 评测接口 GET /api/v1/calibration-batches/{batch_id}/evaluation 会输出相关性、证据完整度、原文重开率、实体关联与重复风险、搜贝成本和任务/人工复核延迟。报告同时列出 source_kind、已批准来源权利、样本量、不可计算指标和 quality_gate；没有 30 条人工样本、已批准授权来源或完成任务时间时会明确 BLOCKED。cost 只表示搜贝账本，不是人民币报价；报告默认 not_a_public_benchmark=true。MCP 通过 get_calibration_evaluation 提供同一只读结果。
+
+机会池支持 GET /api/v1/workspaces/ws_意客AI/opportunities/export.csv，可按 status 过滤，返回带 UTF-8 BOM 的证据 CSV。导出字段固定包含来源 URL、原文片段、来源类型、证据等级、来源权限、实体关联、重开次数、系统判断和状态，不会凭空增加联系人字段；严格 API 部署下该路由也需要 business_api API Key。
 
 机会详情会同时展示证据快照、系统判断、来源权限、人工反馈和审计时间线；详情页只帮助人工复核，不会把查看动作变成联系或发送许可。
 

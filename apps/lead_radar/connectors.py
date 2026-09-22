@@ -83,6 +83,16 @@ CAPABILITIES: list[dict[str, Any]] = [
         "note": "用户无需登录即可提交公开 URL；批量搜索仍需平台权限或合规数据合作证明。",
     },
     {
+        "id": "zhihu_public",
+        "name": "知乎公开内容",
+        "status": "REQUIRES_PROOF",
+        "tier": "C",
+        "access": "public_web_or_official_access",
+        "can_search": False,
+        **source_capability_metadata("zhihu"),
+        "note": "用户无需登录即可提交公开 URL；批量搜索仍需平台权限或合规数据合作证明。",
+    },
+    {
         "id": "feishu_authorized",
         "name": "飞书授权数据",
         "status": "REQUIRES_AUTH",

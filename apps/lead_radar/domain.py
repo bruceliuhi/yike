@@ -80,7 +80,7 @@ def compile_intent(objective: str, supplied: dict[str, Any] | None = None) -> di
         "regions": supplied.get("regions", []),
         "sources": supplied.get(
             "sources",
-            ["public_web", "xiaohongshu_public", "douyin_public", "bilibili_public"],
+            ["public_web", "xiaohongshu_public", "douyin_public", "bilibili_public", "zhihu_public"],
         ),
         "required_fields": supplied.get(
             "required_fields",
