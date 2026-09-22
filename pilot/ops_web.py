@@ -12,10 +12,18 @@ from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import PlainTextResponse, RedirectResponse
+from fastapi.responses import PlainTextResponse, RedirectResponse, Response
 
 from pilot.ops_store import OpsError, OpsStore
-from pilot.ops_views import CSS, hidden, issue_view, page, users_view
+from pilot.ops_views import CSS, hidden, issue_view, overview_view, page, users_view
+
+
+def _contains_http_exception(error: BaseException) -> bool:
+    """Starlette may wrap route errors in an ExceptionGroup."""
+    if isinstance(error, HTTPException):
+        return True
+    nested = getattr(error, "exceptions", None)
+    return bool(nested) and any(_contains_http_exception(item) for item in nested)
 
 
 def build_ops_app(store: OpsStore, *, password: str, origin: str) -> FastAPI:
@@ -45,7 +53,17 @@ def build_ops_app(store: OpsStore, *, password: str, origin: str) -> FastAPI:
         else:
             try:
                 response = await call_next(request)
-            except Exception:
+            except HTTPException as error:
+                # ExceptionMiddleware sits outside user middleware. Convert
+                # deliberate auth redirects and validation responses here so
+                # they keep their status/headers instead of being swallowed by
+                # the generic 503 handler below.
+                detail = error.detail if isinstance(error.detail, str) else ''
+                response = Response(detail, status_code=error.status_code,
+                                    headers=error.headers)
+            except Exception as error:
+                if _contains_http_exception(error):
+                    raise
                 # Do not emit DB parameters, form bodies or decrypted phone data.
                 response = PlainTextResponse('运营服务暂不可用，请稍后重试。', 503)
         response.headers.update({
@@ -63,7 +81,7 @@ def build_ops_app(store: OpsStore, *, password: str, origin: str) -> FastAPI:
 
     def identity(request):
         token = request.cookies.get('yike_ops_session')
-        if not store.session_valid(token):
+        if not token or not store.session_valid(token):
             raise HTTPException(303, headers={'Location':'/ops/login'})
         return token
 
@@ -81,8 +99,9 @@ def build_ops_app(store: OpsStore, *, password: str, origin: str) -> FastAPI:
         return PlainTextResponse(CSS, media_type='text/css')
 
     @app.get('/ops')
-    def home():
-        return RedirectResponse('/ops/users',303)
+    def home(request: Request):
+        token = identity(request)
+        return overview_view(store.overview(), csrf_for(token))
 
     @app.get('/ops/login')
     def login_page():

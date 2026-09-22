@@ -15,6 +15,7 @@ button:hover,.button:hover{background:#104eaa}button:focus-visible,a:focus-visib
 .secondary{background:#eaf0f8;color:#254465}.danger{background:#a82727}label{display:block;margin:22px 0 8px;font-weight:600}input{display:block;font:inherit;padding:12px;border:1px solid #bac7d8;border-radius:5px;width:100%;background:white}
 .form{max-width:460px}form p{margin-top:24px}.notice{padding:16px 0;border-bottom:2px solid #1761ca}.error{color:#a82727}.code{font:20px ui-monospace,monospace;overflow-wrap:anywhere;padding:20px;background:#eaf0f8;user-select:all}
 .table-wrap{overflow-x:auto;background:white;margin:28px 0}table{border-collapse:collapse;width:100%;min-width:880px;text-align:left}th,td{padding:17px 16px;border-bottom:1px solid #e6ecf3}th{font-size:13px;color:#617187;background:#f9fbfe}td small{display:block;margin-top:7px}.actions{display:flex;gap:20px;align-items:center}.empty{padding:32px;color:#617187}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:28px 0}.stat{background:white;border:1px solid #e2e8f0;border-radius:8px;padding:20px}.stat strong{display:block;font-size:30px;line-height:1.2;color:#1761ca}.stat span{display:block;color:#617187;margin-top:8px}.stat-muted strong{color:#617187}.stat-warn strong{color:#a82727}
 @media(max-width:680px){header{height:auto;padding:20px;gap:20px;flex-wrap:wrap}nav{gap:20px}main{margin:28px auto;padding:0 20px}h1{font-size:24px}.logout{margin-left:0}}
 '''
 
@@ -25,7 +26,7 @@ def hidden(csrf: str) -> str:
 
 def page(title: str, body: str, csrf: str | None = None, status=200):
     nav = '' if csrf is None else (
-        '<nav><a href="/ops/users">客户与试用</a><a href="/ops/trials">生成试用码</a></nav>'
+        '<nav><a href="/ops">运营概览</a><a href="/ops/users">客户与试用</a><a href="/ops/trials">生成试用码</a></nav>'
         f'<form class="logout" method="post" action="/ops/logout">{hidden(csrf)}<button class="secondary">退出登录</button></form>'
     )
     return HTMLResponse(
@@ -39,6 +40,27 @@ def page(title: str, body: str, csrf: str | None = None, status=200):
 
 def date(value):
     return value.astimezone(timezone(timedelta(hours=8))).strftime('%Y-%m-%d %H:%M') if value else '—'
+
+
+def overview_view(summary, csrf):
+    """Render the operator landing page from server-derived counts only."""
+    labels = (
+        ('total', '客户总数', ''),
+        ('pending', '待激活试用', ''),
+        ('active', '试用中', ''),
+        ('expired', '已到期', 'stat-warn'),
+        ('revoked', '已停用', 'stat-warn'),
+        ('no_trial', '未登记试用', 'stat-muted'),
+    )
+    cards = ''.join(
+        f'<div class="stat {escape(tone)}"><strong>{int(summary.get(key, 0))}</strong>'
+        f'<span>{escape(label)}</span></div>'
+        for key, label, tone in labels
+    )
+    body = '<h1>运营概览</h1><p class="muted">数据来自运营数据库当前快照；手机号、试用码和客户业务数据不会出现在概览中。</p>'
+    body += f'<div class="stats">{cards}</div>'
+    body += '<div class="actions"><a class="button" href="/ops/trials">登记客户并生成试用码</a><a href="/ops/users">查看客户与试用</a></div>'
+    return page('运营概览', body, csrf)
 
 
 def users_view(rows, offset, csrf):

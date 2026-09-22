@@ -98,6 +98,45 @@ class OpsStore:
                                redeem_before=deadline,state=state,credential_kind=kind,phone_verified_at=verified))
         return result
 
+    def overview(self) -> dict[str, int]:
+        """Return operator counts from the restricted management tables.
+
+        The customer runtime role cannot read these tables.  Keep the query
+        limited to the columns already granted to the dedicated ops role and
+        derive state from one database timestamp so the dashboard does not
+        mix rows across a trial-expiry boundary.
+        """
+        with self.database.connect() as c:
+            row = c.execute(
+                """
+                WITH clock AS (SELECT clock_timestamp() AS now)
+                SELECT
+                    count(*)::int AS total,
+                    count(*) FILTER (WHERE a.trial_id IS NULL)::int AS no_trial,
+                    count(*) FILTER (WHERE a.revoked_at IS NOT NULL)::int AS revoked,
+                    count(*) FILTER (
+                        WHERE a.revoked_at IS NULL AND a.trial_id IS NOT NULL
+                          AND a.activated_at IS NULL AND a.redeem_before > clock.now
+                    )::int AS pending,
+                    count(*) FILTER (
+                        WHERE a.revoked_at IS NULL AND a.activated_at IS NOT NULL
+                          AND (a.expires_at IS NULL OR a.expires_at > clock.now)
+                    )::int AS active,
+                    count(*) FILTER (
+                        WHERE a.revoked_at IS NULL AND a.trial_id IS NOT NULL
+                          AND (
+                              (a.activated_at IS NOT NULL AND a.expires_at <= clock.now)
+                              OR (a.activated_at IS NULL AND a.redeem_before <= clock.now)
+                          )
+                    )::int AS expired
+                FROM pilot_users u
+                CROSS JOIN clock
+                LEFT JOIN pilot_trial_accounts a ON a.user_id = u.user_id
+                """
+            ).fetchone()
+        keys = ("total", "no_trial", "revoked", "pending", "active", "expired")
+        return dict(zip(keys, (int(value or 0) for value in row), strict=True))
+
     def revoke(self, trial_id: str) -> None:
         try:
             trial_id = str(UUID(trial_id))
