@@ -12,6 +12,14 @@ from pilot.phone_auth import PhoneAuthStore
 
 
 TRIAL_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+USER_STATES = ('pending', 'active', 'expired', 'revoked', 'no_trial')
+_USER_STATE_FILTERS = {
+    'pending': "a.trial_id IS NOT NULL AND a.revoked_at IS NULL AND a.activated_at IS NULL AND a.redeem_before > clock_timestamp()",
+    'active': "a.trial_id IS NOT NULL AND a.revoked_at IS NULL AND a.activated_at IS NOT NULL AND (a.expires_at IS NULL OR a.expires_at > clock_timestamp())",
+    'expired': "a.trial_id IS NOT NULL AND a.revoked_at IS NULL AND ((a.activated_at IS NOT NULL AND a.expires_at <= clock_timestamp()) OR (a.activated_at IS NULL AND a.redeem_before <= clock_timestamp()))",
+    'revoked': "a.revoked_at IS NOT NULL",
+    'no_trial': "a.trial_id IS NULL",
+}
 
 
 def new_trial_code() -> str:
@@ -69,21 +77,27 @@ class OpsStore:
             raise OpsError('ops_write_failed') from None
         return {'trial_id':trial,'user_id':user,'code':code,'days':days,'activated_at':None}
 
-    def users(self, *, offset: int = 0, query: str = '') -> list[dict]:
+    def users(self, *, offset: int = 0, query: str = '', state: str = '') -> list[dict]:
         if type(offset) is not int or not 0 <= offset <= 1000000:
             raise OpsError('invalid_page')
         if not isinstance(query, str) or len(query) > 100 or any(ord(char) < 32 for char in query):
             raise OpsError('invalid_user_query')
+        if not isinstance(state, str) or state not in ('', *USER_STATES):
+            raise OpsError('invalid_user_state')
         query = query.strip()
-        where = ''
-        params: tuple[object, ...] = (offset,)
+        clauses: list[str] = []
+        params: list[object] = []
         if query:
             # The operator may search customer names without loading the full
             # directory into application memory. Keep wildcard characters
             # literal so the field behaves like a normal substring search.
             pattern = '%' + query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
-            where = "WHERE t.name ILIKE %s ESCAPE E'\\\\'"
-            params = (pattern, offset)
+            clauses.append("t.name ILIKE %s ESCAPE E'\\\\'")
+            params.append(pattern)
+        if state:
+            clauses.append(f'({_USER_STATE_FILTERS[state]})')
+        where = (' WHERE ' + ' AND '.join(clauses)) if clauses else ''
+        params.append(offset)
         with self.database.connect() as c:
             rows = c.execute(
                 'SELECT u.user_id,t.name,u.created_at,a.trial_id,a.phone_ciphertext,a.days,'
@@ -91,7 +105,7 @@ class OpsStore:
                 'FROM pilot_users u JOIN pilot_tenants t ON t.tenant_id=u.tenant_id '
                 'LEFT JOIN pilot_trial_accounts a ON a.user_id=u.user_id '
                 'LEFT JOIN pilot_phone_bindings b ON b.user_id=u.user_id '
-                f'{where} ORDER BY u.created_at DESC,u.user_id LIMIT 50 OFFSET %s', params
+                f'{where} ORDER BY u.created_at DESC,u.user_id LIMIT 50 OFFSET %s', tuple(params)
             ).fetchall()
         result=[]
         for user,name,created,trial,encrypted,days,activated,expires,revoked,deadline,now,kind,verified in rows:

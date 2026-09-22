@@ -132,14 +132,15 @@ def build_ops_app(store: OpsStore, *, password: str, origin: str) -> FastAPI:
         return response
 
     @app.get('/ops/users')
-    def users(request: Request, offset: int = 0, q: str = ''):
+    def users(request: Request, offset: int = 0, q: str = '', state: str = ''):
         token = identity(request)
         try:
-            rows = store.users(offset=offset, query=q)
+            rows = store.users(offset=offset, query=q, state=state)
         except OpsError as error:
-            message = '请输入不超过 100 个字符的客户名称。' if str(error) == 'invalid_user_query' else '客户列表暂时无法读取，请稍后重试。'
-            return users_view([], 0, csrf_for(token), q, message)
-        return users_view(rows,offset,csrf_for(token),q)
+            message = ({'invalid_user_query': '请输入不超过 100 个字符的客户名称。',
+                        'invalid_user_state': '状态筛选无效，请重新选择。'}).get(str(error), '客户列表暂时无法读取，请稍后重试。')
+            return users_view([], 0, csrf_for(token), q, state, message)
+        return users_view(rows,offset,csrf_for(token),q,state)
 
     @app.get('/ops/trials')
     def trials(request: Request):

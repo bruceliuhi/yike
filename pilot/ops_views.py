@@ -6,6 +6,16 @@ from urllib.parse import urlencode
 from fastapi.responses import HTMLResponse
 
 
+USER_STATE_OPTIONS = (
+    ('', '全部状态'),
+    ('pending', '待激活'),
+    ('active', '试用中'),
+    ('expired', '已到期'),
+    ('revoked', '已停用'),
+    ('no_trial', '未登记试用'),
+)
+
+
 CSS = '''
 :root{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;color:#19283b;background:#f5f7fb;font-size:15px}
 *{box-sizing:border-box}body{margin:0}header{height:76px;background:white;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:48px;padding:0 5vw}
@@ -65,7 +75,7 @@ def overview_view(summary, csrf):
     return page('运营概览', body, csrf)
 
 
-def users_view(rows, offset, csrf, query='', error=None):
+def users_view(rows, offset, csrf, query='', state='', error=None):
     content=[]
     for row in rows:
         action = f'<a href="/ops/revoke?trial_id={escape(row["trial_id"])}">停用</a>' if row['trial_id'] and row['state'] != '已停用' else '—'
@@ -78,18 +88,20 @@ def users_view(rows, offset, csrf, query='', error=None):
         content.append(f'<tr><td>{escape(row["name"])}<small>{escape(row["user_id"])}</small></td>'
                        f'<td>{phone}<small>{verified}</small></td><td>{escape(row["state"])}</td>'
                        f'<td>{date(row["activated_at"])}</td><td>{date(row["expires_at"])}</td><td>{action}</td></tr>')
-    body = '<h1>客户与试用</h1><p class="muted">完整手机号仅管理员可见。试用从首次短信验证并激活后计时；时间为北京时间。</p>'
+    body = '<h1>客户与试用</h1><p class="muted">完整手机号仅管理员可见。试用从首次短信验证并激活后计时；时间为北京时间。筛选在运营数据库执行。</p>'
     if error:
         body += f'<p role="alert" class="error">{escape(error)}</p>'
-    body += '<form class="search" method="get" action="/ops/users"><label for="user-query">按客户名称查找</label><div class="actions"><input id="user-query" name="q" maxlength="100" value="' + escape(query, quote=True) + '" placeholder="输入客户名称"><button>查找</button>'
-    if query:
+    options = ''.join(f'<option value="{escape(value, quote=True)}"{" selected" if value == state else ""}>{escape(label)}</option>' for value, label in USER_STATE_OPTIONS)
+    body += '<form class="search" method="get" action="/ops/users"><label for="user-query">按客户名称查找</label><div class="actions"><input id="user-query" name="q" maxlength="100" value="' + escape(query, quote=True) + '" placeholder="输入客户名称"><label for="user-state">状态</label><select id="user-state" name="state">' + options + '</select><button>查找</button>'
+    if query or state:
         body += ' <a class="button secondary" href="/ops/users">清除</a>'
     body += '</div></form>'
     body += '<a class="button" href="/ops/trials">登记客户并生成试用码</a>'
     body += '<div class="table-wrap"><table><thead><tr><th>客户</th><th>手机号</th><th>状态</th><th>激活时间</th><th>到期时间</th><th>操作</th></tr></thead><tbody>'
     body += ''.join(content) or '<tr><td colspan="6" class="empty">暂无客户，先登记一位试用客户。</td></tr>'
     body += '</tbody></table></div><div class="actions">'
-    suffix = '&' + urlencode({'q': query}) if query else ''
+    params = {'q': query, 'state': state}
+    suffix = '&' + urlencode({key: value for key, value in params.items() if value}) if query or state else ''
     if offset:
         body += f'<a href="/ops/users?offset={max(0,offset-50)}{suffix}">上一页</a>'
     if len(rows) == 50:
