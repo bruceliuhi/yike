@@ -112,4 +112,10 @@ MCP 还提供 `get_feed`、`get_feed_event` 和 `review_feed_event`。Feed 事�
 
 ## 当前生产门禁
 
+API Key 通过 POST /api/v1/workspaces/ws_意客AI/api-keys 创建，明文只在创建响应展示一次；数据库只保存哈希和前缀。对外提供业务 API 时设置 LEAD_RADAR_REQUIRE_API_KEY=1，并使用 X-API-Key 或 Authorization Bearer 请求头。
+
+GET /api/v1/workspaces/ws_意客AI/usage 返回自然月用量、剩余额度、请求数和按操作汇总；POST /api/v1/workspaces/ws_意客AI/quota 设置自然月额度和硬门禁。创建搜索任务、实体增强和监测调度按动作记账，查询类请求免费但仍写入请求 ID 和审计事件；重复幂等请求不会重复扣动作费用。POST /api/v1/api-keys/{id}/revoke 可撤销 Key。
+
+Key 管理和额度接口只适合绑定本机或接入已有管理员会话的控制面，不能在没有管理员认证时直接暴露到公网。
+
 要把来源状态改为 `READY`，必须先验证：访问权限、平台条款与 robots、访问频率、原始发布时间、证据 URL 可重开、保存和回写边界、失败重试幂等，以及删除/退订处理。所有自动联系动作仍要经过人工确认。

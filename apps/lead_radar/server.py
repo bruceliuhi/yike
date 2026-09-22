@@ -1134,7 +1134,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
 def create_server(host: str = "127.0.0.1", port: int = 8780, db_path: str = "lead_radar.sqlite3", require_api_key: bool | None = None) -> ThreadingHTTPServer:
     server = ThreadingHTTPServer((host, port), LeadRadarHandler)
     server.store = Store(db_path)  # type: ignore[attr-defined]
-    server.require_api_key = bool(os.environ.get("LEAD_RADAR_REQUIRE_API_KEY")) if require_api_key is None else bool(require_api_key)  # type: ignore[attr-defined]
+    configured_auth = os.environ.get("LEAD_RADAR_REQUIRE_API_KEY", "").strip().lower() in {"1", "true", "yes", "on"}
+    server.require_api_key = configured_auth if require_api_key is None else bool(require_api_key)  # type: ignore[attr-defined]
     return server
 
 
