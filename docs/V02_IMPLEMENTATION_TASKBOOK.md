@@ -13,6 +13,8 @@
 - 官方 Codex 包已在可访问环境下载并通过声明哈希校验：`a822187e1a2420c61c5926721bfbd878701ed95547c9bb0d4de4498a16ba1821`；不再依赖服务器直接访问 `releases.openai.com`，也没有绕过校验。
 - 服务器隔离构建完成：`yike-candidate:46aba75`（customer）和 `yike-research-candidate:46aba75`（research），两者 OCI revision 均绑定 `46aba7559921799452c4f0ee63a6fdda1c7d8871`；research 镜像内 Codex `0.153.4`，源码导入和编译检查通过。
 - 使用一次性 PostgreSQL 容器完成当前迁移，候选 Web 在隔离网络内 `/readyz={"status":"ready"}`、`/healthz={"status":"ok"}`；容器已清理，未连接生产数据库、未切换生产容器。HTTP capability 探测被正确拒绝为 `https_required`，不是已认证能力证明。
+- 两个隔离镜像已推入服务器私有 registry，保留可回滚候选摘要：customer digest `sha256:8438a2fb21083338b324ec7bc47ebae7e202a5f13c8ad8abd9e15ce36e7d3f61`、research digest `sha256:864e677c0cb5df5c70b51dc8916d662c2c9213cfd8c0aaba2194d85a83c81e81`；未替换线上容器。
+- 独立 `apps/lead_radar` 仍只作为本地/隔离工作台：当前固定 workspace、SQLite、匿名 HTTP/CORS，尚未接入产品 Session、租户 ACL 和生产数据库；不得把它直接暴露公网或当作生产自动搜索入口。
 - 该批只证明“当前源码可构建、可启动、可迁移”，不证明真实来源权限或线索质量。仍需同源客户端登录后的 capability 回执、一次自主 SEARCH→READ→候选→证据页、三业务重复、生产备份/回滚和最终客户环境验收。
 
 ### 2026-09-23 候选构建诊断（源码基线 `9e3f9a7`，后续已合入当前主线）
