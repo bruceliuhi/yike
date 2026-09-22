@@ -581,8 +581,9 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         opportunity = self.store.get_opportunity(opportunity_id)
         if not opportunity:
             return self._error(404, "opportunity_not_found", "机会不存在")
-        if opportunity.get("source_kind") != "public_url_capture":
-            raise ValueError("reopen_supported_for_public_url_capture_only")
+        source_kind = opportunity.get("source_kind")
+        if source_kind not in {"public_url_capture", "search_index_snippet", "authorized_search_api"}:
+            raise ValueError("reopen_supported_for_public_or_index_sources_only")
         capture = fetch_public_page(opportunity["source_url"])
         previous_hashes = [
             evidence.get("metadata", {}).get("content_hash")
@@ -590,6 +591,15 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             if evidence.get("metadata", {}).get("content_hash")
         ]
         matches_previous = bool(previous_hashes) and capture["content_hash"] == previous_hashes[-1]
+        original_evidence = (opportunity.get("evidence") or [{}])[0]
+        original_metadata = original_evidence.get("metadata") or {}
+        reopen_decision = {
+            "status": opportunity.get("status", "REVIEW"),
+            "code": "REOPENED_SOURCE_NEEDS_REVIEW",
+            "reason": "原始 URL 已成功重开并追加当前页面快照，但页面相关性、发布时间和来源使用权仍需人工确认。",
+            "missing_fields": [],
+            "next_action": "人工核对重开页面与索引摘要是否一致，再决定有效、观察或排除。",
+        }
         updated = self.store.append_evidence(
             opportunity_id,
             "reopen_check",
@@ -604,9 +614,15 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 "charset": capture["charset"],
                 "capture_method": "controlled_public_url_reopen",
                 "matches_previous_snapshot": matches_previous,
+                "reopen_from_source_kind": source_kind,
+                "original_evidence_type": original_evidence.get("evidence_type"),
+                "original_source_provenance": original_metadata.get("source_provenance"),
+                "proof_ref": original_metadata.get("proof_ref"),
+                "provider": original_metadata.get("provider"),
                 "source_provenance": classify_public_url(capture["final_url"]),
             },
             capture["captured_at"],
+            reopen_decision,
         )
         self.store.record_usage(
             WORKSPACE_ID,
@@ -625,6 +641,9 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                     "matches_previous_snapshot": matches_previous,
                     "content_hash": capture["content_hash"],
                     "captured_at": capture["captured_at"],
+                    "source_kind": source_kind,
+                    "reopen_required": False,
+                    "keeps_review": True,
                 },
             },
         )

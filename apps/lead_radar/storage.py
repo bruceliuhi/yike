@@ -1043,6 +1043,7 @@ class Store:
         url: str,
         metadata: dict[str, Any],
         captured_at: str | None = None,
+        decision: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         with self.tx() as db:
             row = db.execute("SELECT workspace_id FROM opportunities WHERE id = ?", (opportunity_id,)).fetchone()
@@ -1053,7 +1054,13 @@ class Store:
                 "INSERT INTO evidence(id, opportunity_id, evidence_type, content, url, metadata_json, captured_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (_id("evidence"), opportunity_id, evidence_type, content, url, _json(metadata), captured_at or timestamp, timestamp),
             )
-            db.execute("UPDATE opportunities SET updated_at = ? WHERE id = ?", (timestamp, opportunity_id))
+            if decision is None:
+                db.execute("UPDATE opportunities SET updated_at = ? WHERE id = ?", (timestamp, opportunity_id))
+            else:
+                db.execute(
+                    "UPDATE opportunities SET decision_json = ?, updated_at = ? WHERE id = ?",
+                    (_json(decision), timestamp, opportunity_id),
+                )
             self._audit(db, row["workspace_id"], "opportunity", opportunity_id, "evidence_appended", {"evidence_type": evidence_type, **metadata})
         return self.get_opportunity(opportunity_id)
 

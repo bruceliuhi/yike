@@ -258,6 +258,57 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertEqual(invalid_position["error"], "position_invalid")
 
+    def test_search_index_candidate_reopens_original_url_and_stays_review(self) -> None:
+        _, task = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks",
+            {"objective": "重开索引候选原文"},
+        )
+        index_payload = {
+            "provider": "licensed-search-index",
+            "query": "site:bilibili.com AI 客服 采购",
+            "proof_ref": "proof-reopen-001",
+            "retrieved_at": "2026-09-22T12:00:00Z",
+            "items": [{
+                "position": 1,
+                "title": "企业 AI 客服评估",
+                "source_url": "https://www.bilibili.com/video/reopen-1",
+                "snippet": "索引摘要：企业正在评估 AI 客服解决方案。",
+            }],
+        }
+        status, indexed = self.request("POST", f"/api/v1/tasks/{task['id']}/index-results", index_payload)
+        self.assertEqual(status, 201)
+        opportunity_id = indexed["items"][0]["item"]["id"]
+        capture = {
+            "title": "企业 AI 客服评估原文",
+            "snippet": "原文页面：企业正在评估 AI 客服解决方案并寻找落地团队。",
+            "content_hash": "b" * 64,
+            "byte_length": 2048,
+            "requested_url": index_payload["items"][0]["source_url"],
+            "final_url": index_payload["items"][0]["source_url"],
+            "content_type": "text/html",
+            "charset": "utf-8",
+            "captured_at": "2026-09-23T00:00:00+00:00",
+        }
+        with patch("apps.lead_radar.server.fetch_public_page", return_value=capture):
+            status, reopened = self.request(
+                "POST",
+                f"/api/v1/opportunities/{opportunity_id}/reopen",
+                {},
+                {"Idempotency-Key": "index-reopen-001"},
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(reopened["reopen"]["source_kind"], "search_index_snippet")
+        self.assertFalse(reopened["reopen"]["reopen_required"])
+        self.assertTrue(reopened["reopen"]["keeps_review"])
+        self.assertEqual(reopened["opportunity"]["status"], "REVIEW")
+        self.assertEqual(reopened["opportunity"]["decision"]["code"], "REOPENED_SOURCE_NEEDS_REVIEW")
+        self.assertEqual(reopened["opportunity"]["evidence"][-1]["evidence_type"], "reopen_check")
+        metadata = reopened["opportunity"]["evidence"][-1]["metadata"]
+        self.assertEqual(metadata["reopen_from_source_kind"], "search_index_snippet")
+        self.assertEqual(metadata["proof_ref"], "proof-reopen-001")
+        self.assertEqual(metadata["content_hash"], "b" * 64)
+
     def test_duplicate_evidence_is_recorded_without_double_counting(self) -> None:
         _, task = self.request("POST", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks", {"objective": "寻找 AI 知识库项目"})
         item = {"title": "企业知识库需求", "source_url": "https://example.com/knowledge", "snippet": "需要内部知识库问答系统。"}
