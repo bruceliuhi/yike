@@ -218,6 +218,17 @@ class BusinessApiTest(unittest.TestCase):
         self.assertIn("需要 AI 客服定制方案", csv_body)
         self.assertNotIn("phone", csv_body.lower())
 
+        connection = HTTPConnection(self.host, self.port)
+        connection.request("GET", f"{WORKSPACE_PATH}/opportunities/export.csv?status=REVIEW&language=en-US")
+        response = connection.getresponse()
+        english_csv = response.read().decode("utf-8-sig")
+        export_language = response.getheader("X-Export-Language")
+        connection.close()
+        self.assertEqual(response.status, 200)
+        self.assertEqual(export_language, "en-US")
+        self.assertIn("status_label", english_csv)
+        self.assertIn("Review", english_csv)
+
     def test_task_templates_are_localized_and_compile_into_audited_tasks(self) -> None:
         status, zh, _ = self.request("GET", "/api/v1/task-templates?language=zh-CN")
         self.assertEqual(status, 200)

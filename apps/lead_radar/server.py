@@ -442,9 +442,11 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             except ValueError as exc:
                 return self._error(400, "invalid_request", str(exc))
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/opportunities/export.csv":
-            status = parse_qs(parsed.query).get("status", [None])[0]
+            query = parse_qs(parsed.query)
+            status = query.get("status", [None])[0]
+            language = query.get("language", ["zh-CN"])[0]
             try:
-                body, count = self.store.export_opportunities_csv(WORKSPACE_ID, status)
+                body, count = self.store.export_opportunities_csv(WORKSPACE_ID, status, language=language)
             except ValueError as exc:
                 return self._error(400, "invalid_request", str(exc))
             return self._send(
@@ -454,6 +456,7 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 {
                     "Content-Disposition": 'attachment; filename="lead-radar-opportunities.csv"',
                     "X-Export-Count": str(count),
+                    "X-Export-Language": language,
                 },
             )
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/entities":

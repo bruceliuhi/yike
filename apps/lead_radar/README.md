@@ -115,7 +115,7 @@ MCP 还提供 `get_feed`、`get_feed_event` 和 `review_feed_event`。Feed 事�
 
 POST /api/v1/evaluation-contract/validate 接收 `{dataset, samples}` manifest，只做无副作用校验：返回 schema 是否有效、行业/来源分布、标签准确率、误报/漏报、重开率、权利证明引用覆盖率和阻塞原因，不写入数据库、不访问来源、不发送外部动作。MCP 的 `validate_evaluation_manifest` 提供同一校验器；校验通过仍不等于已经发布公开 benchmark。
 
-机会池支持 GET /api/v1/workspaces/ws_意客AI/opportunities/export.csv，可按 status 过滤，返回带 UTF-8 BOM 的证据 CSV。导出字段固定包含来源 URL、原文片段、来源类型、证据等级、来源权限、实体关联、重开次数、系统判断和状态，不会凭空增加联系人字段；严格 API 部署下该路由也需要 business_api API Key。
+机会池支持 GET /api/v1/workspaces/ws_意客AI/opportunities/export.csv，可按 status 和 language=zh-CN|en-US 过滤，返回带 UTF-8 BOM 的证据 CSV。导出字段固定包含来源 URL、原文片段、来源类型、证据等级、来源权限、实体关联、重开次数、系统判断和状态，并额外输出按语言生成的状态、来源、决策和评分标签；不会凭空增加联系人字段。严格 API 部署下该路由也需要 business_api API Key。
 
 机会详情会同时展示证据快照、系统判断、来源权限、人工反馈和审计时间线；详情页只帮助人工复核，不会把查看动作变成联系或发送许可。
 
