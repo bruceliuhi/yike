@@ -85,7 +85,7 @@ def get_production_readiness(store: Store, workspace_id: str, requested_workspac
         "blockers": blockers,
         "claims_allowed": [
             "本地任务、证据、反馈、评测和人工动作草稿闭环",
-            "用户明确提交的公开 URL 受控导入",
+            "用户明确提交的公开 URL 或 RSS/Atom Feed 受控导入",
             "来源门禁、用量和审计状态可追溯",
         ],
         "claims_disallowed": [

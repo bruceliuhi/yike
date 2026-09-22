@@ -2390,7 +2390,7 @@ class Store:
         false_negative_count = sum(
             1 for row in reviewed if row["predicted_label"] != "VALID" and row["gold_label"] == "VALID"
         )
-        reopenable_sources = {"public_url_capture", "search_index_snippet", "authorized_search_api"}
+        reopenable_sources = {"public_url_capture", "public_feed_capture", "search_index_snippet", "authorized_search_api"}
         reopen_eligible_count = sum(1 for row in rows if row["source_kind"] in reopenable_sources)
         reopened_count = sum(
             1 for row in rows if row["source_kind"] in reopenable_sources and bool(row["reopened"])
@@ -2561,7 +2561,7 @@ class Store:
             and str(row["snippet"] or "").strip()
             and int(row["evidence_count"] or 0) > 0
         )
-        reopenable_sources = {"public_url_capture", "search_index_snippet", "authorized_search_api"}
+        reopenable_sources = {"public_url_capture", "public_feed_capture", "search_index_snippet", "authorized_search_api"}
         reopen_eligible_count = sum(1 for row in rows if row["source_kind"] in reopenable_sources)
         reopened_count = 0
         for row in rows:
