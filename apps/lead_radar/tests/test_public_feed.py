@@ -206,6 +206,63 @@ class PublicFeedCaptureTest(unittest.TestCase):
         self.assertTrue(reopened["reopen"]["matches_previous_snapshot"])
         self.assertEqual(len(reopened["opportunity"]["evidence"]), 2)
 
+    def test_public_feed_runs_the_task_evidence_feedback_cost_action_replay(self) -> None:
+        _, task = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks",
+            {"objective": "公开 Feed 闭环验收"},
+        )
+        feed = {
+            "requested_url": "https://source.example/feed.xml",
+            "final_url": "https://source.example/feed.xml",
+            "feed_title": "Feed",
+            "feed_hash": "b" * 64,
+            "byte_length": 10,
+            "content_type": "application/rss+xml",
+            "charset": "utf-8",
+            "captured_at": "2026-09-23T00:00:00+00:00",
+            "entries": [
+                {
+                    "entry_id": "loop-1",
+                    "title": "企业 AI 客服采购需求",
+                    "source_url": "https://source.example/loop-1",
+                    "snippet": "企业正在评估 AI 客服定制开发团队。",
+                    "published_at": "2026-09-23",
+                    "content_hash": "3" * 64,
+                }
+            ],
+        }
+        path = f"/api/v1/tasks/{task['id']}/capture-feed"
+        with patch("apps.lead_radar.server.fetch_public_feed", return_value=feed):
+            status, captured = self.request("POST", path, {"url": feed["requested_url"]})
+        self.assertEqual(status, 201)
+        opportunity = captured["items"][0]["item"]
+        opportunity_id = opportunity["id"]
+        self.assertEqual(opportunity["status"], "REVIEW")
+        status, updated = self.request(
+            "POST",
+            f"/api/v1/opportunities/{opportunity_id}/feedback",
+            {"label": "VALID", "note": "人工打开 Feed 原文并确认采购语义", "actor": "qa"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(updated["status"], "SEND_READY")
+        status, drafts = self.request(
+            "POST",
+            f"/api/v1/opportunities/{opportunity_id}/action-drafts",
+            {"channels": ["EMAIL"], "actor": "qa", "idempotency_key": "feed-loop-draft-1"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(drafts["count"], 1)
+        self.assertEqual(drafts["items"][0]["status"], "DRAFT")
+        status, replay = self.request("GET", f"/api/v1/tasks/{task['id']}/replay")
+        self.assertEqual(status, 200)
+        self.assertEqual(replay["replay"]["candidates"][0]["status"], "SEND_READY")
+        self.assertEqual(replay["replay"]["action_drafts"][0]["status"], "DRAFT")
+        self.assertTrue(any(item["operation"] == "public_feed_capture" and item["credits"] == 1 for item in replay["replay"]["usage"]))
+        self.assertTrue(any(item["kind"] == "usage" for item in replay["replay"]["timeline"]))
+        self.assertTrue(any(item["kind"] == "audit" for item in replay["replay"]["timeline"]))
+        self.assertFalse(replay["explainability"]["external_actions_sent"])
+
 
 if __name__ == "__main__":
     unittest.main()
