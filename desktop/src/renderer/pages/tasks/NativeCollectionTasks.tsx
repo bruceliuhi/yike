@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "../../app/context";
 import { useResource } from "../../app/hooks";
+import { PlatformLabel } from "../../components/Platform";
 import { useTaskDraft, useTaskLibrary } from "../../app/taskDraft";
 import { boundedRequest } from "../../app/boundedRequest";
 import {
@@ -36,6 +37,7 @@ const platformLabels = {
   ZHIHU: "知乎",
   PUBLIC_WEB: "公开网站",
 };
+const platformLabel=(platform:string)=>({PUBLIC_WEB:'web',XIAOHONGSHU:'xhs',DOUYIN:'douyin',BILIBILI:'bilibili',ZHIHU:'zhihu'}[platform]||platform);
 const localLabels = {
   COLLECTING: "采集中",
   INTERRUPTED: "已中断",
@@ -312,9 +314,11 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
                             ? "单次采集"
                             : "历史任务"}{" "}
                         ·{" "}
-                        {row.platform_runs
-                          .map((p) => platformLabels[p.platform])
-                          .join("、")}
+                        <span className="platform-list">
+                          {row.platform_runs.map((p) => (
+                            <PlatformLabel key={p.platform_run_id} platform={platformLabel(p.platform)} size={16} />
+                          ))}
+                        </span>
                       </td>
                       <td>{row.research
                         ? <Button variant="ghost" onClick={() => navigate(`/collection?task=${row.task_id}`)}>查看研究进度</Button>

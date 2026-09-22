@@ -2,6 +2,7 @@ import {useEffect,useState} from 'react';
 import {useApp} from '../../app/context';
 import {useResource} from '../../app/hooks';
 import {Button,PageHeader,Notice,Confirm,ResourceStatus,formatDate} from '../../components/ui';
+import {PlatformLabel} from '../../components/Platform';
 import {useMonitorCollection} from './useMonitorCollection';
 import {useTaskScope} from './useTaskScope';
 import {monitorTargets} from '../../domain/monitorCollection';
@@ -17,6 +18,7 @@ const localLabels={DETACHED:'本机未接管',ATTACHED:'已接管，等待到期
 const hints:Record<string,string>={SKIPPED_BUSY:'采集器忙碌，本次到期已跳过，不补跑。',SKIPPED_OFFLINE:'离线错过的时段已跳过。',
  SKIPPED_MISSED:'错过的执行时段已跳过。',RECOVERY_REQUIRED:'旧轮次待核对，不会重新打开来源。',START_UNKNOWN:'启动结果待核对，不会重复启动。'};
 const scheduleLabel=({schedule}:MonitorCollectionPlan)=>`${schedule.kind==='daily'?`每天 ${schedule.times.join('、')}`:`每 ${schedule.interval} 小时 · ${schedule.start}–${schedule.end}`} · ${scheduleRegionLabel(schedule.timezone)}`;
+const platformLabel=(platform:string)=>({PUBLIC_WEB:'web',XIAOHONGSHU:'xhs',DOUYIN:'douyin',BILIBILI:'bilibili',ZHIHU:'zhihu'}[platform]||platform);
 export function NativeMonitorPlans(){
  const {service,session,route,navigate}=useApp(),scope=useTaskScope(route.path),monitor=useMonitorCollection();
  const [library]=useTaskLibrary(session.userId,session.accountScope);
@@ -106,7 +108,7 @@ export function NativeMonitorPlans(){
    <p>{scheduleLabel(selected)}</p>
    <p className="field-hint">离线错过的计划不补跑，恢复在线后从下次计划继续。</p>
    <p>下次到期：{selected.nextDueAt?formatDate(selected.nextDueAt):'暂停期间不安排'}</p>
-   {details.data&&<><p>平台：{details.data.snapshot.platforms.map(platform=>({PUBLIC_WEB:'公开网站',XIAOHONGSHU:'小红书',DOUYIN:'抖音',BILIBILI:'B站',ZHIHU:'知乎'})[platform]).join('、')}；搜索词：{details.data.snapshot.configuration.keywords.join('、')}</p>
+   {details.data&&<><p className="platform-list"><span>平台：</span>{details.data.snapshot.platforms.map(platform=><PlatformLabel key={platform} platform={platformLabel(platform)} size={16}/>)}<span>；搜索词：{details.data.snapshot.configuration.keywords.join('、')}</span></p>
     {details.data.snapshot.platforms.includes('PUBLIC_WEB')&&<p className="field-hint">{publicSourceScope(details.data.snapshot.configuration.publicSource)}；按已确认周期抽样，列表消失不表示需求关闭。</p>}</>}
    <ResourceStatus loading={details.loading} error={details.error}/>
    {selected.lastError&&<Notice tone="warning">{hints[selected.lastError]||'本机运行未完成，请核对账号与原执行记录。'}</Notice>}

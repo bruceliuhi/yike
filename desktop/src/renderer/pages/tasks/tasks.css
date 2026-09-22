@@ -29,6 +29,16 @@
   align-items: center;
   gap: 8px;
 }
+.platform-list {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.platform-list > span:first-child,
+.platform-list > span:last-child {
+  white-space: nowrap;
+}
 .task-filter-field select,
 .task-filter-field input {
   min-height: 36px;
