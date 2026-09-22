@@ -1,5 +1,14 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+### 2026-09-23 同源生产切换与短信登录回归修复（`2f75d91`）
+
+- Gitee `yike-ai2026/main`、本地候选和生产运行时代码已核对为 `2f75d91df21cf66a992d29d321d53125c421a0b7`。本次修复恢复批准的自助注册路径：首次短信验证成功即激活连续 72 小时试用，新客户端不再要求试用码；已有账户重复登录不重置试用期。
+- 服务器镜像固定为 `127.0.0.1:18750/yike/server@sha256:52570fe40ce92f7eb4d27c4746452c5a725a726f63e144a5bcbacb2a251fa340`，运行容器 `yike-ai2026-app` 绑定 `127.0.0.1:18787`，只读根文件系统、非 root、`cap_drop=ALL`、`no-new-privileges`、健康状态 healthy、重启次数 0。公网 `/healthz`、`/readyz` 均 HTTP 200，版本头回报 `2f75d91df21cf66a992d29d321d53125c421a0b7`；`cp06_validate_env.sh` 预检通过。
+- 切换前实际运行的 `20bac56` 容器已停止并重命名保留为 `yike-ai2026-app-before-2f75d91...`，未删除；此前 `release-before-2f75d91...` 仅保存旧登记坐标，不能单独作为可执行回滚凭据，回滚时必须显式核对实际旧镜像 digest 与源码目录。
+- 绑定当前 HTTPS 服务重新构建的 Mac arm64 ZIP 位于 `desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip`，SHA-256 为 `50c2be37a2decc88c65a4a2d2b0568c69a3e9b4e7f6c7805c2e2ec2f3e86f550`；包内 ASAR SHA-256 为 `1506ca86bea68b961896cf7d701f8704adb350082b17e9f17d7418589f84d6bb`。包内服务地址为 `https://yike.tuokexing.net`，未写入账号、验证码或密钥。
+- 定向验证：桌面登录/手机客户端 **41 passed**，Python 手机/SMS/试用回归 **43 passed**，`npm run typecheck`、renderer build 与 Mac 构包通过。此项不等于短信送达：此前阿里云实际投递仍返回 `PORT_NOT_REGISTERED`，因此真实收码/登录仍受运营商端口报备阻断；不得用后四位、注入会话或旧试用码绕过。
+- 当前能力回读仍如实为 `sms_login=true`，`platform_connections=false`、`task_execution=false`、`outreach=false`、`replies=false`。本次只完成同源部署和登录回归修复，不把健康检查或构包升级为真实平台研究、线索质量或商业上线证据；总体状态继续 **HOLD**。
+
 ### 2026-09-23 主线同步与试用码门禁恢复（`b653169`）
 
 - Gitee `yike-ai2026/main`、GitHub `main` 与本地主线已同步到 `b653169`。本轮吸收远端最新认证改动后，明确保留已确认的首次激活流程：手机号、短信验证码和 8 位试用码；无试用码不能把短信验证直接升级为试用权限。
