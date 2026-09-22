@@ -1,10 +1,10 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
-## 当前权威状态（2026-09-23，候选运行代码基线 `615e282`）
+## 当前权威状态（2026-09-23，候选运行代码基线 `68b9426`）
 
 本任务书保留按时间排列的实施记录；判断当前是否可以发布时，以 [`RELEASE_STATUS_20260923.md`](qa/RELEASE_STATUS_20260923.md) 和当前主线代码为准，不以更早记录中的候选提交或线上 revision 作为现状。
 
-- Gitee `yike-ai2026/main`、GitHub `main` 与本地 `main` 已同步包含候选运行代码基线 `615e282ba953979cc2017d291d59a7bafdd4262e`；其后仅有发布记录文档提交。
+- Gitee `yike-ai2026/main`、GitHub `main` 与本地 `main` 已同步包含候选运行代码基线 `68b94263275800f4cf241f79856d8e7f43ade309`。
 - 当前本机发布检查为 `local=PASS / external=NOT_VERIFIED / overall=HOLD`；Lead Radar 当前主线复跑 `83 passed`，macOS arm64 包结构与包内冒烟通过。
 - 线上 `https://yike.tuokexing.net` 当前仍回报旧 revision `5330c81046b636b6cad65589581374e321a277c5`，不能视为当前主线已部署；平台连接、任务执行、触达和回复仍未对外宣称可用。
 - 正式上线仍需授权来源的真实 SEARCH→READ→候选→证据运行、真实样本校准、生产 PostgreSQL/RLS/备份恢复/回滚、同版 HTTPS 客户验收，以及对外分发 macOS 所需的 Developer ID 签名与公证。
