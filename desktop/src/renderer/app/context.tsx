@@ -179,7 +179,12 @@ export function AppProvider({
       }}
     >
       <DeviceConnectionPreparation api={service.deviceIdentity} session={session} confirmed={sessionReady}>
-        {sessionProblem && <div role="alert">{sessionProblem} <button onClick={() => navigate('/login')}>重新登录</button></div>}
+        {sessionProblem && (
+          <div className="session-status-banner" role="alert">
+            <span>{sessionProblem}</span>
+            <button type="button" onClick={() => navigate('/login')}>重新登录</button>
+          </div>
+        )}
         {children}
       </DeviceConnectionPreparation>
       {pendingPath && (
