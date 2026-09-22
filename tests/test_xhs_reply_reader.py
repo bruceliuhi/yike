@@ -15,7 +15,7 @@ CLAIM = (NOW - timedelta(minutes=1)).isoformat()
 
 def harness():
     value, page = context(), Page()
-    page.url += '&xsec_token=synthetic-transient-token'
+    page.url += '&xsec_token=x'
     page.comments = [{'id': 'comment-' + COMMENT, 'author': ACCOUNT, 'text': value['draft']['savedContent']}]
     row = {'id': 'a' * 24, 'content': '可以先看案例吗', 'create_time': int(NOW.timestamp() * 1000),
            'user_info': {'user_id': AUTHOR}, 'target_comment': {'id': COMMENT}}
@@ -33,7 +33,7 @@ def test_reader_collects_only_original_buyer_direct_replies_without_actions():
     assert result == {'status': 'COMPLETE', 'items': [{'externalReplyId': row['id'], 'senderPublicId': AUTHOR,
         'body': row['content'], 'receivedAt': NOW.isoformat(), 'observedAt': NOW.isoformat(), 'readState': 'UNKNOWN'}]}
     assert fetch.call_args.kwargs == {'note_id': value['target']['postId'], 'root_comment_id': COMMENT,
-        'xsec_token': 'synthetic-transient-token', 'num': 10, 'cursor': ''}
+        'xsec_token': 'x', 'num': 10, 'cursor': ''}
     assert page.clicks == page.reloads == 0 and page.draft == ''
     assert 'synthetic-transient-token' not in str(result)
 

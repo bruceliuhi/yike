@@ -122,7 +122,7 @@ def test_effect_input_rejects_secrets_controls_and_oversize(payload):
     {"model": "m", "input": [{"role": "user", "password": "synthetic-value"}],
      "tools": [], "stream": True},
     {"model": "m", "input": [{"role": "user", "content":
-     "source https://example.com/post?xsec_token=synthetic-value"}], "tools": [], "stream": True},
+     "source https://example.com/post?xsec_token=x"}], "tools": [], "stream": True},
     {"model": "m", "input": [{"role": "user", "bad\x00key": "value"}],
      "tools": [], "stream": True},
 ])
