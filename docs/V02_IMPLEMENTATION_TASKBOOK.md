@@ -1,5 +1,14 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+### 2026-09-23 最新同源部署（`4a7aed0`）
+
+- 最新 Gitee `yike-ai2026/main`、本地工作树和生产运行时代码已统一到 `4a7aed06cac6126d5be8f606de69a4953bf4ffae`。本次明确保留用户批准的路径：首次短信验证成功即自助激活连续 72 小时试用，不要求 8 位试用码；旧试用码接口仍可兼容已有管理流程。
+- 生产镜像固定为 `127.0.0.1:18750/yike/server@sha256:dd57139ad6895347d88e0f424c7cb40439e7205158c1672f454d2e08da819b26`，容器 `yike-ai2026-app` 监听 `127.0.0.1:18787`，healthy、重启次数 0、只读根文件系统、非 root、`cap_drop=ALL`、`no-new-privileges`；公网 `/healthz`、`/readyz` 为 200，版本头回报完整 `4a7aed0` SHA，`cp06_validate_env.sh` 预检通过。
+- 线上能力回读仍为 `sms_login=true`，`access_login=false`、`platform_connections=false`、`task_execution=false`、`outreach=false`、`replies=false`。未用临时访问码、手机号后四位、注入会话或手工改库绕过认证。
+- 当前 Mac arm64 包绑定 `https://yike.tuokexing.net`：`desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip`，SHA-256 `fff89087841ec3e6c0bb6a86656b67db935bb2888b7aa90b7b9dd8cd4334c2b9`；ASAR SHA-256 `1506ca86bea68b961896cf7d701f8704adb350082b17e9f17d7418589f84d6bb`。包内未写入手机号、验证码、Cookie、token 或密钥。
+- 本轮验证：桌面登录/手机客户端 **42 passed**，Python 手机/SMS/试用 **26 passed、17 skipped**，`npm run typecheck`、renderer build、Mac arm64 构包通过。此前阿里云实际投递仍返回 `PORT_NOT_REGISTERED`，所以真实收码/登录仍被运营商端口报备阻断；必须先完成端口报备并重新做一次真实收码验收。
+- 真实登录、平台连接、SEARCH→READ→候选→证据和商业价值仍未验收；本次同源部署不等于完整商业上线，状态继续 **HOLD**。
+
 ### 2026-09-23 公网过渡版本记录（`2f75d91`，不作为最终发布）
 
 - Gitee `yike-ai2026/main` 与公网运行时曾短暂核对为 `2f75d91df21cf66a992d29d321d53125c421a0b7`。该版本把首次试用改成仅短信验证，违反已确认的“手机号 + 短信验证码 + 8 位试用码”流程，因此只保留为过渡版本证据，不作为最终发布版本。
