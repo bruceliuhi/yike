@@ -69,9 +69,21 @@ class OpsStore:
             raise OpsError('ops_write_failed') from None
         return {'trial_id':trial,'user_id':user,'code':code,'days':days,'activated_at':None}
 
-    def users(self, *, offset: int = 0) -> list[dict]:
+    def users(self, *, offset: int = 0, query: str = '') -> list[dict]:
         if type(offset) is not int or not 0 <= offset <= 1000000:
             raise OpsError('invalid_page')
+        if not isinstance(query, str) or len(query) > 100 or any(ord(char) < 32 for char in query):
+            raise OpsError('invalid_user_query')
+        query = query.strip()
+        where = ''
+        params: tuple[object, ...] = (offset,)
+        if query:
+            # The operator may search customer names without loading the full
+            # directory into application memory. Keep wildcard characters
+            # literal so the field behaves like a normal substring search.
+            pattern = '%' + query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
+            where = "WHERE t.name ILIKE %s ESCAPE E'\\\\'"
+            params = (pattern, offset)
         with self.database.connect() as c:
             rows = c.execute(
                 'SELECT u.user_id,t.name,u.created_at,a.trial_id,a.phone_ciphertext,a.days,'
@@ -79,7 +91,7 @@ class OpsStore:
                 'FROM pilot_users u JOIN pilot_tenants t ON t.tenant_id=u.tenant_id '
                 'LEFT JOIN pilot_trial_accounts a ON a.user_id=u.user_id '
                 'LEFT JOIN pilot_phone_bindings b ON b.user_id=u.user_id '
-                'ORDER BY u.created_at DESC,u.user_id LIMIT 50 OFFSET %s', (offset,)
+                f'{where} ORDER BY u.created_at DESC,u.user_id LIMIT 50 OFFSET %s', params
             ).fetchall()
         result=[]
         for user,name,created,trial,encrypted,days,activated,expires,revoked,deadline,now,kind,verified in rows:
