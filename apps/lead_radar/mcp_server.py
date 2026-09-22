@@ -25,10 +25,12 @@ try:
         get_search_status,
     )
     from .server import WORKSPACE_ID
+    from .schedule_api import create_schedule, get_schedule, trigger_schedule
     from .storage import Store
 except ImportError:  # running this file directly
     from business_api import API_VERSION, BusinessApiError, create_search_task, enrich_entity, fetch_search_results, get_search_status
     from server import WORKSPACE_ID
+    from schedule_api import create_schedule, get_schedule, trigger_schedule
     from storage import Store
 
 
@@ -87,6 +89,55 @@ TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "type": "object",
             "properties": {"entity_id": {"type": "string", "maxLength": 120}},
             "required": ["entity_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "create_monitor_schedule",
+        "description": "创建带频率、预算、结果阈值和审批策略的本地监测调度；不会立即搜索或触达。",
+        "readOnlyHint": False,
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "objective": {"type": "string", "maxLength": 2000},
+                "criteria": {"type": "object"},
+                "requested_limit": {"type": "integer", "minimum": 1, "maximum": 500},
+                "interval_minutes": {"type": "integer", "minimum": 5, "maximum": 43200},
+                "max_credits_per_run": {"type": "integer", "minimum": 1, "maximum": 1000000},
+                "max_total_credits": {"type": "integer", "minimum": 1, "maximum": 1000000},
+                "min_new_results": {"type": "integer", "minimum": 0, "maximum": 500},
+                "failure_policy": {"type": "string", "enum": ["PAUSE", "CONTINUE"]},
+                "approval_policy": {"type": "string", "enum": ["MANUAL_REVIEW", "DRAFT_ONLY"]},
+                "start_at": {"type": "string"},
+                "created_by": {"type": "string", "maxLength": 120},
+            },
+            "required": ["objective"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "get_monitor_schedule",
+        "description": "读取监测调度、预算消耗、最近运行和失败状态。",
+        "readOnlyHint": True,
+        "inputSchema": {
+            "type": "object",
+            "properties": {"schedule_id": {"type": "string", "maxLength": 120}},
+            "required": ["schedule_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "trigger_monitor_schedule",
+        "description": "对到期监测调度登记一次运行；来源未通过门禁时返回 BLOCKED_SOURCE，不伪造结果。",
+        "readOnlyHint": False,
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "schedule_id": {"type": "string", "maxLength": 120},
+                "actor": {"type": "string", "maxLength": 120},
+                "scheduled_for": {"type": "string"},
+            },
+            "required": ["schedule_id"],
             "additionalProperties": False,
         },
     },
@@ -163,6 +214,18 @@ def build_server(store: Store, workspace_id: str = WORKSPACE_ID):
                 )
             elif name == "enrich_entity":
                 result = enrich_entity(store, workspace_id, args["entity_id"])
+            elif name == "create_monitor_schedule":
+                result = create_schedule(store, workspace_id, args)
+            elif name == "get_monitor_schedule":
+                result = get_schedule(store, workspace_id, args["schedule_id"])
+            elif name == "trigger_monitor_schedule":
+                result = trigger_schedule(
+                    store,
+                    workspace_id,
+                    args["schedule_id"],
+                    args.get("actor", "scheduler"),
+                    args.get("scheduled_for"),
+                )
             else:
                 result = _failure("unknown_tool", "工具不存在。")
         except BusinessApiError as exc:
