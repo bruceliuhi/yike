@@ -21,6 +21,7 @@ python3 apps/lead_radar/server.py --port 8780
 - `POST /api/v1/workspaces/ws_意客AI/tasks`
 - `GET /api/v1/tasks/{task_id}/plan`
 - `POST /api/v1/tasks/{task_id}/start`
+- `POST /api/v1/tasks/{task_id}/execute`
 - `GET /api/v1/tasks/{task_id}/runs/{run_id}/events`
 - `POST /api/v1/tasks/{task_id}/runs/{run_id}/pause|resume|cancel|retry`
 - `POST /api/v1/tasks/{task_id}/capture-url`
@@ -40,6 +41,8 @@ python3 apps/lead_radar/server.py --port 8780
 `capture-urls` 接受最多 50 个用户明确提交的 URL，逐条返回成功项和失败项；重复 URL 使用任务级幂等键，不会重复计费。它是受控导入入口，不等同于平台搜索连接器，也不会自动扩大抓取范围。
 
 任务运行实例现在会记录创建、来源阻塞、暂停、恢复、取消和重试事件。重复执行同一状态操作不会追加重复事件；重试会创建新的运行实例并保留上一实例 ID，方便回放失败原因。运行控制和日志已经具备，真正执行搜索仍必须等来源连接器通过权限、频率、发布时间和证据重开验收。
+
+授权搜索 API 适配器使用以下环境变量：`LEAD_RADAR_SEARCH_ENDPOINT`、`LEAD_RADAR_SEARCH_TOKEN`、`LEAD_RADAR_SEARCH_PROVIDER` 和 `LEAD_RADAR_SEARCH_REOPEN_PROOF=true`。接口必须返回 `{"items": [{"title", "source_url", "snippet", ...}]}`；系统会限制响应体大小、校验 URL 和必填字段、按 URL+标题去重，并把 provider 结果先放入 `REVIEW`。当前代码提供适配器和执行门禁，未配置真实授权服务时不会宣称来源已接通。
 
 `capture-url` 只访问用户明确提交的公网 URL，拒绝内网地址、非标准端口、带凭据 URL、非 HTML 页面和超过 1 MB 的响应。系统只保存正文摘要和内容指纹，结果默认为 `REVIEW`，不会因为页面抓取成功就判断为采购意向。
 

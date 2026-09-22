@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
+try:
+    from .search_connector import capability as authorized_search_capability
+except ImportError:  # running planner.py directly
+    from search_connector import capability as authorized_search_capability
+
 
 CAPABILITIES: list[dict[str, Any]] = [
     {
@@ -74,4 +79,4 @@ CAPABILITIES: list[dict[str, Any]] = [
 
 
 def list_capabilities() -> list[dict[str, Any]]:
-    return [dict(item) for item in CAPABILITIES]
+    return [dict(item) for item in CAPABILITIES] + [authorized_search_capability()]

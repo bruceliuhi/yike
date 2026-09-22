@@ -4,9 +4,9 @@ from itertools import product
 from typing import Any
 
 try:
-    from .connectors import CAPABILITIES
+    from .connectors import list_capabilities
 except ImportError:  # running server.py directly
-    from connectors import CAPABILITIES
+    from connectors import list_capabilities
 
 
 SYNONYMS: dict[str, tuple[str, ...]] = {
@@ -48,7 +48,7 @@ def _query(topic: str, action: str, business: str = "") -> str:
 
 
 def _capability_index(source_ids: list[str]) -> list[dict[str, Any]]:
-    known = {item["id"]: item for item in CAPABILITIES}
+    known = {item["id"]: item for item in list_capabilities()}
     result: list[dict[str, Any]] = []
     for source_id in source_ids:
         item = known.get(source_id)

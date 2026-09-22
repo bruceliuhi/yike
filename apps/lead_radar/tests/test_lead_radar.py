@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import threading
 import unittest
@@ -10,6 +11,7 @@ from unittest.mock import patch
 
 from apps.lead_radar.capture import CaptureError, extract_document
 from apps.lead_radar.server import create_server
+from apps.lead_radar.search_connector import SearchConnectorError
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -253,6 +255,68 @@ class LeadRadarApiTest(unittest.TestCase):
         _, dashboard = self.request("GET", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/dashboard")
         self.assertEqual(dashboard["opportunities"], 1)
         self.assertEqual(dashboard["credits_used"], 1)
+
+    def test_authorized_search_connector_executes_only_after_proof_gate(self) -> None:
+        result_item = {
+            "title": "授权搜索返回的 AI 客服需求",
+            "source_url": "https://buyer.example/request/1",
+            "snippet": "企业正在寻找 AI 客服定制开发团队。",
+            "entity_name": "买方科技",
+            "id": "provider-result-1",
+        }
+        with patch.dict(
+            os.environ,
+            {
+                "LEAD_RADAR_SEARCH_ENDPOINT": "https://search.example/api/search",
+                "LEAD_RADAR_SEARCH_TOKEN": "test-token",
+                "LEAD_RADAR_SEARCH_REOPEN_PROOF": "true",
+            },
+        ), patch("apps.lead_radar.server.AuthorizedSearchConnector.search", return_value=[{
+            "title": result_item["title"],
+            "source_url": result_item["source_url"],
+            "snippet": result_item["snippet"],
+            "entity_name": result_item["entity_name"],
+            "source_kind": "authorized_search_api",
+            "evidence_level": "PROVIDER_ATTESTED",
+            "source_permission": "authorized_api",
+            "evidence_type": "authorized_search_result",
+            "evidence_metadata": {"provider": "test", "provider_result_id": result_item["id"]},
+        }]):
+            status, task = self.request(
+                "POST",
+                "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks",
+                {"objective": "授权搜索 AI 客服需求", "criteria": {"sources": ["authorized_search_api"]}},
+            )
+            self.assertEqual(status, 201)
+            self.assertEqual(task["plan"]["execution"]["status"], "READY")
+            status, executed = self.request("POST", f"/api/v1/tasks/{task['id']}/execute", {"mode": "quick"})
+        self.assertEqual(status, 200)
+        self.assertEqual(executed["created_count"], 1)
+        self.assertEqual(executed["candidate_count"], 1)
+        self.assertEqual(executed["task"]["runs"][0]["status"], "COMPLETED")
+        self.assertEqual(executed["task"]["runs"][0]["events"][-1]["event_type"], "completed")
+        self.assertEqual(executed["task"]["runs"][0]["events"][1]["event_type"], "started")
+        self.assertEqual(executed["task"]["status"], "COMPLETED")
+
+    def test_authorized_search_execution_failure_is_recorded_and_retryable(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "LEAD_RADAR_SEARCH_ENDPOINT": "https://search.example/api/search",
+                "LEAD_RADAR_SEARCH_TOKEN": "test-token",
+                "LEAD_RADAR_SEARCH_REOPEN_PROOF": "true",
+            },
+        ), patch("apps.lead_radar.server.AuthorizedSearchConnector.search", side_effect=SearchConnectorError("provider_unavailable", "测试服务不可用", retryable=True)):
+            _, task = self.request(
+                "POST",
+                "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks",
+                {"objective": "授权搜索失败重试", "criteria": {"sources": ["authorized_search_api"]}},
+            )
+            status, failed = self.request("POST", f"/api/v1/tasks/{task['id']}/execute", {"mode": "quick"})
+        self.assertEqual(status, 502)
+        self.assertEqual(failed["error"], "provider_unavailable")
+        self.assertEqual(failed["task"]["runs"][0]["status"], "FAILED")
+        self.assertEqual(failed["task"]["runs"][0]["events"][-1]["event_type"], "failed")
 
 
 if __name__ == "__main__":

@@ -458,6 +458,72 @@ class Store:
             self._audit(db, row["workspace_id"], "task_run", new_run_id, "retry_created", {"task_id": task_id, "actor": actor, "previous_run_id": run_id, "status": next_status})
         return self.get_task(task_id)
 
+    def begin_task_run(self, task_id: str, run_id: str, actor: str = "worker") -> dict[str, Any] | None:
+        with self.tx() as db:
+            row = db.execute(
+                """SELECT r.*, t.workspace_id FROM task_runs r
+                   JOIN tasks t ON t.id = r.task_id
+                   WHERE r.id = ? AND r.task_id = ?""",
+                (run_id, task_id),
+            ).fetchone()
+            if not row:
+                return None
+            if row["status"] == "RUNNING":
+                return self.get_task(task_id)
+            if row["status"] != "QUEUED":
+                raise ValueError(f"run_start_not_allowed:{row['status']}")
+            timestamp = now_iso()
+            db.execute("UPDATE task_runs SET status = 'RUNNING', started_at = COALESCE(started_at, ?) WHERE id = ?", (timestamp, run_id))
+            db.execute("UPDATE tasks SET status = 'RUNNING', started_at = COALESCE(started_at, ?), finished_at = NULL WHERE id = ?", (timestamp, task_id))
+            self._run_event(db, run_id, "started", "RUNNING", "来源连接器开始执行。", {"actor": actor})
+            self._audit(db, row["workspace_id"], "task_run", run_id, "started", {"task_id": task_id, "actor": actor})
+        return self.get_task(task_id)
+
+    def complete_task_run(self, task_id: str, run_id: str, candidate_count: int, verified_count: int, actor: str = "worker") -> dict[str, Any] | None:
+        with self.tx() as db:
+            row = db.execute(
+                """SELECT r.*, t.workspace_id FROM task_runs r
+                   JOIN tasks t ON t.id = r.task_id
+                   WHERE r.id = ? AND r.task_id = ?""",
+                (run_id, task_id),
+            ).fetchone()
+            if not row:
+                return None
+            if row["status"] == "COMPLETED":
+                return self.get_task(task_id)
+            if row["status"] != "RUNNING":
+                raise ValueError(f"run_complete_not_allowed:{row['status']}")
+            timestamp = now_iso()
+            db.execute(
+                "UPDATE task_runs SET status = 'COMPLETED', candidate_count = ?, verified_count = ?, finished_at = ? WHERE id = ?",
+                (candidate_count, verified_count, timestamp, run_id),
+            )
+            db.execute("UPDATE tasks SET status = 'COMPLETED', finished_at = ? WHERE id = ?", (timestamp, task_id))
+            self._run_event(db, run_id, "completed", "COMPLETED", "来源连接器执行完成。", {"actor": actor, "candidate_count": candidate_count, "verified_count": verified_count})
+            self._audit(db, row["workspace_id"], "task_run", run_id, "completed", {"task_id": task_id, "actor": actor, "candidate_count": candidate_count, "verified_count": verified_count})
+        return self.get_task(task_id)
+
+    def fail_task_run(self, task_id: str, run_id: str, error_code: str, message: str, actor: str = "worker") -> dict[str, Any] | None:
+        with self.tx() as db:
+            row = db.execute(
+                """SELECT r.*, t.workspace_id FROM task_runs r
+                   JOIN tasks t ON t.id = r.task_id
+                   WHERE r.id = ? AND r.task_id = ?""",
+                (run_id, task_id),
+            ).fetchone()
+            if not row:
+                return None
+            if row["status"] == "FAILED":
+                return self.get_task(task_id)
+            if row["status"] != "RUNNING":
+                raise ValueError(f"run_fail_not_allowed:{row['status']}")
+            timestamp = now_iso()
+            db.execute("UPDATE task_runs SET status = 'FAILED', error_code = ?, finished_at = ? WHERE id = ?", (error_code, timestamp, run_id))
+            db.execute("UPDATE tasks SET status = 'FAILED', finished_at = ? WHERE id = ?", (timestamp, task_id))
+            self._run_event(db, run_id, "failed", "FAILED", message, {"actor": actor, "error_code": error_code})
+            self._audit(db, row["workspace_id"], "task_run", run_id, "failed", {"task_id": task_id, "actor": actor, "error_code": error_code})
+        return self.get_task(task_id)
+
     def _run_events(self, run_id: str) -> list[dict[str, Any]]:
         with self.lock:
             rows = self.db.execute(

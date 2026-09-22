@@ -14,12 +14,14 @@ try:
     from .connectors import list_capabilities
     from .domain import compile_intent, evidence_status
     from .planner import build_search_plan
+    from .search_connector import AuthorizedSearchConnector, SearchConnectorError
     from .storage import Store
 except ImportError:  # running server.py directly
     from capture import CaptureError, fetch_public_page
     from connectors import list_capabilities
     from domain import compile_intent, evidence_status
     from planner import build_search_plan
+    from search_connector import AuthorizedSearchConnector, SearchConnectorError
     from storage import Store
 
 
@@ -121,6 +123,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 return self._capture_urls(path.split("/")[-2], payload)
             if path.startswith("/api/v1/tasks/") and path.endswith("/start"):
                 return self._start_task(path.split("/")[-2], payload)
+            if path.startswith("/api/v1/tasks/") and path.endswith("/execute"):
+                return self._execute_task(path.split("/")[-2], payload)
             if path.startswith("/api/v1/tasks/") and path.split("/")[-1] in {"pause", "resume", "cancel", "retry"}:
                 parts = path.split("/")
                 return self._control_run(parts[-4], parts[-2], parts[-1], payload)
@@ -181,6 +185,65 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         latest_run = task.get("runs", [None])[0]
         message = "任务已进入队列。" if latest_run and latest_run["status"] == "QUEUED" else "任务计划已生成，但当前没有通过生产门禁的自动搜索连接器。"
         self._send(200, {**task, "message": message})
+
+    def _execute_task(self, task_id: str, payload: dict[str, Any]) -> None:
+        task = self.store.get_task(task_id)
+        if not task:
+            return self._error(404, "task_not_found", "任务不存在")
+        mode = str(payload.get("mode", "quick"))
+        connector = AuthorizedSearchConnector()
+        capability = connector.preflight()
+        plan = task.get("plan") or {}
+        if capability.get("status") != "READY" or "authorized_search_api" not in plan.get("runnable_sources", []):
+            return self._send(
+                409,
+                {
+                    "error": "source_not_ready",
+                    "message": "当前任务没有通过授权搜索 API 的生产门禁。",
+                    "capability": capability,
+                    "task": task,
+                },
+            )
+        task = self.store.start_task(task_id, mode)
+        if not task:
+            return self._error(404, "task_not_found", "任务不存在")
+        run = task.get("runs", [None])[0]
+        if not run or run.get("status") != "QUEUED":
+            return self._send(409, {"error": "run_not_ready", "message": "任务运行实例当前不能执行。", "task": task, "run": run})
+        run_id = run["id"]
+        self.store.begin_task_run(task_id, run_id)
+        try:
+            results = connector.search(plan, mode)
+            created_count = 0
+            deduplicated_count = 0
+            for item in results:
+                metadata = dict(item.get("evidence_metadata") or {})
+                metadata["run_id"] = run_id
+                item["evidence_metadata"] = metadata
+                opportunity, was_duplicate = self.store.add_opportunity(task_id, item, evidence_status(item))
+                created_count += int(not was_duplicate)
+                deduplicated_count += int(was_duplicate)
+            self.store.record_usage(
+                WORKSPACE_ID,
+                task_id,
+                "authorized_search",
+                1,
+                1 if results else 0,
+                "COMPLETED",
+                f"search:{run_id}:authorized_search_api",
+            )
+            completed = self.store.complete_task_run(task_id, run_id, len(results), sum(1 for item in results if evidence_status(item) == "SEND_READY"))
+            self._send(200, {"task": completed, "run_id": run_id, "created_count": created_count, "deduplicated_count": deduplicated_count, "candidate_count": len(results)})
+        except SearchConnectorError as exc:
+            self.store.record_usage(WORKSPACE_ID, task_id, "authorized_search", 1, 0, "FAILED", f"search:{run_id}:authorized_search_api")
+            failed = self.store.fail_task_run(task_id, run_id, exc.code, exc.message)
+            self._send(502, {"error": exc.code, "message": exc.message, "retryable": exc.retryable, "task": failed, "run_id": run_id})
+        except Exception as exc:
+            self.store.record_usage(WORKSPACE_ID, task_id, "authorized_search", 1, 0, "FAILED", f"search:{run_id}:authorized_search_api")
+            failed = self.store.fail_task_run(task_id, run_id, "connector_internal_error", str(exc))
+            if os.environ.get("LEAD_RADAR_DEBUG"):
+                raise
+            self._send(500, {"error": "connector_internal_error", "message": "来源连接器执行失败。", "task": failed, "run_id": run_id})
 
     def _control_run(self, task_id: str, run_id: str, action: str, payload: dict[str, Any]) -> None:
         actor = str(payload.get("actor", "operator"))
