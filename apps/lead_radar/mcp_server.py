@@ -29,6 +29,7 @@ try:
     from .evaluation_contract import get_evaluation_contract, validate_evaluation_manifest
     from .feed_api import get_feed_event, list_feed, review_feed_event
     from .integrations import list_integrations
+    from .icp_catalog import list_icp_profiles
     from .product_catalog import list_product_catalog
     from .replay_api import get_task_replay
     from .readiness_api import get_production_readiness
@@ -43,6 +44,7 @@ except ImportError:  # running this file directly
     from evaluation_contract import get_evaluation_contract, validate_evaluation_manifest
     from feed_api import get_feed_event, list_feed, review_feed_event
     from integrations import list_integrations
+    from icp_catalog import list_icp_profiles
     from product_catalog import list_product_catalog
     from replay_api import get_task_replay
     from readiness_api import get_production_readiness
@@ -66,6 +68,7 @@ TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
                 "criteria": {"type": "object"},
                 "requested_limit": {"type": "integer", "minimum": 1, "maximum": 500},
                 "profile_id": {"type": "string", "maxLength": 120},
+                "icp_id": {"type": "string", "maxLength": 120},
                 "template_id": {"type": "string", "maxLength": 120},
                 "idempotency_key": {"type": "string", "maxLength": 200},
             },
@@ -75,6 +78,16 @@ TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
     {
         "name": "list_task_templates",
         "description": "读取可复用的中英文搜索任务模板；模板只生成目标和条件，不绕过来源权限门禁。",
+        "readOnlyHint": True,
+        "inputSchema": {
+            "type": "object",
+            "properties": {"language": {"type": "string", "enum": ["zh-CN", "en-US"]}},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "list_icp_profiles",
+        "description": "读取版本化 ICP 买方画像、正向信号、排除条件、证据要求和试点验收线；不会把画像当成真实来源或联系人数据。",
         "readOnlyHint": True,
         "inputSchema": {
             "type": "object",
@@ -359,6 +372,8 @@ def build_server(store: Store, workspace_id: str = WORKSPACE_ID):
                 result = create_search_task(store, workspace_id, args)
             elif name == "list_task_templates":
                 result = {"api_version": API_VERSION, "items": list_task_templates(args.get("language", "zh-CN"))}
+            elif name == "list_icp_profiles":
+                result = {"api_version": API_VERSION, "items": list_icp_profiles(args.get("language", "zh-CN"))}
             elif name == "list_integrations":
                 result = {"api_version": API_VERSION, "items": list_integrations(args.get("language", "zh-CN"))}
             elif name == "list_product_catalog":

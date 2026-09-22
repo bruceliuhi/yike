@@ -11,12 +11,14 @@ from typing import Any
 
 try:
     from .domain import compile_intent
+    from .icp_catalog import get_icp_profile
     from .planner import build_search_plan
     from .presentation import localize_opportunities
     from .storage import Store
     from .templates import get_task_template
 except ImportError:  # running the module directly during local inspection
     from domain import compile_intent
+    from icp_catalog import get_icp_profile
     from planner import build_search_plan
     from presentation import localize_opportunities
     from storage import Store
@@ -119,6 +121,13 @@ def create_search_task(
     criteria = payload.get("criteria") or (template or {}).get("criteria")
     if criteria is not None and not isinstance(criteria, dict):
         raise BusinessApiError("criteria_must_be_object", "criteria 必须是对象。")
+    criteria = dict(criteria or {})
+    icp_id = payload.get("icp_id") or criteria.get("icp_id")
+    if icp_id is not None:
+        icp_id = _required_text(icp_id, "icp_id", 120)
+        if not get_icp_profile(icp_id):
+            raise BusinessApiError("icp_not_found", "ICP 画像不存在。")
+        criteria["icp_id"] = icp_id
     profile_id = payload.get("profile_id")
     if profile_id is not None:
         profile_id = _required_text(profile_id, "profile_id", 120)

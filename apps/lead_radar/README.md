@@ -54,6 +54,7 @@ python3 apps/lead_radar/server.py --port 8780
 - `POST /api/v1/calibration-batches/{batch_id}/items/{item_id}/review`
 - `GET /api/v1/evaluation-contract?language=zh-CN|en-US`
 - `POST /api/v1/evaluation-contract/validate`
+- `GET /api/v1/icp-profiles?language=zh-CN|en-US`
 - `GET /api/v1/workspaces/ws_意客AI/entities`
 - `POST /api/v1/entities/{entity_id}/merge`
 - `POST /api/v1/entities/{entity_id}/split`
@@ -65,6 +66,8 @@ GET /api/v1/task-templates?language=zh-CN 或 en-US 返回首批可复用任务�
 GET /api/v1/integrations?language=zh-CN 或 en-US 返回连接器市场目录，包含授权方式、允许字段、阻断字段和接入前证据要求。目录是声明式能力清单，当前连接器仍明确为 REQUIRES_AUTH 或 REQUIRES_PROOF；它不会把配置项、环境变量或 UI 点击伪装成已接通。
 
 GET /api/v1/product-catalog?language=zh-CN 或 en-US 返回独立于 CRM 的产品模块目录。每个模块声明买方结果、输入输出、当前状态和是否需要外部权利/回写证据，可用于产品包装、报价和生产验收。
+
+GET /api/v1/icp-profiles?language=zh-CN 或 en-US 返回当前首个 ICP `ai_solution_buyer_v1`：AI 解决方案采购方。画像定义正向信号、排除条件、必须保留的证据、评分优先级和试点验收线；创建业务任务时可以传 `icp_id`，未知画像会被拒绝。画像本身是产品假设和验收合同，仍需真实客户访谈与付费试点验证，不能冒充市场事实。
 
 POST /api/v1/tasks/{task_id}/capture-feed 接受用户明确提交的公开 RSS/Atom URL，限制公网地址、XML 类型、大小和条目数量。每条 Feed 条目进入 REVIEW，保留原文链接、发布时间、Feed 内容指纹和可重复计量记录；它不执行社交平台搜索，也不接受 Cookie 或 Token。
 

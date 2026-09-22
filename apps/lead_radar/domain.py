@@ -69,7 +69,7 @@ def compile_intent(objective: str, supplied: dict[str, Any] | None = None) -> di
         defaults = DEFAULT_TERM_GROUPS_EN
     else:
         defaults = DEFAULT_TERM_GROUPS
-    return {
+    result = {
         "objective": objective.strip(),
         "language": language,
         "solution_terms": supplied.get("solution_terms") or matched["solution"] or list(defaults["solution"]),
@@ -92,6 +92,9 @@ def compile_intent(objective: str, supplied: dict[str, Any] | None = None) -> di
             "exclude": "命中排除词后进入人工复核或排除",
         },
     }
+    if supplied.get("icp_id"):
+        result["icp_id"] = str(supplied["icp_id"]).strip()
+    return result
 
 
 def evidence_decision(item: dict[str, Any]) -> dict[str, Any]:

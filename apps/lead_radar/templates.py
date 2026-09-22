@@ -15,6 +15,7 @@ TASK_TEMPLATES: tuple[dict[str, Any], ...] = (
         "objective": "寻找最近 180 天公开表达过 AI 定制开发、企业 AI 应用或智能体落地需求的企业，排除招聘、课程和同行推广。",
         "objective_en": "Find companies that publicly expressed demand for custom AI development, enterprise AI applications, or agent implementation in the last 180 days. Exclude hiring, courses, and competitor promotion.",
         "criteria": {
+            "icp_id": "ai_solution_buyer_v1",
             "intent_types": ["定制开发", "AI 应用", "智能体"],
             "exclude_terms": ["招聘", "课程", "同行推广"],
             "time_window_days": 180,
