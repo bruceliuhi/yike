@@ -2314,7 +2314,8 @@ function CandidateWorkbench() {
                                 original.data.candidate.kind === "PAGE" &&
                                 original.data.observations.items.some(item =>
                                   item.observation_id === original.data!.candidate.current_observation_id &&
-                                  item.normalizer_version === "dynamic-public-read-v1" &&
+                                  (item.normalizer_version === "dynamic-public-read-v1" ||
+                                   item.normalizer_version === "dynamic-public-read-v2") &&
                                   item.collector_version === "public-web-agent-v1")}
                               key={`${candidateIdentity(selected)}:${editor?.profileId}`}
                               binding={{

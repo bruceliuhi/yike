@@ -7,7 +7,7 @@ from pilot.candidate_review_contract import CandidateReviewError
 
 
 def is_dynamic(raw):
-    return (raw['kind'] == 'PAGE' and raw.get('normalizer_version') == 'dynamic-public-read-v1'
+    return (raw['kind'] == 'PAGE' and raw.get('normalizer_version') in {'dynamic-public-read-v1', 'dynamic-public-read-v2'}
         and raw.get('collector_version') == 'public-web-agent-v1')
 
 

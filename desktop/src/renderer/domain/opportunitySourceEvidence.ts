@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {authorUpdateBodySchema} from '../../shared/publicAuthorContext';
 import {humanDemandEvidenceSchema} from '../../shared/candidateReviewApi';
+import {publicPageMetadataSchema,validPageMetadataTimes} from '../../shared/publicPageMetadata';
 
 const FIXED_ERROR = "INVALID_OPPORTUNITY_SOURCE_EVIDENCE";
 const MAX_RESPONSE_BYTES = 2_097_152;
@@ -108,11 +109,15 @@ const sourceSchema = z
     author_public_id: nullableText,
     published_at: timestamp.nullable(),
     parent: parentSchema.nullable(),
+    page_metadata: publicPageMetadataSchema.optional(),
     author_updates:z.array(authorUpdateBodySchema).max(100).refine(v=>v.reduce((n,t)=>n+Array.from(t).length,0)<=20000).optional(),
     source_read_scope:z.enum(['AUTHOR_REPLIES_COUNT_MATCHED_SUPPLEMENTS_UNREAD','AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD','HUMAN_CONFIRMED_EXCERPT']).optional(),
   })
   .strict()
   .superRefine((source, context) => {
+    if (source.page_metadata !== undefined && (source.platform !== 'PUBLIC_WEB' || source.kind !== 'PAGE' ||
+        source.author_public_id !== null || source.source_read_scope !== undefined &&
+        source.source_read_scope !== 'HUMAN_CONFIRMED_EXCERPT')) context.addIssue({code:'custom'});
     if((source.author_updates===undefined)!==(source.source_read_scope===undefined)||source.author_updates!==undefined&&
        (source.kind!=='PAGE'||source.platform!=='PUBLIC_WEB'||
          source.source_read_scope!=='HUMAN_CONFIRMED_EXCERPT'&&(source.author_public_id===null||source.external_source_id===null)))context.addIssue({code:'custom'});
@@ -213,6 +218,8 @@ const snapshotSchema = z
   })
   .strict()
   .superRefine((snapshot, context) => {
+    if (!validPageMetadataTimes(snapshot.source.page_metadata, snapshot.source.published_at,
+        snapshot.observation.observed_at)) context.addIssue({code:'custom'});
     const human = snapshot.source.source_read_scope === 'HUMAN_CONFIRMED_EXCERPT';
     const proof = snapshot.verification.demandEvidence;
     if (human !== (proof !== undefined) || human !== (snapshot.verification.demandEvidenceId !== undefined) ||

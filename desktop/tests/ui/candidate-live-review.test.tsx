@@ -22,6 +22,7 @@ import {
 } from "../fixtures/candidateReviewApi";
 import type { Candidate } from "../../src/renderer/domain/candidates";
 import { rawEvidenceFixture } from "../fixtures/rawCandidateEvidence";
+import { pageMetadataFixture } from '../fixtures/publicPageMetadata';
 
 afterEach(() => {
   cleanup();
@@ -44,6 +45,7 @@ function mount(
     assessmentUnknown?: boolean;
     wrongStrategy?: boolean;
     dynamic?: boolean;
+    metadata?: boolean;
     xhs?: boolean;
   } = {},
 ) {
@@ -53,11 +55,12 @@ function mount(
   if (options.dynamic) {
     Object.assign(raw.candidate, {kind:"PAGE",external_source_id:null,external_comment_id:null});
     const content = { ...raw.candidate.current_version, parent:null,author_public_id:null,
-      body:"TEST采购人 2026年9月10日 需要设备报价" };
+      body:"TEST采购人 2026年9月10日 需要设备报价",
+      ...(options.metadata ? {page_metadata: pageMetadataFixture()} : {}) };
     raw.candidate.current_version = content;
     const {version_id:_id,content_version:_version,...stored} = content;
     Object.assign(raw.observations.items[0], {content:stored,
-      normalizer_version:"dynamic-public-read-v1",collector_version:"public-web-agent-v1"});
+      normalizer_version:options.metadata ? "dynamic-public-read-v2" : "dynamic-public-read-v1",collector_version:"public-web-agent-v1"});
   }
   if (options.published) {
     raw.candidate.current_version.published_at = "2026-09-09T01:00:00Z";
@@ -358,12 +361,14 @@ it("a valid OPEN verification does not invent an unknown original publication da
   expect(document.body.textContent).toContain("本人发布时间未知");
 });
 
-it("dynamic page proof enables inclusion only after an explicit new assessment", async () => {
-  const {transport} = mount({assessed:true,dynamic:true});
+it.each([false, true])("dynamic page proof enables inclusion only after an explicit new assessment (metadata=%s)", async metadata => {
+  const {transport} = mount({assessed:true,dynamic:true,metadata});
   await ready();
   const form = screen.getByRole("region", {name:"人工来源核验"});
   fireEvent.change(within(form).getByLabelText("来源状态"),{target:{value:"OPEN"}});
   fireEvent.click(await within(form).findByRole("checkbox",{name:"确认需求发言人和时间"}));
+  expect((within(form).getByLabelText('需求作者定位') as HTMLInputElement).value).toBe('');
+  expect((within(form).getByLabelText('需求日期') as HTMLInputElement).value).toBe('');
   for (const [name,value] of Object.entries({"定位描述":"原网页TEST第2楼", "原文逐字摘录":"需要设备报价",
     "需求作者定位":"TEST第2楼", "原文作者标记":"TEST采购人", "本人需求摘录":"需要设备报价",
     "需求日期":"2026-09-10", "原文时间表示":"2026年9月10日", "联系路径":"COMMENT"})) {

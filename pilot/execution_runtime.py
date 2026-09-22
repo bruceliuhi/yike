@@ -46,6 +46,9 @@ def _raw_model(value):
         if isinstance(value, CandidateRecord) and value.source_context is None \
                 and 'source_context' not in value.__pydantic_fields_set__:
             raw.pop('source_context', None)
+        if isinstance(value, CandidateRecord) and value.page_metadata is None \
+                and 'page_metadata' not in value.__pydantic_fields_set__:
+            raw.pop('page_metadata', None)
         if isinstance(value, CandidateBatch) and value.native_progress is None \
                 and 'native_progress' not in value.__pydantic_fields_set__:
             raw.pop('native_progress', None)

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {sourceContextSchema,validAuthorTimes} from './publicAuthorContext';
+import {publicPageMetadataSchema,validPageMetadataTimes} from './publicPageMetadata';
 import { candidatePlatformSchema, candidateRequestIdSchema } from "./candidateReviewApi";
 
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
@@ -31,6 +32,7 @@ const parent = z.object({
 }).strict().readonly();
 const contentShape = {
   source_context:sourceContextSchema.optional(),
+  page_metadata:publicPageMetadataSchema.optional(),
   public_url: publicUrl,
   // COMMENT title is the container/original-post title, never a buyer assertion.
   title: text(512).nullable(),
@@ -149,14 +151,16 @@ function sameContent(a: Content, b: Content): boolean {
     a.author_public_id === b.author_public_id && a.body === b.body &&
     a.published_at === b.published_at &&
     // Both parents have already been parsed into the same strict ordered shape.
-    JSON.stringify(a.parent) === JSON.stringify(b.parent) && JSON.stringify(a.source_context)===JSON.stringify(b.source_context);
+    JSON.stringify(a.parent) === JSON.stringify(b.parent) && JSON.stringify(a.source_context)===JSON.stringify(b.source_context) &&
+    JSON.stringify(a.page_metadata) === JSON.stringify(b.page_metadata);
 }
 
 function validSourceTimes(source: Content, observedAt: string): boolean {
   const observed = Date.parse(observedAt);
   const publication = source.published_at === null ? null : Date.parse(source.published_at);
   const parentPublication = source.parent?.published_at;
-  return validAuthorTimes(source.source_context,source.published_at,observedAt) && (publication === null || publication <= observed) &&
+  return validPageMetadataTimes(source.page_metadata,source.published_at,observedAt) &&
+    validAuthorTimes(source.source_context,source.published_at,observedAt) && (publication === null || publication <= observed) &&
     (parentPublication == null || Date.parse(parentPublication) <= (publication ?? observed));
 }
 
@@ -173,7 +177,9 @@ export function parseRawCandidateEvidence(raw: unknown, expected: unknown): RawC
       new Set(history.items.map((entry) => entry.observation_id)).size !== history.items.length)
       throw new Error();
 
-    const validParent = (source: Content) => (!source.source_context||item.platform==='PUBLIC_WEB'&&item.kind==='PAGE'&&
+    const validParent = (source: Content) => (source.page_metadata === undefined ||
+      item.platform === 'PUBLIC_WEB' && item.kind === 'PAGE' && source.source_context === undefined && source.author_public_id === null) &&
+      (!source.source_context||item.platform==='PUBLIC_WEB'&&item.kind==='PAGE'&&
       item.external_source_id!==null&&source.author_public_id!==null) && (source.parent === null ||
       (item.kind === "COMMENT" && source.parent.external_comment_id !== item.external_comment_id));
     if (!validParent(item.current_version) ||
@@ -187,6 +193,7 @@ export function parseRawCandidateEvidence(raw: unknown, expected: unknown): RawC
         entry.strategy_version_id !== item.strategy_version_id || !validParent(entry.content) ||
         !validSourceTimes(entry.content, entry.observed_at) ||
         entry.content.source_context!==undefined&&entry.normalizer_version!=='v2ex-author-page-v1' ||
+        entry.content.page_metadata!==undefined&&entry.normalizer_version!=='dynamic-public-read-v2' ||
         Date.parse(entry.observed_at) > Date.parse(entry.received_at) ||
         Date.parse(entry.observed_at) > Date.parse(item.latest_observed_at)) throw new Error();
       const known = versions.get(entry.version_id);

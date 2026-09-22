@@ -8,10 +8,12 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
 import { ResearchDraftHandoff } from "../../src/renderer/pages/opportunities/ResearchDraftHandoff";
 import { clearLocalDrafts } from "../../src/renderer/app/hooks";
 import { useTaskDraft, useTaskLibrary } from "../../src/renderer/app/taskDraft";
 import { newTaskDraft, type TaskDraft } from "../../src/renderer/domain/models";
+import { defaultResearchSettings } from "../../src/renderer/domain/researchUsage";
 import type { AppContextValue } from "../../src/renderer/app/context";
 import type { YikeService } from "../../src/renderer/services/contracts";
 import { parseRoute } from "../../src/renderer/domain/routes";
@@ -81,7 +83,7 @@ afterEach(() => {
 });
 async function prepare() {
   await screen.findByDisplayValue(researchProfile.description);
-  fireEvent.click(screen.getByRole("checkbox", { name: "公开网站" }));
+  expect(screen.getByRole("checkbox", { name: "公开网站" })).toBeChecked();
   fireEvent.change(screen.getByRole("spinbutton", { name: "单次搜贝上限" }), {
     target: { value: "50" },
   });
@@ -142,6 +144,7 @@ describe("R4 local task handoff", () => {
     expect(observed.draft.id).toBe(observed.library[0].id);
     expect(observed.draft.platforms).toEqual(["web"]);
     expect(observed.draft.research?.maxSoubei).toBe(50);
+    expect(observed.draft.research?.limits).toEqual({ sources: 30, minutes: 10, modelCalls: 50 });
     expect(observed.draft.research?.provenance).toMatchObject({
       opportunityId: researchRow.id,
       evidenceVersion: "v2",
@@ -152,6 +155,11 @@ describe("R4 local task handoff", () => {
       ...newTaskDraft(),
       id: "old-task",
       name: "TEST 未保存原任务",
+      research: {
+        ...defaultResearchSettings(),
+        maxSoubei: 17,
+        limits: { sources: 4, minutes: 3, modelCalls: 2 },
+      },
       terms: [
         {
           id: "human",
@@ -172,11 +180,13 @@ describe("R4 local task handoff", () => {
     await screen.findByRole("dialog", { name: "切换到相似研究草稿？" });
     expect(context.navigate).not.toHaveBeenCalled();
     expect(observed.draft.id).toBe("old-task");
+    expect(observed.draft.research).toEqual(old.research);
     fireEvent.click(screen.getByRole("button", { name: "保留旧草稿并继续" }));
     await waitFor(() => expect(context.navigate).toHaveBeenCalledOnce());
     expect(observed.library.find((d) => d.id === "old-task")?.terms).toEqual(
       old.terms,
     );
+    expect(observed.library.find((d) => d.id === "old-task")?.research).toEqual(old.research);
     expect(observed.library).toHaveLength(2);
     expect(observed.draft.id).not.toBe("old-task");
   });

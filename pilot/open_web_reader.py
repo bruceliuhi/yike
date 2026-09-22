@@ -13,12 +13,15 @@ from pathlib import Path
 from urllib.parse import parse_qsl, quote, urlsplit, urlunsplit
 
 from pilot.candidate_contract import _normalize_host, _validate_url
+from pilot.open_web_reader_worker import validate_page_metadata
 
 _MAX_SECONDS = 20.0
 _WORKER = Path(__file__).with_name("open_web_reader_worker.py")
 _CODES = {"invalid_url", "unavailable", "unsupported_content", "too_large", "timeout",
           "not_found", "unsupported_media_type", "access_restricted", "rate_limited", "connection_unavailable"}
 _RESULT_KEYS = {"url", "title", "text", "observed_at", "content_sha256", "read_scope"}
+_RESULT_SHAPES = (_RESULT_KEYS, _RESULT_KEYS | {"links"}, _RESULT_KEYS | {"page_metadata"},
+                  _RESULT_KEYS | {"links", "page_metadata"})
 _UTC_TIME = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
 _CREDENTIAL_QUERY_KEYS = {
     "apikey", "accesskey", "accesskeyid", "secretkey", "secretaccesskey",
@@ -70,8 +73,10 @@ class _ReadScope:
 def valid_page_evidence(value, url: str) -> bool:
     """Validate exact, internally consistent public-page evidence."""
     try:
-        if type(value) is not dict or set(value) not in (_RESULT_KEYS, _RESULT_KEYS | {"links"}):
+        if type(value) is not dict or set(value) not in _RESULT_SHAPES:
             return False
+        if "page_metadata" in value:
+            validate_page_metadata(value["page_metadata"], observed_at=value["observed_at"])
         links = value.get("links", [])
         if (type(links) is not list or len(links) > 50
                 or any(type(link) is not str or normalize_public_url(link) != link for link in links)
@@ -88,7 +93,7 @@ def valid_page_evidence(value, url: str) -> bool:
             and observed <= datetime.now(timezone.utc)
             and value["content_sha256"] == hashlib.sha256(text.encode("utf-8")).hexdigest()
         )
-    except (KeyError, ValueError, TypeError, UnicodeError, PublicReadError):
+    except (KeyError, ValueError, TypeError, UnicodeError, OverflowError, AttributeError, PublicReadError):
         return False
 
 
@@ -187,7 +192,7 @@ def _read_public_page(url: str, *, deadline: datetime, lock, active, stopped) ->
         if message.get("ok") is not True:
             raise PublicReadError(message.get("code", "unavailable"))
         result = message["result"]
-        if type(result) is not dict or set(result) not in (_RESULT_KEYS, _RESULT_KEYS | {"links"}):
+        if type(result) is not dict or set(result) not in _RESULT_SHAPES:
             raise ValueError
         result = _sanitize_page_links(result)
         text = result["text"]

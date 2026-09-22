@@ -13,7 +13,18 @@ uv run --frozen --extra research python -m pilot.research_tools --max-reads 5 --
 
 第二条命令启动标准 MCP stdio 服务，供父级研究 Harness 通过 stdin/stdout 使用，终端等待输入是正常状态。不会监听 HTTP 端口，不读取平台 Cookie、Codex 登录态、业务数据库或模型密钥。宿主应使用独立环境启动，不把主服务凭据传给工具进程。
 
-默认只有 `read_public_page({"url":"https://example.com/"})`：返回实际提取的标题/原文、读取时间、文本SHA256、读取范围 `PUBLIC_PAGE_TEXT` 与 `UNREVIEWED` 标识。读取不是事实核验或需求判断，不自动提取/断言作者和发布日期。宿主明确启用下述搜索模式后增加搜索工具；两种模式均没有登录、写库、审批或发送能力。
+默认只有 `read_public_page({"url":"https://example.com/"})`：返回实际提取的标题/原文、读取时间、文本SHA256、读取范围 `PUBLIC_PAGE_TEXT` 与 `UNREVIEWED` 标识。读取不是事实核验或需求判断；明确网页声明按下文保留，不断言已核验买方身份或需求日期。宿主明确启用下述搜索模式后增加搜索工具；两种模式均没有登录、写库、审批或发送能力。
+
+### 网页标注证据增量（2026-09-22，未发布）
+
+可选 `page_metadata` 使用 `schema_version=public-page-metadata-v1`，严格包含 `publication` 与 `author`（至少一项非null）。只读取当前HTML head的 `meta property/name=article:published_time/datepublished/author`；不猜正文中的任意日期、不把修改时间、HTTP Date或采集时间当发布时间，不解析脚本/评论/附件。多项冲突、非法、未来或过多声明不补猜。缺失时仍兼容旧六字段或附links结果。
+
+- `publication`：`raw`、`declaration`、`value`、`precision`。DATE为真实日历日期；LOCAL_SECOND为未注明时区的秒级本地时间；SECOND仅接受明确Z/±HH:mm时区并规范为UTC。保留原值，不替DATE补午夜，不给LOCAL_SECOND猜时区。UTC+14只用于拒绝不可能的未来本地时间，不是赋予时区。
+- `author`：`raw`、`declaration=author`、`value`，为网页声明的公开名称，不当作平台用户ID/需求发言人。
+- READ正文与正文SHA不变，完整工具结果摘要覆盖声明；候选 `dynamic-public-read-v2` 将声明纳入原文内容版本和不可变留存。仅SECOND投影 `published_at`，`author_public_id`仍未知。网页的人工归属/时间补证、重新判断与纳入门禁对v1/v2同样适用。
+- 候选原文、固定机会证据显示声明原值、日期精度与身份限制。新字段不静默剥离来迁就旧客户端；发布需要同批服务/客户端，旧记录与摘要不变。
+
+这是特定声明格式的证据补全，不意味着所有站点的作者/时间已提取、资格截止已核验或真实商机已通过。
 
 2026-09-13 导航增量：成功原文可携带 `links`（最多50个规范化、去重的匿名HTTPS锚点URL）。它们只供同任务继续读取，不是已读原文或采购证据。旧六字段结果仍兼容；字段不能由模型自行补写。动态客户任务搜索单类上限为min(10,sources-1)、读取单类上限为sources-1，保证搜索不能用光共同额度、至少留一次READ尝试；两者不是独立预算，总量始终受同一持久来源许可限制，不锁死纠偏搜索可用的余额。
 

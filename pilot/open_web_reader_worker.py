@@ -9,7 +9,7 @@ import re
 import socket
 import ssl
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta, date
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 
@@ -19,6 +19,95 @@ MAX_HEADER_BYTES = 64 * 1024
 MAX_TITLE_CHARS = 1000
 _HIDDEN_TAGS = {"script", "style", "noscript", "template", "svg", "canvas"}
 _VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+
+
+def _metadata_text(value, limit):
+    if (type(value) is not str or not 1 <= len(value) <= limit or value != value.strip().strip('\ufeff')
+            or any(ord(c) < 32 or 127 <= ord(c) <= 159 or 0xD800 <= ord(c) <= 0xDFFF for c in value)):
+        raise ValueError("invalid page metadata")
+    return value
+
+
+def _publication_claim(raw, declaration):
+    raw = _metadata_text(raw, 128)
+    if declaration not in {"article:published_time", "datepublished"}:
+        raise ValueError("invalid publication declaration")
+    if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", raw):
+        value, precision = date.fromisoformat(raw).isoformat(), "DATE"
+    else:
+        if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:Z|[+-][0-9]{2}:[0-9]{2})?", raw) is None:
+            raise ValueError("invalid publication time")
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            value, precision = parsed.isoformat(timespec="seconds"), "LOCAL_SECOND"
+        else:
+            offset = raw[-6:] if not raw.endswith("Z") else "+00:00"
+            if int(offset[-2:]) > 59 or int(offset[1:3]) > 14 or int(offset[1:3]) == 14 and int(offset[-2:]):
+                raise ValueError("invalid publication offset")
+            try:
+                value = parsed.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+            except OverflowError:
+                raise ValueError("publication outside supported calendar") from None
+            precision = "SECOND"
+    return {"raw": raw, "declaration": declaration, "value": value, "precision": precision}
+
+
+def validate_page_metadata(value, *, observed_at=None):
+    """Validate retained publisher declarations without inferring identity/timezone."""
+    if (type(value) is not dict or set(value) != {"schema_version", "publication", "author"}
+            or value["schema_version"] != "public-page-metadata-v1"):
+        raise ValueError("invalid page metadata")
+    publication, author = value["publication"], value["author"]
+    if publication is None and author is None:
+        raise ValueError("empty page metadata")
+    if publication is not None:
+        if (type(publication) is not dict or set(publication) != {"raw", "declaration", "value", "precision"}
+                or _publication_claim(publication["raw"], publication["declaration"]) != publication):
+            raise ValueError("inconsistent publication claim")
+        if observed_at is not None:
+            observed = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+            if observed.tzinfo is None:
+                raise ValueError("missing observation timezone")
+            observed = observed.astimezone(timezone.utc)
+            # Unknown timezone must stay unknown. +14 is only the latest possible
+            # local wall-clock bound, never an assigned publication timezone.
+            maximum_local = (observed + timedelta(hours=14)).replace(tzinfo=None)
+            if publication["precision"] == "DATE":
+                future = date.fromisoformat(publication["value"]) > maximum_local.date()
+            elif publication["precision"] == "LOCAL_SECOND":
+                future = datetime.fromisoformat(publication["value"]) > maximum_local
+            else:
+                future = datetime.fromisoformat(publication["value"].replace("Z", "+00:00")) > observed
+            if future:
+                raise ValueError("future publication declaration")
+    if author is not None:
+        if (type(author) is not dict or set(author) != {"raw", "declaration", "value"}
+                or author["declaration"] != "author" or _metadata_text(author["raw"], 256) != author["value"]):
+            raise ValueError("inconsistent author declaration")
+    return value
+
+
+def _page_metadata(claims, observed_at):
+    if len(claims) > 16:
+        return None
+    result = {"schema_version": "public-page-metadata-v1", "publication": None, "author": None}
+    for field in ("publication", "author"):
+        values, invalid = [], False
+        for declaration, raw in claims:
+            if (declaration == "author") != (field == "author"):
+                continue
+            try:
+                claim = ({"raw": _metadata_text(raw, 256), "declaration": "author", "value": raw}
+                         if field == "author" else _publication_claim(raw, declaration))
+                checked = result | {field: claim}
+                validate_page_metadata(checked, observed_at=observed_at)
+                if claim not in values:
+                    values.append(claim)
+            except (ValueError, TypeError, OverflowError):
+                invalid = True
+        if not invalid and len(values) == 1:
+            result[field] = values[0]
+    return result if result["publication"] is not None or result["author"] is not None else None
 
 
 class WorkerError(RuntimeError):
@@ -46,6 +135,7 @@ class _VisibleHTML(HTMLParser):
         self.text_parts: list[str] = []
         self.title_parts: list[str] = []
         self.links: list[str] = []
+        self.metadata_claims: list[tuple[str, str]] = []
 
     def handle_starttag(self, tag, attrs):
         values = {key.lower(): (value or "").lower() for key, value in attrs}
@@ -55,6 +145,17 @@ class _VisibleHTML(HTMLParser):
                   or values.get("aria-hidden") == "true"
                   or "display:none" in style or "visibility:hidden" in style)
         title = tag == "title"
+        if (tag == "meta" and not hidden and not self.hidden_depth
+                and any(item[0] == "head" for item in self.stack)
+                and not any(item[0] == "body" for item in self.stack)):
+            attrs_raw = dict(attrs)
+            declaration = values.get("property") or values.get("name")
+            raw = attrs_raw.get("content")
+            if declaration in {"article:published_time", "datepublished", "author"}:
+                # Bounded, and a conflicting/oversized declaration is not silently
+                # discarded in favour of whichever declaration happened to be first.
+                if len(self.metadata_claims) <= 16:
+                    self.metadata_claims.append((declaration, raw.strip() if type(raw) is str else ""))
         if tag == "a" and not hidden and not self.hidden_depth and not self.title_depth:
             href = dict(attrs).get("href")
             if (type(href) is str and href.strip() and len(href) <= 2048
@@ -113,7 +214,7 @@ def _read_body(response: http.client.HTTPResponse) -> bytes:
     return body
 
 
-def _decode(body: bytes, content_type: str, *, links=None) -> tuple[str, str | None]:
+def _decode(body: bytes, content_type: str, *, links=None, metadata_claims=None) -> tuple[str, str | None]:
     media_type, *parameters = content_type.split(";")
     media_type = media_type.strip().lower()
     # A missing/malformed type is not a confirmed unsupported format.
@@ -146,6 +247,8 @@ def _decode(body: bytes, content_type: str, *, links=None) -> tuple[str, str | N
         title = title_value[:MAX_TITLE_CHARS] or None
         if links is not None:
             links.extend(parser.links)
+        if metadata_claims is not None:
+            metadata_claims.extend(parser.metadata_claims)
     if len(text) > MAX_TEXT_CHARS:
         raise WorkerError("too_large")
     return text, title
@@ -211,8 +314,8 @@ def read_request(request: dict) -> dict:
         if response.getheader("Content-Encoding") not in (None, "identity"):
             raise WorkerError("unsupported_content")
         body = _read_body(response)
-        links = []
-        text, title = _decode(body, response.getheader("Content-Type") or "", links=links)
+        links, metadata_claims = [], []
+        text, title = _decode(body, response.getheader("Content-Type") or "", links=links, metadata_claims=metadata_claims)
     except WorkerError:
         raise
     except (OSError, ssl.SSLError, http.client.HTTPException, UnicodeError):
@@ -229,9 +332,13 @@ def read_request(request: dict) -> dict:
             resolved_links.append(urljoin(url, href))
         except ValueError:
             continue
-    return {"url": url, "title": title, "text": text, "observed_at": observed_at,
+    result = {"url": url, "title": title, "text": text, "observed_at": observed_at,
             "content_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
             "read_scope": "PUBLIC_PAGE_TEXT", "links": resolved_links}
+    metadata = _page_metadata(metadata_claims, observed_at)
+    if metadata is not None:
+        result["page_metadata"] = metadata
+    return result
 
 
 def main() -> int:

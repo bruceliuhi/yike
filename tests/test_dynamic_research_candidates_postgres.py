@@ -155,6 +155,24 @@ def test_background_selection_persists_zero_item_without_consuming_record(journa
     assert context["skipped_background_count"] == 1 and used == 0
 
 
+def test_page_metadata_survives_journal_candidate_and_replay(journal_env):
+    from tests.test_public_page_metadata import metadata
+    env = journal_env
+    value = read_result()
+    value["evidence"]["page_metadata"] = metadata()
+    successful_read(env, value=value)
+    first = publish(env)
+    assert first["accepted_count"] == 1
+    assert publish(env) == first
+    with env.admin.connect() as connection:
+        content = connection.execute("SELECT content FROM pilot_candidate_versions WHERE tenant_id=%s", (env.tenant,)).fetchone()[0]
+        normalizer = connection.execute("SELECT normalizer_version FROM pilot_candidate_observations WHERE tenant_id=%s", (env.tenant,)).fetchone()[0]
+    assert content["page_metadata"] == metadata()
+    assert content["published_at"] is None and content["author_public_id"] is None
+    assert normalizer == "dynamic-public-read-v2"
+    assert row_counts(env)["pilot_candidate_observations"] == 1
+
+
 def test_selection_quote_mismatch_fails_and_conflicting_replay_is_rejected(journal_env):
     env = journal_env; value = read_result(); successful_read(env, value=value)
     good = selection(value["evidence"])

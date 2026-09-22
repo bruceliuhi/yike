@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Button, formatDate } from "../../components/ui";
 import type { OpportunitySourceEvidence } from "../../domain/opportunitySourceEvidence";
+import { PublicPageMetadata } from './PublicPageMetadata';
 
 type CapturedEvidence = Extract<
   OpportunitySourceEvidence,
@@ -152,6 +153,8 @@ export function FixedSourceEvidence({
           <EvidenceTime value={snapshot.captured_at} />
         </Fact>
       </dl>
+
+      {source.page_metadata && <PublicPageMetadata metadata={source.page_metadata} />}
 
       {source.kind === "COMMENT" && (
         <section className="fixed-evidence-context" data-testid="comment-context">

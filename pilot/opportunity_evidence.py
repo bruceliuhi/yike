@@ -7,6 +7,7 @@ import json
 import re
 from uuid import UUID
 from pilot.candidate_review_contract import DemandEvidence
+from pilot.open_web_reader_worker import validate_page_metadata
 
 
 SCHEMA_VERSION = "opportunity-source-evidence-v1"
@@ -163,6 +164,8 @@ def _public_source(raw):
         result["author_updates"] = [_text(_mapping(item)["body"]) for item in replies]
         result["source_read_scope"] = ("AUTHOR_REPLIES_COUNT_MATCHED_SUPPLEMENTS_UNREAD"
             if context["replies_complete"] is True else "AUTHOR_REPLIES_PARTIAL_SUPPLEMENTS_UNREAD")
+    if "page_metadata" in content:
+        result["page_metadata"] = validate_page_metadata(content["page_metadata"])
     return result
 
 
@@ -305,7 +308,8 @@ def _validate_public_payload(payload, *, opportunity_id, profile_version_id):
     observation = _mapping(payload["observation"])
     assessment = _mapping(payload["assessment"])
     verification = _mapping(payload["verification"])
-    if set(source) not in (_SOURCE_FIELDS, _AUTHOR_SOURCE_FIELDS) or set(observation) != _OBSERVATION_FIELDS:
+    if set(source) not in (_SOURCE_FIELDS, _AUTHOR_SOURCE_FIELDS,
+                          _SOURCE_FIELDS | {"page_metadata"}, _AUTHOR_SOURCE_FIELDS | {"page_metadata"}) or set(observation) != _OBSERVATION_FIELDS:
         raise ValueError
     if set(assessment) != _ASSESSMENT_FIELDS or set(verification) not in (_VERIFICATION_FIELDS,_HUMAN_VERIFICATION_FIELDS):
         raise ValueError
@@ -318,6 +322,14 @@ def _validate_public_payload(payload, *, opportunity_id, profile_version_id):
     for key in ("external_source_id", "external_comment_id", "title", "container_title", "author_public_id"):
         _text(source[key], nullable=True)
     _timestamp(source["published_at"], nullable=True)
+    if "page_metadata" in source:
+        metadata = validate_page_metadata(source["page_metadata"], observed_at=observation["observed_at"])
+        publication = metadata["publication"]
+        published = publication["value"] if publication is not None and publication["precision"] == "SECOND" else None
+        if (source["platform"] != "PUBLIC_WEB" or source["kind"] != "PAGE"
+                or source["author_public_id"] is not None or source["published_at"] != published
+                or source.get("source_read_scope") not in (None, "HUMAN_CONFIRMED_EXCERPT")):
+            raise ValueError
     human = 'demandEvidence' in verification
     if human:
         demand = DemandEvidence.model_validate(verification['demandEvidence']).model_dump()

@@ -1,6 +1,7 @@
 import React, { type ReactNode } from "react";
 import type { RawCandidateEvidenceDto } from "../../../shared/rawCandidateEvidence";
 import { formatDate } from "../../components/ui";
+import { PublicPageMetadata } from './PublicPageMetadata';
 import "./candidateEvidence.css";
 
 type Candidate = RawCandidateEvidenceDto["candidate"];
@@ -41,6 +42,7 @@ function OriginalContent({
     | "parent"
     | "public_url"
     | "source_context"
+    | "page_metadata"
   >;
   kind: Candidate["kind"];
 }) {
@@ -66,6 +68,7 @@ function OriginalContent({
           {content.title ?? "未知"}
         </Fact>
       </dl>
+      {content.page_metadata && <PublicPageMetadata metadata={content.page_metadata} />}
       {content.source_context ? <section aria-label="作者后续更新">
         <h4>作者后续更新</h4>
         <p className="muted">接口回复已读 {content.source_context.replies_read} / {content.source_context.replies_expected??'未知'}；

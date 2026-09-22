@@ -411,7 +411,7 @@ describe("R4 similar research local draft preview", () => {
     );
     await screen.findByDisplayValue(researchProfile.description);
     expect(screen.queryByRole("checkbox", { name: "抖音" })).toBeNull();
-    fireEvent.click(screen.getByRole("checkbox", { name: "公开网站" }));
+    expect(screen.getByRole("checkbox", { name: "公开网站" })).toBeChecked();
     fireEvent.change(screen.getByRole("spinbutton", { name: "单次搜贝上限" }), {
       target: { value: "50" },
     });
@@ -439,7 +439,7 @@ describe("R4 similar research local draft preview", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "新任务名称" }), {
       target: { value: "TEST 人工新名称" },
     });
-    fireEvent.click(screen.getByRole("checkbox", { name: "公开网站" }));
+    expect(screen.getByRole("checkbox", { name: "公开网站" })).toBeChecked();
     context.service.opportunityResearch!.list = vi.fn().mockResolvedValue({
       ...collection,
       records: [
@@ -494,7 +494,7 @@ describe("R4 similar research local draft preview", () => {
       />,
     );
     await screen.findByDisplayValue(researchProfile.description);
-    fireEvent.click(screen.getByRole("checkbox", { name: "公开网站" }));
+    expect(screen.getByRole("checkbox", { name: "公开网站" })).toBeChecked();
     context.service.opportunityResearch!.list = vi.fn().mockResolvedValue({
       ...collection,
       records: [
@@ -522,7 +522,7 @@ describe("R4 similar research local draft preview", () => {
       />,
     );
     await screen.findByDisplayValue(researchProfile.description);
-    fireEvent.click(screen.getByRole("checkbox", { name: "公开网站" }));
+    expect(screen.getByRole("checkbox", { name: "公开网站" })).toBeChecked();
     context.service.opportunityResearch!.list = vi.fn(
       () =>
         new Promise<typeof collection>((resolve) => {
@@ -551,7 +551,7 @@ describe("R4 similar research local draft preview", () => {
       />,
     );
     await screen.findByDisplayValue(researchProfile.description);
-    fireEvent.click(screen.getByRole("checkbox", { name: "公开网站" }));
+    expect(screen.getByRole("checkbox", { name: "公开网站" })).toBeChecked();
     context.service.opportunityResearch!.list = vi.fn(
       () =>
         new Promise<typeof collection>((resolve) => {

@@ -33,6 +33,8 @@ import {
 } from "../../domain/opportunityResearch";
 import { errorMessage } from "../../services/contracts";
 import { readResearchRecord } from "../../services/opportunityResearch";
+import { defaultResearchSettings } from "../../domain/researchUsage";
+import { similarResearchDefaultPlatforms } from "../../domain/similarResearchDefaults";
 import { isSample } from "./OpportunityEvidence";
 import "./research.css";
 
@@ -165,11 +167,16 @@ function SimilarForm({
   const [exclusions, setExclusions] = useState(() =>
     makeTerms(plan.exclusions),
   );
-  const [platforms, setPlatforms] = useState<PlatformId[]>([]);
+  const [defaultPlatforms] = useState(() =>
+    similarResearchDefaultPlatforms(row.platform, plan.supportedPlatforms),
+  );
+  const [platforms, setPlatforms] = useState<PlatformId[]>(defaultPlatforms);
   const [name, setName] = useState(`${row.title.slice(0, 50)} · 相似研究`);
   const [sources, setSources] = useState("30");
   const [minutes, setMinutes] = useState("10");
-  const [soubei, setSoubei] = useState("");
+  const [soubei, setSoubei] = useState(() =>
+    String(defaultResearchSettings().maxSoubei ?? ""),
+  );
   const [dirty, setDirty] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -469,7 +476,10 @@ function SimilarForm({
               ))}
             </div>
             <small className="muted">
-              仅显示服务支持的平台；账号与采集能力在任务确认前检查。
+              {defaultPlatforms.length
+                ? "仅预选当前机会来源，可修改；不继承原任务全部平台。"
+                : "当前机会来源未匹配服务支持的平台，请手动选择本次搜索平台。"}
+              账号与采集能力在任务确认前检查。
             </small>
           </Field>
           <Field label="范围变化">

@@ -199,6 +199,31 @@ class SourceContext(_Frozen):
             raise ValueError("author replies too large")
         return self
 
+class PagePublication(_Frozen):
+    raw: str
+    declaration: Literal["article:published_time", "datepublished"]
+    value: str
+    precision: Literal["DATE", "SECOND", "LOCAL_SECOND"]
+
+
+class PageAuthor(_Frozen):
+    raw: str
+    declaration: Literal["author"]
+    value: str
+
+
+class PageMetadata(_Frozen):
+    schema_version: Literal["public-page-metadata-v1"]
+    publication: PagePublication | None
+    author: PageAuthor | None
+
+    @model_validator(mode="after")
+    def claims(self):
+        from pilot.open_web_reader_worker import validate_page_metadata
+        validate_page_metadata(self.model_dump(mode="json"))
+        return self
+
+
 class CandidateRecord(_Frozen):
     kind: Literal["POST", "COMMENT", "PAGE"]
     external_source_id: str | None
@@ -214,12 +239,15 @@ class CandidateRecord(_Frozen):
     normalizer_version: str
     query: str | None
     source_context: SourceContext | None = None
+    page_metadata: PageMetadata | None = None
 
     @model_serializer(mode='wrap')
     def preserve_absent_source_context(self, handler):
         value = handler(self)
         if self.source_context is None and 'source_context' not in self.__pydantic_fields_set__:
             value.pop('source_context', None)
+        if self.page_metadata is None and 'page_metadata' not in self.__pydantic_fields_set__:
+            value.pop('page_metadata', None)
         return value
 
     @field_validator("external_source_id", "external_comment_id")
@@ -256,6 +284,18 @@ class CandidateRecord(_Frozen):
         if self.source_context is not None and (self.kind != "PAGE" or not self.external_source_id
                 or not self.author_public_id or self.normalizer_version != "v2ex-author-page-v1"):
             raise ValueError("invalid source context relation")
+        if self.page_metadata is None and "page_metadata" in self.__pydantic_fields_set__:
+            raise ValueError("page metadata cannot be null")
+        if self.page_metadata is not None:
+            from pilot.open_web_reader_worker import validate_page_metadata
+            if (self.kind != "PAGE" or self.normalizer_version != "dynamic-public-read-v2"
+                    or self.source_context is not None or self.author_public_id is not None):
+                raise ValueError("invalid page metadata relation")
+            validate_page_metadata(self.page_metadata.model_dump(mode="json"), observed_at=self.observed_at)
+            publication = self.page_metadata.publication
+            projected = publication.value if publication is not None and publication.precision == "SECOND" else None
+            if self.published_at != projected:
+                raise ValueError("invalid publication projection")
         return self
 
 class CandidateBatch(_Frozen):
@@ -299,6 +339,8 @@ def content_version(record: CandidateRecord) -> str:
         "parent":None if record.parent is None else record.parent.model_dump(mode="json")}
     if record.source_context is not None:
         value["source_context"] = record.source_context.model_dump(mode="json")
+    if record.page_metadata is not None:
+        value["page_metadata"] = record.page_metadata.model_dump(mode="json")
     return _digest(value)
 
 def batch_fingerprint(batch: CandidateBatch) -> str:
@@ -352,6 +394,7 @@ def validate_candidate_batch(payload: object, *, now: datetime) -> CandidateBatc
         except ValidationError: raise CandidateContractError("INVALID_RECORD") from None
         if item.kind == "PAGE" and platform != "PUBLIC_WEB": raise CandidateContractError("INVALID_RECORD") from None
         if item.source_context is not None and platform != "PUBLIC_WEB": raise CandidateContractError("INVALID_RECORD") from None
+        if item.page_metadata is not None and platform != "PUBLIC_WEB": raise CandidateContractError("INVALID_RECORD") from None
         if item.external_source_id is None and platform != "PUBLIC_WEB": raise CandidateContractError("INVALID_RECORD") from None
         try:
             _validate_url(item.public_url, platform)

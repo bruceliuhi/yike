@@ -26,11 +26,13 @@ class PageModel(BoundaryModel):
         return value, dict(prompt_tokens=2, completion_tokens=1, total_tokens=3)
 
 
-def setup_page(env):
+def setup_page(env, *, with_metadata=False):
     day = datetime.now(UTC).date().isoformat()
     body = CONTENT['body'] + '\n小王 ' + day + '\n第三方：我已找到供应商'
+    from tests.test_public_page_metadata import metadata
     binding = seed(env, body=body, published_at=None, author_public_id=None,
-        normalizer_version='dynamic-public-read-v1', collector_version='public-web-agent-v1')
+        normalizer_version='dynamic-public-read-v2' if with_metadata else 'dynamic-public-read-v1',
+        collector_version='public-web-agent-v1', **({'page_metadata': metadata()} if with_metadata else {}))
     return binding, evidence(publishedDate=day, dateExcerpt=day), body
 
 
@@ -39,8 +41,9 @@ def include(binding, assessed, check):
         sourceVerificationId=check['id'], humanConfirmed=True, evidence=assessment()['evidence'], reason='人工归属和时间确认')
 
 
-def test_mixed_page_supplement_reassess_include_preserves_raw_and_personal_evidence(env):
-    b, declaration, body = setup_page(env)
+@pytest.mark.parametrize('with_metadata', [False, True])
+def test_mixed_page_supplement_reassess_include_preserves_raw_and_personal_evidence(env, with_metadata):
+    b, declaration, body = setup_page(env, with_metadata=with_metadata)
     model = PageModel()
     service = store(env, model)
     before = service.review(env.claims, review_payload(b))
@@ -72,6 +75,10 @@ def test_mixed_page_supplement_reassess_include_preserves_raw_and_personal_evide
     assert saved['source']['body'] == body and saved['source']['published_at'] is None
     assert saved['verification']['demandEvidence'] == declaration
     assert saved['verification']['demandEvidenceId'] == check['id']
+    if with_metadata:
+        assert saved['source']['page_metadata']['author']['value'] == '企业采购部'
+        assert saved['source']['author_public_id'] is None
+        assert saved['source']['page_metadata']['publication']['value'] != declaration['publishedDate']
 
 
 @pytest.mark.parametrize('field', ['authorExcerpt','demandExcerpt','dateExcerpt'])

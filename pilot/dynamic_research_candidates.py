@@ -33,6 +33,10 @@ def _json(value):
 def _record(entry):
     evidence = entry["result"]["evidence"]
     observed = datetime.fromisoformat(evidence["observed_at"]).astimezone(UTC)
+    metadata = evidence.get("page_metadata")
+    publication = metadata.get("publication") if type(metadata) is dict else None
+    published = (publication.get("value") if type(publication) is dict
+                 and publication.get("precision") == "SECOND" else None)
     try:
         return CandidateRecord.model_validate({
             "kind": "PAGE",
@@ -44,12 +48,13 @@ def _record(entry):
             "title": evidence["title"],
             "author_public_id": None,
             "body": evidence["text"],
-            "published_at": None,
+            "published_at": published,
             "observed_at": observed.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "parent": None,
             "collector_version": "public-web-agent-v1",
-            "normalizer_version": "dynamic-public-read-v1",
+            "normalizer_version": "dynamic-public-read-v2" if "page_metadata" in evidence else "dynamic-public-read-v1",
             "query": None,
+            **({"page_metadata": metadata} if "page_metadata" in evidence else {}),
         })
     except (ValidationError, ValueError, UnicodeError, OverflowError):
         # A successful read remains in the durable journal. Candidate storage
