@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import hmac
 import json
 import mimetypes
 import os
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
@@ -80,6 +82,48 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
 
     def _error(self, status: int, code: str, message: str) -> None:
         self._send(status, {"error": code, "message": message})
+
+    @staticmethod
+    def _is_management_path(path: str) -> bool:
+        """Return whether *path* changes or reveals API access state.
+
+        These endpoints are a local/control-plane surface.  They must not be
+        protected by a customer API key: accepting the same key here would let
+        a leaked integration credential mint another credential or change its
+        own quota.
+        """
+
+        return (
+            path.endswith("/api-keys")
+            or path.endswith("/quota")
+            or path.endswith("/usage")
+            or (path.startswith("/api/v1/api-keys/") and path.endswith("/revoke"))
+        )
+
+    def _authorize_management(self) -> None:
+        """Authorize the API-key/quota control plane.
+
+        A configured admin token is always required.  For the default local
+        developer server, loopback access remains available when API-key
+        enforcement is disabled, preserving the existing local workflow.  A
+        strict Business API deployment without an admin token fails closed,
+        even when the request originates from loopback.
+        """
+
+        configured = str(getattr(self.server, "admin_token", "") or "")  # type: ignore[attr-defined]
+        supplied = self.headers.get("X-Admin-Token", "")
+        if configured:
+            if not supplied or not hmac.compare_digest(supplied, configured):
+                raise ApiAccessError("admin_token_required", "管理接口需要有效的管理员令牌。", 401)
+            return
+
+        require_api_key = bool(getattr(self.server, "require_api_key", False))  # type: ignore[attr-defined]
+        try:
+            loopback = ip_address(self.client_address[0]).is_loopback
+        except (IndexError, ValueError):
+            loopback = False
+        if require_api_key or not loopback:
+            raise ApiAccessError("admin_token_required", "管理接口尚未配置管理员令牌。", 401)
 
     def _settle_api_request(self, status: int) -> None:
         context = getattr(self, "api_context", None)
@@ -225,6 +269,11 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True, "service": "lead-radar", "workspace_id": WORKSPACE_ID})
         if path == "/api/v1/sources/capabilities":
             return self._send(200, {"items": list_capabilities()})
+        if self._is_management_path(path):
+            try:
+                self._authorize_management()
+            except ApiAccessError as exc:
+                return self._error(exc.status, exc.code, exc.message)
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/api-keys":
             return self._send(200, {"items": self.store.list_api_keys(WORKSPACE_ID), "secret_delivery": "shown_once_on_create"})
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/quota":
@@ -342,6 +391,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = unquote(parsed.path).rstrip("/")
         try:
+            if self._is_management_path(path):
+                self._authorize_management()
             payload = self._body()
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/api-keys":
                 label = str(payload.get("label", "")).strip()
@@ -1131,11 +1182,19 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             super().log_message(format, *args)
 
 
-def create_server(host: str = "127.0.0.1", port: int = 8780, db_path: str = "lead_radar.sqlite3", require_api_key: bool | None = None) -> ThreadingHTTPServer:
+def create_server(
+    host: str = "127.0.0.1",
+    port: int = 8780,
+    db_path: str = "lead_radar.sqlite3",
+    require_api_key: bool | None = None,
+    admin_token: str | None = None,
+) -> ThreadingHTTPServer:
     server = ThreadingHTTPServer((host, port), LeadRadarHandler)
     server.store = Store(db_path)  # type: ignore[attr-defined]
     configured_auth = os.environ.get("LEAD_RADAR_REQUIRE_API_KEY", "").strip().lower() in {"1", "true", "yes", "on"}
     server.require_api_key = configured_auth if require_api_key is None else bool(require_api_key)  # type: ignore[attr-defined]
+    configured_admin_token = os.environ.get("LEAD_RADAR_ADMIN_TOKEN", "") if admin_token is None else admin_token
+    server.admin_token = str(configured_admin_token or "").strip()  # type: ignore[attr-defined]
     return server
 
 
