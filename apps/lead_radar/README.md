@@ -21,6 +21,8 @@ python3 apps/lead_radar/server.py --port 8780
 - `POST /api/v1/workspaces/ws_意客AI/tasks`
 - `GET /api/v1/tasks/{task_id}/plan`
 - `POST /api/v1/tasks/{task_id}/start`
+- `GET /api/v1/tasks/{task_id}/runs/{run_id}/events`
+- `POST /api/v1/tasks/{task_id}/runs/{run_id}/pause|resume|cancel|retry`
 - `POST /api/v1/tasks/{task_id}/capture-url`
 - `POST /api/v1/tasks/{task_id}/capture-urls`
 - `POST /api/v1/tasks/{task_id}/opportunities`
@@ -36,6 +38,8 @@ python3 apps/lead_radar/server.py --port 8780
 实体主档支持人工合并和按单条机会拆分。操作会把关联关系写入审计事件，并保留机会原始证据；“合并”只移动机会与实体的关系，“拆分”只改变选中机会的实体归属，不会删除来源内容。
 
 `capture-urls` 接受最多 50 个用户明确提交的 URL，逐条返回成功项和失败项；重复 URL 使用任务级幂等键，不会重复计费。它是受控导入入口，不等同于平台搜索连接器，也不会自动扩大抓取范围。
+
+任务运行实例现在会记录创建、来源阻塞、暂停、恢复、取消和重试事件。重复执行同一状态操作不会追加重复事件；重试会创建新的运行实例并保留上一实例 ID，方便回放失败原因。运行控制和日志已经具备，真正执行搜索仍必须等来源连接器通过权限、频率、发布时间和证据重开验收。
 
 `capture-url` 只访问用户明确提交的公网 URL，拒绝内网地址、非标准端口、带凭据 URL、非 HTML 页面和超过 1 MB 的响应。系统只保存正文摘要和内容指纹，结果默认为 `REVIEW`，不会因为页面抓取成功就判断为采购意向。
 
