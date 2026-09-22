@@ -7,7 +7,7 @@ import { errorMessage } from "../services/contracts";
 import type { Session } from "../domain/models";
 import { safeReturnTo } from "../domain/routes";
 import { Button, Field, Modal, Notice } from "../components/ui";
-import logo from "../assets/logo.png";
+import logo from "../assets/logo.webp";
 
 export function LoginPage() {
   const { service, session, route, navigate, refreshSession } = useApp();

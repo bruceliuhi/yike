@@ -25,7 +25,7 @@ import {
   ArrowLeft,
   SignIn,
 } from "@phosphor-icons/react";
-import logo from "../assets/logo.png";
+import logo from "../assets/logo.webp";
 import { useApp } from "./context";
 import { NAV, safeReturnTo, type AppRoute } from "../domain/routes";
 import { Empty, Button } from "../components/ui";
