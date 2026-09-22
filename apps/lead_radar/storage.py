@@ -15,9 +15,11 @@ from urllib.parse import urlparse
 try:
     from .api_access import api_key_hash, issue_api_key
     from .domain import evidence_decision, now_iso, normalize
+    from .qualification import score_opportunity
 except ImportError:  # running server.py directly
     from api_access import api_key_hash, issue_api_key
     from domain import evidence_decision, now_iso, normalize
+    from qualification import score_opportunity
 
 
 SCHEMA = """
@@ -1556,10 +1558,14 @@ class Store:
 
     def add_opportunity(self, task_id: str, item: dict[str, Any], status: str) -> tuple[dict[str, Any], bool]:
         with self.lock:
-            task = self.db.execute("SELECT workspace_id FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            task = self.db.execute("SELECT workspace_id, criteria_json FROM tasks WHERE id = ?", (task_id,)).fetchone()
         if not task:
             raise KeyError("task_not_found")
         workspace_id = task["workspace_id"]
+        try:
+            criteria = json.loads(task["criteria_json"] or "{}")
+        except (TypeError, json.JSONDecodeError):
+            criteria = {}
         dedup_input = f"{workspace_id}|{normalize(item['source_url'])}|{normalize(item['title'])}"
         dedup_key = hashlib.sha256(dedup_input.encode("utf-8")).hexdigest()
         opportunity_id = _id("opp")
@@ -1568,7 +1574,11 @@ class Store:
         # not be fed back as an operator override: REVIEW is the normal state for
         # newly captured evidence, and the decision code should still explain why
         # that evidence needs review (for example CAPTURED_PAGE_NEEDS_REVIEW).
+        qualification = score_opportunity(item, criteria)
         decision = item.get("decision") or evidence_decision(item)
+        if not isinstance(decision, dict):
+            decision = evidence_decision(item)
+        decision = {**decision, "qualification": qualification}
         with self.tx() as db:
             existing = db.execute(
                 "SELECT * FROM opportunities WHERE workspace_id = ? AND dedup_key = ?",
@@ -1600,7 +1610,7 @@ class Store:
                     item["snippet"],
                     item.get("evidence_level", "UNVERIFIED"),
                     item.get("source_permission", "unknown"),
-                    float(item.get("score", 0)),
+                    float(qualification["score"]),
                     _json(decision),
                     dedup_key,
                     timestamp,
