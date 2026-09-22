@@ -15,10 +15,12 @@ from urllib.parse import urlparse
 try:
     from .api_access import api_key_hash, issue_api_key
     from .domain import evidence_decision, now_iso, normalize
+    from .presentation import localize_opportunity
     from .qualification import score_opportunity
 except ImportError:  # running server.py directly
     from api_access import api_key_hash, issue_api_key
     from domain import evidence_decision, now_iso, normalize
+    from presentation import localize_opportunity
     from qualification import score_opportunity
 
 
@@ -2287,6 +2289,7 @@ class Store:
         workspace_id: str,
         status: str | None = None,
         limit: int = 5000,
+        language: str = "zh-CN",
     ) -> tuple[str, int]:
         """Export evidence-backed opportunities without exporting hidden contacts."""
 
@@ -2307,18 +2310,20 @@ class Store:
         with self.lock:
             rows = self.db.execute(query, params).fetchall()
         items = [self._opportunity_dict(row) for row in rows]
+        localized_items = [localize_opportunity(item or {}, language) for item in items]
         fieldnames = [
             "opportunity_id", "status", "title", "author", "published_at",
             "intent_type", "industry_location", "source_kind", "source_url",
             "snippet", "evidence_level", "source_permission", "score",
             "decision_reason", "decision_next_action", "entity_name",
             "entity_website_host", "evidence_count", "reopen_check_count",
-            "created_at", "updated_at",
+            "created_at", "updated_at", "status_label", "source_kind_label",
+            "decision_code_label", "qualification_band_label",
         ]
         output = io.StringIO(newline="")
         writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
-        for item in items:
+        for item in localized_items:
             item = item or {}
             decision = item.get("decision") or {}
             entity = (item.get("entities") or [{}])[0]
@@ -2345,6 +2350,10 @@ class Store:
                 "reopen_check_count": sum(1 for row in evidence if row.get("evidence_type") == "reopen_check"),
                 "created_at": item.get("created_at", ""),
                 "updated_at": item.get("updated_at", ""),
+                "status_label": (item.get("presentation") or {}).get("status_label", ""),
+                "source_kind_label": (item.get("presentation") or {}).get("source_kind_label", ""),
+                "decision_code_label": (item.get("presentation") or {}).get("decision_code_label", ""),
+                "qualification_band_label": (item.get("presentation") or {}).get("qualification_band_label", ""),
             })
         return "\ufeff" + output.getvalue(), len(items)
 
