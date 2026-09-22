@@ -34,11 +34,11 @@ RELEASE_GATE_IDS = (
     "production_https_and_customer_uat",
 )
 REQUIRED_ARTIFACT_KINDS = {
-    "authorized_source_proof": {"capability_receipt", "source_reopen"},
+    "authorized_source_proof": {"capability_receipt", "source_reopen", "source_save_retry"},
     "autonomous_research_run": {"search_read_run", "candidate_evidence"},
-    "real_sample_calibration": {"calibration_batch"},
-    "production_database_and_recovery": {"migration", "backup_restore", "rollback"},
-    "production_https_and_customer_uat": {"https_probe", "customer_uat"},
+    "real_sample_calibration": {"calibration_batch", "calibration_metrics"},
+    "production_database_and_recovery": {"migration", "database_acl", "backup_restore", "rollback"},
+    "production_https_and_customer_uat": {"runtime_revision", "https_probe", "customer_uat"},
 }
 
 
@@ -82,18 +82,35 @@ def _artifact_ref(artifact: Any, *, gate_id: str, index: int) -> str:
         if not isinstance(path_value, str) or not os.path.isabs(path_value):
             raise EvidenceValidationError(f"{gate_id}.artifacts[{index}].path must be an absolute path")
         path = Path(path_value)
+        if path.is_symlink():
+            raise EvidenceValidationError(f"{gate_id}.artifacts[{index}].path must not be a symbolic link")
         if not path.is_file():
             raise EvidenceValidationError(f"{gate_id}.artifacts[{index}].path does not exist: {path_value}")
+        try:
+            path.resolve().relative_to(ROOT.resolve())
+        except ValueError:
+            pass
+        else:
+            raise EvidenceValidationError(
+                f"{gate_id}.artifacts[{index}].path must be outside the repository"
+            )
         actual = hashlib.sha256(path.read_bytes()).hexdigest()
         if actual != digest:
             raise EvidenceValidationError(f"{gate_id}.artifacts[{index}].path SHA-256 does not match sha256")
         return path_value
     if not isinstance(uri_value, str) or not uri_value.strip() or any(char.isspace() for char in uri_value):
-        raise EvidenceValidationError(f"{gate_id}.artifacts[{index}].uri must be a non-empty URI")
+        raise EvidenceValidationError(f"{gate_id}.artifacts[{index}].uri must be a non-empty HTTPS URI")
     parsed = urlsplit(uri_value)
-    if not parsed.scheme or not parsed.netloc or parsed.username or parsed.password or parsed.query or parsed.fragment:
+    if (
+        parsed.scheme != "https"
+        or not parsed.netloc
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
         raise EvidenceValidationError(
-            f"{gate_id}.artifacts[{index}].uri must be an uncredentialed URI without query or fragment"
+            f"{gate_id}.artifacts[{index}].uri must be an uncredentialed HTTPS URI without query or fragment"
         )
     return uri_value
 
@@ -134,6 +151,8 @@ def validate_evidence_manifest(payload: Any, *, revision: str) -> dict[str, Any]
         kinds = set()
         for index, item in enumerate(artifacts):
             _artifact_ref(item, gate_id=gate_id, index=index)
+            if item["kind"] in kinds:
+                raise EvidenceValidationError(f"{gate_id}.artifacts contains duplicate kind: {item['kind']}")
             kinds.add(item["kind"])
         missing = REQUIRED_ARTIFACT_KINDS[gate_id] - kinds
         if missing:

@@ -24,11 +24,11 @@ def _module():
 def _manifest(module):
     revision = module._git_revision()[0]
     artifacts = {
-        "authorized_source_proof": ["capability_receipt", "source_reopen"],
+        "authorized_source_proof": ["capability_receipt", "source_reopen", "source_save_retry"],
         "autonomous_research_run": ["search_read_run", "candidate_evidence"],
-        "real_sample_calibration": ["calibration_batch"],
-        "production_database_and_recovery": ["migration", "backup_restore", "rollback"],
-        "production_https_and_customer_uat": ["https_probe", "customer_uat"],
+        "real_sample_calibration": ["calibration_batch", "calibration_metrics"],
+        "production_database_and_recovery": ["migration", "database_acl", "backup_restore", "rollback"],
+        "production_https_and_customer_uat": ["runtime_revision", "https_probe", "customer_uat"],
     }
     gates = {}
     for gate_id, kinds in artifacts.items():
@@ -108,14 +108,19 @@ def test_evidence_manifest_rejects_revision_mismatch() -> None:
         module.validate_evidence_manifest(manifest, revision=module._git_revision()[0])
 
 
-def test_evidence_manifest_rejects_credentialed_uri() -> None:
+def test_evidence_manifest_rejects_non_https_or_credentialed_uri() -> None:
     module = _module()
     manifest = _manifest(module)
     manifest["gates"]["authorized_source_proof"]["artifacts"][0]["uri"] = (
         "https://user:secret@evidence.example/capability"
     )
 
-    with pytest.raises(module.EvidenceValidationError, match="uncredentialed URI"):
+    with pytest.raises(module.EvidenceValidationError, match="uncredentialed HTTPS URI"):
+        module.validate_evidence_manifest(manifest, revision=module._git_revision()[0])
+
+    manifest = _manifest(module)
+    manifest["gates"]["authorized_source_proof"]["artifacts"][0]["uri"] = "http://evidence.example/capability"
+    with pytest.raises(module.EvidenceValidationError, match="uncredentialed HTTPS URI"):
         module.validate_evidence_manifest(manifest, revision=module._git_revision()[0])
 
 
@@ -134,4 +139,22 @@ def test_evidence_manifest_recomputes_local_artifact_digest(tmp_path: Path) -> N
     artifact.write_text("tampered", encoding="utf-8")
 
     with pytest.raises(module.EvidenceValidationError, match="SHA-256"):
+        module.validate_evidence_manifest(manifest, revision=module._git_revision()[0])
+
+
+def test_evidence_manifest_rejects_repository_path_and_duplicate_kind() -> None:
+    module = _module()
+    manifest = _manifest(module)
+    artifact = manifest["gates"]["authorized_source_proof"]["artifacts"][0]
+    artifact.pop("uri")
+    artifact["path"] = str(ROOT / "scripts" / "release_candidate_check.py")
+    artifact["sha256"] = hashlib.sha256(Path(artifact["path"]).read_bytes()).hexdigest()
+
+    with pytest.raises(module.EvidenceValidationError, match="outside the repository"):
+        module.validate_evidence_manifest(manifest, revision=module._git_revision()[0])
+
+    manifest = _manifest(module)
+    artifacts = manifest["gates"]["authorized_source_proof"]["artifacts"]
+    artifacts.append(dict(artifacts[0]))
+    with pytest.raises(module.EvidenceValidationError, match="duplicate kind"):
         module.validate_evidence_manifest(manifest, revision=module._git_revision()[0])
