@@ -11,12 +11,28 @@ TERM_GROUPS: dict[str, tuple[str, ...]] = {
     "exclude": ("教程", "学习", "课程", "分享", "招聘信息", "广告", "推广", "同行", "自媒体"),
 }
 
+TERM_GROUPS_EN: dict[str, tuple[str, ...]] = {
+    "solution": ("ai customer service", "enterprise knowledge base", "ai agent", "workflow automation", "digital human", "large language model"),
+    "purchase": ("looking for vendor", "custom development", "procurement", "budget", "supplier", "implementation", "tender"),
+    "business": ("enterprise", "company", "team", "retail", "government", "finance", "education", "healthcare", "ecommerce", "manufacturing"),
+    "exclude": ("tutorial", "course", "learning", "job posting", "advertisement", "promotion", "competitor", "creator"),
+}
+
 DEFAULT_TERM_GROUPS: dict[str, tuple[str, ...]] = {
     "solution": ("AI客服", "企业知识库", "智能体", "AI工作流", "数字人"),
     "purchase": ("找服务商", "定制开发", "采购", "预算", "外包", "落地"),
     "business": ("企业", "公司", "团队"),
     "exclude": ("教程", "课程", "学习", "招聘", "广告", "推广", "同行"),
 }
+
+DEFAULT_TERM_GROUPS_EN: dict[str, tuple[str, ...]] = {
+    "solution": ("AI customer service", "enterprise knowledge base", "AI agent", "workflow automation", "digital human"),
+    "purchase": ("looking for vendor", "custom development", "procurement", "budget", "implementation"),
+    "business": ("enterprise", "company", "team"),
+    "exclude": ("tutorial", "course", "learning", "job posting", "advertisement", "competitor"),
+}
+
+SUPPORTED_LANGUAGES = {"zh-CN", "en-US"}
 
 
 def now_iso() -> str:
@@ -42,12 +58,24 @@ def compile_intent(objective: str, supplied: dict[str, Any] | None = None) -> di
         for group, terms in TERM_GROUPS.items()
     }
     supplied = supplied or {}
+    language = str(supplied.get("language") or ("zh-CN" if any("\u4e00" <= character <= "\u9fff" for character in objective) else "en-US")).strip()
+    if language not in SUPPORTED_LANGUAGES:
+        raise ValueError("language_not_supported")
+    if language == "en-US":
+        matched = {
+            group: [term for term in terms if term in text]
+            for group, terms in TERM_GROUPS_EN.items()
+        }
+        defaults = DEFAULT_TERM_GROUPS_EN
+    else:
+        defaults = DEFAULT_TERM_GROUPS
     return {
         "objective": objective.strip(),
-        "solution_terms": supplied.get("solution_terms") or matched["solution"] or list(DEFAULT_TERM_GROUPS["solution"]),
-        "purchase_terms": supplied.get("purchase_terms") or matched["purchase"] or list(DEFAULT_TERM_GROUPS["purchase"]),
-        "business_terms": supplied.get("business_terms") or matched["business"] or list(DEFAULT_TERM_GROUPS["business"]),
-        "exclude_terms": supplied.get("exclude_terms") or matched["exclude"] or list(DEFAULT_TERM_GROUPS["exclude"]),
+        "language": language,
+        "solution_terms": supplied.get("solution_terms") or matched["solution"] or list(defaults["solution"]),
+        "purchase_terms": supplied.get("purchase_terms") or matched["purchase"] or list(defaults["purchase"]),
+        "business_terms": supplied.get("business_terms") or matched["business"] or list(defaults["business"]),
+        "exclude_terms": supplied.get("exclude_terms") or matched["exclude"] or list(defaults["exclude"]),
         "time_window_days": int(supplied.get("time_window_days", 180)),
         "regions": supplied.get("regions", []),
         "sources": supplied.get(

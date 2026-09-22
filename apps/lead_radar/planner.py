@@ -25,6 +25,19 @@ SYNONYMS: dict[str, tuple[str, ...]] = {
     "落地": ("落地", "实施", "上线"),
 }
 
+SYNONYMS_EN: dict[str, tuple[str, ...]] = {
+    "AI customer service": ("AI customer service", "AI support agent", "customer service automation"),
+    "enterprise knowledge base": ("enterprise knowledge base", "internal knowledge base", "document Q&A"),
+    "AI agent": ("AI agent", "business agent", "copilot"),
+    "workflow automation": ("workflow automation", "business automation", "process automation"),
+    "digital human": ("digital human", "virtual human", "digital employee"),
+    "looking for vendor": ("looking for vendor", "seeking a provider", "vendor search"),
+    "custom development": ("custom development", "bespoke software", "implementation partner"),
+    "procurement": ("procurement", "purchasing", "buying"),
+    "budget": ("budget", "project budget", "pricing"),
+    "implementation": ("implementation", "deployment", "rollout"),
+}
+
 
 def _unique(values: list[str]) -> list[str]:
     result: list[str] = []
@@ -37,16 +50,19 @@ def _unique(values: list[str]) -> list[str]:
     return result
 
 
-def _expand(terms: list[str]) -> list[str]:
+def _expand(terms: list[str], language: str = "zh-CN") -> list[str]:
     expanded: list[str] = []
+    synonyms = SYNONYMS_EN if language == "en-US" else SYNONYMS
+    lowered = {key.lower(): value for key, value in synonyms.items()}
     for term in terms:
-        expanded.extend(SYNONYMS.get(term, (term,)))
+        expanded.extend(synonyms.get(term, lowered.get(term.lower(), (term,))))
     return _unique(expanded)
 
 
-def _query(topic: str, action: str, business: str = "") -> str:
+def _query(topic: str, action: str, business: str = "", language: str = "zh-CN") -> str:
     suffix = f" {business}" if business else ""
-    return f'"{topic}" "{action}"{suffix} -教程 -课程 -纯招聘'
+    excluded = "-tutorial -course -job posting" if language == "en-US" else "-教程 -课程 -纯招聘"
+    return f'"{topic}" "{action}"{suffix} {excluded}'
 
 
 def _capability_index(source_ids: list[str]) -> list[dict[str, Any]]:
@@ -78,8 +94,9 @@ def _capability_index(source_ids: list[str]) -> list[dict[str, Any]]:
 
 
 def build_search_plan(criteria: dict[str, Any], requested_limit: int) -> dict[str, Any]:
-    topics = _expand(list(criteria.get("solution_terms", [])))[:8]
-    actions = _expand(list(criteria.get("purchase_terms", [])))[:8]
+    language = str(criteria.get("language") or "zh-CN")
+    topics = _expand(list(criteria.get("solution_terms", [])), language)[:8]
+    actions = _expand(list(criteria.get("purchase_terms", [])), language)[:8]
     businesses = _unique(list(criteria.get("business_terms", [])))[:4]
     regions = _unique(list(criteria.get("regions", [])))[:6]
     if not topics:
@@ -88,9 +105,9 @@ def build_search_plan(criteria: dict[str, Any], requested_limit: int) -> dict[st
         actions = ["找服务商"]
 
     combinations = list(product(topics[:4], actions[:4]))
-    quick = [_query(topic, action) for topic, action in combinations[:8]]
-    condition = [_query(topic, action, business) for topic, action, business in product(topics[:3], actions[:3], businesses[:2] or [""])][:10]
-    broad = [_query(topic, action) for topic, action in product(topics[4:8] or topics[:2], actions[4:8] or actions[:2])][:10]
+    quick = [_query(topic, action, language=language) for topic, action in combinations[:8]]
+    condition = [_query(topic, action, business, language) for topic, action, business in product(topics[:3], actions[:3], businesses[:2] or [""])][:10]
+    broad = [_query(topic, action, language=language) for topic, action in product(topics[4:8] or topics[:2], actions[4:8] or actions[:2])][:10]
     if regions:
         region_hint = " OR ".join(regions)
         condition = [f"({query}) ({region_hint})" for query in condition]
@@ -123,6 +140,7 @@ def build_search_plan(criteria: dict[str, Any], requested_limit: int) -> dict[st
     estimated_max = quick_credits + condition_credits + broad_credits if known_quotes else None
     return {
         "planner_version": "2026.09.23.1",
+        "language": language,
         "requested_limit": requested_limit,
         "strategies": [
             {"id": "quick", "name": "快速搜索", "purpose": "先拿到少量高相关候选", "queries": quick, "estimated_credits": quick_credits},
