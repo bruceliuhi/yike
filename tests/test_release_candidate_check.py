@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import sys
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +19,41 @@ def _module():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _manifest(module):
+    revision = module._git_revision()[0]
+    artifacts = {
+        "authorized_source_proof": ["capability_receipt", "source_reopen"],
+        "autonomous_research_run": ["search_read_run", "candidate_evidence"],
+        "real_sample_calibration": ["calibration_batch"],
+        "production_database_and_recovery": ["migration", "backup_restore", "rollback"],
+        "production_https_and_customer_uat": ["https_probe", "customer_uat"],
+    }
+    gates = {}
+    for gate_id, kinds in artifacts.items():
+        gates[gate_id] = {
+            "status": "PASS",
+            "verified_at": "2026-09-23T10:00:00Z",
+            "verified_by": "release-test",
+            "environment": "isolated-test",
+            "notes": "evidence recorded for contract test",
+            "artifacts": [
+                {
+                    "kind": kind,
+                    "uri": f"https://evidence.example/{gate_id}/{kind}",
+                    "sha256": "0" * 64,
+                }
+                for kind in kinds
+            ],
+        }
+    return {
+        "schema": "yike.release-evidence/v1",
+        "revision": revision,
+        "recorded_at": "2026-09-23T10:00:00Z",
+        "operator": "release-test",
+        "gates": gates,
+    }
 
 
 def test_report_is_fail_closed_for_external_gates() -> None:
@@ -50,3 +88,50 @@ def test_local_only_mode_accepts_only_a_clean_local_candidate(monkeypatch) -> No
 
     assert report["local"]["status"] == "PASS"
     assert report["overall"] == "HOLD"
+
+
+def test_revision_bound_evidence_manifest_is_structurally_valid() -> None:
+    module = _module()
+    manifest = _manifest(module)
+
+    validated = module.validate_evidence_manifest(manifest, revision=module._git_revision()[0])
+
+    assert validated["schema"] == "yike.release-evidence/v1"
+
+
+def test_evidence_manifest_rejects_revision_mismatch() -> None:
+    module = _module()
+    manifest = _manifest(module)
+    manifest["revision"] = "f" * 40
+
+    with pytest.raises(module.EvidenceValidationError, match="revision"):
+        module.validate_evidence_manifest(manifest, revision=module._git_revision()[0])
+
+
+def test_evidence_manifest_rejects_credentialed_uri() -> None:
+    module = _module()
+    manifest = _manifest(module)
+    manifest["gates"]["authorized_source_proof"]["artifacts"][0]["uri"] = (
+        "https://user:secret@evidence.example/capability"
+    )
+
+    with pytest.raises(module.EvidenceValidationError, match="uncredentialed URI"):
+        module.validate_evidence_manifest(manifest, revision=module._git_revision()[0])
+
+
+def test_evidence_manifest_recomputes_local_artifact_digest(tmp_path: Path) -> None:
+    module = _module()
+    artifact = tmp_path / "capability.json"
+    artifact.write_text("authorized", encoding="utf-8")
+    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    manifest = _manifest(module)
+    receipt = manifest["gates"]["authorized_source_proof"]["artifacts"][0]
+    receipt.pop("uri")
+    receipt["path"] = str(artifact)
+    receipt["sha256"] = digest
+
+    module.validate_evidence_manifest(manifest, revision=module._git_revision()[0])
+    artifact.write_text("tampered", encoding="utf-8")
+
+    with pytest.raises(module.EvidenceValidationError, match="SHA-256"):
+        module.validate_evidence_manifest(manifest, revision=module._git_revision()[0])

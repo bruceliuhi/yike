@@ -10,6 +10,14 @@
 python3 scripts/release_candidate_check.py --run-tests
 ```
 
+如果五门禁已经在目标环境完成取证，可额外传入符合[五门禁发布证据清单](RELEASE_EVIDENCE_CONTRACT.md)的 JSON：
+
+```bash
+python3 scripts/release_candidate_check.py --run-tests --evidence /secure/release/evidence.json
+```
+
+脚本会重新计算本机证据文件的 SHA-256，并检查清单绑定当前提交；远程证据只校验无凭据 URI 和摘要格式。清单通过后外部门禁显示 `RECORDED`，表示机器已检查证据结构，仍保持 `overall=HOLD`，由责任人核对原始证据后再按 CP-06 放行。
+
 它会检查当前提交、已跟踪工作树、差异空白、发布合同文件、脚本权限、静态凭据扫描、Lead Radar 页面脚本语法，并执行 Lead Radar 合同测试。默认返回码为：
 
 - `0`：本机检查和测试通过，且显式使用了 `--local-only`
