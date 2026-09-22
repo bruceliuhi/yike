@@ -5,10 +5,18 @@ umask 077
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/.." && pwd)"
 
-if [[ -z "${YIKE_PILOT_DATABASE_URL:-}" ]]; then
-  echo "YIKE_PILOT_DATABASE_URL is required" >&2
+admin_database_url="${YIKE_PILOT_ADMIN_DATABASE_URL:-}"
+if [[ -z "$admin_database_url" ]]; then
+  echo "a separate admin database connection is required via YIKE_PILOT_ADMIN_DATABASE_URL" >&2
   exit 2
 fi
+case "$admin_database_url" in
+  postgresql://*|postgres://*) ;;
+  *)
+    echo "YIKE_PILOT_ADMIN_DATABASE_URL must be a PostgreSQL URL" >&2
+    exit 2
+    ;;
+esac
 backup_path="${1:-}"
 passphrase_file="${YIKE_PILOT_BACKUP_PASSPHRASE_FILE:-}"
 if [[ -z "$backup_path" || "$backup_path" == -* || "$backup_path" != *.enc ]]; then
@@ -76,7 +84,7 @@ temp_dir="$(mktemp -d "$(dirname -- "$backup_path")/.yike-backup.XXXXXX")"
 secret_temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/yike-pilot-secret.XXXXXX")"
 secret_snapshot="$secret_temp_dir/passphrase.snapshot"
 python3 "$script_dir/backup_auth.py" snapshot "$passphrase_file" "$secret_snapshot"
-pg_dump --format=custom --no-owner "$YIKE_PILOT_DATABASE_URL" \
+pg_dump --format=custom --no-owner "$admin_database_url" \
   | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass "file:$secret_snapshot" -out "$temp_dir/pilot.dump.enc"
 python3 "$script_dir/backup_auth.py" create "$temp_dir/pilot.dump.enc" "$secret_snapshot" "$temp_dir/pilot.dump.enc.mac"
 # Link publication is no-clobber even if a target appeared after the precheck.

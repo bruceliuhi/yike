@@ -113,3 +113,4 @@ TLS 在反向代理终止时，显式设置 `YIKE_PILOT_PROXY_HEADERS=1` 和反�
 - `YIKE_PILOT_AUTH_SECRET` 只能来自密钥管理，不写入镜像、仓库或日志。
 - 反向代理必须关闭 query token 的访问日志，生产禁用 `__dev/session`。
 - 使用仓库外、属当前用户且仅所有者可读的 `YIKE_PILOT_BACKUP_PASSPHRASE_FILE` 完成加密 `pg_dump`、隔离恢复和旧镜像回滚演练后，才能记录 CP-06 放行。当前脚本需Python 3.10+；密码文件第一行1–512字节、非空白、无NUL/CR，文件不超过64KiB。备份使用`.dump.enc`并保留新`YIKE-BACKUP-MAC-V2`认证侧车。MAC key从秘密内容经独立域PBKDF2派生，恢复先认证私有密文快照再解密同一快照。旧路径密钥MAC全部拒绝，不自动升级/重签旧备份，历史数据仍保留。细节与未完成真实恢复验收见[运行手册](../docs/CUSTOMER_PILOT_RUNBOOK.md#备份与恢复演练)。
+- 备份与恢复脚本必须在独立受信管理员终端中使用仓外 `YIKE_PILOT_ADMIN_DATABASE_URL`；运行时应用连接 `YIKE_PILOT_DATABASE_URL` 不具备全库备份或 `pg_restore --clean` 所需权限，不能代替管理员连接。恢复命令还必须显式设置 `YIKE_RESTORE_TARGET=isolated`，并由操作人确认目标库不是生产库。

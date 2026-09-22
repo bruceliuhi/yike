@@ -44,7 +44,7 @@ def test_backup_writes_authenticated_sidecar(tmp_path: Path) -> None:
     env = {
         **os.environ,
         "PATH": f"{bindir}:{os.environ['PATH']}",
-        "YIKE_PILOT_DATABASE_URL": "postgresql://example.invalid/pilot",
+        "YIKE_PILOT_ADMIN_DATABASE_URL": "postgresql://example.invalid/pilot",
         "YIKE_PILOT_BACKUP_PASSPHRASE_FILE": str(secret),
     }
 
@@ -61,6 +61,71 @@ def test_backup_writes_authenticated_sidecar(tmp_path: Path) -> None:
     assert (tmp_path / "pilot.dump.enc.mac").is_file()
 
 
+def test_backup_never_falls_back_to_runtime_database_url(tmp_path: Path) -> None:
+    secret = _secret_file(tmp_path)
+    bindir = _fake_pg_tools(tmp_path)
+    backup = tmp_path / "pilot.dump.enc"
+    result = subprocess.run(
+        ["bash", str(ROOT / "scripts/backup_pilot.sh"), str(backup)],
+        env={
+            **os.environ,
+            "PATH": f"{bindir}:{os.environ['PATH']}",
+            "YIKE_PILOT_DATABASE_URL": "postgresql://app.invalid/pilot",
+            "YIKE_PILOT_BACKUP_PASSPHRASE_FILE": str(secret),
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "yike_pilot_admin_database_url" in result.stderr.lower()
+    assert not backup.exists()
+
+
+def test_backup_requires_the_separate_admin_database_connection(tmp_path: Path) -> None:
+    secret = _secret_file(tmp_path)
+    backup = tmp_path / "pilot.dump.enc"
+    env = {
+        **os.environ,
+        "YIKE_PILOT_DATABASE_URL": "postgresql://app@example.invalid/pilot",
+        "YIKE_PILOT_BACKUP_PASSPHRASE_FILE": str(secret),
+    }
+
+    result = subprocess.run(
+        ["bash", str(ROOT / "scripts/backup_pilot.sh"), str(backup)],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "admin_database_url" in result.stderr.lower()
+    assert not backup.exists()
+
+
+def test_restore_requires_an_explicit_isolated_target(tmp_path: Path) -> None:
+    secret = _secret_file(tmp_path)
+    env = {
+        **os.environ,
+        "YIKE_PILOT_ADMIN_DATABASE_URL": "postgresql://admin@example.invalid/pilot",
+        "YIKE_PILOT_BACKUP_PASSPHRASE_FILE": str(secret),
+        "CONFIRM_RESTORE": "YES",
+    }
+
+    result = subprocess.run(
+        ["bash", str(ROOT / "scripts/restore_pilot.sh")],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "yike_restore_target=isolated" in result.stderr.lower()
+
+
 def test_restore_rejects_tampered_backup_before_pg_restore(tmp_path: Path) -> None:
     secret = _secret_file(tmp_path)
     restored = tmp_path / "restored.dump"
@@ -69,7 +134,7 @@ def test_restore_rejects_tampered_backup_before_pg_restore(tmp_path: Path) -> No
     env = {
         **os.environ,
         "PATH": f"{bindir}:{os.environ['PATH']}",
-        "YIKE_PILOT_DATABASE_URL": "postgresql://example.invalid/pilot",
+        "YIKE_PILOT_ADMIN_DATABASE_URL": "postgresql://example.invalid/pilot",
         "YIKE_PILOT_BACKUP_PASSPHRASE_FILE": str(secret),
     }
 
@@ -85,7 +150,7 @@ def test_restore_rejects_tampered_backup_before_pg_restore(tmp_path: Path) -> No
     backup.write_bytes(backup.read_bytes() + b"tamper")
     rejected = subprocess.run(
         ["bash", str(ROOT / "scripts/restore_pilot.sh"), str(backup)],
-        env={**env, "CONFIRM_RESTORE": "YES"},
+        env={**env, "CONFIRM_RESTORE": "YES", "YIKE_RESTORE_TARGET": "isolated"},
         text=True,
         capture_output=True,
         check=False,
@@ -96,14 +161,26 @@ def test_restore_rejects_tampered_backup_before_pg_restore(tmp_path: Path) -> No
     assert not restored.exists()
 
 
+def test_restore_never_falls_back_to_runtime_database_url(tmp_path: Path) -> None:
+    secret, restored, backup, env, run = _case(tmp_path)
+    env.pop("YIKE_PILOT_ADMIN_DATABASE_URL")
+    env["YIKE_PILOT_DATABASE_URL"] = "postgresql://app.invalid/pilot"
+
+    result = run("restore_pilot.sh")
+
+    assert result.returncode != 0
+    assert "yike_pilot_admin_database_url" in result.stderr.lower()
+    assert not restored.exists()
+
+
 def _case(tmp_path):
     secret = _secret_file(tmp_path)
     restored = tmp_path / 'restored.dump'
     bindir = _fake_pg_tools(tmp_path, restored)
     backup = tmp_path / 'pilot.dump.enc'
     env = {**os.environ, 'PATH': f"{bindir}:{os.environ['PATH']}",
-           'YIKE_PILOT_DATABASE_URL': 'postgresql://example.invalid/pilot',
-           'YIKE_PILOT_BACKUP_PASSPHRASE_FILE': str(secret), 'CONFIRM_RESTORE': 'YES'}
+           'YIKE_PILOT_ADMIN_DATABASE_URL': 'postgresql://example.invalid/pilot',
+           'YIKE_PILOT_BACKUP_PASSPHRASE_FILE': str(secret), 'CONFIRM_RESTORE': 'YES', 'YIKE_RESTORE_TARGET': 'isolated'}
     def run(script):
         return subprocess.run(['bash', str(ROOT / 'scripts' / script), str(backup)],
                               env=env, capture_output=True, text=True)
@@ -193,7 +270,7 @@ def test_backup_uses_one_private_secret_snapshot_if_original_rotates(tmp_path):
     env = {
         **os.environ,
         'PATH': f"{bindir}:{os.environ['PATH']}",
-        'YIKE_PILOT_DATABASE_URL': 'postgresql://example.invalid/pilot',
+        'YIKE_PILOT_ADMIN_DATABASE_URL': 'postgresql://example.invalid/pilot',
         'YIKE_PILOT_BACKUP_PASSPHRASE_FILE': str(secret),
         'TEST_ORIGINAL_SECRET': str(secret),
     }
@@ -210,7 +287,7 @@ def test_backup_uses_one_private_secret_snapshot_if_original_rotates(tmp_path):
     env['YIKE_PILOT_BACKUP_PASSPHRASE_FILE'] = str(recovery_secret)
     restored_result = subprocess.run(
         ['bash', str(ROOT / 'scripts/restore_pilot.sh'), str(backup)],
-        env={**env, 'CONFIRM_RESTORE': 'YES'}, capture_output=True, text=True,
+        env={**env, 'CONFIRM_RESTORE': 'YES', 'YIKE_RESTORE_TARGET': 'isolated'}, capture_output=True, text=True,
     )
     assert restored_result.returncode == 0, restored_result.stderr
     assert restored.read_bytes() == b'pilot-dump-fixture'
@@ -247,7 +324,7 @@ def test_backup_exact_publish_rejects_directory_created_after_precheck(tmp_path)
     env = {
         **os.environ,
         'PATH': f"{bindir}:{os.environ['PATH']}",
-        'YIKE_PILOT_DATABASE_URL': 'postgresql://example.invalid/pilot',
+        'YIKE_PILOT_ADMIN_DATABASE_URL': 'postgresql://example.invalid/pilot',
         'YIKE_PILOT_BACKUP_PASSPHRASE_FILE': str(secret),
         'TEST_BACKUP_TARGET': str(backup),
     }
@@ -275,7 +352,7 @@ def test_backup_rejects_repository_destination_before_creating_temp_files(tmp_pa
     env = {
         **os.environ,
         'PATH': f"{bindir}:{os.environ['PATH']}",
-        'YIKE_PILOT_DATABASE_URL': 'postgresql://example.invalid/pilot',
+        'YIKE_PILOT_ADMIN_DATABASE_URL': 'postgresql://example.invalid/pilot',
         'YIKE_PILOT_BACKUP_PASSPHRASE_FILE': str(secret),
     }
 

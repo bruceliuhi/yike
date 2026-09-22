@@ -103,15 +103,15 @@ uv run --frozen yike-pilot-import \
 以下命令仅适用于新V2备份，不是目标生产环境执行批准。需要Python 3.10+、OpenSSL、PostgreSQL客户端；目标环境使用独立、受限的备份路径：
 
 ```bash
-export YIKE_PILOT_DATABASE_URL='postgresql://<non-superuser>:<password>@<private-db>:5432/<database>'
+export YIKE_PILOT_ADMIN_DATABASE_URL='postgresql://<backup-admin>:<password>@<private-db>:5432/<database>'
 export YIKE_PILOT_IMAGE='registry.example.com/yike/customer-pilot@sha256:<64-hex-digest>'
 export YIKE_PILOT_BACKUP_PASSPHRASE_FILE='/secure/secret-store/pilot-backup-passphrase'
-scripts/cp06_validate_env.sh
+# 备份/恢复只在受信管理员终端使用管理员连接；不要把这个变量加载进 Compose 运行时 env。
 scripts/backup_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump.enc
-CONFIRM_RESTORE=YES scripts/restore_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump.enc
+CONFIRM_RESTORE=YES YIKE_RESTORE_TARGET=isolated scripts/restore_pilot.sh /secure/backup/path/pilot-YYYYMMDD.dump.enc
 ```
 
-恢复前必须选定隔离数据库并人工确认；数据库目标实际取自`YIKE_PILOT_DATABASE_URL`，`CONFIRM_RESTORE=YES`不是自动识别生产库的保护。passphrase来自仓库外、属当前用户且仅所有者可读的普通文件，禁止末级符号链接；文件上限64KiB、第一行1–512字节且非空白，无NUL/CR，与OpenSSL file密码源一致。建议使用密钥管理生成的随机高熵秘密。秘密不会作为命令参数或日志输出；改变文件路径不改变认证key，改变内容会认证失败。
+备份使用独立管理员连接，因为运行时应用角色的 RLS 和最小权限不能完成全库 `pg_dump`，也不应执行 `pg_restore --clean`。恢复前必须选定隔离数据库并人工确认；数据库目标实际取自`YIKE_PILOT_ADMIN_DATABASE_URL`，`YIKE_RESTORE_TARGET=isolated`是显式操作确认，不是脚本自动识别生产库的保护。passphrase来自仓库外、属当前用户且仅所有者可读的普通文件，禁止末级符号链接；文件上限64KiB、第一行1–512字节且非空白，无NUL/CR，与OpenSSL file密码源一致。建议使用密钥管理生成的随机高熵秘密。秘密不会作为命令参数或日志输出；改变文件路径不改变认证key，改变内容会认证失败。
 
 新`.enc.mac`为`YIKE-BACKUP-MAC-V2\n`加32字节HMAC-SHA256。独立认证key从秘密内容和domain+密文头通过PBKDF2-HMAC-SHA256/200000次派生；加密继续AES256CBC/PBKDF2/200000次。每次操作先固定一个600权限的私有秘密快照，加密与认证（或认证与解密）只使用这个快照，避免原密钥文件轮换造成不一致。临时秘密快照与备份目标不得位于仓库内，不要把TMPDIR指向仓库；退出时精确清理本次秘密文件。
 
