@@ -481,6 +481,10 @@ function MonitorDetail({
                 <dd>{run.profileName || "待读取"}</dd>
               </div>
               <div>
+                <dt>画像版本</dt>
+                <dd>{run.profileVersion ? `v${run.profileVersion}` : "待读取"}</dd>
+              </div>
+              <div>
                 <dt>监控关键词</dt>
                 <dd>
                   {run.keywords?.length ? run.keywords.join("、") : "待读取"}
