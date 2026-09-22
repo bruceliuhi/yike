@@ -614,6 +614,32 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         source_kind = opportunity.get("source_kind")
         if source_kind not in {"public_url_capture", "search_index_snippet", "authorized_search_api"}:
             raise ValueError("reopen_supported_for_public_or_index_sources_only")
+        request_key = self.headers.get("Idempotency-Key")
+        ledger_key = f"public-url-reopen:{opportunity_id}:{request_key}" if request_key else None
+        if ledger_key:
+            previous = self.store.get_usage_by_idempotency_key(WORKSPACE_ID, ledger_key, "public_url_reopen")
+            if previous:
+                latest = self.store.get_opportunity(opportunity_id)
+                previous_reopen = next(
+                    (item for item in reversed(latest.get("evidence", [])) if item.get("evidence_type") == "reopen_check"),
+                    {},
+                ) if latest else {}
+                previous_metadata = previous_reopen.get("metadata") or {}
+                return self._send(
+                    200,
+                    {
+                        "opportunity": latest,
+                        "reopen": {
+                            "matches_previous_snapshot": bool(previous_metadata.get("matches_previous_snapshot")),
+                            "content_hash": previous_metadata.get("content_hash"),
+                            "captured_at": previous_reopen.get("captured_at"),
+                            "source_kind": source_kind,
+                            "reopen_required": False,
+                            "keeps_review": True,
+                            "replayed": True,
+                        },
+                    },
+                )
         capture = fetch_public_page(opportunity["source_url"])
         previous_hashes = [
             evidence.get("metadata", {}).get("content_hash")
@@ -661,7 +687,7 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             1,
             1,
             "COMPLETED",
-            self.headers.get("Idempotency-Key"),
+            ledger_key,
         )
         self._send(
             200,
@@ -674,6 +700,7 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                     "source_kind": source_kind,
                     "reopen_required": False,
                     "keeps_review": True,
+                    "replayed": False,
                 },
             },
         )

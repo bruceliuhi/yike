@@ -1503,6 +1503,16 @@ class Store:
             if task_id:
                 db.execute("UPDATE tasks SET used_credits = used_credits + ? WHERE id = ?", (credits, task_id))
 
+    def get_usage_by_idempotency_key(self, workspace_id: str, idempotency_key: str, operation: str | None = None) -> dict[str, Any] | None:
+        query = "SELECT id, task_id, operation, units, credits, status, idempotency_key, created_at FROM usage_ledger WHERE workspace_id = ? AND idempotency_key = ?"
+        params: list[Any] = [workspace_id, idempotency_key]
+        if operation is not None:
+            query += " AND operation = ?"
+            params.append(operation)
+        with self.lock:
+            row = self.db.execute(query, params).fetchone()
+        return dict(row) if row else None
+
     def save_source_proof(self, workspace_id: str, proof: dict[str, Any]) -> tuple[dict[str, Any], bool]:
         """Register a proof binding without storing the raw external artifact."""
 

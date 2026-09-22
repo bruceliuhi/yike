@@ -452,6 +452,16 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertEqual(metadata["reopen_from_source_kind"], "search_index_snippet")
         self.assertEqual(metadata["proof_ref"], "proof-reopen-001")
         self.assertEqual(metadata["content_hash"], "b" * 64)
+        with patch("apps.lead_radar.server.fetch_public_page", side_effect=AssertionError("idempotent reopen must not fetch again")):
+            status, replayed = self.request(
+                "POST",
+                f"/api/v1/opportunities/{opportunity_id}/reopen",
+                {},
+                {"Idempotency-Key": "index-reopen-001"},
+            )
+        self.assertEqual(status, 200)
+        self.assertTrue(replayed["reopen"]["replayed"])
+        self.assertEqual(len(replayed["opportunity"]["evidence"]), 2)
 
     def test_duplicate_evidence_is_recorded_without_double_counting(self) -> None:
         _, task = self.request("POST", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks", {"objective": "寻找 AI 知识库项目"})
