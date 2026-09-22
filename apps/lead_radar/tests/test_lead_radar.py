@@ -173,6 +173,76 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(cancelled["draft"]["status"], "CANCELLED")
 
+    def test_search_index_import_is_proof_bound_review_only_and_idempotent(self) -> None:
+        _, task = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks",
+            {"objective": "从公开索引发现三平台 AI 需求"},
+        )
+        payload = {
+            "provider": "licensed-search-index",
+            "query": "site:xiaohongshu.com AI 客服 定制",
+            "proof_ref": "proof-index-20260923-001",
+            "retrieved_at": "2026-09-22T12:00:00Z",
+            "items": [
+                {
+                    "position": 1,
+                    "title": "企业寻找 AI 客服团队",
+                    "source_url": "https://www.xiaohongshu.com/explore/index-1",
+                    "snippet": "正在评估企业 AI 客服定制开发。",
+                },
+                {
+                    "position": 2,
+                    "title": "企业寻找 AI 客服团队",
+                    "source_url": "https://www.xiaohongshu.com/explore/index-1",
+                    "snippet": "重复索引结果。",
+                },
+                {
+                    "position": 3,
+                    "title": "抖音公开需求摘要",
+                    "source_url": "https://www.douyin.com/video/index-2",
+                    "snippet": "想找团队落地企业知识库。",
+                },
+            ],
+        }
+        path = f"/api/v1/tasks/{task['id']}/index-results"
+        status, first = self.request("POST", path, payload)
+        self.assertEqual(status, 201)
+        self.assertEqual(first["created_count"], 2)
+        self.assertEqual(first["deduplicated_count"], 0)
+        self.assertTrue(first["source"]["reopen_required"])
+        self.assertEqual({item["item"]["status"] for item in first["items"]}, {"REVIEW"})
+        by_platform = {
+            item["item"]["evidence"][0]["metadata"]["source_provenance"]["platform"]
+            for item in first["items"]
+        }
+        self.assertEqual(by_platform, {"xiaohongshu", "douyin"})
+        self.assertTrue(all(item["item"]["evidence"][0]["metadata"]["reopen_required"] for item in first["items"]))
+
+        status, retry = self.request("POST", path, payload)
+        self.assertEqual(status, 201)
+        self.assertEqual(retry["created_count"], 0)
+        self.assertEqual(retry["deduplicated_count"], 2)
+        _, dashboard = self.request("GET", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/dashboard")
+        self.assertEqual(dashboard["opportunities"], 2)
+        self.assertEqual(dashboard["credits_used"], 2)
+
+        status, invalid = self.request(
+            "POST",
+            path,
+            {**payload, "proof_ref": "", "retrieved_at": "2026-09-22T12:00:00Z"},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(invalid["error"], "proof_ref_required")
+
+        status, future = self.request(
+            "POST",
+            path,
+            {**payload, "proof_ref": "proof-future", "retrieved_at": "2999-01-01T00:00:00Z"},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(future["error"], "retrieved_at_in_future")
+
     def test_duplicate_evidence_is_recorded_without_double_counting(self) -> None:
         _, task = self.request("POST", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks", {"objective": "寻找 AI 知识库项目"})
         item = {"title": "企业知识库需求", "source_url": "https://example.com/knowledge", "snippet": "需要内部知识库问答系统。"}

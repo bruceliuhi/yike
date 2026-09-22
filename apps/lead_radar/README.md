@@ -26,6 +26,7 @@ python3 apps/lead_radar/server.py --port 8780
 - `POST /api/v1/tasks/{task_id}/runs/{run_id}/pause|resume|cancel|retry`
 - `POST /api/v1/tasks/{task_id}/capture-url`
 - `POST /api/v1/tasks/{task_id}/capture-urls`
+- `POST /api/v1/tasks/{task_id}/index-results`
 - `POST /api/v1/tasks/{task_id}/opportunities`
 - `POST /api/v1/opportunities/{opportunity_id}/feedback`
 - `GET /api/v1/opportunities/{opportunity_id}/action-drafts`
@@ -58,6 +59,8 @@ python3 apps/lead_radar/server.py --port 8780
 校准批次把一组机会的系统判断冻结为 `predicted_label`，由复核人填写 `gold_label`、备注和时间，计算覆盖率、准确率、误报、漏报与公开页面重开率。默认目标数量为 30 条；校准反馈可以回写机会状态，但不会修改原始来源证据。校准指标是效果验收材料，不代表样本已经来自真实授权平台。
 
 `capture-urls` 接受最多 50 个用户明确提交的 URL，逐条返回成功项和失败项；重复 URL 使用任务级幂等键，不会重复计费。它是受控导入入口，不等同于平台搜索连接器，也不会自动扩大抓取范围。
+
+`index-results` 接受服务端搜索索引或合规数据供应商返回的标题、摘要和公开 URL。请求必须带 `provider`、`query`、带时区的 `retrieved_at` 和 `proof_ref`；系统会去重、记录平台来源，并强制写入 `SEARCH_INDEX_SNIPPET` 等价的 `search_index_snippet` / `INDEXED_SNIPPET` 证据状态。索引摘要永远进入 `REVIEW`，必须重新打开原始 URL 并由人工确认，不能直接生成联系草稿。用户不需要登录小红书、抖音或 B 站，但服务端仍需拥有可审计的索引来源权利。
 
 任务运行实例现在会记录创建、来源阻塞、暂停、恢复、取消和重试事件。重复执行同一状态操作不会追加重复事件；重试会创建新的运行实例并保留上一实例 ID，方便回放失败原因。运行控制和日志已经具备，真正执行搜索仍必须等来源连接器通过权限、频率、发布时间和证据重开验收。
 

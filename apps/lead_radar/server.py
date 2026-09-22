@@ -13,6 +13,7 @@ try:
     from .capture import CaptureError, fetch_public_page
     from .connectors import list_capabilities
     from .domain import compile_intent, evidence_status
+    from .index_connector import IndexResultError, normalize_index_results
     from .planner import build_search_plan
     from .search_connector import AuthorizedSearchConnector, SearchConnectorError
     from .source_policy import classify_public_url
@@ -21,6 +22,7 @@ except ImportError:  # running server.py directly
     from capture import CaptureError, fetch_public_page
     from connectors import list_capabilities
     from domain import compile_intent, evidence_status
+    from index_connector import IndexResultError, normalize_index_results
     from planner import build_search_plan
     from search_connector import AuthorizedSearchConnector, SearchConnectorError
     from source_policy import classify_public_url
@@ -136,6 +138,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 return self._capture_url(path.split("/")[-2], payload)
             if path.startswith("/api/v1/tasks/") and path.endswith("/capture-urls"):
                 return self._capture_urls(path.split("/")[-2], payload)
+            if path.startswith("/api/v1/tasks/") and path.endswith("/index-results"):
+                return self._ingest_index_results(path.split("/")[-2], payload)
             if path.startswith("/api/v1/tasks/") and path.endswith("/start"):
                 return self._start_task(path.split("/")[-2], payload)
             if path.startswith("/api/v1/tasks/") and path.endswith("/execute"):
@@ -163,6 +167,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 parts = path.split("/")
                 return self._review_calibration_item(parts[-4], parts[-2], payload)
         except CaptureError as exc:
+            return self._error(400, exc.code, exc.message)
+        except IndexResultError as exc:
             return self._error(400, exc.code, exc.message)
         except ValueError as exc:
             return self._error(400, "invalid_request", str(exc))
@@ -397,6 +403,42 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             except CaptureError as exc:
                 errors.append({"index": index, "url": requested_url, "error": exc.code, "message": exc.message})
         self._send(200, {"items": items, "errors": errors, "created_count": sum(int(item["created"]) for item in items), "failed_count": len(errors)})
+
+    def _ingest_index_results(self, task_id: str, payload: dict[str, Any]) -> None:
+        task = self.store.get_task(task_id)
+        if not task:
+            return self._error(404, "task_not_found", "任务不存在")
+        context, normalized = normalize_index_results(payload)
+        items: list[dict[str, Any]] = []
+        deduplicated = 0
+        for item in normalized:
+            opportunity, was_duplicate = self.store.add_opportunity(task_id, item, evidence_status(item))
+            idempotency_key = "index:{}:{}:{}:{}".format(
+                task_id,
+                context["provider"],
+                context["retrieved_at"],
+                item["source_url"],
+            )
+            self.store.record_usage(
+                WORKSPACE_ID,
+                task_id,
+                "search_index_import",
+                1,
+                0 if was_duplicate else 1,
+                "COMPLETED",
+                idempotency_key,
+            )
+            items.append({"item": opportunity, "created": not was_duplicate})
+            deduplicated += int(was_duplicate)
+        self._send(
+            201,
+            {
+                "items": items,
+                "created_count": len(items) - deduplicated,
+                "deduplicated_count": deduplicated,
+                "source": {**context, "reopen_required": True},
+            },
+        )
 
     def _add_opportunities(self, task_id: str, payload: dict[str, Any]) -> None:
         task = self.store.get_task(task_id)
