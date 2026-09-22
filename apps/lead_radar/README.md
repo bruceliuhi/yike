@@ -42,7 +42,7 @@ python3 apps/lead_radar/server.py --port 8780
 
 任务运行实例现在会记录创建、来源阻塞、暂停、恢复、取消和重试事件。重复执行同一状态操作不会追加重复事件；重试会创建新的运行实例并保留上一实例 ID，方便回放失败原因。运行控制和日志已经具备，真正执行搜索仍必须等来源连接器通过权限、频率、发布时间和证据重开验收。
 
-授权搜索 API 适配器使用以下环境变量：`LEAD_RADAR_SEARCH_ENDPOINT`、`LEAD_RADAR_SEARCH_TOKEN`、`LEAD_RADAR_SEARCH_PROVIDER` 和 `LEAD_RADAR_SEARCH_REOPEN_PROOF=true`。接口必须返回 `{"items": [{"title", "source_url", "snippet", ...}]}`；系统会限制响应体大小、校验 URL 和必填字段、按 URL+标题去重，并把 provider 结果先放入 `REVIEW`。当前代码提供适配器和执行门禁，未配置真实授权服务时不会宣称来源已接通。
+授权搜索 API 适配器使用以下环境变量：`LEAD_RADAR_SEARCH_ENDPOINT`、`LEAD_RADAR_SEARCH_TOKEN`、`LEAD_RADAR_SEARCH_PROVIDER` 和 `LEAD_RADAR_SEARCH_REOPEN_PROOF=true`。即使布尔开关为 true，仍必须绑定 proof artifact：`LEAD_RADAR_SEARCH_PROOF_REF`、`LEAD_RADAR_SEARCH_PROOF_SHA256`、`LEAD_RADAR_SEARCH_PROOF_CHECKED_AT`、`LEAD_RADAR_SEARCH_PROOF_ENDPOINT`、`LEAD_RADAR_SEARCH_PROOF_PROVIDER` 和 `LEAD_RADAR_SEARCH_PROOF_CHECKS`（JSON 中 `url_reopen`、`published_at`、`save_boundary`、`retry_idempotency` 均为 true）。接口必须返回 `{"items": [{"title", "source_url", "snippet", ...}]}`；系统会限制响应体大小、只接受 HTTPS URL、校验必填字段、按 URL+标题去重，并把 provider 结果先放入 `REVIEW`。当前代码提供适配器和执行门禁，未配置真实授权服务或完整 proof artifact 时不会宣称来源已接通。
 
 `capture-url` 只访问用户明确提交的公网 URL，拒绝内网地址、非标准端口、带凭据 URL、非 HTML 页面和超过 1 MB 的响应。系统只保存正文摘要和内容指纹，结果默认为 `REVIEW`，不会因为页面抓取成功就判断为采购意向。
 
