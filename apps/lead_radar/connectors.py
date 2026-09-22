@@ -4,8 +4,10 @@ from typing import Any
 
 try:
     from .search_connector import capability as authorized_search_capability
+    from .source_policy import source_capability_metadata
 except ImportError:  # running planner.py directly
     from search_connector import capability as authorized_search_capability
+    from source_policy import source_capability_metadata
 
 
 CAPABILITIES: list[dict[str, Any]] = [
@@ -18,6 +20,8 @@ CAPABILITIES: list[dict[str, Any]] = [
         "can_search": False,
         "can_store_original": True,
         "can_write_back": False,
+        "end_user_login_required": False,
+        "server_authorization_required": False,
         "note": "可录入已由人工打开并核验的公开网页证据；不代表自动采集已接通。",
     },
     {
@@ -29,6 +33,8 @@ CAPABILITIES: list[dict[str, Any]] = [
         "can_search": False,
         "can_store_original": False,
         "can_write_back": False,
+        "end_user_login_required": False,
+        "server_authorization_required": False,
         "note": "需要先完成 robots、条款、频率、发布时间和证据重开验证。",
     },
     {
@@ -40,6 +46,8 @@ CAPABILITIES: list[dict[str, Any]] = [
         "can_search": False,
         "can_store_original": False,
         "can_write_back": False,
+        "end_user_login_required": False,
+        "server_authorization_required": False,
         "note": "只打开用户明确提交的公开 URL，限制公网地址、大小和 HTML 类型，保存摘要与内容指纹。",
     },
     {
@@ -51,7 +59,28 @@ CAPABILITIES: list[dict[str, Any]] = [
         "can_search": False,
         "can_store_original": False,
         "can_write_back": False,
+        **source_capability_metadata("xiaohongshu"),
         "note": "平台权限、搜索稳定性、原文重开和保存边界尚未通过生产门禁。",
+    },
+    {
+        "id": "douyin_public",
+        "name": "抖音公开内容",
+        "status": "REQUIRES_PROOF",
+        "tier": "C",
+        "access": "public_web_or_official_access",
+        "can_search": False,
+        **source_capability_metadata("douyin"),
+        "note": "用户无需登录即可提交公开 URL；批量搜索仍需平台权限或合规数据合作证明。",
+    },
+    {
+        "id": "bilibili_public",
+        "name": "B 站公开内容",
+        "status": "REQUIRES_PROOF",
+        "tier": "C",
+        "access": "public_web_or_official_access",
+        "can_search": False,
+        **source_capability_metadata("bilibili"),
+        "note": "用户无需登录即可提交公开 URL；批量搜索仍需平台权限或合规数据合作证明。",
     },
     {
         "id": "feishu_authorized",
@@ -62,6 +91,8 @@ CAPABILITIES: list[dict[str, Any]] = [
         "can_search": False,
         "can_store_original": True,
         "can_write_back": True,
+        "end_user_login_required": True,
+        "server_authorization_required": True,
         "note": "等待用户授权和字段级权限确认。",
     },
     {
@@ -73,6 +104,8 @@ CAPABILITIES: list[dict[str, Any]] = [
         "can_search": False,
         "can_store_original": True,
         "can_write_back": True,
+        "end_user_login_required": True,
+        "server_authorization_required": True,
         "note": "等待客户系统授权、字段映射和回写幂等验收。",
     },
 ]

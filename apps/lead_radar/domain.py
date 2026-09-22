@@ -50,7 +50,10 @@ def compile_intent(objective: str, supplied: dict[str, Any] | None = None) -> di
         "exclude_terms": supplied.get("exclude_terms") or matched["exclude"] or list(DEFAULT_TERM_GROUPS["exclude"]),
         "time_window_days": int(supplied.get("time_window_days", 180)),
         "regions": supplied.get("regions", []),
-        "sources": supplied.get("sources", ["public_web", "xiaohongshu_public"]),
+        "sources": supplied.get(
+            "sources",
+            ["public_web", "xiaohongshu_public", "douyin_public", "bilibili_public"],
+        ),
         "required_fields": supplied.get(
             "required_fields",
             ["title", "author", "published_at", "intent_type", "source_url", "snippet"],

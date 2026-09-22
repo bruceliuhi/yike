@@ -15,6 +15,7 @@ try:
     from .domain import compile_intent, evidence_status
     from .planner import build_search_plan
     from .search_connector import AuthorizedSearchConnector, SearchConnectorError
+    from .source_policy import classify_public_url
     from .storage import Store
 except ImportError:  # running server.py directly
     from capture import CaptureError, fetch_public_page
@@ -22,6 +23,7 @@ except ImportError:  # running server.py directly
     from domain import compile_intent, evidence_status
     from planner import build_search_plan
     from search_connector import AuthorizedSearchConnector, SearchConnectorError
+    from source_policy import classify_public_url
     from storage import Store
 
 
@@ -288,6 +290,7 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
 
     @staticmethod
     def _build_captured_item(payload: dict[str, Any], capture: dict[str, Any]) -> dict[str, Any]:
+        source = classify_public_url(capture["final_url"])
         return {
             "title": str(payload.get("title") or capture["title"] or urlparse(capture["final_url"]).hostname or "公开网页"),
             "author": payload.get("author"),
@@ -311,6 +314,7 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 "content_type": capture["content_type"],
                 "charset": capture["charset"],
                 "capture_method": "controlled_public_url_capture",
+                "source_provenance": source,
             },
         }
 
@@ -555,6 +559,7 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 "charset": capture["charset"],
                 "capture_method": "controlled_public_url_reopen",
                 "matches_previous_snapshot": matches_previous,
+                "source_provenance": classify_public_url(capture["final_url"]),
             },
             capture["captured_at"],
         )

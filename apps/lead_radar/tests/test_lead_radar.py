@@ -206,6 +206,7 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertEqual(result["item"]["source_kind"], "public_url_capture")
         self.assertEqual(result["item"]["decision"]["code"], "CAPTURED_PAGE_NEEDS_REVIEW")
         self.assertEqual(result["item"]["evidence"][0]["metadata"]["content_hash"], "a" * 64)
+        self.assertEqual(result["item"]["evidence"][0]["metadata"]["source_provenance"]["platform"], "web")
         with patch("apps.lead_radar.server.fetch_public_page", return_value=capture):
             status, reopened = self.request("POST", f"/api/v1/opportunities/{result['item']['id']}/reopen", {}, {"Idempotency-Key": "reopen-001"})
         self.assertEqual(status, 200)
