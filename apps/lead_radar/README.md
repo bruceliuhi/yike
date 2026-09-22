@@ -69,7 +69,7 @@ python3 apps/lead_radar/server.py --port 8780
 
 `source-proofs` 是工作区级的来源证明登记入口。它只保存 `proof_ref`、提供商、HTTPS endpoint、外部 proof artifact 的 SHA-256、检查时间和 proof gates，不保存原始 Cookie、Token 或 artifact 内容；相同 `proof_ref` 重复提交必须是同一份声明，修改会被拒绝。登记动作本身不等于平台授予权限，生产环境仍需要受限的运营权限和外部 artifact 审核。`source-proofs/revoke` 会把 proof 标记为 `REVOKED` 并立即阻断后续索引导入，保留撤销审计，不能通过重复登记自动恢复。
 
-`index-results` 接受服务端搜索索引或合规数据供应商返回的标题、摘要和公开 URL。请求必须带 `provider`、`query`、带时区的 `retrieved_at` 和已登记的 `proof_ref`；系统会按提供商匹配 proof、去重、记录平台来源，并强制写入 `REGISTERED` proof 元数据及 `search_index_snippet` / `INDEXED_SNIPPET` 证据状态。索引摘要永远进入 `REVIEW`，必须重新打开原始 URL 并由人工确认，不能直接生成联系草稿。用户不需要登录小红书、抖音或 B 站，但服务端仍需拥有可审计的索引来源权利。
+`index-results` 接受服务端搜索索引或合规数据供应商返回的标题、摘要和公开 URL。请求必须带 `provider`、`query`、带时区的 `retrieved_at` 和已登记的 `proof_ref`；系统会按提供商匹配 proof、去重、记录平台来源，并强制写入 `REGISTERED` proof 元数据及 `search_index_snippet` / `INDEXED_SNIPPET` 证据状态。索引摘要永远进入 `REVIEW`，必须重新打开原始 URL 并由人工确认，不能直接生成联系草稿。没有命中时可提交 `items:[]` 与 `result_status:NO_MATCHES`，系统记录一次已完成搜索和零候选用量，不把访问失败伪装成无结果，也不按完整结果收费。用户不需要登录小红书、抖音或 B 站，但服务端仍需拥有可审计的索引来源权利。
 
 `reopen` 只对受控公开 URL、授权搜索 API 和搜索索引候选执行。它访问候选的 HTTPS 原文 URL，追加当前页面快照、内容指纹、来源平台和原索引 `proof_ref`，并把判断更新为 `REOPENED_SOURCE_NEEDS_REVIEW`；重开成功不会自动变成 `SEND_READY`，仍需人工确认相关性、发布时间、来源使用权和触达资格。
 

@@ -79,8 +79,15 @@ def normalize_index_results(payload: dict[str, Any]) -> tuple[dict[str, Any], li
     proof_ref = _required_text(payload.get("proof_ref"), "proof_ref_required", "索引结果必须绑定 proof_ref。", 240)
     retrieved_at = _parse_retrieved_at(payload.get("retrieved_at"))
     raw_items = payload.get("items")
-    if not isinstance(raw_items, list) or not raw_items:
-        raise IndexResultError("items_required", "索引结果必须提供非空 items 数组。")
+    if not isinstance(raw_items, list):
+        raise IndexResultError("items_required", "索引结果必须提供 items 数组。")
+    result_status = str(payload.get("result_status") or ("MATCHES" if raw_items else "")).strip().upper()
+    if result_status not in {"MATCHES", "NO_MATCHES"}:
+        raise IndexResultError("result_status_invalid", "result_status 只能是 MATCHES 或 NO_MATCHES。")
+    if not raw_items and result_status != "NO_MATCHES":
+        raise IndexResultError("items_required", "items 为空时必须明确声明 result_status=NO_MATCHES。")
+    if raw_items and result_status == "NO_MATCHES":
+        raise IndexResultError("result_status_conflict", "result_status=NO_MATCHES 时 items 必须为空。")
     if len(raw_items) > MAX_ITEMS:
         raise IndexResultError("items_limit_exceeded", f"单次索引导入最多 {MAX_ITEMS} 条。")
 
@@ -124,4 +131,10 @@ def normalize_index_results(payload: dict[str, Any]) -> tuple[dict[str, Any], li
                 },
             }
         )
-    return {"provider": provider, "query": query, "proof_ref": proof_ref, "retrieved_at": retrieved_at}, normalized
+    return {
+        "provider": provider,
+        "query": query,
+        "proof_ref": proof_ref,
+        "retrieved_at": retrieved_at,
+        "result_status": result_status,
+    }, normalized

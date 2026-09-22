@@ -399,6 +399,22 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertEqual(dashboard["opportunities"], 2)
         self.assertEqual(dashboard["credits_used"], 2)
 
+        no_match_payload = {
+            **payload,
+            "query": "site:xiaohongshu.com 不存在的测试检索词",
+            "retrieved_at": "2026-09-22T12:05:00Z",
+            "result_status": "NO_MATCHES",
+            "items": [],
+        }
+        status, no_matches = self.request("POST", path, no_match_payload)
+        self.assertEqual(status, 201)
+        self.assertEqual(no_matches["items"], [])
+        self.assertEqual(no_matches["source"]["result_status"], "NO_MATCHES")
+        self.assertFalse(no_matches["source"]["reopen_required"])
+        self.assertIn("没有返回合格候选", no_matches["message"])
+        _, dashboard = self.request("GET", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/dashboard")
+        self.assertEqual(dashboard["credits_used"], 2)
+
         status, invalid = self.request(
             "POST",
             path,

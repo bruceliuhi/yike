@@ -439,6 +439,38 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         proof = self.store.get_source_proof(WORKSPACE_ID, context["proof_ref"], context["provider"])
         if not proof:
             raise IndexResultError("proof_not_registered", "索引结果的 proof_ref/provider 尚未在当前工作区登记来源证明。")
+        if context["result_status"] == "NO_MATCHES":
+            run_key = "index-run:{}:{}:{}:{}".format(
+                task_id,
+                context["provider"],
+                context["query"],
+                context["retrieved_at"],
+            )
+            self.store.record_usage(
+                WORKSPACE_ID,
+                task_id,
+                "search_index_import",
+                1,
+                0,
+                "NO_MATCHES",
+                run_key,
+            )
+            self._send(
+                201,
+                {
+                    "items": [],
+                    "created_count": 0,
+                    "deduplicated_count": 0,
+                    "source": {
+                        **context,
+                        "reopen_required": False,
+                        "proof_registry_status": "REGISTERED",
+                        "proof_artifact_sha256": proof["artifact_sha256"],
+                    },
+                    "message": "已完成公开索引搜索，本次没有返回合格候选。",
+                },
+            )
+            return
         items: list[dict[str, Any]] = []
         deduplicated = 0
         for item in normalized:
