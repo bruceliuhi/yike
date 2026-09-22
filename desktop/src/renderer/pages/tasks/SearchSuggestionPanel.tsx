@@ -55,6 +55,8 @@ export interface SearchSuggestionPanelProps {
   profileVersionId: string;
   profileConfirmed: boolean;
   hasTerms: boolean;
+  /** Fetch the human review preview as soon as a fresh confirmed profile is ready. */
+  autoPreview?: boolean;
   onApply(receipt: SuggestionReceipt, mode: "append" | "replace_unedited"): boolean;
   onApplyStrategy?(receipt: SuggestionReceipt): boolean;
   hasStrategy?: boolean;
@@ -168,6 +170,25 @@ export function SearchSuggestionPanel(props: SearchSuggestionPanelProps) {
     } catch (reason) { if (id === generation.current && !(reason instanceof RequestCancelled)) setError(errorMessage(reason)); }
     finally { if (id === generation.current) setBusy(false); }
   };
+
+  // New tasks should feel intelligent without silently submitting a model
+  // request. The preview is a read-only disclosure step; the customer still
+  // has to click “确认生成” before a durable suggestion request is sent.
+  const autoPreviewBinding = useRef<string | null>(null);
+  useEffect(() => {
+    if (!props.autoPreview || !props.profileConfirmed || props.hasTerms || !props.scope ||
+      !UUID.test(props.profileVersionId) || !UUID.test(props.draftId) || busy ||
+      preview || autoPreviewBinding.current === viewBinding) return;
+    const durable = loadSearchSuggestion(props.scope);
+    if (durable.kind !== "empty") {
+      autoPreviewBinding.current = viewBinding;
+      return;
+    }
+    autoPreviewBinding.current = viewBinding;
+    void requestPreview();
+  }, [props.autoPreview, props.profileConfirmed, props.hasTerms, props.scope?.userId,
+    props.scope?.accountScopeId, props.scope?.accountScopeVersion, props.draftId,
+    props.profileVersionId, viewBinding, busy, preview]);
 
   const submit = async () => {
     if (!preview || previewBinding !== viewBinding || !props.scope || busy) return;

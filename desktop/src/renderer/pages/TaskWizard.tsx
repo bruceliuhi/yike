@@ -770,6 +770,7 @@ export function TaskWizardPage() {
                 profileVersionId={draft.profileId}
                 profileConfirmed={!!selectedProfile}
                 hasTerms={draft.terms.length > 0}
+                autoPreview
                 onApply={applyControlledSuggestion}
                 onApplyStrategy={applyControlledStrategy}
                 hasStrategy={!!draft.industryStrategy}

@@ -141,6 +141,17 @@ describe("controlled search suggestion panel", () => {
     expect(await screen.findByText("设备预测性维护")).toBeTruthy();
   });
 
+  it("automatically opens the disclosure preview for a fresh task without submitting", async () => {
+    const service = { preview: vi.fn().mockResolvedValue(preview),
+      submit: vi.fn(async (request: SuggestionRequest) => receipt(request)), getReceipt: vi.fn() };
+    render(<SearchSuggestionPanel {...props(service)} autoPreview />);
+    expect(await screen.findByRole("dialog", { name: "生成搜索建议" })).toBeTruthy();
+    expect(service.preview).toHaveBeenCalledOnce();
+    expect(service.submit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "确认生成" }));
+    await waitFor(() => expect(service.submit).toHaveBeenCalledOnce());
+  });
+
   it("does not POST when the original request cannot be durably stored", async () => {
     const service = { preview: vi.fn().mockResolvedValue(preview), submit: vi.fn(), getReceipt: vi.fn() };
     render(<SearchSuggestionPanel {...props(service)} />);

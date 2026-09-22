@@ -371,7 +371,7 @@ describe("task wizard service boundary", () => {
     expect(currentDraft().platformTerms).toBeUndefined();
     expect(context.service.startTask).not.toHaveBeenCalled();
   });
-  it("uses the controlled suggestion disclosure path without legacy auto-generation", async () => {
+  it("automatically opens the controlled suggestion disclosure path without submitting", async () => {
     const versionId = "33333333-3333-4333-8333-333333333333";
     context.service.profiles = vi.fn().mockResolvedValue([{ ...profiles[0], id: versionId }]);
     context.session.accountScope = { id: "space-a", version: 1 };
@@ -387,9 +387,8 @@ describe("task wizard service boundary", () => {
     render(<TaskWizardPage />);
     await screen.findByText("已确认业务画像");
     expect(context.service.suggest).not.toHaveBeenCalled();
-    expect(context.service.searchSuggestions.preview).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "生成建议" }));
     expect((await screen.findAllByText("完整业务介绍")).length).toBe(1);
+    expect(context.service.searchSuggestions.preview).toHaveBeenCalledOnce();
     expect(context.service.searchSuggestions.submit).not.toHaveBeenCalled();
   });
 
