@@ -2,6 +2,8 @@
 
 ### 2026-09-23 当前主干候选（`b645710`，Mac 可演示包已重新构建）
 
+> 本节记录的是短信失败反馈修复上线前的候选检查；最终同源生产切换与当前阻断以紧随其后的 `20bac56` 记录为准。
+
 - Gitee `yike-ai2026/main`、GitHub `main` 与本地主线已同步到 `b64571025b622298810ccac114c0208c6c53e13e`。本次包含短信投递失败提示和机会池禁触达状态的界面收口；已跟踪工作树无改动。
 - 按该提交以 `YIKE_RELEASE_SERVICE_URL=https://yike.tuokexing.net`、Node 24.19.0 重新构建 macOS arm64 包：ZIP SHA-256 为 `ca75fc1a422a53c9df9dcbdaac5070fb5fd7a5fe51c7df9b02b3bc800a99569a`，ASAR SHA-256 为 `74f97e49ab15579ab3484c5f2fe24f30a95fd87aeea788b1279521a220bb1593`；包结构校验和受限包内冒烟均通过。机器可读记录见 [`latest-main-package-b645710.json`](qa/ui-candidate-mac/latest-main-package-b645710.json)。
 - `scripts/release_candidate_check.py --local-only --run-tests` 当前为 `local=PASS / external=NOT_VERIFIED / overall=HOLD`。公网 `yike.tuokexing.net` 仍回报旧 revision `bc38fa0f05a1e57e0c949a5badf6a29c64dd2157`，与当前主干不一致；因此该包仍是可演示候选，不是已切换的生产版本。
