@@ -5,11 +5,13 @@ import { useAction } from "../app/hooks";
 import { boundedRequest, RequestCancelled } from "../app/boundedRequest";
 import { errorMessage } from "../services/contracts";
 import type { Session } from "../domain/models";
+import { safeReturnTo } from "../domain/routes";
 import { Button, Field, Modal, Notice } from "../components/ui";
 import logo from "../assets/logo.png";
 
 export function LoginPage() {
-  const { service, session, navigate, refreshSession } = useApp();
+  const { service, session, route, navigate, refreshSession } = useApp();
+  const returnTo = safeReturnTo(route.query.get("returnTo"), "/workbench");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [tokenOpen, setTokenOpen] = useState(false);
@@ -36,8 +38,8 @@ export function LoginPage() {
   // A real session refresh may remount the login page under its new user key.
   // Only an established server identity can continue after that remount.
   useEffect(() => {
-    if (session.authenticated && session.userId?.trim()) navigate("/workbench");
-  }, [session.authenticated, session.userId]);
+    if (session.authenticated && session.userId?.trim()) navigate(returnTo);
+  }, [navigate, returnTo, session.authenticated, session.userId]);
   useEffect(() => {
     if (cooldown <= 0) return;
     const timer = window.setTimeout(() => setCooldown((n) => n - 1), 1000);
@@ -96,7 +98,7 @@ export function LoginPage() {
       if (!mounted.current) return;
       setCode("");
       setToken("");
-      navigate("/workbench");
+      navigate(returnTo);
     });
   };
   const submit = async (event: FormEvent) => {

@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Session } from "../domain/models";
-import { parseRoute, type AppRoute } from "../domain/routes";
+import { parseRoute, routeHref, type AppRoute } from "../domain/routes";
 import { service as defaultService } from "../services/client";
 import type { YikeService } from "../services/contracts";
 import { ServiceError } from "../services/contracts";
@@ -158,6 +158,14 @@ export function AppProvider({
     window.location.hash = path;
   };
   const navigate = (path: string) => {
+    // Keep the page the user was working on when a protected action asks them
+    // to sign in.  This is especially important for a half-filled task: the
+    // draft is intentionally session-scoped, so sending the user to the
+    // workbench after login makes the sign-in button feel like a dead end.
+    if (path === "/login" && route.path !== "/login") {
+      const returnTo = routeHref(route);
+      path = `/login?returnTo=${encodeURIComponent(returnTo)}`;
+    }
     if (window.location.hash === "#" + path) return;
     if (hasUnsavedChanges()) {
       setPendingPath(path);

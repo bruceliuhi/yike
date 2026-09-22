@@ -43,6 +43,28 @@ function mount(overrides: Partial<YikeService> = {}) {
 }
 
 describe("登录", () => {
+  it("从受保护页面发起登录后回到原工作位置", async () => {
+    window.location.hash = "#/tasks/new?mode=monitor&step=connect";
+    mount({
+      session: vi.fn().mockResolvedValue({ authenticated: false }),
+      loginToken: vi.fn().mockResolvedValue({ authenticated: true, userId: "test-user" }),
+    });
+    // The real shell adds this return target when any page asks for login.
+    expect(window.location.hash).toBe("#/tasks/new?mode=monitor&step=connect");
+    // Simulate the protected page's login action through the public route.
+    window.location.hash = "#/login?returnTo=%2Ftasks%2Fnew%3Fmode%3Dmonitor%26step%3Dconnect";
+    cleanup();
+    mount({
+      session: vi.fn()
+        .mockResolvedValueOnce({ authenticated: false })
+        .mockResolvedValue({ authenticated: true, userId: "test-user" }),
+      loginToken: vi.fn().mockResolvedValue({ authenticated: true, userId: "test-user" }),
+    });
+    fireEvent.click(screen.getByRole("button", { name: /使用已有访问凭证/ }));
+    fireEvent.change(screen.getByLabelText("短期访问凭证"), { target: { value: "test-token" } });
+    fireEvent.click(screen.getByRole("button", { name: "使用凭证登录" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/tasks/new?mode=monitor&step=connect"));
+  });
   it("不展示绕过短信的临时访问码入口", async () => {
     mount();
     expect(screen.queryByRole('button',{name:'临时访问码登录'})).toBeNull();
