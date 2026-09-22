@@ -69,6 +69,32 @@ def successful_read(env, *, sequence=1, value=None):
     )
 
 
+def successful_search(env, *, query="企业知识库 找团队", value=None):
+    from tests.test_research_effect_journal_postgres import result as search_result
+
+    value = value or search_result(query)
+    begun = env.journal.begin(
+        env.claims,
+        task_id=env.execution["task_id"],
+        run_id=env.execution["run_id"],
+        sequence=1,
+        generation=1,
+        coordinator_owner=env.owner,
+        context_binding=env.compiled["binding"],
+        kind="SEARCH",
+        payload={"query": query},
+    )
+    return env.journal.finish(
+        env.claims,
+        task_id=env.execution["task_id"],
+        run_id=env.execution["run_id"],
+        sequence=1,
+        permit_id=begun["entry"]["permit_id"],
+        status="SUCCEEDED",
+        result=value,
+    )
+
+
 def publish(env, *, sequence=1, **changes):
     from pilot.dynamic_research_candidates import DynamicResearchCandidateStore
 
@@ -137,6 +163,21 @@ def test_publish_reads_only_stored_success_and_is_idempotent(journal_env):
     assert context["action_id"] == entry["action_id"]
     assert source["author_public_id"] is None
     assert source["published_at"] is None
+
+
+def test_publish_binds_query_from_matching_search_receipt(journal_env):
+    env = journal_env
+    query = "企业知识库 找团队"
+    successful_search(env, query=query)
+    entry = successful_read(env, sequence=2, value=read_result(url="https://example.com/need"))
+    receipt = publish(env, sequence=2)
+    assert receipt["accepted_count"] == 1
+    with env.admin.connect() as connection:
+        source = connection.execute(
+            "SELECT content FROM pilot_candidate_versions WHERE tenant_id=%s",
+            (env.tenant,),
+        ).fetchone()[0]
+    assert source["query"] == query
 
 
 def test_background_selection_persists_zero_item_without_consuming_record(journal_env):

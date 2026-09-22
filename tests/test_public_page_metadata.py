@@ -118,6 +118,12 @@ def test_candidate_keeps_metadata_and_does_not_invent_identity_or_midnight(meta)
     assert content_version(record) != content_version(_record({"result": {"evidence": evidence()}}))
 
 
+def test_candidate_preserves_query_bound_to_search_receipt():
+    record = _record({"result": {"evidence": evidence()}}, query="企业知识库 找团队")
+    assert record is not None
+    assert record.query == "企业知识库 找团队"
+
+
 def test_candidate_rejects_metadata_on_other_sources_and_mismatched_projection():
     legacy = _record({"result": {"evidence": evidence()}}).model_dump()
     current = legacy | {"page_metadata": metadata(), "normalizer_version": "dynamic-public-read-v2"}
