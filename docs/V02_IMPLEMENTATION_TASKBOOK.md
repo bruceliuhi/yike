@@ -1,5 +1,13 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+### 2026-09-23 最新生死判断（当前主干 `9e3f9a7`）
+
+- 已重新同步 Gitee `xinghetech/yike-ai2026:main`，当前本地工作树与远端均为 `9e3f9a7de1785f413cc20d98f8d66fc2f695bc02`；本节覆盖前文 `ab5fd7d`、`1baf48f` 等历史快照，不改写历史证据。
+- 线上 `https://yike.tuokexing.net` 的 `/healthz` 与 `/readyz` 仍返回 200，但生产容器 revision 仍为历史 `b95b788113a8d75057fef3070c60b3ba01646c1a`。因此当前主干尚未上线，健康检查不能替代版本核对。
+- 已在服务器隔离目录用当前提交构建 `yike-candidate:9e3f9a7`，并完成源码导入/编译检查；未连接生产数据库、未切换生产容器。
+- 正式 `deploy/Dockerfile.research` 的官方 Codex 包下载在服务器返回 Cloudflare 403。为验证发行路径，临时以已有 `yike-research:0.153.4-a91ea42`（Codex `0.153.4`）为只读基础层叠加当前源码，构建 `yike-research-candidate:9e3f9a7` 并通过 `/opt/codex/bin/codex --version` 与源码编译检查；该候选不具备正式来源重建/供应链放行资格，不得直接切生产。正式发布仍需解决可审计的同源 Codex 包获取并保留旧镜像回滚。
+- **当前结论：邀请试用与正式上线仍 NO-GO。** 必须先在同一最终版本完成：登录后的真实 capability 回执；一次不预塞 URL/作者的自主研究（SEARCH→READ→候选→证据页）；三种不同业务重复且至少一条由用户认可值得联系；生产迁移、最小授权、备份/回滚与同源 Windows 实机验收。readyz、单元测试、固定 V2EX 读取和隔离候选镜像均不能替代这些证据。
+
 ### 2026-09-22 上线收口复核（当前主干 ab5fd7d）
 
 - 当前 Gitee `main` 与本地候选已同步到 `ab5fd7d`；期间合入小红书原生搜索进度增量，保留其 `xhs-search-items-v1` 游标/恢复实现，不覆盖其他贡献者改动。
