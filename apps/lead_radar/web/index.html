@@ -77,7 +77,6 @@
     .plan-summary div { background:#f8f9fc; border:1px solid var(--line); border-radius:8px; padding:10px; } .plan-summary span { display:block; color:var(--muted); font-size:11px; } .plan-summary b { display:block; margin-top:4px; }
     .strategy-block { border-top:1px solid var(--line); padding:13px 0; } .strategy-block h3 { font-size:13px; margin:0 0 4px; } .strategy-block p { color:var(--muted); font-size:12px; margin:0 0 8px; } .query { color:#475467; background:#f8f9fc; padding:6px 8px; border-radius:6px; margin-top:5px; font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; word-break:break-all; }
     .run-meta { color:var(--muted); font-size:11px; margin-top:8px; } .run-events { display:grid; gap:9px; } .run-event { border-left:3px solid #c8d5fb; background:#f8f9fc; padding:9px 11px; } .run-event b { display:block; font-size:12px; } .run-event small { color:var(--muted); font-size:10px; }
-    .action-draft { border:1px solid var(--line); border-radius:9px; padding:11px; margin-top:9px; background:#fff; } .action-draft-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; } .action-draft-body { white-space:pre-wrap; color:#475467; background:#f8f9fc; padding:8px; border-radius:7px; font-size:12px; margin-top:8px; } .action-draft-meta { color:var(--muted); font-size:11px; margin-top:6px; }
     .modal-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; } .close { border:0; background:transparent; color:var(--muted); font-size:20px; }
     label { display:grid; gap:6px; color:#344054; font-weight:600; font-size:12px; margin:12px 0; } input,textarea,select { border:1px solid #d8dde8; border-radius:8px; padding:10px 11px; outline:none; color:var(--ink); background:#fff; } textarea { min-height:90px; resize:vertical; } input:focus,textarea:focus,select:focus { border-color:#7895ed; box-shadow:0 0 0 3px #edf1ff; }
     .form-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; } .toast { position:fixed; right:22px; bottom:22px; background:#172033; color:#fff; padding:12px 15px; border-radius:9px; opacity:0; transform:translateY(8px); transition:.2s; pointer-events:none; } .toast.show { opacity:1; transform:translateY(0); }
@@ -153,53 +152,6 @@
       $('#actionDraftList').innerHTML = '<div class="empty">正在加载草稿…</div>';
       try { const result = await request(api(`/opportunities/${encodeURIComponent(opportunityId)}/action-drafts`)); renderActionDrafts(result.items || []); }
       catch (error) { $('#actionDraftList').innerHTML = `<div class="empty"><strong>草稿加载失败</strong>${esc(error.message)}</div>`; }
-    }
-    function renderActionDraftList(items, opportunityId) {
-      const labels = {PUBLIC_REPLY:'公开回复', EMAIL:'邮件草稿', FEISHU_TASK:'飞书任务', CRM_TASK:'CRM 任务'};
-      const html = (items || []).map(function(draft) {
-        const subject = draft.subject ? '<div class="action-draft-meta"><b>主题：</b>' + esc(draft.subject) + '</div>' : '';
-        const actions = draft.status === 'DRAFT'
-          ? '<div class="opp-actions"><button class="ghost" data-action-approve="' + esc(draft.id) + '" data-opportunity-id="' + esc(opportunityId) + '">人工批准（仍不发送）</button><button class="ghost" data-action-cancel="' + esc(draft.id) + '" data-opportunity-id="' + esc(opportunityId) + '">取消草案</button></div>'
-          : '';
-        return '<article class="action-draft"><div class="action-draft-head"><b>' + esc(labels[draft.channel] || draft.channel) + '</b><span class="badge ' + (draft.status === 'APPROVED' ? 'green' : draft.status === 'CANCELLED' ? 'red' : 'amber') + '">' + esc(draft.status) + '</span></div>'
-          + subject
-          + '<div class="action-draft-body">' + esc(draft.body) + '</div>'
-          + '<div class="action-draft-meta">绑定证据：' + esc((draft.evidence_ids || []).join('、') || '无') + ' · 创建于 ' + esc(draft.created_at) + (draft.approved_at ? ' · 批准于 ' + esc(draft.approved_at) : '') + '</div>'
-          + actions + '</article>';
-      }).join('');
-      $('#actionDraftList').innerHTML = html || '<div class="empty">尚未生成动作草案。</div>';
-      document.querySelectorAll('[data-action-approve]').forEach(function(button) {
-        button.onclick = async function() {
-          if (!window.confirm('批准这条草案？系统仍不会发送。')) return;
-          try {
-            await request(api('/action-drafts/' + encodeURIComponent(button.dataset.actionApprove) + '/approve'), {method:'POST', body:JSON.stringify({confirm:true, actor:'operator'})});
-            toast('草案已批准，但系统仍未发送');
-            await openActionDrafts(button.dataset.opportunityId);
-            await refresh();
-          } catch (error) { toast(error.message); }
-        };
-      });
-      document.querySelectorAll('[data-action-cancel]').forEach(function(button) {
-        button.onclick = async function() {
-          try {
-            await request(api('/action-drafts/' + encodeURIComponent(button.dataset.actionCancel) + '/cancel'), {method:'POST', body:JSON.stringify({actor:'operator'})});
-            toast('草案已取消，未发送');
-            await openActionDrafts(button.dataset.opportunityId);
-            await refresh();
-          } catch (error) { toast(error.message); }
-        };
-      });
-    }
-    async function openActionDrafts(opportunityId) {
-      open('actionDraftModal');
-      $('#actionDraftForm').dataset.opportunityId = opportunityId;
-      $('#actionDraftList').innerHTML = '<div class="empty">正在加载动作草案…</div>';
-      try {
-        const result = await request(api('/opportunities/' + encodeURIComponent(opportunityId) + '/action-drafts'));
-        renderActionDraftList(result.items || [], opportunityId);
-      } catch (error) {
-        $('#actionDraftList').innerHTML = '<div class="empty"><strong>动作草案加载失败</strong>' + esc(error.message) + '</div>';
-      }
     }
     async function showOpportunityDetails(opportunityId) { open('opportunityDetailModal'); $('#opportunityDetail').innerHTML='<div class="empty">正在加载机会详情…</div>'; try { const o=await request(api(`/opportunities/${encodeURIComponent(opportunityId)}`)); const d=o.decision||{}; const evidence=(o.evidence||[]).map(item=>`<div class="strategy-block"><h3>${esc(item.evidence_type)} · ${esc(item.captured_at)}</h3><div class="snippet">${esc(item.content)}</div><p class="sub" style="font-size:11px">${esc(item.url||'')}<br>${esc(JSON.stringify(item.metadata||{}))}</p></div>`).join('')||'<div class="empty">暂无证据。</div>'; const feedback=(o.feedback_events||[]).map(item=>`<div class="run-event"><b>${esc(item.label)} · ${esc(item.actor)}</b><div>${esc(item.note||'未填写备注')}</div><small>${esc(item.created_at)}</small></div>`).join('')||'<div class="empty">暂无人工反馈。</div>'; const audits=(o.audit_events||[]).map(item=>`<div class="run-event"><b>${esc(item.action)}</b><div>${esc(JSON.stringify(item.payload||{}))}</div><small>${esc(item.created_at)}</small></div>`).join('')||'<div class="empty">暂无审计事件。</div>'; $('#opportunityDetail').innerHTML=`<div class="plan-summary"><div><span>当前状态</span><b>${badge(o.status)}</b></div><div><span>证据层级</span><b>${esc(o.evidence_level)}</b></div><div><span>来源权限</span><b>${esc(o.source_permission)}</b></div></div><h3>${esc(o.title)}</h3><p class="sub">${esc(o.source_url)} · ${esc(o.published_at||'未提供发布时间')}</p><div class="opp-decision"><b>系统判断：${esc(d.reason||'未提供')}</b><br>下一步：${esc(d.next_action||'人工复核')}<br>缺失字段：${esc((d.missing_fields||[]).join('、')||'无')}</div><h3>原始证据</h3>${evidence}<h3>人工反馈</h3><div class="run-events">${feedback}</div><h3>审计时间线</h3><div class="run-events">${audits}</div>`; } catch(e) { $('#opportunityDetail').innerHTML=`<div class="empty"><strong>机会详情加载失败</strong>${esc(e.message)}</div>`; } }
     function entityLabel(x) { return `${esc(x.canonical_name)}${x.website_host?` · ${esc(x.website_host)}`:''} · ${x.opportunity_count||0} 条机会`; }
