@@ -58,7 +58,8 @@ describe('main-only candidate transport', () => {
     const gate = new Promise<void>(resolve => {release = resolve;});
     const calls: Array<{url: string; body?: BodyInit | null}> = [];
     const client = createServiceClient({baseUrl: 'https://service.example', fetch: async (url, init) => {
-      calls.push({url, body: init.body}); await gate; return Response.json({});
+      calls.push({url, body: init.body}); await gate;
+      return url.endsWith('/api/ui/session') ? Response.json({authenticated:true,user_id:'test-user'}) : Response.json({});
     }, clearSession: async () => {}});
     const login = client.request({operation: 'session.login', payload: {token: 'test'}});
     const original = batch();
