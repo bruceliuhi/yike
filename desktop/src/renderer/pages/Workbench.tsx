@@ -5,7 +5,7 @@ import { useResource } from "../app/hooks";
 import { boundedRequest } from "../app/boundedRequest";
 import { OpportunityBrief } from "./workbench/OpportunityBrief";
 import { TodoQueue } from "./workbench/TodoQueue";
-import { isSample } from "./Opportunities";
+import { isSample, PUBLIC_SAMPLES } from "./Opportunities";
 import {
   summarizeTaskRuns,
   taskStateLabel,
@@ -21,6 +21,7 @@ import {
   ResourceStatus,
   Tabs,
 } from "../components/ui";
+import { PlatformLabel } from "../components/Platform";
 
 export function WorkbenchPage() {
   const { service, session, navigate } = useApp();
@@ -274,23 +275,27 @@ export function WorkbenchPage() {
       <section className="sample-section">
         <div className="section-heading">
           <h2>公开研究样例</h2>
-          <p>样例仅供预览，不计入客户商机。</p>
+          <p>跨平台只读演示快照，不计入客户商机、联系队列或业绩统计。</p>
         </div>
-        <button
-          className="sample-row"
-          onClick={() => navigate("/opportunities/sample")}
-        >
-          <span>
-            <strong>180㎡高交会展区设计搭建预算询价</strong>
-            <small>
-              湖南省商务厅对外贸易发展处 · 2026-09-08 16:54 · 深圳国际会展中心
-            </small>
-          </span>
-          <Badge tone="orange">待人工复核</Badge>
-          <span className="text-link">
-            查看样例 <ArrowRight />
-          </span>
-        </button>
+        <div className="sample-grid">
+          {PUBLIC_SAMPLES.map((sample) => (
+            <button
+              key={sample.id}
+              className="sample-card"
+              onClick={() => navigate(`/opportunities/${sample.id}`)}
+            >
+              <div className="sample-card-head">
+                <PlatformLabel platform={sample.platform} size={18} />
+                <Badge tone="orange">只读演示</Badge>
+              </div>
+              <strong>{sample.title}</strong>
+              <small>{sample.sampleLabel || "公开网站 · 已核对出处"}</small>
+              <span className="text-link">
+                查看证据 <ArrowRight />
+              </span>
+            </button>
+          ))}
+        </div>
       </section>
     </>
   );

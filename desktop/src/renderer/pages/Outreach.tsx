@@ -34,7 +34,7 @@ import { OutreachQueue } from "./OutreachQueue";
 import { ContactEditor } from "./outreach/ContactEditor";
 import { NativeSendConfirmation, nativeOutreachCommand } from "./outreach/NativeSendConfirmation";
 import { sortContactRows, type ContactSort } from "../domain/contactList";
-import { PUBLIC_SAMPLE, isSample } from "./Opportunities";
+import { PUBLIC_SAMPLES, isSample, publicSampleById } from "./Opportunities";
 
 export function contactFingerprint(
   draft: ContactDraft,
@@ -71,6 +71,7 @@ export function OutreachPage() {
 function OutreachWorkspace() {
   const { service, session, route, navigate } = useApp();
   const id = route.query.get("opportunity");
+  const publicSample = id ? publicSampleById(id) : undefined;
   const list = useResource(
     () =>
       session.authenticated
@@ -80,8 +81,8 @@ function OutreachWorkspace() {
   );
   const detail = useResource(
     () =>
-      id === "sample"
-        ? Promise.resolve(PUBLIC_SAMPLE)
+      publicSample
+        ? Promise.resolve(publicSample)
         : id && session.authenticated
           ? service.opportunity(id).then((row) => {
               if (!row || row.id !== id || isSample(row))
@@ -206,17 +207,20 @@ function OutreachWorkspace() {
             )}
             <div className="sample-list-section">
               <span className="muted">公开研究样例</span>
-              <button
-                className={`list-item ${id === "sample" ? "selected" : ""}`}
-                onClick={() => navigate("/outreach?opportunity=sample")}
-              >
-                <strong>高交会预算询价 · 联系准备</strong>
-                <span className="brand-platform-label">
-                  <PlatformIcon platform={PUBLIC_SAMPLE.platform} size={16} />
-                  <span>湖南省商务厅官网</span>
-                </span>
-                <Badge tone="orange">公开样例 · 只读</Badge>
-              </button>
+              {PUBLIC_SAMPLES.map((sample) => (
+                <button
+                  key={sample.id}
+                  className={`list-item ${id === sample.id ? "selected" : ""}`}
+                  onClick={() => navigate(`/outreach?opportunity=${sample.id}`)}
+                >
+                  <strong>{sample.title} · 联系准备</strong>
+                  <span className="brand-platform-label">
+                    <PlatformIcon platform={sample.platform} size={16} />
+                    <span>{sample.sampleLabel || "湖南省商务厅官网"}</span>
+                  </span>
+                  <Badge tone="orange">公开样例 · 只读</Badge>
+                </button>
+              ))}
             </div>
           </aside>
           {!id ? (
@@ -224,7 +228,7 @@ function OutreachWorkspace() {
               title="选择一条商机"
               description="查看证据并准备联系内容。"
             />
-          ) : id !== "sample" && !session.authenticated ? (
+          ) : !publicSample && !session.authenticated ? (
             <Empty title="登录后准备客户联系内容" />
           ) : detail.loading || detail.error ? (
             <ResourceStatus

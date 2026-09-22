@@ -116,6 +116,8 @@ export interface Opportunity {
   comment: string;
   dm: string;
   sample?: boolean;
+  /** Human-readable boundary for read-only demo snapshots. Never implies customer evidence. */
+  sampleLabel?: string;
 }
 export type FollowupStatus =
   "CONTACTED" | "REPLIED" | "MEETING" | "QUOTED" | "LOST" | "WON";

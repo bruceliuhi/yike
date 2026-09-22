@@ -83,6 +83,8 @@ import {
 
 export {
   PUBLIC_SAMPLE,
+  PUBLIC_SAMPLES,
+  publicSampleById,
   isSample,
   opportunityStatus,
   customerCsv,
@@ -90,6 +92,8 @@ export {
 } from "./opportunities/OpportunityEvidence";
 import {
   PUBLIC_SAMPLE,
+  PUBLIC_SAMPLES,
+  publicSampleById,
   isSample,
   opportunityStatus,
   customerCsv,
@@ -149,7 +153,7 @@ function OpportunityList() {
     };
   }, []);
   const customers = (resource.data || []).filter((r) => !isSample(r));
-  const rows = scope === "sample" ? [PUBLIC_SAMPLE] : customers;
+  const rows = scope === "sample" ? PUBLIC_SAMPLES : customers;
   const filtered = useMemo(
     () =>
       rows
@@ -415,7 +419,7 @@ function OpportunityList() {
                         <strong>{row.title}</strong>
                         {isSample(row) && (
                           <small className="muted">
-                            公开研究样例 · 未入客户库
+                            {row.sampleLabel || "公开研究样例"} · 只读 · 未入客户库
                           </small>
                         )}
                       </td>
@@ -423,7 +427,10 @@ function OpportunityList() {
                         <SourcePlatform
                           platform={row.platform}
                           sourceLabel={
-                            isSample(row) ? "湖南省商务厅官网" : undefined
+                            isSample(row)
+                              ? row.sampleLabel ||
+                                (row.id === "sample" ? "湖南省商务厅官网" : undefined)
+                              : undefined
                           }
                         />
                       </td>
@@ -517,14 +524,15 @@ export function OpportunityDetailPage() {
 }
 function OpportunityDetail({ id }: { id: string }) {
   const { service, session, route, navigate, notify } = useApp();
+  const publicSample = publicSampleById(id);
   const [detailTab, setDetailTab] = useState(
     route.query.get("tab") === "changes" ? "changes" : "evidence",
   );
   const [similarOpen, setSimilarOpen] = useState(false);
   const resource = useResource(async (requestSignal) => {
-    if (id === "sample")
+    if (publicSample)
       return {
-        opportunity: PUBLIC_SAMPLE,
+        opportunity: publicSample,
         classification: undefined as ResearchClassification | undefined,
       };
     if (!session.authenticated) throw new Error("请登录后查看客户商机。");
@@ -568,6 +576,7 @@ function OpportunityDetail({ id }: { id: string }) {
     session.userId,
     session.authenticated,
     JSON.stringify(session.accountScope),
+    publicSample,
   ]);
   const row = resource.data?.opportunity;
   const classification = resource.data?.classification;
@@ -584,7 +593,7 @@ function OpportunityDetail({ id }: { id: string }) {
       notify(errorMessage(error), "error");
     }
   };
-  if (id !== "sample" && !session.authenticated)
+  if (!publicSample && !session.authenticated)
     return (
       <Empty
         title="登录后查看客户商机"
@@ -633,12 +642,19 @@ function OpportunityDetail({ id }: { id: string }) {
       </div>
       <div className="fact-strip">
         {(sample
-          ? [
-              ["需求阶段", "预算编制市场询价"],
-              ["项目地点", "深圳国际会展中心"],
-              ["展区面积", "180㎡"],
-              ["资料截止", "2026-09-15 18:00"],
-            ]
+          ? row.id === "sample"
+            ? [
+                ["需求阶段", "预算编制市场询价"],
+                ["项目地点", "深圳国际会展中心"],
+                ["展区面积", "180㎡"],
+                ["资料截止", "2026-09-15 18:00"],
+              ]
+            : [
+                ["来源平台", row.platform],
+                ["演示边界", row.sampleLabel || "公开研究样例"],
+                ["来源状态", "未授权采集"],
+                ["客户状态", "未绑定画像"],
+              ]
           : [
               ["来源平台", row.platform],
               [
@@ -748,7 +764,11 @@ function OpportunityDetail({ id }: { id: string }) {
                   <Button
                     variant="ghost"
                     onClick={() =>
-                      navigate("/outreach?opportunity=sample&channel=comment")
+                      navigate(
+                        "/outreach?opportunity=" +
+                          encodeURIComponent(row.id) +
+                          "&channel=comment",
+                      )
                     }
                   >
                     查看样例联系准备

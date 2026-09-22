@@ -25,6 +25,7 @@ import {
 import {
   customerCsv,
   PUBLIC_SAMPLE,
+  PUBLIC_SAMPLES,
   opportunityStatus,
 } from "./OpportunityEvidence";
 import { downloadText, downloadErrorMessage } from "../../services/download";
@@ -41,23 +42,30 @@ import {
 } from "./LibraryFacts";
 import "./research.css";
 
-export const SAMPLE_RESEARCH: ResearchRecord = {
-  opportunity: PUBLIC_SAMPLE,
-  classification: {
-    category: "OPPORTUNITY",
-    type: "预算询价",
-    reason: "预算询价不等于正式采购或已确认商机。",
-    ruleVersion: "public-example-v1",
-    evidence: [
-      {
-        sourceUrl: PUBLIC_SAMPLE.url,
-        evidenceVersion: PUBLIC_SAMPLE.sourceEvidenceVersion!,
-        quote: PUBLIC_SAMPLE.excerpt,
-      },
-    ],
-    review: { status: "PENDING", reviewer: "", reviewedAt: null },
-  },
-};
+export const PUBLIC_SAMPLE_RESEARCH_RECORDS: ResearchRecord[] = PUBLIC_SAMPLES.map(
+  (opportunity) => ({
+    opportunity,
+    classification: {
+      category: "OPPORTUNITY",
+      type: opportunity.id === "sample" ? "预算询价" : "多平台需求演示",
+      reason:
+        opportunity.id === "sample"
+          ? "预算询价不等于正式采购或已确认商机。"
+          : "演示快照只用于展示平台来源和证据边界，不代表真实客户机会。",
+      ruleVersion:
+        opportunity.id === "sample" ? "public-example-v1" : "public-demo-v1",
+      evidence: [
+        {
+          sourceUrl: opportunity.url,
+          evidenceVersion: opportunity.sourceEvidenceVersion!,
+          quote: opportunity.excerpt,
+        },
+      ],
+      review: { status: "PENDING", reviewer: "", reviewedAt: null },
+    },
+  }),
+);
+export const SAMPLE_RESEARCH = PUBLIC_SAMPLE_RESEARCH_RECORDS[0];
 const REVIEW = {
   PENDING: "待复核",
   RECOGNIZED: "已认可",
@@ -120,7 +128,9 @@ export function ResearchLibrary() {
     JSON.stringify(session.accountScope),
     sample,
   ]);
-  const records = sample ? [SAMPLE_RESEARCH] : resource.data?.records || [];
+  const records = sample
+    ? PUBLIC_SAMPLE_RESEARCH_RECORDS
+    : resource.data?.records || [];
   const stale =
     !sample &&
     Boolean(resource.data && Date.parse(resource.data.expiresAt) <= now);
@@ -479,7 +489,7 @@ export function ResearchLibrary() {
                             </small>
                             <small className="muted">
                               {sample ? (
-                                "公开研究样例 · 未入客户库"
+                                `${record.opportunity.sampleLabel || "公开研究样例"} · 只读 · 未入客户库`
                               ) : (
                                 <>
                                   {libraryFactCells(record.opportunity).stage} ·{" "}
@@ -557,36 +567,60 @@ export function ResearchLibrary() {
                     ))}
                     <h3>已知</h3>
                     {sample ? (
-                      <dl className="detail-list">
-                        <div>
-                          <dt>项目范围</dt>
-                          <dd>180㎡</dd>
-                        </div>
-                        <div>
-                          <dt>资料截止</dt>
-                          <dd>
-                            {libraryFactCells(selected.opportunity).deadline}
-                          </dd>
-                        </div>
-                      </dl>
+                      selected.opportunity.id === "sample" ? (
+                        <dl className="detail-list">
+                          <div>
+                            <dt>项目范围</dt>
+                            <dd>180㎡</dd>
+                          </div>
+                          <div>
+                            <dt>资料截止</dt>
+                            <dd>
+                              {libraryFactCells(selected.opportunity).deadline}
+                            </dd>
+                          </div>
+                        </dl>
+                      ) : (
+                        <dl className="detail-list">
+                          <div>
+                            <dt>来源平台</dt>
+                            <dd>
+                              <PlatformLabel
+                                platform={selected.opportunity.platform}
+                                size={16}
+                              />
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>演示边界</dt>
+                            <dd>{selected.opportunity.sampleLabel}</dd>
+                          </div>
+                          <div>
+                            <dt>客户状态</dt>
+                            <dd>未绑定画像 · 不可联系</dd>
+                          </div>
+                        </dl>
+                      )
                     ) : (
                       <p>{selected.classification.reason}</p>
                     )}
                     <h3>未知</h3>
                     <p className="muted">
                       {sample
-                        ? "实际采购预算、技术资料获取方式"
+                        ? selected.opportunity.id === "sample"
+                          ? "实际采购预算、技术资料获取方式"
+                          : "真实作者身份、需求真实性、授权状态和可联系渠道"
                         : selected.opportunity.risk || "其他事实仍需逐项核验。"}
                     </p>
                     <Notice>
                       {sample
-                        ? SAMPLE_RESEARCH.classification.reason
+                        ? selected.classification.reason
                         : `分类：${RESEARCH_CATEGORIES[selected.classification.category]}；复核：${REVIEW[selected.classification.review.status]}。`}
                     </Notice>
                     <Button onClick={() => open(selected)}>查看完整证据</Button>
                     {sample && (
                       <p className="muted">
-                        公开研究样例仅供查看，不可转入客户商机。
+                        公开研究样例仅供查看，不可转入客户商机、联系队列或业绩统计。
                       </p>
                     )}
                   </>

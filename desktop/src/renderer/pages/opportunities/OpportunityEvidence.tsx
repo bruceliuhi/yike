@@ -54,6 +54,94 @@ export const PUBLIC_SAMPLE: Opportunity = {
     "请问本次展区设计搭建的技术资料与服务范围说明，可以从哪里获取？",
   dm: "您好，看到本次高交会展区预算询价，想先了解资料要求。请问技术资料与服务范围说明可以从哪里获取？",
 };
+type DemoSnapshotSpec = Pick<
+  Opportunity,
+  "id" | "title" | "buyer" | "summary" | "excerpt" | "platform" | "url" | "publishedAt"
+> & { sampleLabel: string; sourceEvidenceVersion: string };
+
+const DEMO_SNAPSHOT_SPECS: DemoSnapshotSpec[] = [
+  {
+    id: "sample-xhs",
+    title: "小红书公开需求识别演示",
+    buyer: "公开内容作者（未绑定）",
+    summary: "演示如何从小红书公开内容中识别服务需求，并保留原文与人工核验边界。",
+    excerpt: "演示快照：此条仅用于展示小红书来源证据卡，不代表真实客户结果。",
+    platform: "xhs",
+    url: "https://www.xiaohongshu.com/",
+    publishedAt: "2026-09-05T10:00:00+08:00",
+    sampleLabel: "小红书 · 公开演示快照",
+    sourceEvidenceVersion: "public-demo-xhs-v1",
+  },
+  {
+    id: "sample-douyin",
+    title: "抖音公开需求识别演示",
+    buyer: "公开内容作者（未绑定）",
+    summary: "演示短视频评论与正文中的需求信号如何进入统一证据卡。",
+    excerpt: "演示快照：此条仅用于展示抖音来源证据卡，不代表真实客户结果。",
+    platform: "douyin",
+    url: "https://www.douyin.com/",
+    publishedAt: "2026-09-06T10:00:00+08:00",
+    sampleLabel: "抖音 · 公开演示快照",
+    sourceEvidenceVersion: "public-demo-douyin-v1",
+  },
+  {
+    id: "sample-bilibili",
+    title: "B站公开需求识别演示",
+    buyer: "公开内容作者（未绑定）",
+    summary: "演示如何把视频内容中的采购表达、上下文和风险放在同一张证据卡中。",
+    excerpt: "演示快照：此条仅用于展示 B 站来源证据卡，不代表真实客户结果。",
+    platform: "bilibili",
+    url: "https://www.bilibili.com/",
+    publishedAt: "2026-09-07T10:00:00+08:00",
+    sampleLabel: "B站 · 公开演示快照",
+    sourceEvidenceVersion: "public-demo-bilibili-v1",
+  },
+  {
+    id: "sample-zhihu",
+    title: "知乎公开需求识别演示",
+    buyer: "公开内容作者（未绑定）",
+    summary: "演示长文本问答中的方案比较信号如何被整理为可复核的下一步。",
+    excerpt: "演示快照：此条仅用于展示知乎来源证据卡，不代表真实客户结果。",
+    platform: "zhihu",
+    url: "https://www.zhihu.com/",
+    publishedAt: "2026-09-07T11:00:00+08:00",
+    sampleLabel: "知乎 · 公开演示快照",
+    sourceEvidenceVersion: "public-demo-zhihu-v1",
+  },
+];
+
+function createDemoSnapshot(spec: DemoSnapshotSpec): Opportunity {
+  return {
+    ...spec,
+    sample: true,
+    sourceStatus: "UNVERIFIED",
+    profileStatus: "UNBOUND",
+    profileVersionId: "",
+    reviewer: "",
+    reviewedAt: "",
+    updatedAt: "",
+    sourceObservedAt: spec.publishedAt,
+    intentStatus: "PENDING_REVIEW",
+    matchReason: "仅用于展示平台来源、需求信号和人工复核边界；不代表已完成真实采集。",
+    actionSignal: "演示下一步：人工打开来源，确认需求是否真实，再决定是否建立客户画像。",
+    value: "展示多平台统一研究流程，不代表客户收益或成交结果。",
+    risk: "演示数据，未完成授权采集与人工核验，不得联系、不计入客户商机或业绩。",
+    contactPath: "无真实联系动作，仅展示联系准备的呈现方式。",
+    sourceEvidenceVersion: spec.sourceEvidenceVersion,
+    comment: "此条为公开演示快照，不能用于真实联系。",
+    dm: "此条为公开演示快照，不能用于真实联系。",
+  };
+}
+
+/** Read-only snapshots used to demonstrate platform coverage; never exported as customer opportunities. */
+export const PUBLIC_SAMPLES: Opportunity[] = [
+  PUBLIC_SAMPLE,
+  ...DEMO_SNAPSHOT_SPECS.map(createDemoSnapshot),
+];
+
+export function publicSampleById(id: string): Opportunity | undefined {
+  return PUBLIC_SAMPLES.find((sample) => sample.id === id);
+}
 export function isSample(row: Opportunity) {
   return row.sample === true || row.id === "sample";
 }
@@ -169,7 +257,11 @@ export function EvidencePanel({
           </blockquote>
           <p className="muted source-meta">
             <SourcePlatform platform={row.platform}
-              sourceLabel={isSample(row) ? "湖南省商务厅官网" : undefined} />{" "}
+              sourceLabel={
+                isSample(row)
+                  ? row.sampleLabel || (row.id === "sample" ? "湖南省商务厅官网" : undefined)
+                  : undefined
+              } />{" "}
             · 发布于 {formatDate(row.publishedAt)}
           </p>
         </>

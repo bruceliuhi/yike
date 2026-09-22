@@ -5,12 +5,14 @@ import {
   fireEvent,
   render,
   screen,
+  within,
   waitFor,
 } from "@testing-library/react";
 import {
   OpportunitiesPage,
   OpportunityDetailPage,
   PUBLIC_SAMPLE,
+  PUBLIC_SAMPLES,
   customerCsv,
   EvidencePanel,
 } from "../../src/renderer/pages/Opportunities";
@@ -38,6 +40,24 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe("customer and public sample boundaries", () => {
+  it("shows a read-only evidence snapshot for every supported demo platform", async () => {
+    render(<OpportunitiesPage />);
+    for (const sample of PUBLIC_SAMPLES) {
+      expect(await screen.findByText(sample.title)).toBeTruthy();
+    }
+    expect(screen.getByText("小红书")).toBeTruthy();
+    expect(screen.getByText("抖音")).toBeTruthy();
+    expect(screen.getByText("B站")).toBeTruthy();
+    expect(screen.getByText("知乎")).toBeTruthy();
+    const xhsRow = screen.getByText("小红书公开需求识别演示").closest("tr");
+    expect(xhsRow).toBeTruthy();
+    fireEvent.click(within(xhsRow!).getByRole("button", { name: "查看证据" }));
+    fireEvent.click(screen.getByRole("button", { name: "查看完整证据" }));
+    expect(context.navigate).toHaveBeenCalledWith(
+      expect.stringContaining("/opportunities/sample-xhs?returnTo="),
+    );
+  });
+
   it("keeps public sample selection and customer export disabled", async () => {
     render(<OpportunitiesPage />);
     await screen.findByText(PUBLIC_SAMPLE.title);
