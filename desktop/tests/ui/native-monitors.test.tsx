@@ -16,6 +16,10 @@ const id='11111111-1111-4111-8111-111111111111';
 const base={planId:id,profileVersionId:id,strategyVersionId:id,configurationSha256:'a'.repeat(64),state:'ACTIVE',revision:1,
  schedule:{kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1},
  nextDueAt:'2026-09-11T09:00:00Z',localState:'DETACHED',taskId:null,lastError:null};
+const profileFields={service:'TEST业务画像',customer:'',regions:'',preference:'',exclusions:''};
+const profileVersion=(version:number,status:'CONFIRMED'|'REVOKED',versionId=version===1?id:'22222222-2222-4222-8222-222222222222')=>({
+ id:versionId,profileEntityId:'33333333-3333-4333-8333-333333333333',version,status,fields:profileFields,description:'TEST业务说明'
+});
 beforeEach(()=>{
  clearLocalDrafts();sessionStorage.clear();localStorage.clear();
  context={session:{authenticated:true,userId:crypto.randomUUID()},route:parseRoute('#/monitors'),navigate:vi.fn(),
@@ -60,6 +64,20 @@ describe('monitor page real service wiring',()=>{
   render(<NativeMonitorPlans/>);await screen.findByText('本机未接管');
   expect(screen.queryByRole('button',{name:/11111111/})).toBeNull();
   expect(screen.getByRole('button',{name:'暂停计划'})).toBeTruthy();
+ });
+ it('shows a profile update state on the native monitor detail without changing the plan',async()=>{
+  context.route=parseRoute(`#/monitors/${id}`);
+  context.service.profiles=vi.fn().mockResolvedValue([profileVersion(1,'REVOKED'),profileVersion(2,'CONFIRMED')]);
+  const execute=vi.mocked(context.service.monitorCollection!.execute);
+  execute.mockResolvedValue({state:'LIST',supported:true,plans:[base],serverTime:null} as any);
+  render(<NativeMonitorPlans/>);
+  await screen.findByText('业务画像已有更新：任务仍使用原业务画像。');
+  expect(screen.getByRole('region',{name:'任务画像版本核对'})).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:'保持历史'}));
+  expect(screen.getByText('已知悉保留历史：任务仍使用原业务画像。')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:'去更新'}));
+  expect(context.navigate).toHaveBeenCalledWith('/profile');
+  expect(execute.mock.calls.every(([command])=>command.action==='LIST')).toBe(true);
  });
  it('removes monitoring identifiers but keeps the latest run action and offline state visible',async()=>{
   context.route=parseRoute(`#/monitors/${id}`);

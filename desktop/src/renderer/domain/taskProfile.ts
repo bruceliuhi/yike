@@ -25,32 +25,10 @@ export type TaskProfileComparison =
       current: TaskProfileVersion;
     };
 
-export function parseTaskProfiles(value: unknown): TaskProfileVersion[] {
-  const result = z.array(profileVersion).max(5000).safeParse(value);
-  if (!result.success) throw new Error("画像版本响应不完整，当前关系待核对。");
-  return result.data;
-}
-
-/** Compare only a proven entity lineage. Numeric versions are not globally ordered. */
-export function compareTaskProfile(
-  run: Pick<TaskRun, "profileId" | "profileVersion">,
+function compareBoundProfile(
+  bound: TaskProfileVersion,
   profiles: readonly TaskProfileVersion[],
 ): TaskProfileComparison {
-  if (
-    !identifier.safeParse(run.profileId).success ||
-    !version.safeParse(run.profileVersion).success
-  )
-    return {
-      status: "UNKNOWN",
-      reason: "任务尚未返回完整的画像绑定，当前版本关系待核对。",
-    };
-  const boundRows = profiles.filter((row) => row.id === run.profileId);
-  if (boundRows.length !== 1 || boundRows[0].version !== run.profileVersion)
-    return {
-      status: "UNKNOWN",
-      reason: "未找到与任务绑定一致的画像版本，当前版本关系待核对。",
-    };
-  const bound = boundRows[0];
   if (!bound.profileEntityId)
     return {
       status: "UNKNOWN",
@@ -76,6 +54,61 @@ export function compareTaskProfile(
       reason: "画像版本关系不一致，当前关系待核对。",
     };
   return { status: "HISTORICAL", bound, current };
+}
+
+export function parseTaskProfiles(value: unknown): TaskProfileVersion[] {
+  const result = z.array(profileVersion).max(5000).safeParse(value);
+  if (!result.success) throw new Error("画像版本响应不完整，当前关系待核对。");
+  return result.data;
+}
+
+/** Compare a plan bound to a profile version row, as used by native monitors. */
+export function compareTaskProfileVersion(
+  profileVersionId: string,
+  profiles: readonly TaskProfileVersion[],
+): TaskProfileComparison {
+  if (!identifier.safeParse(profileVersionId).success)
+    return {
+      status: "UNKNOWN",
+      reason: "任务尚未返回完整的画像绑定，当前版本关系待核对。",
+    };
+  const boundRows = profiles.filter((row) => row.id === profileVersionId);
+  if (boundRows.length !== 1)
+    return {
+      status: "UNKNOWN",
+      reason: "未找到与任务绑定一致的画像版本，当前版本关系待核对。",
+    };
+  return compareBoundProfile(boundRows[0], profiles);
+}
+
+/** Compare only a proven entity lineage. Numeric versions are not globally ordered. */
+export function compareTaskProfile(
+  run: Pick<TaskRun, "profileId" | "profileVersion">,
+  profiles: readonly TaskProfileVersion[],
+): TaskProfileComparison {
+  const profileId = run.profileId;
+  const profileVersion = run.profileVersion;
+  if (
+    typeof profileId !== "string" ||
+    !identifier.safeParse(profileId).success ||
+    typeof profileVersion !== "number" ||
+    !version.safeParse(profileVersion).success
+  )
+    return {
+      status: "UNKNOWN",
+      reason: "任务尚未返回完整的画像绑定，当前版本关系待核对。",
+    };
+  const comparison = compareTaskProfileVersion(profileId, profiles);
+  if (
+    (comparison.status === "CURRENT" || comparison.status === "HISTORICAL" ||
+      comparison.status === "NO_CONFIRMED") &&
+    comparison.bound.version !== profileVersion
+  )
+    return {
+      status: "UNKNOWN",
+      reason: "未找到与任务绑定一致的画像版本，当前版本关系待核对。",
+    };
+  return comparison;
 }
 
 export function taskProfileComparisonKey(

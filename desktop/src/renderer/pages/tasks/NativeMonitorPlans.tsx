@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react';
+import {useEffect,useMemo,useState} from 'react';
 import {useApp} from '../../app/context';
 import {useResource} from '../../app/hooks';
 import {Button,PageHeader,Notice,Confirm,ResourceStatus,formatDate} from '../../components/ui';
@@ -13,6 +13,8 @@ import {boundedRequest} from '../../app/boundedRequest';
 import {useTaskDraft,useTaskLibrary} from '../../app/taskDraft';
 import {newTaskDraft} from '../../domain/models';
 import {researchSelectionScope as publicSourceScope} from '../../../shared/dynamicResearch';
+import {compareTaskProfileVersion} from '../../domain/taskProfile';
+import {ProfileVersionStatusNotice} from './TaskProfileStatus';
 
 const localLabels={DETACHED:'本机未接管',ATTACHED:'已接管，等待到期',RUNNING:'轮次处理中',STOPPING:'正在停止',STOP_UNCONFIRMED:'来源停止待核实'};
 const hints:Record<string,string>={SKIPPED_BUSY:'采集器忙碌，本次到期已跳过，不补跑。',SKIPPED_OFFLINE:'离线错过的时段已跳过。',
@@ -28,6 +30,10 @@ export function NativeMonitorPlans(){
  const profiles=useResource(()=>service.profiles(),[service,session.userId,session.accountScope?.id,session.accountScope?.version]);
  const details=useResource(async()=>selected&&service.researchStrategies?strategyViewSchema.parse(await service.researchStrategies.getStrategy(selected.strategyVersionId)):null,
   [service,selected?.strategyVersionId,session.userId,session.accountScope?.id,session.accountScope?.version]);
+ const profileIdentity=useMemo(()=>({}),[service,session.userId,session.accountScope?.id,session.accountScope?.version,id,selected?.profileVersionId]);
+ const profileComparison=selected&&profiles.data
+  ? compareTaskProfileVersion(selected.profileVersionId,profiles.data)
+  : null;
  const [confirmation,setConfirmation]=useState<{command:Extract<MonitorCollectionCommand,{action:'ATTACH'|'SET_STATE'}>;accounts:string[];planName:string;scheduleLabel:string}|null>(null);
  const [preparing,setPreparing]=useState(false),[error,setError]=useState('');
  const [runState,setRunState]=useState('');
@@ -108,6 +114,14 @@ export function NativeMonitorPlans(){
    <p>{scheduleLabel(selected)}</p>
    <p className="field-hint">离线错过的计划不补跑，恢复在线后从下次计划继续。</p>
    <p>下次到期：{selected.nextDueAt?formatDate(selected.nextDueAt):'暂停期间不安排'}</p>
+   <ProfileVersionStatusNotice
+    comparison={profileComparison}
+    loading={profiles.loading}
+    error={profiles.error}
+    identity={profileIdentity}
+    onNavigate={()=>navigate('/profile')}
+    onReload={()=>void profiles.reload()}
+   />
    {details.data&&<><p className="platform-list"><span>平台：</span>{details.data.snapshot.platforms.map(platform=><PlatformLabel key={platform} platform={platformLabel(platform)} size={16}/>)}<span>；搜索词：{details.data.snapshot.configuration.keywords.join('、')}</span></p>
     {details.data.snapshot.platforms.includes('PUBLIC_WEB')&&<p className="field-hint">{publicSourceScope(details.data.snapshot.configuration.publicSource)}；按已确认周期抽样，列表消失不表示需求关闭。</p>}</>}
    <ResourceStatus loading={details.loading} error={details.error}/>
