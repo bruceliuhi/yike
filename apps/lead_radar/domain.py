@@ -133,6 +133,9 @@ def evidence_decision(item: dict[str, Any]) -> dict[str, Any]:
     elif item.get("source_kind") == "public_url_capture":
         reason = "公开网页已采集并保存内容指纹，但页面相关性仍需人工判断。"
         code = "CAPTURED_PAGE_NEEDS_REVIEW"
+    elif item.get("source_kind") == "public_feed_capture":
+        reason = "公开 RSS/Atom 条目已采集并保存原文链接与内容指纹，但页面相关性仍需人工判断。"
+        code = "CAPTURED_FEED_NEEDS_REVIEW"
     elif item.get("source_permission") != "allowed":
         reason = "来源使用权尚未明确为 allowed，不能直接进入联系队列。"
         code = "SOURCE_PERMISSION_UNCONFIRMED"
