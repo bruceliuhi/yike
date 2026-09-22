@@ -312,6 +312,25 @@ describe("monitor detail from execution service data", () => {
     );
     expect(context.service.taskAction).not.toHaveBeenCalled();
   });
+  it("does not label a versioned schedule as a legacy schedule", async () => {
+    await loadMonitor(
+      monitorRun({
+        schedule: {
+          kind: "interval",
+          times: [],
+          interval: 3,
+          start: "09:00",
+          end: "18:00",
+          timezone: "Asia/Shanghai",
+          policyVersion: 1,
+        },
+      }),
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "任务配置" }));
+    expect(screen.getByText("09:00–18:00（含开始，不含结束）")).toBeTruthy();
+    expect(screen.getByText(/已采用当前日程规则/)).toBeTruthy();
+    expect(screen.queryByText(/历史日程未声明/)).toBeNull();
+  });
   it("shows an unavailable detail as a service error without inventing a monitor", async () => {
     context.route = parseRoute("#/monitors/unavailable");
     context.service.tasks = vi

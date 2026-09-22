@@ -21,7 +21,7 @@ import { TaskDraftRow } from "./tasks/TaskDraftRow";
 import { useTaskTemplates } from "./tasks/useTaskTemplates";
 import { TaskEvents } from "./tasks/TaskEvents";
 import { TaskProfileStatus } from "./tasks/TaskProfileStatus";
-import { scheduleWindowLabel } from "../domain/schedule";
+import { schedulePolicyDescription, scheduleWindowLabel } from "../domain/schedule";
 import {scheduleRegionLabel} from './tasks/taskDisplayLabels';
 import { TaskPagination } from "./tasks/TaskPagination";
 import { SearchCoverage } from "./tasks/SearchCoverage";
@@ -518,7 +518,16 @@ function MonitorDetail({
                     <>
                       <span>{scheduleWindowLabel(schedule)}</span>
                       <span className="muted"> · {scheduleRegionLabel(schedule.timezone)}</span>
-                      <span className="field-hint"> · 历史日程未声明</span>
+                      {schedule.policyVersion === undefined ? (
+                        <span className="field-hint"> · 历史日程未声明</span>
+                      ) : (
+                        <span
+                          className="field-hint"
+                          title={schedulePolicyDescription(schedule).join(" ")}
+                        >
+                          · 已采用当前日程规则
+                        </span>
+                      )}
                     </>
                   ) : "待读取"}
                 </dd>
