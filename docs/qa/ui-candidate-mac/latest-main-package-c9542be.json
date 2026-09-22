@@ -1,0 +1,23 @@
+{
+  "schema": "yike.mac-package-evidence/v1",
+  "sourceRevision": "c9542bee14cd2d4819f83e01a69a92b83e33c40e",
+  "builtAt": "2026-09-23T04:27:29+08:00",
+  "platform": "darwin/arm64",
+  "version": "0.2.0",
+  "serviceOrigin": "https://yike.tuokexing.net",
+  "zip": {
+    "path": "desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip",
+    "sha256": "e25da7e6baefefb2d5aaf60e58b47f8e94126b461f90e41701dffc446ed8686f"
+  },
+  "asar": {
+    "path": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/app.asar",
+    "sha256": "15638464baf4687686222f1d9987cd32b3f5846c166a2c95745b40a6fe028378"
+  },
+  "checks": {
+    "make_mac": "PASS",
+    "verify_package": "PASS",
+    "login_regression": "42 passed",
+    "typecheck": "PASS"
+  },
+  "scope": "Current main client package with self-service SMS trial wording and explicit unavailable-SMS guidance. Package checks do not prove SMS delivery, installation, signing/notarization, Windows packaging, server revision, platform connections, research execution, or customer UAT."
+}
