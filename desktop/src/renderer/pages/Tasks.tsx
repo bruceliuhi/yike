@@ -518,7 +518,13 @@ function MonitorDetail({
               <div>
                 <dt>执行窗口</dt>
                 <dd>
-                  {schedule ? `${scheduleWindowLabel(schedule)} · ${scheduleRegionLabel(schedule.timezone)}` : "待读取"}
+                  {schedule ? (
+                    <>
+                      <span>{scheduleWindowLabel(schedule)}</span>
+                      <span className="muted"> · {scheduleRegionLabel(schedule.timezone)}</span>
+                      <span className="field-hint"> · 历史日程未声明</span>
+                    </>
+                  ) : "待读取"}
                 </dd>
               </div>
               {schedule && (
