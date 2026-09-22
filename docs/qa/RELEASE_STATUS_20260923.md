@@ -4,7 +4,7 @@
 
 ## 当前主线与本机候选
 
-- 功能基线提交：`08b1e80b1d38cd831bcb3e585820673130dcc9ea`
+- 功能基线提交：`c5bf0bc3bda68a7066a5345b1b06bb1c24a98dd4`
 - Gitee `origin/main` 与 GitHub `github/main` 已同步到该功能基线；桌面包绑定的代码基线为 `83d3775`
 - 本机发布候选检查：`local=PASS / external=NOT_VERIFIED / overall=HOLD`
 - Lead Radar 全套测试：`83 passed`
@@ -16,7 +16,7 @@
 2026-09-23 对 `https://yike.tuokexing.net` 执行 CP-06 版本探针：
 
 ```text
-expected: 08b1e80b1d38cd831bcb3e585820673130dcc9ea
+expected: c5bf0bc3bda68a7066a5345b1b06bb1c24a98dd4
 actual:   5330c81046b636b6cad65589581374e321a277c5
 result:   revision mismatch
 ```
