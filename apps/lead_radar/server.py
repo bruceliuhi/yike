@@ -27,6 +27,7 @@ try:
     from .brief_api import get_research_brief
     from .evaluation_api import get_calibration_evaluation
     from .evaluation_contract import get_evaluation_contract, validate_evaluation_manifest
+    from .connector_contract import get_connector_contract, validate_connector_manifest
     from .feed_api import get_feed_event, list_feed, review_feed_event
     from .index_connector import IndexResultError, normalize_index_results
     from .integrations import list_integrations
@@ -53,6 +54,7 @@ except ImportError:  # running server.py directly
     from brief_api import get_research_brief
     from evaluation_api import get_calibration_evaluation
     from evaluation_contract import get_evaluation_contract, validate_evaluation_manifest
+    from connector_contract import get_connector_contract, validate_connector_manifest
     from feed_api import get_feed_event, list_feed, review_feed_event
     from index_connector import IndexResultError, normalize_index_results
     from integrations import list_integrations
@@ -335,6 +337,12 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 return self._send(200, get_evaluation_contract(language))
             except ValueError as exc:
                 return self._error(400, "invalid_request", str(exc))
+        if path == "/api/v1/connector-contract":
+            language = parse_qs(parsed.query).get("language", ["zh-CN"])[0]
+            try:
+                return self._send(200, get_connector_contract(language))
+            except ValueError as exc:
+                return self._error(400, "invalid_request", str(exc))
         if self._is_management_path(path):
             try:
                 self._authorize_management()
@@ -516,6 +524,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             payload = self._body()
             if path == "/api/v1/evaluation-contract/validate":
                 return self._send(200, validate_evaluation_manifest(payload))
+            if path == "/api/v1/connector-contract/validate":
+                return self._send(200, validate_connector_manifest(payload))
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/api-keys":
                 label = str(payload.get("label", "")).strip()
                 if not label:
