@@ -252,7 +252,7 @@ it("creates new tasks with research limits and hides old task rows on same-user 
     sessionStorage.getItem("yike.ui.draft.v1.task." + owner)!,
   );
   expect(saved.research.version).toBe(1);
-  expect(saved.research.maxSoubei).toBeNull();
+  expect(saved.research.maxSoubei).toBe(100000);
   context = {
     ...context,
     route: parseRoute("#/monitors"),
