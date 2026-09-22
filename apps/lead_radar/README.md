@@ -23,6 +23,10 @@ python3 apps/lead_radar/server.py --port 8780
 - `POST /api/v1/workspaces/ws_意客AI/source-proofs`
 - `POST /api/v1/workspaces/ws_意客AI/source-proofs/revoke`
 - `POST /api/v1/workspaces/ws_意客AI/tasks`
+- `POST /api/v1/business/create_search_task`：创建任务和可检查搜索计划；使用 `Idempotency-Key` 可安全重试
+- `GET /api/v1/business/get_search_status/{task_id}`：读取任务、运行实例和来源门禁状态
+- `GET /api/v1/business/fetch_search_results/{task_id}?limit=20&offset=0&status=REVIEW`：按任务分页读取候选和证据
+- `GET /api/v1/business/enrich_entity/{entity_id}`：读取本地实体解析和关联证据；当前不执行第三方外部增强
 - `GET /api/v1/tasks/{task_id}/plan`
 - `POST /api/v1/tasks/{task_id}/start`
 - `POST /api/v1/tasks/{task_id}/execute`
@@ -44,6 +48,16 @@ python3 apps/lead_radar/server.py --port 8780
 - `GET /api/v1/workspaces/ws_意客AI/entities`
 - `POST /api/v1/entities/{entity_id}/merge`
 - `POST /api/v1/entities/{entity_id}/split`
+
+业务 API 返回 `api_version`，响应头返回 `X-Request-ID`。这组接口只操作当前本地工作区台账；它不会把 Cookie、密码、第三方 Token 当作参数，也不会因为创建任务就自动搜索、发送私信、发邮件或写入外部 CRM。外部来源仍须通过来源证明、权限、重开、发布时间、限流和保存边界门禁。`enrich_entity` 当前是本地证据解析投影，不能被解释成企业工商、联系方式或第三方画像增强。
+
+可选的 Codex/MCP 入口使用本地 stdio：
+
+```bash
+.venv/bin/python -m apps.lead_radar.mcp_server --db apps/lead_radar/lead_radar.sqlite3
+```
+
+它暴露 `create_search_task`、`get_search_status`、`fetch_search_results` 和 `enrich_entity` 四个工具。MCP 依赖属于可选的 `research` 组；普通 HTTP 工作台不依赖它。MCP 工具没有发送、登录、Cookie、密码或第三方 Token 参数，也不监听 HTTP 端口。
 
 任务创建时会生成三条可检查的搜索路径：快速搜索、条件核验、扩展搜索，并给出来源状态和搜贝估算。`cost_estimate.unit` 固定为 `SOUBEI`，`display_unit` 为 `搜贝`，`rule_version` 为 `source-result-v1`；旧版 `estimated_credits` / `credits_used` 字段暂保留作为兼容字段，不代表人民币价格或外部平台收费。机会录入必须有 `title`、`source_url` 和 `snippet`。系统保留来源 URL、原文片段和核验时间；当前外部平台连接器仍显示为 `REQUIRES_PROOF` 或 `REQUIRES_AUTH`，不会用假数据冒充自动搜索。
 

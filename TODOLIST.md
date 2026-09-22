@@ -61,8 +61,8 @@
 
 - [ ] Scheduled Tasks：频率、预算上限、结果阈值、失败策略和审批策略
 - [ ] Feed / Monitor：新增采购需求、招聘、招标、官网变化、竞品变化
-- [ ] 暴露 `create_search_task / get_search_status / fetch_search_results / enrich_entity` 等业务 API
-- [ ] 暴露 MCP 工具；不把 Cookie、密码和第三方 Token 暴露为工具参数
+- [x] 暴露 `create_search_task / get_search_status / fetch_search_results / enrich_entity` 等业务 API
+- [x] 暴露 MCP 工具；不把 Cookie、密码和第三方 Token 暴露为工具参数
 - [ ] 建立 API Key、用量、额度、请求 ID、审计和按动作计费
 
 ## P4｜全球化产品质量

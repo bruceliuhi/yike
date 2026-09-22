@@ -4,12 +4,20 @@ import argparse
 import json
 import mimetypes
 import os
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 try:
+    from .business_api import (
+        BusinessApiError,
+        create_search_task,
+        enrich_entity,
+        fetch_search_results,
+        get_search_status,
+    )
     from .capture import CaptureError, fetch_public_page
     from .connectors import list_capabilities
     from .domain import compile_intent, evidence_status
@@ -21,6 +29,7 @@ try:
     from .storage import Store
     from .usage import UNIT as USAGE_UNIT, charge_for, source_metadata
 except ImportError:  # running server.py directly
+    from business_api import BusinessApiError, create_search_task, enrich_entity, fetch_search_results, get_search_status
     from capture import CaptureError, fetch_public_page
     from connectors import list_capabilities
     from domain import compile_intent, evidence_status
@@ -55,8 +64,9 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Request-ID", getattr(self, "request_id", ""))
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, X-Request-ID")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.end_headers()
         self.wfile.write(body)
@@ -133,9 +143,11 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         )
 
     def do_OPTIONS(self) -> None:
+        self.request_id = self._request_id()
         self._send(204, b"")
 
     def do_GET(self) -> None:
+        self.request_id = self._request_id()
         parsed = urlparse(self.path)
         path = unquote(parsed.path).rstrip("/") or "/"
         if path == "/":
@@ -144,6 +156,32 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True, "service": "lead-radar", "workspace_id": WORKSPACE_ID})
         if path == "/api/v1/sources/capabilities":
             return self._send(200, {"items": list_capabilities()})
+        if path.startswith("/api/v1/business/get_search_status/"):
+            try:
+                return self._send(200, get_search_status(self.store, WORKSPACE_ID, path.rsplit("/", 1)[-1]))
+            except BusinessApiError as exc:
+                return self._error(exc.status, exc.code, exc.message)
+        if path.startswith("/api/v1/business/fetch_search_results/"):
+            query = parse_qs(parsed.query)
+            try:
+                return self._send(
+                    200,
+                    fetch_search_results(
+                        self.store,
+                        WORKSPACE_ID,
+                        path.rsplit("/", 1)[-1],
+                        limit=query.get("limit", [20])[0],
+                        offset=query.get("offset", [0])[0],
+                        status=query.get("status", [None])[0],
+                    ),
+                )
+            except BusinessApiError as exc:
+                return self._error(exc.status, exc.code, exc.message)
+        if path.startswith("/api/v1/business/enrich_entity/"):
+            try:
+                return self._send(200, enrich_entity(self.store, WORKSPACE_ID, path.rsplit("/", 1)[-1]))
+            except BusinessApiError as exc:
+                return self._error(exc.status, exc.code, exc.message)
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/dashboard":
             return self._send(200, self.store.dashboard(WORKSPACE_ID))
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/audit":
@@ -189,10 +227,15 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         return self._error(404, "not_found", "接口不存在")
 
     def do_POST(self) -> None:
+        self.request_id = self._request_id()
         parsed = urlparse(self.path)
         path = unquote(parsed.path).rstrip("/")
         try:
             payload = self._body()
+            if path == "/api/v1/business/create_search_task":
+                result = create_search_task(self.store, WORKSPACE_ID, payload, self.headers.get("Idempotency-Key"))
+                result["request_id"] = self.request_id
+                return self._send(201, result)
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/profiles":
                 return self._create_profile(payload)
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/source-proofs/revoke":
@@ -235,6 +278,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             if path.startswith("/api/v1/calibration-batches/") and path.endswith("/review"):
                 parts = path.split("/")
                 return self._review_calibration_item(parts[-4], parts[-2], payload)
+        except BusinessApiError as exc:
+            return self._error(exc.status, exc.code, exc.message)
         except CaptureError as exc:
             return self._error(400, exc.code, exc.message)
         except IndexResultError as exc:
@@ -250,6 +295,12 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 raise
             return self._error(500, "internal_error", str(exc))
         return self._error(404, "not_found", "接口不存在")
+
+    def _request_id(self) -> str:
+        supplied = self.headers.get("X-Request-ID", "").strip()
+        if supplied and len(supplied) <= 100 and all(character.isalnum() or character in {"-", "_", "."} for character in supplied):
+            return supplied
+        return f"req_{uuid.uuid4().hex}"
 
     def _create_profile(self, payload: dict[str, Any]) -> None:
         objective = str(payload.get("objective", "")).strip()
