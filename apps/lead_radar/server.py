@@ -26,6 +26,7 @@ try:
     from .domain import compile_intent, evidence_status
     from .brief_api import get_research_brief
     from .evaluation_api import get_calibration_evaluation
+    from .evaluation_contract import get_evaluation_contract
     from .feed_api import get_feed_event, list_feed, review_feed_event
     from .index_connector import IndexResultError, normalize_index_results
     from .integrations import list_integrations
@@ -49,6 +50,7 @@ except ImportError:  # running server.py directly
     from domain import compile_intent, evidence_status
     from brief_api import get_research_brief
     from evaluation_api import get_calibration_evaluation
+    from evaluation_contract import get_evaluation_contract
     from feed_api import get_feed_event, list_feed, review_feed_event
     from index_connector import IndexResultError, normalize_index_results
     from integrations import list_integrations
@@ -315,6 +317,12 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             language = parse_qs(parsed.query).get("language", ["zh-CN"])[0]
             try:
                 return self._send(200, {"items": list_task_templates(language), "language": language})
+            except ValueError as exc:
+                return self._error(400, "invalid_request", str(exc))
+        if path == "/api/v1/evaluation-contract":
+            language = parse_qs(parsed.query).get("language", ["zh-CN"])[0]
+            try:
+                return self._send(200, get_evaluation_contract(language))
             except ValueError as exc:
                 return self._error(400, "invalid_request", str(exc))
         if self._is_management_path(path):
