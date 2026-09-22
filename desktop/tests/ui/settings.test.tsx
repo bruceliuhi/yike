@@ -139,7 +139,7 @@ describe("设备与授权", () => {
       ).getByRole("button", { name: "退出登录" }),
     );
     await screen.findByText("已离开设置页面");
-    await waitFor(() => expect(window.location.hash).toBe("#/login"));
+    await waitFor(() => expect(window.location.hash).toBe("#/login?returnTo=%2Fworkbench"));
     expect(sessionStorage.getItem("yike.ui.draft.v1.test")).toBeNull();
     expect(
       screen.getByText(
@@ -169,7 +169,7 @@ describe("设备与授权", () => {
     );
     expect(service.session).toHaveBeenCalledTimes(3); // Bootstrap, settings verification, logout verification.
     expect(sessionStorage.getItem("yike.ui.draft.v1.test")).toBeNull();
-    await waitFor(() => expect(window.location.hash).toBe("#/login"));
+    await waitFor(() => expect(window.location.hash).toBe("#/login?returnTo=%2Fworkbench"));
     expect(screen.queryByText("退出成功")).toBeNull();
   });
   it("远端退出失败且会话仍有效时保留草稿与重试入口", async () => {
@@ -250,7 +250,7 @@ describe("设备与授权", () => {
     await waitFor(() =>
       expect(sessionStorage.getItem("yike.ui.draft.v1.test")).toBeNull(),
     );
-    expect(window.location.hash).toBe("#/login");
+    expect(window.location.hash).toBe("#/login?returnTo=%2Fworkbench");
   });
   it("恢复服务未接通时不执行任何覆盖", async () => {
     mount({management:undefined});
