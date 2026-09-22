@@ -30,8 +30,9 @@ python3 scripts/release_candidate_check.py --local-only --run-tests
 
 1. 真实授权平台来源的 capability 回执、原文重开、发布时间、保存边界和重试幂等证明
 2. 一次不预置 URL 或作者的 `SEARCH → READ → candidate → evidence` 真实研究运行
-3. 目标 PostgreSQL 迁移、最小权限/RLS、备份恢复和回滚
-4. 最终版本的 HTTPS 部署和客户环境验收
+3. 一批真实候选的人工校准，以及准确率、误报、漏报和重开率
+4. 目标 PostgreSQL 迁移、最小权限/RLS、备份恢复和回滚
+5. 最终版本的 HTTPS 部署和客户环境验收
 
 这些证据要在目标环境按 [CP-06 验收模板](DEPLOYMENT_ACCEPTANCE_CP06_TEMPLATE.md) 和 [部署手册](../deploy/README.md) 记录。拿到证据后仍需人工复核版本 SHA、时间、环境和责任人，再更新验收记录；本脚本不会把用户提供的 JSON、配置开关或历史页面变成生产证明。
 

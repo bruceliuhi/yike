@@ -34,6 +34,7 @@ def test_external_gate_names_cover_real_release_boundaries() -> None:
     assert {
         "authorized_source_proof",
         "autonomous_research_run",
+        "real_sample_calibration",
         "production_database_and_recovery",
         "production_https_and_customer_uat",
     } <= gate_ids

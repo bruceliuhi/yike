@@ -129,6 +129,11 @@ def _external_gates() -> list[Check]:
             "requires a real SEARCH -> READ -> candidate -> evidence run without pre-seeded URL/author",
         ),
         Check(
+            "real_sample_calibration",
+            "NOT_VERIFIED",
+            "requires a reviewed batch of real candidates with accuracy, false-touch and reopen metrics",
+        ),
+        Check(
             "production_database_and_recovery",
             "NOT_VERIFIED",
             "requires target PostgreSQL migration, least privilege/RLS, backup restore and rollback evidence",
