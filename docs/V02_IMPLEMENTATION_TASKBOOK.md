@@ -1,8 +1,8 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
-### 2026-09-23 Feed / Monitor 与当前 Mac 候选（`e2a3232`）
+### 2026-09-23 Feed / Monitor 与当前 Mac 候选（`8c8d294`）
 
-- `yike-ai2026/main` 与 GitHub `main` 已同步到 `e2a3232`，新增证据绑定的 Feed 时间线：采购需求、招聘、招标、官网变化和竞品变化事件均保留来源 URL、摘要、内容指纹、机会关联及人工复核状态，并提供受控 API/MCP 读取与复核。
+- `yike-ai2026/main` 与 GitHub `main` 已同步到 `8c8d294`，新增证据绑定的 Feed 时间线：采购需求、招聘、招标、官网变化和竞品变化事件均保留来源 URL、摘要、内容指纹、机会关联及人工复核状态，并提供受控 API/MCP 读取与复核。
 - Lead Radar Feed/Monitor 定向回归 **42 项通过**；该切片只负责证据投影和人工复核，不代表已接入真实平台自动搜索、常驻 worker 或自动触达。
 - 当前主线重新构建 Mac arm64 包：ZIP SHA-256 `15e1e52d8021bd60cafcdbeb7abf005a681f3cf527dfbce0acd8e2b102f6e0ec`，ASAR SHA-256 `54f8186bd35bc8a813e9683a4595ee2d349fbb246fe4928e13f68bf4bb3b458a`；结构校验与受限包内冒烟均通过。机器记录见 [`latest-main-package-e2a3232.json`](qa/ui-candidate-mac/latest-main-package-e2a3232.json)。
 - 当前公网仍需切到包含该切片及 8 位试用码门禁的同源版本；健康检查或历史过渡版本不作为上线证据。
