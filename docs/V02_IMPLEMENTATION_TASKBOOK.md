@@ -1,5 +1,13 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+### 2026-09-23 主干生产部署（同源 `28504cf`，功能仍待真实业务验收）
+
+- 当前 Gitee `main`、本地工作树与服务器发行源已核对为 `28504cfa3767c6b78d54bbe98e3fbbe04d7fb62a`；服务器私有 registry 镜像 digest 为 `sha256:c8392766707938f1f3212d07619038ab1a5ba0baff27f044faf3efbe2cd6f914`，运行容器标签绑定该提交。
+- 切换前已创建加密、带 MAC 的生产备份 `/opt/yike-ai2026/backups/pilot-20260923-28504cf.dump.enc` 及对应 `.mac`，文件权限已收紧为仅 owner 可读；旧容器 `yike-customer:stop-42d8402` 保留为停止状态回滚副本。
+- 已用同源镜像执行缺失迁移 148、149，并以受信管理员连接执行 `deploy/grant_runtime.sql`，未把管理员连接放入运行时容器；迁移与授权完成后才切换 Web 容器。
+- 生产线上新容器的 loopback `GET /healthz=200`、`GET /readyz=200`、应用健康状态 `healthy`，并返回 `X-Yike-Release-Revision: 28504cfa3767c6b78d54bbe98e3fbbe04d7fb62a`；经 HTTPS 反向代理的 `/healthz`、`/readyz` 也均为 200。当前代理不转发版本头，因此版本核对以受控 loopback 回读为准。
+- 线上能力仍如实回读为：`sms_login=true`，`platform_connections=false`、`task_execution=false`、`outreach=false`、`replies=false`。这证明同源 Web 版本已部署，不证明短信实际送达、平台账号采集或研究→候选链路已经上线；仍需外部短信端口报备、真实登录和平台/研究验收。
+
 ### 2026-09-23 最新本地收口（待远端同步）
 
 - 本轮在现有主线基础上补齐工作区级来源证明登记与索引导入绑定：`proof_ref` 必须对应已登记的 HTTPS proof artifact，proof gates 未全通过、来源声明冲突或未登记时拒绝导入；合格索引结果仍只进入 `REVIEW`，不能自动触达。
