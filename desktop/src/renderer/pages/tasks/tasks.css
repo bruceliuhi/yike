@@ -35,6 +35,12 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+.platform-list-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
 .platform-list > span:first-child,
 .platform-list > span:last-child {
   white-space: nowrap;

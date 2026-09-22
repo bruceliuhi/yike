@@ -3,8 +3,7 @@ import { DEMAND_TYPES } from "../../domain/researchUsage";
 import { industrySourceLabels } from '../../../shared/industryTaskStrategy';
 import {researchSelectionScope as publicSourceScope,DYNAMIC_RESEARCH_SOURCE} from '../../../shared/dynamicResearch';
 import {scheduleRegionLabel} from './taskDisplayLabels';
-
-const platforms = { XIAOHONGSHU: "小红书", DOUYIN: "抖音", BILIBILI: "B站", ZHIHU: "知乎", PUBLIC_WEB: "公开网站" };
+import { PlatformLabel } from '../../components/Platform';
 
 /** Only receives the controller's strictly bound receipt, never unvalidated wire data. */
 export function StrategySnapshotDetails({ receipt }: { receipt: StrategyReceipt }) {
@@ -23,11 +22,11 @@ export function StrategySnapshotDetails({ receipt }: { receipt: StrategyReceipt 
       {research?.dynamicScope&&<div><dt>需求时间窗口</dt><dd>近 {research.dynamicScope.maxAgeDays} 天；依据作者原文，非搜索收录日期</dd></div>}
       <div><dt>搜索关键词</dt><dd>{config.keywords.join("、") || "无"}{config.source !== "search" && "（保留但本次不执行）"}</dd></div>
       {config.platformQueries && snapshot.platforms.map(platform=><div key={platform}>
-        <dt>{platforms[platform]}实际搜索词</dt><dd>{platformSearchKeywords(config,platform).join('、')}（按本次已确认配置执行）</dd>
+        <dt><PlatformLabel platform={platform} size={16} />实际搜索词</dt><dd>{platformSearchKeywords(config,platform).join('、')}（按本次已确认配置执行）</dd>
       </div>)}
       <div><dt>排除词</dt><dd>{config.exclusions.join("、") || "无"}</dd></div>
       <div><dt>内容链接</dt><dd>{config.links.join("\n") || "无"}{config.source !== "links" && "（保留但本次不执行）"}</dd></div>
-      <div><dt>平台顺序</dt><dd>{snapshot.platforms.map(id => platforms[id]).join(" → ")}</dd></div>
+      <div><dt>平台顺序</dt><dd className="platform-list">{snapshot.platforms.map((id, index) => <span key={id} className="platform-list-item"><PlatformLabel platform={id} size={16} />{index < snapshot.platforms.length - 1 && <span aria-hidden="true">→</span>}</span>)}</dd></div>
       <div><dt>运行方式</dt><dd>{config.mode === "once" ? "单次采集" : "持续监控"}</dd></div>
       <div><dt>保留日程</dt><dd>{!schedule ? "未设置" : <>
         {config.mode === "once" && <p>本次不调度</p>}
@@ -42,6 +41,7 @@ export function StrategySnapshotDetails({ receipt }: { receipt: StrategyReceipt 
       </>}</dd></div>
       <div><dt>执行记录上限</dt><dd>{snapshot.max_records} 条</dd></div>
       {config.industryStrategy&&<div><dt>行业任务策略</dt><dd>
+        <p>发起候选AI判断时作为研究条件使用，不自动替代人工确认</p>
         <p>{config.industryStrategy.sourceTypes.map(type=>industrySourceLabels[type]).join('、')}</p>
         <p>购买信号</p><ul>{config.industryStrategy.intentSignals.map(value=><li key={value}>{value}</li>)}</ul>
         <p>排除反例</p><ul>{config.industryStrategy.counterSignals.map(value=><li key={value}>{value}</li>)}</ul>

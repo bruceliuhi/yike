@@ -136,8 +136,9 @@ describe("TaskWizard strategy confirmation with the actual controller", () => {
     expect(fake.api.prepare.mock.calls[0][0].configuration.platformQueries).toEqual({version:'platform-queries-v1',items:[
       {platform:'XIAOHONGSHU',keywords:['找搭建团队']},{platform:'BILIBILI',keywords:['展台设计报价']}]});
     expect(receipt.snapshot.configuration.platformQueries?.items).toHaveLength(2);
-    expect(screen.getByText('小红书实际搜索词')).toBeTruthy();
-    expect(screen.getByText('B站实际搜索词')).toBeTruthy();
+    expect(screen.getAllByText('小红书').some(node => node.closest('.brand-platform-label'))).toBe(true);
+    expect(screen.getAllByText('B站').some(node => node.closest('.brand-platform-label'))).toBe(true);
+    expect(document.querySelectorAll('.detail-list .brand-platform-label')).toHaveLength(4);
     expect(fake.api.confirm).not.toHaveBeenCalled();
   });
   it('estimates the actual confirmed strategy through the real quote service without persisting its token', async () => {
