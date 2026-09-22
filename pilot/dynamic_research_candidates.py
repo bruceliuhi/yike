@@ -30,7 +30,7 @@ def _json(value):
     )
 
 
-def _record(entry):
+def _record(entry, *, query=None):
     evidence = entry["result"]["evidence"]
     observed = datetime.fromisoformat(evidence["observed_at"]).astimezone(UTC)
     metadata = evidence.get("page_metadata")
@@ -53,13 +53,42 @@ def _record(entry):
             "parent": None,
             "collector_version": "public-web-agent-v1",
             "normalizer_version": "dynamic-public-read-v2" if "page_metadata" in evidence else "dynamic-public-read-v1",
-            "query": None,
+            "query": query,
             **({"page_metadata": metadata} if "page_metadata" in evidence else {}),
         })
     except (ValidationError, ValueError, UnicodeError, OverflowError):
         # A successful read remains in the durable journal. Candidate storage
         # never truncates an original to make it fit the narrower contract.
         return None
+
+
+def _bound_search_query(cursor, journal, resources, *, tenant, user, task_id, run_id, url):
+    """Return the first immutable SEARCH query whose receipt contains ``url``.
+
+    Dynamic READ effects only carry a URL.  The SEARCH journal is the authority
+    for the query that discovered it; validate each paired receipt before using
+    it so a tampered or unpaired row cannot become candidate evidence.
+    """
+    from pilot.research_effect_journal import _FIELDS as journal_fields, _entry
+
+    cursor.execute(
+        "SELECT " + ",".join(journal_fields) +
+        " FROM pilot_research_effect_journal WHERE tenant_id=%s "
+        "AND owner_user_id=%s AND task_id=%s AND run_id=%s "
+        "AND kind='SEARCH' AND status='SUCCEEDED' ORDER BY sequence",
+        (tenant, user, task_id, run_id),
+    )
+    for row in cursor.fetchall():
+        entry = _entry(row)
+        event_row = resources._select(
+            cursor, tenant, user, task_id, run_id, entry["action_id"]
+        )
+        if event_row is None or not journal.prior_effect_valid(entry, _event(event_row)):
+            raise ExecutionRuntimeError("request_conflict", 409)
+        result = effect_result("SEARCH", entry["payload"], entry["result"])
+        if any(item.get("url") == url for item in result["results"]):
+            return entry["payload"]["query"]
+    return None
 
 
 class DynamicResearchCandidateStore:
@@ -110,6 +139,7 @@ class DynamicResearchCandidateStore:
                 if (validated != entry["result"]
                         or canonical_effect_sha256(validated) != entry["output_sha256"]):
                     raise ExecutionRuntimeError("request_conflict", 409)
+                evidence = validated["evidence"]
                 selected_page = None
                 if selection is not _SELECTION_OMITTED:
                     selected_page = validate_page_selection(selection, validated["evidence"])
@@ -149,7 +179,12 @@ class DynamicResearchCandidateStore:
                     self.runtime._active(cursor, claims)
                     return previous[1]
 
-                record = (_record(entry) if selected_page is None
+                query = _bound_search_query(
+                    cursor, self.journal, self.resources,
+                    tenant=tenant, user=claims.user_id, task_id=task_id,
+                    run_id=run_id, url=evidence["url"],
+                )
+                record = (_record(entry, query=query) if selected_page is None
                           or selected_page["decision"] == "ASSESS" else None)
                 remaining = max(
                     0,
