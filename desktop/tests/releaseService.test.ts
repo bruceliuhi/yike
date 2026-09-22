@@ -1,6 +1,13 @@
 import {expect,it} from 'vitest';
 import {releaseServiceBuildInput} from '../build/releaseService';
+import {releasePackagingRequired} from '../build/releasePackaging';
 import {clientServiceConfiguration} from '../src/main/clientServiceConfiguration';
+
+it('requires the service origin for npm Forge make invocations',()=>{
+ expect(releasePackagingRequired({argv:['node','electron-forge'],env:{npm_lifecycle_event:'make:mac'}})).toBe(true);
+ expect(releasePackagingRequired({argv:['node','electron-forge','make'],env:{}})).toBe(true);
+ expect(releasePackagingRequired({argv:['node','vitest'],env:{VITEST:'true'}})).toBe(false);
+});
 
 it('requires a configured HTTPS origin for release packaging',()=>{
  expect(()=>releaseServiceBuildInput({},true)).toThrow('RELEASE_SERVICE_URL_REQUIRED');
