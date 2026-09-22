@@ -18,6 +18,7 @@ import {
   type YikeService,
 } from "../../src/renderer/services/contracts";
 import { TEST_USER, opportunity, profile, taskDraft } from "./fixtures";
+import { VISUAL_MANAGEMENT_SCOPE } from "./management";
 
 export const RECOVERY_SCENARIOS = [
   "ai-late",
@@ -380,9 +381,17 @@ export function configureRecovery(
           accountId: channel === "comment" ? ACCOUNT : "",
           recipient: channel === "comment" ? RECIPIENT : "",
         });
+        const value = JSON.stringify({ comment: contact("comment"), dm: contact("dm") });
+        // Customer drafts are tenant-scoped in the production client. Keep the
+        // legacy key too so the helper remains readable when a test opens the
+        // route before the authenticated scope has been hydrated.
         storage.setItem(
           `yike.ui.draft.v1.contact:${TEST_USER}:${opportunity.id}`,
-          JSON.stringify({ comment: contact("comment"), dm: contact("dm") }),
+          value,
+        );
+        storage.setItem(
+          `yike.ui.draft.v1.contact:${TEST_USER}:${opportunity.id}:${JSON.stringify(VISUAL_MANAGEMENT_SCOPE)}`,
+          value,
         );
       }
     },

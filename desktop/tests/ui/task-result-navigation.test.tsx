@@ -96,7 +96,8 @@ it('requires a task-scoped candidate echo before showing a recovered original re
   ? {items:[row],page:1,pageSize:1,total:1,taskId:other}
   : {items:[row],page:1,pageSize:10,total:1,taskId});
  render(<CandidatesPage/>);
- fireEvent.click(await screen.findByRole('button',{name:'核对原请求'}));
+ fireEvent.click(await screen.findByText(/查看处理记录（1）/));
+ fireEvent.click(await screen.findByRole('button',{name:'查看处理结果'}));
  await waitFor(()=>expect(context.service.candidates).toHaveBeenCalledWith(expect.objectContaining({ids:[row.id],taskId})));
  expect(screen.queryByText(/原请求已核对成功/)).toBeNull();
  expect(localStorage.getItem(operationLedgerKey('candidate-request-operations','user'))).toContain(operation.requestId);
@@ -111,7 +112,8 @@ it('does not show an async recovered request after switching tasks',async()=>{
  context.route=parseRoute(`#/candidates?task=${taskId}`);
  vi.mocked(context.service.candidates).mockResolvedValue({items:[row],page:1,pageSize:10,total:1,taskId});
  const view=render(<CandidatesPage/>);
- fireEvent.click(await screen.findByRole('button',{name:'核对原请求'}));
+ fireEvent.click(await screen.findByText(/查看处理记录（1）/));
+ fireEvent.click(await screen.findByRole('button',{name:'查看处理结果'}));
  await waitFor(()=>expect(resolve).toBeTypeOf('function'));
  context.route=parseRoute(`#/candidates?task=${other}`);
  vi.mocked(context.service.candidates).mockResolvedValue({items:[],page:1,pageSize:10,total:0,taskId:other});

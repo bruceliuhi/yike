@@ -21,6 +21,8 @@ import { operationLedgerKey } from "../../src/renderer/app/operationLedger";
 import { createVisualService } from "./service";
 import { configureRecovery, type RecoveryScenario } from "./recovery";
 import { TEST_USER } from "./fixtures";
+import { VISUAL_MANAGEMENT_SCOPE } from "./management";
+import { taskDraftOwner } from "../../src/renderer/app/taskDraft";
 function Ready({ children }: { children: ReactNode }) {
   return useApp().sessionReady ? children : null;
 }
@@ -50,7 +52,11 @@ function mount(
     const seeded = JSON.parse(
       sessionStorage.getItem(`yike.ui.draft.v1.task.${TEST_USER}`)!,
     );
-    const hook = renderHook(() => useTaskDraft(TEST_USER));
+    const scopedKey = `yike.ui.draft.v1.task.${taskDraftOwner(TEST_USER, VISUAL_MANAGEMENT_SCOPE)}`;
+    sessionStorage.setItem(scopedKey, JSON.stringify(seeded));
+    const hook = renderHook(() =>
+      useTaskDraft(TEST_USER, seeded.mode, VISUAL_MANAGEMENT_SCOPE),
+    );
     act(() => hook.result.current[1](seeded));
     hook.unmount();
   }
@@ -65,7 +71,9 @@ function mount(
 }
 function draft() {
   return JSON.parse(
-    sessionStorage.getItem(`yike.ui.draft.v1.task.${TEST_USER}`)!,
+    sessionStorage.getItem(
+      `yike.ui.draft.v1.task.${taskDraftOwner(TEST_USER, VISUAL_MANAGEMENT_SCOPE)}`,
+    ) || sessionStorage.getItem(`yike.ui.draft.v1.task.${TEST_USER}`)!,
   );
 }
 const ledger = (scope: "send-attempts" | "unknown-task-starts") =>
@@ -137,7 +145,9 @@ it("P13 real route binds UNKNOWN to the original request; only an explicit non-d
     expect((prepare as HTMLButtonElement).disabled).toBe(false),
   );
   fireEvent.click(prepare);
-  fireEvent.click(await screen.findByRole("button", { name: "核对发送信息" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: /核验发送条件|核对发送信息/ }),
+  );
   await screen.findByText("TEST 合成收件人（不会实际发送）");
   fireEvent.click(
     screen.getByRole("checkbox", { name: "我已核对联系对象、发送账号和内容" }),

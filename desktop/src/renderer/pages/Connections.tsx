@@ -409,7 +409,14 @@ export function ConnectionsPage() {
               <span className="muted">当前状态</span>
               <h3 role="status">{currentState}</h3>
               {state === "connected" ? (
-                result?.accountName?.trim() ? <p>{result.accountName.trim()}</p> : null
+                <>
+                  {result?.accountName?.trim() ? <p>{result.accountName.trim()}</p> : null}
+                  {result && result.capabilities.length === 0 && (
+                    <Notice tone="warning">
+                      账号连接成功，但尚无已验证的采集或触达能力；任务启动条件仍需检查。
+                    </Notice>
+                  )}
+                </>
               ) : <p>
                 {opened
                     ? loginReady ? '请本人点击“我已完成登录，检查连接”，完成当前账号连接核验。' : `在本机浏览器中完成${selected.name}账号登录。`

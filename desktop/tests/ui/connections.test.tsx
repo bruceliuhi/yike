@@ -79,7 +79,7 @@ describe("平台连接", () => {
       ).disabled,
     ).toBe(true);
   });
-  it("连接成功只展示结果，不展示内部编号、空能力警告或登录教学", async () => {
+  it("连接成功展示账号与能力状态，不暴露内部编号或登录教学", async () => {
     const service = await mount({
       connect: vi.fn().mockResolvedValue(undefined),
       checkConnection: vi
@@ -99,7 +99,8 @@ describe("平台连接", () => {
     await screen.findByText("账号已连接");
     expect(service.checkConnection).toHaveBeenCalledWith("xhs");
     const dialog = within(screen.getByRole("dialog"));
-    expect(dialog.queryByText(/fixture-account|暂无通过检查|尚无已验证/)).toBeNull();
+    expect(dialog.queryByText(/fixture-account/)).toBeNull();
+    expect(dialog.getByText(/尚无已验证的采集或触达能力/)).toBeTruthy();
     expect(dialog.queryByText(/本机浏览器登录|账号登录在平台原生页面|扫码、验证码/)).toBeNull();
     expect(dialog.queryByRole("list", { name: "连接步骤" })).toBeNull();
     expect(dialog.queryByText(/搜索公开内容|采集可用/)).toBeNull();
