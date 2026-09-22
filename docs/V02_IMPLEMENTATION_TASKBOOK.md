@@ -11,7 +11,7 @@
 - Lead Radar 调度执行现在必须同时满足连接器 READY 和已批准的数据权利记录；权利记录绑定访问方式、条款/隐私链接、允许操作与字段、原文保存、保留期限、限流、回写权限和可撤销审批状态。缺少有效 proof 或权利被暂停时，只记录 `BLOCKED_SOURCE`，不会执行搜索。
 - 新增数据权利管理 API 与审计测试；Lead Radar 定向回归 **48 项通过**。来源权利测试覆盖安全 URL、有效 proof 绑定、批准、暂停和 worker 阻断。
 - 桌面端完整回归 **268 个测试文件通过、26 个跳过，4569 个测试通过、55 个跳过**；监控平台状态和研究报价验收中的异步竞态已改为等待真实条件，不放宽产品门禁。
-- 按最终主线重新构建 Mac arm64 包：ZIP SHA-256 `7d653970adc8c0a3c8e13118805047a1d5b93d56935ded93186c193238eaea02`、ASAR SHA-256 `54f8186bd35bc8a813e9683a4595ee2d349fbb246fe4928e13f68bf4bb3b458a`；机器记录见 [`latest-main-package-101d065.json`](qa/ui-candidate-mac/latest-main-package-101d065.json)。当前仅为 ad hoc 签名，Developer ID、公证和外部安装验收仍未完成。
+- 按最终主线重新构建 Mac arm64 包：ZIP SHA-256 `f3068fcb2ac55b89b1d04207a5b43c56c921b79304f977ca758f5e83faf7e87a`、ASAR SHA-256 `54f8186bd35bc8a813e9683a4595ee2d349fbb246fe4928e13f68bf4bb3b458a`；机器记录见 [`latest-main-package-1efccd9.json`](qa/ui-candidate-mac/latest-main-package-1efccd9.json)。当前仅为 ad hoc 签名，Developer ID、公证和外部安装验收仍未完成。
 - `scripts/release_candidate_check.py --local-only --run-tests` 在提交干净后应回到 `local=PASS / external=NOT_VERIFIED / overall=HOLD`；Mac 包字节未因本轮测试与 Lead Radar 后端收口而改变。
 - 该提交仍不等于真实平台授权：小红书、抖音、B站、知乎的生产适配器仍需各自 capability proof、SEARCH→READ→证据运行和样本校准；整体上线继续 **HOLD**。
 
