@@ -1,0 +1,31 @@
+{
+  "schema": "yike.mac-package-evidence/v1",
+  "sourceRevision": "f54871861fe6fdae539b5d6e9d79e138e2b83454",
+  "builtAt": "2026-09-23",
+  "platform": "darwin/arm64",
+  "version": "0.2.0",
+  "serviceOrigin": "https://yike.tuokexing.net",
+  "zip": {
+    "path": "desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip",
+    "sha256": "676b3e9e9c106bfffbf97d4108b8b153e54bc00037815a21e62646df3ff720c3"
+  },
+  "asar": {
+    "path": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/app.asar",
+    "sha256": "b9ca801f13aaa3ad3f7994fea9bc5820236de5522a1ab3b16db5cefe74eed664"
+  },
+  "checks": {
+    "make_mac": "PASS",
+    "verify_package": "PASS",
+    "packaged_smoke": "PASS",
+    "login_regression": "42 passed",
+    "desktop_full_regression": "4576 passed, 55 skipped",
+    "lead_radar": "71 passed",
+    "release_candidate_check": "local=PASS / external=NOT_VERIFIED / overall=HOLD"
+  },
+  "distribution": {
+    "code_signing": "AD_HOC",
+    "developer_id_identity": "NOT_AVAILABLE",
+    "notarization": "NOT_RUN"
+  },
+  "scope": "f548718 包含工作台状态区分、监控画像版本提示、来源证据审计、产品目录、用户提交公开 RSS/Atom Feed 采集、机会池重开、任务→证据→反馈→成本→动作回放，以及版本化评测契约；桌面包结构和包内冒烟均通过。Finder 安装、Developer ID 签名/公证、最终服务器版本、真实平台来源权利、生产数据库恢复和客户 UAT 仍是独立上线门禁。"
+}
