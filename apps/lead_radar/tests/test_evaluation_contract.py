@@ -138,6 +138,57 @@ class EvaluationContractTest(unittest.TestCase):
         self.assertEqual(tool["inputSchema"]["required"], ["manifest"])
         self.assertFalse(tool["inputSchema"]["additionalProperties"])
 
+    def test_authorized_manifest_imports_a_review_only_calibration_batch(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            server = create_server("127.0.0.1", 0, str(Path(tempdir) / "import.sqlite3"))
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                host, port = server.server_address
+
+                def request(method: str, path: str, payload: dict) -> tuple[int, dict]:
+                    connection = HTTPConnection(host, port)
+                    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                    connection.request(method, path, body=body, headers={"Content-Type": "application/json"})
+                    response = connection.getresponse()
+                    result = json.loads(response.read().decode("utf-8"))
+                    connection.close()
+                    return response.status, result
+
+                status, task = request("POST", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks", {"objective": "导入授权评测样本"})
+                self.assertEqual(status, 201)
+                status, imported = request(
+                    "POST",
+                    "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/calibration-batches/import-manifest",
+                    {"task_id": task["id"], "manifest": self.manifest(), "name": "授权样本导入"},
+                )
+                self.assertEqual(status, 201)
+                batch = imported["batch"]
+                self.assertEqual(batch["metrics"]["item_count"], 2)
+                self.assertEqual(batch["metrics"]["reviewed_count"], 2)
+                self.assertEqual(batch["metrics"]["reopen_rate"], 1.0)
+                self.assertEqual([item["predicted_label"] for item in batch["items"]], ["VALID", "VALID"])
+                self.assertEqual(imported["import"]["external_actions_sent"], 0)
+                self.assertEqual({item["status"] for item in batch["items"]}, {"REVIEW"})
+
+                rejected_manifest = self.manifest()
+                rejected_manifest["dataset"]["rights_approval_verified"] = False
+                status, rejected = request(
+                    "POST",
+                    "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/calibration-batches/import-manifest",
+                    {"task_id": task["id"], "manifest": rejected_manifest},
+                )
+                self.assertEqual(status, 409)
+                self.assertEqual(rejected["error"], "evaluation_rights_not_verified")
+            finally:
+                server.shutdown()
+                server.server_close()
+                server.store.close()
+
+        tool = next(item for item in TOOL_DEFINITIONS if item["name"] == "import_evaluation_manifest")
+        self.assertFalse(tool["readOnlyHint"])
+        self.assertEqual(tool["inputSchema"]["required"], ["task_id", "manifest"])
+
 
 if __name__ == "__main__":
     unittest.main()

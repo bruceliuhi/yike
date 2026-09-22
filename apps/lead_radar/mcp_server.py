@@ -27,6 +27,7 @@ try:
     )
     from .evaluation_api import get_calibration_evaluation
     from .evaluation_contract import get_evaluation_contract, validate_evaluation_manifest
+    from .evaluation_import import import_evaluation_manifest
     from .connector_contract import get_connector_contract, validate_connector_manifest
     from .feed_api import get_feed_event, list_feed, review_feed_event
     from .integrations import list_integrations
@@ -43,6 +44,7 @@ except ImportError:  # running this file directly
     from business_api import API_VERSION, BusinessApiError, create_search_task, enrich_entity, fetch_search_results, get_search_status
     from evaluation_api import get_calibration_evaluation
     from evaluation_contract import get_evaluation_contract, validate_evaluation_manifest
+    from evaluation_import import import_evaluation_manifest
     from connector_contract import get_connector_contract, validate_connector_manifest
     from feed_api import get_feed_event, list_feed, review_feed_event
     from integrations import list_integrations
@@ -313,6 +315,21 @@ TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
         },
     },
     {
+        "name": "import_evaluation_manifest",
+        "description": "将已经完成权利核验的评测 manifest 导入本地校准批次；冻结系统预测、保存金标准和重开证据，不执行搜索、不发送外部动作。",
+        "readOnlyHint": False,
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "string", "maxLength": 120},
+                "name": {"type": "string", "maxLength": 120},
+                "manifest": {"type": "object"},
+            },
+            "required": ["task_id", "manifest"],
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "get_connector_contract",
         "description": "读取自动搜索和官方回写连接器的权限、重开、限流、字段白名单、幂等和回读验收契约；契约就绪不代表平台已经授权。",
         "readOnlyHint": True,
@@ -453,6 +470,8 @@ def build_server(store: Store, workspace_id: str = WORKSPACE_ID):
                 result = get_evaluation_contract(args.get("language", "zh-CN"))
             elif name == "validate_evaluation_manifest":
                 result = validate_evaluation_manifest(args["manifest"])
+            elif name == "import_evaluation_manifest":
+                result = import_evaluation_manifest(store, workspace_id, args["task_id"], args["manifest"], args.get("name"))
             elif name == "get_connector_contract":
                 result = get_connector_contract(args.get("language", "zh-CN"))
             elif name == "validate_connector_manifest":

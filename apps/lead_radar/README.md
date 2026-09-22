@@ -54,6 +54,7 @@ python3 apps/lead_radar/server.py --port 8780
 - `POST /api/v1/calibration-batches/{batch_id}/items/{item_id}/review`
 - `GET /api/v1/evaluation-contract?language=zh-CN|en-US`
 - `POST /api/v1/evaluation-contract/validate`
+- `POST /api/v1/workspaces/ws_意客AI/calibration-batches/import-manifest`
 - `GET /api/v1/connector-contract?language=zh-CN|en-US`
 - `POST /api/v1/connector-contract/validate`
 - `GET /api/v1/icp-profiles?language=zh-CN|en-US`
@@ -116,6 +117,8 @@ MCP 还提供 `get_feed`、`get_feed_event` 和 `review_feed_event`。Feed 事�
 评测集导入前应先读取 GET /api/v1/evaluation-contract。`lead-radar-evaluation-v1` 规定数据集版本、权利证明引用、来源 URL、发布时间、原文片段、系统预测、人工金标准、复核理由、原文重开和内容指纹；同时明确禁止把 Cookie、Token、联系人字段或私信内容放进评测集。契约状态为 `CONTRACT_READY`，`benchmark_claim_allowed=false`，只有真实授权样本达到 30 条、全部复核、重开合格、准确率至少 80%、误报率不超过 20%、权利证明完整且外部动作数为 0 后，才允许把评测报告作为公开基准候选。MCP 通过 `get_evaluation_contract` 提供同一只读契约。
 
 POST /api/v1/evaluation-contract/validate 接收 `{dataset, samples}` manifest，只做无副作用校验：返回 schema 是否有效、行业/来源分布、标签准确率、误报/漏报、重开率、权利证明引用覆盖率和阻塞原因，不写入数据库、不访问来源、不发送外部动作。MCP 的 `validate_evaluation_manifest` 提供同一校验器；校验通过仍不等于已经发布公开 benchmark。
+
+`POST /api/v1/workspaces/ws_意客AI/calibration-batches/import-manifest` 接收 `task_id`、`manifest` 和可选 `name`，要求 manifest 字段有效、责任人已核验权利且 `external_actions_sent=0`。它会把样本导入指定任务的 REVIEW 机会，冻结系统预测、保留金标准、重开证据和数据集版本，并返回校准批次；这是本地评测闭环，不会执行搜索、发送动作或把样本标成可联系。
 
 `connector-contract` 是搜索和官方回写适配器的验收契约。它只校验操作人提供的 endpoint、权限范围引用、材料摘要、字段白名单、重开、发布时间、限流、保存边界、幂等、回读和回滚门禁，不保存凭据、不调用第三方。通过契约只表示材料完整，真实连接器仍需单独通过来源权利和生产 readiness。
 

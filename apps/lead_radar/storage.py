@@ -2363,6 +2363,7 @@ class Store:
         name: str,
         target_count: int = 30,
         opportunity_ids: list[str] | None = None,
+        predicted_labels: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
         name = str(name or "真实候选校准").strip()
         if not name:
@@ -2419,11 +2420,14 @@ class Store:
                 (batch_id, workspace_id, name, target_count, timestamp),
             )
             for row in rows:
+                predicted_label = (predicted_labels or {}).get(row["id"], predicted_calibration_label(row["status"]))
+                if predicted_label not in CALIBRATION_LABELS:
+                    raise ValueError("invalid_calibration_predicted_label")
                 db.execute(
                     """INSERT INTO calibration_items
                        (id, batch_id, opportunity_id, predicted_label, created_at)
                        VALUES (?, ?, ?, ?, ?)""",
-                    (_id("calibration_item"), batch_id, row["id"], predicted_calibration_label(row["status"]), timestamp),
+                    (_id("calibration_item"), batch_id, row["id"], predicted_label, timestamp),
                 )
             self._audit(
                 db,

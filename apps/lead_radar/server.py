@@ -27,6 +27,7 @@ try:
     from .brief_api import get_research_brief
     from .evaluation_api import get_calibration_evaluation
     from .evaluation_contract import get_evaluation_contract, validate_evaluation_manifest
+    from .evaluation_import import import_evaluation_manifest
     from .connector_contract import get_connector_contract, validate_connector_manifest
     from .feed_api import get_feed_event, list_feed, review_feed_event
     from .index_connector import IndexResultError, normalize_index_results
@@ -54,6 +55,7 @@ except ImportError:  # running server.py directly
     from brief_api import get_research_brief
     from evaluation_api import get_calibration_evaluation
     from evaluation_contract import get_evaluation_contract, validate_evaluation_manifest
+    from evaluation_import import import_evaluation_manifest
     from connector_contract import get_connector_contract, validate_connector_manifest
     from feed_api import get_feed_event, list_feed, review_feed_event
     from index_connector import IndexResultError, normalize_index_results
@@ -526,6 +528,17 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 return self._send(200, validate_evaluation_manifest(payload))
             if path == "/api/v1/connector-contract/validate":
                 return self._send(200, validate_connector_manifest(payload))
+            if path == f"/api/v1/workspaces/{WORKSPACE_ID}/calibration-batches/import-manifest":
+                return self._send(
+                    201,
+                    import_evaluation_manifest(
+                        self.store,
+                        WORKSPACE_ID,
+                        payload.get("task_id"),
+                        payload.get("manifest"),
+                        payload.get("name"),
+                    ),
+                )
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/api-keys":
                 label = str(payload.get("label", "")).strip()
                 if not label:
