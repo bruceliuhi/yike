@@ -25,6 +25,16 @@ SUPPORTED_LITERAL_COPIES = {
         "skills/ai-project-lead-research-v1/references/qualification-and-evidence.md",
         "./pilot/_assessment_rules/references/qualification-and-evidence.md",
     ),
+    (
+        "skills/ai-project-lead-research-v1/SKILL.md",
+        "./pilot/_research_rules/SKILL.md",
+    ),
+    (
+        "skills/ai-project-lead-research-v1/references/evaluation.md",
+        "skills/ai-project-lead-research-v1/references/qualification-and-evidence.md",
+        "skills/ai-project-lead-research-v1/references/search-and-coverage.md",
+        "./pilot/_research_rules/references/",
+    ),
 }
 
 

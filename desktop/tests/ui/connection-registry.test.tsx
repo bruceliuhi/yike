@@ -47,6 +47,21 @@ it('shows four account columns without publishing capability details',()=>{
   fireEvent.click(details());
   expect(within(screen.getByRole('dialog')).queryByText(/FUTURE_INTERNAL_CODE|搜索公开内容|可用能力/)).toBeNull();
 });
+it('does not offer a dead login action for a known unavailable platform', () => {
+  const onOpen = vi.fn();
+  const row: PlatformConnection = {
+    platform: 'xhs',
+    status: 'UNAVAILABLE',
+    capabilities: [],
+    reason: '小红书登录服务尚未配置',
+  };
+  render(<ConnectionRegistryTable rows={[row]} loading={false} error="" pendingPlatforms={[]} onOpen={onOpen} onDisconnect={vi.fn()} onRefresh={vi.fn()} />);
+  const action = screen.getByRole('button', {name: '暂不可用'}) as HTMLButtonElement;
+  expect(action.disabled).toBe(true);
+  expect(action.title).toBe('小红书登录服务尚未配置');
+  fireEvent.click(action);
+  expect(onOpen).not.toHaveBeenCalled();
+});
 it("shows both devices for the same account, with exact detail identity and no legacy operation", async () => {
   render(<ConnectionsPage />);
   await screen.findByText("小红书账号2");

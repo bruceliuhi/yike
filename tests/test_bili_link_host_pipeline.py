@@ -179,6 +179,7 @@ def test_source_driver_links_fixed_command_and_real_file_mapping_with_controlled
     monkeypatch.setattr(driver, '_exclusive_paths', lambda _: nullcontext())
     monkeypatch.setattr(driver, 'verify_installed_runtime', lambda _: tmp_path/'python.exe')
     monkeypatch.setattr(driver, 'verify_private_tree', lambda _: None)
+    monkeypatch.setattr(driver, 'verify_browser_profile_tree', lambda _: None)
     def create(path):
         path.mkdir(parents=True)
         return path

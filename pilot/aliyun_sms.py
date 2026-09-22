@@ -21,6 +21,12 @@ _REQUIRED_ENVIRONMENT = (
     "ALIBABA_CLOUD_ACCESS_KEY_SECRET",
 )
 
+# Kept as module-level seams so the provider can be tested without making a
+# network call.  The official SDK remains optional for ordinary runtimes and
+# is imported lazily by the sender constructor when this seam is unset.
+AliyunClient = None
+SendSmsRequest = None
+
 
 class SmsConfigurationError(RuntimeError):
     """Raised with a fixed message when private provider configuration is invalid."""
@@ -66,9 +72,16 @@ class AliyunSmsSender:
         # Keep the provider SDK optional for ordinary customer runtimes. It
         # is imported only when the deployment explicitly enables Aliyun SMS;
         # missing SDK/configuration must remain the documented 501 path.
+        global AliyunClient, SendSmsRequest
         try:
-            from alibabacloud_dysmsapi20170525.client import Client as AliyunClient
-            from alibabacloud_dysmsapi20170525.models import SendSmsRequest
+            client_factory = AliyunClient
+            request_type = SendSmsRequest
+            if client_factory is None:
+                from alibabacloud_dysmsapi20170525.client import Client
+                client_factory = Client
+            if request_type is None:
+                from alibabacloud_dysmsapi20170525.models import SendSmsRequest as Request
+                request_type = Request
             from alibabacloud_tea_openapi.models import Config
             from alibabacloud_tea_util.models import RuntimeOptions
             from darabonba.policy.retry import RetryOptions
@@ -103,7 +116,7 @@ class AliyunSmsSender:
             retry_options=RetryOptions(retryable=False, maxAttempts=1),
         )
         try:
-            self._client = AliyunClient(config)
+            self._client = client_factory(config)
         except Exception:
             raise SmsProviderError("SMS provider initialization failed") from None
         self._runtime = RuntimeOptions(
@@ -120,7 +133,10 @@ class AliyunSmsSender:
         return "AliyunSmsSender(configured=True)"
 
     def send_code(self, phone: str, code: str) -> bool:
-        from alibabacloud_dysmsapi20170525.models import SendSmsRequest
+        request_type = SendSmsRequest
+        if request_type is None:
+            from alibabacloud_dysmsapi20170525.models import SendSmsRequest as Request
+            request_type = Request
 
         _reject_sdk_debug(os.environ.get("DEBUG"))
         if not isinstance(phone, str) or _PHONE_PATTERN.fullmatch(phone) is None:
@@ -128,7 +144,7 @@ class AliyunSmsSender:
         if not isinstance(code, str) or _CODE_PATTERN.fullmatch(code) is None:
             raise ValueError("invalid SMS verification code")
 
-        request = SendSmsRequest(
+        request = request_type(
             phone_numbers=phone,
             sign_name=self._sign_name,
             template_code=self._template_code,

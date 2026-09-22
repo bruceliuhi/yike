@@ -189,6 +189,7 @@ def test_source_driver_progress_uses_private_input_and_only_stopped_success(tmp_
     monkeypatch.setattr(driver,'_exclusive_paths',lambda _:nullcontext())
     monkeypatch.setattr(driver,'verify_installed_runtime',lambda _:tmp_path/'python.exe')
     monkeypatch.setattr(driver,'verify_private_tree',lambda _:None)
+    monkeypatch.setattr(driver,'verify_browser_profile_tree',lambda _:None)
     def create(path):path.mkdir(parents=True);return path
     monkeypatch.setattr(driver,'create_private_directory',create)
     output=tmp_path/'output'

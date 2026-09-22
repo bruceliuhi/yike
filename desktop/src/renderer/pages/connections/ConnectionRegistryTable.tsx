@@ -33,6 +33,11 @@ export function ConnectionRegistryTable({rows, loading, error, pendingPlatforms,
             const registered = connection?.registration;
             const isWeb = platform.id === "web";
             const blocked = pendingPlatforms.includes(platform.id);
+            // An unavailable registration is a known service state, not an
+            // invitation to start another login flow. Keep the row visible
+            // so the user can see why it is unavailable, but prevent a dead
+            // button from opening a flow that cannot succeed.
+            const unavailable = connection?.status === "UNAVAILABLE";
             const accountName = connection ? connectionAccountLabel(connection, index) : isWeb ? "无需账号" : "—";
             return <tr key={registered?.connectionId || `${platform.id}:${connection?.accountId || "empty"}:${index}`}>
               <td><PlatformLabel platform={platform.id} size={22} /></td>
@@ -43,7 +48,7 @@ export function ConnectionRegistryTable({rows, loading, error, pendingPlatforms,
                 {connection ? connectionLabel[connection.status] : rows ? "未连接" : "待读取连接状态"}
               </Badge>}</td>
               <td>{registered ? <Button onClick={() => setSelectedId(registered.connectionId)} aria-label={`查看${platform.name}连接详情：${accountName}，连接 ${index + 1}`}>查看详情</Button> : !isWeb && <div className="inline-actions">
-                <Button disabled={blocked} onClick={() => onOpen(platform.id)}>{connection?.status === "CONNECTED" ? "查看连接" : connection?.status === "EXPIRED" ? "重新连接" : "连接"}</Button>
+                <Button disabled={blocked || unavailable} title={unavailable ? (connection?.reason || "该平台连接服务暂不可用。") : undefined} onClick={() => onOpen(platform.id)}>{unavailable ? "暂不可用" : connection?.status === "CONNECTED" ? "查看连接" : connection?.status === "EXPIRED" ? "重新连接" : "连接"}</Button>
                 {connection?.status === "CONNECTED" && <Button variant="ghost" disabled={blocked} onClick={() => onDisconnect(connection)}>断开</Button>}
               </div>}</td>
             </tr>;
