@@ -32,6 +32,7 @@ try:
     from .integrations import list_integrations
     from .product_catalog import list_product_catalog
     from .planner import build_search_plan
+    from .presentation import localize_opportunities, localize_opportunity
     from .proofs import SourceProofError, normalize_source_proof
     from .readiness_api import get_production_readiness
     from .rights import SourceRightError, normalize_source_right
@@ -56,6 +57,7 @@ except ImportError:  # running server.py directly
     from integrations import list_integrations
     from product_catalog import list_product_catalog
     from planner import build_search_plan
+    from presentation import localize_opportunities, localize_opportunity
     from proofs import SourceProofError, normalize_source_proof
     from readiness_api import get_production_readiness
     from rights import SourceRightError, normalize_source_right
@@ -359,6 +361,7 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                         limit=query.get("limit", [20])[0],
                         offset=query.get("offset", [0])[0],
                         status=query.get("status", [None])[0],
+                        language=query.get("language", ["zh-CN"])[0],
                     ),
                 )
             except BusinessApiError as exc:
@@ -425,7 +428,11 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             return self._send(200, {"items": self.store.list_tasks(WORKSPACE_ID)})
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/opportunities":
             status = parse_qs(parsed.query).get("status", [None])[0]
-            return self._send(200, {"items": self.store.list_opportunities(WORKSPACE_ID, status)})
+            language = parse_qs(parsed.query).get("language", ["zh-CN"])[0]
+            try:
+                return self._send(200, {"items": localize_opportunities(self.store.list_opportunities(WORKSPACE_ID, status), language), "language": language})
+            except ValueError as exc:
+                return self._error(400, "invalid_request", str(exc))
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/opportunities/export.csv":
             status = parse_qs(parsed.query).get("status", [None])[0]
             try:
@@ -466,7 +473,13 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             return self._send(200, {"run_id": run_id, "events": events}) if events is not None else self._error(404, "run_not_found", "运行实例不存在")
         if path.startswith("/api/v1/opportunities/") and path.count("/") == 4:
             opportunity = self.store.get_opportunity(path.rsplit("/", 1)[-1])
-            return self._send(200, opportunity) if opportunity else self._error(404, "opportunity_not_found", "机会不存在")
+            language = parse_qs(parsed.query).get("language", ["zh-CN"])[0]
+            if not opportunity:
+                return self._error(404, "opportunity_not_found", "机会不存在")
+            try:
+                return self._send(200, localize_opportunity(opportunity, language))
+            except ValueError as exc:
+                return self._error(400, "invalid_request", str(exc))
         if path.startswith("/api/v1/opportunities/") and path.endswith("/action-drafts"):
             opportunity_id = path.split("/")[-2]
             opportunity = self.store.get_opportunity(opportunity_id)
