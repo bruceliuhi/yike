@@ -106,6 +106,15 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertEqual(rejected["error"], "endpoint_invalid")
 
+        with_query = {**malformed, "proof_ref": "proof-query", "endpoint": "https://search.example/proof?token=secret"}
+        status, rejected_query = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/source-proofs",
+            with_query,
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(rejected_query["error"], "endpoint_invalid")
+
         status, listed = self.request("GET", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/source-proofs")
         self.assertEqual(status, 200)
         self.assertEqual(len(listed["items"]), 1)

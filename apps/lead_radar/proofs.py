@@ -50,7 +50,7 @@ def _checked_at(value: Any) -> str:
 def _endpoint(value: Any) -> str:
     endpoint = _text(value, "endpoint_required", "来源证明必须提供 HTTPS endpoint。", 2048)
     parsed = urlparse(endpoint)
-    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise SourceProofError("endpoint_invalid", "来源证明 endpoint 必须是无凭据的 HTTPS URL。")
     return endpoint
 
