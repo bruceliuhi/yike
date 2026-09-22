@@ -1,5 +1,15 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+### 2026-09-23 主干生产部署（同源 `bc38fa0`，功能仍待真实业务验收）
+
+- 运行时可执行代码的 Gitee `main` 基线、本地工作树与服务器发行源已核对为 `bc38fa0f05a1e57e0c949a5badf6a29c64dd2157`；本节后续提交仅更新发布记录，不改变 Dockerfile 复制的运行时代码。服务器私有 registry 镜像 digest 为 `sha256:43158e163d0538d159527bbe73dd20e95f978a820a88210fbaa24f63bf5f1353`，运行容器标签绑定该代码基线。
+- 切换前已创建加密、带 MAC 的生产备份 `/opt/yike-ai2026/backups/pilot-20260923-28504cf.dump.enc` 及对应 `.mac`，文件权限已收紧为仅 owner 可读；上一同源容器 `yike-customer:28504cf-candidate` 保留为停止状态回滚副本，早期 `yike-customer:stop-42d8402` 仍另行保留。
+- 已用同源镜像执行缺失迁移 148、149，并以受信管理员连接执行 `deploy/grant_runtime.sql`，未把管理员连接放入运行时容器；迁移与授权完成后才切换 Web 容器。
+- 生产线上新容器的 loopback `GET /healthz=200`、`GET /readyz=200`、应用健康状态 `healthy`，并返回 `X-Yike-Release-Revision: bc38fa0f05a1e57e0c949a5badf6a29c64dd2157`；经 HTTPS 反向代理的 `/healthz`、`/readyz` 也均为 200。当前代理不转发版本头，因此版本核对以受控 loopback 回读为准。
+- 在服务器以最终运行时 env、digest-pinned 镜像引用和备份口令文件完成 `scripts/cp06_validate_env.sh`；`scripts/cp06_probe.sh https://yike.tuokexing.net bc38fa0f05a1e57e0c949a5badf6a29c64dd2157` 返回健康、就绪与同源 revision，CP-06 发布探针通过。
+- 以生产容器内官方 SDK 做只读状态查询：签名“北京星河卓越科技有限公司”与模板 `SMS_512095645` 均返回 `Code=OK`、状态 `1`；这确认签名/模板审核状态正常，但不等于运营商短信端口已报备，不能覆盖此前 `PORT_NOT_REGISTERED` 的实际投递阻断。
+- 线上能力仍如实回读为：`sms_login=true`，`platform_connections=false`、`task_execution=false`、`outreach=false`、`replies=false`。这证明同源 Web 版本已部署，不证明短信实际送达、平台账号采集或研究→候选链路已经上线；仍需外部短信端口报备、真实登录和平台/研究验收。
+
 ### 2026-09-23 最新本地收口（待远端同步）
 
 - 本轮在现有主线基础上补齐工作区级来源证明登记与索引导入绑定：`proof_ref` 必须对应已登记的 HTTPS proof artifact，proof gates 未全通过、来源声明冲突或未登记时拒绝导入；合格索引结果仍只进入 `REVIEW`，不能自动触达。
@@ -7,7 +17,15 @@
 - Lead Radar 测试 **27 项通过**；桌面端稳定全量回归 **268 个测试文件通过、26 个跳过，4563 个测试通过、55 个跳过**；官网构建、桌面端 typecheck/renderer build、发布候选本地门禁均通过。
 - 这只代表代码、测试和本地发布契约收口；授权来源回执、真实自主研究、真实样本校准、生产 PostgreSQL/RLS/备份回滚、最终 HTTPS 运行版本和客户验收仍未验证，正式上线结论仍为 **HOLD**。
 
-### 2026-09-23 客户端短信登录诊断与体验修复（当前主干 `1154e7e`）
+### 2026-09-23 同源主干隔离候选验证（当前主干 `172b9c2`）
+
+- 本地工作树与 Gitee `main` 已核对为同一提交 `172b9c2d8e28033707fd37a58a55a3c382ddf8e4`；未跟踪的 `node_modules/` 未纳入提交。
+- 已从该提交构建服务器隔离镜像 `yike-customer:172b9c2-candidate`，镜像 ID `sha256:f0cd275aed481cb3852d93561dfe6964ab8b47d08ef5c69340a36cce214f7d91`，OCI revision 与主干一致。
+- 候选仅绑定服务器内网 `yike-ai2026` 网络和现有运行时配置，监听 `127.0.0.1:18788`，启用只读根文件系统、tmpfs、`cap_drop=ALL` 与 `no-new-privileges`；未接公网代理、未切换生产容器、未执行迁移或业务写请求。
+- 候选真实回读：`GET /healthz=200`、`GET /readyz=200`，两者均返回 `X-Yike-Release-Revision: 172b9c2d8e28033707fd37a58a55a3c382ddf8e4`；`GET /api/ui/capabilities` 结构可读，但平台连接与任务执行仍按服务端配置为不可用。
+- 生产容器仍是历史 revision `b95b788113a8d75057fef3070c60b3ba01646c1a`；生产 `pilot_schema_meta` 当前未记录迁移 148、149。候选健康不等于生产上线，后续必须按备份→迁移→最小授权→候选→回滚保留顺序推进，并完成真实登录、来源读取和证据链验收。
+
+### 2026-09-23 客户端短信登录诊断与体验修复（功能提交 `1154e7e`，记录已合入主干 `172b9c2`）
 
 - 桌面端修复重新获取验证码后仍保留上一次失败提示的问题；相关回归 **15 passed**，`npm run typecheck` 通过。正式构包继续要求固定 HTTPS 服务地址，避免生成无法连接客户服务的安装包。
 - 新 Mac 包已用 `https://yike.tuokexing.net` 构建并安装，登录页匿名状态可见，未嵌入试用码或任何秘密。旧包保留为可回滚备份。
