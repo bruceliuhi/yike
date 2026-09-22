@@ -27,6 +27,15 @@ python3 apps/lead_radar/server.py --port 8780
 - `GET /api/v1/business/get_search_status/{task_id}`：读取任务、运行实例和来源门禁状态
 - `GET /api/v1/business/fetch_search_results/{task_id}?limit=20&offset=0&status=REVIEW`：按任务分页读取候选和证据
 - `GET /api/v1/business/enrich_entity/{entity_id}`：读取本地实体解析和关联证据；当前不执行第三方外部增强
+- `POST /api/v1/workspaces/ws_意客AI/schedules`：保存周期任务、预算上限、结果阈值和失败策略；不会因为创建任务就自动搜索
+- `GET /api/v1/workspaces/ws_意客AI/schedules` / `GET /api/v1/schedules/{schedule_id}`：读取调度及最近运行记录
+- `POST /api/v1/schedules/{schedule_id}/trigger`：由受控 scheduler 触发一次到期运行；来源未通过门禁时会持久化阻塞原因
+- `POST /api/v1/schedules/{schedule_id}/pause` / `resume`：暂停或恢复周期任务
+- `GET /api/v1/workspaces/ws_意客AI/schedules`：列出监测调度
+- `POST /api/v1/workspaces/ws_意客AI/schedules`：创建频率、预算、结果阈值、失败策略和审批策略
+- `GET /api/v1/schedules/{schedule_id}`：读取调度与最近运行
+- `POST /api/v1/schedules/{schedule_id}/trigger`：对到期调度登记一次运行并排队任务
+- `POST /api/v1/schedules/{schedule_id}/pause|resume`：暂停或恢复调度
 - `GET /api/v1/tasks/{task_id}/plan`
 - `POST /api/v1/tasks/{task_id}/start`
 - `POST /api/v1/tasks/{task_id}/execute`
@@ -51,6 +60,8 @@ python3 apps/lead_radar/server.py --port 8780
 
 业务 API 返回 `api_version`，响应头返回 `X-Request-ID`。这组接口只操作当前本地工作区台账；它不会把 Cookie、密码、第三方 Token 当作参数，也不会因为创建任务就自动搜索、发送私信、发邮件或写入外部 CRM。外部来源仍须通过来源证明、权限、重开、发布时间、限流和保存边界门禁。`enrich_entity` 当前是本地证据解析投影，不能被解释成企业工商、联系方式或第三方画像增强。
 
+调度接口当前是**持久化策略与受控触发层**：它会记录周期、搜贝预算、最低新增结果数、失败时暂停/继续和人工审核策略，并把未通过来源门禁、预算超限和运行结果写入审计账本；它不包含常驻后台 scheduler，也不会绕过现有搜索 worker 或人工审核。正式部署时必须由受控进程按 `next_run_at` 调用 `trigger`，并继续完成真实来源、生产数据库和恢复验收。
+
 可选的 Codex/MCP 入口使用本地 stdio：
 
 ```bash
@@ -58,6 +69,8 @@ python3 apps/lead_radar/server.py --port 8780
 ```
 
 它暴露 `create_search_task`、`get_search_status`、`fetch_search_results` 和 `enrich_entity` 四个工具。MCP 依赖属于可选的 `research` 组；普通 HTTP 工作台不依赖它。MCP 工具没有发送、登录、Cookie、密码或第三方 Token 参数，也不监听 HTTP 端口。
+
+MCP 还暴露 `create_monitor_schedule`、`get_monitor_schedule` 和 `trigger_monitor_schedule`。调度器目前以 `trigger` 作为清晰的 worker 边界：创建和到期判定已持久化，后台进程需要显式调用该入口；来源未通过生产门禁时会记录 `BLOCKED_SOURCE`，不会把排队当成搜索完成。
 
 任务创建时会生成三条可检查的搜索路径：快速搜索、条件核验、扩展搜索，并给出来源状态和搜贝估算。`cost_estimate.unit` 固定为 `SOUBEI`，`display_unit` 为 `搜贝`，`rule_version` 为 `source-result-v1`；旧版 `estimated_credits` / `credits_used` 字段暂保留作为兼容字段，不代表人民币价格或外部平台收费。机会录入必须有 `title`、`source_url` 和 `snippet`。系统保留来源 URL、原文片段和核验时间；当前外部平台连接器仍显示为 `REQUIRES_PROOF` 或 `REQUIRES_AUTH`，不会用假数据冒充自动搜索。
 

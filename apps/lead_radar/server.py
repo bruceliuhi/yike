@@ -25,6 +25,7 @@ try:
     from .planner import build_search_plan
     from .proofs import SourceProofError, normalize_source_proof
     from .search_connector import AuthorizedSearchConnector, SearchConnectorError
+    from .schedule_api import control_schedule, create_schedule, get_schedule, list_schedules, trigger_schedule
     from .source_policy import classify_public_url
     from .storage import Store
     from .usage import UNIT as USAGE_UNIT, charge_for, source_metadata
@@ -37,6 +38,7 @@ except ImportError:  # running server.py directly
     from planner import build_search_plan
     from proofs import SourceProofError, normalize_source_proof
     from search_connector import AuthorizedSearchConnector, SearchConnectorError
+    from schedule_api import control_schedule, create_schedule, get_schedule, list_schedules, trigger_schedule
     from source_policy import classify_public_url
     from storage import Store
     from usage import UNIT as USAGE_UNIT, charge_for, source_metadata
@@ -182,6 +184,13 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 return self._send(200, enrich_entity(self.store, WORKSPACE_ID, path.rsplit("/", 1)[-1]))
             except BusinessApiError as exc:
                 return self._error(exc.status, exc.code, exc.message)
+        if path == f"/api/v1/workspaces/{WORKSPACE_ID}/schedules":
+            return self._send(200, list_schedules(self.store, WORKSPACE_ID))
+        if path.startswith("/api/v1/schedules/") and path.count("/") == 4:
+            try:
+                return self._send(200, get_schedule(self.store, WORKSPACE_ID, path.rsplit("/", 1)[-1]))
+            except BusinessApiError as exc:
+                return self._error(exc.status, exc.code, exc.message)
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/dashboard":
             return self._send(200, self.store.dashboard(WORKSPACE_ID))
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/audit":
@@ -236,6 +245,14 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 result = create_search_task(self.store, WORKSPACE_ID, payload, self.headers.get("Idempotency-Key"))
                 result["request_id"] = self.request_id
                 return self._send(201, result)
+            if path == f"/api/v1/workspaces/{WORKSPACE_ID}/schedules":
+                return self._send(201, create_schedule(self.store, WORKSPACE_ID, payload))
+            if path.startswith("/api/v1/schedules/") and path.endswith("/trigger"):
+                return self._send(200, trigger_schedule(self.store, WORKSPACE_ID, path.split("/")[-2], payload.get("actor", "scheduler"), payload.get("scheduled_for")))
+            if path.startswith("/api/v1/schedules/") and path.endswith("/pause"):
+                return self._send(200, control_schedule(self.store, WORKSPACE_ID, path.split("/")[-2], "pause", payload.get("actor", "operator")))
+            if path.startswith("/api/v1/schedules/") and path.endswith("/resume"):
+                return self._send(200, control_schedule(self.store, WORKSPACE_ID, path.split("/")[-2], "resume", payload.get("actor", "operator")))
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/profiles":
                 return self._create_profile(payload)
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/source-proofs/revoke":
@@ -420,7 +437,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                     units=0,
                 )
             completed = self.store.complete_task_run(task_id, run_id, len(results), sum(1 for item in results if evidence_status(item) == "SEND_READY"))
-            self._send(200, {"task": completed, "run_id": run_id, "created_count": created_count, "deduplicated_count": deduplicated_count, "candidate_count": len(results)})
+            schedule = self.store.settle_scheduled_task_run(task_id, len(results), created_count)
+            self._send(200, {"task": completed, "run_id": run_id, "created_count": created_count, "deduplicated_count": deduplicated_count, "candidate_count": len(results), "schedule": schedule})
         except SearchConnectorError as exc:
             self._record_source_usage(
                 task_id,
@@ -431,7 +449,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 error_code=exc.code,
             )
             failed = self.store.fail_task_run(task_id, run_id, exc.code, exc.message)
-            self._send(502, {"error": exc.code, "message": exc.message, "retryable": exc.retryable, "task": failed, "run_id": run_id})
+            schedule = self.store.settle_scheduled_task_run(task_id, 0, 0, error_code=exc.code, message=exc.message)
+            self._send(502, {"error": exc.code, "message": exc.message, "retryable": exc.retryable, "task": failed, "run_id": run_id, "schedule": schedule})
         except Exception as exc:
             self._record_source_usage(
                 task_id,
@@ -442,9 +461,10 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 error_code="connector_internal_error",
             )
             failed = self.store.fail_task_run(task_id, run_id, "connector_internal_error", str(exc))
+            schedule = self.store.settle_scheduled_task_run(task_id, 0, 0, error_code="connector_internal_error", message="来源连接器执行失败。")
             if os.environ.get("LEAD_RADAR_DEBUG"):
                 raise
-            self._send(500, {"error": "connector_internal_error", "message": "来源连接器执行失败。", "task": failed, "run_id": run_id})
+            self._send(500, {"error": "connector_internal_error", "message": "来源连接器执行失败。", "task": failed, "run_id": run_id, "schedule": schedule})
 
     def _control_run(self, task_id: str, run_id: str, action: str, payload: dict[str, Any]) -> None:
         actor = str(payload.get("actor", "operator"))

@@ -83,6 +83,45 @@ CREATE TABLE IF NOT EXISTS task_run_events (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS scheduled_tasks (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    objective TEXT NOT NULL,
+    criteria_json TEXT NOT NULL,
+    requested_limit INTEGER NOT NULL,
+    interval_minutes INTEGER NOT NULL,
+    max_credits_per_run INTEGER NOT NULL,
+    max_total_credits INTEGER,
+    min_new_results INTEGER NOT NULL DEFAULT 0,
+    failure_policy TEXT NOT NULL,
+    approval_policy TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'ACTIVE',
+    next_run_at TEXT NOT NULL,
+    last_run_at TEXT,
+    run_count INTEGER NOT NULL DEFAULT 0,
+    total_credits INTEGER NOT NULL DEFAULT 0,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS scheduled_task_runs (
+    id TEXT PRIMARY KEY,
+    schedule_id TEXT NOT NULL REFERENCES scheduled_tasks(id),
+    task_id TEXT REFERENCES tasks(id),
+    status TEXT NOT NULL,
+    scheduled_for TEXT NOT NULL,
+    candidate_count INTEGER NOT NULL DEFAULT 0,
+    new_result_count INTEGER NOT NULL DEFAULT 0,
+    credits_used INTEGER NOT NULL DEFAULT 0,
+    error_code TEXT,
+    message TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL,
+    started_at TEXT,
+    finished_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS opportunities (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL REFERENCES workspaces(id),
@@ -241,6 +280,9 @@ CREATE INDEX IF NOT EXISTS idx_entities_workspace ON entities(workspace_id, enti
 CREATE INDEX IF NOT EXISTS idx_entities_host ON entities(workspace_id, website_host);
 CREATE INDEX IF NOT EXISTS idx_opportunity_entities_entity ON opportunity_entities(entity_id);
 CREATE INDEX IF NOT EXISTS idx_task_run_events_run_created ON task_run_events(run_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_workspace_status ON scheduled_tasks(workspace_id, status, next_run_at);
+CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_schedule_created ON scheduled_task_runs(schedule_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_task ON scheduled_task_runs(task_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_calibration_batches_workspace_created ON calibration_batches(workspace_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_calibration_items_batch_created ON calibration_items(batch_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_action_drafts_opportunity_created ON action_drafts(opportunity_id, created_at DESC);
@@ -454,6 +496,390 @@ class Store:
         with self.lock:
             rows = self.db.execute("SELECT * FROM tasks WHERE workspace_id = ? ORDER BY created_at DESC", (workspace_id,)).fetchall()
         return [self._task_dict(row) for row in rows]  # type: ignore[list-item]
+
+    def create_scheduled_task(
+        self,
+        workspace_id: str,
+        objective: str,
+        criteria: dict[str, Any],
+        requested_limit: int,
+        interval_minutes: int,
+        max_credits_per_run: int,
+        max_total_credits: int | None,
+        min_new_results: int,
+        failure_policy: str,
+        approval_policy: str,
+        next_run_at: str,
+        created_by: str,
+    ) -> dict[str, Any] | None:
+        schedule_id = _id("schedule")
+        timestamp = now_iso()
+        with self.tx() as db:
+            workspace = db.execute("SELECT id FROM workspaces WHERE id = ?", (workspace_id,)).fetchone()
+            if not workspace:
+                return None
+            db.execute(
+                """INSERT INTO scheduled_tasks
+                   (id, workspace_id, objective, criteria_json, requested_limit,
+                    interval_minutes, max_credits_per_run, max_total_credits,
+                    min_new_results, failure_policy, approval_policy, status,
+                    next_run_at, created_by, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?)""",
+                (
+                    schedule_id,
+                    workspace_id,
+                    objective,
+                    _json(criteria),
+                    requested_limit,
+                    interval_minutes,
+                    max_credits_per_run,
+                    max_total_credits,
+                    min_new_results,
+                    failure_policy,
+                    approval_policy,
+                    next_run_at,
+                    created_by,
+                    timestamp,
+                    timestamp,
+                ),
+            )
+            self._audit(
+                db,
+                workspace_id,
+                "scheduled_task",
+                schedule_id,
+                "created",
+                {
+                    "interval_minutes": interval_minutes,
+                    "max_credits_per_run": max_credits_per_run,
+                    "max_total_credits": max_total_credits,
+                    "min_new_results": min_new_results,
+                    "failure_policy": failure_policy,
+                    "approval_policy": approval_policy,
+                },
+            )
+        return self.get_scheduled_task(schedule_id, workspace_id)
+
+    @staticmethod
+    def _scheduled_task_run_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
+        return _decode(row)
+
+    def _scheduled_task_dict(self, row: sqlite3.Row | None, include_runs: bool = True) -> dict[str, Any] | None:
+        result = _decode(row)
+        if not result:
+            return None
+        result["criteria"] = json.loads(result.pop("criteria_json") or "{}")
+        if include_runs:
+            with self.lock:
+                run_rows = self.db.execute(
+                    """SELECT id, schedule_id, task_id, status, scheduled_for,
+                              candidate_count, new_result_count, credits_used,
+                              error_code, message, idempotency_key, created_at,
+                              started_at, finished_at
+                       FROM scheduled_task_runs
+                       WHERE schedule_id = ?
+                       ORDER BY created_at DESC, rowid DESC
+                       LIMIT 50""",
+                    (result["id"],),
+                ).fetchall()
+            result["runs"] = [self._scheduled_task_run_dict(item) for item in run_rows]
+            result["latest_run"] = result["runs"][0] if result["runs"] else None
+        return result
+
+    def get_scheduled_task(self, schedule_id: str, workspace_id: str | None = None) -> dict[str, Any] | None:
+        query = "SELECT * FROM scheduled_tasks WHERE id = ?"
+        params: list[Any] = [schedule_id]
+        if workspace_id is not None:
+            query += " AND workspace_id = ?"
+            params.append(workspace_id)
+        with self.lock:
+            row = self.db.execute(query, params).fetchone()
+        return self._scheduled_task_dict(row)
+
+    def list_scheduled_tasks(self, workspace_id: str) -> list[dict[str, Any]]:
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT * FROM scheduled_tasks WHERE workspace_id = ? ORDER BY status, next_run_at, created_at DESC",
+                (workspace_id,),
+            ).fetchall()
+        return [self._scheduled_task_dict(row, include_runs=False) for row in rows]  # type: ignore[list-item]
+
+    def control_scheduled_task(self, schedule_id: str, workspace_id: str, action: str, actor: str = "operator") -> dict[str, Any] | None:
+        if action not in {"pause", "resume"}:
+            raise ValueError("invalid_schedule_action")
+        actor = str(actor or "operator").strip() or "operator"
+        with self.tx() as db:
+            row = db.execute(
+                "SELECT * FROM scheduled_tasks WHERE id = ? AND workspace_id = ?",
+                (schedule_id, workspace_id),
+            ).fetchone()
+            if not row:
+                return None
+            current = row["status"]
+            if action == "pause":
+                if current == "PAUSED":
+                    return self._scheduled_task_dict(row)
+                if current in {"EXHAUSTED", "ARCHIVED"}:
+                    raise ValueError("schedule_not_pauseable")
+                next_status = "PAUSED"
+            else:
+                if current == "ACTIVE":
+                    return self._scheduled_task_dict(row)
+                if current in {"EXHAUSTED", "ARCHIVED"}:
+                    raise ValueError("schedule_not_resumable")
+                next_status = "ACTIVE"
+            timestamp = now_iso()
+            db.execute(
+                "UPDATE scheduled_tasks SET status = ?, next_run_at = CASE WHEN ? = 'ACTIVE' AND next_run_at < ? THEN ? ELSE next_run_at END, updated_at = ? WHERE id = ?",
+                (next_status, next_status, timestamp, timestamp, timestamp, schedule_id),
+            )
+            self._audit(
+                db,
+                workspace_id,
+                "scheduled_task",
+                schedule_id,
+                action,
+                {"actor": actor, "from_status": current, "to_status": next_status},
+            )
+        return self.get_scheduled_task(schedule_id, workspace_id)
+
+    def trigger_scheduled_task(
+        self,
+        schedule_id: str,
+        workspace_id: str,
+        plan: dict[str, Any],
+        actor: str = "scheduler",
+        scheduled_for: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Reserve one due schedule occurrence without pretending to run a source.
+
+        A runnable plan becomes a QUEUED schedule run and a PLANNED task for the
+        existing worker. A blocked plan still gets a durable BLOCKED_SOURCE run,
+        so the monitor can explain why it did not search.
+        """
+
+        actor = str(actor or "scheduler").strip() or "scheduler"
+        occurrence = str(scheduled_for or now_iso()).strip()
+        with self.tx() as db:
+            schedule = db.execute(
+                "SELECT * FROM scheduled_tasks WHERE id = ? AND workspace_id = ?",
+                (schedule_id, workspace_id),
+            ).fetchone()
+            if not schedule:
+                return None
+            if schedule["status"] != "ACTIVE":
+                return {"status": "SKIPPED", "reason": "schedule_not_active", "schedule": self._scheduled_task_dict(schedule)}
+            if str(schedule["next_run_at"]) > occurrence:
+                return {"status": "SKIPPED", "reason": "not_due", "schedule": self._scheduled_task_dict(schedule)}
+
+            quoted_max = (plan.get("cost_estimate") or {}).get("max_credits")
+            if quoted_max is None:
+                run_status = "BLOCKED_BUDGET"
+                error_code = "UNKNOWN_SOURCE_QUOTE"
+                message = "计划包含尚未登记计量规则的来源，调度不会在预算未知时执行。"
+                task_id = None
+            elif int(quoted_max) > int(schedule["max_credits_per_run"]):
+                run_status = "BLOCKED_BUDGET"
+                error_code = "PER_RUN_BUDGET_EXCEEDED"
+                message = "计划的最高估算超过调度单次预算上限。"
+                task_id = None
+            elif schedule["max_total_credits"] is not None and int(schedule["total_credits"]) + int(quoted_max) > int(schedule["max_total_credits"]):
+                run_status = "BLOCKED_BUDGET"
+                error_code = "TOTAL_BUDGET_EXCEEDED"
+                message = "计划的最高估算会超过调度总预算上限。"
+                task_id = None
+            else:
+                task_id = _id("task")
+                timestamp = now_iso()
+                runnable = bool(plan.get("runnable_sources"))
+                task_status = "PLANNED" if runnable else "AWAITING_SOURCE"
+                db.execute(
+                    """INSERT INTO tasks
+                       (id, workspace_id, profile_id, objective, criteria_json,
+                        status, requested_limit, estimated_credits, idempotency_key,
+                        created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        task_id,
+                        workspace_id,
+                        None,
+                        schedule["objective"],
+                        schedule["criteria_json"],
+                        task_status,
+                        schedule["requested_limit"],
+                        int(quoted_max),
+                        f"schedule:{schedule_id}:{occurrence}",
+                        timestamp,
+                    ),
+                )
+                db.execute(
+                    "INSERT INTO task_plans(id, task_id, planner_version, plan_json, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (_id("plan"), task_id, plan["planner_version"], _json(plan), timestamp),
+                )
+                if runnable:
+                    run_status = "QUEUED"
+                    error_code = None
+                    message = "调度已生成任务，等待来源 worker 执行。"
+                else:
+                    run_status = "BLOCKED_SOURCE"
+                    error_code = "NO_SEARCH_CONNECTOR_READY"
+                    message = "调度已记录，但当前没有通过生产门禁的自动搜索来源。"
+
+            run_id = _id("schedule_run")
+            db.execute(
+                """INSERT INTO scheduled_task_runs
+                   (id, schedule_id, task_id, status, scheduled_for,
+                    error_code, message, idempotency_key, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    run_id,
+                    schedule_id,
+                    task_id,
+                    run_status,
+                    occurrence,
+                    error_code,
+                    message,
+                    f"schedule-run:{schedule_id}:{occurrence}",
+                    now_iso(),
+                ),
+            )
+            next_run = now_iso()
+            from datetime import datetime, timedelta, timezone
+
+            try:
+                base = datetime.fromisoformat(occurrence.replace("Z", "+00:00"))
+                if base.tzinfo is None:
+                    base = base.replace(tzinfo=timezone.utc)
+                next_run = (base + timedelta(minutes=int(schedule["interval_minutes"]))).isoformat(timespec="seconds")
+            except (TypeError, ValueError):
+                next_run = now_iso()
+            next_status = schedule["status"]
+            if run_status in {"BLOCKED_SOURCE", "BLOCKED_BUDGET"} and schedule["failure_policy"] == "PAUSE":
+                next_status = "PAUSED"
+            db.execute(
+                """UPDATE scheduled_tasks
+                   SET status = ?, next_run_at = ?, last_run_at = ?,
+                       run_count = run_count + 1, updated_at = ?
+                   WHERE id = ?""",
+                (next_status, next_run, occurrence, now_iso(), schedule_id),
+            )
+            self._audit(
+                db,
+                workspace_id,
+                "scheduled_task",
+                schedule_id,
+                "triggered",
+                {
+                    "run_id": run_id,
+                    "task_id": task_id,
+                    "status": run_status,
+                    "actor": actor,
+                    "scheduled_for": occurrence,
+                    "next_run_at": next_run,
+                    "error_code": error_code,
+                },
+            )
+        return {
+            "run": self.get_scheduled_task_run(run_id, workspace_id),
+            "task": self.get_task(task_id) if task_id else None,
+            "schedule": self.get_scheduled_task(schedule_id, workspace_id),
+        }
+
+    def get_scheduled_task_run(self, run_id: str, workspace_id: str | None = None) -> dict[str, Any] | None:
+        query = """SELECT r.* FROM scheduled_task_runs r
+                   JOIN scheduled_tasks s ON s.id = r.schedule_id
+                   WHERE r.id = ?"""
+        params: list[Any] = [run_id]
+        if workspace_id is not None:
+            query += " AND s.workspace_id = ?"
+            params.append(workspace_id)
+        with self.lock:
+            row = self.db.execute(query, params).fetchone()
+        return self._scheduled_task_run_dict(row)
+
+    def settle_scheduled_task_run(
+        self,
+        task_id: str,
+        candidate_count: int,
+        new_result_count: int,
+        *,
+        error_code: str | None = None,
+        message: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Settle the schedule occurrence after the existing source worker finishes."""
+
+        with self.tx() as db:
+            run = db.execute(
+                """SELECT r.*, s.workspace_id, s.failure_policy, s.approval_policy,
+                          s.min_new_results, s.max_total_credits, s.total_credits,
+                          s.id AS schedule_id
+                   FROM scheduled_task_runs r
+                   JOIN scheduled_tasks s ON s.id = r.schedule_id
+                   WHERE r.task_id = ? AND r.status IN ('QUEUED', 'RUNNING')
+                   ORDER BY r.created_at DESC, r.rowid DESC LIMIT 1""",
+                (task_id,),
+            ).fetchone()
+            if not run:
+                return None
+            credits = int(
+                db.execute("SELECT COALESCE(SUM(credits), 0) FROM usage_ledger WHERE task_id = ?", (task_id,)).fetchone()[0]
+            )
+            if error_code:
+                next_status = "FAILED"
+                next_message = message or "调度任务执行失败。"
+            elif int(new_result_count) < int(run["min_new_results"]):
+                next_status = "COMPLETED_BELOW_THRESHOLD"
+                next_message = message or "调度任务完成，但新增结果低于阈值。"
+            else:
+                next_status = "COMPLETED"
+                next_message = message or "调度任务完成并达到结果阈值。"
+            timestamp = now_iso()
+            db.execute(
+                """UPDATE scheduled_task_runs
+                   SET status = ?, candidate_count = ?, new_result_count = ?,
+                       credits_used = ?, error_code = ?, message = ?,
+                       finished_at = ?
+                   WHERE id = ?""",
+                (
+                    next_status,
+                    max(0, int(candidate_count)),
+                    max(0, int(new_result_count)),
+                    credits,
+                    error_code,
+                    next_message,
+                    timestamp,
+                    run["id"],
+                ),
+            )
+            total_credits = int(run["total_credits"]) + credits
+            schedule_status = "ACTIVE"
+            if error_code and run["failure_policy"] == "PAUSE":
+                schedule_status = "PAUSED"
+            elif run["max_total_credits"] is not None and total_credits >= int(run["max_total_credits"]):
+                schedule_status = "EXHAUSTED"
+            db.execute(
+                "UPDATE scheduled_tasks SET total_credits = ?, status = ?, updated_at = ? WHERE id = ?",
+                (total_credits, schedule_status, timestamp, run["schedule_id"]),
+            )
+            self._audit(
+                db,
+                run["workspace_id"],
+                "scheduled_task",
+                run["schedule_id"],
+                "settled",
+                {
+                    "run_id": run["id"],
+                    "task_id": task_id,
+                    "status": next_status,
+                    "candidate_count": int(candidate_count),
+                    "new_result_count": int(new_result_count),
+                    "credits_used": credits,
+                    "error_code": error_code,
+                },
+            )
+            schedule_id = run["schedule_id"]
+            workspace_id = run["workspace_id"]
+        return self.get_scheduled_task(schedule_id, workspace_id)
 
     def start_task(self, task_id: str, mode: str = "quick") -> dict[str, Any] | None:
         if mode not in {"quick", "condition", "broad"}:
