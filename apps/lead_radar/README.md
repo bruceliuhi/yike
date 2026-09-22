@@ -90,6 +90,8 @@ MCP 还提供 `get_feed`、`get_feed_event` 和 `review_feed_event`。Feed 事�
 
 每条机会会按 `qualification-v1` 生成可解释评分，拆分为场景词、采购动作、企业信号、时间窗、证据完整度和排除词惩罚，并把命中词、复核优先级和下一步写入 `decision.qualification`。评分只用于排序人工复核，`permission_granted` 永远为 false；来源权利、原文重开和人工确认仍由独立门禁决定。
 
+机会列表和详情支持 `language=zh-CN|en-US`，在不修改原始证据、状态或评分的前提下附加 `presentation` 展示层，提供状态、来源类型、判断码和资格优先级的本地化标签；不支持的语言会返回明确错误。
+
 人工录入即使提交了 `evidence_level=VERIFIED` 和 `source_permission=allowed`，也必须额外提供 `manual_override: {status: "SEND_READY", actor, reason, confirmed: true}`；系统会把覆写写入证据元数据和审计事件。没有该覆写的记录不会进入联系队列。受控 URL、授权搜索和索引导入继续默认 `REVIEW`，必须经过原文重开和人工反馈。
 
 机会反馈支持 `CONTACTED`（已联系）、`DEFERRED`（暂缓）、`HANDOFF`（转人工）、`DUPLICATE`（重复）和 `UNSUBSCRIBED`（退订/禁触达）。进入这些状态会取消尚未发送的动作草稿；`DO_NOT_CONTACT` 是锁定状态，除重复记录退订外，普通反馈不能重新放行。
