@@ -10,8 +10,10 @@ from typing import Any, Iterator
 from urllib.parse import urlparse
 
 try:
+    from .api_access import api_key_hash, issue_api_key
     from .domain import evidence_decision, now_iso, normalize
 except ImportError:  # running server.py directly
+    from api_access import api_key_hash, issue_api_key
     from domain import evidence_decision, now_iso, normalize
 
 
@@ -295,6 +297,43 @@ CREATE TABLE IF NOT EXISTS action_drafts (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS api_keys (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    label TEXT NOT NULL,
+    key_prefix TEXT NOT NULL,
+    secret_hash TEXT NOT NULL UNIQUE,
+    scopes_json TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'ACTIVE',
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT,
+    last_used_at TEXT,
+    revoked_at TEXT,
+    revoked_by TEXT
+);
+
+CREATE TABLE IF NOT EXISTS workspace_quotas (
+    workspace_id TEXT PRIMARY KEY REFERENCES workspaces(id),
+    period TEXT NOT NULL DEFAULT 'calendar_month',
+    included_credits INTEGER NOT NULL DEFAULT 1000,
+    hard_limit INTEGER NOT NULL DEFAULT 1,
+    updated_by TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS api_requests (
+    id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL UNIQUE,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    api_key_id TEXT REFERENCES api_keys(id),
+    action TEXT NOT NULL,
+    route TEXT NOT NULL,
+    status_code INTEGER NOT NULL,
+    credits INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_tasks_workspace_created ON tasks(workspace_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_opportunities_workspace_updated ON opportunities(workspace_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_opportunities_status ON opportunities(status);
@@ -310,6 +349,8 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_task ON scheduled_task_runs(t
 CREATE INDEX IF NOT EXISTS idx_calibration_batches_workspace_created ON calibration_batches(workspace_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_calibration_items_batch_created ON calibration_items(batch_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_action_drafts_opportunity_created ON action_drafts(opportunity_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_api_keys_workspace_status ON api_keys(workspace_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_api_requests_workspace_created ON api_requests(workspace_id, created_at DESC);
 """
 
 
@@ -417,6 +458,10 @@ class Store:
                 "INSERT OR IGNORE INTO workspaces(id, name, created_at) VALUES (?, ?, ?)",
                 ("ws_意客AI", "意客 AI 商机雷达", now_iso()),
             )
+            self.db.execute(
+                "INSERT OR IGNORE INTO workspace_quotas(workspace_id, period, included_credits, hard_limit, updated_by, updated_at) VALUES (?, 'calendar_month', 1000, 1, ?, ?)",
+                ("ws_意客AI", "system", now_iso()),
+            )
             self.db.commit()
 
     @contextmanager
@@ -432,6 +477,139 @@ class Store:
     def close(self) -> None:
         with self.lock:
             self.db.close()
+
+    @staticmethod
+    def _api_key_dict(row: sqlite3.Row | dict[str, Any] | None) -> dict[str, Any] | None:
+        if row is None:
+            return None
+        result = dict(row)
+        try:
+            result["scopes"] = json.loads(result.pop("scopes_json") or "[]")
+        except (TypeError, json.JSONDecodeError):
+            result["scopes"] = []
+            result.pop("scopes_json", None)
+        result.pop("secret_hash", None)
+        return result
+
+    def create_api_key(self, workspace_id: str, label: str, scopes: list[str], created_by: str, expires_at: str | None = None) -> dict[str, Any] | None:
+        secret, key_prefix, secret_hash = issue_api_key()
+        key_id = _id("key")
+        timestamp = now_iso()
+        with self.tx() as db:
+            if not db.execute("SELECT id FROM workspaces WHERE id = ?", (workspace_id,)).fetchone():
+                return None
+            db.execute(
+                """INSERT INTO api_keys
+                   (id, workspace_id, label, key_prefix, secret_hash, scopes_json,
+                    status, created_by, created_at, expires_at)
+                   VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?)""",
+                (key_id, workspace_id, label, key_prefix, secret_hash, _json(scopes), created_by, timestamp, expires_at),
+            )
+            self._audit(db, workspace_id, "api_key", key_id, "created", {"label": label, "scopes": scopes, "created_by": created_by, "expires_at": expires_at})
+            row = db.execute("SELECT * FROM api_keys WHERE id = ?", (key_id,)).fetchone()
+        result = self._api_key_dict(row)
+        if result is None:
+            return None
+        result["secret"] = secret
+        result["secret_delivery"] = "shown_once"
+        return result
+
+    def list_api_keys(self, workspace_id: str) -> list[dict[str, Any]]:
+        with self.lock:
+            rows = self.db.execute("SELECT * FROM api_keys WHERE workspace_id = ? ORDER BY created_at DESC, rowid DESC", (workspace_id,)).fetchall()
+        return [self._api_key_dict(row) for row in rows]  # type: ignore[list-item]
+
+    def authenticate_api_key(self, workspace_id: str, raw_key: str) -> dict[str, Any] | None:
+        digest = api_key_hash(raw_key)
+        with self.tx() as db:
+            row = db.execute("SELECT * FROM api_keys WHERE workspace_id = ? AND secret_hash = ?", (workspace_id, digest)).fetchone()
+            if not row or row["status"] != "ACTIVE" or (row["expires_at"] and str(row["expires_at"]) <= now_iso()):
+                return None
+            db.execute("UPDATE api_keys SET last_used_at = ? WHERE id = ?", (now_iso(), row["id"]))
+            refreshed = db.execute("SELECT * FROM api_keys WHERE id = ?", (row["id"],)).fetchone()
+        return self._api_key_dict(refreshed)
+
+    def revoke_api_key(self, workspace_id: str, key_id: str, actor: str) -> dict[str, Any] | None:
+        with self.tx() as db:
+            row = db.execute("SELECT * FROM api_keys WHERE id = ? AND workspace_id = ?", (key_id, workspace_id)).fetchone()
+            if not row:
+                return None
+            if row["status"] == "ACTIVE":
+                db.execute("UPDATE api_keys SET status = 'REVOKED', revoked_at = ?, revoked_by = ? WHERE id = ?", (now_iso(), actor, key_id))
+                self._audit(db, workspace_id, "api_key", key_id, "revoked", {"actor": actor})
+            row = db.execute("SELECT * FROM api_keys WHERE id = ?", (key_id,)).fetchone()
+        return self._api_key_dict(row)
+
+    def get_workspace_quota(self, workspace_id: str) -> dict[str, Any] | None:
+        with self.lock:
+            row = self.db.execute("SELECT * FROM workspace_quotas WHERE workspace_id = ?", (workspace_id,)).fetchone()
+        return _decode(row)
+
+    def set_workspace_quota(self, workspace_id: str, included_credits: int, hard_limit: bool, actor: str) -> dict[str, Any] | None:
+        timestamp = now_iso()
+        with self.tx() as db:
+            if not db.execute("SELECT id FROM workspaces WHERE id = ?", (workspace_id,)).fetchone():
+                return None
+            db.execute(
+                """INSERT INTO workspace_quotas(workspace_id, period, included_credits, hard_limit, updated_by, updated_at)
+                   VALUES (?, 'calendar_month', ?, ?, ?, ?)
+                   ON CONFLICT(workspace_id) DO UPDATE SET included_credits = excluded.included_credits,
+                     hard_limit = excluded.hard_limit, updated_by = excluded.updated_by, updated_at = excluded.updated_at""",
+                (workspace_id, max(0, int(included_credits)), int(bool(hard_limit)), actor, timestamp),
+            )
+            self._audit(db, workspace_id, "workspace_quota", workspace_id, "updated", {"included_credits": max(0, int(included_credits)), "hard_limit": bool(hard_limit), "actor": actor})
+            row = db.execute("SELECT * FROM workspace_quotas WHERE workspace_id = ?", (workspace_id,)).fetchone()
+        return _decode(row)
+
+    def get_workspace_usage(self, workspace_id: str) -> dict[str, Any] | None:
+        quota = self.get_workspace_quota(workspace_id)
+        if quota is None:
+            return None
+        period = now_iso()[:7]
+        period_start = f"{period}-01T00:00:00+00:00"
+        with self.lock:
+            totals = self.db.execute("SELECT COALESCE(SUM(credits), 0) AS credits, COUNT(*) AS entries FROM usage_ledger WHERE workspace_id = ? AND created_at >= ?", (workspace_id, period_start)).fetchone()
+            requests = self.db.execute("SELECT COUNT(*) AS count, COALESCE(SUM(credits), 0) AS credits FROM api_requests WHERE workspace_id = ? AND created_at >= ?", (workspace_id, period_start)).fetchone()
+            operation_rows = self.db.execute("SELECT operation, COALESCE(SUM(credits), 0) AS credits, COUNT(*) AS entries FROM usage_ledger WHERE workspace_id = ? AND created_at >= ? GROUP BY operation ORDER BY operation", (workspace_id, period_start)).fetchall()
+        used = int(totals["credits"] or 0)
+        included = int(quota["included_credits"])
+        return {
+            "period": period,
+            "period_type": quota["period"],
+            "included_credits": included,
+            "used_credits": used,
+            "remaining_credits": max(0, included - used),
+            "hard_limit": bool(quota["hard_limit"]),
+            "status": "OVERAGE" if used > included else "OK",
+            "usage_ledger_entries": int(totals["entries"] or 0),
+            "api_requests": int(requests["count"] or 0),
+            "api_request_credits": int(requests["credits"] or 0),
+            "by_operation": [dict(row) for row in operation_rows],
+            "updated_by": quota["updated_by"],
+            "updated_at": quota["updated_at"],
+        }
+
+    def check_workspace_quota(self, workspace_id: str, additional_credits: int) -> dict[str, Any] | None:
+        usage = self.get_workspace_usage(workspace_id)
+        if usage is None:
+            return None
+        projected = int(usage["used_credits"]) + max(0, int(additional_credits))
+        return {**usage, "projected_credits": projected, "allowed": not (usage["hard_limit"] and projected > usage["included_credits"])}
+
+    def record_api_request(self, workspace_id: str, request_id: str, api_key_id: str | None, action: str, route: str, status_code: int, credits: int = 0) -> dict[str, Any]:
+        request_row_id = _id("api_request")
+        with self.tx() as db:
+            existing = db.execute("SELECT * FROM api_requests WHERE request_id = ?", (request_id,)).fetchone()
+            if existing:
+                return {"created": False, "request": dict(existing)}
+            created_at = now_iso()
+            db.execute(
+                "INSERT INTO api_requests(id, request_id, workspace_id, api_key_id, action, route, status_code, credits, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (request_row_id, request_id, workspace_id, api_key_id, action, route, int(status_code), max(0, int(credits)), created_at),
+            )
+            self._audit(db, workspace_id, "api_request", request_row_id, "completed", {"request_id": request_id, "api_key_id": api_key_id, "action": action, "route": route, "status_code": int(status_code), "credits": max(0, int(credits))})
+            row = db.execute("SELECT * FROM api_requests WHERE id = ?", (request_row_id,)).fetchone()
+        return {"created": True, "request": dict(row)}
 
     def create_profile(self, workspace_id: str, name: str, objective: str, criteria: dict[str, Any]) -> dict[str, Any]:
         profile_id = _id("profile")

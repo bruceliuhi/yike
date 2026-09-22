@@ -15,6 +15,17 @@ RULE_VERSION = "source-result-v1"
 UNIT = "SOUBEI"
 DISPLAY_UNIT = "搜贝"
 
+ACTION_COSTS: dict[str, int] = {
+    "create_search_task": 1,
+    "enrich_entity": 1,
+    "create_monitor_schedule": 1,
+    "get_search_status": 0,
+    "fetch_search_results": 0,
+    "get_feed": 0,
+    "get_feed_event": 0,
+    "review_feed_event": 0,
+}
+
 OUTCOMES = {"SUCCESS", "DUPLICATE", "NO_RESULT", "FAILED"}
 
 # Keep the rule explicit and source agnostic.  A future provider may override
@@ -100,3 +111,9 @@ def source_metadata(source_id: str, outcome: str, **extra: Any) -> dict[str, Any
     }
     metadata.update(extra)
     return metadata
+
+
+def action_cost(action: str) -> int:
+    if action not in ACTION_COSTS:
+        raise ValueError("usage_action_invalid")
+    return ACTION_COSTS[action]

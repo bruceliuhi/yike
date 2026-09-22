@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 try:
+    from .api_access import ApiAccessError, normalize_api_key, normalize_scopes
     from .business_api import (
         BusinessApiError,
         create_search_task,
@@ -29,8 +30,9 @@ try:
     from .schedule_api import control_schedule, create_schedule, get_schedule, list_schedules, trigger_schedule
     from .source_policy import classify_public_url
     from .storage import Store
-    from .usage import UNIT as USAGE_UNIT, charge_for, source_metadata
+    from .usage import UNIT as USAGE_UNIT, action_cost, charge_for, source_metadata
 except ImportError:  # running server.py directly
+    from api_access import ApiAccessError, normalize_api_key, normalize_scopes
     from business_api import BusinessApiError, create_search_task, enrich_entity, fetch_search_results, get_search_status
     from capture import CaptureError, fetch_public_page
     from connectors import list_capabilities
@@ -43,7 +45,7 @@ except ImportError:  # running server.py directly
     from schedule_api import control_schedule, create_schedule, get_schedule, list_schedules, trigger_schedule
     from source_policy import classify_public_url
     from storage import Store
-    from usage import UNIT as USAGE_UNIT, charge_for, source_metadata
+    from usage import UNIT as USAGE_UNIT, action_cost, charge_for, source_metadata
 
 
 ROOT = Path(__file__).resolve().parent
@@ -58,6 +60,7 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         return self.server.store  # type: ignore[attr-defined]
 
     def _send(self, status: int, payload: Any, content_type: str = "application/json; charset=utf-8") -> None:
+        self._settle_api_request(status)
         if isinstance(payload, (dict, list)):
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         elif isinstance(payload, str):
@@ -70,13 +73,36 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Request-ID", getattr(self, "request_id", ""))
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, X-Request-ID")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, X-Request-ID, X-API-Key, Authorization")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.end_headers()
         self.wfile.write(body)
 
     def _error(self, status: int, code: str, message: str) -> None:
         self._send(status, {"error": code, "message": message})
+
+    def _settle_api_request(self, status: int) -> None:
+        context = getattr(self, "api_context", None)
+        if not context:
+            return
+        credits = 0
+        if context.get("api_key_id") and status < 400 and int(context.get("action_cost", 0)) > 0:
+            usage = self.store.record_usage(
+                WORKSPACE_ID,
+                None,
+                f"api_action:{context['action']}",
+                1,
+                int(context["action_cost"]),
+                "COMPLETED",
+                context["usage_key"],
+                source_id=context["action"],
+                outcome="SUCCESS",
+                unit=USAGE_UNIT,
+                metadata={"request_id": self.request_id, "route": self.path, "billing": "api_action"},
+            )
+            credits = int((usage.get("entry") or {}).get("credits", context["action_cost"]))
+        self.store.record_api_request(WORKSPACE_ID, self.request_id, context.get("api_key_id"), context["action"], self.path.split("?", 1)[0], status, credits)
+        self.api_context = None
 
     def _body(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length", "0"))
@@ -89,6 +115,43 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if not isinstance(value, dict):
             raise ValueError("body_must_be_object")
         return value
+
+    @staticmethod
+    def _business_action(path: str) -> str | None:
+        if path.endswith("/create_search_task"):
+            return "create_search_task"
+        if "/get_search_status/" in path:
+            return "get_search_status"
+        if "/fetch_search_results/" in path:
+            return "fetch_search_results"
+        if "/enrich_entity/" in path:
+            return "enrich_entity"
+        return None
+
+    def _authorize_business_action(self, action: str) -> None:
+        cost = action_cost(action)
+        idempotency = self.headers.get("Idempotency-Key", "").strip()
+        usage_key = f"api-action:{action}:{idempotency or self.request_id}"
+        self.api_context = {"action": action, "api_key_id": None, "action_cost": cost, "usage_key": usage_key, "scopes": []}
+        raw_key = self.headers.get("X-API-Key", "").strip()
+        authorization = self.headers.get("Authorization", "").strip()
+        if not raw_key and authorization.lower().startswith("bearer "):
+            raw_key = authorization[7:].strip()
+        if raw_key:
+            raw_key = normalize_api_key(raw_key)
+            key = self.store.authenticate_api_key(WORKSPACE_ID, raw_key)
+            if not key:
+                raise ApiAccessError("api_key_invalid", "API Key 无效、已撤销或已过期。")
+            if "business_api" not in list(key.get("scopes") or []):
+                raise ApiAccessError("scope_forbidden", "当前 API Key 没有 business_api 权限。", 403)
+            self.api_context["api_key_id"] = key["id"]
+            self.api_context["scopes"] = list(key.get("scopes") or [])
+        elif getattr(self.server, "require_api_key", False):
+            raise ApiAccessError("api_key_required", "当前服务已开启 API Key 强制鉴权。")
+        if self.api_context["api_key_id"] and cost > 0 and not self.store.get_usage_by_idempotency_key(WORKSPACE_ID, usage_key, f"api_action:{action}"):
+            quota = self.store.check_workspace_quota(WORKSPACE_ID, cost)
+            if quota and not quota["allowed"]:
+                raise ApiAccessError("quota_exceeded", f"当前工作区本周期额度已用尽，剩余额度 {quota['remaining_credits']} {USAGE_UNIT}。", 429)
 
     @staticmethod
     def _normalize_manual_override(item: dict[str, Any]) -> dict[str, Any]:
@@ -148,10 +211,12 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self) -> None:
         self.request_id = self._request_id()
+        self.api_context = None
         self._send(204, b"")
 
     def do_GET(self) -> None:
         self.request_id = self._request_id()
+        self.api_context = None
         parsed = urlparse(self.path)
         path = unquote(parsed.path).rstrip("/") or "/"
         if path == "/":
@@ -160,6 +225,18 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True, "service": "lead-radar", "workspace_id": WORKSPACE_ID})
         if path == "/api/v1/sources/capabilities":
             return self._send(200, {"items": list_capabilities()})
+        if path == f"/api/v1/workspaces/{WORKSPACE_ID}/api-keys":
+            return self._send(200, {"items": self.store.list_api_keys(WORKSPACE_ID), "secret_delivery": "shown_once_on_create"})
+        if path == f"/api/v1/workspaces/{WORKSPACE_ID}/quota":
+            return self._send(200, {"quota": self.store.get_workspace_quota(WORKSPACE_ID), "usage": self.store.get_workspace_usage(WORKSPACE_ID)})
+        if path == f"/api/v1/workspaces/{WORKSPACE_ID}/usage":
+            return self._send(200, {"usage": self.store.get_workspace_usage(WORKSPACE_ID)})
+        business_action = self._business_action(path)
+        if business_action:
+            try:
+                self._authorize_business_action(business_action)
+            except ApiAccessError as exc:
+                return self._error(exc.status, exc.code, exc.message)
         if path.startswith("/api/v1/business/get_search_status/"):
             try:
                 return self._send(200, get_search_status(self.store, WORKSPACE_ID, path.rsplit("/", 1)[-1]))
@@ -261,11 +338,56 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         self.request_id = self._request_id()
+        self.api_context = None
         parsed = urlparse(self.path)
         path = unquote(parsed.path).rstrip("/")
         try:
             payload = self._body()
+            if path == f"/api/v1/workspaces/{WORKSPACE_ID}/api-keys":
+                label = str(payload.get("label", "")).strip()
+                if not label:
+                    raise ApiAccessError("label_required", "label 必填。", 400)
+                if len(label) > 120:
+                    raise ApiAccessError("label_too_long", "label 超出长度限制。", 400)
+                created_by = str(payload.get("created_by", "local_admin")).strip() or "local_admin"
+                if len(created_by) > 120:
+                    raise ApiAccessError("created_by_too_long", "created_by 超出长度限制。", 400)
+                scopes = normalize_scopes(payload.get("scopes"))
+                expires_at = payload.get("expires_at")
+                if expires_at is not None:
+                    expires_at = str(expires_at).strip()
+                    if not expires_at or len(expires_at) > 80:
+                        raise ApiAccessError("expires_at_invalid", "expires_at 无效。", 400)
+                created = self.store.create_api_key(WORKSPACE_ID, label, scopes, created_by, expires_at)
+                if created is None:
+                    return self._error(404, "workspace_not_found", "工作区不存在。")
+                return self._send(201, {"api_key": created, "message": "明文 API Key 仅在本次响应展示，请立即保存。"})
+            if path == f"/api/v1/workspaces/{WORKSPACE_ID}/quota":
+                current = self.store.get_workspace_quota(WORKSPACE_ID) or {}
+                raw_included = payload.get("included_credits", current.get("included_credits", 1000))
+                if isinstance(raw_included, bool):
+                    raise ApiAccessError("included_credits_invalid", "included_credits 必须是非负整数。", 400)
+                try:
+                    included = int(raw_included)
+                except (TypeError, ValueError) as exc:
+                    raise ApiAccessError("included_credits_invalid", "included_credits 必须是非负整数。", 400) from exc
+                if included < 0 or included > 10_000_000:
+                    raise ApiAccessError("included_credits_out_of_range", "included_credits 超出允许范围。", 400)
+                raw_hard = payload.get("hard_limit", bool(current.get("hard_limit", 1)))
+                if not isinstance(raw_hard, bool):
+                    raise ApiAccessError("hard_limit_invalid", "hard_limit 必须是布尔值。", 400)
+                actor = str(payload.get("actor", "local_admin")).strip() or "local_admin"
+                quota = self.store.set_workspace_quota(WORKSPACE_ID, included, raw_hard, actor)
+                return self._send(200, {"quota": quota, "usage": self.store.get_workspace_usage(WORKSPACE_ID)})
+            if path.startswith("/api/v1/api-keys/") and path.endswith("/revoke"):
+                key_id = path.split("/")[-2]
+                actor = str(payload.get("actor", "local_admin")).strip() or "local_admin"
+                revoked = self.store.revoke_api_key(WORKSPACE_ID, key_id, actor)
+                if not revoked:
+                    return self._error(404, "api_key_not_found", "API Key 不存在。")
+                return self._send(200, {"api_key": revoked})
             if path == "/api/v1/business/create_search_task":
+                self._authorize_business_action("create_search_task")
                 result = create_search_task(self.store, WORKSPACE_ID, payload, self.headers.get("Idempotency-Key"))
                 result["request_id"] = self.request_id
                 return self._send(201, result)
@@ -322,6 +444,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 parts = path.split("/")
                 return self._review_calibration_item(parts[-4], parts[-2], payload)
         except BusinessApiError as exc:
+            return self._error(exc.status, exc.code, exc.message)
+        except ApiAccessError as exc:
             return self._error(exc.status, exc.code, exc.message)
         except CaptureError as exc:
             return self._error(400, exc.code, exc.message)
@@ -1007,9 +1131,10 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             super().log_message(format, *args)
 
 
-def create_server(host: str = "127.0.0.1", port: int = 8780, db_path: str = "lead_radar.sqlite3") -> ThreadingHTTPServer:
+def create_server(host: str = "127.0.0.1", port: int = 8780, db_path: str = "lead_radar.sqlite3", require_api_key: bool | None = None) -> ThreadingHTTPServer:
     server = ThreadingHTTPServer((host, port), LeadRadarHandler)
     server.store = Store(db_path)  # type: ignore[attr-defined]
+    server.require_api_key = bool(os.environ.get("LEAD_RADAR_REQUIRE_API_KEY")) if require_api_key is None else bool(require_api_key)  # type: ignore[attr-defined]
     return server
 
 
