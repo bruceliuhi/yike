@@ -13,12 +13,12 @@ from apps.lead_radar.capture import CaptureError, fetch_public_feed
 from apps.lead_radar.server import create_server
 
 
-RSS_BODY = b"""<?xml version="1.0" encoding="UTF-8"?>
+RSS_BODY = """<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"><channel>
   <title>公开需求 Feed</title>
   <item><guid>one</guid><title>企业寻找 AI 客服团队</title><link>https://source.example/one</link><description><![CDATA[正在评估 <b>AI 客服</b> 定制开发。]]></description><pubDate>Tue, 22 Sep 2026 10:00:00 GMT</pubDate></item>
   <item><guid>two</guid><title>知识库采购讨论</title><link>/two</link><description>需要企业知识库落地团队。</description><pubDate>Tue, 23 Sep 2026 10:00:00 GMT</pubDate></item>
-</channel></rss>"""
+</channel></rss>""".encode("utf-8")
 
 
 class FakeResponse:
@@ -51,7 +51,10 @@ class FakeOpener:
 
 class PublicFeedCaptureTest(unittest.TestCase):
     def test_rss_parser_preserves_links_dates_and_hashes_without_original_xml(self) -> None:
-        with patch("apps.lead_radar.capture.build_opener", return_value=FakeOpener(FakeResponse(RSS_BODY))):
+        with patch("apps.lead_radar.capture.build_opener", return_value=FakeOpener(FakeResponse(RSS_BODY))), patch(
+            "apps.lead_radar.capture.socket.getaddrinfo",
+            return_value=[(None, None, None, None, ("93.184.216.34", 443))],
+        ):
             feed = fetch_public_feed("https://source.example/feed.xml", 2)
         self.assertEqual(feed["feed_title"], "公开需求 Feed")
         self.assertEqual(len(feed["entries"]), 2)
@@ -67,13 +70,21 @@ class PublicFeedCaptureTest(unittest.TestCase):
         with patch(
             "apps.lead_radar.capture.build_opener",
             return_value=FakeOpener(FakeResponse(b"<html>not a feed</html>", "text/html")),
+        ), patch(
+            "apps.lead_radar.capture.socket.getaddrinfo",
+            return_value=[(None, None, None, None, ("93.184.216.34", 443))],
         ):
-            with self.assertRaisesRegex(CaptureError, "unsupported_feed_content_type"):
+            with self.assertRaises(CaptureError) as error:
                 fetch_public_feed("https://source.example/feed.xml")
+            self.assertEqual(error.exception.code, "unsupported_feed_content_type")
         unsafe = b'<!DOCTYPE foo [ <!ENTITY xxe SYSTEM "file:///etc/passwd"> ]><rss><channel /></rss>'
-        with patch("apps.lead_radar.capture.build_opener", return_value=FakeOpener(FakeResponse(unsafe))):
-            with self.assertRaisesRegex(CaptureError, "unsafe_xml"):
+        with patch("apps.lead_radar.capture.build_opener", return_value=FakeOpener(FakeResponse(unsafe))), patch(
+            "apps.lead_radar.capture.socket.getaddrinfo",
+            return_value=[(None, None, None, None, ("93.184.216.34", 443))],
+        ):
+            with self.assertRaises(CaptureError) as error:
                 fetch_public_feed("https://source.example/feed.xml")
+            self.assertEqual(error.exception.code, "unsafe_xml")
 
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
@@ -132,7 +143,7 @@ class PublicFeedCaptureTest(unittest.TestCase):
                 },
             ],
         }
-        path = f"/api/v1/tasks/{task['task']['id']}/capture-feed"
+        path = f"/api/v1/tasks/{task['id']}/capture-feed"
         with patch("apps.lead_radar.server.fetch_public_feed", return_value=feed):
             status, first = self.request("POST", path, {"url": feed["requested_url"], "limit": 2})
             self.assertEqual(status, 201)
@@ -168,7 +179,7 @@ class PublicFeedCaptureTest(unittest.TestCase):
                 {"entry_id": "one", "title": "公开需求", "source_url": "https://source.example/one", "snippet": "AI 客服需求", "published_at": "2026-09-23", "content_hash": "1" * 64}
             ],
         }
-        path = f"/api/v1/tasks/{task['task']['id']}/capture-feed"
+        path = f"/api/v1/tasks/{task['id']}/capture-feed"
         with patch("apps.lead_radar.server.fetch_public_feed", return_value=feed):
             _, created = self.request("POST", path, {"url": feed["requested_url"]})
         opportunity_id = created["items"][0]["item"]["id"]
