@@ -106,9 +106,12 @@ export function TaskDraftRow({
             <div>
               <dt>日程频率</dt>
               <dd>
-                {draft.schedule.kind === "daily"
-                  ? `每日 ${draft.schedule.times.join("、") || "尚未设置时间"}`
-                  : `每 ${draft.schedule.interval} 小时 · ${draft.schedule.start}–${draft.schedule.end}`} · {scheduleRegionLabel(draft.schedule.timezone)}
+                <span>
+                  {draft.schedule.kind === "daily"
+                    ? `每日 ${draft.schedule.times.join("、") || "尚未设置时间"}`
+                    : `每 ${draft.schedule.interval} 小时 · ${draft.schedule.start}–${draft.schedule.end}`}
+                </span>
+                <span className="muted"> · {scheduleRegionLabel(draft.schedule.timezone)} (<span>{draft.schedule.timezone}</span>)</span>
               </dd>
             </div>
           </dl>
