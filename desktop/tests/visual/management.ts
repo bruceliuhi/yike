@@ -1,5 +1,6 @@
 import type { ManagementService } from "../../src/renderer/services/management";
 import { ServiceError } from "../../src/renderer/services/contracts";
+import { TEST_USER } from "./fixtures";
 import {
   inputDigest,
   type AccountState,
@@ -7,8 +8,11 @@ import {
 } from "../../src/renderer/domain/management";
 
 /** Isolated layout fixtures. No activation, restore, update, export or external IO. */
-export function visualManagementAccount(): AccountState {
+export const VISUAL_MANAGEMENT_SCOPE = {id: "TEST-visual-space", version: 1};
+export function visualManagementAccount(): AccountState & {device: NonNullable<AccountState['device']>} {
   return {
+    userId: TEST_USER,
+    accountScope: {...VISUAL_MANAGEMENT_SCOPE},
     spaceId: "TEST-visual-space",
     spaceName: "TEST 视觉验收空间",
     revision: "TEST-r1",

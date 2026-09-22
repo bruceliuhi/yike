@@ -42,6 +42,8 @@ const schemas = {
   'suggestions.submit': suggestionRequestSchema,
   'suggestions.receipt': suggestionReceiptRequestSchema,
   'session.get': empty,
+  'management.account': empty,
+  'management.exportCsv': empty,
   'session.login': z.object({token: z.string().min(1).max(8192)}).strict(),
   'session.logout': empty,
   'session.requestCode': z.object({phone}).strict(),
@@ -165,6 +167,8 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
     case 'strategies.receipt': return {path: `/api/ui/research-strategy-operations/${data!.request_id}`, method: 'GET', logout: false};
     case 'strategies.get': return {path: `/api/ui/research-strategies/${data!.strategy_version_id}`, method: 'GET', logout: false};
     case 'session.get': return {path: '/api/ui/session', method: 'GET', logout: false};
+    case 'management.account': return {path: '/api/ui/management/account', method: 'GET', logout: false};
+    case 'management.exportCsv': return {path: '/api/ui/management/export?kind=csv', method: 'GET', logout: false};
     case 'session.login': return {path: '/api/ui/session', method: 'POST', body: JSON.stringify(data), logout: false};
     case 'session.logout': return {path: '/api/ui/session', method: 'DELETE', logout: true};
     case 'session.requestCode': return {path: '/api/ui/auth/sms-code', method: 'POST', body: JSON.stringify(data), logout: false};

@@ -426,6 +426,8 @@ def test_compiled_discovery_restores_conditional_buyer_language_and_source_switc
             "业务对象", "不必包含 AI", "仅在客户业务匹配时", "本地知识库 接手",
             "不是固定关键词", "不是采购证据", "独立来源", "connection_unavailable",
             "停止该站本轮路径", "不切换镜像、代理或账号绕过", "不是来源许可",
+            "允许正式采购", "企业官网采购栏目", "不混记为普通直接商机",
+            "最早尚未完成的强制步骤", "报名", "获取文件", "展期或交付日期",
         ):
             assert phrase in instructions
         assert json.loads(compiled["context_json"])["seller_description"] == seller

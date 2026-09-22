@@ -419,6 +419,8 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
             identity(request)
         raise _error(501, "capability_unavailable", "该能力尚未接入，当前操作未执行。")
 
+    from pilot.management_read_api import register_management_read_api
+    register_management_read_api(router, store, identity, require_session_https)
     register_device_api(router, store, identity, require_session_https)
     register_connection_api(router, store, identity, require_session_https)
     register_execution_api(router, execution_runtime, identity, require_session_https)

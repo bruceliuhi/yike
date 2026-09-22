@@ -8,9 +8,14 @@ export function useManagementScope(account?: AccountState, variant = "") {
   const key = JSON.stringify([
     session.authenticated,
     session.userId,
+    session.accountScope?.id,
+    session.accountScope?.version,
+    account?.userId,
+    account?.accountScope?.id,
+    account?.accountScope?.version,
     account?.spaceId,
     account?.revision,
-    account?.device.id,
+    account?.device?.id,
     variant,
   ]);
   const identity = useMemo(() => ({}), [service, key]);

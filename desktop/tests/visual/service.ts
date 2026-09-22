@@ -9,7 +9,7 @@ import type {
   Session,
 } from "../../src/renderer/domain/models";
 import * as fixtures from "./fixtures";
-import { makeVisualManagement } from "./management";
+import { makeVisualManagement, VISUAL_MANAGEMENT_SCOPE } from "./management";
 
 export type VisualState = "populated" | "empty" | "error" | "loading";
 export interface HarnessEvent {
@@ -23,7 +23,7 @@ export function createVisualService(
 ) {
   let session: Session = guest
     ? { authenticated: false }
-    : { authenticated: true, userId: fixtures.TEST_USER };
+    : { authenticated: true, userId: fixtures.TEST_USER, accountScope: {...VISUAL_MANAGEMENT_SCOPE} };
   let profiles = structuredClone([fixtures.profile]);
   let opportunities = structuredClone([fixtures.opportunity]);
   let followups = structuredClone(fixtures.followups);
@@ -139,11 +139,11 @@ export function createVisualService(
     session: async () => structuredClone(session),
     loginToken: async () => {
       record("loginToken", "TEST 不记录或验证输入凭证");
-      return (session = { authenticated: true, userId: fixtures.TEST_USER });
+      return (session = { authenticated: true, userId: fixtures.TEST_USER, accountScope: {...VISUAL_MANAGEMENT_SCOPE} });
     },
     login: async () => {
       record("login", "TEST 不发送短信");
-      return (session = { authenticated: true, userId: fixtures.TEST_USER });
+      return (session = { authenticated: true, userId: fixtures.TEST_USER, accountScope: {...VISUAL_MANAGEMENT_SCOPE} });
     },
     requestCode: async () => {
       record("requestCode", "TEST 未发送短信");

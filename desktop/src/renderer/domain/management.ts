@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Session } from "./models";
 
 const identifier = z.string().min(1).max(200);
 const moment = z.string().datetime({ offset: true });
@@ -12,8 +13,21 @@ export const operationKinds = [
 ] as const;
 export const operationKindSchema = z.enum(operationKinds);
 export type ManagementOperationKind = z.infer<typeof operationKindSchema>;
-export const accountSchema = z.object({
+export const managementIdentitySchema = z.object({
+  userId: identifier,
+  accountScope: z.object({id: identifier, version: z.number().int().positive().max(Number.MAX_SAFE_INTEGER)}).strict(),
   spaceId: identifier,
+});
+/** Compare with the captured UI identity, never rebase it from a response. */
+export function requireManagementIdentity(value: unknown, session: Session) {
+  const parsed = managementIdentitySchema.safeParse(value);
+  if (!session.authenticated || !session.userId || !session.accountScope || !parsed.success ||
+      parsed.data.userId !== session.userId || parsed.data.spaceId !== session.accountScope.id ||
+      parsed.data.accountScope.id !== session.accountScope.id ||
+      parsed.data.accountScope.version !== session.accountScope.version)
+    throw new Error("账号或客户空间已变化，请重新登录；没有采用返回的账号信息或导出文件。");
+}
+export const accountSchema = managementIdentitySchema.extend({
   spaceName: identifier,
   revision: identifier,
   license: z.object({
@@ -24,9 +38,10 @@ export const accountSchema = z.object({
     id: identifier,
     name: identifier,
     status: z.enum(["UNBOUND", "BOUND", "REVOKED", "OFFLINE"]),
-  }),
+  }).nullable(),
 });
 export type AccountState = z.infer<typeof accountSchema>;
+export type ManagementExport = z.infer<typeof managementIdentitySchema> & {name: string; content: string};
 export const updateSchema = z
   .object({
     available: z.boolean(),

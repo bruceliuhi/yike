@@ -20,7 +20,7 @@ import {
   unavailableManagement,
   type ManagementService,
 } from "../../src/renderer/services/management";
-import type { AccountState } from "../../src/renderer/domain/management";
+import type { AccountState, ManagementExport } from "../../src/renderer/domain/management";
 import { downloadText } from "../../src/renderer/services/download";
 
 vi.mock("../../src/renderer/services/download", () => ({
@@ -38,6 +38,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 const account: AccountState = {
+  userId: "TEST-scope",
+  accountScope: {id: "TEST-space", version: 1},
   spaceId: "TEST-space",
   spaceName: "TEST空间",
   revision: "r1",
@@ -62,7 +64,7 @@ function mount(overrides: Partial<ManagementService>, mode = "data") {
     management,
     session: vi
       .fn()
-      .mockResolvedValue({ authenticated: true, userId: "TEST-scope" }),
+      .mockResolvedValue({ authenticated: true, userId: "TEST-scope", accountScope: account.accountScope }),
   };
   const tree = (value: AccountState) => (
     <AppProvider service={service}>
@@ -89,14 +91,10 @@ function mount(overrides: Partial<ManagementService>, mode = "data") {
 it.each(["space", "revision"])(
   "does not save an old export after the %s changes",
   async (kind) => {
-    let resolve!: (value: {
-      spaceId: string;
-      name: string;
-      content: string;
-    }) => void;
+    let resolve!: (value: ManagementExport) => void;
     const exporting = vi.fn(
       () =>
-        new Promise<{ spaceId: string; name: string; content: string }>(
+        new Promise<ManagementExport>(
           (done) => {
             resolve = done;
           },
@@ -112,6 +110,8 @@ it.each(["space", "revision"])(
     });
     await act(async () =>
       resolve({
+        userId: account.userId,
+        accountScope: account.accountScope,
         spaceId: account.spaceId,
         name: "TEST-backup",
         content: backup,

@@ -40,6 +40,8 @@ afterEach(() => {
   vi.useRealTimers();
 });
 const account: AccountState = {
+  userId: "management-test",
+  accountScope: {id: "test-space", version: 1},
   spaceId: "test-space",
   spaceName: "TEST空间",
   revision: "r1",
@@ -63,6 +65,8 @@ function mount(overrides: Partial<ManagementService> = {}) {
     exportData: vi
       .fn()
       .mockResolvedValue({
+        userId: account.userId,
+        accountScope: account.accountScope,
         spaceId: account.spaceId,
         name: "customer-data",
         content: backup(),
@@ -97,7 +101,7 @@ function mount(overrides: Partial<ManagementService> = {}) {
     management,
     session: vi
       .fn()
-      .mockResolvedValue({ authenticated: true, userId: "management-test" }),
+      .mockResolvedValue({ authenticated: true, userId: "management-test", accountScope: account.accountScope }),
     info: vi
       .fn()
       .mockResolvedValue({
@@ -128,6 +132,26 @@ async function confirmDevice() {
 }
 
 describe("P18 available management contracts", () => {
+  it("exports customer CSV while unverified commercial device stays explicitly unknown", async () => {
+    mount({account:vi.fn().mockResolvedValue({...account,device:null}),
+      exportData:vi.fn().mockResolvedValue({userId:account.userId,accountScope:account.accountScope,spaceId:account.spaceId,name:'意客AI-客户商机.csv',content:'商机标题\r\n测试商机\r\n'})});
+    await screen.findByText('已激活');
+    await screen.findByText('未取得商业设备绑定状态');
+    fireEvent.click(screen.getByRole('button',{name:'导出数据'}));
+    expect(screen.getByText(/仅导出当前账号可见的已纳入商机公开业务字段/)).toBeVisible();
+    expect(screen.getByText(/完整证据请回到产品内查看/)).toBeVisible();
+    fireEvent.click(await screen.findByRole('button',{name:'生成并保存 CSV'}));
+    await waitFor(()=>expect(downloadText).toHaveBeenCalledWith({format:'csv',name:'意客AI-客户商机.csv',content:'商机标题\r\n测试商机\r\n'}));
+  });
+  it("does not treat unknown device status as permission to prepare a binding", async () => {
+    const {management}=mount({account:vi.fn().mockResolvedValue({...account,device:null})});
+    await screen.findByText('已激活');
+    fireEvent.click(screen.getByRole('button',{name:'绑定设备'}));
+    fireEvent.click(screen.getByRole('button',{name:'检查影响并预览'}));
+    await screen.findByText('账号与数据管理服务尚未接通，当前没有执行更改。');
+    expect(management.prepare).not.toHaveBeenCalled();
+    expect(management.execute).not.toHaveBeenCalled();
+  });
   it("keeps a timed-out management request locked until the original receipt is checked", async () => {
     const { management } = mount({execute: vi.fn(() => new Promise<ManagementReceipt>(() => {}))});
     await devicePlan();
@@ -267,6 +291,8 @@ describe("P18 available management contracts", () => {
       exportData: vi
         .fn()
         .mockResolvedValue({
+          userId: account.userId,
+          accountScope: account.accountScope,
           spaceId: account.spaceId,
           name: "backup",
           content: backup("other-space"),

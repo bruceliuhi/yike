@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useDeviceConnectionPreparation } from '../app/DeviceConnectionPreparation';
 import { useApp } from "../app/context";
 import { clearLocalDrafts, useAction, useResource } from "../app/hooks";
-import { accountSchema } from "../domain/management";
+import { accountSchema, requireManagementIdentity } from "../domain/management";
 import { safeReturnTo } from "../domain/routes";
 import { ServiceError } from "../services/contracts";
 import {
@@ -73,9 +73,13 @@ export function SettingsPage() {
   const management = service.management ?? unavailableManagement;
   const preparation = useDeviceConnectionPreparation();
   const account = useResource(
-    async () =>
-      accountSchema.parse(await managementRequest(() => management.account())),
-    [management, session.userId],
+    async () => {
+      if (!session.authenticated) return undefined;
+      const result = await managementRequest(() => management.account());
+      requireManagementIdentity(result, session);
+      return accountSchema.parse(result);
+    },
+    [management, session.authenticated, session.userId, session.accountScope?.id, session.accountScope?.version],
   );
   const refreshAccount = () => {
     void account.reload();
@@ -252,7 +256,7 @@ export function SettingsPage() {
           <span>运行环境</span>
           <span>{platformName}</span>
           <Button onClick={() => setDialog("bind")}>
-            {account.data &&
+            {account.data?.device &&
             ["BOUND", "OFFLINE"].includes(account.data.device.status)
               ? "解绑设备"
               : "绑定设备"}
@@ -261,7 +265,7 @@ export function SettingsPage() {
         <div className="settings-row">
           <span>商业绑定状态</span>
           <span>
-            {account.data
+            {account.data?.device
               ? `${account.data.device.name} · ${deviceLabels[account.data.device.status]}`
               : "未取得商业设备绑定状态"}
           </span>
@@ -312,7 +316,7 @@ export function SettingsPage() {
         <Modal
           title={
             dialog === "bind" &&
-            account.data &&
+            account.data?.device &&
             ["BOUND", "OFFLINE"].includes(account.data.device.status)
               ? "解绑本机设备"
               : dialogTitles[dialog]
@@ -337,7 +341,7 @@ export function SettingsPage() {
             <ManagementAction
               account={account.data}
               kind={
-                account.data &&
+                account.data?.device &&
                 ["BOUND", "OFFLINE"].includes(account.data.device.status)
                   ? "unbind-device"
                   : "bind-device"

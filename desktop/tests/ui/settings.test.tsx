@@ -253,7 +253,7 @@ describe("设备与授权", () => {
     expect(window.location.hash).toBe("#/login");
   });
   it("恢复服务未接通时不执行任何覆盖", async () => {
-    mount();
+    mount({management:undefined});
     fireEvent.click(screen.getByRole("button", { name: "备份与恢复" }));
     expect(
       screen.getByText("客户数据恢复服务尚未接通，当前没有执行覆盖或恢复。"),

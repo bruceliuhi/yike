@@ -192,6 +192,8 @@ export function configureManagementRecovery(harness: {
               data,
             });
       const result = {
+        userId: account.userId,
+        accountScope: account.accountScope,
         spaceId: account.spaceId,
         name: "TEST-memory-export",
         content,

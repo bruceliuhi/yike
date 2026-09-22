@@ -76,6 +76,7 @@ export { matchesCreatedTask } from "../domain/taskOperations";
 
 export function TaskWizardPage() {
   const { service, session, route, navigate, notify } = useApp();
+  const signedIn = session.authenticated && !!session.userId;
   const [draft, setDraft] = useTaskDraft(
     session.userId,
     route.query.get("mode") === "monitor" ? "monitor" : "once",
@@ -113,11 +114,11 @@ export function TaskWizardPage() {
         ? 2
         : 1;
   const profiles = useResource(
-    () => (session.authenticated ? service.profiles() : Promise.resolve([])),
+    () => (signedIn ? service.profiles() : Promise.resolve([])),
     [service, session.userId, session.authenticated, session.accountScope?.id, session.accountScope?.version],
   );
   const connections = useResource(
-    () => service.connections(),
+    () => (signedIn ? service.connections() : Promise.resolve([])),
     [service, session.userId, session.authenticated, session.accountScope?.id, session.accountScope?.version],
   );
   const info = useResource(() => service.info(), [service, session.userId, session.authenticated, session.accountScope?.id, session.accountScope?.version]);
@@ -667,6 +668,9 @@ export function TaskWizardPage() {
               : "配置任务条件，确认后再启动。"
         }
       />
+      {!signedIn && <Notice action={<Button onClick={() => navigate("/login")}>登录客户空间</Button>}>
+        登录后连接平台并启动任务。未登录也可以先保存本机草稿。
+      </Notice>}
       <div className="wizard-steps" aria-label="任务步骤">
         {["任务条件", "平台连接", "确认启动"].map((label, i) => (
           <div
@@ -843,6 +847,7 @@ export function TaskWizardPage() {
                   {PLATFORMS.map((p) => {
                     const status = !draft.research ? ""
                       : p.id === "web" ? "无需账号"
+                      : !signedIn ? "登录后查看"
                       : connections.loading ? "读取中"
                       : connections.error ? "读取失败"
                       : connections.data?.some(c => c.platform === p.id && c.status === "CONNECTED") ? "已连接"

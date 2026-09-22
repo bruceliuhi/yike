@@ -7,6 +7,7 @@ import {
   inputDigest,
   planSchema,
   readBackup,
+  requireManagementIdentity,
   updateSchema,
   type AccountState,
   type ManagementInput,
@@ -118,7 +119,7 @@ export function ManagementAction({
     setAccepted(false);
     await prepare.run(() =>
       scope.run(async () => {
-        if (!account || !session.authenticated)
+        if (!account?.device || !session.authenticated)
           throw new Error("账号与数据管理服务尚未接通，当前没有执行更改。");
         if (kind === "restore") {
           if (!content) throw new Error("请先选择备份文件。");
@@ -195,7 +196,7 @@ export function ManagementAction({
           </div>
           <div>
             <dt>本机设备</dt>
-            <dd>{account.device.name}</dd>
+            <dd>{account.device?.name ?? "未取得商业设备绑定状态"}</dd>
           </div>
           {version && (
             <div>
@@ -411,11 +412,13 @@ export function CustomerDataActions({
       scope.run(async () => {
         if (!account || !session.authenticated)
           throw new Error("客户数据导出服务尚未接通，当前没有生成导出文件。");
+        requireManagementIdentity(account, session);
         const kind = backup ? "backup-json" : "csv";
         const result = await managementRequest(() =>
           management.exportData(kind),
         );
         if (!scope.current()) return;
+        requireManagementIdentity(result, session);
         if (result.spaceId !== account.spaceId)
           throw new Error("导出结果与当前客户空间不匹配。");
         if (backup && readBackup(result.content).spaceId !== account.spaceId)
@@ -451,6 +454,13 @@ export function CustomerDataActions({
             ? "客户数据恢复服务尚未接通，当前没有执行覆盖或恢复。"
             : "客户数据导出服务尚未接通，当前没有生成导出文件。"}
         </Notice>
+      )}
+      {!backup && (
+        <p className="field-hint">
+          仅导出当前账号可见的已纳入商机公开业务字段，不包含原始候选、私密消息或完整客户备份。
+          <br />
+          来源页面已去除参数，可能无法直接定位原文；完整证据请回到产品内查看。
+        </p>
       )}
       <Button
         variant="primary"

@@ -168,6 +168,44 @@ function expectPlatformState(name: string, status: string) {
 }
 
 describe("platform selection state names", () => {
+  it("offers login without requesting private platform state and preserves guest drafting", async () => {
+    context.session = { authenticated: false, userId: "" };
+    context.service.connections = vi.fn().mockRejectedValue(new Error("TEST 未登录读取失败"));
+    const view = render(<TaskWizardPage />);
+    await act(async () => {});
+    expect(context.service.connections).not.toHaveBeenCalled();
+    expect(context.service.profiles).not.toHaveBeenCalled();
+    for (const platform of PLATFORMS)
+      expectPlatformState(platform.name, platform.id === "web" ? "无需账号" : "登录后查看");
+    expect(screen.queryByText("TEST 未登录读取失败")).toBeNull();
+    fireEvent.change(screen.getByRole("textbox", {name: "任务名称"}), {target: {value: "先记录需求"}});
+    fireEvent.click(screen.getByRole("button", {name: "保存草稿"}));
+    expect(context.notify).toHaveBeenCalledWith("任务草稿已保存在本机会话中，尚未启动。", "success");
+    fireEvent.click(screen.getByRole("button", {name: "登录客户空间"}));
+    expect(context.navigate).toHaveBeenCalledWith("/login");
+    expect(context.service.startTask).not.toHaveBeenCalled();
+
+    context.service.connections = vi.fn().mockResolvedValue(connections);
+    context = {...context, session: {authenticated: true, userId: crypto.randomUUID()}};
+    view.rerender(<TaskWizardPage />);
+    await screen.findByRole("checkbox", {name: "小红书 已连接"});
+    expect(context.service.connections).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", {name: "登录客户空间"})).toBeNull();
+  });
+
+  it("discards a pending platform read on logout rather than presenting a connected guest", async () => {
+    let finish!: (value: PlatformConnection[]) => void;
+    context.service.connections = vi.fn(() => new Promise<PlatformConnection[]>(resolve => {finish = resolve;}));
+    const view = render(<TaskWizardPage />);
+    expectPlatformState("小红书", "读取中");
+    context = {...context, session: {authenticated: false, userId: ""}};
+    view.rerender(<TaskWizardPage />);
+    await act(async () => finish(connections));
+    expectPlatformState("小红书", "登录后查看");
+    expect(context.service.connections).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("checkbox", {name: /已连接|读取失败/})).toBeNull();
+  });
+
   it('does not ask for an account for public websites or mark the scope executable', async () => {
     render(<TaskWizardPage />);
     await screen.findByRole('checkbox', {name:'小红书 已连接'});

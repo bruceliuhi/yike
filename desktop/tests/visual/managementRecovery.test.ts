@@ -27,6 +27,7 @@ async function plan(
   kind: ManagementInput["kind"] = "restore",
 ) {
   const account = await api.account();
+  if (!account.device) throw new Error("TEST lifecycle fixture requires its synthetic device");
   const input: ManagementInput = {
     kind,
     spaceId: account.spaceId,
@@ -70,6 +71,7 @@ describe("finite TEST management lifecycle", () => {
   it("validates scope, device, revision and digest before creating a plan", async () => {
     const { api } = setup();
     const account = await api.account();
+    if (!account.device) throw new Error("TEST lifecycle fixture requires its synthetic device");
     const valid: ManagementInput = {
       kind: "bind-device",
       spaceId: account.spaceId,
@@ -91,6 +93,7 @@ describe("finite TEST management lifecycle", () => {
   it("validates backup bytes, account and TEST records rather than accepting arbitrary customer content", async () => {
     const { api } = setup();
     const a = await api.account();
+    if (!a.device) throw new Error("TEST lifecycle fixture requires its synthetic device");
     const base: ManagementInput = {
       kind: "restore",
       spaceId: a.spaceId,

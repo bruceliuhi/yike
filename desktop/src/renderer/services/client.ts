@@ -32,6 +32,7 @@ import {createContactDraftService} from './contactDrafts';
 import {createShortCoachService} from './shortCoachClient';
 import {createStructuredFollowupService} from './structuredFollowup';
 import {createOpportunityBriefService} from './opportunityBriefClient';
+import {createManagementReadService} from './managementRead';
 
 type JsonRecord = Record<string, unknown>;
 function bridge(): YikeDesktopApi | undefined {
@@ -84,6 +85,8 @@ function serviceFailure(status: number, body: unknown): ServiceError {
     SESSION_IDENTITY_CHANGED: "账号身份已变化，已停止客户空间操作；请重新登录，当前草稿仍保留。",
     SESSION_REAUTH_REQUIRED: "请重新核验登录状态，当前草稿仍保留。",
     client_upgrade_required: "此记录包含新版人工补证，请升级客户端后查看；原文和核验记录仍保留。",
+    management_export_too_large: "导出超过 1000 条或 2 MiB 上限，未生成部分文件。请在商机库筛选、勾选记录，使用“导出所选客户商机”。",
+    management_export_invalid: "商机数据包含无法导出的字符，未生成文件，请联系支持核对。",
     phone_auth_failed: "验证码无效或已过期，请重新核对或获取验证码。",
     access_auth_failed: "临时访问码无效、已到期或已停用，请联系管理员核对。",
     SESSION_PERSIST_FAILED: "登录状态未能安全保存，请重新登录；若仍失败请联系支持。",
@@ -296,6 +299,7 @@ function unavailable(name: string): never {
 const candidateReads = createCandidateReviewService(request);
 const platformConnections = createPlatformConnectionService(bridge, () => service.connections());
 export const service: YikeService = {
+  management:createManagementReadService(requestRaw),
   opportunityBrief:createOpportunityBriefService(requestRaw,()=>service.session()),
   followup:createStructuredFollowupService(requestRaw,()=>service.session()),
   shortCoach: createShortCoachService(requestRaw,()=>service.session()),

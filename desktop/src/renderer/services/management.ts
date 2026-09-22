@@ -3,6 +3,7 @@ import type {
   ManagementInput,
   ManagementPlan,
   ManagementReceipt,
+  ManagementExport,
   UpdateState,
 } from "../domain/management";
 import { ServiceError } from "./contracts";
@@ -12,7 +13,7 @@ export interface ManagementService {
   updates(): Promise<UpdateState>;
   exportData(
     kind: "csv" | "backup-json",
-  ): Promise<{ spaceId: string; name: string; content: string }>;
+  ): Promise<ManagementExport>;
   prepare(
     input: ManagementInput,
     inputHash: string,
