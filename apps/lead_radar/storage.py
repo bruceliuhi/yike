@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import csv
+import io
 import sqlite3
 import threading
 import uuid
@@ -2176,6 +2178,72 @@ class Store:
         with self.lock:
             rows = self.db.execute(query, params).fetchall()
         return [self._opportunity_dict(row) for row in rows]  # type: ignore[list-item]
+
+    def export_opportunities_csv(
+        self,
+        workspace_id: str,
+        status: str | None = None,
+        limit: int = 5000,
+    ) -> tuple[str, int]:
+        """Export evidence-backed opportunities without exporting hidden contacts."""
+
+        normalized_status = str(status or "").strip().upper() or None
+        if normalized_status and normalized_status not in {
+            "REVIEW", "OBSERVE", "SEND_READY", "EXCLUDE", "CONTACTED",
+            "DEFERRED", "HANDOFF", "DUPLICATE", "DO_NOT_CONTACT",
+        }:
+            raise ValueError("opportunity_status_invalid")
+        bounded_limit = max(1, min(int(limit), 5000))
+        query = "SELECT * FROM opportunities WHERE workspace_id = ?"
+        params: list[Any] = [workspace_id]
+        if normalized_status:
+            query += " AND status = ?"
+            params.append(normalized_status)
+        query += " ORDER BY score DESC, updated_at DESC, rowid DESC LIMIT ?"
+        params.append(bounded_limit)
+        with self.lock:
+            rows = self.db.execute(query, params).fetchall()
+        items = [self._opportunity_dict(row) for row in rows]
+        fieldnames = [
+            "opportunity_id", "status", "title", "author", "published_at",
+            "intent_type", "industry_location", "source_kind", "source_url",
+            "snippet", "evidence_level", "source_permission", "score",
+            "decision_reason", "decision_next_action", "entity_name",
+            "entity_website_host", "evidence_count", "reopen_check_count",
+            "created_at", "updated_at",
+        ]
+        output = io.StringIO(newline="")
+        writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        for item in items:
+            item = item or {}
+            decision = item.get("decision") or {}
+            entity = (item.get("entities") or [{}])[0]
+            evidence = item.get("evidence") or []
+            writer.writerow({
+                "opportunity_id": item.get("id", ""),
+                "status": item.get("status", ""),
+                "title": item.get("title", ""),
+                "author": item.get("author", ""),
+                "published_at": item.get("published_at", ""),
+                "intent_type": item.get("intent_type", ""),
+                "industry_location": item.get("industry_location", ""),
+                "source_kind": item.get("source_kind", ""),
+                "source_url": item.get("source_url", ""),
+                "snippet": item.get("snippet", ""),
+                "evidence_level": item.get("evidence_level", ""),
+                "source_permission": item.get("source_permission", ""),
+                "score": item.get("score", ""),
+                "decision_reason": decision.get("reason", ""),
+                "decision_next_action": decision.get("next_action", ""),
+                "entity_name": entity.get("canonical_name", ""),
+                "entity_website_host": entity.get("website_host", ""),
+                "evidence_count": len(evidence),
+                "reopen_check_count": sum(1 for row in evidence if row.get("evidence_type") == "reopen_check"),
+                "created_at": item.get("created_at", ""),
+                "updated_at": item.get("updated_at", ""),
+            })
+        return "\ufeff" + output.getvalue(), len(items)
 
     def create_calibration_batch(
         self,

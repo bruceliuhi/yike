@@ -35,6 +35,7 @@ try:
     from .schedule_api import control_schedule, create_schedule, get_schedule, list_schedules, trigger_schedule
     from .source_policy import classify_public_url
     from .storage import Store
+    from .templates import get_task_template, list_task_templates
     from .usage import UNIT as USAGE_UNIT, action_cost, charge_for, source_metadata
 except ImportError:  # running server.py directly
     from api_access import ApiAccessError, normalize_api_key, normalize_scopes
@@ -53,6 +54,7 @@ except ImportError:  # running server.py directly
     from schedule_api import control_schedule, create_schedule, get_schedule, list_schedules, trigger_schedule
     from source_policy import classify_public_url
     from storage import Store
+    from templates import get_task_template, list_task_templates
     from usage import UNIT as USAGE_UNIT, action_cost, charge_for, source_metadata
 
 
@@ -67,7 +69,13 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
     def store(self) -> Store:
         return self.server.store  # type: ignore[attr-defined]
 
-    def _send(self, status: int, payload: Any, content_type: str = "application/json; charset=utf-8") -> None:
+    def _send(
+        self,
+        status: int,
+        payload: Any,
+        content_type: str = "application/json; charset=utf-8",
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
         self._settle_api_request(status)
         if isinstance(payload, (dict, list)):
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -83,6 +91,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, X-Request-ID, X-API-Key, Authorization")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
 
@@ -178,6 +188,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             return "fetch_search_results"
         if "/enrich_entity/" in path:
             return "enrich_entity"
+        if path.endswith("/opportunities/export.csv"):
+            return "export_opportunities"
         return None
 
     def _authorize_business_action(self, action: str) -> None:
@@ -277,6 +289,12 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True, "service": "lead-radar", "workspace_id": WORKSPACE_ID})
         if path == "/api/v1/sources/capabilities":
             return self._send(200, {"items": list_capabilities()})
+        if path == "/api/v1/task-templates":
+            language = parse_qs(parsed.query).get("language", ["zh-CN"])[0]
+            try:
+                return self._send(200, {"items": list_task_templates(language), "language": language})
+            except ValueError as exc:
+                return self._error(400, "invalid_request", str(exc))
         if self._is_management_path(path):
             try:
                 self._authorize_management()
@@ -371,6 +389,21 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/opportunities":
             status = parse_qs(parsed.query).get("status", [None])[0]
             return self._send(200, {"items": self.store.list_opportunities(WORKSPACE_ID, status)})
+        if path == f"/api/v1/workspaces/{WORKSPACE_ID}/opportunities/export.csv":
+            status = parse_qs(parsed.query).get("status", [None])[0]
+            try:
+                body, count = self.store.export_opportunities_csv(WORKSPACE_ID, status)
+            except ValueError as exc:
+                return self._error(400, "invalid_request", str(exc))
+            return self._send(
+                200,
+                body,
+                "text/csv; charset=utf-8",
+                {
+                    "Content-Disposition": 'attachment; filename="lead-radar-opportunities.csv"',
+                    "X-Export-Count": str(count),
+                },
+            )
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/entities":
             return self._send(200, {"items": self.store.list_entities(WORKSPACE_ID)})
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/calibration-batches":
@@ -591,11 +624,21 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         self._send(200, {"proof": revoked, "message": "来源证明已撤销，后续索引导入将被阻断。"})
 
     def _create_task(self, payload: dict[str, Any]) -> None:
-        objective = str(payload.get("objective", "")).strip()
+        template_id = str(payload.get("template_id") or "").strip() or None
+        template = get_task_template(template_id, "zh-CN") if template_id else None
+        if template_id and not template:
+            raise ValueError("task_template_not_found")
+        objective = str(payload.get("objective") or (template or {}).get("objective") or "").strip()
         if not objective:
             raise ValueError("objective_required")
         requested_limit = max(1, min(int(payload.get("requested_limit", 10)), 500))
-        criteria = compile_intent(objective, payload.get("criteria"))
+        raw_criteria = payload.get("criteria")
+        if raw_criteria is not None and not isinstance(raw_criteria, dict):
+            raise ValueError("criteria_must_be_object")
+        supplied_criteria = raw_criteria or (template or {}).get("criteria")
+        criteria = compile_intent(objective, supplied_criteria)
+        if template_id:
+            criteria["template_id"] = template_id
         plan = build_search_plan(criteria, requested_limit)
         idempotency_key = self.headers.get("Idempotency-Key") or payload.get("idempotency_key")
         quoted_max = plan["cost_estimate"].get("max_credits")

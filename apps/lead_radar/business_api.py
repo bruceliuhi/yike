@@ -13,10 +13,12 @@ try:
     from .domain import compile_intent
     from .planner import build_search_plan
     from .storage import Store
+    from .templates import get_task_template
 except ImportError:  # running the module directly during local inspection
     from domain import compile_intent
     from planner import build_search_plan
     from storage import Store
+    from templates import get_task_template
 
 
 API_VERSION = "2026-09-23"
@@ -100,11 +102,19 @@ def create_search_task(
     if not isinstance(payload, dict):
         raise BusinessApiError("body_must_be_object", "请求体必须是对象。")
     _reject_credential_fields(payload)
-    objective = _required_text(payload.get("objective"), "objective", MAX_OBJECTIVE_LENGTH)
+    template_id = payload.get("template_id")
+    if template_id is not None:
+        template_id = _required_text(template_id, "template_id", 120)
+        template = get_task_template(template_id, "zh-CN")
+        if not template:
+            raise BusinessApiError("task_template_not_found", "任务模板不存在。")
+    else:
+        template = None
+    objective = _required_text(payload.get("objective") or (template or {}).get("objective"), "objective", MAX_OBJECTIVE_LENGTH)
     requested_limit = payload.get("requested_limit", 10)
     if isinstance(requested_limit, bool) or not isinstance(requested_limit, int) or not 1 <= requested_limit <= 500:
         raise BusinessApiError("requested_limit_out_of_range", "requested_limit 必须是 1 到 500 的整数。")
-    criteria = payload.get("criteria")
+    criteria = payload.get("criteria") or (template or {}).get("criteria")
     if criteria is not None and not isinstance(criteria, dict):
         raise BusinessApiError("criteria_must_be_object", "criteria 必须是对象。")
     profile_id = payload.get("profile_id")
@@ -115,6 +125,8 @@ def create_search_task(
         key = _required_text(key, "idempotency_key", MAX_IDEMPOTENCY_KEY_LENGTH)
 
     compiled = compile_intent(objective, criteria)
+    if template_id:
+        compiled["template_id"] = template_id
     plan = build_search_plan(compiled, requested_limit)
     quoted_max = plan["cost_estimate"].get("max_credits")
     estimated_credits = 0 if quoted_max is None else int(quoted_max)

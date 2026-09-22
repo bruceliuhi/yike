@@ -174,6 +174,75 @@ class BusinessApiTest(unittest.TestCase):
         self.assertIn("no_approved_authorized_source_right", evaluation["quality_gate"]["blocking_reasons"])
         self.assertIn("rmb_cost", evaluation["unavailable_metrics"])
 
+    def test_opportunity_csv_export_preserves_evidence_fields_and_workspace_scope(self) -> None:
+        status, created, _ = self.request(
+            "POST",
+            "/api/v1/business/create_search_task",
+            {"objective": "CSV 导出任务"},
+        )
+        self.assertEqual(status, 201)
+        task_id = created["task"]["id"]
+        status, added, _ = self.request(
+            "POST",
+            f"/api/v1/tasks/{task_id}/opportunities",
+            {
+                "title": "导出候选",
+                "author": "公开作者",
+                "source_url": "https://export.example/request",
+                "snippet": "需要 AI 客服定制方案",
+                "intent_type": "AI 客服",
+                "source_kind": "manual_public_evidence",
+                "source_permission": "public_url_user_supplied",
+            },
+        )
+        self.assertEqual(status, 201)
+        self.assertEqual(added["items"][0]["status"], "REVIEW")
+        connection = HTTPConnection(self.host, self.port)
+        connection.request(
+            "GET",
+            f"{WORKSPACE_PATH}/opportunities/export.csv?status=REVIEW",
+            headers={"Accept": "text/csv"},
+        )
+        response = connection.getresponse()
+        csv_body = response.read().decode("utf-8-sig")
+        export_count = response.getheader("X-Export-Count")
+        content_disposition = response.getheader("Content-Disposition")
+        content_type = response.getheader("Content-Type")
+        connection.close()
+        self.assertEqual(response.status, 200)
+        self.assertEqual(export_count, "1")
+        self.assertIn("attachment", content_disposition or "")
+        self.assertIn("text/csv", content_type or "")
+        self.assertIn("source_url", csv_body)
+        self.assertIn("https://export.example/request", csv_body)
+        self.assertIn("需要 AI 客服定制方案", csv_body)
+        self.assertNotIn("phone", csv_body.lower())
+
+    def test_task_templates_are_localized_and_compile_into_audited_tasks(self) -> None:
+        status, zh, _ = self.request("GET", "/api/v1/task-templates?language=zh-CN")
+        self.assertEqual(status, 200)
+        self.assertGreaterEqual(len(zh["items"]), 7)
+        self.assertTrue(any(item["id"] == "ai_customer_service" for item in zh["items"]))
+        status, en, _ = self.request("GET", "/api/v1/task-templates?language=en-US")
+        self.assertEqual(status, 200)
+        self.assertEqual(en["language"], "en-US")
+        self.assertTrue(any(item["title"] == "AI customer service demand" for item in en["items"]))
+        status, created, _ = self.request(
+            "POST",
+            "/api/v1/business/create_search_task",
+            {"template_id": "ai_customer_service"},
+        )
+        self.assertEqual(status, 201)
+        self.assertEqual(created["task"]["criteria"]["template_id"], "ai_customer_service")
+        self.assertIn("AI 客服", created["task"]["objective"])
+        status, rejected, _ = self.request(
+            "POST",
+            "/api/v1/business/create_search_task",
+            {"template_id": "does_not_exist"},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(rejected["error"], "task_template_not_found")
+
 
 class McpContractTest(unittest.TestCase):
     def test_mcp_tools_have_no_credential_or_outreach_inputs(self) -> None:

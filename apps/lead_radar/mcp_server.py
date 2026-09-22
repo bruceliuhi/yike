@@ -30,6 +30,7 @@ try:
     from .server import WORKSPACE_ID
     from .schedule_api import create_schedule, get_schedule, trigger_schedule
     from .storage import Store
+    from .templates import list_task_templates
 except ImportError:  # running this file directly
     from business_api import API_VERSION, BusinessApiError, create_search_task, enrich_entity, fetch_search_results, get_search_status
     from evaluation_api import get_calibration_evaluation
@@ -38,6 +39,7 @@ except ImportError:  # running this file directly
     from server import WORKSPACE_ID
     from schedule_api import create_schedule, get_schedule, trigger_schedule
     from storage import Store
+    from templates import list_task_templates
 
 
 ROOT = Path(__file__).resolve().parent
@@ -54,9 +56,19 @@ TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
                 "criteria": {"type": "object"},
                 "requested_limit": {"type": "integer", "minimum": 1, "maximum": 500},
                 "profile_id": {"type": "string", "maxLength": 120},
+                "template_id": {"type": "string", "maxLength": 120},
                 "idempotency_key": {"type": "string", "maxLength": 200},
             },
-            "required": ["objective"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "list_task_templates",
+        "description": "读取可复用的中英文搜索任务模板；模板只生成目标和条件，不绕过来源权限门禁。",
+        "readOnlyHint": True,
+        "inputSchema": {
+            "type": "object",
+            "properties": {"language": {"type": "string", "enum": ["zh-CN", "en-US"]}},
             "additionalProperties": False,
         },
     },
@@ -272,6 +284,8 @@ def build_server(store: Store, workspace_id: str = WORKSPACE_ID):
             args = _check_arguments(name, arguments)
             if name == "create_search_task":
                 result = create_search_task(store, workspace_id, args)
+            elif name == "list_task_templates":
+                result = {"api_version": API_VERSION, "items": list_task_templates(args.get("language", "zh-CN"))}
             elif name == "get_search_status":
                 result = get_search_status(store, workspace_id, args["task_id"])
             elif name == "fetch_search_results":
