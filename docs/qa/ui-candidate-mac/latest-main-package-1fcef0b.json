@@ -1,0 +1,32 @@
+{
+  "schema": "yike.mac-package-evidence/v1",
+  "sourceRevision": "1fcef0b176c99110223798322b77b386aa50f4bd",
+  "builtAt": "2026-09-23",
+  "platform": "darwin/arm64",
+  "version": "0.2.0",
+  "serviceOrigin": "https://yike.tuokexing.net",
+  "zip": {
+    "path": "desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip",
+    "sha256": "89c3cb63760df51f81283ccee3937096e06ecb6a8ab797926b1607016f4c07e2"
+  },
+  "asar": {
+    "path": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/app.asar",
+    "sha256": "55a0b78d5a8ae8b9f22b0a11824a921acc4009f7ce78ca3dd04cc5867442dc4c"
+  },
+  "checks": {
+    "make_mac": "PASS",
+    "verify_package": "PASS",
+    "packaged_smoke": "PASS",
+    "schedule_ui_regression": "15 passed",
+    "typecheck": "PASS",
+    "renderer_build": "PASS",
+    "lead_radar": "89 passed",
+    "release_candidate_check": "local=PASS / external=NOT_VERIFIED / overall=HOLD"
+  },
+  "distribution": {
+    "code_signing": "AD_HOC",
+    "developer_id_identity": "NOT_AVAILABLE",
+    "notarization": "NOT_RUN"
+  },
+  "scope": "1fcef0b 修复监控详情对已版本化日程的错误历史提示；macOS 包结构、平台 Logo、IPC 安全和包内冒烟均通过。Finder 安装、Developer ID 签名/公证、最终服务器版本、真实平台来源权利、生产数据库恢复和客户 UAT 仍是独立上线门禁。"
+}

@@ -4,19 +4,19 @@
 
 ## 当前主线与本机候选
 
-- 当前候选运行代码基线：`68b94263275800f4cf241f79856d8e7f43ade309`
-- Gitee `origin/main` 与 GitHub `github/main` 已同步包含该候选；桌面包绑定的桌面代码基线为 `83d3775`
+- 当前候选运行代码基线：`1fcef0b176c99110223798322b77b386aa50f4bd`
+- Gitee `origin/main` 与 GitHub `github/main` 已同步包含该候选；桌面包绑定的桌面代码基线为 `1fcef0b`
 - 本机发布候选检查：`local=PASS / external=NOT_VERIFIED / overall=HOLD`
-- Lead Radar 全套测试：`83 passed`（当前主线复跑）
+- Lead Radar 全套测试：`89 passed`（当前主线复跑）
 - macOS arm64 安装包结构检查和包内冒烟：均 `PASS`
-- 当前包为 ad hoc 签名；Developer ID 与公证尚未完成。包哈希和完整检查见 [`latest-main-package-83d3775.json`](ui-candidate-mac/latest-main-package-83d3775.json)；后续资格评分、呈现层和文档提交未改变桌面包内容。
+- 当前包为 ad hoc 签名；Developer ID 与公证尚未完成。包哈希和完整检查见 [`latest-main-package-1fcef0b.json`](ui-candidate-mac/latest-main-package-1fcef0b.json)。
 
 ## 公网版本核对
 
 2026-09-23 对 `https://yike.tuokexing.net` 执行 CP-06 版本探针：
 
 ```text
-expected: 68b94263275800f4cf241f79856d8e7f43ade309
+expected: 1fcef0b176c99110223798322b77b386aa50f4bd
 actual:   5330c81046b636b6cad65589581374e321a277c5
 result:   revision mismatch
 ```
