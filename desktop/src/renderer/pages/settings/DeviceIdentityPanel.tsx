@@ -43,6 +43,7 @@ export function DeviceIdentityPanel({api, scope}: {api: DeviceIdentityApi; scope
   }
   return <section aria-label="本机设备身份">
     <p role="status">{deviceIdentityLabels[status.state]}</p>
+    <p className="field-hint">本机身份核验只用于设备授权，不代表平台已连接或使用授权已激活。</p>
     {unknown && <Notice>请先核对原请求；核对不会重复登记，重试需再次明确确认。</Notice>}
     {!stopped && <>
       {unknown && <Button disabled={busy} onClick={()=>void prepare(false)}>核对原请求</Button>}
