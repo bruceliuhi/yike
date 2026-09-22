@@ -26,7 +26,7 @@ try:
     from .domain import compile_intent, evidence_status
     from .brief_api import get_research_brief
     from .evaluation_api import get_calibration_evaluation
-    from .evaluation_contract import get_evaluation_contract
+    from .evaluation_contract import get_evaluation_contract, validate_evaluation_manifest
     from .feed_api import get_feed_event, list_feed, review_feed_event
     from .index_connector import IndexResultError, normalize_index_results
     from .integrations import list_integrations
@@ -50,7 +50,7 @@ except ImportError:  # running server.py directly
     from domain import compile_intent, evidence_status
     from brief_api import get_research_brief
     from evaluation_api import get_calibration_evaluation
-    from evaluation_contract import get_evaluation_contract
+    from evaluation_contract import get_evaluation_contract, validate_evaluation_manifest
     from feed_api import get_feed_event, list_feed, review_feed_event
     from index_connector import IndexResultError, normalize_index_results
     from integrations import list_integrations
@@ -490,6 +490,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             if self._is_management_path(path):
                 self._authorize_management()
             payload = self._body()
+            if path == "/api/v1/evaluation-contract/validate":
+                return self._send(200, validate_evaluation_manifest(payload))
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/api-keys":
                 label = str(payload.get("label", "")).strip()
                 if not label:
