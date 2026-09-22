@@ -1,11 +1,11 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
-### 2026-09-23 当前主干候选（`59fba65`，Mac 可演示包已生成）
+### 2026-09-23 当前主干候选（`866ef86`，Mac 可演示包已生成）
 
-- Gitee `yike-ai2026/main`、GitHub `main` 与本地主线已同步到 `59fba6561c3e26c4e3b62e11459ad11569f2822c`。来源证明登记/撤销、索引无结果记录、按结果结算搜贝、来源证明管理台和桌面研究超时进度保留均已进入该主线。
-- 按该提交以 `YIKE_RELEASE_SERVICE_URL=https://yike.tuokexing.net` 重新构建 macOS arm64 包：ZIP SHA-256 为 `440fa33c310ecbb4221566ffff0d9490b62855f83f267e09b70405a0f3634b95`，ASAR SHA-256 为 `71f85d7f45a36a74cdd6b1656fd6b92d8689406ac83cbe7fa0db8005c3c13726`；包结构校验和受限包内冒烟均通过。机器可读记录见 [`latest-main-package-59fba65.json`](qa/ui-candidate-mac/latest-main-package-59fba65.json)。
+- Gitee `yike-ai2026/main`、GitHub `main` 与本地主线已同步到 `866ef864c66d9eadab9258a69ad74c8aa7f443f5`。来源证明登记/撤销、索引无结果记录、按结果结算搜贝、来源证明管理台、人工升级门禁、联系生命周期和桌面研究超时进度保留均已进入该主线。
+- 按该提交以 `YIKE_RELEASE_SERVICE_URL=https://yike.tuokexing.net` 重新构建 macOS arm64 包：ZIP SHA-256 为 `3d710ebf353a705d147ea169bab4efe56fe7815c6e5f48fcec2403191e06df56`，ASAR SHA-256 为 `71f85d7f45a36a74cdd6b1656fd6b92d8689406ac83cbe7fa0db8005c3c13726`；包结构校验和受限包内冒烟均通过。机器可读记录见 [`latest-main-package-866ef86.json`](qa/ui-candidate-mac/latest-main-package-866ef86.json)。
 - 用当前主线 SHA 运行 `scripts/cp06_probe.sh` 对公网服务核对时，公网 `yike.tuokexing.net` 仍回报旧 revision `bc38fa0f05a1e57e0c949a5badf6a29c64dd2157`，因此这份 Mac 包尚未绑定到线上服务，不能写成同版生产发布。服务器 SSH 当前不可达，实际切换仍需目标环境执行备份、迁移、最小授权、候选启动、回滚保留和客户验收。
-- 本轮本机验证：Lead Radar **32 项通过**；发布候选检查 `local=PASS / external=NOT_VERIFIED / overall=HOLD`。Windows 专属测试在 macOS 上因 Windows 路径/运行环境失败，按当前范围不作为本轮产品判断；正式上线仍保留 Windows 交付门禁。
+- 本轮本机验证：Lead Radar **34 项通过**；发布候选检查 `local=PASS / external=NOT_VERIFIED / overall=HOLD`。Windows 专属测试在 macOS 上因 Windows 路径/运行环境失败，按当前范围不作为本轮产品判断；正式上线仍保留 Windows 交付门禁。
 
 ### 2026-09-23 主干生产部署（同源 `bc38fa0`，功能仍待真实业务验收）
 

@@ -1,0 +1,22 @@
+{
+  "schema": "yike.mac-package-evidence/v1",
+  "sourceRevision": "866ef864c66d9eadab9258a69ad74c8aa7f443f5",
+  "builtAt": "2026-09-23",
+  "platform": "darwin/arm64",
+  "version": "0.2.0",
+  "serviceOrigin": "https://yike.tuokexing.net",
+  "zip": {
+    "path": "desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip",
+    "sha256": "3d710ebf353a705d147ea169bab4efe56fe7815c6e5f48fcec2403191e06df56"
+  },
+  "asar": {
+    "path": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/app.asar",
+    "sha256": "71f85d7f45a36a74cdd6b1656fd6b92d8689406ac83cbe7fa0db8005c3c13726"
+  },
+  "checks": {
+    "make_mac": "PASS",
+    "verify_package": "PASS",
+    "packaged_smoke": "PASS"
+  },
+  "scope": "Package structure, embedded service origin, renderer assets, IPC safety and temporary export paths verified. Finder installation, code signing/notarization, Windows packaging, final server revision and customer UAT remain separate gates."
+}
