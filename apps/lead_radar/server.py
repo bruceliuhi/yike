@@ -29,6 +29,7 @@ try:
     from .feed_api import get_feed_event, list_feed, review_feed_event
     from .index_connector import IndexResultError, normalize_index_results
     from .integrations import list_integrations
+    from .product_catalog import list_product_catalog
     from .planner import build_search_plan
     from .proofs import SourceProofError, normalize_source_proof
     from .readiness_api import get_production_readiness
@@ -51,6 +52,7 @@ except ImportError:  # running server.py directly
     from feed_api import get_feed_event, list_feed, review_feed_event
     from index_connector import IndexResultError, normalize_index_results
     from integrations import list_integrations
+    from product_catalog import list_product_catalog
     from planner import build_search_plan
     from proofs import SourceProofError, normalize_source_proof
     from readiness_api import get_production_readiness
@@ -301,6 +303,12 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             language = parse_qs(parsed.query).get("language", ["zh-CN"])[0]
             try:
                 return self._send(200, {"items": list_integrations(language), "language": language})
+            except ValueError as exc:
+                return self._error(400, "invalid_request", str(exc))
+        if path == "/api/v1/product-catalog":
+            language = parse_qs(parsed.query).get("language", ["zh-CN"])[0]
+            try:
+                return self._send(200, {"items": list_product_catalog(language), "language": language})
             except ValueError as exc:
                 return self._error(400, "invalid_request", str(exc))
         if path == "/api/v1/task-templates":
