@@ -2075,12 +2075,59 @@ class Store:
                     "SELECT * FROM feed_events WHERE opportunity_id = ? ORDER BY observed_at DESC, created_at DESC, rowid DESC",
                     (result["id"],),
                 ).fetchall()
+                source_right_rows = self.db.execute(
+                    "SELECT * FROM source_rights WHERE workspace_id = ? ORDER BY updated_at DESC, rowid DESC",
+                    (result["workspace_id"],),
+                ).fetchall()
             result["evidence"] = []
             result["decision"] = json.loads(result.pop("decision_json") or "{}")
             for item in evidence:
                 entry = dict(item)
                 entry["metadata"] = json.loads(entry.pop("metadata_json") or "{}")
                 result["evidence"].append(entry)
+            source_ids = {
+                str(result.get("source_kind") or "").strip(),
+                str(result.get("source_permission") or "").strip(),
+            }
+            source_right = next(
+                (
+                    self._source_right_dict(row)
+                    for row in source_right_rows
+                    if str(row["source_id"] or "").strip() in source_ids
+                ),
+                None,
+            )
+            data_use = {
+                "source_id": (source_right or {}).get("source_id") or result.get("source_kind"),
+                "permission_status": (source_right or {}).get("permission_status") or "NOT_REGISTERED",
+                "allowed_operations": (source_right or {}).get("allowed_operations") or [],
+                "allowed_fields": (source_right or {}).get("allowed_fields") or [],
+                "store_original": bool((source_right or {}).get("store_original", False)),
+                "retention_days": (source_right or {}).get("retention_days"),
+                "can_search": bool((source_right or {}).get("can_search", False)),
+                "can_write_back": bool((source_right or {}).get("can_write_back", False)),
+            }
+            reopen_checks = [item for item in result["evidence"] if item.get("evidence_type") == "reopen_check"]
+            counter_evidence = [
+                item
+                for item in result["evidence"]
+                if item.get("evidence_type") in {"counter_evidence", "negative_signal", "contradiction"}
+            ]
+            reopen_status = "NOT_RUN"
+            if any(item.get("metadata", {}).get("matches_previous_snapshot") is False for item in reopen_checks):
+                reopen_status = "CHANGED"
+            elif any(item.get("metadata", {}).get("matches_previous_snapshot") is True for item in reopen_checks):
+                reopen_status = "PASS"
+            result["source_right"] = source_right
+            result["data_use"] = data_use
+            result["evidence_audit"] = {
+                "evidence_count": len(result["evidence"]),
+                "original_evidence_count": len(result["evidence"]) - len(reopen_checks),
+                "reopen_check_count": len(reopen_checks),
+                "reopen_status": reopen_status,
+                "last_reopened_at": reopen_checks[-1]["captured_at"] if reopen_checks else None,
+                "counter_evidence_count": len(counter_evidence),
+            }
             result["entities"] = []
             for item in entities:
                 entry = dict(item)
