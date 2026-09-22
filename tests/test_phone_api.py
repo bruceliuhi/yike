@@ -59,26 +59,50 @@ def test_default_routes_are_explicitly_unavailable_not_fake_success():
     assert client.get("/api/ui/capabilities").json()["capabilities"]["sms_login"] == {"available": False}
 
 
-@pytest.mark.parametrize("eligible,result,error,state", [
-    (True, True, False, "ACCEPTED"),
-    (True, False, False, "REJECTED"),
-    (True, True, True, "UNKNOWN"),
-    (False, True, False, "REJECTED"),
-])
-def test_code_request_has_uniform_response_without_delivery_claim(eligible, result, error, state, caplog):
-    auth, sender = PhoneFixture(eligible), SenderFixture(result, error)
+def test_code_request_starts_cooldown_only_after_provider_accepts(caplog):
+    auth, sender = PhoneFixture(True), SenderFixture(True, False)
     client = client_for(auth, sender)
     response = client.post("/api/ui/auth/sms-code", json={"phone": PHONE})
     assert response.status_code == 200
     assert response.json() == {"retry_after": 60}
     assert auth.calls == [("reserve", PHONE, "testclient"),
-                          ("settle", PHONE, "synthetic-challenge", state)]
-    assert sender.calls == ([(PHONE, CODE)] if eligible else [])
+                          ("settle", PHONE, "synthetic-challenge", "ACCEPTED")]
+    assert sender.calls == [(PHONE, CODE)]
     assert "set-cookie" not in response.headers
     assert response.headers["cache-control"] == "no-store"
     for sensitive in [PHONE, CODE, "synthetic-sensitive-provider-error"]:
         assert sensitive not in caplog.text
         assert sensitive not in response.text
+
+
+@pytest.mark.parametrize("result,error,state,status,code,message", [
+    (False, False, "REJECTED", 502, "sms_delivery_rejected", "短信发送未确认，请稍后重试。"),
+    (True, True, "UNKNOWN", 503, "sms_delivery_unknown", "短信发送结果尚未确认，请稍后重试。"),
+])
+def test_code_request_reports_provider_failure_without_delivery_claim(result, error, state, status, code, message, caplog):
+    auth, sender = PhoneFixture(True), SenderFixture(result, error)
+    client = client_for(auth, sender)
+    response = client.post("/api/ui/auth/sms-code", json={"phone": PHONE})
+    assert response.status_code == status
+    assert response.json()["detail"] == {"code": code, "message": message}
+    assert auth.calls == [("reserve", PHONE, "testclient"),
+                          ("settle", PHONE, "synthetic-challenge", state)]
+    assert sender.calls == [(PHONE, CODE)]
+    assert "set-cookie" not in response.headers
+    assert response.headers["cache-control"] == "no-store"
+    for sensitive in [PHONE, CODE, "synthetic-sensitive-provider-error"]:
+        assert sensitive not in caplog.text
+        assert sensitive not in response.text
+
+
+def test_code_request_keeps_unknown_number_response_uniform():
+    auth, sender = PhoneFixture(False), SenderFixture(True, False)
+    response = client_for(auth, sender).post("/api/ui/auth/sms-code", json={"phone": PHONE})
+    assert response.status_code == 200
+    assert response.json() == {"retry_after": 60}
+    assert auth.calls == [("reserve", PHONE, "testclient"),
+                          ("settle", PHONE, "synthetic-challenge", "REJECTED")]
+    assert sender.calls == []
 
 
 def test_phone_login_sets_only_http_only_cookie_and_existing_session_can_logout():

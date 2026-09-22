@@ -36,6 +36,18 @@ def _unavailable():
                                       "message": "该登录能力尚未接通。"})
 
 
+def _delivery_failure(state: str):
+    if state == "REJECTED":
+        return HTTPException(502, detail={
+            "code": "sms_delivery_rejected",
+            "message": "短信发送未确认，请稍后重试。",
+        })
+    return HTTPException(503, detail={
+        "code": "sms_delivery_unknown",
+        "message": "短信发送结果尚未确认，请稍后重试。",
+    })
+
+
 def _auth_error(error: PhoneAuthError):
     trial_messages = {
         'trial_required': '请展开试用开通，输入管理员发给你的试用码。',
@@ -79,6 +91,12 @@ def register_phone_api(router, store, phone_auth, sender: SmsSender | None,
                 # Never echo provider errors, restore the cooldown or retry.
                 state = "UNKNOWN"
         phone_auth.settle(body.phone, reservation.challenge_id, state)
+        # An ineligible/unknown number keeps the uniform acknowledgement that
+        # prevents account enumeration.  For self-registration every valid
+        # number is eligible, so an explicit provider rejection/unknown result
+        # must be surfaced instead of starting a misleading client cooldown.
+        if reservation.eligible and state != "ACCEPTED":
+            raise _delivery_failure(state)
         # Same shape for unknown numbers. This is a request acknowledgement,
         # not a claim of registration, SMS acceptance or handset delivery.
         return {"retry_after": 60}

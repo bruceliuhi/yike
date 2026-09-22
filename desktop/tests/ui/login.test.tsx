@@ -122,6 +122,16 @@ describe("登录", () => {
     expect(screen.queryByLabelText("试用码")).toBeNull();
     await waitFor(()=>expect(service.login).toHaveBeenCalledWith("13800000000", "123456"));
   });
+  it("短信供应商明确拒绝时不进入倒计时并提示稍后重试", async () => {
+    const service = mount({
+      requestCode: vi.fn().mockRejectedValue(new ServiceError("sms_delivery_rejected", "短信发送未确认，请稍后重试。", 502)),
+    });
+    fireEvent.change(screen.getByLabelText("手机号码"), {target: {value: "13800000000"}});
+    fireEvent.click(screen.getByRole("button", {name: "获取验证码"}));
+    await screen.findByText("短信发送未确认，请稍后重试。");
+    expect(screen.queryByRole("button", {name: /秒后重试/})).toBeNull();
+    expect((screen.getByRole("button", {name: "获取验证码"}) as HTMLButtonElement).disabled).toBe(false);
+  });
   it("重新获取验证码会清除上一次登录错误", async () => {
     const service = mount({
       requestCode: vi.fn().mockResolvedValue({ retryAfter: 60 }),

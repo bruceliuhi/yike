@@ -59,6 +59,13 @@ describe('phone login fixed transport', () => {
     await expect(service.requestCode('19900000001')).resolves.toEqual({retryAfter: 60});
     expect(call).toHaveBeenCalledWith({operation: 'session.requestCode', payload: {phone: '19900000001'}});
   });
+  it.each([
+    ['sms_delivery_rejected', 502, '短信发送未确认，请稍后重试。'],
+    ['sms_delivery_unknown', 503, '短信发送结果尚未确认，请稍后重试。'],
+  ])('maps provider delivery outcome %s without creating a cooldown', async (code, status, message) => {
+    host.yikeDesktop = {requestApi: vi.fn().mockResolvedValue({ok: false, status, error: code})} as unknown as YikeDesktopApi;
+    await expect(service.requestCode('19900000001')).rejects.toMatchObject({code, status, message});
+  });
   it('exchanges phone proof without exposing a token', async () => {
     const call = bridge({authenticated: true, user_id: 'test-user'});
     await expect(service.login('19900000001', '123456', 'ABCDEFGH')).resolves.toEqual({authenticated: true, userId: 'test-user'});
