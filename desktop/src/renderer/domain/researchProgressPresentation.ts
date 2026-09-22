@@ -23,6 +23,8 @@ const stopExplanations:Record<string,string>={
   research_selection_invalid:'部分原文尚未完成分析。',
   broker_stop_unknown:'任务是否已停止仍待确认，请刷新进度。',
   broker_stream_unknown:'部分研究结果仍待确认。',
+  runtime_failed:'本轮研究未完成，已有搜索与读取记录已保留。',
+  runtime_unavailable:'研究执行服务暂时不可用。',
 };
 
 function stoppedNextStep(code:string|null):string {
@@ -68,6 +70,23 @@ export function researchProgressPresentation(value:ResearchRuntimeStatus):Resear
       ?stopExplanations[value.stopCode]
       :'研究已停止，请刷新进度。';
     nextStep=stoppedNextStep(value.stopCode);
+    const discovery=value.contractVersion===4?value.discovery:undefined;
+    if(discovery&&value.stopCode==='no_verified_reads'&&discovery.reads.succeeded===0){
+      const reads=discovery.reads;
+      if(reads.issued>0){
+        explanation=reads.failed===reads.issued
+          ?`本轮尝试的 ${reads.issued} 次原文读取均未成功，不能据此判断没有需求。`
+          :'本轮尚未取得成功读取的原文，部分读取结果仍待确认。';
+        nextStep='请先核对来源可访问性，再决定是否在新任务中选择其它来源。';
+      }else{
+        explanation=discovery.searches.succeeded>0
+          ?'已完成公开搜索，但尚未成功读取原文；搜索摘要不能作为商机证据。'
+          :'本轮尚未完成有效搜索或原文读取，不能据此判断没有需求。';
+      }
+    }else if(discovery&&discovery.reads.succeeded>0&&value.stopCode==='runtime_failed'){
+      explanation=`已成功读取 ${discovery.reads.succeeded} 篇公开页面，但本轮研究尚未完成。`;
+      nextStep='请先查看已读原文，核对已有结果。';
+    }
   }
 
   const effects=[value.usage.sourceReads,value.usage.modelCalls];

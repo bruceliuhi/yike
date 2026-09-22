@@ -7,6 +7,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { OpportunityBrief } from "../../src/renderer/pages/workbench/OpportunityBrief";
 import { WorkbenchPage } from "../../src/renderer/pages/Workbench";
@@ -61,6 +62,54 @@ const pending = <T,>() => {
   });
   return { resolve, promise };
 };
+
+it("guides a signed-out workbench to login without errors, retries or customer reads", async () => {
+  context.session = { authenticated: false };
+  render(<WorkbenchPage />);
+  const brief = within(screen.getByRole("region", { name: "机会简报" }));
+  fireEvent.click(await brief.findByRole("button", { name: "登录客户空间" }));
+  expect(context.navigate).toHaveBeenLastCalledWith("/login");
+  expect(brief.queryByRole("alert")).toBeNull();
+  expect(brief.queryByRole("button", { name: "重试" })).toBeNull();
+  expect((brief.getByRole("button", { name: "刷新简报" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(brief.queryByText("待完善")).toBeNull();
+  expect(brief.queryByText("先确认业务画像")).toBeNull();
+  expect(context.service.opportunityBrief!.query).not.toHaveBeenCalled();
+  for (const read of [context.service.profiles, context.service.connections,
+    context.service.tasks, context.service.opportunities]) {
+    expect(read).not.toHaveBeenCalled();
+  }
+});
+
+it("replaces a pending customer briefing with login guidance after sign-out", async () => {
+  const old = pending<ReturnType<typeof briefFixture>>();
+  let original!: BriefQuery;
+  context.service.opportunityBrief!.query = vi.fn((request) => {
+    original = request;
+    return old.promise;
+  });
+  const view = render(<OpportunityBrief {...props()} />);
+  await waitFor(() => expect(original).toBeTruthy());
+  context = { ...context, session: { authenticated: false } };
+  view.rerender(<OpportunityBrief {...props()} />);
+  await screen.findByRole("button", { name: "登录客户空间" });
+  await act(async () => old.resolve(briefFixture(original)));
+  expect(screen.queryByText("TEST 客户机会")).toBeNull();
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.queryByRole("button", { name: "重试" })).toBeNull();
+  expect(context.service.opportunityBrief!.query).toHaveBeenCalledTimes(1);
+});
+
+it("keeps an authenticated read failure visible and recovers through its retry", async () => {
+  context.service.opportunityBrief!.query = vi.fn().mockRejectedValue(new Error("简报连接失败"));
+  render(<OpportunityBrief {...props()} />);
+  expect((await screen.findByRole("alert")).textContent).toContain("简报连接失败");
+  expect(screen.queryByRole("button", { name: "登录客户空间" })).toBeNull();
+  context.service.opportunityBrief!.query = vi.fn(async (request) => briefFixture(request));
+  fireEvent.click(screen.getByRole("button", { name: "重试" }));
+  await screen.findByText("TEST 客户机会");
+  expect(screen.queryByRole("alert")).toBeNull();
+});
 
 it("renders three groups, their source basis and exact existing destinations without a business mutation", async () => {
   render(<OpportunityBrief {...props()} />);

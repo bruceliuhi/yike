@@ -40,6 +40,36 @@ it('distinguishes pages read from selected candidates without declaring all page
 });
 
 it.each([
+  [0,0,0,'本轮尚未完成有效搜索或原文读取，不能据此判断没有需求。'],
+  // Successful SEARCH calls may have zero hits; do not claim they found results.
+  [2,0,0,'已完成公开搜索，但尚未成功读取原文；搜索摘要不能作为商机证据。'],
+  [2,3,3,'本轮尝试的 3 次原文读取均未成功，不能据此判断没有需求。'],
+  [2,3,1,'本轮尚未取得成功读取的原文，部分读取结果仍待确认。'],
+])('explains zero originals from actual search/read counts (%s/%s/%s)',(searched,issued,failed,explanation)=>{
+  const input=researchRuntimeStatusSchema.parse({...dynamicStatus(),phase:'STOPPED',stopCode:'no_verified_reads',
+    canAdvance:false,newActionsBlocked:true,
+    usage:{...dynamicStatus().usage,sourceReads:{...counts,issued:searched+issued,
+      succeeded:searched,failed,unknown:issued-failed}},
+    discovery:{searches:{...counts,issued:searched,succeeded:searched},
+      reads:{...counts,issued,failed,unknown:issued-failed},unpublishedOriginals:0}});
+  const shown=researchProgressPresentation(input);
+  expect(shown.explanation).toBe(explanation);
+  expect(shown.explanation).not.toContain('未找到可核对');
+  if(issued===failed&&issued>0)expect(shown.nextStep).toContain('来源可访问性');
+  if(issued>failed)expect(shown.nextStep).not.toContain('新任务');
+});
+
+it('does not erase successfully read pages when the later runtime fails',()=>{
+  const shown=researchProgressPresentation(researchRuntimeStatusSchema.parse({...dynamicStatus(),phase:'STOPPED',stopCode:'runtime_failed',
+    canAdvance:false,newActionsBlocked:true,
+    usage:{...dynamicStatus().usage,sourceReads:{...counts,issued:3,succeeded:3}},
+    discovery:{searches:{...counts,issued:1,succeeded:1},
+      reads:{...counts,issued:2,succeeded:2},unpublishedOriginals:2}}));
+  expect(shown.explanation).toBe('已成功读取 2 篇公开页面，但本轮研究尚未完成。');
+  expect(shown.nextStep).toContain('查看已读原文');
+});
+
+it.each([
   ['effect_unknown','研究结果仍待确认。'],['assessment_unknown','研究结果仍待确认。'],
   ['effect_failed','本轮读取或分析未完成。'],['assessment_failed','本轮读取或分析未完成。'],
   ['resource_limit_exceeded','本轮已达到确认的研究用量上限。'],['task_unavailable','当前任务暂时不能继续。'],

@@ -220,6 +220,7 @@ export function OpportunityBrief({
   onConnectionsRetry: () => void;
 }) {
   const { service, session, navigate } = useApp();
+  const signedIn = session.authenticated && Boolean(session.userId);
   const [selectedProfile, setSelectedProfile] = useState("");
   const [emptyGroup, setEmptyGroup] = useState<BriefGroup>("contact");
   const confirmed = profiles
@@ -231,8 +232,7 @@ export function OpportunityBrief({
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const businessDate = briefBusinessDay(now, timezone);
   const state = useResource(async () => {
-    if (!session.authenticated || !session.userId)
-      throw new ServiceError("UNAUTHENTICATED", "登录后查看客户空间简报。");
+    if (!signedIn) return null;
     if (profilesLoading) return null;
     if (profilesError)
       throw new Error("画像读取未完成，请重试业务画像后查看简报。");
@@ -291,7 +291,7 @@ export function OpportunityBrief({
     return () => clearTimeout(timer);
   }, [now, expiry, timezone]);
   const expired = expiry !== null && now >= expiry;
-  const snapshot = !state.loading && !state.error ? state.data : null;
+  const snapshot = signedIn && !state.loading && !state.error ? state.data : null;
   return (
     <section className="opportunity-brief" aria-label="机会简报">
       <Notice
@@ -327,13 +327,13 @@ export function OpportunityBrief({
           <div className="section-heading">
             <h2>机会简报</h2>
             <Button
-              disabled={state.loading || profilesLoading}
+              disabled={!signedIn || state.loading || profilesLoading}
               onClick={state.reload}
             >
               刷新简报
             </Button>
           </div>
-          {confirmed.length > 1 && (
+          {signedIn && confirmed.length > 1 && (
             <label className="brief-profile">
               业务画像
               <select
@@ -349,11 +349,13 @@ export function OpportunityBrief({
               </select>
             </label>
           )}
-          <ResourceStatus
-            loading={profilesLoading || state.loading}
-            error={profilesError || state.error}
-            onRetry={profilesError ? onProfilesRetry : state.reload}
-          />
+          {signedIn && (
+            <ResourceStatus
+              loading={profilesLoading || state.loading}
+              error={profilesError || state.error}
+              onRetry={profilesError ? onProfilesRetry : state.reload}
+            />
+          )}
           {snapshot ? (
             <BriefRows
               key={`${session.userId}:${session.accountScope?.id}:${session.accountScope?.version}:${profile?.id}:${snapshot.snapshotId}:${snapshot.generatedAt}`}
@@ -369,7 +371,17 @@ export function OpportunityBrief({
                 active={emptyGroup}
                 onChange={(value) => setEmptyGroup(value as BriefGroup)}
               />
-              {!profilesLoading &&
+              {!signedIn ? (
+                <Empty
+                  title="登录后查看客户空间简报"
+                  description="登录后确认业务画像，开始寻找值得跟进的机会。"
+                  action={
+                    <Button variant="primary" onClick={() => navigate("/login")}>
+                      登录客户空间
+                    </Button>
+                  }
+                />
+              ) : !profilesLoading &&
                 !state.loading &&
                 !profilesError &&
                 !state.error && (
@@ -385,7 +397,7 @@ export function OpportunityBrief({
                 )}
             </>
           )}
-          {!profilesLoading && !profilesError && !profile && (
+          {signedIn && !profilesLoading && !profilesError && !profile && (
             <div className="brief-next">
               <h3>待完善</h3>
               <Button onClick={() => navigate("/profile")}>

@@ -30,7 +30,7 @@ it('accepts completed research with a known failed read without hiding the gap o
   expect(status.usage.resourceCloseout!.state).toBe('RECORDED');
   const shown=researchProgressPresentation(status);
   expect(shown.title).toBe('本轮研究已完成');
-  expect(shown.warning).toContain('失败记录');
+  expect(shown.warning).toBe('部分内容未能完成分析，可查看已有结果。');
   expect(shown.explanation).toContain('核对来源和购买意向');
   expect(shown.nextStep).toContain('逐条复核');
   expect(shown.nextStep).not.toMatch(/重新发送|重试|新建任务/);
