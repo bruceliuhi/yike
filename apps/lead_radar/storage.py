@@ -174,6 +174,29 @@ CREATE TABLE IF NOT EXISTS audit_events (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS calibration_batches (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    name TEXT NOT NULL,
+    target_count INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'OPEN',
+    created_at TEXT NOT NULL,
+    closed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS calibration_items (
+    id TEXT PRIMARY KEY,
+    batch_id TEXT NOT NULL REFERENCES calibration_batches(id),
+    opportunity_id TEXT NOT NULL REFERENCES opportunities(id),
+    predicted_label TEXT NOT NULL,
+    gold_label TEXT,
+    reviewer TEXT,
+    note TEXT,
+    reviewed_at TEXT,
+    created_at TEXT NOT NULL,
+    UNIQUE(batch_id, opportunity_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_tasks_workspace_created ON tasks(workspace_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_opportunities_workspace_updated ON opportunities(workspace_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_opportunities_status ON opportunities(status);
@@ -181,6 +204,8 @@ CREATE INDEX IF NOT EXISTS idx_entities_workspace ON entities(workspace_id, enti
 CREATE INDEX IF NOT EXISTS idx_entities_host ON entities(workspace_id, website_host);
 CREATE INDEX IF NOT EXISTS idx_opportunity_entities_entity ON opportunity_entities(entity_id);
 CREATE INDEX IF NOT EXISTS idx_task_run_events_run_created ON task_run_events(run_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_calibration_batches_workspace_created ON calibration_batches(workspace_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_calibration_items_batch_created ON calibration_items(batch_id, created_at);
 """
 
 
@@ -211,6 +236,20 @@ PLATFORM_HOSTS = {
     "zhihu.com",
     "www.zhihu.com",
 }
+
+CALIBRATION_LABELS = {"VALID", "INVALID", "DUPLICATE", "OBSERVE", "NEEDS_EVIDENCE"}
+CALIBRATION_NAME_MAX = 120
+CALIBRATION_REVIEWER_MAX = 120
+CALIBRATION_NOTE_MAX = 4000
+
+
+def predicted_calibration_label(status: str) -> str:
+    return {
+        "SEND_READY": "VALID",
+        "EXCLUDE": "INVALID",
+        "OBSERVE": "OBSERVE",
+        "REVIEW": "NEEDS_EVIDENCE",
+    }.get(status, "NEEDS_EVIDENCE")
 
 
 def normalize_entity_name(value: Any) -> str:
@@ -927,6 +966,249 @@ class Store:
         with self.lock:
             rows = self.db.execute(query, params).fetchall()
         return [self._opportunity_dict(row) for row in rows]  # type: ignore[list-item]
+
+    def create_calibration_batch(
+        self,
+        workspace_id: str,
+        name: str,
+        target_count: int = 30,
+        opportunity_ids: list[str] | None = None,
+    ) -> dict[str, Any] | None:
+        name = str(name or "真实候选校准").strip()
+        if not name:
+            raise ValueError("calibration_name_required")
+        if isinstance(target_count, bool) or not isinstance(target_count, int) or target_count < 1 or target_count > 500:
+            raise ValueError("calibration_target_count_out_of_range")
+        if len(name) > CALIBRATION_NAME_MAX:
+            raise ValueError("calibration_name_too_long")
+        with self.tx() as db:
+            workspace = db.execute("SELECT id FROM workspaces WHERE id = ?", (workspace_id,)).fetchone()
+            if not workspace:
+                return None
+            if opportunity_ids is None:
+                rows = db.execute(
+                    """SELECT * FROM opportunities
+                       WHERE workspace_id = ?
+                       ORDER BY CASE status
+                           WHEN 'REVIEW' THEN 0
+                           WHEN 'OBSERVE' THEN 1
+                           WHEN 'SEND_READY' THEN 2
+                           WHEN 'EXCLUDE' THEN 3
+                           ELSE 4 END,
+                           updated_at DESC, rowid DESC
+                       LIMIT ?""",
+                    (workspace_id, target_count),
+                ).fetchall()
+            else:
+                if any(not isinstance(item, str) for item in opportunity_ids):
+                    raise ValueError("calibration_opportunity_ids_must_be_strings")
+                ids = [item.strip() for item in opportunity_ids if item.strip()]
+                if len(ids) != len(set(ids)):
+                    raise ValueError("calibration_opportunity_ids_must_be_unique")
+                if len(ids) > target_count:
+                    raise ValueError("calibration_items_exceed_target_count")
+                if ids:
+                    placeholders = ",".join("?" for _ in ids)
+                    selected = db.execute(
+                        f"SELECT * FROM opportunities WHERE workspace_id = ? AND id IN ({placeholders})",
+                        (workspace_id, *ids),
+                    ).fetchall()
+                    by_id = {row["id"]: row for row in selected}
+                    if len(by_id) != len(ids):
+                        raise ValueError("calibration_opportunity_not_in_workspace")
+                    rows = [by_id[item_id] for item_id in ids]
+                else:
+                    rows = []
+
+            batch_id = _id("calibration")
+            timestamp = now_iso()
+            db.execute(
+                """INSERT INTO calibration_batches
+                   (id, workspace_id, name, target_count, status, created_at)
+                   VALUES (?, ?, ?, ?, 'OPEN', ?)""",
+                (batch_id, workspace_id, name, target_count, timestamp),
+            )
+            for row in rows:
+                db.execute(
+                    """INSERT INTO calibration_items
+                       (id, batch_id, opportunity_id, predicted_label, created_at)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (_id("calibration_item"), batch_id, row["id"], predicted_calibration_label(row["status"]), timestamp),
+                )
+            self._audit(
+                db,
+                workspace_id,
+                "calibration_batch",
+                batch_id,
+                "created",
+                {"name": name, "target_count": target_count, "item_count": len(rows)},
+            )
+        return self.get_calibration_batch(batch_id, workspace_id)
+
+    @staticmethod
+    def _calibration_metrics(db: sqlite3.Connection, batch_id: str) -> dict[str, Any]:
+        rows = db.execute(
+            """SELECT ci.predicted_label, ci.gold_label, o.source_kind,
+                      EXISTS(SELECT 1 FROM evidence e
+                             WHERE e.opportunity_id = o.id AND e.evidence_type = 'reopen_check') AS reopened
+               FROM calibration_items ci
+               JOIN opportunities o ON o.id = ci.opportunity_id
+               WHERE ci.batch_id = ?""",
+            (batch_id,),
+        ).fetchall()
+        item_count = len(rows)
+        reviewed = [row for row in rows if row["gold_label"]]
+        agreement_count = sum(1 for row in reviewed if row["predicted_label"] == row["gold_label"])
+        false_positive_count = sum(
+            1 for row in reviewed if row["predicted_label"] == "VALID" and row["gold_label"] != "VALID"
+        )
+        false_negative_count = sum(
+            1 for row in reviewed if row["predicted_label"] != "VALID" and row["gold_label"] == "VALID"
+        )
+        reopen_eligible_count = sum(1 for row in rows if row["source_kind"] == "public_url_capture")
+        reopened_count = sum(
+            1 for row in rows if row["source_kind"] == "public_url_capture" and bool(row["reopened"])
+        )
+        return {
+            "item_count": item_count,
+            "reviewed_count": len(reviewed),
+            "unreviewed_count": item_count - len(reviewed),
+            "agreement_count": agreement_count,
+            "accuracy": round(agreement_count / len(reviewed), 4) if reviewed else None,
+            "false_positive_count": false_positive_count,
+            "false_negative_count": false_negative_count,
+            "reopen_eligible_count": reopen_eligible_count,
+            "reopened_count": reopened_count,
+            "reopen_rate": round(reopened_count / reopen_eligible_count, 4) if reopen_eligible_count else None,
+        }
+
+    @classmethod
+    def _calibration_summary(cls, db: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
+        result = dict(row)
+        result["metrics"] = cls._calibration_metrics(db, result["id"])
+        result["coverage"] = round(
+            result["metrics"]["item_count"] / result["target_count"], 4
+        ) if result["target_count"] else 0
+        return result
+
+    @staticmethod
+    def _calibration_item(db: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
+        result = dict(row)
+        result["decision"] = json.loads(result.pop("decision_json") or "{}")
+        result["reopened"] = bool(result["reopened"])
+        return result
+
+    def list_calibration_batches(self, workspace_id: str) -> list[dict[str, Any]]:
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT * FROM calibration_batches WHERE workspace_id = ? ORDER BY created_at DESC, rowid DESC",
+                (workspace_id,),
+            ).fetchall()
+            return [self._calibration_summary(self.db, row) for row in rows]
+
+    def get_calibration_batch(self, batch_id: str, workspace_id: str | None = None) -> dict[str, Any] | None:
+        with self.lock:
+            query = "SELECT * FROM calibration_batches WHERE id = ?"
+            params: list[Any] = [batch_id]
+            if workspace_id is not None:
+                query += " AND workspace_id = ?"
+                params.append(workspace_id)
+            batch = self.db.execute(query, params).fetchone()
+            if not batch:
+                return None
+            item_rows = self.db.execute(
+                """SELECT ci.id, ci.batch_id, ci.opportunity_id, ci.predicted_label, ci.gold_label,
+                          ci.reviewer, ci.note, ci.reviewed_at, ci.created_at,
+                          o.title, o.author, o.published_at, o.intent_type, o.status,
+                          o.source_kind, o.source_url, o.snippet, o.decision_json,
+                          (SELECT COUNT(*) FROM evidence e WHERE e.opportunity_id = o.id) AS evidence_count,
+                          EXISTS(SELECT 1 FROM evidence e
+                                 WHERE e.opportunity_id = o.id AND e.evidence_type = 'reopen_check') AS reopened
+                   FROM calibration_items ci
+                   JOIN opportunities o ON o.id = ci.opportunity_id
+                   WHERE ci.batch_id = ?
+                   ORDER BY ci.created_at, ci.rowid""",
+                (batch_id,),
+            ).fetchall()
+            result = self._calibration_summary(self.db, batch)
+            result["items"] = [self._calibration_item(self.db, row) for row in item_rows]
+            return result
+
+    def review_calibration_item(
+        self,
+        batch_id: str,
+        item_id: str,
+        gold_label: str,
+        reviewer: str = "operator",
+        note: str = "",
+        apply_feedback: bool = True,
+    ) -> dict[str, Any] | None:
+        if not isinstance(gold_label, str):
+            raise ValueError("gold_label_must_be_string")
+        if not isinstance(reviewer, str) or not isinstance(note, str):
+            raise ValueError("reviewer_and_note_must_be_string")
+        if not isinstance(apply_feedback, bool):
+            raise ValueError("apply_feedback_must_be_boolean")
+        gold_label = gold_label.strip().upper()
+        if gold_label not in CALIBRATION_LABELS:
+            raise ValueError("invalid_calibration_gold_label")
+        reviewer = reviewer.strip() or "operator"
+        note = note.strip()
+        if len(reviewer) > CALIBRATION_REVIEWER_MAX:
+            raise ValueError("calibration_reviewer_too_long")
+        if len(note) > CALIBRATION_NOTE_MAX:
+            raise ValueError("calibration_note_too_long")
+        status_map = {
+            "VALID": "SEND_READY",
+            "INVALID": "EXCLUDE",
+            "DUPLICATE": "EXCLUDE",
+            "OBSERVE": "OBSERVE",
+            "NEEDS_EVIDENCE": "REVIEW",
+        }
+        with self.tx() as db:
+            row = db.execute(
+                """SELECT ci.*, cb.workspace_id, o.status AS opportunity_status
+                   FROM calibration_items ci
+                   JOIN calibration_batches cb ON cb.id = ci.batch_id
+                   JOIN opportunities o ON o.id = ci.opportunity_id
+                   WHERE ci.id = ? AND ci.batch_id = ?""",
+                (item_id, batch_id),
+            ).fetchone()
+            if not row:
+                return None
+            timestamp = now_iso()
+            db.execute(
+                """UPDATE calibration_items
+                   SET gold_label = ?, reviewer = ?, note = ?, reviewed_at = ?
+                   WHERE id = ? AND batch_id = ?""",
+                (gold_label, reviewer, note, timestamp, item_id, batch_id),
+            )
+            if apply_feedback:
+                next_status = status_map[gold_label]
+                db.execute(
+                    "UPDATE opportunities SET status = ?, updated_at = ? WHERE id = ?",
+                    (next_status, timestamp, row["opportunity_id"]),
+                )
+                db.execute(
+                    "INSERT INTO feedback_events(id, opportunity_id, label, note, actor, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (_id("feedback"), row["opportunity_id"], gold_label, note or f"校准批次 {batch_id}", reviewer, timestamp),
+                )
+            self._audit(
+                db,
+                row["workspace_id"],
+                "calibration_item",
+                item_id,
+                "reviewed",
+                {
+                    "batch_id": batch_id,
+                    "opportunity_id": row["opportunity_id"],
+                    "gold_label": gold_label,
+                    "reviewer": reviewer,
+                    "apply_feedback": apply_feedback,
+                },
+            )
+            workspace_id = row["workspace_id"]
+        return self.get_calibration_batch(batch_id, workspace_id)
 
     def add_feedback(self, opportunity_id: str, label: str, note: str, actor: str) -> dict[str, Any] | None:
         with self.tx() as db:

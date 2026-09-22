@@ -28,15 +28,29 @@ python3 apps/lead_radar/server.py --port 8780
 - `POST /api/v1/tasks/{task_id}/capture-urls`
 - `POST /api/v1/tasks/{task_id}/opportunities`
 - `POST /api/v1/opportunities/{opportunity_id}/feedback`
+- `GET /api/v1/workspaces/{workspace_id}/calibration-batches`
+- `POST /api/v1/workspaces/{workspace_id}/calibration-batches`
+- `GET /api/v1/calibration-batches/{batch_id}`
+- `POST /api/v1/calibration-batches/{batch_id}/items/{item_id}/review`
 - `GET /api/v1/workspaces/ws_意客AI/entities`
 - `POST /api/v1/entities/{entity_id}/merge`
 - `POST /api/v1/entities/{entity_id}/split`
+- `GET /api/v1/workspaces/ws_意客AI/calibration-batches`
+- `POST /api/v1/workspaces/ws_意客AI/calibration-batches`
+- `GET /api/v1/calibration-batches/{batch_id}`
+- `POST /api/v1/calibration-batches/{batch_id}/items/{item_id}/review`
 
 任务创建时会生成三条可检查的搜索路径：快速搜索、条件核验、扩展搜索，并给出来源状态和 credits 估算。机会录入必须有 `title`、`source_url` 和 `snippet`。系统保留来源 URL、原文片段和核验时间；当前外部平台连接器仍显示为 `REQUIRES_PROOF` 或 `REQUIRES_AUTH`，不会用假数据冒充自动搜索。
 
 机会还会进入保守的实体解析层：导入记录明确提供 `entity_name` / `company_name` 时建立企业或组织实体；没有实体名称时，只在来源 URL 主机足够稳定时按官网主机建立关联。小红书、抖音、微博等社交平台主机不会被当成企业官网，标题和作者昵称也不会单独创建企业实体。同名实体如果对应不同官网主机会保持分离，避免把不同公司的公开信号错误合并。每张机会卡返回 `entities`，包含实体、主机、置信度、解析原因和关联证据。
 
+校准批次用于把一批候选交给人工复核，并记录模型/规则预测与人工金标准的差异。创建批次时可以传 `opportunity_ids`，也可以让服务按 `REVIEW → OBSERVE → SEND_READY → EXCLUDE` 的顺序选择最多 `target_count` 条当前工作区机会；目标数量必须为 1–500，机会只能来自当前工作区且不能重复。复核标签为 `VALID`、`INVALID`、`DUPLICATE`、`OBSERVE`、`NEEDS_EVIDENCE`，默认会写入既有反馈事件并同步机会状态；传 `apply_feedback:false` 只保存校准记录，不改变机会状态。批次返回覆盖率、人工复核数、准确率、误报/漏报数，以及对用户提交公开网页的重开率。重复复核会保留新的审计/反馈事实，不能当作幂等发送。
+
+校准指标只反映当前批次中已录入的机会和人工标签，不代表平台召回率、商机成交率或跨行业效果。样本必须来自真实授权运行或明确的用户提交来源；fixture、静态页面和预置 URL 不能作为生产校准证据。正式发布仍需按 CP-06 记录真实来源 capability、生产数据库/恢复、HTTPS 和客户验收。
+
 实体主档支持人工合并和按单条机会拆分。操作会把关联关系写入审计事件，并保留机会原始证据；“合并”只移动机会与实体的关系，“拆分”只改变选中机会的实体归属，不会删除来源内容。
+
+校准批次把一组机会的系统判断冻结为 `predicted_label`，由复核人填写 `gold_label`、备注和时间，计算覆盖率、准确率、误报、漏报与公开页面重开率。默认目标数量为 30 条；校准反馈可以回写机会状态，但不会修改原始来源证据。校准指标是效果验收材料，不代表样本已经来自真实授权平台。
 
 `capture-urls` 接受最多 50 个用户明确提交的 URL，逐条返回成功项和失败项；重复 URL 使用任务级幂等键，不会重复计费。它是受控导入入口，不等同于平台搜索连接器，也不会自动扩大抓取范围。
 

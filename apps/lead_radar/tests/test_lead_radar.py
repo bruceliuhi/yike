@@ -332,6 +332,132 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertEqual(failed["task"]["runs"][0]["status"], "FAILED")
         self.assertEqual(failed["task"]["runs"][0]["events"][-1]["event_type"], "failed")
 
+    def test_calibration_batch_freezes_predictions_and_computes_quality_metrics(self) -> None:
+        _, task = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks",
+            {"objective": "校准真实 AI 需求候选"},
+        )
+        path = f"/api/v1/tasks/{task['id']}/opportunities"
+        _, valid = self.request(
+            "POST",
+            path,
+            {
+                "title": "误报候选",
+                "source_url": "https://calibration.example/false-positive",
+                "snippet": "这是一条经过授权但人工判定无效的样本。",
+                "source_permission": "allowed",
+                "evidence_level": "VERIFIED",
+            },
+        )
+        _, unverified = self.request(
+            "POST",
+            path,
+            {
+                "title": "漏报候选",
+                "source_url": "https://calibration.example/false-negative",
+                "snippet": "这是一条未经系统确认但人工判定有效的样本。",
+            },
+        )
+        _, captured = self.request(
+            "POST",
+            path,
+            {
+                "title": "公开页面候选",
+                "source_url": "https://calibration.example/captured",
+                "snippet": "公开页面候选，等待复核。",
+                "source_kind": "public_url_capture",
+                "source_permission": "public_url_user_supplied",
+                "evidence_level": "CAPTURED",
+            },
+        )
+        valid_id = valid["items"][0]["id"]
+        unverified_id = unverified["items"][0]["id"]
+        captured_id = captured["items"][0]["id"]
+        self.server.store.append_evidence(
+            captured_id,
+            "reopen_check",
+            "重开核验快照",
+            "https://calibration.example/captured",
+            {"matches_previous_snapshot": True},
+        )
+
+        status, created = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/calibration-batches",
+            {"name": "首批真实候选校准", "target_count": 3, "opportunity_ids": [valid_id, unverified_id, captured_id]},
+        )
+        self.assertEqual(status, 201)
+        self.assertEqual(created["metrics"]["item_count"], 3)
+        self.assertEqual(created["metrics"]["reviewed_count"], 0)
+        self.assertEqual(created["coverage"], 1.0)
+        self.assertEqual([item["predicted_label"] for item in created["items"]], ["VALID", "NEEDS_EVIDENCE", "NEEDS_EVIDENCE"])
+        self.assertEqual(created["metrics"]["reopen_rate"], 1.0)
+
+        for item_id, label in zip(
+            [item["id"] for item in created["items"]],
+            ["INVALID", "VALID", "NEEDS_EVIDENCE"],
+        ):
+            status, reviewed = self.request(
+                "POST",
+                f"/api/v1/calibration-batches/{created['id']}/items/{item_id}/review",
+                {"gold_label": label, "reviewer": "qa", "note": "校准记录"},
+            )
+            self.assertEqual(status, 200)
+
+        self.assertEqual(reviewed["metrics"]["reviewed_count"], 3)
+        self.assertEqual(reviewed["metrics"]["agreement_count"], 1)
+        self.assertEqual(reviewed["metrics"]["accuracy"], 0.3333)
+        self.assertEqual(reviewed["metrics"]["false_positive_count"], 1)
+        self.assertEqual(reviewed["metrics"]["false_negative_count"], 1)
+        self.assertEqual(reviewed["metrics"]["reopen_rate"], 1.0)
+        self.assertEqual(reviewed["items"][0]["gold_label"], "INVALID")
+
+        status, batches = self.request(
+            "GET",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/calibration-batches",
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(batches["items"][0]["metrics"]["false_positive_count"], 1)
+        self.assertEqual(self.server.store.get_opportunity(valid_id)["status"], "EXCLUDE")
+        self.assertEqual(self.server.store.get_opportunity(unverified_id)["status"], "SEND_READY")
+
+    def test_calibration_contract_rejects_ambiguous_inputs(self) -> None:
+        _, task = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks",
+            {"objective": "校准输入校验"},
+        )
+        _, opportunity = self.request(
+            "POST",
+            f"/api/v1/tasks/{task['id']}/opportunities",
+            {
+                "title": "校准输入样本",
+                "source_url": "https://calibration.example/validation",
+                "snippet": "公开需求样本。",
+            },
+        )
+        opportunity_id = opportunity["items"][0]["id"]
+        batch_path = "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/calibration-batches"
+
+        status, result = self.request("POST", batch_path, {"target_count": 0})
+        self.assertEqual(status, 400)
+        self.assertIn("out_of_range", result["message"])
+        status, result = self.request("POST", batch_path, {"target_count": 1, "opportunity_ids": [opportunity_id, opportunity_id]})
+        self.assertEqual(status, 400)
+        self.assertIn("must_be_unique", result["message"])
+        status, batch = self.request("POST", batch_path, {"target_count": 1, "opportunity_ids": [opportunity_id]})
+        self.assertEqual(status, 201)
+        item_id = batch["items"][0]["id"]
+        review_path = f"/api/v1/calibration-batches/{batch['id']}/items/{item_id}/review"
+
+        status, result = self.request("POST", review_path, {"gold_label": "NOT_A_LABEL"})
+        self.assertEqual(status, 400)
+        self.assertIn("invalid_calibration_gold_label", result["message"])
+        status, result = self.request("POST", review_path, {"gold_label": "VALID", "apply_feedback": "false"})
+        self.assertEqual(status, 400)
+        self.assertIn("apply_feedback_must_be_boolean", result["message"])
+
 
 if __name__ == "__main__":
     unittest.main()

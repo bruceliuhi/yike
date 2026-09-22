@@ -89,6 +89,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             return self._send(200, {"items": self.store.list_opportunities(WORKSPACE_ID, status)})
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/entities":
             return self._send(200, {"items": self.store.list_entities(WORKSPACE_ID)})
+        if path == f"/api/v1/workspaces/{WORKSPACE_ID}/calibration-batches":
+            return self._send(200, {"items": self.store.list_calibration_batches(WORKSPACE_ID)})
         if path.startswith("/api/v1/tasks/") and path.count("/") == 4:
             task = self.store.get_task(path.rsplit("/", 1)[-1])
             return self._send(200, task) if task else self._error(404, "task_not_found", "任务不存在")
@@ -106,6 +108,9 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/v1/entities/") and path.count("/") == 4:
             entity = self.store.get_entity(path.rsplit("/", 1)[-1])
             return self._send(200, entity) if entity else self._error(404, "entity_not_found", "实体不存在")
+        if path.startswith("/api/v1/calibration-batches/") and path.count("/") == 4:
+            batch = self.store.get_calibration_batch(path.rsplit("/", 1)[-1], WORKSPACE_ID)
+            return self._send(200, batch) if batch else self._error(404, "calibration_batch_not_found", "校准批次不存在")
         return self._error(404, "not_found", "接口不存在")
 
     def do_POST(self) -> None:
@@ -117,6 +122,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 return self._create_profile(payload)
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/tasks":
                 return self._create_task(payload)
+            if path == f"/api/v1/workspaces/{WORKSPACE_ID}/calibration-batches":
+                return self._create_calibration_batch(payload)
             if path.startswith("/api/v1/tasks/") and path.endswith("/capture-url"):
                 return self._capture_url(path.split("/")[-2], payload)
             if path.startswith("/api/v1/tasks/") and path.endswith("/capture-urls"):
@@ -138,6 +145,9 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 return self._merge_entity(path.split("/")[-2], payload)
             if path.startswith("/api/v1/entities/") and path.endswith("/split"):
                 return self._split_entity(path.split("/")[-2], payload)
+            if path.startswith("/api/v1/calibration-batches/") and path.endswith("/review"):
+                parts = path.split("/")
+                return self._review_calibration_item(parts[-4], parts[-2], payload)
         except CaptureError as exc:
             return self._error(400, exc.code, exc.message)
         except ValueError as exc:
@@ -177,6 +187,17 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             plan,
         )
         self._send(201, task)
+
+    def _create_calibration_batch(self, payload: dict[str, Any]) -> None:
+        name = str(payload.get("name") or "真实候选校准").strip()
+        target_count = int(payload.get("target_count", 30))
+        opportunity_ids = payload.get("opportunity_ids")
+        if opportunity_ids is not None and not isinstance(opportunity_ids, list):
+            raise ValueError("opportunity_ids_must_be_array")
+        batch = self.store.create_calibration_batch(WORKSPACE_ID, name, target_count, opportunity_ids)
+        if not batch:
+            return self._error(404, "workspace_not_found", "工作区不存在")
+        self._send(201, batch)
 
     def _start_task(self, task_id: str, payload: dict[str, Any]) -> None:
         task = self.store.start_task(task_id, str(payload.get("mode", "quick")))
@@ -427,6 +448,32 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if not entity:
             return self._error(404, "entity_not_found", "实体或机会关联不存在")
         self._send(200, entity)
+
+    def _review_calibration_item(self, batch_id: str, item_id: str, payload: dict[str, Any]) -> None:
+        batch = self.store.get_calibration_batch(batch_id, WORKSPACE_ID)
+        if not batch:
+            return self._error(404, "calibration_batch_not_found", "校准批次不存在")
+        gold_label = payload.get("gold_label")
+        if not isinstance(gold_label, str):
+            raise ValueError("gold_label_must_be_string")
+        reviewer = payload.get("reviewer", "operator")
+        note = payload.get("note", "")
+        apply_feedback = payload.get("apply_feedback", True)
+        if not isinstance(reviewer, str) or not isinstance(note, str):
+            raise ValueError("reviewer_and_note_must_be_string")
+        if not isinstance(apply_feedback, bool):
+            raise ValueError("apply_feedback_must_be_boolean")
+        result = self.store.review_calibration_item(
+            batch_id,
+            item_id,
+            gold_label,
+            reviewer,
+            note,
+            apply_feedback,
+        )
+        if not result:
+            return self._error(404, "calibration_item_not_found", "校准样本不存在")
+        self._send(200, result)
 
     def _reopen_evidence(self, opportunity_id: str) -> None:
         opportunity = self.store.get_opportunity(opportunity_id)
