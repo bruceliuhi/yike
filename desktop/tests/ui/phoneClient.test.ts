@@ -60,7 +60,7 @@ describe('phone login fixed transport', () => {
     expect(call).toHaveBeenCalledWith({operation: 'session.requestCode', payload: {phone: '19900000001'}});
   });
   it.each([
-    ['sms_delivery_rejected', 502, '短信发送未确认，请稍后重试。'],
+    ['sms_delivery_rejected', 502, '短信通道暂不可用，当前没有可登录验证码，请联系支持后再试。'],
     ['sms_delivery_unknown', 503, '短信发送结果尚未确认，请稍后重试。'],
   ])('maps provider delivery outcome %s without creating a cooldown', async (code, status, message) => {
     host.yikeDesktop = {requestApi: vi.fn().mockResolvedValue({ok: false, status, error: code})} as unknown as YikeDesktopApi;

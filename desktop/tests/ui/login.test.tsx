@@ -135,13 +135,13 @@ describe("登录", () => {
     fireEvent.click(screen.getByRole("button", { name: "登录" }));
     await waitFor(() => expect(service.login).toHaveBeenCalledWith("13800000000", "123456"));
   });
-  it("短信供应商明确拒绝时不进入倒计时并提示稍后重试", async () => {
+  it("短信供应商明确拒绝时不进入倒计时并说明没有可用验证码", async () => {
     const service = mount({
-      requestCode: vi.fn().mockRejectedValue(new ServiceError("sms_delivery_rejected", "短信发送未确认，请稍后重试。", 502)),
+      requestCode: vi.fn().mockRejectedValue(new ServiceError("sms_delivery_rejected", "短信通道暂不可用，当前没有可登录验证码，请联系支持后再试。", 502)),
     });
     fireEvent.change(screen.getByLabelText("手机号码"), {target: {value: "13800000000"}});
     fireEvent.click(screen.getByRole("button", {name: "获取验证码"}));
-    await screen.findByText("短信发送未确认，请稍后重试。");
+    await screen.findByText("短信通道暂不可用，当前没有可登录验证码，请联系支持后再试。");
     expect(screen.queryByRole("button", {name: /秒后重试/})).toBeNull();
     expect((screen.getByRole("button", {name: "获取验证码"}) as HTMLButtonElement).disabled).toBe(false);
   });

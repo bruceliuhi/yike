@@ -88,7 +88,7 @@ function serviceFailure(status: number, body: unknown): ServiceError {
     management_export_too_large: "导出超过 1000 条或 2 MiB 上限，未生成部分文件。请在商机库筛选、勾选记录，使用“导出所选客户商机”。",
     management_export_invalid: "商机数据包含无法导出的字符，未生成文件，请联系支持核对。",
     phone_auth_failed: "验证码无效或已过期，请重新核对或获取验证码。",
-    sms_delivery_rejected: "短信发送未确认，请稍后重试。",
+    sms_delivery_rejected: "短信通道暂不可用，当前没有可登录验证码，请联系支持后再试。",
     sms_delivery_unknown: "短信发送结果尚未确认，请稍后重试。",
     access_auth_failed: "临时访问码无效、已到期或已停用，请联系管理员核对。",
     SESSION_PERSIST_FAILED: "登录状态未能安全保存，请重新登录；若仍失败请联系支持。",
