@@ -182,7 +182,7 @@ def test_compiles_ai_and_non_ai_service_contexts_with_host_binding():
     ))
     expected_keys = {"rule_version", "rule_sha256", "context_sha256",
                      "profile_version_id", "strategy_version_id"}
-    assert set(ai) == {"instructions", "context_json", "binding", "entry_urls"}
+    assert set(ai) == {"instructions", "context_json", "binding", "entry_urls", "query_portfolio"}
     assert set(ai["binding"]) == expected_keys
     assert ai["binding"]["rule_version"] == (
         "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1/trusted-entries-v1/efficient-handoff-v1/citation-choice-v1/query-portfolio-v1")
@@ -193,13 +193,14 @@ def test_compiles_ai_and_non_ai_service_contexts_with_host_binding():
     assert "HOST_RESEARCH_CONTEXT_JSON" in ai["instructions"]
     assert "30–60" in ai["instructions"]
     assert "本轮查询组合" in ai["instructions"]
-    assert "机器视觉质检 询价" in ai["instructions"]
     assert "按顺序选择尚未执行的查询" in ai["instructions"]
+    assert "机器视觉质检 询价" in ai["query_portfolio"]
     assert "展台设计搭建" in non_ai["context_json"]
     assert "仅在客户行业与技术社区匹配时" in non_ai["instructions"]
     assert non_ai["binding"]["rule_sha256"] == hashlib.sha256(
         non_ai["instructions"].encode("utf-8")
     ).hexdigest()
+    assert ai["binding"]["rule_sha256"] == non_ai["binding"]["rule_sha256"]
     UUID(ai["binding"]["profile_version_id"])
 
 

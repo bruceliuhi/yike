@@ -603,7 +603,10 @@ def test_context_v2_delivers_full_8000_character_multiline_profile_to_real_proce
     assert result['research_binding']==compiled['binding']
     assert data['prompt'].startswith('HOST_RESEARCH_CONTEXT_JSON')
     assert compiled['context_json'] in data['prompt']
-    assert json.loads(data['prompt'].split(':\n', 1)[1])['seller_description'] == seller
+    context_payload = data['prompt'].split(':\n', 1)[1].split(
+        '\nHOST_QUERY_PORTFOLIO_JSON', 1
+    )[0]
+    assert json.loads(context_payload)['seller_description'] == seller
     assert len(seller)==8000 and seller.endswith('乙')
 
 

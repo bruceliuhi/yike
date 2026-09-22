@@ -17,10 +17,12 @@ def test_portfolio_combines_business_seed_with_buyer_action_language_and_dedupli
     assert queries[0] == "北京 企业知识库 询价"
     assert "北京 企业知识库 找供应商" in queries
     assert any("-招聘" in query and "-培训课程" in query for query in queries)
-    assert all(len(query) <= 160 for query in queries)
+    assert all(len(query) <= 512 for query in queries)
 
 
-def test_portfolio_does_not_emit_empty_or_secret_like_input():
+def test_portfolio_falls_back_for_empty_seed_and_rejects_secret_like_input():
+    assert build_query_portfolio(query_seeds=[], intent_signals=["询价"])[0] == "公开需求 询价"
+
     with pytest.raises(ValueError, match="invalid query portfolio input"):
         build_query_portfolio(query_seeds=[""], intent_signals=["询价"])
 
@@ -37,3 +39,11 @@ def test_portfolio_respects_max_queries_and_stable_order():
     second = build_query_portfolio(**kwargs)
     assert first == second
     assert len(first) == 4
+
+
+def test_portfolio_accepts_context_field_limits():
+    queries = build_query_portfolio(
+        query_seeds=["x" * 160], intent_signals=["y" * 160],
+        exclusions=["z" * 160], max_queries=4,
+    )
+    assert len(queries) == 4
