@@ -138,10 +138,14 @@ def test_actual_mime_classification_controls_next_durable_effect(mime):
         assert [event[1]['status'] for event in journal.events if event[0]=='finish']==['UNKNOWN']
 
 
-@pytest.mark.parametrize("kwargs", [
-    dict(max_reads=0, deadline=time.monotonic()+1, allowed_url=lambda u:True, effect_dispatcher=dispatcher),
-    dict(max_reads=1, deadline=float("inf"), allowed_url=lambda u:True, effect_dispatcher=dispatcher),
-    dict(max_reads=1, deadline=time.monotonic()+1801, allowed_url=lambda u:True, effect_dispatcher=dispatcher),
+@pytest.mark.parametrize("max_reads, deadline_offset", [
+    (0, 1),
+    (1, float("inf")),
+    (1, 1801),
 ])
-def test_strict_constructor(kwargs):
-    with pytest.raises(ValueError): PublicReadSession(**kwargs)
+def test_strict_constructor(monkeypatch, max_reads, deadline_offset):
+    now = 1000.0
+    monkeypatch.setattr("pilot.public_read_session.time.monotonic", lambda: now)
+    with pytest.raises(ValueError):
+        PublicReadSession(max_reads=max_reads, deadline=now+deadline_offset,
+            allowed_url=lambda u:True, effect_dispatcher=dispatcher)
