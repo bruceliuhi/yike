@@ -127,6 +127,45 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertIn("需要企业 AI 客服", document["snippet"])
         self.assertNotIn("secret-noise", document["snippet"])
 
+    def test_conservative_entity_resolution_links_same_host_and_keeps_different_hosts_separate(self) -> None:
+        _, task = self.request("POST", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks", {"objective": "寻找 AI 定制开发需求"})
+        path = f"/api/v1/tasks/{task['id']}/opportunities"
+        common = {
+            "entity_name": "星河科技",
+            "title": "企业 AI 客服采购讨论",
+            "snippet": "明确寻找 AI 客服定制开发团队。",
+            "source_permission": "allowed",
+            "evidence_level": "VERIFIED",
+        }
+        _, first = self.request("POST", path, {**common, "source_url": "https://xinghe.example/brief-a"})
+        _, second = self.request("POST", path, {**common, "title": "星河科技知识库需求", "source_url": "https://xinghe.example/brief-b"})
+        _, different_host = self.request("POST", path, {**common, "source_url": "https://xinghe-ai.example/brief-c"})
+
+        first_entity = first["items"][0]["entities"][0]
+        second_entity = second["items"][0]["entities"][0]
+        different_entity = different_host["items"][0]["entities"][0]
+        self.assertEqual(first_entity["id"], second_entity["id"])
+        self.assertEqual(first_entity["canonical_name"], "星河科技")
+        self.assertEqual(first_entity["website_host"], "xinghe.example")
+        self.assertEqual(first_entity["resolution_status"], "EXPLICIT_NAME_AND_HOST")
+        self.assertNotEqual(first_entity["id"], different_entity["id"])
+        self.assertEqual(different_entity["website_host"], "xinghe-ai.example")
+
+    def test_title_or_social_account_alone_does_not_create_organization(self) -> None:
+        _, task = self.request("POST", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks", {"objective": "寻找公开 AI 需求"})
+        path = f"/api/v1/tasks/{task['id']}/opportunities"
+        _, result = self.request(
+            "POST",
+            path,
+            {
+                "title": "某账号发布 AI 客服需求",
+                "author": "某账号",
+                "source_url": "https://www.xiaohongshu.com/explore/abc",
+                "snippet": "想了解企业 AI 客服定制开发方案。",
+            },
+        )
+        self.assertEqual(result["items"][0]["entities"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,6 +7,7 @@ import threading
 import uuid
 from contextlib import contextmanager
 from typing import Any, Iterator
+from urllib.parse import urlparse
 
 try:
     from .domain import now_iso, normalize
@@ -105,6 +106,31 @@ CREATE TABLE IF NOT EXISTS evidence (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS entities (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    entity_type TEXT NOT NULL,
+    canonical_name TEXT NOT NULL,
+    website_host TEXT NOT NULL DEFAULT '',
+    confidence REAL NOT NULL,
+    resolution_status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(workspace_id, entity_type, canonical_name, website_host)
+);
+
+CREATE TABLE IF NOT EXISTS opportunity_entities (
+    id TEXT PRIMARY KEY,
+    opportunity_id TEXT NOT NULL REFERENCES opportunities(id),
+    entity_id TEXT NOT NULL REFERENCES entities(id),
+    relation TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    resolution_reason TEXT NOT NULL,
+    evidence_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    UNIQUE(opportunity_id, entity_id)
+);
+
 CREATE TABLE IF NOT EXISTS feedback_events (
     id TEXT PRIMARY KEY,
     opportunity_id TEXT NOT NULL REFERENCES opportunities(id),
@@ -140,6 +166,9 @@ CREATE TABLE IF NOT EXISTS audit_events (
 CREATE INDEX IF NOT EXISTS idx_tasks_workspace_created ON tasks(workspace_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_opportunities_workspace_updated ON opportunities(workspace_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_opportunities_status ON opportunities(status);
+CREATE INDEX IF NOT EXISTS idx_entities_workspace ON entities(workspace_id, entity_type, canonical_name);
+CREATE INDEX IF NOT EXISTS idx_entities_host ON entities(workspace_id, website_host);
+CREATE INDEX IF NOT EXISTS idx_opportunity_entities_entity ON opportunity_entities(entity_id);
 """
 
 
@@ -153,6 +182,48 @@ def _json(value: Any) -> str:
 
 def _decode(row: sqlite3.Row | None) -> dict[str, Any] | None:
     return dict(row) if row else None
+
+
+PLATFORM_HOSTS = {
+    "xiaohongshu.com",
+    "www.xiaohongshu.com",
+    "xhslink.com",
+    "douyin.com",
+    "www.douyin.com",
+    "tiktok.com",
+    "www.tiktok.com",
+    "weibo.com",
+    "www.weibo.com",
+    "bilibili.com",
+    "www.bilibili.com",
+    "zhihu.com",
+    "www.zhihu.com",
+}
+
+
+def normalize_entity_name(value: Any) -> str:
+    value = normalize(str(value or ""))
+    return " ".join(value.split())
+
+
+def normalize_host(value: Any) -> str:
+    raw = str(value or "").strip().lower().rstrip(".")
+    if not raw:
+        return ""
+    if "://" in raw:
+        raw = urlparse(raw).hostname or ""
+    if raw.startswith("www."):
+        raw = raw[4:]
+    return raw
+
+
+def source_host(value: Any) -> str:
+    return normalize_host(urlparse(str(value or "")).hostname)
+
+
+def is_platform_host(host: str) -> bool:
+    host = normalize_host(host)
+    return host in PLATFORM_HOSTS or any(host.endswith("." + suffix) for suffix in PLATFORM_HOSTS)
 
 
 class Store:
@@ -347,6 +418,7 @@ class Store:
                     timestamp,
                 ),
             )
+            self._resolve_opportunity_entities(db, workspace_id, opportunity_id, item)
             self._audit(db, workspace_id, "opportunity", opportunity_id, "created", {"task_id": task_id, "status": status})
         return self.get_opportunity(opportunity_id), False  # type: ignore[return-value]
 
@@ -385,12 +457,99 @@ class Store:
                     "SELECT id, evidence_type, content, url, metadata_json, captured_at, created_at FROM evidence WHERE opportunity_id = ? ORDER BY created_at",
                     (result["id"],),
                 ).fetchall()
+                entities = self.db.execute(
+                    """SELECT e.id, e.entity_type, e.canonical_name, e.website_host,
+                              e.confidence AS entity_confidence, e.resolution_status,
+                              oe.relation, oe.confidence, oe.resolution_reason, oe.evidence_json
+                       FROM opportunity_entities oe
+                       JOIN entities e ON e.id = oe.entity_id
+                       WHERE oe.opportunity_id = ?
+                       ORDER BY oe.created_at""",
+                    (result["id"],),
+                ).fetchall()
             result["evidence"] = []
             for item in evidence:
                 entry = dict(item)
                 entry["metadata"] = json.loads(entry.pop("metadata_json") or "{}")
                 result["evidence"].append(entry)
+            result["entities"] = []
+            for item in entities:
+                entry = dict(item)
+                entry["confidence"] = entry.pop("confidence")
+                entry["entity_confidence"] = entry.pop("entity_confidence")
+                entry["evidence"] = json.loads(entry.pop("evidence_json") or "{}")
+                result["entities"].append(entry)
         return result
+
+    def _resolve_opportunity_entities(
+        self,
+        db: sqlite3.Connection,
+        workspace_id: str,
+        opportunity_id: str,
+        item: dict[str, Any],
+    ) -> None:
+        """Link an opportunity only when the identity signal is strong enough.
+
+        A title or author alone never creates an organization. An explicit entity name
+        may be reused across social sources, while a real website host is part of the
+        identity key so same-name organizations on different sites stay separate.
+        """
+
+        explicit_name = normalize_entity_name(item.get("entity_name") or item.get("company_name"))
+        explicit_type = normalize_entity_name(item.get("entity_type")) or "organization"
+        host = source_host(item.get("source_url"))
+        website_host = "" if is_platform_host(host) else host
+        if not explicit_name and not website_host:
+            return
+
+        if explicit_name:
+            canonical_name = explicit_name
+            confidence = 0.78 if website_host else 0.72
+            resolution_status = "EXPLICIT_NAME_AND_HOST" if website_host else "EXPLICIT_NAME"
+            reason = "用户或导入记录提供实体名称" + ("，且来源 URL 提供官网主机" if website_host else "")
+        else:
+            canonical_name = website_host
+            explicit_type = "organization"
+            confidence = 0.9
+            resolution_status = "HOST_MATCH"
+            reason = "来源 URL 的公网主机作为保守实体标识"
+
+        existing = db.execute(
+            """SELECT * FROM entities
+               WHERE workspace_id = ? AND entity_type = ? AND canonical_name = ? AND website_host = ?""",
+            (workspace_id, explicit_type, canonical_name, website_host),
+        ).fetchone()
+        timestamp = now_iso()
+        if existing:
+            entity_id = existing["id"]
+            db.execute(
+                "UPDATE entities SET confidence = MAX(confidence, ?), updated_at = ? WHERE id = ?",
+                (confidence, timestamp, entity_id),
+            )
+        else:
+            entity_id = _id("entity")
+            db.execute(
+                """INSERT INTO entities
+                   (id, workspace_id, entity_type, canonical_name, website_host,
+                    confidence, resolution_status, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (entity_id, workspace_id, explicit_type, canonical_name, website_host, confidence, resolution_status, timestamp, timestamp),
+            )
+        db.execute(
+            """INSERT OR IGNORE INTO opportunity_entities
+               (id, opportunity_id, entity_id, relation, confidence, resolution_reason, evidence_json, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                _id("opp_entity"),
+                opportunity_id,
+                entity_id,
+                "about",
+                confidence,
+                reason,
+                _json({"source_url": item.get("source_url"), "host": host, "explicit_name": bool(explicit_name)}),
+                timestamp,
+            ),
+        )
 
     def list_opportunities(self, workspace_id: str, status: str | None = None) -> list[dict[str, Any]]:
         query = "SELECT * FROM opportunities WHERE workspace_id = ?"

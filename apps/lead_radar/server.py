@@ -174,6 +174,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         item = {
             "title": str(payload.get("title") or capture["title"] or urlparse(capture["final_url"]).hostname or "公开网页"),
             "author": payload.get("author"),
+            "entity_name": payload.get("entity_name") or payload.get("company_name"),
+            "entity_type": payload.get("entity_type", "organization"),
             "published_at": payload.get("published_at"),
             "intent_type": payload.get("intent_type"),
             "industry_location": payload.get("industry_location"),
