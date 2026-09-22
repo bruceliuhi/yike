@@ -35,10 +35,6 @@ python3 apps/lead_radar/server.py --port 8780
 - `GET /api/v1/workspaces/ws_意客AI/entities`
 - `POST /api/v1/entities/{entity_id}/merge`
 - `POST /api/v1/entities/{entity_id}/split`
-- `GET /api/v1/workspaces/ws_意客AI/calibration-batches`
-- `POST /api/v1/workspaces/ws_意客AI/calibration-batches`
-- `GET /api/v1/calibration-batches/{batch_id}`
-- `POST /api/v1/calibration-batches/{batch_id}/items/{item_id}/review`
 
 任务创建时会生成三条可检查的搜索路径：快速搜索、条件核验、扩展搜索，并给出来源状态和 credits 估算。机会录入必须有 `title`、`source_url` 和 `snippet`。系统保留来源 URL、原文片段和核验时间；当前外部平台连接器仍显示为 `REQUIRES_PROOF` 或 `REQUIRES_AUTH`，不会用假数据冒充自动搜索。
 
