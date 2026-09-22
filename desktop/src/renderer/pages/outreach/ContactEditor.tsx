@@ -530,6 +530,7 @@ export function ContactEditor({
               !session.authenticated ||
               !draft.content.trim() ||
               dirty ||
+              !persisted.known ||
               saving.blocked ||
               !latest.complete ||
               !!latest.candidate ||
