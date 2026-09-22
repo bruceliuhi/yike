@@ -25,12 +25,14 @@ try:
         get_search_status,
     )
     from .feed_api import get_feed_event, list_feed, review_feed_event
+    from .replay_api import get_task_replay
     from .server import WORKSPACE_ID
     from .schedule_api import create_schedule, get_schedule, trigger_schedule
     from .storage import Store
 except ImportError:  # running this file directly
     from business_api import API_VERSION, BusinessApiError, create_search_task, enrich_entity, fetch_search_results, get_search_status
     from feed_api import get_feed_event, list_feed, review_feed_event
+    from replay_api import get_task_replay
     from server import WORKSPACE_ID
     from schedule_api import create_schedule, get_schedule, trigger_schedule
     from storage import Store
@@ -186,6 +188,17 @@ TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "additionalProperties": False,
         },
     },
+    {
+        "name": "get_task_replay",
+        "description": "读取一条任务从目标、画像和搜索计划到证据、反馈、动作草稿、用量和审计的只读回放。",
+        "readOnlyHint": True,
+        "inputSchema": {
+            "type": "object",
+            "properties": {"task_id": {"type": "string", "maxLength": 120}},
+            "required": ["task_id"],
+            "additionalProperties": False,
+        },
+    },
 )
 
 
@@ -285,6 +298,8 @@ def build_server(store: Store, workspace_id: str = WORKSPACE_ID):
                 result = get_feed_event(store, workspace_id, args["event_id"])
             elif name == "review_feed_event":
                 result = review_feed_event(store, workspace_id, args["event_id"], args)
+            elif name == "get_task_replay":
+                result = get_task_replay(store, workspace_id, args["task_id"])
             else:
                 result = _failure("unknown_tool", "工具不存在。")
         except BusinessApiError as exc:

@@ -728,6 +728,61 @@ class Store:
             rows = self.db.execute("SELECT * FROM tasks WHERE workspace_id = ? ORDER BY created_at DESC", (workspace_id,)).fetchall()
         return [self._task_dict(row) for row in rows]  # type: ignore[list-item]
 
+    def task_replay(self, workspace_id: str, task_id: str) -> dict[str, Any] | None:
+        with self.lock:
+            task_row = self.db.execute("SELECT * FROM tasks WHERE id = ? AND workspace_id = ?", (task_id, workspace_id)).fetchone()
+            if not task_row:
+                return None
+            opportunity_rows = self.db.execute(
+                "SELECT * FROM opportunities WHERE workspace_id = ? AND task_id = ? ORDER BY created_at, rowid",
+                (workspace_id, task_id),
+            ).fetchall()
+            run_rows = self.db.execute(
+                "SELECT id FROM task_runs WHERE task_id = ? ORDER BY created_at, rowid",
+                (task_id,),
+            ).fetchall()
+            usage_rows = self.db.execute(
+                "SELECT * FROM usage_ledger WHERE workspace_id = ? AND task_id = ? ORDER BY created_at, rowid",
+                (workspace_id, task_id),
+            ).fetchall()
+            entity_ids = [task_id, *[row["id"] for row in run_rows], *[row["id"] for row in opportunity_rows]]
+            placeholders = ",".join("?" for _ in entity_ids)
+            audit_rows = self.db.execute(
+                f"SELECT id, entity_type, entity_id, action, payload_json, created_at FROM audit_events WHERE workspace_id = ? AND ((entity_type = 'task' AND entity_id = ?) OR (entity_type = 'task_run' AND entity_id IN ({','.join('?' for _ in run_rows)})) OR (entity_type = 'opportunity' AND entity_id IN ({','.join('?' for _ in opportunity_rows)}))) ORDER BY created_at, rowid",
+                [workspace_id, task_id, *[row["id"] for row in run_rows], *[row["id"] for row in opportunity_rows]],
+            ).fetchall()
+        task = self._task_dict(task_row)
+        opportunities = [self._opportunity_dict(row) for row in opportunity_rows]
+        usage = [self._usage_dict(row) for row in usage_rows]
+        audits: list[dict[str, Any]] = []
+        for row in audit_rows:
+            entry = dict(row)
+            entry["payload"] = json.loads(entry.pop("payload_json") or "{}")
+            audits.append(entry)
+        action_drafts = [
+            draft
+            for opportunity in opportunities
+            for draft in (opportunity or {}).get("action_drafts", [])
+        ]
+        timeline: list[dict[str, Any]] = []
+        for event in audits:
+            timeline.append({"kind": "audit", "created_at": event["created_at"], "event": event})
+        for entry in usage:
+            if entry:
+                timeline.append({"kind": "usage", "created_at": entry["created_at"], "event": entry})
+        for run in (task or {}).get("runs", []):
+            for event in run.get("events", []):
+                timeline.append({"kind": "run_event", "created_at": event["created_at"], "event": {**event, "run_id": run["id"]}})
+        timeline.sort(key=lambda item: (item["created_at"], item["kind"]))
+        return {
+            "task": task,
+            "candidates": opportunities,
+            "action_drafts": action_drafts,
+            "usage": usage,
+            "audit_events": audits,
+            "timeline": timeline,
+        }
+
     def create_scheduled_task(
         self,
         workspace_id: str,

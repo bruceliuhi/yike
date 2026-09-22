@@ -29,6 +29,7 @@ try:
     from .planner import build_search_plan
     from .proofs import SourceProofError, normalize_source_proof
     from .rights import SourceRightError, normalize_source_right
+    from .replay_api import get_task_replay
     from .search_connector import AuthorizedSearchConnector, SearchConnectorError
     from .schedule_api import control_schedule, create_schedule, get_schedule, list_schedules, trigger_schedule
     from .source_policy import classify_public_url
@@ -45,6 +46,7 @@ except ImportError:  # running server.py directly
     from planner import build_search_plan
     from proofs import SourceProofError, normalize_source_proof
     from rights import SourceRightError, normalize_source_right
+    from replay_api import get_task_replay
     from search_connector import AuthorizedSearchConnector, SearchConnectorError
     from schedule_api import control_schedule, create_schedule, get_schedule, list_schedules, trigger_schedule
     from source_policy import classify_public_url
@@ -314,6 +316,11 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/v1/business/enrich_entity/"):
             try:
                 return self._send(200, enrich_entity(self.store, WORKSPACE_ID, path.rsplit("/", 1)[-1]))
+            except BusinessApiError as exc:
+                return self._error(exc.status, exc.code, exc.message)
+        if path.startswith("/api/v1/tasks/") and path.endswith("/replay"):
+            try:
+                return self._send(200, get_task_replay(self.store, WORKSPACE_ID, path.split("/")[-2]))
             except BusinessApiError as exc:
                 return self._error(exc.status, exc.code, exc.message)
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/schedules":
