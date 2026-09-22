@@ -82,7 +82,15 @@ _CONTRACT: dict[str, Any] = {
             "name": "source_permission",
             "type": "enum",
             "required": True,
-            "values": ["authorized_source", "public_url_user_supplied", "licensed_index"],
+            "values": [
+                "allowed",
+                "authorized_api",
+                "authorized_search_api",
+                "search_index_proof",
+                "public_url_user_supplied",
+                "public_feed_user_supplied",
+                "licensed_index",
+            ],
             "description": {"zh-CN": "来源使用权类型；公开可见不等于服务端拥有自动搜索权。", "en-US": "Permission type; public visibility does not equal server-side permission to search automatically."},
         },
         {

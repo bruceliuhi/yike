@@ -26,6 +26,7 @@ try:
         get_search_status,
     )
     from .evaluation_api import get_calibration_evaluation
+    from .evaluation_contract import get_evaluation_contract
     from .feed_api import get_feed_event, list_feed, review_feed_event
     from .integrations import list_integrations
     from .product_catalog import list_product_catalog
@@ -39,6 +40,7 @@ except ImportError:  # running this file directly
     from brief_api import get_research_brief
     from business_api import API_VERSION, BusinessApiError, create_search_task, enrich_entity, fetch_search_results, get_search_status
     from evaluation_api import get_calibration_evaluation
+    from evaluation_contract import get_evaluation_contract
     from feed_api import get_feed_event, list_feed, review_feed_event
     from integrations import list_integrations
     from product_catalog import list_product_catalog
@@ -273,6 +275,16 @@ TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "additionalProperties": False,
         },
     },
+    {
+        "name": "get_evaluation_contract",
+        "description": "读取版本化评测集字段、来源权利、原文重开和质量门禁；契约就绪不代表已经拥有真实授权 benchmark。",
+        "readOnlyHint": True,
+        "inputSchema": {
+            "type": "object",
+            "properties": {"language": {"type": "string", "enum": ["zh-CN", "en-US"]}},
+            "additionalProperties": False,
+        },
+    },
 )
 
 
@@ -386,6 +398,8 @@ def build_server(store: Store, workspace_id: str = WORKSPACE_ID):
                 result = get_production_readiness(store, workspace_id)
             elif name == "get_calibration_evaluation":
                 result = get_calibration_evaluation(store, workspace_id, args["batch_id"])
+            elif name == "get_evaluation_contract":
+                result = get_evaluation_contract(args.get("language", "zh-CN"))
             else:
                 result = _failure("unknown_tool", "工具不存在。")
         except BusinessApiError as exc:
