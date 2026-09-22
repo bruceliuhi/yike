@@ -1,0 +1,31 @@
+{
+  "schema": "yike.mac-package-evidence/v1",
+  "sourceRevision": "83d3775f0bd6825ac89ab95f71c51280f07fc9d3",
+  "builtAt": "2026-09-23",
+  "platform": "darwin/arm64",
+  "version": "0.2.0",
+  "serviceOrigin": "https://yike.tuokexing.net",
+  "zip": {
+    "path": "desktop/out/make/zip/darwin/arm64/意客AI-darwin-arm64-0.2.0.zip",
+    "sha256": "8fc072128c3242e0b350dd66724c9818a4b2d9b102fca9f77df4e94fe6afe56c"
+  },
+  "asar": {
+    "path": "desktop/out/意客AI-darwin-arm64/意客AI.app/Contents/Resources/app.asar",
+    "sha256": "386bc5d9ef3201df695293318f93e7cc9573dc2d57120f2e18969a918b115563"
+  },
+  "checks": {
+    "make_mac": "PASS",
+    "verify_package": "PASS",
+    "packaged_smoke": "PASS",
+    "login_regression": "42 passed",
+    "desktop_full_regression": "4576 passed, 55 skipped",
+    "lead_radar": "74 passed",
+    "release_candidate_check": "local=PASS / external=NOT_VERIFIED / overall=HOLD"
+  },
+  "distribution": {
+    "code_signing": "AD_HOC",
+    "developer_id_identity": "NOT_AVAILABLE",
+    "notarization": "NOT_RUN"
+  },
+  "scope": "83d3775 包含评测契约校验、Lead Radar 评测表面和桌面端 WebP 品牌资源优化；桌面包结构、Logo 资源和包内冒烟均通过。Finder 安装、Developer ID 签名/公证、最终服务器版本、真实平台来源权利、生产数据库恢复和客户 UAT 仍是独立上线门禁。"
+}
