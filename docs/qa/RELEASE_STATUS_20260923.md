@@ -9,7 +9,7 @@
 - 本机发布候选检查：`local=PASS / external=NOT_VERIFIED / overall=HOLD`
 - Lead Radar 定向测试：`56 passed`
 - macOS arm64 安装包结构检查和包内冒烟：均 `PASS`
-- 当前包为 ad hoc 签名；Developer ID 与公证尚未完成。包哈希和完整检查见 [`latest-main-package-61ec69c.json`](ui-candidate-mac/latest-main-package-61ec69c.json)。
+- 当前包为 ad hoc 签名；Developer ID 与公证尚未完成。包哈希和完整检查见 [`latest-main-package-79a1ab2.json`](ui-candidate-mac/latest-main-package-79a1ab2.json)。
 
 ## 公网版本核对
 
