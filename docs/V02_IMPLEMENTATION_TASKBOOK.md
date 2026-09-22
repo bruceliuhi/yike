@@ -1,5 +1,12 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+### 2026-09-23 最终同源版本对齐（`5330c81`）
+
+- Gitee `yike-ai2026/main`、生产 `release.json`、运行容器版本头和本地最新代码均为 `5330c81046b636b6cad65589581374e321a277c5`。相对 `4a7aed0` 仅补发行记录与并发文档；运行时代码仍包含“短信验证成功即自助激活 72 小时、无需试用码”的认证修复。
+- 生产镜像为 `127.0.0.1:18750/yike/server@sha256:fdb83d32c7649bb19dcd71fb4e3eeb87d061f829374e149909b6437a4e6275c1`，容器 healthy、重启次数 0、绑定 `127.0.0.1:18787`；公网 `/healthz`、`/readyz` 及版本头回读通过，`cp06_validate_env.sh` 预检通过。18788 候选同样以完整 SHA 回读通过。
+- 回读能力仍为 `sms_login=true`，`access_login=false`、`platform_connections=false`、`task_execution=false`、`outreach=false`、`replies=false`。短信真实收码尚未完成：阿里云此前返回 `PORT_NOT_REGISTERED`，须先完成运营商端口报备后再做真实 OTP 登录；不使用后四位、临时访问码或会话注入绕过。
+- 本轮代码证据仍为桌面登录/手机客户端 **42 passed**、Python 手机/SMS/试用 **26 passed、17 skipped**，类型检查、renderer build 和 Mac arm64 包构建通过；这些不替代真实收码、平台来源、SEARCH→READ→候选→证据及客户价值验收，整体继续 **HOLD**。
+
 ### 2026-09-23 Feed / Monitor 证据时间线进入主线（`ad30555`）
 
 - `yike-ai2026/main` 与 GitHub `main` 已同步到 `ad30555`，新增证据绑定的 Feed 时间线：采购需求、招聘、招标、官网变化和竞品变化事件均保留来源 URL、摘要、内容指纹、机会关联及人工复核状态，并提供受控 API/MCP 读取与复核。
