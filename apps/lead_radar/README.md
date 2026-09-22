@@ -22,6 +22,7 @@ python3 apps/lead_radar/server.py --port 8780
 - `GET /api/v1/tasks/{task_id}/plan`
 - `POST /api/v1/tasks/{task_id}/start`
 - `POST /api/v1/tasks/{task_id}/capture-url`
+- `POST /api/v1/tasks/{task_id}/capture-urls`
 - `POST /api/v1/tasks/{task_id}/opportunities`
 - `POST /api/v1/opportunities/{opportunity_id}/feedback`
 - `GET /api/v1/workspaces/ws_意客AI/entities`
@@ -33,6 +34,8 @@ python3 apps/lead_radar/server.py --port 8780
 机会还会进入保守的实体解析层：导入记录明确提供 `entity_name` / `company_name` 时建立企业或组织实体；没有实体名称时，只在来源 URL 主机足够稳定时按官网主机建立关联。小红书、抖音、微博等社交平台主机不会被当成企业官网，标题和作者昵称也不会单独创建企业实体。同名实体如果对应不同官网主机会保持分离，避免把不同公司的公开信号错误合并。每张机会卡返回 `entities`，包含实体、主机、置信度、解析原因和关联证据。
 
 实体主档支持人工合并和按单条机会拆分。操作会把关联关系写入审计事件，并保留机会原始证据；“合并”只移动机会与实体的关系，“拆分”只改变选中机会的实体归属，不会删除来源内容。
+
+`capture-urls` 接受最多 50 个用户明确提交的 URL，逐条返回成功项和失败项；重复 URL 使用任务级幂等键，不会重复计费。它是受控导入入口，不等同于平台搜索连接器，也不会自动扩大抓取范围。
 
 `capture-url` 只访问用户明确提交的公网 URL，拒绝内网地址、非标准端口、带凭据 URL、非 HTML 页面和超过 1 MB 的响应。系统只保存正文摘要和内容指纹，结果默认为 `REVIEW`，不会因为页面抓取成功就判断为采购意向。
 
