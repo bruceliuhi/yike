@@ -8,7 +8,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { AppProvider } from "../../src/renderer/app/context";
+import { AppProvider, useApp } from "../../src/renderer/app/context";
 import { clearLocalDrafts } from "../../src/renderer/app/hooks";
 import { LoginPage } from "../../src/renderer/pages/Login";
 import { service as baseService } from "../../src/renderer/services/client";
@@ -42,16 +42,32 @@ function mount(overrides: Partial<YikeService> = {}) {
   return service;
 }
 
+function LoginRouteProbe() {
+  const { navigate } = useApp();
+  return <button onClick={() => navigate("/login")}>打开登录</button>;
+}
+
 describe("登录", () => {
-  it("从受保护页面发起登录后回到原工作位置", async () => {
+  it("从受保护页面打开登录时自动保留原工作位置", async () => {
     window.location.hash = "#/tasks/new?mode=monitor&step=connect";
-    mount({
+    const service = {
+      ...baseService,
       session: vi.fn().mockResolvedValue({ authenticated: false }),
-      loginToken: vi.fn().mockResolvedValue({ authenticated: true, userId: "test-user" }),
-    });
-    // The real shell adds this return target when any page asks for login.
-    expect(window.location.hash).toBe("#/tasks/new?mode=monitor&step=connect");
-    // Simulate the protected page's login action through the public route.
+    };
+    render(
+      <AppProvider service={service}>
+        <LoginRouteProbe />
+      </AppProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "打开登录" }));
+    await waitFor(() =>
+      expect(window.location.hash).toBe(
+        "#/login?returnTo=%2Ftasks%2Fnew%3Fmode%3Dmonitor%26step%3Dconnect",
+      ),
+    );
+  });
+
+  it("登录成功后回到 returnTo 指定的工作位置", async () => {
     window.location.hash = "#/login?returnTo=%2Ftasks%2Fnew%3Fmode%3Dmonitor%26step%3Dconnect";
     cleanup();
     mount({
