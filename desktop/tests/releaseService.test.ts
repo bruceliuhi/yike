@@ -7,6 +7,7 @@ it('requires the service origin for npm Forge make invocations',()=>{
  expect(releasePackagingRequired({argv:['node','electron-forge'],env:{npm_lifecycle_event:'make:mac'}})).toBe(true);
  expect(releasePackagingRequired({argv:['node','electron-forge','make'],env:{}})).toBe(true);
  expect(releasePackagingRequired({argv:['node','vitest'],env:{VITEST:'true'}})).toBe(false);
+ expect(releasePackagingRequired({argv:['node','electron-forge','make'],env:{VITEST:'false'}})).toBe(true);
 });
 
 it('requires a configured HTTPS origin for release packaging',()=>{

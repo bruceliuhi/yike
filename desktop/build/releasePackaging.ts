@@ -6,7 +6,7 @@ export function releasePackagingRequired({
   argv: readonly string[];
   env: NodeJS.ProcessEnv;
 }): boolean {
-  if (env.VITEST) return false;
+  if (env.VITEST === 'true') return false;
   const lifecycle = env.npm_lifecycle_event ?? "";
   if (/^make(?::|$)/.test(lifecycle)) return true;
   return argv.some((value) => value === "make" || /[\\/]make$/.test(value));
