@@ -29,8 +29,8 @@ fi
 case "$env_realpath" in
   "$repo_root"|"$repo_root"/*) fail "env file must be outside the repository" ;;
 esac
-if LC_ALL=C grep -Eq '^[[:space:]]*(export[[:space:]]+)?YIKE_PILOT_ADMIN_DATABASE_URL[[:space:]]*=' "$env_realpath"; then
-  fail "runtime env file must not contain admin database credentials"
+if LC_ALL=C grep -Eq '^[[:space:]]*(export[[:space:]]+)?YIKE_(PILOT_ADMIN_[A-Z0-9_]+|OPS_[A-Z0-9_]+)[[:space:]]*=' "$env_realpath"; then
+  fail "runtime env file must not contain admin database or ops credentials"
 fi
 env_mode="$(stat -f '%Lp' "$env_realpath" 2>/dev/null || true)"
 if [[ ! "$env_mode" =~ ^[0-9]+$ ]]; then

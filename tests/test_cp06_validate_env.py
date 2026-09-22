@@ -116,6 +116,21 @@ def test_production_preflight_rejects_admin_database_url_in_runtime_env(tmp_path
     assert "admin database" in result.stderr.lower()
 
 
+def test_production_preflight_rejects_ops_credentials_in_runtime_env(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
+    Path(env["YIKE_PILOT_ENV_FILE"]).write_text(
+        "YIKE_PILOT_DATABASE_URL=postgresql://pilot:password@private-db:5432/pilot\n"
+        "YIKE_OPS_DATABASE_URL=postgresql://ops:password@private-db:5432/ops\n"
+        "YIKE_OPS_PHONE_ENCRYPTION_KEY=" + "a" * 64 + "\n",
+        encoding="utf-8",
+    )
+
+    result = _run(env)
+
+    assert result.returncode != 0
+    assert "ops credentials" in result.stderr.lower()
+
+
 def test_production_preflight_rejects_mutable_image_tag(tmp_path: Path) -> None:
     env = _base_env(tmp_path)
     env["YIKE_PILOT_IMAGE"] = "registry.example.com/yike/customer-pilot:latest"
