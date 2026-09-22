@@ -81,8 +81,10 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
       if(current() && ['COMPLETED','CANCELED'].includes(value.phase))callback.current?.();
     } catch {
       if(!scope.current())return;
-      setMessage('研究进度暂未确认，请稍后刷新进度。');
-      data.setData(undefined);
+      // A failed advance is not evidence that the last confirmed snapshot
+      // disappeared. Keep it visible so the customer can still inspect the
+      // known state while the operation is reconciled by an explicit refresh.
+      setMessage('研究进度暂未确认，当前仍显示最近一次已核实状态；请刷新进度后再继续。');
       // A timeout is not a refund, cancellation, or proof that nothing happened.
       try {const value=await boundedRequest(read,{timeoutMessage:'原研究状态仍未核实。'});if(scope.current())data.setData(value);} catch { /* Retain last confirmed state; explicit refresh remains available. */ }
     } finally {
@@ -94,7 +96,7 @@ export function ResearchProgress({taskId,runId,taskStatus,onTerminal}:{taskId:st
   const presentation=value?researchProgressPresentation(value):null;
   return <section className="panel" aria-label="研究进度">
     <h2>研究进度</h2>
-    <ResourceStatus loading={data.loading} error={data.error}/>
+    <ResourceStatus loading={data.loading} error={data.error} onRetry={data.reload}/>
     {value && <>
       <h3>{presentation!.title}</h3>
       <p>{presentation!.explanation}</p>

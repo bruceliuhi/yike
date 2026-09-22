@@ -145,6 +145,16 @@ it('timeout queries original state once and never repeats an unknown model effec
   expect(advance).toHaveBeenCalledTimes(1);
   expect((screen.getByRole('button',{name:'继续研究'}) as HTMLButtonElement).disabled).toBe(true);
 });
+it('keeps the last confirmed progress visible when an advance and reconciliation both time out',async()=>{
+  status.mockResolvedValueOnce(queued).mockRejectedValue(new Error('connection lost'));
+  advance.mockRejectedValue(new Error('advance timeout'));
+  view();
+  await screen.findByText('已准备好，等待开始');
+  fireEvent.click(screen.getByRole('button',{name:'继续研究'}));
+  await screen.findByText(/研究进度暂未确认，当前仍显示最近一次已核实状态/);
+  expect(screen.getByText('已准备好，等待开始')).toBeVisible();
+  expect(screen.getByRole('button',{name:'刷新进度'})).toBeEnabled();
+});
 it('does not spin if server reports the same progress after an advance',async()=>{
   advance.mockResolvedValue(queued);view();await screen.findByText('V2EX最新主题 · 公开单源研究');
   fireEvent.click(screen.getByRole('button',{name:'继续研究'}));
