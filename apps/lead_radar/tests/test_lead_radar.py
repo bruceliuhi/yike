@@ -8,7 +8,7 @@ from http.client import HTTPConnection
 from pathlib import Path
 from unittest.mock import patch
 
-from apps.lead_radar.capture import extract_document
+from apps.lead_radar.capture import CaptureError, extract_document
 from apps.lead_radar.server import create_server
 
 
@@ -200,6 +200,37 @@ class LeadRadarApiTest(unittest.TestCase):
         status, entities = self.request("GET", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/entities")
         self.assertEqual(status, 200)
         self.assertEqual(len(entities["items"]), 2)
+
+    def test_batch_public_url_capture_is_partial_and_idempotently_billed(self) -> None:
+        _, task = self.request("POST", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks", {"objective": "批量导入公开需求"})
+
+        def fake_capture(url: str) -> dict:
+            if "bad" in url:
+                raise CaptureError("fetch_failed", "测试页面不可用")
+            return {
+                "title": "批量公开需求",
+                "snippet": "需要企业 AI 客服定制开发团队。",
+                "content_hash": "b" * 64,
+                "byte_length": 256,
+                "requested_url": url,
+                "final_url": url,
+                "content_type": "text/html",
+                "charset": "utf-8",
+                "captured_at": "2026-09-22T00:00:00+00:00",
+            }
+
+        path = f"/api/v1/tasks/{task['id']}/capture-urls"
+        with patch("apps.lead_radar.server.fetch_public_page", side_effect=fake_capture):
+            status, first = self.request("POST", path, {"items": [{"url": "https://batch.example/one", "entity_name": "批量企业"}, {"url": "https://bad.example/two"}]})
+            status, second = self.request("POST", path, {"urls": ["https://batch.example/one"]})
+        self.assertEqual(status, 200)
+        self.assertEqual(first["created_count"], 1)
+        self.assertEqual(first["failed_count"], 1)
+        self.assertEqual(first["errors"][0]["error"], "fetch_failed")
+        self.assertEqual(second["items"][0]["created"], False)
+        _, dashboard = self.request("GET", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/dashboard")
+        self.assertEqual(dashboard["opportunities"], 1)
+        self.assertEqual(dashboard["credits_used"], 1)
 
 
 if __name__ == "__main__":

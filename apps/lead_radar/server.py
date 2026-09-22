@@ -112,6 +112,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 return self._create_task(payload)
             if path.startswith("/api/v1/tasks/") and path.endswith("/capture-url"):
                 return self._capture_url(path.split("/")[-2], payload)
+            if path.startswith("/api/v1/tasks/") and path.endswith("/capture-urls"):
+                return self._capture_urls(path.split("/")[-2], payload)
             if path.startswith("/api/v1/tasks/") and path.endswith("/start"):
                 return self._start_task(path.split("/")[-2], payload)
             if path.startswith("/api/v1/tasks/") and path.endswith("/opportunities"):
@@ -172,15 +174,9 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         message = "任务已进入队列。" if latest_run and latest_run["status"] == "QUEUED" else "任务计划已生成，但当前没有通过生产门禁的自动搜索连接器。"
         self._send(200, {**task, "message": message})
 
-    def _capture_url(self, task_id: str, payload: dict[str, Any]) -> None:
-        task = self.store.get_task(task_id)
-        if not task:
-            return self._error(404, "task_not_found", "任务不存在")
-        requested_url = str(payload.get("url", "")).strip()
-        if not requested_url:
-            raise ValueError("url_required")
-        capture = fetch_public_page(requested_url)
-        item = {
+    @staticmethod
+    def _build_captured_item(payload: dict[str, Any], capture: dict[str, Any]) -> dict[str, Any]:
+        return {
             "title": str(payload.get("title") or capture["title"] or urlparse(capture["final_url"]).hostname or "公开网页"),
             "author": payload.get("author"),
             "entity_name": payload.get("entity_name") or payload.get("company_name"),
@@ -205,6 +201,16 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 "capture_method": "controlled_public_url_capture",
             },
         }
+
+    def _capture_url(self, task_id: str, payload: dict[str, Any]) -> None:
+        task = self.store.get_task(task_id)
+        if not task:
+            return self._error(404, "task_not_found", "任务不存在")
+        requested_url = str(payload.get("url", "")).strip()
+        if not requested_url:
+            raise ValueError("url_required")
+        capture = fetch_public_page(requested_url)
+        item = self._build_captured_item(payload, capture)
         status = evidence_status(item)
         opportunity, was_duplicate = self.store.add_opportunity(task_id, item, status)
         self.store.record_usage(
@@ -230,6 +236,51 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 },
             },
         )
+
+    def _capture_urls(self, task_id: str, payload: dict[str, Any]) -> None:
+        task = self.store.get_task(task_id)
+        if not task:
+            return self._error(404, "task_not_found", "任务不存在")
+        raw_items = payload.get("items")
+        if raw_items is None and isinstance(payload.get("urls"), list):
+            raw_items = [{"url": value} for value in payload["urls"]]
+        if not isinstance(raw_items, list) or not raw_items:
+            raise ValueError("items_required")
+        if len(raw_items) > 50:
+            raise ValueError("items_limit_exceeded")
+        items: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for index, raw_item in enumerate(raw_items):
+            if isinstance(raw_item, str):
+                raw_item = {"url": raw_item}
+            if not isinstance(raw_item, dict):
+                errors.append({"index": index, "error": "item_must_be_object"})
+                continue
+            requested_url = str(raw_item.get("url", "")).strip()
+            if not requested_url:
+                errors.append({"index": index, "error": "url_required"})
+                continue
+            try:
+                capture = fetch_public_page(requested_url)
+                item = self._build_captured_item(raw_item, capture)
+                opportunity, was_duplicate = self.store.add_opportunity(task_id, item, evidence_status(item))
+                self.store.record_usage(
+                    WORKSPACE_ID,
+                    task_id,
+                    "public_url_batch_capture",
+                    1,
+                    1,
+                    "COMPLETED",
+                    f"public-url:{task_id}:{requested_url}",
+                )
+                items.append({
+                    "item": opportunity,
+                    "created": not was_duplicate,
+                    "capture": {"requested_url": capture["requested_url"], "final_url": capture["final_url"], "content_hash": capture["content_hash"]},
+                })
+            except CaptureError as exc:
+                errors.append({"index": index, "url": requested_url, "error": exc.code, "message": exc.message})
+        self._send(200, {"items": items, "errors": errors, "created_count": sum(int(item["created"]) for item in items), "failed_count": len(errors)})
 
     def _add_opportunities(self, task_id: str, payload: dict[str, Any]) -> None:
         task = self.store.get_task(task_id)
