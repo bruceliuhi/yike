@@ -174,6 +174,8 @@ CREATE TABLE IF NOT EXISTS source_proofs (
     artifact_sha256 TEXT NOT NULL,
     checked_at TEXT NOT NULL,
     checks_json TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'ACTIVE',
+    revoked_at TEXT,
     created_at TEXT NOT NULL,
     UNIQUE(workspace_id, proof_ref)
 );
@@ -325,6 +327,11 @@ class Store:
             opportunity_columns = {row["name"] for row in self.db.execute("PRAGMA table_info(opportunities)").fetchall()}
             if "decision_json" not in opportunity_columns:
                 self.db.execute("ALTER TABLE opportunities ADD COLUMN decision_json TEXT NOT NULL DEFAULT '{}'")
+            proof_columns = {row["name"] for row in self.db.execute("PRAGMA table_info(source_proofs)").fetchall()}
+            if "status" not in proof_columns:
+                self.db.execute("ALTER TABLE source_proofs ADD COLUMN status TEXT NOT NULL DEFAULT 'ACTIVE'")
+            if "revoked_at" not in proof_columns:
+                self.db.execute("ALTER TABLE source_proofs ADD COLUMN revoked_at TEXT")
             self.db.execute(
                 "INSERT OR IGNORE INTO workspaces(id, name, created_at) VALUES (?, ?, ?)",
                 ("ws_意客AI", "意客 AI 商机雷达", now_iso()),
@@ -1579,7 +1586,7 @@ class Store:
         return result
 
     def get_source_proof(self, workspace_id: str, proof_ref: str, provider: str | None = None) -> dict[str, Any] | None:
-        query = "SELECT * FROM source_proofs WHERE workspace_id = ? AND proof_ref = ?"
+        query = "SELECT * FROM source_proofs WHERE workspace_id = ? AND proof_ref = ? AND status = 'ACTIVE'"
         params: list[Any] = [workspace_id, proof_ref]
         if provider is not None:
             query += " AND provider = ?"
@@ -1595,6 +1602,32 @@ class Store:
                 (workspace_id,),
             ).fetchall()
         return [self._source_proof_dict(row) for row in rows]  # type: ignore[list-item]
+
+    def revoke_source_proof(self, workspace_id: str, proof_ref: str, actor: str = "operator") -> dict[str, Any] | None:
+        with self.tx() as db:
+            row = db.execute(
+                "SELECT * FROM source_proofs WHERE workspace_id = ? AND proof_ref = ?",
+                (workspace_id, proof_ref),
+            ).fetchone()
+            if not row:
+                return None
+            if row["status"] == "REVOKED":
+                return self._source_proof_dict(row)
+            revoked_at = now_iso()
+            db.execute(
+                "UPDATE source_proofs SET status = 'REVOKED', revoked_at = ? WHERE id = ?",
+                (revoked_at, row["id"]),
+            )
+            self._audit(
+                db,
+                workspace_id,
+                "source_proof",
+                row["id"],
+                "revoked",
+                {"proof_ref": proof_ref, "actor": str(actor or "operator").strip() or "operator", "revoked_at": revoked_at},
+            )
+            updated = db.execute("SELECT * FROM source_proofs WHERE id = ?", (row["id"],)).fetchone()
+        return self._source_proof_dict(updated)
 
     def dashboard(self, workspace_id: str) -> dict[str, Any]:
         with self.lock:

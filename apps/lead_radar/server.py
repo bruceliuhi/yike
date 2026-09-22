@@ -137,6 +137,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             payload = self._body()
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/profiles":
                 return self._create_profile(payload)
+            if path == f"/api/v1/workspaces/{WORKSPACE_ID}/source-proofs/revoke":
+                return self._revoke_source_proof(payload)
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/source-proofs":
                 return self._register_source_proof(payload)
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/tasks":
@@ -203,6 +205,15 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         proof = normalize_source_proof(payload)
         registered, created = self.store.save_source_proof(WORKSPACE_ID, proof)
         self._send(201 if created else 200, {"proof": registered, "created": created})
+
+    def _revoke_source_proof(self, payload: dict[str, Any]) -> None:
+        proof_ref = str(payload.get("proof_ref") or "").strip()
+        if not proof_ref:
+            raise ValueError("proof_ref_required")
+        revoked = self.store.revoke_source_proof(WORKSPACE_ID, proof_ref, str(payload.get("actor", "operator")))
+        if not revoked:
+            return self._error(404, "source_proof_not_found", "来源证明不存在")
+        self._send(200, {"proof": revoked, "message": "来源证明已撤销，后续索引导入将被阻断。"})
 
     def _create_task(self, payload: dict[str, Any]) -> None:
         objective = str(payload.get("objective", "")).strip()

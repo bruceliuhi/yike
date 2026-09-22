@@ -118,6 +118,41 @@ class LeadRadarApiTest(unittest.TestCase):
         status, listed = self.request("GET", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/source-proofs")
         self.assertEqual(status, 200)
         self.assertEqual(len(listed["items"]), 1)
+        status, revoked = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/source-proofs/revoke",
+            {"proof_ref": "proof-registry-001", "actor": "qa"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(revoked["proof"]["status"], "REVOKED")
+        status, repeated_revoke = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/source-proofs/revoke",
+            {"proof_ref": "proof-registry-001", "actor": "qa"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(repeated_revoke["proof"]["status"], "REVOKED")
+        status, listed = self.request("GET", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/source-proofs")
+        self.assertEqual(status, 200)
+        self.assertEqual(listed["items"][0]["status"], "REVOKED")
+        _, task = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks",
+            {"objective": "撤销来源证明后拒绝索引"},
+        )
+        status, blocked = self.request(
+            "POST",
+            f"/api/v1/tasks/{task['id']}/index-results",
+            {
+                "provider": "licensed-search-index",
+                "query": "AI 客服",
+                "proof_ref": "proof-registry-001",
+                "retrieved_at": "2026-09-22T12:00:00Z",
+                "items": [{"title": "撤销后的结果", "source_url": "https://example.com/revoked", "snippet": "不可导入"}],
+            },
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(blocked["error"], "proof_not_registered")
 
     def test_index_import_requires_registered_source_proof(self) -> None:
         _, task = self.request(
