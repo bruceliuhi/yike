@@ -70,6 +70,23 @@ describe('monitor page real service wiring',()=>{
   expect(screen.getByText(/计划：启用 · 本机：本机未接管/).closest('details')).toBeNull();
   expect(screen.getByRole('button',{name:'查询实际轮次结果'})).toBeTruthy();
  });
+ it('shows platform branding in monitoring details',async()=>{
+  context.route=parseRoute(`#/monitors/${id}`);
+  vi.mocked(context.service.monitorCollection!.execute).mockResolvedValue({state:'LIST',supported:true,plans:[{...base}],serverTime:null} as any);
+  context.service.researchStrategies={getStrategy:vi.fn().mockResolvedValue({
+   schema_version:'strategy-confirmation-v1',strategy_version_id:id,draft_id:id,draft_revision:1,profile_version_id:id,
+   profile_sha256:'a'.repeat(64),configuration_sha256:base.configurationSha256,state:'CONFIRMED',
+   created_at:'2026-09-11T00:00:00Z',confirmed_at:'2026-09-11T00:00:00Z',revoked_at:null,is_current:true,profile_current:true,
+   snapshot:{strategy_version_id:id,profile_version_id:id,platforms:['BILIBILI','PUBLIC_WEB'],max_records:10,max_runtime_seconds:60,
+    configuration:{schema_version:'research-strategy-v1',name:'业务监控',source:'search',keywords:['采购'],exclusions:[],links:[],
+     mode:'monitor',schedule:base.schedule,research:null,publicSource:'v2ex-latest-v1'}}
+  })} as any;
+  render(<NativeMonitorPlans/>);
+  await screen.findByText('B站');
+  expect(screen.getByText('B站').closest('.brand-platform-label')).toBeTruthy();
+  expect(screen.getByText('公开网站').closest('.brand-platform-label')).toBeTruthy();
+  expect(document.querySelectorAll('.platform-list .brand-platform-icon img')).toHaveLength(1);
+ });
  it('creates a fresh ordinary monitoring draft from the production monitor route',async()=>{
   context.session.accountScope={id,version:1};
   const key='yike.ui.draft.v1.task.'+taskDraftOwner(context.session.userId,context.session.accountScope);

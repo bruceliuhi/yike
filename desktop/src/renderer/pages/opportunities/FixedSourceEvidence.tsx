@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Button, formatDate } from "../../components/ui";
+import { PlatformLabel } from "../../components/Platform";
 import type { OpportunitySourceEvidence } from "../../domain/opportunitySourceEvidence";
 import { PublicPageMetadata } from './PublicPageMetadata';
 
@@ -9,14 +10,6 @@ type CapturedEvidence = Extract<
 >;
 
 const LONG_BODY_LENGTH = 600;
-
-const platformLabels = {
-  XIAOHONGSHU: "小红书",
-  DOUYIN: "抖音",
-  BILIBILI: "B站",
-  ZHIHU: "知乎",
-  PUBLIC_WEB: "公开网站",
-} as const;
 
 const kindLabels = {
   POST: "帖子",
@@ -135,7 +128,9 @@ export function FixedSourceEvidence({
       </section>}
 
       <dl className="detail-list fixed-evidence-source-facts">
-        <Fact label="来源平台">{platformLabels[source.platform]}</Fact>
+        <Fact label="来源平台">
+          <PlatformLabel platform={source.platform} size={16} />
+        </Fact>
         <Fact label="来源类型">{kindLabels[source.kind]}</Fact>
         <Fact label={source.kind === "COMMENT" ? "评论公开作者" : "公开作者"}>
           {source.author_public_id ?? "未知"}

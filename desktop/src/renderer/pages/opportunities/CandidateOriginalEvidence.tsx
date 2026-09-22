@@ -1,19 +1,13 @@
 import React, { type ReactNode } from "react";
 import type { RawCandidateEvidenceDto } from "../../../shared/rawCandidateEvidence";
 import { formatDate } from "../../components/ui";
+import { PlatformLabel } from "../../components/Platform";
 import { PublicPageMetadata } from './PublicPageMetadata';
 import "./candidateEvidence.css";
 
 type Candidate = RawCandidateEvidenceDto["candidate"];
 type Content = Candidate["current_version"];
 
-const platformLabels = {
-  XIAOHONGSHU: "小红书",
-  DOUYIN: "抖音",
-  BILIBILI: "B站",
-  ZHIHU: "知乎",
-  PUBLIC_WEB: "公开网站",
-} as const;
 const kindLabels = { POST: "帖子", COMMENT: "评论", PAGE: "网页" } as const;
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
@@ -136,7 +130,7 @@ export function CandidateOriginalEvidence({
         />
         <dl className="candidate-evidence-facts">
           <Fact label="来源平台">
-            {platformLabels[candidate.platform]}
+            <PlatformLabel platform={candidate.platform} size={16} />
           </Fact>
           <Fact label="来源类型">
             {kindLabels[candidate.kind]}

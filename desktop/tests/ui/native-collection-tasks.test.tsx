@@ -311,6 +311,8 @@ it("loads real server rows, paginates without execution and routes to exact task
   render(<NativeCollectionTasks />);
   await screen.findByRole("button", { name: "制造企业需求" });
   expect(screen.getByText("2 / 20")).toBeTruthy();
+  expect(screen.getByText("B站").closest(".brand-platform-label")).toBeTruthy();
+  expect(document.querySelector("tbody .brand-platform-icon img")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "制造企业需求" }));
   expect(context.navigate).toHaveBeenCalledWith(`/collection?task=${id}`);
   vi.mocked(context.service.taskFeed!.list).mockResolvedValue({
