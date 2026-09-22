@@ -93,14 +93,30 @@ def build_search_plan(criteria: dict[str, Any], requested_limit: int) -> dict[st
         region_hint = " OR ".join(regions)
         condition = [f"({query}) ({region_hint})" for query in condition]
 
-    sources = _capability_index(list(criteria.get("sources", [])))
+    source_ids: list[str] = []
+    for source_id in criteria.get("sources", []):
+        normalized_source_id = str(source_id).strip()
+        if normalized_source_id and normalized_source_id not in source_ids:
+            source_ids.append(normalized_source_id)
+    sources = _capability_index(source_ids)
     runnable = [item["id"] for item in sources if item["status"] == "READY" and item["can_search"]]
     blocked = [item["id"] for item in sources if item["status"] != "READY" or not item["can_search"]]
+    execution = {
+        "status": "READY" if runnable else "BLOCKED_REQUIRES_SOURCE",
+        "can_start": bool(runnable),
+        "runnable_sources": runnable,
+        "blocked_sources": blocked,
+        "summary": (
+            "至少有一个来源通过自动搜索生产门禁，可以进入队列。"
+            if runnable
+            else "计划已生成，但当前没有通过自动搜索生产门禁的来源；可保存计划或改用受控公开 URL 导入。"
+        ),
+    }
     quick_credits = max(1, len(quick)) * 2
     condition_credits = max(1, len(condition)) * 3
     broad_credits = max(1, len(broad)) * 2
     return {
-        "planner_version": "2026.09.22.1",
+        "planner_version": "2026.09.23.1",
         "requested_limit": requested_limit,
         "strategies": [
             {"id": "quick", "name": "快速搜索", "purpose": "先拿到少量高相关候选", "queries": quick, "estimated_credits": quick_credits},
@@ -116,6 +132,14 @@ def build_search_plan(criteria: dict[str, Any], requested_limit: int) -> dict[st
         "source_plan": sources,
         "runnable_sources": runnable,
         "blocked_sources": blocked,
+        "execution": execution,
+        "coverage": {
+            "requested_source_count": len(sources),
+            "runnable_source_count": len(runnable),
+            "blocked_source_count": len(blocked),
+            "source_ids": [item["id"] for item in sources],
+            "explanation": execution["summary"],
+        },
         "cost_estimate": {
             "min_credits": quick_credits,
             "max_credits": quick_credits + condition_credits + broad_credits,
@@ -124,4 +148,3 @@ def build_search_plan(criteria: dict[str, Any], requested_limit: int) -> dict[st
         },
         "output_contract": ["title", "author", "published_at", "intent_type", "industry_location", "source_url", "snippet", "evidence_level"],
     }
-
