@@ -38,6 +38,7 @@ SOURCE_RESULT_COSTS: dict[str, dict[str, int]] = {
     "search_index_import": {"SUCCESS": 1, "DUPLICATE": 0, "NO_RESULT": 0, "FAILED": 0},
     "public_url_capture": {"SUCCESS": 1, "DUPLICATE": 0, "NO_RESULT": 0, "FAILED": 0},
     "public_url_batch_capture": {"SUCCESS": 1, "DUPLICATE": 0, "NO_RESULT": 0, "FAILED": 0},
+    "public_feed_capture": {"SUCCESS": 1, "DUPLICATE": 0, "NO_RESULT": 0, "FAILED": 0},
     "public_url_reopen": {"SUCCESS": 1, "DUPLICATE": 0, "NO_RESULT": 0, "FAILED": 0},
     # Source IDs used by the planner.  They are quoted here even while blocked
     # so a plan can show the same rule before a connector is enabled.

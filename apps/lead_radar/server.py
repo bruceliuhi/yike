@@ -21,7 +21,7 @@ try:
         fetch_search_results,
         get_search_status,
     )
-    from .capture import CaptureError, fetch_public_page
+    from .capture import CaptureError, fetch_public_feed, fetch_public_page
     from .connectors import list_capabilities
     from .domain import compile_intent, evidence_status
     from .brief_api import get_research_brief
@@ -44,7 +44,7 @@ try:
 except ImportError:  # running server.py directly
     from api_access import ApiAccessError, normalize_api_key, normalize_scopes
     from business_api import BusinessApiError, create_search_task, enrich_entity, fetch_search_results, get_search_status
-    from capture import CaptureError, fetch_public_page
+    from capture import CaptureError, fetch_public_feed, fetch_public_page
     from connectors import list_capabilities
     from domain import compile_intent, evidence_status
     from brief_api import get_research_brief
@@ -572,6 +572,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 return self._create_calibration_batch(payload)
             if path.startswith("/api/v1/tasks/") and path.endswith("/capture-url"):
                 return self._capture_url(path.split("/")[-2], payload)
+            if path.startswith("/api/v1/tasks/") and path.endswith("/capture-feed"):
+                return self._capture_feed(path.split("/")[-2], payload)
             if path.startswith("/api/v1/tasks/") and path.endswith("/capture-urls"):
                 return self._capture_urls(path.split("/")[-2], payload)
             if path.startswith("/api/v1/tasks/") and path.endswith("/index-results"):
@@ -824,6 +826,102 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 "source_provenance": source,
             },
         }
+
+    @staticmethod
+    def _build_feed_item(payload: dict[str, Any], feed: dict[str, Any], entry: dict[str, Any]) -> dict[str, Any]:
+        source = classify_public_url(entry["source_url"])
+        return {
+            "title": entry["title"],
+            "author": payload.get("author"),
+            "entity_name": payload.get("entity_name") or payload.get("company_name"),
+            "entity_type": payload.get("entity_type", "organization"),
+            "published_at": entry.get("published_at"),
+            "intent_type": payload.get("intent_type"),
+            "industry_location": payload.get("industry_location"),
+            "source_kind": "public_feed_capture",
+            "source_url": entry["source_url"],
+            "snippet": entry["snippet"],
+            "evidence_level": "CAPTURED",
+            "source_permission": "public_feed_user_supplied",
+            "evidence_type": "captured_feed_entry",
+            "captured_at": feed["captured_at"],
+            "evidence_metadata": {
+                "feed_url": feed["final_url"],
+                "feed_title": feed["feed_title"],
+                "feed_hash": feed["feed_hash"],
+                "entry_id": entry["entry_id"],
+                "content_hash": entry["content_hash"],
+                "byte_length": feed["byte_length"],
+                "content_type": feed["content_type"],
+                "charset": feed["charset"],
+                "capture_method": "controlled_public_feed_capture",
+                "source_provenance": source,
+            },
+        }
+
+    def _capture_feed(self, task_id: str, payload: dict[str, Any]) -> None:
+        task = self.store.get_task(task_id)
+        if not task:
+            return self._error(404, "task_not_found", "任务不存在")
+        requested_url = str(payload.get("url", "")).strip()
+        if not requested_url:
+            raise ValueError("url_required")
+        limit = payload.get("limit", 20)
+        try:
+            feed = fetch_public_feed(requested_url, limit)
+        except CaptureError as exc:
+            self._record_source_usage(
+                task_id,
+                "public_feed_capture",
+                "FAILED",
+                f"public-feed:{task_id}:{requested_url}:failed",
+                units=0,
+                requested_url=requested_url,
+                error_code=exc.code,
+            )
+            raise
+        items: list[dict[str, Any]] = []
+        for entry in feed["entries"]:
+            item = self._build_feed_item(payload, feed, entry)
+            opportunity, was_duplicate = self.store.add_opportunity(task_id, item, evidence_status(item))
+            usage = self._record_source_usage(
+                task_id,
+                "public_feed_capture",
+                "DUPLICATE" if was_duplicate else "SUCCESS",
+                f"public-feed:{task_id}:{feed['final_url']}:{entry['entry_id']}",
+                source_url=entry["source_url"],
+                feed_url=feed["final_url"],
+                entry_id=entry["entry_id"],
+            )
+            items.append(
+                {
+                    "item": opportunity,
+                    "created": not was_duplicate,
+                    "entry": {
+                        "title": entry["title"],
+                        "source_url": entry["source_url"],
+                        "published_at": entry.get("published_at"),
+                        "content_hash": entry["content_hash"],
+                    },
+                    "usage": usage["entry"],
+                }
+            )
+        self._send(
+            201,
+            {
+                "items": items,
+                "feed": {
+                    "title": feed["feed_title"],
+                    "requested_url": feed["requested_url"],
+                    "final_url": feed["final_url"],
+                    "feed_hash": feed["feed_hash"],
+                    "captured_at": feed["captured_at"],
+                    "entry_count": len(feed["entries"]),
+                },
+                "created_count": sum(int(item["created"]) for item in items),
+                "deduplicated_count": sum(1 for item in items if not item["created"]),
+            },
+        )
 
     def _capture_url(self, task_id: str, payload: dict[str, Any]) -> None:
         task = self.store.get_task(task_id)
@@ -1193,7 +1291,7 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if not opportunity:
             return self._error(404, "opportunity_not_found", "机会不存在")
         source_kind = opportunity.get("source_kind")
-        if source_kind not in {"public_url_capture", "search_index_snippet", "authorized_search_api"}:
+        if source_kind not in {"public_url_capture", "public_feed_capture", "search_index_snippet", "authorized_search_api"}:
             raise ValueError("reopen_supported_for_public_or_index_sources_only")
         request_key = self.headers.get("Idempotency-Key")
         if not request_key:

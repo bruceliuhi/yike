@@ -5,6 +5,7 @@ import html
 import ipaddress
 import re
 import socket
+import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urljoin, urlparse
@@ -18,6 +19,7 @@ except ImportError:  # running server.py directly
 
 MAX_BYTES = 1_000_000
 TIMEOUT_SECONDS = 8
+MAX_FEED_ENTRIES = 50
 
 
 class CaptureError(ValueError):
@@ -141,3 +143,124 @@ def fetch_public_page(url: str) -> dict[str, Any]:
         "captured_at": now_iso(),
     }
 
+
+def _xml_local_name(tag: str) -> str:
+    return str(tag).rsplit("}", 1)[-1].lower()
+
+
+def _xml_text(element: ET.Element | None) -> str:
+    if element is None:
+        return ""
+    value = " ".join("".join(element.itertext()).split())
+    return html.unescape(value).strip()
+
+
+def _feed_link(element: ET.Element, base_url: str) -> str:
+    link = ""
+    for child in list(element):
+        if _xml_local_name(child.tag) != "link":
+            continue
+        href = str(child.attrib.get("href") or "").strip()
+        rel = str(child.attrib.get("rel") or "alternate").strip().lower()
+        candidate = href or _xml_text(child)
+        if candidate and rel in {"alternate", ""}:
+            link = candidate
+            break
+        if not link and candidate:
+            link = candidate
+    if not link:
+        return ""
+    resolved = urljoin(base_url, link)
+    try:
+        return _assert_public_url(resolved)
+    except CaptureError:
+        return ""
+
+
+def _feed_entry(element: ET.Element, feed_url: str) -> dict[str, Any] | None:
+    values: dict[str, str] = {}
+    for child in list(element):
+        name = _xml_local_name(child.tag)
+        if name in {"title", "description", "summary", "content", "published", "updated", "pubdate", "id", "guid"}:
+            values.setdefault(name, _xml_text(child))
+    title = values.get("title", "").strip()[:240]
+    link = _feed_link(element, feed_url)
+    if not title or not link:
+        return None
+    snippet = (values.get("description") or values.get("summary") or values.get("content") or title).strip()
+    snippet = re.sub(r"<[^>]+>", " ", html.unescape(snippet))
+    snippet = " ".join(snippet.split())[:700]
+    entry_id = values.get("guid") or values.get("id") or link
+    digest = hashlib.sha256(f"{entry_id}|{title}|{link}|{snippet}".encode("utf-8")).hexdigest()
+    return {
+        "entry_id": entry_id[:500],
+        "title": title,
+        "source_url": link,
+        "snippet": snippet or title,
+        "published_at": (values.get("published") or values.get("pubdate") or values.get("updated") or "")[:120] or None,
+        "content_hash": digest,
+    }
+
+
+def fetch_public_feed(url: str, limit: int = MAX_FEED_ENTRIES) -> dict[str, Any]:
+    """Fetch a user-submitted public RSS/Atom feed without authentication."""
+
+    requested_url = _assert_public_url(url)
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= MAX_FEED_ENTRIES:
+        raise CaptureError("feed_limit_invalid", f"Feed 条目上限必须是 1 到 {MAX_FEED_ENTRIES}。")
+    request = Request(
+        requested_url,
+        headers={
+            "User-Agent": "LeadRadar/0.1 (+controlled-public-feed-capture)",
+            "Accept": "application/rss+xml,application/atom+xml,application/xml,text/xml;q=0.9",
+        },
+    )
+    opener = build_opener(_SafeRedirectHandler())
+    try:
+        with opener.open(request, timeout=TIMEOUT_SECONDS) as response:
+            final_url = _assert_public_url(response.geturl())
+            content_type = response.headers.get_content_type().lower()
+            if content_type not in {"application/rss+xml", "application/atom+xml", "application/xml", "text/xml"}:
+                raise CaptureError("unsupported_feed_content_type", "目标 URL 不是 RSS/Atom/XML Feed")
+            body = response.read(MAX_BYTES + 1)
+            if len(body) > MAX_BYTES:
+                raise CaptureError("feed_too_large", "Feed 超过 1 MB 采集上限")
+            charset = response.headers.get_content_charset() or "utf-8"
+    except CaptureError:
+        raise
+    except TimeoutError as exc:
+        raise CaptureError("feed_timeout", "Feed 打开超时") from exc
+    except OSError as exc:
+        raise CaptureError("feed_fetch_failed", "Feed 无法打开") from exc
+
+    upper_body = body.upper()
+    if b"<!DOCTYPE" in upper_body or b"<!ENTITY" in upper_body:
+        raise CaptureError("unsafe_xml", "Feed 包含不允许的 XML 外部实体声明")
+    try:
+        root = ET.fromstring(body)
+    except ET.ParseError as exc:
+        raise CaptureError("invalid_feed_xml", "Feed 不是可解析的 RSS/Atom XML") from exc
+    root_name = _xml_local_name(root.tag)
+    if root_name == "rss":
+        channel = next((child for child in list(root) if _xml_local_name(child.tag) == "channel"), root)
+        feed_title = next((_xml_text(child) for child in list(channel) if _xml_local_name(child.tag) == "title"), "")
+        source_elements = [child for child in list(channel) if _xml_local_name(child.tag) == "item"]
+    elif root_name == "feed":
+        feed_title = next((_xml_text(child) for child in list(root) if _xml_local_name(child.tag) == "title"), "")
+        source_elements = [child for child in list(root) if _xml_local_name(child.tag) == "entry"]
+    else:
+        raise CaptureError("unsupported_feed_root", "Feed 根节点必须是 RSS channel 或 Atom feed")
+    entries = [item for item in (_feed_entry(element, final_url) for element in source_elements[:MAX_FEED_ENTRIES]) if item][:limit]
+    if not entries:
+        raise CaptureError("empty_feed", "Feed 没有包含可公开重开的有效条目")
+    return {
+        "requested_url": requested_url,
+        "final_url": final_url,
+        "feed_title": feed_title[:240] or urlparse(final_url).hostname or "公开 Feed",
+        "entries": entries,
+        "feed_hash": hashlib.sha256(body).hexdigest(),
+        "byte_length": len(body),
+        "content_type": content_type,
+        "charset": charset,
+        "captured_at": now_iso(),
+    }
