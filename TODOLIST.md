@@ -59,7 +59,7 @@
 
 ## P3｜持续监测和开发者分发
 
-- [x] Scheduled Tasks：频率、预算上限、结果阈值、失败策略和审批策略；到期触发、排队、来源阻塞和执行结算已落库，后台 worker 仍需显式部署
+- [x] Scheduled Tasks：频率、预算上限、结果阈值、失败策略和审批策略；已提供可显式部署的到期扫描、并发幂等触发、授权来源执行、失败重试和结算 worker
 - [x] Feed / Monitor：新增采购需求、招聘、招标、官网变化、竞品变化；事件绑定来源摘要、内容指纹、机会和人工复核状态
 - [x] 暴露 `create_search_task / get_search_status / fetch_search_results / enrich_entity` 等业务 API
 - [x] 暴露 MCP 工具；不把 Cookie、密码和第三方 Token 暴露为工具参数

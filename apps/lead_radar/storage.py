@@ -808,6 +808,15 @@ class Store:
             ).fetchall()
         return [self._scheduled_task_dict(row, include_runs=False) for row in rows]  # type: ignore[list-item]
 
+    def list_due_scheduled_tasks(self, workspace_id: str, due_at: str | None = None) -> list[dict[str, Any]]:
+        due_at = str(due_at or now_iso()).strip()
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT * FROM scheduled_tasks WHERE workspace_id = ? AND status = 'ACTIVE' AND next_run_at <= ? ORDER BY next_run_at, created_at",
+                (workspace_id, due_at),
+            ).fetchall()
+        return [self._scheduled_task_dict(row, include_runs=False) for row in rows]  # type: ignore[list-item]
+
     def control_scheduled_task(self, schedule_id: str, workspace_id: str, action: str, actor: str = "operator") -> dict[str, Any] | None:
         if action not in {"pause", "resume"}:
             raise ValueError("invalid_schedule_action")
