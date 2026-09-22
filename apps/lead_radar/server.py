@@ -86,6 +86,9 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             return self._send(200, {"items": list_capabilities()})
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/dashboard":
             return self._send(200, self.store.dashboard(WORKSPACE_ID))
+        if path == f"/api/v1/workspaces/{WORKSPACE_ID}/audit":
+            limit = parse_qs(parsed.query).get("limit", ["100"])[0]
+            return self._send(200, self.store.audit_usage(WORKSPACE_ID, limit))
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/tasks":
             return self._send(200, {"items": self.store.list_tasks(WORKSPACE_ID)})
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/opportunities":

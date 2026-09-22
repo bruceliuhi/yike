@@ -17,6 +17,7 @@ python3 apps/lead_radar/server.py --port 8780
 - `GET /api/health`
 - `GET /api/v1/sources/capabilities`
 - `GET /api/v1/workspaces/ws_意客AI/dashboard`
+- `GET /api/v1/workspaces/ws_意客AI/audit?limit=100`
 - `POST /api/v1/workspaces/ws_意客AI/profiles`
 - `POST /api/v1/workspaces/ws_意客AI/tasks`
 - `GET /api/v1/tasks/{task_id}/plan`
@@ -51,6 +52,8 @@ python3 apps/lead_radar/server.py --port 8780
 校准指标只反映当前批次中已录入的机会和人工标签，不代表平台召回率、商机成交率或跨行业效果。样本必须来自真实授权运行或明确的用户提交来源；fixture、静态页面和预置 URL 不能作为生产校准证据。正式发布仍需按 CP-06 记录真实来源 capability、生产数据库/恢复、HTTPS 和客户验收。
 
 机会详情会同时展示证据快照、系统判断、来源权限、人工反馈和审计时间线；详情页只帮助人工复核，不会把查看动作变成联系或发送许可。
+
+总览页的“审计与用量”读取同一工作区的审计事件和用量账本，只读展示任务、证据、反馈和动作草稿的实际变化；credits 汇总来自用量账本，不代表平台搜索已经成功，也不代表外部触达已经发送。
 
 跟进草稿只能从 `SEND_READY` 机会生成，渠道为 `PUBLIC_REPLY`、`EMAIL`、`FEISHU_TASK` 或 `CRM_TASK`。生成时绑定当前证据 ID，默认状态为 `DRAFT`；审批必须显式提交 `confirm:true`，只记录人工批准事实，不调用平台发送器、不写入外部 CRM，也不会把审批当作已发送。重复请求可使用 `Idempotency-Key`，同一机会和渠道不会重复生成未取消草稿。
 

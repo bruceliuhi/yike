@@ -91,6 +91,14 @@ scripts/cp06_validate_env.sh
 docker compose -f deploy/compose.pilot.yml up -d
 ```
 
+构建镜像时传入的 `VCS_REF` 会写入 `YIKE_RELEASE_REVISION`，并由 `/healthz`、`/readyz` 的 `X-Yike-Release-Revision` 响应头返回。切换后可用同一最终 SHA 做版本核对：
+
+```bash
+scripts/cp06_probe.sh https://pilot.example.com <40-hex-release-sha>
+```
+
+缺少版本响应头或响应值与候选 SHA 不一致时，探针失败；健康状态为 200 不能替代版本核对。
+
 `YIKE_PILOT_IMAGE` 必须替换为已记录 digest 的实际镜像；`YIKE_PILOT_ENV_FILE` 必须位于 Git 仓库之外，不能提交或打印。
 运行时 env 文件只允许包含应用连接和运行时密钥，禁止放入 `YIKE_PILOT_ADMIN_DATABASE_URL`；迁移、provision 和研究包导入使用独立的管理员终端/文件。
 

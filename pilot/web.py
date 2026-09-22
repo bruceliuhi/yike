@@ -10,6 +10,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.concurrency import run_in_threadpool
 from urllib.parse import urlsplit
 import logging
+import os
 from pilot.auth import InvalidPilotToken
 from pilot.sessions import authenticate_session
 
@@ -30,6 +31,10 @@ _SECURITY_HEADERS = {
 def _set_security_headers(response) -> None:
     for name, value in _SECURITY_HEADERS.items():
         response.headers[name] = value
+    # Bind health and authenticated responses to the immutable image/source
+    # revision supplied at build time.  A missing value stays explicit instead
+    # of being inferred from a stale deployment note.
+    response.headers["x-yike-release-revision"] = os.environ.get("YIKE_RELEASE_REVISION", "unknown").strip() or "unknown"
 
 
 def _page(title: str, body: str) -> HTMLResponse:

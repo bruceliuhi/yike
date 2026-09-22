@@ -1499,6 +1499,50 @@ class Store:
                 "credits_used": int(self.db.execute("SELECT COALESCE(SUM(credits), 0) FROM usage_ledger WHERE workspace_id = ?", (workspace_id,)).fetchone()[0]),
             }
 
+    def audit_usage(self, workspace_id: str, limit: int = 100) -> dict[str, Any]:
+        """Return a read-only audit trail and usage ledger for one workspace."""
+        try:
+            bounded_limit = max(1, min(int(limit), 200))
+        except (TypeError, ValueError):
+            bounded_limit = 100
+        with self.lock:
+            audit_rows = self.db.execute(
+                """SELECT id, entity_type, entity_id, action, payload_json, created_at
+                   FROM audit_events
+                   WHERE workspace_id = ?
+                   ORDER BY created_at DESC, rowid DESC
+                   LIMIT ?""",
+                (workspace_id, bounded_limit),
+            ).fetchall()
+            usage_rows = self.db.execute(
+                """SELECT id, task_id, operation, units, credits, status,
+                          idempotency_key, created_at
+                   FROM usage_ledger
+                   WHERE workspace_id = ?
+                   ORDER BY created_at DESC, rowid DESC
+                   LIMIT ?""",
+                (workspace_id, bounded_limit),
+            ).fetchall()
+            credits_used = int(self.db.execute(
+                "SELECT COALESCE(SUM(credits), 0) FROM usage_ledger WHERE workspace_id = ?",
+                (workspace_id,),
+            ).fetchone()[0])
+        audits: list[dict[str, Any]] = []
+        for row in audit_rows:
+            entry = dict(row)
+            try:
+                entry["payload"] = json.loads(entry.pop("payload_json") or "{}")
+            except (TypeError, json.JSONDecodeError):
+                entry["payload"] = {}
+                entry.pop("payload_json", None)
+            audits.append(entry)
+        return {
+            "workspace_id": workspace_id,
+            "credits_used": credits_used,
+            "events": audits,
+            "usage": [dict(row) for row in usage_rows],
+        }
+
     @staticmethod
     def _audit(db: sqlite3.Connection, workspace_id: str, entity_type: str, entity_id: str, action: str, payload: dict[str, Any]) -> None:
         db.execute(

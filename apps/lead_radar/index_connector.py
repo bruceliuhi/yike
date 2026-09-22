@@ -53,6 +53,18 @@ def _https_url(value: Any) -> str:
     return url
 
 
+def _position(value: Any, fallback: int) -> int:
+    if value is None or value == "":
+        return fallback
+    try:
+        position = int(value)
+    except (TypeError, ValueError) as exc:
+        raise IndexResultError("position_invalid", "索引 item 的 position 必须是正整数。") from exc
+    if position < 1:
+        raise IndexResultError("position_invalid", "索引 item 的 position 必须是正整数。")
+    return position
+
+
 def normalize_index_results(payload: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Validate server-side search-index output and downgrade it to review evidence.
 
@@ -105,7 +117,7 @@ def normalize_index_results(payload: dict[str, Any]) -> tuple[dict[str, Any], li
                     "query": query,
                     "proof_ref": proof_ref,
                     "retrieved_at": retrieved_at,
-                    "result_position": int(raw.get("position", position)),
+                    "result_position": _position(raw.get("position"), position),
                     "reopen_required": True,
                     "capture_method": "licensed_search_index_import",
                     "source_provenance": provenance,

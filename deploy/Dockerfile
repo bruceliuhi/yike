@@ -8,7 +8,8 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy
+    UV_LINK_MODE=copy \
+    YIKE_RELEASE_REVISION=$VCS_REF
 
 RUN python -m pip install --no-cache-dir uv==0.8.15
 RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin yike

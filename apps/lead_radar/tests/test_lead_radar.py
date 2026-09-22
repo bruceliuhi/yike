@@ -107,6 +107,13 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertEqual(dashboard["running_tasks"], 0)
         self.assertEqual(dashboard["awaiting_source"], 1)
 
+        status, audit = self.request("GET", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/audit?limit=20")
+        self.assertEqual(status, 200)
+        self.assertEqual(audit["workspace_id"], "ws_意客AI")
+        self.assertGreater(len(audit["events"]), 0)
+        self.assertIsInstance(audit["usage"], list)
+        self.assertIn("credits_used", audit)
+
     def test_task_run_cancel_retry_and_event_history(self) -> None:
         _, task = self.request("POST", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks", {"objective": "验证运行控制"})
         status, started = self.request("POST", f"/api/v1/tasks/{task['id']}/start", {"mode": "quick"})
@@ -242,6 +249,14 @@ class LeadRadarApiTest(unittest.TestCase):
         )
         self.assertEqual(status, 400)
         self.assertEqual(future["error"], "retrieved_at_in_future")
+
+        status, invalid_position = self.request(
+            "POST",
+            path,
+            {**payload, "proof_ref": "proof-position", "items": [{**payload["items"][0], "position": "zero"}]},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(invalid_position["error"], "position_invalid")
 
     def test_duplicate_evidence_is_recorded_without_double_counting(self) -> None:
         _, task = self.request("POST", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks", {"objective": "寻找 AI 知识库项目"})

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 base_url="${1:-}"
+expected_revision="${2:-${YIKE_EXPECTED_RELEASE_REVISION:-}}"
 if [[ -z "$base_url" || "$base_url" == -* ]]; then
   echo "usage: cp06_probe.sh https://pilot.example.com" >&2
   exit 2
@@ -28,4 +29,14 @@ if [[ "$health" != *'"status":"ok"'* || "$ready" != *'"status":"ready"'* ]]; the
   echo "CP-06 probe returned unexpected health/readiness payload" >&2
   exit 1
 fi
-printf 'healthz=%s\nreadyz=%s\n' "$health" "$ready"
+release_headers="$("${curl_https[@]}" --dump-header - --output /dev/null "$base_url/healthz")"
+release_revision="$(printf '%s\n' "$release_headers" | awk 'tolower($1)=="x-yike-release-revision:" {print $2; exit}' | tr -d '\r')"
+if [[ -n "$expected_revision" && "$release_revision" != "$expected_revision" ]]; then
+  echo "CP-06 probe revision mismatch: expected $expected_revision, got ${release_revision:-missing}" >&2
+  exit 1
+fi
+if [[ -n "$expected_revision" && -z "$release_revision" ]]; then
+  echo "CP-06 probe did not return x-yike-release-revision" >&2
+  exit 1
+fi
+printf 'healthz=%s\nreadyz=%s\nrelease_revision=%s\n' "$health" "$ready" "${release_revision:-unknown}"

@@ -126,6 +126,17 @@ def test_unhandled_errors_keep_baseline_security_headers():
     assert response.headers["permissions-policy"] == "camera=(), microphone=(), geolocation=()"
 
 
+def test_responses_expose_the_build_revision_without_changing_health_contract(monkeypatch):
+    monkeypatch.setenv("YIKE_RELEASE_REVISION", "release-test-sha")
+    client = TestClient(build_app(Store(), auth_secret="test-secret"))
+
+    response = client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+    assert response.headers["x-yike-release-revision"] == "release-test-sha"
+
+
 def test_api_documentation_is_not_publicly_exposed():
     client = TestClient(build_app(Store(), auth_secret="test-secret"))
 
