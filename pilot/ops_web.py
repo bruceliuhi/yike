@@ -161,8 +161,17 @@ def build_ops_app(store: OpsStore, *, password: str, origin: str) -> FastAPI:
 
     @app.post('/ops/revoke')
     def revoke(request: Request, trial_id: str = Form(...,max_length=36), csrf: str = Form('')):
-        authorize(request,csrf)
-        store.revoke(trial_id)
+        token = authorize(request,csrf)
+        try:
+            store.revoke(trial_id)
+        except OpsError:
+            # An expired, already revoked, malformed or missing trial is an
+            # operator input/state error. Keep it out of the generic 503
+            # handler so the operator does not mistake it for an outage or
+            # retry a destructive action blindly.
+            return page('无法停用',
+                        '<h1>无法停用</h1><p>客户试用不存在、已停用或请求已失效，请刷新客户列表后再试。</p>'
+                        '<a href="/ops/users">返回客户列表</a>', csrf_for(token), 400)
         return RedirectResponse('/ops/users',303)
 
     @app.get('/ops/reissue')
