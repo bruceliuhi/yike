@@ -102,7 +102,7 @@ describe("登录", () => {
     expect(screen.getByRole("button", { name: "获取验证码" })).toBeTruthy();
     expect(service.login).not.toHaveBeenCalled();
   });
-  it("仅真实短信响应启动冷却，首次试用登录需要 8 位试用码", async () => {
+  it("仅真实短信响应启动冷却，首次试用登录无需试用码", async () => {
     const service = mount({
       requestCode: vi.fn().mockResolvedValue({ retryAfter: 60 }),
     });
@@ -119,13 +119,10 @@ describe("登录", () => {
       target: { value: "123456" },
     });
     fireEvent.click(screen.getByRole("button", { name: "登录" }));
-    expect(screen.getByText("首次试用请输入 8 位试用码。")).toBeTruthy();
-    expect(service.login).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText("试用码"), { target: { value: "ab12-cd34" } });
-    fireEvent.click(screen.getByRole("button", { name: "登录" }));
-    await waitFor(()=>expect(service.login).toHaveBeenCalledWith("13800000000", "123456", "AB12CD34"));
+    await waitFor(()=>expect(service.login).toHaveBeenCalledWith("13800000000", "123456"));
+    expect(screen.queryByLabelText("试用码")).toBeNull();
   });
-  it("已激活客户可以收起试用码后直接短信登录", async () => {
+  it("已激活客户也通过同一短信登录入口", async () => {
     const service = mount({
       requestCode: vi.fn().mockResolvedValue({ retryAfter: 60 }),
       login: vi.fn().mockResolvedValue({ authenticated: true, userId: "test-user" }),
@@ -133,12 +130,10 @@ describe("登录", () => {
         .mockResolvedValueOnce({ authenticated: false })
         .mockResolvedValue({ authenticated: true, userId: "test-user" }),
     });
-    fireEvent.click(screen.getByRole("button", { name: "已有客户，直接使用短信验证码登录" }));
-    expect(screen.queryByLabelText("试用码")).toBeNull();
     fireEvent.change(screen.getByLabelText("手机号码"), { target: { value: "13800000000" } });
     fireEvent.change(screen.getByLabelText("短信验证码"), { target: { value: "123456" } });
     fireEvent.click(screen.getByRole("button", { name: "登录" }));
-    await waitFor(() => expect(service.login).toHaveBeenCalledWith("13800000000", "123456", undefined));
+    await waitFor(() => expect(service.login).toHaveBeenCalledWith("13800000000", "123456"));
   });
   it("短信供应商明确拒绝时不进入倒计时并提示稍后重试", async () => {
     const service = mount({
@@ -157,7 +152,6 @@ describe("登录", () => {
     });
     fireEvent.change(screen.getByLabelText("手机号码"), { target: { value: "13800000000" } });
     fireEvent.change(screen.getByLabelText("短信验证码"), { target: { value: "123456" } });
-    fireEvent.change(screen.getByLabelText("试用码"), { target: { value: "ABCDEFGH" } });
     fireEvent.click(screen.getByRole("button", { name: "登录" }));
     await screen.findByText("验证码无效或已过期，请重新核对或获取验证码。");
     fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
@@ -232,7 +226,6 @@ describe("登录", () => {
     });
     fireEvent.change(screen.getByLabelText("手机号码"), { target: { value: "13800000000" } });
     fireEvent.change(screen.getByLabelText("短信验证码"), { target: { value: "123456" } });
-    fireEvent.change(screen.getByLabelText("试用码"), { target: { value: "ABCDEFGH" } });
     fireEvent.click(screen.getByRole("button", { name: "登录" }));
     await waitFor(() => expect(service.session).toHaveBeenCalledTimes(2));
     expect(window.location.hash).not.toBe("#/workbench");
@@ -240,7 +233,7 @@ describe("登录", () => {
     await act(async () => finish({ authenticated: true, userId: "test-user" }));
     await waitFor(() => expect(window.location.hash).toBe("#/workbench"));
     expect(service.login).toHaveBeenCalledOnce();
-    expect(service.login).toHaveBeenCalledWith("13800000000", "123456", "ABCDEFGH");
+    expect(service.login).toHaveBeenCalledWith("13800000000", "123456");
   });
 
   it("短信请求挂起后超时，保留手机号并释放重试入口", async () => {
