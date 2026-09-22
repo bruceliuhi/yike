@@ -52,6 +52,86 @@ class LeadRadarApiTest(unittest.TestCase):
         connection.close()
         return response.status, data
 
+    def register_source_proof(self, proof_ref: str, provider: str = "licensed-search-index") -> tuple[int, dict]:
+        return self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/source-proofs",
+            {
+                "proof_ref": proof_ref,
+                "provider": provider,
+                "source_family": "authorized_search_index",
+                "endpoint": "https://search.example/proof/" + proof_ref,
+                "artifact_sha256": "a" * 64,
+                "checked_at": "2026-09-22T00:00:00Z",
+                "checks": {
+                    "terms_and_robots": True,
+                    "rate_limit": True,
+                    "published_at": True,
+                    "url_reopen": True,
+                    "save_boundary": True,
+                    "retry_idempotency": True,
+                },
+            },
+        )
+
+    def test_source_proof_registration_is_validated_and_idempotent(self) -> None:
+        status, created = self.register_source_proof("proof-registry-001")
+        self.assertEqual(status, 201)
+        self.assertTrue(created["created"])
+        self.assertEqual(created["proof"]["proof_ref"], "proof-registry-001")
+
+        status, duplicate = self.register_source_proof("proof-registry-001")
+        self.assertEqual(status, 200)
+        self.assertFalse(duplicate["created"])
+        self.assertEqual(created["proof"]["id"], duplicate["proof"]["id"])
+
+        status, conflict = self.register_source_proof("proof-registry-001", "other-provider")
+        self.assertEqual(status, 400)
+        self.assertEqual(conflict["error"], "invalid_request")
+
+        malformed = {
+            "proof_ref": "proof-invalid",
+            "provider": "licensed-search-index",
+            "source_family": "authorized_search_index",
+            "endpoint": "http://search.example/proof",
+            "artifact_sha256": "not-a-sha",
+            "checked_at": "2026-09-22T00:00:00Z",
+            "checks": {},
+        }
+        status, rejected = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/source-proofs",
+            malformed,
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(rejected["error"], "endpoint_invalid")
+
+        status, listed = self.request("GET", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/source-proofs")
+        self.assertEqual(status, 200)
+        self.assertEqual(len(listed["items"]), 1)
+
+    def test_index_import_requires_registered_source_proof(self) -> None:
+        _, task = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks",
+            {"objective": "验证来源证明绑定"},
+        )
+        payload = {
+            "provider": "licensed-search-index",
+            "query": "AI 客服",
+            "proof_ref": "proof-unregistered",
+            "retrieved_at": "2026-09-22T12:00:00Z",
+            "items": [{
+                "position": 1,
+                "title": "企业 AI 客服需求",
+                "source_url": "https://example.com/request",
+                "snippet": "公开需求摘要",
+            }],
+        }
+        status, rejected = self.request("POST", f"/api/v1/tasks/{task['id']}/index-results", payload)
+        self.assertEqual(status, 400)
+        self.assertEqual(rejected["error"], "proof_not_registered")
+
     def test_task_idempotency_and_evidence_feedback_loop(self) -> None:
         path = "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks"
         request_headers = {"Idempotency-Key": "same-task-request"}
@@ -213,11 +293,51 @@ class LeadRadarApiTest(unittest.TestCase):
             ],
         }
         path = f"/api/v1/tasks/{task['id']}/index-results"
+        status, blocked = self.request("POST", path, payload)
+        self.assertEqual(status, 400)
+        self.assertEqual(blocked["error"], "proof_not_registered")
+
+        proof_path = "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/source-proofs"
+        proof_payload = {
+            "proof_ref": payload["proof_ref"],
+            "provider": payload["provider"],
+            "source_family": "social_platform",
+            "endpoint": "https://provider.example/search",
+            "artifact_sha256": "a" * 64,
+            "checked_at": "2026-09-22T11:00:00Z",
+            "checks": {
+                "terms_and_robots": True,
+                "rate_limit": True,
+                "published_at": True,
+                "url_reopen": True,
+                "save_boundary": True,
+                "retry_idempotency": True,
+            },
+        }
+        status, registered = self.request("POST", proof_path, proof_payload)
+        self.assertEqual(status, 201)
+        self.assertTrue(registered["created"])
+        status, repeated = self.request("POST", proof_path, proof_payload)
+        self.assertEqual(status, 200)
+        self.assertFalse(repeated["created"])
+        status, conflict = self.request(
+            "POST",
+            proof_path,
+            {**proof_payload, "artifact_sha256": "b" * 64},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(conflict["error"], "invalid_request")
+        self.assertIn("source_proof_ref_conflict", conflict["message"])
+        status, proofs = self.request("GET", proof_path)
+        self.assertEqual(status, 200)
+        self.assertEqual(proofs["items"][0]["artifact_sha256"], "a" * 64)
+
         status, first = self.request("POST", path, payload)
         self.assertEqual(status, 201)
         self.assertEqual(first["created_count"], 2)
         self.assertEqual(first["deduplicated_count"], 0)
         self.assertTrue(first["source"]["reopen_required"])
+        self.assertEqual(first["source"]["proof_registry_status"], "REGISTERED")
         self.assertEqual({item["item"]["status"] for item in first["items"]}, {"REVIEW"})
         by_platform = {
             item["item"]["evidence"][0]["metadata"]["source_provenance"]["platform"]
@@ -225,6 +345,7 @@ class LeadRadarApiTest(unittest.TestCase):
         }
         self.assertEqual(by_platform, {"xiaohongshu", "douyin"})
         self.assertTrue(all(item["item"]["evidence"][0]["metadata"]["reopen_required"] for item in first["items"]))
+        self.assertTrue(all(item["item"]["evidence"][0]["metadata"]["proof_registry_status"] == "REGISTERED" for item in first["items"]))
 
         status, retry = self.request("POST", path, payload)
         self.assertEqual(status, 201)
@@ -276,6 +397,29 @@ class LeadRadarApiTest(unittest.TestCase):
                 "snippet": "索引摘要：企业正在评估 AI 客服解决方案。",
             }],
         }
+        proof_payload = {
+            "proof_ref": "proof-reopen-001",
+            "provider": "licensed-search-index",
+            "source_family": "social_platform",
+            "endpoint": "https://provider.example/search",
+            "artifact_sha256": "c" * 64,
+            "checked_at": "2026-09-22T11:00:00Z",
+            "checks": {
+                "terms_and_robots": True,
+                "rate_limit": True,
+                "published_at": True,
+                "url_reopen": True,
+                "save_boundary": True,
+                "retry_idempotency": True,
+            },
+        }
+        status, registered = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/source-proofs",
+            proof_payload,
+        )
+        self.assertEqual(status, 201)
+        self.assertTrue(registered["created"])
         status, indexed = self.request("POST", f"/api/v1/tasks/{task['id']}/index-results", index_payload)
         self.assertEqual(status, 201)
         opportunity_id = indexed["items"][0]["item"]["id"]

@@ -15,6 +15,7 @@ try:
     from .domain import compile_intent, evidence_status
     from .index_connector import IndexResultError, normalize_index_results
     from .planner import build_search_plan
+    from .proofs import SourceProofError, normalize_source_proof
     from .search_connector import AuthorizedSearchConnector, SearchConnectorError
     from .source_policy import classify_public_url
     from .storage import Store
@@ -24,6 +25,7 @@ except ImportError:  # running server.py directly
     from domain import compile_intent, evidence_status
     from index_connector import IndexResultError, normalize_index_results
     from planner import build_search_plan
+    from proofs import SourceProofError, normalize_source_proof
     from search_connector import AuthorizedSearchConnector, SearchConnectorError
     from source_policy import classify_public_url
     from storage import Store
@@ -89,6 +91,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/audit":
             limit = parse_qs(parsed.query).get("limit", ["100"])[0]
             return self._send(200, self.store.audit_usage(WORKSPACE_ID, limit))
+        if path == f"/api/v1/workspaces/{WORKSPACE_ID}/source-proofs":
+            return self._send(200, {"items": self.store.list_source_proofs(WORKSPACE_ID)})
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/tasks":
             return self._send(200, {"items": self.store.list_tasks(WORKSPACE_ID)})
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/opportunities":
@@ -133,6 +137,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             payload = self._body()
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/profiles":
                 return self._create_profile(payload)
+            if path == f"/api/v1/workspaces/{WORKSPACE_ID}/source-proofs":
+                return self._register_source_proof(payload)
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/tasks":
                 return self._create_task(payload)
             if path == f"/api/v1/workspaces/{WORKSPACE_ID}/calibration-batches":
@@ -173,6 +179,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             return self._error(400, exc.code, exc.message)
         except IndexResultError as exc:
             return self._error(400, exc.code, exc.message)
+        except SourceProofError as exc:
+            return self._error(400, exc.code, exc.message)
         except ValueError as exc:
             return self._error(400, "invalid_request", str(exc))
         except KeyError as exc:
@@ -190,6 +198,11 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         criteria = compile_intent(objective, payload.get("criteria"))
         profile = self.store.create_profile(WORKSPACE_ID, str(payload.get("name") or "自定义画像"), objective, criteria)
         self._send(201, profile)
+
+    def _register_source_proof(self, payload: dict[str, Any]) -> None:
+        proof = normalize_source_proof(payload)
+        registered, created = self.store.save_source_proof(WORKSPACE_ID, proof)
+        self._send(201 if created else 200, {"proof": registered, "created": created})
 
     def _create_task(self, payload: dict[str, Any]) -> None:
         objective = str(payload.get("objective", "")).strip()
@@ -412,9 +425,21 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if not task:
             return self._error(404, "task_not_found", "任务不存在")
         context, normalized = normalize_index_results(payload)
+        proof = self.store.get_source_proof(WORKSPACE_ID, context["proof_ref"], context["provider"])
+        if not proof:
+            raise IndexResultError("proof_not_registered", "索引结果的 proof_ref/provider 尚未在当前工作区登记来源证明。")
         items: list[dict[str, Any]] = []
         deduplicated = 0
         for item in normalized:
+            item["evidence_metadata"].update(
+                {
+                    "proof_registry_status": "REGISTERED",
+                    "proof_artifact_sha256": proof["artifact_sha256"],
+                    "proof_checked_at": proof["checked_at"],
+                    "proof_endpoint": proof["endpoint"],
+                    "proof_checks": proof["checks"],
+                }
+            )
             opportunity, was_duplicate = self.store.add_opportunity(task_id, item, evidence_status(item))
             idempotency_key = "index:{}:{}:{}:{}".format(
                 task_id,
@@ -439,7 +464,12 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 "items": items,
                 "created_count": len(items) - deduplicated,
                 "deduplicated_count": deduplicated,
-                "source": {**context, "reopen_required": True},
+                "source": {
+                    **context,
+                    "reopen_required": True,
+                    "proof_registry_status": "REGISTERED",
+                    "proof_artifact_sha256": proof["artifact_sha256"],
+                },
             },
         )
 

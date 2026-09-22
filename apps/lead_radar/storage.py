@@ -164,6 +164,20 @@ CREATE TABLE IF NOT EXISTS usage_ledger (
     UNIQUE(workspace_id, idempotency_key)
 );
 
+CREATE TABLE IF NOT EXISTS source_proofs (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    proof_ref TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    source_family TEXT NOT NULL,
+    endpoint TEXT NOT NULL,
+    artifact_sha256 TEXT NOT NULL,
+    checked_at TEXT NOT NULL,
+    checks_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(workspace_id, proof_ref)
+);
+
 CREATE TABLE IF NOT EXISTS audit_events (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL REFERENCES workspaces(id),
@@ -1301,9 +1315,10 @@ class Store:
         false_negative_count = sum(
             1 for row in reviewed if row["predicted_label"] != "VALID" and row["gold_label"] == "VALID"
         )
-        reopen_eligible_count = sum(1 for row in rows if row["source_kind"] == "public_url_capture")
+        reopenable_sources = {"public_url_capture", "search_index_snippet", "authorized_search_api"}
+        reopen_eligible_count = sum(1 for row in rows if row["source_kind"] in reopenable_sources)
         reopened_count = sum(
-            1 for row in rows if row["source_kind"] == "public_url_capture" and bool(row["reopened"])
+            1 for row in rows if row["source_kind"] in reopenable_sources and bool(row["reopened"])
         )
         return {
             "item_count": item_count,
@@ -1487,6 +1502,89 @@ class Store:
             )
             if task_id:
                 db.execute("UPDATE tasks SET used_credits = used_credits + ? WHERE id = ?", (credits, task_id))
+
+    def save_source_proof(self, workspace_id: str, proof: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+        """Register a proof binding without storing the raw external artifact."""
+
+        with self.tx() as db:
+            workspace = db.execute("SELECT id FROM workspaces WHERE id = ?", (workspace_id,)).fetchone()
+            if not workspace:
+                raise KeyError("workspace_not_found")
+            existing = db.execute(
+                "SELECT * FROM source_proofs WHERE workspace_id = ? AND proof_ref = ?",
+                (workspace_id, proof["proof_ref"]),
+            ).fetchone()
+            if existing:
+                existing_values = dict(existing)
+                if any(existing_values[key] != proof[key] for key in ("provider", "source_family", "endpoint", "artifact_sha256", "checked_at")):
+                    raise ValueError("source_proof_ref_conflict")
+                if json.loads(existing_values["checks_json"] or "{}") != proof["checks"]:
+                    raise ValueError("source_proof_ref_conflict")
+                return self._source_proof_dict(existing), False  # type: ignore[return-value]
+            proof_id = _id("proof")
+            timestamp = now_iso()
+            db.execute(
+                """INSERT INTO source_proofs
+                   (id, workspace_id, proof_ref, provider, source_family, endpoint,
+                    artifact_sha256, checked_at, checks_json, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    proof_id,
+                    workspace_id,
+                    proof["proof_ref"],
+                    proof["provider"],
+                    proof["source_family"],
+                    proof["endpoint"],
+                    proof["artifact_sha256"],
+                    proof["checked_at"],
+                    _json(proof["checks"]),
+                    timestamp,
+                ),
+            )
+            self._audit(
+                db,
+                workspace_id,
+                "source_proof",
+                proof_id,
+                "registered",
+                {
+                    "proof_ref": proof["proof_ref"],
+                    "provider": proof["provider"],
+                    "source_family": proof["source_family"],
+                    "endpoint": proof["endpoint"],
+                    "artifact_sha256": proof["artifact_sha256"],
+                    "checked_at": proof["checked_at"],
+                    "checks": proof["checks"],
+                },
+            )
+            row = db.execute("SELECT * FROM source_proofs WHERE id = ?", (proof_id,)).fetchone()
+        return self._source_proof_dict(row), True  # type: ignore[return-value]
+
+    @staticmethod
+    def _source_proof_dict(row: sqlite3.Row | dict[str, Any] | None) -> dict[str, Any] | None:
+        if row is None:
+            return None
+        result = dict(row)
+        result["checks"] = json.loads(result.pop("checks_json") or "{}")
+        return result
+
+    def get_source_proof(self, workspace_id: str, proof_ref: str, provider: str | None = None) -> dict[str, Any] | None:
+        query = "SELECT * FROM source_proofs WHERE workspace_id = ? AND proof_ref = ?"
+        params: list[Any] = [workspace_id, proof_ref]
+        if provider is not None:
+            query += " AND provider = ?"
+            params.append(provider)
+        with self.lock:
+            row = self.db.execute(query, params).fetchone()
+        return self._source_proof_dict(row)
+
+    def list_source_proofs(self, workspace_id: str) -> list[dict[str, Any]]:
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT * FROM source_proofs WHERE workspace_id = ? ORDER BY created_at DESC, rowid DESC",
+                (workspace_id,),
+            ).fetchall()
+        return [self._source_proof_dict(row) for row in rows]  # type: ignore[list-item]
 
     def dashboard(self, workspace_id: str) -> dict[str, Any]:
         with self.lock:
