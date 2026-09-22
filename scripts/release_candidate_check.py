@@ -3,8 +3,9 @@
 
 This command deliberately does not probe or infer external production facts.
 It reports local repository checks and keeps the real-source, deployment and
-customer-acceptance gates as NOT_VERIFIED until their evidence is recorded by
-the operator.  Use ``--local-only`` when validating a source checkout.
+customer-acceptance gates as NOT_VERIFIED until a revision-bound evidence
+manifest is recorded by the operator.  Use ``--local-only`` when validating a
+source checkout.
 """
 
 from __future__ import annotations
@@ -204,6 +205,7 @@ def _required_files() -> Check:
         "scripts/cp06_probe.sh",
         "scripts/secret_scan.sh",
         "docs/DEPLOYMENT_ACCEPTANCE_CP06_TEMPLATE.md",
+        "docs/RELEASE_EVIDENCE_CONTRACT.md",
         "docs/V02_IMPLEMENTATION_TASKBOOK.md",
         "deploy/compose.pilot.yml",
     )
@@ -356,7 +358,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--local-only",
         action="store_true",
-        help="return success when local repository checks pass; external gates remain NOT_VERIFIED",
+        help="return success when local checks pass; external gates remain NOT_VERIFIED or RECORDED",
     )
     parser.add_argument(
         "--run-tests",
