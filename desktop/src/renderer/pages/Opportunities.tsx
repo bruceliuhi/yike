@@ -1917,7 +1917,7 @@ function CandidateWorkbench() {
                 </Button>
               }
             >
-              其他线索有处理记录，可前往全部线索查看。
+              其他任务或当前筛选外的原请求仍已保留，可前往全部线索查看。
             </Notice>
           )}
           {!sample && requests.error && (
