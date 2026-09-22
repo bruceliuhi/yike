@@ -62,6 +62,7 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertEqual(created["created_count"], 1)
         opportunity_id = created["items"][0]["id"]
         self.assertEqual(created["items"][0]["status"], "SEND_READY")
+        self.assertEqual(created["items"][0]["decision"]["code"], "VERIFIED_ALLOWED_EVIDENCE")
 
         status, feedback = self.request("POST", f"/api/v1/opportunities/{opportunity_id}/feedback", {"label": "INVALID", "note": "人工复核后排除"})
         self.assertEqual(status, 200)
@@ -135,6 +136,7 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertTrue(result["created"])
         self.assertEqual(result["item"]["status"], "REVIEW")
         self.assertEqual(result["item"]["source_kind"], "public_url_capture")
+        self.assertEqual(result["item"]["decision"]["code"], "CAPTURED_PAGE_NEEDS_REVIEW")
         self.assertEqual(result["item"]["evidence"][0]["metadata"]["content_hash"], "a" * 64)
         with patch("apps.lead_radar.server.fetch_public_page", return_value=capture):
             status, reopened = self.request("POST", f"/api/v1/opportunities/{result['item']['id']}/reopen", {}, {"Idempotency-Key": "reopen-001"})

@@ -10,9 +10,9 @@ from typing import Any, Iterator
 from urllib.parse import urlparse
 
 try:
-    from .domain import now_iso, normalize
+    from .domain import evidence_decision, now_iso, normalize
 except ImportError:  # running server.py directly
-    from domain import now_iso, normalize
+    from domain import evidence_decision, now_iso, normalize
 
 
 SCHEMA = """
@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS opportunities (
     evidence_level TEXT NOT NULL DEFAULT 'UNVERIFIED',
     source_permission TEXT NOT NULL DEFAULT 'unknown',
     score REAL NOT NULL DEFAULT 0,
+    decision_json TEXT NOT NULL DEFAULT '{}',
     dedup_key TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -248,6 +249,9 @@ class Store:
             columns = {row["name"] for row in self.db.execute("PRAGMA table_info(evidence)").fetchall()}
             if "metadata_json" not in columns:
                 self.db.execute("ALTER TABLE evidence ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'")
+            opportunity_columns = {row["name"] for row in self.db.execute("PRAGMA table_info(opportunities)").fetchall()}
+            if "decision_json" not in opportunity_columns:
+                self.db.execute("ALTER TABLE opportunities ADD COLUMN decision_json TEXT NOT NULL DEFAULT '{}'")
             self.db.execute(
                 "INSERT OR IGNORE INTO workspaces(id, name, created_at) VALUES (?, ?, ?)",
                 ("ws_意客AI", "意客 AI 商机雷达", now_iso()),
@@ -561,6 +565,11 @@ class Store:
         dedup_key = hashlib.sha256(dedup_input.encode("utf-8")).hexdigest()
         opportunity_id = _id("opp")
         timestamp = now_iso()
+        # `status` is the persisted workflow state chosen by the caller.  It must
+        # not be fed back as an operator override: REVIEW is the normal state for
+        # newly captured evidence, and the decision code should still explain why
+        # that evidence needs review (for example CAPTURED_PAGE_NEEDS_REVIEW).
+        decision = item.get("decision") or evidence_decision(item)
         with self.tx() as db:
             existing = db.execute(
                 "SELECT * FROM opportunities WHERE workspace_id = ? AND dedup_key = ?",
@@ -574,8 +583,8 @@ class Store:
                 """INSERT INTO opportunities
                 (id, workspace_id, task_id, status, title, author, published_at, intent_type,
                  industry_location, source_kind, source_url, snippet, evidence_level,
-                 source_permission, score, dedup_key, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                 source_permission, score, decision_json, dedup_key, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     opportunity_id,
                     workspace_id,
@@ -592,6 +601,7 @@ class Store:
                     item.get("evidence_level", "UNVERIFIED"),
                     item.get("source_permission", "unknown"),
                     float(item.get("score", 0)),
+                    _json(decision),
                     dedup_key,
                     timestamp,
                     timestamp,
@@ -823,6 +833,7 @@ class Store:
                     (result["id"],),
                 ).fetchall()
             result["evidence"] = []
+            result["decision"] = json.loads(result.pop("decision_json") or "{}")
             for item in evidence:
                 entry = dict(item)
                 entry["metadata"] = json.loads(entry.pop("metadata_json") or "{}")
