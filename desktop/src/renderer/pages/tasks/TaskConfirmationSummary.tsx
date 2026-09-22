@@ -169,6 +169,10 @@ export function TaskConfirmationSummary({
                   <dd>
                     <span>{scheduleWindowLabel(draft.schedule)}</span>
                     <span className="muted"> · {scheduleRegionLabel(draft.schedule.timezone)}</span>
+                    <p className="field-hint">当前页面不代表已经按规则运行。</p>
+                    {draft.schedule.policyVersion === undefined && (
+                      <p className="field-hint">历史日程未声明。</p>
+                    )}
                   </dd>
                 </div>
                 <div>

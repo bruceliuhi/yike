@@ -1121,12 +1121,16 @@ export function TaskWizardPage() {
                       <p className="field-hint">任务窗口：{scheduleWindowLabel(draft.schedule)}</p>
                     )}
                     <p className="field-hint">离线错过的计划不补跑，恢复在线后从下次计划继续。</p>
+                    <p className="field-hint">当前页面不代表已经按规则运行，启动前仍需完成平台与执行条件检查。</p>
                     {draft.schedule.policyVersion === undefined && (
-                      <Button variant="ghost" onClick={() => update({
-                        schedule: { ...draft.schedule, policyVersion: 1 },
-                      })}>
-                        采用当前日程规则
-                      </Button>
+                      <>
+                        <p className="field-hint">历史日程未声明。</p>
+                        <Button variant="ghost" onClick={() => update({
+                          schedule: { ...draft.schedule, policyVersion: 1 },
+                        })}>
+                          采用当前日程规则
+                        </Button>
+                      </>
                     )}
                     <p className="field-hint">执行时间仍受所选平台能力和设备在线状态限制。</p>
                   </div>
