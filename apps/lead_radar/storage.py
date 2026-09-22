@@ -715,7 +715,11 @@ class Store:
                 ),
             )
             self._resolve_opportunity_entities(db, workspace_id, opportunity_id, item)
-            self._audit(db, workspace_id, "opportunity", opportunity_id, "created", {"task_id": task_id, "status": status})
+            audit_payload = {"task_id": task_id, "status": status}
+            manual_override = item.get("_manual_override")
+            if isinstance(manual_override, dict):
+                audit_payload["manual_override"] = dict(manual_override)
+            self._audit(db, workspace_id, "opportunity", opportunity_id, "created", audit_payload)
         return self.get_opportunity(opportunity_id), False  # type: ignore[return-value]
 
     def get_opportunity(self, opportunity_id: str) -> dict[str, Any] | None:

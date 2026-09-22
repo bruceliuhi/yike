@@ -16,6 +16,13 @@ from apps.lead_radar.search_connector import SearchConnectorError
 
 ROOT = Path(__file__).resolve().parents[3]
 
+MANUAL_SEND_READY_OVERRIDE = {
+    "status": "SEND_READY",
+    "actor": "qa",
+    "reason": "人工打开原文并核对采购意向",
+    "confirmed": True,
+}
+
 
 PROOF_ENV = {
     "LEAD_RADAR_SEARCH_PROOF_REF": "qa-search-proof-001",
@@ -193,7 +200,7 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertEqual(rejected["error"], "invalid_request")
 
-        status, created = self.request("POST", task_path, {"title": "企业寻找 AI 客服开发团队", "author": "公开账号", "source_url": "https://example.com/a", "snippet": "希望寻找团队定制企业 AI 客服并尽快落地。", "intent_type": "定制 / 开发", "source_permission": "allowed", "evidence_level": "VERIFIED"})
+        status, created = self.request("POST", task_path, {"title": "企业寻找 AI 客服开发团队", "author": "公开账号", "source_url": "https://example.com/a", "snippet": "希望寻找团队定制企业 AI 客服并尽快落地。", "intent_type": "定制 / 开发", "source_permission": "allowed", "evidence_level": "VERIFIED", "manual_override": MANUAL_SEND_READY_OVERRIDE})
         self.assertEqual(status, 201)
         self.assertEqual(created["created_count"], 1)
         opportunity_id = created["items"][0]["id"]
@@ -256,6 +263,33 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertEqual(retried["run"]["events"][0]["event_type"], "retry_created")
         self.assertEqual(len(retried["runs"]), 2)
 
+    def test_manual_verified_ingest_requires_explicit_override_and_audits_it(self) -> None:
+        _, task = self.request(
+            "POST",
+            "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks",
+            {"objective": "验证人工覆写门禁"},
+        )
+        path = f"/api/v1/tasks/{task['id']}/opportunities"
+        base = {
+            "title": "人工核验的 AI 客服需求",
+            "source_url": "https://manual.example/request",
+            "snippet": "原文明确表达正在寻找 AI 客服定制开发团队。",
+            "source_permission": "allowed",
+            "evidence_level": "VERIFIED",
+        }
+        status, blocked = self.request("POST", path, base)
+        self.assertEqual(status, 400)
+        self.assertEqual(blocked["message"], "manual_override_required")
+
+        status, created = self.request(
+            "POST", path, {**base, "manual_override": MANUAL_SEND_READY_OVERRIDE}
+        )
+        self.assertEqual(status, 201)
+        opportunity = created["items"][0]
+        self.assertEqual(opportunity["status"], "SEND_READY")
+        self.assertEqual(opportunity["evidence"][0]["metadata"]["manual_override"]["actor"], "qa")
+        self.assertEqual(opportunity["audit_events"][-1]["payload"]["manual_override"]["reason"], "人工打开原文并核对采购意向")
+
     def test_action_drafts_bind_evidence_and_require_explicit_approval(self) -> None:
         _, task = self.request(
             "POST",
@@ -272,6 +306,7 @@ class LeadRadarApiTest(unittest.TestCase):
                 "intent_type": "定制 / 开发",
                 "source_permission": "allowed",
                 "evidence_level": "VERIFIED",
+                "manual_override": MANUAL_SEND_READY_OVERRIDE,
             },
         )
         opportunity_id = created["items"][0]["id"]
@@ -590,6 +625,7 @@ class LeadRadarApiTest(unittest.TestCase):
             "snippet": "明确寻找 AI 客服定制开发团队。",
             "source_permission": "allowed",
             "evidence_level": "VERIFIED",
+            "manual_override": MANUAL_SEND_READY_OVERRIDE,
         }
         _, first = self.request("POST", path, {**common, "source_url": "https://xinghe.example/brief-a"})
         _, second = self.request("POST", path, {**common, "title": "星河科技知识库需求", "source_url": "https://xinghe.example/brief-b"})
@@ -623,7 +659,7 @@ class LeadRadarApiTest(unittest.TestCase):
     def test_manual_entity_merge_and_split_keep_opportunity_links_auditable(self) -> None:
         _, task = self.request("POST", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/tasks", {"objective": "寻找企业 AI 项目"})
         path = f"/api/v1/tasks/{task['id']}/opportunities"
-        base = {"title": "AI 项目线索", "snippet": "寻找 AI 定制开发团队。", "source_permission": "allowed", "evidence_level": "VERIFIED"}
+        base = {"title": "AI 项目线索", "snippet": "寻找 AI 定制开发团队。", "source_permission": "allowed", "evidence_level": "VERIFIED", "manual_override": MANUAL_SEND_READY_OVERRIDE}
         _, left = self.request("POST", path, {**base, "entity_name": "甲公司", "source_url": "https://jia.example/a"})
         _, right = self.request("POST", path, {**base, "title": "AI 项目线索 2", "entity_name": "乙公司", "source_url": "https://yi.example/b"})
         left_id = left["items"][0]["entities"][0]["id"]
@@ -764,6 +800,7 @@ class LeadRadarApiTest(unittest.TestCase):
                 "snippet": "这是一条经过授权但人工判定无效的样本。",
                 "source_permission": "allowed",
                 "evidence_level": "VERIFIED",
+                "manual_override": MANUAL_SEND_READY_OVERRIDE,
             },
         )
         _, unverified = self.request(
@@ -891,6 +928,7 @@ class LeadRadarApiTest(unittest.TestCase):
                 "intent_type": "定制开发",
                 "source_permission": "allowed",
                 "evidence_level": "VERIFIED",
+                "manual_override": MANUAL_SEND_READY_OVERRIDE,
             },
         )
         opportunity_id = created["items"][0]["id"]

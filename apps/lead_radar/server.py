@@ -76,6 +76,34 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             raise ValueError("body_must_be_object")
         return value
 
+    @staticmethod
+    def _normalize_manual_override(item: dict[str, Any]) -> dict[str, Any]:
+        """Require an explicit, attributable human promotion to SEND_READY."""
+
+        raw = item.get("manual_override")
+        if not isinstance(raw, dict):
+            raise ValueError("manual_override_required")
+        if raw.get("status") != "SEND_READY":
+            raise ValueError("manual_override_status_invalid")
+        if raw.get("confirmed") is not True:
+            raise ValueError("manual_override_confirmation_required")
+        actor = str(raw.get("actor", "")).strip()
+        reason = str(raw.get("reason", "")).strip()
+        if not actor:
+            raise ValueError("manual_override_actor_required")
+        if len(actor) > 120:
+            raise ValueError("manual_override_actor_too_long")
+        if not reason:
+            raise ValueError("manual_override_reason_required")
+        if len(reason) > 500:
+            raise ValueError("manual_override_reason_too_long")
+        return {
+            "status": "SEND_READY",
+            "actor": actor,
+            "reason": reason,
+            "confirmed": True,
+        }
+
     def _record_source_usage(
         self,
         task_id: str | None,
@@ -625,6 +653,10 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         for item in raw_items:
             if not isinstance(item, dict):
                 raise ValueError("item_must_be_object")
+            item = dict(item)
+            # This private field is server-generated below; callers cannot
+            # smuggle an already-normalized override into the audit trail.
+            item.pop("_manual_override", None)
             for required in ("title", "source_url", "snippet"):
                 if not str(item.get(required, "")).strip():
                     raise ValueError(f"{required}_required")
@@ -633,6 +665,14 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             status = evidence_status(item)
             if item.get("status") == "SEND_READY" and status != "SEND_READY":
                 raise ValueError("send_ready_requires_verified_allowed_evidence")
+            if status == "SEND_READY":
+                override = self._normalize_manual_override(item)
+                item["_manual_override"] = override
+                evidence_metadata = dict(item.get("evidence_metadata") or {})
+                evidence_metadata["manual_override"] = override
+                item["evidence_metadata"] = evidence_metadata
+            elif item.get("manual_override") is not None:
+                raise ValueError("manual_override_requires_verified_allowed_evidence")
             opportunity, was_duplicate = self.store.add_opportunity(task_id, item, status)
             self.store.record_usage(WORKSPACE_ID, task_id, "evidence_ingest", 1, 0, "COMPLETED")
             created.append(opportunity)  # type: ignore[arg-type]
