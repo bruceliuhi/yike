@@ -4,6 +4,7 @@
 
 - 当前 Gitee `main` 与本地候选已同步到 `ab5fd7d`；期间合入小红书原生搜索进度增量，保留其 `xhs-search-items-v1` 游标/恢复实现，不覆盖其他贡献者改动。
 - 修复 `tests/test_public_read_session.py` 的收集时序缺陷：构造器 1800 秒截止校验保持不变，测试在执行时冻结时钟，避免全套回归因排队时间把原本非法的 `+1801` 变成合法值。受影响研究定向套件 `214 passed, 8 skipped`。
+- 另修复 `tests/test_responses_bridge.py` 在断言前调用 `ThreadingHTTPServer.shutdown()` 导致的绝对截止回归时序抖动；断言仍验证响应在截止后快速返回，清理不再污染耗时。当前完整 Python 回归为 `4245 passed, 1483 skipped, 8 failed`，剩余 8 项均要求 Windows 路径/运行环境，不能在 macOS 主机上判为产品回归。
 - 线上 `https://yike.tuokexing.net` 的 `healthz/readyz` 仍正常，但服务器容器 revision 为历史 `b95b788`，不是当前主干；因此不能把主干提交写成生产已上线。
 - `b95b788 → ab5fd7d` 的服务差量包含迁移 147/148、运营审计权限以及动态研究、网页证据、小红书进度和客户端合同变化；发布必须以同一最终提交重构 customer/research 镜像，按迁移→最小授权→候选启动→回滚保留顺序执行，并配套同源 Windows 客户端。旧镜像和旧客户端不得与新研究合同混称同版。
 - 当前剩余放行条件仍是：登录后实际 capability 回执、真实自主研究一次（SEARCH→READ→候选→证据页）、三种业务重复验证，以及 Windows 实机/生产迁移回滚证据。测试、readyz、固定 V2EX 读取和页面存在均不替代这些条件；本节不表示已部署或商业价值已验证。
