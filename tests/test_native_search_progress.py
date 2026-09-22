@@ -57,6 +57,18 @@ def native_batch_progress(**changes):
     return value
 
 
+def xhs_native_batch_progress(**changes):
+    value = native_batch_progress()
+    value["adapter_version"] = "xhs-search-items-v1"
+    value["queries"][0].update(
+        before={"page": 1, "search_id": "search-1", "consumed_ids": [], "refresh_next": False},
+        after={"page": 1, "search_id": "search-1", "consumed_ids": [], "refresh_next": True},
+        page_ids=["note-1"], processed_ids=["note-1"],
+    )
+    value.update(changes)
+    return value
+
+
 def test_legacy_claim_bytes_remain_unchanged():
     body = operation_payload("CLAIM")
     operation = ExecutionOperation.model_validate(body)
@@ -129,7 +141,7 @@ def test_batch_native_progress_rejects_invalid_shapes_and_cursor_math(mutate):
         validate_candidate_batch(batch(native_progress=progress), now=NOW)
 
 
-def test_batch_native_progress_is_bilibili_account_only():
+def test_batch_native_progress_is_supported_for_account_platforms_only():
     from pilot.candidate_contract import CandidateContractError, validate_candidate_batch
     from tests.test_candidate_contract import anonymous_execution
 
@@ -142,6 +154,24 @@ def test_batch_native_progress_is_bilibili_account_only():
             platform="PUBLIC_WEB", execution=anonymous_execution(), records=[],
             native_progress=native_batch_progress(),
         ), now=NOW)
+    assert validate_candidate_batch(batch(
+        platform="XIAOHONGSHU", records=[], native_progress=xhs_native_batch_progress(),
+    ), now=NOW).native_progress.adapter_version == "xhs-search-items-v1"
+
+
+def test_xhs_cursor_preserves_search_id_across_page_and_refresh():
+    before = {"page": 2, "search_id": "search-1", "consumed_ids": [], "refresh_next": False}
+    assert advance_cursor(before, ["note-1", "note-2"], ["note-1"], True) == {
+        "page": 2, "search_id": "search-1", "consumed_ids": ["note-1"], "refresh_next": True,
+    }
+    assert advance_cursor(
+        {"page": 2, "search_id": "search-1", "consumed_ids": ["note-1"], "refresh_next": True},
+        ["note-1", "note-2"], ["note-1", "note-2"], True,
+    ) == {"page": 2, "search_id": "search-1", "consumed_ids": ["note-1"], "refresh_next": False}
+    assert advance_cursor(
+        {"page": 2, "search_id": "search-1", "consumed_ids": ["note-1"], "refresh_next": False},
+        ["note-1", "note-2"], ["note-2"], True,
+    ) == {"page": 3, "search_id": "search-1", "consumed_ids": [], "refresh_next": True}
 
 
 @pytest.mark.parametrize("mode", [
@@ -162,7 +192,7 @@ def test_support_advertises_native_progress_only_for_existing_search_monitor_pol
     )
 
     assert negotiated.status_code == 200
-    assert negotiated.json() == legacy | {"native_progress": ["BILIBILI"]}
+    assert negotiated.json() == legacy | {"native_progress": ["BILIBILI", "XIAOHONGSHU"]}
 
 
 def test_support_does_not_advertise_native_progress_for_once():
@@ -320,7 +350,7 @@ def native_databases():
         connection.execute(sql.SQL("DROP ROLE {}") .format(sql.Identifier(role)))
 
 
-def _native_env(databases, *, tenant=None, label="main", max_records=10):
+def _native_env(databases, *, tenant=None, label="main", max_records=10, platform="BILIBILI"):
     admin, database, _ = databases
     provisioner = PilotStore(admin)
     tenant = tenant or provisioner.provision_tenant("synthetic-native-progress-" + label)
@@ -331,7 +361,7 @@ def _native_env(databases, *, tenant=None, label="main", max_records=10):
     device = store.register_device(user, "synthetic-native-progress")["device_id"]
     key = SigningKey.generate()
     bind(SimpleNamespace(service=DeviceCredentialStore(database), claims=claims, device=device), key)
-    connection = store.connect_platform(user, "BILIBILI", device, "synthetic-account", "vault://synthetic")
+    connection = store.connect_platform(user, platform, device, "synthetic-account", "vault://synthetic")
     with admin.connect() as db:
         db.execute("UPDATE pilot_platform_connections SET status='CONNECTED' WHERE connection_id=%s",
                    (connection["connection_id"],))
@@ -339,23 +369,23 @@ def _native_env(databases, *, tenant=None, label="main", max_records=10):
             "SELECT connection_version FROM pilot_platform_connections WHERE connection_id=%s",
             (connection["connection_id"],),
         ).fetchone()[0]
-    profile = provisioner.save_profile(user, {"description": "合成B站进度"})["version_id"]
+    profile = provisioner.save_profile(user, {"description": "合成" + platform + "进度"})["version_id"]
     provisioner.confirm_profile(user, profile)
     schedule = {
         "kind": "interval", "times": [], "interval": 1, "start": "00:00", "end": "23:59",
         "timezone": "UTC", "policyVersion": 1,
     }
     config = configuration(
-        name="合成B站进度", mode="monitor", schedule=schedule,
+        name="合成" + platform + "进度", mode="monitor", schedule=schedule,
         keywords=["全局词"], exclusions=[],
         platformQueries={"version": "platform-queries-v1", "items": [{
-            "platform": "BILIBILI", "keywords": ["设备采购", "工厂改造"],
+            "platform": platform, "keywords": ["设备采购", "工厂改造"],
         }]},
     )
     strategies = ResearchStrategyStore(database)
     seed = SimpleNamespace(profile=profile)
     prepared = strategies.prepare(claims, prepare_body(
-        seed, configuration=config, platforms=["BILIBILI"], max_records=max_records,
+        seed, configuration=config, platforms=[platform], max_records=max_records,
     ))
     confirmed = strategies.confirm(claims, confirm_body(prepared))
     plans = MonitorPlanStore(database, strategy_resolver=strategies.resolve)
@@ -373,7 +403,7 @@ def _native_env(databases, *, tenant=None, label="main", max_records=10):
     monitor = MonitorRuntime(database, execution)
     execution.monitor_runtime = monitor
     target = {
-        "platform": "BILIBILI", "access_mode": "PLATFORM_ACCOUNT",
+        "platform": platform, "access_mode": "PLATFORM_ACCOUNT",
         "connection_id": connection["connection_id"],
         "connection_version": connection["connection_version"],
     }
@@ -430,7 +460,7 @@ def _native_batch(env, begun, lease, *, request_id=None, query_count=1, page_ids
         })
     return {
         "schema_version": "candidate-upload-v1", "request_id": request_id or str(uuid4()),
-        "platform": "BILIBILI", "profile_version_id": env.profile,
+        "platform": env.target["platform"], "profile_version_id": env.profile,
         "strategy_version_id": env.snapshot["strategy_version_id"],
         "execution": {
             "device_id": env.device, "task_id": begun["task_id"], "run_id": begun["run_id"],
@@ -442,7 +472,7 @@ def _native_batch(env, begun, lease, *, request_id=None, query_count=1, page_ids
         "records": [],
         "native_progress": {
             "schema_version": "native-search-progress-v1",
-            "adapter_version": "bili-search-items-v1",
+            "adapter_version": "bili-search-items-v1" if env.target["platform"] == "BILIBILI" else "xhs-search-items-v1",
             "claim_request_id": lease["request_id"], "queries": queries,
         },
     }
@@ -462,6 +492,11 @@ def _finish_native(env, begun, lease, upload_request_id):
 @pytest.fixture(scope="module")
 def native_env(native_databases):
     return _native_env(native_databases)
+
+
+@pytest.fixture(scope="module")
+def native_xhs_env(native_databases):
+    return _native_env(native_databases, label="xhs", platform="XIAOHONGSHU")
 
 
 def test_real_pg_claim_empty_batch_head_commit_replay_and_next_claim(native_env):
@@ -498,6 +533,25 @@ def test_real_pg_claim_empty_batch_head_commit_replay_and_next_claim(native_env)
     second = _native_batch(env, begun1, lease1, page_ids=("9",), processed_ids=("9",))
     receipt1 = submit(env, CandidateIngestionStore(env.db, env.execution), second)
     assert receipt1["native_progress"] == second["native_progress"]
+    _finish_native(env, begun1, lease1, second["request_id"])
+
+
+def test_real_pg_xhs_claim_commit_keeps_search_id_across_restart(native_xhs_env):
+    env = native_xhs_env
+    begun0, _, lease0 = _begin_native_claim(env)
+    assert lease0["native_progress"]["adapter_version"] == "xhs-search-items-v1"
+    first_cursor = lease0["native_progress"]["queries"][0]["cursor"]
+    assert first_cursor["search_id"] and first_cursor["page"] == 1
+    first = _native_batch(env, begun0, lease0, page_ids=("note-1",), processed_ids=("note-1",), has_more=True)
+    receipt0 = submit(env, CandidateIngestionStore(env.db, env.execution), first)
+    assert receipt0["native_progress"]["adapter_version"] == "xhs-search-items-v1"
+    _finish_native(env, begun0, lease0, first["request_id"])
+    begun1, _, lease1 = _begin_native_claim(env)
+    resumed = lease1["native_progress"]["queries"][0]["cursor"]
+    assert resumed["search_id"] == first_cursor["search_id"]
+    assert resumed["page"] == 2 and resumed["refresh_next"] is True
+    second = _native_batch(env, begun1, lease1, page_ids=("note-2",), processed_ids=("note-2",), has_more=False)
+    assert submit(env, CandidateIngestionStore(env.db, env.execution), second)["accepted_count"] == 0
     _finish_native(env, begun1, lease1, second["request_id"])
 
 

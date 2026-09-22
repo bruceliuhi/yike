@@ -41,7 +41,7 @@ export const candidateSubmissionSchema = z.object({schema_version: z.literal('ca
         records[0].collector_version!=='v2ex-outsourcing-authors-v1'||records[0].source_context===undefined||
         records[0].public_url!==`https://www.v2ex.com/t/${value.public_revisit.topic_id}`)return false;
     }
-    if(value.native_progress!==undefined&&(value.platform!=='BILIBILI'||execution.access_mode!=='PLATFORM_ACCOUNT'))return false;
+    if(value.native_progress!==undefined&&(!['BILIBILI','XIAOHONGSHU'].includes(value.platform)||execution.access_mode!=='PLATFORM_ACCOUNT'))return false;
     if (execution.access_mode === 'PLATFORM_ACCOUNT') {
       if (execution.connection_id === null || execution.connection_version === null) return false;
     } else if (value.platform !== 'PUBLIC_WEB' || execution.connection_id !== null || execution.connection_version !== null) return false;

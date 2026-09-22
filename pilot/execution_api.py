@@ -52,7 +52,7 @@ def register_execution_api(router, runtime, identity, require_session_https):
             if query == [('native_progress_version', '1')]:
                 from pilot.native_search_progress import native_search_progress_supported
                 if native_search_progress_supported(service.capability_check):
-                    return result | {'native_progress': ['BILIBILI']}
+                    return result | {'native_progress': ['BILIBILI', 'XIAOHONGSHU']}
                 return result
             raise ExecutionRuntimeError('invalid_request', 422)
         return run(request, supported)

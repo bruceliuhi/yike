@@ -140,7 +140,8 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
                            cancel_requested=None, expected_account_public_id=None, native_link=None, native_progress=None) -> dict:
     from app.collection_output import read_collection_output, CollectionOutputError
     from pilot.native_collection_links import validate_bili_collection_target
-    from app.bili_search_progress import checked_input, checked_delta, MARKER
+    from app.bili_search_progress import checked_input as checked_bili_input, checked_delta as checked_bili_delta, MARKER as BILI_MARKER
+    from app.xhs_search_progress import checked_input as checked_xhs_input, checked_delta as checked_xhs_delta, MARKER as XHS_MARKER
     if sys.platform != 'win32':
         raise WindowsSourceError('windows_required')
     started = time.monotonic()
@@ -159,9 +160,9 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
         if (platform == 'ZHIHU' or expected_account_public_id is not None) and not valid_account(platform, expected_account_public_id):
             raise WindowsSourceError('source_input_invalid')
         if native_progress is not None:
-            if platform != 'BILIBILI' or mode != 'search' or not valid_account(platform,expected_account_public_id):
+            if platform not in ('BILIBILI', 'XIAOHONGSHU') or mode != 'search' or not valid_account(platform,expected_account_public_id):
                 raise WindowsSourceError('source_input_invalid')
-            native_progress = checked_input(native_progress,query)
+            native_progress = (checked_bili_input if platform == 'BILIBILI' else checked_xhs_input)(native_progress,query)
         paths = [Path(p) for p in (runtime_path, profile_path, output_path)]
         if any(not p.is_absolute() or p.drive.startswith('\\') for p in paths):
             raise WindowsSourceError('source_input_invalid')
@@ -248,9 +249,14 @@ def collect_windows_source(*, runtime_path: Path, profile_path: Path, output_pat
                 raise ValueError()
             if stopped := interrupted():
                 return stopped
-            delta = {} if native_progress is None else {'native_progress':checked_delta(_json(output_path / MARKER),native_progress,max_contents)}
+            if native_progress is None:
+                delta = {}
+            else:
+                marker = BILI_MARKER if platform == 'BILIBILI' else XHS_MARKER
+                checker = checked_bili_delta if platform == 'BILIBILI' else checked_xhs_delta
+                delta = {'native_progress': checker(_json(output_path / marker), native_progress, max_contents)}
             return {'state': 'COLLECTED', 'records': records, 'output_path': str(output_path),
-                    'query': query, 'collector_version': 'mediacrawler-' + PIN + ('-bili-search-items-v1' if native_progress is not None else '' if mode == 'search' else '-bili-links-v1'), 'task_completed': False, **delta}
+                    'query': query, 'collector_version': 'mediacrawler-' + PIN + (('-bili-search-items-v1' if platform == 'BILIBILI' else '-xhs-search-items-v1') if native_progress is not None else '' if mode == 'search' else '-bili-links-v1'), 'task_completed': False, **delta}
     except WindowsSourceError:
         raise
     except (OSError, ValueError, TypeError, RuntimeError, CollectionOutputError):

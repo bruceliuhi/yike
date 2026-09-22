@@ -22,7 +22,8 @@ from app.platform_login_worker import valid_account
 from connectors.candidate_mapping import CandidateMappingError, build_comment_batch
 from pilot.candidate_contract import CandidateContractError
 from pilot.native_collection_links import validate_bili_collection_target
-from app.bili_search_progress import checked_input, checked_delta
+from app.bili_search_progress import checked_input as checked_bili_input, checked_delta as checked_bili_delta
+from app.xhs_search_progress import checked_input as checked_xhs_input, checked_delta as checked_xhs_delta
 
 
 SCHEMA_VERSION = 'windows-source-host-v1'
@@ -85,9 +86,9 @@ def _request(stdin) -> dict:
             raise ValueError()
         query.encode('utf-8')
     if 'native_progress' in payload:
-        if payload['platform'] != 'BILIBILI' or 'native_link' in payload or 'expected_account_public_id' not in payload:
+        if payload['platform'] not in ('BILIBILI', 'XIAOHONGSHU') or 'native_link' in payload or 'expected_account_public_id' not in payload:
             raise ValueError()
-        checked_input(payload['native_progress'],query)
+        (checked_bili_input if payload['platform'] == 'BILIBILI' else checked_xhs_input)(payload['native_progress'],query)
     for key in ('runtime_path', 'profile_path', 'output_path'):
         value = payload[key]
         if not isinstance(value, str) or not value or not value.isprintable():
@@ -135,7 +136,8 @@ def _collect(payload: dict, cancelled: threading.Event) -> dict:
         delta = {}
         if 'native_progress' in payload:
             if result.get('query') != payload['query']: raise ValueError()
-            delta = {'native_progress':checked_delta(result.get('native_progress'),payload['native_progress'],min(5,payload['max_records']))}
+            checker = checked_bili_delta if payload['platform'] == 'BILIBILI' else checked_xhs_delta
+            delta = {'native_progress':checker(result.get('native_progress'),payload['native_progress'],min(5,payload['max_records']))}
         elif 'native_progress' in result:
             raise ValueError()
         if 'native_link' in payload and result.get('query') is not None:

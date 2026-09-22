@@ -23,7 +23,7 @@ HOST_FILES = ('app/__init__.py', 'app/collector.py', 'app/collectors/__init__.py
     'app/windows_source_driver.py', 'app/windows_collection_host.py', 'app/windows_source_probe.py',
     'app/windows_platform_login.py', 'app/platform_login_worker.py', 'app/platform_collection_worker.py',
     'app/windows_source_view.py', 'app/source_view_worker.py', 'app/xhs_source_navigation.py',
-    'app/bili_search_progress.py',
+    'app/bili_search_progress.py', 'app/xhs_search_progress.py',
     'app/windows_platform_outreach.py', 'app/platform_outreach_worker.py',
     'app/platform_outreach_runtime.py', 'app/xhs_comment_channel.py',
     'connectors/__init__.py', 'connectors/models.py', 'connectors/normalizer.py', 'connectors/platforms.py',

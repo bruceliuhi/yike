@@ -38,10 +38,10 @@ interface Options {
 }
 const supportSchema=z.object({schema_version:z.literal('foreground-collection-support-v1'),mode:foregroundModeSchema.nullable(),
  public_source:z.literal('v2ex-latest-v1').optional(),public_sources:publicSourceIdsSchema.optional(),public_monitor:z.literal(true).optional(),native_links:nativeLinkPlatformsSchema.optional(),
- public_sampling:z.enum(['committed-round-v1','committed-round-revisit-v2']).optional(),native_progress:z.tuple([z.literal('BILIBILI')]).optional()})
+ public_sampling:z.enum(['committed-round-v1','committed-round-revisit-v2']).optional(),native_progress:z.array(z.enum(['BILIBILI','XIAOHONGSHU'])).min(1).max(2).optional()})
  .strict().refine(value=>validPublicSourceCatalog(value.public_source,value.public_sources))
  .refine(value=>value.public_sampling===undefined||value.public_monitor===true&&value.public_source!==undefined)
- .refine(value=>value.native_progress===undefined||supportsForegroundPlatform(value.mode,'BILIBILI'))
+ .refine(value=>value.native_progress===undefined||value.native_progress.every(platform=>supportsForegroundPlatform(value.mode,platform)))
  .refine(value=>(value.mode==='four-platform-public-bili-links-monitor-v1')===(value.native_links!==undefined));
 const rowsSchema=z.object({items:z.array(connectionRegistryRowSchema).max(10000)}).strict();
 const stateSchema=z.enum(['PENDING','RUNNING','CANCELLING','CANCELED','SUCCEEDED']);
@@ -237,7 +237,7 @@ export function createForegroundCollectionController(options:Options) {
     const value=await currentWorker.run({scope:activeScope!,start:input.start,startReceipt:input.receipt,strategy:input.strategy,
      platformRunId:input.receipt.platform_runs[index].platform_run_id,allowMonitor:input.allowMonitor,platformMaxRecords:allocated[index],
      ...(anonymous&&input.allowPublicSampling?{allowPublicSampling:input.allowPublicSampling}:{}),
-     ...(input.targets[index].platform==='BILIBILI'&&input.allowNativeProgress?{allowNativeProgress:true as const}:{})});
+     ...(input.targets[index].platform&&['BILIBILI','XIAOHONGSHU'].includes(input.targets[index].platform)&&input.allowNativeProgress?{allowNativeProgress:true as const}:{})});
     if(value.state==='FAILED'&&value.error==='SOURCE_STOP_FAILED')stopUnconfirmed=true;
     local.set(localKey(current.scope,current.taskId),value);activeScope=undefined;
     if(!anonymous&&value.state==='STOPPED'&&value.reason==='CANCELLED'&&value.stopProof){
@@ -324,9 +324,9 @@ export function createForegroundCollectionController(options:Options) {
        (target.platform==='PUBLIC_WEB'?!allowsPublicSource(c.publicSource,parsedSupport.data.public_source,parsedSupport.data.public_sources):target.access_mode!=='PLATFORM_ACCOUNT'||!nativeLoginPlatformSchema.safeParse(target.platform).success)))throw new Error();
     let allowPublicSampling:true|2|undefined;
     let allowNativeProgress:true|undefined;
-    if(c.source==='search'&&targets.some(target=>target.platform==='BILIBILI')){
+    if(c.source==='search'&&targets.some(target=>['BILIBILI','XIAOHONGSHU'].includes(target.platform))){
      const progress=await supported(scope,undefined,1);
-     if(progress.native_progress?.includes('BILIBILI'))allowNativeProgress=true;
+     if(progress.native_progress?.some(platform=>['BILIBILI','XIAOHONGSHU'].includes(platform)))allowNativeProgress=true;
     }
     if(targets.some(target=>target.platform==='PUBLIC_WEB')){
      const sampling=await supported(scope,2);

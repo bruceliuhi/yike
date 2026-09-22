@@ -419,7 +419,7 @@ def validate_candidate_batch(payload: object, *, now: datetime) -> CandidateBatc
     if "native_progress" in payload:
         if payload["native_progress"] is None:
             raise CandidateContractError("INVALID_BATCH") from None
-        if platform != "BILIBILI" or execution.access_mode != "PLATFORM_ACCOUNT":
+        if platform not in ("BILIBILI", "XIAOHONGSHU") or execution.access_mode != "PLATFORM_ACCOUNT":
             raise CandidateContractError("INVALID_BATCH") from None
         try:
             from pilot.native_search_progress import validate_native_batch_progress

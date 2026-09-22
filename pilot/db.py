@@ -61,6 +61,7 @@ class PilotDatabase:
         ("v02-read-connection-outcome", migration_path.with_name("146_v02_read_connection_outcome.sql")),
         ("v02-execution-stop", migration_path.with_name("147_v02_execution_stop.sql")),
         ("v02-ops-audit", migration_path.with_name("148_v02_ops_audit.sql")),
+        ("v02-xhs-native-search-progress", migration_path.with_name("149_v02_xhs_native_search_progress.sql")),
     )
 
     def __init__(self, url: str):

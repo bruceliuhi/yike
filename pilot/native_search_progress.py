@@ -1,4 +1,4 @@
-"""Protocol and persistence helpers for committed native Bilibili search progress."""
+"""Protocol and persistence helpers for committed native search progress."""
 from __future__ import annotations
 
 import re
@@ -6,7 +6,7 @@ import unicodedata
 import hashlib
 import json
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError, field_validator, model_validator
 
@@ -15,7 +15,10 @@ from pilot.execution_contract import ExecutionRuntimeError
 
 
 SCHEMA_VERSION = "native-search-progress-v1"
-ADAPTER_VERSION = "bili-search-items-v1"
+BILI_ADAPTER_VERSION = "bili-search-items-v1"
+XHS_ADAPTER_VERSION = "xhs-search-items-v1"
+ADAPTER_VERSION = BILI_ADAPTER_VERSION  # backwards-compatible import
+ADAPTER_VERSIONS = (BILI_ADAPTER_VERSION, XHS_ADAPTER_VERSION)
 _OPAQUE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", re.ASCII)
 
 
@@ -76,7 +79,7 @@ class NativeSearchClaimQuery(_Frozen):
 
 class NativeSearchClaimProgress(_Frozen):
     schema_version: Literal["native-search-progress-v1"]
-    adapter_version: Literal["bili-search-items-v1"]
+    adapter_version: Literal["bili-search-items-v1", "xhs-search-items-v1"]
     plan_id: str
     queries: tuple[NativeSearchClaimQuery, ...] = Field(min_length=1, max_length=20)
 
@@ -91,6 +94,9 @@ class NativeSearchClaimProgress(_Frozen):
     def distinct_queries(self):
         if len({item.query for item in self.queries}) != len(self.queries):
             raise ValueError("duplicate native search query")
+        xhs = self.adapter_version == XHS_ADAPTER_VERSION
+        if any(("search_id" in item.cursor) != xhs for item in self.queries):
+            raise ValueError("native search cursor does not match adapter")
         return self
 
 
@@ -136,7 +142,7 @@ class NativeSearchBatchQuery(_Frozen):
 
 class NativeSearchBatchProgress(_Frozen):
     schema_version: Literal["native-search-progress-v1"]
-    adapter_version: Literal["bili-search-items-v1"]
+    adapter_version: Literal["bili-search-items-v1", "xhs-search-items-v1"]
     claim_request_id: str
     queries: tuple[NativeSearchBatchQuery, ...] = Field(min_length=1, max_length=20)
 
@@ -151,6 +157,9 @@ class NativeSearchBatchProgress(_Frozen):
     def distinct_queries(self):
         if len({item.query for item in self.queries}) != len(self.queries):
             raise ValueError("duplicate native search query")
+        xhs = self.adapter_version == XHS_ADAPTER_VERSION
+        if any(("search_id" in item.before) != xhs or ("search_id" in item.after) != xhs for item in self.queries):
+            raise ValueError("native search cursor does not match adapter")
         return self
 
 
@@ -191,7 +200,7 @@ def _row(cursor):
     return dict(zip((column.name for column in cursor.description), value)) if value else None
 
 
-def _queries(configuration) -> list[str]:
+def _queries(configuration, platform: str) -> list[str]:
     if (type(configuration) is not dict or configuration.get("source") != "search"
             or configuration.get("mode") != "monitor" or configuration.get("links") != []
             or configuration.get("research") is not None):
@@ -207,7 +216,7 @@ def _queries(configuration) -> list[str]:
                 or type(platform_queries.get("items")) is not list):
             raise ExecutionRuntimeError("capability_unavailable", 409)
         matched = [item for item in platform_queries["items"]
-                   if type(item) is dict and item.get("platform") == "BILIBILI"]
+                   if type(item) is dict and item.get("platform") == platform]
         if len(matched) > 1:
             raise ExecutionRuntimeError("capability_unavailable", 409)
         if matched:
@@ -254,16 +263,17 @@ def _authority(cursor, *, tenant_id, owner_user_id, task_id, platform_run_id,
         (tenant_id, owner_user_id, task_id, platform_run_id),
     )
     authority = _row(cursor)
-    if (authority is None or authority["platform"] != "BILIBILI"
+    if (authority is None or authority["platform"] not in ("BILIBILI", "XIAOHONGSHU")
             or authority["access_mode"] != "PLATFORM_ACCOUNT"
             or authority["connection_id"] is None or authority["connection_version"] is None):
         raise ExecutionRuntimeError("capability_unavailable", 409)
     snapshot = authority["configuration_snapshot"]
     configuration = snapshot.get("configuration") if type(snapshot) is dict else None
-    if capability_check("BILIBILI", "PLATFORM_ACCOUNT", configuration) is not True:
+    if capability_check(authority["platform"], "PLATFORM_ACCOUNT", configuration) is not True:
         raise ExecutionRuntimeError("capability_unavailable", 409)
     authority["configuration"] = configuration
-    authority["queries"] = _queries(configuration)
+    authority["adapter_version"] = (BILI_ADAPTER_VERSION if authority["platform"] == "BILIBILI" else XHS_ADAPTER_VERSION)
+    authority["queries"] = _queries(configuration, authority["platform"])
     authority["plan_id"] = _uuid(authority["plan_id"])
     return authority
 
@@ -272,7 +282,7 @@ def _scope_parameters(authority, tenant_id, owner_user_id, query):
     return (
         tenant_id, owner_user_id, authority["plan_id"], authority["profile_version_id"],
         authority["strategy_version_id"], authority["platform"], authority["connection_id"],
-        authority["connection_version"], ADAPTER_VERSION, query,
+        authority["connection_version"], authority["adapter_version"], query,
     )
 
 
@@ -297,9 +307,12 @@ def claim_native_search_progress(cursor, *, tenant_id, owner_user_id, task, plat
         )
         head = cursor.fetchone()
         if head is None:
+            initial_cursor = {"page": 1, "consumed_ids": [], "refresh_next": False}
+            if authority["adapter_version"] == XHS_ADAPTER_VERSION:
+                initial_cursor["search_id"] = uuid4().hex
             queries.append({
                 "query": query, "revision": 0, "base_batch_request_id": None,
-                "cursor": {"page": 1, "consumed_ids": [], "refresh_next": False},
+                "cursor": initial_cursor,
             })
         else:
             queries.append({
@@ -308,7 +321,7 @@ def claim_native_search_progress(cursor, *, tenant_id, owner_user_id, task, plat
             })
     return NativeSearchClaimProgress.model_validate({
         "schema_version": SCHEMA_VERSION,
-        "adapter_version": ADAPTER_VERSION,
+        "adapter_version": authority["adapter_version"],
         "plan_id": authority["plan_id"],
         "queries": queries,
     }).model_dump(mode="json")
@@ -341,6 +354,7 @@ def commit_native_search_progress(cursor, *, tenant_id, owner_user_id, batch,
         raise ExecutionRuntimeError("native_progress_conflict", 409) from None
     if (claim.plan_id != authority["plan_id"] or claim.schema_version != progress.schema_version
             or claim.adapter_version != progress.adapter_version
+            or progress.adapter_version != authority["adapter_version"]
             or [item.query for item in claim.queries] != authority["queries"]):
         raise ExecutionRuntimeError("native_progress_conflict", 409)
     receipt_binding = (
@@ -382,8 +396,12 @@ def commit_native_search_progress(cursor, *, tenant_id, owner_user_id, batch,
             scope,
         )
         head = cursor.fetchone()
-        current_cursor = ({"page": 1, "consumed_ids": [], "refresh_next": False}
-                          if head is None else checked_cursor(head[0]))
+        if head is None:
+            current_cursor = {"page": 1, "consumed_ids": [], "refresh_next": False}
+            if authority["adapter_version"] == XHS_ADAPTER_VERSION:
+                current_cursor["search_id"] = frozen.cursor["search_id"]
+        else:
+            current_cursor = checked_cursor(head[0])
         current_revision = 0 if head is None else head[1]
         current_batch = None if head is None else head[2]
         if (item.revision, item.base_batch_request_id, _json(item.before)) != (
@@ -422,7 +440,8 @@ def commit_native_search_progress(cursor, *, tenant_id, owner_user_id, batch,
 
 
 __all__ = [
-    "SCHEMA_VERSION", "ADAPTER_VERSION", "NativeSearchClaimProgress",
+    "SCHEMA_VERSION", "ADAPTER_VERSION", "BILI_ADAPTER_VERSION", "XHS_ADAPTER_VERSION",
+    "NativeSearchClaimProgress",
     "NativeSearchBatchProgress", "validate_native_batch_progress",
     "native_search_progress_supported", "claim_native_search_progress",
     "commit_native_search_progress",

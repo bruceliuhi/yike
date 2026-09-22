@@ -18,6 +18,17 @@ it('strict schemas preserve a partial page and reject forged advancement',()=>{
  }
  expect(nativeProgressClaimSchema.safeParse({...nativeClaim,queries:[nativeState,nativeState]}).success).toBe(false);
 });
+it('Xiaohongshu progress keeps the platform search id across a resumed page',()=>{
+ const cursor={page:2,search_id:'search-1',consumed_ids:[],refresh_next:false};
+ const claim={schema_version:'native-search-progress-v1',adapter_version:'xhs-search-items-v1',plan_id:id(81),queries:[{query:'设备',revision:0,base_batch_request_id:null,cursor}]};
+ expect(nativeProgressClaimSchema.parse(claim)).toEqual(claim);
+ const delta={query:'设备',revision:0,base_batch_request_id:null,before:cursor,
+  after:{page:2,search_id:'search-1',consumed_ids:['note-1'],refresh_next:true},page_ids:['note-1','note-2'],processed_ids:['note-1'],has_more:true,comments_scope:'BOUNDED_SAMPLE'};
+ const batch={schema_version:claim.schema_version,adapter_version:claim.adapter_version,claim_request_id:id(2),queries:[delta]};
+ expect(nativeProgressBatchSchema.parse(batch)).toEqual(batch);
+ expect(nativeProgressBatchSchema.safeParse({...batch,queries:[{...delta,after:{...delta.after,search_id:'other'}}]}).success).toBe(false);
+ expect(advanceNativeCursor(cursor,delta.page_ids,delta.processed_ids,true)).toEqual(delta.after);
+});
 it('CLAIM-only exact opt-in, mutually exclusive, old requests remain unchanged',()=>{
  const raw={schema_version:'execution-runtime-v1',request_id:id(1),operation:'CLAIM',device_id:id(2),credential_version:1,task_id:id(3),platform_run_id:id(4)};
  const legacy=executionOperationSchema.parse(raw);expect(legacy).not.toHaveProperty('native_progress_version');

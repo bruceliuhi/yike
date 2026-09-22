@@ -507,7 +507,8 @@ it('rejects a shared record budget smaller than the selected platform count',asy
 it('monitor source stop failure latches the same foreground slot',async()=>{
  const f=fixture();const c:any=f.strategy.snapshot.configuration;c.mode='monitor';c.exclusions=['招聘'];c.schedule={kind:'interval',times:[],interval:1,start:'09:00',end:'18:00',timezone:'Asia/Shanghai',policyVersion:1};
  const hash=createHash('sha256').update(canonical(f.strategy.snapshot)).digest('hex');f.strategy.configuration_sha256=hash;
- (f.scope.transport.requestExecution as any).mockImplementation(async(input:any)=>input.operation==='monitor.support'?{ok:true,status:200,data:{schema_version:'monitor-runtime-support-v1',mode:'three-platform-monitor-v1'}}:{ok:false,status:400,error:'unexpected'});
+ (f.scope.transport.requestExecution as any).mockImplementation(async(input:any)=>input.operation==='monitor.support'?{ok:true,status:200,data:{schema_version:'monitor-runtime-support-v1',mode:'three-platform-monitor-v1'}}:
+  input.operation==='execution.support'?{ok:true,status:200,data:{schema_version:'foreground-collection-support-v1',mode:'three-platform-foreground-v1'}}:{ok:false,status:400,error:'unexpected'});
  const start={schema_version:'execution-runtime-v1',operation:'START',request_id:id(1),device_id:id(2),credential_version:1,profile_version_id:id(3),strategy_version_id:id(4),configuration_sha256:hash,targets:f.command.targets};
  expect(await f.controller.startMonitor(start)).toMatchObject({state:'RECORDED'});expect(f.worker.run.mock.calls[0][0]).toMatchObject({allowMonitor:true,platformMaxRecords:50});
  f.finish({state:'FAILED',error:'SOURCE_STOP_FAILED',taskCompleted:false});await new Promise(resolve=>setImmediate(resolve));

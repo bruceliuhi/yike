@@ -112,7 +112,7 @@ export function createCollectionWorker({execution, candidates, driver}: Collecti
             configuration.mode !== 'monitor' || target.platform !== 'PUBLIC_WEB' || target.access_mode !== 'PUBLIC_ANONYMOUS' ||
             configuration.source !== 'search' || configuration.publicSource === undefined)) throw new Error();
         if(input.allowNativeProgress!==undefined&&(input.allowNativeProgress!==true||input.allowPublicSampling!==undefined||input.allowMonitor!==true||
-          configuration.mode!=='monitor'||configuration.source!=='search'||target.platform!=='BILIBILI'||target.access_mode!=='PLATFORM_ACCOUNT'))throw new Error();
+          configuration.mode!=='monitor'||!['BILIBILI','XIAOHONGSHU'].includes(target.platform)||target.access_mode!=='PLATFORM_ACCOUNT'))throw new Error();
         validInput = true;
         if (!scope.session.isCurrent()) stop('SESSION_CHANGED');
         if (reason) return stoppedResult();

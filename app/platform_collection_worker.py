@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 
 if __package__:
     from .bili_search_progress import install_bili_search_progress
+    from .xhs_search_progress import install_xhs_search_progress
     from .platform_login_worker import valid_account, read_douyin_self_account, read_zhihu_self_account
     from pilot.native_collection_links import parse_native_collection_link, validate_bili_collection_target
 else:
@@ -35,6 +36,10 @@ else:
     _progress = module_from_spec(_progress_spec)
     _progress_spec.loader.exec_module(_progress)
     install_bili_search_progress = _progress.install_bili_search_progress
+    _xhs_progress_spec = spec_from_file_location('yike_xhs_search_progress', Path(__file__).with_name('xhs_search_progress.py'))
+    _xhs_progress = module_from_spec(_xhs_progress_spec)
+    _xhs_progress_spec.loader.exec_module(_xhs_progress)
+    install_xhs_search_progress = _xhs_progress.install_xhs_search_progress
 
 _ACCOUNT = re.compile(r'[A-Za-z0-9]{8,32}')
 _HREF = re.compile(r'(?:https://www\.xiaohongshu\.com)?/user/profile/([A-Za-z0-9]{8,32})')
@@ -245,7 +250,7 @@ def main():
         if not valid_account(platform, expected): raise ValueError()
         mode = _fixed_arguments(sys.argv[1:], platform)
         progress = os.environ.get('YIKE_NATIVE_SEARCH_PROGRESS')
-        if progress is not None and (platform != 'BILIBILI' or mode != 'search' or len(progress.encode('utf-8')) > 4096): raise ValueError()
+        if progress is not None and (platform not in ('BILIBILI', 'XIAOHONGSHU') or mode != 'search' or len(progress.encode('utf-8')) > 4096): raise ValueError()
         runtime = Path.cwd()
         sys.path.insert(0, str(runtime))
         from tools.yike_runtime import YikePlatformAuthRequired, _EXPLICIT_TERMINALS
@@ -274,10 +279,14 @@ def main():
             guard = install_video_account_guard(DouYinCrawler, DouYinClient, YikePlatformAuthRequired, expected, platform, error_types=error_types)
         with ExitStack() as stack:
             if progress is not None:
-                from media_platform.bilibili import core
                 from tools.yike_runtime import YikePlatformResponseChanged
                 # Install first: the account guard must wrap the new search too.
-                stack.enter_context(install_bili_search_progress(core,json.loads(progress),YikePlatformResponseChanged))
+                if platform == 'BILIBILI':
+                    from media_platform.bilibili import core
+                    stack.enter_context(install_bili_search_progress(core,json.loads(progress),YikePlatformResponseChanged))
+                else:
+                    from media_platform.xhs import core
+                    stack.enter_context(install_xhs_search_progress(core,json.loads(progress),YikePlatformResponseChanged))
             stack.enter_context(guard)
             runpy.run_path(str(runtime / 'main.py'), run_name='__main__')
         return 0
