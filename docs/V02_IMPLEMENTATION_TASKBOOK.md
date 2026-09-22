@@ -1,5 +1,12 @@
 # 意客AI V1.0 实施任务书（V02 工程编号）
 
+### 2026-09-23 当前最终本地候选（`0a17cf7`，Mac 包与回归已重做）
+
+- Gitee `yike-ai2026/main`、GitHub `main` 与本地主线已同步到 `0a17cf792994ee1893d6fe4ef4bf07a1706a6ad7`。本轮补齐首次激活试用码交互、持久化预算监控调度和本地 MCP 调度入口；调度只负责策略、到期触发和审计，不伪造后台 worker 或外部搜索结果。
+- 按该提交以 `YIKE_RELEASE_SERVICE_URL=https://yike.tuokexing.net`、Node 24.19.0 重新构建 macOS arm64 包：ZIP SHA-256 为 `87396507dfa0bea675bc2f6fd2c878178e3968408673f04f7b2ac39cdc2360d6`，ASAR SHA-256 为 `54f8186bd35bc8a813e9683a4595ee2d349fbb246fe4928e13f68bf4bb3b458a`；包结构验证和受限包内冒烟均通过。机器可读记录见 [`latest-main-package-0a17cf7.json`](qa/ui-candidate-mac/latest-main-package-0a17cf7.json)。
+- 本轮回归：Lead Radar **40 项通过**；桌面端 **4569 项通过、55 项跳过**；Python 非 Windows 相关套件 **4254 项通过、1464 项跳过**；`release_candidate_check.py --local-only --run-tests` 为 `local=PASS / external=NOT_VERIFIED / overall=HOLD`。
+- 公网服务当前仍是运行 revision `20bac56238207bbe33bfdef1a73f1c92ffd14c02`，与本地最终候选不一致；短信端口报备、真实授权来源、真实样本校准、生产数据库恢复和客户 UAT 仍未完成，正式上线继续保持 **HOLD**。
+
 ### 当前权威状态补充（2026-09-23，主线 `5195840` / 线上 `20bac56`）
 
 - 以本节及其后的 `20bac56` 发布记录为准；文档中更早的候选、旧生产 revision 和历史临时访问码记录均为历史证据，不能作为当前入口或上线结论。
