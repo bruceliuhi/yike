@@ -2429,7 +2429,8 @@ class Store:
                        JOIN source_proofs p ON p.workspace_id = r.workspace_id
                                             AND p.proof_ref = r.proof_ref
                                             AND p.status = 'ACTIVE'
-                       WHERE r.workspace_id = ? AND r.permission_status = 'APPROVED'""",
+                       WHERE r.workspace_id = ? AND r.permission_status = 'APPROVED'
+                         AND r.can_search = 1""",
                     (workspace_id,),
                 ).fetchall()
             }
@@ -2471,14 +2472,19 @@ class Store:
             source_kind = str(row["source_kind"] or "UNKNOWN")
             source_counts[source_kind] = source_counts.get(source_kind, 0) + 1
         authorized_kinds = {"authorized_search_api", "search_index_snippet"}
+        source_right_aliases = {
+            "authorized_search_api": {"authorized_search_api"},
+            # Index imports are represented as snippets in the opportunity
+            # ledger, while their right is registered against the connector
+            # operation.  Keep the legacy ``search_index`` alias for existing
+            # installations that used that source id.
+            "search_index_snippet": {"search_index_import", "search_index"},
+        }
         rights_backed_count = sum(
             1
             for row in rows
             if row["source_kind"] in authorized_kinds
-            and (
-                row["source_kind"] in approved_source_ids
-                or (row["source_kind"] == "search_index_snippet" and "search_index" in approved_source_ids)
-            )
+            and bool(source_right_aliases.get(row["source_kind"], set()) & approved_source_ids)
         )
         user_submitted_count = sum(
             1 for row in rows if row["source_kind"] in {"public_url_capture", "manual_public_evidence"}
