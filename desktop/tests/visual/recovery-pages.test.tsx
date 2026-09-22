@@ -137,7 +137,7 @@ it("P13 real route binds UNKNOWN to the original request; only an explicit non-d
     expect((prepare as HTMLButtonElement).disabled).toBe(false),
   );
   fireEvent.click(prepare);
-  fireEvent.click(await screen.findByRole("button", { name: "核验发送条件" }));
+  fireEvent.click(await screen.findByRole("button", { name: "核对发送信息" }));
   await screen.findByText("TEST 合成收件人（不会实际发送）");
   fireEvent.click(
     screen.getByRole("checkbox", { name: "我已核对联系对象、发送账号和内容" }),
@@ -178,7 +178,7 @@ it("P19 real page queries the original UNKNOWN startup and never invents an acce
   const start = await screen.findByRole("button", { name: "确认并启动" });
   fireEvent.click(
     screen.getByRole("checkbox", {
-      name: "我已核对以上画像版本、搜索条件、账号与运行设置",
+      name: "我已核对以上业务画像、搜索条件、账号与运行设置",
     }),
   );
   await waitFor(() =>
@@ -186,7 +186,7 @@ it("P19 real page queries the original UNKNOWN startup and never invents an acce
   );
   fireEvent.click(start);
   await waitFor(() => expect(h.control.snapshot().phase).toBe("UNKNOWN"));
-  await screen.findByText("启动结果尚未确认，请核对原请求，勿重新提交。");
+  await screen.findByText("启动结果尚未确认，请先检查任务列表，避免重复创建。");
   fireEvent.click(
     await screen.findByRole("button", { name: "核对原启动结果" }),
   );
@@ -200,11 +200,11 @@ it("P19 real page queries the original UNKNOWN startup and never invents an acce
   fireEvent.click(screen.getByRole("button", { name: "核对原启动结果" }));
   await waitFor(() => expect(ledger("unknown-task-starts")).toEqual({}));
   await waitFor(() =>
-    expect(screen.queryByText("启动结果尚未确认，请核对原请求，勿重新提交。")).toBeNull(),
+    expect(screen.queryByText("启动结果尚未确认，请先检查任务列表，避免重复创建。")).toBeNull(),
   );
   expect((start as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByRole("checkbox", {
-    name: "我已核对以上画像版本、搜索条件、账号与运行设置",
+    name: "我已核对以上业务画像、搜索条件、账号与运行设置",
   }) as HTMLInputElement).checked).toBe(false);
   expect(location.hash).toBe("#/tasks/new?step=confirm");
   expect(
