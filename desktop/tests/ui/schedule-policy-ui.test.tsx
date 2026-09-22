@@ -29,7 +29,7 @@ function follow(view: ReturnType<typeof render>) {
 const startButton = () => screen.getByRole("button", {name: "确认并启动"}) as HTMLButtonElement;
 async function checkConfirmation() {
   await screen.findByText("TEST 服务");
-  fireEvent.click(screen.getByRole("checkbox", {name: /我已核对以上画像版本/}));
+  fireEvent.click(screen.getByRole("checkbox", {name: /我已核对以上业务画像、搜索条件、账号与运行设置/}));
 }
 beforeEach(() => {
   cleanup(); clearLocalDrafts(); sessionStorage.clear(); localStorage.clear();

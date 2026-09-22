@@ -167,7 +167,8 @@ export function TaskConfirmationSummary({
                 <div>
                   <dt>执行窗口</dt>
                   <dd>
-                    {scheduleWindowLabel(draft.schedule)} · {scheduleRegionLabel(draft.schedule.timezone)}
+                    <span>{scheduleWindowLabel(draft.schedule)}</span>
+                    <span className="muted"> · {scheduleRegionLabel(draft.schedule.timezone)}</span>
                   </dd>
                 </div>
                 <div>
