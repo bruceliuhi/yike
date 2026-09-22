@@ -30,6 +30,7 @@ try:
     from .index_connector import IndexResultError, normalize_index_results
     from .planner import build_search_plan
     from .proofs import SourceProofError, normalize_source_proof
+    from .readiness_api import get_production_readiness
     from .rights import SourceRightError, normalize_source_right
     from .replay_api import get_task_replay
     from .search_connector import AuthorizedSearchConnector, SearchConnectorError
@@ -50,6 +51,7 @@ except ImportError:  # running server.py directly
     from index_connector import IndexResultError, normalize_index_results
     from planner import build_search_plan
     from proofs import SourceProofError, normalize_source_proof
+    from readiness_api import get_production_readiness
     from rights import SourceRightError, normalize_source_right
     from replay_api import get_task_replay
     from search_connector import AuthorizedSearchConnector, SearchConnectorError
@@ -383,6 +385,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 return self._error(exc.status, exc.code, exc.message)
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/dashboard":
             return self._send(200, self.store.dashboard(WORKSPACE_ID))
+        if path == f"/api/v1/workspaces/{WORKSPACE_ID}/readiness":
+            return self._send(200, get_production_readiness(self.store, WORKSPACE_ID, WORKSPACE_ID))
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/audit":
             limit = parse_qs(parsed.query).get("limit", ["100"])[0]
             return self._send(200, self.store.audit_usage(WORKSPACE_ID, limit))

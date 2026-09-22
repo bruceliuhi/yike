@@ -28,6 +28,7 @@ try:
     from .evaluation_api import get_calibration_evaluation
     from .feed_api import get_feed_event, list_feed, review_feed_event
     from .replay_api import get_task_replay
+    from .readiness_api import get_production_readiness
     from .server import WORKSPACE_ID
     from .schedule_api import create_schedule, get_schedule, trigger_schedule
     from .storage import Store
@@ -38,6 +39,7 @@ except ImportError:  # running this file directly
     from evaluation_api import get_calibration_evaluation
     from feed_api import get_feed_event, list_feed, review_feed_event
     from replay_api import get_task_replay
+    from readiness_api import get_production_readiness
     from server import WORKSPACE_ID
     from schedule_api import create_schedule, get_schedule, trigger_schedule
     from storage import Store
@@ -227,6 +229,16 @@ TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
         },
     },
     {
+        "name": "get_production_readiness",
+        "description": "读取当前工作区的生产就绪逐项门禁；缺少真实来源、严格鉴权、官方回写或回款证据时明确 BLOCKED。",
+        "readOnlyHint": True,
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "get_calibration_evaluation",
         "description": "读取校准批次的证据完整度、重开率、实体重复风险、搜贝成本、延迟和生产门禁；不足样本会明确阻塞。",
         "readOnlyHint": True,
@@ -342,6 +354,8 @@ def build_server(store: Store, workspace_id: str = WORKSPACE_ID):
                 result = review_feed_event(store, workspace_id, args["event_id"], args)
             elif name == "get_task_replay":
                 result = get_task_replay(store, workspace_id, args["task_id"])
+            elif name == "get_production_readiness":
+                result = get_production_readiness(store, workspace_id)
             elif name == "get_calibration_evaluation":
                 result = get_calibration_evaluation(store, workspace_id, args["batch_id"])
             else:

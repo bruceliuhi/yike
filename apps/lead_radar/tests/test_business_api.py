@@ -275,6 +275,19 @@ class BusinessApiTest(unittest.TestCase):
         self.assertFalse(brief["provenance"]["external_actions_sent"])
         self.assertIn("人工打开原文", brief["brief"]["next_actions"][0])
 
+    def test_production_readiness_reports_blockers_without_exposing_secrets(self) -> None:
+        status, readiness, _ = self.request(
+            "GET",
+            f"{WORKSPACE_PATH}/readiness",
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(readiness["status"], "BLOCKED")
+        self.assertIn("authorized_search_connector", readiness["blockers"])
+        self.assertIn("searchable_source_right", readiness["blockers"])
+        self.assertIn("official_writeback_connector", readiness["blockers"])
+        self.assertFalse(readiness["claim_allowed"])
+        self.assertNotIn("LEAD_RADAR_SEARCH_TOKEN", json.dumps(readiness, ensure_ascii=False))
+
 
 class McpContractTest(unittest.TestCase):
     def test_mcp_tools_have_no_credential_or_outreach_inputs(self) -> None:
