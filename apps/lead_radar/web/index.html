@@ -55,6 +55,12 @@
     .source { display:grid; grid-template-columns:9px 1fr auto; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid #f0f1f4; }
     .source:last-child { border-bottom:0; } .dot { width:8px; height:8px; border-radius:50%; background:#c2c8d3; } .dot.ready { background:#24a37e; box-shadow:0 0 0 4px #e6f7f1; } .dot.warn { background:#d99737; box-shadow:0 0 0 4px #fff2df; }
     .source b { display:block; font-size:13px; } .source span { color:var(--muted); font-size:11px; }
+    .integrations { display:grid; gap:9px; margin-top:17px; padding-top:15px; border-top:1px solid var(--line); }
+    .integration { border:1px solid var(--line); border-radius:9px; padding:10px 11px; background:#fbfcff; }
+    .integration-head { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
+    .integration-title { font-weight:700; font-size:12px; }
+    .integration-meta { color:var(--muted); font-size:10px; margin-top:4px; line-height:1.5; }
+    .integration-fields { color:#526079; font-size:10px; margin-top:7px; line-height:1.5; }
     .proofs { display:grid; gap:9px; margin-top:17px; padding-top:15px; border-top:1px solid var(--line); }
     .proof { border:1px solid var(--line); border-radius:9px; padding:10px 11px; background:#fbfcff; }
     .proof-head { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
@@ -105,7 +111,7 @@
       <section class="kpis" id="kpis"></section>
       <div class="layout">
         <section class="card section" id="tasks"><div class="section-head"><div><h2>搜索任务</h2><small>自然语言目标会被编译为可编辑画像</small></div><div style="display:flex;gap:7px"><button class="ghost" id="latestTaskBrief">最新简报</button><button class="ghost" id="newTask2">新建</button></div></div><div class="task-list" id="taskList"></div></section>
-        <section class="card section" id="sources"><div class="section-head"><div><h2>来源能力</h2><small>接通状态和证据边界</small></div></div><div class="sources" id="sourceList"></div><div class="proofs" id="proofList"><div class="empty">正在读取来源证明…</div></div></section>
+        <section class="card section" id="sources"><div class="section-head"><div><h2>来源能力</h2><small>接通状态和证据边界</small></div></div><div class="sources" id="sourceList"></div><div class="proofs" id="proofList"><div class="empty">正在读取来源证明…</div></div><div class="integrations" id="integrationList"><div class="empty">正在读取连接器目录…</div></div></section>
       </div>
       <section class="card section opps" id="opportunities"><div class="section-head"><div><h2>机会池</h2><small>先看证据，再决定动作；系统不会自动触达</small></div><div style="display:flex;gap:7px"><button class="ghost" id="exportOpportunities">导出 CSV</button><button class="ghost" id="captureUrl">读取公开 URL</button><button class="ghost" id="newEvidence">录入证据</button></div></div><div id="oppList"></div></section>
       <section class="card section entities" id="entities"><div class="section-head"><div><h2>实体主档</h2><small>自动解析只做保守关联，人工合并和拆分都会记录原因</small></div><button class="ghost" id="manageEntity">人工修正</button></div><div id="entityList"></div></section>
@@ -203,7 +209,10 @@
     $('#latestTaskBrief').onclick=openLatestResearchBrief;
     $('#exportOpportunities').onclick=()=>{window.location.href=api('/workspaces/'+encodeURIComponent(WS)+'/opportunities/export.csv');};
     $('#taskTemplateSelect').onchange=applyTaskTemplate;
+    function renderIntegrations(items) { const el=document.querySelector('#integrationList'); if(!items.length){el.innerHTML='<div class="empty"><strong>暂无连接器</strong>连接器目录加载后会显示授权方式、字段白名单和验收要求。</div>';return;} el.innerHTML='<div class="section-head" style="margin:0 0 7px"><div><h2 style="font-size:13px">连接器目录</h2><small>先看权限和验收，再决定是否接入</small></div></div>'+items.map(item=>'<div class="integration"><div class="integration-head"><div><div class="integration-title">'+esc(item.name)+'</div><div class="integration-meta">'+esc(item.category)+' · '+esc(item.auth_method)+' · '+(item.user_login_required?'需要用户授权':'不需要终端登录')+' · '+esc(item.approval)+'</div></div>'+badge(item.status)+'</div><div class="integration-fields">允许字段：'+esc((item.allowed_fields||[]).join('、'))+'<br/>接入前证据：'+esc((item.evidence_required||[]).join('；'))+'</div></div>').join(''); }
+    async function refreshIntegrations() { try { const result=await request('/api/v1/integrations'); renderIntegrations(result.items||[]); } catch(error) { renderLoadFailure('#integrationList','连接器目录',error); } }
     loadTaskTemplates();
+    refreshIntegrations();
     refresh();
   </script>
 </body>

@@ -60,6 +60,8 @@ python3 apps/lead_radar/server.py --port 8780
 
 GET /api/v1/task-templates?language=zh-CN 或 en-US 返回首批可复用任务模板。创建任务时可以传 template_id 而不传 objective，服务端会把模板目标、条件和模板 ID 编译进同一份 IntentProfile/TaskPlan；模板只降低首次使用门槛，不会改变来源权限和人工复核门禁。
 
+GET /api/v1/integrations?language=zh-CN 或 en-US 返回连接器市场目录，包含授权方式、允许字段、阻断字段和接入前证据要求。目录是声明式能力清单，当前连接器仍明确为 REQUIRES_AUTH 或 REQUIRES_PROOF；它不会把配置项、环境变量或 UI 点击伪装成已接通。
+
 GET /api/v1/business/research_brief/{task_id} 和 MCP 的 get_research_brief 会把任务候选、证据缺口、实体关联、状态分布和人工下一步整理成研究简报。它只读本地 task replay，响应明确标记 external_lookup_performed=false、external_actions_sent=false；需要工商、联系方式或第三方画像时，必须另行接入有权利证明的连接器。
 
 GET /api/v1/workspaces/ws_意客AI/readiness 和 MCP 的 get_production_readiness 会返回逐项生产门禁。当前没有真实授权来源、可搜索来源权利、官方回写或回款证据时，status 必须为 BLOCKED，claim_allowed=false；这份报告用于决定下一步验收，不把本地功能测试当成生产就绪。

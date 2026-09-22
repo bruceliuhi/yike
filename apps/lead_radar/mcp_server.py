@@ -27,6 +27,7 @@ try:
     )
     from .evaluation_api import get_calibration_evaluation
     from .feed_api import get_feed_event, list_feed, review_feed_event
+    from .integrations import list_integrations
     from .replay_api import get_task_replay
     from .readiness_api import get_production_readiness
     from .server import WORKSPACE_ID
@@ -38,6 +39,7 @@ except ImportError:  # running this file directly
     from business_api import API_VERSION, BusinessApiError, create_search_task, enrich_entity, fetch_search_results, get_search_status
     from evaluation_api import get_calibration_evaluation
     from feed_api import get_feed_event, list_feed, review_feed_event
+    from integrations import list_integrations
     from replay_api import get_task_replay
     from readiness_api import get_production_readiness
     from server import WORKSPACE_ID
@@ -69,6 +71,16 @@ TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
     {
         "name": "list_task_templates",
         "description": "读取可复用的中英文搜索任务模板；模板只生成目标和条件，不绕过来源权限门禁。",
+        "readOnlyHint": True,
+        "inputSchema": {
+            "type": "object",
+            "properties": {"language": {"type": "string", "enum": ["zh-CN", "en-US"]}},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "list_integrations",
+        "description": "读取连接器市场目录、最小权限、可用字段和验收门禁；不会返回秘密或伪装成已授权。",
         "readOnlyHint": True,
         "inputSchema": {
             "type": "object",
@@ -311,6 +323,8 @@ def build_server(store: Store, workspace_id: str = WORKSPACE_ID):
                 result = create_search_task(store, workspace_id, args)
             elif name == "list_task_templates":
                 result = {"api_version": API_VERSION, "items": list_task_templates(args.get("language", "zh-CN"))}
+            elif name == "list_integrations":
+                result = {"api_version": API_VERSION, "items": list_integrations(args.get("language", "zh-CN"))}
             elif name == "get_search_status":
                 result = get_search_status(store, workspace_id, args["task_id"])
             elif name == "get_research_brief":
