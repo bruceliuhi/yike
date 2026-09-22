@@ -544,9 +544,10 @@ def test_drip_sse_cannot_extend_absolute_deadline(monkeypatch):
                              allowed_tools=ALLOWED, transport=httpx.HTTPTransport(retries=0)) as bridge:
             response = request(bridge, {"tools": [], "input": []})
             assert response.status_code == 408
+        elapsed = monotonic() - started
     finally:
         upstream.shutdown(); upstream.server_close(); thread.join(1)
-    assert monotonic() - started < .8
+    assert elapsed < .8
 
 
 def test_drip_response_headers_cannot_extend_absolute_deadline(monkeypatch):
