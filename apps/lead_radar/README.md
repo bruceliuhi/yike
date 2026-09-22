@@ -58,6 +58,8 @@ python3 apps/lead_radar/server.py --port 8780
 
 业务 API 返回 `api_version`，响应头返回 `X-Request-ID`。这组接口只操作当前本地工作区台账；它不会把 Cookie、密码、第三方 Token 当作参数，也不会因为创建任务就自动搜索、发送私信、发邮件或写入外部 CRM。外部来源仍须通过来源证明、权限、重开、发布时间、限流和保存边界门禁。`enrich_entity` 当前是本地证据解析投影，不能被解释成企业工商、联系方式或第三方画像增强。
 
+GET /api/v1/task-templates?language=zh-CN 或 en-US 返回首批可复用任务模板。创建任务时可以传 template_id 而不传 objective，服务端会把模板目标、条件和模板 ID 编译进同一份 IntentProfile/TaskPlan；模板只降低首次使用门槛，不会改变来源权限和人工复核门禁。
+
 调度接口负责持久化周期、搜贝预算、最低新增结果数、失败策略和人工审核策略；独立的 worker.py 负责按 `next_run_at` 扫描到期任务、并发幂等触发、执行已通过门禁的授权搜索，并把来源阻塞、证据写入、用量和结算状态落到同一审计链路。worker 可由 supervisor 执行 `.venv/bin/python -m apps.lead_radar.worker --db apps/lead_radar/lead_radar.sqlite3 --once`，或去掉 `--once` 持续运行；没有真实来源 proof 时只记录 BLOCKED_SOURCE。
 
 可选的 Codex/MCP 入口使用本地 stdio：
