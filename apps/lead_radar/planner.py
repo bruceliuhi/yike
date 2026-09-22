@@ -5,8 +5,10 @@ from typing import Any
 
 try:
     from .connectors import list_capabilities
+    from .usage import DISPLAY_UNIT, RULE_VERSION, UNIT, cost_estimate as source_cost_estimate
 except ImportError:  # running server.py directly
     from connectors import list_capabilities
+    from usage import DISPLAY_UNIT, RULE_VERSION, UNIT, cost_estimate as source_cost_estimate
 
 
 SYNONYMS: dict[str, tuple[str, ...]] = {
@@ -115,6 +117,10 @@ def build_search_plan(criteria: dict[str, Any], requested_limit: int) -> dict[st
     quick_credits = max(1, len(quick)) * 2
     condition_credits = max(1, len(condition)) * 3
     broad_credits = max(1, len(broad)) * 2
+    source_quotes = [source_cost_estimate(item["id"], requested_limit) for item in sources]
+    known_quotes = [item for item in source_quotes if item["maximum_credits"] is not None]
+    estimated_min = quick_credits if known_quotes else None
+    estimated_max = quick_credits + condition_credits + broad_credits if known_quotes else None
     return {
         "planner_version": "2026.09.23.1",
         "requested_limit": requested_limit,
@@ -141,10 +147,14 @@ def build_search_plan(criteria: dict[str, Any], requested_limit: int) -> dict[st
             "explanation": execution["summary"],
         },
         "cost_estimate": {
-            "min_credits": quick_credits,
-            "max_credits": quick_credits + condition_credits + broad_credits,
-            "unit": "credits",
-            "explanation": "仅为搜索路径估算；未接通来源不会扣费，重复、失败和无结果不应按完整结果收费。",
+            "min_credits": estimated_min,
+            "max_credits": estimated_max,
+            "unit": UNIT,
+            "display_unit": DISPLAY_UNIT,
+            "rule_version": RULE_VERSION,
+            "settlement": "NOT_STARTED" if known_quotes else "UNKNOWN",
+            "source_results": source_quotes,
+            "explanation": "仅为搜索路径估算；实际按来源结果结算，新增结果按 1 搜贝计，重复、失败和无结果为 0 搜贝。未接通来源不会扣费。",
         },
         "output_contract": ["title", "author", "published_at", "intent_type", "industry_location", "source_url", "snippet", "evidence_level"],
     }

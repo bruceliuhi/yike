@@ -19,6 +19,7 @@ try:
     from .search_connector import AuthorizedSearchConnector, SearchConnectorError
     from .source_policy import classify_public_url
     from .storage import Store
+    from .usage import UNIT as USAGE_UNIT, charge_for, source_metadata
 except ImportError:  # running server.py directly
     from capture import CaptureError, fetch_public_page
     from connectors import list_capabilities
@@ -29,6 +30,7 @@ except ImportError:  # running server.py directly
     from search_connector import AuthorizedSearchConnector, SearchConnectorError
     from source_policy import classify_public_url
     from storage import Store
+    from usage import UNIT as USAGE_UNIT, charge_for, source_metadata
 
 
 ROOT = Path(__file__).resolve().parent
@@ -73,6 +75,34 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if not isinstance(value, dict):
             raise ValueError("body_must_be_object")
         return value
+
+    def _record_source_usage(
+        self,
+        task_id: str | None,
+        operation: str,
+        outcome: str,
+        idempotency_key: str | None,
+        *,
+        units: int = 1,
+        **metadata: Any,
+    ) -> dict[str, Any]:
+        """Write one source-result billing fact with the shared SOUBEI rule."""
+
+        normalized_outcome = str(outcome or "").upper()
+        credits = charge_for(operation, normalized_outcome, units)
+        return self.store.record_usage(
+            WORKSPACE_ID,
+            task_id,
+            operation,
+            units,
+            credits,
+            "COMPLETED" if normalized_outcome in {"SUCCESS", "DUPLICATE", "NO_RESULT"} else "FAILED",
+            idempotency_key,
+            source_id=operation,
+            outcome=normalized_outcome,
+            unit=USAGE_UNIT,
+            metadata=source_metadata(operation, normalized_outcome, **metadata),
+        )
 
     def do_OPTIONS(self) -> None:
         self._send(204, b"")
@@ -223,13 +253,16 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         criteria = compile_intent(objective, payload.get("criteria"))
         plan = build_search_plan(criteria, requested_limit)
         idempotency_key = self.headers.get("Idempotency-Key") or payload.get("idempotency_key")
+        quoted_max = plan["cost_estimate"].get("max_credits")
+        requested_estimate = payload.get("estimated_credits", quoted_max)
+        estimated_credits = 0 if requested_estimate is None else int(requested_estimate)
         task = self.store.create_task(
             WORKSPACE_ID,
             payload.get("profile_id"),
             objective,
             criteria,
             requested_limit,
-            int(payload.get("estimated_credits", plan["cost_estimate"]["max_credits"])),
+            estimated_credits,
             idempotency_key,
             plan,
         )
@@ -284,30 +317,51 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             results = connector.search(plan, mode)
             created_count = 0
             deduplicated_count = 0
-            for item in results:
+            for position, item in enumerate(results, start=1):
                 metadata = dict(item.get("evidence_metadata") or {})
                 metadata["run_id"] = run_id
                 item["evidence_metadata"] = metadata
                 opportunity, was_duplicate = self.store.add_opportunity(task_id, item, evidence_status(item))
                 created_count += int(not was_duplicate)
                 deduplicated_count += int(was_duplicate)
-            self.store.record_usage(
-                WORKSPACE_ID,
-                task_id,
-                "authorized_search",
-                1,
-                1 if results else 0,
-                "COMPLETED",
-                f"search:{run_id}:authorized_search_api",
-            )
+                self._record_source_usage(
+                    task_id,
+                    "authorized_search_api",
+                    "DUPLICATE" if was_duplicate else "SUCCESS",
+                    f"search:{run_id}:authorized_search_api:{position}:{item.get('source_url', '')}",
+                    source_position=position,
+                    source_url=item.get("source_url"),
+                )
+            if not results:
+                self._record_source_usage(
+                    task_id,
+                    "authorized_search_api",
+                    "NO_RESULT",
+                    f"search:{run_id}:authorized_search_api:no-result",
+                    units=0,
+                )
             completed = self.store.complete_task_run(task_id, run_id, len(results), sum(1 for item in results if evidence_status(item) == "SEND_READY"))
             self._send(200, {"task": completed, "run_id": run_id, "created_count": created_count, "deduplicated_count": deduplicated_count, "candidate_count": len(results)})
         except SearchConnectorError as exc:
-            self.store.record_usage(WORKSPACE_ID, task_id, "authorized_search", 1, 0, "FAILED", f"search:{run_id}:authorized_search_api")
+            self._record_source_usage(
+                task_id,
+                "authorized_search_api",
+                "FAILED",
+                f"search:{run_id}:authorized_search_api:failed",
+                units=0,
+                error_code=exc.code,
+            )
             failed = self.store.fail_task_run(task_id, run_id, exc.code, exc.message)
             self._send(502, {"error": exc.code, "message": exc.message, "retryable": exc.retryable, "task": failed, "run_id": run_id})
         except Exception as exc:
-            self.store.record_usage(WORKSPACE_ID, task_id, "authorized_search", 1, 0, "FAILED", f"search:{run_id}:authorized_search_api")
+            self._record_source_usage(
+                task_id,
+                "authorized_search_api",
+                "FAILED",
+                f"search:{run_id}:authorized_search_api:failed",
+                units=0,
+                error_code="connector_internal_error",
+            )
             failed = self.store.fail_task_run(task_id, run_id, "connector_internal_error", str(exc))
             if os.environ.get("LEAD_RADAR_DEBUG"):
                 raise
@@ -358,18 +412,28 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         requested_url = str(payload.get("url", "")).strip()
         if not requested_url:
             raise ValueError("url_required")
-        capture = fetch_public_page(requested_url)
+        try:
+            capture = fetch_public_page(requested_url)
+        except CaptureError as exc:
+            self._record_source_usage(
+                task_id,
+                "public_url_capture",
+                "FAILED",
+                f"public-url:{task_id}:{requested_url}:failed",
+                units=0,
+                requested_url=requested_url,
+                error_code=exc.code,
+            )
+            raise
         item = self._build_captured_item(payload, capture)
         status = evidence_status(item)
         opportunity, was_duplicate = self.store.add_opportunity(task_id, item, status)
-        self.store.record_usage(
-            WORKSPACE_ID,
+        usage = self._record_source_usage(
             task_id,
             "public_url_capture",
-            1,
-            1,
-            "COMPLETED",
-            self.headers.get("Idempotency-Key"),
+            "DUPLICATE" if was_duplicate else "SUCCESS",
+            f"public-url:{task_id}:{requested_url}",
+            source_url=capture["final_url"],
         )
         self._send(
             201,
@@ -383,6 +447,7 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                     "content_hash": capture["content_hash"],
                     "captured_at": capture["captured_at"],
                 },
+                "usage": usage["entry"],
             },
         )
 
@@ -404,30 +469,57 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 raw_item = {"url": raw_item}
             if not isinstance(raw_item, dict):
                 errors.append({"index": index, "error": "item_must_be_object"})
+                self._record_source_usage(
+                    task_id,
+                    "public_url_batch_capture",
+                    "FAILED",
+                    f"public-url:{task_id}:index:{index}:invalid",
+                    units=0,
+                    item_index=index,
+                    error_code="item_must_be_object",
+                )
                 continue
             requested_url = str(raw_item.get("url", "")).strip()
             if not requested_url:
                 errors.append({"index": index, "error": "url_required"})
+                self._record_source_usage(
+                    task_id,
+                    "public_url_batch_capture",
+                    "FAILED",
+                    f"public-url:{task_id}:index:{index}:missing-url",
+                    units=0,
+                    item_index=index,
+                    error_code="url_required",
+                )
                 continue
             try:
                 capture = fetch_public_page(requested_url)
                 item = self._build_captured_item(raw_item, capture)
                 opportunity, was_duplicate = self.store.add_opportunity(task_id, item, evidence_status(item))
-                self.store.record_usage(
-                    WORKSPACE_ID,
+                usage = self._record_source_usage(
                     task_id,
                     "public_url_batch_capture",
-                    1,
-                    1,
-                    "COMPLETED",
-                    f"public-url:{task_id}:{requested_url}",
+                    "DUPLICATE" if was_duplicate else "SUCCESS",
+                    f"public-url:{task_id}:index:{index}:{requested_url}",
+                    requested_url=requested_url,
+                    item_index=index,
                 )
                 items.append({
                     "item": opportunity,
                     "created": not was_duplicate,
                     "capture": {"requested_url": capture["requested_url"], "final_url": capture["final_url"], "content_hash": capture["content_hash"]},
+                    "usage": usage["entry"],
                 })
             except CaptureError as exc:
+                self._record_source_usage(
+                    task_id,
+                    "public_url_batch_capture",
+                    "FAILED",
+                    f"public-url:{task_id}:{requested_url}:failed",
+                    units=0,
+                    requested_url=requested_url,
+                    error_code=exc.code,
+                )
                 errors.append({"index": index, "url": requested_url, "error": exc.code, "message": exc.message})
         self._send(200, {"items": items, "errors": errors, "created_count": sum(int(item["created"]) for item in items), "failed_count": len(errors)})
 
@@ -446,14 +538,15 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 context["query"],
                 context["retrieved_at"],
             )
-            self.store.record_usage(
-                WORKSPACE_ID,
+            self._record_source_usage(
                 task_id,
                 "search_index_import",
-                1,
-                0,
-                "NO_MATCHES",
+                "NO_RESULT",
                 run_key,
+                units=0,
+                provider=context["provider"],
+                proof_ref=context["proof_ref"],
+                query=context["query"],
             )
             self._send(
                 201,
@@ -490,16 +583,16 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
                 context["retrieved_at"],
                 item["source_url"],
             )
-            self.store.record_usage(
-                WORKSPACE_ID,
+            usage = self._record_source_usage(
                 task_id,
                 "search_index_import",
-                1,
-                0 if was_duplicate else 1,
-                "COMPLETED",
+                "DUPLICATE" if was_duplicate else "SUCCESS",
                 idempotency_key,
+                source_url=item["source_url"],
+                provider=context["provider"],
+                proof_ref=context["proof_ref"],
             )
-            items.append({"item": opportunity, "created": not was_duplicate})
+            items.append({"item": opportunity, "created": not was_duplicate, "usage": usage["entry"]})
             deduplicated += int(was_duplicate)
         self._send(
             201,
@@ -658,6 +751,8 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
         if source_kind not in {"public_url_capture", "search_index_snippet", "authorized_search_api"}:
             raise ValueError("reopen_supported_for_public_or_index_sources_only")
         request_key = self.headers.get("Idempotency-Key")
+        if not request_key:
+            raise ValueError("idempotency_key_required")
         ledger_key = f"public-url-reopen:{opportunity_id}:{request_key}" if request_key else None
         if ledger_key:
             previous = self.store.get_usage_by_idempotency_key(WORKSPACE_ID, ledger_key, "public_url_reopen")
@@ -723,14 +818,13 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             capture["captured_at"],
             reopen_decision,
         )
-        self.store.record_usage(
-            WORKSPACE_ID,
+        self._record_source_usage(
             opportunity.get("task_id"),
             "public_url_reopen",
-            1,
-            1,
-            "COMPLETED",
+            "SUCCESS",
             ledger_key,
+            source_url=capture["final_url"],
+            opportunity_id=opportunity_id,
         )
         self._send(
             200,

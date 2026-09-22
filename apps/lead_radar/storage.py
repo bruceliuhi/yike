@@ -160,6 +160,10 @@ CREATE TABLE IF NOT EXISTS usage_ledger (
     credits INTEGER NOT NULL,
     status TEXT NOT NULL,
     idempotency_key TEXT,
+    source_id TEXT NOT NULL DEFAULT '',
+    outcome TEXT NOT NULL DEFAULT 'CHARGED',
+    unit TEXT NOT NULL DEFAULT 'SOUBEI',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL,
     UNIQUE(workspace_id, idempotency_key)
 );
@@ -332,6 +336,15 @@ class Store:
                 self.db.execute("ALTER TABLE source_proofs ADD COLUMN status TEXT NOT NULL DEFAULT 'ACTIVE'")
             if "revoked_at" not in proof_columns:
                 self.db.execute("ALTER TABLE source_proofs ADD COLUMN revoked_at TEXT")
+            usage_columns = {row["name"] for row in self.db.execute("PRAGMA table_info(usage_ledger)").fetchall()}
+            if "source_id" not in usage_columns:
+                self.db.execute("ALTER TABLE usage_ledger ADD COLUMN source_id TEXT NOT NULL DEFAULT ''")
+            if "outcome" not in usage_columns:
+                self.db.execute("ALTER TABLE usage_ledger ADD COLUMN outcome TEXT NOT NULL DEFAULT 'CHARGED'")
+            if "unit" not in usage_columns:
+                self.db.execute("ALTER TABLE usage_ledger ADD COLUMN unit TEXT NOT NULL DEFAULT 'SOUBEI'")
+            if "metadata_json" not in usage_columns:
+                self.db.execute("ALTER TABLE usage_ledger ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'")
             self.db.execute(
                 "INSERT OR IGNORE INTO workspaces(id, name, created_at) VALUES (?, ?, ?)",
                 ("ws_意客AI", "意客 AI 商机雷达", now_iso()),
@@ -1494,31 +1507,101 @@ class Store:
         credits: int,
         status: str,
         idempotency_key: str | None = None,
-    ) -> None:
+        *,
+        source_id: str | None = None,
+        outcome: str | None = None,
+        unit: str = "SOUBEI",
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Record one immutable usage fact and return whether it was inserted.
+
+        Existing callers may continue using the legacy positional arguments.
+        Source-aware callers should provide ``source_id`` and ``outcome`` so
+        successful, duplicate, empty and failed attempts remain distinguishable
+        in the same audit ledger.  An idempotency replay returns the original
+        row and never updates task totals a second time.
+        """
+        units = max(0, int(units))
+        credits = max(0, int(credits))
+        normalized_source = str(source_id or "").strip()
+        normalized_outcome = str(outcome or ("CHARGED" if credits else "UNBILLED")).upper()
+        normalized_unit = str(unit or "SOUBEI").strip().upper() or "SOUBEI"
+        details = dict(metadata or {})
         with self.tx() as db:
             if idempotency_key:
                 existing = db.execute(
-                    "SELECT id FROM usage_ledger WHERE workspace_id = ? AND idempotency_key = ?",
+                    "SELECT * FROM usage_ledger WHERE workspace_id = ? AND idempotency_key = ?",
                     (workspace_id, idempotency_key),
                 ).fetchone()
                 if existing:
-                    return
+                    return {"created": False, "entry": self._usage_dict(existing)}
+            usage_id = _id("usage")
+            created_at = now_iso()
             db.execute(
-                "INSERT INTO usage_ledger(id, workspace_id, task_id, operation, units, credits, status, idempotency_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (_id("usage"), workspace_id, task_id, operation, units, credits, status, idempotency_key, now_iso()),
+                """INSERT INTO usage_ledger
+                   (id, workspace_id, task_id, operation, units, credits, status,
+                    idempotency_key, source_id, outcome, unit, metadata_json, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    usage_id,
+                    workspace_id,
+                    task_id,
+                    operation,
+                    units,
+                    credits,
+                    status,
+                    idempotency_key,
+                    normalized_source,
+                    normalized_outcome,
+                    normalized_unit,
+                    _json(details),
+                    created_at,
+                ),
             )
             if task_id:
                 db.execute("UPDATE tasks SET used_credits = used_credits + ? WHERE id = ?", (credits, task_id))
+            self._audit(
+                db,
+                workspace_id,
+                "usage",
+                usage_id,
+                "recorded",
+                {
+                    "task_id": task_id,
+                    "operation": operation,
+                    "source_id": normalized_source,
+                    "outcome": normalized_outcome,
+                    "units": units,
+                    "credits": credits,
+                    "unit": normalized_unit,
+                    "idempotency_key": idempotency_key,
+                    **details,
+                },
+            )
+            row = db.execute("SELECT * FROM usage_ledger WHERE id = ?", (usage_id,)).fetchone()
+        return {"created": True, "entry": self._usage_dict(row)}
+
+    @staticmethod
+    def _usage_dict(row: sqlite3.Row | dict[str, Any] | None) -> dict[str, Any] | None:
+        if row is None:
+            return None
+        result = dict(row)
+        try:
+            result["metadata"] = json.loads(result.pop("metadata_json") or "{}")
+        except (TypeError, json.JSONDecodeError):
+            result["metadata"] = {}
+            result.pop("metadata_json", None)
+        return result
 
     def get_usage_by_idempotency_key(self, workspace_id: str, idempotency_key: str, operation: str | None = None) -> dict[str, Any] | None:
-        query = "SELECT id, task_id, operation, units, credits, status, idempotency_key, created_at FROM usage_ledger WHERE workspace_id = ? AND idempotency_key = ?"
+        query = "SELECT * FROM usage_ledger WHERE workspace_id = ? AND idempotency_key = ?"
         params: list[Any] = [workspace_id, idempotency_key]
         if operation is not None:
             query += " AND operation = ?"
             params.append(operation)
         with self.lock:
             row = self.db.execute(query, params).fetchone()
-        return dict(row) if row else None
+        return self._usage_dict(row)
 
     def save_source_proof(self, workspace_id: str, proof: dict[str, Any]) -> tuple[dict[str, Any], bool]:
         """Register a proof binding without storing the raw external artifact."""
@@ -1664,7 +1747,7 @@ class Store:
             ).fetchall()
             usage_rows = self.db.execute(
                 """SELECT id, task_id, operation, units, credits, status,
-                          idempotency_key, created_at
+                          idempotency_key, source_id, outcome, unit, metadata_json, created_at
                    FROM usage_ledger
                    WHERE workspace_id = ?
                    ORDER BY created_at DESC, rowid DESC
@@ -1684,11 +1767,16 @@ class Store:
                 entry["payload"] = {}
                 entry.pop("payload_json", None)
             audits.append(entry)
+        usage: list[dict[str, Any]] = []
+        for row in usage_rows:
+            entry = self._usage_dict(row)
+            if entry is not None:
+                usage.append(entry)
         return {
             "workspace_id": workspace_id,
             "credits_used": credits_used,
             "events": audits,
-            "usage": [dict(row) for row in usage_rows],
+            "usage": usage,
         }
 
     @staticmethod

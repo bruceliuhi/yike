@@ -222,7 +222,9 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertEqual(run_events["events"][0]["status"], "BLOCKED_REQUIRES_SOURCE")
         status, plan = self.request("GET", f"/api/v1/tasks/{task['id']}/plan")
         self.assertEqual(status, 200)
-        self.assertEqual(plan["cost_estimate"]["unit"], "credits")
+        self.assertEqual(plan["cost_estimate"]["unit"], "SOUBEI")
+        self.assertEqual(plan["cost_estimate"]["display_unit"], "搜贝")
+        self.assertEqual(plan["cost_estimate"]["rule_version"], "source-result-v1")
 
         status, dashboard = self.request("GET", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/dashboard")
         self.assertEqual(status, 200)
@@ -414,6 +416,13 @@ class LeadRadarApiTest(unittest.TestCase):
         self.assertIn("没有返回合格候选", no_matches["message"])
         _, dashboard = self.request("GET", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/dashboard")
         self.assertEqual(dashboard["credits_used"], 2)
+        _, audit = self.request("GET", "/api/v1/workspaces/ws_%E6%84%8F%E5%AE%A2AI/audit?limit=100")
+        no_result_usage = [
+            item for item in audit["usage"]
+            if item["operation"] == "search_index_import" and item.get("outcome") == "NO_RESULT"
+        ]
+        self.assertEqual(len(no_result_usage), 1)
+        self.assertEqual(no_result_usage[0]["credits"], 0)
 
         status, invalid = self.request(
             "POST",

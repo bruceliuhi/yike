@@ -45,7 +45,7 @@ python3 apps/lead_radar/server.py --port 8780
 - `POST /api/v1/entities/{entity_id}/merge`
 - `POST /api/v1/entities/{entity_id}/split`
 
-任务创建时会生成三条可检查的搜索路径：快速搜索、条件核验、扩展搜索，并给出来源状态和 credits 估算。机会录入必须有 `title`、`source_url` 和 `snippet`。系统保留来源 URL、原文片段和核验时间；当前外部平台连接器仍显示为 `REQUIRES_PROOF` 或 `REQUIRES_AUTH`，不会用假数据冒充自动搜索。
+任务创建时会生成三条可检查的搜索路径：快速搜索、条件核验、扩展搜索，并给出来源状态和搜贝估算。`cost_estimate.unit` 固定为 `SOUBEI`，`display_unit` 为 `搜贝`，`rule_version` 为 `source-result-v1`；旧版 `estimated_credits` / `credits_used` 字段暂保留作为兼容字段，不代表人民币价格或外部平台收费。机会录入必须有 `title`、`source_url` 和 `snippet`。系统保留来源 URL、原文片段和核验时间；当前外部平台连接器仍显示为 `REQUIRES_PROOF` 或 `REQUIRES_AUTH`，不会用假数据冒充自动搜索。
 
 机会还会进入保守的实体解析层：导入记录明确提供 `entity_name` / `company_name` 时建立企业或组织实体；没有实体名称时，只在来源 URL 主机足够稳定时按官网主机建立关联。小红书、抖音、微博等社交平台主机不会被当成企业官网，标题和作者昵称也不会单独创建企业实体。同名实体如果对应不同官网主机会保持分离，避免把不同公司的公开信号错误合并。每张机会卡返回 `entities`，包含实体、主机、置信度、解析原因和关联证据。
 
@@ -57,7 +57,7 @@ python3 apps/lead_radar/server.py --port 8780
 
 机会详情会同时展示证据快照、系统判断、来源权限、人工反馈和审计时间线；详情页只帮助人工复核，不会把查看动作变成联系或发送许可。
 
-总览页的“审计与用量”读取同一工作区的审计事件和用量账本，只读展示任务、证据、反馈和动作草稿的实际变化；credits 汇总来自用量账本，不代表平台搜索已经成功，也不代表外部触达已经发送。
+总览页的“审计与用量”读取同一工作区的审计事件和用量账本，只读展示任务、证据、反馈和动作草稿的实际变化。每条来源尝试带有 `source_id`、`outcome`、`unit`、规则版本和元数据：新结果为 `SUCCESS`（当前 1 搜贝），重复为 `DUPLICATE`（0），无结果为 `NO_RESULT`（0），来源失败为 `FAILED`（0）。同一工作区内重复的幂等键只返回原记录，不会再次增加任务用量。`credits_used` 汇总来自用量账本，兼容旧字段并按搜贝计，不代表人民币价格、平台搜索已经成功或外部触达已经发送。
 
 跟进草稿只能从 `SEND_READY` 机会生成，渠道为 `PUBLIC_REPLY`、`EMAIL`、`FEISHU_TASK` 或 `CRM_TASK`。生成时绑定当前证据 ID，默认状态为 `DRAFT`；审批必须显式提交 `confirm:true`，只记录人工批准事实，不调用平台发送器、不写入外部 CRM，也不会把审批当作已发送。重复请求可使用 `Idempotency-Key`，同一机会和渠道不会重复生成未取消草稿。
 
