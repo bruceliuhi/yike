@@ -66,7 +66,7 @@ python3 apps/lead_radar/server.py --port 8780
 .venv/bin/python -m apps.lead_radar.mcp_server --db apps/lead_radar/lead_radar.sqlite3
 ```
 
-它暴露 `create_search_task`、`get_search_status`、`fetch_search_results` 和 `enrich_entity` 四个工具。MCP 依赖属于可选的 `research` 组；普通 HTTP 工作台不依赖它。MCP 工具没有发送、登录、Cookie、密码或第三方 Token 参数，也不监听 HTTP 端口。
+它暴露 `create_search_task`、`get_search_status`、`fetch_search_results` 和 `enrich_entity` 四个基础工具，并继续提供调度、Feed、任务回放和校准评测只读工具。MCP 依赖属于可选的 `research` 组；普通 HTTP 工作台不依赖它。MCP 工具没有发送、登录、Cookie、密码或第三方 Token 参数，也不监听 HTTP 端口。
 
 MCP 还暴露 `create_monitor_schedule`、`get_monitor_schedule` 和 `trigger_monitor_schedule`。调度器目前以 `trigger` 作为清晰的 worker 边界：创建和到期判定已持久化，后台进程需要显式调用该入口；来源未通过生产门禁时会记录 `BLOCKED_SOURCE`，不会把排队当成搜索完成。
 
@@ -85,6 +85,8 @@ MCP 还提供 `get_feed`、`get_feed_event` 和 `review_feed_event`。Feed 事�
 校准批次用于把一批候选交给人工复核，并记录模型/规则预测与人工金标准的差异。创建批次时可以传 `opportunity_ids`，也可以让服务按 `REVIEW → OBSERVE → SEND_READY → EXCLUDE` 的顺序选择最多 `target_count` 条当前工作区机会；目标数量必须为 1–500，机会只能来自当前工作区且不能重复。复核标签为 `VALID`、`INVALID`、`DUPLICATE`、`OBSERVE`、`NEEDS_EVIDENCE`，默认会写入既有反馈事件并同步机会状态；传 `apply_feedback:false` 只保存校准记录，不改变机会状态。批次返回覆盖率、人工复核数、准确率、误报/漏报数，以及对用户提交公开网页的重开率。重复复核会保留新的审计/反馈事实，不能当作幂等发送。
 
 校准指标只反映当前批次中已录入的机会和人工标签，不代表平台召回率、商机成交率或跨行业效果。样本必须来自真实授权运行或明确的用户提交来源；fixture、静态页面和预置 URL 不能作为生产校准证据。正式发布仍需按 CP-06 记录真实来源 capability、生产数据库/恢复、HTTPS 和客户验收。
+
+评测接口 GET /api/v1/calibration-batches/{batch_id}/evaluation 会输出相关性、证据完整度、原文重开率、实体关联与重复风险、搜贝成本和任务/人工复核延迟。报告同时列出 source_kind、已批准来源权利、样本量、不可计算指标和 quality_gate；没有 30 条人工样本、已批准授权来源或完成任务时间时会明确 BLOCKED。cost 只表示搜贝账本，不是人民币报价；报告默认 not_a_public_benchmark=true。MCP 通过 get_calibration_evaluation 提供同一只读结果。
 
 机会详情会同时展示证据快照、系统判断、来源权限、人工反馈和审计时间线；详情页只帮助人工复核，不会把查看动作变成联系或发送许可。
 

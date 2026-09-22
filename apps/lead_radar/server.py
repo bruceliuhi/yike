@@ -24,6 +24,7 @@ try:
     from .capture import CaptureError, fetch_public_page
     from .connectors import list_capabilities
     from .domain import compile_intent, evidence_status
+    from .evaluation_api import get_calibration_evaluation
     from .feed_api import get_feed_event, list_feed, review_feed_event
     from .index_connector import IndexResultError, normalize_index_results
     from .planner import build_search_plan
@@ -41,6 +42,7 @@ except ImportError:  # running server.py directly
     from capture import CaptureError, fetch_public_page
     from connectors import list_capabilities
     from domain import compile_intent, evidence_status
+    from evaluation_api import get_calibration_evaluation
     from feed_api import get_feed_event, list_feed, review_feed_event
     from index_connector import IndexResultError, normalize_index_results
     from planner import build_search_plan
@@ -373,6 +375,14 @@ class LeadRadarHandler(BaseHTTPRequestHandler):
             return self._send(200, {"items": self.store.list_entities(WORKSPACE_ID)})
         if path == f"/api/v1/workspaces/{WORKSPACE_ID}/calibration-batches":
             return self._send(200, {"items": self.store.list_calibration_batches(WORKSPACE_ID)})
+        if path.startswith("/api/v1/calibration-batches/") and path.endswith("/evaluation"):
+            try:
+                return self._send(
+                    200,
+                    get_calibration_evaluation(self.store, WORKSPACE_ID, path.split("/")[-2]),
+                )
+            except BusinessApiError as exc:
+                return self._error(exc.status, exc.code, exc.message)
         if path.startswith("/api/v1/tasks/") and path.count("/") == 4:
             task = self.store.get_task(path.rsplit("/", 1)[-1])
             return self._send(200, task) if task else self._error(404, "task_not_found", "任务不存在")

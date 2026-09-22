@@ -6,6 +6,7 @@ import sqlite3
 import threading
 import uuid
 from contextlib import contextmanager
+from datetime import datetime
 from typing import Any, Iterator
 from urllib.parse import urlparse
 
@@ -2343,6 +2344,253 @@ class Store:
             result = self._calibration_summary(self.db, batch)
             result["items"] = [self._calibration_item(self.db, row) for row in item_rows]
             return result
+
+    @staticmethod
+    def _calibration_seconds(start: Any, end: Any) -> float | None:
+        if not start or not end:
+            return None
+        try:
+            def parse(value: Any) -> datetime:
+                return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+            return max(0.0, (parse(end) - parse(start)).total_seconds())
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _calibration_median(values: list[float]) -> float | None:
+        if not values:
+            return None
+        ordered = sorted(values)
+        middle = len(ordered) // 2
+        if len(ordered) % 2:
+            return round(ordered[middle], 3)
+        return round((ordered[middle - 1] + ordered[middle]) / 2, 3)
+
+    def calibration_evaluation(self, batch_id: str, workspace_id: str) -> dict[str, Any] | None:
+        """Return quality metrics while keeping fixture and production claims separate."""
+
+        with self.lock:
+            batch = self.db.execute(
+                "SELECT * FROM calibration_batches WHERE id = ? AND workspace_id = ?",
+                (batch_id, workspace_id),
+            ).fetchone()
+            if not batch:
+                return None
+            item_rows = self.db.execute(
+                """SELECT ci.id, ci.opportunity_id, ci.predicted_label, ci.gold_label,
+                          ci.created_at AS calibration_created_at, ci.reviewed_at,
+                          o.task_id, o.source_kind, o.source_url, o.snippet,
+                          o.evidence_level,
+                          (SELECT COUNT(*) FROM evidence e
+                           WHERE e.opportunity_id = o.id) AS evidence_count,
+                          (SELECT COUNT(*) FROM opportunity_entities oe
+                           WHERE oe.opportunity_id = o.id) AS entity_link_count,
+                          EXISTS(
+                              SELECT 1
+                              FROM opportunity_entities oe
+                              JOIN (
+                                  SELECT entity_id, COUNT(DISTINCT opportunity_id) AS opportunity_count
+                                  FROM opportunity_entities
+                                  GROUP BY entity_id
+                              ) entity_usage ON entity_usage.entity_id = oe.entity_id
+                              WHERE oe.opportunity_id = o.id
+                                AND entity_usage.opportunity_count > 1
+                          ) AS duplicate_risk
+                   FROM calibration_items ci
+                   JOIN opportunities o ON o.id = ci.opportunity_id
+                   WHERE ci.batch_id = ?
+                   ORDER BY ci.created_at, ci.rowid""",
+                (batch_id,),
+            ).fetchall()
+            task_ids = sorted({row["task_id"] for row in item_rows if row["task_id"]})
+            if task_ids:
+                placeholders = ",".join("?" for _ in task_ids)
+                task_rows = self.db.execute(
+                    f"SELECT id, created_at, finished_at, status FROM tasks WHERE workspace_id = ? AND id IN ({placeholders})",
+                    (workspace_id, *task_ids),
+                ).fetchall()
+                usage_rows = self.db.execute(
+                    f"""SELECT task_id, COUNT(*) AS entries, COALESCE(SUM(units), 0) AS units,
+                               COALESCE(SUM(credits), 0) AS credits
+                        FROM usage_ledger
+                        WHERE workspace_id = ? AND task_id IN ({placeholders})
+                        GROUP BY task_id""",
+                    (workspace_id, *task_ids),
+                ).fetchall()
+            else:
+                task_rows = []
+                usage_rows = []
+            approved_source_ids = {
+                row["source_id"]
+                for row in self.db.execute(
+                    """SELECT r.source_id
+                       FROM source_rights r
+                       JOIN source_proofs p ON p.workspace_id = r.workspace_id
+                                            AND p.proof_ref = r.proof_ref
+                                            AND p.status = 'ACTIVE'
+                       WHERE r.workspace_id = ? AND r.permission_status = 'APPROVED'""",
+                    (workspace_id,),
+                ).fetchall()
+            }
+            summary = self._calibration_summary(self.db, batch)
+
+        rows = [dict(row) for row in item_rows]
+        item_count = len(rows)
+        reviewed_count = sum(1 for row in rows if row["gold_label"])
+        evidence_complete_count = sum(
+            1
+            for row in rows
+            if str(row["source_url"] or "").strip()
+            and str(row["snippet"] or "").strip()
+            and int(row["evidence_count"] or 0) > 0
+        )
+        reopenable_sources = {"public_url_capture", "search_index_snippet", "authorized_search_api"}
+        reopen_eligible_count = sum(1 for row in rows if row["source_kind"] in reopenable_sources)
+        reopened_count = 0
+        for row in rows:
+            if row["source_kind"] not in reopenable_sources:
+                continue
+            opportunity = self.get_opportunity(row["opportunity_id"]) or {}
+            if any(evidence["evidence_type"] == "reopen_check" for evidence in opportunity.get("evidence", [])):
+                reopened_count += 1
+        entity_linked_count = sum(1 for row in rows if int(row["entity_link_count"] or 0) > 0)
+        duplicate_risk_count = sum(1 for row in rows if bool(row["duplicate_risk"]))
+        duplicate_gold_count = sum(1 for row in rows if row["gold_label"] == "DUPLICATE")
+        duplicate_gold_with_signal = sum(
+            1 for row in rows if row["gold_label"] == "DUPLICATE" and bool(row["duplicate_risk"])
+        )
+        duplicate_signal_gold_count = sum(
+            1 for row in rows if bool(row["duplicate_risk"]) and row["gold_label"]
+        )
+        duplicate_signal_true_count = sum(
+            1 for row in rows if bool(row["duplicate_risk"]) and row["gold_label"] == "DUPLICATE"
+        )
+        source_counts: dict[str, int] = {}
+        for row in rows:
+            source_kind = str(row["source_kind"] or "UNKNOWN")
+            source_counts[source_kind] = source_counts.get(source_kind, 0) + 1
+        authorized_kinds = {"authorized_search_api", "search_index_snippet"}
+        rights_backed_count = sum(
+            1
+            for row in rows
+            if row["source_kind"] in authorized_kinds
+            and (
+                row["source_kind"] in approved_source_ids
+                or (row["source_kind"] == "search_index_snippet" and "search_index" in approved_source_ids)
+            )
+        )
+        user_submitted_count = sum(
+            1 for row in rows if row["source_kind"] in {"public_url_capture", "manual_public_evidence"}
+        )
+        authorized_kind_count = sum(1 for row in rows if row["source_kind"] in authorized_kinds)
+        task_latencies = [
+            seconds
+            for row in task_rows
+            if (seconds := self._calibration_seconds(row["created_at"], row["finished_at"])) is not None
+        ]
+        review_latencies = [
+            seconds
+            for row in rows
+            if (seconds := self._calibration_seconds(row["calibration_created_at"], row["reviewed_at"])) is not None
+        ]
+        charged_entries = sum(int(row["entries"] or 0) for row in usage_rows)
+        usage_units = sum(int(row["units"] or 0) for row in usage_rows)
+        charged_credits = sum(int(row["credits"] or 0) for row in usage_rows)
+        all_reviewed = item_count > 0 and reviewed_count == item_count
+        blocking_reasons: list[str] = []
+        if item_count < 30:
+            blocking_reasons.append("sample_count_below_30")
+        if reviewed_count < 30:
+            blocking_reasons.append("reviewed_count_below_30")
+        if rights_backed_count == 0:
+            blocking_reasons.append("no_approved_authorized_source_right")
+        if not all_reviewed and item_count:
+            blocking_reasons.append("unreviewed_items_present")
+        if not task_latencies:
+            blocking_reasons.append("no_completed_task_latency")
+        unavailable_metrics = ["rmb_cost", "cross_industry_generalization"]
+        if not reviewed_count:
+            unavailable_metrics.extend(["precision", "recall", "duplicate_signal_precision", "duplicate_signal_recall"])
+        if not task_latencies:
+            unavailable_metrics.append("task_latency")
+
+        return {
+            "batch": summary,
+            "provenance": {
+                "source_kind_counts": source_counts,
+                "user_submitted_public_url_count": user_submitted_count,
+                "authorized_source_kind_count": authorized_kind_count,
+                "rights_backed_authorized_source_count": rights_backed_count,
+                "approved_source_ids": sorted(approved_source_ids),
+                "original_content_stored": False,
+                "interpretation": "来源类型和权利记录可追溯；没有权利背书的样本不能作为生产来源结论。",
+            },
+            "metrics": {
+                "relevance": {
+                    "reviewed_count": reviewed_count,
+                    "accuracy": summary["metrics"]["accuracy"],
+                    "false_positive_count": summary["metrics"]["false_positive_count"],
+                    "false_negative_count": summary["metrics"]["false_negative_count"],
+                },
+                "evidence_completeness": {
+                    "sample_count": item_count,
+                    "complete_count": evidence_complete_count,
+                    "rate": round(evidence_complete_count / item_count, 4) if item_count else None,
+                    "definition": "source_url、snippet 和至少一条证据记录同时存在",
+                },
+                "reopen": {
+                    "eligible_count": reopen_eligible_count,
+                    "reopened_count": reopened_count,
+                    "rate": round(reopened_count / reopen_eligible_count, 4) if reopen_eligible_count else None,
+                    "definition": "公开或授权来源至少存在一条 reopen_check 证据",
+                },
+                "entity_resolution": {
+                    "linked_count": entity_linked_count,
+                    "link_rate": round(entity_linked_count / item_count, 4) if item_count else None,
+                    "duplicate_risk_count": duplicate_risk_count,
+                    "duplicate_risk_rate": round(duplicate_risk_count / item_count, 4) if item_count else None,
+                    "duplicate_gold_count": duplicate_gold_count,
+                    "duplicate_signal_precision": (
+                        round(duplicate_signal_true_count / duplicate_signal_gold_count, 4)
+                        if duplicate_signal_gold_count
+                        else None
+                    ),
+                    "duplicate_signal_recall": (
+                        round(duplicate_gold_with_signal / duplicate_gold_count, 4)
+                        if duplicate_gold_count
+                        else None
+                    ),
+                    "definition": "同一实体关联多个机会时记为重复风险，不能替代人工金标准",
+                },
+                "cost": {
+                    "usage_entry_count": charged_entries,
+                    "units": usage_units,
+                    "credits": charged_credits,
+                    "unit": "SOUBEI",
+                    "display_unit": "搜贝",
+                    "per_candidate": round(charged_credits / item_count, 4) if item_count else None,
+                    "is_rmb_price": False,
+                },
+                "latency": {
+                    "completed_task_count": len(task_latencies),
+                    "average_task_seconds": round(sum(task_latencies) / len(task_latencies), 3) if task_latencies else None,
+                    "p50_task_seconds": self._calibration_median(task_latencies),
+                    "reviewed_item_count": len(review_latencies),
+                    "average_review_seconds": round(sum(review_latencies) / len(review_latencies), 3) if review_latencies else None,
+                },
+            },
+            "quality_gate": {
+                "status": "READY_FOR_PRODUCTION_REVIEW" if not blocking_reasons else "BLOCKED",
+                "minimum_sample_count": 30,
+                "blocking_reasons": blocking_reasons,
+                "claim_allowed": not blocking_reasons,
+                "explanation": "只有样本、人工金标准、完成任务延迟和已批准来源权利同时满足，才允许进入生产验收。",
+            },
+            "unavailable_metrics": unavailable_metrics,
+            "report_scope": "calibration_batch",
+            "not_a_public_benchmark": True,
+        }
 
     def review_calibration_item(
         self,

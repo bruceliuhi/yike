@@ -24,6 +24,7 @@ try:
         fetch_search_results,
         get_search_status,
     )
+    from .evaluation_api import get_calibration_evaluation
     from .feed_api import get_feed_event, list_feed, review_feed_event
     from .replay_api import get_task_replay
     from .server import WORKSPACE_ID
@@ -31,6 +32,7 @@ try:
     from .storage import Store
 except ImportError:  # running this file directly
     from business_api import API_VERSION, BusinessApiError, create_search_task, enrich_entity, fetch_search_results, get_search_status
+    from evaluation_api import get_calibration_evaluation
     from feed_api import get_feed_event, list_feed, review_feed_event
     from replay_api import get_task_replay
     from server import WORKSPACE_ID
@@ -199,6 +201,17 @@ TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "additionalProperties": False,
         },
     },
+    {
+        "name": "get_calibration_evaluation",
+        "description": "读取校准批次的证据完整度、重开率、实体重复风险、搜贝成本、延迟和生产门禁；不足样本会明确阻塞。",
+        "readOnlyHint": True,
+        "inputSchema": {
+            "type": "object",
+            "properties": {"batch_id": {"type": "string", "maxLength": 120}},
+            "required": ["batch_id"],
+            "additionalProperties": False,
+        },
+    },
 )
 
 
@@ -300,6 +313,8 @@ def build_server(store: Store, workspace_id: str = WORKSPACE_ID):
                 result = review_feed_event(store, workspace_id, args["event_id"], args)
             elif name == "get_task_replay":
                 result = get_task_replay(store, workspace_id, args["task_id"])
+            elif name == "get_calibration_evaluation":
+                result = get_calibration_evaluation(store, workspace_id, args["batch_id"])
             else:
                 result = _failure("unknown_tool", "工具不存在。")
         except BusinessApiError as exc:

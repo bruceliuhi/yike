@@ -135,6 +135,45 @@ class BusinessApiTest(unittest.TestCase):
         self.assertEqual(status, 404)
         self.assertEqual(body["error"], "task_not_found")
 
+    def test_calibration_evaluation_exposes_quality_metrics_and_blocks_fixtures(self) -> None:
+        status, created, _ = self.request(
+            "POST",
+            "/api/v1/business/create_search_task",
+            {"objective": "评测报告任务"},
+        )
+        self.assertEqual(status, 201)
+        task_id = created["task"]["id"]
+        status, added, _ = self.request(
+            "POST",
+            f"/api/v1/tasks/{task_id}/opportunities",
+            {
+                "title": "评测候选",
+                "source_url": "https://evaluation.example/request",
+                "snippet": "公开需求样本",
+                "source_kind": "manual_public_evidence",
+            },
+        )
+        self.assertEqual(status, 201)
+        opportunity_id = added["items"][0]["id"]
+        status, batch, _ = self.request(
+            "POST",
+            f"{WORKSPACE_PATH}/calibration-batches",
+            {"name": "评测批次", "target_count": 1, "opportunity_ids": [opportunity_id]},
+        )
+        self.assertEqual(status, 201)
+        status, report, _ = self.request(
+            "GET",
+            f"/api/v1/calibration-batches/{batch['id']}/evaluation",
+        )
+        self.assertEqual(status, 200)
+        evaluation = report["evaluation"]
+        self.assertTrue(evaluation["not_a_public_benchmark"])
+        self.assertEqual(evaluation["metrics"]["evidence_completeness"]["rate"], 1.0)
+        self.assertEqual(evaluation["metrics"]["cost"]["unit"], "SOUBEI")
+        self.assertIn("sample_count_below_30", evaluation["quality_gate"]["blocking_reasons"])
+        self.assertIn("no_approved_authorized_source_right", evaluation["quality_gate"]["blocking_reasons"])
+        self.assertIn("rmb_cost", evaluation["unavailable_metrics"])
+
 
 class McpContractTest(unittest.TestCase):
     def test_mcp_tools_have_no_credential_or_outreach_inputs(self) -> None:
