@@ -55,6 +55,7 @@ export function LoginPage() {
   };
   const requestCode = async () => {
     if (!validPhone() || cooldown > 0 || smsBusy) return;
+    login.setError("");
     const request = ++smsGeneration.current;
     const abort = new AbortController();
     smsController.current?.abort();
@@ -153,6 +154,7 @@ export function LoginPage() {
                 setCode("");
                 setPhone(e.target.value);
                 setErrors({});
+                login.setError("");
                 setSmsError("");
               }}
             />
@@ -171,6 +173,7 @@ export function LoginPage() {
                 onChange={(e) => {
                   setCode(e.target.value);
                   setErrors({});
+                  login.setError("");
                 }}
               />
               <Button

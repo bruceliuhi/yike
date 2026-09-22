@@ -122,6 +122,19 @@ describe("登录", () => {
     expect(screen.queryByLabelText("试用码")).toBeNull();
     await waitFor(()=>expect(service.login).toHaveBeenCalledWith("13800000000", "123456"));
   });
+  it("重新获取验证码会清除上一次登录错误", async () => {
+    const service = mount({
+      requestCode: vi.fn().mockResolvedValue({ retryAfter: 60 }),
+      login: vi.fn().mockRejectedValue(new ServiceError("phone_auth_failed", "验证码无效或已过期，请重新核对或获取验证码。", 401)),
+    });
+    fireEvent.change(screen.getByLabelText("手机号码"), { target: { value: "13800000000" } });
+    fireEvent.change(screen.getByLabelText("短信验证码"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
+    await screen.findByText("验证码无效或已过期，请重新核对或获取验证码。");
+    fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
+    await waitFor(() => expect(service.requestCode).toHaveBeenCalledOnce());
+    expect(screen.queryByText("验证码无效或已过期，请重新核对或获取验证码。")).toBeNull();
+  });
   it("已有凭证走真实登录方法，凭证不进入本机存储", async () => {
     const service = mount({
       session: vi.fn()
