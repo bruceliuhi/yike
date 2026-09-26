@@ -46,6 +46,7 @@ def test_verified_include_is_projected_read_only_for_exact_owner_and_profile(rea
     assert len(result["groups"]["contact"]["items"][0]["basis"]["verifiedAt"].split(".")[1]) == 4
     assert result["groups"]["changes"] == {"items":[], "total":0}
     assert "原帖需求变化尚未核验" in result["uncheckedScope"]
+    assert not any("条已纳入记录" in text for text in result["uncheckedScope"])
     with env.admin.connect() as connection:
         after = connection.execute(
             "SELECT count(*) FROM pilot_followups WHERE tenant_id=%s", (env.tenant,)
@@ -60,12 +61,20 @@ def test_contact_disappears_after_real_exclude_or_strategy_revoke_and_is_owner_s
     brief = OpportunityBriefService(env.db)
     assert brief.query(env.claims, request)["groups"]["contact"]["total"] == 1
     service.verify_source(env.claims, verification_payload(binding, status="BLOCKED"))
-    assert brief.query(env.claims, request | {"requestId":str(uuid4())})["groups"]["contact"]["total"] == 0
+    blocked_result = brief.query(env.claims, request | {"requestId":str(uuid4())})
+    assert blocked_result["groups"]["contact"]["total"] == 0
+    assert "1 条已纳入记录缺少当前可用的原文核验，需打开来源重新确认" in blocked_result["uncheckedScope"]
+    other = verify_token_claims(issue_token(env.users[1], SECRET), SECRET)
+    other_result = brief.query(other, request | {"requestId":str(uuid4()), "userId":other.user_id})
+    assert other_result["coverage"] == "NOT_CHECKED"
+    assert not any("条已纳入记录" in text for text in other_result["uncheckedScope"])
     excluded = service.review(env.claims, review_payload(binding, "EXCLUDE",
         assessmentId=assessed["assessment"]["id"], humanConfirmed=True,
         evidence=assessment()["evidence"], reason="需求已不适合"))
     assert excluded["receipt"]["outcome"] == "EXCLUDED"
-    assert brief.query(env.claims, request | {"requestId":str(uuid4())})["groups"]["contact"]["total"] == 0
+    excluded_result = brief.query(env.claims, request | {"requestId":str(uuid4())})
+    assert excluded_result["groups"]["contact"]["total"] == 0
+    assert not any("条已纳入记录" in text for text in excluded_result["uncheckedScope"])
     other = verify_token_claims(issue_token(env.users[1], SECRET), SECRET)
     other_request = request | {"requestId":str(uuid4()), "userId":other.user_id}
     other_result = brief.query(other, other_request)
@@ -132,6 +141,7 @@ def test_include_without_literal_own_demand_citation_is_not_recommended(real_str
     result = OpportunityBriefService(env.db).query(env.claims, _request(env))
     assert result["coverage"] == "PARTIAL"
     assert result["groups"]["contact"]["total"] == 0
+    assert "1 条已纳入记录缺少本人表达需求的原文依据，需补齐需求证据" in result["uncheckedScope"]
 
 
 def _request(env):

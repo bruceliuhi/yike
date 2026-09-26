@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 import hashlib
 import json
@@ -11,6 +12,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import psycopg
 
 from pilot.auth import InvalidPilotToken, TokenClaims
+from pilot.brief_evidence_decisions import contact_evidence_decision, evidence_gap_summary
 from pilot.opportunity_evidence import OpportunityEvidenceError, evidence_view
 from pilot.sessions import PilotSessionRegistry
 
@@ -205,6 +207,7 @@ class OpportunityBriefService:
             local_start = datetime.combine(date.fromisoformat(query["businessDate"]), datetime.min.time(), zone).astimezone(UTC)
             local_end = _next_day(now, zone)
             contact = []; changes=[]
+            contact_decisions = Counter()
             for row in opportunities:
                 if row["included_by_user_id"] != claims.user_id or row["payload"] is None:
                     continue
@@ -243,13 +246,16 @@ class OpportunityBriefService:
                 verification_row = cursor.fetchone()
                 latest_verification = verification_row[0] if verification_row else None
                 demand_excerpt = _demand_excerpt(snapshot)
-                if (row["source_status"] != "OPEN" or row["intent_status"] in {"CONTACTED", "CLOSED"}
-                        or row["legacy_contact"] or row["opportunity_id"] in current_followups or row["later_excluded"]
-                        or not row["strategy_current"]
-                        or row["latest_source_hash"] != snapshot["source"]["content_sha256"]
-                        or not latest_verification or latest_verification.get("status") != "OPEN"
-                        or latest_verification.get("contactMethod") not in {"COMMENT", "DM", "PUBLIC_CONTACT"}
-                        or demand_excerpt is None):
+                decision = contact_evidence_decision(
+                    source_status=row["source_status"], intent_status=row["intent_status"],
+                    previously_contacted=bool(row["legacy_contact"] or row["opportunity_id"] in current_followups),
+                    later_excluded=row["later_excluded"], strategy_current=row["strategy_current"],
+                    current_source_hash=row["latest_source_hash"],
+                    captured_source_hash=snapshot["source"]["content_sha256"],
+                    verification=latest_verification, has_demand_excerpt=demand_excerpt is not None,
+                )
+                contact_decisions[decision] += 1
+                if decision != "ELIGIBLE":
                     continue
                 checked = snapshot["verification"]["checked_at"]
                 contact.append(self._item("contact", row, query, row["include_request_id"],
@@ -287,6 +293,7 @@ class OpportunityBriefService:
             ))
             coverage = "PARTIAL" if has_facts else "NOT_CHECKED"
             unchecked = (["原帖需求变化尚未核验", "真实未覆盖来源尚未检查"] if has_facts else ["尚无本人该画像的可读事实或已完成任务"])
+            unchecked = evidence_gap_summary(contact_decisions) + unchecked
             identity = query | {"generatedAt": _iso(now)}
             result = query | {"snapshotId": _stable("obs_", identity), "audience":"CUSTOMER",
                 "generatedAt":_iso(now), "expiresAt":_iso(min(now + timedelta(minutes=5), end)),
