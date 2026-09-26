@@ -30,6 +30,7 @@ import { ManagementRecoveryControls } from "./ManagementRecoveryControls";
 import { configureStrategyVisual } from "./strategy";
 import { configureExecutionVisual } from './execution';
 import { configureCandidateReviewVisual } from "./candidate-review";
+import { configureRadarIntegrationVisual } from "./radar-integration";
 
 const params = new URLSearchParams(location.search);
 const state = (
@@ -110,6 +111,7 @@ const recovery = recoveryName
   ? configureRecovery(harness, recoveryName)
   : undefined;
 configureCandidateReviewVisual(harness.service, params, harness.record);
+const radar = configureRadarIntegrationVisual(harness.service, params, harness.record);
 const storage = isolateBrowser(harness.record, { saveExport: managementRecovery?.saveExport });
 const seed = (name: string, value: unknown) =>
   storage.session.setItem("yike.ui.draft.v1." + name, JSON.stringify(value));
@@ -138,6 +140,10 @@ if (state === "populated") {
   }
 }
 recovery?.seed(storage.session, page);
+if (radar) {
+  seed(`task.${radar.owner}`, radar.draft);
+  seed(`task-library.${radar.owner}`, [radar.draft]);
+}
 if (params.get("strategy") === "confirm" && ["P06", "P19", "P20"].includes(page)
   && state === "populated" && params.get("session") !== "guest" && !recoveryName) {
   const draft = configureStrategyVisual(harness.service);
@@ -182,6 +188,7 @@ createRoot(document.getElementById("root")!).render(
         {repliesOnly && " · 跟进：无人工记录＋独立回复"}
         {recoveryName && ` · 恢复场景 ${recoveryName}`}
         {managementRecovery && " · TEST 模拟保存/取消，不写文件"}
+        {radar && " · TEST 搜索计划：工业水泵可改为离心水泵，仅固定夹具"}
       </div>
       <details id="visual-harness-controls">
         <summary>TEST 场景</summary>

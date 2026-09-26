@@ -52,6 +52,7 @@ export const API_OPERATIONS = [
   'connections.list',
   'taskFeed.list', 'taskFeed.get',
   'research.list', 'research.timeline', 'research.similar',
+  'researchPlan.preview',
   'coverage.query',
   'opportunityBrief.query',
   'contactDrafts.save', 'contactDrafts.operation', 'contactDrafts.latest',

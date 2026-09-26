@@ -36,6 +36,7 @@ export function errorMessage(error: unknown): string {
   return "操作未完成，请查看当前状态后再继续。";
 }
 export interface YikeService {
+  researchPlan?: import('./radarPlan').RadarPlanService;
   searchSuggestions?: import('./searchSuggestions').SearchSuggestionsService;
   taskFeed?: import('./taskFeed').TaskFeedService;
   monitorCollection?: import('./monitorCollection').MonitorCollectionService;

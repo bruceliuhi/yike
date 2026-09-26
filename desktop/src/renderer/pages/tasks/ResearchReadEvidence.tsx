@@ -32,7 +32,13 @@ export function ResearchReadEvidence({taskId,runId,reads,onOpen}:{
       if(!abort.signal.aborted&&scope===identity.current)setLoading(false);
     }
   }
-  return <details onToggle={event=>{if(event.currentTarget.open&&!loaded&&!loading)void load(0,true);}}>
+  function openSource(url:string){
+    const scope=identity.current;
+    void onOpen(url).catch(()=>{
+      if(scope===identity.current)setError('来源链接未能安全打开，请稍后重试。');
+    });
+  }
+  return <details key={`${taskId}:${runId}`} className="usage-advanced" onToggle={event=>{if(event.currentTarget.open&&!loaded&&!loading)void load(0,true);}}>
     <summary>已读原文</summary>
     <p className="muted">这里只展示已成功读取的公开原文；研究原文，尚非已确认商机。</p>
     <ResourceStatus loading={loading} error={error}/>
@@ -40,17 +46,21 @@ export function ResearchReadEvidence({taskId,runId,reads,onOpen}:{
     {items.map(item=>{const long=item.text.length>LONG_TEXT_LENGTH,isExpanded=expanded.has(item.sequence);return <article
       className="fixed-source-evidence fixed-source-evidence--compact" aria-label="研究原文" key={item.sequence}>
       <h3>{item.title??'未提供标题'}</h3>
-      <p className="field-hint" style={{overflowWrap:'anywhere'}}>{item.url}</p>
-      <p className="muted">读取于 {formatDate(item.observedAt)}</p>
       <div className={`fixed-evidence-body${long&&!isExpanded?' fixed-evidence-body--collapsed':''}`}>{item.text}</div>
+      <div className="task-footer"><Button onClick={()=>openSource(item.url)}>打开公开来源</Button>
       {long&&<Button variant="ghost" aria-expanded={isExpanded} onClick={()=>setExpanded(current=>{
         const next=new Set(current);if(next.has(item.sequence))next.delete(item.sequence);else next.add(item.sequence);return next;
       })}>{isExpanded?'收起原文':'展开完整原文'}</Button>}
-      <div className="task-footer"><Button onClick={()=>void onOpen(item.url).catch(()=>setError('来源链接未能安全打开，请稍后重试。'))}>打开公开来源</Button></div>
+      </div>
+      <details className="usage-advanced">
+        <summary>来源信息</summary>
+        <p className="field-hint" style={{overflowWrap:'anywhere'}}>{item.url}</p>
+        <p className="muted">读取于 {formatDate(item.observedAt)}</p>
+      </details>
     </article>;})}
     <div className="task-footer">
       <Button disabled={loading} onClick={()=>void load(0,true)}>刷新已读原文</Button>
-      <Button disabled={loading||nextAfter===null} onClick={()=>{if(nextAfter!==null)void load(nextAfter,false);}}>下一页</Button>
+      <Button disabled={loading||nextAfter===null} onClick={()=>{if(nextAfter!==null)void load(nextAfter,false);}}>加载更多原文</Button>
     </div>
   </details>;
 }

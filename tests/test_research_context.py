@@ -185,7 +185,7 @@ def test_compiles_ai_and_non_ai_service_contexts_with_host_binding():
     assert set(ai) == {"instructions", "context_json", "binding", "entry_urls", "query_portfolio"}
     assert set(ai["binding"]) == expected_keys
     assert ai["binding"]["rule_version"] == (
-        "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1/trusted-entries-v1/efficient-handoff-v1/citation-choice-v1/query-portfolio-v2")
+        "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1/trusted-entries-v1/efficient-handoff-v1/citation-choice-v1/query-portfolio-v2/radar-search-directions-v1")
     assert ai["binding"]["profile_version_id"] == context()["profile_version_id"]
     assert len(ai["binding"]["rule_sha256"]) == 64
     assert len(ai["binding"]["context_sha256"]) == 64
@@ -194,7 +194,7 @@ def test_compiles_ai_and_non_ai_service_contexts_with_host_binding():
     assert "30–60" in ai["instructions"]
     assert "本轮查询组合" in ai["instructions"]
     assert "按顺序选择尚未执行的查询" in ai["instructions"]
-    assert "机器视觉质检 询价" in ai["query_portfolio"]
+    assert any(query.startswith("机器视觉质检 询价") for query in ai["query_portfolio"])
     assert "展台设计搭建" in non_ai["context_json"]
     assert "仅在客户行业与技术社区匹配时" in non_ai["instructions"]
     assert non_ai["binding"]["rule_sha256"] == hashlib.sha256(
@@ -202,6 +202,21 @@ def test_compiles_ai_and_non_ai_service_contexts_with_host_binding():
     ).hexdigest()
     assert ai["binding"]["rule_sha256"] == non_ai["binding"]["rule_sha256"]
     UUID(ai["binding"]["profile_version_id"])
+
+
+def test_live_research_context_uses_the_same_plan_as_preview_without_extra_dto_fields():
+    from pilot.radar_plan import build_search_directions
+
+    value = context(seller_description="为食品工厂定制输送设备", query_seeds=["输送设备"],
+                    intent_signals=["采购", "询价"], exclusions=["二手回收"])
+    compiled = compile_research_context(value)
+    preview = build_search_directions(query_seeds=value["query_seeds"],
+        intent_signals=value["intent_signals"], exclusions=value["exclusions"],
+        max_queries=min(24, max(8, len(value["query_seeds"]) * 6)))
+    assert compiled["query_portfolio"] == preview["queries"]
+    assert json.loads(compiled["context_json"]) == value
+    assert compiled["binding"]["rule_version"].endswith("/radar-search-directions-v1")
+    assert not any("AI" in query or "知识库" in query for query in compiled["query_portfolio"])
 
 
 def test_catalog_entry_hints_are_public_conditional_and_complete():
@@ -242,7 +257,7 @@ def test_compiler_derives_catalog_and_known_history_but_exact_negative_wins():
         known,
     )
     assert blocked not in compiled["entry_urls"] and prose_only not in compiled["entry_urls"]
-    assert "/trusted-entries-v1/efficient-handoff-v1/citation-choice-v1/query-portfolio-v2" in compiled["binding"]["rule_version"]
+    assert "/trusted-entries-v1/efficient-handoff-v1/citation-choice-v1/query-portfolio-v2/radar-search-directions-v1" in compiled["binding"]["rule_version"]
     detached = compiled["entry_urls"]
     value["history"][0]["source_urls"].append("https://example.com/later")
     assert detached == compiled["entry_urls"]
@@ -362,7 +377,7 @@ def test_page_selection_contract_is_versioned_and_participates_in_rule_hash():
     result = compile_research_context(context())
     assert result["instructions"].endswith(CITATION_CHOICE_INSTRUCTIONS)
     assert "/page-selection-v1/" in result["binding"]["rule_version"]
-    assert result["binding"]["rule_version"].endswith("/citation-choice-v1/query-portfolio-v2")
+    assert result["binding"]["rule_version"].endswith("/citation-choice-v1/query-portfolio-v2/radar-search-directions-v1")
     assert result["binding"]["rule_sha256"] == hashlib.sha256(
         result["instructions"].encode("utf-8")
     ).hexdigest()

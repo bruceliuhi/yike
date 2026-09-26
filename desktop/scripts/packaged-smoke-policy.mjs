@@ -13,7 +13,7 @@ export function inspectWorkbench(document) {
   const headings = main ? [...main.querySelectorAll('.page-heading h1')] : [];
   const create = main ? [...main.querySelectorAll('.page-heading button')].find(button => text(button) === '创建获客任务') : null;
   const sample = main?.querySelector('.sample-section');
-  const sampleAction = sample?.querySelector('button.sample-row');
+  const sampleAction = sample?.querySelector('button.sample-row, button.sample-card');
   return {
     main: !!main,
     heading: headings.length === 1 && text(headings[0]) === '商机工作台',

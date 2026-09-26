@@ -451,6 +451,8 @@ def register_ui_api(app: FastAPI, store, *, auth_secret: str, dev_login: bool = 
     register_material_api(router, materials, identity, require_session_https)
     from pilot.search_suggestion_api import register_search_suggestion_api
     register_search_suggestion_api(router, search_suggestions, identity, require_session_https)
+    from pilot.radar_plan_api import register_radar_plan_api
+    register_radar_plan_api(router, identity, require_session_https)
     from pilot.opportunity_research import OpportunityResearchService
     from pilot.opportunity_research_api import register_opportunity_research_api
 

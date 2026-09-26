@@ -1,7 +1,15 @@
 from __future__ import annotations
 
-from itertools import product
 from typing import Any
+
+# Preserve the documented direct-script entry point while sharing the packaged
+# customer planner; pilot never imports this standalone application.
+if not __package__:
+    import sys
+    from pathlib import Path
+    sys.path.append(str(Path(__file__).resolve().parents[2]))
+
+from pilot.radar_plan import build_search_directions
 
 try:
     from .connectors import list_capabilities
@@ -9,34 +17,6 @@ try:
 except ImportError:  # running server.py directly
     from connectors import list_capabilities
     from usage import DISPLAY_UNIT, RULE_VERSION, UNIT, cost_estimate as source_cost_estimate
-
-
-SYNONYMS: dict[str, tuple[str, ...]] = {
-    "AI客服": ("AI客服", "智能客服", "客服机器人"),
-    "企业知识库": ("企业知识库", "内部知识库", "文档问答"),
-    "智能体": ("智能体", "Agent", "业务助手"),
-    "AI工作流": ("AI工作流", "自动化工作流", "业务自动化"),
-    "数字人": ("数字人", "虚拟人", "数字员工"),
-    "找服务商": ("找服务商", "寻找团队", "找供应商"),
-    "定制开发": ("定制开发", "定制", "开发落地"),
-    "采购": ("采购", "寻求采购", "招标采购"),
-    "预算": ("预算", "报价", "项目预算"),
-    "外包": ("外包", "合作开发", "项目外包"),
-    "落地": ("落地", "实施", "上线"),
-}
-
-SYNONYMS_EN: dict[str, tuple[str, ...]] = {
-    "AI customer service": ("AI customer service", "AI support agent", "customer service automation"),
-    "enterprise knowledge base": ("enterprise knowledge base", "internal knowledge base", "document Q&A"),
-    "AI agent": ("AI agent", "business agent", "copilot"),
-    "workflow automation": ("workflow automation", "business automation", "process automation"),
-    "digital human": ("digital human", "virtual human", "digital employee"),
-    "looking for vendor": ("looking for vendor", "seeking a provider", "vendor search"),
-    "custom development": ("custom development", "bespoke software", "implementation partner"),
-    "procurement": ("procurement", "purchasing", "buying"),
-    "budget": ("budget", "project budget", "pricing"),
-    "implementation": ("implementation", "deployment", "rollout"),
-}
 
 
 def _unique(values: list[str]) -> list[str]:
@@ -48,21 +28,6 @@ def _unique(values: list[str]) -> list[str]:
             result.append(clean)
             seen.add(clean)
     return result
-
-
-def _expand(terms: list[str], language: str = "zh-CN") -> list[str]:
-    expanded: list[str] = []
-    synonyms = SYNONYMS_EN if language == "en-US" else SYNONYMS
-    lowered = {key.lower(): value for key, value in synonyms.items()}
-    for term in terms:
-        expanded.extend(synonyms.get(term, lowered.get(term.lower(), (term,))))
-    return _unique(expanded)
-
-
-def _query(topic: str, action: str, business: str = "", language: str = "zh-CN") -> str:
-    suffix = f" {business}" if business else ""
-    excluded = "-tutorial -course -job posting" if language == "en-US" else "-教程 -课程 -纯招聘"
-    return f'"{topic}" "{action}"{suffix} {excluded}'
 
 
 def _capability_index(source_ids: list[str]) -> list[dict[str, Any]]:
@@ -95,22 +60,16 @@ def _capability_index(source_ids: list[str]) -> list[dict[str, Any]]:
 
 def build_search_plan(criteria: dict[str, Any], requested_limit: int) -> dict[str, Any]:
     language = str(criteria.get("language") or "zh-CN")
-    topics = _expand(list(criteria.get("solution_terms", [])), language)[:8]
-    actions = _expand(list(criteria.get("purchase_terms", [])), language)[:8]
-    businesses = _unique(list(criteria.get("business_terms", [])))[:4]
     regions = _unique(list(criteria.get("regions", [])))[:6]
-    if not topics:
-        topics = ["企业AI应用"]
-    if not actions:
-        actions = ["找服务商"]
-
-    combinations = list(product(topics[:4], actions[:4]))
-    quick = [_query(topic, action, language=language) for topic, action in combinations[:8]]
-    condition = [_query(topic, action, business, language) for topic, action, business in product(topics[:3], actions[:3], businesses[:2] or [""])][:10]
-    broad = [_query(topic, action, language=language) for topic, action in product(topics[4:8] or topics[:2], actions[4:8] or actions[:2])][:10]
-    if regions:
-        region_hint = " OR ".join(regions)
-        condition = [f"({query}) ({region_hint})" for query in condition]
+    directions = build_search_directions(
+        query_seeds=list(criteria.get("solution_terms", []))[:20],
+        intent_signals=list(criteria.get("purchase_terms", []))[:20],
+        exclusions=list(criteria.get("exclude_terms", []))[:25],
+        region=" OR ".join(regions),
+        business_terms=list(criteria.get("business_terms", []))[:20],
+        max_queries=28,
+    )
+    quick, condition, broad = [stage["queries"] for stage in directions["strategies"]]
 
     source_ids: list[str] = []
     for source_id in criteria.get("sources", []):
@@ -140,12 +99,13 @@ def build_search_plan(criteria: dict[str, Any], requested_limit: int) -> dict[st
     estimated_max = quick_credits + condition_credits + broad_credits if known_quotes else None
     return {
         "planner_version": "2026.09.23.1",
+        "query_planner_version": directions["version"],
         "language": language,
         "requested_limit": requested_limit,
         "strategies": [
-            {"id": "quick", "name": "快速搜索", "purpose": "先拿到少量高相关候选", "queries": quick, "estimated_credits": quick_credits},
-            {"id": "condition", "name": "条件核验", "purpose": "逐项核验时间、动作、行业和地域", "queries": condition, "estimated_credits": condition_credits},
-            {"id": "broad", "name": "扩展搜索", "purpose": "用同义词、相邻场景和业务词继续发现", "queries": broad, "estimated_credits": broad_credits},
+            stage | {"estimated_credits": credits}
+            for stage, credits in zip(directions["strategies"],
+                                      (quick_credits, condition_credits, broad_credits))
         ],
         "hard_filters": {
             "time_window_days": int(criteria.get("time_window_days", 180)),

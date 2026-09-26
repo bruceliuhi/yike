@@ -4,10 +4,13 @@ import {inspectWorkbench, isRendererConsoleError, workbenchFailure} from '../scr
 
 afterEach(() => { document.body.innerHTML = ''; });
 const workbench = '<main id="main-content"><header class="page-heading"><h1>商机工作台</h1><button>创建获客任务</button></header><section class="sample-section"><h2>公开研究样例</h2><button class="sample-row">查看样例</button></section></main>';
+const cardWorkbench = workbench.replace('class="sample-row"', 'class="sample-card"');
 
 describe('actual workbench render evidence', () => {
   it('accepts the real workbench structure without treating it as business execution evidence', () => {
     document.body.innerHTML = workbench;
+    expect(workbenchFailure(inspectWorkbench(document))).toBeNull();
+    document.body.innerHTML = cardWorkbench;
     expect(workbenchFailure(inspectWorkbench(document))).toBeNull();
   });
   it('rejects the observed error boundary even though the body includes the workbench name', () => {

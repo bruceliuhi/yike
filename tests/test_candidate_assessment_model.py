@@ -499,6 +499,13 @@ def test_installed_wheel_has_identical_rules_and_missing_rules_fail_closed(tmp_p
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr
     assert tuple(json.loads(result.stdout)) == expected
+    planner_code = ("import sys;sys.path.insert(0,sys.argv[1]);"
+                    "from pilot.radar_plan_api import preview_plan;"
+                    "from pilot.radar_plan import build_search_directions;"
+                    "assert build_search_directions(query_seeds=['water pump'],intent_signals=['procurement'])['queries']")
+    planner = subprocess.run([sys.executable, "-I", "-c", planner_code, str(installed)], cwd=tmp_path,
+                             capture_output=True, text=True, timeout=10)
+    assert planner.returncode == 0, planner.stderr
     worker_code = "import sys;sys.path.insert(0,sys.argv[1]);from pilot.candidate_assessment_worker import main;main()"
     worker = subprocess.run([sys.executable, "-I", "-c", worker_code, str(installed)],
         input=json.dumps(worker_input(rule_sha256="0" * 64)).encode(), cwd=tmp_path,

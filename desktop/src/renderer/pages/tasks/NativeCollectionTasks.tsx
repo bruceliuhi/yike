@@ -252,7 +252,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
     <>
       <PageHeader
         title={taskId ? "采集任务详情" : "线索采集"}
-        description="查看已启动任务和实际入库进度；采集记录仍需判断，不等于有效商机。"
+        description="查看任务进度，核对发现的需求，再决定是否跟进。"
         back={taskId ? () => navigate("/collection") : undefined}
         extra={
           <>
@@ -290,7 +290,7 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
                     <th>任务</th>
                     <th>类型 / 平台</th>
                     <th>进度</th>
-                    <th>入库记录 / 上限</th>
+                    <th>本次结果</th>
                     <th>创建时间</th>
                   </tr>
                 </thead>
@@ -324,7 +324,11 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
                         ? <Button variant="ghost" onClick={() => navigate(`/collection?task=${row.task_id}`)}>查看研究进度</Button>
                         : statusLabels[row.status]}</td>
                       <td>
-                        {row.records_used} / {row.max_records}
+                        <Button variant="ghost"
+                          aria-label={`查看「${row.name || `采集任务 ${index + 1}`}」发现线索`}
+                          onClick={() => navigate(`/candidates?task=${row.task_id}`)}>
+                          查看线索
+                        </Button>
                       </td>
                       <td>{formatDate(row.created_at)}</td>
                     </tr>
@@ -355,6 +359,16 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
             当前状态：{statusLabels[item.status]}
           </p>}
           {['CANCELLING','CANCELED'].includes(item.status) && !item.stop_confirmed && <Notice tone="warning">停止结果尚未确认，请刷新当前任务，不要重复启动。</Notice>}
+          <div className="task-footer" aria-label="本次任务结果">
+            <Button variant={item.research ? 'secondary' : 'primary'} onClick={() => navigate(`/candidates?task=${item.task_id}`)}>
+              查看本次发现线索
+            </Button>
+            {item.mode === "monitor" && (
+              <Button onClick={() => navigate("/monitors")}>
+                管理监控计划
+              </Button>
+            )}
+          </div>
           <details className="usage-advanced">
           <summary>查看运行详情</summary>
           <p>已保存记录：{item.records_used} / {item.max_records}（不是已确认商机数量）</p>
@@ -395,9 +409,9 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
               请在创建任务的设备完成身份核对后取消或查询本机来源；历史任务仍可查看。
             </Notice>
           )}
-          <div className="task-footer">
+          <div className="task-footer" aria-label="任务控制与状态核对">
             <Button
-              variant="danger"
+              variant="ghost"
               disabled={!canCancel}
               onClick={() =>
                 setConfirmation({ identity: scope.identity, item })
@@ -418,14 +432,6 @@ function CollectionTaskView({ taskId }: { taskId: string }) {
             >
               查询本机采集状态
             </Button>}
-            <Button onClick={() => navigate(`/candidates?task=${item.task_id}`)}>
-              查看本次发现线索
-            </Button>
-            {item.mode === "monitor" && (
-              <Button onClick={() => navigate("/monitors")}>
-                管理监控计划
-              </Button>
-            )}
           </div>
           {checkLocal && !item.research && (
             <>

@@ -2,6 +2,7 @@
 // Synthetic UI contract evidence, not actual platform collection.
 import {cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react';
 import {afterEach,beforeEach,describe,it,expect,vi} from 'vitest';
+import '@testing-library/jest-dom/vitest';
 import {NativeMonitorPlans} from '../../src/renderer/pages/tasks/NativeMonitorPlans';
 import {TasksPage} from '../../src/renderer/pages/Tasks';
 import {taskDraftOwner} from '../../src/renderer/app/taskDraft';
@@ -27,6 +28,31 @@ beforeEach(()=>{
 });
 afterEach(()=>cleanup());
 describe('monitor page real service wiring',()=>{
+ it('opens the exact latest task results without launching or querying a collection',async()=>{
+  context.route=parseRoute(`#/monitors/${id}`);
+  const taskId='44444444-4444-4444-8444-444444444444';
+  const execute=vi.mocked(context.service.monitorCollection!.execute);
+  execute.mockResolvedValue({state:'LIST',supported:true,plans:[{...base,taskId}],serverTime:null} as any);
+  context.service.foregroundCollection={execute:vi.fn()} as any;
+  render(<NativeMonitorPlans/>);
+  const results=await screen.findByRole('button',{name:'查看本次发现线索'});
+  expect(results).toHaveClass('button-primary');
+  fireEvent.click(results);
+  expect(context.navigate).toHaveBeenCalledWith(`/candidates?task=${taskId}`);
+  fireEvent.click(screen.getByRole('button',{name:'查看本次进度'}));
+  expect(context.navigate).toHaveBeenCalledWith(`/collection?task=${taskId}`);
+  expect(execute.mock.calls.every(([command])=>command.action==='LIST')).toBe(true);
+  expect(context.service.foregroundCollection!.execute).not.toHaveBeenCalled();
+  expect(screen.getByText(/计划已启用、下次到期和本机接管/)).not.toBeVisible();
+ });
+ it('does not invent a latest result action before a monitoring round exists',async()=>{
+  context.route=parseRoute(`#/monitors/${id}`);
+  render(<NativeMonitorPlans/>);
+  await screen.findByRole('region',{name:'真实监控详情'});
+  expect(screen.queryByRole('button',{name:'查看本次发现线索'})).toBeNull();
+  expect(screen.queryByRole('button',{name:'查看本次进度'})).toBeNull();
+  expect(screen.getByText('还没有可查看的轮次结果，开始运行后会在这里显示。')).toBeVisible();
+ });
  it.each(['ACTIVE','PAUSED'] as const)('distinguishes two same-profile %s plans and confirms only the chosen plan',async(state)=>{
   const other='22222222-2222-4222-8222-222222222222';
   const plans=[{...base,state,nextDueAt:null},{...base,planId:other,state,nextDueAt:null,

@@ -67,6 +67,7 @@ import {useMonitorCollection} from './tasks/useMonitorCollection';
 import {monitorCreateCommand} from '../domain/monitorCollection';
 import { SearchSuggestionPanel } from "./tasks/SearchSuggestionPanel";
 import { IndustryTaskStrategyEditor } from './tasks/IndustryTaskStrategyEditor';
+import { SearchPlanPreview } from './tasks/SearchPlanPreview';
 import { adoptIndustryTaskStrategy } from '../domain/industryTaskStrategy';
 import {nativeResearchStartCommand} from '../domain/nativeResearch';
 import {DYNAMIC_RESEARCH_SOURCE} from '../../shared/dynamicResearch';
@@ -833,6 +834,9 @@ export function TaskWizardPage() {
               {errors.conflicts && (
                 <Notice tone="error">{errors.conflicts}</Notice>
               )}
+              {draft.source === 'search' && draft.publicSource === DYNAMIC_RESEARCH_SOURCE && draft.research &&
+                draft.mode === 'once' && draft.platforms.length === 1 && draft.platforms[0] === 'web' &&
+                <SearchPlanPreview draft={draft} />}
               <PlatformSearchTerms draft={draft} onChange={platformTerms=>update({platformTerms})}/>
             </section>
             <IndustryTaskStrategyEditor value={draft.industryStrategy} profileId={draft.profileId}

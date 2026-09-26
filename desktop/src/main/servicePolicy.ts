@@ -9,6 +9,7 @@ import {searchCoverageQuerySchema} from '../shared/searchCoverage';
 import {suggestionPreviewRequestSchema,suggestionRequestSchema,suggestionReceiptRequestSchema} from '../shared/searchSuggestions';
 import {taskFeedQuerySchema,taskFeedGetSchema} from '../shared/taskFeed';
 import {researchTimelineRequestSchema,researchSimilarRequestSchema} from '../shared/opportunityResearchApi';
+import {radarPlanRequestSchema} from '../shared/radarPlan';
 import {prepareStrategySchema, confirmStrategySchema, revokeStrategySchema, strategyUuidSchema} from '../shared/researchStrategies';
 import {candidateBindingSchema, candidateQuerySchema, candidateReviewRequestSchema, sourceVerificationRequestSchema, candidateRequestIdSchema, type CandidateQueryInput} from '../shared/candidateReviewApi';
 import {materialImpactRequestSchema, materialListRequestSchema, materialMutationRequestSchema, materialOperationRequestSchema} from '../shared/materialsApi';
@@ -36,6 +37,7 @@ const schemas = {
   'contactDrafts.latest': contactDraftLatestSchema,
   'coverage.query': searchCoverageQuerySchema,
   'research.list': empty,
+  'researchPlan.preview': radarPlanRequestSchema,
   'research.timeline': researchTimelineRequestSchema,
   'research.similar': researchSimilarRequestSchema,
   'suggestions.preview': suggestionPreviewRequestSchema,
@@ -104,6 +106,7 @@ export function validatedOperation(input: unknown): ServiceOperation | null {
   if (operation.startsWith('strategies.') && new TextEncoder().encode(JSON.stringify(parsed.data)).byteLength > 128 * 1024) return null;
   const data = parsed.data as Record<string, string> | undefined;
   switch (operation) {
+    case 'researchPlan.preview': return {path:'/api/ui/research-plan/preview',method:'POST',body:JSON.stringify(parsed.data),logout:false};
     case 'researchUsage.quote': return {path:'/api/ui/research-usage/quote',method:'POST',body:JSON.stringify(parsed.data),logout:false};
     case 'researchRuntime.capability':return {path:'/api/ui/research-execution/capability'+(data?.dynamicResearchVersion?'?dynamic_research_version=1':data?.sourcePlanVersion?'?source_plan_version=1':data?.sourceCatalogVersion?'?source_catalog_version=1':''),method:'GET',logout:false};
     case 'researchRuntime.status':return {path:`/api/ui/research-execution/tasks/${data!.taskId}`,method:'GET',logout:false};

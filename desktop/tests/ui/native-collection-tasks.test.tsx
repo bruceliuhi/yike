@@ -215,6 +215,18 @@ it('keeps task status and actions up front while hiding server bookkeeping',asyn
   fireEvent.click(screen.getByText('查看运行详情'));
  expect(screen.getByText(/服务端停止登记：/)).toBeVisible();
 });
+it('prioritizes task results over cancellation without running collection',async()=>{
+ context.route=parseRoute(`#/collection?task=${id}`);
+ render(<NativeCollectionTasks/>);
+ const results=await screen.findByRole('button',{name:'查看本次发现线索'});
+ const cancel=screen.getByRole('button',{name:'取消本次采集'});
+ expect(results).toHaveClass('button-primary');
+ expect(cancel).toHaveClass('button-ghost');
+ expect(results.compareDocumentPosition(cancel)&Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+ fireEvent.click(results);
+ expect(context.navigate).toHaveBeenCalledWith(`/candidates?task=${id}`);
+ expect(vi.mocked(context.service.execution!.execute).mock.calls.every(([command])=>command.action==='LIST')).toBe(true);
+});
 it('keeps real task details before collapsed search details while retaining expandable coverage', async () => {
   context.route = parseRoute(`#/collection?task=${id}`);
   context.service.searchCoverage = { query: vi.fn(async () => coverageFixture()) } as any;
@@ -310,7 +322,9 @@ it('never retries a missing original receipt or after device identity changes',a
 it("loads real server rows, paginates without execution and routes to exact task", async () => {
   render(<NativeCollectionTasks />);
   await screen.findByRole("button", { name: "制造企业需求" });
-  expect(screen.getByText("2 / 20")).toBeTruthy();
+  expect(screen.queryByText("2 / 20")).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'查看「制造企业需求」发现线索'}));
+  expect(context.navigate).toHaveBeenCalledWith(`/candidates?task=${id}`);
   expect(screen.getByText("B站").closest(".brand-platform-label")).toBeTruthy();
   expect(document.querySelector("tbody .brand-platform-icon img")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "制造企业需求" }));

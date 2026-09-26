@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
+import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import {ResearchProgress} from '../../src/renderer/pages/tasks/ResearchProgress';
 import {ResearchReadEvidence} from '../../src/renderer/pages/tasks/ResearchReadEvidence';
 import type {AppContextValue} from '../../src/renderer/app/context';
@@ -244,10 +244,41 @@ it('appends strictly paginated READ evidence without reloading the first page',a
     .mockResolvedValueOnce({contractVersion:1,taskId,runId,items:[second],nextAfter:null});
   render(<ResearchReadEvidence taskId={taskId} runId={runId} reads={readMethod()} onOpen={vi.fn()}/>);
   fireEvent.click(screen.getByText('已读原文'));await screen.findByText('第一页');
-  fireEvent.click(screen.getByRole('button',{name:'下一页'}));await screen.findByText('第二页');
+  fireEvent.click(screen.getByRole('button',{name:'加载更多原文'}));await screen.findByText('第二页');
   expect(reads.mock.calls.map(call=>call.slice(0,3))).toEqual([[taskId,runId,0],[taskId,runId,1]]);
   expect(screen.getAllByRole('article',{name:'研究原文'})).toHaveLength(2);
-  expect((screen.getByRole('button',{name:'下一页'}) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole('button',{name:'加载更多原文'}) as HTMLButtonElement).disabled).toBe(true);
+});
+it('keeps the original and source action ahead of collapsed source metadata',async()=>{
+  const url='https://example.com/customer-request';
+  const onOpen=vi.fn().mockResolvedValue(undefined);
+  reads.mockResolvedValue({contractVersion:1,taskId,runId,items:[{sequence:1,url,title:'真实需求',text:'需要一套报价方案',
+    observedAt:'2026-09-13T08:00:00Z',contentSha256:'a'.repeat(64)}],nextAfter:null});
+  render(<ResearchReadEvidence taskId={taskId} runId={runId} reads={readMethod()} onOpen={onOpen}/>);
+  fireEvent.click(screen.getByText('已读原文'));
+  expect(await screen.findByText('需要一套报价方案')).toBeVisible();
+  expect(screen.getByText(url)).not.toBeVisible();
+  expect(screen.getByText(/读取于/)).not.toBeVisible();
+  const open=screen.getByRole('button',{name:'打开公开来源'});
+  expect(open).toBeVisible();
+  fireEvent.click(open);
+  expect(onOpen).toHaveBeenCalledExactlyOnceWith(url);
+  fireEvent.click(screen.getByText('来源信息'));
+  expect(screen.getByText(url)).toBeVisible();
+  expect(screen.getByText(/读取于/)).toBeVisible();
+});
+it('discards a source-opening error after changing the research run',async()=>{
+  let reject!:(reason:unknown)=>void;
+  const onOpen=vi.fn(()=>new Promise<void>((_,no)=>{reject=no;}));
+  reads.mockResolvedValue({contractVersion:1,taskId,runId,items:[{sequence:1,url:'https://example.com/demand',title:'旧任务原文',text:'原文',
+    observedAt:'2026-09-13T08:00:00Z',contentSha256:'a'.repeat(64)}],nextAfter:null});
+  const rendered=render(<ResearchReadEvidence taskId={taskId} runId={runId} reads={readMethod()} onOpen={onOpen}/>);
+  fireEvent.click(screen.getByText('已读原文'));
+  fireEvent.click(await screen.findByRole('button',{name:'打开公开来源'}));
+  rendered.rerender(<ResearchReadEvidence taskId={taskId} runId="33333333-3333-4333-8333-333333333333" reads={readMethod()} onOpen={onOpen}/>);
+  await act(async()=>reject(new Error('failed')));
+  expect(screen.queryByText('来源链接未能安全打开，请稍后重试。')).toBeNull();
+  expect(screen.queryByText('旧任务原文')).toBeNull();
 });
 it('aborts and discards a late READ page when the run changes',async()=>{
   let release!:(value:unknown)=>void;let originalSignal!:AbortSignal;

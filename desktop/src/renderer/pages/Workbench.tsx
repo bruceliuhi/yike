@@ -5,7 +5,7 @@ import { useResource } from "../app/hooks";
 import { boundedRequest } from "../app/boundedRequest";
 import { OpportunityBrief } from "./workbench/OpportunityBrief";
 import { TodoQueue } from "./workbench/TodoQueue";
-import { isSample, PUBLIC_SAMPLES } from "./Opportunities";
+import { isSample, PUBLIC_SAMPLE } from "./Opportunities";
 import {
   summarizeTaskRuns,
   taskStateLabel,
@@ -125,7 +125,7 @@ export function WorkbenchPage() {
     <>
       <PageHeader
         title="商机工作台"
-        description="把值得处理的机会，放在今天。"
+        description="查看新线索、待复核商机和今天的跟进"
         extra={
           <Button variant="primary" onClick={() => navigate("/tasks/new")}>
             创建获客任务
@@ -275,27 +275,13 @@ export function WorkbenchPage() {
       <section className="sample-section">
         <div className="section-heading">
           <h2>公开研究样例</h2>
-          <p>跨平台只读演示快照，不计入客户商机、联系队列或业绩统计。</p>
+          <Button variant="ghost" onClick={() => navigate('/opportunities?scope=sample')}>更多平台样例 <ArrowRight /></Button>
         </div>
-        <div className="sample-grid">
-          {PUBLIC_SAMPLES.map((sample) => (
-            <button
-              key={sample.id}
-              className="sample-card"
-              onClick={() => navigate(`/opportunities/${sample.id}`)}
-            >
-              <div className="sample-card-head">
-                <PlatformLabel platform={sample.platform} size={18} />
-                <Badge tone="orange">只读演示</Badge>
-              </div>
-              <strong>{sample.title}</strong>
-              <small>{sample.sampleLabel || "公开网站 · 已核对出处"}</small>
-              <span className="text-link">
-                查看证据 <ArrowRight />
-              </span>
-            </button>
-          ))}
-        </div>
+        <button className="sample-row" onClick={() => navigate(`/opportunities/${PUBLIC_SAMPLE.id}`)}>
+          <span><PlatformLabel platform={PUBLIC_SAMPLE.platform} size={18} /><Badge tone="orange">只读样例</Badge></span>
+          <span><strong>{PUBLIC_SAMPLE.title}</strong><small>查看原文、判断依据和联系草稿，不计入客户商机</small></span>
+          <span className="text-link">查看证据 <ArrowRight /></span>
+        </button>
       </section>
     </>
   );

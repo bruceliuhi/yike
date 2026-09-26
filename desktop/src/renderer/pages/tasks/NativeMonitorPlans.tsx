@@ -76,7 +76,7 @@ export function NativeMonitorPlans(){
  }
  return <>
   <PageHeader title={selected?(details.data?.snapshot.configuration.name||'监控详情'):'监控任务'}
-   description="按已确认周期发现需求。客户端关闭不采集，重新打开后请确认本机账号再接管；不会补跑历史。"
+   description="按计划发现新需求，查看每次结果。客户端需保持在线，错过的时段不补跑。"
    back={id?()=>navigate('/monitors'):undefined}
    extra={<><Button onClick={()=>void monitor.refresh()}>刷新监控</Button>
     <Button onClick={()=>{setDraft(newTaskDraft('monitor'));navigate('/tasks/new?mode=monitor');}}>新建普通监控</Button>
@@ -114,6 +114,10 @@ export function NativeMonitorPlans(){
    <p>{scheduleLabel(selected)}</p>
    <p className="field-hint">离线错过的计划不补跑，恢复在线后从下次计划继续。</p>
    <p>下次到期：{selected.nextDueAt?formatDate(selected.nextDueAt):'暂停期间不安排'}</p>
+   {selected.taskId?<div className="task-footer" aria-label="本次监控结果">
+    <Button variant="primary" onClick={()=>navigate(`/candidates?task=${selected.taskId}`)}>查看本次发现线索</Button>
+    <Button onClick={()=>navigate(`/collection?task=${selected.taskId}`)}>查看本次进度</Button>
+   </div>:<p className="muted">还没有可查看的轮次结果，开始运行后会在这里显示。</p>}
    <ProfileVersionStatusNotice
     comparison={profileComparison}
     loading={profiles.loading}
@@ -133,7 +137,10 @@ export function NativeMonitorPlans(){
       if(scope.current())setRunState(result.state==='STATUS'?`采集：${({COLLECTING:'采集中',INTERRUPTED:'已中断',UPLOAD_UNKNOWN:'上传待核对',FINISH_UNKNOWN:'完成待核对',COMPLETED:'已完成',STOPPED:'已停止',FAILED:'失败'})[result.localState] || '待核对'}；任务：${({PENDING:'待执行',RUNNING:'运行中',CANCELLING:'取消中',CANCELED:'已取消',SUCCEEDED:'已完成'})[result.serverStatus] || '待核对'}；已记录 ${result.recordsUsed} 条；停止${result.stopConfirmed?'已确认':'尚未确认'}`:'轮次状态未核实，请稍后刷新。');
      }catch{if(scope.current())setRunState('轮次状态未核实，请稍后刷新。');}
     })()}>查询实际轮次结果</Button><p>{runState}</p></>}
-   <p className="field-hint">计划已启用、下次到期和本机接管均不是采集成功证明。真实结果以原轮次与商机证据为准。</p>
+   <details className="usage-advanced">
+    <summary>监控运行说明</summary>
+    <p className="field-hint">重新打开客户端后，请确认本机账号再接管计划。计划已启用、下次到期和本机接管均不是采集成功证明。真实结果以原轮次与商机证据为准。</p>
+   </details>
   </section>}
   {confirmation&&<Confirm title={confirmation.command.action==='SET_STATE'&&confirmation.command.state==='PAUSED'?'暂停监控计划':'确认本机监控账号'}
    onCancel={()=>setConfirmation(null)} loading={monitor.busy} confirmText="确认执行" onConfirm={()=>void(async()=>{

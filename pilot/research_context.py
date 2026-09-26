@@ -13,15 +13,15 @@ from pilot.open_web_reader import PublicReadError, normalize_public_url
 from pilot.research_entry_urls import validate_entry_urls
 from pilot.research_source_catalog import research_entry_hints, research_public_entry_urls
 from pilot.research_citation_selection import CITATION_CHOICE_INSTRUCTIONS
-from pilot.research_query_portfolio import build_query_portfolio
+from pilot.radar_plan import build_search_directions
 from pilot.research_stage_rules import RESEARCH_STAGE_INSTRUCTIONS
 from pilot.research_strategy_contract import (
     StrategyStoreError, configuration_digest, strategy_snapshot as validate_strategy_snapshot,
 )
 
 
-_RULE_VERSION = "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1/trusted-entries-v1/efficient-handoff-v1/citation-choice-v1/query-portfolio-v2"
-_RULE_VERSION_V2 = "opportunity-research-context-v2/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1/trusted-entries-v1/efficient-handoff-v1/citation-choice-v1/query-portfolio-v2"
+_RULE_VERSION = "opportunity-research-context-v1/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1/trusted-entries-v1/efficient-handoff-v1/citation-choice-v1/query-portfolio-v2/radar-search-directions-v1"
+_RULE_VERSION_V2 = "opportunity-research-context-v2/ai-project-lead-research-1.0.0/entry-hints-v1/page-selection-v1/trusted-entries-v1/efficient-handoff-v1/citation-choice-v1/query-portfolio-v2/radar-search-directions-v1"
 _RULE_FILES = (
     "SKILL.md",
     "references/evaluation.md",
@@ -249,6 +249,7 @@ reference_time、timezone 与 max_age_days 限定作者原文时间；搜索索�
     sections = [header, "\n", research_entry_hints(), "\n",
                 "## 本轮查询组合\n",
                 "宿主会在 HOST_QUERY_PORTFOLIO_JSON 中提供本轮查询方向；按顺序选择尚未执行的查询，避免重复相同搜索。查询组合不是来源证据，每条仍需打开并核验原文。\n",
+                "查询由同一三路规划内核生成：先快速搜索，再交替核验确认条件与补查相关表达；不额外增加行业、地域、平台权限或搜贝额度。\n",
                 RESEARCH_STAGE_INSTRUCTIONS,
                 "\n## 已校验原规则包摘要\n"]
     for name in sorted(documents):
@@ -278,12 +279,15 @@ def compile_research_context(value: dict) -> dict:
         _invalid()
     documents = _load_rules()
     instructions = _instructions(documents)
-    query_portfolio = build_query_portfolio(
-        query_seeds=validated["query_seeds"],
-        intent_signals=validated["intent_signals"],
-        exclusions=validated["exclusions"],
-        max_queries=min(24, max(8, len(validated["query_seeds"]) * 6)),
-    )
+    try:
+        query_portfolio = build_search_directions(
+            query_seeds=validated["query_seeds"],
+            intent_signals=validated["intent_signals"],
+            exclusions=validated["exclusions"],
+            max_queries=min(24, max(8, len(validated["query_seeds"]) * 6)),
+        )["queries"]
+    except ValueError:
+        _invalid()
     rule_sha = hashlib.sha256(instructions.encode("utf-8")).hexdigest()
     context_sha = hashlib.sha256(context_json.encode("utf-8")).hexdigest()
     binding = {
